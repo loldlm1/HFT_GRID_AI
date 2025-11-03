@@ -9,6 +9,46 @@
 // No need to include them here to avoid circular dependencies
 
 // TRADING SIGNALS STRUCTURES
+
+struct GridLevelPlan
+{
+  int    level_index;
+  double distance_points;
+  double pending_order_points;
+  double stop_loss_points;
+  double take_profit_points;
+  double trailing_points;
+  double lot_size;
+
+  GridLevelPlan()
+  {
+    level_index          = 0;
+    distance_points      = 0.0;
+    pending_order_points = 0.0;
+    stop_loss_points     = 0.0;
+    take_profit_points   = 0.0;
+    trailing_points      = 0.0;
+    lot_size             = 0.0;
+  }
+};
+
+struct GridMetadata
+{
+  bool        initialized;
+  SignalTypes direction;
+  double      base_distance_points;
+  double      base_lot_size;
+  GridLevelPlan levels[];
+
+  GridMetadata()
+  {
+    initialized          = false;
+    direction            = NO_SIGNAL;
+    base_distance_points = 0.0;
+    base_lot_size        = 0.0;
+  }
+};
+
 struct SignalParams
 {
   SignalTypes               signal_type;
@@ -26,6 +66,7 @@ struct SignalParams
   StochasticStructure       stochastic_data[];
   StochasticMarketStructure stoch_market_structure_data[];
   BodyMAStructure           body_ma_data[];
+  GridMetadata              grid_plan;
 
   // DEFAULT CONSTRUCTOR
   SignalParams()
@@ -62,8 +103,12 @@ struct SignalParams
     ArrayCopy(bands_percent_data,          signal_params.bands_percent_data);
     ArrayCopy(stochastic_data,             signal_params.stochastic_data);
     ArrayCopy(body_ma_data,                signal_params.body_ma_data);
-    // FIXME: Copying array of structures might need a custom deep copy function
-    // ArrayCopy(stoch_market_structure_data, signal_params.stoch_market_structure_data);
+    ArrayCopy(stoch_market_structure_data, signal_params.stoch_market_structure_data);
+    ArrayCopy(grid_plan.levels,            signal_params.grid_plan.levels);
+    grid_plan.initialized          = signal_params.grid_plan.initialized;
+    grid_plan.direction            = signal_params.grid_plan.direction;
+    grid_plan.base_distance_points = signal_params.grid_plan.base_distance_points;
+    grid_plan.base_lot_size        = signal_params.grid_plan.base_lot_size;
   }
 };
 

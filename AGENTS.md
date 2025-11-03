@@ -26,6 +26,7 @@ This is a HFT Grid AI Expert Advisor designed to execute high frequency position
 - Calculate exponential spacing and initial stop distances, ensuring broker freeze/stop compliance
 - Persist grid metadata to memory containers designed for quick iteration and recovery
 - Exit Criteria: simulated grids open with correct spacing, no broker rule violations, state snapshot logged
+- Completed: grid inputs exposed, ATR handles loaded on demand with fallbacks, grid plans attached to signals (spacing, stops, TP, lot scaling) while enforcing broker constraints
 
 ### Phase 3 – Order Lifecycle Control
 - Automate buy/sell stop placement that trails adverse price action according to Grid_Initial_Stops_Percent

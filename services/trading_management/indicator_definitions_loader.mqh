@@ -13,6 +13,7 @@ IndicatorsHandleInfo ExtBPercentIndicatorsHandle[];
 IndicatorsHandleInfo ExtStochIndicatorsHandle[];
 IndicatorsHandleInfo ExtStructStochIndicatorsHandle[];
 IndicatorsHandleInfo ExtBodyMAIndicatorsHandle[];
+IndicatorsHandleInfo ExtATRIndicatorsHandle[];
 
 // TOTAL INDICATORS TO LOAD
 int start_bands_indicators_load = 0;
@@ -76,6 +77,8 @@ void LoadAllIndicatorDefinitions()
   bool use_base_indicator  = (Base_Indicator_Strategy_Type != BB_NONE_TYPE);
   bool use_solid_indicator = (Solid_Indicator_Strategy_Type != SOLID_NONE_TYPE);
 
+  bool use_atr_strategy = (Grid_Base_Strategy_Type == ATR_RANGE);
+
   if(!use_base_indicator && !use_solid_indicator)
   {
     Print("WARNING: Both base and solid strategies are disabled; signal generation will be halted.");
@@ -94,6 +97,7 @@ void LoadAllIndicatorDefinitions()
   ArrayResize(ExtStochIndicatorsHandle, 0);
   ArrayResize(ExtStructStochIndicatorsHandle, 0);
   ArrayResize(ExtBodyMAIndicatorsHandle, 0);
+  ArrayResize(ExtATRIndicatorsHandle, 0);
 
   // OVERRIDE TOTAL INDICATORS TO LOAD FOR TESTING PURPOSES
   if(Test_Mode)
@@ -134,6 +138,15 @@ void LoadAllIndicatorDefinitions()
   else
   {
     Print("Solid indicator strategy disabled; skipping stochastic indicator loading.");
+  }
+
+  if(use_atr_strategy)
+  {
+    LoadAllATRIndicators();
+  }
+  else
+  {
+    Print("ATR grid strategy disabled; skipping ATR indicator loading.");
   }
 
   LoadAllBodyMAIndicators();
@@ -271,6 +284,39 @@ void LoadAllStructStochIndicators()
     Print("LOADED STRUCT STOCHS INDICATORS SUCCESFULLY PERIOD: ", EnumToString(trend_timeframe), " | PERIOD: ", struct_stoch_indicator_handle_loaded.indicator_period);
 
     AddElementToArray(ExtStructStochIndicatorsHandle, struct_stoch_indicator_handle_loaded);
+  }
+}
+
+void LoadAllATRIndicators()
+{
+  for(int i = 0; i < total_tf_list_load; ++i)
+  {
+    ENUM_TIMEFRAMES trend_timeframe = Strategy_TF_List[i];
+
+    IndicatorsHandleInfo atr_indicator_handle_loaded;
+
+    atr_indicator_handle_loaded.indicator_period    = (int)Base_Indicator_Period_Type;
+    double atr_factor = Grid_ATR_Points_Setup;
+    if(atr_factor <= 0.0)
+      atr_factor = 1.0;
+    atr_indicator_handle_loaded.indicator_handle    = iCustom(_Symbol,
+                                                              trend_timeframe,
+                                                              "Examples\\ATR_SL_Factor.ex5",
+                                                              atr_indicator_handle_loaded.indicator_period,
+                                                              atr_factor,
+                                                              0);
+    atr_indicator_handle_loaded.indicator_timeframe = trend_timeframe;
+
+    if(atr_indicator_handle_loaded.indicator_handle == INVALID_HANDLE)
+    {
+      Print("ERROR LOADING ATR FACTOR INDICATOR: ", EnumToString(trend_timeframe), " | PERIOD: ", atr_indicator_handle_loaded.indicator_period);
+      TesterStop();
+      break;
+    }
+
+    Print("LOADED ATR FACTOR INDICATOR SUCCESSFULLY: ", EnumToString(trend_timeframe), " | PERIOD: ", atr_indicator_handle_loaded.indicator_period);
+
+    AddElementToArray(ExtATRIndicatorsHandle, atr_indicator_handle_loaded);
   }
 }
 

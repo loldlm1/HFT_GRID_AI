@@ -69,6 +69,12 @@ The **HFT Grid AI EA** is a specialized Expert Advisor designed to execute high 
 - `CanAttemptSignal()` guard ensures only one active grid per direction and validates indicator availability before triggers fire
 - Detection functions require `EvaluateSignalTrigger()` approval, enabling MA-only, bands-only, or combined extrema logic without time-based scheduling
 
+### Phase 2 – Current Deliverables
+- Centralized grid inputs (`Grid_Base_Strategy_Type`, ATR/points setup, multipliers, percentages, direction) with validation and logging of the active context
+- Added ATR factor indicator loading on demand and fallback handling for points-based grids
+- Built grid plan metadata attached to every signal, including level spacing, stop/TP distances, and lot progression with broker-distance enforcement
+- Directional filter now blocks disallowed trend signals while providing debug output when logging is enabled
+
 ## Next Steps
 
 - Mirror this roadmap in `AGENTS.md` with actionable subtasks for each service owner

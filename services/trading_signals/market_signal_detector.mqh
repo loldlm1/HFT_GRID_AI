@@ -63,6 +63,12 @@ void DetectBullishSignal()
   if(!EvaluateSignalTrigger(signal_bullish, BULLISH))
     return;
 
+  if(!BuildGridPlanForSignal(signal_bullish))
+  {
+    Print("Grid plan failed for bullish signal, aborting detection.");
+    return;
+  }
+
   // OPEN THE BULLISH SIGNAL TO THE MARKET
   // ...
 
@@ -89,6 +95,12 @@ void DetectBearishSignal()
 
   if(!EvaluateSignalTrigger(signal_bearish, BEARISH))
     return;
+
+  if(!BuildGridPlanForSignal(signal_bearish))
+  {
+    Print("Grid plan failed for bearish signal, aborting detection.");
+    return;
+  }
 
   // OPEN THE BEARISH SIGNAL TO THE MARKET
   // ...
@@ -362,10 +374,12 @@ bool EvaluateSolidIndicatorTrigger(const SignalParams &signal_params, const Sign
   StochasticMarketStructure structure = signal_params.stoch_market_structure_data[0];
   OscillatorMarketStructure latest_extremum;
   if(!FetchLatestExtremum(structure, latest_extremum))
-    return false;
+  return false;
 
   if(signal_type == BULLISH)
+  {
     return !latest_extremum.is_peak;
+  }
 
   return latest_extremum.is_peak;
 }
