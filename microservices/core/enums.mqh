@@ -20,6 +20,51 @@ enum SignalStates
 	TRALING = 2
 };
 
+// BASE INDICATOR STRATEGIES
+enum BaseIndicatorStrategyTypes
+{
+	BB_NONE_TYPE = 0,
+	MA_TYPE      = 1,
+	BANDS_TYPE   = 2
+};
+
+// SOLID INDICATOR STRATEGIES
+enum SolidIndicatorStrategyTypes
+{
+  SOLID_NONE_TYPE = 0,
+  EXTREMA_TYPE    = 1
+};
+
+// BASE INDICATOR PERIOD OPTIONS (LINKED TO BB_PERCENT_STANDARD)
+enum BaseIndicatorPeriodTypes
+{
+  BASE_PERIOD_5  = 5,
+  BASE_PERIOD_8  = 8,
+  BASE_PERIOD_13 = 13,
+  BASE_PERIOD_21 = 21,
+  BASE_PERIOD_34 = 34,
+  BASE_PERIOD_55 = 55
+};
+
+// SOLID INDICATOR PERIOD OPTIONS (LINKED TO STOCHASTIC_STRUCTURE)
+enum SolidIndicatorPeriodTypes
+{
+  SOLID_PERIOD_5  = 5,
+  SOLID_PERIOD_8  = 8,
+  SOLID_PERIOD_13 = 13,
+  SOLID_PERIOD_21 = 21,
+  SOLID_PERIOD_34 = 34,
+  SOLID_PERIOD_55 = 55
+};
+
+// STRATEGY DIRECTION MODES
+enum StrategyDirectionTypes
+{
+  BOTH_DIRECTION    = 0,
+  BULLISH_DIRECTION = 1,
+  BEARISH_DIRECTION = 2
+};
+
 enum SlopeTypes
 {
 	NO_SLOPE   = 0,

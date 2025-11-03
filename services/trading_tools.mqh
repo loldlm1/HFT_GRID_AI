@@ -13,5 +13,6 @@
 #include "../microservices/utils/miscellaneous.mqh"
 #include "../microservices/utils/money_functions.mqh"
 #include "../microservices/utils/logs_helper.mqh"
+#include "../microservices/utils/broker_constraints_helper.mqh"
 
 #endif // _SERVICES_TRADING_TOOLS_MQH_

@@ -8,6 +8,10 @@
 SignalParams running_bullish_signals[];
 SignalParams running_bearish_signals[];
 
+const double BANDS_PERCENT_MID_LEVEL   = 50.0;
+const double BANDS_PERCENT_UPPER_LEVEL = 100.0;
+const double BANDS_PERCENT_LOWER_LEVEL = 0.0;
+
 // ++ HELPER FUNCTION TO CALCULATE CORRECT SHIFT BASED ON ENTRY TIME ++
 
 int GetShiftForEntryTime(datetime entry_time, ENUM_TIMEFRAMES tf)
@@ -41,7 +45,7 @@ int GetShiftForEntryTime(datetime entry_time, ENUM_TIMEFRAMES tf)
 
 void DetectBullishSignal()
 {
-  if(GuardStochasticSignalDetection(BULLISH)) return;
+  if(!CanAttemptSignal(BULLISH)) return;
 
   SignalParams signal_bullish;
 
@@ -56,6 +60,9 @@ void DetectBullishSignal()
   SetTFStochasticMarketStructureDataToSignalParams(signal_bullish);
   SetTFBodyMADataToSignalParams(signal_bullish);
 
+  if(!EvaluateSignalTrigger(signal_bullish, BULLISH))
+    return;
+
   // OPEN THE BULLISH SIGNAL TO THE MARKET
   // ...
 
@@ -65,7 +72,7 @@ void DetectBullishSignal()
 
 void DetectBearishSignal()
 {
-  if(GuardStochasticSignalDetection(BEARISH)) return;
+  if(!CanAttemptSignal(BEARISH)) return;
 
   SignalParams signal_bearish;
 
@@ -80,6 +87,9 @@ void DetectBearishSignal()
   SetTFStochasticMarketStructureDataToSignalParams(signal_bearish);
   SetTFBodyMADataToSignalParams(signal_bearish);
 
+  if(!EvaluateSignalTrigger(signal_bearish, BEARISH))
+    return;
+
   // OPEN THE BEARISH SIGNAL TO THE MARKET
   // ...
 
@@ -87,27 +97,11 @@ void DetectBearishSignal()
   AddElementToArray(running_bearish_signals, signal_bearish);
 }
 
-// ++ GUARD CONDITIONS TO OPEN THE SIGNALS ++
-
-bool GuardStochasticSignalDetection(const SignalTypes signal_type)
-{
-  // VERIFY STOCHASTIC SIGNAL CONDITIONS
-  StochasticStructure stochastic_data;
-  double stochastic_signal_1 = stochastic_data.GetStochasticSignalValue(ExtStochIndicatorsHandle[0], 1);
-
-  if(signal_type == BULLISH && stochastic_signal_1 <= 30.0) return false;
-  if(signal_type == BEARISH && stochastic_signal_1 >= 70.0) return false;
-
-  return true;
-}
-
 // ++ CLOSE THE SIGNALS ++
 
 void CloseBullishSignal(SignalParams &signal_bullish)
 {
   if(Enable_Logs) LogSignalParamsForTF(signal_bullish, PERIOD_M1);
-  if(Enable_Logs) Print("+++##########################################+++");
-  if(Enable_Logs) LogSignalParamsForTF(signal_bullish, PERIOD_M3);
 
   // MANAGE THE BULLISH SIGNAL STATE
   // if(signal_bullish.signal_state == OPENED) { ... }
@@ -116,8 +110,6 @@ void CloseBullishSignal(SignalParams &signal_bullish)
 void CloseBearishSignal(SignalParams &signal_bearish)
 {
   if(Enable_Logs) LogSignalParamsForTF(signal_bearish, PERIOD_M1);
-  if(Enable_Logs) Print("+++##########################################+++");
-  if(Enable_Logs) LogSignalParamsForTF(signal_bearish, PERIOD_M3);
 
   // MANAGE THE BULLISH SIGNAL STATE
   // if(signal_bearish.signal_state == OPENED) { ... }
@@ -273,6 +265,117 @@ void SetTFBodyMADataToSignalParams(SignalParams &signal_params)
 
     AddElementToArray(signal_params.body_ma_data, body_ma_data);
   }
+}
+
+// ++ HELPER FUNCTIONS FOR SIGNAL DECISIONS ++
+
+bool CanAttemptSignal(const SignalTypes signal_type)
+{
+  if(Strategy_Direction_Mode == BULLISH_DIRECTION && signal_type == BEARISH)
+  {
+    if(Enable_Logs)
+      Print("Direction filter active: ignoring bearish signals.");
+    return false;
+  }
+  if(Strategy_Direction_Mode == BEARISH_DIRECTION && signal_type == BULLISH)
+  {
+    if(Enable_Logs)
+      Print("Direction filter active: ignoring bullish signals.");
+    return false;
+  }
+
+  if(signal_type == BULLISH && ArraySize(running_bullish_signals) >= 1)
+    return false;
+  if(signal_type == BEARISH && ArraySize(running_bearish_signals) >= 1)
+    return false;
+
+  if(Base_Indicator_Strategy_Type != BB_NONE_TYPE && ArraySize(ExtBPercentIndicatorsHandle) <= 0)
+    return false;
+
+  if(Solid_Indicator_Strategy_Type == EXTREMA_TYPE && ArraySize(ExtStructStochIndicatorsHandle) <= 0)
+    return false;
+
+  if(Base_Indicator_Strategy_Type == BB_NONE_TYPE && Solid_Indicator_Strategy_Type == SOLID_NONE_TYPE)
+    return false;
+
+
+  return true;
+}
+
+bool EvaluateBaseIndicatorTrigger(const SignalParams &signal_params, const SignalTypes signal_type)
+{
+  if(Base_Indicator_Strategy_Type == BB_NONE_TYPE)
+    return true;
+
+  int total_entries = ArraySize(signal_params.bands_percent_data);
+  if(total_entries <= 0)
+    return false;
+
+  BandsPercentStructure bands_data = signal_params.bands_percent_data[0];
+
+  switch(Base_Indicator_Strategy_Type)
+  {
+    case MA_TYPE:
+      if(signal_type == BULLISH)
+        return (bands_data.bands_percent_2 > BANDS_PERCENT_MID_LEVEL && bands_data.bands_percent_1 <= BANDS_PERCENT_MID_LEVEL);
+      return (bands_data.bands_percent_2 < BANDS_PERCENT_MID_LEVEL && bands_data.bands_percent_1 >= BANDS_PERCENT_MID_LEVEL);
+    case BANDS_TYPE:
+      if(signal_type == BULLISH)
+        return (bands_data.bands_percent_2 > BANDS_PERCENT_UPPER_LEVEL && bands_data.bands_percent_1 <= BANDS_PERCENT_UPPER_LEVEL);
+      return (bands_data.bands_percent_2 < BANDS_PERCENT_LOWER_LEVEL && bands_data.bands_percent_1 >= BANDS_PERCENT_LOWER_LEVEL);
+  }
+
+  return false;
+}
+
+bool FetchLatestExtremum(const StochasticMarketStructure &structure,
+                         OscillatorMarketStructure &latest_extremum)
+{
+  int total_extrema = ArraySize(structure.os_market_structures);
+  if(total_extrema <= 0)
+    return false;
+
+  int most_recent_index = 0;
+
+  for(int i = 0; i < total_extrema; i++)
+  {
+    if(structure.os_market_structures[i].sequence_index == 0)
+    {
+      most_recent_index = i;
+      break;
+    }
+  }
+
+  latest_extremum = structure.os_market_structures[most_recent_index];
+  return true;
+}
+
+bool EvaluateSolidIndicatorTrigger(const SignalParams &signal_params, const SignalTypes signal_type)
+{
+  if(Solid_Indicator_Strategy_Type == SOLID_NONE_TYPE)
+    return true;
+
+  int total_structures = ArraySize(signal_params.stoch_market_structure_data);
+  if(total_structures <= 0)
+    return false;
+
+  StochasticMarketStructure structure = signal_params.stoch_market_structure_data[0];
+  OscillatorMarketStructure latest_extremum;
+  if(!FetchLatestExtremum(structure, latest_extremum))
+    return false;
+
+  if(signal_type == BULLISH)
+    return !latest_extremum.is_peak;
+
+  return latest_extremum.is_peak;
+}
+
+bool EvaluateSignalTrigger(const SignalParams &signal_params, const SignalTypes signal_type)
+{
+  bool base_trigger  = EvaluateBaseIndicatorTrigger(signal_params, signal_type);
+  bool solid_trigger = EvaluateSolidIndicatorTrigger(signal_params, signal_type);
+
+  return base_trigger && solid_trigger;
 }
 
 #endif // _SERVICES_TRADING_SIGNALS_MARKET_SIGNAL_CRAWLER_MQH_

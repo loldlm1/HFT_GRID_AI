@@ -3,6 +3,62 @@
 ## Project Overview
 This is a HFT Grid AI Expert Advisor designed to execute high frequency positions with a robust grid and risk managment logic. The EA operates tick-by-tick, capturing multi-timeframe indicator data for pattern analysis.
 
+## Phase Plan & Deliverables
+
+### Phase 0 – Foundation Setup
+- Inventory current services, indicator wrappers, and enums; document gaps or refactors required
+- Normalize logging toggles, default `input` parameters, and indicator handles for the new strategy
+- Capture broker freeze/stop constraints per symbol in a shared helper within `trading_tools`
+- Draft UX rules for chart objects (naming, color palette, layering) to reuse in later phases
+- Exit Criteria: baseline documentation updated, helper scaffolding merged, no runtime regressions in existing signals
+- Completed: centralized inputs in `services/trading_management/ea_inputs.mqh`, broker constraints helper (`microservices/utils/broker_constraints_helper.mqh`), single `Strategy_Timeframe` loading, and chart style constants in `services/frontend/chart_style_guide.mqh`
+
+### Phase 1 – Signal Engine Upgrade
+- Add new ENUM inputs (`Base_Indicator_Period_Type`, `Base_Indicator_Strategy_Type`, `Solid_Indicator_Strategy_Type`, `Base_Indicator_MA_Method`)
+- Refactor signal detection to event-driven triggers tied to indicator buffer updates; remove time-only logic
+- Implement combinable BB Percent and Stochastic Extrema triggers with clear validation paths
+- Enforce single active grid per direction by centralizing signal admission checks
+- Exit Criteria: deterministic signal firing in Strategy Tester, logging traces confirming trigger combinations
+- Completed: indicator enums exposed via `ea_inputs.mqh`, loader honors selected period/MA, solid period/direction inputs wired in, `EvaluateSignalTrigger()` combines MA/Bands and extrema logic, and `CanAttemptSignal()` restricts grids to one per direction
+
+### Phase 2 – Grid Framework
+- Build grid configuration structures covering ATR-based and point-based spacing with multiplier controls
+- Calculate exponential spacing and initial stop distances, ensuring broker freeze/stop compliance
+- Persist grid metadata to memory containers designed for quick iteration and recovery
+- Exit Criteria: simulated grids open with correct spacing, no broker rule violations, state snapshot logged
+
+### Phase 3 – Order Lifecycle Control
+- Automate buy/sell stop placement that trails adverse price action according to Grid_Initial_Stops_Percent
+- Implement TP activation, trailing adjustments, and profit lock logic referencing bid/ask as required
+- Apply Grid_Positions_Stops_Percent to deeper grid layers while respecting exponential spacing
+- Add guardrails for margin, slippage, and spread thresholds to halt grid expansion safely
+- Exit Criteria: full trade cycle executed in tester with correct order stack, protective stops adapt as configured
+
+### Phase 4 – Visualization & Telemetry
+- Render signal, stop, limit, and trailing lines with profit-colored styles and minimal clutter
+- Provide on-chart summaries plus optional verbose logging controlled by inputs like `Enable_Logs`
+- Create lightweight file logging (e.g., `query_debug.txt`) for post-run analysis without flooding the terminal
+- Track per-grid stats (duration, excursion, profit factor) for future analytics modules
+- Exit Criteria: chart artifacts align with live orders, logs expose actionable diagnostics
+
+### Phase 5 – Persistence & Resilience
+- Serialize active grid state (orders, trailing levels, indicators) to survive reconnects and timeframe changes
+- On `OnInit()`, reconcile broker order book with stored state and redraw chart elements accordingly
+- Revalidate indicator buffers after reload; handle invalid handles with graceful degradation
+- Exit Criteria: manual terminal reconnect retains grid logic without manual intervention, no dangling chart objects
+
+### Phase 6 – Optimization & Release Prep
+- Profile tick execution time and memory use; optimize array operations and indicator calls
+- Run Strategy Tester suites across symbols to stress ATR vs point modes and trailing variants
+- Tune default `input` presets and document recommended scenarios (scalping, trend, range)
+- Finalize README, changelog, and deployment checklist; confirm packaging of required dependencies
+- Exit Criteria: performance budgets met, documentation current, release candidate tagged
+
+### Ongoing Tasks
+- Keep README and AGENTS synchronized after each phase
+- Maintain coding conventions listed below; highlight deviations with `FIXME:` in code reviews
+- Review broker constraint data quarterly or whenever a symbol/market is added
+
 ## MQL5 Language Conventions
 
 ### C++ Feature Restrictions

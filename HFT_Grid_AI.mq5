@@ -15,38 +15,43 @@
 #include <Trade/AccountInfo.mqh>
 #include <Trade/SymbolInfo.mqh>
 
+// CUSTOM SERVICES - AGGREGATORS
+#include "services/trading_tools.mqh"
+#include "services/trading_management.mqh"
+#include "services/trading_signals.mqh"
+#include "services/frontend.mqh"
+
 // GLOBAL VARIABLES
 CTrade       g_position;
 CAccountInfo g_account;
 CSymbolInfo  g_symbol;
-double       g_bid, g_ask, g_decimal_digits, g_points_spread, g_local_spread, g_freeze_points;
+double       g_bid, g_ask, g_decimal_digits, g_points_spread, g_local_spread;
 int          g_magic_number;
 string       g_dataset_id = "";
 bool         g_ea_running;
-datetime      g_initial_ea_date;
-
-input group  "+= TC HFT Grid AI EA V1.0 =+";
-input string EA_License_Key = "";
-
-input group  "+= Account Settings EA =+";
-input double Account_Size       = 1200;
-input int    Custom_Magic       = 0;
-input double Max_Spread         = 15;
-input double Min_Range_Points   = 15;
-
-// CUSTOM SERVICES - AGGREGATORS
-#include "services/trading_tools.mqh"
-#include "services/trading_signals.mqh"
-#include "services/trading_management.mqh"
-#include "services/frontend.mqh"
+datetime     g_initial_ea_date;
+SymbolTradingConstraints g_symbol_constraints;
 
 int OnInit()
 {
   // INITIALIZE GLOBAL VARIABLES
   g_symbol.Name(_Symbol);
   g_decimal_digits  = pow(10.0, Digits());
-  g_freeze_points   = (g_symbol.StopsLevel() + g_symbol.FreezeLevel());
   g_initial_ea_date = TimeCurrent();
+
+  if(!RefreshSymbolTradingConstraints(_Symbol, g_symbol_constraints))
+  {
+    Print("ERROR LOADING BROKER CONSTRAINTS FOR SYMBOL: ", _Symbol);
+    return INIT_FAILED;
+  }
+  if(Enable_Logs)
+  {
+    PrintFormat("Broker constraints loaded for %s | freeze=%.1f pts | stops=%.1f pts | step=%.2f",
+                _Symbol,
+                g_symbol_constraints.freeze_level_points,
+                g_symbol_constraints.stops_level_points,
+                g_symbol_constraints.volume_step);
+  }
 
   // SET THE MAGIC NUMBER
   string rand_number = (string)MathRand() + "0";
@@ -54,20 +59,7 @@ int OnInit()
   g_position.SetExpertMagicNumber(g_magic_number);
 
   // CHART SETUP
-  ChartSetInteger(0, CHART_SHOW_OBJECT_DESCR, true);
-  ChartSetInteger(ChartID(), CHART_QUICK_NAVIGATION, false);
-  ChartSetInteger(ChartID(), CHART_SHOW_GRID, 0, true);
-  ChartSetInteger(ChartID(), CHART_SHOW_VOLUMES, 0, false);
-  ChartSetInteger(ChartID(), CHART_AUTOSCROLL, 0, true);
-  ChartSetInteger(ChartID(), CHART_SHIFT, 0, true);
-
-  // CHART COLORS
-  ChartSetInteger(ChartID(), CHART_COLOR_BACKGROUND, clrWhite);
-  ChartSetInteger(ChartID(), CHART_COLOR_FOREGROUND, clrBlack);
-  ChartSetInteger(ChartID(), CHART_COLOR_CHART_UP, DimGray);
-  ChartSetInteger(ChartID(), CHART_COLOR_CHART_DOWN, clrBlack);
-  ChartSetInteger(ChartID(), CHART_COLOR_CANDLE_BULL, LightGreen);
-  ChartSetInteger(ChartID(), CHART_COLOR_CANDLE_BEAR, clrBlack);
+  ApplyDefaultChartStyle(ChartID());
 
   // INITIALIZE THE EA
   CreateLicensePanelLive();

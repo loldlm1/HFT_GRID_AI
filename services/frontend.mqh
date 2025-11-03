@@ -6,5 +6,6 @@
 
 // FRONTEND SERVICE FILES
 #include "frontend/ea_license_light_version.mqh"
+#include "frontend/chart_style_guide.mqh"
 
 #endif // _SERVICES_FRONTEND_MQH_
