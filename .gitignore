@@ -1,0 +1,17 @@
+*.ex5
+*.ex4
+*.log
+*.tmp
+*.bak
+*.old
+*.swp
+*.swo
+*.user
+*.sublime-workspace
+*.sublime-project
+*_@!!@*
+.vscode/
+# Lead magnet outputs
+/docs/lead_magnet/output/*
+!/docs/lead_magnet/output/.gitkeep
+/docs/lead_magnet/dist/*.zip
