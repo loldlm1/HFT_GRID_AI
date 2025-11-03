@@ -34,7 +34,7 @@ This is a HFT Grid AI Expert Advisor designed to execute high frequency position
 - Apply Grid_Positions_Stops_Percent to deeper grid layers while respecting exponential spacing
 - Add guardrails for margin, slippage, and spread thresholds to halt grid expansion safely
 - Exit Criteria: full trade cycle executed in tester with correct order stack, protective stops adapt as configured
-- Completed: per-level grid order controller places and trails pending stops, links active trades for SL/TP management, enforces spread/margin guardrails, and resolves lot sizing via fixed, percentage, or currency-based targets
+- Completed: per-level grid order controller simulates and trails pending levels entirely in-memory, links active trades for SL/TP management without broker orders, enforces spread/margin guardrails, and resolves lot sizing via fixed, percentage, or currency-based targets
 
 ### Phase 4 – Visualization & Telemetry
 - Render signal, stop, limit, and trailing lines with profit-colored styles and minimal clutter

@@ -53,24 +53,24 @@ struct GridOrderState
 {
   int               level_index;
   GridOrderStatuses status;
-  ulong             pending_order_ticket;
-  ulong             position_ticket;
   double            last_pending_price;
+  double            entry_price;
   double            stop_loss_price;
   double            take_profit_price;
   double            trailing_points;
+  double            realized_points;
   datetime          last_action_time;
 
   GridOrderState()
   {
     level_index          = -1;
     status               = GRID_ORDER_INACTIVE;
-    pending_order_ticket = 0;
-    position_ticket      = 0;
     last_pending_price   = 0.0;
+    entry_price          = 0.0;
     stop_loss_price      = 0.0;
     take_profit_price    = 0.0;
     trailing_points      = 0.0;
+    realized_points      = 0.0;
     last_action_time     = 0;
   }
 };

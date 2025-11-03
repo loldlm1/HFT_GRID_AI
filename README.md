@@ -80,6 +80,7 @@ The **HFT Grid AI EA** is a specialized Expert Advisor designed to execute high 
 - Pending buy/sell stops trail adverse price action with broker-distance enforcement and spread/margin guardrails
 - Active grid positions link back to their levels and tighten stops using configured trailing percentages
 - Grid signals auto-close once all levels resolve, logging lifecycle events for downstream telemetry
+- Execution lifecycle managed entirely in-memory; broker stops, limits, and pending orders are simulated by the EA for tighter control
 - Dynamic lot sizing supports fixed, percentage-based, or currency-based risk targets that scale with grid multipliers
 
 ## Next Steps
