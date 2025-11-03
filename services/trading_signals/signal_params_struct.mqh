@@ -49,6 +49,32 @@ struct GridMetadata
   }
 };
 
+struct GridOrderState
+{
+  int               level_index;
+  GridOrderStatuses status;
+  ulong             pending_order_ticket;
+  ulong             position_ticket;
+  double            last_pending_price;
+  double            stop_loss_price;
+  double            take_profit_price;
+  double            trailing_points;
+  datetime          last_action_time;
+
+  GridOrderState()
+  {
+    level_index          = -1;
+    status               = GRID_ORDER_INACTIVE;
+    pending_order_ticket = 0;
+    position_ticket      = 0;
+    last_pending_price   = 0.0;
+    stop_loss_price      = 0.0;
+    take_profit_price    = 0.0;
+    trailing_points      = 0.0;
+    last_action_time     = 0;
+  }
+};
+
 struct SignalParams
 {
   SignalTypes               signal_type;
@@ -67,6 +93,7 @@ struct SignalParams
   StochasticMarketStructure stoch_market_structure_data[];
   BodyMAStructure           body_ma_data[];
   GridMetadata              grid_plan;
+  GridOrderState            grid_orders[];
 
   // DEFAULT CONSTRUCTOR
   SignalParams()
@@ -100,10 +127,25 @@ struct SignalParams
     close_time            = signal_params.close_time;
 
     // DEEP COPY OF ARRAYS
-    ArrayCopy(bands_percent_data,          signal_params.bands_percent_data);
-    ArrayCopy(stochastic_data,             signal_params.stochastic_data);
-    ArrayCopy(body_ma_data,                signal_params.body_ma_data);
-    ArrayCopy(stoch_market_structure_data, signal_params.stoch_market_structure_data);
+    int bands_total = ArraySize(signal_params.bands_percent_data);
+    ArrayResize(bands_percent_data, bands_total);
+    for(int i = 0; i < bands_total; i++)
+      bands_percent_data[i] = signal_params.bands_percent_data[i];
+
+    int stoch_total = ArraySize(signal_params.stochastic_data);
+    ArrayResize(stochastic_data, stoch_total);
+    for(int j = 0; j < stoch_total; j++)
+      stochastic_data[j] = signal_params.stochastic_data[j];
+
+    int body_total = ArraySize(signal_params.body_ma_data);
+    ArrayResize(body_ma_data, body_total);
+    for(int k = 0; k < body_total; k++)
+      body_ma_data[k] = signal_params.body_ma_data[k];
+
+    int stoch_struct_total = ArraySize(signal_params.stoch_market_structure_data);
+    ArrayResize(stoch_market_structure_data, stoch_struct_total);
+    for(int m = 0; m < stoch_struct_total; m++)
+      stoch_market_structure_data[m] = signal_params.stoch_market_structure_data[m];
     int levels_total = ArraySize(signal_params.grid_plan.levels);
     ArrayResize(grid_plan.levels, levels_total);
     for(int i = 0; i < levels_total; i++)
@@ -113,6 +155,11 @@ struct SignalParams
     grid_plan.direction            = signal_params.grid_plan.direction;
     grid_plan.base_distance_points = signal_params.grid_plan.base_distance_points;
     grid_plan.base_lot_size        = signal_params.grid_plan.base_lot_size;
+
+    int orders_total = ArraySize(signal_params.grid_orders);
+    ArrayResize(grid_orders, orders_total);
+    for(int n = 0; n < orders_total; n++)
+      grid_orders[n] = signal_params.grid_orders[n];
   }
 };
 

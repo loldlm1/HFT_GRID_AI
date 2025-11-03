@@ -75,6 +75,13 @@ The **HFT Grid AI EA** is a specialized Expert Advisor designed to execute high 
 - Built grid plan metadata attached to every signal, including level spacing, stop/TP distances, and lot progression with broker-distance enforcement
 - Directional filter now blocks disallowed trend signals while providing debug output when logging is enabled
 
+### Phase 3 – Current Deliverables
+- Grid order controller initializes per-level order states and drives placement/updates from tick activity
+- Pending buy/sell stops trail adverse price action with broker-distance enforcement and spread/margin guardrails
+- Active grid positions link back to their levels and tighten stops using configured trailing percentages
+- Grid signals auto-close once all levels resolve, logging lifecycle events for downstream telemetry
+- Dynamic lot sizing supports fixed, percentage-based, or currency-based risk targets that scale with grid multipliers
+
 ## Next Steps
 
 - Mirror this roadmap in `AGENTS.md` with actionable subtasks for each service owner

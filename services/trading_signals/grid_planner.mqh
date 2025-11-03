@@ -6,15 +6,12 @@
 
 #include "../../microservices/utils/array_functions.mqh"
 #include "../../microservices/utils/broker_constraints_helper.mqh"
+#include "../../microservices/utils/money_functions.mqh"
 
 const int GRID_MAX_LEVELS = 6;
 
 extern SymbolTradingConstraints g_symbol_constraints;
 extern IndicatorsHandleInfo     ExtATRIndicatorsHandle[];
-
-double CalculateBaseGridDistancePoints();
-bool   FetchAtrDistancePoints(ENUM_TIMEFRAMES tf, double &distance_points);
-bool   BuildGridPlanForSignal(SignalParams &signal_params);
 
 double CalculateBaseGridDistancePoints()
 {
@@ -69,6 +66,44 @@ bool FetchAtrDistancePoints(ENUM_TIMEFRAMES tf, double &distance_points)
   return false;
 }
 
+double ResolveBaseGridLot(const double base_distance_points)
+{
+  double base_lot = Grid_Lot_Strategy_Size;
+
+  if(Grid_Lot_Type == GRID_LOT_SIZE)
+    return NormalizeVolumeForSymbol(_Symbol, base_lot);
+
+  double reference_points = base_distance_points;
+  if(Grid_TP_Percent > 0.0)
+    reference_points = base_distance_points * (Grid_TP_Percent / 100.0);
+  if(reference_points <= 0.0)
+    reference_points = base_distance_points;
+
+  double target_amount = 0.0;
+  if(Grid_Lot_Type == GRID_LOT_PERCENTAGE_BASED)
+  {
+    double base_balance = Account_Size;
+    double account_balance = AccountInfoDouble(ACCOUNT_BALANCE);
+    if(account_balance > 0.0)
+      base_balance = account_balance;
+    target_amount = base_balance * (Grid_Lot_Strategy_Size / 100.0);
+  }
+  else if(Grid_Lot_Type == GRID_LOT_CURRENCY_BASED)
+  {
+    target_amount = Grid_Lot_Strategy_Size;
+  }
+
+  target_amount = MathAbs(target_amount);
+
+  if(target_amount <= 0.0 || reference_points <= 0.0)
+    return NormalizeVolumeForSymbol(_Symbol, base_lot);
+
+  double resolved_lot = ConvertAmountToLots(_Symbol, target_amount, reference_points);
+  if(resolved_lot <= 0.0)
+    resolved_lot = base_lot;
+  return NormalizeVolumeForSymbol(_Symbol, resolved_lot);
+}
+
 bool BuildGridPlanForSignal(SignalParams &signal_params)
 {
   ArrayResize(signal_params.grid_plan.levels, 0);
@@ -90,6 +125,8 @@ bool BuildGridPlanForSignal(SignalParams &signal_params)
 
   double base_lot = signal_params.lot_size;
   if(base_lot <= 0.0)
+    base_lot = ResolveBaseGridLot(base_distance_points);
+  if(base_lot <= 0.0)
   {
     double min_vol = g_symbol_constraints.min_volume;
     if(min_vol <= 0.0)
@@ -108,7 +145,8 @@ bool BuildGridPlanForSignal(SignalParams &signal_params)
     GridLevelPlan level_plan;
     level_plan.level_index     = level_index;
     level_plan.distance_points = base_distance_points * MathPow(exponential_multiplier, level_index);
-    level_plan.lot_size        = base_lot * MathPow(lot_multiplier, level_index);
+    double scaled_lot          = base_lot * MathPow(lot_multiplier, level_index);
+    level_plan.lot_size        = NormalizeVolumeForSymbol(_Symbol, scaled_lot);
 
     double stop_percent  = (level_index == 0) ? initial_stop_percent : deep_stop_percent;
     double stop_distance = level_plan.distance_points * (stop_percent / 100.0);

@@ -11,25 +11,19 @@ void CheckTickOpenBullishSignals()
 
   for(int i = running_signals_total-1; i >= 0; i--)
   {
-    SignalStates signal_state       = running_bullish_signals[i].signal_state;
-    datetime      candle_time_0     = iTime(_Symbol, PERIOD_CURRENT, 0);
-    datetime      signal_entry_time = running_bullish_signals[i].entry_time;
-    datetime      signal_close_time = running_bullish_signals[i].entry_time + 60 * 1; // 1 minutes duration
+    UpdateGridLifecycle(running_bullish_signals[i]);
 
-    if(
-      candle_time_0 >= signal_close_time
-    ) {
-      running_bullish_signals[i].close_time  = signal_close_time;
+    if(IsGridSignalComplete(running_bullish_signals[i]))
+    {
+      running_bullish_signals[i].close_time  = TimeCurrent();
       running_bullish_signals[i].close_price = g_bid;
-      running_bullish_signals[i].raw_profit  = RawProfitUsd(running_bullish_signals[i].signal_type, running_bullish_signals[i].entry_price, g_bid);
+      running_bullish_signals[i].raw_profit  = RawProfitUsd(BULLISH,
+                                                            running_bullish_signals[i].entry_price,
+                                                            running_bullish_signals[i].close_price);
+      running_bullish_signals[i].signal_state = CLOSED;
 
-      // CLOSE THE BULLISH SIGNAL
       CloseBullishSignal(running_bullish_signals[i]);
-
-      // REMOVE THE BULLISH SIGNAL FROM THE ARRAY
       RemoveElementFromArray(running_bullish_signals, i);
-
-      continue;
     }
   }
 }
@@ -40,26 +34,20 @@ void CheckTickOpenBearishSignals()
 
   for(int i = running_signals_total-1; i >= 0; i--)
   {
-    SignalStates signal_state       = running_bearish_signals[i].signal_state;
-    datetime      candle_time_0     = iTime(_Symbol, PERIOD_CURRENT, 0);
-    datetime      signal_entry_time = running_bearish_signals[i].entry_time;
-    datetime      signal_close_time = running_bearish_signals[i].entry_time + 60 * 1; // 1 minutes duration
+    UpdateGridLifecycle(running_bearish_signals[i]);
 
-    if(
-      candle_time_0 >= signal_close_time
-    ) {
-      running_bearish_signals[i].close_time  = signal_close_time;
+    if(IsGridSignalComplete(running_bearish_signals[i]))
+    {
+      running_bearish_signals[i].close_time  = TimeCurrent();
       running_bearish_signals[i].close_price = g_ask;
-      running_bearish_signals[i].raw_profit  = RawProfitUsd(running_bearish_signals[i].signal_type, running_bearish_signals[i].entry_price, g_ask);
+      running_bearish_signals[i].raw_profit  = RawProfitUsd(BEARISH,
+                                                            running_bearish_signals[i].entry_price,
+                                                            running_bearish_signals[i].close_price);
+      running_bearish_signals[i].signal_state = CLOSED;
 
-      // CLOSE THE BEARISH SIGNAL
       CloseBearishSignal(running_bearish_signals[i]);
-
-    // REMOVE THE BEARISH SIGNAL FROM THE ARRAY
-    RemoveElementFromArray(running_bearish_signals, i);
-
-    continue;
-  }
+      RemoveElementFromArray(running_bearish_signals, i);
+    }
   }
 }
 

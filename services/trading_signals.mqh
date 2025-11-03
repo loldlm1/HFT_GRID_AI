@@ -13,6 +13,7 @@
 // SIGNAL SERVICE FILES
 #include "trading_signals/signal_params_struct.mqh"
 #include "trading_signals/grid_planner.mqh"
+#include "trading_signals/grid_order_controller.mqh"
 #include "trading_signals/market_signal_detector.mqh"
 #include "trading_signals/tick_signals_manager.mqh"
 

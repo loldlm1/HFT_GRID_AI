@@ -17,7 +17,8 @@ enum SignalStates
 {
 	WAITING = 0,
 	OPENED  = 1,
-	TRALING = 2
+	TRALING = 2,
+	CLOSED  = 3
 };
 
 // BASE INDICATOR STRATEGIES
@@ -123,6 +124,22 @@ enum BodyMATypes
 	BODY_UNDEFINED_MA = 0,
 	BODY_BULLISH_MA = 1,
 	BODY_BEARISH_MA = 2
+};
+
+enum GridOrderStatuses
+{
+  GRID_ORDER_INACTIVE  = 0,
+  GRID_ORDER_WAITING   = 1,
+  GRID_ORDER_PENDING   = 2,
+  GRID_ORDER_ACTIVE    = 3,
+  GRID_ORDER_COMPLETED = 4
+};
+
+enum GridLotTypes
+{
+  GRID_LOT_SIZE            = 0,
+  GRID_LOT_PERCENTAGE_BASED = 1,
+  GRID_LOT_CURRENCY_BASED   = 2
 };
 
 #endif // _MICROSERVICES_CORE_ENUMS_MQH_

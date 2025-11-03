@@ -59,4 +59,59 @@ double CommonVolume(string symbol)
   return volume;
 }
 
+double NormalizeVolumeForSymbol(const string symbol, const double volume)
+{
+  double min_vol  = SymbolInfoDouble(symbol, SYMBOL_VOLUME_MIN);
+  double max_vol  = SymbolInfoDouble(symbol, SYMBOL_VOLUME_MAX);
+  double step_vol = SymbolInfoDouble(symbol, SYMBOL_VOLUME_STEP);
+
+  double normalized = volume;
+
+  if(min_vol > 0.0 && normalized < min_vol)
+    normalized = min_vol;
+  if(max_vol > 0.0 && normalized > max_vol)
+    normalized = max_vol;
+
+  if(step_vol > 0.0)
+  {
+    double steps = MathFloor((normalized + 1e-12) / step_vol);
+    normalized   = steps * step_vol;
+    int vol_digits = 0;
+    if(step_vol < 1.0)
+    {
+      vol_digits = (int)MathRound(-MathLog10(step_vol));
+      if(vol_digits < 0)
+        vol_digits = 0;
+    }
+    normalized = NormalizeDouble(normalized, vol_digits);
+  }
+
+  return normalized;
+}
+
+double ConvertAmountToLots(const string symbol,
+                           const double amount,
+                           const double movement_points)
+{
+  if(amount <= 0.0 || movement_points <= 0.0)
+    return 0.0;
+
+  double tick_value = SymbolInfoDouble(symbol, SYMBOL_TRADE_TICK_VALUE);
+  double tick_size  = SymbolInfoDouble(symbol, SYMBOL_TRADE_TICK_SIZE);
+  double point_size = SymbolInfoDouble(symbol, SYMBOL_POINT);
+
+  if(tick_value <= 0.0 || tick_size <= 0.0 || point_size <= 0.0)
+    return 0.0;
+
+  double point_value = tick_value * (point_size / tick_size);
+  if(point_value <= 0.0)
+    return 0.0;
+
+  double lots = amount / (point_value * movement_points);
+  if(lots <= 0.0)
+    return 0.0;
+
+  return NormalizeVolumeForSymbol(symbol, lots);
+}
+
 #endif // _MICROSERVICES_UTILS_MONEY_FUNCTIONS_MQH_

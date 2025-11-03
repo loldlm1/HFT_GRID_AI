@@ -34,6 +34,7 @@ This is a HFT Grid AI Expert Advisor designed to execute high frequency position
 - Apply Grid_Positions_Stops_Percent to deeper grid layers while respecting exponential spacing
 - Add guardrails for margin, slippage, and spread thresholds to halt grid expansion safely
 - Exit Criteria: full trade cycle executed in tester with correct order stack, protective stops adapt as configured
+- Completed: per-level grid order controller places and trails pending stops, links active trades for SL/TP management, enforces spread/margin guardrails, and resolves lot sizing via fixed, percentage, or currency-based targets
 
 ### Phase 4 – Visualization & Telemetry
 - Render signal, stop, limit, and trailing lines with profit-colored styles and minimal clutter
@@ -59,6 +60,23 @@ This is a HFT Grid AI Expert Advisor designed to execute high frequency position
 - Keep README and AGENTS synchronized after each phase
 - Maintain coding conventions listed below; highlight deviations with `FIXME:` in code reviews
 - Review broker constraint data quarterly or whenever a symbol/market is added
+- Reference MQL5 Standard Library documentation when reusing built-in classes:
+  * Mathematics — Include\\Math\\ — https://www.mql5.com/en/docs/standardlibrary/mathematics
+  * OpenCL — Include\\OpenCL\\ — https://www.mql5.com/en/docs/standardlibrary/copencl
+  * Basic Class CObject — Include\\ — https://www.mql5.com/en/docs/standardlibrary/cobject
+  * Data Collections — Include\\Arrays\\ — https://www.mql5.com/en/docs/standardlibrary/datastructures
+  * Generic Data Collections — Include\\Generic\\ — https://www.mql5.com/en/docs/standardlibrary/generic
+  * Files — Include\\Files\\ — https://www.mql5.com/en/docs/standardlibrary/fileoperations
+  * Strings — Include\\Strings\\ — https://www.mql5.com/en/docs/standardlibrary/stringoperations
+  * Graphic Objects — Include\\Objects\\ — https://www.mql5.com/en/docs/standardlibrary/chart_object_classes
+  * Custom Graphics — Include\\Canvas\\ — https://www.mql5.com/en/docs/standardlibrary/canvasgraphics
+  * 3D Graphics — Include\\Canvas\\ — https://www.mql5.com/en/docs/standardlibrary/3dgraphics
+  * Price Charts — Include\\Charts\\ — https://www.mql5.com/en/docs/standardlibrary/cchart
+  * Scientific Charts — Include\\Graphics\\ — https://www.mql5.com/en/docs/standardlibrary/graphics
+  * Indicators — Include\\Indicators\\ — https://www.mql5.com/en/docs/standardlibrary/technicalindicators
+  * Trade Classes — Include\\Trade\\ — https://www.mql5.com/en/docs/standardlibrary/tradeclasses
+  * Strategy Modules — Include\\Expert\\ — https://www.mql5.com/en/docs/standardlibrary/expertclasses
+  * Panels and Dialogs — Include\\Controls\\ — https://www.mql5.com/en/docs/standardlibrary/controls
 
 ## MQL5 Language Conventions
 

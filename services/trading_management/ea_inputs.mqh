@@ -36,6 +36,8 @@ input double               Grid_Initial_Stops_Percent = 10.0;
 input double               Grid_TP_Percent            = 30.0;
 input double               Grid_Trailing_TP_Percent   = 50.0;
 input double               Grid_Positions_Stops_Percent = 10.0;
+input GridLotTypes         Grid_Lot_Type              = GRID_LOT_SIZE;
+input double               Grid_Lot_Strategy_Size     = 0.01;
 
 input group  "+= Developer Debug Settings =+";
 input bool Test_Mode               = false;
