@@ -104,7 +104,11 @@ struct SignalParams
     ArrayCopy(stochastic_data,             signal_params.stochastic_data);
     ArrayCopy(body_ma_data,                signal_params.body_ma_data);
     ArrayCopy(stoch_market_structure_data, signal_params.stoch_market_structure_data);
-    ArrayCopy(grid_plan.levels,            signal_params.grid_plan.levels);
+    int levels_total = ArraySize(signal_params.grid_plan.levels);
+    ArrayResize(grid_plan.levels, levels_total);
+    for(int i = 0; i < levels_total; i++)
+      grid_plan.levels[i] = signal_params.grid_plan.levels[i];
+
     grid_plan.initialized          = signal_params.grid_plan.initialized;
     grid_plan.direction            = signal_params.grid_plan.direction;
     grid_plan.base_distance_points = signal_params.grid_plan.base_distance_points;
