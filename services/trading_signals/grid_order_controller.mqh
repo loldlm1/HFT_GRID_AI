@@ -6,7 +6,6 @@
 
 #include "../../microservices/utils/money_functions.mqh"
 #include "../../microservices/utils/file_logger.mqh"
-#include "../trading_management/ea_inputs.mqh"
 
 extern double g_bid;
 extern double g_ask;
@@ -237,8 +236,7 @@ void UpdateGridLifecycle(SignalParams &signal_params)
   double anchor_price    = GridCurrentPriceForDirection(direction, true);
   datetime now_time      = TimeCurrent();
 
-  GridTelemetryStats &stats = signal_params.grid_stats;
-  stats.last_update_time = now_time;
+  signal_params.grid_stats.last_update_time = now_time;
 
   int levels_total = ArraySize(signal_params.grid_plan.levels);
   for(int i = 0; i < levels_total; i++)
@@ -275,8 +273,8 @@ void UpdateGridLifecycle(SignalParams &signal_params)
       {
         order_state.status = GRID_ORDER_PENDING;
         order_state.last_action_time = now_time;
-        if(stats.activation_time == 0)
-          stats.activation_time = now_time;
+        if(signal_params.grid_stats.activation_time == 0)
+          signal_params.grid_stats.activation_time = now_time;
         if(Enable_Logs)
         {
           PrintFormat("Grid level pending | dir=%s | level=%d | trigger=%.5f",
@@ -329,10 +327,10 @@ void UpdateGridLifecycle(SignalParams &signal_params)
       {
         GridFinalizeLevel(direction, order_state, point_size);
         if(order_state.realized_points > 0.0)
-          stats.total_positive_points += order_state.realized_points;
+          signal_params.grid_stats.total_positive_points += order_state.realized_points;
         else if(order_state.realized_points < 0.0)
-          stats.total_negative_points += MathAbs(order_state.realized_points);
-        stats.completed_levels++;
+          signal_params.grid_stats.total_negative_points += MathAbs(order_state.realized_points);
+        signal_params.grid_stats.completed_levels++;
 
         if(Enable_Logs)
         {
@@ -362,10 +360,10 @@ void UpdateGridLifecycle(SignalParams &signal_params)
                            ? (current_close - entry_price)
                            : (entry_price - current_close);
     double points_delta  = price_delta / point_size;
-    if(points_delta > stats.max_favorable_points)
-      stats.max_favorable_points = points_delta;
-    if(points_delta < 0.0 && MathAbs(points_delta) > stats.max_adverse_points)
-      stats.max_adverse_points = MathAbs(points_delta);
+    if(points_delta > signal_params.grid_stats.max_favorable_points)
+      signal_params.grid_stats.max_favorable_points = points_delta;
+    if(points_delta < 0.0 && MathAbs(points_delta) > signal_params.grid_stats.max_adverse_points)
+      signal_params.grid_stats.max_adverse_points = MathAbs(points_delta);
   }
 }
 

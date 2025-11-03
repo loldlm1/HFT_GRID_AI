@@ -36,7 +36,7 @@ void PushObjectName(string &names[], const string name)
 string GridSignalKey(const SignalParams &signal_params)
 {
   string dir = (signal_params.signal_type == BULLISH) ? "B" : "S";
-  return dir + "_" + LongToString((long)signal_params.entry_time);
+  return dir + "_" + TimeToString(signal_params.entry_time, TIME_DATE | TIME_SECONDS);
 }
 
 string GridLevelObjectName(const SignalParams &signal_params,
