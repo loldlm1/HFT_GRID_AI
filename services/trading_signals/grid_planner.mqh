@@ -4,12 +4,13 @@
 #ifndef _SERVICES_TRADING_SIGNALS_GRID_PLANNER_MQH_
 #define _SERVICES_TRADING_SIGNALS_GRID_PLANNER_MQH_
 
-#include "../microservices/utils/array_functions.mqh"
-#include "../microservices/utils/broker_constraints_helper.mqh"
+#include "../../microservices/utils/array_functions.mqh"
+#include "../../microservices/utils/broker_constraints_helper.mqh"
 
 const int GRID_MAX_LEVELS = 6;
 
 extern SymbolTradingConstraints g_symbol_constraints;
+extern IndicatorsHandleInfo     ExtATRIndicatorsHandle[];
 
 double CalculateBaseGridDistancePoints();
 bool   FetchAtrDistancePoints(ENUM_TIMEFRAMES tf, double &distance_points);
@@ -109,28 +110,28 @@ bool BuildGridPlanForSignal(SignalParams &signal_params)
     level_plan.distance_points = base_distance_points * MathPow(exponential_multiplier, level_index);
     level_plan.lot_size        = base_lot * MathPow(lot_multiplier, level_index);
 
-    double stop_percent = (level_index == 0) ? initial_stop_percent : deep_stop_percent;
-  double stop_distance = level_plan.distance_points * (stop_percent / 100.0);
-    stop_distance = (stop_distance > 0.0) ? EnforceBrokerDistance(g_symbol_constraints, stop_distance) : 0.0;
+    double stop_percent  = (level_index == 0) ? initial_stop_percent : deep_stop_percent;
+    double stop_distance = level_plan.distance_points * (stop_percent / 100.0);
+    stop_distance        = (stop_distance > 0.0) ? EnforceBrokerDistance(g_symbol_constraints, stop_distance) : 0.0;
 
-  double pending_distance = (level_index == 0)
+    double pending_distance = (level_index == 0)
                               ? level_plan.distance_points * (initial_stop_percent / 100.0)
                               : level_plan.distance_points * (deep_stop_percent / 100.0);
-    pending_distance = (pending_distance > 0.0) ? EnforceBrokerDistance(g_symbol_constraints, pending_distance) : 0.0;
+    pending_distance        = (pending_distance > 0.0) ? EnforceBrokerDistance(g_symbol_constraints, pending_distance) : 0.0;
 
-  double next_distance = level_plan.distance_points;
-  if(level_index < GRID_MAX_LEVELS - 1)
-    next_distance = base_distance_points * MathPow(exponential_multiplier, level_index + 1);
+    double next_distance = level_plan.distance_points;
+    if(level_index < GRID_MAX_LEVELS - 1)
+      next_distance = base_distance_points * MathPow(exponential_multiplier, level_index + 1);
 
-  double tp_activation = next_distance * (tp_percent / 100.0);
-    tp_activation = (tp_activation > 0.0) ? EnforceBrokerDistance(g_symbol_constraints, tp_activation) : 0.0;
+    double tp_activation = next_distance * (tp_percent / 100.0);
+    tp_activation        = (tp_activation > 0.0) ? EnforceBrokerDistance(g_symbol_constraints, tp_activation) : 0.0;
 
-  double trailing_distance = 0.0;
-  if(trailing_percent > 0.0 && tp_activation > 0.0)
-  {
-    trailing_distance = tp_activation * (trailing_percent / 100.0);
-    trailing_distance = (trailing_distance > 0.0) ? EnforceBrokerDistance(g_symbol_constraints, trailing_distance) : 0.0;
-  }
+    double trailing_distance = 0.0;
+    if(trailing_percent > 0.0 && tp_activation > 0.0)
+    {
+      trailing_distance = tp_activation * (trailing_percent / 100.0);
+      trailing_distance = (trailing_distance > 0.0) ? EnforceBrokerDistance(g_symbol_constraints, trailing_distance) : 0.0;
+    }
 
     level_plan.stop_loss_points     = stop_distance;
     level_plan.pending_order_points = pending_distance;

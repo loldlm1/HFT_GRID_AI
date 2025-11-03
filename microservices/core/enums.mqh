@@ -65,6 +65,12 @@ enum StrategyDirectionTypes
   BEARISH_DIRECTION = 2
 };
 
+enum GridBaseStrategyTypes
+{
+  ATR_RANGE    = 0,
+  POINTS_RANGE = 1
+};
+
 enum SlopeTypes
 {
 	NO_SLOPE   = 0,

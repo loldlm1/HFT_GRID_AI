@@ -27,6 +27,16 @@ input SolidIndicatorStrategyTypes Solid_Indicator_Strategy_Type = SOLID_NONE_TYP
 input SolidIndicatorPeriodTypes  Solid_Indicator_Period_Type  = SOLID_PERIOD_5;
 input StrategyDirectionTypes     Strategy_Direction_Mode      = BOTH_DIRECTION;
 
+input group  "+= Grid Strategy Settings =+";
+input GridBaseStrategyTypes Grid_Base_Strategy_Type   = ATR_RANGE;
+input double               Grid_ATR_Points_Setup      = 1.0;
+input double               Grid_Multiplier            = 2.0;
+input double               Grid_Exponential_Multiplier = 1.1;
+input double               Grid_Initial_Stops_Percent = 10.0;
+input double               Grid_TP_Percent            = 30.0;
+input double               Grid_Trailing_TP_Percent   = 50.0;
+input double               Grid_Positions_Stops_Percent = 10.0;
+
 input group  "+= Developer Debug Settings =+";
 input bool Test_Mode               = false;
 input bool Hide_Indicator_Variants = true;
