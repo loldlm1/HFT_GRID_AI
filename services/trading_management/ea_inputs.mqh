@@ -44,5 +44,8 @@ input bool Test_Mode               = false;
 input bool Hide_Indicator_Variants = true;
 input bool Enable_Logs             = true;
 input bool Enable_Verification_Logs = false;
+input bool Enable_File_Logs        = false;
+input bool Enable_Chart_Summary    = true;
+input bool Enable_Chart_Levels     = true;
 
 #endif // _SERVICES_TRADING_MANAGEMENT_EA_INPUTS_MQH_

@@ -83,6 +83,12 @@ The **HFT Grid AI EA** is a specialized Expert Advisor designed to execute high 
 - Execution lifecycle managed entirely in-memory; broker stops, limits, and pending orders are simulated by the EA for tighter control
 - Dynamic lot sizing supports fixed, percentage-based, or currency-based risk targets that scale with grid multipliers
 
+### Phase 4 – Current Deliverables
+- On-chart grid rendering draws entry/stop/target levels per direction with consistent styling while avoiding broker order objects
+- Dashboard summary comment highlights active grids, level states, duration, and profit factor when `Enable_Chart_Summary` is true
+- Lightweight telemetry logs append lifecycle events to `query_debug.txt` when `Enable_File_Logs` is enabled for post-run analysis
+- Grid telemetry tracks max favorable/adverse excursion, completed levels, and cumulative point statistics for future analytics modules
+
 ## Next Steps
 
 - Mirror this roadmap in `AGENTS.md` with actionable subtasks for each service owner

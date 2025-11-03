@@ -5,6 +5,8 @@
 #define _SERVICES_TRADING_SIGNALS_GRID_ORDER_CONTROLLER_MQH_
 
 #include "../../microservices/utils/money_functions.mqh"
+#include "../../microservices/utils/file_logger.mqh"
+#include "../trading_management/ea_inputs.mqh"
 
 extern double g_bid;
 extern double g_ask;
@@ -63,6 +65,27 @@ bool GridGuardrailsAllowOrder(const double normalized_volume)
     return true;
 
   return (free_margin >= required_margin);
+}
+
+void GridLogEvent(const string label,
+                  const SignalParams &signal_params,
+                  const GridOrderState &order_state,
+                  const GridLevelPlan &level_plan)
+{
+  if(!Enable_File_Logs)
+    return;
+
+  string direction = (signal_params.signal_type == BULLISH) ? "BULLISH" : "BEARISH";
+  string message = StringFormat("dir=%s|level=%d|status=%s|pending=%.5f|entry=%.5f|stop=%.5f|tp=%.5f|realized=%.1f",
+                                direction,
+                                order_state.level_index,
+                                EnumToString(order_state.status),
+                                order_state.last_pending_price,
+                                order_state.entry_price,
+                                order_state.stop_loss_price,
+                                order_state.take_profit_price,
+                                order_state.realized_points);
+  AppendTimestampedLog("query_debug.txt", label, message);
 }
 
 // ── Lifecycle helpers ─────────────────────────────────────────────
@@ -212,6 +235,10 @@ void UpdateGridLifecycle(SignalParams &signal_params)
   SignalTypes direction  = signal_params.signal_type;
   double direction_mult  = GridResolveDirectionMultiplier(direction);
   double anchor_price    = GridCurrentPriceForDirection(direction, true);
+  datetime now_time      = TimeCurrent();
+
+  GridTelemetryStats &stats = signal_params.grid_stats;
+  stats.last_update_time = now_time;
 
   int levels_total = ArraySize(signal_params.grid_plan.levels);
   for(int i = 0; i < levels_total; i++)
@@ -247,7 +274,17 @@ void UpdateGridLifecycle(SignalParams &signal_params)
       if(GridGuardrailsAllowOrder(normalized_volume))
       {
         order_state.status = GRID_ORDER_PENDING;
-        order_state.last_action_time = TimeCurrent();
+        order_state.last_action_time = now_time;
+        if(stats.activation_time == 0)
+          stats.activation_time = now_time;
+        if(Enable_Logs)
+        {
+          PrintFormat("Grid level pending | dir=%s | level=%d | trigger=%.5f",
+                      EnumToString(direction),
+                      order_state.level_index,
+                      order_state.last_pending_price);
+        }
+        GridLogEvent("LEVEL_PENDING", signal_params, order_state, level_plan);
       }
       signal_params.grid_orders[i] = order_state;
       continue;
@@ -261,16 +298,22 @@ void UpdateGridLifecycle(SignalParams &signal_params)
         continue;
       }
 
-      bool should_activate = false;
-      if(direction == BULLISH)
-        should_activate = (g_ask >= pending_price);
-      else
-        should_activate = (g_bid <= pending_price);
+      bool should_activate = (direction == BULLISH)
+                             ? (g_ask >= pending_price)
+                             : (g_bid <= pending_price);
 
       if(should_activate)
       {
         GridActivateLevel(direction, order_state, level_plan, pending_price);
         signal_params.signal_state = OPENED;
+        if(Enable_Logs)
+        {
+          PrintFormat("Grid level activated | dir=%s | level=%d | entry=%.5f",
+                      EnumToString(direction),
+                      order_state.level_index,
+                      order_state.entry_price);
+        }
+        GridLogEvent("LEVEL_ACTIVE", signal_params, order_state, level_plan);
       }
 
       signal_params.grid_orders[i] = order_state;
@@ -285,6 +328,20 @@ void UpdateGridLifecycle(SignalParams &signal_params)
       if(stop_hit || tp_hit)
       {
         GridFinalizeLevel(direction, order_state, point_size);
+        if(order_state.realized_points > 0.0)
+          stats.total_positive_points += order_state.realized_points;
+        else if(order_state.realized_points < 0.0)
+          stats.total_negative_points += MathAbs(order_state.realized_points);
+        stats.completed_levels++;
+
+        if(Enable_Logs)
+        {
+          PrintFormat("Grid level completed | dir=%s | level=%d | realized=%.1f",
+                      EnumToString(direction),
+                      order_state.level_index,
+                      order_state.realized_points);
+        }
+        GridLogEvent(stop_hit ? "LEVEL_STOP" : "LEVEL_TP", signal_params, order_state, level_plan);
         signal_params.grid_orders[i] = order_state;
         continue;
       }
@@ -295,6 +352,20 @@ void UpdateGridLifecycle(SignalParams &signal_params)
     }
 
     signal_params.grid_orders[i] = order_state;
+  }
+
+  if(point_size > 0.0 && signal_params.entry_price > 0.0)
+  {
+    double current_close = GridCurrentPriceForDirection(direction, false);
+    double entry_price   = signal_params.entry_price;
+    double price_delta   = (direction == BULLISH)
+                           ? (current_close - entry_price)
+                           : (entry_price - current_close);
+    double points_delta  = price_delta / point_size;
+    if(points_delta > stats.max_favorable_points)
+      stats.max_favorable_points = points_delta;
+    if(points_delta < 0.0 && MathAbs(points_delta) > stats.max_adverse_points)
+      stats.max_adverse_points = MathAbs(points_delta);
   }
 }
 

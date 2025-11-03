@@ -125,6 +125,7 @@ void OnTick()
 
   // MANAGES THE BULLISH AND BEARISH SIGNALS
   Main_Tick();
+  RefreshGridVisualization();
 
   //--- Phase 1 - check the emergence of a new bar and update the status
   if(current_time>=next_bar_open)

@@ -49,6 +49,37 @@ struct GridMetadata
   }
 };
 
+struct GridTelemetryStats
+{
+  datetime activation_time;
+  datetime last_update_time;
+  double   max_favorable_points;
+  double   max_adverse_points;
+  double   total_positive_points;
+  double   total_negative_points;
+  int      completed_levels;
+
+  GridTelemetryStats()
+  {
+    activation_time      = 0;
+    last_update_time     = 0;
+    max_favorable_points = 0.0;
+    max_adverse_points   = 0.0;
+    total_positive_points = 0.0;
+    total_negative_points = 0.0;
+    completed_levels      = 0;
+  }
+
+  double ProfitFactor() const
+  {
+    if(total_positive_points <= 0.0)
+      return 0.0;
+    if(total_negative_points <= 0.0)
+      return total_positive_points;
+    return total_positive_points / total_negative_points;
+  }
+};
+
 struct GridOrderState
 {
   int               level_index;
@@ -94,6 +125,7 @@ struct SignalParams
   BodyMAStructure           body_ma_data[];
   GridMetadata              grid_plan;
   GridOrderState            grid_orders[];
+  GridTelemetryStats        grid_stats;
 
   // DEFAULT CONSTRUCTOR
   SignalParams()
@@ -160,6 +192,8 @@ struct SignalParams
     ArrayResize(grid_orders, orders_total);
     for(int n = 0; n < orders_total; n++)
       grid_orders[n] = signal_params.grid_orders[n];
+
+    grid_stats = signal_params.grid_stats;
   }
 };
 
