@@ -9,11 +9,6 @@
 extern double g_bid;
 extern double g_ask;
 extern double g_points_spread;
-extern double Max_Spread;
-
-void InitializeGridOrdersForSignal(SignalParams &signal_params);
-void UpdateGridLifecycle(SignalParams &signal_params);
-bool IsGridSignalComplete(const SignalParams &signal_params);
 
 // ── Internal helpers ──────────────────────────────────────────────
 
