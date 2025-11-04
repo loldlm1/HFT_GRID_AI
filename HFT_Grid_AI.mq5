@@ -123,10 +123,6 @@ void OnTick()
   // UPDATES THE STATUS COMMENT
   UpdateEARunningMagic();
 
-  // MANAGES THE BULLISH AND BEARISH SIGNALS
-  Main_Tick();
-  RefreshGridVisualization();
-
   //--- Phase 1 - check the emergence of a new bar and update the status
   if(current_time>=next_bar_open)
   {
@@ -137,6 +133,10 @@ void OnTick()
     next_bar_open-=next_bar_open%defined_tick_seconds;
     next_bar_open+=defined_tick_seconds;
   }
+
+  // MANAGES THE BULLISH AND BEARISH SIGNALS
+  Main_Tick();
+  RefreshGridVisualization();
 }
 
 // DETECT BULLISH AND BEARISH SIGNALS

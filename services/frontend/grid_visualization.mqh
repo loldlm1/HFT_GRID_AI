@@ -83,21 +83,45 @@ void DrawGridLevels(const long chart_id,
   for(int i = 0; i < levels_total; i++)
   {
     GridOrderState level_state = signal_params.grid_orders[i];
-    GridLevelPlan level_plan   = signal_params.grid_plan.levels[i];
 
     string entry_name = GridLevelObjectName(signal_params, i, "ENTRY");
     string stop_name  = GridLevelObjectName(signal_params, i, "STOP");
     string tp_name    = GridLevelObjectName(signal_params, i, "TP");
+    string final_name = GridLevelObjectName(signal_params, i, "TP_FINAL");
+    string next_name  = GridLevelObjectName(signal_params, i, "NEXT");
 
-    UpdateHorizontalLine(chart_id, entry_name, COLOR_PROFIT_NEUTRAL, level_state.last_pending_price);
+    if(level_state.status == GRID_ORDER_INACTIVE || level_state.status == GRID_ORDER_WAITING)
+    {
+      UpdateHorizontalLine(chart_id, entry_name, COLOR_PROFIT_NEUTRAL, 0.0);
+      UpdateHorizontalLine(chart_id, stop_name, COLOR_PROFIT_NEGATIVE, 0.0);
+      UpdateHorizontalLine(chart_id, tp_name, COLOR_PROFIT_POSITIVE, 0.0);
+      UpdateHorizontalLine(chart_id, final_name, COLOR_PROFIT_POSITIVE, 0.0);
+      UpdateHorizontalLine(chart_id, next_name, COLOR_PROFIT_NEUTRAL, 0.0);
+      continue;
+    }
+
+    if(level_state.status == GRID_ORDER_COMPLETED)
+    {
+      UpdateHorizontalLine(chart_id, entry_name, COLOR_PROFIT_NEUTRAL, 0.0);
+      UpdateHorizontalLine(chart_id, stop_name, COLOR_PROFIT_NEGATIVE, 0.0);
+      UpdateHorizontalLine(chart_id, tp_name, COLOR_PROFIT_POSITIVE, 0.0);
+      UpdateHorizontalLine(chart_id, final_name, COLOR_PROFIT_POSITIVE, 0.0);
+      UpdateHorizontalLine(chart_id, next_name, COLOR_PROFIT_NEUTRAL, 0.0);
+      continue;
+    }
+
+    UpdateHorizontalLine(chart_id, entry_name, COLOR_PROFIT_NEUTRAL, 0.0);
     UpdateHorizontalLine(chart_id, stop_name, COLOR_PROFIT_NEGATIVE, level_state.stop_loss_price);
     UpdateHorizontalLine(chart_id, tp_name, COLOR_PROFIT_POSITIVE, level_state.take_profit_price);
+    UpdateHorizontalLine(chart_id, final_name, COLOR_PROFIT_POSITIVE, level_state.final_take_profit_price);
+    UpdateHorizontalLine(chart_id, next_name, COLOR_PROFIT_NEUTRAL, level_state.next_level_price);
 
     if(Enable_Chart_Levels)
     {
-      PushObjectName(tracked_objects, entry_name);
       PushObjectName(tracked_objects, stop_name);
       PushObjectName(tracked_objects, tp_name);
+      PushObjectName(tracked_objects, final_name);
+      PushObjectName(tracked_objects, next_name);
     }
   }
 }

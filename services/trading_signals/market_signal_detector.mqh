@@ -118,7 +118,7 @@ void DetectBearishSignal()
 void CloseBullishSignal(SignalParams &signal_bullish)
 {
   signal_bullish.signal_state = CLOSED;
-  if(Enable_Logs) LogSignalParamsForTF(signal_bullish, PERIOD_M1);
+  //if(Enable_Logs) LogSignalParamsForTF(signal_bullish, PERIOD_M1);
 
   // MANAGE THE BULLISH SIGNAL STATE
   // if(signal_bullish.signal_state == OPENED) { ... }
@@ -127,7 +127,7 @@ void CloseBullishSignal(SignalParams &signal_bullish)
 void CloseBearishSignal(SignalParams &signal_bearish)
 {
   signal_bearish.signal_state = CLOSED;
-  if(Enable_Logs) LogSignalParamsForTF(signal_bearish, PERIOD_M1);
+  //if(Enable_Logs) LogSignalParamsForTF(signal_bearish, PERIOD_M1);
 
   // MANAGE THE BULLISH SIGNAL STATE
   // if(signal_bearish.signal_state == OPENED) { ... }
