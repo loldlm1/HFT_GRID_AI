@@ -362,26 +362,39 @@ void GridUpdateNextLevelPrice(const SignalTypes direction,
   }
 }
 
+double GridResolvePendingPoints(const GridLevelPlan &level_plan)
+{
+  double pending_points = level_plan.pending_order_points;
+  if(pending_points <= 0.0)
+  {
+    pending_points = level_plan.distance_points + level_plan.entry_offset_points;
+    if(pending_points <= 0.0)
+      pending_points = level_plan.distance_points;
+  }
+  return pending_points;
+}
+
 void GridInitializePendingLevel(const SignalTypes direction,
                                 GridOrderState &order_state,
                                 const GridLevelPlan &level_plan,
                                 const double point_size)
 {
-  double reference_price = order_state.anchor_price;
-  if(reference_price <= 0.0)
-    reference_price = GridCurrentPriceForDirection(direction, true);
+  double direction_mult = GridResolveDirectionMultiplier(direction);
+  double anchor_price   = order_state.anchor_price;
+  if(anchor_price <= 0.0)
+    anchor_price = GridCurrentPriceForDirection(direction, true);
 
-  order_state.anchor_price     = reference_price;
+  order_state.anchor_price     = anchor_price;
   order_state.status           = GRID_ORDER_PENDING;
   order_state.last_action_time = TimeCurrent();
 
-  double direction_mult = GridResolveDirectionMultiplier(direction);
+  double pending_points = GridResolvePendingPoints(level_plan);
+  double pending_price  = anchor_price + direction_mult * pending_points * point_size;
 
-  double pending_price = reference_price - direction_mult * level_plan.pending_order_points * point_size;
-
+  order_state.anchor_price     = anchor_price;
   order_state.stop_loss_price    = 0.0;
   order_state.last_pending_price = pending_price;
-  order_state.next_level_price   = pending_price;
+  order_state.next_level_price   = 0.0;
 
   if(level_plan.take_profit_points > 0.0)
   {
@@ -394,7 +407,7 @@ void GridInitializePendingLevel(const SignalTypes direction,
   }
 
   if(level_plan.final_take_profit_points > 0.0)
-    order_state.final_take_profit_price = order_state.anchor_price + direction_mult * level_plan.final_take_profit_points * point_size;
+    order_state.final_take_profit_price = pending_price + direction_mult * level_plan.final_take_profit_points * point_size;
   else
     order_state.final_take_profit_price = 0.0;
 
@@ -414,15 +427,16 @@ void GridUpdatePendingLevel(const SignalTypes direction,
                             const double point_size)
 {
   double direction_mult   = GridResolveDirectionMultiplier(direction);
-  double reference_price  = order_state.anchor_price;
-  if(reference_price <= 0.0)
-    reference_price = GridCurrentPriceForDirection(direction, true);
+  double anchor_price     = order_state.anchor_price;
+  if(anchor_price <= 0.0)
+    anchor_price = GridCurrentPriceForDirection(direction, true);
 
-  double pending_price = reference_price - direction_mult * level_plan.pending_order_points * point_size;
+  double pending_points = GridResolvePendingPoints(level_plan);
+  double pending_price  = anchor_price + direction_mult * pending_points * point_size;
 
   order_state.stop_loss_price    = 0.0;
   order_state.last_pending_price = pending_price;
-  order_state.next_level_price   = pending_price;
+  order_state.next_level_price   = 0.0;
 
   if(level_plan.take_profit_points > 0.0)
   {
@@ -435,7 +449,7 @@ void GridUpdatePendingLevel(const SignalTypes direction,
   }
 
   if(level_plan.final_take_profit_points > 0.0)
-    order_state.final_take_profit_price = order_state.anchor_price + direction_mult * level_plan.final_take_profit_points * point_size;
+    order_state.final_take_profit_price = pending_price + direction_mult * level_plan.final_take_profit_points * point_size;
   else
     order_state.final_take_profit_price = 0.0;
 

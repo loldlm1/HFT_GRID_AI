@@ -210,6 +210,24 @@ bool BuildGridPlanForSignal(SignalParams &signal_params)
   if(!GridEnsureLevelPlan(signal_params, 0))
     return false;
 
+  if(Enable_File_Logs)
+  {
+    GridLevelPlan initial_plan = signal_params.grid_plan.levels[0];
+    double pending_points = initial_plan.pending_order_points;
+    if(pending_points <= 0.0)
+      pending_points = initial_plan.distance_points + initial_plan.entry_offset_points;
+    if(pending_points <= 0.0)
+      pending_points = initial_plan.distance_points;
+    string direction = (signal_params.signal_type == BULLISH) ? "BULLISH" : "BEARISH";
+    string message = StringFormat("dir=%s|level=%d|dist=%.2f|pending_pts=%.2f|anchor=%.5f",
+                                  direction,
+                                  initial_plan.level_index,
+                                  initial_plan.distance_points,
+                                  pending_points,
+                                  initial_plan.anchor_price);
+    AppendTimestampedLog("query_debug.txt", "LEVEL_PENDING_INIT", message);
+  }
+
   signal_params.grid_plan.initialized = true;
 
   if(Enable_Logs)

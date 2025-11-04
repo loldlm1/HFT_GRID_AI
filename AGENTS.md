@@ -28,6 +28,7 @@ This is a HFT Grid AI Expert Advisor designed to execute high frequency position
 - Exit Criteria: simulated grids open with correct spacing, no broker rule violations, state snapshot logged
 - Completed: grid inputs exposed, ATR handles loaded on demand with fallbacks, grid plans attached to signals with ATR shift-1 anchors (spacing, offsets, TP, final TP, lot scaling) while enforcing broker constraints
 - Completed: grid levels now append sequentially after each confirmed order fill, so `SignalParams.grid_plan.levels` only grows from live executions while reusing the first level’s activation distance to project new stops
+- Completed: pending entry prices are resolved as `distance - protective offset` above (bullish) or below (bearish) the ATR anchor so protective stops always remain on the correct side of the position while maintaining consistent grid spacing
 - In Progress: grid planner diagnostics capture ATR anchors, point size, and per-level geometry (`GRID_PLAN_BASE` / `GRID_PLAN_LEVEL`) to validate Phase 2 assumptions in Strategy Tester logs
 
 ### Phase 3 – Order Lifecycle Control
@@ -51,6 +52,12 @@ This is a HFT Grid AI Expert Advisor designed to execute high frequency position
 - Completed: telemetry now exposes live grid span points and per-level range percentages so future Fibonacci overlays and diagnostics can reference real-time market context
 - In Progress: chart overlays now draw pending entries from `last_pending_price`, leaving protective stop visuals tied to trailing logic so UI feedback mirrors the corrected backend state
 
+### Grid Telemetry Sequence (Reference)
+- `GRID_PLAN_LEVEL`: next level blueprint (distance, offsets, projected TP) captured before order staging.
+- `GRID_PLAN_BASE`: signal context (entry, anchor, point size) logged once per plan build.
+- `LEVEL_PENDING`: emitted whenever a pending order is armed; repeats only if the level is recomputed before activation.
+- `LEVEL_ACTIVE`/`LEVEL_FILLED`: confirm broker execution; downstream events (`LEVEL_FINAL_TP`, `LEVEL_CLOSE_ALL`, trailing updates) describe the close-out path.
+
 ### Phase 5 – Persistence & Resilience
 - Serialize active grid state (orders, trailing levels, indicators) to survive reconnects and timeframe changes
 - On `OnInit()`, reconcile broker order book with stored state and redraw chart elements accordingly
@@ -68,6 +75,13 @@ This is a HFT Grid AI Expert Advisor designed to execute high frequency position
 - Audit `ATR_SL_Factor` buffers to document bullish/bearish anchors and expose raw ATR deltas for the grid planner
 - Rebuild `GridLevelPlan` geometry with the new baseline/offset fields and consistent broker-distance enforcement
 - Validate updated spacing in Strategy Tester with `Enable_File_Logs=true`, confirming `GRID_PLAN_*` diagnostics and lifecycle telemetry agree before enabling broker-side pending orders
+
+### Phase 2 Telemetry Expansion
+- Pending diagnostics now include `LEVEL_PENDING_INIT` entries emitted when `BuildGridPlanForSignal()` schedules the first level and `InitializeGridOrdersForSignal()` instantiates it. The sequence is:
+  1. `GRID_PLAN_LEVEL` — level blueprint created
+  2. `GRID_PLAN_BASE` — context snapshot
+  3. `LEVEL_PENDING_INIT` — first pending order armed
+  4. `LEVEL_PENDING` — subsequent recalculations or trailing updates prior to fill
 
 ### Ongoing Tasks
 - Keep README and AGENTS synchronized after each phase
@@ -134,6 +148,7 @@ Use relative paths with quotes for project-specific files:
 1. Standard MQL5 libraries first (grouped logically)
 2. Custom services second (grouped by service type)
 3. Within custom services, order by dependency (tools → signals → database → management → frontend)
+- **IMPORTANT**: Maintain a single, top-to-bottom include cascade rooted in `HFT_Grid_AI.mq5`; services must not re-include dependencies or redeclare extern globals—always rely on the orchestrated order in the main entry point.
 
 ## Service Architecture
 

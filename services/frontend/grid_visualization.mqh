@@ -87,10 +87,10 @@ void DrawGridLevels(const long chart_id,
     string tp_name    = GridLevelObjectName(signal_params, i, "TP");
     string final_name = GridLevelObjectName(signal_params, i, "TP_FINAL");
     string next_name  = GridLevelObjectName(signal_params, i, "NEXT");
+    ObjectDelete(chart_id, entry_name);
 
     if(level_state.status == GRID_ORDER_INACTIVE || level_state.status == GRID_ORDER_WAITING)
     {
-      UpdateHorizontalLine(chart_id, entry_name, COLOR_PROFIT_NEUTRAL, 0.0);
       UpdateHorizontalLine(chart_id, stop_name, COLOR_PROFIT_NEGATIVE, 0.0);
       UpdateHorizontalLine(chart_id, tp_name, COLOR_PROFIT_POSITIVE, 0.0);
       UpdateHorizontalLine(chart_id, final_name, COLOR_PROFIT_POSITIVE, 0.0);
@@ -100,7 +100,6 @@ void DrawGridLevels(const long chart_id,
 
     if(level_state.status == GRID_ORDER_COMPLETED)
     {
-      UpdateHorizontalLine(chart_id, entry_name, COLOR_PROFIT_NEUTRAL, 0.0);
       UpdateHorizontalLine(chart_id, stop_name, COLOR_PROFIT_NEGATIVE, 0.0);
       UpdateHorizontalLine(chart_id, tp_name, COLOR_PROFIT_POSITIVE, 0.0);
       UpdateHorizontalLine(chart_id, final_name, COLOR_PROFIT_POSITIVE, 0.0);
@@ -108,20 +107,35 @@ void DrawGridLevels(const long chart_id,
       continue;
     }
 
-    double entry_price = 0.0;
-    double stop_price  = 0.0;
+    double point_size = SymbolInfoDouble(_Symbol, SYMBOL_POINT);
+    if(point_size <= 0.0)
+      point_size = 0.0001;
 
+    GridLevelPlan level_plan;
+    if(i < ArraySize(signal_params.grid_plan.levels))
+      level_plan = signal_params.grid_plan.levels[i];
+
+    double direction_mult = (signal_params.signal_type == BULLISH) ? 1.0 : -1.0;
+
+    double stop_price  = 0.0;
     if(level_state.status == GRID_ORDER_PENDING)
     {
-      entry_price = level_state.last_pending_price;
+      double entry_price = level_state.last_pending_price;
+      if(entry_price > 0.0 && level_plan.protective_stop_points > 0.0)
+        stop_price = entry_price - direction_mult * level_plan.protective_stop_points * point_size;
+    }
+    else if(level_state.status == GRID_ORDER_ACTIVE)
+    {
+      if(level_state.stop_loss_price > 0.0)
+        stop_price = level_state.stop_loss_price;
+      else if(level_state.entry_price > 0.0 && level_plan.protective_stop_points > 0.0)
+        stop_price = level_state.entry_price - direction_mult * level_plan.protective_stop_points * point_size;
     }
     else
     {
-      entry_price = level_state.entry_price;
-      stop_price  = level_state.stop_loss_price;
+      stop_price = 0.0;
     }
 
-    UpdateHorizontalLine(chart_id, entry_name, COLOR_PROFIT_NEUTRAL, entry_price);
     UpdateHorizontalLine(chart_id, stop_name, COLOR_PROFIT_NEGATIVE, stop_price);
     UpdateHorizontalLine(chart_id, tp_name, COLOR_PROFIT_POSITIVE, level_state.take_profit_price);
     UpdateHorizontalLine(chart_id, final_name, COLOR_PROFIT_POSITIVE, level_state.final_take_profit_price);

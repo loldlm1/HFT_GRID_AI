@@ -1,8 +1,9 @@
+2025.10.01 00:21:59 | LEVEL_PENDING_INIT | dir=BULLISH|level=0|dist=964.00|pending_pts=867.60|anchor=3863.45700
 2025.10.01 00:22:00 | GRID_PLAN_LEVEL | dir=BULLISH|level=0|dist=964.00|baseline=964.00|pending=1060.40|entry_offset=96.40|activation=964.00|tp=289.20|tp_final=1928.00|trail=144.60|lot=0.01|anchor=3863.45700
 2025.10.01 00:22:00 | GRID_PLAN_BASE | dir=BULLISH|entry=3864.42100|ask=3864.42100|bid=3864.26100|point=0.00100|base_dist=964.00|base_anchor=3863.45700
-2025.10.01 00:22:00 | LEVEL_PENDING | dir=BULLISH|level=0|status=GRID_ORDER_PENDING|pending=3862.39660|protect=0.00000|entry=0.00000|tp=3862.68580|next=3862.39660|anchor=3863.45700|dist=964.0|pct=-1.00
-2025.10.01 00:26:18 | GRID_PLAN_LEVEL | dir=BULLISH|level=1|dist=1232.00|baseline=1232.00|pending=1355.20|entry_offset=123.20|activation=1232.00|tp=369.60|tp_final=2464.00|trail=184.80|lot=0.02|anchor=3863.45700
-2025.10.01 00:26:18 | LEVEL_ACTIVE | dir=BULLISH|level=0|status=GRID_ORDER_ACTIVE|pending=0.00000|protect=0.00000|entry=3862.33700|tp=3862.67300|next=3862.39660|anchor=3863.45700|dist=1120.0|pct=-1.00
-2025.10.01 00:26:18 | LEVEL_FILLED | dir=BULLISH|level=0|status=GRID_ORDER_ACTIVE|pending=0.00000|protect=0.00000|entry=3862.33700|tp=3862.67300|next=3862.39660|anchor=3863.45700|dist=1120.0|pct=-1.00
-2025.10.01 00:27:13 | LEVEL_CLOSE_ALL | dir=BULLISH|level=0|status=GRID_ORDER_COMPLETED|pending=0.00000|protect=3862.62300|entry=3862.33700|tp=0.00000|next=0.00000|anchor=3863.45700|dist=0.0|pct=-1.00
-2025.10.01 00:27:13 | LEVEL_CANCELLED | dir=BULLISH|level=1|status=GRID_ORDER_COMPLETED|pending=0.00000|protect=0.00000|entry=0.00000|tp=0.00000|next=0.00000|anchor=0.00000|dist=0.0|pct=-1.00
+2025.10.01 00:22:00 | LEVEL_PENDING | dir=BULLISH|level=0|status=GRID_ORDER_PENDING|pending=3864.32460|protect=0.00000|entry=0.00000|tp=3864.61380|next=0.00000|anchor=3863.45700|dist=964.0|pct=-1.00
+2025.10.01 00:22:03 | GRID_PLAN_LEVEL | dir=BULLISH|level=1|dist=931.70|baseline=931.70|pending=1024.87|entry_offset=93.17|activation=931.70|tp=279.51|tp_final=1863.40|trail=139.76|lot=0.02|anchor=3863.45700
+2025.10.01 00:22:03 | LEVEL_ACTIVE | dir=BULLISH|level=0|status=GRID_ORDER_ACTIVE|pending=0.00000|protect=0.00000|entry=3864.30400|tp=3864.55810|next=3863.29700|anchor=3863.45700|dist=847.0|pct=-1.00
+2025.10.01 00:22:03 | LEVEL_FILLED | dir=BULLISH|level=0|status=GRID_ORDER_ACTIVE|pending=0.00000|protect=0.00000|entry=3864.30400|tp=3864.55810|next=3863.29700|anchor=3863.45700|dist=847.0|pct=-1.00
+2025.10.01 00:22:37 | LEVEL_CLOSE_ALL | dir=BULLISH|level=0|status=GRID_ORDER_COMPLETED|pending=0.00000|protect=3864.43495|entry=3864.30400|tp=0.00000|next=0.00000|anchor=3863.45700|dist=0.0|pct=-1.00
+2025.10.01 00:22:37 | LEVEL_CANCELLED | dir=BULLISH|level=1|status=GRID_ORDER_COMPLETED|pending=0.00000|protect=0.00000|entry=0.00000|tp=0.00000|next=0.00000|anchor=0.00000|dist=0.0|pct=-1.00

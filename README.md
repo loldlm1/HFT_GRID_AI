@@ -77,6 +77,7 @@ The **HFT Grid AI EA** is a specialized Expert Advisor designed to execute high 
 - Directional filter now blocks disallowed trend signals while providing debug output when logging is enabled
 - Grid planner now logs ATR anchors, point size, and per-level geometry to `query_debug.txt` (labels `GRID_PLAN_BASE` / `GRID_PLAN_LEVEL`) whenever file logging is enabled, giving Phase 2 a transparent audit trail
 - Grid framework now appends each `grid_plan.levels` entry only after the previous order fills, so every level is backed by real market execution while still reusing the first level’s activation distance for downstream projections
+- Pending entry prices now sit between the ATR anchor and protective stop buffer (`distance - protective offset`), guaranteeing long entries stay above their stops while preserving sequential grid spacing for subsequent levels
 
 ### Phase 3 – Current Deliverables
 - Grid order controller now promotes levels sequentially and fires `CTrade` market orders the moment tagged stops are reached, persisting deal-linked position tickets and activation timestamps for telemetry while seeding the next grid level only after a confirmed fill
@@ -94,6 +95,13 @@ The **HFT Grid AI EA** is a specialized Expert Advisor designed to execute high 
 - Telemetry now captures the live grid span in points alongside per-level range percentages, unlocking upcoming Fibonacci-style visual overlays and improved range diagnostics
 - Grid telemetry tracks max favorable/adverse excursion, completed levels, and cumulative point statistics for future analytics modules
 - Pending entries render using the new dedicated entry price while protective stop overlays remain tied to active trailing logic, ensuring chart artifacts reflect the corrected lifecycle
+
+### Grid Telemetry Sequence
+1. `GRID_PLAN_LEVEL` — snapshot of the next level blueprint (distance, offsets, projected TP) before any order is staged.
+2. `GRID_PLAN_BASE` — contextual data for the signal (entry, anchor, point size) recorded once per plan refresh.
+3. `LEVEL_PENDING_INIT` — logged when the planner hands the first pending order to the lifecycle.
+4. `LEVEL_PENDING` — emitted on subsequent recalculations or trailing updates before activation.
+5. After fill: `LEVEL_ACTIVE`, optional `LEVEL_FILLED`, then lifecycle events (`LEVEL_FINAL_TP`, `LEVEL_CLOSE_ALL`, trailing updates) depending on trade outcome.
 
 ## Next Steps
 
