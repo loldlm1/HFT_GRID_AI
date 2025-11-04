@@ -4,12 +4,6 @@
 #ifndef _SERVICES_TRADING_SIGNALS_GRID_ORDER_CONTROLLER_MQH_
 #define _SERVICES_TRADING_SIGNALS_GRID_ORDER_CONTROLLER_MQH_
 
-extern double g_bid;
-extern double g_ask;
-extern double g_points_spread;
-extern int    g_magic_number;
-extern CTrade g_position;
-
 // ── Internal helpers ──────────────────────────────────────────────
 
 double GridResolvePointSize()
@@ -147,8 +141,12 @@ void GridScalePlannedLevels(SignalParams &signal_params,
   {
     GridLevelPlan plan = signal_params.grid_plan.levels[i];
     plan.distance_points           *= scaling_factor;
+    plan.baseline_distance_points  *= scaling_factor;
     plan.pending_order_points      *= scaling_factor;
+    plan.entry_offset_points       *= scaling_factor;
+    plan.protective_stop_points    *= scaling_factor;
     plan.activation_points         *= scaling_factor;
+    plan.activation_offset_points  *= scaling_factor;
     plan.take_profit_points        *= scaling_factor;
     plan.final_take_profit_points  *= scaling_factor;
     plan.trailing_points           *= scaling_factor;
@@ -164,7 +162,13 @@ void GridScheduleNextLevel(SignalParams &signal_params,
 
   int levels_total = ArraySize(signal_params.grid_plan.levels);
   if(next_level_index >= levels_total)
-    return;
+  {
+    if(!GridEnsureLevelPlan(signal_params, next_level_index))
+      return;
+    levels_total = ArraySize(signal_params.grid_plan.levels);
+    if(next_level_index >= levels_total)
+      return;
+  }
 
   GridEnsureOrderState(signal_params, next_level_index);
   GridOrderState next_state = signal_params.grid_orders[next_level_index];
@@ -525,8 +529,24 @@ bool GridExecuteLevelTrade(SignalParams &signal_params,
     if(level_index >= 0 && level_index < ArraySize(signal_params.grid_plan.levels))
     {
       GridLevelPlan plan_update = signal_params.grid_plan.levels[level_index];
+      double previous_baseline = plan_update.baseline_distance_points;
+      double scaling_factor = 1.0;
+      if(previous_baseline > 0.0)
+        scaling_factor = actual_distance_points / previous_baseline;
       plan_update.distance_points = actual_distance_points;
+      plan_update.baseline_distance_points = actual_distance_points;
       plan_update.resolved_distance_points = actual_distance_points;
+      if(MathAbs(scaling_factor - 1.0) > 1e-6)
+      {
+        plan_update.pending_order_points     *= scaling_factor;
+        plan_update.entry_offset_points      *= scaling_factor;
+        plan_update.protective_stop_points   *= scaling_factor;
+        plan_update.activation_points        *= scaling_factor;
+        plan_update.activation_offset_points *= scaling_factor;
+        plan_update.take_profit_points       *= scaling_factor;
+        plan_update.final_take_profit_points *= scaling_factor;
+        plan_update.trailing_points          *= scaling_factor;
+      }
       signal_params.grid_plan.levels[level_index] = plan_update;
     }
   }

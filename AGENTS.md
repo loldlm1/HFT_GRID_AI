@@ -27,6 +27,7 @@ This is a HFT Grid AI Expert Advisor designed to execute high frequency position
 - Persist grid metadata to memory containers designed for quick iteration and recovery
 - Exit Criteria: simulated grids open with correct spacing, no broker rule violations, state snapshot logged
 - Completed: grid inputs exposed, ATR handles loaded on demand with fallbacks, grid plans attached to signals with ATR shift-1 anchors (spacing, offsets, TP, final TP, lot scaling) while enforcing broker constraints
+- Completed: grid levels now append sequentially after each confirmed order fill, so `SignalParams.grid_plan.levels` only grows from live executions while reusing the first level’s activation distance to project new stops
 - In Progress: grid planner diagnostics capture ATR anchors, point size, and per-level geometry (`GRID_PLAN_BASE` / `GRID_PLAN_LEVEL`) to validate Phase 2 assumptions in Strategy Tester logs
 
 ### Phase 3 – Order Lifecycle Control

@@ -76,6 +76,7 @@ The **HFT Grid AI EA** is a specialized Expert Advisor designed to execute high 
 - Introduced `Grid_Final_TP_Percent` to pre-compute full-grid take-profit offsets alongside base, trailing, and next-level projections
 - Directional filter now blocks disallowed trend signals while providing debug output when logging is enabled
 - Grid planner now logs ATR anchors, point size, and per-level geometry to `query_debug.txt` (labels `GRID_PLAN_BASE` / `GRID_PLAN_LEVEL`) whenever file logging is enabled, giving Phase 2 a transparent audit trail
+- Grid framework now appends each `grid_plan.levels` entry only after the previous order fills, so every level is backed by real market execution while still reusing the first level’s activation distance for downstream projections
 
 ### Phase 3 – Current Deliverables
 - Grid order controller now promotes levels sequentially and fires `CTrade` market orders the moment tagged stops are reached, persisting deal-linked position tickets and activation timestamps for telemetry while seeding the next grid level only after a confirmed fill
