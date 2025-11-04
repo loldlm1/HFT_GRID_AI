@@ -34,7 +34,9 @@ This is a HFT Grid AI Expert Advisor designed to execute high frequency position
 - Apply Grid_Positions_Stops_Percent to deeper grid layers while respecting exponential spacing
 - Add guardrails for margin, slippage, and spread thresholds to halt grid expansion safely
 - Exit Criteria: full trade cycle executed in tester with correct order stack, protective stops adapt as configured
-- Completed: grid order controller stages levels sequentially, fires `CTrade` market orders as soon as tagged stops are hit, records deal-linked tickets/activation time for telemetry, trails adverse moves, and enforces spread/margin guardrails with flexible lot sizing
+- Completed: grid order controller stages levels sequentially, only instantiates the next grid level after a confirmed fill, fires `CTrade` market orders as soon as tagged stops are hit, records deal-linked tickets/activation time for telemetry, trails adverse moves, and enforces spread/margin guardrails with flexible lot sizing
+- Completed: resolved entry-to-anchor distances rescale the remaining grid plan so pending stops, activation gaps, and TP offsets obey the real market fill distance instead of projected ATR deltas
+- Completed: active levels track their live grid-range percentage while metadata captures `range_high_price`, `range_low_price`, and `current_range_points` for downstream analytics and guardrail validation
 
 ### Phase 4 – Visualization & Telemetry
 - Render signal, stop, limit, and trailing lines with profit-colored styles and minimal clutter
@@ -43,6 +45,7 @@ This is a HFT Grid AI Expert Advisor designed to execute high frequency position
 - Track per-grid stats (duration, excursion, profit factor) for future analytics modules
 - Exit Criteria: chart artifacts align with live orders, logs expose actionable diagnostics
 - Completed: grid dashboard renders the pending stop, projected TP, optional `TP_FINAL`, and dynamically updated next grid level sourced directly from `SignalParams`—hiding the stop once filled, swapping to the trailing overlay when protection engages, while summary comments, file logs, and telemetry stay in sync for frontend consumers
+- Completed: telemetry now exposes live grid span points and per-level range percentages so future Fibonacci overlays and diagnostics can reference real-time market context
 
 ### Phase 5 – Persistence & Resilience
 - Serialize active grid state (orders, trailing levels, indicators) to survive reconnects and timeframe changes

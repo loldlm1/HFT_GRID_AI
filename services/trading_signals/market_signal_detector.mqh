@@ -291,14 +291,10 @@ bool CanAttemptSignal(const SignalTypes signal_type)
 {
   if(Strategy_Direction_Mode == BULLISH_DIRECTION && signal_type == BEARISH)
   {
-    if(Enable_Logs)
-      Print("Direction filter active: ignoring bearish signals.");
     return false;
   }
   if(Strategy_Direction_Mode == BEARISH_DIRECTION && signal_type == BULLISH)
   {
-    if(Enable_Logs)
-      Print("Direction filter active: ignoring bullish signals.");
     return false;
   }
 

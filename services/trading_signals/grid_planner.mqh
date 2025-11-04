@@ -176,14 +176,19 @@ bool BuildGridPlanForSignal(SignalParams &signal_params)
   signal_params.grid_plan.base_anchor_price    = base_anchor_price;
   signal_params.grid_plan.base_lot_size        = base_lot;
   signal_params.grid_plan.direction            = signal_params.signal_type;
+  signal_params.grid_plan.resolved_base_distance_points = 0.0;
+  signal_params.grid_plan.range_high_price     = 0.0;
+  signal_params.grid_plan.range_low_price      = 0.0;
 
   for(int level_index = 0; level_index < GRID_MAX_LEVELS; level_index++)
   {
     GridLevelPlan level_plan;
     level_plan.level_index     = level_index;
     level_plan.distance_points = base_distance_points * MathPow(exponential_multiplier, level_index);
+    level_plan.resolved_distance_points = 0.0;
     double scaled_lot          = base_lot * MathPow(lot_multiplier, level_index);
     level_plan.lot_size        = NormalizeVolumeForSymbol(_Symbol, scaled_lot);
+    level_plan.grid_range_percent = -1.0;
 
     double entry_percent = (level_index == 0) ? initial_stop_percent : deep_stop_percent;
     double entry_offset  = level_plan.distance_points * (entry_percent / 100.0);

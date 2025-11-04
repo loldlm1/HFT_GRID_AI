@@ -130,11 +130,12 @@ void BuildSignalSummary(const SignalParams &signal_params,
                         string &summary_lines[],
                         const datetime now_time)
 {
-  int total_levels = ArraySize(signal_params.grid_orders);
+  int total_levels = ArraySize(signal_params.grid_plan.levels);
   int active_levels = 0;
   int pending_levels = 0;
 
-  for(int i = 0; i < total_levels; i++)
+  int tracked_orders = ArraySize(signal_params.grid_orders);
+  for(int i = 0; i < tracked_orders; i++)
   {
     GridOrderState level_state = signal_params.grid_orders[i];
     if(level_state.status == GRID_ORDER_ACTIVE)
