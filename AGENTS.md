@@ -26,7 +26,7 @@ This is a HFT Grid AI Expert Advisor designed to execute high frequency position
 - Calculate exponential spacing and initial stop distances, ensuring broker freeze/stop compliance
 - Persist grid metadata to memory containers designed for quick iteration and recovery
 - Exit Criteria: simulated grids open with correct spacing, no broker rule violations, state snapshot logged
-- Completed: grid inputs exposed, ATR handles loaded on demand with fallbacks, grid plans attached to signals (spacing, stops, TP, lot scaling) while enforcing broker constraints
+- Completed: grid inputs exposed, ATR handles loaded on demand with fallbacks, grid plans attached to signals with ATR shift-1 anchors (spacing, offsets, TP, final TP, lot scaling) while enforcing broker constraints
 
 ### Phase 3 – Order Lifecycle Control
 - Automate buy/sell stop placement that trails adverse price action according to Grid_Initial_Stops_Percent
@@ -34,7 +34,7 @@ This is a HFT Grid AI Expert Advisor designed to execute high frequency position
 - Apply Grid_Positions_Stops_Percent to deeper grid layers while respecting exponential spacing
 - Add guardrails for margin, slippage, and spread thresholds to halt grid expansion safely
 - Exit Criteria: full trade cycle executed in tester with correct order stack, protective stops adapt as configured
-- Completed: per-level grid order controller simulates and trails pending levels entirely in-memory, links active trades for SL/TP management without broker orders, enforces spread/margin guardrails, and resolves lot sizing via fixed, percentage, or currency-based targets
+- Completed: grid order controller stages levels sequentially, fires `CTrade` market orders as soon as tagged stops are hit, records deal-linked tickets/activation time for telemetry, trails adverse moves, and enforces spread/margin guardrails with flexible lot sizing
 
 ### Phase 4 – Visualization & Telemetry
 - Render signal, stop, limit, and trailing lines with profit-colored styles and minimal clutter
@@ -42,7 +42,7 @@ This is a HFT Grid AI Expert Advisor designed to execute high frequency position
 - Create lightweight file logging (e.g., `query_debug.txt`) for post-run analysis without flooding the terminal
 - Track per-grid stats (duration, excursion, profit factor) for future analytics modules
 - Exit Criteria: chart artifacts align with live orders, logs expose actionable diagnostics
-- Completed: grid dashboard renders entry/stop/target lines, summary comments surface live telemetry, file logging captures lifecycle events, and in-memory stats monitor excursions and profit factor
+- Completed: grid dashboard renders the pending stop, projected TP, optional `TP_FINAL`, and dynamically updated next grid level sourced from a shared JSON snapshot—hiding the stop once filled, swapping to the trailing overlay when protection engages, while summary comments, file logs, and telemetry stay in sync for frontend consumers
 
 ### Phase 5 – Persistence & Resilience
 - Serialize active grid state (orders, trailing levels, indicators) to survive reconnects and timeframe changes

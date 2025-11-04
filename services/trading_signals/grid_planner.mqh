@@ -12,34 +12,13 @@ const int GRID_MAX_LEVELS = 6;
 
 extern SymbolTradingConstraints g_symbol_constraints;
 extern IndicatorsHandleInfo     ExtATRIndicatorsHandle[];
+extern double                   g_bid;
+extern double                   g_ask;
 
-double CalculateBaseGridDistancePoints()
-{
-  double distance_points = 0.0;
-
-  if(Grid_Base_Strategy_Type == ATR_RANGE)
-  {
-    double atr_points = 0.0;
-    if(!FetchAtrDistancePoints(Strategy_Timeframe, atr_points))
-    {
-      Print("Failed to fetch ATR distance, falling back to direct points input.");
-      distance_points = Grid_ATR_Points_Setup;
-    }
-    else
-    {
-      distance_points = atr_points * Grid_ATR_Points_Setup;
-    }
-  }
-  else
-  {
-    distance_points = Grid_ATR_Points_Setup;
-  }
-
-  distance_points = EnforceBrokerDistance(g_symbol_constraints, distance_points);
-  return distance_points;
-}
-
-bool FetchAtrDistancePoints(ENUM_TIMEFRAMES tf, double &distance_points)
+bool FetchAtrGridContext(const SignalTypes direction,
+                         const ENUM_TIMEFRAMES tf,
+                         double &distance_points,
+                         double &anchor_price)
 {
   int total_atr_handles = ArraySize(ExtATRIndicatorsHandle);
   if(total_atr_handles <= 0)
@@ -50,20 +29,66 @@ bool FetchAtrDistancePoints(ENUM_TIMEFRAMES tf, double &distance_points)
     if(ExtATRIndicatorsHandle[i].indicator_timeframe != tf)
       continue;
 
-    double atr_buffer[];
-    if(CopyBuffer(ExtATRIndicatorsHandle[i].indicator_handle, 2, 0, 1, atr_buffer) <= 0)
+    int buffer_index = (direction == BULLISH) ? 1 : 0;
+    double atr_reference[];
+    if(CopyBuffer(ExtATRIndicatorsHandle[i].indicator_handle,
+                  buffer_index,
+                  1,
+                  1,
+                  atr_reference) <= 0)
       return false;
 
-    double atr_price  = atr_buffer[0];
-    double point_size = SymbolInfoDouble(_Symbol, SYMBOL_POINT);
-    if(point_size <= 0.0)
+    anchor_price = atr_reference[0];
+    double current_price = (direction == BULLISH) ? g_ask : g_bid;
+    double point_size    = SymbolInfoDouble(_Symbol, SYMBOL_POINT);
+    if(point_size <= 0.0 || current_price <= 0.0 || anchor_price <= 0.0)
       return false;
 
-    distance_points = atr_price / point_size;
-    return distance_points > 0.0;
+    distance_points = MathAbs(current_price - anchor_price) / point_size;
+    return (distance_points > 0.0);
   }
 
   return false;
+}
+
+bool CalculateBaseGridContext(const SignalTypes direction,
+                              const ENUM_TIMEFRAMES tf,
+                              double &distance_points,
+                              double &anchor_price)
+{
+  distance_points = 0.0;
+  anchor_price    = 0.0;
+
+  if(Grid_Base_Strategy_Type == ATR_RANGE)
+  {
+    if(!FetchAtrGridContext(direction, tf, distance_points, anchor_price))
+    {
+      Print("Failed to fetch ATR distance, falling back to direct points input.");
+      distance_points = Grid_ATR_Points_Setup;
+    }
+    else
+    {
+      distance_points = distance_points * MathMax(Grid_ATR_Points_Setup, 1.0);
+    }
+  }
+  else
+  {
+    distance_points = Grid_ATR_Points_Setup;
+  }
+
+  double point_size = SymbolInfoDouble(_Symbol, SYMBOL_POINT);
+  if(point_size <= 0.0)
+    point_size = 0.0001;
+
+  if(anchor_price <= 0.0)
+  {
+    double current_price = (direction == BULLISH) ? g_ask : g_bid;
+    double direction_mult = (direction == BULLISH) ? 1.0 : -1.0;
+    anchor_price = current_price - direction_mult * distance_points * point_size;
+  }
+
+  distance_points = EnforceBrokerDistance(g_symbol_constraints, distance_points);
+  return (distance_points > 0.0);
 }
 
 double ResolveBaseGridLot(const double base_distance_points)
@@ -109,7 +134,18 @@ bool BuildGridPlanForSignal(SignalParams &signal_params)
   ArrayResize(signal_params.grid_plan.levels, 0);
   signal_params.grid_plan.initialized = false;
 
-  double base_distance_points = CalculateBaseGridDistancePoints();
+  double base_distance_points = 0.0;
+  double base_anchor_price    = 0.0;
+
+  if(!CalculateBaseGridContext(signal_params.signal_type,
+                               Strategy_Timeframe,
+                               base_distance_points,
+                               base_anchor_price))
+  {
+    Print("Grid plan aborted: base distance not available.");
+    return false;
+  }
+
   if(base_distance_points <= 0.0)
   {
     Print("Grid plan aborted: base distance not available.");
@@ -137,6 +173,7 @@ bool BuildGridPlanForSignal(SignalParams &signal_params)
   }
 
   signal_params.grid_plan.base_distance_points = base_distance_points;
+  signal_params.grid_plan.base_anchor_price    = base_anchor_price;
   signal_params.grid_plan.base_lot_size        = base_lot;
   signal_params.grid_plan.direction            = signal_params.signal_type;
 
@@ -148,21 +185,20 @@ bool BuildGridPlanForSignal(SignalParams &signal_params)
     double scaled_lot          = base_lot * MathPow(lot_multiplier, level_index);
     level_plan.lot_size        = NormalizeVolumeForSymbol(_Symbol, scaled_lot);
 
-    double stop_percent  = (level_index == 0) ? initial_stop_percent : deep_stop_percent;
-    double stop_distance = level_plan.distance_points * (stop_percent / 100.0);
-    stop_distance        = (stop_distance > 0.0) ? EnforceBrokerDistance(g_symbol_constraints, stop_distance) : 0.0;
+    double entry_percent = (level_index == 0) ? initial_stop_percent : deep_stop_percent;
+    double entry_offset  = level_plan.distance_points * (entry_percent / 100.0);
+    entry_offset         = (entry_offset > 0.0) ? EnforceBrokerDistance(g_symbol_constraints, entry_offset) : 0.0;
+    double pending_points = level_plan.distance_points + entry_offset;
 
-    double pending_distance = (level_index == 0)
-                              ? level_plan.distance_points * (initial_stop_percent / 100.0)
-                              : level_plan.distance_points * (deep_stop_percent / 100.0);
-    pending_distance        = (pending_distance > 0.0) ? EnforceBrokerDistance(g_symbol_constraints, pending_distance) : 0.0;
+    double activation_distance = level_plan.distance_points;
+    activation_distance        = (activation_distance > 0.0) ? EnforceBrokerDistance(g_symbol_constraints, activation_distance) : 0.0;
 
-    double next_distance = level_plan.distance_points;
-    if(level_index < GRID_MAX_LEVELS - 1)
-      next_distance = base_distance_points * MathPow(exponential_multiplier, level_index + 1);
-
-    double tp_activation = next_distance * (tp_percent / 100.0);
+    double tp_activation = level_plan.distance_points * (tp_percent / 100.0);
     tp_activation        = (tp_activation > 0.0) ? EnforceBrokerDistance(g_symbol_constraints, tp_activation) : 0.0;
+
+    double final_tp_points = level_plan.distance_points * (Grid_Final_TP_Percent / 100.0);
+    if(final_tp_points < 0.0)
+      final_tp_points = 0.0;
 
     double trailing_distance = 0.0;
     if(trailing_percent > 0.0 && tp_activation > 0.0)
@@ -171,9 +207,10 @@ bool BuildGridPlanForSignal(SignalParams &signal_params)
       trailing_distance = (trailing_distance > 0.0) ? EnforceBrokerDistance(g_symbol_constraints, trailing_distance) : 0.0;
     }
 
-    level_plan.stop_loss_points     = stop_distance;
-    level_plan.pending_order_points = pending_distance;
+    level_plan.pending_order_points = pending_points;
+    level_plan.activation_points    = activation_distance;
     level_plan.take_profit_points   = tp_activation;
+    level_plan.final_take_profit_points = final_tp_points;
     level_plan.trailing_points      = trailing_distance;
 
     AddElementToArray(signal_params.grid_plan.levels, level_plan);

@@ -72,22 +72,21 @@ The **HFT Grid AI EA** is a specialized Expert Advisor designed to execute high 
 ### Phase 2 – Current Deliverables
 - Centralized grid inputs (`Grid_Base_Strategy_Type`, ATR/points setup, multipliers, percentages, direction) with validation and logging of the active context
 - Added ATR factor indicator loading on demand and fallback handling for points-based grids
-- Built grid plan metadata attached to every signal, including level spacing, stop/TP distances, and lot progression with broker-distance enforcement
+- Grid plan builder now derives level spacing and the initial anchor price from the `ATR_SL_Factor` (shift 1) so every level shares consistent point references while honoring broker freeze/stop rules
+- Introduced `Grid_Final_TP_Percent` to pre-compute full-grid take-profit offsets alongside base, trailing, and next-level projections
 - Directional filter now blocks disallowed trend signals while providing debug output when logging is enabled
 
 ### Phase 3 – Current Deliverables
-- Grid order controller initializes per-level order states and drives placement/updates from tick activity
-- Pending buy/sell stops trail adverse price action with broker-distance enforcement and spread/margin guardrails
-- Active grid positions link back to their levels and tighten stops using configured trailing percentages
-- Grid signals auto-close once all levels resolve, logging lifecycle events for downstream telemetry
-- Execution lifecycle managed entirely in-memory; broker stops, limits, and pending orders are simulated by the EA for tighter control
-- Dynamic lot sizing supports fixed, percentage-based, or currency-based risk targets that scale with grid multipliers
+- Grid order controller promotes levels sequentially and fires `CTrade` market orders the moment tagged stops are reached, persisting deal-linked position tickets and activation timestamps for telemetry
+- Pending buy/sell stops trail adverse price action while their next-level projections recompute from live bid/ask quotes each tick, keeping deeper grid anchors aligned until fills occur
+- Active positions refresh TP, final TP, and trailing protection from live prices, enabling shared close-outs once profit targets or trailing blocks are tagged
+- Dynamic lot sizing still supports fixed, percentage-based, or currency-based risk targets, all gated by spread/margin guardrails to prevent unsafe grid expansion
 
 ### Phase 4 – Current Deliverables
-- On-chart grid rendering draws entry/stop/target levels per direction with consistent styling while avoiding broker order objects
+- On-chart grid rendering now highlights the pending stop line, projected TP, optional `TP_FINAL`, and the dynamically updated next grid level derived from the shared JSON state—hiding the stop after fill and swapping TP for the trailing line when protection engages
 - Dashboard summary comment highlights active grids, level states, duration, and profit factor when `Enable_Chart_Summary` is true
 - Lightweight telemetry logs append lifecycle events to `query_debug.txt` when `Enable_File_Logs` is enabled for post-run analysis
-- Grid telemetry tracks max favorable/adverse excursion, completed levels, and cumulative point statistics for future analytics modules
+- Grid telemetry tracks max favorable/adverse excursion, completed levels, and cumulative point statistics while publishing a `grid_state_json` payload for frontend consumers
 
 ## Next Steps
 

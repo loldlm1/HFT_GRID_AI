@@ -15,8 +15,9 @@ struct GridLevelPlan
   int    level_index;
   double distance_points;
   double pending_order_points;
-  double stop_loss_points;
+  double activation_points;
   double take_profit_points;
+  double final_take_profit_points;
   double trailing_points;
   double lot_size;
 
@@ -25,8 +26,9 @@ struct GridLevelPlan
     level_index          = 0;
     distance_points      = 0.0;
     pending_order_points = 0.0;
-    stop_loss_points     = 0.0;
+    activation_points    = 0.0;
     take_profit_points   = 0.0;
+    final_take_profit_points = 0.0;
     trailing_points      = 0.0;
     lot_size             = 0.0;
   }
@@ -37,6 +39,7 @@ struct GridMetadata
   bool        initialized;
   SignalTypes direction;
   double      base_distance_points;
+  double      base_anchor_price;
   double      base_lot_size;
   GridLevelPlan levels[];
 
@@ -45,6 +48,7 @@ struct GridMetadata
     initialized          = false;
     direction            = NO_SIGNAL;
     base_distance_points = 0.0;
+    base_anchor_price    = 0.0;
     base_lot_size        = 0.0;
   }
 };
@@ -91,6 +95,14 @@ struct GridOrderState
   double            trailing_points;
   double            realized_points;
   datetime          last_action_time;
+  double            anchor_price;
+  double            next_level_price;
+  double            trailing_price;
+  bool              is_trailing_active;
+  bool              tp_reached;
+  double            final_take_profit_price;
+  ulong             position_ticket;
+  string            position_comment;
 
   GridOrderState()
   {
@@ -103,6 +115,14 @@ struct GridOrderState
     trailing_points      = 0.0;
     realized_points      = 0.0;
     last_action_time     = 0;
+    anchor_price         = 0.0;
+    next_level_price     = 0.0;
+    trailing_price       = 0.0;
+    is_trailing_active   = false;
+    tp_reached           = false;
+    final_take_profit_price = 0.0;
+    position_ticket      = 0;
+    position_comment     = "";
   }
 };
 
@@ -126,6 +146,7 @@ struct SignalParams
   GridMetadata              grid_plan;
   GridOrderState            grid_orders[];
   GridTelemetryStats        grid_stats;
+  string                    grid_state_json;
 
   // DEFAULT CONSTRUCTOR
   SignalParams()
@@ -141,6 +162,7 @@ struct SignalParams
     raw_profit         = 0.0;
     entry_time         = 0;
     close_time         = 0;
+    grid_state_json    = "";
   }
 
   // COPY CONSTRUCTOR
@@ -186,6 +208,7 @@ struct SignalParams
     grid_plan.initialized          = signal_params.grid_plan.initialized;
     grid_plan.direction            = signal_params.grid_plan.direction;
     grid_plan.base_distance_points = signal_params.grid_plan.base_distance_points;
+    grid_plan.base_anchor_price    = signal_params.grid_plan.base_anchor_price;
     grid_plan.base_lot_size        = signal_params.grid_plan.base_lot_size;
 
     int orders_total = ArraySize(signal_params.grid_orders);
@@ -194,6 +217,7 @@ struct SignalParams
       grid_orders[n] = signal_params.grid_orders[n];
 
     grid_stats = signal_params.grid_stats;
+    grid_state_json = signal_params.grid_state_json;
   }
 };
 
