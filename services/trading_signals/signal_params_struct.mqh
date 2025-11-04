@@ -22,6 +22,12 @@ struct GridLevelPlan
   double trailing_points;
   double lot_size;
   double grid_range_percent;
+  double baseline_distance_points;
+  double entry_offset_points;
+  double activation_offset_points;
+  double protective_stop_points;
+  double anchor_price;
+  double atr_reference_points;
 
   GridLevelPlan()
   {
@@ -35,6 +41,12 @@ struct GridLevelPlan
     trailing_points      = 0.0;
     lot_size             = 0.0;
     grid_range_percent   = -1.0;
+    baseline_distance_points = 0.0;
+    entry_offset_points  = 0.0;
+    activation_offset_points = 0.0;
+    protective_stop_points   = 0.0;
+    anchor_price         = 0.0;
+    atr_reference_points = 0.0;
   }
 };
 

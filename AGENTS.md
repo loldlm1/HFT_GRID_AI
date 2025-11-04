@@ -27,6 +27,7 @@ This is a HFT Grid AI Expert Advisor designed to execute high frequency position
 - Persist grid metadata to memory containers designed for quick iteration and recovery
 - Exit Criteria: simulated grids open with correct spacing, no broker rule violations, state snapshot logged
 - Completed: grid inputs exposed, ATR handles loaded on demand with fallbacks, grid plans attached to signals with ATR shift-1 anchors (spacing, offsets, TP, final TP, lot scaling) while enforcing broker constraints
+- In Progress: grid planner diagnostics capture ATR anchors, point size, and per-level geometry (`GRID_PLAN_BASE` / `GRID_PLAN_LEVEL`) to validate Phase 2 assumptions in Strategy Tester logs
 
 ### Phase 3 – Order Lifecycle Control
 - Automate buy/sell stop placement that trails adverse price action according to Grid_Initial_Stops_Percent
@@ -37,6 +38,7 @@ This is a HFT Grid AI Expert Advisor designed to execute high frequency position
 - Completed: grid order controller stages levels sequentially, only instantiates the next grid level after a confirmed fill, fires `CTrade` market orders as soon as tagged stops are hit, records deal-linked tickets/activation time for telemetry, trails adverse moves, and enforces spread/margin guardrails with flexible lot sizing
 - Completed: resolved entry-to-anchor distances rescale the remaining grid plan so pending stops, activation gaps, and TP offsets obey the real market fill distance instead of projected ATR deltas
 - Completed: active levels track their live grid-range percentage while metadata captures `range_high_price`, `range_low_price`, and `current_range_points` for downstream analytics and guardrail validation
+- In Progress: decoupled pending entry pricing from protective stop placeholders so TP math, telemetry, and next-level projections stay aligned with the ATR anchor during the lifecycle refactor
 
 ### Phase 4 – Visualization & Telemetry
 - Render signal, stop, limit, and trailing lines with profit-colored styles and minimal clutter
@@ -46,6 +48,7 @@ This is a HFT Grid AI Expert Advisor designed to execute high frequency position
 - Exit Criteria: chart artifacts align with live orders, logs expose actionable diagnostics
 - Completed: grid dashboard renders the pending stop, projected TP, optional `TP_FINAL`, and dynamically updated next grid level sourced directly from `SignalParams`—hiding the stop once filled, swapping to the trailing overlay when protection engages, while summary comments, file logs, and telemetry stay in sync for frontend consumers
 - Completed: telemetry now exposes live grid span points and per-level range percentages so future Fibonacci overlays and diagnostics can reference real-time market context
+- In Progress: chart overlays now draw pending entries from `last_pending_price`, leaving protective stop visuals tied to trailing logic so UI feedback mirrors the corrected backend state
 
 ### Phase 5 – Persistence & Resilience
 - Serialize active grid state (orders, trailing levels, indicators) to survive reconnects and timeframe changes
@@ -59,6 +62,11 @@ This is a HFT Grid AI Expert Advisor designed to execute high frequency position
 - Tune default `input` presets and document recommended scenarios (scalping, trend, range)
 - Finalize README, changelog, and deployment checklist; confirm packaging of required dependencies
 - Exit Criteria: performance budgets met, documentation current, release candidate tagged
+
+### Phase 2 Recovery Tasks (WIP)
+- Audit `ATR_SL_Factor` buffers to document bullish/bearish anchors and expose raw ATR deltas for the grid planner
+- Rebuild `GridLevelPlan` geometry with the new baseline/offset fields and consistent broker-distance enforcement
+- Validate updated spacing in Strategy Tester with `Enable_File_Logs=true`, confirming `GRID_PLAN_*` diagnostics and lifecycle telemetry agree before enabling broker-side pending orders
 
 ### Ongoing Tasks
 - Keep README and AGENTS synchronized after each phase

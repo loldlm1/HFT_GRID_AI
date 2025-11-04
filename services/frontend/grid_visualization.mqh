@@ -108,8 +108,21 @@ void DrawGridLevels(const long chart_id,
       continue;
     }
 
-    UpdateHorizontalLine(chart_id, entry_name, COLOR_PROFIT_NEUTRAL, 0.0);
-    UpdateHorizontalLine(chart_id, stop_name, COLOR_PROFIT_NEGATIVE, level_state.stop_loss_price);
+    double entry_price = 0.0;
+    double stop_price  = 0.0;
+
+    if(level_state.status == GRID_ORDER_PENDING)
+    {
+      entry_price = level_state.last_pending_price;
+    }
+    else
+    {
+      entry_price = level_state.entry_price;
+      stop_price  = level_state.stop_loss_price;
+    }
+
+    UpdateHorizontalLine(chart_id, entry_name, COLOR_PROFIT_NEUTRAL, entry_price);
+    UpdateHorizontalLine(chart_id, stop_name, COLOR_PROFIT_NEGATIVE, stop_price);
     UpdateHorizontalLine(chart_id, tp_name, COLOR_PROFIT_POSITIVE, level_state.take_profit_price);
     UpdateHorizontalLine(chart_id, final_name, COLOR_PROFIT_POSITIVE, level_state.final_take_profit_price);
     UpdateHorizontalLine(chart_id, next_name, COLOR_PROFIT_NEUTRAL, level_state.next_level_price);

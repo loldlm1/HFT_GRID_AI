@@ -75,6 +75,7 @@ The **HFT Grid AI EA** is a specialized Expert Advisor designed to execute high 
 - Grid plan builder now derives level spacing and the initial anchor price from the `ATR_SL_Factor` (shift 1) so every level shares consistent point references while honoring broker freeze/stop rules
 - Introduced `Grid_Final_TP_Percent` to pre-compute full-grid take-profit offsets alongside base, trailing, and next-level projections
 - Directional filter now blocks disallowed trend signals while providing debug output when logging is enabled
+- Grid planner now logs ATR anchors, point size, and per-level geometry to `query_debug.txt` (labels `GRID_PLAN_BASE` / `GRID_PLAN_LEVEL`) whenever file logging is enabled, giving Phase 2 a transparent audit trail
 
 ### Phase 3 – Current Deliverables
 - Grid order controller now promotes levels sequentially and fires `CTrade` market orders the moment tagged stops are reached, persisting deal-linked position tickets and activation timestamps for telemetry while seeding the next grid level only after a confirmed fill
@@ -83,6 +84,7 @@ The **HFT Grid AI EA** is a specialized Expert Advisor designed to execute high 
 - Pending buy/sell stops trail adverse price action while their next-level projections recompute from live bid/ask quotes each tick, keeping deeper grid anchors aligned until fills occur
 - Active positions refresh TP, final TP, and trailing protection from live prices, enabling shared close-outs once profit targets or trailing blocks are tagged
 - Dynamic lot sizing still supports fixed, percentage-based, or currency-based risk targets, all gated by spread/margin guardrails to prevent unsafe grid expansion
+- Pending level geometry now separates entry prices from protective stop placeholders, keeping take-profit projections, next-level forecasts, and telemetry output aligned with the ATR reference anchors
 
 ### Phase 4 – Current Deliverables
 - On-chart grid rendering now highlights the pending stop line, projected TP, optional `TP_FINAL`, and the dynamically updated next grid level sourced directly from `SignalParams`—hiding the stop after fill and swapping TP for the trailing line when protection engages
@@ -90,9 +92,14 @@ The **HFT Grid AI EA** is a specialized Expert Advisor designed to execute high 
 - Lightweight telemetry logs append lifecycle events to `query_debug.txt` when `Enable_File_Logs` is enabled for post-run analysis
 - Telemetry now captures the live grid span in points alongside per-level range percentages, unlocking upcoming Fibonacci-style visual overlays and improved range diagnostics
 - Grid telemetry tracks max favorable/adverse excursion, completed levels, and cumulative point statistics for future analytics modules
+- Pending entries render using the new dedicated entry price while protective stop overlays remain tied to active trailing logic, ensuring chart artifacts reflect the corrected lifecycle
 
 ## Next Steps
 
+- Finalize the Grid Framework refactor:
+  * Validate the ATR_SL_Factor buffers and document which outputs map to bullish/bearish anchors
+  * Rebuild `GridLevelPlan` geometry using the new baseline/offset fields and enforce broker constraints consistently
+  * Promote broker-side pending orders (Phase 3 dependency) once the Phase 2 geometry is confirmed in Strategy Tester logs
 - Mirror this roadmap in `AGENTS.md` with actionable subtasks for each service owner
 - Align all new development with the MQL5 conventions and architectural rules documented for the project
 - Schedule periodic reviews after each phase to evaluate readiness before proceeding
