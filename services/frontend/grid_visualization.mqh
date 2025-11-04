@@ -5,8 +5,6 @@
 #define _SERVICES_FRONTEND_GRID_VISUALIZATION_MQH_
 
 #include "chart_style_guide.mqh"
-#include "../trading_management/ea_inputs.mqh"
-#include "../trading_signals/signal_params_struct.mqh"
 
 extern SignalParams running_bullish_signals[];
 extern SignalParams running_bearish_signals[];

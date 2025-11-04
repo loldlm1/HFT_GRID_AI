@@ -4,9 +4,6 @@
 #ifndef _MICROSERVICES_INDICATORS_BODY_MA_INDICATOR_MQH_
 #define _MICROSERVICES_INDICATORS_BODY_MA_INDICATOR_MQH_
 
-#include "../core/enums.mqh"
-#include "../core/base_structures.mqh"
-
 struct BodyMAStructure
 {
   // INDICATOR INFO

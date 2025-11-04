@@ -4,8 +4,6 @@
 #ifndef _MICROSERVICES_INDICATORS_STOCHASTIC_MARKET_INDICATOR_MQH_
 #define _MICROSERVICES_INDICATORS_STOCHASTIC_MARKET_INDICATOR_MQH_
 
-#include "../core/enums.mqh"
-#include "../core/base_structures.mqh"
 #include "extrema_detector.mqh"
 #include "structure_classifier.mqh"
 #include "fibonacci_calculator.mqh"

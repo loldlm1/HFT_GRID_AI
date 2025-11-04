@@ -4,10 +4,6 @@
 #ifndef _SERVICES_TRADING_SIGNALS_GRID_PLANNER_MQH_
 #define _SERVICES_TRADING_SIGNALS_GRID_PLANNER_MQH_
 
-#include "../../microservices/utils/array_functions.mqh"
-#include "../../microservices/utils/broker_constraints_helper.mqh"
-#include "../../microservices/utils/money_functions.mqh"
-
 const int GRID_MAX_LEVELS = 6;
 
 extern SymbolTradingConstraints g_symbol_constraints;

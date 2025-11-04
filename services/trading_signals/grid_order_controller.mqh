@@ -4,10 +4,6 @@
 #ifndef _SERVICES_TRADING_SIGNALS_GRID_ORDER_CONTROLLER_MQH_
 #define _SERVICES_TRADING_SIGNALS_GRID_ORDER_CONTROLLER_MQH_
 
-#include <Trade/Trade.mqh>
-#include "../../microservices/utils/money_functions.mqh"
-#include "../../microservices/utils/file_logger.mqh"
-
 extern double g_bid;
 extern double g_ask;
 extern double g_points_spread;
