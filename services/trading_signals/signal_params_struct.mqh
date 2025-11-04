@@ -146,7 +146,6 @@ struct SignalParams
   GridMetadata              grid_plan;
   GridOrderState            grid_orders[];
   GridTelemetryStats        grid_stats;
-  string                    grid_state_json;
 
   // DEFAULT CONSTRUCTOR
   SignalParams()
@@ -162,7 +161,6 @@ struct SignalParams
     raw_profit         = 0.0;
     entry_time         = 0;
     close_time         = 0;
-    grid_state_json    = "";
   }
 
   // COPY CONSTRUCTOR
@@ -217,7 +215,6 @@ struct SignalParams
       grid_orders[n] = signal_params.grid_orders[n];
 
     grid_stats = signal_params.grid_stats;
-    grid_state_json = signal_params.grid_state_json;
   }
 };
 

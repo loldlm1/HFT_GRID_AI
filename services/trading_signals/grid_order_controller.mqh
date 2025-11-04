@@ -99,63 +99,6 @@ string GridComposeLevelComment(const SignalParams &signal_params,
   return StringFormat("GRID_%s_%s_L%d", direction_label, time_label, order_state.level_index);
 }
 
-void GridComposeFrontendState(SignalParams &signal_params)
-{
-  int digits = (int)SymbolInfoInteger(_Symbol, SYMBOL_DIGITS);
-  if(digits <= 0)
-    digits = 5;
-
-  string json = "{";
-  json += "\"direction\":\"";
-  json += EnumToString(signal_params.signal_type);
-  json += "\",\"levels\":[";
-
-  int levels_total = ArraySize(signal_params.grid_orders);
-  for(int i = 0; i < levels_total; i++)
-  {
-    GridOrderState state = signal_params.grid_orders[i];
-    if(i > 0)
-      json += ",";
-
-    json += "{\"index\":";
-    json += IntegerToString(state.level_index);
-    json += ",\"status\":\"";
-    json += EnumToString(state.status);
-    json += "\",\"anchor\":";
-    json += DoubleToString(state.anchor_price, digits);
-    json += ",\"pending\":";
-    json += DoubleToString(state.last_pending_price, digits);
-    json += ",\"entry\":";
-    json += DoubleToString(state.entry_price, digits);
-    json += ",\"stop\":";
-    json += DoubleToString(state.stop_loss_price, digits);
-    json += ",\"tp\":";
-    json += DoubleToString(state.take_profit_price, digits);
-    json += ",\"tp_final\":";
-    json += DoubleToString(state.final_take_profit_price, digits);
-    json += ",\"next\":";
-    json += DoubleToString(state.next_level_price, digits);
-    json += "}";
-  }
-
-  json += "],\"stats\":{";
-  json += "\"max_favorable\":";
-  json += DoubleToString(signal_params.grid_stats.max_favorable_points, 1);
-  json += ",\"max_adverse\":";
-  json += DoubleToString(signal_params.grid_stats.max_adverse_points, 1);
-  json += ",\"completed\":";
-  json += IntegerToString(signal_params.grid_stats.completed_levels);
-  json += ",\"pf\":";
-  json += DoubleToString(signal_params.grid_stats.ProfitFactor(), 2);
-  json += ",\"activation_time\":";
-  json += IntegerToString((long)signal_params.grid_stats.activation_time);
-  json += ",\"last_update\":";
-  json += IntegerToString((long)signal_params.grid_stats.last_update_time);
-  json += "}}";
-
-  signal_params.grid_state_json = json;
-}
-
 double GridPointsBetween(const SignalTypes direction,
                          const double reference_price,
                          const double candidate_price,
@@ -167,6 +110,33 @@ double GridPointsBetween(const SignalTypes direction,
   if(direction == BULLISH)
     return (reference_price - candidate_price) / point_size;
   return (candidate_price - reference_price) / point_size;
+}
+
+void GridUpdateNextLevelPrice(const SignalTypes direction,
+                              GridOrderState &order_state,
+                              const GridLevelPlan &level_plan,
+                              const double point_size,
+                              const double current_price)
+{
+  double direction_mult = GridResolveDirectionMultiplier(direction);
+  double candidate_price = current_price - direction_mult * level_plan.distance_points * point_size;
+
+  if(order_state.next_level_price == 0.0)
+  {
+    order_state.next_level_price = candidate_price;
+    return;
+  }
+
+  if(direction == BULLISH)
+  {
+    if(candidate_price < order_state.next_level_price)
+      order_state.next_level_price = candidate_price;
+  }
+  else if(direction == BEARISH)
+  {
+    if(candidate_price > order_state.next_level_price)
+      order_state.next_level_price = candidate_price;
+  }
 }
 
 void GridInitializePendingLevel(const SignalTypes direction,
@@ -210,7 +180,8 @@ void GridInitializePendingLevel(const SignalTypes direction,
     order_state.final_take_profit_price = 0.0;
 
   double adverse_reference = GridCurrentPriceForDirection(direction, false);
-  order_state.next_level_price = adverse_reference - direction_mult * level_plan.distance_points * point_size;
+  order_state.next_level_price = 0.0;
+  GridUpdateNextLevelPrice(direction, order_state, level_plan, point_size, adverse_reference);
   order_state.trailing_price   = 0.0;
   order_state.is_trailing_active = false;
   order_state.tp_reached         = false;
@@ -255,7 +226,7 @@ void GridUpdatePendingLevel(const SignalTypes direction,
     order_state.final_take_profit_price = 0.0;
 
   double adverse_reference = GridCurrentPriceForDirection(direction, false);
-  order_state.next_level_price  = adverse_reference - direction_mult * level_plan.distance_points * point_size;
+  GridUpdateNextLevelPrice(direction, order_state, level_plan, point_size, adverse_reference);
 }
 
 bool GridShouldActivatePendingLevel(const SignalTypes direction,
@@ -345,7 +316,8 @@ bool GridExecuteLevelTrade(SignalParams &signal_params,
   else
     order_state.final_take_profit_price = 0.0;
 
-  order_state.next_level_price = adverse_reference - direction_mult * level_plan.distance_points * point_size;
+  if(order_state.next_level_price == 0.0)
+    GridUpdateNextLevelPrice(direction, order_state, level_plan, point_size, adverse_reference);
 
   if(signal_params.entry_price <= 0.0)
     signal_params.entry_price = fill_price;
@@ -522,7 +494,6 @@ void InitializeGridOrdersForSignal(SignalParams &signal_params)
     signal_params.grid_orders[i] = state;
   }
 
-  signal_params.grid_state_json = "";
 }
 
 void GridEnsureOrderArrayPrepared(SignalParams &signal_params)
@@ -546,10 +517,7 @@ void GridEnsureOrderArrayPrepared(SignalParams &signal_params)
 void UpdateGridLifecycle(SignalParams &signal_params)
 {
   if(!signal_params.grid_plan.initialized)
-  {
-    GridComposeFrontendState(signal_params);
     return;
-  }
 
   GridEnsureOrderArrayPrepared(signal_params);
 
@@ -717,7 +685,6 @@ void UpdateGridLifecycle(SignalParams &signal_params)
         order_state.stop_loss_price = 0.0;
       }
 
-      order_state.next_level_price = close_price - direction_mult * level_plan.distance_points * point_size;
       order_state.last_action_time = now_time;
 
       if(order_state.tp_reached)
@@ -744,13 +711,11 @@ void UpdateGridLifecycle(SignalParams &signal_params)
                          ? (close_price - entry_price)
                          : (entry_price - close_price);
     double points_delta = price_delta / point_size;
-  if(points_delta > signal_params.grid_stats.max_favorable_points)
-    signal_params.grid_stats.max_favorable_points = points_delta;
-  if(points_delta < 0.0 && MathAbs(points_delta) > signal_params.grid_stats.max_adverse_points)
-    signal_params.grid_stats.max_adverse_points = MathAbs(points_delta);
+    if(points_delta > signal_params.grid_stats.max_favorable_points)
+      signal_params.grid_stats.max_favorable_points = points_delta;
+    if(points_delta < 0.0 && MathAbs(points_delta) > signal_params.grid_stats.max_adverse_points)
+      signal_params.grid_stats.max_adverse_points = MathAbs(points_delta);
   }
-
-  GridComposeFrontendState(signal_params);
 }
 
 bool IsGridSignalComplete(const SignalParams &signal_params)

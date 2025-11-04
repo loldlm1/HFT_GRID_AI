@@ -42,7 +42,7 @@ This is a HFT Grid AI Expert Advisor designed to execute high frequency position
 - Create lightweight file logging (e.g., `query_debug.txt`) for post-run analysis without flooding the terminal
 - Track per-grid stats (duration, excursion, profit factor) for future analytics modules
 - Exit Criteria: chart artifacts align with live orders, logs expose actionable diagnostics
-- Completed: grid dashboard renders the pending stop, projected TP, optional `TP_FINAL`, and dynamically updated next grid level sourced from a shared JSON snapshot—hiding the stop once filled, swapping to the trailing overlay when protection engages, while summary comments, file logs, and telemetry stay in sync for frontend consumers
+- Completed: grid dashboard renders the pending stop, projected TP, optional `TP_FINAL`, and dynamically updated next grid level sourced directly from `SignalParams`—hiding the stop once filled, swapping to the trailing overlay when protection engages, while summary comments, file logs, and telemetry stay in sync for frontend consumers
 
 ### Phase 5 – Persistence & Resilience
 - Serialize active grid state (orders, trailing levels, indicators) to survive reconnects and timeframe changes

@@ -83,10 +83,10 @@ The **HFT Grid AI EA** is a specialized Expert Advisor designed to execute high 
 - Dynamic lot sizing still supports fixed, percentage-based, or currency-based risk targets, all gated by spread/margin guardrails to prevent unsafe grid expansion
 
 ### Phase 4 – Current Deliverables
-- On-chart grid rendering now highlights the pending stop line, projected TP, optional `TP_FINAL`, and the dynamically updated next grid level derived from the shared JSON state—hiding the stop after fill and swapping TP for the trailing line when protection engages
+- On-chart grid rendering now highlights the pending stop line, projected TP, optional `TP_FINAL`, and the dynamically updated next grid level sourced directly from `SignalParams`—hiding the stop after fill and swapping TP for the trailing line when protection engages
 - Dashboard summary comment highlights active grids, level states, duration, and profit factor when `Enable_Chart_Summary` is true
 - Lightweight telemetry logs append lifecycle events to `query_debug.txt` when `Enable_File_Logs` is enabled for post-run analysis
-- Grid telemetry tracks max favorable/adverse excursion, completed levels, and cumulative point statistics while publishing a `grid_state_json` payload for frontend consumers
+- Grid telemetry tracks max favorable/adverse excursion, completed levels, and cumulative point statistics for future analytics modules
 
 ## Next Steps
 
