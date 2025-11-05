@@ -1244,19 +1244,28 @@ void UpdateGridLifecycle(SignalParams &signal_params)
     {
       double close_price = GridCurrentPriceForDirection(direction, false);
 
-      if(level_plan.final_take_profit_points > 0.0 && !order_state.tp_reached)
+      if(level_plan.final_take_profit_points > 0.0)
       {
-        double final_price = order_state.anchor_price + direction_mult * level_plan.final_take_profit_points * point_size;
+        double final_reference_price = order_state.entry_price;
+        if(final_reference_price <= 0.0)
+          final_reference_price = order_state.last_pending_price;
+        if(final_reference_price <= 0.0)
+          final_reference_price = order_state.anchor_price;
+        if(final_reference_price <= 0.0)
+          final_reference_price = signal_params.grid_plan.base_anchor_price;
+
+        double final_price = 0.0;
+        if(final_reference_price > 0.0)
+          final_price = final_reference_price + direction_mult * level_plan.final_take_profit_points * point_size;
+
         order_state.final_take_profit_price = final_price;
+
         bool final_hit = false;
-        if(direction == BULLISH)
+        if(final_price > 0.0)
         {
-          if(final_price > order_state.entry_price)
+          if(direction == BULLISH)
             final_hit = (close_price >= final_price);
-        }
-        else
-        {
-          if(final_price < order_state.entry_price || order_state.entry_price <= 0.0)
+          else if(direction == BEARISH)
             final_hit = (close_price <= final_price);
         }
 
@@ -1268,8 +1277,7 @@ void UpdateGridLifecycle(SignalParams &signal_params)
       }
       else
       {
-        if(order_state.tp_reached)
-          order_state.final_take_profit_price = 0.0;
+        order_state.final_take_profit_price = 0.0;
       }
 
       if(level_plan.take_profit_points > 0.0 && !order_state.tp_reached)

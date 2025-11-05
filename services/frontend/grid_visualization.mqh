@@ -347,6 +347,7 @@ void DrawGridLevels(const long chart_id,
   double entry_price_line = 0.0;
   double tp_price = level_state.take_profit_price;
   double final_price = level_state.final_take_profit_price;
+  double final_points = level_plan.final_take_profit_points;
 
   if(level_state.status == GRID_ORDER_ACTIVE)
   {
@@ -368,15 +369,27 @@ void DrawGridLevels(const long chart_id,
     if(tp_price <= 0.0 && level_plan.take_profit_points > 0.0 && entry_price_line > 0.0)
       tp_price = entry_price_line + direction_mult * level_plan.take_profit_points * point_size;
 
-    if(final_price <= 0.0 && level_plan.final_take_profit_points > 0.0)
+    if(final_points > 0.0)
     {
-      double reference_anchor = level_state.anchor_price;
-      if(reference_anchor <= 0.0)
-        reference_anchor = level_plan.anchor_price;
-      if(reference_anchor <= 0.0)
-        reference_anchor = signal_params.grid_plan.base_anchor_price;
-      if(reference_anchor > 0.0)
-        final_price = reference_anchor + direction_mult * level_plan.final_take_profit_points * point_size;
+      double final_reference = entry_price_line;
+      if(final_reference <= 0.0)
+        final_reference = level_state.entry_price;
+      if(final_reference <= 0.0)
+        final_reference = predicted_entry_price;
+      if(final_reference <= 0.0)
+        final_reference = level_state.last_pending_price;
+      if(final_reference <= 0.0)
+        final_reference = level_plan.anchor_price;
+      if(final_reference <= 0.0)
+        final_reference = signal_params.grid_plan.base_anchor_price;
+      if(final_reference > 0.0)
+        final_price = final_reference + direction_mult * final_points * point_size;
+      else
+        final_price = 0.0;
+    }
+    else
+    {
+      final_price = 0.0;
     }
   }
   else
@@ -395,13 +408,23 @@ void DrawGridLevels(const long chart_id,
     if(tp_price <= 0.0 && level_plan.take_profit_points > 0.0 && pending_price > 0.0)
       tp_price = pending_price + direction_mult * level_plan.take_profit_points * point_size;
 
-    if(final_price <= 0.0 && level_plan.final_take_profit_points > 0.0)
+    if(final_points > 0.0)
     {
-      double anchor_price = level_plan.anchor_price;
-      if(anchor_price <= 0.0)
-        anchor_price = signal_params.grid_plan.base_anchor_price;
-      if(anchor_price > 0.0)
-        final_price = anchor_price + direction_mult * level_plan.final_take_profit_points * point_size;
+      double final_reference = pending_price;
+      if(final_reference <= 0.0)
+        final_reference = predicted_entry_price;
+      if(final_reference <= 0.0)
+        final_reference = level_plan.anchor_price;
+      if(final_reference <= 0.0)
+        final_reference = signal_params.grid_plan.base_anchor_price;
+      if(final_reference > 0.0)
+        final_price = final_reference + direction_mult * final_points * point_size;
+      else
+        final_price = 0.0;
+    }
+    else
+    {
+      final_price = 0.0;
     }
   }
 
