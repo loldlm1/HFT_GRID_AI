@@ -29,6 +29,10 @@ struct GridLevelPlan
   double protective_stop_points;
   double anchor_price;
   double atr_reference_points;
+  double next_blueprint_price;
+  double next_resolved_price;
+  string next_price_side;
+  string next_price_clamp_reason;
 
   GridLevelPlan()
   {
@@ -49,6 +53,10 @@ struct GridLevelPlan
     protective_stop_points   = 0.0;
     anchor_price         = 0.0;
     atr_reference_points = 0.0;
+    next_blueprint_price = 0.0;
+    next_resolved_price  = 0.0;
+    next_price_side      = "";
+    next_price_clamp_reason = "";
   }
 };
 

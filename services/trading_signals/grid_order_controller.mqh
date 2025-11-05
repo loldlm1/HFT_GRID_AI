@@ -105,16 +105,24 @@ void GridLogEvent(const string label,
   double point_size = GridResolvePointSize();
   double direction_mult = GridResolveDirectionMultiplier(signal_params.signal_type);
   double planned_pending_price = 0.0;
-  if(anchor_plan_price > 0.0 && point_size > 0.0)
+  double pending_points = GridPlanResolvePendingPoints(level_plan);
+  if(level_plan.next_blueprint_price > 0.0)
+    planned_pending_price = level_plan.next_blueprint_price;
+  else if(anchor_plan_price > 0.0 && point_size > 0.0)
   {
-    double pending_points = GridResolvePendingPoints(level_plan);
     planned_pending_price = anchor_plan_price + direction_mult * pending_points * point_size;
   }
 
   double raw_gap_pts = signal_params.grid_plan.entry_side_raw_gap_points;
   double entry_offset_pts = signal_params.grid_plan.entry_side_offset_pts_initial;
+  double next_resolved_price = level_plan.next_resolved_price;
+  if(next_resolved_price <= 0.0)
+    next_resolved_price = order_state.last_pending_price;
+  string next_side = (level_plan.next_price_side == "") ? ((signal_params.signal_type == BULLISH) ? "ASK" : "BID")
+                                                        : level_plan.next_price_side;
+  string clamp_reason = (level_plan.next_price_clamp_reason == "") ? "-" : level_plan.next_price_clamp_reason;
 
-  string message = StringFormat("dir=%s|level=%d|status=%s|clamped_pending_price=%.5f|planned_pending_price=%.5f|protect=%.5f|entry=%.5f|tp=%.5f|next=%.5f|anchor=%.5f|anchor_plan=%.5f|dist=%.1f|pct=%.2f|style=%s|entry_side_price_curr=%.5f|entry_side_price_trail=%.5f|raw_gap_pts=%.2f|entry_offset_pts=%.2f",
+  string message = StringFormat("dir=%s|level=%d|status=%s|clamped_pending_price=%.5f|planned_pending_price=%.5f|protect=%.5f|entry=%.5f|tp=%.5f|next=%.5f|anchor=%.5f|anchor_plan=%.5f|dist=%.1f|pct=%.2f|style=%s|entry_side_price_curr=%.5f|entry_side_price_trail=%.5f|raw_gap_pts=%.2f|entry_offset_pts=%.2f|next_blueprint=%.5f|next_resolved=%.5f|next_side=%s|next_clamp=%s",
                                 direction,
                                 order_state.level_index,
                                 EnumToString(order_state.status),
@@ -132,7 +140,11 @@ void GridLogEvent(const string label,
                                 entry_side_price_current,
                                 entry_side_price_trailing,
                                 raw_gap_pts,
-                                entry_offset_pts);
+                                entry_offset_pts,
+                                planned_pending_price,
+                                next_resolved_price,
+                                next_side,
+                                clamp_reason);
   AppendTimestampedLog("query_debug.txt", label, message);
 }
 
@@ -294,6 +306,10 @@ void GridScalePlannedLevels(SignalParams &signal_params,
     plan.take_profit_points        *= scaling_factor;
     plan.final_take_profit_points  *= scaling_factor;
     plan.trailing_points           *= scaling_factor;
+    plan.next_blueprint_price      = 0.0;
+    plan.next_resolved_price       = 0.0;
+    plan.next_price_side           = "";
+    plan.next_price_clamp_reason   = "";
     signal_params.grid_plan.levels[i] = plan;
   }
 }
@@ -508,71 +524,79 @@ void GridUpdateNextLevelPrice(const SignalTypes direction,
 
 double GridResolvePendingPoints(const GridLevelPlan &level_plan)
 {
-  double pending_points = level_plan.pending_order_points;
-  if(pending_points <= 0.0)
-  {
-    if(level_plan.entry_style == GRID_ENTRY_STYLE_LIMIT)
-      pending_points = level_plan.distance_points - level_plan.entry_offset_points;
-    else
-      pending_points = level_plan.distance_points + level_plan.entry_offset_points;
-    if(pending_points <= 0.0)
-      pending_points = level_plan.distance_points;
-  }
-  return pending_points;
+  return GridPlanResolvePendingPoints(level_plan);
 }
 
-void GridInitializePendingLevel(const SignalParams &signal_params,
+void GridInitializePendingLevel(SignalParams &signal_params,
                                 const SignalTypes direction,
                                 GridOrderState &order_state,
-                                const GridLevelPlan &level_plan,
                                 const double point_size)
 {
+  int level_index = order_state.level_index;
+  if(level_index < 0)
+    return;
+  if(level_index >= ArraySize(signal_params.grid_plan.levels))
+    return;
+
+  double resolved_point_size = point_size;
+  if(resolved_point_size <= 0.0)
+    resolved_point_size = GridResolvePointSize();
+
+  GridLevelPlan level_plan = signal_params.grid_plan.levels[level_index];
   double direction_mult = GridResolveDirectionMultiplier(direction);
-  double anchor_price   = order_state.anchor_price;
+
+  double anchor_price = order_state.anchor_price;
   if(anchor_price <= 0.0)
     anchor_price = level_plan.anchor_price;
   if(anchor_price <= 0.0)
   {
     double entry_price_ref = GridCurrentPriceForDirection(direction, true);
-    anchor_price = entry_price_ref - direction_mult * level_plan.distance_points * point_size;
+    anchor_price = entry_price_ref - direction_mult * level_plan.distance_points * resolved_point_size;
   }
 
   order_state.anchor_price       = anchor_price;
-  order_state.status           = GRID_ORDER_PENDING;
-  order_state.last_action_time = TimeCurrent();
+  order_state.status             = GRID_ORDER_PENDING;
+  order_state.last_action_time   = TimeCurrent();
 
   order_state.stop_loss_price      = 0.0;
   order_state.last_pending_price   = 0.0;
   order_state.take_profit_price    = 0.0;
   order_state.final_take_profit_price = 0.0;
   order_state.trailing_price       = 0.0;
-  order_state.is_trailing_active = false;
-  order_state.tp_reached         = false;
+  order_state.is_trailing_active   = false;
+  order_state.tp_reached           = false;
   order_state.resolved_distance_points = level_plan.distance_points;
-  order_state.grid_range_percent = -1.0;
-  order_state.entry_price        = 0.0;
-  order_state.position_ticket    = 0;
-  order_state.position_comment   = "";
-  order_state.next_level_price   = 0.0;
-  order_state.entry_side_price_trailing = signal_params.grid_plan.entry_side_price_initial;
+  order_state.grid_range_percent   = -1.0;
+  order_state.entry_price          = 0.0;
+  order_state.position_ticket      = 0;
+  order_state.position_comment     = "";
+  order_state.next_level_price     = 0.0;
+  if(order_state.entry_side_price_trailing <= 0.0)
+    order_state.entry_side_price_trailing = signal_params.grid_plan.entry_side_price_initial;
 
   GridUpdatePendingLevel(signal_params,
                          direction,
                          order_state,
-                         level_plan,
-                         point_size);
+                         resolved_point_size);
 }
 
-void GridUpdatePendingLevel(const SignalParams &signal_params,
+void GridUpdatePendingLevel(SignalParams &signal_params,
                             const SignalTypes direction,
                             GridOrderState &order_state,
-                            const GridLevelPlan &level_plan,
                             const double point_size)
 {
-  double direction_mult   = GridResolveDirectionMultiplier(direction);
+  int level_index = order_state.level_index;
+  if(level_index < 0)
+    return;
+  if(level_index >= ArraySize(signal_params.grid_plan.levels))
+    return;
+
   double resolved_point_size = point_size;
   if(resolved_point_size <= 0.0)
     resolved_point_size = GridResolvePointSize();
+
+  GridLevelPlan level_plan = signal_params.grid_plan.levels[level_index];
+  double direction_mult = GridResolveDirectionMultiplier(direction);
 
   double previous_anchor  = order_state.anchor_price;
   double previous_pending = order_state.last_pending_price;
@@ -592,63 +616,84 @@ void GridUpdatePendingLevel(const SignalParams &signal_params,
     resolved_anchor = entry_price_ref - direction_mult * level_plan.distance_points * resolved_point_size;
   }
 
-  double pending_points = GridResolvePendingPoints(level_plan);
+  double pending_points = GridPlanResolvePendingPoints(level_plan);
   if(pending_points > 0.0)
     pending_points = EnforceBrokerDistance(g_symbol_constraints, pending_points);
   if(pending_points <= 0.0)
     pending_points = level_plan.distance_points;
 
-  double pending_price = resolved_anchor + direction_mult * pending_points * resolved_point_size;
+  double entry_side_price_current = GridCurrentPriceForDirection(direction, true);
+  double tracked_entry_side_price = order_state.entry_side_price_trailing;
+  if(tracked_entry_side_price <= 0.0)
+    tracked_entry_side_price = signal_params.grid_plan.entry_side_price_initial;
 
-  if(level_plan.entry_style == GRID_ENTRY_STYLE_STOP)
+  if(entry_side_price_current > 0.0)
   {
-    double entry_side_price_current = GridCurrentPriceForDirection(direction, true);
-    double tracked_entry_side_price = order_state.entry_side_price_trailing;
-    if(tracked_entry_side_price <= 0.0)
-      tracked_entry_side_price = signal_params.grid_plan.entry_side_price_initial;
-
-    if(entry_side_price_current > 0.0)
+    if(direction == BULLISH)
     {
-      if(direction == BULLISH)
-      {
-        if(tracked_entry_side_price <= 0.0 || entry_side_price_current < tracked_entry_side_price)
-          tracked_entry_side_price = entry_side_price_current;
-      }
-      else if(direction == BEARISH)
-      {
-        if(tracked_entry_side_price <= 0.0 || entry_side_price_current > tracked_entry_side_price)
-          tracked_entry_side_price = entry_side_price_current;
-      }
+      if(tracked_entry_side_price <= 0.0 || entry_side_price_current < tracked_entry_side_price)
+        tracked_entry_side_price = entry_side_price_current;
     }
-
-    order_state.entry_side_price_trailing = tracked_entry_side_price;
-    double clamp_price = tracked_entry_side_price;
-    double reference_entry_price = entry_side_price_current;
-    if(reference_entry_price <= 0.0)
-      reference_entry_price = clamp_price;
-
-    double entry_side_offset_pts = signal_params.grid_plan.entry_side_offset_pts_initial;
-    if(entry_side_offset_pts <= 0.0)
+    else if(direction == BEARISH)
     {
-      double fallback_gap = signal_params.grid_plan.entry_side_raw_gap_points;
-      if(fallback_gap <= 0.0 && resolved_point_size > 0.0 && reference_entry_price > 0.0 && resolved_anchor > 0.0)
-        fallback_gap = MathAbs(reference_entry_price - resolved_anchor) / resolved_point_size;
-      double initial_percent = MathMax(Grid_Initial_Stops_Percent, 0.0);
-      entry_side_offset_pts = fallback_gap * (initial_percent / 100.0);
-      double min_stop_distance = g_symbol_constraints.min_stop_distance_points;
-      if(min_stop_distance > 0.0 && entry_side_offset_pts < min_stop_distance)
-        entry_side_offset_pts = min_stop_distance;
-    }
-
-    double offset_price = entry_side_offset_pts * resolved_point_size;
-    if(clamp_price > 0.0 && offset_price > 0.0)
-    {
-      if(direction == BULLISH)
-        pending_price = MathMax(pending_price, clamp_price + offset_price);
-      else if(direction == BEARISH)
-        pending_price = MathMin(pending_price, clamp_price - offset_price);
+      if(tracked_entry_side_price <= 0.0 || entry_side_price_current > tracked_entry_side_price)
+        tracked_entry_side_price = entry_side_price_current;
     }
   }
+
+  order_state.entry_side_price_trailing = tracked_entry_side_price;
+
+  double protective_offset_pts = GridPlanResolveProtectiveOffset(signal_params, level_plan);
+  if(level_plan.entry_style == GRID_ENTRY_STYLE_STOP)
+  {
+    if(protective_offset_pts <= 0.0)
+    {
+      double reference_entry_price = entry_side_price_current;
+      if(reference_entry_price <= 0.0)
+        reference_entry_price = tracked_entry_side_price;
+      double fallback_gap = signal_params.grid_plan.entry_side_raw_gap_points;
+      if(fallback_gap <= 0.0 && resolved_point_size > 0.0 &&
+         reference_entry_price > 0.0 && resolved_anchor > 0.0)
+        fallback_gap = MathAbs(reference_entry_price - resolved_anchor) / resolved_point_size;
+      double initial_percent = MathMax(Grid_Initial_Stops_Percent, 0.0);
+      protective_offset_pts = fallback_gap * (initial_percent / 100.0);
+      double min_stop_distance = g_symbol_constraints.min_stop_distance_points;
+      if(min_stop_distance > 0.0 && protective_offset_pts < min_stop_distance)
+        protective_offset_pts = min_stop_distance;
+    }
+  }
+  else
+  {
+    protective_offset_pts = 0.0;
+  }
+
+  double entry_reference_price = tracked_entry_side_price;
+  if(entry_reference_price <= 0.0)
+    entry_reference_price = entry_side_price_current;
+
+  double ask_value = g_ask;
+  double bid_value = g_bid;
+  if(direction == BULLISH && entry_reference_price > 0.0)
+    ask_value = entry_reference_price;
+  if(direction == BEARISH && entry_reference_price > 0.0)
+    bid_value = entry_reference_price;
+
+  NextPriceResolution pricing = ResolveNextPrice(resolved_anchor,
+                                                 level_plan.level_index,
+                                                 (direction == BULLISH),
+                                                 protective_offset_pts,
+                                                 pending_points,
+                                                 g_symbol_constraints.tick_size,
+                                                 g_points_spread,
+                                                 ask_value,
+                                                 bid_value);
+
+  double pending_price = pricing.resolved_next;
+  double blueprint_price = pricing.blueprint_next;
+  if(blueprint_price <= 0.0 && resolved_anchor > 0.0 && resolved_point_size > 0.0)
+    blueprint_price = resolved_anchor + direction_mult * pending_points * resolved_point_size;
+  if(pending_price <= 0.0 && resolved_anchor > 0.0 && resolved_point_size > 0.0)
+    pending_price = resolved_anchor + direction_mult * pending_points * resolved_point_size;
 
   order_state.anchor_price       = resolved_anchor;
   order_state.stop_loss_price    = 0.0;
@@ -663,11 +708,12 @@ void GridUpdatePendingLevel(const SignalParams &signal_params,
     order_state.take_profit_price = 0.0;
 
   if(level_plan.final_take_profit_points > 0.0)
-    order_state.final_take_profit_price = pending_price + direction_mult * level_plan.final_take_profit_points * resolved_point_size;
+    order_state.final_take_profit_price = expected_entry + direction_mult * level_plan.final_take_profit_points * resolved_point_size;
   else
     order_state.final_take_profit_price = 0.0;
 
   if(previous_pending > 0.0 &&
+     pending_price > 0.0 &&
      MathAbs(pending_price - previous_pending) > (resolved_point_size * 0.1))
   {
     GridLogPendingTrail(signal_params,
@@ -679,6 +725,12 @@ void GridUpdatePendingLevel(const SignalParams &signal_params,
                         resolved_point_size);
   }
 
+  level_plan.anchor_price               = resolved_anchor;
+  level_plan.next_blueprint_price       = blueprint_price;
+  level_plan.next_resolved_price        = pending_price;
+  level_plan.next_price_side            = pricing.side;
+  level_plan.next_price_clamp_reason    = pricing.clamp_reason;
+  signal_params.grid_plan.levels[level_index] = level_plan;
 }
 
 bool GridShouldActivatePendingLevel(const SignalTypes direction,
@@ -1075,8 +1127,8 @@ void UpdateGridLifecycle(SignalParams &signal_params)
           GridInitializePendingLevel(signal_params,
                                      direction,
                                      order_state,
-                                     level_plan,
                                      point_size);
+          level_plan = signal_params.grid_plan.levels[i];
           GridLogEvent("LEVEL_PENDING", signal_params, order_state, level_plan);
         }
         else if(guardrail_reason != "")
@@ -1126,19 +1178,21 @@ void UpdateGridLifecycle(SignalParams &signal_params)
             GridInitializePendingLevel(signal_params,
                                        direction,
                                        order_state,
-                                       level_plan,
                                        point_size);
+            level_plan = signal_params.grid_plan.levels[i];
             GridLogEvent("LEVEL_PENDING", signal_params, order_state, level_plan);
             double previous_next_price             = previous_state.next_level_price;
-            double new_next_price                  = order_state.last_pending_price;
-            double change_threshold                = point_size * 0.1;
+            double new_next_price                  = level_plan.next_resolved_price;
+            double change_threshold                = point_size;
+            if(change_threshold <= 0.0)
+              change_threshold = GridResolvePointSize();
             if(change_threshold <= 0.0)
               change_threshold = 1e-6;
             bool emit_next_update = false;
             if(new_next_price > 0.0)
             {
               if(previous_next_price <= 0.0 ||
-                 MathAbs(new_next_price - previous_next_price) > change_threshold)
+                 MathAbs(new_next_price - previous_next_price) >= (change_threshold - 1e-9))
                 emit_next_update = true;
             }
             else if(previous_next_price > 0.0)
@@ -1148,12 +1202,14 @@ void UpdateGridLifecycle(SignalParams &signal_params)
             previous_state.next_level_price        = new_next_price;
             previous_state.take_profit_price       = 0.0;
             previous_state.final_take_profit_price = 0.0;
+            previous_plan.next_blueprint_price     = level_plan.next_blueprint_price;
+            previous_plan.next_resolved_price      = level_plan.next_resolved_price;
+            previous_plan.next_price_side          = level_plan.next_price_side;
+            previous_plan.next_price_clamp_reason  = level_plan.next_price_clamp_reason;
+            signal_params.grid_plan.levels[i - 1]  = previous_plan;
             if(emit_next_update)
             {
-              GridLevelPlan logging_plan = previous_plan;
-              if((i - 1) >= ArraySize(signal_params.grid_plan.levels))
-                logging_plan = GridLevelPlan();
-              GridLogEvent("LEVEL_NEXT_UPDATE", signal_params, previous_state, logging_plan);
+              GridLogEvent("LEVEL_NEXT_UPDATE", signal_params, previous_state, previous_plan);
             }
           }
           else if(guardrail_reason != "")
@@ -1178,15 +1234,17 @@ void UpdateGridLifecycle(SignalParams &signal_params)
       GridUpdatePendingLevel(signal_params,
                              direction,
                              order_state,
-                             level_plan,
                              point_size);
+      level_plan = signal_params.grid_plan.levels[i];
 
       if(i > 0 && (i - 1) < ArraySize(signal_params.grid_orders))
       {
         GridOrderState previous_state = signal_params.grid_orders[i - 1];
         double previous_next_price = previous_state.next_level_price;
-        double new_next_price = order_state.last_pending_price;
-        double change_threshold = point_size * 0.1;
+        double new_next_price = level_plan.next_resolved_price;
+        double change_threshold = point_size;
+        if(change_threshold <= 0.0)
+          change_threshold = GridResolvePointSize();
         if(change_threshold <= 0.0)
           change_threshold = 1e-6;
 
@@ -1194,7 +1252,7 @@ void UpdateGridLifecycle(SignalParams &signal_params)
         if(new_next_price > 0.0)
         {
           if(previous_next_price <= 0.0 ||
-             MathAbs(new_next_price - previous_next_price) > change_threshold)
+             MathAbs(new_next_price - previous_next_price) >= (change_threshold - 1e-9))
             emit_next_update = true;
         }
         else if(previous_next_price > 0.0)
@@ -1203,14 +1261,23 @@ void UpdateGridLifecycle(SignalParams &signal_params)
         }
 
         previous_state.next_level_price = new_next_price;
+        if((i - 1) < ArraySize(signal_params.grid_plan.levels))
+        {
+          GridLevelPlan previous_plan = signal_params.grid_plan.levels[i - 1];
+          previous_plan.next_blueprint_price    = level_plan.next_blueprint_price;
+          previous_plan.next_resolved_price     = level_plan.next_resolved_price;
+          previous_plan.next_price_side         = level_plan.next_price_side;
+          previous_plan.next_price_clamp_reason = level_plan.next_price_clamp_reason;
+          signal_params.grid_plan.levels[i - 1] = previous_plan;
+        }
         signal_params.grid_orders[i - 1] = previous_state;
 
         if(emit_next_update)
         {
-          GridLevelPlan previous_plan = GridLevelPlan();
+          GridLevelPlan logging_plan = GridLevelPlan();
           if((i - 1) < ArraySize(signal_params.grid_plan.levels))
-            previous_plan = signal_params.grid_plan.levels[i - 1];
-          GridLogEvent("LEVEL_NEXT_UPDATE", signal_params, previous_state, previous_plan);
+            logging_plan = signal_params.grid_plan.levels[i - 1];
+          GridLogEvent("LEVEL_NEXT_UPDATE", signal_params, previous_state, logging_plan);
         }
       }
 

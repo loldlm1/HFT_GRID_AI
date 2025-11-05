@@ -299,7 +299,6 @@ void DrawGridLevels(const long chart_id,
   string stop_name  = GridSignalObjectName(signal_params, "STOP");
   string tp_name    = GridSignalObjectName(signal_params, "TP");
   string final_name = GridSignalObjectName(signal_params, "TP_FINAL");
-  string next_name  = GridSignalObjectName(signal_params, "NEXT");
   string entry_name = GridSignalObjectName(signal_params, "ENTRY");
 
   int display_index = ResolveDisplayLevelIndex(signal_params);
@@ -308,7 +307,6 @@ void DrawGridLevels(const long chart_id,
     UpdateHorizontalLine(chart_id, stop_name, COLOR_PROFIT_NEGATIVE, 0.0);
     UpdateHorizontalLine(chart_id, tp_name, COLOR_PROFIT_POSITIVE, 0.0);
     UpdateHorizontalLine(chart_id, final_name, COLOR_PROFIT_POSITIVE, 0.0);
-    UpdateHorizontalLine(chart_id, next_name, COLOR_PROFIT_NEUTRAL, 0.0);
     UpdateHorizontalLine(chart_id, entry_name, COLOR_PROFIT_NEUTRAL, 0.0);
     return;
   }
@@ -325,7 +323,9 @@ void DrawGridLevels(const long chart_id,
     level_plan = signal_params.grid_plan.levels[display_index];
 
   double pending_points = ResolvePendingPointsForPlan(level_plan);
-  double pending_price = level_state.last_pending_price;
+  double pending_price = level_plan.next_resolved_price;
+  if(pending_price <= 0.0)
+    pending_price = level_state.last_pending_price;
   if(pending_price <= 0.0 && pending_points > 0.0)
   {
     double anchor_price = level_plan.anchor_price;
@@ -355,15 +355,18 @@ void DrawGridLevels(const long chart_id,
     if(entry_price_line <= 0.0)
       entry_price_line = predicted_entry_price;
 
-    if(level_state.stop_loss_price > 0.0)
-      stop_price = level_state.stop_loss_price;
-    else
+    if(SHOW_STOPS_LINES)
     {
-      double protective_points = level_plan.protective_stop_points;
-      if(protective_points <= 0.0)
-        protective_points = level_plan.entry_offset_points;
-      if(entry_price_line > 0.0 && protective_points > 0.0)
-        stop_price = entry_price_line - direction_mult * protective_points * point_size;
+      if(level_state.stop_loss_price > 0.0)
+        stop_price = level_state.stop_loss_price;
+      else
+      {
+        double protective_points = level_plan.protective_stop_points;
+        if(protective_points <= 0.0)
+          protective_points = level_plan.entry_offset_points;
+        if(entry_price_line > 0.0 && protective_points > 0.0)
+          stop_price = entry_price_line - direction_mult * protective_points * point_size;
+      }
     }
 
     if(tp_price <= 0.0 && level_plan.take_profit_points > 0.0 && entry_price_line > 0.0)
@@ -394,16 +397,15 @@ void DrawGridLevels(const long chart_id,
   }
   else
   {
-    if(level_plan.entry_style == GRID_ENTRY_STYLE_STOP)
-    {
-      stop_price = pending_price;
-      entry_price_line = 0.0;
-    }
+    if(level_plan.next_resolved_price > 0.0)
+      entry_price_line = level_plan.next_resolved_price;
+    else if(level_state.last_pending_price > 0.0)
+      entry_price_line = level_state.last_pending_price;
     else
-    {
       entry_price_line = pending_price;
-      stop_price = 0.0;
-    }
+
+    if(SHOW_STOPS_LINES && level_plan.entry_style == GRID_ENTRY_STYLE_STOP)
+      stop_price = pending_price;
 
     if(tp_price <= 0.0 && level_plan.take_profit_points > 0.0 && pending_price > 0.0)
       tp_price = pending_price + direction_mult * level_plan.take_profit_points * point_size;
@@ -428,19 +430,13 @@ void DrawGridLevels(const long chart_id,
     }
   }
 
-  double next_price = ResolveProjectedNextPrice(signal_params,
-                                                level_plan,
-                                                level_state,
-                                                direction_mult,
-                                                point_size,
-                                                display_index,
-                                                predicted_entry_price);
-
-  UpdateTrackedLine(chart_id, stop_name, COLOR_PROFIT_NEGATIVE, stop_price, tracked_objects);
+  if(SHOW_STOPS_LINES)
+    UpdateTrackedLine(chart_id, stop_name, COLOR_PROFIT_NEGATIVE, stop_price, tracked_objects);
+  else
+    UpdateHorizontalLine(chart_id, stop_name, COLOR_PROFIT_NEGATIVE, 0.0);
   UpdateTrackedLine(chart_id, entry_name, COLOR_PROFIT_NEUTRAL, entry_price_line, tracked_objects);
   UpdateTrackedLine(chart_id, tp_name, COLOR_PROFIT_POSITIVE, tp_price, tracked_objects);
   UpdateTrackedLine(chart_id, final_name, COLOR_PROFIT_POSITIVE, final_price, tracked_objects);
-  UpdateTrackedLine(chart_id, next_name, COLOR_PROFIT_NEUTRAL, next_price, tracked_objects);
 }
 
 void BuildSignalSummary(const SignalParams &signal_params,

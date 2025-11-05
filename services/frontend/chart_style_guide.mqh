@@ -4,6 +4,9 @@
 #ifndef _SERVICES_FRONTEND_CHART_STYLE_GUIDE_MQH_
 #define _SERVICES_FRONTEND_CHART_STYLE_GUIDE_MQH_
 
+// Toggle for optional stop overlays in tester builds.
+const bool SHOW_STOPS_LINES = false;
+
 // Base palette for chart objects rendered by the EA.
 const color COLOR_CHART_BACKGROUND = clrWhite;
 const color COLOR_CHART_FOREGROUND = clrBlack;
