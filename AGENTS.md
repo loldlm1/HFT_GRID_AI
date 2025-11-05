@@ -29,6 +29,7 @@ This is a HFT Grid AI Expert Advisor designed to execute high frequency position
 - Completed: grid inputs exposed, ATR handles loaded on demand with fallbacks, grid plans attached to signals with ATR shift-1 anchors (spacing, offsets, TP, final TP, lot scaling) while enforcing broker constraints
 - Completed: grid levels now append sequentially after each confirmed order fill, so `SignalParams.grid_plan.levels` only grows from live executions while reusing the first level’s activation distance to project new stops
 - Completed: pending entry prices are resolved as `distance - protective offset` above (bullish) or below (bearish) the ATR anchor so protective stops always remain on the correct side of the position while maintaining consistent grid spacing
+- Completed: take-profit geometry now honors `Grid_TP_Reference_Mode`, allowing planners to scale TP from the current or next level distance before broker clamping
 - In Progress: grid planner diagnostics capture ATR anchors, point size, and per-level geometry (`GRID_PLAN_BASE` / `GRID_PLAN_LEVEL`) to validate Phase 2 assumptions in Strategy Tester logs
 
 ### Phase 3 – Order Lifecycle Control
@@ -38,6 +39,7 @@ This is a HFT Grid AI Expert Advisor designed to execute high frequency position
 - Add guardrails for margin, slippage, and spread thresholds to halt grid expansion safely
 - Exit Criteria: full trade cycle executed in tester with correct order stack, protective stops adapt as configured
 - Completed: grid order controller stages levels sequentially, only instantiates the next grid level after a confirmed fill, fires `CTrade` market orders as soon as tagged stops are hit, records deal-linked tickets/activation time for telemetry, trails adverse moves, and enforces spread/margin guardrails with flexible lot sizing
+- Completed: next-level telemetry now emits `LEVEL_NEXT_UPDATE` whenever pending pricing shifts materially, keeping prior level metadata and frontend overlays synchronized with trailing adjustments
 - Completed: resolved entry-to-anchor distances rescale the remaining grid plan so pending stops, activation gaps, and TP offsets obey the real market fill distance instead of projected ATR deltas
 - Completed: active levels track their live grid-range percentage while metadata captures `range_high_price`, `range_low_price`, and `current_range_points` for downstream analytics and guardrail validation
 - In Progress: decoupled pending entry pricing from protective stop placeholders so TP math, telemetry, and next-level projections stay aligned with the ATR anchor during the lifecycle refactor
@@ -48,14 +50,15 @@ This is a HFT Grid AI Expert Advisor designed to execute high frequency position
 - Create lightweight file logging (e.g., `query_debug.txt`) for post-run analysis without flooding the terminal
 - Track per-grid stats (duration, excursion, profit factor) for future analytics modules
 - Exit Criteria: chart artifacts align with live orders, logs expose actionable diagnostics
-- Completed: grid dashboard renders the pending stop, projected TP, optional `TP_FINAL`, and dynamically updated next grid level sourced directly from `SignalParams`—hiding the stop once filled, swapping to the trailing overlay when protection engages, while summary comments, file logs, and telemetry stay in sync for frontend consumers
+- Completed: grid dashboard now draws a single STOP/ENTRY/TP/TP_FINAL/NEXT overlay per signal, hiding stops after fill, swapping TP to trailing when protection engages, and sourcing NEXT levels from backend pricing or projected anchors so telemetry and visuals stay aligned
 - Completed: telemetry now exposes live grid span points and per-level range percentages so future Fibonacci overlays and diagnostics can reference real-time market context
-- In Progress: chart overlays now draw pending entries from `last_pending_price`, leaving protective stop visuals tied to trailing logic so UI feedback mirrors the corrected backend state
+- In Progress: validate NEXT-line projections against `LEVEL_NEXT_UPDATE` telemetry in Strategy Tester (with `Enable_File_Logs=true`) to confirm pre-fill anchor predictions stay in sync before layering additional overlay options
 
 ### Grid Telemetry Sequence (Reference)
 - `GRID_PLAN_LEVEL`: next level blueprint (distance, offsets, projected TP) captured before order staging.
 - `GRID_PLAN_BASE`: signal context (entry, anchor, point size) logged once per plan build.
 - `LEVEL_PENDING`: emitted whenever a pending order is armed; repeats only if the level is recomputed before activation.
+- `LEVEL_NEXT_UPDATE`: captures material changes to the projected next level price as trailing logic or guardrails adjust pending orders.
 - `LEVEL_ACTIVE`/`LEVEL_FILLED`: confirm broker execution; downstream events (`LEVEL_FINAL_TP`, `LEVEL_CLOSE_ALL`, trailing updates) describe the close-out path.
 
 ### Phase 5 – Persistence & Resilience
@@ -82,6 +85,7 @@ This is a HFT Grid AI Expert Advisor designed to execute high frequency position
   2. `GRID_PLAN_BASE` — context snapshot
   3. `LEVEL_PENDING_INIT` — first pending order armed
   4. `LEVEL_PENDING` — subsequent recalculations or trailing updates prior to fill
+  5. `LEVEL_NEXT_UPDATE` — emitted whenever the projected next level distance changes after trailing or guardrail adjustments
 
 ### Ongoing Tasks
 - Keep README and AGENTS synchronized after each phase

@@ -148,4 +148,10 @@ enum GridLotTypes
   GRID_LOT_CURRENCY_BASED   = 2
 };
 
+enum GridTPReferenceModes
+{
+  GRID_TP_REF_CURRENT = 0,
+  GRID_TP_REF_NEXT    = 1
+};
+
 #endif // _MICROSERVICES_CORE_ENUMS_MQH_
