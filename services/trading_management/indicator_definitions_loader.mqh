@@ -99,18 +99,6 @@ void LoadAllIndicatorDefinitions()
   ArrayResize(ExtBodyMAIndicatorsHandle, 0);
   ArrayResize(ExtATRIndicatorsHandle, 0);
 
-  // OVERRIDE TOTAL INDICATORS TO LOAD FOR TESTING PURPOSES
-  if(Test_Mode)
-  {
-    start_bands_indicators_load = 0;
-    total_bands_indicators_load = 1;
-    total_stoch_indicators_load = 1;
-    total_tf_list_load          = 1;
-  }
-
-  // HIDE INDICATORS VARIANTS
-  TesterHideIndicators(Hide_Indicator_Variants);
-
   // LOAD ALL INDICATORS VARIANTS
   if(Base_Indicator_Strategy_Type == BANDS_TYPE)
   {
