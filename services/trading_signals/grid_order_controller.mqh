@@ -396,15 +396,12 @@ void GridInitializePendingLevel(const SignalTypes direction,
   order_state.last_pending_price = pending_price;
   order_state.next_level_price   = 0.0;
 
+  double expected_entry = pending_price;
+
   if(level_plan.take_profit_points > 0.0)
-  {
-    double expected_entry = pending_price;
     order_state.take_profit_price = expected_entry + direction_mult * level_plan.take_profit_points * point_size;
-  }
   else
-  {
     order_state.take_profit_price = 0.0;
-  }
 
   if(level_plan.final_take_profit_points > 0.0)
     order_state.final_take_profit_price = pending_price + direction_mult * level_plan.final_take_profit_points * point_size;
@@ -438,15 +435,12 @@ void GridUpdatePendingLevel(const SignalTypes direction,
   order_state.last_pending_price = pending_price;
   order_state.next_level_price   = 0.0;
 
+  double expected_entry = pending_price;
+
   if(level_plan.take_profit_points > 0.0)
-  {
-    double expected_entry = pending_price;
     order_state.take_profit_price = expected_entry + direction_mult * level_plan.take_profit_points * point_size;
-  }
   else
-  {
     order_state.take_profit_price = 0.0;
-  }
 
   if(level_plan.final_take_profit_points > 0.0)
     order_state.final_take_profit_price = pending_price + direction_mult * level_plan.final_take_profit_points * point_size;
@@ -459,9 +453,11 @@ bool GridShouldActivatePendingLevel(const SignalTypes direction,
                                     const GridOrderState &order_state)
 {
   double entry_side_price = GridCurrentPriceForDirection(direction, true);
+  if(order_state.last_pending_price <= 0.0)
+    return false;
   if(direction == BULLISH)
-    return (entry_side_price <= order_state.last_pending_price && order_state.last_pending_price > 0.0);
-  return (entry_side_price >= order_state.last_pending_price && order_state.last_pending_price > 0.0);
+    return (entry_side_price >= order_state.last_pending_price);
+  return (entry_side_price <= order_state.last_pending_price);
 }
 
 bool GridExecuteLevelTrade(SignalParams &signal_params,

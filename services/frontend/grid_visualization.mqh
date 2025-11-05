@@ -82,12 +82,10 @@ void DrawGridLevels(const long chart_id,
   {
     GridOrderState level_state = signal_params.grid_orders[i];
 
-    string entry_name = GridLevelObjectName(signal_params, i, "ENTRY");
     string stop_name  = GridLevelObjectName(signal_params, i, "STOP");
     string tp_name    = GridLevelObjectName(signal_params, i, "TP");
     string final_name = GridLevelObjectName(signal_params, i, "TP_FINAL");
     string next_name  = GridLevelObjectName(signal_params, i, "NEXT");
-    ObjectDelete(chart_id, entry_name);
 
     if(level_state.status == GRID_ORDER_INACTIVE || level_state.status == GRID_ORDER_WAITING)
     {
@@ -114,15 +112,19 @@ void DrawGridLevels(const long chart_id,
     GridLevelPlan level_plan;
     if(i < ArraySize(signal_params.grid_plan.levels))
       level_plan = signal_params.grid_plan.levels[i];
+    else
+      level_plan = GridLevelPlan();
 
     double direction_mult = (signal_params.signal_type == BULLISH) ? 1.0 : -1.0;
 
     double stop_price  = 0.0;
+    double next_price  = level_state.next_level_price;
+
     if(level_state.status == GRID_ORDER_PENDING)
     {
-      double entry_price = level_state.last_pending_price;
-      if(entry_price > 0.0 && level_plan.protective_stop_points > 0.0)
-        stop_price = entry_price - direction_mult * level_plan.protective_stop_points * point_size;
+      stop_price = level_state.last_pending_price;
+      if(stop_price <= 0.0)
+        stop_price = level_state.anchor_price + direction_mult * level_plan.pending_order_points * point_size;
     }
     else if(level_state.status == GRID_ORDER_ACTIVE)
     {
@@ -139,7 +141,22 @@ void DrawGridLevels(const long chart_id,
     UpdateHorizontalLine(chart_id, stop_name, COLOR_PROFIT_NEGATIVE, stop_price);
     UpdateHorizontalLine(chart_id, tp_name, COLOR_PROFIT_POSITIVE, level_state.take_profit_price);
     UpdateHorizontalLine(chart_id, final_name, COLOR_PROFIT_POSITIVE, level_state.final_take_profit_price);
-    UpdateHorizontalLine(chart_id, next_name, COLOR_PROFIT_NEUTRAL, level_state.next_level_price);
+
+    if(next_price <= 0.0 && (i) < ArraySize(signal_params.grid_plan.levels))
+    {
+      GridLevelPlan next_plan = signal_params.grid_plan.levels[i];
+      double next_anchor = next_plan.anchor_price;
+      if(next_anchor <= 0.0)
+        next_anchor = level_state.anchor_price;
+      double pending_points = next_plan.pending_order_points;
+      if(pending_points <= 0.0)
+        pending_points = next_plan.distance_points + next_plan.entry_offset_points;
+      next_price = next_anchor + direction_mult * pending_points * point_size;
+    }
+    if(next_price > 0.0)
+      UpdateHorizontalLine(chart_id, next_name, COLOR_PROFIT_NEUTRAL, next_price);
+    else
+      UpdateHorizontalLine(chart_id, next_name, COLOR_PROFIT_NEUTRAL, 0.0);
 
     if(Enable_Chart_Levels)
     {
