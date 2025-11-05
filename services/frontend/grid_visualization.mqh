@@ -78,6 +78,11 @@ void DrawGridLevels(const long chart_id,
                     string &tracked_objects[])
 {
   int levels_total = ArraySize(signal_params.grid_orders);
+  int plan_total   = ArraySize(signal_params.grid_plan.levels);
+  double point_size = SymbolInfoDouble(_Symbol, SYMBOL_POINT);
+  if(point_size <= 0.0)
+    point_size = 0.0001;
+
   for(int i = 0; i < levels_total; i++)
   {
     GridOrderState level_state = signal_params.grid_orders[i];
@@ -87,7 +92,7 @@ void DrawGridLevels(const long chart_id,
     string final_name = GridLevelObjectName(signal_params, i, "TP_FINAL");
     string next_name  = GridLevelObjectName(signal_params, i, "NEXT");
 
-    if(level_state.status == GRID_ORDER_INACTIVE || level_state.status == GRID_ORDER_WAITING)
+    if(level_state.status == GRID_ORDER_INACTIVE)
     {
       UpdateHorizontalLine(chart_id, stop_name, COLOR_PROFIT_NEGATIVE, 0.0);
       UpdateHorizontalLine(chart_id, tp_name, COLOR_PROFIT_POSITIVE, 0.0);
@@ -96,63 +101,77 @@ void DrawGridLevels(const long chart_id,
       continue;
     }
 
-    if(level_state.status == GRID_ORDER_COMPLETED)
-    {
-      UpdateHorizontalLine(chart_id, stop_name, COLOR_PROFIT_NEGATIVE, 0.0);
-      UpdateHorizontalLine(chart_id, tp_name, COLOR_PROFIT_POSITIVE, 0.0);
-      UpdateHorizontalLine(chart_id, final_name, COLOR_PROFIT_POSITIVE, 0.0);
-      UpdateHorizontalLine(chart_id, next_name, COLOR_PROFIT_NEUTRAL, 0.0);
-      continue;
-    }
-
-    double point_size = SymbolInfoDouble(_Symbol, SYMBOL_POINT);
-    if(point_size <= 0.0)
-      point_size = 0.0001;
-
-    GridLevelPlan level_plan;
-    if(i < ArraySize(signal_params.grid_plan.levels))
-      level_plan = signal_params.grid_plan.levels[i];
-    else
-      level_plan = GridLevelPlan();
-
+    GridLevelPlan level_plan = (i < plan_total) ? signal_params.grid_plan.levels[i] : GridLevelPlan();
     double direction_mult = (signal_params.signal_type == BULLISH) ? 1.0 : -1.0;
+    double pending_points = level_plan.pending_order_points;
+    if(pending_points <= 0.0)
+      pending_points = level_plan.distance_points + level_plan.entry_offset_points;
+    double plan_anchor = level_plan.anchor_price;
+    if(plan_anchor <= 0.0)
+      plan_anchor = level_state.anchor_price;
 
+    double predicted_entry_price = 0.0;
     double stop_price  = 0.0;
-    double next_price  = level_state.next_level_price;
+    double tp_price    = level_state.take_profit_price;
+    double final_price = level_state.final_take_profit_price;
 
-    if(level_state.status == GRID_ORDER_PENDING)
+    if(level_state.status == GRID_ORDER_WAITING)
     {
-      stop_price = level_state.last_pending_price;
-      if(stop_price <= 0.0)
-        stop_price = level_state.anchor_price + direction_mult * level_plan.pending_order_points * point_size;
+      UpdateHorizontalLine(chart_id, stop_name, COLOR_PROFIT_NEGATIVE, 0.0);
+      UpdateHorizontalLine(chart_id, tp_name, COLOR_PROFIT_POSITIVE, 0.0);
+      UpdateHorizontalLine(chart_id, final_name, COLOR_PROFIT_POSITIVE, 0.0);
+      predicted_entry_price = plan_anchor + direction_mult * pending_points * point_size;
+    }
+    else if(level_state.status == GRID_ORDER_PENDING)
+    {
+      predicted_entry_price = level_state.last_pending_price;
+      if(predicted_entry_price <= 0.0)
+        predicted_entry_price = plan_anchor + direction_mult * pending_points * point_size;
+      stop_price = predicted_entry_price;
+      UpdateHorizontalLine(chart_id, stop_name, COLOR_PROFIT_NEGATIVE, stop_price);
+      UpdateHorizontalLine(chart_id, tp_name, COLOR_PROFIT_POSITIVE, tp_price);
+      UpdateHorizontalLine(chart_id, final_name, COLOR_PROFIT_POSITIVE, final_price);
     }
     else if(level_state.status == GRID_ORDER_ACTIVE)
     {
+      predicted_entry_price = level_state.entry_price;
       if(level_state.stop_loss_price > 0.0)
         stop_price = level_state.stop_loss_price;
-      else if(level_state.entry_price > 0.0 && level_plan.protective_stop_points > 0.0)
-        stop_price = level_state.entry_price - direction_mult * level_plan.protective_stop_points * point_size;
+      else if(predicted_entry_price > 0.0 && level_plan.protective_stop_points > 0.0)
+        stop_price = predicted_entry_price - direction_mult * level_plan.protective_stop_points * point_size;
+      UpdateHorizontalLine(chart_id, stop_name, COLOR_PROFIT_NEGATIVE, stop_price);
+      UpdateHorizontalLine(chart_id, tp_name, COLOR_PROFIT_POSITIVE, tp_price);
+      UpdateHorizontalLine(chart_id, final_name, COLOR_PROFIT_POSITIVE, final_price);
     }
-    else
+    else if(level_state.status == GRID_ORDER_COMPLETED)
     {
-      stop_price = 0.0;
+      UpdateHorizontalLine(chart_id, stop_name, COLOR_PROFIT_NEGATIVE, 0.0);
+      UpdateHorizontalLine(chart_id, tp_name, COLOR_PROFIT_POSITIVE, 0.0);
+      UpdateHorizontalLine(chart_id, final_name, COLOR_PROFIT_POSITIVE, 0.0);
+      predicted_entry_price = level_state.anchor_price;
     }
 
-    UpdateHorizontalLine(chart_id, stop_name, COLOR_PROFIT_NEGATIVE, stop_price);
-    UpdateHorizontalLine(chart_id, tp_name, COLOR_PROFIT_POSITIVE, level_state.take_profit_price);
-    UpdateHorizontalLine(chart_id, final_name, COLOR_PROFIT_POSITIVE, level_state.final_take_profit_price);
-
-    if(next_price <= 0.0 && (i) < ArraySize(signal_params.grid_plan.levels))
+    double next_price = level_state.next_level_price;
+    if(next_price <= 0.0)
     {
-      GridLevelPlan next_plan = signal_params.grid_plan.levels[i];
-      double next_anchor = next_plan.anchor_price;
-      if(next_anchor <= 0.0)
-        next_anchor = level_state.anchor_price;
-      double pending_points = next_plan.pending_order_points;
-      if(pending_points <= 0.0)
-        pending_points = next_plan.distance_points + next_plan.entry_offset_points;
-      next_price = next_anchor + direction_mult * pending_points * point_size;
+      if(predicted_entry_price <= 0.0)
+        predicted_entry_price = plan_anchor + direction_mult * pending_points * point_size;
+
+      if((i + 1) < plan_total)
+      {
+        GridLevelPlan next_plan = signal_params.grid_plan.levels[i + 1];
+        double next_pending = next_plan.pending_order_points;
+        if(next_pending <= 0.0)
+          next_pending = next_plan.distance_points + next_plan.entry_offset_points;
+        double previous_distance = level_plan.distance_points;
+        double predicted_anchor = predicted_entry_price - direction_mult * previous_distance * point_size;
+        double next_anchor = next_plan.anchor_price;
+        if(next_anchor <= 0.0)
+          next_anchor = predicted_anchor;
+        next_price = next_anchor + direction_mult * next_pending * point_size;
+      }
     }
+
     if(next_price > 0.0)
       UpdateHorizontalLine(chart_id, next_name, COLOR_PROFIT_NEUTRAL, next_price);
     else
