@@ -15,14 +15,20 @@ void LogGridPlanDiagnostics(const SignalParams &signal_params,
     return;
 
   string direction = (signal_params.signal_type == BULLISH) ? "BULLISH" : "BEARISH";
-  string header = StringFormat("dir=%s|entry=%.5f|ask=%.5f|bid=%.5f|point=%.5f|base_dist=%.2f|base_anchor=%.5f",
+  double raw_gap_pts = signal_params.grid_plan.entry_side_raw_gap_points;
+  double entry_offset_pts = signal_params.grid_plan.entry_side_offset_pts_initial;
+  double entry_side_price = signal_params.grid_plan.entry_side_price_initial;
+  string header = StringFormat("dir=%s|entry=%.5f|ask=%.5f|bid=%.5f|point=%.5f|base_dist=%.2f|base_anchor=%.5f|raw_gap_pts=%.2f|entry_offset_pts=%.2f|entry_side=%.5f",
                                direction,
                                signal_params.entry_price,
                                g_ask,
                                g_bid,
                                point_size,
                                base_distance_points,
-                               base_anchor_price);
+                               base_anchor_price,
+                               raw_gap_pts,
+                               entry_offset_pts,
+                               entry_side_price);
   AppendTimestampedLog("query_debug.txt", "GRID_PLAN_BASE", header);
 }
 
@@ -208,6 +214,29 @@ bool BuildGridPlanForSignal(SignalParams &signal_params)
   signal_params.grid_plan.range_high_price     = 0.0;
   signal_params.grid_plan.range_low_price      = 0.0;
 
+  double point_size = SymbolInfoDouble(_Symbol, SYMBOL_POINT);
+  if(point_size <= 0.0)
+    point_size = 0.0001;
+
+  double entry_side_price = (signal_params.signal_type == BULLISH) ? g_ask : g_bid;
+  if(entry_side_price <= 0.0)
+    entry_side_price = signal_params.entry_price;
+  double raw_gap_points = 0.0;
+  if(entry_side_price > 0.0 && base_anchor_price > 0.0 && point_size > 0.0)
+    raw_gap_points = MathAbs(entry_side_price - base_anchor_price) / point_size;
+  if(raw_gap_points <= 0.0)
+    raw_gap_points = base_distance_points;
+
+  double initial_stop_percent = MathMax(Grid_Initial_Stops_Percent, 0.0);
+  double entry_side_offset_pts_initial = raw_gap_points * (initial_stop_percent / 100.0);
+  double min_stop_distance = g_symbol_constraints.min_stop_distance_points;
+  if(min_stop_distance > 0.0 && entry_side_offset_pts_initial < min_stop_distance)
+    entry_side_offset_pts_initial = min_stop_distance;
+
+  signal_params.grid_plan.entry_side_price_initial    = entry_side_price;
+  signal_params.grid_plan.entry_side_raw_gap_points   = raw_gap_points;
+  signal_params.grid_plan.entry_side_offset_pts_initial = entry_side_offset_pts_initial;
+
   if(!GridEnsureLevelPlan(signal_params, 0))
     return false;
 
@@ -219,13 +248,34 @@ bool BuildGridPlanForSignal(SignalParams &signal_params)
       pending_points = initial_plan.distance_points + initial_plan.entry_offset_points;
     if(pending_points <= 0.0)
       pending_points = initial_plan.distance_points;
+    double planned_pending_price = initial_plan.anchor_price +
+                                   ((signal_params.signal_type == BULLISH) ? 1.0 : -1.0) *
+                                   pending_points * point_size;
+    double entry_side_price_log = signal_params.grid_plan.entry_side_price_initial;
+    if(entry_side_price_log <= 0.0)
+      entry_side_price_log = (signal_params.signal_type == BULLISH) ? g_ask : g_bid;
+    double clamped_pending_price = planned_pending_price;
+    if(initial_plan.entry_style == GRID_ENTRY_STYLE_STOP)
+    {
+      double offset_points = signal_params.grid_plan.entry_side_offset_pts_initial;
+      double offset_price = offset_points * point_size;
+      if(signal_params.signal_type == BULLISH)
+        clamped_pending_price = MathMax(clamped_pending_price, entry_side_price_log + offset_price);
+      else
+        clamped_pending_price = MathMin(clamped_pending_price, entry_side_price_log - offset_price);
+    }
     string direction = (signal_params.signal_type == BULLISH) ? "BULLISH" : "BEARISH";
-    string message = StringFormat("dir=%s|level=%d|dist=%.2f|pending_pts=%.2f|anchor=%.5f",
+    string message = StringFormat("dir=%s|level=%d|dist=%.2f|pending_pts=%.2f|anchor=%.5f|raw_gap_pts=%.2f|entry_offset_pts=%.2f|entry_side_price=%.5f|clamped_pending_price=%.5f|style=%s",
                                   direction,
                                   initial_plan.level_index,
                                   initial_plan.distance_points,
                                   pending_points,
-                                  initial_plan.anchor_price);
+                                  initial_plan.anchor_price,
+                                  signal_params.grid_plan.entry_side_raw_gap_points,
+                                  signal_params.grid_plan.entry_side_offset_pts_initial,
+                                  entry_side_price_log,
+                                  clamped_pending_price,
+                                  EnumToString(initial_plan.entry_style));
     AppendTimestampedLog("query_debug.txt", "LEVEL_PENDING_INIT", message);
   }
 
@@ -239,10 +289,10 @@ bool BuildGridPlanForSignal(SignalParams &signal_params)
                 ArraySize(signal_params.grid_plan.levels));
   }
 
-  double point_size = SymbolInfoDouble(_Symbol, SYMBOL_POINT);
-  if(point_size <= 0.0)
-    point_size = 0.0001;
-  LogGridPlanDiagnostics(signal_params, point_size, base_distance_points, base_anchor_price);
+  double log_point_size = SymbolInfoDouble(_Symbol, SYMBOL_POINT);
+  if(log_point_size <= 0.0)
+    log_point_size = 0.0001;
+  LogGridPlanDiagnostics(signal_params, log_point_size, base_distance_points, base_anchor_price);
 
   return true;
 }

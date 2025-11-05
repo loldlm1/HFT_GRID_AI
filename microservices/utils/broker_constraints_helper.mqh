@@ -19,6 +19,7 @@ struct SymbolTradingConstraints
   double  volume_step;
   double  freeze_level_points;
   double  stops_level_points;
+  double  min_stop_distance_points;
   datetime last_refresh;
 
   SymbolTradingConstraints()
@@ -33,6 +34,7 @@ struct SymbolTradingConstraints
     volume_step          = 0.0;
     freeze_level_points  = 0.0;
     stops_level_points   = 0.0;
+    min_stop_distance_points = 0.0;
     last_refresh         = 0;
   }
 };
@@ -55,6 +57,8 @@ bool RefreshSymbolTradingConstraints(const string symbol, SymbolTradingConstrain
   constraints.volume_step         = SymbolInfoDouble(symbol, SYMBOL_VOLUME_STEP);
   constraints.freeze_level_points = (double)SymbolInfoInteger(symbol, SYMBOL_TRADE_FREEZE_LEVEL);
   constraints.stops_level_points  = (double)SymbolInfoInteger(symbol, SYMBOL_TRADE_STOPS_LEVEL);
+  constraints.min_stop_distance_points = MathMax(constraints.freeze_level_points,
+                                                 constraints.stops_level_points);
   constraints.last_refresh        = TimeCurrent();
 
   bool spec_loaded = (constraints.point_size > 0.0) &&

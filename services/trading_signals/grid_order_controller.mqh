@@ -91,19 +91,48 @@ void GridLogEvent(const string label,
     return;
 
   string direction = (signal_params.signal_type == BULLISH) ? "BULLISH" : "BEARISH";
-  string message = StringFormat("dir=%s|level=%d|status=%s|pending=%.5f|protect=%.5f|entry=%.5f|tp=%.5f|next=%.5f|anchor=%.5f|dist=%.1f|pct=%.2f|style=%s",
+  double entry_side_price_current = GridCurrentPriceForDirection(signal_params.signal_type, true);
+  double entry_side_price_trailing = order_state.entry_side_price_trailing;
+  if(entry_side_price_trailing <= 0.0)
+    entry_side_price_trailing = signal_params.grid_plan.entry_side_price_initial;
+  if(entry_side_price_current <= 0.0)
+    entry_side_price_current = entry_side_price_trailing;
+
+  double anchor_plan_price = level_plan.anchor_price;
+  if(anchor_plan_price <= 0.0)
+    anchor_plan_price = order_state.anchor_price;
+
+  double point_size = GridResolvePointSize();
+  double direction_mult = GridResolveDirectionMultiplier(signal_params.signal_type);
+  double planned_pending_price = 0.0;
+  if(anchor_plan_price > 0.0 && point_size > 0.0)
+  {
+    double pending_points = GridResolvePendingPoints(level_plan);
+    planned_pending_price = anchor_plan_price + direction_mult * pending_points * point_size;
+  }
+
+  double raw_gap_pts = signal_params.grid_plan.entry_side_raw_gap_points;
+  double entry_offset_pts = signal_params.grid_plan.entry_side_offset_pts_initial;
+
+  string message = StringFormat("dir=%s|level=%d|status=%s|clamped_pending_price=%.5f|planned_pending_price=%.5f|protect=%.5f|entry=%.5f|tp=%.5f|next=%.5f|anchor=%.5f|anchor_plan=%.5f|dist=%.1f|pct=%.2f|style=%s|entry_side_price_curr=%.5f|entry_side_price_trail=%.5f|raw_gap_pts=%.2f|entry_offset_pts=%.2f",
                                 direction,
                                 order_state.level_index,
                                 EnumToString(order_state.status),
                                 order_state.last_pending_price,
+                                planned_pending_price,
                                 order_state.stop_loss_price,
                                 order_state.entry_price,
                                 order_state.take_profit_price,
                                 order_state.next_level_price,
                                 order_state.anchor_price,
+                                anchor_plan_price,
                                 order_state.resolved_distance_points,
                                 order_state.grid_range_percent,
-                                EnumToString(level_plan.entry_style));
+                                EnumToString(level_plan.entry_style),
+                                entry_side_price_current,
+                                entry_side_price_trailing,
+                                raw_gap_pts,
+                                entry_offset_pts);
   AppendTimestampedLog("query_debug.txt", label, message);
 }
 
@@ -525,6 +554,7 @@ void GridInitializePendingLevel(const SignalParams &signal_params,
   order_state.position_ticket    = 0;
   order_state.position_comment   = "";
   order_state.next_level_price   = 0.0;
+  order_state.entry_side_price_trailing = signal_params.grid_plan.entry_side_price_initial;
 
   GridUpdatePendingLevel(signal_params,
                          direction,
@@ -568,7 +598,57 @@ void GridUpdatePendingLevel(const SignalParams &signal_params,
   if(pending_points <= 0.0)
     pending_points = level_plan.distance_points;
 
-  double pending_price  = resolved_anchor + direction_mult * pending_points * resolved_point_size;
+  double pending_price = resolved_anchor + direction_mult * pending_points * resolved_point_size;
+
+  if(level_plan.entry_style == GRID_ENTRY_STYLE_STOP)
+  {
+    double entry_side_price_current = GridCurrentPriceForDirection(direction, true);
+    double tracked_entry_side_price = order_state.entry_side_price_trailing;
+    if(tracked_entry_side_price <= 0.0)
+      tracked_entry_side_price = signal_params.grid_plan.entry_side_price_initial;
+
+    if(entry_side_price_current > 0.0)
+    {
+      if(direction == BULLISH)
+      {
+        if(tracked_entry_side_price <= 0.0 || entry_side_price_current < tracked_entry_side_price)
+          tracked_entry_side_price = entry_side_price_current;
+      }
+      else if(direction == BEARISH)
+      {
+        if(tracked_entry_side_price <= 0.0 || entry_side_price_current > tracked_entry_side_price)
+          tracked_entry_side_price = entry_side_price_current;
+      }
+    }
+
+    order_state.entry_side_price_trailing = tracked_entry_side_price;
+    double clamp_price = tracked_entry_side_price;
+    double reference_entry_price = entry_side_price_current;
+    if(reference_entry_price <= 0.0)
+      reference_entry_price = clamp_price;
+
+    double entry_side_offset_pts = signal_params.grid_plan.entry_side_offset_pts_initial;
+    if(entry_side_offset_pts <= 0.0)
+    {
+      double fallback_gap = signal_params.grid_plan.entry_side_raw_gap_points;
+      if(fallback_gap <= 0.0 && resolved_point_size > 0.0 && reference_entry_price > 0.0 && resolved_anchor > 0.0)
+        fallback_gap = MathAbs(reference_entry_price - resolved_anchor) / resolved_point_size;
+      double initial_percent = MathMax(Grid_Initial_Stops_Percent, 0.0);
+      entry_side_offset_pts = fallback_gap * (initial_percent / 100.0);
+      double min_stop_distance = g_symbol_constraints.min_stop_distance_points;
+      if(min_stop_distance > 0.0 && entry_side_offset_pts < min_stop_distance)
+        entry_side_offset_pts = min_stop_distance;
+    }
+
+    double offset_price = entry_side_offset_pts * resolved_point_size;
+    if(clamp_price > 0.0 && offset_price > 0.0)
+    {
+      if(direction == BULLISH)
+        pending_price = MathMax(pending_price, clamp_price + offset_price);
+      else if(direction == BEARISH)
+        pending_price = MathMin(pending_price, clamp_price - offset_price);
+    }
+  }
 
   order_state.anchor_price       = resolved_anchor;
   order_state.stop_loss_price    = 0.0;

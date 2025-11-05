@@ -62,6 +62,9 @@ struct GridMetadata
   double      base_lot_size;
   double      range_high_price;
   double      range_low_price;
+  double      entry_side_price_initial;
+  double      entry_side_raw_gap_points;
+  double      entry_side_offset_pts_initial;
   GridLevelPlan levels[];
 
   GridMetadata()
@@ -74,6 +77,9 @@ struct GridMetadata
     base_lot_size        = 0.0;
     range_high_price     = 0.0;
     range_low_price      = 0.0;
+    entry_side_price_initial    = 0.0;
+    entry_side_raw_gap_points   = 0.0;
+    entry_side_offset_pts_initial = 0.0;
   }
 };
 
@@ -131,6 +137,7 @@ struct GridOrderState
   double            final_take_profit_price;
   ulong             position_ticket;
   string            position_comment;
+  double            entry_side_price_trailing;
 
   GridOrderState()
   {
@@ -153,6 +160,7 @@ struct GridOrderState
     final_take_profit_price = 0.0;
     position_ticket      = 0;
     position_comment     = "";
+    entry_side_price_trailing = 0.0;
   }
 };
 
@@ -241,6 +249,9 @@ struct SignalParams
     grid_plan.base_lot_size        = signal_params.grid_plan.base_lot_size;
     grid_plan.range_high_price     = signal_params.grid_plan.range_high_price;
     grid_plan.range_low_price      = signal_params.grid_plan.range_low_price;
+    grid_plan.entry_side_price_initial    = signal_params.grid_plan.entry_side_price_initial;
+    grid_plan.entry_side_raw_gap_points   = signal_params.grid_plan.entry_side_raw_gap_points;
+    grid_plan.entry_side_offset_pts_initial = signal_params.grid_plan.entry_side_offset_pts_initial;
 
     int orders_total = ArraySize(signal_params.grid_orders);
     ArrayResize(grid_orders, orders_total);

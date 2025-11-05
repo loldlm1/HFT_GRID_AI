@@ -73,6 +73,21 @@ void UpdateHorizontalLine(const long chart_id,
   ObjectSetInteger(chart_id, name, OBJPROP_WIDTH, 1);
 }
 
+void UpdateTrackedLine(const long chart_id,
+                       const string name,
+                       const color line_color,
+                       const double price,
+                       string &tracked_objects[])
+{
+  UpdateHorizontalLine(chart_id, name, line_color, price);
+  if(!Enable_Chart_Levels)
+    return;
+  if(price <= 0.0)
+    return;
+  if(!ContainsObjectName(tracked_objects, name))
+    PushObjectName(tracked_objects, name);
+}
+
 void DrawGridLevels(const long chart_id,
                     const SignalParams &signal_params,
                     string &tracked_objects[])
@@ -146,50 +161,79 @@ void DrawGridLevels(const long chart_id,
     double plan_anchor = level_plan.anchor_price;
     if(plan_anchor <= 0.0)
       plan_anchor = level_state.anchor_price;
+    bool is_stop_style = (level_plan.entry_style == GRID_ENTRY_STYLE_STOP);
 
     double predicted_entry_price = 0.0;
+    double predicted_pending_price = level_state.last_pending_price;
+    if(predicted_pending_price <= 0.0)
+    {
+      predicted_pending_price = plan_anchor + direction_mult * pending_points * point_size;
+      if(is_stop_style)
+      {
+        double clamp_price = level_state.entry_side_price_trailing;
+        if(clamp_price <= 0.0)
+          clamp_price = signal_params.grid_plan.entry_side_price_initial;
+        double offset_points = signal_params.grid_plan.entry_side_offset_pts_initial;
+        double offset_price = offset_points * point_size;
+        if(clamp_price > 0.0 && offset_price > 0.0)
+        {
+          if(signal_params.signal_type == BULLISH)
+            predicted_pending_price = MathMax(predicted_pending_price, clamp_price + offset_price);
+          else
+            predicted_pending_price = MathMin(predicted_pending_price, clamp_price - offset_price);
+        }
+      }
+    }
+
     double stop_price  = 0.0;
+    double entry_price_line = 0.0;
     double tp_price    = level_state.take_profit_price;
     double final_price = level_state.final_take_profit_price;
 
     if(level_state.status == GRID_ORDER_WAITING)
     {
-      UpdateHorizontalLine(chart_id, stop_name, COLOR_PROFIT_NEGATIVE, 0.0);
-      UpdateHorizontalLine(chart_id, tp_name, COLOR_PROFIT_POSITIVE, 0.0);
-      UpdateHorizontalLine(chart_id, final_name, COLOR_PROFIT_POSITIVE, 0.0);
-      UpdateHorizontalLine(chart_id, entry_name, COLOR_PROFIT_NEUTRAL, 0.0);
-      predicted_entry_price = plan_anchor + direction_mult * pending_points * point_size;
+      predicted_entry_price = predicted_pending_price;
+      if(is_stop_style)
+        stop_price = predicted_pending_price;
+      else
+        entry_price_line = predicted_pending_price;
+      tp_price = 0.0;
+      final_price = 0.0;
     }
     else if(level_state.status == GRID_ORDER_PENDING)
     {
-      predicted_entry_price = level_state.last_pending_price;
-      if(predicted_entry_price <= 0.0)
-        predicted_entry_price = plan_anchor + direction_mult * pending_points * point_size;
-      UpdateHorizontalLine(chart_id, stop_name, COLOR_PROFIT_NEGATIVE, 0.0);
-      UpdateHorizontalLine(chart_id, entry_name, COLOR_PROFIT_NEUTRAL, predicted_entry_price);
-      UpdateHorizontalLine(chart_id, tp_name, COLOR_PROFIT_POSITIVE, tp_price);
-      UpdateHorizontalLine(chart_id, final_name, COLOR_PROFIT_POSITIVE, final_price);
+      predicted_entry_price = predicted_pending_price;
+      if(is_stop_style)
+        stop_price = predicted_pending_price;
+      else
+        entry_price_line = predicted_pending_price;
     }
     else if(level_state.status == GRID_ORDER_ACTIVE)
     {
       predicted_entry_price = level_state.entry_price;
-      UpdateHorizontalLine(chart_id, entry_name, COLOR_PROFIT_NEUTRAL, 0.0);
+      entry_price_line = 0.0;
       if(level_state.stop_loss_price > 0.0)
         stop_price = level_state.stop_loss_price;
       else if(predicted_entry_price > 0.0 && level_plan.protective_stop_points > 0.0)
         stop_price = predicted_entry_price - direction_mult * level_plan.protective_stop_points * point_size;
-      UpdateHorizontalLine(chart_id, stop_name, COLOR_PROFIT_NEGATIVE, stop_price);
-      UpdateHorizontalLine(chart_id, tp_name, COLOR_PROFIT_POSITIVE, tp_price);
-      UpdateHorizontalLine(chart_id, final_name, COLOR_PROFIT_POSITIVE, final_price);
     }
     else if(level_state.status == GRID_ORDER_COMPLETED)
     {
-      UpdateHorizontalLine(chart_id, stop_name, COLOR_PROFIT_NEGATIVE, 0.0);
-      UpdateHorizontalLine(chart_id, tp_name, COLOR_PROFIT_POSITIVE, 0.0);
-      UpdateHorizontalLine(chart_id, final_name, COLOR_PROFIT_POSITIVE, 0.0);
-      UpdateHorizontalLine(chart_id, entry_name, COLOR_PROFIT_NEUTRAL, 0.0);
       predicted_entry_price = level_state.anchor_price;
+      stop_price  = 0.0;
+      entry_price_line = 0.0;
+      tp_price    = 0.0;
+      final_price = 0.0;
     }
+    else
+    {
+      predicted_entry_price = predicted_pending_price;
+    }
+
+    UpdateTrackedLine(chart_id, stop_name, COLOR_PROFIT_NEGATIVE, stop_price, tracked_objects);
+    UpdateTrackedLine(chart_id, tp_name, COLOR_PROFIT_POSITIVE, tp_price, tracked_objects);
+    UpdateTrackedLine(chart_id, final_name, COLOR_PROFIT_POSITIVE, final_price, tracked_objects);
+    UpdateTrackedLine(chart_id, entry_name, COLOR_PROFIT_NEUTRAL, entry_price_line, tracked_objects);
 
     double next_price = level_state.next_level_price;
     if(next_price <= 0.0)
@@ -220,18 +264,9 @@ void DrawGridLevels(const long chart_id,
     }
 
     if(next_price > 0.0)
-      UpdateHorizontalLine(chart_id, next_name, COLOR_PROFIT_NEUTRAL, next_price);
+      UpdateTrackedLine(chart_id, next_name, COLOR_PROFIT_NEUTRAL, next_price, tracked_objects);
     else
-      UpdateHorizontalLine(chart_id, next_name, COLOR_PROFIT_NEUTRAL, 0.0);
-
-    if(Enable_Chart_Levels)
-    {
-      PushObjectName(tracked_objects, stop_name);
-      PushObjectName(tracked_objects, tp_name);
-      PushObjectName(tracked_objects, final_name);
-      PushObjectName(tracked_objects, next_name);
-      PushObjectName(tracked_objects, entry_name);
-    }
+      UpdateTrackedLine(chart_id, next_name, COLOR_PROFIT_NEUTRAL, 0.0, tracked_objects);
   }
 }
 
