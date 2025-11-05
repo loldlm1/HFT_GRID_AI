@@ -17,7 +17,7 @@ const color COLOR_CANDLE_BEAR      = clrBlack;
 
 const color COLOR_PROFIT_POSITIVE  = clrGreen;
 const color COLOR_PROFIT_NEGATIVE  = clrTomato;
-const color COLOR_PROFIT_NEUTRAL   = clrSlateGray;
+const color COLOR_PROFIT_NEUTRAL   = clrBlue;
 
 // Applies the default layout configuration for the chart hosting the EA.
 void ApplyDefaultChartStyle(const long chart_id)
