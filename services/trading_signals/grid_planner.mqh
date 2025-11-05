@@ -361,7 +361,10 @@ GridLevelPlan BuildLevelPlanForIndex(const SignalParams &signal_params,
   level_plan.activation_points = activation_points;
   level_plan.activation_offset_points = activation_points;
 
-  double tp_points = distance_points * (tp_percent / 100.0);
+  double tp_reference_distance = distance_points;
+  if(Grid_TP_Reference_Mode == GRID_TP_REF_NEXT)
+    tp_reference_distance = distance_points * exponential_multiplier;
+  double tp_points = tp_reference_distance * (tp_percent / 100.0);
   if(tp_points > 0.0)
     tp_points = EnforceBrokerDistance(g_symbol_constraints, tp_points);
   level_plan.take_profit_points = tp_points;

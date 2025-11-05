@@ -74,6 +74,7 @@ The **HFT Grid AI EA** is a specialized Expert Advisor designed to execute high 
 - Added ATR factor indicator loading on demand and fallback handling for points-based grids
 - Grid plan builder now derives level spacing and the initial anchor price from the `ATR_SL_Factor` (shift 1) so every level shares consistent point references while honoring broker freeze/stop rules
 - Introduced `Grid_Final_TP_Percent` to pre-compute full-grid take-profit offsets alongside base, trailing, and next-level projections
+- Take-profit geometry now respects the `Grid_TP_Reference_Mode` input, choosing between current-level or next-level distances before broker clamping is applied
 - Directional filter now blocks disallowed trend signals while providing debug output when logging is enabled
 - Grid planner now logs ATR anchors, point size, and per-level geometry to `query_debug.txt` (labels `GRID_PLAN_BASE` / `GRID_PLAN_LEVEL`) whenever file logging is enabled, giving Phase 2 a transparent audit trail
 - Grid framework now appends each `grid_plan.levels` entry only after the previous order fills, so every level is backed by real market execution while still reusing the first level’s activation distance for downstream projections
@@ -89,12 +90,12 @@ The **HFT Grid AI EA** is a specialized Expert Advisor designed to execute high 
 - Pending level geometry now separates entry prices from protective stop placeholders, keeping take-profit projections, next-level forecasts, and telemetry output aligned with the ATR reference anchors
 
 ### Phase 4 – Current Deliverables
-- On-chart grid rendering now highlights the pending stop line, projected TP, optional `TP_FINAL`, and the dynamically updated next grid level sourced directly from `SignalParams`—hiding the stop after fill and swapping TP for the trailing line when protection engages
+- On-chart grid rendering now uses a single overlay per signal (STOP/ENTRY/TP/TP_FINAL/NEXT), hiding the stop after fill and swapping TP for the trailing line when protection engages
 - Dashboard summary comment highlights active grids, level states, duration, and profit factor when `Enable_Chart_Summary` is true
 - Lightweight telemetry logs append lifecycle events to `query_debug.txt` when `Enable_File_Logs` is enabled for post-run analysis
 - Telemetry now captures the live grid span in points alongside per-level range percentages, unlocking upcoming Fibonacci-style visual overlays and improved range diagnostics
 - Grid telemetry tracks max favorable/adverse excursion, completed levels, and cumulative point statistics for future analytics modules
-- Pending entries render using the new dedicated entry price while protective stop overlays remain tied to active trailing logic, ensuring chart artifacts reflect the corrected lifecycle
+- Pending entries render from `last_pending_price` when available and revert to ATR anchor projections otherwise, while NEXT-level lines mirror backend updates or predictive anchors to keep the UI aligned with lifecycle telemetry
 
 ### Grid Telemetry Sequence
 1. `GRID_PLAN_LEVEL` — snapshot of the next level blueprint (distance, offsets, projected TP) before any order is staged.
@@ -128,13 +129,14 @@ The **HFT Grid AI EA** is a specialized Expert Advisor designed to execute high 
 - `Grid_Exponential_Multiplier`: Expands level spacing smoothly (default 1.1). Distance L(n) = base_distance × multiplier^n.
 - `Grid_Initial_Stops_Percent`: Initial pending/stop offset as percent of level distance (0% = open instantly).
 - `Grid_Positions_Stops_Percent`: Stop offset for deeper levels (percent of each level’s distance).
-- `Grid_TP_Percent`: Percent of the next level distance to activate/close TP (bid for buys, ask for sells).
+- `Grid_TP_Percent`: Percent applied to the selected TP reference distance (bid for buys, ask for sells).
+- `Grid_TP_Reference_Mode`: Chooses the TP reference distance. `GRID_TP_REF_NEXT` (default) uses the next level distance; `GRID_TP_REF_CURRENT` keeps legacy behavior.
 - `Grid_Trailing_TP_Percent`: Portion of TP used as trailing once active; 0 disables trailing; 100 clamps to broker minimal safe trailing.
 
 Notes
 - All distances are clamped to broker freeze/stops via `SymbolTradingConstraints` and helper functions.
 - ATR handles are only loaded when `ATR_RANGE` is selected; otherwise the EA skips ATR loading to reduce overhead.
-- Visual lines (pending, TP, trailing) use profit-based coloring and are hidden/swapped as lifecycle advances.
+- Chart overlays render a single STOP/ENTRY/TP/TP_FINAL/NEXT stack per signal; the NEXT line mirrors backend `next_level_price` when available or projects from live ATR anchors, and `Enable_Chart_Levels_Depth` is ignored in this mode.
 
 ## Next Steps
 

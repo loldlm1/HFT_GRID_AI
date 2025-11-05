@@ -1129,9 +1129,32 @@ void UpdateGridLifecycle(SignalParams &signal_params)
                                        level_plan,
                                        point_size);
             GridLogEvent("LEVEL_PENDING", signal_params, order_state, level_plan);
-            previous_state.next_level_price        = order_state.last_pending_price;
+            double previous_next_price             = previous_state.next_level_price;
+            double new_next_price                  = order_state.last_pending_price;
+            double change_threshold                = point_size * 0.1;
+            if(change_threshold <= 0.0)
+              change_threshold = 1e-6;
+            bool emit_next_update = false;
+            if(new_next_price > 0.0)
+            {
+              if(previous_next_price <= 0.0 ||
+                 MathAbs(new_next_price - previous_next_price) > change_threshold)
+                emit_next_update = true;
+            }
+            else if(previous_next_price > 0.0)
+            {
+              emit_next_update = true;
+            }
+            previous_state.next_level_price        = new_next_price;
             previous_state.take_profit_price       = 0.0;
             previous_state.final_take_profit_price = 0.0;
+            if(emit_next_update)
+            {
+              GridLevelPlan logging_plan = previous_plan;
+              if((i - 1) >= ArraySize(signal_params.grid_plan.levels))
+                logging_plan = GridLevelPlan();
+              GridLogEvent("LEVEL_NEXT_UPDATE", signal_params, previous_state, logging_plan);
+            }
           }
           else if(guardrail_reason != "")
           {
@@ -1157,6 +1180,40 @@ void UpdateGridLifecycle(SignalParams &signal_params)
                              order_state,
                              level_plan,
                              point_size);
+
+      if(i > 0 && (i - 1) < ArraySize(signal_params.grid_orders))
+      {
+        GridOrderState previous_state = signal_params.grid_orders[i - 1];
+        double previous_next_price = previous_state.next_level_price;
+        double new_next_price = order_state.last_pending_price;
+        double change_threshold = point_size * 0.1;
+        if(change_threshold <= 0.0)
+          change_threshold = 1e-6;
+
+        bool emit_next_update = false;
+        if(new_next_price > 0.0)
+        {
+          if(previous_next_price <= 0.0 ||
+             MathAbs(new_next_price - previous_next_price) > change_threshold)
+            emit_next_update = true;
+        }
+        else if(previous_next_price > 0.0)
+        {
+          emit_next_update = true;
+        }
+
+        previous_state.next_level_price = new_next_price;
+        signal_params.grid_orders[i - 1] = previous_state;
+
+        if(emit_next_update)
+        {
+          GridLevelPlan previous_plan = GridLevelPlan();
+          if((i - 1) < ArraySize(signal_params.grid_plan.levels))
+            previous_plan = signal_params.grid_plan.levels[i - 1];
+          GridLogEvent("LEVEL_NEXT_UPDATE", signal_params, previous_state, previous_plan);
+        }
+      }
+
       order_state.last_action_time = now_time;
 
       string guardrail_reason = "";

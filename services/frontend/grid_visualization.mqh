@@ -11,8 +11,6 @@ extern SignalParams running_bearish_signals[];
 extern bool g_ea_running;
 extern int  g_magic_number;
 
-const string GRID_VISUAL_PREFIX = "GRIDVIS_";
-
 bool ContainsObjectName(string &names[], const string name)
 {
   int total = ArraySize(names);
@@ -31,21 +29,227 @@ void PushObjectName(string &names[], const string name)
   names[total] = name;
 }
 
-string GridSignalKey(const SignalParams &signal_params)
+string CompactTimeIdentifier(const datetime time_value)
 {
-  string dir = (signal_params.signal_type == BULLISH) ? "B" : "S";
-  return dir + "_" + TimeToString(signal_params.entry_time, TIME_DATE | TIME_SECONDS);
+  if(time_value <= 0)
+    return "";
+
+  MqlDateTime ts;
+  if(!TimeToStruct(time_value, ts))
+    return "";
+
+  return StringFormat("%04d%02d%02d_%02d%02d%02d",
+                      ts.year,
+                      ts.mon,
+                      ts.day,
+                      ts.hour,
+                      ts.min,
+                      ts.sec);
 }
 
-string GridLevelObjectName(const SignalParams &signal_params,
-                           const int level_index,
-                           const string suffix)
+string GridSignalIdentifier(const SignalParams &signal_params)
 {
-  return StringFormat("%s%s_%d_%s",
-                      GRID_VISUAL_PREFIX,
-                      GridSignalKey(signal_params),
-                      level_index,
-                      suffix);
+  string time_token = CompactTimeIdentifier(signal_params.entry_time);
+  if(time_token != "")
+    return time_token;
+
+  double anchor_price = signal_params.grid_plan.base_anchor_price;
+  if(anchor_price <= 0.0)
+    anchor_price = signal_params.grid_plan.entry_side_price_initial;
+  if(anchor_price <= 0.0)
+    anchor_price = (signal_params.signal_type == BULLISH) ? g_bid : g_ask;
+
+  int digits = (int)SymbolInfoInteger(_Symbol, SYMBOL_DIGITS);
+  if(digits <= 0)
+    digits = 5;
+
+  if(anchor_price > 0.0)
+  {
+    string anchor_token = DoubleToString(anchor_price, digits);
+    StringReplace(anchor_token, ".", "");
+    StringReplace(anchor_token, ",", "");
+    if(anchor_token != "")
+      return anchor_token;
+  }
+
+  return StringFormat("GRID_%d", signal_params.signal_type);
+}
+
+string GridSignalObjectName(const SignalParams &signal_params,
+                            const string suffix)
+{
+  string direction = (signal_params.signal_type == BULLISH) ? "BULLISH" : "BEARISH";
+  string identifier = GridSignalIdentifier(signal_params);
+  return direction + "_" + identifier + "_" + suffix;
+}
+
+int ResolveDisplayLevelIndex(const SignalParams &signal_params)
+{
+  int total_orders = ArraySize(signal_params.grid_orders);
+  if(total_orders <= 0)
+    return -1;
+
+  int highest_active = -1;
+  for(int i = 0; i < total_orders; i++)
+  {
+    GridOrderState state = signal_params.grid_orders[i];
+    if(state.status == GRID_ORDER_ACTIVE)
+      highest_active = i;
+  }
+  if(highest_active >= 0)
+    return highest_active;
+
+  int highest_pending = -1;
+  for(int j = 0; j < total_orders; j++)
+  {
+    GridOrderState state = signal_params.grid_orders[j];
+    if(state.status == GRID_ORDER_PENDING)
+      highest_pending = j;
+  }
+  if(highest_pending >= 0)
+    return highest_pending;
+
+  if(total_orders > 0 && signal_params.grid_orders[0].status == GRID_ORDER_WAITING)
+    return 0;
+
+  for(int k = 0; k < total_orders; k++)
+  {
+    GridOrderState state = signal_params.grid_orders[k];
+    if(state.status == GRID_ORDER_WAITING)
+      return k;
+  }
+
+  for(int m = 0; m < total_orders; m++)
+  {
+    GridOrderState state = signal_params.grid_orders[m];
+    if(state.status != GRID_ORDER_INACTIVE)
+      return m;
+  }
+
+  return -1;
+}
+
+double ResolvePendingPointsForPlan(const GridLevelPlan &plan)
+{
+  double pending_points = plan.pending_order_points;
+  double distance_points = plan.distance_points;
+  double entry_offset = plan.entry_offset_points;
+
+  if(pending_points <= 0.0)
+  {
+    if(plan.entry_style == GRID_ENTRY_STYLE_LIMIT)
+      pending_points = distance_points - entry_offset;
+    else
+      pending_points = distance_points + entry_offset;
+    if(pending_points <= 0.0)
+      pending_points = distance_points;
+  }
+
+  return pending_points;
+}
+
+double ResolveEffectiveDistancePoints(const GridLevelPlan &plan,
+                                      const GridOrderState &state)
+{
+  if(state.resolved_distance_points > 0.0)
+    return state.resolved_distance_points;
+  if(plan.distance_points > 0.0)
+    return plan.distance_points;
+  return 0.0;
+}
+
+double ResolvePredictedEntryPrice(const SignalParams &signal_params,
+                                  const GridLevelPlan &level_plan,
+                                  const GridOrderState &level_state,
+                                  const double direction_mult,
+                                  const double point_size)
+{
+  if(level_state.status == GRID_ORDER_ACTIVE && level_state.entry_price > 0.0)
+    return level_state.entry_price;
+
+  if(level_state.last_pending_price > 0.0)
+    return level_state.last_pending_price;
+
+  double anchor = level_plan.anchor_price;
+  if(anchor <= 0.0)
+    anchor = level_state.anchor_price;
+  if(anchor <= 0.0)
+    anchor = signal_params.grid_plan.base_anchor_price;
+
+  double pending_points = ResolvePendingPointsForPlan(level_plan);
+  if(anchor > 0.0 && pending_points > 0.0 && point_size > 0.0)
+    return anchor + direction_mult * pending_points * point_size;
+
+  double entry_side_price = signal_params.grid_plan.entry_side_price_initial;
+  double offset_points = signal_params.grid_plan.entry_side_offset_pts_initial;
+  if(entry_side_price > 0.0 && offset_points > 0.0 && point_size > 0.0)
+    return entry_side_price + direction_mult * offset_points * point_size;
+
+  return anchor;
+}
+
+double ResolveProjectedNextPrice(const SignalParams &signal_params,
+                                 const GridLevelPlan &level_plan,
+                                 const GridOrderState &level_state,
+                                 const double direction_mult,
+                                 const double point_size,
+                                 const int level_index,
+                                 const double predicted_entry_price)
+{
+  double backend_next = level_state.next_level_price;
+  if(backend_next > 0.0)
+    return backend_next;
+
+  if(predicted_entry_price <= 0.0 || point_size <= 0.0)
+    return 0.0;
+
+  double effective_distance = ResolveEffectiveDistancePoints(level_plan, level_state);
+  if(effective_distance <= 0.0)
+    return 0.0;
+
+  double next_anchor = predicted_entry_price - direction_mult * effective_distance * point_size;
+
+  int next_index = level_index + 1;
+  GridLevelPlan next_plan = GridLevelPlan();
+  if(next_index < ArraySize(signal_params.grid_plan.levels))
+  {
+    next_plan = signal_params.grid_plan.levels[next_index];
+    if(next_plan.anchor_price <= 0.0)
+      next_plan.anchor_price = next_anchor;
+  }
+  else
+  {
+    double base_distance = signal_params.grid_plan.base_distance_points;
+    double exponential_multiplier = MathMax(Grid_Exponential_Multiplier, 1.0);
+    if(base_distance <= 0.0)
+      base_distance = effective_distance;
+    double computed_distance = base_distance * MathPow(exponential_multiplier, next_index);
+    if(computed_distance <= 0.0)
+      computed_distance = effective_distance * exponential_multiplier;
+
+    double entry_percent = MathMax((next_index == 0) ? Grid_Initial_Stops_Percent
+                                                    : Grid_Positions_Stops_Percent,
+                                   0.0);
+    double entry_offset = computed_distance * (entry_percent / 100.0);
+
+    next_plan.level_index       = next_index;
+    next_plan.anchor_price      = next_anchor;
+    next_plan.distance_points   = computed_distance;
+    next_plan.entry_offset_points = entry_offset;
+    next_plan.entry_style       = (next_index == 0) ? Grid_Initial_Entry_Style : Grid_Deep_Entry_Style;
+    if(next_plan.entry_style == GRID_ENTRY_STYLE_LIMIT)
+      next_plan.pending_order_points = computed_distance - entry_offset;
+    else
+      next_plan.pending_order_points = computed_distance + entry_offset;
+    if(next_plan.pending_order_points <= 0.0)
+      next_plan.pending_order_points = computed_distance;
+  }
+
+  double pending_points = ResolvePendingPointsForPlan(next_plan);
+  if(pending_points <= 0.0)
+    return 0.0;
+
+  return next_plan.anchor_price + direction_mult * pending_points * point_size;
 }
 
 void UpdateHorizontalLine(const long chart_id,
@@ -92,182 +296,128 @@ void DrawGridLevels(const long chart_id,
                     const SignalParams &signal_params,
                     string &tracked_objects[])
 {
-  int levels_total = ArraySize(signal_params.grid_orders);
-  int plan_total   = ArraySize(signal_params.grid_plan.levels);
+  string stop_name  = GridSignalObjectName(signal_params, "STOP");
+  string tp_name    = GridSignalObjectName(signal_params, "TP");
+  string final_name = GridSignalObjectName(signal_params, "TP_FINAL");
+  string next_name  = GridSignalObjectName(signal_params, "NEXT");
+  string entry_name = GridSignalObjectName(signal_params, "ENTRY");
+
+  int display_index = ResolveDisplayLevelIndex(signal_params);
+  if(display_index < 0)
+  {
+    UpdateHorizontalLine(chart_id, stop_name, COLOR_PROFIT_NEGATIVE, 0.0);
+    UpdateHorizontalLine(chart_id, tp_name, COLOR_PROFIT_POSITIVE, 0.0);
+    UpdateHorizontalLine(chart_id, final_name, COLOR_PROFIT_POSITIVE, 0.0);
+    UpdateHorizontalLine(chart_id, next_name, COLOR_PROFIT_NEUTRAL, 0.0);
+    UpdateHorizontalLine(chart_id, entry_name, COLOR_PROFIT_NEUTRAL, 0.0);
+    return;
+  }
+
   double point_size = SymbolInfoDouble(_Symbol, SYMBOL_POINT);
   if(point_size <= 0.0)
     point_size = 0.0001;
 
-  int active_max_index = -1;
-  for(int idx = 0; idx < levels_total; idx++)
+  double direction_mult = (signal_params.signal_type == BULLISH) ? 1.0 : -1.0;
+
+  GridOrderState level_state = signal_params.grid_orders[display_index];
+  GridLevelPlan level_plan = GridLevelPlan();
+  if(display_index < ArraySize(signal_params.grid_plan.levels))
+    level_plan = signal_params.grid_plan.levels[display_index];
+
+  double pending_points = ResolvePendingPointsForPlan(level_plan);
+  double pending_price = level_state.last_pending_price;
+  if(pending_price <= 0.0 && pending_points > 0.0)
   {
-    GridOrderState state_scan = signal_params.grid_orders[idx];
-    if(state_scan.status == GRID_ORDER_ACTIVE)
-      active_max_index = idx;
+    double anchor_price = level_plan.anchor_price;
+    if(anchor_price <= 0.0)
+      anchor_price = level_state.anchor_price;
+    if(anchor_price <= 0.0)
+      anchor_price = signal_params.grid_plan.base_anchor_price;
+    if(anchor_price > 0.0)
+      pending_price = anchor_price + direction_mult * pending_points * point_size;
   }
 
-  int depth_limit = Enable_Chart_Levels_Depth;
-  int max_visible_index = levels_total - 1;
-  if(depth_limit > 0)
+  double predicted_entry_price = ResolvePredictedEntryPrice(signal_params,
+                                                            level_plan,
+                                                            level_state,
+                                                            direction_mult,
+                                                            point_size);
+
+  double stop_price = 0.0;
+  double entry_price_line = 0.0;
+  double tp_price = level_state.take_profit_price;
+  double final_price = level_state.final_take_profit_price;
+
+  if(level_state.status == GRID_ORDER_ACTIVE)
   {
-    int base_index = (active_max_index >= 0) ? active_max_index : 0;
-    max_visible_index = base_index + depth_limit;
-    if(max_visible_index >= levels_total)
-      max_visible_index = levels_total - 1;
+    entry_price_line = level_state.entry_price;
+    if(entry_price_line <= 0.0)
+      entry_price_line = predicted_entry_price;
+
+    if(level_state.stop_loss_price > 0.0)
+      stop_price = level_state.stop_loss_price;
+    else
+    {
+      double protective_points = level_plan.protective_stop_points;
+      if(protective_points <= 0.0)
+        protective_points = level_plan.entry_offset_points;
+      if(entry_price_line > 0.0 && protective_points > 0.0)
+        stop_price = entry_price_line - direction_mult * protective_points * point_size;
+    }
+
+    if(tp_price <= 0.0 && level_plan.take_profit_points > 0.0 && entry_price_line > 0.0)
+      tp_price = entry_price_line + direction_mult * level_plan.take_profit_points * point_size;
+
+    if(final_price <= 0.0 && level_plan.final_take_profit_points > 0.0)
+    {
+      double reference_anchor = level_state.anchor_price;
+      if(reference_anchor <= 0.0)
+        reference_anchor = level_plan.anchor_price;
+      if(reference_anchor <= 0.0)
+        reference_anchor = signal_params.grid_plan.base_anchor_price;
+      if(reference_anchor > 0.0)
+        final_price = reference_anchor + direction_mult * level_plan.final_take_profit_points * point_size;
+    }
   }
-
-  for(int i = 0; i < levels_total; i++)
+  else
   {
-    GridOrderState level_state = signal_params.grid_orders[i];
-
-    string stop_name  = GridLevelObjectName(signal_params, i, "STOP");
-    string tp_name    = GridLevelObjectName(signal_params, i, "TP");
-    string final_name = GridLevelObjectName(signal_params, i, "TP_FINAL");
-    string next_name  = GridLevelObjectName(signal_params, i, "NEXT");
-    string entry_name = GridLevelObjectName(signal_params, i, "ENTRY");
-
-    if(level_state.status == GRID_ORDER_INACTIVE)
+    if(level_plan.entry_style == GRID_ENTRY_STYLE_STOP)
     {
-      UpdateHorizontalLine(chart_id, stop_name, COLOR_PROFIT_NEGATIVE, 0.0);
-      UpdateHorizontalLine(chart_id, tp_name, COLOR_PROFIT_POSITIVE, 0.0);
-      UpdateHorizontalLine(chart_id, final_name, COLOR_PROFIT_POSITIVE, 0.0);
-      UpdateHorizontalLine(chart_id, next_name, COLOR_PROFIT_NEUTRAL, 0.0);
-      UpdateHorizontalLine(chart_id, entry_name, COLOR_PROFIT_NEUTRAL, 0.0);
-      continue;
-    }
-
-    if(depth_limit > 0 && i > max_visible_index)
-    {
-      UpdateHorizontalLine(chart_id, stop_name, COLOR_PROFIT_NEGATIVE, 0.0);
-      UpdateHorizontalLine(chart_id, tp_name, COLOR_PROFIT_POSITIVE, 0.0);
-      UpdateHorizontalLine(chart_id, final_name, COLOR_PROFIT_POSITIVE, 0.0);
-      UpdateHorizontalLine(chart_id, next_name, COLOR_PROFIT_NEUTRAL, 0.0);
-      UpdateHorizontalLine(chart_id, entry_name, COLOR_PROFIT_NEUTRAL, 0.0);
-      continue;
-    }
-
-    GridLevelPlan level_plan = (i < plan_total) ? signal_params.grid_plan.levels[i] : GridLevelPlan();
-    double direction_mult = (signal_params.signal_type == BULLISH) ? 1.0 : -1.0;
-    double pending_points = level_plan.pending_order_points;
-    if(pending_points <= 0.0)
-    {
-      if(level_plan.entry_style == GRID_ENTRY_STYLE_LIMIT)
-        pending_points = level_plan.distance_points - level_plan.entry_offset_points;
-      else
-        pending_points = level_plan.distance_points + level_plan.entry_offset_points;
-    }
-    if(pending_points <= 0.0)
-      pending_points = level_plan.distance_points;
-    double plan_anchor = level_plan.anchor_price;
-    if(plan_anchor <= 0.0)
-      plan_anchor = level_state.anchor_price;
-    bool is_stop_style = (level_plan.entry_style == GRID_ENTRY_STYLE_STOP);
-
-    double predicted_entry_price = 0.0;
-    double predicted_pending_price = level_state.last_pending_price;
-    if(predicted_pending_price <= 0.0)
-    {
-      predicted_pending_price = plan_anchor + direction_mult * pending_points * point_size;
-      if(is_stop_style)
-      {
-        double clamp_price = level_state.entry_side_price_trailing;
-        if(clamp_price <= 0.0)
-          clamp_price = signal_params.grid_plan.entry_side_price_initial;
-        double offset_points = signal_params.grid_plan.entry_side_offset_pts_initial;
-        double offset_price = offset_points * point_size;
-        if(clamp_price > 0.0 && offset_price > 0.0)
-        {
-          if(signal_params.signal_type == BULLISH)
-            predicted_pending_price = MathMax(predicted_pending_price, clamp_price + offset_price);
-          else
-            predicted_pending_price = MathMin(predicted_pending_price, clamp_price - offset_price);
-        }
-      }
-    }
-
-    double stop_price  = 0.0;
-    double entry_price_line = 0.0;
-    double tp_price    = level_state.take_profit_price;
-    double final_price = level_state.final_take_profit_price;
-
-    if(level_state.status == GRID_ORDER_WAITING)
-    {
-      predicted_entry_price = predicted_pending_price;
-      if(is_stop_style)
-        stop_price = predicted_pending_price;
-      else
-        entry_price_line = predicted_pending_price;
-      tp_price = 0.0;
-      final_price = 0.0;
-    }
-    else if(level_state.status == GRID_ORDER_PENDING)
-    {
-      predicted_entry_price = predicted_pending_price;
-      if(is_stop_style)
-        stop_price = predicted_pending_price;
-      else
-        entry_price_line = predicted_pending_price;
-    }
-    else if(level_state.status == GRID_ORDER_ACTIVE)
-    {
-      predicted_entry_price = level_state.entry_price;
+      stop_price = pending_price;
       entry_price_line = 0.0;
-      if(level_state.stop_loss_price > 0.0)
-        stop_price = level_state.stop_loss_price;
-      else if(predicted_entry_price > 0.0 && level_plan.protective_stop_points > 0.0)
-        stop_price = predicted_entry_price - direction_mult * level_plan.protective_stop_points * point_size;
-    }
-    else if(level_state.status == GRID_ORDER_COMPLETED)
-    {
-      predicted_entry_price = level_state.anchor_price;
-      stop_price  = 0.0;
-      entry_price_line = 0.0;
-      tp_price    = 0.0;
-      final_price = 0.0;
     }
     else
     {
-      predicted_entry_price = predicted_pending_price;
+      entry_price_line = pending_price;
+      stop_price = 0.0;
     }
 
-    UpdateTrackedLine(chart_id, stop_name, COLOR_PROFIT_NEGATIVE, stop_price, tracked_objects);
-    UpdateTrackedLine(chart_id, tp_name, COLOR_PROFIT_POSITIVE, tp_price, tracked_objects);
-    UpdateTrackedLine(chart_id, final_name, COLOR_PROFIT_POSITIVE, final_price, tracked_objects);
-    UpdateTrackedLine(chart_id, entry_name, COLOR_PROFIT_NEUTRAL, entry_price_line, tracked_objects);
+    if(tp_price <= 0.0 && level_plan.take_profit_points > 0.0 && pending_price > 0.0)
+      tp_price = pending_price + direction_mult * level_plan.take_profit_points * point_size;
 
-    double next_price = level_state.next_level_price;
-    if(next_price <= 0.0)
+    if(final_price <= 0.0 && level_plan.final_take_profit_points > 0.0)
     {
-      if(predicted_entry_price <= 0.0)
-        predicted_entry_price = plan_anchor + direction_mult * pending_points * point_size;
-
-      if((i + 1) < plan_total)
-      {
-        GridLevelPlan next_plan = signal_params.grid_plan.levels[i + 1];
-        double next_pending = next_plan.pending_order_points;
-        if(next_pending <= 0.0)
-        {
-          if(next_plan.entry_style == GRID_ENTRY_STYLE_LIMIT)
-            next_pending = next_plan.distance_points - next_plan.entry_offset_points;
-          else
-            next_pending = next_plan.distance_points + next_plan.entry_offset_points;
-        }
-        if(next_pending <= 0.0)
-          next_pending = next_plan.distance_points;
-        double previous_distance = level_plan.distance_points;
-        double predicted_anchor = predicted_entry_price - direction_mult * previous_distance * point_size;
-        double next_anchor = next_plan.anchor_price;
-        if(next_anchor <= 0.0)
-          next_anchor = predicted_anchor;
-        next_price = next_anchor + direction_mult * next_pending * point_size;
-      }
+      double anchor_price = level_plan.anchor_price;
+      if(anchor_price <= 0.0)
+        anchor_price = signal_params.grid_plan.base_anchor_price;
+      if(anchor_price > 0.0)
+        final_price = anchor_price + direction_mult * level_plan.final_take_profit_points * point_size;
     }
-
-    if(next_price > 0.0)
-      UpdateTrackedLine(chart_id, next_name, COLOR_PROFIT_NEUTRAL, next_price, tracked_objects);
-    else
-      UpdateTrackedLine(chart_id, next_name, COLOR_PROFIT_NEUTRAL, 0.0, tracked_objects);
   }
+
+  double next_price = ResolveProjectedNextPrice(signal_params,
+                                                level_plan,
+                                                level_state,
+                                                direction_mult,
+                                                point_size,
+                                                display_index,
+                                                predicted_entry_price);
+
+  UpdateTrackedLine(chart_id, stop_name, COLOR_PROFIT_NEGATIVE, stop_price, tracked_objects);
+  UpdateTrackedLine(chart_id, entry_name, COLOR_PROFIT_NEUTRAL, entry_price_line, tracked_objects);
+  UpdateTrackedLine(chart_id, tp_name, COLOR_PROFIT_POSITIVE, tp_price, tracked_objects);
+  UpdateTrackedLine(chart_id, final_name, COLOR_PROFIT_POSITIVE, final_price, tracked_objects);
+  UpdateTrackedLine(chart_id, next_name, COLOR_PROFIT_NEUTRAL, next_price, tracked_objects);
 }
 
 void BuildSignalSummary(const SignalParams &signal_params,
