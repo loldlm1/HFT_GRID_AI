@@ -369,9 +369,14 @@ GridLevelPlan BuildLevelPlanForIndex(const SignalParams &signal_params,
     tp_points = EnforceBrokerDistance(g_symbol_constraints, tp_points);
   level_plan.take_profit_points = tp_points;
 
-  double final_tp_points = distance_points * (Grid_Final_TP_Percent / 100.0);
-  if(final_tp_points < 0.0)
-    final_tp_points = 0.0;
+  double final_tp_points = 0.0;
+  if(Grid_Final_TP_Percent > 0.0)
+  {
+    double final_reference_distance = tp_reference_distance;
+    final_tp_points = final_reference_distance * (Grid_Final_TP_Percent / 100.0);
+    if(final_tp_points > 0.0)
+      final_tp_points = EnforceBrokerDistance(g_symbol_constraints, final_tp_points);
+  }
   level_plan.final_take_profit_points = final_tp_points;
 
   double trailing_points = 0.0;
