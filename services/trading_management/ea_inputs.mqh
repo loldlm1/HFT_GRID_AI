@@ -39,6 +39,8 @@ input double               Grid_Final_TP_Percent      = 200.0;
 input double               Grid_Positions_Stops_Percent = 10.0;
 input GridLotTypes         Grid_Lot_Type              = GRID_LOT_SIZE;
 input double               Grid_Lot_Strategy_Size     = 0.01;
+input GridEntryStyles      Grid_Initial_Entry_Style   = GRID_ENTRY_STYLE_STOP;
+input GridEntryStyles      Grid_Deep_Entry_Style      = GRID_ENTRY_STYLE_LIMIT;
 
 input group  "+= Developer Debug Settings =+";
 input bool Test_Mode               = false;
@@ -48,5 +50,6 @@ input bool Enable_Verification_Logs = false;
 input bool Enable_File_Logs        = false;
 input bool Enable_Chart_Summary    = true;
 input bool Enable_Chart_Levels     = true;
+input int  Enable_Chart_Levels_Depth = 2;
 
 #endif // _SERVICES_TRADING_MANAGEMENT_EA_INPUTS_MQH_

@@ -33,7 +33,7 @@ void LogGridPlanLevelDetail(const SignalParams &signal_params,
     return;
 
   string direction = (signal_params.signal_type == BULLISH) ? "BULLISH" : "BEARISH";
-  string detail = StringFormat("dir=%s|level=%d|dist=%.2f|baseline=%.2f|pending=%.2f|entry_offset=%.2f|activation=%.2f|tp=%.2f|tp_final=%.2f|trail=%.2f|lot=%.2f|anchor=%.5f",
+  string detail = StringFormat("dir=%s|level=%d|dist=%.2f|baseline=%.2f|pending=%.2f|entry_offset=%.2f|activation=%.2f|tp=%.2f|tp_final=%.2f|trail=%.2f|lot=%.2f|anchor=%.5f|entry_style=%s",
                                direction,
                                level_plan.level_index,
                                level_plan.distance_points,
@@ -45,7 +45,8 @@ void LogGridPlanLevelDetail(const SignalParams &signal_params,
                                level_plan.final_take_profit_points,
                                level_plan.trailing_points,
                                level_plan.lot_size,
-                               level_plan.anchor_price);
+                               level_plan.anchor_price,
+                               EnumToString(level_plan.entry_style));
   AppendTimestampedLog("query_debug.txt", "GRID_PLAN_LEVEL", detail);
 }
 
@@ -269,6 +270,7 @@ GridLevelPlan BuildLevelPlanForIndex(const SignalParams &signal_params,
   GridLevelPlan level_plan = GridLevelPlan();
   level_plan.level_index = level_index;
   level_plan.anchor_price = signal_params.grid_plan.base_anchor_price;
+  level_plan.entry_style = (level_index == 0) ? Grid_Initial_Entry_Style : Grid_Deep_Entry_Style;
 
   double base_distance = ResolveBaseDistancePoints(signal_params.grid_plan);
   double base_lot      = ResolveBaseLotSize(signal_params.grid_plan);
@@ -294,6 +296,13 @@ GridLevelPlan BuildLevelPlanForIndex(const SignalParams &signal_params,
   level_plan.protective_stop_points = entry_offset;
 
   double pending_points = distance_points + entry_offset;
+  if(level_plan.entry_style == GRID_ENTRY_STYLE_LIMIT)
+  {
+    double limit_points = distance_points - entry_offset;
+    if(limit_points <= 0.0)
+      limit_points = distance_points;
+    pending_points = limit_points;
+  }
   level_plan.pending_order_points = pending_points;
 
   double activation_points = distance_points;

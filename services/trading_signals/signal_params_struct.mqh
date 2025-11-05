@@ -13,6 +13,7 @@
 struct GridLevelPlan
 {
   int    level_index;
+  GridEntryStyles entry_style;
   double distance_points;
   double resolved_distance_points;
   double pending_order_points;
@@ -32,6 +33,7 @@ struct GridLevelPlan
   GridLevelPlan()
   {
     level_index          = 0;
+    entry_style          = GRID_ENTRY_STYLE_STOP;
     distance_points      = 0.0;
     resolved_distance_points = 0.0;
     pending_order_points = 0.0;

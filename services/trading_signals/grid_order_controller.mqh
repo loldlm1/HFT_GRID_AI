@@ -31,10 +31,17 @@ double GridCurrentPriceForDirection(const SignalTypes direction,
   return use_entry_side ? g_bid : g_ask;
 }
 
-bool GridGuardrailsAllowOrder(const double normalized_volume)
+bool GridGuardrailsAllowOrder(const double normalized_volume,
+                              string &reason)
 {
+  reason = "";
   if(g_points_spread > Max_Spread)
+  {
+    reason = StringFormat("spread=%.1f>%.1f",
+                          g_points_spread,
+                          Max_Spread);
     return false;
+  }
 
   double free_margin = AccountInfoDouble(ACCOUNT_MARGIN_FREE);
   if(free_margin <= 0.0)
@@ -57,7 +64,21 @@ bool GridGuardrailsAllowOrder(const double normalized_volume)
   if(required_margin <= 0.0)
     return true;
 
-  return (free_margin >= required_margin);
+  if(free_margin < required_margin)
+  {
+    reason = StringFormat("margin=%.2f<%.2f",
+                          free_margin,
+                          required_margin);
+    return false;
+  }
+
+  return true;
+}
+
+bool GridGuardrailsAllowOrder(const double normalized_volume)
+{
+  string reason = "";
+  return GridGuardrailsAllowOrder(normalized_volume, reason);
 }
 
 void GridLogEvent(const string label,
@@ -70,7 +91,7 @@ void GridLogEvent(const string label,
     return;
 
   string direction = (signal_params.signal_type == BULLISH) ? "BULLISH" : "BEARISH";
-  string message = StringFormat("dir=%s|level=%d|status=%s|pending=%.5f|protect=%.5f|entry=%.5f|tp=%.5f|next=%.5f|anchor=%.5f|dist=%.1f|pct=%.2f",
+  string message = StringFormat("dir=%s|level=%d|status=%s|pending=%.5f|protect=%.5f|entry=%.5f|tp=%.5f|next=%.5f|anchor=%.5f|dist=%.1f|pct=%.2f|style=%s",
                                 direction,
                                 order_state.level_index,
                                 EnumToString(order_state.status),
@@ -81,8 +102,102 @@ void GridLogEvent(const string label,
                                 order_state.next_level_price,
                                 order_state.anchor_price,
                                 order_state.resolved_distance_points,
-                                order_state.grid_range_percent);
+                                order_state.grid_range_percent,
+                                EnumToString(level_plan.entry_style));
   AppendTimestampedLog("query_debug.txt", label, message);
+}
+
+void GridLogPendingTrail(const SignalParams &signal_params,
+                         const GridOrderState &order_state,
+                         const double previous_anchor,
+                         const double previous_pending,
+                         const double new_anchor,
+                         const double new_pending,
+                         const double point_size)
+{
+  if(!Enable_File_Logs)
+    return;
+
+  double anchor_delta = new_anchor - previous_anchor;
+  double pending_delta = new_pending - previous_pending;
+  double delta_points = 0.0;
+  if(point_size > 0.0)
+    delta_points = pending_delta / point_size;
+
+  string direction = (signal_params.signal_type == BULLISH) ? "BULLISH" : "BEARISH";
+  string message = StringFormat("dir=%s|level=%d|anchor_prev=%.5f|anchor_new=%.5f|pending_prev=%.5f|pending_new=%.5f|delta_pts=%.2f",
+                                direction,
+                                order_state.level_index,
+                                previous_anchor,
+                                new_anchor,
+                                previous_pending,
+                                new_pending,
+                                delta_points);
+  AppendTimestampedLog("query_debug.txt", "LEVEL_PENDING_TRAIL", message);
+}
+
+void GridLogGuardrailBlock(const string label,
+                           const SignalParams &signal_params,
+                           const GridOrderState &order_state,
+                           const string reason)
+{
+  if(!Enable_File_Logs)
+    return;
+
+  string direction = (signal_params.signal_type == BULLISH) ? "BULLISH" : "BEARISH";
+  string message = StringFormat("dir=%s|level=%d|status=%s|reason=%s",
+                                direction,
+                                order_state.level_index,
+                                EnumToString(order_state.status),
+                                reason);
+  AppendTimestampedLog("query_debug.txt", label, message);
+}
+
+void GridLogWaitingReady(const SignalParams &signal_params,
+                         const GridLevelPlan &level_plan,
+                         const double adverse_points)
+{
+  if(!Enable_File_Logs)
+    return;
+
+  string direction = (signal_params.signal_type == BULLISH) ? "BULLISH" : "BEARISH";
+  string message = StringFormat("dir=%s|level=%d|adverse=%.2f|activation=%.2f|style=%s",
+                                direction,
+                                level_plan.level_index,
+                                adverse_points,
+                                level_plan.activation_points,
+                                EnumToString(level_plan.entry_style));
+  AppendTimestampedLog("query_debug.txt", "WAITING_READY", message);
+}
+
+double GridRecomputeTrailingAnchor(const SignalTypes direction,
+                                   const GridLevelPlan &level_plan,
+                                   const double current_anchor,
+                                   const double point_size)
+{
+  double resolved_anchor = current_anchor;
+  if(resolved_anchor <= 0.0)
+    resolved_anchor = level_plan.anchor_price;
+
+  if(point_size <= 0.0)
+    return resolved_anchor;
+
+  double direction_mult = GridResolveDirectionMultiplier(direction);
+  double adverse_price  = GridCurrentPriceForDirection(direction, false);
+  double candidate_anchor = adverse_price - direction_mult * level_plan.distance_points * point_size;
+
+  if(direction == BULLISH)
+  {
+    if(resolved_anchor <= 0.0 || candidate_anchor < resolved_anchor)
+      resolved_anchor = candidate_anchor;
+  }
+  else if(direction == BEARISH)
+  {
+    if(resolved_anchor <= 0.0 || candidate_anchor > resolved_anchor)
+      resolved_anchor = candidate_anchor;
+  }
+
+  return resolved_anchor;
 }
 
 string GridComposeLevelComment(const SignalParams &signal_params,
@@ -367,14 +482,18 @@ double GridResolvePendingPoints(const GridLevelPlan &level_plan)
   double pending_points = level_plan.pending_order_points;
   if(pending_points <= 0.0)
   {
-    pending_points = level_plan.distance_points + level_plan.entry_offset_points;
+    if(level_plan.entry_style == GRID_ENTRY_STYLE_LIMIT)
+      pending_points = level_plan.distance_points - level_plan.entry_offset_points;
+    else
+      pending_points = level_plan.distance_points + level_plan.entry_offset_points;
     if(pending_points <= 0.0)
       pending_points = level_plan.distance_points;
   }
   return pending_points;
 }
 
-void GridInitializePendingLevel(const SignalTypes direction,
+void GridInitializePendingLevel(const SignalParams &signal_params,
+                                const SignalTypes direction,
                                 GridOrderState &order_state,
                                 const GridLevelPlan &level_plan,
                                 const double point_size)
@@ -382,33 +501,22 @@ void GridInitializePendingLevel(const SignalTypes direction,
   double direction_mult = GridResolveDirectionMultiplier(direction);
   double anchor_price   = order_state.anchor_price;
   if(anchor_price <= 0.0)
-    anchor_price = GridCurrentPriceForDirection(direction, true);
+    anchor_price = level_plan.anchor_price;
+  if(anchor_price <= 0.0)
+  {
+    double entry_price_ref = GridCurrentPriceForDirection(direction, true);
+    anchor_price = entry_price_ref - direction_mult * level_plan.distance_points * point_size;
+  }
 
-  order_state.anchor_price     = anchor_price;
+  order_state.anchor_price       = anchor_price;
   order_state.status           = GRID_ORDER_PENDING;
   order_state.last_action_time = TimeCurrent();
 
-  double pending_points = GridResolvePendingPoints(level_plan);
-  double pending_price  = anchor_price + direction_mult * pending_points * point_size;
-
-  order_state.anchor_price     = anchor_price;
-  order_state.stop_loss_price    = 0.0;
-  order_state.last_pending_price = pending_price;
-  order_state.next_level_price   = 0.0;
-
-  double expected_entry = pending_price;
-
-  if(level_plan.take_profit_points > 0.0)
-    order_state.take_profit_price = expected_entry + direction_mult * level_plan.take_profit_points * point_size;
-  else
-    order_state.take_profit_price = 0.0;
-
-  if(level_plan.final_take_profit_points > 0.0)
-    order_state.final_take_profit_price = pending_price + direction_mult * level_plan.final_take_profit_points * point_size;
-  else
-    order_state.final_take_profit_price = 0.0;
-
-  order_state.trailing_price   = 0.0;
+  order_state.stop_loss_price      = 0.0;
+  order_state.last_pending_price   = 0.0;
+  order_state.take_profit_price    = 0.0;
+  order_state.final_take_profit_price = 0.0;
+  order_state.trailing_price       = 0.0;
   order_state.is_trailing_active = false;
   order_state.tp_reached         = false;
   order_state.resolved_distance_points = level_plan.distance_points;
@@ -416,21 +524,53 @@ void GridInitializePendingLevel(const SignalTypes direction,
   order_state.entry_price        = 0.0;
   order_state.position_ticket    = 0;
   order_state.position_comment   = "";
+  order_state.next_level_price   = 0.0;
+
+  GridUpdatePendingLevel(signal_params,
+                         direction,
+                         order_state,
+                         level_plan,
+                         point_size);
 }
 
-void GridUpdatePendingLevel(const SignalTypes direction,
+void GridUpdatePendingLevel(const SignalParams &signal_params,
+                            const SignalTypes direction,
                             GridOrderState &order_state,
                             const GridLevelPlan &level_plan,
                             const double point_size)
 {
   double direction_mult   = GridResolveDirectionMultiplier(direction);
-  double anchor_price     = order_state.anchor_price;
-  if(anchor_price <= 0.0)
-    anchor_price = GridCurrentPriceForDirection(direction, true);
+  double resolved_point_size = point_size;
+  if(resolved_point_size <= 0.0)
+    resolved_point_size = GridResolvePointSize();
+
+  double previous_anchor  = order_state.anchor_price;
+  double previous_pending = order_state.last_pending_price;
+
+  double resolved_anchor = GridRecomputeTrailingAnchor(direction,
+                                                       level_plan,
+                                                       previous_anchor,
+                                                       resolved_point_size);
+
+  if(resolved_anchor <= 0.0)
+    resolved_anchor = previous_anchor;
+  if(resolved_anchor <= 0.0)
+    resolved_anchor = level_plan.anchor_price;
+  if(resolved_anchor <= 0.0)
+  {
+    double entry_price_ref = GridCurrentPriceForDirection(direction, true);
+    resolved_anchor = entry_price_ref - direction_mult * level_plan.distance_points * resolved_point_size;
+  }
 
   double pending_points = GridResolvePendingPoints(level_plan);
-  double pending_price  = anchor_price + direction_mult * pending_points * point_size;
+  if(pending_points > 0.0)
+    pending_points = EnforceBrokerDistance(g_symbol_constraints, pending_points);
+  if(pending_points <= 0.0)
+    pending_points = level_plan.distance_points;
 
+  double pending_price  = resolved_anchor + direction_mult * pending_points * resolved_point_size;
+
+  order_state.anchor_price       = resolved_anchor;
   order_state.stop_loss_price    = 0.0;
   order_state.last_pending_price = pending_price;
   order_state.next_level_price   = 0.0;
@@ -438,24 +578,47 @@ void GridUpdatePendingLevel(const SignalTypes direction,
   double expected_entry = pending_price;
 
   if(level_plan.take_profit_points > 0.0)
-    order_state.take_profit_price = expected_entry + direction_mult * level_plan.take_profit_points * point_size;
+    order_state.take_profit_price = expected_entry + direction_mult * level_plan.take_profit_points * resolved_point_size;
   else
     order_state.take_profit_price = 0.0;
 
   if(level_plan.final_take_profit_points > 0.0)
-    order_state.final_take_profit_price = pending_price + direction_mult * level_plan.final_take_profit_points * point_size;
+    order_state.final_take_profit_price = pending_price + direction_mult * level_plan.final_take_profit_points * resolved_point_size;
   else
     order_state.final_take_profit_price = 0.0;
+
+  if(previous_pending > 0.0 &&
+     MathAbs(pending_price - previous_pending) > (resolved_point_size * 0.1))
+  {
+    GridLogPendingTrail(signal_params,
+                        order_state,
+                        previous_anchor,
+                        previous_pending,
+                        resolved_anchor,
+                        pending_price,
+                        resolved_point_size);
+  }
 
 }
 
 bool GridShouldActivatePendingLevel(const SignalTypes direction,
-                                    const GridOrderState &order_state)
+                                    const GridOrderState &order_state,
+                                    const GridLevelPlan &level_plan)
 {
   double entry_side_price = GridCurrentPriceForDirection(direction, true);
   if(order_state.last_pending_price <= 0.0)
     return false;
+
+  bool use_limit_activation = (level_plan.entry_style == GRID_ENTRY_STYLE_LIMIT);
+
   if(direction == BULLISH)
+  {
+    if(use_limit_activation)
+      return (entry_side_price <= order_state.last_pending_price);
+    return (entry_side_price >= order_state.last_pending_price);
+  }
+
+  if(use_limit_activation)
     return (entry_side_price >= order_state.last_pending_price);
   return (entry_side_price <= order_state.last_pending_price);
 }
@@ -823,13 +986,23 @@ void UpdateGridLifecycle(SignalParams &signal_params)
     {
       if(i == 0)
       {
-        if(GridGuardrailsAllowOrder(normalized_volume))
+        string guardrail_reason = "";
+        if(GridGuardrailsAllowOrder(normalized_volume, guardrail_reason))
         {
           if(signal_params.grid_plan.base_anchor_price > 0.0)
             order_state.anchor_price = signal_params.grid_plan.base_anchor_price;
           order_state.resolved_distance_points = level_plan.distance_points;
-          GridInitializePendingLevel(direction, order_state, level_plan, point_size);
+          GridInitializePendingLevel(signal_params,
+                                     direction,
+                                     order_state,
+                                     level_plan,
+                                     point_size);
           GridLogEvent("LEVEL_PENDING", signal_params, order_state, level_plan);
+        }
+        else if(guardrail_reason != "")
+        {
+          GridLogGuardrailBlock("ACTIVATION_BLOCKED", signal_params, order_state, guardrail_reason);
+          order_state.last_action_time = now_time;
         }
         signal_params.grid_orders[i] = order_state;
         continue;
@@ -852,7 +1025,10 @@ void UpdateGridLifecycle(SignalParams &signal_params)
                                                   point_size);
         if(adverse_points >= (level_plan.activation_points - 1e-6))
         {
-          if(GridGuardrailsAllowOrder(normalized_volume))
+          if(order_state.last_action_time != now_time)
+            GridLogWaitingReady(signal_params, level_plan, adverse_points);
+          string guardrail_reason = "";
+          if(GridGuardrailsAllowOrder(normalized_volume, guardrail_reason))
           {
             double previous_distance_points = previous_state.resolved_distance_points;
             GridLevelPlan previous_plan = signal_params.grid_plan.levels[i - 1];
@@ -867,11 +1043,24 @@ void UpdateGridLifecycle(SignalParams &signal_params)
 
             order_state.anchor_price = base_anchor;
             order_state.resolved_distance_points = level_plan.distance_points;
-            GridInitializePendingLevel(direction, order_state, level_plan, point_size);
+            GridInitializePendingLevel(signal_params,
+                                       direction,
+                                       order_state,
+                                       level_plan,
+                                       point_size);
             GridLogEvent("LEVEL_PENDING", signal_params, order_state, level_plan);
             previous_state.next_level_price        = order_state.last_pending_price;
             previous_state.take_profit_price       = 0.0;
             previous_state.final_take_profit_price = 0.0;
+          }
+          else if(guardrail_reason != "")
+          {
+            GridLogGuardrailBlock("ACTIVATION_BLOCKED", signal_params, order_state, guardrail_reason);
+            order_state.last_action_time = now_time;
+          }
+          else
+          {
+            order_state.last_action_time = now_time;
           }
         }
       }
@@ -883,11 +1072,18 @@ void UpdateGridLifecycle(SignalParams &signal_params)
 
     if(order_state.status == GRID_ORDER_PENDING)
     {
-      GridUpdatePendingLevel(direction, order_state, level_plan, point_size);
+      GridUpdatePendingLevel(signal_params,
+                             direction,
+                             order_state,
+                             level_plan,
+                             point_size);
       order_state.last_action_time = now_time;
 
-      if(GridGuardrailsAllowOrder(normalized_volume) &&
-         GridShouldActivatePendingLevel(direction, order_state))
+      string guardrail_reason = "";
+      bool guardrails_ok = GridGuardrailsAllowOrder(normalized_volume, guardrail_reason);
+
+      if(guardrails_ok &&
+         GridShouldActivatePendingLevel(direction, order_state, level_plan))
       {
         if(GridExecuteLevelTrade(signal_params, order_state, level_plan, point_size, normalized_volume))
         {
@@ -897,6 +1093,10 @@ void UpdateGridLifecycle(SignalParams &signal_params)
             resolved_plan = signal_params.grid_plan.levels[i];
           GridLogEvent("LEVEL_FILLED", signal_params, order_state, resolved_plan);
         }
+      }
+      else if(!guardrails_ok && guardrail_reason != "")
+      {
+        GridLogGuardrailBlock("ACTIVATION_BLOCKED", signal_params, order_state, guardrail_reason);
       }
 
       signal_params.grid_orders[i] = order_state;

@@ -135,6 +135,12 @@ enum GridOrderStatuses
   GRID_ORDER_COMPLETED = 4
 };
 
+enum GridEntryStyles
+{
+  GRID_ENTRY_STYLE_STOP  = 0,
+  GRID_ENTRY_STYLE_LIMIT = 1
+};
+
 enum GridLotTypes
 {
   GRID_LOT_SIZE            = 0,
