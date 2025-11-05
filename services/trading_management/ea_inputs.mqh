@@ -9,7 +9,6 @@
 // (directly or through the trading_management aggregator).
 
 // DEFAULT VALUES (can be inputs)
-GridTPReferenceModes Grid_TP_Reference_Mode   = GRID_TP_REF_NEXT;
 GridEntryStyles      Grid_Initial_Entry_Style = GRID_ENTRY_STYLE_STOP;
 GridEntryStyles      Grid_Deep_Entry_Style    = GRID_ENTRY_STYLE_STOP;
 
@@ -37,7 +36,6 @@ input GridBaseStrategyTypes Grid_Base_Strategy_Type      = ATR_RANGE;
 input double                Grid_ATR_Points_Setup        = 1.0;
 input double                Grid_Multiplier              = 2.0;
 input double                Grid_Exponential_Multiplier  = 1.1;
-input double                Grid_Initial_Stops_Percent   = 10.0;
 input double                Grid_Positions_Stops_Percent = 10.0;
 input double                Grid_Final_TP_Percent        = 200.0;
 input double                Grid_TP_Percent              = 60.0;

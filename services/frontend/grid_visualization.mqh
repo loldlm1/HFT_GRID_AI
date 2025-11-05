@@ -322,10 +322,18 @@ double ResolveProjectedNextPrice(const SignalParams &signal_params,
     if(computed_distance <= 0.0)
       computed_distance = effective_distance * exponential_multiplier;
 
-    double entry_percent = MathMax((next_index == 0) ? Grid_Initial_Stops_Percent
-                                                    : Grid_Positions_Stops_Percent,
-                                   0.0);
-    double entry_offset = computed_distance * (entry_percent / 100.0);
+    double entry_percent = MathMax(Grid_Positions_Stops_Percent, 0.0);
+    double entry_offset = 0.0;
+    if(next_plan.entry_style == GRID_ENTRY_STYLE_STOP &&
+       entry_percent > 0.0 &&
+       point_size > 0.0 &&
+       predicted_entry_price > 0.0)
+    {
+      double gap_points = MathAbs(predicted_entry_price - next_plan.anchor_price) / point_size;
+      if(gap_points <= 0.0)
+        gap_points = computed_distance;
+      entry_offset = gap_points * (entry_percent / 100.0);
+    }
 
     next_plan.level_index       = next_index;
     next_plan.anchor_price      = next_anchor;

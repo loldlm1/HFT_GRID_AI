@@ -73,19 +73,21 @@ The **HFT Grid AI EA** is a specialized Expert Advisor designed to execute high 
 - Centralized grid inputs (`Grid_Base_Strategy_Type`, ATR/points setup, multipliers, percentages, direction) with validation and logging of the active context
 - Added ATR factor indicator loading on demand and fallback handling for points-based grids
 - Grid plan builder now derives level spacing and the initial anchor price from the `ATR_SL_Factor` (shift 1) so every level shares consistent point references while honoring broker freeze/stop rules
-- Introduced `Grid_Final_TP_Percent` to pre-compute full-grid take-profit offsets alongside base, trailing, and next-level projections
-- Take-profit geometry now respects the `Grid_TP_Reference_Mode` input, choosing between current-level or next-level distances before broker clamping is applied
+- Introduced `Grid_Final_TP_Percent` to flag post-fill TP spans while keeping planner placeholders lightweight until execution
+- Protective offsets now derive from the entry-side price to the next baseline projection, applying `Grid_Positions_Stops_Percent` to every level while honoring broker clamps (legacy `Grid_Initial_Stops_Percent` remains for presets)
+- Take-profit geometry now locks onto the entry→next snapshot captured on fill, scaling that reference with `Grid_TP_Percent` / `Grid_Final_TP_Percent` without relying on `Grid_TP_Reference_Mode`
 - Directional filter now blocks disallowed trend signals while providing debug output when logging is enabled
 - Grid planner now logs ATR anchors, point size, and per-level geometry to `query_debug.txt` (labels `GRID_PLAN_BASE` / `GRID_PLAN_LEVEL`) whenever file logging is enabled, giving Phase 2 a transparent audit trail
 - Grid framework now appends each `grid_plan.levels` entry only after the previous order fills, so every level is backed by real market execution while still reusing the first level’s activation distance for downstream projections
-- Pending entry prices now sit between the ATR anchor and protective stop buffer (`distance - protective offset`), guaranteeing long entries stay above their stops while preserving sequential grid spacing for subsequent levels
+- Pending entry prices now sit between the ATR anchor and the unified protective gap, guaranteeing long entries stay above their stops while preserving sequential grid spacing for subsequent levels
 
 ### Phase 3 – Current Deliverables
 - Grid order controller now promotes levels sequentially and fires `CTrade` market orders the moment tagged stops are reached, persisting deal-linked position tickets and activation timestamps for telemetry while seeding the next grid level only after a confirmed fill
 - Resolved entry-to-anchor distances are recorded per level, scaling the remaining grid plan from the live base distance so pending stops and offsets honor real market fills instead of projected ATR ranges
 - Each active level maintains its relative range percentage inside the broadened grid envelope, updating metadata (`range_high_price`, `range_low_price`, `current_range_points`) for downstream analytics and guardrail logic
 - Pending buy/sell stops trail adverse price action while their next-level projections recompute from live bid/ask quotes each tick, keeping deeper grid anchors aligned until fills occur
-- Active positions refresh TP, final TP, and trailing protection from live prices, enabling shared close-outs once profit targets or trailing blocks are tagged
+- Active positions refresh TP, final TP, and trailing protection from the entry→next reference span captured on fill so the unified percentages stay stable even as price advances
+- Trailing TP now keeps `(1 - Grid_Trailing_TP_Percent/100)` of that reference move behind the bid/ask, logging `tp_reference_pts` for telemetry
 - Dynamic lot sizing still supports fixed, percentage-based, or currency-based risk targets, all gated by spread/margin guardrails to prevent unsafe grid expansion
 - Pending level geometry now separates entry prices from protective stop placeholders, keeping take-profit projections, next-level forecasts, and telemetry output aligned with the ATR reference anchors
 
@@ -127,11 +129,11 @@ The **HFT Grid AI EA** is a specialized Expert Advisor designed to execute high 
 - `Grid_ATR_Points_Setup`: ATR factor (ATR mode) or absolute points (Points mode).
 - `Grid_Multiplier`: Lot scaling per level (default 2.0).
 - `Grid_Exponential_Multiplier`: Expands level spacing smoothly (default 1.1). Distance L(n) = base_distance × multiplier^n.
-- `Grid_Initial_Stops_Percent`: Initial pending/stop offset as percent of level distance (0% = open instantly).
-- `Grid_Positions_Stops_Percent`: Stop offset for deeper levels (percent of each level’s distance).
-- `Grid_TP_Percent`: Percent applied to the selected TP reference distance (bid for buys, ask for sells).
-- `Grid_TP_Reference_Mode`: Chooses the TP reference distance. `GRID_TP_REF_NEXT` (default) uses the next level distance; `GRID_TP_REF_CURRENT` keeps legacy behavior.
-- `Grid_Trailing_TP_Percent`: Portion of TP used as trailing once active; 0 disables trailing; 100 clamps to broker minimal safe trailing.
+- `Grid_Initial_Stops_Percent`: Legacy preset input; behaviour now aliases to `Grid_Positions_Stops_Percent`.
+- `Grid_Positions_Stops_Percent`: Percent of the entry→baseline gap applied to protective offsets for every level.
+- `Grid_TP_Percent`: Percent of the entry→next snapshot captured on fill; defines the primary take-profit span.
+- `Grid_TP_Reference_Mode`: Legacy toggle (ignored); TP always references the entry→next snapshot distance.
+- `Grid_Trailing_TP_Percent`: Portion of the TP span converted to realised profit before trailing — trailing offset = `(1 - percent/100)` × TP reference.
 
 Notes
 - All distances are clamped to broker freeze/stops via `SymbolTradingConstraints` and helper functions.
