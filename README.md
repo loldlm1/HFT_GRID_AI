@@ -103,6 +103,39 @@ The **HFT Grid AI EA** is a specialized Expert Advisor designed to execute high 
 4. `LEVEL_PENDING` — emitted on subsequent recalculations or trailing updates before activation.
 5. After fill: `LEVEL_ACTIVE`, optional `LEVEL_FILLED`, then lifecycle events (`LEVEL_FINAL_TP`, `LEVEL_CLOSE_ALL`, trailing updates) depending on trade outcome.
 
+## Input Reference
+
+### Strategy Context
+- `Strategy_Timeframe`: Single timeframe used to load and read all indicators (scalable later).
+- `Base_Indicator_Period_Type`: Period for Bollinger indicators (`BB_Percent_Standard`, `BB_Standard`). Options: 5, 8, 13, 21, 34, 55.
+- `Base_Indicator_MA_Method`: MA method applied inside Bollinger (default `MODE_EMA`). Applied price is fixed to `PRICE_WEIGHTED`.
+- `Base_Indicator_Strategy_Type`: Base trigger source.
+  - `MA_TYPE`: Crosses around 50% of BB Percent (e.g., buy if `bb_percent_2 > 50` and `bb_percent_1 <= 50`).
+  - `BANDS_TYPE`: Crosses of 0%/100% band edges (e.g., buy if `bb_percent_2 > 100` and `bb_percent_1 <= 100`).
+  - `BB_NONE_TYPE`: Disable base trigger.
+- `Solid_Indicator_Strategy_Type`: Stochastic structure trigger.
+  - `EXTREMA_TYPE`: Buy at current bottom, sell at current peak using `Stochastic_Structure`.
+  - `SOLID_NONE_TYPE`: Disable solid trigger.
+- `Solid_Indicator_Period_Type`: Period for `Stochastic_Structure` (5, 8, 13, 21, 34, 55).
+- `Strategy_Direction_Mode`: Directional filter; `BOTH_DIRECTION`, `BULLISH_DIRECTION`, or `BEARISH_DIRECTION`.
+
+### Grid Strategy Settings
+- `Grid_Base_Strategy_Type`: Chooses base spacing mode.
+  - `ATR_RANGE`: Uses `ATR_SL_Factor` distance (buffer 2) multiplied by `Grid_ATR_Points_Setup` and converted to points.
+  - `POINTS_RANGE`: Uses `Grid_ATR_Points_Setup` as fixed points distance.
+- `Grid_ATR_Points_Setup`: ATR factor (ATR mode) or absolute points (Points mode).
+- `Grid_Multiplier`: Lot scaling per level (default 2.0).
+- `Grid_Exponential_Multiplier`: Expands level spacing smoothly (default 1.1). Distance L(n) = base_distance × multiplier^n.
+- `Grid_Initial_Stops_Percent`: Initial pending/stop offset as percent of level distance (0% = open instantly).
+- `Grid_Positions_Stops_Percent`: Stop offset for deeper levels (percent of each level’s distance).
+- `Grid_TP_Percent`: Percent of the next level distance to activate/close TP (bid for buys, ask for sells).
+- `Grid_Trailing_TP_Percent`: Portion of TP used as trailing once active; 0 disables trailing; 100 clamps to broker minimal safe trailing.
+
+Notes
+- All distances are clamped to broker freeze/stops via `SymbolTradingConstraints` and helper functions.
+- ATR handles are only loaded when `ATR_RANGE` is selected; otherwise the EA skips ATR loading to reduce overhead.
+- Visual lines (pending, TP, trailing) use profit-based coloring and are hidden/swapped as lifecycle advances.
+
 ## Next Steps
 
 - Finalize the Grid Framework refactor:
