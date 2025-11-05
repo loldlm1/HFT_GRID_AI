@@ -80,7 +80,7 @@ string GridSignalObjectName(const SignalParams &signal_params,
 {
   string direction = (signal_params.signal_type == BULLISH) ? "BULLISH" : "BEARISH";
   string identifier = GridSignalIdentifier(signal_params);
-  return direction + "_" + identifier + "_" + suffix;
+  return suffix + "_" + identifier + "_" + direction;
 }
 
 int ResolveDisplayLevelIndex(const SignalParams &signal_params)
@@ -155,6 +155,101 @@ double ResolveEffectiveDistancePoints(const GridLevelPlan &plan,
     return state.resolved_distance_points;
   if(plan.distance_points > 0.0)
     return plan.distance_points;
+  return 0.0;
+}
+
+int ResolveNextOverlaySourceIndex(const SignalParams &signal_params)
+{
+  int orders_total = ArraySize(signal_params.grid_orders);
+
+  int highest_active = -1;
+  for(int k = 0; k < orders_total; k++)
+  {
+    GridOrderState order_state = signal_params.grid_orders[k];
+    if(order_state.status == GRID_ORDER_ACTIVE)
+      highest_active = k;
+  }
+
+  if(highest_active >= 0)
+  {
+    return highest_active;
+  }
+
+  for(int i = 0; i < orders_total; i++)
+  {
+    GridOrderState order_state = signal_params.grid_orders[i];
+    if(order_state.status == GRID_ORDER_PENDING)
+      return i;
+  }
+
+  for(int j = 0; j < orders_total; j++)
+  {
+    GridOrderState order_state = signal_params.grid_orders[j];
+    if(order_state.status == GRID_ORDER_WAITING)
+      return j;
+  }
+
+  if(orders_total > 0)
+    return 0;
+
+  return -1;
+}
+
+int ResolveNextOverlayTargetIndex(const SignalParams &signal_params,
+                                  const int source_index)
+{
+  int levels_total = ArraySize(signal_params.grid_plan.levels);
+  if(levels_total <= 0)
+    return -1;
+
+  if(source_index >= 0)
+  {
+    int candidate = source_index + 1;
+    if(candidate < levels_total)
+      return candidate;
+    return -1;
+  }
+
+  return 0;
+}
+
+double ResolveNextOverlayPrice(const SignalParams &signal_params,
+                               const int source_index,
+                               const int target_index,
+                               const double direction_mult,
+                               const double point_size)
+{
+  GridOrderState source_state = GridOrderState();
+  if(source_index >= 0 && source_index < ArraySize(signal_params.grid_orders))
+    source_state = signal_params.grid_orders[source_index];
+
+  if(source_state.next_level_price > 0.0)
+    return source_state.next_level_price;
+
+  if(target_index >= 0 && target_index < ArraySize(signal_params.grid_plan.levels))
+  {
+    GridLevelPlan plan = signal_params.grid_plan.levels[target_index];
+    double next_price = plan.next_resolved_price;
+    if(next_price <= 0.0)
+      next_price = plan.next_blueprint_price;
+    if(next_price <= 0.0)
+    {
+      double pending_points = ResolvePendingPointsForPlan(plan);
+      double anchor_price = plan.anchor_price;
+      if(anchor_price <= 0.0 && source_state.anchor_price > 0.0)
+        anchor_price = source_state.anchor_price;
+      if(anchor_price <= 0.0)
+        anchor_price = signal_params.grid_plan.base_anchor_price;
+      if(anchor_price > 0.0 && pending_points > 0.0 && point_size > 0.0)
+        next_price = anchor_price + direction_mult * pending_points * point_size;
+    }
+    if(next_price > 0.0)
+      return next_price;
+  }
+
+  if(source_state.last_pending_price > 0.0)
+    return source_state.last_pending_price;
+
   return 0.0;
 }
 
@@ -255,7 +350,10 @@ double ResolveProjectedNextPrice(const SignalParams &signal_params,
 void UpdateHorizontalLine(const long chart_id,
                           const string name,
                           const color line_color,
-                          const double price)
+                          const double price,
+                          const string label_text = "",
+                          const int line_style = STYLE_DASH,
+                          const int line_width = 1)
 {
   if(price <= 0.0 || !Enable_Chart_Levels)
   {
@@ -273,17 +371,24 @@ void UpdateHorizontalLine(const long chart_id,
 
   ObjectSetDouble(chart_id, name, OBJPROP_PRICE, price);
   ObjectSetInteger(chart_id, name, OBJPROP_COLOR, line_color);
-  ObjectSetInteger(chart_id, name, OBJPROP_STYLE, STYLE_DASH);
-  ObjectSetInteger(chart_id, name, OBJPROP_WIDTH, 1);
+  ObjectSetInteger(chart_id, name, OBJPROP_STYLE, line_style);
+  ObjectSetInteger(chart_id, name, OBJPROP_WIDTH, line_width);
+  if(label_text != "")
+    ObjectSetString(chart_id, name, OBJPROP_TEXT, label_text);
+  else
+    ObjectSetString(chart_id, name, OBJPROP_TEXT, "");
 }
 
 void UpdateTrackedLine(const long chart_id,
                        const string name,
                        const color line_color,
                        const double price,
-                       string &tracked_objects[])
+                       string &tracked_objects[],
+                       const string label_text = "",
+                       const int line_style = STYLE_DASH,
+                       const int line_width = 1)
 {
-  UpdateHorizontalLine(chart_id, name, line_color, price);
+  UpdateHorizontalLine(chart_id, name, line_color, price, label_text, line_style, line_width);
   if(!Enable_Chart_Levels)
     return;
   if(price <= 0.0)
@@ -300,14 +405,22 @@ void DrawGridLevels(const long chart_id,
   string tp_name    = GridSignalObjectName(signal_params, "TP");
   string final_name = GridSignalObjectName(signal_params, "TP_FINAL");
   string entry_name = GridSignalObjectName(signal_params, "ENTRY");
+  string next_name  = GridSignalObjectName(signal_params, "NEXT");
+  string trailing_name = GridSignalObjectName(signal_params, "TP_TRAILING");
 
   int display_index = ResolveDisplayLevelIndex(signal_params);
+  int digits = (int)SymbolInfoInteger(_Symbol, SYMBOL_DIGITS);
+  if(digits <= 0)
+    digits = 5;
+
   if(display_index < 0)
   {
     UpdateHorizontalLine(chart_id, stop_name, COLOR_PROFIT_NEGATIVE, 0.0);
     UpdateHorizontalLine(chart_id, tp_name, COLOR_PROFIT_POSITIVE, 0.0);
     UpdateHorizontalLine(chart_id, final_name, COLOR_PROFIT_POSITIVE, 0.0);
     UpdateHorizontalLine(chart_id, entry_name, COLOR_PROFIT_NEUTRAL, 0.0);
+    UpdateHorizontalLine(chart_id, next_name, COLOR_PROFIT_NEUTRAL, 0.0);
+    UpdateHorizontalLine(chart_id, trailing_name, COLOR_PROFIT_POSITIVE, 0.0);
     return;
   }
 
@@ -348,6 +461,7 @@ void DrawGridLevels(const long chart_id,
   double tp_price = level_state.take_profit_price;
   double final_price = level_state.final_take_profit_price;
   double final_points = level_plan.final_take_profit_points;
+  double trailing_price = 0.0;
 
   if(level_state.status == GRID_ORDER_ACTIVE)
   {
@@ -430,6 +544,38 @@ void DrawGridLevels(const long chart_id,
     }
   }
 
+  if(level_state.is_trailing_active && level_state.trailing_price > 0.0)
+    trailing_price = level_state.trailing_price;
+  if(trailing_price > 0.0)
+    tp_price = 0.0;
+
+  int next_source_index = ResolveNextOverlaySourceIndex(signal_params);
+  int next_level_index = ResolveNextOverlayTargetIndex(signal_params, next_source_index);
+  double next_price_line = ResolveNextOverlayPrice(signal_params,
+                                                   next_source_index,
+                                                   next_level_index,
+                                                   direction_mult,
+                                                   point_size);
+  string direction_label = (signal_params.signal_type == BULLISH) ? "BULL" : "BEAR";
+  string next_label = "";
+  int label_level_index = -1;
+  if(next_level_index >= 0)
+    label_level_index = next_level_index;
+  else if(next_source_index >= 0)
+    label_level_index = next_source_index + 1;
+  if(label_level_index >= 0 && next_price_line > 0.0)
+    next_label = StringFormat("NEXT %s L%d %s",
+                              direction_label,
+                              label_level_index,
+                              DoubleToString(next_price_line, digits));
+
+  string trailing_label = "";
+  if(trailing_price > 0.0)
+    trailing_label = StringFormat("TRAIL %s L%d %s",
+                                  direction_label,
+                                  display_index,
+                                  DoubleToString(trailing_price, digits));
+
   if(SHOW_STOPS_LINES)
     UpdateTrackedLine(chart_id, stop_name, COLOR_PROFIT_NEGATIVE, stop_price, tracked_objects);
   else
@@ -437,6 +583,8 @@ void DrawGridLevels(const long chart_id,
   UpdateTrackedLine(chart_id, entry_name, COLOR_PROFIT_NEUTRAL, entry_price_line, tracked_objects);
   UpdateTrackedLine(chart_id, tp_name, COLOR_PROFIT_POSITIVE, tp_price, tracked_objects);
   UpdateTrackedLine(chart_id, final_name, COLOR_PROFIT_POSITIVE, final_price, tracked_objects);
+  UpdateTrackedLine(chart_id, trailing_name, COLOR_PROFIT_POSITIVE, trailing_price, tracked_objects, trailing_label, STYLE_SOLID);
+  UpdateTrackedLine(chart_id, next_name, COLOR_PROFIT_NEUTRAL, next_price_line, tracked_objects, next_label, STYLE_DOT);
 }
 
 void BuildSignalSummary(const SignalParams &signal_params,
