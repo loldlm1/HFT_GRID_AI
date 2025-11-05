@@ -81,6 +81,19 @@ bool GridGuardrailsAllowOrder(const double normalized_volume)
   return GridGuardrailsAllowOrder(normalized_volume, reason);
 }
 
+void GridAppendReason(string &target,
+                      const string token)
+{
+  if(token == "")
+    return;
+  if(target == "")
+  {
+    target = token;
+    return;
+  }
+  target = target + ";" + token;
+}
+
 void GridLogEvent(const string label,
                   const SignalParams &signal_params,
                   const GridOrderState &order_state,
@@ -118,10 +131,18 @@ void GridLogEvent(const string label,
   double next_resolved_price = level_plan.next_resolved_price;
   if(next_resolved_price <= 0.0)
     next_resolved_price = order_state.last_pending_price;
-  string next_side = (level_plan.next_price_side == "") ? ((signal_params.signal_type == BULLISH) ? "ASK" : "BID")
-                                                        : level_plan.next_price_side;
-  string clamp_reason = (level_plan.next_price_clamp_reason == "") ? "-" : level_plan.next_price_clamp_reason;
+  string next_side = level_plan.next_price_side;
+  if(next_side == "")
+    next_side = (signal_params.signal_type == BULLISH) ? "ASK" : "BID";
+  string clamp_reason = level_plan.next_price_clamp_reason;
+  if(clamp_reason == "")
+    clamp_reason = "-";
 
+  double alias_next = level_plan.next_resolved_price;
+  if(alias_next <= 0.0)
+    alias_next = order_state.next_level_price;
+  if(alias_next <= 0.0)
+    alias_next = planned_pending_price;
   string message = StringFormat("dir=%s|level=%d|status=%s|clamped_pending_price=%.5f|planned_pending_price=%.5f|protect=%.5f|entry=%.5f|tp=%.5f|next=%.5f|anchor=%.5f|anchor_plan=%.5f|dist=%.1f|pct=%.2f|style=%s|entry_side_price_curr=%.5f|entry_side_price_trail=%.5f|raw_gap_pts=%.2f|entry_offset_pts=%.2f|next_blueprint=%.5f|next_resolved=%.5f|next_side=%s|next_clamp=%s",
                                 direction,
                                 order_state.level_index,
@@ -131,7 +152,7 @@ void GridLogEvent(const string label,
                                 order_state.stop_loss_price,
                                 order_state.entry_price,
                                 order_state.take_profit_price,
-                                order_state.next_level_price,
+                                alias_next,
                                 order_state.anchor_price,
                                 anchor_plan_price,
                                 order_state.resolved_distance_points,
@@ -191,6 +212,30 @@ void GridLogGuardrailBlock(const string label,
                                 order_state.level_index,
                                 EnumToString(order_state.status),
                                 reason);
+  AppendTimestampedLog("query_debug.txt", label, message);
+}
+
+void GridLogTrailingEvent(const string label,
+                          const SignalParams &signal_params,
+                          const GridOrderState &order_state,
+                          const double trailing_price,
+                          const double offset_points,
+                          const string basis,
+                          const string side,
+                          const string reason)
+{
+  if(!Enable_File_Logs)
+    return;
+
+  string direction = (signal_params.signal_type == BULLISH) ? "BULLISH" : "BEARISH";
+  string message = StringFormat("dir=%s|level=%d|price=%.5f|offset_pts=%.2f|basis=%s|side=%s|reason=%s",
+                                direction,
+                                order_state.level_index,
+                                trailing_price,
+                                offset_points,
+                                (basis == "") ? "-" : basis,
+                                (side == "") ? "-" : side,
+                                (reason == "") ? "-" : reason);
   AppendTimestampedLog("query_debug.txt", label, message);
 }
 
@@ -493,6 +538,113 @@ double GridPointsBetween(const SignalTypes direction,
   if(direction == BULLISH)
     return (reference_price - candidate_price) / point_size;
   return (candidate_price - reference_price) / point_size;
+}
+
+double GridResolveTrailingStopPrice(const SignalParams &signal_params,
+                                    const GridOrderState &order_state,
+                                    const GridLevelPlan &level_plan,
+                                    const SignalTypes direction,
+                                    const double point_size,
+                                    const double close_price,
+                                    double &resolved_offset_points,
+                                    string &basis_out,
+                                    string &reason_out)
+{
+  resolved_offset_points = 0.0;
+  basis_out = "";
+  reason_out = "";
+
+  double trailing_percent = (order_state.level_index == 0) ? MathMax(Grid_Initial_Stops_Percent, 0.0)
+                                                           : MathMax(Grid_Positions_Stops_Percent, 0.0);
+  double reference_points = signal_params.grid_stats.current_range_points;
+  if(reference_points > 0.0 && trailing_percent > 0.0)
+  {
+    double computed_offset = reference_points * (trailing_percent / 100.0);
+    if(computed_offset > 0.0)
+    {
+      resolved_offset_points = computed_offset;
+      basis_out = "RANGE";
+      GridAppendReason(reason_out, "range_percent");
+    }
+  }
+
+  if(resolved_offset_points <= 0.0 && trailing_percent > 0.0)
+  {
+    double distance_reference = order_state.resolved_distance_points;
+    if(distance_reference <= 0.0)
+      distance_reference = level_plan.resolved_distance_points;
+    if(distance_reference <= 0.0)
+      distance_reference = level_plan.distance_points;
+    if(distance_reference <= 0.0)
+      distance_reference = signal_params.grid_plan.base_distance_points;
+    if(distance_reference > 0.0)
+    {
+      double computed_offset = distance_reference * (trailing_percent / 100.0);
+      if(computed_offset > 0.0)
+      {
+        resolved_offset_points = computed_offset;
+        if(basis_out == "")
+          basis_out = "DISTANCE";
+        GridAppendReason(reason_out, "distance_percent");
+      }
+    }
+  }
+
+  if(resolved_offset_points <= 0.0 && level_plan.trailing_points > 0.0)
+  {
+    resolved_offset_points = level_plan.trailing_points;
+    if(basis_out == "")
+      basis_out = "PLAN";
+    GridAppendReason(reason_out, "plan_trailing");
+  }
+
+  if(resolved_offset_points <= 0.0 && level_plan.entry_offset_points > 0.0)
+  {
+    resolved_offset_points = level_plan.entry_offset_points;
+    if(basis_out == "")
+      basis_out = "ENTRY_OFFSET";
+    GridAppendReason(reason_out, "entry_offset_fallback");
+  }
+
+  if(resolved_offset_points <= 0.0 && level_plan.distance_points > 0.0)
+  {
+    resolved_offset_points = level_plan.distance_points;
+    if(basis_out == "")
+      basis_out = "DISTANCE_FALLBACK";
+    GridAppendReason(reason_out, "distance_fallback");
+  }
+
+  double requested_offset = resolved_offset_points;
+  resolved_offset_points = EnforceBrokerDistance(g_symbol_constraints, resolved_offset_points);
+  if(resolved_offset_points > requested_offset + 1e-9)
+    GridAppendReason(reason_out, "broker_min");
+
+  if(resolved_offset_points <= 0.0 || point_size <= 0.0 || close_price <= 0.0)
+    return 0.0;
+
+  double direction_mult = GridResolveDirectionMultiplier(direction);
+  double requested_price = close_price - direction_mult * resolved_offset_points * point_size;
+  double rounded_price = requested_price;
+
+  double effective_tick = ResolveEffectiveTickSize(g_symbol_constraints.tick_size,
+                                                   g_symbol_constraints.point_size);
+  if(effective_tick > 0.0 && requested_price > 0.0)
+  {
+    double ticks = requested_price / effective_tick;
+    if(direction == BULLISH)
+      rounded_price = MathFloor(ticks + 1e-9) * effective_tick;
+    else
+      rounded_price = MathCeil(ticks - 1e-9) * effective_tick;
+    if(MathAbs(rounded_price - requested_price) > 1e-9)
+      GridAppendReason(reason_out, "tick_round");
+  }
+
+  int digits = (int)SymbolInfoInteger(_Symbol, SYMBOL_DIGITS);
+  if(digits <= 0)
+    digits = 5;
+  double trailing_price = NormalizeDouble(rounded_price, digits);
+
+  return trailing_price;
 }
 
 void GridUpdateNextLevelPrice(const SignalTypes direction,
@@ -1347,42 +1499,142 @@ void UpdateGridLifecycle(SignalParams &signal_params)
         order_state.final_take_profit_price = 0.0;
       }
 
-      if(level_plan.take_profit_points > 0.0 && !order_state.tp_reached)
+      double tp_price = 0.0;
+      if(level_plan.take_profit_points > 0.0 && order_state.entry_price > 0.0)
+        tp_price = order_state.entry_price + direction_mult * level_plan.take_profit_points * point_size;
+
+      if(tp_price > 0.0 && !order_state.tp_reached)
       {
-        double tp_price = order_state.entry_price + direction_mult * level_plan.take_profit_points * point_size;
         order_state.take_profit_price = tp_price;
-        if((direction == BULLISH && close_price >= tp_price) ||
-           (direction == BEARISH && close_price <= tp_price))
+        bool tp_touch = ((direction == BULLISH) ? (close_price >= tp_price)
+                                                : (close_price <= tp_price));
+        if(tp_touch)
         {
           order_state.tp_reached = true;
-          if(level_plan.trailing_points > 0.0)
-            order_state.is_trailing_active = true;
           order_state.take_profit_price = 0.0;
+
+          double trailing_offset_pts = 0.0;
+          string trailing_basis = "";
+          string trailing_reason_tokens = "";
+          double trailing_price = GridResolveTrailingStopPrice(signal_params,
+                                                               order_state,
+                                                               level_plan,
+                                                               direction,
+                                                               point_size,
+                                                               close_price,
+                                                               trailing_offset_pts,
+                                                               trailing_basis,
+                                                               trailing_reason_tokens);
+          if(trailing_price > 0.0)
+          {
+            order_state.is_trailing_active = true;
+            order_state.trailing_price = trailing_price;
+            order_state.stop_loss_price = trailing_price;
+            order_state.trailing_points = trailing_offset_pts;
+            GridAppendReason(trailing_reason_tokens, "tp_touch");
+            string side_label = (direction == BULLISH) ? "BID" : "ASK";
+            GridLogTrailingEvent("TRAILING_TP_START",
+                                 signal_params,
+                                 order_state,
+                                 trailing_price,
+                                 trailing_offset_pts,
+                                 trailing_basis,
+                                 side_label,
+                                 trailing_reason_tokens);
+          }
+          else
+          {
+            order_state.is_trailing_active = false;
+          }
         }
       }
-
-      if(order_state.is_trailing_active && level_plan.trailing_points > 0.0)
+      else if(tp_price > 0.0)
       {
-        double candidate_trailing = close_price - direction_mult * level_plan.trailing_points * point_size;
+        order_state.take_profit_price = order_state.tp_reached ? 0.0 : tp_price;
+      }
+      else
+      {
+        order_state.take_profit_price = 0.0;
+      }
 
-        if(order_state.trailing_price == 0.0)
-          order_state.trailing_price = candidate_trailing;
-
-        if(direction == BULLISH)
+      if(order_state.is_trailing_active)
+      {
+        double trailing_offset_pts = 0.0;
+        string trailing_basis = "";
+        string trailing_reason_tokens = "";
+        double candidate_trailing = GridResolveTrailingStopPrice(signal_params,
+                                                                 order_state,
+                                                                 level_plan,
+                                                                 direction,
+                                                                 point_size,
+                                                                 close_price,
+                                                                 trailing_offset_pts,
+                                                                 trailing_basis,
+                                                                 trailing_reason_tokens);
+        if(candidate_trailing > 0.0)
         {
-          if(candidate_trailing > order_state.trailing_price)
+          double previous_trailing = order_state.trailing_price;
+          double tolerance = point_size;
+          if(tolerance <= 0.0)
+            tolerance = 1e-6;
+          bool price_moved = false;
+          if(previous_trailing <= 0.0)
+            price_moved = true;
+          else if(direction == BULLISH && candidate_trailing > previous_trailing + tolerance)
+            price_moved = true;
+          else if(direction == BEARISH && candidate_trailing < previous_trailing - tolerance)
+            price_moved = true;
+
+          order_state.trailing_points = trailing_offset_pts;
+
+          if(price_moved)
+          {
             order_state.trailing_price = candidate_trailing;
+            string update_reason = trailing_reason_tokens;
+            GridAppendReason(update_reason, "follow_move");
+            string side_label = (direction == BULLISH) ? "BID" : "ASK";
+            GridLogTrailingEvent("TRAILING_TP_UPDATE",
+                                 signal_params,
+                                 order_state,
+                                 candidate_trailing,
+                                 trailing_offset_pts,
+                                 trailing_basis,
+                                 side_label,
+                                 update_reason);
+          }
+
+          if(order_state.trailing_price <= 0.0)
+            order_state.trailing_price = candidate_trailing;
+
           order_state.stop_loss_price = order_state.trailing_price;
-          if(close_price <= order_state.trailing_price)
+
+          bool trailing_hit = false;
+          string hit_side = (direction == BULLISH) ? "BID" : "ASK";
+          if(direction == BULLISH && order_state.trailing_price > 0.0 && close_price <= order_state.trailing_price)
+            trailing_hit = true;
+          else if(direction == BEARISH && order_state.trailing_price > 0.0 && close_price >= order_state.trailing_price)
+            trailing_hit = true;
+
+          if(trailing_hit)
+          {
+            string hit_reason = trailing_reason_tokens;
+            GridAppendReason(hit_reason, "price_cross");
+            GridLogTrailingEvent("TRAILING_TP_HIT",
+                                 signal_params,
+                                 order_state,
+                                 order_state.trailing_price,
+                                 trailing_offset_pts,
+                                 trailing_basis,
+                                 hit_side,
+                                 hit_reason);
+            order_state.is_trailing_active = false;
             request_close_all = true;
+          }
         }
         else
         {
-          if(candidate_trailing < order_state.trailing_price || order_state.trailing_price == 0.0)
-            order_state.trailing_price = candidate_trailing;
-          order_state.stop_loss_price = order_state.trailing_price;
-          if(close_price >= order_state.trailing_price)
-            request_close_all = true;
+          order_state.is_trailing_active = false;
+          order_state.stop_loss_price = 0.0;
         }
       }
       else

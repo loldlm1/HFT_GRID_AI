@@ -107,7 +107,12 @@ void LogGridPlanLevelDetail(const SignalParams &signal_params,
   double pending_points = GridPlanResolvePendingPoints(level_plan);
   double tick_size = ResolveEffectiveTickSize(g_symbol_constraints.tick_size,
                                               g_symbol_constraints.point_size);
-  string detail = StringFormat("dir=%s|level=%d|dist=%.2f|baseline=%.2f|pending=%.2f|entry_offset=%.2f|activation=%.2f|tp=%.2f|tp_final=%.2f|trail=%.2f|lot=%.2f|anchor=%.5f|entry_style=%s|next_blueprint=%.5f|next_resolved=%.5f|side=%s|tick=%.5f|stop_level_pts=%.2f|spread_pts=%.1f|clamp=%s",
+  double alias_next = level_plan.next_resolved_price;
+  if(alias_next <= 0.0)
+    alias_next = level_plan.next_blueprint_price;
+  string next_side = (level_plan.next_price_side == "") ? "-" : level_plan.next_price_side;
+  string clamp_reason = (level_plan.next_price_clamp_reason == "") ? "-" : level_plan.next_price_clamp_reason;
+  string detail = StringFormat("dir=%s|level=%d|dist=%.2f|baseline=%.2f|pending=%.2f|entry_offset=%.2f|activation=%.2f|tp=%.2f|tp_final=%.2f|trail=%.2f|lot=%.2f|anchor=%.5f|entry_style=%s|next=%.5f|next_blueprint=%.5f|next_resolved=%.5f|side=%s|tick=%.5f|stop_level_pts=%.2f|spread_pts=%.1f|clamp=%s",
                                direction,
                                level_plan.level_index,
                                level_plan.distance_points,
@@ -121,13 +126,14 @@ void LogGridPlanLevelDetail(const SignalParams &signal_params,
                                level_plan.lot_size,
                                level_plan.anchor_price,
                                EnumToString(level_plan.entry_style),
+                               alias_next,
                                level_plan.next_blueprint_price,
                                level_plan.next_resolved_price,
-                               level_plan.next_price_side,
+                               next_side,
                                tick_size,
                                pending_points,
                                g_points_spread,
-                               (level_plan.next_price_clamp_reason == "") ? "-" : level_plan.next_price_clamp_reason);
+                               clamp_reason);
   AppendTimestampedLog("query_debug.txt", "GRID_PLAN_LEVEL", detail);
 }
 
@@ -329,7 +335,12 @@ bool BuildGridPlanForSignal(SignalParams &signal_params)
                               ((signal_params.signal_type == BULLISH) ? 1.0 : -1.0) *
                               pending_points * point_size;
     string direction = (signal_params.signal_type == BULLISH) ? "BULLISH" : "BEARISH";
-    string message = StringFormat("dir=%s|level=%d|dist=%.2f|pending_pts=%.2f|anchor=%.5f|raw_gap_pts=%.2f|entry_offset_pts=%.2f|entry_side_price=%.5f|clamped_pending_price=%.5f|style=%s|next_blueprint=%.5f|next_resolved=%.5f|side=%s|clamp=%s",
+    double alias_next = clamped_pending_price;
+    if(alias_next <= 0.0)
+      alias_next = planned_pending_price;
+    string next_side = (initial_plan.next_price_side == "") ? "-" : initial_plan.next_price_side;
+    string clamp_reason = (initial_plan.next_price_clamp_reason == "") ? "-" : initial_plan.next_price_clamp_reason;
+    string message = StringFormat("dir=%s|level=%d|dist=%.2f|pending_pts=%.2f|anchor=%.5f|raw_gap_pts=%.2f|entry_offset_pts=%.2f|entry_side_price=%.5f|clamped_pending_price=%.5f|style=%s|next=%.5f|next_blueprint=%.5f|next_resolved=%.5f|side=%s|clamp=%s",
                                   direction,
                                   initial_plan.level_index,
                                   initial_plan.distance_points,
@@ -340,10 +351,11 @@ bool BuildGridPlanForSignal(SignalParams &signal_params)
                                   entry_side_price_log,
                                   clamped_pending_price,
                                   EnumToString(initial_plan.entry_style),
+                                  alias_next,
                                   planned_pending_price,
                                   clamped_pending_price,
-                                  initial_plan.next_price_side,
-                                  (initial_plan.next_price_clamp_reason == "") ? "-" : initial_plan.next_price_clamp_reason);
+                                  next_side,
+                                  clamp_reason);
     AppendTimestampedLog("query_debug.txt", "LEVEL_PENDING_INIT", message);
   }
 
