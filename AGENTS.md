@@ -29,12 +29,13 @@ This is a HFT Grid AI Expert Advisor designed to execute high frequency position
 - Completed: grid inputs exposed, ATR handles loaded on demand with fallbacks, grid plans attached to signals with ATR shift-1 anchors (spacing, offsets, TP, final TP, lot scaling) while enforcing broker constraints
 - Completed: grid levels now append sequentially after each confirmed order fill, so `SignalParams.grid_plan.levels` only grows from live executions while reusing the first level’s activation distance to project new stops
 - Completed: pending entry prices are resolved as `distance - protective offset` above (bullish) or below (bearish) the ATR anchor so protective stops always remain on the correct side of the position while maintaining consistent grid spacing
-- Completed: take-profit geometry now honors `Grid_TP_Reference_Mode`, allowing planners to scale TP from the current or next level distance before broker clamping
+- Completed: protective offsets now derive from the entry-side price to the next baseline projection, applying `Grid_Positions_Stops_Percent` to every level while retaining `Grid_Initial_Stops_Percent` only as a preset alias
+- Completed: take-profit geometry now locks onto the entry→next snapshot captured on fill, scaling with `Grid_TP_Percent` / `Grid_Final_TP_Percent` independent of `Grid_TP_Reference_Mode`
 - In Progress: grid planner diagnostics capture ATR anchors, point size, and per-level geometry (`GRID_PLAN_BASE` / `GRID_PLAN_LEVEL`) to validate Phase 2 assumptions in Strategy Tester logs
 
 ### Phase 3 – Order Lifecycle Control
-- Automate buy/sell stop placement that trails adverse price action according to Grid_Initial_Stops_Percent
-- Implement TP activation, trailing adjustments, and profit lock logic referencing bid/ask as required
+- Automate buy/sell stop placement that trails adverse price action using the unified Grid_Positions_Stops_Percent gap
+- Implement TP activation, trailing adjustments, and profit lock logic from the entry→next snapshot while referencing bid/ask as required
 - Apply Grid_Positions_Stops_Percent to deeper grid layers while respecting exponential spacing
 - Add guardrails for margin, slippage, and spread thresholds to halt grid expansion safely
 - Exit Criteria: full trade cycle executed in tester with correct order stack, protective stops adapt as configured

@@ -21,6 +21,7 @@ struct GridLevelPlan
   double take_profit_points;
   double final_take_profit_points;
   double trailing_points;
+  double baseline_anchor_price;
   double lot_size;
   double grid_range_percent;
   double baseline_distance_points;
@@ -45,6 +46,7 @@ struct GridLevelPlan
     take_profit_points   = 0.0;
     final_take_profit_points = 0.0;
     trailing_points      = 0.0;
+    baseline_anchor_price = 0.0;
     lot_size             = 0.0;
     grid_range_percent   = -1.0;
     baseline_distance_points = 0.0;
@@ -133,6 +135,7 @@ struct GridOrderState
   double            stop_loss_price;
   double            take_profit_price;
   double            trailing_points;
+  double            tp_reference_points;
   double            realized_points;
   datetime          last_action_time;
   double            anchor_price;
@@ -156,6 +159,7 @@ struct GridOrderState
     stop_loss_price      = 0.0;
     take_profit_price    = 0.0;
     trailing_points      = 0.0;
+    tp_reference_points  = 0.0;
     realized_points      = 0.0;
     last_action_time     = 0;
     anchor_price         = 0.0;
