@@ -57,9 +57,6 @@ bool GridResolveAtrAnchorPrice(const SignalTypes direction,
                                double &anchor_price)
 {
   anchor_price = 0.0;
-  if(shift < 0)
-    return false;
-
   int total_handles = ArraySize(ExtATRIndicatorsHandle);
   if(total_handles <= 0)
     return false;
@@ -70,15 +67,82 @@ bool GridResolveAtrAnchorPrice(const SignalTypes direction,
     if(ExtATRIndicatorsHandle[i].indicator_timeframe != Strategy_Timeframe)
       continue;
 
-    double atr_buffer[];
+    double anchor_primary = 0.0;
+    double anchor_shift0  = 0.0;
+    double anchor_shift1  = 0.0;
+    bool   has_primary    = false;
+    bool   has_shift0     = false;
+    bool   has_shift1     = false;
+
+    if(shift >= 0)
+    {
+      double atr_buffer_primary[];
+      if(CopyBuffer(ExtATRIndicatorsHandle[i].indicator_handle,
+                    buffer_index,
+                    shift,
+                    1,
+                    atr_buffer_primary) > 0)
+      {
+        anchor_primary = atr_buffer_primary[0];
+        has_primary = (anchor_primary > 0.0);
+      }
+    }
+
+    double atr_buffer0[];
     if(CopyBuffer(ExtATRIndicatorsHandle[i].indicator_handle,
                   buffer_index,
-                  shift,
+                  0,
                   1,
-                  atr_buffer) <= 0)
-      return false;
+                  atr_buffer0) > 0)
+    {
+      anchor_shift0 = atr_buffer0[0];
+      has_shift0 = (anchor_shift0 > 0.0);
+    }
 
-    anchor_price = atr_buffer[0];
+    double atr_buffer1[];
+    if(CopyBuffer(ExtATRIndicatorsHandle[i].indicator_handle,
+                  buffer_index,
+                  1,
+                  1,
+                  atr_buffer1) > 0)
+    {
+      anchor_shift1 = atr_buffer1[0];
+      has_shift1 = (anchor_shift1 > 0.0);
+    }
+
+    double resolved_anchor = 0.0;
+    if(has_shift0 && has_shift1)
+    {
+      if(direction == BULLISH)
+        resolved_anchor = MathMin(anchor_shift0, anchor_shift1);
+      else
+        resolved_anchor = MathMax(anchor_shift0, anchor_shift1);
+    }
+    else if(has_shift0)
+    {
+      resolved_anchor = anchor_shift0;
+    }
+    else if(has_shift1)
+    {
+      resolved_anchor = anchor_shift1;
+    }
+
+    if(has_primary)
+    {
+      if(resolved_anchor > 0.0)
+      {
+        if(direction == BULLISH)
+          resolved_anchor = MathMin(resolved_anchor, anchor_primary);
+        else
+          resolved_anchor = MathMax(resolved_anchor, anchor_primary);
+      }
+      else
+      {
+        resolved_anchor = anchor_primary;
+      }
+    }
+
+    anchor_price = resolved_anchor;
     return (anchor_price > 0.0);
   }
 
