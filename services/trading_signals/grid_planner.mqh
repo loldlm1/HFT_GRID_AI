@@ -81,6 +81,24 @@ double GridPlanResolveProtectiveOffset(const SignalParams &signal_params,
   return 0.0;
 }
 
+double GridPlanResolveFallbackNextPrice(const SignalParams &signal_params,
+                                        const GridLevelPlan &plan,
+                                        const double point_size)
+{
+  double direction_mult = (signal_params.signal_type == BULLISH) ? 1.0 : -1.0;
+  double anchor_price = plan.anchor_price;
+  if(anchor_price <= 0.0)
+    anchor_price = signal_params.grid_plan.base_anchor_price;
+  if(anchor_price <= 0.0)
+    return 0.0;
+
+  double pending_points = GridPlanResolvePendingPoints(plan);
+  if(pending_points <= 0.0 || point_size <= 0.0)
+    return 0.0;
+
+  return anchor_price + direction_mult * pending_points * point_size;
+}
+
 NextPriceResolution GridPlanResolveNextPricing(const SignalParams &signal_params,
                                                const GridLevelPlan &plan,
                                                const double anchor_price,
@@ -149,12 +167,26 @@ void LogGridPlanLevelDetail(const SignalParams &signal_params,
   double pending_points = GridPlanResolvePendingPoints(level_plan);
   double tick_size = ResolveEffectiveTickSize(g_symbol_constraints.tick_size,
                                               g_symbol_constraints.point_size);
-  double alias_next = level_plan.next_resolved_price;
-  if(alias_next <= 0.0)
-    alias_next = level_plan.next_blueprint_price;
+  double point_size = g_symbol_constraints.point_size;
+  if(point_size <= 0.0)
+    point_size = SymbolInfoDouble(_Symbol, SYMBOL_POINT);
+  if(point_size <= 0.0)
+    point_size = 0.0001;
+
+  double next_price = level_plan.next_resolved_price;
+  string next_source = "resolved";
+  if(next_price <= 0.0)
+  {
+    next_price = GridPlanResolveFallbackNextPrice(signal_params, level_plan, point_size);
+    next_source = (next_price > 0.0) ? "fallback" : "-";
+  }
   string next_side = (level_plan.next_price_side == "") ? "-" : level_plan.next_price_side;
+  string source_token = (level_plan.next_price_source == "") ? "-" : level_plan.next_price_source;
   string clamp_reason = (level_plan.next_price_clamp_reason == "") ? "-" : level_plan.next_price_clamp_reason;
-  string detail = StringFormat("dir=%s|level=%d|dist=%.2f|baseline=%.2f|pending=%.2f|entry_offset=%.2f|activation=%.2f|activation_gap=%.2f|tp=%.2f|tp_final=%.2f|trail=%.2f|lot=%.2f|anchor=%.5f|entry_style=%s|next=%.5f|next_blueprint=%.5f|next_resolved=%.5f|side=%s|tick=%.5f|stop_level_pts=%.2f|spread_pts=%.1f|clamp=%s",
+  if(next_source != "resolved" && source_token != "-")
+    next_source = source_token;
+
+  string detail = StringFormat("dir=%s|level=%d|dist=%.2f|baseline=%.2f|pending=%.2f|entry_offset=%.2f|activation=%.2f|activation_gap=%.2f|tp=%.2f|tp_final=%.2f|trail=%.2f|lot=%.2f|anchor=%.5f|entry_style=%s|next=%.5f|next_source=%s|side=%s|tick=%.5f|stop_level_pts=%.2f|spread_pts=%.1f|clamp=%s",
                                direction,
                                level_plan.level_index,
                                level_plan.distance_points,
@@ -169,9 +201,8 @@ void LogGridPlanLevelDetail(const SignalParams &signal_params,
                                level_plan.lot_size,
                                level_plan.anchor_price,
                                EnumToString(level_plan.entry_style),
-                               alias_next,
-                               level_plan.next_blueprint_price,
-                               level_plan.next_resolved_price,
+                               next_price,
+                               next_source,
                                next_side,
                                tick_size,
                                pending_points,
@@ -230,10 +261,6 @@ bool CalculateBaseGridContext(const SignalTypes direction,
     {
       Print("Failed to fetch ATR distance, falling back to direct points input.");
       distance_points = Grid_ATR_Points_Setup;
-    }
-    else
-    {
-      distance_points = distance_points * MathMax(Grid_ATR_Points_Setup, 1.0);
     }
   }
   else
@@ -372,22 +399,22 @@ bool BuildGridPlanForSignal(SignalParams &signal_params)
   {
     GridLevelPlan initial_plan = signal_params.grid_plan.levels[0];
     double pending_points = GridPlanResolvePendingPoints(initial_plan);
-    double planned_pending_price = initial_plan.next_blueprint_price;
     double entry_side_price_log = signal_params.grid_plan.entry_side_price_initial;
     if(entry_side_price_log <= 0.0)
       entry_side_price_log = (signal_params.signal_type == BULLISH) ? g_ask : g_bid;
     double clamped_pending_price = initial_plan.next_resolved_price;
-    if(planned_pending_price <= 0.0)
-      planned_pending_price = initial_plan.anchor_price +
-                              ((signal_params.signal_type == BULLISH) ? 1.0 : -1.0) *
-                              pending_points * point_size;
+    string next_source = "resolved";
+    if(clamped_pending_price <= 0.0)
+    {
+      clamped_pending_price = GridPlanResolveFallbackNextPrice(signal_params,
+                                                               initial_plan,
+                                                               point_size);
+      next_source = (clamped_pending_price > 0.0) ? "fallback" : "-";
+    }
     string direction = (signal_params.signal_type == BULLISH) ? "BULLISH" : "BEARISH";
-    double alias_next = clamped_pending_price;
-    if(alias_next <= 0.0)
-      alias_next = planned_pending_price;
     string next_side = (initial_plan.next_price_side == "") ? "-" : initial_plan.next_price_side;
     string clamp_reason = (initial_plan.next_price_clamp_reason == "") ? "-" : initial_plan.next_price_clamp_reason;
-    string message = StringFormat("dir=%s|level=%d|dist=%.2f|pending_pts=%.2f|anchor=%.5f|activation_gap_pts=%.2f|entry_offset_pts=%.2f|entry_side_price=%.5f|clamped_pending_price=%.5f|style=%s|next=%.5f|next_blueprint=%.5f|next_resolved=%.5f|side=%s|clamp=%s",
+    string message = StringFormat("dir=%s|level=%d|dist=%.2f|pending_pts=%.2f|anchor=%.5f|activation_gap_pts=%.2f|entry_offset_pts=%.2f|entry_side_price=%.5f|pending_price=%.5f|style=%s|next_source=%s|side=%s|clamp=%s",
                                   direction,
                                   initial_plan.level_index,
                                   initial_plan.distance_points,
@@ -398,9 +425,7 @@ bool BuildGridPlanForSignal(SignalParams &signal_params)
                                   entry_side_price_log,
                                   clamped_pending_price,
                                   EnumToString(initial_plan.entry_style),
-                                  alias_next,
-                                  planned_pending_price,
-                                  clamped_pending_price,
+                                  next_source,
                                   next_side,
                                   clamp_reason);
     AppendTimestampedLog("query_debug.txt", "LEVEL_PENDING_INIT", message);
@@ -521,9 +546,9 @@ GridLevelPlan BuildLevelPlanForIndex(const SignalParams &signal_params,
                                                            level_plan.anchor_price,
                                                            pending_points_resolved,
                                                            entry_reference_price);
-  level_plan.next_blueprint_price    = pricing.blueprint_next;
-  level_plan.next_resolved_price     = pricing.resolved_next;
+  level_plan.next_resolved_price     = pricing.next_price;
   level_plan.next_price_side         = pricing.side;
+  level_plan.next_price_source       = pricing.source;
   level_plan.next_price_clamp_reason = pricing.clamp_reason;
 
   return level_plan;

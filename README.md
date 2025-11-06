@@ -72,7 +72,7 @@ The **HFT Grid AI EA** is a specialized Expert Advisor designed to execute high 
 ### Phase 2 – Current Deliverables
 - Centralized grid inputs (`Grid_Base_Strategy_Type`, ATR/points setup, multipliers, percentages, direction) with validation and logging of the active context
 - Added ATR factor indicator loading on demand and fallback handling for points-based grids
-- Grid plan builder now derives level spacing and the initial anchor price from the `ATR_SL_Factor` (shift 1) so every level shares consistent point references while honoring broker freeze/stop rules
+- Grid plan builder now derives level spacing and anchor prices directly from `ATR_SL_Factor` outputs (shift 1 for L0, shift 0 for deeper levels) while honoring broker freeze/stop rules
 - Introduced `Grid_Final_TP_Percent` to flag post-fill TP spans while keeping planner placeholders lightweight until execution
 - Protective offsets now derive from the entry-side price to the next baseline projection, applying `Grid_Positions_Stops_Percent` to every level while honoring broker clamps (legacy `Grid_Initial_Stops_Percent` remains for presets)
 - Take-profit geometry now locks onto the entry→next snapshot captured on fill, scaling that reference with `Grid_TP_Percent` / `Grid_Final_TP_Percent` without relying on `Grid_TP_Reference_Mode`
@@ -85,22 +85,22 @@ The **HFT Grid AI EA** is a specialized Expert Advisor designed to execute high 
 - Grid order controller now promotes levels sequentially and fires `CTrade` market orders the moment tagged stops are reached, persisting deal-linked position tickets and activation timestamps for telemetry while seeding the next grid level only after a confirmed fill
 - Resolved entry-to-anchor distances are recorded per level, scaling the remaining grid plan from the live base distance so pending stops and offsets honor real market fills instead of projected ATR ranges
 - Each active level maintains its relative range percentage inside the broadened grid envelope, updating metadata (`range_high_price`, `range_low_price`, `current_range_points`) for downstream analytics and guardrail logic
-- Pending buy/sell stops trail adverse price action while their next-level projections recompute from live bid/ask quotes each tick, keeping deeper grid anchors aligned until fills occur
-- Active positions refresh TP, final TP, and trailing protection from the entry→next reference span captured on fill so the unified percentages stay stable even as price advances
+- Pending buy/sell stops trail adverse price action while their next-level projections recompute from live bid/ask quotes and ATR anchors each tick, keeping deeper grid anchors aligned until fills occur
+- Active positions refresh TP, final TP, and trailing protection from the entry→next snapshot captured on fill so the unified percentages stay stable even as price advances
 - Trailing TP now keeps `(1 - Grid_Trailing_TP_Percent/100)` of that reference move behind the bid/ask, logging `tp_reference_pts` for telemetry
 - Dynamic lot sizing still supports fixed, percentage-based, or currency-based risk targets, all gated by spread/margin guardrails to prevent unsafe grid expansion
 - Pending level geometry now separates entry prices from protective stop placeholders, keeping take-profit projections, next-level forecasts, and telemetry output aligned with the ATR reference anchors
 
 ### Phase 4 – Current Deliverables
-- On-chart grid rendering now uses a single overlay per signal (STOP/ENTRY/TP/TP_FINAL/NEXT), hiding the stop after fill and swapping TP for the trailing line when protection engages
+- On-chart grid rendering now uses a single STOP/ENTRY/TP/TP_FINAL/NEXT overlay per signal, hiding the stop after fill and swapping TP for the trailing line when protection engages
 - Dashboard summary comment highlights active grids, level states, duration, and profit factor when `Enable_Chart_Summary` is true
 - Lightweight telemetry logs append lifecycle events to `query_debug.txt` when `Enable_File_Logs` is enabled for post-run analysis
 - Telemetry now captures the live grid span in points alongside per-level range percentages, unlocking upcoming Fibonacci-style visual overlays and improved range diagnostics
 - Grid telemetry tracks max favorable/adverse excursion, completed levels, and cumulative point statistics for future analytics modules
-- Pending entries render from `last_pending_price` when available and revert to ATR anchor projections otherwise, while NEXT-level lines mirror backend updates or predictive anchors to keep the UI aligned with lifecycle telemetry
+- Pending entries render from `last_pending_price` when available and fall back to ATR/anchor-based projections otherwise, while NEXT-level lines mirror backend updates with a `next_source` tag so the UI stays aligned with lifecycle telemetry
 
 ### Grid Telemetry Sequence
-1. `GRID_PLAN_LEVEL` — snapshot of the next level blueprint (distance, offsets, projected TP) before any order is staged.
+1. `GRID_PLAN_LEVEL` — snapshot of the next level geometry (distance, offsets, projected TP) before any order is staged.
 2. `GRID_PLAN_BASE` — contextual data for the signal (entry, anchor, point size) recorded once per plan refresh.
 3. `LEVEL_PENDING_INIT` — logged when the planner hands the first pending order to the lifecycle.
 4. `LEVEL_PENDING` — emitted on subsequent recalculations or trailing updates before activation.
@@ -124,7 +124,7 @@ The **HFT Grid AI EA** is a specialized Expert Advisor designed to execute high 
 
 ### Grid Strategy Settings
 - `Grid_Base_Strategy_Type`: Chooses base spacing mode.
-  - `ATR_RANGE`: Uses `ATR_SL_Factor` distance (buffer 2) multiplied by `Grid_ATR_Points_Setup` and converted to points.
+  - `ATR_RANGE`: Uses `ATR_SL_Factor` anchors (shift 1 for L0, shift 0 for deeper levels) to derive distances in points. `Grid_ATR_Points_Setup` configures the indicator factor but no longer scales distances post-fetch.
   - `POINTS_RANGE`: Uses `Grid_ATR_Points_Setup` as fixed points distance.
 - `Grid_ATR_Points_Setup`: ATR factor (ATR mode) or absolute points (Points mode).
 - `Grid_Multiplier`: Lot scaling per level (default 2.0).

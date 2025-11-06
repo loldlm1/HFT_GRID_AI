@@ -56,7 +56,7 @@ This is a HFT Grid AI Expert Advisor designed to execute high frequency position
 - In Progress: validate NEXT-line projections against `LEVEL_NEXT_UPDATE` telemetry in Strategy Tester (with `Enable_File_Logs=true`) to confirm pre-fill anchor predictions stay in sync before layering additional overlay options
 
 ### Grid Telemetry Sequence (Reference)
-- `GRID_PLAN_LEVEL`: next level blueprint (distance, offsets, projected TP) captured before order staging.
+- `GRID_PLAN_LEVEL`: next level geometry (distance, offsets, projected TP) captured before order staging.
 - `GRID_PLAN_BASE`: signal context (entry, anchor, point size) logged once per plan build.
 - `LEVEL_PENDING`: emitted whenever a pending order is armed; repeats only if the level is recomputed before activation.
 - `LEVEL_NEXT_UPDATE`: captures material changes to the projected next level price as trailing logic or guardrails adjust pending orders.
@@ -82,7 +82,7 @@ This is a HFT Grid AI Expert Advisor designed to execute high frequency position
 
 ### Phase 2 Telemetry Expansion
 - Pending diagnostics now include `LEVEL_PENDING_INIT` entries emitted when `BuildGridPlanForSignal()` schedules the first level and `InitializeGridOrdersForSignal()` instantiates it. The sequence is:
-  1. `GRID_PLAN_LEVEL` — level blueprint created
+  1. `GRID_PLAN_LEVEL` — level geometry captured
   2. `GRID_PLAN_BASE` — context snapshot
   3. `LEVEL_PENDING_INIT` — first pending order armed
   4. `LEVEL_PENDING` — subsequent recalculations or trailing updates prior to fill

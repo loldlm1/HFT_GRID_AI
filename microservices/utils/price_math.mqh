@@ -6,17 +6,17 @@
 
 struct NextPriceResolution
 {
-  double blueprint_next;
-  double resolved_next;
+  double next_price;
   string side;
   string clamp_reason;
+  string source;
 
   NextPriceResolution()
   {
-    blueprint_next = 0.0;
-    resolved_next  = 0.0;
-    side           = "";
-    clamp_reason   = "";
+    next_price   = 0.0;
+    side         = "";
+    clamp_reason = "";
+    source       = "";
   }
 };
 
@@ -43,9 +43,8 @@ double ResolveEffectiveTickSize(const double tick_size_candidate,
   return 0.0001;
 }
 
-// Derives blueprint and resolved activation prices for the next grid level.
-// The blueprint price is the raw anchor+distance projection while the resolved
-// price respects protective offsets, broker stop distances, and symbol tick size.
+// Derives the resolved activation price for the next grid level while tracking
+// any clamp reasons applied during the calculation.
 NextPriceResolution ResolveNextPrice(const double anchor,
                                      const int    level_idx,
                                      const bool   is_bullish,
@@ -65,11 +64,13 @@ NextPriceResolution ResolveNextPrice(const double anchor,
                                                    g_symbol_constraints.point_size);
   double direction_mult = is_bullish ? 1.0 : -1.0;
   result.side = is_bullish ? "ASK" : "BID";
+  result.source = "baseline";
 
+  double baseline_price = 0.0;
   if(anchor > 0.0 && stop_level_points > 0.0 && effective_tick > 0.0)
-    result.blueprint_next = anchor + direction_mult * stop_level_points * effective_tick;
+    baseline_price = anchor + direction_mult * stop_level_points * effective_tick;
 
-  double resolved_price = result.blueprint_next;
+  double resolved_price = baseline_price;
   double side_price = is_bullish ? ask : bid;
   if(side_price <= 0.0)
     side_price = is_bullish ? bid : ask;
@@ -85,6 +86,7 @@ NextPriceResolution ResolveNextPrice(const double anchor,
       {
         resolved_price = required_price;
         AppendClampReason(result.clamp_reason, "protective");
+        result.source = "clamped";
       }
     }
     else
@@ -93,6 +95,7 @@ NextPriceResolution ResolveNextPrice(const double anchor,
       {
         resolved_price = required_price;
         AppendClampReason(result.clamp_reason, "protective");
+        result.source = "clamped";
       }
     }
   }
@@ -108,6 +111,7 @@ NextPriceResolution ResolveNextPrice(const double anchor,
       {
         resolved_price = required_price;
         AppendClampReason(result.clamp_reason, "broker_stops");
+        result.source = "clamped";
       }
     }
     else
@@ -116,6 +120,7 @@ NextPriceResolution ResolveNextPrice(const double anchor,
       {
         resolved_price = required_price;
         AppendClampReason(result.clamp_reason, "broker_stops");
+        result.source = "clamped";
       }
     }
   }
@@ -126,10 +131,11 @@ NextPriceResolution ResolveNextPrice(const double anchor,
     {
       resolved_price = side_price + direction_mult * effective_tick;
       AppendClampReason(result.clamp_reason, "fallback_side");
+      result.source = "side_fallback";
     }
     else
     {
-      resolved_price = result.blueprint_next;
+      resolved_price = baseline_price;
     }
   }
 
@@ -147,6 +153,7 @@ NextPriceResolution ResolveNextPrice(const double anchor,
     {
       resolved_price = rounded_price;
       AppendClampReason(result.clamp_reason, "tick_round");
+      result.source = "clamped";
     }
   }
 
@@ -163,6 +170,7 @@ NextPriceResolution ResolveNextPrice(const double anchor,
         if(resolved_price - previous_pending_price > (tolerance + 1e-9))
           AppendClampReason(result.clamp_reason, "monotonic");
         resolved_price = previous_pending_price;
+        result.source = "monotonic";
       }
     }
     else
@@ -172,11 +180,14 @@ NextPriceResolution ResolveNextPrice(const double anchor,
         if(previous_pending_price - resolved_price > (tolerance + 1e-9))
           AppendClampReason(result.clamp_reason, "monotonic");
         resolved_price = previous_pending_price;
+        result.source = "monotonic";
       }
     }
   }
 
-  result.resolved_next = resolved_price;
+  if(resolved_price <= 0.0)
+    result.source = "-";
+  result.next_price = resolved_price;
   return result;
 }
 
