@@ -307,64 +307,14 @@ double ResolveProjectedNextPrice(const SignalParams &signal_params,
   if(backend_next > 0.0)
     return backend_next;
 
-  if(predicted_entry_price <= 0.0 || point_size <= 0.0)
-    return 0.0;
+  double fallback_next = GridComputeFallbackNextPrice(signal_params,
+                                                      level_state,
+                                                      level_index + 1,
+                                                      point_size);
+  if(fallback_next > 0.0)
+    return fallback_next;
 
-  double effective_distance = ResolveEffectiveDistancePoints(level_plan, level_state);
-  if(effective_distance <= 0.0)
-    return 0.0;
-
-  double next_anchor = predicted_entry_price - direction_mult * effective_distance * point_size;
-
-  int next_index = level_index + 1;
-  GridLevelPlan next_plan = GridLevelPlan();
-  if(next_index < ArraySize(signal_params.grid_plan.levels))
-  {
-    next_plan = signal_params.grid_plan.levels[next_index];
-    if(next_plan.anchor_price <= 0.0)
-      next_plan.anchor_price = next_anchor;
-  }
-  else
-  {
-    double base_distance = signal_params.grid_plan.base_distance_points;
-    double exponential_multiplier = MathMax(Grid_Exponential_Multiplier, 1.0);
-    if(base_distance <= 0.0)
-      base_distance = effective_distance;
-    double computed_distance = base_distance * MathPow(exponential_multiplier, next_index);
-    if(computed_distance <= 0.0)
-      computed_distance = effective_distance * exponential_multiplier;
-
-    double entry_percent = MathMax(Grid_Positions_Stops_Percent, 0.0);
-    double entry_offset = 0.0;
-    if(next_plan.entry_style == GRID_ENTRY_STYLE_STOP &&
-       entry_percent > 0.0 &&
-       point_size > 0.0 &&
-       predicted_entry_price > 0.0)
-    {
-      double gap_points = MathAbs(predicted_entry_price - next_plan.anchor_price) / point_size;
-      if(gap_points <= 0.0)
-        gap_points = computed_distance;
-      entry_offset = gap_points * (entry_percent / 100.0);
-    }
-
-    next_plan.level_index       = next_index;
-    next_plan.anchor_price      = next_anchor;
-    next_plan.distance_points   = computed_distance;
-    next_plan.entry_offset_points = entry_offset;
-    next_plan.entry_style       = (next_index == 0) ? Grid_Initial_Entry_Style : Grid_Deep_Entry_Style;
-    if(next_plan.entry_style == GRID_ENTRY_STYLE_LIMIT)
-      next_plan.pending_order_points = computed_distance - entry_offset;
-    else
-      next_plan.pending_order_points = computed_distance + entry_offset;
-    if(next_plan.pending_order_points <= 0.0)
-      next_plan.pending_order_points = computed_distance;
-  }
-
-  double pending_points = ResolvePendingPointsForPlan(next_plan);
-  if(pending_points <= 0.0)
-    return 0.0;
-
-  return next_plan.anchor_price + direction_mult * pending_points * point_size;
+  return 0.0;
 }
 
 #endif // _MICROSERVICES_FRONTEND_GRID_VISUAL_PROJECTION_MQH_
