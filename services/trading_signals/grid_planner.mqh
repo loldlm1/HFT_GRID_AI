@@ -109,7 +109,8 @@ NextPriceResolution GridPlanResolveNextPricing(const SignalParams &signal_params
                           tick_size,
                           g_points_spread,
                           ask_value,
-                          bid_value);
+                          bid_value,
+                          0.0);
 }
 
 void LogGridPlanDiagnostics(const SignalParams &signal_params,

@@ -54,7 +54,8 @@ NextPriceResolution ResolveNextPrice(const double anchor,
                                      const double tick_size,
                                      const double spread_points,
                                      double       ask,
-                                     double       bid)
+                                     double       bid,
+                                     const double previous_pending_price)
 {
   NextPriceResolution result = NextPriceResolution();
   if(level_idx < 0)
@@ -146,6 +147,32 @@ NextPriceResolution ResolveNextPrice(const double anchor,
     {
       resolved_price = rounded_price;
       AppendClampReason(result.clamp_reason, "tick_round");
+    }
+  }
+
+  if(previous_pending_price > 0.0 && resolved_price > 0.0)
+  {
+    double tolerance = effective_tick;
+    if(tolerance <= 0.0)
+      tolerance = 1e-9;
+
+    if(is_bullish)
+    {
+      if(resolved_price > previous_pending_price)
+      {
+        if(resolved_price - previous_pending_price > (tolerance + 1e-9))
+          AppendClampReason(result.clamp_reason, "monotonic");
+        resolved_price = previous_pending_price;
+      }
+    }
+    else
+    {
+      if(resolved_price < previous_pending_price)
+      {
+        if(previous_pending_price - resolved_price > (tolerance + 1e-9))
+          AppendClampReason(result.clamp_reason, "monotonic");
+        resolved_price = previous_pending_price;
+      }
     }
   }
 

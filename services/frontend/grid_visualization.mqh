@@ -220,37 +220,220 @@ double ResolveNextOverlayPrice(const SignalParams &signal_params,
                                const double point_size)
 {
   GridOrderState source_state = GridOrderState();
+  GridOrderState target_state = GridOrderState();
+  if(target_index >= 0 && target_index < ArraySize(signal_params.grid_orders))
+    target_state = signal_params.grid_orders[target_index];
+
   if(source_index >= 0 && source_index < ArraySize(signal_params.grid_orders))
     source_state = signal_params.grid_orders[source_index];
 
-  if(source_state.next_level_price > 0.0)
-    return source_state.next_level_price;
-
+  GridLevelPlan target_plan = GridLevelPlan();
+  bool has_target_plan = false;
   if(target_index >= 0 && target_index < ArraySize(signal_params.grid_plan.levels))
   {
-    GridLevelPlan plan = signal_params.grid_plan.levels[target_index];
-    double next_price = plan.next_resolved_price;
-    if(next_price <= 0.0)
-      next_price = plan.next_blueprint_price;
-    if(next_price <= 0.0)
+    target_plan = signal_params.grid_plan.levels[target_index];
+    has_target_plan = true;
+  }
+
+  bool backend_from_source_next  = false;
+  bool backend_from_plan         = false;
+  bool backend_from_target_state = false;
+  bool backend_from_target_next  = false;
+  double backend_reference = 0.0;
+  if(source_state.next_level_price > 0.0)
+  {
+    backend_reference = source_state.next_level_price;
+    backend_from_source_next = true;
+  }
+  else if(has_target_plan && target_plan.next_resolved_price > 0.0)
+  {
+    backend_reference = target_plan.next_resolved_price;
+    backend_from_plan = true;
+  }
+  else if(target_state.last_pending_price > 0.0)
+  {
+    backend_reference = target_state.last_pending_price;
+    backend_from_target_state = true;
+  }
+  else if(target_state.next_level_price > 0.0)
+  {
+    backend_reference = target_state.next_level_price;
+    backend_from_target_next = true;
+  }
+
+  double overlay_price = backend_reference;
+  bool overlay_from_blueprint     = false;
+  bool overlay_from_source_pending = false;
+
+  if(overlay_price <= 0.0 && has_target_plan)
+  {
+    double fallback_price = target_plan.next_blueprint_price;
+    if(fallback_price <= 0.0)
     {
-      double pending_points = ResolvePendingPointsForPlan(plan);
-      double anchor_price = plan.anchor_price;
+      double pending_points = ResolvePendingPointsForPlan(target_plan);
+      double anchor_price = target_plan.anchor_price;
       if(anchor_price <= 0.0 && source_state.anchor_price > 0.0)
         anchor_price = source_state.anchor_price;
+      if(anchor_price <= 0.0 && target_state.anchor_price > 0.0)
+        anchor_price = target_state.anchor_price;
       if(anchor_price <= 0.0)
         anchor_price = signal_params.grid_plan.base_anchor_price;
       if(anchor_price > 0.0 && pending_points > 0.0 && point_size > 0.0)
-        next_price = anchor_price + direction_mult * pending_points * point_size;
+        fallback_price = anchor_price + direction_mult * pending_points * point_size;
     }
-    if(next_price > 0.0)
-      return next_price;
+    overlay_price = fallback_price;
+    overlay_from_blueprint = (fallback_price > 0.0);
   }
 
-  if(source_state.last_pending_price > 0.0)
-    return source_state.last_pending_price;
+  if(overlay_price <= 0.0 && source_state.last_pending_price > 0.0)
+  {
+    overlay_price = source_state.last_pending_price;
+    overlay_from_source_pending = true;
+  }
 
-  return 0.0;
+  double tolerance = point_size;
+  if(tolerance <= 0.0)
+    tolerance = 1e-9;
+
+  if(Enable_File_Logs && backend_reference > 0.0 && overlay_price > 0.0)
+  {
+    if(MathAbs(overlay_price - backend_reference) > (tolerance + 1e-9))
+    {
+      string direction = (signal_params.signal_type == BULLISH) ? "BULLISH" : "BEARISH";
+      string detail = StringFormat("dir=%s|source=%d|target=%d|overlay=%.5f|backend=%.5f|source_next=%.5f|target_pending=%.5f|plan_resolved=%.5f|plan_blueprint=%.5f",
+                                   direction,
+                                   source_index,
+                                   target_index,
+                                   overlay_price,
+                                   backend_reference,
+                                   source_state.next_level_price,
+                                   target_state.last_pending_price,
+                                   has_target_plan ? target_plan.next_resolved_price : 0.0,
+                                   has_target_plan ? target_plan.next_blueprint_price : 0.0);
+      AppendTimestampedLog("query_debug.txt", "NEXT_OVERLAY_DIFF", detail);
+    }
+  }
+  if(Enable_File_Logs && overlay_price > 0.0 && backend_reference <= 0.0)
+  {
+    string direction = (signal_params.signal_type == BULLISH) ? "BULLISH" : "BEARISH";
+    string source_tokens = "";
+    if(backend_from_source_next)
+      source_tokens = "source_next";
+    else if(backend_from_plan)
+      source_tokens = "plan_next";
+    else if(backend_from_target_state)
+      source_tokens = "target_pending";
+    else if(backend_from_target_next)
+      source_tokens = "target_next";
+    else
+      source_tokens = "-";
+
+    string overlay_tokens = "";
+    if(overlay_from_blueprint)
+      overlay_tokens = "plan_blueprint";
+    else if(overlay_from_source_pending)
+      overlay_tokens = "source_pending";
+    else
+      overlay_tokens = "-";
+
+    string detail = StringFormat("dir=%s|source=%d|target=%d|overlay=%.5f|backend=%.5f|fallback=%s|backend_source=%s|source_next=%.5f|target_pending=%.5f|plan_resolved=%.5f|plan_blueprint=%.5f",
+                                 direction,
+                                 source_index,
+                                 target_index,
+                                 overlay_price,
+                                 backend_reference,
+                                 overlay_tokens,
+                                 source_tokens,
+                                 source_state.next_level_price,
+                                 target_state.last_pending_price,
+                                 has_target_plan ? target_plan.next_resolved_price : 0.0,
+                                 has_target_plan ? target_plan.next_blueprint_price : 0.0);
+    AppendTimestampedLog("query_debug.txt", "NEXT_OVERLAY_FALLBACK", detail);
+  }
+
+  if(!Enable_File_Logs || overlay_price <= 0.0 || source_index < 0)
+    return overlay_price;
+
+  static double last_overlay_logged[];
+  static double last_backend_logged[];
+  static bool   overlay_state_initialized = false;
+  ArrayResize(last_overlay_logged, GRID_MAX_LEVELS);
+  ArrayResize(last_backend_logged, GRID_MAX_LEVELS);
+  if(!overlay_state_initialized)
+  {
+    for(int idx = 0; idx < GRID_MAX_LEVELS; idx++)
+    {
+      last_overlay_logged[idx] = 0.0;
+      last_backend_logged[idx] = 0.0;
+    }
+    overlay_state_initialized = true;
+  }
+
+  double last_overlay = 0.0;
+  double last_backend = 0.0;
+  if(source_index < GRID_MAX_LEVELS)
+  {
+    last_overlay = last_overlay_logged[source_index];
+    last_backend = last_backend_logged[source_index];
+  }
+
+  bool should_log_state = false;
+  if(backend_reference <= 0.0)
+  {
+    should_log_state = true;
+  }
+  else
+  {
+    if(MathAbs(overlay_price - last_overlay) > (tolerance + 1e-9) ||
+       MathAbs(backend_reference - last_backend) > (tolerance + 1e-9))
+      should_log_state = true;
+  }
+
+  if(!should_log_state)
+    return overlay_price;
+
+  if(source_index < GRID_MAX_LEVELS)
+  {
+    last_overlay_logged[source_index] = overlay_price;
+    last_backend_logged[source_index] = backend_reference;
+  }
+
+  string direction = (signal_params.signal_type == BULLISH) ? "BULLISH" : "BEARISH";
+  string backend_origin = "";
+  if(backend_from_source_next)
+    backend_origin = "source_next";
+  else if(backend_from_plan)
+    backend_origin = "plan_next";
+  else if(backend_from_target_state)
+    backend_origin = "target_pending";
+  else if(backend_from_target_next)
+    backend_origin = "target_next";
+  else
+    backend_origin = "-";
+
+  string overlay_origin = "";
+  if(overlay_from_blueprint)
+    overlay_origin = "plan_blueprint";
+  else if(overlay_from_source_pending)
+    overlay_origin = "source_pending";
+  else
+    overlay_origin = "backend";
+
+  string detail = StringFormat("dir=%s|source=%d|target=%d|overlay=%.5f|backend=%.5f|overlay_origin=%s|backend_origin=%s|source_next=%.5f|target_pending=%.5f|plan_resolved=%.5f|plan_blueprint=%.5f",
+                               direction,
+                               source_index,
+                               target_index,
+                               overlay_price,
+                               backend_reference,
+                               overlay_origin,
+                               backend_origin,
+                               source_state.next_level_price,
+                               target_state.last_pending_price,
+                               has_target_plan ? target_plan.next_resolved_price : 0.0,
+                               has_target_plan ? target_plan.next_blueprint_price : 0.0);
+  AppendTimestampedLog("query_debug.txt", "NEXT_OVERLAY_STATE", detail);
+
+  return overlay_price;
 }
 
 double ResolvePredictedEntryPrice(const SignalParams &signal_params,
