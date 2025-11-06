@@ -273,6 +273,14 @@ void GridInitializePendingLevel(SignalParams &signal_params,
                                                             activation_gap_pts);
     if(protective_offset_pts > 0.0)
       protective_offset_pts = EnforceBrokerDistance(g_symbol_constraints, protective_offset_pts);
+
+    double percent_reference_pts = 0.0;
+    if(unified_percent > 0.0 && baseline_distance_points > 0.0)
+      percent_reference_pts = baseline_distance_points * (unified_percent / 100.0);
+    if(percent_reference_pts > 0.0)
+      percent_reference_pts = EnforceBrokerDistance(g_symbol_constraints, percent_reference_pts);
+    if(percent_reference_pts > protective_offset_pts + 1e-9)
+      protective_offset_pts = percent_reference_pts;
   }
 
   if(level_plan.entry_style != GRID_ENTRY_STYLE_STOP)
