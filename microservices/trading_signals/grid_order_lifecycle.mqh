@@ -162,6 +162,8 @@ void GridInitializePendingLevel(SignalParams &signal_params,
     resolved_point_size = GridResolvePointSize();
 
   GridLevelPlan level_plan = signal_params.grid_plan.levels[level_index];
+  double planned_entry_offset = level_plan.entry_offset_points;
+  double planned_pending_points = level_plan.pending_order_points;
   double direction_mult = GridResolveDirectionMultiplier(direction);
 
   if(Grid_Base_Strategy_Type == ATR_RANGE)
@@ -195,9 +197,6 @@ void GridInitializePendingLevel(SignalParams &signal_params,
       double scaled_distance = base_distance * MathPow(exponential_multiplier, level_index);
       level_plan.distance_points = scaled_distance;
       level_plan.baseline_distance_points = scaled_distance;
-      level_plan.pending_order_points = 0.0;
-      level_plan.entry_offset_points = 0.0;
-      level_plan.protective_stop_points = 0.0;
       signal_params.grid_plan.levels[level_index] = level_plan;
     }
   }
@@ -302,11 +301,20 @@ void GridInitializePendingLevel(SignalParams &signal_params,
     pending_points = EnforceBrokerDistance(g_symbol_constraints, pending_points);
   if(pending_points <= 0.0)
     pending_points = baseline_distance_points;
+  if(planned_pending_points > 0.0 &&
+     pending_points < planned_pending_points - 1e-9)
+    pending_points = planned_pending_points;
 
   if(level_plan.entry_style == GRID_ENTRY_STYLE_STOP)
     level_plan.entry_offset_points = protective_offset_pts;
   else
     level_plan.entry_offset_points = 0.0;
+  if(planned_entry_offset > 0.0)
+  {
+    if(level_plan.entry_offset_points <= 0.0 ||
+       level_plan.entry_offset_points < planned_entry_offset - 1e-9)
+      level_plan.entry_offset_points = planned_entry_offset;
+  }
   level_plan.protective_stop_points = level_plan.entry_offset_points;
   level_plan.pending_order_points = pending_points;
   level_plan.activation_offset_points = activation_gap_pts;
