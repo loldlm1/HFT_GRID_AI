@@ -185,9 +185,55 @@ void UpdateGridLifecycle(SignalParams &signal_params)
 
       level_plan = signal_params.grid_plan.levels[i];
 
+      double entry_side_price_current = GridCurrentPriceForDirection(direction, true);
+      double tracked_entry_price = order_state.entry_side_price_trailing;
+      double tick_tolerance = ResolveEffectiveTickSize(g_symbol_constraints.tick_size,
+                                                       point_size);
+      if(tick_tolerance <= 0.0)
+        tick_tolerance = point_size;
+      if(tick_tolerance <= 0.0)
+        tick_tolerance = 1e-9;
+
+      bool should_refresh_pending = false;
+      if(entry_side_price_current > 0.0)
+      {
+        if(tracked_entry_price <= 0.0)
+        {
+          should_refresh_pending = true;
+        }
+        else if(direction == BULLISH && entry_side_price_current < tracked_entry_price - tick_tolerance)
+        {
+          should_refresh_pending = true;
+        }
+        else if(direction == BEARISH && entry_side_price_current > tracked_entry_price + tick_tolerance)
+        {
+          should_refresh_pending = true;
+        }
+      }
+
+      double previous_pending_price = order_state.last_pending_price;
+      if(should_refresh_pending)
+      {
+        GridInitializePendingLevel(signal_params,
+                                   direction,
+                                   order_state,
+                                   point_size);
+        level_plan = signal_params.grid_plan.levels[i];
+        if(MathAbs(order_state.last_pending_price - previous_pending_price) >= (tick_tolerance - 1e-9))
+          GridLogEvent("LEVEL_PENDING", signal_params, order_state, level_plan);
+      }
+
       if(i > 0 && (i - 1) < ArraySize(signal_params.grid_orders))
       {
         GridOrderState previous_state = signal_params.grid_orders[i - 1];
+        GridLevelPlan previous_plan = GridLevelPlan();
+        bool has_previous_plan = false;
+        if((i - 1) < ArraySize(signal_params.grid_plan.levels))
+        {
+          previous_plan = signal_params.grid_plan.levels[i - 1];
+          has_previous_plan = true;
+        }
+
         double previous_next_price = previous_state.next_level_price;
         double new_next_price = level_plan.next_resolved_price;
         double change_threshold = point_size;
@@ -209,22 +255,72 @@ void UpdateGridLifecycle(SignalParams &signal_params)
         }
 
         previous_state.next_level_price = new_next_price;
-        if((i - 1) < ArraySize(signal_params.grid_plan.levels))
+        if(has_previous_plan)
         {
-          GridLevelPlan previous_plan = signal_params.grid_plan.levels[i - 1];
           previous_plan.next_resolved_price     = level_plan.next_resolved_price;
           previous_plan.next_price_side         = level_plan.next_price_side;
           previous_plan.next_price_source       = level_plan.next_price_source;
           previous_plan.next_price_clamp_reason = level_plan.next_price_clamp_reason;
-          signal_params.grid_plan.levels[i - 1] = previous_plan;
         }
+
+        if(previous_state.status == GRID_ORDER_ACTIVE)
+        {
+          double reference_price = new_next_price;
+          if(reference_price <= 0.0)
+            reference_price = GridComputeFallbackNextPrice(signal_params,
+                                                           previous_state,
+                                                           previous_state.level_index + 1,
+                                                           point_size);
+
+          double tp_reference_points = 0.0;
+          if(previous_state.entry_price > 0.0 &&
+             reference_price > 0.0 &&
+             point_size > 0.0)
+            tp_reference_points = MathAbs(previous_state.entry_price - reference_price) / point_size;
+
+          double tp_points = 0.0;
+          double final_points = 0.0;
+          double tp_percent = MathMax(Grid_TP_Percent, 0.0);
+          double final_percent = MathMax(Grid_Final_TP_Percent, 0.0);
+          if(tp_reference_points > 0.0 && tp_percent > 0.0)
+          {
+            tp_points = tp_reference_points * (tp_percent / 100.0);
+            tp_points = EnforceBrokerDistance(g_symbol_constraints, tp_points);
+          }
+          if(tp_reference_points > 0.0 && final_percent > 0.0)
+          {
+            final_points = tp_reference_points * (final_percent / 100.0);
+            final_points = EnforceBrokerDistance(g_symbol_constraints, final_points);
+          }
+
+          previous_state.tp_reference_points = tp_reference_points;
+          if(!previous_state.tp_reached)
+          {
+            if(tp_points > 0.0)
+              previous_state.take_profit_price = previous_state.entry_price + direction_mult * tp_points * point_size;
+            else
+              previous_state.take_profit_price = 0.0;
+          }
+
+          if(final_points > 0.0)
+            previous_state.final_take_profit_price = previous_state.entry_price + direction_mult * final_points * point_size;
+          else
+            previous_state.final_take_profit_price = 0.0;
+
+          if(has_previous_plan)
+          {
+            previous_plan.take_profit_points = tp_points;
+            previous_plan.final_take_profit_points = final_points;
+          }
+        }
+
+        if(has_previous_plan)
+          signal_params.grid_plan.levels[i - 1] = previous_plan;
         signal_params.grid_orders[i - 1] = previous_state;
 
         if(emit_next_update)
         {
-          GridLevelPlan logging_plan = GridLevelPlan();
-          if((i - 1) < ArraySize(signal_params.grid_plan.levels))
-            logging_plan = signal_params.grid_plan.levels[i - 1];
+          GridLevelPlan logging_plan = has_previous_plan ? previous_plan : GridLevelPlan();
           GridLogEvent("LEVEL_NEXT_UPDATE", signal_params, previous_state, logging_plan);
         }
       }

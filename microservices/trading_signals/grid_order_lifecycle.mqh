@@ -123,6 +123,12 @@ void GridScheduleNextLevel(SignalParams &signal_params,
   if(target_level < 0)
     return;
 
+  if(target_level >= ArraySize(signal_params.grid_plan.levels))
+  {
+    if(!GridEnsureLevelPlan(signal_params, target_level))
+      return;
+  }
+
   GridEnsureOrderState(signal_params, target_level);
 
   if(target_level >= ArraySize(signal_params.grid_plan.levels))
@@ -189,8 +195,9 @@ void GridInitializePendingLevel(SignalParams &signal_params,
       double scaled_distance = base_distance * MathPow(exponential_multiplier, level_index);
       level_plan.distance_points = scaled_distance;
       level_plan.baseline_distance_points = scaled_distance;
-      if(level_plan.pending_order_points <= 0.0)
-        level_plan.pending_order_points = scaled_distance;
+      level_plan.pending_order_points = 0.0;
+      level_plan.entry_offset_points = 0.0;
+      level_plan.protective_stop_points = 0.0;
       signal_params.grid_plan.levels[level_index] = level_plan;
     }
   }
@@ -368,6 +375,11 @@ void GridInitializePendingLevel(SignalParams &signal_params,
   order_state.stop_loss_price    = 0.0;
   order_state.last_pending_price = pending_price;
   order_state.next_level_price   = 0.0;
+  if(pending_price > 0.0)
+    order_state.status = GRID_ORDER_PENDING;
+  else
+    order_state.status = GRID_ORDER_WAITING;
+  order_state.last_action_time = TimeCurrent();
 
   double expected_entry = pending_price;
 
@@ -395,6 +407,7 @@ void GridInitializePendingLevel(SignalParams &signal_params,
   }
 
   level_plan.anchor_price               = resolved_anchor;
+  level_plan.baseline_anchor_price      = resolved_anchor;
   level_plan.next_resolved_price        = pending_price;
   level_plan.next_price_side            = pricing.side;
   level_plan.next_price_clamp_reason    = pricing.clamp_reason;
