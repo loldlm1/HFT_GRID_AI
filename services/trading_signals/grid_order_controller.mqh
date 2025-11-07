@@ -1,11 +1,6 @@
 #ifndef _SERVICES_TRADING_SIGNALS_GRID_ORDER_CONTROLLER_MQH_
 #define _SERVICES_TRADING_SIGNALS_GRID_ORDER_CONTROLLER_MQH_
 
-#include "../../microservices/trading_signals/grid_order_helpers.mqh"
-#include "../../microservices/trading_signals/grid_order_math.mqh"
-#include "../../microservices/trading_signals/grid_order_logging.mqh"
-#include "../../microservices/trading_signals/grid_order_lifecycle.mqh"
-
 void InitializeGridOrdersForSignal(SignalParams &signal_params)
 {
   if(!signal_params.grid_initialized)
@@ -15,22 +10,15 @@ void InitializeGridOrdersForSignal(SignalParams &signal_params)
   if(total_levels <= 0)
     return;
 
-  for(int i = 0; i < total_levels; i++)
-  {
-    GridOrderState state = signal_params.grid_orders[i];
-    state.status = (i == 0) ? GRID_ORDER_WAITING : GRID_ORDER_INACTIVE;
-    state.entry_price = 0.0;
-    state.take_profit_price = 0.0;
-    state.final_take_profit_price = 0.0;
-    state.trailing_price = 0.0;
-    state.tp_reference_points = 0.0;
-    state.position_ticket = 0;
-    state.position_comment = "";
-    state.is_trailing_active = false;
-    state.tp_reached = false;
-    state.last_action_time = 0;
-    signal_params.grid_orders[i] = state;
-  }
+  // INITIAL GRID START AT 0 ARRAY INDEX
+  signal_params.grid_orders[0].level_index             = 0; // INITIAL GRID POSITION, NEXT LEVEL IS 1..N
+  signal_params.grid_orders[0].status                  = GRID_ORDER_STOP_TRAILING_ACTIVE; // INITIAL ORDER STARTS WITH BUY/SELL STOP
+  signal_params.grid_orders[0].base_distance_points    = signal_params.grid_base_distance_points;
+  signal_params.grid_orders[0].pending_distance_points = signal_params.grid_base_distance_points;
+  signal_params.grid_orders[0].entry_offset_points     = signal_params.grid_entry_offset_points;
+  signal_params.grid_orders[0].lot_size                = signal_params.grid_base_lot_size;
+  signal_params.grid_orders[0].entry_reference_price   = GetGridStopReferencePrice(signal_params.signal_type, signal_params.grid_orders[0]);
+  signal_params.grid_orders[0].next_level_price        = GetGridNextLevelPrice(signal_params.signal_type, signal_params.grid_orders[0]);
 }
 
 void UpdateGridLifecycle(SignalParams &signal_params)
@@ -51,17 +39,6 @@ void UpdateGridLifecycle(SignalParams &signal_params)
     {
       case GRID_ORDER_WAITING:
       {
-        bool previous_ready = (i == 0);
-        if(i > 0)
-        {
-          GridOrderState prev = signal_params.grid_orders[i - 1];
-          previous_ready = (prev.status == GRID_ORDER_ACTIVE ||
-                            prev.status == GRID_ORDER_COMPLETED);
-        }
-
-        if(!previous_ready)
-          break;
-
         string guardrail_reason = "";
         if(GridGuardrailsAllowOrder(normalized_volume, guardrail_reason))
         {

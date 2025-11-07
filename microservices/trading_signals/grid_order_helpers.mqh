@@ -127,41 +127,6 @@ void GridResetOrderStateForWaiting(GridOrderState &state,
   state.position_comment   = "";
 }
 
-void GridScalePlannedLevels(SignalParams &signal_params,
-                            const double scaling_factor,
-                            const int from_level_index)
-{
-  if(from_level_index < 0)
-    return;
-  if(scaling_factor <= 0.0)
-    return;
-  if(MathAbs(scaling_factor - 1.0) < 1e-6)
-    return;
-
-  int total_levels = ArraySize(signal_params.grid_orders);
-  for(int i = from_level_index; i < total_levels; i++)
-  {
-    GridOrderState state = signal_params.grid_orders[i];
-    state.base_distance_points        *= scaling_factor;
-    state.pending_distance_points     *= scaling_factor;
-    state.activation_distance_points  *= scaling_factor;
-    state.activation_offset_points    *= scaling_factor;
-    state.entry_offset_points         *= scaling_factor;
-    state.protective_distance_points  *= scaling_factor;
-    state.take_profit_points          *= scaling_factor;
-    state.final_take_profit_points    *= scaling_factor;
-    state.trailing_points             *= scaling_factor;
-    state.next_level_price             = 0.0;
-    signal_params.grid_orders[i] = state;
-  }
-}
-
-void GridRecalculateRangeMetrics(SignalParams &signal_params,
-                                 const double point_size)
-{
-  // Range analytics removed in the simplified telemetry pass.
-}
-
 double GridPointsBetween(const SignalTypes direction,
                          const double reference_price,
                          const double candidate_price,
@@ -250,6 +215,59 @@ bool GridRefreshStopTriggerFromAtr(SignalParams &signal_params,
   state.pending_distance_points  = distance_points;
   state.next_level_price         = atr_price;
   return true;
+}
+
+double GetGridStopReferencePrice(SignalTypes direction, GridOrderState &grid_order_state)
+{
+  double base_entry_price = GridCurrentPriceForDirection(direction, true);
+  double stop_entry_price = grid_order_state.entry_reference_price;
+
+  if(direction == BULLISH)
+  {
+    base_entry_price = base_entry_price + (grid_order_state.entry_offset_points / g_decimal_digits);
+
+    if(stop_entry_price > 0 && base_entry_price < stop_entry_price) return base_entry_price; // FOLLOWS THE PRICE FALLS
+
+    return stop_entry_price == 0 ? base_entry_price : stop_entry_price;
+  }
+  if(direction == BEARISH)
+  {
+    base_entry_price = base_entry_price - (grid_order_state.entry_offset_points / g_decimal_digits);
+
+    if(stop_entry_price > 0 && base_entry_price > stop_entry_price) return base_entry_price; // FOLLOWS THE PRICE ROCKET
+
+    return stop_entry_price == 0 ? base_entry_price : stop_entry_price;
+  }
+
+  return base_entry_price;
+}
+
+double GetGridNextLevelPrice(SignalTypes direction, GridOrderState &grid_order_state)
+{
+  double grid_raw_pending_price  = 0;
+  double grid_atr_fallback_price = 0;
+  double grid_base_entry_price   = grid_order_state.entry_reference_price;
+  double grid_next_level_price   = grid_order_state.next_level_price;
+  GridResolveAtrReferencePrice(direction, Strategy_Timeframe, grid_atr_fallback_price);
+
+  if(direction == BULLISH)
+  {
+    grid_raw_pending_price = grid_base_entry_price - (grid_order_state.pending_distance_points / g_decimal_digits);
+
+    if(grid_next_level_price > 0 && grid_raw_pending_price < grid_next_level_price) return grid_raw_pending_price; // FOLLOWS THE PRICE FALLS
+
+    return grid_next_level_price == 0 ? grid_atr_fallback_price : grid_raw_pending_price;
+  }
+  if(direction == BEARISH)
+  {
+    grid_raw_pending_price = grid_base_entry_price + (grid_order_state.pending_distance_points / g_decimal_digits);
+
+    if(grid_next_level_price > 0 && grid_raw_pending_price > grid_next_level_price) return grid_raw_pending_price; // FOLLOWS THE PRICE ROCKET
+
+    return grid_next_level_price == 0 ? grid_atr_fallback_price : grid_raw_pending_price;
+  }
+
+  return grid_atr_fallback_price;
 }
 
 #endif // _MICROSERVICES_TRADING_SIGNALS_GRID_ORDER_HELPERS_MQH_

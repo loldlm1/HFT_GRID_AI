@@ -4,7 +4,6 @@
 #ifndef _MICROSERVICES_INDICATORS_STRUCTURE_CLASSIFIER_MQH_
 #define _MICROSERVICES_INDICATORS_STRUCTURE_CLASSIFIER_MQH_
 
-#include "../core/enums.mqh"
 #include "extrema_detector.mqh"
 
 // Fibonacci retest windows

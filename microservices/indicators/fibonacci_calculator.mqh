@@ -4,10 +4,6 @@
 #ifndef _MICROSERVICES_INDICATORS_FIBONACCI_CALCULATOR_MQH_
 #define _MICROSERVICES_INDICATORS_FIBONACCI_CALCULATOR_MQH_
 
-#include "../utils/miscellaneous.mqh"
-#include "extrema_detector.mqh"
-#include "structure_classifier.mqh"
-
 // Estructura de precios para niveles de Fibonacci
 struct FibonacciLevelPrices
 {
