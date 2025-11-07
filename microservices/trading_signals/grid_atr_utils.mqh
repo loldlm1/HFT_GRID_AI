@@ -14,7 +14,7 @@ bool GridResolveAtrReferencePrice(const SignalTypes direction,
   if(total_handles <= 0)
     return false;
 
-  int buffer_index = (direction == BULLISH) ? 2 : 3; // BufferResHH or BufferSupLL
+  int buffer_index = (direction == BULLISH) ? 3 : 2; // BufferResHH or BufferSupLL
   for(int i = 0; i < total_handles; i++)
   {
     if(ExtATRIndicatorsHandle[i].indicator_timeframe != timeframe)
