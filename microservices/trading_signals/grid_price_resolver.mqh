@@ -8,7 +8,7 @@ double GridComputeFallbackNextPrice(const SignalParams &signal_params,
                                     const int level_index,
                                     const double point_size)
 {
-  (void)level_index;
+  int ignore_index = level_index;
 
   double reference_price = order_state.entry_reference_price;
   if(reference_price <= 0.0)

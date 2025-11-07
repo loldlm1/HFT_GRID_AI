@@ -11,6 +11,7 @@
 #include "../microservices/indicators/body_ma_indicator.mqh"
 
 // SIGNAL SERVICE FILES
+#include "../microservices/trading_signals/grid_atr_utils.mqh"
 #include "trading_signals/signal_params_struct.mqh"
 #include "../microservices/trading_signals/grid_price_resolver.mqh"
 #include "trading_signals/grid_planner.mqh"
