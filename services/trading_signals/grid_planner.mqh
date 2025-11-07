@@ -4,8 +4,6 @@
 #ifndef _SERVICES_TRADING_SIGNALS_GRID_PLANNER_MQH_
 #define _SERVICES_TRADING_SIGNALS_GRID_PLANNER_MQH_
 
-#include "../microservices/trading_signals/grid_atr_utils.mqh"
-
 const int GRID_MAX_LEVELS = 6;
 
 double GridPlanResolvePendingPoints(const GridOrderState &state)
