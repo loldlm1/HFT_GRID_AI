@@ -43,9 +43,7 @@ string GridSignalIdentifier(const SignalParams &signal_params)
   if(time_token != "")
     return time_token;
 
-  double anchor_price = signal_params.grid_plan.base_anchor_price;
-  if(anchor_price <= 0.0)
-    anchor_price = signal_params.grid_plan.entry_side_price_initial;
+  double anchor_price = signal_params.grid_entry_reference_price;
   if(anchor_price <= 0.0)
     anchor_price = (signal_params.signal_type == BULLISH) ? g_bid : g_ask;
 
