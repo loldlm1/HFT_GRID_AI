@@ -30,8 +30,18 @@ double ResolveNextOverlayPrice(const SignalParams &signal_params,
   bool backend_from_target_state = false;
   bool backend_from_target_next  = false;
   double backend_reference = 0.0;
-  // Strict priority: source next -> source pending -> target plan -> target pending -> target next
-  if(source_state.next_level_price > 0.0)
+  // Prefer concrete target info, then plan, then source hints
+  if(target_state.last_pending_price > 0.0)
+  {
+    backend_reference = target_state.last_pending_price;
+    backend_from_target_state = true;
+  }
+  else if(has_target_plan && target_plan.next_resolved_price > 0.0)
+  {
+    backend_reference = target_plan.next_resolved_price;
+    backend_from_plan = true;
+  }
+  else if(source_state.next_level_price > 0.0)
   {
     backend_reference = source_state.next_level_price;
     backend_from_source_next = true;
@@ -40,16 +50,6 @@ double ResolveNextOverlayPrice(const SignalParams &signal_params,
   {
     backend_reference = source_state.last_pending_price;
     backend_from_source_pending = true;
-  }
-  else if(has_target_plan && target_plan.next_resolved_price > 0.0)
-  {
-    backend_reference = target_plan.next_resolved_price;
-    backend_from_plan = true;
-  }
-  else if(target_state.last_pending_price > 0.0)
-  {
-    backend_reference = target_state.last_pending_price;
-    backend_from_target_state = true;
   }
   else if(target_state.next_level_price > 0.0)
   {
