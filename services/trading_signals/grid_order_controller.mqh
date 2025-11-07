@@ -77,6 +77,16 @@ void UpdateGridLifecycle(SignalParams &signal_params)
 
       case GRID_ORDER_STOP_TRAILING_ACTIVE:
       {
+        double previous_stop = state.next_level_price;
+        if(GridRefreshStopTriggerFromAtr(signal_params, state, point_size))
+        {
+          if(previous_stop > 0.0 &&
+             MathAbs(state.next_level_price - previous_stop) >= point_size)
+          {
+            GridLogEvent("LEVEL_PENDING_UPDATE", signal_params, state);
+          }
+        }
+
         if(GridShouldActivatePendingLevel(signal_params, state, direction, point_size))
         {
           if(GridExecuteLevelTrade(signal_params, state, point_size, normalized_volume))

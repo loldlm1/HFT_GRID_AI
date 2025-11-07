@@ -84,20 +84,18 @@ void GridInitializePendingLevel(SignalParams &signal_params,
   order_state.last_action_time = TimeCurrent();
   order_state.entry_reference_price = GridResolveEntryReferencePrice(signal_params, order_state);
 
-  if(order_state.entry_style == GRID_ENTRY_STYLE_LIMIT)
-  {
-    double direction_mult = GridResolveDirectionMultiplier(direction);
-    double pending_points = GridPlanResolvePendingPoints(order_state);
-    if(direction_mult != 0.0 && pending_points > 0.0)
-    {
-      order_state.next_level_price = order_state.entry_reference_price - direction_mult * pending_points * point_size;
-    }
-  }
+  if(order_state.entry_style == GRID_ENTRY_STYLE_STOP)
+    GridRefreshStopTriggerFromAtr(signal_params, order_state, point_size);
   else
   {
-    order_state.next_level_price = GridResolveStopTriggerPrice(signal_params, order_state, point_size);
+    double direction_mult = GridResolveDirectionMultiplier(direction);
+    double reference_price = GridCurrentPriceForDirection(direction, true);
+    double pending_points = GridPlanResolvePendingPoints(order_state);
+    if(reference_price <= 0.0)
+      reference_price = order_state.entry_reference_price;
+    if(direction_mult != 0.0 && pending_points > 0.0 && reference_price > 0.0)
+      order_state.next_level_price = reference_price - direction_mult * pending_points * point_size;
   }
-
   signal_params.grid_orders[order_state.level_index] = order_state;
 }
 
@@ -106,7 +104,9 @@ bool GridShouldActivatePendingLevel(const SignalParams &signal_params,
                                     const SignalTypes direction,
                                     const double point_size)
 {
-  double trigger_price = GridResolveStopTriggerPrice(signal_params, order_state, point_size);
+  double trigger_price = order_state.next_level_price;
+  if(trigger_price <= 0.0)
+    trigger_price = GridResolveStopTriggerPrice(signal_params, order_state, point_size);
   if(trigger_price <= 0.0)
     return false;
 
@@ -114,9 +114,10 @@ bool GridShouldActivatePendingLevel(const SignalParams &signal_params,
   if(entry_side_price <= 0.0)
     return false;
 
+  double tolerance = point_size * 0.1;
   if(direction == BULLISH)
-    return entry_side_price >= trigger_price;
-  return entry_side_price <= trigger_price;
+    return entry_side_price >= trigger_price - tolerance;
+  return entry_side_price <= trigger_price + tolerance;
 }
 
 void GridUpdateActiveTargets(const SignalParams &signal_params,
