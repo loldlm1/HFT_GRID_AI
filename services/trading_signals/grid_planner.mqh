@@ -378,8 +378,9 @@ bool BuildGridPlanForSignal(SignalParams &signal_params)
                                                                     point_size,
                                                                     base_distance_points);
   double unified_stop_percent = GridResolveUnifiedStopPercent();
+  // Compute protective offset from the entry→next baseline projection (base distance), not the raw entry↔anchor gap
   double entry_side_offset_pts_initial = GridPlanComputeProtectiveOffset(unified_stop_percent,
-                                                                         activation_gap_points);
+                                                                         base_distance_points);
   if(Grid_Initial_Entry_Style != GRID_ENTRY_STYLE_STOP)
     entry_side_offset_pts_initial = 0.0;
   if(entry_side_offset_pts_initial > 0.0)
@@ -504,10 +505,30 @@ GridLevelPlan BuildLevelPlanForIndex(const SignalParams &signal_params,
 
   double protective_points = 0.0;
   if(level_plan.entry_style == GRID_ENTRY_STYLE_STOP)
-    protective_points = GridPlanComputeProtectiveOffset(unified_stop_percent,
-                                                        activation_gap_points);
+  {
+    // Use baseline distance for protective sizing to avoid over-inflated gaps from large anchor swings
+    double protective_points_raw = GridPlanComputeProtectiveOffset(unified_stop_percent,
+                                                                   distance_points);
+    protective_points = protective_points_raw;
+    if(protective_points > 0.0)
+      protective_points = EnforceBrokerDistance(g_symbol_constraints, protective_points);
+    // Telemetry for audit
+    if(Enable_File_Logs)
+    {
+      string dir = (signal_params.signal_type == BULLISH) ? "BULLISH" : "BEARISH";
+      string breakdown = StringFormat("dir=%s|level=%d|distance_pts=%.2f|activation_gap_pts=%.2f|percent=%.2f|raw_offset=%.2f|clamped_offset=%.2f",
+                                      dir,
+                                      level_index,
+                                      distance_points,
+                                      activation_gap_points,
+                                      unified_stop_percent,
+                                      protective_points_raw,
+                                      protective_points);
+      AppendTimestampedLog("query_debug.txt", "PROTECTIVE_OFFSET_BREAKDOWN", breakdown);
+    }
+  }
   if(protective_points > 0.0)
-    protective_points = EnforceBrokerDistance(g_symbol_constraints, protective_points);
+    protective_points = protective_points; // already clamped above when computed
 
   if(level_plan.entry_style == GRID_ENTRY_STYLE_STOP)
     level_plan.entry_offset_points = protective_points;

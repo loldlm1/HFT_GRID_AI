@@ -98,6 +98,7 @@ The **HFT Grid AI EA** is a specialized Expert Advisor designed to execute high 
 - Telemetry now captures the live grid span in points alongside per-level range percentages, unlocking upcoming Fibonacci-style visual overlays and improved range diagnostics
 - Grid telemetry tracks max favorable/adverse excursion, completed levels, and cumulative point statistics for future analytics modules
 - Pending entries render from `last_pending_price` when available and fall back to ATR/anchor-based projections otherwise, while NEXT-level lines mirror backend updates with a `next_source` tag so the UI stays aligned with lifecycle telemetry
+- NEXT overlay now prioritizes backend `next_level_price` (then source pending, then plan/fallback) and emits `NEXT_SOURCE_DECISION` for traceability
 
 ### Grid Telemetry Sequence
 1. `GRID_PLAN_LEVEL` — snapshot of the next level geometry (distance, offsets, projected TP) before any order is staged.

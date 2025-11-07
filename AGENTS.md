@@ -54,6 +54,7 @@ This is a HFT Grid AI Expert Advisor designed to execute high frequency position
 - Completed: grid dashboard now draws a single STOP/ENTRY/TP/TP_FINAL/NEXT overlay per signal, hiding stops after fill, swapping TP to trailing when protection engages, and sourcing NEXT levels from backend pricing or projected anchors so telemetry and visuals stay aligned
 - Completed: telemetry now exposes live grid span points and per-level range percentages so future Fibonacci overlays and diagnostics can reference real-time market context
 - In Progress: validate NEXT-line projections against `LEVEL_NEXT_UPDATE` telemetry in Strategy Tester (with `Enable_File_Logs=true`) to confirm pre-fill anchor predictions stay in sync before layering additional overlay options
+ - Completed: NEXT overlay prioritizes backend `next_level_price` (then source pending, then plan/fallback) so chart lines mirror lifecycle updates; added `NEXT_SOURCE_DECISION` telemetry for traceability
 
 ### Grid Telemetry Sequence (Reference)
 - `GRID_PLAN_LEVEL`: next level geometry (distance, offsets, projected TP) captured before order staging.
@@ -61,6 +62,7 @@ This is a HFT Grid AI Expert Advisor designed to execute high frequency position
 - `LEVEL_PENDING`: emitted whenever a pending order is armed; repeats only if the level is recomputed before activation.
 - `LEVEL_NEXT_UPDATE`: captures material changes to the projected next level price as trailing logic or guardrails adjust pending orders.
 - `LEVEL_ACTIVE`/`LEVEL_FILLED`: confirm broker execution; downstream events (`LEVEL_FINAL_TP`, `LEVEL_CLOSE_ALL`, trailing updates) describe the close-out path.
+ - `NEXT_SOURCE_DECISION`: frontend decision on overlay origin (backend, source_pending, plan, fallback, projection)
 
 ### Phase 5 – Persistence & Resilience
 - Serialize active grid state (orders, trailing levels, indicators) to survive reconnects and timeframe changes

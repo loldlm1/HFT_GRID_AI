@@ -25,14 +25,21 @@ double ResolveNextOverlayPrice(const SignalParams &signal_params,
   }
 
   bool backend_from_source_next  = false;
+  bool backend_from_source_pending = false;
   bool backend_from_plan         = false;
   bool backend_from_target_state = false;
   bool backend_from_target_next  = false;
   double backend_reference = 0.0;
+  // Strict priority: source next -> source pending -> target plan -> target pending -> target next
   if(source_state.next_level_price > 0.0)
   {
     backend_reference = source_state.next_level_price;
     backend_from_source_next = true;
+  }
+  else if(source_state.last_pending_price > 0.0)
+  {
+    backend_reference = source_state.last_pending_price;
+    backend_from_source_pending = true;
   }
   else if(has_target_plan && target_plan.next_resolved_price > 0.0)
   {
@@ -86,7 +93,9 @@ double ResolveNextOverlayPrice(const SignalParams &signal_params,
       overlay_from_fallback = true;
   }
 
-  if((overlay_from_source_pending || overlay_price <= 0.0) && source_index >= 0)
+  // Do not override a backend-aligned overlay (including source_pending).
+  // Only project when we still have nothing concrete.
+  if((overlay_price <= 0.0) && source_index >= 0)
   {
     GridLevelPlan source_plan = GridLevelPlan();
     if(source_index < ArraySize(signal_params.grid_plan.levels))
@@ -142,6 +151,8 @@ double ResolveNextOverlayPrice(const SignalParams &signal_params,
     string source_tokens = "";
     if(backend_from_source_next)
       source_tokens = "source_next";
+    else if(backend_from_source_pending)
+      source_tokens = "source_pending";
     else if(backend_from_plan)
       source_tokens = "plan_next";
     else if(backend_from_target_state)
@@ -227,6 +238,8 @@ double ResolveNextOverlayPrice(const SignalParams &signal_params,
   string backend_origin = "";
   if(backend_from_source_next)
     backend_origin = "source_next";
+  else if(backend_from_source_pending)
+    backend_origin = "source_pending";
   else if(backend_from_plan)
     backend_origin = "plan_next";
   else if(backend_from_target_state)
@@ -261,6 +274,17 @@ double ResolveNextOverlayPrice(const SignalParams &signal_params,
                                 has_target_plan ? target_plan.next_resolved_price : 0.0,
                                 has_target_plan ? ((target_plan.next_price_source == "") ? "plan" : target_plan.next_price_source) : "-");
   AppendTimestampedLog("query_debug.txt", "NEXT_OVERLAY_STATE", detail);
+  // Additional decision trace
+  string decision = StringFormat("dir=%s|source=%d|target=%d|overlay=%.5f|backend=%.5f|overlay_origin=%s|backend_origin=%s|age_ms=%d",
+                                 direction,
+                                 source_index,
+                                 target_index,
+                                 overlay_price,
+                                 backend_reference,
+                                 overlay_origin,
+                                 backend_origin,
+                                 -1);
+  AppendTimestampedLog("query_debug.txt", "NEXT_SOURCE_DECISION", decision);
 
   return overlay_price;
 }
