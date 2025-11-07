@@ -27,7 +27,7 @@ This is a HFT Grid AI Expert Advisor designed to execute high frequency position
 - Persist grid metadata to memory containers designed for quick iteration and recovery
 - Exit Criteria: simulated grids open with correct spacing, no broker rule violations, state snapshot logged
 - Completed: grid inputs exposed, ATR handles loaded on demand with fallbacks, grid plans attached to signals with ATR shift-1 anchors (spacing, offsets, TP, final TP, lot scaling) while enforcing broker constraints
-- Completed: grid levels now append sequentially after each confirmed order fill, so `SignalParams.grid_plan.levels` only grows from live executions while reusing the first level’s activation distance to project new stops
+- Completed: grid levels now append sequentially after each confirmed order fill, so `SignalParams.grid_orders` only grows from live executions while reusing the first level’s activation distance to project new stops
 - Completed: pending entry prices are resolved as `distance - protective offset` above (bullish) or below (bearish) the ATR anchor so protective stops always remain on the correct side of the position while maintaining consistent grid spacing
 - Completed: protective offsets now derive from the entry-side price to the next baseline projection, applying `Grid_Positions_Stops_Percent` to every level while retaining `Grid_Initial_Stops_Percent` only as a preset alias
 - Completed: take-profit geometry now locks onto the entry→next snapshot captured on fill, scaling with `Grid_TP_Percent` / `Grid_Final_TP_Percent` independent of `Grid_TP_Reference_Mode`

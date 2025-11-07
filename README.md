@@ -78,7 +78,7 @@ The **HFT Grid AI EA** is a specialized Expert Advisor designed to execute high 
 - Take-profit geometry now locks onto the entry→next snapshot captured on fill, scaling that reference with `Grid_TP_Percent` / `Grid_Final_TP_Percent` without relying on `Grid_TP_Reference_Mode`
 - Directional filter now blocks disallowed trend signals while providing debug output when logging is enabled
 - Grid planner now logs ATR anchors, point size, and per-level geometry to `query_debug.txt` (labels `GRID_PLAN_BASE` / `GRID_PLAN_LEVEL`) whenever file logging is enabled, giving Phase 2 a transparent audit trail
-- Grid framework now appends each `grid_plan.levels` entry only after the previous order fills, so every level is backed by real market execution while still reusing the first level’s activation distance for downstream projections
+- Grid framework now stores every level inside `SignalParams.grid_orders[]`, so each `GridOrderState` carries its own spacing and offsets while reusing the first level’s activation distance for downstream projections
 - Pending entry prices now sit between the ATR anchor and the unified protective gap, guaranteeing long entries stay above their stops while preserving sequential grid spacing for subsequent levels
 
 ### Phase 3 – Current Deliverables
@@ -145,7 +145,7 @@ Notes
 
 - Finalize the Grid Framework refactor:
   * Validate the ATR_SL_Factor buffers and document which outputs map to bullish/bearish anchors
-  * Rebuild `GridLevelPlan` geometry using the new baseline/offset fields and enforce broker constraints consistently
+  * Rebuild `GridOrderState` geometry using the new baseline/offset fields and enforce broker constraints consistently
   * Promote broker-side pending orders (Phase 3 dependency) once the Phase 2 geometry is confirmed in Strategy Tester logs
 - Mirror this roadmap in `AGENTS.md` with actionable subtasks for each service owner
 - Align all new development with the MQL5 conventions and architectural rules documented for the project

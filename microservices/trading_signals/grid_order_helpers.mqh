@@ -176,4 +176,42 @@ double GridPointsBetween(const SignalTypes direction,
   return (candidate_price - reference_price) / point_size;
 }
 
+double GridResolveEntryReferencePrice(const SignalParams &signal_params,
+                                      const GridOrderState &state)
+{
+  double reference_price = state.entry_reference_price;
+  if(state.level_index > 0 && reference_price <= 0.0)
+  {
+    int previous_index = state.level_index - 1;
+    if(previous_index >= 0 && previous_index < ArraySize(signal_params.grid_orders))
+    {
+      GridOrderState previous_state = signal_params.grid_orders[previous_index];
+      if(previous_state.entry_price > 0.0)
+        reference_price = previous_state.entry_price;
+    }
+  }
+
+  if(reference_price <= 0.0)
+    reference_price = signal_params.grid_entry_reference_price;
+
+  if(reference_price <= 0.0)
+    reference_price = GridCurrentPriceForDirection(signal_params.signal_type, true);
+
+  return reference_price;
+}
+
+double GridResolveStopTriggerPrice(const SignalParams &signal_params,
+                                   const GridOrderState &state,
+                                   const double point_size)
+{
+  double reference_price = GridResolveEntryReferencePrice(signal_params, state);
+  double pending_points = GridPlanResolvePendingPoints(state);
+  double direction_mult = GridResolveDirectionMultiplier(signal_params.signal_type);
+
+  if(reference_price <= 0.0 || pending_points <= 0.0 || direction_mult == 0.0 || point_size <= 0.0)
+    return 0.0;
+
+  return reference_price + direction_mult * pending_points * point_size;
+}
+
 #endif // _MICROSERVICES_TRADING_SIGNALS_GRID_ORDER_HELPERS_MQH_
