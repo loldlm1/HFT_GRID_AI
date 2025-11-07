@@ -2,7 +2,7 @@
 #define _MICROSERVICES_TRADING_SIGNALS_GRID_PRICE_RESOLVER_MQH_
 
 // Relies on the include cascade to provide SignalParams, GridOrderState,
-// GridLevelPlan, Strategy_Timeframe, and ExtATRIndicatorsHandle.
+// Strategy_Timeframe, and ExtATRIndicatorsHandle.
 
 double GridComputeFallbackNextPrice(const SignalParams &signal_params,
                                     const GridOrderState &order_state,
@@ -15,22 +15,28 @@ double GridComputeFallbackNextPrice(const SignalParams &signal_params,
   if(resolved_point_size <= 0.0)
     resolved_point_size = 0.0001;
 
-  GridLevelPlan level_plan = GridLevelPlan();
-  if(level_index >= 0 && level_index < ArraySize(signal_params.grid_plan.levels))
-    level_plan = signal_params.grid_plan.levels[level_index];
+  double reference_price = order_state.entry_reference_price;
+  if(level_index > 0 && reference_price <= 0.0)
+  {
+    int previous_index = level_index - 1;
+    if(previous_index >= 0 && previous_index < ArraySize(signal_params.grid_orders))
+    {
+      GridOrderState previous_state = signal_params.grid_orders[previous_index];
+      if(previous_state.entry_price > 0.0)
+        reference_price = previous_state.entry_price;
+    }
+  }
+  if(reference_price <= 0.0)
+    reference_price = signal_params.grid_entry_reference_price;
+  if(reference_price <= 0.0)
+    reference_price = GridCurrentPriceForDirection(signal_params.signal_type, true);
 
-  double anchor_price = level_plan.anchor_price;
-  if(anchor_price <= 0.0)
-    anchor_price = order_state.anchor_price;
-  if(anchor_price <= 0.0)
-    anchor_price = signal_params.grid_plan.base_anchor_price;
-
-  double distance_points = level_plan.distance_points;
+  double distance_points = order_state.pending_distance_points;
   if(distance_points <= 0.0)
-    distance_points = level_plan.baseline_distance_points;
+    distance_points = order_state.base_distance_points;
   if(distance_points <= 0.0)
   {
-    double base_distance = signal_params.grid_plan.base_distance_points;
+    double base_distance = signal_params.grid_base_distance_points;
     double exponential_multiplier = MathMax(Grid_Exponential_Multiplier, 1.0);
     int effective_index = level_index;
     if(effective_index < 0)
@@ -38,18 +44,14 @@ double GridComputeFallbackNextPrice(const SignalParams &signal_params,
     distance_points = base_distance * MathPow(exponential_multiplier, effective_index);
   }
 
-  if(anchor_price <= 0.0 || distance_points <= 0.0 || resolved_point_size <= 0.0)
+  if(distance_points <= 0.0 || reference_price <= 0.0)
     return 0.0;
 
-  double direction_mult = 0.0;
-  if(signal_params.signal_type == BULLISH)
-    direction_mult = 1.0;
-  else if(signal_params.signal_type == BEARISH)
-    direction_mult = -1.0;
+  double direction_mult = GridResolveDirectionMultiplier(signal_params.signal_type);
   if(direction_mult == 0.0)
     return 0.0;
 
-  return anchor_price + direction_mult * distance_points * resolved_point_size;
+  return reference_price + direction_mult * distance_points * resolved_point_size;
 }
 
 bool GridResolveAtrAnchorPrice(const SignalTypes direction,

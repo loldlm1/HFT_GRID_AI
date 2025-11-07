@@ -1,15 +1,17 @@
+//+------------------------------------------------------------------+
+//|                        microservices/trading_signals/... math    |
+//+------------------------------------------------------------------+
 #ifndef _MICROSERVICES_TRADING_SIGNALS_GRID_ORDER_MATH_MQH_
 #define _MICROSERVICES_TRADING_SIGNALS_GRID_ORDER_MATH_MQH_
 // grid_price_resolver is provided earlier in the trading_signals cascade
 
-double GridResolvePendingPoints(const GridLevelPlan &level_plan)
+double GridResolvePendingPoints(const GridOrderState &state)
 {
-  return GridPlanResolvePendingPoints(level_plan);
+  return GridPlanResolvePendingPoints(state);
 }
 
 double GridResolveTrailingStopPrice(const SignalParams &signal_params,
                                     const GridOrderState &order_state,
-                                    const GridLevelPlan &level_plan,
                                     const SignalTypes direction,
                                     const double point_size,
                                     const double close_price,
@@ -30,9 +32,7 @@ double GridResolveTrailingStopPrice(const SignalParams &signal_params,
   {
     double reference_price = order_state.take_profit_price;
     if(reference_price <= 0.0)
-      reference_price = level_plan.next_resolved_price;
-    if(reference_price <= 0.0)
-      reference_price = order_state.last_pending_price;
+      reference_price = order_state.next_level_price;
     if(reference_price <= 0.0)
       reference_price = GridComputeFallbackNextPrice(signal_params,
                                                      order_state,
@@ -93,12 +93,18 @@ double GridResolveTrailingStopPrice(const SignalParams &signal_params,
 
 void GridUpdateNextLevelPrice(const SignalTypes direction,
                               GridOrderState &order_state,
-                              const GridLevelPlan &level_plan,
                               const double point_size,
                               const double current_price)
 {
   double direction_mult = GridResolveDirectionMultiplier(direction);
-  double candidate_price = current_price - direction_mult * level_plan.distance_points * point_size;
+  double reference_distance = order_state.base_distance_points;
+  if(reference_distance <= 0.0)
+    reference_distance = order_state.pending_distance_points;
+
+  if(reference_distance <= 0.0 || point_size <= 0.0 || direction_mult == 0.0)
+    return;
+
+  double candidate_price = current_price - direction_mult * reference_distance * point_size;
 
   if(order_state.next_level_price == 0.0)
   {
@@ -116,36 +122,6 @@ void GridUpdateNextLevelPrice(const SignalTypes direction,
     if(candidate_price > order_state.next_level_price)
       order_state.next_level_price = candidate_price;
   }
-}
-
-double GridRecomputeTrailingAnchor(const SignalTypes direction,
-                                   const GridLevelPlan &level_plan,
-                                   const double current_anchor,
-                                   const double point_size)
-{
-  double resolved_anchor = current_anchor;
-  if(resolved_anchor <= 0.0)
-    resolved_anchor = level_plan.anchor_price;
-
-  if(point_size <= 0.0)
-    return resolved_anchor;
-
-  double direction_mult = GridResolveDirectionMultiplier(direction);
-  double adverse_price  = GridCurrentPriceForDirection(direction, false);
-  double candidate_anchor = adverse_price - direction_mult * level_plan.distance_points * point_size;
-
-  if(direction == BULLISH)
-  {
-    if(resolved_anchor <= 0.0 || candidate_anchor < resolved_anchor)
-      resolved_anchor = candidate_anchor;
-  }
-  else if(direction == BEARISH)
-  {
-    if(resolved_anchor <= 0.0 || candidate_anchor > resolved_anchor)
-      resolved_anchor = candidate_anchor;
-  }
-
-  return resolved_anchor;
 }
 
 #endif // _MICROSERVICES_TRADING_SIGNALS_GRID_ORDER_MATH_MQH_

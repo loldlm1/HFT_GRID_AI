@@ -1,3 +1,6 @@
+//+------------------------------------------------------------------+
+//|                               microservices/trading_signals/... |
+//+------------------------------------------------------------------+
 #ifndef _MICROSERVICES_TRADING_SIGNALS_GRID_ORDER_HELPERS_MQH_
 #define _MICROSERVICES_TRADING_SIGNALS_GRID_ORDER_HELPERS_MQH_
 
@@ -100,33 +103,28 @@ string GridComposeLevelComment(const SignalParams &signal_params,
 void GridEnsureOrderState(SignalParams &signal_params,
                           const int level_index)
 {
-  if(level_index < 0)
-    return;
-
-  int current_total = ArraySize(signal_params.grid_orders);
-  if(current_total > level_index)
-    return;
-
-  int target_total = level_index + 1;
-  ArrayResize(signal_params.grid_orders, target_total);
-  for(int i = current_total; i < target_total; i++)
-  {
-    GridOrderState state = GridOrderState();
-    state.level_index = i;
-    signal_params.grid_orders[i] = state;
-  }
+  GridEnsureLevelState(signal_params, level_index);
 }
 
 void GridResetOrderStateForWaiting(GridOrderState &state,
-                                   const GridLevelPlan &level_plan)
+                                   const GridOrderState &template_state)
 {
   int level_index = state.level_index;
-  state = GridOrderState();
-  state.level_index     = level_index;
-  state.status          = GRID_ORDER_WAITING;
-  state.trailing_points = level_plan.trailing_points;
-  state.resolved_distance_points = level_plan.distance_points;
-  state.grid_range_percent = -1.0;
+  state = template_state;
+  state.level_index        = level_index;
+  state.status             = GRID_ORDER_WAITING;
+  state.entry_price        = 0.0;
+  state.take_profit_price  = 0.0;
+  state.final_take_profit_price = 0.0;
+  state.trailing_price     = 0.0;
+  state.tp_reference_points = 0.0;
+  state.resolved_distance_points = 0.0;
+  state.next_level_price   = template_state.next_level_price;
+  state.last_action_time   = 0;
+  state.is_trailing_active = false;
+  state.tp_reached         = false;
+  state.position_ticket    = 0;
+  state.position_comment   = "";
 }
 
 void GridScalePlannedLevels(SignalParams &signal_params,
@@ -140,163 +138,29 @@ void GridScalePlannedLevels(SignalParams &signal_params,
   if(MathAbs(scaling_factor - 1.0) < 1e-6)
     return;
 
-  int levels_total = ArraySize(signal_params.grid_plan.levels);
-  for(int i = from_level_index; i < levels_total; i++)
+  int total_levels = ArraySize(signal_params.grid_orders);
+  for(int i = from_level_index; i < total_levels; i++)
   {
-    GridLevelPlan plan = signal_params.grid_plan.levels[i];
-    plan.distance_points           *= scaling_factor;
-    plan.baseline_distance_points  *= scaling_factor;
-    plan.pending_order_points      *= scaling_factor;
-    plan.entry_offset_points       *= scaling_factor;
-    plan.protective_stop_points    *= scaling_factor;
-    plan.activation_points         *= scaling_factor;
-    plan.activation_offset_points  *= scaling_factor;
-    plan.take_profit_points        *= scaling_factor;
-    plan.final_take_profit_points  *= scaling_factor;
-    plan.trailing_points           *= scaling_factor;
-    plan.next_resolved_price       = 0.0;
-    plan.next_price_side           = "";
-    plan.next_price_source         = "";
-    plan.next_price_clamp_reason   = "";
-    signal_params.grid_plan.levels[i] = plan;
+    GridOrderState state = signal_params.grid_orders[i];
+    state.base_distance_points        *= scaling_factor;
+    state.pending_distance_points     *= scaling_factor;
+    state.activation_distance_points  *= scaling_factor;
+    state.activation_offset_points    *= scaling_factor;
+    state.entry_offset_points         *= scaling_factor;
+    state.protective_distance_points  *= scaling_factor;
+    state.take_profit_points          *= scaling_factor;
+    state.final_take_profit_points    *= scaling_factor;
+    state.trailing_points             *= scaling_factor;
+    state.next_level_price             = 0.0;
+    signal_params.grid_orders[i] = state;
   }
 }
 
 void GridRecalculateRangeMetrics(SignalParams &signal_params,
                                  const double point_size)
 {
-  int total_orders = ArraySize(signal_params.grid_orders);
-  double range_high_price = 0.0;
-  double range_low_price  = 0.0;
-  bool   has_active       = false;
-  int    active_levels    = 0;
-
-  double temp_percents[];
-  ArrayResize(temp_percents, total_orders);
-  ArrayInitialize(temp_percents, -1.0);
-
-  for(int i = 0; i < total_orders; i++)
-  {
-    GridOrderState state = signal_params.grid_orders[i];
-    if(state.status != GRID_ORDER_ACTIVE || state.entry_price <= 0.0)
-      continue;
-
-    if(!has_active)
-    {
-      range_high_price = state.entry_price;
-      range_low_price  = state.entry_price;
-      has_active       = true;
-    }
-    else
-    {
-      if(state.entry_price > range_high_price)
-        range_high_price = state.entry_price;
-      if(state.entry_price < range_low_price)
-        range_low_price = state.entry_price;
-    }
-
-    active_levels++;
-  }
-
-  if(!has_active)
-  {
-    signal_params.grid_plan.range_high_price = 0.0;
-    signal_params.grid_plan.range_low_price  = 0.0;
-    signal_params.grid_stats.current_range_points = 0.0;
-
-    for(int i = 0; i < total_orders; i++)
-    {
-      GridOrderState state = signal_params.grid_orders[i];
-      state.grid_range_percent = -1.0;
-      signal_params.grid_orders[i] = state;
-
-      if(i < ArraySize(signal_params.grid_plan.levels))
-      {
-        GridLevelPlan plan = signal_params.grid_plan.levels[i];
-        plan.grid_range_percent = -1.0;
-        signal_params.grid_plan.levels[i] = plan;
-      }
-    }
-    return;
-  }
-
-  signal_params.grid_plan.range_high_price = range_high_price;
-  signal_params.grid_plan.range_low_price  = range_low_price;
-
-  double range_span_price = range_high_price - range_low_price;
-  if(range_span_price <= 0.0 || active_levels < 2)
-  {
-    signal_params.grid_stats.current_range_points = 0.0;
-    for(int i = 0; i < total_orders; i++)
-    {
-      GridOrderState state = signal_params.grid_orders[i];
-      state.grid_range_percent = -1.0;
-      signal_params.grid_orders[i] = state;
-
-      if(i < ArraySize(signal_params.grid_plan.levels))
-      {
-        GridLevelPlan plan = signal_params.grid_plan.levels[i];
-        plan.grid_range_percent = state.grid_range_percent;
-        signal_params.grid_plan.levels[i] = plan;
-      }
-    }
-    return;
-  }
-
-  double range_span_points = 0.0;
-  if(point_size > 0.0)
-    range_span_points = range_span_price / point_size;
-  signal_params.grid_stats.current_range_points = MathAbs(range_span_points);
-
-  for(int i = 0; i < total_orders; i++)
-  {
-    GridOrderState state = signal_params.grid_orders[i];
-    if(state.status != GRID_ORDER_ACTIVE || state.entry_price <= 0.0)
-      continue;
-
-    double percent = (state.entry_price - range_low_price) / range_span_price * 100.0;
-    if(percent < 0.0)
-      percent = 0.0;
-    if(percent > 100.0)
-      percent = 100.0;
-    temp_percents[i] = percent;
-  }
-
-  bool should_invert = false;
-  if(total_orders > 0)
-  {
-    GridOrderState base_state = signal_params.grid_orders[0];
-    if(base_state.status == GRID_ORDER_ACTIVE &&
-       temp_percents[0] >= 0.0 &&
-       temp_percents[0] < 50.0)
-      should_invert = true;
-  }
-
-  if(should_invert)
-  {
-    for(int i = 0; i < total_orders; i++)
-    {
-      if(temp_percents[i] >= 0.0)
-        temp_percents[i] = 100.0 - temp_percents[i];
-    }
-  }
-
-  for(int i = 0; i < total_orders; i++)
-  {
-    GridOrderState state = signal_params.grid_orders[i];
-    if(temp_percents[i] >= 0.0)
-      state.grid_range_percent = temp_percents[i];
-    else
-      state.grid_range_percent = -1.0;
-    signal_params.grid_orders[i] = state;
-
-    if(i < ArraySize(signal_params.grid_plan.levels))
-    {
-      GridLevelPlan plan = signal_params.grid_plan.levels[i];
-      plan.grid_range_percent = state.grid_range_percent;
-      signal_params.grid_plan.levels[i] = plan;
-    }
-  }
+  (void)signal_params;
+  (void)point_size;
 }
 
 double GridPointsBetween(const SignalTypes direction,
