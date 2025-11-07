@@ -123,10 +123,11 @@ void DrawGridLevels(const long chart_id,
   }
   else
   {
-    if(level_plan.next_resolved_price > 0.0)
-      entry_price_line = level_plan.next_resolved_price;
-    else if(level_state.last_pending_price > 0.0)
+    // Prefer backend-aligned pending over plan projections
+    if(level_state.last_pending_price > 0.0)
       entry_price_line = level_state.last_pending_price;
+    else if(level_plan.next_resolved_price > 0.0)
+      entry_price_line = level_plan.next_resolved_price;
     else
       entry_price_line = pending_price;
 
