@@ -269,18 +269,26 @@ void GridInitializePendingLevel(SignalParams &signal_params,
                                                             resolved_point_size,
                                                             baseline_distance_points);
     double unified_percent = GridResolveUnifiedStopPercent();
-    protective_offset_pts = GridPlanComputeProtectiveOffset(unified_percent,
-                                                            activation_gap_pts);
-    if(protective_offset_pts > 0.0)
-      protective_offset_pts = EnforceBrokerDistance(g_symbol_constraints, protective_offset_pts);
-
+    // Use baseline distance as the protective sizing reference to avoid oversized offsets
     double percent_reference_pts = 0.0;
     if(unified_percent > 0.0 && baseline_distance_points > 0.0)
       percent_reference_pts = baseline_distance_points * (unified_percent / 100.0);
     if(percent_reference_pts > 0.0)
       percent_reference_pts = EnforceBrokerDistance(g_symbol_constraints, percent_reference_pts);
-    if(percent_reference_pts > protective_offset_pts + 1e-9)
-      protective_offset_pts = percent_reference_pts;
+    protective_offset_pts = percent_reference_pts;
+    // Telemetry
+    if(Enable_File_Logs)
+    {
+      string dir = (direction == BULLISH) ? "BULLISH" : "BEARISH";
+      string detail = StringFormat("dir=%s|level=%d|baseline_pts=%.2f|activation_gap_pts=%.2f|percent=%.2f|protective_pts=%.2f",
+                                   dir,
+                                   level_plan.level_index,
+                                   baseline_distance_points,
+                                   activation_gap_pts,
+                                   unified_percent,
+                                   protective_offset_pts);
+      AppendTimestampedLog("query_debug.txt", "PROTECTIVE_OFFSET_LIFECYCLE", detail);
+    }
   }
 
   if(level_plan.entry_style != GRID_ENTRY_STYLE_STOP)
