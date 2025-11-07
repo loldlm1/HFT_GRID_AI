@@ -11,6 +11,29 @@ extern SignalParams running_bearish_signals[];
 extern bool g_ea_running;
 extern int  g_magic_number;
 
+int ResolveDisplayLevelIndex(const SignalParams &signal_params)
+{
+  int total = ArraySize(signal_params.grid_orders);
+  int last_active = -1;
+  for(int i = 0; i < total; i++)
+  {
+    GridOrderState state = signal_params.grid_orders[i];
+    if(state.status == GRID_ORDER_ACTIVE)
+      last_active = i;
+  }
+  if(last_active >= 0)
+    return last_active;
+
+  for(int j = 0; j < total; j++)
+  {
+    GridOrderState state = signal_params.grid_orders[j];
+    if(state.status == GRID_ORDER_STOP_TRAILING_ACTIVE ||
+       state.status == GRID_ORDER_WAITING)
+      return j;
+  }
+  return -1;
+}
+
 void DrawGridLevels(const long chart_id,
                     const SignalParams &signal_params,
                     string &tracked_objects[])
@@ -53,6 +76,8 @@ void DrawGridLevels(const long chart_id,
   double final_price = level_state.final_take_profit_price;
   double trailing_price = level_state.trailing_price;
   double next_price_line = level_state.next_level_price;
+  if(next_price_line <= 0.0 && level_state.entry_style == GRID_ENTRY_STYLE_STOP)
+    next_price_line = stop_price;
 
   if(SHOW_STOPS_LINES)
     UpdateTrackedLine(chart_id, stop_name, COLOR_PROFIT_NEGATIVE, stop_price, tracked_objects);

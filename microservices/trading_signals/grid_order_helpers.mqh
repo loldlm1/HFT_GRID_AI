@@ -159,8 +159,7 @@ void GridScalePlannedLevels(SignalParams &signal_params,
 void GridRecalculateRangeMetrics(SignalParams &signal_params,
                                  const double point_size)
 {
-  (void)signal_params;
-  (void)point_size;
+  // Range analytics removed in the simplified telemetry pass.
 }
 
 double GridPointsBetween(const SignalTypes direction,

@@ -128,11 +128,11 @@ enum BodyMATypes
 
 enum GridOrderStatuses
 {
-  GRID_ORDER_INACTIVE  = 0,
-  GRID_ORDER_WAITING   = 1,
-  GRID_ORDER_PENDING   = 2,
-  GRID_ORDER_ACTIVE    = 3,
-  GRID_ORDER_COMPLETED = 4
+  GRID_ORDER_INACTIVE             = 0,
+  GRID_ORDER_WAITING              = 1,
+  GRID_ORDER_STOP_TRAILING_ACTIVE = 2,
+  GRID_ORDER_ACTIVE               = 3,
+  GRID_ORDER_COMPLETED            = 4
 };
 
 enum GridEntryStyles

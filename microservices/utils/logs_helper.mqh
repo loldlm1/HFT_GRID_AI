@@ -364,7 +364,7 @@ void LogSignalParamsForTF(const SignalParams &signal_params,
   PrintFormat(" type=%s  state=%s  ticket=%s",
               SignalTypeToString(signal_params.signal_type),
               SignalStateToString(signal_params.signal_state),
-              signal_params.ticket_id);
+              signal_params.grid_sequence_id);
   PrintFormat(" entry=%s  close=%s  sl=%s  tp=%s  lot=%.2f  raw_profit=%s",
               P(signal_params.entry_price),
               P(signal_params.close_price),
