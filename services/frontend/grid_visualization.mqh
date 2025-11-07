@@ -1,16 +1,6 @@
 #ifndef _SERVICES_FRONTEND_GRID_VISUALIZATION_MQH_
 #define _SERVICES_FRONTEND_GRID_VISUALIZATION_MQH_
 
-#include "chart_style_guide.mqh"
-#include "../../microservices/frontend/grid_visual_utils.mqh"
-#include "../../microservices/trading_signals/grid_order_helpers.mqh"
-#include "../../microservices/frontend/grid_visual_lines.mqh"
-
-extern SignalParams running_bullish_signals[];
-extern SignalParams running_bearish_signals[];
-extern bool g_ea_running;
-extern int  g_magic_number;
-
 int ResolveDisplayLevelIndex(const SignalParams &signal_params)
 {
   int total = ArraySize(signal_params.grid_orders);

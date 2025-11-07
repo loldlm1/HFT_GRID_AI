@@ -61,10 +61,6 @@ bool CalculateBaseGridContext(const SignalParams &signal_params,
                               double &entry_reference_price)
 {
   entry_reference_price = GridCurrentPriceForDirection(signal_params.signal_type, true);
-  if(entry_reference_price <= 0.0)
-    entry_reference_price = signal_params.entry_price;
-  if(entry_reference_price <= 0.0)
-    entry_reference_price = (signal_params.signal_type == BULLISH) ? g_ask : g_bid;
 
   double point_size = GridResolvePointSizeSafe();
   double direction_mult = GridResolveDirectionMultiplierSafe(signal_params.signal_type);

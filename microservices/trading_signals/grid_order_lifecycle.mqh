@@ -76,8 +76,8 @@ void GridInitializePendingLevel(SignalParams &signal_params,
                                 GridOrderState &order_state,
                                 const double point_size)
 {
-  order_state.status = GRID_ORDER_STOP_TRAILING_ACTIVE;
-  order_state.last_action_time = TimeCurrent();
+  order_state.status                = GRID_ORDER_STOP_TRAILING_ACTIVE;
+  order_state.last_action_time      = TimeCurrent();
   order_state.entry_reference_price = GridResolveEntryReferencePrice(signal_params, order_state);
 
   if(order_state.entry_style == GRID_ENTRY_STYLE_STOP)

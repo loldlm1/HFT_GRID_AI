@@ -4,10 +4,6 @@
 #ifndef _MICROSERVICES_INDICATORS_EXTREMUM_STATISTICS_CALCULATOR_MQH_
 #define _MICROSERVICES_INDICATORS_EXTREMUM_STATISTICS_CALCULATOR_MQH_
 
-#include "extrema_detector.mqh"
-#include "structure_classifier.mqh"
-#include "fibonacci_calculator.mqh"
-
 //+------------------------------------------------------------------+
 //| Calculate internal fibonacci for single extremum                 |
 //| Returns percentage from previous opposite extremum               |

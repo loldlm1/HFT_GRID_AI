@@ -4,9 +4,6 @@
 #ifndef _MICROSERVICES_INDICATORS_EXTREMA_DETECTOR_MQH_
 #define _MICROSERVICES_INDICATORS_EXTREMA_DETECTOR_MQH_
 
-#include "../core/base_structures.mqh"
-#include "../utils/array_functions.mqh"
-
 // Estructura de un extremo (pico/fondo) del oscilador
 struct OscillatorMarketStructure
 {
