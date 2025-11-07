@@ -4,8 +4,6 @@
 #ifndef _MICROSERVICES_TRADING_SIGNALS_GRID_ORDER_HELPERS_MQH_
 #define _MICROSERVICES_TRADING_SIGNALS_GRID_ORDER_HELPERS_MQH_
 
-#include "grid_atr_utils.mqh"
-
 double GridResolvePointSize()
 {
   double point_size = SymbolInfoDouble(_Symbol, SYMBOL_POINT);

@@ -6,10 +6,6 @@
 // grid_price_resolver is provided via the trading_signals include cascade
 #include "grid_order_helpers.mqh"
 
-double GridResolveStopTriggerPrice(const SignalParams &signal_params,
-                                   const GridOrderState &state,
-                                   const double point_size);
-
 ulong ResolvePositionTicketFromDeal(const ulong deal_ticket)
 {
   if(deal_ticket <= 0)
