@@ -4,6 +4,8 @@
 #ifndef _MICROSERVICES_TRADING_SIGNALS_GRID_ORDER_HELPERS_MQH_
 #define _MICROSERVICES_TRADING_SIGNALS_GRID_ORDER_HELPERS_MQH_
 
+#include "grid_atr_utils.mqh"
+
 double GridResolvePointSize()
 {
   double point_size = SymbolInfoDouble(_Symbol, SYMBOL_POINT);
@@ -203,6 +205,9 @@ double GridResolveStopTriggerPrice(const SignalParams &signal_params,
                                    const GridOrderState &state,
                                    const double point_size)
 {
+  if(state.next_level_price > 0.0)
+    return state.next_level_price;
+
   double reference_price = GridResolveEntryReferencePrice(signal_params, state);
   double pending_points = GridPlanResolvePendingPoints(state);
   double direction_mult = GridResolveDirectionMultiplier(signal_params.signal_type);
@@ -211,6 +216,42 @@ double GridResolveStopTriggerPrice(const SignalParams &signal_params,
     return 0.0;
 
   return reference_price + direction_mult * pending_points * point_size;
+}
+
+bool GridRefreshStopTriggerFromAtr(SignalParams &signal_params,
+                                   GridOrderState &state,
+                                   const double point_size)
+{
+  double atr_price = 0.0;
+  bool atr_resolved = GridResolveAtrReferencePrice(signal_params.signal_type,
+                                                   Strategy_Timeframe,
+                                                   atr_price);
+  double entry_price = GridCurrentPriceForDirection(signal_params.signal_type, true);
+  if(entry_price <= 0.0)
+    entry_price = signal_params.grid_entry_reference_price;
+
+  double direction_mult = GridResolveDirectionMultiplier(signal_params.signal_type);
+  if(direction_mult == 0.0 || point_size <= 0.0 || entry_price <= 0.0)
+    return false;
+
+  double distance_points = 0.0;
+  if(atr_resolved && atr_price > 0.0)
+    distance_points = MathAbs(atr_price - entry_price) / point_size;
+  else
+    distance_points = MinBrokerDistancePoints(g_symbol_constraints);
+
+  distance_points = EnforceBrokerDistance(g_symbol_constraints, distance_points);
+  if(distance_points <= 0.0)
+    return false;
+
+  if(!atr_resolved || atr_price <= 0.0)
+    atr_price = entry_price + direction_mult * distance_points * point_size;
+
+  state.entry_reference_price    = entry_price;
+  state.base_distance_points     = distance_points;
+  state.pending_distance_points  = distance_points;
+  state.next_level_price         = atr_price;
+  return true;
 }
 
 #endif // _MICROSERVICES_TRADING_SIGNALS_GRID_ORDER_HELPERS_MQH_

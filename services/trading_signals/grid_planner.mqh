@@ -4,6 +4,8 @@
 #ifndef _SERVICES_TRADING_SIGNALS_GRID_PLANNER_MQH_
 #define _SERVICES_TRADING_SIGNALS_GRID_PLANNER_MQH_
 
+#include "../microservices/trading_signals/grid_atr_utils.mqh"
+
 const int GRID_MAX_LEVELS = 6;
 
 double GridPlanResolvePendingPoints(const GridOrderState &state)
@@ -55,42 +57,6 @@ double GridResolveDirectionMultiplierSafe(const SignalTypes direction)
   return 0.0;
 }
 
-bool FetchAtrGridContext(const SignalTypes direction,
-                         const ENUM_TIMEFRAMES tf,
-                         double &distance_points,
-                         double &anchor_price)
-{
-  int total_atr_handles = ArraySize(ExtATRIndicatorsHandle);
-  if(total_atr_handles <= 0)
-    return false;
-
-  for(int i = 0; i < total_atr_handles; i++)
-  {
-    if(ExtATRIndicatorsHandle[i].indicator_timeframe != tf)
-      continue;
-
-    int buffer_index = (direction == BULLISH) ? 1 : 0;
-    double atr_reference[];
-    if(CopyBuffer(ExtATRIndicatorsHandle[i].indicator_handle,
-                  buffer_index,
-                  1,
-                  1,
-                  atr_reference) <= 0)
-      return false;
-
-    anchor_price = atr_reference[0];
-    double current_price = (direction == BULLISH) ? g_ask : g_bid;
-    double point_size    = GridResolvePointSizeSafe();
-    if(current_price <= 0.0 || anchor_price <= 0.0)
-      return false;
-
-    distance_points = MathAbs(current_price - anchor_price) / point_size;
-    return (distance_points > 0.0);
-  }
-
-  return false;
-}
-
 bool CalculateBaseGridContext(const SignalParams &signal_params,
                               const ENUM_TIMEFRAMES tf,
                               double &distance_points,
@@ -102,30 +68,26 @@ bool CalculateBaseGridContext(const SignalParams &signal_params,
   if(entry_reference_price <= 0.0)
     entry_reference_price = (signal_params.signal_type == BULLISH) ? g_ask : g_bid;
 
-  distance_points = 0.0;
-  double atr_anchor_price = 0.0;
+  double point_size = GridResolvePointSizeSafe();
+  double direction_mult = GridResolveDirectionMultiplierSafe(signal_params.signal_type);
+  if(point_size <= 0.0 || direction_mult == 0.0 || entry_reference_price <= 0.0)
+    return false;
 
+  double atr_price = 0.0;
   if(Grid_Base_Strategy_Type == ATR_RANGE)
   {
-    if(!FetchAtrGridContext(signal_params.signal_type,
-                            tf,
-                            distance_points,
-                            atr_anchor_price))
+    if(!GridResolveAtrReferencePrice(signal_params.signal_type, tf, atr_price))
       return false;
   }
   else
   {
-    distance_points = Grid_ATR_Points_Setup;
+    double requested_points = EnforceBrokerDistance(g_symbol_constraints, Grid_ATR_Points_Setup);
+    atr_price = entry_reference_price + direction_mult * requested_points * point_size;
   }
 
-  if(distance_points <= 0.0)
-    return false;
-
+  distance_points = MathAbs(atr_price - entry_reference_price) / point_size;
   distance_points = EnforceBrokerDistance(g_symbol_constraints, distance_points);
-  if(distance_points <= 0.0)
-    return false;
-
-  return (entry_reference_price > 0.0);
+  return (distance_points > 0.0);
 }
 
 double ResolveBaseGridLot(const double base_distance_points)

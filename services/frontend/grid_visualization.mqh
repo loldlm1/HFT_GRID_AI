@@ -68,7 +68,9 @@ void DrawGridLevels(const long chart_id,
   double direction_mult = (signal_params.signal_type == BULLISH) ? 1.0 : -1.0;
 
   GridOrderState level_state = signal_params.grid_orders[display_index];
-  double stop_price = GridResolveStopTriggerPrice(signal_params, level_state, point_size);
+  double stop_price = level_state.next_level_price;
+  if(stop_price <= 0.0)
+    stop_price = GridResolveStopTriggerPrice(signal_params, level_state, point_size);
   double entry_price_line = (level_state.status == GRID_ORDER_ACTIVE)
                             ? level_state.entry_price
                             : stop_price;
@@ -76,6 +78,8 @@ void DrawGridLevels(const long chart_id,
   double final_price = level_state.final_take_profit_price;
   double trailing_price = level_state.trailing_price;
   double next_price_line = level_state.next_level_price;
+  if(next_price_line <= 0.0)
+    next_price_line = stop_price;
   if(next_price_line <= 0.0 && level_state.entry_style == GRID_ENTRY_STYLE_STOP)
     next_price_line = stop_price;
 
