@@ -69,47 +69,6 @@ The **HFT Grid AI EA** is a specialized Expert Advisor designed to execute high 
 - `CanAttemptSignal()` guard ensures only one active grid per direction and validates indicator availability before triggers fire
 - Detection functions require `EvaluateSignalTrigger()` approval, enabling MA-only, bands-only, or combined extrema logic without time-based scheduling
 
-### Phase 2 – Current Deliverables
-- Centralized grid inputs (`Grid_Base_Strategy_Type`, ATR/points setup, multipliers, percentages, direction) with validation and logging of the active context
-- Added ATR factor indicator loading on demand and fallback handling for points-based grids
-- Grid plan builder now derives level spacing and anchor prices directly from `ATR_SL_Factor` outputs (shift 1 for L0, shift 0 for deeper levels) while honoring broker freeze/stop rules
-- Introduced `Grid_Final_TP_Percent` to flag post-fill TP spans while keeping planner placeholders lightweight until execution
-- Protective offsets now derive from the entry-side price to the next baseline projection, applying `Grid_Positions_Stops_Percent` to every level while honoring broker clamps (legacy `Grid_Initial_Stops_Percent` remains for presets)
-- Take-profit geometry now locks onto the entry→next snapshot captured on fill, scaling that reference with `Grid_TP_Percent` / `Grid_Final_TP_Percent` without relying on `Grid_TP_Reference_Mode`
-- Directional filter now blocks disallowed trend signals while providing debug output when logging is enabled
-- Grid planner now logs ATR anchors, point size, and per-level geometry to `query_debug.txt` (labels `GRID_PLAN_BASE` / `GRID_PLAN_LEVEL`) whenever file logging is enabled, giving Phase 2 a transparent audit trail
-- Grid framework now stores every level inside `SignalParams.grid_orders[]`, so each `GridOrderState` carries its own spacing and offsets while reusing the first level’s activation distance for downstream projections
-- Pending entry prices now sit between the ATR anchor and the unified protective gap, guaranteeing long entries stay above their stops while preserving sequential grid spacing for subsequent levels
- - Unified grid planning: new `BuildOrUpdateGridForSignal(signal, is_init)` computes base context on init and refreshes pending geometry on every tick, replacing the separate initializer. Emits `GRID_PLAN_BASE`/`GRID_PLAN_LEVEL` and `LEVEL_PENDING_INIT`.
-
-### Phase 3 – Current Deliverables
-- Grid order controller now promotes levels sequentially and fires `CTrade` market orders the moment tagged stops are reached, persisting deal-linked position tickets and activation timestamps for telemetry while seeding the next grid level only after a confirmed fill
-- Resolved entry-to-anchor distances are recorded per level, scaling the remaining grid plan from the live base distance so pending stops and offsets honor real market fills instead of projected ATR ranges
-- Each active level maintains its relative range percentage inside the broadened grid envelope, updating metadata (`range_high_price`, `range_low_price`, `current_range_points`) for downstream analytics and guardrail logic
-- Pending buy/sell stops trail adverse price action while their next-level projections recompute from live bid/ask quotes and ATR anchors each tick, keeping deeper grid anchors aligned until fills occur
-- Active positions refresh TP, final TP, and trailing protection from the entry→next snapshot captured on fill so the unified percentages stay stable even as price advances
-- Trailing TP now keeps `(1 - Grid_Trailing_TP_Percent/100)` of that reference move behind the bid/ask, logging `tp_reference_pts` for telemetry; explicit status `GRID_ORDER_TP_TRAILING_ACTIVE` is used after TP is reached
-- Dynamic lot sizing still supports fixed, percentage-based, or currency-based risk targets, all gated by spread/margin guardrails to prevent unsafe grid expansion
-- Pending level geometry now separates entry prices from protective stop placeholders, keeping take-profit projections, next-level forecasts, and telemetry output aligned with the ATR reference anchors
- - Final TP closes all grid positions (across any level/status), regardless of trailing activity, and marks the signal closed
-
-### Phase 4 – Current Deliverables
-- On-chart grid rendering now uses a single STOP/ENTRY/TP/TP_FINAL/NEXT overlay per signal, hiding the stop after fill and swapping TP for the trailing line when protection engages
-- Dashboard summary comment highlights active grids, level states, duration, and profit factor when `Enable_Chart_Summary` is true
-- Lightweight telemetry logs append lifecycle events to `query_debug.txt` when `Enable_File_Logs` is enabled for post-run analysis
-- Telemetry now captures the live grid span in points alongside per-level range percentages, unlocking upcoming Fibonacci-style visual overlays and improved range diagnostics
-- Grid telemetry tracks max favorable/adverse excursion, completed levels, and cumulative point statistics for future analytics modules
-- Pending entries render from `last_pending_price` when available and fall back to ATR/anchor-based projections otherwise, while NEXT-level lines mirror backend updates with a `next_source` tag so the UI stays aligned with lifecycle telemetry
-- NEXT overlay now prioritizes backend `next_level_price` (then source pending, then plan/fallback) and emits `NEXT_SOURCE_DECISION` for traceability
-
-### Grid Telemetry Sequence
-1. `GRID_PLAN_LEVEL` — snapshot of the next level geometry (distance, offsets, projected TP) before any order is staged.
-2. `GRID_PLAN_BASE` — contextual data for the signal (entry, anchor, point size) recorded once per plan refresh.
-3. `LEVEL_PENDING_INIT` — logged when the planner hands the first pending order to the lifecycle.
-4. `LEVEL_PENDING` — emitted on subsequent recalculations or trailing updates before activation.
-5. After fill: `LEVEL_ACTIVE`, optional `LEVEL_FILLED`, then lifecycle events (`LEVEL_FINAL_TP`, `LEVEL_CLOSE_ALL`, trailing updates) depending on trade outcome.
-6. `TP_TRAILING_START` — emitted when the position crosses TP and trailing protection becomes active.
-
 ## Input Reference
 
 ### Strategy Context

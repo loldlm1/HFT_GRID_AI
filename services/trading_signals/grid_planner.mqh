@@ -143,11 +143,8 @@ void LogGridPlanLevelDetail(const SignalParams &signal_params,
   AppendTimestampedLog("query_debug.txt", "GRID_PLAN_LEVEL", detail);
 }
 
-bool BuildGridPlanForSignal(SignalParams &signal_params)
+bool BuildGridSignalPoints(SignalParams &signal_params)
 {
-  ArrayResize(signal_params.grid_orders, 0);
-  signal_params.grid_initialized = false;
-
   double base_distance_points = 0.0;
   double entry_reference_price = 0.0;
 
@@ -206,84 +203,83 @@ bool BuildGridPlanForSignal(SignalParams &signal_params)
 }
 
 // Unified entry point to build (init) or refresh (tick) grid geometry and pending levels
-bool BuildOrUpdateGridForSignal(SignalParams &signal_params, const bool is_init)
+bool BuildGridOrderForSignal(SignalParams &signal_params)
 {
-  if(is_init)
-  {
-    // Build base context (equivalent to BuildGridPlanForSignal)
-    if(!BuildGridPlanForSignal(signal_params))
-      return false;
-
-    // Ensure L0 exists
-    int total_levels = ArraySize(signal_params.grid_orders);
-    if(total_levels <= 0)
-    {
-      GridOrderState grid_order;
-      AddElementToArray(signal_params.grid_orders, grid_order);
-    }
-
-    // Seed level 0
-    signal_params.grid_orders[0].level_index = 0;
-    signal_params.grid_orders[0].status      = GRID_ORDER_STOP_TRAILING_ACTIVE;
-    signal_params.grid_orders[0].lot_size    = signal_params.grid_base_lot_size;
-
-    // Calculate trailing entry reference and next level activation
-    signal_params.grid_orders[0].entry_reference_price = GetGridStopReferencePrice(signal_params.signal_type,
-                                                                                   signal_params,
-                                                                                   signal_params.grid_orders[0]);
-    signal_params.grid_orders[0].next_level_price      = GetGridNextLevelPrice(signal_params.signal_type,
-                                                                               signal_params,
-                                                                               signal_params.grid_orders[0]);
-
-    // Telemetry
-    LogGridPlanLevelDetail(signal_params, signal_params.grid_orders[0]);
-    if(Enable_File_Logs)
-      AppendTimestampedLog("query_debug.txt", "LEVEL_PENDING_INIT",
-                           StringFormat("level=%d|entry_ref=%.5f|next=%.5f",
-                                        0,
-                                        signal_params.grid_orders[0].entry_reference_price,
-                                        signal_params.grid_orders[0].next_level_price));
-    return true;
-  }
-
-  // Tick refresh path: update trailing entry reference and next level trigger for pending/stop-trailing levels
-  if(!signal_params.grid_initialized)
-    return false;
+  if(!BuildGridSignalPoints(signal_params)) return false;
 
   int total_levels = ArraySize(signal_params.grid_orders);
+  GridOrderState grid_order;
+
+  // UPDATES STATUS ON PREV LEVELS
   for(int i = 0; i < total_levels; i++)
   {
-    GridOrderState state = signal_params.grid_orders[i];
-    if(state.status != GRID_ORDER_WAITING &&
-       state.status != GRID_ORDER_STOP_TRAILING_ACTIVE)
+    grid_order = signal_params.grid_orders[i];
+    if(grid_order.status == GRID_ORDER_WAITING ||
+       grid_order.status == GRID_ORDER_STOP_TRAILING_ACTIVE)
     {
-      // Only pending-like states are refreshed here; active/trailing handled by lifecycle
-      continue;
+      signal_params.grid_orders[i].status = GRID_ORDER_ACTIVE;
     }
-
-    double prev_entry_ref = state.entry_reference_price;
-    double prev_next      = state.next_level_price;
-
-    state.entry_reference_price = GetGridStopReferencePrice(signal_params.signal_type, signal_params, state);
-    state.next_level_price      = GetGridNextLevelPrice(signal_params.signal_type, signal_params, state);
-
-    const double eps = 0.0000001;
-    bool changed = (MathAbs(state.entry_reference_price - prev_entry_ref) > eps) ||
-                   (MathAbs(state.next_level_price - prev_next) > eps);
-
-    if(changed && Enable_File_Logs)
-    {
-      AppendTimestampedLog("query_debug.txt", "LEVEL_PENDING",
-                           StringFormat("level=%d|entry_ref=%.5f->%.5f|next=%.5f->%.5f",
-                                        state.level_index,
-                                        prev_entry_ref, state.entry_reference_price,
-                                        prev_next, state.next_level_price));
-      AppendTimestampedLog("query_debug.txt", "LEVEL_NEXT_UPDATE",
-                           StringFormat("level=%d|next=%.5f", state.level_index, state.next_level_price));
-    }
-
-    signal_params.grid_orders[i] = state;
   }
+
+  int grid_order_level = AddElementToArray(signal_params.grid_orders, grid_order)-1;
+
+  if(grid_order_level < 0)
+  {
+    Print("ERROR CREATING NEW GRID ORDER LEVEL");
+    TesterStop();
+    return false;
+  }
+
+  // Seed level n
+  signal_params.grid_orders[grid_order_level].level_index = grid_order_level;
+  signal_params.grid_orders[grid_order_level].status      = GRID_ORDER_STOP_TRAILING_ACTIVE;
+  signal_params.grid_orders[grid_order_level].lot_size    = signal_params.grid_base_lot_size;
+
+  // Calculate trailing entry reference and next level activation
+  signal_params.grid_orders[grid_order_level].entry_reference_price  = GetGridStopReferencePrice(signal_params.signal_type,
+                                                                              signal_params,
+                                                                              signal_params.grid_orders[grid_order_level]);
+  signal_params.grid_orders[grid_order_level].next_level_price       = GetGridNextLevelPrice(signal_params.signal_type,
+                                                                              signal_params,
+                                                                              signal_params.grid_orders[grid_order_level]);
+  signal_params.grid_orders[grid_order_level].take_profit_price      = GetGridTakeProfitPrice(signal_params.signal_type,
+                                                                              signal_params,
+                                                                              signal_params.grid_orders[grid_order_level]);
+  signal_params.grid_orders[grid_order_level].final_take_profit_price = GetGridTakeProfitFinalPrice(signal_params.signal_type,
+                                                                              signal_params,
+                                                                              signal_params.grid_orders[grid_order_level]);
+
+  // Telemetry
+  LogGridPlanLevelDetail(signal_params, signal_params.grid_orders[0]);
+  if(Enable_File_Logs)
+    AppendTimestampedLog("query_debug.txt", "LEVEL_PENDING_INIT",
+                          StringFormat("level=%d|entry_ref=%.5f|next=%.5f",
+                                      0,
+                                      signal_params.grid_orders[0].entry_reference_price,
+                                      signal_params.grid_orders[0].next_level_price));
+  return true;
+}
+
+bool UpdateGridOrderForSignal(SignalParams &signal_params)
+{
+  if(!BuildGridSignalPoints(signal_params)) return false;
+
+  int grid_order_level = ArraySize(signal_params.grid_orders)-1;
+
+  // Calculate trailing entry reference and next level activation
+  signal_params.grid_orders[grid_order_level].entry_reference_price  = GetGridStopReferencePrice(signal_params.signal_type,
+                                                                              signal_params,
+                                                                              signal_params.grid_orders[grid_order_level]);
+  signal_params.grid_orders[grid_order_level].next_level_price       = GetGridNextLevelPrice(signal_params.signal_type,
+                                                                              signal_params,
+                                                                              signal_params.grid_orders[grid_order_level]);
+  signal_params.grid_orders[grid_order_level].take_profit_price      = GetGridTakeProfitPrice(signal_params.signal_type,
+                                                                              signal_params,
+                                                                              signal_params.grid_orders[grid_order_level]);
+  signal_params.grid_orders[grid_order_level].final_take_profit_price = GetGridTakeProfitFinalPrice(signal_params.signal_type,
+                                                                              signal_params,
+                                                                              signal_params.grid_orders[grid_order_level]);
+
   return true;
 }
 

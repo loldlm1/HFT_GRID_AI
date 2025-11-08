@@ -63,7 +63,7 @@ void DetectBullishSignal()
   if(!EvaluateSignalTrigger(signal_bullish, BULLISH))
     return;
 
-  if(!BuildOrUpdateGridForSignal(signal_bullish, true))
+  if(!BuildGridOrderForSignal(signal_bullish))
   {
     Print("Grid plan failed for bullish signal, aborting detection.");
     return;
@@ -97,7 +97,7 @@ void DetectBearishSignal()
   if(!EvaluateSignalTrigger(signal_bearish, BEARISH))
     return;
 
-  if(!BuildOrUpdateGridForSignal(signal_bearish, true))
+  if(!BuildGridOrderForSignal(signal_bearish))
   {
     Print("Grid plan failed for bearish signal, aborting detection.");
     return;

@@ -1,33 +1,13 @@
 #ifndef _SERVICES_TRADING_SIGNALS_GRID_ORDER_CONTROLLER_MQH_
 #define _SERVICES_TRADING_SIGNALS_GRID_ORDER_CONTROLLER_MQH_
 
-void InitializeGridOrdersForSignal(SignalParams &signal_params)
-{
-  if(!signal_params.grid_initialized)
-    return;
-
-  int total_levels = ArraySize(signal_params.grid_orders);
-  if(total_levels <= 0)
-  {
-    GridOrderState grid_order;
-    AddElementToArray(signal_params.grid_orders, grid_order);
-  }
-
-  // INITIAL GRID START AT 0 ARRAY INDEX
-  signal_params.grid_orders[0].level_index             = 0; // INITIAL GRID POSITION, NEXT LEVEL IS 1..N
-  signal_params.grid_orders[0].status                  = GRID_ORDER_STOP_TRAILING_ACTIVE; // INITIAL ORDER STARTS WITH BUY/SELL STOP
-  signal_params.grid_orders[0].lot_size                = signal_params.grid_base_lot_size;
-  signal_params.grid_orders[0].entry_reference_price   = GetGridStopReferencePrice(signal_params.signal_type, signal_params, signal_params.grid_orders[0]);
-  signal_params.grid_orders[0].next_level_price        = GetGridNextLevelPrice(signal_params.signal_type, signal_params, signal_params.grid_orders[0]);
-}
-
 void UpdateGridLifecycle(SignalParams &signal_params)
 {
   if(!signal_params.grid_initialized)
     return;
 
   // Refresh pending geometry (entry_reference/next_level) before lifecycle steps
-  BuildOrUpdateGridForSignal(signal_params, false);
+  UpdateGridOrderForSignal(signal_params);
 
   double      point_size   = GridResolvePointSize();
   SignalTypes direction    = signal_params.signal_type;
@@ -40,26 +20,13 @@ void UpdateGridLifecycle(SignalParams &signal_params)
 
     switch(grid_order.status)
     {
-      case GRID_ORDER_WAITING:
-      {
-        string guardrail_reason = "";
-        if(GridGuardrailsAllowOrder(normalized_volume, guardrail_reason))
-        {
-          grid_order.status = GRID_ORDER_STOP_TRAILING_ACTIVE;
-          GridLogEvent("GRID_ORDER_WAITING -> GRID_ORDER_STOP_TRAILING_ACTIVE", signal_params, grid_order);
-        }
-        else if(guardrail_reason != "")
-        {
-          GridLogGuardrailBlock("GRID_ORDER_WAITING -> ACTIVATION_BLOCKED", signal_params, grid_order, guardrail_reason);
-        }
-      }
-
       case GRID_ORDER_STOP_TRAILING_ACTIVE:
       {
         if(GridShouldActivatePendingLevel(signal_params, grid_order, direction, point_size))
         {
           if(GridExecuteLevelTrade(signal_params, grid_order, point_size, normalized_volume))
           {
+            BuildGridOrderForSignal(signal_params);
             GridLogEvent("GRID_ORDER_STOP_TRAILING_ACTIVE -> GRID_ORDER_ACTIVE", signal_params, grid_order);
           }
         }
