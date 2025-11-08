@@ -73,9 +73,13 @@ void DrawGridLevels(const long chart_id,
   if(next_price_line <= 0.0 && level_state.entry_style == GRID_ENTRY_STYLE_STOP)
     next_price_line = stop_price;
 
-  // Always render STOP per setting
-  if(SHOW_STOPS_LINES) UpdateTrackedLine(chart_id, stop_name, COLOR_PROFIT_NEGATIVE, stop_price, tracked_objects);
-  else                 UpdateHorizontalLine(chart_id, stop_name, COLOR_PROFIT_NEGATIVE, 0.0);
+  bool is_pending_state = (level_state.status == GRID_ORDER_WAITING ||
+                           level_state.status == GRID_ORDER_STOP_TRAILING_ACTIVE);
+  // Show STOP only while pending; hide after fill
+  if(is_pending_state && SHOW_STOPS_LINES)
+    UpdateTrackedLine(chart_id, stop_name, COLOR_PROFIT_NEGATIVE, stop_price, tracked_objects);
+  else
+    UpdateHorizontalLine(chart_id, stop_name, COLOR_PROFIT_NEGATIVE, 0.0);
 
   // Entry line (pending uses STOP; active/trailing uses entry fill)
   UpdateTrackedLine(chart_id, entry_name, COLOR_PROFIT_NEUTRAL, entry_price_line, tracked_objects);
