@@ -61,15 +61,27 @@ bool GridShouldActivatePendingLevel(const SignalParams &signal_params,
                                     const SignalTypes direction,
                                     const double point_size)
 {
-  // Activate using the entry_reference_price (BUY/SELL STOP line), not next_level_price
-  double trigger_price    = order_state.entry_reference_price;
   double entry_side_price = GridCurrentPriceForDirection(direction, true);
 
-  // Broker semantics:
-  // - BUY STOP triggers when Ask >= stop price
-  // - SELL STOP triggers when Bid <= stop price
-  if(direction == BULLISH) return entry_side_price >= trigger_price;
-  if(direction == BEARISH) return entry_side_price <= trigger_price;
+  // L0 activates on the trailing STOP line (entry_reference_price) with broker semantics.
+  if(order_state.level_index <= 0)
+  {
+    double stop_trigger = order_state.entry_reference_price;
+    if(stop_trigger <= 0.0)
+      return false;
+    // BUY STOP: Ask >= stop; SELL STOP: Bid <= stop
+    if(direction == BULLISH) return entry_side_price >= stop_trigger;
+    if(direction == BEARISH) return entry_side_price <= stop_trigger;
+    return false;
+  }
+
+  // Deeper levels activate on the NEXT level price (averaging on adverse move).
+  double next_trigger = order_state.next_level_price;
+  if(next_trigger <= 0.0)
+    return false;
+  // Bullish: trigger when Ask <= next; Bearish: trigger when Bid >= next
+  if(direction == BULLISH) return entry_side_price <= next_trigger;
+  if(direction == BEARISH) return entry_side_price >= next_trigger;
 
   return false;
 }
