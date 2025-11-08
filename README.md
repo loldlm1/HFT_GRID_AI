@@ -101,13 +101,15 @@ The **HFT Grid AI EA** is a specialized Expert Advisor designed to execute high 
 Notes
 - All distances are clamped to broker freeze/stops via `SymbolTradingConstraints` and helper functions.
 - ATR handles are only loaded when `ATR_RANGE` is selected; otherwise the EA skips ATR loading to reduce overhead.
-- Chart overlays render a single STOP/ENTRY/TP/TP_FINAL/NEXT stack per signal; the NEXT line mirrors backend `next_level_price` when available or projects from live ATR anchors, and `Enable_Chart_Levels_Depth` is ignored in this mode.
+- Chart overlays render a single STOP/ENTRY/TP/TP_FINAL/NEXT stack per signal; the NEXT line mirrors the trailing backend `next_level_price` derived from `entry_reference_price` (no hysteresis), and `Enable_Chart_Levels_Depth` is ignored in this mode.
 
 ## Next Steps
 
 - Finalize the Grid Framework refactor:
   * Validate the ATR_SL_Factor buffers and document which outputs map to bullish/bearish anchors
   * Rebuild `GridOrderState` geometry using the new baseline/offset fields and enforce broker constraints consistently
+  * Per-level spacing uses `Grid_Exponential_Multiplier`, and per-level lot sizing uses `Grid_Multiplier`
+  * NEXT trails adverse-only from `entry_reference_price` for all pending levels; TP and Final TP are computed from `entry_reference_price` with per-level spans and move favorable-only pre-fill
   * Promote broker-side pending orders (Phase 3 dependency) once the Phase 2 geometry is confirmed in Strategy Tester logs
 - Mirror this roadmap in `AGENTS.md` with actionable subtasks for each service owner
 - Align all new development with the MQL5 conventions and architectural rules documented for the project

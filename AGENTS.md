@@ -26,7 +26,7 @@ This is a HFT Grid AI Expert Advisor designed to execute high frequency position
 - Calculate exponential spacing and initial stop distances, ensuring broker freeze/stop compliance
 - Persist grid metadata to memory containers designed for quick iteration and recovery
 - Exit Criteria: simulated grids open with correct spacing, no broker rule violations, state snapshot logged
-- Completed: grid inputs exposed, ATR handles loaded on demand with fallbacks, grid plans attached to signals with ATR shift-0 anchors (spacing, offsets, TP, final TP, lot scaling) while enforcing broker constraints
+- Completed: grid inputs exposed, ATR handles loaded on demand with fallbacks, grid plans attached to signals with ATR shift-0 anchors (spacing, offsets, TP, final TP) while enforcing broker constraints. Per-level spacing uses `Grid_Exponential_Multiplier`, and per-level lot sizing uses `Grid_Multiplier`.
 
 ### Phase 3 – Order Lifecycle Control
 - Automate buy/sell stop placement that trails adverse price action using the unified Grid_Positions_Stops_Percent gap
@@ -34,7 +34,7 @@ This is a HFT Grid AI Expert Advisor designed to execute high frequency position
 - Apply Grid_Positions_Stops_Percent to deeper grid layers while respecting exponential spacing
 - Add guardrails for margin, slippage, and spread thresholds to halt grid expansion safely
 - Exit Criteria: full trade cycle executed in tester with correct order stack, protective stops adapt as configured
-- Completed: grid order controller stages levels sequentially, only instantiates the next grid level after a confirmed fill, fires `CTrade` market orders as soon as tagged stops are hit, records deal-linked tickets/activation time for telemetry, trails adverse moves, and enforces spread/margin guardrails with flexible lot sizing
+- Completed: grid order controller stages levels sequentially, only instantiates the next grid level after a confirmed fill, fires `CTrade` market orders as soon as tagged stops are hit, records deal-linked tickets/activation time for telemetry, trails adverse moves, and enforces spread/margin guardrails with flexible lot sizing. For all pending levels, `next_level_price` trails adverse-only from `entry_reference_price`; TP and Final TP are computed from `entry_reference_price` with per-level spans and move favorable-only pre-fill.
 
 ### Phase 4 – Visualization & Telemetry
 - Render signal, stop, limit, and trailing lines with profit-colored styles and minimal clutter
@@ -42,6 +42,7 @@ This is a HFT Grid AI Expert Advisor designed to execute high frequency position
 - Create lightweight file logging (e.g., `query_debug.txt`) for post-run analysis without flooding the terminal
 - Track per-grid stats (duration, excursion, profit factor) for future analytics modules
 - Exit Criteria: chart artifacts align with live orders, logs expose actionable diagnostics
+- Completed: next/lot updates logged concisely (`NEXT_UPDATE`, `LOT_RESOLVED`), chart NEXT mirrors backend trailing `next_level_price`.
 
 ### Phase 5 – Persistence & Resilience
 - Serialize active grid state (orders, trailing levels, indicators) to survive reconnects and timeframe changes

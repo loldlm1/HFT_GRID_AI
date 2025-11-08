@@ -210,17 +210,6 @@ bool BuildGridOrderForSignal(SignalParams &signal_params)
   int total_levels = ArraySize(signal_params.grid_orders);
   GridOrderState grid_order;
 
-  // UPDATES STATUS ON PREV LEVELS
-  for(int i = 0; i < total_levels; i++)
-  {
-    grid_order = signal_params.grid_orders[i];
-    if(grid_order.status == GRID_ORDER_WAITING ||
-       grid_order.status == GRID_ORDER_STOP_TRAILING_ACTIVE)
-    {
-      signal_params.grid_orders[i].status = GRID_ORDER_ACTIVE;
-    }
-  }
-
   int grid_order_level = AddElementToArray(signal_params.grid_orders, grid_order)-1;
 
   if(grid_order_level < 0)
@@ -233,7 +222,24 @@ bool BuildGridOrderForSignal(SignalParams &signal_params)
   // Seed level n
   signal_params.grid_orders[grid_order_level].level_index = grid_order_level;
   signal_params.grid_orders[grid_order_level].status      = GRID_ORDER_STOP_TRAILING_ACTIVE;
-  signal_params.grid_orders[grid_order_level].lot_size    = signal_params.grid_base_lot_size;
+  // Per-level lot sizing with multiplier and broker clamps
+  double level_lot = signal_params.grid_base_lot_size;
+  if(level_lot <= 0.0)
+    level_lot = ResolveBaseGridLot(signal_params.grid_base_distance_points);
+  if(grid_order_level > 0 && level_lot > 0.0)
+  {
+    double scaled = level_lot * MathPow(Grid_Multiplier, (double)grid_order_level);
+    double vol_min  = SymbolInfoDouble(_Symbol, SYMBOL_VOLUME_MIN);
+    double vol_max  = SymbolInfoDouble(_Symbol, SYMBOL_VOLUME_MAX);
+    double vol_step = SymbolInfoDouble(_Symbol, SYMBOL_VOLUME_STEP);
+    if(vol_min <= 0.0)  vol_min  = 0.01;
+    if(vol_max <= 0.0)  vol_max  = 100.0;
+    if(vol_step <= 0.0) vol_step = 0.01;
+    if(scaled < vol_min) scaled = vol_min;
+    if(scaled > vol_max) scaled = vol_max;
+    level_lot = NormalizeVolumeForSymbol(_Symbol, scaled);
+  }
+  signal_params.grid_orders[grid_order_level].lot_size    = NormalizeVolumeForSymbol(_Symbol, level_lot);
 
   // Calculate trailing entry reference and next level activation
   signal_params.grid_orders[grid_order_level].entry_reference_price  = GetGridStopReferencePrice(signal_params.signal_type,
@@ -250,6 +256,7 @@ bool BuildGridOrderForSignal(SignalParams &signal_params)
                                                                               signal_params.grid_orders[grid_order_level]);
 
   // Telemetry
+  GridLogEvent("LOT_RESOLVED", signal_params, signal_params.grid_orders[grid_order_level]);
   LogGridPlanLevelDetail(signal_params, signal_params.grid_orders[0]);
   if(Enable_File_Logs)
     AppendTimestampedLog("query_debug.txt", "LEVEL_PENDING_INIT",
@@ -280,6 +287,7 @@ bool UpdateGridOrderForSignal(SignalParams &signal_params)
                                                                               signal_params,
                                                                               signal_params.grid_orders[grid_order_level]);
 
+  GridLogEvent("NEXT_UPDATE", signal_params, signal_params.grid_orders[grid_order_level]);
   return true;
 }
 

@@ -116,6 +116,8 @@ void DetectBearishSignal()
 void CloseBullishSignal(SignalParams &signal_bullish)
 {
   signal_bullish.signal_state = CLOSED;
+  long chart_id = ChartID();
+  RemoveGridLevels(chart_id, signal_bullish);
   //if(Enable_Logs) LogSignalParamsForTF(signal_bullish, PERIOD_M1);
 
   // MANAGE THE BULLISH SIGNAL STATE
@@ -125,10 +127,30 @@ void CloseBullishSignal(SignalParams &signal_bullish)
 void CloseBearishSignal(SignalParams &signal_bearish)
 {
   signal_bearish.signal_state = CLOSED;
+  long chart_id = ChartID();
+  RemoveGridLevels(chart_id, signal_bearish);
   //if(Enable_Logs) LogSignalParamsForTF(signal_bearish, PERIOD_M1);
 
   // MANAGE THE BULLISH SIGNAL STATE
   // if(signal_bearish.signal_state == OPENED) { ... }
+}
+
+void RemoveGridLevels(const long chart_id,
+                      const SignalParams &signal_params)
+{
+  string stop_name  = GridSignalObjectName(signal_params, "STOP");
+  string tp_name    = GridSignalObjectName(signal_params, "TP");
+  string final_name = GridSignalObjectName(signal_params, "TP_FINAL");
+  string entry_name = GridSignalObjectName(signal_params, "ENTRY");
+  string next_name  = GridSignalObjectName(signal_params, "NEXT");
+  string trailing_name = GridSignalObjectName(signal_params, "TP_TRAILING");
+
+  ObjectDelete(chart_id, stop_name);
+  ObjectDelete(chart_id, tp_name);
+  ObjectDelete(chart_id, final_name);
+  ObjectDelete(chart_id, entry_name);
+  ObjectDelete(chart_id, next_name);
+  ObjectDelete(chart_id, trailing_name);
 }
 
 // SET THE INDICATOR DATA TO THE SIGNAL PARAMS STRUCTURE
