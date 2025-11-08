@@ -60,7 +60,7 @@ void DrawGridLevels(const long chart_id,
   GridOrderState level_state = signal_params.grid_orders[display_index];
   double stop_price = level_state.next_level_price;
   if(stop_price <= 0.0)
-    stop_price = GridResolveStopTriggerPrice(signal_params, level_state, point_size);
+    stop_price = 0; // SHOULD BE USING THE level_state stop price
   double entry_price_line = (level_state.status == GRID_ORDER_ACTIVE)
                             ? level_state.entry_price
                             : stop_price;

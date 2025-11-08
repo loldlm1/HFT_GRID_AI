@@ -12,26 +12,12 @@ struct GridOrderState
   GridOrderStatuses status;
   GridEntryStyles   entry_style;
 
-  double base_distance_points;
-  double resolved_distance_points;
-  double pending_distance_points;
-  double activation_distance_points;
-  double activation_offset_points;
-  double entry_offset_points;
-  double protective_distance_points;
-  double atr_reference_points;
-
-  double take_profit_points;
-  double final_take_profit_points;
-  double trailing_points;
   double lot_size;
-
   double next_level_price;
   double entry_price;
   double take_profit_price;
   double final_take_profit_price;
   double trailing_price;
-  double tp_reference_points;
   double entry_reference_price;
 
   datetime last_action_time;
@@ -45,24 +31,12 @@ struct GridOrderState
     level_index                 = -1;
     status                      = GRID_ORDER_INACTIVE;
     entry_style                 = GRID_ENTRY_STYLE_STOP;
-    base_distance_points        = 0.0;
-    resolved_distance_points    = 0.0;
-    pending_distance_points     = 0.0;
-    activation_distance_points  = 0.0;
-    activation_offset_points    = 0.0;
-    entry_offset_points         = 0.0;
-    protective_distance_points  = 0.0;
-    atr_reference_points        = 0.0;
-    take_profit_points          = 0.0;
-    final_take_profit_points    = 0.0;
-    trailing_points             = 0.0;
     lot_size                    = 0.0;
     next_level_price            = 0.0;
     entry_price                 = 0.0;
     take_profit_price           = 0.0;
     final_take_profit_price     = 0.0;
     trailing_price              = 0.0;
-    tp_reference_points         = 0.0;
     entry_reference_price       = 0.0;
     last_action_time            = 0;
     is_trailing_active          = false;
@@ -97,6 +71,7 @@ struct SignalParams
   double grid_entry_reference_price;
   double grid_entry_gap_points;
   double grid_entry_offset_points;
+  double grid_trailing_points;
 
   GridOrderState grid_orders[];
 
@@ -120,6 +95,7 @@ struct SignalParams
     grid_entry_reference_price = 0.0;
     grid_entry_gap_points      = 0.0;
     grid_entry_offset_points   = 0.0;
+    grid_trailing_points       = 0.0;
   }
 
   SignalParams(const SignalParams &signal_params)
