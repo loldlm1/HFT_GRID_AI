@@ -4,34 +4,7 @@
 #ifndef _SERVICES_TRADING_SIGNALS_GRID_PLANNER_MQH_
 #define _SERVICES_TRADING_SIGNALS_GRID_PLANNER_MQH_
 
-const int GRID_MAX_LEVELS = 6;
-
-double GridPlanResolvePendingPoints(const GridOrderState &state)
-{
-  double pending_points = state.pending_distance_points;
-  if(pending_points > 0.0)
-    return pending_points;
-
-  double reference_points = state.base_distance_points;
-  if(reference_points <= 0.0)
-    reference_points = state.resolved_distance_points;
-
-  if(reference_points <= 0.0)
-    return 0.0;
-
-  if(state.entry_style == GRID_ENTRY_STYLE_LIMIT)
-  {
-    pending_points = reference_points - state.entry_offset_points;
-    if(pending_points <= 0.0)
-      pending_points = reference_points;
-  }
-  else
-  {
-    pending_points = reference_points + state.entry_offset_points;
-  }
-
-  return pending_points;
-}
+const int GRID_MAX_LEVELS = 10;
 
 double GridResolveUnifiedStopPercent()
 {
@@ -122,64 +95,6 @@ double ResolveBaseGridLot(const double base_distance_points)
   return NormalizeVolumeForSymbol(_Symbol, resolved_lot);
 }
 
-GridOrderState BuildLevelState(const SignalParams &signal_params,
-                               const int level_index,
-                               const double entry_reference_price)
-{
-  GridOrderState state = GridOrderState();
-  state.level_index = level_index;
-  state.entry_reference_price = entry_reference_price;
-  state.entry_style = (level_index == 0) ? Grid_Initial_Entry_Style : Grid_Deep_Entry_Style;
-  state.atr_reference_points = signal_params.grid_base_distance_points;
-
-  double exponential_multiplier = MathMax(Grid_Exponential_Multiplier, 1.0);
-  double level_multiplier = MathPow(exponential_multiplier, level_index);
-  double base_distance = signal_params.grid_base_distance_points * level_multiplier;
-  state.base_distance_points = base_distance;
-  state.resolved_distance_points = 0.0;
-  state.pending_distance_points = base_distance;
-
-  double activation_distance = EnforceBrokerDistance(g_symbol_constraints, base_distance);
-  state.activation_distance_points = activation_distance;
-  state.activation_offset_points   = activation_distance;
-
-  double protective_points = 0.0;
-  if(state.entry_style == GRID_ENTRY_STYLE_STOP)
-  {
-    protective_points = signal_params.grid_entry_offset_points * level_multiplier;
-    if(protective_points > 0.0)
-      protective_points = EnforceBrokerDistance(g_symbol_constraints, protective_points);
-  }
-
-  state.entry_offset_points        = protective_points;
-  state.protective_distance_points = protective_points;
-
-  if(state.entry_style == GRID_ENTRY_STYLE_STOP && protective_points > 0.0)
-    state.pending_distance_points += protective_points;
-  else if(state.entry_style == GRID_ENTRY_STYLE_LIMIT && protective_points > 0.0)
-  {
-    double limit_candidate = base_distance - protective_points;
-    if(limit_candidate > 0.0)
-      state.pending_distance_points = limit_candidate;
-  }
-
-  double lot_multiplier = MathMax(Grid_Multiplier, 1.0);
-  double scaled_lot = signal_params.grid_base_lot_size * MathPow(lot_multiplier, level_index);
-  state.lot_size = NormalizeVolumeForSymbol(_Symbol, scaled_lot);
-
-  if(state.entry_style == GRID_ENTRY_STYLE_LIMIT)
-  {
-    double point_size = GridResolvePointSizeSafe();
-    double direction_mult = GridResolveDirectionMultiplierSafe(signal_params.signal_type);
-    double pending_points = GridPlanResolvePendingPoints(state);
-    if(point_size > 0.0 && direction_mult != 0.0 && entry_reference_price > 0.0)
-      state.next_level_price = entry_reference_price - direction_mult * pending_points * point_size;
-  }
-
-  state.status = GRID_ORDER_WAITING;
-  return state;
-}
-
 void LogGridPlanDiagnostics(const SignalParams &signal_params,
                             const double point_size,
                             const double base_distance_points)
@@ -207,60 +122,25 @@ void LogGridPlanLevelDetail(const SignalParams &signal_params,
     return;
 
   string direction = (signal_params.signal_type == BULLISH) ? "BULLISH" : "BEARISH";
-  double pending_points = GridPlanResolvePendingPoints(state);
+  double pending_points = 0; // SHOULD BE USING THE signal_params pending_points
   double tick_size = ResolveEffectiveTickSize(g_symbol_constraints.tick_size,
                                               g_symbol_constraints.point_size);
   string detail = StringFormat("dir=%s|level=%d|dist=%.2f|pending=%.2f|entry_offset=%.2f|activation=%.2f|tp=%.2f|tp_final=%.2f|trail=%.2f|lot=%.2f|style=%s|next_limit=%.5f|tick=%.5f|spread_pts=%.1f",
                                direction,
                                state.level_index,
-                               state.base_distance_points,
+                               signal_params.grid_base_distance_points,
                                pending_points,
-                               state.entry_offset_points,
-                               state.activation_distance_points,
-                               state.take_profit_points,
-                               state.final_take_profit_points,
-                               state.trailing_points,
+                               signal_params.grid_entry_offset_points,
+                               0,
+                               0, // SHOULD BE CALCULATED TP
+                               0, // SHOULD BE CALCULATED TP FINAL
+                               0, // SHOULD BE CALCULATED TRAILING POINTS
                                state.lot_size,
                                EnumToString(state.entry_style),
                                state.next_level_price,
                                tick_size,
                                g_points_spread);
   AppendTimestampedLog("query_debug.txt", "GRID_PLAN_LEVEL", detail);
-}
-
-GridOrderState BuildLevelStateForIndex(const SignalParams &signal_params,
-                                       const int level_index)
-{
-  double entry_reference_price = signal_params.grid_entry_reference_price;
-  if(entry_reference_price <= 0.0)
-    entry_reference_price = GridCurrentPriceForDirection(signal_params.signal_type, true);
-  if(entry_reference_price <= 0.0)
-    entry_reference_price = signal_params.entry_price;
-  return BuildLevelState(signal_params, level_index, entry_reference_price);
-}
-
-bool GridEnsureLevelState(SignalParams &signal_params,
-                          const int level_index)
-{
-  if(level_index < 0)
-    return false;
-  if(level_index >= GRID_MAX_LEVELS)
-    return false;
-
-  int current_total = ArraySize(signal_params.grid_orders);
-  if(level_index < current_total)
-    return true;
-
-  for(int idx = current_total; idx <= level_index; idx++)
-  {
-    if(idx >= GRID_MAX_LEVELS)
-      break;
-    GridOrderState state = BuildLevelStateForIndex(signal_params, idx);
-    AddElementToArray(signal_params.grid_orders, state);
-    LogGridPlanLevelDetail(signal_params, state);
-  }
-
-  return true;
 }
 
 bool BuildGridPlanForSignal(SignalParams &signal_params)
@@ -308,9 +188,6 @@ bool BuildGridPlanForSignal(SignalParams &signal_params)
   signal_params.grid_entry_reference_price     = entry_reference_price;
   signal_params.grid_entry_gap_points          = base_distance_points;
   signal_params.grid_entry_offset_points       = entry_offset_points;
-
-  if(!GridEnsureLevelState(signal_params, 0))
-    return false;
 
   signal_params.grid_initialized = true;
 

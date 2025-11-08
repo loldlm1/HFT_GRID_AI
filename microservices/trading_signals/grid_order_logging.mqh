@@ -15,7 +15,7 @@ void GridLogEvent(const string label,
 
   string direction = (signal_params.signal_type == BULLISH) ? "BULLISH" : "BEARISH";
   double point_size = GridResolvePointSize();
-  double stop_price = GridResolveStopTriggerPrice(signal_params, order_state, point_size);
+  double stop_price = 0; // SHOULD BE USING THE order_state stop price
 
   string message = StringFormat("dir=%s|level=%d|status=%s|entry_ref=%.5f|stop=%.5f|limit=%.5f|entry=%.5f|tp=%.5f|tp_final=%.5f|lot=%.2f",
                                 direction,

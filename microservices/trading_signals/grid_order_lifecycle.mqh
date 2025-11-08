@@ -56,102 +56,25 @@ ulong FindOpenPositionForSignal(const SignalTypes direction,
   return 0;
 }
 
-void GridScheduleNextLevel(SignalParams &signal_params,
-                           const int level_index)
-{
-  if(!GridEnsureLevelState(signal_params, level_index))
-    return;
-
-  if(level_index >= ArraySize(signal_params.grid_orders))
-    return;
-
-  GridOrderState state = signal_params.grid_orders[level_index];
-  if(state.status == GRID_ORDER_INACTIVE)
-    state.status = GRID_ORDER_WAITING;
-  signal_params.grid_orders[level_index] = state;
-}
-
-void GridInitializePendingLevel(SignalParams &signal_params,
-                                const SignalTypes direction,
-                                GridOrderState &order_state,
-                                const double point_size)
-{
-  order_state.status                = GRID_ORDER_STOP_TRAILING_ACTIVE;
-  order_state.last_action_time      = TimeCurrent();
-  order_state.entry_reference_price = GridResolveEntryReferencePrice(signal_params, order_state);
-
-  if(order_state.entry_style == GRID_ENTRY_STYLE_STOP)
-    GridRefreshStopTriggerFromAtr(signal_params, order_state, point_size);
-  else
-  {
-    double direction_mult = GridResolveDirectionMultiplier(direction);
-    double reference_price = GridCurrentPriceForDirection(direction, true);
-    double pending_points = GridPlanResolvePendingPoints(order_state);
-    if(reference_price <= 0.0)
-      reference_price = order_state.entry_reference_price;
-    if(direction_mult != 0.0 && pending_points > 0.0 && reference_price > 0.0)
-      order_state.next_level_price = reference_price - direction_mult * pending_points * point_size;
-  }
-  signal_params.grid_orders[order_state.level_index] = order_state;
-}
-
 bool GridShouldActivatePendingLevel(const SignalParams &signal_params,
                                     const GridOrderState &order_state,
                                     const SignalTypes direction,
                                     const double point_size)
 {
-  double trigger_price = order_state.next_level_price;
-  if(trigger_price <= 0.0)
-    trigger_price = GridResolveStopTriggerPrice(signal_params, order_state, point_size);
-  if(trigger_price <= 0.0)
-    return false;
-
+  double trigger_price    = order_state.next_level_price;
   double entry_side_price = GridCurrentPriceForDirection(direction, true);
-  if(entry_side_price <= 0.0)
-    return false;
 
-  double tolerance = point_size * 0.1;
-  if(direction == BULLISH)
-    return entry_side_price >= trigger_price - tolerance;
-  return entry_side_price <= trigger_price + tolerance;
+  if(direction == BULLISH) return entry_side_price <= trigger_price;
+  if(direction == BEARISH) return entry_side_price >= trigger_price;
+
+  return false;
 }
 
 void GridUpdateActiveTargets(const SignalParams &signal_params,
                              GridOrderState &order_state,
                              const double point_size)
 {
-  double reference_points = order_state.base_distance_points;
-  if(reference_points <= 0.0)
-    reference_points = order_state.pending_distance_points;
-
-  if(reference_points <= 0.0)
-    return;
-
-  double tp_points = 0.0;
-  double final_points = 0.0;
-
-  if(Grid_TP_Percent > 0.0)
-    tp_points = reference_points * (Grid_TP_Percent / 100.0);
-  if(Grid_Final_TP_Percent > 0.0)
-    final_points = reference_points * (Grid_Final_TP_Percent / 100.0);
-
-  if(tp_points > 0.0)
-    tp_points = EnforceBrokerDistance(g_symbol_constraints, tp_points);
-  if(final_points > 0.0)
-    final_points = EnforceBrokerDistance(g_symbol_constraints, final_points);
-
-  double direction_mult = GridResolveDirectionMultiplier(signal_params.signal_type);
-  order_state.tp_reference_points = reference_points;
-  order_state.take_profit_points  = tp_points;
-  order_state.final_take_profit_points = final_points;
-
-  if(order_state.entry_price > 0.0 && point_size > 0.0)
-  {
-    if(tp_points > 0.0)
-      order_state.take_profit_price = order_state.entry_price + direction_mult * tp_points * point_size;
-    if(final_points > 0.0)
-      order_state.final_take_profit_price = order_state.entry_price + direction_mult * final_points * point_size;
-  }
+  // IT NEEDS THE REFACTOR LOGIC IN CASE WE USE IT
 }
 
 bool GridExecuteLevelTrade(SignalParams &signal_params,
@@ -183,7 +106,6 @@ bool GridExecuteLevelTrade(SignalParams &signal_params,
     order_state.position_ticket = FindOpenPositionForSignal(direction, comment);
   order_state.position_comment = comment;
   order_state.last_action_time = TimeCurrent();
-  order_state.resolved_distance_points = order_state.base_distance_points;
 
   GridUpdateActiveTargets(signal_params, order_state, point_size);
   signal_params.grid_orders[order_state.level_index] = order_state;
@@ -211,7 +133,6 @@ void GridFinalizeLevel(const SignalTypes direction,
   order_state.next_level_price        = 0.0;
   order_state.entry_reference_price   = 0.0;
   order_state.entry_price             = close_price;
-  order_state.resolved_distance_points = 0.0;
 }
 
 bool GridCloseBrokerPosition(GridOrderState &order_state,
