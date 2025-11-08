@@ -63,13 +63,12 @@ void DetectBullishSignal()
   if(!EvaluateSignalTrigger(signal_bullish, BULLISH))
     return;
 
-  if(!BuildGridPlanForSignal(signal_bullish))
+  if(!BuildOrUpdateGridForSignal(signal_bullish, true))
   {
     Print("Grid plan failed for bullish signal, aborting detection.");
     return;
   }
-
-  InitializeGridOrdersForSignal(signal_bullish);
+  // unified planner seeds level 0; no separate initializer
 
   // OPEN THE BULLISH SIGNAL TO THE MARKET
   // ...
@@ -98,13 +97,12 @@ void DetectBearishSignal()
   if(!EvaluateSignalTrigger(signal_bearish, BEARISH))
     return;
 
-  if(!BuildGridPlanForSignal(signal_bearish))
+  if(!BuildOrUpdateGridForSignal(signal_bearish, true))
   {
     Print("Grid plan failed for bearish signal, aborting detection.");
     return;
   }
-
-  InitializeGridOrdersForSignal(signal_bearish);
+  // unified planner seeds level 0; no separate initializer
 
   // OPEN THE BEARISH SIGNAL TO THE MARKET
   // ...

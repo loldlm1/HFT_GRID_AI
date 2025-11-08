@@ -58,9 +58,9 @@ void DrawGridLevels(const long chart_id,
   double direction_mult = (signal_params.signal_type == BULLISH) ? 1.0 : -1.0;
 
   GridOrderState level_state = signal_params.grid_orders[display_index];
-  double stop_price = level_state.next_level_price;
+  double stop_price = level_state.entry_reference_price;
   if(stop_price <= 0.0)
-    stop_price = 0; // SHOULD BE USING THE level_state stop price
+    stop_price = 0;
   double entry_price_line = (level_state.status == GRID_ORDER_ACTIVE)
                             ? level_state.entry_price
                             : stop_price;

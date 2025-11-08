@@ -185,4 +185,67 @@ double GetGridNextLevelPrice(SignalTypes direction, SignalParams &signal_params,
   return grid_atr_fallback_price;
 }
 
+// --- New pricing helpers (points-based, broker-safe) ---
+
+double ComputeLevelDistancePoints(const SignalParams &signal_params,
+                                  const int level_index)
+{
+  double base_pts = signal_params.grid_base_distance_points;
+  if(base_pts <= 0.0)
+    return 0.0;
+  double mult = Grid_Exponential_Multiplier;
+  if(mult <= 0.0)
+    mult = 1.0;
+  double distance_pts = base_pts * MathPow(mult, (double)level_index);
+  distance_pts = EnforceBrokerDistance(g_symbol_constraints, distance_pts);
+  return distance_pts;
+}
+
+double ComputeEntryReferencePrice(const SignalParams &signal_params,
+                                  const GridOrderState &state)
+{
+  double point_size = GridResolvePointSize();
+  double entry_side = GridCurrentPriceForDirection(signal_params.signal_type, true);
+  double offset_pts = signal_params.grid_entry_offset_points;
+  if(offset_pts < 0.0)
+    offset_pts = 0.0;
+
+  double candidate = entry_side;
+  if(signal_params.signal_type == BULLISH)
+    candidate = entry_side + offset_pts * point_size;
+  else if(signal_params.signal_type == BEARISH)
+    candidate = entry_side - offset_pts * point_size;
+
+  // Trail adverse only
+  double prev = state.entry_reference_price;
+  if(prev > 0.0)
+  {
+    if(signal_params.signal_type == BULLISH && candidate < prev)
+      return candidate;
+    if(signal_params.signal_type == BEARISH && candidate > prev)
+      return candidate;
+    return prev;
+  }
+  return candidate;
+}
+
+double ComputeNextLevelPrice(const SignalParams &signal_params,
+                             const double entry_reference_price,
+                             const double level_distance_points)
+{
+  double point_size = GridResolvePointSize();
+  if(level_distance_points <= 0.0 || point_size <= 0.0 || entry_reference_price <= 0.0)
+    return 0.0;
+  if(signal_params.signal_type == BULLISH)
+    return entry_reference_price - level_distance_points * point_size;
+  if(signal_params.signal_type == BEARISH)
+    return entry_reference_price + level_distance_points * point_size;
+  return 0.0;
+}
+
+double ClampPointsToBroker(const double points_value)
+{
+  return EnforceBrokerDistance(g_symbol_constraints, points_value);
+}
+
 #endif // _MICROSERVICES_TRADING_SIGNALS_GRID_ORDER_HELPERS_MQH_
