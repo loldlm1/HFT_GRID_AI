@@ -74,7 +74,89 @@ void GridUpdateActiveTargets(const SignalParams &signal_params,
                              GridOrderState &order_state,
                              const double point_size)
 {
-  // IT NEEDS THE REFACTOR LOGIC IN CASE WE USE IT
+  // Compute TP and Final TP based on entry→next snapshot captured on fill
+  double tp_reference_pts = ComputeLevelDistancePoints(signal_params, order_state.level_index + 1);
+  if(tp_reference_pts <= 0.0)
+    tp_reference_pts = signal_params.grid_base_distance_points;
+  if(tp_reference_pts <= 0.0 || point_size <= 0.0)
+    return;
+
+  double tp_span_pts    = tp_reference_pts * (Grid_TP_Percent / 100.0);
+  double final_span_pts = tp_reference_pts * (Grid_Final_TP_Percent / 100.0);
+
+  if(signal_params.signal_type == BULLISH)
+  {
+    order_state.take_profit_price       = order_state.entry_price + tp_span_pts * point_size;
+    order_state.final_take_profit_price = order_state.entry_price + final_span_pts * point_size;
+  }
+  else if(signal_params.signal_type == BEARISH)
+  {
+    order_state.take_profit_price       = order_state.entry_price - tp_span_pts * point_size;
+    order_state.final_take_profit_price = order_state.entry_price - final_span_pts * point_size;
+  }
+
+  order_state.is_trailing_active = false;
+  order_state.tp_reached         = false;
+  order_state.trailing_price     = 0.0;
+}
+
+bool ShouldSwitchToTrailingTP(const SignalTypes direction,
+                              const GridOrderState &order_state,
+                              const double current_price)
+{
+  if(order_state.take_profit_price <= 0.0)
+    return false;
+  if(direction == BULLISH)
+    return current_price >= order_state.take_profit_price;
+  if(direction == BEARISH)
+    return current_price <= order_state.take_profit_price;
+  return false;
+}
+
+void UpdateTrailingTP(const SignalParams &signal_params,
+                      GridOrderState &order_state,
+                      const double current_price,
+                      const double point_size)
+{
+  // Derive tp_reference_pts from the TP span and percent to stay consistent post-fill
+  double tp_span_pts = 0.0;
+  if(point_size > 0.0)
+    tp_span_pts = MathAbs(order_state.take_profit_price - order_state.entry_price) / point_size;
+  double tp_ref_pts = tp_span_pts;
+  if(Grid_TP_Percent > 0.0)
+    tp_ref_pts = tp_span_pts / (Grid_TP_Percent / 100.0);
+  if(tp_ref_pts <= 0.0)
+    tp_ref_pts = signal_params.grid_base_distance_points;
+  if(tp_ref_pts <= 0.0 || point_size <= 0.0)
+    return;
+
+  double offset_pts = tp_ref_pts * (1.0 - (Grid_Trailing_TP_Percent / 100.0));
+  if(offset_pts < 0.0)
+    offset_pts = 0.0;
+
+  double candidate = order_state.trailing_price;
+  if(signal_params.signal_type == BULLISH)
+    candidate = current_price - offset_pts * point_size;
+  else if(signal_params.signal_type == BEARISH)
+    candidate = current_price + offset_pts * point_size;
+
+  // Move trailing only in favorable direction
+  if(order_state.trailing_price <= 0.0)
+  {
+    order_state.trailing_price = candidate;
+    return;
+  }
+
+  if(signal_params.signal_type == BULLISH)
+  {
+    if(candidate > order_state.trailing_price)
+      order_state.trailing_price = candidate;
+  }
+  else if(signal_params.signal_type == BEARISH)
+  {
+    if(candidate < order_state.trailing_price)
+      order_state.trailing_price = candidate;
+  }
 }
 
 bool GridExecuteLevelTrade(SignalParams &signal_params,
@@ -109,6 +191,32 @@ bool GridExecuteLevelTrade(SignalParams &signal_params,
 
   GridUpdateActiveTargets(signal_params, order_state, point_size);
   signal_params.grid_orders[order_state.level_index] = order_state;
+
+  // Stage the next grid level after a confirmed fill (sequential expansion)
+  int next_index = order_state.level_index + 1;
+  if(next_index < GRID_MAX_LEVELS)
+  {
+    int total_levels = ArraySize(signal_params.grid_orders);
+    if(total_levels <= next_index)
+    {
+      GridOrderState next_state;
+      AddElementToArray(signal_params.grid_orders, next_state);
+    }
+
+    GridOrderState staged = signal_params.grid_orders[next_index];
+    if(staged.status == GRID_ORDER_INACTIVE || staged.level_index != next_index)
+    {
+      staged.level_index = next_index;
+      staged.status      = GRID_ORDER_WAITING;
+      double base_lot = signal_params.grid_base_lot_size;
+      if(base_lot <= 0.0)
+        base_lot = 0.01;
+      double scaled = base_lot * MathPow(Grid_Multiplier, (double)next_index);
+      staged.lot_size = NormalizeVolumeForSymbol(_Symbol, scaled);
+      signal_params.grid_orders[next_index] = staged;
+      GridLogEvent("LEVEL_PENDING_INIT", signal_params, staged);
+    }
+  }
   return true;
 }
 

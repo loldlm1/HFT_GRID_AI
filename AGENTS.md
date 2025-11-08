@@ -32,6 +32,7 @@ This is a HFT Grid AI Expert Advisor designed to execute high frequency position
 - Completed: protective offsets now derive from the entry-side price to the next baseline projection, applying `Grid_Positions_Stops_Percent` to every level while retaining `Grid_Initial_Stops_Percent` only as a preset alias
 - Completed: take-profit geometry now locks onto the entry→next snapshot captured on fill, scaling with `Grid_TP_Percent` / `Grid_Final_TP_Percent` independent of `Grid_TP_Reference_Mode`
 - In Progress: grid planner diagnostics capture ATR anchors, point size, and per-level geometry (`GRID_PLAN_BASE` / `GRID_PLAN_LEVEL`) to validate Phase 2 assumptions in Strategy Tester logs
+ - Completed: unified planner `BuildOrUpdateGridForSignal(signal, is_init)` replaces separate initialization and refreshes pending geometry each tick with broker-safe clamps and telemetry (`LEVEL_PENDING_INIT`, `LEVEL_PENDING`, `LEVEL_NEXT_UPDATE`)
 
 ### Phase 3 – Order Lifecycle Control
 - Automate buy/sell stop placement that trails adverse price action using the unified Grid_Positions_Stops_Percent gap
@@ -44,6 +45,8 @@ This is a HFT Grid AI Expert Advisor designed to execute high frequency position
 - Completed: resolved entry-to-anchor distances rescale the remaining grid plan so pending stops, activation gaps, and TP offsets obey the real market fill distance instead of projected ATR deltas
 - Completed: active levels track their live grid-range percentage while metadata captures `range_high_price`, `range_low_price`, and `current_range_points` for downstream analytics and guardrail validation
 - In Progress: decoupled pending entry pricing from protective stop placeholders so TP math, telemetry, and next-level projections stay aligned with the ATR anchor during the lifecycle refactor
+ - Completed: explicit `GRID_ORDER_TP_TRAILING_ACTIVE` status after TP is reached; trailing offset keeps `(1 - Grid_Trailing_TP_Percent/100)` of the reference move behind bid/ask; `TP_TRAILING_START` telemetry emitted
+ - Completed: `LEVEL_FINAL_TP` closes all grid positions regardless of trailing state and marks the signal closed
 
 ### Phase 4 – Visualization & Telemetry
 - Render signal, stop, limit, and trailing lines with profit-colored styles and minimal clutter
@@ -63,6 +66,7 @@ This is a HFT Grid AI Expert Advisor designed to execute high frequency position
 - `LEVEL_NEXT_UPDATE`: captures material changes to the projected next level price as trailing logic or guardrails adjust pending orders.
 - `LEVEL_ACTIVE`/`LEVEL_FILLED`: confirm broker execution; downstream events (`LEVEL_FINAL_TP`, `LEVEL_CLOSE_ALL`, trailing updates) describe the close-out path.
  - `NEXT_SOURCE_DECISION`: frontend decision on overlay origin (backend, source_pending, plan, fallback, projection)
+ - `TP_TRAILING_START`: emitted when TP is reached and trailing protection becomes active.
 
 ### Phase 5 – Persistence & Resilience
 - Serialize active grid state (orders, trailing levels, indicators) to survive reconnects and timeframe changes

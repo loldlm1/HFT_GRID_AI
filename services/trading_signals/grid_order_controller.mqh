@@ -26,6 +26,9 @@ void UpdateGridLifecycle(SignalParams &signal_params)
   if(!signal_params.grid_initialized)
     return;
 
+  // Refresh pending geometry (entry_reference/next_level) before lifecycle steps
+  BuildOrUpdateGridForSignal(signal_params, false);
+
   double      point_size   = GridResolvePointSize();
   SignalTypes direction    = signal_params.signal_type;
   int         total_levels = ArraySize(signal_params.grid_orders);
@@ -65,20 +68,57 @@ void UpdateGridLifecycle(SignalParams &signal_params)
       case GRID_ORDER_ACTIVE:
       {
         double current_price = GridCurrentPriceForDirection(direction, false);
-        bool   close_order   = false;
-
-        if(grid_order.take_profit_price > 0.0)
+        // Final TP closes the entire grid
+        if(grid_order.final_take_profit_price > 0.0)
         {
-          if(direction == BULLISH && current_price >= grid_order.take_profit_price)
-            close_order = true;
-          if(direction == BEARISH && current_price <= grid_order.take_profit_price)
-            close_order = true;
+          bool hit_final = (direction == BULLISH && current_price >= grid_order.final_take_profit_price) ||
+                           (direction == BEARISH && current_price <= grid_order.final_take_profit_price);
+          if(hit_final)
+          {
+            GridCloseAllLevels(signal_params, point_size);
+            GridLogEvent("LEVEL_FINAL_TP", signal_params, grid_order);
+            break;
+          }
         }
+        if(ShouldSwitchToTrailingTP(direction, grid_order, current_price))
+        {
+          grid_order.status = GRID_ORDER_TP_TRAILING_ACTIVE;
+          grid_order.tp_reached = true;
+          grid_order.is_trailing_active = true;
+          UpdateTrailingTP(signal_params, grid_order, current_price, point_size);
+          GridLogEvent("TP_TRAILING_START", signal_params, grid_order);
+        }
+      }
 
-        if(close_order)
+      case GRID_ORDER_TP_TRAILING_ACTIVE:
+      {
+        double current_price = GridCurrentPriceForDirection(direction, false);
+        // Final TP closes the entire grid even while trailing
+        if(grid_order.final_take_profit_price > 0.0)
+        {
+          bool hit_final = (direction == BULLISH && current_price >= grid_order.final_take_profit_price) ||
+                           (direction == BEARISH && current_price <= grid_order.final_take_profit_price);
+          if(hit_final)
+          {
+            GridCloseAllLevels(signal_params, point_size);
+            GridLogEvent("LEVEL_FINAL_TP", signal_params, grid_order);
+            break;
+          }
+        }
+        UpdateTrailingTP(signal_params, grid_order, current_price, point_size);
+
+        bool exit_on_trail = false;
+        if(grid_order.trailing_price > 0.0)
+        {
+          if(direction == BULLISH && current_price <= grid_order.trailing_price)
+            exit_on_trail = true;
+          if(direction == BEARISH && current_price >= grid_order.trailing_price)
+            exit_on_trail = true;
+        }
+        if(exit_on_trail)
         {
           GridFinalizeLevel(direction, grid_order, point_size, current_price);
-          GridLogEvent("GRID_ORDER_ACTIVE -> GRID_ORDER_COMPLETED", signal_params, grid_order);
+          GridLogEvent("GRID_ORDER_TP_TRAILING_ACTIVE -> GRID_ORDER_COMPLETED", signal_params, grid_order);
         }
       }
 
