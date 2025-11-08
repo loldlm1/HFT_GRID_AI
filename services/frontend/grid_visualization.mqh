@@ -61,7 +61,7 @@ void DrawGridLevels(const long chart_id,
   double stop_price = level_state.entry_reference_price;
   if(stop_price <= 0.0)
     stop_price = 0;
-  double entry_price_line = (level_state.status == GRID_ORDER_ACTIVE)
+  double entry_price_line = (level_state.status == GRID_ORDER_ACTIVE || level_state.status == GRID_ORDER_TP_TRAILING_ACTIVE)
                             ? level_state.entry_price
                             : stop_price;
   double tp_price = level_state.take_profit_price;
@@ -73,15 +73,42 @@ void DrawGridLevels(const long chart_id,
   if(next_price_line <= 0.0 && level_state.entry_style == GRID_ENTRY_STYLE_STOP)
     next_price_line = stop_price;
 
-  if(SHOW_STOPS_LINES)
-    UpdateTrackedLine(chart_id, stop_name, COLOR_PROFIT_NEGATIVE, stop_price, tracked_objects);
-  else
-    UpdateHorizontalLine(chart_id, stop_name, COLOR_PROFIT_NEGATIVE, 0.0);
+  // Always render STOP per setting
+  if(SHOW_STOPS_LINES) UpdateTrackedLine(chart_id, stop_name, COLOR_PROFIT_NEGATIVE, stop_price, tracked_objects);
+  else                 UpdateHorizontalLine(chart_id, stop_name, COLOR_PROFIT_NEGATIVE, 0.0);
 
+  // Entry line (pending uses STOP; active/trailing uses entry fill)
   UpdateTrackedLine(chart_id, entry_name, COLOR_PROFIT_NEUTRAL, entry_price_line, tracked_objects);
-  UpdateTrackedLine(chart_id, tp_name, COLOR_PROFIT_POSITIVE, tp_price, tracked_objects);
-  UpdateTrackedLine(chart_id, final_name, COLOR_PROFIT_POSITIVE, final_price, tracked_objects);
-  UpdateTrackedLine(chart_id, trailing_name, COLOR_PROFIT_POSITIVE, trailing_price, tracked_objects);
+
+  // Pending states: hide TP/final/trailing; show NEXT only
+  if(level_state.status == GRID_ORDER_WAITING ||
+     level_state.status == GRID_ORDER_STOP_TRAILING_ACTIVE)
+  {
+    UpdateHorizontalLine(chart_id, tp_name, COLOR_PROFIT_POSITIVE, 0.0);
+    UpdateHorizontalLine(chart_id, final_name, COLOR_PROFIT_POSITIVE, 0.0);
+    UpdateHorizontalLine(chart_id, trailing_name, COLOR_PROFIT_POSITIVE, 0.0);
+  }
+  // Active non-trailing: show TP and final; hide trailing
+  else if(level_state.status == GRID_ORDER_ACTIVE)
+  {
+    UpdateTrackedLine(chart_id, tp_name, COLOR_PROFIT_POSITIVE, tp_price, tracked_objects);
+    UpdateTrackedLine(chart_id, final_name, COLOR_PROFIT_POSITIVE, final_price, tracked_objects);
+    UpdateHorizontalLine(chart_id, trailing_name, COLOR_PROFIT_POSITIVE, 0.0);
+  }
+  // Trailing active: swap TP for trailing; keep final visible
+  else if(level_state.status == GRID_ORDER_TP_TRAILING_ACTIVE)
+  {
+    UpdateHorizontalLine(chart_id, tp_name, COLOR_PROFIT_POSITIVE, 0.0);
+    UpdateTrackedLine(chart_id, final_name, COLOR_PROFIT_POSITIVE, final_price, tracked_objects);
+    UpdateTrackedLine(chart_id, trailing_name, COLOR_PROFIT_POSITIVE, trailing_price, tracked_objects);
+  }
+  else
+  {
+    UpdateHorizontalLine(chart_id, tp_name, COLOR_PROFIT_POSITIVE, 0.0);
+    UpdateHorizontalLine(chart_id, final_name, COLOR_PROFIT_POSITIVE, 0.0);
+    UpdateHorizontalLine(chart_id, trailing_name, COLOR_PROFIT_POSITIVE, 0.0);
+  }
+
   UpdateTrackedLine(chart_id, next_name, COLOR_PROFIT_NEUTRAL, next_price_line, tracked_objects);
 }
 
