@@ -8,7 +8,7 @@ int ResolveDisplayLevelIndex(const SignalParams &signal_params)
   for(int i = 0; i < total; i++)
   {
     GridOrderState state = signal_params.grid_orders[i];
-    if(state.status == GRID_ORDER_ACTIVE)
+    if(state.status == GRID_ORDER_ACTIVE || state.status == GRID_ORDER_TP_TRAILING_ACTIVE)
       last_active = i;
   }
   if(last_active >= 0)
@@ -67,11 +67,29 @@ void DrawGridLevels(const long chart_id,
   double tp_price = level_state.take_profit_price;
   double final_price = level_state.final_take_profit_price;
   double trailing_price = level_state.trailing_price;
-  double next_price_line = level_state.next_level_price;
+  // Prefer NEXT from the first pending level (WAITING/STOP_TRAILING_ACTIVE); fallback to current level
+  double next_price_line = 0.0;
+  int total = ArraySize(signal_params.grid_orders);
+  int first_pending = -1;
+  for(int p = 0; p < total; p++)
+  {
+    GridOrderState ps = signal_params.grid_orders[p];
+    if(ps.status == GRID_ORDER_WAITING || ps.status == GRID_ORDER_STOP_TRAILING_ACTIVE)
+    {
+      first_pending = p;
+      break;
+    }
+  }
+  if(first_pending >= 0)
+  {
+    next_price_line = signal_params.grid_orders[first_pending].next_level_price;
+  }
   if(next_price_line <= 0.0)
-    next_price_line = stop_price;
-  if(next_price_line <= 0.0 && level_state.entry_style == GRID_ENTRY_STYLE_STOP)
-    next_price_line = stop_price;
+  {
+    next_price_line = level_state.next_level_price;
+    if(next_price_line <= 0.0)
+      next_price_line = stop_price;
+  }
 
   bool is_pending_state = (level_state.status == GRID_ORDER_WAITING ||
                            level_state.status == GRID_ORDER_STOP_TRAILING_ACTIVE);

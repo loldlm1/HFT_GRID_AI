@@ -316,7 +316,8 @@ bool IsGridSignalComplete(const SignalParams &signal_params)
     GridOrderState state = signal_params.grid_orders[i];
     if(state.status == GRID_ORDER_WAITING ||
        state.status == GRID_ORDER_STOP_TRAILING_ACTIVE ||
-       state.status == GRID_ORDER_ACTIVE)
+       state.status == GRID_ORDER_ACTIVE ||
+       state.status == GRID_ORDER_TP_TRAILING_ACTIVE)
       return false;
   }
   return true;
