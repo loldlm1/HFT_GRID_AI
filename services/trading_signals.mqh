@@ -13,6 +13,7 @@
 // SIGNAL SERVICE FILES
 #include "../microservices/trading_signals/grid_atr_utils.mqh"
 #include "trading_signals/signal_params_struct.mqh"
+#include "trading_signals/market_signal_detector.mqh"
 #include "../microservices/trading_signals/grid_price_resolver.mqh"
 #include "../microservices/trading_signals/grid_order_helpers.mqh"
 #include "../microservices/trading_signals/grid_order_math.mqh"
@@ -20,7 +21,6 @@
 #include "../microservices/trading_signals/grid_order_lifecycle.mqh"
 #include "trading_signals/grid_planner.mqh"
 #include "trading_signals/grid_order_controller.mqh"
-#include "trading_signals/market_signal_detector.mqh"
 #include "trading_signals/tick_signals_manager.mqh"
 
 #endif // _SERVICES_TRADING_SIGNALS_MQH_

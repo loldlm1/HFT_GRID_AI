@@ -56,24 +56,30 @@ ulong FindOpenPositionForSignal(const SignalTypes direction,
   return 0;
 }
 
-bool GridShouldActivatePendingLevel(const SignalParams &signal_params,
+bool GridShouldActivateStopOrder(const SignalParams &signal_params,
                                     const GridOrderState &order_state,
                                     const SignalTypes direction,
                                     const double point_size)
 {
   double entry_side_price = GridCurrentPriceForDirection(direction, true);
 
-  // L0 activates on the trailing STOP line (entry_reference_price) with broker semantics.
-  if(order_state.level_index <= 0)
-  {
-    double stop_trigger = order_state.entry_reference_price;
-    if(stop_trigger <= 0.0)
-      return false;
-    // BUY STOP: Ask >= stop; SELL STOP: Bid <= stop
-    if(direction == BULLISH) return entry_side_price >= stop_trigger;
-    if(direction == BEARISH) return entry_side_price <= stop_trigger;
+  double stop_trigger = order_state.entry_reference_price;
+  if(stop_trigger <= 0.0)
     return false;
-  }
+  // BUY STOP: Ask >= stop; SELL STOP: Bid <= stop
+  if(direction == BULLISH) return entry_side_price >= stop_trigger;
+  if(direction == BEARISH) return entry_side_price <= stop_trigger;
+  return false;
+
+  return false;
+}
+
+bool GridShouldActivateNextLevelLimit(const SignalParams &signal_params,
+                                    const GridOrderState &order_state,
+                                    const SignalTypes direction,
+                                    const double point_size)
+{
+  double entry_side_price = GridCurrentPriceForDirection(direction, true);
 
   // Deeper levels activate on the NEXT level price (averaging on adverse move).
   double next_trigger = order_state.next_level_price;
@@ -101,6 +107,7 @@ bool ShouldSwitchToTrailingTP(const SignalTypes direction,
 
 void UpdateTrailingTP(const SignalParams &signal_params,
                       GridOrderState &order_state,
+                      const int grid_order_level,
                       const double current_price,
                       const double point_size)
 {
@@ -130,6 +137,7 @@ void UpdateTrailingTP(const SignalParams &signal_params,
   if(order_state.trailing_price <= 0.0)
   {
     order_state.trailing_price = candidate;
+    signal_params.grid_orders[grid_order_level] = order_state;
     return;
   }
 
@@ -143,6 +151,8 @@ void UpdateTrailingTP(const SignalParams &signal_params,
     if(candidate < order_state.trailing_price)
       order_state.trailing_price = candidate;
   }
+
+  signal_params.grid_orders[grid_order_level] = order_state;
 }
 
 bool GridExecuteLevelTrade(SignalParams &signal_params,
@@ -152,6 +162,14 @@ bool GridExecuteLevelTrade(SignalParams &signal_params,
 {
   SignalTypes direction = signal_params.signal_type;
   string comment = GridComposeLevelComment(signal_params, order_state);
+
+  // Guardrails: spread/margin checks before sending
+  string guard_reason = "";
+  if(!GridGuardrailsAllowOrder(normalized_volume, guard_reason))
+  {
+    GridLogGuardrailBlock("GUARDRAIL_BLOCK", signal_params, order_state, guard_reason);
+    return false;
+  }
 
   bool sent = false;
   if(direction == BULLISH)
@@ -176,30 +194,7 @@ bool GridExecuteLevelTrade(SignalParams &signal_params,
   order_state.last_action_time = TimeCurrent();
 
   signal_params.grid_orders[order_state.level_index] = order_state;
-  return true;
-}
-
-void GridFinalizeLevel(const SignalTypes direction,
-                       GridOrderState &order_state,
-                       const double point_size,
-                       const double close_price_override)
-{
-  double close_price = close_price_override;
-  if(close_price <= 0.0)
-    close_price = GridCurrentPriceForDirection(direction, false);
-
-  order_state.status = GRID_ORDER_COMPLETED;
-  order_state.last_action_time = TimeCurrent();
-  order_state.position_ticket  = 0;
-  order_state.position_comment = "";
-  order_state.is_trailing_active = false;
-  order_state.tp_reached         = false;
-  order_state.trailing_price     = 0.0;
-  order_state.final_take_profit_price = 0.0;
-  order_state.take_profit_price       = 0.0;
-  order_state.next_level_price        = 0.0;
-  order_state.entry_reference_price   = 0.0;
-  order_state.entry_price             = close_price;
+  return sent;
 }
 
 bool GridCloseBrokerPosition(GridOrderState &order_state,
@@ -209,10 +204,10 @@ bool GridCloseBrokerPosition(GridOrderState &order_state,
   close_price = 0.0;
 
   if(order_state.position_ticket <= 0)
-    return false;
+    return true;
 
   if(!PositionSelectByTicket(order_state.position_ticket))
-    return false;
+    return true;
 
   if(!g_position.PositionClose(order_state.position_ticket))
     return false;
@@ -228,27 +223,48 @@ bool GridCloseBrokerPosition(GridOrderState &order_state,
 void GridCloseAllLevels(SignalParams &signal_params,
                         const double point_size)
 {
+  bool result = false;
   SignalTypes direction = signal_params.signal_type;
   int total_levels = ArraySize(signal_params.grid_orders);
   for(int i = 0; i < total_levels; i++)
   {
     GridOrderState state = signal_params.grid_orders[i];
-    if(state.status == GRID_ORDER_ACTIVE)
-    {
-      double close_price = 0.0;
-      GridCloseBrokerPosition(state, direction, close_price);
-      GridFinalizeLevel(direction, state, point_size, close_price);
-      GridLogEvent("LEVEL_CLOSE_ALL", signal_params, state);
-    }
-    else if(state.status == GRID_ORDER_STOP_TRAILING_ACTIVE ||
-            state.status == GRID_ORDER_WAITING)
-    {
-      state.status = GRID_ORDER_COMPLETED;
-      state.last_action_time = TimeCurrent();
-      GridLogEvent("LEVEL_CANCELLED", signal_params, state);
-    }
+    double close_price = 0.0;
+    result = GridCloseBrokerPosition(state, direction, close_price);
+    if(result) state.status = GRID_ORDER_COMPLETED;
+    GridLogEvent("LEVEL_CLOSE_ALL", signal_params, state);
     signal_params.grid_orders[i] = state;
   }
+}
+
+int GetActivePositionsCount(const SignalTypes direction)
+{
+  int count = 0;
+  int total_positions = PositionsTotal();
+
+  for(int i = 0; i < total_positions; i++)
+  {
+    ulong position_ticket = PositionGetTicket(i);
+    if(position_ticket == 0)
+      continue;
+
+    if(!PositionSelectByTicket(position_ticket))
+      continue;
+
+    // Validar magic number
+    long position_magic = PositionGetInteger(POSITION_MAGIC);
+    if(position_magic != g_magic_number)
+      continue;
+
+    ENUM_POSITION_TYPE pos_type = (ENUM_POSITION_TYPE)PositionGetInteger(POSITION_TYPE);
+
+    if(direction == BULLISH && pos_type == POSITION_TYPE_BUY)
+      count++;
+    else if(direction == BEARISH && pos_type == POSITION_TYPE_SELL)
+      count++;
+  }
+
+  return count;
 }
 
 bool IsGridSignalComplete(const SignalParams &signal_params)
@@ -263,7 +279,16 @@ bool IsGridSignalComplete(const SignalParams &signal_params)
        state.status == GRID_ORDER_TP_TRAILING_ACTIVE)
       return false;
   }
-  return true;
+
+  int bullish_positions = GetActivePositionsCount(BULLISH);
+  int bearish_positions = GetActivePositionsCount(BEARISH);
+
+  if(signal_params.signal_type == BULLISH && bullish_positions == 0)
+    return true;
+  if(signal_params.signal_type == BEARISH && bearish_positions == 0)
+    return true;
+
+  return false;
 }
 
 #endif // _MICROSERVICES_TRADING_SIGNALS_GRID_ORDER_LIFECYCLE_MQH_

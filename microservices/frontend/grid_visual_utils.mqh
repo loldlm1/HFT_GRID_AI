@@ -67,8 +67,7 @@ string GridSignalObjectName(const SignalParams &signal_params,
                             const string suffix)
 {
   string direction = (signal_params.signal_type == BULLISH) ? "BULLISH" : "BEARISH";
-  string identifier = GridSignalIdentifier(signal_params);
-  return suffix + "_" + identifier + "_" + direction;
+  return suffix + "_" + direction;
 }
 
 #endif // _MICROSERVICES_FRONTEND_GRID_VISUAL_UTILS_MQH_
