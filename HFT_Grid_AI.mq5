@@ -15,6 +15,10 @@
 #include <Trade/AccountInfo.mqh>
 #include <Trade/SymbolInfo.mqh>
 
+// CUSTOM SERVICES - UTILITIES
+#include "services/Bcrypt.mqh"
+#include "services/SecurityLicense.mqh"
+
 // CUSTOM SERVICES - AGGREGATORS
 #include "services/trading_tools.mqh"
 #include "services/trading_management.mqh"
@@ -34,6 +38,13 @@ SymbolTradingConstraints g_symbol_constraints;
 
 int OnInit()
 {
+  // License Validation
+	if(MQLInfoInteger(MQL_TESTER) > 0) is_testing = true;
+	if(!DecryptEA())              { return(INIT_FAILED); }
+  if(!VerifyLicense())          { return(INIT_FAILED); }
+  if(!VerifyLicenseType())      { return(INIT_FAILED); }
+  if(!VerifyValidLicenseTime()) { return(INIT_FAILED); }
+
   // INITIALIZE GLOBAL VARIABLES
   g_symbol.Name(_Symbol);
   g_decimal_digits  = pow(10.0, Digits());
