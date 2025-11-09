@@ -74,8 +74,15 @@ void LoadAllIndicatorDefinitions()
   PrepareStrategyTimeframes();
   PrepareIndicatorPeriods();
 
-  bool use_base_indicator  = (Base_Indicator_Strategy_Type != BB_NONE_TYPE);
+  bool use_base_indicator  = (Base_Indicator_Percent > 0.0);
   bool use_solid_indicator = (Solid_Indicator_Strategy_Type != SOLID_NONE_TYPE);
+  bool structure_filters_enabled =
+    (Min_Extern_Structures_Broken > 0) ||
+    (FiboZone1_Support_Retest_Min > 0) ||
+    (FiboZone1_Resistance_Retest_Min > 0) ||
+    (FiboZone2_Support_Retest_Min > 0) ||
+    (FiboZone2_Resistance_Retest_Min > 0);
+  bool require_structure_indicators = use_solid_indicator || structure_filters_enabled;
 
   bool use_atr_strategy = (Grid_Base_Strategy_Type == ATR_RANGE);
 
@@ -84,9 +91,9 @@ void LoadAllIndicatorDefinitions()
     Print("WARNING: Both base and solid strategies are disabled; signal generation will be halted.");
   }
 
-  PrintFormat("Strategy context | TF=%s | BaseStrategy=%s | BasePeriod=%d | SolidStrategy=%s | SolidPeriod=%d | Direction=%s",
+  PrintFormat("Strategy context | TF=%s | BasePercent=%.2f | BasePeriod=%d | SolidStrategy=%s | SolidPeriod=%d | Direction=%s",
               EnumToString(Strategy_Timeframe),
-              EnumToString(Base_Indicator_Strategy_Type),
+              Base_Indicator_Percent,
               (int)Base_Indicator_Period_Type,
               EnumToString(Solid_Indicator_Strategy_Type),
               (int)Solid_Indicator_Period_Type,
@@ -99,16 +106,6 @@ void LoadAllIndicatorDefinitions()
   ArrayResize(ExtBodyMAIndicatorsHandle, 0);
   ArrayResize(ExtATRIndicatorsHandle, 0);
 
-  // LOAD ALL INDICATORS VARIANTS
-  if(Base_Indicator_Strategy_Type == BANDS_TYPE)
-  {
-    LoadAllBandsIndicators();
-  }
-  else
-  {
-    Print("Skipping Bollinger Bands indicator loading (not required for selected base strategy).");
-  }
-
   if(use_base_indicator)
   {
     LoadAllBPercentIndicators();
@@ -118,14 +115,14 @@ void LoadAllIndicatorDefinitions()
     Print("Base indicator strategy disabled; skipping Bollinger Percent indicator loading.");
   }
 
-  if(use_solid_indicator)
+  if(require_structure_indicators)
   {
     LoadAllStochIndicators();
     LoadAllStructStochIndicators();
   }
   else
   {
-    Print("Solid indicator strategy disabled; skipping stochastic indicator loading.");
+    Print("Solid indicator strategy disabled and no structure filters configured; skipping stochastic indicator loading.");
   }
 
   if(use_atr_strategy)
@@ -136,8 +133,6 @@ void LoadAllIndicatorDefinitions()
   {
     Print("ATR grid strategy disabled; skipping ATR indicator loading.");
   }
-
-  LoadAllBodyMAIndicators();
 }
 
 // ++ LOAD ALL INDICATORS VARIANTS FUNCTIONS ++

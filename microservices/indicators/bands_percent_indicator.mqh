@@ -14,6 +14,8 @@ struct BandsPercentStructure
   double bands_percent_1;
   double bands_percent_2;
   double bands_percent_3;
+  double bands_percent_4;
+  double bands_percent_5;
   // BAND PERCENT SIGNALS
   double bands_percent_signal_0;
   double bands_percent_signal_1;
@@ -71,6 +73,8 @@ struct BandsPercentStructure
     bands_percent_1                  = 0.0;
     bands_percent_2                  = 0.0;
     bands_percent_3                  = 0.0;
+    bands_percent_4                  = 0.0;
+    bands_percent_5                  = 0.0;
     bands_percent_signal_0           = 0.0;
     bands_percent_signal_1           = 0.0;
     bands_percent_signal_2           = 0.0;
@@ -122,6 +126,8 @@ struct BandsPercentStructure
     bands_percent_1                  = bands_percent_structure.bands_percent_1;
     bands_percent_2                  = bands_percent_structure.bands_percent_2;
     bands_percent_3                  = bands_percent_structure.bands_percent_3;
+    bands_percent_4                  = bands_percent_structure.bands_percent_4;
+    bands_percent_5                  = bands_percent_structure.bands_percent_5;
     bands_percent_signal_0           = bands_percent_structure.bands_percent_signal_0;
     bands_percent_signal_1           = bands_percent_structure.bands_percent_signal_1;
     bands_percent_signal_2           = bands_percent_structure.bands_percent_signal_2;
@@ -173,6 +179,8 @@ struct BandsPercentStructure
     bands_percent_1              = GetBandsPercentValue(bands_indicator_handle, index+1);
     bands_percent_2              = GetBandsPercentValue(bands_indicator_handle, index+2);
     bands_percent_3              = GetBandsPercentValue(bands_indicator_handle, index+3);
+    bands_percent_4              = GetBandsPercentValue(bands_indicator_handle, index+4);
+    bands_percent_5              = GetBandsPercentValue(bands_indicator_handle, index+5);
 
     bands_percent_signal_0       = GetBandsPercentSignalValue(bands_indicator_handle, index);
     bands_percent_signal_1       = GetBandsPercentSignalValue(bands_indicator_handle, index+1);

@@ -26,10 +26,17 @@ input group  "+= Strategy Context =+";
 input ENUM_TIMEFRAMES             Strategy_Timeframe            = PERIOD_M1;
 input BaseIndicatorPeriodTypes    Base_Indicator_Period_Type    = BASE_PERIOD_21;
 input ENUM_MA_METHOD              Base_Indicator_MA_Method      = MODE_EMA;
-input BaseIndicatorStrategyTypes  Base_Indicator_Strategy_Type  = MA_TYPE;
+input double                      Base_Indicator_Percent        = 50.0;
 input SolidIndicatorStrategyTypes Solid_Indicator_Strategy_Type = EXTREMA_TYPE;
 input SolidIndicatorPeriodTypes   Solid_Indicator_Period_Type   = SOLID_PERIOD_5;
 input StrategyDirectionTypes      Strategy_Direction_Mode       = BOTH_DIRECTION;
+
+input group "+= Structure Filters =+";
+input int Min_Extern_Structures_Broken      = 0;
+input int FiboZone1_Support_Retest_Min      = 0;
+input int FiboZone1_Resistance_Retest_Min   = 0;
+input int FiboZone2_Support_Retest_Min      = 0;
+input int FiboZone2_Resistance_Retest_Min   = 0;
 
 input group  "+= Grid Strategy Settings =+";
 input GridBaseStrategyTypes Grid_Base_Strategy_Type      = ATR_RANGE;
