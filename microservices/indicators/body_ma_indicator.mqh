@@ -118,17 +118,6 @@ struct BodyMAStructure
     // Use _Digits for price-based values
     double value = NormalizeDouble(body_value[index], _Digits);
 
-    // TIMESTAMP VERIFICATION LOGGING (M1 ONLY)
-    if(Enable_Verification_Logs && body_ma_indicator_handle.indicator_timeframe == PERIOD_M1)
-    {
-      datetime candle_time = iTime(_Symbol, body_ma_indicator_handle.indicator_timeframe, index);
-      PrintFormat("[VERIFY-BodyValue] TF=%s, Shift=%d, Time=%s, Value=%s",
-                  TimeframeToString(body_ma_indicator_handle.indicator_timeframe),
-                  index,
-                  TimeToString(candle_time, TIME_DATE|TIME_MINUTES),
-                  DoubleToString(value, _Digits));
-    }
-
     return value;
   }
 
@@ -145,17 +134,6 @@ struct BodyMAStructure
 
     // Use _Digits for price-based values
     double value = NormalizeDouble(body_ma_value[index], _Digits);
-
-    // TIMESTAMP VERIFICATION LOGGING (M1 ONLY)
-    if(Enable_Verification_Logs && body_ma_indicator_handle.indicator_timeframe == PERIOD_M1)
-    {
-      datetime candle_time = iTime(_Symbol, body_ma_indicator_handle.indicator_timeframe, index);
-      PrintFormat("[VERIFY-BodyMA] TF=%s, Shift=%d, Time=%s, Value=%s",
-                  TimeframeToString(body_ma_indicator_handle.indicator_timeframe),
-                  index,
-                  TimeToString(candle_time, TIME_DATE|TIME_MINUTES),
-                  DoubleToString(value, _Digits));
-    }
 
     return value;
   }
