@@ -133,6 +133,8 @@ void LoadAllIndicatorDefinitions()
   {
     Print("ATR grid strategy disabled; skipping ATR indicator loading.");
   }
+
+  LoadAllBodyMAIndicators();
 }
 
 // ++ LOAD ALL INDICATORS VARIANTS FUNCTIONS ++
