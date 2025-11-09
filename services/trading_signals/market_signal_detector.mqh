@@ -369,14 +369,6 @@ bool EvaluateStructureRetestTrigger(const SignalParams &signal_params, const Sig
   StochasticMarketStructure structure    = signal_params.stoch_market_structure_data[0];
   ExtremumStatistics        latest_stats = structure.extremum_stats[0];
 
-  Print(
-    latest_stats.extern_structures_broken, " | ",
-    latest_stats.fibo_retest_zones[0].support_retest_count, " |61.8| ",
-    latest_stats.fibo_retest_zones[0].resistance_retest_count, " |61.8| ",
-    latest_stats.fibo_retest_zones[1].support_retest_count, " |78.6% | ",
-    latest_stats.fibo_retest_zones[1].resistance_retest_count, " | 78.6% "
-  );
-
   if(!ValidateExternStructuresRequirement(latest_stats))
     return false;
 
