@@ -11,6 +11,7 @@ SignalParams running_bearish_signals[];
 const double BANDS_PERCENT_MID_LEVEL   = 50.0;
 const double BANDS_PERCENT_UPPER_LEVEL = 100.0;
 const double BANDS_PERCENT_LOWER_LEVEL = 0.0;
+const int    BANDS_PERCENT_SHIFT_DEPTH = 5;
 
 // ++ HELPER FUNCTION TO CALCULATE CORRECT SHIFT BASED ON ENTRY TIME ++
 
@@ -181,6 +182,16 @@ void SetTFBodyMADataToSignalParams(SignalParams &signal_params)
 
 bool CanAttemptSignal(const SignalTypes signal_type)
 {
+  bool use_base_indicator  = (Base_Indicator_Percent > 0.0);
+  bool use_solid_indicator = (Solid_Indicator_Strategy_Type != SOLID_NONE_TYPE);
+  bool structure_filters_enabled =
+    (Min_Extern_Structures_Broken > 0) ||
+    (FiboZone1_Support_Retest_Min > 0) ||
+    (FiboZone1_Resistance_Retest_Min > 0) ||
+    (FiboZone2_Support_Retest_Min > 0) ||
+    (FiboZone2_Resistance_Retest_Min > 0);
+  bool require_structure_data = (Solid_Indicator_Strategy_Type == EXTREMA_TYPE) || structure_filters_enabled;
+
   if(Strategy_Direction_Mode == BULLISH_DIRECTION && signal_type == BEARISH)
   {
     return false;
@@ -195,22 +206,58 @@ bool CanAttemptSignal(const SignalTypes signal_type)
   if(signal_type == BEARISH && ArraySize(running_bearish_signals) >= 1)
     return false;
 
-  if(Base_Indicator_Strategy_Type != BB_NONE_TYPE && ArraySize(ExtBPercentIndicatorsHandle) <= 0)
+  if(use_base_indicator && ArraySize(ExtBPercentIndicatorsHandle) <= 0)
     return false;
 
-  if(Solid_Indicator_Strategy_Type == EXTREMA_TYPE && ArraySize(ExtStructStochIndicatorsHandle) <= 0)
+  if(require_structure_data && ArraySize(ExtStochIndicatorsHandle) <= 0)
     return false;
 
-  if(Base_Indicator_Strategy_Type == BB_NONE_TYPE && Solid_Indicator_Strategy_Type == SOLID_NONE_TYPE)
+  if(require_structure_data && ArraySize(ExtStructStochIndicatorsHandle) <= 0)
+    return false;
+
+  if(!use_base_indicator && !use_solid_indicator)
     return false;
 
 
   return true;
 }
 
+bool ValidateBandsPercentBreakout(const double &shift_values[], const SignalTypes signal_type)
+{
+  double zone_start = Base_Indicator_Percent;
+  double zone_end   = Base_Indicator_Percent;
+
+  if(signal_type == BULLISH) { zone_start = 100-Base_Indicator_Percent; zone_end = zone_start - 20.0; }
+  if(signal_type == BEARISH) { zone_start = Base_Indicator_Percent; zone_end = zone_start + 20.0; }
+
+  bool has_origin   = false;
+  bool in_the_zone  = false;
+  bool crossed_zone = false;
+
+  for(int i = 0; i < BANDS_PERCENT_SHIFT_DEPTH; i++)
+  {
+    double shift_value = shift_values[i];
+
+    if(signal_type == BULLISH)
+    {
+      if(shift_value >= zone_start) has_origin   = true;
+      if(shift_value <= zone_start) in_the_zone  = true;
+      if(shift_value <  zone_end)   crossed_zone = true;
+    }
+    if(signal_type == BEARISH)
+    {
+      if(shift_value <= zone_start) has_origin   = true;
+      if(shift_value >= zone_start) in_the_zone  = true;
+      if(shift_value > zone_end)    crossed_zone = true;
+    }
+  }
+
+  return has_origin && in_the_zone && !crossed_zone;
+}
+
 bool EvaluateBaseIndicatorTrigger(const SignalParams &signal_params, const SignalTypes signal_type)
 {
-  if(Base_Indicator_Strategy_Type == BB_NONE_TYPE)
+  if(Base_Indicator_Percent <= 0.0)
     return true;
 
   int total_entries = ArraySize(signal_params.bands_percent_data);
@@ -218,41 +265,58 @@ bool EvaluateBaseIndicatorTrigger(const SignalParams &signal_params, const Signa
     return false;
 
   BandsPercentStructure bands_data = signal_params.bands_percent_data[0];
+  double shift_values[];
+  ArrayResize(shift_values, BANDS_PERCENT_SHIFT_DEPTH);
+  shift_values[0] = bands_data.bands_percent_1;
+  shift_values[1] = bands_data.bands_percent_2;
+  shift_values[2] = bands_data.bands_percent_3;
+  shift_values[3] = bands_data.bands_percent_4;
+  shift_values[4] = bands_data.bands_percent_5;
 
-  switch(Base_Indicator_Strategy_Type)
-  {
-    case MA_TYPE:
-      if(signal_type == BULLISH)
-        return (bands_data.bands_percent_2 > BANDS_PERCENT_MID_LEVEL && bands_data.bands_percent_1 <= BANDS_PERCENT_MID_LEVEL);
-      return (bands_data.bands_percent_2 < BANDS_PERCENT_MID_LEVEL && bands_data.bands_percent_1 >= BANDS_PERCENT_MID_LEVEL);
-    case BANDS_TYPE:
-      if(signal_type == BULLISH)
-        return (bands_data.bands_percent_2 > BANDS_PERCENT_UPPER_LEVEL && bands_data.bands_percent_1 <= BANDS_PERCENT_UPPER_LEVEL);
-      return (bands_data.bands_percent_2 < BANDS_PERCENT_LOWER_LEVEL && bands_data.bands_percent_1 >= BANDS_PERCENT_LOWER_LEVEL);
-  }
-
-  return false;
+  return ValidateBandsPercentBreakout(shift_values, signal_type);
 }
 
-bool FetchLatestExtremum(const StochasticMarketStructure &structure,
-                         OscillatorMarketStructure &latest_extremum)
+int GetZoneRetestRequirement(const SignalTypes signal_type, const int zone_index)
 {
-  int total_extrema = ArraySize(structure.os_market_structures);
-  if(total_extrema <= 0)
-    return false;
-
-  int most_recent_index = 0;
-
-  for(int i = 0; i < total_extrema; i++)
+  switch(zone_index)
   {
-    if(structure.os_market_structures[i].sequence_index == 0)
-    {
-      most_recent_index = i;
-      break;
-    }
+    case 0:
+      if(signal_type == BULLISH)
+        return FiboZone1_Support_Retest_Min;
+      return FiboZone1_Resistance_Retest_Min;
+    case 1:
+      if(signal_type == BULLISH)
+        return FiboZone2_Support_Retest_Min;
+      return FiboZone2_Resistance_Retest_Min;
+  }
+  return 0;
+}
+
+bool ValidateExternStructuresRequirement(const ExtremumStatistics &latest_stats)
+{
+  if(Min_Extern_Structures_Broken <= 0)
+    return true;
+  return latest_stats.extern_structures_broken >= Min_Extern_Structures_Broken;
+}
+
+bool ValidateRetestRequirements(const ExtremumStatistics &latest_stats, const SignalTypes signal_type)
+{
+  for(int zone_index = 0; zone_index < FIBO_RETEST_ZONES_TOTAL; zone_index++)
+  {
+    int required = GetZoneRetestRequirement(signal_type, zone_index);
+    if(required <= 0)
+      continue;
+
+    int available = 0;
+    if(signal_type == BULLISH)
+      available = latest_stats.fibo_retest_zones[zone_index].support_retest_count;
+    if(signal_type == BEARISH)
+      available = latest_stats.fibo_retest_zones[zone_index].resistance_retest_count;
+
+    if(available < required)
+      return false;
   }
 
-  latest_extremum = structure.os_market_structures[most_recent_index];
   return true;
 }
 
@@ -265,25 +329,70 @@ bool EvaluateSolidIndicatorTrigger(const SignalParams &signal_params, const Sign
   if(total_structures <= 0)
     return false;
 
-  StochasticMarketStructure structure = signal_params.stoch_market_structure_data[0];
-  OscillatorMarketStructure latest_extremum;
-  if(!FetchLatestExtremum(structure, latest_extremum))
-  return false;
+  StochasticMarketStructure structure       = signal_params.stoch_market_structure_data[0];
+  OscillatorMarketStructure latest_extremum = structure.os_market_structures[0];
 
   if(signal_type == BULLISH)
   {
-    return !latest_extremum.is_peak;
+    return (
+      structure.first_structure_type == OSCILLATOR_STRUCTURE_LH ||
+      structure.first_structure_type == OSCILLATOR_STRUCTURE_LL
+    );
+  }
+  if(signal_type == BEARISH)
+  {
+    return (
+      structure.first_structure_type == OSCILLATOR_STRUCTURE_HL ||
+      structure.first_structure_type == OSCILLATOR_STRUCTURE_HH
+    );
   }
 
   return latest_extremum.is_peak;
 }
 
+bool EvaluateStructureRetestTrigger(const SignalParams &signal_params, const SignalTypes signal_type)
+{
+  bool filters_requested =
+    (Min_Extern_Structures_Broken > 0) ||
+    (FiboZone1_Support_Retest_Min > 0) ||
+    (FiboZone1_Resistance_Retest_Min > 0) ||
+    (FiboZone2_Support_Retest_Min > 0) ||
+    (FiboZone2_Resistance_Retest_Min > 0);
+
+  if(!filters_requested)
+    return true;
+
+  int total_structures = ArraySize(signal_params.stoch_market_structure_data);
+  if(total_structures <= 0)
+    return false;
+
+  StochasticMarketStructure structure    = signal_params.stoch_market_structure_data[0];
+  ExtremumStatistics        latest_stats = structure.extremum_stats[0];
+
+  Print(
+    latest_stats.extern_structures_broken, " | ",
+    latest_stats.fibo_retest_zones[0].support_retest_count, " |61.8| ",
+    latest_stats.fibo_retest_zones[0].resistance_retest_count, " |61.8| ",
+    latest_stats.fibo_retest_zones[1].support_retest_count, " |78.6% | ",
+    latest_stats.fibo_retest_zones[1].resistance_retest_count, " | 78.6% "
+  );
+
+  if(!ValidateExternStructuresRequirement(latest_stats))
+    return false;
+
+  if(!ValidateRetestRequirements(latest_stats, signal_type))
+    return false;
+
+  return true;
+}
+
 bool EvaluateSignalTrigger(const SignalParams &signal_params, const SignalTypes signal_type)
 {
-  bool base_trigger  = EvaluateBaseIndicatorTrigger(signal_params, signal_type);
-  bool solid_trigger = EvaluateSolidIndicatorTrigger(signal_params, signal_type);
+  bool base_trigger      = EvaluateBaseIndicatorTrigger(signal_params, signal_type);
+  bool solid_trigger     = EvaluateSolidIndicatorTrigger(signal_params, signal_type);
+  bool structure_filters = EvaluateStructureRetestTrigger(signal_params, signal_type);
 
-  return base_trigger && solid_trigger;
+  return base_trigger && solid_trigger && structure_filters;
 }
 
 #endif // _SERVICES_TRADING_SIGNALS_MARKET_SIGNAL_CRAWLER_MQH_

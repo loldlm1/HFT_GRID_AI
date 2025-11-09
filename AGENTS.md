@@ -14,12 +14,12 @@ This is a HFT Grid AI Expert Advisor designed to execute high frequency position
 - Completed: centralized inputs in `services/trading_management/ea_inputs.mqh`, broker constraints helper (`microservices/utils/broker_constraints_helper.mqh`), single `Strategy_Timeframe` loading, and chart style constants in `services/frontend/chart_style_guide.mqh`
 
 ### Phase 1 – Signal Engine Upgrade
-- Add new ENUM inputs (`Base_Indicator_Period_Type`, `Base_Indicator_Strategy_Type`, `Solid_Indicator_Strategy_Type`, `Base_Indicator_MA_Method`)
+- Add new strategy inputs (`Base_Indicator_Period_Type`, `Base_Indicator_Percent`, `Solid_Indicator_Strategy_Type`, `Base_Indicator_MA_Method`)
 - Refactor signal detection to event-driven triggers tied to indicator buffer updates; remove time-only logic
 - Implement combinable BB Percent and Stochastic Extrema triggers with clear validation paths
 - Enforce single active grid per direction by centralizing signal admission checks
 - Exit Criteria: deterministic signal firing in Strategy Tester, logging traces confirming trigger combinations
-- Completed: indicator enums exposed via `ea_inputs.mqh`, loader honors selected period/MA, solid period/direction inputs wired in, `EvaluateSignalTrigger()` combines MA/Bands and extrema logic, and `CanAttemptSignal()` restricts grids to one per direction
+- Completed: indicator inputs exposed via `ea_inputs.mqh`, loader honors the selected period/MA plus the `Base_Indicator_Percent` ladder, fibo retest filters are configurable per zone, `EvaluateSignalTrigger()` now merges the percent breakout, extrema logic, and retest requirements, and `CanAttemptSignal()` restricts grids to one per direction while validating all required indicator handles
 
 ### Phase 2 – Grid Framework
 - Build grid configuration structures covering ATR-based and point-based spacing with multiplier controls

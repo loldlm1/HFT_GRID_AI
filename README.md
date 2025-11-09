@@ -62,12 +62,13 @@ The **HFT Grid AI EA** is a specialized Expert Advisor designed to execute high 
 - Chart styling consolidated through `ApplyDefaultChartStyle()` in `services/frontend/chart_style_guide.mqh` for consistent visuals
 
 ### Phase 1 – Current Deliverables
-- Added selectable indicator enums (`Base_Indicator_Period_Type`, `Base_Indicator_MA_Method`, `Base_Indicator_Strategy_Type`, `Solid_Indicator_Strategy_Type`) exposed via `ea_inputs.mqh`
+- Added configurable indicator inputs (`Base_Indicator_Period_Type`, `Base_Indicator_MA_Method`, `Base_Indicator_Percent`, `Solid_Indicator_Strategy_Type`) exposed via `ea_inputs.mqh`
 - Refined indicator loading to honor the chosen Bollinger period/MA while keeping a single-strategy timeframe
 - Introduced `Solid_Indicator_Period_Type` and `Strategy_Direction_Mode` inputs to configure stochastic structure depth and directional bias
-- Signal engine now evaluates Bollinger Percent crossings (50/100 levels) and stochastic extrema combinations per configured strategies
+- Signal engine now validates five-step Bollinger Percent ladders around `Base_Indicator_Percent` (±10% window) before combining stochastic extrema triggers
+- Structure filter inputs (`Min_Extern_Structures_Broken`, `FiboZone1/2_Support_Retest_Min`, `FiboZone1/2_Resistance_Retest_Min`) drive automatic loading of stochastic structure data even when the solid indicator strategy is disabled
 - `CanAttemptSignal()` guard ensures only one active grid per direction and validates indicator availability before triggers fire
-- Detection functions require `EvaluateSignalTrigger()` approval, enabling MA-only, bands-only, or combined extrema logic without time-based scheduling
+- Detection functions require `EvaluateSignalTrigger()` approval, blending the base percent breakout, extrema direction, and fibo retest filters without time-based scheduling
 
 ## Input Reference
 
@@ -75,15 +76,21 @@ The **HFT Grid AI EA** is a specialized Expert Advisor designed to execute high 
 - `Strategy_Timeframe`: Single timeframe used to load and read all indicators (scalable later).
 - `Base_Indicator_Period_Type`: Period for Bollinger indicators (`BB_Percent_Standard`, `BB_Standard`). Options: 5, 8, 13, 21, 34, 55.
 - `Base_Indicator_MA_Method`: MA method applied inside Bollinger (default `MODE_EMA`). Applied price is fixed to `PRICE_WEIGHTED`.
-- `Base_Indicator_Strategy_Type`: Base trigger source.
-  - `MA_TYPE`: Crosses around 50% of BB Percent (e.g., buy if `bb_percent_2 > 50` and `bb_percent_1 <= 50`).
-  - `BANDS_TYPE`: Crosses of 0%/100% band edges (e.g., buy if `bb_percent_2 > 100` and `bb_percent_1 <= 100`).
-  - `BB_NONE_TYPE`: Disable base trigger.
+- `Base_Indicator_Percent`: Center percentile for the Bollinger Percent ladder. Bullish signals require the most recent reading to pierce `percent+10` after at least one of the prior five shifts sat at/under `percent` and another lived inside `[percent, percent+10)`. Bearish logic mirrors downward using `percent-10`. Set to `0` to disable the base trigger.
 - `Solid_Indicator_Strategy_Type`: Stochastic structure trigger.
   - `EXTREMA_TYPE`: Buy at current bottom, sell at current peak using `Stochastic_Structure`.
   - `SOLID_NONE_TYPE`: Disable solid trigger.
 - `Solid_Indicator_Period_Type`: Period for `Stochastic_Structure` (5, 8, 13, 21, 34, 55).
 - `Strategy_Direction_Mode`: Directional filter; `BOTH_DIRECTION`, `BULLISH_DIRECTION`, or `BEARISH_DIRECTION`.
+
+### Structure Filters
+- `Min_Extern_Structures_Broken`: Minimum extern structures that must be broken (from the latest extremum statistics) before a signal can fire. `0` disables the check.
+- `FiboZone1_Support_Retest_Min`: Required support retests within the 61.8%→78.6% zone (bullish focus). `0` ignores the zone.
+- `FiboZone1_Resistance_Retest_Min`: Required resistance retests within the 61.8%→78.6% zone (bearish focus).
+- `FiboZone2_Support_Retest_Min`: Required support retests within the 78.6%→100% zone.
+- `FiboZone2_Resistance_Retest_Min`: Required resistance retests within the 78.6%→100% zone.
+
+Enabling any of the structure filters automatically loads the stochastic structure indicator handles even when `Solid_Indicator_Strategy_Type` is disabled, ensuring the retest data is available.
 
 ### Grid Strategy Settings
 - `Grid_Base_Strategy_Type`: Chooses base spacing mode.
