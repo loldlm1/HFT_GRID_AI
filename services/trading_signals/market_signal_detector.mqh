@@ -133,7 +133,7 @@ void SetTFBandsPercentDataToSignalParams(SignalParams &signal_params)
   {
     BandsPercentStructure bands_percent_data;
     bands_percent_data = BandsPercentStructure();
-    bands_percent_data.InitBandsPercentStructureValues(ExtBPercentIndicatorsHandle[i], correct_shift);
+    bands_percent_data.InitBandsPercentStructureValues(ExtBPercentIndicatorsHandle[i], 0);
 
     AddElementToArray(signal_params.bands_percent_data, bands_percent_data);
   }
@@ -146,7 +146,7 @@ void SetTFStochasticDataToSignalParams(SignalParams &signal_params)
   {
     StochasticStructure stochastic_data;
     stochastic_data = StochasticStructure();
-    stochastic_data.InitStochasticStructureValues(ExtStochIndicatorsHandle[i], correct_shift);
+    stochastic_data.InitStochasticStructureValues(ExtStochIndicatorsHandle[i], 0);
 
     AddElementToArray(signal_params.stochastic_data, stochastic_data);
   }
@@ -171,7 +171,7 @@ void SetTFBodyMADataToSignalParams(SignalParams &signal_params)
   {
     BodyMAStructure body_ma_data;
     body_ma_data = BodyMAStructure();
-    body_ma_data.InitBodyMAStructureValues(ExtBodyMAIndicatorsHandle[i], correct_shift);
+    body_ma_data.InitBodyMAStructureValues(ExtBodyMAIndicatorsHandle[i], 0);
 
     AddElementToArray(signal_params.body_ma_data, body_ma_data);
   }
