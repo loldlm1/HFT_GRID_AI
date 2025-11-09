@@ -105,56 +105,6 @@ bool ShouldSwitchToTrailingTP(const SignalTypes direction,
   return false;
 }
 
-void UpdateTrailingTP(const SignalParams &signal_params,
-                      GridOrderState &order_state,
-                      const int grid_order_level,
-                      const double current_price,
-                      const double point_size)
-{
-  // Derive tp_reference_pts from the TP span and percent to stay consistent post-fill
-  double tp_span_pts = 0.0;
-  if(point_size > 0.0)
-    tp_span_pts = MathAbs(order_state.take_profit_price - order_state.entry_price) / point_size;
-  double tp_ref_pts = tp_span_pts;
-  if(Grid_TP_Percent > 0.0)
-    tp_ref_pts = tp_span_pts / (Grid_TP_Percent / 100.0);
-  if(tp_ref_pts <= 0.0)
-    tp_ref_pts = signal_params.grid_base_distance_points;
-  if(tp_ref_pts <= 0.0 || point_size <= 0.0)
-    return;
-
-  double offset_pts = tp_ref_pts * (1.0 - (Grid_Trailing_TP_Percent / 100.0));
-  if(offset_pts < 0.0)
-    offset_pts = 0.0;
-
-  double candidate = order_state.trailing_price;
-  if(signal_params.signal_type == BULLISH)
-    candidate = current_price - offset_pts * point_size;
-  else if(signal_params.signal_type == BEARISH)
-    candidate = current_price + offset_pts * point_size;
-
-  // Move trailing only in favorable direction
-  if(order_state.trailing_price <= 0.0)
-  {
-    order_state.trailing_price = candidate;
-    signal_params.grid_orders[grid_order_level] = order_state;
-    return;
-  }
-
-  if(signal_params.signal_type == BULLISH)
-  {
-    if(candidate > order_state.trailing_price)
-      order_state.trailing_price = candidate;
-  }
-  else if(signal_params.signal_type == BEARISH)
-  {
-    if(candidate < order_state.trailing_price)
-      order_state.trailing_price = candidate;
-  }
-
-  signal_params.grid_orders[grid_order_level] = order_state;
-}
-
 bool GridExecuteLevelTrade(SignalParams &signal_params,
                            GridOrderState &order_state,
                            const double point_size,

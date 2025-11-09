@@ -42,10 +42,10 @@ void UpdateGridLifecycle(SignalParams &signal_params)
     }
     if(ShouldSwitchToTrailingTP(direction, grid_order, current_price))
     {
-      grid_order.status             = GRID_ORDER_TP_TRAILING_ACTIVE;
-      grid_order.tp_reached         = true;
-      grid_order.is_trailing_active = true;
-      UpdateTrailingTP(signal_params, grid_order, grid_order_level, current_price, point_size);
+      signal_params.grid_orders[grid_order_level].status             = GRID_ORDER_TP_TRAILING_ACTIVE;
+      signal_params.grid_orders[grid_order_level].tp_reached         = true;
+      signal_params.grid_orders[grid_order_level].is_trailing_active = true;
+      signal_params.grid_orders[grid_order_level].trailing_price     = UpdateTrailingTP(signal_params, grid_order);
       GridLogEvent("TP_TRAILING_START", signal_params, grid_order);
     }
     if(GridShouldActivateNextLevelLimit(signal_params, grid_order, direction, point_size))
@@ -69,15 +69,14 @@ void UpdateGridLifecycle(SignalParams &signal_params)
         GridLogEvent("LEVEL_FINAL_TP", signal_params, grid_order);
       }
     }
-    UpdateTrailingTP(signal_params, grid_order, grid_order_level, current_price, point_size);
-    Print(grid_order.trailing_price);
+    signal_params.grid_orders[grid_order_level].trailing_price = UpdateTrailingTP(signal_params, grid_order);
 
     bool exit_on_trail = false;
-    if(grid_order.trailing_price > 0.0)
+    if(signal_params.grid_orders[grid_order_level].trailing_price > 0.0)
     {
-      if(direction == BULLISH && current_price <= grid_order.trailing_price)
+      if(direction == BULLISH && current_price <= signal_params.grid_orders[grid_order_level].trailing_price)
         exit_on_trail = true;
-      if(direction == BEARISH && current_price >= grid_order.trailing_price)
+      if(direction == BEARISH && current_price >= signal_params.grid_orders[grid_order_level].trailing_price)
         exit_on_trail = true;
     }
     if(exit_on_trail)

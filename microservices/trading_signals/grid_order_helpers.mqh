@@ -141,7 +141,7 @@ double GetGridStopReferencePrice(SignalTypes direction, SignalParams &signal_par
   {
     base_entry_price = base_entry_price + (signal_params.grid_entry_offset_points / g_decimal_digits);
 
-    if(stop_entry_price > 0 && base_entry_price < stop_entry_price) return base_entry_price; // FOLLOWS THE PRICE FALLS
+    if(base_entry_price < stop_entry_price) return base_entry_price; // FOLLOWS THE PRICE FALLS
 
     return stop_entry_price == 0 ? base_entry_price : stop_entry_price;
   }
@@ -149,7 +149,7 @@ double GetGridStopReferencePrice(SignalTypes direction, SignalParams &signal_par
   {
     base_entry_price = base_entry_price - (signal_params.grid_entry_offset_points / g_decimal_digits);
 
-    if(stop_entry_price > 0 && base_entry_price > stop_entry_price) return base_entry_price; // FOLLOWS THE PRICE ROCKET
+    if(base_entry_price > stop_entry_price) return base_entry_price; // FOLLOWS THE PRICE ROCKET
 
     return stop_entry_price == 0 ? base_entry_price : stop_entry_price;
   }
@@ -170,7 +170,7 @@ double GetGridNextLevelPrice(SignalTypes direction, SignalParams &signal_params,
   {
     grid_raw_pending_price = grid_base_entry_price - (level_distance_pts / g_decimal_digits);
 
-    if(grid_next_level_price > 0 && grid_raw_pending_price < grid_next_level_price) return grid_raw_pending_price; // FOLLOWS THE PRICE FALLS
+    if(grid_raw_pending_price < grid_next_level_price) return grid_raw_pending_price; // FOLLOWS THE PRICE FALLS
 
     return grid_next_level_price == 0 ? grid_raw_pending_price : grid_next_level_price;
   }
@@ -178,7 +178,7 @@ double GetGridNextLevelPrice(SignalTypes direction, SignalParams &signal_params,
   {
     grid_raw_pending_price = grid_base_entry_price + (level_distance_pts / g_decimal_digits);
 
-    if(grid_next_level_price > 0 && grid_raw_pending_price > grid_next_level_price) return grid_raw_pending_price; // FOLLOWS THE PRICE ROCKET
+    if(grid_raw_pending_price > grid_next_level_price) return grid_raw_pending_price; // FOLLOWS THE PRICE ROCKET
 
     return grid_next_level_price == 0 ? grid_raw_pending_price : grid_next_level_price;
   }
@@ -200,7 +200,7 @@ double GetGridTakeProfitPrice(SignalTypes direction, SignalParams &signal_params
   {
     grid_raw_tp_price = grid_base_entry_price + (tp_span_pts / g_decimal_digits);
 
-    if(grid_take_profit_price > 0 && grid_raw_tp_price > grid_take_profit_price) return grid_raw_tp_price; // FOLLOWS THE PRICE ROCKET
+    if(grid_raw_tp_price > grid_take_profit_price) return grid_raw_tp_price; // FOLLOWS THE PRICE ROCKET
 
     return grid_take_profit_price == 0 ? grid_raw_tp_price : grid_take_profit_price;
   }
@@ -208,7 +208,7 @@ double GetGridTakeProfitPrice(SignalTypes direction, SignalParams &signal_params
   {
     grid_raw_tp_price = grid_base_entry_price - (tp_span_pts / g_decimal_digits);
 
-    if(grid_take_profit_price > 0 && grid_raw_tp_price < grid_take_profit_price) return grid_raw_tp_price; // FOLLOWS THE PRICE FALLS
+    if(grid_raw_tp_price < grid_take_profit_price) return grid_raw_tp_price; // FOLLOWS THE PRICE FALLS
 
     return grid_take_profit_price == 0 ? grid_raw_tp_price : grid_take_profit_price;
   }
@@ -230,7 +230,7 @@ double GetGridTakeProfitFinalPrice(SignalTypes direction, SignalParams &signal_p
   {
     grid_raw_tp_price = grid_base_entry_price + (final_span_pts / g_decimal_digits);
 
-    if(grid_final_take_profit_price > 0 && grid_raw_tp_price > grid_final_take_profit_price) return grid_raw_tp_price; // FOLLOWS THE PRICE ROCKET
+    if(grid_raw_tp_price > grid_final_take_profit_price) return grid_raw_tp_price; // FOLLOWS THE PRICE ROCKET
 
     return grid_final_take_profit_price == 0 ? grid_raw_tp_price : grid_final_take_profit_price;
   }
@@ -238,12 +238,64 @@ double GetGridTakeProfitFinalPrice(SignalTypes direction, SignalParams &signal_p
   {
     grid_raw_tp_price = grid_base_entry_price - (final_span_pts / g_decimal_digits);
 
-    if(grid_final_take_profit_price > 0 && grid_raw_tp_price < grid_final_take_profit_price) return grid_raw_tp_price; // FOLLOWS THE PRICE FALLS
+    if(grid_raw_tp_price < grid_final_take_profit_price) return grid_raw_tp_price; // FOLLOWS THE PRICE FALLS
 
     return grid_final_take_profit_price == 0 ? grid_raw_tp_price : grid_final_take_profit_price;
   }
 
   return grid_raw_tp_price;
+}
+
+double UpdateTrailingTP(SignalParams &signal_params, GridOrderState &order_state)
+{
+  // Derive tp_reference_pts from the TP span and percent to stay consistent post-fill
+  double current_price        = GridCurrentPriceForDirection(signal_params.signal_type, false);
+  double trailing_span_pts    = MathAbs(order_state.take_profit_price - order_state.entry_price) * g_decimal_digits;
+  double offset_pts           = trailing_span_pts * (Grid_Trailing_TP_Percent / 100.0);
+  double grid_trailing_price  = order_state.trailing_price;
+  double safe_fallback_price  = 0.0;
+  double candidate            = 0.0;
+
+  if(signal_params.signal_type == BULLISH)
+  {
+    safe_fallback_price = current_price - EnforceBrokerDistance(g_symbol_constraints);
+    candidate           = current_price - (offset_pts / g_decimal_digits);
+
+    if(candidate > grid_trailing_price) return candidate; // FOLLOWS THE PRICE ROCKET
+
+    return grid_trailing_price == 0 ? safe_fallback_price : grid_trailing_price;
+  }
+  if(signal_params.signal_type == BEARISH)
+  {
+    safe_fallback_price = current_price + EnforceBrokerDistance(g_symbol_constraints);
+    candidate           = current_price + (offset_pts / g_decimal_digits);
+
+    if(candidate < grid_trailing_price) return candidate; // FOLLOWS THE PRICE FALLS
+
+    return grid_trailing_price == 0 ? candidate : grid_trailing_price;
+  }
+
+  return safe_fallback_price;
+}
+
+void ResetGridOrderPricesByDirection(SignalParams &signal_params, int grid_order_level)
+{
+  if(signal_params.signal_type == BULLISH)
+  {
+    signal_params.grid_orders[grid_order_level].entry_reference_price   = DBL_MAX;
+    signal_params.grid_orders[grid_order_level].next_level_price        = DBL_MAX;
+    signal_params.grid_orders[grid_order_level].take_profit_price       = -DBL_MAX;
+    signal_params.grid_orders[grid_order_level].final_take_profit_price = -DBL_MAX;
+    signal_params.grid_orders[grid_order_level].trailing_price          = -DBL_MAX;
+  }
+  if(signal_params.signal_type == BEARISH)
+  {
+    signal_params.grid_orders[grid_order_level].entry_reference_price   = -DBL_MAX;
+    signal_params.grid_orders[grid_order_level].next_level_price        = -DBL_MAX;
+    signal_params.grid_orders[grid_order_level].take_profit_price       = DBL_MAX;
+    signal_params.grid_orders[grid_order_level].final_take_profit_price = DBL_MAX;
+    signal_params.grid_orders[grid_order_level].trailing_price          = DBL_MAX;
+  }
 }
 
 // --- New pricing helpers (points-based, broker-safe) ---

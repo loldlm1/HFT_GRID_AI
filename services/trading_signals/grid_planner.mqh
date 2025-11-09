@@ -240,6 +240,7 @@ bool BuildGridOrderForSignal(SignalParams &signal_params)
     level_lot = NormalizeVolumeForSymbol(_Symbol, scaled);
   }
   signal_params.grid_orders[grid_order_level].lot_size    = NormalizeVolumeForSymbol(_Symbol, level_lot);
+  ResetGridOrderPricesByDirection(signal_params, grid_order_level);
 
   // Calculate trailing entry reference and next level activation
   signal_params.grid_orders[grid_order_level].entry_reference_price  = GetGridStopReferencePrice(signal_params.signal_type,
