@@ -91,6 +91,8 @@ void LoadAllIndicatorDefinitions()
     Print("WARNING: Both base and solid strategies are disabled; signal generation will be halted.");
   }
 
+  TesterHideIndicators(!Enable_Show_Indicators);
+
   PrintFormat("Strategy context | TF=%s | BasePercent=%.2f | BasePeriod=%d | SolidStrategy=%s | SolidPeriod=%d | Direction=%s",
               EnumToString(Strategy_Timeframe),
               Base_Indicator_Percent,

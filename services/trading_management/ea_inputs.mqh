@@ -61,6 +61,7 @@ input double               Grid_Lot_Strategy_Size        = 0.01;
 input group  "+= Developer Debug Settings =+";
 input bool Enable_Logs              = false;
 input bool Enable_File_Logs         = false;
+input bool Enable_Show_Indicators   = true;
 input bool Enable_Chart_Summary     = true;
 input bool Enable_Chart_Levels      = true;
 
