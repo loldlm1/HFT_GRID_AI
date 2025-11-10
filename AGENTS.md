@@ -79,6 +79,15 @@ This is a HFT Grid AI Expert Advisor designed to execute high frequency position
   * Strategy Modules — Include\\Expert\\ — https://www.mql5.com/en/docs/standardlibrary/expertclasses
   * Panels and Dialogs — Include\\Controls\\ — https://www.mql5.com/en/docs/standardlibrary/controls
 
+## Protection Risk Filter
+- Service lives in `services/trading_signals/protection_risk_filter.mqh` and runs on every tick plus during signal admission.
+- Inputs:
+  - `Protection_Risk_Mode`: `ENABLED_OFF`, `ENABLED_GRID_PROTECTION`, `ENABLED_GRID_PROTECTION_DAILY` (daily mode blocks new grids until the next `PERIOD_D1` candle).
+  - `Protection_Risk_Drawdown_Type`: `PROTECTION_RISK_ACCOUNT_SIZE_PERCENT`, `PROTECTION_RISK_ACCOUNT_BALANCE_PERCENT`, `PROTECTION_RISK_FIXED_CURRENCY`.
+  - `Protection_Risk_Drawdown_Value`: Magnitude interpreted according to the selected type.
+- Drawdown is evaluated only on positions that match `_Symbol` and `g_magic_number`. On breach, the service force-closes every `SignalParams` entry (bullish and bearish), removes their chart objects, and then closes any leftover broker positions tagged with the EA magic to keep the sequence consistent.
+- Daily locks reset automatically when `iTime(_Symbol, PERIOD_D1, 0)` advances, so devs do not need to manually clear state between backtests.
+
 ## MQL5 Language Conventions
 
 ### C++ Feature Restrictions

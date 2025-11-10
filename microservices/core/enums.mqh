@@ -155,4 +155,18 @@ enum GridTPReferenceModes
   GRID_TP_REF_NEXT    = 1
 };
 
+enum ProtectionRiskModes
+{
+  ENABLED_OFF                 = 0,
+  ENABLED_GRID_PROTECTION     = 1,
+  ENABLED_GRID_PROTECTION_DAILY = 2
+};
+
+enum ProtectionRiskValueTypes
+{
+  PROTECTION_RISK_ACCOUNT_SIZE_PERCENT   = 0,
+  PROTECTION_RISK_ACCOUNT_BALANCE_PERCENT = 1,
+  PROTECTION_RISK_FIXED_CURRENCY         = 2
+};
+
 #endif // _MICROSERVICES_CORE_ENUMS_MQH_

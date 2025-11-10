@@ -16,10 +16,15 @@ input group  "+= TC HFT Grid AI EA V1.0 =+";
 input string EA_License_Key = "";
 
 input group  "+= Account Settings EA =+";
-input double Account_Size     = 1200.0;
 input int    Custom_Magic     = 0;
 input double Max_Spread       = 200.0;
 input double Min_Range_Points = 200.0;
+
+input group  "+= Protection Risk Management =+";
+input ProtectionRiskModes      Protection_Risk_Mode           = ENABLED_OFF;
+input ProtectionRiskValueTypes Protection_Risk_Drawdown_Type  = PROTECTION_RISK_ACCOUNT_SIZE_PERCENT;
+input double                   Protection_Risk_Drawdown_Value = 10.0;
+input double                   Account_Size                   = 500.0;
 
 input group  "+= Strategy Context =+";
 // Single timeframe used across all indicators during Phase 0.

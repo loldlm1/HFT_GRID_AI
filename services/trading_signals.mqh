@@ -22,5 +22,6 @@
 #include "trading_signals/grid_planner.mqh"
 #include "trading_signals/grid_order_controller.mqh"
 #include "trading_signals/tick_signals_manager.mqh"
+#include "trading_signals/protection_risk_filter.mqh"
 
 #endif // _SERVICES_TRADING_SIGNALS_MQH_
