@@ -27,10 +27,10 @@ void UpdateHorizontalLine(const long chart_id,
   ObjectSetInteger(chart_id, name, OBJPROP_COLOR, line_color);
   ObjectSetInteger(chart_id, name, OBJPROP_STYLE, line_style);
   ObjectSetInteger(chart_id, name, OBJPROP_WIDTH, line_width);
-  if(label_text != "")
-    ObjectSetString(chart_id, name, OBJPROP_TEXT, label_text);
-  else
-    ObjectSetString(chart_id, name, OBJPROP_TEXT, "");
+  string resolved_label = label_text;
+  if(resolved_label == "")
+    resolved_label = name;
+  ObjectSetString(chart_id, name, OBJPROP_TEXT, resolved_label);
 }
 
 void UpdateTrackedLine(const long chart_id,

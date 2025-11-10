@@ -70,4 +70,13 @@ string GridSignalObjectName(const SignalParams &signal_params,
   return suffix + "_" + direction;
 }
 
+string GridSignalLineLabel(const SignalParams &signal_params,
+                           const string suffix)
+{
+  string direction = (signal_params.signal_type == BULLISH) ? "BULLISH" : "BEARISH";
+  if(suffix == "")
+    return direction;
+  return direction + " " + suffix;
+}
+
 #endif // _MICROSERVICES_FRONTEND_GRID_VISUAL_UTILS_MQH_

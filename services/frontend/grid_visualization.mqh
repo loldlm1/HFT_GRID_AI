@@ -22,16 +22,29 @@ void DrawGridLevels(const long chart_id,
   double next_level_price = level_state.next_level_price;
   double trailing_price   = level_state.trailing_price;
 
-  UpdateHorizontalLine(chart_id, entry_name, COLOR_PROFIT_NEUTRAL, entry_price_line);
-  UpdateHorizontalLine(chart_id, tp_name, COLOR_PROFIT_POSITIVE, tp_price);
-  UpdateHorizontalLine(chart_id, final_name, COLOR_PROFIT_POSITIVE, final_price);
-  UpdateHorizontalLine(chart_id, next_name, COLOR_PROFIT_POSITIVE, next_level_price);
+  string entry_label    = GridSignalLineLabel(signal_params, "ENTRY");
+  string tp_label       = GridSignalLineLabel(signal_params, "TP");
+  string final_label    = GridSignalLineLabel(signal_params, "FINAL TP");
+  string next_label     = GridSignalLineLabel(signal_params, "NEXT");
+  string trailing_label = GridSignalLineLabel(signal_params, "TP TRAILING");
+
+  int level_index = level_state.level_index;
+  double level_lot_size = level_state.lot_size*Grid_Multiplier;
+  next_label = StringFormat("%s L%d lot=%.2f",
+                            next_label,
+                            level_index,
+                            level_lot_size);
+
+  UpdateHorizontalLine(chart_id, entry_name, COLOR_PROFIT_NEUTRAL, entry_price_line, entry_label);
+  UpdateHorizontalLine(chart_id, tp_name, COLOR_PROFIT_POSITIVE, tp_price, tp_label);
+  UpdateHorizontalLine(chart_id, final_name, COLOR_PROFIT_POSITIVE, final_price, final_label);
+  UpdateHorizontalLine(chart_id, next_name, COLOR_PROFIT_POSITIVE, next_level_price, next_label);
 
   // Trailing active: swap TP for trailing; keep final visible
   if(level_state.status == GRID_ORDER_TP_TRAILING_ACTIVE)
   {
     UpdateHorizontalLine(chart_id, tp_name, COLOR_PROFIT_POSITIVE, 0.0);
-    UpdateHorizontalLine(chart_id, trailing_name, COLOR_PROFIT_POSITIVE, trailing_price);
+    UpdateHorizontalLine(chart_id, trailing_name, COLOR_PROFIT_POSITIVE, trailing_price, trailing_label);
   }
 }
 
