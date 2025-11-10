@@ -8,6 +8,9 @@ double   g_protection_last_drawdown      = 0.0;
 double   g_protection_last_threshold     = 0.0;
 bool     g_protection_daily_lock_active  = false;
 datetime g_protection_daily_lock_anchor  = 0;
+bool     g_market_close_guard_active     = false;
+datetime g_market_close_guard_session_end = 0;
+datetime g_market_close_guard_trigger_time = 0;
 
 double ProtectionRiskResolveThreshold()
 {
@@ -152,9 +155,63 @@ void ProtectionRiskResetDailyLock()
   }
 }
 
+void ProtectionRiskResetMarketCloseGuard()
+{
+  g_market_close_guard_active      = false;
+  g_market_close_guard_session_end = 0;
+  g_market_close_guard_trigger_time = 0;
+}
+
+void ProtectionRiskCheckMarketCloseGuard()
+{
+  datetime session_from = 0;
+  datetime session_to = 0;
+  datetime trigger_time = 0;
+
+  if(!ResolveCurrentSessionWindow(session_from, session_to))
+  {
+    ProtectionRiskResetMarketCloseGuard();
+    return;
+  }
+
+  if(!ResolveSessionPreCloseTrigger(session_to, Market_Close_Guard_Timeframe, trigger_time))
+  {
+    ProtectionRiskResetMarketCloseGuard();
+    return;
+  }
+
+  if(session_to != g_market_close_guard_session_end)
+  {
+    g_market_close_guard_active = false;
+    g_market_close_guard_trigger_time = 0;
+  }
+
+  g_market_close_guard_session_end = session_to;
+  g_market_close_guard_trigger_time = trigger_time;
+
+  datetime current_time = TimeCurrent();
+  if(current_time >= trigger_time && current_time < session_to)
+  {
+    if(!g_market_close_guard_active)
+    {
+      PrintFormat("Market close guard triggered | session_end=%s | trigger=%s | timeframe=%d",
+                  TimeToString(session_to, TIME_DATE|TIME_SECONDS),
+                  TimeToString(trigger_time, TIME_DATE|TIME_SECONDS),
+                  Market_Close_Guard_Timeframe);
+      ProtectionRiskEnforceDrawdownGuard();
+    }
+    g_market_close_guard_active = true;
+    return;
+  }
+
+  if(current_time >= session_to)
+    ProtectionRiskResetMarketCloseGuard();
+}
+
 void ProtectionRiskFilterTick()
 {
   ProtectionRiskResetDailyLock();
+  ProtectionRiskCheckMarketCloseGuard();
   if(Protection_Risk_Mode == ENABLED_OFF)
     return;
 
@@ -186,6 +243,8 @@ void ProtectionRiskFilterTick()
 bool ProtectionRiskAllowsSignalAttempt()
 {
   ProtectionRiskResetDailyLock();
+  if(g_market_close_guard_active)
+    return false;
   if(Protection_Risk_Mode == ENABLED_OFF)
     return true;
   if(Protection_Risk_Mode == ENABLED_GRID_PROTECTION_DAILY && g_protection_daily_lock_active)

@@ -93,8 +93,10 @@ The **HFT Grid AI EA** is a specialized Expert Advisor designed to execute high 
   - `PROTECTION_RISK_ACCOUNT_BALANCE_PERCENT`: Percentage of the live `ACCOUNT_BALANCE`.
   - `PROTECTION_RISK_FIXED_CURRENCY`: Absolute currency amount.
 - `Protection_Risk_Drawdown_Value`: Magnitude applied according to the selected type.
+- `Market_Close_Guard_Timeframe`: Timeframe used to align the mandatory pre-close liquidation window. The guard flattens every grid at the start of the last candle before the broker session closes (`PERIOD_M1` ⇒ close 1 minute before, `PERIOD_M10` ⇒ close on the 10-minute candle that begins at 22:50 for a 22:58 close, etc.).
 
 Whenever the live floating P/L of this EA (filtered by `Custom_Magic`) breaches the resolved threshold, the protection service force-closes every tracked grid (bullish and bearish), removes their chart objects, and closes any stray broker positions that still carry the EA magic number to avoid sequence drift.
+The market close guard runs regardless of the selected `Protection_Risk_Mode`, ensuring no grids remain open after the configured pre-close candle begins and blocking new signals until the session fully closes.
 
 ### Structure Filters
 - `Min_Extern_Structures_Broken`: Minimum extern structures that must be broken (from the latest extremum statistics) before a signal can fire. `0` disables the check.

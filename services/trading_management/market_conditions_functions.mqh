@@ -4,51 +4,93 @@
 #ifndef _SERVICES_TRADING_MANAGEMENT_MARKET_CONDITIONS_FUNCTIONS_MQH_
 #define _SERVICES_TRADING_MANAGEMENT_MARKET_CONDITIONS_FUNCTIONS_MQH_
 
-bool IsMarketOpen(bool last_check_execution = true)
+bool ResolveCurrentSessionWindow(datetime &session_from,
+                                 datetime &session_to)
 {
-  static datetime lastCheckTime = 0;
-  static bool lastResult = false;
-
-  datetime currentTime = TimeCurrent();
-
-  // Solo verificamos una vez por hora
-  if(currentTime - lastCheckTime < 60)
-    return lastResult;
-
-  lastCheckTime = currentTime;
-
   string symbol = _Symbol;
-  MqlDateTime nowStruct;
-  TimeToStruct(currentTime, nowStruct);
+  datetime current_time = TimeCurrent();
+  MqlDateTime now_struct;
+  TimeToStruct(current_time, now_struct);
+  ENUM_DAY_OF_WEEK day_of_week = (ENUM_DAY_OF_WEEK)now_struct.day_of_week;
+  datetime day_anchor = StructToTime(now_struct)
+                        - now_struct.hour * 3600
+                        - now_struct.min * 60
+                        - now_struct.sec;
 
-  // El índice de día de la semana en MQL5 va de 0 (domingo) a 6 (sábado)
-  ENUM_DAY_OF_WEEK dayOfWeek = (ENUM_DAY_OF_WEEK)nowStruct.day_of_week;
-
-  // Cada símbolo puede tener varias sesiones por día. Asumimos máximo 2 por día.
   datetime from_time, to_time;
-
-  for(int session=0; session < 3; session++)
+  for(int session = 0; session < 3; session++)
   {
-    if(SymbolInfoSessionTrade(symbol, dayOfWeek, session, from_time, to_time))
+    if(!SymbolInfoSessionTrade(symbol, day_of_week, session, from_time, to_time))
+      continue;
+
+    datetime today_from = day_anchor + from_time;
+    datetime today_to   = day_anchor + to_time;
+
+    if(today_to < today_from)
+      today_to += 24 * 3600;
+
+    if(current_time >= today_from && current_time <= today_to)
     {
-      // Verificamos si la hora actual está dentro del rango de la sesión
-      datetime today_from, today_to;
-      today_from = StructToTime(nowStruct) - nowStruct.hour*3600 - nowStruct.min*60 - nowStruct.sec + from_time;
-      today_to   = StructToTime(nowStruct) - nowStruct.hour*3600 - nowStruct.min*60 - nowStruct.sec + to_time;
-
-      // Corrección si el rango pasa por la medianoche
-      if(today_to < today_from)
-        today_to += 24 * 3600;
-
-      if(currentTime > (today_from+(1*60)) && currentTime < (today_to-(1*60)))
-      {
-        lastResult = true;
-        return true;
-      }
+      session_from = today_from;
+      session_to   = today_to;
+      return true;
     }
   }
 
-  lastResult = false;
+  return false;
+}
+
+bool ResolveSessionPreCloseTrigger(const datetime session_end,
+                                   const ENUM_TIMEFRAMES guard_timeframe,
+                                   datetime &trigger_time)
+{
+  ENUM_TIMEFRAMES resolved_timeframe = guard_timeframe;
+  if(resolved_timeframe == PERIOD_CURRENT)
+    resolved_timeframe = (ENUM_TIMEFRAMES)_Period;
+
+  int guard_seconds = PeriodSeconds(resolved_timeframe);
+  if(guard_seconds <= 0)
+    return false;
+
+  long session_end_ts = (long)session_end;
+  long anchor_ts = session_end_ts - 1;
+  if(anchor_ts < 0)
+    anchor_ts = 0;
+
+  long guard_span = (long)guard_seconds;
+  long aligned_ts = (anchor_ts / guard_span) * guard_span;
+
+  trigger_time = (datetime)aligned_ts;
+  return true;
+}
+
+bool IsMarketOpen(bool last_check_execution = true)
+{
+  static datetime last_check_time = 0;
+  static bool last_result = false;
+
+  datetime current_time = TimeCurrent();
+
+  if(last_check_execution && current_time - last_check_time < 60)
+    return last_result;
+
+  last_check_time = current_time;
+
+  datetime session_from = 0;
+  datetime session_to = 0;
+  if(!ResolveCurrentSessionWindow(session_from, session_to))
+  {
+    last_result = false;
+    return false;
+  }
+
+  if(current_time > (session_from + 60) && current_time < (session_to - 60))
+  {
+    last_result = true;
+    return true;
+  }
+
+  last_result = false;
   return false;
 }
 

@@ -25,6 +25,7 @@ input ProtectionRiskModes      Protection_Risk_Mode           = ENABLED_OFF;
 input ProtectionRiskValueTypes Protection_Risk_Drawdown_Type  = PROTECTION_RISK_ACCOUNT_SIZE_PERCENT;
 input double                   Protection_Risk_Drawdown_Value = 10.0;
 input double                   Account_Size                   = 500.0;
+input ENUM_TIMEFRAMES          Market_Close_Guard_Timeframe   = PERIOD_M10;
 
 input group  "+= Strategy Context =+";
 // Single timeframe used across all indicators during Phase 0.

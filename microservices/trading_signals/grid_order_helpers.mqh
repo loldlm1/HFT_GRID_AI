@@ -190,6 +190,7 @@ double GetGridTakeProfitPrice(SignalTypes direction, SignalParams &signal_params
 {
   double grid_raw_tp_price            = 0;
   double grid_atr_fallback_price      = 0;
+  int    grid_level_index             = grid_order_state.level_index;
   double grid_base_entry_price        = grid_order_state.entry_reference_price;
   double grid_take_profit_price       = grid_order_state.take_profit_price;
   // Per-level TP span based on exponential distance
@@ -200,17 +201,45 @@ double GetGridTakeProfitPrice(SignalTypes direction, SignalParams &signal_params
   {
     grid_raw_tp_price = grid_base_entry_price + (tp_span_pts / g_decimal_digits);
 
-    if(grid_raw_tp_price > grid_take_profit_price) return grid_raw_tp_price; // FOLLOWS THE PRICE ROCKET
-
-    return grid_take_profit_price == 0 ? grid_raw_tp_price : grid_take_profit_price;
+    if(grid_raw_tp_price > grid_take_profit_price)
+    {
+      grid_raw_tp_price = grid_raw_tp_price; // FOLLOWS THE PRICE ROCKET
+    } else {
+      grid_raw_tp_price = grid_take_profit_price == 0 ? grid_raw_tp_price : grid_take_profit_price;
+    }
   }
   if(direction == BEARISH)
   {
     grid_raw_tp_price = grid_base_entry_price - (tp_span_pts / g_decimal_digits);
 
-    if(grid_raw_tp_price < grid_take_profit_price) return grid_raw_tp_price; // FOLLOWS THE PRICE FALLS
+    if(grid_raw_tp_price < grid_take_profit_price)
+    {
+      grid_raw_tp_price = grid_raw_tp_price; // FOLLOWS THE PRICE FALLS
+    } else {
+      grid_raw_tp_price = grid_take_profit_price == 0 ? grid_raw_tp_price : grid_take_profit_price;
+    }
+  }
 
-    return grid_take_profit_price == 0 ? grid_raw_tp_price : grid_take_profit_price;
+  // ENSURE TP IS IN A ROBUST DISTANCE FROM ENTRY
+  if(grid_level_index > 0)
+  {
+    double initial_grid_price = signal_params.grid_orders[0].entry_price;
+    double latest_grid_price  = signal_params.grid_orders[grid_level_index - 1].entry_price;
+
+    if(direction == BULLISH)
+    {
+      if(grid_raw_tp_price < latest_grid_price)
+        grid_raw_tp_price = latest_grid_price;
+      if(grid_raw_tp_price > initial_grid_price)
+        grid_raw_tp_price = initial_grid_price;
+    }
+    if(direction == BEARISH)
+    {
+      if(grid_raw_tp_price > latest_grid_price)
+        grid_raw_tp_price = latest_grid_price;
+      if(grid_raw_tp_price < initial_grid_price)
+        grid_raw_tp_price = initial_grid_price;
+    }
   }
 
   return grid_raw_tp_price;

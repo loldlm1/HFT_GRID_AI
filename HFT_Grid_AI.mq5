@@ -38,6 +38,7 @@ SymbolTradingConstraints g_symbol_constraints;
 
 int OnInit()
 {
+  //EncryptEA("227914213", "Real", "REAL", 100);
   // License Validation
 	if(MQLInfoInteger(MQL_TESTER) > 0) is_testing = true;
 	if(!DecryptEA())              { return(INIT_FAILED); }

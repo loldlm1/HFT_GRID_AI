@@ -85,8 +85,10 @@ This is a HFT Grid AI Expert Advisor designed to execute high frequency position
   - `Protection_Risk_Mode`: `ENABLED_OFF`, `ENABLED_GRID_PROTECTION`, `ENABLED_GRID_PROTECTION_DAILY` (daily mode blocks new grids until the next `PERIOD_D1` candle).
   - `Protection_Risk_Drawdown_Type`: `PROTECTION_RISK_ACCOUNT_SIZE_PERCENT`, `PROTECTION_RISK_ACCOUNT_BALANCE_PERCENT`, `PROTECTION_RISK_FIXED_CURRENCY`.
   - `Protection_Risk_Drawdown_Value`: Magnitude interpreted according to the selected type.
+  - `Market_Close_Guard_Timeframe`: Timeframe that defines when the EA must flatten before the broker session closes; the guard rounds down to the start of the last candle before the close (e.g., `PERIOD_M10` closes at 22:50 for a 22:58 close).
 - Drawdown is evaluated only on positions that match `_Symbol` and `g_magic_number`. On breach, the service force-closes every `SignalParams` entry (bullish and bearish), removes their chart objects, and then closes any leftover broker positions tagged with the EA magic to keep the sequence consistent.
 - Daily locks reset automatically when `iTime(_Symbol, PERIOD_D1, 0)` advances, so devs do not need to manually clear state between backtests.
+- The market close guard runs on every tick regardless of the drawdown mode and uses `IsMarketOpen()` session data to determine the next close. Once the guard window begins it force-closes all grids/positions and blocks new signals until the session end timestamp advances.
 
 ## MQL5 Language Conventions
 
