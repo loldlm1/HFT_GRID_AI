@@ -182,6 +182,9 @@ void SetTFBodyMADataToSignalParams(SignalParams &signal_params)
 
 bool CanAttemptSignal(const SignalTypes signal_type)
 {
+  if(!ProtectionRiskAllowsSignalAttempt())
+    return false;
+
   bool use_base_indicator  = (Base_Indicator_Percent > 0.0);
   bool use_solid_indicator = (Solid_Indicator_Strategy_Type != SOLID_NONE_TYPE);
   bool structure_filters_enabled =
@@ -231,7 +234,7 @@ bool ValidateBandsPercentBreakout(const double &shift_values[], const SignalType
   if(signal_type == BEARISH) { zone_start = Base_Indicator_Percent; zone_end = zone_start + 20.0; }
 
   bool has_origin   = false;
-  bool in_the_zone  = false;
+  bool in_the_zone  = signal_type == BULLISH ? shift_values[0] <= zone_start : shift_values[0] >= zone_start;
   bool crossed_zone = false;
 
   for(int i = 0; i < BANDS_PERCENT_SHIFT_DEPTH; i++)
@@ -241,13 +244,11 @@ bool ValidateBandsPercentBreakout(const double &shift_values[], const SignalType
     if(signal_type == BULLISH)
     {
       if(shift_value >= zone_start) has_origin   = true;
-      if(shift_value <= zone_start) in_the_zone  = true;
       if(shift_value <  zone_end)   crossed_zone = true;
     }
     if(signal_type == BEARISH)
     {
       if(shift_value <= zone_start) has_origin   = true;
-      if(shift_value >= zone_start) in_the_zone  = true;
       if(shift_value > zone_end)    crossed_zone = true;
     }
   }

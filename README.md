@@ -83,6 +83,19 @@ The **HFT Grid AI EA** is a specialized Expert Advisor designed to execute high 
 - `Solid_Indicator_Period_Type`: Period for `Stochastic_Structure` (5, 8, 13, 21, 34, 55).
 - `Strategy_Direction_Mode`: Directional filter; `BOTH_DIRECTION`, `BULLISH_DIRECTION`, or `BEARISH_DIRECTION`.
 
+### Protection Risk Management
+- `Protection_Risk_Mode`: Master toggle for the drawdown filter.
+  - `ENABLED_OFF`: Skip the filter entirely.
+  - `ENABLED_GRID_PROTECTION`: Close all active grids (and their broker positions) once the configured drawdown hits, then allow the EA to look for fresh signals again.
+  - `ENABLED_GRID_PROTECTION_DAILY`: Same as `ENABLED_GRID_PROTECTION`, but new signals remain blocked until the next trading day starts.
+- `Protection_Risk_Drawdown_Type`: Defines how the drawdown threshold is interpreted.
+  - `PROTECTION_RISK_ACCOUNT_SIZE_PERCENT`: Percentage of the `Account_Size` input.
+  - `PROTECTION_RISK_ACCOUNT_BALANCE_PERCENT`: Percentage of the live `ACCOUNT_BALANCE`.
+  - `PROTECTION_RISK_FIXED_CURRENCY`: Absolute currency amount.
+- `Protection_Risk_Drawdown_Value`: Magnitude applied according to the selected type.
+
+Whenever the live floating P/L of this EA (filtered by `Custom_Magic`) breaches the resolved threshold, the protection service force-closes every tracked grid (bullish and bearish), removes their chart objects, and closes any stray broker positions that still carry the EA magic number to avoid sequence drift.
+
 ### Structure Filters
 - `Min_Extern_Structures_Broken`: Minimum extern structures that must be broken (from the latest extremum statistics) before a signal can fire. `0` disables the check.
 - `FiboZone1_Support_Retest_Min`: Required support retests within the 61.8%→78.6% zone (bullish focus). `0` ignores the zone.

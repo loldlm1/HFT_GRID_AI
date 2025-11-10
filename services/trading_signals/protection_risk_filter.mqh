@@ -1,0 +1,197 @@
+//+------------------------------------------------------------------+
+//|                           protection_risk_filter.mqh             |
+//+------------------------------------------------------------------+
+#ifndef _SERVICES_TRADING_SIGNALS_PROTECTION_RISK_FILTER_MQH_
+#define _SERVICES_TRADING_SIGNALS_PROTECTION_RISK_FILTER_MQH_
+
+double   g_protection_last_drawdown      = 0.0;
+double   g_protection_last_threshold     = 0.0;
+bool     g_protection_daily_lock_active  = false;
+datetime g_protection_daily_lock_anchor  = 0;
+
+double ProtectionRiskResolveThreshold()
+{
+  double safe_value = MathAbs(Protection_Risk_Drawdown_Value);
+  if(Protection_Risk_Mode == ENABLED_OFF || safe_value <= 0.0)
+    return 0.0;
+
+  double base_amount = 0.0;
+  switch(Protection_Risk_Drawdown_Type)
+  {
+    case PROTECTION_RISK_ACCOUNT_SIZE_PERCENT:
+    {
+      base_amount = MathAbs(Account_Size);
+      if(base_amount <= 0.0)
+        base_amount = MathAbs(AccountInfoDouble(ACCOUNT_BALANCE));
+      return base_amount * (safe_value / 100.0);
+    }
+    case PROTECTION_RISK_ACCOUNT_BALANCE_PERCENT:
+    {
+      base_amount = MathAbs(AccountInfoDouble(ACCOUNT_BALANCE));
+      if(base_amount <= 0.0)
+        base_amount = MathAbs(Account_Size);
+      return base_amount * (safe_value / 100.0);
+    }
+    case PROTECTION_RISK_FIXED_CURRENCY:
+      return safe_value;
+  }
+  return 0.0;
+}
+
+double ProtectionRiskCollectDrawdown()
+{
+  double net_profit = 0.0;
+  int total_positions = PositionsTotal();
+
+  for(int i = total_positions-1; i >= 0; i--)
+  {
+    ulong position_ticket = PositionGetTicket(i);
+    if(position_ticket == 0)
+      continue;
+    if(!PositionSelectByTicket(position_ticket))
+      continue;
+
+    long position_magic = PositionGetInteger(POSITION_MAGIC);
+    if(position_magic != g_magic_number)
+      continue;
+
+    string position_symbol = PositionGetString(POSITION_SYMBOL);
+    if(position_symbol != _Symbol)
+      continue;
+
+    double position_profit = PositionGetDouble(POSITION_PROFIT);
+    net_profit += position_profit;
+  }
+
+  if(net_profit >= 0.0)
+    return 0.0;
+  return MathAbs(net_profit);
+}
+
+void ProtectionRiskForceClosePositions()
+{
+  int total_positions = PositionsTotal();
+  for(int i = total_positions-1; i >= 0; i--)
+  {
+    ulong position_ticket = PositionGetTicket(i);
+    if(position_ticket == 0)
+      continue;
+    if(!PositionSelectByTicket(position_ticket))
+      continue;
+
+    long position_magic = PositionGetInteger(POSITION_MAGIC);
+    if(position_magic != g_magic_number)
+      continue;
+
+    string position_symbol = PositionGetString(POSITION_SYMBOL);
+    if(position_symbol != _Symbol)
+      continue;
+
+    if(!g_position.PositionClose(position_ticket))
+    {
+      PrintFormat("ProtectionRiskForceClosePositions failed | ticket=%I64u | err=%d",
+                  position_ticket,
+                  GetLastError());
+    }
+  }
+}
+
+void ProtectionRiskForceCloseSignalArray(SignalParams &signals[],
+                                         const SignalTypes direction)
+{
+  int total_signals = ArraySize(signals);
+  if(total_signals <= 0)
+    return;
+
+  double point_size = GridResolvePointSize();
+  double close_price = (direction == BULLISH) ? g_bid : g_ask;
+  datetime close_time = TimeCurrent();
+
+  for(int i = total_signals-1; i >= 0; i--)
+  {
+    if(signals[i].grid_initialized)
+      GridCloseAllLevels(signals[i], point_size);
+
+    signals[i].signal_state = CLOSED;
+    signals[i].close_time   = close_time;
+    signals[i].close_price  = close_price;
+    if(signals[i].entry_price > 0.0 && close_price > 0.0)
+      signals[i].raw_profit = RawProfitUsd(direction,
+                                           signals[i].entry_price,
+                                           close_price);
+
+    if(direction == BULLISH)
+      CloseBullishSignal(signals[i]);
+    else
+      CloseBearishSignal(signals[i]);
+
+    RemoveElementFromArray(signals, i);
+  }
+}
+
+void ProtectionRiskEnforceDrawdownGuard()
+{
+  ProtectionRiskForceCloseSignalArray(running_bullish_signals, BULLISH);
+  ProtectionRiskForceCloseSignalArray(running_bearish_signals, BEARISH);
+  ProtectionRiskForceClosePositions();
+}
+
+void ProtectionRiskResetDailyLock()
+{
+  if(!g_protection_daily_lock_active)
+    return;
+
+  datetime current_anchor = iTime(_Symbol, PERIOD_D1, 0);
+  if(current_anchor == 0)
+    return;
+
+  if(current_anchor != g_protection_daily_lock_anchor)
+  {
+    g_protection_daily_lock_active = false;
+    g_protection_daily_lock_anchor = current_anchor;
+  }
+}
+
+void ProtectionRiskFilterTick()
+{
+  ProtectionRiskResetDailyLock();
+  if(Protection_Risk_Mode == ENABLED_OFF)
+    return;
+
+  double threshold = ProtectionRiskResolveThreshold();
+  g_protection_last_threshold = threshold;
+  if(threshold <= 0.0)
+    return;
+
+  double drawdown = ProtectionRiskCollectDrawdown();
+  g_protection_last_drawdown = drawdown;
+
+  if(drawdown < threshold)
+    return;
+
+  PrintFormat("ProtectionRiskFilter triggered | drawdown=%.2f | threshold=%.2f | mode=%d",
+              drawdown,
+              threshold,
+              Protection_Risk_Mode);
+
+  ProtectionRiskEnforceDrawdownGuard();
+
+  if(Protection_Risk_Mode == ENABLED_GRID_PROTECTION_DAILY)
+  {
+    g_protection_daily_lock_active = true;
+    g_protection_daily_lock_anchor = iTime(_Symbol, PERIOD_D1, 0);
+  }
+}
+
+bool ProtectionRiskAllowsSignalAttempt()
+{
+  ProtectionRiskResetDailyLock();
+  if(Protection_Risk_Mode == ENABLED_OFF)
+    return true;
+  if(Protection_Risk_Mode == ENABLED_GRID_PROTECTION_DAILY && g_protection_daily_lock_active)
+    return false;
+
+  return true;
+}
+
+#endif // _SERVICES_TRADING_SIGNALS_PROTECTION_RISK_FILTER_MQH_

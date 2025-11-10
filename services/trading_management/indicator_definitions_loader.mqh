@@ -280,7 +280,7 @@ void LoadAllATRIndicators()
 
     IndicatorsHandleInfo atr_indicator_handle_loaded;
 
-    atr_indicator_handle_loaded.indicator_period    = (int)Base_Indicator_Period_Type;
+    atr_indicator_handle_loaded.indicator_period    = (int)Solid_Indicator_Period_Type;
     double atr_factor = Grid_ATR_Points_Setup;
     if(atr_factor <= 0.0)
       atr_factor = 1.0;

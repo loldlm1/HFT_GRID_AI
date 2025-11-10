@@ -118,6 +118,7 @@ void OnTimer()
 void OnTick()
 {
   RefreshCustomSymbolRates();
+  ProtectionRiskFilterTick();
   g_ea_running                          = true;
   static datetime next_bar_open        = 0;
   datetime        current_time         = TimeCurrent();
