@@ -37,6 +37,10 @@ input SolidIndicatorStrategyTypes Solid_Indicator_Strategy_Type = EXTREMA_TYPE;
 input SolidIndicatorPeriodTypes   Solid_Indicator_Period_Type   = SOLID_PERIOD_5;
 input StrategyDirectionTypes      Strategy_Direction_Mode       = BOTH_DIRECTION;
 
+input group "+= Strategy Trend Settings =+";
+input ENUM_TIMEFRAMES     Trend_Indicator_Timeframe = PERIOD_H1;
+input StrategyTrendModes  Strategy_Trend_Mode       = TREND_OFF;
+
 input group "+= Structure Filters =+";
 input int Min_Extern_Structures_Broken      = 0;
 input int FiboZone1_Support_Retest_Min      = 0;

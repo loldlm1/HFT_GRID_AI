@@ -79,6 +79,14 @@ This is a HFT Grid AI Expert Advisor designed to execute high frequency position
   * Strategy Modules — Include\\Expert\\ — https://www.mql5.com/en/docs/standardlibrary/expertclasses
   * Panels and Dialogs — Include\\Controls\\ — https://www.mql5.com/en/docs/standardlibrary/controls
 
+## Strategy Trend Settings
+- Inputs live in `services/trading_management/ea_inputs.mqh` under the `+= Strategy Trend Settings =+` group.
+- `Trend_Indicator_Timeframe` selects the dedicated confirmation timeframe; unsupported TFs fall back to the main `Strategy_Timeframe`.
+- `Strategy_Trend_Mode`: `TREND_OFF`, `TREND_BPERCENT`, `TREND_STOCHASTIC`.
+  - Each mode only loads the required indicator handle (`TrendBPercentIndicatorHandle` or `TrendStochIndicatorHandle`) via `LoadTrendIndicators()`.
+  - Trend confirmation enforces `main_shift_0/1 >= signal_shift_0/1` for bullish grids and `<=` for bearish grids using the chosen indicator buffers.
+- `CanAttemptSignal()` short-circuits when the requested trend indicator handle is unavailable, preventing partially initialized grids. `LoadTrendFilterData()` fetches the latest values during detection and `TrendFilterAllowsSignal()` blocks signals that violate the rule.
+
 ## Protection Risk Filter
 - Service lives in `services/trading_signals/protection_risk_filter.mqh` and runs on every tick plus during signal admission.
 - Inputs:

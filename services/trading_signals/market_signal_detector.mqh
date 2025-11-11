@@ -35,6 +35,15 @@ void DetectBullishSignal()
   if(!EvaluateSignalTrigger(signal_bullish, BULLISH))
     return;
 
+  if(!LoadTrendFilterData(signal_bullish))
+    return;
+  if(!TrendFilterAllowsSignal(signal_bullish, BULLISH))
+  {
+    if(Enable_Logs)
+      Print("Trend filter blocked bullish signal.");
+    return;
+  }
+
   if(!BuildGridOrderForSignal(signal_bullish))
   {
     Print("Grid plan failed for bullish signal, aborting detection.");
@@ -68,6 +77,15 @@ void DetectBearishSignal()
 
   if(!EvaluateSignalTrigger(signal_bearish, BEARISH))
     return;
+
+  if(!LoadTrendFilterData(signal_bearish))
+    return;
+  if(!TrendFilterAllowsSignal(signal_bearish, BEARISH))
+  {
+    if(Enable_Logs)
+      Print("Trend filter blocked bearish signal.");
+    return;
+  }
 
   if(!BuildGridOrderForSignal(signal_bearish))
   {
@@ -178,11 +196,84 @@ void SetTFBodyMADataToSignalParams(SignalParams &signal_params)
   }
 }
 
+bool LoadTrendFilterData(SignalParams &signal_params)
+{
+  signal_params.trend_filter_mode     = Strategy_Trend_Mode;
+  signal_params.trend_bpercent_valid  = false;
+  signal_params.trend_stochastic_valid = false;
+
+  if(Strategy_Trend_Mode == TREND_OFF)
+    return true;
+
+  if(Strategy_Trend_Mode == TREND_BPERCENT)
+  {
+    if(TrendBPercentIndicatorHandle.indicator_handle == INVALID_HANDLE)
+    {
+      if(Enable_Logs)
+        Print("Trend Bollinger Percent indicator unavailable.");
+      return false;
+    }
+    signal_params.trend_bpercent_data = BandsPercentStructure();
+    signal_params.trend_bpercent_data.InitBandsPercentStructureValues(TrendBPercentIndicatorHandle, 0);
+    signal_params.trend_bpercent_valid = true;
+    return true;
+  }
+
+  if(Strategy_Trend_Mode == TREND_STOCHASTIC)
+  {
+    if(TrendStochIndicatorHandle.indicator_handle == INVALID_HANDLE)
+    {
+      if(Enable_Logs)
+        Print("Trend Stochastic indicator unavailable.");
+      return false;
+    }
+    signal_params.trend_stochastic_data = StochasticStructure();
+    signal_params.trend_stochastic_data.InitStochasticStructureValues(TrendStochIndicatorHandle, 0);
+    signal_params.trend_stochastic_valid = true;
+    return true;
+  }
+
+  return true;
+}
+
+bool TrendFilterAllowsSignal(const SignalParams &signal_params,
+                             const SignalTypes direction)
+{
+  if(signal_params.trend_filter_mode == TREND_OFF)
+    return true;
+
+  if(signal_params.trend_filter_mode == TREND_BPERCENT && signal_params.trend_bpercent_valid)
+  {
+    bool bullish_pass =
+      (signal_params.trend_bpercent_data.bands_percent_0 >= signal_params.trend_bpercent_data.bands_percent_signal_0) &&
+      (signal_params.trend_bpercent_data.bands_percent_1 >= signal_params.trend_bpercent_data.bands_percent_signal_1);
+    bool bearish_pass =
+      (signal_params.trend_bpercent_data.bands_percent_0 <= signal_params.trend_bpercent_data.bands_percent_signal_0) &&
+      (signal_params.trend_bpercent_data.bands_percent_1 <= signal_params.trend_bpercent_data.bands_percent_signal_1);
+    return (direction == BULLISH) ? bullish_pass : bearish_pass;
+  }
+
+  if(signal_params.trend_filter_mode == TREND_STOCHASTIC && signal_params.trend_stochastic_valid)
+  {
+    bool bullish_pass =
+      (signal_params.trend_stochastic_data.stochastic_0 >= signal_params.trend_stochastic_data.stochastic_signal_0) &&
+      (signal_params.trend_stochastic_data.stochastic_1 >= signal_params.trend_stochastic_data.stochastic_signal_1);
+    bool bearish_pass =
+      (signal_params.trend_stochastic_data.stochastic_0 <= signal_params.trend_stochastic_data.stochastic_signal_0) &&
+      (signal_params.trend_stochastic_data.stochastic_1 <= signal_params.trend_stochastic_data.stochastic_signal_1);
+    return (direction == BULLISH) ? bullish_pass : bearish_pass;
+  }
+
+  return false;
+}
+
 // ++ HELPER FUNCTIONS FOR SIGNAL DECISIONS ++
 
 bool CanAttemptSignal(const SignalTypes signal_type)
 {
   if(!ProtectionRiskAllowsSignalAttempt())
+    return false;
+  if(!TrendFilterIndicatorsAvailable())
     return false;
 
   bool use_base_indicator  = (Base_Indicator_Percent > 0.0);

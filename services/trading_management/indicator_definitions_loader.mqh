@@ -14,6 +14,9 @@ IndicatorsHandleInfo ExtStochIndicatorsHandle[];
 IndicatorsHandleInfo ExtStructStochIndicatorsHandle[];
 IndicatorsHandleInfo ExtBodyMAIndicatorsHandle[];
 IndicatorsHandleInfo ExtATRIndicatorsHandle[];
+IndicatorsHandleInfo TrendBPercentIndicatorHandle;
+IndicatorsHandleInfo TrendStochIndicatorHandle;
+ENUM_TIMEFRAMES     Trend_Filter_Timeframe = PERIOD_M5;
 
 // TOTAL INDICATORS TO LOAD
 int start_bands_indicators_load = 0;
@@ -67,6 +70,121 @@ void PrepareIndicatorPeriods()
 {
   ArrayResize(IndicatorPeriods, 1);
   IndicatorPeriods[0] = (int)Base_Indicator_Period_Type;
+}
+
+ENUM_TIMEFRAMES ResolveTrendTimeframe()
+{
+  ENUM_TIMEFRAMES configured_tf = Trend_Indicator_Timeframe;
+  if(!IsStrategyTimeframeSupported(configured_tf))
+  {
+    PrintFormat("Trend timeframe %d not supported. Falling back to strategy timeframe %d.",
+                (int)configured_tf,
+                (int)Strategy_Timeframe);
+    configured_tf = Strategy_Timeframe;
+  }
+  return configured_tf;
+}
+
+void ResetTrendIndicators()
+{
+  TrendBPercentIndicatorHandle = IndicatorsHandleInfo();
+  TrendStochIndicatorHandle    = IndicatorsHandleInfo();
+}
+
+bool LoadTrendBPercentIndicator(const ENUM_TIMEFRAMES trend_tf)
+{
+  IndicatorsHandleInfo trend_handle;
+  trend_handle.indicator_period        = (int)Base_Indicator_Period_Type;
+  trend_handle.indicator_ma_method     = Base_Indicator_MA_Method;
+  trend_handle.indicator_applied_price = PRICE_WEIGHTED;
+  trend_handle.indicator_handle        = iCustom(_Symbol,
+                                                 trend_tf,
+                                                 "Examples\\BB_Percent_Standard.ex5",
+                                                 trend_handle.indicator_period,
+                                                 0,
+                                                 2.0,
+                                                 5,
+                                                 Base_Indicator_MA_Method,
+                                                 PRICE_WEIGHTED);
+  trend_handle.indicator_timeframe     = trend_tf;
+
+  if(trend_handle.indicator_handle == INVALID_HANDLE)
+  {
+    PrintFormat("ERROR LOADING TREND BOLLINGER PERCENT INDICATOR | tf=%s | period=%d",
+                EnumToString(trend_tf),
+                trend_handle.indicator_period);
+    return false;
+  }
+
+  TrendBPercentIndicatorHandle = trend_handle;
+  PrintFormat("Trend Bollinger Percent indicator loaded | tf=%s | period=%d",
+              EnumToString(trend_tf),
+              trend_handle.indicator_period);
+  return true;
+}
+
+bool LoadTrendStochasticIndicator(const ENUM_TIMEFRAMES trend_tf)
+{
+  IndicatorsHandleInfo trend_handle;
+  trend_handle.indicator_period    = (int)Solid_Indicator_Period_Type;
+  trend_handle.indicator_handle    = iCustom(_Symbol,
+                                            trend_tf,
+                                            "Examples\\Stochastic",
+                                            trend_handle.indicator_period,
+                                            3,
+                                            3,
+                                            STO_CLOSECLOSE);
+  trend_handle.indicator_timeframe = trend_tf;
+
+  if(trend_handle.indicator_handle == INVALID_HANDLE)
+  {
+    PrintFormat("ERROR LOADING TREND STOCHASTIC INDICATOR | tf=%s | period=%d",
+                EnumToString(trend_tf),
+                trend_handle.indicator_period);
+    return false;
+  }
+
+  TrendStochIndicatorHandle = trend_handle;
+  PrintFormat("Trend Stochastic indicator loaded | tf=%s | period=%d",
+              EnumToString(trend_tf),
+              trend_handle.indicator_period);
+  return true;
+}
+
+void LoadTrendIndicators()
+{
+  ResetTrendIndicators();
+
+  if(Strategy_Trend_Mode == TREND_OFF)
+  {
+    Print("Trend filter disabled; skipping trend indicator loading.");
+    return;
+  }
+
+  Trend_Filter_Timeframe = ResolveTrendTimeframe();
+
+  bool loaded = false;
+  if(Strategy_Trend_Mode == TREND_BPERCENT)
+    loaded = LoadTrendBPercentIndicator(Trend_Filter_Timeframe);
+  else if(Strategy_Trend_Mode == TREND_STOCHASTIC)
+    loaded = LoadTrendStochasticIndicator(Trend_Filter_Timeframe);
+
+  if(!loaded)
+  {
+    Print("Trend indicator loading failed; trend filter will remain inactive for this session.");
+    ResetTrendIndicators();
+  }
+}
+
+bool TrendFilterIndicatorsAvailable()
+{
+  if(Strategy_Trend_Mode == TREND_OFF)
+    return true;
+  if(Strategy_Trend_Mode == TREND_BPERCENT)
+    return (TrendBPercentIndicatorHandle.indicator_handle != INVALID_HANDLE);
+  if(Strategy_Trend_Mode == TREND_STOCHASTIC)
+    return (TrendStochIndicatorHandle.indicator_handle != INVALID_HANDLE);
+  return true;
 }
 
 void LoadAllIndicatorDefinitions()
@@ -137,6 +255,7 @@ void LoadAllIndicatorDefinitions()
   }
 
   LoadAllBodyMAIndicators();
+  LoadTrendIndicators();
 }
 
 // ++ LOAD ALL INDICATORS VARIANTS FUNCTIONS ++
