@@ -82,10 +82,17 @@ This is a HFT Grid AI Expert Advisor designed to execute high frequency position
 ## Strategy Trend Settings
 - Inputs live in `services/trading_management/ea_inputs.mqh` under the `+= Strategy Trend Settings =+` group.
 - `Trend_Indicator_Timeframe` selects the dedicated confirmation timeframe; unsupported TFs fall back to the main `Strategy_Timeframe`.
-- `Strategy_Trend_Mode`: `TREND_OFF`, `TREND_BPERCENT`, `TREND_STOCHASTIC`.
-  - Each mode only loads the required indicator handle (`TrendBPercentIndicatorHandle` or `TrendStochIndicatorHandle`) via `LoadTrendIndicators()`.
-  - Trend confirmation enforces `main_shift_0/1 >= signal_shift_0/1` for bullish grids and `<=` for bearish grids using the chosen indicator buffers.
+- `Strategy_Trend_Mode`: `TREND_OFF` or `TREND_BPERCENT`.
+  - `LoadTrendIndicators()` only instantiates the Bollinger Percent handle when the mode is enabled; `TREND_OFF` skips the entire flow.
+  - Trend confirmation now evaluates **only shift 1** (`main_shift_1 >= signal_shift_1` for bullish, `<=` for bearish) to keep the guard lightweight.
 - `CanAttemptSignal()` short-circuits when the requested trend indicator handle is unavailable, preventing partially initialized grids. `LoadTrendFilterData()` fetches the latest values during detection and `TrendFilterAllowsSignal()` blocks signals that violate the rule.
+
+## Trend Structure Settings
+- Inputs live in `services/trading_management/ea_inputs.mqh` under `+= Trend Structure Settings =+`.
+- `Trend_Structure_Timeframe` can differ from the main strategy timeframe; `LoadTrendStructureFilterIndicator()` loads a dedicated `TrendStructStochIndicatorHandle` when the timeframes differ or reuses the strategy handles otherwise.
+- `Trend_First_Structure_Type` ... `Trend_Fourth_Structure_Type` let you enforce explicit `OscillatorStructureTypes`. Each defaults to `OSCILLATOR_STRUCTURE_EQ`, meaning “skip this level”.
+- The existing structure filters (`Min_Extern_Structures_Broken`, all Fibo retest inputs) now reference the trend structure timeframe, so higher-timeframe geometry gates lower-timeframe grids.
+- `LoadTrendStructureData()` seeds the snapshot stored in `SignalParams`, `FetchStructureForFilters()` picks the correct dataset at evaluation time, and `EvaluateTrendStructureTypeFilters()` applies the manual structure-type checks.
 
 ## Protection Risk Filter
 - Service lives in `services/trading_signals/protection_risk_filter.mqh` and runs on every tick plus during signal admission.

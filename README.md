@@ -84,12 +84,16 @@ The **HFT Grid AI EA** is a specialized Expert Advisor designed to execute high 
 - `Strategy_Direction_Mode`: Directional filter; `BOTH_DIRECTION`, `BULLISH_DIRECTION`, or `BEARISH_DIRECTION`.
 
 ### Strategy Trend Settings
-- `Trend_Indicator_Timeframe`: Timeframe used solely for the trend filter indicators. Falls back to the main strategy timeframe if an unsupported TF is selected.
+- `Trend_Indicator_Timeframe`: Timeframe used solely for the trend filter indicator. Falls back to the main strategy timeframe if an unsupported TF is selected.
 - `Strategy_Trend_Mode`: Optional confirmation layer.
   - `TREND_OFF`: Skip the trend filter entirely (default).
-  - `TREND_BPERCENT`: Load a Bollinger Percent indicator on the trend timeframe and require `main_shift_0/1 >= signal_shift_0/1` for bullish grids (inverse for bearish).
-  - `TREND_STOCHASTIC`: Load a Stochastic indicator on the trend timeframe and apply the same `main >= signal` (bullish) / `main <= signal` (bearish) rule using shifts 0 and 1.
+  - `TREND_BPERCENT`: Load a Bollinger Percent indicator on the trend timeframe and require `main_shift_1 >= signal_shift_1` for bullish grids (inverse for bearish). Only shift 1 is evaluated to keep the guard lightweight.
 - Only the indicator required by the selected mode is loaded (and hidden in tester if `Enable_Show_Indicators` is false). If the indicator cannot be created, signal detection pauses until it becomes available, preventing partially-seeded grids.
+
+### Trend Structure Settings
+- `Trend_Structure_Timeframe`: Dedicated timeframe for structure-based filters. All extern-structure counts, fibo retest requirements, and manual structure-type filters are evaluated on this timeframe. When it matches the strategy timeframe, the EA reuses the existing structure handles.
+- `Trend_First_Structure_Type` ... `Trend_Fourth_Structure_Type`: Optional `OscillatorStructureTypes` targets. Each input defaults to `OSCILLATOR_STRUCTURE_EQ` which disables the check. Set a different structure type to require that the corresponding swing pattern is present before a grid is admitted.
+- Structure Metrics: The existing `Min_Extern_Structures_Broken` and Fibo zone retest inputs now reference the trend structure timeframe, ensuring higher-timeframe trend context can gate lower-timeframe grids.
 
 ### Protection Risk Management
 - `Protection_Risk_Mode`: Master toggle for the drawdown filter.

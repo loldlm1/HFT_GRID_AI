@@ -41,7 +41,14 @@ input group "+= Strategy Trend Settings =+";
 input ENUM_TIMEFRAMES     Trend_Indicator_Timeframe = PERIOD_H1;
 input StrategyTrendModes  Strategy_Trend_Mode       = TREND_OFF;
 
-input group "+= Structure Filters =+";
+input group "+= Trend Structure Settings =+";
+input ENUM_TIMEFRAMES          Trend_Structure_Timeframe   = PERIOD_H1;
+input OscillatorStructureTypes Trend_First_Structure_Type  = OSCILLATOR_STRUCTURE_EQ;
+input OscillatorStructureTypes Trend_Second_Structure_Type = OSCILLATOR_STRUCTURE_EQ;
+input OscillatorStructureTypes Trend_Third_Structure_Type  = OSCILLATOR_STRUCTURE_EQ;
+input OscillatorStructureTypes Trend_Fourth_Structure_Type = OSCILLATOR_STRUCTURE_EQ;
+
+input group "+= Support/Resistance Structure Filters =+";
 input int Min_Extern_Structures_Broken      = 0;
 input int FiboZone1_Support_Retest_Min      = 0;
 input int FiboZone1_Resistance_Retest_Min   = 0;
