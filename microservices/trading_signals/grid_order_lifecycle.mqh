@@ -128,7 +128,12 @@ bool GridExecuteLevelTrade(SignalParams &signal_params,
     sent = g_position.Sell(normalized_volume, _Symbol, 0.0, 0.0, 0.0, comment);
 
   if(!sent)
+  {
+    ulong retcode = g_position.ResultRetcode();
+    int last_error = GetLastError();
+    MarketStatusRegisterBrokerFailure("ORDER_SEND_FAILED", retcode, last_error, false);
     return false;
+  }
 
   double fill_price = g_position.ResultPrice();
   if(fill_price <= 0.0)
@@ -160,7 +165,12 @@ bool GridCloseBrokerPosition(GridOrderState &order_state,
     return true;
 
   if(!g_position.PositionClose(order_state.position_ticket))
+  {
+    ulong retcode = g_position.ResultRetcode();
+    int last_error = GetLastError();
+    MarketStatusRegisterBrokerFailure("POSITION_CLOSE_FAILED", retcode, last_error, true);
     return false;
+  }
 
   close_price = g_position.ResultPrice();
   if(close_price <= 0.0)

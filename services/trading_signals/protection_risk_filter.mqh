@@ -139,6 +139,50 @@ void ProtectionRiskEnforceDrawdownGuard()
   ProtectionRiskForceClosePositions();
 }
 
+bool ProtectionRiskHasActiveEntities()
+{
+  if(ArraySize(running_bullish_signals) > 0)
+    return true;
+  if(ArraySize(running_bearish_signals) > 0)
+    return true;
+
+  int total_positions = PositionsTotal();
+  for(int i = total_positions-1; i >= 0; i--)
+  {
+    ulong position_ticket = PositionGetTicket(i);
+    if(position_ticket == 0)
+      continue;
+    if(!PositionSelectByTicket(position_ticket))
+      continue;
+    long position_magic = PositionGetInteger(POSITION_MAGIC);
+    if(position_magic != g_magic_number)
+      continue;
+    string position_symbol = PositionGetString(POSITION_SYMBOL);
+    if(position_symbol != _Symbol)
+      continue;
+    return true;
+  }
+  return false;
+}
+
+void ProtectionRiskProcessPendingForceClose()
+{
+  if(!MarketStatusHasPendingForceClose())
+    return;
+  if(!MarketStatusAllowsBrokerActions())
+    return;
+
+  ProtectionRiskEnforceDrawdownGuard();
+  if(!ProtectionRiskHasActiveEntities())
+    MarketStatusClearForceCloseRequest();
+}
+
+void ProtectionRiskScheduleForceClose(const string reason)
+{
+  MarketStatusRequestForceClose(reason);
+  ProtectionRiskProcessPendingForceClose();
+}
+
 void ProtectionRiskResetDailyLock()
 {
   if(!g_protection_daily_lock_active)
@@ -157,9 +201,13 @@ void ProtectionRiskResetDailyLock()
 
 void ProtectionRiskResetMarketCloseGuard()
 {
+  bool was_active = g_market_close_guard_active;
   g_market_close_guard_active      = false;
   g_market_close_guard_session_end = 0;
   g_market_close_guard_trigger_time = 0;
+
+  if(was_active && MarketStatusGet() == MARKET_STATUS_CLOSE_GUARD)
+    MarketStatusUpdate(MARKET_STATUS_ACTIVE, "Market close guard cleared");
 }
 
 void ProtectionRiskCheckMarketCloseGuard()
@@ -198,20 +246,63 @@ void ProtectionRiskCheckMarketCloseGuard()
                   TimeToString(session_to, TIME_DATE|TIME_SECONDS),
                   TimeToString(trigger_time, TIME_DATE|TIME_SECONDS),
                   Market_Close_Guard_Timeframe);
-      ProtectionRiskEnforceDrawdownGuard();
     }
     g_market_close_guard_active = true;
+
+    if(MarketStatusGet() != MARKET_STATUS_BROKER_CLOSEONLY &&
+       MarketStatusGet() != MARKET_STATUS_BROKER_DISABLED)
+    {
+      string reason = StringFormat("Session close guard | trigger=%s | close=%s",
+                                   TimeToString(trigger_time, TIME_SECONDS),
+                                   TimeToString(session_to, TIME_SECONDS));
+      MarketStatusUpdate(MARKET_STATUS_CLOSE_GUARD, reason);
+    }
+    ProtectionRiskScheduleForceClose("Market close guard");
     return;
   }
 
   if(current_time >= session_to)
+  {
     ProtectionRiskResetMarketCloseGuard();
+    return;
+  }
+}
+
+void ProtectionRiskMonitorTradeMode()
+{
+  ENUM_SYMBOL_TRADE_MODE trade_mode =
+    (ENUM_SYMBOL_TRADE_MODE)SymbolInfoInteger(_Symbol, SYMBOL_TRADE_MODE);
+
+  if(trade_mode == SYMBOL_TRADE_MODE_CLOSEONLY)
+  {
+    MarketStatusUpdate(MARKET_STATUS_BROKER_CLOSEONLY, "Symbol trade mode close-only");
+    ProtectionRiskScheduleForceClose("Broker close-only mode");
+    return;
+  }
+
+  if(trade_mode == SYMBOL_TRADE_MODE_DISABLED)
+  {
+    MarketStatusUpdate(MARKET_STATUS_BROKER_DISABLED, "Symbol trade mode disabled");
+    ProtectionRiskScheduleForceClose("Broker disabled mode");
+    return;
+  }
+
+  if(g_market_close_guard_active)
+  {
+    if(MarketStatusGet() != MARKET_STATUS_CLOSE_GUARD)
+      MarketStatusUpdate(MARKET_STATUS_CLOSE_GUARD, "Market close guard active");
+    return;
+  }
+
+  if(MarketStatusGet() != MARKET_STATUS_ACTIVE)
+    MarketStatusUpdate(MARKET_STATUS_ACTIVE, "Trading restored");
 }
 
 void ProtectionRiskFilterTick()
 {
   ProtectionRiskResetDailyLock();
   ProtectionRiskCheckMarketCloseGuard();
+  ProtectionRiskProcessPendingForceClose();
   if(Protection_Risk_Mode == ENABLED_OFF)
     return;
 
@@ -232,6 +323,8 @@ void ProtectionRiskFilterTick()
               Protection_Risk_Mode);
 
   ProtectionRiskEnforceDrawdownGuard();
+  if(ProtectionRiskHasActiveEntities())
+    ProtectionRiskScheduleForceClose("Drawdown guard pending close");
 
   if(Protection_Risk_Mode == ENABLED_GRID_PROTECTION_DAILY)
   {
@@ -243,7 +336,7 @@ void ProtectionRiskFilterTick()
 bool ProtectionRiskAllowsSignalAttempt()
 {
   ProtectionRiskResetDailyLock();
-  if(g_market_close_guard_active)
+  if(!MarketStatusAllowsSignalAttempts())
     return false;
   if(Protection_Risk_Mode == ENABLED_OFF)
     return true;

@@ -97,6 +97,8 @@ The **HFT Grid AI EA** is a specialized Expert Advisor designed to execute high 
 
 Whenever the live floating P/L of this EA (filtered by `Custom_Magic`) breaches the resolved threshold, the protection service force-closes every tracked grid (bullish and bearish), removes their chart objects, and closes any stray broker positions that still carry the EA magic number to avoid sequence drift.
 The market close guard runs regardless of the selected `Protection_Risk_Mode`, ensuring no grids remain open after the configured pre-close candle begins and blocking new signals until the session fully closes.
+Runtime watchers maintain a market-status state machine:
+`ACTIVE` (normal), `CLOSE_GUARD` (scheduled flattening), `BROKER_CLOSEONLY`, and `BROKER_DISABLED`. Trade-mode changes reported by `SymbolInfoInteger(SYMBOL_TRADE_MODE)` or `CTrade` error codes automatically transition the status, schedule force-closes, and pause signal admission accordingly. Failed order sends/closures tagged with `MARKET_CLOSED`/`TRADE_DISABLED` escalate to `BROKER_DISABLED` until the next tick confirms trading is available again. Pending guard closes are retried as soon as the broker allows positions to be closed, which keeps the grid sequence consistent without relying on external APIs.
 
 ### Structure Filters
 - `Min_Extern_Structures_Broken`: Minimum extern structures that must be broken (from the latest extremum statistics) before a signal can fire. `0` disables the check.

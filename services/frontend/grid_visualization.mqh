@@ -114,9 +114,14 @@ void RefreshGridVisualization()
     for(int j = 0; j < bearish_total; j++)
       BuildSignalSummary(running_bearish_signals[j], summary_lines, now_time);
 
-    string header = StringFormat("%s   /   Magic: %d",
+    string market_status = MarketStatusToString(MarketStatusGet());
+    string header = StringFormat("%s   /   Magic: %d   /   Market: %s",
                                  g_ea_running ? "Enabled" : "Disabled",
-                                 g_magic_number);
+                                 g_magic_number,
+                                 market_status);
+    string status_reason = MarketStatusReason();
+    if(status_reason != "")
+      header = header + " (" + status_reason + ")";
 
     string comment_text = header;
     int summary_total = ArraySize(summary_lines);

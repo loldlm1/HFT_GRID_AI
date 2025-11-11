@@ -169,4 +169,12 @@ enum ProtectionRiskValueTypes
   PROTECTION_RISK_FIXED_CURRENCY         = 2
 };
 
+enum MarketStatusTypes
+{
+  MARKET_STATUS_ACTIVE           = 0,
+  MARKET_STATUS_CLOSE_GUARD      = 1,
+  MARKET_STATUS_BROKER_CLOSEONLY = 2,
+  MARKET_STATUS_BROKER_DISABLED  = 3
+};
+
 #endif // _MICROSERVICES_CORE_ENUMS_MQH_
