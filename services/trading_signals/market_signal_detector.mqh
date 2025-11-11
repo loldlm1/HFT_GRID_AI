@@ -24,10 +24,17 @@ bool StructureFiltersRequested()
 
 bool TrendStructureTypeFiltersRequested()
 {
-  return (Trend_First_Structure_Type  != OSCILLATOR_STRUCTURE_EQ) ||
-         (Trend_Second_Structure_Type != OSCILLATOR_STRUCTURE_EQ) ||
-         (Trend_Third_Structure_Type  != OSCILLATOR_STRUCTURE_EQ) ||
-         (Trend_Fourth_Structure_Type != OSCILLATOR_STRUCTURE_EQ);
+  bool bullish_active =
+    (Trend_First_Structure_Filter == BULLISH_STRUCT_LL) ||
+    (Trend_First_Structure_Filter == BULLISH_STRUCT_LH) ||
+    (Trend_First_Structure_Filter == BULLISH_STRUCT_LL_LH);
+
+  bool bearish_active =
+    (Trend_Second_Structure_Filter == BEARISH_STRUCT_HH) ||
+    (Trend_Second_Structure_Filter == BEARISH_STRUCT_HL) ||
+    (Trend_Second_Structure_Filter == BEARISH_STRUCT_HH_HL);
+
+  return bullish_active || bearish_active;
 }
 
 bool TrendStructureDataRequired()
@@ -510,12 +517,36 @@ bool EvaluateStructureRetestTrigger(const SignalParams &signal_params, const Sig
   return true;
 }
 
-bool StructureTypeMatches(const OscillatorStructureTypes desired,
-                          const OscillatorStructureTypes actual)
+bool TrendStructureFilterMatches(const TrendStructureFilterModes filter_mode,
+                                 const OscillatorStructureTypes structure_type)
 {
-  if(desired == OSCILLATOR_STRUCTURE_EQ)
+  if(filter_mode == BULLISH_STRUCT_OFF || filter_mode == BEARISH_STRUCT_OFF)
     return true;
-  return desired == actual;
+
+  if(filter_mode == BULLISH_STRUCT_OFF_FINAL || filter_mode == BEARISH_STRUCT_OFF_FINAL)
+    return true;
+
+  if(structure_type == OSCILLATOR_STRUCTURE_EQ)
+    return true;
+
+  switch(filter_mode)
+  {
+    case BULLISH_STRUCT_LL:
+      return (structure_type == OSCILLATOR_STRUCTURE_LL);
+    case BULLISH_STRUCT_LH:
+      return (structure_type == OSCILLATOR_STRUCTURE_LH);
+    case BULLISH_STRUCT_LL_LH:
+      return (structure_type == OSCILLATOR_STRUCTURE_LL ||
+              structure_type == OSCILLATOR_STRUCTURE_LH);
+    case BEARISH_STRUCT_HH:
+      return (structure_type == OSCILLATOR_STRUCTURE_HH);
+    case BEARISH_STRUCT_HL:
+      return (structure_type == OSCILLATOR_STRUCTURE_HL);
+    case BEARISH_STRUCT_HH_HL:
+      return (structure_type == OSCILLATOR_STRUCTURE_HH ||
+              structure_type == OSCILLATOR_STRUCTURE_HL);
+  }
+  return true;
 }
 
 bool EvaluateTrendStructureTypeFilters(const SignalParams &signal_params)
@@ -527,16 +558,12 @@ bool EvaluateTrendStructureTypeFilters(const SignalParams &signal_params)
   if(!FetchStructureForFilters(signal_params, structure))
     return false;
 
-  if(!StructureTypeMatches(Trend_First_Structure_Type, structure.first_structure_type))
-    return false;
-  if(!StructureTypeMatches(Trend_Second_Structure_Type, structure.second_structure_type))
-    return false;
-  if(!StructureTypeMatches(Trend_Third_Structure_Type, structure.third_structure_type))
-    return false;
-  if(!StructureTypeMatches(Trend_Fourth_Structure_Type, structure.fourth_structure_type))
-    return false;
+  bool first_pass  = TrendStructureFilterMatches(Trend_First_Structure_Filter,
+                                                 structure.first_structure_type);
+  bool second_pass = TrendStructureFilterMatches(Trend_Second_Structure_Filter,
+                                                 structure.second_structure_type);
 
-  return true;
+  return first_pass && second_pass;
 }
 
 bool EvaluateSignalTrigger(const SignalParams &signal_params, const SignalTypes signal_type)

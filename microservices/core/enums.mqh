@@ -175,6 +175,20 @@ enum StrategyTrendModes
   TREND_BPERCENT = 1
 };
 
+enum TrendStructureFilterModes
+{
+  BULLISH_STRUCT_OFF       = 0,
+  BULLISH_STRUCT_LL_LH     = 1,
+  BULLISH_STRUCT_LL        = 2,
+  BULLISH_STRUCT_LH        = 3,
+  BULLISH_STRUCT_OFF_FINAL = 4,
+  BEARISH_STRUCT_OFF       = 5,
+  BEARISH_STRUCT_HH_HL     = 6,
+  BEARISH_STRUCT_HH        = 7,
+  BEARISH_STRUCT_HL        = 8,
+  BEARISH_STRUCT_OFF_FINAL = 9
+};
+
 enum MarketStatusTypes
 {
   MARKET_STATUS_ACTIVE           = 0,
