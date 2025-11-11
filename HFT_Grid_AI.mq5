@@ -119,6 +119,7 @@ void OnTimer()
 void OnTick()
 {
   RefreshCustomSymbolRates();
+  ProtectionRiskMonitorTradeMode();
   ProtectionRiskFilterTick();
   g_ea_running                          = true;
   static datetime next_bar_open        = 0;
@@ -130,8 +131,11 @@ void OnTick()
   if(g_points_spread > Max_Spread || !IsMarketOpen())
   {
     g_ea_running = false;
+    RefreshGridVisualization();
     return;
   }
+
+  bool broker_disabled = (MarketStatusGet() == MARKET_STATUS_BROKER_DISABLED);
 
   // UPDATES THE STATUS COMMENT
   UpdateEARunningMagic();
@@ -139,7 +143,8 @@ void OnTick()
   //--- Phase 1 - check the emergence of a new bar and update the status
   if(current_time>=next_bar_open)
   {
-    Main();
+    if(!broker_disabled)
+      Main();
 
     //--- set the new bar opening time
     next_bar_open=current_time;
@@ -148,7 +153,8 @@ void OnTick()
   }
 
   // MANAGES THE BULLISH AND BEARISH SIGNALS
-  Main_Tick();
+  if(!broker_disabled)
+    Main_Tick();
   RefreshGridVisualization();
 }
 

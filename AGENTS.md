@@ -89,6 +89,11 @@ This is a HFT Grid AI Expert Advisor designed to execute high frequency position
 - Drawdown is evaluated only on positions that match `_Symbol` and `g_magic_number`. On breach, the service force-closes every `SignalParams` entry (bullish and bearish), removes their chart objects, and then closes any leftover broker positions tagged with the EA magic to keep the sequence consistent.
 - Daily locks reset automatically when `iTime(_Symbol, PERIOD_D1, 0)` advances, so devs do not need to manually clear state between backtests.
 - The market close guard runs on every tick regardless of the drawdown mode and uses `IsMarketOpen()` session data to determine the next close. Once the guard window begins it force-closes all grids/positions and blocks new signals until the session end timestamp advances.
+- `services/trading_signals/market_status_controller.mqh` owns the runtime status machine (`ACTIVE`, `CLOSE_GUARD`, `BROKER_CLOSEONLY`, `BROKER_DISABLED`) used across signals, protection, and frontend. Helper functions (`MarketStatusAllowsSignalAttempts()`, `MarketStatusAllowsBrokerActions()`, etc.) gate new work.
+- `ProtectionRiskMonitorTradeMode()` polls `SYMBOL_TRADE_MODE` every tick. `CLOSEONLY` immediately schedules force-closes (still allowed to execute), while `DISABLED` parks the grids and keeps retrying once the broker reopens. No third-party APIs are required; all data comes from MT5.
+- Any `CTrade` send/close failure that returns `TRADE_RETCODE_MARKET_CLOSED`, `TRADE_RETCODE_TRADE_DISABLED`, `TRADE_RETCODE_TRADE_TIMEOUT`, `ERR_MARKET_CLOSED`, or `ERR_TRADE_DISABLED` flows through `MarketStatusRegisterBrokerFailure()`, elevating the status to `BROKER_DISABLED` and flagging a pending force-close when needed.
+- Pending force-close requests persist while the broker blocks trading. `ProtectionRiskProcessPendingForceClose()` retries automatically as soon as `MarketStatusAllowsBrokerActions()` returns true, preventing broken sequences after unexpected halts.
+- The frontend summary comment now prints the current market status and reason so manual monitoring lines up with the backend state transitions.
 
 ## MQL5 Language Conventions
 
