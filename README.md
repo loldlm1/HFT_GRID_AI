@@ -83,6 +83,14 @@ The **HFT Grid AI EA** is a specialized Expert Advisor designed to execute high 
 - `Solid_Indicator_Period_Type`: Period for `Stochastic_Structure` (5, 8, 13, 21, 34, 55).
 - `Strategy_Direction_Mode`: Directional filter; `BOTH_DIRECTION`, `BULLISH_DIRECTION`, or `BEARISH_DIRECTION`.
 
+### Strategy Trend Settings
+- `Trend_Indicator_Timeframe`: Timeframe used solely for the trend filter indicators. Falls back to the main strategy timeframe if an unsupported TF is selected.
+- `Strategy_Trend_Mode`: Optional confirmation layer.
+  - `TREND_OFF`: Skip the trend filter entirely (default).
+  - `TREND_BPERCENT`: Load a Bollinger Percent indicator on the trend timeframe and require `main_shift_0/1 >= signal_shift_0/1` for bullish grids (inverse for bearish).
+  - `TREND_STOCHASTIC`: Load a Stochastic indicator on the trend timeframe and apply the same `main >= signal` (bullish) / `main <= signal` (bearish) rule using shifts 0 and 1.
+- Only the indicator required by the selected mode is loaded (and hidden in tester if `Enable_Show_Indicators` is false). If the indicator cannot be created, signal detection pauses until it becomes available, preventing partially-seeded grids.
+
 ### Protection Risk Management
 - `Protection_Risk_Mode`: Master toggle for the drawdown filter.
   - `ENABLED_OFF`: Skip the filter entirely.
