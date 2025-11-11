@@ -15,8 +15,9 @@ IndicatorsHandleInfo ExtStructStochIndicatorsHandle[];
 IndicatorsHandleInfo ExtBodyMAIndicatorsHandle[];
 IndicatorsHandleInfo ExtATRIndicatorsHandle[];
 IndicatorsHandleInfo TrendBPercentIndicatorHandle;
-IndicatorsHandleInfo TrendStochIndicatorHandle;
+IndicatorsHandleInfo TrendStructStochIndicatorHandle;
 ENUM_TIMEFRAMES     Trend_Filter_Timeframe = PERIOD_M5;
+ENUM_TIMEFRAMES     Trend_Structure_Filter_Timeframe = PERIOD_M5;
 
 // TOTAL INDICATORS TO LOAD
 int start_bands_indicators_load = 0;
@@ -72,6 +73,28 @@ void PrepareIndicatorPeriods()
   IndicatorPeriods[0] = (int)Base_Indicator_Period_Type;
 }
 
+inline bool StructureFiltersConfigured()
+{
+  return (Min_Extern_Structures_Broken > 0) ||
+         (FiboZone1_Support_Retest_Min > 0) ||
+         (FiboZone1_Resistance_Retest_Min > 0) ||
+         (FiboZone2_Support_Retest_Min > 0) ||
+         (FiboZone2_Resistance_Retest_Min > 0);
+}
+
+inline bool TrendStructureTypeFiltersConfigured()
+{
+  return (Trend_First_Structure_Type  != OSCILLATOR_STRUCTURE_EQ) ||
+         (Trend_Second_Structure_Type != OSCILLATOR_STRUCTURE_EQ) ||
+         (Trend_Third_Structure_Type  != OSCILLATOR_STRUCTURE_EQ) ||
+         (Trend_Fourth_Structure_Type != OSCILLATOR_STRUCTURE_EQ);
+}
+
+inline bool TrendStructureDataRequested()
+{
+  return StructureFiltersConfigured() || TrendStructureTypeFiltersConfigured();
+}
+
 ENUM_TIMEFRAMES ResolveTrendTimeframe()
 {
   ENUM_TIMEFRAMES configured_tf = Trend_Indicator_Timeframe;
@@ -85,10 +108,27 @@ ENUM_TIMEFRAMES ResolveTrendTimeframe()
   return configured_tf;
 }
 
+ENUM_TIMEFRAMES ResolveTrendStructureTimeframe()
+{
+  ENUM_TIMEFRAMES configured_tf = Trend_Structure_Timeframe;
+  if(!IsStrategyTimeframeSupported(configured_tf))
+  {
+    PrintFormat("Trend structure timeframe %d not supported. Falling back to strategy timeframe %d.",
+                (int)configured_tf,
+                (int)Strategy_Timeframe);
+    configured_tf = Strategy_Timeframe;
+  }
+  return configured_tf;
+}
+
 void ResetTrendIndicators()
 {
   TrendBPercentIndicatorHandle = IndicatorsHandleInfo();
-  TrendStochIndicatorHandle    = IndicatorsHandleInfo();
+}
+
+void ResetTrendStructureIndicator()
+{
+  TrendStructStochIndicatorHandle = IndicatorsHandleInfo();
 }
 
 bool LoadTrendBPercentIndicator(const ENUM_TIMEFRAMES trend_tf)
@@ -123,31 +163,31 @@ bool LoadTrendBPercentIndicator(const ENUM_TIMEFRAMES trend_tf)
   return true;
 }
 
-bool LoadTrendStochasticIndicator(const ENUM_TIMEFRAMES trend_tf)
+bool LoadTrendStructureIndicator(const ENUM_TIMEFRAMES structure_tf)
 {
-  IndicatorsHandleInfo trend_handle;
-  trend_handle.indicator_period    = (int)Solid_Indicator_Period_Type;
-  trend_handle.indicator_handle    = iCustom(_Symbol,
-                                            trend_tf,
-                                            "Examples\\Stochastic",
-                                            trend_handle.indicator_period,
-                                            3,
-                                            3,
-                                            STO_CLOSECLOSE);
-  trend_handle.indicator_timeframe = trend_tf;
+  IndicatorsHandleInfo structure_handle;
+  structure_handle.indicator_period    = (int)Solid_Indicator_Period_Type;
+  structure_handle.indicator_handle    = iCustom(_Symbol,
+                                                 structure_tf,
+                                                 "Examples\\Stochastic_Structure",
+                                                 structure_handle.indicator_period,
+                                                 3,
+                                                 3,
+                                                 STO_CLOSECLOSE);
+  structure_handle.indicator_timeframe = structure_tf;
 
-  if(trend_handle.indicator_handle == INVALID_HANDLE)
+  if(structure_handle.indicator_handle == INVALID_HANDLE)
   {
-    PrintFormat("ERROR LOADING TREND STOCHASTIC INDICATOR | tf=%s | period=%d",
-                EnumToString(trend_tf),
-                trend_handle.indicator_period);
+    PrintFormat("ERROR LOADING TREND STRUCTURE INDICATOR | tf=%s | period=%d",
+                EnumToString(structure_tf),
+                structure_handle.indicator_period);
     return false;
   }
 
-  TrendStochIndicatorHandle = trend_handle;
-  PrintFormat("Trend Stochastic indicator loaded | tf=%s | period=%d",
-              EnumToString(trend_tf),
-              trend_handle.indicator_period);
+  TrendStructStochIndicatorHandle = structure_handle;
+  PrintFormat("Trend structure indicator loaded | tf=%s | period=%d",
+              EnumToString(structure_tf),
+              structure_handle.indicator_period);
   return true;
 }
 
@@ -163,16 +203,10 @@ void LoadTrendIndicators()
 
   Trend_Filter_Timeframe = ResolveTrendTimeframe();
 
-  bool loaded = false;
   if(Strategy_Trend_Mode == TREND_BPERCENT)
-    loaded = LoadTrendBPercentIndicator(Trend_Filter_Timeframe);
-  else if(Strategy_Trend_Mode == TREND_STOCHASTIC)
-    loaded = LoadTrendStochasticIndicator(Trend_Filter_Timeframe);
-
-  if(!loaded)
   {
-    Print("Trend indicator loading failed; trend filter will remain inactive for this session.");
-    ResetTrendIndicators();
+    if(!LoadTrendBPercentIndicator(Trend_Filter_Timeframe))
+      ResetTrendIndicators();
   }
 }
 
@@ -180,11 +214,25 @@ bool TrendFilterIndicatorsAvailable()
 {
   if(Strategy_Trend_Mode == TREND_OFF)
     return true;
-  if(Strategy_Trend_Mode == TREND_BPERCENT)
-    return (TrendBPercentIndicatorHandle.indicator_handle != INVALID_HANDLE);
-  if(Strategy_Trend_Mode == TREND_STOCHASTIC)
-    return (TrendStochIndicatorHandle.indicator_handle != INVALID_HANDLE);
-  return true;
+  return (TrendBPercentIndicatorHandle.indicator_handle != INVALID_HANDLE);
+}
+
+void LoadTrendStructureFilterIndicator()
+{
+  ResetTrendStructureIndicator();
+
+  if(!TrendStructureDataRequested())
+    return;
+
+  ENUM_TIMEFRAMES strategy_tf = Strategy_TF_List[0];
+  if(Trend_Structure_Filter_Timeframe == strategy_tf)
+  {
+    Print("Trend structure timeframe matches strategy timeframe; reusing strategy structure handles.");
+    return;
+  }
+
+  if(!LoadTrendStructureIndicator(Trend_Structure_Filter_Timeframe))
+    ResetTrendStructureIndicator();
 }
 
 void LoadAllIndicatorDefinitions()
@@ -194,13 +242,14 @@ void LoadAllIndicatorDefinitions()
 
   bool use_base_indicator  = (Base_Indicator_Percent > 0.0);
   bool use_solid_indicator = (Solid_Indicator_Strategy_Type != SOLID_NONE_TYPE);
-  bool structure_filters_enabled =
-    (Min_Extern_Structures_Broken > 0) ||
-    (FiboZone1_Support_Retest_Min > 0) ||
-    (FiboZone1_Resistance_Retest_Min > 0) ||
-    (FiboZone2_Support_Retest_Min > 0) ||
-    (FiboZone2_Resistance_Retest_Min > 0);
-  bool require_structure_indicators = use_solid_indicator || structure_filters_enabled;
+  ENUM_TIMEFRAMES strategy_tf = Strategy_TF_List[0];
+  Trend_Structure_Filter_Timeframe = ResolveTrendStructureTimeframe();
+
+  bool structure_filters_enabled = StructureFiltersConfigured();
+  bool require_structure_indicators =
+    use_solid_indicator ||
+    structure_filters_enabled ||
+    (TrendStructureDataRequested() && Trend_Structure_Filter_Timeframe == strategy_tf);
 
   bool use_atr_strategy = (Grid_Base_Strategy_Type == ATR_RANGE);
 
@@ -256,6 +305,7 @@ void LoadAllIndicatorDefinitions()
 
   LoadAllBodyMAIndicators();
   LoadTrendIndicators();
+  LoadTrendStructureFilterIndicator();
 }
 
 // ++ LOAD ALL INDICATORS VARIANTS FUNCTIONS ++

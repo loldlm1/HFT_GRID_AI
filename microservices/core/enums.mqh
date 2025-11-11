@@ -171,9 +171,8 @@ enum ProtectionRiskValueTypes
 
 enum StrategyTrendModes
 {
-  TREND_OFF        = 0,
-  TREND_BPERCENT   = 1,
-  TREND_STOCHASTIC = 2
+  TREND_OFF      = 0,
+  TREND_BPERCENT = 1
 };
 
 enum MarketStatusTypes
