@@ -169,6 +169,13 @@ enum ProtectionRiskValueTypes
   PROTECTION_RISK_FIXED_CURRENCY         = 2
 };
 
+enum StrategyTrendModes
+{
+  TREND_OFF        = 0,
+  TREND_BPERCENT   = 1,
+  TREND_STOCHASTIC = 2
+};
+
 enum MarketStatusTypes
 {
   MARKET_STATUS_ACTIVE           = 0,
