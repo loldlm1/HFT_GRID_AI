@@ -13,6 +13,27 @@ const double BANDS_PERCENT_UPPER_LEVEL = 100.0;
 const double BANDS_PERCENT_LOWER_LEVEL = 0.0;
 const int    BANDS_PERCENT_SHIFT_DEPTH = 5;
 
+bool StructureFiltersRequested()
+{
+  return (Min_Extern_Structures_Broken > 0) ||
+         (FiboZone1_Support_Retest_Min > 0) ||
+         (FiboZone1_Resistance_Retest_Min > 0) ||
+         (FiboZone2_Support_Retest_Min > 0) ||
+         (FiboZone2_Resistance_Retest_Min > 0);
+}
+
+bool TrendStructureTypeFiltersRequested()
+{
+  return (Trend_First_Structure_Type  != OSCILLATOR_STRUCTURE_EQ) ||
+         (Trend_Second_Structure_Type != OSCILLATOR_STRUCTURE_EQ) ||
+         (Trend_Third_Structure_Type  != OSCILLATOR_STRUCTURE_EQ) ||
+         (Trend_Fourth_Structure_Type != OSCILLATOR_STRUCTURE_EQ);
+}
+
+bool TrendStructureDataRequired()
+{
+  return StructureFiltersRequested() || TrendStructureTypeFiltersRequested();
+}
 // ++ HELPER FUNCTION TO CALCULATE CORRECT SHIFT BASED ON ENTRY TIME ++
 
 void DetectBullishSignal()
@@ -31,6 +52,9 @@ void DetectBullishSignal()
   SetTFStochasticDataToSignalParams(signal_bullish);
   SetTFStochasticMarketStructureDataToSignalParams(signal_bullish);
   SetTFBodyMADataToSignalParams(signal_bullish);
+
+  if(!LoadTrendStructureData(signal_bullish))
+    return;
 
   if(!EvaluateSignalTrigger(signal_bullish, BULLISH))
     return;
@@ -74,6 +98,9 @@ void DetectBearishSignal()
   SetTFStochasticDataToSignalParams(signal_bearish);
   SetTFStochasticMarketStructureDataToSignalParams(signal_bearish);
   SetTFBodyMADataToSignalParams(signal_bearish);
+
+  if(!LoadTrendStructureData(signal_bearish))
+    return;
 
   if(!EvaluateSignalTrigger(signal_bearish, BEARISH))
     return;
@@ -198,41 +225,22 @@ void SetTFBodyMADataToSignalParams(SignalParams &signal_params)
 
 bool LoadTrendFilterData(SignalParams &signal_params)
 {
-  signal_params.trend_filter_mode     = Strategy_Trend_Mode;
-  signal_params.trend_bpercent_valid  = false;
-  signal_params.trend_stochastic_valid = false;
+  signal_params.trend_filter_mode    = Strategy_Trend_Mode;
+  signal_params.trend_bpercent_valid = false;
 
   if(Strategy_Trend_Mode == TREND_OFF)
     return true;
 
-  if(Strategy_Trend_Mode == TREND_BPERCENT)
+  if(TrendBPercentIndicatorHandle.indicator_handle == INVALID_HANDLE)
   {
-    if(TrendBPercentIndicatorHandle.indicator_handle == INVALID_HANDLE)
-    {
-      if(Enable_Logs)
-        Print("Trend Bollinger Percent indicator unavailable.");
-      return false;
-    }
-    signal_params.trend_bpercent_data = BandsPercentStructure();
-    signal_params.trend_bpercent_data.InitBandsPercentStructureValues(TrendBPercentIndicatorHandle, 0);
-    signal_params.trend_bpercent_valid = true;
-    return true;
+    if(Enable_Logs)
+      Print("Trend Bollinger Percent indicator unavailable.");
+    return false;
   }
 
-  if(Strategy_Trend_Mode == TREND_STOCHASTIC)
-  {
-    if(TrendStochIndicatorHandle.indicator_handle == INVALID_HANDLE)
-    {
-      if(Enable_Logs)
-        Print("Trend Stochastic indicator unavailable.");
-      return false;
-    }
-    signal_params.trend_stochastic_data = StochasticStructure();
-    signal_params.trend_stochastic_data.InitStochasticStructureValues(TrendStochIndicatorHandle, 0);
-    signal_params.trend_stochastic_valid = true;
-    return true;
-  }
-
+  signal_params.trend_bpercent_data = BandsPercentStructure();
+  signal_params.trend_bpercent_data.InitBandsPercentStructureValues(TrendBPercentIndicatorHandle, 0);
+  signal_params.trend_bpercent_valid = true;
   return true;
 }
 
@@ -241,30 +249,44 @@ bool TrendFilterAllowsSignal(const SignalParams &signal_params,
 {
   if(signal_params.trend_filter_mode == TREND_OFF)
     return true;
+  if(!signal_params.trend_bpercent_valid)
+    return false;
 
-  if(signal_params.trend_filter_mode == TREND_BPERCENT && signal_params.trend_bpercent_valid)
+  double main_shift   = signal_params.trend_bpercent_data.bands_percent_1;
+  double signal_shift = signal_params.trend_bpercent_data.bands_percent_signal_1;
+
+  if(direction == BULLISH)
+    return main_shift >= signal_shift;
+  return main_shift <= signal_shift;
+}
+
+bool LoadTrendStructureData(SignalParams &signal_params)
+{
+  signal_params.trend_structure_valid = false;
+
+  if(!TrendStructureDataRequired())
+    return true;
+
+  if(Trend_Structure_Timeframe == Strategy_Timeframe)
+    return true;
+
+  if(TrendStructStochIndicatorHandle.indicator_handle == INVALID_HANDLE)
   {
-    bool bullish_pass =
-      (signal_params.trend_bpercent_data.bands_percent_0 >= signal_params.trend_bpercent_data.bands_percent_signal_0) &&
-      (signal_params.trend_bpercent_data.bands_percent_1 >= signal_params.trend_bpercent_data.bands_percent_signal_1);
-    bool bearish_pass =
-      (signal_params.trend_bpercent_data.bands_percent_0 <= signal_params.trend_bpercent_data.bands_percent_signal_0) &&
-      (signal_params.trend_bpercent_data.bands_percent_1 <= signal_params.trend_bpercent_data.bands_percent_signal_1);
-    return (direction == BULLISH) ? bullish_pass : bearish_pass;
+    if(Enable_Logs)
+      Print("Trend structure indicator unavailable.");
+    return false;
   }
 
-  if(signal_params.trend_filter_mode == TREND_STOCHASTIC && signal_params.trend_stochastic_valid)
+  signal_params.trend_structure_data = StochasticMarketStructure();
+  if(!signal_params.trend_structure_data.InitStochMarketStructureValues(TrendStructStochIndicatorHandle))
   {
-    bool bullish_pass =
-      (signal_params.trend_stochastic_data.stochastic_0 >= signal_params.trend_stochastic_data.stochastic_signal_0) &&
-      (signal_params.trend_stochastic_data.stochastic_1 >= signal_params.trend_stochastic_data.stochastic_signal_1);
-    bool bearish_pass =
-      (signal_params.trend_stochastic_data.stochastic_0 <= signal_params.trend_stochastic_data.stochastic_signal_0) &&
-      (signal_params.trend_stochastic_data.stochastic_1 <= signal_params.trend_stochastic_data.stochastic_signal_1);
-    return (direction == BULLISH) ? bullish_pass : bearish_pass;
+    if(Enable_Logs)
+      Print("Trend structure data initialization failed.");
+    return false;
   }
 
-  return false;
+  signal_params.trend_structure_valid = true;
+  return true;
 }
 
 // ++ HELPER FUNCTIONS FOR SIGNAL DECISIONS ++
@@ -311,6 +333,12 @@ bool CanAttemptSignal(const SignalTypes signal_type)
 
   if(!use_base_indicator && !use_solid_indicator)
     return false;
+
+  if(TrendStructureDataRequired() && Trend_Structure_Timeframe != Strategy_Timeframe)
+  {
+    if(TrendStructStochIndicatorHandle.indicator_handle == INVALID_HANDLE)
+      return false;
+  }
 
 
   return true;
@@ -384,6 +412,23 @@ int GetZoneRetestRequirement(const SignalTypes signal_type, const int zone_index
   return 0;
 }
 
+bool FetchStructureForFilters(const SignalParams &signal_params,
+                              StochasticMarketStructure &structure)
+{
+  if(signal_params.trend_structure_valid)
+  {
+    structure = signal_params.trend_structure_data;
+    return true;
+  }
+
+  int total_structures = ArraySize(signal_params.stoch_market_structure_data);
+  if(total_structures <= 0)
+    return false;
+
+  structure = signal_params.stoch_market_structure_data[0];
+  return true;
+}
+
 bool ValidateExternStructuresRequirement(const ExtremumStatistics &latest_stats)
 {
   if(Min_Extern_Structures_Broken <= 0)
@@ -444,22 +489,17 @@ bool EvaluateSolidIndicatorTrigger(const SignalParams &signal_params, const Sign
 
 bool EvaluateStructureRetestTrigger(const SignalParams &signal_params, const SignalTypes signal_type)
 {
-  bool filters_requested =
-    (Min_Extern_Structures_Broken > 0) ||
-    (FiboZone1_Support_Retest_Min > 0) ||
-    (FiboZone1_Resistance_Retest_Min > 0) ||
-    (FiboZone2_Support_Retest_Min > 0) ||
-    (FiboZone2_Resistance_Retest_Min > 0);
-
-  if(!filters_requested)
+  if(!StructureFiltersRequested())
     return true;
 
-  int total_structures = ArraySize(signal_params.stoch_market_structure_data);
-  if(total_structures <= 0)
+  StochasticMarketStructure structure;
+  if(!FetchStructureForFilters(signal_params, structure))
     return false;
 
-  StochasticMarketStructure structure    = signal_params.stoch_market_structure_data[0];
-  ExtremumStatistics        latest_stats = structure.extremum_stats[0];
+  if(ArraySize(structure.extremum_stats) <= 0)
+    return false;
+
+  ExtremumStatistics latest_stats = structure.extremum_stats[0];
 
   if(!ValidateExternStructuresRequirement(latest_stats))
     return false;
@@ -470,13 +510,43 @@ bool EvaluateStructureRetestTrigger(const SignalParams &signal_params, const Sig
   return true;
 }
 
+bool StructureTypeMatches(const OscillatorStructureTypes desired,
+                          const OscillatorStructureTypes actual)
+{
+  if(desired == OSCILLATOR_STRUCTURE_EQ)
+    return true;
+  return desired == actual;
+}
+
+bool EvaluateTrendStructureTypeFilters(const SignalParams &signal_params)
+{
+  if(!TrendStructureTypeFiltersRequested())
+    return true;
+
+  StochasticMarketStructure structure;
+  if(!FetchStructureForFilters(signal_params, structure))
+    return false;
+
+  if(!StructureTypeMatches(Trend_First_Structure_Type, structure.first_structure_type))
+    return false;
+  if(!StructureTypeMatches(Trend_Second_Structure_Type, structure.second_structure_type))
+    return false;
+  if(!StructureTypeMatches(Trend_Third_Structure_Type, structure.third_structure_type))
+    return false;
+  if(!StructureTypeMatches(Trend_Fourth_Structure_Type, structure.fourth_structure_type))
+    return false;
+
+  return true;
+}
+
 bool EvaluateSignalTrigger(const SignalParams &signal_params, const SignalTypes signal_type)
 {
   bool base_trigger      = EvaluateBaseIndicatorTrigger(signal_params, signal_type);
   bool solid_trigger     = EvaluateSolidIndicatorTrigger(signal_params, signal_type);
   bool structure_filters = EvaluateStructureRetestTrigger(signal_params, signal_type);
+  bool trend_structure_types = EvaluateTrendStructureTypeFilters(signal_params);
 
-  return base_trigger && solid_trigger && structure_filters;
+  return base_trigger && solid_trigger && structure_filters && trend_structure_types;
 }
 
 #endif // _SERVICES_TRADING_SIGNALS_MARKET_SIGNAL_CRAWLER_MQH_

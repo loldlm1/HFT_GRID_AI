@@ -73,11 +73,11 @@ struct SignalParams
   double grid_entry_offset_points;
   double grid_trailing_points;
 
-  bool                  trend_bpercent_valid;
-  bool                  trend_stochastic_valid;
-  StrategyTrendModes    trend_filter_mode;
-  BandsPercentStructure trend_bpercent_data;
-  StochasticStructure   trend_stochastic_data;
+  bool                      trend_bpercent_valid;
+  bool                      trend_structure_valid;
+  BandsPercentStructure     trend_bpercent_data;
+  StrategyTrendModes        trend_filter_mode;
+  StochasticMarketStructure trend_structure_data;
 
   GridOrderState grid_orders[];
 
@@ -104,7 +104,7 @@ struct SignalParams
     grid_trailing_points       = 0.0;
     trend_filter_mode          = TREND_OFF;
     trend_bpercent_valid       = false;
-    trend_stochastic_valid     = false;
+    trend_structure_valid      = false;
   }
 
   SignalParams(const SignalParams &signal_params)
@@ -152,8 +152,8 @@ struct SignalParams
     trend_filter_mode           = signal_params.trend_filter_mode;
     trend_bpercent_valid        = signal_params.trend_bpercent_valid;
     trend_bpercent_data         = signal_params.trend_bpercent_data;
-    trend_stochastic_valid      = signal_params.trend_stochastic_valid;
-    trend_stochastic_data       = signal_params.trend_stochastic_data;
+    trend_structure_valid       = signal_params.trend_structure_valid;
+    trend_structure_data        = signal_params.trend_structure_data;
 
     int orders_total = ArraySize(signal_params.grid_orders);
     ArrayResize(grid_orders, orders_total);
