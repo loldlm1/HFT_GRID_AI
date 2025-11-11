@@ -84,10 +84,17 @@ inline bool StructureFiltersConfigured()
 
 inline bool TrendStructureTypeFiltersConfigured()
 {
-  return (Trend_First_Structure_Type  != OSCILLATOR_STRUCTURE_EQ) ||
-         (Trend_Second_Structure_Type != OSCILLATOR_STRUCTURE_EQ) ||
-         (Trend_Third_Structure_Type  != OSCILLATOR_STRUCTURE_EQ) ||
-         (Trend_Fourth_Structure_Type != OSCILLATOR_STRUCTURE_EQ);
+  bool bullish_active =
+    (Trend_First_Structure_Filter == BULLISH_STRUCT_LL) ||
+    (Trend_First_Structure_Filter == BULLISH_STRUCT_LH) ||
+    (Trend_First_Structure_Filter == BULLISH_STRUCT_LL_LH);
+
+  bool bearish_active =
+    (Trend_Second_Structure_Filter == BEARISH_STRUCT_HH) ||
+    (Trend_Second_Structure_Filter == BEARISH_STRUCT_HL) ||
+    (Trend_Second_Structure_Filter == BEARISH_STRUCT_HH_HL);
+
+  return bullish_active || bearish_active;
 }
 
 inline bool TrendStructureDataRequested()

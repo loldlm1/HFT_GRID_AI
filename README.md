@@ -92,7 +92,8 @@ The **HFT Grid AI EA** is a specialized Expert Advisor designed to execute high 
 
 ### Trend Structure Settings
 - `Trend_Structure_Timeframe`: Dedicated timeframe for structure-based filters. All extern-structure counts, fibo retest requirements, and manual structure-type filters are evaluated on this timeframe. When it matches the strategy timeframe, the EA reuses the existing structure handles.
-- `Trend_First_Structure_Type` ... `Trend_Fourth_Structure_Type`: Optional `OscillatorStructureTypes` targets. Each input defaults to `OSCILLATOR_STRUCTURE_EQ` which disables the check. Set a different structure type to require that the corresponding swing pattern is present before a grid is admitted.
+- `Trend_First_Structure_Filter`: Applies to bullish grids. Options: `BULLISH_STRUCT_OFF`, `BULLISH_STRUCT_LL`, `BULLISH_STRUCT_LH`, `BULLISH_STRUCT_LL_LH`. Every mode treats `OSCILLATOR_STRUCTURE_EQ` as a pass, so neutral structure reads never block trades.
+- `Trend_Second_Structure_Filter`: Applies to bearish grids. Options: `BEARISH_STRUCT_OFF`, `BEARISH_STRUCT_HH`, `BEARISH_STRUCT_HL`, `BEARISH_STRUCT_HH_HL` (`EQ` still passes).
 - Structure Metrics: The existing `Min_Extern_Structures_Broken` and Fibo zone retest inputs now reference the trend structure timeframe, ensuring higher-timeframe trend context can gate lower-timeframe grids.
 
 ### Protection Risk Management

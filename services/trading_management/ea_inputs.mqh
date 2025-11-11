@@ -43,10 +43,8 @@ input StrategyTrendModes  Strategy_Trend_Mode       = TREND_OFF;
 
 input group "+= Trend Structure Settings =+";
 input ENUM_TIMEFRAMES          Trend_Structure_Timeframe   = PERIOD_H1;
-input OscillatorStructureTypes Trend_First_Structure_Type  = OSCILLATOR_STRUCTURE_EQ;
-input OscillatorStructureTypes Trend_Second_Structure_Type = OSCILLATOR_STRUCTURE_EQ;
-input OscillatorStructureTypes Trend_Third_Structure_Type  = OSCILLATOR_STRUCTURE_EQ;
-input OscillatorStructureTypes Trend_Fourth_Structure_Type = OSCILLATOR_STRUCTURE_EQ;
+input TrendStructureFilterModes Trend_First_Structure_Filter  = BULLISH_STRUCT_OFF;
+input TrendStructureFilterModes Trend_Second_Structure_Filter = BEARISH_STRUCT_OFF;
 
 input group "+= Support/Resistance Structure Filters =+";
 input int Min_Extern_Structures_Broken      = 0;

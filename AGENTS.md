@@ -90,9 +90,10 @@ This is a HFT Grid AI Expert Advisor designed to execute high frequency position
 ## Trend Structure Settings
 - Inputs live in `services/trading_management/ea_inputs.mqh` under `+= Trend Structure Settings =+`.
 - `Trend_Structure_Timeframe` can differ from the main strategy timeframe; `LoadTrendStructureFilterIndicator()` loads a dedicated `TrendStructStochIndicatorHandle` when the timeframes differ or reuses the strategy handles otherwise.
-- `Trend_First_Structure_Type` ... `Trend_Fourth_Structure_Type` let you enforce explicit `OscillatorStructureTypes`. Each defaults to `OSCILLATOR_STRUCTURE_EQ`, meaning “skip this level”.
+- `Trend_First_Structure_Filter`: Bullish-only guard. Options `BULLISH_STRUCT_OFF`, `BULLISH_STRUCT_LL`, `BULLISH_STRUCT_LH`, `BULLISH_STRUCT_LL_LH` (`OSCILLATOR_STRUCTURE_EQ` always passes).
+- `Trend_Second_Structure_Filter`: Bearish-only guard. Options `BEARISH_STRUCT_OFF`, `BEARISH_STRUCT_HH`, `BEARISH_STRUCT_HL`, `BEARISH_STRUCT_HH_HL` (`EQ` passes).
 - The existing structure filters (`Min_Extern_Structures_Broken`, all Fibo retest inputs) now reference the trend structure timeframe, so higher-timeframe geometry gates lower-timeframe grids.
-- `LoadTrendStructureData()` seeds the snapshot stored in `SignalParams`, `FetchStructureForFilters()` picks the correct dataset at evaluation time, and `EvaluateTrendStructureTypeFilters()` applies the manual structure-type checks.
+- `LoadTrendStructureData()` seeds the snapshot stored in `SignalParams`, `FetchStructureForFilters()` picks the correct dataset at evaluation time, and `EvaluateTrendStructureTypeFilters()` applies the directional reversion checks.
 
 ## Protection Risk Filter
 - Service lives in `services/trading_signals/protection_risk_filter.mqh` and runs on every tick plus during signal admission.
