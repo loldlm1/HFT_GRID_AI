@@ -43,6 +43,19 @@ bool TrendStructureDataRequired()
 }
 // ++ HELPER FUNCTION TO CALCULATE CORRECT SHIFT BASED ON ENTRY TIME ++
 
+bool TrendSanityCheck(const string reason)
+{
+  if(!Enable_Trend_Filter_Sanity_Stop)
+    return true;
+
+  if(MQLInfoInteger(MQL_TESTER) <= 0)
+    return true;
+
+  Print("Trend sanity check triggered: ", reason);
+  TesterStop();
+  return false;
+}
+
 void DetectBullishSignal()
 {
   if(!CanAttemptSignal(BULLISH)) return;
@@ -236,7 +249,7 @@ bool LoadTrendFilterData(SignalParams &signal_params)
   signal_params.trend_bpercent_valid = false;
 
   if(Strategy_Trend_Mode == TREND_OFF)
-    return true;
+    return TrendSanityCheck("Strategy trend filter disabled");
 
   if(TrendBPercentIndicatorHandle.indicator_handle == INVALID_HANDLE)
   {
@@ -272,7 +285,7 @@ bool LoadTrendStructureData(SignalParams &signal_params)
   signal_params.trend_structure_valid = false;
 
   if(!TrendStructureDataRequired())
-    return true;
+    return TrendSanityCheck("Trend structure filters disabled");
 
   if(Trend_Structure_Timeframe == Strategy_Timeframe)
     return true;

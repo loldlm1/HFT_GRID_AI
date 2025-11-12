@@ -73,5 +73,6 @@ input bool Enable_File_Logs         = false;
 input bool Enable_Show_Indicators   = true;
 input bool Enable_Chart_Summary     = true;
 input bool Enable_Chart_Levels      = true;
+input bool Enable_Trend_Filter_Sanity_Stop = false;
 
 #endif // _SERVICES_TRADING_MANAGEMENT_EA_INPUTS_MQH_

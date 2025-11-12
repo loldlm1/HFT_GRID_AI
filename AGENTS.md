@@ -95,6 +95,9 @@ This is a HFT Grid AI Expert Advisor designed to execute high frequency position
 - The existing structure filters (`Min_Extern_Structures_Broken`, all Fibo retest inputs) now reference the trend structure timeframe, so higher-timeframe geometry gates lower-timeframe grids.
 - `LoadTrendStructureData()` seeds the snapshot stored in `SignalParams`, `FetchStructureForFilters()` picks the correct dataset at evaluation time, and `EvaluateTrendStructureTypeFilters()` applies the directional reversion checks.
 
+## Developer Debug Settings
+- `Enable_Trend_Filter_Sanity_Stop`: Tester helper. When enabled (and `MQL_TESTER` is true) the EA calls `TesterStop()` if a trend/trend-structure filter is disabled while the corresponding timeframe parameter is stepped, preventing wasted optimization cycles. Default `false`.
+
 ## Protection Risk Filter
 - Service lives in `services/trading_signals/protection_risk_filter.mqh` and runs on every tick plus during signal admission.
 - Inputs:

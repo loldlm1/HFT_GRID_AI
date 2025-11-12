@@ -96,6 +96,9 @@ The **HFT Grid AI EA** is a specialized Expert Advisor designed to execute high 
 - `Trend_Second_Structure_Filter`: Applies to bearish grids. Options: `BEARISH_STRUCT_OFF`, `BEARISH_STRUCT_HH`, `BEARISH_STRUCT_HL`, `BEARISH_STRUCT_HH_HL` (`EQ` still passes).
 - Structure Metrics: The existing `Min_Extern_Structures_Broken` and Fibo zone retest inputs now reference the trend structure timeframe, ensuring higher-timeframe trend context can gate lower-timeframe grids.
 
+### Developer Debug Settings
+- `Enable_Trend_Filter_Sanity_Stop`: Tester-only helper. When true, the EA immediately calls `TesterStop()` if a trend or trend-structure filter is disabled while its timeframe input is being stepped, preventing wasted optimization passes. Leave false for normal runs so off/on configurations can coexist in one sweep.
+
 ### Protection Risk Management
 - `Protection_Risk_Mode`: Master toggle for the drawdown filter.
   - `ENABLED_OFF`: Skip the filter entirely.
