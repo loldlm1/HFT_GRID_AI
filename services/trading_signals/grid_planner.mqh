@@ -95,6 +95,185 @@ double ResolveBaseGridLot(const double base_distance_points)
   return NormalizeVolumeForSymbol(_Symbol, resolved_lot);
 }
 
+double ApplyGridLotMultiplier(const double lot_size,
+                              const int level_index)
+{
+  if(level_index <= 0)
+    return lot_size;
+
+  double multiplier = Grid_Lot_Multiplier;
+  if(multiplier <= 0.0)
+    multiplier = 1.0;
+
+  double scaled = lot_size * MathPow(multiplier, (double)level_index);
+  return NormalizeVolumeForSymbol(_Symbol, scaled);
+}
+
+double GridResolveLotReferencePoints(const SignalParams &signal_params,
+                                     const GridOrderState &state)
+{
+  double point_size = GridResolvePointSizeSafe();
+  if(point_size <= 0.0)
+    return signal_params.grid_base_distance_points;
+
+  double entry_reference = state.entry_reference_price;
+  double tp_price        = state.take_profit_price;
+  if(entry_reference > 0.0 && tp_price > 0.0)
+  {
+    double span_points = MathAbs(tp_price - entry_reference) / point_size;
+    if(span_points > 0.0)
+      return span_points;
+  }
+
+  double fallback_points = ComputeLevelDistancePoints(signal_params, state.level_index);
+  if(fallback_points <= 0.0)
+    fallback_points = signal_params.grid_base_distance_points;
+  if(fallback_points <= 0.0)
+    fallback_points = signal_params.grid_entry_gap_points;
+  if(fallback_points <= 0.0)
+    fallback_points = EnforceBrokerDistance(g_symbol_constraints, 1.0);
+  return fallback_points;
+}
+
+double GridComputeLevelDrawdownPoints(const SignalParams &signal_params,
+                                      const GridOrderState &state)
+{
+  double point_size = GridResolvePointSizeSafe();
+  if(point_size <= 0.0)
+    return 0.0;
+
+  double entry_reference = state.entry_reference_price;
+  double next_level      = state.next_level_price;
+
+  if(entry_reference <= 0.0)
+    return 0.0;
+
+  if(next_level <= 0.0)
+  {
+    double fallback_points = ComputeLevelDistancePoints(signal_params, state.level_index);
+    return MathMax(fallback_points, 0.0);
+  }
+
+  double range_points = MathAbs(entry_reference - next_level) / point_size;
+  return MathMax(range_points, 0.0);
+}
+
+double GridComputeLevelDrawdownCurrency(const SignalParams &signal_params,
+                                        const GridOrderState &state)
+{
+  if(state.lot_size <= 0.0)
+    return 0.0;
+
+  double drawdown_points = GridComputeLevelDrawdownPoints(signal_params, state);
+  if(drawdown_points <= 0.0)
+    return 0.0;
+
+  return ConvertLotsToAmount(_Symbol, state.lot_size, drawdown_points);
+}
+
+double GridComputeSequenceDrawdownCurrency(const SignalParams &signal_params,
+                                           const int upto_level_index)
+{
+  int total_levels = ArraySize(signal_params.grid_orders);
+  if(upto_level_index <= 0 || total_levels <= 0)
+    return 0.0;
+
+  int limit = upto_level_index;
+  if(limit > total_levels)
+    limit = total_levels;
+
+  double cumulative_amount = 0.0;
+  for(int i = 0; i < limit; i++)
+  {
+    GridOrderState level_state = signal_params.grid_orders[i];
+    cumulative_amount += GridComputeLevelDrawdownCurrency(signal_params, level_state);
+  }
+  return cumulative_amount;
+}
+
+double ResolveGridOrderLotSize(SignalParams &signal_params,
+                               const int level_index)
+{
+  int total_levels = ArraySize(signal_params.grid_orders);
+  if(level_index < 0 || level_index >= total_levels)
+    return 0.0;
+
+  GridOrderState level_state = signal_params.grid_orders[level_index];
+
+  double fallback_lot = signal_params.grid_base_lot_size;
+  if(fallback_lot <= 0.0)
+    fallback_lot = Grid_Lot_Strategy_Size;
+  if(fallback_lot <= 0.0)
+  {
+    double min_vol = SymbolInfoDouble(_Symbol, SYMBOL_VOLUME_MIN);
+    if(min_vol <= 0.0)
+      min_vol = 0.01;
+    fallback_lot = min_vol;
+  }
+
+  double movement_points = GridResolveLotReferencePoints(signal_params, level_state);
+  if(movement_points <= 0.0)
+    movement_points = signal_params.grid_base_distance_points;
+  if(movement_points <= 0.0)
+    movement_points = 1.0;
+
+  double resolved_lot = fallback_lot;
+
+  if(Grid_Lot_Type == GRID_LOT_PERCENTAGE_BASED || Grid_Lot_Type == GRID_LOT_CURRENCY_BASED)
+  {
+    double target_amount = 0.0;
+    if(Grid_Lot_Type == GRID_LOT_PERCENTAGE_BASED)
+    {
+      double base_balance = Account_Size;
+      double account_balance = AccountInfoDouble(ACCOUNT_BALANCE);
+      if(account_balance > 0.0)
+        base_balance = account_balance;
+      target_amount = base_balance * (Grid_Lot_Strategy_Size / 100.0);
+    }
+    else
+    {
+      target_amount = MathAbs(Grid_Lot_Strategy_Size);
+    }
+
+    if(target_amount > 0.0)
+    {
+      double converted = ConvertAmountToLots(_Symbol, target_amount, movement_points);
+      if(converted > 0.0)
+        resolved_lot = converted;
+    }
+  }
+  else if(Grid_Lot_Type == GRID_LOT_CALCULATED)
+  {
+    if(level_index == 0)
+    {
+      resolved_lot = fallback_lot;
+    }
+    else
+    {
+      double drawdown_amount = GridComputeSequenceDrawdownCurrency(signal_params, level_index);
+      if(drawdown_amount > 0.0)
+      {
+        double multiplier = Grid_Lot_Multiplier;
+        if(multiplier <= 0.0)
+          multiplier = 1.0;
+        double target_amount = drawdown_amount * multiplier;
+        double calculated = ConvertAmountToLots(_Symbol, target_amount, movement_points);
+        if(calculated > 0.0)
+          resolved_lot = calculated;
+      }
+    }
+  }
+  else
+  {
+    resolved_lot = fallback_lot;
+  }
+
+  if(Grid_Lot_Type != GRID_LOT_CALCULATED)
+    resolved_lot = ApplyGridLotMultiplier(resolved_lot, level_index);
+
+  return NormalizeVolumeForSymbol(_Symbol, resolved_lot);
+}
+
 void LogGridPlanDiagnostics(const SignalParams &signal_params,
                             const double point_size,
                             const double base_distance_points)
@@ -222,24 +401,6 @@ bool BuildGridOrderForSignal(SignalParams &signal_params)
   // Seed level n
   signal_params.grid_orders[grid_order_level].level_index = grid_order_level;
   signal_params.grid_orders[grid_order_level].status      = GRID_ORDER_STOP_TRAILING_ACTIVE;
-  // Per-level lot sizing with multiplier and broker clamps
-  double level_lot = signal_params.grid_base_lot_size;
-  if(level_lot <= 0.0)
-    level_lot = ResolveBaseGridLot(signal_params.grid_base_distance_points);
-  if(grid_order_level > 0 && level_lot > 0.0)
-  {
-    double scaled = level_lot * MathPow(Grid_Multiplier, (double)grid_order_level);
-    double vol_min  = SymbolInfoDouble(_Symbol, SYMBOL_VOLUME_MIN);
-    double vol_max  = SymbolInfoDouble(_Symbol, SYMBOL_VOLUME_MAX);
-    double vol_step = SymbolInfoDouble(_Symbol, SYMBOL_VOLUME_STEP);
-    if(vol_min <= 0.0)  vol_min  = 0.01;
-    if(vol_max <= 0.0)  vol_max  = 100.0;
-    if(vol_step <= 0.0) vol_step = 0.01;
-    if(scaled < vol_min) scaled = vol_min;
-    if(scaled > vol_max) scaled = vol_max;
-    level_lot = NormalizeVolumeForSymbol(_Symbol, scaled);
-  }
-  signal_params.grid_orders[grid_order_level].lot_size    = NormalizeVolumeForSymbol(_Symbol, level_lot);
   ResetGridOrderPricesByDirection(signal_params, grid_order_level);
 
   // Calculate trailing entry reference and next level activation
@@ -255,6 +416,7 @@ bool BuildGridOrderForSignal(SignalParams &signal_params)
   signal_params.grid_orders[grid_order_level].final_take_profit_price = GetGridTakeProfitFinalPrice(signal_params.signal_type,
                                                                               signal_params,
                                                                               signal_params.grid_orders[grid_order_level]);
+  signal_params.grid_orders[grid_order_level].lot_size = ResolveGridOrderLotSize(signal_params, grid_order_level);
 
   // Telemetry
   GridLogEvent("LOT_RESOLVED", signal_params, signal_params.grid_orders[grid_order_level]);
@@ -287,6 +449,7 @@ bool UpdateGridOrderForSignal(SignalParams &signal_params)
   signal_params.grid_orders[grid_order_level].final_take_profit_price = GetGridTakeProfitFinalPrice(signal_params.signal_type,
                                                                               signal_params,
                                                                               signal_params.grid_orders[grid_order_level]);
+  signal_params.grid_orders[grid_order_level].lot_size = ResolveGridOrderLotSize(signal_params, grid_order_level);
 
   GridLogEvent("NEXT_UPDATE", signal_params, signal_params.grid_orders[grid_order_level]);
   return true;

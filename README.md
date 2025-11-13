@@ -130,13 +130,23 @@ Enabling any of the structure filters automatically loads the stochastic structu
   - `ATR_RANGE`: Uses `ATR_SL_Factor` anchors (shift 1 for L0, shift 0 for deeper levels) to derive distances in points. `Grid_ATR_Points_Setup` configures the indicator factor but no longer scales distances post-fetch.
   - `POINTS_RANGE`: Uses `Grid_ATR_Points_Setup` as fixed points distance.
 - `Grid_ATR_Points_Setup`: ATR factor (ATR mode) or absolute points (Points mode).
-- `Grid_Multiplier`: Lot scaling per level (default 2.0).
+- `Grid_Lot_Multiplier`: Lot scaling per level (default 2.0).
 - `Grid_Exponential_Multiplier`: Expands level spacing smoothly (default 1.1). Distance L(n) = base_distance × multiplier^n.
 - `Grid_Initial_Stops_Percent`: Legacy preset input; behaviour now aliases to `Grid_Positions_Stops_Percent`.
 - `Grid_Positions_Stops_Percent`: Percent of the entry→baseline gap applied to protective offsets for every level.
 - `Grid_TP_Percent`: Percent of the entry→next snapshot captured on fill; defines the primary take-profit span.
 - `Grid_TP_Reference_Mode`: Legacy toggle (ignored); TP always references the entry→next snapshot distance.
 - `Grid_Trailing_TP_Percent`: Portion of the TP span converted to realised profit before trailing — trailing offset = `(1 - percent/100)` × TP reference.
+
+### Grid Risk Management Settings
+- `Grid_Lot_Type`: Selects the per-level sizing model.
+  - `GRID_LOT_SIZE`: Uses `Grid_Lot_Strategy_Size` as the base lot and applies `Grid_Lot_Multiplier^n` as levels expand.
+  - `GRID_LOT_PERCENTAGE_BASED`: Converts `Grid_Lot_Strategy_Size` percent of the latest account equity into a cash amount, then into lots using the live entry_reference→take_profit span.
+  - `GRID_LOT_CURRENCY_BASED`: Interprets `Grid_Lot_Strategy_Size` as an absolute currency budget and converts it using the same live price span.
+  - `GRID_LOT_CALCULATED`: Starts level 0 at `Grid_Lot_Strategy_Size`, then, for deeper levels, multiplies the cumulative drawdown (derived tick-by-tick from every older level’s `entry_reference_price`→`next_level_price` range) by `Grid_Lot_Multiplier` and sizes the next order so its take-profit span can recover that amount.
+- `Grid_Lot_Strategy_Size`: Base lot (size mode), account percentage (percentage mode), currency budget (currency mode), or the initial lot applied before the calculated martingale takes over.
+
+The percentage/currency/calculated modes no longer rely on the original ATR distance; their conversions are recomputed inside the trailing loop so the volume always reflects the current entry reference, TP distance, and grid geometry right before `GridExecuteLevelTrade()` is attempted.
 
 Notes
 - All distances are clamped to broker freeze/stops via `SymbolTradingConstraints` and helper functions.
@@ -148,7 +158,7 @@ Notes
 - Finalize the Grid Framework refactor:
   * Validate the ATR_SL_Factor buffers and document which outputs map to bullish/bearish anchors
   * Rebuild `GridOrderState` geometry using the new baseline/offset fields and enforce broker constraints consistently
-  * Per-level spacing uses `Grid_Exponential_Multiplier`, and per-level lot sizing uses `Grid_Multiplier`
+  * Per-level spacing uses `Grid_Exponential_Multiplier`, and per-level lot sizing uses `Grid_Lot_Multiplier`
   * NEXT trails adverse-only from `entry_reference_price` for all pending levels; TP and Final TP are computed from `entry_reference_price` with per-level spans and move favorable-only pre-fill
   * Promote broker-side pending orders (Phase 3 dependency) once the Phase 2 geometry is confirmed in Strategy Tester logs
 - Mirror this roadmap in `AGENTS.md` with actionable subtasks for each service owner

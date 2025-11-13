@@ -56,7 +56,6 @@ input int FiboZone2_Resistance_Retest_Min   = 0;
 input group  "+= Grid Strategy Settings =+";
 input GridBaseStrategyTypes Grid_Base_Strategy_Type      = ATR_RANGE;
 input double                Grid_ATR_Points_Setup        = 1.0;
-input double                Grid_Multiplier              = 2.0;
 input double                Grid_Exponential_Multiplier  = 1.0;
 input double                Grid_Positions_Stops_Percent = 10.0;
 input double                Grid_Final_TP_Percent        = 200.0;
@@ -67,6 +66,7 @@ input bool                  Grid_Enable_Robust_TP        = false;
 input group  "+= Grid Risk Managment Settings =+";
 input GridLotTypes         Grid_Lot_Type                 = GRID_LOT_SIZE;
 input double               Grid_Lot_Strategy_Size        = 0.01;
+input double               Grid_Lot_Multiplier           = 2.0;
 
 input group  "+= Developer Debug Settings =+";
 input bool Enable_Logs              = false;

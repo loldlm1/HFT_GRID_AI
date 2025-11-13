@@ -228,6 +228,48 @@ double GetGridTakeProfitPrice(SignalTypes direction, SignalParams &signal_params
   return grid_raw_tp_price;
 }
 
+double GetGridTakeProfitFinalPrice(SignalTypes direction, SignalParams &signal_params, GridOrderState &grid_order_state)
+{
+  double grid_raw_tp_price            = 0;
+  double grid_atr_fallback_price      = 0;
+  int    grid_level_index             = grid_order_state.level_index;
+  double grid_base_entry_price        = grid_order_state.entry_reference_price;
+  double grid_final_take_profit_price = grid_order_state.final_take_profit_price;
+  // Per-level final TP span based on exponential distance
+  double level_distance_pts           = ComputeLevelDistancePoints(signal_params, grid_order_state.level_index);
+  double final_span_pts               = level_distance_pts * (Grid_Final_TP_Percent / 100.0);
+
+  if(direction == BULLISH)
+  {
+    grid_raw_tp_price = grid_base_entry_price + (final_span_pts / g_decimal_digits);
+
+    if(grid_raw_tp_price > grid_final_take_profit_price)
+    {
+      grid_raw_tp_price = grid_raw_tp_price; // FOLLOWS THE PRICE ROCKET
+    } else {
+      grid_raw_tp_price = grid_final_take_profit_price == 0 ? grid_raw_tp_price : grid_final_take_profit_price;
+    }
+  }
+  if(direction == BEARISH)
+  {
+    grid_raw_tp_price = grid_base_entry_price - (final_span_pts / g_decimal_digits);
+
+    if(grid_raw_tp_price < grid_final_take_profit_price)
+    {
+      grid_raw_tp_price = grid_raw_tp_price; // FOLLOWS THE PRICE FALLS
+    } else {
+      grid_raw_tp_price = grid_final_take_profit_price == 0 ? grid_raw_tp_price : grid_final_take_profit_price;
+    }
+  }
+
+  if(Grid_Enable_Robust_TP)
+    EnsureGridTakeProfitRobustness(
+      direction, signal_params, grid_level_index, grid_raw_tp_price
+    );
+
+  return grid_raw_tp_price;
+}
+
 void EnsureGridTakeProfitRobustness(
   SignalTypes direction, SignalParams &signal_params, int grid_level_index, double &grid_raw_tp_price
 ) {
@@ -252,36 +294,6 @@ void EnsureGridTakeProfitRobustness(
         grid_raw_tp_price = initial_grid_price;
     }
   }
-}
-
-double GetGridTakeProfitFinalPrice(SignalTypes direction, SignalParams &signal_params, GridOrderState &grid_order_state)
-{
-  double grid_raw_tp_price            = 0;
-  double grid_atr_fallback_price      = 0;
-  double grid_base_entry_price        = grid_order_state.entry_reference_price;
-  double grid_final_take_profit_price = grid_order_state.final_take_profit_price;
-  // Per-level final TP span based on exponential distance
-  double level_distance_pts           = ComputeLevelDistancePoints(signal_params, grid_order_state.level_index);
-  double final_span_pts               = level_distance_pts * (Grid_Final_TP_Percent / 100.0);
-
-  if(direction == BULLISH)
-  {
-    grid_raw_tp_price = grid_base_entry_price + (final_span_pts / g_decimal_digits);
-
-    if(grid_raw_tp_price > grid_final_take_profit_price) return grid_raw_tp_price; // FOLLOWS THE PRICE ROCKET
-
-    return grid_final_take_profit_price == 0 ? grid_raw_tp_price : grid_final_take_profit_price;
-  }
-  if(direction == BEARISH)
-  {
-    grid_raw_tp_price = grid_base_entry_price - (final_span_pts / g_decimal_digits);
-
-    if(grid_raw_tp_price < grid_final_take_profit_price) return grid_raw_tp_price; // FOLLOWS THE PRICE FALLS
-
-    return grid_final_take_profit_price == 0 ? grid_raw_tp_price : grid_final_take_profit_price;
-  }
-
-  return grid_raw_tp_price;
 }
 
 double UpdateTrailingTP(SignalParams &signal_params, GridOrderState &order_state)

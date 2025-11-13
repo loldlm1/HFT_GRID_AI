@@ -26,7 +26,7 @@ This is a HFT Grid AI Expert Advisor designed to execute high frequency position
 - Calculate exponential spacing and initial stop distances, ensuring broker freeze/stop compliance
 - Persist grid metadata to memory containers designed for quick iteration and recovery
 - Exit Criteria: simulated grids open with correct spacing, no broker rule violations, state snapshot logged
-- Completed: grid inputs exposed, ATR handles loaded on demand with fallbacks, grid plans attached to signals with ATR shift-0 anchors (spacing, offsets, TP, final TP) while enforcing broker constraints. Per-level spacing uses `Grid_Exponential_Multiplier`, and per-level lot sizing uses `Grid_Multiplier`.
+- Completed: grid inputs exposed, ATR handles loaded on demand with fallbacks, grid plans attached to signals with ATR shift-0 anchors (spacing, offsets, TP, final TP) while enforcing broker constraints. Per-level spacing uses `Grid_Exponential_Multiplier`, and lot sizing modes now recompute during `UpdateGridOrderForSignal()` so percentage/currency budgets use the live entry_reference→TP span right before `GridExecuteLevelTrade()`. `GRID_LOT_CALCULATED` extends this flow by multiplying the cumulative drawdown (sum of every older level’s entry_reference→next range) by `Grid_Lot_Multiplier` to size the next martingale order dynamically.
 
 ### Phase 3 – Order Lifecycle Control
 - Automate buy/sell stop placement that trails adverse price action using the unified Grid_Positions_Stops_Percent gap

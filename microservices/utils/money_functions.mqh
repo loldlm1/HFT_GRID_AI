@@ -114,4 +114,25 @@ double ConvertAmountToLots(const string symbol,
   return NormalizeVolumeForSymbol(symbol, lots);
 }
 
+double ConvertLotsToAmount(const string symbol,
+                           const double lots,
+                           const double movement_points)
+{
+  if(lots <= 0.0 || movement_points <= 0.0)
+    return 0.0;
+
+  double tick_value = SymbolInfoDouble(symbol, SYMBOL_TRADE_TICK_VALUE);
+  double tick_size  = SymbolInfoDouble(symbol, SYMBOL_TRADE_TICK_SIZE);
+  double point_size = SymbolInfoDouble(symbol, SYMBOL_POINT);
+
+  if(tick_value <= 0.0 || tick_size <= 0.0 || point_size <= 0.0)
+    return 0.0;
+
+  double point_value = tick_value * (point_size / tick_size);
+  if(point_value <= 0.0)
+    return 0.0;
+
+  return lots * point_value * movement_points;
+}
+
 #endif // _MICROSERVICES_UTILS_MONEY_FUNCTIONS_MQH_
