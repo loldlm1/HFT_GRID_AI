@@ -12,6 +12,7 @@ struct StrategyStructureLayerContext
   ResistanceRetestFilterModes resistance_filter;
   TrendStructureFilterModes   first_structure_filter;
   TrendStructureFilterModes   second_structure_filter;
+  bool                        enabled;
   bool                        uses_trend_dataset;
 };
 
@@ -23,6 +24,7 @@ inline StrategyStructureLayerContext BuildBaseStructureLayerContext()
   ctx.resistance_filter      = Base_Resistance_Filter;
   ctx.first_structure_filter = Base_First_Structure_Filter;
   ctx.second_structure_filter = Base_Second_Structure_Filter;
+  ctx.enabled                = true;
   ctx.uses_trend_dataset     = false;
   return ctx;
 }
@@ -35,12 +37,15 @@ inline StrategyStructureLayerContext BuildTrendStructureLayerContext()
   ctx.resistance_filter      = Trend_Resistance_Filter;
   ctx.first_structure_filter = Trend_First_Structure_Filter;
   ctx.second_structure_filter = Trend_Second_Structure_Filter;
-  ctx.uses_trend_dataset     = true;
+  ctx.enabled                = (Trend_Strategy_Timeframe != PERIOD_CURRENT);
+  ctx.uses_trend_dataset     = ctx.enabled && (Trend_Strategy_Timeframe != Strategy_Timeframe);
   return ctx;
 }
 
 inline bool StructureFiltersRequested(const StrategyStructureLayerContext &ctx)
 {
+  if(!ctx.enabled)
+    return false;
   return (ctx.min_extern_structures > 0) ||
          (ctx.support_filter != SUPPORT_DISABLED) ||
          (ctx.resistance_filter != RESISTANCE_DISABLED);
@@ -48,6 +53,8 @@ inline bool StructureFiltersRequested(const StrategyStructureLayerContext &ctx)
 
 inline bool StructureTypeFiltersRequested(const StrategyStructureLayerContext &ctx)
 {
+  if(!ctx.enabled)
+    return false;
   bool bullish_active =
     (ctx.first_structure_filter == BULLISH_STRUCT_LL) ||
     (ctx.first_structure_filter == BULLISH_STRUCT_LH) ||
@@ -89,6 +96,8 @@ inline int ResolveRetestRequirement(const StrategyStructureLayerContext &ctx,
                                     const SignalTypes signal_type,
                                     const int zone_index)
 {
+  if(!ctx.enabled)
+    return 0;
   if(signal_type == BULLISH)
     return SupportFilterRequiresZone(ctx.support_filter, zone_index) ? 1 : 0;
   if(signal_type == BEARISH)
@@ -104,6 +113,11 @@ inline bool AnyStructureGuardEnabled()
          StructureFiltersRequested(trend_ctx) ||
          StructureTypeFiltersRequested(base_ctx) ||
          StructureTypeFiltersRequested(trend_ctx);
+}
+
+inline bool TrendContextEnabled()
+{
+  return (Trend_Strategy_Timeframe != PERIOD_CURRENT);
 }
 
 #endif // _SERVICES_TRADING_MANAGEMENT_STRATEGY_STRUCTURE_CONTEXT_MQH_

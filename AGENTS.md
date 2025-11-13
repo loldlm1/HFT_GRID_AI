@@ -80,16 +80,15 @@ This is a HFT Grid AI Expert Advisor designed to execute high frequency position
   * Panels and Dialogs — Include\\Controls\\ — https://www.mql5.com/en/docs/standardlibrary/controls
 
 ## Strategy Trend Settings
-- Inputs live in `services/trading_management/ea_inputs.mqh` under the `+= Strategy Trend Settings =+` group.
-- `Trend_Indicator_Timeframe` selects the dedicated confirmation timeframe; unsupported TFs fall back to the main `Strategy_Timeframe`.
+- Inputs live in `services/trading_management/ea_inputs.mqh` under the `+= Strategy Trend Context =+` group.
+- `Trend_Strategy_Timeframe` selects the dedicated confirmation timeframe. Set it to `PERIOD_CURRENT` to disable the trend layer (the EA falls back to base confirmations). Unsupported TFs fall back to the main `Strategy_Timeframe`.
 - `Strategy_Trend_Mode`: `TREND_OFF` or `TREND_BPERCENT`.
   - `LoadTrendIndicators()` only instantiates the Bollinger Percent handle when the mode is enabled; `TREND_OFF` skips the entire flow.
   - Trend confirmation now evaluates **only shift 1** (`main_shift_1 >= signal_shift_1` for bullish, `<=` for bearish) to keep the guard lightweight.
 - `CanAttemptSignal()` short-circuits when the requested trend indicator handle is unavailable, preventing partially initialized grids. `LoadTrendFilterData()` fetches the latest values during detection and `TrendFilterAllowsSignal()` blocks signals that violate the rule.
 
 ## Trend Structure Settings
-- Inputs live in `services/trading_management/ea_inputs.mqh` under `+= Trend Structure Settings =+`.
-- `Trend_Structure_Timeframe` can differ from the main strategy timeframe; `LoadTrendStructureFilterIndicator()` loads a dedicated `TrendStructStochIndicatorHandle` when the timeframes differ or reuses the strategy handles otherwise.
+- The trend context mirrors the base structure inputs (structure-type filters, support/resistance selectors, extern counts). When `Trend_Strategy_Timeframe` differs from the strategy timeframe, `LoadTrendStructureFilterIndicator()` loads a dedicated `TrendStructStochIndicatorHandle`; otherwise the EA reuses the strategy handles.
 - `Trend_First_Structure_Filter`: Bullish-only guard. Options `BULLISH_STRUCT_OFF`, `BULLISH_STRUCT_LL`, `BULLISH_STRUCT_LH`, `BULLISH_STRUCT_LL_LH` (`OSCILLATOR_STRUCTURE_EQ` always passes).
 - `Trend_Second_Structure_Filter`: Bearish-only guard. Options `BEARISH_STRUCT_OFF`, `BEARISH_STRUCT_HH`, `BEARISH_STRUCT_HL`, `BEARISH_STRUCT_HH_HL` (`EQ` passes).
 - The mirrored structure filters (base/trend extern counts plus the new support/resistance enums) evaluate on their respective timeframes, letting a higher-timeframe trend context gate the lower-timeframe grid while still enforcing strategy-level structure rules.
