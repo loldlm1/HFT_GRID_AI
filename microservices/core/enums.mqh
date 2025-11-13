@@ -29,13 +29,6 @@ enum BaseIndicatorStrategyTypes
 	BANDS_TYPE   = 2
 };
 
-// SOLID INDICATOR STRATEGIES
-enum SolidIndicatorStrategyTypes
-{
-  SOLID_NONE_TYPE = 0,
-  EXTREMA_TYPE    = 1
-};
-
 // BASE INDICATOR PERIOD OPTIONS (LINKED TO BB_PERCENT_STANDARD)
 enum BaseIndicatorPeriodTypes
 {
@@ -64,6 +57,20 @@ enum StrategyDirectionTypes
   BOTH_DIRECTION    = 0,
   BULLISH_DIRECTION = 1,
   BEARISH_DIRECTION = 2
+};
+
+enum SupportRetestFilterModes
+{
+  SUPPORT_DISABLED = 0,
+  SUPPORT_61       = 1,
+  SUPPORT_78       = 2
+};
+
+enum ResistanceRetestFilterModes
+{
+  RESISTANCE_DISABLED = 0,
+  RESISTANCE_61       = 1,
+  RESISTANCE_78       = 2
 };
 
 enum GridBaseStrategyTypes

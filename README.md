@@ -62,13 +62,12 @@ The **HFT Grid AI EA** is a specialized Expert Advisor designed to execute high 
 - Chart styling consolidated through `ApplyDefaultChartStyle()` in `services/frontend/chart_style_guide.mqh` for consistent visuals
 
 ### Phase 1 – Current Deliverables
-- Added configurable indicator inputs (`Base_Indicator_Period_Type`, `Base_Indicator_MA_Method`, `Base_Indicator_Percent`, `Solid_Indicator_Strategy_Type`) exposed via `ea_inputs.mqh`
-- Refined indicator loading to honor the chosen Bollinger period/MA while keeping a single-strategy timeframe
-- Introduced `Solid_Indicator_Period_Type` and `Strategy_Direction_Mode` inputs to configure stochastic structure depth and directional bias
-- Signal engine now validates five-step Bollinger Percent ladders around `Base_Indicator_Percent` (±10% window) before combining stochastic extrema triggers
-- Structure filter inputs (`Min_Extern_Structures_Broken`, `FiboZone1/2_Support_Retest_Min`, `FiboZone1/2_Resistance_Retest_Min`) drive automatic loading of stochastic structure data even when the solid indicator strategy is disabled
-- `CanAttemptSignal()` guard ensures only one active grid per direction and validates indicator availability before triggers fire
-- Detection functions require `EvaluateSignalTrigger()` approval, blending the base percent breakout, extrema direction, and fibo retest filters without time-based scheduling
+- Added centralized indicator inputs (`Base_Indicator_Period_Type`, `Base_Indicator_MA_Method`, `Solid_Indicator_Period_Type`) exposed via `ea_inputs.mqh`, so both the strategy base and the trend layer reuse the same loader scaffolding.
+- Refined indicator loading to honor the chosen Bollinger period/MA while mirroring the configuration across the base and trend contexts.
+- Introduced fractal strategy contexts: the base layer owns `Base_Indicator_Percent`, structure-type filters, and Fibonacci selectors, while the trend layer mirrors those controls via `Trend_Indicator_Percent`, dedicated structure filters, and retest selectors.
+- Support/resistance retest selectors now use enums (`SUPPORT_DISABLED/61/78`, `RESISTANCE_DISABLED/61/78`) instead of raw integers, guaranteeing “>= 1” retests whenever a level is chosen.
+- `CanAttemptSignal()` guard ensures only one active grid per direction and validates indicator availability before triggers fire.
+- Detection functions require `EvaluateSignalTrigger()` approval, blending the base percent breakout, extrema direction, and stacked structure filters without time-based scheduling.
 
 ## Input Reference
 
@@ -76,25 +75,31 @@ The **HFT Grid AI EA** is a specialized Expert Advisor designed to execute high 
 - `Strategy_Timeframe`: Single timeframe used to load and read all indicators (scalable later).
 - `Base_Indicator_Period_Type`: Period for Bollinger indicators (`BB_Percent_Standard`, `BB_Standard`). Options: 5, 8, 13, 21, 34, 55.
 - `Base_Indicator_MA_Method`: MA method applied inside Bollinger (default `MODE_EMA`). Applied price is fixed to `PRICE_WEIGHTED`.
-- `Base_Indicator_Percent`: Center percentile for the Bollinger Percent ladder. Bullish signals require the most recent reading to pierce `percent+10` after at least one of the prior five shifts sat at/under `percent` and another lived inside `[percent, percent+10)`. Bearish logic mirrors downward using `percent-10`. Set to `0` to disable the base trigger.
-- `Solid_Indicator_Strategy_Type`: Stochastic structure trigger.
-  - `EXTREMA_TYPE`: Buy at current bottom, sell at current peak using `Stochastic_Structure`.
-  - `SOLID_NONE_TYPE`: Disable solid trigger.
-- `Solid_Indicator_Period_Type`: Period for `Stochastic_Structure` (5, 8, 13, 21, 34, 55).
+- `Solid_Indicator_Period_Type`: Period for `Stochastic_Structure` (5, 8, 13, 21, 34, 55). The same handle set feeds both strategy layers.
 - `Strategy_Direction_Mode`: Directional filter; `BOTH_DIRECTION`, `BULLISH_DIRECTION`, or `BEARISH_DIRECTION`.
 
-### Strategy Trend Settings
+### Strategy Base Context
+- `Base_Indicator_Percent`: Center percentile for the Bollinger Percent ladder on the strategy timeframe. Bullish signals require the most recent reading to pierce `percent+10` after at least one of the prior five shifts sat at/under `percent` and another lived inside `[percent, percent+10)`. Bearish logic mirrors downward using `percent-10`. Set `< 0` to disable the base trigger.
+- `Base_First_Structure_Filter`: Bullish-only guard; options `BULLISH_STRUCT_OFF`, `BULLISH_STRUCT_LL`, `BULLISH_STRUCT_LH`, `BULLISH_STRUCT_LL_LH`. `OSCILLATOR_STRUCTURE_EQ` always passes.
+- `Base_Second_Structure_Filter`: Bearish-only guard; options `BEARISH_STRUCT_OFF`, `BEARISH_STRUCT_HH`, `BEARISH_STRUCT_HL`, `BEARISH_STRUCT_HH_HL`.
+- `Base_Support_Filter`: Fibonacci retest selector for bullish structures. `SUPPORT_DISABLED` skips the check, `SUPPORT_61` enforces at least one retest inside the 61.8%→78.6% band, and `SUPPORT_78` enforces the 78.6%→100% band.
+- `Base_Resistance_Filter`: Mirror of the support selector but for bearish structures (`RESISTANCE_DISABLED/61/78`).
+- `Base_Min_Extern_Structures_Broken`: Minimum extern structures that must be broken (from the latest extremum statistics) before a signal can fire on the strategy timeframe. `0` disables the check.
+
+### Strategy Trend Context
 - `Trend_Indicator_Timeframe`: Timeframe used solely for the trend filter indicator. Falls back to the main strategy timeframe if an unsupported TF is selected.
 - `Strategy_Trend_Mode`: Optional confirmation layer.
   - `TREND_OFF`: Skip the trend filter entirely (default).
   - `TREND_BPERCENT`: Load a Bollinger Percent indicator on the trend timeframe and require `main_shift_1 >= signal_shift_1` for bullish grids (inverse for bearish). Only shift 1 is evaluated to keep the guard lightweight.
-- Only the indicator required by the selected mode is loaded (and hidden in tester if `Enable_Show_Indicators` is false). If the indicator cannot be created, signal detection pauses until it becomes available, preventing partially-seeded grids.
-
-### Trend Structure Settings
-- `Trend_Structure_Timeframe`: Dedicated timeframe for structure-based filters. All extern-structure counts, fibo retest requirements, and manual structure-type filters are evaluated on this timeframe. When it matches the strategy timeframe, the EA reuses the existing structure handles.
-- `Trend_First_Structure_Filter`: Applies to bullish grids. Options: `BULLISH_STRUCT_OFF`, `BULLISH_STRUCT_LL`, `BULLISH_STRUCT_LH`, `BULLISH_STRUCT_LL_LH`. Every mode treats `OSCILLATOR_STRUCTURE_EQ` as a pass, so neutral structure reads never block trades.
-- `Trend_Second_Structure_Filter`: Applies to bearish grids. Options: `BEARISH_STRUCT_OFF`, `BEARISH_STRUCT_HH`, `BEARISH_STRUCT_HL`, `BEARISH_STRUCT_HH_HL` (`EQ` still passes).
-- Structure Metrics: The existing `Min_Extern_Structures_Broken` and Fibo zone retest inputs now reference the trend structure timeframe, ensuring higher-timeframe trend context can gate lower-timeframe grids.
+- `Trend_Indicator_Percent`: Percentile applied to the trend Bollinger ladder. Set `< 0` to keep the trend indicator loaded but opt out of the breakout rule.
+- `Trend_Structure_Timeframe`: Dedicated timeframe for trend structure filters. When it matches the strategy timeframe, the EA reuses the existing structure handles automatically.
+- `Trend_First_Structure_Filter`: Bullish-only guard for the higher timeframe. Same enum as the base layer.
+- `Trend_Second_Structure_Filter`: Bearish-only guard for the higher timeframe. Same enum as the base layer.
+- `Trend_Support_Filter`: Fibonacci retest selector applied to the trend structure timeframe (disabled/61/78).
+- `Trend_Resistance_Filter`: Resistance retest selector applied to the trend structure timeframe (disabled/61/78).
+- `Trend_Min_Extern_Structures_Broken`: Minimum extern structures required on the trend structure timeframe.
+- When any trend-structure filter is enabled and `Trend_Structure_Timeframe` differs from the strategy timeframe, the EA loads a dedicated `Stochastic_Structure` handle for that higher timeframe.
+- Only the indicator required by the selected trend mode is loaded (and hidden in tester if `Enable_Show_Indicators` is false). If the indicator cannot be created, signal detection pauses until it becomes available, preventing partially-seeded grids.
 
 ### Developer Debug Settings
 - `Enable_Trend_Filter_Sanity_Stop`: Tester-only helper. When true, the EA immediately calls `TesterStop()` if a trend or trend-structure filter is disabled while its timeframe input is being stepped, preventing wasted optimization passes. Leave false for normal runs so off/on configurations can coexist in one sweep.
@@ -117,13 +122,10 @@ Runtime watchers maintain a market-status state machine:
 `ACTIVE` (normal), `CLOSE_GUARD` (scheduled flattening), `BROKER_CLOSEONLY`, and `BROKER_DISABLED`. Trade-mode changes reported by `SymbolInfoInteger(SYMBOL_TRADE_MODE)` or `CTrade` error codes automatically transition the status, schedule force-closes, and pause signal admission accordingly. Failed order sends/closures tagged with `MARKET_CLOSED`/`TRADE_DISABLED` escalate to `BROKER_DISABLED` until the next tick confirms trading is available again. Pending guard closes are retried as soon as the broker allows positions to be closed, which keeps the grid sequence consistent without relying on external APIs.
 
 ### Structure Filters
-- `Min_Extern_Structures_Broken`: Minimum extern structures that must be broken (from the latest extremum statistics) before a signal can fire. `0` disables the check.
-- `FiboZone1_Support_Retest_Min`: Required support retests within the 61.8%→78.6% zone (bullish focus). `0` ignores the zone.
-- `FiboZone1_Resistance_Retest_Min`: Required resistance retests within the 61.8%→78.6% zone (bearish focus).
-- `FiboZone2_Support_Retest_Min`: Required support retests within the 78.6%→100% zone.
-- `FiboZone2_Resistance_Retest_Min`: Required resistance retests within the 78.6%→100% zone.
+- `Base_Min_Extern_Structures_Broken` / `Trend_Min_Extern_Structures_Broken`: Minimum extern structures that must be broken (from the latest extremum statistics) before their respective layer can fire. `0` disables the check per layer.
+- Support/Resistance Selectors: `SUPPORT_61/78` and `RESISTANCE_61/78` enforce at least one retest inside their respective Fibonacci bands; the `_DISABLED` options skip the guard. Each layer owns its own selector pair.
 
-Enabling any of the structure filters automatically loads the stochastic structure indicator handles even when `Solid_Indicator_Strategy_Type` is disabled, ensuring the retest data is available.
+Enabling any base or trend structure filter automatically loads the required stochastic structure handles so retest data is always available on both timeframes.
 
 ### Grid Strategy Settings
 - `Grid_Base_Strategy_Type`: Chooses base spacing mode.

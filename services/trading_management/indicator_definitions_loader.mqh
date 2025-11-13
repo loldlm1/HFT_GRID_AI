@@ -5,6 +5,8 @@
 #ifndef _SERVICES_TRADING_MANAGEMENT_INDICATOR_DEFINITIONS_LOADER_MQH_
 #define _SERVICES_TRADING_MANAGEMENT_INDICATOR_DEFINITIONS_LOADER_MQH_
 
+#include "strategy_structure_context.mqh"
+
 // GLOBAL SETTINGS
 ENUM_TIMEFRAMES Strategy_TF_List[];
 int IndicatorPeriods[];
@@ -73,33 +75,10 @@ void PrepareIndicatorPeriods()
   IndicatorPeriods[0] = (int)Base_Indicator_Period_Type;
 }
 
-inline bool StructureFiltersConfigured()
-{
-  return (Min_Extern_Structures_Broken > 0) ||
-         (FiboZone1_Support_Retest_Min > 0) ||
-         (FiboZone1_Resistance_Retest_Min > 0) ||
-         (FiboZone2_Support_Retest_Min > 0) ||
-         (FiboZone2_Resistance_Retest_Min > 0);
-}
-
-inline bool TrendStructureTypeFiltersConfigured()
-{
-  bool bullish_active =
-    (Trend_First_Structure_Filter == BULLISH_STRUCT_LL) ||
-    (Trend_First_Structure_Filter == BULLISH_STRUCT_LH) ||
-    (Trend_First_Structure_Filter == BULLISH_STRUCT_LL_LH);
-
-  bool bearish_active =
-    (Trend_Second_Structure_Filter == BEARISH_STRUCT_HH) ||
-    (Trend_Second_Structure_Filter == BEARISH_STRUCT_HL) ||
-    (Trend_Second_Structure_Filter == BEARISH_STRUCT_HH_HL);
-
-  return bullish_active || bearish_active;
-}
-
 inline bool TrendStructureDataRequested()
 {
-  return StructureFiltersConfigured() || TrendStructureTypeFiltersConfigured();
+  StrategyStructureLayerContext trend_ctx = BuildTrendStructureLayerContext();
+  return StructureFiltersRequested(trend_ctx) || StructureTypeFiltersRequested(trend_ctx);
 }
 
 ENUM_TIMEFRAMES ResolveTrendTimeframe()
@@ -248,30 +227,25 @@ void LoadAllIndicatorDefinitions()
   PrepareIndicatorPeriods();
 
   bool use_base_indicator  = (Base_Indicator_Percent > 0.0);
-  bool use_solid_indicator = (Solid_Indicator_Strategy_Type != SOLID_NONE_TYPE);
   ENUM_TIMEFRAMES strategy_tf = Strategy_TF_List[0];
   Trend_Structure_Filter_Timeframe = ResolveTrendStructureTimeframe();
 
-  bool structure_filters_enabled = StructureFiltersConfigured();
-  bool require_structure_indicators =
-    use_solid_indicator ||
-    structure_filters_enabled ||
-    (TrendStructureDataRequested() && Trend_Structure_Filter_Timeframe == strategy_tf);
+  bool require_structure_indicators = true;
 
   bool use_atr_strategy = (Grid_Base_Strategy_Type == ATR_RANGE);
 
-  if(!use_base_indicator && !use_solid_indicator)
+  if(!use_base_indicator)
   {
-    Print("WARNING: Both base and solid strategies are disabled; signal generation will be halted.");
+    Print("WARNING: Base indicator percent disabled; signal generation relies solely on structure filters.");
   }
 
   TesterHideIndicators(!Enable_Show_Indicators);
 
-  PrintFormat("Strategy context | TF=%s | BasePercent=%.2f | BasePeriod=%d | SolidStrategy=%s | SolidPeriod=%d | Direction=%s",
+  PrintFormat("Strategy context | TF=%s | BasePercent=%.2f | TrendPercent=%.2f | BasePeriod=%d | SolidPeriod=%d | Direction=%s",
               EnumToString(Strategy_Timeframe),
               Base_Indicator_Percent,
+              Trend_Indicator_Percent,
               (int)Base_Indicator_Period_Type,
-              EnumToString(Solid_Indicator_Strategy_Type),
               (int)Solid_Indicator_Period_Type,
               EnumToString(Strategy_Direction_Mode));
 

@@ -14,12 +14,12 @@ This is a HFT Grid AI Expert Advisor designed to execute high frequency position
 - Completed: centralized inputs in `services/trading_management/ea_inputs.mqh`, broker constraints helper (`microservices/utils/broker_constraints_helper.mqh`), single `Strategy_Timeframe` loading, and chart style constants in `services/frontend/chart_style_guide.mqh`
 
 ### Phase 1 – Signal Engine Upgrade
-- Add new strategy inputs (`Base_Indicator_Period_Type`, `Base_Indicator_Percent`, `Solid_Indicator_Strategy_Type`, `Base_Indicator_MA_Method`)
+- Add mirrored strategy context inputs (global indicator periods/MAs plus fractal base & trend layers for percents, structure filters, and Fibonacci selectors)
 - Refactor signal detection to event-driven triggers tied to indicator buffer updates; remove time-only logic
 - Implement combinable BB Percent and Stochastic Extrema triggers with clear validation paths
 - Enforce single active grid per direction by centralizing signal admission checks
 - Exit Criteria: deterministic signal firing in Strategy Tester, logging traces confirming trigger combinations
-- Completed: indicator inputs exposed via `ea_inputs.mqh`, loader honors the selected period/MA plus the `Base_Indicator_Percent` ladder, fibo retest filters are configurable per zone, `EvaluateSignalTrigger()` now merges the percent breakout, extrema logic, and retest requirements, and `CanAttemptSignal()` restricts grids to one per direction while validating all required indicator handles
+- Completed: indicator inputs exposed via `ea_inputs.mqh`, loader honors the shared period/MA across both layers, the base/trend contexts each own Bollinger percent ladders plus structure filters, `EvaluateSignalTrigger()` now merges the breakout, extrema logic, and dual-layer retest requirements, and `CanAttemptSignal()` restricts grids to one per direction while validating all required indicator handles
 
 ### Phase 2 – Grid Framework
 - Build grid configuration structures covering ATR-based and point-based spacing with multiplier controls
@@ -92,7 +92,7 @@ This is a HFT Grid AI Expert Advisor designed to execute high frequency position
 - `Trend_Structure_Timeframe` can differ from the main strategy timeframe; `LoadTrendStructureFilterIndicator()` loads a dedicated `TrendStructStochIndicatorHandle` when the timeframes differ or reuses the strategy handles otherwise.
 - `Trend_First_Structure_Filter`: Bullish-only guard. Options `BULLISH_STRUCT_OFF`, `BULLISH_STRUCT_LL`, `BULLISH_STRUCT_LH`, `BULLISH_STRUCT_LL_LH` (`OSCILLATOR_STRUCTURE_EQ` always passes).
 - `Trend_Second_Structure_Filter`: Bearish-only guard. Options `BEARISH_STRUCT_OFF`, `BEARISH_STRUCT_HH`, `BEARISH_STRUCT_HL`, `BEARISH_STRUCT_HH_HL` (`EQ` passes).
-- The existing structure filters (`Min_Extern_Structures_Broken`, all Fibo retest inputs) now reference the trend structure timeframe, so higher-timeframe geometry gates lower-timeframe grids.
+- The mirrored structure filters (base/trend extern counts plus the new support/resistance enums) evaluate on their respective timeframes, letting a higher-timeframe trend context gate the lower-timeframe grid while still enforcing strategy-level structure rules.
 - `LoadTrendStructureData()` seeds the snapshot stored in `SignalParams`, `FetchStructureForFilters()` picks the correct dataset at evaluation time, and `EvaluateTrendStructureTypeFilters()` applies the directional reversion checks.
 
 ## Developer Debug Settings
