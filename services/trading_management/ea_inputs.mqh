@@ -29,29 +29,32 @@ input ENUM_TIMEFRAMES          Market_Close_Guard_Timeframe   = PERIOD_M10;
 
 input group  "+= Strategy Context =+";
 // Single timeframe used across all indicators during Phase 0.
-input ENUM_TIMEFRAMES             Strategy_Timeframe            = PERIOD_M1;
-input BaseIndicatorPeriodTypes    Base_Indicator_Period_Type    = BASE_PERIOD_21;
-input ENUM_MA_METHOD              Base_Indicator_MA_Method      = MODE_EMA;
-input double                      Base_Indicator_Percent        = 50.0;
-input SolidIndicatorStrategyTypes Solid_Indicator_Strategy_Type = EXTREMA_TYPE;
-input SolidIndicatorPeriodTypes   Solid_Indicator_Period_Type   = SOLID_PERIOD_5;
-input StrategyDirectionTypes      Strategy_Direction_Mode       = BOTH_DIRECTION;
+input ENUM_TIMEFRAMES           Strategy_Timeframe          = PERIOD_M1;
+input BaseIndicatorPeriodTypes  Base_Indicator_Period_Type  = BASE_PERIOD_21;
+input ENUM_MA_METHOD            Base_Indicator_MA_Method    = MODE_EMA;
+input SolidIndicatorPeriodTypes Solid_Indicator_Period_Type = SOLID_PERIOD_5;
+input StrategyDirectionTypes    Strategy_Direction_Mode     = BOTH_DIRECTION;
+
+input group "+= Strategy Base Context =+";
+input double                      Base_Indicator_Percent            = 50.0;
+input TrendStructureFilterModes   Base_First_Structure_Filter       = BULLISH_STRUCT_OFF;
+input TrendStructureFilterModes   Base_Second_Structure_Filter      = BEARISH_STRUCT_OFF;
+input SupportRetestFilterModes    Base_Support_Filter               = SUPPORT_DISABLED;
+input ResistanceRetestFilterModes Base_Resistance_Filter            = RESISTANCE_DISABLED;
+input int                         Base_Min_Extern_Structures_Broken = 0;
 
 input group "+= Strategy Trend Settings =+";
 input ENUM_TIMEFRAMES     Trend_Indicator_Timeframe = PERIOD_H1;
 input StrategyTrendModes  Strategy_Trend_Mode       = TREND_OFF;
+input double              Trend_Indicator_Percent   = 50.0;
 
 input group "+= Trend Structure Settings =+";
-input ENUM_TIMEFRAMES          Trend_Structure_Timeframe   = PERIOD_H1;
+input ENUM_TIMEFRAMES           Trend_Structure_Timeframe   = PERIOD_H1;
 input TrendStructureFilterModes Trend_First_Structure_Filter  = BULLISH_STRUCT_OFF;
 input TrendStructureFilterModes Trend_Second_Structure_Filter = BEARISH_STRUCT_OFF;
-
-input group "+= Support/Resistance Structure Filters =+";
-input int Min_Extern_Structures_Broken      = 0;
-input int FiboZone1_Support_Retest_Min      = 0;
-input int FiboZone1_Resistance_Retest_Min   = 0;
-input int FiboZone2_Support_Retest_Min      = 0;
-input int FiboZone2_Resistance_Retest_Min   = 0;
+input SupportRetestFilterModes  Trend_Support_Filter          = SUPPORT_DISABLED;
+input ResistanceRetestFilterModes Trend_Resistance_Filter     = RESISTANCE_DISABLED;
+input int Trend_Min_Extern_Structures_Broken = 0;
 
 input group  "+= Grid Strategy Settings =+";
 input GridBaseStrategyTypes Grid_Base_Strategy_Type      = ATR_RANGE;

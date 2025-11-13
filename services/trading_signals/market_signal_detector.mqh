@@ -5,6 +5,8 @@
 #ifndef _SERVICES_TRADING_SIGNALS_MARKET_SIGNAL_CRAWLER_MQH_
 #define _SERVICES_TRADING_SIGNALS_MARKET_SIGNAL_CRAWLER_MQH_
 
+#include "../trading_management/strategy_structure_context.mqh"
+
 SignalParams running_bullish_signals[];
 SignalParams running_bearish_signals[];
 
@@ -13,33 +15,21 @@ const double BANDS_PERCENT_UPPER_LEVEL = 100.0;
 const double BANDS_PERCENT_LOWER_LEVEL = 0.0;
 const int    BANDS_PERCENT_SHIFT_DEPTH = 5;
 
-bool StructureFiltersRequested()
+bool TrendStructureFiltersRequested()
 {
-  return (Min_Extern_Structures_Broken > 0) ||
-         (FiboZone1_Support_Retest_Min > 0) ||
-         (FiboZone1_Resistance_Retest_Min > 0) ||
-         (FiboZone2_Support_Retest_Min > 0) ||
-         (FiboZone2_Resistance_Retest_Min > 0);
+  StrategyStructureLayerContext trend_ctx = BuildTrendStructureLayerContext();
+  return StructureFiltersRequested(trend_ctx);
 }
 
 bool TrendStructureTypeFiltersRequested()
 {
-  bool bullish_active =
-    (Trend_First_Structure_Filter == BULLISH_STRUCT_LL) ||
-    (Trend_First_Structure_Filter == BULLISH_STRUCT_LH) ||
-    (Trend_First_Structure_Filter == BULLISH_STRUCT_LL_LH);
-
-  bool bearish_active =
-    (Trend_Second_Structure_Filter == BEARISH_STRUCT_HH) ||
-    (Trend_Second_Structure_Filter == BEARISH_STRUCT_HL) ||
-    (Trend_Second_Structure_Filter == BEARISH_STRUCT_HH_HL);
-
-  return bullish_active || bearish_active;
+  StrategyStructureLayerContext trend_ctx = BuildTrendStructureLayerContext();
+  return StructureTypeFiltersRequested(trend_ctx);
 }
 
 bool TrendStructureDataRequired()
 {
-  return StructureFiltersRequested() || TrendStructureTypeFiltersRequested();
+  return TrendStructureFiltersRequested() || TrendStructureTypeFiltersRequested();
 }
 // ++ HELPER FUNCTION TO CALCULATE CORRECT SHIFT BASED ON ENTRY TIME ++
 
@@ -269,12 +259,14 @@ bool TrendFilterAllowsSignal(const SignalParams &signal_params,
 {
   if(signal_params.trend_filter_mode == TREND_OFF)
     return true;
-  if(Base_Indicator_Percent < 0.0)
+  if(Trend_Indicator_Percent < 0.0)
     return true;
   if(!signal_params.trend_bpercent_valid)
     return false;
 
-  return EvaluateBandsPercentTrigger(signal_params.trend_bpercent_data, direction);
+  return EvaluateBandsPercentTrigger(signal_params.trend_bpercent_data,
+                                     direction,
+                                     Trend_Indicator_Percent);
 }
 
 bool LoadTrendStructureData(SignalParams &signal_params)
@@ -316,14 +308,7 @@ bool CanAttemptSignal(const SignalTypes signal_type)
     return false;
 
   bool use_base_indicator  = (Base_Indicator_Percent > 0.0);
-  bool use_solid_indicator = (Solid_Indicator_Strategy_Type != SOLID_NONE_TYPE);
-  bool structure_filters_enabled =
-    (Min_Extern_Structures_Broken > 0) ||
-    (FiboZone1_Support_Retest_Min > 0) ||
-    (FiboZone1_Resistance_Retest_Min > 0) ||
-    (FiboZone2_Support_Retest_Min > 0) ||
-    (FiboZone2_Resistance_Retest_Min > 0);
-  bool require_structure_data = (Solid_Indicator_Strategy_Type == EXTREMA_TYPE) || structure_filters_enabled;
+  bool require_structure_data = true;
 
   if(Strategy_Direction_Mode == BULLISH_DIRECTION && signal_type == BEARISH)
   {
@@ -348,9 +333,6 @@ bool CanAttemptSignal(const SignalTypes signal_type)
   if(require_structure_data && ArraySize(ExtStructStochIndicatorsHandle) <= 0)
     return false;
 
-  if(!use_base_indicator && !use_solid_indicator)
-    return false;
-
   if(TrendStructureDataRequired() && Trend_Structure_Timeframe != Strategy_Timeframe)
   {
     if(TrendStructStochIndicatorHandle.indicator_handle == INVALID_HANDLE)
@@ -361,13 +343,15 @@ bool CanAttemptSignal(const SignalTypes signal_type)
   return true;
 }
 
-bool ValidateBandsPercentBreakout(const double &shift_values[], const SignalTypes signal_type)
+bool ValidateBandsPercentBreakout(const double &shift_values[],
+                                  const SignalTypes signal_type,
+                                  const double percent_threshold)
 {
-  double zone_start = Base_Indicator_Percent;
-  double zone_end   = Base_Indicator_Percent;
+  double zone_start = percent_threshold;
+  double zone_end   = percent_threshold;
 
-  if(signal_type == BULLISH) { zone_start = 100-Base_Indicator_Percent; zone_end = zone_start - 20.0; }
-  if(signal_type == BEARISH) { zone_start = Base_Indicator_Percent; zone_end = zone_start + 20.0; }
+  if(signal_type == BULLISH) { zone_start = 100 - percent_threshold; zone_end = zone_start - 20.0; }
+  if(signal_type == BEARISH) { zone_start = percent_threshold; zone_end = zone_start + 20.0; }
 
   bool has_origin   = false;
   bool in_the_zone  = signal_type == BULLISH ? shift_values[0] <= zone_start : shift_values[0] >= zone_start;
@@ -393,7 +377,8 @@ bool ValidateBandsPercentBreakout(const double &shift_values[], const SignalType
 }
 
 bool EvaluateBandsPercentTrigger(const BandsPercentStructure &bands_data,
-                                 const SignalTypes signal_type)
+                                 const SignalTypes signal_type,
+                                 const double percent_threshold)
 {
   double shift_values[];
   ArrayResize(shift_values, BANDS_PERCENT_SHIFT_DEPTH);
@@ -403,12 +388,14 @@ bool EvaluateBandsPercentTrigger(const BandsPercentStructure &bands_data,
   shift_values[3] = bands_data.bands_percent_4;
   shift_values[4] = bands_data.bands_percent_5;
 
-  return ValidateBandsPercentBreakout(shift_values, signal_type);
+  return ValidateBandsPercentBreakout(shift_values, signal_type, percent_threshold);
 }
 
-bool EvaluateBaseIndicatorTrigger(const SignalParams &signal_params, const SignalTypes signal_type)
+bool EvaluateBaseIndicatorTrigger(const SignalParams &signal_params,
+                                  const SignalTypes signal_type,
+                                  const double percent_threshold)
 {
-  if(Base_Indicator_Percent < 0.0)
+  if(percent_threshold < 0.0)
     return true;
 
   int total_entries = ArraySize(signal_params.bands_percent_data);
@@ -416,32 +403,22 @@ bool EvaluateBaseIndicatorTrigger(const SignalParams &signal_params, const Signa
     return false;
 
   BandsPercentStructure bands_data = signal_params.bands_percent_data[0];
-  return EvaluateBandsPercentTrigger(bands_data, signal_type);
-}
-
-int GetZoneRetestRequirement(const SignalTypes signal_type, const int zone_index)
-{
-  switch(zone_index)
-  {
-    case 0:
-      if(signal_type == BULLISH)
-        return FiboZone1_Support_Retest_Min;
-      return FiboZone1_Resistance_Retest_Min;
-    case 1:
-      if(signal_type == BULLISH)
-        return FiboZone2_Support_Retest_Min;
-      return FiboZone2_Resistance_Retest_Min;
-  }
-  return 0;
+  return EvaluateBandsPercentTrigger(bands_data, signal_type, percent_threshold);
 }
 
 bool FetchStructureForFilters(const SignalParams &signal_params,
-                              StochasticMarketStructure &structure)
+                              StochasticMarketStructure &structure,
+                              const StrategyStructureLayerContext &ctx)
 {
-  if(signal_params.trend_structure_valid)
+  if(ctx.uses_trend_dataset)
   {
-    structure = signal_params.trend_structure_data;
-    return true;
+    if(signal_params.trend_structure_valid)
+    {
+      structure = signal_params.trend_structure_data;
+      return true;
+    }
+    if(Trend_Structure_Timeframe != Strategy_Timeframe)
+      return false;
   }
 
   int total_structures = ArraySize(signal_params.stoch_market_structure_data);
@@ -452,18 +429,21 @@ bool FetchStructureForFilters(const SignalParams &signal_params,
   return true;
 }
 
-bool ValidateExternStructuresRequirement(const ExtremumStatistics &latest_stats)
+bool ValidateExternStructuresRequirement(const ExtremumStatistics &latest_stats,
+                                         const StrategyStructureLayerContext &ctx)
 {
-  if(Min_Extern_Structures_Broken <= 0)
+  if(ctx.min_extern_structures <= 0)
     return true;
-  return latest_stats.extern_structures_broken >= Min_Extern_Structures_Broken;
+  return latest_stats.extern_structures_broken >= ctx.min_extern_structures;
 }
 
-bool ValidateRetestRequirements(const ExtremumStatistics &latest_stats, const SignalTypes signal_type)
+bool ValidateRetestRequirements(const ExtremumStatistics &latest_stats,
+                                const SignalTypes signal_type,
+                                const StrategyStructureLayerContext &ctx)
 {
   for(int zone_index = 0; zone_index < FIBO_RETEST_ZONES_TOTAL; zone_index++)
   {
-    int required = GetZoneRetestRequirement(signal_type, zone_index);
+    int required = ResolveRetestRequirement(ctx, signal_type, zone_index);
     if(required <= 0)
       continue;
 
@@ -482,9 +462,6 @@ bool ValidateRetestRequirements(const ExtremumStatistics &latest_stats, const Si
 
 bool EvaluateSolidIndicatorTrigger(const SignalParams &signal_params, const SignalTypes signal_type)
 {
-  if(Solid_Indicator_Strategy_Type == SOLID_NONE_TYPE)
-    return true;
-
   int total_structures = ArraySize(signal_params.stoch_market_structure_data);
   if(total_structures <= 0)
     return false;
@@ -510,13 +487,15 @@ bool EvaluateSolidIndicatorTrigger(const SignalParams &signal_params, const Sign
   return latest_extremum.is_peak;
 }
 
-bool EvaluateStructureRetestTrigger(const SignalParams &signal_params, const SignalTypes signal_type)
+bool EvaluateStructureRetestTrigger(const SignalParams &signal_params,
+                                    const SignalTypes signal_type,
+                                    const StrategyStructureLayerContext &ctx)
 {
-  if(!StructureFiltersRequested())
+  if(!StructureFiltersRequested(ctx))
     return true;
 
   StochasticMarketStructure structure;
-  if(!FetchStructureForFilters(signal_params, structure))
+  if(!FetchStructureForFilters(signal_params, structure, ctx))
     return false;
 
   if(ArraySize(structure.extremum_stats) <= 0)
@@ -524,10 +503,10 @@ bool EvaluateStructureRetestTrigger(const SignalParams &signal_params, const Sig
 
   ExtremumStatistics latest_stats = structure.extremum_stats[0];
 
-  if(!ValidateExternStructuresRequirement(latest_stats))
+  if(!ValidateExternStructuresRequirement(latest_stats, ctx))
     return false;
 
-  if(!ValidateRetestRequirements(latest_stats, signal_type))
+  if(!ValidateRetestRequirements(latest_stats, signal_type, ctx))
     return false;
 
   return true;
@@ -565,18 +544,19 @@ bool TrendStructureFilterMatches(const TrendStructureFilterModes filter_mode,
   return true;
 }
 
-bool EvaluateTrendStructureTypeFilters(const SignalParams &signal_params)
+bool EvaluateStructureTypeFilters(const SignalParams &signal_params,
+                                  const StrategyStructureLayerContext &ctx)
 {
-  if(!TrendStructureTypeFiltersRequested())
+  if(!StructureTypeFiltersRequested(ctx))
     return true;
 
   StochasticMarketStructure structure;
-  if(!FetchStructureForFilters(signal_params, structure))
+  if(!FetchStructureForFilters(signal_params, structure, ctx))
     return false;
 
-  bool first_pass  = TrendStructureFilterMatches(Trend_First_Structure_Filter,
+  bool first_pass  = TrendStructureFilterMatches(ctx.first_structure_filter,
                                                  structure.first_structure_type);
-  bool second_pass = TrendStructureFilterMatches(Trend_Second_Structure_Filter,
+  bool second_pass = TrendStructureFilterMatches(ctx.second_structure_filter,
                                                  structure.second_structure_type);
 
   return first_pass && second_pass;
@@ -584,12 +564,28 @@ bool EvaluateTrendStructureTypeFilters(const SignalParams &signal_params)
 
 bool EvaluateSignalTrigger(const SignalParams &signal_params, const SignalTypes signal_type)
 {
-  bool base_trigger      = EvaluateBaseIndicatorTrigger(signal_params, signal_type);
-  bool solid_trigger     = EvaluateSolidIndicatorTrigger(signal_params, signal_type);
-  bool structure_filters = EvaluateStructureRetestTrigger(signal_params, signal_type);
-  bool trend_structure_types = EvaluateTrendStructureTypeFilters(signal_params);
+  StrategyStructureLayerContext base_ctx  = BuildBaseStructureLayerContext();
+  StrategyStructureLayerContext trend_ctx = BuildTrendStructureLayerContext();
 
-  return base_trigger && solid_trigger && structure_filters && trend_structure_types;
+  bool base_trigger             = EvaluateBaseIndicatorTrigger(signal_params,
+                                                               signal_type,
+                                                               Base_Indicator_Percent);
+  bool solid_trigger            = EvaluateSolidIndicatorTrigger(signal_params, signal_type);
+  bool base_structure_filters   = EvaluateStructureRetestTrigger(signal_params,
+                                                                 signal_type,
+                                                                 base_ctx);
+  bool trend_structure_filters  = EvaluateStructureRetestTrigger(signal_params,
+                                                                 signal_type,
+                                                                 trend_ctx);
+  bool base_structure_types     = EvaluateStructureTypeFilters(signal_params, base_ctx);
+  bool trend_structure_types    = EvaluateStructureTypeFilters(signal_params, trend_ctx);
+
+  return base_trigger &&
+         solid_trigger &&
+         base_structure_filters &&
+         trend_structure_filters &&
+         base_structure_types &&
+         trend_structure_types;
 }
 
 #endif // _SERVICES_TRADING_SIGNALS_MARKET_SIGNAL_CRAWLER_MQH_
