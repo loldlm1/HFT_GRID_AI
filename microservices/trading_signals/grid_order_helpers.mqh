@@ -220,6 +220,17 @@ double GetGridTakeProfitPrice(SignalTypes direction, SignalParams &signal_params
     }
   }
 
+  if(Grid_Enable_Robust_TP)
+    EnsureGridTakeProfitRobustness(
+      direction, signal_params, grid_level_index, grid_raw_tp_price
+    );
+
+  return grid_raw_tp_price;
+}
+
+void EnsureGridTakeProfitRobustness(
+  SignalTypes direction, SignalParams &signal_params, int grid_level_index, double &grid_raw_tp_price
+) {
   // ENSURE TP IS IN A ROBUST DISTANCE FROM ENTRY
   if(grid_level_index > 0)
   {
@@ -241,8 +252,6 @@ double GetGridTakeProfitPrice(SignalTypes direction, SignalParams &signal_params
         grid_raw_tp_price = initial_grid_price;
     }
   }
-
-  return grid_raw_tp_price;
 }
 
 double GetGridTakeProfitFinalPrice(SignalTypes direction, SignalParams &signal_params, GridOrderState &grid_order_state)

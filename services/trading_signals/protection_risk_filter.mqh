@@ -301,7 +301,7 @@ void ProtectionRiskMonitorTradeMode()
 void ProtectionRiskFilterTick()
 {
   ProtectionRiskResetDailyLock();
-  ProtectionRiskCheckMarketCloseGuard();
+  //ProtectionRiskCheckMarketCloseGuard();
   ProtectionRiskProcessPendingForceClose();
   if(Protection_Risk_Mode == ENABLED_OFF)
     return;
