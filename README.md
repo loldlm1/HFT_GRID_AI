@@ -73,6 +73,7 @@ The **HFT Grid AI EA** is a specialized Expert Advisor designed to execute high 
 
 ### Strategy Context
 - `Strategy_Timeframe`: Single timeframe used to load and read all indicators (scalable later).
+- `Trend_Strategy_Timeframe`: Timeframe dedicated to the trend context. Set to `PERIOD_CURRENT` to disable the trend layer entirely and rely on base confirmations; otherwise it mirrors the base context on the selected timeframe.
 - `Base_Indicator_Period_Type`: Period for Bollinger indicators (`BB_Percent_Standard`, `BB_Standard`). Options: 5, 8, 13, 21, 34, 55.
 - `Base_Indicator_MA_Method`: MA method applied inside Bollinger (default `MODE_EMA`). Applied price is fixed to `PRICE_WEIGHTED`.
 - `Solid_Indicator_Period_Type`: Period for `Stochastic_Structure` (5, 8, 13, 21, 34, 55). The same handle set feeds both strategy layers.
@@ -87,18 +88,17 @@ The **HFT Grid AI EA** is a specialized Expert Advisor designed to execute high 
 - `Base_Min_Extern_Structures_Broken`: Minimum extern structures that must be broken (from the latest extremum statistics) before a signal can fire on the strategy timeframe. `0` disables the check.
 
 ### Strategy Trend Context
-- `Trend_Indicator_Timeframe`: Timeframe used solely for the trend filter indicator. Falls back to the main strategy timeframe if an unsupported TF is selected.
+- `Trend_Strategy_Timeframe`: Timeframe applied to the trend Bollinger/structure filters. `PERIOD_CURRENT` disables the entire layer (trend mode short-circuits and no extra indicators are loaded). Any supported timeframe mirrors the base context with its own confirmations.
 - `Strategy_Trend_Mode`: Optional confirmation layer.
   - `TREND_OFF`: Skip the trend filter entirely (default).
   - `TREND_BPERCENT`: Load a Bollinger Percent indicator on the trend timeframe and require `main_shift_1 >= signal_shift_1` for bullish grids (inverse for bearish). Only shift 1 is evaluated to keep the guard lightweight.
 - `Trend_Indicator_Percent`: Percentile applied to the trend Bollinger ladder. Set `< 0` to keep the trend indicator loaded but opt out of the breakout rule.
-- `Trend_Structure_Timeframe`: Dedicated timeframe for trend structure filters. When it matches the strategy timeframe, the EA reuses the existing structure handles automatically.
 - `Trend_First_Structure_Filter`: Bullish-only guard for the higher timeframe. Same enum as the base layer.
 - `Trend_Second_Structure_Filter`: Bearish-only guard for the higher timeframe. Same enum as the base layer.
 - `Trend_Support_Filter`: Fibonacci retest selector applied to the trend structure timeframe (disabled/61/78).
 - `Trend_Resistance_Filter`: Resistance retest selector applied to the trend structure timeframe (disabled/61/78).
 - `Trend_Min_Extern_Structures_Broken`: Minimum extern structures required on the trend structure timeframe.
-- When any trend-structure filter is enabled and `Trend_Structure_Timeframe` differs from the strategy timeframe, the EA loads a dedicated `Stochastic_Structure` handle for that higher timeframe.
+- When any trend-structure filter is enabled and `Trend_Strategy_Timeframe` differs from the main strategy timeframe, the EA loads a dedicated `Stochastic_Structure` handle for that higher timeframe; otherwise it reuses the base structures.
 - Only the indicator required by the selected trend mode is loaded (and hidden in tester if `Enable_Show_Indicators` is false). If the indicator cannot be created, signal detection pauses until it becomes available, preventing partially-seeded grids.
 
 ### Developer Debug Settings

@@ -75,15 +75,20 @@ void PrepareIndicatorPeriods()
   IndicatorPeriods[0] = (int)Base_Indicator_Period_Type;
 }
 
-inline bool TrendStructureDataRequested()
+inline bool TrendStructureNeedsDedicatedHandle()
 {
   StrategyStructureLayerContext trend_ctx = BuildTrendStructureLayerContext();
-  return StructureFiltersRequested(trend_ctx) || StructureTypeFiltersRequested(trend_ctx);
+  bool filters_active = StructureFiltersRequested(trend_ctx) || StructureTypeFiltersRequested(trend_ctx);
+  if(!trend_ctx.enabled)
+    return false;
+  return filters_active && trend_ctx.uses_trend_dataset;
 }
 
 ENUM_TIMEFRAMES ResolveTrendTimeframe()
 {
-  ENUM_TIMEFRAMES configured_tf = Trend_Indicator_Timeframe;
+  ENUM_TIMEFRAMES configured_tf = Trend_Strategy_Timeframe;
+  if(configured_tf == PERIOD_CURRENT)
+    return Strategy_Timeframe;
   if(!IsStrategyTimeframeSupported(configured_tf))
   {
     PrintFormat("Trend timeframe %d not supported. Falling back to strategy timeframe %d.",
@@ -96,15 +101,7 @@ ENUM_TIMEFRAMES ResolveTrendTimeframe()
 
 ENUM_TIMEFRAMES ResolveTrendStructureTimeframe()
 {
-  ENUM_TIMEFRAMES configured_tf = Trend_Structure_Timeframe;
-  if(!IsStrategyTimeframeSupported(configured_tf))
-  {
-    PrintFormat("Trend structure timeframe %d not supported. Falling back to strategy timeframe %d.",
-                (int)configured_tf,
-                (int)Strategy_Timeframe);
-    configured_tf = Strategy_Timeframe;
-  }
-  return configured_tf;
+  return ResolveTrendTimeframe();
 }
 
 void ResetTrendIndicators()
@@ -181,6 +178,12 @@ void LoadTrendIndicators()
 {
   ResetTrendIndicators();
 
+  if(!TrendContextEnabled())
+  {
+    Print("Trend context disabled; skipping trend indicator loading.");
+    return;
+  }
+
   if(Strategy_Trend_Mode == TREND_OFF)
   {
     Print("Trend filter disabled; skipping trend indicator loading.");
@@ -198,7 +201,7 @@ void LoadTrendIndicators()
 
 bool TrendFilterIndicatorsAvailable()
 {
-  if(Strategy_Trend_Mode == TREND_OFF)
+  if(!TrendContextEnabled() || Strategy_Trend_Mode == TREND_OFF)
     return true;
   return (TrendBPercentIndicatorHandle.indicator_handle != INVALID_HANDLE);
 }
@@ -207,7 +210,7 @@ void LoadTrendStructureFilterIndicator()
 {
   ResetTrendStructureIndicator();
 
-  if(!TrendStructureDataRequested())
+  if(!TrendStructureNeedsDedicatedHandle())
     return;
 
   ENUM_TIMEFRAMES strategy_tf = Strategy_TF_List[0];
