@@ -42,6 +42,7 @@ input TrendStructureFilterModes   Base_Second_Structure_Filter      = BEARISH_ST
 input SupportRetestFilterModes    Base_Support_Filter               = SUPPORT_DISABLED;
 input ResistanceRetestFilterModes Base_Resistance_Filter            = RESISTANCE_DISABLED;
 input int                         Base_Min_Extern_Structures_Broken = 0;
+input bool                        Base_Fresh_Structure_Time         = false;
 
 input group "+= Strategy Trend Context =+";
 input StrategyTrendModes          Strategy_Trend_Mode                = TREND_OFF;
@@ -51,6 +52,7 @@ input TrendStructureFilterModes   Trend_Second_Structure_Filter      = BEARISH_S
 input SupportRetestFilterModes    Trend_Support_Filter               = SUPPORT_DISABLED;
 input ResistanceRetestFilterModes Trend_Resistance_Filter            = RESISTANCE_DISABLED;
 input int                         Trend_Min_Extern_Structures_Broken = 0;
+input bool                        Trend_Fresh_Structure_Time         = false;
 
 input group  "+= Grid Strategy Settings =+";
 input GridBaseStrategyTypes Grid_Base_Strategy_Type      = ATR_RANGE;

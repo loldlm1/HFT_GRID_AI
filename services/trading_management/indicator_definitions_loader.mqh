@@ -78,7 +78,9 @@ void PrepareIndicatorPeriods()
 inline bool TrendStructureNeedsDedicatedHandle()
 {
   StrategyStructureLayerContext trend_ctx = BuildTrendStructureLayerContext();
-  bool filters_active = StructureFiltersRequested(trend_ctx) || StructureTypeFiltersRequested(trend_ctx);
+  bool filters_active = StructureFiltersRequested(trend_ctx) ||
+                        StructureTypeFiltersRequested(trend_ctx) ||
+                        Trend_Fresh_Structure_Time;
   if(!trend_ctx.enabled)
     return false;
   return filters_active && trend_ctx.uses_trend_dataset;
