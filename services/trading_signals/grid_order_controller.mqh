@@ -10,21 +10,26 @@ void UpdateGridLifecycle(SignalParams &signal_params)
   SignalTypes    direction         = signal_params.signal_type;
   int            grid_order_level  = ArraySize(signal_params.grid_orders)-1;
   GridOrderState grid_order        = signal_params.grid_orders[grid_order_level];
-  double         normalized_volume = NormalizeVolumeForSymbol(_Symbol, grid_order.lot_size);
 
   if(grid_order.status == GRID_ORDER_STOP_TRAILING_ACTIVE)
   {
-    UpdateGridOrderForSignal(signal_params);
+    if(UpdateGridOrderForSignal(signal_params))
+      grid_order = signal_params.grid_orders[grid_order_level];
+
+    double normalized_volume = NormalizeVolumeForSymbol(_Symbol, grid_order.lot_size);
 
     if(GridShouldActivateStopOrder(signal_params, grid_order, direction, point_size))
     {
       if(GridExecuteLevelTrade(signal_params, grid_order, point_size, normalized_volume))
       {
         UpdateGridOrderForSignal(signal_params);
+        grid_order = signal_params.grid_orders[grid_order_level];
         GridLogEvent("GRID_ORDER_STOP_TRAILING_ACTIVE -> GRID_ORDER_ACTIVE", signal_params, grid_order);
       }
     }
   }
+
+  grid_order = signal_params.grid_orders[grid_order_level];
 
   if(grid_order.status == GRID_ORDER_ACTIVE)
   {

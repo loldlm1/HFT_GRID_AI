@@ -29,7 +29,7 @@ void DrawGridLevels(const long chart_id,
   string trailing_label = GridSignalLineLabel(signal_params, "TP TRAILING");
 
   int level_index = level_state.level_index;
-  double level_lot_size = level_state.lot_size*Grid_Multiplier;
+  double level_lot_size = level_state.lot_size;
   next_label = StringFormat("%s L%d lot=%.2f",
                             next_label,
                             level_index,

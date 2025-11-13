@@ -146,7 +146,8 @@ enum GridLotTypes
 {
   GRID_LOT_SIZE            = 0,
   GRID_LOT_PERCENTAGE_BASED = 1,
-  GRID_LOT_CURRENCY_BASED   = 2
+  GRID_LOT_CURRENCY_BASED   = 2,
+  GRID_LOT_CALCULATED       = 3
 };
 
 enum GridTPReferenceModes
