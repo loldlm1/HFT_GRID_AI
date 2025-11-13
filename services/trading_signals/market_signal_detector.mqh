@@ -9,6 +9,8 @@
 
 SignalParams running_bullish_signals[];
 SignalParams running_bearish_signals[];
+datetime g_last_base_structure_time[2]  = {0, 0};
+datetime g_last_trend_structure_time[2] = {0, 0};
 
 const double BANDS_PERCENT_MID_LEVEL   = 50.0;
 const double BANDS_PERCENT_UPPER_LEVEL = 100.0;
@@ -30,9 +32,14 @@ bool TrendStructureTypeFiltersRequested()
 bool TrendStructureDataRequired()
 {
   StrategyStructureLayerContext trend_ctx = BuildTrendStructureLayerContext();
-  if(!trend_ctx.enabled || !trend_ctx.uses_trend_dataset)
+  if(!trend_ctx.enabled)
     return false;
-  return StructureFiltersRequested(trend_ctx) || StructureTypeFiltersRequested(trend_ctx);
+  bool needs_data = StructureFiltersRequested(trend_ctx) ||
+                    StructureTypeFiltersRequested(trend_ctx) ||
+                    Trend_Fresh_Structure_Time;
+  if(!needs_data)
+    return false;
+  return trend_ctx.uses_trend_dataset;
 }
 // ++ HELPER FUNCTION TO CALCULATE CORRECT SHIFT BASED ON ENTRY TIME ++
 
@@ -93,6 +100,7 @@ void DetectBullishSignal()
 
   // ADD THE BULLISH SIGNAL TO THE ARRAY
   AddElementToArray(running_bullish_signals, signal_bullish);
+  RegisterFreshStructureUsage(signal_bullish);
 }
 
 void DetectBearishSignal()
@@ -139,6 +147,7 @@ void DetectBearishSignal()
 
   // ADD THE BEARISH SIGNAL TO THE ARRAY
   AddElementToArray(running_bearish_signals, signal_bearish);
+  RegisterFreshStructureUsage(signal_bearish);
 }
 
 // ++ CLOSE THE SIGNALS ++
@@ -432,6 +441,68 @@ bool FetchStructureForFilters(const SignalParams &signal_params,
   return true;
 }
 
+int DirectionIndex(const SignalTypes direction)
+{
+  return (direction == BEARISH) ? 1 : 0;
+}
+
+datetime ExtractStructureFreshTimestamp(const StochasticMarketStructure &structure)
+{
+  datetime freshest = 0;
+  if(structure.first_structure_time > freshest)
+    freshest = structure.first_structure_time;
+  if(structure.second_structure_time > freshest)
+    freshest = structure.second_structure_time;
+  if(structure.third_structure_time > freshest)
+    freshest = structure.third_structure_time;
+  if(structure.fourth_structure_time > freshest)
+    freshest = structure.fourth_structure_time;
+  return freshest;
+}
+
+bool ValidateFreshStructureTimestamp(const SignalParams &signal_params,
+                                     const StrategyStructureLayerContext &ctx,
+                                     const SignalTypes direction,
+                                     const bool is_trend_context,
+                                     datetime &captured_time)
+{
+  captured_time = 0;
+  if(!ctx.enabled)
+    return true;
+
+  bool enforce = is_trend_context ? Trend_Fresh_Structure_Time : Base_Fresh_Structure_Time;
+  if(!enforce)
+    return true;
+
+  StochasticMarketStructure structure;
+  if(!FetchStructureForFilters(signal_params, structure, ctx))
+    return false;
+
+  datetime structure_time = ExtractStructureFreshTimestamp(structure);
+  if(structure_time <= 0)
+    return false;
+
+  int idx = DirectionIndex(direction);
+  datetime last_time = is_trend_context ? g_last_trend_structure_time[idx]
+                                        : g_last_base_structure_time[idx];
+  if(last_time > 0 && structure_time <= last_time)
+    return false;
+
+  captured_time = structure_time;
+  return true;
+}
+
+void RegisterFreshStructureUsage(const SignalParams &signal_params)
+{
+  int idx = DirectionIndex(signal_params.signal_type);
+
+  if(Base_Fresh_Structure_Time && signal_params.base_structure_snapshot_time > 0)
+    g_last_base_structure_time[idx] = signal_params.base_structure_snapshot_time;
+
+  if(Trend_Fresh_Structure_Time && signal_params.trend_structure_snapshot_time > 0)
+    g_last_trend_structure_time[idx] = signal_params.trend_structure_snapshot_time;
+}
+
 bool ValidateExternStructuresRequirement(const ExtremumStatistics &latest_stats,
                                          const StrategyStructureLayerContext &ctx)
 {
@@ -563,10 +634,27 @@ bool EvaluateStructureTypeFilters(const SignalParams &signal_params,
   return first_pass && second_pass;
 }
 
-bool EvaluateSignalTrigger(const SignalParams &signal_params, const SignalTypes signal_type)
+bool EvaluateSignalTrigger(SignalParams &signal_params, const SignalTypes signal_type)
 {
   StrategyStructureLayerContext base_ctx  = BuildBaseStructureLayerContext();
   StrategyStructureLayerContext trend_ctx = BuildTrendStructureLayerContext();
+
+  datetime base_fresh_time  = 0;
+  datetime trend_fresh_time = 0;
+
+  if(!ValidateFreshStructureTimestamp(signal_params,
+                                      base_ctx,
+                                      signal_type,
+                                      false,
+                                      base_fresh_time))
+    return false;
+
+  if(!ValidateFreshStructureTimestamp(signal_params,
+                                      trend_ctx,
+                                      signal_type,
+                                      true,
+                                      trend_fresh_time))
+    return false;
 
   bool base_trigger             = EvaluateBaseIndicatorTrigger(signal_params,
                                                                signal_type,
@@ -580,6 +668,9 @@ bool EvaluateSignalTrigger(const SignalParams &signal_params, const SignalTypes 
                                                                  trend_ctx);
   bool base_structure_types     = EvaluateStructureTypeFilters(signal_params, base_ctx);
   bool trend_structure_types    = EvaluateStructureTypeFilters(signal_params, trend_ctx);
+
+  signal_params.base_structure_snapshot_time  = base_fresh_time;
+  signal_params.trend_structure_snapshot_time = trend_fresh_time;
 
   return base_trigger &&
          solid_trigger &&

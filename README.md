@@ -86,6 +86,7 @@ The **HFT Grid AI EA** is a specialized Expert Advisor designed to execute high 
 - `Base_Support_Filter`: Fibonacci retest selector for bullish structures. `SUPPORT_DISABLED` skips the check, `SUPPORT_61` enforces at least one retest inside the 61.8%→78.6% band, and `SUPPORT_78` enforces the 78.6%→100% band.
 - `Base_Resistance_Filter`: Mirror of the support selector but for bearish structures (`RESISTANCE_DISABLED/61/78`).
 - `Base_Min_Extern_Structures_Broken`: Minimum extern structures that must be broken (from the latest extremum statistics) before a signal can fire on the strategy timeframe. `0` disables the check.
+- `Base_Fresh_Structure_Time`: When true, the EA only opens a new grid once the latest structure timestamp is newer than the one that produced the previous grid in the same direction, preventing back-to-back trades on the identical structure swing.
 
 ### Strategy Trend Context
 - `Trend_Strategy_Timeframe`: Timeframe applied to the trend Bollinger/structure filters. `PERIOD_CURRENT` disables the entire layer (trend mode short-circuits and no extra indicators are loaded). Any supported timeframe mirrors the base context with its own confirmations.
@@ -98,6 +99,7 @@ The **HFT Grid AI EA** is a specialized Expert Advisor designed to execute high 
 - `Trend_Support_Filter`: Fibonacci retest selector applied to the trend structure timeframe (disabled/61/78).
 - `Trend_Resistance_Filter`: Resistance retest selector applied to the trend structure timeframe (disabled/61/78).
 - `Trend_Min_Extern_Structures_Broken`: Minimum extern structures required on the trend structure timeframe.
+- `Trend_Fresh_Structure_Time`: Same as the base control but evaluated on the trend timeframe; useful when the higher-timeframe structure must rotate before the EA is allowed back in.
 - When any trend-structure filter is enabled and `Trend_Strategy_Timeframe` differs from the main strategy timeframe, the EA loads a dedicated `Stochastic_Structure` handle for that higher timeframe; otherwise it reuses the base structures.
 - Only the indicator required by the selected trend mode is loaded (and hidden in tester if `Enable_Show_Indicators` is false). If the indicator cannot be created, signal detection pauses until it becomes available, preventing partially-seeded grids.
 
@@ -124,6 +126,7 @@ Runtime watchers maintain a market-status state machine:
 ### Structure Filters
 - `Base_Min_Extern_Structures_Broken` / `Trend_Min_Extern_Structures_Broken`: Minimum extern structures that must be broken (from the latest extremum statistics) before their respective layer can fire. `0` disables the check per layer.
 - Support/Resistance Selectors: `SUPPORT_61/78` and `RESISTANCE_61/78` enforce at least one retest inside their respective Fibonacci bands; the `_DISABLED` options skip the guard. Each layer owns its own selector pair.
+- Fresh Structure Time Guards: `Base_Fresh_Structure_Time` and `Trend_Fresh_Structure_Time` force the EA to wait for a brand-new structure timestamp before arming another grid in the same direction, eliminating duplicate entries on the exact same swing.
 
 Enabling any base or trend structure filter automatically loads the required stochastic structure handles so retest data is always available on both timeframes.
 
