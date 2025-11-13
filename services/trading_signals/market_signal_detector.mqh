@@ -269,15 +269,12 @@ bool TrendFilterAllowsSignal(const SignalParams &signal_params,
 {
   if(signal_params.trend_filter_mode == TREND_OFF)
     return true;
+  if(Base_Indicator_Percent < 0.0)
+    return true;
   if(!signal_params.trend_bpercent_valid)
     return false;
 
-  double main_shift   = signal_params.trend_bpercent_data.bands_percent_1;
-  double signal_shift = signal_params.trend_bpercent_data.bands_percent_signal_1;
-
-  if(direction == BULLISH)
-    return main_shift >= signal_shift;
-  return main_shift <= signal_shift;
+  return EvaluateBandsPercentTrigger(signal_params.trend_bpercent_data, direction);
 }
 
 bool LoadTrendStructureData(SignalParams &signal_params)
@@ -395,16 +392,9 @@ bool ValidateBandsPercentBreakout(const double &shift_values[], const SignalType
   return has_origin && in_the_zone && !crossed_zone;
 }
 
-bool EvaluateBaseIndicatorTrigger(const SignalParams &signal_params, const SignalTypes signal_type)
+bool EvaluateBandsPercentTrigger(const BandsPercentStructure &bands_data,
+                                 const SignalTypes signal_type)
 {
-  if(Base_Indicator_Percent <= 0.0)
-    return true;
-
-  int total_entries = ArraySize(signal_params.bands_percent_data);
-  if(total_entries <= 0)
-    return false;
-
-  BandsPercentStructure bands_data = signal_params.bands_percent_data[0];
   double shift_values[];
   ArrayResize(shift_values, BANDS_PERCENT_SHIFT_DEPTH);
   shift_values[0] = bands_data.bands_percent_1;
@@ -414,6 +404,19 @@ bool EvaluateBaseIndicatorTrigger(const SignalParams &signal_params, const Signa
   shift_values[4] = bands_data.bands_percent_5;
 
   return ValidateBandsPercentBreakout(shift_values, signal_type);
+}
+
+bool EvaluateBaseIndicatorTrigger(const SignalParams &signal_params, const SignalTypes signal_type)
+{
+  if(Base_Indicator_Percent < 0.0)
+    return true;
+
+  int total_entries = ArraySize(signal_params.bands_percent_data);
+  if(total_entries <= 0)
+    return false;
+
+  BandsPercentStructure bands_data = signal_params.bands_percent_data[0];
+  return EvaluateBandsPercentTrigger(bands_data, signal_type);
 }
 
 int GetZoneRetestRequirement(const SignalTypes signal_type, const int zone_index)
