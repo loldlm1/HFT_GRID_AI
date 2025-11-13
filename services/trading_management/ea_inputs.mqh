@@ -63,6 +63,7 @@ input double                Grid_Final_TP_Percent        = 200.0;
 input double                Grid_TP_Percent              = 100.0;
 input double                Grid_Trailing_TP_Percent     = 50.0;
 input bool                  Grid_Enable_Robust_TP        = false;
+input bool                  Grid_Enable_Scalper_TP       = false;
 
 input group  "+= Grid Risk Managment Settings =+";
 input GridLotTypes         Grid_Lot_Type                 = GRID_LOT_SIZE;
