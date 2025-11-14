@@ -19,7 +19,7 @@ This is a HFT Grid AI Expert Advisor designed to execute high frequency position
 - Implement combinable BB Percent and Stochastic Extrema triggers with clear validation paths
 - Enforce single active grid per direction by centralizing signal admission checks
 - Exit Criteria: deterministic signal firing in Strategy Tester, logging traces confirming trigger combinations
-- Completed: indicator inputs exposed via `ea_inputs.mqh`, loader honors the shared period/MA across both layers, the base/trend contexts each own Bollinger percent ladders plus structure filters and fresh-structure guards, `EvaluateSignalTrigger()` now merges the breakout, extrema logic, dual-layer retest requirements, and fresh-structure gating, and `CanAttemptSignal()` restricts grids to one per direction while validating all required indicator handles
+- Completed: indicator inputs exposed via `ea_inputs.mqh`, loader honors the shared period/MA across both layers, the base/trend contexts each own Bollinger percent ladders plus structure filters, fresh-structure guards, and slope filters, `EvaluateSignalTrigger()` now merges the breakout, extrema logic, dual-layer retest requirements, fresh-structure gating, and slope confirmation, and `CanAttemptSignal()` restricts grids to one per direction while validating all required indicator handles
 
 ### Phase 2 – Grid Framework
 - Build grid configuration structures covering ATR-based and point-based spacing with multiplier controls
@@ -85,14 +85,14 @@ This is a HFT Grid AI Expert Advisor designed to execute high frequency position
 - `Strategy_Trend_Mode`: `TREND_OFF` or `TREND_BPERCENT`.
   - `LoadTrendIndicators()` only instantiates the Bollinger Percent handle when the mode is enabled; `TREND_OFF` skips the entire flow.
   - Trend confirmation now evaluates **only shift 1** (`main_shift_1 >= signal_shift_1` for bullish, `<=` for bearish) to keep the guard lightweight.
-- `Base_Fresh_Structure_Time` and `Trend_Fresh_Structure_Time` ensure we don't re-enter on the same structure timestamp by requiring a strictly newer structure before arming another grid in the same direction.
+- `Base_Fresh_Structure_Time` and `Trend_Fresh_Structure_Time` ensure we don't re-enter on the same structure timestamp by requiring a strictly newer structure before arming another grid in the same direction. `Base_Slope_Filter`/`Trend_Slope_Filter` optionally demand a specific `bands_percent_slope_1` (UP/DOWN) on the confirmation candle; `NO_SLOPE` skips the guard.
 - `CanAttemptSignal()` short-circuits when the requested trend indicator handle is unavailable, preventing partially initialized grids. `LoadTrendFilterData()` fetches the latest values during detection and `TrendFilterAllowsSignal()` blocks signals that violate the rule.
 
 ## Trend Structure Settings
 - The trend context mirrors the base structure inputs (structure-type filters, support/resistance selectors, extern counts). When `Trend_Strategy_Timeframe` differs from the strategy timeframe, `LoadTrendStructureFilterIndicator()` loads a dedicated `TrendStructStochIndicatorHandle`; otherwise the EA reuses the strategy handles.
 - `Trend_First_Structure_Filter`: Bullish-only guard. Options `BULLISH_STRUCT_OFF`, `BULLISH_STRUCT_LL`, `BULLISH_STRUCT_LH`, `BULLISH_STRUCT_LL_LH` (`OSCILLATOR_STRUCTURE_EQ` always passes).
 - `Trend_Second_Structure_Filter`: Bearish-only guard. Options `BEARISH_STRUCT_OFF`, `BEARISH_STRUCT_HH`, `BEARISH_STRUCT_HL`, `BEARISH_STRUCT_HH_HL` (`EQ` passes).
-- The mirrored structure filters (base/trend extern counts plus the new support/resistance enums and fresh-structure guards) evaluate on their respective timeframes, letting a higher-timeframe trend context gate the lower-timeframe grid while still enforcing strategy-level structure rules.
+- The mirrored structure filters (base/trend extern counts plus the new support/resistance enums, fresh-structure guards, and slope filters) evaluate on their respective timeframes, letting a higher-timeframe trend context gate the lower-timeframe grid while still enforcing strategy-level structure rules.
 - `LoadTrendStructureData()` seeds the snapshot stored in `SignalParams`, `FetchStructureForFilters()` picks the correct dataset at evaluation time, and `EvaluateTrendStructureTypeFilters()` applies the directional reversion checks.
 
 ## Developer Debug Settings

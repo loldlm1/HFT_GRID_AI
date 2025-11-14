@@ -282,7 +282,8 @@ bool TrendFilterAllowsSignal(const SignalParams &signal_params,
 
   return EvaluateBandsPercentTrigger(signal_params.trend_bpercent_data,
                                      direction,
-                                     Trend_Indicator_Percent);
+                                     Trend_Indicator_Percent,
+                                     Trend_Slope_Filter);
 }
 
 bool LoadTrendStructureData(SignalParams &signal_params)
@@ -391,7 +392,8 @@ bool ValidateBandsPercentBreakout(const double &shift_values[],
 
 bool EvaluateBandsPercentTrigger(const BandsPercentStructure &bands_data,
                                  const SignalTypes signal_type,
-                                 const double percent_threshold)
+                                 const double percent_threshold,
+                                 const SlopeTypes slope_filter)
 {
   double shift_values[];
   ArrayResize(shift_values, BANDS_PERCENT_SHIFT_DEPTH);
@@ -401,12 +403,20 @@ bool EvaluateBandsPercentTrigger(const BandsPercentStructure &bands_data,
   shift_values[3] = bands_data.bands_percent_4;
   shift_values[4] = bands_data.bands_percent_5;
 
-  return ValidateBandsPercentBreakout(shift_values, signal_type, percent_threshold);
+  bool breakout = ValidateBandsPercentBreakout(shift_values, signal_type, percent_threshold);
+  if(!breakout)
+    return false;
+
+  if(slope_filter == NO_SLOPE)
+    return true;
+
+  return (bands_data.bands_percent_slope_1 == slope_filter);
 }
 
 bool EvaluateBaseIndicatorTrigger(const SignalParams &signal_params,
                                   const SignalTypes signal_type,
-                                  const double percent_threshold)
+                                  const double percent_threshold,
+                                  const SlopeTypes slope_filter)
 {
   if(percent_threshold < 0.0)
     return true;
@@ -416,7 +426,10 @@ bool EvaluateBaseIndicatorTrigger(const SignalParams &signal_params,
     return false;
 
   BandsPercentStructure bands_data = signal_params.bands_percent_data[0];
-  return EvaluateBandsPercentTrigger(bands_data, signal_type, percent_threshold);
+  return EvaluateBandsPercentTrigger(bands_data,
+                                     signal_type,
+                                     percent_threshold,
+                                     slope_filter);
 }
 
 bool FetchStructureForFilters(const SignalParams &signal_params,
@@ -658,7 +671,8 @@ bool EvaluateSignalTrigger(SignalParams &signal_params, const SignalTypes signal
 
   bool base_trigger             = EvaluateBaseIndicatorTrigger(signal_params,
                                                                signal_type,
-                                                               Base_Indicator_Percent);
+                                                               Base_Indicator_Percent,
+                                                               Base_Slope_Filter);
   bool solid_trigger            = EvaluateSolidIndicatorTrigger(signal_params, signal_type);
   bool base_structure_filters   = EvaluateStructureRetestTrigger(signal_params,
                                                                  signal_type,

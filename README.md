@@ -87,6 +87,7 @@ The **HFT Grid AI EA** is a specialized Expert Advisor designed to execute high 
 - `Base_Resistance_Filter`: Mirror of the support selector but for bearish structures (`RESISTANCE_DISABLED/61/78`).
 - `Base_Min_Extern_Structures_Broken`: Minimum extern structures that must be broken (from the latest extremum statistics) before a signal can fire on the strategy timeframe. `0` disables the check.
 - `Base_Fresh_Structure_Time`: When true, the EA only opens a new grid once the latest structure timestamp is newer than the one that produced the previous grid in the same direction, preventing back-to-back trades on the identical structure swing.
+- `Base_Slope_Filter`: Optional slope confirmation using `bands_percent_slope_1`. Set to `UP_SLOPE`/`DOWN_SLOPE` to demand a specific slope on the confirmation candle; leave `NO_SLOPE` to skip the check.
 
 ### Strategy Trend Context
 - `Trend_Strategy_Timeframe`: Timeframe applied to the trend Bollinger/structure filters. `PERIOD_CURRENT` disables the entire layer (trend mode short-circuits and no extra indicators are loaded). Any supported timeframe mirrors the base context with its own confirmations.
@@ -100,6 +101,7 @@ The **HFT Grid AI EA** is a specialized Expert Advisor designed to execute high 
 - `Trend_Resistance_Filter`: Resistance retest selector applied to the trend structure timeframe (disabled/61/78).
 - `Trend_Min_Extern_Structures_Broken`: Minimum extern structures required on the trend structure timeframe.
 - `Trend_Fresh_Structure_Time`: Same as the base control but evaluated on the trend timeframe; useful when the higher-timeframe structure must rotate before the EA is allowed back in.
+- `Trend_Slope_Filter`: Mirrors the base slope filter but applies to the trend Bollinger ladder (`bands_percent_slope_1` on the trend timeframe).
 - When any trend-structure filter is enabled and `Trend_Strategy_Timeframe` differs from the main strategy timeframe, the EA loads a dedicated `Stochastic_Structure` handle for that higher timeframe; otherwise it reuses the base structures.
 - Only the indicator required by the selected trend mode is loaded (and hidden in tester if `Enable_Show_Indicators` is false). If the indicator cannot be created, signal detection pauses until it becomes available, preventing partially-seeded grids.
 
