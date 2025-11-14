@@ -43,6 +43,7 @@ input SupportRetestFilterModes    Base_Support_Filter               = SUPPORT_DI
 input ResistanceRetestFilterModes Base_Resistance_Filter            = RESISTANCE_DISABLED;
 input int                         Base_Min_Extern_Structures_Broken = 0;
 input bool                        Base_Fresh_Structure_Time         = false;
+input SlopeTypes                  Base_Slope_Filter                 = NO_SLOPE;
 
 input group "+= Strategy Trend Context =+";
 input StrategyTrendModes          Strategy_Trend_Mode                = TREND_OFF;
@@ -53,6 +54,7 @@ input SupportRetestFilterModes    Trend_Support_Filter               = SUPPORT_D
 input ResistanceRetestFilterModes Trend_Resistance_Filter            = RESISTANCE_DISABLED;
 input int                         Trend_Min_Extern_Structures_Broken = 0;
 input bool                        Trend_Fresh_Structure_Time         = false;
+input SlopeTypes                  Trend_Slope_Filter                 = NO_SLOPE;
 
 input group  "+= Grid Strategy Settings =+";
 input GridBaseStrategyTypes Grid_Base_Strategy_Type      = ATR_RANGE;
