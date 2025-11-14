@@ -7,6 +7,8 @@
 
 #include "../trading_management/strategy_structure_context.mqh"
 
+extern bool g_debug_no_money_abort_pending;
+
 SignalParams running_bullish_signals[];
 SignalParams running_bearish_signals[];
 datetime g_last_base_structure_time[2]  = {0, 0};
@@ -16,6 +18,19 @@ const double BANDS_PERCENT_MID_LEVEL   = 50.0;
 const double BANDS_PERCENT_UPPER_LEVEL = 100.0;
 const double BANDS_PERCENT_LOWER_LEVEL = 0.0;
 const int    BANDS_PERCENT_SHIFT_DEPTH = 5;
+
+void DebugForceCloseAllGrids()
+{
+  double point_size = GridResolvePointSize();
+
+  int bullish_total = ArraySize(running_bullish_signals);
+  for(int i = 0; i < bullish_total; i++)
+    GridCloseAllLevels(running_bullish_signals[i], point_size);
+
+  int bearish_total = ArraySize(running_bearish_signals);
+  for(int j = 0; j < bearish_total; j++)
+    GridCloseAllLevels(running_bearish_signals[j], point_size);
+}
 
 bool TrendStructureFiltersRequested()
 {
@@ -320,6 +335,27 @@ bool CanAttemptSignal(const SignalTypes signal_type)
     return false;
   if(!TrendFilterIndicatorsAvailable())
     return false;
+
+  if(Debug_Stop_On_Negative_Equity && MQLInfoInteger(MQL_TESTER) > 0)
+  {
+    if(g_debug_no_money_abort_pending)
+    {
+      g_debug_no_money_abort_pending = false;
+      Print("TesterStop triggered: order send rejected due to insufficient funds while Debug_Stop_On_Negative_Equity is enabled.");
+      DebugForceCloseAllGrids();
+      TesterStop();
+      return false;
+    }
+
+    double equity = AccountInfoDouble(ACCOUNT_EQUITY);
+    if(equity <= 0.0)
+    {
+      Print("TesterStop triggered: equity <= 0 and Debug_Stop_On_Negative_Equity is enabled.");
+      DebugForceCloseAllGrids();
+      TesterStop();
+      return false;
+    }
+  }
 
   bool use_base_indicator  = (Base_Indicator_Percent > 0.0);
   bool require_structure_data = true;
