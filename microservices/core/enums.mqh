@@ -157,6 +157,12 @@ enum GridLotTypes
   GRID_LOT_CALCULATED       = 3
 };
 
+enum DailySignalLimitModes
+{
+  STOP_DAILY_SIGNALS       = 0,
+  STOP_DAILY_SIGNALS_ON_LOSS = 1
+};
+
 enum GridTPReferenceModes
 {
   GRID_TP_REF_CURRENT = 0,
