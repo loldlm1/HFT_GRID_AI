@@ -139,6 +139,7 @@ Enabling any base or trend structure filter automatically loads the required sto
 - `Grid_ATR_Points_Setup`: ATR factor (ATR mode) or absolute points (Points mode).
 - `Grid_Lot_Multiplier`: Lot scaling per level (default 2.0).
 - `Grid_Exponential_Multiplier`: Expands level spacing smoothly (default 1.1). Distance L(n) = base_distance × multiplier^n.
+- ATR grids now clamp the recalculated base distance so that the next pending level can never be closer than the most recently filled spacing, preventing aggressive compression when ATR contracts mid-sequence.
 - `Grid_Initial_Stops_Percent`: Legacy preset input; behaviour now aliases to `Grid_Positions_Stops_Percent`.
 - `Grid_Positions_Stops_Percent`: Percent of the entry→baseline gap applied to protective offsets for every level.
 - `Grid_TP_Percent`: Percent of the entry→next snapshot captured on fill; defines the primary take-profit span.

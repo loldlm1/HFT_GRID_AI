@@ -191,6 +191,35 @@ double GridComputeSequenceDrawdownCurrency(const SignalParams &signal_params,
   return cumulative_amount;
 }
 
+double ResolveAtrMinimumBaseDistance(const SignalParams &signal_params)
+{
+  if(Grid_Base_Strategy_Type != ATR_RANGE)
+    return 0.0;
+
+  int existing_levels = ArraySize(signal_params.grid_orders);
+  if(existing_levels <= 0)
+    return 0.0;
+
+  double stored_base = signal_params.grid_base_distance_points;
+  if(stored_base <= 0.0)
+    return 0.0;
+
+  double previous_distance = ComputeLevelDistancePoints(signal_params, existing_levels - 1);
+  if(previous_distance <= 0.0)
+    return 0.0;
+
+  double multiplier = Grid_Exponential_Multiplier;
+  if(multiplier <= 0.0)
+    multiplier = 1.0;
+
+  double pow_factor = MathPow(multiplier, (double)existing_levels);
+  if(pow_factor <= 0.0)
+    pow_factor = 1.0;
+
+  double min_base = previous_distance / pow_factor;
+  return EnforceBrokerDistance(g_symbol_constraints, min_base);
+}
+
 double ResolveGridOrderLotSize(SignalParams &signal_params,
                                const int level_index)
 {
@@ -326,6 +355,7 @@ bool BuildGridSignalPoints(SignalParams &signal_params)
 {
   double base_distance_points = 0.0;
   double entry_reference_price = 0.0;
+  double min_base_distance_from_trailing = ResolveAtrMinimumBaseDistance(signal_params);
 
   if(!CalculateBaseGridContext(signal_params,
                                Strategy_Timeframe,
@@ -334,6 +364,12 @@ bool BuildGridSignalPoints(SignalParams &signal_params)
   {
     Print("Grid plan aborted: base distance not available.");
     return false;
+  }
+
+  if(min_base_distance_from_trailing > 0.0 && base_distance_points < min_base_distance_from_trailing)
+  {
+    base_distance_points = min_base_distance_from_trailing;
+    base_distance_points = EnforceBrokerDistance(g_symbol_constraints, base_distance_points);
   }
 
   double base_lot = signal_params.lot_size;
