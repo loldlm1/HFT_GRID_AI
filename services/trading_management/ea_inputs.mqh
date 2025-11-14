@@ -59,6 +59,7 @@ input SlopeTypes                  Trend_Slope_Filter                 = NO_SLOPE;
 input group  "+= Grid Strategy Settings =+";
 input GridBaseStrategyTypes Grid_Base_Strategy_Type      = ATR_RANGE;
 input double                Grid_ATR_Points_Setup        = 1.0;
+input double                Grid_Points_TP               = 0.0;
 input double                Grid_Exponential_Multiplier  = 1.0;
 input double                Grid_Positions_Stops_Percent = 10.0;
 input double                Grid_Final_TP_Percent        = 200.0;

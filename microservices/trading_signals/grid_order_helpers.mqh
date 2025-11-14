@@ -195,7 +195,11 @@ double GetGridTakeProfitPrice(SignalTypes direction, SignalParams &signal_params
   double grid_take_profit_price       = grid_order_state.take_profit_price;
   // Per-level TP span based on exponential distance
   double level_distance_pts           = ComputeLevelDistancePoints(signal_params, grid_order_state.level_index);
-  double tp_span_pts                  = level_distance_pts * (Grid_TP_Percent / 100.0);
+  double tp_span_pts;
+  if(Grid_Points_TP > 0.0)
+    tp_span_pts = EnforceBrokerDistance(g_symbol_constraints, Grid_Points_TP);
+  else
+    tp_span_pts = level_distance_pts * (Grid_TP_Percent / 100.0);
 
   if(direction == BULLISH)
   {
