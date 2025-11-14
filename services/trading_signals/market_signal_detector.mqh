@@ -5,14 +5,26 @@
 #ifndef _SERVICES_TRADING_SIGNALS_MARKET_SIGNAL_CRAWLER_MQH_
 #define _SERVICES_TRADING_SIGNALS_MARKET_SIGNAL_CRAWLER_MQH_
 
-#include "../trading_management/strategy_structure_context.mqh"
-
-extern bool g_debug_no_money_abort_pending;
-
 SignalParams running_bullish_signals[];
 SignalParams running_bearish_signals[];
 datetime g_last_base_structure_time[2]  = {0, 0};
 datetime g_last_trend_structure_time[2] = {0, 0};
+
+struct DailySignalStats
+{
+  datetime day_start;
+  int total_signals;
+  int losing_signals;
+
+  DailySignalStats()
+  {
+    day_start      = 0;
+    total_signals  = 0;
+    losing_signals = 0;
+  }
+};
+
+DailySignalStats g_daily_signal_stats[2];
 
 const double BANDS_PERCENT_MID_LEVEL   = 50.0;
 const double BANDS_PERCENT_UPPER_LEVEL = 100.0;
@@ -30,6 +42,68 @@ void DebugForceCloseAllGrids()
   int bearish_total = ArraySize(running_bearish_signals);
   for(int j = 0; j < bearish_total; j++)
     GridCloseAllLevels(running_bearish_signals[j], point_size);
+}
+
+datetime ResolveCurrentDayStart()
+{
+  datetime day = iTime(_Symbol, PERIOD_D1, 0);
+  if(day <= 0)
+  {
+    datetime now = TimeCurrent();
+    day = (datetime)((long)now - ((long)now % 86400));
+  }
+  return day;
+}
+
+void DailySignalStatsEnsureDay(const SignalTypes direction)
+{
+  int idx = DirectionIndex(direction);
+  datetime day = ResolveCurrentDayStart();
+  if(g_daily_signal_stats[idx].day_start != day)
+  {
+    g_daily_signal_stats[idx].day_start      = day;
+    g_daily_signal_stats[idx].total_signals  = 0;
+    g_daily_signal_stats[idx].losing_signals = 0;
+  }
+}
+
+bool DailySignalLimitAllowsAttempt(const SignalTypes direction)
+{
+  if(Daily_Signal_Limit <= 0)
+    return true;
+
+  DailySignalStatsEnsureDay(direction);
+  DailySignalStats stats = g_daily_signal_stats[DirectionIndex(direction)];
+
+  if(Daily_Signal_Limit_Mode == STOP_DAILY_SIGNALS_ON_LOSS)
+    return stats.losing_signals < Daily_Signal_Limit;
+
+  return stats.total_signals < Daily_Signal_Limit;
+}
+
+void RegisterDailySignalStart(const SignalParams &signal_params)
+{
+  if(Daily_Signal_Limit <= 0)
+    return;
+
+  DailySignalStatsEnsureDay(signal_params.signal_type);
+
+  if(Daily_Signal_Limit_Mode == STOP_DAILY_SIGNALS)
+    g_daily_signal_stats[DirectionIndex(signal_params.signal_type)].total_signals++;
+}
+
+void RegisterDailySignalOutcome(const SignalTypes direction,
+                                const double raw_profit)
+{
+  if(Daily_Signal_Limit <= 0)
+    return;
+
+  if(Daily_Signal_Limit_Mode != STOP_DAILY_SIGNALS_ON_LOSS)
+    return;
+
+  DailySignalStatsEnsureDay(direction);
+  if(raw_profit < 0.0)
+    g_daily_signal_stats[DirectionIndex(direction)].losing_signals++;
 }
 
 bool TrendStructureFiltersRequested()
@@ -116,6 +190,7 @@ void DetectBullishSignal()
   // ADD THE BULLISH SIGNAL TO THE ARRAY
   AddElementToArray(running_bullish_signals, signal_bullish);
   RegisterFreshStructureUsage(signal_bullish);
+  RegisterDailySignalStart(signal_bullish);
 }
 
 void DetectBearishSignal()
@@ -163,6 +238,7 @@ void DetectBearishSignal()
   // ADD THE BEARISH SIGNAL TO THE ARRAY
   AddElementToArray(running_bearish_signals, signal_bearish);
   RegisterFreshStructureUsage(signal_bearish);
+  RegisterDailySignalStart(signal_bearish);
 }
 
 // ++ CLOSE THE SIGNALS ++
@@ -355,6 +431,13 @@ bool CanAttemptSignal(const SignalTypes signal_type)
       TesterStop();
       return false;
     }
+  }
+
+  if(!DailySignalLimitAllowsAttempt(signal_type))
+  {
+    if(Enable_Logs)
+      Print("Daily signal limit reached for direction: ", EnumToString(signal_type));
+    return false;
   }
 
   bool use_base_indicator  = (Base_Indicator_Percent > 0.0);

@@ -42,6 +42,10 @@ This document summarizes the current architecture, workflows, and guardrails for
    - `Enable_Trend_Filter_Sanity_Stop`: `TesterStop()` when trend inputs are disabled while being stepped in Strategy Tester.  
    - `Debug_Stop_On_Negative_Euity`: Force-closes every grid then `TesterStop()` when equity ≤ 0 **or** the broker rejects an order with “no money”.
 
+### 2.4 Grid Risk Controls
+- `Grid_Level_Stop_Limit`: Maximum number of grid levels (including level 0). When the next averaging step would exceed this limit, the EA force-closes the entire sequence instead of adding more exposure. `0` keeps the legacy unlimited behaviour.
+- `Daily_Signal_Limit` + `Daily_Signal_Limit_Mode`: Daily budget per direction. `STOP_DAILY_SIGNALS` limits total grids started; `STOP_DAILY_SIGNALS_ON_LOSS` only counts losing grids (winners do not consume the quota). Counters reset automatically on the next D1 candle.
+
 ---
 
 ## 3. Workflow Snapshot

@@ -55,8 +55,20 @@ void UpdateGridLifecycle(SignalParams &signal_params)
     }
     if(GridShouldActivateNextLevelLimit(signal_params, grid_order, direction, point_size))
     {
-      BuildGridOrderForSignal(signal_params);
-      GridLogEvent("NEXT_LEVEL_ACTIVATED", signal_params, grid_order);
+      int current_levels = ArraySize(signal_params.grid_orders);
+      bool level_limit_hit = (Grid_Level_Stop_Limit > 0 &&
+                              current_levels >= Grid_Level_Stop_Limit);
+
+      if(level_limit_hit)
+      {
+        GridCloseAllLevels(signal_params, point_size);
+        GridLogEvent("GRID_STOP_LEVEL_LIMIT", signal_params, grid_order);
+      }
+      else
+      {
+        BuildGridOrderForSignal(signal_params);
+        GridLogEvent("NEXT_LEVEL_ACTIVATED", signal_params, grid_order);
+      }
     }
   }
 

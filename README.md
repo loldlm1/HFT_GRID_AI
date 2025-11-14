@@ -46,7 +46,7 @@ The include cascade rooted in `HFT_Grid_AI.mq5` guarantees ordering; individual 
    - `Trend_Indicator_Percent`, `Trend_Slope_Filter`, plus mirrored structure/fresh controls.
 
 4. **Admission Flow**
-   1. `CanAttemptSignal()` checks protection risk, market status, indicator availability, fresh-structure state (equity <= 0 or insufficient funds -> force-close + `TesterStop()` when `Debug_Stop_On_Negative_Equity` is true).
+   1. `CanAttemptSignal()` checks protection risk, market status, indicator availability, fresh-structure state (equity <= 0 or insufficient funds -> force-close + `TesterStop()` when `Debug_Stop_On_Negative_Equity` is true), and optional daily signal budgets (either cap total attempts or halt only after `Daily_Signal_Limit` losses).
    2. `LoadTrendStructureData()` seeds trend snapshots when required.
    3. `EvaluateSignalTrigger()` enforces breakout, slope, structure filters (base + trend), and captures the structure timestamps that gate future trades.
    4. Approved signals call `BuildGridOrderForSignal()`, seeding level 0 and pushing telemetry.
@@ -100,7 +100,7 @@ The include cascade rooted in `HFT_Grid_AI.mq5` guarantees ordering; individual 
 | **Strategy Base Context** | Percent, slope, structure filters, retest selectors, fresh-structure toggle. |
 | **Strategy Trend Context** | Mirrors base context plus trend mode toggles. |
 | **Grid Strategy** | `Grid_Base_Strategy_Type`, ATR/point setup, exponential multiplier, TP/stop percentages, ATR clamp is automatic. |
-| **Grid Risk** | `Grid_Lot_Type`, `Grid_Lot_Strategy_Size`, `Grid_Lot_Multiplier` (martingale/ladder). |
+| **Grid Risk** | `Grid_Lot_Type`, `Grid_Lot_Strategy_Size`, `Grid_Lot_Multiplier` (martingale/ladder), `Grid_Level_Stop_Limit` (max depth before force-close), `Daily_Signal_Limit` + mode (caps total or losing grids per day). |
 | **Developer Debug** | Logging toggles, chart options, `Enable_Trend_Filter_Sanity_Stop`, `Debug_Stop_On_Negative_Euity`. |
 
 Refer to `services/trading_management/ea_inputs.mqh` for defaults and descriptions.
