@@ -6,6 +6,8 @@
 // grid_price_resolver is provided via the trading_signals include cascade
 #include "grid_order_helpers.mqh"
 
+bool g_debug_no_money_abort_pending = false;
+
 ulong ResolvePositionTicketFromDeal(const ulong deal_ticket)
 {
   if(deal_ticket <= 0)
@@ -131,6 +133,11 @@ bool GridExecuteLevelTrade(SignalParams &signal_params,
   {
     ulong retcode = g_position.ResultRetcode();
     int last_error = GetLastError();
+    if(Debug_Stop_On_Negative_Equity)
+    {
+      if(retcode == TRADE_RETCODE_NO_MONEY)
+        g_debug_no_money_abort_pending = true;
+    }
     MarketStatusRegisterBrokerFailure("ORDER_SEND_FAILED", retcode, last_error, false);
     return false;
   }

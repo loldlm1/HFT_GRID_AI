@@ -107,6 +107,7 @@ The **HFT Grid AI EA** is a specialized Expert Advisor designed to execute high 
 
 ### Developer Debug Settings
 - `Enable_Trend_Filter_Sanity_Stop`: Tester-only helper. When true, the EA immediately calls `TesterStop()` if a trend or trend-structure filter is disabled while its timeframe input is being stepped, preventing wasted optimization passes. Leave false for normal runs so off/on configurations can coexist in one sweep.
+- `Debug_Stop_On_Negative_Equity`: Tester helper. When enabled, the EA stops the Strategy Tester as soon as equity drops to/below zero **or** the broker rejects a grid order with an “insufficient funds” retcode; all grids are force-closed first so the final report captures only realised trades.
 
 ### Protection Risk Management
 - `Protection_Risk_Mode`: Master toggle for the drawdown filter.
