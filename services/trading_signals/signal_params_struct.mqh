@@ -60,6 +60,7 @@ struct SignalParams
   datetime                  entry_time;
   datetime                  close_time;
   BandsPercentStructure     bands_percent_data[];
+  AlligatorStructure        alligator_data[];
   StochasticStructure       stochastic_data[];
   StochasticMarketStructure stoch_market_structure_data[];
   BodyMAStructure           body_ma_data[];
@@ -76,8 +77,10 @@ struct SignalParams
   datetime trend_structure_snapshot_time;
 
   bool                      trend_bpercent_valid;
+  bool                      trend_alligator_valid;
   bool                      trend_structure_valid;
   BandsPercentStructure     trend_bpercent_data;
+  AlligatorStructure        trend_alligator_data;
   StrategyTrendModes        trend_filter_mode;
   StochasticMarketStructure trend_structure_data;
 
@@ -108,6 +111,7 @@ struct SignalParams
     trend_structure_snapshot_time = 0;
     trend_filter_mode          = TREND_OFF;
     trend_bpercent_valid       = false;
+    trend_alligator_valid      = false;
     trend_structure_valid      = false;
   }
 
@@ -129,6 +133,11 @@ struct SignalParams
     ArrayResize(bands_percent_data, bands_total);
     for(int i = 0; i < bands_total; i++)
       bands_percent_data[i] = signal_params.bands_percent_data[i];
+
+    int alligator_total = ArraySize(signal_params.alligator_data);
+    ArrayResize(alligator_data, alligator_total);
+    for(int j = 0; j < alligator_total; j++)
+      alligator_data[j] = signal_params.alligator_data[j];
 
     int stoch_total = ArraySize(signal_params.stochastic_data);
     ArrayResize(stochastic_data, stoch_total);
@@ -157,7 +166,9 @@ struct SignalParams
     trend_structure_snapshot_time = signal_params.trend_structure_snapshot_time;
     trend_filter_mode           = signal_params.trend_filter_mode;
     trend_bpercent_valid        = signal_params.trend_bpercent_valid;
+    trend_alligator_valid       = signal_params.trend_alligator_valid;
     trend_bpercent_data         = signal_params.trend_bpercent_data;
+    trend_alligator_data        = signal_params.trend_alligator_data;
     trend_structure_valid       = signal_params.trend_structure_valid;
     trend_structure_data        = signal_params.trend_structure_data;
 

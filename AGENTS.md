@@ -21,8 +21,8 @@ This document summarizes the current architecture, workflows, and guardrails for
 ### 2.1 Fractal Strategy Contexts
 | Context | Purpose | Inputs |
 | --- | --- | --- |
-| Base | Executes on `Strategy_Timeframe`. Owns `Base_Indicator_Percent`, slope filter, structure filters, Fibonacci retest enums, `Base_Fresh_Structure_Time`. | `services/trading_management/ea_inputs.mqh` |
-| Trend | Optional higher timeframe. Set `Trend_Strategy_Timeframe = PERIOD_CURRENT` to disable. `Strategy_Trend_Mode` controls Bollinger confirmation; slope/structure/fresh guards mirror the base context. | Same |
+| Base | Executes on `Strategy_Timeframe`. `Strategy_Base_Mode` selects Bollinger Percent, Alligator, or `TREND_BOTH` (requires both); `Base_Indicator_Percent`/`Base_Slope_Filter` govern the Bollinger branch, while `Base_Alligator_Jaws_Period`/`Base_Alligator_Lips_Period` (teeth reuse `Base_Indicator_Period_Type`) drive the Alligator branch. Structure filters, Fibonacci retests, and `Base_Fresh_Structure_Time` still gate swings. | `services/trading_management/ea_inputs.mqh` |
+| Trend | Optional higher timeframe. Set `Trend_Strategy_Timeframe = PERIOD_CURRENT` to disable. `Strategy_Trend_Mode` selects `TREND_BPERCENT`, `TREND_ALLIGATOR`, or `TREND_BOTH`; Alligator inputs mirror the base branch and slope/structure/fresh guards mirror the base context. | Same |
 
 `EvaluateSignalTrigger()` merges both contexts: Bollinger breakout, slope requirement, structure retests, and the “fresh structure” timestamp guard so each swing is traded once per direction.
 

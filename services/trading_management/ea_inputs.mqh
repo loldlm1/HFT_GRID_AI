@@ -34,6 +34,7 @@ input BaseIndicatorPeriodTypes  Base_Indicator_Period_Type  = BASE_PERIOD_21;
 input ENUM_MA_METHOD            Base_Indicator_MA_Method    = MODE_EMA;
 input SolidIndicatorPeriodTypes Solid_Indicator_Period_Type = SOLID_PERIOD_5;
 input StrategyDirectionTypes    Strategy_Direction_Mode     = BOTH_DIRECTION;
+input StrategyTrendModes        Strategy_Base_Mode          = TREND_BPERCENT;
 
 input group "+= Strategy Base Context =+";
 input double                      Base_Indicator_Percent            = 50.0;
@@ -44,6 +45,8 @@ input ResistanceRetestFilterModes Base_Resistance_Filter            = RESISTANCE
 input int                         Base_Min_Extern_Structures_Broken = 0;
 input bool                        Base_Fresh_Structure_Time         = false;
 input SlopeTypes                  Base_Slope_Filter                 = NO_SLOPE;
+input int                         Base_Alligator_Jaws_Period        = 200;
+input int                         Base_Alligator_Lips_Period        = 5;
 
 input group "+= Strategy Trend Context =+";
 input StrategyTrendModes          Strategy_Trend_Mode                = TREND_OFF;
@@ -55,6 +58,8 @@ input ResistanceRetestFilterModes Trend_Resistance_Filter            = RESISTANC
 input int                         Trend_Min_Extern_Structures_Broken = 0;
 input bool                        Trend_Fresh_Structure_Time         = false;
 input SlopeTypes                  Trend_Slope_Filter                 = NO_SLOPE;
+input int                         Trend_Alligator_Jaws_Period        = 200;
+input int                         Trend_Alligator_Lips_Period        = 5;
 
 input group  "+= Grid Strategy Settings =+";
 input GridBaseStrategyTypes Grid_Base_Strategy_Type      = ATR_RANGE;

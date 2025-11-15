@@ -6,6 +6,7 @@
 
 // INDICATOR MICROSERVICES
 #include "../microservices/indicators/bands_percent_indicator.mqh"
+#include "../microservices/indicators/alligator_indicator.mqh"
 #include "../microservices/indicators/stochastic_indicator.mqh"
 #include "../microservices/indicators/stochastic_market_indicator.mqh"
 #include "../microservices/indicators/body_ma_indicator.mqh"
