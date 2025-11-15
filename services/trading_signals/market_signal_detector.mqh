@@ -916,27 +916,6 @@ bool ValidateRetestRequirements(const ExtremumStatistics &latest_stats,
   return true;
 }
 
-bool EvaluateSolidIndicatorTrigger(const SignalParams &signal_params, const SignalTypes signal_type)
-{
-  int total_structures = ArraySize(signal_params.stoch_market_structure_data);
-  if(total_structures <= 0)
-    return false;
-
-  StochasticMarketStructure structure       = signal_params.stoch_market_structure_data[0];
-  OscillatorMarketStructure latest_extremum = structure.os_market_structures[0];
-
-  if(signal_type == BULLISH)
-  {
-    return !latest_extremum.is_peak;
-  }
-  if(signal_type == BEARISH)
-  {
-    return latest_extremum.is_peak;
-  }
-
-  return false;
-}
-
 bool EvaluateStructureRetestTrigger(const SignalParams &signal_params,
                                     const SignalTypes signal_type,
                                     const StrategyStructureLayerContext &ctx)
@@ -963,7 +942,9 @@ bool EvaluateStructureRetestTrigger(const SignalParams &signal_params,
 }
 
 bool TrendStructureFilterMatches(const TrendStructureFilterModes filter_mode,
-                                 const OscillatorStructureTypes structure_type)
+                                 const OscillatorStructureTypes structure_type,
+                                 const SignalTypes signal_type,
+                                 const OscillatorMarketStructure &latest_extremum)
 {
   if(filter_mode == BULLISH_STRUCT_OFF || filter_mode == BEARISH_STRUCT_OFF)
     return true;
@@ -971,31 +952,70 @@ bool TrendStructureFilterMatches(const TrendStructureFilterModes filter_mode,
   if(filter_mode == BULLISH_STRUCT_OFF_FINAL || filter_mode == BEARISH_STRUCT_OFF_FINAL)
     return true;
 
-  if(structure_type == OSCILLATOR_STRUCTURE_EQ)
+  if(signal_type == BULLISH && !latest_extremum.is_peak && structure_type == OSCILLATOR_STRUCTURE_EQ)
+    return true;
+  if(signal_type == BEARISH && latest_extremum.is_peak  && structure_type == OSCILLATOR_STRUCTURE_EQ)
     return true;
 
+  bool struct_match = true;
   switch(filter_mode)
   {
     case BULLISH_STRUCT_LL:
-      return (structure_type == OSCILLATOR_STRUCTURE_LL);
+      struct_match = (structure_type == OSCILLATOR_STRUCTURE_LL);
+      break;
     case BULLISH_STRUCT_LH:
-      return (structure_type == OSCILLATOR_STRUCTURE_LH);
+      struct_match = (structure_type == OSCILLATOR_STRUCTURE_LH);
+      break;
     case BULLISH_STRUCT_LL_LH:
-      return (structure_type == OSCILLATOR_STRUCTURE_LL ||
-              structure_type == OSCILLATOR_STRUCTURE_LH);
+      struct_match = (structure_type == OSCILLATOR_STRUCTURE_LL ||
+                      structure_type == OSCILLATOR_STRUCTURE_LH);
+      break;
     case BEARISH_STRUCT_HH:
-      return (structure_type == OSCILLATOR_STRUCTURE_HH);
+      struct_match = (structure_type == OSCILLATOR_STRUCTURE_HH);
+      break;
     case BEARISH_STRUCT_HL:
-      return (structure_type == OSCILLATOR_STRUCTURE_HL);
+      struct_match = (structure_type == OSCILLATOR_STRUCTURE_HL);
+      break;
     case BEARISH_STRUCT_HH_HL:
-      return (structure_type == OSCILLATOR_STRUCTURE_HH ||
-              structure_type == OSCILLATOR_STRUCTURE_HL);
+      struct_match = (structure_type == OSCILLATOR_STRUCTURE_HH ||
+                      structure_type == OSCILLATOR_STRUCTURE_HL);
+      break;
+    default:
+      struct_match = true;
+      break;
   }
+
+  if(!struct_match)
+    return false;
+
+  bool filter_is_bullish =
+    (filter_mode == BULLISH_STRUCT_LL) ||
+    (filter_mode == BULLISH_STRUCT_LH) ||
+    (filter_mode == BULLISH_STRUCT_LL_LH);
+
+  bool filter_is_bearish =
+    (filter_mode == BEARISH_STRUCT_HH) ||
+    (filter_mode == BEARISH_STRUCT_HL) ||
+    (filter_mode == BEARISH_STRUCT_HH_HL);
+
+  if(filter_is_bullish && signal_type == BULLISH)
+  {
+    if(latest_extremum.is_peak)
+      return false;
+  }
+
+  if(filter_is_bearish && signal_type == BEARISH)
+  {
+    if(!latest_extremum.is_peak)
+      return false;
+  }
+
   return true;
 }
 
 bool EvaluateStructureTypeFilters(const SignalParams &signal_params,
-                                  const StrategyStructureLayerContext &ctx)
+                                  const StrategyStructureLayerContext &ctx,
+                                  const SignalTypes signal_type)
 {
   if(!StructureTypeFiltersRequested(ctx))
     return true;
@@ -1004,10 +1024,19 @@ bool EvaluateStructureTypeFilters(const SignalParams &signal_params,
   if(!FetchStructureForFilters(signal_params, structure, ctx))
     return false;
 
+  OscillatorMarketStructure latest_extremum;
+  if(ArraySize(structure.os_market_structures) <= 0)
+    return false;
+  latest_extremum = structure.os_market_structures[0];
+
   bool first_pass  = TrendStructureFilterMatches(ctx.first_structure_filter,
-                                                 structure.first_structure_type);
+                                                 structure.first_structure_type,
+                                                 signal_type,
+                                                 latest_extremum);
   bool second_pass = TrendStructureFilterMatches(ctx.second_structure_filter,
-                                                 structure.second_structure_type);
+                                                 structure.second_structure_type,
+                                                 signal_type,
+                                                 latest_extremum);
 
   return first_pass && second_pass;
 }
@@ -1037,21 +1066,19 @@ bool EvaluateSignalTrigger(SignalParams &signal_params, const SignalTypes signal
   bool base_trigger             = EvaluateBaseIndicatorTrigger(signal_params,
                                                                signal_type,
                                                                Base_Indicator_Percent);
-  bool solid_trigger            = EvaluateSolidIndicatorTrigger(signal_params, signal_type);
   bool base_structure_filters   = EvaluateStructureRetestTrigger(signal_params,
                                                                  signal_type,
                                                                  base_ctx);
   bool trend_structure_filters  = EvaluateStructureRetestTrigger(signal_params,
                                                                  signal_type,
                                                                  trend_ctx);
-  bool base_structure_types     = EvaluateStructureTypeFilters(signal_params, base_ctx);
-  bool trend_structure_types    = EvaluateStructureTypeFilters(signal_params, trend_ctx);
+  bool base_structure_types     = EvaluateStructureTypeFilters(signal_params, base_ctx, signal_type);
+  bool trend_structure_types    = EvaluateStructureTypeFilters(signal_params, trend_ctx, signal_type);
 
   signal_params.base_structure_snapshot_time  = base_fresh_time;
   signal_params.trend_structure_snapshot_time = trend_fresh_time;
 
   return base_trigger &&
-         solid_trigger &&
          base_structure_filters &&
          trend_structure_filters &&
          base_structure_types &&
