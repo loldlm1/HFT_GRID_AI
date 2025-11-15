@@ -43,7 +43,7 @@ The include cascade rooted in `HFT_Grid_AI.mq5` guarantees ordering; individual 
 
 3. **Trend Context Inputs**
    - `Strategy_Trend_Mode` now supports `TREND_BPERCENT`, `TREND_ALLIGATOR`, or `TREND_BOTH` (requires both filters to agree before admitting a grid).
-   - `Trend_Indicator_Percent`, `Trend_Slope_Filter`, mirrored structure/fresh controls, plus `Trend_Alligator_Jaws_Period`/`Trend_Alligator_Lips_Period` (teeth reuse `Base_Indicator_Period_Type`) configure the active trend filter.
+   - `Trend_Indicator_Percent`, slope toggles for each indicator (`Trend_BPercent_Slope_Filter`, `Trend_Stochastic_Slope_Filter`, `Trend_Alligator_Slope_Filter`), mirrored structure/fresh controls, plus `Trend_Alligator_Jaws_Period`/`Trend_Alligator_Lips_Period` (teeth reuse `Base_Indicator_Period_Type`) configure the active trend filter.
 
 4. **Admission Flow**
    1. `CanAttemptSignal()` checks protection risk, market status, indicator availability, fresh-structure state (equity <= 0 or insufficient funds -> force-close + `TesterStop()` when `Debug_Stop_On_Negative_Equity` is true), and optional daily signal budgets (either cap total attempts or halt only after `Daily_Signal_Limit` losses).

@@ -57,9 +57,11 @@ input SupportRetestFilterModes    Trend_Support_Filter               = SUPPORT_D
 input ResistanceRetestFilterModes Trend_Resistance_Filter            = RESISTANCE_DISABLED;
 input int                         Trend_Min_Extern_Structures_Broken = 0;
 input bool                        Trend_Fresh_Structure_Time         = false;
-input SlopeTypes                  Trend_Slope_Filter                 = NO_SLOPE;
 input int                         Trend_Alligator_Jaws_Period        = 200;
 input int                         Trend_Alligator_Lips_Period        = 5;
+input bool                        Trend_BPercent_Slope_Filter        = false;
+input bool                        Trend_Stochastic_Slope_Filter      = false;
+input bool                        Trend_Alligator_Slope_Filter       = false;
 
 input group  "+= Grid Strategy Settings =+";
 input GridBaseStrategyTypes Grid_Base_Strategy_Type      = ATR_RANGE;

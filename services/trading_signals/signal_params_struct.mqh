@@ -78,9 +78,11 @@ struct SignalParams
 
   bool                      trend_bpercent_valid;
   bool                      trend_alligator_valid;
+  bool                      trend_stochastic_valid;
   bool                      trend_structure_valid;
   BandsPercentStructure     trend_bpercent_data;
   AlligatorStructure        trend_alligator_data;
+  StochasticStructure       trend_stochastic_data;
   StrategyTrendModes        trend_filter_mode;
   StochasticMarketStructure trend_structure_data;
 
@@ -112,6 +114,7 @@ struct SignalParams
     trend_filter_mode          = TREND_OFF;
     trend_bpercent_valid       = false;
     trend_alligator_valid      = false;
+    trend_stochastic_valid     = false;
     trend_structure_valid      = false;
   }
 
@@ -169,6 +172,8 @@ struct SignalParams
     trend_alligator_valid       = signal_params.trend_alligator_valid;
     trend_bpercent_data         = signal_params.trend_bpercent_data;
     trend_alligator_data        = signal_params.trend_alligator_data;
+    trend_stochastic_data       = signal_params.trend_stochastic_data;
+    trend_stochastic_valid      = signal_params.trend_stochastic_valid;
     trend_structure_valid       = signal_params.trend_structure_valid;
     trend_structure_data        = signal_params.trend_structure_data;
 

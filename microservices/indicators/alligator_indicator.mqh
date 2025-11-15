@@ -13,6 +13,9 @@ struct AlligatorStructure
   double          jaws_value;
   double          teeth_value;
   double          lips_value;
+  double          jaws_prev_value;
+  double          teeth_prev_value;
+  double          lips_prev_value;
 
   AlligatorStructure()
   {
@@ -23,6 +26,9 @@ struct AlligatorStructure
     jaws_value          = 0.0;
     teeth_value         = 0.0;
     lips_value          = 0.0;
+    jaws_prev_value     = 0.0;
+    teeth_prev_value    = 0.0;
+    lips_prev_value     = 0.0;
   }
 
   AlligatorStructure(const AlligatorStructure &other)
@@ -34,6 +40,9 @@ struct AlligatorStructure
     jaws_value          = other.jaws_value;
     teeth_value         = other.teeth_value;
     lips_value          = other.lips_value;
+    jaws_prev_value     = other.jaws_prev_value;
+    teeth_prev_value    = other.teeth_prev_value;
+    lips_prev_value     = other.lips_prev_value;
   }
 
   bool InitAlligatorStructureValues(IndicatorsHandleInfo &alligator_handle,
@@ -49,9 +58,15 @@ struct AlligatorStructure
 
     if(!ReadAlligatorBuffer(alligator_handle, 0, index, jaws_value))
       return false;
+    if(!ReadAlligatorBuffer(alligator_handle, 0, index+1, jaws_prev_value))
+      return false;
     if(!ReadAlligatorBuffer(alligator_handle, 1, index, teeth_value))
       return false;
+    if(!ReadAlligatorBuffer(alligator_handle, 1, index+1, teeth_prev_value))
+      return false;
     if(!ReadAlligatorBuffer(alligator_handle, 2, index, lips_value))
+      return false;
+    if(!ReadAlligatorBuffer(alligator_handle, 2, index+1, lips_prev_value))
       return false;
     return true;
   }

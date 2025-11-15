@@ -370,14 +370,21 @@ bool LoadTrendFilterData(SignalParams &signal_params)
     signal_params.trend_filter_mode    = TREND_OFF;
     signal_params.trend_bpercent_valid = false;
     signal_params.trend_alligator_valid = false;
+    signal_params.trend_stochastic_valid = false;
     return true;
   }
 
   signal_params.trend_filter_mode    = Strategy_Trend_Mode;
   signal_params.trend_bpercent_valid = false;
   signal_params.trend_alligator_valid = false;
+  signal_params.trend_stochastic_valid = false;
 
-  if(Strategy_Trend_Mode == TREND_BPERCENT)
+  bool require_bpercent   = (Strategy_Trend_Mode == TREND_BPERCENT || Strategy_Trend_Mode == TREND_BOTH);
+  bool require_alligator  = (Strategy_Trend_Mode == TREND_ALLIGATOR || Strategy_Trend_Mode == TREND_BOTH);
+  bool slope_bpercent     = Trend_BPercent_Slope_Filter;
+  bool slope_alligator    = Trend_Alligator_Slope_Filter;
+
+  if(require_bpercent || slope_bpercent)
   {
     if(TrendBPercentIndicatorHandle.indicator_handle == INVALID_HANDLE)
     {
@@ -389,10 +396,9 @@ bool LoadTrendFilterData(SignalParams &signal_params)
     signal_params.trend_bpercent_data = BandsPercentStructure();
     signal_params.trend_bpercent_data.InitBandsPercentStructureValues(TrendBPercentIndicatorHandle, 0);
     signal_params.trend_bpercent_valid = true;
-    return true;
   }
 
-  if(Strategy_Trend_Mode == TREND_ALLIGATOR)
+  if(require_alligator || slope_alligator)
   {
     if(TrendAlligatorIndicatorHandle.indicator_handle == INVALID_HANDLE)
     {
@@ -417,59 +423,22 @@ bool LoadTrendFilterData(SignalParams &signal_params)
       return false;
     }
     signal_params.trend_alligator_valid = true;
-    return true;
   }
 
-  if(Strategy_Trend_Mode == TREND_BOTH)
+  if(Trend_Stochastic_Slope_Filter)
   {
-    bool success = true;
-
-    if(TrendBPercentIndicatorHandle.indicator_handle == INVALID_HANDLE)
+    if(TrendStochIndicatorHandle.indicator_handle == INVALID_HANDLE)
     {
       if(Enable_Logs)
-        Print("Trend Bollinger Percent indicator unavailable.");
-      success = false;
+        Print("Trend stochastic indicator unavailable.");
+      return false;
     }
-    else
-    {
-      signal_params.trend_bpercent_data = BandsPercentStructure();
-      signal_params.trend_bpercent_data.InitBandsPercentStructureValues(TrendBPercentIndicatorHandle, 0);
-      signal_params.trend_bpercent_valid = true;
-    }
-
-    if(TrendAlligatorIndicatorHandle.indicator_handle == INVALID_HANDLE)
-    {
-      if(Enable_Logs)
-        Print("Trend Alligator indicator unavailable.");
-      success = false;
-    }
-    else
-    {
-      int jaws_period  = MathMax(Trend_Alligator_Jaws_Period, 1);
-      int teeth_period = MathMax((int)Base_Indicator_Period_Type, 1);
-      int lips_period  = MathMax(Trend_Alligator_Lips_Period, 1);
-
-      signal_params.trend_alligator_data = AlligatorStructure();
-      if(!signal_params.trend_alligator_data.InitAlligatorStructureValues(TrendAlligatorIndicatorHandle,
-                                                                          0,
-                                                                          jaws_period,
-                                                                          teeth_period,
-                                                                          lips_period))
-      {
-        if(Enable_Logs)
-          Print("Trend Alligator data initialization failed.");
-        success = false;
-      }
-      else
-      {
-        signal_params.trend_alligator_valid = true;
-      }
-    }
-
-    return success;
+    signal_params.trend_stochastic_data = StochasticStructure();
+    signal_params.trend_stochastic_data.InitStochasticStructureValues(TrendStochIndicatorHandle, 0);
+    signal_params.trend_stochastic_valid = true;
   }
 
-  return false;
+  return true;
 }
 
 bool TrendFilterAllowsSignal(const SignalParams &signal_params,
@@ -477,27 +446,29 @@ bool TrendFilterAllowsSignal(const SignalParams &signal_params,
 {
   if(!TrendContextEnabled() || signal_params.trend_filter_mode == TREND_OFF)
     return true;
+  bool filter_ok = true;
+
   if(signal_params.trend_filter_mode == TREND_BPERCENT)
   {
     if(Trend_Indicator_Percent < 0.0)
-      return true;
-    if(!signal_params.trend_bpercent_valid)
-      return false;
-
-    return EvaluateBandsPercentTrigger(signal_params.trend_bpercent_data,
-                                       direction,
-                                       Trend_Indicator_Percent,
-                                       Trend_Slope_Filter);
+      filter_ok = true;
+    else
+    {
+      if(!signal_params.trend_bpercent_valid)
+        return false;
+      filter_ok = EvaluateBandsPercentTrigger(signal_params.trend_bpercent_data,
+                                              direction,
+                                              Trend_Indicator_Percent,
+                                              NO_SLOPE);
+    }
   }
-
-  if(signal_params.trend_filter_mode == TREND_ALLIGATOR)
+  else if(signal_params.trend_filter_mode == TREND_ALLIGATOR)
   {
     if(!signal_params.trend_alligator_valid)
       return false;
-    return EvaluateAlligatorTrend(signal_params.trend_alligator_data, direction);
+    filter_ok = EvaluateAlligatorTrend(signal_params.trend_alligator_data, direction);
   }
-
-  if(signal_params.trend_filter_mode == TREND_BOTH)
+  else if(signal_params.trend_filter_mode == TREND_BOTH)
   {
     bool percent_ok = true;
     if(Trend_Indicator_Percent >= 0.0)
@@ -507,14 +478,48 @@ bool TrendFilterAllowsSignal(const SignalParams &signal_params,
       percent_ok = EvaluateBandsPercentTrigger(signal_params.trend_bpercent_data,
                                                direction,
                                                Trend_Indicator_Percent,
-                                               Trend_Slope_Filter);
+                                               NO_SLOPE);
     }
 
     if(!signal_params.trend_alligator_valid)
       return false;
 
     bool alligator_ok = EvaluateAlligatorTrend(signal_params.trend_alligator_data, direction);
-    return percent_ok && alligator_ok;
+    filter_ok = percent_ok && alligator_ok;
+  }
+
+  if(!filter_ok)
+    return false;
+
+  if(Trend_BPercent_Slope_Filter)
+  {
+    if(!signal_params.trend_bpercent_valid)
+      return false;
+    double current = signal_params.trend_bpercent_data.bands_percent_0;
+    double previous = signal_params.trend_bpercent_data.bands_percent_1;
+    if(!EvaluateDirectionalSlope(current, previous, direction))
+      return false;
+  }
+
+  if(Trend_Stochastic_Slope_Filter)
+  {
+    if(!signal_params.trend_stochastic_valid)
+      return false;
+
+    double current = signal_params.trend_stochastic_data.stochastic_0;
+    double previous = signal_params.trend_stochastic_data.stochastic_1;
+    if(!EvaluateDirectionalSlope(current, previous, direction))
+      return false;
+  }
+
+  if(Trend_Alligator_Slope_Filter)
+  {
+    if(!signal_params.trend_alligator_valid)
+      return false;
+    double current = signal_params.trend_alligator_data.lips_value;
+    double previous = signal_params.trend_alligator_data.lips_prev_value;
+    if(!EvaluateDirectionalSlope(current, previous, direction))
+      return false;
   }
 
   return true;
@@ -692,6 +697,17 @@ bool EvaluateAlligatorTrend(const AlligatorStructure &alligator_data,
   if(signal_type == BEARISH)
     return (lips_value < teeth_value && teeth_value < jaws_value);
   return false;
+}
+
+bool EvaluateDirectionalSlope(const double current_value,
+                              const double previous_value,
+                              const SignalTypes signal_type)
+{
+  if(signal_type == BULLISH)
+    return current_value >= previous_value;
+  if(signal_type == BEARISH)
+    return current_value <= previous_value;
+  return true;
 }
 
 bool EvaluateBaseIndicatorTrigger(const SignalParams &signal_params,

@@ -17,6 +17,7 @@ IndicatorsHandleInfo ExtBodyMAIndicatorsHandle[];
 IndicatorsHandleInfo ExtATRIndicatorsHandle[];
 IndicatorsHandleInfo TrendBPercentIndicatorHandle;
 IndicatorsHandleInfo TrendAlligatorIndicatorHandle;
+IndicatorsHandleInfo TrendStochIndicatorHandle;
 IndicatorsHandleInfo TrendStructStochIndicatorHandle;
 ENUM_TIMEFRAMES     Trend_Filter_Timeframe = PERIOD_M5;
 ENUM_TIMEFRAMES     Trend_Structure_Filter_Timeframe = PERIOD_M5;
@@ -110,6 +111,7 @@ void ResetTrendIndicators()
 {
   TrendBPercentIndicatorHandle = IndicatorsHandleInfo();
   TrendAlligatorIndicatorHandle = IndicatorsHandleInfo();
+  TrendStochIndicatorHandle = IndicatorsHandleInfo();
 }
 
 void ResetTrendStructureIndicator()
@@ -190,6 +192,34 @@ bool LoadTrendAlligatorIndicator(const ENUM_TIMEFRAMES trend_tf)
   return true;
 }
 
+bool LoadTrendStochasticIndicator(const ENUM_TIMEFRAMES trend_tf)
+{
+  IndicatorsHandleInfo stoch_handle;
+  stoch_handle.indicator_period    = (int)Solid_Indicator_Period_Type;
+  stoch_handle.indicator_handle    = iCustom(_Symbol,
+                                             trend_tf,
+                                             "Examples\\Stochastic",
+                                             stoch_handle.indicator_period,
+                                             3,
+                                             3,
+                                             STO_CLOSECLOSE);
+  stoch_handle.indicator_timeframe = trend_tf;
+
+  if(stoch_handle.indicator_handle == INVALID_HANDLE)
+  {
+    PrintFormat("ERROR LOADING TREND STOCHASTIC INDICATOR | tf=%s | period=%d",
+                EnumToString(trend_tf),
+                stoch_handle.indicator_period);
+    return false;
+  }
+
+  TrendStochIndicatorHandle = stoch_handle;
+  PrintFormat("Trend stochastic indicator loaded | tf=%s | period=%d",
+              EnumToString(trend_tf),
+              stoch_handle.indicator_period);
+  return true;
+}
+
 bool LoadTrendStructureIndicator(const ENUM_TIMEFRAMES structure_tf)
 {
   IndicatorsHandleInfo structure_handle;
@@ -236,11 +266,17 @@ void LoadTrendIndicators()
 
   Trend_Filter_Timeframe = ResolveTrendTimeframe();
 
-  bool need_bpercent  = (Strategy_Trend_Mode == TREND_BPERCENT || Strategy_Trend_Mode == TREND_BOTH);
-  bool need_alligator = (Strategy_Trend_Mode == TREND_ALLIGATOR || Strategy_Trend_Mode == TREND_BOTH);
+  bool need_bpercent  = (Strategy_Trend_Mode == TREND_BPERCENT ||
+                         Strategy_Trend_Mode == TREND_BOTH ||
+                         Trend_BPercent_Slope_Filter);
+  bool need_alligator = (Strategy_Trend_Mode == TREND_ALLIGATOR ||
+                         Strategy_Trend_Mode == TREND_BOTH ||
+                         Trend_Alligator_Slope_Filter);
+  bool need_stochastic = Trend_Stochastic_Slope_Filter;
 
   bool bpercent_loaded  = true;
   bool alligator_loaded = true;
+  bool stoch_loaded     = true;
 
   if(need_bpercent)
     bpercent_loaded = LoadTrendBPercentIndicator(Trend_Filter_Timeframe);
@@ -248,12 +284,19 @@ void LoadTrendIndicators()
   if(need_alligator)
     alligator_loaded = LoadTrendAlligatorIndicator(Trend_Filter_Timeframe);
 
-  if((need_bpercent && !bpercent_loaded) || (need_alligator && !alligator_loaded))
+  if(need_stochastic)
+    stoch_loaded = LoadTrendStochasticIndicator(Trend_Filter_Timeframe);
+
+  if((need_bpercent && !bpercent_loaded) ||
+     (need_alligator && !alligator_loaded) ||
+     (need_stochastic && !stoch_loaded))
   {
     if(!bpercent_loaded)
       TrendBPercentIndicatorHandle = IndicatorsHandleInfo();
     if(!alligator_loaded)
       TrendAlligatorIndicatorHandle = IndicatorsHandleInfo();
+    if(!stoch_loaded)
+      TrendStochIndicatorHandle = IndicatorsHandleInfo();
   }
 }
 
@@ -261,14 +304,21 @@ bool TrendFilterIndicatorsAvailable()
 {
   if(!TrendContextEnabled() || Strategy_Trend_Mode == TREND_OFF)
     return true;
-  if(Strategy_Trend_Mode == TREND_BPERCENT)
-    return (TrendBPercentIndicatorHandle.indicator_handle != INVALID_HANDLE);
-  if(Strategy_Trend_Mode == TREND_ALLIGATOR)
-    return (TrendAlligatorIndicatorHandle.indicator_handle != INVALID_HANDLE);
-  if(Strategy_Trend_Mode == TREND_BOTH)
-    return (TrendBPercentIndicatorHandle.indicator_handle != INVALID_HANDLE) &&
-           (TrendAlligatorIndicatorHandle.indicator_handle != INVALID_HANDLE);
-  return false;
+  bool need_bpercent  = (Strategy_Trend_Mode == TREND_BPERCENT ||
+                         Strategy_Trend_Mode == TREND_BOTH ||
+                         Trend_BPercent_Slope_Filter);
+  bool need_alligator = (Strategy_Trend_Mode == TREND_ALLIGATOR ||
+                         Strategy_Trend_Mode == TREND_BOTH ||
+                         Trend_Alligator_Slope_Filter);
+  bool need_stochastic = Trend_Stochastic_Slope_Filter;
+
+  if(need_bpercent && TrendBPercentIndicatorHandle.indicator_handle == INVALID_HANDLE)
+    return false;
+  if(need_alligator && TrendAlligatorIndicatorHandle.indicator_handle == INVALID_HANDLE)
+    return false;
+  if(need_stochastic && TrendStochIndicatorHandle.indicator_handle == INVALID_HANDLE)
+    return false;
+  return true;
 }
 
 void LoadTrendStructureFilterIndicator()
