@@ -79,6 +79,13 @@ enum GridBaseStrategyTypes
   POINTS_RANGE = 1
 };
 
+enum GridAtrRangeModes
+{
+  GRID_ATR_REFERENCE_SUP_RES = 0,
+  GRID_ATR_REFERENCE_TRAILING = 1,
+  GRID_ATR_REFERENCE_BOTH = 2
+};
+
 enum SlopeTypes
 {
 	NO_SLOPE   = 0,

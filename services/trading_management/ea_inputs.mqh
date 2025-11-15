@@ -67,6 +67,7 @@ input bool                        Trend_Alligator_Slope_Filter       = false;
 
 input group  "+= Grid Strategy Settings =+";
 input GridBaseStrategyTypes Grid_Base_Strategy_Type      = ATR_RANGE;
+input GridAtrRangeModes     Grid_ATR_Range_Mode          = GRID_ATR_REFERENCE_SUP_RES;
 input double                Grid_ATR_Points_Setup        = 1.0;
 input double                Grid_Points_TP               = 0.0;
 input double                Grid_Exponential_Multiplier  = 1.0;
