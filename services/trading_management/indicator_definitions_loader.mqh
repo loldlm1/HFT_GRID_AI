@@ -10,11 +10,13 @@ ENUM_TIMEFRAMES Strategy_TF_List[];
 int IndicatorPeriods[];
 IndicatorsHandleInfo ExtBandsIndicatorsHandle[];
 IndicatorsHandleInfo ExtBPercentIndicatorsHandle[];
+IndicatorsHandleInfo ExtAlligatorIndicatorsHandle[];
 IndicatorsHandleInfo ExtStochIndicatorsHandle[];
 IndicatorsHandleInfo ExtStructStochIndicatorsHandle[];
 IndicatorsHandleInfo ExtBodyMAIndicatorsHandle[];
 IndicatorsHandleInfo ExtATRIndicatorsHandle[];
 IndicatorsHandleInfo TrendBPercentIndicatorHandle;
+IndicatorsHandleInfo TrendAlligatorIndicatorHandle;
 IndicatorsHandleInfo TrendStructStochIndicatorHandle;
 ENUM_TIMEFRAMES     Trend_Filter_Timeframe = PERIOD_M5;
 ENUM_TIMEFRAMES     Trend_Structure_Filter_Timeframe = PERIOD_M5;
@@ -107,6 +109,7 @@ ENUM_TIMEFRAMES ResolveTrendStructureTimeframe()
 void ResetTrendIndicators()
 {
   TrendBPercentIndicatorHandle = IndicatorsHandleInfo();
+  TrendAlligatorIndicatorHandle = IndicatorsHandleInfo();
 }
 
 void ResetTrendStructureIndicator()
@@ -143,6 +146,47 @@ bool LoadTrendBPercentIndicator(const ENUM_TIMEFRAMES trend_tf)
   PrintFormat("Trend Bollinger Percent indicator loaded | tf=%s | period=%d",
               EnumToString(trend_tf),
               trend_handle.indicator_period);
+  return true;
+}
+
+bool LoadTrendAlligatorIndicator(const ENUM_TIMEFRAMES trend_tf)
+{
+  int jaws_period  = MathMax(Trend_Alligator_Jaws_Period, 1);
+  int teeth_period = MathMax((int)Base_Indicator_Period_Type, 1);
+  int lips_period  = MathMax(Trend_Alligator_Lips_Period, 1);
+
+  IndicatorsHandleInfo alligator_handle;
+  alligator_handle.indicator_period        = jaws_period;
+  alligator_handle.indicator_ma_method     = Base_Indicator_MA_Method;
+  alligator_handle.indicator_applied_price = PRICE_WEIGHTED;
+  alligator_handle.indicator_handle        = iAlligator(_Symbol,
+                                                        trend_tf,
+                                                        jaws_period,
+                                                        0,
+                                                        teeth_period,
+                                                        0,
+                                                        lips_period,
+                                                        0,
+                                                        Base_Indicator_MA_Method,
+                                                        PRICE_WEIGHTED);
+  alligator_handle.indicator_timeframe     = trend_tf;
+
+  if(alligator_handle.indicator_handle == INVALID_HANDLE)
+  {
+    PrintFormat("ERROR LOADING TREND ALLIGATOR INDICATOR | tf=%s | jaws=%d | teeth=%d | lips=%d",
+                EnumToString(trend_tf),
+                jaws_period,
+                teeth_period,
+                lips_period);
+    return false;
+  }
+
+  TrendAlligatorIndicatorHandle = alligator_handle;
+  PrintFormat("Trend Alligator indicator loaded | tf=%s | jaws=%d | teeth=%d | lips=%d",
+              EnumToString(trend_tf),
+              jaws_period,
+              teeth_period,
+              lips_period);
   return true;
 }
 
@@ -192,10 +236,24 @@ void LoadTrendIndicators()
 
   Trend_Filter_Timeframe = ResolveTrendTimeframe();
 
-  if(Strategy_Trend_Mode == TREND_BPERCENT)
+  bool need_bpercent  = (Strategy_Trend_Mode == TREND_BPERCENT || Strategy_Trend_Mode == TREND_BOTH);
+  bool need_alligator = (Strategy_Trend_Mode == TREND_ALLIGATOR || Strategy_Trend_Mode == TREND_BOTH);
+
+  bool bpercent_loaded  = true;
+  bool alligator_loaded = true;
+
+  if(need_bpercent)
+    bpercent_loaded = LoadTrendBPercentIndicator(Trend_Filter_Timeframe);
+
+  if(need_alligator)
+    alligator_loaded = LoadTrendAlligatorIndicator(Trend_Filter_Timeframe);
+
+  if((need_bpercent && !bpercent_loaded) || (need_alligator && !alligator_loaded))
   {
-    if(!LoadTrendBPercentIndicator(Trend_Filter_Timeframe))
-      ResetTrendIndicators();
+    if(!bpercent_loaded)
+      TrendBPercentIndicatorHandle = IndicatorsHandleInfo();
+    if(!alligator_loaded)
+      TrendAlligatorIndicatorHandle = IndicatorsHandleInfo();
   }
 }
 
@@ -203,7 +261,14 @@ bool TrendFilterIndicatorsAvailable()
 {
   if(!TrendContextEnabled() || Strategy_Trend_Mode == TREND_OFF)
     return true;
-  return (TrendBPercentIndicatorHandle.indicator_handle != INVALID_HANDLE);
+  if(Strategy_Trend_Mode == TREND_BPERCENT)
+    return (TrendBPercentIndicatorHandle.indicator_handle != INVALID_HANDLE);
+  if(Strategy_Trend_Mode == TREND_ALLIGATOR)
+    return (TrendAlligatorIndicatorHandle.indicator_handle != INVALID_HANDLE);
+  if(Strategy_Trend_Mode == TREND_BOTH)
+    return (TrendBPercentIndicatorHandle.indicator_handle != INVALID_HANDLE) &&
+           (TrendAlligatorIndicatorHandle.indicator_handle != INVALID_HANDLE);
+  return false;
 }
 
 void LoadTrendStructureFilterIndicator()
@@ -229,7 +294,9 @@ void LoadAllIndicatorDefinitions()
   PrepareStrategyTimeframes();
   PrepareIndicatorPeriods();
 
-  bool use_base_indicator  = (Base_Indicator_Percent > 0.0);
+  bool base_bpercent_active = (Strategy_Base_Mode == TREND_BPERCENT || Strategy_Base_Mode == TREND_BOTH) &&
+                              (Base_Indicator_Percent > 0.0);
+  bool base_alligator_active = (Strategy_Base_Mode == TREND_ALLIGATOR || Strategy_Base_Mode == TREND_BOTH);
   ENUM_TIMEFRAMES strategy_tf = Strategy_TF_List[0];
   Trend_Structure_Filter_Timeframe = ResolveTrendStructureTimeframe();
 
@@ -237,10 +304,8 @@ void LoadAllIndicatorDefinitions()
 
   bool use_atr_strategy = (Grid_Base_Strategy_Type == ATR_RANGE);
 
-  if(!use_base_indicator)
-  {
-    Print("WARNING: Base indicator percent disabled; signal generation relies solely on structure filters.");
-  }
+  if((Strategy_Base_Mode == TREND_BPERCENT || Strategy_Base_Mode == TREND_BOTH) && !base_bpercent_active)
+    Print("WARNING: Base Bollinger Percent indicator disabled; percent threshold <= 0.");
 
   TesterHideIndicators(!Enable_Show_Indicators);
 
@@ -254,18 +319,28 @@ void LoadAllIndicatorDefinitions()
 
   ArrayResize(ExtBandsIndicatorsHandle, 0);
   ArrayResize(ExtBPercentIndicatorsHandle, 0);
+  ArrayResize(ExtAlligatorIndicatorsHandle, 0);
   ArrayResize(ExtStochIndicatorsHandle, 0);
   ArrayResize(ExtStructStochIndicatorsHandle, 0);
   ArrayResize(ExtBodyMAIndicatorsHandle, 0);
   ArrayResize(ExtATRIndicatorsHandle, 0);
 
-  if(use_base_indicator)
+  if(base_bpercent_active)
   {
     LoadAllBPercentIndicators();
   }
   else
   {
-    Print("Base indicator strategy disabled; skipping Bollinger Percent indicator loading.");
+    Print("Base Bollinger Percent indicator loading skipped (mode disabled or percent <= 0).");
+  }
+
+  if(base_alligator_active)
+  {
+    LoadAllAlligatorIndicators();
+  }
+  else
+  {
+    Print("Base Alligator indicator loading skipped (mode disabled).");
   }
 
   if(require_structure_indicators)
@@ -374,6 +449,51 @@ void LoadAllBPercentIndicators()
 
       AddElementToArray(ExtBPercentIndicatorsHandle, bands_indicator_handle_loaded);
     }
+  }
+}
+
+void LoadAllAlligatorIndicators()
+{
+  int jaws_period  = MathMax(Base_Alligator_Jaws_Period, 1);
+  int teeth_period = MathMax((int)Base_Indicator_Period_Type, 1);
+  int lips_period  = MathMax(Base_Alligator_Lips_Period, 1);
+
+  for(int i = 0; i < total_tf_list_load; ++i)
+  {
+    ENUM_TIMEFRAMES timeframe = Strategy_TF_List[i];
+
+    IndicatorsHandleInfo alligator_indicator_handle_loaded;
+    alligator_indicator_handle_loaded.indicator_period        = jaws_period;
+    alligator_indicator_handle_loaded.indicator_ma_method     = Base_Indicator_MA_Method;
+    alligator_indicator_handle_loaded.indicator_applied_price = PRICE_WEIGHTED;
+    alligator_indicator_handle_loaded.indicator_handle        = iAlligator(_Symbol,
+                                                                          timeframe,
+                                                                          jaws_period,
+                                                                          0,
+                                                                          teeth_period,
+                                                                          0,
+                                                                          lips_period,
+                                                                          0,
+                                                                          Base_Indicator_MA_Method,
+                                                                          PRICE_WEIGHTED);
+    alligator_indicator_handle_loaded.indicator_timeframe     = timeframe;
+
+    if(alligator_indicator_handle_loaded.indicator_handle == INVALID_HANDLE)
+    {
+      Print("ERROR LOADING ALLIGATOR INDICATOR | TF: ", EnumToString(timeframe),
+            " | jaws: ", jaws_period,
+            " | teeth: ", teeth_period,
+            " | lips: ", lips_period);
+      TesterStop();
+      break;
+    }
+
+    Print("LOADED ALLIGATOR INDICATOR SUCCESSFULLY | TF: ", EnumToString(timeframe),
+          " | jaws: ", jaws_period,
+          " | teeth: ", teeth_period,
+          " | lips: ", lips_period);
+
+    AddElementToArray(ExtAlligatorIndicatorsHandle, alligator_indicator_handle_loaded);
   }
 }
 

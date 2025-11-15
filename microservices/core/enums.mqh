@@ -186,7 +186,9 @@ enum ProtectionRiskValueTypes
 enum StrategyTrendModes
 {
   TREND_OFF      = 0,
-  TREND_BPERCENT = 1
+  TREND_BPERCENT = 1,
+  TREND_ALLIGATOR = 2,
+  TREND_BOTH      = 3
 };
 
 enum TrendStructureFilterModes

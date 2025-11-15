@@ -37,13 +37,13 @@ The include cascade rooted in `HFT_Grid_AI.mq5` guarantees ordering; individual 
    - `Trend_Strategy_Timeframe` spins up a dedicated Bollinger Percent + stochastic structure pair unless set to `PERIOD_CURRENT`. Invalid TFs fall back to the base TF.
 
 2. **Base Context Inputs**
-   - `Base_Indicator_Percent`, `Base_Slope_Filter` (checks `bands_percent_slope_1`, `NO_SLOPE` disables).
+   - `Strategy_Base_Mode` selects whether the engine checks Bollinger Percent, Alligator, or `TREND_BOTH` (requires both). `Base_Indicator_Percent` + `Base_Slope_Filter` still govern the Bollinger branch, while `Base_Alligator_Jaws_Period`/`Base_Alligator_Lips_Period` (teeth reuse `Base_Indicator_Period_Type`) configure the Alligator branch.
    - Structure filters: `Base_First/Second_Structure_Filter`, `Base_Support_Filter`, `Base_Resistance_Filter`, `Base_Min_Extern_Structures_Broken`.
    - `Base_Fresh_Structure_Time` forces a newer structure timestamp before another grid may open in the same direction.
 
 3. **Trend Context Inputs**
-   - `Strategy_Trend_Mode` (`TREND_BPERCENT` uses shift-1 confirmation).
-   - `Trend_Indicator_Percent`, `Trend_Slope_Filter`, plus mirrored structure/fresh controls.
+   - `Strategy_Trend_Mode` now supports `TREND_BPERCENT`, `TREND_ALLIGATOR`, or `TREND_BOTH` (requires both filters to agree before admitting a grid).
+   - `Trend_Indicator_Percent`, `Trend_Slope_Filter`, mirrored structure/fresh controls, plus `Trend_Alligator_Jaws_Period`/`Trend_Alligator_Lips_Period` (teeth reuse `Base_Indicator_Period_Type`) configure the active trend filter.
 
 4. **Admission Flow**
    1. `CanAttemptSignal()` checks protection risk, market status, indicator availability, fresh-structure state (equity <= 0 or insufficient funds -> force-close + `TesterStop()` when `Debug_Stop_On_Negative_Equity` is true), and optional daily signal budgets (either cap total attempts or halt only after `Daily_Signal_Limit` losses).
