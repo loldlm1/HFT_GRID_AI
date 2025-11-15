@@ -234,6 +234,11 @@ double GetGridTakeProfitPrice(SignalTypes direction, SignalParams &signal_params
       direction, signal_params, grid_level_index, grid_raw_tp_price
     );
 
+  if(Grid_Enable_Aggressive_TP)
+    EnsureGridTakeProfitAggressive(
+      signal_params, grid_level_index, false, grid_raw_tp_price
+    );
+
   return grid_raw_tp_price;
 }
 
@@ -276,6 +281,11 @@ double GetGridTakeProfitFinalPrice(SignalTypes direction, SignalParams &signal_p
       direction, signal_params, grid_level_index, grid_raw_tp_price
     );
 
+  if(Grid_Enable_Aggressive_TP)
+    EnsureGridTakeProfitAggressive(
+      signal_params, grid_level_index, true, grid_raw_tp_price
+    );
+
   return grid_raw_tp_price;
 }
 
@@ -316,6 +326,21 @@ void EnsureGridTakeProfitScalper(
 
     if(direction == BULLISH) grid_raw_tp_price = latest_grid_price;
     if(direction == BEARISH) grid_raw_tp_price = latest_grid_price;
+  }
+}
+
+void EnsureGridTakeProfitAggressive(
+  SignalParams &signal_params, int grid_level_index, bool is_final_tp, double &grid_raw_tp_price
+) {
+  // ENSURE TP IS IN A ROBUST DISTANCE FROM ENTRY
+  if(grid_level_index > 0)
+  {
+    double initial_grid_price    = signal_params.grid_orders[0].entry_price;
+    double initial_grid_tp       = signal_params.grid_orders[0].take_profit_price;
+    double initial_grid_final_tp = signal_params.grid_orders[0].final_take_profit_price;
+
+    if(!is_final_tp) grid_raw_tp_price = initial_grid_tp;
+    if(is_final_tp)  grid_raw_tp_price = initial_grid_final_tp;
   }
 }
 
