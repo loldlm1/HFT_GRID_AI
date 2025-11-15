@@ -688,9 +688,9 @@ bool EvaluateAlligatorTrend(const AlligatorStructure &alligator_data,
   double lips_value  = alligator_data.lips_value;
 
   if(signal_type == BULLISH)
-    return (teeth_value > jaws_value) && (lips_value > jaws_value);
+    return (lips_value > teeth_value && teeth_value > jaws_value);
   if(signal_type == BEARISH)
-    return (teeth_value < jaws_value) && (lips_value < jaws_value);
+    return (lips_value < teeth_value && teeth_value < jaws_value);
   return false;
 }
 
