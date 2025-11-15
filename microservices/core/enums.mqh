@@ -79,6 +79,12 @@ enum GridBaseStrategyTypes
   POINTS_RANGE = 1
 };
 
+enum GridBreakEvenDeepModes
+{
+  CONSERVATIVE_DEEP_LEVELS_BE = 0,
+  AGGRESIVE_DEEP_LEVELS_BE    = 1
+};
+
 enum GridAtrRangeModes
 {
   GRID_ATR_REFERENCE_SUP_RES = 0,

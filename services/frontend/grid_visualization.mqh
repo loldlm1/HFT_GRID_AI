@@ -1,6 +1,37 @@
 #ifndef _SERVICES_FRONTEND_GRID_VISUALIZATION_MQH_
 #define _SERVICES_FRONTEND_GRID_VISUALIZATION_MQH_
 
+double ResolveBreakEvenLinePrice(const SignalParams &signal_params)
+{
+  if(!Grid_Enable_Spread_BreakEven)
+    return 0.0;
+
+  int total_levels = ArraySize(signal_params.grid_orders);
+  if(total_levels <= 0)
+    return 0.0;
+
+  if(Grid_BreakEven_Deep_Mode == AGGRESIVE_DEEP_LEVELS_BE)
+  {
+    GridOrderState state = signal_params.grid_orders[0];
+    if(state.break_even_active &&
+       state.break_even_price > 0.0 &&
+       state.status == GRID_ORDER_ACTIVE)
+      return state.break_even_price;
+    return 0.0;
+  }
+
+  for(int i = total_levels - 1; i >= 0; i--)
+  {
+    GridOrderState state = signal_params.grid_orders[i];
+    if(state.break_even_active &&
+       state.break_even_price > 0.0 &&
+       state.status == GRID_ORDER_ACTIVE)
+      return state.break_even_price;
+  }
+
+  return 0.0;
+}
+
 void DrawGridLevels(const long chart_id,
                     const SignalParams &signal_params,
                     string &tracked_objects[])
@@ -11,6 +42,7 @@ void DrawGridLevels(const long chart_id,
   string entry_name = GridSignalObjectName(signal_params, "ENTRY");
   string next_name  = GridSignalObjectName(signal_params, "NEXT");
   string trailing_name = GridSignalObjectName(signal_params, "TP_TRAILING");
+  string break_even_name = GridSignalObjectName(signal_params, "BREAK_EVEN");
 
   int grid_order_level = ArraySize(signal_params.grid_orders)-1;
   int display_index    = grid_order_level;
@@ -27,6 +59,7 @@ void DrawGridLevels(const long chart_id,
   string final_label    = GridSignalLineLabel(signal_params, "FINAL TP");
   string next_label     = GridSignalLineLabel(signal_params, "NEXT");
   string trailing_label = GridSignalLineLabel(signal_params, "TP TRAILING");
+  string break_even_label = GridSignalLineLabel(signal_params, "BREAK EVEN");
 
   int level_index = level_state.level_index;
   double level_lot_size = level_state.lot_size;
@@ -45,6 +78,16 @@ void DrawGridLevels(const long chart_id,
   {
     UpdateHorizontalLine(chart_id, tp_name, COLOR_PROFIT_POSITIVE, 0.0);
     UpdateHorizontalLine(chart_id, trailing_name, COLOR_PROFIT_POSITIVE, trailing_price, trailing_label);
+  }
+
+  if(Grid_Enable_Spread_BreakEven)
+  {
+    double break_even_price = ResolveBreakEvenLinePrice(signal_params);
+    UpdateHorizontalLine(chart_id, break_even_name, COLOR_PROFIT_NEUTRAL, break_even_price, break_even_label, STYLE_DASHDOT);
+  }
+  else
+  {
+    UpdateHorizontalLine(chart_id, break_even_name, COLOR_PROFIT_NEUTRAL, 0.0);
   }
 }
 

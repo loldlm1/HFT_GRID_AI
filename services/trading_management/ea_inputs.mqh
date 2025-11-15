@@ -86,6 +86,8 @@ input double               Grid_Lot_Multiplier           = 2.0;
 input int                  Grid_Level_Stop_Limit         = 0;
 input int                  Daily_Signal_Limit            = 0;
 input DailySignalLimitModes Daily_Signal_Limit_Mode      = STOP_DAILY_SIGNALS;
+input bool                 Grid_Enable_Spread_BreakEven  = false;
+input GridBreakEvenDeepModes Grid_BreakEven_Deep_Mode    = CONSERVATIVE_DEEP_LEVELS_BE;
 
 input group  "+= Developer Debug Settings =+";
 input bool Enable_Logs              = false;

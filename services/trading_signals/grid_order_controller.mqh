@@ -103,6 +103,13 @@ void UpdateGridLifecycle(SignalParams &signal_params)
     }
   }
 
+  if(Grid_Enable_Spread_BreakEven)
+  {
+    GridApplyBreakEven(signal_params, point_size);
+    if(GridCheckBreakEvenExit(signal_params))
+      return;
+  }
+
   if(IsGridSignalComplete(signal_params))
     signal_params.signal_state = CLOSED;
 }

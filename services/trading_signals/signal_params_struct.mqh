@@ -19,10 +19,12 @@ struct GridOrderState
   double final_take_profit_price;
   double trailing_price;
   double entry_reference_price;
+  double break_even_price;
 
   datetime last_action_time;
   bool     is_trailing_active;
   bool     tp_reached;
+  bool     break_even_active;
   ulong    position_ticket;
   string   position_comment;
 
@@ -38,9 +40,11 @@ struct GridOrderState
     final_take_profit_price     = 0.0;
     trailing_price              = 0.0;
     entry_reference_price       = 0.0;
+    break_even_price            = 0.0;
     last_action_time            = 0;
     is_trailing_active          = false;
     tp_reached                  = false;
+    break_even_active           = false;
     position_ticket             = 0;
     position_comment            = "";
   }
