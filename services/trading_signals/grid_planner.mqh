@@ -106,7 +106,7 @@ bool CalculateBaseGridContext(const SignalParams &signal_params,
     if(attempt_trail)
     {
       double trail_price = 0.0;
-      if(GridResolveAtrTrailingPrice(signal_params.signal_type, tf, trail_price, 1))
+      if(GridResolveAtrTrailingPrice(signal_params.signal_type, tf, trail_price))
         GridEvaluateAtrCandidate(trail_price,
                                  entry_reference_price,
                                  point_size,

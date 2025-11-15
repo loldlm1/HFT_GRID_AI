@@ -7,7 +7,7 @@
 #property link      "https://t.me/loldlm"
 #include <MovingAverages.mqh>
 //---
-#property indicator_buffers 11
+#property indicator_buffers 13
 #property indicator_plots   2
 #property indicator_separate_window
 #property indicator_type1   DRAW_LINE
@@ -28,6 +28,7 @@ input double  InpDeviation               = 2.0;          // Deviation
 input int     InpPercentMAPeriod         = 5;            // B Percent Period
 input ENUM_MA_METHOD InpMAMethod         = MODE_EMA;     // MA Method
 input ENUM_APPLIED_PRICE InpAppliedPrice = PRICE_TYPICAL;// Applied price
+input int     InpPercentRangeWindow     = 5;            // Percent range window
 //--- global variables
 int           ExtBandsPeriod,ExtBandsShift;
 double        ExtBandsDeviations;
@@ -44,6 +45,9 @@ double        ExtBBCloseBuffer[];
 double        ExtBBOpenBuffer[];
 double        ExtBBHighBuffer[];
 double        ExtBBLowBuffer[];
+double        ExtPercentRangeHigh[];
+double        ExtPercentRangeLow[];
+int           ExtPercentRangeWindow;
 
 //+------------------------------------------------------------------+
 //| Custom indicator initialization function                         |
@@ -72,6 +76,13 @@ void OnInit()
      }
    else
       ExtBandsDeviations=InpDeviation;
+   if(InpPercentRangeWindow<=0)
+     {
+      ExtPercentRangeWindow=5;
+      PrintFormat("Incorrect value for Percent Range Window=%d. Indicator will use value=%d for calculations.", InpPercentRangeWindow, ExtPercentRangeWindow);
+     }
+   else
+      ExtPercentRangeWindow=InpPercentRangeWindow;
 
    //--- STANDARD BB Buffers
    SetIndexBuffer(0,BLGBuffer, INDICATOR_DATA);
@@ -85,6 +96,8 @@ void OnInit()
    SetIndexBuffer(8,ExtBBOpenBuffer, INDICATOR_CALCULATIONS);
    SetIndexBuffer(9,ExtBBHighBuffer, INDICATOR_CALCULATIONS);
    SetIndexBuffer(10,ExtBBLowBuffer, INDICATOR_CALCULATIONS);
+   SetIndexBuffer(11,ExtPercentRangeHigh, INDICATOR_CALCULATIONS);
+   SetIndexBuffer(12,ExtPercentRangeLow, INDICATOR_CALCULATIONS);
 
 //--- set index labels
    PlotIndexSetString(0,PLOT_LABEL,"Main");
@@ -165,6 +178,27 @@ int OnCalculate(const int rates_total,
       ExtBBOpenBuffer[i]  = NormalizeDouble((open[i]-ExtBLBuffer[i])/(ExtTLBuffer[i]-ExtBLBuffer[i]) * 100, 2);
       ExtBBHighBuffer[i]  = NormalizeDouble((high[i]-ExtBLBuffer[i])/(ExtTLBuffer[i]-ExtBLBuffer[i]) * 100, 2);
       ExtBBLowBuffer[i]   = NormalizeDouble((low[i]-ExtBLBuffer[i])/(ExtTLBuffer[i]-ExtBLBuffer[i]) * 100, 2);
+
+      int range_from = i - ExtPercentRangeWindow + 1;
+      if(range_from < 0)
+        {
+         ExtPercentRangeHigh[i] = EMPTY_VALUE;
+         ExtPercentRangeLow[i]  = EMPTY_VALUE;
+        }
+      else
+        {
+         double range_high = BLGBuffer[range_from];
+         double range_low  = BLGBuffer[range_from];
+         for(int j = range_from + 1; j <= i; j++)
+           {
+            if(BLGBuffer[j] > range_high)
+               range_high = BLGBuffer[j];
+            if(BLGBuffer[j] < range_low)
+               range_low = BLGBuffer[j];
+           }
+         ExtPercentRangeHigh[i] = NormalizeDouble(range_high, 2);
+         ExtPercentRangeLow[i]  = NormalizeDouble(range_low, 2);
+        }
      }
 //--- OnCalculate done. Return new prev_calculated.
    return(rates_total);

@@ -29,7 +29,6 @@ DailySignalStats g_daily_signal_stats[2];
 const double BANDS_PERCENT_MID_LEVEL   = 50.0;
 const double BANDS_PERCENT_UPPER_LEVEL = 100.0;
 const double BANDS_PERCENT_LOWER_LEVEL = 0.0;
-const int    BANDS_PERCENT_SHIFT_DEPTH = 5;
 
 void DebugForceCloseAllGrids()
 {
@@ -630,7 +629,7 @@ bool CanAttemptSignal(const SignalTypes signal_type)
   return true;
 }
 
-bool ValidateBandsPercentBreakout(const double &shift_values[],
+bool ValidateBandsPercentBreakout(const BandsPercentStructure &bands_data,
                                   const SignalTypes signal_type,
                                   const double percent_threshold)
 {
@@ -640,24 +639,27 @@ bool ValidateBandsPercentBreakout(const double &shift_values[],
   if(signal_type == BULLISH) { zone_start = 100 - percent_threshold; zone_end = zone_start - 20.0; }
   if(signal_type == BEARISH) { zone_start = percent_threshold; zone_end = zone_start + 20.0; }
 
-  bool has_origin   = false;
-  bool in_the_zone  = signal_type == BULLISH ? shift_values[0] <= zone_start : shift_values[0] >= zone_start;
+  double window_high = bands_data.bands_percent_window_high;
+  double window_low  = bands_data.bands_percent_window_low;
+
+  if(window_high == EMPTY_VALUE || window_low == EMPTY_VALUE)
+    return false;
+
+  bool in_the_zone  = false;
+  bool has_origin   = true;
   bool crossed_zone = false;
 
-  for(int i = 0; i < BANDS_PERCENT_SHIFT_DEPTH; i++)
+  if(signal_type == BULLISH)
   {
-    double shift_value = shift_values[i];
-
-    if(signal_type == BULLISH)
-    {
-      if(shift_value >= zone_start) has_origin   = true;
-      if(shift_value <  zone_end)   crossed_zone = true;
-    }
-    if(signal_type == BEARISH)
-    {
-      if(shift_value <= zone_start) has_origin   = true;
-      if(shift_value > zone_end)    crossed_zone = true;
-    }
+    in_the_zone = (window_low <= zone_start);
+    // has_origin  = (window_high >= zone_start);
+    crossed_zone = (window_low < zone_end);
+  }
+  else if(signal_type == BEARISH)
+  {
+    in_the_zone = (window_high >= zone_start);
+    // has_origin  = (window_low <= zone_start);
+    crossed_zone = (window_high > zone_end);
   }
 
   return has_origin && in_the_zone && !crossed_zone;
@@ -668,22 +670,14 @@ bool EvaluateBandsPercentTrigger(const BandsPercentStructure &bands_data,
                                  const double percent_threshold,
                                  const SlopeTypes slope_filter)
 {
-  double shift_values[];
-  ArrayResize(shift_values, BANDS_PERCENT_SHIFT_DEPTH);
-  shift_values[0] = bands_data.bands_percent_1;
-  shift_values[1] = bands_data.bands_percent_2;
-  shift_values[2] = bands_data.bands_percent_3;
-  shift_values[3] = bands_data.bands_percent_4;
-  shift_values[4] = bands_data.bands_percent_5;
-
-  bool breakout = ValidateBandsPercentBreakout(shift_values, signal_type, percent_threshold);
+  bool breakout = ValidateBandsPercentBreakout(bands_data, signal_type, percent_threshold);
   if(!breakout)
     return false;
 
   if(slope_filter == NO_SLOPE)
     return true;
 
-  return (bands_data.bands_percent_slope_1 == slope_filter);
+  return (bands_data.bands_percent_slope_0 == slope_filter);
 }
 
 bool EvaluateAlligatorTrend(const AlligatorStructure &alligator_data,

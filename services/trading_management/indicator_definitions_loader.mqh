@@ -133,7 +133,8 @@ bool LoadTrendBPercentIndicator(const ENUM_TIMEFRAMES trend_tf)
                                                  2.0,
                                                  5,
                                                  Base_Indicator_MA_Method,
-                                                 PRICE_WEIGHTED);
+                                                 PRICE_WEIGHTED,
+                                                 (int)Solid_Indicator_Period_Type);
   trend_handle.indicator_timeframe     = trend_tf;
 
   if(trend_handle.indicator_handle == INVALID_HANDLE)
@@ -486,7 +487,8 @@ void LoadAllBPercentIndicators()
                                                                   2.0,
                                                                   5,
                                                                   Base_Indicator_MA_Method,
-                                                                  PRICE_WEIGHTED);
+                                                                  PRICE_WEIGHTED,
+                                                                  (int)Solid_Indicator_Period_Type);
       bands_indicator_handle_loaded.indicator_timeframe = trend_timeframe;
 
       if(bands_indicator_handle_loaded.indicator_handle == INVALID_HANDLE)

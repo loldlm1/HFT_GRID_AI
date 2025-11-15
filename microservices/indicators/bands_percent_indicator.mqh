@@ -63,6 +63,8 @@ struct BandsPercentStructure
   double bb_low_1;
   double bb_low_2;
   double bb_low_3;
+  double bands_percent_window_high;
+  double bands_percent_window_low;
 
   // DEFAULT CONSTRUCTOR
   BandsPercentStructure()
@@ -115,6 +117,8 @@ struct BandsPercentStructure
     bb_low_1                         = 0.0;
     bb_low_2                         = 0.0;
     bb_low_3                         = 0.0;
+    bands_percent_window_high        = EMPTY_VALUE;
+    bands_percent_window_low         = EMPTY_VALUE;
   }
 
   // COPY CONSTRUCTOR
@@ -168,6 +172,8 @@ struct BandsPercentStructure
     bb_low_1                         = bands_percent_structure.bb_low_1;
     bb_low_2                         = bands_percent_structure.bb_low_2;
     bb_low_3                         = bands_percent_structure.bb_low_3;
+    bands_percent_window_high        = bands_percent_structure.bands_percent_window_high;
+    bands_percent_window_low         = bands_percent_structure.bands_percent_window_low;
   }
 
   // INITIALIZE STRUCTURE VALUES
@@ -231,6 +237,9 @@ struct BandsPercentStructure
     bb_low_1                     = GetBBLowValue(bands_indicator_handle, index+1);
     bb_low_2                     = GetBBLowValue(bands_indicator_handle, index+2);
     bb_low_3                     = GetBBLowValue(bands_indicator_handle, index+3);
+
+    bands_percent_window_high    = GetBandsPercentWindowHighValue(bands_indicator_handle, index);
+    bands_percent_window_low     = GetBandsPercentWindowLowValue(bands_indicator_handle, index);
   }
 
   // ++ BANDS PERCENT INDICATOR FUNCTIONS ++
@@ -407,6 +416,44 @@ struct BandsPercentStructure
     // ROUNDS TO 2 DECIMALS FOR PERCENTAGE VALUES
     double value = NormalizeDouble(bb_low_value[index], 2);
 
+    return value;
+  }
+
+  double GetBandsPercentWindowHighValue(IndicatorsHandleInfo &bands_indicator_handle, int index)
+  {
+    double buffer_values[];
+
+    if(CopyBuffer(bands_indicator_handle.indicator_handle, 11, 0, index+1, buffer_values) <= 0)
+    {
+      Print("ERROR READING BANDS PERCENT WINDOW HIGH DATA");
+    }
+
+    ArraySetAsSeries(buffer_values, true);
+
+    double raw_value = buffer_values[index];
+    if(raw_value == EMPTY_VALUE)
+      return EMPTY_VALUE;
+
+    double value = NormalizeDouble(raw_value, 2);
+    return value;
+  }
+
+  double GetBandsPercentWindowLowValue(IndicatorsHandleInfo &bands_indicator_handle, int index)
+  {
+    double buffer_values[];
+
+    if(CopyBuffer(bands_indicator_handle.indicator_handle, 12, 0, index+1, buffer_values) <= 0)
+    {
+      Print("ERROR READING BANDS PERCENT WINDOW LOW DATA");
+    }
+
+    ArraySetAsSeries(buffer_values, true);
+
+    double raw_value = buffer_values[index];
+    if(raw_value == EMPTY_VALUE)
+      return EMPTY_VALUE;
+
+    double value = NormalizeDouble(raw_value, 2);
     return value;
   }
 };
