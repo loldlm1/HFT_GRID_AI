@@ -34,9 +34,9 @@ input BaseIndicatorPeriodTypes  Base_Indicator_Period_Type  = BASE_PERIOD_21;
 input ENUM_MA_METHOD            Base_Indicator_MA_Method    = MODE_EMA;
 input SolidIndicatorPeriodTypes Solid_Indicator_Period_Type = SOLID_PERIOD_5;
 input StrategyDirectionTypes    Strategy_Direction_Mode     = BOTH_DIRECTION;
-input StrategyTrendModes        Strategy_Base_Mode          = TREND_BPERCENT;
 
 input group "+= Strategy Base Context =+";
+input StrategyTrendModes          Strategy_Base_Mode                = TREND_BPERCENT;
 input double                      Base_Indicator_Percent            = 50.0;
 input TrendStructureFilterModes   Base_First_Structure_Filter       = BULLISH_STRUCT_OFF;
 input TrendStructureFilterModes   Base_Second_Structure_Filter      = BEARISH_STRUCT_OFF;
@@ -44,9 +44,11 @@ input SupportRetestFilterModes    Base_Support_Filter               = SUPPORT_DI
 input ResistanceRetestFilterModes Base_Resistance_Filter            = RESISTANCE_DISABLED;
 input int                         Base_Min_Extern_Structures_Broken = 0;
 input bool                        Base_Fresh_Structure_Time         = false;
-input SlopeTypes                  Base_Slope_Filter                 = NO_SLOPE;
 input int                         Base_Alligator_Jaws_Period        = 200;
 input int                         Base_Alligator_Lips_Period        = 5;
+input bool                        Base_BPercent_Slope_Filter        = false;
+input bool                        Base_Stochastic_Slope_Filter      = false;
+input bool                        Base_Alligator_Slope_Filter       = false;
 
 input group "+= Strategy Trend Context =+";
 input StrategyTrendModes          Strategy_Trend_Mode                = TREND_OFF;

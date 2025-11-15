@@ -4,17 +4,21 @@
 #ifndef _MICROSERVICES_TRADING_SIGNALS_GRID_ATR_UTILS_MQH_
 #define _MICROSERVICES_TRADING_SIGNALS_GRID_ATR_UTILS_MQH_
 
-bool GridResolveAtrReferencePrice(const SignalTypes direction,
-                                  const ENUM_TIMEFRAMES timeframe,
-                                  double &price_out,
-                                  const int shift = 0)
+const int ATR_BUFFER_RESISTANCE       = 2;
+const int ATR_BUFFER_SUPPORT          = 3;
+const int ATR_BUFFER_TRAIL_RESISTANCE = 4;
+const int ATR_BUFFER_TRAIL_SUPPORT    = 5;
+
+bool GridCopyAtrBufferValue(const ENUM_TIMEFRAMES timeframe,
+                            const int buffer_index,
+                            double &price_out,
+                            const int shift)
 {
   price_out = 0.0;
   int total_handles = ArraySize(ExtATRIndicatorsHandle);
   if(total_handles <= 0)
     return false;
 
-  int buffer_index = (direction == BULLISH) ? 3 : 2; // BufferResHH or BufferSupLL
   for(int i = 0; i < total_handles; i++)
   {
     if(ExtATRIndicatorsHandle[i].indicator_timeframe != timeframe)
@@ -37,6 +41,24 @@ bool GridResolveAtrReferencePrice(const SignalTypes direction,
   }
 
   return false;
+}
+
+bool GridResolveAtrReferencePrice(const SignalTypes direction,
+                                  const ENUM_TIMEFRAMES timeframe,
+                                  double &price_out,
+                                  const int shift = 0)
+{
+  int buffer_index = (direction == BULLISH) ? ATR_BUFFER_SUPPORT : ATR_BUFFER_RESISTANCE;
+  return GridCopyAtrBufferValue(timeframe, buffer_index, price_out, shift);
+}
+
+bool GridResolveAtrTrailingPrice(const SignalTypes direction,
+                                 const ENUM_TIMEFRAMES timeframe,
+                                 double &price_out,
+                                 const int shift = 0)
+{
+  int buffer_index = (direction == BULLISH) ? ATR_BUFFER_TRAIL_SUPPORT : ATR_BUFFER_TRAIL_RESISTANCE;
+  return GridCopyAtrBufferValue(timeframe, buffer_index, price_out, shift);
 }
 
 #endif // _MICROSERVICES_TRADING_SIGNALS_GRID_ATR_UTILS_MQH_
