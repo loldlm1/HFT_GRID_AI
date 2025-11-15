@@ -115,6 +115,8 @@ void GridResetOrderStateForWaiting(GridOrderState &state,
   state.last_action_time   = 0;
   state.is_trailing_active = false;
   state.tp_reached         = false;
+  state.break_even_active  = false;
+  state.break_even_price   = 0.0;
   state.position_ticket    = 0;
   state.position_comment   = "";
 }
@@ -394,6 +396,8 @@ void ResetGridOrderPricesByDirection(SignalParams &signal_params, int grid_order
     signal_params.grid_orders[grid_order_level].final_take_profit_price = DBL_MAX;
     signal_params.grid_orders[grid_order_level].trailing_price          = DBL_MAX;
   }
+  signal_params.grid_orders[grid_order_level].break_even_active = false;
+  signal_params.grid_orders[grid_order_level].break_even_price  = 0.0;
 }
 
 // --- New pricing helpers (points-based, broker-safe) ---

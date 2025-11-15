@@ -18,6 +18,7 @@
 #include "trading_signals/market_status_controller.mqh"
 #include "../microservices/trading_signals/grid_price_resolver.mqh"
 #include "../microservices/trading_signals/grid_order_helpers.mqh"
+#include "../microservices/trading_signals/grid_break_even_utils.mqh"
 #include "../microservices/trading_signals/grid_order_math.mqh"
 #include "../microservices/trading_signals/grid_order_logging.mqh"
 #include "../microservices/trading_signals/grid_order_lifecycle.mqh"
