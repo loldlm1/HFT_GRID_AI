@@ -55,7 +55,7 @@ bool GridResolveAtrReferencePrice(const SignalTypes direction,
 bool GridResolveAtrTrailingPrice(const SignalTypes direction,
                                  const ENUM_TIMEFRAMES timeframe,
                                  double &price_out,
-                                 const int shift = 0)
+                                 const int shift = 1)
 {
   int buffer_index = (direction == BULLISH) ? ATR_BUFFER_TRAIL_SUPPORT : ATR_BUFFER_TRAIL_RESISTANCE;
   return GridCopyAtrBufferValue(timeframe, buffer_index, price_out, shift);
