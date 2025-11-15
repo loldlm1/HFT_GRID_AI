@@ -344,9 +344,10 @@ void LoadAllIndicatorDefinitions()
   PrepareStrategyTimeframes();
   PrepareIndicatorPeriods();
 
-  bool base_bpercent_active = (Strategy_Base_Mode == TREND_BPERCENT || Strategy_Base_Mode == TREND_BOTH) &&
-                              (Base_Indicator_Percent > 0.0);
-  bool base_alligator_active = (Strategy_Base_Mode == TREND_ALLIGATOR || Strategy_Base_Mode == TREND_BOTH);
+  bool base_mode_uses_bpercent  = (Strategy_Base_Mode == TREND_BPERCENT || Strategy_Base_Mode == TREND_BOTH);
+  bool base_mode_uses_alligator = (Strategy_Base_Mode == TREND_ALLIGATOR || Strategy_Base_Mode == TREND_BOTH);
+  bool base_bpercent_required   = base_mode_uses_bpercent || Base_BPercent_Slope_Filter;
+  bool base_alligator_required  = base_mode_uses_alligator || Base_Alligator_Slope_Filter;
   ENUM_TIMEFRAMES strategy_tf = Strategy_TF_List[0];
   Trend_Structure_Filter_Timeframe = ResolveTrendStructureTimeframe();
 
@@ -354,7 +355,7 @@ void LoadAllIndicatorDefinitions()
 
   bool use_atr_strategy = (Grid_Base_Strategy_Type == ATR_RANGE);
 
-  if((Strategy_Base_Mode == TREND_BPERCENT || Strategy_Base_Mode == TREND_BOTH) && !base_bpercent_active)
+  if(base_mode_uses_bpercent && Base_Indicator_Percent <= 0.0)
     Print("WARNING: Base Bollinger Percent indicator disabled; percent threshold <= 0.");
 
   TesterHideIndicators(!Enable_Show_Indicators);
@@ -375,22 +376,22 @@ void LoadAllIndicatorDefinitions()
   ArrayResize(ExtBodyMAIndicatorsHandle, 0);
   ArrayResize(ExtATRIndicatorsHandle, 0);
 
-  if(base_bpercent_active)
+  if(base_bpercent_required)
   {
     LoadAllBPercentIndicators();
   }
   else
   {
-    Print("Base Bollinger Percent indicator loading skipped (mode disabled or percent <= 0).");
+    Print("Base Bollinger Percent indicator loading skipped (mode and slope filters disabled).");
   }
 
-  if(base_alligator_active)
+  if(base_alligator_required)
   {
     LoadAllAlligatorIndicators();
   }
   else
   {
-    Print("Base Alligator indicator loading skipped (mode disabled).");
+    Print("Base Alligator indicator loading skipped (mode and slope filters disabled).");
   }
 
   if(require_structure_indicators)

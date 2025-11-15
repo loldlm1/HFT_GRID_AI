@@ -590,7 +590,8 @@ bool CanAttemptSignal(const SignalTypes signal_type)
 
   bool base_mode_uses_bpercent  = (Strategy_Base_Mode == TREND_BPERCENT || Strategy_Base_Mode == TREND_BOTH);
   bool base_mode_uses_alligator = (Strategy_Base_Mode == TREND_ALLIGATOR || Strategy_Base_Mode == TREND_BOTH);
-  bool base_bpercent_active     = base_mode_uses_bpercent && (Base_Indicator_Percent > 0.0);
+  bool base_bpercent_required   = base_mode_uses_bpercent || Base_BPercent_Slope_Filter;
+  bool base_alligator_required  = base_mode_uses_alligator || Base_Alligator_Slope_Filter;
   bool require_structure_data = true;
 
   if(Strategy_Direction_Mode == BULLISH_DIRECTION && signal_type == BEARISH)
@@ -607,10 +608,10 @@ bool CanAttemptSignal(const SignalTypes signal_type)
   if(signal_type == BEARISH && ArraySize(running_bearish_signals) >= 1)
     return false;
 
-  if(base_bpercent_active && ArraySize(ExtBPercentIndicatorsHandle) <= 0)
+  if(base_bpercent_required && ArraySize(ExtBPercentIndicatorsHandle) <= 0)
     return false;
 
-  if(base_mode_uses_alligator && ArraySize(ExtAlligatorIndicatorsHandle) <= 0)
+  if(base_alligator_required && ArraySize(ExtAlligatorIndicatorsHandle) <= 0)
     return false;
 
   if(require_structure_data && ArraySize(ExtStochIndicatorsHandle) <= 0)
@@ -712,8 +713,7 @@ bool EvaluateDirectionalSlope(const double current_value,
 
 bool EvaluateBaseIndicatorTrigger(const SignalParams &signal_params,
                                   const SignalTypes signal_type,
-                                  const double percent_threshold,
-                                  const SlopeTypes slope_filter)
+                                  const double percent_threshold)
 {
   bool uses_bpercent  = (Strategy_Base_Mode == TREND_BPERCENT || Strategy_Base_Mode == TREND_BOTH);
   bool uses_alligator = (Strategy_Base_Mode == TREND_ALLIGATOR || Strategy_Base_Mode == TREND_BOTH);
@@ -733,11 +733,7 @@ bool EvaluateBaseIndicatorTrigger(const SignalParams &signal_params,
       bpercent_pass = EvaluateBandsPercentTrigger(bands_data,
                                                   signal_type,
                                                   percent_threshold,
-                                                  slope_filter);
-    }
-    else
-    {
-      bpercent_pass = true;
+                                                  NO_SLOPE);
     }
   }
 
@@ -751,25 +747,54 @@ bool EvaluateBaseIndicatorTrigger(const SignalParams &signal_params,
     alligator_pass = EvaluateAlligatorTrend(alligator_data, signal_type);
   }
 
+  bool slope_bpercent_pass = true;
+  if(Base_BPercent_Slope_Filter)
+  {
+    int total_entries = ArraySize(signal_params.bands_percent_data);
+    if(total_entries <= 0)
+      return false;
+    BandsPercentStructure bands_data = signal_params.bands_percent_data[0];
+    slope_bpercent_pass = EvaluateDirectionalSlope(bands_data.bands_percent_0,
+                                                   bands_data.bands_percent_1,
+                                                   signal_type);
+  }
+
+  bool slope_alligator_pass = true;
+  if(Base_Alligator_Slope_Filter)
+  {
+    int total_alligator_entries = ArraySize(signal_params.alligator_data);
+    if(total_alligator_entries <= 0)
+      return false;
+    AlligatorStructure alligator_data = signal_params.alligator_data[0];
+    slope_alligator_pass = EvaluateDirectionalSlope(alligator_data.teeth_value,
+                                                    alligator_data.teeth_prev_value,
+                                                    signal_type);
+  }
+
+  bool slope_stoch_pass = true;
+  if(Base_Stochastic_Slope_Filter)
+  {
+    int total_stoch = ArraySize(signal_params.stochastic_data);
+    if(total_stoch <= 0)
+      return false;
+    StochasticStructure stoch_data = signal_params.stochastic_data[0];
+    slope_stoch_pass = EvaluateDirectionalSlope(stoch_data.stochastic_0,
+                                                stoch_data.stochastic_1,
+                                                signal_type);
+  }
+
+  bool mode_pass = true;
   if(Strategy_Base_Mode == TREND_BPERCENT)
-    return bpercent_pass;
-  if(Strategy_Base_Mode == TREND_ALLIGATOR)
-    return alligator_pass;
-  if(Strategy_Base_Mode == TREND_BOTH)
-    return bpercent_pass && alligator_pass;
+    mode_pass = bpercent_pass;
+  else if(Strategy_Base_Mode == TREND_ALLIGATOR)
+    mode_pass = alligator_pass;
+  else if(Strategy_Base_Mode == TREND_BOTH)
+    mode_pass = bpercent_pass && alligator_pass;
 
-  if(percent_threshold < 0.0)
-    return true;
-
-  int total_entries = ArraySize(signal_params.bands_percent_data);
-  if(total_entries <= 0)
-    return false;
-
-  BandsPercentStructure bands_data = signal_params.bands_percent_data[0];
-  return EvaluateBandsPercentTrigger(bands_data,
-                                     signal_type,
-                                     percent_threshold,
-                                     slope_filter);
+  return mode_pass &&
+         slope_bpercent_pass &&
+         slope_alligator_pass &&
+         slope_stoch_pass;
 }
 
 bool FetchStructureForFilters(const SignalParams &signal_params,
@@ -1011,8 +1036,7 @@ bool EvaluateSignalTrigger(SignalParams &signal_params, const SignalTypes signal
 
   bool base_trigger             = EvaluateBaseIndicatorTrigger(signal_params,
                                                                signal_type,
-                                                               Base_Indicator_Percent,
-                                                               Base_Slope_Filter);
+                                                               Base_Indicator_Percent);
   bool solid_trigger            = EvaluateSolidIndicatorTrigger(signal_params, signal_type);
   bool base_structure_filters   = EvaluateStructureRetestTrigger(signal_params,
                                                                  signal_type,
