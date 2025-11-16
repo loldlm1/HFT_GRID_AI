@@ -57,7 +57,7 @@ The include cascade rooted in `HFT_Grid_AI.mq5` guarantees ordering; individual 
 - **Distance Modes**
   - `ATR_RANGE`: Pulls ATR-based anchor points. When a grid already has levels, the freshly computed base distance is clamped so it never falls below the last realised spacing—preventing ultra-tight ladders if ATR contracts mid-cycle.
   - `POINTS_RANGE`: Uses `Grid_ATR_Points_Setup` as fixed points.
-  - `Grid_ATR_Range_Mode` selects which ATR buffers feed the ladder when `ATR_RANGE` is active (classic support/resistance levels, trailing rail levels, or whichever of both yields the safer spacing).
+  - `Grid_ATR_Range_Mode` selects which ATR buffers feed the ladder when `ATR_RANGE` is active: classic support/resistance windows, the trailing rails, both (pick whichever is safer), or the raw ATR “root” bands (`BufferMAUpper`/`BufferMALower`) when you want spacing anchored to the nearest wick- weighted envelope.
   - `Grid_Exponential_Multiplier` multiplies each level’s distance, while `Grid_Positions_Stops_Percent` defines the initial stop/entry offset.
   - `Grid_Points_TP` (optional) overrides `Grid_TP_Percent` with a fixed point span for every level’s take-profit distance, mirroring how `Grid_ATR_Points_Setup` behaves in `POINTS_RANGE`.
 

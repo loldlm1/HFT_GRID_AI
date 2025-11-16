@@ -89,6 +89,7 @@ bool CalculateBaseGridContext(const SignalParams &signal_params,
                             Grid_ATR_Range_Mode == GRID_ATR_REFERENCE_BOTH);
     bool attempt_trail   = (Grid_ATR_Range_Mode == GRID_ATR_REFERENCE_TRAILING ||
                             Grid_ATR_Range_Mode == GRID_ATR_REFERENCE_BOTH);
+    bool attempt_root    = (Grid_ATR_Range_Mode == GRID_ATR_REFERENCE_ROOT);
 
     if(attempt_range)
     {
@@ -108,6 +109,19 @@ bool CalculateBaseGridContext(const SignalParams &signal_params,
       double trail_price = 0.0;
       if(GridResolveAtrTrailingPrice(signal_params.signal_type, tf, trail_price))
         GridEvaluateAtrCandidate(trail_price,
+                                 entry_reference_price,
+                                 point_size,
+                                 min_required,
+                                 best_price,
+                                 best_distance,
+                                 best_meets_min);
+    }
+
+    if(attempt_root)
+    {
+      double root_price = 0.0;
+      if(GridResolveAtrRootPrice(signal_params.signal_type, tf, root_price))
+        GridEvaluateAtrCandidate(root_price,
                                  entry_reference_price,
                                  point_size,
                                  min_required,

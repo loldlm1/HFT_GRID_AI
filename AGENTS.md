@@ -28,7 +28,7 @@ This document summarizes the current architecture, workflows, and guardrails for
 
 ### 2.2 Grid Framework
 - **Spacing**: `ATR_RANGE` vs `POINTS_RANGE`. ATR mode clamps the recalculated base distance so it can’t be smaller than the last realised spacing (prevents hyper-aggressive levels when ATR contracts).
-  - `Grid_ATR_Range_Mode` decides whether ATR spacing comes from the horizontal HH/LL buffers, the trailing rails, or whichever of both yields the safer distance.
+- `Grid_ATR_Range_Mode` decides whether ATR spacing comes from the horizontal HH/LL buffers, the trailing rails, both (safer of the two), or now the raw ATR envelopes (`BufferMAUpper`/`BufferMALower`) when you want the baseline distance without HH/LL smoothing.
 - **Exponential spread**: `Grid_Exponential_Multiplier` scales `ComputeLevelDistancePoints()` per level. `Grid_Points_TP` (when > 0) overrides the percent-based TP span with a fixed point value per level, similar to how `Grid_ATR_Points_Setup` works for `POINTS_RANGE`.
 - **Lot sizing**:
   - Constant size, account %, currency budget, or `GRID_LOT_CALCULATED` (drawdown recovery using `Grid_Lot_Multiplier`).
