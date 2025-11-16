@@ -927,7 +927,10 @@ bool EvaluateStructureRetestTrigger(const SignalParams &signal_params,
                                     const SignalTypes signal_type,
                                     const StrategyStructureLayerContext &ctx)
 {
-  if(!StructureFiltersRequested(ctx, signal_type))
+  bool require_support_resistance = StructureFiltersRequested(ctx, signal_type);
+  bool require_extern_breaks = (ctx.enabled && ctx.min_extern_structures > 0);
+
+  if(!require_support_resistance && !require_extern_breaks)
     return true;
 
   StochasticMarketStructure structure;
@@ -939,10 +942,10 @@ bool EvaluateStructureRetestTrigger(const SignalParams &signal_params,
 
   ExtremumStatistics latest_stats = structure.extremum_stats[0];
 
-  if(!ValidateExternStructuresRequirement(latest_stats, ctx))
+  if(require_extern_breaks && !ValidateExternStructuresRequirement(latest_stats, ctx))
     return false;
 
-  if(!ValidateRetestRequirements(latest_stats, signal_type, ctx))
+  if(require_support_resistance && !ValidateRetestRequirements(latest_stats, signal_type, ctx))
     return false;
 
   return true;
@@ -1084,12 +1087,6 @@ bool EvaluateSignalTrigger(SignalParams &signal_params, const SignalTypes signal
 
   signal_params.base_structure_snapshot_time  = base_fresh_time;
   signal_params.trend_structure_snapshot_time = trend_fresh_time;
-
-  Print(base_trigger ," && ",
-         base_structure_filters ," && ",
-         trend_structure_filters ," && ",
-         base_structure_types ," && ",
-         trend_structure_types);
 
   return base_trigger &&
          base_structure_filters &&
