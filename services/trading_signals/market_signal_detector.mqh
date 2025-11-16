@@ -275,6 +275,7 @@ void RemoveGridLevels(const long chart_id,
   string entry_name = GridSignalObjectName(signal_params, "ENTRY");
   string next_name  = GridSignalObjectName(signal_params, "NEXT");
   string trailing_name = GridSignalObjectName(signal_params, "TP_TRAILING");
+  string break_even_name = GridSignalObjectName(signal_params, "BREAK_EVEN");
 
   ObjectDelete(chart_id, stop_name);
   ObjectDelete(chart_id, tp_name);
@@ -282,6 +283,7 @@ void RemoveGridLevels(const long chart_id,
   ObjectDelete(chart_id, entry_name);
   ObjectDelete(chart_id, next_name);
   ObjectDelete(chart_id, trailing_name);
+  ObjectDelete(chart_id, break_even_name);
 }
 
 // SET THE INDICATOR DATA TO THE SIGNAL PARAMS STRUCTURE
@@ -688,9 +690,9 @@ bool EvaluateAlligatorTrend(const AlligatorStructure &alligator_data,
   double lips_value  = alligator_data.lips_value;
 
   if(signal_type == BULLISH)
-    return (lips_value > teeth_value && teeth_value > jaws_value);
+    return (lips_value > jaws_value && teeth_value > jaws_value);
   if(signal_type == BEARISH)
-    return (lips_value < teeth_value && teeth_value < jaws_value);
+    return (lips_value < jaws_value && teeth_value < jaws_value);
   return false;
 }
 

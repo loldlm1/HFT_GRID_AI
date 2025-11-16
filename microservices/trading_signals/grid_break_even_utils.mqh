@@ -102,13 +102,23 @@ void GridApplyBreakEven(SignalParams &signal_params,
   }
   else
   {
+    bool assigned = false;
     if(total_levels > 0)
     {
       GridOrderState root_state = signal_params.grid_orders[0];
-      if(root_state.status == GRID_ORDER_ACTIVE)
+      if(root_state.status == GRID_ORDER_ACTIVE && root_state.entry_price > 0.0)
       {
         signal_params.grid_orders[0].break_even_active = true;
         signal_params.grid_orders[0].break_even_price  = target_break_even_price;
+        assigned = true;
+      }
+    }
+    if(assigned)
+    {
+      for(int j = 1; j < total_levels; j++)
+      {
+        signal_params.grid_orders[j].break_even_active = false;
+        signal_params.grid_orders[j].break_even_price  = 0.0;
       }
     }
   }
