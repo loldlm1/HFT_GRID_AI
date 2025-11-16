@@ -39,7 +39,7 @@ The include cascade rooted in `HFT_Grid_AI.mq5` guarantees ordering; individual 
 2. **Base Context Inputs**
    - `Strategy_Base_Mode` selects whether the engine checks Bollinger Percent, Alligator, or `TREND_BOTH` (requires both). `Base_Indicator_Percent` feeds the Bollinger branch, `Base_Alligator_Jaws_Period`/`Base_Alligator_Lips_Period` (teeth reuse `Base_Indicator_Period_Type`) configure the Alligator branch, and the new slope toggles (`Base_BPercent_Slope_Filter`, `Base_Stochastic_Slope_Filter`, `Base_Alligator_Slope_Filter`) mirror the trend context’s >=/<= slope guards.
    - Structure filters: `Base_First/Second_Structure_Filter`, `Base_Support_Filter`, `Base_Resistance_Filter`, `Base_Min_Extern_Structures_Broken`.
-   - `Base_Fresh_Structure_Time` forces a newer structure timestamp before another grid may open in the same direction.
+   - `Base_Fresh_Structure_Time` (and `Trend_Fresh_Structure_Time`) now lock the grid to the structure timestamp that matches the active filter: by default they use `first_structure_time`, but when the second structure filter is enabled they switch to `second_structure_time` so no new grid starts until that snapshot advances for the same direction.
 
 3. **Trend Context Inputs**
    - `Strategy_Trend_Mode` now supports `TREND_BPERCENT`, `TREND_ALLIGATOR`, or `TREND_BOTH` (requires both filters to agree before admitting a grid).

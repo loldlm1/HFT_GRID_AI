@@ -18,6 +18,14 @@ struct StrategyStructureLayerContext
   bool                        uses_trend_dataset;
 };
 
+inline bool StructureFilterIsEnabled(const TrendStructureFilterModes mode)
+{
+  return !(mode == BULLISH_STRUCT_OFF ||
+           mode == BULLISH_STRUCT_OFF_FINAL ||
+           mode == BEARISH_STRUCT_OFF ||
+           mode == BEARISH_STRUCT_OFF_FINAL);
+}
+
 inline StrategyStructureLayerContext BuildBaseStructureLayerContext()
 {
   StrategyStructureLayerContext ctx;

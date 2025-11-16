@@ -831,18 +831,13 @@ int DirectionIndex(const SignalTypes direction)
   return (direction == BEARISH) ? 1 : 0;
 }
 
-datetime ExtractStructureFreshTimestamp(const StochasticMarketStructure &structure)
+datetime ResolveStructureSnapshotTimestamp(const StochasticMarketStructure &structure,
+                                           const StrategyStructureLayerContext &ctx)
 {
-  datetime freshest = 0;
-  if(structure.first_structure_time > freshest)
-    freshest = structure.first_structure_time;
-  if(structure.second_structure_time > freshest)
-    freshest = structure.second_structure_time;
-  if(structure.third_structure_time > freshest)
-    freshest = structure.third_structure_time;
-  if(structure.fourth_structure_time > freshest)
-    freshest = structure.fourth_structure_time;
-  return freshest;
+  bool use_second_structure = StructureFilterIsEnabled(ctx.second_structure_filter);
+  if(use_second_structure)
+    return structure.second_structure_time;
+  return structure.first_structure_time;
 }
 
 bool ValidateFreshStructureTimestamp(const SignalParams &signal_params,
@@ -863,7 +858,7 @@ bool ValidateFreshStructureTimestamp(const SignalParams &signal_params,
   if(!FetchStructureForFilters(signal_params, structure, ctx))
     return false;
 
-  datetime structure_time = ExtractStructureFreshTimestamp(structure);
+  datetime structure_time = ResolveStructureSnapshotTimestamp(structure, ctx);
   if(structure_time <= 0)
     return false;
 
