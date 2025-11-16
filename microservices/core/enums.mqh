@@ -59,6 +59,12 @@ enum StrategyDirectionTypes
   BEARISH_DIRECTION = 2
 };
 
+enum SignalConcurrencyModes
+{
+  SINGLE_RUNNING_SIGNAL   = 0,
+  MULTIPLE_RUNNING_SIGNALS = 1
+};
+
 enum SupportRetestFilterModes
 {
   SUPPORT_DISABLED = 0,
