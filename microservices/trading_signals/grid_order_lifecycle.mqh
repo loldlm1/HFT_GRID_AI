@@ -107,6 +107,35 @@ bool ShouldSwitchToTrailingTP(const SignalTypes direction,
   return false;
 }
 
+bool GridShouldActivateTrailing(SignalParams &signal_params,
+                                const GridOrderState &order_state,
+                                const double current_price)
+{
+  SignalTypes direction = signal_params.signal_type;
+  if(Grid_Trailing_Execution_Mode != TRAILING_EXECUTION_AGGRESIVE)
+    return ShouldSwitchToTrailingTP(direction, order_state, current_price);
+
+  double indicator_price = 0.0;
+  if(!GridResolveTrailingStrategyPrice(signal_params, indicator_price))
+    return ShouldSwitchToTrailingTP(direction, order_state, current_price);
+
+  double reference_price = order_state.take_profit_price;
+  bool limit_reached = (Grid_Level_Stop_Limit > 0 &&
+                        ArraySize(signal_params.grid_orders) >= Grid_Level_Stop_Limit &&
+                        order_state.next_level_price > 0.0);
+  if(limit_reached)
+    reference_price = order_state.next_level_price;
+
+  if(reference_price <= 0.0)
+    return ShouldSwitchToTrailingTP(direction, order_state, current_price);
+
+  if(direction == BULLISH)
+    return indicator_price >= reference_price;
+  if(direction == BEARISH)
+    return indicator_price <= reference_price;
+  return false;
+}
+
 bool GridExecuteLevelTrade(SignalParams &signal_params,
                            GridOrderState &order_state,
                            const double point_size,

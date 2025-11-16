@@ -45,7 +45,7 @@ void UpdateGridLifecycle(SignalParams &signal_params)
         GridLogEvent("LEVEL_FINAL_TP", signal_params, grid_order);
       }
     }
-    if(ShouldSwitchToTrailingTP(direction, grid_order, current_price))
+    if(GridShouldActivateTrailing(signal_params, grid_order, current_price))
     {
       signal_params.grid_orders[grid_order_level].status             = GRID_ORDER_TP_TRAILING_ACTIVE;
       signal_params.grid_orders[grid_order_level].tp_reached         = true;

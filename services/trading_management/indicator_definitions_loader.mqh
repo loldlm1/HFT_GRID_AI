@@ -348,13 +348,15 @@ void LoadAllIndicatorDefinitions()
   bool base_mode_uses_bpercent  = (Strategy_Base_Mode == TREND_BPERCENT || Strategy_Base_Mode == TREND_BOTH);
   bool base_mode_uses_alligator = (Strategy_Base_Mode == TREND_ALLIGATOR || Strategy_Base_Mode == TREND_BOTH);
   bool base_bpercent_required   = base_mode_uses_bpercent || Base_BPercent_Slope_Filter;
-  bool base_alligator_required  = base_mode_uses_alligator || Base_Alligator_Slope_Filter;
+  bool trailing_requires_alligator = (Grid_Trailing_Strategy_Mode == TRAILING_LIPS_MA);
+  bool trailing_requires_atr       = (Grid_Trailing_Strategy_Mode == TRAILING_ATR_BASED);
+  bool base_alligator_required  = base_mode_uses_alligator || Base_Alligator_Slope_Filter || trailing_requires_alligator;
   ENUM_TIMEFRAMES strategy_tf = Strategy_TF_List[0];
   Trend_Structure_Filter_Timeframe = ResolveTrendStructureTimeframe();
 
   bool require_structure_indicators = true;
 
-  bool use_atr_strategy = (Grid_Base_Strategy_Type == ATR_RANGE);
+  bool use_atr_strategy = (Grid_Base_Strategy_Type == ATR_RANGE) || trailing_requires_atr;
 
   if(base_mode_uses_bpercent && Base_Indicator_Percent <= 0.0)
     Print("WARNING: Base Bollinger Percent indicator disabled; percent threshold <= 0.");
@@ -392,7 +394,7 @@ void LoadAllIndicatorDefinitions()
   }
   else
   {
-    Print("Base Alligator indicator loading skipped (mode and slope filters disabled).");
+    Print("Base Alligator indicator loading skipped (mode, slope filters, and trailing settings disabled).");
   }
 
   if(require_structure_indicators)
@@ -411,7 +413,7 @@ void LoadAllIndicatorDefinitions()
   }
   else
   {
-    Print("ATR grid strategy disabled; skipping ATR indicator loading.");
+    Print("ATR grid strategy disabled and trailing ATR mode inactive; skipping ATR indicator loading.");
   }
 
   LoadAllBodyMAIndicators();
