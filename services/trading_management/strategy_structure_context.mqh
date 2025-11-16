@@ -57,6 +57,18 @@ inline bool StructureFiltersRequested(const StrategyStructureLayerContext &ctx)
          (ctx.resistance_filter != RESISTANCE_DISABLED);
 }
 
+inline bool StructureFiltersRequested(const StrategyStructureLayerContext &ctx,
+                                      const SignalTypes signal_type)
+{
+  if(!ctx.enabled)
+    return false;
+  if(signal_type == BULLISH)
+    return (ctx.support_filter != SUPPORT_DISABLED);
+  if(signal_type == BEARISH)
+    return (ctx.resistance_filter != RESISTANCE_DISABLED);
+  return false;
+}
+
 inline bool StructureTypeFiltersRequested(const StrategyStructureLayerContext &ctx)
 {
   if(!ctx.enabled)
