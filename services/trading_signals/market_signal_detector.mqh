@@ -649,8 +649,8 @@ bool ValidateBandsPercentBreakout(const BandsPercentStructure &bands_data,
   double zone_start = percent_threshold;
   double zone_end   = percent_threshold;
 
-  if(signal_type == BULLISH) { zone_start = 100 - percent_threshold; zone_end = zone_start - 20.0; }
-  if(signal_type == BEARISH) { zone_start = percent_threshold; zone_end = zone_start + 20.0; }
+  if(signal_type == BULLISH) { zone_start = 100 - percent_threshold; zone_end = zone_start - 30.0; }
+  if(signal_type == BEARISH) { zone_start = percent_threshold; zone_end = zone_start + 30.0; }
 
   double window_high = bands_data.bands_percent_window_high;
   double window_low  = bands_data.bands_percent_window_low;
