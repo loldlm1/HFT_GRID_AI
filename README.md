@@ -7,7 +7,7 @@
 ---
 
 ## 1. Overview
-HFT Grid AI is a tick-driven Expert Advisor that manages a single bullish and bearish grid per symbol. Signals combine Bollinger Percent breakouts with stochastic structure filters across two “fractal” contexts:
+HFT Grid AI is a tick-driven Expert Advisor that manages bullish and bearish grids per symbol. By default it keeps one active grid per direction, but the `Signal_Concurrency_Mode` input lets you opt into running multiple independent sequences concurrently. Signals combine Bollinger Percent breakouts with stochastic structure filters across two “fractal” contexts:
 
 - **Strategy Base Context** — Executes on the main timeframe, owning directional biases, support/resistance retest rules, slope confirmation, and fresh-structure guards.
 - **Strategy Trend Context** — Mirrors the base controls on an optional higher timeframe. Setting `Trend_Strategy_Timeframe = PERIOD_CURRENT` disables the layer entirely.
@@ -46,7 +46,7 @@ The include cascade rooted in `HFT_Grid_AI.mq5` guarantees ordering; individual 
    - `Trend_Indicator_Percent`, slope toggles for each indicator (`Trend_BPercent_Slope_Filter`, `Trend_Stochastic_Slope_Filter`, `Trend_Alligator_Slope_Filter`), mirrored structure/fresh controls, plus `Trend_Alligator_Jaws_Period`/`Trend_Alligator_Lips_Period` (teeth reuse `Base_Indicator_Period_Type`) configure the active trend filter.
 
 4. **Admission Flow**
-   1. `CanAttemptSignal()` checks protection risk, market status, indicator availability, fresh-structure state (equity <= 0 or insufficient funds -> force-close + `TesterStop()` when `Debug_Stop_On_Negative_Equity` is true), and optional daily signal budgets (either cap total attempts or halt only after `Daily_Signal_Limit` losses).
+   1. `CanAttemptSignal()` checks protection risk, market status, indicator availability, fresh-structure state (equity <= 0 or insufficient funds -> force-close + `TesterStop()` when `Debug_Stop_On_Negative_Equity` is true), signal concurrency (`SINGLE_RUNNING_SIGNAL` blocks new ones per direction, `MULTIPLE_RUNNING_SIGNALS` lifts the cap), and optional daily signal budgets (either cap total attempts or halt only after `Daily_Signal_Limit` losses).
    2. `LoadTrendStructureData()` seeds trend snapshots when required.
    3. `EvaluateSignalTrigger()` enforces breakout, slope, structure filters (base + trend), and captures the structure timestamps that gate future trades.
    4. Approved signals call `BuildGridOrderForSignal()`, seeding level 0 and pushing telemetry.

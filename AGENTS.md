@@ -12,7 +12,7 @@ This document summarizes the current architecture, workflows, and guardrails for
   - `microservices/*`: Broker helpers, order lifecycle, logging utilities.
   - `services/frontend/*`: Chart overlays and status comment.
 - **Constraints**:
-  - One bullish and one bearish grid at a time (`running_bullish_signals[]`, `running_bearish_signals[]`).
+  - `Signal_Concurrency_Mode` defaults to `SINGLE_RUNNING_SIGNAL` (one grid per direction) but can be switched to `MULTIPLE_RUNNING_SIGNALS` to authorize concurrent sequences.
   - Include order is fixed; services must not re-include siblings or redeclare globals.
 
 ---
@@ -56,7 +56,7 @@ This document summarizes the current architecture, workflows, and guardrails for
    - `broker_constraints_helper` caches freeze/stop distances per symbol.
 
 2. **Signal Admission**
-   - `CanAttemptSignal()` checks protection risk, market status, indicator availability, single-grid-per-direction rule, and (if enabled) debug equity/insufficient-funds conditions.
+   - `CanAttemptSignal()` checks protection risk, market status, indicator availability, the selected concurrency mode, and (if enabled) debug equity/insufficient-funds conditions.
    - `LoadTrendStructureData()` seeds `SignalParams` with trend data when the trend layer is active.
    - `EvaluateSignalTrigger()` runs breakout + slope + structure/fresh validations and persists the structure timestamps used to gate future trades.
 

@@ -34,6 +34,7 @@ input BaseIndicatorPeriodTypes  Base_Indicator_Period_Type  = BASE_PERIOD_21;
 input ENUM_MA_METHOD            Base_Indicator_MA_Method    = MODE_EMA;
 input SolidIndicatorPeriodTypes Solid_Indicator_Period_Type = SOLID_PERIOD_5;
 input StrategyDirectionTypes    Strategy_Direction_Mode     = BOTH_DIRECTION;
+input SignalConcurrencyModes    Signal_Concurrency_Mode     = SINGLE_RUNNING_SIGNAL;
 
 input group "+= Strategy Base Context =+";
 input StrategyTrendModes          Strategy_Base_Mode                = TREND_BPERCENT;

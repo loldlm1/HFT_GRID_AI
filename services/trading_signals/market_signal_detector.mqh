@@ -30,6 +30,19 @@ const double BANDS_PERCENT_MID_LEVEL   = 50.0;
 const double BANDS_PERCENT_UPPER_LEVEL = 100.0;
 const double BANDS_PERCENT_LOWER_LEVEL = 0.0;
 
+bool SignalConcurrencyAllowsAttempt(const SignalTypes direction)
+{
+  if(Signal_Concurrency_Mode == MULTIPLE_RUNNING_SIGNALS)
+    return true;
+
+  if(direction == BULLISH && ArraySize(running_bullish_signals) >= 1)
+    return false;
+  if(direction == BEARISH && ArraySize(running_bearish_signals) >= 1)
+    return false;
+
+  return true;
+}
+
 void DebugForceCloseAllGrids()
 {
   double point_size = GridResolvePointSize();
@@ -604,9 +617,7 @@ bool CanAttemptSignal(const SignalTypes signal_type)
     return false;
   }
 
-  if(signal_type == BULLISH && ArraySize(running_bullish_signals) >= 1)
-    return false;
-  if(signal_type == BEARISH && ArraySize(running_bearish_signals) >= 1)
+  if(!SignalConcurrencyAllowsAttempt(signal_type))
     return false;
 
   if(base_bpercent_required && ArraySize(ExtBPercentIndicatorsHandle) <= 0)
@@ -916,7 +927,7 @@ bool EvaluateStructureRetestTrigger(const SignalParams &signal_params,
                                     const SignalTypes signal_type,
                                     const StrategyStructureLayerContext &ctx)
 {
-  if(!StructureFiltersRequested(ctx))
+  if(!StructureFiltersRequested(ctx, signal_type))
     return true;
 
   StochasticMarketStructure structure;
@@ -1073,6 +1084,12 @@ bool EvaluateSignalTrigger(SignalParams &signal_params, const SignalTypes signal
 
   signal_params.base_structure_snapshot_time  = base_fresh_time;
   signal_params.trend_structure_snapshot_time = trend_fresh_time;
+
+  Print(base_trigger ," && ",
+         base_structure_filters ," && ",
+         trend_structure_filters ," && ",
+         base_structure_types ," && ",
+         trend_structure_types);
 
   return base_trigger &&
          base_structure_filters &&
