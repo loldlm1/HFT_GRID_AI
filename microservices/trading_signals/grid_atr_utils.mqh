@@ -4,6 +4,8 @@
 #ifndef _MICROSERVICES_TRADING_SIGNALS_GRID_ATR_UTILS_MQH_
 #define _MICROSERVICES_TRADING_SIGNALS_GRID_ATR_UTILS_MQH_
 
+const int ATR_BUFFER_ROOT_RESISTANCE  = 0;
+const int ATR_BUFFER_ROOT_SUPPORT     = 1;
 const int ATR_BUFFER_RESISTANCE       = 2;
 const int ATR_BUFFER_SUPPORT          = 3;
 const int ATR_BUFFER_TRAIL_RESISTANCE = 4;
@@ -58,6 +60,15 @@ bool GridResolveAtrTrailingPrice(const SignalTypes direction,
                                  const int shift = 1)
 {
   int buffer_index = (direction == BULLISH) ? ATR_BUFFER_TRAIL_SUPPORT : ATR_BUFFER_TRAIL_RESISTANCE;
+  return GridCopyAtrBufferValue(timeframe, buffer_index, price_out, shift);
+}
+
+bool GridResolveAtrRootPrice(const SignalTypes direction,
+                             const ENUM_TIMEFRAMES timeframe,
+                             double &price_out,
+                             const int shift = 0)
+{
+  int buffer_index = (direction == BULLISH) ? ATR_BUFFER_ROOT_SUPPORT : ATR_BUFFER_ROOT_RESISTANCE;
   return GridCopyAtrBufferValue(timeframe, buffer_index, price_out, shift);
 }
 
