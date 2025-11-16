@@ -112,18 +112,26 @@ bool GridResolveAlligatorLipsTrailingPrice(const SignalParams &signal_params,
                                            double &price_out)
 {
   price_out = 0.0;
-  int total = ArraySize(signal_params.alligator_data);
-  if(total <= 0)
-    return false;
-
   ENUM_TIMEFRAMES target_tf = GridResolvePrimaryStrategyTimeframe();
 
-  for(int i = 0; i < total; i++)
+  int total_handles = ArraySize(ExtAlligatorIndicatorsHandle);
+  if(total_handles <= 0)
+    return false;
+
+  for(int i = 0; i < total_handles; i++)
   {
-    AlligatorStructure data = signal_params.alligator_data[i];
-    if(data.indicator_timeframe != target_tf)
+    if(ExtAlligatorIndicatorsHandle[i].indicator_timeframe != target_tf)
       continue;
-    double candidate = data.lips_prev_value;
+
+    double buffer[];
+    if(CopyBuffer(ExtAlligatorIndicatorsHandle[i].indicator_handle,
+                  2,
+                  1,
+                  1,
+                  buffer) <= 0)
+      continue;
+
+    double candidate = buffer[0];
     if(candidate > 0.0)
     {
       price_out = candidate;
@@ -131,12 +139,6 @@ bool GridResolveAlligatorLipsTrailingPrice(const SignalParams &signal_params,
     }
   }
 
-  double fallback = signal_params.alligator_data[0].lips_prev_value;
-  if(fallback > 0.0)
-  {
-    price_out = fallback;
-    return true;
-  }
   return false;
 }
 
@@ -424,23 +426,29 @@ double UpdateTrailingTP(SignalParams &signal_params, GridOrderState &order_state
     if(signal_params.signal_type == BULLISH)
     {
       double candidate = indicator_price + offset_price;
+      if(broker_price > 0.0 && grid_trailing_price <= 0.0)
+      {
+        double cap_price = current_price - broker_price;
+        if(cap_price > 0.0 && candidate > cap_price)
+          candidate = cap_price;
+      }
+
       if(grid_trailing_price > 0.0)
         candidate = MathMax(candidate, grid_trailing_price);
-
-      double cap_price = current_price - broker_price;
-      if(cap_price > 0.0 && candidate > cap_price)
-        candidate = cap_price;
       return candidate;
     }
     if(signal_params.signal_type == BEARISH)
     {
       double candidate = indicator_price - offset_price;
+      if(broker_price > 0.0 && grid_trailing_price <= 0.0)
+      {
+        double floor_price = current_price + broker_price;
+        if(floor_price > 0.0 && candidate < floor_price)
+          candidate = floor_price;
+      }
+
       if(grid_trailing_price > 0.0)
         candidate = MathMin(candidate, grid_trailing_price);
-
-      double floor_price = current_price + broker_price;
-      if(floor_price > 0.0 && candidate < floor_price)
-        candidate = floor_price;
       return candidate;
     }
   }
