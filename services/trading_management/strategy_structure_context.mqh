@@ -10,6 +10,8 @@ struct StrategyStructureLayerContext
   int                         min_extern_structures;
   SupportRetestFilterModes    support_filter;
   ResistanceRetestFilterModes resistance_filter;
+  int                         support_min_retests;
+  int                         resistance_min_retests;
   TrendStructureFilterModes   first_structure_filter;
   TrendStructureFilterModes   second_structure_filter;
   bool                        enabled;
@@ -22,6 +24,8 @@ inline StrategyStructureLayerContext BuildBaseStructureLayerContext()
   ctx.min_extern_structures  = Base_Min_Extern_Structures_Broken;
   ctx.support_filter         = Base_Support_Filter;
   ctx.resistance_filter      = Base_Resistance_Filter;
+  ctx.support_min_retests    = Base_Support_Retest_Min_Count;
+  ctx.resistance_min_retests = Base_Resistance_Retest_Min_Count;
   ctx.first_structure_filter = Base_First_Structure_Filter;
   ctx.second_structure_filter = Base_Second_Structure_Filter;
   ctx.enabled                = true;
@@ -35,6 +39,8 @@ inline StrategyStructureLayerContext BuildTrendStructureLayerContext()
   ctx.min_extern_structures  = Trend_Min_Extern_Structures_Broken;
   ctx.support_filter         = Trend_Support_Filter;
   ctx.resistance_filter      = Trend_Resistance_Filter;
+  ctx.support_min_retests    = Trend_Support_Retest_Min_Count;
+  ctx.resistance_min_retests = Trend_Resistance_Retest_Min_Count;
   ctx.first_structure_filter = Trend_First_Structure_Filter;
   ctx.second_structure_filter = Trend_Second_Structure_Filter;
   ctx.enabled                = (Trend_Strategy_Timeframe != PERIOD_CURRENT);
@@ -99,9 +105,17 @@ inline int ResolveRetestRequirement(const StrategyStructureLayerContext &ctx,
   if(!ctx.enabled)
     return 0;
   if(signal_type == BULLISH)
-    return SupportFilterRequiresZone(ctx.support_filter, zone_index) ? 1 : 0;
+  {
+    if(!SupportFilterRequiresZone(ctx.support_filter, zone_index))
+      return 0;
+    return MathMax(ctx.support_min_retests, 1);
+  }
   if(signal_type == BEARISH)
-    return ResistanceFilterRequiresZone(ctx.resistance_filter, zone_index) ? 1 : 0;
+  {
+    if(!ResistanceFilterRequiresZone(ctx.resistance_filter, zone_index))
+      return 0;
+    return MathMax(ctx.resistance_min_retests, 1);
+  }
   return 0;
 }
 
