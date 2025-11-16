@@ -60,6 +60,9 @@ The include cascade rooted in `HFT_Grid_AI.mq5` guarantees ordering; individual 
   - `Grid_ATR_Range_Mode` selects which ATR buffers feed the ladder when `ATR_RANGE` is active: classic support/resistance windows, the trailing rails, both (pick whichever is safer), or the raw ATR “root” bands (`BufferMAUpper`/`BufferMALower`) when you want spacing anchored to the nearest wick- weighted envelope.
   - `Grid_Exponential_Multiplier` multiplies each level’s distance, while `Grid_Positions_Stops_Percent` defines the initial stop/entry offset.
   - `Grid_Points_TP` (optional) overrides `Grid_TP_Percent` with a fixed point span for every level’s take-profit distance, mirroring how `Grid_ATR_Points_Setup` behaves in `POINTS_RANGE`.
+- **Trailing Modes**
+  - `Grid_Trailing_Strategy_Mode` picks the trailing source: default price-offset, ATR trailing rails (shift=1), or Alligator lips MA (shift=1). `Grid_Trailing_TP_Percent` still defines the offset but, in indicator modes, it is added on top of the ATR/Lips value and clamped with `MathMax/MathMin` so the trailing line never moves backwards relative to the indicator.
+  - `Grid_Trailing_Execution_Mode` controls when trailing activates. `TRAILING_EXECUTION_DEFAULT` mirrors the legacy behaviour (trigger on `Grid_TP_Percent`). `TRAILING_EXECUTION_AGGRESIVE` waits until the selected indicator clears the TP reference— or the stop-level price when `Grid_Level_Stop_Limit` caps exposure—before enabling trailing so reversions always lock profit.
 
 - **Lot Modes**
   - `GRID_LOT_SIZE`, `GRID_LOT_PERCENTAGE_BASED`, `GRID_LOT_CURRENCY_BASED`, `GRID_LOT_CALCULATED`.
@@ -102,6 +105,7 @@ The include cascade rooted in `HFT_Grid_AI.mq5` guarantees ordering; individual 
 | **Strategy Base Context** | Percent, slope, structure filters, retest selectors, fresh-structure toggle. |
 | **Strategy Trend Context** | Mirrors base context plus trend mode toggles. |
 | **Grid Strategy** | `Grid_Base_Strategy_Type`, ATR/point setup, exponential multiplier, TP/stop percentages, ATR clamp is automatic. |
+| **Trailing Strategy** | `Grid_TP_Percent`, `Grid_Trailing_TP_Percent`, `Grid_Trailing_Strategy_Mode` (price, ATR rail, Lips MA), `Grid_Trailing_Execution_Mode` (price-triggered vs indicator-gated aggressive that swaps to the stop-level when `Grid_Level_Stop_Limit` becomes the cap). |
 | **Grid Risk** | `Grid_Lot_Type`, `Grid_Lot_Strategy_Size`, `Grid_Lot_Multiplier` (martingale/ladder), `Grid_Level_Stop_Limit` (max depth before force-close), `Daily_Signal_Limit` + mode (caps total or losing grids per day). |
 | **Developer Debug** | Logging toggles, chart options, `Enable_Trend_Filter_Sanity_Stop`, `Debug_Stop_On_Negative_Euity`. |
 

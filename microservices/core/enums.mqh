@@ -99,6 +99,19 @@ enum GridAtrRangeModes
   GRID_ATR_REFERENCE_ROOT = 3
 };
 
+enum TrailingStrategyModes
+{
+  TRAILING_DEFAULT   = 0,
+  TRAILING_ATR_BASED = 1,
+  TRAILING_LIPS_MA   = 2
+};
+
+enum TrailingExecutionModes
+{
+  TRAILING_EXECUTION_DEFAULT   = 0,
+  TRAILING_EXECUTION_AGGRESIVE = 1
+};
+
 enum SlopeTypes
 {
 	NO_SLOPE   = 0,

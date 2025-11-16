@@ -100,6 +100,63 @@ string GridComposeLevelComment(const SignalParams &signal_params,
   return StringFormat("GRID_%s_%s_L%d", direction_label, time_label, order_state.level_index);
 }
 
+ENUM_TIMEFRAMES GridResolvePrimaryStrategyTimeframe()
+{
+  int total = ArraySize(Strategy_TF_List);
+  if(total > 0)
+    return Strategy_TF_List[0];
+  return Strategy_Timeframe;
+}
+
+bool GridResolveAlligatorLipsTrailingPrice(const SignalParams &signal_params,
+                                           double &price_out)
+{
+  price_out = 0.0;
+  int total = ArraySize(signal_params.alligator_data);
+  if(total <= 0)
+    return false;
+
+  ENUM_TIMEFRAMES target_tf = GridResolvePrimaryStrategyTimeframe();
+
+  for(int i = 0; i < total; i++)
+  {
+    AlligatorStructure data = signal_params.alligator_data[i];
+    if(data.indicator_timeframe != target_tf)
+      continue;
+    double candidate = data.lips_prev_value;
+    if(candidate > 0.0)
+    {
+      price_out = candidate;
+      return true;
+    }
+  }
+
+  double fallback = signal_params.alligator_data[0].lips_prev_value;
+  if(fallback > 0.0)
+  {
+    price_out = fallback;
+    return true;
+  }
+  return false;
+}
+
+bool GridResolveTrailingStrategyPrice(const SignalParams &signal_params,
+                                      double &price_out)
+{
+  price_out = 0.0;
+
+  if(Grid_Trailing_Strategy_Mode == TRAILING_ATR_BASED)
+  {
+    ENUM_TIMEFRAMES tf = GridResolvePrimaryStrategyTimeframe();
+    return GridResolveAtrTrailingPrice(signal_params.signal_type, tf, price_out, 1);
+  }
+
+  if(Grid_Trailing_Strategy_Mode == TRAILING_LIPS_MA)
+    return GridResolveAlligatorLipsTrailingPrice(signal_params, price_out);
+
+  return false;
+}
+
 void GridResetOrderStateForWaiting(GridOrderState &state,
                                    const GridOrderState &template_state)
 {
@@ -348,30 +405,65 @@ void EnsureGridTakeProfitAggressive(
 
 double UpdateTrailingTP(SignalParams &signal_params, GridOrderState &order_state)
 {
-  // Derive tp_reference_pts from the TP span and percent to stay consistent post-fill
-  double current_price        = GridCurrentPriceForDirection(signal_params.signal_type, false);
-  double trailing_span_pts    = MathAbs(order_state.take_profit_price - order_state.entry_price) * g_decimal_digits;
-  double offset_pts           = trailing_span_pts * (Grid_Trailing_TP_Percent / 100.0);
-  double grid_trailing_price  = order_state.trailing_price;
-  double safe_fallback_price  = 0.0;
-  double candidate            = 0.0;
+  double current_price       = GridCurrentPriceForDirection(signal_params.signal_type, false);
+  double digit_scale         = (g_decimal_digits > 0.0) ? g_decimal_digits : 1.0;
+  double trailing_span_pts   = MathAbs(order_state.take_profit_price - order_state.entry_price) * digit_scale;
+  double offset_pts          = trailing_span_pts * (Grid_Trailing_TP_Percent / 100.0);
+  double offset_price        = offset_pts / digit_scale;
+  double grid_trailing_price = order_state.trailing_price;
+  double indicator_price     = 0.0;
+  bool   indicator_mode      = (Grid_Trailing_Strategy_Mode != TRAILING_DEFAULT) &&
+                               GridResolveTrailingStrategyPrice(signal_params, indicator_price);
+
+  if(indicator_mode && indicator_price > 0.0)
+  {
+    double broker_price = EnforceBrokerDistance(g_symbol_constraints) / digit_scale;
+    if(broker_price < 0.0)
+      broker_price = 0.0;
+
+    if(signal_params.signal_type == BULLISH)
+    {
+      double candidate = indicator_price + offset_price;
+      if(grid_trailing_price > 0.0)
+        candidate = MathMax(candidate, grid_trailing_price);
+
+      double cap_price = current_price - broker_price;
+      if(cap_price > 0.0 && candidate > cap_price)
+        candidate = cap_price;
+      return candidate;
+    }
+    if(signal_params.signal_type == BEARISH)
+    {
+      double candidate = indicator_price - offset_price;
+      if(grid_trailing_price > 0.0)
+        candidate = MathMin(candidate, grid_trailing_price);
+
+      double floor_price = current_price + broker_price;
+      if(floor_price > 0.0 && candidate < floor_price)
+        candidate = floor_price;
+      return candidate;
+    }
+  }
+
+  double safe_fallback_price = 0.0;
+  double candidate           = 0.0;
 
   if(signal_params.signal_type == BULLISH)
   {
-    safe_fallback_price = current_price - EnforceBrokerDistance(g_symbol_constraints);
-    candidate           = current_price - (offset_pts / g_decimal_digits);
+    safe_fallback_price = current_price - (EnforceBrokerDistance(g_symbol_constraints) / digit_scale);
+    candidate           = current_price - (offset_pts / digit_scale);
 
-    if(candidate > grid_trailing_price) return candidate; // FOLLOWS THE PRICE ROCKET
-
+    if(candidate > grid_trailing_price)
+      return candidate;
     return grid_trailing_price == 0 ? safe_fallback_price : grid_trailing_price;
   }
   if(signal_params.signal_type == BEARISH)
   {
-    safe_fallback_price = current_price + EnforceBrokerDistance(g_symbol_constraints);
-    candidate           = current_price + (offset_pts / g_decimal_digits);
+    safe_fallback_price = current_price + (EnforceBrokerDistance(g_symbol_constraints) / digit_scale);
+    candidate           = current_price + (offset_pts / digit_scale);
 
-    if(candidate < grid_trailing_price) return candidate; // FOLLOWS THE PRICE FALLS
-
+    if(candidate < grid_trailing_price)
+      return candidate;
     return grid_trailing_price == 0 ? candidate : grid_trailing_price;
   }
 

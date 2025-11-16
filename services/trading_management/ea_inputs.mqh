@@ -78,11 +78,15 @@ input double                Grid_Points_TP               = 0.0;
 input double                Grid_Exponential_Multiplier  = 1.0;
 input double                Grid_Positions_Stops_Percent = 10.0;
 input double                Grid_Final_TP_Percent        = 200.0;
-input double                Grid_TP_Percent              = 100.0;
-input double                Grid_Trailing_TP_Percent     = 10.0;
 input bool                  Grid_Enable_Robust_TP        = false;
 input bool                  Grid_Enable_Scalper_TP       = false;
 input bool                  Grid_Enable_Aggressive_TP    = false;
+
+input group  "+= Trailing Strategy Settings =+";
+input double                Grid_TP_Percent              = 100.0;
+input double                Grid_Trailing_TP_Percent     = 10.0;
+input TrailingStrategyModes Grid_Trailing_Strategy_Mode  = TRAILING_DEFAULT;
+input TrailingExecutionModes Grid_Trailing_Execution_Mode = TRAILING_EXECUTION_DEFAULT;
 
 input group  "+= Grid Risk Managment Settings =+";
 input GridLotTypes         Grid_Lot_Type                 = GRID_LOT_SIZE;
