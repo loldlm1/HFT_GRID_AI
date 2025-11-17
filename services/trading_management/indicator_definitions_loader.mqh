@@ -21,6 +21,7 @@ IndicatorsHandleInfo TrendStochIndicatorHandle;
 IndicatorsHandleInfo TrendStructStochIndicatorHandle;
 ENUM_TIMEFRAMES     Trend_Filter_Timeframe = PERIOD_M5;
 ENUM_TIMEFRAMES     Trend_Structure_Filter_Timeframe = PERIOD_M5;
+ENUM_TIMEFRAMES     Trailing_Indicator_Timeframe = PERIOD_M5;
 
 // TOTAL INDICATORS TO LOAD
 int start_bands_indicators_load = 0;
@@ -105,6 +106,21 @@ ENUM_TIMEFRAMES ResolveTrendTimeframe()
 ENUM_TIMEFRAMES ResolveTrendStructureTimeframe()
 {
   return ResolveTrendTimeframe();
+}
+
+ENUM_TIMEFRAMES ResolveTrailingStrategyTimeframe()
+{
+  ENUM_TIMEFRAMES configured_tf = Grid_Trailing_Timeframe;
+  if(configured_tf == PERIOD_CURRENT)
+    return Strategy_Timeframe;
+  if(!IsStrategyTimeframeSupported(configured_tf))
+  {
+    PrintFormat("Trailing timeframe %d not supported. Falling back to strategy timeframe %d.",
+                (int)configured_tf,
+                (int)Strategy_Timeframe);
+    configured_tf = Strategy_Timeframe;
+  }
+  return configured_tf;
 }
 
 void ResetTrendIndicators()
@@ -249,6 +265,121 @@ bool LoadTrendStructureIndicator(const ENUM_TIMEFRAMES structure_tf)
   return true;
 }
 
+bool AlligatorIndicatorHandleExists(const ENUM_TIMEFRAMES timeframe)
+{
+  int total = ArraySize(ExtAlligatorIndicatorsHandle);
+  for(int i = 0; i < total; i++)
+  {
+    if(ExtAlligatorIndicatorsHandle[i].indicator_timeframe == timeframe)
+      return true;
+  }
+  return false;
+}
+
+bool LoadAlligatorIndicatorForTimeframe(const ENUM_TIMEFRAMES trend_tf)
+{
+  if(AlligatorIndicatorHandleExists(trend_tf))
+    return true;
+
+  int jaws_period  = MathMax(Base_Alligator_Jaws_Period, 1);
+  int teeth_period = MathMax((int)Base_Indicator_Period_Type, 1);
+  int lips_period  = MathMax(Base_Alligator_Lips_Period, 1);
+
+  IndicatorsHandleInfo alligator_handle;
+  alligator_handle.indicator_period        = jaws_period;
+  alligator_handle.indicator_ma_method     = Base_Indicator_MA_Method;
+  alligator_handle.indicator_applied_price = PRICE_WEIGHTED;
+  alligator_handle.indicator_handle        = iAlligator(_Symbol,
+                                                        trend_tf,
+                                                        jaws_period,
+                                                        0,
+                                                        teeth_period,
+                                                        0,
+                                                        lips_period,
+                                                        0,
+                                                        Base_Indicator_MA_Method,
+                                                        PRICE_WEIGHTED);
+  alligator_handle.indicator_timeframe     = trend_tf;
+
+  if(alligator_handle.indicator_handle == INVALID_HANDLE)
+  {
+    PrintFormat("ERROR LOADING ALLIGATOR INDICATOR | tf=%s | jaws=%d | teeth=%d | lips=%d",
+                EnumToString(trend_tf),
+                jaws_period,
+                teeth_period,
+                lips_period);
+    TesterStop();
+    return false;
+  }
+
+  PrintFormat("LOADED ALLIGATOR INDICATOR SUCCESSFULLY: tf=%s | jaws=%d | teeth=%d | lips=%d",
+              EnumToString(trend_tf),
+              jaws_period,
+              teeth_period,
+              lips_period);
+
+  AddElementToArray(ExtAlligatorIndicatorsHandle, alligator_handle);
+  return true;
+}
+
+bool AtrIndicatorHandleExists(const ENUM_TIMEFRAMES timeframe)
+{
+  int total = ArraySize(ExtATRIndicatorsHandle);
+  for(int i = 0; i < total; i++)
+  {
+    if(ExtATRIndicatorsHandle[i].indicator_timeframe == timeframe)
+      return true;
+  }
+  return false;
+}
+
+bool LoadAtrIndicatorForTimeframe(const ENUM_TIMEFRAMES trend_timeframe)
+{
+  if(AtrIndicatorHandleExists(trend_timeframe))
+    return true;
+
+  IndicatorsHandleInfo atr_indicator_handle_loaded;
+
+  atr_indicator_handle_loaded.indicator_period    = (int)Solid_Indicator_Period_Type;
+  double atr_factor = Grid_ATR_Factor;
+  if(atr_factor <= 0.0)
+    atr_factor = 1.0;
+  atr_indicator_handle_loaded.indicator_handle    = iCustom(_Symbol,
+                                                            trend_timeframe,
+                                                            "Examples\\ATR_SL_Factor.ex5",
+                                                            atr_indicator_handle_loaded.indicator_period,
+                                                            atr_factor,
+                                                            0);
+  atr_indicator_handle_loaded.indicator_timeframe = trend_timeframe;
+
+  if(atr_indicator_handle_loaded.indicator_handle == INVALID_HANDLE)
+  {
+    Print("ERROR LOADING ATR FACTOR INDICATOR: ", EnumToString(trend_timeframe), " | PERIOD: ", atr_indicator_handle_loaded.indicator_period);
+    TesterStop();
+    return false;
+  }
+
+  Print("LOADED ATR FACTOR INDICATOR SUCCESSFULLY: ", EnumToString(trend_timeframe), " | PERIOD: ", atr_indicator_handle_loaded.indicator_period);
+
+  AddElementToArray(ExtATRIndicatorsHandle, atr_indicator_handle_loaded);
+  return true;
+}
+
+void EnsureTrailingIndicatorDependencies(const bool requires_atr,
+                                         const bool requires_alligator)
+{
+  ENUM_TIMEFRAMES trailing_tf = Trailing_Indicator_Timeframe;
+  ENUM_TIMEFRAMES base_tf     = Strategy_TF_List[0];
+
+  if(trailing_tf == base_tf)
+    return;
+
+  if(requires_alligator)
+    LoadAlligatorIndicatorForTimeframe(trailing_tf);
+  if(requires_atr)
+    LoadAtrIndicatorForTimeframe(trailing_tf);
+}
+
 void LoadTrendIndicators()
 {
   ResetTrendIndicators();
@@ -353,6 +484,7 @@ void LoadAllIndicatorDefinitions()
   bool base_alligator_required  = base_mode_uses_alligator || Base_Alligator_Slope_Filter || trailing_requires_alligator;
   ENUM_TIMEFRAMES strategy_tf = Strategy_TF_List[0];
   Trend_Structure_Filter_Timeframe = ResolveTrendStructureTimeframe();
+  Trailing_Indicator_Timeframe = ResolveTrailingStrategyTimeframe();
 
   bool require_structure_indicators = true;
 
@@ -419,6 +551,7 @@ void LoadAllIndicatorDefinitions()
   LoadAllBodyMAIndicators();
   LoadTrendIndicators();
   LoadTrendStructureFilterIndicator();
+  EnsureTrailingIndicatorDependencies(trailing_requires_atr, trailing_requires_alligator);
 }
 
 // ++ LOAD ALL INDICATORS VARIANTS FUNCTIONS ++
@@ -509,46 +642,11 @@ void LoadAllBPercentIndicators()
 
 void LoadAllAlligatorIndicators()
 {
-  int jaws_period  = MathMax(Base_Alligator_Jaws_Period, 1);
-  int teeth_period = MathMax((int)Base_Indicator_Period_Type, 1);
-  int lips_period  = MathMax(Base_Alligator_Lips_Period, 1);
-
   for(int i = 0; i < total_tf_list_load; ++i)
   {
     ENUM_TIMEFRAMES timeframe = Strategy_TF_List[i];
-
-    IndicatorsHandleInfo alligator_indicator_handle_loaded;
-    alligator_indicator_handle_loaded.indicator_period        = jaws_period;
-    alligator_indicator_handle_loaded.indicator_ma_method     = Base_Indicator_MA_Method;
-    alligator_indicator_handle_loaded.indicator_applied_price = PRICE_WEIGHTED;
-    alligator_indicator_handle_loaded.indicator_handle        = iAlligator(_Symbol,
-                                                                          timeframe,
-                                                                          jaws_period,
-                                                                          0,
-                                                                          teeth_period,
-                                                                          0,
-                                                                          lips_period,
-                                                                          0,
-                                                                          Base_Indicator_MA_Method,
-                                                                          PRICE_WEIGHTED);
-    alligator_indicator_handle_loaded.indicator_timeframe     = timeframe;
-
-    if(alligator_indicator_handle_loaded.indicator_handle == INVALID_HANDLE)
-    {
-      Print("ERROR LOADING ALLIGATOR INDICATOR | TF: ", EnumToString(timeframe),
-            " | jaws: ", jaws_period,
-            " | teeth: ", teeth_period,
-            " | lips: ", lips_period);
-      TesterStop();
+    if(!LoadAlligatorIndicatorForTimeframe(timeframe))
       break;
-    }
-
-    Print("LOADED ALLIGATOR INDICATOR SUCCESSFULLY | TF: ", EnumToString(timeframe),
-          " | jaws: ", jaws_period,
-          " | teeth: ", teeth_period,
-          " | lips: ", lips_period);
-
-    AddElementToArray(ExtAlligatorIndicatorsHandle, alligator_indicator_handle_loaded);
   }
 }
 
@@ -607,31 +705,8 @@ void LoadAllATRIndicators()
   for(int i = 0; i < total_tf_list_load; ++i)
   {
     ENUM_TIMEFRAMES trend_timeframe = Strategy_TF_List[i];
-
-    IndicatorsHandleInfo atr_indicator_handle_loaded;
-
-    atr_indicator_handle_loaded.indicator_period    = (int)Solid_Indicator_Period_Type;
-    double atr_factor = Grid_ATR_Points_Setup;
-    if(atr_factor <= 0.0)
-      atr_factor = 1.0;
-    atr_indicator_handle_loaded.indicator_handle    = iCustom(_Symbol,
-                                                              trend_timeframe,
-                                                              "Examples\\ATR_SL_Factor.ex5",
-                                                              atr_indicator_handle_loaded.indicator_period,
-                                                              atr_factor,
-                                                              0);
-    atr_indicator_handle_loaded.indicator_timeframe = trend_timeframe;
-
-    if(atr_indicator_handle_loaded.indicator_handle == INVALID_HANDLE)
-    {
-      Print("ERROR LOADING ATR FACTOR INDICATOR: ", EnumToString(trend_timeframe), " | PERIOD: ", atr_indicator_handle_loaded.indicator_period);
-      TesterStop();
+    if(!LoadAtrIndicatorForTimeframe(trend_timeframe))
       break;
-    }
-
-    Print("LOADED ATR FACTOR INDICATOR SUCCESSFULLY: ", EnumToString(trend_timeframe), " | PERIOD: ", atr_indicator_handle_loaded.indicator_period);
-
-    AddElementToArray(ExtATRIndicatorsHandle, atr_indicator_handle_loaded);
   }
 }
 
