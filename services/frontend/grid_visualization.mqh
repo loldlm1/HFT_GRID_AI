@@ -3,22 +3,12 @@
 
 double ResolveBreakEvenLinePrice(const SignalParams &signal_params)
 {
-  if(!Grid_Enable_Spread_BreakEven)
+  if(Grid_BreakEven_Mode == BE_DISABLE)
     return 0.0;
 
   int total_levels = ArraySize(signal_params.grid_orders);
   if(total_levels <= 0)
     return 0.0;
-
-  if(Grid_BreakEven_Deep_Mode == AGGRESIVE_DEEP_LEVELS_BE)
-  {
-    GridOrderState state = signal_params.grid_orders[0];
-    if(state.break_even_active &&
-       state.break_even_price > 0.0 &&
-       state.status == GRID_ORDER_ACTIVE)
-      return state.break_even_price;
-    return 0.0;
-  }
 
   for(int i = total_levels - 1; i >= 0; i--)
   {
@@ -80,7 +70,7 @@ void DrawGridLevels(const long chart_id,
     UpdateHorizontalLine(chart_id, trailing_name, COLOR_PROFIT_POSITIVE, trailing_price, trailing_label);
   }
 
-  if(Grid_Enable_Spread_BreakEven)
+  if(Grid_BreakEven_Mode != BE_DISABLE)
   {
     double break_even_price = ResolveBreakEvenLinePrice(signal_params);
     UpdateHorizontalLine(chart_id, break_even_name, COLOR_PROFIT_NEUTRAL, break_even_price, break_even_label, STYLE_DASHDOT);

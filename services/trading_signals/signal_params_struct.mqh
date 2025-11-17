@@ -25,6 +25,7 @@ struct GridOrderState
   bool     is_trailing_active;
   bool     tp_reached;
   bool     break_even_active;
+  bool     partial_take_executed;
   ulong    position_ticket;
   string   position_comment;
 
@@ -45,6 +46,7 @@ struct GridOrderState
     is_trailing_active          = false;
     tp_reached                  = false;
     break_even_active           = false;
+    partial_take_executed       = false;
     position_ticket             = 0;
     position_comment            = "";
   }

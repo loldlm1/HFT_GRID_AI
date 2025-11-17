@@ -85,18 +85,19 @@ enum GridBaseStrategyTypes
   POINTS_RANGE = 1
 };
 
-enum GridBreakEvenDeepModes
-{
-  CONSERVATIVE_DEEP_LEVELS_BE = 0,
-  AGGRESIVE_DEEP_LEVELS_BE    = 1
-};
-
 enum GridAtrRangeModes
 {
   GRID_ATR_REFERENCE_SUP_RES = 0,
   GRID_ATR_REFERENCE_TRAILING = 1,
   GRID_ATR_REFERENCE_BOTH = 2,
   GRID_ATR_REFERENCE_ROOT = 3
+};
+
+enum BreakEvenModes
+{
+  BE_DISABLE        = 0,
+  BE_ENABLE         = 1,
+  BE_PARTIAL_ENABLE = 2
 };
 
 enum TrailingStrategyModes
