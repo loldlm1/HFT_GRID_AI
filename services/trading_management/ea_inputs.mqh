@@ -90,6 +90,7 @@ input double               Grid_Lot_Multiplier           = 2.0;
 input int                  Grid_Level_Stop_Limit         = 0;
 input int                  Daily_Signal_Limit            = 0;
 input DailySignalLimitModes Daily_Signal_Limit_Mode      = STOP_DAILY_SIGNALS;
+input GridRiskTrendModes   Grid_Risk_Trend_Mode          = GRID_RM_TREND_OFF;
 
 input group  "+= Grid Trailing Strategy Settings =+";
 input double                 Grid_TP_Percent              = 100.0;

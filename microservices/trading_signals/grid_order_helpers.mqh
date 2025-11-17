@@ -567,4 +567,44 @@ double ClampPointsToBroker(const double points_value)
   return EnforceBrokerDistance(g_symbol_constraints, points_value);
 }
 
+bool GridFindLatestOrderForLogging(const SignalParams &signal_params,
+                                   GridOrderState &state_out)
+{
+  int total_levels = ArraySize(signal_params.grid_orders);
+  if(total_levels <= 0)
+    return false;
+
+  for(int idx = total_levels - 1; idx >= 0; idx--)
+  {
+    GridOrderState state = signal_params.grid_orders[idx];
+    if(state.status == GRID_ORDER_INACTIVE || state.level_index < 0)
+      continue;
+    state_out = state;
+    return true;
+  }
+
+  state_out = signal_params.grid_orders[total_levels - 1];
+  return true;
+}
+
+double GridCollectSignalFloatingProfit(const SignalParams &signal_params)
+{
+  double cumulative = 0.0;
+  int total_levels = ArraySize(signal_params.grid_orders);
+  for(int idx = 0; idx < total_levels; idx++)
+  {
+    GridOrderState state = signal_params.grid_orders[idx];
+    if(state.position_ticket <= 0)
+      continue;
+    if(!PositionSelectByTicket(state.position_ticket))
+      continue;
+    if(PositionGetInteger(POSITION_MAGIC) != g_magic_number)
+      continue;
+    if(PositionGetString(POSITION_SYMBOL) != _Symbol)
+      continue;
+    cumulative += PositionGetDouble(POSITION_PROFIT);
+  }
+  return cumulative;
+}
+
 #endif // _MICROSERVICES_TRADING_SIGNALS_GRID_ORDER_HELPERS_MQH_
