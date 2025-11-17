@@ -120,8 +120,9 @@ ENUM_TIMEFRAMES GridResolveRiskTrendTimeframe()
   return Strategy_Timeframe;
 }
 
-bool GridResolveAlligatorLipsPriceForTimeframe(const ENUM_TIMEFRAMES target_tf,
-                                               double &price_out)
+bool GridResolveAlligatorBufferPrice(const ENUM_TIMEFRAMES target_tf,
+                                     const int buffer_index,
+                                     double &price_out)
 {
   price_out = 0.0;
 
@@ -136,7 +137,7 @@ bool GridResolveAlligatorLipsPriceForTimeframe(const ENUM_TIMEFRAMES target_tf,
 
     double buffer[];
     if(CopyBuffer(ExtAlligatorIndicatorsHandle[i].indicator_handle,
-                  2,
+                  buffer_index,
                   1,
                   1,
                   buffer) <= 0)
@@ -157,7 +158,13 @@ bool GridResolveAlligatorLipsTrailingPrice(const SignalParams &signal_params,
                                            double &price_out)
 {
   ENUM_TIMEFRAMES target_tf = GridResolveTrailingStrategyTimeframe();
-  return GridResolveAlligatorLipsPriceForTimeframe(target_tf, price_out);
+  return GridResolveAlligatorBufferPrice(target_tf, 2, price_out);
+}
+
+bool GridResolveAlligatorJawsPriceForRisk(const ENUM_TIMEFRAMES target_tf,
+                                          double &price_out)
+{
+  return GridResolveAlligatorBufferPrice(target_tf, 0, price_out);
 }
 
 bool GridResolveTrailingStrategyPrice(const SignalParams &signal_params,
