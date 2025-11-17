@@ -110,11 +110,20 @@ ENUM_TIMEFRAMES GridResolveTrailingStrategyTimeframe()
   return Strategy_Timeframe;
 }
 
-bool GridResolveAlligatorLipsTrailingPrice(const SignalParams &signal_params,
-                                           double &price_out)
+ENUM_TIMEFRAMES GridResolveRiskTrendTimeframe()
+{
+  if(Risk_Trend_Timeframe > 0)
+    return Risk_Trend_Timeframe;
+  int total = ArraySize(Strategy_TF_List);
+  if(total > 0)
+    return Strategy_TF_List[0];
+  return Strategy_Timeframe;
+}
+
+bool GridResolveAlligatorLipsPriceForTimeframe(const ENUM_TIMEFRAMES target_tf,
+                                               double &price_out)
 {
   price_out = 0.0;
-  ENUM_TIMEFRAMES target_tf = GridResolveTrailingStrategyTimeframe();
 
   int total_handles = ArraySize(ExtAlligatorIndicatorsHandle);
   if(total_handles <= 0)
@@ -142,6 +151,13 @@ bool GridResolveAlligatorLipsTrailingPrice(const SignalParams &signal_params,
   }
 
   return false;
+}
+
+bool GridResolveAlligatorLipsTrailingPrice(const SignalParams &signal_params,
+                                           double &price_out)
+{
+  ENUM_TIMEFRAMES target_tf = GridResolveTrailingStrategyTimeframe();
+  return GridResolveAlligatorLipsPriceForTimeframe(target_tf, price_out);
 }
 
 bool GridResolveTrailingStrategyPrice(const SignalParams &signal_params,
