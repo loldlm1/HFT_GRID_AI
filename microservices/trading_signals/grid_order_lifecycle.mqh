@@ -120,12 +120,6 @@ bool GridShouldActivateTrailing(SignalParams &signal_params,
     return ShouldSwitchToTrailingTP(direction, order_state, current_price);
 
   double reference_price = order_state.take_profit_price;
-  bool limit_reached = (Grid_Level_Stop_Limit > 0 &&
-                        ArraySize(signal_params.grid_orders) >= Grid_Level_Stop_Limit &&
-                        order_state.next_level_price > 0.0);
-  if(limit_reached)
-    reference_price = order_state.next_level_price;
-
   if(reference_price <= 0.0)
     return ShouldSwitchToTrailingTP(direction, order_state, current_price);
 

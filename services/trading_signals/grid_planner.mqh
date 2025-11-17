@@ -166,13 +166,16 @@ double ResolveBaseGridLot(const double base_distance_points)
     reference_points = base_distance_points;
 
   double target_amount = 0.0;
-  if(Grid_Lot_Type == GRID_LOT_PERCENTAGE_BASED)
+  if(Grid_Lot_Type == GRID_LOT_PERCENTAGE_BASED ||
+     Grid_Lot_Type == GRID_LOT_EQUITY_PERCENT_BASED)
   {
-    double base_balance = Account_Size;
-    double account_balance = AccountInfoDouble(ACCOUNT_BALANCE);
-    if(account_balance > 0.0)
-      base_balance = account_balance;
-    target_amount = base_balance * (Grid_Lot_Strategy_Size / 100.0);
+    double account_reference = Account_Size;
+    double account_value = (Grid_Lot_Type == GRID_LOT_EQUITY_PERCENT_BASED)
+                             ? AccountInfoDouble(ACCOUNT_EQUITY)
+                             : AccountInfoDouble(ACCOUNT_BALANCE);
+    if(account_value > 0.0)
+      account_reference = account_value;
+    target_amount = account_reference * (Grid_Lot_Strategy_Size / 100.0);
   }
   else if(Grid_Lot_Type == GRID_LOT_CURRENCY_BASED)
   {
@@ -343,16 +346,22 @@ double ResolveGridOrderLotSize(SignalParams &signal_params,
 
   double resolved_lot = fallback_lot;
 
-  if(Grid_Lot_Type == GRID_LOT_PERCENTAGE_BASED || Grid_Lot_Type == GRID_LOT_CURRENCY_BASED)
+  bool percent_type  = (Grid_Lot_Type == GRID_LOT_PERCENTAGE_BASED ||
+                        Grid_Lot_Type == GRID_LOT_EQUITY_PERCENT_BASED);
+  bool currency_type = (Grid_Lot_Type == GRID_LOT_CURRENCY_BASED);
+
+  if(percent_type || currency_type)
   {
     double target_amount = 0.0;
-    if(Grid_Lot_Type == GRID_LOT_PERCENTAGE_BASED)
+    if(percent_type)
     {
-      double base_balance = Account_Size;
-      double account_balance = AccountInfoDouble(ACCOUNT_BALANCE);
-      if(account_balance > 0.0)
-        base_balance = account_balance;
-      target_amount = base_balance * (Grid_Lot_Strategy_Size / 100.0);
+      double account_reference = Account_Size;
+      double account_value = (Grid_Lot_Type == GRID_LOT_EQUITY_PERCENT_BASED)
+                               ? AccountInfoDouble(ACCOUNT_EQUITY)
+                               : AccountInfoDouble(ACCOUNT_BALANCE);
+      if(account_value > 0.0)
+        account_reference = account_value;
+      target_amount = account_reference * (Grid_Lot_Strategy_Size / 100.0);
     }
     else
     {
