@@ -22,6 +22,7 @@ IndicatorsHandleInfo TrendStructStochIndicatorHandle;
 ENUM_TIMEFRAMES     Trend_Filter_Timeframe = PERIOD_M5;
 ENUM_TIMEFRAMES     Trend_Structure_Filter_Timeframe = PERIOD_M5;
 ENUM_TIMEFRAMES     Trailing_Indicator_Timeframe = PERIOD_M5;
+ENUM_TIMEFRAMES     Risk_Trend_Timeframe = PERIOD_M5;
 
 // TOTAL INDICATORS TO LOAD
 int start_bands_indicators_load = 0;
@@ -116,6 +117,21 @@ ENUM_TIMEFRAMES ResolveTrailingStrategyTimeframe()
   if(!IsStrategyTimeframeSupported(configured_tf))
   {
     PrintFormat("Trailing timeframe %d not supported. Falling back to strategy timeframe %d.",
+                (int)configured_tf,
+                (int)Strategy_Timeframe);
+    configured_tf = Strategy_Timeframe;
+  }
+  return configured_tf;
+}
+
+ENUM_TIMEFRAMES ResolveRiskTrendTimeframe()
+{
+  ENUM_TIMEFRAMES configured_tf = Trend_Strategy_Timeframe;
+  if(configured_tf == PERIOD_CURRENT)
+    return Strategy_Timeframe;
+  if(!IsStrategyTimeframeSupported(configured_tf))
+  {
+    PrintFormat("Risk trend timeframe %d not supported. Falling back to strategy timeframe %d.",
                 (int)configured_tf,
                 (int)Strategy_Timeframe);
     configured_tf = Strategy_Timeframe;
@@ -366,18 +382,19 @@ bool LoadAtrIndicatorForTimeframe(const ENUM_TIMEFRAMES trend_timeframe)
 }
 
 void EnsureTrailingIndicatorDependencies(const bool requires_atr,
-                                         const bool requires_alligator)
+                                         const bool trailing_requires_alligator,
+                                         const bool risk_requires_alligator)
 {
   ENUM_TIMEFRAMES trailing_tf = Trailing_Indicator_Timeframe;
   ENUM_TIMEFRAMES base_tf     = Strategy_TF_List[0];
 
-  if(trailing_tf == base_tf)
-    return;
-
-  if(requires_alligator)
+  if(trailing_requires_alligator && trailing_tf != base_tf)
     LoadAlligatorIndicatorForTimeframe(trailing_tf);
-  if(requires_atr)
+  if(requires_atr && trailing_tf != base_tf)
     LoadAtrIndicatorForTimeframe(trailing_tf);
+
+  if(risk_requires_alligator)
+    LoadAlligatorIndicatorForTimeframe(Risk_Trend_Timeframe);
 }
 
 void LoadTrendIndicators()
@@ -479,13 +496,15 @@ void LoadAllIndicatorDefinitions()
   bool base_mode_uses_bpercent  = (Strategy_Base_Mode == TREND_BPERCENT || Strategy_Base_Mode == TREND_BOTH);
   bool base_mode_uses_alligator = (Strategy_Base_Mode == TREND_ALLIGATOR || Strategy_Base_Mode == TREND_BOTH);
   bool base_bpercent_required   = base_mode_uses_bpercent || Base_BPercent_Slope_Filter;
-  bool trailing_requires_alligator = (Grid_Trailing_Strategy_Mode == TRAILING_LIPS_MA) ||
-                                     (Grid_Risk_Trend_Mode != GRID_RM_TREND_OFF);
+  bool trailing_requires_alligator = (Grid_Trailing_Strategy_Mode == TRAILING_LIPS_MA);
   bool trailing_requires_atr       = (Grid_Trailing_Strategy_Mode == TRAILING_ATR_BASED);
-  bool base_alligator_required  = base_mode_uses_alligator || Base_Alligator_Slope_Filter || trailing_requires_alligator;
+  bool risk_requires_alligator     = (Grid_Risk_Trend_Mode != GRID_RM_TREND_OFF);
+  bool base_alligator_required  = base_mode_uses_alligator || Base_Alligator_Slope_Filter ||
+                                  trailing_requires_alligator || risk_requires_alligator;
   ENUM_TIMEFRAMES strategy_tf = Strategy_TF_List[0];
   Trend_Structure_Filter_Timeframe = ResolveTrendStructureTimeframe();
   Trailing_Indicator_Timeframe = ResolveTrailingStrategyTimeframe();
+  Risk_Trend_Timeframe = ResolveRiskTrendTimeframe();
 
   bool require_structure_indicators = true;
 
@@ -552,7 +571,9 @@ void LoadAllIndicatorDefinitions()
   LoadAllBodyMAIndicators();
   LoadTrendIndicators();
   LoadTrendStructureFilterIndicator();
-  EnsureTrailingIndicatorDependencies(trailing_requires_atr, trailing_requires_alligator);
+  EnsureTrailingIndicatorDependencies(trailing_requires_atr,
+                                      trailing_requires_alligator,
+                                      risk_requires_alligator);
 }
 
 // ++ LOAD ALL INDICATORS VARIANTS FUNCTIONS ++
