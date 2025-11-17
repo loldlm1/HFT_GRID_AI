@@ -192,6 +192,13 @@ enum GridLotTypes
   GRID_LOT_EQUITY_PERCENT_BASED = 4
 };
 
+enum GridRiskTrendModes
+{
+  GRID_RM_TREND_OFF      = 0,
+  GRID_RM_TREND_LIPS_BE  = 1,
+  GRID_RM_TREND_LIPS_SL  = 2
+};
+
 enum DailySignalLimitModes
 {
   STOP_DAILY_SIGNALS       = 0,
