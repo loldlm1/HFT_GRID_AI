@@ -176,6 +176,7 @@ void GridResetOrderStateForWaiting(GridOrderState &state,
   state.tp_reached         = false;
   state.break_even_active  = false;
   state.break_even_price   = 0.0;
+  state.partial_take_executed = false;
   state.position_ticket    = 0;
   state.position_comment   = "";
 }
@@ -498,6 +499,7 @@ void ResetGridOrderPricesByDirection(SignalParams &signal_params, int grid_order
   }
   signal_params.grid_orders[grid_order_level].break_even_active = false;
   signal_params.grid_orders[grid_order_level].break_even_price  = 0.0;
+  signal_params.grid_orders[grid_order_level].partial_take_executed = false;
 }
 
 // --- New pricing helpers (points-based, broker-safe) ---

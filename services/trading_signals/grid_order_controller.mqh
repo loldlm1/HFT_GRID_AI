@@ -103,9 +103,9 @@ void UpdateGridLifecycle(SignalParams &signal_params)
     }
   }
 
-  if(Grid_Enable_Spread_BreakEven)
+  if(Grid_BreakEven_Mode != BE_DISABLE)
   {
-    GridApplyBreakEven(signal_params, point_size);
+    GridProcessBreakEven(signal_params);
     if(GridCheckBreakEvenExit(signal_params))
       return;
   }
