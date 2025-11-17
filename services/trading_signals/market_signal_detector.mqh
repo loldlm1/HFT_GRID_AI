@@ -1083,12 +1083,6 @@ bool EvaluateSignalTrigger(SignalParams &signal_params, const SignalTypes signal
   signal_params.base_structure_snapshot_time  = base_fresh_time;
   signal_params.trend_structure_snapshot_time = trend_fresh_time;
 
-  Print(base_trigger ," && ",
-         base_structure_filters ," && ",
-         trend_structure_filters ," && ",
-         base_structure_types ," && ",
-         trend_structure_types);
-
   return base_trigger &&
          base_structure_filters &&
          trend_structure_filters &&

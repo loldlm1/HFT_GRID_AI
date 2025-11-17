@@ -19,8 +19,6 @@ bool GridApplyTrendRiskManagement(SignalParams &signal_params)
 
   double entry_price = latest_state.entry_price;
   if(entry_price <= 0.0)
-    entry_price = latest_state.entry_reference_price;
-  if(entry_price <= 0.0)
     return false;
 
   bool breach = false;
