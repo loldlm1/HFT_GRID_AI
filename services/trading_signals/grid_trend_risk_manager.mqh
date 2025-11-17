@@ -7,10 +7,10 @@ bool GridApplyTrendRiskManagement(SignalParams &signal_params)
     return false;
 
   ENUM_TIMEFRAMES target_tf = GridResolveRiskTrendTimeframe();
-  double lips_price = 0.0;
-  if(!GridResolveAlligatorLipsPriceForTimeframe(target_tf, lips_price))
+  double jaws_price = 0.0;
+  if(!GridResolveAlligatorJawsPriceForRisk(target_tf, jaws_price))
     return false;
-  if(lips_price <= 0.0)
+  if(jaws_price <= 0.0)
     return false;
 
   GridOrderState latest_state;
@@ -23,9 +23,9 @@ bool GridApplyTrendRiskManagement(SignalParams &signal_params)
 
   bool breach = false;
   if(signal_params.signal_type == BULLISH)
-    breach = (entry_price < lips_price);
+    breach = (entry_price < jaws_price);
   else if(signal_params.signal_type == BEARISH)
-    breach = (entry_price > lips_price);
+    breach = (entry_price > jaws_price);
 
   if(!breach)
     return false;
