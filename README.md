@@ -71,7 +71,7 @@ The include cascade rooted in `HFT_Grid_AI.mq5` guarantees ordering; individual 
   - Percentage/equity/currency modes convert the selected account metric (balance, equity, or explicit currency) into lots using the live entry→TP span.
   - `GRID_LOT_CALCULATED` sums drawdown of previously filled levels, multiplies by `Grid_Lot_Multiplier`, and back-solves lots so the next TP can recover the accumulated loss.
 - **Trend Risk Guard**
-  - `Grid_Risk_Trend_Mode` compares the most recent grid level entry price against the Alligator Lips MA. `GRID_RM_TREND_OFF` disables it, `GRID_RM_TREND_LIPS_BE` closes the sequence (only when the aggregate floating P/L is ≥ 0) once the deepest entry sits on the wrong side of the Lips line, and `GRID_RM_TREND_LIPS_SL` treats that line as a hard stop (closes immediately when the entry is beyond the Lips value).
+  - `Grid_Risk_Trend_Mode` compares the most recent grid level entry price against the Alligator jaws MA. `GRID_RM_TREND_OFF` disables it, `GRID_RM_TREND_JAWS_BE` closes the sequence (only when aggregate floating P/L is ≥ 0) once the latest filled level sits on the wrong side of the jaws line, `GRID_RM_TREND_JAWS_SL` treats that line as a hard stop, and `GRID_RM_TREND_JAWS_SAR` flips the grid into the opposite direction (using the latest level’s lot size) whenever the breach occurs so the sequence “s.ar”s between bullish and bearish states until price trends back.
 
 - **Telemetry & Visualization**
   - `GridLogEvent()` entries label each lifecycle change (`LOT_RESOLVED`, `NEXT_UPDATE`, etc.).
@@ -110,7 +110,7 @@ The include cascade rooted in `HFT_Grid_AI.mq5` guarantees ordering; individual 
 | **Strategy Trend Context** | Mirrors base context plus trend mode toggles. |
 | **Grid Strategy** | `Grid_Base_Strategy_Type`, `Grid_Points_Range_Setup`, `Grid_ATR_Factor`, exponential multiplier, TP/stop percentages, ATR clamp is automatic. |
 | **Trailing Strategy** | `Grid_TP_Percent`, `Grid_Trailing_TP_Percent`, `Grid_Trailing_Strategy_Mode` (price, ATR rail, Lips MA), `Grid_Trailing_Timeframe`, `Grid_Trailing_Execution_Mode` (price-triggered vs indicator-gated aggressive that watches the TP reference), `Grid_BreakEven_Mode`, and `Grid_Partial_Take_Percentage` (for partial BE). ATR/MA trailing remains available even when `Grid_Base_Strategy_Type = POINTS_RANGE` thanks to dedicated indicator loads. |
-| **Grid Risk** | `Grid_Lot_Type`, `Grid_Lot_Strategy_Size`, `Grid_Lot_Multiplier` (martingale/ladder), `Grid_Level_Stop_Limit` (max depth before force-close), `Daily_Signal_Limit` + mode (caps total or losing grids per day), `Grid_Risk_Trend_Mode` (off / Lips break-even / Lips stop using the latest level entry). `GRID_LOT_EQUITY_PERCENT_BASED` mirrors the percentage mode but uses live equity. |
+| **Grid Risk** | `Grid_Lot_Type`, `Grid_Lot_Strategy_Size`, `Grid_Lot_Multiplier` (martingale/ladder), `Grid_Level_Stop_Limit` (max depth before force-close), `Daily_Signal_Limit` + mode (caps total or losing grids per day), `Grid_Risk_Trend_Mode` (off / jaws break-even / jaws stop / jaws SAR using the most recent level). `GRID_LOT_EQUITY_PERCENT_BASED` mirrors the percentage mode but uses live equity. |
 | **Developer Debug** | Logging toggles, chart options, `Enable_Trend_Filter_Sanity_Stop`, `Debug_Stop_On_Negative_Euity`. |
 
 Refer to `services/trading_management/ea_inputs.mqh` for defaults and descriptions.
