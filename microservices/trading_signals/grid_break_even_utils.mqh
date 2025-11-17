@@ -23,7 +23,8 @@ bool GridBreakEvenTriggered(const GridOrderState &state,
 {
   if(!state.break_even_active || state.break_even_price <= 0.0)
     return false;
-  if(state.status != GRID_ORDER_ACTIVE)
+  if(state.status != GRID_ORDER_ACTIVE &&
+     state.status != GRID_ORDER_TP_TRAILING_ACTIVE)
     return false;
 
   if(direction == BULLISH)
@@ -74,7 +75,9 @@ void GridAssignBreakEvenToLevels(SignalParams &signal_params,
   int limit = (upto_index < total_levels) ? upto_index : (total_levels - 1);
   for(int idx = 0; idx <= limit; idx++)
   {
-    if(signal_params.grid_orders[idx].status != GRID_ORDER_ACTIVE)
+    int status = signal_params.grid_orders[idx].status;
+    if(status != GRID_ORDER_ACTIVE &&
+       status != GRID_ORDER_TP_TRAILING_ACTIVE)
       continue;
     signal_params.grid_orders[idx].break_even_active = true;
     signal_params.grid_orders[idx].break_even_price  = break_even_price;
@@ -164,7 +167,8 @@ void GridProcessBreakEven(SignalParams &signal_params)
 
   for(int idx = 0; idx < total_levels; idx++)
   {
-    if(signal_params.grid_orders[idx].status != GRID_ORDER_ACTIVE)
+    int status = signal_params.grid_orders[idx].status;
+    if(status != GRID_ORDER_ACTIVE && status != GRID_ORDER_TP_TRAILING_ACTIVE)
     {
       signal_params.grid_orders[idx].break_even_active = false;
       signal_params.grid_orders[idx].break_even_price  = 0.0;
@@ -180,7 +184,10 @@ void GridProcessBreakEven(SignalParams &signal_params)
   for(int level = total_levels - 1; level >= 0; level--)
   {
     GridOrderState current_state = signal_params.grid_orders[level];
-    if(current_state.status != GRID_ORDER_ACTIVE)
+    int order_status = current_state.status;
+    bool eligible_status = (order_status == GRID_ORDER_ACTIVE ||
+                            order_status == GRID_ORDER_TP_TRAILING_ACTIVE);
+    if(!eligible_status)
       continue;
     if(current_state.entry_price <= 0.0 || current_state.take_profit_price <= 0.0)
       continue;
