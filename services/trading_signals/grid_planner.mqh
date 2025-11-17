@@ -138,7 +138,7 @@ bool CalculateBaseGridContext(const SignalParams &signal_params,
   }
   else
   {
-    double requested_points = EnforceBrokerDistance(g_symbol_constraints, Grid_ATR_Points_Setup);
+    double requested_points = EnforceBrokerDistance(g_symbol_constraints, Grid_Points_Range_Setup);
     atr_price = entry_reference_price + direction_mult * requested_points * point_size;
 
     distance_points = MathAbs(atr_price - entry_reference_price) / point_size;

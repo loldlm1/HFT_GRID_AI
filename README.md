@@ -55,14 +55,14 @@ The include cascade rooted in `HFT_Grid_AI.mq5` guarantees ordering; individual 
 
 ## 4. Grid Framework & Lot Sizing
 - **Distance Modes**
-  - `ATR_RANGE`: Pulls ATR-based anchor points. When a grid already has levels, the freshly computed base distance is clamped so it never falls below the last realised spacing—preventing ultra-tight ladders if ATR contracts mid-cycle.
-  - `POINTS_RANGE`: Uses `Grid_ATR_Points_Setup` as fixed points.
+  - `ATR_RANGE`: Pulls ATR-based anchor points using `Grid_ATR_Factor` when instantiating the ATR helper indicator. When a grid already has levels, the freshly computed base distance is clamped so it never falls below the last realised spacing—preventing ultra-tight ladders if ATR contracts mid-cycle.
+  - `POINTS_RANGE`: Uses `Grid_Points_Range_Setup` as fixed points.
   - `Grid_ATR_Range_Mode` selects which ATR buffers feed the ladder when `ATR_RANGE` is active: classic support/resistance windows, the trailing rails, both (pick whichever is safer), or the raw ATR “root” bands (`BufferMAUpper`/`BufferMALower`) when you want spacing anchored to the nearest wick- weighted envelope.
   - `Grid_Exponential_Multiplier` multiplies each level’s distance, while `Grid_Positions_Stops_Percent` defines the initial stop/entry offset.
-  - `Grid_Points_TP` (optional) overrides `Grid_TP_Percent` with a fixed point span for every level’s take-profit distance, mirroring how `Grid_ATR_Points_Setup` behaves in `POINTS_RANGE`.
+  - `Grid_Points_TP` (optional) overrides `Grid_TP_Percent` with a fixed point span for every level’s take-profit distance, mirroring how `Grid_Points_Range_Setup` behaves in `POINTS_RANGE`.
 - **Trailing Modes**
-  - `Grid_Trailing_Strategy_Mode` picks the trailing source: default price-offset, ATR trailing rails (shift=1), or Alligator lips MA (shift=1). `Grid_Trailing_TP_Percent` still defines the offset but, in indicator modes, it is added on top of the ATR/Lips value and clamped with `MathMax/MathMin` so the trailing line never moves backwards relative to the indicator.
-- `Grid_Trailing_Execution_Mode` controls when trailing activates. `TRAILING_EXECUTION_DEFAULT` mirrors the legacy behaviour (trigger on `Grid_TP_Percent`). `TRAILING_EXECUTION_AGGRESIVE` simply waits until the selected indicator clears the TP reference before enabling trailing, so every grid follows the same gating regardless of `Grid_Level_Stop_Limit` caps.
+  - `Grid_Trailing_Strategy_Mode` picks the trailing source: default price-offset, ATR trailing rails (shift=1), or Alligator lips MA (shift=1). `Grid_Trailing_TP_Percent` still defines the offset but, in indicator modes, it is added on top of the ATR/Lips value and clamped with `MathMax/MathMin` so the trailing line never moves backwards relative to the indicator. `Grid_Trailing_Timeframe` lets you pick a dedicated timeframe for the trailing indicator (default `PERIOD_CURRENT`, which maps to `Strategy_Timeframe`).
+  - `Grid_Trailing_Execution_Mode` controls when trailing activates. `TRAILING_EXECUTION_DEFAULT` mirrors the legacy behaviour (trigger on `Grid_TP_Percent`). `TRAILING_EXECUTION_AGGRESIVE` simply waits until the selected indicator clears the TP reference before enabling trailing, so every grid follows the same gating regardless of `Grid_Level_Stop_Limit` caps.
 - **Break-Even Modes**
   - `Grid_BreakEven_Mode` governs automated BE handling. `BE_DISABLE` leaves stops untouched, `BE_ENABLE` arms break-even once price reaches a level’s `Grid_TP_Percent` target and propagates the new break-even anchor across all shallower/positive levels. `BE_PARTIAL_ENABLE` adds profit taking: when a level hits TP the EA closes `Grid_Partial_Take_Percentage` of that position (only if the broker allows the partial size) before shifting every filled level’s break-even to that anchor. Each level donates a single partial, and the anchor walks forward level-by-level while trailing logic still races to close everything if it’s hit first.
 
@@ -106,8 +106,8 @@ The include cascade rooted in `HFT_Grid_AI.mq5` guarantees ordering; individual 
 | **Strategy Context** | `Strategy_Timeframe`, `Trend_Strategy_Timeframe`, indicator period/MA, `Strategy_Direction_Mode`. |
 | **Strategy Base Context** | Percent, slope, structure filters, retest selectors, fresh-structure toggle. |
 | **Strategy Trend Context** | Mirrors base context plus trend mode toggles. |
-| **Grid Strategy** | `Grid_Base_Strategy_Type`, ATR/point setup, exponential multiplier, TP/stop percentages, ATR clamp is automatic. |
-| **Trailing Strategy** | `Grid_TP_Percent`, `Grid_Trailing_TP_Percent`, `Grid_Trailing_Strategy_Mode` (price, ATR rail, Lips MA), `Grid_Trailing_Execution_Mode` (price-triggered vs indicator-gated aggressive that watches the TP reference), `Grid_BreakEven_Mode`, and `Grid_Partial_Take_Percentage` (for partial BE). ATR/MA trailing remains available even when `Grid_Base_Strategy_Type = POINTS_RANGE` thanks to dedicated indicator loads. |
+| **Grid Strategy** | `Grid_Base_Strategy_Type`, `Grid_Points_Range_Setup`, `Grid_ATR_Factor`, exponential multiplier, TP/stop percentages, ATR clamp is automatic. |
+| **Trailing Strategy** | `Grid_TP_Percent`, `Grid_Trailing_TP_Percent`, `Grid_Trailing_Strategy_Mode` (price, ATR rail, Lips MA), `Grid_Trailing_Timeframe`, `Grid_Trailing_Execution_Mode` (price-triggered vs indicator-gated aggressive that watches the TP reference), `Grid_BreakEven_Mode`, and `Grid_Partial_Take_Percentage` (for partial BE). ATR/MA trailing remains available even when `Grid_Base_Strategy_Type = POINTS_RANGE` thanks to dedicated indicator loads. |
 | **Grid Risk** | `Grid_Lot_Type`, `Grid_Lot_Strategy_Size`, `Grid_Lot_Multiplier` (martingale/ladder), `Grid_Level_Stop_Limit` (max depth before force-close), `Daily_Signal_Limit` + mode (caps total or losing grids per day). `GRID_LOT_EQUITY_PERCENT_BASED` mirrors the percentage mode but uses live equity. |
 | **Developer Debug** | Logging toggles, chart options, `Enable_Trend_Filter_Sanity_Stop`, `Debug_Stop_On_Negative_Euity`. |
 

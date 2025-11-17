@@ -100,8 +100,10 @@ string GridComposeLevelComment(const SignalParams &signal_params,
   return StringFormat("GRID_%s_%s_L%d", direction_label, time_label, order_state.level_index);
 }
 
-ENUM_TIMEFRAMES GridResolvePrimaryStrategyTimeframe()
+ENUM_TIMEFRAMES GridResolveTrailingStrategyTimeframe()
 {
+  if(Trailing_Indicator_Timeframe > 0)
+    return Trailing_Indicator_Timeframe;
   int total = ArraySize(Strategy_TF_List);
   if(total > 0)
     return Strategy_TF_List[0];
@@ -112,7 +114,7 @@ bool GridResolveAlligatorLipsTrailingPrice(const SignalParams &signal_params,
                                            double &price_out)
 {
   price_out = 0.0;
-  ENUM_TIMEFRAMES target_tf = GridResolvePrimaryStrategyTimeframe();
+  ENUM_TIMEFRAMES target_tf = GridResolveTrailingStrategyTimeframe();
 
   int total_handles = ArraySize(ExtAlligatorIndicatorsHandle);
   if(total_handles <= 0)
@@ -149,7 +151,7 @@ bool GridResolveTrailingStrategyPrice(const SignalParams &signal_params,
 
   if(Grid_Trailing_Strategy_Mode == TRAILING_ATR_BASED)
   {
-    ENUM_TIMEFRAMES tf = GridResolvePrimaryStrategyTimeframe();
+    ENUM_TIMEFRAMES tf = GridResolveTrailingStrategyTimeframe();
     return GridResolveAtrTrailingPrice(signal_params.signal_type, tf, price_out, 1);
   }
 
