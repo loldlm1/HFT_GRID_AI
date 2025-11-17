@@ -185,10 +185,11 @@ enum GridEntryStyles
 
 enum GridLotTypes
 {
-  GRID_LOT_SIZE            = 0,
-  GRID_LOT_PERCENTAGE_BASED = 1,
-  GRID_LOT_CURRENCY_BASED   = 2,
-  GRID_LOT_CALCULATED       = 3
+  GRID_LOT_SIZE                 = 0,
+  GRID_LOT_PERCENTAGE_BASED     = 1,
+  GRID_LOT_CURRENCY_BASED       = 2,
+  GRID_LOT_CALCULATED           = 3,
+  GRID_LOT_EQUITY_PERCENT_BASED = 4
 };
 
 enum DailySignalLimitModes
