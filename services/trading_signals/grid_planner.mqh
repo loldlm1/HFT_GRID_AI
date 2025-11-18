@@ -346,9 +346,13 @@ double ResolveGridOrderLotSize(SignalParams &signal_params,
 
   double resolved_lot = fallback_lot;
 
-  bool percent_type  = (Grid_Lot_Type == GRID_LOT_PERCENTAGE_BASED ||
-                        Grid_Lot_Type == GRID_LOT_EQUITY_PERCENT_BASED);
-  bool currency_type = (Grid_Lot_Type == GRID_LOT_CURRENCY_BASED);
+  GridLotTypes effective_lot_type = Grid_Lot_Type;
+  if(signal_params.is_sar_signal)
+    effective_lot_type = GRID_LOT_CALCULATED;
+
+  bool percent_type  = (effective_lot_type == GRID_LOT_PERCENTAGE_BASED ||
+                        effective_lot_type == GRID_LOT_EQUITY_PERCENT_BASED);
+  bool currency_type = (effective_lot_type == GRID_LOT_CURRENCY_BASED);
 
   if(percent_type || currency_type)
   {
@@ -356,7 +360,7 @@ double ResolveGridOrderLotSize(SignalParams &signal_params,
     if(percent_type)
     {
       double account_reference = Account_Size;
-      double account_value = (Grid_Lot_Type == GRID_LOT_EQUITY_PERCENT_BASED)
+      double account_value = (effective_lot_type == GRID_LOT_EQUITY_PERCENT_BASED)
                                ? AccountInfoDouble(ACCOUNT_EQUITY)
                                : AccountInfoDouble(ACCOUNT_BALANCE);
       if(account_value > 0.0)
@@ -375,7 +379,7 @@ double ResolveGridOrderLotSize(SignalParams &signal_params,
         resolved_lot = converted;
     }
   }
-  else if(Grid_Lot_Type == GRID_LOT_CALCULATED)
+  else if(effective_lot_type == GRID_LOT_CALCULATED)
   {
     if(level_index == 0)
     {
@@ -401,7 +405,7 @@ double ResolveGridOrderLotSize(SignalParams &signal_params,
     resolved_lot = fallback_lot;
   }
 
-  if(Grid_Lot_Type != GRID_LOT_CALCULATED)
+  if(effective_lot_type != GRID_LOT_CALCULATED)
     resolved_lot = ApplyGridLotMultiplier(resolved_lot, level_index);
 
   return NormalizeVolumeForSymbol(_Symbol, resolved_lot);

@@ -79,6 +79,7 @@ struct SignalParams
   double grid_entry_gap_points;
   double grid_entry_offset_points;
   double grid_trailing_points;
+  bool   is_sar_signal;
   datetime base_structure_snapshot_time;
   datetime trend_structure_snapshot_time;
 
@@ -115,6 +116,7 @@ struct SignalParams
     grid_entry_gap_points      = 0.0;
     grid_entry_offset_points   = 0.0;
     grid_trailing_points       = 0.0;
+    is_sar_signal              = false;
     base_structure_snapshot_time = 0;
     trend_structure_snapshot_time = 0;
     trend_filter_mode          = TREND_OFF;
@@ -171,6 +173,7 @@ struct SignalParams
     grid_entry_gap_points       = signal_params.grid_entry_gap_points;
     grid_entry_offset_points    = signal_params.grid_entry_offset_points;
     grid_trailing_points        = signal_params.grid_trailing_points;
+    is_sar_signal               = signal_params.is_sar_signal;
     base_structure_snapshot_time = signal_params.base_structure_snapshot_time;
     trend_structure_snapshot_time = signal_params.trend_structure_snapshot_time;
     trend_filter_mode           = signal_params.trend_filter_mode;
