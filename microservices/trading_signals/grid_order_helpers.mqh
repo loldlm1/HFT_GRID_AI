@@ -590,8 +590,8 @@ double ClampPointsToBroker(const double points_value)
   return EnforceBrokerDistance(g_symbol_constraints, points_value);
 }
 
-bool GridFindLatestOrderForLogging(const SignalParams &signal_params,
-                                   GridOrderState &state_out)
+bool GridFindLatestFilledOrder(const SignalParams &signal_params,
+                               GridOrderState &state_out)
 {
   int total_levels = ArraySize(signal_params.grid_orders);
   if(total_levels <= 0)
@@ -600,14 +600,19 @@ bool GridFindLatestOrderForLogging(const SignalParams &signal_params,
   for(int idx = total_levels - 1; idx >= 0; idx--)
   {
     GridOrderState state = signal_params.grid_orders[idx];
-    if(state.status == GRID_ORDER_INACTIVE || state.level_index < 0)
+    if(state.level_index < 0)
+      continue;
+    if(state.entry_price <= 0.0)
+      continue;
+    if(state.status == GRID_ORDER_INACTIVE ||
+       state.status == GRID_ORDER_WAITING ||
+       state.status == GRID_ORDER_STOP_TRAILING_ACTIVE)
       continue;
     state_out = state;
     return true;
   }
 
-  state_out = signal_params.grid_orders[total_levels - 1];
-  return true;
+  return false;
 }
 
 double GridCollectSignalFloatingProfit(const SignalParams &signal_params)
