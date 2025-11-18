@@ -270,15 +270,20 @@ bool IsGridSignalComplete(const SignalParams &signal_params)
       return false;
   }
 
-  int bullish_positions = GetActivePositionsCount(BULLISH);
-  int bearish_positions = GetActivePositionsCount(BEARISH);
+  int attached_positions = 0;
+  for(int i = 0; i < total_levels; i++)
+  {
+    GridOrderState state = signal_params.grid_orders[i];
+    if(state.position_ticket > 0 && PositionSelectByTicket(state.position_ticket))
+    {
+      long position_magic = PositionGetInteger(POSITION_MAGIC);
+      string position_symbol = PositionGetString(POSITION_SYMBOL);
+      if(position_magic == g_magic_number && position_symbol == _Symbol)
+        attached_positions++;
+    }
+  }
 
-  if(signal_params.signal_type == BULLISH && bullish_positions == 0)
-    return true;
-  if(signal_params.signal_type == BEARISH && bearish_positions == 0)
-    return true;
-
-  return false;
+  return (attached_positions == 0);
 }
 
 #endif // _MICROSERVICES_TRADING_SIGNALS_GRID_ORDER_LIFECYCLE_MQH_
