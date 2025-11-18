@@ -5,6 +5,8 @@ void UpdateGridLifecycle(SignalParams &signal_params)
 {
   if(!signal_params.grid_initialized)
     return;
+  if(signal_params.signal_state == CLOSED)
+    return;
 
   double         point_size        = GridResolvePointSize();
   SignalTypes    direction         = signal_params.signal_type;
