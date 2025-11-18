@@ -228,11 +228,62 @@ enum ProtectionRiskValueTypes
 
 enum StrategyTrendModes
 {
-  TREND_OFF      = 0,
-  TREND_BPERCENT = 1,
-  TREND_ALLIGATOR = 2,
-  TREND_BOTH      = 3
+  TREND_OFF                       = 0,
+  TREND_BPERCENT_WINDOW           = 1,
+  TREND_BPERCENT_MEAN             = 2,
+  TREND_BPERCENT_WINDOW_AND_MEAN  = 3,
+  TREND_ALLIGATOR                 = 4,
+  TREND_ALLIGATOR_AND_WINDOW      = 5,
+  TREND_ALLIGATOR_AND_MEAN        = 6,
+  TREND_ALLIGATOR_AND_WINDOW_MEAN = 7
 };
+
+inline bool StrategyModeUsesBPercentWindow(const StrategyTrendModes mode)
+{
+  switch(mode)
+  {
+    case TREND_BPERCENT_WINDOW:
+    case TREND_BPERCENT_WINDOW_AND_MEAN:
+    case TREND_ALLIGATOR_AND_WINDOW:
+    case TREND_ALLIGATOR_AND_WINDOW_MEAN:
+      return true;
+    default:
+      return false;
+  }
+}
+
+inline bool StrategyModeUsesBPercentMean(const StrategyTrendModes mode)
+{
+  switch(mode)
+  {
+    case TREND_BPERCENT_MEAN:
+    case TREND_BPERCENT_WINDOW_AND_MEAN:
+    case TREND_ALLIGATOR_AND_MEAN:
+    case TREND_ALLIGATOR_AND_WINDOW_MEAN:
+      return true;
+    default:
+      return false;
+  }
+}
+
+inline bool StrategyModeUsesAnyBPercent(const StrategyTrendModes mode)
+{
+  return StrategyModeUsesBPercentWindow(mode) || StrategyModeUsesBPercentMean(mode);
+}
+
+inline bool StrategyModeUsesAlligator(const StrategyTrendModes mode)
+{
+  switch(mode)
+  {
+    case TREND_ALLIGATOR:
+    case TREND_ALLIGATOR_AND_WINDOW:
+    case TREND_ALLIGATOR_AND_MEAN:
+    case TREND_ALLIGATOR_AND_WINDOW_MEAN:
+      return true;
+    default:
+      return false;
+  }
+}
 
 enum TrendStructureFilterModes
 {
