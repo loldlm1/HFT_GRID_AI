@@ -11,6 +11,11 @@ void UpdateGridLifecycle(SignalParams &signal_params)
   int            grid_order_level  = ArraySize(signal_params.grid_orders)-1;
   GridOrderState grid_order        = signal_params.grid_orders[grid_order_level];
 
+  GridOrderState risk_state = signal_params.grid_orders[grid_order_level];
+  bool use_entry_reference = (risk_state.entry_price <= 0.0);
+  if(GridApplyTrendRiskManagement(signal_params, risk_state, true, use_entry_reference))
+    return;
+
   if(grid_order.status == GRID_ORDER_STOP_TRAILING_ACTIVE)
   {
     if(UpdateGridOrderForSignal(signal_params))
@@ -68,6 +73,11 @@ void UpdateGridLifecycle(SignalParams &signal_params)
       {
         BuildGridOrderForSignal(signal_params);
         GridLogEvent("NEXT_LEVEL_ACTIVATED", signal_params, grid_order);
+
+        GridOrderState newest_state = signal_params.grid_orders[ArraySize(signal_params.grid_orders) - 1];
+        bool newest_use_reference = (newest_state.entry_price <= 0.0);
+        if(GridApplyTrendRiskManagement(signal_params, newest_state, true, newest_use_reference))
+          return;
       }
     }
   }
@@ -102,9 +112,6 @@ void UpdateGridLifecycle(SignalParams &signal_params)
       GridLogEvent("EXIT_ON_TRAILING", signal_params, grid_order);
     }
   }
-
-  if(GridApplyTrendRiskManagement(signal_params))
-    return;
 
   if(Grid_BreakEven_Mode != BE_DISABLE)
   {

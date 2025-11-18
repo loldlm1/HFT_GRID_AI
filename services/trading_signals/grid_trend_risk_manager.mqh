@@ -34,7 +34,10 @@ bool GridSpawnRiskSarSignal(const SignalTypes direction,
   return true;
 }
 
-bool GridApplyTrendRiskManagement(SignalParams &signal_params)
+bool GridApplyTrendRiskManagement(SignalParams &signal_params,
+                                  const GridOrderState &override_state,
+                                  const bool has_override,
+                                  const bool use_entry_reference_price)
 {
   if(Grid_Risk_Trend_Mode == GRID_RM_TREND_OFF)
     return false;
@@ -46,11 +49,16 @@ bool GridApplyTrendRiskManagement(SignalParams &signal_params)
   if(jaws_price <= 0.0)
     return false;
 
-  GridOrderState latest_state;
-  if(!GridFindLatestOrderForLogging(signal_params, latest_state))
-    return false;
+  GridOrderState state_candidate = override_state;
+  if(!has_override)
+  {
+    if(!GridFindLatestFilledOrder(signal_params, state_candidate))
+      return false;
+  }
 
-  double entry_price = latest_state.entry_price;
+  double entry_price = state_candidate.entry_price;
+  if(use_entry_reference_price || entry_price <= 0.0)
+    entry_price = state_candidate.entry_reference_price;
   if(entry_price <= 0.0)
     return false;
 
@@ -73,7 +81,7 @@ bool GridApplyTrendRiskManagement(SignalParams &signal_params)
       return false;
   }
 
-  double sar_lot = latest_state.lot_size;
+  double sar_lot = state_candidate.lot_size;
   if(sar_lot <= 0.0)
     sar_lot = signal_params.grid_base_lot_size;
 
@@ -85,7 +93,10 @@ bool GridApplyTrendRiskManagement(SignalParams &signal_params)
     log_label = "GRID_RISK_TREND_JAWS_BE";
   else if(Grid_Risk_Trend_Mode == GRID_RM_TREND_JAWS_SAR)
     log_label = "GRID_RISK_TREND_JAWS_SAR_CLOSE";
-  GridLogEvent(log_label, signal_params, latest_state);
+  GridOrderState log_state = state_candidate;
+  if(use_entry_reference_price && log_state.entry_price <= 0.0)
+    log_state.entry_price = entry_price;
+  GridLogEvent(log_label, signal_params, log_state);
   signal_params.signal_state = CLOSED;
 
   if(Grid_Risk_Trend_Mode == GRID_RM_TREND_JAWS_SAR)
@@ -96,5 +107,6 @@ bool GridApplyTrendRiskManagement(SignalParams &signal_params)
   }
   return true;
 }
+
 
 #endif // _SERVICES_TRADING_SIGNALS_GRID_TREND_RISK_MANAGER_MQH_
