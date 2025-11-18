@@ -664,14 +664,14 @@ bool ValidateBandsPercentBreakout(const BandsPercentStructure &bands_data,
 
   if(signal_type == BULLISH)
   {
-    in_the_zone = (window_low <= zone_start);
-    // has_origin  = (window_high >= zone_start);
+    in_the_zone  = (window_low <= zone_start);
+    has_origin   = (bands_data.bands_percent_2 <= 50.0 && bands_data.bands_percent_1 > 50.0 && bands_data.bands_percent_1 < 60.0);
     crossed_zone = (window_low < zone_end);
   }
   else if(signal_type == BEARISH)
   {
-    in_the_zone = (window_high >= zone_start);
-    // has_origin  = (window_low <= zone_start);
+    in_the_zone  = (window_high >= zone_start);
+    has_origin   = (bands_data.bands_percent_2 >= 50.0 && bands_data.bands_percent_1 < 50.0 && bands_data.bands_percent_1 > 40.0);
     crossed_zone = (window_high > zone_end);
   }
 
