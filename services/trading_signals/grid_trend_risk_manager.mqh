@@ -71,9 +71,14 @@ bool GridApplyTrendRiskManagement(SignalParams &signal_params,
   if(!breach)
     return false;
 
+  bool needs_floating = (Grid_Risk_Trend_Mode == GRID_RM_TREND_JAWS_BE ||
+                         Grid_Risk_Trend_Mode == GRID_RM_TREND_JAWS_SAR);
+  double floating_profit = 0.0;
+  if(needs_floating)
+    floating_profit = GridCollectSignalFloatingProfit(signal_params);
+
   if(Grid_Risk_Trend_Mode == GRID_RM_TREND_JAWS_BE)
   {
-    double floating_profit = GridCollectSignalFloatingProfit(signal_params);
     double tolerance = SymbolInfoDouble(_Symbol, SYMBOL_TRADE_TICK_VALUE);
     if(tolerance <= 0.0)
       tolerance = 0.1;
@@ -84,6 +89,32 @@ bool GridApplyTrendRiskManagement(SignalParams &signal_params,
   double sar_lot = state_candidate.lot_size;
   if(sar_lot <= 0.0)
     sar_lot = signal_params.grid_base_lot_size;
+  if(sar_lot <= 0.0)
+    sar_lot = Grid_Lot_Strategy_Size;
+
+  if(Grid_Risk_Trend_Mode == GRID_RM_TREND_JAWS_SAR && floating_profit < 0.0)
+  {
+    double multiplier = Grid_Lot_Multiplier;
+    if(multiplier <= 0.0)
+      multiplier = 1.0;
+
+    double coverage_amount = (-floating_profit) * multiplier;
+    if(coverage_amount > 0.0)
+    {
+      double reference_points = GridResolveLotReferencePoints(signal_params, state_candidate);
+      if(reference_points <= 0.0)
+        reference_points = signal_params.grid_base_distance_points;
+      if(reference_points <= 0.0)
+        reference_points = signal_params.grid_entry_gap_points;
+
+      if(reference_points > 0.0)
+      {
+        double converted = ConvertAmountToLots(_Symbol, coverage_amount, reference_points);
+        if(converted > 0.0)
+          sar_lot = converted;
+      }
+    }
+  }
 
   double point_size = GridResolvePointSize();
   GridCloseAllLevels(signal_params, point_size);
