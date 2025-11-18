@@ -316,9 +316,9 @@ void SetTFBandsPercentDataToSignalParams(SignalParams &signal_params)
 
 void SetTFAlligatorDataToSignalParams(SignalParams &signal_params)
 {
-  int jaws_period  = MathMax(Base_Alligator_Jaws_Period, 1);
+  int jaws_period  = MathMax(Alligator_Jaws_Period, 1);
   int teeth_period = MathMax((int)Base_Indicator_Period_Type, 1);
-  int lips_period  = MathMax(Base_Alligator_Lips_Period, 1);
+  int lips_period  = MathMax(Alligator_Lips_Period, 1);
 
   for(int i = 0; i < ArraySize(ExtAlligatorIndicatorsHandle); i++)
   {
@@ -393,8 +393,8 @@ bool LoadTrendFilterData(SignalParams &signal_params)
   signal_params.trend_alligator_valid = false;
   signal_params.trend_stochastic_valid = false;
 
-  bool require_bpercent   = (Strategy_Trend_Mode == TREND_BPERCENT || Strategy_Trend_Mode == TREND_BOTH);
-  bool require_alligator  = (Strategy_Trend_Mode == TREND_ALLIGATOR || Strategy_Trend_Mode == TREND_BOTH);
+  bool require_bpercent   = StrategyModeUsesAnyBPercent(Strategy_Trend_Mode);
+  bool require_alligator  = StrategyModeUsesAlligator(Strategy_Trend_Mode);
   bool slope_bpercent     = Trend_BPercent_Slope_Filter;
   bool slope_alligator    = Trend_Alligator_Slope_Filter;
 
@@ -421,9 +421,9 @@ bool LoadTrendFilterData(SignalParams &signal_params)
       return false;
     }
 
-    int jaws_period  = MathMax(Trend_Alligator_Jaws_Period, 1);
+    int jaws_period  = MathMax(Alligator_Jaws_Period, 1);
     int teeth_period = MathMax((int)Base_Indicator_Period_Type, 1);
-    int lips_period  = MathMax(Trend_Alligator_Lips_Period, 1);
+    int lips_period  = MathMax(Alligator_Lips_Period, 1);
 
     signal_params.trend_alligator_data = AlligatorStructure();
     if(!signal_params.trend_alligator_data.InitAlligatorStructureValues(TrendAlligatorIndicatorHandle,
@@ -460,50 +460,31 @@ bool TrendFilterAllowsSignal(const SignalParams &signal_params,
 {
   if(!TrendContextEnabled() || signal_params.trend_filter_mode == TREND_OFF)
     return true;
-  bool filter_ok = true;
+  bool percent_ok = true;
+  bool alligator_ok = true;
+  StrategyTrendModes filter_mode = signal_params.trend_filter_mode;
 
-  if(signal_params.trend_filter_mode == TREND_BPERCENT)
+  if(StrategyModeUsesAnyBPercent(filter_mode) && Trend_Indicator_Percent >= 0.0)
   {
-    if(Trend_Indicator_Percent < 0.0)
-      filter_ok = true;
-    else
-    {
-      if(!signal_params.trend_bpercent_valid)
-        return false;
-      filter_ok = EvaluateBandsPercentTrigger(signal_params.trend_bpercent_data,
-                                              direction,
-                                              Trend_Indicator_Percent,
-                                              NO_SLOPE);
-    }
+    if(!signal_params.trend_bpercent_valid)
+      return false;
+    percent_ok = EvaluateBandsPercentTrigger(signal_params.trend_bpercent_data,
+                                             direction,
+                                             Trend_Indicator_Percent,
+                                             filter_mode,
+                                             NO_SLOPE);
+    if(!percent_ok)
+      return false;
   }
-  else if(signal_params.trend_filter_mode == TREND_ALLIGATOR)
+
+  if(StrategyModeUsesAlligator(filter_mode))
   {
     if(!signal_params.trend_alligator_valid)
       return false;
-    filter_ok = EvaluateAlligatorTrend(signal_params.trend_alligator_data, direction);
-  }
-  else if(signal_params.trend_filter_mode == TREND_BOTH)
-  {
-    bool percent_ok = true;
-    if(Trend_Indicator_Percent >= 0.0)
-    {
-      if(!signal_params.trend_bpercent_valid)
-        return false;
-      percent_ok = EvaluateBandsPercentTrigger(signal_params.trend_bpercent_data,
-                                               direction,
-                                               Trend_Indicator_Percent,
-                                               NO_SLOPE);
-    }
-
-    if(!signal_params.trend_alligator_valid)
+    alligator_ok = EvaluateAlligatorTrend(signal_params.trend_alligator_data, direction);
+    if(!alligator_ok)
       return false;
-
-    bool alligator_ok = EvaluateAlligatorTrend(signal_params.trend_alligator_data, direction);
-    filter_ok = percent_ok && alligator_ok;
   }
-
-  if(!filter_ok)
-    return false;
 
   if(Trend_BPercent_Slope_Filter)
   {
@@ -602,8 +583,8 @@ bool CanAttemptSignal(const SignalTypes signal_type)
     return false;
   }
 
-  bool base_mode_uses_bpercent  = (Strategy_Base_Mode == TREND_BPERCENT || Strategy_Base_Mode == TREND_BOTH);
-  bool base_mode_uses_alligator = (Strategy_Base_Mode == TREND_ALLIGATOR || Strategy_Base_Mode == TREND_BOTH);
+  bool base_mode_uses_bpercent  = StrategyModeUsesAnyBPercent(Strategy_Base_Mode);
+  bool base_mode_uses_alligator = StrategyModeUsesAlligator(Strategy_Base_Mode);
   bool base_bpercent_required   = base_mode_uses_bpercent || Base_BPercent_Slope_Filter;
   bool base_alligator_required  = base_mode_uses_alligator || Base_Alligator_Slope_Filter;
   bool require_structure_data = true;
@@ -642,49 +623,89 @@ bool CanAttemptSignal(const SignalTypes signal_type)
   return true;
 }
 
-bool ValidateBandsPercentBreakout(const BandsPercentStructure &bands_data,
-                                  const SignalTypes signal_type,
-                                  const double percent_threshold)
+bool ValidateBandsPercentWindowBias(const BandsPercentStructure &bands_data,
+                                    const SignalTypes signal_type,
+                                    double percent_threshold)
 {
-  double zone_start = percent_threshold;
-  double zone_end   = percent_threshold;
-
-  if(signal_type == BULLISH) { zone_start = 100 - percent_threshold; zone_end = zone_start - 30.0; }
-  if(signal_type == BEARISH) { zone_start = percent_threshold; zone_end = zone_start + 30.0; }
-
   double window_high = bands_data.bands_percent_window_high;
   double window_low  = bands_data.bands_percent_window_low;
 
   if(window_high == EMPTY_VALUE || window_low == EMPTY_VALUE)
     return false;
 
-  bool in_the_zone  = false;
-  bool has_origin   = false;
-  bool crossed_zone = false;
+  double buffer = 30.0;
+  percent_threshold = signal_type == BULLISH ? MathAbs(percent_threshold-100) : percent_threshold;
 
   if(signal_type == BULLISH)
   {
-    in_the_zone  = (window_low <= zone_start);
-    has_origin   = (bands_data.bands_percent_2 <= zone_start && bands_data.bands_percent_1 > zone_start && bands_data.bands_percent_1 < zone_start + 10.0);
-    crossed_zone = (window_low < zone_end);
+    bool discount_entry = (window_low <= percent_threshold) &&
+                          (window_low >= percent_threshold - buffer);
+    bool premium_memory = (window_high >= percent_threshold);
+    return discount_entry && premium_memory;
   }
   else if(signal_type == BEARISH)
   {
-    in_the_zone  = (window_high >= zone_start);
-    has_origin   = (bands_data.bands_percent_2 >= zone_start && bands_data.bands_percent_1 < zone_start && bands_data.bands_percent_1 > zone_start - 10.0);
-    crossed_zone = (window_high > zone_end);
+    bool premium_entry = (window_high >= percent_threshold) &&
+                         (window_high <= percent_threshold + buffer);
+    bool discount_memory = (window_low <= percent_threshold);
+    return premium_entry && discount_memory;
   }
 
-  return has_origin && in_the_zone && !crossed_zone;
+  return false;
+}
+
+bool ValidateBandsPercentMeanRejection(const BandsPercentStructure &bands_data,
+                                       const SignalTypes signal_type,
+                                       double percent_threshold)
+{
+  double percent_1 = bands_data.bands_percent_1;
+  double percent_2 = bands_data.bands_percent_2;
+
+  if(percent_1 == EMPTY_VALUE || percent_2 == EMPTY_VALUE)
+    return false;
+
+  double tolerance = 10.0;
+  percent_threshold = signal_type == BULLISH ? MathAbs(percent_threshold-100) : percent_threshold;
+
+  if(signal_type == BULLISH)
+  {
+    bool dipped_discount = (percent_2 <= percent_threshold);
+    bool recovered_zone  = (percent_1 > percent_threshold) &&
+                           (percent_1 < percent_threshold + tolerance);
+    return dipped_discount && recovered_zone;
+  }
+  else if(signal_type == BEARISH)
+  {
+    bool spiked_premium = (percent_2 >= percent_threshold);
+    bool rolled_zone    = (percent_1 < percent_threshold) &&
+                          (percent_1 > percent_threshold - tolerance);
+    return spiked_premium && rolled_zone;
+  }
+
+  return false;
 }
 
 bool EvaluateBandsPercentTrigger(const BandsPercentStructure &bands_data,
                                  const SignalTypes signal_type,
                                  const double percent_threshold,
+                                 const StrategyTrendModes mode,
                                  const SlopeTypes slope_filter)
 {
-  bool breakout = ValidateBandsPercentBreakout(bands_data, signal_type, percent_threshold);
-  if(!breakout)
+  if(!StrategyModeUsesAnyBPercent(mode))
+    return true;
+
+  bool window_required = StrategyModeUsesBPercentWindow(mode);
+  bool mean_required   = StrategyModeUsesBPercentMean(mode);
+
+  bool window_ok = true;
+  bool mean_ok   = true;
+
+  if(window_required)
+    window_ok = ValidateBandsPercentWindowBias(bands_data, signal_type, percent_threshold);
+  if(mean_required)
+    mean_ok = ValidateBandsPercentMeanRejection(bands_data, signal_type, percent_threshold);
+
+  if(!window_ok || !mean_ok)
     return false;
 
   if(slope_filter == NO_SLOPE)
@@ -722,8 +743,8 @@ bool EvaluateBaseIndicatorTrigger(const SignalParams &signal_params,
                                   const SignalTypes signal_type,
                                   const double percent_threshold)
 {
-  bool uses_bpercent  = (Strategy_Base_Mode == TREND_BPERCENT || Strategy_Base_Mode == TREND_BOTH);
-  bool uses_alligator = (Strategy_Base_Mode == TREND_ALLIGATOR || Strategy_Base_Mode == TREND_BOTH);
+  bool uses_bpercent  = StrategyModeUsesAnyBPercent(Strategy_Base_Mode);
+  bool uses_alligator = StrategyModeUsesAlligator(Strategy_Base_Mode);
 
   bool bpercent_pass  = true;
   bool alligator_pass = true;
@@ -740,6 +761,7 @@ bool EvaluateBaseIndicatorTrigger(const SignalParams &signal_params,
       bpercent_pass = EvaluateBandsPercentTrigger(bands_data,
                                                   signal_type,
                                                   percent_threshold,
+                                                  Strategy_Base_Mode,
                                                   NO_SLOPE);
     }
   }
@@ -791,12 +813,10 @@ bool EvaluateBaseIndicatorTrigger(const SignalParams &signal_params,
   }
 
   bool mode_pass = true;
-  if(Strategy_Base_Mode == TREND_BPERCENT)
-    mode_pass = bpercent_pass;
-  else if(Strategy_Base_Mode == TREND_ALLIGATOR)
-    mode_pass = alligator_pass;
-  else if(Strategy_Base_Mode == TREND_BOTH)
-    mode_pass = bpercent_pass && alligator_pass;
+  if(StrategyModeUsesAnyBPercent(Strategy_Base_Mode))
+    mode_pass = mode_pass && bpercent_pass;
+  if(StrategyModeUsesAlligator(Strategy_Base_Mode))
+    mode_pass = mode_pass && alligator_pass;
 
   return mode_pass &&
          slope_bpercent_pass &&

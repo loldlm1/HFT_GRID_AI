@@ -186,9 +186,9 @@ bool LoadTrendBPercentIndicator(const ENUM_TIMEFRAMES trend_tf)
 
 bool LoadTrendAlligatorIndicator(const ENUM_TIMEFRAMES trend_tf)
 {
-  int jaws_period  = MathMax(Trend_Alligator_Jaws_Period, 1);
+  int jaws_period  = MathMax(Alligator_Jaws_Period, 1);
   int teeth_period = MathMax((int)Base_Indicator_Period_Type, 1);
-  int lips_period  = MathMax(Trend_Alligator_Lips_Period, 1);
+  int lips_period  = MathMax(Alligator_Lips_Period, 1);
 
   IndicatorsHandleInfo alligator_handle;
   alligator_handle.indicator_period        = jaws_period;
@@ -297,9 +297,9 @@ bool LoadAlligatorIndicatorForTimeframe(const ENUM_TIMEFRAMES trend_tf)
   if(AlligatorIndicatorHandleExists(trend_tf))
     return true;
 
-  int jaws_period  = MathMax(Base_Alligator_Jaws_Period, 1);
+  int jaws_period  = MathMax(Alligator_Jaws_Period, 1);
   int teeth_period = MathMax((int)Base_Indicator_Period_Type, 1);
-  int lips_period  = MathMax(Base_Alligator_Lips_Period, 1);
+  int lips_period  = MathMax(Alligator_Lips_Period, 1);
 
   IndicatorsHandleInfo alligator_handle;
   alligator_handle.indicator_period        = jaws_period;
@@ -415,11 +415,9 @@ void LoadTrendIndicators()
 
   Trend_Filter_Timeframe = ResolveTrendTimeframe();
 
-  bool need_bpercent  = (Strategy_Trend_Mode == TREND_BPERCENT ||
-                         Strategy_Trend_Mode == TREND_BOTH ||
+  bool need_bpercent  = (StrategyModeUsesAnyBPercent(Strategy_Trend_Mode) ||
                          Trend_BPercent_Slope_Filter);
-  bool need_alligator = (Strategy_Trend_Mode == TREND_ALLIGATOR ||
-                         Strategy_Trend_Mode == TREND_BOTH ||
+  bool need_alligator = (StrategyModeUsesAlligator(Strategy_Trend_Mode) ||
                          Trend_Alligator_Slope_Filter);
   bool need_stochastic = Trend_Stochastic_Slope_Filter;
 
@@ -453,11 +451,9 @@ bool TrendFilterIndicatorsAvailable()
 {
   if(!TrendContextEnabled() || Strategy_Trend_Mode == TREND_OFF)
     return true;
-  bool need_bpercent  = (Strategy_Trend_Mode == TREND_BPERCENT ||
-                         Strategy_Trend_Mode == TREND_BOTH ||
+  bool need_bpercent  = (StrategyModeUsesAnyBPercent(Strategy_Trend_Mode) ||
                          Trend_BPercent_Slope_Filter);
-  bool need_alligator = (Strategy_Trend_Mode == TREND_ALLIGATOR ||
-                         Strategy_Trend_Mode == TREND_BOTH ||
+  bool need_alligator = (StrategyModeUsesAlligator(Strategy_Trend_Mode) ||
                          Trend_Alligator_Slope_Filter);
   bool need_stochastic = Trend_Stochastic_Slope_Filter;
 
@@ -493,8 +489,8 @@ void LoadAllIndicatorDefinitions()
   PrepareStrategyTimeframes();
   PrepareIndicatorPeriods();
 
-  bool base_mode_uses_bpercent  = (Strategy_Base_Mode == TREND_BPERCENT || Strategy_Base_Mode == TREND_BOTH);
-  bool base_mode_uses_alligator = (Strategy_Base_Mode == TREND_ALLIGATOR || Strategy_Base_Mode == TREND_BOTH);
+  bool base_mode_uses_bpercent  = StrategyModeUsesAnyBPercent(Strategy_Base_Mode);
+  bool base_mode_uses_alligator = StrategyModeUsesAlligator(Strategy_Base_Mode);
   bool base_bpercent_required   = base_mode_uses_bpercent || Base_BPercent_Slope_Filter;
   bool trailing_requires_alligator = (Grid_Trailing_Strategy_Mode == TRAILING_LIPS_MA);
   bool trailing_requires_atr       = (Grid_Trailing_Strategy_Mode == TRAILING_ATR_BASED);
