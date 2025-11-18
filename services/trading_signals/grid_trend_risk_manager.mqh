@@ -15,6 +15,7 @@ bool GridSpawnRiskSarSignal(const SignalTypes direction,
   SignalParams sar_signal;
   sar_signal.signal_type = direction;
   sar_signal.lot_size    = normalized_lot;
+  sar_signal.is_sar_signal = true;
   sar_signal.entry_time  = TimeCurrent();
   sar_signal.entry_price = GridCurrentPriceForDirection(direction, true);
 
@@ -32,6 +33,42 @@ bool GridSpawnRiskSarSignal(const SignalTypes direction,
   if(ArraySize(sar_signal.grid_orders) > 0)
     GridLogEvent("GRID_RISK_TREND_JAWS_SAR_OPEN", sar_signal, sar_signal.grid_orders[0]);
   return true;
+}
+
+double GridResolveSarLotReferencePoints(const SignalTypes new_direction,
+                                        const SignalParams &original_signal,
+                                        const GridOrderState &original_state)
+{
+  SignalParams preview_signal;
+  preview_signal.signal_type = new_direction;
+
+  double base_distance_points = 0.0;
+  double entry_reference_price = 0.0;
+  if(CalculateBaseGridContext(preview_signal,
+                              Strategy_Timeframe,
+                              base_distance_points,
+                              entry_reference_price))
+  {
+    if(base_distance_points > 0.0)
+      return base_distance_points;
+  }
+
+  double reference_points = GridResolveLotReferencePoints(original_signal, original_state);
+  if(reference_points <= 0.0)
+    reference_points = original_signal.grid_base_distance_points;
+  if(reference_points <= 0.0)
+    reference_points = original_signal.grid_entry_gap_points;
+
+  if(reference_points <= 0.0)
+  {
+    double point_size = GridResolvePointSizeSafe();
+    double entry_reference = original_state.entry_reference_price;
+    double tp_price = original_state.take_profit_price;
+    if(point_size > 0.0 && entry_reference > 0.0 && tp_price > 0.0)
+      reference_points = MathAbs(tp_price - entry_reference) / point_size;
+  }
+
+  return MathMax(reference_points, 0.0);
 }
 
 bool GridApplyTrendRiskManagement(SignalParams &signal_params,
@@ -92,6 +129,7 @@ bool GridApplyTrendRiskManagement(SignalParams &signal_params,
   if(sar_lot <= 0.0)
     sar_lot = Grid_Lot_Strategy_Size;
 
+  SignalTypes sar_direction = (signal_params.signal_type == BULLISH) ? BEARISH : BULLISH;
   if(Grid_Risk_Trend_Mode == GRID_RM_TREND_JAWS_SAR && floating_profit < 0.0)
   {
     double multiplier = Grid_Lot_Multiplier;
@@ -101,12 +139,7 @@ bool GridApplyTrendRiskManagement(SignalParams &signal_params,
     double coverage_amount = (-floating_profit) * multiplier;
     if(coverage_amount > 0.0)
     {
-      double reference_points = GridResolveLotReferencePoints(signal_params, state_candidate);
-      if(reference_points <= 0.0)
-        reference_points = signal_params.grid_base_distance_points;
-      if(reference_points <= 0.0)
-        reference_points = signal_params.grid_entry_gap_points;
-
+      double reference_points = GridResolveSarLotReferencePoints(sar_direction, signal_params, state_candidate);
       if(reference_points > 0.0)
       {
         double converted = ConvertAmountToLots(_Symbol, coverage_amount, reference_points);
@@ -132,8 +165,7 @@ bool GridApplyTrendRiskManagement(SignalParams &signal_params,
 
   if(Grid_Risk_Trend_Mode == GRID_RM_TREND_JAWS_SAR)
   {
-    SignalTypes new_direction = (signal_params.signal_type == BULLISH) ? BEARISH : BULLISH;
-    if(!GridSpawnRiskSarSignal(new_direction, sar_lot))
+    if(!GridSpawnRiskSarSignal(sar_direction, sar_lot))
       Print("Trend risk SAR: failed to launch reversal grid.");
   }
   return true;
