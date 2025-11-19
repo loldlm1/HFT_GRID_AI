@@ -6,43 +6,6 @@
 
 const int GRID_MAX_LEVELS = 10;
 
-bool GridEvaluateAtrCandidate(const double candidate_price,
-                              const double entry_reference_price,
-                              const double point_size,
-                              const double min_required,
-                              double &best_price,
-                              double &best_distance,
-                              bool &best_meets_min)
-{
-  if(candidate_price <= 0.0 || entry_reference_price <= 0.0 || point_size <= 0.0)
-    return false;
-
-  double candidate_distance = MathAbs(candidate_price - entry_reference_price) / point_size;
-  candidate_distance = EnforceBrokerDistance(g_symbol_constraints, candidate_distance);
-  if(candidate_distance <= 0.0)
-    return false;
-
-  bool meets_min = (min_required <= 0.0) || (candidate_distance >= min_required);
-
-  bool prefer_candidate = false;
-  if(best_price <= 0.0)
-    prefer_candidate = true;
-  else if(meets_min && !best_meets_min)
-    prefer_candidate = true;
-  else if(meets_min == best_meets_min && candidate_distance > best_distance)
-    prefer_candidate = true;
-
-  if(prefer_candidate)
-  {
-    best_price     = candidate_price;
-    best_distance  = candidate_distance;
-    best_meets_min = meets_min;
-    return true;
-  }
-
-  return false;
-}
-
 double GridResolveUnifiedStopPercent()
 {
   return MathMax(Grid_Positions_Stops_Percent, 0.0);
@@ -77,93 +40,32 @@ bool CalculateBaseGridContext(const SignalParams &signal_params,
   if(point_size <= 0.0 || direction_mult == 0.0 || entry_reference_price <= 0.0)
     return false;
 
-  double atr_price = 0.0;
-  if(Grid_Base_Strategy_Type == ATR_RANGE)
+  bool uses_channel_strategy = (Grid_Base_Strategy_Type == ATR_RANGE ||
+                                Grid_Base_Strategy_Type == KELTNER_RANGE);
+
+  if(uses_channel_strategy)
   {
-    double min_required = ResolveAtrMinimumBaseDistance(signal_params);
-    double best_distance = 0.0;
-    double best_price = 0.0;
-    bool best_meets_min = false;
-
-    bool attempt_range   = (Grid_ATR_Range_Mode == GRID_ATR_REFERENCE_SUP_RES ||
-                            Grid_ATR_Range_Mode == GRID_ATR_REFERENCE_BOTH);
-    bool attempt_trail   = (Grid_ATR_Range_Mode == GRID_ATR_REFERENCE_TRAILING ||
-                            Grid_ATR_Range_Mode == GRID_ATR_REFERENCE_BOTH);
-    bool attempt_root    = (Grid_ATR_Range_Mode == GRID_ATR_REFERENCE_ROOT);
-    bool attempt_sma     = (Grid_ATR_Range_Mode == GRID_ATR_REFERENCE_SMA);
-
-    if(attempt_range)
-    {
-      double range_price = 0.0;
-      if(GridResolveAtrReferencePrice(signal_params.signal_type, tf, range_price))
-        GridEvaluateAtrCandidate(range_price,
-                                 entry_reference_price,
-                                 point_size,
-                                 min_required,
-                                 best_price,
-                                 best_distance,
-                                 best_meets_min);
-    }
-
-    if(attempt_trail)
-    {
-      double trail_price = 0.0;
-      if(GridResolveAtrTrailingPrice(signal_params.signal_type, tf, trail_price))
-        GridEvaluateAtrCandidate(trail_price,
-                                 entry_reference_price,
-                                 point_size,
-                                 min_required,
-                                 best_price,
-                                 best_distance,
-                                 best_meets_min);
-    }
-
-    if(attempt_root)
-    {
-      double root_price = 0.0;
-      if(GridResolveAtrRootPrice(signal_params.signal_type, tf, root_price))
-        GridEvaluateAtrCandidate(root_price,
-                                 entry_reference_price,
-                                 point_size,
-                                 min_required,
-                                 best_price,
-                                 best_distance,
-                                 best_meets_min);
-    }
-
-    if(attempt_sma)
-    {
-      double sma_price = 0.0;
-      if(GridResolveAtrSmaPrice(signal_params.signal_type, tf, sma_price))
-        GridEvaluateAtrCandidate(sma_price,
-                                 entry_reference_price,
-                                 point_size,
-                                 min_required,
-                                 best_price,
-                                 best_distance,
-                                 best_meets_min);
-    }
-
-    if(best_price <= 0.0 || best_distance <= 0.0)
+    GridBaseStrategyTypes channel_type = (Grid_Base_Strategy_Type == KELTNER_RANGE)
+                                           ? KELTNER_RANGE
+                                           : ATR_RANGE;
+    GridChannelLineTypes line_type = (signal_params.signal_type == BULLISH)
+                                       ? GRID_CHANNEL_LINE_SUPPORT
+                                       : GRID_CHANNEL_LINE_RESISTANCE;
+    double channel_price = 0.0;
+    if(!GridResolveChannelLinePrice(channel_type, line_type, tf, channel_price))
       return false;
 
-    atr_price = best_price;
-    distance_points = best_distance;
-  }
-  else
-  {
-    double requested_points = EnforceBrokerDistance(g_symbol_constraints, Grid_Points_Range_Setup);
-    atr_price = entry_reference_price + direction_mult * requested_points * point_size;
-
-    distance_points = MathAbs(atr_price - entry_reference_price) / point_size;
+    distance_points = MathAbs(channel_price - entry_reference_price) / point_size;
     distance_points = EnforceBrokerDistance(g_symbol_constraints, distance_points);
     return (distance_points > 0.0);
   }
 
-  if(Grid_Base_Strategy_Type == ATR_RANGE)
-    return (distance_points > 0.0);
+  double requested_points = EnforceBrokerDistance(g_symbol_constraints, Grid_Points_Range_Setup);
+  double projected_price = entry_reference_price + direction_mult * requested_points * point_size;
 
-  return true;
+  distance_points = MathAbs(projected_price - entry_reference_price) / point_size;
+  distance_points = EnforceBrokerDistance(g_symbol_constraints, distance_points);
+  return (distance_points > 0.0);
 }
 
 double ResolveBaseGridLot(const double base_distance_points)
@@ -303,9 +205,10 @@ double GridComputeSequenceDrawdownCurrency(const SignalParams &signal_params,
   return cumulative_amount;
 }
 
-double ResolveAtrMinimumBaseDistance(const SignalParams &signal_params)
+double ResolveIndicatorMinimumBaseDistance(const SignalParams &signal_params)
 {
-  if(Grid_Base_Strategy_Type != ATR_RANGE)
+  if(Grid_Base_Strategy_Type != ATR_RANGE &&
+     Grid_Base_Strategy_Type != KELTNER_RANGE)
     return 0.0;
 
   int existing_levels = ArraySize(signal_params.grid_orders);
@@ -477,7 +380,7 @@ bool BuildGridSignalPoints(SignalParams &signal_params)
 {
   double base_distance_points = 0.0;
   double entry_reference_price = 0.0;
-  double min_base_distance_from_trailing = ResolveAtrMinimumBaseDistance(signal_params);
+  double min_base_distance_from_trailing = ResolveIndicatorMinimumBaseDistance(signal_params);
 
   if(!CalculateBaseGridContext(signal_params,
                                Strategy_Timeframe,
@@ -495,10 +398,10 @@ bool BuildGridSignalPoints(SignalParams &signal_params)
   }
 
   if(GridSignalHasExecutedLevel(signal_params) &&
-     signal_params.grid_initial_atr_sma_distance_points > 0.0 &&
-     base_distance_points < signal_params.grid_initial_atr_sma_distance_points)
+     signal_params.grid_initial_indicator_distance_points > 0.0 &&
+     base_distance_points < signal_params.grid_initial_indicator_distance_points)
   {
-    base_distance_points = signal_params.grid_initial_atr_sma_distance_points;
+    base_distance_points = signal_params.grid_initial_indicator_distance_points;
   }
 
   double base_lot = signal_params.lot_size;
@@ -530,10 +433,10 @@ bool BuildGridSignalPoints(SignalParams &signal_params)
   signal_params.grid_entry_gap_points          = base_distance_points;
   signal_params.grid_entry_offset_points       = entry_offset_points;
 
-  if(signal_params.grid_initial_atr_sma_distance_points <= 0.0 &&
+  if(signal_params.grid_initial_indicator_distance_points <= 0.0 &&
      base_distance_points > 0.0)
   {
-    signal_params.grid_initial_atr_sma_distance_points = base_distance_points;
+    signal_params.grid_initial_indicator_distance_points = base_distance_points;
   }
 
   signal_params.grid_initialized = true;

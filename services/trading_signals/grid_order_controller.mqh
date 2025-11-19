@@ -27,22 +27,22 @@ void UpdateGridLifecycle(SignalParams &signal_params)
     {
       double guard_distance = 0.0;
       double guard_floor    = 0.0;
-      double sma_price      = 0.0;
-      bool guard_ok = GridSignalAtrGuardSatisfied(signal_params,
-                                                  grid_order.entry_reference_price,
-                                                  guard_distance,
-                                                  guard_floor,
-                                                  sma_price);
+      double channel_price  = 0.0;
+      bool guard_ok = GridSignalChannelGuardSatisfied(signal_params,
+                                                      grid_order.entry_reference_price,
+                                                      guard_distance,
+                                                      guard_floor,
+                                                      channel_price);
       if(!guard_ok)
       {
         GridCloseAllLevels(signal_params, point_size);
-        GridLogEvent("ATR_SMA_GUARD_CANCEL", signal_params, grid_order);
+        GridLogEvent("CHANNEL_GUARD_CANCEL", signal_params, grid_order);
         return;
       }
-      if(signal_params.grid_initial_atr_sma_distance_points <= 0.0 &&
+      if(signal_params.grid_initial_indicator_distance_points <= 0.0 &&
          guard_distance > 0.0)
       {
-        signal_params.grid_initial_atr_sma_distance_points = guard_distance;
+        signal_params.grid_initial_indicator_distance_points = guard_distance;
       }
     }
 

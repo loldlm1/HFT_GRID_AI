@@ -176,7 +176,11 @@ bool GridResolveTrailingStrategyPrice(const SignalParams &signal_params,
   if(Grid_Trailing_Strategy_Mode == TRAILING_ATR_BASED)
   {
     ENUM_TIMEFRAMES tf = GridResolveTrailingStrategyTimeframe();
-    return GridResolveAtrTrailingPrice(signal_params.signal_type, tf, price_out, 1);
+    GridBaseStrategyTypes channel_type = ResolveActiveChannelStrategy();
+    GridChannelLineTypes line_type = (signal_params.signal_type == BULLISH)
+                                       ? GRID_CHANNEL_LINE_RESISTANCE
+                                       : GRID_CHANNEL_LINE_SUPPORT;
+    return GridResolveChannelLinePrice(channel_type, line_type, tf, price_out, 0);
   }
 
   if(Grid_Trailing_Strategy_Mode == TRAILING_LIPS_MA)
@@ -652,26 +656,31 @@ bool GridSignalHasExecutedLevel(const SignalParams &signal_params)
   return false;
 }
 
-bool GridSignalAtrGuardSatisfied(const SignalParams &signal_params,
-                                 const double entry_reference_price,
-                                 double &distance_points,
-                                 double &required_points,
-                                 double &sma_price)
+bool GridSignalChannelGuardSatisfied(const SignalParams &signal_params,
+                                     const double entry_reference_price,
+                                     double &distance_points,
+                                     double &required_points,
+                                     double &reference_price)
 {
   distance_points = 0.0;
-  sma_price       = 0.0;
+  reference_price = 0.0;
   required_points = EnforceBrokerDistance(g_symbol_constraints, Grid_Points_Range_Setup);
 
-  if(Grid_Base_Strategy_Type != ATR_RANGE || required_points <= 0.0)
+  if(!GridStrategyUsesChannelIndicator() || required_points <= 0.0)
     return true;
   if(entry_reference_price <= 0.0)
     return true;
 
-  if(!GridResolveAtrSmaGuardPoints(signal_params.signal_type,
-                                   Strategy_Timeframe,
-                                   entry_reference_price,
-                                   distance_points,
-                                   sma_price))
+  GridBaseStrategyTypes channel_type = (Grid_Base_Strategy_Type == KELTNER_RANGE)
+                                         ? KELTNER_RANGE
+                                         : ATR_RANGE;
+
+  if(!GridResolveChannelGuardPoints(channel_type,
+                                    signal_params.signal_type,
+                                    Strategy_Timeframe,
+                                    entry_reference_price,
+                                    distance_points,
+                                    reference_price))
     return true;
 
   return (distance_points >= required_points);
