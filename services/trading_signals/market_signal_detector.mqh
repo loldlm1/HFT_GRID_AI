@@ -481,7 +481,9 @@ bool TrendFilterAllowsSignal(const SignalParams &signal_params,
   {
     if(!signal_params.trend_alligator_valid)
       return false;
-    alligator_ok = EvaluateAlligatorTrend(signal_params.trend_alligator_data, direction);
+    alligator_ok = EvaluateAlligatorTrend(signal_params.trend_alligator_data,
+                                          direction,
+                                          filter_mode);
     if(!alligator_ok)
       return false;
   }
@@ -715,11 +717,23 @@ bool EvaluateBandsPercentTrigger(const BandsPercentStructure &bands_data,
 }
 
 bool EvaluateAlligatorTrend(const AlligatorStructure &alligator_data,
-                            const SignalTypes signal_type)
+                            const SignalTypes signal_type,
+                            const StrategyTrendModes mode)
 {
   double jaws_value  = alligator_data.jaws_value;
   double teeth_value = alligator_data.teeth_value;
   double lips_value  = alligator_data.lips_value;
+
+  bool use_teeth_branch = StrategyModeUsesTeethAlligator(mode);
+
+  if(use_teeth_branch)
+  {
+    if(signal_type == BULLISH)
+      return (lips_value > teeth_value && teeth_value > jaws_value);
+    if(signal_type == BEARISH)
+      return (lips_value < teeth_value && teeth_value < jaws_value);
+    return false;
+  }
 
   if(signal_type == BULLISH)
     return (lips_value > jaws_value && teeth_value > jaws_value);
@@ -773,7 +787,9 @@ bool EvaluateBaseIndicatorTrigger(const SignalParams &signal_params,
       return false;
 
     AlligatorStructure alligator_data = signal_params.alligator_data[0];
-    alligator_pass = EvaluateAlligatorTrend(alligator_data, signal_type);
+    alligator_pass = EvaluateAlligatorTrend(alligator_data,
+                                            signal_type,
+                                            Strategy_Base_Mode);
   }
 
   bool slope_bpercent_pass = true;
