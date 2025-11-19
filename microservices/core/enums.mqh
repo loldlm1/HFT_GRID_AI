@@ -200,6 +200,18 @@ enum GridRiskTrendModes
   GRID_RM_TREND_JAWS_SAR = 3
 };
 
+enum GridRiskAlligatorReferenceModes
+{
+  GRID_RISK_REF_JAWS  = 0,
+  GRID_RISK_REF_TEETH = 1
+};
+
+enum GridRiskTrendTimeframeSources
+{
+  GRID_RISK_TF_STRATEGY = 0,
+  GRID_RISK_TF_TREND    = 1
+};
+
 enum DailySignalLimitModes
 {
   STOP_DAILY_SIGNALS       = 0,

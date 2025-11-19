@@ -161,10 +161,11 @@ bool GridResolveAlligatorLipsTrailingPrice(const SignalParams &signal_params,
   return GridResolveAlligatorBufferPrice(target_tf, 2, price_out);
 }
 
-bool GridResolveAlligatorJawsPriceForRisk(const ENUM_TIMEFRAMES target_tf,
-                                          double &price_out)
+bool GridResolveAlligatorRiskReferencePrice(const ENUM_TIMEFRAMES target_tf,
+                                            double &price_out)
 {
-  return GridResolveAlligatorBufferPrice(target_tf, 0, price_out);
+  int buffer_index = (Grid_Risk_Alligator_Reference == GRID_RISK_REF_TEETH) ? 1 : 0;
+  return GridResolveAlligatorBufferPrice(target_tf, buffer_index, price_out);
 }
 
 bool GridResolveTrailingStrategyPrice(const SignalParams &signal_params,
