@@ -189,31 +189,22 @@ int OnCalculate(const int rates_total,
       BufferMALower[i] = NormalizeDouble(long_anchor  - ExtATRBuffer[i]*InpATRPercent, _Digits);
    }
 
-   // >>> SMA sobre las bandas para obtener referencias suavizadas
+   // >>> SMA sobre las bandas para obtener referencias suavizadas (usando SimpleMA)
    int sma_period = MathMax(ExtPeriodATR, 1);
-   double sum_upper = 0.0;
-   double sum_lower = 0.0;
-   for(i=0; i<rates_total; i++)
+   int sma_start = (prev_calculated == 0) ? 0 : prev_calculated-1;
+   for(i=sma_start; i<rates_total; i++)
    {
-      sum_upper += BufferMAUpper[i];
-      sum_lower += BufferMALower[i];
-
-      if(i >= sma_period)
-      {
-         sum_upper -= BufferMAUpper[i - sma_period];
-         sum_lower -= BufferMALower[i - sma_period];
-      }
-
-      if(i >= sma_period - 1 && i >= start)
-      {
-         BufferSmaUpper[i] = NormalizeDouble(sum_upper / sma_period, _Digits);
-         BufferSmaLower[i] = NormalizeDouble(sum_lower / sma_period, _Digits);
-      }
-      else
+      if(i < sma_period - 1)
       {
          BufferSmaUpper[i] = EMPTY_VALUE;
          BufferSmaLower[i] = EMPTY_VALUE;
+         continue;
       }
+
+      double sma_upper = SimpleMA(i, sma_period, BufferMAUpper);
+      double sma_lower = SimpleMA(i, sma_period, BufferMALower);
+      BufferSmaUpper[i] = NormalizeDouble(sma_upper, _Digits);
+      BufferSmaLower[i] = NormalizeDouble(sma_lower, _Digits);
    }
 
    // >>> NUEVO: Highest High de la banda superior y Lowest Low de la banda inferior
