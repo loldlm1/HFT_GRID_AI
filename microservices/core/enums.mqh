@@ -232,10 +232,20 @@ enum StrategyTrendModes
   TREND_BPERCENT_WINDOW           = 1,
   TREND_BPERCENT_MEAN             = 2,
   TREND_BPERCENT_WINDOW_AND_MEAN  = 3,
-  TREND_ALLIGATOR                 = 4,
-  TREND_ALLIGATOR_AND_WINDOW      = 5,
-  TREND_ALLIGATOR_AND_MEAN        = 6,
-  TREND_ALLIGATOR_AND_WINDOW_MEAN = 7
+  TREND_ALLIGATOR_JAWS            = 4,
+  TREND_ALLIGATOR_JAWS_AND_WINDOW = 5,
+  TREND_ALLIGATOR_JAWS_AND_MEAN   = 6,
+  TREND_ALLIGATOR_JAWS_AND_WINDOW_MEAN = 7,
+  TREND_ALLIGATOR_TEETH                 = 8,
+  TREND_ALLIGATOR_TEETH_AND_WINDOW      = 9,
+  TREND_ALLIGATOR_TEETH_AND_MEAN        = 10,
+  TREND_ALLIGATOR_TEETH_AND_WINDOW_MEAN = 11,
+
+  // Backward-compatible aliases (legacy ALLIGATOR modes map to jaws branch)
+  TREND_ALLIGATOR                 = TREND_ALLIGATOR_JAWS,
+  TREND_ALLIGATOR_AND_WINDOW      = TREND_ALLIGATOR_JAWS_AND_WINDOW,
+  TREND_ALLIGATOR_AND_MEAN        = TREND_ALLIGATOR_JAWS_AND_MEAN,
+  TREND_ALLIGATOR_AND_WINDOW_MEAN = TREND_ALLIGATOR_JAWS_AND_WINDOW_MEAN
 };
 
 inline bool StrategyModeUsesBPercentWindow(const StrategyTrendModes mode)
@@ -244,8 +254,10 @@ inline bool StrategyModeUsesBPercentWindow(const StrategyTrendModes mode)
   {
     case TREND_BPERCENT_WINDOW:
     case TREND_BPERCENT_WINDOW_AND_MEAN:
-    case TREND_ALLIGATOR_AND_WINDOW:
-    case TREND_ALLIGATOR_AND_WINDOW_MEAN:
+    case TREND_ALLIGATOR_JAWS_AND_WINDOW:
+    case TREND_ALLIGATOR_JAWS_AND_WINDOW_MEAN:
+    case TREND_ALLIGATOR_TEETH_AND_WINDOW:
+    case TREND_ALLIGATOR_TEETH_AND_WINDOW_MEAN:
       return true;
     default:
       return false;
@@ -258,8 +270,10 @@ inline bool StrategyModeUsesBPercentMean(const StrategyTrendModes mode)
   {
     case TREND_BPERCENT_MEAN:
     case TREND_BPERCENT_WINDOW_AND_MEAN:
-    case TREND_ALLIGATOR_AND_MEAN:
-    case TREND_ALLIGATOR_AND_WINDOW_MEAN:
+    case TREND_ALLIGATOR_JAWS_AND_MEAN:
+    case TREND_ALLIGATOR_JAWS_AND_WINDOW_MEAN:
+    case TREND_ALLIGATOR_TEETH_AND_MEAN:
+    case TREND_ALLIGATOR_TEETH_AND_WINDOW_MEAN:
       return true;
     default:
       return false;
@@ -275,14 +289,39 @@ inline bool StrategyModeUsesAlligator(const StrategyTrendModes mode)
 {
   switch(mode)
   {
-    case TREND_ALLIGATOR:
-    case TREND_ALLIGATOR_AND_WINDOW:
-    case TREND_ALLIGATOR_AND_MEAN:
-    case TREND_ALLIGATOR_AND_WINDOW_MEAN:
+    case TREND_ALLIGATOR_JAWS:
+    case TREND_ALLIGATOR_JAWS_AND_WINDOW:
+    case TREND_ALLIGATOR_JAWS_AND_MEAN:
+    case TREND_ALLIGATOR_JAWS_AND_WINDOW_MEAN:
+    case TREND_ALLIGATOR_TEETH:
+    case TREND_ALLIGATOR_TEETH_AND_WINDOW:
+    case TREND_ALLIGATOR_TEETH_AND_MEAN:
+    case TREND_ALLIGATOR_TEETH_AND_WINDOW_MEAN:
       return true;
     default:
       return false;
   }
+}
+
+inline bool StrategyModeUsesTeethAlligator(const StrategyTrendModes mode)
+{
+  switch(mode)
+  {
+    case TREND_ALLIGATOR_TEETH:
+    case TREND_ALLIGATOR_TEETH_AND_WINDOW:
+    case TREND_ALLIGATOR_TEETH_AND_MEAN:
+    case TREND_ALLIGATOR_TEETH_AND_WINDOW_MEAN:
+      return true;
+    default:
+      return false;
+  }
+}
+
+inline bool StrategyModeUsesJawsAlligator(const StrategyTrendModes mode)
+{
+  if(!StrategyModeUsesAlligator(mode))
+    return false;
+  return !StrategyModeUsesTeethAlligator(mode);
 }
 
 enum TrendStructureFilterModes

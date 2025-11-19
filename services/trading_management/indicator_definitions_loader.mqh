@@ -72,10 +72,20 @@ void PrepareStrategyTimeframes()
   total_tf_list_load = ArraySize(Strategy_TF_List);
 }
 
+int ResolveBPercentIndicatorPeriod()
+{
+  int indicator_period = (int)Base_Indicator_Period_Type;
+  bool teeth_required = StrategyModeUsesTeethAlligator(Strategy_Base_Mode) ||
+                        StrategyModeUsesTeethAlligator(Strategy_Trend_Mode);
+  if(teeth_required)
+    indicator_period = Alligator_Lips_Period;
+  return MathMax(indicator_period, 1);
+}
+
 void PrepareIndicatorPeriods()
 {
   ArrayResize(IndicatorPeriods, 1);
-  IndicatorPeriods[0] = (int)Base_Indicator_Period_Type;
+  IndicatorPeriods[0] = ResolveBPercentIndicatorPeriod();
 }
 
 inline bool TrendStructureNeedsDedicatedHandle()
@@ -154,7 +164,7 @@ void ResetTrendStructureIndicator()
 bool LoadTrendBPercentIndicator(const ENUM_TIMEFRAMES trend_tf)
 {
   IndicatorsHandleInfo trend_handle;
-  trend_handle.indicator_period        = (int)Base_Indicator_Period_Type;
+  trend_handle.indicator_period        = ResolveBPercentIndicatorPeriod();
   trend_handle.indicator_ma_method     = Base_Indicator_MA_Method;
   trend_handle.indicator_applied_price = PRICE_WEIGHTED;
   trend_handle.indicator_handle        = iCustom(_Symbol,
@@ -511,11 +521,13 @@ void LoadAllIndicatorDefinitions()
 
   TesterHideIndicators(!Enable_Show_Indicators);
 
-  PrintFormat("Strategy context | TF=%s | BasePercent=%.2f | TrendPercent=%.2f | BasePeriod=%d | SolidPeriod=%d | Direction=%s",
+  int resolved_bpercent_period = IndicatorPeriods[0];
+  PrintFormat("Strategy context | TF=%s | BasePercent=%.2f | TrendPercent=%.2f | BasePeriod=%d | BPercentPeriod=%d | SolidPeriod=%d | Direction=%s",
               EnumToString(Strategy_Timeframe),
               Base_Indicator_Percent,
               Trend_Indicator_Percent,
               (int)Base_Indicator_Period_Type,
+              resolved_bpercent_period,
               (int)Solid_Indicator_Period_Type,
               EnumToString(Strategy_Direction_Mode));
 
