@@ -90,6 +90,7 @@ bool CalculateBaseGridContext(const SignalParams &signal_params,
     bool attempt_trail   = (Grid_ATR_Range_Mode == GRID_ATR_REFERENCE_TRAILING ||
                             Grid_ATR_Range_Mode == GRID_ATR_REFERENCE_BOTH);
     bool attempt_root    = (Grid_ATR_Range_Mode == GRID_ATR_REFERENCE_ROOT);
+    bool attempt_sma     = (Grid_ATR_Range_Mode == GRID_ATR_REFERENCE_SMA);
 
     if(attempt_range)
     {
@@ -122,6 +123,19 @@ bool CalculateBaseGridContext(const SignalParams &signal_params,
       double root_price = 0.0;
       if(GridResolveAtrRootPrice(signal_params.signal_type, tf, root_price))
         GridEvaluateAtrCandidate(root_price,
+                                 entry_reference_price,
+                                 point_size,
+                                 min_required,
+                                 best_price,
+                                 best_distance,
+                                 best_meets_min);
+    }
+
+    if(attempt_sma)
+    {
+      double sma_price = 0.0;
+      if(GridResolveAtrSmaPrice(signal_params.signal_type, tf, sma_price))
+        GridEvaluateAtrCandidate(sma_price,
                                  entry_reference_price,
                                  point_size,
                                  min_required,
@@ -480,6 +494,13 @@ bool BuildGridSignalPoints(SignalParams &signal_params)
     base_distance_points = EnforceBrokerDistance(g_symbol_constraints, base_distance_points);
   }
 
+  if(GridSignalHasExecutedLevel(signal_params) &&
+     signal_params.grid_initial_atr_sma_distance_points > 0.0 &&
+     base_distance_points < signal_params.grid_initial_atr_sma_distance_points)
+  {
+    base_distance_points = signal_params.grid_initial_atr_sma_distance_points;
+  }
+
   double base_lot = signal_params.lot_size;
   if(base_lot <= 0.0)
     base_lot = ResolveBaseGridLot(base_distance_points);
@@ -508,6 +529,12 @@ bool BuildGridSignalPoints(SignalParams &signal_params)
   signal_params.grid_entry_reference_price     = entry_reference_price;
   signal_params.grid_entry_gap_points          = base_distance_points;
   signal_params.grid_entry_offset_points       = entry_offset_points;
+
+  if(signal_params.grid_initial_atr_sma_distance_points <= 0.0 &&
+     base_distance_points > 0.0)
+  {
+    signal_params.grid_initial_atr_sma_distance_points = base_distance_points;
+  }
 
   signal_params.grid_initialized = true;
 

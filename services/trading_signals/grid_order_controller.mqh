@@ -23,6 +23,29 @@ void UpdateGridLifecycle(SignalParams &signal_params)
     if(UpdateGridOrderForSignal(signal_params))
       grid_order = signal_params.grid_orders[grid_order_level];
 
+    if(!GridSignalHasExecutedLevel(signal_params))
+    {
+      double guard_distance = 0.0;
+      double guard_floor    = 0.0;
+      double sma_price      = 0.0;
+      bool guard_ok = GridSignalAtrGuardSatisfied(signal_params,
+                                                  grid_order.entry_reference_price,
+                                                  guard_distance,
+                                                  guard_floor,
+                                                  sma_price);
+      if(!guard_ok)
+      {
+        GridCloseAllLevels(signal_params, point_size);
+        GridLogEvent("ATR_SMA_GUARD_CANCEL", signal_params, grid_order);
+        return;
+      }
+      if(signal_params.grid_initial_atr_sma_distance_points <= 0.0 &&
+         guard_distance > 0.0)
+      {
+        signal_params.grid_initial_atr_sma_distance_points = guard_distance;
+      }
+    }
+
     double normalized_volume = NormalizeVolumeForSymbol(_Symbol, grid_order.lot_size);
 
     if(GridShouldActivateStopOrder(signal_params, grid_order, direction, point_size))

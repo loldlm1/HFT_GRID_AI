@@ -142,6 +142,54 @@ bool TrendStructureDataRequired()
     return false;
   return trend_ctx.uses_trend_dataset;
 }
+
+bool AtrSmaGuardAllowsPendingSignal(SignalParams &signal_params,
+                                    const string context_label)
+{
+  if(Grid_Base_Strategy_Type != ATR_RANGE)
+    return true;
+
+  if(Grid_Points_Range_Setup <= 0.0)
+    return true;
+
+  if(GridSignalHasExecutedLevel(signal_params))
+    return true;
+
+  int total_levels = ArraySize(signal_params.grid_orders);
+  if(total_levels <= 0)
+    return true;
+
+  GridOrderState pending_state = signal_params.grid_orders[total_levels - 1];
+  double distance_points = 0.0;
+  double required_points = 0.0;
+  double sma_price = 0.0;
+
+  bool guard_ok = GridSignalAtrGuardSatisfied(signal_params,
+                                              pending_state.entry_reference_price,
+                                              distance_points,
+                                              required_points,
+                                              sma_price);
+  if(!guard_ok)
+  {
+    if(Enable_Logs)
+    {
+      PrintFormat("%s ATR SMA guard blocked signal | dist=%.2f pts | floor=%.2f pts | entry=%.5f | sma=%.5f",
+                  context_label,
+                  distance_points,
+                  required_points,
+                  pending_state.entry_reference_price,
+                  sma_price);
+    }
+    return false;
+  }
+
+  if(signal_params.grid_initial_atr_sma_distance_points <= 0.0 &&
+     distance_points > 0.0)
+  {
+    signal_params.grid_initial_atr_sma_distance_points = distance_points;
+  }
+  return true;
+}
 // ++ HELPER FUNCTION TO CALCULATE CORRECT SHIFT BASED ON ENTRY TIME ++
 
 bool TrendSanityCheck(const string reason)
@@ -195,6 +243,9 @@ void DetectBullishSignal()
     Print("Grid plan failed for bullish signal, aborting detection.");
     return;
   }
+
+  if(!AtrSmaGuardAllowsPendingSignal(signal_bullish, "BULLISH"))
+    return;
   // unified planner seeds level 0; no separate initializer
 
   // OPEN THE BULLISH SIGNAL TO THE MARKET
@@ -244,6 +295,9 @@ void DetectBearishSignal()
     Print("Grid plan failed for bearish signal, aborting detection.");
     return;
   }
+
+  if(!AtrSmaGuardAllowsPendingSignal(signal_bearish, "BEARISH"))
+    return;
   // unified planner seeds level 0; no separate initializer
 
   // OPEN THE BEARISH SIGNAL TO THE MARKET

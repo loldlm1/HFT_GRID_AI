@@ -6,9 +6,10 @@
 #property copyright "Copyright @loldlm"
 #property link      "https://t.me/loldlm"
 #property indicator_chart_window
+#include <MovingAverages.mqh>
 
 // --- Aumentamos buffers y plots para HH/LL basados en las bandas
-#property indicator_buffers   8
+#property indicator_buffers   10
 #property indicator_plots     6
 
 // --- Plot 1: Banda Superior
@@ -39,16 +40,16 @@
 #property indicator_style4 STYLE_DASH
 #property indicator_width4 2
 
-// --- Plot 5: Resistencia cercana (tipo trailing)
+// --- Plot 5: Media suavizada de la banda superior
 #property indicator_type5  DRAW_LINE
-#property indicator_label5 "Trailing Resistance"
+#property indicator_label5 "ATR SMA Upper"
 #property indicator_color5 MediumVioletRed
 #property indicator_style5 STYLE_SOLID
 #property indicator_width5 1
 
-// --- Plot 6: Soporte cercano (tipo trailing)
+// --- Plot 6: Media suavizada de la banda inferior
 #property indicator_type6  DRAW_LINE
-#property indicator_label6 "Trailing Support"
+#property indicator_label6 "ATR SMA Lower"
 #property indicator_color6 Lime
 #property indicator_style6 STYLE_SOLID
 #property indicator_width6 1
@@ -67,6 +68,8 @@ double   BufferMALower[];
 //-- NUEVOS buffers visibles para S/R horizontales basados en las bandas
 double   BufferResHH[];      // Highest High de BufferMAUpper en ventana InpATRPeriod
 double   BufferSupLL[];      // Lowest  Low  de BufferMALower en ventana InpATRPeriod
+double   BufferSmaUpper[];   // Media simple de la banda superior (referencia bajista)
+double   BufferSmaLower[];   // Media simple de la banda inferior (referencia alcista)
 double   BufferResTrail[];   // Resistencia más cercana al precio actual dentro de la ventana
 double   BufferSupTrail[];   // Soporte más cercano al precio actual dentro de la ventana
 
@@ -87,14 +90,16 @@ int OnInit()
       ExtPeriodATR=InpATRPeriod;
 
    // Buffers originales
-   SetIndexBuffer(0, BufferMAUpper, INDICATOR_DATA);
-   SetIndexBuffer(1, BufferMALower, INDICATOR_DATA);
-   SetIndexBuffer(2, BufferResHH,   INDICATOR_DATA);
-   SetIndexBuffer(3, BufferSupLL,   INDICATOR_DATA);
-   SetIndexBuffer(4, BufferResTrail, INDICATOR_DATA);
-   SetIndexBuffer(5, BufferSupTrail, INDICATOR_DATA);
-   SetIndexBuffer(6, ExtATRBuffer,  INDICATOR_CALCULATIONS);
-   SetIndexBuffer(7, ExtTRBuffer,   INDICATOR_CALCULATIONS);
+   SetIndexBuffer(0, BufferMAUpper,  INDICATOR_DATA);
+   SetIndexBuffer(1, BufferMALower,  INDICATOR_DATA);
+   SetIndexBuffer(2, BufferResHH,    INDICATOR_DATA);
+   SetIndexBuffer(3, BufferSupLL,    INDICATOR_DATA);
+   SetIndexBuffer(4, BufferSmaUpper, INDICATOR_DATA);
+   SetIndexBuffer(5, BufferSmaLower, INDICATOR_DATA);
+   SetIndexBuffer(6, BufferResTrail, INDICATOR_CALCULATIONS);
+   SetIndexBuffer(7, BufferSupTrail, INDICATOR_CALCULATIONS);
+   SetIndexBuffer(8, ExtATRBuffer,   INDICATOR_CALCULATIONS);
+   SetIndexBuffer(9, ExtTRBuffer,    INDICATOR_CALCULATIONS);
 
    IndicatorSetInteger(INDICATOR_DIGITS, _Digits);
    IndicatorSetInteger(INDICATOR_LEVELS, _Digits);
@@ -182,6 +187,33 @@ int OnCalculate(const int rates_total,
 
       BufferMAUpper[i] = NormalizeDouble(short_anchor + ExtATRBuffer[i]*InpATRPercent, _Digits);
       BufferMALower[i] = NormalizeDouble(long_anchor  - ExtATRBuffer[i]*InpATRPercent, _Digits);
+   }
+
+   // >>> SMA sobre las bandas para obtener referencias suavizadas
+   int sma_period = MathMax(ExtPeriodATR, 1);
+   double sum_upper = 0.0;
+   double sum_lower = 0.0;
+   for(i=0; i<rates_total; i++)
+   {
+      sum_upper += BufferMAUpper[i];
+      sum_lower += BufferMALower[i];
+
+      if(i >= sma_period)
+      {
+         sum_upper -= BufferMAUpper[i - sma_period];
+         sum_lower -= BufferMALower[i - sma_period];
+      }
+
+      if(i >= sma_period - 1 && i >= start)
+      {
+         BufferSmaUpper[i] = NormalizeDouble(sum_upper / sma_period, _Digits);
+         BufferSmaLower[i] = NormalizeDouble(sum_lower / sma_period, _Digits);
+      }
+      else
+      {
+         BufferSmaUpper[i] = EMPTY_VALUE;
+         BufferSmaLower[i] = EMPTY_VALUE;
+      }
    }
 
    // >>> NUEVO: Highest High de la banda superior y Lowest Low de la banda inferior
