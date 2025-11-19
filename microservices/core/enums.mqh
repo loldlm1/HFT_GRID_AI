@@ -194,10 +194,10 @@ enum GridLotTypes
 
 enum GridRiskTrendModes
 {
-  GRID_RM_TREND_OFF      = 0,
-  GRID_RM_TREND_JAWS_BE  = 1,
-  GRID_RM_TREND_JAWS_SL  = 2,
-  GRID_RM_TREND_JAWS_SAR = 3
+  GRID_RM_TREND_OFF = 0,
+  GRID_RM_TREND_BE  = 1,
+  GRID_RM_TREND_SL  = 2,
+  GRID_RM_TREND_SAR = 3
 };
 
 enum GridRiskAlligatorReferenceModes

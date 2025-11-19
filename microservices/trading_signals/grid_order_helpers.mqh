@@ -138,7 +138,7 @@ bool GridResolveAlligatorBufferPrice(const ENUM_TIMEFRAMES target_tf,
     double buffer[];
     if(CopyBuffer(ExtAlligatorIndicatorsHandle[i].indicator_handle,
                   buffer_index,
-                  1,
+                  0,
                   1,
                   buffer) <= 0)
       continue;
@@ -146,7 +146,7 @@ bool GridResolveAlligatorBufferPrice(const ENUM_TIMEFRAMES target_tf,
     double candidate = buffer[0];
     if(candidate > 0.0)
     {
-      price_out = candidate;
+      price_out = NormalizeDouble(candidate, _Digits);
       return true;
     }
   }
