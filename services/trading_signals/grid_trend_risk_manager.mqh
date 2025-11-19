@@ -98,6 +98,7 @@ bool GridApplyTrendRiskManagement(SignalParams &signal_params,
       return false;
   }
 
+  double current_price = GridCurrentPriceForDirection(signal_params.signal_type, true);
   double entry_price = state_candidate.entry_price;
   if(use_entry_reference_price || entry_price <= 0.0)
     entry_price = state_candidate.entry_reference_price;
@@ -106,20 +107,20 @@ bool GridApplyTrendRiskManagement(SignalParams &signal_params,
 
   bool breach = false;
   if(signal_params.signal_type == BULLISH)
-    breach = (entry_price < reference_price);
+    breach = (entry_price < reference_price && current_price < reference_price);
   else if(signal_params.signal_type == BEARISH)
-    breach = (entry_price > reference_price);
+    breach = (entry_price > reference_price && current_price > reference_price);
 
   if(!breach)
     return false;
 
-  bool needs_floating = (Grid_Risk_Trend_Mode == GRID_RM_TREND_JAWS_BE ||
-                         Grid_Risk_Trend_Mode == GRID_RM_TREND_JAWS_SAR);
+  bool needs_floating = (Grid_Risk_Trend_Mode == GRID_RM_TREND_BE ||
+                         Grid_Risk_Trend_Mode == GRID_RM_TREND_SAR);
   double floating_profit = 0.0;
   if(needs_floating)
     floating_profit = GridCollectSignalFloatingProfit(signal_params);
 
-  if(Grid_Risk_Trend_Mode == GRID_RM_TREND_JAWS_BE)
+  if(Grid_Risk_Trend_Mode == GRID_RM_TREND_BE)
   {
     double tolerance = SymbolInfoDouble(_Symbol, SYMBOL_TRADE_TICK_VALUE);
     if(tolerance <= 0.0)
@@ -135,7 +136,7 @@ bool GridApplyTrendRiskManagement(SignalParams &signal_params,
     sar_lot = Grid_Lot_Strategy_Size;
 
   SignalTypes sar_direction = (signal_params.signal_type == BULLISH) ? BEARISH : BULLISH;
-  if(Grid_Risk_Trend_Mode == GRID_RM_TREND_JAWS_SAR && floating_profit < 0.0)
+  if(Grid_Risk_Trend_Mode == GRID_RM_TREND_SAR && floating_profit < 0.0)
   {
     double multiplier = Grid_Lot_Multiplier;
     if(multiplier <= 0.0)
@@ -155,13 +156,16 @@ bool GridApplyTrendRiskManagement(SignalParams &signal_params,
   }
 
   double point_size = GridResolvePointSize();
+  Print(EnumToString(target_tf), " - ", entry_price, " < ", reference_price, " - ", (entry_price < reference_price), " - ",
+        EnumToString(signal_params.signal_type), " - ",
+        EnumToString(Grid_Risk_Trend_Mode), " -> Closing grid and spawning SAR with lot ", sar_lot);
   GridCloseAllLevels(signal_params, point_size);
 
   string reference_label = (Grid_Risk_Alligator_Reference == GRID_RISK_REF_TEETH) ? "TEETH" : "JAWS";
   string log_label = StringFormat("GRID_RISK_TREND_%s_SL", reference_label);
-  if(Grid_Risk_Trend_Mode == GRID_RM_TREND_JAWS_BE)
+  if(Grid_Risk_Trend_Mode == GRID_RM_TREND_BE)
     log_label = StringFormat("GRID_RISK_TREND_%s_BE", reference_label);
-  else if(Grid_Risk_Trend_Mode == GRID_RM_TREND_JAWS_SAR)
+  else if(Grid_Risk_Trend_Mode == GRID_RM_TREND_SAR)
     log_label = StringFormat("GRID_RISK_TREND_%s_SAR_CLOSE", reference_label);
   GridOrderState log_state = state_candidate;
   if(use_entry_reference_price && log_state.entry_price <= 0.0)
@@ -169,7 +173,7 @@ bool GridApplyTrendRiskManagement(SignalParams &signal_params,
   GridLogEvent(log_label, signal_params, log_state);
   signal_params.signal_state = CLOSED;
 
-  if(Grid_Risk_Trend_Mode == GRID_RM_TREND_JAWS_SAR)
+  if(Grid_Risk_Trend_Mode == GRID_RM_TREND_SAR)
   {
     if(!GridSpawnRiskSarSignal(sar_direction, sar_lot))
       Print("Trend risk SAR: failed to launch reversal grid.");
