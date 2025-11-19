@@ -136,17 +136,20 @@ ENUM_TIMEFRAMES ResolveTrailingStrategyTimeframe()
 
 ENUM_TIMEFRAMES ResolveRiskTrendTimeframe()
 {
-  ENUM_TIMEFRAMES configured_tf = Trend_Strategy_Timeframe;
-  if(configured_tf == PERIOD_CURRENT)
-    return Strategy_Timeframe;
-  if(!IsStrategyTimeframeSupported(configured_tf))
-  {
-    PrintFormat("Risk trend timeframe %d not supported. Falling back to strategy timeframe %d.",
-                (int)configured_tf,
-                (int)Strategy_Timeframe);
-    configured_tf = Strategy_Timeframe;
-  }
-  return configured_tf;
+  ENUM_TIMEFRAMES strategy_tf = Strategy_Timeframe;
+  if(!IsStrategyTimeframeSupported(strategy_tf))
+    strategy_tf = PERIOD_M1;
+
+  ENUM_TIMEFRAMES trend_tf = ResolveTrendTimeframe();
+
+  if(Grid_Risk_Timeframe_Source == GRID_RISK_TF_STRATEGY)
+    return strategy_tf;
+
+  // Default to trend timeframe but fall back to strategy when unsupported.
+  if(IsStrategyTimeframeSupported(trend_tf))
+    return trend_tf;
+
+  return strategy_tf;
 }
 
 void ResetTrendIndicators()
