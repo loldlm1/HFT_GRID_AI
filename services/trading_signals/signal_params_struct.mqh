@@ -73,6 +73,7 @@ struct SignalParams
 
   bool   grid_initialized;
   double grid_base_distance_points;
+  double grid_initial_atr_sma_distance_points;
   double grid_resolved_distance_points;
   double grid_base_lot_size;
   double grid_entry_reference_price;
@@ -110,6 +111,7 @@ struct SignalParams
     close_time                 = 0;
     grid_initialized           = false;
     grid_base_distance_points  = 0.0;
+    grid_initial_atr_sma_distance_points = 0.0;
     grid_resolved_distance_points = 0.0;
     grid_base_lot_size         = 0.0;
     grid_entry_reference_price = 0.0;
@@ -167,6 +169,7 @@ struct SignalParams
 
     grid_initialized            = signal_params.grid_initialized;
     grid_base_distance_points   = signal_params.grid_base_distance_points;
+    grid_initial_atr_sma_distance_points = signal_params.grid_initial_atr_sma_distance_points;
     grid_resolved_distance_points = signal_params.grid_resolved_distance_points;
     grid_base_lot_size          = signal_params.grid_base_lot_size;
     grid_entry_reference_price  = signal_params.grid_entry_reference_price;

@@ -636,4 +636,45 @@ double GridCollectSignalFloatingProfit(const SignalParams &signal_params)
   return cumulative;
 }
 
+bool GridSignalHasExecutedLevel(const SignalParams &signal_params)
+{
+  int total_levels = ArraySize(signal_params.grid_orders);
+  for(int idx = 0; idx < total_levels; idx++)
+  {
+    GridOrderState state = signal_params.grid_orders[idx];
+    if(state.entry_price <= 0.0)
+      continue;
+    if(state.status == GRID_ORDER_ACTIVE ||
+       state.status == GRID_ORDER_TP_TRAILING_ACTIVE ||
+       state.status == GRID_ORDER_COMPLETED)
+      return true;
+  }
+  return false;
+}
+
+bool GridSignalAtrGuardSatisfied(const SignalParams &signal_params,
+                                 const double entry_reference_price,
+                                 double &distance_points,
+                                 double &required_points,
+                                 double &sma_price)
+{
+  distance_points = 0.0;
+  sma_price       = 0.0;
+  required_points = EnforceBrokerDistance(g_symbol_constraints, Grid_Points_Range_Setup);
+
+  if(Grid_Base_Strategy_Type != ATR_RANGE || required_points <= 0.0)
+    return true;
+  if(entry_reference_price <= 0.0)
+    return true;
+
+  if(!GridResolveAtrSmaGuardPoints(signal_params.signal_type,
+                                   Strategy_Timeframe,
+                                   entry_reference_price,
+                                   distance_points,
+                                   sma_price))
+    return true;
+
+  return (distance_points >= required_points);
+}
+
 #endif // _MICROSERVICES_TRADING_SIGNALS_GRID_ORDER_HELPERS_MQH_
