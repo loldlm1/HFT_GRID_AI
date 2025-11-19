@@ -39,7 +39,7 @@ bool GridCopyAtrBufferValue(const ENUM_TIMEFRAMES timeframe,
     double candidate = buffer_values[0];
     if(candidate > 0.0)
     {
-      price_out = candidate;
+      price_out = NormalizeDouble(candidate, _Digits);
       return true;
     }
   }
