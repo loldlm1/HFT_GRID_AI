@@ -15,6 +15,7 @@ IndicatorsHandleInfo ExtStochIndicatorsHandle[];
 IndicatorsHandleInfo ExtStructStochIndicatorsHandle[];
 IndicatorsHandleInfo ExtBodyMAIndicatorsHandle[];
 IndicatorsHandleInfo ExtATRIndicatorsHandle[];
+IndicatorsHandleInfo ExtKeltnerIndicatorsHandle[];
 IndicatorsHandleInfo TrendBPercentIndicatorHandle;
 IndicatorsHandleInfo TrendAlligatorIndicatorHandle;
 IndicatorsHandleInfo TrendStochIndicatorHandle;
@@ -362,6 +363,17 @@ bool AtrIndicatorHandleExists(const ENUM_TIMEFRAMES timeframe)
   return false;
 }
 
+bool KeltnerIndicatorHandleExists(const ENUM_TIMEFRAMES timeframe)
+{
+  int total = ArraySize(ExtKeltnerIndicatorsHandle);
+  for(int i = 0; i < total; i++)
+  {
+    if(ExtKeltnerIndicatorsHandle[i].indicator_timeframe == timeframe)
+      return true;
+  }
+  return false;
+}
+
 bool LoadAtrIndicatorForTimeframe(const ENUM_TIMEFRAMES trend_timeframe)
 {
   if(AtrIndicatorHandleExists(trend_timeframe))
@@ -370,7 +382,7 @@ bool LoadAtrIndicatorForTimeframe(const ENUM_TIMEFRAMES trend_timeframe)
   IndicatorsHandleInfo atr_indicator_handle_loaded;
 
   atr_indicator_handle_loaded.indicator_period    = (int)Solid_Indicator_Period_Type;
-  double atr_factor = Grid_ATR_Factor;
+  double atr_factor = Grid_Channel_Factor;
   if(atr_factor <= 0.0)
     atr_factor = 1.0;
   atr_indicator_handle_loaded.indicator_handle    = iCustom(_Symbol,
@@ -394,17 +406,59 @@ bool LoadAtrIndicatorForTimeframe(const ENUM_TIMEFRAMES trend_timeframe)
   return true;
 }
 
-void EnsureTrailingIndicatorDependencies(const bool requires_atr,
+bool LoadKeltnerIndicatorForTimeframe(const ENUM_TIMEFRAMES trend_timeframe)
+{
+  if(KeltnerIndicatorHandleExists(trend_timeframe))
+    return true;
+
+  IndicatorsHandleInfo keltner_handle;
+  keltner_handle.indicator_period    = (int)Solid_Indicator_Period_Type;
+  double channel_factor = Grid_Channel_Factor;
+  if(channel_factor <= 0.0)
+    channel_factor = 1.0;
+  keltner_handle.indicator_handle    = iCustom(_Symbol,
+                                               trend_timeframe,
+                                               "Examples\\Keltner_Channel.ex5",
+                                               keltner_handle.indicator_period,
+                                               keltner_handle.indicator_period,
+                                               0,
+                                               channel_factor,
+                                               Base_Indicator_MA_Method);
+  keltner_handle.indicator_timeframe = trend_timeframe;
+
+  if(keltner_handle.indicator_handle == INVALID_HANDLE)
+  {
+    Print("ERROR LOADING KELTNER CHANNEL INDICATOR: ", EnumToString(trend_timeframe), " | PERIOD: ", keltner_handle.indicator_period);
+    TesterStop();
+    return false;
+  }
+
+  Print("LOADED KELTNER CHANNEL INDICATOR SUCCESSFULLY: ", EnumToString(trend_timeframe), " | PERIOD: ", keltner_handle.indicator_period);
+
+  AddElementToArray(ExtKeltnerIndicatorsHandle, keltner_handle);
+  return true;
+}
+
+bool LoadChannelIndicatorForTimeframe(const GridBaseStrategyTypes channel_type,
+                                      const ENUM_TIMEFRAMES trend_timeframe)
+{
+  if(channel_type == KELTNER_RANGE)
+    return LoadKeltnerIndicatorForTimeframe(trend_timeframe);
+  return LoadAtrIndicatorForTimeframe(trend_timeframe);
+}
+
+void EnsureTrailingIndicatorDependencies(const bool requires_channel_indicator,
                                          const bool trailing_requires_alligator,
-                                         const bool risk_requires_alligator)
+                                         const bool risk_requires_alligator,
+                                         const GridBaseStrategyTypes channel_type)
 {
   ENUM_TIMEFRAMES trailing_tf = Trailing_Indicator_Timeframe;
   ENUM_TIMEFRAMES base_tf     = Strategy_TF_List[0];
 
   if(trailing_requires_alligator && trailing_tf != base_tf)
     LoadAlligatorIndicatorForTimeframe(trailing_tf);
-  if(requires_atr && trailing_tf != base_tf)
-    LoadAtrIndicatorForTimeframe(trailing_tf);
+  if(requires_channel_indicator && trailing_tf != base_tf)
+    LoadChannelIndicatorForTimeframe(channel_type, trailing_tf);
 
   if(risk_requires_alligator)
     LoadAlligatorIndicatorForTimeframe(Risk_Trend_Timeframe);
@@ -506,7 +560,7 @@ void LoadAllIndicatorDefinitions()
   bool base_mode_uses_alligator = StrategyModeUsesAlligator(Strategy_Base_Mode);
   bool base_bpercent_required   = base_mode_uses_bpercent || Base_BPercent_Slope_Filter;
   bool trailing_requires_alligator = (Grid_Trailing_Strategy_Mode == TRAILING_LIPS_MA);
-  bool trailing_requires_atr       = (Grid_Trailing_Strategy_Mode == TRAILING_ATR_BASED);
+  bool trailing_requires_channel   = (Grid_Trailing_Strategy_Mode == TRAILING_ATR_BASED);
   bool risk_requires_alligator     = (Grid_Risk_Trend_Mode != GRID_RM_TREND_OFF);
   bool base_alligator_required  = base_mode_uses_alligator || Base_Alligator_Slope_Filter ||
                                   trailing_requires_alligator || risk_requires_alligator;
@@ -517,7 +571,12 @@ void LoadAllIndicatorDefinitions()
 
   bool require_structure_indicators = true;
 
-  bool use_atr_strategy = (Grid_Base_Strategy_Type == ATR_RANGE) || trailing_requires_atr;
+  bool strategy_uses_channel = (Grid_Base_Strategy_Type == ATR_RANGE ||
+                                Grid_Base_Strategy_Type == KELTNER_RANGE);
+  bool load_channel_indicators = strategy_uses_channel || trailing_requires_channel;
+  GridBaseStrategyTypes channel_strategy_type = (Grid_Base_Strategy_Type == KELTNER_RANGE)
+                                                  ? KELTNER_RANGE
+                                                  : ATR_RANGE;
 
   if(base_mode_uses_bpercent && Base_Indicator_Percent <= 0.0)
     Print("WARNING: Base Bollinger Percent indicator disabled; percent threshold <= 0.");
@@ -541,6 +600,7 @@ void LoadAllIndicatorDefinitions()
   ArrayResize(ExtStructStochIndicatorsHandle, 0);
   ArrayResize(ExtBodyMAIndicatorsHandle, 0);
   ArrayResize(ExtATRIndicatorsHandle, 0);
+  ArrayResize(ExtKeltnerIndicatorsHandle, 0);
 
   if(base_bpercent_required)
   {
@@ -570,21 +630,25 @@ void LoadAllIndicatorDefinitions()
     Print("Solid indicator strategy disabled and no structure filters configured; skipping stochastic indicator loading.");
   }
 
-  if(use_atr_strategy)
+  if(load_channel_indicators)
   {
-    LoadAllATRIndicators();
+    if(channel_strategy_type == KELTNER_RANGE)
+      LoadAllKeltnerIndicators();
+    else
+      LoadAllATRIndicators();
   }
   else
   {
-    Print("ATR grid strategy disabled and trailing ATR mode inactive; skipping ATR indicator loading.");
+    Print("Volatility indicator strategy disabled and trailing indicator mode inactive; skipping channel indicator loading.");
   }
 
   LoadAllBodyMAIndicators();
   LoadTrendIndicators();
   LoadTrendStructureFilterIndicator();
-  EnsureTrailingIndicatorDependencies(trailing_requires_atr,
+  EnsureTrailingIndicatorDependencies(trailing_requires_channel,
                                       trailing_requires_alligator,
-                                      risk_requires_alligator);
+                                      risk_requires_alligator,
+                                      channel_strategy_type);
 }
 
 // ++ LOAD ALL INDICATORS VARIANTS FUNCTIONS ++
@@ -739,6 +803,16 @@ void LoadAllATRIndicators()
   {
     ENUM_TIMEFRAMES trend_timeframe = Strategy_TF_List[i];
     if(!LoadAtrIndicatorForTimeframe(trend_timeframe))
+      break;
+  }
+}
+
+void LoadAllKeltnerIndicators()
+{
+  for(int i = 0; i < total_tf_list_load; ++i)
+  {
+    ENUM_TIMEFRAMES trend_timeframe = Strategy_TF_List[i];
+    if(!LoadKeltnerIndicatorForTimeframe(trend_timeframe))
       break;
   }
 }

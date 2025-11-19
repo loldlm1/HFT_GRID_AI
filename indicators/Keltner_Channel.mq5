@@ -25,6 +25,7 @@
 //--- input parameters
 input int    InpMAPeriod=13;    // Period of MA
 input int    InpATRPeriod=5;    // Period of ATR
+input int    InpCandleShift=0;   // Shift Candles
 input double InpATRFactor=1.0;   // ATR multiplier
 input ENUM_MA_METHOD InpMAMethod=MODE_EMA; // Moving Average Method
 
@@ -87,9 +88,9 @@ int OnInit()
    PlotIndexSetInteger(2, PLOT_DRAW_BEGIN, InpMAPeriod+1);
 
 //--- set a 1-bar offset for each line
-   PlotIndexSetInteger(0, PLOT_SHIFT, 1);
-   PlotIndexSetInteger(1, PLOT_SHIFT, 1);
-   PlotIndexSetInteger(2, PLOT_SHIFT, 1);
+   PlotIndexSetInteger(0, PLOT_SHIFT, InpCandleShift);
+   PlotIndexSetInteger(1, PLOT_SHIFT, InpCandleShift);
+   PlotIndexSetInteger(2, PLOT_SHIFT, InpCandleShift);
 
 //--- set drawing line empty value
    PlotIndexSetDouble(0, PLOT_EMPTY_VALUE, 0.0);

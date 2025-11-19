@@ -12,7 +12,7 @@
 #include "../microservices/indicators/body_ma_indicator.mqh"
 
 // SIGNAL SERVICE FILES
-#include "../microservices/trading_signals/grid_atr_utils.mqh"
+#include "../microservices/trading_signals/grid_channel_utils.mqh"
 #include "trading_signals/signal_params_struct.mqh"
 #include "trading_signals/market_signal_detector.mqh"
 #include "trading_signals/market_status_controller.mqh"

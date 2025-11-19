@@ -143,10 +143,10 @@ bool TrendStructureDataRequired()
   return trend_ctx.uses_trend_dataset;
 }
 
-bool AtrSmaGuardAllowsPendingSignal(SignalParams &signal_params,
-                                    const string context_label)
+bool ChannelGuardAllowsPendingSignal(SignalParams &signal_params,
+                                     const string context_label)
 {
-  if(Grid_Base_Strategy_Type != ATR_RANGE)
+  if(!GridStrategyUsesChannelIndicator())
     return true;
 
   if(Grid_Points_Range_Setup <= 0.0)
@@ -162,31 +162,31 @@ bool AtrSmaGuardAllowsPendingSignal(SignalParams &signal_params,
   GridOrderState pending_state = signal_params.grid_orders[total_levels - 1];
   double distance_points = 0.0;
   double required_points = 0.0;
-  double sma_price = 0.0;
+  double reference_price = 0.0;
 
-  bool guard_ok = GridSignalAtrGuardSatisfied(signal_params,
-                                              pending_state.entry_reference_price,
-                                              distance_points,
-                                              required_points,
-                                              sma_price);
+  bool guard_ok = GridSignalChannelGuardSatisfied(signal_params,
+                                                  pending_state.entry_reference_price,
+                                                  distance_points,
+                                                  required_points,
+                                                  reference_price);
   if(!guard_ok)
   {
     if(Enable_Logs)
     {
-      PrintFormat("%s ATR SMA guard blocked signal | dist=%.2f pts | floor=%.2f pts | entry=%.5f | sma=%.5f",
+      PrintFormat("%s channel guard blocked signal | dist=%.2f pts | floor=%.2f pts | entry=%.5f | ref=%.5f",
                   context_label,
                   distance_points,
                   required_points,
                   pending_state.entry_reference_price,
-                  sma_price);
+                  reference_price);
     }
     return false;
   }
 
-  if(signal_params.grid_initial_atr_sma_distance_points <= 0.0 &&
+  if(signal_params.grid_initial_indicator_distance_points <= 0.0 &&
      distance_points > 0.0)
   {
-    signal_params.grid_initial_atr_sma_distance_points = distance_points;
+    signal_params.grid_initial_indicator_distance_points = distance_points;
   }
   return true;
 }
@@ -244,7 +244,7 @@ void DetectBullishSignal()
     return;
   }
 
-  if(!AtrSmaGuardAllowsPendingSignal(signal_bullish, "BULLISH"))
+  if(!ChannelGuardAllowsPendingSignal(signal_bullish, "BULLISH"))
     return;
   // unified planner seeds level 0; no separate initializer
 
@@ -296,7 +296,7 @@ void DetectBearishSignal()
     return;
   }
 
-  if(!AtrSmaGuardAllowsPendingSignal(signal_bearish, "BEARISH"))
+  if(!ChannelGuardAllowsPendingSignal(signal_bearish, "BEARISH"))
     return;
   // unified planner seeds level 0; no separate initializer
 

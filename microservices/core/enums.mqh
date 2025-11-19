@@ -82,16 +82,14 @@ enum ResistanceRetestFilterModes
 enum GridBaseStrategyTypes
 {
   ATR_RANGE    = 0,
-  POINTS_RANGE = 1
+  POINTS_RANGE = 1,
+  KELTNER_RANGE = 2
 };
 
-enum GridAtrRangeModes
+enum GridChannelLineTypes
 {
-  GRID_ATR_REFERENCE_SUP_RES = 0,
-  GRID_ATR_REFERENCE_TRAILING = 1,
-  GRID_ATR_REFERENCE_BOTH = 2,
-  GRID_ATR_REFERENCE_ROOT = 3,
-  GRID_ATR_REFERENCE_SMA = 4
+  GRID_CHANNEL_LINE_SUPPORT = 0,
+  GRID_CHANNEL_LINE_RESISTANCE = 1
 };
 
 enum BreakEvenModes
