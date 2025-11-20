@@ -259,6 +259,9 @@ int GetActivePositionsCount(const SignalTypes direction)
 
 bool IsGridSignalComplete(const SignalParams &signal_params)
 {
+  if(!signal_params.grid_initialized)
+    return false;
+
   int total_levels = ArraySize(signal_params.grid_orders);
   for(int i = 0; i < total_levels; i++)
   {
