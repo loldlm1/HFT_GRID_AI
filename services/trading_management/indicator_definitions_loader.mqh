@@ -75,7 +75,7 @@ void PrepareStrategyTimeframes()
 
 int ResolveBPercentIndicatorPeriod()
 {
-  int indicator_period = (int)Base_Indicator_Period_Type;
+  int indicator_period = (int)Stoch_Structure_Period_Type;
   bool teeth_required = StrategyModeUsesTeethAlligator(Strategy_Base_Mode) ||
                         StrategyModeUsesTeethAlligator(Strategy_Trend_Mode);
   if(teeth_required)
@@ -202,7 +202,7 @@ bool LoadTrendAlligatorIndicator(const ENUM_TIMEFRAMES trend_tf)
 {
   int jaws_period  = MathMax(Alligator_Jaws_Period, 1);
   int teeth_period = MathMax((int)Base_Indicator_Period_Type, 1);
-  int lips_period  = MathMax(Alligator_Lips_Period, 1);
+  int lips_period  = MathMax((int)Stoch_Structure_Period_Type, 1);
 
   IndicatorsHandleInfo alligator_handle;
   alligator_handle.indicator_period        = jaws_period;
@@ -242,7 +242,7 @@ bool LoadTrendAlligatorIndicator(const ENUM_TIMEFRAMES trend_tf)
 bool LoadTrendStochasticIndicator(const ENUM_TIMEFRAMES trend_tf)
 {
   IndicatorsHandleInfo stoch_handle;
-  stoch_handle.indicator_period    = (int)Solid_Indicator_Period_Type;
+  stoch_handle.indicator_period    = (int)Stoch_Structure_Period_Type;
   stoch_handle.indicator_handle    = iCustom(_Symbol,
                                              trend_tf,
                                              "Examples\\Stochastic",
@@ -270,7 +270,7 @@ bool LoadTrendStochasticIndicator(const ENUM_TIMEFRAMES trend_tf)
 bool LoadTrendStructureIndicator(const ENUM_TIMEFRAMES structure_tf)
 {
   IndicatorsHandleInfo structure_handle;
-  structure_handle.indicator_period    = (int)Solid_Indicator_Period_Type;
+  structure_handle.indicator_period    = (int)Stoch_Structure_Period_Type;
   structure_handle.indicator_handle    = iCustom(_Symbol,
                                                  structure_tf,
                                                  "Examples\\Stochastic_Structure",
@@ -381,7 +381,7 @@ bool LoadAtrIndicatorForTimeframe(const ENUM_TIMEFRAMES trend_timeframe)
 
   IndicatorsHandleInfo atr_indicator_handle_loaded;
 
-  atr_indicator_handle_loaded.indicator_period    = (int)Solid_Indicator_Period_Type;
+  atr_indicator_handle_loaded.indicator_period    = (int)Stoch_Structure_Period_Type;
   double atr_factor = Grid_Channel_Factor;
   if(atr_factor <= 0.0)
     atr_factor = 1.0;
@@ -412,7 +412,7 @@ bool LoadKeltnerIndicatorForTimeframe(const ENUM_TIMEFRAMES trend_timeframe)
     return true;
 
   IndicatorsHandleInfo keltner_handle;
-  keltner_handle.indicator_period    = (int)Solid_Indicator_Period_Type;
+  keltner_handle.indicator_period    = (int)Stoch_Structure_Period_Type;
   double channel_factor = Grid_Channel_Factor;
   if(channel_factor <= 0.0)
     channel_factor = 1.0;
@@ -590,7 +590,7 @@ void LoadAllIndicatorDefinitions()
               Trend_Indicator_Percent,
               (int)Base_Indicator_Period_Type,
               resolved_bpercent_period,
-              (int)Solid_Indicator_Period_Type,
+              (int)Stoch_Structure_Period_Type,
               EnumToString(Strategy_Direction_Mode));
 
   ArrayResize(ExtBandsIndicatorsHandle, 0);
@@ -729,7 +729,7 @@ void LoadAllBPercentIndicators()
                                                                   5,
                                                                   Base_Indicator_MA_Method,
                                                                   PRICE_WEIGHTED,
-                                                                  (int)Solid_Indicator_Period_Type);
+                                                                  (int)Stoch_Structure_Period_Type);
       bands_indicator_handle_loaded.indicator_timeframe = trend_timeframe;
 
       if(bands_indicator_handle_loaded.indicator_handle == INVALID_HANDLE)
@@ -764,7 +764,7 @@ void LoadAllStochIndicators()
 
     IndicatorsHandleInfo stoch_indicator_handle_loaded;
 
-    stoch_indicator_handle_loaded.indicator_period    = (int)Solid_Indicator_Period_Type;
+    stoch_indicator_handle_loaded.indicator_period    = (int)Stoch_Structure_Period_Type;
     stoch_indicator_handle_loaded.indicator_handle    = iCustom(_Symbol, trend_timeframe, "Examples\\Stochastic", stoch_indicator_handle_loaded.indicator_period, 3, 3, STO_CLOSECLOSE);
     stoch_indicator_handle_loaded.indicator_timeframe = trend_timeframe;
 
@@ -789,7 +789,7 @@ void LoadAllStructStochIndicators()
 
     IndicatorsHandleInfo struct_stoch_indicator_handle_loaded;
 
-    struct_stoch_indicator_handle_loaded.indicator_period    = (int)Solid_Indicator_Period_Type;
+    struct_stoch_indicator_handle_loaded.indicator_period    = (int)Stoch_Structure_Period_Type;
     struct_stoch_indicator_handle_loaded.indicator_handle    = iCustom(_Symbol, trend_timeframe, "Examples\\Stochastic_Structure", struct_stoch_indicator_handle_loaded.indicator_period, 3, 3, STO_CLOSECLOSE);
     struct_stoch_indicator_handle_loaded.indicator_timeframe = trend_timeframe;
 
