@@ -317,12 +317,19 @@ double ResolveGridOrderLotSize(SignalParams &signal_params,
       }
     }
   }
+  else if(effective_lot_type == GRID_LOT_MAX_MARGIN_SPLIT)
+  {
+    double aggressive = GridResolveAggressiveLotSize(signal_params.signal_type);
+    if(aggressive > 0.0)
+      resolved_lot = aggressive;
+  }
   else
   {
     resolved_lot = fallback_lot;
   }
 
-  if(effective_lot_type != GRID_LOT_CALCULATED)
+  if(effective_lot_type != GRID_LOT_CALCULATED &&
+     effective_lot_type != GRID_LOT_MAX_MARGIN_SPLIT)
     resolved_lot = ApplyGridLotMultiplier(resolved_lot, level_index);
 
   return NormalizeVolumeForSymbol(_Symbol, resolved_lot);
