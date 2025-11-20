@@ -508,7 +508,7 @@ void SetTFAlligatorDataToSignalParams(SignalParams &signal_params)
 {
   int jaws_period  = MathMax(Alligator_Jaws_Period, 1);
   int teeth_period = MathMax((int)Base_Indicator_Period_Type, 1);
-  int lips_period  = MathMax(Alligator_Lips_Period, 1);
+  int lips_period  = MathMax((int)Stoch_Structure_Period_Type, 1);
 
   for(int i = 0; i < ArraySize(ExtAlligatorIndicatorsHandle); i++)
   {
@@ -613,7 +613,7 @@ bool LoadTrendFilterData(SignalParams &signal_params)
 
     int jaws_period  = MathMax(Alligator_Jaws_Period, 1);
     int teeth_period = MathMax((int)Base_Indicator_Period_Type, 1);
-    int lips_period  = MathMax(Alligator_Lips_Period, 1);
+    int lips_period  = MathMax((int)Stoch_Structure_Period_Type, 1);
 
     signal_params.trend_alligator_data = AlligatorStructure();
     if(!signal_params.trend_alligator_data.InitAlligatorStructureValues(TrendAlligatorIndicatorHandle,
