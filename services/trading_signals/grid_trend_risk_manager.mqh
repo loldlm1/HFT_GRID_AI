@@ -1,6 +1,33 @@
 #ifndef _SERVICES_TRADING_SIGNALS_GRID_TREND_RISK_MANAGER_MQH_
 #define _SERVICES_TRADING_SIGNALS_GRID_TREND_RISK_MANAGER_MQH_
 
+bool GridEnsureSarSignalInitialized(SignalParams &signal_params,
+                                    const bool log_activation)
+{
+  if(!signal_params.is_sar_signal)
+    return true;
+  if(signal_params.grid_initialized)
+    return true;
+
+  if(!GridSarEntryConditionReady(signal_params))
+    return true;
+
+  if(!BuildGridOrderForSignal(signal_params))
+  {
+    Print("Trend risk SAR: failed to build reversal grid.");
+    return false;
+  }
+
+  if(log_activation && ArraySize(signal_params.grid_orders) > 0)
+  {
+    string reference_label = (Grid_Risk_Alligator_Reference == GRID_RISK_REF_TEETH) ? "TEETH" : "JAWS";
+    GridLogEvent(StringFormat("GRID_RISK_TREND_%s_SAR_OPEN", reference_label),
+                 signal_params,
+                 signal_params.grid_orders[0]);
+  }
+  return true;
+}
+
 bool GridSpawnRiskSarSignal(const SignalTypes direction,
                             double lot_size,
                             const double cumulative_loss)
@@ -21,33 +48,18 @@ bool GridSpawnRiskSarSignal(const SignalTypes direction,
   sar_signal.entry_price = GridCurrentPriceForDirection(direction, true);
   sar_signal.sar_cumulative_loss = MathMax(cumulative_loss, 0.0);
 
-  bool activation_ready = GridSarEntryConditionReady(sar_signal);
-  if(activation_ready)
-  {
-    if(!BuildGridOrderForSignal(sar_signal))
-    {
-      Print("Trend risk SAR: failed to build reversal grid.");
-      return false;
-    }
-  }
-  else
-  {
-    if(Enable_Logs)
-      Print("Trend risk SAR pending activation; waiting for MA cross before building grid.");
-  }
+  if(!GridEnsureSarSignalInitialized(sar_signal, true))
+    return false;
+
+  if(!sar_signal.grid_initialized && Enable_Logs)
+    Print("Trend risk SAR pending activation; waiting for MA cross before building grid.");
 
   if(direction == BULLISH)
     AddElementToArray(running_bullish_signals, sar_signal);
   else
     AddElementToArray(running_bearish_signals, sar_signal);
 
-  if(activation_ready && ArraySize(sar_signal.grid_orders) > 0)
-  {
-    string reference_label = (Grid_Risk_Alligator_Reference == GRID_RISK_REF_TEETH) ? "TEETH" : "JAWS";
-    GridLogEvent(StringFormat("GRID_RISK_TREND_%s_SAR_OPEN", reference_label),
-                 sar_signal,
-                 sar_signal.grid_orders[0]);
-  }
+  // Logging handled inside GridEnsureSarSignalInitialized when activation occurs.
   return true;
 }
 
