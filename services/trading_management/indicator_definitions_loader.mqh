@@ -636,6 +636,15 @@ void LoadAllIndicatorDefinitions()
       LoadAllKeltnerIndicators();
     else
       LoadAllATRIndicators();
+
+    if(Trend_Channel_MA_Filter)
+    {
+      ENUM_TIMEFRAMES trend_channel_tf = Trend_Strategy_Timeframe;
+      if(trend_channel_tf == PERIOD_CURRENT)
+        trend_channel_tf = Strategy_Timeframe;
+      if(trend_channel_tf != strategy_tf)
+        LoadChannelIndicatorForTimeframe(channel_strategy_type, trend_channel_tf);
+    }
   }
   else
   {

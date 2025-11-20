@@ -38,11 +38,13 @@ The include cascade rooted in `HFT_Grid_AI.mq5` guarantees ordering; individual 
 
 2. **Base Context Inputs**
    - `Strategy_Base_Mode` selects which Bollinger confirmation (window, mean, or both) is required and whether to pair it with the shared Alligator trend. The Alligator branch now exposes jaws modes (legacy behaviour) and teeth modes; the latter enforce the `lips > teeth > jaws` stack for bullish swings, flip the inequality for bearish trades, and automatically reuse `Alligator_Lips_Period` for the Bollinger Percent indicator so the base context tracks the faster lips MA. `Base_Indicator_Percent` feeds the Bollinger branch, `Alligator_Jaws_Period`/`Alligator_Lips_Period` (while the Alligator teeth still reuse `Base_Indicator_Period_Type`) configure the Alligator branch, and the slope toggles (`Base_BPercent_Slope_Filter`, `Base_Stochastic_Slope_Filter`, `Base_Alligator_Slope_Filter`) mirror the trend context’s >=/<= slope guards.
+   - Set `Base_Channel_MA_Filter` to block fresh signals whenever the Alligator MA used by the base context (lips for teeth modes, teeth for jaws modes) sits inside the volatility channel (ATR/Keltner) on the strategy timeframe—helpful for filtering weak trends when price is oscillating within the channel.
    - Structure filters: `Base_First/Second_Structure_Filter`, `Base_Support_Filter`, `Base_Resistance_Filter`, `Base_Min_Extern_Structures_Broken`.
    - `Base_Fresh_Structure_Time` (and `Trend_Fresh_Structure_Time`) now lock the grid to the structure timestamp that matches the active filter: by default they use `first_structure_time`, but when the second structure filter is enabled they switch to `second_structure_time` so no new grid starts until that snapshot advances for the same direction.
 
 3. **Trend Context Inputs**
    - `Strategy_Trend_Mode` mirrors the base menu (window, mean, or both) and the jaws/teeth Alligator options so every selected filter must agree before admitting a grid. Teeth selections also provide the `lips > teeth > jaws` guard, letting the trend context validate the teeth branch while the base context can confirm using lips-based Bollinger data.
+   - `Trend_Channel_MA_Filter` performs the same Alligator-vs-channel exclusion on the trend timeframe, so SAR/trend confirmations wait for the trend MA to leave the volatility envelope before allowing a new signal.
    - `Trend_Indicator_Percent`, slope toggles for each indicator (`Trend_BPercent_Slope_Filter`, `Trend_Stochastic_Slope_Filter`, `Trend_Alligator_Slope_Filter`), mirrored structure/fresh controls, plus `Trend_Alligator_Jaws_Period`/`Trend_Alligator_Lips_Period` (teeth reuse `Base_Indicator_Period_Type`) configure the active trend filter.
 
 4. **Admission Flow**
