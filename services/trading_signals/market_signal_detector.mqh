@@ -143,6 +143,114 @@ bool TrendStructureDataRequired()
   return trend_ctx.uses_trend_dataset;
 }
 
+bool ResolveChannelBoundsForTimeframe(const ENUM_TIMEFRAMES tf,
+                                      double &upper,
+                                      double &lower)
+{
+  upper = 0.0;
+  lower = 0.0;
+
+  if(!GridStrategyUsesChannelIndicator())
+    return false;
+
+  GridBaseStrategyTypes channel_type = ResolveActiveChannelStrategy();
+  if(!GridResolveChannelLinePrice(channel_type, GRID_CHANNEL_LINE_RESISTANCE, tf, upper))
+    return false;
+  if(!GridResolveChannelLinePrice(channel_type, GRID_CHANNEL_LINE_SUPPORT, tf, lower))
+    return false;
+
+  if(upper < lower)
+  {
+    double tmp = upper;
+    upper = lower;
+    lower = tmp;
+  }
+  return (upper > 0.0 && lower > 0.0);
+}
+
+bool FindAlligatorDataForTimeframe(const SignalParams &signal_params,
+                                   const ENUM_TIMEFRAMES tf,
+                                   AlligatorStructure &alligator_out)
+{
+  int total = ArraySize(signal_params.alligator_data);
+  for(int i = 0; i < total; i++)
+  {
+    AlligatorStructure data = signal_params.alligator_data[i];
+    if(data.indicator_timeframe == tf)
+    {
+      alligator_out = data;
+      return true;
+    }
+  }
+  return false;
+}
+
+double ResolveContextAlligatorMaValue(const AlligatorStructure &alligator_data,
+                                      const StrategyTrendModes mode)
+{
+  if(StrategyModeUsesTeethAlligator(mode))
+    return alligator_data.lips_value;
+  if(StrategyModeUsesJawsAlligator(mode))
+    return alligator_data.teeth_value;
+  return 0.0;
+}
+
+bool BaseChannelMaFilterAllowsSignal(const SignalParams &signal_params)
+{
+  if(!Base_Channel_MA_Filter)
+    return true;
+  if(!GridStrategyUsesChannelIndicator())
+    return true;
+  if(!StrategyModeUsesAlligator(Strategy_Base_Mode))
+    return true;
+
+  ENUM_TIMEFRAMES strategy_tf = Strategy_Timeframe;
+  AlligatorStructure base_alligator;
+  if(!FindAlligatorDataForTimeframe(signal_params, strategy_tf, base_alligator))
+    return true;
+
+  double ma_value = ResolveContextAlligatorMaValue(base_alligator, Strategy_Base_Mode);
+  if(ma_value <= 0.0)
+    return true;
+
+  double upper = 0.0;
+  double lower = 0.0;
+  if(!ResolveChannelBoundsForTimeframe(strategy_tf, upper, lower))
+    return true;
+
+  return !(ma_value <= upper && ma_value >= lower);
+}
+
+bool TrendChannelMaFilterAllowsSignal(const SignalParams &signal_params)
+{
+  if(!Trend_Channel_MA_Filter)
+    return true;
+  if(!GridStrategyUsesChannelIndicator())
+    return true;
+  if(!TrendContextEnabled() || Strategy_Trend_Mode == TREND_OFF)
+    return true;
+  if(!StrategyModeUsesAlligator(Strategy_Trend_Mode))
+    return true;
+  if(!signal_params.trend_alligator_valid)
+    return true;
+
+  ENUM_TIMEFRAMES trend_tf = Trend_Strategy_Timeframe;
+  if(trend_tf == PERIOD_CURRENT)
+    trend_tf = Strategy_Timeframe;
+
+  double ma_value = ResolveContextAlligatorMaValue(signal_params.trend_alligator_data,
+                                                   Strategy_Trend_Mode);
+  if(ma_value <= 0.0)
+    return true;
+
+  double upper = 0.0;
+  double lower = 0.0;
+  if(!ResolveChannelBoundsForTimeframe(trend_tf, upper, lower))
+    return true;
+
+  return !(ma_value <= upper && ma_value >= lower);
+}
+
 bool ChannelGuardAllowsPendingSignal(SignalParams &signal_params,
                                      const string context_label)
 {
@@ -229,12 +337,26 @@ void DetectBullishSignal()
   if(!EvaluateSignalTrigger(signal_bullish, BULLISH))
     return;
 
+  if(!BaseChannelMaFilterAllowsSignal(signal_bullish))
+  {
+    if(Enable_Logs)
+      Print("Base channel MA filter blocked bullish signal.");
+    return;
+  }
+
   if(!LoadTrendFilterData(signal_bullish))
     return;
   if(!TrendFilterAllowsSignal(signal_bullish, BULLISH))
   {
     if(Enable_Logs)
       Print("Trend filter blocked bullish signal.");
+    return;
+  }
+
+  if(!TrendChannelMaFilterAllowsSignal(signal_bullish))
+  {
+    if(Enable_Logs)
+      Print("Trend channel MA filter blocked bullish signal.");
     return;
   }
 
@@ -281,12 +403,26 @@ void DetectBearishSignal()
   if(!EvaluateSignalTrigger(signal_bearish, BEARISH))
     return;
 
+  if(!BaseChannelMaFilterAllowsSignal(signal_bearish))
+  {
+    if(Enable_Logs)
+      Print("Base channel MA filter blocked bearish signal.");
+    return;
+  }
+
   if(!LoadTrendFilterData(signal_bearish))
     return;
   if(!TrendFilterAllowsSignal(signal_bearish, BEARISH))
   {
     if(Enable_Logs)
       Print("Trend filter blocked bearish signal.");
+    return;
+  }
+
+  if(!TrendChannelMaFilterAllowsSignal(signal_bearish))
+  {
+    if(Enable_Logs)
+      Print("Trend channel MA filter blocked bearish signal.");
     return;
   }
 

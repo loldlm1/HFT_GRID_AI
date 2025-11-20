@@ -52,6 +52,7 @@ input bool                        Base_Fresh_Structure_Time         = false;
 input bool                        Base_BPercent_Slope_Filter        = false;
 input bool                        Base_Stochastic_Slope_Filter      = false;
 input bool                        Base_Alligator_Slope_Filter       = false;
+input bool                        Base_Channel_MA_Filter            = false;
 
 input group "+= Strategy Trend Context =+";
 input StrategyTrendModes          Strategy_Trend_Mode                = TREND_OFF;
@@ -67,6 +68,7 @@ input bool                        Trend_Fresh_Structure_Time         = false;
 input bool                        Trend_BPercent_Slope_Filter        = false;
 input bool                        Trend_Stochastic_Slope_Filter      = false;
 input bool                        Trend_Alligator_Slope_Filter       = false;
+input bool                        Trend_Channel_MA_Filter            = false;
 
 input group  "+= Grid Strategy Settings =+";
 input GridBaseStrategyTypes Grid_Base_Strategy_Type      = ATR_RANGE;
