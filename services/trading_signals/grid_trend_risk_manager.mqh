@@ -2,7 +2,8 @@
 #define _SERVICES_TRADING_SIGNALS_GRID_TREND_RISK_MANAGER_MQH_
 
 bool GridSpawnRiskSarSignal(const SignalTypes direction,
-                            double lot_size)
+                            double lot_size,
+                            const double cumulative_loss)
 {
   double normalized_lot = NormalizeVolumeForSymbol(_Symbol, lot_size);
   if(normalized_lot <= 0.0)
@@ -18,11 +19,21 @@ bool GridSpawnRiskSarSignal(const SignalTypes direction,
   sar_signal.is_sar_signal = true;
   sar_signal.entry_time  = TimeCurrent();
   sar_signal.entry_price = GridCurrentPriceForDirection(direction, true);
+  sar_signal.sar_cumulative_loss = MathMax(cumulative_loss, 0.0);
 
-  if(!BuildGridOrderForSignal(sar_signal))
+  bool activation_ready = GridSarEntryConditionReady(sar_signal);
+  if(activation_ready)
   {
-    Print("Trend risk SAR: failed to build reversal grid.");
-    return false;
+    if(!BuildGridOrderForSignal(sar_signal))
+    {
+      Print("Trend risk SAR: failed to build reversal grid.");
+      return false;
+    }
+  }
+  else
+  {
+    if(Enable_Logs)
+      Print("Trend risk SAR pending activation; waiting for MA cross before building grid.");
   }
 
   if(direction == BULLISH)
@@ -30,7 +41,7 @@ bool GridSpawnRiskSarSignal(const SignalTypes direction,
   else
     AddElementToArray(running_bearish_signals, sar_signal);
 
-  if(ArraySize(sar_signal.grid_orders) > 0)
+  if(activation_ready && ArraySize(sar_signal.grid_orders) > 0)
   {
     string reference_label = (Grid_Risk_Alligator_Reference == GRID_RISK_REF_TEETH) ? "TEETH" : "JAWS";
     GridLogEvent(StringFormat("GRID_RISK_TREND_%s_SAR_OPEN", reference_label),
@@ -137,13 +148,20 @@ bool GridApplyTrendRiskManagement(SignalParams &signal_params,
     sar_lot = Grid_Lot_Strategy_Size;
 
   SignalTypes sar_direction = (signal_params.signal_type == BULLISH) ? BEARISH : BULLISH;
+  double realized_loss = 0.0;
+  double cumulative_loss = signal_params.sar_cumulative_loss;
+  if(Grid_Risk_Trend_Mode == GRID_RM_TREND_SAR && floating_profit < 0.0)
+  {
+    realized_loss = -floating_profit;
+    cumulative_loss += realized_loss;
+  }
   if(Grid_Risk_Trend_Mode == GRID_RM_TREND_SAR && floating_profit < 0.0)
   {
     double multiplier = Grid_Lot_Multiplier;
     if(multiplier <= 0.0)
       multiplier = 1.0;
 
-    double coverage_amount = (-floating_profit) * multiplier;
+    double coverage_amount = cumulative_loss * multiplier;
     if(coverage_amount > 0.0)
     {
       double reference_points = GridResolveSarLotReferencePoints(sar_direction, signal_params, state_candidate);
@@ -158,6 +176,8 @@ bool GridApplyTrendRiskManagement(SignalParams &signal_params,
 
   double point_size = GridResolvePointSize();
   GridCloseAllLevels(signal_params, point_size);
+  if(Grid_Risk_Trend_Mode == GRID_RM_TREND_SAR)
+    signal_params.sar_cumulative_loss = cumulative_loss;
 
   string reference_label = (Grid_Risk_Alligator_Reference == GRID_RISK_REF_TEETH) ? "TEETH" : "JAWS";
   string log_label = StringFormat("GRID_RISK_TREND_%s_SL", reference_label);
@@ -173,7 +193,7 @@ bool GridApplyTrendRiskManagement(SignalParams &signal_params,
 
   if(Grid_Risk_Trend_Mode == GRID_RM_TREND_SAR)
   {
-    if(!GridSpawnRiskSarSignal(sar_direction, sar_lot))
+    if(!GridSpawnRiskSarSignal(sar_direction, sar_lot, cumulative_loss))
       Print("Trend risk SAR: failed to launch reversal grid.");
   }
   return true;

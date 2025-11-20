@@ -4,7 +4,25 @@
 void UpdateGridLifecycle(SignalParams &signal_params)
 {
   if(!signal_params.grid_initialized)
-    return;
+  {
+    bool sar_ready = signal_params.is_sar_signal && GridSarEntryConditionReady(signal_params);
+    if(sar_ready)
+    {
+      if(!BuildGridOrderForSignal(signal_params))
+        return;
+      if(signal_params.is_sar_signal && ArraySize(signal_params.grid_orders) > 0)
+      {
+        string reference_label = (Grid_Risk_Alligator_Reference == GRID_RISK_REF_TEETH) ? "TEETH" : "JAWS";
+        GridLogEvent(StringFormat("GRID_RISK_TREND_%s_SAR_OPEN", reference_label),
+                     signal_params,
+                     signal_params.grid_orders[0]);
+      }
+    }
+    else
+    {
+      return;
+    }
+  }
   if(signal_params.signal_state == CLOSED)
     return;
 
