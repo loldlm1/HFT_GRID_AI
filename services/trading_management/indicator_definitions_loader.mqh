@@ -79,7 +79,7 @@ int ResolveBPercentIndicatorPeriod()
   bool teeth_required = StrategyModeUsesTeethAlligator(Strategy_Base_Mode) ||
                         StrategyModeUsesTeethAlligator(Strategy_Trend_Mode);
   if(teeth_required)
-    indicator_period = Alligator_Lips_Period;
+    indicator_period = (int)Stoch_Structure_Period_Type;
   return MathMax(indicator_period, 1);
 }
 
@@ -180,7 +180,7 @@ bool LoadTrendBPercentIndicator(const ENUM_TIMEFRAMES trend_tf)
                                                  5,
                                                  Base_Indicator_MA_Method,
                                                  PRICE_WEIGHTED,
-                                                 (int)Solid_Indicator_Period_Type);
+                                                 (int)Stoch_Structure_Period_Type);
   trend_handle.indicator_timeframe     = trend_tf;
 
   if(trend_handle.indicator_handle == INVALID_HANDLE)
@@ -313,7 +313,7 @@ bool LoadAlligatorIndicatorForTimeframe(const ENUM_TIMEFRAMES trend_tf)
 
   int jaws_period  = MathMax(Alligator_Jaws_Period, 1);
   int teeth_period = MathMax((int)Base_Indicator_Period_Type, 1);
-  int lips_period  = MathMax(Alligator_Lips_Period, 1);
+  int lips_period  = MathMax((int)Stoch_Structure_Period_Type, 1);
 
   IndicatorsHandleInfo alligator_handle;
   alligator_handle.indicator_period        = jaws_period;
