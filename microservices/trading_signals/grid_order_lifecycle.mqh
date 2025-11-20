@@ -143,6 +143,7 @@ bool GridExecuteLevelTrade(SignalParams &signal_params,
   if(!GridGuardrailsAllowOrder(normalized_volume, guard_reason))
   {
     GridLogGuardrailBlock("GUARDRAIL_BLOCK", signal_params, order_state, guard_reason);
+    if(Debug_Stop_On_Negative_Equity) g_debug_no_money_abort_pending = true;
     return false;
   }
 
