@@ -1,6 +1,41 @@
 #ifndef _SERVICES_TRADING_SIGNALS_GRID_TREND_RISK_MANAGER_MQH_
 #define _SERVICES_TRADING_SIGNALS_GRID_TREND_RISK_MANAGER_MQH_
 
+bool GridTrendSarAlligatorBreach(const SignalTypes direction,
+                                 const ENUM_TIMEFRAMES target_tf)
+{
+  int fast_index = -1;
+  int slow_index = -1;
+
+  if(StrategyModeUsesTeethAlligator(Strategy_Trend_Mode))
+  {
+    fast_index = 2; // lips
+    slow_index = 1; // teeth
+  }
+  else if(StrategyModeUsesJawsAlligator(Strategy_Trend_Mode))
+  {
+    fast_index = 1; // teeth
+    slow_index = 0; // jaws
+  }
+  else
+  {
+    return false;
+  }
+
+  double fast_value = 0.0;
+  double slow_value = 0.0;
+  if(!GridResolveAlligatorBufferPrice(target_tf, fast_index, fast_value))
+    return false;
+  if(!GridResolveAlligatorBufferPrice(target_tf, slow_index, slow_value))
+    return false;
+
+  if(direction == BULLISH)
+    return fast_value < slow_value;
+  if(direction == BEARISH)
+    return fast_value > slow_value;
+  return false;
+}
+
 bool GridEnsureSarSignalInitialized(SignalParams &signal_params,
                                     const bool log_activation)
 {
@@ -133,9 +168,9 @@ bool GridApplyTrendRiskManagement(SignalParams &signal_params,
       next_level_breach = (next_level_price > reference_price && current_price > next_level_price);
   }
 
-  bool breach = next_level_breach;
+  bool ma_breach = GridTrendSarAlligatorBreach(signal_params.signal_type, target_tf);
 
-  if(!breach)
+  if(!next_level_breach || !ma_breach)
     return false;
 
   bool needs_floating = (Grid_Risk_Trend_Mode == GRID_RM_TREND_BE ||
