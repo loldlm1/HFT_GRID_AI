@@ -189,9 +189,9 @@ double ResolveContextAlligatorMaValue(const AlligatorStructure &alligator_data,
                                       const StrategyTrendModes mode)
 {
   if(StrategyModeUsesTeethAlligator(mode))
-    return alligator_data.lips_value;
-  if(StrategyModeUsesJawsAlligator(mode))
     return alligator_data.teeth_value;
+  if(StrategyModeUsesJawsAlligator(mode))
+    return alligator_data.jaws_value;
   return 0.0;
 }
 
