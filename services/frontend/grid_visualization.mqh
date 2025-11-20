@@ -26,6 +26,9 @@ void DrawGridLevels(const long chart_id,
                     const SignalParams &signal_params,
                     string &tracked_objects[])
 {
+  if(!signal_params.grid_initialized)
+    return;
+
   string stop_name  = GridSignalObjectName(signal_params, "STOP");
   string tp_name    = GridSignalObjectName(signal_params, "TP");
   string final_name = GridSignalObjectName(signal_params, "TP_FINAL");
@@ -35,8 +38,9 @@ void DrawGridLevels(const long chart_id,
   string break_even_name = GridSignalObjectName(signal_params, "BREAK_EVEN");
 
   int grid_order_level = ArraySize(signal_params.grid_orders)-1;
-  int display_index    = grid_order_level;
-  GridOrderState level_state = signal_params.grid_orders[display_index];
+  if(grid_order_level < 0)
+    return;
+  GridOrderState level_state = signal_params.grid_orders[grid_order_level];
 
   double entry_price_line = level_state.entry_reference_price;
   double tp_price         = level_state.take_profit_price;
