@@ -168,6 +168,42 @@ bool GridResolveAlligatorRiskReferencePrice(const ENUM_TIMEFRAMES target_tf,
   return GridResolveAlligatorBufferPrice(target_tf, buffer_index, price_out);
 }
 
+int GridResolveSarAlligatorBufferIndex()
+{
+  if(StrategyModeUsesTeethAlligator(Strategy_Trend_Mode))
+    return 2; // LIPS provides confirmation when teeth branch active
+  if(StrategyModeUsesAlligator(Strategy_Trend_Mode))
+    return 1; // TEETH when jaws branch active
+  return -1;
+}
+
+bool GridSarEntryConditionReady(const SignalParams &signal_params)
+{
+  if(!signal_params.is_sar_signal)
+    return true;
+
+  int buffer_index = GridResolveSarAlligatorBufferIndex();
+  if(buffer_index < 0)
+    return true;
+
+  ENUM_TIMEFRAMES target_tf = Strategy_TF_List[0];
+  if(target_tf <= 0)
+    target_tf = Strategy_Timeframe;
+
+  double ma_price = 0.0;
+  if(!GridResolveAlligatorBufferPrice(target_tf, buffer_index, ma_price))
+    return false;
+  if(ma_price <= 0.0)
+    return false;
+
+  double current_price = GridCurrentPriceForDirection(signal_params.signal_type, true);
+  if(signal_params.signal_type == BULLISH)
+    return current_price >= ma_price;
+  if(signal_params.signal_type == BEARISH)
+    return current_price <= ma_price;
+  return false;
+}
+
 bool GridResolveTrailingStrategyPrice(const SignalParams &signal_params,
                                       double &price_out)
 {
