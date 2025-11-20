@@ -197,9 +197,9 @@ bool GridSarEntryConditionReady(const SignalParams &signal_params)
     return false;
 
   double current_price = GridCurrentPriceForDirection(signal_params.signal_type, true);
-  if(signal_params.signal_type == BULLISH)
-    return current_price >= ma_price;
   if(signal_params.signal_type == BEARISH)
+    return current_price >= ma_price;
+  if(signal_params.signal_type == BULLISH)
     return current_price <= ma_price;
   return false;
 }
