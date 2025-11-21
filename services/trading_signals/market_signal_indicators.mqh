@@ -180,4 +180,212 @@ bool LoadTrendStructureData(SignalParams &signal_params)
   return true;
 }
 
+bool LoadMacroFilterData(SignalParams &signal_params)
+{
+  if(!MacroContextEnabled() || Strategy_Macro_Mode == TREND_OFF)
+  {
+    signal_params.macro_filter_mode    = TREND_OFF;
+    signal_params.macro_bpercent_valid = false;
+    signal_params.macro_alligator_valid = false;
+    signal_params.macro_stochastic_valid = false;
+    return true;
+  }
+
+  signal_params.macro_filter_mode    = Strategy_Macro_Mode;
+  signal_params.macro_bpercent_valid = false;
+  signal_params.macro_alligator_valid = false;
+  signal_params.macro_stochastic_valid = false;
+
+  bool require_bpercent   = StrategyModeUsesAnyBPercent(Strategy_Macro_Mode);
+  bool require_alligator  = StrategyModeUsesAlligator(Strategy_Macro_Mode);
+  bool slope_bpercent     = Macro_BPercent_Slope_Filter;
+  bool slope_alligator    = Macro_Alligator_Slope_Filter;
+
+  if(require_bpercent || slope_bpercent)
+  {
+    if(MacroBPercentIndicatorHandle.indicator_handle == INVALID_HANDLE)
+    {
+      if(Enable_Logs)
+        Print("Macro Bollinger Percent indicator unavailable.");
+      return false;
+    }
+
+    signal_params.macro_bpercent_data = BandsPercentStructure();
+    signal_params.macro_bpercent_data.InitBandsPercentStructureValues(MacroBPercentIndicatorHandle, 0);
+    signal_params.macro_bpercent_valid = true;
+  }
+
+  if(require_alligator || slope_alligator)
+  {
+    if(MacroAlligatorIndicatorHandle.indicator_handle == INVALID_HANDLE)
+    {
+      if(Enable_Logs)
+        Print("Macro Alligator indicator unavailable.");
+      return false;
+    }
+
+    int jaws_period  = MathMax(Alligator_Jaws_Period, 1);
+    int teeth_period = MathMax((int)Base_Indicator_Period_Type, 1);
+    int lips_period  = MathMax((int)Stoch_Structure_Period_Type, 1);
+
+    signal_params.macro_alligator_data = AlligatorStructure();
+    if(!signal_params.macro_alligator_data.InitAlligatorStructureValues(MacroAlligatorIndicatorHandle,
+                                                                        0,
+                                                                        jaws_period,
+                                                                        teeth_period,
+                                                                        lips_period))
+    {
+      if(Enable_Logs)
+        Print("Macro Alligator data initialization failed.");
+      return false;
+    }
+    signal_params.macro_alligator_valid = true;
+  }
+
+  if(Macro_Stochastic_Slope_Filter)
+  {
+    if(MacroStochIndicatorHandle.indicator_handle == INVALID_HANDLE)
+    {
+      if(Enable_Logs)
+        Print("Macro stochastic indicator unavailable.");
+      return false;
+    }
+    signal_params.macro_stochastic_data = StochasticStructure();
+    signal_params.macro_stochastic_data.InitStochasticStructureValues(MacroStochIndicatorHandle, 0);
+    signal_params.macro_stochastic_valid = true;
+  }
+
+  return true;
+}
+
+bool LoadMacroStructureData(SignalParams &signal_params)
+{
+  signal_params.macro_structure_valid = false;
+
+  if(!MacroStructureDataRequired())
+    return true;
+
+  if(MacroStructStochIndicatorHandle.indicator_handle == INVALID_HANDLE)
+  {
+    if(Enable_Logs)
+      Print("Macro structure indicator unavailable.");
+    return false;
+  }
+
+  signal_params.macro_structure_data = StochasticMarketStructure();
+  if(!signal_params.macro_structure_data.InitStochMarketStructureValues(MacroStructStochIndicatorHandle))
+  {
+    if(Enable_Logs)
+      Print("Macro structure data initialization failed.");
+    return false;
+  }
+
+  signal_params.macro_structure_valid = true;
+  return true;
+}
+
+bool LoadSessionFilterData(SignalParams &signal_params)
+{
+  if(!SessionContextEnabled() || Strategy_Session_Mode == TREND_OFF)
+  {
+    signal_params.session_filter_mode    = TREND_OFF;
+    signal_params.session_bpercent_valid = false;
+    signal_params.session_alligator_valid = false;
+    signal_params.session_stochastic_valid = false;
+    return true;
+  }
+
+  signal_params.session_filter_mode    = Strategy_Session_Mode;
+  signal_params.session_bpercent_valid = false;
+  signal_params.session_alligator_valid = false;
+  signal_params.session_stochastic_valid = false;
+
+  bool require_bpercent   = StrategyModeUsesAnyBPercent(Strategy_Session_Mode);
+  bool require_alligator  = StrategyModeUsesAlligator(Strategy_Session_Mode);
+  bool slope_bpercent     = Session_BPercent_Slope_Filter;
+  bool slope_alligator    = Session_Alligator_Slope_Filter;
+
+  if(require_bpercent || slope_bpercent)
+  {
+    if(SessionBPercentIndicatorHandle.indicator_handle == INVALID_HANDLE)
+    {
+      if(Enable_Logs)
+        Print("Session Bollinger Percent indicator unavailable.");
+      return false;
+    }
+
+    signal_params.session_bpercent_data = BandsPercentStructure();
+    signal_params.session_bpercent_data.InitBandsPercentStructureValues(SessionBPercentIndicatorHandle, 0);
+    signal_params.session_bpercent_valid = true;
+  }
+
+  if(require_alligator || slope_alligator)
+  {
+    if(SessionAlligatorIndicatorHandle.indicator_handle == INVALID_HANDLE)
+    {
+      if(Enable_Logs)
+        Print("Session Alligator indicator unavailable.");
+      return false;
+    }
+
+    int jaws_period  = MathMax(Alligator_Jaws_Period, 1);
+    int teeth_period = MathMax((int)Base_Indicator_Period_Type, 1);
+    int lips_period  = MathMax((int)Stoch_Structure_Period_Type, 1);
+
+    signal_params.session_alligator_data = AlligatorStructure();
+    if(!signal_params.session_alligator_data.InitAlligatorStructureValues(SessionAlligatorIndicatorHandle,
+                                                                          0,
+                                                                          jaws_period,
+                                                                          teeth_period,
+                                                                          lips_period))
+    {
+      if(Enable_Logs)
+        Print("Session Alligator data initialization failed.");
+      return false;
+    }
+    signal_params.session_alligator_valid = true;
+  }
+
+  if(Session_Stochastic_Slope_Filter)
+  {
+    if(SessionStochIndicatorHandle.indicator_handle == INVALID_HANDLE)
+    {
+      if(Enable_Logs)
+        Print("Session stochastic indicator unavailable.");
+      return false;
+    }
+    signal_params.session_stochastic_data = StochasticStructure();
+    signal_params.session_stochastic_data.InitStochasticStructureValues(SessionStochIndicatorHandle, 0);
+    signal_params.session_stochastic_valid = true;
+  }
+
+  return true;
+}
+
+bool LoadSessionStructureData(SignalParams &signal_params)
+{
+  signal_params.session_structure_valid = false;
+
+  if(!SessionStructureDataRequired())
+    return true;
+
+  if(SessionStructStochIndicatorHandle.indicator_handle == INVALID_HANDLE)
+  {
+    if(Enable_Logs)
+      Print("Session structure indicator unavailable.");
+    return false;
+  }
+
+  signal_params.session_structure_data = StochasticMarketStructure();
+  if(!signal_params.session_structure_data.InitStochMarketStructureValues(SessionStructStochIndicatorHandle))
+  {
+    if(Enable_Logs)
+      Print("Session structure data initialization failed.");
+    return false;
+  }
+
+  signal_params.session_structure_valid = true;
+  return true;
+}
+
 #endif // _SERVICES_TRADING_SIGNALS_MARKET_SIGNAL_INDICATORS_MQH_

@@ -22,6 +22,10 @@ void DetectBullishSignal()
 
   if(!LoadTrendStructureData(signal_bullish))
     return;
+  if(!LoadMacroStructureData(signal_bullish))
+    return;
+  if(!LoadSessionStructureData(signal_bullish))
+    return;
 
   if(!EvaluateSignalTrigger(signal_bullish, BULLISH))
     return;
@@ -42,10 +46,42 @@ void DetectBullishSignal()
     return;
   }
 
+  if(!LoadMacroFilterData(signal_bullish))
+    return;
+  if(!MacroFilterAllowsSignal(signal_bullish, BULLISH))
+  {
+    if(Enable_Logs)
+      Print("Macro filter blocked bullish signal.");
+    return;
+  }
+
+  if(!LoadSessionFilterData(signal_bullish))
+    return;
+  if(!SessionFilterAllowsSignal(signal_bullish, BULLISH))
+  {
+    if(Enable_Logs)
+      Print("Session filter blocked bullish signal.");
+    return;
+  }
+
   if(!TrendChannelMaFilterAllowsSignal(signal_bullish))
   {
     if(Enable_Logs)
       Print("Trend channel MA filter blocked bullish signal.");
+    return;
+  }
+
+  if(!MacroChannelMaFilterAllowsSignal(signal_bullish))
+  {
+    if(Enable_Logs)
+      Print("Macro channel MA filter blocked bullish signal.");
+    return;
+  }
+
+  if(!SessionChannelMaFilterAllowsSignal(signal_bullish))
+  {
+    if(Enable_Logs)
+      Print("Session channel MA filter blocked bullish signal.");
     return;
   }
 
@@ -81,6 +117,10 @@ void DetectBearishSignal()
 
   if(!LoadTrendStructureData(signal_bearish))
     return;
+  if(!LoadMacroStructureData(signal_bearish))
+    return;
+  if(!LoadSessionStructureData(signal_bearish))
+    return;
 
   if(!EvaluateSignalTrigger(signal_bearish, BEARISH))
     return;
@@ -101,10 +141,42 @@ void DetectBearishSignal()
     return;
   }
 
+  if(!LoadMacroFilterData(signal_bearish))
+    return;
+  if(!MacroFilterAllowsSignal(signal_bearish, BEARISH))
+  {
+    if(Enable_Logs)
+      Print("Macro filter blocked bearish signal.");
+    return;
+  }
+
+  if(!LoadSessionFilterData(signal_bearish))
+    return;
+  if(!SessionFilterAllowsSignal(signal_bearish, BEARISH))
+  {
+    if(Enable_Logs)
+      Print("Session filter blocked bearish signal.");
+    return;
+  }
+
   if(!TrendChannelMaFilterAllowsSignal(signal_bearish))
   {
     if(Enable_Logs)
       Print("Trend channel MA filter blocked bearish signal.");
+    return;
+  }
+
+  if(!MacroChannelMaFilterAllowsSignal(signal_bearish))
+  {
+    if(Enable_Logs)
+      Print("Macro channel MA filter blocked bearish signal.");
+    return;
+  }
+
+  if(!SessionChannelMaFilterAllowsSignal(signal_bearish))
+  {
+    if(Enable_Logs)
+      Print("Session channel MA filter blocked bearish signal.");
     return;
   }
 

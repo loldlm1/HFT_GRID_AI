@@ -8,6 +8,8 @@ SignalParams running_bullish_signals[];
 SignalParams running_bearish_signals[];
 datetime g_last_base_structure_time[2]  = {0, 0};
 datetime g_last_trend_structure_time[2] = {0, 0};
+datetime g_last_macro_structure_time[2] = {0, 0};
+datetime g_last_session_structure_time[2] = {0, 0};
 
 struct DailySignalStats
 {
@@ -147,6 +149,56 @@ bool TrendStructureDataRequired()
   return trend_ctx.uses_trend_dataset;
 }
 
+bool MacroStructureFiltersRequested()
+{
+  StrategyStructureLayerContext macro_ctx = BuildMacroStructureLayerContext();
+  return StructureFiltersRequested(macro_ctx);
+}
+
+bool MacroStructureTypeFiltersRequested()
+{
+  StrategyStructureLayerContext macro_ctx = BuildMacroStructureLayerContext();
+  return StructureTypeFiltersRequested(macro_ctx);
+}
+
+bool MacroStructureDataRequired()
+{
+  StrategyStructureLayerContext macro_ctx = BuildMacroStructureLayerContext();
+  if(!macro_ctx.enabled)
+    return false;
+  bool needs_data = StructureFiltersRequested(macro_ctx) ||
+                    StructureTypeFiltersRequested(macro_ctx) ||
+                    Macro_Fresh_Structure_Time;
+  if(!needs_data)
+    return false;
+  return true;
+}
+
+bool SessionStructureFiltersRequested()
+{
+  StrategyStructureLayerContext session_ctx = BuildSessionStructureLayerContext();
+  return StructureFiltersRequested(session_ctx);
+}
+
+bool SessionStructureTypeFiltersRequested()
+{
+  StrategyStructureLayerContext session_ctx = BuildSessionStructureLayerContext();
+  return StructureTypeFiltersRequested(session_ctx);
+}
+
+bool SessionStructureDataRequired()
+{
+  StrategyStructureLayerContext session_ctx = BuildSessionStructureLayerContext();
+  if(!session_ctx.enabled)
+    return false;
+  bool needs_data = StructureFiltersRequested(session_ctx) ||
+                    StructureTypeFiltersRequested(session_ctx) ||
+                    Session_Fresh_Structure_Time;
+  if(!needs_data)
+    return false;
+  return true;
+}
+
 bool TrendSanityCheck(const string reason)
 {
   if(!Enable_Trend_Filter_Sanity_Stop)
@@ -165,6 +217,10 @@ bool CanAttemptSignal(const SignalTypes signal_type)
   if(!ProtectionRiskAllowsSignalAttempt())
     return false;
   if(!TrendFilterIndicatorsAvailable())
+    return false;
+  if(!MacroFilterIndicatorsAvailable())
+    return false;
+  if(!SessionFilterIndicatorsAvailable())
     return false;
 
   if(Debug_Stop_On_Negative_Equity && MQLInfoInteger(MQL_TESTER) > 0)
@@ -231,6 +287,18 @@ bool CanAttemptSignal(const SignalTypes signal_type)
       return false;
   }
 
+  if(MacroStructureDataRequired())
+  {
+    if(MacroStructStochIndicatorHandle.indicator_handle == INVALID_HANDLE)
+      return false;
+  }
+
+  if(SessionStructureDataRequired())
+  {
+    if(SessionStructStochIndicatorHandle.indicator_handle == INVALID_HANDLE)
+      return false;
+  }
+
   return true;
 }
 
@@ -243,6 +311,12 @@ void RegisterFreshStructureUsage(const SignalParams &signal_params)
 
   if(Trend_Fresh_Structure_Time && signal_params.trend_structure_snapshot_time > 0)
     g_last_trend_structure_time[idx] = signal_params.trend_structure_snapshot_time;
+
+  if(Macro_Fresh_Structure_Time && signal_params.macro_structure_snapshot_time > 0)
+    g_last_macro_structure_time[idx] = signal_params.macro_structure_snapshot_time;
+
+  if(Session_Fresh_Structure_Time && signal_params.session_structure_snapshot_time > 0)
+    g_last_session_structure_time[idx] = signal_params.session_structure_snapshot_time;
 }
 
 #endif // _SERVICES_TRADING_SIGNALS_MARKET_SIGNAL_STATE_MQH_
