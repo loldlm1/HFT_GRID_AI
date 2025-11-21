@@ -375,8 +375,13 @@ bool StrategyContextEvaluateEntry(const StrategyContextIndicators &snapshot,
 
   StrategyContextTypes context = snapshot.context;
   StrategyEntryModes entry_mode = StrategyContextEntryMode(context);
+  if(entry_mode == ENTRY_OFF)
+    return true;
+
   double percent_threshold = StrategyContextIndicatorPercent(context);
   bool entry_required = EntryModeUsesAnyBPercent(entry_mode);
+  bool entry_on_trend = (entry_mode == ENTRY_ON_TREND);
+  StrategyTrendModes trend_mode = StrategyContextTrendMode(context);
 
   bool bpercent_pass = true;
   if(entry_required && percent_threshold >= 0.0)
@@ -458,7 +463,10 @@ bool StrategyContextEvaluateEntry(const StrategyContextIndicators &snapshot,
     return true;
   }
 
-  entry_allows = (!entry_required || percent_threshold < 0.0 || bpercent_pass);
+  if(entry_on_trend)
+    entry_allows = TrendModeUsesAlligator(trend_mode);
+  else
+    entry_allows = (!entry_required || percent_threshold < 0.0 || bpercent_pass);
   return true;
 }
 
