@@ -434,14 +434,18 @@ bool StrategyContextEvaluateEntry(const StrategyContextIndicators &snapshot,
     return true;
   }
 
-  if(!ValidateFreshStructureTimestamp(context,
-                                      snapshot,
-                                      structure_ctx,
-                                      direction,
-                                      structure_capture_time))
+  bool enforce_fresh = StrategyContextFreshStructureEnabled(context);
+  if(enforce_fresh)
   {
-    filters_pass = false;
-    return true;
+    if(!ValidateFreshStructureTimestamp(context,
+                                        snapshot,
+                                        structure_ctx,
+                                        direction,
+                                        structure_capture_time))
+    {
+      entry_allows = false;
+      return true;
+    }
   }
 
   filters_pass = true;
