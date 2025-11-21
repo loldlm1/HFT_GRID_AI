@@ -21,7 +21,7 @@ Once a signal is admitted, the grid framework calculates level spacing (ATR or p
 | --- | --- | --- |
 | **Entry Point** | Handles MT5 events, orchestrates services | `HFT_Grid_AI.mq5` |
 | **Tools** | Shared math / money / broker helpers | `microservices/utils/*.mqh`, `microservices/core/enums.mqh` |
-| **Signal Engine** | Indicator loading, signal admission, trend/state tracking | `services/trading_management/indicator_definitions_loader.mqh`, `services/trading_signals/market_signal_detector.mqh` |
+| **Signal Engine** | Indicator loading, signal admission, trend/state tracking | `services/trading_management/indicator_definitions_loader.mqh`, `services/trading_signals/market_signal_state.mqh`, `services/trading_signals/market_signal_indicators.mqh`, `services/trading_signals/market_signal_channel_guards.mqh`, `services/trading_signals/market_signal_filters.mqh`, `services/trading_signals/market_signal_detection.mqh`, `services/trading_signals/market_signal_cleanup.mqh` |
 | **Grid Planning** | Base distance, lot size ladder, ATR clamps | `services/trading_signals/grid_planner.mqh` |
 | **Order Lifecycle** | Execute/close logic, guardrails, telemetry | `microservices/trading_signals/grid_order_lifecycle.mqh`, `services/trading_signals/grid_order_controller.mqh` |
 | **Protection & Status** | Drawdown locks, market status machine | `services/trading_signals/protection_risk_filter.mqh`, `services/trading_signals/market_status_controller.mqh` |
@@ -32,6 +32,13 @@ The include cascade rooted in `HFT_Grid_AI.mq5` guarantees ordering; individual 
 ---
 
 ## 3. Signal Engine Essentials
+### Signal Microservices
+- `market_signal_state.mqh` tracks running grids, daily budgets, concurrency guards, and exposes `CanAttemptSignal()` so other services can ask whether a direction is eligible.
+- `market_signal_indicators.mqh` hydrates `SignalParams` with every timeframe-dependent indicator and feeds the trend structure dataset loader.
+- `market_signal_channel_guards.mqh` owns the Alligator-vs-channel filters plus the pending-order channel floor guard shared by detection and the order controller.
+- `market_signal_filters.mqh` centralizes the Bollinger/Alligator trigger math, structure retest/type filters, and the merged `EvaluateSignalTrigger()` orchestration.
+- `market_signal_detection.mqh` sequences the admission workflow (load → filter → guard → grid plan) for bullish/bearish entries, while `market_signal_cleanup.mqh` removes chart objects when a grid closes.
+
 1. **Indicator Loading**
    - `Strategy_Timeframe` defines the base timeframe for Bollinger Percent (`BB_Percent_Standard`), stochastic structure, body MA, and optional ATR.
    - `Trend_Strategy_Timeframe` spins up a dedicated Bollinger Percent + stochastic structure pair unless set to `PERIOD_CURRENT`. Invalid TFs fall back to the base TF.
