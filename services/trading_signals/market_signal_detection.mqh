@@ -89,6 +89,8 @@ void EvaluateContextSignals(const StrategyContextTypes context)
 
   g_context_last_bar_time[slot] = snapshot.bar_time;
 
+  bool channel_state = StrategyContextChannelMaFilterAllowsSignal(context, snapshot);
+
   for(int dir = 0; dir < 2; dir++)
   {
     SignalTypes direction = (dir == 0) ? BULLISH : BEARISH;
@@ -100,7 +102,7 @@ void EvaluateContextSignals(const StrategyContextTypes context)
       return;
     }
     if(trend_ready)
-      UpdateContextTrendState(context, direction, true, trend_pass);
+      UpdateContextTrendState(context, direction, true, (trend_pass && channel_state));
   }
 
   EvaluateContextDirection(snapshot, context, BULLISH);
