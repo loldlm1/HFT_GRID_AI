@@ -246,7 +246,8 @@ enum StrategyEntryModes
   ENTRY_OFF                     = 0,
   ENTRY_BPERCENT_WINDOW         = 1,
   ENTRY_BPERCENT_MEAN           = 2,
-  ENTRY_BPERCENT_WINDOW_AND_MEAN = 3
+  ENTRY_BPERCENT_WINDOW_AND_MEAN = 3,
+  ENTRY_ON_TREND                = 4
 };
 
 enum StrategyTrendModes
