@@ -5,7 +5,7 @@
 #ifndef _SERVICES_TRADING_MANAGEMENT_SESSION_TIME_FILTER_CONTEXT_MQH_
 #define _SERVICES_TRADING_MANAGEMENT_SESSION_TIME_FILTER_CONTEXT_MQH_
 
-const int SESSION_TIME_FILTER_SLOT_TOTAL = 3;
+const int _SESSION_TIME_FILTER_SLOT_TOTAL = 3;
 const int SESSION_TIME_FILTER_MINUTES_PER_DAY = 24 * 60;
 
 struct SessionTimeFilterConfig
@@ -230,7 +230,8 @@ int SessionTimeFilterCurrentMinutes()
   return now_struct.hour * 60 + now_struct.min;
 }
 
-SessionTimeFilterConfig *SessionTimeFilterConfigForSlot(const int slot)
+void SessionTimeFilterCopySlotConfig(const int slot,
+                                     SessionTimeFilterConfig &out_config)
 {
   SessionTimeFilterEnsureInitialized();
   int clamped_slot = slot;
@@ -238,7 +239,7 @@ SessionTimeFilterConfig *SessionTimeFilterConfigForSlot(const int slot)
     clamped_slot = 0;
   if(clamped_slot >= SESSION_TIME_FILTER_SLOT_TOTAL)
     clamped_slot = SESSION_TIME_FILTER_SLOT_TOTAL - 1;
-  return &g_session_time_filter_configs[clamped_slot];
+  out_config = g_session_time_filter_configs[clamped_slot];
 }
 
 bool SessionTimeFilterAnyEnabled()
@@ -259,7 +260,7 @@ bool SessionTimeFilterCurrentWindowActive(int &active_slot)
   int active = -1;
   for(int slot = 0; slot < SESSION_TIME_FILTER_SLOT_TOTAL; slot++)
   {
-    const SessionTimeFilterConfig config = g_session_time_filter_configs[slot];
+    SessionTimeFilterConfig config = g_session_time_filter_configs[slot];
     if(!SessionTimeFilterSlotEnabled(config))
       continue;
     if(SessionTimeFilterMinuteInRange(config, current_minutes))

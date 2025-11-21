@@ -123,9 +123,17 @@ void OnTick()
   ProtectionRiskMonitorTradeMode();
   ProtectionRiskFilterTick();
   SessionTimeFilterMonitorRuntime();
-  string session_filter_reason = "";
-  while(SessionTimeFilterConsumeForceClose(session_filter_reason))
-    ProtectionRiskScheduleForceClose(session_filter_reason);
+  int session_force_close_total = SessionTimeFilterPendingForceCloseCount();
+  if(session_force_close_total > 0)
+  {
+    for(int i = 0; i < session_force_close_total; i++)
+    {
+      string pending_reason = SessionTimeFilterPendingForceCloseReason(i);
+      if(StringLen(pending_reason) > 0)
+        ProtectionRiskScheduleForceClose(pending_reason);
+    }
+    SessionTimeFilterClearForceCloseQueue();
+  }
   g_ea_running                          = true;
   static datetime next_bar_open        = 0;
   datetime        current_time         = TimeCurrent();
