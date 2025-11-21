@@ -4,194 +4,114 @@
 #ifndef _SERVICES_TRADING_SIGNALS_MARKET_SIGNAL_DETECTION_MQH_
 #define _SERVICES_TRADING_SIGNALS_MARKET_SIGNAL_DETECTION_MQH_
 
-void DetectBullishSignal()
+void EvaluateContextDirection(const StrategyContextIndicators &snapshot,
+                              const StrategyContextTypes context,
+                              const SignalTypes direction)
 {
-  if(!CanAttemptSignal(BULLISH)) return;
-
-  SignalParams signal_bullish;
-
-  signal_bullish.signal_type = BULLISH;
-  signal_bullish.entry_price = g_ask;
-  signal_bullish.entry_time  = iTime(_Symbol, PERIOD_CURRENT, 0);
-
-  SetTFBandsPercentDataToSignalParams(signal_bullish);
-  SetTFAlligatorDataToSignalParams(signal_bullish);
-  SetTFStochasticDataToSignalParams(signal_bullish);
-  SetTFStochasticMarketStructureDataToSignalParams(signal_bullish);
-  SetTFBodyMADataToSignalParams(signal_bullish);
-
-  if(!LoadTrendStructureData(signal_bullish))
-    return;
-  if(!LoadMacroStructureData(signal_bullish))
-    return;
-  if(!LoadSessionStructureData(signal_bullish))
+  if(!DirectionAllowed(direction))
     return;
 
-  if(!EvaluateSignalTrigger(signal_bullish, BULLISH))
+  StrategyTrendModes trend_mode = StrategyContextTrendMode(context);
+  if(TrendModeUsesAlligator(trend_mode) && !ContextTrendSatisfied(context, direction))
     return;
 
-  if(!BaseChannelMaFilterAllowsSignal(signal_bullish))
+  if(!StrategyCascadeAllowsSignal(context, direction))
+    return;
+
+  datetime structure_time = 0;
+  bool entry_allows = false;
+  if(!StrategyContextEvaluateEntry(snapshot, direction, structure_time, entry_allows))
+    return;
+
+  if(!entry_allows)
+    return;
+
+  if(!StrategyContextChannelMaFilterAllowsSignal(context, snapshot))
+    return;
+
+  if(!CanAttemptSignal(direction))
+    return;
+
+  SignalParams signal;
+  signal.signal_type            = direction;
+  signal.entry_time             = snapshot.bar_time;
+  signal.entry_price            = (direction == BULLISH) ? g_ask : g_bid;
+  signal.strategy_context       = context;
+  signal.strategy_timeframe     = snapshot.timeframe;
+  signal.strategy_context_label = StrategyContextLabel(context);
+  signal.context_structure_snapshot_time = structure_time;
+
+  if(!BuildGridOrderForSignal(signal))
   {
     if(Enable_Logs)
-      Print("Base channel MA filter blocked bullish signal.");
+      PrintFormat("Grid planning failed for %s context %s signal.",
+                  EnumToString(direction),
+                  signal.strategy_context_label);
     return;
   }
 
-  if(!LoadTrendFilterData(signal_bullish))
-    return;
-  if(!TrendFilterAllowsSignal(signal_bullish, BULLISH))
-  {
-    if(Enable_Logs)
-      Print("Trend filter blocked bullish signal.");
-    return;
-  }
-
-  if(!LoadMacroFilterData(signal_bullish))
-    return;
-  if(!MacroFilterAllowsSignal(signal_bullish, BULLISH))
-  {
-    if(Enable_Logs)
-      Print("Macro filter blocked bullish signal.");
-    return;
-  }
-
-  if(!LoadSessionFilterData(signal_bullish))
-    return;
-  if(!SessionFilterAllowsSignal(signal_bullish, BULLISH))
-  {
-    if(Enable_Logs)
-      Print("Session filter blocked bullish signal.");
-    return;
-  }
-
-  if(!TrendChannelMaFilterAllowsSignal(signal_bullish))
-  {
-    if(Enable_Logs)
-      Print("Trend channel MA filter blocked bullish signal.");
-    return;
-  }
-
-  if(!MacroChannelMaFilterAllowsSignal(signal_bullish))
-  {
-    if(Enable_Logs)
-      Print("Macro channel MA filter blocked bullish signal.");
-    return;
-  }
-
-  if(!SessionChannelMaFilterAllowsSignal(signal_bullish))
-  {
-    if(Enable_Logs)
-      Print("Session channel MA filter blocked bullish signal.");
-    return;
-  }
-
-  if(!BuildGridOrderForSignal(signal_bullish))
-  {
-    Print("Grid plan failed for bullish signal, aborting detection.");
-    return;
-  }
-
-  if(!ChannelGuardAllowsPendingSignal(signal_bullish, "BULLISH"))
+  string guard_label = StringFormat("%s %s",
+                                    signal.strategy_context_label,
+                                    EnumToString(direction));
+  if(!ChannelGuardAllowsPendingSignal(signal, guard_label))
     return;
 
-  AddElementToArray(running_bullish_signals, signal_bullish);
-  RegisterFreshStructureUsage(signal_bullish);
-  RegisterDailySignalStart(signal_bullish);
+  if(direction == BULLISH)
+    AddElementToArray(running_bullish_signals, signal);
+  else
+    AddElementToArray(running_bearish_signals, signal);
+
+  RegisterFreshStructureUsage(signal);
+  RegisterDailySignalStart(signal);
 }
 
-void DetectBearishSignal()
+void EvaluateContextSignals(const StrategyContextTypes context)
 {
-  if(!CanAttemptSignal(BEARISH)) return;
-
-  SignalParams signal_bearish;
-
-  signal_bearish.signal_type = BEARISH;
-  signal_bearish.entry_price = g_bid;
-  signal_bearish.entry_time  = iTime(_Symbol, PERIOD_CURRENT, 0);
-
-  SetTFBandsPercentDataToSignalParams(signal_bearish);
-  SetTFAlligatorDataToSignalParams(signal_bearish);
-  SetTFStochasticDataToSignalParams(signal_bearish);
-  SetTFStochasticMarketStructureDataToSignalParams(signal_bearish);
-  SetTFBodyMADataToSignalParams(signal_bearish);
-
-  if(!LoadTrendStructureData(signal_bearish))
-    return;
-  if(!LoadMacroStructureData(signal_bearish))
-    return;
-  if(!LoadSessionStructureData(signal_bearish))
+  if(context != CONTEXT_SLOT_BASE && !StrategyContextEnabled(context))
     return;
 
-  if(!EvaluateSignalTrigger(signal_bearish, BEARISH))
+  StrategyContextIndicators snapshot;
+  snapshot.context   = context;
+  snapshot.timeframe = StrategyContextTimeframe(context);
+  snapshot.bar_time  = iTime(_Symbol, snapshot.timeframe, 0);
+  if(snapshot.bar_time <= 0)
     return;
 
-  if(!BaseChannelMaFilterAllowsSignal(signal_bearish))
+  int slot = StrategyContextIndex(context);
+  if(g_context_last_bar_time[slot] == snapshot.bar_time)
+    return;
+
+  if(!CaptureContextIndicators(context, snapshot))
   {
-    if(Enable_Logs)
-      Print("Base channel MA filter blocked bearish signal.");
+    ResetContextTrendState(context);
     return;
   }
 
-  if(!LoadTrendFilterData(signal_bearish))
-    return;
-  if(!TrendFilterAllowsSignal(signal_bearish, BEARISH))
+  g_context_last_bar_time[slot] = snapshot.bar_time;
+
+  for(int dir = 0; dir < 2; dir++)
   {
-    if(Enable_Logs)
-      Print("Trend filter blocked bearish signal.");
-    return;
+    SignalTypes direction = (dir == 0) ? BULLISH : BEARISH;
+    bool trend_ready = false;
+    bool trend_pass  = false;
+    if(!StrategyContextEvaluateTrend(snapshot, direction, trend_ready, trend_pass))
+    {
+      ResetContextTrendState(context);
+      return;
+    }
+    if(trend_ready)
+      UpdateContextTrendState(context, direction, true, trend_pass);
   }
 
-  if(!LoadMacroFilterData(signal_bearish))
-    return;
-  if(!MacroFilterAllowsSignal(signal_bearish, BEARISH))
-  {
-    if(Enable_Logs)
-      Print("Macro filter blocked bearish signal.");
-    return;
-  }
+  EvaluateContextDirection(snapshot, context, BULLISH);
+  EvaluateContextDirection(snapshot, context, BEARISH);
+}
 
-  if(!LoadSessionFilterData(signal_bearish))
-    return;
-  if(!SessionFilterAllowsSignal(signal_bearish, BEARISH))
-  {
-    if(Enable_Logs)
-      Print("Session filter blocked bearish signal.");
-    return;
-  }
-
-  if(!TrendChannelMaFilterAllowsSignal(signal_bearish))
-  {
-    if(Enable_Logs)
-      Print("Trend channel MA filter blocked bearish signal.");
-    return;
-  }
-
-  if(!MacroChannelMaFilterAllowsSignal(signal_bearish))
-  {
-    if(Enable_Logs)
-      Print("Macro channel MA filter blocked bearish signal.");
-    return;
-  }
-
-  if(!SessionChannelMaFilterAllowsSignal(signal_bearish))
-  {
-    if(Enable_Logs)
-      Print("Session channel MA filter blocked bearish signal.");
-    return;
-  }
-
-  if(!BuildGridOrderForSignal(signal_bearish))
-  {
-    Print("Grid plan failed for bearish signal, aborting detection.");
-    return;
-  }
-
-  if(!ChannelGuardAllowsPendingSignal(signal_bearish, "BEARISH"))
-    return;
-
-  AddElementToArray(running_bearish_signals, signal_bearish);
-  RegisterFreshStructureUsage(signal_bearish);
-  RegisterDailySignalStart(signal_bearish);
+void DetectStrategySignals()
+{
+  int total = ArraySize(STRATEGY_CONTEXT_EVALUATION_ORDER);
+  for(int i = 0; i < total; i++)
+    EvaluateContextSignals(STRATEGY_CONTEXT_EVALUATION_ORDER[i]);
 }
 
 #endif // _SERVICES_TRADING_SIGNALS_MARKET_SIGNAL_DETECTION_MQH_

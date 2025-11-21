@@ -49,124 +49,35 @@ bool FindAlligatorDataForTimeframe(const SignalParams &signal_params,
 double ResolveContextAlligatorMaValue(const AlligatorStructure &alligator_data,
                                       const StrategyTrendModes mode)
 {
-  if(StrategyModeUsesTeethAlligator(mode))
+  if(TrendModeUsesTeethAlligator(mode))
     return alligator_data.teeth_value;
-  if(StrategyModeUsesJawsAlligator(mode))
+  if(TrendModeUsesJawsAlligator(mode))
     return alligator_data.jaws_value;
   return 0.0;
 }
 
-bool BaseChannelMaFilterAllowsSignal(const SignalParams &signal_params)
+bool StrategyContextChannelMaFilterAllowsSignal(const StrategyContextTypes context,
+                                                const StrategyContextIndicators &snapshot)
 {
-  if(!Base_Channel_MA_Filter)
+  if(!StrategyContextChannelFilterEnabled(context))
     return true;
   if(!GridStrategyUsesChannelIndicator())
     return true;
-  if(!StrategyModeUsesAlligator(Strategy_Base_Mode))
+
+  StrategyTrendModes trend_mode = StrategyContextTrendMode(context);
+  if(!TrendModeUsesAlligator(trend_mode))
     return true;
 
-  ENUM_TIMEFRAMES strategy_tf = Strategy_Timeframe;
-  AlligatorStructure base_alligator;
-  if(!FindAlligatorDataForTimeframe(signal_params, strategy_tf, base_alligator))
+  if(!snapshot.alligator_valid)
     return true;
 
-  double ma_value = ResolveContextAlligatorMaValue(base_alligator, Strategy_Base_Mode);
+  double ma_value = ResolveContextAlligatorMaValue(snapshot.alligator_data, trend_mode);
   if(ma_value <= 0.0)
     return true;
 
   double upper = 0.0;
   double lower = 0.0;
-  if(!ResolveChannelBoundsForTimeframe(strategy_tf, upper, lower))
-    return true;
-
-  return !(ma_value <= upper && ma_value >= lower);
-}
-
-bool TrendChannelMaFilterAllowsSignal(const SignalParams &signal_params)
-{
-  if(!Trend_Channel_MA_Filter)
-    return true;
-  if(!GridStrategyUsesChannelIndicator())
-    return true;
-  if(!TrendContextEnabled() || Strategy_Trend_Mode == TREND_OFF)
-    return true;
-  if(!StrategyModeUsesAlligator(Strategy_Trend_Mode))
-    return true;
-  if(!signal_params.trend_alligator_valid)
-    return true;
-
-  ENUM_TIMEFRAMES trend_tf = Trend_Strategy_Timeframe;
-  if(trend_tf == PERIOD_CURRENT)
-    trend_tf = Strategy_Timeframe;
-
-  double ma_value = ResolveContextAlligatorMaValue(signal_params.trend_alligator_data,
-                                                   Strategy_Trend_Mode);
-  if(ma_value <= 0.0)
-    return true;
-
-  double upper = 0.0;
-  double lower = 0.0;
-  if(!ResolveChannelBoundsForTimeframe(trend_tf, upper, lower))
-    return true;
-
-  return !(ma_value <= upper && ma_value >= lower);
-}
-
-bool MacroChannelMaFilterAllowsSignal(const SignalParams &signal_params)
-{
-  if(!Macro_Channel_MA_Filter)
-    return true;
-  if(!GridStrategyUsesChannelIndicator())
-    return true;
-  if(!MacroContextEnabled() || Strategy_Macro_Mode == TREND_OFF)
-    return true;
-  if(!StrategyModeUsesAlligator(Strategy_Macro_Mode))
-    return true;
-  if(!signal_params.macro_alligator_valid)
-    return true;
-
-  ENUM_TIMEFRAMES macro_tf = Macro_Strategy_Timeframe;
-  if(macro_tf == PERIOD_CURRENT)
-    macro_tf = Strategy_Timeframe;
-
-  double ma_value = ResolveContextAlligatorMaValue(signal_params.macro_alligator_data,
-                                                   Strategy_Macro_Mode);
-  if(ma_value <= 0.0)
-    return true;
-
-  double upper = 0.0;
-  double lower = 0.0;
-  if(!ResolveChannelBoundsForTimeframe(macro_tf, upper, lower))
-    return true;
-
-  return !(ma_value <= upper && ma_value >= lower);
-}
-
-bool SessionChannelMaFilterAllowsSignal(const SignalParams &signal_params)
-{
-  if(!Session_Channel_MA_Filter)
-    return true;
-  if(!GridStrategyUsesChannelIndicator())
-    return true;
-  if(!SessionContextEnabled() || Strategy_Session_Mode == TREND_OFF)
-    return true;
-  if(!StrategyModeUsesAlligator(Strategy_Session_Mode))
-    return true;
-  if(!signal_params.session_alligator_valid)
-    return true;
-
-  ENUM_TIMEFRAMES session_tf = Session_Strategy_Timeframe;
-  if(session_tf == PERIOD_CURRENT)
-    session_tf = Strategy_Timeframe;
-
-  double ma_value = ResolveContextAlligatorMaValue(signal_params.session_alligator_data,
-                                                   Strategy_Session_Mode);
-  if(ma_value <= 0.0)
-    return true;
-
-  double upper = 0.0;
-  double lower = 0.0;
-  if(!ResolveChannelBoundsForTimeframe(session_tf, upper, lower))
+  if(!ResolveChannelBoundsForTimeframe(snapshot.timeframe, upper, lower))
     return true;
 
   return !(ma_value <= upper && ma_value >= lower);

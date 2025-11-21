@@ -87,9 +87,11 @@ void PrepareStrategyTimeframes()
 
 int ResolveBPercentIndicatorPeriod()
 {
-  int indicator_period = (int)Stoch_Structure_Period_Type;
-  bool teeth_required = StrategyModeUsesTeethAlligator(Strategy_Base_Mode) ||
-                        StrategyModeUsesTeethAlligator(Strategy_Trend_Mode);
+  int indicator_period = (int)Base_Indicator_Period_Type;
+  bool teeth_required = TrendModeUsesTeethAlligator(Strategy_Base_Trend_Mode) ||
+                        TrendModeUsesTeethAlligator(Strategy_Trend_Trend_Mode) ||
+                        TrendModeUsesTeethAlligator(Strategy_Macro_Trend_Mode) ||
+                        TrendModeUsesTeethAlligator(Strategy_Session_Trend_Mode);
   if(teeth_required)
     indicator_period = (int)Stoch_Structure_Period_Type;
   return MathMax(indicator_period, 1);
@@ -691,7 +693,7 @@ void LoadTrendIndicators()
     return;
   }
 
-  if(Strategy_Trend_Mode == TREND_OFF)
+  if(Strategy_Trend_Trend_Mode == TREND_OFF)
   {
     Print("Trend filter disabled; skipping trend indicator loading.");
     return;
@@ -699,9 +701,9 @@ void LoadTrendIndicators()
 
   Trend_Filter_Timeframe = ResolveTrendTimeframe();
 
-  bool need_bpercent  = (StrategyModeUsesAnyBPercent(Strategy_Trend_Mode) ||
+  bool need_bpercent  = (EntryModeUsesAnyBPercent(Strategy_Trend_Entry_Mode) ||
                          Trend_BPercent_Slope_Filter);
-  bool need_alligator = (StrategyModeUsesAlligator(Strategy_Trend_Mode) ||
+  bool need_alligator = (TrendModeUsesAlligator(Strategy_Trend_Trend_Mode) ||
                          Trend_Alligator_Slope_Filter);
   bool need_stochastic = Trend_Stochastic_Slope_Filter;
 
@@ -741,10 +743,10 @@ void LoadMacroIndicators()
     return;
   }
 
-  bool need_bpercent  = (StrategyModeUsesAnyBPercent(Strategy_Macro_Mode) ||
-                         Macro_BPercent_Slope_Filter);
-  bool need_alligator = (StrategyModeUsesAlligator(Strategy_Macro_Mode) ||
-                         Macro_Alligator_Slope_Filter);
+  bool need_bpercent  = (EntryModeUsesAnyBPercent(Strategy_Macro_Entry_Mode) ||
+                          Macro_BPercent_Slope_Filter);
+  bool need_alligator = (TrendModeUsesAlligator(Strategy_Macro_Trend_Mode) ||
+                          Macro_Alligator_Slope_Filter);
   bool need_stochastic = Macro_Stochastic_Slope_Filter;
 
   if(!need_bpercent && !need_alligator && !need_stochastic)
@@ -791,10 +793,10 @@ void LoadSessionIndicators()
     return;
   }
 
-  bool need_bpercent  = (StrategyModeUsesAnyBPercent(Strategy_Session_Mode) ||
-                         Session_BPercent_Slope_Filter);
-  bool need_alligator = (StrategyModeUsesAlligator(Strategy_Session_Mode) ||
-                         Session_Alligator_Slope_Filter);
+  bool need_bpercent  = (EntryModeUsesAnyBPercent(Strategy_Session_Entry_Mode) ||
+                          Session_BPercent_Slope_Filter);
+  bool need_alligator = (TrendModeUsesAlligator(Strategy_Session_Trend_Mode) ||
+                          Session_Alligator_Slope_Filter);
   bool need_stochastic = Session_Stochastic_Slope_Filter;
 
   if(!need_bpercent && !need_alligator && !need_stochastic)
@@ -833,11 +835,11 @@ void LoadSessionIndicators()
 
 bool TrendFilterIndicatorsAvailable()
 {
-  if(!TrendContextEnabled() || Strategy_Trend_Mode == TREND_OFF)
+  if(!TrendContextEnabled() || Strategy_Trend_Trend_Mode == TREND_OFF)
     return true;
-  bool need_bpercent  = (StrategyModeUsesAnyBPercent(Strategy_Trend_Mode) ||
+  bool need_bpercent  = (EntryModeUsesAnyBPercent(Strategy_Trend_Entry_Mode) ||
                          Trend_BPercent_Slope_Filter);
-  bool need_alligator = (StrategyModeUsesAlligator(Strategy_Trend_Mode) ||
+  bool need_alligator = (TrendModeUsesAlligator(Strategy_Trend_Trend_Mode) ||
                          Trend_Alligator_Slope_Filter);
   bool need_stochastic = Trend_Stochastic_Slope_Filter;
 
@@ -852,7 +854,7 @@ bool TrendFilterIndicatorsAvailable()
 
 bool MacroFilterIndicatorsAvailable()
 {
-  if(!MacroContextEnabled() || Strategy_Macro_Mode == TREND_OFF)
+  if(!MacroContextEnabled() || Strategy_Macro_Trend_Mode == TREND_OFF)
   {
     if(!Macro_BPercent_Slope_Filter &&
        !Macro_Stochastic_Slope_Filter &&
@@ -863,9 +865,9 @@ bool MacroFilterIndicatorsAvailable()
   if(!MacroContextEnabled())
     return true;
 
-  bool need_bpercent  = (StrategyModeUsesAnyBPercent(Strategy_Macro_Mode) ||
+  bool need_bpercent  = (EntryModeUsesAnyBPercent(Strategy_Macro_Entry_Mode) ||
                          Macro_BPercent_Slope_Filter);
-  bool need_alligator = (StrategyModeUsesAlligator(Strategy_Macro_Mode) ||
+  bool need_alligator = (TrendModeUsesAlligator(Strategy_Macro_Trend_Mode) ||
                          Macro_Alligator_Slope_Filter);
   bool need_stochastic = Macro_Stochastic_Slope_Filter;
 
@@ -880,7 +882,7 @@ bool MacroFilterIndicatorsAvailable()
 
 bool SessionFilterIndicatorsAvailable()
 {
-  if(!SessionContextEnabled() || Strategy_Session_Mode == TREND_OFF)
+  if(!SessionContextEnabled() || Strategy_Session_Trend_Mode == TREND_OFF)
   {
     if(!Session_BPercent_Slope_Filter &&
        !Session_Stochastic_Slope_Filter &&
@@ -891,9 +893,9 @@ bool SessionFilterIndicatorsAvailable()
   if(!SessionContextEnabled())
     return true;
 
-  bool need_bpercent  = (StrategyModeUsesAnyBPercent(Strategy_Session_Mode) ||
+  bool need_bpercent  = (EntryModeUsesAnyBPercent(Strategy_Session_Entry_Mode) ||
                          Session_BPercent_Slope_Filter);
-  bool need_alligator = (StrategyModeUsesAlligator(Strategy_Session_Mode) ||
+  bool need_alligator = (TrendModeUsesAlligator(Strategy_Session_Trend_Mode) ||
                          Session_Alligator_Slope_Filter);
   bool need_stochastic = Session_Stochastic_Slope_Filter;
 
@@ -965,8 +967,8 @@ void LoadAllIndicatorDefinitions()
   PrepareStrategyTimeframes();
   PrepareIndicatorPeriods();
 
-  bool base_mode_uses_bpercent  = StrategyModeUsesAnyBPercent(Strategy_Base_Mode);
-  bool base_mode_uses_alligator = StrategyModeUsesAlligator(Strategy_Base_Mode);
+  bool base_mode_uses_bpercent  = EntryModeUsesAnyBPercent(Strategy_Base_Entry_Mode);
+  bool base_mode_uses_alligator = TrendModeUsesAlligator(Strategy_Base_Trend_Mode);
   bool base_bpercent_required   = base_mode_uses_bpercent || Base_BPercent_Slope_Filter;
   bool trailing_requires_alligator = (Grid_Trailing_Strategy_Mode == TRAILING_LIPS_MA);
   bool trailing_requires_channel   = (Grid_Trailing_Strategy_Mode == TRAILING_ATR_BASED);

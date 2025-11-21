@@ -389,8 +389,12 @@ bool BuildGridSignalPoints(SignalParams &signal_params)
   double entry_reference_price = 0.0;
   double min_base_distance_from_trailing = ResolveIndicatorMinimumBaseDistance(signal_params);
 
+  ENUM_TIMEFRAMES grid_tf = signal_params.strategy_timeframe;
+  if(grid_tf == PERIOD_CURRENT)
+    grid_tf = Strategy_Timeframe;
+
   if(!CalculateBaseGridContext(signal_params,
-                               Strategy_Timeframe,
+                               grid_tf,
                                base_distance_points,
                                entry_reference_price))
   {

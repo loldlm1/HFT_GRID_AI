@@ -69,14 +69,14 @@ bool ValidateBandsPercentMeanRejection(const BandsPercentStructure &bands_data,
 bool EvaluateBandsPercentTrigger(const BandsPercentStructure &bands_data,
                                  const SignalTypes signal_type,
                                  const double percent_threshold,
-                                 const StrategyTrendModes mode,
+                                 const StrategyEntryModes entry_mode,
                                  const SlopeTypes slope_filter)
 {
-  if(!StrategyModeUsesAnyBPercent(mode))
+  if(!EntryModeUsesAnyBPercent(entry_mode))
     return true;
 
-  bool window_required = StrategyModeUsesBPercentWindow(mode);
-  bool mean_required   = StrategyModeUsesBPercentMean(mode);
+  bool window_required = EntryModeUsesBPercentWindow(entry_mode);
+  bool mean_required   = EntryModeUsesBPercentMean(entry_mode);
 
   bool window_ok = true;
   bool mean_ok   = true;
@@ -103,7 +103,7 @@ bool EvaluateAlligatorTrend(const AlligatorStructure &alligator_data,
   double teeth_value = alligator_data.teeth_value;
   double lips_value  = alligator_data.lips_value;
 
-  bool use_teeth_branch = StrategyModeUsesTeethAlligator(mode);
+  bool use_teeth_branch = TrendModeUsesTeethAlligator(mode);
 
   if(use_teeth_branch)
   {
@@ -132,334 +132,12 @@ bool EvaluateDirectionalSlope(const double current_value,
   return true;
 }
 
-bool EvaluateBaseIndicatorTrigger(const SignalParams &signal_params,
-                                  const SignalTypes signal_type,
-                                  const double percent_threshold)
+bool FetchStructureForContext(const StrategyContextIndicators &snapshot,
+                              StochasticMarketStructure &structure)
 {
-  bool uses_bpercent  = StrategyModeUsesAnyBPercent(Strategy_Base_Mode);
-  bool uses_alligator = StrategyModeUsesAlligator(Strategy_Base_Mode);
-
-  bool bpercent_pass  = true;
-  bool alligator_pass = true;
-
-  if(uses_bpercent)
-  {
-    if(percent_threshold >= 0.0)
-    {
-      int total_entries = ArraySize(signal_params.bands_percent_data);
-      if(total_entries <= 0)
-        return false;
-
-      BandsPercentStructure bands_data = signal_params.bands_percent_data[0];
-      bpercent_pass = EvaluateBandsPercentTrigger(bands_data,
-                                                  signal_type,
-                                                  percent_threshold,
-                                                  Strategy_Base_Mode,
-                                                  NO_SLOPE);
-    }
-  }
-
-  if(uses_alligator)
-  {
-    int total_alligator_entries = ArraySize(signal_params.alligator_data);
-    if(total_alligator_entries <= 0)
-      return false;
-
-    AlligatorStructure alligator_data = signal_params.alligator_data[0];
-    alligator_pass = EvaluateAlligatorTrend(alligator_data,
-                                            signal_type,
-                                            Strategy_Base_Mode);
-  }
-
-  bool slope_bpercent_pass = true;
-  if(Base_BPercent_Slope_Filter)
-  {
-    int total_entries = ArraySize(signal_params.bands_percent_data);
-    if(total_entries <= 0)
-      return false;
-    BandsPercentStructure bands_data = signal_params.bands_percent_data[0];
-    slope_bpercent_pass = EvaluateDirectionalSlope(bands_data.bands_percent_0,
-                                                   bands_data.bands_percent_1,
-                                                   signal_type);
-  }
-
-  bool slope_alligator_pass = true;
-  if(Base_Alligator_Slope_Filter)
-  {
-    int total_alligator_entries = ArraySize(signal_params.alligator_data);
-    if(total_alligator_entries <= 0)
-      return false;
-    AlligatorStructure alligator_data = signal_params.alligator_data[0];
-    slope_alligator_pass = EvaluateDirectionalSlope(alligator_data.teeth_value,
-                                                    alligator_data.teeth_prev_value,
-                                                    signal_type);
-  }
-
-  bool slope_stoch_pass = true;
-  if(Base_Stochastic_Slope_Filter)
-  {
-    int total_stoch = ArraySize(signal_params.stochastic_data);
-    if(total_stoch <= 0)
-      return false;
-    StochasticStructure stoch_data = signal_params.stochastic_data[0];
-    slope_stoch_pass = EvaluateDirectionalSlope(stoch_data.stochastic_0,
-                                                stoch_data.stochastic_1,
-                                                signal_type);
-  }
-
-  bool mode_pass = true;
-  if(StrategyModeUsesAnyBPercent(Strategy_Base_Mode))
-    mode_pass = mode_pass && bpercent_pass;
-  if(StrategyModeUsesAlligator(Strategy_Base_Mode))
-    mode_pass = mode_pass && alligator_pass;
-
-  return mode_pass &&
-         slope_bpercent_pass &&
-         slope_alligator_pass &&
-         slope_stoch_pass;
-}
-
-bool TrendFilterAllowsSignal(const SignalParams &signal_params,
-                             const SignalTypes direction)
-{
-  if(!TrendContextEnabled() || signal_params.trend_filter_mode == TREND_OFF)
-    return true;
-  bool percent_ok = true;
-  bool alligator_ok = true;
-  StrategyTrendModes filter_mode = signal_params.trend_filter_mode;
-
-  if(StrategyModeUsesAnyBPercent(filter_mode) && Trend_Indicator_Percent >= 0.0)
-  {
-    if(!signal_params.trend_bpercent_valid)
-      return false;
-    percent_ok = EvaluateBandsPercentTrigger(signal_params.trend_bpercent_data,
-                                             direction,
-                                             Trend_Indicator_Percent,
-                                             filter_mode,
-                                             NO_SLOPE);
-    if(!percent_ok)
-      return false;
-  }
-
-  if(StrategyModeUsesAlligator(filter_mode))
-  {
-    if(!signal_params.trend_alligator_valid)
-      return false;
-    alligator_ok = EvaluateAlligatorTrend(signal_params.trend_alligator_data,
-                                          direction,
-                                          filter_mode);
-    if(!alligator_ok)
-      return false;
-  }
-
-  if(Trend_BPercent_Slope_Filter)
-  {
-    if(!signal_params.trend_bpercent_valid)
-      return false;
-    double current = signal_params.trend_bpercent_data.bands_percent_0;
-    double previous = signal_params.trend_bpercent_data.bands_percent_1;
-    if(!EvaluateDirectionalSlope(current, previous, direction))
-      return false;
-  }
-
-  if(Trend_Stochastic_Slope_Filter)
-  {
-    if(!signal_params.trend_stochastic_valid)
-      return false;
-
-    double current = signal_params.trend_stochastic_data.stochastic_0;
-    double previous = signal_params.trend_stochastic_data.stochastic_1;
-    if(!EvaluateDirectionalSlope(current, previous, direction))
-      return false;
-  }
-
-  if(Trend_Alligator_Slope_Filter)
-  {
-    if(!signal_params.trend_alligator_valid)
-      return false;
-    double current = signal_params.trend_alligator_data.lips_value;
-    double previous = signal_params.trend_alligator_data.lips_prev_value;
-    if(!EvaluateDirectionalSlope(current, previous, direction))
-      return false;
-  }
-
-  return true;
-}
-
-bool MacroFilterAllowsSignal(const SignalParams &signal_params,
-                             const SignalTypes direction)
-{
-  if(!MacroContextEnabled() || signal_params.macro_filter_mode == TREND_OFF)
-    return true;
-  bool percent_ok = true;
-  bool alligator_ok = true;
-  StrategyTrendModes filter_mode = signal_params.macro_filter_mode;
-
-  if(StrategyModeUsesAnyBPercent(filter_mode) && Macro_Indicator_Percent >= 0.0)
-  {
-    if(!signal_params.macro_bpercent_valid)
-      return false;
-    percent_ok = EvaluateBandsPercentTrigger(signal_params.macro_bpercent_data,
-                                             direction,
-                                             Macro_Indicator_Percent,
-                                             filter_mode,
-                                             NO_SLOPE);
-    if(!percent_ok)
-      return false;
-  }
-
-  if(StrategyModeUsesAlligator(filter_mode))
-  {
-    if(!signal_params.macro_alligator_valid)
-      return false;
-    alligator_ok = EvaluateAlligatorTrend(signal_params.macro_alligator_data,
-                                          direction,
-                                          filter_mode);
-    if(!alligator_ok)
-      return false;
-  }
-
-  if(Macro_BPercent_Slope_Filter)
-  {
-    if(!signal_params.macro_bpercent_valid)
-      return false;
-    double current = signal_params.macro_bpercent_data.bands_percent_0;
-    double previous = signal_params.macro_bpercent_data.bands_percent_1;
-    if(!EvaluateDirectionalSlope(current, previous, direction))
-      return false;
-  }
-
-  if(Macro_Stochastic_Slope_Filter)
-  {
-    if(!signal_params.macro_stochastic_valid)
-      return false;
-
-    double current = signal_params.macro_stochastic_data.stochastic_0;
-    double previous = signal_params.macro_stochastic_data.stochastic_1;
-    if(!EvaluateDirectionalSlope(current, previous, direction))
-      return false;
-  }
-
-  if(Macro_Alligator_Slope_Filter)
-  {
-    if(!signal_params.macro_alligator_valid)
-      return false;
-    double current = signal_params.macro_alligator_data.lips_value;
-    double previous = signal_params.macro_alligator_data.lips_prev_value;
-    if(!EvaluateDirectionalSlope(current, previous, direction))
-      return false;
-  }
-
-  return true;
-}
-
-bool SessionFilterAllowsSignal(const SignalParams &signal_params,
-                               const SignalTypes direction)
-{
-  if(!SessionContextEnabled() || signal_params.session_filter_mode == TREND_OFF)
-    return true;
-  bool percent_ok = true;
-  bool alligator_ok = true;
-  StrategyTrendModes filter_mode = signal_params.session_filter_mode;
-
-  if(StrategyModeUsesAnyBPercent(filter_mode) && Session_Indicator_Percent >= 0.0)
-  {
-    if(!signal_params.session_bpercent_valid)
-      return false;
-    percent_ok = EvaluateBandsPercentTrigger(signal_params.session_bpercent_data,
-                                             direction,
-                                             Session_Indicator_Percent,
-                                             filter_mode,
-                                             NO_SLOPE);
-    if(!percent_ok)
-      return false;
-  }
-
-  if(StrategyModeUsesAlligator(filter_mode))
-  {
-    if(!signal_params.session_alligator_valid)
-      return false;
-    alligator_ok = EvaluateAlligatorTrend(signal_params.session_alligator_data,
-                                          direction,
-                                          filter_mode);
-    if(!alligator_ok)
-      return false;
-  }
-
-  if(Session_BPercent_Slope_Filter)
-  {
-    if(!signal_params.session_bpercent_valid)
-      return false;
-    double current = signal_params.session_bpercent_data.bands_percent_0;
-    double previous = signal_params.session_bpercent_data.bands_percent_1;
-    if(!EvaluateDirectionalSlope(current, previous, direction))
-      return false;
-  }
-
-  if(Session_Stochastic_Slope_Filter)
-  {
-    if(!signal_params.session_stochastic_valid)
-      return false;
-
-    double current = signal_params.session_stochastic_data.stochastic_0;
-    double previous = signal_params.session_stochastic_data.stochastic_1;
-    if(!EvaluateDirectionalSlope(current, previous, direction))
-      return false;
-  }
-
-  if(Session_Alligator_Slope_Filter)
-  {
-    if(!signal_params.session_alligator_valid)
-      return false;
-    double current = signal_params.session_alligator_data.lips_value;
-    double previous = signal_params.session_alligator_data.lips_prev_value;
-    if(!EvaluateDirectionalSlope(current, previous, direction))
-      return false;
-  }
-
-  return true;
-}
-
-bool FetchStructureForFilters(const SignalParams &signal_params,
-                              StochasticMarketStructure &structure,
-                              const StrategyStructureLayerContext &ctx,
-                              const int context_slot)
-{
-  if(context_slot == CONTEXT_SLOT_TREND)
-  {
-    if(signal_params.trend_structure_valid)
-    {
-      structure = signal_params.trend_structure_data;
-      return true;
-    }
+  if(!snapshot.structure_valid)
     return false;
-  }
-
-  if(context_slot == CONTEXT_SLOT_MACRO)
-  {
-    if(signal_params.macro_structure_valid)
-    {
-      structure = signal_params.macro_structure_data;
-      return true;
-    }
-    return false;
-  }
-
-  if(context_slot == CONTEXT_SLOT_SESSION)
-  {
-    if(signal_params.session_structure_valid)
-    {
-      structure = signal_params.session_structure_data;
-      return true;
-    }
-    return false;
-  }
-
-  int total_structures = ArraySize(signal_params.stoch_market_structure_data);
-  if(total_structures <= 0)
-    return false;
-
-  structure = signal_params.stoch_market_structure_data[0];
+  structure = snapshot.structure_data;
   return true;
 }
 
@@ -472,53 +150,28 @@ datetime ResolveStructureSnapshotTimestamp(const StochasticMarketStructure &stru
   return structure.first_structure_time;
 }
 
-bool ValidateFreshStructureTimestamp(const SignalParams &signal_params,
+bool ValidateFreshStructureTimestamp(const StrategyContextTypes context,
+                                     const StrategyContextIndicators &snapshot,
                                      const StrategyStructureLayerContext &ctx,
                                      const SignalTypes direction,
-                                     const int context_slot,
                                      datetime &captured_time)
 {
   captured_time = 0;
   if(!ctx.enabled)
     return true;
 
-  bool enforce = false;
-  switch(context_slot)
-  {
-    case CONTEXT_SLOT_BASE:
-      enforce = Base_Fresh_Structure_Time;
-      break;
-    case CONTEXT_SLOT_TREND:
-      enforce = Trend_Fresh_Structure_Time;
-      break;
-    case CONTEXT_SLOT_MACRO:
-      enforce = Macro_Fresh_Structure_Time;
-      break;
-    case CONTEXT_SLOT_SESSION:
-      enforce = Session_Fresh_Structure_Time;
-      break;
-  }
-  if(!enforce)
+  if(!StrategyContextFreshStructureEnabled(context))
     return true;
 
   StochasticMarketStructure structure;
-  if(!FetchStructureForFilters(signal_params, structure, ctx, context_slot))
+  if(!FetchStructureForContext(snapshot, structure))
     return false;
 
   datetime structure_time = ResolveStructureSnapshotTimestamp(structure, ctx);
   if(structure_time <= 0)
     return false;
 
-  int idx = DirectionIndex(direction);
-  datetime last_time = 0;
-  if(context_slot == CONTEXT_SLOT_BASE)
-    last_time = g_last_base_structure_time[idx];
-  else if(context_slot == CONTEXT_SLOT_TREND)
-    last_time = g_last_trend_structure_time[idx];
-  else if(context_slot == CONTEXT_SLOT_MACRO)
-    last_time = g_last_macro_structure_time[idx];
-  else if(context_slot == CONTEXT_SLOT_SESSION)
-    last_time = g_last_session_structure_time[idx];
+  datetime last_time = GetLastContextStructureTime(context, direction);
   if(last_time > 0 && structure_time <= last_time)
     return false;
 
@@ -561,10 +214,9 @@ bool ValidateRetestRequirements(const ExtremumStatistics &latest_stats,
   return true;
 }
 
-bool EvaluateStructureRetestTrigger(const SignalParams &signal_params,
+bool EvaluateStructureRetestTrigger(const StrategyContextIndicators &snapshot,
                                     const SignalTypes signal_type,
-                                    const StrategyStructureLayerContext &ctx,
-                                    const int context_slot)
+                                    const StrategyStructureLayerContext &ctx)
 {
   bool require_support_resistance = StructureFiltersRequested(ctx, signal_type);
   bool require_extern_breaks = (ctx.enabled && ctx.min_extern_structures > 0);
@@ -573,7 +225,7 @@ bool EvaluateStructureRetestTrigger(const SignalParams &signal_params,
     return true;
 
   StochasticMarketStructure structure;
-  if(!FetchStructureForFilters(signal_params, structure, ctx, context_slot))
+  if(!FetchStructureForContext(snapshot, structure))
     return false;
 
   if(ArraySize(structure.extremum_stats) <= 0)
@@ -662,16 +314,15 @@ bool TrendStructureFilterMatches(const TrendStructureFilterModes filter_mode,
   return true;
 }
 
-bool EvaluateStructureTypeFilters(const SignalParams &signal_params,
+bool EvaluateStructureTypeFilters(const StrategyContextIndicators &snapshot,
                                   const StrategyStructureLayerContext &ctx,
-                                  const SignalTypes signal_type,
-                                  const int context_slot)
+                                  const SignalTypes signal_type)
 {
   if(!StructureTypeFiltersRequested(ctx))
     return true;
 
   StochasticMarketStructure structure;
-  if(!FetchStructureForFilters(signal_params, structure, ctx, context_slot))
+  if(!FetchStructureForContext(snapshot, structure))
     return false;
 
   OscillatorMarketStructure latest_extremum;
@@ -691,84 +342,124 @@ bool EvaluateStructureTypeFilters(const SignalParams &signal_params,
   return first_pass && second_pass;
 }
 
-bool EvaluateSignalTrigger(SignalParams &signal_params, const SignalTypes signal_type)
+bool StrategyContextEvaluateTrend(const StrategyContextIndicators &snapshot,
+                                  const SignalTypes direction,
+                                  bool &trend_ready,
+                                  bool &trend_pass)
 {
-  StrategyStructureLayerContext base_ctx  = BuildBaseStructureLayerContext();
-  StrategyStructureLayerContext trend_ctx = BuildTrendStructureLayerContext();
-  StrategyStructureLayerContext macro_ctx = BuildMacroStructureLayerContext();
-  StrategyStructureLayerContext session_ctx = BuildSessionStructureLayerContext();
+  StrategyTrendModes trend_mode = StrategyContextTrendMode(snapshot.context);
+  if(!TrendModeUsesAlligator(trend_mode))
+  {
+    trend_ready = true;
+    trend_pass  = true;
+    return true;
+  }
 
-  datetime base_fresh_time  = 0;
-  datetime trend_fresh_time = 0;
-  datetime macro_fresh_time = 0;
-  datetime session_fresh_time = 0;
-
-  if(!ValidateFreshStructureTimestamp(signal_params,
-                                      base_ctx,
-                                      signal_type,
-                                      CONTEXT_SLOT_BASE,
-                                      base_fresh_time))
+  if(!snapshot.alligator_valid)
     return false;
 
-  if(!ValidateFreshStructureTimestamp(signal_params,
-                                      trend_ctx,
-                                      signal_type,
-                                      CONTEXT_SLOT_TREND,
-                                      trend_fresh_time))
-    return false;
+  trend_ready = true;
+  trend_pass  = EvaluateAlligatorTrend(snapshot.alligator_data,
+                                       direction,
+                                       trend_mode);
+  return true;
+}
 
-  if(!ValidateFreshStructureTimestamp(signal_params,
-                                      macro_ctx,
-                                      signal_type,
-                                      CONTEXT_SLOT_MACRO,
-                                      macro_fresh_time))
-    return false;
+bool StrategyContextEvaluateEntry(const StrategyContextIndicators &snapshot,
+                                  const SignalTypes direction,
+                                  datetime &structure_capture_time,
+                                  bool &entry_allows)
+{
+  structure_capture_time = 0;
+  entry_allows = false;
 
-  if(!ValidateFreshStructureTimestamp(signal_params,
-                                      session_ctx,
-                                      signal_type,
-                                      CONTEXT_SLOT_SESSION,
-                                      session_fresh_time))
-    return false;
+  StrategyContextTypes context = snapshot.context;
+  StrategyEntryModes entry_mode = StrategyContextEntryMode(context);
+  double percent_threshold = StrategyContextIndicatorPercent(context);
+  bool entry_required = EntryModeUsesAnyBPercent(entry_mode);
 
-  bool base_trigger             = EvaluateBaseIndicatorTrigger(signal_params,
-                                                               signal_type,
-                                                               Base_Indicator_Percent);
-  bool base_structure_filters   = EvaluateStructureRetestTrigger(signal_params,
-                                                                 signal_type,
-                                                                 base_ctx,
-                                                                 CONTEXT_SLOT_BASE);
-  bool trend_structure_filters  = EvaluateStructureRetestTrigger(signal_params,
-                                                                 signal_type,
-                                                                 trend_ctx,
-                                                                 CONTEXT_SLOT_TREND);
-  bool macro_structure_filters  = EvaluateStructureRetestTrigger(signal_params,
-                                                                 signal_type,
-                                                                 macro_ctx,
-                                                                 CONTEXT_SLOT_MACRO);
-  bool session_structure_filters = EvaluateStructureRetestTrigger(signal_params,
-                                                                  signal_type,
-                                                                  session_ctx,
-                                                                  CONTEXT_SLOT_SESSION);
-  bool base_structure_types     = EvaluateStructureTypeFilters(signal_params, base_ctx, signal_type, CONTEXT_SLOT_BASE);
-  bool trend_structure_types    = EvaluateStructureTypeFilters(signal_params, trend_ctx, signal_type, CONTEXT_SLOT_TREND);
-  bool macro_structure_types    = EvaluateStructureTypeFilters(signal_params, macro_ctx, signal_type, CONTEXT_SLOT_MACRO);
-  bool session_structure_types  = EvaluateStructureTypeFilters(signal_params, session_ctx, signal_type, CONTEXT_SLOT_SESSION);
+  bool bpercent_pass = true;
+  if(entry_required && percent_threshold >= 0.0)
+  {
+    if(!snapshot.bpercent_valid)
+      return false;
 
-  signal_params.base_structure_snapshot_time  = base_fresh_time;
-  signal_params.trend_structure_snapshot_time = trend_fresh_time;
-  signal_params.macro_structure_snapshot_time = macro_fresh_time;
-  signal_params.session_structure_snapshot_time = session_fresh_time;
+    bpercent_pass = EvaluateBandsPercentTrigger(snapshot.bpercent_data,
+                                                direction,
+                                                percent_threshold,
+                                                entry_mode,
+                                                NO_SLOPE);
+    if(!bpercent_pass)
+    {
+      entry_allows = false;
+      return true;
+    }
+  }
 
-  return base_trigger &&
-         base_structure_filters &&
-         trend_structure_filters &&
-         macro_structure_filters &&
-         session_structure_filters &&
-         base_structure_types &&
-         trend_structure_types &&
-         macro_structure_types &&
-         session_structure_types;
+  if(StrategyContextBPercentSlopeEnabled(context))
+  {
+    if(!snapshot.bpercent_valid)
+      return false;
+    if(!EvaluateDirectionalSlope(snapshot.bpercent_data.bands_percent_0,
+                                 snapshot.bpercent_data.bands_percent_1,
+                                 direction))
+    {
+      entry_allows = false;
+      return true;
+    }
+  }
+
+  if(StrategyContextStochasticSlopeEnabled(context))
+  {
+    if(!snapshot.stochastic_valid)
+      return false;
+    if(!EvaluateDirectionalSlope(snapshot.stochastic_data.stochastic_0,
+                                 snapshot.stochastic_data.stochastic_1,
+                                 direction))
+    {
+      entry_allows = false;
+      return true;
+    }
+  }
+
+  if(StrategyContextAlligatorSlopeEnabled(context))
+  {
+    if(!snapshot.alligator_valid)
+      return false;
+    if(!EvaluateDirectionalSlope(snapshot.alligator_data.teeth_value,
+                                 snapshot.alligator_data.teeth_prev_value,
+                                 direction))
+    {
+      entry_allows = false;
+      return true;
+    }
+  }
+
+  StrategyStructureLayerContext structure_ctx = BuildStructureLayerForContext(context);
+  if(!EvaluateStructureRetestTrigger(snapshot, direction, structure_ctx))
+  {
+    entry_allows = false;
+    return true;
+  }
+
+  if(!EvaluateStructureTypeFilters(snapshot, structure_ctx, direction))
+  {
+    entry_allows = false;
+    return true;
+  }
+
+  if(!ValidateFreshStructureTimestamp(context,
+                                      snapshot,
+                                      structure_ctx,
+                                      direction,
+                                      structure_capture_time))
+  {
+    entry_allows = false;
+    return true;
+  }
+
+  entry_allows = (!entry_required || percent_threshold < 0.0 || bpercent_pass);
+  return true;
 }
 
 #endif // _SERVICES_TRADING_SIGNALS_MARKET_SIGNAL_FILTERS_MQH_

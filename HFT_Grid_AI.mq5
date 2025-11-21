@@ -161,8 +161,7 @@ void OnTick()
 // DETECT BULLISH AND BEARISH SIGNALS
 void Main()
 {
-  DetectBullishSignal();
-  DetectBearishSignal();
+  DetectStrategySignals();
 }
 
 // MANAGE BULLISH AND BEARISH SIGNALS

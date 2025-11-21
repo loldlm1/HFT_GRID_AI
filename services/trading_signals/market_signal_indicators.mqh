@@ -76,315 +76,266 @@ void SetTFBodyMADataToSignalParams(SignalParams &signal_params)
   }
 }
 
-bool LoadTrendFilterData(SignalParams &signal_params)
+bool LoadBandsPercentSnapshotFromHandle(IndicatorsHandleInfo &handle,
+                                        BandsPercentStructure &snapshot)
 {
-  if(!TrendContextEnabled() || Strategy_Trend_Mode == TREND_OFF)
-  {
-    signal_params.trend_filter_mode    = TREND_OFF;
-    signal_params.trend_bpercent_valid = false;
-    signal_params.trend_alligator_valid = false;
-    signal_params.trend_stochastic_valid = false;
-    return true;
-  }
-
-  signal_params.trend_filter_mode    = Strategy_Trend_Mode;
-  signal_params.trend_bpercent_valid = false;
-  signal_params.trend_alligator_valid = false;
-  signal_params.trend_stochastic_valid = false;
-
-  bool require_bpercent   = StrategyModeUsesAnyBPercent(Strategy_Trend_Mode);
-  bool require_alligator  = StrategyModeUsesAlligator(Strategy_Trend_Mode);
-  bool slope_bpercent     = Trend_BPercent_Slope_Filter;
-  bool slope_alligator    = Trend_Alligator_Slope_Filter;
-
-  if(require_bpercent || slope_bpercent)
-  {
-    if(TrendBPercentIndicatorHandle.indicator_handle == INVALID_HANDLE)
-    {
-      if(Enable_Logs)
-        Print("Trend Bollinger Percent indicator unavailable.");
-      return false;
-    }
-
-    signal_params.trend_bpercent_data = BandsPercentStructure();
-    signal_params.trend_bpercent_data.InitBandsPercentStructureValues(TrendBPercentIndicatorHandle, 0);
-    signal_params.trend_bpercent_valid = true;
-  }
-
-  if(require_alligator || slope_alligator)
-  {
-    if(TrendAlligatorIndicatorHandle.indicator_handle == INVALID_HANDLE)
-    {
-      if(Enable_Logs)
-        Print("Trend Alligator indicator unavailable.");
-      return false;
-    }
-
-    int jaws_period  = MathMax(Alligator_Jaws_Period, 1);
-    int teeth_period = MathMax((int)Base_Indicator_Period_Type, 1);
-    int lips_period  = MathMax((int)Stoch_Structure_Period_Type, 1);
-
-    signal_params.trend_alligator_data = AlligatorStructure();
-    if(!signal_params.trend_alligator_data.InitAlligatorStructureValues(TrendAlligatorIndicatorHandle,
-                                                                        0,
-                                                                        jaws_period,
-                                                                        teeth_period,
-                                                                        lips_period))
-    {
-      if(Enable_Logs)
-        Print("Trend Alligator data initialization failed.");
-      return false;
-    }
-    signal_params.trend_alligator_valid = true;
-  }
-
-  if(Trend_Stochastic_Slope_Filter)
-  {
-    if(TrendStochIndicatorHandle.indicator_handle == INVALID_HANDLE)
-    {
-      if(Enable_Logs)
-        Print("Trend stochastic indicator unavailable.");
-      return false;
-    }
-    signal_params.trend_stochastic_data = StochasticStructure();
-    signal_params.trend_stochastic_data.InitStochasticStructureValues(TrendStochIndicatorHandle, 0);
-    signal_params.trend_stochastic_valid = true;
-  }
-
+  if(handle.indicator_handle == INVALID_HANDLE)
+    return false;
+  snapshot = BandsPercentStructure();
+  snapshot.InitBandsPercentStructureValues(handle, 0);
   return true;
 }
 
-bool LoadTrendStructureData(SignalParams &signal_params)
+bool LoadBPercentSnapshotForTimeframe(const ENUM_TIMEFRAMES tf,
+                                      BandsPercentStructure &snapshot)
 {
-  signal_params.trend_structure_valid = false;
-
-  if(!TrendStructureDataRequired())
-    return true;
-
-  if(TrendStructStochIndicatorHandle.indicator_handle == INVALID_HANDLE)
+  int total = ArraySize(ExtBPercentIndicatorsHandle);
+  for(int i = 0; i < total; i++)
   {
-    if(Enable_Logs)
-      Print("Trend structure indicator unavailable.");
-    return false;
+    if(ExtBPercentIndicatorsHandle[i].indicator_timeframe != tf)
+      continue;
+    if(LoadBandsPercentSnapshotFromHandle(ExtBPercentIndicatorsHandle[i], snapshot))
+      return true;
   }
+  return false;
+}
 
-  signal_params.trend_structure_data = StochasticMarketStructure();
-  if(!signal_params.trend_structure_data.InitStochMarketStructureValues(TrendStructStochIndicatorHandle))
+bool LoadAlligatorSnapshotFromHandle(IndicatorsHandleInfo &handle,
+                                     AlligatorStructure &snapshot)
+{
+  if(handle.indicator_handle == INVALID_HANDLE)
+    return false;
+
+  int jaws_period  = MathMax(Alligator_Jaws_Period, 1);
+  int teeth_period = MathMax((int)Base_Indicator_Period_Type, 1);
+  int lips_period  = MathMax((int)Stoch_Structure_Period_Type, 1);
+
+  snapshot = AlligatorStructure();
+  return snapshot.InitAlligatorStructureValues(handle,
+                                               0,
+                                               jaws_period,
+                                               teeth_period,
+                                               lips_period);
+}
+
+bool LoadAlligatorSnapshotForTimeframe(const ENUM_TIMEFRAMES tf,
+                                       AlligatorStructure &snapshot)
+{
+  int total = ArraySize(ExtAlligatorIndicatorsHandle);
+  for(int i = 0; i < total; i++)
   {
-    if(Enable_Logs)
-      Print("Trend structure data initialization failed.");
-    return false;
+    if(ExtAlligatorIndicatorsHandle[i].indicator_timeframe != tf)
+      continue;
+    if(LoadAlligatorSnapshotFromHandle(ExtAlligatorIndicatorsHandle[i], snapshot))
+      return true;
   }
+  return false;
+}
 
-  signal_params.trend_structure_valid = true;
+bool LoadStochasticSnapshotFromHandle(IndicatorsHandleInfo &handle,
+                                      StochasticStructure &snapshot)
+{
+  if(handle.indicator_handle == INVALID_HANDLE)
+    return false;
+  snapshot = StochasticStructure();
+  snapshot.InitStochasticStructureValues(handle, 0);
   return true;
 }
 
-bool LoadMacroFilterData(SignalParams &signal_params)
+bool LoadStochasticSnapshotForTimeframe(const ENUM_TIMEFRAMES tf,
+                                        StochasticStructure &snapshot)
 {
-  if(!MacroContextEnabled() || Strategy_Macro_Mode == TREND_OFF)
+  int total = ArraySize(ExtStochIndicatorsHandle);
+  for(int i = 0; i < total; i++)
   {
-    signal_params.macro_filter_mode    = TREND_OFF;
-    signal_params.macro_bpercent_valid = false;
-    signal_params.macro_alligator_valid = false;
-    signal_params.macro_stochastic_valid = false;
-    return true;
+    if(ExtStochIndicatorsHandle[i].indicator_timeframe != tf)
+      continue;
+    if(LoadStochasticSnapshotFromHandle(ExtStochIndicatorsHandle[i], snapshot))
+      return true;
   }
-
-  signal_params.macro_filter_mode    = Strategy_Macro_Mode;
-  signal_params.macro_bpercent_valid = false;
-  signal_params.macro_alligator_valid = false;
-  signal_params.macro_stochastic_valid = false;
-
-  bool require_bpercent   = StrategyModeUsesAnyBPercent(Strategy_Macro_Mode);
-  bool require_alligator  = StrategyModeUsesAlligator(Strategy_Macro_Mode);
-  bool slope_bpercent     = Macro_BPercent_Slope_Filter;
-  bool slope_alligator    = Macro_Alligator_Slope_Filter;
-
-  if(require_bpercent || slope_bpercent)
-  {
-    if(MacroBPercentIndicatorHandle.indicator_handle == INVALID_HANDLE)
-    {
-      if(Enable_Logs)
-        Print("Macro Bollinger Percent indicator unavailable.");
-      return false;
-    }
-
-    signal_params.macro_bpercent_data = BandsPercentStructure();
-    signal_params.macro_bpercent_data.InitBandsPercentStructureValues(MacroBPercentIndicatorHandle, 0);
-    signal_params.macro_bpercent_valid = true;
-  }
-
-  if(require_alligator || slope_alligator)
-  {
-    if(MacroAlligatorIndicatorHandle.indicator_handle == INVALID_HANDLE)
-    {
-      if(Enable_Logs)
-        Print("Macro Alligator indicator unavailable.");
-      return false;
-    }
-
-    int jaws_period  = MathMax(Alligator_Jaws_Period, 1);
-    int teeth_period = MathMax((int)Base_Indicator_Period_Type, 1);
-    int lips_period  = MathMax((int)Stoch_Structure_Period_Type, 1);
-
-    signal_params.macro_alligator_data = AlligatorStructure();
-    if(!signal_params.macro_alligator_data.InitAlligatorStructureValues(MacroAlligatorIndicatorHandle,
-                                                                        0,
-                                                                        jaws_period,
-                                                                        teeth_period,
-                                                                        lips_period))
-    {
-      if(Enable_Logs)
-        Print("Macro Alligator data initialization failed.");
-      return false;
-    }
-    signal_params.macro_alligator_valid = true;
-  }
-
-  if(Macro_Stochastic_Slope_Filter)
-  {
-    if(MacroStochIndicatorHandle.indicator_handle == INVALID_HANDLE)
-    {
-      if(Enable_Logs)
-        Print("Macro stochastic indicator unavailable.");
-      return false;
-    }
-    signal_params.macro_stochastic_data = StochasticStructure();
-    signal_params.macro_stochastic_data.InitStochasticStructureValues(MacroStochIndicatorHandle, 0);
-    signal_params.macro_stochastic_valid = true;
-  }
-
-  return true;
+  return false;
 }
 
-bool LoadMacroStructureData(SignalParams &signal_params)
+bool LoadStructureSnapshotFromHandle(IndicatorsHandleInfo &handle,
+                                     StochasticMarketStructure &snapshot)
 {
-  signal_params.macro_structure_valid = false;
-
-  if(!MacroStructureDataRequired())
-    return true;
-
-  if(MacroStructStochIndicatorHandle.indicator_handle == INVALID_HANDLE)
-  {
-    if(Enable_Logs)
-      Print("Macro structure indicator unavailable.");
+  if(handle.indicator_handle == INVALID_HANDLE)
     return false;
-  }
-
-  signal_params.macro_structure_data = StochasticMarketStructure();
-  if(!signal_params.macro_structure_data.InitStochMarketStructureValues(MacroStructStochIndicatorHandle))
-  {
-    if(Enable_Logs)
-      Print("Macro structure data initialization failed.");
-    return false;
-  }
-
-  signal_params.macro_structure_valid = true;
-  return true;
+  snapshot = StochasticMarketStructure();
+  return snapshot.InitStochMarketStructureValues(handle);
 }
 
-bool LoadSessionFilterData(SignalParams &signal_params)
+bool LoadStructureSnapshotForTimeframe(const ENUM_TIMEFRAMES tf,
+                                       StochasticMarketStructure &snapshot)
 {
-  if(!SessionContextEnabled() || Strategy_Session_Mode == TREND_OFF)
+  int total = ArraySize(ExtStructStochIndicatorsHandle);
+  for(int i = 0; i < total; i++)
   {
-    signal_params.session_filter_mode    = TREND_OFF;
-    signal_params.session_bpercent_valid = false;
-    signal_params.session_alligator_valid = false;
-    signal_params.session_stochastic_valid = false;
-    return true;
+    if(ExtStructStochIndicatorsHandle[i].indicator_timeframe != tf)
+      continue;
+    if(LoadStructureSnapshotFromHandle(ExtStructStochIndicatorsHandle[i], snapshot))
+      return true;
   }
-
-  signal_params.session_filter_mode    = Strategy_Session_Mode;
-  signal_params.session_bpercent_valid = false;
-  signal_params.session_alligator_valid = false;
-  signal_params.session_stochastic_valid = false;
-
-  bool require_bpercent   = StrategyModeUsesAnyBPercent(Strategy_Session_Mode);
-  bool require_alligator  = StrategyModeUsesAlligator(Strategy_Session_Mode);
-  bool slope_bpercent     = Session_BPercent_Slope_Filter;
-  bool slope_alligator    = Session_Alligator_Slope_Filter;
-
-  if(require_bpercent || slope_bpercent)
-  {
-    if(SessionBPercentIndicatorHandle.indicator_handle == INVALID_HANDLE)
-    {
-      if(Enable_Logs)
-        Print("Session Bollinger Percent indicator unavailable.");
-      return false;
-    }
-
-    signal_params.session_bpercent_data = BandsPercentStructure();
-    signal_params.session_bpercent_data.InitBandsPercentStructureValues(SessionBPercentIndicatorHandle, 0);
-    signal_params.session_bpercent_valid = true;
-  }
-
-  if(require_alligator || slope_alligator)
-  {
-    if(SessionAlligatorIndicatorHandle.indicator_handle == INVALID_HANDLE)
-    {
-      if(Enable_Logs)
-        Print("Session Alligator indicator unavailable.");
-      return false;
-    }
-
-    int jaws_period  = MathMax(Alligator_Jaws_Period, 1);
-    int teeth_period = MathMax((int)Base_Indicator_Period_Type, 1);
-    int lips_period  = MathMax((int)Stoch_Structure_Period_Type, 1);
-
-    signal_params.session_alligator_data = AlligatorStructure();
-    if(!signal_params.session_alligator_data.InitAlligatorStructureValues(SessionAlligatorIndicatorHandle,
-                                                                          0,
-                                                                          jaws_period,
-                                                                          teeth_period,
-                                                                          lips_period))
-    {
-      if(Enable_Logs)
-        Print("Session Alligator data initialization failed.");
-      return false;
-    }
-    signal_params.session_alligator_valid = true;
-  }
-
-  if(Session_Stochastic_Slope_Filter)
-  {
-    if(SessionStochIndicatorHandle.indicator_handle == INVALID_HANDLE)
-    {
-      if(Enable_Logs)
-        Print("Session stochastic indicator unavailable.");
-      return false;
-    }
-    signal_params.session_stochastic_data = StochasticStructure();
-    signal_params.session_stochastic_data.InitStochasticStructureValues(SessionStochIndicatorHandle, 0);
-    signal_params.session_stochastic_valid = true;
-  }
-
-  return true;
+  return false;
 }
 
-bool LoadSessionStructureData(SignalParams &signal_params)
+bool LoadContextBPercentSnapshot(const StrategyContextTypes context,
+                                 BandsPercentStructure &snapshot)
 {
-  signal_params.session_structure_valid = false;
-
-  if(!SessionStructureDataRequired())
-    return true;
-
-  if(SessionStructStochIndicatorHandle.indicator_handle == INVALID_HANDLE)
+  ENUM_TIMEFRAMES tf = StrategyContextTimeframe(context);
+  if(context == CONTEXT_SLOT_TREND)
   {
-    if(Enable_Logs)
-      Print("Session structure indicator unavailable.");
-    return false;
+    if(LoadBandsPercentSnapshotFromHandle(TrendBPercentIndicatorHandle, snapshot))
+      return true;
+  }
+  else if(context == CONTEXT_SLOT_MACRO)
+  {
+    if(LoadBandsPercentSnapshotFromHandle(MacroBPercentIndicatorHandle, snapshot))
+      return true;
+  }
+  else if(context == CONTEXT_SLOT_SESSION)
+  {
+    if(LoadBandsPercentSnapshotFromHandle(SessionBPercentIndicatorHandle, snapshot))
+      return true;
   }
 
-  signal_params.session_structure_data = StochasticMarketStructure();
-  if(!signal_params.session_structure_data.InitStochMarketStructureValues(SessionStructStochIndicatorHandle))
+  return LoadBPercentSnapshotForTimeframe(tf, snapshot);
+}
+
+bool LoadContextAlligatorSnapshot(const StrategyContextTypes context,
+                                  AlligatorStructure &snapshot)
+{
+  ENUM_TIMEFRAMES tf = StrategyContextTimeframe(context);
+  if(context == CONTEXT_SLOT_TREND)
   {
-    if(Enable_Logs)
-      Print("Session structure data initialization failed.");
-    return false;
+    if(LoadAlligatorSnapshotFromHandle(TrendAlligatorIndicatorHandle, snapshot))
+      return true;
+  }
+  else if(context == CONTEXT_SLOT_MACRO)
+  {
+    if(LoadAlligatorSnapshotFromHandle(MacroAlligatorIndicatorHandle, snapshot))
+      return true;
+  }
+  else if(context == CONTEXT_SLOT_SESSION)
+  {
+    if(LoadAlligatorSnapshotFromHandle(SessionAlligatorIndicatorHandle, snapshot))
+      return true;
   }
 
-  signal_params.session_structure_valid = true;
+  return LoadAlligatorSnapshotForTimeframe(tf, snapshot);
+}
+
+bool LoadContextStochasticSnapshot(const StrategyContextTypes context,
+                                   StochasticStructure &snapshot)
+{
+  ENUM_TIMEFRAMES tf = StrategyContextTimeframe(context);
+  if(context == CONTEXT_SLOT_TREND)
+  {
+    if(LoadStochasticSnapshotFromHandle(TrendStochIndicatorHandle, snapshot))
+      return true;
+  }
+  else if(context == CONTEXT_SLOT_MACRO)
+  {
+    if(LoadStochasticSnapshotFromHandle(MacroStochIndicatorHandle, snapshot))
+      return true;
+  }
+  else if(context == CONTEXT_SLOT_SESSION)
+  {
+    if(LoadStochasticSnapshotFromHandle(SessionStochIndicatorHandle, snapshot))
+      return true;
+  }
+
+  return LoadStochasticSnapshotForTimeframe(tf, snapshot);
+}
+
+bool LoadContextStructureSnapshot(const StrategyContextTypes context,
+                                  StochasticMarketStructure &snapshot)
+{
+  ENUM_TIMEFRAMES tf = StrategyContextStructureTimeframe(context);
+  if(context == CONTEXT_SLOT_TREND)
+  {
+    if(LoadStructureSnapshotFromHandle(TrendStructStochIndicatorHandle, snapshot))
+      return true;
+  }
+  else if(context == CONTEXT_SLOT_MACRO)
+  {
+    if(LoadStructureSnapshotFromHandle(MacroStructStochIndicatorHandle, snapshot))
+      return true;
+  }
+  else if(context == CONTEXT_SLOT_SESSION)
+  {
+    if(LoadStructureSnapshotFromHandle(SessionStructStochIndicatorHandle, snapshot))
+      return true;
+  }
+
+  return LoadStructureSnapshotForTimeframe(tf, snapshot);
+}
+
+bool CaptureContextIndicators(const StrategyContextTypes context,
+                              StrategyContextIndicators &snapshot)
+{
+  snapshot.context   = context;
+  snapshot.timeframe = StrategyContextTimeframe(context);
+
+  StrategyEntryModes entry_mode = StrategyContextEntryMode(context);
+  StrategyTrendModes trend_mode = StrategyContextTrendMode(context);
+
+  bool need_bpercent   = EntryModeUsesAnyBPercent(entry_mode) ||
+                         StrategyContextBPercentSlopeEnabled(context);
+  bool need_alligator  = TrendModeUsesAlligator(trend_mode) ||
+                         StrategyContextAlligatorSlopeEnabled(context);
+  bool need_stochastic = StrategyContextStochasticSlopeEnabled(context);
+
+  StrategyStructureLayerContext structure_ctx = BuildStructureLayerForContext(context);
+
+  bool require_structure = StructureFiltersRequested(structure_ctx) ||
+                           StructureTypeFiltersRequested(structure_ctx) ||
+                           StrategyContextFreshStructureEnabled(context);
+
+  if(need_bpercent)
+  {
+    snapshot.bpercent_valid = LoadContextBPercentSnapshot(context, snapshot.bpercent_data);
+    if(!snapshot.bpercent_valid)
+      return false;
+  }
+  else
+  {
+    snapshot.bpercent_valid = false;
+  }
+
+  if(need_alligator)
+  {
+    snapshot.alligator_valid = LoadContextAlligatorSnapshot(context, snapshot.alligator_data);
+    if(!snapshot.alligator_valid)
+      return false;
+  }
+  else
+  {
+    snapshot.alligator_valid = false;
+  }
+
+  if(need_stochastic)
+  {
+    snapshot.stochastic_valid = LoadContextStochasticSnapshot(context, snapshot.stochastic_data);
+    if(!snapshot.stochastic_valid)
+      return false;
+  }
+  else
+  {
+    snapshot.stochastic_valid = false;
+  }
+
+  if(require_structure)
+  {
+    snapshot.structure_valid = LoadContextStructureSnapshot(context, snapshot.structure_data);
+    if(!snapshot.structure_valid)
+      return false;
+  }
+  else
+  {
+    snapshot.structure_valid = false;
+  }
+
   return true;
 }
 
