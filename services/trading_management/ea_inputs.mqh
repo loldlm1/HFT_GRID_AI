@@ -37,7 +37,7 @@ input ENUM_MA_METHOD            Base_Indicator_MA_Method    = MODE_EMA;
 input StochStructurePeriodTypes Stoch_Structure_Period_Type = STOCH_STRUCTURE_PERIOD_5;
 input StrategyDirectionTypes    Strategy_Direction_Mode     = BOTH_DIRECTION;
 input SignalConcurrencyModes    Signal_Concurrency_Mode     = SINGLE_RUNNING_SIGNAL;
-input int                       Alligator_Jaws_Period       = 200;
+input int                       Alligator_Jaws_Period       = 233;
 
 input group "+= Strategy Base Context =+";
 input StrategyTrendModes          Strategy_Base_Mode                = TREND_BPERCENT_WINDOW_AND_MEAN;
