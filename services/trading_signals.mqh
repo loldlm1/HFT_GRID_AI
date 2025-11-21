@@ -14,7 +14,12 @@
 // SIGNAL SERVICE FILES
 #include "../microservices/trading_signals/grid_channel_utils.mqh"
 #include "trading_signals/signal_params_struct.mqh"
-#include "trading_signals/market_signal_detector.mqh"
+#include "trading_signals/market_signal_state.mqh"
+#include "trading_signals/market_signal_indicators.mqh"
+#include "trading_signals/market_signal_channel_guards.mqh"
+#include "trading_signals/market_signal_filters.mqh"
+#include "trading_signals/market_signal_cleanup.mqh"
+#include "trading_signals/market_signal_detection.mqh"
 #include "trading_signals/market_status_controller.mqh"
 #include "../microservices/trading_signals/grid_price_resolver.mqh"
 #include "../microservices/trading_signals/grid_order_helpers.mqh"

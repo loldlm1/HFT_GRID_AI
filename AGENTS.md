@@ -8,7 +8,13 @@ This document summarizes the current architecture, workflows, and guardrails for
 - **Entrypoint**: `HFT_Grid_AI.mq5`
 - **Services**:
   - `services/trading_management/*`: Input definitions, indicator loader, trend context helpers.
-  - `services/trading_signals/*`: Signal detection, grid planner, order controller, protection filter.
+  - `services/trading_signals/market_signal_state.mqh`: Runtime signal arrays, daily budgets, sanity guards.
+  - `services/trading_signals/market_signal_indicators.mqh`: Hydrates `SignalParams` with Bollinger/Alligator/Stochastic/body MA datasets per timeframe.
+  - `services/trading_signals/market_signal_channel_guards.mqh`: Enforces Alligator-vs-channel gating and the pending stop distance guard shared with the order controller.
+  - `services/trading_signals/market_signal_filters.mqh`: Hosts Bollinger/Alligator trigger math plus structure retest/type filtering and slope helpers.
+  - `services/trading_signals/market_signal_detection.mqh`: Sequenced bullish/bearish admission flow that loads indicators, evaluates filters, runs the grid planner, and registers the signal.
+  - `services/trading_signals/market_signal_cleanup.mqh`: Removes chart objects and finalizes state when a grid closes.
+  - `services/trading_signals/*` (remaining files): Grid planner, order controller, protection filter, telemetry.
   - `microservices/*`: Broker helpers, order lifecycle, logging utilities.
   - `services/frontend/*`: Chart overlays and status comment.
 - **Constraints**:
