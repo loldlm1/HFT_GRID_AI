@@ -122,6 +122,10 @@ void OnTick()
   DebugEquityGuardAllowsProcessing();
   ProtectionRiskMonitorTradeMode();
   ProtectionRiskFilterTick();
+  SessionTimeFilterMonitorRuntime();
+  string session_filter_reason = "";
+  while(SessionTimeFilterConsumeForceClose(session_filter_reason))
+    ProtectionRiskScheduleForceClose(session_filter_reason);
   g_ea_running                          = true;
   static datetime next_bar_open        = 0;
   datetime        current_time         = TimeCurrent();

@@ -114,12 +114,16 @@ Every context evaluates its own indicator snapshot only when a new bar arrives o
    - `Debug_Stop_On_Negative_Euity`: Stops tester (after force-closing) when equity ≤ 0 or the broker rejects an order with “no money”.
    - File logging via `query_debug.txt` and on-chart comments provide additional diagnostics.
 
+5. **Session Time Filter**
+   - Three configurable windows (Asia/London/NewYork) let you constrain new grids to HH:MM-HH:MM ranges. `SESSION_FILTER_ALLOW_RUN` blocks fresh entries outside the chosen windows but lets existing grids finish, while `SESSION_FILTER_FORCE_CLOSE` also schedules a force close the moment its session ends. Leave every mode `SESSION_FILTER_OFF` to trade around the clock.
+
 ---
 
 ## 6. Input Reference (abridged)
 | Group | Highlights |
 | --- | --- |
 | **Account / Protection** | `Custom_Magic`, `Max_Spread`, `Protection_Risk_Mode`, drawdown inputs, `Market_Close_Guard_Timeframe`. |
+| **Session Time Filters** | `Session_*_Filter_Mode` (OFF / allow-run / force-close) and `Session_*_Filter_Time_Range` (HH:MM-HH:MM strings for Asia, London, NewYork). When any session is enabled, new grids only spawn inside at least one active window; FORCE_CLOSE also liquidates every running grid the moment its session closes. Leave all modes OFF to keep the EA running 24/7. |
 | **Strategy Context** | `Strategy_Timeframe`, `Trend/Macro/Session_Strategy_Timeframe`, `Strategy_*_Entry_Mode`, `Strategy_*_Trend_Mode`, `Global_Indicator_Percent`, indicator period/MA, `Strategy_Direction_Mode`. |
 | **Strategy Base Context** | Percent, slope, structure filters, retest selectors, fresh-structure toggle. |
 | **Strategy Trend Context** | Mirrors base context plus trend mode toggles. |

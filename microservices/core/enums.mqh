@@ -221,6 +221,22 @@ enum DailySignalLimitModes
   STOP_DAILY_SIGNALS_ON_LOSS = 1
 };
 
+enum SessionTimeFilterModes
+{
+  SESSION_FILTER_OFF         = 0,
+  SESSION_FILTER_ALLOW_RUN   = 1,
+  SESSION_FILTER_FORCE_CLOSE = 2
+};
+
+#define SESSION_TIME_FILTER_SLOT_TOTAL 3
+
+enum SessionTimeFilterSlots
+{
+  SESSION_TIME_FILTER_ASIA   = 0,
+  SESSION_TIME_FILTER_LONDON = 1,
+  SESSION_TIME_FILTER_NEWYORK = 2
+};
+
 enum GridTPReferenceModes
 {
   GRID_TP_REF_CURRENT = 0,
