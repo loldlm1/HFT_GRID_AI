@@ -210,7 +210,9 @@ enum GridRiskAlligatorReferenceModes
 enum GridRiskTrendTimeframeSources
 {
   GRID_RISK_TF_STRATEGY = 0,
-  GRID_RISK_TF_TREND    = 1
+  GRID_RISK_TF_TREND    = 1,
+  GRID_RISK_TF_MACRO    = 2,
+  GRID_RISK_TF_SESSION  = 3
 };
 
 enum DailySignalLimitModes
@@ -253,6 +255,14 @@ enum StrategyTrendModes
   TREND_ALLIGATOR_TEETH_AND_WINDOW      = 9,
   TREND_ALLIGATOR_TEETH_AND_MEAN        = 10,
   TREND_ALLIGATOR_TEETH_AND_WINDOW_MEAN = 11
+};
+
+enum StrategyContextSlots
+{
+  CONTEXT_SLOT_BASE    = 0,
+  CONTEXT_SLOT_TREND   = 1,
+  CONTEXT_SLOT_MACRO   = 2,
+  CONTEXT_SLOT_SESSION = 3
 };
 
 inline bool StrategyModeUsesBPercentWindow(const StrategyTrendModes mode)

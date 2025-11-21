@@ -7,12 +7,14 @@ bool GridTrendSarAlligatorBreach(const SignalTypes direction,
   int fast_index = -1;
   int slow_index = -1;
 
-  if(StrategyModeUsesTeethAlligator(Strategy_Trend_Mode))
+  StrategyTrendModes risk_mode = GridResolveActiveRiskMode();
+
+  if(StrategyModeUsesTeethAlligator(risk_mode))
   {
     fast_index = 2; // lips
     slow_index = 1; // teeth
   }
-  else if(StrategyModeUsesJawsAlligator(Strategy_Trend_Mode))
+  else if(StrategyModeUsesJawsAlligator(risk_mode))
   {
     fast_index = 1; // teeth
     slow_index = 0; // jaws

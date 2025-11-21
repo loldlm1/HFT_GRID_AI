@@ -84,6 +84,8 @@ struct SignalParams
   double sar_cumulative_loss;
   datetime base_structure_snapshot_time;
   datetime trend_structure_snapshot_time;
+  datetime macro_structure_snapshot_time;
+  datetime session_structure_snapshot_time;
 
   bool                      trend_bpercent_valid;
   bool                      trend_alligator_valid;
@@ -94,6 +96,26 @@ struct SignalParams
   StochasticStructure       trend_stochastic_data;
   StrategyTrendModes        trend_filter_mode;
   StochasticMarketStructure trend_structure_data;
+
+  bool                      macro_bpercent_valid;
+  bool                      macro_alligator_valid;
+  bool                      macro_stochastic_valid;
+  bool                      macro_structure_valid;
+  BandsPercentStructure     macro_bpercent_data;
+  AlligatorStructure        macro_alligator_data;
+  StochasticStructure       macro_stochastic_data;
+  StrategyTrendModes        macro_filter_mode;
+  StochasticMarketStructure macro_structure_data;
+
+  bool                      session_bpercent_valid;
+  bool                      session_alligator_valid;
+  bool                      session_stochastic_valid;
+  bool                      session_structure_valid;
+  BandsPercentStructure     session_bpercent_data;
+  AlligatorStructure        session_alligator_data;
+  StochasticStructure       session_stochastic_data;
+  StrategyTrendModes        session_filter_mode;
+  StochasticMarketStructure session_structure_data;
 
   GridOrderState grid_orders[];
 
@@ -123,11 +145,23 @@ struct SignalParams
     sar_cumulative_loss        = 0.0;
     base_structure_snapshot_time = 0;
     trend_structure_snapshot_time = 0;
+    macro_structure_snapshot_time = 0;
+    session_structure_snapshot_time = 0;
     trend_filter_mode          = TREND_OFF;
     trend_bpercent_valid       = false;
     trend_alligator_valid      = false;
     trend_stochastic_valid     = false;
     trend_structure_valid      = false;
+    macro_filter_mode          = TREND_OFF;
+    macro_bpercent_valid       = false;
+    macro_alligator_valid      = false;
+    macro_stochastic_valid     = false;
+    macro_structure_valid      = false;
+    session_filter_mode        = TREND_OFF;
+    session_bpercent_valid     = false;
+    session_alligator_valid    = false;
+    session_stochastic_valid   = false;
+    session_structure_valid    = false;
   }
 
   SignalParams(const SignalParams &signal_params)
@@ -182,6 +216,8 @@ struct SignalParams
     sar_cumulative_loss         = signal_params.sar_cumulative_loss;
     base_structure_snapshot_time = signal_params.base_structure_snapshot_time;
     trend_structure_snapshot_time = signal_params.trend_structure_snapshot_time;
+    macro_structure_snapshot_time = signal_params.macro_structure_snapshot_time;
+    session_structure_snapshot_time = signal_params.session_structure_snapshot_time;
     trend_filter_mode           = signal_params.trend_filter_mode;
     trend_bpercent_valid        = signal_params.trend_bpercent_valid;
     trend_alligator_valid       = signal_params.trend_alligator_valid;
@@ -191,6 +227,24 @@ struct SignalParams
     trend_stochastic_valid      = signal_params.trend_stochastic_valid;
     trend_structure_valid       = signal_params.trend_structure_valid;
     trend_structure_data        = signal_params.trend_structure_data;
+    macro_filter_mode           = signal_params.macro_filter_mode;
+    macro_bpercent_valid        = signal_params.macro_bpercent_valid;
+    macro_alligator_valid       = signal_params.macro_alligator_valid;
+    macro_bpercent_data         = signal_params.macro_bpercent_data;
+    macro_alligator_data        = signal_params.macro_alligator_data;
+    macro_stochastic_data       = signal_params.macro_stochastic_data;
+    macro_stochastic_valid      = signal_params.macro_stochastic_valid;
+    macro_structure_valid       = signal_params.macro_structure_valid;
+    macro_structure_data        = signal_params.macro_structure_data;
+    session_filter_mode         = signal_params.session_filter_mode;
+    session_bpercent_valid      = signal_params.session_bpercent_valid;
+    session_alligator_valid     = signal_params.session_alligator_valid;
+    session_bpercent_data       = signal_params.session_bpercent_data;
+    session_alligator_data      = signal_params.session_alligator_data;
+    session_stochastic_data     = signal_params.session_stochastic_data;
+    session_stochastic_valid    = signal_params.session_stochastic_valid;
+    session_structure_valid     = signal_params.session_structure_valid;
+    session_structure_data      = signal_params.session_structure_data;
 
     int orders_total = ArraySize(signal_params.grid_orders);
     ArrayResize(grid_orders, orders_total);

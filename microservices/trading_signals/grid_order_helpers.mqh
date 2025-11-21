@@ -4,6 +4,22 @@
 #ifndef _MICROSERVICES_TRADING_SIGNALS_GRID_ORDER_HELPERS_MQH_
 #define _MICROSERVICES_TRADING_SIGNALS_GRID_ORDER_HELPERS_MQH_
 
+inline StrategyTrendModes GridResolveActiveRiskMode()
+{
+  switch(Grid_Risk_Timeframe_Source)
+  {
+    case GRID_RISK_TF_STRATEGY:
+      return Strategy_Base_Mode;
+    case GRID_RISK_TF_TREND:
+      return Strategy_Trend_Mode;
+    case GRID_RISK_TF_MACRO:
+      return Strategy_Macro_Mode;
+    case GRID_RISK_TF_SESSION:
+      return Strategy_Session_Mode;
+  }
+  return Strategy_Trend_Mode;
+}
+
 double GridResolvePointSize()
 {
   double point_size = SymbolInfoDouble(_Symbol, SYMBOL_POINT);
@@ -239,9 +255,10 @@ double GridResolveAggressiveLotSize(const SignalTypes direction)
 
 int GridResolveSarAlligatorBufferIndex()
 {
-  if(StrategyModeUsesTeethAlligator(Strategy_Trend_Mode))
+  StrategyTrendModes risk_mode = GridResolveActiveRiskMode();
+  if(StrategyModeUsesTeethAlligator(risk_mode))
     return 2; // LIPS provides confirmation when teeth branch active
-  if(StrategyModeUsesAlligator(Strategy_Trend_Mode))
+  if(StrategyModeUsesAlligator(risk_mode))
     return 1; // TEETH when jaws branch active
   return -1;
 }

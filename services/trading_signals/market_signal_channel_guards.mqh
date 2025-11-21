@@ -112,6 +112,66 @@ bool TrendChannelMaFilterAllowsSignal(const SignalParams &signal_params)
   return !(ma_value <= upper && ma_value >= lower);
 }
 
+bool MacroChannelMaFilterAllowsSignal(const SignalParams &signal_params)
+{
+  if(!Macro_Channel_MA_Filter)
+    return true;
+  if(!GridStrategyUsesChannelIndicator())
+    return true;
+  if(!MacroContextEnabled() || Strategy_Macro_Mode == TREND_OFF)
+    return true;
+  if(!StrategyModeUsesAlligator(Strategy_Macro_Mode))
+    return true;
+  if(!signal_params.macro_alligator_valid)
+    return true;
+
+  ENUM_TIMEFRAMES macro_tf = Macro_Strategy_Timeframe;
+  if(macro_tf == PERIOD_CURRENT)
+    macro_tf = Strategy_Timeframe;
+
+  double ma_value = ResolveContextAlligatorMaValue(signal_params.macro_alligator_data,
+                                                   Strategy_Macro_Mode);
+  if(ma_value <= 0.0)
+    return true;
+
+  double upper = 0.0;
+  double lower = 0.0;
+  if(!ResolveChannelBoundsForTimeframe(macro_tf, upper, lower))
+    return true;
+
+  return !(ma_value <= upper && ma_value >= lower);
+}
+
+bool SessionChannelMaFilterAllowsSignal(const SignalParams &signal_params)
+{
+  if(!Session_Channel_MA_Filter)
+    return true;
+  if(!GridStrategyUsesChannelIndicator())
+    return true;
+  if(!SessionContextEnabled() || Strategy_Session_Mode == TREND_OFF)
+    return true;
+  if(!StrategyModeUsesAlligator(Strategy_Session_Mode))
+    return true;
+  if(!signal_params.session_alligator_valid)
+    return true;
+
+  ENUM_TIMEFRAMES session_tf = Session_Strategy_Timeframe;
+  if(session_tf == PERIOD_CURRENT)
+    session_tf = Strategy_Timeframe;
+
+  double ma_value = ResolveContextAlligatorMaValue(signal_params.session_alligator_data,
+                                                   Strategy_Session_Mode);
+  if(ma_value <= 0.0)
+    return true;
+
+  double upper = 0.0;
+  double lower = 0.0;
+  if(!ResolveChannelBoundsForTimeframe(session_tf, upper, lower))
+    return true;
+
+  return !(ma_value <= upper && ma_value >= lower);
+}
+
 bool ChannelGuardAllowsPendingSignal(SignalParams &signal_params,
                                      const string context_label)
 {

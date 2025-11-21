@@ -20,8 +20,20 @@ IndicatorsHandleInfo TrendBPercentIndicatorHandle;
 IndicatorsHandleInfo TrendAlligatorIndicatorHandle;
 IndicatorsHandleInfo TrendStochIndicatorHandle;
 IndicatorsHandleInfo TrendStructStochIndicatorHandle;
+IndicatorsHandleInfo MacroBPercentIndicatorHandle;
+IndicatorsHandleInfo MacroAlligatorIndicatorHandle;
+IndicatorsHandleInfo MacroStochIndicatorHandle;
+IndicatorsHandleInfo MacroStructStochIndicatorHandle;
+IndicatorsHandleInfo SessionBPercentIndicatorHandle;
+IndicatorsHandleInfo SessionAlligatorIndicatorHandle;
+IndicatorsHandleInfo SessionStochIndicatorHandle;
+IndicatorsHandleInfo SessionStructStochIndicatorHandle;
 ENUM_TIMEFRAMES     Trend_Filter_Timeframe = PERIOD_M5;
 ENUM_TIMEFRAMES     Trend_Structure_Filter_Timeframe = PERIOD_M5;
+ENUM_TIMEFRAMES     Macro_Filter_Timeframe = PERIOD_M5;
+ENUM_TIMEFRAMES     Macro_Structure_Filter_Timeframe = PERIOD_M5;
+ENUM_TIMEFRAMES     Session_Filter_Timeframe = PERIOD_M5;
+ENUM_TIMEFRAMES     Session_Structure_Filter_Timeframe = PERIOD_M5;
 ENUM_TIMEFRAMES     Trailing_Indicator_Timeframe = PERIOD_M5;
 ENUM_TIMEFRAMES     Risk_Trend_Timeframe = PERIOD_M5;
 
@@ -100,6 +112,28 @@ inline bool TrendStructureNeedsDedicatedHandle()
   return filters_active && trend_ctx.uses_trend_dataset;
 }
 
+inline bool MacroStructureNeedsDedicatedHandle()
+{
+  StrategyStructureLayerContext macro_ctx = BuildMacroStructureLayerContext();
+  bool filters_active = StructureFiltersRequested(macro_ctx) ||
+                        StructureTypeFiltersRequested(macro_ctx) ||
+                        Macro_Fresh_Structure_Time;
+  if(!macro_ctx.enabled)
+    return false;
+  return filters_active;
+}
+
+inline bool SessionStructureNeedsDedicatedHandle()
+{
+  StrategyStructureLayerContext session_ctx = BuildSessionStructureLayerContext();
+  bool filters_active = StructureFiltersRequested(session_ctx) ||
+                        StructureTypeFiltersRequested(session_ctx) ||
+                        Session_Fresh_Structure_Time;
+  if(!session_ctx.enabled)
+    return false;
+  return filters_active;
+}
+
 ENUM_TIMEFRAMES ResolveTrendTimeframe()
 {
   ENUM_TIMEFRAMES configured_tf = Trend_Strategy_Timeframe;
@@ -118,6 +152,192 @@ ENUM_TIMEFRAMES ResolveTrendTimeframe()
 ENUM_TIMEFRAMES ResolveTrendStructureTimeframe()
 {
   return ResolveTrendTimeframe();
+}
+
+ENUM_TIMEFRAMES ResolveMacroTimeframe()
+{
+  ENUM_TIMEFRAMES configured_tf = Macro_Strategy_Timeframe;
+  if(configured_tf == PERIOD_CURRENT)
+    return Strategy_Timeframe;
+  if(!IsStrategyTimeframeSupported(configured_tf))
+  {
+    PrintFormat("Macro timeframe %d not supported. Falling back to strategy timeframe %d.",
+                (int)configured_tf,
+                (int)Strategy_Timeframe);
+    configured_tf = Strategy_Timeframe;
+  }
+  return configured_tf;
+}
+
+ENUM_TIMEFRAMES ResolveMacroStructureTimeframe()
+{
+  return ResolveMacroTimeframe();
+}
+
+ENUM_TIMEFRAMES ResolveSessionTimeframe()
+{
+  ENUM_TIMEFRAMES configured_tf = Session_Strategy_Timeframe;
+  if(configured_tf == PERIOD_CURRENT)
+    return Strategy_Timeframe;
+  if(!IsStrategyTimeframeSupported(configured_tf))
+  {
+    PrintFormat("Session timeframe %d not supported. Falling back to strategy timeframe %d.",
+                (int)configured_tf,
+                (int)Strategy_Timeframe);
+    configured_tf = Strategy_Timeframe;
+  }
+  return configured_tf;
+}
+
+ENUM_TIMEFRAMES ResolveSessionStructureTimeframe()
+{
+  return ResolveSessionTimeframe();
+}
+
+bool LoadContextBPercentIndicator(const ENUM_TIMEFRAMES context_tf,
+                                  IndicatorsHandleInfo &target_handle,
+                                  const string context_label)
+{
+  IndicatorsHandleInfo handle;
+  handle.indicator_period        = ResolveBPercentIndicatorPeriod();
+  handle.indicator_ma_method     = Base_Indicator_MA_Method;
+  handle.indicator_applied_price = PRICE_WEIGHTED;
+  handle.indicator_handle        = iCustom(_Symbol,
+                                           context_tf,
+                                           "Examples\\BB_Percent_Standard.ex5",
+                                           handle.indicator_period,
+                                           0,
+                                           2.0,
+                                           5,
+                                           Base_Indicator_MA_Method,
+                                           PRICE_WEIGHTED,
+                                           (int)Stoch_Structure_Period_Type);
+  handle.indicator_timeframe     = context_tf;
+
+  if(handle.indicator_handle == INVALID_HANDLE)
+  {
+    PrintFormat("ERROR LOADING %s BOLLINGER PERCENT INDICATOR | tf=%s | period=%d",
+                context_label,
+                EnumToString(context_tf),
+                handle.indicator_period);
+    return false;
+  }
+
+  target_handle = handle;
+  PrintFormat("%s Bollinger Percent indicator loaded | tf=%s | period=%d",
+              context_label,
+              EnumToString(context_tf),
+              handle.indicator_period);
+  return true;
+}
+
+bool LoadContextAlligatorIndicator(const ENUM_TIMEFRAMES context_tf,
+                                   IndicatorsHandleInfo &target_handle,
+                                   const string context_label)
+{
+  int jaws_period  = MathMax(Alligator_Jaws_Period, 1);
+  int teeth_period = MathMax((int)Base_Indicator_Period_Type, 1);
+  int lips_period  = MathMax((int)Stoch_Structure_Period_Type, 1);
+
+  IndicatorsHandleInfo alligator_handle;
+  alligator_handle.indicator_period        = jaws_period;
+  alligator_handle.indicator_ma_method     = Base_Indicator_MA_Method;
+  alligator_handle.indicator_applied_price = PRICE_WEIGHTED;
+  alligator_handle.indicator_handle        = iAlligator(_Symbol,
+                                                        context_tf,
+                                                        jaws_period,
+                                                        0,
+                                                        teeth_period,
+                                                        0,
+                                                        lips_period,
+                                                        0,
+                                                        Base_Indicator_MA_Method,
+                                                        PRICE_WEIGHTED);
+  alligator_handle.indicator_timeframe     = context_tf;
+
+  if(alligator_handle.indicator_handle == INVALID_HANDLE)
+  {
+    PrintFormat("ERROR LOADING %s ALLIGATOR INDICATOR | tf=%s | jaws=%d | teeth=%d | lips=%d",
+                context_label,
+                EnumToString(context_tf),
+                jaws_period,
+                teeth_period,
+                lips_period);
+    return false;
+  }
+
+  target_handle = alligator_handle;
+  PrintFormat("%s Alligator indicator loaded | tf=%s | jaws=%d | teeth=%d | lips=%d",
+              context_label,
+              EnumToString(context_tf),
+              jaws_period,
+              teeth_period,
+              lips_period);
+  return true;
+}
+
+bool LoadContextStochasticIndicator(const ENUM_TIMEFRAMES context_tf,
+                                    IndicatorsHandleInfo &target_handle,
+                                    const string context_label)
+{
+  IndicatorsHandleInfo stoch_handle;
+  stoch_handle.indicator_period    = (int)Stoch_Structure_Period_Type;
+  stoch_handle.indicator_handle    = iCustom(_Symbol,
+                                             context_tf,
+                                             "Examples\\Stochastic",
+                                             stoch_handle.indicator_period,
+                                             3,
+                                             3,
+                                             STO_CLOSECLOSE);
+  stoch_handle.indicator_timeframe = context_tf;
+
+  if(stoch_handle.indicator_handle == INVALID_HANDLE)
+  {
+    PrintFormat("ERROR LOADING %s STOCHASTIC INDICATOR | tf=%s | period=%d",
+                context_label,
+                EnumToString(context_tf),
+                stoch_handle.indicator_period);
+    return false;
+  }
+
+  target_handle = stoch_handle;
+  PrintFormat("%s stochastic indicator loaded | tf=%s | period=%d",
+              context_label,
+              EnumToString(context_tf),
+              stoch_handle.indicator_period);
+  return true;
+}
+
+bool LoadContextStructureIndicator(const ENUM_TIMEFRAMES structure_tf,
+                                   IndicatorsHandleInfo &target_handle,
+                                   const string context_label)
+{
+  IndicatorsHandleInfo structure_handle;
+  structure_handle.indicator_period    = (int)Stoch_Structure_Period_Type;
+  structure_handle.indicator_handle    = iCustom(_Symbol,
+                                                 structure_tf,
+                                                 "Examples\\Stochastic_Structure",
+                                                 structure_handle.indicator_period,
+                                                 3,
+                                                 3,
+                                                 STO_CLOSECLOSE);
+  structure_handle.indicator_timeframe = structure_tf;
+
+  if(structure_handle.indicator_handle == INVALID_HANDLE)
+  {
+    PrintFormat("ERROR LOADING %s STRUCTURE INDICATOR | tf=%s | period=%d",
+                context_label,
+                EnumToString(structure_tf),
+                structure_handle.indicator_period);
+    return false;
+  }
+
+  target_handle = structure_handle;
+  PrintFormat("%s structure indicator loaded | tf=%s | period=%d",
+              context_label,
+              EnumToString(structure_tf),
+              structure_handle.indicator_period);
+  return true;
 }
 
 ENUM_TIMEFRAMES ResolveTrailingStrategyTimeframe()
@@ -146,9 +366,28 @@ ENUM_TIMEFRAMES ResolveRiskTrendTimeframe()
   if(Grid_Risk_Timeframe_Source == GRID_RISK_TF_STRATEGY)
     return strategy_tf;
 
-  // Default to trend timeframe but fall back to strategy when unsupported.
-  if(IsStrategyTimeframeSupported(trend_tf))
-    return trend_tf;
+  if(Grid_Risk_Timeframe_Source == GRID_RISK_TF_TREND)
+  {
+    if(IsStrategyTimeframeSupported(trend_tf))
+      return trend_tf;
+    return strategy_tf;
+  }
+
+  if(Grid_Risk_Timeframe_Source == GRID_RISK_TF_MACRO)
+  {
+    ENUM_TIMEFRAMES macro_tf = ResolveMacroTimeframe();
+    if(IsStrategyTimeframeSupported(macro_tf))
+      return macro_tf;
+    return strategy_tf;
+  }
+
+  if(Grid_Risk_Timeframe_Source == GRID_RISK_TF_SESSION)
+  {
+    ENUM_TIMEFRAMES session_tf = ResolveSessionTimeframe();
+    if(IsStrategyTimeframeSupported(session_tf))
+      return session_tf;
+    return strategy_tf;
+  }
 
   return strategy_tf;
 }
@@ -165,134 +404,112 @@ void ResetTrendStructureIndicator()
   TrendStructStochIndicatorHandle = IndicatorsHandleInfo();
 }
 
+void ResetMacroIndicators()
+{
+  MacroBPercentIndicatorHandle = IndicatorsHandleInfo();
+  MacroAlligatorIndicatorHandle = IndicatorsHandleInfo();
+  MacroStochIndicatorHandle = IndicatorsHandleInfo();
+}
+
+void ResetMacroStructureIndicator()
+{
+  MacroStructStochIndicatorHandle = IndicatorsHandleInfo();
+}
+
+void ResetSessionIndicators()
+{
+  SessionBPercentIndicatorHandle = IndicatorsHandleInfo();
+  SessionAlligatorIndicatorHandle = IndicatorsHandleInfo();
+  SessionStochIndicatorHandle = IndicatorsHandleInfo();
+}
+
+void ResetSessionStructureIndicator()
+{
+  SessionStructStochIndicatorHandle = IndicatorsHandleInfo();
+}
+
 bool LoadTrendBPercentIndicator(const ENUM_TIMEFRAMES trend_tf)
 {
-  IndicatorsHandleInfo trend_handle;
-  trend_handle.indicator_period        = ResolveBPercentIndicatorPeriod();
-  trend_handle.indicator_ma_method     = Base_Indicator_MA_Method;
-  trend_handle.indicator_applied_price = PRICE_WEIGHTED;
-  trend_handle.indicator_handle        = iCustom(_Symbol,
-                                                 trend_tf,
-                                                 "Examples\\BB_Percent_Standard.ex5",
-                                                 trend_handle.indicator_period,
-                                                 0,
-                                                 2.0,
-                                                 5,
-                                                 Base_Indicator_MA_Method,
-                                                 PRICE_WEIGHTED,
-                                                 (int)Stoch_Structure_Period_Type);
-  trend_handle.indicator_timeframe     = trend_tf;
-
-  if(trend_handle.indicator_handle == INVALID_HANDLE)
-  {
-    PrintFormat("ERROR LOADING TREND BOLLINGER PERCENT INDICATOR | tf=%s | period=%d",
-                EnumToString(trend_tf),
-                trend_handle.indicator_period);
-    return false;
-  }
-
-  TrendBPercentIndicatorHandle = trend_handle;
-  PrintFormat("Trend Bollinger Percent indicator loaded | tf=%s | period=%d",
-              EnumToString(trend_tf),
-              trend_handle.indicator_period);
-  return true;
+  return LoadContextBPercentIndicator(trend_tf,
+                                      TrendBPercentIndicatorHandle,
+                                      "Trend");
 }
 
 bool LoadTrendAlligatorIndicator(const ENUM_TIMEFRAMES trend_tf)
 {
-  int jaws_period  = MathMax(Alligator_Jaws_Period, 1);
-  int teeth_period = MathMax((int)Base_Indicator_Period_Type, 1);
-  int lips_period  = MathMax((int)Stoch_Structure_Period_Type, 1);
-
-  IndicatorsHandleInfo alligator_handle;
-  alligator_handle.indicator_period        = jaws_period;
-  alligator_handle.indicator_ma_method     = Base_Indicator_MA_Method;
-  alligator_handle.indicator_applied_price = PRICE_WEIGHTED;
-  alligator_handle.indicator_handle        = iAlligator(_Symbol,
-                                                        trend_tf,
-                                                        jaws_period,
-                                                        0,
-                                                        teeth_period,
-                                                        0,
-                                                        lips_period,
-                                                        0,
-                                                        Base_Indicator_MA_Method,
-                                                        PRICE_WEIGHTED);
-  alligator_handle.indicator_timeframe     = trend_tf;
-
-  if(alligator_handle.indicator_handle == INVALID_HANDLE)
-  {
-    PrintFormat("ERROR LOADING TREND ALLIGATOR INDICATOR | tf=%s | jaws=%d | teeth=%d | lips=%d",
-                EnumToString(trend_tf),
-                jaws_period,
-                teeth_period,
-                lips_period);
-    return false;
-  }
-
-  TrendAlligatorIndicatorHandle = alligator_handle;
-  PrintFormat("Trend Alligator indicator loaded | tf=%s | jaws=%d | teeth=%d | lips=%d",
-              EnumToString(trend_tf),
-              jaws_period,
-              teeth_period,
-              lips_period);
-  return true;
+  return LoadContextAlligatorIndicator(trend_tf,
+                                       TrendAlligatorIndicatorHandle,
+                                       "Trend");
 }
 
 bool LoadTrendStochasticIndicator(const ENUM_TIMEFRAMES trend_tf)
 {
-  IndicatorsHandleInfo stoch_handle;
-  stoch_handle.indicator_period    = (int)Stoch_Structure_Period_Type;
-  stoch_handle.indicator_handle    = iCustom(_Symbol,
-                                             trend_tf,
-                                             "Examples\\Stochastic",
-                                             stoch_handle.indicator_period,
-                                             3,
-                                             3,
-                                             STO_CLOSECLOSE);
-  stoch_handle.indicator_timeframe = trend_tf;
-
-  if(stoch_handle.indicator_handle == INVALID_HANDLE)
-  {
-    PrintFormat("ERROR LOADING TREND STOCHASTIC INDICATOR | tf=%s | period=%d",
-                EnumToString(trend_tf),
-                stoch_handle.indicator_period);
-    return false;
-  }
-
-  TrendStochIndicatorHandle = stoch_handle;
-  PrintFormat("Trend stochastic indicator loaded | tf=%s | period=%d",
-              EnumToString(trend_tf),
-              stoch_handle.indicator_period);
-  return true;
+  return LoadContextStochasticIndicator(trend_tf,
+                                        TrendStochIndicatorHandle,
+                                        "Trend");
 }
 
 bool LoadTrendStructureIndicator(const ENUM_TIMEFRAMES structure_tf)
 {
-  IndicatorsHandleInfo structure_handle;
-  structure_handle.indicator_period    = (int)Stoch_Structure_Period_Type;
-  structure_handle.indicator_handle    = iCustom(_Symbol,
-                                                 structure_tf,
-                                                 "Examples\\Stochastic_Structure",
-                                                 structure_handle.indicator_period,
-                                                 3,
-                                                 3,
-                                                 STO_CLOSECLOSE);
-  structure_handle.indicator_timeframe = structure_tf;
+  return LoadContextStructureIndicator(structure_tf,
+                                       TrendStructStochIndicatorHandle,
+                                       "Trend");
+}
 
-  if(structure_handle.indicator_handle == INVALID_HANDLE)
-  {
-    PrintFormat("ERROR LOADING TREND STRUCTURE INDICATOR | tf=%s | period=%d",
-                EnumToString(structure_tf),
-                structure_handle.indicator_period);
-    return false;
-  }
+bool LoadMacroBPercentIndicator(const ENUM_TIMEFRAMES macro_tf)
+{
+  return LoadContextBPercentIndicator(macro_tf,
+                                      MacroBPercentIndicatorHandle,
+                                      "Macro");
+}
 
-  TrendStructStochIndicatorHandle = structure_handle;
-  PrintFormat("Trend structure indicator loaded | tf=%s | period=%d",
-              EnumToString(structure_tf),
-              structure_handle.indicator_period);
-  return true;
+bool LoadMacroAlligatorIndicator(const ENUM_TIMEFRAMES macro_tf)
+{
+  return LoadContextAlligatorIndicator(macro_tf,
+                                       MacroAlligatorIndicatorHandle,
+                                       "Macro");
+}
+
+bool LoadMacroStochasticIndicator(const ENUM_TIMEFRAMES macro_tf)
+{
+  return LoadContextStochasticIndicator(macro_tf,
+                                        MacroStochIndicatorHandle,
+                                        "Macro");
+}
+
+bool LoadMacroStructureIndicator(const ENUM_TIMEFRAMES structure_tf)
+{
+  return LoadContextStructureIndicator(structure_tf,
+                                       MacroStructStochIndicatorHandle,
+                                       "Macro");
+}
+
+bool LoadSessionBPercentIndicator(const ENUM_TIMEFRAMES session_tf)
+{
+  return LoadContextBPercentIndicator(session_tf,
+                                      SessionBPercentIndicatorHandle,
+                                      "Session");
+}
+
+bool LoadSessionAlligatorIndicator(const ENUM_TIMEFRAMES session_tf)
+{
+  return LoadContextAlligatorIndicator(session_tf,
+                                       SessionAlligatorIndicatorHandle,
+                                       "Session");
+}
+
+bool LoadSessionStochasticIndicator(const ENUM_TIMEFRAMES session_tf)
+{
+  return LoadContextStochasticIndicator(session_tf,
+                                        SessionStochIndicatorHandle,
+                                        "Session");
+}
+
+bool LoadSessionStructureIndicator(const ENUM_TIMEFRAMES structure_tf)
+{
+  return LoadContextStructureIndicator(structure_tf,
+                                       SessionStructStochIndicatorHandle,
+                                       "Session");
 }
 
 bool AlligatorIndicatorHandleExists(const ENUM_TIMEFRAMES timeframe)
@@ -514,6 +731,106 @@ void LoadTrendIndicators()
   }
 }
 
+void LoadMacroIndicators()
+{
+  ResetMacroIndicators();
+
+  if(!MacroContextEnabled())
+  {
+    Print("Macro context disabled; skipping macro indicator loading.");
+    return;
+  }
+
+  bool need_bpercent  = (StrategyModeUsesAnyBPercent(Strategy_Macro_Mode) ||
+                         Macro_BPercent_Slope_Filter);
+  bool need_alligator = (StrategyModeUsesAlligator(Strategy_Macro_Mode) ||
+                         Macro_Alligator_Slope_Filter);
+  bool need_stochastic = Macro_Stochastic_Slope_Filter;
+
+  if(!need_bpercent && !need_alligator && !need_stochastic)
+  {
+    Print("Macro filters disabled; skipping macro indicator loading.");
+    return;
+  }
+
+  Macro_Filter_Timeframe = ResolveMacroTimeframe();
+
+  bool bpercent_loaded  = true;
+  bool alligator_loaded = true;
+  bool stoch_loaded     = true;
+
+  if(need_bpercent)
+    bpercent_loaded = LoadMacroBPercentIndicator(Macro_Filter_Timeframe);
+
+  if(need_alligator)
+    alligator_loaded = LoadMacroAlligatorIndicator(Macro_Filter_Timeframe);
+
+  if(need_stochastic)
+    stoch_loaded = LoadMacroStochasticIndicator(Macro_Filter_Timeframe);
+
+  if((need_bpercent && !bpercent_loaded) ||
+     (need_alligator && !alligator_loaded) ||
+     (need_stochastic && !stoch_loaded))
+  {
+    if(!bpercent_loaded)
+      MacroBPercentIndicatorHandle = IndicatorsHandleInfo();
+    if(!alligator_loaded)
+      MacroAlligatorIndicatorHandle = IndicatorsHandleInfo();
+    if(!stoch_loaded)
+      MacroStochIndicatorHandle = IndicatorsHandleInfo();
+  }
+}
+
+void LoadSessionIndicators()
+{
+  ResetSessionIndicators();
+
+  if(!SessionContextEnabled())
+  {
+    Print("Session context disabled; skipping session indicator loading.");
+    return;
+  }
+
+  bool need_bpercent  = (StrategyModeUsesAnyBPercent(Strategy_Session_Mode) ||
+                         Session_BPercent_Slope_Filter);
+  bool need_alligator = (StrategyModeUsesAlligator(Strategy_Session_Mode) ||
+                         Session_Alligator_Slope_Filter);
+  bool need_stochastic = Session_Stochastic_Slope_Filter;
+
+  if(!need_bpercent && !need_alligator && !need_stochastic)
+  {
+    Print("Session filters disabled; skipping session indicator loading.");
+    return;
+  }
+
+  Session_Filter_Timeframe = ResolveSessionTimeframe();
+
+  bool bpercent_loaded  = true;
+  bool alligator_loaded = true;
+  bool stoch_loaded     = true;
+
+  if(need_bpercent)
+    bpercent_loaded = LoadSessionBPercentIndicator(Session_Filter_Timeframe);
+
+  if(need_alligator)
+    alligator_loaded = LoadSessionAlligatorIndicator(Session_Filter_Timeframe);
+
+  if(need_stochastic)
+    stoch_loaded = LoadSessionStochasticIndicator(Session_Filter_Timeframe);
+
+  if((need_bpercent && !bpercent_loaded) ||
+     (need_alligator && !alligator_loaded) ||
+     (need_stochastic && !stoch_loaded))
+  {
+    if(!bpercent_loaded)
+      SessionBPercentIndicatorHandle = IndicatorsHandleInfo();
+    if(!alligator_loaded)
+      SessionAlligatorIndicatorHandle = IndicatorsHandleInfo();
+    if(!stoch_loaded)
+      SessionStochIndicatorHandle = IndicatorsHandleInfo();
+  }
+}
+
 bool TrendFilterIndicatorsAvailable()
 {
   if(!TrendContextEnabled() || Strategy_Trend_Mode == TREND_OFF)
@@ -529,6 +846,62 @@ bool TrendFilterIndicatorsAvailable()
   if(need_alligator && TrendAlligatorIndicatorHandle.indicator_handle == INVALID_HANDLE)
     return false;
   if(need_stochastic && TrendStochIndicatorHandle.indicator_handle == INVALID_HANDLE)
+    return false;
+  return true;
+}
+
+bool MacroFilterIndicatorsAvailable()
+{
+  if(!MacroContextEnabled() || Strategy_Macro_Mode == TREND_OFF)
+  {
+    if(!Macro_BPercent_Slope_Filter &&
+       !Macro_Stochastic_Slope_Filter &&
+       !Macro_Alligator_Slope_Filter)
+      return true;
+  }
+
+  if(!MacroContextEnabled())
+    return true;
+
+  bool need_bpercent  = (StrategyModeUsesAnyBPercent(Strategy_Macro_Mode) ||
+                         Macro_BPercent_Slope_Filter);
+  bool need_alligator = (StrategyModeUsesAlligator(Strategy_Macro_Mode) ||
+                         Macro_Alligator_Slope_Filter);
+  bool need_stochastic = Macro_Stochastic_Slope_Filter;
+
+  if(need_bpercent && MacroBPercentIndicatorHandle.indicator_handle == INVALID_HANDLE)
+    return false;
+  if(need_alligator && MacroAlligatorIndicatorHandle.indicator_handle == INVALID_HANDLE)
+    return false;
+  if(need_stochastic && MacroStochIndicatorHandle.indicator_handle == INVALID_HANDLE)
+    return false;
+  return true;
+}
+
+bool SessionFilterIndicatorsAvailable()
+{
+  if(!SessionContextEnabled() || Strategy_Session_Mode == TREND_OFF)
+  {
+    if(!Session_BPercent_Slope_Filter &&
+       !Session_Stochastic_Slope_Filter &&
+       !Session_Alligator_Slope_Filter)
+      return true;
+  }
+
+  if(!SessionContextEnabled())
+    return true;
+
+  bool need_bpercent  = (StrategyModeUsesAnyBPercent(Strategy_Session_Mode) ||
+                         Session_BPercent_Slope_Filter);
+  bool need_alligator = (StrategyModeUsesAlligator(Strategy_Session_Mode) ||
+                         Session_Alligator_Slope_Filter);
+  bool need_stochastic = Session_Stochastic_Slope_Filter;
+
+  if(need_bpercent && SessionBPercentIndicatorHandle.indicator_handle == INVALID_HANDLE)
+    return false;
+  if(need_alligator && SessionAlligatorIndicatorHandle.indicator_handle == INVALID_HANDLE)
+    return false;
+  if(need_stochastic && SessionStochIndicatorHandle.indicator_handle == INVALID_HANDLE)
     return false;
   return true;
 }
@@ -551,6 +924,42 @@ void LoadTrendStructureFilterIndicator()
     ResetTrendStructureIndicator();
 }
 
+void LoadMacroStructureFilterIndicator()
+{
+  ResetMacroStructureIndicator();
+
+  if(!MacroStructureNeedsDedicatedHandle())
+    return;
+
+  ENUM_TIMEFRAMES strategy_tf = Strategy_TF_List[0];
+  if(Macro_Structure_Filter_Timeframe == strategy_tf)
+  {
+    Print("Macro structure timeframe matches strategy timeframe; reusing strategy structure handles.");
+    return;
+  }
+
+  if(!LoadMacroStructureIndicator(Macro_Structure_Filter_Timeframe))
+    ResetMacroStructureIndicator();
+}
+
+void LoadSessionStructureFilterIndicator()
+{
+  ResetSessionStructureIndicator();
+
+  if(!SessionStructureNeedsDedicatedHandle())
+    return;
+
+  ENUM_TIMEFRAMES strategy_tf = Strategy_TF_List[0];
+  if(Session_Structure_Filter_Timeframe == strategy_tf)
+  {
+    Print("Session structure timeframe matches strategy timeframe; reusing strategy structure handles.");
+    return;
+  }
+
+  if(!LoadSessionStructureIndicator(Session_Structure_Filter_Timeframe))
+    ResetSessionStructureIndicator();
+}
+
 void LoadAllIndicatorDefinitions()
 {
   PrepareStrategyTimeframes();
@@ -566,6 +975,8 @@ void LoadAllIndicatorDefinitions()
                                   trailing_requires_alligator || risk_requires_alligator;
   ENUM_TIMEFRAMES strategy_tf = Strategy_TF_List[0];
   Trend_Structure_Filter_Timeframe = ResolveTrendStructureTimeframe();
+  Macro_Structure_Filter_Timeframe = ResolveMacroStructureTimeframe();
+  Session_Structure_Filter_Timeframe = ResolveSessionStructureTimeframe();
   Trailing_Indicator_Timeframe = ResolveTrailingStrategyTimeframe();
   Risk_Trend_Timeframe = ResolveRiskTrendTimeframe();
 
@@ -645,6 +1056,22 @@ void LoadAllIndicatorDefinitions()
       if(trend_channel_tf != strategy_tf)
         LoadChannelIndicatorForTimeframe(channel_strategy_type, trend_channel_tf);
     }
+    if(Macro_Channel_MA_Filter)
+    {
+      ENUM_TIMEFRAMES macro_channel_tf = Macro_Strategy_Timeframe;
+      if(macro_channel_tf == PERIOD_CURRENT)
+        macro_channel_tf = Strategy_Timeframe;
+      if(macro_channel_tf != strategy_tf)
+        LoadChannelIndicatorForTimeframe(channel_strategy_type, macro_channel_tf);
+    }
+    if(Session_Channel_MA_Filter)
+    {
+      ENUM_TIMEFRAMES session_channel_tf = Session_Strategy_Timeframe;
+      if(session_channel_tf == PERIOD_CURRENT)
+        session_channel_tf = Strategy_Timeframe;
+      if(session_channel_tf != strategy_tf)
+        LoadChannelIndicatorForTimeframe(channel_strategy_type, session_channel_tf);
+    }
   }
   else
   {
@@ -653,7 +1080,11 @@ void LoadAllIndicatorDefinitions()
 
   LoadAllBodyMAIndicators();
   LoadTrendIndicators();
+  LoadMacroIndicators();
+  LoadSessionIndicators();
   LoadTrendStructureFilterIndicator();
+  LoadMacroStructureFilterIndicator();
+  LoadSessionStructureFilterIndicator();
   EnsureTrailingIndicatorDependencies(trailing_requires_channel,
                                       trailing_requires_alligator,
                                       risk_requires_alligator,

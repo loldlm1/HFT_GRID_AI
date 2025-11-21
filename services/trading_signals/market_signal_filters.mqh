@@ -286,15 +286,170 @@ bool TrendFilterAllowsSignal(const SignalParams &signal_params,
   return true;
 }
 
+bool MacroFilterAllowsSignal(const SignalParams &signal_params,
+                             const SignalTypes direction)
+{
+  if(!MacroContextEnabled() || signal_params.macro_filter_mode == TREND_OFF)
+    return true;
+  bool percent_ok = true;
+  bool alligator_ok = true;
+  StrategyTrendModes filter_mode = signal_params.macro_filter_mode;
+
+  if(StrategyModeUsesAnyBPercent(filter_mode) && Macro_Indicator_Percent >= 0.0)
+  {
+    if(!signal_params.macro_bpercent_valid)
+      return false;
+    percent_ok = EvaluateBandsPercentTrigger(signal_params.macro_bpercent_data,
+                                             direction,
+                                             Macro_Indicator_Percent,
+                                             filter_mode,
+                                             NO_SLOPE);
+    if(!percent_ok)
+      return false;
+  }
+
+  if(StrategyModeUsesAlligator(filter_mode))
+  {
+    if(!signal_params.macro_alligator_valid)
+      return false;
+    alligator_ok = EvaluateAlligatorTrend(signal_params.macro_alligator_data,
+                                          direction,
+                                          filter_mode);
+    if(!alligator_ok)
+      return false;
+  }
+
+  if(Macro_BPercent_Slope_Filter)
+  {
+    if(!signal_params.macro_bpercent_valid)
+      return false;
+    double current = signal_params.macro_bpercent_data.bands_percent_0;
+    double previous = signal_params.macro_bpercent_data.bands_percent_1;
+    if(!EvaluateDirectionalSlope(current, previous, direction))
+      return false;
+  }
+
+  if(Macro_Stochastic_Slope_Filter)
+  {
+    if(!signal_params.macro_stochastic_valid)
+      return false;
+
+    double current = signal_params.macro_stochastic_data.stochastic_0;
+    double previous = signal_params.macro_stochastic_data.stochastic_1;
+    if(!EvaluateDirectionalSlope(current, previous, direction))
+      return false;
+  }
+
+  if(Macro_Alligator_Slope_Filter)
+  {
+    if(!signal_params.macro_alligator_valid)
+      return false;
+    double current = signal_params.macro_alligator_data.lips_value;
+    double previous = signal_params.macro_alligator_data.lips_prev_value;
+    if(!EvaluateDirectionalSlope(current, previous, direction))
+      return false;
+  }
+
+  return true;
+}
+
+bool SessionFilterAllowsSignal(const SignalParams &signal_params,
+                               const SignalTypes direction)
+{
+  if(!SessionContextEnabled() || signal_params.session_filter_mode == TREND_OFF)
+    return true;
+  bool percent_ok = true;
+  bool alligator_ok = true;
+  StrategyTrendModes filter_mode = signal_params.session_filter_mode;
+
+  if(StrategyModeUsesAnyBPercent(filter_mode) && Session_Indicator_Percent >= 0.0)
+  {
+    if(!signal_params.session_bpercent_valid)
+      return false;
+    percent_ok = EvaluateBandsPercentTrigger(signal_params.session_bpercent_data,
+                                             direction,
+                                             Session_Indicator_Percent,
+                                             filter_mode,
+                                             NO_SLOPE);
+    if(!percent_ok)
+      return false;
+  }
+
+  if(StrategyModeUsesAlligator(filter_mode))
+  {
+    if(!signal_params.session_alligator_valid)
+      return false;
+    alligator_ok = EvaluateAlligatorTrend(signal_params.session_alligator_data,
+                                          direction,
+                                          filter_mode);
+    if(!alligator_ok)
+      return false;
+  }
+
+  if(Session_BPercent_Slope_Filter)
+  {
+    if(!signal_params.session_bpercent_valid)
+      return false;
+    double current = signal_params.session_bpercent_data.bands_percent_0;
+    double previous = signal_params.session_bpercent_data.bands_percent_1;
+    if(!EvaluateDirectionalSlope(current, previous, direction))
+      return false;
+  }
+
+  if(Session_Stochastic_Slope_Filter)
+  {
+    if(!signal_params.session_stochastic_valid)
+      return false;
+
+    double current = signal_params.session_stochastic_data.stochastic_0;
+    double previous = signal_params.session_stochastic_data.stochastic_1;
+    if(!EvaluateDirectionalSlope(current, previous, direction))
+      return false;
+  }
+
+  if(Session_Alligator_Slope_Filter)
+  {
+    if(!signal_params.session_alligator_valid)
+      return false;
+    double current = signal_params.session_alligator_data.lips_value;
+    double previous = signal_params.session_alligator_data.lips_prev_value;
+    if(!EvaluateDirectionalSlope(current, previous, direction))
+      return false;
+  }
+
+  return true;
+}
+
 bool FetchStructureForFilters(const SignalParams &signal_params,
                               StochasticMarketStructure &structure,
-                              const StrategyStructureLayerContext &ctx)
+                              const StrategyStructureLayerContext &ctx,
+                              const int context_slot)
 {
-  if(ctx.enabled && ctx.uses_trend_dataset)
+  if(context_slot == CONTEXT_SLOT_TREND)
   {
     if(signal_params.trend_structure_valid)
     {
       structure = signal_params.trend_structure_data;
+      return true;
+    }
+    return false;
+  }
+
+  if(context_slot == CONTEXT_SLOT_MACRO)
+  {
+    if(signal_params.macro_structure_valid)
+    {
+      structure = signal_params.macro_structure_data;
+      return true;
+    }
+    return false;
+  }
+
+  if(context_slot == CONTEXT_SLOT_SESSION)
+  {
+    if(signal_params.session_structure_valid)
+    {
+      structure = signal_params.session_structure_data;
       return true;
     }
     return false;
@@ -320,19 +475,34 @@ datetime ResolveStructureSnapshotTimestamp(const StochasticMarketStructure &stru
 bool ValidateFreshStructureTimestamp(const SignalParams &signal_params,
                                      const StrategyStructureLayerContext &ctx,
                                      const SignalTypes direction,
-                                     const bool is_trend_context,
+                                     const int context_slot,
                                      datetime &captured_time)
 {
   captured_time = 0;
   if(!ctx.enabled)
     return true;
 
-  bool enforce = is_trend_context ? Trend_Fresh_Structure_Time : Base_Fresh_Structure_Time;
+  bool enforce = false;
+  switch(context_slot)
+  {
+    case CONTEXT_SLOT_BASE:
+      enforce = Base_Fresh_Structure_Time;
+      break;
+    case CONTEXT_SLOT_TREND:
+      enforce = Trend_Fresh_Structure_Time;
+      break;
+    case CONTEXT_SLOT_MACRO:
+      enforce = Macro_Fresh_Structure_Time;
+      break;
+    case CONTEXT_SLOT_SESSION:
+      enforce = Session_Fresh_Structure_Time;
+      break;
+  }
   if(!enforce)
     return true;
 
   StochasticMarketStructure structure;
-  if(!FetchStructureForFilters(signal_params, structure, ctx))
+  if(!FetchStructureForFilters(signal_params, structure, ctx, context_slot))
     return false;
 
   datetime structure_time = ResolveStructureSnapshotTimestamp(structure, ctx);
@@ -340,8 +510,15 @@ bool ValidateFreshStructureTimestamp(const SignalParams &signal_params,
     return false;
 
   int idx = DirectionIndex(direction);
-  datetime last_time = is_trend_context ? g_last_trend_structure_time[idx]
-                                        : g_last_base_structure_time[idx];
+  datetime last_time = 0;
+  if(context_slot == CONTEXT_SLOT_BASE)
+    last_time = g_last_base_structure_time[idx];
+  else if(context_slot == CONTEXT_SLOT_TREND)
+    last_time = g_last_trend_structure_time[idx];
+  else if(context_slot == CONTEXT_SLOT_MACRO)
+    last_time = g_last_macro_structure_time[idx];
+  else if(context_slot == CONTEXT_SLOT_SESSION)
+    last_time = g_last_session_structure_time[idx];
   if(last_time > 0 && structure_time <= last_time)
     return false;
 
@@ -386,7 +563,8 @@ bool ValidateRetestRequirements(const ExtremumStatistics &latest_stats,
 
 bool EvaluateStructureRetestTrigger(const SignalParams &signal_params,
                                     const SignalTypes signal_type,
-                                    const StrategyStructureLayerContext &ctx)
+                                    const StrategyStructureLayerContext &ctx,
+                                    const int context_slot)
 {
   bool require_support_resistance = StructureFiltersRequested(ctx, signal_type);
   bool require_extern_breaks = (ctx.enabled && ctx.min_extern_structures > 0);
@@ -395,7 +573,7 @@ bool EvaluateStructureRetestTrigger(const SignalParams &signal_params,
     return true;
 
   StochasticMarketStructure structure;
-  if(!FetchStructureForFilters(signal_params, structure, ctx))
+  if(!FetchStructureForFilters(signal_params, structure, ctx, context_slot))
     return false;
 
   if(ArraySize(structure.extremum_stats) <= 0)
@@ -486,13 +664,14 @@ bool TrendStructureFilterMatches(const TrendStructureFilterModes filter_mode,
 
 bool EvaluateStructureTypeFilters(const SignalParams &signal_params,
                                   const StrategyStructureLayerContext &ctx,
-                                  const SignalTypes signal_type)
+                                  const SignalTypes signal_type,
+                                  const int context_slot)
 {
   if(!StructureTypeFiltersRequested(ctx))
     return true;
 
   StochasticMarketStructure structure;
-  if(!FetchStructureForFilters(signal_params, structure, ctx))
+  if(!FetchStructureForFilters(signal_params, structure, ctx, context_slot))
     return false;
 
   OscillatorMarketStructure latest_extremum;
@@ -516,22 +695,40 @@ bool EvaluateSignalTrigger(SignalParams &signal_params, const SignalTypes signal
 {
   StrategyStructureLayerContext base_ctx  = BuildBaseStructureLayerContext();
   StrategyStructureLayerContext trend_ctx = BuildTrendStructureLayerContext();
+  StrategyStructureLayerContext macro_ctx = BuildMacroStructureLayerContext();
+  StrategyStructureLayerContext session_ctx = BuildSessionStructureLayerContext();
 
   datetime base_fresh_time  = 0;
   datetime trend_fresh_time = 0;
+  datetime macro_fresh_time = 0;
+  datetime session_fresh_time = 0;
 
   if(!ValidateFreshStructureTimestamp(signal_params,
                                       base_ctx,
                                       signal_type,
-                                      false,
+                                      CONTEXT_SLOT_BASE,
                                       base_fresh_time))
     return false;
 
   if(!ValidateFreshStructureTimestamp(signal_params,
                                       trend_ctx,
                                       signal_type,
-                                      true,
+                                      CONTEXT_SLOT_TREND,
                                       trend_fresh_time))
+    return false;
+
+  if(!ValidateFreshStructureTimestamp(signal_params,
+                                      macro_ctx,
+                                      signal_type,
+                                      CONTEXT_SLOT_MACRO,
+                                      macro_fresh_time))
+    return false;
+
+  if(!ValidateFreshStructureTimestamp(signal_params,
+                                      session_ctx,
+                                      signal_type,
+                                      CONTEXT_SLOT_SESSION,
+                                      session_fresh_time))
     return false;
 
   bool base_trigger             = EvaluateBaseIndicatorTrigger(signal_params,
@@ -539,21 +736,39 @@ bool EvaluateSignalTrigger(SignalParams &signal_params, const SignalTypes signal
                                                                Base_Indicator_Percent);
   bool base_structure_filters   = EvaluateStructureRetestTrigger(signal_params,
                                                                  signal_type,
-                                                                 base_ctx);
+                                                                 base_ctx,
+                                                                 CONTEXT_SLOT_BASE);
   bool trend_structure_filters  = EvaluateStructureRetestTrigger(signal_params,
                                                                  signal_type,
-                                                                 trend_ctx);
-  bool base_structure_types     = EvaluateStructureTypeFilters(signal_params, base_ctx, signal_type);
-  bool trend_structure_types    = EvaluateStructureTypeFilters(signal_params, trend_ctx, signal_type);
+                                                                 trend_ctx,
+                                                                 CONTEXT_SLOT_TREND);
+  bool macro_structure_filters  = EvaluateStructureRetestTrigger(signal_params,
+                                                                 signal_type,
+                                                                 macro_ctx,
+                                                                 CONTEXT_SLOT_MACRO);
+  bool session_structure_filters = EvaluateStructureRetestTrigger(signal_params,
+                                                                  signal_type,
+                                                                  session_ctx,
+                                                                  CONTEXT_SLOT_SESSION);
+  bool base_structure_types     = EvaluateStructureTypeFilters(signal_params, base_ctx, signal_type, CONTEXT_SLOT_BASE);
+  bool trend_structure_types    = EvaluateStructureTypeFilters(signal_params, trend_ctx, signal_type, CONTEXT_SLOT_TREND);
+  bool macro_structure_types    = EvaluateStructureTypeFilters(signal_params, macro_ctx, signal_type, CONTEXT_SLOT_MACRO);
+  bool session_structure_types  = EvaluateStructureTypeFilters(signal_params, session_ctx, signal_type, CONTEXT_SLOT_SESSION);
 
   signal_params.base_structure_snapshot_time  = base_fresh_time;
   signal_params.trend_structure_snapshot_time = trend_fresh_time;
+  signal_params.macro_structure_snapshot_time = macro_fresh_time;
+  signal_params.session_structure_snapshot_time = session_fresh_time;
 
   return base_trigger &&
          base_structure_filters &&
          trend_structure_filters &&
+         macro_structure_filters &&
+         session_structure_filters &&
          base_structure_types &&
-         trend_structure_types;
+         trend_structure_types &&
+         macro_structure_types &&
+         session_structure_types;
 }
 
 #endif // _SERVICES_TRADING_SIGNALS_MARKET_SIGNAL_FILTERS_MQH_

@@ -56,6 +56,36 @@ inline StrategyStructureLayerContext BuildTrendStructureLayerContext()
   return ctx;
 }
 
+inline StrategyStructureLayerContext BuildMacroStructureLayerContext()
+{
+  StrategyStructureLayerContext ctx;
+  ctx.min_extern_structures  = Macro_Min_Extern_Structures_Broken;
+  ctx.support_filter         = Macro_Support_Filter;
+  ctx.resistance_filter      = Macro_Resistance_Filter;
+  ctx.support_min_retests    = Macro_Support_Retest_Min_Count;
+  ctx.resistance_min_retests = Macro_Resistance_Retest_Min_Count;
+  ctx.first_structure_filter = Macro_First_Structure_Filter;
+  ctx.second_structure_filter = Macro_Second_Structure_Filter;
+  ctx.enabled                = (Macro_Strategy_Timeframe != PERIOD_CURRENT);
+  ctx.uses_trend_dataset     = ctx.enabled;
+  return ctx;
+}
+
+inline StrategyStructureLayerContext BuildSessionStructureLayerContext()
+{
+  StrategyStructureLayerContext ctx;
+  ctx.min_extern_structures  = Session_Min_Extern_Structures_Broken;
+  ctx.support_filter         = Session_Support_Filter;
+  ctx.resistance_filter      = Session_Resistance_Filter;
+  ctx.support_min_retests    = Session_Support_Retest_Min_Count;
+  ctx.resistance_min_retests = Session_Resistance_Retest_Min_Count;
+  ctx.first_structure_filter = Session_First_Structure_Filter;
+  ctx.second_structure_filter = Session_Second_Structure_Filter;
+  ctx.enabled                = (Session_Strategy_Timeframe != PERIOD_CURRENT);
+  ctx.uses_trend_dataset     = ctx.enabled;
+  return ctx;
+}
+
 inline bool StructureFiltersRequested(const StrategyStructureLayerContext &ctx)
 {
   if(!ctx.enabled)
@@ -143,15 +173,31 @@ inline bool AnyStructureGuardEnabled()
 {
   StrategyStructureLayerContext base_ctx  = BuildBaseStructureLayerContext();
   StrategyStructureLayerContext trend_ctx = BuildTrendStructureLayerContext();
+  StrategyStructureLayerContext macro_ctx = BuildMacroStructureLayerContext();
+  StrategyStructureLayerContext session_ctx = BuildSessionStructureLayerContext();
   return StructureFiltersRequested(base_ctx) ||
          StructureFiltersRequested(trend_ctx) ||
+         StructureFiltersRequested(macro_ctx) ||
+         StructureFiltersRequested(session_ctx) ||
          StructureTypeFiltersRequested(base_ctx) ||
-         StructureTypeFiltersRequested(trend_ctx);
+         StructureTypeFiltersRequested(trend_ctx) ||
+         StructureTypeFiltersRequested(macro_ctx) ||
+         StructureTypeFiltersRequested(session_ctx);
 }
 
 inline bool TrendContextEnabled()
 {
   return (Trend_Strategy_Timeframe != PERIOD_CURRENT);
+}
+
+inline bool MacroContextEnabled()
+{
+  return (Macro_Strategy_Timeframe != PERIOD_CURRENT);
+}
+
+inline bool SessionContextEnabled()
+{
+  return (Session_Strategy_Timeframe != PERIOD_CURRENT);
 }
 
 #endif // _SERVICES_TRADING_MANAGEMENT_STRATEGY_STRUCTURE_CONTEXT_MQH_
