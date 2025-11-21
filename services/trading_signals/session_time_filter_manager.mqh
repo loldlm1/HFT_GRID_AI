@@ -15,9 +15,6 @@ datetime  g_session_time_filter_last_day_anchor      = 0;
 bool      g_session_time_filter_block_logged         = false;
 string    g_session_time_filter_force_close_queue[];
 
-void SessionTimeFilterQueueForceClose(const string reason);
-bool SessionTimeFilterConsumeForceClose(string &reason);
-
 void SessionTimeFilterResetSlotState()
 {
   for(int i = 0; i < SESSION_TIME_FILTER_SLOT_TOTAL; i++)
@@ -62,24 +59,25 @@ void SessionTimeFilterRefreshWindowState()
 
   for(int slot = 0; slot < SESSION_TIME_FILTER_SLOT_TOTAL; slot++)
   {
-    const SessionTimeFilterConfig *config = SessionTimeFilterConfigForSlot(slot);
-    bool slot_enabled = SessionTimeFilterSlotEnabled(*config);
+    SessionTimeFilterConfig slot_config;
+    SessionTimeFilterCopySlotConfig(slot, slot_config);
+    bool slot_enabled = SessionTimeFilterSlotEnabled(slot_config);
     bool slot_active  = false;
 
     if(slot_enabled)
     {
-      if(!config->valid_range && !g_session_time_filter_invalid_warned[slot])
+      if(!slot_config.valid_range && !g_session_time_filter_invalid_warned[slot])
       {
         if(Enable_Logs)
         {
           PrintFormat("Session filter range invalid for %s | range=%s | defaulting to full trading day",
-                      config->label,
-                      config->raw_range);
+                      slot_config.label,
+                      slot_config.raw_range);
         }
         g_session_time_filter_invalid_warned[slot] = true;
       }
 
-      slot_active = SessionTimeFilterMinuteInRange(*config, current_minutes);
+      slot_active = SessionTimeFilterMinuteInRange(slot_config, current_minutes);
       if(slot_active && g_session_time_filter_active_slot < 0)
         g_session_time_filter_active_slot = slot;
       if(slot_active)
@@ -131,13 +129,14 @@ void SessionTimeFilterMonitorRuntime()
     if(current_state)
       continue;
 
-    const SessionTimeFilterConfig *config = SessionTimeFilterConfigForSlot(slot);
-    if(config->mode != SESSION_FILTER_FORCE_CLOSE)
+    SessionTimeFilterConfig slot_config;
+    SessionTimeFilterCopySlotConfig(slot, slot_config);
+    if(slot_config.mode != SESSION_FILTER_FORCE_CLOSE)
       continue;
 
-    string reason = StringFormat("Session filter close: %s", config->label);
+    string reason = StringFormat("Session filter close: %s", slot_config.label);
     if(Enable_Logs)
-      PrintFormat("Session filter exit triggered | session=%s", config->label);
+      PrintFormat("Session filter exit triggered | session=%s", slot_config.label);
     SessionTimeFilterQueueForceClose(reason);
   }
 }
@@ -158,9 +157,9 @@ string SessionTimeFilterActiveSessionLabel()
   if(g_session_time_filter_active_slot < 0)
     return "OUTSIDE";
 
-  const SessionTimeFilterConfig *config =
-    SessionTimeFilterConfigForSlot(g_session_time_filter_active_slot);
-  return config->label;
+  SessionTimeFilterConfig slot_config;
+  SessionTimeFilterCopySlotConfig(g_session_time_filter_active_slot, slot_config);
+  return slot_config.label;
 }
 
 void SessionTimeFilterQueueForceClose(const string reason)
@@ -170,17 +169,22 @@ void SessionTimeFilterQueueForceClose(const string reason)
   g_session_time_filter_force_close_queue[total] = reason;
 }
 
-bool SessionTimeFilterConsumeForceClose(string &reason)
+int SessionTimeFilterPendingForceCloseCount()
+{
+  return ArraySize(g_session_time_filter_force_close_queue);
+}
+
+string SessionTimeFilterPendingForceCloseReason(const int index)
 {
   int total = ArraySize(g_session_time_filter_force_close_queue);
-  if(total <= 0)
-    return false;
+  if(index < 0 || index >= total)
+    return "";
+  return g_session_time_filter_force_close_queue[index];
+}
 
-  reason = g_session_time_filter_force_close_queue[0];
-  for(int i = 1; i < total; i++)
-    g_session_time_filter_force_close_queue[i-1] = g_session_time_filter_force_close_queue[i];
-  ArrayResize(g_session_time_filter_force_close_queue, total - 1);
-  return true;
+void SessionTimeFilterClearForceCloseQueue()
+{
+  ArrayResize(g_session_time_filter_force_close_queue, 0);
 }
 
 #endif // _SERVICES_TRADING_SIGNALS_SESSION_TIME_FILTER_MANAGER_MQH_
