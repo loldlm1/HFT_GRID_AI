@@ -257,6 +257,32 @@ void RegisterDailySignalOutcome(const SignalTypes direction,
     g_daily_signal_stats[DirectionIndex(direction)].losing_signals++;
 }
 
+bool DebugEquityGuardAllowsProcessing()
+{
+  if(!Debug_Stop_On_Negative_Equity || MQLInfoInteger(MQL_TESTER) <= 0)
+    return true;
+
+  if(g_debug_no_money_abort_pending)
+  {
+    g_debug_no_money_abort_pending = false;
+    Print("TesterStop triggered: order send rejected due to insufficient funds while Debug_Stop_On_Negative_Equity is enabled.");
+    DebugForceCloseAllGrids();
+    TesterStop();
+    return false;
+  }
+
+  double equity = AccountInfoDouble(ACCOUNT_EQUITY);
+  if(equity <= 0.0)
+  {
+    Print("TesterStop triggered: equity <= 0 and Debug_Stop_On_Negative_Equity is enabled.");
+    DebugForceCloseAllGrids();
+    TesterStop();
+    return false;
+  }
+
+  return true;
+}
+
 bool TrendStructureFiltersRequested()
 {
   StrategyStructureLayerContext trend_ctx = BuildTrendStructureLayerContext();
@@ -350,26 +376,8 @@ bool CanAttemptSignal(const SignalTypes signal_type)
   if(!ProtectionRiskAllowsSignalAttempt())
     return false;
 
-  if(Debug_Stop_On_Negative_Equity && MQLInfoInteger(MQL_TESTER) > 0)
-  {
-    if(g_debug_no_money_abort_pending)
-    {
-      g_debug_no_money_abort_pending = false;
-      Print("TesterStop triggered: order send rejected due to insufficient funds while Debug_Stop_On_Negative_Equity is enabled.");
-      DebugForceCloseAllGrids();
-      TesterStop();
-      return false;
-    }
-
-    double equity = AccountInfoDouble(ACCOUNT_EQUITY);
-    if(equity <= 0.0)
-    {
-      Print("TesterStop triggered: equity <= 0 and Debug_Stop_On_Negative_Equity is enabled.");
-      DebugForceCloseAllGrids();
-      TesterStop();
-      return false;
-    }
-  }
+  if(!DebugEquityGuardAllowsProcessing())
+    return false;
 
   if(!DailySignalLimitAllowsAttempt(signal_type))
   {

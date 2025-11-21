@@ -119,6 +119,7 @@ void OnTimer()
 void OnTick()
 {
   RefreshCustomSymbolRates();
+  DebugEquityGuardAllowsProcessing();
   ProtectionRiskMonitorTradeMode();
   ProtectionRiskFilterTick();
   g_ea_running                          = true;
