@@ -373,34 +373,14 @@ bool StrategyContextEvaluateEntry(const StrategyContextIndicators &snapshot,
 {
   structure_capture_time = 0;
   entry_allows = false;
-  filters_pass = false;
+  filters_pass = true;
 
   StrategyContextTypes context = snapshot.context;
   StrategyEntryModes entry_mode = StrategyContextEntryMode(context);
   bool entry_mode_disabled = (entry_mode == ENTRY_OFF);
-
-  double percent_threshold = StrategyContextIndicatorPercent(context);
-  bool entry_required = EntryModeUsesAnyBPercent(entry_mode);
   bool entry_on_trend = (entry_mode == ENTRY_ON_TREND);
   StrategyTrendModes trend_mode = StrategyContextTrendMode(context);
-
-  bool bpercent_pass = true;
-  if(entry_required && percent_threshold >= 0.0)
-  {
-    if(!snapshot.bpercent_valid)
-      return false;
-
-    bpercent_pass = EvaluateBandsPercentTrigger(snapshot.bpercent_data,
-                                                direction,
-                                                percent_threshold,
-                                                entry_mode,
-                                                NO_SLOPE);
-    if(!bpercent_pass)
-    {
-      filters_pass = false;
-      return true;
-    }
-  }
+  double percent_threshold = StrategyContextIndicatorPercent(context);
 
   if(StrategyContextBPercentSlopeEnabled(context))
   {
@@ -478,7 +458,25 @@ bool StrategyContextEvaluateEntry(const StrategyContextIndicators &snapshot,
     return true;
   }
 
-  entry_allows = (!entry_required || percent_threshold < 0.0 || bpercent_pass);
+  bool entry_requires_bpercent = EntryModeUsesAnyBPercent(entry_mode);
+  bool bpercent_pass = true;
+  if(entry_requires_bpercent && percent_threshold >= 0.0)
+  {
+    if(!snapshot.bpercent_valid)
+      return false;
+    bpercent_pass = EvaluateBandsPercentTrigger(snapshot.bpercent_data,
+                                                direction,
+                                                percent_threshold,
+                                                entry_mode,
+                                                NO_SLOPE);
+    if(!bpercent_pass)
+    {
+      entry_allows = false;
+      return true;
+    }
+  }
+
+  entry_allows = (!entry_requires_bpercent || percent_threshold < 0.0 || bpercent_pass);
   return true;
 }
 
