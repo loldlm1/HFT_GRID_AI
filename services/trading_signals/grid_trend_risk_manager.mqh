@@ -9,12 +9,12 @@ bool GridTrendSarAlligatorBreach(const SignalTypes direction,
 
   StrategyTrendModes risk_mode = GridResolveActiveRiskMode();
 
-  if(StrategyModeUsesTeethAlligator(risk_mode))
+  if(TrendModeUsesTeethAlligator(risk_mode))
   {
     fast_index = 2; // lips
     slow_index = 1; // teeth
   }
-  else if(StrategyModeUsesJawsAlligator(risk_mode))
+  else if(TrendModeUsesJawsAlligator(risk_mode))
   {
     fast_index = 1; // teeth
     slow_index = 0; // jaws
@@ -84,6 +84,9 @@ bool GridSpawnRiskSarSignal(const SignalTypes direction,
   sar_signal.entry_time  = TimeCurrent();
   sar_signal.entry_price = GridCurrentPriceForDirection(direction, true);
   sar_signal.sar_cumulative_loss = MathMax(cumulative_loss, 0.0);
+  sar_signal.strategy_context       = CONTEXT_SLOT_BASE;
+  sar_signal.strategy_timeframe     = Strategy_Timeframe;
+  sar_signal.strategy_context_label = StrategyContextLabel(CONTEXT_SLOT_BASE);
 
   if(!GridEnsureSarSignalInitialized(sar_signal, true))
     return false;
@@ -106,11 +109,16 @@ double GridResolveSarLotReferencePoints(const SignalTypes new_direction,
 {
   SignalParams preview_signal;
   preview_signal.signal_type = new_direction;
+  preview_signal.strategy_timeframe = original_signal.strategy_timeframe;
 
   double base_distance_points = 0.0;
   double entry_reference_price = 0.0;
+  ENUM_TIMEFRAMES context_tf = preview_signal.strategy_timeframe;
+  if(context_tf == PERIOD_CURRENT)
+    context_tf = Strategy_Timeframe;
+
   if(CalculateBaseGridContext(preview_signal,
-                              Strategy_Timeframe,
+                              context_tf,
                               base_distance_points,
                               entry_reference_price))
   {

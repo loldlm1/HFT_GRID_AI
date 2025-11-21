@@ -6,10 +6,49 @@
 
 SignalParams running_bullish_signals[];
 SignalParams running_bearish_signals[];
-datetime g_last_base_structure_time[2]  = {0, 0};
-datetime g_last_trend_structure_time[2] = {0, 0};
-datetime g_last_macro_structure_time[2] = {0, 0};
-datetime g_last_session_structure_time[2] = {0, 0};
+
+datetime g_context_last_structure_time[4][2];
+datetime g_context_last_bar_time[4];
+bool     g_context_trend_ready[4];
+bool     g_context_trend_pass[4][2];
+
+const StrategyContextTypes STRATEGY_CONTEXT_EVALUATION_ORDER[] =
+{
+  CONTEXT_SLOT_SESSION,
+  CONTEXT_SLOT_MACRO,
+  CONTEXT_SLOT_TREND,
+  CONTEXT_SLOT_BASE
+};
+
+struct StrategyContextIndicators
+{
+  StrategyContextTypes     context;
+  ENUM_TIMEFRAMES          timeframe;
+  datetime                 bar_time;
+
+  bool                     bpercent_valid;
+  BandsPercentStructure    bpercent_data;
+
+  bool                     alligator_valid;
+  AlligatorStructure       alligator_data;
+
+  bool                     stochastic_valid;
+  StochasticStructure      stochastic_data;
+
+  bool                     structure_valid;
+  StochasticMarketStructure structure_data;
+
+  StrategyContextIndicators()
+  {
+    context           = CONTEXT_SLOT_BASE;
+    timeframe         = PERIOD_CURRENT;
+    bar_time          = 0;
+    bpercent_valid    = false;
+    alligator_valid   = false;
+    stochastic_valid  = false;
+    structure_valid   = false;
+  }
+};
 
 struct DailySignalStats
 {
@@ -34,6 +73,100 @@ const double BANDS_PERCENT_LOWER_LEVEL = 0.0;
 int DirectionIndex(const SignalTypes direction)
 {
   return (direction == BEARISH) ? 1 : 0;
+}
+
+bool DirectionAllowed(const SignalTypes direction)
+{
+  if(Strategy_Direction_Mode == BOTH_DIRECTION)
+    return true;
+  if(Strategy_Direction_Mode == BULLISH_DIRECTION)
+    return (direction == BULLISH);
+  if(Strategy_Direction_Mode == BEARISH_DIRECTION)
+    return (direction == BEARISH);
+  return true;
+}
+
+int StrategyContextIndex(const StrategyContextTypes context)
+{
+  return (int)context;
+}
+
+int StrategyContextOrderIndex(const StrategyContextTypes context)
+{
+  int total = ArraySize(STRATEGY_CONTEXT_EVALUATION_ORDER);
+  for(int i = 0; i < total; i++)
+  {
+    if(STRATEGY_CONTEXT_EVALUATION_ORDER[i] == context)
+      return i;
+  }
+  return total - 1;
+}
+
+datetime GetLastContextStructureTime(const StrategyContextTypes context,
+                                     const SignalTypes direction)
+{
+  int slot = StrategyContextIndex(context);
+  int dir_idx = DirectionIndex(direction);
+  return g_context_last_structure_time[slot][dir_idx];
+}
+
+void SetLastContextStructureTime(const StrategyContextTypes context,
+                                 const SignalTypes direction,
+                                 const datetime value)
+{
+  int slot = StrategyContextIndex(context);
+  int dir_idx = DirectionIndex(direction);
+  g_context_last_structure_time[slot][dir_idx] = value;
+}
+
+bool ContextTrendSatisfied(const StrategyContextTypes context,
+                           const SignalTypes direction)
+{
+  if(!StrategyContextEnabled(context))
+    return true;
+
+  StrategyTrendModes trend_mode = StrategyContextTrendMode(context);
+  if(!TrendModeUsesAlligator(trend_mode))
+    return true;
+
+  int slot = StrategyContextIndex(context);
+  if(!g_context_trend_ready[slot])
+    return false;
+
+  return g_context_trend_pass[slot][DirectionIndex(direction)];
+}
+
+void ResetContextTrendState(const StrategyContextTypes context)
+{
+  int slot = StrategyContextIndex(context);
+  g_context_trend_ready[slot] = false;
+  g_context_trend_pass[slot][0] = false;
+  g_context_trend_pass[slot][1] = false;
+}
+
+void UpdateContextTrendState(const StrategyContextTypes context,
+                             const SignalTypes direction,
+                             const bool ready,
+                             const bool trend_pass)
+{
+  int slot = StrategyContextIndex(context);
+  g_context_trend_ready[slot] = ready || g_context_trend_ready[slot];
+  g_context_trend_pass[slot][DirectionIndex(direction)] = trend_pass;
+}
+
+bool StrategyCascadeAllowsSignal(const StrategyContextTypes context,
+                                 const SignalTypes direction)
+{
+  int target_index = StrategyContextOrderIndex(context);
+  for(int i = 0; i < target_index; i++)
+  {
+    StrategyContextTypes upstream = STRATEGY_CONTEXT_EVALUATION_ORDER[i];
+    if(upstream != CONTEXT_SLOT_BASE && !StrategyContextEnabled(upstream))
+      continue;
+    if(!ContextTrendSatisfied(upstream, direction))
+      return false;
+  }
+  return true;
 }
 
 bool SignalConcurrencyAllowsAttempt(const SignalTypes direction)
@@ -216,12 +349,6 @@ bool CanAttemptSignal(const SignalTypes signal_type)
 {
   if(!ProtectionRiskAllowsSignalAttempt())
     return false;
-  if(!TrendFilterIndicatorsAvailable())
-    return false;
-  if(!MacroFilterIndicatorsAvailable())
-    return false;
-  if(!SessionFilterIndicatorsAvailable())
-    return false;
 
   if(Debug_Stop_On_Negative_Equity && MQLInfoInteger(MQL_TESTER) > 0)
   {
@@ -251,72 +378,26 @@ bool CanAttemptSignal(const SignalTypes signal_type)
     return false;
   }
 
-  bool base_mode_uses_bpercent  = StrategyModeUsesAnyBPercent(Strategy_Base_Mode);
-  bool base_mode_uses_alligator = StrategyModeUsesAlligator(Strategy_Base_Mode);
-  bool base_bpercent_required   = base_mode_uses_bpercent || Base_BPercent_Slope_Filter;
-  bool base_alligator_required  = base_mode_uses_alligator || Base_Alligator_Slope_Filter;
-  bool require_structure_data = true;
-
-  if(Strategy_Direction_Mode == BULLISH_DIRECTION && signal_type == BEARISH)
-  {
+  if(!DirectionAllowed(signal_type))
     return false;
-  }
-  if(Strategy_Direction_Mode == BEARISH_DIRECTION && signal_type == BULLISH)
-  {
-    return false;
-  }
 
   if(!SignalConcurrencyAllowsAttempt(signal_type))
     return false;
-
-  if(base_bpercent_required && ArraySize(ExtBPercentIndicatorsHandle) <= 0)
-    return false;
-
-  if(base_alligator_required && ArraySize(ExtAlligatorIndicatorsHandle) <= 0)
-    return false;
-
-  if(require_structure_data && ArraySize(ExtStochIndicatorsHandle) <= 0)
-    return false;
-
-  if(require_structure_data && ArraySize(ExtStructStochIndicatorsHandle) <= 0)
-    return false;
-
-  if(TrendStructureDataRequired())
-  {
-    if(TrendStructStochIndicatorHandle.indicator_handle == INVALID_HANDLE)
-      return false;
-  }
-
-  if(MacroStructureDataRequired())
-  {
-    if(MacroStructStochIndicatorHandle.indicator_handle == INVALID_HANDLE)
-      return false;
-  }
-
-  if(SessionStructureDataRequired())
-  {
-    if(SessionStructStochIndicatorHandle.indicator_handle == INVALID_HANDLE)
-      return false;
-  }
 
   return true;
 }
 
 void RegisterFreshStructureUsage(const SignalParams &signal_params)
 {
-  int idx = DirectionIndex(signal_params.signal_type);
+  if(signal_params.context_structure_snapshot_time <= 0)
+    return;
 
-  if(Base_Fresh_Structure_Time && signal_params.base_structure_snapshot_time > 0)
-    g_last_base_structure_time[idx] = signal_params.base_structure_snapshot_time;
+  if(!StrategyContextFreshStructureEnabled(signal_params.strategy_context))
+    return;
 
-  if(Trend_Fresh_Structure_Time && signal_params.trend_structure_snapshot_time > 0)
-    g_last_trend_structure_time[idx] = signal_params.trend_structure_snapshot_time;
-
-  if(Macro_Fresh_Structure_Time && signal_params.macro_structure_snapshot_time > 0)
-    g_last_macro_structure_time[idx] = signal_params.macro_structure_snapshot_time;
-
-  if(Session_Fresh_Structure_Time && signal_params.session_structure_snapshot_time > 0)
-    g_last_session_structure_time[idx] = signal_params.session_structure_snapshot_time;
+  SetLastContextStructureTime(signal_params.strategy_context,
+                              signal_params.signal_type,
+                              signal_params.context_structure_snapshot_time);
 }
 
 #endif // _SERVICES_TRADING_SIGNALS_MARKET_SIGNAL_STATE_MQH_

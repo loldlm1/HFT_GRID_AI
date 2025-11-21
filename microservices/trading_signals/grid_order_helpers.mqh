@@ -9,15 +9,15 @@ inline StrategyTrendModes GridResolveActiveRiskMode()
   switch(Grid_Risk_Timeframe_Source)
   {
     case GRID_RISK_TF_STRATEGY:
-      return Strategy_Base_Mode;
+      return Strategy_Base_Trend_Mode;
     case GRID_RISK_TF_TREND:
-      return Strategy_Trend_Mode;
+      return Strategy_Trend_Trend_Mode;
     case GRID_RISK_TF_MACRO:
-      return Strategy_Macro_Mode;
+      return Strategy_Macro_Trend_Mode;
     case GRID_RISK_TF_SESSION:
-      return Strategy_Session_Mode;
+      return Strategy_Session_Trend_Mode;
   }
-  return Strategy_Trend_Mode;
+  return Strategy_Trend_Trend_Mode;
 }
 
 double GridResolvePointSize()
@@ -256,9 +256,9 @@ double GridResolveAggressiveLotSize(const SignalTypes direction)
 int GridResolveSarAlligatorBufferIndex()
 {
   StrategyTrendModes risk_mode = GridResolveActiveRiskMode();
-  if(StrategyModeUsesTeethAlligator(risk_mode))
+  if(TrendModeUsesTeethAlligator(risk_mode))
     return 2; // LIPS provides confirmation when teeth branch active
-  if(StrategyModeUsesAlligator(risk_mode))
+  if(TrendModeUsesAlligator(risk_mode))
     return 1; // TEETH when jaws branch active
   return -1;
 }

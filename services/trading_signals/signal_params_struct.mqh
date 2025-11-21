@@ -57,6 +57,9 @@ struct SignalParams
   SignalTypes               signal_type;
   SignalStates              signal_state;
   string                    grid_sequence_id;
+  StrategyContextTypes      strategy_context;
+  ENUM_TIMEFRAMES           strategy_timeframe;
+  string                    strategy_context_label;
   double                    entry_price;
   double                    close_price;
   double                    stop_loss;
@@ -82,10 +85,7 @@ struct SignalParams
   double grid_trailing_points;
   bool   is_sar_signal;
   double sar_cumulative_loss;
-  datetime base_structure_snapshot_time;
-  datetime trend_structure_snapshot_time;
-  datetime macro_structure_snapshot_time;
-  datetime session_structure_snapshot_time;
+  datetime context_structure_snapshot_time;
 
   bool                      trend_bpercent_valid;
   bool                      trend_alligator_valid;
@@ -124,6 +124,9 @@ struct SignalParams
     signal_type                = NO_SIGNAL;
     signal_state               = WAITING;
     grid_sequence_id           = "";
+    strategy_context           = CONTEXT_SLOT_BASE;
+    strategy_timeframe         = PERIOD_CURRENT;
+    strategy_context_label     = "BASE";
     entry_price                = 0.0;
     close_price                = 0.0;
     stop_loss                  = 0.0;
@@ -143,10 +146,7 @@ struct SignalParams
     grid_trailing_points       = 0.0;
     is_sar_signal              = false;
     sar_cumulative_loss        = 0.0;
-    base_structure_snapshot_time = 0;
-    trend_structure_snapshot_time = 0;
-    macro_structure_snapshot_time = 0;
-    session_structure_snapshot_time = 0;
+    context_structure_snapshot_time = 0;
     trend_filter_mode          = TREND_OFF;
     trend_bpercent_valid       = false;
     trend_alligator_valid      = false;
@@ -214,10 +214,10 @@ struct SignalParams
     grid_trailing_points        = signal_params.grid_trailing_points;
     is_sar_signal               = signal_params.is_sar_signal;
     sar_cumulative_loss         = signal_params.sar_cumulative_loss;
-    base_structure_snapshot_time = signal_params.base_structure_snapshot_time;
-    trend_structure_snapshot_time = signal_params.trend_structure_snapshot_time;
-    macro_structure_snapshot_time = signal_params.macro_structure_snapshot_time;
-    session_structure_snapshot_time = signal_params.session_structure_snapshot_time;
+    strategy_context           = signal_params.strategy_context;
+    strategy_timeframe         = signal_params.strategy_timeframe;
+    strategy_context_label     = signal_params.strategy_context_label;
+    context_structure_snapshot_time = signal_params.context_structure_snapshot_time;
     trend_filter_mode           = signal_params.trend_filter_mode;
     trend_bpercent_valid        = signal_params.trend_bpercent_valid;
     trend_alligator_valid       = signal_params.trend_alligator_valid;

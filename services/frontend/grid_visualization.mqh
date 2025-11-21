@@ -22,6 +22,15 @@ double ResolveBreakEvenLinePrice(const SignalParams &signal_params)
   return 0.0;
 }
 
+string FormatTimeframeLabel(const ENUM_TIMEFRAMES tf_value)
+{
+  string label = EnumToString(tf_value);
+  int pos = StringFind(label, "_");
+  if(pos >= 0 && pos + 1 < StringLen(label))
+    label = StringSubstr(label, pos + 1);
+  return label;
+}
+
 void DrawGridLevels(const long chart_id,
                     const SignalParams &signal_params,
                     string &tracked_objects[])
@@ -104,12 +113,19 @@ void BuildSignalSummary(const SignalParams &signal_params,
   }
 
   string direction_label = (signal_params.signal_type == BULLISH) ? "BULL" : "BEAR";
+  string context_label = signal_params.strategy_context_label;
+  ENUM_TIMEFRAMES tf = signal_params.strategy_timeframe;
+  if(tf == PERIOD_CURRENT)
+    tf = Strategy_Timeframe;
+  string timeframe_label = FormatTimeframeLabel(tf);
 
   int summary_index = ArraySize(summary_lines);
   ArrayResize(summary_lines, summary_index + 1);
 
-  summary_lines[summary_index] = StringFormat("%s | act=%d pend=%d tot=%d",
+  summary_lines[summary_index] = StringFormat("%s %s@%s | act=%d pend=%d tot=%d",
                                               direction_label,
+                                              context_label,
+                                              timeframe_label,
                                               active_levels,
                                               pending_levels,
                                               total_levels);

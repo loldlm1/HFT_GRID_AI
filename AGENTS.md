@@ -12,7 +12,8 @@ This document summarizes the current architecture, workflows, and guardrails for
   - `services/trading_signals/market_signal_indicators.mqh`: Hydrates `SignalParams` with Bollinger/Alligator/Stochastic/body MA datasets per timeframe.
   - `services/trading_signals/market_signal_channel_guards.mqh`: Enforces Alligator-vs-channel gating and the pending stop distance guard shared with the order controller.
   - `services/trading_signals/market_signal_filters.mqh`: Hosts Bollinger/Alligator trigger math plus structure retest/type filtering and slope helpers.
-  - `services/trading_signals/market_signal_detection.mqh`: Sequenced bullish/bearish admission flow that loads indicators, evaluates filters, runs the grid planner, and registers the signal.
+  - `services/trading_signals/market_signal_filters.mqh`: Hosts Bollinger/Alligator trigger math plus structure retest/type filtering, slope helpers, and the shared context evaluators.
+  - `services/trading_signals/market_signal_detection.mqh`: Cascaded bullish/bearish admission flow that only evaluates a context when its timeframe prints a new bar, updates the cascade state, runs the grid planner, and registers the signal.
   - `services/trading_signals/market_signal_cleanup.mqh`: Removes chart objects and finalizes state when a grid closes.
   - `services/trading_signals/*` (remaining files): Grid planner, order controller, protection filter, telemetry.
   - `microservices/*`: Broker helpers, order lifecycle, logging utilities.
@@ -27,14 +28,16 @@ This document summarizes the current architecture, workflows, and guardrails for
 ### 2.1 Fractal Strategy Contexts
 | Context | Purpose | Inputs |
 | --- | --- | --- |
-| Base | Executes on `Strategy_Timeframe`. `Strategy_Base_Mode` now lets you pick the Bollinger Percent confirmation style: `TREND_BPERCENT_WINDOW` trades the discount window bias, `TREND_BPERCENT_MEAN` focuses on the mean-trend rejection, and `TREND_BPERCENT_WINDOW_AND_MEAN` requires both, each optionally paired with the shared Alligator branch. The Alligator menu splits into jaws (`TREND_ALLIGATOR_JAWS*`, legacy behaviour) and teeth (`TREND_ALLIGATOR_TEETH*`) branches; the latter enforce `lips > teeth > jaws` (bearish flips the inequality) and automatically reuse `Stoch_Structure_Period_Type` for both the Bollinger Percent lips and the Alligator lips so ATR, stochastic, and fast MA references stay aligned. `Base_Indicator_Percent` plus slope toggles (`Base_BPercent_Slope_Filter`, `Base_Stochastic_Slope_Filter`, `Base_Alligator_Slope_Filter`) mirror the trend context’s >=/<= guards, while `Alligator_Jaws_Period` (teeth keep reusing `Base_Indicator_Period_Type`) drive the Alligator branch. Structure filters, Fibonacci retests, and `Base_Fresh_Structure_Time` gate swings by snapshotting `first_structure_time` by default or `second_structure_time` whenever `Base_Second_Structure_Filter` is active so grids only open once per structure. | `services/trading_management/ea_inputs.mqh` |
+| Base | Executes on `Strategy_Timeframe`. `Strategy_Base_Entry_Mode` chooses the Bollinger confirmation (window, mean, both, or `ENTRY_OFF`) while `Strategy_Base_Trend_Mode` toggles the Alligator branch (`TREND_OFF`, jaws, or teeth). Slope toggles (`Base_BPercent_Slope_Filter`, `Base_Stochastic_Slope_Filter`, `Base_Alligator_Slope_Filter`) use the same >=/<= guards as the higher contexts, and `Base_Indicator_Percent` (optionally overridden by `Global_Indicator_Percent`) feeds the Bollinger branch. Structure filters, Fibonacci retests, and `Base_Fresh_Structure_Time` gate swings by snapshotting `first_structure_time` by default or `second_structure_time` whenever `Base_Second_Structure_Filter` is active so grids only open once per structure. | `services/trading_management/ea_inputs.mqh` |
 | | `Base_Channel_MA_Filter` optionally blocks new signals whenever the Alligator MA used by the base mode (lips for teeth modes, teeth for jaws modes) sits inside the ATR/Keltner channel on the strategy timeframe, so only clean trends spawn grids. |
-| Trend | Optional higher timeframe. Set `Trend_Strategy_Timeframe = PERIOD_CURRENT` to disable. `Strategy_Trend_Mode` mirrors the same expanded menu of Bollinger-window confirmations and jaws/teeth Alligator combinations, so you can enforce window bias only, mean rejection only, both, or any Alligator/BPercent pairing. `Trend_BPercent_Slope_Filter`, `Trend_Stochastic_Slope_Filter`, and `Trend_Alligator_Slope_Filter` gate simple shift-0 slope checks (bullish ≥, bearish ≤). The shared Alligator inputs keep jaws/lips synchronized, and slope/structure/fresh guards mirror the base context, including `Trend_Fresh_Structure_Time` switching to `second_structure_time` when the second structure filter is enabled. | Same |
+| Trend | Optional higher timeframe. Set `Trend_Strategy_Timeframe = PERIOD_CURRENT` to disable. `Strategy_Trend_Entry_Mode` mirrors the base Bollinger menu while `Strategy_Trend_Trend_Mode` picks the Alligator branch, so you can enforce window bias only, mean rejection only, both, or any Alligator/BPercent pairing. `Trend_BPercent_Slope_Filter`, `Trend_Stochastic_Slope_Filter`, `Trend_Alligator_Slope_Filter`, channel MA filters, and structure/fresh guards mirror the base context, including `Trend_Fresh_Structure_Time` switching to `second_structure_time` when the second structure filter is enabled. | Same |
 | | Enable `Trend_Channel_MA_Filter` to apply the same Alligator-vs-channel guard on the trend timeframe so SAR/trend confirmations wait until the trend MA escapes the volatility envelope before authorizing a new sequence. |
-| Macro | Optional higher timeframe (e.g., swing H1/H4) with its own `Strategy_Macro_Mode`, indicator percent, slope toggles, channel MA filter, and structure/fresh guards (`Macro_*` inputs mirror the base set). `Macro_Strategy_Timeframe = PERIOD_CURRENT` disables the layer entirely. | Same |
-| Session | Optional intraday context (e.g., M15/M30) via `Strategy_Session_Mode`, letting you enforce session-specific confirmations. Includes the same slope/channel/structure/fresh toggles via the `Session_*` inputs and is disabled when `Session_Strategy_Timeframe = PERIOD_CURRENT`. | Same |
+| Macro | Optional higher timeframe (e.g., swing H1/H4) with its own `Strategy_Macro_Entry_Mode` / `Strategy_Macro_Trend_Mode`, indicator percent, slope toggles, channel MA filter, and structure/fresh guards (`Macro_*` inputs mirror the base set). `Macro_Strategy_Timeframe = PERIOD_CURRENT` disables the layer entirely. | Same |
+| Session | Optional intraday context (e.g., M15/M30) via `Strategy_Session_Entry_Mode` / `Strategy_Session_Trend_Mode`, letting you enforce session-specific confirmations. Includes the same slope/channel/structure/fresh toggles via the `Session_*` inputs and is disabled when `Session_Strategy_Timeframe = PERIOD_CURRENT`. | Same |
 
-`EvaluateSignalTrigger()` merges both contexts: Bollinger breakout, slope requirement, structure retests, and the “fresh structure” timestamp guard so each swing is traded once per direction.
+`Global_Indicator_Percent` (default `-1`) overrides every context’s Bollinger percent input whenever you need to sweep a single threshold during parameter searches.
+
+`StrategyContextEvaluateEntry()` applies the context’s Bollinger breakout (when enabled), slope requirements, structure retests, and the “fresh structure” timestamp guard so each swing is traded once per direction before the cascade allows the next grid.
 
 ### 2.2 Grid Framework
 - **Spacing**: `ATR_RANGE` vs `POINTS_RANGE`. ATR mode clamps the recalculated base distance so it can’t be smaller than the last realised spacing (prevents hyper-aggressive levels when ATR contracts).
@@ -71,12 +74,13 @@ This document summarizes the current architecture, workflows, and guardrails for
    - `broker_constraints_helper` caches freeze/stop distances per symbol.
 
 2. **Signal Admission**
-   - `CanAttemptSignal()` checks protection risk, market status, indicator availability, the selected concurrency mode, and (if enabled) debug equity/insufficient-funds conditions.
-   - `LoadTrendStructureData()` seeds `SignalParams` with trend data when the trend layer is active.
-   - `EvaluateSignalTrigger()` runs breakout + slope + structure/fresh validations and persists the structure timestamps used to gate future trades.
+   - `DetectStrategySignals()` walks the contexts in session → macro → trend → base order. Each layer is evaluated only when `iTime(_Symbol, context_tf, 0)` advances, so higher timeframes no longer spam redundant computations.
+   - `CaptureContextIndicators()` hydrates a `StrategyContextIndicators` snapshot with Bollinger/Alligator/Stochastic/structure data only when the context’s entry mode, slope toggles, channel MA filter, or fresh-structure guard require them.
+   - `StrategyContextEvaluateTrend()` updates the cascade state for that context, `StrategyCascadeAllowsSignal()` ensures lower contexts only fire when upstream trend modes are green, and `StrategyContextEvaluateEntry()` enforces the Bollinger breakout (when enabled), slope checks, structure retests, and fresh-structure timestamps per context. `StrategyContextChannelMaFilterAllowsSignal()` applies the optional Alligator-vs-channel guard on the same timeframe.
+   - When the cascade, entry, and channel guard succeed (and `CanAttemptSignal()` approves direction/daily/concurrency limits) the context hands the request to the grid planner.
 
 3. **Grid Planning**
-   - `BuildGridSignalPoints()` resolves base distance (ATR or points) and clamps ATR spacing relative to the latest realised level. Entry offsets respect broker distances.
+   - `BuildGridSignalPoints()` resolves base distance (ATR or points) using the signal’s context timeframe and clamps ATR spacing relative to the latest realised level. Entry offsets respect broker distances.
    - `ResolveGridOrderLotSize()` calculates lots per level, accounting for percent/currency budgets and the `GRID_LOT_CALCULATED` martingale mode.
 
 4. **Order Lifecycle**
@@ -87,7 +91,7 @@ This document summarizes the current architecture, workflows, and guardrails for
 5. **Protection & Telemetry**
    - `ProtectionRiskFilter` enforces drawdown guard, market close guard, and daily lock.
    - `market_status_controller` coordinates `ACTIVE / CLOSE_GUARD / BROKER_CLOSEONLY / BROKER_DISABLED` transitions and pending force closes.
-   - `grid_visualization` mirrors backend state on chart objects; `Comment()` prints status summary (`Enabled/Disabled`, magic number, market status, running grid stats).
+   - `grid_visualization` mirrors backend state on chart objects; `Comment()` prints status summary (`Enabled/Disabled`, magic number, market status, running grid stats) and now annotates each grid with its context label/timeframe (e.g., `BULL BASE@M1`).
 
 ---
 

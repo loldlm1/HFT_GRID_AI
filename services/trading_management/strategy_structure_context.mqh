@@ -200,4 +200,215 @@ inline bool SessionContextEnabled()
   return (Session_Strategy_Timeframe != PERIOD_CURRENT);
 }
 
+inline string StrategyContextLabel(const StrategyContextTypes context)
+{
+  switch(context)
+  {
+    case CONTEXT_SLOT_BASE:
+      return "BASE";
+    case CONTEXT_SLOT_TREND:
+      return "TREND";
+    case CONTEXT_SLOT_MACRO:
+      return "MACRO";
+    case CONTEXT_SLOT_SESSION:
+      return "SESSION";
+  }
+  return "BASE";
+}
+
+inline bool StrategyContextEnabled(const StrategyContextTypes context)
+{
+  switch(context)
+  {
+    case CONTEXT_SLOT_BASE:
+      return true;
+    case CONTEXT_SLOT_TREND:
+      return TrendContextEnabled();
+    case CONTEXT_SLOT_MACRO:
+      return MacroContextEnabled();
+    case CONTEXT_SLOT_SESSION:
+      return SessionContextEnabled();
+  }
+  return false;
+}
+
+inline StrategyEntryModes StrategyContextEntryMode(const StrategyContextTypes context)
+{
+  switch(context)
+  {
+    case CONTEXT_SLOT_BASE:
+      return Strategy_Base_Entry_Mode;
+    case CONTEXT_SLOT_TREND:
+      return Strategy_Trend_Entry_Mode;
+    case CONTEXT_SLOT_MACRO:
+      return Strategy_Macro_Entry_Mode;
+    case CONTEXT_SLOT_SESSION:
+      return Strategy_Session_Entry_Mode;
+  }
+  return ENTRY_OFF;
+}
+
+inline StrategyTrendModes StrategyContextTrendMode(const StrategyContextTypes context)
+{
+  switch(context)
+  {
+    case CONTEXT_SLOT_BASE:
+      return Strategy_Base_Trend_Mode;
+    case CONTEXT_SLOT_TREND:
+      return Strategy_Trend_Trend_Mode;
+    case CONTEXT_SLOT_MACRO:
+      return Strategy_Macro_Trend_Mode;
+    case CONTEXT_SLOT_SESSION:
+      return Strategy_Session_Trend_Mode;
+  }
+  return TREND_OFF;
+}
+
+inline double StrategyContextIndicatorPercent(const StrategyContextTypes context)
+{
+  if(Global_Indicator_Percent >= 0.0)
+    return Global_Indicator_Percent;
+
+  switch(context)
+  {
+    case CONTEXT_SLOT_BASE:
+      return Base_Indicator_Percent;
+    case CONTEXT_SLOT_TREND:
+      return Trend_Indicator_Percent;
+    case CONTEXT_SLOT_MACRO:
+      return Macro_Indicator_Percent;
+    case CONTEXT_SLOT_SESSION:
+      return Session_Indicator_Percent;
+  }
+  return -1.0;
+}
+
+inline bool StrategyContextChannelFilterEnabled(const StrategyContextTypes context)
+{
+  switch(context)
+  {
+    case CONTEXT_SLOT_BASE:
+      return Base_Channel_MA_Filter;
+    case CONTEXT_SLOT_TREND:
+      return Trend_Channel_MA_Filter;
+    case CONTEXT_SLOT_MACRO:
+      return Macro_Channel_MA_Filter;
+    case CONTEXT_SLOT_SESSION:
+      return Session_Channel_MA_Filter;
+  }
+  return false;
+}
+
+inline bool StrategyContextBPercentSlopeEnabled(const StrategyContextTypes context)
+{
+  switch(context)
+  {
+    case CONTEXT_SLOT_BASE:
+      return Base_BPercent_Slope_Filter;
+    case CONTEXT_SLOT_TREND:
+      return Trend_BPercent_Slope_Filter;
+    case CONTEXT_SLOT_MACRO:
+      return Macro_BPercent_Slope_Filter;
+    case CONTEXT_SLOT_SESSION:
+      return Session_BPercent_Slope_Filter;
+  }
+  return false;
+}
+
+inline bool StrategyContextStochasticSlopeEnabled(const StrategyContextTypes context)
+{
+  switch(context)
+  {
+    case CONTEXT_SLOT_BASE:
+      return Base_Stochastic_Slope_Filter;
+    case CONTEXT_SLOT_TREND:
+      return Trend_Stochastic_Slope_Filter;
+    case CONTEXT_SLOT_MACRO:
+      return Macro_Stochastic_Slope_Filter;
+    case CONTEXT_SLOT_SESSION:
+      return Session_Stochastic_Slope_Filter;
+  }
+  return false;
+}
+
+inline bool StrategyContextAlligatorSlopeEnabled(const StrategyContextTypes context)
+{
+  switch(context)
+  {
+    case CONTEXT_SLOT_BASE:
+      return Base_Alligator_Slope_Filter;
+    case CONTEXT_SLOT_TREND:
+      return Trend_Alligator_Slope_Filter;
+    case CONTEXT_SLOT_MACRO:
+      return Macro_Alligator_Slope_Filter;
+    case CONTEXT_SLOT_SESSION:
+      return Session_Alligator_Slope_Filter;
+  }
+  return false;
+}
+
+inline bool StrategyContextFreshStructureEnabled(const StrategyContextTypes context)
+{
+  switch(context)
+  {
+    case CONTEXT_SLOT_BASE:
+      return Base_Fresh_Structure_Time;
+    case CONTEXT_SLOT_TREND:
+      return Trend_Fresh_Structure_Time;
+    case CONTEXT_SLOT_MACRO:
+      return Macro_Fresh_Structure_Time;
+    case CONTEXT_SLOT_SESSION:
+      return Session_Fresh_Structure_Time;
+  }
+  return false;
+}
+
+inline ENUM_TIMEFRAMES StrategyContextTimeframe(const StrategyContextTypes context)
+{
+  switch(context)
+  {
+    case CONTEXT_SLOT_BASE:
+      return Strategy_Timeframe;
+    case CONTEXT_SLOT_TREND:
+      return (Trend_Strategy_Timeframe == PERIOD_CURRENT) ? Strategy_Timeframe : Trend_Strategy_Timeframe;
+    case CONTEXT_SLOT_MACRO:
+      return (Macro_Strategy_Timeframe == PERIOD_CURRENT) ? Strategy_Timeframe : Macro_Strategy_Timeframe;
+    case CONTEXT_SLOT_SESSION:
+      return (Session_Strategy_Timeframe == PERIOD_CURRENT) ? Strategy_Timeframe : Session_Strategy_Timeframe;
+  }
+  return Strategy_Timeframe;
+}
+
+inline ENUM_TIMEFRAMES StrategyContextStructureTimeframe(const StrategyContextTypes context)
+{
+  switch(context)
+  {
+    case CONTEXT_SLOT_BASE:
+      return Strategy_Timeframe;
+    case CONTEXT_SLOT_TREND:
+      return StrategyContextTimeframe(CONTEXT_SLOT_TREND);
+    case CONTEXT_SLOT_MACRO:
+      return StrategyContextTimeframe(CONTEXT_SLOT_MACRO);
+    case CONTEXT_SLOT_SESSION:
+      return StrategyContextTimeframe(CONTEXT_SLOT_SESSION);
+  }
+  return Strategy_Timeframe;
+}
+
+inline StrategyStructureLayerContext BuildStructureLayerForContext(const StrategyContextTypes context)
+{
+  switch(context)
+  {
+    case CONTEXT_SLOT_BASE:
+      return BuildBaseStructureLayerContext();
+    case CONTEXT_SLOT_TREND:
+      return BuildTrendStructureLayerContext();
+    case CONTEXT_SLOT_MACRO:
+      return BuildMacroStructureLayerContext();
+    case CONTEXT_SLOT_SESSION:
+      return BuildSessionStructureLayerContext();
+  }
+  return BuildBaseStructureLayerContext();
+}
+
 #endif // _SERVICES_TRADING_MANAGEMENT_STRATEGY_STRUCTURE_CONTEXT_MQH_
