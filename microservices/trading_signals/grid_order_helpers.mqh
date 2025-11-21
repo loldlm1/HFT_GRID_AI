@@ -113,7 +113,15 @@ string GridComposeLevelComment(const SignalParams &signal_params,
 {
   string direction_label = (signal_params.signal_type == BULLISH) ? "B" : "S";
   string time_label      = IntegerToString((long)signal_params.entry_time);
-  return StringFormat("GRID_%s_%s_L%d", direction_label, time_label, order_state.level_index);
+  ENUM_TIMEFRAMES tf = signal_params.strategy_timeframe;
+  if(tf == PERIOD_CURRENT)
+    tf = Strategy_Timeframe;
+  string tf_label = EnumToString(tf);
+  return StringFormat("GRID_%s_%s_%s_L%d",
+                      direction_label,
+                      tf_label,
+                      time_label,
+                      order_state.level_index);
 }
 
 ENUM_TIMEFRAMES GridResolveTrailingStrategyTimeframe()
