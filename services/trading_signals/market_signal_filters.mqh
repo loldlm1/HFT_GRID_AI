@@ -368,15 +368,16 @@ bool StrategyContextEvaluateTrend(const StrategyContextIndicators &snapshot,
 bool StrategyContextEvaluateEntry(const StrategyContextIndicators &snapshot,
                                   const SignalTypes direction,
                                   datetime &structure_capture_time,
-                                  bool &entry_allows)
+                                  bool &entry_allows,
+                                  bool &filters_pass)
 {
   structure_capture_time = 0;
   entry_allows = false;
+  filters_pass = false;
 
   StrategyContextTypes context = snapshot.context;
   StrategyEntryModes entry_mode = StrategyContextEntryMode(context);
-  if(entry_mode == ENTRY_OFF)
-    return true;
+  bool entry_mode_disabled = (entry_mode == ENTRY_OFF);
 
   double percent_threshold = StrategyContextIndicatorPercent(context);
   bool entry_required = EntryModeUsesAnyBPercent(entry_mode);
@@ -396,7 +397,7 @@ bool StrategyContextEvaluateEntry(const StrategyContextIndicators &snapshot,
                                                 NO_SLOPE);
     if(!bpercent_pass)
     {
-      entry_allows = false;
+      filters_pass = false;
       return true;
     }
   }
@@ -409,7 +410,7 @@ bool StrategyContextEvaluateEntry(const StrategyContextIndicators &snapshot,
                                  snapshot.bpercent_data.bands_percent_1,
                                  direction))
     {
-      entry_allows = false;
+      filters_pass = false;
       return true;
     }
   }
@@ -422,7 +423,7 @@ bool StrategyContextEvaluateEntry(const StrategyContextIndicators &snapshot,
                                  snapshot.stochastic_data.stochastic_1,
                                  direction))
     {
-      entry_allows = false;
+      filters_pass = false;
       return true;
     }
   }
@@ -435,7 +436,7 @@ bool StrategyContextEvaluateEntry(const StrategyContextIndicators &snapshot,
                                  snapshot.alligator_data.teeth_prev_value,
                                  direction))
     {
-      entry_allows = false;
+      filters_pass = false;
       return true;
     }
   }
@@ -443,13 +444,13 @@ bool StrategyContextEvaluateEntry(const StrategyContextIndicators &snapshot,
   StrategyStructureLayerContext structure_ctx = BuildStructureLayerForContext(context);
   if(!EvaluateStructureRetestTrigger(snapshot, direction, structure_ctx))
   {
-    entry_allows = false;
+    filters_pass = false;
     return true;
   }
 
   if(!EvaluateStructureTypeFilters(snapshot, structure_ctx, direction))
   {
-    entry_allows = false;
+    filters_pass = false;
     return true;
   }
 
@@ -459,14 +460,25 @@ bool StrategyContextEvaluateEntry(const StrategyContextIndicators &snapshot,
                                       direction,
                                       structure_capture_time))
   {
+    filters_pass = false;
+    return true;
+  }
+
+  filters_pass = true;
+
+  if(entry_mode_disabled)
+  {
     entry_allows = false;
     return true;
   }
 
   if(entry_on_trend)
+  {
     entry_allows = TrendModeUsesAlligator(trend_mode);
-  else
-    entry_allows = (!entry_required || percent_threshold < 0.0 || bpercent_pass);
+    return true;
+  }
+
+  entry_allows = (!entry_required || percent_threshold < 0.0 || bpercent_pass);
   return true;
 }
 
