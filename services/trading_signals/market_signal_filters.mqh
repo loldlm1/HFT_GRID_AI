@@ -424,13 +424,13 @@ bool StrategyContextEvaluateEntry(const StrategyContextIndicators &snapshot,
   StrategyStructureLayerContext structure_ctx = BuildStructureLayerForContext(context);
   if(!EvaluateStructureRetestTrigger(snapshot, direction, structure_ctx))
   {
-    filters_pass = false;
+    entry_allows = false;
     return true;
   }
 
   if(!EvaluateStructureTypeFilters(snapshot, structure_ctx, direction))
   {
-    filters_pass = false;
+    entry_allows = false;
     return true;
   }
 
