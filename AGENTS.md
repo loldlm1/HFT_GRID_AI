@@ -15,6 +15,7 @@ This document summarizes the current architecture, workflows, and guardrails for
   - `services/trading_signals/market_signal_filters.mqh`: Hosts Bollinger/Alligator trigger math plus structure retest/type filtering, slope helpers, and the shared context evaluators.
   - `services/trading_signals/market_signal_detection.mqh`: Cascaded bullish/bearish admission flow that only evaluates a context when its timeframe prints a new bar, updates the cascade state, runs the grid planner, and registers the signal.
   - `services/trading_signals/market_signal_cleanup.mqh`: Removes chart objects and finalizes state when a grid closes.
+  - `services/trading_signals/session_time_filter_manager.mqh`: Parses the Asia/London/NY input windows, blocks new signals outside active sessions, and optionally schedules force-closes when a session ends.
   - `services/trading_signals/*` (remaining files): Grid planner, order controller, protection filter, telemetry.
   - `microservices/*`: Broker helpers, order lifecycle, logging utilities.
   - `services/frontend/*`: Chart overlays and status comment.
@@ -77,6 +78,7 @@ This document summarizes the current architecture, workflows, and guardrails for
    - `DetectStrategySignals()` walks the contexts in session → macro → trend → base order. Each layer is evaluated only when `iTime(_Symbol, context_tf, 0)` advances, so higher timeframes no longer spam redundant computations.
    - `CaptureContextIndicators()` hydrates a `StrategyContextIndicators` snapshot with Bollinger/Alligator/Stochastic/structure data only when the context’s entry mode, slope toggles, channel MA filter, or fresh-structure guard require them.
    - `StrategyContextEvaluateTrend()` updates the cascade state for that context, `StrategyCascadeAllowsSignal()` ensures lower contexts only fire when upstream trend modes are green, and `StrategyContextEvaluateEntry()` enforces the Bollinger breakout (when enabled), slope checks, structure retests, and fresh-structure timestamps per context. `StrategyContextChannelMaFilterAllowsSignal()` applies the optional Alligator-vs-channel guard on the same timeframe.
+   - `SessionTimeFilterAllowsSignalAttempt()` (backed by the new manager) runs after protection/debug checks so new grids are only authorized inside enabled session windows. `SESSION_FILTER_FORCE_CLOSE` windows also schedule a force-close when their timer expires, while `SESSION_FILTER_ALLOW_RUN` lets existing grids finish.
    - When the cascade, entry, and channel guard succeed (and `CanAttemptSignal()` approves direction/daily/concurrency limits) the context hands the request to the grid planner.
 
 3. **Grid Planning**

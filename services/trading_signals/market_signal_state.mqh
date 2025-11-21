@@ -379,6 +379,9 @@ bool CanAttemptSignal(const SignalTypes signal_type)
   if(!DebugEquityGuardAllowsProcessing())
     return false;
 
+  if(!SessionTimeFilterAllowsSignalAttempt())
+    return false;
+
   if(!DailySignalLimitAllowsAttempt(signal_type))
   {
     if(Enable_Logs)

@@ -27,6 +27,14 @@ input double                   Protection_Risk_Drawdown_Value = 10.0;
 input double                   Account_Size                   = 500.0;
 input ENUM_TIMEFRAMES          Market_Close_Guard_Timeframe   = PERIOD_M10;
 
+input group  "+= Time Filter Session Manager =+";
+input SessionTimeFilterModes Session_Asia_Filter_Mode      = SESSION_FILTER_OFF;
+input string                 Session_Asia_Filter_Time_Range = "00:00-08:00";
+input SessionTimeFilterModes Session_London_Filter_Mode    = SESSION_FILTER_OFF;
+input string                 Session_London_Filter_Time_Range = "07:00-12:00";
+input SessionTimeFilterModes Session_NewYork_Filter_Mode   = SESSION_FILTER_OFF;
+input string                 Session_NewYork_Filter_Time_Range = "12:00-20:00";
+
 input group  "+= Strategy Context =+";
 input ENUM_TIMEFRAMES           Strategy_Timeframe          = PERIOD_M1;
 input ENUM_TIMEFRAMES           Trend_Strategy_Timeframe    = PERIOD_CURRENT;
