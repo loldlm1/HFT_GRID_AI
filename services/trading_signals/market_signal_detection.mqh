@@ -62,17 +62,13 @@ void EvaluateContextSignals(const StrategyContextTypes context)
     if(!DirectionAllowed(direction))
       continue;
 
-    StrategyTrendModes trend_mode = StrategyContextTrendMode(context);
-    if(TrendModeUsesAlligator(trend_mode) && !ContextTrendSatisfied(context, direction))
+    if(!cascade_pass)
       continue;
 
     if(!StrategyCascadeAllowsSignal(context, direction))
       continue;
 
     if(!entry_allows)
-      continue;
-
-    if(!channel_state)
       continue;
 
     if(!CanAttemptSignal(direction))
