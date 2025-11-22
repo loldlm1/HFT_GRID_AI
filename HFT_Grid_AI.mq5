@@ -122,13 +122,23 @@ void OnTick()
   DebugEquityGuardAllowsProcessing();
   ProtectionRiskMonitorTradeMode();
   ProtectionRiskFilterTick();
-  SessionTimeFilterMonitorRuntime();
-  SessionTimeFilterProcessPendingForceCloses();
-  g_ea_running                          = true;
-  static datetime next_bar_open        = 0;
-  datetime        current_time         = TimeCurrent();
-  datetime        current_daily_time   = iTime(_Symbol, PERIOD_D1, 0);
-  int              defined_tick_seconds = PeriodSeconds(_Period);
+  g_ea_running                            = true;
+  static datetime next_bar_open           = 0;
+  static datetime next_minute_bar_open    = 0;
+  datetime        current_time            = TimeCurrent();
+  datetime        current_daily_time      = iTime(_Symbol, PERIOD_D1, 0);
+  int             defined_tick_seconds    = PeriodSeconds(_Period);
+  int             defined_tick_M1_seconds = PeriodSeconds(PERIOD_M1);
+
+  // SESSION TIME FILTER CHECKS - PER MINUTE INSTEAD OF PER TICK
+  if(current_time>=next_minute_bar_open)
+  {
+    SessionTimeFilterMonitorRuntime();
+    SessionTimeFilterProcessPendingForceCloses();
+    next_minute_bar_open=current_time;
+    next_minute_bar_open-=next_minute_bar_open%defined_tick_M1_seconds;
+    next_minute_bar_open+=defined_tick_M1_seconds;
+  }
 
   // AVOID TICK SEQUENCE WHEN CRAZY TICKS AND MARKET IS CLOSED
   if(g_points_spread > Max_Spread || !IsMarketOpen())
