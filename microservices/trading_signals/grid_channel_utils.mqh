@@ -12,19 +12,41 @@ const int KELTNER_BUFFER_RESISTANCE = 13;
 const int KELTNER_BUFFER_MIDDLE     = 14;
 const int KELTNER_BUFFER_SUPPORT    = 15;
 
+const int BOLLINGER_BUFFER_RESISTANCE = 0;
+const int BOLLINGER_BUFFER_MIDDLE     = 1;
+const int BOLLINGER_BUFFER_SUPPORT    = 2;
+
+inline GridBaseStrategyTypes ResolveStrategyChannelType()
+{
+  switch(Strategy_Channel_Indicator_Type)
+  {
+    case CHANNEL_INDICATOR_KELTNER:
+      return KELTNER_RANGE;
+    case CHANNEL_INDICATOR_ATR:
+      return ATR_RANGE;
+    case CHANNEL_INDICATOR_BOLLINGER:
+    default:
+      return BOLLINGER_RANGE;
+  }
+}
+
+inline GridBaseStrategyTypes ResolveEffectiveChannelStrategy()
+{
+  if(Grid_Base_Strategy_Type == CHANNEL_INDICATOR_RANGE)
+    return ResolveStrategyChannelType();
+  return Grid_Base_Strategy_Type;
+}
+
 inline bool GridStrategyUsesChannelIndicator()
 {
-  return (Grid_Base_Strategy_Type == ATR_RANGE ||
-          Grid_Base_Strategy_Type == KELTNER_RANGE);
+  return (Grid_Base_Strategy_Type != POINTS_RANGE);
 }
 
 inline GridBaseStrategyTypes ResolveActiveChannelStrategy()
 {
-  if(Grid_Base_Strategy_Type == KELTNER_RANGE)
-    return KELTNER_RANGE;
-  if(Grid_Base_Strategy_Type == ATR_RANGE)
-    return ATR_RANGE;
-  return ATR_RANGE;
+  if(Grid_Base_Strategy_Type == POINTS_RANGE)
+    return ResolveStrategyChannelType();
+  return ResolveEffectiveChannelStrategy();
 }
 
 double GridChannelResolvePointSize()
@@ -44,9 +66,12 @@ bool GridCopyChannelBufferValue(const GridBaseStrategyTypes channel_type,
   price_out = 0.0;
 
   int total_handles = 0;
+  IndicatorsHandleInfo info;
 
   if(channel_type == KELTNER_RANGE)
     total_handles = ArraySize(ExtKeltnerIndicatorsHandle);
+  else if(channel_type == BOLLINGER_RANGE)
+    total_handles = ArraySize(ExtBandsIndicatorsHandle);
   else
     total_handles = ArraySize(ExtATRIndicatorsHandle);
 
@@ -55,15 +80,18 @@ bool GridCopyChannelBufferValue(const GridBaseStrategyTypes channel_type,
 
   for(int i = 0; i < total_handles; i++)
   {
-    IndicatorsHandleInfo info = (channel_type == KELTNER_RANGE)
-                                  ? ExtKeltnerIndicatorsHandle[i]
-                                  : ExtATRIndicatorsHandle[i];
+    if(channel_type == KELTNER_RANGE)
+      info = ExtKeltnerIndicatorsHandle[i];
+    else if(channel_type == BOLLINGER_RANGE)
+      info = ExtBandsIndicatorsHandle[i];
+    else
+      info = ExtATRIndicatorsHandle[i];
     if(info.indicator_timeframe != timeframe)
       continue;
 
     double buffer_values[];
     if(CopyBuffer(info.indicator_handle,
-                  buffer_index,
+                  0,
                   shift,
                   1,
                   buffer_values) <= 0)
@@ -86,7 +114,9 @@ bool GridResolveChannelLinePrice(const GridBaseStrategyTypes channel_type,
                                  double &price_out,
                                  const int shift = 0)
 {
-  GridBaseStrategyTypes resolved_type = (channel_type == KELTNER_RANGE) ? KELTNER_RANGE : ATR_RANGE;
+  GridBaseStrategyTypes resolved_type = channel_type;
+  if(resolved_type == CHANNEL_INDICATOR_RANGE)
+    resolved_type = ResolveStrategyChannelType();
 
   int buffer_index = ATR_BUFFER_SMA_SUPPORT;
   if(resolved_type == ATR_RANGE)
@@ -98,7 +128,7 @@ bool GridResolveChannelLinePrice(const GridBaseStrategyTypes channel_type,
     else
       buffer_index = ATR_BUFFER_SMA_MIDDLE;
   }
-  else
+  else if(resolved_type == KELTNER_RANGE)
   {
     if(line_type == GRID_CHANNEL_LINE_RESISTANCE)
       buffer_index = KELTNER_BUFFER_RESISTANCE;
@@ -106,6 +136,15 @@ bool GridResolveChannelLinePrice(const GridBaseStrategyTypes channel_type,
       buffer_index = KELTNER_BUFFER_SUPPORT;
     else
       buffer_index = KELTNER_BUFFER_MIDDLE;
+  }
+  else if(resolved_type == BOLLINGER_RANGE)
+  {
+    if(line_type == GRID_CHANNEL_LINE_RESISTANCE)
+      buffer_index = BOLLINGER_BUFFER_RESISTANCE;
+    else if(line_type == GRID_CHANNEL_LINE_SUPPORT)
+      buffer_index = BOLLINGER_BUFFER_SUPPORT;
+    else
+      buffer_index = BOLLINGER_BUFFER_MIDDLE;
   }
 
   return GridCopyChannelBufferValue(resolved_type,

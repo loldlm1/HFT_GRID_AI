@@ -802,9 +802,7 @@ bool GridSignalChannelGuardSatisfied(const SignalParams &signal_params,
   if(entry_reference_price <= 0.0)
     return true;
 
-  GridBaseStrategyTypes channel_type = (Grid_Base_Strategy_Type == KELTNER_RANGE)
-                                         ? KELTNER_RANGE
-                                         : ATR_RANGE;
+  GridBaseStrategyTypes channel_type = ResolveActiveChannelStrategy();
 
   if(!GridResolveChannelGuardPoints(channel_type,
                                     signal_params.signal_type,

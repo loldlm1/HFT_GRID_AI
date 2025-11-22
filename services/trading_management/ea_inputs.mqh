@@ -115,7 +115,7 @@ input bool                        Session_Alligator_Slope_Filter       = false;
 input bool                        Session_Channel_MA_Filter            = false;
 
 input group  "+= Grid Strategy Settings =+";
-input GridBaseStrategyTypes Grid_Base_Strategy_Type      = ATR_RANGE;
+input GridBaseStrategyTypes Grid_Base_Strategy_Type      = CHANNEL_INDICATOR_RANGE;
 input double                Grid_Points_Range_Setup      = 100.0;
 input double                Grid_Channel_Factor          = 1.0;
 input double                Grid_Points_TP               = 0.0;
