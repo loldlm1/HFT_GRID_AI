@@ -5,12 +5,12 @@
 #define _MICROSERVICES_TRADING_SIGNALS_GRID_CHANNEL_UTILS_MQH_
 
 const int ATR_BUFFER_SMA_RESISTANCE = 0;
-const int ATR_BUFFER_SMA_SUPPORT    = 1;
 const int ATR_BUFFER_SMA_MIDDLE     = 2;
+const int ATR_BUFFER_SMA_SUPPORT    = 1;
 
-const int KELTNER_BUFFER_RESISTANCE = 13;
-const int KELTNER_BUFFER_MIDDLE     = 14;
-const int KELTNER_BUFFER_SUPPORT    = 15;
+const int KELTNER_BUFFER_RESISTANCE = 0;
+const int KELTNER_BUFFER_MIDDLE     = 1;
+const int KELTNER_BUFFER_SUPPORT    = 2;
 
 const int BOLLINGER_BUFFER_RESISTANCE = 0;
 const int BOLLINGER_BUFFER_MIDDLE     = 1;
@@ -91,7 +91,7 @@ bool GridCopyChannelBufferValue(const GridBaseStrategyTypes channel_type,
 
     double buffer_values[];
     if(CopyBuffer(info.indicator_handle,
-                  0,
+                  buffer_index,
                   shift,
                   1,
                   buffer_values) <= 0)
