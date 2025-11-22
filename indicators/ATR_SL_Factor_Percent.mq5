@@ -46,7 +46,7 @@ double ChannelUpperBuffer[];
 double ChannelMiddleBuffer[];
 double ChannelLowerBuffer[];
 double ExtATRBuffer[];
-double ExtTRBuffer[];
+int    ExtATRHandle = INVALID_HANDLE;
 
 int OnInit()
 {
@@ -71,9 +71,6 @@ int OnInit()
   SetIndexBuffer(14, ChannelMiddleBuffer, INDICATOR_CALCULATIONS);
   SetIndexBuffer(15, ChannelLowerBuffer, INDICATOR_CALCULATIONS);
 
-  ArrayResize(ExtTRBuffer, 0);
-  ArrayResize(ExtATRBuffer, 0);
-
   PlotIndexSetString(0, PLOT_LABEL, "Main");
   PlotIndexSetString(1, PLOT_LABEL, "Signal");
 
@@ -86,6 +83,18 @@ int OnInit()
   PlotIndexSetInteger(1, PLOT_SHIFT, ExtBandsShift);
 
   IndicatorSetInteger(INDICATOR_DIGITS, 2);
+
+  ExtATRHandle = iCustom(NULL,
+                         0,
+                         "Examples\\ATR_SL_Factor",
+                         ExtAtrPeriod,
+                         InpAtrFactor,
+                         ExtBandsShift);
+  if(ExtATRHandle == INVALID_HANDLE)
+  {
+    Print("Failed to create ATR SL Factor handle for percent indicator: ", GetLastError());
+    return INIT_FAILED;
+  }
 
   return(INIT_SUCCEEDED);
 }
@@ -104,71 +113,66 @@ int OnCalculate(const int rates_total,
   if(rates_total <= ExtAtrPeriod)
     return 0;
 
-  if(ArraySize(ExtTRBuffer) < rates_total)
-    ArrayResize(ExtTRBuffer, rates_total);
-  if(ArraySize(ExtATRBuffer) < rates_total)
-    ArrayResize(ExtATRBuffer, rates_total);
+  double upper_buffer[];
+  double lower_buffer[];
+  double middle_buffer[];
 
-  int start = (prev_calculated == 0) ? ExtAtrPeriod + 1 : prev_calculated - 1;
-  if(start < 1)
-    start = 1;
+  if(CopyBuffer(ExtATRHandle, 0, 0, rates_total, upper_buffer) <= 0)
+    return prev_calculated;
+  if(CopyBuffer(ExtATRHandle, 1, 0, rates_total, lower_buffer) <= 0)
+    return prev_calculated;
+  if(CopyBuffer(ExtATRHandle, 2, 0, rates_total, middle_buffer) <= 0)
+    return prev_calculated;
 
-  if(prev_calculated == 0)
+  ArraySetAsSeries(upper_buffer, true);
+  ArraySetAsSeries(lower_buffer, true);
+  ArraySetAsSeries(middle_buffer, true);
+
+  if(ExtPlotBegin != ExtAtrPeriod + 1)
   {
-    ExtTRBuffer[0] = 0.0;
-    ExtATRBuffer[0] = 0.0;
-
-    for(int i = 1; i < rates_total; i++)
-      ExtTRBuffer[i] = MathMax(high[i], close[i-1]) - MathMin(low[i], close[i-1]);
-
-    double first_value = 0.0;
-    for(int k = 1; k <= ExtAtrPeriod; k++)
-      first_value += ExtTRBuffer[k];
-    first_value /= ExtAtrPeriod;
-    ExtATRBuffer[ExtAtrPeriod] = first_value;
+    ExtPlotBegin = ExtAtrPeriod + 1;
+    PlotIndexSetInteger(0, PLOT_DRAW_BEGIN, ExtPlotBegin);
+    PlotIndexSetInteger(1, PLOT_DRAW_BEGIN, ExtPlotBegin);
   }
 
-  for(int i = start; i < rates_total; i++)
+  int start = (prev_calculated > 1) ? prev_calculated - 1 : ExtAtrPeriod;
+  if(start < ExtAtrPeriod)
+    start = ExtAtrPeriod;
+
+  for(int i = start; i < rates_total && !IsStopped(); i++)
   {
-    ExtTRBuffer[i] = MathMax(high[i], close[i-1]) - MathMin(low[i], close[i-1]);
-    ExtATRBuffer[i] = ExtATRBuffer[i-1] +
-                      (ExtTRBuffer[i] - ExtTRBuffer[i-ExtAtrPeriod]) / ExtAtrPeriod;
-  }
-
-  int pos = (prev_calculated > 1) ? prev_calculated - 1 : ExtAtrPeriod;
-  for(int i = pos; i < rates_total && !IsStopped(); i++)
-  {
-    ExtAppliedPriceBuffer[i] = GetAppliedPrice(i, open, close, high, low);
-
-    double body_high = MathMax(open[i], close[i]);
-    double body_low  = MathMin(open[i], close[i]);
-    double body_range = body_high - body_low;
-    double lower_wick = body_low - low[i];
-    double upper_wick = high[i] - body_high;
-    double lower_denom = MathMax(body_range + lower_wick, _Point);
-    double upper_denom = MathMax(body_range + upper_wick, _Point);
-    double lower_weight = lower_wick / lower_denom;
-    double upper_weight = upper_wick / upper_denom;
-    double long_anchor  = close[i] - (1.0 - lower_weight) * body_range;
-    double short_anchor = close[i] + (1.0 - upper_weight) * body_range;
-
-    double atr_value = ExtATRBuffer[i];
-    double upper = NormalizeDouble(short_anchor + atr_value * InpAtrFactor, _Digits);
-    double lower = NormalizeDouble(long_anchor  - atr_value * InpAtrFactor, _Digits);
-    double middle = NormalizeDouble((upper + lower) * 0.5, _Digits);
+    double upper = upper_buffer[i];
+    double lower = lower_buffer[i];
+    double middle = middle_buffer[i];
 
     ExtTLBuffer[i] = upper;
     ExtBLBuffer[i] = lower;
     ExtMLBuffer[i] = middle;
-    ChannelUpperBuffer[i] = upper;
-    ChannelLowerBuffer[i] = lower;
+    ChannelUpperBuffer[i]  = upper;
+    ChannelLowerBuffer[i]  = lower;
     ChannelMiddleBuffer[i] = middle;
+
+    if(upper == EMPTY_VALUE || lower == EMPTY_VALUE || middle == EMPTY_VALUE)
+    {
+      BLGBuffer[i]        = EMPTY_VALUE;
+      BBPMABuffer[i]      = EMPTY_VALUE;
+      ExtBBCloseBuffer[i] = EMPTY_VALUE;
+      ExtBBOpenBuffer[i]  = EMPTY_VALUE;
+      ExtBBHighBuffer[i]  = EMPTY_VALUE;
+      ExtBBLowBuffer[i]   = EMPTY_VALUE;
+      ExtPercentRangeHigh[i] = EMPTY_VALUE;
+      ExtPercentRangeLow[i]  = EMPTY_VALUE;
+      continue;
+    }
 
     double range = upper - lower;
     if(range == 0.0)
       range = _Point;
 
-    BLGBuffer[i] = NormalizeDouble((ExtAppliedPriceBuffer[i] - lower) / range * 100.0, 2);
+    ExtAppliedPriceBuffer[i] = close[i];
+    ExtATRBuffer[i]          = range;
+
+    BLGBuffer[i] = NormalizeDouble((close[i] - lower) / range * 100.0, 2);
     BBPMABuffer[i] = SimpleMA(i, InpPercentMAPeriod, BLGBuffer);
 
     ExtBBCloseBuffer[i] = NormalizeDouble((close[i] - lower) / range * 100.0, 2);
@@ -201,28 +205,11 @@ int OnCalculate(const int rates_total,
   return rates_total;
 }
 
-double MATypeCalc(const int position,const double &price[])
+void OnDeinit(const int reason)
 {
-  if(InpMAMethod == MODE_SMA) { return SimpleMA(position,ExtAtrPeriod,price); }
-  if(InpMAMethod == MODE_EMA) { return ExponentialMA(position,ExtAtrPeriod,ExtMLBuffer[position-1], price); }
-  if(InpMAMethod == MODE_SMMA) { return SmoothedMA(position,ExtAtrPeriod,ExtMLBuffer[position-1], price); }
-  if(InpMAMethod == MODE_LWMA) { return LinearWeightedMA(position,ExtAtrPeriod, price); }
-
-  return price[position];
-}
-
-double GetAppliedPrice(int i,const double &open[],const double &close[],const double &high[],const double &low[])
-{
-  switch(InpAppliedPrice)
+  if(ExtATRHandle != INVALID_HANDLE)
   {
-    case PRICE_CLOSE:     return(close[i]);
-    case PRICE_OPEN:      return(open[i]);
-    case PRICE_HIGH:      return(high[i]);
-    case PRICE_LOW:       return(low[i]);
-    case PRICE_MEDIAN:    return((high[i]+low[i])/2.0);
-    case PRICE_TYPICAL:   return((high[i]+low[i]+close[i])/3.0);
-    case PRICE_WEIGHTED:  return((high[i]+low[i]+close[i]+close[i])/4.0);
+    IndicatorRelease(ExtATRHandle);
+    ExtATRHandle = INVALID_HANDLE;
   }
-
-  return(close[i]);
 }

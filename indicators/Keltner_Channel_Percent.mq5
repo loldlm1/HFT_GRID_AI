@@ -46,7 +46,7 @@ double ChannelUpperBuffer[];
 double ChannelMiddleBuffer[];
 double ChannelLowerBuffer[];
 double ExtATRBuffer[];
-double ExtTrueRange[];
+int    ExtKeltnerHandle = INVALID_HANDLE;
 
 int OnInit()
 {
@@ -103,10 +103,6 @@ int OnInit()
   SetIndexBuffer(14, ChannelMiddleBuffer, INDICATOR_CALCULATIONS);
   SetIndexBuffer(15, ChannelLowerBuffer, INDICATOR_CALCULATIONS);
 
-  ArrayResize(ExtTrueRange, 0);
-  ArraySetAsSeries(ExtTrueRange, false);
-  ArrayResize(ExtATRBuffer, 0);
-
   PlotIndexSetString(0, PLOT_LABEL, "Main");
   PlotIndexSetString(1, PLOT_LABEL, "Signal");
 
@@ -120,6 +116,21 @@ int OnInit()
   PlotIndexSetInteger(1, PLOT_SHIFT, ExtBandsShift);
 
   IndicatorSetInteger(INDICATOR_DIGITS, 2);
+
+  ExtKeltnerHandle = iCustom(NULL,
+                             0,
+                             "Examples\\Keltner_Channel",
+                             ExtBandsPeriod,
+                             ExtBandsPeriod,
+                             ExtBandsShift,
+                             InpAtrFactor,
+                             InpMAMethod,
+                             InpAppliedPrice);
+  if(ExtKeltnerHandle == INVALID_HANDLE)
+  {
+    Print("Failed to create Keltner Channel handle for percent indicator: ", GetLastError());
+    return INIT_FAILED;
+  }
 
   return(INIT_SUCCEEDED);
 }
@@ -138,8 +149,20 @@ int OnCalculate(const int rates_total,
   if(rates_total < ExtBandsPeriod)
     return 0;
 
-  if(ArraySize(ExtTrueRange) < rates_total)
-    ArrayResize(ExtTrueRange, rates_total);
+  double upper_buffer[];
+  double middle_buffer[];
+  double lower_buffer[];
+
+  if(CopyBuffer(ExtKeltnerHandle, 0, 0, rates_total, upper_buffer) <= 0)
+    return prev_calculated;
+  if(CopyBuffer(ExtKeltnerHandle, 1, 0, rates_total, middle_buffer) <= 0)
+    return prev_calculated;
+  if(CopyBuffer(ExtKeltnerHandle, 2, 0, rates_total, lower_buffer) <= 0)
+    return prev_calculated;
+
+  ArraySetAsSeries(upper_buffer, true);
+  ArraySetAsSeries(middle_buffer, true);
+  ArraySetAsSeries(lower_buffer, true);
 
   if(ExtPlotBegin != ExtBandsPeriod + 1)
   {
@@ -148,30 +171,50 @@ int OnCalculate(const int rates_total,
     PlotIndexSetInteger(1, PLOT_DRAW_BEGIN, ExtPlotBegin);
   }
 
-  int pos = (prev_calculated > 1) ? prev_calculated - 1 : 1;
-  for(int i = pos; i < rates_total && !IsStopped(); i++)
+  int start = (prev_calculated > 1) ? prev_calculated - 1 : ExtBandsPeriod;
+  if(start < ExtBandsPeriod)
+    start = ExtBandsPeriod;
+
+  for(int i = start; i < rates_total && !IsStopped(); i++)
   {
-    ExtAppliedPriceBuffer[i] = GetAppliedPrice(i, open, close, high, low);
-    ExtMLBuffer[i] = MATypeCalc(i, ExtAppliedPriceBuffer);
+    double upper = upper_buffer[i];
+    double middle = middle_buffer[i];
+    double lower = lower_buffer[i];
 
-    double atr_value = CalcATRValue(i, high, low, close);
-    ExtTLBuffer[i] = NormalizeDouble(ExtMLBuffer[i] + InpAtrFactor * atr_value, _Digits);
-    ExtBLBuffer[i] = NormalizeDouble(ExtMLBuffer[i] - InpAtrFactor * atr_value, _Digits);
-    ChannelUpperBuffer[i] = ExtTLBuffer[i];
-    ChannelLowerBuffer[i] = ExtBLBuffer[i];
-    ChannelMiddleBuffer[i] = ExtMLBuffer[i];
+    ExtMLBuffer[i] = middle;
+    ExtTLBuffer[i] = upper;
+    ExtBLBuffer[i] = lower;
+    ChannelUpperBuffer[i]  = upper;
+    ChannelMiddleBuffer[i] = middle;
+    ChannelLowerBuffer[i]  = lower;
 
-    double range = ExtTLBuffer[i] - ExtBLBuffer[i];
+    if(upper == EMPTY_VALUE || lower == EMPTY_VALUE || middle == EMPTY_VALUE)
+    {
+      BLGBuffer[i]        = EMPTY_VALUE;
+      BBPMABuffer[i]      = EMPTY_VALUE;
+      ExtBBCloseBuffer[i] = EMPTY_VALUE;
+      ExtBBOpenBuffer[i]  = EMPTY_VALUE;
+      ExtBBHighBuffer[i]  = EMPTY_VALUE;
+      ExtBBLowBuffer[i]   = EMPTY_VALUE;
+      ExtPercentRangeHigh[i] = EMPTY_VALUE;
+      ExtPercentRangeLow[i]  = EMPTY_VALUE;
+      continue;
+    }
+
+    double range = upper - lower;
     if(range == 0.0)
       range = _Point;
 
-    BLGBuffer[i] = NormalizeDouble((ExtAppliedPriceBuffer[i] - ExtBLBuffer[i]) / range * 100.0, 2);
+    ExtAppliedPriceBuffer[i] = close[i];
+    ExtATRBuffer[i]          = range;
+
+    BLGBuffer[i] = NormalizeDouble((close[i] - lower) / range * 100.0, 2);
     BBPMABuffer[i] = SimpleMA(i, InpPercentMAPeriod, BLGBuffer);
 
-    ExtBBCloseBuffer[i] = NormalizeDouble((close[i] - ExtBLBuffer[i]) / range * 100.0, 2);
-    ExtBBOpenBuffer[i]  = NormalizeDouble((open[i]  - ExtBLBuffer[i]) / range * 100.0, 2);
-    ExtBBHighBuffer[i]  = NormalizeDouble((high[i]  - ExtBLBuffer[i]) / range * 100.0, 2);
-    ExtBBLowBuffer[i]   = NormalizeDouble((low[i]   - ExtBLBuffer[i]) / range * 100.0, 2);
+    ExtBBCloseBuffer[i] = NormalizeDouble((close[i] - lower) / range * 100.0, 2);
+    ExtBBOpenBuffer[i]  = NormalizeDouble((open[i]  - lower) / range * 100.0, 2);
+    ExtBBHighBuffer[i]  = NormalizeDouble((high[i]  - lower) / range * 100.0, 2);
+    ExtBBLowBuffer[i]   = NormalizeDouble((low[i]   - lower) / range * 100.0, 2);
 
     int range_from = i - ExtPercentRangeWindow + 1;
     if(range_from < 0)
@@ -198,89 +241,11 @@ int OnCalculate(const int rates_total,
   return(rates_total);
 }
 
-double CalcATRValue(const int index,
-                    const double &high[],
-                    const double &low[],
-                    const double &close[])
+void OnDeinit(const int reason)
 {
-  double current_high = high[index];
-  double current_low  = low[index];
-  double true_range = current_high - current_low;
-
-  if(index > 0)
+  if(ExtKeltnerHandle != INVALID_HANDLE)
   {
-    double prev_close = close[index - 1];
-    double high_diff = MathAbs(current_high - prev_close);
-    double low_diff  = MathAbs(current_low - prev_close);
-    true_range = MathMax(MathMax(true_range, high_diff), low_diff);
+    IndicatorRelease(ExtKeltnerHandle);
+    ExtKeltnerHandle = INVALID_HANDLE;
   }
-
-  ExtTrueRange[index] = true_range;
-
-  if(index == 0)
-  {
-    ExtATRBuffer[index] = true_range;
-    return ExtATRBuffer[index];
-  }
-
-  if(index < ExtBandsPeriod)
-  {
-    double sum = 0.0;
-    for(int k = 0; k <= index; k++)
-      sum += ExtTrueRange[k];
-    ExtATRBuffer[index] = sum / (index + 1);
-    return ExtATRBuffer[index];
-  }
-
-  double prev_atr = ExtATRBuffer[index - 1];
-  if(prev_atr == 0.0)
-  {
-    double sum = 0.0;
-    for(int k = index - ExtBandsPeriod + 1; k <= index; k++)
-      sum += ExtTrueRange[k];
-    ExtATRBuffer[index] = sum / ExtBandsPeriod;
-    return ExtATRBuffer[index];
-  }
-
-  ExtATRBuffer[index] = ((prev_atr * (ExtBandsPeriod - 1)) + true_range) / ExtBandsPeriod;
-  return ExtATRBuffer[index];
-}
-
-double MATypeCalc(const int position, const double &price[])
-{
-  if(InpMAMethod == MODE_SMA)
-    return SimpleMA(position, ExtBandsPeriod, price);
-  if(InpMAMethod == MODE_EMA)
-  {
-    double prev = (position > 0) ? ExtMLBuffer[position - 1] : price[position];
-    return ExponentialMA(position, ExtBandsPeriod, prev, price);
-  }
-  if(InpMAMethod == MODE_SMMA)
-  {
-    double prev = (position > 0) ? ExtMLBuffer[position - 1] : price[position];
-    return SmoothedMA(position, ExtBandsPeriod, prev, price);
-  }
-  if(InpMAMethod == MODE_LWMA)
-    return LinearWeightedMA(position, ExtBandsPeriod, price);
-
-  return price[position];
-}
-
-double GetAppliedPrice(const int index,
-                       const double &open[],
-                       const double &close[],
-                       const double &high[],
-                       const double &low[])
-{
-  switch(InpAppliedPrice)
-  {
-    case PRICE_CLOSE:     return close[index];
-    case PRICE_OPEN:      return open[index];
-    case PRICE_HIGH:      return high[index];
-    case PRICE_LOW:       return low[index];
-    case PRICE_MEDIAN:    return (high[index] + low[index]) / 2.0;
-    case PRICE_TYPICAL:   return (high[index] + low[index] + close[index]) / 3.0;
-    case PRICE_WEIGHTED:  return (high[index] + low[index] + close[index] + close[index]) / 4.0;
-  }
-  return close[index];
 }
