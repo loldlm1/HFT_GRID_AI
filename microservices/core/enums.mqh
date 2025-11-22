@@ -89,8 +89,9 @@ enum GridBaseStrategyTypes
 
 enum GridChannelLineTypes
 {
-  GRID_CHANNEL_LINE_SUPPORT = 0,
-  GRID_CHANNEL_LINE_RESISTANCE = 1
+  GRID_CHANNEL_LINE_SUPPORT    = 0,
+  GRID_CHANNEL_LINE_RESISTANCE = 1,
+  GRID_CHANNEL_LINE_MIDDLE     = 2
 };
 
 enum BreakEvenModes
@@ -257,13 +258,26 @@ enum ProtectionRiskValueTypes
   PROTECTION_RISK_FIXED_CURRENCY         = 2
 };
 
+enum ChannelIndicatorTypes
+{
+  CHANNEL_INDICATOR_BOLLINGER = 0,
+  CHANNEL_INDICATOR_KELTNER   = 1
+};
+
 enum StrategyEntryModes
 {
-  ENTRY_OFF                     = 0,
-  ENTRY_BPERCENT_WINDOW         = 1,
-  ENTRY_BPERCENT_MEAN           = 2,
-  ENTRY_BPERCENT_WINDOW_AND_MEAN = 3,
-  ENTRY_ON_TREND                = 4
+  ENTRY_MODE_BREAKOUT = 0,
+  ENTRY_MODE_MA_TREND = 1,
+  ENTRY_MODE_REVERSION = 2
+};
+
+enum StrategyEntryEvaluationModes
+{
+  ENTRY_EVAL_OFF              = 0,
+  ENTRY_EVAL_WINDOW           = 1,
+  ENTRY_EVAL_MEAN             = 2,
+  ENTRY_EVAL_WINDOW_AND_MEAN  = 3,
+  ENTRY_EVAL_ON_TREND         = 4
 };
 
 enum StrategyTrendModes
@@ -283,33 +297,34 @@ enum StrategyContextTypes
 
 const int STRATEGY_CONTEXT_TOTAL = 4;
 
-inline bool EntryModeUsesBPercentWindow(const StrategyEntryModes mode)
+inline bool EntryEvaluationUsesBPercentWindow(const StrategyEntryEvaluationModes mode)
 {
   switch(mode)
   {
-    case ENTRY_BPERCENT_WINDOW:
-    case ENTRY_BPERCENT_WINDOW_AND_MEAN:
+    case ENTRY_EVAL_WINDOW:
+    case ENTRY_EVAL_WINDOW_AND_MEAN:
       return true;
     default:
       return false;
   }
 }
 
-inline bool EntryModeUsesBPercentMean(const StrategyEntryModes mode)
+inline bool EntryEvaluationUsesBPercentMean(const StrategyEntryEvaluationModes mode)
 {
   switch(mode)
   {
-    case ENTRY_BPERCENT_MEAN:
-    case ENTRY_BPERCENT_WINDOW_AND_MEAN:
+    case ENTRY_EVAL_MEAN:
+    case ENTRY_EVAL_WINDOW_AND_MEAN:
       return true;
     default:
       return false;
   }
 }
 
-inline bool EntryModeUsesAnyBPercent(const StrategyEntryModes mode)
+inline bool EntryEvaluationUsesAnyBPercent(const StrategyEntryEvaluationModes mode)
 {
-  return EntryModeUsesBPercentWindow(mode) || EntryModeUsesBPercentMean(mode);
+  return EntryEvaluationUsesBPercentWindow(mode) ||
+         EntryEvaluationUsesBPercentMean(mode);
 }
 
 inline bool TrendModeUsesAlligator(const StrategyTrendModes mode)

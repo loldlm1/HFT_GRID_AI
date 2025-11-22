@@ -232,20 +232,23 @@ inline bool StrategyContextEnabled(const StrategyContextTypes context)
   return false;
 }
 
-inline StrategyEntryModes StrategyContextEntryMode(const StrategyContextTypes context)
+inline StrategyEntryEvaluationModes StrategyContextEntryEvaluation(const StrategyContextTypes context)
 {
+  if(Strategy_Global_Entry_Evaluation_Mode != ENTRY_EVAL_OFF)
+    return Strategy_Global_Entry_Evaluation_Mode;
+
   switch(context)
   {
     case CONTEXT_SLOT_BASE:
-      return Strategy_Base_Entry_Mode;
+      return Strategy_Base_Entry_Evaluation;
     case CONTEXT_SLOT_TREND:
-      return Strategy_Trend_Entry_Mode;
+      return Strategy_Trend_Entry_Evaluation;
     case CONTEXT_SLOT_MACRO:
-      return Strategy_Macro_Entry_Mode;
+      return Strategy_Macro_Entry_Evaluation;
     case CONTEXT_SLOT_SESSION:
-      return Strategy_Session_Entry_Mode;
+      return Strategy_Session_Entry_Evaluation;
   }
-  return ENTRY_OFF;
+  return ENTRY_EVAL_OFF;
 }
 
 inline StrategyTrendModes StrategyContextTrendMode(const StrategyContextTypes context)
@@ -266,21 +269,16 @@ inline StrategyTrendModes StrategyContextTrendMode(const StrategyContextTypes co
 
 inline double StrategyContextIndicatorPercent(const StrategyContextTypes context)
 {
-  if(Global_Indicator_Percent >= 0.0)
-    return Global_Indicator_Percent;
-
-  switch(context)
+  switch(Strategy_Global_Entry_Mode)
   {
-    case CONTEXT_SLOT_BASE:
-      return Base_Indicator_Percent;
-    case CONTEXT_SLOT_TREND:
-      return Trend_Indicator_Percent;
-    case CONTEXT_SLOT_MACRO:
-      return Macro_Indicator_Percent;
-    case CONTEXT_SLOT_SESSION:
-      return Session_Indicator_Percent;
+    case ENTRY_MODE_BREAKOUT:
+      return 0.0;
+    case ENTRY_MODE_REVERSION:
+      return 100.0;
+    case ENTRY_MODE_MA_TREND:
+    default:
+      return 50.0;
   }
-  return -1.0;
 }
 
 inline bool StrategyContextChannelFilterEnabled(const StrategyContextTypes context)

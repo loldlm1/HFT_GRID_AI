@@ -60,6 +60,8 @@ struct SignalParams
   StrategyContextTypes      strategy_context;
   ENUM_TIMEFRAMES           strategy_timeframe;
   string                    strategy_context_label;
+  StrategyEntryModes        entry_trigger_mode;
+  StrategyEntryEvaluationModes entry_evaluation_mode;
   double                    entry_price;
   double                    close_price;
   double                    stop_loss;
@@ -127,6 +129,8 @@ struct SignalParams
     strategy_context           = CONTEXT_SLOT_BASE;
     strategy_timeframe         = PERIOD_CURRENT;
     strategy_context_label     = "BASE";
+    entry_trigger_mode         = ENTRY_MODE_MA_TREND;
+    entry_evaluation_mode      = ENTRY_EVAL_OFF;
     entry_price                = 0.0;
     close_price                = 0.0;
     stop_loss                  = 0.0;
@@ -217,6 +221,8 @@ struct SignalParams
     strategy_context           = signal_params.strategy_context;
     strategy_timeframe         = signal_params.strategy_timeframe;
     strategy_context_label     = signal_params.strategy_context_label;
+    entry_trigger_mode         = signal_params.entry_trigger_mode;
+    entry_evaluation_mode      = signal_params.entry_evaluation_mode;
     context_structure_snapshot_time = signal_params.context_structure_snapshot_time;
     trend_filter_mode           = signal_params.trend_filter_mode;
     trend_bpercent_valid        = signal_params.trend_bpercent_valid;
