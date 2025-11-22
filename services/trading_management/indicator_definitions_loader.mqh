@@ -245,7 +245,7 @@ bool LoadContextBPercentIndicator(const ENUM_TIMEFRAMES context_tf,
   if(channel_factor <= 0.0)
     channel_factor = 1.0;
   double percent_factor = (Strategy_Channel_Indicator_Type == CHANNEL_INDICATOR_BOLLINGER)
-                            ? 2.0
+                            ? (1.0 + channel_factor)
                             : channel_factor;
   handle.indicator_handle        = iCustom(_Symbol,
                                            context_tf,
