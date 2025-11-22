@@ -162,6 +162,21 @@ string SessionTimeFilterActiveSessionLabel()
   return slot_config.label;
 }
 
+void SessionTimeFilterProcessPendingForceCloses()
+{
+  int total = SessionTimeFilterPendingForceCloseCount();
+  if(total <= 0)
+    return;
+
+  for(int i = 0; i < total; i++)
+  {
+    string reason = SessionTimeFilterPendingForceCloseReason(i);
+    if(StringLen(reason) > 0)
+      ProtectionRiskScheduleForceClose(reason);
+  }
+  SessionTimeFilterClearForceCloseQueue();
+}
+
 void SessionTimeFilterQueueForceClose(const string reason)
 {
   int total = ArraySize(g_session_time_filter_force_close_queue);
