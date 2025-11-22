@@ -160,10 +160,6 @@ int OnCalculate(const int rates_total,
   if(CopyBuffer(ExtKeltnerHandle, 2, 0, rates_total, lower_buffer) <= 0)
     return prev_calculated;
 
-  ArraySetAsSeries(upper_buffer, true);
-  ArraySetAsSeries(middle_buffer, true);
-  ArraySetAsSeries(lower_buffer, true);
-
   if(ExtPlotBegin != ExtBandsPeriod + 1)
   {
     ExtPlotBegin = ExtBandsPeriod + 1;
@@ -205,7 +201,7 @@ int OnCalculate(const int rates_total,
     if(range == 0.0)
       range = _Point;
 
-    ExtAppliedPriceBuffer[i] = close[i];
+    ExtAppliedPriceBuffer[i] = GetAppliedPrice(i, open, close, high, low);
     ExtATRBuffer[i]          = range;
 
     BLGBuffer[i] = NormalizeDouble((close[i] - lower) / range * 100.0, 2);
@@ -248,4 +244,23 @@ void OnDeinit(const int reason)
     IndicatorRelease(ExtKeltnerHandle);
     ExtKeltnerHandle = INVALID_HANDLE;
   }
+}
+
+double GetAppliedPrice(const int index,
+                       const double &open[],
+                       const double &close[],
+                       const double &high[],
+                       const double &low[])
+{
+  switch(InpAppliedPrice)
+  {
+    case PRICE_CLOSE:     return close[index];
+    case PRICE_OPEN:      return open[index];
+    case PRICE_HIGH:      return high[index];
+    case PRICE_LOW:       return low[index];
+    case PRICE_MEDIAN:    return (high[index] + low[index]) / 2.0;
+    case PRICE_TYPICAL:   return (high[index] + low[index] + close[index]) / 3.0;
+    case PRICE_WEIGHTED:  return (high[index] + low[index] + close[index] + close[index]) / 4.0;
+  }
+  return close[index];
 }
