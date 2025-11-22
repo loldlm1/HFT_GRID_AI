@@ -277,10 +277,10 @@ bool CaptureContextIndicators(const StrategyContextTypes context,
   snapshot.context   = context;
   snapshot.timeframe = StrategyContextTimeframe(context);
 
-  StrategyEntryModes entry_mode = StrategyContextEntryMode(context);
+  StrategyEntryEvaluationModes entry_mode = StrategyContextEntryEvaluation(context);
   StrategyTrendModes trend_mode = StrategyContextTrendMode(context);
 
-  bool need_bpercent   = EntryModeUsesAnyBPercent(entry_mode) ||
+  bool need_bpercent   = EntryEvaluationUsesAnyBPercent(entry_mode) ||
                          StrategyContextBPercentSlopeEnabled(context);
   bool need_alligator  = TrendModeUsesAlligator(trend_mode) ||
                          StrategyContextAlligatorSlopeEnabled(context);

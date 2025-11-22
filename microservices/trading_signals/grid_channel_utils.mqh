@@ -6,9 +6,11 @@
 
 const int ATR_BUFFER_SMA_RESISTANCE = 0;
 const int ATR_BUFFER_SMA_SUPPORT    = 1;
+const int ATR_BUFFER_SMA_MIDDLE     = 2;
 
-const int KELTNER_BUFFER_RESISTANCE = 0;
-const int KELTNER_BUFFER_SUPPORT    = 2;
+const int KELTNER_BUFFER_RESISTANCE = 13;
+const int KELTNER_BUFFER_MIDDLE     = 14;
+const int KELTNER_BUFFER_SUPPORT    = 15;
 
 inline bool GridStrategyUsesChannelIndicator()
 {
@@ -89,15 +91,21 @@ bool GridResolveChannelLinePrice(const GridBaseStrategyTypes channel_type,
   int buffer_index = ATR_BUFFER_SMA_SUPPORT;
   if(resolved_type == ATR_RANGE)
   {
-    buffer_index = (line_type == GRID_CHANNEL_LINE_RESISTANCE)
-                     ? ATR_BUFFER_SMA_RESISTANCE
-                     : ATR_BUFFER_SMA_SUPPORT;
+    if(line_type == GRID_CHANNEL_LINE_RESISTANCE)
+      buffer_index = ATR_BUFFER_SMA_RESISTANCE;
+    else if(line_type == GRID_CHANNEL_LINE_SUPPORT)
+      buffer_index = ATR_BUFFER_SMA_SUPPORT;
+    else
+      buffer_index = ATR_BUFFER_SMA_MIDDLE;
   }
   else
   {
-    buffer_index = (line_type == GRID_CHANNEL_LINE_RESISTANCE)
-                     ? KELTNER_BUFFER_RESISTANCE
-                     : KELTNER_BUFFER_SUPPORT;
+    if(line_type == GRID_CHANNEL_LINE_RESISTANCE)
+      buffer_index = KELTNER_BUFFER_RESISTANCE;
+    else if(line_type == GRID_CHANNEL_LINE_SUPPORT)
+      buffer_index = KELTNER_BUFFER_SUPPORT;
+    else
+      buffer_index = KELTNER_BUFFER_MIDDLE;
   }
 
   return GridCopyChannelBufferValue(resolved_type,

@@ -81,6 +81,8 @@ void EvaluateContextSignals(const StrategyContextTypes context)
     signal.strategy_context       = context;
     signal.strategy_timeframe     = snapshot.timeframe;
     signal.strategy_context_label = StrategyContextLabel(context);
+    signal.entry_trigger_mode     = Strategy_Global_Entry_Mode;
+    signal.entry_evaluation_mode  = StrategyContextEntryEvaluation(context);
     signal.context_structure_snapshot_time = structure_time;
 
     if(!BuildGridOrderForSignal(signal))

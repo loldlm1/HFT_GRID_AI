@@ -69,14 +69,14 @@ bool ValidateBandsPercentMeanRejection(const BandsPercentStructure &bands_data,
 bool EvaluateBandsPercentTrigger(const BandsPercentStructure &bands_data,
                                  const SignalTypes signal_type,
                                  const double percent_threshold,
-                                 const StrategyEntryModes entry_mode,
+                                 const StrategyEntryEvaluationModes entry_mode,
                                  const SlopeTypes slope_filter)
 {
-  if(!EntryModeUsesAnyBPercent(entry_mode))
+  if(!EntryEvaluationUsesAnyBPercent(entry_mode))
     return true;
 
-  bool window_required = EntryModeUsesBPercentWindow(entry_mode);
-  bool mean_required   = EntryModeUsesBPercentMean(entry_mode);
+  bool window_required = EntryEvaluationUsesBPercentWindow(entry_mode);
+  bool mean_required   = EntryEvaluationUsesBPercentMean(entry_mode);
 
   bool window_ok = true;
   bool mean_ok   = true;
@@ -376,9 +376,9 @@ bool StrategyContextEvaluateEntry(const StrategyContextIndicators &snapshot,
   filters_pass = true;
 
   StrategyContextTypes context = snapshot.context;
-  StrategyEntryModes entry_mode = StrategyContextEntryMode(context);
-  bool entry_mode_disabled = (entry_mode == ENTRY_OFF);
-  bool entry_on_trend = (entry_mode == ENTRY_ON_TREND);
+  StrategyEntryEvaluationModes entry_mode = StrategyContextEntryEvaluation(context);
+  bool entry_mode_disabled = (entry_mode == ENTRY_EVAL_OFF);
+  bool entry_on_trend = (entry_mode == ENTRY_EVAL_ON_TREND);
   StrategyTrendModes trend_mode = StrategyContextTrendMode(context);
   double percent_threshold = StrategyContextIndicatorPercent(context);
 
@@ -462,7 +462,7 @@ bool StrategyContextEvaluateEntry(const StrategyContextIndicators &snapshot,
     return true;
   }
 
-  bool entry_requires_bpercent = EntryModeUsesAnyBPercent(entry_mode);
+  bool entry_requires_bpercent = EntryEvaluationUsesAnyBPercent(entry_mode);
   bool bpercent_pass = true;
   if(entry_requires_bpercent && percent_threshold >= 0.0)
   {

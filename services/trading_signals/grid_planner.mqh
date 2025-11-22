@@ -48,12 +48,28 @@ bool CalculateBaseGridContext(const SignalParams &signal_params,
     GridBaseStrategyTypes channel_type = (Grid_Base_Strategy_Type == KELTNER_RANGE)
                                            ? KELTNER_RANGE
                                            : ATR_RANGE;
-    GridChannelLineTypes line_type = (signal_params.signal_type == BULLISH)
-                                       ? GRID_CHANNEL_LINE_SUPPORT
-                                       : GRID_CHANNEL_LINE_RESISTANCE;
+    bool use_midline = (signal_params.entry_trigger_mode != ENTRY_MODE_MA_TREND);
+    GridChannelLineTypes line_type = use_midline
+                                       ? GRID_CHANNEL_LINE_MIDDLE
+                                       : ((signal_params.signal_type == BULLISH)
+                                            ? GRID_CHANNEL_LINE_SUPPORT
+                                            : GRID_CHANNEL_LINE_RESISTANCE);
     double channel_price = 0.0;
     if(!GridResolveChannelLinePrice(channel_type, line_type, tf, channel_price))
-      return false;
+    {
+      if(use_midline)
+      {
+        line_type = (signal_params.signal_type == BULLISH)
+                      ? GRID_CHANNEL_LINE_SUPPORT
+                      : GRID_CHANNEL_LINE_RESISTANCE;
+        if(!GridResolveChannelLinePrice(channel_type, line_type, tf, channel_price))
+          return false;
+      }
+      else
+      {
+        return false;
+      }
+    }
 
     distance_points = MathAbs(channel_price - entry_reference_price) / point_size;
     distance_points = EnforceBrokerDistance(g_symbol_constraints, distance_points);
