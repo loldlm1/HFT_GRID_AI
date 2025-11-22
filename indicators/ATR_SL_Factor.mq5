@@ -9,50 +9,29 @@
 #include <MovingAverages.mqh>
 
 // --- Aumentamos buffers y plots para HH/LL basados en las bandas
-#property indicator_buffers   10
-#property indicator_plots     6
+#property indicator_buffers   7
+#property indicator_plots     3
 
-// --- Plot 1: Banda Superior
+// --- Plot 1: ATR SMA Upper
 #property indicator_type1  DRAW_LINE
-#property indicator_label1 "Stop Loss Upper"
-#property indicator_color1 LightPink
-#property indicator_style1 STYLE_DOT
-#property indicator_width1 0
+#property indicator_label1 "ATR SMA Upper"
+#property indicator_color1 MediumVioletRed
+#property indicator_style1 STYLE_SOLID
+#property indicator_width1 1
 
-// --- Plot 2: Banda Inferior
+// --- Plot 2: ATR SMA Lower
 #property indicator_type2  DRAW_LINE
-#property indicator_label2 "Stop Loss Lower"
-#property indicator_color2 LightPink
-#property indicator_style2 STYLE_DOT
-#property indicator_width2 0
+#property indicator_label2 "ATR SMA Lower"
+#property indicator_color2 Lime
+#property indicator_style2 STYLE_SOLID
+#property indicator_width2 1
 
-// --- Plot 3: Resistencia (Highest High de la banda superior)
+// --- Plot 3: Línea media entre SMA superior/inferior
 #property indicator_type3  DRAW_LINE
-#property indicator_label3 "Resistance (HH of Upper)"
-#property indicator_color3 DodgerBlue
+#property indicator_label3 "ATR SMA Mid"
+#property indicator_color3 Silver
 #property indicator_style3 STYLE_DASH
-#property indicator_width3 2
-
-// --- Plot 4: Soporte (Lowest Low de la banda inferior)
-#property indicator_type4  DRAW_LINE
-#property indicator_label4 "Support (LL of Lower)"
-#property indicator_color4 Orange
-#property indicator_style4 STYLE_DASH
-#property indicator_width4 2
-
-// --- Plot 5: Media suavizada de la banda superior
-#property indicator_type5  DRAW_LINE
-#property indicator_label5 "ATR SMA Upper"
-#property indicator_color5 MediumVioletRed
-#property indicator_style5 STYLE_SOLID
-#property indicator_width5 1
-
-// --- Plot 6: Media suavizada de la banda inferior
-#property indicator_type6  DRAW_LINE
-#property indicator_label6 "ATR SMA Lower"
-#property indicator_color6 Lime
-#property indicator_style6 STYLE_SOLID
-#property indicator_width6 1
+#property indicator_width3 1
 
 //--- input parameters
 input    int                 InpATRPeriod   = 13;      // ATR period
@@ -65,13 +44,9 @@ double   ExtTRBuffer[];
 double   BufferMAUpper[];
 double   BufferMALower[];
 
-//-- NUEVOS buffers visibles para S/R horizontales basados en las bandas
-double   BufferResHH[];      // Highest High de BufferMAUpper en ventana InpATRPeriod
-double   BufferSupLL[];      // Lowest  Low  de BufferMALower en ventana InpATRPeriod
 double   BufferSmaUpper[];   // Media simple de la banda superior (referencia bajista)
 double   BufferSmaLower[];   // Media simple de la banda inferior (referencia alcista)
-double   BufferResTrail[];   // Resistencia más cercana al precio actual dentro de la ventana
-double   BufferSupTrail[];   // Soporte más cercano al precio actual dentro de la ventana
+double   BufferSmaMid[];     // Línea media entre las dos bandas
 
 int      MaxPeriod;
 int      ExtPeriodATR;
@@ -89,17 +64,15 @@ int OnInit()
    else
       ExtPeriodATR=InpATRPeriod;
 
-   // Buffers originales
-   SetIndexBuffer(0, BufferMAUpper,  INDICATOR_DATA);
-   SetIndexBuffer(1, BufferMALower,  INDICATOR_DATA);
-   SetIndexBuffer(2, BufferResHH,    INDICATOR_DATA);
-   SetIndexBuffer(3, BufferSupLL,    INDICATOR_DATA);
-   SetIndexBuffer(4, BufferSmaUpper, INDICATOR_DATA);
-   SetIndexBuffer(5, BufferSmaLower, INDICATOR_DATA);
-   SetIndexBuffer(6, BufferResTrail, INDICATOR_CALCULATIONS);
-   SetIndexBuffer(7, BufferSupTrail, INDICATOR_CALCULATIONS);
-   SetIndexBuffer(8, ExtATRBuffer,   INDICATOR_CALCULATIONS);
-   SetIndexBuffer(9, ExtTRBuffer,    INDICATOR_CALCULATIONS);
+   // Buffers visibles
+   SetIndexBuffer(0, BufferSmaUpper, INDICATOR_DATA);
+   SetIndexBuffer(1, BufferSmaLower, INDICATOR_DATA);
+   SetIndexBuffer(2, BufferSmaMid,   INDICATOR_DATA);
+   // Buffers de cálculo
+   SetIndexBuffer(3, BufferMAUpper,  INDICATOR_CALCULATIONS);
+   SetIndexBuffer(4, BufferMALower,  INDICATOR_CALCULATIONS);
+   SetIndexBuffer(5, ExtATRBuffer,   INDICATOR_CALCULATIONS);
+   SetIndexBuffer(6, ExtTRBuffer,    INDICATOR_CALCULATIONS);
 
    IndicatorSetInteger(INDICATOR_DIGITS, _Digits);
    IndicatorSetInteger(INDICATOR_LEVELS, _Digits);
@@ -108,18 +81,14 @@ int OnInit()
    PlotIndexSetInteger(0, PLOT_SHIFT, InpATRShift);
    PlotIndexSetInteger(1, PLOT_SHIFT, InpATRShift);
    PlotIndexSetInteger(2, PLOT_SHIFT, InpATRShift);
-   PlotIndexSetInteger(3, PLOT_SHIFT, InpATRShift);
-   PlotIndexSetInteger(4, PLOT_SHIFT, InpATRShift);
-   PlotIndexSetInteger(5, PLOT_SHIFT, InpATRShift);
 
    MaxPeriod = (int)MathMax(InpATRPeriod, InpATRPercent);
    PlotIndexSetInteger(0, PLOT_DRAW_BEGIN, MaxPeriod);
 
-   // Comienzo de dibujo para HH/LL cuando existe ventana suficiente
+   // Comienzo de dibujo para las medias suavizadas
+   PlotIndexSetInteger(0, PLOT_DRAW_BEGIN, ExtPeriodATR);
+   PlotIndexSetInteger(1, PLOT_DRAW_BEGIN, ExtPeriodATR);
    PlotIndexSetInteger(2, PLOT_DRAW_BEGIN, ExtPeriodATR);
-   PlotIndexSetInteger(3, PLOT_DRAW_BEGIN, ExtPeriodATR);
-   PlotIndexSetInteger(4, PLOT_DRAW_BEGIN, ExtPeriodATR);
-   PlotIndexSetInteger(5, PLOT_DRAW_BEGIN, ExtPeriodATR);
 
    return(INIT_SUCCEEDED);
 }
@@ -198,6 +167,7 @@ int OnCalculate(const int rates_total,
       {
          BufferSmaUpper[i] = EMPTY_VALUE;
          BufferSmaLower[i] = EMPTY_VALUE;
+         BufferSmaMid[i]   = EMPTY_VALUE;
          continue;
       }
 
@@ -205,62 +175,10 @@ int OnCalculate(const int rates_total,
       double sma_lower = SimpleMA(i, sma_period, BufferMALower);
       BufferSmaUpper[i] = NormalizeDouble(sma_upper, _Digits);
       BufferSmaLower[i] = NormalizeDouble(sma_lower, _Digits);
-   }
-
-   // >>> NUEVO: Highest High de la banda superior y Lowest Low de la banda inferior
-   //     Ventana = ExtPeriodATR (InpATRPeriod). Se calculan como "líneas horizontales por tramos".
-   int from;
-   for(i=start; i<rates_total; i++)
-   {
-      from = i - ExtPeriodATR + 1;
-      if(from < 0)
-      {
-         BufferResHH[i] = EMPTY_VALUE;
-         BufferSupLL[i] = EMPTY_VALUE;
-         BufferResTrail[i] = EMPTY_VALUE;
-         BufferSupTrail[i] = EMPTY_VALUE;
-         continue;
-      }
-
-      double hh = BufferMAUpper[from];
-      double ll = BufferMALower[from];
-      double price = close[i];
-      bool trail_res_found = false;
-      bool trail_sup_found = false;
-      double trail_res = 0.0;
-      double trail_sup = 0.0;
-
-      for(int j=from; j<=i; j++)
-      {
-         double upper = BufferMAUpper[j];
-         double lower = BufferMALower[j];
-
-         if(upper > hh) hh = upper;
-         if(lower < ll) ll = lower;
-
-         if(upper >= price)
-         {
-            if(!trail_res_found || upper < trail_res)
-            {
-               trail_res = upper;
-               trail_res_found = true;
-            }
-         }
-
-         if(lower <= price)
-         {
-            if(!trail_sup_found || lower > trail_sup)
-            {
-               trail_sup = lower;
-               trail_sup_found = true;
-            }
-         }
-      }
-
-      BufferResHH[i] = NormalizeDouble(hh, _Digits);
-      BufferSupLL[i] = NormalizeDouble(ll, _Digits);
-      BufferResTrail[i] = trail_res_found ? NormalizeDouble(trail_res, _Digits) : EMPTY_VALUE;
-      BufferSupTrail[i] = trail_sup_found ? NormalizeDouble(trail_sup, _Digits) : EMPTY_VALUE;
+      if(BufferSmaUpper[i] == EMPTY_VALUE || BufferSmaLower[i] == EMPTY_VALUE)
+         BufferSmaMid[i] = EMPTY_VALUE;
+      else
+         BufferSmaMid[i] = NormalizeDouble((BufferSmaUpper[i] + BufferSmaLower[i]) * 0.5, _Digits);
    }
 
    return(rates_total);
