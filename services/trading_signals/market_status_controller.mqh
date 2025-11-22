@@ -78,7 +78,7 @@ void MarketStatusRequestForceClose(const string reason)
 
   g_market_force_close_pending = true;
   g_market_force_close_reason  = reason;
-  PrintFormat("Force close scheduled | reason=%s", reason);
+  //PrintFormat("Force close scheduled | reason=%s", reason);
 }
 
 bool MarketStatusHasPendingForceClose()
