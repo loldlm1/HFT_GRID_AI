@@ -165,7 +165,8 @@ int OnCalculate(const int rates_total,
     if(range == 0.0)
       range = _Point;
 
-    BLGBuffer[i] = NormalizeDouble((ExtAppliedPriceBuffer[i] - ExtBLBuffer[i]) / range * 100.0, 2);
+    double percent_price = close[i];
+    BLGBuffer[i] = NormalizeDouble((percent_price - ExtBLBuffer[i]) / range * 100.0, 2);
     BBPMABuffer[i] = SimpleMA(i, InpPercentMAPeriod, BLGBuffer);
 
     ExtBBCloseBuffer[i] = NormalizeDouble((close[i] - ExtBLBuffer[i]) / range * 100.0, 2);
