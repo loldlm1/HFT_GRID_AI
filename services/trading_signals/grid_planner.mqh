@@ -40,14 +40,11 @@ bool CalculateBaseGridContext(const SignalParams &signal_params,
   if(point_size <= 0.0 || direction_mult == 0.0 || entry_reference_price <= 0.0)
     return false;
 
-  bool uses_channel_strategy = (Grid_Base_Strategy_Type == ATR_RANGE ||
-                                Grid_Base_Strategy_Type == KELTNER_RANGE);
+  bool uses_channel_strategy = GridStrategyUsesChannelIndicator();
 
   if(uses_channel_strategy)
   {
-    GridBaseStrategyTypes channel_type = (Grid_Base_Strategy_Type == KELTNER_RANGE)
-                                           ? KELTNER_RANGE
-                                           : ATR_RANGE;
+    GridBaseStrategyTypes channel_type = ResolveActiveChannelStrategy();
     bool use_midline = (signal_params.entry_trigger_mode != ENTRY_MODE_MA_TREND);
     GridChannelLineTypes line_type = use_midline
                                        ? GRID_CHANNEL_LINE_MIDDLE
@@ -223,8 +220,7 @@ double GridComputeSequenceDrawdownCurrency(const SignalParams &signal_params,
 
 double ResolveIndicatorMinimumBaseDistance(const SignalParams &signal_params)
 {
-  if(Grid_Base_Strategy_Type != ATR_RANGE &&
-     Grid_Base_Strategy_Type != KELTNER_RANGE)
+  if(!GridStrategyUsesChannelIndicator())
     return 0.0;
 
   int existing_levels = ArraySize(signal_params.grid_orders);

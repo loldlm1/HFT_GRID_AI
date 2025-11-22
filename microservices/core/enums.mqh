@@ -82,9 +82,11 @@ enum ResistanceRetestFilterModes
 
 enum GridBaseStrategyTypes
 {
-  ATR_RANGE    = 0,
-  POINTS_RANGE = 1,
-  KELTNER_RANGE = 2
+  ATR_RANGE               = 0,
+  POINTS_RANGE            = 1,
+  KELTNER_RANGE           = 2,
+  BOLLINGER_RANGE         = 3,
+  CHANNEL_INDICATOR_RANGE = 4
 };
 
 enum GridChannelLineTypes
@@ -261,7 +263,8 @@ enum ProtectionRiskValueTypes
 enum ChannelIndicatorTypes
 {
   CHANNEL_INDICATOR_BOLLINGER = 0,
-  CHANNEL_INDICATOR_KELTNER   = 1
+  CHANNEL_INDICATOR_KELTNER   = 1,
+  CHANNEL_INDICATOR_ATR       = 2
 };
 
 enum StrategyEntryModes

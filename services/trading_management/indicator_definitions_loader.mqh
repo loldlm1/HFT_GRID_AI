@@ -87,6 +87,8 @@ void PrepareStrategyTimeframes()
 
 string ResolveChannelPercentIndicatorPath()
 {
+  if(Strategy_Channel_Indicator_Type == CHANNEL_INDICATOR_ATR)
+    return "Examples\\ATR_SL_Factor_Percent.ex5";
   if(Strategy_Channel_Indicator_Type == CHANNEL_INDICATOR_KELTNER)
     return "Examples\\Keltner_Channel_Percent.ex5";
   return "Examples\\BB_Percent_Standard.ex5";
@@ -96,7 +98,28 @@ string StrategyChannelIndicatorLabel()
 {
   return (Strategy_Channel_Indicator_Type == CHANNEL_INDICATOR_KELTNER)
            ? "KELTNER"
-           : "BOLLINGER";
+           : (Strategy_Channel_Indicator_Type == CHANNEL_INDICATOR_ATR)
+               ? "ATR"
+               : "BOLLINGER";
+}
+
+GridBaseStrategyTypes ResolveChannelStrategyFromInputs()
+{
+  GridBaseStrategyTypes configured_type = Grid_Base_Strategy_Type;
+  if(configured_type == CHANNEL_INDICATOR_RANGE || configured_type == POINTS_RANGE)
+  {
+    switch(Strategy_Channel_Indicator_Type)
+    {
+      case CHANNEL_INDICATOR_KELTNER:
+        return KELTNER_RANGE;
+      case CHANNEL_INDICATOR_ATR:
+        return ATR_RANGE;
+      case CHANNEL_INDICATOR_BOLLINGER:
+      default:
+        return BOLLINGER_RANGE;
+    }
+  }
+  return configured_type;
 }
 
 int ResolveBPercentIndicatorPeriod()
@@ -218,12 +241,18 @@ bool LoadContextBPercentIndicator(const ENUM_TIMEFRAMES context_tf,
   handle.indicator_period        = ResolveBPercentIndicatorPeriod();
   handle.indicator_ma_method     = Base_Indicator_MA_Method;
   handle.indicator_applied_price = PRICE_WEIGHTED;
+  double channel_factor = Grid_Channel_Factor;
+  if(channel_factor <= 0.0)
+    channel_factor = 1.0;
+  double percent_factor = (Strategy_Channel_Indicator_Type == CHANNEL_INDICATOR_BOLLINGER)
+                            ? 2.0
+                            : channel_factor;
   handle.indicator_handle        = iCustom(_Symbol,
                                            context_tf,
                                            ResolveChannelPercentIndicatorPath(),
                                            handle.indicator_period,
                                            0,
-                                           2.0,
+                                           percent_factor,
                                            5,
                                            Base_Indicator_MA_Method,
                                            handle.indicator_applied_price,
@@ -609,6 +638,17 @@ bool KeltnerIndicatorHandleExists(const ENUM_TIMEFRAMES timeframe)
   return false;
 }
 
+bool BollingerIndicatorHandleExists(const ENUM_TIMEFRAMES timeframe)
+{
+  int total = ArraySize(ExtBandsIndicatorsHandle);
+  for(int i = 0; i < total; i++)
+  {
+    if(ExtBandsIndicatorsHandle[i].indicator_timeframe == timeframe)
+      return true;
+  }
+  return false;
+}
+
 bool LoadAtrIndicatorForTimeframe(const ENUM_TIMEFRAMES trend_timeframe)
 {
   if(AtrIndicatorHandleExists(trend_timeframe))
@@ -675,11 +715,44 @@ bool LoadKeltnerIndicatorForTimeframe(const ENUM_TIMEFRAMES trend_timeframe)
   return true;
 }
 
+bool LoadBollingerIndicatorForTimeframe(const ENUM_TIMEFRAMES trend_timeframe)
+{
+  if(BollingerIndicatorHandleExists(trend_timeframe))
+    return true;
+
+  IndicatorsHandleInfo bands_indicator_handle_loaded;
+  bands_indicator_handle_loaded.indicator_period        = ResolveBPercentIndicatorPeriod();
+  bands_indicator_handle_loaded.indicator_ma_method     = Base_Indicator_MA_Method;
+  bands_indicator_handle_loaded.indicator_applied_price = PRICE_WEIGHTED;
+  bands_indicator_handle_loaded.indicator_handle        = iCustom(_Symbol,
+                                                                  trend_timeframe,
+                                                                  "Examples\\BB_Standard.ex5",
+                                                                  bands_indicator_handle_loaded.indicator_period,
+                                                                  0,
+                                                                  2.0,
+                                                                  Base_Indicator_MA_Method,
+                                                                  PRICE_WEIGHTED);
+  bands_indicator_handle_loaded.indicator_timeframe     = trend_timeframe;
+
+  if(bands_indicator_handle_loaded.indicator_handle == INVALID_HANDLE)
+  {
+    Print("ERROR LOADING BOLLINGER INDICATOR: ", EnumToString(trend_timeframe),
+          " | PERIOD: ", bands_indicator_handle_loaded.indicator_period);
+    TesterStop();
+    return false;
+  }
+
+  AddElementToArray(ExtBandsIndicatorsHandle, bands_indicator_handle_loaded);
+  return true;
+}
+
 bool LoadChannelIndicatorForTimeframe(const GridBaseStrategyTypes channel_type,
                                       const ENUM_TIMEFRAMES trend_timeframe)
 {
   if(channel_type == KELTNER_RANGE)
     return LoadKeltnerIndicatorForTimeframe(trend_timeframe);
+  if(channel_type == BOLLINGER_RANGE)
+    return LoadBollingerIndicatorForTimeframe(trend_timeframe);
   return LoadAtrIndicatorForTimeframe(trend_timeframe);
 }
 
@@ -1008,18 +1081,23 @@ void LoadAllIndicatorDefinitions()
 
   bool require_structure_indicators = true;
 
-  bool strategy_uses_channel = (Grid_Base_Strategy_Type == ATR_RANGE ||
-                                Grid_Base_Strategy_Type == KELTNER_RANGE);
-  bool channel_overlay_required = (Enable_Show_Indicators &&
-                                   Strategy_Channel_Indicator_Type == CHANNEL_INDICATOR_KELTNER);
+  bool strategy_uses_channel = (Grid_Base_Strategy_Type != POINTS_RANGE);
+  bool require_channel_filters = Base_Channel_MA_Filter || Trend_Channel_MA_Filter ||
+                                 Macro_Channel_MA_Filter || Session_Channel_MA_Filter;
   bool load_channel_indicators = strategy_uses_channel ||
                                  trailing_requires_channel ||
-                                 channel_overlay_required;
-  GridBaseStrategyTypes channel_strategy_type = (Grid_Base_Strategy_Type == KELTNER_RANGE)
-                                                  ? KELTNER_RANGE
-                                                  : ATR_RANGE;
-  if(channel_overlay_required)
-    channel_strategy_type = KELTNER_RANGE;
+                                 require_channel_filters;
+
+  GridBaseStrategyTypes channel_strategy_type = ResolveChannelStrategyFromInputs();
+  if(channel_strategy_type == POINTS_RANGE)
+    channel_strategy_type = ResolveChannelStrategyFromInputs();
+
+  bool overlay_bollinger_required = (Enable_Show_Indicators &&
+                                     Strategy_Channel_Indicator_Type == CHANNEL_INDICATOR_BOLLINGER);
+  bool overlay_keltner_required = (Enable_Show_Indicators &&
+                                   Strategy_Channel_Indicator_Type == CHANNEL_INDICATOR_KELTNER);
+  bool overlay_atr_required = (Enable_Show_Indicators &&
+                               Strategy_Channel_Indicator_Type == CHANNEL_INDICATOR_ATR);
 
   TesterHideIndicators(!Enable_Show_Indicators);
 
@@ -1043,9 +1121,6 @@ void LoadAllIndicatorDefinitions()
   ArrayResize(ExtATRIndicatorsHandle, 0);
   ArrayResize(ExtKeltnerIndicatorsHandle, 0);
 
-  bool bollinger_overlay_required = (Enable_Show_Indicators &&
-                                     Strategy_Channel_Indicator_Type == CHANNEL_INDICATOR_BOLLINGER);
-
   if(base_bpercent_required)
   {
     LoadAllBPercentIndicators();
@@ -1054,8 +1129,6 @@ void LoadAllIndicatorDefinitions()
   {
     Print("Base Bollinger Percent indicator loading skipped (mode and slope filters disabled).");
   }
-  if(bollinger_overlay_required)
-    LoadAllBandsIndicators();
 
   if(base_alligator_required)
   {
@@ -1076,16 +1149,22 @@ void LoadAllIndicatorDefinitions()
     Print("Solid indicator strategy disabled and no structure filters configured; skipping stochastic indicator loading.");
   }
 
+  bool need_bollinger_channels = ((channel_strategy_type == BOLLINGER_RANGE) && load_channel_indicators) ||
+                                 overlay_bollinger_required;
+  bool need_keltner_channels   = ((channel_strategy_type == KELTNER_RANGE) && load_channel_indicators) ||
+                                 overlay_keltner_required;
+  bool need_atr_channels       = ((channel_strategy_type == ATR_RANGE) && load_channel_indicators) ||
+                                 overlay_atr_required;
+
+  if(need_bollinger_channels)
+    LoadAllBandsIndicators();
+  if(need_keltner_channels)
+    LoadAllKeltnerIndicators();
+  if(need_atr_channels)
+    LoadAllATRIndicators();
+
   if(load_channel_indicators)
   {
-    if(channel_strategy_type == KELTNER_RANGE)
-      LoadAllKeltnerIndicators();
-    else
-      LoadAllATRIndicators();
-
-    if(channel_overlay_required && channel_strategy_type != KELTNER_RANGE)
-      LoadAllKeltnerIndicators();
-
     if(Trend_Channel_MA_Filter)
     {
       ENUM_TIMEFRAMES trend_channel_tf = Trend_Strategy_Timeframe;
@@ -1111,7 +1190,7 @@ void LoadAllIndicatorDefinitions()
         LoadChannelIndicatorForTimeframe(channel_strategy_type, session_channel_tf);
     }
   }
-  else
+  else if(!overlay_bollinger_required && !overlay_keltner_required && !overlay_atr_required)
   {
     Print("Volatility indicator strategy disabled and trailing indicator mode inactive; skipping channel indicator loading.");
   }

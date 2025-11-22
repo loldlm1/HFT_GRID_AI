@@ -11,9 +11,6 @@ bool ResolveChannelBoundsForTimeframe(const ENUM_TIMEFRAMES tf,
   upper = 0.0;
   lower = 0.0;
 
-  if(!GridStrategyUsesChannelIndicator())
-    return false;
-
   GridBaseStrategyTypes channel_type = ResolveActiveChannelStrategy();
   if(!GridResolveChannelLinePrice(channel_type, GRID_CHANNEL_LINE_RESISTANCE, tf, upper))
     return false;
@@ -60,8 +57,6 @@ bool StrategyContextChannelMaFilterAllowsSignal(const StrategyContextTypes conte
                                                 const StrategyContextIndicators &snapshot)
 {
   if(!StrategyContextChannelFilterEnabled(context))
-    return true;
-  if(!GridStrategyUsesChannelIndicator())
     return true;
 
   StrategyTrendModes trend_mode = StrategyContextTrendMode(context);
