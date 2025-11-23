@@ -234,21 +234,34 @@ inline bool StrategyContextEnabled(const StrategyContextTypes context)
 
 inline StrategyEntryEvaluationModes StrategyContextEntryEvaluation(const StrategyContextTypes context)
 {
-  if(Strategy_Global_Entry_Evaluation_Mode != ENTRY_EVAL_OFF)
-    return Strategy_Global_Entry_Evaluation_Mode;
-
+  StrategyEntryEvaluationModes context_mode = ENTRY_EVAL_OFF;
   switch(context)
   {
     case CONTEXT_SLOT_BASE:
-      return Strategy_Base_Entry_Evaluation;
+      context_mode = Strategy_Base_Entry_Evaluation;
+      break;
     case CONTEXT_SLOT_TREND:
-      return Strategy_Trend_Entry_Evaluation;
+      context_mode = Strategy_Trend_Entry_Evaluation;
+      break;
     case CONTEXT_SLOT_MACRO:
-      return Strategy_Macro_Entry_Evaluation;
+      context_mode = Strategy_Macro_Entry_Evaluation;
+      break;
     case CONTEXT_SLOT_SESSION:
-      return Strategy_Session_Entry_Evaluation;
+      context_mode = Strategy_Session_Entry_Evaluation;
+      break;
   }
-  return ENTRY_EVAL_OFF;
+
+  if(context_mode == ENTRY_EVAL_OFF)
+    return ENTRY_EVAL_OFF;
+
+  if(context_mode == ENTRY_EVAL_GLOBAL)
+  {
+    return (Strategy_Global_Entry_Evaluation_Mode == ENTRY_EVAL_OFF)
+             ? ENTRY_EVAL_OFF
+             : Strategy_Global_Entry_Evaluation_Mode;
+  }
+
+  return context_mode;
 }
 
 inline StrategyTrendModes StrategyContextTrendMode(const StrategyContextTypes context)
