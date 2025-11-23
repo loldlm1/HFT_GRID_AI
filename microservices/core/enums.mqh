@@ -277,10 +277,11 @@ enum StrategyEntryModes
 enum StrategyEntryEvaluationModes
 {
   ENTRY_EVAL_OFF              = 0,
-  ENTRY_EVAL_WINDOW           = 1,
-  ENTRY_EVAL_MEAN             = 2,
-  ENTRY_EVAL_WINDOW_AND_MEAN  = 3,
-  ENTRY_EVAL_ON_TREND         = 4
+  ENTRY_EVAL_GLOBAL           = 1,
+  ENTRY_EVAL_WINDOW           = 2,
+  ENTRY_EVAL_MEAN             = 3,
+  ENTRY_EVAL_WINDOW_AND_MEAN  = 4,
+  ENTRY_EVAL_ON_TREND         = 5
 };
 
 enum StrategyTrendModes
