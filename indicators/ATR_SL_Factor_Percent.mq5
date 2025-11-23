@@ -23,7 +23,6 @@ input double             InpAtrFactor          = 1.0;          // ATR factor
 input int                InpPercentMAPeriod    = 5;            // Percent MA period
 input ENUM_MA_METHOD     InpMAMethod           = MODE_EMA;     // MA method
 input ENUM_APPLIED_PRICE InpAppliedPrice       = PRICE_TYPICAL;// Applied price
-input int                InpPercentRangeWindow = 5;            // Percent range window
 
 int    ExtAtrPeriod;
 int    ExtBandsShift;
@@ -52,7 +51,7 @@ int OnInit()
 {
   ExtAtrPeriod = MathMax(InpAtrPeriod, 1);
   ExtBandsShift = MathMax(InpCandleShift, 0);
-  ExtPercentRangeWindow = (InpPercentRangeWindow <= 0) ? 5 : InpPercentRangeWindow;
+  ExtPercentRangeWindow = (InpPercentMAPeriod <= 0) ? 5 : InpPercentMAPeriod;
 
   SetIndexBuffer(0, BLGBuffer, INDICATOR_DATA);
   SetIndexBuffer(1, BBPMABuffer, INDICATOR_DATA);
@@ -113,6 +112,10 @@ int OnCalculate(const int rates_total,
   if(rates_total <= ExtAtrPeriod)
     return 0;
 
+  int calculated = BarsCalculated(ExtATRHandle);
+  if(calculated < rates_total)
+    return 0;
+
   if(ExtPlotBegin != ExtAtrPeriod + 1)
   {
     ExtPlotBegin = ExtAtrPeriod + 1;
@@ -120,66 +123,50 @@ int OnCalculate(const int rates_total,
     PlotIndexSetInteger(1, PLOT_DRAW_BEGIN, ExtPlotBegin);
   }
 
-  int start = (prev_calculated > 1) ? prev_calculated - 1 : 1;
-  if(start < 1)
-    start = 1;
-  if(start >= rates_total)
-    return rates_total;
-  int copy_start = start;
-  int copy_count = rates_total - copy_start;
+  //--- we can copy not all data
+  int to_copy;
+  if(prev_calculated>rates_total || prev_calculated<0)
+    to_copy=rates_total;
+  else
+    {
+      to_copy=rates_total-prev_calculated;
+      if(prev_calculated>0)
+        to_copy++;
+    }
+  //--- get ma buffers
+  if(IsStopped()) // checking for stop flag
+    return(0);
 
-  double upper_buffer[];
-  double lower_buffer[];
-  double middle_buffer[];
+  if(CopyBuffer(ExtATRHandle, 0, 0, to_copy, ChannelUpperBuffer)<=0)
+    return(0);
+  if(CopyBuffer(ExtATRHandle, 1, 0, to_copy, ChannelLowerBuffer)<=0)
+    return(0);
+  if(CopyBuffer(ExtATRHandle, 2, 0, to_copy, ChannelMiddleBuffer)<=0)
+    return(0);
 
-  if(CopyBuffer(ExtATRHandle, 0, copy_start, copy_count, upper_buffer) != copy_count)
-    return prev_calculated;
-  if(CopyBuffer(ExtATRHandle, 1, copy_start, copy_count, lower_buffer) != copy_count)
-    return prev_calculated;
-  if(CopyBuffer(ExtATRHandle, 2, copy_start, copy_count, middle_buffer) != copy_count)
-    return prev_calculated;
+  //--- first calculation or number of bars was changed
+  int start;
+  if(prev_calculated<ExtAtrPeriod)
+    start=ExtAtrPeriod;
+  else
+    start=prev_calculated-1;
 
   for(int i = start; i < rates_total && !IsStopped(); i++)
   {
-    int buffer_index = i - copy_start;
-    double upper = upper_buffer[buffer_index];
-    double lower = lower_buffer[buffer_index];
-    double middle = middle_buffer[buffer_index];
-
-    ExtTLBuffer[i] = upper;
-    ExtBLBuffer[i] = lower;
-    ExtMLBuffer[i] = middle;
-    ChannelUpperBuffer[i]  = upper;
-    ChannelLowerBuffer[i]  = lower;
-    ChannelMiddleBuffer[i] = middle;
-
-    if(upper == EMPTY_VALUE || lower == EMPTY_VALUE || middle == EMPTY_VALUE)
-    {
-      BLGBuffer[i]        = EMPTY_VALUE;
-      BBPMABuffer[i]      = EMPTY_VALUE;
-      ExtBBCloseBuffer[i] = EMPTY_VALUE;
-      ExtBBOpenBuffer[i]  = EMPTY_VALUE;
-      ExtBBHighBuffer[i]  = EMPTY_VALUE;
-      ExtBBLowBuffer[i]   = EMPTY_VALUE;
-      ExtPercentRangeHigh[i] = EMPTY_VALUE;
-      ExtPercentRangeLow[i]  = EMPTY_VALUE;
-      continue;
-    }
-
-    double range = upper - lower;
+    double range = ChannelUpperBuffer[i] - ChannelLowerBuffer[i];
     if(range == 0.0)
       range = _Point;
 
     ExtAppliedPriceBuffer[i] = GetAppliedPrice(i, open, close, high, low);
     ExtATRBuffer[i]          = range;
 
-    BLGBuffer[i] = NormalizeDouble((close[i] - lower) / range * 100.0, 2);
+    BLGBuffer[i] = NormalizeDouble((close[i] - ChannelLowerBuffer[i]) / range * 100.0, 2);
     BBPMABuffer[i] = SimpleMA(i, InpPercentMAPeriod, BLGBuffer);
 
-    ExtBBCloseBuffer[i] = NormalizeDouble((close[i] - lower) / range * 100.0, 2);
-    ExtBBOpenBuffer[i]  = NormalizeDouble((open[i]  - lower) / range * 100.0, 2);
-    ExtBBHighBuffer[i]  = NormalizeDouble((high[i]  - lower) / range * 100.0, 2);
-    ExtBBLowBuffer[i]   = NormalizeDouble((low[i]   - lower) / range * 100.0, 2);
+    ExtBBCloseBuffer[i] = NormalizeDouble((close[i] - ChannelLowerBuffer[i]) / range * 100.0, 2);
+    ExtBBOpenBuffer[i]  = NormalizeDouble((open[i]  - ChannelLowerBuffer[i]) / range * 100.0, 2);
+    ExtBBHighBuffer[i]  = NormalizeDouble((high[i]  - ChannelLowerBuffer[i]) / range * 100.0, 2);
+    ExtBBLowBuffer[i]   = NormalizeDouble((low[i]   - ChannelLowerBuffer[i]) / range * 100.0, 2);
 
     int range_from = i - ExtPercentRangeWindow + 1;
     if(range_from < 0)
