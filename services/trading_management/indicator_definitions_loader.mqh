@@ -1239,12 +1239,13 @@ void LoadAllBandsIndicators()
       bands_indicator_handle_loaded.indicator_period     = IndicatorPeriods[period_index];
       bands_indicator_handle_loaded.indicator_ma_method  = Base_Indicator_MA_Method;
       bands_indicator_handle_loaded.indicator_applied_price = PRICE_WEIGHTED;
+      double deviation_factor = ResolveBollingerDeviationFactor();
       bands_indicator_handle_loaded.indicator_handle    = iCustom(_Symbol,
                                                                   trend_timeframe,
                                                                   "Examples\\BB_Standard.ex5",
                                                                   bands_indicator_handle_loaded.indicator_period,
                                                                   0,
-                                                                  2.0,
+                                                                  deviation_factor,
                                                                   Base_Indicator_MA_Method,
                                                                   PRICE_WEIGHTED);
       bands_indicator_handle_loaded.indicator_timeframe = trend_timeframe;
@@ -1280,12 +1281,16 @@ void LoadAllBPercentIndicators()
       bands_indicator_handle_loaded.indicator_period     = IndicatorPeriods[period_index];
       bands_indicator_handle_loaded.indicator_ma_method  = Base_Indicator_MA_Method;
       bands_indicator_handle_loaded.indicator_applied_price = PRICE_WEIGHTED;
+      double channel_factor = ResolveChannelFactor();
+      double percent_factor = (Strategy_Channel_Indicator_Type == CHANNEL_INDICATOR_BOLLINGER)
+                                ? ResolveBollingerDeviationFactor()
+                                : channel_factor;
       bands_indicator_handle_loaded.indicator_handle    = iCustom(_Symbol,
                                                                   trend_timeframe,
                                                                   ResolveChannelPercentIndicatorPath(),
                                                                   bands_indicator_handle_loaded.indicator_period,
                                                                   0,
-                                                                  2.0,
+                                                                  percent_factor,
                                                                   5,
                                                                   Base_Indicator_MA_Method,
                                                                   PRICE_WEIGHTED,
