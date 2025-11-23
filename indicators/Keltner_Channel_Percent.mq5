@@ -149,17 +149,6 @@ int OnCalculate(const int rates_total,
   if(rates_total < ExtBandsPeriod)
     return 0;
 
-  double upper_buffer[];
-  double middle_buffer[];
-  double lower_buffer[];
-
-  if(CopyBuffer(ExtKeltnerHandle, 0, 0, rates_total, upper_buffer) <= 0)
-    return prev_calculated;
-  if(CopyBuffer(ExtKeltnerHandle, 1, 0, rates_total, middle_buffer) <= 0)
-    return prev_calculated;
-  if(CopyBuffer(ExtKeltnerHandle, 2, 0, rates_total, lower_buffer) <= 0)
-    return prev_calculated;
-
   if(ExtPlotBegin != ExtBandsPeriod + 1)
   {
     ExtPlotBegin = ExtBandsPeriod + 1;
@@ -167,15 +156,31 @@ int OnCalculate(const int rates_total,
     PlotIndexSetInteger(1, PLOT_DRAW_BEGIN, ExtPlotBegin);
   }
 
-  int start = (prev_calculated > 1) ? prev_calculated - 1 : ExtBandsPeriod;
-  if(start < ExtBandsPeriod)
-    start = ExtBandsPeriod;
+  int start = (prev_calculated > 1) ? prev_calculated - 1 : 1;
+  if(start < 1)
+    start = 1;
+  if(start >= rates_total)
+    return rates_total;
+  int copy_start = start;
+  int copy_count = rates_total - copy_start;
+
+  double upper_buffer[];
+  double middle_buffer[];
+  double lower_buffer[];
+
+  if(CopyBuffer(ExtKeltnerHandle, 0, copy_start, copy_count, upper_buffer) != copy_count)
+    return prev_calculated;
+  if(CopyBuffer(ExtKeltnerHandle, 1, copy_start, copy_count, middle_buffer) != copy_count)
+    return prev_calculated;
+  if(CopyBuffer(ExtKeltnerHandle, 2, copy_start, copy_count, lower_buffer) != copy_count)
+    return prev_calculated;
 
   for(int i = start; i < rates_total && !IsStopped(); i++)
   {
-    double upper = upper_buffer[i];
-    double middle = middle_buffer[i];
-    double lower = lower_buffer[i];
+    int buffer_index = i - copy_start;
+    double upper = upper_buffer[buffer_index];
+    double middle = middle_buffer[buffer_index];
+    double lower = lower_buffer[buffer_index];
 
     ExtMLBuffer[i] = middle;
     ExtTLBuffer[i] = upper;
