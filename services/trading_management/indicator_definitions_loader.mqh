@@ -122,6 +122,19 @@ GridBaseStrategyTypes ResolveChannelStrategyFromInputs()
   return configured_type;
 }
 
+double ResolveChannelFactor()
+{
+  double channel_factor = Grid_Channel_Factor;
+  if(channel_factor <= 0.0)
+    channel_factor = 1.0;
+  return channel_factor;
+}
+
+double ResolveBollingerDeviationFactor()
+{
+  return 1.0 + ResolveChannelFactor();
+}
+
 int ResolveBPercentIndicatorPeriod()
 {
   int indicator_period = (int)Base_Indicator_Period_Type;
@@ -241,11 +254,9 @@ bool LoadContextBPercentIndicator(const ENUM_TIMEFRAMES context_tf,
   handle.indicator_period        = ResolveBPercentIndicatorPeriod();
   handle.indicator_ma_method     = Base_Indicator_MA_Method;
   handle.indicator_applied_price = PRICE_WEIGHTED;
-  double channel_factor = Grid_Channel_Factor;
-  if(channel_factor <= 0.0)
-    channel_factor = 1.0;
+  double channel_factor = ResolveChannelFactor();
   double percent_factor = (Strategy_Channel_Indicator_Type == CHANNEL_INDICATOR_BOLLINGER)
-                            ? (1.0 + channel_factor)
+                            ? ResolveBollingerDeviationFactor()
                             : channel_factor;
   handle.indicator_handle        = iCustom(_Symbol,
                                            context_tf,
@@ -724,12 +735,13 @@ bool LoadBollingerIndicatorForTimeframe(const ENUM_TIMEFRAMES trend_timeframe)
   bands_indicator_handle_loaded.indicator_period        = ResolveBPercentIndicatorPeriod();
   bands_indicator_handle_loaded.indicator_ma_method     = Base_Indicator_MA_Method;
   bands_indicator_handle_loaded.indicator_applied_price = PRICE_WEIGHTED;
+  double deviation_factor = ResolveBollingerDeviationFactor();
   bands_indicator_handle_loaded.indicator_handle        = iCustom(_Symbol,
                                                                   trend_timeframe,
                                                                   "Examples\\BB_Standard.ex5",
                                                                   bands_indicator_handle_loaded.indicator_period,
                                                                   0,
-                                                                  2.0,
+                                                                  deviation_factor,
                                                                   Base_Indicator_MA_Method,
                                                                   PRICE_WEIGHTED);
   bands_indicator_handle_loaded.indicator_timeframe     = trend_timeframe;
