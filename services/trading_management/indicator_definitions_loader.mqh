@@ -135,6 +135,55 @@ double ResolveBollingerDeviationFactor()
   return 1.0 + ResolveChannelFactor();
 }
 
+int CreateChannelPercentIndicatorHandle(const ENUM_TIMEFRAMES timeframe,
+                                        const int indicator_period,
+                                        const double channel_factor,
+                                        const double bollinger_factor,
+                                        const ENUM_MA_METHOD indicator_ma_method,
+                                        const ENUM_APPLIED_PRICE indicator_applied_price)
+{
+  const int percent_ma_period = 5;
+  const int atr_period = MathMax((int)Stoch_Structure_Period_Type, 1);
+  string indicator_path = ResolveChannelPercentIndicatorPath();
+
+  if(Strategy_Channel_Indicator_Type == CHANNEL_INDICATOR_ATR)
+  {
+    return iCustom(_Symbol,
+                   timeframe,
+                   indicator_path,
+                   indicator_period,
+                   0,
+                   channel_factor,
+                   percent_ma_period,
+                   indicator_ma_method,
+                   indicator_applied_price);
+  }
+
+  if(Strategy_Channel_Indicator_Type == CHANNEL_INDICATOR_KELTNER)
+  {
+    return iCustom(_Symbol,
+                   timeframe,
+                   indicator_path,
+                   indicator_period,
+                   atr_period,
+                   0,
+                   channel_factor,
+                   percent_ma_period,
+                   indicator_ma_method,
+                   indicator_applied_price);
+  }
+
+  return iCustom(_Symbol,
+                 timeframe,
+                 indicator_path,
+                 indicator_period,
+                 0,
+                 bollinger_factor,
+                 percent_ma_period,
+                 indicator_ma_method,
+                 indicator_applied_price);
+}
+
 int ResolveBPercentIndicatorPeriod()
 {
   int indicator_period = (int)Base_Indicator_Period_Type;
@@ -255,19 +304,13 @@ bool LoadContextBPercentIndicator(const ENUM_TIMEFRAMES context_tf,
   handle.indicator_ma_method     = Base_Indicator_MA_Method;
   handle.indicator_applied_price = PRICE_WEIGHTED;
   double channel_factor = ResolveChannelFactor();
-  double percent_factor = (Strategy_Channel_Indicator_Type == CHANNEL_INDICATOR_BOLLINGER)
-                            ? ResolveBollingerDeviationFactor()
-                            : channel_factor;
-  handle.indicator_handle        = iCustom(_Symbol,
-                                           context_tf,
-                                           ResolveChannelPercentIndicatorPath(),
-                                           handle.indicator_period,
-                                           0,
-                                           percent_factor,
-                                           5,
-                                           Base_Indicator_MA_Method,
-                                           handle.indicator_applied_price,
-                                           (int)Stoch_Structure_Period_Type);
+  double bollinger_factor = ResolveBollingerDeviationFactor();
+  handle.indicator_handle        = CreateChannelPercentIndicatorHandle(context_tf,
+                                                                       handle.indicator_period,
+                                                                       channel_factor,
+                                                                       bollinger_factor,
+                                                                       handle.indicator_ma_method,
+                                                                       handle.indicator_applied_price);
   handle.indicator_timeframe     = context_tf;
 
   if(handle.indicator_handle == INVALID_HANDLE)
@@ -1281,20 +1324,14 @@ void LoadAllBPercentIndicators()
       bands_indicator_handle_loaded.indicator_period     = IndicatorPeriods[period_index];
       bands_indicator_handle_loaded.indicator_ma_method  = Base_Indicator_MA_Method;
       bands_indicator_handle_loaded.indicator_applied_price = PRICE_WEIGHTED;
-      double channel_factor = ResolveChannelFactor();
-      double percent_factor = (Strategy_Channel_Indicator_Type == CHANNEL_INDICATOR_BOLLINGER)
-                                ? ResolveBollingerDeviationFactor()
-                                : channel_factor;
-      bands_indicator_handle_loaded.indicator_handle    = iCustom(_Symbol,
-                                                                  trend_timeframe,
-                                                                  ResolveChannelPercentIndicatorPath(),
-                                                                  bands_indicator_handle_loaded.indicator_period,
-                                                                  0,
-                                                                  percent_factor,
-                                                                  5,
-                                                                  Base_Indicator_MA_Method,
-                                                                  PRICE_WEIGHTED,
-                                                                  (int)Stoch_Structure_Period_Type);
+      double channel_factor        = ResolveChannelFactor();
+      double bollinger_factor      = ResolveBollingerDeviationFactor();
+      bands_indicator_handle_loaded.indicator_handle    = CreateChannelPercentIndicatorHandle(trend_timeframe,
+                                                                                              bands_indicator_handle_loaded.indicator_period,
+                                                                                              channel_factor,
+                                                                                              bollinger_factor,
+                                                                                              bands_indicator_handle_loaded.indicator_ma_method,
+                                                                                              bands_indicator_handle_loaded.indicator_applied_price);
       bands_indicator_handle_loaded.indicator_timeframe = trend_timeframe;
 
       if(bands_indicator_handle_loaded.indicator_handle == INVALID_HANDLE)
