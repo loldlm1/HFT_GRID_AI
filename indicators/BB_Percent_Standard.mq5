@@ -28,7 +28,7 @@ input double  InpDeviation               = 2.0;          // Deviation
 input int     InpPercentMAPeriod         = 5;            // B Percent Period
 input ENUM_MA_METHOD InpMAMethod         = MODE_EMA;     // MA Method
 input ENUM_APPLIED_PRICE InpAppliedPrice = PRICE_TYPICAL;// Applied price
-input int     InpPercentRangeWindow     = 5;            // Percent range window
+
 //--- global variables
 int           ExtBandsPeriod,ExtBandsShift;
 double        ExtBandsDeviations;
@@ -76,13 +76,13 @@ void OnInit()
      }
    else
       ExtBandsDeviations=InpDeviation;
-   if(InpPercentRangeWindow<=0)
+   if(InpPercentMAPeriod<=0)
      {
       ExtPercentRangeWindow=5;
-      PrintFormat("Incorrect value for Percent Range Window=%d. Indicator will use value=%d for calculations.", InpPercentRangeWindow, ExtPercentRangeWindow);
+      PrintFormat("Incorrect value for Percent Range Window=%d. Indicator will use value=%d for calculations.", InpPercentMAPeriod, ExtPercentRangeWindow);
      }
    else
-      ExtPercentRangeWindow=InpPercentRangeWindow;
+      ExtPercentRangeWindow=InpPercentMAPeriod;
 
    //--- STANDARD BB Buffers
    SetIndexBuffer(0,BLGBuffer, INDICATOR_DATA);
