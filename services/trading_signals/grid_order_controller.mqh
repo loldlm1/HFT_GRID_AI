@@ -1,6 +1,27 @@
 #ifndef _SERVICES_TRADING_SIGNALS_GRID_ORDER_CONTROLLER_MQH_
 #define _SERVICES_TRADING_SIGNALS_GRID_ORDER_CONTROLLER_MQH_
 
+int GridCountPositionOpeningLevels(const SignalParams &signal_params)
+{
+  int total_levels = ArraySize(signal_params.grid_orders);
+  int count = 0;
+  for(int idx = 0; idx < total_levels; idx++)
+  {
+    if(signal_params.grid_orders[idx].opens_position)
+      count++;
+  }
+  return count;
+}
+
+bool GridNextLevelOpensPosition(const SignalParams &signal_params)
+{
+  int next_index = ArraySize(signal_params.grid_orders);
+  int start_level = Grid_Level_Position_Start;
+  if(start_level < 0)
+    start_level = 0;
+  return (next_index >= start_level);
+}
+
 void UpdateGridLifecycle(SignalParams &signal_params)
 {
   if(!GridEnsureSarSignalInitialized(signal_params, true))
@@ -98,8 +119,11 @@ void UpdateGridLifecycle(SignalParams &signal_params)
     if(GridShouldActivateNextLevelLimit(signal_params, grid_order, direction, point_size))
     {
       int current_levels = ArraySize(signal_params.grid_orders);
+      int position_levels = GridCountPositionOpeningLevels(signal_params);
+      bool next_level_opens_position = GridNextLevelOpensPosition(signal_params);
       bool level_limit_hit = (Grid_Level_Stop_Limit > 0 &&
-                              current_levels >= Grid_Level_Stop_Limit);
+                              next_level_opens_position &&
+                              position_levels >= Grid_Level_Stop_Limit);
 
       if(level_limit_hit)
       {
