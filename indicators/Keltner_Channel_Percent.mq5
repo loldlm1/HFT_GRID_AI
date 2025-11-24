@@ -46,7 +46,8 @@ double ChannelUpperBuffer[];
 double ChannelMiddleBuffer[];
 double ChannelLowerBuffer[];
 double ExtATRBuffer[];
-int    ExtKeltnerHandle = INVALID_HANDLE;
+int    ExtEMAHandle = INVALID_HANDLE;
+int    ExtATRHandle = INVALID_HANDLE;
 
 int OnInit()
 {
@@ -117,18 +118,16 @@ int OnInit()
 
   IndicatorSetInteger(INDICATOR_DIGITS, 2);
 
-  ExtKeltnerHandle = iCustom(NULL,
-                             0,
-                             "Examples\\Keltner_Channel",
-                             ExtBandsPeriod,
-                             InpATRPeriod,
-                             ExtBandsShift,
-                             InpAtrFactor,
-                             InpMAMethod,
-                             InpAppliedPrice);
-  if(ExtKeltnerHandle == INVALID_HANDLE)
+  ExtEMAHandle = iMA(NULL,
+                     0,
+                     MathMax(ExtBandsPeriod, 1),
+                     0,
+                     InpMAMethod,
+                     InpAppliedPrice);
+  ExtATRHandle = iATR(NULL, 0, MathMax(InpATRPeriod, 1));
+  if(ExtEMAHandle == INVALID_HANDLE || ExtATRHandle == INVALID_HANDLE)
   {
-    Print("Failed to create Keltner Channel handle for percent indicator: ", GetLastError());
+    Print("Failed to create Keltner Channel handles for percent indicator: ", GetLastError());
     return INIT_FAILED;
   }
 
@@ -149,8 +148,9 @@ int OnCalculate(const int rates_total,
   if(rates_total < ExtBandsPeriod)
     return 0;
 
-  int calculated = BarsCalculated(ExtKeltnerHandle);
-  if(calculated < rates_total)
+  int ema_calculated = BarsCalculated(ExtEMAHandle);
+  int atr_calculated = BarsCalculated(ExtATRHandle);
+  if(ema_calculated < rates_total || atr_calculated < rates_total)
     return 0;
 
   if(ExtPlotBegin != ExtBandsPeriod + 1)
@@ -160,36 +160,50 @@ int OnCalculate(const int rates_total,
     PlotIndexSetInteger(1, PLOT_DRAW_BEGIN, ExtPlotBegin);
   }
 
-  //--- we can copy not all data
-  int to_copy;
-  if(prev_calculated>rates_total || prev_calculated<0)
-    to_copy=rates_total;
-  else
-    {
-      to_copy=rates_total-prev_calculated;
-      if(prev_calculated>0)
-        to_copy++;
-    }
-  //--- get ma buffers
   if(IsStopped()) // checking for stop flag
-    return(0);
+    return 0;
 
-  if(CopyBuffer(ExtKeltnerHandle, 0, 0, to_copy, ChannelUpperBuffer)<=0)
-    return(0);
-  if(CopyBuffer(ExtKeltnerHandle, 1, 0, to_copy, ChannelMiddleBuffer)<=0)
-    return(0);
-  if(CopyBuffer(ExtKeltnerHandle, 2, 0, to_copy, ChannelLowerBuffer)<=0)
-    return(0);
+  double ema_buffer[];
+  double atr_buffer[];
+  int request_count = rates_total;
+  if(CopyBuffer(ExtEMAHandle, 0, 0, request_count, ema_buffer) <= 0)
+    return prev_calculated;
+  if(CopyBuffer(ExtATRHandle, 0, 0, request_count, atr_buffer) <= 0)
+    return prev_calculated;
 
   //--- first calculation or number of bars was changed
-  int start;
-  if(prev_calculated<ExtBandsPeriod)
-    start=ExtBandsPeriod;
-  else
-    start=prev_calculated-1;
+  int start = (prev_calculated < ExtBandsPeriod) ? ExtBandsPeriod : prev_calculated - 1;
+  int channel_start = MathMax(ExtBandsPeriod, InpATRPeriod);
+  if(start < channel_start)
+    start = channel_start;
 
   for(int i = start; i < rates_total && !IsStopped(); i++)
   {
+    double middle = ema_buffer[i];
+    double atr_value = atr_buffer[i];
+    if(middle == EMPTY_VALUE || atr_value == EMPTY_VALUE)
+    {
+      ChannelUpperBuffer[i]  = EMPTY_VALUE;
+      ChannelMiddleBuffer[i] = EMPTY_VALUE;
+      ChannelLowerBuffer[i]  = EMPTY_VALUE;
+      ExtAppliedPriceBuffer[i] = EMPTY_VALUE;
+      ExtATRBuffer[i]          = EMPTY_VALUE;
+      BLGBuffer[i]           = EMPTY_VALUE;
+      BBPMABuffer[i]         = EMPTY_VALUE;
+      ExtBBCloseBuffer[i]    = EMPTY_VALUE;
+      ExtBBOpenBuffer[i]     = EMPTY_VALUE;
+      ExtBBHighBuffer[i]     = EMPTY_VALUE;
+      ExtBBLowBuffer[i]      = EMPTY_VALUE;
+      ExtPercentRangeHigh[i] = EMPTY_VALUE;
+      ExtPercentRangeLow[i]  = EMPTY_VALUE;
+      continue;
+    }
+
+    double offset = atr_value * InpAtrFactor;
+    ChannelUpperBuffer[i]  = middle + offset;
+    ChannelMiddleBuffer[i] = middle;
+    ChannelLowerBuffer[i]  = middle - offset;
+
     double range = ChannelUpperBuffer[i] - ChannelLowerBuffer[i];
     if(range == 0.0)
       range = _Point;
@@ -232,11 +246,10 @@ int OnCalculate(const int rates_total,
 
 void OnDeinit(const int reason)
 {
-  if(ExtKeltnerHandle != INVALID_HANDLE)
-  {
-    IndicatorRelease(ExtKeltnerHandle);
-    ExtKeltnerHandle = INVALID_HANDLE;
-  }
+  if(ExtEMAHandle != INVALID_HANDLE)
+    IndicatorRelease(ExtEMAHandle);
+  if(ExtATRHandle != INVALID_HANDLE)
+    IndicatorRelease(ExtATRHandle);
 }
 
 double GetAppliedPrice(const int index,
