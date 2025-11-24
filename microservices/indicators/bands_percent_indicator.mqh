@@ -181,281 +181,330 @@ struct BandsPercentStructure
   {
     indicator_timeframe          = bands_indicator_handle.indicator_timeframe;
     indicator_period             = bands_indicator_handle.indicator_period;
-    bands_percent_0              = GetBandsPercentValue(bands_indicator_handle, index);
-    bands_percent_1              = GetBandsPercentValue(bands_indicator_handle, index+1);
-    bands_percent_2              = GetBandsPercentValue(bands_indicator_handle, index+2);
-    bands_percent_3              = GetBandsPercentValue(bands_indicator_handle, index+3);
-    bands_percent_4              = GetBandsPercentValue(bands_indicator_handle, index+4);
-    bands_percent_5              = GetBandsPercentValue(bands_indicator_handle, index+5);
 
-    bands_percent_signal_0       = GetBandsPercentSignalValue(bands_indicator_handle, index);
-    bands_percent_signal_1       = GetBandsPercentSignalValue(bands_indicator_handle, index+1);
-    bands_percent_signal_2       = GetBandsPercentSignalValue(bands_indicator_handle, index+2);
-    bands_percent_signal_3       = GetBandsPercentSignalValue(bands_indicator_handle, index+3);
+    const int signal_period = 5;
+    int max_shift = MathMax(5, signal_period + 2);
+    int total_points = max_shift + 1;
 
-    bands_percent_slope_0        = GetBandsPercentSlope(bands_indicator_handle, index);
-    bands_percent_slope_1        = GetBandsPercentSlope(bands_indicator_handle, index+1);
-    bands_percent_slope_2        = GetBandsPercentSlope(bands_indicator_handle, index+2);
-    bands_percent_slope_3        = GetBandsPercentSlope(bands_indicator_handle, index+3);
-
-    bands_percent_signal_slope_0 = GetBandsPercentSignalSlope(bands_indicator_handle, index);
-    bands_percent_signal_slope_1 = GetBandsPercentSignalSlope(bands_indicator_handle, index+1);
-    bands_percent_signal_slope_2 = GetBandsPercentSignalSlope(bands_indicator_handle, index+2);
-    bands_percent_signal_slope_3 = GetBandsPercentSignalSlope(bands_indicator_handle, index+3);
-
-    bands_percent_percentil_0      = GetBandsPercentPercentil(bands_indicator_handle, index);
-    bands_percent_percentil_1      = GetBandsPercentPercentil(bands_indicator_handle, index+1);
-    bands_percent_percentil_2      = GetBandsPercentPercentil(bands_indicator_handle, index+2);
-    bands_percent_percentil_3      = GetBandsPercentPercentil(bands_indicator_handle, index+3);
-
-    bands_percent_signal_percentil_0 = GetBandsPercentSignalPercentil(bands_indicator_handle, index);
-    bands_percent_signal_percentil_1 = GetBandsPercentSignalPercentil(bands_indicator_handle, index+1);
-    bands_percent_signal_percentil_2 = GetBandsPercentSignalPercentil(bands_indicator_handle, index+2);
-    bands_percent_signal_percentil_3 = GetBandsPercentSignalPercentil(bands_indicator_handle, index+3);
-
-    bands_percent_trend_0        = GetBandsPercentTrend(bands_indicator_handle, index);
-    bands_percent_trend_1        = GetBandsPercentTrend(bands_indicator_handle, index+1);
-    bands_percent_trend_2        = GetBandsPercentTrend(bands_indicator_handle, index+2);
-    bands_percent_trend_3        = GetBandsPercentTrend(bands_indicator_handle, index+3);
-
-    bb_close_0                   = GetBBCloseValue(bands_indicator_handle, index);
-    bb_close_1                   = GetBBCloseValue(bands_indicator_handle, index+1);
-    bb_close_2                   = GetBBCloseValue(bands_indicator_handle, index+2);
-    bb_close_3                   = GetBBCloseValue(bands_indicator_handle, index+3);
-
-    bb_open_0                    = GetBBOpenValue(bands_indicator_handle, index);
-    bb_open_1                    = GetBBOpenValue(bands_indicator_handle, index+1);
-    bb_open_2                    = GetBBOpenValue(bands_indicator_handle, index+2);
-    bb_open_3                    = GetBBOpenValue(bands_indicator_handle, index+3);
-
-    bb_high_0                    = GetBBHighValue(bands_indicator_handle, index);
-    bb_high_1                    = GetBBHighValue(bands_indicator_handle, index+1);
-    bb_high_2                    = GetBBHighValue(bands_indicator_handle, index+2);
-    bb_high_3                    = GetBBHighValue(bands_indicator_handle, index+3);
-
-    bb_low_0                     = GetBBLowValue(bands_indicator_handle, index);
-    bb_low_1                     = GetBBLowValue(bands_indicator_handle, index+1);
-    bb_low_2                     = GetBBLowValue(bands_indicator_handle, index+2);
-    bb_low_3                     = GetBBLowValue(bands_indicator_handle, index+3);
-
-    bands_percent_window_high    = GetBandsPercentWindowHighValue(bands_indicator_handle, index);
-    bands_percent_window_low     = GetBandsPercentWindowLowValue(bands_indicator_handle, index);
-  }
-
-  // ++ BANDS PERCENT INDICATOR FUNCTIONS ++
-
-  double GetBandsPercentValue(IndicatorsHandleInfo &bands_indicator_handle, int index)
-  {
-    double bands_percent_value[];
-
-    if(CopyBuffer(bands_indicator_handle.indicator_handle, 0, 0, index+1, bands_percent_value) <= 0)
+    double percent_values[];
+    if(!ComputePercentSeries(bands_indicator_handle, index, total_points, percent_values))
     {
-      Print("ERROR READING BANDS PERCENT INDICATOR DATA");
+      ResetComputedOutputs();
+      return;
     }
 
-    ArraySetAsSeries(bands_percent_value, true);
+    double signal_values[];
+    ComputeSignalSeries(percent_values, ArraySize(percent_values), signal_period, signal_values);
+    int percent_series_size = ArraySize(percent_values);
+    int signal_series_size  = ArraySize(signal_values);
 
-    // ROUNDS TO 2 DECIMALS FOR PERCENTAGE VALUES
-    double value = NormalizeDouble(bands_percent_value[index], 2);
+    bands_percent_0 = ResolvePercentValue(percent_values, percent_series_size, 0);
+    bands_percent_1 = ResolvePercentValue(percent_values, percent_series_size, 1);
+    bands_percent_2 = ResolvePercentValue(percent_values, percent_series_size, 2);
+    bands_percent_3 = ResolvePercentValue(percent_values, percent_series_size, 3);
+    bands_percent_4 = ResolvePercentValue(percent_values, percent_series_size, 4);
+    bands_percent_5 = ResolvePercentValue(percent_values, percent_series_size, 5);
 
-    return value;
+    bands_percent_signal_0 = ResolvePercentValue(signal_values, signal_series_size, 0);
+    bands_percent_signal_1 = ResolvePercentValue(signal_values, signal_series_size, 1);
+    bands_percent_signal_2 = ResolvePercentValue(signal_values, signal_series_size, 2);
+    bands_percent_signal_3 = ResolvePercentValue(signal_values, signal_series_size, 3);
+
+    bands_percent_slope_0 = ResolveSlopeFromSeries(percent_values, percent_series_size, 0);
+    bands_percent_slope_1 = ResolveSlopeFromSeries(percent_values, percent_series_size, 1);
+    bands_percent_slope_2 = ResolveSlopeFromSeries(percent_values, percent_series_size, 2);
+    bands_percent_slope_3 = ResolveSlopeFromSeries(percent_values, percent_series_size, 3);
+
+    bands_percent_signal_slope_0 = ResolveSlopeFromSeries(signal_values, signal_series_size, 0);
+    bands_percent_signal_slope_1 = ResolveSlopeFromSeries(signal_values, signal_series_size, 1);
+    bands_percent_signal_slope_2 = ResolveSlopeFromSeries(signal_values, signal_series_size, 2);
+    bands_percent_signal_slope_3 = ResolveSlopeFromSeries(signal_values, signal_series_size, 3);
+
+    bands_percent_percentil_0 = ResolvePercentilFromValue(bands_percent_0);
+    bands_percent_percentil_1 = ResolvePercentilFromValue(bands_percent_1);
+    bands_percent_percentil_2 = ResolvePercentilFromValue(bands_percent_2);
+    bands_percent_percentil_3 = ResolvePercentilFromValue(bands_percent_3);
+
+    bands_percent_signal_percentil_0 = ResolvePercentilFromValue(bands_percent_signal_0);
+    bands_percent_signal_percentil_1 = ResolvePercentilFromValue(bands_percent_signal_1);
+    bands_percent_signal_percentil_2 = ResolvePercentilFromValue(bands_percent_signal_2);
+    bands_percent_signal_percentil_3 = ResolvePercentilFromValue(bands_percent_signal_3);
+
+    bands_percent_trend_0 = ResolveTrendFromSeries(percent_values, signal_values, 0);
+    bands_percent_trend_1 = ResolveTrendFromSeries(percent_values, signal_values, 1);
+    bands_percent_trend_2 = ResolveTrendFromSeries(percent_values, signal_values, 2);
+    bands_percent_trend_3 = ResolveTrendFromSeries(percent_values, signal_values, 3);
+
+    // WIP: future implementation needed, right now its not necessary
+    bb_close_0 = bb_close_1 = bb_close_2 = bb_close_3 = 0.0;
+    bb_open_0  = bb_open_1  = bb_open_2  = bb_open_3  = 0.0;
+    bb_high_0  = bb_high_1  = bb_high_2  = bb_high_3  = 0.0;
+    bb_low_0   = bb_low_1   = bb_low_2   = bb_low_3   = 0.0;
+
+    double window_high;
+    double window_low;
+    ComputePercentWindow(percent_values, percent_series_size, signal_period, window_high, window_low);
+    bands_percent_window_high = window_high;
+    bands_percent_window_low  = window_low;
   }
 
-  double GetBandsPercentSignalValue(IndicatorsHandleInfo &bands_indicator_handle, int index)
+  void ResetComputedOutputs()
   {
-    double bands_percent_signal_value[];
+    bands_percent_0 = bands_percent_1 = bands_percent_2 = bands_percent_3 = bands_percent_4 = bands_percent_5 = EMPTY_VALUE;
+    bands_percent_signal_0 = bands_percent_signal_1 = bands_percent_signal_2 = bands_percent_signal_3 = EMPTY_VALUE;
+    bands_percent_slope_0 = bands_percent_slope_1 = bands_percent_slope_2 = bands_percent_slope_3 = NO_SLOPE;
+    bands_percent_signal_slope_0 = bands_percent_signal_slope_1 = bands_percent_signal_slope_2 = bands_percent_signal_slope_3 = NO_SLOPE;
+    bands_percent_percentil_0 = bands_percent_percentil_1 = bands_percent_percentil_2 = bands_percent_percentil_3 = PERCENTIL_NULL;
+    bands_percent_signal_percentil_0 = bands_percent_signal_percentil_1 = bands_percent_signal_percentil_2 = bands_percent_signal_percentil_3 = PERCENTIL_NULL;
+    bands_percent_trend_0 = bands_percent_trend_1 = bands_percent_trend_2 = bands_percent_trend_3 = NO_SIGNAL;
+    bands_percent_window_high = bands_percent_window_low = EMPTY_VALUE;
+    bb_close_0 = bb_close_1 = bb_close_2 = bb_close_3 = 0.0;
+    bb_open_0  = bb_open_1  = bb_open_2  = bb_open_3  = 0.0;
+    bb_high_0  = bb_high_1  = bb_high_2  = bb_high_3  = 0.0;
+    bb_low_0   = bb_low_1   = bb_low_2   = bb_low_3   = 0.0;
+  }
 
-    if(CopyBuffer(bands_indicator_handle.indicator_handle, 1, 0, index+1, bands_percent_signal_value) <= 0)
+  int ResolveChannelUpperBufferIndex()
+  {
+    if(Strategy_Channel_Indicator_Type == CHANNEL_INDICATOR_ATR)
+      return 0;
+    if(Strategy_Channel_Indicator_Type == CHANNEL_INDICATOR_KELTNER)
+      return 0;
+    return 0;
+  }
+
+  int ResolveChannelLowerBufferIndex()
+  {
+    if(Strategy_Channel_Indicator_Type == CHANNEL_INDICATOR_ATR)
+      return 1;
+    if(Strategy_Channel_Indicator_Type == CHANNEL_INDICATOR_KELTNER)
+      return 2;
+    return 2;
+  }
+
+  bool CopyChannelBufferValues(IndicatorsHandleInfo &bands_indicator_handle,
+                               const int buffer_index,
+                               const int index,
+                               const int total_points,
+                               double &values[])
+  {
+    if(CopyBuffer(bands_indicator_handle.indicator_handle,
+                  buffer_index,
+                  index,
+                  total_points,
+                  values) <= 0)
     {
-      Print("ERROR READING BANDS PERCENT SIGNAL INDICATOR DATA");
+      Print("ERROR READING CHANNEL DATA FOR PERCENT COMPUTATION | tf=",
+            EnumToString(bands_indicator_handle.indicator_timeframe));
+      return false;
     }
 
-    ArraySetAsSeries(bands_percent_signal_value, true);
-
-    // ROUNDS TO 2 DECIMALS FOR PERCENTAGE VALUES
-    double value = NormalizeDouble(bands_percent_signal_value[index], 2);
-
-    return value;
+    ArraySetAsSeries(values, true);
+    return true;
   }
 
-  SlopeTypes GetBandsPercentSlope(IndicatorsHandleInfo &bands_indicator_handle, int index)
+  bool ComputePercentSeries(IndicatorsHandleInfo &bands_indicator_handle,
+                            const int index,
+                            const int total_points,
+                            double &percent_values[])
   {
-    double current_value  = GetBandsPercentValue(bands_indicator_handle, index);
-    double previous_value = GetBandsPercentValue(bands_indicator_handle, index + 1);
+    if(bands_indicator_handle.indicator_handle == INVALID_HANDLE)
+    {
+      Print("INVALID CHANNEL HANDLE FOR PERCENT COMPUTATION | tf=",
+            EnumToString(bands_indicator_handle.indicator_timeframe));
+      return false;
+    }
 
-    if(current_value > previous_value) return(UP_SLOPE);
-    if(current_value < previous_value) return(DOWN_SLOPE);
+    ArrayResize(percent_values, total_points);
 
-    return(NO_SLOPE);
+    double upper_values[];
+    double lower_values[];
+    int upper_buffer_index = ResolveChannelUpperBufferIndex();
+    int lower_buffer_index = ResolveChannelLowerBufferIndex();
+
+    if(!CopyChannelBufferValues(bands_indicator_handle,
+                                upper_buffer_index,
+                                index,
+                                total_points,
+                                upper_values))
+    {
+      return false;
+    }
+
+    if(!CopyChannelBufferValues(bands_indicator_handle,
+                                lower_buffer_index,
+                                index,
+                                total_points,
+                                lower_values))
+    {
+      return false;
+    }
+
+    double close_series[];
+    if(CopyClose(_Symbol,
+                 bands_indicator_handle.indicator_timeframe,
+                 index,
+                 total_points,
+                 close_series) <= 0)
+    {
+      Print("ERROR READING CLOSE PRICES FOR PERCENT COMPUTATION | tf=",
+            EnumToString(bands_indicator_handle.indicator_timeframe));
+      return false;
+    }
+    ArraySetAsSeries(close_series, true);
+
+    for(int i = 0; i < total_points; i++)
+    {
+      double upper = upper_values[i];
+      double lower = lower_values[i];
+      double close_price = close_series[i];
+      if(upper == EMPTY_VALUE || lower == EMPTY_VALUE || close_price == EMPTY_VALUE)
+      {
+        percent_values[i] = EMPTY_VALUE;
+        continue;
+      }
+      double range = upper - lower;
+      if(range <= 0.0)
+      {
+        percent_values[i] = EMPTY_VALUE;
+        continue;
+      }
+      double normalized = (close_price - lower) / range * 100.0;
+      percent_values[i] = NormalizeDouble(normalized, 2);
+    }
+
+    return true;
   }
 
-  SlopeTypes GetBandsPercentSignalSlope(IndicatorsHandleInfo &bands_indicator_handle, int index)
+  void ComputeSignalSeries(const double &percent_values[],
+                           const int percent_series_size,
+                           const int signal_period,
+                           double &signal_values[])
   {
-    double current_value  = GetBandsPercentSignalValue(bands_indicator_handle, index);
-    double previous_value = GetBandsPercentSignalValue(bands_indicator_handle, index + 1);
+    int required = 4;
+    ArrayResize(signal_values, required);
+    for(int shift = 0; shift < required; shift++)
+    {
+      if(signal_period <= 0 || shift + signal_period > percent_series_size)
+      {
+        signal_values[shift] = EMPTY_VALUE;
+        continue;
+      }
 
-    if(current_value > previous_value) return(UP_SLOPE);
-    if(current_value < previous_value) return(DOWN_SLOPE);
+      bool valid = true;
+      double sum = 0.0;
+      for(int offset = 0; offset < signal_period; offset++)
+      {
+        double value = percent_values[shift + offset];
+        if(value == EMPTY_VALUE)
+        {
+          valid = false;
+          break;
+        }
+        sum += value;
+      }
 
-    return(NO_SLOPE);
+      if(!valid)
+        signal_values[shift] = EMPTY_VALUE;
+      else
+        signal_values[shift] = NormalizeDouble(sum / signal_period, 2);
+    }
   }
 
-  PercentilTypes GetBandsPercentPercentil(IndicatorsHandleInfo &bands_indicator_handle, int index)
+  double ResolvePercentValue(const double &series[], const int total, const int shift)
   {
-    double bands_percent_value = GetBandsPercentValue(bands_indicator_handle, index);
+    if(shift >= total || shift < 0)
+      return EMPTY_VALUE;
+    return series[shift];
+  }
 
-    if(bands_percent_value <= 0.0)                                         return(PERCENTIL_MIN);
-    if(bands_percent_value >  0.0 && bands_percent_value < 10.0)   return(PERCENTIL_0);
-    if(bands_percent_value >= 10.0 && bands_percent_value < 20.0)  return(PERCENTIL_10);
-    if(bands_percent_value >= 20.0 && bands_percent_value < 30.0)  return(PERCENTIL_20);
-    if(bands_percent_value >= 30.0 && bands_percent_value < 40.0)  return(PERCENTIL_30);
-    if(bands_percent_value >= 40.0 && bands_percent_value < 50.0)  return(PERCENTIL_40);
-    if(bands_percent_value >= 50.0 && bands_percent_value < 60.0)  return(PERCENTIL_50);
-    if(bands_percent_value >= 60.0 && bands_percent_value < 70.0)  return(PERCENTIL_60);
-    if(bands_percent_value >= 70.0 && bands_percent_value < 80.0)  return(PERCENTIL_70);
-    if(bands_percent_value >= 80.0 && bands_percent_value < 90.0)  return(PERCENTIL_80);
-    if(bands_percent_value >= 90.0 && bands_percent_value < 100.0) return(PERCENTIL_90);
-    if(bands_percent_value >= 100.0)                                       return(PERCENTIL_MAX);
+  SlopeTypes ResolveSlopeFromSeries(const double &series[], const int total, const int shift)
+  {
+    if(shift + 1 >= total)
+      return NO_SLOPE;
+    double current_value  = series[shift];
+    double previous_value = series[shift + 1];
+    if(current_value == EMPTY_VALUE || previous_value == EMPTY_VALUE)
+      return NO_SLOPE;
+    if(current_value > previous_value)
+      return UP_SLOPE;
+    if(current_value < previous_value)
+      return DOWN_SLOPE;
+    return NO_SLOPE;
+  }
 
+  PercentilTypes ResolvePercentilFromValue(const double value)
+  {
+    if(value == EMPTY_VALUE)
+      return PERCENTIL_NULL;
+    if(value <= 0.0)                                         return(PERCENTIL_MIN);
+    if(value >  0.0 && value < 10.0)   return(PERCENTIL_0);
+    if(value >= 10.0 && value < 20.0)  return(PERCENTIL_10);
+    if(value >= 20.0 && value < 30.0)  return(PERCENTIL_20);
+    if(value >= 30.0 && value < 40.0)  return(PERCENTIL_30);
+    if(value >= 40.0 && value < 50.0)  return(PERCENTIL_40);
+    if(value >= 50.0 && value < 60.0)  return(PERCENTIL_50);
+    if(value >= 60.0 && value < 70.0)  return(PERCENTIL_60);
+    if(value >= 70.0 && value < 80.0)  return(PERCENTIL_70);
+    if(value >= 80.0 && value < 90.0)  return(PERCENTIL_80);
+    if(value >= 90.0 && value < 100.0) return(PERCENTIL_90);
+    if(value >= 100.0)                 return(PERCENTIL_MAX);
     return(PERCENTIL_NULL);
   }
 
-  PercentilTypes GetBandsPercentSignalPercentil(IndicatorsHandleInfo &bands_indicator_handle, int index)
+  SignalTypes ResolveTrendFromSeries(const double &percent_series[],
+                                     const double &signal_series[],
+                                     const int shift)
   {
-    double bands_percent_signal_value = GetBandsPercentSignalValue(bands_indicator_handle, index);
+    int percent_total = ArraySize(percent_series);
+    int signal_total  = ArraySize(signal_series);
+    if(shift >= percent_total || shift >= signal_total)
+      return NO_SIGNAL;
 
-    if(bands_percent_signal_value <= 0.0)                                                return(PERCENTIL_MIN);
-    if(bands_percent_signal_value >  0.0 && bands_percent_signal_value < 10.0)   return(PERCENTIL_0);
-    if(bands_percent_signal_value >= 10.0 && bands_percent_signal_value < 20.0)  return(PERCENTIL_10);
-    if(bands_percent_signal_value >= 20.0 && bands_percent_signal_value < 30.0)  return(PERCENTIL_20);
-    if(bands_percent_signal_value >= 30.0 && bands_percent_signal_value < 40.0)  return(PERCENTIL_30);
-    if(bands_percent_signal_value >= 40.0 && bands_percent_signal_value < 50.0)  return(PERCENTIL_40);
-    if(bands_percent_signal_value >= 50.0 && bands_percent_signal_value < 60.0)  return(PERCENTIL_50);
-    if(bands_percent_signal_value >= 60.0 && bands_percent_signal_value < 70.0)  return(PERCENTIL_60);
-    if(bands_percent_signal_value >= 70.0 && bands_percent_signal_value < 80.0)  return(PERCENTIL_70);
-    if(bands_percent_signal_value >= 80.0 && bands_percent_signal_value < 90.0)  return(PERCENTIL_80);
-    if(bands_percent_signal_value >= 90.0 && bands_percent_signal_value < 100.0) return(PERCENTIL_90);
-    if(bands_percent_signal_value >= 100.0)                                              return(PERCENTIL_MAX);
+    double percent_value = percent_series[shift];
+    double signal_value  = signal_series[shift];
+    if(percent_value == EMPTY_VALUE || signal_value == EMPTY_VALUE)
+      return NO_SIGNAL;
 
-    return(PERCENTIL_NULL);
+    if(percent_value > signal_value)
+      return BULLISH;
+    if(percent_value < signal_value)
+      return BEARISH;
+    return NO_SIGNAL;
   }
 
-  SignalTypes GetBandsPercentTrend(IndicatorsHandleInfo &bands_indicator_handle, int index)
+  void ComputePercentWindow(const double &percent_series[],
+                            const int percent_series_size,
+                            const int window,
+                            double &window_high,
+                            double &window_low)
   {
-    double bands_percent_value        = GetBandsPercentValue(bands_indicator_handle, index);
-    double bands_percent_signal_value = GetBandsPercentSignalValue(bands_indicator_handle, index);
-
-    if(bands_percent_value > bands_percent_signal_value) return(BULLISH);
-    if(bands_percent_value < bands_percent_signal_value) return(BEARISH);
-
-    return(NO_SIGNAL);
-  }
-
-  double GetBBCloseValue(IndicatorsHandleInfo &bands_indicator_handle, int index)
-  {
-    double bb_close_value[];
-
-    if(CopyBuffer(bands_indicator_handle.indicator_handle, 7, 0, index+1, bb_close_value) <= 0)
+    if(window <= 0 || window > percent_series_size)
     {
-      Print("ERROR READING BB CLOSE INDICATOR DATA");
+      window_high = EMPTY_VALUE;
+      window_low  = EMPTY_VALUE;
+      return;
     }
 
-    ArraySetAsSeries(bb_close_value, true);
+    window_high = percent_series[0];
+    window_low  = percent_series[0];
 
-    // ROUNDS TO 2 DECIMALS FOR PERCENTAGE VALUES
-    double value = NormalizeDouble(bb_close_value[index], 2);
-
-    return value;
-  }
-
-  double GetBBOpenValue(IndicatorsHandleInfo &bands_indicator_handle, int index)
-  {
-    double bb_open_value[];
-
-    if(CopyBuffer(bands_indicator_handle.indicator_handle, 8, 0, index+1, bb_open_value) <= 0)
+    for(int i = 0; i < window; i++)
     {
-      Print("ERROR READING BB OPEN INDICATOR DATA");
+      double value = percent_series[i];
+      if(value == EMPTY_VALUE)
+      {
+        window_high = EMPTY_VALUE;
+        window_low  = EMPTY_VALUE;
+        return;
+      }
+      if(value > window_high)
+        window_high = value;
+      if(value < window_low)
+        window_low = value;
     }
-
-    ArraySetAsSeries(bb_open_value, true);
-
-    // ROUNDS TO 2 DECIMALS FOR PERCENTAGE VALUES
-    double value = NormalizeDouble(bb_open_value[index], 2);
-
-    return value;
   }
 
-  double GetBBHighValue(IndicatorsHandleInfo &bands_indicator_handle, int index)
-  {
-    double bb_high_value[];
-
-    if(CopyBuffer(bands_indicator_handle.indicator_handle, 9, 0, index+1, bb_high_value) <= 0)
-    {
-      Print("ERROR READING BB HIGH INDICATOR DATA");
-    }
-
-    ArraySetAsSeries(bb_high_value, true);
-
-    // ROUNDS TO 2 DECIMALS FOR PERCENTAGE VALUES
-    double value = NormalizeDouble(bb_high_value[index], 2);
-
-    return value;
-  }
-
-  double GetBBLowValue(IndicatorsHandleInfo &bands_indicator_handle, int index)
-  {
-    double bb_low_value[];
-
-    if(CopyBuffer(bands_indicator_handle.indicator_handle, 10, 0, index+1, bb_low_value) <= 0)
-    {
-      Print("ERROR READING BB LOW INDICATOR DATA");
-    }
-
-    ArraySetAsSeries(bb_low_value, true);
-
-    // ROUNDS TO 2 DECIMALS FOR PERCENTAGE VALUES
-    double value = NormalizeDouble(bb_low_value[index], 2);
-
-    return value;
-  }
-
-  double GetBandsPercentWindowHighValue(IndicatorsHandleInfo &bands_indicator_handle, int index)
-  {
-    double buffer_values[];
-
-    if(CopyBuffer(bands_indicator_handle.indicator_handle, 11, 0, index+1, buffer_values) <= 0)
-    {
-      Print("ERROR READING BANDS PERCENT WINDOW HIGH DATA");
-    }
-
-    ArraySetAsSeries(buffer_values, true);
-
-    double raw_value = buffer_values[index];
-    if(raw_value == EMPTY_VALUE)
-      return EMPTY_VALUE;
-
-    double value = NormalizeDouble(raw_value, 2);
-    return value;
-  }
-
-  double GetBandsPercentWindowLowValue(IndicatorsHandleInfo &bands_indicator_handle, int index)
-  {
-    double buffer_values[];
-
-    if(CopyBuffer(bands_indicator_handle.indicator_handle, 12, 0, index+1, buffer_values) <= 0)
-    {
-      Print("ERROR READING BANDS PERCENT WINDOW LOW DATA");
-    }
-
-    ArraySetAsSeries(buffer_values, true);
-
-    double raw_value = buffer_values[index];
-    if(raw_value == EMPTY_VALUE)
-      return EMPTY_VALUE;
-
-    double value = NormalizeDouble(raw_value, 2);
-    return value;
-  }
 };
 
 #endif // _MICROSERVICES_INDICATORS_BANDS_PERCENT_INDICATOR_MQH_

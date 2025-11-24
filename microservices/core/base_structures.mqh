@@ -7,6 +7,7 @@
 struct IndicatorsHandleInfo
 {
   int                 indicator_handle;
+  int                 overlay_indicator_handle;
   int                 indicator_period;
   int                 indicator_shift;
   ENUM_MA_METHOD      indicator_ma_method;
@@ -16,6 +17,7 @@ struct IndicatorsHandleInfo
   IndicatorsHandleInfo()
   {
     indicator_handle        = INVALID_HANDLE;
+    overlay_indicator_handle = INVALID_HANDLE;
     indicator_period        = 0;
     indicator_shift         = 0;
     indicator_ma_method     = -1;
