@@ -28,6 +28,7 @@ struct GridOrderState
   bool     partial_take_executed;
   ulong    position_ticket;
   string   position_comment;
+  bool     opens_position;
 
   GridOrderState()
   {
@@ -49,6 +50,7 @@ struct GridOrderState
     partial_take_executed       = false;
     position_ticket             = 0;
     position_comment            = "";
+    opens_position              = true;
   }
 };
 

@@ -63,6 +63,7 @@ This document summarizes the current architecture, workflows, and guardrails for
    - `Debug_Stop_On_Negative_Euity`: Force-closes every grid then `TesterStop()` when equity ≤ 0 **or** the broker rejects an order with “no money”.
 
 ### 2.4 Grid Risk Controls
+- `Grid_Level_Position_Start`: Defers opening real broker positions until the grid reaches this level index. Lower indices remain “virtual” so spacing, TP references, and channel guards still track price without consuming margin.
 - `Grid_Level_Stop_Limit`: Maximum number of grid levels (including level 0). When the next averaging step would exceed this limit, the EA force-closes the entire sequence instead of adding more exposure. `0` keeps the legacy unlimited behaviour.
 - `Daily_Signal_Limit` + `Daily_Signal_Limit_Mode`: Daily budget per direction. `STOP_DAILY_SIGNALS` limits total grids started; `STOP_DAILY_SIGNALS_ON_LOSS` only counts losing grids (winners do not consume the quota). Counters reset automatically on the next D1 candle.
 

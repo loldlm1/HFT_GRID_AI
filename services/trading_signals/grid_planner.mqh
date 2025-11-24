@@ -136,6 +136,26 @@ double ApplyGridLotMultiplier(const double lot_size,
   return NormalizeVolumeForSymbol(_Symbol, scaled);
 }
 
+int ResolveExecutedPositionIndex(const SignalParams &signal_params,
+                                 const int level_index)
+{
+  int total_levels = ArraySize(signal_params.grid_orders);
+  if(level_index < 0 || level_index >= total_levels)
+    return -1;
+
+  GridOrderState state = signal_params.grid_orders[level_index];
+  if(!state.opens_position)
+    return -1;
+
+  int executed_index = 0;
+  for(int i = 0; i < level_index; i++)
+  {
+    if(signal_params.grid_orders[i].opens_position)
+      executed_index++;
+  }
+  return executed_index;
+}
+
 double GridResolveLotReferencePoints(const SignalParams &signal_params,
                                      const GridOrderState &state)
 {
@@ -188,6 +208,8 @@ double GridComputeLevelDrawdownPoints(const SignalParams &signal_params,
 double GridComputeLevelDrawdownCurrency(const SignalParams &signal_params,
                                         const GridOrderState &state)
 {
+  if(!state.opens_position)
+    return 0.0;
   if(state.lot_size <= 0.0)
     return 0.0;
 
@@ -213,6 +235,8 @@ double GridComputeSequenceDrawdownCurrency(const SignalParams &signal_params,
   for(int i = 0; i < limit; i++)
   {
     GridOrderState level_state = signal_params.grid_orders[i];
+    if(!level_state.opens_position)
+      continue;
     cumulative_amount += GridComputeLevelDrawdownCurrency(signal_params, level_state);
   }
   return cumulative_amount;
@@ -255,6 +279,7 @@ double ResolveGridOrderLotSize(SignalParams &signal_params,
     return 0.0;
 
   GridOrderState level_state = signal_params.grid_orders[level_index];
+  bool level_opens_position = level_state.opens_position;
 
   double fallback_lot = signal_params.grid_base_lot_size;
   if(fallback_lot <= 0.0)
@@ -341,8 +366,14 @@ double ResolveGridOrderLotSize(SignalParams &signal_params,
   }
 
   if(effective_lot_type != GRID_LOT_CALCULATED &&
-     effective_lot_type != GRID_LOT_MAX_MARGIN_SPLIT)
-    resolved_lot = ApplyGridLotMultiplier(resolved_lot, level_index);
+     effective_lot_type != GRID_LOT_MAX_MARGIN_SPLIT &&
+     level_opens_position)
+  {
+    int executed_index = ResolveExecutedPositionIndex(signal_params, level_index);
+    if(executed_index < 0)
+      executed_index = 0;
+    resolved_lot = ApplyGridLotMultiplier(resolved_lot, executed_index);
+  }
 
   return NormalizeVolumeForSymbol(_Symbol, resolved_lot);
 }
@@ -499,6 +530,10 @@ bool BuildGridOrderForSignal(SignalParams &signal_params)
   signal_params.grid_orders[grid_order_level].level_index = grid_order_level;
   signal_params.grid_orders[grid_order_level].status      = GRID_ORDER_STOP_TRAILING_ACTIVE;
   ResetGridOrderPricesByDirection(signal_params, grid_order_level);
+  int level_position_start = Grid_Level_Position_Start;
+  if(level_position_start < 0)
+    level_position_start = 0;
+  signal_params.grid_orders[grid_order_level].opens_position = (grid_order_level >= level_position_start);
 
   // Calculate trailing entry reference and next level activation
   signal_params.grid_orders[grid_order_level].entry_reference_price  = GetGridStopReferencePrice(signal_params.signal_type,
