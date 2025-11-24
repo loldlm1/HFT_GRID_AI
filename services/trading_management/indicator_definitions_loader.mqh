@@ -1251,7 +1251,8 @@ void LoadAllIndicatorDefinitions()
   ArrayResize(ExtATRIndicatorsHandle, 0);
   ArrayResize(ExtKeltnerIndicatorsHandle, 0);
 
-  if(base_bpercent_required)
+  bool load_base_bpercent_handles = (base_bpercent_required || PercentOverlayEnabled());
+  if(load_base_bpercent_handles)
   {
     LoadAllBPercentIndicators();
   }
