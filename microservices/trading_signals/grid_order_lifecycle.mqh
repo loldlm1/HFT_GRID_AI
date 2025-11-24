@@ -138,6 +138,23 @@ bool GridExecuteLevelTrade(SignalParams &signal_params,
   SignalTypes direction = signal_params.signal_type;
   string comment = GridComposeLevelComment(signal_params, order_state);
 
+  if(!order_state.opens_position)
+  {
+    double fill_price = GridCurrentPriceForDirection(direction, true);
+    if(fill_price <= 0.0)
+      fill_price = order_state.entry_reference_price;
+    if(fill_price <= 0.0)
+      fill_price = GridCurrentPriceForDirection(direction, true);
+
+    order_state.status            = GRID_ORDER_ACTIVE;
+    order_state.entry_price       = fill_price;
+    order_state.position_ticket   = 0;
+    order_state.position_comment  = comment;
+    order_state.last_action_time  = TimeCurrent();
+    signal_params.grid_orders[order_state.level_index] = order_state;
+    return true;
+  }
+
   // Guardrails: spread/margin checks before sending
   string guard_reason = "";
   if(!GridGuardrailsAllowOrder(normalized_volume, guard_reason))

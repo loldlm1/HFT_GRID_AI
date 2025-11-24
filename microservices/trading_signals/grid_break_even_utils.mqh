@@ -21,6 +21,8 @@ bool GridBreakEvenTriggered(const GridOrderState &state,
                             const SignalTypes direction,
                             const double current_price)
 {
+  if(!state.opens_position)
+    return false;
   if(!state.break_even_active || state.break_even_price <= 0.0)
     return false;
   if(state.status != GRID_ORDER_ACTIVE &&
@@ -76,6 +78,8 @@ void GridAssignBreakEvenToLevels(SignalParams &signal_params,
   for(int idx = 0; idx <= limit; idx++)
   {
     int status = signal_params.grid_orders[idx].status;
+    if(!signal_params.grid_orders[idx].opens_position)
+      continue;
     if(status != GRID_ORDER_ACTIVE &&
        status != GRID_ORDER_TP_TRAILING_ACTIVE)
       continue;
@@ -91,6 +95,8 @@ void GridAttemptPartialTake(SignalParams &signal_params,
     return;
 
   GridOrderState state = signal_params.grid_orders[level_index];
+  if(!state.opens_position)
+    return;
   if(state.partial_take_executed)
   {
     signal_params.grid_orders[level_index] = state;
@@ -188,6 +194,8 @@ void GridProcessBreakEven(SignalParams &signal_params)
     bool eligible_status = (order_status == GRID_ORDER_ACTIVE ||
                             order_status == GRID_ORDER_TP_TRAILING_ACTIVE);
     if(!eligible_status)
+      continue;
+    if(!current_state.opens_position)
       continue;
     if(current_state.entry_price <= 0.0 || current_state.take_profit_price <= 0.0)
       continue;

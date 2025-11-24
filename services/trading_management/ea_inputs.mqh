@@ -130,6 +130,7 @@ input group  "+= Grid Risk Managment Settings =+";
 input GridLotTypes         Grid_Lot_Type                 = GRID_LOT_SIZE;
 input double               Grid_Lot_Strategy_Size        = 0.01;
 input double               Grid_Lot_Multiplier           = 2.0;
+input int                  Grid_Level_Position_Start     = 0;
 input int                  Grid_Level_Stop_Limit         = 0;
 input int                  Daily_Signal_Limit            = 0;
 input DailySignalLimitModes Daily_Signal_Limit_Mode      = STOP_DAILY_SIGNALS;
