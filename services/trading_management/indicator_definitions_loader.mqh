@@ -94,6 +94,20 @@ string ResolveChannelPercentIndicatorPath()
   return "Examples\\BB_Percent_Standard.ex5";
 }
 
+bool ShouldDisplayIndicators()
+{
+  if(!Enable_Show_Indicators)
+    return false;
+  if(!(bool)MQLInfoInteger(MQL_VISUAL_MODE))
+    return false;
+  return true;
+}
+
+bool PercentOverlayEnabled()
+{
+  return ShouldDisplayIndicators();
+}
+
 string StrategyChannelIndicatorLabel()
 {
   return (Strategy_Channel_Indicator_Type == CHANNEL_INDICATOR_KELTNER)
@@ -101,6 +115,48 @@ string StrategyChannelIndicatorLabel()
            : (Strategy_Channel_Indicator_Type == CHANNEL_INDICATOR_ATR)
                ? "ATR"
                : "BOLLINGER";
+}
+
+int CreateChannelComputationIndicatorHandle(const ENUM_TIMEFRAMES timeframe,
+                                            const int indicator_period,
+                                            const double channel_factor,
+                                            const double bollinger_factor,
+                                            const ENUM_MA_METHOD indicator_ma_method,
+                                            const ENUM_APPLIED_PRICE indicator_applied_price)
+{
+  if(Strategy_Channel_Indicator_Type == CHANNEL_INDICATOR_ATR)
+  {
+    double atr_factor = channel_factor;
+    return iCustom(_Symbol,
+                   timeframe,
+                   "Examples\\ATR_SL_Factor.ex5",
+                   indicator_period,
+                   atr_factor,
+                   0);
+  }
+
+  if(Strategy_Channel_Indicator_Type == CHANNEL_INDICATOR_KELTNER)
+  {
+    int atr_period = MathMax((int)Stoch_Structure_Period_Type, 1);
+    return iCustom(_Symbol,
+                   timeframe,
+                   "Examples\\Keltner_Channel.ex5",
+                   indicator_period,
+                   atr_period,
+                   0,
+                   channel_factor,
+                   indicator_ma_method,
+                   indicator_applied_price);
+  }
+
+  return iCustom(_Symbol,
+                 timeframe,
+                 "Examples\\BB_Standard.ex5",
+                 indicator_period,
+                 0,
+                 bollinger_factor,
+                 indicator_ma_method,
+                 indicator_applied_price);
 }
 
 GridBaseStrategyTypes ResolveChannelStrategyFromInputs()
@@ -305,17 +361,17 @@ bool LoadContextBPercentIndicator(const ENUM_TIMEFRAMES context_tf,
   handle.indicator_applied_price = PRICE_WEIGHTED;
   double channel_factor = ResolveChannelFactor();
   double bollinger_factor = ResolveBollingerDeviationFactor();
-  handle.indicator_handle        = CreateChannelPercentIndicatorHandle(context_tf,
-                                                                       handle.indicator_period,
-                                                                       channel_factor,
-                                                                       bollinger_factor,
-                                                                       handle.indicator_ma_method,
-                                                                       handle.indicator_applied_price);
   handle.indicator_timeframe     = context_tf;
+  handle.indicator_handle        = CreateChannelComputationIndicatorHandle(context_tf,
+                                                                           handle.indicator_period,
+                                                                           channel_factor,
+                                                                           bollinger_factor,
+                                                                           handle.indicator_ma_method,
+                                                                           handle.indicator_applied_price);
 
   if(handle.indicator_handle == INVALID_HANDLE)
   {
-    PrintFormat("ERROR LOADING %s %s CHANNEL PERCENT INDICATOR | tf=%s | period=%d",
+    PrintFormat("ERROR LOADING %s %s CHANNEL HANDLE | tf=%s | period=%d",
                 context_label,
                 StrategyChannelIndicatorLabel(),
                 EnumToString(context_tf),
@@ -323,8 +379,26 @@ bool LoadContextBPercentIndicator(const ENUM_TIMEFRAMES context_tf,
     return false;
   }
 
+  if(PercentOverlayEnabled())
+  {
+    handle.overlay_indicator_handle = CreateChannelPercentIndicatorHandle(context_tf,
+                                                                          handle.indicator_period,
+                                                                          channel_factor,
+                                                                          bollinger_factor,
+                                                                          handle.indicator_ma_method,
+                                                                          handle.indicator_applied_price);
+    if(handle.overlay_indicator_handle == INVALID_HANDLE)
+    {
+      PrintFormat("WARNING: %s %s percent overlay failed to load | tf=%s | period=%d",
+                  context_label,
+                  StrategyChannelIndicatorLabel(),
+                  EnumToString(context_tf),
+                  handle.indicator_period);
+    }
+  }
+
   target_handle = handle;
-  PrintFormat("%s %s channel percent indicator loaded | tf=%s | period=%d",
+  PrintFormat("%s %s channel handle ready for percent evaluation | tf=%s | period=%d",
               context_label,
               StrategyChannelIndicatorLabel(),
               EnumToString(context_tf),
@@ -1147,14 +1221,15 @@ void LoadAllIndicatorDefinitions()
   if(channel_strategy_type == POINTS_RANGE)
     channel_strategy_type = ResolveChannelStrategyFromInputs();
 
-  bool overlay_bollinger_required = (Enable_Show_Indicators &&
+  bool overlays_permitted = ShouldDisplayIndicators();
+  bool overlay_bollinger_required = (overlays_permitted &&
                                      Strategy_Channel_Indicator_Type == CHANNEL_INDICATOR_BOLLINGER);
-  bool overlay_keltner_required = (Enable_Show_Indicators &&
+  bool overlay_keltner_required = (overlays_permitted &&
                                    Strategy_Channel_Indicator_Type == CHANNEL_INDICATOR_KELTNER);
-  bool overlay_atr_required = (Enable_Show_Indicators &&
+  bool overlay_atr_required = (overlays_permitted &&
                                Strategy_Channel_Indicator_Type == CHANNEL_INDICATOR_ATR);
 
-  TesterHideIndicators(!Enable_Show_Indicators);
+  TesterHideIndicators(!ShouldDisplayIndicators());
 
   int resolved_bpercent_period = IndicatorPeriods[0];
   PrintFormat("Strategy context | TF=%s | Channel=%s | EntryMode=%s | EntryEval=%s | BasePeriod=%d | ChannelPeriod=%d | SolidPeriod=%d | Direction=%s",
@@ -1326,19 +1401,19 @@ void LoadAllBPercentIndicators()
       bands_indicator_handle_loaded.indicator_applied_price = PRICE_WEIGHTED;
       double channel_factor        = ResolveChannelFactor();
       double bollinger_factor      = ResolveBollingerDeviationFactor();
-      bands_indicator_handle_loaded.indicator_handle    = CreateChannelPercentIndicatorHandle(trend_timeframe,
-                                                                                              bands_indicator_handle_loaded.indicator_period,
-                                                                                              channel_factor,
-                                                                                              bollinger_factor,
-                                                                                              bands_indicator_handle_loaded.indicator_ma_method,
-                                                                                              bands_indicator_handle_loaded.indicator_applied_price);
+      bands_indicator_handle_loaded.indicator_handle    = CreateChannelComputationIndicatorHandle(trend_timeframe,
+                                                                                                bands_indicator_handle_loaded.indicator_period,
+                                                                                                channel_factor,
+                                                                                                bollinger_factor,
+                                                                                                bands_indicator_handle_loaded.indicator_ma_method,
+                                                                                                bands_indicator_handle_loaded.indicator_applied_price);
       bands_indicator_handle_loaded.indicator_timeframe = trend_timeframe;
 
       if(bands_indicator_handle_loaded.indicator_handle == INVALID_HANDLE)
       {
         Print("ERROR LOADING ",
               StrategyChannelIndicatorLabel(),
-              " CHANNEL PERCENT INDICATOR: ",
+              " CHANNEL HANDLE FOR PERCENT: ",
               EnumToString(trend_timeframe),
               " | PERIOD: ",
               IndicatorPeriods[period_index]);
@@ -1346,9 +1421,28 @@ void LoadAllBPercentIndicators()
         break;
       }
 
+      if(PercentOverlayEnabled())
+      {
+        bands_indicator_handle_loaded.overlay_indicator_handle = CreateChannelPercentIndicatorHandle(trend_timeframe,
+                                                                                                     bands_indicator_handle_loaded.indicator_period,
+                                                                                                     channel_factor,
+                                                                                                     bollinger_factor,
+                                                                                                     bands_indicator_handle_loaded.indicator_ma_method,
+                                                                                                     bands_indicator_handle_loaded.indicator_applied_price);
+        if(bands_indicator_handle_loaded.overlay_indicator_handle == INVALID_HANDLE)
+        {
+          Print("WARNING: FAILED TO LOAD ",
+                StrategyChannelIndicatorLabel(),
+                " PERCENT OVERLAY: ",
+                EnumToString(trend_timeframe),
+                " | PERIOD: ",
+                IndicatorPeriods[period_index]);
+        }
+      }
+
       Print("LOADED ",
             StrategyChannelIndicatorLabel(),
-            " CHANNEL PERCENT INDICATOR SUCCESSFULLY: ",
+            " CHANNEL HANDLE FOR PERCENT SUCCESSFULLY: ",
             EnumToString(trend_timeframe),
             " | PERIOD: ",
             IndicatorPeriods[period_index]);
