@@ -137,7 +137,7 @@ int CreateChannelComputationIndicatorHandle(const ENUM_TIMEFRAMES timeframe,
 
   if(Strategy_Channel_Indicator_Type == CHANNEL_INDICATOR_KELTNER)
   {
-    int atr_period = MathMax((int)Stoch_Structure_Period_Type, 1);
+    int atr_period = MathMax(indicator_period, 1);
     return iCustom(_Symbol,
                    timeframe,
                    "Examples\\Keltner_Channel.ex5",
@@ -784,7 +784,7 @@ bool LoadAtrIndicatorForTimeframe(const ENUM_TIMEFRAMES trend_timeframe)
 
   IndicatorsHandleInfo atr_indicator_handle_loaded;
 
-  atr_indicator_handle_loaded.indicator_period    = (int)Stoch_Structure_Period_Type;
+  atr_indicator_handle_loaded.indicator_period    = MathMax(ResolveBPercentIndicatorPeriod(), 1);
   double atr_factor = Grid_Channel_Factor;
   if(atr_factor <= 0.0)
     atr_factor = 1.0;
@@ -815,14 +815,15 @@ bool LoadKeltnerIndicatorForTimeframe(const ENUM_TIMEFRAMES trend_timeframe)
     return true;
 
   IndicatorsHandleInfo keltner_handle;
-  keltner_handle.indicator_period    = (int)Stoch_Structure_Period_Type;
+  int channel_period = MathMax(ResolveBPercentIndicatorPeriod(), 1);
+  keltner_handle.indicator_period    = channel_period;
   double channel_factor = Grid_Channel_Factor;
   if(channel_factor <= 0.0)
     channel_factor = 1.0;
   keltner_handle.indicator_handle    = iCustom(_Symbol,
                                                trend_timeframe,
                                                "Examples\\Keltner_Channel.ex5",
-                                               keltner_handle.indicator_period,
+                                               channel_period,
                                                (int)Stoch_Structure_Period_Type,
                                                0,
                                                channel_factor,
