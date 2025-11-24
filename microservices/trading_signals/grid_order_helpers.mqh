@@ -125,6 +125,27 @@ string GridComposeLevelComment(const SignalParams &signal_params,
                       order_state.level_index);
 }
 
+int GridCountPositionOpeningLevels(const SignalParams &signal_params)
+{
+  int total_levels = ArraySize(signal_params.grid_orders);
+  int count = 0;
+  for(int idx = 0; idx < total_levels; idx++)
+  {
+    if(signal_params.grid_orders[idx].opens_position)
+      count++;
+  }
+  return count;
+}
+
+bool GridNextLevelOpensPosition(const SignalParams &signal_params)
+{
+  int next_index = ArraySize(signal_params.grid_orders);
+  int start_level = Grid_Level_Position_Start;
+  if(start_level < 0)
+    start_level = 0;
+  return (next_index >= start_level);
+}
+
 ENUM_TIMEFRAMES GridResolveTrailingStrategyTimeframe()
 {
   if(Trailing_Indicator_Timeframe > 0)
