@@ -137,7 +137,7 @@ int CreateChannelComputationIndicatorHandle(const ENUM_TIMEFRAMES timeframe,
 
   if(Strategy_Channel_Indicator_Type == CHANNEL_INDICATOR_KELTNER)
   {
-    int atr_period = MathMax(indicator_period, 1);
+    int atr_period = MathMax((int)Stoch_Structure_Period_Type, 1);
     return iCustom(_Symbol,
                    timeframe,
                    "Examples\\Keltner_Channel.ex5",
