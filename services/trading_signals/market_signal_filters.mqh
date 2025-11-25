@@ -144,8 +144,11 @@ bool FetchStructureForContext(const StrategyContextIndicators &snapshot,
 datetime ResolveStructureSnapshotTimestamp(const StochasticMarketStructure &structure,
                                            const StrategyStructureLayerContext &ctx)
 {
-  bool use_second_structure = StructureFilterIsEnabled(ctx.second_structure_filter);
-  if(use_second_structure)
+  if(StructureFilterIsEnabled(ctx.fourth_structure_filter))
+    return structure.fourth_structure_time;
+  if(StructureFilterIsEnabled(ctx.third_structure_filter))
+    return structure.third_structure_time;
+  if(StructureFilterIsEnabled(ctx.second_structure_filter))
     return structure.second_structure_time;
   return structure.first_structure_time;
 }
@@ -338,8 +341,16 @@ bool EvaluateStructureTypeFilters(const StrategyContextIndicators &snapshot,
                                                  structure.second_structure_type,
                                                  signal_type,
                                                  latest_extremum);
+  bool third_pass  = TrendStructureFilterMatches(ctx.third_structure_filter,
+                                                 structure.third_structure_type,
+                                                 signal_type,
+                                                 latest_extremum);
+  bool fourth_pass = TrendStructureFilterMatches(ctx.fourth_structure_filter,
+                                                 structure.fourth_structure_type,
+                                                 signal_type,
+                                                 latest_extremum);
 
-  return first_pass && second_pass;
+  return first_pass && second_pass && third_pass && fourth_pass;
 }
 
 bool StrategyContextEvaluateTrend(const StrategyContextIndicators &snapshot,
