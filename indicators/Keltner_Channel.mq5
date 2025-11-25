@@ -5,7 +5,7 @@
 #property link      "https://t.me/loldlm"
 
 #property indicator_chart_window
-#property indicator_buffers 3
+#property indicator_buffers 6
 #property indicator_plots   3
 #property indicator_label1  "Keltner Upper"
 #property indicator_label2  "Keltner Middle"
@@ -38,6 +38,9 @@ int OnInit()
   SetIndexBuffer(0, ExtUpperBuffer, INDICATOR_DATA);
   SetIndexBuffer(1, ExtMiddleBuffer, INDICATOR_DATA);
   SetIndexBuffer(2, ExtLowerBuffer, INDICATOR_DATA);
+  SetIndexBuffer(3, ExtAppliedPriceBuffer, INDICATOR_CALCULATIONS);
+  SetIndexBuffer(4, ExtATRBuffer, INDICATOR_CALCULATIONS);
+  SetIndexBuffer(5, ExtTRBuffer, INDICATOR_CALCULATIONS);
 
   PlotIndexSetInteger(0, PLOT_SHIFT, InpCandleShift);
   PlotIndexSetInteger(1, PLOT_SHIFT, InpCandleShift);
