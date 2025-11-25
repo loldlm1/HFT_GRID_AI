@@ -14,6 +14,8 @@ struct StrategyStructureLayerContext
   int                         resistance_min_retests;
   TrendStructureFilterModes   first_structure_filter;
   TrendStructureFilterModes   second_structure_filter;
+  TrendStructureFilterModes   third_structure_filter;
+  TrendStructureFilterModes   fourth_structure_filter;
   bool                        enabled;
   bool                        uses_trend_dataset;
 };
@@ -36,6 +38,8 @@ inline StrategyStructureLayerContext BuildBaseStructureLayerContext()
   ctx.resistance_min_retests = Base_Resistance_Retest_Min_Count;
   ctx.first_structure_filter = Base_First_Structure_Filter;
   ctx.second_structure_filter = Base_Second_Structure_Filter;
+  ctx.third_structure_filter  = Base_Third_Structure_Filter;
+  ctx.fourth_structure_filter = Base_Fourth_Structure_Filter;
   ctx.enabled                = true;
   ctx.uses_trend_dataset     = false;
   return ctx;
@@ -51,6 +55,8 @@ inline StrategyStructureLayerContext BuildTrendStructureLayerContext()
   ctx.resistance_min_retests = Trend_Resistance_Retest_Min_Count;
   ctx.first_structure_filter = Trend_First_Structure_Filter;
   ctx.second_structure_filter = Trend_Second_Structure_Filter;
+  ctx.third_structure_filter  = Trend_Third_Structure_Filter;
+  ctx.fourth_structure_filter = Trend_Fourth_Structure_Filter;
   ctx.enabled                = (Trend_Strategy_Timeframe != PERIOD_CURRENT);
   ctx.uses_trend_dataset     = ctx.enabled && (Trend_Strategy_Timeframe != Strategy_Timeframe);
   return ctx;
@@ -66,6 +72,8 @@ inline StrategyStructureLayerContext BuildMacroStructureLayerContext()
   ctx.resistance_min_retests = Macro_Resistance_Retest_Min_Count;
   ctx.first_structure_filter = Macro_First_Structure_Filter;
   ctx.second_structure_filter = Macro_Second_Structure_Filter;
+  ctx.third_structure_filter  = Macro_Third_Structure_Filter;
+  ctx.fourth_structure_filter = Macro_Fourth_Structure_Filter;
   ctx.enabled                = (Macro_Strategy_Timeframe != PERIOD_CURRENT);
   ctx.uses_trend_dataset     = ctx.enabled;
   return ctx;
@@ -81,6 +89,8 @@ inline StrategyStructureLayerContext BuildSessionStructureLayerContext()
   ctx.resistance_min_retests = Session_Resistance_Retest_Min_Count;
   ctx.first_structure_filter = Session_First_Structure_Filter;
   ctx.second_structure_filter = Session_Second_Structure_Filter;
+  ctx.third_structure_filter  = Session_Third_Structure_Filter;
+  ctx.fourth_structure_filter = Session_Fourth_Structure_Filter;
   ctx.enabled                = (Session_Strategy_Timeframe != PERIOD_CURRENT);
   ctx.uses_trend_dataset     = ctx.enabled;
   return ctx;
@@ -111,17 +121,10 @@ inline bool StructureTypeFiltersRequested(const StrategyStructureLayerContext &c
 {
   if(!ctx.enabled)
     return false;
-  bool bullish_active =
-    (ctx.first_structure_filter == BULLISH_STRUCT_LL) ||
-    (ctx.first_structure_filter == BULLISH_STRUCT_LH) ||
-    (ctx.first_structure_filter == BULLISH_STRUCT_LL_LH);
-
-  bool bearish_active =
-    (ctx.second_structure_filter == BEARISH_STRUCT_HH) ||
-    (ctx.second_structure_filter == BEARISH_STRUCT_HL) ||
-    (ctx.second_structure_filter == BEARISH_STRUCT_HH_HL);
-
-  return bullish_active || bearish_active;
+  return StructureFilterIsEnabled(ctx.first_structure_filter)  ||
+         StructureFilterIsEnabled(ctx.second_structure_filter) ||
+         StructureFilterIsEnabled(ctx.third_structure_filter)  ||
+         StructureFilterIsEnabled(ctx.fourth_structure_filter);
 }
 
 inline bool SupportFilterRequiresZone(const SupportRetestFilterModes mode,
