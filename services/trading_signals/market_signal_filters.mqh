@@ -436,12 +436,14 @@ bool StrategyContextEvaluateEntry(const StrategyContextIndicators &snapshot,
   if(!EvaluateStructureRetestTrigger(snapshot, direction, structure_ctx))
   {
     entry_allows = false;
+    filters_pass = false;
     return true;
   }
 
   if(!EvaluateStructureTypeFilters(snapshot, structure_ctx, direction))
   {
     entry_allows = false;
+    filters_pass = false;
     return true;
   }
 
@@ -455,6 +457,7 @@ bool StrategyContextEvaluateEntry(const StrategyContextIndicators &snapshot,
                                         structure_capture_time))
     {
       entry_allows = false;
+      filters_pass = false;
       return true;
     }
   }
