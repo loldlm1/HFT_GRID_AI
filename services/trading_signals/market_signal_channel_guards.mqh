@@ -6,15 +6,16 @@
 
 bool ResolveChannelBoundsForTimeframe(const ENUM_TIMEFRAMES tf,
                                       double &upper,
-                                      double &lower)
+                                      double &lower,
+                                      const int shift)
 {
   upper = 0.0;
   lower = 0.0;
 
   GridBaseStrategyTypes channel_type = ResolveActiveChannelStrategy();
-  if(!GridResolveChannelLinePrice(channel_type, GRID_CHANNEL_LINE_RESISTANCE, tf, upper))
+  if(!GridResolveChannelLinePrice(channel_type, GRID_CHANNEL_LINE_RESISTANCE, tf, upper, shift))
     return false;
-  if(!GridResolveChannelLinePrice(channel_type, GRID_CHANNEL_LINE_SUPPORT, tf, lower))
+  if(!GridResolveChannelLinePrice(channel_type, GRID_CHANNEL_LINE_SUPPORT, tf, lower, shift))
     return false;
 
   if(upper < lower)
@@ -72,7 +73,7 @@ bool StrategyContextChannelMaFilterAllowsSignal(const StrategyContextTypes conte
 
   double upper = 0.0;
   double lower = 0.0;
-  if(!ResolveChannelBoundsForTimeframe(snapshot.timeframe, upper, lower))
+  if(!ResolveChannelBoundsForTimeframe(snapshot.timeframe, upper, lower, 1))
     return true;
 
   return !(ma_value <= upper && ma_value >= lower);
