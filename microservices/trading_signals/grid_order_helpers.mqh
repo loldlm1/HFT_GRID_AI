@@ -830,7 +830,8 @@ bool GridSignalChannelGuardSatisfied(const SignalParams &signal_params,
                                     Strategy_Timeframe,
                                     entry_reference_price,
                                     distance_points,
-                                    reference_price))
+                                    reference_price,
+                                    1))
     return true;
 
   return (distance_points >= required_points);
