@@ -252,7 +252,6 @@ void CalculateFibonacciLevels(
     fibonacci_levels[3] = GetBearishFibonacciPercentage(extrema[structure_bottoms_index+3].extremum_high, extrema[structure_bottoms_index+4].extremum_low,  extrema[structure_bottoms_index+5].extremum_high);
     // LIVE CLOSE PERCENT
     fibonacci_levels[4] = GetBullishFibonacciPercentage(iClose(_Symbol, indicator_timeframe, 0),    extrema[structure_bottoms_index+1].extremum_high, extrema[structure_bottoms_index+2].extremum_low, true);
-    Print(extrema[structure_bottoms_index+1].extremum_time, " -bottom- ", extrema[structure_bottoms_index+2].extremum_time, " - ", fibonacci_levels[4]);
   }
 
   if(initial_is_peak)
@@ -263,7 +262,6 @@ void CalculateFibonacciLevels(
     fibonacci_levels[3] = GetBullishFibonacciPercentage(extrema[structure_peaks_index+3].extremum_low,   extrema[structure_peaks_index+4].extremum_high, extrema[structure_peaks_index+5].extremum_low);
     // LIVE CLOSE PERCENT
     fibonacci_levels[4] = GetBearishFibonacciPercentage(iClose(_Symbol, indicator_timeframe, 0),    extrema[structure_peaks_index+1].extremum_low,  extrema[structure_peaks_index+2].extremum_high, true);
-    Print(extrema[structure_peaks_index+1].extremum_time, " -peak- ", extrema[structure_peaks_index+2].extremum_time, " - ", fibonacci_levels[4]);
   }
 }
 
