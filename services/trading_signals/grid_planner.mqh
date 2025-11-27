@@ -45,21 +45,21 @@ bool CalculateBaseGridContext(const SignalParams &signal_params,
   if(uses_channel_strategy)
   {
     GridBaseStrategyTypes channel_type = ResolveActiveChannelStrategy();
-    bool use_midline = (signal_params.entry_trigger_mode != ENTRY_MODE_MA_TREND);
+    bool use_midline = (signal_params.entry_trigger_mode == ENTRY_MODE_BREAKOUT);
     GridChannelLineTypes line_type = use_midline
                                        ? GRID_CHANNEL_LINE_MIDDLE
                                        : ((signal_params.signal_type == BULLISH)
                                             ? GRID_CHANNEL_LINE_SUPPORT
                                             : GRID_CHANNEL_LINE_RESISTANCE);
     double channel_price = 0.0;
-    if(!GridResolveChannelLinePrice(channel_type, line_type, tf, channel_price))
+    if(!GridResolveChannelLinePrice(channel_type, line_type, tf, channel_price, 1))
     {
       if(use_midline)
       {
         line_type = (signal_params.signal_type == BULLISH)
                       ? GRID_CHANNEL_LINE_SUPPORT
                       : GRID_CHANNEL_LINE_RESISTANCE;
-        if(!GridResolveChannelLinePrice(channel_type, line_type, tf, channel_price))
+        if(!GridResolveChannelLinePrice(channel_type, line_type, tf, channel_price, 1))
           return false;
       }
       else
