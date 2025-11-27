@@ -45,7 +45,7 @@ bool ValidateBandsPercentMeanRejection(const BandsPercentStructure &bands_data,
   if(percent_1 == EMPTY_VALUE || percent_2 == EMPTY_VALUE)
     return false;
 
-  double tolerance = 20.0;
+  double tolerance = 50.0;
   percent_threshold = signal_type == BULLISH ? MathAbs(percent_threshold-100) : percent_threshold;
 
   if(signal_type == BULLISH)
