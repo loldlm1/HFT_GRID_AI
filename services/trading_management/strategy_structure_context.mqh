@@ -377,6 +377,22 @@ inline bool StrategyContextFreshStructureEnabled(const StrategyContextTypes cont
   return false;
 }
 
+inline bool StrategyContextFirstStructureUsesClosePercent(const StrategyContextTypes context)
+{
+  switch(context)
+  {
+    case CONTEXT_SLOT_BASE:
+      return Base_First_Structure_Close_Percent;
+    case CONTEXT_SLOT_TREND:
+      return Trend_First_Structure_Close_Percent;
+    case CONTEXT_SLOT_MACRO:
+      return Macro_First_Structure_Close_Percent;
+    case CONTEXT_SLOT_SESSION:
+      return Session_First_Structure_Close_Percent;
+  }
+  return false;
+}
+
 inline ENUM_TIMEFRAMES StrategyContextTimeframe(const StrategyContextTypes context)
 {
   switch(context)

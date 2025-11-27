@@ -178,9 +178,21 @@ GridBaseStrategyTypes ResolveChannelStrategyFromInputs()
   return configured_type;
 }
 
-double ResolveChannelFactor()
+double ResolveEvaluationChannelFactor()
 {
-  double channel_factor = Grid_Channel_Factor;
+  double channel_factor = Grid_Channel_Evaluation_Factor;
+  if(channel_factor <= 0.0)
+    channel_factor = Grid_Channel_Factor;
+  if(channel_factor <= 0.0)
+    channel_factor = 1.0;
+  return channel_factor;
+}
+
+double ResolveVolatilityChannelFactor()
+{
+  double channel_factor = Grid_Channel_Volatility_Factor;
+  if(channel_factor <= 0.0)
+    channel_factor = Grid_Channel_Factor;
   if(channel_factor <= 0.0)
     channel_factor = 1.0;
   return channel_factor;
@@ -188,7 +200,7 @@ double ResolveChannelFactor()
 
 double ResolveBollingerDeviationFactor()
 {
-  return 1.0 + ResolveChannelFactor();
+  return 1.0 + ResolveEvaluationChannelFactor();
 }
 
 int CreateChannelPercentIndicatorHandle(const ENUM_TIMEFRAMES timeframe,
@@ -359,7 +371,7 @@ bool LoadContextBPercentIndicator(const ENUM_TIMEFRAMES context_tf,
   handle.indicator_period        = ResolveBPercentIndicatorPeriod();
   handle.indicator_ma_method     = Base_Indicator_MA_Method;
   handle.indicator_applied_price = PRICE_WEIGHTED;
-  double channel_factor = ResolveChannelFactor();
+  double channel_factor = ResolveEvaluationChannelFactor();
   double bollinger_factor = ResolveBollingerDeviationFactor();
   handle.indicator_timeframe     = context_tf;
   handle.indicator_handle        = CreateChannelComputationIndicatorHandle(context_tf,
@@ -785,9 +797,7 @@ bool LoadAtrIndicatorForTimeframe(const ENUM_TIMEFRAMES trend_timeframe)
   IndicatorsHandleInfo atr_indicator_handle_loaded;
 
   atr_indicator_handle_loaded.indicator_period    = MathMax(ResolveBPercentIndicatorPeriod(), 1);
-  double atr_factor = Grid_Channel_Factor;
-  if(atr_factor <= 0.0)
-    atr_factor = 1.0;
+  double atr_factor = ResolveVolatilityChannelFactor();
   atr_indicator_handle_loaded.indicator_handle    = iCustom(_Symbol,
                                                             trend_timeframe,
                                                             "Examples\\ATR_SL_Factor.ex5",
@@ -817,14 +827,12 @@ bool LoadKeltnerIndicatorForTimeframe(const ENUM_TIMEFRAMES trend_timeframe)
   IndicatorsHandleInfo keltner_handle;
   int channel_period = MathMax(ResolveBPercentIndicatorPeriod(), 1);
   keltner_handle.indicator_period    = channel_period;
-  double channel_factor = Grid_Channel_Factor;
-  if(channel_factor <= 0.0)
-    channel_factor = 1.0;
+  double channel_factor = ResolveVolatilityChannelFactor();
   keltner_handle.indicator_handle    = iCustom(_Symbol,
                                                trend_timeframe,
                                                "Examples\\Keltner_Channel.ex5",
                                                channel_period,
-                                               (int)Stoch_Structure_Period_Type,
+                                               channel_period,
                                                0,
                                                channel_factor,
                                                Base_Indicator_MA_Method,
@@ -1401,7 +1409,7 @@ void LoadAllBPercentIndicators()
       bands_indicator_handle_loaded.indicator_period     = IndicatorPeriods[period_index];
       bands_indicator_handle_loaded.indicator_ma_method  = Base_Indicator_MA_Method;
       bands_indicator_handle_loaded.indicator_applied_price = PRICE_WEIGHTED;
-      double channel_factor        = ResolveChannelFactor();
+      double channel_factor        = ResolveEvaluationChannelFactor();
       double bollinger_factor      = ResolveBollingerDeviationFactor();
       bands_indicator_handle_loaded.indicator_handle    = CreateChannelComputationIndicatorHandle(trend_timeframe,
                                                                                                 bands_indicator_handle_loaded.indicator_period,
