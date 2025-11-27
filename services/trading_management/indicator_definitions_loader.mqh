@@ -259,16 +259,27 @@ int ResolveContextTrendPeriod(const StrategyTrendModes mode)
   return MathMax((int)Base_Indicator_Period_Type, 1);
 }
 
-int ResolveEvaluationBPercentPeriod()
+int ResolveEvaluationBPercentPeriod(const StrategyTrendModes mode)
 {
-  int indicator_period = (int)Base_Indicator_Period_Type;
-  bool teeth_required = TrendModeUsesTeethAlligator(Strategy_Base_Trend_Mode) ||
-                        TrendModeUsesTeethAlligator(Strategy_Trend_Trend_Mode) ||
-                        TrendModeUsesTeethAlligator(Strategy_Macro_Trend_Mode) ||
-                        TrendModeUsesTeethAlligator(Strategy_Session_Trend_Mode);
-  if(teeth_required)
-    indicator_period = (int)Stoch_Structure_Period_Type;
-  return MathMax(indicator_period, 1);
+  if(TrendModeUsesTeethAlligator(mode))
+    return MathMax((int)Stoch_Structure_Period_Type, 1);
+  return MathMax((int)Base_Indicator_Period_Type, 1);
+}
+
+int ResolveContextBPercentIndicatorPeriod(const StrategyContextTypes context)
+{
+  switch(context)
+  {
+    case CONTEXT_SLOT_TREND:
+      return ResolveEvaluationBPercentPeriod(Strategy_Trend_Trend_Mode);
+    case CONTEXT_SLOT_MACRO:
+      return ResolveEvaluationBPercentPeriod(Strategy_Macro_Trend_Mode);
+    case CONTEXT_SLOT_SESSION:
+      return ResolveEvaluationBPercentPeriod(Strategy_Session_Trend_Mode);
+    case CONTEXT_SLOT_BASE:
+    default:
+      return ResolveEvaluationBPercentPeriod(Strategy_Base_Trend_Mode);
+  }
 }
 
 int ResolveVolatilityChannelPeriod()
@@ -276,15 +287,10 @@ int ResolveVolatilityChannelPeriod()
   return MathMax((int)Stoch_Structure_Period_Type, 1);
 }
 
-int ResolveContextBPercentIndicatorPeriod(const StrategyContextTypes context)
-{
-  return ResolveEvaluationBPercentPeriod();
-}
-
 void PrepareIndicatorPeriods()
 {
   ArrayResize(IndicatorPeriods, 1);
-  IndicatorPeriods[0] = ResolveEvaluationBPercentPeriod();
+  IndicatorPeriods[0] = ResolveContextBPercentIndicatorPeriod(CONTEXT_SLOT_BASE);
 }
 
 inline bool TrendStructureNeedsDedicatedHandle()
