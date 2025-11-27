@@ -1229,6 +1229,9 @@ void LoadAllIndicatorDefinitions()
   PrepareIndicatorPeriods();
 
   StrategyEntryEvaluationModes base_entry_eval = StrategyContextEntryEvaluation(CONTEXT_SLOT_BASE);
+  StrategyEntryEvaluationModes trend_entry_eval = StrategyContextEntryEvaluation(CONTEXT_SLOT_TREND);
+  StrategyEntryEvaluationModes macro_entry_eval = StrategyContextEntryEvaluation(CONTEXT_SLOT_MACRO);
+  StrategyEntryEvaluationModes session_entry_eval = StrategyContextEntryEvaluation(CONTEXT_SLOT_SESSION);
   bool base_mode_uses_bpercent  = EntryEvaluationUsesAnyBPercent(base_entry_eval);
   bool base_mode_uses_alligator = TrendModeUsesAlligator(Strategy_Base_Trend_Mode);
   bool base_bpercent_required   = base_mode_uses_bpercent || Base_BPercent_Slope_Filter;
@@ -1316,11 +1319,16 @@ void LoadAllIndicatorDefinitions()
     Print("Solid indicator strategy disabled and no structure filters configured; skipping stochastic indicator loading.");
   }
 
-  bool need_bollinger_channels = ((channel_strategy_type == BOLLINGER_RANGE) && load_channel_indicators) ||
+  bool base_entry_active    = (base_entry_eval != ENTRY_EVAL_OFF);
+  bool trend_entry_active   = (StrategyContextEnabled(CONTEXT_SLOT_TREND) && trend_entry_eval != ENTRY_EVAL_OFF);
+  bool macro_entry_active   = (StrategyContextEnabled(CONTEXT_SLOT_MACRO) && macro_entry_eval != ENTRY_EVAL_OFF);
+  bool session_entry_active = (StrategyContextEnabled(CONTEXT_SLOT_SESSION) && session_entry_eval != ENTRY_EVAL_OFF);
+
+  bool need_bollinger_channels = ((channel_strategy_type == BOLLINGER_RANGE) && load_channel_indicators && base_entry_active) ||
                                  overlay_bollinger_required;
-  bool need_keltner_channels   = ((channel_strategy_type == KELTNER_RANGE) && load_channel_indicators) ||
+  bool need_keltner_channels   = ((channel_strategy_type == KELTNER_RANGE) && load_channel_indicators && base_entry_active) ||
                                  overlay_keltner_required;
-  bool need_atr_channels       = ((channel_strategy_type == ATR_RANGE) && load_channel_indicators) ||
+  bool need_atr_channels       = ((channel_strategy_type == ATR_RANGE) && load_channel_indicators && base_entry_active) ||
                                  overlay_atr_required;
 
   if(need_bollinger_channels)
@@ -1329,6 +1337,16 @@ void LoadAllIndicatorDefinitions()
     LoadAllKeltnerIndicators();
   if(need_atr_channels)
     LoadAllATRIndicators();
+
+  if(load_channel_indicators)
+  {
+    if(trend_entry_active)
+      LoadChannelIndicatorForTimeframe(channel_strategy_type, ResolveTrendTimeframe());
+    if(macro_entry_active)
+      LoadChannelIndicatorForTimeframe(channel_strategy_type, ResolveMacroTimeframe());
+    if(session_entry_active)
+      LoadChannelIndicatorForTimeframe(channel_strategy_type, ResolveSessionTimeframe());
+  }
 
   if(load_channel_indicators)
   {
