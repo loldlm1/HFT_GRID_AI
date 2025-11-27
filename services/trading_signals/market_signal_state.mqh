@@ -35,6 +35,9 @@ struct StrategyContextIndicators
   bool                     stochastic_valid;
   StochasticStructure      stochastic_data;
 
+  bool                     body_ma_valid;
+  BodyMAStructure          body_ma_data;
+
   bool                     structure_valid;
   StochasticMarketStructure structure_data;
 
@@ -46,6 +49,7 @@ struct StrategyContextIndicators
     bpercent_valid    = false;
     alligator_valid   = false;
     stochastic_valid  = false;
+    body_ma_valid     = false;
     structure_valid   = false;
   }
 };

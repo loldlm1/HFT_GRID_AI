@@ -361,6 +361,22 @@ inline bool StrategyContextAlligatorSlopeEnabled(const StrategyContextTypes cont
   return false;
 }
 
+inline BodyVolumeFilterModes StrategyContextBodyVolumeMode(const StrategyContextTypes context)
+{
+  switch(context)
+  {
+    case CONTEXT_SLOT_BASE:
+      return Base_Body_Volume_Filter;
+    case CONTEXT_SLOT_TREND:
+      return Trend_Body_Volume_Filter;
+    case CONTEXT_SLOT_MACRO:
+      return Macro_Body_Volume_Filter;
+    case CONTEXT_SLOT_SESSION:
+      return Session_Body_Volume_Filter;
+  }
+  return BODY_VOLUME_OFF;
+}
+
 inline bool StrategyContextFreshStructureEnabled(const StrategyContextTypes context)
 {
   switch(context)

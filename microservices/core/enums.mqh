@@ -170,6 +170,13 @@ enum BodyMATypes
 	BODY_BEARISH_MA = 2
 };
 
+enum BodyVolumeFilterModes
+{
+  BODY_VOLUME_OFF  = 0,
+  BODY_VOLUME_HIGH = 1,
+  BODY_VOLUME_LOW  = 2
+};
+
 enum GridOrderStatuses
 {
   GRID_ORDER_INACTIVE             = 0,
