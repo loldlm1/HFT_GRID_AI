@@ -254,7 +254,7 @@ int CreateChannelPercentIndicatorHandle(const ENUM_TIMEFRAMES timeframe,
 
 int ResolveContextTrendPeriod(const StrategyTrendModes mode)
 {
-  if(TrendModeUsesTeethAlligator(mode))
+  if(TrendModeUsesAlligator(mode))
     return MathMax((int)Stoch_Structure_Period_Type, 1);
   return MathMax((int)Base_Indicator_Period_Type, 1);
 }
