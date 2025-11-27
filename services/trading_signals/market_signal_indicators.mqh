@@ -76,6 +76,37 @@ void SetTFBodyMADataToSignalParams(SignalParams &signal_params)
   }
 }
 
+bool LoadBodyMASnapshotFromHandle(IndicatorsHandleInfo &handle,
+                                  BodyMAStructure &snapshot)
+{
+  if(handle.indicator_handle == INVALID_HANDLE)
+    return false;
+  snapshot = BodyMAStructure();
+  snapshot.InitBodyMAStructureValues(handle, 0);
+  return true;
+}
+
+bool LoadBodyMASnapshotForTimeframe(const ENUM_TIMEFRAMES tf,
+                                    BodyMAStructure &snapshot)
+{
+  int total = ArraySize(ExtBodyMAIndicatorsHandle);
+  for(int i = 0; i < total; i++)
+  {
+    if(ExtBodyMAIndicatorsHandle[i].indicator_timeframe != tf)
+      continue;
+    if(LoadBodyMASnapshotFromHandle(ExtBodyMAIndicatorsHandle[i], snapshot))
+      return true;
+  }
+  return false;
+}
+
+bool LoadContextBodyMASnapshot(const StrategyContextTypes context,
+                               BodyMAStructure &snapshot)
+{
+  ENUM_TIMEFRAMES tf = StrategyContextTimeframe(context);
+  return LoadBodyMASnapshotForTimeframe(tf, snapshot);
+}
+
 bool LoadBandsPercentSnapshotFromHandle(IndicatorsHandleInfo &handle,
                                         BandsPercentStructure &snapshot)
 {
@@ -285,12 +316,15 @@ bool CaptureContextIndicators(const StrategyContextTypes context,
   bool need_alligator  = TrendModeUsesAlligator(trend_mode) ||
                          StrategyContextAlligatorSlopeEnabled(context);
   bool need_stochastic = StrategyContextStochasticSlopeEnabled(context);
+  BodyVolumeFilterModes body_volume_mode = StrategyContextBodyVolumeMode(context);
 
   StrategyStructureLayerContext structure_ctx = BuildStructureLayerForContext(context);
 
   bool require_structure = StructureFiltersRequested(structure_ctx) ||
                            StructureTypeFiltersRequested(structure_ctx) ||
                            StrategyContextFreshStructureEnabled(context);
+
+  bool require_body_ma = (body_volume_mode != BODY_VOLUME_OFF);
 
   if(need_bpercent)
   {
@@ -323,6 +357,17 @@ bool CaptureContextIndicators(const StrategyContextTypes context,
   else
   {
     snapshot.stochastic_valid = false;
+  }
+
+  if(require_body_ma)
+  {
+    snapshot.body_ma_valid = LoadContextBodyMASnapshot(context, snapshot.body_ma_data);
+    if(!snapshot.body_ma_valid)
+      return false;
+  }
+  else
+  {
+    snapshot.body_ma_valid = false;
   }
 
   if(require_structure)

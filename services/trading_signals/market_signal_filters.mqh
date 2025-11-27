@@ -488,6 +488,35 @@ bool StrategyContextEvaluateEntry(const StrategyContextIndicators &snapshot,
     }
   }
 
+  BodyVolumeFilterModes body_volume_mode = StrategyContextBodyVolumeMode(context);
+  if(body_volume_mode != BODY_VOLUME_OFF)
+  {
+    if(!snapshot.body_ma_valid)
+      return false;
+
+    double body_value = snapshot.body_ma_data.body_value_1;
+    double body_ma_value = snapshot.body_ma_data.body_ma_1;
+    if(body_ma_value == EMPTY_VALUE || body_value == EMPTY_VALUE)
+    {
+      entry_allows = false;
+      filters_pass = false;
+      return true;
+    }
+
+    bool pass = true;
+    if(body_volume_mode == BODY_VOLUME_HIGH)
+      pass = (body_value >= body_ma_value);
+    else if(body_volume_mode == BODY_VOLUME_LOW)
+      pass = (body_value < body_ma_value);
+
+    if(!pass)
+    {
+      entry_allows = false;
+      filters_pass = false;
+      return true;
+    }
+  }
+
   StrategyStructureLayerContext structure_ctx = BuildStructureLayerForContext(context);
   if(!EvaluateStructureRetestTrigger(snapshot, direction, structure_ctx))
   {
