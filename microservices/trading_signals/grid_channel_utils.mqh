@@ -147,6 +147,8 @@ bool GridResolveChannelLinePrice(const GridBaseStrategyTypes channel_type,
       buffer_index = BOLLINGER_BUFFER_MIDDLE;
   }
 
+  Print(EnumToString(resolved_type) + " | " + EnumToString(line_type) + " | buffer: " + IntegerToString(buffer_index));
+
   return GridCopyChannelBufferValue(resolved_type,
                                     timeframe,
                                     buffer_index,

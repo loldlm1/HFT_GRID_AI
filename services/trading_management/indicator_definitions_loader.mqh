@@ -873,7 +873,7 @@ bool LoadBollingerIndicatorForTimeframe(const ENUM_TIMEFRAMES trend_timeframe)
     return true;
 
   IndicatorsHandleInfo bands_indicator_handle_loaded;
-  bands_indicator_handle_loaded.indicator_period        = ResolveContextTrendPeriod();
+  bands_indicator_handle_loaded.indicator_period        = ResolveContextTrendPeriod(Strategy_Base_Trend_Mode);
   bands_indicator_handle_loaded.indicator_ma_method     = Base_Indicator_MA_Method;
   bands_indicator_handle_loaded.indicator_applied_price = PRICE_WEIGHTED;
   double deviation_factor = ResolveBollingerDeviationFactor();
