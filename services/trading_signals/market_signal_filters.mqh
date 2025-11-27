@@ -231,6 +231,13 @@ bool EvaluateStructureRetestTrigger(const StrategyContextIndicators &snapshot,
   if(!FetchStructureForContext(snapshot, structure))
     return false;
 
+  if(StrategyContextFirstStructureUsesClosePercent(snapshot.context) && require_support_resistance)
+  {
+    double live_close_percent = structure.first_structure_close_percent;
+    if(!StructureLivePercentSatisfiesFilter(ctx, signal_type, live_close_percent))
+      return false;
+  }
+
   if(ArraySize(structure.extremum_stats) <= 0)
     return false;
 
@@ -351,6 +358,55 @@ bool EvaluateStructureTypeFilters(const StrategyContextIndicators &snapshot,
                                                  latest_extremum);
 
   return first_pass && second_pass && third_pass && fourth_pass;
+}
+
+bool StructureLivePercentSatisfiesFilter(const StrategyStructureLayerContext &ctx,
+                                         const SignalTypes signal_type,
+                                         const double live_percent)
+{
+  if(live_percent <= 0.0)
+    return false;
+
+  bool support_filter_active    = (signal_type == BULLISH) && (ctx.support_filter != SUPPORT_DISABLED);
+  bool resistance_filter_active = (signal_type == BEARISH) && (ctx.resistance_filter != RESISTANCE_DISABLED);
+
+  if(!support_filter_active && !resistance_filter_active)
+    return true;
+
+  double lower = 0.0;
+  double upper = 0.0;
+
+  if(signal_type == BULLISH)
+  {
+    if(ctx.support_filter == SUPPORT_61)
+    {
+      lower = FIBO_RETEST_ZONE1_START;
+      upper = FIBO_RETEST_ZONE1_END;
+    }
+    else if(ctx.support_filter == SUPPORT_78)
+    {
+      lower = FIBO_RETEST_ZONE2_START;
+      upper = FIBO_RETEST_ZONE2_END;
+    }
+  }
+  else if(signal_type == BEARISH)
+  {
+    if(ctx.resistance_filter == RESISTANCE_61)
+    {
+      lower = FIBO_RETEST_ZONE1_START;
+      upper = FIBO_RETEST_ZONE1_END;
+    }
+    else if(ctx.resistance_filter == RESISTANCE_78)
+    {
+      lower = FIBO_RETEST_ZONE2_START;
+      upper = FIBO_RETEST_ZONE2_END;
+    }
+  }
+
+  if(lower == 0.0 && upper == 0.0)
+    return true;
+
+  return (live_percent >= lower && live_percent <= upper);
 }
 
 bool StrategyContextEvaluateTrend(const StrategyContextIndicators &snapshot,
