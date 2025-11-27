@@ -199,13 +199,13 @@ double GetFETrendPeakPercentage(double peak_price, double bottom_price, double c
 //| HELPER: Calculate bullish Fibonacci percentage and level         |
 //| Pattern: FIRST LOW -> FIRST HIGH -> SECOND LOW                   |
 //+------------------------------------------------------------------+
-double GetBullishFibonacciPercentage(double signal_entry_bottom_price, double signal_peak_price, double signal_bottom_price)
+double GetBullishFibonacciPercentage(double signal_entry_bottom_price, double signal_peak_price, double signal_bottom_price, bool raw_percent = false)
 {
   FibonacciLevelPrices fibonacci_prices;
   double fibonacci_percentage = GetFiboTrendBottomPercent(signal_peak_price, signal_bottom_price, signal_entry_bottom_price);
 
   double next_level = 0;
-  fibonacci_prices.entry_level      = GetPreciseEntryLevel(fibonacci_percentage, next_level);
+  fibonacci_prices.entry_level      = raw_percent ? fibonacci_percentage : GetPreciseEntryLevel(fibonacci_percentage, next_level);
   fibonacci_prices.entry_next_level = next_level;
 
   return fibonacci_prices.entry_level;
@@ -215,13 +215,13 @@ double GetBullishFibonacciPercentage(double signal_entry_bottom_price, double si
 //| HELPER: Calculate bearish Fibonacci percentage and level         |
 //| Pattern: FIRST HIGH -> FIRST LOW -> SECOND HIGH                  |
 //+------------------------------------------------------------------+
-double GetBearishFibonacciPercentage(double signal_entry_peak_price, double signal_bottom_price, double signal_peak_price)
+double GetBearishFibonacciPercentage(double signal_entry_peak_price, double signal_bottom_price, double signal_peak_price, bool raw_percent = false)
 {
   FibonacciLevelPrices fibonacci_prices;
   double fibonacci_percentage = GetFiboTrendPeakPercent(signal_peak_price, signal_bottom_price, signal_entry_peak_price);
 
   double next_level = 0;
-  fibonacci_prices.entry_level      = GetPreciseEntryLevel(fibonacci_percentage, next_level);
+  fibonacci_prices.entry_level      = raw_percent ? fibonacci_percentage : GetPreciseEntryLevel(fibonacci_percentage, next_level);
   fibonacci_prices.entry_next_level = next_level;
 
   return fibonacci_prices.entry_level;
@@ -231,6 +231,7 @@ double GetBearishFibonacciPercentage(double signal_entry_peak_price, double sign
 //| Calculate all 4 Fibonacci levels from extrema array              |
 //+------------------------------------------------------------------+
 void CalculateFibonacciLevels(
+  ENUM_TIMEFRAMES indicator_timeframe,
   const OscillatorMarketStructure &extrema[],
   bool initial_is_bottom,
   bool initial_is_peak,
@@ -249,6 +250,9 @@ void CalculateFibonacciLevels(
     fibonacci_levels[1] = GetBearishFibonacciPercentage(extrema[structure_bottoms_index+1].extremum_high, extrema[structure_bottoms_index+2].extremum_low,  extrema[structure_bottoms_index+3].extremum_high);
     fibonacci_levels[2] = GetBullishFibonacciPercentage(extrema[structure_bottoms_index+2].extremum_low,  extrema[structure_bottoms_index+3].extremum_high, extrema[structure_bottoms_index+4].extremum_low);
     fibonacci_levels[3] = GetBearishFibonacciPercentage(extrema[structure_bottoms_index+3].extremum_high, extrema[structure_bottoms_index+4].extremum_low,  extrema[structure_bottoms_index+5].extremum_high);
+    // LIVE CLOSE PERCENT
+    fibonacci_levels[4] = GetBullishFibonacciPercentage(iClose(_Symbol, indicator_timeframe, 0),    extrema[structure_bottoms_index+1].extremum_high, extrema[structure_bottoms_index+2].extremum_low, true);
+    Print(extrema[structure_bottoms_index+1].extremum_time, " -bottom- ", extrema[structure_bottoms_index+2].extremum_time, " - ", fibonacci_levels[4]);
   }
 
   if(initial_is_peak)
@@ -257,6 +261,9 @@ void CalculateFibonacciLevels(
     fibonacci_levels[1] = GetBullishFibonacciPercentage(extrema[structure_peaks_index+1].extremum_low,   extrema[structure_peaks_index+2].extremum_high, extrema[structure_peaks_index+3].extremum_low);
     fibonacci_levels[2] = GetBearishFibonacciPercentage(extrema[structure_peaks_index+2].extremum_high,  extrema[structure_peaks_index+3].extremum_low,  extrema[structure_peaks_index+4].extremum_high);
     fibonacci_levels[3] = GetBullishFibonacciPercentage(extrema[structure_peaks_index+3].extremum_low,   extrema[structure_peaks_index+4].extremum_high, extrema[structure_peaks_index+5].extremum_low);
+    // LIVE CLOSE PERCENT
+    fibonacci_levels[4] = GetBearishFibonacciPercentage(iClose(_Symbol, indicator_timeframe, 0),    extrema[structure_peaks_index+1].extremum_low,  extrema[structure_peaks_index+2].extremum_high, true);
+    Print(extrema[structure_peaks_index+1].extremum_time, " -peak- ", extrema[structure_peaks_index+2].extremum_time, " - ", fibonacci_levels[4]);
   }
 }
 

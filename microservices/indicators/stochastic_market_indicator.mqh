@@ -36,6 +36,7 @@ struct StochasticMarketStructure
   double   third_structure_price;
   datetime fourth_structure_time;
   double   fourth_structure_price;
+  double   first_structure_close_percent;
 
   // Niveles de Fibonacci calculados
   double first_fibonacci_level;
@@ -76,6 +77,7 @@ struct StochasticMarketStructure
     second_fibonacci_level = 0.0;
     third_fibonacci_level  = 0.0;
     fourth_fibonacci_level = 0.0;
+    first_structure_close_percent = 0.0;
   }
 
   // COPY CONSTRUCTOR
@@ -98,6 +100,7 @@ struct StochasticMarketStructure
     third_structure_price  = other.third_structure_price;
     fourth_structure_time  = other.fourth_structure_time;
     fourth_structure_price = other.fourth_structure_price;
+    first_structure_close_percent = other.first_structure_close_percent;
 
     first_fibonacci_level  = other.first_fibonacci_level;
     second_fibonacci_level = other.second_fibonacci_level;
@@ -163,9 +166,10 @@ struct StochasticMarketStructure
     fourth_structure_price = structure_data[3].structure_price;
 
     // STEP 3: Calculate Fibonacci levels
-    double fibonacci_levels[4];
+    double fibonacci_levels[5];
 
     CalculateFibonacciLevels(
+      structure_stoch_indicator_handle.indicator_timeframe,
       os_market_structures,
       initial_is_bottom,
       initial_is_peak,
@@ -177,6 +181,7 @@ struct StochasticMarketStructure
     second_fibonacci_level = fibonacci_levels[1];
     third_fibonacci_level  = fibonacci_levels[2];
     fourth_fibonacci_level = fibonacci_levels[3];
+    first_structure_close_percent = fibonacci_levels[4];
 
     // STEP 4: Calculate extremum statistics (NEW)
     CalculateAllExtremumStatistics(
@@ -244,9 +249,10 @@ struct StochasticMarketStructure
     fourth_structure_price = structure_data[3].structure_price;
 
     // STEP 3: Calculate Fibonacci levels (backward compatibility)
-    double fibonacci_levels[4];
+    double fibonacci_levels[5];
 
     CalculateFibonacciLevels(
+      structure_stoch_indicator_handle.indicator_timeframe,
       os_market_structures,
       initial_is_bottom,
       initial_is_peak,
@@ -258,6 +264,7 @@ struct StochasticMarketStructure
     second_fibonacci_level = fibonacci_levels[1];
     third_fibonacci_level  = fibonacci_levels[2];
     fourth_fibonacci_level = fibonacci_levels[3];
+    first_structure_close_percent = fibonacci_levels[4];
 
     // STEP 4: Calculate extremum statistics
     CalculateAllExtremumStatistics(
