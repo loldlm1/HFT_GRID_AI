@@ -259,26 +259,32 @@ int ResolveContextTrendPeriod(const StrategyTrendModes mode)
   return MathMax((int)Base_Indicator_Period_Type, 1);
 }
 
-int ResolveBaseBPercentIndicatorPeriod()
+int ResolveEvaluationBPercentPeriod()
 {
-  return ResolveContextTrendPeriod(Strategy_Base_Trend_Mode);
+  int indicator_period = (int)Base_Indicator_Period_Type;
+  bool teeth_required = TrendModeUsesTeethAlligator(Strategy_Base_Trend_Mode) ||
+                        TrendModeUsesTeethAlligator(Strategy_Trend_Trend_Mode) ||
+                        TrendModeUsesTeethAlligator(Strategy_Macro_Trend_Mode) ||
+                        TrendModeUsesTeethAlligator(Strategy_Session_Trend_Mode);
+  if(teeth_required)
+    indicator_period = (int)Stoch_Structure_Period_Type;
+  return MathMax(indicator_period, 1);
+}
+
+int ResolveVolatilityChannelPeriod()
+{
+  return MathMax((int)Stoch_Structure_Period_Type, 1);
 }
 
 int ResolveContextBPercentIndicatorPeriod(const StrategyContextTypes context)
 {
-  if(context == CONTEXT_SLOT_TREND)
-    return ResolveContextTrendPeriod(Strategy_Trend_Trend_Mode);
-  if(context == CONTEXT_SLOT_MACRO)
-    return ResolveContextTrendPeriod(Strategy_Macro_Trend_Mode);
-  if(context == CONTEXT_SLOT_SESSION)
-    return ResolveContextTrendPeriod(Strategy_Session_Trend_Mode);
-  return ResolveBaseBPercentIndicatorPeriod();
+  return ResolveEvaluationBPercentPeriod();
 }
 
 void PrepareIndicatorPeriods()
 {
   ArrayResize(IndicatorPeriods, 1);
-  IndicatorPeriods[0] = ResolveBaseBPercentIndicatorPeriod();
+  IndicatorPeriods[0] = ResolveEvaluationBPercentPeriod();
 }
 
 inline bool TrendStructureNeedsDedicatedHandle()
@@ -811,7 +817,7 @@ bool LoadAtrIndicatorForTimeframe(const ENUM_TIMEFRAMES trend_timeframe)
 
   IndicatorsHandleInfo atr_indicator_handle_loaded;
 
-  atr_indicator_handle_loaded.indicator_period    = MathMax(ResolveBaseBPercentIndicatorPeriod(), 1);
+  atr_indicator_handle_loaded.indicator_period    = ResolveVolatilityChannelPeriod();
   double atr_factor = ResolveVolatilityChannelFactor();
   atr_indicator_handle_loaded.indicator_handle    = iCustom(_Symbol,
                                                             trend_timeframe,
@@ -840,7 +846,7 @@ bool LoadKeltnerIndicatorForTimeframe(const ENUM_TIMEFRAMES trend_timeframe)
     return true;
 
   IndicatorsHandleInfo keltner_handle;
-  int channel_period = MathMax(ResolveBaseBPercentIndicatorPeriod(), 1);
+  int channel_period = ResolveVolatilityChannelPeriod();
   keltner_handle.indicator_period    = channel_period;
   double channel_factor = ResolveVolatilityChannelFactor();
   keltner_handle.indicator_handle    = iCustom(_Symbol,
@@ -873,7 +879,7 @@ bool LoadBollingerIndicatorForTimeframe(const ENUM_TIMEFRAMES trend_timeframe)
     return true;
 
   IndicatorsHandleInfo bands_indicator_handle_loaded;
-  bands_indicator_handle_loaded.indicator_period        = ResolveContextTrendPeriod(Strategy_Base_Trend_Mode);
+  bands_indicator_handle_loaded.indicator_period        = ResolveVolatilityChannelPeriod();
   bands_indicator_handle_loaded.indicator_ma_method     = Base_Indicator_MA_Method;
   bands_indicator_handle_loaded.indicator_applied_price = PRICE_WEIGHTED;
   double deviation_factor = ResolveBollingerDeviationFactor();
@@ -1379,7 +1385,7 @@ void LoadAllBandsIndicators()
     {
       IndicatorsHandleInfo bands_indicator_handle_loaded;
 
-      bands_indicator_handle_loaded.indicator_period     = IndicatorPeriods[period_index];
+      bands_indicator_handle_loaded.indicator_period     = ResolveVolatilityChannelPeriod();
       bands_indicator_handle_loaded.indicator_ma_method  = Base_Indicator_MA_Method;
       bands_indicator_handle_loaded.indicator_applied_price = PRICE_WEIGHTED;
       double deviation_factor = ResolveBollingerDeviationFactor();
