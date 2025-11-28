@@ -494,8 +494,10 @@ bool StrategyContextEvaluateEntry(const StrategyContextIndicators &snapshot,
     if(!snapshot.body_ma_valid)
       return false;
 
-    double body_value = snapshot.body_ma_data.body_value_1;
+    double body_value    = snapshot.body_ma_data.body_value_1;
     double body_ma_value = snapshot.body_ma_data.body_ma_1;
+    double open_1        = iOpen(_Symbol, snapshot.timeframe, 1);
+    double close_1       = iClose(_Symbol, snapshot.timeframe, 1);
     if(body_ma_value == EMPTY_VALUE || body_value == EMPTY_VALUE)
     {
       entry_allows = false;
@@ -505,9 +507,11 @@ bool StrategyContextEvaluateEntry(const StrategyContextIndicators &snapshot,
 
     bool pass = true;
     if(body_volume_mode == BODY_VOLUME_HIGH)
-      pass = (body_value >= body_ma_value);
+      pass = (direction == BULLISH && close_1 > open_1 && body_value >= body_ma_value) ||
+             (direction == BEARISH && close_1 < open_1 && body_value >= body_ma_value);
     else if(body_volume_mode == BODY_VOLUME_LOW)
-      pass = (body_value < body_ma_value);
+      pass = (direction == BULLISH && close_1 >= open_1 && body_value < body_ma_value) ||
+             (direction == BEARISH && close_1 <= open_1 && body_value < body_ma_value);
 
     if(!pass)
     {
