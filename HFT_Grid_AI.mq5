@@ -38,7 +38,7 @@ SymbolTradingConstraints g_symbol_constraints;
 
 int OnInit()
 {
-  //EncryptEA("196088005", "Testing-Real", "Shurt", 34);
+  //EncryptEA("197955914", "Admin", "Shurt", 300);
   // License Validation
 	if(MQLInfoInteger(MQL_TESTER) > 0) is_testing = true;
 	if(!DecryptEA())              { return(INIT_FAILED); }

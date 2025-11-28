@@ -737,6 +737,17 @@ bool AlligatorIndicatorHandleExists(const ENUM_TIMEFRAMES timeframe)
   return false;
 }
 
+bool BodyMAIndicatorHandleExists(const ENUM_TIMEFRAMES timeframe)
+{
+  int total = ArraySize(ExtBodyMAIndicatorsHandle);
+  for(int i = 0; i < total; i++)
+  {
+    if(ExtBodyMAIndicatorsHandle[i].indicator_timeframe == timeframe)
+      return true;
+  }
+  return false;
+}
+
 bool LoadAlligatorIndicatorForTimeframe(const ENUM_TIMEFRAMES trend_tf)
 {
   if(AlligatorIndicatorHandleExists(trend_tf))
@@ -803,6 +814,31 @@ bool KeltnerIndicatorHandleExists(const ENUM_TIMEFRAMES timeframe)
       return true;
   }
   return false;
+}
+
+bool LoadBodyMAIndicatorForTimeframe(const ENUM_TIMEFRAMES trend_timeframe)
+{
+  if(BodyMAIndicatorHandleExists(trend_timeframe))
+    return true;
+
+  IndicatorsHandleInfo body_ma_indicator_handle_loaded;
+
+  body_ma_indicator_handle_loaded.indicator_period    = 5;
+  body_ma_indicator_handle_loaded.indicator_shift     = 0;
+  body_ma_indicator_handle_loaded.indicator_handle    = iCustom(_Symbol, trend_timeframe, "Examples\\Body_MA.ex5", 5, 0);
+  body_ma_indicator_handle_loaded.indicator_timeframe = trend_timeframe;
+
+  if(body_ma_indicator_handle_loaded.indicator_handle == INVALID_HANDLE)
+  {
+    Print("ERROR LOADING BODY MA INDICATOR: ", EnumToString(trend_timeframe), " | PERIOD: 5");
+    TesterStop();
+    return false;
+  }
+
+  Print("LOADED BODY MA INDICATOR SUCCESSFULLY: ", EnumToString(trend_timeframe), " | PERIOD: 5");
+
+  AddElementToArray(ExtBodyMAIndicatorsHandle, body_ma_indicator_handle_loaded);
+  return true;
 }
 
 bool BollingerIndicatorHandleExists(const ENUM_TIMEFRAMES timeframe)
@@ -1324,6 +1360,11 @@ void LoadAllIndicatorDefinitions()
   bool macro_entry_active   = (StrategyContextEnabled(CONTEXT_SLOT_MACRO) && macro_entry_eval != ENTRY_EVAL_OFF);
   bool session_entry_active = (StrategyContextEnabled(CONTEXT_SLOT_SESSION) && session_entry_eval != ENTRY_EVAL_OFF);
 
+  bool base_body_required    = (Base_Body_Volume_Filter    != BODY_VOLUME_OFF);
+  bool trend_body_required   = (Trend_Body_Volume_Filter   != BODY_VOLUME_OFF) && StrategyContextEnabled(CONTEXT_SLOT_TREND);
+  bool macro_body_required   = (Macro_Body_Volume_Filter   != BODY_VOLUME_OFF) && StrategyContextEnabled(CONTEXT_SLOT_MACRO);
+  bool session_body_required = (Session_Body_Volume_Filter != BODY_VOLUME_OFF) && StrategyContextEnabled(CONTEXT_SLOT_SESSION);
+
   bool need_bollinger_channels = ((channel_strategy_type == BOLLINGER_RANGE) && load_channel_indicators && base_entry_active) ||
                                  overlay_bollinger_required;
   bool need_keltner_channels   = ((channel_strategy_type == KELTNER_RANGE) && load_channel_indicators && base_entry_active) ||
@@ -1380,7 +1421,14 @@ void LoadAllIndicatorDefinitions()
     Print("Volatility indicator strategy disabled and trailing indicator mode inactive; skipping channel indicator loading.");
   }
 
-  LoadAllBodyMAIndicators();
+  if(base_body_required)
+    LoadAllBodyMAIndicators();
+  if(trend_body_required)
+    LoadBodyMAIndicatorForTimeframe(ResolveTrendTimeframe());
+  if(macro_body_required)
+    LoadBodyMAIndicatorForTimeframe(ResolveMacroTimeframe());
+  if(session_body_required)
+    LoadBodyMAIndicatorForTimeframe(ResolveSessionTimeframe());
   LoadTrendIndicators();
   LoadMacroIndicators();
   LoadSessionIndicators();
@@ -1592,24 +1640,8 @@ void LoadAllBodyMAIndicators()
   for(int i = 0; i < total_tf_list_load; ++i)
   {
     ENUM_TIMEFRAMES trend_timeframe = Strategy_TF_List[i];
-
-    IndicatorsHandleInfo body_ma_indicator_handle_loaded;
-
-    body_ma_indicator_handle_loaded.indicator_period    = 5;
-    body_ma_indicator_handle_loaded.indicator_shift     = 0;
-    body_ma_indicator_handle_loaded.indicator_handle    = iCustom(_Symbol, trend_timeframe, "Examples\\Body_MA.ex5", 5, 0);
-    body_ma_indicator_handle_loaded.indicator_timeframe = trend_timeframe;
-
-    if(body_ma_indicator_handle_loaded.indicator_handle == INVALID_HANDLE)
-    {
-      Print("ERROR LOADING BODY MA INDICATOR: ", EnumToString(trend_timeframe), " | PERIOD: 5");
-      TesterStop();
+    if(!LoadBodyMAIndicatorForTimeframe(trend_timeframe))
       break;
-    }
-
-    Print("LOADED BODY MA INDICATOR SUCCESFULLY: ", EnumToString(trend_timeframe), " | PERIOD: 5");
-
-    AddElementToArray(ExtBodyMAIndicatorsHandle, body_ma_indicator_handle_loaded);
   }
 }
 
