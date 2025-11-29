@@ -193,3 +193,28 @@ void RefreshCustomSymbolRates()
   g_local_spread  = MathAbs(g_ask-g_bid);
   g_points_spread = g_local_spread*g_decimal_digits;
 }
+
+double OnTester()
+{
+  // Return a zero score when the run was forcibly stopped (no money or debug aborts).
+  if(g_forced_stop_triggered || g_debug_no_money_abort_pending)
+    return 0.0;
+
+  double initial_deposit = TesterStatistics(STAT_INITIAL_DEPOSIT);
+  double final_balance   = TesterStatistics(STAT_PROFIT);
+  double sharpe_ratio    = TesterStatistics(STAT_SHARPE_RATIO);
+  double trades_total    = TesterStatistics(STAT_TRADES);
+
+  if(initial_deposit <= 0.0 || trades_total <= 0.0)
+    return 0.0;
+
+  double growth = (final_balance - initial_deposit) / initial_deposit; // normalized growth
+  if(growth < 0.0)
+    growth = 0.0;
+
+  double sharpe_component = MathMax(0.0, sharpe_ratio);
+  double volume_component = MathLog(1.0 + trades_total); // more trades => more confidence
+
+  double score = growth * volume_component * sharpe_component;
+  return score;
+}

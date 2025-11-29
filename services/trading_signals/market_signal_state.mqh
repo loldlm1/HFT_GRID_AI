@@ -6,6 +6,7 @@
 
 SignalParams running_bullish_signals[];
 SignalParams running_bearish_signals[];
+bool        g_forced_stop_triggered = false;
 
 datetime g_context_last_structure_time[4][2];
 datetime g_context_last_bar_time[4];
@@ -268,6 +269,7 @@ bool DebugEquityGuardAllowsProcessing()
 
   if(g_debug_no_money_abort_pending)
   {
+    g_forced_stop_triggered = true;
     g_debug_no_money_abort_pending = false;
     Print("TesterStop triggered: order send rejected due to insufficient funds while Debug_Stop_On_Negative_Equity is enabled.");
     DebugForceCloseAllGrids();
@@ -278,6 +280,7 @@ bool DebugEquityGuardAllowsProcessing()
   double equity = AccountInfoDouble(ACCOUNT_EQUITY);
   if(equity <= 0.0)
   {
+    g_forced_stop_triggered = true;
     Print("TesterStop triggered: equity <= 0 and Debug_Stop_On_Negative_Equity is enabled.");
     DebugForceCloseAllGrids();
     TesterStop();
