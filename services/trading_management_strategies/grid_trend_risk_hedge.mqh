@@ -352,10 +352,14 @@ bool GridHedgeHandlePrevCloseOnNextLevel(SignalParams &signal_params,
   GridOrderState prev_state = signal_params.grid_orders[prev_index];
   double hedge_distance_points = GridResolveHedgeDistancePoints(signal_params);
   double spacing_points = 0.0;
-  if(prev_state.entry_price > 0.0 && current_level.next_level_price > 0.0 && point_size > 0.0)
-    spacing_points = MathAbs(current_level.next_level_price - prev_state.entry_price) / point_size;
+  if(signal_params.hedge_entry_price > 0.0 &&
+     current_level.next_level_price > 0.0 &&
+     point_size > 0.0)
+  {
+    spacing_points = MathAbs(current_level.next_level_price - signal_params.hedge_entry_price) / point_size;
+  }
 
-  // Only close the previous leg when the spacing is within the hedge distance; otherwise keep it.
+  // Only close the previous leg when the next level is still within the hedge distance relative to the hedge entry.
   if(hedge_distance_points > 0.0 && spacing_points > hedge_distance_points)
     return false;
 
