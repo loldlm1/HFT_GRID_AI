@@ -51,6 +51,8 @@ bool GridOpenHedgePosition(SignalParams &signal_params,
                            const GridOrderState &state_candidate,
                            const double hedge_distance_points)
 {
+  if(signal_params.hedge_finalized)
+    return false;
   SignalTypes hedge_direction = GridResolveHedgeDirection(signal_params);
   double lot_size = state_candidate.lot_size;
   if(lot_size <= 0.0)
@@ -120,6 +122,8 @@ bool GridUpdateHedgeStopLoss(SignalParams &signal_params,
                              const GridOrderState &state_candidate,
                              const double hedge_distance_points)
 {
+  if(signal_params.hedge_finalized)
+    return false;
   if(!GridHedgePositionAlive(signal_params))
     return false;
   if(!Grid_Risk_Trend_Hedge_SL)
@@ -164,6 +168,8 @@ bool GridUpdateHedgeStopLoss(SignalParams &signal_params,
 
 bool GridHedgeStopHit(const SignalParams &signal_params)
 {
+  if(signal_params.hedge_finalized)
+    return false;
   if(!signal_params.hedge_sl_active || signal_params.hedge_sl_price <= 0.0)
     return false;
   double current_price = GridCurrentPriceForDirection(GridResolveHedgeDirection(signal_params), false);
@@ -173,7 +179,8 @@ bool GridHedgeStopHit(const SignalParams &signal_params)
 }
 
 bool GridCloseHedgePosition(SignalParams &signal_params,
-                            const string log_label)
+                            const string log_label,
+                            const bool finalize)
 {
   if(!GridHedgePositionAlive(signal_params))
     return false;
@@ -195,12 +202,15 @@ bool GridCloseHedgePosition(SignalParams &signal_params,
   signal_params.hedge_position_ticket = 0;
   signal_params.hedge_sl_active = false;
   signal_params.hedge_sl_price = 0.0;
+  signal_params.hedge_finalized = true;
 
   GridOrderState hedge_state;
   hedge_state.entry_price = signal_params.hedge_entry_price;
   hedge_state.position_ticket = ticket;
   hedge_state.status = GRID_ORDER_COMPLETED;
   GridLogEvent(log_label, signal_params, hedge_state);
+  if(finalize)
+    signal_params.hedge_finalized = true;
   return true;
 }
 
@@ -209,6 +219,8 @@ bool GridApplyTrendHedgeManagement(SignalParams &signal_params,
                                    const bool has_override)
 {
   if(!GridHedgeModeEnabled())
+    return false;
+  if(signal_params.hedge_finalized)
     return false;
 
   GridOrderState state_candidate = override_state;
@@ -233,11 +245,10 @@ bool GridApplyTrendHedgeManagement(SignalParams &signal_params,
     GridUpdateHedgeStopLoss(signal_params, state_candidate, hedge_distance_points);
     if(GridHedgeStopHit(signal_params))
     {
-      GridCloseHedgePosition(signal_params, "HEDGE_STOP_HIT");
+      GridCloseHedgePosition(signal_params, "HEDGE_STOP_HIT", false);
       signal_params.hedge_position_ticket = 0;
       signal_params.hedge_sl_active = false;
       signal_params.hedge_sl_price = 0.0;
-      // allow re-open on next tick if grid still active
       return false;
     }
   }
@@ -264,7 +275,7 @@ bool GridApplyTrendHedgeManagement(SignalParams &signal_params,
       {
         double point_size = GridResolvePointSize();
         GridCloseAllLevels(signal_params, point_size);
-        GridCloseHedgePosition(signal_params, "HEDGE_COVER_CLOSE");
+        GridCloseHedgePosition(signal_params, "HEDGE_COVER_CLOSE", true);
         signal_params.signal_state = CLOSED;
         return true;
       }

@@ -91,6 +91,11 @@ void UpdateGridLifecycle(SignalParams &signal_params)
     }
     if(GridShouldActivateTrailing(signal_params, grid_order, current_price))
     {
+      if(Grid_Risk_Trend_Mode == GRID_RM_TREND_HEDGE &&
+         signal_params.hedge_position_ticket > 0)
+      {
+        GridCloseHedgePosition(signal_params, "HEDGE_CLOSE_ON_TRAILING", true);
+      }
       signal_params.grid_orders[grid_order_level].status             = GRID_ORDER_TP_TRAILING_ACTIVE;
       signal_params.grid_orders[grid_order_level].tp_reached         = true;
       signal_params.grid_orders[grid_order_level].is_trailing_active = true;

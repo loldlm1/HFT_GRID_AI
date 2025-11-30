@@ -602,8 +602,53 @@ double UpdateTrailingTP(SignalParams &signal_params, GridOrderState &order_state
   double offset_price        = offset_pts / digit_scale;
   double grid_trailing_price = order_state.trailing_price;
   double indicator_price     = 0.0;
-  bool   indicator_mode      = (Grid_Trailing_Strategy_Mode != TRAILING_DEFAULT) &&
+  bool   indicator_mode      = ((Grid_Trailing_Strategy_Mode == TRAILING_ATR_BASED) ||
+                                (Grid_Trailing_Strategy_Mode == TRAILING_LIPS_MA)) &&
                                GridResolveTrailingStrategyPrice(signal_params, indicator_price);
+  bool   step_mode           = (Grid_Trailing_Strategy_Mode == TRAILING_STEP);
+
+  if(step_mode)
+  {
+    double point_size = GridResolvePointSize();
+    if(point_size <= 0.0)
+      point_size = 0.0001;
+
+    double step_points = offset_pts;
+    if(step_points <= 0.0)
+      step_points = EnforceBrokerDistance(g_symbol_constraints);
+    double step_price = step_points / digit_scale;
+
+    double current_stop = grid_trailing_price;
+    if(signal_params.signal_type == BULLISH)
+    {
+      double base_stop = current_price - step_price;
+      if(current_stop <= 0.0)
+        return MathMax(base_stop, 0.0);
+
+      double delta = current_price - current_stop;
+      if(delta >= step_price)
+      {
+        double candidate = current_price - step_price;
+        return MathMax(candidate, current_stop);
+      }
+      return current_stop;
+    }
+
+    if(signal_params.signal_type == BEARISH)
+    {
+      double base_stop = current_price + step_price;
+      if(current_stop <= 0.0)
+        return base_stop;
+
+      double delta = current_stop - current_price;
+      if(delta >= step_price)
+      {
+        double candidate = current_price + step_price;
+        return MathMin(candidate, current_stop);
+      }
+      return current_stop;
+    }
+  }
 
   if(indicator_mode && indicator_price > 0.0)
   {
