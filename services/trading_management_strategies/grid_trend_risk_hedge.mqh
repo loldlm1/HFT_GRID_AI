@@ -273,6 +273,15 @@ bool GridApplyTrendHedgeManagement(SignalParams &signal_params,
 
       signal_params.grid_base_lot_size = Grid_Lot_Strategy_Size;
       signal_params.grid_orders[state_candidate.level_index].lot_size = Grid_Lot_Strategy_Size;
+      // Reset executed count so lot multiplier restarts from base
+      int executed_levels = ArraySize(signal_params.grid_orders);
+      for(int i = 0; i < executed_levels; i++)
+      {
+        if(!signal_params.grid_orders[i].opens_position)
+          continue;
+        if(signal_params.grid_orders[i].status == GRID_ORDER_COMPLETED)
+          signal_params.grid_orders[i].status = GRID_ORDER_INACTIVE;
+      }
     }
   }
 
