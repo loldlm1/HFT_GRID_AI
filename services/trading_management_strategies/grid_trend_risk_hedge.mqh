@@ -67,23 +67,13 @@ bool GridOpenHedgePosition(SignalParams &signal_params,
   }
 
   double entry_price = GridCurrentPriceForDirection(hedge_direction, true);
-  double sl_price = 0.0;
-  if(Grid_Risk_Trend_Hedge_SL && hedge_distance_points > 0.0)
-  {
-    double point_size = GridResolvePointSize();
-    double offset = hedge_distance_points * point_size;
-    if(hedge_direction == BULLISH)
-      sl_price = entry_price - offset;
-    else
-      sl_price = entry_price + offset;
-  }
 
   string comment = "GRID_HEDGE";
   bool sent = false;
   if(hedge_direction == BULLISH)
-    sent = g_position.Buy(normalized_volume, _Symbol, 0.0, sl_price, 0.0, comment);
+    sent = g_position.Buy(normalized_volume, _Symbol, 0.0, 0.0, 0.0, comment);
   else
-    sent = g_position.Sell(normalized_volume, _Symbol, 0.0, sl_price, 0.0, comment);
+    sent = g_position.Sell(normalized_volume, _Symbol, 0.0, 0.0, 0.0, comment);
 
   if(!sent)
   {
@@ -104,8 +94,19 @@ bool GridOpenHedgePosition(SignalParams &signal_params,
 
   signal_params.hedge_position_ticket = position_ticket;
   signal_params.hedge_entry_price     = fill_price;
-  signal_params.hedge_sl_price        = sl_price;
-  signal_params.hedge_sl_active       = (sl_price > 0.0);
+
+  double sl_price = 0.0;
+  if(Grid_Risk_Trend_Hedge_SL && hedge_distance_points > 0.0)
+  {
+    double point_size = GridResolvePointSize();
+    double offset = hedge_distance_points * point_size;
+    if(hedge_direction == BULLISH)
+      sl_price = fill_price - offset;
+    else
+      sl_price = fill_price + offset;
+  }
+  signal_params.hedge_sl_price  = sl_price;
+  signal_params.hedge_sl_active = (sl_price > 0.0);
 
   GridOrderState hedge_state = state_candidate;
   hedge_state.position_ticket = position_ticket;
@@ -123,13 +124,8 @@ bool GridUpdateHedgeStopLoss(SignalParams &signal_params,
     return false;
   if(!Grid_Risk_Trend_Hedge_SL)
   {
-    if(signal_params.hedge_sl_active)
-    {
-      if(!g_position.PositionModify(signal_params.hedge_position_ticket, 0.0, 0.0))
-        return false;
-      signal_params.hedge_sl_active = false;
-      signal_params.hedge_sl_price = 0.0;
-    }
+    signal_params.hedge_sl_active = false;
+    signal_params.hedge_sl_price = 0.0;
     return true;
   }
 
@@ -161,12 +157,19 @@ bool GridUpdateHedgeStopLoss(SignalParams &signal_params,
       sl_price = entry_price + offset;
   }
 
-  if(!g_position.PositionModify(signal_params.hedge_position_ticket, sl_price, 0.0))
-    return false;
-
   signal_params.hedge_sl_active = (sl_price > 0.0);
   signal_params.hedge_sl_price  = sl_price;
   return true;
+}
+
+bool GridHedgeStopHit(const SignalParams &signal_params)
+{
+  if(!signal_params.hedge_sl_active || signal_params.hedge_sl_price <= 0.0)
+    return false;
+  double current_price = GridCurrentPriceForDirection(GridResolveHedgeDirection(signal_params), false);
+  if(GridResolveHedgeDirection(signal_params) == BULLISH)
+    return (current_price <= signal_params.hedge_sl_price);
+  return (current_price >= signal_params.hedge_sl_price);
 }
 
 bool GridCloseHedgePosition(SignalParams &signal_params,
@@ -228,6 +231,15 @@ bool GridApplyTrendHedgeManagement(SignalParams &signal_params,
   else
   {
     GridUpdateHedgeStopLoss(signal_params, state_candidate, hedge_distance_points);
+    if(GridHedgeStopHit(signal_params))
+    {
+      GridCloseHedgePosition(signal_params, "HEDGE_STOP_HIT");
+      signal_params.hedge_position_ticket = 0;
+      signal_params.hedge_sl_active = false;
+      signal_params.hedge_sl_price = 0.0;
+      // allow re-open on next tick if grid still active
+      return false;
+    }
   }
 
   int cover_level = Grid_Risk_Trend_Hedge_Level_Cover;
