@@ -339,4 +339,39 @@ bool GridApplyTrendHedgeManagement(SignalParams &signal_params,
   return false;
 }
 
+bool GridHedgeHandlePrevCloseOnNextLevel(SignalParams &signal_params,
+                                         GridOrderState &current_level,
+                                         const double point_size)
+{
+  if(!GridHedgeModeEnabled())
+    return false;
+  int prev_index = current_level.level_index;
+  if(prev_index < 0 || prev_index >= ArraySize(signal_params.grid_orders))
+    return false;
+
+  GridOrderState prev_state = signal_params.grid_orders[prev_index];
+  double hedge_distance_points = GridResolveHedgeDistancePoints(signal_params);
+  double spacing_points = 0.0;
+  if(prev_state.entry_price > 0.0 && current_level.next_level_price > 0.0 && point_size > 0.0)
+    spacing_points = MathAbs(current_level.next_level_price - prev_state.entry_price) / point_size;
+
+  // Only close the previous leg when the spacing is within the hedge distance; otherwise keep it.
+  if(hedge_distance_points > 0.0 && spacing_points > hedge_distance_points)
+    return false;
+
+  if(prev_state.position_ticket > 0)
+  {
+    double close_price = 0.0;
+    if(GridCloseBrokerPosition(prev_state, signal_params.signal_type, close_price))
+    {
+      prev_state.status = GRID_ORDER_COMPLETED;
+      prev_state.opens_position = false;
+      signal_params.grid_orders[prev_index] = prev_state;
+      GridLogEvent("HEDGE_PREV_CLOSE_ON_NEXT", signal_params, prev_state);
+      return true;
+    }
+  }
+  return false;
+}
+
 #endif // _GRID_TREND_RISK_HEDGE_MQH_
