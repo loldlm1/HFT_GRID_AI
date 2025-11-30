@@ -262,6 +262,7 @@ void GridCloseAllLevels(SignalParams &signal_params,
     signal_params.hedge_sl_active = false;
     signal_params.hedge_sl_price = 0.0;
   }
+  signal_params.hedge_finalized = true;
 }
 
 int GetActivePositionsCount(const SignalTypes direction)

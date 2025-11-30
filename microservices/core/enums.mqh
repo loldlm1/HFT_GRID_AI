@@ -106,8 +106,9 @@ enum BreakEvenModes
 enum TrailingStrategyModes
 {
   TRAILING_DEFAULT   = 0,
-  TRAILING_ATR_BASED = 1,
-  TRAILING_LIPS_MA   = 2
+  TRAILING_STEP      = 1,
+  TRAILING_ATR_BASED = 2,
+  TRAILING_LIPS_MA   = 3
 };
 
 enum TrailingExecutionModes

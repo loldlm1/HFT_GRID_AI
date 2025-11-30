@@ -93,6 +93,7 @@ struct SignalParams
   double hedge_entry_price;
   bool   hedge_sl_active;
   double hedge_sl_price;
+  bool   hedge_finalized;
   datetime context_structure_snapshot_time;
 
   bool                      trend_bpercent_valid;
@@ -160,6 +161,7 @@ struct SignalParams
     hedge_entry_price          = 0.0;
     hedge_sl_active            = false;
     hedge_sl_price             = 0.0;
+    hedge_finalized            = false;
     context_structure_snapshot_time = 0;
     trend_filter_mode          = TREND_OFF;
     trend_bpercent_valid       = false;
@@ -232,6 +234,7 @@ struct SignalParams
     hedge_entry_price           = signal_params.hedge_entry_price;
     hedge_sl_active             = signal_params.hedge_sl_active;
     hedge_sl_price              = signal_params.hedge_sl_price;
+    hedge_finalized             = signal_params.hedge_finalized;
     strategy_context           = signal_params.strategy_context;
     strategy_timeframe         = signal_params.strategy_timeframe;
     strategy_context_label     = signal_params.strategy_context_label;
