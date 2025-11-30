@@ -78,9 +78,41 @@ bool CalculateBaseGridContext(const SignalParams &signal_params,
     double structure_price = 0.0;
     int total_structures = ArraySize(signal_params.stoch_market_structure_data);
     if(total_structures > 0)
-      structure_price = signal_params.stoch_market_structure_data[0].first_structure_price;
+    {
+      StochasticMarketStructure stoch = signal_params.stoch_market_structure_data[0];
+      OscillatorStructureTypes types[4] = {stoch.first_structure_type,
+                                           stoch.second_structure_type,
+                                           stoch.third_structure_type,
+                                           stoch.fourth_structure_type};
+      double prices[4] = {stoch.first_structure_price,
+                          stoch.second_structure_price,
+                          stoch.third_structure_price,
+                          stoch.fourth_structure_price};
+
+      for(int i = 0; i < 4; i++)
+      {
+        if(signal_params.signal_type == BULLISH &&
+           (types[i] == OSCILLATOR_STRUCTURE_LL || types[i] == OSCILLATOR_STRUCTURE_HL) &&
+           prices[i] > 0.0)
+        {
+          structure_price = prices[i];
+          break;
+        }
+        if(signal_params.signal_type == BEARISH &&
+           (types[i] == OSCILLATOR_STRUCTURE_HH || types[i] == OSCILLATOR_STRUCTURE_LH) &&
+           prices[i] > 0.0)
+        {
+          structure_price = prices[i];
+          break;
+        }
+      }
+      if(structure_price <= 0.0)
+        structure_price = stoch.first_structure_price;
+    }
+
     if(structure_price <= 0.0)
       return false;
+
     distance_points = MathAbs(structure_price - entry_reference_price) / point_size;
     distance_points = EnforceBrokerDistance(g_symbol_constraints, distance_points);
     return (distance_points > 0.0);
