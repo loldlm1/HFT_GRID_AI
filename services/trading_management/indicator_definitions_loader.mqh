@@ -175,6 +175,8 @@ GridBaseStrategyTypes ResolveChannelStrategyFromInputs()
         return BOLLINGER_RANGE;
     }
   }
+  if(configured_type == STOCH_STRUCTURE_RANGE)
+    return POINTS_RANGE;
   return configured_type;
 }
 
