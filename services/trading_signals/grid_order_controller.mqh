@@ -118,24 +118,8 @@ void UpdateGridLifecycle(SignalParams &signal_params)
       }
       else
       {
-        if(Grid_Risk_Trend_Mode == GRID_RM_TREND_HEDGE &&
-           grid_order.level_index >= 0 &&
-           grid_order.level_index < ArraySize(signal_params.grid_orders))
-        {
-          int prev_index = grid_order.level_index;
-          GridOrderState prev_state = signal_params.grid_orders[prev_index];
-          if(prev_state.position_ticket > 0)
-          {
-            double close_price = 0.0;
-            if(GridCloseBrokerPosition(prev_state, direction, close_price))
-            {
-              prev_state.status = GRID_ORDER_COMPLETED;
-              prev_state.opens_position = false;
-              signal_params.grid_orders[prev_index] = prev_state;
-              GridLogEvent("HEDGE_PREV_CLOSE_ON_NEXT", signal_params, prev_state);
-            }
-          }
-        }
+        if(Grid_Risk_Trend_Mode == GRID_RM_TREND_HEDGE)
+          GridHedgeHandlePrevCloseOnNextLevel(signal_params, grid_order, point_size);
 
         BuildGridOrderForSignal(signal_params);
         GridLogEvent("NEXT_LEVEL_ACTIVATED", signal_params, grid_order);
