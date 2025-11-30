@@ -842,6 +842,30 @@ double GridCollectSignalFloatingProfit(const SignalParams &signal_params)
   return cumulative;
 }
 
+double GridCollectSignalFloatingProfitWithoutHedge(const SignalParams &signal_params)
+{
+  double cumulative = 0.0;
+  int total_levels = ArraySize(signal_params.grid_orders);
+  ulong hedge_ticket = signal_params.hedge_position_ticket;
+
+  for(int idx = 0; idx < total_levels; idx++)
+  {
+    GridOrderState state = signal_params.grid_orders[idx];
+    if(state.position_ticket <= 0)
+      continue;
+    if(state.position_ticket == hedge_ticket && hedge_ticket > 0)
+      continue;
+    if(!PositionSelectByTicket(state.position_ticket))
+      continue;
+    if(PositionGetInteger(POSITION_MAGIC) != g_magic_number)
+      continue;
+    if(PositionGetString(POSITION_SYMBOL) != _Symbol)
+      continue;
+    cumulative += PositionGetDouble(POSITION_PROFIT);
+  }
+  return cumulative;
+}
+
 bool GridSignalHasExecutedLevel(const SignalParams &signal_params)
 {
   int total_levels = ArraySize(signal_params.grid_orders);
