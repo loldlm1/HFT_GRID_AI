@@ -4,8 +4,6 @@
 #ifndef _GRID_TREND_RISK_BREACH_MQH_
 #define _GRID_TREND_RISK_BREACH_MQH_
 
-#include "grid_risk_trend_strategy.mqh"
-
 bool GridTrendSarAlligatorBreach(const SignalTypes direction,
                                  const ENUM_TIMEFRAMES target_tf,
                                  const GridRiskTrendStrategyConfig &risk_config)

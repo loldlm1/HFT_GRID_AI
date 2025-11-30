@@ -4,8 +4,6 @@
 #ifndef _GRID_TREND_RISK_MODES_MQH_
 #define _GRID_TREND_RISK_MODES_MQH_
 
-#include "grid_risk_trend_strategy.mqh"
-
 bool GridRiskTrendHandleBreakEven(const GridRiskTrendStrategyConfig &config,
                                   SignalParams &signal_params,
                                   const GridOrderState &state_candidate,
