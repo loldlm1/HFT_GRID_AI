@@ -281,6 +281,10 @@ bool TrendStructureFilterMatches(const TrendStructureFilterModes filter_mode,
       struct_match = (structure_type == OSCILLATOR_STRUCTURE_LL ||
                       structure_type == OSCILLATOR_STRUCTURE_LH);
       break;
+    case BULLISH_STRUCT_HH_LH:
+      struct_match = (structure_type == OSCILLATOR_STRUCTURE_HH ||
+                      structure_type == OSCILLATOR_STRUCTURE_LH);
+      break;
     case BEARISH_STRUCT_HH:
       struct_match = (structure_type == OSCILLATOR_STRUCTURE_HH);
       break;
@@ -289,6 +293,10 @@ bool TrendStructureFilterMatches(const TrendStructureFilterModes filter_mode,
       break;
     case BEARISH_STRUCT_HH_HL:
       struct_match = (structure_type == OSCILLATOR_STRUCTURE_HH ||
+                      structure_type == OSCILLATOR_STRUCTURE_HL);
+      break;
+    case BEARISH_STRUCT_LL_HL:
+      struct_match = (structure_type == OSCILLATOR_STRUCTURE_LL ||
                       structure_type == OSCILLATOR_STRUCTURE_HL);
       break;
     default:
@@ -302,12 +310,14 @@ bool TrendStructureFilterMatches(const TrendStructureFilterModes filter_mode,
   bool filter_is_bullish =
     (filter_mode == BULLISH_STRUCT_LL) ||
     (filter_mode == BULLISH_STRUCT_LH) ||
-    (filter_mode == BULLISH_STRUCT_LL_LH);
+    (filter_mode == BULLISH_STRUCT_LL_LH) ||
+    (filter_mode == BULLISH_STRUCT_HH_LH);
 
   bool filter_is_bearish =
     (filter_mode == BEARISH_STRUCT_HH) ||
     (filter_mode == BEARISH_STRUCT_HL) ||
-    (filter_mode == BEARISH_STRUCT_HH_HL);
+    (filter_mode == BEARISH_STRUCT_HH_HL) ||
+    (filter_mode == BEARISH_STRUCT_LL_HL);
 
   if(filter_is_bullish && signal_type == BULLISH)
   {

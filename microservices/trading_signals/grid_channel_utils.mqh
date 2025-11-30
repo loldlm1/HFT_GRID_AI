@@ -39,7 +39,8 @@ inline GridBaseStrategyTypes ResolveEffectiveChannelStrategy()
 
 inline bool GridStrategyUsesChannelIndicator()
 {
-  return (Grid_Base_Strategy_Type != POINTS_RANGE);
+  return (Grid_Base_Strategy_Type != POINTS_RANGE &&
+          Grid_Base_Strategy_Type != STOCH_STRUCTURE_RANGE);
 }
 
 inline GridBaseStrategyTypes ResolveActiveChannelStrategy()

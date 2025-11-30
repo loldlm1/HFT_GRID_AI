@@ -86,7 +86,8 @@ enum GridBaseStrategyTypes
   POINTS_RANGE            = 1,
   KELTNER_RANGE           = 2,
   BOLLINGER_RANGE         = 3,
-  CHANNEL_INDICATOR_RANGE = 4
+  CHANNEL_INDICATOR_RANGE = 4,
+  STOCH_STRUCTURE_RANGE   = 5
 };
 
 enum GridChannelLineTypes
@@ -364,11 +365,13 @@ enum TrendStructureFilterModes
   BULLISH_STRUCT_LL        = 2,
   BULLISH_STRUCT_LH        = 3,
   BULLISH_STRUCT_OFF_FINAL = 4,
-  BEARISH_STRUCT_OFF       = 5,
-  BEARISH_STRUCT_HH_HL     = 6,
-  BEARISH_STRUCT_HH        = 7,
-  BEARISH_STRUCT_HL        = 8,
-  BEARISH_STRUCT_OFF_FINAL = 9
+  BULLISH_STRUCT_HH_LH     = 5,
+  BEARISH_STRUCT_OFF       = 6,
+  BEARISH_STRUCT_HH_HL     = 7,
+  BEARISH_STRUCT_HH        = 8,
+  BEARISH_STRUCT_HL        = 9,
+  BEARISH_STRUCT_LL_HL     = 10,
+  BEARISH_STRUCT_OFF_FINAL = 11
 };
 
 enum MarketStatusTypes

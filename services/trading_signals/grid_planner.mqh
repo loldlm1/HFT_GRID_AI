@@ -73,6 +73,19 @@ bool CalculateBaseGridContext(const SignalParams &signal_params,
     return (distance_points > 0.0);
   }
 
+  if(Grid_Base_Strategy_Type == STOCH_STRUCTURE_RANGE)
+  {
+    double structure_price = 0.0;
+    int total_structures = ArraySize(signal_params.stoch_market_structure_data);
+    if(total_structures > 0)
+      structure_price = signal_params.stoch_market_structure_data[0].first_structure_price;
+    if(structure_price <= 0.0)
+      return false;
+    distance_points = MathAbs(structure_price - entry_reference_price) / point_size;
+    distance_points = EnforceBrokerDistance(g_symbol_constraints, distance_points);
+    return (distance_points > 0.0);
+  }
+
   double requested_points = EnforceBrokerDistance(g_symbol_constraints, Grid_Points_Range_Setup);
   double projected_price = entry_reference_price + direction_mult * requested_points * point_size;
 
