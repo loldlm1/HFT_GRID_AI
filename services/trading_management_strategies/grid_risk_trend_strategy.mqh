@@ -1,8 +1,8 @@
 //+------------------------------------------------------------------+
 //|              trading_management_strategies/grid_risk_trend_strategy.mqh |
 //+------------------------------------------------------------------+
-#ifndef _SERVICES_TRADING_MANAGEMENT_STRATEGIES_GRTS_MQH_
-#define _SERVICES_TRADING_MANAGEMENT_STRATEGIES_GRTS_MQH_
+#ifndef _GRID_RISK_TREND_STRAT_MQH_
+#define _GRID_RISK_TREND_STRAT_MQH_
 
 struct GridRiskTrendStrategyConfig
 {
@@ -74,4 +74,4 @@ string GridRiskTrendComposeLogLabel(const GridRiskTrendStrategyConfig &config,
                       suffix);
 }
 
-#endif // _SERVICES_TRADING_MANAGEMENT_STRATEGIES_GRTS_MQH_
+#endif // _GRID_RISK_TREND_STRAT_MQH_

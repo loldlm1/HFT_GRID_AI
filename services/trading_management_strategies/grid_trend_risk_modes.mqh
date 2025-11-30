@@ -1,8 +1,10 @@
 //+------------------------------------------------------------------+
 //|          trading_management_strategies/grid_trend_risk_modes.mqh |
 //+------------------------------------------------------------------+
-#ifndef _SERVICES_TRADING_MANAGEMENT_STRATEGIES_GRID_TREND_RISK_MODES_MQH_
-#define _SERVICES_TRADING_MANAGEMENT_STRATEGIES_GRID_TREND_RISK_MODES_MQH_
+#ifndef _GRID_TREND_RISK_MODES_MQH_
+#define _GRID_TREND_RISK_MODES_MQH_
+
+#include "grid_risk_trend_strategy.mqh"
 
 bool GridRiskTrendHandleBreakEven(const GridRiskTrendStrategyConfig &config,
                                   SignalParams &signal_params,
@@ -96,4 +98,4 @@ bool GridRiskTrendHandleSar(const GridRiskTrendStrategyConfig &config,
   return true;
 }
 
-#endif // _SERVICES_TRADING_MANAGEMENT_STRATEGIES_GRID_TREND_RISK_MODES_MQH_
+#endif // _GRID_TREND_RISK_MODES_MQH_
