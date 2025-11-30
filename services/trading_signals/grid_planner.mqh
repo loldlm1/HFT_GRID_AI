@@ -466,6 +466,8 @@ bool BuildGridSignalPoints(SignalParams &signal_params)
   double base_lot = signal_params.lot_size;
   if(base_lot <= 0.0)
     base_lot = ResolveBaseGridLot(base_distance_points);
+  // Hedge reset sequences can mark previous levels as non-opening; ensure we retain the
+  // configured base lot as the starting point for multiplier calculations.
   if(base_lot <= 0.0)
   {
     double min_vol = g_symbol_constraints.min_volume;
