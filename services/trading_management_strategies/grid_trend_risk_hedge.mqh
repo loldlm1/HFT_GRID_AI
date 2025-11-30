@@ -280,7 +280,10 @@ bool GridApplyTrendHedgeManagement(SignalParams &signal_params,
         if(!signal_params.grid_orders[i].opens_position)
           continue;
         if(signal_params.grid_orders[i].status == GRID_ORDER_COMPLETED)
+        {
           signal_params.grid_orders[i].status = GRID_ORDER_INACTIVE;
+          signal_params.grid_orders[i].opens_position = false;
+        }
       }
     }
   }
