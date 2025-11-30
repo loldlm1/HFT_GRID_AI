@@ -234,6 +234,36 @@ bool GridApplyTrendHedgeManagement(SignalParams &signal_params,
      state_candidate.status != GRID_ORDER_TP_TRAILING_ACTIVE)
     return false;
 
+  // Close initial leg once when the first deeper level fills (within hedge distance),
+  // keeping the hedge alive and treating the new level as the base.
+  if(!signal_params.hedge_reset_done &&
+     Grid_Risk_Trend_Hedge_SL &&
+     state_candidate.level_index >= 1)
+  {
+    double hedge_distance_points = GridResolveHedgeDistancePoints(signal_params);
+    GridOrderState prev_state = signal_params.grid_orders[state_candidate.level_index - 1];
+    double point_size = GridResolvePointSize();
+    double level_spacing = 0.0;
+    if(prev_state.entry_price > 0.0 && state_candidate.entry_price > 0.0 && point_size > 0.0)
+      level_spacing = MathAbs(state_candidate.entry_price - prev_state.entry_price) / point_size;
+
+    bool close_previous = true;
+    if(hedge_distance_points > 0.0 && level_spacing > hedge_distance_points)
+      close_previous = false;
+
+    if(close_previous && prev_state.position_ticket > 0)
+    {
+      double close_price = 0.0;
+      if(GridCloseBrokerPosition(prev_state, signal_params.signal_type, close_price))
+      {
+        prev_state.status = GRID_ORDER_COMPLETED;
+        signal_params.grid_orders[state_candidate.level_index - 1] = prev_state;
+        GridLogEvent("HEDGE_RESET_CLOSE_PREV", signal_params, prev_state);
+      }
+    }
+    signal_params.hedge_reset_done = true;
+  }
+
   double hedge_distance_points = GridResolveHedgeDistancePoints(signal_params);
   if(!GridHedgePositionAlive(signal_params))
   {
