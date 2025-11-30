@@ -30,6 +30,7 @@
 #include "../microservices/trading_signals/grid_order_lifecycle.mqh"
 #include "trading_signals/grid_planner.mqh"
 #include "trading_management_strategies/grid_risk_trend_strategy.mqh"
+#include "trading_management_strategies/grid_trend_risk_hedge.mqh"
 #include "trading_management_strategies/grid_trend_risk_breach.mqh"
 #include "trading_management_strategies/grid_trend_risk_sar.mqh"
 #include "trading_management_strategies/grid_trend_risk_modes.mqh"

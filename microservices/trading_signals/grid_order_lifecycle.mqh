@@ -243,6 +243,25 @@ void GridCloseAllLevels(SignalParams &signal_params,
     GridLogEvent("LEVEL_CLOSE_ALL", signal_params, state);
     signal_params.grid_orders[i] = state;
   }
+
+  if(signal_params.hedge_position_ticket > 0 &&
+     PositionSelectByTicket(signal_params.hedge_position_ticket))
+  {
+    long position_magic = PositionGetInteger(POSITION_MAGIC);
+    string position_symbol = PositionGetString(POSITION_SYMBOL);
+    if(position_magic == g_magic_number && position_symbol == _Symbol)
+    {
+      g_position.PositionClose(signal_params.hedge_position_ticket);
+      GridOrderState hedge_state;
+      hedge_state.position_ticket = signal_params.hedge_position_ticket;
+      hedge_state.status = GRID_ORDER_COMPLETED;
+      hedge_state.entry_price = PositionGetDouble(POSITION_PRICE_OPEN);
+      GridLogEvent("HEDGE_CLOSE_ALL", signal_params, hedge_state);
+    }
+    signal_params.hedge_position_ticket = 0;
+    signal_params.hedge_sl_active = false;
+    signal_params.hedge_sl_price = 0.0;
+  }
 }
 
 int GetActivePositionsCount(const SignalTypes direction)

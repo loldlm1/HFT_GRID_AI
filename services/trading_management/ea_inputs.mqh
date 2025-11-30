@@ -158,6 +158,9 @@ input GridRiskTrendModes   Grid_Risk_Trend_Mode          = GRID_RM_TREND_OFF;
 input GridRiskAlligatorReferenceModes Grid_Risk_Alligator_Reference = GRID_RISK_REF_JAWS;
 input GridRiskTrendTimeframeSources   Grid_Risk_Timeframe_Source    = GRID_RISK_TF_TREND;
 input ENUM_TIMEFRAMES      Grid_Risk_Trend_Timeframe     = PERIOD_CURRENT;
+input double               Grid_Risk_Trend_Hedge_Points  = 0.0;
+input bool                 Grid_Risk_Trend_Hedge_SL      = true;
+input int                  Grid_Risk_Trend_Hedge_Level_Cover = 5;
 
 input group  "+= Grid Trailing Strategy Settings =+";
 input double                 Grid_TP_Percent              = 100.0;

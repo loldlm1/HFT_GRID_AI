@@ -13,6 +13,9 @@ bool GridApplyTrendRiskManagement(SignalParams &signal_params,
   if(risk_config.mode == GRID_RM_TREND_OFF)
     return false;
 
+  if(risk_config.mode == GRID_RM_TREND_HEDGE)
+    return GridApplyTrendHedgeManagement(signal_params, override_state, has_override);
+
   ENUM_TIMEFRAMES target_tf = GridResolveRiskTrendStrategyTimeframe(risk_config);
   double reference_price = 0.0;
   if(!GridResolveAlligatorRiskReferencePrice(target_tf, reference_price))

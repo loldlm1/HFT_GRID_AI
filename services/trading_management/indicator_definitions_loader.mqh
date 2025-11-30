@@ -1287,7 +1287,9 @@ void LoadAllIndicatorDefinitions()
   bool base_bpercent_required   = base_mode_uses_bpercent || Base_BPercent_Slope_Filter;
   bool trailing_requires_alligator = (Grid_Trailing_Strategy_Mode == TRAILING_LIPS_MA);
   bool trailing_requires_channel   = (Grid_Trailing_Strategy_Mode == TRAILING_ATR_BASED);
-  bool risk_requires_alligator     = (Grid_Risk_Trend_Mode != GRID_RM_TREND_OFF);
+  bool risk_requires_alligator     = (Grid_Risk_Trend_Mode == GRID_RM_TREND_BE ||
+                                      Grid_Risk_Trend_Mode == GRID_RM_TREND_SL ||
+                                      Grid_Risk_Trend_Mode == GRID_RM_TREND_SAR);
   bool base_alligator_required  = base_mode_uses_alligator || Base_Alligator_Slope_Filter ||
                                   trailing_requires_alligator || risk_requires_alligator;
   ENUM_TIMEFRAMES strategy_tf = Strategy_TF_List[0];
