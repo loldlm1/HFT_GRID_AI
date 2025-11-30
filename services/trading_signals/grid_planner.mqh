@@ -150,8 +150,13 @@ int ResolveExecutedPositionIndex(const SignalParams &signal_params,
   int executed_index = 0;
   for(int i = 0; i < level_index; i++)
   {
-    if(signal_params.grid_orders[i].opens_position)
-      executed_index++;
+    GridOrderState prior_state = signal_params.grid_orders[i];
+    if(!prior_state.opens_position)
+      continue;
+    if(prior_state.status == GRID_ORDER_COMPLETED ||
+       prior_state.status == GRID_ORDER_INACTIVE)
+      continue;
+    executed_index++;
   }
   return executed_index;
 }
