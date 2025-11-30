@@ -29,6 +29,7 @@
 #include "../microservices/trading_signals/grid_order_logging.mqh"
 #include "../microservices/trading_signals/grid_order_lifecycle.mqh"
 #include "trading_signals/grid_planner.mqh"
+#include "trading_management_strategies/grid_risk_trend_strategy.mqh"
 #include "trading_signals/grid_trend_risk_manager.mqh"
 #include "trading_signals/grid_order_controller.mqh"
 #include "trading_signals/tick_signals_manager.mqh"

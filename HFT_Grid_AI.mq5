@@ -22,6 +22,7 @@
 // CUSTOM SERVICES - AGGREGATORS
 #include "services/trading_tools.mqh"
 #include "services/trading_management.mqh"
+#include "services/trading_management_strategies.mqh"
 #include "services/trading_signals.mqh"
 #include "services/frontend.mqh"
 

@@ -566,7 +566,7 @@ ENUM_TIMEFRAMES ResolveTrailingStrategyTimeframe()
   return configured_tf;
 }
 
-ENUM_TIMEFRAMES ResolveRiskTrendTimeframe()
+ENUM_TIMEFRAMES ResolveRiskTrendSourceTimeframe()
 {
   ENUM_TIMEFRAMES strategy_tf = Strategy_Timeframe;
   if(!IsStrategyTimeframeSupported(strategy_tf))
@@ -601,6 +601,20 @@ ENUM_TIMEFRAMES ResolveRiskTrendTimeframe()
   }
 
   return strategy_tf;
+}
+
+ENUM_TIMEFRAMES ResolveRiskTrendTimeframe()
+{
+  ENUM_TIMEFRAMES configured_tf = Grid_Risk_Trend_Timeframe;
+  if(configured_tf != PERIOD_CURRENT)
+  {
+    if(IsStrategyTimeframeSupported(configured_tf))
+      return configured_tf;
+    PrintFormat("Risk trend timeframe %d not supported. Falling back to context source %s.",
+                (int)configured_tf,
+                EnumToString(Grid_Risk_Timeframe_Source));
+  }
+  return ResolveRiskTrendSourceTimeframe();
 }
 
 void ResetTrendIndicators()
