@@ -1,8 +1,10 @@
 //+------------------------------------------------------------------+
 //|        trading_management_strategies/grid_trend_risk_breach.mqh |
 //+------------------------------------------------------------------+
-#ifndef _SERVICES_TRADING_MANAGEMENT_STRATEGIES_GRID_TREND_RISK_BREACH_MQH_
-#define _SERVICES_TRADING_MANAGEMENT_STRATEGIES_GRID_TREND_RISK_BREACH_MQH_
+#ifndef _GRID_TREND_RISK_BREACH_MQH_
+#define _GRID_TREND_RISK_BREACH_MQH_
+
+#include "grid_risk_trend_strategy.mqh"
 
 bool GridTrendSarAlligatorBreach(const SignalTypes direction,
                                  const ENUM_TIMEFRAMES target_tf,
@@ -61,4 +63,4 @@ bool GridRiskTrendNextLevelBreached(const SignalTypes direction,
   return false;
 }
 
-#endif // _SERVICES_TRADING_MANAGEMENT_STRATEGIES_GRID_TREND_RISK_BREACH_MQH_
+#endif // _GRID_TREND_RISK_BREACH_MQH_

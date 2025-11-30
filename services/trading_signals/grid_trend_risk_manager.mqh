@@ -1,8 +1,8 @@
 //+------------------------------------------------------------------+
 //|                services/trading_signals/grid_trend_risk_manager |
 //+------------------------------------------------------------------+
-#ifndef _SERVICES_TRADING_SIGNALS_GRID_TREND_RISK_MANAGER_MQH_
-#define _SERVICES_TRADING_SIGNALS_GRID_TREND_RISK_MANAGER_MQH_
+#ifndef _GRID_TREND_RISK_MANAGER_MQH_
+#define _GRID_TREND_RISK_MANAGER_MQH_
 
 bool GridApplyTrendRiskManagement(SignalParams &signal_params,
                                   const GridOrderState &override_state,
@@ -76,4 +76,4 @@ bool GridApplyTrendRiskManagement(SignalParams &signal_params,
 }
 
 
-#endif // _SERVICES_TRADING_SIGNALS_GRID_TREND_RISK_MANAGER_MQH_
+#endif // _GRID_TREND_RISK_MANAGER_MQH_

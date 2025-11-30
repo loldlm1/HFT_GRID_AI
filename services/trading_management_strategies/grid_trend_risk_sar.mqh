@@ -1,8 +1,8 @@
 //+------------------------------------------------------------------+
 //|           trading_management_strategies/grid_trend_risk_sar.mqh |
 //+------------------------------------------------------------------+
-#ifndef _SERVICES_TRADING_MANAGEMENT_STRATEGIES_GRID_TREND_RISK_SAR_MQH_
-#define _SERVICES_TRADING_MANAGEMENT_STRATEGIES_GRID_TREND_RISK_SAR_MQH_
+#ifndef _GRID_TREND_RISK_SAR_MQH_
+#define _GRID_TREND_RISK_SAR_MQH_
 
 double GridResolveSarLotReferencePoints(const SignalTypes new_direction,
                                         const SignalParams &original_signal,
@@ -110,4 +110,4 @@ bool GridSpawnRiskSarSignal(const SignalTypes direction,
   return true;
 }
 
-#endif // _SERVICES_TRADING_MANAGEMENT_STRATEGIES_GRID_TREND_RISK_SAR_MQH_
+#endif // _GRID_TREND_RISK_SAR_MQH_
