@@ -152,9 +152,12 @@ input int                  Grid_Level_Position_Start     = 0;
 input int                  Grid_Level_Stop_Limit         = 0;
 input int                  Daily_Signal_Limit            = 0;
 input DailySignalLimitModes Daily_Signal_Limit_Mode      = STOP_DAILY_SIGNALS;
+
+input group  "+= Grid Trend Risk Strategy =+";
 input GridRiskTrendModes   Grid_Risk_Trend_Mode          = GRID_RM_TREND_OFF;
 input GridRiskAlligatorReferenceModes Grid_Risk_Alligator_Reference = GRID_RISK_REF_JAWS;
 input GridRiskTrendTimeframeSources   Grid_Risk_Timeframe_Source    = GRID_RISK_TF_TREND;
+input ENUM_TIMEFRAMES      Grid_Risk_Trend_Timeframe     = PERIOD_CURRENT;
 
 input group  "+= Grid Trailing Strategy Settings =+";
 input double                 Grid_TP_Percent              = 100.0;

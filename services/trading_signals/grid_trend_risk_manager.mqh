@@ -2,12 +2,14 @@
 #define _SERVICES_TRADING_SIGNALS_GRID_TREND_RISK_MANAGER_MQH_
 
 bool GridTrendSarAlligatorBreach(const SignalTypes direction,
-                                 const ENUM_TIMEFRAMES target_tf)
+                                 const ENUM_TIMEFRAMES target_tf,
+                                 const GridRiskTrendStrategyConfig &risk_config)
 {
   int fast_index = -1;
   int slow_index = -1;
 
-  StrategyTrendModes risk_mode = GridResolveActiveRiskMode();
+  GridRiskTrendTimeframeSources risk_source = GridResolveRiskTrendSource(risk_config);
+  StrategyTrendModes risk_mode = GridResolveActiveRiskMode(risk_source);
 
   if(TrendModeUsesTeethAlligator(risk_mode))
   {
@@ -149,10 +151,11 @@ bool GridApplyTrendRiskManagement(SignalParams &signal_params,
                                   const bool has_override,
                                   const bool use_entry_reference_price)
 {
-  if(Grid_Risk_Trend_Mode == GRID_RM_TREND_OFF)
+  GridRiskTrendStrategyConfig risk_config = GridBuildRiskTrendStrategyConfig();
+  if(risk_config.mode == GRID_RM_TREND_OFF)
     return false;
 
-  ENUM_TIMEFRAMES target_tf = GridResolveRiskTrendTimeframe();
+  ENUM_TIMEFRAMES target_tf = GridResolveRiskTrendStrategyTimeframe(risk_config);
   double reference_price = 0.0;
   if(!GridResolveAlligatorRiskReferencePrice(target_tf, reference_price))
     return false;
@@ -178,25 +181,20 @@ bool GridApplyTrendRiskManagement(SignalParams &signal_params,
       next_level_breach = (next_level_price > reference_price && current_price > next_level_price);
   }
 
-  bool ma_breach = GridTrendSarAlligatorBreach(signal_params.signal_type, target_tf);
+  bool ma_breach = GridTrendSarAlligatorBreach(signal_params.signal_type,
+                                               target_tf,
+                                               risk_config);
 
   if(!next_level_breach || !ma_breach)
     return false;
 
-  bool needs_floating = (Grid_Risk_Trend_Mode == GRID_RM_TREND_BE ||
-                         Grid_Risk_Trend_Mode == GRID_RM_TREND_SAR);
+  bool needs_floating = GridRiskTrendModeRequiresFloating(risk_config);
   double floating_profit = 0.0;
   if(needs_floating)
     floating_profit = GridCollectSignalFloatingProfit(signal_params);
 
-  if(Grid_Risk_Trend_Mode == GRID_RM_TREND_BE)
-  {
-    double tolerance = SymbolInfoDouble(_Symbol, SYMBOL_TRADE_TICK_VALUE);
-    if(tolerance <= 0.0)
-      tolerance = 0.1;
-    if(floating_profit < -tolerance)
-      return false;
-  }
+  if(!GridRiskTrendModeAllowsExit(risk_config, floating_profit))
+    return false;
 
   double sar_lot = state_candidate.lot_size;
   if(sar_lot <= 0.0)
@@ -207,12 +205,12 @@ bool GridApplyTrendRiskManagement(SignalParams &signal_params,
   SignalTypes sar_direction = (signal_params.signal_type == BULLISH) ? BEARISH : BULLISH;
   double realized_loss = 0.0;
   double cumulative_loss = signal_params.sar_cumulative_loss;
-  if(Grid_Risk_Trend_Mode == GRID_RM_TREND_SAR && floating_profit < 0.0)
+  if(GridRiskTrendModeUsesSar(risk_config) && floating_profit < 0.0)
   {
     realized_loss = -floating_profit;
     cumulative_loss += realized_loss;
   }
-  if(Grid_Risk_Trend_Mode == GRID_RM_TREND_SAR && floating_profit < 0.0)
+  if(GridRiskTrendModeUsesSar(risk_config) && floating_profit < 0.0)
   {
     double multiplier = Grid_Lot_Multiplier;
     if(multiplier <= 0.0)
@@ -233,22 +231,22 @@ bool GridApplyTrendRiskManagement(SignalParams &signal_params,
 
   double point_size = GridResolvePointSize();
   GridCloseAllLevels(signal_params, point_size);
-  if(Grid_Risk_Trend_Mode == GRID_RM_TREND_SAR)
+  if(GridRiskTrendModeUsesSar(risk_config))
     signal_params.sar_cumulative_loss = cumulative_loss;
 
-  string reference_label = (Grid_Risk_Alligator_Reference == GRID_RISK_REF_TEETH) ? "TEETH" : "JAWS";
-  string log_label = StringFormat("GRID_RISK_TREND_%s_SL", reference_label);
-  if(Grid_Risk_Trend_Mode == GRID_RM_TREND_BE)
-    log_label = StringFormat("GRID_RISK_TREND_%s_BE", reference_label);
-  else if(Grid_Risk_Trend_Mode == GRID_RM_TREND_SAR)
-    log_label = StringFormat("GRID_RISK_TREND_%s_SAR_CLOSE", reference_label);
+  string log_suffix = "SL";
+  if(risk_config.mode == GRID_RM_TREND_BE)
+    log_suffix = "BE";
+  else if(GridRiskTrendModeUsesSar(risk_config))
+    log_suffix = "SAR_CLOSE";
+  string log_label = GridRiskTrendComposeLogLabel(risk_config, log_suffix);
   GridOrderState log_state = state_candidate;
   if(use_entry_reference_price && log_state.entry_price <= 0.0)
     log_state.entry_price = current_price;
   GridLogEvent(log_label, signal_params, log_state);
   signal_params.signal_state = CLOSED;
 
-  if(Grid_Risk_Trend_Mode == GRID_RM_TREND_SAR)
+  if(GridRiskTrendModeUsesSar(risk_config))
   {
     if(!GridSpawnRiskSarSignal(sar_direction, sar_lot, cumulative_loss))
       Print("Trend risk SAR: failed to launch reversal grid.");

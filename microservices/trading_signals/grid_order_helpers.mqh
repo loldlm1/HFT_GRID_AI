@@ -4,9 +4,9 @@
 #ifndef _MICROSERVICES_TRADING_SIGNALS_GRID_ORDER_HELPERS_MQH_
 #define _MICROSERVICES_TRADING_SIGNALS_GRID_ORDER_HELPERS_MQH_
 
-inline StrategyTrendModes GridResolveActiveRiskMode()
+inline StrategyTrendModes GridResolveActiveRiskMode(const GridRiskTrendTimeframeSources source)
 {
-  switch(Grid_Risk_Timeframe_Source)
+  switch(source)
   {
     case GRID_RISK_TF_STRATEGY:
       return Strategy_Base_Trend_Mode;
@@ -18,6 +18,11 @@ inline StrategyTrendModes GridResolveActiveRiskMode()
       return Strategy_Session_Trend_Mode;
   }
   return Strategy_Trend_Trend_Mode;
+}
+
+inline StrategyTrendModes GridResolveActiveRiskMode()
+{
+  return GridResolveActiveRiskMode(Grid_Risk_Timeframe_Source);
 }
 
 double GridResolvePointSize()
