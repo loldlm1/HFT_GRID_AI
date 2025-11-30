@@ -89,6 +89,10 @@ struct SignalParams
   double grid_trailing_points;
   bool   is_sar_signal;
   double sar_cumulative_loss;
+  ulong  hedge_position_ticket;
+  double hedge_entry_price;
+  bool   hedge_sl_active;
+  double hedge_sl_price;
   datetime context_structure_snapshot_time;
 
   bool                      trend_bpercent_valid;
@@ -152,6 +156,10 @@ struct SignalParams
     grid_trailing_points       = 0.0;
     is_sar_signal              = false;
     sar_cumulative_loss        = 0.0;
+    hedge_position_ticket      = 0;
+    hedge_entry_price          = 0.0;
+    hedge_sl_active            = false;
+    hedge_sl_price             = 0.0;
     context_structure_snapshot_time = 0;
     trend_filter_mode          = TREND_OFF;
     trend_bpercent_valid       = false;
@@ -220,6 +228,10 @@ struct SignalParams
     grid_trailing_points        = signal_params.grid_trailing_points;
     is_sar_signal               = signal_params.is_sar_signal;
     sar_cumulative_loss         = signal_params.sar_cumulative_loss;
+    hedge_position_ticket       = signal_params.hedge_position_ticket;
+    hedge_entry_price           = signal_params.hedge_entry_price;
+    hedge_sl_active             = signal_params.hedge_sl_active;
+    hedge_sl_price              = signal_params.hedge_sl_price;
     strategy_context           = signal_params.strategy_context;
     strategy_timeframe         = signal_params.strategy_timeframe;
     strategy_context_label     = signal_params.strategy_context_label;
