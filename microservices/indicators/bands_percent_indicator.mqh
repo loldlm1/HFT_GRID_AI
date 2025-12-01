@@ -16,6 +16,12 @@ struct BandsPercentStructure
   double bands_percent_3;
   double bands_percent_4;
   double bands_percent_5;
+  double bands_percent_ma_0;
+  double bands_percent_ma_1;
+  double bands_percent_ma_2;
+  double bands_percent_ma_3;
+  double bands_percent_ma_4;
+  double bands_percent_ma_5;
   // BAND PERCENT SIGNALS
   double bands_percent_signal_0;
   double bands_percent_signal_1;
@@ -77,6 +83,12 @@ struct BandsPercentStructure
     bands_percent_3                  = 0.0;
     bands_percent_4                  = 0.0;
     bands_percent_5                  = 0.0;
+    bands_percent_ma_0               = 0.0;
+    bands_percent_ma_1               = 0.0;
+    bands_percent_ma_2               = 0.0;
+    bands_percent_ma_3               = 0.0;
+    bands_percent_ma_4               = 0.0;
+    bands_percent_ma_5               = 0.0;
     bands_percent_signal_0           = 0.0;
     bands_percent_signal_1           = 0.0;
     bands_percent_signal_2           = 0.0;
@@ -132,6 +144,12 @@ struct BandsPercentStructure
     bands_percent_3                  = bands_percent_structure.bands_percent_3;
     bands_percent_4                  = bands_percent_structure.bands_percent_4;
     bands_percent_5                  = bands_percent_structure.bands_percent_5;
+    bands_percent_ma_0               = bands_percent_structure.bands_percent_ma_0;
+    bands_percent_ma_1               = bands_percent_structure.bands_percent_ma_1;
+    bands_percent_ma_2               = bands_percent_structure.bands_percent_ma_2;
+    bands_percent_ma_3               = bands_percent_structure.bands_percent_ma_3;
+    bands_percent_ma_4               = bands_percent_structure.bands_percent_ma_4;
+    bands_percent_ma_5               = bands_percent_structure.bands_percent_ma_5;
     bands_percent_signal_0           = bands_percent_structure.bands_percent_signal_0;
     bands_percent_signal_1           = bands_percent_structure.bands_percent_signal_1;
     bands_percent_signal_2           = bands_percent_structure.bands_percent_signal_2;
@@ -205,6 +223,13 @@ struct BandsPercentStructure
     bands_percent_4 = ResolvePercentValue(percent_values, percent_series_size, 4);
     bands_percent_5 = ResolvePercentValue(percent_values, percent_series_size, 5);
 
+    bands_percent_ma_0 = ResolvePercentValue(signal_values, signal_series_size, 0);
+    bands_percent_ma_1 = ResolvePercentValue(signal_values, signal_series_size, 1);
+    bands_percent_ma_2 = ResolvePercentValue(signal_values, signal_series_size, 2);
+    bands_percent_ma_3 = ResolvePercentValue(signal_values, signal_series_size, 3);
+    bands_percent_ma_4 = ResolvePercentValue(signal_values, signal_series_size, 4);
+    bands_percent_ma_5 = ResolvePercentValue(signal_values, signal_series_size, 5);
+
     bands_percent_signal_0 = ResolvePercentValue(signal_values, signal_series_size, 0);
     bands_percent_signal_1 = ResolvePercentValue(signal_values, signal_series_size, 1);
     bands_percent_signal_2 = ResolvePercentValue(signal_values, signal_series_size, 2);
@@ -251,6 +276,7 @@ struct BandsPercentStructure
   void ResetComputedOutputs()
   {
     bands_percent_0 = bands_percent_1 = bands_percent_2 = bands_percent_3 = bands_percent_4 = bands_percent_5 = EMPTY_VALUE;
+    bands_percent_ma_0 = bands_percent_ma_1 = bands_percent_ma_2 = bands_percent_ma_3 = bands_percent_ma_4 = bands_percent_ma_5 = EMPTY_VALUE;
     bands_percent_signal_0 = bands_percent_signal_1 = bands_percent_signal_2 = bands_percent_signal_3 = EMPTY_VALUE;
     bands_percent_slope_0 = bands_percent_slope_1 = bands_percent_slope_2 = bands_percent_slope_3 = NO_SLOPE;
     bands_percent_signal_slope_0 = bands_percent_signal_slope_1 = bands_percent_signal_slope_2 = bands_percent_signal_slope_3 = NO_SLOPE;

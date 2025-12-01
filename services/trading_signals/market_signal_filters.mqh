@@ -19,6 +19,21 @@ double ResolveBandsPercentAtShift(const BandsPercentStructure &bands_data,
   return EMPTY_VALUE;
 }
 
+double ResolveBandsPercentMaAtShift(const BandsPercentStructure &bands_data,
+                                    const int shift)
+{
+  switch(shift)
+  {
+    case 0: return bands_data.bands_percent_ma_0;
+    case 1: return bands_data.bands_percent_ma_1;
+    case 2: return bands_data.bands_percent_ma_2;
+    case 3: return bands_data.bands_percent_ma_3;
+    case 4: return bands_data.bands_percent_ma_4;
+    case 5: return bands_data.bands_percent_ma_5;
+  }
+  return EMPTY_VALUE;
+}
+
 bool EvaluateBandsPercentTrigger(const BandsPercentStructure &bands_data,
                                  const SignalTypes signal_type,
                                  double percent_threshold,
@@ -36,7 +51,11 @@ bool EvaluateBandsPercentTrigger(const BandsPercentStructure &bands_data,
 
   double percent_1 = ResolveBandsPercentAtShift(bands_data, shift_current);
   double percent_2 = ResolveBandsPercentAtShift(bands_data, shift_prev);
+  double percent_ma_1 = ResolveBandsPercentMaAtShift(bands_data, shift_current);
+  double percent_ma_2 = ResolveBandsPercentMaAtShift(bands_data, shift_prev);
   if(percent_1 == EMPTY_VALUE || percent_2 == EMPTY_VALUE)
+    return false;
+  if(percent_ma_1 == EMPTY_VALUE || percent_ma_2 == EMPTY_VALUE)
     return false;
 
   percent_threshold = (signal_type == BULLISH)
@@ -47,14 +66,14 @@ bool EvaluateBandsPercentTrigger(const BandsPercentStructure &bands_data,
   if(entry_mode == ENTRY_MODE_MA_TREND)
   {
     pass = (signal_type == BULLISH)
-             ? (percent_1 >= percent_threshold)
-             : (percent_1 <= percent_threshold);
+             ? (percent_2 < percent_threshold && percent_1 >= percent_threshold && percent_ma_1 <= percent_threshold)
+             : (percent_2 > percent_threshold && percent_1 <= percent_threshold && percent_ma_1 >= percent_threshold);
   }
   else if(entry_mode == ENTRY_MODE_REVERSION)
   {
     pass = (signal_type == BULLISH)
-             ? (percent_1 <= percent_threshold)
-             : (percent_1 >= percent_threshold);
+             ? (percent_2 <= percent_threshold && percent_1 > percent_threshold && percent_ma_1 <= 30)
+             : (percent_2 >= percent_threshold && percent_1 < percent_threshold && percent_ma_1 >= 70);
   }
   else if(entry_mode == ENTRY_MODE_BREAKOUT)
   {
@@ -529,7 +548,8 @@ bool StrategyContextEvaluateEntry(const StrategyContextIndicators &snapshot,
     if(!snapshot.stochastic_valid)
       return false;
     double stoch_signal = snapshot.stochastic_data.stochastic_signal_1;
-    bool stoch_pass = (stoch_signal < 30.0 || stoch_signal > 70.0);
+    bool stoch_pass = (direction == BULLISH) ? (stoch_signal < 30.0)
+                                             : (stoch_signal > 70.0);
     if(!stoch_pass)
     {
       entry_allows = false;
