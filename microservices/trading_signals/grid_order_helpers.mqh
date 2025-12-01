@@ -911,4 +911,53 @@ bool GridSignalChannelGuardSatisfied(const SignalParams &signal_params,
   return (distance_points >= required_points);
 }
 
+double ResolveStochStructureDistancePoints(const SignalParams &signal_params,
+                                            const double entry_reference_price)
+{
+  double structure_price = 0.0;
+  int total_structures = ArraySize(signal_params.stoch_market_structure_data);
+  if(total_structures > 0)
+  {
+    StochasticMarketStructure stoch = signal_params.stoch_market_structure_data[0];
+    OscillatorStructureTypes types[4] = {stoch.first_structure_type,
+                                         stoch.second_structure_type,
+                                         stoch.third_structure_type,
+                                         stoch.fourth_structure_type};
+    double prices[4] = {stoch.first_structure_price,
+                        stoch.second_structure_price,
+                        stoch.third_structure_price,
+                        stoch.fourth_structure_price};
+
+    for(int i = 0; i < 4; i++)
+    {
+      if(signal_params.signal_type == BULLISH &&
+         (types[i] == OSCILLATOR_STRUCTURE_LL || types[i] == OSCILLATOR_STRUCTURE_HL) &&
+         prices[i] > 0.0)
+      {
+        structure_price = prices[i];
+        break;
+      }
+      if(signal_params.signal_type == BEARISH &&
+         (types[i] == OSCILLATOR_STRUCTURE_HH || types[i] == OSCILLATOR_STRUCTURE_LH) &&
+         prices[i] > 0.0)
+      {
+        structure_price = prices[i];
+        break;
+      }
+    }
+    if(structure_price <= 0.0)
+      structure_price = stoch.first_structure_price;
+  }
+
+  if(structure_price <= 0.0)
+    return 0.0;
+
+  double point_size = GridResolvePointSizeSafe();
+  if(point_size <= 0.0)
+    return 0.0;
+
+  double distance_points = MathAbs(structure_price - entry_reference_price) / point_size;
+  return EnforceBrokerDistance(g_symbol_constraints, distance_points);
+}
+
 #endif // _MICROSERVICES_TRADING_SIGNALS_GRID_ORDER_HELPERS_MQH_
