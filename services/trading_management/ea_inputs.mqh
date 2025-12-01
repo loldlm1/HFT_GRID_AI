@@ -46,14 +46,14 @@ input StochStructurePeriodTypes Stoch_Structure_Period_Type = STOCH_STRUCTURE_PE
 input StrategyDirectionTypes    Strategy_Direction_Mode     = BOTH_DIRECTION;
 input ChannelIndicatorTypes     Strategy_Channel_Indicator_Type = CHANNEL_INDICATOR_BOLLINGER;
 input IndicatorShiftTypes       Strategy_Channel_Indicator_Shift = INDICATOR_SHIFT_0;
-input StrategyEntryEvaluationModes Strategy_Global_Channel_Entry_Mode = ENTRY_MODE_MA_TREND;
+input StrategyEntryChannelModes Strategy_Global_Channel_Entry_Mode = ENTRY_MODE_MA_TREND;
 input StrategyGlobalStochEntryModes Strategy_Global_Stoch_Entry_Mode = STOCH_ENTRY_OFF;
 input SignalConcurrencyModes    Signal_Concurrency_Mode     = SINGLE_RUNNING_SIGNAL;
 input int                       Alligator_Jaws_Period       = 233;
 
 input group "+= Strategy Base Context =+";
 input StrategyTrendModes          Strategy_Base_Trend_Mode          = TREND_OFF;
-input StrategyEntryEvaluationModes Strategy_Base_Entry_Evaluation   = ENTRY_EVAL_OFF;
+input StrategyEntryChannelModes Strategy_Base_Entry_Evaluation   = ENTRY_EVAL_OFF;
 input BodyVolumeFilterModes       Base_Body_Volume_Filter           = BODY_VOLUME_OFF;
 input TrendStructureFilterModes   Base_First_Structure_Filter       = BULLISH_STRUCT_OFF;
 input TrendStructureFilterModes   Base_Second_Structure_Filter      = BEARISH_STRUCT_OFF;
@@ -73,7 +73,7 @@ input bool                        Base_Channel_MA_Filter            = false;
 
 input group "+= Strategy Trend Context =+";
 input StrategyTrendModes          Strategy_Trend_Trend_Mode          = TREND_OFF;
-input StrategyEntryEvaluationModes Strategy_Trend_Entry_Evaluation   = ENTRY_EVAL_OFF;
+input StrategyEntryChannelModes Strategy_Trend_Entry_Evaluation   = ENTRY_EVAL_OFF;
 input BodyVolumeFilterModes       Trend_Body_Volume_Filter           = BODY_VOLUME_OFF;
 input TrendStructureFilterModes   Trend_First_Structure_Filter       = BULLISH_STRUCT_OFF;
 input TrendStructureFilterModes   Trend_Second_Structure_Filter      = BEARISH_STRUCT_OFF;
@@ -93,7 +93,7 @@ input bool                        Trend_Channel_MA_Filter            = false;
 
 input group "+= Strategy Macro Context =+";
 input StrategyTrendModes          Strategy_Macro_Trend_Mode          = TREND_OFF;
-input StrategyEntryEvaluationModes Strategy_Macro_Entry_Evaluation   = ENTRY_EVAL_OFF;
+input StrategyEntryChannelModes Strategy_Macro_Entry_Evaluation   = ENTRY_EVAL_OFF;
 input BodyVolumeFilterModes       Macro_Body_Volume_Filter           = BODY_VOLUME_OFF;
 input TrendStructureFilterModes   Macro_First_Structure_Filter       = BULLISH_STRUCT_OFF;
 input TrendStructureFilterModes   Macro_Second_Structure_Filter      = BEARISH_STRUCT_OFF;
@@ -113,7 +113,7 @@ input bool                        Macro_Channel_MA_Filter            = false;
 
 input group "+= Strategy Session Context =+";
 input StrategyTrendModes          Strategy_Session_Trend_Mode        = TREND_OFF;
-input StrategyEntryEvaluationModes Strategy_Session_Entry_Evaluation = ENTRY_EVAL_OFF;
+input StrategyEntryChannelModes Strategy_Session_Entry_Evaluation = ENTRY_EVAL_OFF;
 input BodyVolumeFilterModes       Session_Body_Volume_Filter          = BODY_VOLUME_OFF;
 input TrendStructureFilterModes   Session_First_Structure_Filter       = BULLISH_STRUCT_OFF;
 input TrendStructureFilterModes   Session_Second_Structure_Filter      = BEARISH_STRUCT_OFF;
