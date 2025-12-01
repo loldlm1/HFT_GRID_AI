@@ -207,6 +207,44 @@ bool LoadContextStochasticSnapshot(const StrategyContextTypes context,
   return LoadStochasticSnapshotForTimeframe(tf, snapshot);
 }
 
+bool CaptureContextTrendOnly(const StrategyContextTypes context,
+                             StrategyContextIndicators &snapshot)
+{
+  snapshot.context   = context;
+  snapshot.timeframe = StrategyContextTimeframe(context);
+
+  StrategyTrendModes trend_mode = StrategyContextTrendMode(context);
+
+  bool need_alligator  = TrendModeUsesAlligator(trend_mode) ||
+                         StrategyContextAlligatorSlopeEnabled(context);
+
+  if(need_alligator)
+  {
+    snapshot.alligator_valid = LoadContextAlligatorSnapshot(context, snapshot.alligator_data);
+    if(!snapshot.alligator_valid)
+      return false;
+  }
+  else
+  {
+    snapshot.alligator_valid = false;
+  }
+
+  bool need_stochastic = StrategyContextStochasticSlopeEnabled(context) ||
+                         (Strategy_Global_Stoch_Entry_Mode != STOCH_ENTRY_OFF);
+  if(need_stochastic)
+  {
+    snapshot.stochastic_valid = LoadContextStochasticSnapshot(context, snapshot.stochastic_data);
+    if(!snapshot.stochastic_valid)
+      return false;
+  }
+  else
+  {
+    snapshot.stochastic_valid = false;
+  }
+
+  return true;
+}
+
 bool LoadContextStructureSnapshot(const StrategyContextTypes context,
                                   StochasticMarketStructure &snapshot)
 {
