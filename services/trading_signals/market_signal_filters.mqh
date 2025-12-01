@@ -13,7 +13,7 @@ double ResolveBandsPercentAtShift(const BandsPercentStructure &bands_data,
     case 1: return bands_data.bands_percent_2;
     case 2: return bands_data.bands_percent_3;
     case 3: return bands_data.bands_percent_4;
-    case 5: return bands_data.bands_percent_5;
+    case 5: return bands_data.bands_percent_6;
   }
   return EMPTY_VALUE;
 }
@@ -27,7 +27,7 @@ double ResolveBandsPercentMaAtShift(const BandsPercentStructure &bands_data,
     case 1: return bands_data.bands_percent_ma_2;
     case 2: return bands_data.bands_percent_ma_3;
     case 3: return bands_data.bands_percent_ma_4;
-    case 5: return bands_data.bands_percent_ma_5;
+    case 5: return bands_data.bands_percent_ma_6;
   }
   return EMPTY_VALUE;
 }

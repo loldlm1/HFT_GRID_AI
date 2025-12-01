@@ -238,6 +238,14 @@ inline bool StrategyContextEnabled(const StrategyContextTypes context)
   return false;
 }
 
+inline int ResolveStochStructurePeriod()
+{
+  int period = (int)Stoch_Structure_Period_Type;
+  if(period <= 0)
+    period = 5;
+  return period;
+}
+
 inline StrategyEntryChannelModes StrategyContextEntryEvaluation(const StrategyContextTypes context)
 {
   StrategyEntryChannelModes context_mode = ENTRY_EVAL_OFF;

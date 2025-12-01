@@ -137,7 +137,7 @@ int CreateChannelComputationIndicatorHandle(const ENUM_TIMEFRAMES timeframe,
 
   if(Strategy_Channel_Indicator_Type == CHANNEL_INDICATOR_KELTNER)
   {
-    int atr_period = MathMax((int)Stoch_Structure_Period_Type, 1);
+    int atr_period = ResolveStochStructurePeriod();
     return iCustom(_Symbol,
                    timeframe,
                    "Examples\\Keltner_Channel.ex5",
@@ -213,7 +213,7 @@ int CreateChannelPercentIndicatorHandle(const ENUM_TIMEFRAMES timeframe,
                                         const ENUM_APPLIED_PRICE indicator_applied_price)
 {
   const int percent_ma_period = 5;
-  const int atr_period = MathMax((int)Stoch_Structure_Period_Type, 1);
+  const int atr_period = ResolveStochStructurePeriod();
   string indicator_path = ResolveChannelPercentIndicatorPath();
 
   if(Strategy_Channel_Indicator_Type == CHANNEL_INDICATOR_ATR)
@@ -257,14 +257,14 @@ int CreateChannelPercentIndicatorHandle(const ENUM_TIMEFRAMES timeframe,
 int ResolveContextTrendPeriod(const StrategyTrendModes mode)
 {
   if(TrendModeUsesAlligator(mode))
-    return MathMax((int)Stoch_Structure_Period_Type, 1);
+    return ResolveStochStructurePeriod();
   return MathMax((int)Base_Indicator_Period_Type, 1);
 }
 
 int ResolveEvaluationBPercentPeriod(const StrategyTrendModes mode)
 {
   if(TrendModeUsesTeethAlligator(mode))
-    return MathMax((int)Stoch_Structure_Period_Type, 1);
+    return ResolveStochStructurePeriod();
   return MathMax((int)Base_Indicator_Period_Type, 1);
 }
 
@@ -286,7 +286,7 @@ int ResolveContextBPercentIndicatorPeriod(const StrategyContextTypes context)
 
 int ResolveVolatilityChannelPeriod()
 {
-  return MathMax((int)Stoch_Structure_Period_Type, 1);
+  return ResolveStochStructurePeriod();
 }
 
 void PrepareIndicatorPeriods()
@@ -450,7 +450,7 @@ bool LoadContextAlligatorIndicator(const ENUM_TIMEFRAMES context_tf,
 {
   int jaws_period  = MathMax(Alligator_Jaws_Period, 1);
   int teeth_period = MathMax((int)Base_Indicator_Period_Type, 1);
-  int lips_period  = MathMax((int)Stoch_Structure_Period_Type, 1);
+  int lips_period  = ResolveStochStructurePeriod();
 
   IndicatorsHandleInfo alligator_handle;
   alligator_handle.indicator_period        = jaws_period;
@@ -771,7 +771,7 @@ bool LoadAlligatorIndicatorForTimeframe(const ENUM_TIMEFRAMES trend_tf)
 
   int jaws_period  = MathMax(Alligator_Jaws_Period, 1);
   int teeth_period = MathMax((int)Base_Indicator_Period_Type, 1);
-  int lips_period  = MathMax((int)Stoch_Structure_Period_Type, 1);
+  int lips_period  = ResolveStochStructurePeriod();
 
   IndicatorsHandleInfo alligator_handle;
   alligator_handle.indicator_period        = jaws_period;
@@ -1604,7 +1604,7 @@ void LoadAllStochIndicators()
 
     IndicatorsHandleInfo stoch_indicator_handle_loaded;
 
-    stoch_indicator_handle_loaded.indicator_period    = MathMax((int)Stoch_Structure_Period_Type, 1);
+    stoch_indicator_handle_loaded.indicator_period    = ResolveStochStructurePeriod();
     stoch_indicator_handle_loaded.indicator_handle    = iCustom(_Symbol, trend_timeframe, "Examples\\Stochastic", stoch_indicator_handle_loaded.indicator_period, 3, 3, STO_CLOSECLOSE);
     stoch_indicator_handle_loaded.indicator_timeframe = trend_timeframe;
 
@@ -1631,7 +1631,7 @@ void LoadAllStructStochIndicators()
 
     IndicatorsHandleInfo struct_stoch_indicator_handle_loaded;
 
-    struct_stoch_indicator_handle_loaded.indicator_period    = MathMax((int)Stoch_Structure_Period_Type, 1);
+    struct_stoch_indicator_handle_loaded.indicator_period    = ResolveStochStructurePeriod();
     struct_stoch_indicator_handle_loaded.indicator_handle    = iCustom(_Symbol, trend_timeframe, "Examples\\Stochastic_Structure", struct_stoch_indicator_handle_loaded.indicator_period, 3, 3, STO_CLOSECLOSE);
     struct_stoch_indicator_handle_loaded.indicator_timeframe = trend_timeframe;
 

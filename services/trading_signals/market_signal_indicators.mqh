@@ -67,7 +67,7 @@ bool LoadAlligatorSnapshotFromHandle(IndicatorsHandleInfo &handle,
 
   int jaws_period  = MathMax(Alligator_Jaws_Period, 1);
   int teeth_period = MathMax((int)Base_Indicator_Period_Type, 1);
-  int lips_period  = MathMax((int)Stoch_Structure_Period_Type, 1);
+  int lips_period  = ResolveStochStructurePeriod();
 
   snapshot = AlligatorStructure();
   return snapshot.InitAlligatorStructureValues(handle,
