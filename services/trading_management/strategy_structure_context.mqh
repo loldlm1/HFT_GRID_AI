@@ -238,6 +238,21 @@ inline bool StrategyContextEnabled(const StrategyContextTypes context)
   return false;
 }
 
+inline bool ContextRequiresStructure(const StrategyContextTypes context,
+                                     const StrategyStructureLayerContext &ctx)
+{
+  if(!ctx.enabled)
+    return false;
+
+  // Base spacing needs structure distances when using the stoch structure grid mode
+  if(context == CONTEXT_SLOT_BASE && Grid_Base_Strategy_Type == STOCH_STRUCTURE_RANGE)
+    return true;
+
+  return StructureFiltersRequested(ctx) ||
+         StructureTypeFiltersRequested(ctx) ||
+         StrategyContextFreshStructureEnabled(context);
+}
+
 inline int ResolveStochStructurePeriod()
 {
   int period = (int)Stoch_Structure_Period_Type;

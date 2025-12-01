@@ -249,12 +249,7 @@ bool CaptureContextIndicators(const StrategyContextTypes context,
 
   StrategyStructureLayerContext structure_ctx = BuildStructureLayerForContext(context);
 
-  bool require_structure = StructureFiltersRequested(structure_ctx) ||
-                           StructureTypeFiltersRequested(structure_ctx) ||
-                           StrategyContextFreshStructureEnabled(context);
-
-  if(Stoch_Structure_Period_Type != STOCH_STRUCTURE_PERIOD_OFF)
-    require_structure = true;
+  bool require_structure = ContextRequiresStructure(context, structure_ctx);
 
   if(Grid_Base_Strategy_Type == STOCH_STRUCTURE_RANGE)
     require_structure = true;
