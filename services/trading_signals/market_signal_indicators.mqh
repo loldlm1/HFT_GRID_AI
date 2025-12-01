@@ -217,6 +217,19 @@ bool CaptureContextTrendOnly(const StrategyContextTypes context,
 
   bool need_alligator  = TrendModeUsesAlligator(trend_mode) ||
                          StrategyContextAlligatorSlopeEnabled(context);
+  bool need_bpercent   = StrategyContextBPercentSlopeEnabled(context);
+  bool need_stochastic = StrategyContextStochasticSlopeEnabled(context);
+
+  if(need_bpercent)
+  {
+    snapshot.bpercent_valid = LoadContextBPercentSnapshot(context, snapshot.bpercent_data);
+    if(!snapshot.bpercent_valid)
+      return false;
+  }
+  else
+  {
+    snapshot.bpercent_valid = false;
+  }
 
   if(need_alligator)
   {
@@ -229,7 +242,6 @@ bool CaptureContextTrendOnly(const StrategyContextTypes context,
     snapshot.alligator_valid = false;
   }
 
-  bool need_stochastic = StrategyContextStochasticSlopeEnabled(context);
   if(need_stochastic)
   {
     snapshot.stochastic_valid = LoadContextStochasticSnapshot(context, snapshot.stochastic_data);
