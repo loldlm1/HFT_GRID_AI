@@ -4,67 +4,6 @@
 #ifndef _SERVICES_TRADING_SIGNALS_MARKET_SIGNAL_INDICATORS_MQH_
 #define _SERVICES_TRADING_SIGNALS_MARKET_SIGNAL_INDICATORS_MQH_
 
-void SetTFBandsPercentDataToSignalParams(SignalParams &signal_params)
-{
-  for(int i = 0; i < ArraySize(ExtBPercentIndicatorsHandle); i++)
-  {
-    BandsPercentStructure bands_percent_data;
-    bands_percent_data = BandsPercentStructure();
-    bands_percent_data.InitBandsPercentStructureValues(ExtBPercentIndicatorsHandle[i], 0);
-
-    AddElementToArray(signal_params.bands_percent_data, bands_percent_data);
-  }
-}
-
-void SetTFAlligatorDataToSignalParams(SignalParams &signal_params)
-{
-  int jaws_period  = MathMax(Alligator_Jaws_Period, 1);
-  int teeth_period = MathMax((int)Base_Indicator_Period_Type, 1);
-  int lips_period  = MathMax((int)Stoch_Structure_Period_Type, 1);
-
-  for(int i = 0; i < ArraySize(ExtAlligatorIndicatorsHandle); i++)
-  {
-    AlligatorStructure alligator_data;
-    alligator_data = AlligatorStructure();
-    if(!alligator_data.InitAlligatorStructureValues(ExtAlligatorIndicatorsHandle[i],
-                                                    0,
-                                                    jaws_period,
-                                                    teeth_period,
-                                                    lips_period))
-    {
-      if(Enable_Logs)
-        Print("Failed to initialize base Alligator data for timeframe: ",
-              EnumToString(ExtAlligatorIndicatorsHandle[i].indicator_timeframe));
-      continue;
-    }
-    AddElementToArray(signal_params.alligator_data, alligator_data);
-  }
-}
-
-void SetTFStochasticDataToSignalParams(SignalParams &signal_params)
-{
-  for(int i = 0; i < ArraySize(ExtStochIndicatorsHandle); i++)
-  {
-    StochasticStructure stochastic_data;
-    stochastic_data = StochasticStructure();
-    stochastic_data.InitStochasticStructureValues(ExtStochIndicatorsHandle[i], 0);
-
-    AddElementToArray(signal_params.stochastic_data, stochastic_data);
-  }
-}
-
-void SetTFBodyMADataToSignalParams(SignalParams &signal_params)
-{
-  for(int i = 0; i < ArraySize(ExtBodyMAIndicatorsHandle); i++)
-  {
-    BodyMAStructure body_ma_data;
-    body_ma_data = BodyMAStructure();
-    body_ma_data.InitBodyMAStructureValues(ExtBodyMAIndicatorsHandle[i], 0);
-
-    AddElementToArray(signal_params.body_ma_data, body_ma_data);
-  }
-}
-
 bool LoadBodyMASnapshotFromHandle(IndicatorsHandleInfo &handle,
                                   BodyMAStructure &snapshot)
 {
@@ -312,6 +251,9 @@ bool CaptureContextIndicators(const StrategyContextTypes context,
   bool require_structure = StructureFiltersRequested(structure_ctx) ||
                            StructureTypeFiltersRequested(structure_ctx) ||
                            StrategyContextFreshStructureEnabled(context);
+
+  if(Grid_Base_Strategy_Type == STOCH_STRUCTURE_RANGE)
+    require_structure = true;
 
   bool require_body_ma = (body_volume_mode != BODY_VOLUME_OFF);
 

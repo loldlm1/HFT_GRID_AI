@@ -4,6 +4,62 @@
 #ifndef _SERVICES_TRADING_SIGNALS_MARKET_SIGNAL_DETECTION_MQH_
 #define _SERVICES_TRADING_SIGNALS_MARKET_SIGNAL_DETECTION_MQH_
 
+void AssignContextSnapshotToSignal(const StrategyContextIndicators &snapshot,
+                                   SignalParams &signal)
+{
+  StrategyTrendModes trend_mode = StrategyContextTrendMode(snapshot.context);
+
+  if(snapshot.context == CONTEXT_SLOT_TREND)
+  {
+    signal.trend_filter_mode    = trend_mode;
+    signal.trend_bpercent_valid = snapshot.bpercent_valid;
+    signal.trend_bpercent_data  = snapshot.bpercent_data;
+    signal.trend_alligator_valid = snapshot.alligator_valid;
+    signal.trend_alligator_data  = snapshot.alligator_data;
+    signal.trend_stochastic_valid = snapshot.stochastic_valid;
+    signal.trend_stochastic_data  = snapshot.stochastic_data;
+    signal.trend_structure_valid  = snapshot.structure_valid;
+    signal.trend_structure_data   = snapshot.structure_data;
+  }
+  else if(snapshot.context == CONTEXT_SLOT_MACRO)
+  {
+    signal.macro_filter_mode    = trend_mode;
+    signal.macro_bpercent_valid = snapshot.bpercent_valid;
+    signal.macro_bpercent_data  = snapshot.bpercent_data;
+    signal.macro_alligator_valid = snapshot.alligator_valid;
+    signal.macro_alligator_data  = snapshot.alligator_data;
+    signal.macro_stochastic_valid = snapshot.stochastic_valid;
+    signal.macro_stochastic_data  = snapshot.stochastic_data;
+    signal.macro_structure_valid  = snapshot.structure_valid;
+    signal.macro_structure_data   = snapshot.structure_data;
+  }
+  else if(snapshot.context == CONTEXT_SLOT_SESSION)
+  {
+    signal.session_filter_mode    = trend_mode;
+    signal.session_bpercent_valid = snapshot.bpercent_valid;
+    signal.session_bpercent_data  = snapshot.bpercent_data;
+    signal.session_alligator_valid = snapshot.alligator_valid;
+    signal.session_alligator_data  = snapshot.alligator_data;
+    signal.session_stochastic_valid = snapshot.stochastic_valid;
+    signal.session_stochastic_data  = snapshot.stochastic_data;
+    signal.session_structure_valid  = snapshot.structure_valid;
+    signal.session_structure_data   = snapshot.structure_data;
+  }
+  else
+  {
+    signal.base_bpercent_valid   = snapshot.bpercent_valid;
+    signal.base_bpercent_data    = snapshot.bpercent_data;
+    signal.base_alligator_valid  = snapshot.alligator_valid;
+    signal.base_alligator_data   = snapshot.alligator_data;
+    signal.base_stochastic_valid = snapshot.stochastic_valid;
+    signal.base_stochastic_data  = snapshot.stochastic_data;
+    signal.base_structure_valid  = snapshot.structure_valid;
+    signal.base_structure_data   = snapshot.structure_data;
+    signal.base_body_ma_valid    = snapshot.body_ma_valid;
+    signal.base_body_ma_data     = snapshot.body_ma_data;
+  }
+}
+
 void EvaluateContextSignals(const StrategyContextTypes context)
 {
   if(context != CONTEXT_SLOT_BASE && !StrategyContextEnabled(context))
@@ -84,6 +140,7 @@ void EvaluateContextSignals(const StrategyContextTypes context)
     signal.entry_trigger_mode     = Strategy_Global_Entry_Mode;
     signal.entry_evaluation_mode  = StrategyContextEntryEvaluation(context);
     signal.context_structure_snapshot_time = structure_time;
+    AssignContextSnapshotToSignal(snapshot, signal);
 
     if(!BuildGridOrderForSignal(signal))
     {

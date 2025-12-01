@@ -27,23 +27,6 @@ bool ResolveChannelBoundsForTimeframe(const ENUM_TIMEFRAMES tf,
   return (upper > 0.0 && lower > 0.0);
 }
 
-bool FindAlligatorDataForTimeframe(const SignalParams &signal_params,
-                                   const ENUM_TIMEFRAMES tf,
-                                   AlligatorStructure &alligator_out)
-{
-  int total = ArraySize(signal_params.alligator_data);
-  for(int i = 0; i < total; i++)
-  {
-    AlligatorStructure data = signal_params.alligator_data[i];
-    if(data.indicator_timeframe == tf)
-    {
-      alligator_out = data;
-      return true;
-    }
-  }
-  return false;
-}
-
 double ResolveContextAlligatorMaValue(const AlligatorStructure &alligator_data,
                                       const StrategyTrendModes mode)
 {

@@ -915,10 +915,32 @@ double ResolveStochStructureDistancePoints(const SignalParams &signal_params,
                                             const double entry_reference_price)
 {
   double structure_price = 0.0;
-  int total_structures = ArraySize(signal_params.stoch_market_structure_data);
-  if(total_structures > 0)
+  bool structure_valid = false;
+  StochasticMarketStructure stoch;
+
+  switch(signal_params.strategy_context)
   {
-    StochasticMarketStructure stoch = signal_params.stoch_market_structure_data[0];
+    case CONTEXT_SLOT_TREND:
+      structure_valid = signal_params.trend_structure_valid;
+      stoch = signal_params.trend_structure_data;
+      break;
+    case CONTEXT_SLOT_MACRO:
+      structure_valid = signal_params.macro_structure_valid;
+      stoch = signal_params.macro_structure_data;
+      break;
+    case CONTEXT_SLOT_SESSION:
+      structure_valid = signal_params.session_structure_valid;
+      stoch = signal_params.session_structure_data;
+      break;
+    case CONTEXT_SLOT_BASE:
+    default:
+      structure_valid = signal_params.base_structure_valid;
+      stoch = signal_params.base_structure_data;
+      break;
+  }
+
+  if(structure_valid)
+  {
     OscillatorStructureTypes types[4] = {stoch.first_structure_type,
                                          stoch.second_structure_type,
                                          stoch.third_structure_type,
