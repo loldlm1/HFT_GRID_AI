@@ -53,17 +53,6 @@ void SetTFStochasticDataToSignalParams(SignalParams &signal_params)
   }
 }
 
-void SetTFStochasticMarketStructureDataToSignalParams(SignalParams &signal_params)
-{
-  for(int i = 0; i < ArraySize(ExtStructStochIndicatorsHandle); i++)
-  {
-    StochasticMarketStructure stoch_market_structure_data;
-    stoch_market_structure_data = StochasticMarketStructure();
-    stoch_market_structure_data.InitStochMarketStructureValues(ExtStructStochIndicatorsHandle[i]);
-    AddElementToArray(signal_params.stoch_market_structure_data, stoch_market_structure_data);
-  }
-}
-
 void SetTFBodyMADataToSignalParams(SignalParams &signal_params)
 {
   for(int i = 0; i < ArraySize(ExtBodyMAIndicatorsHandle); i++)
