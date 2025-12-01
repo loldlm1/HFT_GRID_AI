@@ -236,7 +236,7 @@ bool CaptureContextIndicators(const StrategyContextTypes context,
   snapshot.context   = context;
   snapshot.timeframe = StrategyContextTimeframe(context);
 
-  StrategyEntryEvaluationModes entry_mode = StrategyContextEntryEvaluation(context);
+  StrategyEntryChannelModes entry_mode = StrategyContextEntryEvaluation(context);
   StrategyTrendModes trend_mode = StrategyContextTrendMode(context);
 
   bool need_bpercent   = EntryEvaluationUsesAnyBPercent(entry_mode) ||

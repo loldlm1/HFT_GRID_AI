@@ -286,14 +286,7 @@ enum ChannelIndicatorTypes
   CHANNEL_INDICATOR_ATR       = 2
 };
 
-enum StrategyEntryModes
-{
-  ENTRY_MODE_BREAKOUT = 0,
-  ENTRY_MODE_MA_TREND = 1,
-  ENTRY_MODE_REVERSION = 2
-};
-
-enum StrategyEntryEvaluationModes
+enum StrategyEntryChannelModes
 {
   ENTRY_EVAL_OFF              = 0,
   ENTRY_EVAL_GLOBAL           = 1,
@@ -326,19 +319,19 @@ enum StrategyContextTypes
 
 const int STRATEGY_CONTEXT_TOTAL = 4;
 
-inline bool EntryEvaluationUsesBPercentWindow(const StrategyEntryEvaluationModes mode)
+inline bool EntryEvaluationUsesBPercentWindow(const StrategyEntryChannelModes mode)
 {
   return false;
 }
 
-inline bool EntryEvaluationUsesBPercentMean(const StrategyEntryEvaluationModes mode)
+inline bool EntryEvaluationUsesBPercentMean(const StrategyEntryChannelModes mode)
 {
   return (mode == ENTRY_MODE_MA_TREND ||
           mode == ENTRY_MODE_REVERSION ||
           mode == ENTRY_MODE_BREAKOUT);
 }
 
-inline bool EntryEvaluationUsesAnyBPercent(const StrategyEntryEvaluationModes mode)
+inline bool EntryEvaluationUsesAnyBPercent(const StrategyEntryChannelModes mode)
 {
   return EntryEvaluationUsesBPercentMean(mode);
 }

@@ -1008,7 +1008,7 @@ void LoadTrendIndicators()
 
   Trend_Filter_Timeframe = ResolveTrendTimeframe();
 
-  StrategyEntryEvaluationModes trend_entry_eval = StrategyContextEntryEvaluation(CONTEXT_SLOT_TREND);
+  StrategyEntryChannelModes trend_entry_eval = StrategyContextEntryEvaluation(CONTEXT_SLOT_TREND);
   bool need_bpercent  = (EntryEvaluationUsesAnyBPercent(trend_entry_eval) ||
                          Trend_BPercent_Slope_Filter);
   bool need_alligator = (TrendModeUsesAlligator(Strategy_Trend_Trend_Mode) ||
@@ -1051,7 +1051,7 @@ void LoadMacroIndicators()
     return;
   }
 
-  StrategyEntryEvaluationModes macro_entry_eval = StrategyContextEntryEvaluation(CONTEXT_SLOT_MACRO);
+  StrategyEntryChannelModes macro_entry_eval = StrategyContextEntryEvaluation(CONTEXT_SLOT_MACRO);
   bool need_bpercent  = (EntryEvaluationUsesAnyBPercent(macro_entry_eval) ||
                           Macro_BPercent_Slope_Filter);
   bool need_alligator = (TrendModeUsesAlligator(Strategy_Macro_Trend_Mode) ||
@@ -1102,7 +1102,7 @@ void LoadSessionIndicators()
     return;
   }
 
-  StrategyEntryEvaluationModes session_entry_eval = StrategyContextEntryEvaluation(CONTEXT_SLOT_SESSION);
+  StrategyEntryChannelModes session_entry_eval = StrategyContextEntryEvaluation(CONTEXT_SLOT_SESSION);
   bool need_bpercent  = (EntryEvaluationUsesAnyBPercent(session_entry_eval) ||
                           Session_BPercent_Slope_Filter);
   bool need_alligator = (TrendModeUsesAlligator(Strategy_Session_Trend_Mode) ||
@@ -1147,7 +1147,7 @@ bool TrendFilterIndicatorsAvailable()
 {
   if(!TrendContextEnabled() || Strategy_Trend_Trend_Mode == TREND_OFF)
     return true;
-  StrategyEntryEvaluationModes trend_eval = StrategyContextEntryEvaluation(CONTEXT_SLOT_TREND);
+  StrategyEntryChannelModes trend_eval = StrategyContextEntryEvaluation(CONTEXT_SLOT_TREND);
   bool need_bpercent  = (EntryEvaluationUsesAnyBPercent(trend_eval) ||
                          Trend_BPercent_Slope_Filter);
   bool need_alligator = (TrendModeUsesAlligator(Strategy_Trend_Trend_Mode) ||
@@ -1176,7 +1176,7 @@ bool MacroFilterIndicatorsAvailable()
   if(!MacroContextEnabled())
     return true;
 
-  StrategyEntryEvaluationModes macro_eval = StrategyContextEntryEvaluation(CONTEXT_SLOT_MACRO);
+  StrategyEntryChannelModes macro_eval = StrategyContextEntryEvaluation(CONTEXT_SLOT_MACRO);
   bool need_bpercent  = (EntryEvaluationUsesAnyBPercent(macro_eval) ||
                          Macro_BPercent_Slope_Filter);
   bool need_alligator = (TrendModeUsesAlligator(Strategy_Macro_Trend_Mode) ||
@@ -1205,7 +1205,7 @@ bool SessionFilterIndicatorsAvailable()
   if(!SessionContextEnabled())
     return true;
 
-  StrategyEntryEvaluationModes session_eval = StrategyContextEntryEvaluation(CONTEXT_SLOT_SESSION);
+  StrategyEntryChannelModes session_eval = StrategyContextEntryEvaluation(CONTEXT_SLOT_SESSION);
   bool need_bpercent  = (EntryEvaluationUsesAnyBPercent(session_eval) ||
                          Session_BPercent_Slope_Filter);
   bool need_alligator = (TrendModeUsesAlligator(Strategy_Session_Trend_Mode) ||
@@ -1280,10 +1280,10 @@ void LoadAllIndicatorDefinitions()
   PrepareStrategyTimeframes();
   PrepareIndicatorPeriods();
 
-  StrategyEntryEvaluationModes base_entry_eval = StrategyContextEntryEvaluation(CONTEXT_SLOT_BASE);
-  StrategyEntryEvaluationModes trend_entry_eval = StrategyContextEntryEvaluation(CONTEXT_SLOT_TREND);
-  StrategyEntryEvaluationModes macro_entry_eval = StrategyContextEntryEvaluation(CONTEXT_SLOT_MACRO);
-  StrategyEntryEvaluationModes session_entry_eval = StrategyContextEntryEvaluation(CONTEXT_SLOT_SESSION);
+  StrategyEntryChannelModes base_entry_eval = StrategyContextEntryEvaluation(CONTEXT_SLOT_BASE);
+  StrategyEntryChannelModes trend_entry_eval = StrategyContextEntryEvaluation(CONTEXT_SLOT_TREND);
+  StrategyEntryChannelModes macro_entry_eval = StrategyContextEntryEvaluation(CONTEXT_SLOT_MACRO);
+  StrategyEntryChannelModes session_entry_eval = StrategyContextEntryEvaluation(CONTEXT_SLOT_SESSION);
   bool base_mode_uses_bpercent  = EntryEvaluationUsesAnyBPercent(base_entry_eval);
   bool base_mode_uses_alligator = TrendModeUsesAlligator(Strategy_Base_Trend_Mode);
   bool base_bpercent_required   = base_mode_uses_bpercent || Base_BPercent_Slope_Filter;

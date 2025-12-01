@@ -238,9 +238,9 @@ inline bool StrategyContextEnabled(const StrategyContextTypes context)
   return false;
 }
 
-inline StrategyEntryEvaluationModes StrategyContextEntryEvaluation(const StrategyContextTypes context)
+inline StrategyEntryChannelModes StrategyContextEntryEvaluation(const StrategyContextTypes context)
 {
-  StrategyEntryEvaluationModes context_mode = ENTRY_EVAL_OFF;
+  StrategyEntryChannelModes context_mode = ENTRY_EVAL_OFF;
   switch(context)
   {
     case CONTEXT_SLOT_BASE:
@@ -298,7 +298,7 @@ inline double StrategyContextIndicatorPercent(const StrategyContextTypes context
   }
 }
 
-inline StrategyEntryModes ResolveGlobalEntryTriggerMode()
+inline StrategyEntryChannelModes ResolveGlobalEntryTriggerMode()
 {
   switch(Strategy_Global_Channel_Entry_Mode)
   {

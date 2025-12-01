@@ -37,7 +37,7 @@ double ResolveBandsPercentMaAtShift(const BandsPercentStructure &bands_data,
 bool EvaluateBandsPercentTrigger(const BandsPercentStructure &bands_data,
                                  const SignalTypes signal_type,
                                  double percent_threshold,
-                                 const StrategyEntryEvaluationModes entry_mode,
+                                 const StrategyEntryChannelModes entry_mode,
                                  const SlopeTypes slope_filter)
 {
   if(!EntryEvaluationUsesAnyBPercent(entry_mode))
@@ -450,7 +450,7 @@ bool StrategyContextEvaluateEntry(const StrategyContextIndicators &snapshot,
   filters_pass = true;
 
   StrategyContextTypes context = snapshot.context;
-  StrategyEntryEvaluationModes entry_mode = StrategyContextEntryEvaluation(context);
+  StrategyEntryChannelModes entry_mode = StrategyContextEntryEvaluation(context);
   bool entry_mode_disabled = (entry_mode == ENTRY_EVAL_OFF);
   bool entry_on_trend = (entry_mode == ENTRY_EVAL_ON_TREND);
   StrategyTrendModes trend_mode = StrategyContextTrendMode(context);
@@ -589,6 +589,7 @@ bool StrategyContextEvaluateEntry(const StrategyContextIndicators &snapshot,
 
   bool entry_requires_bpercent = EntryEvaluationUsesAnyBPercent(entry_mode);
   bool bpercent_pass = true;
+  Print("entry_requires_bpercent = ", entry_requires_bpercent);
   if(entry_requires_bpercent && percent_threshold >= 0.0)
   {
     if(!snapshot.bpercent_valid)

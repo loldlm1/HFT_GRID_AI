@@ -62,8 +62,8 @@ struct SignalParams
   StrategyContextTypes      strategy_context;
   ENUM_TIMEFRAMES           strategy_timeframe;
   string                    strategy_context_label;
-  StrategyEntryModes        entry_trigger_mode;
-  StrategyEntryEvaluationModes entry_evaluation_mode;
+  StrategyEntryChannelModes entry_trigger_mode;
+  StrategyEntryChannelModes entry_evaluation_mode;
   double                    entry_price;
   double                    close_price;
   double                    stop_loss;
