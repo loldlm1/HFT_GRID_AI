@@ -420,11 +420,51 @@ bool StrategyContextEvaluateTrend(const StrategyContextIndicators &snapshot,
                                   bool &trend_pass)
 {
   StrategyTrendModes trend_mode = StrategyContextTrendMode(snapshot.context);
+  StrategyContextTypes context = snapshot.context;
+  trend_ready = false;
+  trend_pass  = false;
+
+  if(StrategyContextBPercentSlopeEnabled(context))
+  {
+    if(!snapshot.bpercent_valid)
+      return false;
+    if(!EvaluateDirectionalSlope(snapshot.bpercent_data.bands_percent_0,
+                                 snapshot.bpercent_data.bands_percent_1,
+                                 direction))
+      return true;
+  }
+
+  if(StrategyContextStochasticSlopeEnabled(context))
+  {
+    if(!snapshot.stochastic_valid)
+      return false;
+    if(!EvaluateDirectionalSlope(snapshot.stochastic_data.stochastic_0,
+                                 snapshot.stochastic_data.stochastic_1,
+                                 direction))
+      return true;
+  }
+
+  if(StrategyContextAlligatorSlopeEnabled(context))
+  {
+    if(!snapshot.alligator_valid)
+      return false;
+    if(!EvaluateDirectionalSlope(snapshot.alligator_data.teeth_value,
+                                 snapshot.alligator_data.teeth_prev_value,
+                                 direction))
+      return true;
+  }
+
   if(!TrendModeUsesAlligator(trend_mode))
   {
     trend_ready = true;
     trend_pass  = true;
     return true;
+  }
+
+  if(StrategyContextChannelFilterEnabled(context))
+  {
+    if(!StrategyContextChannelMaFilterAllowsSignal(context, snapshot))
+      return true;
   }
 
   if(!snapshot.alligator_valid)
