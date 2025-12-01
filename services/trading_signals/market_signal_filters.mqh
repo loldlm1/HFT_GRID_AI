@@ -9,11 +9,10 @@ double ResolveBandsPercentAtShift(const BandsPercentStructure &bands_data,
 {
   switch(shift)
   {
-    case 0: return bands_data.bands_percent_0;
-    case 1: return bands_data.bands_percent_1;
-    case 2: return bands_data.bands_percent_2;
-    case 3: return bands_data.bands_percent_3;
-    case 4: return bands_data.bands_percent_4;
+    case 0: return bands_data.bands_percent_1;
+    case 1: return bands_data.bands_percent_2;
+    case 2: return bands_data.bands_percent_3;
+    case 3: return bands_data.bands_percent_4;
     case 5: return bands_data.bands_percent_5;
   }
   return EMPTY_VALUE;
@@ -24,11 +23,10 @@ double ResolveBandsPercentMaAtShift(const BandsPercentStructure &bands_data,
 {
   switch(shift)
   {
-    case 0: return bands_data.bands_percent_ma_0;
-    case 1: return bands_data.bands_percent_ma_1;
-    case 2: return bands_data.bands_percent_ma_2;
-    case 3: return bands_data.bands_percent_ma_3;
-    case 4: return bands_data.bands_percent_ma_4;
+    case 0: return bands_data.bands_percent_ma_1;
+    case 1: return bands_data.bands_percent_ma_2;
+    case 2: return bands_data.bands_percent_ma_3;
+    case 3: return bands_data.bands_percent_ma_4;
     case 5: return bands_data.bands_percent_ma_5;
   }
   return EMPTY_VALUE;
@@ -66,8 +64,8 @@ bool EvaluateBandsPercentTrigger(const BandsPercentStructure &bands_data,
   if(entry_mode == ENTRY_MODE_MA_TREND)
   {
     pass = (signal_type == BULLISH)
-             ? (percent_2 < percent_threshold && percent_1 >= percent_threshold && percent_ma_1 <= percent_threshold)
-             : (percent_2 > percent_threshold && percent_1 <= percent_threshold && percent_ma_1 >= percent_threshold);
+             ? (percent_2 < percent_threshold && (percent_1 >= percent_threshold && percent_1 < 100) && percent_ma_1 <= percent_threshold)
+             : (percent_2 > percent_threshold && (percent_1 <= percent_threshold && percent_1 > 0)   && percent_ma_1 >= percent_threshold);
   }
   else if(entry_mode == ENTRY_MODE_REVERSION)
   {
@@ -589,7 +587,6 @@ bool StrategyContextEvaluateEntry(const StrategyContextIndicators &snapshot,
 
   bool entry_requires_bpercent = EntryEvaluationUsesAnyBPercent(entry_mode);
   bool bpercent_pass = true;
-  Print("entry_requires_bpercent = ", entry_requires_bpercent);
   if(entry_requires_bpercent && percent_threshold >= 0.0)
   {
     if(!snapshot.bpercent_valid)
