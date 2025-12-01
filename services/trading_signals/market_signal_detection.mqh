@@ -79,16 +79,24 @@ void RefreshUpstreamTrendsOnBaseBar()
 
     StrategyContextIndicators trend_snapshot;
     if(!CaptureContextTrendOnly(ctx, trend_snapshot))
+    {
+      ResetContextTrendState(ctx);
       continue;
+    }
 
     SignalTypes directions[2] = {BULLISH, BEARISH};
     for(int d = 0; d < 2; d++)
     {
       SignalTypes dir = directions[d];
+      if(!DirectionAllowed(dir))
+        continue;
       bool ready = false;
       bool pass = false;
       if(!StrategyContextEvaluateTrend(trend_snapshot, dir, ready, pass))
+      {
+        ResetContextTrendState(ctx);
         continue;
+      }
       if(ready)
         UpdateContextTrendState(ctx, dir, true, pass);
     }
@@ -121,9 +129,12 @@ void EvaluateContextSignals(const StrategyContextTypes context)
 
   bool channel_state = StrategyContextChannelMaFilterAllowsSignal(context, snapshot);
 
+  SignalTypes directions[2] = {BULLISH, BEARISH};
   for(int dir = 0; dir < 2; dir++)
   {
-    SignalTypes direction = (dir == 0) ? BULLISH : BEARISH;
+    SignalTypes direction = directions[dir];
+    if(!DirectionAllowed(direction))
+      continue;
 
     bool trend_ready = false;
     bool trend_pass  = false;
@@ -150,8 +161,8 @@ void EvaluateContextSignals(const StrategyContextTypes context)
     if(trend_ready)
       UpdateContextTrendState(context, direction, true, cascade_pass);
 
-    if(!DirectionAllowed(direction))
-      continue;
+    if(context == CONTEXT_SLOT_BASE)
+      RefreshUpstreamTrendsOnBaseBar();
 
     if(!cascade_pass)
       continue;
@@ -161,9 +172,6 @@ void EvaluateContextSignals(const StrategyContextTypes context)
 
     if(!entry_allows)
       continue;
-
-    if(context == CONTEXT_SLOT_BASE)
-      RefreshUpstreamTrendsOnBaseBar();
 
     if(!CanAttemptSignal(direction))
       continue;
