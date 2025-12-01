@@ -40,7 +40,7 @@ inline StrategyStructureLayerContext BuildBaseStructureLayerContext()
   ctx.second_structure_filter = Base_Second_Structure_Filter;
   ctx.third_structure_filter  = Base_Third_Structure_Filter;
   ctx.fourth_structure_filter = Base_Fourth_Structure_Filter;
-  ctx.enabled                = true;
+  ctx.enabled                = (Stoch_Structure_Period_Type != STOCH_STRUCTURE_PERIOD_OFF);
   ctx.uses_trend_dataset     = false;
   return ctx;
 }
@@ -57,7 +57,8 @@ inline StrategyStructureLayerContext BuildTrendStructureLayerContext()
   ctx.second_structure_filter = Trend_Second_Structure_Filter;
   ctx.third_structure_filter  = Trend_Third_Structure_Filter;
   ctx.fourth_structure_filter = Trend_Fourth_Structure_Filter;
-  ctx.enabled                = (Trend_Strategy_Timeframe != PERIOD_CURRENT);
+  ctx.enabled                = (Trend_Strategy_Timeframe != PERIOD_CURRENT) &&
+                               (Stoch_Structure_Period_Type != STOCH_STRUCTURE_PERIOD_OFF);
   ctx.uses_trend_dataset     = ctx.enabled && (Trend_Strategy_Timeframe != Strategy_Timeframe);
   return ctx;
 }
@@ -74,7 +75,8 @@ inline StrategyStructureLayerContext BuildMacroStructureLayerContext()
   ctx.second_structure_filter = Macro_Second_Structure_Filter;
   ctx.third_structure_filter  = Macro_Third_Structure_Filter;
   ctx.fourth_structure_filter = Macro_Fourth_Structure_Filter;
-  ctx.enabled                = (Macro_Strategy_Timeframe != PERIOD_CURRENT);
+  ctx.enabled                = (Macro_Strategy_Timeframe != PERIOD_CURRENT) &&
+                               (Stoch_Structure_Period_Type != STOCH_STRUCTURE_PERIOD_OFF);
   ctx.uses_trend_dataset     = ctx.enabled;
   return ctx;
 }
@@ -91,7 +93,8 @@ inline StrategyStructureLayerContext BuildSessionStructureLayerContext()
   ctx.second_structure_filter = Session_Second_Structure_Filter;
   ctx.third_structure_filter  = Session_Third_Structure_Filter;
   ctx.fourth_structure_filter = Session_Fourth_Structure_Filter;
-  ctx.enabled                = (Session_Strategy_Timeframe != PERIOD_CURRENT);
+  ctx.enabled                = (Session_Strategy_Timeframe != PERIOD_CURRENT) &&
+                               (Stoch_Structure_Period_Type != STOCH_STRUCTURE_PERIOD_OFF);
   ctx.uses_trend_dataset     = ctx.enabled;
   return ctx;
 }
@@ -259,9 +262,7 @@ inline StrategyEntryEvaluationModes StrategyContextEntryEvaluation(const Strateg
 
   if(context_mode == ENTRY_EVAL_GLOBAL)
   {
-    return (Strategy_Global_Entry_Evaluation_Mode == ENTRY_EVAL_OFF)
-             ? ENTRY_EVAL_OFF
-             : Strategy_Global_Entry_Evaluation_Mode;
+    return Strategy_Global_Channel_Entry_Mode;
   }
 
   return context_mode;
@@ -285,7 +286,7 @@ inline StrategyTrendModes StrategyContextTrendMode(const StrategyContextTypes co
 
 inline double StrategyContextIndicatorPercent(const StrategyContextTypes context)
 {
-  switch(Strategy_Global_Entry_Mode)
+  switch(Strategy_Global_Channel_Entry_Mode)
   {
     case ENTRY_MODE_BREAKOUT:
       return 0.0;
@@ -294,6 +295,18 @@ inline double StrategyContextIndicatorPercent(const StrategyContextTypes context
     case ENTRY_MODE_MA_TREND:
     default:
       return 50.0;
+  }
+}
+
+inline StrategyEntryModes ResolveGlobalEntryTriggerMode()
+{
+  switch(Strategy_Global_Channel_Entry_Mode)
+  {
+    case ENTRY_MODE_BREAKOUT:  return ENTRY_MODE_BREAKOUT;
+    case ENTRY_MODE_REVERSION: return ENTRY_MODE_REVERSION;
+    case ENTRY_MODE_MA_TREND:
+    default:
+      return ENTRY_MODE_MA_TREND;
   }
 }
 

@@ -243,7 +243,8 @@ bool CaptureContextIndicators(const StrategyContextTypes context,
                          StrategyContextBPercentSlopeEnabled(context);
   bool need_alligator  = TrendModeUsesAlligator(trend_mode) ||
                          StrategyContextAlligatorSlopeEnabled(context);
-  bool need_stochastic = StrategyContextStochasticSlopeEnabled(context);
+  bool need_stochastic = StrategyContextStochasticSlopeEnabled(context) ||
+                         (Strategy_Global_Stoch_Entry_Mode != STOCH_ENTRY_OFF);
   BodyVolumeFilterModes body_volume_mode = StrategyContextBodyVolumeMode(context);
 
   StrategyStructureLayerContext structure_ctx = BuildStructureLayerForContext(context);
@@ -251,6 +252,9 @@ bool CaptureContextIndicators(const StrategyContextTypes context,
   bool require_structure = StructureFiltersRequested(structure_ctx) ||
                            StructureTypeFiltersRequested(structure_ctx) ||
                            StrategyContextFreshStructureEnabled(context);
+
+  if(Stoch_Structure_Period_Type == STOCH_STRUCTURE_PERIOD_OFF)
+    require_structure = false;
 
   if(Grid_Base_Strategy_Type == STOCH_STRUCTURE_RANGE)
     require_structure = true;

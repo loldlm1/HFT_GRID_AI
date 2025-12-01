@@ -40,10 +40,19 @@ enum BaseIndicatorPeriodTypes
   BASE_PERIOD_55 = 55
 };
 
+enum IndicatorShiftTypes
+{
+  INDICATOR_SHIFT_0 = 0,
+  INDICATOR_SHIFT_1 = 1,
+  INDICATOR_SHIFT_2 = 2,
+  INDICATOR_SHIFT_3 = 3,
+  INDICATOR_SHIFT_5 = 5
+};
+
 // SOLID INDICATOR PERIOD OPTIONS (LINKED TO STOCHASTIC_STRUCTURE)
 enum StochStructurePeriodTypes
 {
-  STOCH_STRUCTURE_PERIOD_3  = 3,
+  STOCH_STRUCTURE_PERIOD_OFF = 0,
   STOCH_STRUCTURE_PERIOD_5  = 5,
   STOCH_STRUCTURE_PERIOD_8  = 8,
   STOCH_STRUCTURE_PERIOD_13 = 13,
@@ -288,10 +297,16 @@ enum StrategyEntryEvaluationModes
 {
   ENTRY_EVAL_OFF              = 0,
   ENTRY_EVAL_GLOBAL           = 1,
-  ENTRY_EVAL_WINDOW           = 2,
-  ENTRY_EVAL_MEAN             = 3,
-  ENTRY_EVAL_WINDOW_AND_MEAN  = 4,
+  ENTRY_MODE_MA_TREND         = 2,
+  ENTRY_MODE_REVERSION        = 3,
+  ENTRY_MODE_BREAKOUT         = 4,
   ENTRY_EVAL_ON_TREND         = 5
+};
+
+enum StrategyGlobalStochEntryModes
+{
+  STOCH_ENTRY_OFF     = 0,
+  STOCH_ENTRY_OVER_BS = 1
 };
 
 enum StrategyTrendModes
@@ -313,32 +328,19 @@ const int STRATEGY_CONTEXT_TOTAL = 4;
 
 inline bool EntryEvaluationUsesBPercentWindow(const StrategyEntryEvaluationModes mode)
 {
-  switch(mode)
-  {
-    case ENTRY_EVAL_WINDOW:
-    case ENTRY_EVAL_WINDOW_AND_MEAN:
-      return true;
-    default:
-      return false;
-  }
+  return false;
 }
 
 inline bool EntryEvaluationUsesBPercentMean(const StrategyEntryEvaluationModes mode)
 {
-  switch(mode)
-  {
-    case ENTRY_EVAL_MEAN:
-    case ENTRY_EVAL_WINDOW_AND_MEAN:
-      return true;
-    default:
-      return false;
-  }
+  return (mode == ENTRY_MODE_MA_TREND ||
+          mode == ENTRY_MODE_REVERSION ||
+          mode == ENTRY_MODE_BREAKOUT);
 }
 
 inline bool EntryEvaluationUsesAnyBPercent(const StrategyEntryEvaluationModes mode)
 {
-  return EntryEvaluationUsesBPercentWindow(mode) ||
-         EntryEvaluationUsesBPercentMean(mode);
+  return EntryEvaluationUsesBPercentMean(mode);
 }
 
 inline bool TrendModeUsesAlligator(const StrategyTrendModes mode)

@@ -1287,6 +1287,9 @@ void LoadAllIndicatorDefinitions()
   bool base_mode_uses_bpercent  = EntryEvaluationUsesAnyBPercent(base_entry_eval);
   bool base_mode_uses_alligator = TrendModeUsesAlligator(Strategy_Base_Trend_Mode);
   bool base_bpercent_required   = base_mode_uses_bpercent || Base_BPercent_Slope_Filter;
+  bool stoch_slope_required     = Base_Stochastic_Slope_Filter || Trend_Stochastic_Slope_Filter ||
+                                  Macro_Stochastic_Slope_Filter || Session_Stochastic_Slope_Filter;
+  bool stoch_entry_required     = (Strategy_Global_Stoch_Entry_Mode != STOCH_ENTRY_OFF);
   bool trailing_requires_alligator = (Grid_Trailing_Strategy_Mode == TRAILING_LIPS_MA);
   bool trailing_requires_channel   = (Grid_Trailing_Strategy_Mode == TRAILING_ATR_BASED);
   bool risk_requires_alligator     = (Grid_Risk_Trend_Mode == GRID_RM_TREND_BE ||
@@ -1301,7 +1304,10 @@ void LoadAllIndicatorDefinitions()
   Trailing_Indicator_Timeframe = ResolveTrailingStrategyTimeframe();
   Risk_Trend_Timeframe = ResolveRiskTrendTimeframe();
 
-  bool require_structure_indicators = true;
+  bool stoch_structure_enabled = (Stoch_Structure_Period_Type != STOCH_STRUCTURE_PERIOD_OFF);
+  bool require_structure_indicators = stoch_structure_enabled && AnyStructureGuardEnabled();
+  bool stoch_indicators_required = stoch_structure_enabled && require_structure_indicators;
+  stoch_indicators_required = stoch_indicators_required || stoch_slope_required || stoch_entry_required;
 
   bool strategy_uses_channel = (Grid_Base_Strategy_Type != POINTS_RANGE);
   bool require_channel_filters = Base_Channel_MA_Filter || Trend_Channel_MA_Filter ||
@@ -1328,7 +1334,7 @@ void LoadAllIndicatorDefinitions()
   PrintFormat("Strategy context | TF=%s | Channel=%s | EntryMode=%s | EntryEval=%s | BasePeriod=%d | ChannelPeriod=%d | SolidPeriod=%d | Direction=%s",
               EnumToString(Strategy_Timeframe),
               StrategyChannelIndicatorLabel(),
-              EnumToString(Strategy_Global_Entry_Mode),
+              EnumToString(Strategy_Global_Channel_Entry_Mode),
               EnumToString(StrategyContextEntryEvaluation(CONTEXT_SLOT_BASE)),
               (int)Base_Indicator_Period_Type,
               resolved_bpercent_period,
@@ -1363,14 +1369,22 @@ void LoadAllIndicatorDefinitions()
     Print("Base Alligator indicator loading skipped (mode, slope filters, and trailing settings disabled).");
   }
 
-  if(require_structure_indicators)
+  if(stoch_indicators_required)
   {
     LoadAllStochIndicators();
+  }
+  else
+  {
+    Print("Stochastic indicator loading skipped (no slope filters or stoch entry active).");
+  }
+
+  if(require_structure_indicators)
+  {
     LoadAllStructStochIndicators();
   }
   else
   {
-    Print("Solid indicator strategy disabled and no structure filters configured; skipping stochastic indicator loading.");
+    Print("Structure indicators skipped (structure filters and fresh guards disabled or period off).");
   }
 
   bool base_entry_active    = (base_entry_eval != ENTRY_EVAL_OFF);
@@ -1591,7 +1605,7 @@ void LoadAllStochIndicators()
 
     IndicatorsHandleInfo stoch_indicator_handle_loaded;
 
-    stoch_indicator_handle_loaded.indicator_period    = (int)Stoch_Structure_Period_Type;
+    stoch_indicator_handle_loaded.indicator_period    = MathMax((int)Stoch_Structure_Period_Type, 1);
     stoch_indicator_handle_loaded.indicator_handle    = iCustom(_Symbol, trend_timeframe, "Examples\\Stochastic", stoch_indicator_handle_loaded.indicator_period, 3, 3, STO_CLOSECLOSE);
     stoch_indicator_handle_loaded.indicator_timeframe = trend_timeframe;
 
@@ -1610,13 +1624,15 @@ void LoadAllStochIndicators()
 
 void LoadAllStructStochIndicators()
 {
+  if(Stoch_Structure_Period_Type == STOCH_STRUCTURE_PERIOD_OFF)
+    return;
   for(int i = 0; i < total_tf_list_load; ++i)
   {
     ENUM_TIMEFRAMES trend_timeframe = Strategy_TF_List[i];
 
     IndicatorsHandleInfo struct_stoch_indicator_handle_loaded;
 
-    struct_stoch_indicator_handle_loaded.indicator_period    = (int)Stoch_Structure_Period_Type;
+    struct_stoch_indicator_handle_loaded.indicator_period    = MathMax((int)Stoch_Structure_Period_Type, 1);
     struct_stoch_indicator_handle_loaded.indicator_handle    = iCustom(_Symbol, trend_timeframe, "Examples\\Stochastic_Structure", struct_stoch_indicator_handle_loaded.indicator_period, 3, 3, STO_CLOSECLOSE);
     struct_stoch_indicator_handle_loaded.indicator_timeframe = trend_timeframe;
 
