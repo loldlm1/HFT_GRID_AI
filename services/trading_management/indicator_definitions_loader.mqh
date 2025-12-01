@@ -1305,9 +1305,8 @@ void LoadAllIndicatorDefinitions()
   Risk_Trend_Timeframe = ResolveRiskTrendTimeframe();
 
   bool stoch_structure_enabled = (Stoch_Structure_Period_Type != STOCH_STRUCTURE_PERIOD_OFF);
-  bool require_structure_indicators = stoch_structure_enabled && AnyStructureGuardEnabled();
-  bool stoch_indicators_required = stoch_structure_enabled && require_structure_indicators;
-  stoch_indicators_required = stoch_indicators_required || stoch_slope_required || stoch_entry_required;
+  bool require_structure_indicators = stoch_structure_enabled; // load structures whenever period is enabled
+  bool stoch_indicators_required = stoch_structure_enabled || stoch_slope_required || stoch_entry_required;
 
   bool strategy_uses_channel = (Grid_Base_Strategy_Type != POINTS_RANGE);
   bool require_channel_filters = Base_Channel_MA_Filter || Trend_Channel_MA_Filter ||
