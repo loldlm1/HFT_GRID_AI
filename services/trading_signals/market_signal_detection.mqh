@@ -60,6 +60,41 @@ void AssignContextSnapshotToSignal(const StrategyContextIndicators &snapshot,
   }
 }
 
+void RefreshUpstreamTrendsOnBaseBar()
+{
+  StrategyContextTypes upstream_contexts[] = {CONTEXT_SLOT_TREND,
+                                              CONTEXT_SLOT_MACRO,
+                                              CONTEXT_SLOT_SESSION};
+
+  int total = ArraySize(upstream_contexts);
+  for(int i = 0; i < total; i++)
+  {
+    StrategyContextTypes ctx = upstream_contexts[i];
+    if(!StrategyContextEnabled(ctx))
+      continue;
+
+    StrategyTrendModes trend_mode = StrategyContextTrendMode(ctx);
+    if(!TrendModeUsesAlligator(trend_mode))
+      continue;
+
+    StrategyContextIndicators trend_snapshot;
+    if(!CaptureContextTrendOnly(ctx, trend_snapshot))
+      continue;
+
+    SignalTypes directions[2] = {BULLISH, BEARISH};
+    for(int d = 0; d < 2; d++)
+    {
+      SignalTypes dir = directions[d];
+      bool ready = false;
+      bool pass = false;
+      if(!StrategyContextEvaluateTrend(trend_snapshot, dir, ready, pass))
+        continue;
+      if(ready)
+        UpdateContextTrendState(ctx, dir, true, pass);
+    }
+  }
+}
+
 void EvaluateContextSignals(const StrategyContextTypes context)
 {
   if(context != CONTEXT_SLOT_BASE && !StrategyContextEnabled(context))
@@ -126,6 +161,9 @@ void EvaluateContextSignals(const StrategyContextTypes context)
 
     if(!entry_allows)
       continue;
+
+    if(context == CONTEXT_SLOT_BASE)
+      RefreshUpstreamTrendsOnBaseBar();
 
     if(!CanAttemptSignal(direction))
       continue;
