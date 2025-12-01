@@ -72,11 +72,17 @@ struct SignalParams
   double                    raw_profit;
   datetime                  entry_time;
   datetime                  close_time;
-  BandsPercentStructure     bands_percent_data[];
-  AlligatorStructure        alligator_data[];
-  StochasticStructure       stochastic_data[];
-  StochasticMarketStructure stoch_market_structure_data[];
-  BodyMAStructure           body_ma_data[];
+
+  bool                      base_bpercent_valid;
+  BandsPercentStructure     base_bpercent_data;
+  bool                      base_alligator_valid;
+  AlligatorStructure        base_alligator_data;
+  bool                      base_stochastic_valid;
+  StochasticStructure       base_stochastic_data;
+  bool                      base_structure_valid;
+  StochasticMarketStructure base_structure_data;
+  bool                      base_body_ma_valid;
+  BodyMAStructure           base_body_ma_data;
 
   bool   grid_initialized;
   double grid_base_distance_points;
@@ -147,6 +153,11 @@ struct SignalParams
     raw_profit                 = 0.0;
     entry_time                 = 0;
     close_time                 = 0;
+    base_bpercent_valid        = false;
+    base_alligator_valid       = false;
+    base_stochastic_valid      = false;
+    base_structure_valid       = false;
+    base_body_ma_valid         = false;
     grid_initialized           = false;
     grid_base_distance_points  = 0.0;
     grid_initial_indicator_distance_points = 0.0;
@@ -195,31 +206,16 @@ struct SignalParams
     raw_profit                 = signal_params.raw_profit;
     entry_time                 = signal_params.entry_time;
     close_time                 = signal_params.close_time;
-
-    int bands_total = ArraySize(signal_params.bands_percent_data);
-    ArrayResize(bands_percent_data, bands_total);
-    for(int i = 0; i < bands_total; i++)
-      bands_percent_data[i] = signal_params.bands_percent_data[i];
-
-    int alligator_total = ArraySize(signal_params.alligator_data);
-    ArrayResize(alligator_data, alligator_total);
-    for(int j = 0; j < alligator_total; j++)
-      alligator_data[j] = signal_params.alligator_data[j];
-
-    int stoch_total = ArraySize(signal_params.stochastic_data);
-    ArrayResize(stochastic_data, stoch_total);
-    for(int j = 0; j < stoch_total; j++)
-      stochastic_data[j] = signal_params.stochastic_data[j];
-
-    int body_total = ArraySize(signal_params.body_ma_data);
-    ArrayResize(body_ma_data, body_total);
-    for(int k = 0; k < body_total; k++)
-      body_ma_data[k] = signal_params.body_ma_data[k];
-
-    int stoch_struct_total = ArraySize(signal_params.stoch_market_structure_data);
-    ArrayResize(stoch_market_structure_data, stoch_struct_total);
-    for(int m = 0; m < stoch_struct_total; m++)
-      stoch_market_structure_data[m] = signal_params.stoch_market_structure_data[m];
+    base_bpercent_valid        = signal_params.base_bpercent_valid;
+    base_bpercent_data         = signal_params.base_bpercent_data;
+    base_alligator_valid       = signal_params.base_alligator_valid;
+    base_alligator_data        = signal_params.base_alligator_data;
+    base_stochastic_valid      = signal_params.base_stochastic_valid;
+    base_stochastic_data       = signal_params.base_stochastic_data;
+    base_structure_valid       = signal_params.base_structure_valid;
+    base_structure_data        = signal_params.base_structure_data;
+    base_body_ma_valid         = signal_params.base_body_ma_valid;
+    base_body_ma_data          = signal_params.base_body_ma_data;
 
     grid_initialized            = signal_params.grid_initialized;
     grid_base_distance_points   = signal_params.grid_base_distance_points;
@@ -271,7 +267,6 @@ struct SignalParams
     session_stochastic_valid    = signal_params.session_stochastic_valid;
     session_structure_valid     = signal_params.session_structure_valid;
     session_structure_data      = signal_params.session_structure_data;
-
     int orders_total = ArraySize(signal_params.grid_orders);
     ArrayResize(grid_orders, orders_total);
     for(int n = 0; n < orders_total; n++)

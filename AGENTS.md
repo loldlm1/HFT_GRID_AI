@@ -142,10 +142,9 @@ if(handle == INVALID_HANDLE)
 }
 ```
 
-**Structure-aware loop safety**
+**Structure-aware guard**
 ```mql5
-int total = ArraySize(signal_params.stoch_market_structure_data);
-if(total <= 0)
+if(!snapshot.structure_valid)
   return false;
 ```
 
