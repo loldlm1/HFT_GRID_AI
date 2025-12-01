@@ -1013,7 +1013,7 @@ void LoadTrendIndicators()
                          Trend_BPercent_Slope_Filter);
   bool need_alligator = (TrendModeUsesAlligator(Strategy_Trend_Trend_Mode) ||
                          Trend_Alligator_Slope_Filter);
-  bool need_stochastic = Trend_Stochastic_Slope_Filter;
+  bool need_stochastic = Trend_Stochastic_Slope_Filter || (Strategy_Global_Stoch_Entry_Mode != STOCH_ENTRY_OFF);
 
   bool bpercent_loaded  = true;
   bool alligator_loaded = true;
@@ -1056,7 +1056,7 @@ void LoadMacroIndicators()
                           Macro_BPercent_Slope_Filter);
   bool need_alligator = (TrendModeUsesAlligator(Strategy_Macro_Trend_Mode) ||
                           Macro_Alligator_Slope_Filter);
-  bool need_stochastic = Macro_Stochastic_Slope_Filter;
+  bool need_stochastic = Macro_Stochastic_Slope_Filter || (Strategy_Global_Stoch_Entry_Mode != STOCH_ENTRY_OFF);
 
   if(!need_bpercent && !need_alligator && !need_stochastic)
   {
@@ -1107,7 +1107,7 @@ void LoadSessionIndicators()
                           Session_BPercent_Slope_Filter);
   bool need_alligator = (TrendModeUsesAlligator(Strategy_Session_Trend_Mode) ||
                           Session_Alligator_Slope_Filter);
-  bool need_stochastic = Session_Stochastic_Slope_Filter;
+  bool need_stochastic = Session_Stochastic_Slope_Filter || (Strategy_Global_Stoch_Entry_Mode != STOCH_ENTRY_OFF);
 
   if(!need_bpercent && !need_alligator && !need_stochastic)
   {
@@ -1152,7 +1152,7 @@ bool TrendFilterIndicatorsAvailable()
                          Trend_BPercent_Slope_Filter);
   bool need_alligator = (TrendModeUsesAlligator(Strategy_Trend_Trend_Mode) ||
                          Trend_Alligator_Slope_Filter);
-  bool need_stochastic = Trend_Stochastic_Slope_Filter;
+  bool need_stochastic = Trend_Stochastic_Slope_Filter || (Strategy_Global_Stoch_Entry_Mode != STOCH_ENTRY_OFF);
 
   if(need_bpercent && TrendBPercentIndicatorHandle.indicator_handle == INVALID_HANDLE)
     return false;
@@ -1181,7 +1181,7 @@ bool MacroFilterIndicatorsAvailable()
                          Macro_BPercent_Slope_Filter);
   bool need_alligator = (TrendModeUsesAlligator(Strategy_Macro_Trend_Mode) ||
                          Macro_Alligator_Slope_Filter);
-  bool need_stochastic = Macro_Stochastic_Slope_Filter;
+  bool need_stochastic = Macro_Stochastic_Slope_Filter || (Strategy_Global_Stoch_Entry_Mode != STOCH_ENTRY_OFF);
 
   if(need_bpercent && MacroBPercentIndicatorHandle.indicator_handle == INVALID_HANDLE)
     return false;
@@ -1210,7 +1210,7 @@ bool SessionFilterIndicatorsAvailable()
                          Session_BPercent_Slope_Filter);
   bool need_alligator = (TrendModeUsesAlligator(Strategy_Session_Trend_Mode) ||
                          Session_Alligator_Slope_Filter);
-  bool need_stochastic = Session_Stochastic_Slope_Filter;
+  bool need_stochastic = Session_Stochastic_Slope_Filter || (Strategy_Global_Stoch_Entry_Mode != STOCH_ENTRY_OFF);
 
   if(need_bpercent && SessionBPercentIndicatorHandle.indicator_handle == INVALID_HANDLE)
     return false;
