@@ -73,17 +73,6 @@ struct SignalParams
   datetime                  entry_time;
   datetime                  close_time;
 
-  bool                      base_bpercent_valid;
-  BandsPercentStructure     base_bpercent_data;
-  bool                      base_alligator_valid;
-  AlligatorStructure        base_alligator_data;
-  bool                      base_stochastic_valid;
-  StochasticStructure       base_stochastic_data;
-  bool                      base_structure_valid;
-  StochasticMarketStructure base_structure_data;
-  bool                      base_body_ma_valid;
-  BodyMAStructure           base_body_ma_data;
-
   bool   grid_initialized;
   double grid_base_distance_points;
   double grid_initial_indicator_distance_points;
@@ -102,6 +91,17 @@ struct SignalParams
   bool   hedge_finalized;
   bool   hedge_reset_done;
   datetime context_structure_snapshot_time;
+
+  bool                      base_bpercent_valid;
+  bool                      base_alligator_valid;
+  bool                      base_stochastic_valid;
+  bool                      base_structure_valid;
+  bool                      base_body_ma_valid;
+  BandsPercentStructure     base_bpercent_data;
+  AlligatorStructure        base_alligator_data;
+  StochasticStructure       base_stochastic_data;
+  StochasticMarketStructure base_structure_data;
+  BodyMAStructure           base_body_ma_data;
 
   bool                      trend_bpercent_valid;
   bool                      trend_alligator_valid;
