@@ -229,8 +229,7 @@ bool CaptureContextTrendOnly(const StrategyContextTypes context,
     snapshot.alligator_valid = false;
   }
 
-  bool need_stochastic = StrategyContextStochasticSlopeEnabled(context) ||
-                         (Strategy_Global_Stoch_Entry_Mode != STOCH_ENTRY_OFF);
+  bool need_stochastic = StrategyContextStochasticSlopeEnabled(context);
   if(need_stochastic)
   {
     snapshot.stochastic_valid = LoadContextStochasticSnapshot(context, snapshot.stochastic_data);
