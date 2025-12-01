@@ -45,8 +45,9 @@ input ENUM_MA_METHOD            Base_Indicator_MA_Method    = MODE_EMA;
 input StochStructurePeriodTypes Stoch_Structure_Period_Type = STOCH_STRUCTURE_PERIOD_5;
 input StrategyDirectionTypes    Strategy_Direction_Mode     = BOTH_DIRECTION;
 input ChannelIndicatorTypes     Strategy_Channel_Indicator_Type = CHANNEL_INDICATOR_BOLLINGER;
-input StrategyEntryModes        Strategy_Global_Entry_Mode  = ENTRY_MODE_MA_TREND;
-input StrategyEntryEvaluationModes Strategy_Global_Entry_Evaluation_Mode = ENTRY_EVAL_OFF;
+input IndicatorShiftTypes       Strategy_Channel_Indicator_Shift = INDICATOR_SHIFT_0;
+input StrategyEntryEvaluationModes Strategy_Global_Channel_Entry_Mode = ENTRY_MODE_MA_TREND;
+input StrategyGlobalStochEntryModes Strategy_Global_Stoch_Entry_Mode = STOCH_ENTRY_OFF;
 input SignalConcurrencyModes    Signal_Concurrency_Mode     = SINGLE_RUNNING_SIGNAL;
 input int                       Alligator_Jaws_Period       = 233;
 

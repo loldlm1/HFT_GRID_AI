@@ -4,89 +4,67 @@
 #ifndef _SERVICES_TRADING_SIGNALS_MARKET_SIGNAL_FILTERS_MQH_
 #define _SERVICES_TRADING_SIGNALS_MARKET_SIGNAL_FILTERS_MQH_
 
-bool ValidateBandsPercentWindowBias(const BandsPercentStructure &bands_data,
-                                    const SignalTypes signal_type,
-                                    double percent_threshold)
+double ResolveBandsPercentAtShift(const BandsPercentStructure &bands_data,
+                                  const int shift)
 {
-  double window_high = bands_data.bands_percent_window_high;
-  double window_low  = bands_data.bands_percent_window_low;
-
-  if(window_high == EMPTY_VALUE || window_low == EMPTY_VALUE)
-    return false;
-
-  double buffer = 30.0;
-  percent_threshold = signal_type == BULLISH ? MathAbs(percent_threshold-100) : percent_threshold;
-
-  if(signal_type == BULLISH)
+  switch(shift)
   {
-    bool discount_entry = (window_low <= percent_threshold) &&
-                          (window_low >= percent_threshold - buffer);
-    bool premium_memory = (window_high >= percent_threshold);
-    return discount_entry && premium_memory;
+    case 0: return bands_data.bands_percent_0;
+    case 1: return bands_data.bands_percent_1;
+    case 2: return bands_data.bands_percent_2;
+    case 3: return bands_data.bands_percent_3;
+    case 4: return bands_data.bands_percent_4;
+    case 5: return bands_data.bands_percent_5;
   }
-  else if(signal_type == BEARISH)
-  {
-    bool premium_entry = (window_high >= percent_threshold) &&
-                         (window_high <= percent_threshold + buffer);
-    bool discount_memory = (window_low <= percent_threshold);
-    return premium_entry && discount_memory;
-  }
-
-  return false;
-}
-
-bool ValidateBandsPercentMeanRejection(const BandsPercentStructure &bands_data,
-                                       const SignalTypes signal_type,
-                                       double percent_threshold)
-{
-  double percent_1 = bands_data.bands_percent_1;
-  double percent_2 = bands_data.bands_percent_2;
-
-  if(percent_1 == EMPTY_VALUE || percent_2 == EMPTY_VALUE)
-    return false;
-
-  double tolerance = 50.0;
-  percent_threshold = signal_type == BULLISH ? MathAbs(percent_threshold-100) : percent_threshold;
-
-  if(signal_type == BULLISH)
-  {
-    bool dipped_discount = (percent_2 <= percent_threshold);
-    bool recovered_zone  = (percent_1 > percent_threshold) &&
-                           (percent_1 < percent_threshold + tolerance);
-    return dipped_discount && recovered_zone;
-  }
-  else if(signal_type == BEARISH)
-  {
-    bool spiked_premium = (percent_2 >= percent_threshold);
-    bool rolled_zone    = (percent_1 < percent_threshold) &&
-                          (percent_1 > percent_threshold - tolerance);
-    return spiked_premium && rolled_zone;
-  }
-
-  return false;
+  return EMPTY_VALUE;
 }
 
 bool EvaluateBandsPercentTrigger(const BandsPercentStructure &bands_data,
                                  const SignalTypes signal_type,
-                                 const double percent_threshold,
+                                 double percent_threshold,
                                  const StrategyEntryEvaluationModes entry_mode,
                                  const SlopeTypes slope_filter)
 {
   if(!EntryEvaluationUsesAnyBPercent(entry_mode))
     return true;
 
-  bool window_required = EntryEvaluationUsesBPercentWindow(entry_mode);
-  bool mean_required   = EntryEvaluationUsesBPercentMean(entry_mode);
+  // Select shifted samples
+  int shift_current = (int)Strategy_Channel_Indicator_Shift;
+  int shift_prev = shift_current + 1;
+  if(shift_prev > 5)
+    shift_prev = 5;
 
-  bool window_ok = true;
-  bool mean_ok   = true;
+  double percent_1 = ResolveBandsPercentAtShift(bands_data, shift_current);
+  double percent_2 = ResolveBandsPercentAtShift(bands_data, shift_prev);
+  if(percent_1 == EMPTY_VALUE || percent_2 == EMPTY_VALUE)
+    return false;
 
-  if(window_required)
-    window_ok = ValidateBandsPercentWindowBias(bands_data, signal_type, percent_threshold);
-  if(mean_required)
-    mean_ok = ValidateBandsPercentMeanRejection(bands_data, signal_type, percent_threshold);
+  percent_threshold = (signal_type == BULLISH)
+                        ? MathAbs(percent_threshold - 100)
+                        : percent_threshold;
 
-  if(!window_ok || !mean_ok)
+  bool pass = true;
+  if(entry_mode == ENTRY_MODE_MA_TREND)
+  {
+    pass = (signal_type == BULLISH)
+             ? (percent_1 >= percent_threshold)
+             : (percent_1 <= percent_threshold);
+  }
+  else if(entry_mode == ENTRY_MODE_REVERSION)
+  {
+    pass = (signal_type == BULLISH)
+             ? (percent_1 <= percent_threshold)
+             : (percent_1 >= percent_threshold);
+  }
+  else if(entry_mode == ENTRY_MODE_BREAKOUT)
+  {
+    if(signal_type == BULLISH)
+      pass = (percent_1 >= percent_threshold) && (percent_2 < percent_threshold);
+    else if(signal_type == BEARISH)
+      pass = (percent_1 <= percent_threshold) && (percent_2 > percent_threshold);
+  }
+
+  if(!pass)
     return false;
 
   if(slope_filter == NO_SLOPE)
@@ -546,7 +524,21 @@ bool StrategyContextEvaluateEntry(const StrategyContextIndicators &snapshot,
     return true;
   }
 
-  bool enforce_fresh = StrategyContextFreshStructureEnabled(context);
+  if(Strategy_Global_Stoch_Entry_Mode != STOCH_ENTRY_OFF)
+  {
+    if(!snapshot.stochastic_valid)
+      return false;
+    double stoch_signal = snapshot.stochastic_data.stochastic_signal_1;
+    bool stoch_pass = (stoch_signal < 30.0 || stoch_signal > 70.0);
+    if(!stoch_pass)
+    {
+      entry_allows = false;
+      filters_pass = false;
+      return true;
+    }
+  }
+
+  bool enforce_fresh = StrategyContextFreshStructureEnabled(context) && structure_ctx.enabled;
   if(enforce_fresh)
   {
     if(!ValidateFreshStructureTimestamp(context,
