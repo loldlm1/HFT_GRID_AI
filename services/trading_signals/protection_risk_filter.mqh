@@ -188,7 +188,11 @@ void ProtectionRiskResetDailyLock()
   if(!g_protection_daily_lock_active)
     return;
 
-  datetime current_anchor = iTime(_Symbol, PERIOD_D1, 0);
+  ENUM_TIMEFRAMES anchor_tf = PERIOD_D1;
+  if(Protection_Risk_Mode == ENABLED_GRID_PROTECTION_WEEKLY)
+    anchor_tf = PERIOD_W1;
+
+  datetime current_anchor = iTime(_Symbol, anchor_tf, 0);
   if(current_anchor == 0)
     return;
 
@@ -345,7 +349,9 @@ bool ProtectionRiskAllowsSignalAttempt()
     return false;
   if(Protection_Risk_Mode == ENABLED_OFF)
     return true;
-  if(Protection_Risk_Mode == ENABLED_GRID_PROTECTION_DAILY && g_protection_daily_lock_active)
+  if((Protection_Risk_Mode == ENABLED_GRID_PROTECTION_DAILY ||
+      Protection_Risk_Mode == ENABLED_GRID_PROTECTION_WEEKLY) &&
+     g_protection_daily_lock_active)
     return false;
 
   return true;
