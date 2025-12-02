@@ -1,7 +1,7 @@
 # HFT Grid AI EA
 
-**Version:** 1.10  
-**Platform:** MetaTrader 5 (MQL5)  
+**Version:** 1.10
+**Platform:** MetaTrader 5 (MQL5)
 **Contact:** @loldlm · https://t.me/TradingAlgoritmicoFx
 
 ---
@@ -139,7 +139,7 @@ Refer to `services/trading_management/ea_inputs.mqh` for defaults and descriptio
 ---
 
 ## 7. Developer Notes & Conventions
-- **Code Style**: 2-space indentation, snake_case vars, CamelCase functions, ALL_CAPS enums/constants. Avoid C++11 features (no `auto`, lambdas, range-for, etc.).
+- **Code Style**: 2-space indentation, snake_case vars, CamelCase functions, ALL_CAPS enums/constants. Avoid C++11 features (no `auto`, lambdas, range-for, pointers, etc.).
 - **Error Handling**: Always check indicator handles and trade routines; call `TesterStop()` for critical tester-only failures.
 - **Data Safety**: Validate array sizes before access, clamp broker distances via `EnforceBrokerDistance()`, and normalize lot sizes with `NormalizeVolumeForSymbol()`.
 - **Testing**:
