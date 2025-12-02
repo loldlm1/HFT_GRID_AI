@@ -8,10 +8,25 @@ SignalParams running_bullish_signals[];
 SignalParams running_bearish_signals[];
 bool        g_forced_stop_triggered = false;
 
-datetime g_context_last_structure_time[4][2];
-datetime g_context_last_bar_time[4];
-bool     g_context_trend_ready[4];
-bool     g_context_trend_pass[4][2];
+struct StrategyContextRuntime
+{
+  datetime last_bar_time;
+  datetime last_structure_time[2];
+  bool     trend_ready;
+  bool     trend_pass[2];
+
+  StrategyContextRuntime()
+  {
+    last_bar_time = 0;
+    last_structure_time[0] = 0;
+    last_structure_time[1] = 0;
+    trend_ready = false;
+    trend_pass[0] = false;
+    trend_pass[1] = false;
+  }
+};
+
+StrategyContextRuntime g_context_runtime[4];
 
 const StrategyContextTypes STRATEGY_CONTEXT_EVALUATION_ORDER[] =
 {
@@ -96,6 +111,12 @@ int StrategyContextIndex(const StrategyContextTypes context)
   return (int)context;
 }
 
+StrategyContextRuntime &ContextRuntime(const StrategyContextTypes context)
+{
+  int slot = StrategyContextIndex(context);
+  return g_context_runtime[slot];
+}
+
 int StrategyContextOrderIndex(const StrategyContextTypes context)
 {
   int total = ArraySize(STRATEGY_CONTEXT_EVALUATION_ORDER);
@@ -110,18 +131,18 @@ int StrategyContextOrderIndex(const StrategyContextTypes context)
 datetime GetLastContextStructureTime(const StrategyContextTypes context,
                                      const SignalTypes direction)
 {
-  int slot = StrategyContextIndex(context);
+  StrategyContextRuntime &runtime = ContextRuntime(context);
   int dir_idx = DirectionIndex(direction);
-  return g_context_last_structure_time[slot][dir_idx];
+  return runtime.last_structure_time[dir_idx];
 }
 
 void SetLastContextStructureTime(const StrategyContextTypes context,
                                  const SignalTypes direction,
                                  const datetime value)
 {
-  int slot = StrategyContextIndex(context);
+  StrategyContextRuntime &runtime = ContextRuntime(context);
   int dir_idx = DirectionIndex(direction);
-  g_context_last_structure_time[slot][dir_idx] = value;
+  runtime.last_structure_time[dir_idx] = value;
 }
 
 bool ContextTrendSatisfied(const StrategyContextTypes context,
@@ -134,19 +155,19 @@ bool ContextTrendSatisfied(const StrategyContextTypes context,
   if(!TrendModeUsesAlligator(trend_mode))
     return true;
 
-  int slot = StrategyContextIndex(context);
-  if(!g_context_trend_ready[slot])
+  StrategyContextRuntime &runtime = ContextRuntime(context);
+  if(!runtime.trend_ready)
     return false;
 
-  return g_context_trend_pass[slot][DirectionIndex(direction)];
+  return runtime.trend_pass[DirectionIndex(direction)];
 }
 
 void ResetContextTrendState(const StrategyContextTypes context)
 {
-  int slot = StrategyContextIndex(context);
-  g_context_trend_ready[slot] = false;
-  g_context_trend_pass[slot][0] = false;
-  g_context_trend_pass[slot][1] = false;
+  StrategyContextRuntime &runtime = ContextRuntime(context);
+  runtime.trend_ready = false;
+  runtime.trend_pass[0] = false;
+  runtime.trend_pass[1] = false;
 }
 
 void UpdateContextTrendState(const StrategyContextTypes context,
@@ -154,9 +175,9 @@ void UpdateContextTrendState(const StrategyContextTypes context,
                              const bool ready,
                              const bool trend_pass)
 {
-  int slot = StrategyContextIndex(context);
-  g_context_trend_ready[slot] = ready || g_context_trend_ready[slot];
-  g_context_trend_pass[slot][DirectionIndex(direction)] = trend_pass;
+  StrategyContextRuntime &runtime = ContextRuntime(context);
+  runtime.trend_ready = ready || runtime.trend_ready;
+  runtime.trend_pass[DirectionIndex(direction)] = trend_pass;
 }
 
 bool StrategyCascadeAllowsSignal(const StrategyContextTypes context,
