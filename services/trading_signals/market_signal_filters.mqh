@@ -13,7 +13,10 @@ double ResolveBandsPercentAtShift(const BandsPercentStructure &bands_data,
     case 1: return bands_data.bands_percent_2;
     case 2: return bands_data.bands_percent_3;
     case 3: return bands_data.bands_percent_4;
+    case 4: return bands_data.bands_percent_5;
     case 5: return bands_data.bands_percent_6;
+    case 6: return bands_data.bands_percent_7;
+    case 7: return bands_data.bands_percent_8;
   }
   return EMPTY_VALUE;
 }
@@ -27,7 +30,10 @@ double ResolveBandsPercentMaAtShift(const BandsPercentStructure &bands_data,
     case 1: return bands_data.bands_percent_ma_2;
     case 2: return bands_data.bands_percent_ma_3;
     case 3: return bands_data.bands_percent_ma_4;
+    case 4: return bands_data.bands_percent_ma_5;
     case 5: return bands_data.bands_percent_ma_6;
+    case 6: return bands_data.bands_percent_ma_7;
+    case 7: return bands_data.bands_percent_ma_8;
   }
   return EMPTY_VALUE;
 }
@@ -44,8 +50,6 @@ bool EvaluateBandsPercentTrigger(const BandsPercentStructure &bands_data,
   // Select shifted samples
   int shift_current = (int)Strategy_Channel_Indicator_Shift;
   int shift_prev = shift_current + 1;
-  if(shift_prev > 5)
-    shift_prev = 5;
 
   double percent_1 = ResolveBandsPercentAtShift(bands_data, shift_current);
   double percent_2 = ResolveBandsPercentAtShift(bands_data, shift_prev);
