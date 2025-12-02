@@ -108,6 +108,8 @@ void EvaluateContextSignals(const StrategyContextTypes context)
   if(context != CONTEXT_SLOT_BASE && !StrategyContextEnabled(context))
     return;
 
+  StrategyContextRuntime &runtime = ContextRuntime(context);
+
   StrategyContextIndicators snapshot;
   snapshot.context   = context;
   snapshot.timeframe = StrategyContextTimeframe(context);
@@ -115,8 +117,7 @@ void EvaluateContextSignals(const StrategyContextTypes context)
   if(snapshot.bar_time <= 0)
     return;
 
-  int slot = StrategyContextIndex(context);
-  if(g_context_last_bar_time[slot] == snapshot.bar_time)
+  if(runtime.last_bar_time == snapshot.bar_time)
     return;
 
   if(!CaptureContextIndicators(context, snapshot))
@@ -125,7 +126,7 @@ void EvaluateContextSignals(const StrategyContextTypes context)
     return;
   }
 
-  g_context_last_bar_time[slot] = snapshot.bar_time;
+  runtime.last_bar_time = snapshot.bar_time;
 
   bool channel_state = StrategyContextChannelMaFilterAllowsSignal(context, snapshot);
 
