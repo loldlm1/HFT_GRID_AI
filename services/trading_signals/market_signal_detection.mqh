@@ -108,7 +108,7 @@ void EvaluateContextSignals(const StrategyContextTypes context)
   if(context != CONTEXT_SLOT_BASE && !StrategyContextEnabled(context))
     return;
 
-  StrategyContextRuntime &runtime = ContextRuntime(context);
+  int runtime_slot = StrategyContextIndex(context);
 
   StrategyContextIndicators snapshot;
   snapshot.context   = context;
@@ -117,7 +117,7 @@ void EvaluateContextSignals(const StrategyContextTypes context)
   if(snapshot.bar_time <= 0)
     return;
 
-  if(runtime.last_bar_time == snapshot.bar_time)
+  if(g_context_runtime[runtime_slot].last_bar_time == snapshot.bar_time)
     return;
 
   if(!CaptureContextIndicators(context, snapshot))
@@ -126,7 +126,7 @@ void EvaluateContextSignals(const StrategyContextTypes context)
     return;
   }
 
-  runtime.last_bar_time = snapshot.bar_time;
+  g_context_runtime[runtime_slot].last_bar_time = snapshot.bar_time;
 
   bool channel_state = StrategyContextChannelMaFilterAllowsSignal(context, snapshot);
 
