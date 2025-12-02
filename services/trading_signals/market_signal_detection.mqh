@@ -81,10 +81,7 @@ void RefreshUpstreamTrendsOnBaseBar()
 
     StrategyContextIndicators trend_snapshot;
     if(!CaptureContextTrendOnly(ctx, trend_snapshot))
-    {
-      ResetContextTrendState(ctx);
       continue;
-    }
 
     SignalTypes directions[2] = {BULLISH, BEARISH};
     for(int d = 0; d < 2; d++)
@@ -95,10 +92,7 @@ void RefreshUpstreamTrendsOnBaseBar()
       bool ready = false;
       bool pass = false;
       if(!StrategyContextEvaluateTrend(trend_snapshot, dir, ready, pass))
-      {
-        ResetContextTrendState(ctx);
         continue;
-      }
       if(ready)
         UpdateContextTrendState(ctx, dir, true, pass);
     }
@@ -125,10 +119,7 @@ void EvaluateContextSignals(const StrategyContextTypes context)
   ResetContextTrendState(context);
 
   if(!CaptureContextIndicators(context, snapshot))
-  {
-    ResetContextTrendState(context);
     return;
-  }
 
   g_context_runtime[runtime_slot].last_bar_time = snapshot.bar_time;
 
@@ -144,10 +135,7 @@ void EvaluateContextSignals(const StrategyContextTypes context)
     bool trend_ready = false;
     bool trend_pass  = false;
     if(!StrategyContextEvaluateTrend(snapshot, direction, trend_ready, trend_pass))
-    {
-      ResetContextTrendState(context);
       return;
-    }
 
     datetime structure_time = 0;
     bool entry_allows = false;
@@ -157,10 +145,7 @@ void EvaluateContextSignals(const StrategyContextTypes context)
                                      structure_time,
                                      entry_allows,
                                      filters_pass))
-    {
-      ResetContextTrendState(context);
       return;
-    }
 
     bool cascade_pass = trend_pass && channel_state && filters_pass;
     if(trend_ready)
