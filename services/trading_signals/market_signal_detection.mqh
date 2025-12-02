@@ -73,6 +73,8 @@ void RefreshUpstreamTrendsOnBaseBar()
     if(!StrategyContextEnabled(ctx))
       continue;
 
+    ResetContextTrendState(ctx);
+
     StrategyTrendModes trend_mode = StrategyContextTrendMode(ctx);
     if(!TrendModeUsesAlligator(trend_mode))
       continue;
@@ -119,6 +121,8 @@ void EvaluateContextSignals(const StrategyContextTypes context)
 
   if(g_context_runtime[runtime_slot].last_bar_time == snapshot.bar_time)
     return;
+
+  ResetContextTrendState(context);
 
   if(!CaptureContextIndicators(context, snapshot))
   {
