@@ -269,7 +269,8 @@ enum ProtectionRiskModes
 {
   ENABLED_OFF                 = 0,
   ENABLED_GRID_PROTECTION     = 1,
-  ENABLED_GRID_PROTECTION_DAILY = 2
+  ENABLED_GRID_PROTECTION_DAILY = 2,
+  ENABLED_GRID_PROTECTION_WEEKLY = 3
 };
 
 enum ProtectionRiskValueTypes

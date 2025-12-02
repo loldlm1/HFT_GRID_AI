@@ -331,6 +331,11 @@ void ProtectionRiskFilterTick()
     g_protection_daily_lock_active = true;
     g_protection_daily_lock_anchor = iTime(_Symbol, PERIOD_D1, 0);
   }
+  if(Protection_Risk_Mode == ENABLED_GRID_PROTECTION_WEEKLY)
+  {
+    g_protection_daily_lock_active = true;
+    g_protection_daily_lock_anchor = iTime(_Symbol, PERIOD_W1, 0);
+  }
 }
 
 bool ProtectionRiskAllowsSignalAttempt()
