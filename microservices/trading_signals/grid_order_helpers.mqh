@@ -914,6 +914,14 @@ bool GridSignalChannelGuardSatisfied(const SignalParams &signal_params,
 double ResolveStochStructureDistancePoints(const SignalParams &signal_params,
                                             const double entry_reference_price)
 {
+  if(signal_params.grid_initialized &&
+     ArraySize(signal_params.grid_orders) > 0 &&
+     signal_params.grid_base_distance_points > 0.0)
+  {
+    return EnforceBrokerDistance(g_symbol_constraints,
+                                 signal_params.grid_base_distance_points);
+  }
+
   double structure_price = 0.0;
   datetime structure_time = 0;
   bool structure_valid = false;
