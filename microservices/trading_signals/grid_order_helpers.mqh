@@ -954,14 +954,14 @@ double ResolveStochStructureDistancePoints(const SignalParams &signal_params,
     for(int i = 1; i < 4; i++)
     {
       if(signal_params.signal_type == BULLISH &&
-         (types[i] == OSCILLATOR_STRUCTURE_LL || types[i] == OSCILLATOR_STRUCTURE_HL) &&
+         (types[i] == OSCILLATOR_STRUCTURE_LL || types[i] == OSCILLATOR_STRUCTURE_LH) &&
          prices[i] > 0.0)
       {
         structure_price = prices[i];
         break;
       }
       if(signal_params.signal_type == BEARISH &&
-         (types[i] == OSCILLATOR_STRUCTURE_HH || types[i] == OSCILLATOR_STRUCTURE_LH) &&
+         (types[i] == OSCILLATOR_STRUCTURE_HH || types[i] == OSCILLATOR_STRUCTURE_HL) &&
          prices[i] > 0.0)
       {
         structure_price = prices[i];
@@ -971,13 +971,13 @@ double ResolveStochStructureDistancePoints(const SignalParams &signal_params,
     if(structure_price <= 0.0)
     {
       if(signal_params.signal_type == BULLISH &&
-         (types[0] == OSCILLATOR_STRUCTURE_LL || types[0] == OSCILLATOR_STRUCTURE_HL) &&
+         (types[0] == OSCILLATOR_STRUCTURE_LL || types[0] == OSCILLATOR_STRUCTURE_LH) &&
          prices[0] > 0.0)
       {
         structure_price = prices[0];
       }
       else if(signal_params.signal_type == BEARISH &&
-              (types[0] == OSCILLATOR_STRUCTURE_HH || types[0] == OSCILLATOR_STRUCTURE_LH) &&
+              (types[0] == OSCILLATOR_STRUCTURE_HH || types[0] == OSCILLATOR_STRUCTURE_HL) &&
               prices[0] > 0.0)
       {
         structure_price = prices[0];
