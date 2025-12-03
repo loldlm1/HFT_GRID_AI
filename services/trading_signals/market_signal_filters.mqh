@@ -458,10 +458,28 @@ bool StrategyContextEvaluateTrend(const StrategyContextIndicators &snapshot,
       return true;
   }
 
+  bool stoch_entry_required = (Strategy_Global_Stoch_Entry_Mode != STOCH_ENTRY_OFF &&
+                               context == CONTEXT_SLOT_TREND);
+  bool stoch_entry_pass = true;
+  if(stoch_entry_required)
+  {
+    if(!snapshot.stochastic_valid)
+      return false;
+    double stoch_signal = snapshot.stochastic_data.stochastic_signal_1;
+    stoch_entry_pass = (direction == BULLISH) ? (stoch_signal < 30.0)
+                                              : (stoch_signal > 70.0);
+    if(!stoch_entry_pass)
+    {
+      trend_ready = true;
+      trend_pass  = false;
+      return true;
+    }
+  }
+
   if(!TrendModeUsesAlligator(trend_mode))
   {
     trend_ready = true;
-    trend_pass  = true;
+    trend_pass  = stoch_entry_pass;
     return true;
   }
 
@@ -475,7 +493,8 @@ bool StrategyContextEvaluateTrend(const StrategyContextIndicators &snapshot,
     return false;
 
   trend_ready = true;
-  trend_pass  = EvaluateAlligatorTrend(snapshot.alligator_data,
+  trend_pass  = stoch_entry_pass &&
+                EvaluateAlligatorTrend(snapshot.alligator_data,
                                        direction,
                                        trend_mode);
   return true;
