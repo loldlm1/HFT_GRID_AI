@@ -259,10 +259,15 @@ bool TrendStructureFilterMatches(const TrendStructureFilterModes filter_mode,
   if(filter_mode == BULLISH_STRUCT_OFF || filter_mode == BEARISH_STRUCT_OFF)
     return true;
 
-  if(signal_type == BULLISH && !latest_extremum.is_peak && structure_type == OSCILLATOR_STRUCTURE_EQ)
-    return true;
-  if(signal_type == BEARISH && latest_extremum.is_peak  && structure_type == OSCILLATOR_STRUCTURE_EQ)
-    return true;
+  bool skip_eq_allowance = (filter_mode == BULLISH_STRUCT_HH_LH ||
+                            filter_mode == BEARISH_STRUCT_LL_HL);
+  if(!skip_eq_allowance)
+  {
+    if(signal_type == BULLISH && !latest_extremum.is_peak && structure_type == OSCILLATOR_STRUCTURE_EQ)
+      return true;
+    if(signal_type == BEARISH && latest_extremum.is_peak  && structure_type == OSCILLATOR_STRUCTURE_EQ)
+      return true;
+  }
 
   bool struct_match = true;
   switch(filter_mode)
@@ -315,16 +320,19 @@ bool TrendStructureFilterMatches(const TrendStructureFilterModes filter_mode,
     (filter_mode == BEARISH_STRUCT_HH_HL) ||
     (filter_mode == BEARISH_STRUCT_LL_HL);
 
-  if(filter_is_bullish && signal_type == BULLISH)
+  if(!skip_eq_allowance)
   {
-    if(latest_extremum.is_peak)
-      return false;
-  }
+    if(filter_is_bullish && signal_type == BULLISH)
+    {
+      if(latest_extremum.is_peak)
+        return false;
+    }
 
-  if(filter_is_bearish && signal_type == BEARISH)
-  {
-    if(!latest_extremum.is_peak)
-      return false;
+    if(filter_is_bearish && signal_type == BEARISH)
+    {
+      if(!latest_extremum.is_peak)
+        return false;
+    }
   }
 
   return true;
