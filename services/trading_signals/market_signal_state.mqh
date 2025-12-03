@@ -97,8 +97,13 @@ int DirectionIndex(const SignalTypes direction)
 
 bool DirectionAllowed(const SignalTypes direction)
 {
-  // Aggressive preset locks the bot to sells only.
-  return (direction == BEARISH);
+  if(Strategy_Direction_Mode == BOTH_DIRECTION)
+    return true;
+  if(Strategy_Direction_Mode == BULLISH_DIRECTION)
+    return (direction == BULLISH);
+  if(Strategy_Direction_Mode == BEARISH_DIRECTION)
+    return (direction == BEARISH);
+  return true;
 }
 
 int StrategyContextIndex(const StrategyContextTypes context)

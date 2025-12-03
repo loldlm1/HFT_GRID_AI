@@ -37,13 +37,13 @@ input string                 Session_NewYork_Filter_Time_Range = "12:00-20:00";
 
 input group  "+= Strategy Context =+";
 input ENUM_TIMEFRAMES           Strategy_Timeframe          = PERIOD_M1;
- ENUM_TIMEFRAMES           Trend_Strategy_Timeframe    = PERIOD_CURRENT;
+input ENUM_TIMEFRAMES           Trend_Strategy_Timeframe    = PERIOD_CURRENT;
  ENUM_TIMEFRAMES           Macro_Strategy_Timeframe    = PERIOD_CURRENT;
  ENUM_TIMEFRAMES           Session_Strategy_Timeframe  = PERIOD_CURRENT;
  BaseIndicatorPeriodTypes  Base_Indicator_Period_Type  = BASE_PERIOD_5;
  ENUM_MA_METHOD            Base_Indicator_MA_Method    = MODE_EMA;
  StochStructurePeriodTypes Stoch_Structure_Period_Type = STOCH_STRUCTURE_PERIOD_3;
-input StrategyDirectionTypes    Strategy_Direction_Mode     = BEARISH_DIRECTION;
+input StrategyDirectionTypes    Strategy_Direction_Mode     = BOTH_DIRECTION;
  ChannelIndicatorTypes     Strategy_Channel_Indicator_Type = CHANNEL_INDICATOR_BOLLINGER;
  IndicatorShiftTypes       Strategy_Channel_Indicator_Shift = INDICATOR_SHIFT_0;
  StrategyEntryChannelModes Strategy_Global_Channel_Entry_Mode = ENTRY_EVAL_OFF;
@@ -155,7 +155,7 @@ input double               Grid_Lot_Multiplier           = 2.0;
  DailySignalLimitModes Daily_Signal_Limit_Mode      = STOP_DAILY_SIGNALS;
 
 //input group  "+= Grid Trend Risk Strategy =+";
- input GridRiskTrendModes   Grid_Risk_Trend_Mode          = GRID_RM_TREND_HEDGE;
+ GridRiskTrendModes   Grid_Risk_Trend_Mode          = GRID_RM_TREND_OFF;
  GridRiskAlligatorReferenceModes Grid_Risk_Alligator_Reference = GRID_RISK_REF_JAWS;
  GridRiskTrendTimeframeSources   Grid_Risk_Timeframe_Source    = GRID_RISK_TF_TREND;
  ENUM_TIMEFRAMES      Grid_Risk_Trend_Timeframe     = PERIOD_CURRENT;
