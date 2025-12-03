@@ -915,6 +915,7 @@ double ResolveStochStructureDistancePoints(const SignalParams &signal_params,
                                             const double entry_reference_price)
 {
   double structure_price = 0.0;
+  datetime structure_time = 0;
   bool structure_valid = false;
   StochasticMarketStructure stoch;
 
@@ -949,42 +950,31 @@ double ResolveStochStructureDistancePoints(const SignalParams &signal_params,
                         stoch.second_structure_price,
                         stoch.third_structure_price,
                         stoch.fourth_structure_price};
+    datetime times[4] = {stoch.first_structure_time,
+                        stoch.second_structure_time,
+                        stoch.third_structure_time,
+                        stoch.fourth_structure_time};
 
     // Prefer the latest prior swing (skip current index 0), then fall back to current.
     for(int i = 1; i < 4; i++)
     {
       if(signal_params.signal_type == BULLISH &&
          (types[i] == OSCILLATOR_STRUCTURE_LL || types[i] == OSCILLATOR_STRUCTURE_LH) &&
-         prices[i] > 0.0)
+         prices[i] > 0.0 && prices[i] < g_ask)
       {
         structure_price = prices[i];
+        structure_time = times[i];
         break;
       }
       if(signal_params.signal_type == BEARISH &&
          (types[i] == OSCILLATOR_STRUCTURE_HH || types[i] == OSCILLATOR_STRUCTURE_HL) &&
-         prices[i] > 0.0)
+         prices[i] > 0.0 && prices[i] > g_bid)
       {
         structure_price = prices[i];
+        structure_time = times[i];
         break;
       }
     }
-    if(structure_price <= 0.0)
-    {
-      if(signal_params.signal_type == BULLISH &&
-         (types[0] == OSCILLATOR_STRUCTURE_LL || types[0] == OSCILLATOR_STRUCTURE_LH) &&
-         prices[0] > 0.0)
-      {
-        structure_price = prices[0];
-      }
-      else if(signal_params.signal_type == BEARISH &&
-              (types[0] == OSCILLATOR_STRUCTURE_HH || types[0] == OSCILLATOR_STRUCTURE_HL) &&
-              prices[0] > 0.0)
-      {
-        structure_price = prices[0];
-      }
-    }
-    if(structure_price <= 0.0)
-      structure_price = stoch.first_structure_price;
   }
 
   if(structure_price <= 0.0)
