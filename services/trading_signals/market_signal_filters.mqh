@@ -492,11 +492,16 @@ bool StrategyContextEvaluateEntry(const StrategyContextIndicators &snapshot,
   filters_pass = true;
 
   StrategyContextTypes context = snapshot.context;
+  StrategyEntryChannelModes requested_entry_mode = StrategyContextEntryConfig(context);
   StrategyEntryChannelModes entry_mode = StrategyContextEntryEvaluation(context);
   bool entry_mode_disabled = (entry_mode == ENTRY_EVAL_OFF);
   bool entry_on_trend = (entry_mode == ENTRY_EVAL_ON_TREND);
+  bool entry_mode_disabled_by_global = (requested_entry_mode == ENTRY_EVAL_GLOBAL &&
+                                        Strategy_Global_Channel_Entry_Mode == ENTRY_EVAL_OFF);
   StrategyTrendModes trend_mode = StrategyContextTrendMode(context);
   double percent_threshold = StrategyContextIndicatorPercent(context);
+  bool stoch_entry_required = (Strategy_Global_Stoch_Entry_Mode != STOCH_ENTRY_OFF);
+  bool stoch_entry_pass = true;
 
   if(StrategyContextBPercentSlopeEnabled(context))
   {
@@ -585,14 +590,14 @@ bool StrategyContextEvaluateEntry(const StrategyContextIndicators &snapshot,
     return true;
   }
 
-  if(Strategy_Global_Stoch_Entry_Mode != STOCH_ENTRY_OFF)
+  if(stoch_entry_required)
   {
     if(!snapshot.stochastic_valid)
       return false;
     double stoch_signal = snapshot.stochastic_data.stochastic_signal_1;
-    bool stoch_pass = (direction == BULLISH) ? (stoch_signal < 30.0)
-                                             : (stoch_signal > 70.0);
-    if(!stoch_pass)
+    stoch_entry_pass = (direction == BULLISH) ? (stoch_signal < 30.0)
+                                              : (stoch_signal > 70.0);
+    if(!stoch_entry_pass)
     {
       entry_allows = false;
       filters_pass = false;
@@ -619,7 +624,7 @@ bool StrategyContextEvaluateEntry(const StrategyContextIndicators &snapshot,
 
   if(entry_mode_disabled)
   {
-    entry_allows = false;
+    entry_allows = stoch_entry_required && stoch_entry_pass && entry_mode_disabled_by_global;
     return true;
   }
 

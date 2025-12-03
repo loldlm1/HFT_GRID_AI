@@ -257,11 +257,11 @@ inline int ResolveStochStructurePeriod()
 {
   int period = (int)Stoch_Structure_Period_Type;
   if(period <= 0)
-    period = 5;
+    period = 3;
   return period;
 }
 
-inline StrategyEntryChannelModes StrategyContextEntryEvaluation(const StrategyContextTypes context)
+inline StrategyEntryChannelModes StrategyContextEntryConfig(const StrategyContextTypes context)
 {
   StrategyEntryChannelModes context_mode = ENTRY_EVAL_OFF;
   switch(context)
@@ -279,6 +279,12 @@ inline StrategyEntryChannelModes StrategyContextEntryEvaluation(const StrategyCo
       context_mode = Strategy_Session_Entry_Evaluation;
       break;
   }
+  return context_mode;
+}
+
+inline StrategyEntryChannelModes StrategyContextEntryEvaluation(const StrategyContextTypes context)
+{
+  StrategyEntryChannelModes context_mode = StrategyContextEntryConfig(context);
 
   if(context_mode == ENTRY_EVAL_OFF)
     return ENTRY_EVAL_OFF;
@@ -323,13 +329,15 @@ inline double StrategyContextIndicatorPercent(const StrategyContextTypes context
 
 inline StrategyEntryChannelModes ResolveGlobalEntryTriggerMode()
 {
+  if(Strategy_Global_Channel_Entry_Mode == ENTRY_EVAL_OFF)
+    return ENTRY_EVAL_OFF;
   switch(Strategy_Global_Channel_Entry_Mode)
   {
     case ENTRY_MODE_BREAKOUT:  return ENTRY_MODE_BREAKOUT;
     case ENTRY_MODE_REVERSION: return ENTRY_MODE_REVERSION;
     case ENTRY_MODE_MA_TREND:
     default:
-      return ENTRY_MODE_MA_TREND;
+      return Strategy_Global_Channel_Entry_Mode;
   }
 }
 
