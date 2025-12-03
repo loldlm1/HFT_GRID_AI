@@ -360,14 +360,12 @@ enum TrendStructureFilterModes
   BULLISH_STRUCT_LL_LH     = 1,
   BULLISH_STRUCT_LL        = 2,
   BULLISH_STRUCT_LH        = 3,
-  BULLISH_STRUCT_OFF_FINAL = 4,
   BULLISH_STRUCT_HH_LH     = 5,
   BEARISH_STRUCT_OFF       = 6,
   BEARISH_STRUCT_HH_HL     = 7,
   BEARISH_STRUCT_HH        = 8,
   BEARISH_STRUCT_HL        = 9,
-  BEARISH_STRUCT_LL_HL     = 10,
-  BEARISH_STRUCT_OFF_FINAL = 11
+  BEARISH_STRUCT_LL_HL     = 10
 };
 
 enum MarketStatusTypes

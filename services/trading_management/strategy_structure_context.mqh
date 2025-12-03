@@ -23,9 +23,7 @@ struct StrategyStructureLayerContext
 inline bool StructureFilterIsEnabled(const TrendStructureFilterModes mode)
 {
   return !(mode == BULLISH_STRUCT_OFF ||
-           mode == BULLISH_STRUCT_OFF_FINAL ||
-           mode == BEARISH_STRUCT_OFF ||
-           mode == BEARISH_STRUCT_OFF_FINAL);
+           mode == BEARISH_STRUCT_OFF);
 }
 
 inline StrategyStructureLayerContext BuildBaseStructureLayerContext()
