@@ -1,6 +1,105 @@
 #ifndef _SERVICES_TRADING_SIGNALS_GRID_ORDER_CONTROLLER_MQH_
 #define _SERVICES_TRADING_SIGNALS_GRID_ORDER_CONTROLLER_MQH_
 
+bool StochSarFeatureEnabled()
+{
+  return (Trend_Strategy_Timeframe != PERIOD_CURRENT);
+}
+
+bool LoadBaseAndTrendStoch(StochasticStructure &base_stoch,
+                           StochasticStructure &trend_stoch)
+{
+  if(!LoadContextStochasticSnapshot(CONTEXT_SLOT_BASE, base_stoch))
+    return false;
+  if(!LoadContextStochasticSnapshot(CONTEXT_SLOT_TREND, trend_stoch))
+    return false;
+  return true;
+}
+
+void EvaluateStochSarConditions(SignalParams &signal_params)
+{
+  if(signal_params.signal_state == CLOSED)
+    return;
+  if(!StochSarFeatureEnabled())
+  {
+    signal_params.stoch_sar_restart_pending = false;
+    signal_params.stoch_sar_flip_pending = false;
+    return;
+  }
+
+  StochasticStructure base_stoch;
+  StochasticStructure trend_stoch;
+  if(!LoadBaseAndTrendStoch(base_stoch, trend_stoch))
+    return;
+
+  double trend_main_0 = trend_stoch.stochastic_0;
+  double trend_main_1 = trend_stoch.stochastic_1;
+  double trend_sig_0  = trend_stoch.stochastic_signal_0;
+  double trend_sig_1  = trend_stoch.stochastic_signal_1;
+
+  bool restart = false;
+  bool flip    = false;
+
+  if(signal_params.signal_type == BULLISH)
+  {
+    //restart = (trend_main_0 < trend_sig_0);
+    flip    = (trend_main_1 < trend_sig_1);
+  }
+  else if(signal_params.signal_type == BEARISH)
+  {
+    //restart = (trend_main_0 > trend_sig_0);
+    flip    = (trend_main_1 > trend_sig_1);
+  }
+
+  signal_params.stoch_sar_restart_pending = restart || signal_params.stoch_sar_restart_pending;
+  signal_params.stoch_sar_flip_pending    = flip    || signal_params.stoch_sar_flip_pending;
+}
+
+bool HandleStochSarFlip(SignalParams &signal_params,
+                        const double point_size)
+{
+  if(!signal_params.stoch_sar_flip_pending)
+    return false;
+
+  SignalTypes opposite_dir = (signal_params.signal_type == BULLISH) ? BEARISH : BULLISH;
+  double lot_size = signal_params.grid_base_lot_size;
+  if(ArraySize(signal_params.grid_orders) > 0)
+  {
+    GridOrderState last_state = signal_params.grid_orders[ArraySize(signal_params.grid_orders)-1];
+    if(last_state.lot_size > 0.0)
+      lot_size = last_state.lot_size;
+  }
+
+  GridCloseAllLevels(signal_params, point_size);
+  signal_params.signal_state = CLOSED;
+  signal_params.stoch_sar_flip_pending = false;
+  signal_params.stoch_sar_restart_pending = false;
+
+  // Spawn opposite grid via SAR helper
+  GridSpawnRiskSarSignal(opposite_dir, lot_size, signal_params.sar_cumulative_loss);
+  return true;
+}
+
+bool HandleStochSarRestartOnNextLevel(SignalParams &signal_params,
+                                      const GridOrderState &grid_order,
+                                      const double point_size)
+{
+  if(!signal_params.stoch_sar_restart_pending)
+    return false;
+
+  double lot_size = grid_order.lot_size;
+  if(lot_size <= 0.0)
+    lot_size = Grid_Lot_Strategy_Size;
+
+  GridCloseAllLevels(signal_params, point_size);
+  signal_params.signal_state = CLOSED;
+  signal_params.stoch_sar_restart_pending = false;
+  signal_params.stoch_sar_flip_pending = false;
+
+  GridSpawnRiskSarSignal(signal_params.signal_type, lot_size, signal_params.sar_cumulative_loss);
+  return true;
+}
+
 void UpdateGridLifecycle(SignalParams &signal_params)
 {
   if(!GridEnsureSarSignalInitialized(signal_params, true))
@@ -14,6 +113,14 @@ void UpdateGridLifecycle(SignalParams &signal_params)
   SignalTypes    direction         = signal_params.signal_type;
   int            grid_order_level  = ArraySize(signal_params.grid_orders)-1;
   GridOrderState grid_order        = signal_params.grid_orders[grid_order_level];
+
+  EvaluateStochSarConditions(signal_params);
+
+  if(StochSarFeatureEnabled())
+  {
+    if(HandleStochSarFlip(signal_params, point_size))
+      return;
+  }
 
   GridOrderState risk_state = signal_params.grid_orders[grid_order_level];
   bool use_entry_reference = (risk_state.entry_price <= 0.0);
@@ -118,6 +225,13 @@ void UpdateGridLifecycle(SignalParams &signal_params)
       }
       else
       {
+        if(StochSarFeatureEnabled() &&
+           signal_params.stoch_sar_restart_pending)
+        {
+          if(HandleStochSarRestartOnNextLevel(signal_params, grid_order, point_size))
+            return;
+        }
+
         if(Grid_Risk_Trend_Mode == GRID_RM_TREND_HEDGE)
           GridHedgeHandlePrevCloseOnNextLevel(signal_params, grid_order, point_size);
 
