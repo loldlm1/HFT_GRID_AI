@@ -474,6 +474,8 @@ bool StrategyContextEvaluateEntry(const StrategyContextIndicators &snapshot,
   StrategyTrendModes trend_mode = StrategyContextTrendMode(context);
   double percent_threshold = StrategyContextIndicatorPercent(context);
   bool stoch_entry_required = (Strategy_Global_Stoch_Entry_Mode != STOCH_ENTRY_OFF);
+  bool trend_stoch_gate_required = stoch_entry_required &&
+                                   (Trend_Strategy_Timeframe != PERIOD_CURRENT);
   bool stoch_entry_pass = true;
 
   if(StrategyContextBPercentSlopeEnabled(context))
@@ -567,9 +569,24 @@ bool StrategyContextEvaluateEntry(const StrategyContextIndicators &snapshot,
   {
     if(!snapshot.stochastic_valid)
       return false;
-    double stoch_signal = snapshot.stochastic_data.stochastic_signal_1;
-    stoch_entry_pass = (direction == BULLISH) ? (stoch_signal < 30.0)
-                                              : (stoch_signal > 70.0);
+    double stoch_signal_base = snapshot.stochastic_data.stochastic_signal_1;
+    stoch_entry_pass = (direction == BULLISH) ? (stoch_signal_base < 30.0)
+                                              : (stoch_signal_base > 70.0);
+
+    if(trend_stoch_gate_required)
+    {
+      StochasticStructure trend_stoch_snapshot;
+      if(!LoadContextStochasticSnapshot(CONTEXT_SLOT_TREND, trend_stoch_snapshot))
+        return false;
+      double stoch_signal_trend_0 = trend_stoch_snapshot.stochastic_signal_0;
+      double stoch_signal_main_0 = trend_stoch_snapshot.stochastic_0;
+      double stoch_signal_trend_1 = trend_stoch_snapshot.stochastic_signal_1;
+      double stoch_signal_main_1 = trend_stoch_snapshot.stochastic_1;
+      bool trend_stoch_pass = (direction == BULLISH) ? (stoch_signal_trend_1 < 30.0 && stoch_signal_main_0 > stoch_signal_trend_0)
+                                                     : (stoch_signal_trend_1 > 70.0 && stoch_signal_main_0 < stoch_signal_trend_0);
+      stoch_entry_pass = stoch_entry_pass && trend_stoch_pass;
+    }
+
     if(!stoch_entry_pass)
     {
       entry_allows = false;
