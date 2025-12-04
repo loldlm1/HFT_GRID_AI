@@ -8,7 +8,7 @@
 #property version       "1.10"
 #property description   "Support Contact @loldlm"
 #property description   "All Rights Reserved for the Traders Capital Team."
-#property description   "HFT Grid AI EA"
+#property description   "BULLISH LIFE EA"
 
 // STANDARD MQL5 LIBRARIES
 #include <Trade/Trade.mqh>
@@ -39,7 +39,7 @@ SymbolTradingConstraints g_symbol_constraints;
 
 int OnInit()
 {
-  //EncryptEA("197955914", "Admin", "Shurt", 300);
+  //EncryptEA("197987627", "Admin", "Shurt", 300);
   // License Validation
 	if(MQLInfoInteger(MQL_TESTER) > 0) is_testing = true;
 	if(!DecryptEA())              { return(INIT_FAILED); }

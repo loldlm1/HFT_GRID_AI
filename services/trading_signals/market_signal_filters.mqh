@@ -433,56 +433,29 @@ bool StrategyContextEvaluateTrend(const StrategyContextIndicators &snapshot,
   trend_ready = false;
   trend_pass  = false;
 
-  if(StrategyContextBPercentSlopeEnabled(context))
-  {
-    if(!snapshot.bpercent_valid)
-      return false;
-    if(!EvaluateDirectionalSlope(snapshot.bpercent_data.bands_percent_0,
-                                 snapshot.bpercent_data.bands_percent_1,
-                                 direction))
-      return true;
-  }
+  bool trend_context_active = (context == CONTEXT_SLOT_TREND &&
+                               Trend_Strategy_Timeframe != PERIOD_CURRENT);
+  bool stoch_entry_required = (Strategy_Global_Stoch_Entry_Mode != STOCH_ENTRY_OFF &&
+                               trend_context_active);
 
-  if(StrategyContextStochasticSlopeEnabled(context))
+  bool stoch_entry_pass = true;
+  if(stoch_entry_required)
   {
     if(!snapshot.stochastic_valid)
       return false;
-    if(!EvaluateDirectionalSlope(snapshot.stochastic_data.stochastic_0,
-                                 snapshot.stochastic_data.stochastic_1,
-                                 direction))
+    double stoch_signal = snapshot.stochastic_data.stochastic_signal_1;
+    stoch_entry_pass = (direction == BULLISH) ? (stoch_signal < 30.0)
+                                              : (stoch_signal > 70.0);
+    if(!stoch_entry_pass)
+    {
+      trend_ready = true;
+      trend_pass  = false;
       return true;
+    }
   }
-
-  if(StrategyContextAlligatorSlopeEnabled(context))
-  {
-    if(!snapshot.alligator_valid)
-      return false;
-    if(!EvaluateDirectionalSlope(snapshot.alligator_data.teeth_value,
-                                 snapshot.alligator_data.teeth_prev_value,
-                                 direction))
-      return true;
-  }
-
-  if(!TrendModeUsesAlligator(trend_mode))
-  {
-    trend_ready = true;
-    trend_pass  = true;
-    return true;
-  }
-
-  if(StrategyContextChannelFilterEnabled(context))
-  {
-    if(!StrategyContextChannelMaFilterAllowsSignal(context, snapshot))
-      return true;
-  }
-
-  if(!snapshot.alligator_valid)
-    return false;
 
   trend_ready = true;
-  trend_pass  = EvaluateAlligatorTrend(snapshot.alligator_data,
-                                       direction,
-                                       trend_mode);
+  trend_pass  = stoch_entry_pass;
   return true;
 }
 
@@ -497,11 +470,18 @@ bool StrategyContextEvaluateEntry(const StrategyContextIndicators &snapshot,
   filters_pass = true;
 
   StrategyContextTypes context = snapshot.context;
+  StrategyEntryChannelModes requested_entry_mode = StrategyContextEntryConfig(context);
   StrategyEntryChannelModes entry_mode = StrategyContextEntryEvaluation(context);
   bool entry_mode_disabled = (entry_mode == ENTRY_EVAL_OFF);
   bool entry_on_trend = (entry_mode == ENTRY_EVAL_ON_TREND);
+  bool entry_mode_disabled_by_global = (requested_entry_mode == ENTRY_EVAL_GLOBAL &&
+                                        Strategy_Global_Channel_Entry_Mode == ENTRY_EVAL_OFF);
   StrategyTrendModes trend_mode = StrategyContextTrendMode(context);
   double percent_threshold = StrategyContextIndicatorPercent(context);
+  bool stoch_entry_required = (Strategy_Global_Stoch_Entry_Mode != STOCH_ENTRY_OFF);
+  bool trend_stoch_gate_required = stoch_entry_required &&
+                                   (Trend_Strategy_Timeframe != PERIOD_CURRENT);
+  bool stoch_entry_pass = true;
 
   if(StrategyContextBPercentSlopeEnabled(context))
   {
@@ -590,14 +570,29 @@ bool StrategyContextEvaluateEntry(const StrategyContextIndicators &snapshot,
     return true;
   }
 
-  if(Strategy_Global_Stoch_Entry_Mode != STOCH_ENTRY_OFF)
+  if(stoch_entry_required)
   {
     if(!snapshot.stochastic_valid)
       return false;
-    double stoch_signal = snapshot.stochastic_data.stochastic_signal_1;
-    bool stoch_pass = (direction == BULLISH) ? (stoch_signal < 30.0)
-                                             : (stoch_signal > 70.0);
-    if(!stoch_pass)
+    double stoch_signal_base = snapshot.stochastic_data.stochastic_signal_1;
+    stoch_entry_pass = (direction == BULLISH) ? (stoch_signal_base < 30.0)
+                                              : (stoch_signal_base > 70.0);
+
+    if(trend_stoch_gate_required)
+    {
+      StochasticStructure trend_stoch_snapshot;
+      if(!LoadContextStochasticSnapshot(CONTEXT_SLOT_TREND, trend_stoch_snapshot))
+        return false;
+      double stoch_signal_trend_0 = trend_stoch_snapshot.stochastic_signal_0;
+      double stoch_signal_main_0 = trend_stoch_snapshot.stochastic_0;
+      double stoch_signal_trend_1 = trend_stoch_snapshot.stochastic_signal_1;
+      double stoch_signal_main_1 = trend_stoch_snapshot.stochastic_1;
+      bool trend_stoch_pass = (direction == BULLISH) ? (stoch_signal_trend_1 < 30.0 && stoch_signal_main_0 > stoch_signal_trend_0)
+                                                     : (stoch_signal_trend_1 > 70.0 && stoch_signal_main_0 < stoch_signal_trend_0);
+      stoch_entry_pass = stoch_entry_pass && trend_stoch_pass;
+    }
+
+    if(!stoch_entry_pass)
     {
       entry_allows = false;
       filters_pass = false;
@@ -624,7 +619,7 @@ bool StrategyContextEvaluateEntry(const StrategyContextIndicators &snapshot,
 
   if(entry_mode_disabled)
   {
-    entry_allows = false;
+    entry_allows = stoch_entry_required && stoch_entry_pass && entry_mode_disabled_by_global;
     return true;
   }
 

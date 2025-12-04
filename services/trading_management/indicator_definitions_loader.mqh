@@ -43,6 +43,13 @@ int total_bands_indicators_load = 1;
 int total_stoch_indicators_load = 1;
 int total_tf_list_load          = 0;
 
+// Aggressive preset helper: disable every indicator except the native stochastic gate
+bool StochOnlyMode()
+{
+  return (Strategy_Global_Channel_Entry_Mode == ENTRY_EVAL_OFF &&
+          Strategy_Global_Stoch_Entry_Mode != STOCH_ENTRY_OFF);
+}
+
 // ── Helpers ─────────────────────────────────────────────────────────────
 
 bool IsStrategyTimeframeSupported(const ENUM_TIMEFRAMES tf)
@@ -495,13 +502,15 @@ bool LoadContextStochasticIndicator(const ENUM_TIMEFRAMES context_tf,
 {
   IndicatorsHandleInfo stoch_handle;
   stoch_handle.indicator_period    = (int)Stoch_Structure_Period_Type;
-  stoch_handle.indicator_handle    = iCustom(_Symbol,
-                                             context_tf,
-                                             "Examples\\Stochastic",
-                                             stoch_handle.indicator_period,
-                                             3,
-                                             3,
-                                             STO_CLOSECLOSE);
+  stoch_handle.indicator_ma_method = MODE_SMA;
+  stoch_handle.indicator_applied_price = PRICE_CLOSE;
+  stoch_handle.indicator_handle    = iStochastic(_Symbol,
+                                                 context_tf,
+                                                 stoch_handle.indicator_period,
+                                                 3,
+                                                 3,
+                                                 stoch_handle.indicator_ma_method,
+                                                 STO_CLOSECLOSE);
   stoch_handle.indicator_timeframe = context_tf;
 
   if(stoch_handle.indicator_handle == INVALID_HANDLE)
@@ -1326,6 +1335,7 @@ void LoadAllIndicatorDefinitions()
                                    Strategy_Channel_Indicator_Type == CHANNEL_INDICATOR_KELTNER);
   bool overlay_atr_required = (overlays_permitted &&
                                Strategy_Channel_Indicator_Type == CHANNEL_INDICATOR_ATR);
+  bool stoch_only_mode = StochOnlyMode();
 
   TesterHideIndicators(!ShouldDisplayIndicators());
 
@@ -1348,6 +1358,26 @@ void LoadAllIndicatorDefinitions()
   ArrayResize(ExtBodyMAIndicatorsHandle, 0);
   ArrayResize(ExtATRIndicatorsHandle, 0);
   ArrayResize(ExtKeltnerIndicatorsHandle, 0);
+
+  if(stoch_only_mode)
+  {
+    ResetTrendIndicators();
+    ResetMacroIndicators();
+    ResetSessionIndicators();
+    ResetTrendStructureIndicator();
+    ResetMacroStructureIndicator();
+    ResetSessionStructureIndicator();
+
+    LoadAllStochIndicators(); // base/strategy TF
+    if(Trend_Strategy_Timeframe != PERIOD_CURRENT)
+      LoadTrendStochasticIndicator(ResolveTrendTimeframe());
+    if(Macro_Strategy_Timeframe != PERIOD_CURRENT)
+      LoadMacroStochasticIndicator(ResolveMacroTimeframe());
+    if(Session_Strategy_Timeframe != PERIOD_CURRENT)
+      LoadSessionStochasticIndicator(ResolveSessionTimeframe());
+    Print("Stochastic-only mode active; skipping channel, Alligator, body MA, and structure indicator loading.");
+    return;
+  }
 
   bool load_base_bpercent_handles = (base_bpercent_required || PercentOverlayEnabled());
   if(load_base_bpercent_handles)
@@ -1605,7 +1635,15 @@ void LoadAllStochIndicators()
     IndicatorsHandleInfo stoch_indicator_handle_loaded;
 
     stoch_indicator_handle_loaded.indicator_period    = ResolveStochStructurePeriod();
-    stoch_indicator_handle_loaded.indicator_handle    = iCustom(_Symbol, trend_timeframe, "Examples\\Stochastic", stoch_indicator_handle_loaded.indicator_period, 3, 3, STO_CLOSECLOSE);
+    stoch_indicator_handle_loaded.indicator_ma_method = MODE_SMA;
+    stoch_indicator_handle_loaded.indicator_applied_price = PRICE_CLOSE;
+    stoch_indicator_handle_loaded.indicator_handle    = iStochastic(_Symbol,
+                                                                    trend_timeframe,
+                                                                    stoch_indicator_handle_loaded.indicator_period,
+                                                                    3,
+                                                                    3,
+                                                                    stoch_indicator_handle_loaded.indicator_ma_method,
+                                                                    STO_CLOSECLOSE);
     stoch_indicator_handle_loaded.indicator_timeframe = trend_timeframe;
 
     if(stoch_indicator_handle_loaded.indicator_handle == INVALID_HANDLE)

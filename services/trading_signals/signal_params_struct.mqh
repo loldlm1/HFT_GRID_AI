@@ -91,6 +91,8 @@ struct SignalParams
   bool   hedge_finalized;
   bool   hedge_reset_done;
   datetime context_structure_snapshot_time;
+  bool   stoch_sar_restart_pending;
+  bool   stoch_sar_flip_pending;
 
   bool                      base_bpercent_valid;
   bool                      base_alligator_valid;
@@ -176,6 +178,8 @@ struct SignalParams
     hedge_finalized            = false;
     hedge_reset_done           = false;
     context_structure_snapshot_time = 0;
+    stoch_sar_restart_pending  = false;
+    stoch_sar_flip_pending     = false;
     trend_filter_mode          = TREND_OFF;
     trend_bpercent_valid       = false;
     trend_alligator_valid      = false;
@@ -240,6 +244,8 @@ struct SignalParams
     entry_trigger_mode         = signal_params.entry_trigger_mode;
     entry_evaluation_mode      = signal_params.entry_evaluation_mode;
     context_structure_snapshot_time = signal_params.context_structure_snapshot_time;
+    stoch_sar_restart_pending   = signal_params.stoch_sar_restart_pending;
+    stoch_sar_flip_pending      = signal_params.stoch_sar_flip_pending;
     trend_filter_mode           = signal_params.trend_filter_mode;
     trend_bpercent_valid        = signal_params.trend_bpercent_valid;
     trend_alligator_valid       = signal_params.trend_alligator_valid;
