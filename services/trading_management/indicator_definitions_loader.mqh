@@ -1368,7 +1368,13 @@ void LoadAllIndicatorDefinitions()
     ResetMacroStructureIndicator();
     ResetSessionStructureIndicator();
 
-    LoadAllStochIndicators();
+    LoadAllStochIndicators(); // base/strategy TF
+    if(Trend_Strategy_Timeframe != PERIOD_CURRENT)
+      LoadTrendStochasticIndicator(ResolveTrendTimeframe());
+    if(Macro_Strategy_Timeframe != PERIOD_CURRENT)
+      LoadMacroStochasticIndicator(ResolveMacroTimeframe());
+    if(Session_Strategy_Timeframe != PERIOD_CURRENT)
+      LoadSessionStochasticIndicator(ResolveSessionTimeframe());
     Print("Stochastic-only mode active; skipping channel, Alligator, body MA, and structure indicator loading.");
     return;
   }
