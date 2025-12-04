@@ -428,38 +428,11 @@ bool StrategyContextEvaluateTrend(const StrategyContextIndicators &snapshot,
   trend_ready = false;
   trend_pass  = false;
 
-  if(StrategyContextBPercentSlopeEnabled(context))
-  {
-    if(!snapshot.bpercent_valid)
-      return false;
-    if(!EvaluateDirectionalSlope(snapshot.bpercent_data.bands_percent_0,
-                                 snapshot.bpercent_data.bands_percent_1,
-                                 direction))
-      return true;
-  }
-
-  if(StrategyContextStochasticSlopeEnabled(context))
-  {
-    if(!snapshot.stochastic_valid)
-      return false;
-    if(!EvaluateDirectionalSlope(snapshot.stochastic_data.stochastic_0,
-                                 snapshot.stochastic_data.stochastic_1,
-                                 direction))
-      return true;
-  }
-
-  if(StrategyContextAlligatorSlopeEnabled(context))
-  {
-    if(!snapshot.alligator_valid)
-      return false;
-    if(!EvaluateDirectionalSlope(snapshot.alligator_data.teeth_value,
-                                 snapshot.alligator_data.teeth_prev_value,
-                                 direction))
-      return true;
-  }
-
+  bool trend_context_active = (context == CONTEXT_SLOT_TREND &&
+                               Trend_Strategy_Timeframe != PERIOD_CURRENT);
   bool stoch_entry_required = (Strategy_Global_Stoch_Entry_Mode != STOCH_ENTRY_OFF &&
-                               context == CONTEXT_SLOT_TREND);
+                               trend_context_active);
+
   bool stoch_entry_pass = true;
   if(stoch_entry_required)
   {
@@ -476,27 +449,8 @@ bool StrategyContextEvaluateTrend(const StrategyContextIndicators &snapshot,
     }
   }
 
-  if(!TrendModeUsesAlligator(trend_mode))
-  {
-    trend_ready = true;
-    trend_pass  = stoch_entry_pass;
-    return true;
-  }
-
-  if(StrategyContextChannelFilterEnabled(context))
-  {
-    if(!StrategyContextChannelMaFilterAllowsSignal(context, snapshot))
-      return true;
-  }
-
-  if(!snapshot.alligator_valid)
-    return false;
-
   trend_ready = true;
-  trend_pass  = stoch_entry_pass &&
-                EvaluateAlligatorTrend(snapshot.alligator_data,
-                                       direction,
-                                       trend_mode);
+  trend_pass  = stoch_entry_pass;
   return true;
 }
 
