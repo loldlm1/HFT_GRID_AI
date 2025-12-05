@@ -79,6 +79,34 @@ bool CalculateBaseGridContext(const SignalParams &signal_params,
     return (distance_points > 0.0);
   }
 
+  if(Grid_Base_Strategy_Type == ATR_MA_RANGE)
+  {
+    double atr_value = 0.0;
+    double atr_ma_value = 0.0;
+    if(!GridCopyChannelBufferValue(ATR_RANGE, tf, 0, atr_value, 1))
+      return false;
+    double ma_buffer = 0.0;
+    if(!GridCopyChannelBufferValue(ATR_RANGE, tf, 1, atr_ma_value, 1))
+      return false;
+    double atr_points = atr_value / point_size;
+    if(atr_points <= 0.0)
+      return false;
+    if(atr_ma_value > 0.0 && atr_value <= atr_ma_value)
+      return false;
+    double guard_points = EnforceBrokerDistance(g_symbol_constraints, Grid_Points_Range_Setup);
+    if(guard_points > 0.0 && guard_points > atr_points)
+      return false;
+
+    double stored = signal_params.grid_initial_indicator_distance_points;
+    if(stored > 0.0 && atr_points < stored)
+      atr_points = stored;
+    if(stored <= 0.0)
+      stored = atr_points;
+
+    distance_points = EnforceBrokerDistance(g_symbol_constraints, atr_points);
+    return (distance_points > 0.0);
+  }
+
   double requested_points = EnforceBrokerDistance(g_symbol_constraints, Grid_Points_Range_Setup);
   double projected_price = entry_reference_price + direction_mult * requested_points * point_size;
 
@@ -460,6 +488,15 @@ bool BuildGridSignalPoints(SignalParams &signal_params)
   {
     base_distance_points = min_base_distance_from_trailing;
     base_distance_points = EnforceBrokerDistance(g_symbol_constraints, base_distance_points);
+  }
+
+  if(Grid_Base_Strategy_Type == ATR_MA_RANGE)
+  {
+    if(signal_params.grid_initial_indicator_distance_points > 0.0 &&
+       base_distance_points < signal_params.grid_initial_indicator_distance_points)
+    {
+      base_distance_points = signal_params.grid_initial_indicator_distance_points;
+    }
   }
 
   if(GridSignalHasExecutedLevel(signal_params) &&

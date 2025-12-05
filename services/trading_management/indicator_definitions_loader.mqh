@@ -177,6 +177,8 @@ GridBaseStrategyTypes ResolveChannelStrategyFromInputs()
   }
   if(configured_type == STOCH_STRUCTURE_RANGE)
     return POINTS_RANGE;
+  if(configured_type == ATR_MA_RANGE)
+    return POINTS_RANGE;
   return configured_type;
 }
 
@@ -877,12 +879,24 @@ bool LoadAtrIndicatorForTimeframe(const ENUM_TIMEFRAMES trend_timeframe)
 
   atr_indicator_handle_loaded.indicator_period    = ResolveVolatilityChannelPeriod();
   double atr_factor = ResolveVolatilityChannelFactor();
-  atr_indicator_handle_loaded.indicator_handle    = iCustom(_Symbol,
-                                                            trend_timeframe,
-                                                            "Examples\\ATR_SL_Factor.ex5",
-                                                            atr_indicator_handle_loaded.indicator_period,
-                                                            atr_factor,
-                                                            0);
+
+  if(Grid_Base_Strategy_Type == ATR_MA_RANGE)
+  {
+    atr_indicator_handle_loaded.indicator_handle = iCustom(_Symbol,
+                                                           trend_timeframe,
+                                                           "Examples\\ATR.ex5",
+                                                           atr_indicator_handle_loaded.indicator_period,
+                                                           atr_indicator_handle_loaded.indicator_period);
+  }
+  if(Grid_Base_Strategy_Type == ATR_RANGE)
+  {
+    atr_indicator_handle_loaded.indicator_handle = iCustom(_Symbol,
+                                                           trend_timeframe,
+                                                           "Examples\\ATR_SL_Factor.ex5",
+                                                           atr_indicator_handle_loaded.indicator_period,
+                                                           atr_factor,
+                                                           0);
+  }
   atr_indicator_handle_loaded.indicator_timeframe = trend_timeframe;
 
   if(atr_indicator_handle_loaded.indicator_handle == INVALID_HANDLE)
@@ -1308,12 +1322,16 @@ void LoadAllIndicatorDefinitions()
   bool require_structure_indicators = stoch_structure_enabled; // load structures whenever period is enabled
   bool stoch_indicators_required = stoch_structure_enabled || stoch_slope_required || stoch_entry_required;
 
-  bool strategy_uses_channel = (Grid_Base_Strategy_Type != POINTS_RANGE);
+  bool strategy_uses_channel = (Grid_Base_Strategy_Type != POINTS_RANGE &&
+                                Grid_Base_Strategy_Type != STOCH_STRUCTURE_RANGE &&
+                                Grid_Base_Strategy_Type != ATR_MA_RANGE);
   bool require_channel_filters = Base_Channel_MA_Filter || Trend_Channel_MA_Filter ||
                                  Macro_Channel_MA_Filter || Session_Channel_MA_Filter;
   bool load_channel_indicators = strategy_uses_channel ||
                                  trailing_requires_channel ||
                                  require_channel_filters;
+
+  bool load_atr_ma_indicator = (Grid_Base_Strategy_Type == ATR_MA_RANGE);
 
   GridBaseStrategyTypes channel_strategy_type = ResolveChannelStrategyFromInputs();
   if(channel_strategy_type == POINTS_RANGE)
@@ -1418,6 +1436,17 @@ void LoadAllIndicatorDefinitions()
       LoadChannelIndicatorForTimeframe(channel_strategy_type, ResolveMacroTimeframe());
     if(session_entry_active)
       LoadChannelIndicatorForTimeframe(channel_strategy_type, ResolveSessionTimeframe());
+  }
+
+  if(load_atr_ma_indicator)
+  {
+    LoadAtrIndicatorForTimeframe(strategy_tf);
+    if(trend_entry_active)
+      LoadAtrIndicatorForTimeframe(ResolveTrendTimeframe());
+    if(macro_entry_active)
+      LoadAtrIndicatorForTimeframe(ResolveMacroTimeframe());
+    if(session_entry_active)
+      LoadAtrIndicatorForTimeframe(ResolveSessionTimeframe());
   }
 
   if(load_channel_indicators)

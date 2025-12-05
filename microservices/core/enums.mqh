@@ -96,7 +96,8 @@ enum GridBaseStrategyTypes
   KELTNER_RANGE           = 2,
   BOLLINGER_RANGE         = 3,
   CHANNEL_INDICATOR_RANGE = 4,
-  STOCH_STRUCTURE_RANGE   = 5
+  STOCH_STRUCTURE_RANGE   = 5,
+  ATR_MA_RANGE            = 6
 };
 
 enum GridChannelLineTypes
