@@ -192,12 +192,12 @@ bool HedgedScanTimeframeForSwings(const SignalTypes direction,
 
   double entry_best_distance  = DBL_MAX;
   double target_best_distance = DBL_MAX;
-  double entry_price          = snapshot.entry_anchor_price;
-  double target_price         = snapshot.target_price;
-  double stop_price           = snapshot.stop_loss_price;
-  bool   stop_found           = snapshot.stop_valid;
-  bool   target_found         = snapshot.target_valid;
-  bool   entry_found          = (entry_price > 0.0);
+  double entry_price          = 0.0;
+  double target_price         = 0.0;
+  double stop_price           = 0.0;
+  bool   stop_found           = false;
+  bool   target_found         = false;
+  bool   entry_found          = false;
   datetime entry_price_time   = 0;
   datetime target_price_time  = 0;
   datetime stop_price_time    = 0;
@@ -209,20 +209,6 @@ bool HedgedScanTimeframeForSwings(const SignalTypes direction,
 
     if(direction == BULLISH)
     {
-      if(fractal_low)
-      {
-        if(!stop_found)
-        {
-          double distance_pts = (entry_side_price - lows[i]) / point_size;
-          if(distance_pts >= guard_points)
-          {
-            stop_price = lows[i];
-            stop_found = true;
-            stop_price_time = times[i];
-          }
-        }
-      }
-
       double entry_distance_pts = (entry_side_price - lows[i]) / point_size;
       if(entry_distance_pts >= guard_points && entry_distance_pts < entry_best_distance)
       {
@@ -230,33 +216,37 @@ bool HedgedScanTimeframeForSwings(const SignalTypes direction,
         entry_price = lows[i];
         entry_price_time = times[i];
         entry_found = true;
+        target_found = false;
+        stop_found = false;
+        target_best_distance = DBL_MAX;
       }
 
-      double target_distance_pts = (highs[i] - exit_side_price) / point_size;
-      if(target_distance_pts >= guard_points && target_distance_pts < target_best_distance)
+      if(entry_found)
       {
-        target_best_distance = target_distance_pts;
-        target_price = highs[i];
-        target_found = true;
-        target_price_time = times[i];
-      }
-    }
-    else if(direction == BEARISH)
-    {
-      if(fractal_high)
-      {
-        if(!stop_found)
+        double target_distance_pts = (highs[i] - entry_price) / point_size;
+        if(target_distance_pts >= guard_points && target_distance_pts < target_best_distance)
         {
-          double distance_pts = (highs[i] - entry_side_price) / point_size;
-          if(distance_pts >= guard_points)
+          target_best_distance = target_distance_pts;
+          target_price = highs[i];
+          target_found = true;
+          target_price_time = times[i];
+        }
+
+        if(fractal_low)
+        {
+          double stop_distance_pts = (entry_price - lows[i]) / point_size;
+          if(stop_distance_pts >= guard_points &&
+             (!stop_found || stop_distance_pts < (entry_price - stop_price) / point_size))
           {
-            stop_price = highs[i];
+            stop_price = lows[i];
             stop_found = true;
             stop_price_time = times[i];
           }
         }
       }
-
+    }
+    else if(direction == BEARISH)
+    {
       double entry_distance_pts = (highs[i] - entry_side_price) / point_size;
       if(entry_distance_pts >= guard_points && entry_distance_pts < entry_best_distance)
       {
@@ -264,15 +254,33 @@ bool HedgedScanTimeframeForSwings(const SignalTypes direction,
         entry_price = highs[i];
         entry_price_time = times[i];
         entry_found = true;
+        target_found = false;
+        stop_found = false;
+        target_best_distance = DBL_MAX;
       }
 
-      double target_distance_pts = (exit_side_price - lows[i]) / point_size;
-      if(target_distance_pts >= guard_points && target_distance_pts < target_best_distance)
+      if(entry_found)
       {
-        target_best_distance = target_distance_pts;
-        target_price = lows[i];
-        target_found = true;
-        target_price_time = times[i];
+        double target_distance_pts = (entry_price - lows[i]) / point_size;
+        if(target_distance_pts >= guard_points && target_distance_pts < target_best_distance)
+        {
+          target_best_distance = target_distance_pts;
+          target_price = lows[i];
+          target_found = true;
+          target_price_time = times[i];
+        }
+
+        if(fractal_high)
+        {
+          double stop_distance_pts = (highs[i] - entry_price) / point_size;
+          if(stop_distance_pts >= guard_points &&
+             (!stop_found || stop_distance_pts < (stop_price - entry_price) / point_size))
+          {
+            stop_price = highs[i];
+            stop_found = true;
+            stop_price_time = times[i];
+          }
+        }
       }
     }
 
