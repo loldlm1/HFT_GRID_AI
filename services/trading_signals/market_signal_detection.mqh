@@ -244,10 +244,6 @@ void DetectHedgedSwingSignals()
   for(int idx = 0; idx < 2; idx++)
   {
     SignalTypes direction = directions[idx];
-    if(direction == BULLISH && ArraySize(running_bullish_signals) > 0)
-      continue;
-    if(direction == BEARISH && ArraySize(running_bearish_signals) > 0)
-      continue;
     if(!CanAttemptSignal(direction))
       continue;
 
