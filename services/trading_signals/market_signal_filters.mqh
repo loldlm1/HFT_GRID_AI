@@ -143,12 +143,26 @@ bool FetchStructureForContext(const StrategyContextIndicators &snapshot,
 datetime ResolveStructureSnapshotTimestamp(const StochasticMarketStructure &structure,
                                            const StrategyStructureLayerContext &ctx)
 {
+  bool all_filters_disabled =
+    !StructureFilterIsEnabled(ctx.first_structure_filter)  &&
+    !StructureFilterIsEnabled(ctx.second_structure_filter) &&
+    !StructureFilterIsEnabled(ctx.third_structure_filter)  &&
+    !StructureFilterIsEnabled(ctx.fourth_structure_filter);
+
   if(StructureFilterIsEnabled(ctx.fourth_structure_filter))
     return structure.fourth_structure_time;
   if(StructureFilterIsEnabled(ctx.third_structure_filter))
     return structure.third_structure_time;
   if(StructureFilterIsEnabled(ctx.second_structure_filter))
     return structure.second_structure_time;
+  if(StructureFilterIsEnabled(ctx.first_structure_filter))
+    return structure.first_structure_time;
+
+  // No structure filters enabled: use the second structure timestamp when available to
+  // avoid reusing the same bar for fresh-structure checks.
+  if(all_filters_disabled && structure.second_structure_time > 0)
+    return structure.second_structure_time;
+
   return structure.first_structure_time;
 }
 
