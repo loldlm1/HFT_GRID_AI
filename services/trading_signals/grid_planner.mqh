@@ -83,25 +83,38 @@ bool CalculateBaseGridContext(const SignalParams &signal_params,
   {
     double atr_value = 0.0;
     double atr_ma_value = 0.0;
-    if(!GridCopyChannelBufferValue(ATR_RANGE, tf, 0, atr_value, 1))
-      return false;
-    double ma_buffer = 0.0;
-    if(!GridCopyChannelBufferValue(ATR_RANGE, tf, 1, atr_ma_value, 1))
-      return false;
-    double atr_points = atr_value / point_size;
-    if(atr_points <= 0.0)
-      return false;
-    if(atr_ma_value > 0.0 && atr_value <= atr_ma_value)
-      return false;
-    double guard_points = EnforceBrokerDistance(g_symbol_constraints, Grid_Points_Range_Setup);
-    if(guard_points > 0.0 && guard_points > atr_points)
-      return false;
+    bool atr_loaded = GridCopyChannelBufferValue(ATR_RANGE, tf, 0, atr_value, 1);
+    bool ma_loaded  = GridCopyChannelBufferValue(ATR_RANGE, tf, 1, atr_ma_value, 1);
+    double stored   = signal_params.grid_initial_indicator_distance_points;
 
-    double stored = signal_params.grid_initial_indicator_distance_points;
+    if(!signal_params.grid_initialized)
+    {
+      if(!atr_loaded || !ma_loaded)
+        return false;
+      double atr_points = atr_value / point_size;
+      if(atr_points <= 0.0)
+        return false;
+      if(atr_ma_value > 0.0 && atr_value <= atr_ma_value)
+        return false;
+      double guard_points = EnforceBrokerDistance(g_symbol_constraints, Grid_Points_Range_Setup);
+      if(guard_points > 0.0 && guard_points > atr_points)
+        return false;
+      distance_points = EnforceBrokerDistance(g_symbol_constraints, atr_points);
+      return (distance_points > 0.0);
+    }
+
+    // Grid running: allow only non-decreasing spacing; fallback to stored on failures.
+    if(!atr_loaded && stored > 0.0)
+    {
+      distance_points = EnforceBrokerDistance(g_symbol_constraints, stored);
+      return (distance_points > 0.0);
+    }
+
+    double atr_points = atr_value / point_size;
+    if(atr_points <= 0.0 && stored > 0.0)
+      atr_points = stored;
     if(stored > 0.0 && atr_points < stored)
       atr_points = stored;
-    if(stored <= 0.0)
-      stored = atr_points;
 
     distance_points = EnforceBrokerDistance(g_symbol_constraints, atr_points);
     return (distance_points > 0.0);
