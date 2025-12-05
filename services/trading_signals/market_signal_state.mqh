@@ -191,6 +191,9 @@ bool StrategyCascadeAllowsSignal(const StrategyContextTypes context,
 
 bool SignalConcurrencyAllowsAttempt(const SignalTypes direction)
 {
+  if(HedgedSwingModeEnabled())
+    return true;
+
   if(Signal_Concurrency_Mode == MULTIPLE_RUNNING_SIGNALS)
     return true;
 

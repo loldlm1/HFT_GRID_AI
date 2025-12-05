@@ -13,19 +13,56 @@ void UpdateGridLifecycle(SignalParams &signal_params)
   double         point_size        = GridResolvePointSize();
   SignalTypes    direction         = signal_params.signal_type;
   int            grid_order_level  = ArraySize(signal_params.grid_orders)-1;
+  if(grid_order_level < 0)
+    return;
   GridOrderState grid_order        = signal_params.grid_orders[grid_order_level];
+  bool           hedged_mode       = signal_params.hedged_swing.hedged_mode;
 
   GridOrderState risk_state = signal_params.grid_orders[grid_order_level];
   bool use_entry_reference = (risk_state.entry_price <= 0.0);
   if(GridApplyTrendRiskManagement(signal_params, risk_state, true, use_entry_reference))
     return;
 
+  if(hedged_mode && GridSignalHasExecutedLevel(signal_params))
+  {
+    double check_price = GridCurrentPriceForDirection(direction, false);
+    if(HedgedSwingSlEnabled(direction) && signal_params.hedged_swing.stop_loss_price > 0.0)
+    {
+      bool stop_hit = (direction == BULLISH)
+                        ? (check_price <= signal_params.hedged_swing.stop_loss_price)
+                        : (check_price >= signal_params.hedged_swing.stop_loss_price);
+      if(stop_hit)
+      {
+        GridCloseAllLevels(signal_params, point_size);
+        signal_params.signal_state = CLOSED;
+        return;
+      }
+    }
+
+    if(signal_params.hedged_swing.target_price > 0.0)
+    {
+      bool target_hit = (direction == BULLISH)
+                          ? (check_price >= signal_params.hedged_swing.target_price)
+                          : (check_price <= signal_params.hedged_swing.target_price);
+      if(target_hit)
+      {
+        double floating_pl = GridCollectSignalFloatingProfit(signal_params);
+        if(floating_pl >= 0.0)
+        {
+          GridCloseAllLevels(signal_params, point_size);
+          signal_params.signal_state = CLOSED;
+          return;
+        }
+      }
+    }
+  }
+
   if(grid_order.status == GRID_ORDER_STOP_TRAILING_ACTIVE)
   {
     if(UpdateGridOrderForSignal(signal_params))
       grid_order = signal_params.grid_orders[grid_order_level];
 
-    if(!GridSignalHasExecutedLevel(signal_params))
+    if(!hedged_mode && !GridSignalHasExecutedLevel(signal_params))
     {
       double guard_distance = 0.0;
       double guard_floor    = 0.0;
@@ -163,7 +200,7 @@ void UpdateGridLifecycle(SignalParams &signal_params)
     }
   }
 
-  if(Grid_BreakEven_Mode != BE_DISABLE)
+  if(!hedged_mode && Grid_BreakEven_Mode != BE_DISABLE)
   {
     GridProcessBreakEven(signal_params);
     if(GridCheckBreakEvenExit(signal_params))

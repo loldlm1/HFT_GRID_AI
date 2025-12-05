@@ -383,6 +383,9 @@ double GridPointsBetween(const SignalTypes direction,
 
 double GetGridStopReferencePrice(SignalTypes direction, SignalParams &signal_params, GridOrderState &grid_order_state)
 {
+  if(signal_params.hedged_swing.hedged_mode && signal_params.hedged_swing.entry_anchor_price > 0.0)
+    return signal_params.hedged_swing.entry_anchor_price;
+
   double base_entry_price = GridCurrentPriceForDirection(direction, true);
   double stop_entry_price = grid_order_state.entry_reference_price;
 
@@ -445,7 +448,11 @@ double GetGridTakeProfitPrice(SignalTypes direction, SignalParams &signal_params
   // Per-level TP span based on exponential distance
   double level_distance_pts           = ComputeLevelDistancePoints(signal_params, grid_order_state.level_index);
   double tp_span_pts;
-  if(Grid_Points_TP > 0.0)
+  if(signal_params.hedged_swing.hedged_mode)
+  {
+    tp_span_pts = level_distance_pts;
+  }
+  else if(Grid_Points_TP > 0.0)
     tp_span_pts = EnforceBrokerDistance(g_symbol_constraints, Grid_Points_TP);
   else
     tp_span_pts = level_distance_pts * (Grid_TP_Percent / 100.0);
@@ -473,26 +480,32 @@ double GetGridTakeProfitPrice(SignalTypes direction, SignalParams &signal_params
     }
   }
 
-  if(Grid_Enable_Robust_TP)
-    EnsureGridTakeProfitRobustness(
-      direction, signal_params, grid_level_index, grid_raw_tp_price
-    );
+  if(!signal_params.hedged_swing.hedged_mode)
+  {
+    if(Grid_Enable_Robust_TP)
+      EnsureGridTakeProfitRobustness(
+        direction, signal_params, grid_level_index, grid_raw_tp_price
+      );
 
-  if(Grid_Enable_Scalper_TP)
-    EnsureGridTakeProfitScalper(
-      direction, signal_params, grid_level_index, grid_raw_tp_price
-    );
+    if(Grid_Enable_Scalper_TP)
+      EnsureGridTakeProfitScalper(
+        direction, signal_params, grid_level_index, grid_raw_tp_price
+      );
 
-  if(Grid_Enable_Aggressive_TP)
-    EnsureGridTakeProfitAggressive(
-      signal_params, grid_level_index, false, grid_raw_tp_price
-    );
+    if(Grid_Enable_Aggressive_TP)
+      EnsureGridTakeProfitAggressive(
+        signal_params, grid_level_index, false, grid_raw_tp_price
+      );
+  }
 
   return grid_raw_tp_price;
 }
 
 double GetGridTakeProfitFinalPrice(SignalTypes direction, SignalParams &signal_params, GridOrderState &grid_order_state)
 {
+  if(signal_params.hedged_swing.hedged_mode)
+    return 0.0;
+
   double grid_raw_tp_price            = 0;
   double grid_atr_fallback_price      = 0;
   int    grid_level_index             = grid_order_state.level_index;

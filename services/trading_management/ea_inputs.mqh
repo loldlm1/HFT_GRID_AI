@@ -172,6 +172,11 @@ input TrailingExecutionModes Grid_Trailing_Execution_Mode = TRAILING_EXECUTION_D
 input BreakEvenModes         Grid_BreakEven_Mode          = BE_DISABLE;
 input double                 Grid_Partial_Take_Percentage = 50.0;
 
+input group  "+= Hedged Swing Mode =+";
+input bool   Enable_Hedged_Swing_Mode   = false;
+input bool   Bullish_Swing_SL_Enable    = false;
+input bool   Bearish_Swing_SL_Enable    = true;
+
 input group  "+= Developer Debug Settings =+";
 input bool Enable_Logs              = false;
 input bool Enable_File_Logs         = false;

@@ -203,8 +203,78 @@ void EvaluateContextSignals(const StrategyContextTypes context)
   }
 }
 
+bool BuildHedgedSignalParams(const SignalTypes direction,
+                             const datetime bar_time,
+                             SignalParams &signal)
+{
+  HedgedSwingSnapshot swing_snapshot;
+  if(!BuildHedgedSwingSnapshot(direction, swing_snapshot))
+    return false;
+
+  signal = SignalParams();
+  signal.signal_type            = direction;
+  signal.entry_time             = bar_time;
+  signal.entry_price            = (direction == BULLISH) ? g_ask : g_bid;
+  signal.strategy_context       = CONTEXT_SLOT_BASE;
+  signal.strategy_timeframe     = ResolveHedgedPrimaryTimeframe();
+  signal.strategy_context_label = "HEDGED";
+  signal.entry_trigger_mode     = ENTRY_MODE_MA_TREND;
+  signal.entry_evaluation_mode  = ENTRY_EVAL_OFF;
+  signal.hedged_swing           = swing_snapshot;
+  signal.grid_entry_reference_price = swing_snapshot.entry_anchor_price;
+  return true;
+}
+
+void DetectHedgedSwingSignals()
+{
+  ENUM_TIMEFRAMES eval_tf = ResolveHedgedPrimaryTimeframe();
+  if(eval_tf == PERIOD_CURRENT)
+    eval_tf = _Period;
+
+  datetime bar_time = iTime(_Symbol, eval_tf, 0);
+  if(bar_time <= 0)
+    return;
+
+  int base_slot = StrategyContextIndex(CONTEXT_SLOT_BASE);
+  if(g_context_runtime[base_slot].last_bar_time == bar_time)
+    return;
+  g_context_runtime[base_slot].last_bar_time = bar_time;
+
+  SignalTypes directions[2] = {BULLISH, BEARISH};
+  for(int idx = 0; idx < 2; idx++)
+  {
+    SignalTypes direction = directions[idx];
+    if(direction == BULLISH && ArraySize(running_bullish_signals) > 0)
+      continue;
+    if(direction == BEARISH && ArraySize(running_bearish_signals) > 0)
+      continue;
+    if(!CanAttemptSignal(direction))
+      continue;
+
+    SignalParams signal;
+    if(!BuildHedgedSignalParams(direction, bar_time, signal))
+      continue;
+
+    if(!BuildGridOrderForSignal(signal))
+      continue;
+
+    if(direction == BULLISH)
+      AddElementToArray(running_bullish_signals, signal);
+    else
+      AddElementToArray(running_bearish_signals, signal);
+
+    RegisterDailySignalStart(signal);
+  }
+}
+
 void DetectStrategySignals()
 {
+  if(HedgedSwingModeEnabled())
+  {
+    DetectHedgedSwingSignals();
+    return;
+  }
+
   int total = ArraySize(STRATEGY_CONTEXT_EVALUATION_ORDER);
   for(int i = 0; i < total; i++)
     EvaluateContextSignals(STRATEGY_CONTEXT_EVALUATION_ORDER[i]);
