@@ -176,9 +176,13 @@ bool HedgedScanTimeframeForSwings(const SignalTypes direction,
   if(scan_total < 3)
     return false;
 
-  double highs[], lows[];
+  double highs[], lows[]; datetime times[];
   int copied_highs = CopyHigh(_Symbol, tf, 0, scan_total + 2, highs);
   int copied_lows  = CopyLow(_Symbol, tf, 0, scan_total + 2, lows);
+  int copied_times = CopyTime(_Symbol, tf, 0, scan_total + 2, times);
+  ArraySetAsSeries(highs, true);
+  ArraySetAsSeries(lows, true);
+  ArraySetAsSeries(times, true);
   if(copied_highs < 3 || copied_lows < 3)
     return false;
 
@@ -193,6 +197,9 @@ bool HedgedScanTimeframeForSwings(const SignalTypes direction,
   double stop_price           = snapshot.stop_loss_price;
   bool   stop_found           = snapshot.stop_valid;
   bool   target_found         = snapshot.target_valid;
+  datetime entry_price_time   = 0;
+  datetime target_price_time  = 0;
+  datetime stop_price_time    = 0;
 
   for(int i = 1; i < scan_total; i++)
   {
@@ -207,6 +214,7 @@ bool HedgedScanTimeframeForSwings(const SignalTypes direction,
         {
           stop_price = lows[i];
           stop_found = true;
+          stop_price_time = times[i];
         }
 
         double distance_pts = (entry_side_price - lows[i]) / point_size;
@@ -214,6 +222,7 @@ bool HedgedScanTimeframeForSwings(const SignalTypes direction,
         {
           entry_best_distance = distance_pts;
           entry_price = lows[i];
+          entry_price_time = times[i];
         }
       }
 
@@ -225,6 +234,7 @@ bool HedgedScanTimeframeForSwings(const SignalTypes direction,
           target_best_distance = distance_pts;
           target_price = highs[i];
           target_found = true;
+          target_price_time = times[i];
         }
       }
     }
@@ -236,6 +246,7 @@ bool HedgedScanTimeframeForSwings(const SignalTypes direction,
         {
           stop_price = highs[i];
           stop_found = true;
+          stop_price_time = times[i];
         }
 
         double distance_pts = (highs[i] - entry_side_price) / point_size;
@@ -243,6 +254,7 @@ bool HedgedScanTimeframeForSwings(const SignalTypes direction,
         {
           entry_best_distance = distance_pts;
           entry_price = highs[i];
+          entry_price_time = times[i];
         }
       }
 
@@ -254,6 +266,7 @@ bool HedgedScanTimeframeForSwings(const SignalTypes direction,
           target_best_distance = distance_pts;
           target_price = lows[i];
           target_found = true;
+          target_price_time = times[i];
         }
       }
     }
