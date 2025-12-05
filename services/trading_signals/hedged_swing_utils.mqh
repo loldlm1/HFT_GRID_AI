@@ -197,6 +197,7 @@ bool HedgedScanTimeframeForSwings(const SignalTypes direction,
   double stop_price           = snapshot.stop_loss_price;
   bool   stop_found           = snapshot.stop_valid;
   bool   target_found         = snapshot.target_valid;
+  bool   entry_found          = (entry_price > 0.0);
   datetime entry_price_time   = 0;
   datetime target_price_time  = 0;
   datetime stop_price_time    = 0;
@@ -212,30 +213,32 @@ bool HedgedScanTimeframeForSwings(const SignalTypes direction,
       {
         if(!stop_found)
         {
-          stop_price = lows[i];
-          stop_found = true;
-          stop_price_time = times[i];
-        }
-
-        double distance_pts = (entry_side_price - lows[i]) / point_size;
-        if(distance_pts >= guard_points && distance_pts < entry_best_distance)
-        {
-          entry_best_distance = distance_pts;
-          entry_price = lows[i];
-          entry_price_time = times[i];
+          double distance_pts = (entry_side_price - lows[i]) / point_size;
+          if(distance_pts >= guard_points)
+          {
+            stop_price = lows[i];
+            stop_found = true;
+            stop_price_time = times[i];
+          }
         }
       }
 
-      if(fractal_high)
+      double entry_distance_pts = (entry_side_price - lows[i]) / point_size;
+      if(entry_distance_pts >= guard_points && entry_distance_pts < entry_best_distance)
       {
-        double distance_pts = (highs[i] - exit_side_price) / point_size;
-        if(distance_pts >= guard_points && distance_pts < target_best_distance)
-        {
-          target_best_distance = distance_pts;
-          target_price = highs[i];
-          target_found = true;
-          target_price_time = times[i];
-        }
+        entry_best_distance = entry_distance_pts;
+        entry_price = lows[i];
+        entry_price_time = times[i];
+        entry_found = true;
+      }
+
+      double target_distance_pts = (highs[i] - exit_side_price) / point_size;
+      if(target_distance_pts >= guard_points && target_distance_pts < target_best_distance)
+      {
+        target_best_distance = target_distance_pts;
+        target_price = highs[i];
+        target_found = true;
+        target_price_time = times[i];
       }
     }
     else if(direction == BEARISH)
@@ -244,35 +247,45 @@ bool HedgedScanTimeframeForSwings(const SignalTypes direction,
       {
         if(!stop_found)
         {
-          stop_price = highs[i];
-          stop_found = true;
-          stop_price_time = times[i];
-        }
-
-        double distance_pts = (highs[i] - entry_side_price) / point_size;
-        if(distance_pts >= guard_points && distance_pts < entry_best_distance)
-        {
-          entry_best_distance = distance_pts;
-          entry_price = highs[i];
-          entry_price_time = times[i];
+          double distance_pts = (highs[i] - entry_side_price) / point_size;
+          if(distance_pts >= guard_points)
+          {
+            stop_price = highs[i];
+            stop_found = true;
+            stop_price_time = times[i];
+          }
         }
       }
 
-      if(fractal_low)
+      double entry_distance_pts = (highs[i] - entry_side_price) / point_size;
+      if(entry_distance_pts >= guard_points && entry_distance_pts < entry_best_distance)
       {
-        double distance_pts = (exit_side_price - lows[i]) / point_size;
-        if(distance_pts >= guard_points && distance_pts < target_best_distance)
-        {
-          target_best_distance = distance_pts;
-          target_price = lows[i];
-          target_found = true;
-          target_price_time = times[i];
-        }
+        entry_best_distance = entry_distance_pts;
+        entry_price = highs[i];
+        entry_price_time = times[i];
+        entry_found = true;
       }
+
+      double target_distance_pts = (exit_side_price - lows[i]) / point_size;
+      if(target_distance_pts >= guard_points && target_distance_pts < target_best_distance)
+      {
+        target_best_distance = target_distance_pts;
+        target_price = lows[i];
+        target_found = true;
+        target_price_time = times[i];
+      }
+    }
+
+    if(entry_found && target_found && stop_found)
+    {
+      Print(EnumToString(direction), " | ", entry_price_time, " |entry| ", entry_price,
+            " || ", target_price_time, " |target| ", target_price,
+            " || ", stop_price_time, " |stop| ", stop_price);
+      break;
     }
   }
 
-  if(entry_best_distance < DBL_MAX && entry_price > 0.0)
+  if(entry_found && entry_price > 0.0)
   {
     snapshot.entry_anchor_price = entry_price;
     snapshot.anchor_from_fallback = false;
