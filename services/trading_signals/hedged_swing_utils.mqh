@@ -198,6 +198,8 @@ bool HedgedScanTimeframeForSwings(const SignalTypes direction,
   bool   stop_found           = false;
   bool   target_found         = false;
   bool   entry_found          = false;
+  double swing_sequence[10];
+  int    swing_count          = 0;
   datetime entry_price_time   = 0;
   datetime target_price_time  = 0;
   datetime stop_price_time    = 0;
@@ -219,6 +221,8 @@ bool HedgedScanTimeframeForSwings(const SignalTypes direction,
         target_found = false;
         stop_found = false;
         target_best_distance = DBL_MAX;
+        swing_count = 0;
+        swing_sequence[swing_count++] = entry_price;
       }
 
       if(entry_found)
@@ -243,6 +247,14 @@ bool HedgedScanTimeframeForSwings(const SignalTypes direction,
             stop_price_time = times[i];
           }
         }
+
+        double swing_distance_pts = (entry_price - lows[i]) / point_size;
+        if(swing_distance_pts >= guard_points && swing_count < GRID_MAX_LEVELS)
+        {
+          bool far_enough = (swing_distance_pts >= guard_points);
+          if(far_enough)
+            swing_sequence[swing_count++] = lows[i];
+        }
       }
     }
     else if(direction == BEARISH)
@@ -257,6 +269,8 @@ bool HedgedScanTimeframeForSwings(const SignalTypes direction,
         target_found = false;
         stop_found = false;
         target_best_distance = DBL_MAX;
+        swing_count = 0;
+        swing_sequence[swing_count++] = entry_price;
       }
 
       if(entry_found)
@@ -280,6 +294,14 @@ bool HedgedScanTimeframeForSwings(const SignalTypes direction,
             stop_found = true;
             stop_price_time = times[i];
           }
+        }
+
+        double swing_distance_pts = (highs[i] - entry_price) / point_size;
+        if(swing_distance_pts >= guard_points && swing_count < GRID_MAX_LEVELS)
+        {
+          bool far_enough = (swing_distance_pts >= guard_points);
+          if(far_enough)
+            swing_sequence[swing_count++] = highs[i];
         }
       }
     }
@@ -310,6 +332,14 @@ bool HedgedScanTimeframeForSwings(const SignalTypes direction,
   {
     snapshot.stop_loss_price = stop_price;
     snapshot.stop_valid = true;
+  }
+
+  ArrayResize(snapshot.swing_levels, 0);
+  if(entry_found && swing_count > 0)
+  {
+    ArrayResize(snapshot.swing_levels, swing_count);
+    for(int s = 0; s < swing_count; s++)
+      snapshot.swing_levels[s] = swing_sequence[s];
   }
 
   return true;
@@ -366,6 +396,8 @@ bool BuildHedgedSwingSnapshot(const SignalTypes direction,
                             : entry_price_side + guard_points * point_size;
     snapshot.entry_anchor_price = anchor_price;
     snapshot.anchor_from_fallback = true;
+    ArrayResize(snapshot.swing_levels, 1);
+    snapshot.swing_levels[0] = anchor_price;
   }
 
   if(!snapshot.target_valid)
@@ -384,6 +416,12 @@ bool BuildHedgedSwingSnapshot(const SignalTypes direction,
                           : snapshot.entry_anchor_price + guard_points * point_size;
     snapshot.stop_loss_price = stop_price;
     snapshot.stop_valid = (stop_price > 0.0);
+  }
+
+  if(ArraySize(snapshot.swing_levels) <= 0 && snapshot.entry_anchor_price > 0.0)
+  {
+    ArrayResize(snapshot.swing_levels, 1);
+    snapshot.swing_levels[0] = snapshot.entry_anchor_price;
   }
 
   return true;

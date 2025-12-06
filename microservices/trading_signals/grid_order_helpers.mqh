@@ -411,6 +411,13 @@ double GetGridStopReferencePrice(SignalTypes direction, SignalParams &signal_par
 
 double GetGridNextLevelPrice(SignalTypes direction, SignalParams &signal_params, GridOrderState &grid_order_state)
 {
+  if(signal_params.hedged_swing.hedged_mode)
+  {
+    int target_index = grid_order_state.level_index + 1;
+    int swing_total = ArraySize(signal_params.hedged_swing.swing_levels);
+    if(target_index >= 0 && target_index < swing_total)
+      return signal_params.hedged_swing.swing_levels[target_index];
+  }
   double grid_raw_pending_price  = 0;
   double grid_atr_fallback_price = 0;
   double grid_base_entry_price   = grid_order_state.entry_reference_price;

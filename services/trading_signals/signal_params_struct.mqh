@@ -65,6 +65,7 @@ struct HedgedSwingSnapshot
   bool          anchor_from_fallback;
   bool          target_valid;
   bool          stop_valid;
+  double        swing_levels[];
 
   HedgedSwingSnapshot()
   {
@@ -77,6 +78,7 @@ struct HedgedSwingSnapshot
     anchor_from_fallback  = false;
     target_valid          = false;
     stop_valid            = false;
+    ArrayResize(swing_levels, 0);
   }
 };
 
