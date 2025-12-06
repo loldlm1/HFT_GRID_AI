@@ -23,60 +23,8 @@ void UpdateGridLifecycle(SignalParams &signal_params)
   if(GridApplyTrendRiskManagement(signal_params, risk_state, true, use_entry_reference))
     return;
 
-  if(hedged_mode && GridSignalHasExecutedLevel(signal_params))
-  {
-    double check_price = GridCurrentPriceForDirection(direction, false);
-    if(HedgedSwingSlEnabled(direction) && signal_params.hedged_swing.stop_loss_price > 0.0)
-    {
-      bool stop_hit = (direction == BULLISH)
-                        ? (check_price <= signal_params.hedged_swing.stop_loss_price)
-                        : (check_price >= signal_params.hedged_swing.stop_loss_price);
-      if(stop_hit)
-      {
-        GridCloseAllLevels(signal_params, point_size);
-        signal_params.signal_state = CLOSED;
-        HedgedBuildAndOpenAtAnchor(direction, check_price, TimeCurrent(), signal_params);
-        return;
-      }
-    }
-
-    if(signal_params.hedged_swing.target_price > 0.0)
-    {
-      bool target_hit = (direction == BULLISH)
-                          ? (check_price >= signal_params.hedged_swing.target_price)
-                          : (check_price <= signal_params.hedged_swing.target_price);
-      if(target_hit)
-      {
-        double floating_pl = GridCollectSignalFloatingProfit(signal_params);
-        if(floating_pl >= 0.0)
-        {
-          GridCloseAllLevels(signal_params, point_size);
-          HedgedBuildAndOpenAtAnchor(direction, check_price, TimeCurrent(), signal_params);
-          return;
-        }
-        double opposite_pl = HedgedCollectDirectionFloatingProfit((direction == BULLISH) ? BEARISH : BULLISH);
-        if(opposite_pl > 0.0)
-        {
-          GridCloseAllLevels(signal_params, point_size);
-          if(direction == BULLISH && ArraySize(running_bearish_signals) > 0)
-          {
-            GridCloseAllLevels(running_bearish_signals[0], point_size);
-            HedgedBuildAndOpenAtAnchor(BEARISH, check_price, TimeCurrent(), running_bearish_signals[0]);
-          }
-          else if(direction == BEARISH && ArraySize(running_bullish_signals) > 0)
-          {
-            GridCloseAllLevels(running_bullish_signals[0], point_size);
-            HedgedBuildAndOpenAtAnchor(BULLISH, check_price, TimeCurrent(), running_bullish_signals[0]);
-          }
-          HedgedBuildAndOpenAtAnchor(direction, check_price, TimeCurrent(), signal_params);
-          return;
-        }
-        GridCloseAllLevels(signal_params, point_size);
-        HedgedBuildAndOpenAtAnchor(direction, check_price, TimeCurrent(), signal_params);
-        return;
-      }
-    }
-  }
+  if(hedged_mode && HedgedHandleLifecycle(signal_params, grid_order, point_size))
+    return;
 
   if(grid_order.status == GRID_ORDER_STOP_TRAILING_ACTIVE)
   {

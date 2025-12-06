@@ -21,6 +21,7 @@
 #include "trading_signals/market_signal_channel_guards.mqh"
 #include "trading_signals/market_signal_filters.mqh"
 #include "trading_signals/market_signal_cleanup.mqh"
+#include "trading_signals/grid_hedged_mode_manager.mqh"
 #include "trading_signals/market_signal_detection.mqh"
 #include "trading_signals/market_status_controller.mqh"
 #include "../microservices/trading_signals/grid_price_resolver.mqh"
