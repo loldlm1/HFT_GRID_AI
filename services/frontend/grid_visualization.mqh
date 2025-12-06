@@ -109,7 +109,7 @@ void DrawGridLevels(const long chart_id,
                             ? TimeToString(swing_time, TIME_DATE|TIME_MINUTES)
                             : "";
       string swing_label = StringFormat("L%d %s", idx, time_label);
-      UpdateTrackedLine(chart_id, swing_name, (idx == 0) ? COLOR_PROFIT_NEUTRAL : COLOR_PROFIT_NEGATIVE, swing_price, tracked_objects, swing_label, STYLE_DOT);
+      UpdateTrackedLine(chart_id, swing_name, COLOR_PROFIT_NEUTRAL, swing_price, tracked_objects, swing_label, STYLE_DOT);
     }
   }
 }

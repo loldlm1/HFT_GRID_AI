@@ -106,6 +106,7 @@ This document summarizes the current architecture, workflows, and guardrails for
   - Check every indicator handle; call `TesterStop()` when a critical handle is invalid during tester runs.
   - Wrap trade operations; log `GetLastError()` and propagate retcodes through `MarketStatusRegisterBrokerFailure()`.
 - **Data Safety**: Validate array sizes (`ArraySize()`), clamp indices, and avoid reallocation loops (use `ArrayResize(..., size, reserve)`).
+- **MQL static arrays**: MQL5 requires a literal constant for static array sizes; you cannot use a variable/enum (e.g., `int arr[10];` is valid, `int arr[GRID_MAX_LEVELS];` is not).
 - **Dependencies**:
   - Tools → Signals → Management → Frontend (no circular includes).
   - Services may rely on lower layers only; never re-include aggregator headers.

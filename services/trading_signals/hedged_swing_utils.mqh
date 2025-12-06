@@ -206,7 +206,7 @@ bool HedgedScanTimeframeForSwings(const SignalTypes direction,
   datetime target_price_time  = 0;
   datetime stop_price_time    = 0;
 
-  for(int i = 1; i < scan_total; i++)
+  for(int i = 0; i < scan_total; i++)
   {
     bool fractal_high = HedgedIsFractalHigh(highs, i, copied_highs);
     bool fractal_low  = HedgedIsFractalLow(lows, i, copied_lows);
@@ -214,7 +214,7 @@ bool HedgedScanTimeframeForSwings(const SignalTypes direction,
     if(direction == BULLISH)
     {
       double entry_distance_pts = (entry_side_price - lows[i]) / point_size;
-      if(entry_distance_pts >= guard_points && entry_distance_pts < entry_best_distance)
+      if(!entry_found && entry_distance_pts >= guard_points && entry_distance_pts < entry_best_distance)
       {
         entry_best_distance = entry_distance_pts;
         entry_price = lows[i];
@@ -232,7 +232,7 @@ bool HedgedScanTimeframeForSwings(const SignalTypes direction,
       if(entry_found)
       {
         double target_distance_pts = (highs[i] - entry_price) / point_size;
-        if(target_distance_pts >= guard_points && target_distance_pts < target_best_distance)
+        if(!target_found && target_distance_pts >= guard_points && target_distance_pts < target_best_distance)
         {
           target_best_distance = target_distance_pts;
           target_price = highs[i];
@@ -240,7 +240,7 @@ bool HedgedScanTimeframeForSwings(const SignalTypes direction,
           target_price_time = times[i];
         }
 
-        if(fractal_low && !stop_found)
+        if(!stop_found && fractal_low)
         {
           double stop_distance_pts = (entry_price - lows[i]) / point_size;
           if(stop_distance_pts >= guard_points)
@@ -267,7 +267,7 @@ bool HedgedScanTimeframeForSwings(const SignalTypes direction,
     else if(direction == BEARISH)
     {
       double entry_distance_pts = (highs[i] - entry_side_price) / point_size;
-      if(entry_distance_pts >= guard_points && entry_distance_pts < entry_best_distance)
+      if(!entry_found && entry_distance_pts >= guard_points && entry_distance_pts < entry_best_distance)
       {
         entry_best_distance = entry_distance_pts;
         entry_price = highs[i];
@@ -285,7 +285,7 @@ bool HedgedScanTimeframeForSwings(const SignalTypes direction,
       if(entry_found)
       {
         double target_distance_pts = (entry_price - lows[i]) / point_size;
-        if(target_distance_pts >= guard_points && target_distance_pts < target_best_distance)
+        if(!target_found && target_distance_pts >= guard_points && target_distance_pts < target_best_distance)
         {
           target_best_distance = target_distance_pts;
           target_price = lows[i];
@@ -293,7 +293,7 @@ bool HedgedScanTimeframeForSwings(const SignalTypes direction,
           target_price_time = times[i];
         }
 
-        if(fractal_high && !stop_found)
+        if(!stop_found && fractal_high)
         {
           double stop_distance_pts = (highs[i] - entry_price) / point_size;
           if(stop_distance_pts >= guard_points)
@@ -318,7 +318,7 @@ bool HedgedScanTimeframeForSwings(const SignalTypes direction,
       }
     }
 
-    if(entry_found && target_found && stop_found)
+    if(entry_found && target_found && stop_found && swing_count == grid_max_levels)
     {
       Print(EnumToString(direction), " | ", entry_price_time, " |entry| ", entry_price,
             " || ", target_price_time, " |target| ", target_price,
