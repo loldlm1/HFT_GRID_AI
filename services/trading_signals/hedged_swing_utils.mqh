@@ -377,38 +377,11 @@ bool BuildHedgedSwingSnapshot(const SignalTypes direction,
   snapshot.hedged_mode = HedgedSwingModeEnabled();
 
   ENUM_TIMEFRAMES primary_tf  = ResolveHedgedPrimaryTimeframe();
-  ENUM_TIMEFRAMES fallback_tf = Strategy_Timeframe;
-  double guard_points = HedgedResolveGuardPoints(primary_tf, fallback_tf);
+  double guard_points = HedgedResolveGuardPoints(primary_tf, primary_tf);
   snapshot.guard_points = guard_points;
   snapshot.source_timeframe = primary_tf;
 
   HedgedScanTimeframeForSwings(direction, primary_tf, guard_points, snapshot);
-
-  if((snapshot.entry_anchor_price <= 0.0 || !snapshot.target_valid || !snapshot.stop_valid) &&
-     fallback_tf != primary_tf)
-  {
-    HedgedSwingSnapshot fallback_snapshot = snapshot;
-    HedgedScanTimeframeForSwings(direction, fallback_tf, guard_points, fallback_snapshot);
-
-    if(snapshot.entry_anchor_price <= 0.0 && fallback_snapshot.entry_anchor_price > 0.0)
-    {
-      snapshot.entry_anchor_price = fallback_snapshot.entry_anchor_price;
-      snapshot.source_timeframe   = fallback_tf;
-      snapshot.anchor_from_fallback = false;
-    }
-
-    if(!snapshot.target_valid && fallback_snapshot.target_valid)
-    {
-      snapshot.target_price = fallback_snapshot.target_price;
-      snapshot.target_valid = true;
-    }
-
-    if(!snapshot.stop_valid && fallback_snapshot.stop_valid)
-    {
-      snapshot.stop_loss_price = fallback_snapshot.stop_loss_price;
-      snapshot.stop_valid = true;
-    }
-  }
 
   double point_size = HedgedResolvePointSize();
   double entry_price_side = (direction == BULLISH) ? g_ask : g_bid;
@@ -445,6 +418,21 @@ bool BuildHedgedSwingSnapshot(const SignalTypes direction,
     snapshot.stop_valid = (stop_price > 0.0);
   }
 
+  int swing_total = ArraySize(snapshot.swing_levels);
+  if(swing_total < 10 && snapshot.entry_anchor_price > 0.0)
+  {
+    double last_swing = snapshot.swing_levels[swing_total - 1];
+    for(int idx = swing_total; idx < 10; idx++)
+    {
+      double synthetic = (direction == BULLISH)
+                           ? last_swing - guard_points * point_size
+                           : last_swing + guard_points * point_size;
+      AddElementToArray(snapshot.swing_levels, synthetic);
+      AddElementToArray(snapshot.swing_times, (datetime)0);
+      last_swing = synthetic;
+    }
+  }
+
   if(ArraySize(snapshot.swing_levels) <= 0 && snapshot.entry_anchor_price > 0.0)
   {
     ArrayResize(snapshot.swing_levels, 1);
@@ -465,8 +453,7 @@ bool BuildHedgedSwingSnapshotWithEntry(const SignalTypes direction,
   snapshot.hedged_mode = HedgedSwingModeEnabled();
 
   ENUM_TIMEFRAMES primary_tf  = ResolveHedgedPrimaryTimeframe();
-  ENUM_TIMEFRAMES fallback_tf = Strategy_Timeframe;
-  double guard_points = HedgedResolveGuardPoints(primary_tf, fallback_tf);
+  double guard_points = HedgedResolveGuardPoints(primary_tf, primary_tf);
   snapshot.guard_points = guard_points;
   snapshot.source_timeframe = primary_tf;
   snapshot.entry_anchor_price = entry_price;
@@ -479,38 +466,6 @@ bool BuildHedgedSwingSnapshotWithEntry(const SignalTypes direction,
                                true,
                                entry_price,
                                entry_time);
-
-  if((!snapshot.target_valid || !snapshot.stop_valid) && fallback_tf != primary_tf)
-  {
-    HedgedSwingSnapshot fallback_snapshot = snapshot;
-    HedgedScanTimeframeForSwings(direction,
-                                 fallback_tf,
-                                 guard_points,
-                                 fallback_snapshot,
-                                 true,
-                                 entry_price,
-                                 entry_time);
-
-    if(!snapshot.target_valid && fallback_snapshot.target_valid)
-    {
-      snapshot.target_price = fallback_snapshot.target_price;
-      snapshot.target_valid = true;
-    }
-
-    if(!snapshot.stop_valid && fallback_snapshot.stop_valid)
-    {
-      snapshot.stop_loss_price = fallback_snapshot.stop_loss_price;
-      snapshot.stop_valid = true;
-    }
-
-    if(ArraySize(snapshot.swing_levels) <= 1 && ArraySize(fallback_snapshot.swing_levels) > 1)
-    {
-      ArrayResize(snapshot.swing_levels, ArraySize(fallback_snapshot.swing_levels));
-      ArrayResize(snapshot.swing_times,  ArraySize(fallback_snapshot.swing_times));
-      ArrayCopy(snapshot.swing_levels, fallback_snapshot.swing_levels);
-      ArrayCopy(snapshot.swing_times,  fallback_snapshot.swing_times);
-    }
-  }
 
   double point_size = HedgedResolvePointSize();
 
@@ -530,6 +485,23 @@ bool BuildHedgedSwingSnapshotWithEntry(const SignalTypes direction,
                                : entry_price + guard_points * point_size;
     snapshot.stop_loss_price = stop_price_calc;
     snapshot.stop_valid = (stop_price_calc > 0.0);
+  }
+  else
+  {
+    int swing_total = ArraySize(snapshot.swing_levels);
+    if(swing_total < 10)
+    {
+      double last_swing = snapshot.swing_levels[swing_total - 1];
+      for(int idx = swing_total; idx < 10; idx++)
+      {
+        double synthetic = (direction == BULLISH)
+                             ? last_swing - guard_points * point_size
+                             : last_swing + guard_points * point_size;
+        AddElementToArray(snapshot.swing_levels, synthetic);
+        AddElementToArray(snapshot.swing_times, (datetime)0);
+        last_swing = synthetic;
+      }
+    }
   }
 
   if(ArraySize(snapshot.swing_levels) <= 0 && snapshot.entry_anchor_price > 0.0)
