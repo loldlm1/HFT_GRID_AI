@@ -556,7 +556,8 @@ double HedgedResolveSwingTrailingAnchor(const SignalParams &signal_params,
                                         const GridOrderState &grid_order,
                                         const double point_size,
                                         const bool require_profit_guard,
-                                        double &anchor_profit)
+                                        double &anchor_profit,
+                                        const bool require_fractal)
 {
   anchor_profit = 0.0;
   ENUM_TIMEFRAMES tf = ResolveHedgedPrimaryTimeframe();
@@ -599,7 +600,7 @@ double HedgedResolveSwingTrailingAnchor(const SignalParams &signal_params,
 
     if(direction == BULLISH)
     {
-      if(!HedgedIsFractalLow(lows, i, copied_lows))
+      if(require_fractal && !HedgedIsFractalLow(lows, i, copied_lows))
         continue;
       double swing = lows[i];
       if(swing <= entry_price || swing >= current_price)
@@ -615,7 +616,7 @@ double HedgedResolveSwingTrailingAnchor(const SignalParams &signal_params,
     }
     else if(direction == BEARISH)
     {
-      if(!HedgedIsFractalHigh(highs, i, copied_highs))
+      if(require_fractal && !HedgedIsFractalHigh(highs, i, copied_highs))
         continue;
       double swing = highs[i];
       if(swing >= entry_price || swing <= current_price)

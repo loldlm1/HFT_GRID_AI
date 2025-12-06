@@ -57,7 +57,8 @@ bool HedgedUpdateTrailingOnTrendBar(SignalParams &signal_params,
                                                         grid_order,
                                                         point_size,
                                                         true,
-                                                        anchor_profit);
+                                                        anchor_profit,
+                                                        false);
   if(swing_trail > 0.0)
     signal_params.hedged_swing.trailing_price = swing_trail;
 
@@ -69,7 +70,8 @@ bool HedgedUpdateTrailingOnTrendBar(SignalParams &signal_params,
                                                         grid_order,
                                                         point_size,
                                                         false,
-                                                        sl_profit);
+                                                        sl_profit,
+                                                        true);
     if(sl_anchor > 0.0)
     {
       if(signal_params.signal_type == BULLISH)
