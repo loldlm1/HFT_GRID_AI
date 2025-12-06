@@ -505,8 +505,10 @@ bool BuildHedgedSwingSnapshotWithEntry(const SignalTypes direction,
 
     if(ArraySize(snapshot.swing_levels) <= 1 && ArraySize(fallback_snapshot.swing_levels) > 1)
     {
-      snapshot.swing_levels = fallback_snapshot.swing_levels;
-      snapshot.swing_times  = fallback_snapshot.swing_times;
+      ArrayResize(snapshot.swing_levels, ArraySize(fallback_snapshot.swing_levels));
+      ArrayResize(snapshot.swing_times,  ArraySize(fallback_snapshot.swing_times));
+      ArrayCopy(snapshot.swing_levels, fallback_snapshot.swing_levels);
+      ArrayCopy(snapshot.swing_times,  fallback_snapshot.swing_times);
     }
   }
 
@@ -550,19 +552,7 @@ void HedgedEnsureOppositePair(const SignalParams &filled_signal,
     return;
 
   SignalTypes opposite_direction = (filled_signal.signal_type == BULLISH) ? BEARISH : BULLISH;
-
-  if(opposite_direction == BULLISH && ArraySize(running_bullish_signals) > 0)
-  {
-    if(GridSignalHasExecutedLevel(running_bullish_signals[0]))
-      return;
-    ArrayResize(running_bullish_signals, 0);
-  }
-  if(opposite_direction == BEARISH && ArraySize(running_bearish_signals) > 0)
-  {
-    if(GridSignalHasExecutedLevel(running_bearish_signals[0]))
-      return;
-    ArrayResize(running_bearish_signals, 0);
-  }
+  if(!CloseExistingHedgedSignals(opposite_direction)) return;
 
   SignalParams opposite_signal = SignalParams();
   opposite_signal.signal_type            = opposite_direction;
