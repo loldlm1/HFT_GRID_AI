@@ -428,7 +428,7 @@ bool BuildHedgedSwingSnapshot(const SignalTypes direction,
                            ? last_swing - guard_points * point_size
                            : last_swing + guard_points * point_size;
       AddElementToArray(snapshot.swing_levels, synthetic);
-      AddElementToArray(snapshot.swing_times, (datetime)0);
+      AddElementToArray(snapshot.swing_times, TimeCurrent());
       last_swing = synthetic;
     }
   }
@@ -498,7 +498,7 @@ bool BuildHedgedSwingSnapshotWithEntry(const SignalTypes direction,
                              ? last_swing - guard_points * point_size
                              : last_swing + guard_points * point_size;
         AddElementToArray(snapshot.swing_levels, synthetic);
-        AddElementToArray(snapshot.swing_times, (datetime)0);
+        AddElementToArray(snapshot.swing_times, TimeCurrent());
         last_swing = synthetic;
       }
     }
@@ -546,8 +546,19 @@ void HedgedEnsureOppositePair(const SignalParams &filled_signal,
                                     opposite_signal.hedged_swing);
   opposite_signal.grid_entry_reference_price = opposite_signal.hedged_swing.entry_anchor_price;
 
-  if(BuildGridOrderForSignal(opposite_signal))
+  if(!BuildGridOrderForSignal(opposite_signal))
+    return;
+
+  int level_index = ArraySize(opposite_signal.grid_orders) - 1;
+  if(level_index < 0)
+    return;
+  GridOrderState &opp_state = opposite_signal.grid_orders[level_index];
+  double point_size = GridResolvePointSize();
+  double normalized_volume = NormalizeVolumeForSymbol(_Symbol, opp_state.lot_size);
+
+  if(GridExecuteLevelTrade(opposite_signal, opp_state, point_size, normalized_volume))
   {
+    opposite_signal.grid_orders[level_index] = opp_state;
     if(opposite_direction == BULLISH)
       AddElementToArray(running_bullish_signals, opposite_signal);
     else
