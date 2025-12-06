@@ -66,6 +66,7 @@ struct HedgedSwingSnapshot
   bool          target_valid;
   bool          stop_valid;
   double        swing_levels[];
+  datetime      swing_times[];
 
   HedgedSwingSnapshot()
   {
@@ -79,6 +80,7 @@ struct HedgedSwingSnapshot
     target_valid          = false;
     stop_valid            = false;
     ArrayResize(swing_levels, 0);
+    ArrayResize(swing_times, 0);
   }
 };
 

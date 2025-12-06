@@ -71,26 +71,46 @@ void DrawGridLevels(const long chart_id,
                             level_index,
                             level_lot_size);
 
-  UpdateHorizontalLine(chart_id, entry_name, COLOR_PROFIT_NEUTRAL, entry_price_line, entry_label);
-  UpdateHorizontalLine(chart_id, tp_name, COLOR_PROFIT_POSITIVE, tp_price, tp_label);
-  UpdateHorizontalLine(chart_id, final_name, COLOR_PROFIT_POSITIVE, final_price, final_label);
-  UpdateHorizontalLine(chart_id, next_name, COLOR_PROFIT_POSITIVE, next_level_price, next_label);
+  UpdateTrackedLine(chart_id, entry_name, COLOR_PROFIT_NEUTRAL, entry_price_line, tracked_objects, entry_label);
+  UpdateTrackedLine(chart_id, tp_name, COLOR_PROFIT_POSITIVE, tp_price, tracked_objects, tp_label);
+  UpdateTrackedLine(chart_id, final_name, COLOR_PROFIT_POSITIVE, final_price, tracked_objects, final_label);
+  UpdateTrackedLine(chart_id, next_name, COLOR_PROFIT_NEGATIVE, next_level_price, tracked_objects, next_label);
 
   // Trailing active: swap TP for trailing; keep final visible
   if(level_state.status == GRID_ORDER_TP_TRAILING_ACTIVE)
   {
-    UpdateHorizontalLine(chart_id, tp_name, COLOR_PROFIT_POSITIVE, 0.0);
-    UpdateHorizontalLine(chart_id, trailing_name, COLOR_PROFIT_POSITIVE, trailing_price, trailing_label);
+    UpdateTrackedLine(chart_id, tp_name, COLOR_PROFIT_POSITIVE, 0.0, tracked_objects);
+    UpdateTrackedLine(chart_id, trailing_name, COLOR_PROFIT_POSITIVE, trailing_price, tracked_objects, trailing_label);
   }
 
   if(Grid_BreakEven_Mode != BE_DISABLE)
   {
     double break_even_price = ResolveBreakEvenLinePrice(signal_params);
-    UpdateHorizontalLine(chart_id, break_even_name, COLOR_PROFIT_NEUTRAL, break_even_price, break_even_label, STYLE_DASHDOT);
+    UpdateTrackedLine(chart_id, break_even_name, COLOR_PROFIT_NEUTRAL, break_even_price, tracked_objects, break_even_label, STYLE_DASHDOT);
   }
   else
   {
-    UpdateHorizontalLine(chart_id, break_even_name, COLOR_PROFIT_NEUTRAL, 0.0);
+    UpdateTrackedLine(chart_id, break_even_name, COLOR_PROFIT_NEUTRAL, 0.0, tracked_objects);
+  }
+
+  if(signal_params.hedged_swing.hedged_mode)
+  {
+    int swing_total = ArraySize(signal_params.hedged_swing.swing_levels);
+    for(int idx = 0; idx < swing_total; idx++)
+    {
+      double swing_price = signal_params.hedged_swing.swing_levels[idx];
+      if(swing_price <= 0.0)
+        continue;
+      string swing_name = GridSignalObjectName(signal_params, StringFormat("SWING_L%d", idx));
+      datetime swing_time = (idx < ArraySize(signal_params.hedged_swing.swing_times))
+                              ? signal_params.hedged_swing.swing_times[idx]
+                              : 0;
+      string time_label = (swing_time > 0)
+                            ? TimeToString(swing_time, TIME_DATE|TIME_MINUTES)
+                            : "";
+      string swing_label = StringFormat("L%d %s", idx, time_label);
+      UpdateTrackedLine(chart_id, swing_name, (idx == 0) ? COLOR_PROFIT_NEUTRAL : COLOR_PROFIT_NEGATIVE, swing_price, tracked_objects, swing_label, STYLE_DOT);
+    }
   }
 }
 

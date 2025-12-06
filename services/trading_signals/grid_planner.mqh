@@ -4,8 +4,6 @@
 #ifndef _SERVICES_TRADING_SIGNALS_GRID_PLANNER_MQH_
 #define _SERVICES_TRADING_SIGNALS_GRID_PLANNER_MQH_
 
-const int GRID_MAX_LEVELS = 10;
-
 double GridResolveUnifiedStopPercent()
 {
   return MathMax(Grid_Positions_Stops_Percent, 0.0);
