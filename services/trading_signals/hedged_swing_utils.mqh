@@ -603,7 +603,7 @@ double HedgedResolveSwingTrailingAnchor(const SignalParams &signal_params,
       if(require_fractal && !HedgedIsFractalLow(lows, i, copied_lows))
         continue;
       double swing = lows[i];
-      if(swing <= entry_price || swing >= current_price)
+      if(swing >= current_price)
         continue;
       if(require_profit_guard)
       {
@@ -619,7 +619,7 @@ double HedgedResolveSwingTrailingAnchor(const SignalParams &signal_params,
       if(require_fractal && !HedgedIsFractalHigh(highs, i, copied_highs))
         continue;
       double swing = highs[i];
-      if(swing >= entry_price || swing <= current_price)
+      if(swing <= current_price)
         continue;
       if(require_profit_guard)
       {

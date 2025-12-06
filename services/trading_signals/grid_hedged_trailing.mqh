@@ -81,8 +81,7 @@ bool HedgedUpdateTrailingOnTrendBar(SignalParams &signal_params,
       }
       else
       {
-        if(signal_params.hedged_swing.stop_loss_price == 0.0 ||
-           sl_anchor < signal_params.hedged_swing.stop_loss_price)
+        if(sl_anchor < signal_params.hedged_swing.stop_loss_price)
           signal_params.hedged_swing.stop_loss_price = sl_anchor;
       }
     }
