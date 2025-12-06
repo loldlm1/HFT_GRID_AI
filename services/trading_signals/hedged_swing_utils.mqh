@@ -534,6 +534,91 @@ double HedgedCollectDirectionFloatingProfit(const SignalTypes direction)
   return 0.0;
 }
 
+datetime HedgedResolveLastFilledTime(const SignalParams &signal_params)
+{
+  datetime latest = signal_params.entry_time;
+  int total = ArraySize(signal_params.grid_orders);
+  for(int i = 0; i < total; i++)
+  {
+    GridOrderState state = signal_params.grid_orders[i];
+    if(state.entry_price <= 0.0)
+      continue;
+    if(state.last_action_time > latest)
+      latest = state.last_action_time;
+  }
+  return latest;
+}
+
+double HedgedResolveSwingTrailingAnchor(const SignalParams &signal_params,
+                                        const GridOrderState &grid_order,
+                                        const double point_size)
+{
+  ENUM_TIMEFRAMES tf = ResolveHedgedPrimaryTimeframe();
+  int bars_available = Bars(_Symbol, tf);
+  if(bars_available < 3)
+    return 0.0;
+
+  datetime cutoff = HedgedResolveLastFilledTime(signal_params);
+  int scan_total = HedgedSwingBarsToScan();
+  if(scan_total + 2 > bars_available)
+    scan_total = bars_available - 2;
+  if(scan_total < 3)
+    return 0.0;
+
+  double highs[], lows[];
+  datetime times[];
+  int copied_highs = CopyHigh(_Symbol, tf, 0, scan_total + 2, highs);
+  int copied_lows  = CopyLow(_Symbol, tf, 0, scan_total + 2, lows);
+  int copied_times = CopyTime(_Symbol, tf, 0, scan_total + 2, times);
+  ArraySetAsSeries(highs, true);
+  ArraySetAsSeries(lows, true);
+  ArraySetAsSeries(times, true);
+  if(copied_highs < 3 || copied_lows < 3 || copied_times < 3)
+    return 0.0;
+
+  SignalTypes direction = signal_params.signal_type;
+  double entry_price = grid_order.entry_price;
+  if(entry_price <= 0.0)
+    entry_price = signal_params.hedged_swing.entry_anchor_price;
+  double current_price = GridCurrentPriceForDirection(direction, false);
+
+  for(int i = 1; i < scan_total; i++)
+  {
+    datetime bar_time = times[i];
+    if(bar_time <= cutoff)
+      continue;
+    // Completed bar only
+    if(bar_time >= times[0])
+      continue;
+
+    if(direction == BULLISH)
+    {
+      bool fractal_low = HedgedIsFractalLow(lows, i, copied_lows);
+      if(!fractal_low)
+        continue;
+      double swing = lows[i];
+      if(swing <= entry_price)
+        continue;
+      if(swing >= current_price)
+        continue;
+      return swing;
+    }
+    else if(direction == BEARISH)
+    {
+      bool fractal_high = HedgedIsFractalHigh(highs, i, copied_highs);
+      if(!fractal_high)
+        continue;
+      double swing = highs[i];
+      if(swing >= entry_price)
+        continue;
+      if(swing <= current_price)
+        continue;
+      return swing;
+    }
+  }
+  return 0.0;
+}
+
 bool HedgedBuildAndOpenAtAnchor(const SignalTypes direction,
                                 const double anchor_price,
                                 const datetime anchor_time,
