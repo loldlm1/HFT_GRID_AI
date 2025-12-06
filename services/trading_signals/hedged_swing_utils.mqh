@@ -236,11 +236,10 @@ bool HedgedScanTimeframeForSwings(const SignalTypes direction,
           target_price_time = times[i];
         }
 
-        if(fractal_low)
+        if(fractal_low && !stop_found)
         {
           double stop_distance_pts = (entry_price - lows[i]) / point_size;
-          if(stop_distance_pts >= guard_points &&
-             (!stop_found || stop_distance_pts < (entry_price - stop_price) / point_size))
+          if(stop_distance_pts >= guard_points)
           {
             stop_price = lows[i];
             stop_found = true;
@@ -248,11 +247,11 @@ bool HedgedScanTimeframeForSwings(const SignalTypes direction,
           }
         }
 
-        double swing_distance_pts = (entry_price - lows[i]) / point_size;
-        if(swing_distance_pts >= guard_points && swing_count < GRID_MAX_LEVELS)
+        if(swing_count < GRID_MAX_LEVELS)
         {
-          bool far_enough = (swing_distance_pts >= guard_points);
-          if(far_enough)
+          double last_swing = swing_sequence[swing_count - 1];
+          double swing_distance_pts = (last_swing - lows[i]) / point_size;
+          if(swing_distance_pts >= guard_points)
             swing_sequence[swing_count++] = lows[i];
         }
       }
@@ -284,11 +283,10 @@ bool HedgedScanTimeframeForSwings(const SignalTypes direction,
           target_price_time = times[i];
         }
 
-        if(fractal_high)
+        if(fractal_high && !stop_found)
         {
           double stop_distance_pts = (highs[i] - entry_price) / point_size;
-          if(stop_distance_pts >= guard_points &&
-             (!stop_found || stop_distance_pts < (stop_price - entry_price) / point_size))
+          if(stop_distance_pts >= guard_points)
           {
             stop_price = highs[i];
             stop_found = true;
@@ -296,11 +294,11 @@ bool HedgedScanTimeframeForSwings(const SignalTypes direction,
           }
         }
 
-        double swing_distance_pts = (highs[i] - entry_price) / point_size;
-        if(swing_distance_pts >= guard_points && swing_count < GRID_MAX_LEVELS)
+        if(swing_count < GRID_MAX_LEVELS)
         {
-          bool far_enough = (swing_distance_pts >= guard_points);
-          if(far_enough)
+          double last_swing = swing_sequence[swing_count - 1];
+          double swing_distance_pts = (highs[i] - last_swing) / point_size;
+          if(swing_distance_pts >= guard_points)
             swing_sequence[swing_count++] = highs[i];
         }
       }
