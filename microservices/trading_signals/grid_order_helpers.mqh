@@ -447,6 +447,9 @@ double GetGridNextLevelPrice(SignalTypes direction, SignalParams &signal_params,
 
 double GetGridTakeProfitPrice(SignalTypes direction, SignalParams &signal_params, GridOrderState &grid_order_state)
 {
+  if(signal_params.hedged_swing.hedged_mode && signal_params.hedged_swing.target_valid)
+    return signal_params.hedged_swing.target_price;
+
   double grid_raw_tp_price            = 0;
   double grid_atr_fallback_price      = 0;
   int    grid_level_index             = grid_order_state.level_index;
