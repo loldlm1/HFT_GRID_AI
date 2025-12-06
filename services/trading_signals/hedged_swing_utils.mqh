@@ -517,6 +517,63 @@ bool BuildHedgedSwingSnapshotWithEntry(const SignalTypes direction,
   return true;
 }
 
+double HedgedCollectDirectionFloatingProfit(const SignalTypes direction)
+{
+  if(direction == BULLISH)
+  {
+    if(ArraySize(running_bullish_signals) <= 0)
+      return 0.0;
+    return GridCollectSignalFloatingProfit(running_bullish_signals[0]);
+  }
+  if(direction == BEARISH)
+  {
+    if(ArraySize(running_bearish_signals) <= 0)
+      return 0.0;
+    return GridCollectSignalFloatingProfit(running_bearish_signals[0]);
+  }
+  return 0.0;
+}
+
+bool HedgedBuildAndOpenAtAnchor(const SignalTypes direction,
+                                const double anchor_price,
+                                const datetime anchor_time,
+                                SignalParams &out_signal)
+{
+  out_signal = SignalParams();
+  out_signal.signal_type            = direction;
+  out_signal.entry_time             = anchor_time;
+  out_signal.entry_price            = GridCurrentPriceForDirection(direction, true);
+  out_signal.strategy_context       = CONTEXT_SLOT_BASE;
+  out_signal.strategy_timeframe     = ResolveHedgedPrimaryTimeframe();
+  out_signal.strategy_context_label = "HEDGED";
+  out_signal.entry_trigger_mode     = ENTRY_MODE_MA_TREND;
+  out_signal.entry_evaluation_mode  = ENTRY_EVAL_OFF;
+
+  if(!BuildHedgedSwingSnapshotWithEntry(direction,
+                                        anchor_price,
+                                        anchor_time,
+                                        out_signal.hedged_swing))
+    return false;
+
+  out_signal.grid_entry_reference_price = out_signal.hedged_swing.entry_anchor_price;
+
+  if(!BuildGridOrderForSignal(out_signal))
+    return false;
+
+  int level_index = ArraySize(out_signal.grid_orders) - 1;
+  if(level_index < 0)
+    return false;
+  GridOrderState state = out_signal.grid_orders[level_index];
+  double point_size = GridResolvePointSize();
+  double normalized_volume = NormalizeVolumeForSymbol(_Symbol, state.lot_size);
+
+  if(!GridExecuteLevelTrade(out_signal, state, point_size, normalized_volume))
+    return false;
+
+  out_signal.grid_orders[level_index] = state;
+  return true;
+}
+
 void HedgedEnsureOppositePair(const SignalParams &filled_signal,
                               const GridOrderState &filled_state)
 {
@@ -548,19 +605,8 @@ void HedgedEnsureOppositePair(const SignalParams &filled_signal,
                                     opposite_signal.hedged_swing);
   opposite_signal.grid_entry_reference_price = opposite_signal.hedged_swing.entry_anchor_price;
 
-  if(!BuildGridOrderForSignal(opposite_signal))
-    return;
-
-  int level_index = ArraySize(opposite_signal.grid_orders) - 1;
-  if(level_index < 0)
-    return;
-  GridOrderState opp_state = opposite_signal.grid_orders[level_index];
-  double point_size = GridResolvePointSize();
-  double normalized_volume = NormalizeVolumeForSymbol(_Symbol, opp_state.lot_size);
-
-  if(GridExecuteLevelTrade(opposite_signal, opp_state, point_size, normalized_volume))
+  if(HedgedBuildAndOpenAtAnchor(opposite_direction, anchor_price, filled_signal.entry_time, opposite_signal))
   {
-    opposite_signal.grid_orders[level_index] = opp_state;
     if(opposite_direction == BULLISH)
       AddElementToArray(running_bullish_signals, opposite_signal);
     else
