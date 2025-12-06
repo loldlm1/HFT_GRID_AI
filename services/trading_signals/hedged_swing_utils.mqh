@@ -145,7 +145,7 @@ bool HedgedIsFractalHigh(const double &highs[],
                          const int index,
                          const int total)
 {
-  if(index <= 0 || index >= total - 1)
+  if(index <= 1 || index >= total - 1)
     return false;
   return (highs[index] >= highs[index - 1] &&
           highs[index] >= highs[index + 1]);
@@ -155,7 +155,7 @@ bool HedgedIsFractalLow(const double &lows[],
                         const int index,
                         const int total)
 {
-  if(index <= 0 || index >= total - 1)
+  if(index <= 1 || index >= total - 1)
     return false;
   return (lows[index] <= lows[index - 1] &&
           lows[index] <= lows[index + 1]);

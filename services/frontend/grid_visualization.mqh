@@ -45,6 +45,7 @@ void DrawGridLevels(const long chart_id,
   string next_name  = GridSignalObjectName(signal_params, "NEXT");
   string trailing_name = GridSignalObjectName(signal_params, "TP_TRAILING");
   string swing_trailing_name = GridSignalObjectName(signal_params, "SWING_TRAIL");
+  string swing_sl_name = GridSignalObjectName(signal_params, "SWING_SL");
   string break_even_name = GridSignalObjectName(signal_params, "BREAK_EVEN");
 
   int grid_order_level = ArraySize(signal_params.grid_orders)-1;
@@ -58,6 +59,7 @@ void DrawGridLevels(const long chart_id,
   double next_level_price = level_state.next_level_price;
   double trailing_price   = level_state.trailing_price;
   double swing_trailing_price = signal_params.hedged_swing.trailing_price;
+  double swing_sl_price       = signal_params.hedged_swing.stop_loss_price;
 
   string entry_label    = GridSignalLineLabel(signal_params, "ENTRY");
   string tp_label       = GridSignalLineLabel(signal_params, "TP");
@@ -65,6 +67,7 @@ void DrawGridLevels(const long chart_id,
   string next_label     = GridSignalLineLabel(signal_params, "NEXT");
   string trailing_label = GridSignalLineLabel(signal_params, "TP TRAILING");
   string swing_trailing_label = GridSignalLineLabel(signal_params, "SWING TRAIL");
+  string swing_sl_label       = GridSignalLineLabel(signal_params, "SWING SL");
   string break_even_label = GridSignalLineLabel(signal_params, "BREAK EVEN");
 
   int level_index = level_state.level_index;
@@ -79,6 +82,7 @@ void DrawGridLevels(const long chart_id,
   UpdateTrackedLine(chart_id, final_name, COLOR_PROFIT_POSITIVE, final_price, tracked_objects, final_label);
   UpdateTrackedLine(chart_id, next_name, COLOR_PROFIT_NEGATIVE, next_level_price, tracked_objects, next_label);
   UpdateTrackedLine(chart_id, swing_trailing_name, COLOR_PROFIT_NEUTRAL, swing_trailing_price, tracked_objects, swing_trailing_label, STYLE_DASHDOT);
+  UpdateTrackedLine(chart_id, swing_sl_name, COLOR_PROFIT_NEGATIVE, swing_sl_price, tracked_objects, swing_sl_label, STYLE_DOT);
 
   // Trailing active: swap TP for trailing; keep final visible
   if(level_state.status == GRID_ORDER_TP_TRAILING_ACTIVE)
