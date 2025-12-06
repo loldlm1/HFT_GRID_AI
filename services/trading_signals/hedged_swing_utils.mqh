@@ -514,6 +514,9 @@ bool BuildHedgedSwingSnapshotWithEntry(const SignalTypes direction,
     snapshot.swing_times[0] = (entry_time > 0) ? entry_time : TimeCurrent();
   }
 
+  snapshot.trailing_price = 0.0;
+  snapshot.trailing_bar_time = 0;
+
   return true;
 }
 
@@ -551,8 +554,11 @@ datetime HedgedResolveLastFilledTime(const SignalParams &signal_params)
 
 double HedgedResolveSwingTrailingAnchor(const SignalParams &signal_params,
                                         const GridOrderState &grid_order,
-                                        const double point_size)
+                                        const double point_size,
+                                        const bool require_profit_guard,
+                                        double &anchor_profit)
 {
+  anchor_profit = 0.0;
   ENUM_TIMEFRAMES tf = ResolveHedgedPrimaryTimeframe();
   int bars_available = Bars(_Symbol, tf);
   if(bars_available < 3)
@@ -593,26 +599,34 @@ double HedgedResolveSwingTrailingAnchor(const SignalParams &signal_params,
 
     if(direction == BULLISH)
     {
-      bool fractal_low = HedgedIsFractalLow(lows, i, copied_lows);
-      if(!fractal_low)
+      if(!HedgedIsFractalLow(lows, i, copied_lows))
         continue;
       double swing = lows[i];
-      if(swing <= entry_price)
+      if(swing <= entry_price || swing >= current_price)
         continue;
-      if(swing >= current_price)
-        continue;
+      if(require_profit_guard)
+      {
+        double hypothetical = HedgedComputeProfitAtPrice(signal_params, swing);
+        if(hypothetical <= 0.0)
+          continue;
+        anchor_profit = hypothetical;
+      }
       return swing;
     }
     else if(direction == BEARISH)
     {
-      bool fractal_high = HedgedIsFractalHigh(highs, i, copied_highs);
-      if(!fractal_high)
+      if(!HedgedIsFractalHigh(highs, i, copied_highs))
         continue;
       double swing = highs[i];
-      if(swing >= entry_price)
+      if(swing >= entry_price || swing <= current_price)
         continue;
-      if(swing <= current_price)
-        continue;
+      if(require_profit_guard)
+      {
+        double hypothetical = HedgedComputeProfitAtPrice(signal_params, swing);
+        if(hypothetical <= 0.0)
+          continue;
+        anchor_profit = hypothetical;
+      }
       return swing;
     }
   }

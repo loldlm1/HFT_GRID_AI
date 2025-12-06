@@ -14,20 +14,12 @@ bool HedgedHandleLifecycle(SignalParams &signal_params,
     return false;
 
   SignalTypes direction = signal_params.signal_type;
-  double check_price = GridCurrentPriceForDirection(direction, false);
+  HedgedUpdateTrailingOnTrendBar(signal_params, grid_order);
 
-  double floating_pl = GridCollectSignalFloatingProfit(signal_params);
-  if(floating_pl > 0.0)
-  {
-    double swing_trail = HedgedResolveSwingTrailingAnchor(signal_params, grid_order, point_size);
-    if(swing_trail > 0.0)
-    {
-      if(direction == BULLISH && swing_trail > signal_params.hedged_swing.stop_loss_price)
-        signal_params.hedged_swing.stop_loss_price = swing_trail;
-      if(direction == BEARISH && (signal_params.hedged_swing.stop_loss_price == 0.0 || swing_trail < signal_params.hedged_swing.stop_loss_price))
-        signal_params.hedged_swing.stop_loss_price = swing_trail;
-    }
-  }
+  if(HedgedCheckTrailingExit(signal_params, grid_order, point_size))
+    return true;
+
+  double check_price = GridCurrentPriceForDirection(direction, false);
 
   if(HedgedSwingSlEnabled(direction) && signal_params.hedged_swing.stop_loss_price > 0.0)
   {

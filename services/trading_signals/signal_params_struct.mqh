@@ -61,12 +61,14 @@ struct HedgedSwingSnapshot
   double        target_price;
   double        guard_points;
   double        stop_loss_price;
+  double        trailing_price;
   ENUM_TIMEFRAMES source_timeframe;
   bool          anchor_from_fallback;
   bool          target_valid;
   bool          stop_valid;
   double        swing_levels[];
   datetime      swing_times[];
+  datetime      trailing_bar_time;
 
   HedgedSwingSnapshot()
   {
@@ -75,12 +77,14 @@ struct HedgedSwingSnapshot
     target_price          = 0.0;
     guard_points          = 0.0;
     stop_loss_price       = 0.0;
+    trailing_price        = 0.0;
     source_timeframe      = PERIOD_CURRENT;
     anchor_from_fallback  = false;
     target_valid          = false;
     stop_valid            = false;
     ArrayResize(swing_levels, 0);
     ArrayResize(swing_times, 0);
+    trailing_bar_time     = 0;
   }
 };
 
