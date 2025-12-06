@@ -164,7 +164,10 @@ bool HedgedIsFractalLow(const double &lows[],
 bool HedgedScanTimeframeForSwings(const SignalTypes direction,
                                   const ENUM_TIMEFRAMES tf,
                                   const double guard_points,
-                                  HedgedSwingSnapshot &snapshot)
+                                  HedgedSwingSnapshot &snapshot,
+                                  const bool preset_entry = false,
+                                  const double preset_entry_price = 0.0,
+                                  const datetime preset_entry_time = 0)
 {
   int bars_available = Bars(_Symbol, tf);
   if(bars_available < 3)
@@ -193,18 +196,24 @@ bool HedgedScanTimeframeForSwings(const SignalTypes direction,
 
   double entry_best_distance  = DBL_MAX;
   double target_best_distance = DBL_MAX;
-  double entry_price          = 0.0;
+  double entry_price          = (preset_entry && preset_entry_price > 0.0) ? preset_entry_price : 0.0;
   double target_price         = 0.0;
   double stop_price           = 0.0;
   bool   stop_found           = false;
   bool   target_found         = false;
-  bool   entry_found          = false;
+  bool   entry_found          = (preset_entry && preset_entry_price > 0.0);
   double swing_sequence[10];
   datetime swing_time_sequence[10];
-  int    swing_count          = 0;
-  datetime entry_price_time   = 0;
+  int    swing_count          = entry_found ? 1 : 0;
+  datetime entry_price_time   = preset_entry_time;
   datetime target_price_time  = 0;
   datetime stop_price_time    = 0;
+
+  if(entry_found)
+  {
+    swing_sequence[0] = entry_price;
+    swing_time_sequence[0] = (preset_entry_time > 0) ? preset_entry_time : TimeCurrent();
+  }
 
   for(int i = 0; i < scan_total; i++)
   {
@@ -214,7 +223,7 @@ bool HedgedScanTimeframeForSwings(const SignalTypes direction,
     if(direction == BULLISH)
     {
       double entry_distance_pts = (entry_side_price - lows[i]) / point_size;
-      if(!entry_found && entry_distance_pts >= guard_points && entry_distance_pts < entry_best_distance)
+      if(!entry_found && !preset_entry && entry_distance_pts >= guard_points && entry_distance_pts < entry_best_distance)
       {
         entry_best_distance = entry_distance_pts;
         entry_price = lows[i];
@@ -251,7 +260,7 @@ bool HedgedScanTimeframeForSwings(const SignalTypes direction,
           }
         }
 
-        if(swing_count < grid_max_levels)
+        if(swing_count < 10)
         {
           double last_swing = swing_sequence[swing_count - 1];
           double swing_distance_pts = (last_swing - lows[i]) / point_size;
@@ -267,7 +276,7 @@ bool HedgedScanTimeframeForSwings(const SignalTypes direction,
     else if(direction == BEARISH)
     {
       double entry_distance_pts = (highs[i] - entry_side_price) / point_size;
-      if(!entry_found && entry_distance_pts >= guard_points && entry_distance_pts < entry_best_distance)
+      if(!entry_found && !preset_entry && entry_distance_pts >= guard_points && entry_distance_pts < entry_best_distance)
       {
         entry_best_distance = entry_distance_pts;
         entry_price = highs[i];
@@ -304,7 +313,7 @@ bool HedgedScanTimeframeForSwings(const SignalTypes direction,
           }
         }
 
-        if(swing_count < grid_max_levels)
+        if(swing_count < 10)
         {
           double last_swing = swing_sequence[swing_count - 1];
           double swing_distance_pts = (highs[i] - last_swing) / point_size;
@@ -445,6 +454,143 @@ bool BuildHedgedSwingSnapshot(const SignalTypes direction,
   }
 
   return true;
+}
+
+bool BuildHedgedSwingSnapshotWithEntry(const SignalTypes direction,
+                                       const double entry_price,
+                                       const datetime entry_time,
+                                       HedgedSwingSnapshot &snapshot)
+{
+  snapshot = HedgedSwingSnapshot();
+  snapshot.hedged_mode = HedgedSwingModeEnabled();
+
+  ENUM_TIMEFRAMES primary_tf  = ResolveHedgedPrimaryTimeframe();
+  ENUM_TIMEFRAMES fallback_tf = Strategy_Timeframe;
+  double guard_points = HedgedResolveGuardPoints(primary_tf, fallback_tf);
+  snapshot.guard_points = guard_points;
+  snapshot.source_timeframe = primary_tf;
+  snapshot.entry_anchor_price = entry_price;
+  snapshot.anchor_from_fallback = false;
+
+  HedgedScanTimeframeForSwings(direction,
+                               primary_tf,
+                               guard_points,
+                               snapshot,
+                               true,
+                               entry_price,
+                               entry_time);
+
+  if((!snapshot.target_valid || !snapshot.stop_valid) && fallback_tf != primary_tf)
+  {
+    HedgedSwingSnapshot fallback_snapshot = snapshot;
+    HedgedScanTimeframeForSwings(direction,
+                                 fallback_tf,
+                                 guard_points,
+                                 fallback_snapshot,
+                                 true,
+                                 entry_price,
+                                 entry_time);
+
+    if(!snapshot.target_valid && fallback_snapshot.target_valid)
+    {
+      snapshot.target_price = fallback_snapshot.target_price;
+      snapshot.target_valid = true;
+    }
+
+    if(!snapshot.stop_valid && fallback_snapshot.stop_valid)
+    {
+      snapshot.stop_loss_price = fallback_snapshot.stop_loss_price;
+      snapshot.stop_valid = true;
+    }
+
+    if(ArraySize(snapshot.swing_levels) <= 1 && ArraySize(fallback_snapshot.swing_levels) > 1)
+    {
+      snapshot.swing_levels = fallback_snapshot.swing_levels;
+      snapshot.swing_times  = fallback_snapshot.swing_times;
+    }
+  }
+
+  double point_size = HedgedResolvePointSize();
+
+  if(!snapshot.target_valid)
+  {
+    double target_price_calc = (direction == BULLISH)
+                                 ? entry_price + guard_points * point_size
+                                 : entry_price - guard_points * point_size;
+    snapshot.target_price = target_price_calc;
+    snapshot.target_valid = (target_price_calc > 0.0);
+  }
+
+  if(!snapshot.stop_valid && HedgedSwingSlEnabled(direction))
+  {
+    double stop_price_calc = (direction == BULLISH)
+                               ? entry_price - guard_points * point_size
+                               : entry_price + guard_points * point_size;
+    snapshot.stop_loss_price = stop_price_calc;
+    snapshot.stop_valid = (stop_price_calc > 0.0);
+  }
+
+  if(ArraySize(snapshot.swing_levels) <= 0 && snapshot.entry_anchor_price > 0.0)
+  {
+    ArrayResize(snapshot.swing_levels, 1);
+    snapshot.swing_levels[0] = snapshot.entry_anchor_price;
+    ArrayResize(snapshot.swing_times, 1);
+    snapshot.swing_times[0] = (entry_time > 0) ? entry_time : TimeCurrent();
+  }
+
+  return true;
+}
+
+void HedgedEnsureOppositePair(const SignalParams &filled_signal,
+                              const GridOrderState &filled_state)
+{
+  if(!filled_signal.hedged_swing.hedged_mode)
+    return;
+  if(filled_state.level_index != 0)
+    return;
+
+  SignalTypes opposite_direction = (filled_signal.signal_type == BULLISH) ? BEARISH : BULLISH;
+
+  if(opposite_direction == BULLISH && ArraySize(running_bullish_signals) > 0)
+  {
+    if(GridSignalHasExecutedLevel(running_bullish_signals[0]))
+      return;
+    ArrayResize(running_bullish_signals, 0);
+  }
+  if(opposite_direction == BEARISH && ArraySize(running_bearish_signals) > 0)
+  {
+    if(GridSignalHasExecutedLevel(running_bearish_signals[0]))
+      return;
+    ArrayResize(running_bearish_signals, 0);
+  }
+
+  SignalParams opposite_signal = SignalParams();
+  opposite_signal.signal_type            = opposite_direction;
+  opposite_signal.entry_time             = filled_signal.entry_time;
+  opposite_signal.entry_price            = GridCurrentPriceForDirection(opposite_direction, true);
+  opposite_signal.strategy_context       = filled_signal.strategy_context;
+  opposite_signal.strategy_timeframe     = filled_signal.strategy_timeframe;
+  opposite_signal.strategy_context_label = filled_signal.strategy_context_label;
+  opposite_signal.entry_trigger_mode     = ENTRY_MODE_MA_TREND;
+  opposite_signal.entry_evaluation_mode  = ENTRY_EVAL_OFF;
+
+  double anchor_price = filled_state.entry_price;
+  if(anchor_price <= 0.0)
+    anchor_price = opposite_signal.entry_price;
+
+  BuildHedgedSwingSnapshotWithEntry(opposite_direction,
+                                    anchor_price,
+                                    filled_signal.entry_time,
+                                    opposite_signal.hedged_swing);
+  opposite_signal.grid_entry_reference_price = opposite_signal.hedged_swing.entry_anchor_price;
+
+  if(BuildGridOrderForSignal(opposite_signal))
+  {
+    if(opposite_direction == BULLISH)
+      AddElementToArray(running_bullish_signals, opposite_signal);
+    else
+      AddElementToArray(running_bearish_signals, opposite_signal);
+  }
 }
 
 #endif // _SERVICES_TRADING_SIGNALS_HEDGED_SWING_UTILS_MQH_
