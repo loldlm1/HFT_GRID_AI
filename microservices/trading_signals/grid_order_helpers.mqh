@@ -448,7 +448,23 @@ double GetGridNextLevelPrice(SignalTypes direction, SignalParams &signal_params,
 double GetGridTakeProfitPrice(SignalTypes direction, SignalParams &signal_params, GridOrderState &grid_order_state)
 {
   if(signal_params.hedged_swing.hedged_mode && signal_params.hedged_swing.target_valid)
+  {
+    int level_index = grid_order_state.level_index;
+    if(level_index >= 2)
+    {
+      int swing_idx = level_index - 1;
+      int swing_total = ArraySize(signal_params.hedged_swing.swing_levels);
+      if(swing_total > 0)
+      {
+        if(swing_idx >= swing_total)
+          swing_idx = swing_total - 1;
+        double prior_swing = signal_params.hedged_swing.swing_levels[swing_idx];
+        if(prior_swing > 0.0)
+          signal_params.hedged_swing.target_price = prior_swing;
+      }
+    }
     return signal_params.hedged_swing.target_price;
+  }
 
   double grid_raw_tp_price            = 0;
   double grid_atr_fallback_price      = 0;
