@@ -225,19 +225,30 @@ bool BuildHedgedSignalParams(const SignalTypes direction,
   return true;
 }
 
-void CloseExistingHedgedSignals()
+bool CloseExistingHedgedSignals(const SignalTypes direction)
 {
-  double point_size = GridResolvePointSize();
+  bool has_running = (direction == BULLISH)
+                      ? (ArraySize(running_bullish_signals) > 0)
+                      : (ArraySize(running_bearish_signals) > 0);
+  if(!has_running)
+    return true;
 
-  int bullish_total = ArraySize(running_bullish_signals);
-  for(int i = 0; i < bullish_total; i++)
-    GridCloseAllLevels(running_bullish_signals[i], point_size);
-  ArrayResize(running_bullish_signals, 0);
+  SignalParams existing = (direction == BULLISH) ? running_bullish_signals[0] : running_bearish_signals[0];
+  if(GridSignalHasExecutedLevel(existing))
+    return false;
 
-  int bearish_total = ArraySize(running_bearish_signals);
-  for(int j = 0; j < bearish_total; j++)
-    GridCloseAllLevels(running_bearish_signals[j], point_size);
-  ArrayResize(running_bearish_signals, 0);
+  if(direction == BULLISH)
+  {
+    CloseBullishSignal(running_bullish_signals[0]);
+    ArrayResize(running_bullish_signals, 0);
+  }
+  else if(direction == BEARISH)
+  {
+    CloseBearishSignal(running_bearish_signals[0]);
+    ArrayResize(running_bearish_signals, 0);
+  }
+
+  return true;
 }
 
 void DetectHedgedSwingSignals()
@@ -251,11 +262,6 @@ void DetectHedgedSwingSignals()
     return;
 
   int base_slot = StrategyContextIndex(CONTEXT_SLOT_BASE);
-  if(g_context_runtime[base_slot].last_bar_time > 0 &&
-     g_context_runtime[base_slot].last_bar_time != bar_time)
-  {
-    CloseExistingHedgedSignals();
-  }
   if(g_context_runtime[base_slot].last_bar_time == bar_time)
     return;
   g_context_runtime[base_slot].last_bar_time = bar_time;
@@ -264,6 +270,10 @@ void DetectHedgedSwingSignals()
   for(int idx = 0; idx < 2; idx++)
   {
     SignalTypes direction = directions[idx];
+
+    if(!CloseExistingHedgedSignals(direction))
+      continue;
+
     if(!CanAttemptSignal(direction))
       continue;
 
