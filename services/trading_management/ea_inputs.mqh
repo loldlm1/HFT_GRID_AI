@@ -183,7 +183,7 @@ input bool   Bearish_Swing_SL_Enable    = true;
  bool Enable_File_Logs         = false;
  bool Enable_Show_Indicators   = true;
  bool Enable_Chart_Summary     = true;
- bool Enable_Chart_Levels      = true;
+input bool Enable_Chart_Levels      = true;
  bool Enable_Trend_Filter_Sanity_Stop = false;
  bool Debug_Stop_On_Negative_Equity   = false;
 
