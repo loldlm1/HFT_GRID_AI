@@ -72,6 +72,9 @@ void UpdateGridLifecycle(SignalParams &signal_params)
       {
         UpdateGridOrderForSignal(signal_params);
         grid_order = signal_params.grid_orders[grid_order_level];
+        HedgedMaybeRebuildSwingsOnVolExpansion(signal_params,
+                                               grid_order.entry_price,
+                                               grid_order.last_action_time);
         HedgedEnsureOppositePair(signal_params, grid_order);
         GridLogEvent("GRID_ORDER_STOP_TRAILING_ACTIVE -> GRID_ORDER_ACTIVE", signal_params, grid_order);
         if(Grid_Risk_Trend_Mode == GRID_RM_TREND_HEDGE)
@@ -86,7 +89,7 @@ void UpdateGridLifecycle(SignalParams &signal_params)
   {
     double current_price = GridCurrentPriceForDirection(direction, false);
     // Final TP closes the entire grid
-    if(grid_order.final_take_profit_price > 0.0)
+    if(!hedged_mode && grid_order.final_take_profit_price > 0.0)
     {
       bool hit_final = (direction == BULLISH && current_price >= grid_order.final_take_profit_price) ||
                         (direction == BEARISH && current_price <= grid_order.final_take_profit_price);
@@ -96,7 +99,7 @@ void UpdateGridLifecycle(SignalParams &signal_params)
         GridLogEvent("LEVEL_FINAL_TP", signal_params, grid_order);
       }
     }
-    if(GridShouldActivateTrailing(signal_params, grid_order, current_price))
+    if(!hedged_mode && GridShouldActivateTrailing(signal_params, grid_order, current_price))
     {
       if(Grid_Risk_Trend_Mode == GRID_RM_TREND_HEDGE &&
          signal_params.hedge_position_ticket > 0)
@@ -143,7 +146,7 @@ void UpdateGridLifecycle(SignalParams &signal_params)
   {
     double current_price = GridCurrentPriceForDirection(direction, false);
     // Final TP closes the entire grid even while trailing
-    if(grid_order.final_take_profit_price > 0.0)
+    if(!hedged_mode && grid_order.final_take_profit_price > 0.0)
     {
       bool hit_final = (direction == BULLISH && current_price >= grid_order.final_take_profit_price) ||
                         (direction == BEARISH && current_price <= grid_order.final_take_profit_price);
@@ -156,14 +159,14 @@ void UpdateGridLifecycle(SignalParams &signal_params)
     signal_params.grid_orders[grid_order_level].trailing_price = UpdateTrailingTP(signal_params, grid_order);
 
     bool exit_on_trail = false;
-    if(signal_params.grid_orders[grid_order_level].trailing_price > 0.0)
+    if(!hedged_mode && signal_params.grid_orders[grid_order_level].trailing_price > 0.0)
     {
       if(direction == BULLISH && current_price <= signal_params.grid_orders[grid_order_level].trailing_price)
         exit_on_trail = true;
       if(direction == BEARISH && current_price >= signal_params.grid_orders[grid_order_level].trailing_price)
         exit_on_trail = true;
     }
-    if(exit_on_trail)
+    if(!hedged_mode && exit_on_trail)
     {
       GridCloseAllLevels(signal_params, point_size);
       GridLogEvent("EXIT_ON_TRAILING", signal_params, grid_order);

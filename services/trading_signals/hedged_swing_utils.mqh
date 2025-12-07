@@ -693,6 +693,32 @@ bool HedgedBuildAndOpenAtAnchor(const SignalTypes direction,
   return true;
 }
 
+bool HedgedMaybeRebuildSwingsOnVolExpansion(SignalParams &signal_params,
+                                            const double last_fill_price,
+                                            const datetime last_fill_time)
+{
+  if(!signal_params.hedged_swing.hedged_mode)
+    return false;
+
+  ENUM_TIMEFRAMES primary_tf = ResolveHedgedPrimaryTimeframe();
+  double new_guard = HedgedResolveGuardPoints(Strategy_Timeframe, primary_tf);
+  double current_guard = signal_params.hedged_swing.guard_points;
+
+  if(new_guard <= current_guard || new_guard <= 0.0)
+    return false;
+
+  HedgedSwingSnapshot rebuilt;
+  if(!BuildHedgedSwingSnapshotWithEntry(signal_params.signal_type,
+                                        last_fill_price,
+                                        last_fill_time,
+                                        rebuilt))
+    return false;
+
+  signal_params.hedged_swing = rebuilt;
+  signal_params.hedged_swing.guard_points = new_guard;
+  return true;
+}
+
 bool HedgedGapRequiresRebase(const SignalParams &signal_params,
                              const double current_price)
 {
