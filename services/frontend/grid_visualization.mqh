@@ -160,6 +160,9 @@ void DrawGridLevels(const long chart_id,
                             level_lot_size);
 
   color title_color = PowerEnabled() ? clrLime : clrRed;
+  string title_name  = "POWER_TITLE";
+  string button_name = "POWER_TOGGLE_BTN";
+  string state_name  = "POWER_STATE";
   string power_title = "BULLISH LIFE EA PRO";
   string power_button_text = PowerEnabled() ? "CLOSE ALL & POWER OFF" : "POWER ON";
   string power_state_text = PowerEnabled() ? "Enabled" : "Disabled";
