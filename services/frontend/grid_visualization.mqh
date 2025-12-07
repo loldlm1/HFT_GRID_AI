@@ -204,6 +204,26 @@ void DrawGridLevels(const long chart_id,
   }
 }
 
+void ClearVisualizationObjects(const long chart_id)
+{
+  // Clear power UI
+  ObjectDelete(chart_id, "POWER_TITLE");
+  ObjectDelete(chart_id, "POWER_TOGGLE_BTN");
+  ObjectDelete(chart_id, "POWER_STATE");
+
+  // Clear tracked grid lines and swing visuals for all running signals
+  int bullish_total = ArraySize(running_bullish_signals);
+  for(int i = 0; i < bullish_total; i++)
+    RemoveGridLevels(chart_id, running_bullish_signals[i]);
+
+  int bearish_total = ArraySize(running_bearish_signals);
+  for(int j = 0; j < bearish_total; j++)
+    RemoveGridLevels(chart_id, running_bearish_signals[j]);
+
+  // Clear global variables
+  GlobalVariableDel(g_power_global_name);
+}
+
 void BuildSignalSummary(const SignalParams &signal_params,
                         string &summary_lines[],
                         const datetime now_time)

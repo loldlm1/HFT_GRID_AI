@@ -94,6 +94,7 @@ void OnDeinit(const int reason)
   Comment("");
   if(g_power_initialized)
     PowerSaveState();
+  ClearVisualizationObjects(ChartID());
 }
 
 //+------------------------------------------------------------------+
