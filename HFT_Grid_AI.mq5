@@ -3,12 +3,12 @@
 //|                                                          loldlm1 |
 //|                                                                  |
 //+------------------------------------------------------------------+
-#property copyright     "https://t.me/TradingAlgoritmicoFx"
+#property copyright     "https://t.me/loldlm"
 #property description   "Copyright Traders Capital Team."
 #property version       "1.10"
 #property description   "Support Contact @loldlm"
 #property description   "All Rights Reserved for the Traders Capital Team."
-#property description   "HFT Grid AI EA"
+#property description   "BULLISH LIFE EA PRO"
 
 // STANDARD MQL5 LIBRARIES
 #include <Trade/Trade.mqh>
