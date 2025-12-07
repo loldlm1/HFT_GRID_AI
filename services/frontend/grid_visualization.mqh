@@ -31,6 +31,89 @@ string FormatTimeframeLabel(const ENUM_TIMEFRAMES tf_value)
   return label;
 }
 
+double ResolveFloatingProfitAll()
+{
+  double total = 0.0;
+  int total_positions = PositionsTotal();
+  for(int i = 0; i < total_positions; i++)
+  {
+    ulong ticket = PositionGetTicket(i);
+    if(ticket == 0)
+      continue;
+    if(!PositionSelectByTicket(ticket))
+      continue;
+    if(PositionGetString(POSITION_SYMBOL) != _Symbol)
+      continue;
+    if(PositionGetInteger(POSITION_MAGIC) != g_magic_number)
+      continue;
+    total += PositionGetDouble(POSITION_PROFIT);
+  }
+  return total;
+}
+
+void RenderPowerUi(const long chart_id)
+{
+  if(!Enable_Chart_Levels)
+    return;
+
+  string title_name  = "POWER_TITLE";
+  string button_name = "POWER_TOGGLE_BTN";
+  string state_name  = "POWER_STATE";
+
+  color title_color = PowerEnabled() ? clrLime : clrRed;
+  string power_title = "BULLISH LIFE EA PRO";
+  string power_button_text = PowerEnabled() ? "CLOSE ALL & POWER OFF" : "POWER ON";
+  string power_state_text = PowerEnabled() ? "Enabled" : "Disabled";
+  double floating_pl = ResolveFloatingProfitAll();
+  string profit_label = StringFormat(" | P/L: %.2f", floating_pl);
+  power_state_text = power_state_text + profit_label;
+  color state_color = (floating_pl >= 0.0) ? clrLime : clrRed;
+
+  int base_y = 50;
+  int line_height = 20;
+
+  if(ObjectFind(chart_id, title_name) < 0)
+  {
+    ObjectCreate(chart_id, title_name, OBJ_LABEL, 0, 0, 0);
+    ObjectSetInteger(chart_id, title_name, OBJPROP_CORNER, CORNER_LEFT_UPPER);
+    ObjectSetInteger(chart_id, title_name, OBJPROP_XDISTANCE, 10);
+    ObjectSetInteger(chart_id, title_name, OBJPROP_YDISTANCE, base_y);
+    ObjectSetInteger(chart_id, title_name, OBJPROP_FONTSIZE, 12);
+    ObjectSetString(chart_id, title_name, OBJPROP_FONT, "Arial Black");
+  }
+  ObjectSetString(chart_id, title_name, OBJPROP_TEXT, power_title);
+  ObjectSetInteger(chart_id, title_name, OBJPROP_COLOR, title_color);
+
+  if(ObjectFind(chart_id, button_name) < 0)
+  {
+    ObjectCreate(chart_id, button_name, OBJ_BUTTON, 0, 0, 0);
+    ObjectSetInteger(chart_id, button_name, OBJPROP_CORNER, CORNER_LEFT_UPPER);
+    ObjectSetInteger(chart_id, button_name, OBJPROP_XDISTANCE, 10);
+    ObjectSetInteger(chart_id, button_name, OBJPROP_YDISTANCE, base_y + line_height + 5);
+    ObjectSetInteger(chart_id, button_name, OBJPROP_FONTSIZE, 10);
+    ObjectSetInteger(chart_id, button_name, OBJPROP_COLOR, clrWhite);
+    ObjectSetInteger(chart_id, button_name, OBJPROP_BGCOLOR, clrDimGray);
+    ObjectSetInteger(chart_id, button_name, OBJPROP_BORDER_COLOR, clrBlack);
+    ObjectSetInteger(chart_id, button_name, OBJPROP_SELECTABLE, false);
+    ObjectSetInteger(chart_id, button_name, OBJPROP_STATE, false);
+    ObjectSetInteger(chart_id, button_name, OBJPROP_XSIZE, 170);
+    ObjectSetInteger(chart_id, button_name, OBJPROP_YSIZE, 24);
+  }
+  ObjectSetString(chart_id, button_name, OBJPROP_TEXT, power_button_text);
+  ObjectSetInteger(chart_id, button_name, OBJPROP_BGCOLOR, PowerEnabled() ? clrRed : clrGreen);
+
+  if(ObjectFind(chart_id, state_name) < 0)
+  {
+    ObjectCreate(chart_id, state_name, OBJ_LABEL, 0, 0, 0);
+    ObjectSetInteger(chart_id, state_name, OBJPROP_CORNER, CORNER_LEFT_UPPER);
+    ObjectSetInteger(chart_id, state_name, OBJPROP_XDISTANCE, 10);
+    ObjectSetInteger(chart_id, state_name, OBJPROP_YDISTANCE, base_y + (line_height + 5) + 26);
+    ObjectSetInteger(chart_id, state_name, OBJPROP_FONTSIZE, 10);
+    ObjectSetString(chart_id, state_name, OBJPROP_FONT, "Arial");
+  }
+  ObjectSetString(chart_id, state_name, OBJPROP_TEXT, power_state_text);
+  ObjectSetInteger(chart_id, state_name, OBJPROP_COLOR, state_color);
+}
 void DrawGridLevels(const long chart_id,
                     const SignalParams &signal_params,
                     string &tracked_objects[])
@@ -47,10 +130,6 @@ void DrawGridLevels(const long chart_id,
   string swing_trailing_name = GridSignalObjectName(signal_params, "SWING_TRAIL");
   string swing_sl_name = GridSignalObjectName(signal_params, "SWING_SL");
   string break_even_name = GridSignalObjectName(signal_params, "BREAK_EVEN");
-  string title_name  = "POWER_TITLE";
-  string button_name = "POWER_TOGGLE_BTN";
-  string state_name  = "POWER_STATE";
-
   int grid_order_level = ArraySize(signal_params.grid_orders)-1;
   if(grid_order_level < 0)
     return;
@@ -215,6 +294,8 @@ void RefreshGridVisualization()
 
   datetime now_time = TimeCurrent();
   string summary_lines[];
+
+  RenderPowerUi(chart_id);
 
   if(Enable_Chart_Levels)
   {

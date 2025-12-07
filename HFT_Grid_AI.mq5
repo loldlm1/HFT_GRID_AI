@@ -80,6 +80,7 @@ int OnInit()
   LoadAllIndicatorDefinitions();
   PowerLoadState();
   g_power_initialized = true;
+  RenderPowerUi(ChartID());
 
   return(INIT_SUCCEEDED);
 }
