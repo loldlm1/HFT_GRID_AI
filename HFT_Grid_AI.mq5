@@ -197,6 +197,7 @@ void OnChartEvent(const int id,
       {
         PowerSetEnabled(true);
       }
+      RenderPowerUi(ChartID());
     }
   }
 }

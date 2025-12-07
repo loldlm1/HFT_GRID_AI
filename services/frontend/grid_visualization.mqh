@@ -60,14 +60,14 @@ void RenderPowerUi(const long chart_id)
   string button_name = "POWER_TOGGLE_BTN";
   string state_name  = "POWER_STATE";
 
-  color title_color = PowerEnabled() ? clrLime : clrRed;
+  color title_color = PowerEnabled() ? clrDeepSkyBlue : clrOrangeRed;
   string power_title = "BULLISH LIFE EA PRO";
   string power_button_text = PowerEnabled() ? "CLOSE ALL & POWER OFF" : "POWER ON";
   string power_state_text = PowerEnabled() ? "Enabled" : "Disabled";
   double floating_pl = ResolveFloatingProfitAll();
   string profit_label = StringFormat(" | P/L: %.2f", floating_pl);
   power_state_text = power_state_text + profit_label;
-  color state_color = (floating_pl >= 0.0) ? clrLime : clrRed;
+  color state_color = (floating_pl >= 0.0) ? clrDeepSkyBlue : clrTomato;
 
   int base_y = 50;
   int line_height = 20;
@@ -90,14 +90,14 @@ void RenderPowerUi(const long chart_id)
     ObjectSetInteger(chart_id, button_name, OBJPROP_CORNER, CORNER_LEFT_UPPER);
     ObjectSetInteger(chart_id, button_name, OBJPROP_XDISTANCE, 10);
     ObjectSetInteger(chart_id, button_name, OBJPROP_YDISTANCE, base_y + line_height + 5);
-    ObjectSetInteger(chart_id, button_name, OBJPROP_FONTSIZE, 10);
+    ObjectSetInteger(chart_id, button_name, OBJPROP_FONTSIZE, 11);
     ObjectSetInteger(chart_id, button_name, OBJPROP_COLOR, clrWhite);
     ObjectSetInteger(chart_id, button_name, OBJPROP_BGCOLOR, clrDimGray);
     ObjectSetInteger(chart_id, button_name, OBJPROP_BORDER_COLOR, clrBlack);
     ObjectSetInteger(chart_id, button_name, OBJPROP_SELECTABLE, false);
     ObjectSetInteger(chart_id, button_name, OBJPROP_STATE, false);
-    ObjectSetInteger(chart_id, button_name, OBJPROP_XSIZE, 170);
-    ObjectSetInteger(chart_id, button_name, OBJPROP_YSIZE, 24);
+    ObjectSetInteger(chart_id, button_name, OBJPROP_XSIZE, 200);
+    ObjectSetInteger(chart_id, button_name, OBJPROP_YSIZE, 26);
   }
   ObjectSetString(chart_id, button_name, OBJPROP_TEXT, power_button_text);
   ObjectSetInteger(chart_id, button_name, OBJPROP_BGCOLOR, PowerEnabled() ? clrRed : clrGreen);
@@ -107,7 +107,7 @@ void RenderPowerUi(const long chart_id)
     ObjectCreate(chart_id, state_name, OBJ_LABEL, 0, 0, 0);
     ObjectSetInteger(chart_id, state_name, OBJPROP_CORNER, CORNER_LEFT_UPPER);
     ObjectSetInteger(chart_id, state_name, OBJPROP_XDISTANCE, 10);
-    ObjectSetInteger(chart_id, state_name, OBJPROP_YDISTANCE, base_y + (line_height + 5) + 26);
+    ObjectSetInteger(chart_id, state_name, OBJPROP_YDISTANCE, base_y + (line_height + 5) + 30);
     ObjectSetInteger(chart_id, state_name, OBJPROP_FONTSIZE, 10);
     ObjectSetString(chart_id, state_name, OBJPROP_FONT, "Arial");
   }
@@ -158,54 +158,6 @@ void DrawGridLevels(const long chart_id,
                             next_label,
                             level_index,
                             level_lot_size);
-
-  color title_color = PowerEnabled() ? clrLime : clrRed;
-  string title_name  = "POWER_TITLE";
-  string button_name = "POWER_TOGGLE_BTN";
-  string state_name  = "POWER_STATE";
-  string power_title = "BULLISH LIFE EA PRO";
-  string power_button_text = PowerEnabled() ? "CLOSE ALL & POWER OFF" : "POWER ON";
-  string power_state_text = PowerEnabled() ? "Enabled" : "Disabled";
-
-  if(ObjectFind(chart_id, title_name) < 0)
-  {
-    ObjectCreate(chart_id, title_name, OBJ_LABEL, 0, 0, 0);
-    ObjectSetInteger(chart_id, title_name, OBJPROP_CORNER, CORNER_LEFT_UPPER);
-    ObjectSetInteger(chart_id, title_name, OBJPROP_XDISTANCE, 10);
-    ObjectSetInteger(chart_id, title_name, OBJPROP_YDISTANCE, 10);
-    ObjectSetInteger(chart_id, title_name, OBJPROP_FONTSIZE, 12);
-    ObjectSetString(chart_id, title_name, OBJPROP_FONT, "Arial Black");
-  }
-  ObjectSetString(chart_id, title_name, OBJPROP_TEXT, power_title);
-  ObjectSetInteger(chart_id, title_name, OBJPROP_COLOR, title_color);
-
-  if(ObjectFind(chart_id, button_name) < 0)
-  {
-    ObjectCreate(chart_id, button_name, OBJ_BUTTON, 0, 0, 0);
-    ObjectSetInteger(chart_id, button_name, OBJPROP_CORNER, CORNER_LEFT_UPPER);
-    ObjectSetInteger(chart_id, button_name, OBJPROP_XDISTANCE, 10);
-    ObjectSetInteger(chart_id, button_name, OBJPROP_YDISTANCE, 30);
-    ObjectSetInteger(chart_id, button_name, OBJPROP_FONTSIZE, 10);
-    ObjectSetInteger(chart_id, button_name, OBJPROP_COLOR, clrWhite);
-    ObjectSetInteger(chart_id, button_name, OBJPROP_BGCOLOR, clrDimGray);
-    ObjectSetInteger(chart_id, button_name, OBJPROP_BORDER_COLOR, clrBlack);
-    ObjectSetInteger(chart_id, button_name, OBJPROP_SELECTABLE, false);
-    ObjectSetInteger(chart_id, button_name, OBJPROP_STATE, false);
-  }
-  ObjectSetString(chart_id, button_name, OBJPROP_TEXT, power_button_text);
-  ObjectSetInteger(chart_id, button_name, OBJPROP_BGCOLOR, PowerEnabled() ? clrRed : clrGreen);
-
-  if(ObjectFind(chart_id, state_name) < 0)
-  {
-    ObjectCreate(chart_id, state_name, OBJ_LABEL, 0, 0, 0);
-    ObjectSetInteger(chart_id, state_name, OBJPROP_CORNER, CORNER_LEFT_UPPER);
-    ObjectSetInteger(chart_id, state_name, OBJPROP_XDISTANCE, 10);
-    ObjectSetInteger(chart_id, state_name, OBJPROP_YDISTANCE, 55);
-    ObjectSetInteger(chart_id, state_name, OBJPROP_FONTSIZE, 10);
-    ObjectSetString(chart_id, state_name, OBJPROP_FONT, "Arial");
-  }
-  ObjectSetString(chart_id, state_name, OBJPROP_TEXT, power_state_text);
-  ObjectSetInteger(chart_id, state_name, OBJPROP_COLOR, title_color);
 
   UpdateTrackedLine(chart_id, entry_name, COLOR_PROFIT_NEUTRAL, entry_price_line, tracked_objects, entry_label);
   UpdateTrackedLine(chart_id, tp_name, COLOR_PROFIT_POSITIVE, tp_price, tracked_objects, tp_label);
