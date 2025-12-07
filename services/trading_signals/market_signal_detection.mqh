@@ -253,6 +253,8 @@ bool CloseExistingHedgedSignals(const SignalTypes direction)
 
 void DetectHedgedSwingSignals()
 {
+  if(!PowerEnabled())
+    return;
   ENUM_TIMEFRAMES eval_tf = ResolveHedgedPrimaryTimeframe();
   if(eval_tf == PERIOD_CURRENT)
     eval_tf = _Period;
@@ -295,6 +297,9 @@ void DetectHedgedSwingSignals()
 
 void DetectStrategySignals()
 {
+  if(!PowerEnabled())
+    return;
+
   if(HedgedSwingModeEnabled())
   {
     DetectHedgedSwingSignals();

@@ -171,6 +171,7 @@ input TrailingStrategyModes  Grid_Trailing_Strategy_Mode  = TRAILING_DEFAULT;
 input TrailingExecutionModes Grid_Trailing_Execution_Mode = TRAILING_EXECUTION_DEFAULT;
 input BreakEvenModes         Grid_BreakEven_Mode          = BE_DISABLE;
 input double                 Grid_Partial_Take_Percentage = 50.0;
+input bool                   Use_Short_Comments           = false;
 
 input group  "+= Hedged Swing Mode =+";
 input bool   Enable_Hedged_Swing_Mode   = false;

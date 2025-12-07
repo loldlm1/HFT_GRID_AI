@@ -534,6 +534,38 @@ double HedgedCollectDirectionFloatingProfit(const SignalTypes direction)
   return 0.0;
 }
 
+double HedgedComputeProfitAtPrice(const SignalParams &signal_params,
+                                  const double exit_price)
+{
+  double total = 0.0;
+  int total_levels = ArraySize(signal_params.grid_orders);
+  double contract_size = SymbolInfoDouble(_Symbol, SYMBOL_TRADE_CONTRACT_SIZE);
+  if(contract_size <= 0.0)
+    contract_size = 100000.0;
+
+  for(int i = 0; i < total_levels; i++)
+  {
+    GridOrderState state = signal_params.grid_orders[i];
+    if(state.position_ticket <= 0)
+      continue;
+    if(!PositionSelectByTicket(state.position_ticket))
+      continue;
+    if(PositionGetInteger(POSITION_MAGIC) != g_magic_number)
+      continue;
+    if(PositionGetString(POSITION_SYMBOL) != _Symbol)
+      continue;
+
+    double open_price = PositionGetDouble(POSITION_PRICE_OPEN);
+    double volume = PositionGetDouble(POSITION_VOLUME);
+    long pos_type = PositionGetInteger(POSITION_TYPE);
+    double diff = (pos_type == POSITION_TYPE_BUY)
+                    ? (exit_price - open_price)
+                    : (open_price - exit_price);
+    total += diff * volume * contract_size;
+  }
+  return total;
+}
+
 datetime HedgedResolveLastFilledTime(const SignalParams &signal_params)
 {
   datetime latest = signal_params.entry_time;

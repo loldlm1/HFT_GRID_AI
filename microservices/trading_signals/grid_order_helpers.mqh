@@ -118,6 +118,8 @@ string GridComposeLevelComment(const SignalParams &signal_params,
 {
   string direction_label = (signal_params.signal_type == BULLISH) ? "B" : "S";
   datetime entry_time    = signal_params.entry_time;
+  if(Use_Short_Comments)
+    return StringFormat("BULLISH_LIFE_EA_PRO_L%d", order_state.level_index);
   string time_label      = TimeToString(entry_time, TIME_MINUTES);
   ENUM_TIMEFRAMES tf = signal_params.strategy_timeframe;
   if(tf == PERIOD_CURRENT)

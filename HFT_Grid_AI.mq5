@@ -36,6 +36,7 @@ string       g_dataset_id = "";
 bool         g_ea_running;
 datetime     g_initial_ea_date;
 SymbolTradingConstraints g_symbol_constraints;
+bool         g_power_initialized = false;
 
 int OnInit()
 {
@@ -77,6 +78,8 @@ int OnInit()
   // INITIALIZE THE EA
   CreateLicensePanelLive();
   LoadAllIndicatorDefinitions();
+  PowerLoadState();
+  g_power_initialized = true;
 
   return(INIT_SUCCEEDED);
 }
@@ -88,6 +91,8 @@ void OnDeinit(const int reason)
 {
   EventKillTimer();
   Comment("");
+  if(g_power_initialized)
+    PowerSaveState();
 }
 
 //+------------------------------------------------------------------+
@@ -119,6 +124,8 @@ void OnTimer()
 //+------------------------------------------------------------------+
 void OnTick()
 {
+  if(!g_power_initialized)
+    PowerLoadState();
   RefreshCustomSymbolRates();
   DebugEquityGuardAllowsProcessing();
   ProtectionRiskMonitorTradeMode();
@@ -170,6 +177,27 @@ void OnTick()
   if(!broker_disabled)
     Main_Tick();
   RefreshGridVisualization();
+}
+
+void OnChartEvent(const int id,
+                  const long &lparam,
+                  const double &dparam,
+                  const string &sparam)
+{
+  if(id == CHARTEVENT_OBJECT_CLICK)
+  {
+    if(sparam == "POWER_TOGGLE_BTN")
+    {
+      if(PowerEnabled())
+      {
+        PowerOffAndCloseAll();
+      }
+      else
+      {
+        PowerSetEnabled(true);
+      }
+    }
+  }
 }
 
 // DETECT BULLISH AND BEARISH SIGNALS
