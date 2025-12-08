@@ -793,11 +793,15 @@ bool HedgedActivatePendingLevels(SignalParams &signal_params)
   if(swing_total <= 0)
     return false;
 
-  BuildGridOrderForSignal(signal_params);
   int total_orders = ArraySize(signal_params.grid_orders);
-  int target_index = total_orders-1;
+  if(total_orders == 0)
+    BuildGridOrderForSignal(signal_params);
+
+  int target_index = signal_params.hedged_next_swing_index;
   if(target_index < 0)
     target_index = 0;
+  if(target_index >= swing_total)
+    return false;
 
   int trigger_index = target_index == 0 ? 0 : 1;
   double trigger_price = signal_params.hedged_swing.swing_levels[trigger_index];
@@ -813,6 +817,13 @@ bool HedgedActivatePendingLevels(SignalParams &signal_params)
 
   if(!should_fill)
     return false;
+
+  total_orders = ArraySize(signal_params.grid_orders);
+  if(total_orders <= target_index)
+  {
+    BuildGridOrderForSignal(signal_params);
+    return false;
+  }
 
   GridOrderState state = signal_params.grid_orders[target_index];
   state.entry_reference_price = trigger_price;
