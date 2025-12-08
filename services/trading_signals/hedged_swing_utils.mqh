@@ -350,6 +350,44 @@ bool HedgedScanTimeframeForSwings(const SignalTypes direction,
     snapshot.stop_valid = true;
   }
 
+  // Ensure minimal guard spacing when data is missing
+  double point_size = HedgedResolvePointSize();
+  if(point_size <= 0.0)
+    point_size = 0.0001;
+  double anchor = snapshot.entry_anchor_price;
+  if(anchor > 0.0 && guard_points > 0.0)
+  {
+    double guard_price = guard_points * point_size;
+    if(!snapshot.target_valid)
+    {
+      double target_price = (direction == BULLISH)
+                              ? anchor + guard_price
+                              : anchor - guard_price;
+      snapshot.target_price = target_price;
+      snapshot.target_valid = (target_price > 0.0);
+    }
+    if(!snapshot.stop_valid && HedgedSwingSlEnabled(direction))
+    {
+      double stop_price_calc = (direction == BULLISH)
+                                 ? anchor - guard_price
+                                 : anchor + guard_price;
+      snapshot.stop_loss_price = stop_price_calc;
+      snapshot.stop_valid = (stop_price_calc > 0.0);
+    }
+    if(ArraySize(snapshot.swing_levels) < 2)
+    {
+      ArrayResize(snapshot.swing_levels, 2);
+      ArrayResize(snapshot.swing_times, 2);
+      double swing1 = (direction == BULLISH)
+                        ? anchor - guard_price
+                        : anchor + guard_price;
+      snapshot.swing_levels[0] = anchor;
+      snapshot.swing_levels[1] = swing1;
+      snapshot.swing_times[0]  = (entry_price_time > 0) ? entry_price_time : TimeCurrent();
+      snapshot.swing_times[1]  = TimeCurrent();
+    }
+  }
+
   ArrayResize(snapshot.swing_levels, 0);
   if(entry_found && swing_count > 0)
   {
