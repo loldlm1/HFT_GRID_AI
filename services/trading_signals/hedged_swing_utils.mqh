@@ -653,6 +653,31 @@ double HedgedResolveSwingTrailingAnchor(const SignalParams &signal_params,
   return 0.0;
 }
 
+bool HedgedAdjustTargetForDeepLevels(SignalParams &signal_params,
+                                     const int filled_index)
+{
+  if(!signal_params.hedged_swing.hedged_mode)
+    return false;
+  if(!signal_params.hedged_swing.target_valid)
+    return false;
+  if(filled_index < 2)
+    return false;
+
+  int swing_idx = filled_index - 1;
+  int swing_total = ArraySize(signal_params.hedged_swing.swing_levels);
+  if(swing_total <= 0)
+    return false;
+  if(swing_idx >= swing_total)
+    swing_idx = swing_total - 1;
+
+  double prior_swing = signal_params.hedged_swing.swing_levels[swing_idx];
+  if(prior_swing <= 0.0)
+    return false;
+
+  signal_params.hedged_swing.target_price = prior_swing;
+  return true;
+}
+
 bool HedgedBuildAndOpenAtAnchor(const SignalTypes direction,
                                 const double anchor_price,
                                 const datetime anchor_time,
@@ -866,6 +891,7 @@ bool HedgedActivatePendingLevels(SignalParams &signal_params)
   HedgedMaybeRebuildSwingsOnVolExpansion(signal_params,
                                          state.entry_price,
                                          state.last_action_time);
+  HedgedAdjustTargetForDeepLevels(signal_params, target_index);
   HedgedEnsureOppositePair(signal_params, state);
   return true;
 }

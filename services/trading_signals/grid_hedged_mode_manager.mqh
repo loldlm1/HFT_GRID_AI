@@ -64,33 +64,13 @@ bool HedgedHandleLifecycle(SignalParams &signal_params,
     if(target_hit)
     {
       double floating_pl = GridCollectSignalFloatingProfit(signal_params);
-      if(floating_pl >= 50.0)
+      if(floating_pl >= 1.0)
       {
         GridCloseAllLevels(signal_params, point_size);
         HedgedBuildAndOpenAtAnchor(direction, check_price, TimeCurrent(), signal_params);
         return true;
       }
 
-      double opposite_pl = HedgedCollectDirectionFloatingProfit((direction == BULLISH) ? BEARISH : BULLISH);
-      if(opposite_pl > 0.0)
-      {
-        GridCloseAllLevels(signal_params, point_size);
-        if(direction == BULLISH && ArraySize(running_bearish_signals) > 0)
-        {
-          GridCloseAllLevels(running_bearish_signals[0], point_size);
-          HedgedBuildAndOpenAtAnchor(BEARISH, check_price, TimeCurrent(), running_bearish_signals[0]);
-        }
-        else if(direction == BEARISH && ArraySize(running_bullish_signals) > 0)
-        {
-          GridCloseAllLevels(running_bullish_signals[0], point_size);
-          HedgedBuildAndOpenAtAnchor(BULLISH, check_price, TimeCurrent(), running_bullish_signals[0]);
-        }
-        HedgedBuildAndOpenAtAnchor(direction, check_price, TimeCurrent(), signal_params);
-        return true;
-      }
-
-      GridCloseAllLevels(signal_params, point_size);
-      HedgedBuildAndOpenAtAnchor(direction, check_price, TimeCurrent(), signal_params);
       return true;
     }
   }
