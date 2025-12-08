@@ -8,14 +8,15 @@ bool HedgedHandleLifecycle(SignalParams &signal_params,
                            GridOrderState &grid_order,
                            const double point_size)
 {
-  if(!signal_params.hedged_swing.hedged_mode)
-    return false;
+  HedgedActivatePendingLevels(signal_params);
+
   if(!GridSignalHasExecutedLevel(signal_params))
     return false;
 
   SignalTypes direction = signal_params.signal_type;
   double check_price = GridCurrentPriceForDirection(direction, false);
 
+  /*
   if(HedgedGapRequiresRebase(signal_params, check_price))
   {
     double point = GridResolvePointSize();
@@ -34,6 +35,7 @@ bool HedgedHandleLifecycle(SignalParams &signal_params,
     AddElementToArray(running_bearish_signals, bear_sig);
     return true;
   }
+  */
 
   HedgedUpdateTrailingOnTrendBar(signal_params, grid_order);
 
@@ -62,7 +64,7 @@ bool HedgedHandleLifecycle(SignalParams &signal_params,
     if(target_hit)
     {
       double floating_pl = GridCollectSignalFloatingProfit(signal_params);
-      if(floating_pl >= 0.0)
+      if(floating_pl >= 50.0)
       {
         GridCloseAllLevels(signal_params, point_size);
         HedgedBuildAndOpenAtAnchor(direction, check_price, TimeCurrent(), signal_params);

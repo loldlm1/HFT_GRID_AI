@@ -23,8 +23,11 @@ void UpdateGridLifecycle(SignalParams &signal_params)
   if(GridApplyTrendRiskManagement(signal_params, risk_state, true, use_entry_reference))
     return;
 
-  if(hedged_mode && HedgedHandleLifecycle(signal_params, grid_order, point_size))
+  if(hedged_mode)
+  {
+    HedgedHandleLifecycle(signal_params, grid_order, point_size);
     return;
+  }
 
   if(grid_order.status == GRID_ORDER_STOP_TRAILING_ACTIVE)
   {
@@ -66,7 +69,7 @@ void UpdateGridLifecycle(SignalParams &signal_params)
       }
     }
 
-    if(GridShouldActivateStopOrder(signal_params, grid_order, direction, point_size))
+    if(!hedged_mode && GridShouldActivateStopOrder(signal_params, grid_order, direction, point_size))
     {
       if(GridExecuteLevelTrade(signal_params, grid_order, point_size, normalized_volume))
       {
@@ -112,7 +115,7 @@ void UpdateGridLifecycle(SignalParams &signal_params)
       signal_params.grid_orders[grid_order_level].trailing_price     = UpdateTrailingTP(signal_params, grid_order);
       GridLogEvent("TP_TRAILING_START", signal_params, grid_order);
     }
-    if(GridShouldActivateNextLevelLimit(signal_params, grid_order, direction, point_size))
+    if(!hedged_mode && GridShouldActivateNextLevelLimit(signal_params, grid_order, direction, point_size))
     {
       int current_levels = ArraySize(signal_params.grid_orders);
       int position_levels = GridCountPositionOpeningLevels(signal_params);

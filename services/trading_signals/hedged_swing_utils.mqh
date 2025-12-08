@@ -690,6 +690,7 @@ bool HedgedBuildAndOpenAtAnchor(const SignalTypes direction,
     return false;
 
   out_signal.grid_orders[level_index] = state;
+  out_signal.hedged_next_swing_index = (state.entry_price > 0.0) ? 1 : 0;
   return true;
 }
 
@@ -716,6 +717,7 @@ bool HedgedMaybeRebuildSwingsOnVolExpansion(SignalParams &signal_params,
 
   signal_params.hedged_swing = rebuilt;
   signal_params.hedged_swing.guard_points = new_guard;
+  signal_params.hedged_next_swing_index = ArraySize(signal_params.grid_orders);
   return true;
 }
 
@@ -801,6 +803,7 @@ void HedgedEnsureOppositePair(const SignalParams &filled_signal,
                                     filled_signal.entry_time,
                                     opposite_signal.hedged_swing);
   opposite_signal.grid_entry_reference_price = opposite_signal.hedged_swing.entry_anchor_price;
+  opposite_signal.hedged_next_swing_index = 0;
 
   if(HedgedBuildAndOpenAtAnchor(opposite_direction, anchor_price, filled_signal.entry_time, opposite_signal))
   {
@@ -809,6 +812,62 @@ void HedgedEnsureOppositePair(const SignalParams &filled_signal,
     else
       AddElementToArray(running_bearish_signals, opposite_signal);
   }
+}
+
+bool HedgedActivatePendingLevels(SignalParams &signal_params)
+{
+  if(!signal_params.hedged_swing.hedged_mode)
+    return false;
+
+  int swing_total = ArraySize(signal_params.hedged_swing.swing_levels);
+  if(swing_total <= 0)
+    return false;
+
+  int total_orders = ArraySize(signal_params.grid_orders);
+  if(total_orders == 0)
+    BuildGridOrderForSignal(signal_params);
+
+  int target_index = signal_params.hedged_next_swing_index;
+  if(target_index < 0)
+    target_index = 0;
+  if(target_index >= swing_total)
+    return false;
+
+  double trigger_price = signal_params.hedged_swing.swing_levels[target_index];
+  if(trigger_price <= 0.0)
+    return false;
+
+  double entry_side_price = GridCurrentPriceForDirection(signal_params.signal_type, true);
+  bool should_fill = false;
+  if(signal_params.signal_type == BULLISH)
+    should_fill = (entry_side_price <= trigger_price);
+  else
+    should_fill = (entry_side_price >= trigger_price);
+
+  if(!should_fill)
+    return false;
+
+  if(total_orders <= target_index)
+    BuildGridOrderForSignal(signal_params);
+
+  GridOrderState state = signal_params.grid_orders[target_index];
+  state.entry_reference_price = trigger_price;
+
+  double point_size = GridResolvePointSize();
+  double normalized_volume = NormalizeVolumeForSymbol(_Symbol, state.lot_size);
+
+  if(!GridExecuteLevelTrade(signal_params, state, point_size, normalized_volume))
+    return false;
+
+  state.last_action_time = TimeCurrent();
+  signal_params.grid_orders[target_index] = state;
+  signal_params.hedged_next_swing_index = target_index + 1;
+
+  HedgedMaybeRebuildSwingsOnVolExpansion(signal_params,
+                                         state.entry_price,
+                                         state.last_action_time);
+  HedgedEnsureOppositePair(signal_params, state);
+  return true;
 }
 
 #endif // _SERVICES_TRADING_SIGNALS_HEDGED_SWING_UTILS_MQH_

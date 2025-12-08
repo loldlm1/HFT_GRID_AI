@@ -106,6 +106,7 @@ struct SignalParams
   double                    raw_profit;
   datetime                  entry_time;
   datetime                  close_time;
+  int                       hedged_next_swing_index;
 
   bool   grid_initialized;
   double grid_base_distance_points;
@@ -188,6 +189,7 @@ struct SignalParams
     raw_profit                 = 0.0;
     entry_time                 = 0;
     close_time                 = 0;
+    hedged_next_swing_index    = 0;
     base_bpercent_valid        = false;
     base_alligator_valid       = false;
     base_stochastic_valid      = false;
@@ -242,6 +244,7 @@ struct SignalParams
     raw_profit                 = signal_params.raw_profit;
     entry_time                 = signal_params.entry_time;
     close_time                 = signal_params.close_time;
+    hedged_next_swing_index    = signal_params.hedged_next_swing_index;
     base_bpercent_valid        = signal_params.base_bpercent_valid;
     base_bpercent_data         = signal_params.base_bpercent_data;
     base_alligator_valid       = signal_params.base_alligator_valid;
