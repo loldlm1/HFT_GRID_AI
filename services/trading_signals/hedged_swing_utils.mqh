@@ -260,7 +260,7 @@ bool HedgedScanTimeframeForSwings(const SignalTypes direction,
           }
         }
 
-        if(swing_count < GRID_MAX_LEVELS)
+        if(swing_count < 2)
         {
           double last_swing = swing_sequence[swing_count - 1];
           double swing_distance_pts = (last_swing - lows[i]) / point_size;
@@ -313,7 +313,7 @@ bool HedgedScanTimeframeForSwings(const SignalTypes direction,
           }
         }
 
-        if(swing_count < GRID_MAX_LEVELS)
+        if(swing_count < 2)
         {
           double last_swing = swing_sequence[swing_count - 1];
           double swing_distance_pts = (highs[i] - last_swing) / point_size;
@@ -350,44 +350,6 @@ bool HedgedScanTimeframeForSwings(const SignalTypes direction,
     snapshot.stop_valid = true;
   }
 
-  // Ensure minimal guard spacing when data is missing
-  double point_size = HedgedResolvePointSize();
-  if(point_size <= 0.0)
-    point_size = 0.0001;
-  double anchor = snapshot.entry_anchor_price;
-  if(anchor > 0.0 && guard_points > 0.0)
-  {
-    double guard_price = guard_points * point_size;
-    if(!snapshot.target_valid)
-    {
-      double target_price = (direction == BULLISH)
-                              ? anchor + guard_price
-                              : anchor - guard_price;
-      snapshot.target_price = target_price;
-      snapshot.target_valid = (target_price > 0.0);
-    }
-    if(!snapshot.stop_valid && HedgedSwingSlEnabled(direction))
-    {
-      double stop_price_calc = (direction == BULLISH)
-                                 ? anchor - guard_price
-                                 : anchor + guard_price;
-      snapshot.stop_loss_price = stop_price_calc;
-      snapshot.stop_valid = (stop_price_calc > 0.0);
-    }
-    if(ArraySize(snapshot.swing_levels) < 2)
-    {
-      ArrayResize(snapshot.swing_levels, 2);
-      ArrayResize(snapshot.swing_times, 2);
-      double swing1 = (direction == BULLISH)
-                        ? anchor - guard_price
-                        : anchor + guard_price;
-      snapshot.swing_levels[0] = anchor;
-      snapshot.swing_levels[1] = swing1;
-      snapshot.swing_times[0]  = (entry_price_time > 0) ? entry_price_time : TimeCurrent();
-      snapshot.swing_times[1]  = TimeCurrent();
-    }
-  }
-
   ArrayResize(snapshot.swing_levels, 0);
   if(entry_found && swing_count > 0)
   {
@@ -399,6 +361,15 @@ bool HedgedScanTimeframeForSwings(const SignalTypes direction,
       snapshot.swing_times[s]  = swing_time_sequence[s];
     }
   }
+
+  double guard_point_size = guard_points * point_size;
+  double prior_entry_for_target = 0.0;
+  HedgedEnsureGuardedSnapshot(direction,
+                              guard_points,
+                              point_size,
+                              entry_price_time,
+                              prior_entry_for_target,
+                              snapshot);
 
   return true;
 }
@@ -415,62 +386,6 @@ bool BuildHedgedSwingSnapshot(const SignalTypes direction,
   snapshot.source_timeframe = primary_tf;
 
   HedgedScanTimeframeForSwings(direction, primary_tf, guard_points, snapshot);
-
-  double point_size = HedgedResolvePointSize();
-  double entry_price_side = (direction == BULLISH) ? g_ask : g_bid;
-  double exit_price_side  = (direction == BULLISH) ? g_bid : g_ask;
-
-  if(snapshot.entry_anchor_price <= 0.0)
-  {
-    double anchor_price = (direction == BULLISH)
-                            ? entry_price_side - guard_points * point_size
-                            : entry_price_side + guard_points * point_size;
-    snapshot.entry_anchor_price = anchor_price;
-    snapshot.anchor_from_fallback = true;
-    ArrayResize(snapshot.swing_levels, 1);
-    snapshot.swing_levels[0] = anchor_price;
-    ArrayResize(snapshot.swing_times, 1);
-    snapshot.swing_times[0] = TimeCurrent();
-  }
-
-  if(!snapshot.target_valid)
-  {
-    double target_price = (direction == BULLISH)
-                            ? exit_price_side + guard_points * point_size
-                            : exit_price_side - guard_points * point_size;
-    snapshot.target_price = target_price;
-    snapshot.target_valid = (target_price > 0.0);
-  }
-
-  if(!snapshot.stop_valid && HedgedSwingSlEnabled(direction))
-  {
-    double stop_price = (direction == BULLISH)
-                          ? snapshot.entry_anchor_price - guard_points * point_size
-                          : snapshot.entry_anchor_price + guard_points * point_size;
-    snapshot.stop_loss_price = stop_price;
-    snapshot.stop_valid = (stop_price > 0.0);
-  }
-
-  int swing_total = ArraySize(snapshot.swing_levels);
-  if(swing_total < GRID_MAX_LEVELS && snapshot.entry_anchor_price > 0.0)
-  {
-    double last_swing = snapshot.swing_levels[swing_total - 1];
-    double synthetic = (direction == BULLISH)
-                          ? last_swing - guard_points * point_size
-                          : last_swing + guard_points * point_size;
-    datetime synth_time = TimeCurrent();
-    AddElementToArray(snapshot.swing_levels, synthetic);
-    AddElementToArray(snapshot.swing_times, synth_time);
-    last_swing = synthetic;
-  }
-
-  if(ArraySize(snapshot.swing_levels) <= 0 && snapshot.entry_anchor_price > 0.0)
-  {
-    ArrayResize(snapshot.swing_levels, 1);
-    snapshot.swing_levels[0] = snapshot.entry_anchor_price;
-    ArrayResize(snapshot.swing_times, 1);
-    snapshot.swing_times[0] = TimeCurrent();
-  }
 
   return true;
 }
@@ -497,42 +412,6 @@ bool BuildHedgedSwingSnapshotWithEntry(const SignalTypes direction,
                                true,
                                entry_price,
                                entry_time);
-
-  double point_size = HedgedResolvePointSize();
-
-  if(!snapshot.target_valid)
-  {
-    double target_price_calc = (direction == BULLISH)
-                                 ? entry_price + guard_points * point_size
-                                 : entry_price - guard_points * point_size;
-    snapshot.target_price = target_price_calc;
-    snapshot.target_valid = (target_price_calc > 0.0);
-  }
-
-  if(!snapshot.stop_valid && HedgedSwingSlEnabled(direction))
-  {
-    double stop_price_calc = (direction == BULLISH)
-                               ? entry_price - guard_points * point_size
-                               : entry_price + guard_points * point_size;
-    snapshot.stop_loss_price = stop_price_calc;
-    snapshot.stop_valid = (stop_price_calc > 0.0);
-  }
-
-  int swing_total = ArraySize(snapshot.swing_levels);
-  if(swing_total < GRID_MAX_LEVELS && snapshot.entry_anchor_price > 0.0)
-  {
-    double last_swing = snapshot.swing_levels[swing_total - 1];
-    double synthetic = (direction == BULLISH)
-                          ? last_swing - guard_points * point_size
-                          : last_swing + guard_points * point_size;
-    datetime synth_time = TimeCurrent();
-    AddElementToArray(snapshot.swing_levels, synthetic);
-    AddElementToArray(snapshot.swing_times, synth_time);
-    last_swing = synthetic;
-  }
-
-  snapshot.trailing_price = 0.0;
-  snapshot.trailing_bar_time = 0;
 
   return true;
 }
@@ -584,6 +463,52 @@ double HedgedComputeProfitAtPrice(const SignalParams &signal_params,
     total += diff * volume * contract_size;
   }
   return total;
+}
+
+void HedgedEnsureGuardedSnapshot(const SignalTypes direction,
+                                 const double guard_points,
+                                 const double point_size,
+                                 const datetime entry_time_value,
+                                 const double prior_entry_price,
+                                 HedgedSwingSnapshot &snapshot)
+{
+  double anchor = snapshot.entry_anchor_price;
+  double guard_price = guard_points * point_size;
+  if(anchor <= 0.0 || guard_points <= 0.0 || point_size <= 0.0)
+    return;
+
+  if(!snapshot.target_valid)
+  {
+    double target_price = (prior_entry_price > 0.0)
+                            ? prior_entry_price
+                            : (direction == BULLISH)
+                                ? anchor + guard_price
+                                : anchor - guard_price;
+    snapshot.target_price = target_price;
+    snapshot.target_valid = (target_price > 0.0);
+  }
+
+  if(!snapshot.stop_valid && HedgedSwingSlEnabled(direction))
+  {
+    double stop_price_calc = (direction == BULLISH)
+                               ? anchor - guard_price
+                               : anchor + guard_price;
+    snapshot.stop_loss_price = stop_price_calc;
+    snapshot.stop_valid = (stop_price_calc > 0.0);
+  }
+
+  if(ArraySize(snapshot.swing_levels) < 2)
+  {
+    ArrayResize(snapshot.swing_levels, 2);
+    ArrayResize(snapshot.swing_times, 2);
+    double swing1 = (direction == BULLISH)
+                      ? anchor - guard_price
+                      : anchor + guard_price;
+    snapshot.swing_levels[0] = anchor;
+    snapshot.swing_levels[1] = swing1;
+    snapshot.swing_times[0]  = (entry_time_value > 0) ? entry_time_value : TimeCurrent();
+    snapshot.swing_times[1]  = TimeCurrent();
+  }
 }
 
 datetime HedgedResolveLastFilledTime(const SignalParams &signal_params)
@@ -763,17 +688,6 @@ bool HedgedMaybeRebuildSwingsOnVolExpansion(SignalParams &signal_params,
   signal_params.hedged_swing = rebuilt;
   signal_params.hedged_next_swing_index = (filled_count > 1) ? 1 : filled_count;
 
-  if(filled_count >= 2)
-  {
-    int prior_idx = filled_count - 2;
-    if(prior_idx >= 0 && prior_idx < ArraySize(signal_params.grid_orders))
-    {
-      double prior_entry = signal_params.grid_orders[prior_idx].entry_price;
-      if(prior_entry > 0.0)
-        signal_params.hedged_swing.target_price = prior_entry;
-    }
-  }
-
   return true;
 }
 
@@ -879,17 +793,14 @@ bool HedgedActivatePendingLevels(SignalParams &signal_params)
   if(swing_total <= 0)
     return false;
 
+  BuildGridOrderForSignal(signal_params);
   int total_orders = ArraySize(signal_params.grid_orders);
-  if(total_orders == 0)
-    BuildGridOrderForSignal(signal_params);
-
-  int target_index = signal_params.hedged_next_swing_index;
+  int target_index = total_orders-1;
   if(target_index < 0)
     target_index = 0;
-  if(target_index >= swing_total)
-    return false;
 
-  double trigger_price = signal_params.hedged_swing.swing_levels[target_index];
+  int trigger_index = target_index == 0 ? 0 : 1;
+  double trigger_price = signal_params.hedged_swing.swing_levels[trigger_index];
   if(trigger_price <= 0.0)
     return false;
 
@@ -902,9 +813,6 @@ bool HedgedActivatePendingLevels(SignalParams &signal_params)
 
   if(!should_fill)
     return false;
-
-  if(total_orders <= target_index)
-    BuildGridOrderForSignal(signal_params);
 
   GridOrderState state = signal_params.grid_orders[target_index];
   state.entry_reference_price = trigger_price;
@@ -922,13 +830,14 @@ bool HedgedActivatePendingLevels(SignalParams &signal_params)
   HedgedMaybeRebuildSwingsOnVolExpansion(signal_params,
                                          state.entry_price,
                                          state.last_action_time);
-  int prior_index = target_index - 1;
-  if(prior_index >= 0 && prior_index < ArraySize(signal_params.grid_orders))
+
+  Print("ORDERS = ", total_orders, " - hedged_next_swing_index = ", signal_params.hedged_next_swing_index);
+  if(target_index > 0)
   {
-    double prior_entry = signal_params.grid_orders[prior_index].entry_price;
-    if(prior_entry > 0.0)
-      signal_params.hedged_swing.target_price = prior_entry;
+    signal_params.hedged_swing.target_price = signal_params.grid_orders[target_index-1].entry_price;
+    Print("TP PRICE = ", DoubleToString(signal_params.hedged_swing.target_price, _Digits));
   }
+
   HedgedEnsureOppositePair(signal_params, state);
   return true;
 }
