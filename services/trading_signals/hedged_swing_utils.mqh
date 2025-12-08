@@ -836,24 +836,41 @@ bool HedgedActivatePendingLevels(SignalParams &signal_params)
   if(!signal_params.hedged_swing.hedged_mode)
     return false;
 
-  int swing_total = ArraySize(signal_params.hedged_swing.swing_levels);
-  if(swing_total <= 1)
-    return false;
-
   int target_index = signal_params.hedged_next_swing_index;
   if(target_index < 1)
     return false;
-  if(target_index >= swing_total)
-    return false;
 
+  // Ensure we have a grid order slot for this level
   int total_orders = ArraySize(signal_params.grid_orders);
-  if(total_orders <= target_index)
+  while(total_orders <= target_index)
   {
-    BuildGridOrderForSignal(signal_params);
-    return false;
+    if(!BuildGridOrderForSignal(signal_params))
+      return false;
+    total_orders = ArraySize(signal_params.grid_orders);
   }
 
-  double trigger_price = signal_params.hedged_swing.swing_levels[target_index];
+  // Use the latest swing (index 1) for every deep level; fallback to anchor ± guard
+  double trigger_price = 0.0;
+  int swing_total = ArraySize(signal_params.hedged_swing.swing_levels);
+  if(swing_total >= 2)
+    trigger_price = signal_params.hedged_swing.swing_levels[1];
+  else if(swing_total >= 1)
+    trigger_price = signal_params.hedged_swing.swing_levels[0];
+
+  if(trigger_price <= 0.0)
+  {
+    double guard_points = signal_params.hedged_swing.guard_points;
+    double anchor_price = signal_params.hedged_swing.entry_anchor_price;
+    double point_size = GridResolvePointSize();
+    if(guard_points > 0.0 && point_size > 0.0 && anchor_price > 0.0)
+    {
+      double guard_price = guard_points * point_size;
+      trigger_price = (signal_params.signal_type == BULLISH)
+                        ? anchor_price - guard_price
+                        : anchor_price + guard_price;
+    }
+  }
+
   if(trigger_price <= 0.0)
     return false;
 
@@ -882,8 +899,6 @@ bool HedgedActivatePendingLevels(SignalParams &signal_params)
 
   double filled_price = (state.entry_price > 0.0) ? state.entry_price : trigger_price;
   HedgedRefreshSwingsAfterFill(signal_params, filled_price, state.last_action_time);
-
-  Print("total_orders = ", total_orders, " - target_index = ", signal_params.hedged_next_swing_index);
 
   if(target_index > 0)
     signal_params.hedged_swing.target_price = signal_params.grid_orders[target_index - 1].entry_price;
