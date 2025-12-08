@@ -5,7 +5,7 @@
 #define _SERVICES_TRADING_SIGNALS_HEDGED_SWING_UTILS_MQH_
 
 IndicatorsHandleInfo HedgedAtrHandles[];
-const int GRID_MAX_LEVELS = 20;
+const int GRID_MAX_LEVELS = 2;
 
 inline bool HedgedSwingModeEnabled()
 {
@@ -202,8 +202,8 @@ bool HedgedScanTimeframeForSwings(const SignalTypes direction,
   bool   stop_found           = false;
   bool   target_found         = false;
   bool   entry_found          = (preset_entry && preset_entry_price > 0.0);
-  double swing_sequence[20];
-  datetime swing_time_sequence[20];
+  double swing_sequence[2];
+  datetime swing_time_sequence[2];
   int    swing_count          = entry_found ? 1 : 0;
   datetime entry_price_time   = preset_entry_time;
   datetime target_price_time  = 0;
@@ -327,10 +327,8 @@ bool HedgedScanTimeframeForSwings(const SignalTypes direction,
       }
     }
 
-    if(entry_found && target_found && stop_found && swing_count == GRID_MAX_LEVELS)
-    {
+    if(entry_found && target_found && stop_found && swing_count >= 2)
       break;
-    }
   }
 
   if(entry_found && entry_price > 0.0)
@@ -419,16 +417,13 @@ bool BuildHedgedSwingSnapshot(const SignalTypes direction,
   if(swing_total < GRID_MAX_LEVELS && snapshot.entry_anchor_price > 0.0)
   {
     double last_swing = snapshot.swing_levels[swing_total - 1];
-    for(int idx = swing_total; idx < GRID_MAX_LEVELS; idx++)
-    {
-      double synthetic = (direction == BULLISH)
-                           ? last_swing - guard_points * point_size
-                           : last_swing + guard_points * point_size;
-      datetime synth_time = TimeCurrent();
-      AddElementToArray(snapshot.swing_levels, synthetic);
-      AddElementToArray(snapshot.swing_times, synth_time);
-      last_swing = synthetic;
-    }
+    double synthetic = (direction == BULLISH)
+                          ? last_swing - guard_points * point_size
+                          : last_swing + guard_points * point_size;
+    datetime synth_time = TimeCurrent();
+    AddElementToArray(snapshot.swing_levels, synthetic);
+    AddElementToArray(snapshot.swing_times, synth_time);
+    last_swing = synthetic;
   }
 
   if(ArraySize(snapshot.swing_levels) <= 0 && snapshot.entry_anchor_price > 0.0)
@@ -489,16 +484,13 @@ bool BuildHedgedSwingSnapshotWithEntry(const SignalTypes direction,
   if(swing_total < GRID_MAX_LEVELS && snapshot.entry_anchor_price > 0.0)
   {
     double last_swing = snapshot.swing_levels[swing_total - 1];
-    for(int idx = swing_total; idx < GRID_MAX_LEVELS; idx++)
-    {
-      double synthetic = (direction == BULLISH)
-                            ? last_swing - guard_points * point_size
-                            : last_swing + guard_points * point_size;
-      datetime synth_time = TimeCurrent();
-      AddElementToArray(snapshot.swing_levels, synthetic);
-      AddElementToArray(snapshot.swing_times, synth_time);
-      last_swing = synthetic;
-    }
+    double synthetic = (direction == BULLISH)
+                          ? last_swing - guard_points * point_size
+                          : last_swing + guard_points * point_size;
+    datetime synth_time = TimeCurrent();
+    AddElementToArray(snapshot.swing_levels, synthetic);
+    AddElementToArray(snapshot.swing_times, synth_time);
+    last_swing = synthetic;
   }
 
   snapshot.trailing_price = 0.0;
@@ -653,31 +645,6 @@ double HedgedResolveSwingTrailingAnchor(const SignalParams &signal_params,
   return 0.0;
 }
 
-bool HedgedAdjustTargetForDeepLevels(SignalParams &signal_params,
-                                     const int filled_index)
-{
-  if(!signal_params.hedged_swing.hedged_mode)
-    return false;
-  if(!signal_params.hedged_swing.target_valid)
-    return false;
-  if(filled_index < 2)
-    return false;
-
-  int swing_idx = filled_index - 1;
-  int swing_total = ArraySize(signal_params.hedged_swing.swing_levels);
-  if(swing_total <= 0)
-    return false;
-  if(swing_idx >= swing_total)
-    swing_idx = swing_total - 1;
-
-  double prior_swing = signal_params.hedged_swing.swing_levels[swing_idx];
-  if(prior_swing <= 0.0)
-    return false;
-
-  signal_params.hedged_swing.target_price = prior_swing;
-  return true;
-}
-
 bool HedgedBuildAndOpenAtAnchor(const SignalTypes direction,
                                 const double anchor_price,
                                 const datetime anchor_time,
@@ -754,20 +721,21 @@ bool HedgedMaybeRebuildSwingsOnVolExpansion(SignalParams &signal_params,
   if(filled_count > swing_total)
     filled_count = swing_total;
 
-  HedgedSwingSnapshot updated = rebuilt;
-  if(filled_count > 0 && swing_total > 0)
+  rebuilt.guard_points = new_guard;
+  signal_params.hedged_swing = rebuilt;
+  signal_params.hedged_next_swing_index = (filled_count > 1) ? 1 : filled_count;
+
+  if(filled_count >= 2)
   {
-    for(int i = 0; i < filled_count && i < ArraySize(updated.swing_levels); i++)
+    int prior_idx = filled_count - 2;
+    if(prior_idx >= 0 && prior_idx < ArraySize(signal_params.grid_orders))
     {
-      updated.swing_levels[i] = signal_params.hedged_swing.swing_levels[i];
-      if(i < ArraySize(signal_params.hedged_swing.swing_times))
-        updated.swing_times[i] = signal_params.hedged_swing.swing_times[i];
+      double prior_entry = signal_params.grid_orders[prior_idx].entry_price;
+      if(prior_entry > 0.0)
+        signal_params.hedged_swing.target_price = prior_entry;
     }
   }
 
-  updated.guard_points = new_guard;
-  signal_params.hedged_swing = updated;
-  signal_params.hedged_next_swing_index = filled_count;
   return true;
 }
 
@@ -916,7 +884,13 @@ bool HedgedActivatePendingLevels(SignalParams &signal_params)
   HedgedMaybeRebuildSwingsOnVolExpansion(signal_params,
                                          state.entry_price,
                                          state.last_action_time);
-  HedgedAdjustTargetForDeepLevels(signal_params, target_index);
+  int prior_index = target_index - 1;
+  if(prior_index >= 0 && prior_index < ArraySize(signal_params.grid_orders))
+  {
+    double prior_entry = signal_params.grid_orders[prior_index].entry_price;
+    if(prior_entry > 0.0)
+      signal_params.hedged_swing.target_price = prior_entry;
+  }
   HedgedEnsureOppositePair(signal_params, state);
   return true;
 }

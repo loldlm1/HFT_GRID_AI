@@ -77,7 +77,6 @@ bool HedgedCheckTrailingExit(SignalParams &signal_params,
   {
     GridCloseAllLevels(signal_params, point_size);
     HedgedBuildAndOpenAtAnchor(signal_params.signal_type, current_price, TimeCurrent(), signal_params);
-    signal_params.hedged_next_swing_index = ArraySize(signal_params.grid_orders);
     return true;
   }
   return false;
