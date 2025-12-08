@@ -673,10 +673,6 @@ bool HedgedRefreshSwingsAfterFill(SignalParams &signal_params,
                                         rebuilt))
     return false;
 
-  int swing_total = ArraySize(rebuilt.swing_levels);
-  if(filled_count > swing_total)
-    filled_count = swing_total;
-
   signal_params.hedged_swing = rebuilt;
   signal_params.hedged_next_swing_index = filled_count;
 
@@ -884,8 +880,6 @@ bool HedgedActivatePendingLevels(SignalParams &signal_params)
 
   double filled_price = (state.entry_price > 0.0) ? state.entry_price : trigger_price;
   HedgedRefreshSwingsAfterFill(signal_params, filled_price, state.last_action_time);
-
-  Print("total_orders = ", total_orders, " - target_index = ", signal_params.hedged_next_swing_index);
 
   if(target_index > 0)
     signal_params.hedged_swing.target_price = signal_params.grid_orders[target_index - 1].entry_price;
