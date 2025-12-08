@@ -404,7 +404,6 @@ bool BuildHedgedSwingSnapshotWithEntry(const SignalTypes direction,
   snapshot.source_timeframe = primary_tf;
   snapshot.entry_anchor_price = entry_price;
   snapshot.anchor_from_fallback = false;
-  Print("guard_points = ", guard_points);
 
   HedgedScanTimeframeForSwings(direction,
                                primary_tf,
