@@ -733,6 +733,16 @@ bool HedgedMaybeRebuildSwingsOnVolExpansion(SignalParams &signal_params,
   if(new_guard <= current_guard || new_guard <= 0.0)
     return false;
 
+  // Preserve filled swings; rebuild future swings with the larger guard
+  int filled_count = 0;
+  int total_orders = ArraySize(signal_params.grid_orders);
+  for(int i = 0; i < total_orders; i++)
+  {
+    GridOrderState state = signal_params.grid_orders[i];
+    if(state.entry_price > 0.0)
+      filled_count++;
+  }
+
   HedgedSwingSnapshot rebuilt;
   if(!BuildHedgedSwingSnapshotWithEntry(signal_params.signal_type,
                                         last_fill_price,
@@ -740,9 +750,24 @@ bool HedgedMaybeRebuildSwingsOnVolExpansion(SignalParams &signal_params,
                                         rebuilt))
     return false;
 
-  signal_params.hedged_swing = rebuilt;
-  signal_params.hedged_swing.guard_points = new_guard;
-  signal_params.hedged_next_swing_index = ArraySize(signal_params.grid_orders);
+  int swing_total = ArraySize(signal_params.hedged_swing.swing_levels);
+  if(filled_count > swing_total)
+    filled_count = swing_total;
+
+  HedgedSwingSnapshot updated = rebuilt;
+  if(filled_count > 0 && swing_total > 0)
+  {
+    for(int i = 0; i < filled_count && i < ArraySize(updated.swing_levels); i++)
+    {
+      updated.swing_levels[i] = signal_params.hedged_swing.swing_levels[i];
+      if(i < ArraySize(signal_params.hedged_swing.swing_times))
+        updated.swing_times[i] = signal_params.hedged_swing.swing_times[i];
+    }
+  }
+
+  updated.guard_points = new_guard;
+  signal_params.hedged_swing = updated;
+  signal_params.hedged_next_swing_index = filled_count;
   return true;
 }
 
