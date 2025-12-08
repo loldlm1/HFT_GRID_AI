@@ -649,21 +649,13 @@ bool HedgedBuildAndOpenAtAnchor(const SignalTypes direction,
   return true;
 }
 
-bool HedgedMaybeRebuildSwingsOnVolExpansion(SignalParams &signal_params,
-                                            const double last_fill_price,
-                                            const datetime last_fill_time)
+bool HedgedRefreshSwingsAfterFill(SignalParams &signal_params,
+                                  const double last_fill_price,
+                                  const datetime last_fill_time)
 {
   if(!signal_params.hedged_swing.hedged_mode)
     return false;
 
-  ENUM_TIMEFRAMES primary_tf = ResolveHedgedPrimaryTimeframe();
-  double new_guard = HedgedResolveGuardPoints(Strategy_Timeframe, primary_tf);
-  double current_guard = signal_params.hedged_swing.guard_points;
-
-  if(new_guard <= current_guard || new_guard <= 0.0)
-    return false;
-
-  // Preserve filled swings; rebuild future swings with the larger guard
   int filled_count = 0;
   int total_orders = ArraySize(signal_params.grid_orders);
   for(int i = 0; i < total_orders; i++)
@@ -680,13 +672,12 @@ bool HedgedMaybeRebuildSwingsOnVolExpansion(SignalParams &signal_params,
                                         rebuilt))
     return false;
 
-  int swing_total = ArraySize(signal_params.hedged_swing.swing_levels);
+  int swing_total = ArraySize(rebuilt.swing_levels);
   if(filled_count > swing_total)
     filled_count = swing_total;
 
-  rebuilt.guard_points = new_guard;
   signal_params.hedged_swing = rebuilt;
-  signal_params.hedged_next_swing_index = (filled_count > 1) ? 1 : filled_count;
+  signal_params.hedged_next_swing_index = filled_count;
 
   return true;
 }
@@ -784,7 +775,7 @@ void HedgedEnsureOppositePair(const SignalParams &filled_signal,
   }
 }
 
-bool HedgedActivatePendingLevels(SignalParams &signal_params)
+bool HedgedActivateInitialPendingLevel(SignalParams &signal_params)
 {
   if(!signal_params.hedged_swing.hedged_mode)
     return false;
@@ -793,18 +784,20 @@ bool HedgedActivatePendingLevels(SignalParams &signal_params)
   if(swing_total <= 0)
     return false;
 
-  int total_orders = ArraySize(signal_params.grid_orders);
-  if(total_orders == 0)
-    BuildGridOrderForSignal(signal_params);
-
-  int target_index = signal_params.hedged_next_swing_index;
-  if(target_index < 0)
-    target_index = 0;
-  if(target_index >= swing_total)
+  if(GridSignalHasExecutedLevel(signal_params))
     return false;
 
-  int trigger_index = target_index == 0 ? 0 : 1;
-  double trigger_price = signal_params.hedged_swing.swing_levels[trigger_index];
+  int total_orders = ArraySize(signal_params.grid_orders);
+  if(total_orders == 0)
+  {
+    BuildGridOrderForSignal(signal_params);
+    total_orders = ArraySize(signal_params.grid_orders);
+  }
+
+  if(total_orders <= 0)
+    return false;
+
+  double trigger_price = signal_params.hedged_swing.swing_levels[0];
   if(trigger_price <= 0.0)
     return false;
 
@@ -818,12 +811,61 @@ bool HedgedActivatePendingLevels(SignalParams &signal_params)
   if(!should_fill)
     return false;
 
-  total_orders = ArraySize(signal_params.grid_orders);
+  GridOrderState state = signal_params.grid_orders[0];
+  state.entry_reference_price = trigger_price;
+
+  double point_size = GridResolvePointSize();
+  double normalized_volume = NormalizeVolumeForSymbol(_Symbol, state.lot_size);
+
+  if(!GridExecuteLevelTrade(signal_params, state, point_size, normalized_volume))
+    return false;
+
+  state.last_action_time = TimeCurrent();
+  signal_params.grid_orders[0] = state;
+  signal_params.hedged_next_swing_index = 1;
+
+  double filled_price = (state.entry_price > 0.0) ? state.entry_price : trigger_price;
+  HedgedRefreshSwingsAfterFill(signal_params, filled_price, state.last_action_time);
+
+  HedgedEnsureOppositePair(signal_params, state);
+  return true;
+}
+
+bool HedgedActivatePendingLevels(SignalParams &signal_params)
+{
+  if(!signal_params.hedged_swing.hedged_mode)
+    return false;
+
+  int swing_total = ArraySize(signal_params.hedged_swing.swing_levels);
+  if(swing_total <= 1)
+    return false;
+
+  int target_index = signal_params.hedged_next_swing_index;
+  if(target_index < 1)
+    return false;
+  if(target_index >= swing_total)
+    return false;
+
+  int total_orders = ArraySize(signal_params.grid_orders);
   if(total_orders <= target_index)
   {
     BuildGridOrderForSignal(signal_params);
     return false;
   }
+
+  double trigger_price = signal_params.hedged_swing.swing_levels[target_index];
+  if(trigger_price <= 0.0)
+    return false;
+
+  double entry_side_price = GridCurrentPriceForDirection(signal_params.signal_type, true);
+  bool should_fill = false;
+  if(signal_params.signal_type == BULLISH)
+    should_fill = (entry_side_price <= trigger_price);
+  else
+    should_fill = (entry_side_price >= trigger_price);
+
+  if(!should_fill)
+    return false;
 
   GridOrderState state = signal_params.grid_orders[target_index];
   state.entry_reference_price = trigger_price;
@@ -838,16 +880,13 @@ bool HedgedActivatePendingLevels(SignalParams &signal_params)
   signal_params.grid_orders[target_index] = state;
   signal_params.hedged_next_swing_index = target_index + 1;
 
-  HedgedMaybeRebuildSwingsOnVolExpansion(signal_params,
-                                         state.entry_price,
-                                         state.last_action_time);
+  double filled_price = (state.entry_price > 0.0) ? state.entry_price : trigger_price;
+  HedgedRefreshSwingsAfterFill(signal_params, filled_price, state.last_action_time);
 
-  Print("ORDERS = ", total_orders, " - hedged_next_swing_index = ", signal_params.hedged_next_swing_index);
+  Print("total_orders = ", total_orders, " - target_index = ", signal_params.hedged_next_swing_index);
+
   if(target_index > 0)
-  {
-    signal_params.hedged_swing.target_price = signal_params.grid_orders[target_index-1].entry_price;
-    Print("TP PRICE = ", DoubleToString(signal_params.hedged_swing.target_price, _Digits));
-  }
+    signal_params.hedged_swing.target_price = signal_params.grid_orders[target_index - 1].entry_price;
 
   HedgedEnsureOppositePair(signal_params, state);
   return true;

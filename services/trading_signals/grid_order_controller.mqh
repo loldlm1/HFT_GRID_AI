@@ -75,9 +75,9 @@ void UpdateGridLifecycle(SignalParams &signal_params)
       {
         UpdateGridOrderForSignal(signal_params);
         grid_order = signal_params.grid_orders[grid_order_level];
-        HedgedMaybeRebuildSwingsOnVolExpansion(signal_params,
-                                               grid_order.entry_price,
-                                               grid_order.last_action_time);
+        HedgedRefreshSwingsAfterFill(signal_params,
+                                     grid_order.entry_price,
+                                     grid_order.last_action_time);
         HedgedEnsureOppositePair(signal_params, grid_order);
         GridLogEvent("GRID_ORDER_STOP_TRAILING_ACTIVE -> GRID_ORDER_ACTIVE", signal_params, grid_order);
         if(Grid_Risk_Trend_Mode == GRID_RM_TREND_HEDGE)

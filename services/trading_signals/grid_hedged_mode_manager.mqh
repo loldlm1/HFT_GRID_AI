@@ -8,6 +8,7 @@ bool HedgedHandleLifecycle(SignalParams &signal_params,
                            GridOrderState &grid_order,
                            const double point_size)
 {
+  HedgedActivateInitialPendingLevel(signal_params);
   HedgedActivatePendingLevels(signal_params);
 
   if(!GridSignalHasExecutedLevel(signal_params))
