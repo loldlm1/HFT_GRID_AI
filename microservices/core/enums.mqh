@@ -236,6 +236,14 @@ enum HedgedTrendModes
   HEDGED_TREND_ALLIGATOR = 1
 };
 
+enum HedgedAlligatorTrendPhase
+{
+  HEDGED_TREND_PHASE_UNKNOWN = 0,
+  HEDGED_TREND_PHASE_FULL    = 1,
+  HEDGED_TREND_PHASE_MEDIUM  = 2,
+  HEDGED_TREND_PHASE_WRONG   = 3
+};
+
 enum GridRiskTrendModes
 {
   GRID_RM_TREND_OFF = 0,

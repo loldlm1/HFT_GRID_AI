@@ -14,6 +14,7 @@
 // SIGNAL SERVICE FILES
 #include "../microservices/trading_signals/grid_channel_utils.mqh"
 #include "trading_signals/signal_params_struct.mqh"
+#include "trading_signals/hedged_alligator_state.mqh"
 #include "trading_signals/hedged_swing_utils.mqh"
 #include "trading_signals/grid_hedged_trailing.mqh"
 #include "trading_signals/session_time_filter_manager.mqh"

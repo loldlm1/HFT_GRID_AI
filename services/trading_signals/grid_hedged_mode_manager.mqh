@@ -41,27 +41,6 @@ bool HedgedHandleLifecycle(SignalParams &signal_params,
     }
   }
 
-  /*
-  if(HedgedGapRequiresRebase(signal_params, check_price))
-  {
-    double point = GridResolvePointSize();
-    CloseBullishSignal(running_bullish_signals[0]);
-    CloseBearishSignal(running_bearish_signals[0]);
-    GridCloseAllLevels(running_bullish_signals[0], point);
-    GridCloseAllLevels(running_bearish_signals[0], point);
-
-    SignalParams bull_sig;
-    SignalParams bear_sig;
-    HedgedBuildAndOpenAtAnchor(BULLISH, check_price, TimeCurrent(), bull_sig);
-    HedgedBuildAndOpenAtAnchor(BEARISH, check_price, TimeCurrent(), bear_sig);
-    ArrayResize(running_bullish_signals, 0);
-    ArrayResize(running_bearish_signals, 0);
-    AddElementToArray(running_bullish_signals, bull_sig);
-    AddElementToArray(running_bearish_signals, bear_sig);
-    return true;
-  }
-  */
-
   HedgedUpdateTrailingOnTrendBar(signal_params, grid_order);
 
   if(HedgedCheckTrailingExit(signal_params, grid_order, point_size))

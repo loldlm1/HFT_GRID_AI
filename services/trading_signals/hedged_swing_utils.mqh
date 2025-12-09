@@ -4,6 +4,8 @@
 #ifndef _SERVICES_TRADING_SIGNALS_HEDGED_SWING_UTILS_MQH_
 #define _SERVICES_TRADING_SIGNALS_HEDGED_SWING_UTILS_MQH_
 
+#include "hedged_alligator_state.mqh"
+
 IndicatorsHandleInfo HedgedAtrHandles[];
 const int GRID_MAX_LEVELS = 2;
 
@@ -23,7 +25,7 @@ inline bool HedgedSwingSlEnabled(const SignalTypes direction)
 
 inline int HedgedSwingBarsToScan()
 {
-  return 377;
+  return 1440;
 }
 
 inline ENUM_TIMEFRAMES ResolveHedgedPrimaryTimeframe()
@@ -41,127 +43,6 @@ HedgedSwingStopModes HedgedResolveStopMode()
   if(Hedged_Swing_Mode == FRACTAL_SWING_1)
     return HEDGED_STOP_FRACTAL_2;
   return HEDGED_STOP_FRACTAL_3; // FRACTAL_SWING_2
-}
-
-enum HedgedAlligatorTrendPhase
-{
-  HEDGED_TREND_PHASE_UNKNOWN = 0,
-  HEDGED_TREND_PHASE_FULL    = 1,
-  HEDGED_TREND_PHASE_MEDIUM  = 2,
-  HEDGED_TREND_PHASE_WRONG   = 3
-};
-
-struct HedgedAlligatorState
-{
-  double jaws;
-  double teeth;
-  double lips;
-  bool   valid;
-  HedgedAlligatorTrendPhase phase;
-  SignalTypes trend_direction;
-  ENUM_TIMEFRAMES tf;
-
-  HedgedAlligatorState()
-  {
-    jaws = 0.0;
-    teeth = 0.0;
-    lips = 0.0;
-    valid = false;
-    phase = HEDGED_TREND_PHASE_UNKNOWN;
-    trend_direction = NO_SIGNAL;
-    tf = PERIOD_CURRENT;
-  }
-};
-
-int g_hedged_alligator_handle = INVALID_HANDLE;
-ENUM_TIMEFRAMES g_hedged_alligator_tf = PERIOD_CURRENT;
-
-bool HedgedEnsureAlligatorHandle(const ENUM_TIMEFRAMES tf)
-{
-  if(g_hedged_alligator_handle != INVALID_HANDLE && g_hedged_alligator_tf == tf)
-    return true;
-
-  g_hedged_alligator_handle = iAlligator(_Symbol,
-                                         tf,
-                                         233, 0,   // jaws period/shift
-                                         34, 0,    // teeth period/shift
-                                         5, 0,     // lips period/shift
-                                         Hedged_Alligator_Ma_Method,
-                                         PRICE_WEIGHTED);
-  g_hedged_alligator_tf = tf;
-
-  if(g_hedged_alligator_handle == INVALID_HANDLE)
-  {
-    Print("ERROR loading hedged alligator handle: ", GetLastError());
-    if(MQLInfoInteger(MQL_TESTER) > 0)
-      TesterStop();
-    return false;
-  }
-  return true;
-}
-
-bool HedgedResolveAlligatorState(const SignalTypes direction,
-                                 HedgedAlligatorState &state_out)
-{
-  state_out = HedgedAlligatorState();
-  if(Hedged_Trend_Mode != HEDGED_TREND_ALLIGATOR)
-    return false;
-
-  ENUM_TIMEFRAMES tf = ResolveHedgedPrimaryTimeframe();
-  if(!HedgedEnsureAlligatorHandle(tf))
-    return false;
-
-  double jaws_buf[1], teeth_buf[1], lips_buf[1];
-  int copied_jaws  = CopyBuffer(g_hedged_alligator_handle, 0, 0, 1, jaws_buf);
-  int copied_teeth = CopyBuffer(g_hedged_alligator_handle, 1, 0, 1, teeth_buf);
-  int copied_lips  = CopyBuffer(g_hedged_alligator_handle, 2, 0, 1, lips_buf);
-  if(copied_jaws < 1 || copied_teeth < 1 || copied_lips < 1)
-    return false;
-
-  state_out.jaws = jaws_buf[0];
-  state_out.teeth = teeth_buf[0];
-  state_out.lips = lips_buf[0];
-  state_out.tf = tf;
-  state_out.valid = (state_out.jaws > 0.0 && state_out.teeth > 0.0 && state_out.lips > 0.0);
-  if(!state_out.valid)
-    return false;
-
-  HedgedAlligatorTrendPhase phase = HEDGED_TREND_PHASE_UNKNOWN;
-  SignalTypes trend_dir = NO_SIGNAL;
-  if(state_out.lips > state_out.teeth && state_out.teeth > state_out.jaws)
-  {
-    phase = HEDGED_TREND_PHASE_FULL;
-    trend_dir = BULLISH;
-  }
-  else if(state_out.lips < state_out.teeth && state_out.teeth < state_out.jaws)
-  {
-    phase = HEDGED_TREND_PHASE_FULL;
-    trend_dir = BEARISH;
-  }
-  else if(state_out.lips <= state_out.teeth && state_out.teeth > state_out.jaws)
-  {
-    phase = HEDGED_TREND_PHASE_MEDIUM;
-    trend_dir = BULLISH;
-  }
-  else if(state_out.lips >= state_out.teeth && state_out.teeth < state_out.jaws)
-  {
-    phase = HEDGED_TREND_PHASE_MEDIUM;
-    trend_dir = BEARISH;
-  }
-  else if(state_out.lips <= state_out.teeth && state_out.teeth <= state_out.jaws)
-  {
-    phase = HEDGED_TREND_PHASE_WRONG;
-    trend_dir = BULLISH;
-  }
-  else if(state_out.lips >= state_out.teeth && state_out.teeth >= state_out.jaws)
-  {
-    phase = HEDGED_TREND_PHASE_WRONG;
-    trend_dir = BEARISH;
-  }
-
-  state_out.phase = phase;
-  state_out.trend_direction = trend_dir;
-  return true;
 }
 
 int HedgedAtrPeriod()
@@ -1080,58 +961,6 @@ bool HedgedRefreshSwingsAfterFill(SignalParams &signal_params,
   signal_params.hedged_next_swing_index = filled_count;
 
   return true;
-}
-
-bool HedgedGapRequiresRebase(const SignalParams &signal_params,
-                             const double current_price)
-{
-  if(!signal_params.hedged_swing.hedged_mode)
-    return false;
-
-  int swing_total = ArraySize(signal_params.hedged_swing.swing_levels);
-  if(swing_total <= 0)
-    return false;
-
-  // Find highest filled level index
-  int highest_filled = -1;
-  int total_orders = ArraySize(signal_params.grid_orders);
-  for(int i = 0; i < total_orders; i++)
-  {
-    GridOrderState state = signal_params.grid_orders[i];
-    if(state.entry_price > 0.0)
-      highest_filled = i;
-  }
-  if(highest_filled < 0)
-    return false;
-
-  int next_idx = highest_filled + 1;
-  int after_next_idx = highest_filled + 2;
-
-  double p_next = 0.0;
-  double p_after_next = 0.0;
-
-  if(next_idx < swing_total)
-    p_next = signal_params.hedged_swing.swing_levels[next_idx];
-  else
-    p_next = signal_params.hedged_swing.swing_levels[swing_total - 1];
-
-  if(after_next_idx < swing_total)
-    p_after_next = signal_params.hedged_swing.swing_levels[after_next_idx];
-  else
-  {
-    // Extrapolate using last spacing
-    double last = signal_params.hedged_swing.swing_levels[swing_total - 1];
-    double prev = (swing_total >= 2) ? signal_params.hedged_swing.swing_levels[swing_total - 2] : last;
-    double spacing = MathAbs(last - prev);
-    if(signal_params.signal_type == BULLISH)
-      p_after_next = last - spacing;
-    else
-      p_after_next = last + spacing;
-  }
-
-  if(signal_params.signal_type == BULLISH)
-    return (current_price <= p_after_next);
-  return (current_price >= p_after_next);
 }
 
 void HedgedEnsureOppositePair(const SignalParams &filled_signal,
