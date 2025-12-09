@@ -23,7 +23,7 @@ inline bool HedgedSwingSlEnabled(const SignalTypes direction)
 
 inline int HedgedSwingBarsToScan()
 {
-  return 377;
+  return 1440; // Scan last 1440 bars (e.g., 1 day of M1)
 }
 
 inline ENUM_TIMEFRAMES ResolveHedgedPrimaryTimeframe()
