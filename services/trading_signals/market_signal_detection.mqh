@@ -251,6 +251,32 @@ bool CloseExistingHedgedSignals(const SignalTypes direction)
   return true;
 }
 
+bool HedgedShouldDropCounterTrendPending(const HedgedAlligatorState &state,
+                                         const SignalTypes direction)
+{
+  if(state.phase != HEDGED_TREND_PHASE_FULL)
+    return false;
+  if(direction == state.trend_direction)
+    return false;
+
+  bool has_running = (direction == BULLISH)
+                      ? (ArraySize(running_bullish_signals) > 0)
+                      : (ArraySize(running_bearish_signals) > 0);
+  if(!has_running)
+    return false;
+
+  SignalParams existing = (direction == BULLISH) ? running_bullish_signals[0] : running_bearish_signals[0];
+  if(GridSignalHasExecutedLevel(existing))
+    return false;
+
+  double anchor = existing.hedged_swing.entry_anchor_price;
+  if(anchor <= 0.0)
+    return false;
+
+  double dist_pts = HedgedDistanceToLipsPoints(state, anchor);
+  return (dist_pts > 0.0 && dist_pts < Grid_Points_Range_Setup);
+}
+
 void DetectHedgedSwingSignals()
 {
   if(!PowerEnabled())
@@ -294,22 +320,23 @@ void DetectHedgedSwingSignals()
       existing_distance = HedgedPendingDistanceFromPrice(existing);
     }
 
+    bool block_counter_trend = false;
+    bool drop_counter_trend = false;
     if(Hedged_Trend_Mode == HEDGED_TREND_ALLIGATOR && alligator_ok)
     {
-      if(alligator_phase == HEDGED_TREND_PHASE_FULL)
+      if(alligator_phase == HEDGED_TREND_PHASE_FULL && direction != alligator_trend_dir)
       {
-        // Skip counter-trend if too close to lips
-        if(direction != alligator_trend_dir)
+        double existing_lips_distance = existing_distance;
+        if(has_existing && existing.hedged_swing.entry_anchor_price > 0.0)
+          existing_lips_distance = HedgedDistanceToLipsPoints(alligator_state, existing.hedged_swing.entry_anchor_price);
+        // If existing counter-trend is already closer than setup, keep it; otherwise block reseed unless closer
+        if(existing_lips_distance > 0.0 && existing_lips_distance < Grid_Points_Range_Setup)
+          block_counter_trend = true;
+        if(HedgedShouldDropCounterTrendPending(alligator_state, direction))
         {
-          double existing_lips_distance = existing_distance;
-          double point_size = HedgedResolvePointSize();
-          if(point_size > 0.0 && has_existing && existing.hedged_swing.entry_anchor_price > 0.0)
-            existing_lips_distance = HedgedDistanceToLipsPoints(alligator_state, existing.hedged_swing.entry_anchor_price);
-          if(has_existing && existing_lips_distance > 0.0 && existing_lips_distance < Grid_Points_Range_Setup)
-          {
-            CloseExistingHedgedSignals(direction);
-            has_existing = false;
-          }
+          CloseExistingHedgedSignals(direction);
+          has_existing = false;
+          drop_counter_trend = true;
         }
       }
     }
@@ -324,7 +351,10 @@ void DetectHedgedSwingSignals()
       {
         double dist_pts = HedgedDistanceToLipsPoints(alligator_state, signal.hedged_swing.entry_anchor_price);
         if(dist_pts < Grid_Points_Range_Setup || dist_pts <= 0.0)
-          continue;
+        {
+          if(!block_counter_trend && !drop_counter_trend)
+            continue;
+        }
       }
       HedgedApplyAlligatorPhaseRules(alligator_state, alligator_phase, alligator_trend_dir, signal);
     }
@@ -332,6 +362,8 @@ void DetectHedgedSwingSignals()
     double candidate_distance = HedgedPendingDistanceFromPrice(signal);
     bool replace_existing = true;
     if(has_existing && existing_distance < DBL_MAX && candidate_distance >= existing_distance)
+      replace_existing = false;
+    if(block_counter_trend && has_existing && direction != alligator_trend_dir)
       replace_existing = false;
 
     if(!replace_existing)
