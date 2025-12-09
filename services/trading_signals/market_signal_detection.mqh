@@ -320,27 +320,13 @@ void DetectHedgedSwingSignals()
 
     if(Hedged_Trend_Mode == HEDGED_TREND_ALLIGATOR && alligator_ok)
     {
-      if(alligator_phase == HEDGED_TREND_PHASE_FULL)
+      if(alligator_phase == HEDGED_TREND_PHASE_FULL && direction != alligator_trend_dir)
       {
-        if(direction != alligator_trend_dir)
-        {
-          double dist_pts = HedgedDistanceToLipsPoints(alligator_state, signal.hedged_swing.entry_anchor_price);
-          if(dist_pts < Grid_Points_Range_Setup || dist_pts <= 0.0)
-            continue;
-          signal.hedged_swing.target_price = alligator_state.lips;
-          signal.hedged_swing.target_valid = (alligator_state.lips > 0.0);
-        }
-        else
-        {
-          signal.hedged_swing.target_price = 0.0;
-          signal.hedged_swing.target_valid = false;
-          if(HedgedSwingSlEnabled(direction) && !signal.hedged_swing.stop_valid && alligator_state.jaws > 0.0)
-          {
-            signal.hedged_swing.stop_loss_price = alligator_state.jaws;
-            signal.hedged_swing.stop_valid = true;
-          }
-        }
+        double dist_pts = HedgedDistanceToLipsPoints(alligator_state, signal.hedged_swing.entry_anchor_price);
+        if(dist_pts < Grid_Points_Range_Setup || dist_pts <= 0.0)
+          continue;
       }
+      HedgedApplyAlligatorPhaseRules(alligator_state, alligator_phase, alligator_trend_dir, signal);
     }
 
     double candidate_distance = HedgedPendingDistanceFromPrice(signal);

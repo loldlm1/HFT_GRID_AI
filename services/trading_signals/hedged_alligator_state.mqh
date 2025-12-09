@@ -117,15 +117,4 @@ bool HedgedResolveAlligatorState(const SignalTypes direction,
   return true;
 }
 
-double HedgedDistanceToLipsPoints(const HedgedAlligatorState &state,
-                                  const double price)
-{
-  double point_size = SymbolInfoDouble(_Symbol, SYMBOL_POINT);
-  if(point_size <= 0.0)
-    point_size = 0.0001;
-  if(point_size <= 0.0 || price <= 0.0 || !state.valid)
-    return 0.0;
-  return MathAbs(state.lips - price) / point_size;
-}
-
 #endif // _SERVICES_TRADING_SIGNALS_HEDGED_ALLIGATOR_STATE_MQH_
