@@ -27,10 +27,11 @@ bool HedgedUpdateTrailingOnTrendBar(SignalParams &signal_params,
   if(Hedged_Trend_Mode == HEDGED_TREND_ALLIGATOR && alligator_ok)
   {
     HedgedAlligatorTrendPhase phase = alligator_state.phase;
+    double profit_buffer = HedgedResolveProfitBuffer();
     if(phase == HEDGED_TREND_PHASE_FULL)
     {
       double profit_at_lips = HedgedComputeProfitAtPrice(signal_params, alligator_state.lips);
-      if(profit_at_lips > 0.0)
+      if(profit_at_lips > profit_buffer)
       {
         signal_params.hedged_swing.trailing_price = alligator_state.lips;
         handled_trailing = true;
@@ -39,7 +40,7 @@ bool HedgedUpdateTrailingOnTrendBar(SignalParams &signal_params,
     else if(phase == HEDGED_TREND_PHASE_MEDIUM)
     {
       double profit_at_lips = HedgedComputeProfitAtPrice(signal_params, alligator_state.lips);
-      if(profit_at_lips > 0.0)
+      if(profit_at_lips > profit_buffer)
       {
         signal_params.hedged_swing.trailing_price = alligator_state.lips;
         handled_trailing = true;

@@ -25,7 +25,8 @@ bool HedgedHandleLifecycle(SignalParams &signal_params,
   {
     double floating_pl = GridCollectSignalFloatingProfit(signal_params);
     double last_entry = HedgedResolveLastFilledEntryPrice(signal_params);
-    bool close_now = (floating_pl > 0.0);
+    double profit_buffer = HedgedResolveProfitBuffer();
+    bool close_now = (floating_pl > profit_buffer);
     if(!close_now && last_entry > 0.0)
     {
       if(direction == BULLISH)

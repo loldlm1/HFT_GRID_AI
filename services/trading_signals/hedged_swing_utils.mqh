@@ -647,6 +647,17 @@ double HedgedComputeProfitAtPrice(const SignalParams &signal_params,
   return total;
 }
 
+double HedgedResolveProfitBuffer()
+{
+  double tick_value = SymbolInfoDouble(_Symbol, SYMBOL_TRADE_TICK_VALUE);
+  if(tick_value <= 0.0)
+    tick_value = 1.0;
+  double buffer = g_points_spread * tick_value;
+  if(buffer <= 0.0)
+    buffer = tick_value;
+  return buffer;
+}
+
 void HedgedEnsureGuardedSnapshot(const SignalTypes direction,
                                  const double guard_points,
                                  const double point_size,
@@ -969,6 +980,11 @@ void HedgedEnsureOppositePair(const SignalParams &filled_signal,
   if(!filled_signal.hedged_swing.hedged_mode)
     return;
   if(filled_state.level_index != 0)
+    return;
+
+  // When Alligator trend mode is active, let per-bar detection handle entries
+  // so we don't auto-open an opposite grid against the trend.
+  if(Hedged_Trend_Mode == HEDGED_TREND_ALLIGATOR)
     return;
 
   SignalTypes opposite_direction = (filled_signal.signal_type == BULLISH) ? BEARISH : BULLISH;
