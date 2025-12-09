@@ -215,6 +215,21 @@ enum GridLotTypes
   GRID_LOT_MAX_MARGIN_SPLIT     = 5
 };
 
+enum HedgedSwingModes
+{
+  CANDLE_SWING     = 0,
+  FRACTAL_SWING_1  = 1,
+  FRACTAL_SWING_2  = 2
+};
+
+enum HedgedSwingStopModes
+{
+  HEDGED_STOP_CANDLE = 0,
+  HEDGED_STOP_FRACTAL_1 = 1,
+  HEDGED_STOP_FRACTAL_2 = 2,
+  HEDGED_STOP_FRACTAL_3 = 3
+};
+
 enum GridRiskTrendModes
 {
   GRID_RM_TREND_OFF = 0,

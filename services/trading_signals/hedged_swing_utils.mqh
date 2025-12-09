@@ -34,6 +34,15 @@ inline ENUM_TIMEFRAMES ResolveHedgedPrimaryTimeframe()
   return tf;
 }
 
+HedgedSwingStopModes HedgedResolveStopMode()
+{
+  if(Hedged_Swing_Mode == CANDLE_SWING)
+    return HEDGED_STOP_FRACTAL_1;
+  if(Hedged_Swing_Mode == FRACTAL_SWING_1)
+    return HEDGED_STOP_FRACTAL_2;
+  return HEDGED_STOP_FRACTAL_3; // FRACTAL_SWING_2
+}
+
 int HedgedAtrPeriod()
 {
   int period = (int)Stoch_Structure_Period_Type;
@@ -162,6 +171,58 @@ bool HedgedIsFractalLow(const double &lows[],
           lows[index] <= lows[index + 1]);
 }
 
+bool HedgedIsFractalHigh5(const double &highs[],
+                          const int index,
+                          const int total)
+{
+  if(index <= 2 || index >= total - 2)
+    return false;
+  return (highs[index] >= highs[index - 1] &&
+          highs[index] >= highs[index - 2] &&
+          highs[index] >= highs[index + 1] &&
+          highs[index] >= highs[index + 2]);
+}
+
+bool HedgedIsFractalLow5(const double &lows[],
+                         const int index,
+                         const int total)
+{
+  if(index <= 2 || index >= total - 2)
+    return false;
+  return (lows[index] <= lows[index - 1] &&
+          lows[index] <= lows[index - 2] &&
+          lows[index] <= lows[index + 1] &&
+          lows[index] <= lows[index + 2]);
+}
+
+bool HedgedIsFractalHigh7(const double &highs[],
+                          const int index,
+                          const int total)
+{
+  if(index <= 3 || index >= total - 3)
+    return false;
+  return (highs[index] >= highs[index - 1] &&
+          highs[index] >= highs[index - 2] &&
+          highs[index] >= highs[index - 3] &&
+          highs[index] >= highs[index + 1] &&
+          highs[index] >= highs[index + 2] &&
+          highs[index] >= highs[index + 3]);
+}
+
+bool HedgedIsFractalLow7(const double &lows[],
+                         const int index,
+                         const int total)
+{
+  if(index <= 3 || index >= total - 3)
+    return false;
+  return (lows[index] <= lows[index - 1] &&
+          lows[index] <= lows[index - 2] &&
+          lows[index] <= lows[index - 3] &&
+          lows[index] <= lows[index + 1] &&
+          lows[index] <= lows[index + 2] &&
+          lows[index] <= lows[index + 3]);
+}
+
 bool HedgedScanTimeframeForSwings(const SignalTypes direction,
                                   const ENUM_TIMEFRAMES tf,
                                   const double guard_points,
@@ -219,37 +280,81 @@ bool HedgedScanTimeframeForSwings(const SignalTypes direction,
   {
     bool fractal_high = HedgedIsFractalHigh(highs, i, copied_highs);
     bool fractal_low  = HedgedIsFractalLow(lows, i, copied_lows);
+    bool fractal_high_5 = HedgedIsFractalHigh5(highs, i, copied_highs);
+    bool fractal_low_5  = HedgedIsFractalLow5(lows, i, copied_lows);
+    bool fractal_high_7 = HedgedIsFractalHigh7(highs, i, copied_highs);
+    bool fractal_low_7  = HedgedIsFractalLow7(lows, i, copied_lows);
 
     if(direction == BULLISH)
     {
-      double entry_distance_pts = (entry_side_price - lows[i]) / point_size;
-      if(!entry_found && !preset_entry && entry_distance_pts >= guard_points && entry_distance_pts < entry_best_distance)
+      bool swing_hit = false;
+      switch(Hedged_Swing_Mode)
       {
-        entry_best_distance = entry_distance_pts;
-        entry_price = lows[i];
-        entry_price_time = times[i];
-        entry_found = true;
-        target_found = false;
-        stop_found = false;
-        target_best_distance = DBL_MAX;
-        swing_count = 0;
-        swing_sequence[swing_count] = entry_price;
-        swing_time_sequence[swing_count] = entry_price_time;
-        swing_count++;
+        case CANDLE_SWING:
+          swing_hit = true;
+          break;
+        case FRACTAL_SWING_1:
+          swing_hit = fractal_low;
+          break;
+        case FRACTAL_SWING_2:
+          swing_hit = fractal_low_5;
+          break;
+      }
+      if(swing_hit)
+      {
+        double entry_distance_pts = (entry_side_price - lows[i]) / point_size;
+        if(!entry_found && !preset_entry && entry_distance_pts >= guard_points && entry_distance_pts < entry_best_distance)
+        {
+          entry_best_distance = entry_distance_pts;
+          entry_price = lows[i];
+          entry_price_time = times[i];
+          entry_found = true;
+          target_found = false;
+          stop_found = false;
+          target_best_distance = DBL_MAX;
+          swing_count = 0;
+          swing_sequence[swing_count] = entry_price;
+          swing_time_sequence[swing_count] = entry_price_time;
+          swing_count++;
+        }
       }
 
       if(entry_found)
       {
-        double target_distance_pts = (highs[i] - entry_price) / point_size;
-        if(!target_found && target_distance_pts >= guard_points && target_distance_pts < target_best_distance)
+        bool target_hit = false;
+        switch(Hedged_Swing_Mode)
         {
-          target_best_distance = target_distance_pts;
-          target_price = highs[i];
-          target_found = true;
-          target_price_time = times[i];
+          case CANDLE_SWING:
+            target_hit = true;
+            break;
+          case FRACTAL_SWING_1:
+            target_hit = fractal_high;
+            break;
+          case FRACTAL_SWING_2:
+            target_hit = fractal_high_5;
+            break;
+        }
+        if(target_hit)
+        {
+          double target_distance_pts = (highs[i] - entry_price) / point_size;
+          if(!target_found && target_distance_pts >= guard_points && target_distance_pts < target_best_distance)
+          {
+            target_best_distance = target_distance_pts;
+            target_price = highs[i];
+            target_found = true;
+            target_price_time = times[i];
+          }
         }
 
-        if(!stop_found && fractal_low)
+        HedgedSwingStopModes stop_mode = HedgedResolveStopMode();
+        bool stop_hit = false;
+        if(stop_mode == HEDGED_STOP_FRACTAL_1)
+          stop_hit = fractal_low;
+        else if(stop_mode == HEDGED_STOP_FRACTAL_2)
+          stop_hit = fractal_low_5;
+        else if(stop_mode == HEDGED_STOP_FRACTAL_3)
+          stop_hit = fractal_low_7;
+        if(!stop_found && stop_hit)
         {
           double stop_distance_pts = (entry_price - lows[i]) / point_size;
           if(stop_distance_pts >= guard_points)
@@ -264,7 +369,20 @@ bool HedgedScanTimeframeForSwings(const SignalTypes direction,
         {
           double last_swing = swing_sequence[swing_count - 1];
           double swing_distance_pts = (last_swing - lows[i]) / point_size;
-          if(swing_distance_pts >= guard_points)
+          bool next_swing_hit = false;
+          switch(Hedged_Swing_Mode)
+          {
+            case CANDLE_SWING:
+              next_swing_hit = true;
+              break;
+            case FRACTAL_SWING_1:
+              next_swing_hit = fractal_low;
+              break;
+            case FRACTAL_SWING_2:
+              next_swing_hit = fractal_low_5;
+              break;
+          }
+          if(next_swing_hit && swing_distance_pts >= guard_points)
           {
             swing_sequence[swing_count] = lows[i];
             swing_time_sequence[swing_count] = times[i];
@@ -275,34 +393,74 @@ bool HedgedScanTimeframeForSwings(const SignalTypes direction,
     }
     else if(direction == BEARISH)
     {
-      double entry_distance_pts = (highs[i] - entry_side_price) / point_size;
-      if(!entry_found && !preset_entry && entry_distance_pts >= guard_points && entry_distance_pts < entry_best_distance)
+      bool swing_hit = false;
+      switch(Hedged_Swing_Mode)
       {
-        entry_best_distance = entry_distance_pts;
-        entry_price = highs[i];
-        entry_price_time = times[i];
-        entry_found = true;
-        target_found = false;
-        stop_found = false;
-        target_best_distance = DBL_MAX;
-        swing_count = 0;
-        swing_sequence[swing_count] = entry_price;
-        swing_time_sequence[swing_count] = entry_price_time;
-        swing_count++;
+        case CANDLE_SWING:
+          swing_hit = true;
+          break;
+        case FRACTAL_SWING_1:
+          swing_hit = fractal_high;
+          break;
+        case FRACTAL_SWING_2:
+          swing_hit = fractal_high_5;
+          break;
+      }
+      if(swing_hit)
+      {
+        double entry_distance_pts = (highs[i] - entry_side_price) / point_size;
+        if(!entry_found && !preset_entry && entry_distance_pts >= guard_points && entry_distance_pts < entry_best_distance)
+        {
+          entry_best_distance = entry_distance_pts;
+          entry_price = highs[i];
+          entry_price_time = times[i];
+          entry_found = true;
+          target_found = false;
+          stop_found = false;
+          target_best_distance = DBL_MAX;
+          swing_count = 0;
+          swing_sequence[swing_count] = entry_price;
+          swing_time_sequence[swing_count] = entry_price_time;
+          swing_count++;
+        }
       }
 
       if(entry_found)
       {
-        double target_distance_pts = (entry_price - lows[i]) / point_size;
-        if(!target_found && target_distance_pts >= guard_points && target_distance_pts < target_best_distance)
+        bool target_hit = false;
+        switch(Hedged_Swing_Mode)
         {
-          target_best_distance = target_distance_pts;
-          target_price = lows[i];
-          target_found = true;
-          target_price_time = times[i];
+          case CANDLE_SWING:
+            target_hit = true;
+            break;
+          case FRACTAL_SWING_1:
+            target_hit = fractal_low;
+            break;
+          case FRACTAL_SWING_2:
+            target_hit = fractal_low_5;
+            break;
+        }
+        if(target_hit)
+        {
+          double target_distance_pts = (entry_price - lows[i]) / point_size;
+          if(!target_found && target_distance_pts >= guard_points && target_distance_pts < target_best_distance)
+          {
+            target_best_distance = target_distance_pts;
+            target_price = lows[i];
+            target_found = true;
+            target_price_time = times[i];
+          }
         }
 
-        if(!stop_found && fractal_high)
+        HedgedSwingStopModes stop_mode = HedgedResolveStopMode();
+        bool stop_hit = false;
+        if(stop_mode == HEDGED_STOP_FRACTAL_1)
+          stop_hit = fractal_high;
+        else if(stop_mode == HEDGED_STOP_FRACTAL_2)
+          stop_hit = fractal_high_5;
+        else if(stop_mode == HEDGED_STOP_FRACTAL_3)
+          stop_hit = fractal_high_7;
+        if(!stop_found && stop_hit)
         {
           double stop_distance_pts = (highs[i] - entry_price) / point_size;
           if(stop_distance_pts >= guard_points)
@@ -317,7 +475,20 @@ bool HedgedScanTimeframeForSwings(const SignalTypes direction,
         {
           double last_swing = swing_sequence[swing_count - 1];
           double swing_distance_pts = (highs[i] - last_swing) / point_size;
-          if(swing_distance_pts >= guard_points)
+          bool next_swing_hit = false;
+          switch(Hedged_Swing_Mode)
+          {
+            case CANDLE_SWING:
+              next_swing_hit = true;
+              break;
+            case FRACTAL_SWING_1:
+              next_swing_hit = fractal_high;
+              break;
+            case FRACTAL_SWING_2:
+              next_swing_hit = fractal_high_5;
+              break;
+          }
+          if(next_swing_hit && swing_distance_pts >= guard_points)
           {
             swing_sequence[swing_count] = highs[i];
             swing_time_sequence[swing_count] = times[i];
