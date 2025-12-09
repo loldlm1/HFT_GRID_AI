@@ -7,6 +7,8 @@
 SignalParams running_bullish_signals[];
 SignalParams running_bearish_signals[];
 bool        g_forced_stop_triggered = false;
+bool        g_power_enabled = true;
+string      g_power_global_name = "BULLISH_LIFE_EA_PRO_POWER";
 
 struct StrategyContextRuntime
 {
@@ -174,6 +176,57 @@ void UpdateContextTrendState(const StrategyContextTypes context,
   g_context_runtime[slot].trend_pass[DirectionIndex(direction)] = trend_pass;
 }
 
+void PowerSaveState()
+{
+  double value = g_power_enabled ? 1.0 : 0.0;
+  GlobalVariableSet(g_power_global_name, value);
+}
+
+void PowerLoadState()
+{
+  if(GlobalVariableCheck(g_power_global_name))
+  {
+    g_power_enabled = (GlobalVariableGet(g_power_global_name) > 0.5);
+  }
+  else
+  {
+    g_power_enabled = true;
+    PowerSaveState();
+  }
+}
+
+void PowerSetEnabled(const bool enabled)
+{
+  g_power_enabled = enabled;
+  PowerSaveState();
+}
+
+bool PowerEnabled()
+{
+  return g_power_enabled;
+}
+
+void PowerOffAndCloseAll()
+{
+  double point_size = GridResolvePointSize();
+  int bullish_total = ArraySize(running_bullish_signals);
+  for(int i = 0; i < bullish_total; i++)
+  {
+    GridCloseAllLevels(running_bullish_signals[i], point_size);
+    CloseBullishSignal(running_bullish_signals[i]);
+  }
+  int bearish_total = ArraySize(running_bearish_signals);
+  for(int j = 0; j < bearish_total; j++)
+  {
+    GridCloseAllLevels(running_bearish_signals[j], point_size);
+    CloseBearishSignal(running_bearish_signals[j]);
+  }
+  ArrayResize(running_bullish_signals, 0);
+  ArrayResize(running_bearish_signals, 0);
+  g_power_enabled = false;
+  PowerSaveState();
+}
+
 bool StrategyCascadeAllowsSignal(const StrategyContextTypes context,
                                  const SignalTypes direction)
 {
@@ -191,6 +244,9 @@ bool StrategyCascadeAllowsSignal(const StrategyContextTypes context,
 
 bool SignalConcurrencyAllowsAttempt(const SignalTypes direction)
 {
+  if(HedgedSwingModeEnabled())
+    return true;
+
   if(Signal_Concurrency_Mode == MULTIPLE_RUNNING_SIGNALS)
     return true;
 

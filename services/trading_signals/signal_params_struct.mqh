@@ -54,6 +54,40 @@ struct GridOrderState
   }
 };
 
+struct HedgedSwingSnapshot
+{
+  bool          hedged_mode;
+  double        entry_anchor_price;
+  double        target_price;
+  double        guard_points;
+  double        stop_loss_price;
+  double        trailing_price;
+  ENUM_TIMEFRAMES source_timeframe;
+  bool          anchor_from_fallback;
+  bool          target_valid;
+  bool          stop_valid;
+  double        swing_levels[];
+  datetime      swing_times[];
+  datetime      trailing_bar_time;
+
+  HedgedSwingSnapshot()
+  {
+    hedged_mode           = false;
+    entry_anchor_price    = 0.0;
+    target_price          = 0.0;
+    guard_points          = 0.0;
+    stop_loss_price       = 0.0;
+    trailing_price        = 0.0;
+    source_timeframe      = PERIOD_CURRENT;
+    anchor_from_fallback  = false;
+    target_valid          = false;
+    stop_valid            = false;
+    ArrayResize(swing_levels, 0);
+    ArrayResize(swing_times, 0);
+    trailing_bar_time     = 0;
+  }
+};
+
 struct SignalParams
 {
   SignalTypes               signal_type;
@@ -72,6 +106,7 @@ struct SignalParams
   double                    raw_profit;
   datetime                  entry_time;
   datetime                  close_time;
+  int                       hedged_next_swing_index;
 
   bool   grid_initialized;
   double grid_base_distance_points;
@@ -91,6 +126,7 @@ struct SignalParams
   bool   hedge_finalized;
   bool   hedge_reset_done;
   datetime context_structure_snapshot_time;
+  HedgedSwingSnapshot hedged_swing;
 
   bool                      base_bpercent_valid;
   bool                      base_alligator_valid;
@@ -153,6 +189,7 @@ struct SignalParams
     raw_profit                 = 0.0;
     entry_time                 = 0;
     close_time                 = 0;
+    hedged_next_swing_index    = 0;
     base_bpercent_valid        = false;
     base_alligator_valid       = false;
     base_stochastic_valid      = false;
@@ -176,6 +213,7 @@ struct SignalParams
     hedge_finalized            = false;
     hedge_reset_done           = false;
     context_structure_snapshot_time = 0;
+    hedged_swing               = HedgedSwingSnapshot();
     trend_filter_mode          = TREND_OFF;
     trend_bpercent_valid       = false;
     trend_alligator_valid      = false;
@@ -206,6 +244,7 @@ struct SignalParams
     raw_profit                 = signal_params.raw_profit;
     entry_time                 = signal_params.entry_time;
     close_time                 = signal_params.close_time;
+    hedged_next_swing_index    = signal_params.hedged_next_swing_index;
     base_bpercent_valid        = signal_params.base_bpercent_valid;
     base_bpercent_data         = signal_params.base_bpercent_data;
     base_alligator_valid       = signal_params.base_alligator_valid;
@@ -240,6 +279,7 @@ struct SignalParams
     entry_trigger_mode         = signal_params.entry_trigger_mode;
     entry_evaluation_mode      = signal_params.entry_evaluation_mode;
     context_structure_snapshot_time = signal_params.context_structure_snapshot_time;
+    hedged_swing                = signal_params.hedged_swing;
     trend_filter_mode           = signal_params.trend_filter_mode;
     trend_bpercent_valid        = signal_params.trend_bpercent_valid;
     trend_alligator_valid       = signal_params.trend_alligator_valid;

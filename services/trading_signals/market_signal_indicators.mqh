@@ -7,6 +7,8 @@
 bool LoadBodyMASnapshotFromHandle(IndicatorsHandleInfo &handle,
                                   BodyMAStructure &snapshot)
 {
+  if(HedgedSwingModeEnabled())
+    return false;
   if(handle.indicator_handle == INVALID_HANDLE)
     return false;
   snapshot = BodyMAStructure();
@@ -31,6 +33,8 @@ bool LoadBodyMASnapshotForTimeframe(const ENUM_TIMEFRAMES tf,
 bool LoadContextBodyMASnapshot(const StrategyContextTypes context,
                                BodyMAStructure &snapshot)
 {
+  if(HedgedSwingModeEnabled())
+    return false;
   ENUM_TIMEFRAMES tf = StrategyContextTimeframe(context);
   return LoadBodyMASnapshotForTimeframe(tf, snapshot);
 }
@@ -210,6 +214,8 @@ bool LoadContextStochasticSnapshot(const StrategyContextTypes context,
 bool CaptureContextTrendOnly(const StrategyContextTypes context,
                              StrategyContextIndicators &snapshot)
 {
+  if(HedgedSwingModeEnabled())
+    return false;
   snapshot.context   = context;
   snapshot.timeframe = StrategyContextTimeframe(context);
 
@@ -282,6 +288,8 @@ bool LoadContextStructureSnapshot(const StrategyContextTypes context,
 bool CaptureContextIndicators(const StrategyContextTypes context,
                               StrategyContextIndicators &snapshot)
 {
+  if(HedgedSwingModeEnabled())
+    return false;
   snapshot.context   = context;
   snapshot.timeframe = StrategyContextTimeframe(context);
 

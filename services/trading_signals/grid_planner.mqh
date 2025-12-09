@@ -4,11 +4,62 @@
 #ifndef _SERVICES_TRADING_SIGNALS_GRID_PLANNER_MQH_
 #define _SERVICES_TRADING_SIGNALS_GRID_PLANNER_MQH_
 
-const int GRID_MAX_LEVELS = 10;
-
 double GridResolveUnifiedStopPercent()
 {
   return MathMax(Grid_Positions_Stops_Percent, 0.0);
+}
+
+bool BuildHedgedGridSignalPoints(SignalParams &signal_params)
+{
+  double point_size = GridResolvePointSizeSafe();
+  if(point_size <= 0.0)
+    return false;
+
+  double guard_points = signal_params.hedged_swing.guard_points;
+  if(guard_points <= 0.0)
+    guard_points = Grid_Points_Range_Setup;
+  guard_points = EnforceBrokerDistance(g_symbol_constraints, guard_points);
+  if(guard_points <= 0.0)
+    guard_points = EnforceBrokerDistance(g_symbol_constraints, 1.0);
+
+  double entry_reference_price = signal_params.hedged_swing.entry_anchor_price;
+  double current_price = GridCurrentPriceForDirection(signal_params.signal_type, true);
+  double direction_mult = GridResolveDirectionMultiplierSafe(signal_params.signal_type);
+  if(entry_reference_price <= 0.0)
+    entry_reference_price = current_price + direction_mult * guard_points * point_size;
+
+  double base_lot = signal_params.lot_size;
+  if(base_lot <= 0.0)
+    base_lot = ResolveBaseGridLot(guard_points);
+  if(base_lot <= 0.0)
+  {
+    double min_vol = g_symbol_constraints.min_volume;
+    if(min_vol <= 0.0)
+      min_vol = SymbolInfoDouble(_Symbol, SYMBOL_VOLUME_MIN);
+    if(min_vol <= 0.0)
+      min_vol = 0.01;
+    base_lot = min_vol;
+  }
+
+  signal_params.grid_base_distance_points      = guard_points;
+  signal_params.grid_resolved_distance_points  = 0.0;
+  signal_params.grid_base_lot_size             = base_lot;
+  signal_params.grid_entry_reference_price     = entry_reference_price;
+  signal_params.grid_entry_gap_points          = guard_points;
+  signal_params.grid_entry_offset_points       = 0.0;
+  signal_params.grid_initial_indicator_distance_points = guard_points;
+  signal_params.grid_initialized = true;
+
+  if(Enable_Logs)
+  {
+    PrintFormat("Hedged swing plan | direction=%s | guard=%.2f pts | anchor=%.5f | target=%.5f",
+                EnumToString(signal_params.signal_type),
+                guard_points,
+                entry_reference_price,
+                signal_params.hedged_swing.target_price);
+  }
+
+  return true;
 }
 
 double GridResolvePointSizeSafe()
@@ -480,6 +531,9 @@ void LogGridPlanLevelDetail(const SignalParams &signal_params,
 
 bool BuildGridSignalPoints(SignalParams &signal_params)
 {
+  if(signal_params.hedged_swing.hedged_mode)
+    return BuildHedgedGridSignalPoints(signal_params);
+
   double base_distance_points = 0.0;
   double entry_reference_price = 0.0;
   double min_base_distance_from_trailing = ResolveIndicatorMinimumBaseDistance(signal_params);

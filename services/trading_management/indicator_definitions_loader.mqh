@@ -1291,6 +1291,21 @@ void LoadSessionStructureFilterIndicator()
 
 void LoadAllIndicatorDefinitions()
 {
+  if(Enable_Hedged_Swing_Mode)
+  {
+    PrepareStrategyTimeframes();
+    ArrayResize(ExtBandsIndicatorsHandle, 0);
+    ArrayResize(ExtBPercentIndicatorsHandle, 0);
+    ArrayResize(ExtAlligatorIndicatorsHandle, 0);
+    ArrayResize(ExtStochIndicatorsHandle, 0);
+    ArrayResize(ExtStructStochIndicatorsHandle, 0);
+    ArrayResize(ExtBodyMAIndicatorsHandle, 0);
+    ArrayResize(ExtATRIndicatorsHandle, 0);
+    ArrayResize(ExtKeltnerIndicatorsHandle, 0);
+    Print("Hedged swing mode active: skipping custom indicator loading.");
+    return;
+  }
+
   PrepareStrategyTimeframes();
   PrepareIndicatorPeriods();
 
