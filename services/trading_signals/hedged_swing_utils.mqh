@@ -649,6 +649,28 @@ bool HedgedBuildAndOpenAtAnchor(const SignalTypes direction,
   return true;
 }
 
+double HedgedPendingDistanceFromPrice(const SignalParams &signal_params)
+{
+  double trigger_price = 0.0;
+  int swing_total = ArraySize(signal_params.hedged_swing.swing_levels);
+  if(swing_total > 0)
+    trigger_price = signal_params.hedged_swing.swing_levels[0];
+  if(trigger_price <= 0.0)
+    trigger_price = signal_params.hedged_swing.entry_anchor_price;
+  if(trigger_price <= 0.0)
+    return DBL_MAX;
+
+  double price = GridCurrentPriceForDirection(signal_params.signal_type, true);
+  if(price <= 0.0)
+    return DBL_MAX;
+
+  if(signal_params.signal_type == BULLISH)
+    return price - trigger_price;
+  if(signal_params.signal_type == BEARISH)
+    return trigger_price - price;
+  return DBL_MAX;
+}
+
 bool HedgedRefreshSwingsAfterFill(SignalParams &signal_params,
                                   const double last_fill_price,
                                   const datetime last_fill_time)

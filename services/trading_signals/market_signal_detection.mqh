@@ -273,15 +273,39 @@ void DetectHedgedSwingSignals()
   {
     SignalTypes direction = directions[idx];
 
-    if(!CloseExistingHedgedSignals(direction))
-      continue;
-
     if(!CanAttemptSignal(direction))
       continue;
+
+    bool has_existing = (direction == BULLISH)
+                          ? (ArraySize(running_bullish_signals) > 0)
+                          : (ArraySize(running_bearish_signals) > 0);
+    SignalParams existing = SignalParams();
+    double existing_distance = DBL_MAX;
+    if(has_existing)
+    {
+      existing = (direction == BULLISH) ? running_bullish_signals[0] : running_bearish_signals[0];
+      if(GridSignalHasExecutedLevel(existing))
+        continue;
+      existing_distance = HedgedPendingDistanceFromPrice(existing);
+    }
 
     SignalParams signal;
     if(!BuildHedgedSignalParams(direction, bar_time, signal))
       continue;
+
+    double candidate_distance = HedgedPendingDistanceFromPrice(signal);
+    bool replace_existing = true;
+    if(has_existing && existing_distance < DBL_MAX && candidate_distance >= existing_distance)
+      replace_existing = false;
+
+    if(!replace_existing)
+      continue;
+
+    if(has_existing)
+    {
+      if(!CloseExistingHedgedSignals(direction))
+        continue;
+    }
 
     if(!BuildGridOrderForSignal(signal))
       continue;
