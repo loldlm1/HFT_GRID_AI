@@ -40,7 +40,7 @@ bool         g_power_initialized = false;
 
 int OnInit()
 {
-  EncryptEA("196120591", "Real-Testing-Demo", "Shurt", 90);
+  //EncryptEA("196120591", "Real-Testing-Demo", "Shurt", 90);
   // License Validation
 	if(MQLInfoInteger(MQL_TESTER) > 0) is_testing = true;
 	if(!DecryptEA())              { return(INIT_FAILED); }
