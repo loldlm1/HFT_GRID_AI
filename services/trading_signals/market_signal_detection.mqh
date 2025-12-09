@@ -320,24 +320,13 @@ void DetectHedgedSwingSignals()
       existing_distance = HedgedPendingDistanceFromPrice(existing);
     }
 
-    bool block_counter_trend = false;
-    bool drop_counter_trend = false;
     if(Hedged_Trend_Mode == HEDGED_TREND_ALLIGATOR && alligator_ok)
     {
-      if(alligator_phase == HEDGED_TREND_PHASE_FULL && direction != alligator_trend_dir)
+      if(HedgedShouldDropCounterTrendPending(alligator_state, direction))
       {
-        double existing_lips_distance = existing_distance;
-        if(has_existing && existing.hedged_swing.entry_anchor_price > 0.0)
-          existing_lips_distance = HedgedDistanceToLipsPoints(alligator_state, existing.hedged_swing.entry_anchor_price);
-        // If existing counter-trend is already closer than setup, keep it; otherwise block reseed unless closer
-        if(existing_lips_distance > 0.0 && existing_lips_distance < Grid_Points_Range_Setup)
-          block_counter_trend = true;
-        if(HedgedShouldDropCounterTrendPending(alligator_state, direction))
-        {
-          CloseExistingHedgedSignals(direction);
-          has_existing = false;
-          drop_counter_trend = true;
-        }
+        CloseExistingHedgedSignals(direction);
+        has_existing = false;
+        existing_distance = DBL_MAX;
       }
     }
 
@@ -351,10 +340,7 @@ void DetectHedgedSwingSignals()
       {
         double dist_pts = HedgedDistanceToLipsPoints(alligator_state, signal.hedged_swing.entry_anchor_price);
         if(dist_pts < Grid_Points_Range_Setup || dist_pts <= 0.0)
-        {
-          if(!block_counter_trend && !drop_counter_trend)
-            continue;
-        }
+          continue;
       }
       HedgedApplyAlligatorPhaseRules(alligator_state, alligator_phase, alligator_trend_dir, signal);
     }
@@ -362,8 +348,6 @@ void DetectHedgedSwingSignals()
     double candidate_distance = HedgedPendingDistanceFromPrice(signal);
     bool replace_existing = true;
     if(has_existing && existing_distance < DBL_MAX && candidate_distance >= existing_distance)
-      replace_existing = false;
-    if(block_counter_trend && has_existing && direction != alligator_trend_dir)
       replace_existing = false;
 
     if(!replace_existing)
