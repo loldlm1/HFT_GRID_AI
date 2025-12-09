@@ -734,10 +734,14 @@ double HedgedResolveSwingTrailingAnchor(const SignalParams &signal_params,
     entry_price = signal_params.hedged_swing.entry_anchor_price;
   double current_price = GridCurrentPriceForDirection(direction, false);
 
+  // Allow the entry bar by aligning cutoff to the bar that contains last_fill_time
+  int cutoff_index = iBarShift(_Symbol, tf, cutoff, true);
+  datetime cutoff_bar_time = (cutoff_index >= 0) ? iTime(_Symbol, tf, cutoff_index) : cutoff;
+
   for(int i = 1; i < scan_total; i++)
   {
     datetime bar_time = times[i];
-    if(bar_time <= cutoff)
+    if(bar_time < cutoff_bar_time)
       continue;
     // Completed bar only
     if(bar_time >= times[0])
