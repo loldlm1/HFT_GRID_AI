@@ -23,7 +23,7 @@ inline bool HedgedSwingSlEnabled(const SignalTypes direction)
 
 inline int HedgedSwingBarsToScan()
 {
-  return 1440; // Scan last 1440 bars (e.g., 1 day of M1)
+  return 377;
 }
 
 inline ENUM_TIMEFRAMES ResolveHedgedPrimaryTimeframe()
@@ -43,6 +43,127 @@ HedgedSwingStopModes HedgedResolveStopMode()
   return HEDGED_STOP_FRACTAL_3; // FRACTAL_SWING_2
 }
 
+enum HedgedAlligatorTrendPhase
+{
+  HEDGED_TREND_PHASE_UNKNOWN = 0,
+  HEDGED_TREND_PHASE_FULL    = 1,
+  HEDGED_TREND_PHASE_MEDIUM  = 2,
+  HEDGED_TREND_PHASE_WRONG   = 3
+};
+
+struct HedgedAlligatorState
+{
+  double jaws;
+  double teeth;
+  double lips;
+  bool   valid;
+  HedgedAlligatorTrendPhase phase;
+  SignalTypes trend_direction;
+  ENUM_TIMEFRAMES tf;
+
+  HedgedAlligatorState()
+  {
+    jaws = 0.0;
+    teeth = 0.0;
+    lips = 0.0;
+    valid = false;
+    phase = HEDGED_TREND_PHASE_UNKNOWN;
+    trend_direction = NO_SIGNAL;
+    tf = PERIOD_CURRENT;
+  }
+};
+
+int g_hedged_alligator_handle = INVALID_HANDLE;
+ENUM_TIMEFRAMES g_hedged_alligator_tf = PERIOD_CURRENT;
+
+bool HedgedEnsureAlligatorHandle(const ENUM_TIMEFRAMES tf)
+{
+  if(g_hedged_alligator_handle != INVALID_HANDLE && g_hedged_alligator_tf == tf)
+    return true;
+
+  g_hedged_alligator_handle = iAlligator(_Symbol,
+                                         tf,
+                                         233, 0,   // jaws period/shift
+                                         34, 0,    // teeth period/shift
+                                         5, 0,     // lips period/shift
+                                         Hedged_Alligator_Ma_Method,
+                                         PRICE_WEIGHTED);
+  g_hedged_alligator_tf = tf;
+
+  if(g_hedged_alligator_handle == INVALID_HANDLE)
+  {
+    Print("ERROR loading hedged alligator handle: ", GetLastError());
+    if(MQLInfoInteger(MQL_TESTER) > 0)
+      TesterStop();
+    return false;
+  }
+  return true;
+}
+
+bool HedgedResolveAlligatorState(const SignalTypes direction,
+                                 HedgedAlligatorState &state_out)
+{
+  state_out = HedgedAlligatorState();
+  if(Hedged_Trend_Mode != HEDGED_TREND_ALLIGATOR)
+    return false;
+
+  ENUM_TIMEFRAMES tf = ResolveHedgedPrimaryTimeframe();
+  if(!HedgedEnsureAlligatorHandle(tf))
+    return false;
+
+  double jaws_buf[1], teeth_buf[1], lips_buf[1];
+  int copied_jaws  = CopyBuffer(g_hedged_alligator_handle, 0, 0, 1, jaws_buf);
+  int copied_teeth = CopyBuffer(g_hedged_alligator_handle, 1, 0, 1, teeth_buf);
+  int copied_lips  = CopyBuffer(g_hedged_alligator_handle, 2, 0, 1, lips_buf);
+  if(copied_jaws < 1 || copied_teeth < 1 || copied_lips < 1)
+    return false;
+
+  state_out.jaws = jaws_buf[0];
+  state_out.teeth = teeth_buf[0];
+  state_out.lips = lips_buf[0];
+  state_out.tf = tf;
+  state_out.valid = (state_out.jaws > 0.0 && state_out.teeth > 0.0 && state_out.lips > 0.0);
+  if(!state_out.valid)
+    return false;
+
+  HedgedAlligatorTrendPhase phase = HEDGED_TREND_PHASE_UNKNOWN;
+  SignalTypes trend_dir = NO_SIGNAL;
+  if(state_out.lips > state_out.teeth && state_out.teeth > state_out.jaws)
+  {
+    phase = HEDGED_TREND_PHASE_FULL;
+    trend_dir = BULLISH;
+  }
+  else if(state_out.lips < state_out.teeth && state_out.teeth < state_out.jaws)
+  {
+    phase = HEDGED_TREND_PHASE_FULL;
+    trend_dir = BEARISH;
+  }
+  else if(state_out.lips <= state_out.teeth && state_out.teeth > state_out.jaws)
+  {
+    phase = HEDGED_TREND_PHASE_MEDIUM;
+    trend_dir = BULLISH;
+  }
+  else if(state_out.lips >= state_out.teeth && state_out.teeth < state_out.jaws)
+  {
+    phase = HEDGED_TREND_PHASE_MEDIUM;
+    trend_dir = BEARISH;
+  }
+  else if(state_out.lips <= state_out.teeth && state_out.teeth <= state_out.jaws)
+  {
+    phase = HEDGED_TREND_PHASE_WRONG;
+    trend_dir = BULLISH;
+  }
+  else if(state_out.lips >= state_out.teeth && state_out.teeth >= state_out.jaws)
+  {
+    phase = HEDGED_TREND_PHASE_WRONG;
+    trend_dir = BEARISH;
+  }
+
+  state_out.phase = phase;
+  state_out.trend_direction = trend_dir;
+  return true;
+}
+
 int HedgedAtrPeriod()
 {
   int period = (int)Stoch_Structure_Period_Type;
@@ -57,6 +178,15 @@ double HedgedResolvePointSize()
   if(point_size <= 0.0)
     point_size = 0.0001;
   return point_size;
+}
+
+double HedgedDistanceToLipsPoints(const HedgedAlligatorState &state,
+                                  const double price)
+{
+  double point_size = HedgedResolvePointSize();
+  if(point_size <= 0.0 || price <= 0.0 || !state.valid)
+    return 0.0;
+  return MathAbs(state.lips - price) / point_size;
 }
 
 bool HedgedFindAtrHandle(const ENUM_TIMEFRAMES tf,
@@ -697,6 +827,25 @@ datetime HedgedResolveLastFilledTime(const SignalParams &signal_params)
   return latest;
 }
 
+double HedgedResolveLastFilledEntryPrice(const SignalParams &signal_params)
+{
+  double latest_entry = signal_params.entry_price;
+  datetime latest_time = 0;
+  int total = ArraySize(signal_params.grid_orders);
+  for(int i = 0; i < total; i++)
+  {
+    GridOrderState state = signal_params.grid_orders[i];
+    if(state.entry_price <= 0.0)
+      continue;
+    if(state.last_action_time >= latest_time)
+    {
+      latest_time = state.last_action_time;
+      latest_entry = state.entry_price;
+    }
+  }
+  return latest_entry;
+}
+
 double HedgedResolveSwingTrailingAnchor(const SignalParams &signal_params,
                                         const GridOrderState &grid_order,
                                         const double point_size,
@@ -866,6 +1015,42 @@ double HedgedPendingDistanceFromPrice(const SignalParams &signal_params)
   if(signal_params.signal_type == BEARISH)
     return trigger_price - price;
   return DBL_MAX;
+}
+
+void HedgedApplyAlligatorPhaseRules(const HedgedAlligatorState &state,
+                                    const HedgedAlligatorTrendPhase phase,
+                                    const SignalTypes trend_direction,
+                                    SignalParams &signal_params)
+{
+  if(Hedged_Trend_Mode != HEDGED_TREND_ALLIGATOR)
+    return;
+  if(!state.valid)
+    return;
+
+  if(phase == HEDGED_TREND_PHASE_FULL)
+  {
+    if(signal_params.signal_type == trend_direction)
+    {
+      signal_params.hedged_swing.target_price = 0.0;
+      signal_params.hedged_swing.target_valid = false;
+      if(HedgedSwingSlEnabled(signal_params.signal_type) &&
+         !signal_params.hedged_swing.stop_valid &&
+         state.jaws > 0.0)
+      {
+        signal_params.hedged_swing.stop_loss_price = state.jaws;
+        signal_params.hedged_swing.stop_valid = true;
+      }
+    }
+    else
+    {
+      double point_size = HedgedResolvePointSize();
+      if(point_size > 0.0 && state.lips > 0.0)
+      {
+        signal_params.hedged_swing.target_price = state.lips;
+        signal_params.hedged_swing.target_valid = true;
+      }
+    }
+  }
 }
 
 bool HedgedRefreshSwingsAfterFill(SignalParams &signal_params,
@@ -1099,7 +1284,16 @@ bool HedgedActivatePendingLevels(SignalParams &signal_params)
   double filled_price = (state.entry_price > 0.0) ? state.entry_price : trigger_price;
   HedgedRefreshSwingsAfterFill(signal_params, filled_price, state.last_action_time);
 
-  if(target_index > 0)
+  bool allow_target = true;
+  HedgedAlligatorState alligator_state;
+  if(Hedged_Trend_Mode == HEDGED_TREND_ALLIGATOR && HedgedResolveAlligatorState(signal_params.signal_type, alligator_state))
+  {
+    if(alligator_state.phase == HEDGED_TREND_PHASE_FULL &&
+       signal_params.signal_type == alligator_state.trend_direction)
+      allow_target = false;
+  }
+
+  if(allow_target && target_index > 0)
     signal_params.hedged_swing.target_price = signal_params.grid_orders[target_index - 1].entry_price;
 
   HedgedEnsureOppositePair(signal_params, state);

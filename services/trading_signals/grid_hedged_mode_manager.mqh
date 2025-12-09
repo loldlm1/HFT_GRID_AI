@@ -14,8 +14,32 @@ bool HedgedHandleLifecycle(SignalParams &signal_params,
   if(!GridSignalHasExecutedLevel(signal_params))
     return false;
 
+  HedgedAlligatorState alligator_state;
+  bool alligator_ok = HedgedResolveAlligatorState(signal_params.signal_type, alligator_state);
+  HedgedAlligatorTrendPhase alligator_phase = alligator_ok ? alligator_state.phase : HEDGED_TREND_PHASE_UNKNOWN;
+
   SignalTypes direction = signal_params.signal_type;
   double check_price = GridCurrentPriceForDirection(direction, false);
+
+  if(Hedged_Trend_Mode == HEDGED_TREND_ALLIGATOR && alligator_phase == HEDGED_TREND_PHASE_WRONG)
+  {
+    double floating_pl = GridCollectSignalFloatingProfit(signal_params);
+    double last_entry = HedgedResolveLastFilledEntryPrice(signal_params);
+    bool close_now = (floating_pl > 0.0);
+    if(!close_now && last_entry > 0.0)
+    {
+      if(direction == BULLISH)
+        close_now = (check_price <= last_entry);
+      else
+        close_now = (check_price >= last_entry);
+    }
+    if(close_now)
+    {
+      GridCloseAllLevels(signal_params, point_size);
+      signal_params.signal_state = CLOSED;
+      return true;
+    }
+  }
 
   /*
   if(HedgedGapRequiresRebase(signal_params, check_price))

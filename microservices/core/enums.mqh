@@ -230,6 +230,12 @@ enum HedgedSwingStopModes
   HEDGED_STOP_FRACTAL_3 = 3
 };
 
+enum HedgedTrendModes
+{
+  HEDGED_TREND_OFF       = 0,
+  HEDGED_TREND_ALLIGATOR = 1
+};
+
 enum GridRiskTrendModes
 {
   GRID_RM_TREND_OFF = 0,

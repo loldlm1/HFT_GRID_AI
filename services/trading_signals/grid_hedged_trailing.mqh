@@ -20,14 +20,45 @@ bool HedgedUpdateTrailingOnTrendBar(SignalParams &signal_params,
   signal_params.hedged_swing.trailing_bar_time = bar_time;
 
   double point_size = GridResolvePointSize();
+
+  bool handled_trailing = false;
+  HedgedAlligatorState alligator_state;
+  bool alligator_ok = HedgedResolveAlligatorState(signal_params.signal_type, alligator_state);
+  if(Hedged_Trend_Mode == HEDGED_TREND_ALLIGATOR && alligator_ok)
+  {
+    HedgedAlligatorTrendPhase phase = alligator_state.phase;
+    if(phase == HEDGED_TREND_PHASE_FULL)
+    {
+      double profit_at_lips = HedgedComputeProfitAtPrice(signal_params, alligator_state.lips);
+      if(profit_at_lips > 0.0)
+      {
+        signal_params.hedged_swing.trailing_price = alligator_state.lips;
+        handled_trailing = true;
+      }
+    }
+    else if(phase == HEDGED_TREND_PHASE_MEDIUM)
+    {
+      double profit_at_lips = HedgedComputeProfitAtPrice(signal_params, alligator_state.lips);
+      if(profit_at_lips > 0.0)
+      {
+        signal_params.hedged_swing.trailing_price = alligator_state.lips;
+        handled_trailing = true;
+      }
+    }
+  }
+
   double anchor_profit = 0.0;
+  bool allow_swing_trail = true;
+  if(alligator_ok && Hedged_Trend_Mode == HEDGED_TREND_ALLIGATOR && alligator_state.phase == HEDGED_TREND_PHASE_FULL)
+    allow_swing_trail = false;
+
   double swing_trail = HedgedResolveSwingTrailingAnchor(signal_params,
                                                         grid_order,
                                                         point_size,
                                                         true,
                                                         anchor_profit,
                                                         false);
-  if(swing_trail > 0.0)
+  if(!handled_trailing && allow_swing_trail && swing_trail > 0.0)
     signal_params.hedged_swing.trailing_price = swing_trail;
 
   if((signal_params.signal_type == BULLISH && Bullish_Swing_SL_Enable) ||

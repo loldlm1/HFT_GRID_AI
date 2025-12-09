@@ -174,6 +174,8 @@ input double               Grid_Points_Range_Setup      = 1000.0;
 
 input group  "+= Hedged Swing Mode =+";
  bool   Enable_Hedged_Swing_Mode   = true;
+input HedgedTrendModes Hedged_Trend_Mode = HEDGED_TREND_OFF;
+input ENUM_MA_METHOD Hedged_Alligator_Ma_Method = MODE_SMMA;
 input HedgedSwingModes Hedged_Swing_Mode = CANDLE_SWING;
 input bool   Bullish_Swing_SL_Enable    = false;
 input bool   Bearish_Swing_SL_Enable    = true;

@@ -268,6 +268,11 @@ void DetectHedgedSwingSignals()
     return;
   g_context_runtime[base_slot].last_bar_time = bar_time;
 
+  HedgedAlligatorState alligator_state;
+  bool alligator_ok = HedgedResolveAlligatorState(NO_SIGNAL, alligator_state);
+  HedgedAlligatorTrendPhase alligator_phase = alligator_ok ? alligator_state.phase : HEDGED_TREND_PHASE_UNKNOWN;
+  SignalTypes alligator_trend_dir = alligator_ok ? alligator_state.trend_direction : NO_SIGNAL;
+
   SignalTypes directions[2] = {BULLISH, BEARISH};
   for(int idx = 0; idx < 2; idx++)
   {
@@ -289,9 +294,54 @@ void DetectHedgedSwingSignals()
       existing_distance = HedgedPendingDistanceFromPrice(existing);
     }
 
+    if(Hedged_Trend_Mode == HEDGED_TREND_ALLIGATOR && alligator_ok)
+    {
+      if(alligator_phase == HEDGED_TREND_PHASE_FULL)
+      {
+        // Skip counter-trend if too close to lips
+        if(direction != alligator_trend_dir)
+        {
+          double existing_lips_distance = existing_distance;
+          double point_size = HedgedResolvePointSize();
+          if(point_size > 0.0 && has_existing && existing.hedged_swing.entry_anchor_price > 0.0)
+            existing_lips_distance = HedgedDistanceToLipsPoints(alligator_state, existing.hedged_swing.entry_anchor_price);
+          if(has_existing && existing_lips_distance > 0.0 && existing_lips_distance < Grid_Points_Range_Setup)
+          {
+            CloseExistingHedgedSignals(direction);
+            has_existing = false;
+          }
+        }
+      }
+    }
+
     SignalParams signal;
     if(!BuildHedgedSignalParams(direction, bar_time, signal))
       continue;
+
+    if(Hedged_Trend_Mode == HEDGED_TREND_ALLIGATOR && alligator_ok)
+    {
+      if(alligator_phase == HEDGED_TREND_PHASE_FULL)
+      {
+        if(direction != alligator_trend_dir)
+        {
+          double dist_pts = HedgedDistanceToLipsPoints(alligator_state, signal.hedged_swing.entry_anchor_price);
+          if(dist_pts < Grid_Points_Range_Setup || dist_pts <= 0.0)
+            continue;
+          signal.hedged_swing.target_price = alligator_state.lips;
+          signal.hedged_swing.target_valid = (alligator_state.lips > 0.0);
+        }
+        else
+        {
+          signal.hedged_swing.target_price = 0.0;
+          signal.hedged_swing.target_valid = false;
+          if(HedgedSwingSlEnabled(direction) && !signal.hedged_swing.stop_valid && alligator_state.jaws > 0.0)
+          {
+            signal.hedged_swing.stop_loss_price = alligator_state.jaws;
+            signal.hedged_swing.stop_valid = true;
+          }
+        }
+      }
+    }
 
     double candidate_distance = HedgedPendingDistanceFromPrice(signal);
     bool replace_existing = true;
