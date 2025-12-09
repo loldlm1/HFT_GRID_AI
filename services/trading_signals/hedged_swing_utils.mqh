@@ -745,8 +745,19 @@ double HedgedResolveSwingTrailingAnchor(const SignalParams &signal_params,
 
     if(direction == BULLISH)
     {
-      if(require_fractal && !HedgedIsFractalLow(lows, i, copied_lows))
-        continue;
+      if(require_fractal)
+      {
+        HedgedSwingStopModes stop_mode = HedgedResolveStopMode();
+        bool fractal_ok = false;
+        if(stop_mode == HEDGED_STOP_FRACTAL_1)
+          fractal_ok = HedgedIsFractalLow(lows, i, copied_lows);
+        else if(stop_mode == HEDGED_STOP_FRACTAL_2)
+          fractal_ok = HedgedIsFractalLow5(lows, i, copied_lows);
+        else
+          fractal_ok = HedgedIsFractalLow7(lows, i, copied_lows);
+        if(!fractal_ok)
+          continue;
+      }
       double swing = lows[i];
       if(swing >= current_price)
         continue;
@@ -761,8 +772,19 @@ double HedgedResolveSwingTrailingAnchor(const SignalParams &signal_params,
     }
     else if(direction == BEARISH)
     {
-      if(require_fractal && !HedgedIsFractalHigh(highs, i, copied_highs))
-        continue;
+      if(require_fractal)
+      {
+        HedgedSwingStopModes stop_mode = HedgedResolveStopMode();
+        bool fractal_ok = false;
+        if(stop_mode == HEDGED_STOP_FRACTAL_1)
+          fractal_ok = HedgedIsFractalHigh(highs, i, copied_highs);
+        else if(stop_mode == HEDGED_STOP_FRACTAL_2)
+          fractal_ok = HedgedIsFractalHigh5(highs, i, copied_highs);
+        else
+          fractal_ok = HedgedIsFractalHigh7(highs, i, copied_highs);
+        if(!fractal_ok)
+          continue;
+      }
       double swing = highs[i];
       if(swing <= current_price)
         continue;
