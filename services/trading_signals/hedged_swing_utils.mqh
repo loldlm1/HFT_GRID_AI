@@ -1014,11 +1014,20 @@ void HedgedApplyAlligatorPhaseRules(const HedgedAlligatorState &state,
       signal_params.hedged_swing.target_price = 0.0;
       signal_params.hedged_swing.target_valid = false;
       if(HedgedSwingSlEnabled(signal_params.signal_type) &&
-         !signal_params.hedged_swing.stop_valid &&
          state.jaws > 0.0)
       {
-        signal_params.hedged_swing.stop_loss_price = state.jaws;
-        signal_params.hedged_swing.stop_valid = true;
+        bool stop_ok = false;
+        double current_stop = signal_params.hedged_swing.stop_loss_price;
+        if(signal_params.signal_type == BULLISH)
+          stop_ok = (signal_params.hedged_swing.stop_valid && current_stop < state.jaws);
+        else
+          stop_ok = (signal_params.hedged_swing.stop_valid && current_stop > state.jaws);
+
+        if(!stop_ok)
+        {
+          signal_params.hedged_swing.stop_loss_price = state.jaws;
+          signal_params.hedged_swing.stop_valid = true;
+        }
       }
     }
     else
