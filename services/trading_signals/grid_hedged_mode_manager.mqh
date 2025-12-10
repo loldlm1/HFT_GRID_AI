@@ -55,8 +55,10 @@ bool HedgedHandleLifecycle(SignalParams &signal_params,
     if(stop_hit)
     {
       GridCloseAllLevels(signal_params, point_size);
-      signal_params.signal_state = CLOSED;
-      HedgedBuildAndOpenAtAnchor(direction, check_price, TimeCurrent(), signal_params);
+      if(HedgedShouldReopenImmediately(signal_params, direction))
+        HedgedBuildAndOpenAtAnchor(direction, check_price, TimeCurrent(), signal_params);
+      else
+        signal_params.signal_state = CLOSED;
       return true;
     }
   }
@@ -72,7 +74,10 @@ bool HedgedHandleLifecycle(SignalParams &signal_params,
       if(floating_pl >= 1.0)
       {
         GridCloseAllLevels(signal_params, point_size);
-        HedgedBuildAndOpenAtAnchor(direction, check_price, TimeCurrent(), signal_params);
+        if(HedgedShouldReopenImmediately(signal_params, direction))
+          HedgedBuildAndOpenAtAnchor(direction, check_price, TimeCurrent(), signal_params);
+        else
+          signal_params.signal_state = CLOSED;
         return true;
       }
 

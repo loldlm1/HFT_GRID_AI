@@ -615,6 +615,23 @@ double HedgedCollectDirectionFloatingProfit(const SignalTypes direction)
   return 0.0;
 }
 
+bool HedgedShouldReopenImmediately(const SignalParams &signal_params,
+                                   const SignalTypes exit_direction)
+{
+  if(!signal_params.hedged_swing.hedged_mode)
+    return false;
+
+  if(Hedged_Trend_Mode != HEDGED_TREND_ALLIGATOR)
+    return true;
+
+  HedgedAlligatorState state;
+  if(!HedgedResolveAlligatorState(exit_direction, state) || !state.valid)
+    return false;
+
+  // Only reopen immediately when the exit direction matches the current trend in FULL phase
+  return (state.phase == HEDGED_TREND_PHASE_FULL && state.trend_direction == exit_direction);
+}
+
 double HedgedComputeProfitAtPrice(const SignalParams &signal_params,
                                   const double exit_price)
 {
@@ -1040,12 +1057,15 @@ void HedgedEnsureOppositePair(const SignalParams &filled_signal,
   opposite_signal.grid_entry_reference_price = opposite_signal.hedged_swing.entry_anchor_price;
   opposite_signal.hedged_next_swing_index = 0;
 
-  if(HedgedBuildAndOpenAtAnchor(opposite_direction, anchor_price, filled_signal.entry_time, opposite_signal))
+  if(HedgedShouldReopenImmediately(opposite_signal, opposite_direction))
   {
-    if(opposite_direction == BULLISH)
-      AddElementToArray(running_bullish_signals, opposite_signal);
-    else
-      AddElementToArray(running_bearish_signals, opposite_signal);
+    if(HedgedBuildAndOpenAtAnchor(opposite_direction, anchor_price, filled_signal.entry_time, opposite_signal))
+    {
+      if(opposite_direction == BULLISH)
+        AddElementToArray(running_bullish_signals, opposite_signal);
+      else
+        AddElementToArray(running_bearish_signals, opposite_signal);
+    }
   }
 }
 
