@@ -28,22 +28,35 @@ bool HedgedUpdateTrailingOnTrendBar(SignalParams &signal_params,
   {
     HedgedAlligatorTrendPhase phase = alligator_state.phase;
     double profit_buffer = HedgedResolveProfitBuffer();
+    double current_price = GridCurrentPriceForDirection(signal_params.signal_type, false);
     if(phase == HEDGED_TREND_PHASE_FULL)
     {
-      double profit_at_lips = HedgedComputeProfitAtPrice(signal_params, alligator_state.lips);
-      if(profit_at_lips > profit_buffer)
+      bool price_cleared_lips = (signal_params.signal_type == BULLISH)
+                                  ? (current_price > alligator_state.lips)
+                                  : (current_price < alligator_state.lips);
+      if(price_cleared_lips)
       {
-        signal_params.hedged_swing.trailing_price = alligator_state.lips;
-        handled_trailing = true;
+        double profit_at_lips = HedgedComputeProfitAtPrice(signal_params, alligator_state.lips);
+        if(profit_at_lips > profit_buffer)
+        {
+          signal_params.hedged_swing.trailing_price = alligator_state.lips;
+          handled_trailing = true;
+        }
       }
     }
     else if(phase == HEDGED_TREND_PHASE_MEDIUM)
     {
-      double profit_at_lips = HedgedComputeProfitAtPrice(signal_params, alligator_state.lips);
-      if(profit_at_lips > profit_buffer)
+      bool price_cleared_lips = (signal_params.signal_type == BULLISH)
+                                  ? (current_price > alligator_state.lips)
+                                  : (current_price < alligator_state.lips);
+      if(price_cleared_lips)
       {
-        signal_params.hedged_swing.trailing_price = alligator_state.lips;
-        handled_trailing = true;
+        double profit_at_lips = HedgedComputeProfitAtPrice(signal_params, alligator_state.lips);
+        if(profit_at_lips > profit_buffer)
+        {
+          signal_params.hedged_swing.trailing_price = alligator_state.lips;
+          handled_trailing = true;
+        }
       }
     }
   }
