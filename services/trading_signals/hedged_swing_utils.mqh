@@ -945,6 +945,16 @@ void HedgedApplyAlligatorPhaseRules(const HedgedAlligatorState &state,
   }
 }
 
+void HedgedReapplyAlligatorRulesIfEnabled(SignalParams &signal_params)
+{
+  if(Hedged_Trend_Mode != HEDGED_TREND_ALLIGATOR)
+    return;
+  HedgedAlligatorState state;
+  if(!HedgedResolveAlligatorState(signal_params.signal_type, state))
+    return;
+  HedgedApplyAlligatorPhaseRules(state, state.phase, state.trend_direction, signal_params);
+}
+
 bool HedgedRefreshSwingsAfterFill(SignalParams &signal_params,
                                   const double last_fill_price,
                                   const datetime last_fill_time)
@@ -970,6 +980,7 @@ bool HedgedRefreshSwingsAfterFill(SignalParams &signal_params,
 
   signal_params.hedged_swing = rebuilt;
   signal_params.hedged_next_swing_index = filled_count;
+  HedgedReapplyAlligatorRulesIfEnabled(signal_params);
 
   return true;
 }
@@ -1140,6 +1151,7 @@ bool HedgedActivatePendingLevels(SignalParams &signal_params)
 
   if(allow_target && target_index > 0)
     signal_params.hedged_swing.target_price = signal_params.grid_orders[target_index - 1].entry_price;
+  HedgedReapplyAlligatorRulesIfEnabled(signal_params);
 
   HedgedEnsureOppositePair(signal_params, state);
   return true;

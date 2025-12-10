@@ -342,7 +342,7 @@ void DetectHedgedSwingSignals()
         if(dist_pts < Grid_Points_Range_Setup || dist_pts <= 0.0)
           continue;
       }
-      HedgedApplyAlligatorPhaseRules(alligator_state, alligator_phase, alligator_trend_dir, signal);
+      HedgedReapplyAlligatorRulesIfEnabled(signal);
     }
 
     double candidate_distance = HedgedPendingDistanceFromPrice(signal);
