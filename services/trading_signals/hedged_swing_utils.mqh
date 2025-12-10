@@ -246,6 +246,21 @@ bool HedgedScanTimeframeForSwings(const SignalTypes direction,
   if(bars_available < 3)
     return false;
 
+  bool use_jaws_stop = false;
+  double jaws_price = 0.0;
+  if(Hedged_Trend_Mode == HEDGED_TREND_ALLIGATOR)
+  {
+    HedgedAlligatorState alligator_state;
+    if(HedgedResolveAlligatorState(direction, alligator_state) && alligator_state.valid)
+    {
+      if(alligator_state.phase == HEDGED_TREND_PHASE_FULL && alligator_state.trend_direction == direction)
+      {
+        use_jaws_stop = HedgedSwingSlEnabled(direction);
+        jaws_price = alligator_state.jaws;
+      }
+    }
+  }
+
   int scan_total = HedgedSwingBarsToScan();
   if(scan_total + 2 > bars_available)
     scan_total = bars_available - 2;
@@ -367,12 +382,30 @@ bool HedgedScanTimeframeForSwings(const SignalTypes direction,
           stop_hit = fractal_low_7;
         if(!stop_found && stop_hit)
         {
-          double stop_distance_pts = (entry_price - lows[i]) / point_size;
-          if(stop_distance_pts >= guard_points)
+          double stop_candidate = lows[i];
+          if(use_jaws_stop)
           {
-            stop_price = lows[i];
-            stop_found = true;
-            stop_price_time = times[i];
+            bool beyond_jaws = (jaws_price > 0.0 && stop_candidate < jaws_price);
+            if(beyond_jaws)
+            {
+              double stop_distance_pts = (entry_price - stop_candidate) / point_size;
+              if(stop_distance_pts >= guard_points)
+              {
+                stop_price = stop_candidate;
+                stop_found = true;
+                stop_price_time = times[i];
+              }
+            }
+          }
+          else
+          {
+            double stop_distance_pts = (entry_price - stop_candidate) / point_size;
+            if(stop_distance_pts >= guard_points)
+            {
+              stop_price = stop_candidate;
+              stop_found = true;
+              stop_price_time = times[i];
+            }
           }
         }
 
@@ -473,12 +506,30 @@ bool HedgedScanTimeframeForSwings(const SignalTypes direction,
           stop_hit = fractal_high_7;
         if(!stop_found && stop_hit)
         {
-          double stop_distance_pts = (highs[i] - entry_price) / point_size;
-          if(stop_distance_pts >= guard_points)
+          double stop_candidate = highs[i];
+          if(use_jaws_stop)
           {
-            stop_price = highs[i];
-            stop_found = true;
-            stop_price_time = times[i];
+            bool beyond_jaws = (jaws_price > 0.0 && stop_candidate > jaws_price);
+            if(beyond_jaws)
+            {
+              double stop_distance_pts = (stop_candidate - entry_price) / point_size;
+              if(stop_distance_pts >= guard_points)
+              {
+                stop_price = stop_candidate;
+                stop_found = true;
+                stop_price_time = times[i];
+              }
+            }
+          }
+          else
+          {
+            double stop_distance_pts = (stop_candidate - entry_price) / point_size;
+            if(stop_distance_pts >= guard_points)
+            {
+              stop_price = stop_candidate;
+              stop_found = true;
+              stop_price_time = times[i];
+            }
           }
         }
 
