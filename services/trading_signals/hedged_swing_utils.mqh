@@ -905,6 +905,8 @@ bool HedgedBuildAndOpenAtAnchor(const SignalTypes direction,
   if(!BuildGridOrderForSignal(out_signal))
     return false;
 
+  HedgedReapplyAlligatorRulesIfEnabled(out_signal);
+
   int level_index = ArraySize(out_signal.grid_orders) - 1;
   if(level_index < 0)
     return false;
