@@ -121,7 +121,7 @@ bool HedgedCheckTrailingExit(SignalParams &signal_params,
   if(exit)
   {
     GridCloseAllLevels(signal_params, point_size);
-    signal_params.signal_state = CLOSED;
+    HedgedBuildAndOpenAtAnchor(signal_params.signal_type, current_price, TimeCurrent(), signal_params);
     return true;
   }
   return false;

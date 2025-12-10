@@ -56,6 +56,7 @@ bool HedgedHandleLifecycle(SignalParams &signal_params,
     {
       GridCloseAllLevels(signal_params, point_size);
       signal_params.signal_state = CLOSED;
+      HedgedBuildAndOpenAtAnchor(direction, check_price, TimeCurrent(), signal_params);
       return true;
     }
   }
@@ -71,7 +72,7 @@ bool HedgedHandleLifecycle(SignalParams &signal_params,
       if(floating_pl >= 1.0)
       {
         GridCloseAllLevels(signal_params, point_size);
-        signal_params.signal_state = CLOSED;
+        HedgedBuildAndOpenAtAnchor(direction, check_price, TimeCurrent(), signal_params);
         return true;
       }
 

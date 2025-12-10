@@ -1040,7 +1040,13 @@ void HedgedEnsureOppositePair(const SignalParams &filled_signal,
   opposite_signal.grid_entry_reference_price = opposite_signal.hedged_swing.entry_anchor_price;
   opposite_signal.hedged_next_swing_index = 0;
 
-  // Do not auto-open; let per-bar detection handle registration
+  if(HedgedBuildAndOpenAtAnchor(opposite_direction, anchor_price, filled_signal.entry_time, opposite_signal))
+  {
+    if(opposite_direction == BULLISH)
+      AddElementToArray(running_bullish_signals, opposite_signal);
+    else
+      AddElementToArray(running_bearish_signals, opposite_signal);
+  }
 }
 
 bool HedgedActivateInitialPendingLevel(SignalParams &signal_params)
