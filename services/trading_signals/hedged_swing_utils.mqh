@@ -918,6 +918,8 @@ void HedgedApplyAlligatorPhaseRules(const HedgedAlligatorState &state,
     return;
   if(!state.valid)
     return;
+  if(phase == HEDGED_TREND_PHASE_UNKNOWN)
+    return;
 
   if(phase == HEDGED_TREND_PHASE_FULL)
   {
@@ -935,10 +937,26 @@ void HedgedApplyAlligatorPhaseRules(const HedgedAlligatorState &state,
     }
     else
     {
-      double point_size = HedgedResolvePointSize();
-      if(point_size > 0.0 && state.lips > 0.0)
+      double lips_target = state.lips;
+      double prior_entry = HedgedResolveLastFilledEntryPrice(signal_params);
+      double profit_at_lips = (lips_target > 0.0) ? HedgedComputeProfitAtPrice(signal_params, lips_target) : 0.0;
+      double profit_at_prior = (prior_entry > 0.0) ? HedgedComputeProfitAtPrice(signal_params, prior_entry) : -DBL_MAX;
+
+      double chosen_target = 0.0;
+      if(profit_at_lips > 0.0 && profit_at_prior > 0.0)
       {
-        signal_params.hedged_swing.target_price = state.lips;
+        double dist_lips = MathAbs(lips_target - GridCurrentPriceForDirection(signal_params.signal_type, false));
+        double dist_prior = MathAbs(prior_entry - GridCurrentPriceForDirection(signal_params.signal_type, false));
+        chosen_target = (dist_lips <= dist_prior) ? lips_target : prior_entry;
+      }
+      else if(profit_at_lips > 0.0)
+        chosen_target = lips_target;
+      else if(profit_at_prior > 0.0)
+        chosen_target = prior_entry;
+
+      if(chosen_target > 0.0)
+      {
+        signal_params.hedged_swing.target_price = chosen_target;
         signal_params.hedged_swing.target_valid = true;
       }
     }
