@@ -755,6 +755,22 @@ double HedgedResolveLastFilledEntryPrice(const SignalParams &signal_params)
   return latest_entry;
 }
 
+double HedgedResolvePreviousFilledEntryPrice(const SignalParams &signal_params)
+{
+  double last = 0.0;
+  double prev = 0.0;
+  int total = ArraySize(signal_params.grid_orders);
+  for(int i = 0; i < total; i++)
+  {
+    GridOrderState state = signal_params.grid_orders[i];
+    if(state.entry_price <= 0.0)
+      continue;
+    prev = last;
+    last = state.entry_price;
+  }
+  return prev;
+}
+
 double HedgedResolveSwingTrailingAnchor(const SignalParams &signal_params,
                                         const GridOrderState &grid_order,
                                         const double point_size,
@@ -955,7 +971,7 @@ void HedgedApplyAlligatorPhaseRules(const HedgedAlligatorState &state,
     else
     {
       double lips_target = state.lips;
-      double prior_entry = HedgedResolveLastFilledEntryPrice(signal_params);
+      double prior_entry = HedgedResolvePreviousFilledEntryPrice(signal_params);
       double profit_at_lips = (lips_target > 0.0) ? HedgedComputeProfitAtPrice(signal_params, lips_target) : 0.0;
       double profit_at_prior = (prior_entry > 0.0) ? HedgedComputeProfitAtPrice(signal_params, prior_entry) : -DBL_MAX;
 
