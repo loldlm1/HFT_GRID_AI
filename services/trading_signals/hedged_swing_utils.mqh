@@ -39,10 +39,12 @@ inline ENUM_TIMEFRAMES ResolveHedgedPrimaryTimeframe()
 HedgedSwingStopModes HedgedResolveStopMode()
 {
   if(Hedged_Swing_Mode == CANDLE_SWING)
-    return HEDGED_STOP_FRACTAL_1;
+    return HEDGED_STOP_CANDLE;
   if(Hedged_Swing_Mode == FRACTAL_SWING_1)
+    return HEDGED_STOP_FRACTAL_1;
+  if(Hedged_Swing_Mode == FRACTAL_SWING_2)
     return HEDGED_STOP_FRACTAL_2;
-  return HEDGED_STOP_FRACTAL_3; // FRACTAL_SWING_2
+  return HEDGED_STOP_FRACTAL_1;
 }
 
 int HedgedAtrPeriod()
@@ -394,7 +396,9 @@ bool HedgedScanTimeframeForSwings(const SignalTypes direction,
 
         HedgedSwingStopModes stop_mode = HedgedResolveStopMode();
         bool stop_hit = false;
-        if(stop_mode == HEDGED_STOP_FRACTAL_1)
+        if(stop_mode == HEDGED_STOP_CANDLE)
+          stop_hit = true;
+        else if(stop_mode == HEDGED_STOP_FRACTAL_1)
           stop_hit = fractal_low;
         else if(stop_mode == HEDGED_STOP_FRACTAL_2)
           stop_hit = fractal_low_5;
@@ -538,7 +542,9 @@ bool HedgedScanTimeframeForSwings(const SignalTypes direction,
 
         HedgedSwingStopModes stop_mode = HedgedResolveStopMode();
         bool stop_hit = false;
-        if(stop_mode == HEDGED_STOP_FRACTAL_1)
+        if(stop_mode == HEDGED_STOP_CANDLE)
+          stop_hit = true;
+        else if(stop_mode == HEDGED_STOP_FRACTAL_1)
           stop_hit = fractal_high;
         else if(stop_mode == HEDGED_STOP_FRACTAL_2)
           stop_hit = fractal_high_5;
@@ -933,12 +939,12 @@ double HedgedResolveSwingTrailingAnchor(const SignalParams &signal_params,
       {
         HedgedSwingStopModes stop_mode = HedgedResolveStopMode();
         bool fractal_ok = false;
-        if(stop_mode == HEDGED_STOP_FRACTAL_1)
+        if(stop_mode == HEDGED_STOP_CANDLE)
+          fractal_ok = true;
+        else if(stop_mode == HEDGED_STOP_FRACTAL_1)
           fractal_ok = HedgedIsFractalLow(lows, i, copied_lows);
         else if(stop_mode == HEDGED_STOP_FRACTAL_2)
           fractal_ok = HedgedIsFractalLow5(lows, i, copied_lows);
-        else
-          fractal_ok = HedgedIsFractalLow7(lows, i, copied_lows);
         if(!fractal_ok)
           continue;
       }
@@ -960,12 +966,12 @@ double HedgedResolveSwingTrailingAnchor(const SignalParams &signal_params,
       {
         HedgedSwingStopModes stop_mode = HedgedResolveStopMode();
         bool fractal_ok = false;
-        if(stop_mode == HEDGED_STOP_FRACTAL_1)
+        if(stop_mode == HEDGED_STOP_CANDLE)
+          fractal_ok = true;
+        else if(stop_mode == HEDGED_STOP_FRACTAL_1)
           fractal_ok = HedgedIsFractalHigh(highs, i, copied_highs);
         else if(stop_mode == HEDGED_STOP_FRACTAL_2)
           fractal_ok = HedgedIsFractalHigh5(highs, i, copied_highs);
-        else
-          fractal_ok = HedgedIsFractalHigh7(highs, i, copied_highs);
         if(!fractal_ok)
           continue;
       }
