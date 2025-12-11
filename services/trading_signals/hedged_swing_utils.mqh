@@ -247,7 +247,9 @@ bool HedgedScanTimeframeForSwings(const SignalTypes direction,
     return false;
 
   bool use_jaws_stop = false;
+  bool use_teeth_stop = false;
   double jaws_price = 0.0;
+  double teeth_price = 0.0;
   if(Hedged_Trend_Mode == HEDGED_TREND_ALLIGATOR)
   {
     HedgedAlligatorState alligator_state;
@@ -257,6 +259,11 @@ bool HedgedScanTimeframeForSwings(const SignalTypes direction,
       {
         use_jaws_stop = HedgedSwingSlEnabled(direction);
         jaws_price = alligator_state.jaws;
+      }
+      else if(alligator_state.phase == HEDGED_TREND_PHASE_FULL_WEAK && alligator_state.trend_direction == direction)
+      {
+        use_teeth_stop = HedgedSwingSlEnabled(direction);
+        teeth_price = alligator_state.teeth;
       }
     }
   }
@@ -397,6 +404,20 @@ bool HedgedScanTimeframeForSwings(const SignalTypes direction,
               }
             }
           }
+          else if(use_teeth_stop)
+          {
+            bool beyond_teeth = (teeth_price > 0.0 && stop_candidate < teeth_price);
+            if(beyond_teeth)
+            {
+              double stop_distance_pts = (entry_price - stop_candidate) / point_size;
+              if(stop_distance_pts >= guard_points)
+              {
+                stop_price = stop_candidate;
+                stop_found = true;
+                stop_price_time = times[i];
+              }
+            }
+          }
           else
           {
             double stop_distance_pts = (entry_price - stop_candidate) / point_size;
@@ -511,6 +532,20 @@ bool HedgedScanTimeframeForSwings(const SignalTypes direction,
           {
             bool beyond_jaws = (jaws_price > 0.0 && stop_candidate > jaws_price);
             if(beyond_jaws)
+            {
+              double stop_distance_pts = (stop_candidate - entry_price) / point_size;
+              if(stop_distance_pts >= guard_points)
+              {
+                stop_price = stop_candidate;
+                stop_found = true;
+                stop_price_time = times[i];
+              }
+            }
+          }
+          else if(use_teeth_stop)
+          {
+            bool beyond_teeth = (teeth_price > 0.0 && stop_candidate > teeth_price);
+            if(beyond_teeth)
             {
               double stop_distance_pts = (stop_candidate - entry_price) / point_size;
               if(stop_distance_pts >= guard_points)
