@@ -93,6 +93,13 @@ bool HedgedUpdateTrailingOnTrendBar(SignalParams &signal_params,
       else
         apply_sl = (sl_anchor > alligator_state.teeth);
     }
+    else if(apply_sl && Hedged_Trend_Mode == HEDGED_TREND_ALLIGATOR && alligator_ok && alligator_state.phase == HEDGED_TREND_PHASE_FULL_WEAK)
+    {
+      if(signal_params.signal_type == BULLISH)
+        apply_sl = (sl_anchor < alligator_state.jaws);
+      else
+        apply_sl = (sl_anchor > alligator_state.jaws);
+    }
 
     if(apply_sl && sl_anchor > 0.0)
     {

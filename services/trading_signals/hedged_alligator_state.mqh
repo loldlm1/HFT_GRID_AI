@@ -91,15 +91,21 @@ bool HedgedResolveAlligatorState(const SignalTypes direction,
     phase = HEDGED_TREND_PHASE_FULL;
     trend_dir = BEARISH;
   }
-  else if(state_out.lips <= state_out.teeth && state_out.teeth > state_out.jaws)
+  else if(state_out.lips >= state_out.jaws && state_out.teeth < state_out.jaws)
   {
-    phase = HEDGED_TREND_PHASE_MEDIUM;
+    phase = HEDGED_TREND_PHASE_FULL_WEAK;
     trend_dir = BULLISH;
   }
-  else if(state_out.lips >= state_out.teeth && state_out.teeth < state_out.jaws)
+  else if(state_out.lips <= state_out.jaws && state_out.teeth > state_out.jaws)
+  {
+    phase = HEDGED_TREND_PHASE_FULL_WEAK;
+    trend_dir = BEARISH;
+  }
+  else if(state_out.lips > state_out.teeth && state_out.lips < state_out.jaws ||
+          state_out.lips < state_out.teeth && state_out.lips > state_out.jaws)
   {
     phase = HEDGED_TREND_PHASE_MEDIUM;
-    trend_dir = BEARISH;
+    trend_dir = direction;
   }
   else if(state_out.lips <= state_out.teeth && state_out.teeth <= state_out.jaws)
   {

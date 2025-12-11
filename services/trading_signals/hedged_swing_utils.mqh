@@ -679,8 +679,9 @@ bool HedgedShouldReopenImmediately(const SignalParams &signal_params,
   if(!HedgedResolveAlligatorState(exit_direction, state) || !state.valid)
     return false;
 
-  // Only reopen immediately when the exit direction matches the current trend in FULL phase
-  return (state.phase == HEDGED_TREND_PHASE_FULL && state.trend_direction == exit_direction);
+  // Only reopen immediately when the exit direction matches the current trend in FULL or FULL_WEAK phase
+  return ((state.phase == HEDGED_TREND_PHASE_FULL || state.phase == HEDGED_TREND_PHASE_FULL_WEAK) &&
+          state.trend_direction == exit_direction);
 }
 
 double HedgedComputeProfitAtPrice(const SignalParams &signal_params,
@@ -1054,6 +1055,25 @@ void HedgedApplyAlligatorPhaseRules(const HedgedAlligatorState &state,
         signal_params.hedged_swing.target_price = chosen_target;
         signal_params.hedged_swing.target_valid = true;
       }
+    }
+  }
+  else if(phase == HEDGED_TREND_PHASE_FULL_WEAK)
+  {
+    if(signal_params.signal_type == trend_direction)
+    {
+      if(HedgedSwingSlEnabled(signal_params.signal_type) && state.teeth > 0.0)
+      {
+        double current_stop = signal_params.hedged_swing.stop_loss_price;
+        bool beyond_teeth = (signal_params.signal_type == BULLISH)
+                              ? (signal_params.hedged_swing.stop_valid && current_stop < state.teeth)
+                              : (signal_params.hedged_swing.stop_valid && current_stop > state.teeth);
+        if(!beyond_teeth)
+        {
+          signal_params.hedged_swing.stop_loss_price = state.teeth;
+          signal_params.hedged_swing.stop_valid = true;
+        }
+      }
+      // Target remains swing-based for trend direction in FULL_WEAK
     }
   }
 }
