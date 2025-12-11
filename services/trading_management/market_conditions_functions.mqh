@@ -84,7 +84,7 @@ bool IsMarketOpen(bool last_check_execution = true)
     return false;
   }
 
-  if(current_time > (session_from + 60) && current_time < (session_to - 60))
+  if(current_time >= (session_from) && current_time < (session_to))
   {
     last_result = true;
     return true;

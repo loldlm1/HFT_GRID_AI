@@ -250,6 +250,8 @@ bool HedgedScanTimeframeForSwings(const SignalTypes direction,
   bool use_teeth_stop = false;
   double jaws_price = 0.0;
   double teeth_price = 0.0;
+  bool countertrend_full = false;
+  double lips_price = 0.0;
   if(Hedged_Trend_Mode == HEDGED_TREND_ALLIGATOR)
   {
     HedgedAlligatorState alligator_state;
@@ -264,6 +266,11 @@ bool HedgedScanTimeframeForSwings(const SignalTypes direction,
       {
         use_teeth_stop = HedgedSwingSlEnabled(direction);
         teeth_price = alligator_state.teeth;
+      }
+      else if(alligator_state.phase == HEDGED_TREND_PHASE_FULL && alligator_state.trend_direction != direction)
+      {
+        countertrend_full = true;
+        lips_price = alligator_state.lips;
       }
     }
   }
@@ -336,7 +343,13 @@ bool HedgedScanTimeframeForSwings(const SignalTypes direction,
       if(swing_hit)
       {
         double entry_distance_pts = (entry_side_price - lows[i]) / point_size;
-        if(!entry_found && !preset_entry && entry_distance_pts >= guard_points && entry_distance_pts < entry_best_distance)
+        bool countertrend_far = true;
+        if(countertrend_full && lips_price > 0.0)
+        {
+          double lip_dist_pts = (lips_price - lows[i]) / point_size;
+          countertrend_far = (lip_dist_pts >= guard_points);
+        }
+        if(!entry_found && !preset_entry && countertrend_far && entry_distance_pts >= guard_points && entry_distance_pts < entry_best_distance)
         {
           entry_best_distance = entry_distance_pts;
           entry_price = lows[i];
@@ -474,7 +487,13 @@ bool HedgedScanTimeframeForSwings(const SignalTypes direction,
       if(swing_hit)
       {
         double entry_distance_pts = (highs[i] - entry_side_price) / point_size;
-        if(!entry_found && !preset_entry && entry_distance_pts >= guard_points && entry_distance_pts < entry_best_distance)
+        bool countertrend_far = true;
+        if(countertrend_full && lips_price > 0.0)
+        {
+          double lip_dist_pts = (highs[i] - lips_price) / point_size;
+          countertrend_far = (lip_dist_pts >= guard_points);
+        }
+        if(!entry_found && !preset_entry && countertrend_far && entry_distance_pts >= guard_points && entry_distance_pts < entry_best_distance)
         {
           entry_best_distance = entry_distance_pts;
           entry_price = highs[i];

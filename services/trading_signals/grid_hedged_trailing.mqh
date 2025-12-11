@@ -27,7 +27,7 @@ bool HedgedUpdateTrailingOnTrendBar(SignalParams &signal_params,
   if(Hedged_Trend_Mode == HEDGED_TREND_ALLIGATOR && alligator_ok)
   {
     HedgedAlligatorTrendPhase phase = alligator_state.phase;
-    double profit_buffer = HedgedResolveProfitBuffer();
+    double profit_buffer = 1.0;//HedgedResolveProfitBuffer(); // Fixed small buffer for hedged trailing
     double current_price = GridCurrentPriceForDirection(signal_params.signal_type, false);
     if(phase == HEDGED_TREND_PHASE_FULL)
     {

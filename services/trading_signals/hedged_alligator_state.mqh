@@ -64,10 +64,13 @@ bool HedgedResolveAlligatorState(const SignalTypes direction,
   if(!HedgedEnsureAlligatorHandle(tf))
     return false;
 
-  double jaws_buf[1], teeth_buf[1], lips_buf[1];
+  double jaws_buf[], teeth_buf[], lips_buf[];
   int copied_jaws  = CopyBuffer(g_hedged_alligator_handle, 0, 0, 1, jaws_buf);
   int copied_teeth = CopyBuffer(g_hedged_alligator_handle, 1, 0, 1, teeth_buf);
   int copied_lips  = CopyBuffer(g_hedged_alligator_handle, 2, 0, 1, lips_buf);
+  ArraySetAsSeries(jaws_buf, true);
+  ArraySetAsSeries(teeth_buf, true);
+  ArraySetAsSeries(lips_buf, true);
   if(copied_jaws < 1 || copied_teeth < 1 || copied_lips < 1)
     return false;
 
