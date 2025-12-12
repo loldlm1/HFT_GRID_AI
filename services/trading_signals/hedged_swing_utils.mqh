@@ -883,6 +883,19 @@ double HedgedResolvePreviousFilledEntryPrice(const SignalParams &signal_params)
   return prev;
 }
 
+int HedgedCountFilledLevels(const SignalParams &signal_params)
+{
+  int filled_count = 0;
+  int total_orders = ArraySize(signal_params.grid_orders);
+  for(int i = 0; i < total_orders; i++)
+  {
+    GridOrderState state = signal_params.grid_orders[i];
+    if(state.entry_price > 0.0)
+      filled_count++;
+  }
+  return filled_count;
+}
+
 double HedgedResolveSwingTrailingAnchor(const SignalParams &signal_params,
                                         const GridOrderState &grid_order,
                                         const double point_size,
@@ -1155,14 +1168,7 @@ bool HedgedRefreshSwingsAfterFill(SignalParams &signal_params,
   if(!signal_params.hedged_swing.hedged_mode)
     return false;
 
-  int filled_count = 0;
-  int total_orders = ArraySize(signal_params.grid_orders);
-  for(int i = 0; i < total_orders; i++)
-  {
-    GridOrderState state = signal_params.grid_orders[i];
-    if(state.entry_price > 0.0)
-      filled_count++;
-  }
+  int filled_count = HedgedCountFilledLevels(signal_params);
 
   HedgedSwingSnapshot rebuilt;
   if(!BuildHedgedSwingSnapshotWithEntry(signal_params.signal_type,

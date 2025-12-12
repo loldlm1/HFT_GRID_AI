@@ -23,22 +23,31 @@ bool HedgedHandleLifecycle(SignalParams &signal_params,
 
   if(Hedged_Trend_Mode == HEDGED_TREND_ALLIGATOR && alligator_phase == HEDGED_TREND_PHASE_WRONG)
   {
-    double floating_pl = GridCollectSignalFloatingProfit(signal_params);
-    double last_entry = HedgedResolveLastFilledEntryPrice(signal_params);
-    double profit_buffer = HedgedResolveProfitBuffer();
-    bool close_now = (floating_pl > profit_buffer);
-    if(!close_now && last_entry > 0.0)
+    bool counter_trend = alligator_ok &&
+                         alligator_state.trend_direction != NO_SIGNAL &&
+                         direction != alligator_state.trend_direction;
+    int filled_count = HedgedCountFilledLevels(signal_params);
+    if(counter_trend && filled_count >= 3)
     {
-      if(direction == BULLISH)
-        close_now = (check_price <= last_entry);
-      else
-        close_now = (check_price >= last_entry);
-    }
-    if(close_now)
-    {
-      GridCloseAllLevels(signal_params, point_size);
-      signal_params.signal_state = CLOSED;
-      return true;
+      double floating_pl = GridCollectSignalFloatingProfit(signal_params);
+      double last_entry = HedgedResolveLastFilledEntryPrice(signal_params);
+      double profit_buffer = HedgedResolveProfitBuffer();
+      bool close_now = (floating_pl > profit_buffer);
+      /*
+      if(!close_now && last_entry > 0.0)
+      {
+        if(direction == BULLISH)
+          close_now = (check_price <= last_entry);
+        else
+          close_now = (check_price >= last_entry);
+      }
+      */
+      if(close_now)
+      {
+        GridCloseAllLevels(signal_params, point_size);
+        signal_params.signal_state = CLOSED;
+        return true;
+      }
     }
   }
 
