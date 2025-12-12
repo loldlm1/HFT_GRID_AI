@@ -47,7 +47,9 @@ bool CalculateBaseGridContext(const SignalParams &signal_params,
 
   if(pandora_forces_points)
   {
-    double requested_points = EnforceBrokerDistance(g_symbol_constraints, Grid_Points_Range_Setup);
+    double requested_points = EnforceBrokerDistance(g_symbol_constraints, Pandora_Points_SL);
+    if(requested_points <= 0.0)
+      requested_points = EnforceBrokerDistance(g_symbol_constraints, Grid_Points_Range_Setup);
     double projected_price = entry_reference_price + direction_mult * requested_points * point_size;
 
     distance_points = MathAbs(projected_price - entry_reference_price) / point_size;
