@@ -203,8 +203,185 @@ void EvaluateContextSignals(const StrategyContextTypes context)
   }
 }
 
+bool BuildHedgedSignalParams(const SignalTypes direction,
+                             const datetime bar_time,
+                             SignalParams &signal)
+{
+  HedgedSwingSnapshot swing_snapshot;
+  if(!BuildHedgedSwingSnapshot(direction, swing_snapshot))
+    return false;
+
+  signal = SignalParams();
+  signal.signal_type            = direction;
+  signal.entry_time             = bar_time;
+  signal.entry_price            = (direction == BULLISH) ? g_ask : g_bid;
+  signal.strategy_context       = CONTEXT_SLOT_BASE;
+  signal.strategy_timeframe     = ResolveHedgedPrimaryTimeframe();
+  signal.strategy_context_label = "HEDGED";
+  signal.entry_trigger_mode     = ENTRY_MODE_MA_TREND;
+  signal.entry_evaluation_mode  = ENTRY_EVAL_OFF;
+  signal.hedged_swing           = swing_snapshot;
+  signal.grid_entry_reference_price = swing_snapshot.entry_anchor_price;
+  return true;
+}
+
+bool CloseExistingHedgedSignals(const SignalTypes direction)
+{
+  bool has_running = (direction == BULLISH)
+                      ? (ArraySize(running_bullish_signals) > 0)
+                      : (ArraySize(running_bearish_signals) > 0);
+  if(!has_running)
+    return true;
+
+  SignalParams existing = (direction == BULLISH) ? running_bullish_signals[0] : running_bearish_signals[0];
+  if(GridSignalHasExecutedLevel(existing))
+    return false;
+
+  if(direction == BULLISH)
+  {
+    CloseBullishSignal(running_bullish_signals[0]);
+    ArrayResize(running_bullish_signals, 0);
+  }
+  else if(direction == BEARISH)
+  {
+    CloseBearishSignal(running_bearish_signals[0]);
+    ArrayResize(running_bearish_signals, 0);
+  }
+
+  return true;
+}
+
+bool HedgedShouldDropCounterTrendPending(const HedgedAlligatorState &state,
+                                         const SignalTypes direction)
+{
+  if(state.phase != HEDGED_TREND_PHASE_FULL)
+    return false;
+  if(direction == state.trend_direction)
+    return false;
+
+  bool has_running = (direction == BULLISH)
+                      ? (ArraySize(running_bullish_signals) > 0)
+                      : (ArraySize(running_bearish_signals) > 0);
+  if(!has_running)
+    return false;
+
+  SignalParams existing = (direction == BULLISH) ? running_bullish_signals[0] : running_bearish_signals[0];
+  if(GridSignalHasExecutedLevel(existing))
+    return false;
+
+  double anchor = existing.hedged_swing.entry_anchor_price;
+  if(anchor <= 0.0)
+    return false;
+
+  double dist_pts = HedgedDistanceToLipsPoints(state, anchor);
+  return (dist_pts > 0.0 && dist_pts < Grid_Points_Range_Setup);
+}
+
+void DetectHedgedSwingSignals()
+{
+  if(!PowerEnabled())
+    return;
+  ENUM_TIMEFRAMES eval_tf = ResolveHedgedPrimaryTimeframe();
+  if(eval_tf == PERIOD_CURRENT)
+    eval_tf = _Period;
+
+  datetime bar_time = iTime(_Symbol, eval_tf, 0);
+  if(bar_time <= 0)
+    return;
+
+  int base_slot = StrategyContextIndex(CONTEXT_SLOT_BASE);
+  if(g_context_runtime[base_slot].last_bar_time == bar_time)
+    return;
+  g_context_runtime[base_slot].last_bar_time = bar_time;
+
+  HedgedAlligatorState alligator_state;
+  bool alligator_ok = HedgedResolveAlligatorState(NO_SIGNAL, alligator_state);
+  HedgedAlligatorTrendPhase alligator_phase = alligator_ok ? alligator_state.phase : HEDGED_TREND_PHASE_UNKNOWN;
+  SignalTypes alligator_trend_dir = alligator_ok ? alligator_state.trend_direction : NO_SIGNAL;
+
+  SignalTypes directions[2] = {BULLISH, BEARISH};
+  for(int idx = 0; idx < 2; idx++)
+  {
+    SignalTypes direction = directions[idx];
+
+    if(!CanAttemptSignal(direction))
+      continue;
+
+    bool has_existing = (direction == BULLISH)
+                          ? (ArraySize(running_bullish_signals) > 0)
+                          : (ArraySize(running_bearish_signals) > 0);
+    SignalParams existing = SignalParams();
+    double existing_distance = DBL_MAX;
+    if(has_existing)
+    {
+      existing = (direction == BULLISH) ? running_bullish_signals[0] : running_bearish_signals[0];
+      if(GridSignalHasExecutedLevel(existing))
+        continue;
+      existing_distance = HedgedPendingDistanceFromPrice(existing);
+    }
+
+    if(Hedged_Trend_Mode == HEDGED_TREND_ALLIGATOR && alligator_ok)
+    {
+      if(HedgedShouldDropCounterTrendPending(alligator_state, direction))
+      {
+        CloseExistingHedgedSignals(direction);
+        has_existing = false;
+        existing_distance = DBL_MAX;
+      }
+    }
+
+    SignalParams signal;
+    if(!BuildHedgedSignalParams(direction, bar_time, signal))
+      continue;
+
+    if(Hedged_Trend_Mode == HEDGED_TREND_ALLIGATOR && alligator_ok)
+    {
+      if(alligator_phase == HEDGED_TREND_PHASE_FULL && direction != alligator_trend_dir)
+      {
+        double dist_pts = HedgedDistanceToLipsPoints(alligator_state, signal.hedged_swing.entry_anchor_price);
+        if(dist_pts < Grid_Points_Range_Setup || dist_pts <= 0.0)
+          continue;
+      }
+      HedgedReapplyAlligatorRulesIfEnabled(signal);
+    }
+
+    double candidate_distance = HedgedPendingDistanceFromPrice(signal);
+    bool replace_existing = true;
+    if(has_existing && existing_distance < DBL_MAX && candidate_distance >= existing_distance)
+      replace_existing = false;
+
+    if(!replace_existing)
+      continue;
+
+    if(has_existing)
+    {
+      if(!CloseExistingHedgedSignals(direction))
+        continue;
+    }
+
+    if(!BuildGridOrderForSignal(signal))
+      continue;
+
+    if(direction == BULLISH)
+      AddElementToArray(running_bullish_signals, signal);
+    else
+      AddElementToArray(running_bearish_signals, signal);
+
+    RegisterDailySignalStart(signal);
+  }
+}
+
 void DetectStrategySignals()
 {
+  if(!PowerEnabled())
+    return;
+
+  if(HedgedSwingModeEnabled())
+  {
+    DetectHedgedSwingSignals();
+    return;
+  }
+
   int total = ArraySize(STRATEGY_CONTEXT_EVALUATION_ORDER);
   for(int i = 0; i < total; i++)
     EvaluateContextSignals(STRATEGY_CONTEXT_EVALUATION_ORDER[i]);

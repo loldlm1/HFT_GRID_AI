@@ -31,6 +31,89 @@ string FormatTimeframeLabel(const ENUM_TIMEFRAMES tf_value)
   return label;
 }
 
+double ResolveFloatingProfitAll()
+{
+  double total = 0.0;
+  int total_positions = PositionsTotal();
+  for(int i = 0; i < total_positions; i++)
+  {
+    ulong ticket = PositionGetTicket(i);
+    if(ticket == 0)
+      continue;
+    if(!PositionSelectByTicket(ticket))
+      continue;
+    if(PositionGetString(POSITION_SYMBOL) != _Symbol)
+      continue;
+    if(PositionGetInteger(POSITION_MAGIC) != g_magic_number)
+      continue;
+    total += PositionGetDouble(POSITION_PROFIT);
+  }
+  return total;
+}
+
+void RenderPowerUi(const long chart_id)
+{
+  if(!Enable_Chart_Levels)
+    return;
+
+  string title_name  = "POWER_TITLE";
+  string button_name = "POWER_TOGGLE_BTN";
+  string state_name  = "POWER_STATE";
+
+  color title_color = PowerEnabled() ? clrDeepSkyBlue : clrOrangeRed;
+  string power_title = "BULLISH LIFE EA PRO";
+  string power_button_text = PowerEnabled() ? "CLOSE ALL & POWER OFF" : "POWER ON";
+  string power_state_text = PowerEnabled() ? "Enabled" : "Disabled";
+  double floating_pl = ResolveFloatingProfitAll();
+  string profit_label = StringFormat(" | P/L: %.2f", floating_pl);
+  power_state_text = power_state_text + profit_label;
+  color state_color = (floating_pl >= 0.0) ? clrDeepSkyBlue : clrTomato;
+
+  int base_y = 50;
+  int line_height = 20;
+
+  if(ObjectFind(chart_id, title_name) < 0)
+  {
+    ObjectCreate(chart_id, title_name, OBJ_LABEL, 0, 0, 0);
+    ObjectSetInteger(chart_id, title_name, OBJPROP_CORNER, CORNER_LEFT_UPPER);
+    ObjectSetInteger(chart_id, title_name, OBJPROP_XDISTANCE, 10);
+    ObjectSetInteger(chart_id, title_name, OBJPROP_YDISTANCE, base_y);
+    ObjectSetInteger(chart_id, title_name, OBJPROP_FONTSIZE, 12);
+    ObjectSetString(chart_id, title_name, OBJPROP_FONT, "Arial Black");
+  }
+  ObjectSetString(chart_id, title_name, OBJPROP_TEXT, power_title);
+  ObjectSetInteger(chart_id, title_name, OBJPROP_COLOR, title_color);
+
+  if(ObjectFind(chart_id, button_name) < 0)
+  {
+    ObjectCreate(chart_id, button_name, OBJ_BUTTON, 0, 0, 0);
+    ObjectSetInteger(chart_id, button_name, OBJPROP_CORNER, CORNER_LEFT_UPPER);
+    ObjectSetInteger(chart_id, button_name, OBJPROP_XDISTANCE, 10);
+    ObjectSetInteger(chart_id, button_name, OBJPROP_YDISTANCE, base_y + line_height + 5);
+    ObjectSetInteger(chart_id, button_name, OBJPROP_FONTSIZE, 11);
+    ObjectSetInteger(chart_id, button_name, OBJPROP_COLOR, clrWhite);
+    ObjectSetInteger(chart_id, button_name, OBJPROP_BGCOLOR, clrDimGray);
+    ObjectSetInteger(chart_id, button_name, OBJPROP_BORDER_COLOR, clrBlack);
+    ObjectSetInteger(chart_id, button_name, OBJPROP_SELECTABLE, false);
+    ObjectSetInteger(chart_id, button_name, OBJPROP_STATE, false);
+    ObjectSetInteger(chart_id, button_name, OBJPROP_XSIZE, 200);
+    ObjectSetInteger(chart_id, button_name, OBJPROP_YSIZE, 26);
+  }
+  ObjectSetString(chart_id, button_name, OBJPROP_TEXT, power_button_text);
+  ObjectSetInteger(chart_id, button_name, OBJPROP_BGCOLOR, PowerEnabled() ? clrRed : clrGreen);
+
+  if(ObjectFind(chart_id, state_name) < 0)
+  {
+    ObjectCreate(chart_id, state_name, OBJ_LABEL, 0, 0, 0);
+    ObjectSetInteger(chart_id, state_name, OBJPROP_CORNER, CORNER_LEFT_UPPER);
+    ObjectSetInteger(chart_id, state_name, OBJPROP_XDISTANCE, 10);
+    ObjectSetInteger(chart_id, state_name, OBJPROP_YDISTANCE, base_y + (line_height + 5) + 30);
+    ObjectSetInteger(chart_id, state_name, OBJPROP_FONTSIZE, 10);
+    ObjectSetString(chart_id, state_name, OBJPROP_FONT, "Arial");
+  }
+  ObjectSetString(chart_id, state_name, OBJPROP_TEXT, power_state_text);
+  ObjectSetInteger(chart_id, state_name, OBJPROP_COLOR, state_color);
+}
 void DrawGridLevels(const long chart_id,
                     const SignalParams &signal_params,
                     string &tracked_objects[])
@@ -44,8 +127,9 @@ void DrawGridLevels(const long chart_id,
   string entry_name = GridSignalObjectName(signal_params, "ENTRY");
   string next_name  = GridSignalObjectName(signal_params, "NEXT");
   string trailing_name = GridSignalObjectName(signal_params, "TP_TRAILING");
+  string swing_trailing_name = GridSignalObjectName(signal_params, "SWING_TRAIL");
+  string swing_sl_name = GridSignalObjectName(signal_params, "SWING_SL");
   string break_even_name = GridSignalObjectName(signal_params, "BREAK_EVEN");
-
   int grid_order_level = ArraySize(signal_params.grid_orders)-1;
   if(grid_order_level < 0)
     return;
@@ -56,12 +140,16 @@ void DrawGridLevels(const long chart_id,
   double final_price      = level_state.final_take_profit_price;
   double next_level_price = level_state.next_level_price;
   double trailing_price   = level_state.trailing_price;
+  double swing_trailing_price = signal_params.hedged_swing.trailing_price;
+  double swing_sl_price       = signal_params.hedged_swing.stop_loss_price;
 
   string entry_label    = GridSignalLineLabel(signal_params, "ENTRY");
   string tp_label       = GridSignalLineLabel(signal_params, "TP");
   string final_label    = GridSignalLineLabel(signal_params, "FINAL TP");
   string next_label     = GridSignalLineLabel(signal_params, "NEXT");
   string trailing_label = GridSignalLineLabel(signal_params, "TP TRAILING");
+  string swing_trailing_label = GridSignalLineLabel(signal_params, "SWING TRAIL");
+  string swing_sl_label       = GridSignalLineLabel(signal_params, "SWING SL");
   string break_even_label = GridSignalLineLabel(signal_params, "BREAK EVEN");
 
   int level_index = level_state.level_index;
@@ -71,27 +159,69 @@ void DrawGridLevels(const long chart_id,
                             level_index,
                             level_lot_size);
 
-  UpdateHorizontalLine(chart_id, entry_name, COLOR_PROFIT_NEUTRAL, entry_price_line, entry_label);
-  UpdateHorizontalLine(chart_id, tp_name, COLOR_PROFIT_POSITIVE, tp_price, tp_label);
-  UpdateHorizontalLine(chart_id, final_name, COLOR_PROFIT_POSITIVE, final_price, final_label);
-  UpdateHorizontalLine(chart_id, next_name, COLOR_PROFIT_POSITIVE, next_level_price, next_label);
+  UpdateTrackedLine(chart_id, entry_name, COLOR_PROFIT_NEUTRAL, entry_price_line, tracked_objects, entry_label);
+  UpdateTrackedLine(chart_id, tp_name, COLOR_PROFIT_POSITIVE, tp_price, tracked_objects, tp_label);
+  UpdateTrackedLine(chart_id, final_name, COLOR_PROFIT_POSITIVE, final_price, tracked_objects, final_label);
+  UpdateTrackedLine(chart_id, next_name, COLOR_PROFIT_NEGATIVE, next_level_price, tracked_objects, next_label);
+  UpdateTrackedLine(chart_id, swing_trailing_name, COLOR_PROFIT_NEUTRAL, swing_trailing_price, tracked_objects, swing_trailing_label, STYLE_DASHDOT);
+  UpdateTrackedLine(chart_id, swing_sl_name, COLOR_PROFIT_NEGATIVE, swing_sl_price, tracked_objects, swing_sl_label, STYLE_DOT);
 
   // Trailing active: swap TP for trailing; keep final visible
   if(level_state.status == GRID_ORDER_TP_TRAILING_ACTIVE)
   {
-    UpdateHorizontalLine(chart_id, tp_name, COLOR_PROFIT_POSITIVE, 0.0);
-    UpdateHorizontalLine(chart_id, trailing_name, COLOR_PROFIT_POSITIVE, trailing_price, trailing_label);
+    UpdateTrackedLine(chart_id, tp_name, COLOR_PROFIT_POSITIVE, 0.0, tracked_objects);
+    UpdateTrackedLine(chart_id, trailing_name, COLOR_PROFIT_POSITIVE, trailing_price, tracked_objects, trailing_label);
   }
 
   if(Grid_BreakEven_Mode != BE_DISABLE)
   {
     double break_even_price = ResolveBreakEvenLinePrice(signal_params);
-    UpdateHorizontalLine(chart_id, break_even_name, COLOR_PROFIT_NEUTRAL, break_even_price, break_even_label, STYLE_DASHDOT);
+    UpdateTrackedLine(chart_id, break_even_name, COLOR_PROFIT_NEUTRAL, break_even_price, tracked_objects, break_even_label, STYLE_DASHDOT);
   }
   else
   {
-    UpdateHorizontalLine(chart_id, break_even_name, COLOR_PROFIT_NEUTRAL, 0.0);
+    UpdateTrackedLine(chart_id, break_even_name, COLOR_PROFIT_NEUTRAL, 0.0, tracked_objects);
   }
+
+  if(signal_params.hedged_swing.hedged_mode)
+  {
+    int swing_total = ArraySize(signal_params.hedged_swing.swing_levels);
+    for(int idx = 0; idx < swing_total; idx++)
+    {
+      double swing_price = signal_params.hedged_swing.swing_levels[idx];
+      if(swing_price <= 0.0)
+        continue;
+      string swing_name = GridSignalObjectName(signal_params, StringFormat("SWING_L%d", idx));
+      datetime swing_time = (idx < ArraySize(signal_params.hedged_swing.swing_times))
+                              ? signal_params.hedged_swing.swing_times[idx]
+                              : 0;
+      string time_label = (swing_time > 0)
+                            ? TimeToString(swing_time, TIME_DATE|TIME_MINUTES)
+                            : "";
+      string swing_label = StringFormat("L%d %s", idx, time_label);
+      UpdateTrackedLine(chart_id, swing_name, COLOR_PROFIT_NEUTRAL, swing_price, tracked_objects, swing_label, STYLE_DOT);
+    }
+  }
+}
+
+void ClearVisualizationObjects(const long chart_id)
+{
+  // Clear power UI
+  ObjectDelete(chart_id, "POWER_TITLE");
+  ObjectDelete(chart_id, "POWER_TOGGLE_BTN");
+  ObjectDelete(chart_id, "POWER_STATE");
+
+  // Clear tracked grid lines and swing visuals for all running signals
+  int bullish_total = ArraySize(running_bullish_signals);
+  for(int i = 0; i < bullish_total; i++)
+    RemoveGridLevels(chart_id, running_bullish_signals[i]);
+
+  int bearish_total = ArraySize(running_bearish_signals);
+  for(int j = 0; j < bearish_total; j++)
+    RemoveGridLevels(chart_id, running_bearish_signals[j]);
+
+  // Clear global variables
+  GlobalVariableDel(g_power_global_name);
 }
 
 void BuildSignalSummary(const SignalParams &signal_params,
@@ -133,12 +263,16 @@ void BuildSignalSummary(const SignalParams &signal_params,
 
 void RefreshGridVisualization()
 {
+  if(!Enable_Chart_Levels) return;
+
   long chart_id = ChartID();
   static string previous_objects[];
   string current_objects[];
 
   datetime now_time = TimeCurrent();
   string summary_lines[];
+
+  RenderPowerUi(chart_id);
 
   if(Enable_Chart_Levels)
   {

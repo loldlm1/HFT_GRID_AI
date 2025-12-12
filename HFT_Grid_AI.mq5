@@ -3,12 +3,12 @@
 //|                                                          loldlm1 |
 //|                                                                  |
 //+------------------------------------------------------------------+
-#property copyright     "https://t.me/TradingAlgoritmicoFx"
+#property copyright     "https://t.me/loldlm"
 #property description   "Copyright Traders Capital Team."
 #property version       "1.10"
 #property description   "Support Contact @loldlm"
 #property description   "All Rights Reserved for the Traders Capital Team."
-#property description   "HFT Grid AI EA"
+#property description   "BULLISH LIFE EA PRO"
 
 // STANDARD MQL5 LIBRARIES
 #include <Trade/Trade.mqh>
@@ -36,10 +36,11 @@ string       g_dataset_id = "";
 bool         g_ea_running;
 datetime     g_initial_ea_date;
 SymbolTradingConstraints g_symbol_constraints;
+bool         g_power_initialized = false;
 
 int OnInit()
 {
-  //EncryptEA("197955914", "Admin", "Shurt", 300);
+  //EncryptEA("227982408", "Real-Testing-Demo", "Shurt", 90);
   // License Validation
 	if(MQLInfoInteger(MQL_TESTER) > 0) is_testing = true;
 	if(!DecryptEA())              { return(INIT_FAILED); }
@@ -77,6 +78,9 @@ int OnInit()
   // INITIALIZE THE EA
   CreateLicensePanelLive();
   LoadAllIndicatorDefinitions();
+  PowerLoadState();
+  g_power_initialized = true;
+  RenderPowerUi(ChartID());
 
   return(INIT_SUCCEEDED);
 }
@@ -88,6 +92,9 @@ void OnDeinit(const int reason)
 {
   EventKillTimer();
   Comment("");
+  if(g_power_initialized)
+    PowerSaveState();
+  ClearVisualizationObjects(ChartID());
 }
 
 //+------------------------------------------------------------------+
@@ -119,6 +126,8 @@ void OnTimer()
 //+------------------------------------------------------------------+
 void OnTick()
 {
+  if(!g_power_initialized)
+    PowerLoadState();
   RefreshCustomSymbolRates();
   DebugEquityGuardAllowsProcessing();
   ProtectionRiskMonitorTradeMode();
@@ -170,6 +179,28 @@ void OnTick()
   if(!broker_disabled)
     Main_Tick();
   RefreshGridVisualization();
+}
+
+void OnChartEvent(const int id,
+                  const long &lparam,
+                  const double &dparam,
+                  const string &sparam)
+{
+  if(id == CHARTEVENT_OBJECT_CLICK)
+  {
+    if(sparam == "POWER_TOGGLE_BTN")
+    {
+      if(PowerEnabled())
+      {
+        PowerOffAndCloseAll();
+      }
+      else
+      {
+        PowerSetEnabled(true);
+      }
+      RenderPowerUi(ChartID());
+    }
+  }
 }
 
 // DETECT BULLISH AND BEARISH SIGNALS
