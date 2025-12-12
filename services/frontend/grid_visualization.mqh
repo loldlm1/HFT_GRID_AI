@@ -140,6 +140,8 @@ void RefreshGridVisualization()
   datetime now_time = TimeCurrent();
   string summary_lines[];
 
+  PandoraDrawVisualization(chart_id, current_objects);
+
   if(Enable_Chart_Levels)
   {
     int bullish_total = ArraySize(running_bullish_signals);
@@ -159,6 +161,8 @@ void RefreshGridVisualization()
 
   if(Enable_Chart_Summary)
   {
+    PandoraAppendSummary(summary_lines);
+
     int bullish_total = ArraySize(running_bullish_signals);
     for(int i = 0; i < bullish_total; i++)
       BuildSignalSummary(running_bullish_signals[i], summary_lines, now_time);

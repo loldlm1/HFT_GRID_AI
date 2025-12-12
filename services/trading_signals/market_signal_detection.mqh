@@ -205,6 +205,12 @@ void EvaluateContextSignals(const StrategyContextTypes context)
 
 void DetectStrategySignals()
 {
+  if(PandoraStrategyEnabled())
+  {
+    PandoraDetectSignals();
+    return;
+  }
+
   int total = ArraySize(STRATEGY_CONTEXT_EVALUATION_ORDER);
   for(int i = 0; i < total; i++)
     EvaluateContextSignals(STRATEGY_CONTEXT_EVALUATION_ORDER[i]);

@@ -40,7 +40,20 @@ bool CalculateBaseGridContext(const SignalParams &signal_params,
   if(point_size <= 0.0 || direction_mult == 0.0 || entry_reference_price <= 0.0)
     return false;
 
+  bool pandora_forces_points = PandoraStrategyEnabled();
   bool uses_channel_strategy = GridStrategyUsesChannelIndicator();
+  if(pandora_forces_points)
+    uses_channel_strategy = false;
+
+  if(pandora_forces_points)
+  {
+    double requested_points = EnforceBrokerDistance(g_symbol_constraints, Grid_Points_Range_Setup);
+    double projected_price = entry_reference_price + direction_mult * requested_points * point_size;
+
+    distance_points = MathAbs(projected_price - entry_reference_price) / point_size;
+    distance_points = EnforceBrokerDistance(g_symbol_constraints, distance_points);
+    return (distance_points > 0.0);
+  }
 
   if(uses_channel_strategy)
   {

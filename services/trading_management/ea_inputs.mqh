@@ -35,6 +35,21 @@ input string                 Session_London_Filter_Time_Range = "07:00-12:00";
 input SessionTimeFilterModes Session_NewYork_Filter_Mode   = SESSION_FILTER_OFF;
 input string                 Session_NewYork_Filter_Time_Range = "12:00-20:00";
 
+input group  "+= Pandora Box Strategy =+";
+input bool   Pandora_Box_Enable             = false;
+input string Pandora_Box_Time_Range         = "15:00-16:29";
+input double Pandora_Box_Max_Range_Points   = 0.0;
+input double Pandora_Box_Offset_Points      = 50.0;
+input StrategyDirectionTypes Pandora_Box_Direction_Mode = BOTH_DIRECTION;
+input bool   Pandora_Box_Stop_After_Sides   = true;
+input bool   Pandora_Box_Use_Session_Filter = true;
+input bool   Pandora_Box_Enable_Visualization = true;
+input color  Pandora_Box_Color              = clrDodgerBlue;
+input color  Pandora_Box_Invalid_Color      = clrFireBrick;
+input color  Pandora_Box_Breakout_Color     = clrDarkOrange;
+input int    Pandora_Box_Line_Style         = STYLE_DASH;
+input int    Pandora_Box_Breakout_Line_Style = STYLE_DASHDOT;
+
 input group  "+= Strategy Context =+";
 input ENUM_TIMEFRAMES           Strategy_Timeframe          = PERIOD_M1;
 input ENUM_TIMEFRAMES           Trend_Strategy_Timeframe    = PERIOD_CURRENT;

@@ -330,6 +330,9 @@ bool GridResolveTrailingStrategyPrice(const SignalParams &signal_params,
 {
   price_out = 0.0;
 
+  if(PandoraStrategyEnabled())
+    return false;
+
   if(Grid_Trailing_Strategy_Mode == TRAILING_ATR_BASED)
   {
     ENUM_TIMEFRAMES tf = GridResolveTrailingStrategyTimeframe();
@@ -888,6 +891,9 @@ bool GridSignalChannelGuardSatisfied(const SignalParams &signal_params,
                                      double &required_points,
                                      double &reference_price)
 {
+  if(PandoraStrategyEnabled())
+    return true;
+
   distance_points = 0.0;
   reference_price = 0.0;
   required_points = EnforceBrokerDistance(g_symbol_constraints, Grid_Points_Range_Setup);

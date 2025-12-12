@@ -111,6 +111,9 @@ bool GridShouldActivateTrailing(SignalParams &signal_params,
                                 const GridOrderState &order_state,
                                 const double current_price)
 {
+  if(PandoraStrategyEnabled())
+    return false;
+
   SignalTypes direction = signal_params.signal_type;
   if(Grid_Trailing_Execution_Mode != TRAILING_EXECUTION_AGGRESIVE)
     return ShouldSwitchToTrailingTP(direction, order_state, current_price);

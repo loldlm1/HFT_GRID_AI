@@ -9,6 +9,9 @@ bool GridApplyTrendRiskManagement(SignalParams &signal_params,
                                   const bool has_override,
                                   const bool use_entry_reference_price)
 {
+  if(PandoraStrategyEnabled())
+    return false;
+
   GridRiskTrendStrategyConfig risk_config = GridBuildRiskTrendStrategyConfig();
   if(risk_config.mode == GRID_RM_TREND_OFF)
     return false;
