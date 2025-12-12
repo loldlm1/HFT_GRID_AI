@@ -28,12 +28,14 @@ void PandoraDrawVisualization(const long chart_id,
                     PandoraObjectName("BOX_HIGH"),
                     box_color,
                     g_pandora_box_state.box_high,
+                    tracked_objects,
                     "PANDORA BOX HIGH",
                     Pandora_Box_Line_Style);
   UpdateTrackedLine(chart_id,
                     PandoraObjectName("BOX_LOW"),
                     box_color,
                     g_pandora_box_state.box_low,
+                    tracked_objects,
                     "PANDORA BOX LOW",
                     Pandora_Box_Line_Style);
 
@@ -41,12 +43,14 @@ void PandoraDrawVisualization(const long chart_id,
                     PandoraObjectName("BREAKOUT_BULL"),
                     Pandora_Box_Breakout_Color,
                     g_pandora_box_state.breakout_high_price,
+                    tracked_objects,
                     "PANDORA BULL BREAKOUT",
                     Pandora_Box_Breakout_Line_Style);
   UpdateTrackedLine(chart_id,
                     PandoraObjectName("BREAKOUT_BEAR"),
                     Pandora_Box_Breakout_Color,
                     g_pandora_box_state.breakout_low_price,
+                    tracked_objects,
                     "PANDORA BEAR BREAKOUT",
                     Pandora_Box_Breakout_Line_Style);
 }
