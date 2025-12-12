@@ -5,6 +5,7 @@
 #define _SERVICES_TRADING_SIGNALS_HEDGED_SWING_UTILS_MQH_
 
 #include "hedged_alligator_state.mqh"
+#include "hedged_stoch_structure_loader.mqh"
 
 IndicatorsHandleInfo HedgedAtrHandles[];
 const int GRID_MAX_LEVELS = 2;
@@ -44,7 +45,14 @@ HedgedSwingStopModes HedgedResolveStopMode()
     return HEDGED_STOP_FRACTAL_1;
   if(Hedged_Swing_Mode == FRACTAL_SWING_2)
     return HEDGED_STOP_FRACTAL_2;
+  if(Hedged_Swing_Mode == STOCH_STRUCT_3 || Hedged_Swing_Mode == STOCH_STRUCT_5)
+    return HEDGED_STOP_CANDLE;
   return HEDGED_STOP_FRACTAL_1;
+}
+
+bool HedgedSwingModeIsStochStruct()
+{
+  return (Hedged_Swing_Mode == STOCH_STRUCT_3 || Hedged_Swing_Mode == STOCH_STRUCT_5);
 }
 
 int HedgedAtrPeriod()
@@ -293,6 +301,19 @@ bool HedgedScanTimeframeForSwings(const SignalTypes direction,
   if(copied_highs < 3 || copied_lows < 3)
     return false;
 
+  bool use_stoch_struct = HedgedSwingModeIsStochStruct();
+  double stoch_struct[], stoch_peaks[], stoch_bottoms[];
+  if(use_stoch_struct)
+  {
+    if(!HedgedCopyStochStruct(tf,
+                              Hedged_Swing_Mode,
+                              scan_total + 2,
+                              stoch_struct,
+                              stoch_peaks,
+                              stoch_bottoms))
+      return false;
+  }
+
   double point_size = HedgedResolvePointSize();
   double entry_side_price = (direction == BULLISH) ? g_ask : g_bid;
   double exit_side_price  = (direction == BULLISH) ? g_bid : g_ask;
@@ -320,6 +341,18 @@ bool HedgedScanTimeframeForSwings(const SignalTypes direction,
 
   for(int i = 0; i < scan_total; i++)
   {
+    double swing_low_price  = lows[i];
+    double swing_high_price = highs[i];
+    bool stoch_bottom = false;
+    bool stoch_peak   = false;
+    if(use_stoch_struct)
+    {
+      swing_low_price  = stoch_bottoms[i];
+      swing_high_price = stoch_peaks[i];
+      stoch_bottom = HedgedIsValidStochBottom(swing_low_price, stoch_struct[i]);
+      stoch_peak   = HedgedIsValidStochPeak(swing_high_price, stoch_struct[i]);
+    }
+
     bool fractal_high = HedgedIsFractalHigh(highs, i, copied_highs);
     bool fractal_low  = HedgedIsFractalLow(lows, i, copied_lows);
     bool fractal_high_5 = HedgedIsFractalHigh5(highs, i, copied_highs);
@@ -341,20 +374,26 @@ bool HedgedScanTimeframeForSwings(const SignalTypes direction,
         case FRACTAL_SWING_2:
           swing_hit = fractal_low_5;
           break;
+        case STOCH_STRUCT_3:
+        case STOCH_STRUCT_5:
+          swing_hit = stoch_bottom;
+          break;
       }
       if(swing_hit)
       {
-        double entry_distance_pts = (entry_side_price - lows[i]) / point_size;
+        if(use_stoch_struct && !stoch_bottom)
+          continue;
+        double entry_distance_pts = (entry_side_price - swing_low_price) / point_size;
         bool countertrend_far = true;
         if(countertrend_full && lips_price > 0.0)
         {
-          double lip_dist_pts = (lips_price - lows[i]) / point_size;
+          double lip_dist_pts = (lips_price - swing_low_price) / point_size;
           countertrend_far = (lip_dist_pts >= guard_points);
         }
         if(!entry_found && !preset_entry && countertrend_far && entry_distance_pts >= guard_points && entry_distance_pts < entry_best_distance)
         {
           entry_best_distance = entry_distance_pts;
-          entry_price = lows[i];
+          entry_price = swing_low_price;
           entry_price_time = times[i];
           entry_found = true;
           target_found = false;
@@ -381,14 +420,20 @@ bool HedgedScanTimeframeForSwings(const SignalTypes direction,
           case FRACTAL_SWING_2:
             target_hit = fractal_high_5;
             break;
+          case STOCH_STRUCT_3:
+          case STOCH_STRUCT_5:
+            target_hit = stoch_peak;
+            break;
         }
         if(target_hit)
         {
-          double target_distance_pts = (highs[i] - entry_price) / point_size;
+          if(use_stoch_struct && !stoch_peak)
+            continue;
+          double target_distance_pts = (swing_high_price - entry_price) / point_size;
           if(!target_found && target_distance_pts >= guard_points && target_distance_pts < target_best_distance)
           {
             target_best_distance = target_distance_pts;
-            target_price = highs[i];
+            target_price = swing_high_price;
             target_found = true;
             target_price_time = times[i];
           }
@@ -396,7 +441,9 @@ bool HedgedScanTimeframeForSwings(const SignalTypes direction,
 
         HedgedSwingStopModes stop_mode = HedgedResolveStopMode();
         bool stop_hit = false;
-        if(stop_mode == HEDGED_STOP_CANDLE)
+        if(use_stoch_struct)
+          stop_hit = stoch_bottom;
+        else if(stop_mode == HEDGED_STOP_CANDLE)
           stop_hit = true;
         else if(stop_mode == HEDGED_STOP_FRACTAL_1)
           stop_hit = fractal_low;
@@ -406,7 +453,9 @@ bool HedgedScanTimeframeForSwings(const SignalTypes direction,
           stop_hit = fractal_low_7;
         if(!stop_found && stop_hit)
         {
-          double stop_candidate = lows[i];
+          double stop_candidate = swing_low_price;
+          if(stop_candidate <= 0.0)
+            continue;
           if(use_jaws_stop)
           {
             bool beyond_jaws = (jaws_price > 0.0 && stop_candidate < jaws_price);
@@ -450,7 +499,7 @@ bool HedgedScanTimeframeForSwings(const SignalTypes direction,
         if(swing_count < 2)
         {
           double last_swing = swing_sequence[swing_count - 1];
-          double swing_distance_pts = (last_swing - lows[i]) / point_size;
+          double swing_distance_pts = (last_swing - swing_low_price) / point_size;
           bool next_swing_hit = false;
           switch(Hedged_Swing_Mode)
           {
@@ -463,10 +512,14 @@ bool HedgedScanTimeframeForSwings(const SignalTypes direction,
             case FRACTAL_SWING_2:
               next_swing_hit = fractal_low_5;
               break;
+            case STOCH_STRUCT_3:
+            case STOCH_STRUCT_5:
+              next_swing_hit = stoch_bottom;
+              break;
           }
-          if(next_swing_hit && swing_distance_pts >= guard_points)
+          if(next_swing_hit && swing_distance_pts >= guard_points && swing_low_price > 0.0)
           {
-            swing_sequence[swing_count] = lows[i];
+            swing_sequence[swing_count] = swing_low_price;
             swing_time_sequence[swing_count] = times[i];
             swing_count++;
           }
@@ -487,20 +540,26 @@ bool HedgedScanTimeframeForSwings(const SignalTypes direction,
         case FRACTAL_SWING_2:
           swing_hit = fractal_high_5;
           break;
+        case STOCH_STRUCT_3:
+        case STOCH_STRUCT_5:
+          swing_hit = stoch_peak;
+          break;
       }
       if(swing_hit)
       {
-        double entry_distance_pts = (highs[i] - entry_side_price) / point_size;
+        if(use_stoch_struct && !stoch_peak)
+          continue;
+        double entry_distance_pts = (swing_high_price - entry_side_price) / point_size;
         bool countertrend_far = true;
         if(countertrend_full && lips_price > 0.0)
         {
-          double lip_dist_pts = (highs[i] - lips_price) / point_size;
+          double lip_dist_pts = (swing_high_price - lips_price) / point_size;
           countertrend_far = (lip_dist_pts >= guard_points);
         }
         if(!entry_found && !preset_entry && countertrend_far && entry_distance_pts >= guard_points && entry_distance_pts < entry_best_distance)
         {
           entry_best_distance = entry_distance_pts;
-          entry_price = highs[i];
+          entry_price = swing_high_price;
           entry_price_time = times[i];
           entry_found = true;
           target_found = false;
@@ -527,14 +586,20 @@ bool HedgedScanTimeframeForSwings(const SignalTypes direction,
           case FRACTAL_SWING_2:
             target_hit = fractal_low_5;
             break;
+          case STOCH_STRUCT_3:
+          case STOCH_STRUCT_5:
+            target_hit = stoch_bottom;
+            break;
         }
         if(target_hit)
         {
-          double target_distance_pts = (entry_price - lows[i]) / point_size;
+          if(use_stoch_struct && !stoch_bottom)
+            continue;
+          double target_distance_pts = (entry_price - swing_low_price) / point_size;
           if(!target_found && target_distance_pts >= guard_points && target_distance_pts < target_best_distance)
           {
             target_best_distance = target_distance_pts;
-            target_price = lows[i];
+            target_price = swing_low_price;
             target_found = true;
             target_price_time = times[i];
           }
@@ -542,7 +607,9 @@ bool HedgedScanTimeframeForSwings(const SignalTypes direction,
 
         HedgedSwingStopModes stop_mode = HedgedResolveStopMode();
         bool stop_hit = false;
-        if(stop_mode == HEDGED_STOP_CANDLE)
+        if(use_stoch_struct)
+          stop_hit = stoch_peak;
+        else if(stop_mode == HEDGED_STOP_CANDLE)
           stop_hit = true;
         else if(stop_mode == HEDGED_STOP_FRACTAL_1)
           stop_hit = fractal_high;
@@ -552,7 +619,9 @@ bool HedgedScanTimeframeForSwings(const SignalTypes direction,
           stop_hit = fractal_high_7;
         if(!stop_found && stop_hit)
         {
-          double stop_candidate = highs[i];
+          double stop_candidate = swing_high_price;
+          if(stop_candidate <= 0.0)
+            continue;
           if(use_jaws_stop)
           {
             bool beyond_jaws = (jaws_price > 0.0 && stop_candidate > jaws_price);
@@ -596,7 +665,7 @@ bool HedgedScanTimeframeForSwings(const SignalTypes direction,
         if(swing_count < 2)
         {
           double last_swing = swing_sequence[swing_count - 1];
-          double swing_distance_pts = (highs[i] - last_swing) / point_size;
+          double swing_distance_pts = (swing_high_price - last_swing) / point_size;
           bool next_swing_hit = false;
           switch(Hedged_Swing_Mode)
           {
@@ -609,10 +678,14 @@ bool HedgedScanTimeframeForSwings(const SignalTypes direction,
             case FRACTAL_SWING_2:
               next_swing_hit = fractal_high_5;
               break;
+            case STOCH_STRUCT_3:
+            case STOCH_STRUCT_5:
+              next_swing_hit = stoch_peak;
+              break;
           }
-          if(next_swing_hit && swing_distance_pts >= guard_points)
+          if(next_swing_hit && swing_distance_pts >= guard_points && swing_high_price > 0.0)
           {
-            swing_sequence[swing_count] = highs[i];
+            swing_sequence[swing_count] = swing_high_price;
             swing_time_sequence[swing_count] = times[i];
             swing_count++;
           }
@@ -927,6 +1000,19 @@ double HedgedResolveSwingTrailingAnchor(const SignalParams &signal_params,
   if(copied_highs < 3 || copied_lows < 3 || copied_times < 3)
     return 0.0;
 
+  bool use_stoch_struct = HedgedSwingModeIsStochStruct();
+  double stoch_struct[], stoch_peaks[], stoch_bottoms[];
+  if(use_stoch_struct)
+  {
+    if(!HedgedCopyStochStruct(tf,
+                              Hedged_Swing_Mode,
+                              scan_total + 2,
+                              stoch_struct,
+                              stoch_peaks,
+                              stoch_bottoms))
+      return 0.0;
+  }
+
   SignalTypes direction = signal_params.signal_type;
   double entry_price = grid_order.entry_price;
   if(entry_price <= 0.0)
@@ -946,13 +1032,27 @@ double HedgedResolveSwingTrailingAnchor(const SignalParams &signal_params,
     if(bar_time >= times[0])
       continue;
 
+    double swing_low_price  = lows[i];
+    double swing_high_price = highs[i];
+    bool stoch_bottom = false;
+    bool stoch_peak   = false;
+    if(use_stoch_struct)
+    {
+      swing_low_price  = stoch_bottoms[i];
+      swing_high_price = stoch_peaks[i];
+      stoch_bottom = HedgedIsValidStochBottom(swing_low_price, stoch_struct[i]);
+      stoch_peak   = HedgedIsValidStochPeak(swing_high_price, stoch_struct[i]);
+    }
+
     if(direction == BULLISH)
     {
       if(require_fractal)
       {
         HedgedSwingStopModes stop_mode = HedgedResolveStopMode();
         bool fractal_ok = false;
-        if(stop_mode == HEDGED_STOP_CANDLE)
+        if(use_stoch_struct)
+          fractal_ok = stoch_bottom;
+        else if(stop_mode == HEDGED_STOP_CANDLE)
           fractal_ok = true;
         else if(stop_mode == HEDGED_STOP_FRACTAL_1)
           fractal_ok = HedgedIsFractalLow(lows, i, copied_lows);
@@ -961,7 +1061,9 @@ double HedgedResolveSwingTrailingAnchor(const SignalParams &signal_params,
         if(!fractal_ok)
           continue;
       }
-      double swing = lows[i];
+      double swing = swing_low_price;
+      if(use_stoch_struct && !stoch_bottom)
+        continue;
       if(swing >= current_price)
         continue;
       if(require_profit_guard)
@@ -979,7 +1081,9 @@ double HedgedResolveSwingTrailingAnchor(const SignalParams &signal_params,
       {
         HedgedSwingStopModes stop_mode = HedgedResolveStopMode();
         bool fractal_ok = false;
-        if(stop_mode == HEDGED_STOP_CANDLE)
+        if(use_stoch_struct)
+          fractal_ok = stoch_peak;
+        else if(stop_mode == HEDGED_STOP_CANDLE)
           fractal_ok = true;
         else if(stop_mode == HEDGED_STOP_FRACTAL_1)
           fractal_ok = HedgedIsFractalHigh(highs, i, copied_highs);
@@ -988,7 +1092,9 @@ double HedgedResolveSwingTrailingAnchor(const SignalParams &signal_params,
         if(!fractal_ok)
           continue;
       }
-      double swing = highs[i];
+      double swing = swing_high_price;
+      if(use_stoch_struct && !stoch_peak)
+        continue;
       if(swing <= current_price)
         continue;
       if(require_profit_guard)

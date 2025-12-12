@@ -217,9 +217,11 @@ enum GridLotTypes
 
 enum HedgedSwingModes
 {
-  CANDLE_SWING     = 0,
-  FRACTAL_SWING_1  = 1,
-  FRACTAL_SWING_2  = 2
+  CANDLE_SWING        = 0,
+  FRACTAL_SWING_1     = 1,
+  FRACTAL_SWING_2     = 2,
+  STOCH_STRUCT_3      = 3,
+  STOCH_STRUCT_5      = 4
 };
 
 enum HedgedSwingStopModes
