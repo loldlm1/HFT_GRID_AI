@@ -674,7 +674,7 @@ bool BuildHedgedSwingSnapshot(const SignalTypes direction,
   snapshot.hedged_mode = HedgedSwingModeEnabled();
 
   ENUM_TIMEFRAMES primary_tf  = ResolveHedgedPrimaryTimeframe();
-  double guard_points = HedgedResolveGuardPoints(Strategy_Timeframe, primary_tf);
+  double guard_points = HedgedResolveGuardPoints(primary_tf, primary_tf);
   snapshot.guard_points = guard_points;
   snapshot.source_timeframe = primary_tf;
 
@@ -692,7 +692,7 @@ bool BuildHedgedSwingSnapshotWithEntry(const SignalTypes direction,
   snapshot.hedged_mode = HedgedSwingModeEnabled();
 
   ENUM_TIMEFRAMES primary_tf  = ResolveHedgedPrimaryTimeframe();
-  double guard_points = HedgedResolveGuardPoints(Strategy_Timeframe, primary_tf);
+  double guard_points = HedgedResolveGuardPoints(primary_tf, primary_tf);
   snapshot.guard_points = guard_points;
   snapshot.source_timeframe = primary_tf;
   snapshot.entry_anchor_price = entry_price;
