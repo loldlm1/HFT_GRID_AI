@@ -30,6 +30,8 @@ struct PandoraBoxRuntimeState
   double   effective_offset_points;
   double   max_range_points;
   StrategyDirectionTypes direction_mode;
+  bool     stop_on_first_win;
+  bool     finished;
   bool     bullish_consumed;
   bool     bearish_consumed;
   bool     bullish_closed;
@@ -65,6 +67,8 @@ struct PandoraBoxRuntimeState
     effective_offset_points = 0.0;
     max_range_points       = 0.0;
     direction_mode         = BOTH_DIRECTION;
+    stop_on_first_win      = false;
+    finished               = false;
     bullish_consumed       = false;
     bearish_consumed       = false;
     bullish_closed         = false;
@@ -96,6 +100,7 @@ void PandoraResetDailyState()
   g_pandora_box_state.invalid_reason      = "";
   g_pandora_box_state.window_closed       = false;
   g_pandora_box_state.effective_offset_points = 0.0;
+  g_pandora_box_state.finished            = false;
 }
 
 void PandoraSyncRuntimeConfig()
@@ -106,6 +111,7 @@ void PandoraSyncRuntimeConfig()
   g_pandora_box_state.direction_mode         = Pandora_Box_Direction_Mode;
   g_pandora_box_state.offset_points          = MathMax(Pandora_Box_Offset_Points, 0.0);
   g_pandora_box_state.max_range_points       = MathMax(Pandora_Box_Max_Range_Points, 0.0);
+  g_pandora_box_state.stop_on_first_win      = Pandora_Box_Stop_On_First_Win;
 }
 
 bool PandoraParseTimeComponent(string fragment,
@@ -228,6 +234,8 @@ bool PandoraSideConsumed(const SignalTypes direction)
 
 bool PandoraDailyCompleted()
 {
+  if(g_pandora_box_state.finished)
+    return true;
   if(!Pandora_Box_Stop_After_Sides)
     return false;
   StrategyDirectionTypes mode = g_pandora_box_state.direction_mode;
@@ -254,6 +262,27 @@ void PandoraMarkSideClosed(const SignalTypes direction)
     g_pandora_box_state.bullish_closed = true;
   else
     g_pandora_box_state.bearish_closed = true;
+}
+
+void PandoraRegisterSideOutcome(const SignalTypes direction,
+                                const double raw_profit)
+{
+  PandoraMarkSideClosed(direction);
+  if(raw_profit > 0.0 && g_pandora_box_state.stop_on_first_win)
+  {
+    g_pandora_box_state.finished = true;
+    return;
+  }
+
+  if(PandoraDailyCompleted())
+    g_pandora_box_state.finished = true;
+}
+
+bool PandoraFinishedForDay()
+{
+  if(g_pandora_box_state.finished)
+    return true;
+  return PandoraDailyCompleted();
 }
 
 bool PandoraWindowCompleted()

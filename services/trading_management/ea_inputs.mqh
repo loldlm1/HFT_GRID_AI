@@ -42,6 +42,7 @@ input double Pandora_Box_Max_Range_Points   = 0.0;
 input double Pandora_Box_Offset_Points      = 50.0;
 input double Pandora_Points_SL              = 100.0;
 input double Pandora_Points_TP              = 100.0;
+input bool   Pandora_Box_Stop_On_First_Win  = false;
 input StrategyDirectionTypes Pandora_Box_Direction_Mode = BOTH_DIRECTION;
 input bool   Pandora_Box_Stop_After_Sides   = true;
 input bool   Pandora_Box_Use_Session_Filter = true;

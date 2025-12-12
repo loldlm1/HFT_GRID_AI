@@ -174,8 +174,14 @@ void PandoraDetectSignals()
   PandoraEnsureWindowParsed();
   PandoraWindowCompleted();
 
-  if(PandoraDailyCompleted())
+  if(PandoraFinishedForDay())
     return;
+
+  if(g_pandora_box_state.respect_session_filter && !SessionTimeFilterWindowIsOpen())
+  {
+    g_pandora_box_state.finished = true;
+    return;
+  }
 
   bool box_ready = PandoraComputeBoxWindow();
   if(!g_pandora_box_state.window_closed)
