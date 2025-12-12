@@ -32,6 +32,7 @@ struct PandoraBoxRuntimeState
   StrategyDirectionTypes direction_mode;
   bool     stop_on_first_win;
   bool     finished;
+  bool     session_window_seen_active;
   bool     bullish_consumed;
   bool     bearish_consumed;
   bool     bullish_closed;
@@ -69,6 +70,7 @@ struct PandoraBoxRuntimeState
     direction_mode         = BOTH_DIRECTION;
     stop_on_first_win      = false;
     finished               = false;
+    session_window_seen_active = false;
     bullish_consumed       = false;
     bearish_consumed       = false;
     bullish_closed         = false;
@@ -101,6 +103,7 @@ void PandoraResetDailyState()
   g_pandora_box_state.window_closed       = false;
   g_pandora_box_state.effective_offset_points = 0.0;
   g_pandora_box_state.finished            = false;
+  g_pandora_box_state.session_window_seen_active = false;
 }
 
 void PandoraSyncRuntimeConfig()

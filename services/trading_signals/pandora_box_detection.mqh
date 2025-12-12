@@ -177,10 +177,16 @@ void PandoraDetectSignals()
   if(PandoraFinishedForDay())
     return;
 
-  if(g_pandora_box_state.respect_session_filter && !SessionTimeFilterWindowIsOpen())
+  if(g_pandora_box_state.respect_session_filter)
   {
-    g_pandora_box_state.finished = true;
-    return;
+    bool session_open = SessionTimeFilterWindowIsOpen();
+    if(session_open)
+      g_pandora_box_state.session_window_seen_active = true;
+    else if(g_pandora_box_state.session_window_seen_active)
+    {
+      g_pandora_box_state.finished = true;
+      return;
+    }
   }
 
   bool box_ready = PandoraComputeBoxWindow();
