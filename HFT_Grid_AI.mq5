@@ -181,6 +181,10 @@ void Main()
 // MANAGE BULLISH AND BEARISH SIGNALS
 void Main_Tick()
 {
+  // Pandora strategy needs tick-based detection so breakout triggers arm immediately after the box window closes.
+  if(PandoraStrategyEnabled())
+    PandoraDetectSignals();
+
   CheckTickOpenBullishSignals();
   CheckTickOpenBearishSignals();
 }
