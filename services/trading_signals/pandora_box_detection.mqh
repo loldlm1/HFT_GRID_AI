@@ -146,7 +146,7 @@ bool PandoraBuildSignal(const SignalTypes direction)
   signal.entry_trigger_mode     = ENTRY_EVAL_OFF;
   signal.entry_evaluation_mode  = ENTRY_EVAL_OFF;
 
-  if(!BuildGridOrderForSignal(signal))
+  if(!BuildPandoraOrderForSignal(signal))
   {
     if(Enable_Logs)
       Print("Pandora grid planning failed for direction: ", EnumToString(direction));
@@ -213,6 +213,63 @@ void PandoraDetectSignals()
 
     PandoraBuildSignal(dir);
   }
+}
+
+bool BuildPandoraOrderForSignal(SignalParams &signal_params)
+{
+  double point_size = SymbolInfoDouble(_Symbol, SYMBOL_POINT);
+  if(point_size <= 0.0)
+    point_size = 0.0001;
+
+  double base_points = EnforceBrokerDistance(g_symbol_constraints, Pandora_Points_SL);
+  if(base_points <= 0.0)
+    return false;
+
+  double dir_mult = (signal_params.signal_type == BULLISH) ? 1.0 : -1.0;
+  double entry_reference = (signal_params.signal_type == BULLISH)
+                             ? g_pandora_box_state.breakout_high_price
+                             : g_pandora_box_state.breakout_low_price;
+  if(entry_reference <= 0.0)
+    entry_reference = GridCurrentPriceForDirection(signal_params.signal_type, true);
+  if(entry_reference <= 0.0)
+    return false;
+
+  double tp_points = Pandora_Points_TP;
+  if(tp_points > 0.0)
+    tp_points = EnforceBrokerDistance(g_symbol_constraints, tp_points);
+  double tp_price = (tp_points > 0.0) ? entry_reference + dir_mult * tp_points * point_size : 0.0;
+
+  double base_lot = ResolveBaseGridLot(base_points);
+  if(base_lot <= 0.0)
+    base_lot = NormalizeVolumeForSymbol(_Symbol, Grid_Lot_Strategy_Size);
+
+  signal_params.lot_size                         = base_lot;
+  signal_params.grid_base_lot_size               = base_lot;
+  signal_params.grid_base_distance_points        = base_points;
+  signal_params.grid_entry_reference_price       = entry_reference;
+  signal_params.grid_entry_gap_points            = base_points;
+  signal_params.grid_entry_offset_points         = 0.0;
+  signal_params.grid_initial_indicator_distance_points = base_points;
+  signal_params.grid_resolved_distance_points    = 0.0;
+  signal_params.grid_trailing_points             = 0.0;
+
+  GridOrderState state;
+  state.level_index             = 0;
+  state.status                  = GRID_ORDER_STOP_TRAILING_ACTIVE;
+  state.entry_style             = GRID_ENTRY_STYLE_STOP;
+  state.entry_reference_price   = entry_reference;
+  state.take_profit_price       = tp_price;
+  state.final_take_profit_price = 0.0;
+  state.trailing_price          = 0.0;
+  state.next_level_price        = 0.0;
+  state.opens_position          = true;
+  state.lot_size                = base_lot;
+  state.position_ticket         = 0;
+
+  ArrayResize(signal_params.grid_orders, 1);
+  signal_params.grid_orders[0] = state;
+  signal_params.grid_initialized = true;
+  return true;
 }
 
 #endif // _SERVICES_TRADING_SIGNALS_PANDORA_BOX_DETECTION_MQH_
