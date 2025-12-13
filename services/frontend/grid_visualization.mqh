@@ -133,6 +133,8 @@ void BuildSignalSummary(const SignalParams &signal_params,
 
 void RefreshGridVisualization()
 {
+  if(!Enable_Chart_Levels)
+    return;
   long chart_id = ChartID();
   static string previous_objects[];
   string current_objects[];

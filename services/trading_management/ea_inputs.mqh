@@ -28,8 +28,8 @@ input double                   Account_Size                   = 500.0;
 input ENUM_TIMEFRAMES          Market_Close_Guard_Timeframe   = PERIOD_M10;
 
 input group  "+= Time Filter Session Manager =+";
-input SessionTimeFilterModes Session_Asia_Filter_Mode      = SESSION_FILTER_OFF;
-input string                 Session_Asia_Filter_Time_Range = "00:00-08:00";
+input SessionTimeFilterModes Session_Asia_Filter_Mode      = SESSION_FILTER_ALLOW_RUN;
+input string                 Session_Asia_Filter_Time_Range = "13:30-15:00";
 input SessionTimeFilterModes Session_London_Filter_Mode    = SESSION_FILTER_OFF;
 input string                 Session_London_Filter_Time_Range = "07:00-12:00";
 input SessionTimeFilterModes Session_NewYork_Filter_Mode   = SESSION_FILTER_OFF;
@@ -39,7 +39,7 @@ input int                    Session_Time_Dst_Manual_Offset_Minutes = 0;
 
 input group  "+= Pandora Box Strategy =+";
  bool   Pandora_Box_Enable             = true;
-input string Pandora_Box_Time_Range         = "13:00-14:29";
+input string Pandora_Box_Time_Range         = "12:00-13:30";
 input double Pandora_Box_Max_Range_Points   = 0.0;
 input double Pandora_Box_Offset_Points      = 50.0;
 input double Pandora_Points_SL              = 100.0;
@@ -49,6 +49,7 @@ input StrategyDirectionTypes Pandora_Box_Direction_Mode = BOTH_DIRECTION;
 input bool   Pandora_Box_Stop_After_Sides   = true;
 input bool   Pandora_Box_Use_Session_Filter = true;
 input bool   Pandora_Box_Enable_Visualization = true;
+input bool   Enable_Chart_Levels              = true;
  color  Pandora_Box_Color              = clrDodgerBlue;
  color  Pandora_Box_Invalid_Color      = clrFireBrick;
  color  Pandora_Box_Breakout_Color     = clrDarkOrange;
@@ -197,7 +198,6 @@ input double               Grid_Lot_Strategy_Size        = 0.01;
  bool Enable_File_Logs         = false;
  bool Enable_Show_Indicators   = true;
  bool Enable_Chart_Summary     = true;
- bool Enable_Chart_Levels      = true;
  bool Enable_Trend_Filter_Sanity_Stop = false;
  bool Debug_Stop_On_Negative_Equity   = false;
 

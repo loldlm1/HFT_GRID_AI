@@ -24,7 +24,11 @@ int ComputeNthWeekdayOfMonth(const int year,
     datetime candidate = StructToTime(ts);
     if(candidate <= 0)
       return -1;
-    if(TimeDayOfWeek(candidate) == target_weekday)
+    MqlDateTime candidate_ts;
+    if(!TimeToStruct(candidate, candidate_ts))
+      return -1;
+    int dow = candidate_ts.day_of_week;
+    if(dow == target_weekday)
     {
       if(occurrence <= 1)
         return day;
