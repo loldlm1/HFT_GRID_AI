@@ -251,13 +251,20 @@ enum SessionTimeFilterModes
   SESSION_FILTER_FORCE_CLOSE = 2
 };
 
-#define SESSION_TIME_FILTER_SLOT_TOTAL 3
-
 enum SessionTimeFilterSlots
 {
   SESSION_TIME_FILTER_ASIA   = 0,
   SESSION_TIME_FILTER_LONDON = 1,
   SESSION_TIME_FILTER_NEWYORK = 2
+};
+
+#define SESSION_TIME_FILTER_SLOT_TOTAL 3
+
+enum DstOffsetModes
+{
+  DST_MODE_OFF         = 0,
+  DST_MODE_AUTO_EXNESS = 1,
+  DST_MODE_MANUAL      = 2
 };
 
 enum GridTPReferenceModes

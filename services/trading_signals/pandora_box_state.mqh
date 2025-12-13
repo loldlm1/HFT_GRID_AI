@@ -209,10 +209,11 @@ bool PandoraEnsureWindowParsed()
     return false;
   }
 
+  int offset_minutes = ResolveTradingTimeOffsetMinutes();
   g_pandora_box_state.window_start_time = g_pandora_box_state.day_anchor +
-                                          (g_pandora_box_state.start_minutes * 60);
+                                          ((g_pandora_box_state.start_minutes + offset_minutes) * 60);
   g_pandora_box_state.window_end_time   = g_pandora_box_state.day_anchor +
-                                          (g_pandora_box_state.end_minutes * 60);
+                                          ((g_pandora_box_state.end_minutes + offset_minutes) * 60);
   return true;
 }
 

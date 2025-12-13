@@ -16,5 +16,6 @@
 #include "../microservices/utils/broker_constraints_helper.mqh"
 #include "../microservices/utils/price_math.mqh"
 #include "../microservices/utils/file_logger.mqh"
+#include "../microservices/utils/time_offset_helper.mqh"
 
 #endif // _SERVICES_TRADING_TOOLS_MQH_
