@@ -239,12 +239,8 @@ bool BuildPandoraOrderForSignal(SignalParams &signal_params)
     tp_points = EnforceBrokerDistance(g_symbol_constraints, tp_points);
   double tp_price = (tp_points > 0.0) ? entry_reference + dir_mult * tp_points * point_size : 0.0;
 
-  double base_lot = ResolveBaseGridLot(base_points);
-  if(base_lot <= 0.0)
-    base_lot = NormalizeVolumeForSymbol(_Symbol, Grid_Lot_Strategy_Size);
-
-  signal_params.lot_size                         = base_lot;
-  signal_params.grid_base_lot_size               = base_lot;
+  signal_params.lot_size                         = 0.0; // resolved after seeding the order
+  signal_params.grid_base_lot_size               = 0.0;
   signal_params.grid_base_distance_points        = base_points;
   signal_params.grid_entry_reference_price       = entry_reference;
   signal_params.grid_entry_gap_points            = base_points;
@@ -263,11 +259,23 @@ bool BuildPandoraOrderForSignal(SignalParams &signal_params)
   state.trailing_price          = 0.0;
   state.next_level_price        = 0.0;
   state.opens_position          = true;
-  state.lot_size                = base_lot;
+  state.lot_size                = 0.0;
   state.position_ticket         = 0;
 
   ArrayResize(signal_params.grid_orders, 1);
   signal_params.grid_orders[0] = state;
+
+  // Resolve lot size using the standard lot logic (respects Grid_Lot_Type).
+  double resolved_lot = ResolveGridOrderLotSize(signal_params, 0);
+  if(resolved_lot <= 0.0)
+    resolved_lot = ResolveBaseGridLot(base_points);
+  if(resolved_lot <= 0.0)
+    resolved_lot = NormalizeVolumeForSymbol(_Symbol, Grid_Lot_Strategy_Size);
+
+  signal_params.lot_size           = resolved_lot;
+  signal_params.grid_base_lot_size = resolved_lot;
+  signal_params.grid_orders[0].lot_size = resolved_lot;
+
   signal_params.grid_initialized = true;
   return true;
 }
