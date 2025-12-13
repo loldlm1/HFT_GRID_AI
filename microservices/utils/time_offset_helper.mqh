@@ -93,9 +93,11 @@ int ResolveTradingTimeOffsetMinutes()
 
   if(Session_Time_Dst_Mode == DST_MODE_AUTO_EXNESS)
   {
+    // Exness: summer opens one hour earlier (13:30) and winter opens one hour later (14:30).
+    // Apply +60 only during winter (DST inactive), no offset during summer (DST active).
     if(ExnessDstActive(TimeCurrent()))
-      return 60;
-    return 0;
+      return 0;
+    return 60;
   }
 
   return 0;
