@@ -168,10 +168,15 @@ bool GridExecuteLevelTrade(SignalParams &signal_params,
   }
 
   bool sent = false;
+  double sl_price = 0.0;
+  double tp_price = 0.0;
+  if(Pandora_Box_Set_Broker_SLTP)
+    PandoraResolveBrokerStops(signal_params, order_state, sl_price, tp_price);
+
   if(direction == BULLISH)
-    sent = g_position.Buy(normalized_volume, _Symbol, 0.0, 0.0, 0.0, comment);
+    sent = g_position.Buy(normalized_volume, _Symbol, 0.0, sl_price, tp_price, comment);
   else
-    sent = g_position.Sell(normalized_volume, _Symbol, 0.0, 0.0, 0.0, comment);
+    sent = g_position.Sell(normalized_volume, _Symbol, 0.0, sl_price, tp_price, comment);
 
   if(!sent)
   {

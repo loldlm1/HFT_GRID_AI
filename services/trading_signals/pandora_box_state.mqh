@@ -329,4 +329,49 @@ string PandoraWindowLabel()
                       g_pandora_box_state.end_minutes % 60);
 }
 
+bool IsPandoraSignal(const SignalParams &signal_params)
+{
+  return (signal_params.strategy_context_label == "PANDORA");
+}
+
+bool PandoraResolveBrokerStops(const SignalParams &signal_params,
+                               const GridOrderState &order_state,
+                               double &sl_price,
+                               double &tp_price)
+{
+  sl_price = 0.0;
+  tp_price = 0.0;
+  if(!IsPandoraSignal(signal_params))
+    return false;
+
+  double point_size = SymbolInfoDouble(_Symbol, SYMBOL_POINT);
+  if(point_size <= 0.0)
+    return false;
+
+  double entry_ref = order_state.entry_reference_price;
+  if(entry_ref <= 0.0)
+    entry_ref = GridCurrentPriceForDirection(signal_params.signal_type, true);
+  if(entry_ref <= 0.0)
+    return false;
+
+  double sl_points = EnforceBrokerDistance(g_symbol_constraints, Pandora_Points_SL);
+  double tp_points = EnforceBrokerDistance(g_symbol_constraints, Pandora_Points_TP);
+
+  if(signal_params.signal_type == BULLISH)
+  {
+    sl_price = entry_ref - sl_points * point_size;
+    tp_price = (tp_points > 0.0) ? entry_ref + tp_points * point_size : 0.0;
+  }
+  else
+  {
+    sl_price = entry_ref + sl_points * point_size;
+    tp_price = (tp_points > 0.0) ? entry_ref - tp_points * point_size : 0.0;
+  }
+
+  int digits = (int)SymbolInfoInteger(_Symbol, SYMBOL_DIGITS);
+  sl_price = NormalizeDouble(sl_price, digits);
+  tp_price = NormalizeDouble(tp_price, digits);
+  return true;
+}
+
 #endif // _SERVICES_TRADING_SIGNALS_PANDORA_BOX_STATE_MQH_

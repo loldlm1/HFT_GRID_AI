@@ -56,6 +56,23 @@ void DrawGridLevels(const long chart_id,
   double final_price      = level_state.final_take_profit_price;
   double next_level_price = level_state.next_level_price;
   double trailing_price   = level_state.trailing_price;
+  double stop_price_line  = 0.0;
+
+  if(IsPandoraSignal(signal_params))
+  {
+    double resolved_sl = 0.0;
+    double resolved_tp = 0.0;
+    if(PandoraResolveBrokerStops(signal_params, level_state, resolved_sl, resolved_tp))
+    {
+      stop_price_line = resolved_sl;
+      if(resolved_tp > 0.0)
+        tp_price = resolved_tp;
+    }
+    // Hide unused grid visuals to reduce clutter for Pandora.
+    final_price      = 0.0;
+    next_level_price = 0.0;
+    trailing_price   = 0.0;
+  }
 
   string entry_label    = GridSignalLineLabel(signal_params, "ENTRY");
   string tp_label       = GridSignalLineLabel(signal_params, "TP");
@@ -75,6 +92,11 @@ void DrawGridLevels(const long chart_id,
   UpdateHorizontalLine(chart_id, tp_name, COLOR_PROFIT_POSITIVE, tp_price, tp_label);
   UpdateHorizontalLine(chart_id, final_name, COLOR_PROFIT_POSITIVE, final_price, final_label);
   UpdateHorizontalLine(chart_id, next_name, COLOR_PROFIT_POSITIVE, next_level_price, next_label);
+
+  if(stop_price_line > 0.0)
+    UpdateHorizontalLine(chart_id, stop_name, COLOR_PROFIT_NEGATIVE, stop_price_line, GridSignalLineLabel(signal_params, "SL"));
+  else
+    UpdateHorizontalLine(chart_id, stop_name, COLOR_PROFIT_NEGATIVE, 0.0);
 
   // Trailing active: swap TP for trailing; keep final visible
   if(level_state.status == GRID_ORDER_TP_TRAILING_ACTIVE)
