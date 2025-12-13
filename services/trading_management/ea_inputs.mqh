@@ -168,7 +168,7 @@ input GridLotTypes         Grid_Lot_Type                 = GRID_LOT_SIZE;
 input double               Grid_Lot_Strategy_Size        = 0.01;
  double               Grid_Lot_Multiplier           = 2.0;
  int                  Grid_Level_Position_Start     = 0;
- int                  Grid_Level_Stop_Limit         = 0;
+ int                  Grid_Level_Stop_Limit         = 1;
  int                  Daily_Signal_Limit            = 0;
  DailySignalLimitModes Daily_Signal_Limit_Mode      = STOP_DAILY_SIGNALS;
 
