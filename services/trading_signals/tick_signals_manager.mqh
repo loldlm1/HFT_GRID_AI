@@ -24,6 +24,7 @@ void CheckTickOpenBullishSignals()
       running_bullish_signals[i].signal_state = CLOSED;
 
       RegisterDailySignalOutcome(BULLISH, running_bullish_signals[i].raw_profit);
+      PandoraRegisterSideOutcome(BULLISH, running_bullish_signals[i].raw_profit);
       CloseBullishSignal(running_bullish_signals[i]);
       RemoveElementFromArray(running_bullish_signals, i);
     }
@@ -49,6 +50,7 @@ void CheckTickOpenBearishSignals()
       running_bearish_signals[i].signal_state = CLOSED;
 
       RegisterDailySignalOutcome(BEARISH, running_bearish_signals[i].raw_profit);
+      PandoraRegisterSideOutcome(BEARISH, running_bearish_signals[i].raw_profit);
       CloseBearishSignal(running_bearish_signals[i]);
       RemoveElementFromArray(running_bearish_signals, i);
     }

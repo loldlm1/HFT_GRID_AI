@@ -1294,6 +1294,13 @@ void LoadAllIndicatorDefinitions()
   PrepareStrategyTimeframes();
   PrepareIndicatorPeriods();
 
+  if(Pandora_Box_Enable)
+  {
+    if(Enable_Logs)
+      Print("Pandora box enabled; skipping indicator loading.");
+    return;
+  }
+
   StrategyEntryChannelModes base_entry_eval = StrategyContextEntryEvaluation(CONTEXT_SLOT_BASE);
   StrategyEntryChannelModes trend_entry_eval = StrategyContextEntryEvaluation(CONTEXT_SLOT_TREND);
   StrategyEntryChannelModes macro_entry_eval = StrategyContextEntryEvaluation(CONTEXT_SLOT_MACRO);

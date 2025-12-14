@@ -226,8 +226,16 @@ bool SessionTimeFilterMinuteInRange(const SessionTimeFilterConfig &config,
 int SessionTimeFilterCurrentMinutes()
 {
   MqlDateTime now_struct;
-  TimeToStruct(TimeCurrent(), now_struct);
+  datetime now_time = TimeCurrent();
+  int offset_minutes = ResolveTradingTimeOffsetMinutes();
+  now_time -= offset_minutes * 60;
+  TimeToStruct(now_time, now_struct);
   return now_struct.hour * 60 + now_struct.min;
+}
+
+int SessionTimeFilterOffsetMinutes()
+{
+  return ResolveTradingTimeOffsetMinutes();
 }
 
 void SessionTimeFilterCopySlotConfig(const int slot,

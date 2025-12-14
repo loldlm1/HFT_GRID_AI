@@ -160,6 +160,8 @@ void GridAttemptPartialTake(SignalParams &signal_params,
 
 void GridProcessBreakEven(SignalParams &signal_params)
 {
+  if(PandoraStrategyEnabled())
+    return;
   if(Grid_BreakEven_Mode == BE_DISABLE)
     return;
 
@@ -227,6 +229,8 @@ void GridProcessBreakEven(SignalParams &signal_params)
 
 bool GridCheckBreakEvenExit(SignalParams &signal_params)
 {
+  if(PandoraStrategyEnabled())
+    return false;
   if(Grid_BreakEven_Mode == BE_DISABLE)
     return false;
 

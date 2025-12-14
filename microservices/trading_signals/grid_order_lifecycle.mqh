@@ -111,6 +111,9 @@ bool GridShouldActivateTrailing(SignalParams &signal_params,
                                 const GridOrderState &order_state,
                                 const double current_price)
 {
+  if(PandoraStrategyEnabled())
+    return false;
+
   SignalTypes direction = signal_params.signal_type;
   if(Grid_Trailing_Execution_Mode != TRAILING_EXECUTION_AGGRESIVE)
     return ShouldSwitchToTrailingTP(direction, order_state, current_price);
@@ -165,10 +168,15 @@ bool GridExecuteLevelTrade(SignalParams &signal_params,
   }
 
   bool sent = false;
+  double sl_price = 0.0;
+  double tp_price = 0.0;
+  if(Pandora_Box_Set_Broker_SLTP)
+    PandoraResolveBrokerStops(signal_params, order_state, sl_price, tp_price);
+
   if(direction == BULLISH)
-    sent = g_position.Buy(normalized_volume, _Symbol, 0.0, 0.0, 0.0, comment);
+    sent = g_position.Buy(normalized_volume, _Symbol, 0.0, sl_price, tp_price, comment);
   else
-    sent = g_position.Sell(normalized_volume, _Symbol, 0.0, 0.0, 0.0, comment);
+    sent = g_position.Sell(normalized_volume, _Symbol, 0.0, sl_price, tp_price, comment);
 
   if(!sent)
   {

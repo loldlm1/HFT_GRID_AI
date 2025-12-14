@@ -10,6 +10,60 @@ void UpdateGridLifecycle(SignalParams &signal_params)
   if(signal_params.signal_state == CLOSED)
     return;
 
+  if(IsPandoraSignal(signal_params))
+  {
+    int grid_order_level = ArraySize(signal_params.grid_orders)-1;
+    if(grid_order_level < 0)
+      return;
+    GridOrderState grid_order = signal_params.grid_orders[grid_order_level];
+    SignalTypes direction = signal_params.signal_type;
+    double point_size = GridResolvePointSize();
+
+    if(grid_order.status == GRID_ORDER_STOP_TRAILING_ACTIVE)
+    {
+      double normalized_volume = NormalizeVolumeForSymbol(_Symbol, grid_order.lot_size);
+      if(GridShouldActivateStopOrder(signal_params, grid_order, direction, point_size) &&
+         GridExecuteLevelTrade(signal_params, grid_order, GridResolvePointSize(), normalized_volume))
+      {
+        signal_params.grid_orders[grid_order_level] = grid_order;
+      }
+    }
+    else if(grid_order.status == GRID_ORDER_ACTIVE || grid_order.status == GRID_ORDER_TP_TRAILING_ACTIVE)
+    {
+      if(!Pandora_Box_Set_Broker_SLTP && grid_order.entry_price > 0.0 && point_size > 0.0)
+      {
+        double current_price = GridCurrentPriceForDirection(direction, false);
+        double sl_points = EnforceBrokerDistance(g_symbol_constraints, Pandora_Points_SL);
+        double tp_price = grid_order.take_profit_price;
+        double sl_price = (direction == BULLISH)
+                            ? grid_order.entry_price - sl_points * point_size
+                            : grid_order.entry_price + sl_points * point_size;
+
+        bool hit_sl = (direction == BULLISH) ? current_price <= sl_price
+                                             : current_price >= sl_price;
+        bool hit_tp = false;
+        if(tp_price > 0.0)
+          hit_tp = (direction == BULLISH) ? current_price >= tp_price
+                                          : current_price <= tp_price;
+
+        if(hit_sl || hit_tp)
+        {
+          GridCloseAllLevels(signal_params, point_size);
+          signal_params.grid_orders[grid_order_level].status = GRID_ORDER_COMPLETED;
+          grid_order = signal_params.grid_orders[grid_order_level];
+        }
+      }
+
+      if(grid_order.position_ticket > 0 && !PositionSelectByTicket(grid_order.position_ticket))
+        grid_order.status = GRID_ORDER_COMPLETED;
+      signal_params.grid_orders[grid_order_level] = grid_order;
+    }
+
+    if(IsGridSignalComplete(signal_params))
+      signal_params.signal_state = CLOSED;
+    return;
+  }
+
   double         point_size        = GridResolvePointSize();
   SignalTypes    direction         = signal_params.signal_type;
   int            grid_order_level  = ArraySize(signal_params.grid_orders)-1;
