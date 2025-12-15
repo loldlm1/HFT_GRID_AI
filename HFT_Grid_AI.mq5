@@ -8,7 +8,7 @@
 #property version       "1.10"
 #property description   "Support Contact @loldlm"
 #property description   "All Rights Reserved for the Traders Capital Team."
-#property description   "HFT Grid AI EA"
+#property description   "BULLISH LIFE EA"
 
 // STANDARD MQL5 LIBRARIES
 #include <Trade/Trade.mqh>
