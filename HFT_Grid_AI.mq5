@@ -17,7 +17,7 @@
 
 // CUSTOM SERVICES - UTILITIES
 #include "services/Bcrypt.mqh"
-#include "services/SecurityLicense.mqh"
+#include "services/SecurityLicenseOnline.mqh"
 
 // CUSTOM SERVICES - AGGREGATORS
 #include "services/trading_tools.mqh"
@@ -112,6 +112,7 @@ void OnTradeTransaction(const MqlTradeTransaction& trans,
 //+------------------------------------------------------------------+
 void OnTimer()
 {
+  LicenseOnline_OnTimer();
 }
 
 //+------------------------------------------------------------------+
