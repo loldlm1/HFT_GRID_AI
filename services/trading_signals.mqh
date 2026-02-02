@@ -4,15 +4,15 @@
 #ifndef _SERVICES_TRADING_SIGNALS_MQH_
 #define _SERVICES_TRADING_SIGNALS_MQH_
 
-// INDICATOR MICROSERVICES
-#include "../microservices/indicators/bands_percent_indicator.mqh"
-#include "../microservices/indicators/alligator_indicator.mqh"
-#include "../microservices/indicators/stochastic_indicator.mqh"
-#include "../microservices/indicators/stochastic_market_indicator.mqh"
-#include "../microservices/indicators/body_ma_indicator.mqh"
+// INDICATOR SERVICES
+#include "indicators/bands_percent_indicator.mqh"
+#include "indicators/alligator_indicator.mqh"
+#include "indicators/stochastic_indicator.mqh"
+#include "indicators/stochastic_market_indicator.mqh"
+#include "indicators/body_ma_indicator.mqh"
 
 // SIGNAL SERVICE FILES
-#include "../microservices/trading_signals/grid_channel_utils.mqh"
+#include "trading_signals/grid_channel_utils.mqh"
 #include "trading_signals/signal_params_struct.mqh"
 #include "trading_signals/session_time_filter_manager.mqh"
 #include "trading_signals/market_signal_state.mqh"
@@ -22,12 +22,12 @@
 #include "trading_signals/market_signal_cleanup.mqh"
 #include "trading_signals/market_signal_detection.mqh"
 #include "trading_signals/market_status_controller.mqh"
-#include "../microservices/trading_signals/grid_price_resolver.mqh"
-#include "../microservices/trading_signals/grid_order_helpers.mqh"
-#include "../microservices/trading_signals/grid_break_even_utils.mqh"
-#include "../microservices/trading_signals/grid_order_math.mqh"
-#include "../microservices/trading_signals/grid_order_logging.mqh"
-#include "../microservices/trading_signals/grid_order_lifecycle.mqh"
+#include "trading_signals/grid_price_resolver.mqh"
+#include "trading_signals/grid_order_helpers.mqh"
+#include "trading_signals/grid_break_even_utils.mqh"
+#include "trading_signals/grid_order_math.mqh"
+#include "trading_signals/grid_order_logging.mqh"
+#include "trading_signals/grid_order_lifecycle.mqh"
 #include "trading_signals/grid_planner.mqh"
 #include "trading_management_strategies/grid_risk_trend_strategy.mqh"
 #include "trading_management_strategies/grid_trend_risk_hedge.mqh"
