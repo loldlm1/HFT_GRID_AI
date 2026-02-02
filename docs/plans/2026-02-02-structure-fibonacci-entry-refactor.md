@@ -10,12 +10,17 @@
 
 ---
 
-## Open Questions / Assumptions (confirm before implementation)
-1. **Contexts & timeframes:** Do we keep `Strategy_Timeframe`, `Trend_Strategy_Timeframe`, `Macro_Strategy_Timeframe`, `Session_Strategy_Timeframe` (multi-timeframe contexts), or collapse to base-only context? (Plan assumes we keep contexts but remove non-structure filters.)
-2. **Grid channel spacing:** Should channel-based grid spacing remain (`Grid_Base_Strategy_Type` = *BOLLINGER/KELTNER/ATR*)? If yes, we will infer channel type from `Grid_Base_Strategy_Type` and remove `Strategy_Channel_Indicator_Type`. If no, we will force `Grid_Base_Strategy_Type` to `POINTS_RANGE` or `STOCH_STRUCTURE_RANGE` and drop channel indicator loading entirely.
-3. **Entry style override:** Should `Structure_Trigger_Entry = LEVELS_AS_LIMITS` force initial entry to behave as a **limit** (price <= level for bullish / >= for bearish) regardless of `Grid_Initial_Entry_Style`? (Plan assumes yes.)
-4. **Range detection price:** For fib range detection, should we use (bullish) **low OR close**, (bearish) **high OR close**, as described? (Plan assumes yes.)
-5. **Alligator-based trailing/risk:** Remove or hard-disable all alligator-based trailing/risk (Grid_Risk_Trend_Mode, TRAILING_LIPS_MA), or keep with fixed defaults? (Plan assumes hard-disable / fallback to safe modes.)
+## Confirmed Decisions (Feb 2, 2026)
+1. **Contexts & timeframes:** Keep multi-timeframe contexts (`Strategy_Timeframe`, `Trend_Strategy_Timeframe`, `Macro_Strategy_Timeframe`, `Session_Strategy_Timeframe`). Remove non-structure filters inside those groups.
+2. **Grid channel spacing:** Remove channel-based grid spacing entirely (drop channel indicators, guards, and related inputs).
+3. **Entry style override:** `Structure_Trigger_Entry = LEVELS_AS_LIMITS` forces **limit-style entry** regardless of `Grid_Initial_Entry_Style`.
+4. **Range detection price:** Use (bullish) **low OR close**, (bearish) **high OR close** for fib range detection.
+5. **Alligator-based trailing/risk:** Remove all alligator-based trailing/risk modes and supporting logic.
+6. **Grid spacing default:** Use `POINTS_RANGE` as the default grid spacing mode (channels removed).
+7. **LEVEL_AS_ZONE execution:** Enter by **market at current close** when inside the fib range.
+
+## Remaining Questions
+None.
 
 ---
 
@@ -450,12 +455,15 @@ void OnStart()
 
   double entry_price = 0.0;
   bool in_zone = false;
+  bool entry_is_limit = false;
   bool ok = ResolveStructureFibonacciEntry(snapshot,
                                            BULLISH,
+                                           LEVELS_AS_LIMITS,
                                            entry_price,
-                                           in_zone);
+                                           in_zone,
+                                           entry_is_limit);
 
-  if(!ok || !in_zone)
+  if(!ok || !in_zone || !entry_is_limit)
     Print("FAIL: entry not triggered");
   else
     Print("PASS");
@@ -471,11 +479,14 @@ Update `services/trading_signals/market_signal_filters.mqh` to add:
 ```mq5
 bool ResolveStructureFibonacciEntry(const StrategyContextIndicators &snapshot,
                                     const SignalTypes direction,
+                                    const StructureTriggerEntryModes trigger_mode,
                                     double &entry_price_out,
-                                    bool &in_zone)
+                                    bool &in_zone,
+                                    bool &entry_is_limit)
 {
   entry_price_out = 0.0;
   in_zone = false;
+  entry_is_limit = false;
 
   if(!snapshot.structure_valid)
     return false;
@@ -521,10 +532,19 @@ bool ResolveStructureFibonacciEntry(const StrategyContextIndicators &snapshot,
   if(!close_in && !extreme_in)
     return true; // no trigger but not fatal
 
-  if(!ResolveStructurePriceForPercent(peak_price, bottom_price, direction, upper, entry_price_out))
-    return false;
-
   in_zone = true;
+  entry_is_limit = (trigger_mode == LEVELS_AS_LIMITS);
+
+  if(entry_is_limit)
+  {
+    if(!ResolveStructurePriceForPercent(peak_price, bottom_price, direction, upper, entry_price_out))
+      return false;
+  }
+  else
+  {
+    entry_price_out = close_price; // market execution at current close
+  }
+
   return true;
 }
 ```
@@ -535,11 +555,15 @@ bool StrategyContextEvaluateEntry(const StrategyContextIndicators &snapshot,
                                   const SignalTypes direction,
                                   datetime &structure_capture_time,
                                   bool &entry_allows,
-                                  bool &filters_pass)
+                                  bool &filters_pass,
+                                  double &entry_price_out,
+                                  bool &entry_is_limit)
 {
   structure_capture_time = 0;
   entry_allows = false;
   filters_pass = true;
+  entry_price_out = 0.0;
+  entry_is_limit = false;
 
   StrategyContextTypes context = snapshot.context;
   StrategyStructureLayerContext structure_ctx = BuildStructureLayerForContext(context);
@@ -572,10 +596,21 @@ bool StrategyContextEvaluateEntry(const StrategyContextIndicators &snapshot,
 
   double entry_price = 0.0;
   bool in_zone = false;
-  if(!ResolveStructureFibonacciEntry(snapshot, direction, entry_price, in_zone))
+  bool resolved_is_limit = false;
+  if(!ResolveStructureFibonacciEntry(snapshot,
+                                     direction,
+                                     Structure_Trigger_Entry,
+                                     entry_price,
+                                     in_zone,
+                                     resolved_is_limit))
     return false;
 
   entry_allows = in_zone;
+  if(in_zone)
+  {
+    entry_price_out = entry_price;
+    entry_is_limit = resolved_is_limit;
+  }
   return true;
 }
 ```
@@ -583,22 +618,44 @@ bool StrategyContextEvaluateEntry(const StrategyContextIndicators &snapshot,
 Update `services/trading_signals/signal_params_struct.mqh`:
 - Replace `StrategyEntryChannelModes entry_trigger_mode;` with `StructureTriggerEntryModes entry_trigger_mode;`
 - Remove `entry_evaluation_mode` field entirely.
-- Initialize `entry_trigger_mode = Structure_Trigger_Entry;` in constructor.
+- Add `bool entry_is_limit;` for limit-vs-zone execution.
+- Initialize:
+  - `entry_trigger_mode = Structure_Trigger_Entry;`
+  - `entry_is_limit = false;`
 
-Update `services/trading_signals/market_signal_detection.mqh` to set:
+Update `services/trading_signals/market_signal_detection.mqh` to capture the new outputs:
 ```mq5
+double entry_price = 0.0;
+bool entry_is_limit = false;
+bool entry_allows = false;
+bool filters_pass = true;
+// StrategyContextEvaluateEntry now outputs entry_price + entry_is_limit
+StrategyContextEvaluateEntry(snapshot,
+                             direction,
+                             structure_capture_time,
+                             entry_allows,
+                             filters_pass,
+                             entry_price,
+                             entry_is_limit);
+
 signal.entry_trigger_mode = Structure_Trigger_Entry;
+signal.entry_price = entry_price;
+signal.entry_is_limit = entry_is_limit;
 ```
 Remove `entry_evaluation_mode` assignment.
 
-Update `services/trading_signals/grid_planner.mqh` to allow using a precomputed fib entry price when in LIMIT mode:
+Update `services/trading_signals/grid_planner.mqh` to allow using a precomputed fib entry price:
 ```mq5
-  if(signal_params.entry_trigger_mode == LEVELS_AS_LIMITS && signal_params.entry_price > 0.0)
+  if(signal_params.entry_is_limit && signal_params.entry_price > 0.0)
     entry_reference_price = signal_params.entry_price;
 ```
 Place this after `CalculateBaseGridContext` returns entry_reference_price so it can override the reference when needed.
 
-Update `services/trading_signals/grid_order_lifecycle.mqh` to use trigger mode for initial entry activation:
+- In `services/trading_signals/grid_order_helpers.mqh` (or where initial order state is built), override entry style:
+  - If `signal_params.entry_is_limit`, force `GRID_ENTRY_STYLE_LIMIT` regardless of `Grid_Initial_Entry_Style`.
+  - If not, force `GRID_ENTRY_STYLE_MARKET` for `LEVEL_AS_ZONE` so the first entry is immediate.
+
+Update `services/trading_signals/grid_order_lifecycle.mqh` to use entry_is_limit for initial entry activation:
 ```mq5
 bool GridShouldActivateStopOrder(...)
 {
@@ -607,7 +664,7 @@ bool GridShouldActivateStopOrder(...)
   if(trigger <= 0.0)
     return false;
 
-  if(signal_params.entry_trigger_mode == LEVELS_AS_LIMITS)
+  if(signal_params.entry_is_limit)
   {
     if(direction == BULLISH) return entry_side_price <= trigger;
     if(direction == BEARISH) return entry_side_price >= trigger;
@@ -646,8 +703,8 @@ git add services/trading_signals/market_signal_filters.mqh \
 - Modify: `services/trading_management/indicator_definitions_loader.mqh`
 - Modify: `services/trading_signals/market_signal_state.mqh`
 - Modify: `services/trading_signals/market_signal_indicators.mqh`
-- Modify: `services/trading_signals/market_signal_channel_guards.mqh`
-- Modify: `services/trading_signals/grid_channel_utils.mqh`
+- Modify/Remove: `services/trading_signals/market_signal_channel_guards.mqh`
+- Modify/Remove: `services/trading_signals/grid_channel_utils.mqh`
 - Modify: `services/trading_signals/grid_order_helpers.mqh`
 - Modify: `services/trading_signals/market_signal_detection.mqh`
 - Modify: `services/trading_signals.mqh`
@@ -657,8 +714,11 @@ Run a compile of `HFT_Grid_AI.mq5` after removing inputs/enums (expected to fail
 - Expected: missing identifiers for removed enums/inputs.
 
 **Step 2: Run test to verify it fails**
-Run: compile `HFT_Grid_AI.mq5` in MetaEditor.
-Expected: FAIL with undefined identifiers (this is intentional before cleanup).
+Run:
+```bash
+"MetaEditor64.exe" /s /compile:"HFT_Grid_AI.mq5" /log:"HFT_Grid_AI_syntax.log"
+```
+Expected: FAIL with undefined identifiers (log shows errors; this is intentional before cleanup).
 
 **Step 3: Write minimal implementation**
 - Remove these inputs from `services/trading_management/ea_inputs.mqh`:
@@ -670,6 +730,7 @@ Expected: FAIL with undefined identifiers (this is intentional before cleanup).
   - `Strategy_Global_Stoch_Entry_Mode`
   - `Alligator_Jaws_Period`
   - Entire non-structure inputs inside Base/Trend/Macro/Session groups (trend modes, entry eval, body volume, slope filters, channel MA, etc.).
+  - Set `Grid_Base_Strategy_Type` default to `POINTS_RANGE` (channels removed).
 
 - In `services/core/enums.mqh`, remove unused enums and helpers after refactor:
   - `BaseIndicatorPeriodTypes`, `IndicatorShiftTypes`, `ChannelIndicatorTypes`, `StrategyEntryChannelModes`, `StrategyGlobalStochEntryModes`, `StrategyTrendModes`, and the `EntryEvaluationUses*` helpers.
@@ -688,23 +749,27 @@ Expected: FAIL with undefined identifiers (this is intentional before cleanup).
   - Remove bpercent/alligator/stochastic/body MA load branches.
 
 - Simplify `services/trading_signals/market_signal_channel_guards.mqh`:
-  - Remove `StrategyContextChannelMaFilterAllowsSignal` and related alligator MA filter logic.
-  - Keep `ChannelGuardAllowsPendingSignal` if grid channel spacing remains (depends on Q2).
+  - Remove `StrategyContextChannelMaFilterAllowsSignal` and all channel filter logic.
+  - If file becomes unused, delete it and remove its include; otherwise make `ChannelGuardAllowsPendingSignal` a no-op that returns `true`.
 
 - Update `services/trading_signals/grid_channel_utils.mqh`:
-  - Remove reliance on `Strategy_Channel_Indicator_Type`.
-  - If keeping channels, map `ResolveEffectiveChannelStrategy()` to `Grid_Base_Strategy_Type` directly (or define a default channel type).
+  - Remove channel strategy mapping entirely.
+  - If any spacing code still depends on this helper, return `POINTS_RANGE` and document it.
 
 - Update `services/trading_signals/grid_order_helpers.mqh`:
   - Remove `GridResolveActiveRiskMode` branches referencing `Strategy_*_Trend_Mode` if those inputs are removed.
   - If alligator-based risk is removed, guard `Grid_Risk_Trend_Mode` to `GRID_RM_TREND_OFF` or return a safe default.
+  - If any code path still checks `Grid_Base_Strategy_Type` for channel modes, map it to `POINTS_RANGE`.
 
 - Update `services/trading_signals/market_signal_detection.mqh` to remove references to removed filters (channel state, trend evaluation). Ensure the cascade uses only structure filters + fib entry.
 
 - Update `services/trading_signals.mqh` to drop indicator includes that are no longer used (bands_percent, alligator, stochastic_indicator, body_ma) if all related logic removed.
 
 **Step 4: Run test to verify it passes**
-Run: compile `HFT_Grid_AI.mq5`.
+Run:
+```bash
+"MetaEditor64.exe" /s /compile:"HFT_Grid_AI.mq5" /log:"HFT_Grid_AI_syntax.log"
+```
 Expected: PASS (0 errors).
 
 **Step 5: Commit**
@@ -732,15 +797,18 @@ git commit -m "refactor: remove legacy channel/alligator/stoch filters"
 - Modify: `services/trading_management_strategies/grid_trend_risk_*.mqh`
 
 **Step 1: Write the failing test**
-Compile `HFT_Grid_AI.mq5` after removing indicator load branches to surface missing references.
+Compile `HFT_Grid_AI.mq5` after removing indicator load branches to surface missing references:
+```bash
+"MetaEditor64.exe" /s /compile:"HFT_Grid_AI.mq5" /log:"HFT_Grid_AI_syntax.log"
+```
 
 **Step 2: Run test to verify it fails**
-Expected: FAIL due to removed handles or functions still referenced by grid risk/trailing.
+Expected: FAIL due to removed handles or functions still referenced by grid risk/trailing (see `HFT_Grid_AI_syntax.log`).
 
 **Step 3: Write minimal implementation**
 - In `indicator_definitions_loader.mqh`, keep only:
   - `PrepareStrategyTimeframes()`, `PrepareIndicatorPeriods()` (if still needed)
-  - Structure indicator loaders (`LoadAllStructStochIndicators`) + any channel indicators still required for grid spacing (per Q2)
+  - Structure indicator loaders (`LoadAllStructStochIndicators`) only (no channel indicators)
   - Remove alligator/bpercent/stoch/body MA loaders and related overlay logic
 
 - In grid risk modules, guard alligator-dependent logic:
@@ -748,7 +816,10 @@ Expected: FAIL due to removed handles or functions still referenced by grid risk
   - Ensure `GridResolveAlligatorRiskReferencePrice` and similar functions are not called when alligator handles are absent.
 
 **Step 4: Run test to verify it passes**
-Run: compile `HFT_Grid_AI.mq5`.
+Run:
+```bash
+"MetaEditor64.exe" /s /compile:"HFT_Grid_AI.mq5" /log:"HFT_Grid_AI_syntax.log"
+```
 Expected: PASS (0 errors).
 
 **Step 5: Commit**
@@ -767,6 +838,10 @@ git commit -m "refactor: simplify indicator loading and risk fallbacks"
 - No code changes.
 
 **Step 1: Run manual test**
+- Run a headless compile first:
+```bash
+"MetaEditor64.exe" /compile:"HFT_Grid_AI.mq5" /log:"HFT_Grid_AI_build.log"
+```
 - Attach `HFT_Grid_AI.mq5` to a chart or Strategy Tester.
 - Set `Structure_Fibonacci_Levels` to default and test both `LEVELS_AS_LIMITS` and `LEVEL_AS_ZONE`.
 - Confirm entry trigger logs and grid activation behave as expected when price moves into fib ranges.
