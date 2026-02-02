@@ -4,17 +4,17 @@
 #ifndef _SERVICES_TRADING_TOOLS_MQH_
 #define _SERVICES_TRADING_TOOLS_MQH_
 
-// CORE MICROSERVICES
-#include "../microservices/core/enums.mqh"
-#include "../microservices/core/base_structures.mqh"
+// CORE SERVICES
+#include "core/enums.mqh"
+#include "core/base_structures.mqh"
 
-// UTILITY MICROSERVICES
-#include "../microservices/utils/array_functions.mqh"
-#include "../microservices/utils/miscellaneous.mqh"
-#include "../microservices/utils/money_functions.mqh"
-#include "../microservices/utils/logs_helper.mqh"
-#include "../microservices/utils/broker_constraints_helper.mqh"
-#include "../microservices/utils/price_math.mqh"
-#include "../microservices/utils/file_logger.mqh"
+// UTILITY SERVICES
+#include "utils/array_functions.mqh"
+#include "utils/miscellaneous.mqh"
+#include "utils/money_functions.mqh"
+#include "utils/logs_helper.mqh"
+#include "utils/broker_constraints_helper.mqh"
+#include "utils/price_math.mqh"
+#include "utils/file_logger.mqh"
 
 #endif // _SERVICES_TRADING_TOOLS_MQH_
