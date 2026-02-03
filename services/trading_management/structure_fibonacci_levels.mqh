@@ -118,6 +118,30 @@ bool ResolveFibonacciRangeForPercent(const double &levels[],
   return true;
 }
 
+bool ResolveFibonacciNextPercent(const double &levels[],
+                                 const int total,
+                                 const double percent,
+                                 const int steps,
+                                 double &next_out)
+{
+  next_out = 0.0;
+  if(total < 2 || steps <= 0)
+    return false;
+
+  double cursor = percent;
+  double lower = 0.0;
+  double upper = 0.0;
+  for(int i = 0; i < steps; i++)
+  {
+    if(!ResolveFibonacciRangeForPercent(levels, total, cursor, lower, upper))
+      return false;
+    cursor = upper;
+  }
+
+  next_out = cursor;
+  return true;
+}
+
 StructureFibonacciConfig g_structure_fibo_config;
 
 bool LoadStructureFibonacciLevels(const string csv,

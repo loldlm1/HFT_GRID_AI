@@ -71,39 +71,7 @@ enum GridBaseStrategyTypes
 {
   ATR_RANGE               = 0,
   POINTS_RANGE            = 1,
-  KELTNER_RANGE           = 2,
-  BOLLINGER_RANGE         = 3,
-  CHANNEL_INDICATOR_RANGE = 4,
-  STOCH_STRUCTURE_RANGE   = 5,
-  ATR_MA_RANGE            = 6
-};
-
-enum GridChannelLineTypes
-{
-  GRID_CHANNEL_LINE_SUPPORT    = 0,
-  GRID_CHANNEL_LINE_RESISTANCE = 1,
-  GRID_CHANNEL_LINE_MIDDLE     = 2
-};
-
-enum BreakEvenModes
-{
-  BE_DISABLE        = 0,
-  BE_ENABLE         = 1,
-  BE_PARTIAL_ENABLE = 2
-};
-
-enum TrailingStrategyModes
-{
-  TRAILING_DEFAULT   = 0,
-  TRAILING_STEP      = 1,
-  TRAILING_ATR_BASED = 2,
-  TRAILING_LIPS_MA   = 3
-};
-
-enum TrailingExecutionModes
-{
-  TRAILING_EXECUTION_DEFAULT   = 0,
-  TRAILING_EXECUTION_AGGRESIVE = 1
+  FIB_LEVEL_RANGE        = 2
 };
 
 enum SlopeTypes
@@ -166,8 +134,7 @@ enum GridOrderStatuses
   GRID_ORDER_WAITING              = 1,
   GRID_ORDER_STOP_TRAILING_ACTIVE = 2,
   GRID_ORDER_ACTIVE               = 3,
-  GRID_ORDER_TP_TRAILING_ACTIVE   = 4,
-  GRID_ORDER_COMPLETED            = 5
+  GRID_ORDER_COMPLETED            = 4
 };
 
 enum GridEntryStyles
@@ -184,29 +151,6 @@ enum GridLotTypes
   GRID_LOT_CALCULATED           = 3,
   GRID_LOT_EQUITY_PERCENT_BASED = 4,
   GRID_LOT_MAX_MARGIN_SPLIT     = 5
-};
-
-enum GridRiskTrendModes
-{
-  GRID_RM_TREND_OFF = 0,
-  GRID_RM_TREND_BE  = 1,
-  GRID_RM_TREND_SL  = 2,
-  GRID_RM_TREND_SAR = 3,
-  GRID_RM_TREND_HEDGE = 4
-};
-
-enum GridRiskAlligatorReferenceModes
-{
-  GRID_RISK_REF_JAWS  = 0,
-  GRID_RISK_REF_TEETH = 1
-};
-
-enum GridRiskTrendTimeframeSources
-{
-  GRID_RISK_TF_STRATEGY = 0,
-  GRID_RISK_TF_TREND    = 1,
-  GRID_RISK_TF_MACRO    = 2,
-  GRID_RISK_TF_SESSION  = 3
 };
 
 enum DailySignalLimitModes

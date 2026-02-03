@@ -130,26 +130,6 @@ bool GridNextLevelOpensPosition(const SignalParams &signal_params)
   return (next_index >= start_level);
 }
 
-ENUM_TIMEFRAMES GridResolveTrailingStrategyTimeframe()
-{
-  if(Trailing_Indicator_Timeframe > 0)
-    return Trailing_Indicator_Timeframe;
-  int total = ArraySize(Strategy_TF_List);
-  if(total > 0)
-    return Strategy_TF_List[0];
-  return Strategy_Timeframe;
-}
-
-ENUM_TIMEFRAMES GridResolveRiskTrendTimeframe()
-{
-  if(Risk_Trend_Timeframe > 0)
-    return Risk_Trend_Timeframe;
-  int total = ArraySize(Strategy_TF_List);
-  if(total > 0)
-    return Strategy_TF_List[0];
-  return Strategy_Timeframe;
-}
-
 int GridAggressiveLotSplitCount()
 {
   double splits = MathMax(1.0, Grid_Lot_Strategy_Size);
@@ -219,22 +199,6 @@ double GridResolveAggressiveLotSize(const SignalTypes direction)
   return NormalizeVolumeForSymbol(_Symbol, normalized);
 }
 
-bool GridSarEntryConditionReady(const SignalParams &signal_params)
-{
-  if(!signal_params.is_sar_signal)
-    return true;
-  return true;
-}
-
-bool GridResolveTrailingStrategyPrice(const SignalParams &signal_params,
-                                      double &price_out)
-{
-  price_out = 0.0;
-  if(signal_params.signal_type == NO_SIGNAL)
-    return false;
-  return false;
-}
-
 void GridResetOrderStateForWaiting(GridOrderState &state,
                                    const GridOrderState &template_state)
 {
@@ -244,15 +208,8 @@ void GridResetOrderStateForWaiting(GridOrderState &state,
   state.status             = GRID_ORDER_WAITING;
   state.entry_price        = 0.0;
   state.take_profit_price  = 0.0;
-  state.final_take_profit_price = 0.0;
-  state.trailing_price     = 0.0;
   state.next_level_price   = template_state.next_level_price;
   state.last_action_time   = 0;
-  state.is_trailing_active = false;
-  state.tp_reached         = false;
-  state.break_even_active  = false;
-  state.break_even_price   = 0.0;
-  state.partial_take_executed = false;
   state.position_ticket    = 0;
   state.position_comment   = "";
 }
@@ -272,7 +229,8 @@ double GridPointsBetween(const SignalTypes direction,
 
 double GetGridStopReferencePrice(SignalTypes direction, SignalParams &signal_params, GridOrderState &grid_order_state)
 {
-  if(signal_params.entry_is_limit && grid_order_state.level_index == 0)
+  if(grid_order_state.level_index == 0 &&
+     (signal_params.entry_is_limit || signal_params.entry_trigger_mode == LEVEL_AS_ZONE))
   {
     if(signal_params.entry_price > 0.0)
       return signal_params.entry_price;
@@ -306,9 +264,17 @@ double GetGridStopReferencePrice(SignalTypes direction, SignalParams &signal_par
 double GetGridNextLevelPrice(SignalTypes direction, SignalParams &signal_params, GridOrderState &grid_order_state)
 {
   double grid_raw_pending_price  = 0;
-  double grid_atr_fallback_price = 0;
   double grid_base_entry_price   = grid_order_state.entry_reference_price;
   double grid_next_level_price   = grid_order_state.next_level_price;
+
+  if(Grid_Base_Strategy_Type == FIB_LEVEL_RANGE)
+  {
+    double fib_level_price = 0.0;
+    if(ResolveFibonacciGridLevelPrice(signal_params, grid_order_state.level_index, fib_level_price))
+      return fib_level_price;
+    return grid_next_level_price;
+  }
+
   // Recompute from entry_reference_price each tick using per-level distance
   double level_distance_pts      = ComputeLevelDistancePoints(signal_params, grid_order_state.level_index);
 
@@ -335,12 +301,10 @@ double GetGridNextLevelPrice(SignalTypes direction, SignalParams &signal_params,
 double GetGridTakeProfitPrice(SignalTypes direction, SignalParams &signal_params, GridOrderState &grid_order_state)
 {
   double grid_raw_tp_price            = 0;
-  double grid_atr_fallback_price      = 0;
-  int    grid_level_index             = grid_order_state.level_index;
   double grid_base_entry_price        = grid_order_state.entry_reference_price;
   double grid_take_profit_price       = grid_order_state.take_profit_price;
   // Per-level TP span based on exponential distance
-  double level_distance_pts           = ComputeLevelDistancePoints(signal_params, grid_order_state.level_index);
+  double level_distance_pts           = ResolveGridLevelDistancePoints(signal_params, grid_order_state);
   double tp_span_pts;
   if(Grid_Points_TP > 0.0)
     tp_span_pts = EnforceBrokerDistance(g_symbol_constraints, Grid_Points_TP);
@@ -370,242 +334,7 @@ double GetGridTakeProfitPrice(SignalTypes direction, SignalParams &signal_params
     }
   }
 
-  if(Grid_Enable_Robust_TP)
-    EnsureGridTakeProfitRobustness(
-      direction, signal_params, grid_level_index, grid_raw_tp_price
-    );
-
-  if(Grid_Enable_Scalper_TP)
-    EnsureGridTakeProfitScalper(
-      direction, signal_params, grid_level_index, grid_raw_tp_price
-    );
-
-  if(Grid_Enable_Aggressive_TP)
-    EnsureGridTakeProfitAggressive(
-      signal_params, grid_level_index, false, grid_raw_tp_price
-    );
-
   return grid_raw_tp_price;
-}
-
-double GetGridTakeProfitFinalPrice(SignalTypes direction, SignalParams &signal_params, GridOrderState &grid_order_state)
-{
-  double grid_raw_tp_price            = 0;
-  double grid_atr_fallback_price      = 0;
-  int    grid_level_index             = grid_order_state.level_index;
-  double grid_base_entry_price        = grid_order_state.entry_reference_price;
-  double grid_final_take_profit_price = grid_order_state.final_take_profit_price;
-  // Per-level final TP span based on exponential distance
-  double level_distance_pts           = ComputeLevelDistancePoints(signal_params, grid_order_state.level_index);
-  double final_span_pts               = level_distance_pts * (Grid_Final_TP_Percent / 100.0);
-
-  if(direction == BULLISH)
-  {
-    grid_raw_tp_price = grid_base_entry_price + (final_span_pts / g_decimal_digits);
-
-    if(grid_raw_tp_price > grid_final_take_profit_price)
-    {
-      grid_raw_tp_price = grid_raw_tp_price; // FOLLOWS THE PRICE ROCKET
-    } else {
-      grid_raw_tp_price = grid_final_take_profit_price == 0 ? grid_raw_tp_price : grid_final_take_profit_price;
-    }
-  }
-  if(direction == BEARISH)
-  {
-    grid_raw_tp_price = grid_base_entry_price - (final_span_pts / g_decimal_digits);
-
-    if(grid_raw_tp_price < grid_final_take_profit_price)
-    {
-      grid_raw_tp_price = grid_raw_tp_price; // FOLLOWS THE PRICE FALLS
-    } else {
-      grid_raw_tp_price = grid_final_take_profit_price == 0 ? grid_raw_tp_price : grid_final_take_profit_price;
-    }
-  }
-
-  if(Grid_Enable_Robust_TP)
-    EnsureGridTakeProfitRobustness(
-      direction, signal_params, grid_level_index, grid_raw_tp_price
-    );
-
-  if(Grid_Enable_Aggressive_TP)
-    EnsureGridTakeProfitAggressive(
-      signal_params, grid_level_index, true, grid_raw_tp_price
-    );
-
-  return grid_raw_tp_price;
-}
-
-void EnsureGridTakeProfitRobustness(
-  SignalTypes direction, SignalParams &signal_params, int grid_level_index, double &grid_raw_tp_price
-) {
-  // ENSURE TP IS IN A ROBUST DISTANCE FROM ENTRY
-  if(grid_level_index > 0)
-  {
-    double initial_grid_price = signal_params.grid_orders[0].entry_price;
-    double latest_grid_price  = signal_params.grid_orders[grid_level_index - 1].entry_price;
-
-    if(direction == BULLISH)
-    {
-      if(grid_raw_tp_price < latest_grid_price)
-        grid_raw_tp_price = latest_grid_price;
-      if(grid_raw_tp_price > initial_grid_price)
-        grid_raw_tp_price = initial_grid_price;
-    }
-    if(direction == BEARISH)
-    {
-      if(grid_raw_tp_price > latest_grid_price)
-        grid_raw_tp_price = latest_grid_price;
-      if(grid_raw_tp_price < initial_grid_price)
-        grid_raw_tp_price = initial_grid_price;
-    }
-  }
-}
-
-void EnsureGridTakeProfitScalper(
-  SignalTypes direction, SignalParams &signal_params, int grid_level_index, double &grid_raw_tp_price
-) {
-  // ENSURE TP IS IN A ROBUST DISTANCE FROM ENTRY
-  if(grid_level_index > 0)
-  {
-    double initial_grid_price = signal_params.grid_orders[0].entry_price;
-    double latest_grid_price  = signal_params.grid_orders[grid_level_index - 1].entry_price;
-
-    if(direction == BULLISH) grid_raw_tp_price = latest_grid_price;
-    if(direction == BEARISH) grid_raw_tp_price = latest_grid_price;
-  }
-}
-
-void EnsureGridTakeProfitAggressive(
-  SignalParams &signal_params, int grid_level_index, bool is_final_tp, double &grid_raw_tp_price
-) {
-  // ENSURE TP IS IN A ROBUST DISTANCE FROM ENTRY
-  if(grid_level_index > 0)
-  {
-    double initial_grid_price    = signal_params.grid_orders[0].entry_price;
-    double initial_grid_tp       = signal_params.grid_orders[0].take_profit_price;
-    double initial_grid_final_tp = signal_params.grid_orders[0].final_take_profit_price;
-
-    if(!is_final_tp) grid_raw_tp_price = initial_grid_tp;
-    if(is_final_tp)  grid_raw_tp_price = initial_grid_final_tp;
-  }
-}
-
-double UpdateTrailingTP(SignalParams &signal_params, GridOrderState &order_state)
-{
-  double current_price       = GridCurrentPriceForDirection(signal_params.signal_type, false);
-  double digit_scale         = (g_decimal_digits > 0.0) ? g_decimal_digits : 1.0;
-  double trailing_span_pts   = MathAbs(order_state.take_profit_price - order_state.entry_price) * digit_scale;
-  double offset_pts          = trailing_span_pts * (Grid_Trailing_TP_Percent / 100.0);
-  double offset_price        = offset_pts / digit_scale;
-  double grid_trailing_price = order_state.trailing_price;
-  double indicator_price     = 0.0;
-  bool   indicator_mode      = ((Grid_Trailing_Strategy_Mode == TRAILING_ATR_BASED) ||
-                                (Grid_Trailing_Strategy_Mode == TRAILING_LIPS_MA)) &&
-                               GridResolveTrailingStrategyPrice(signal_params, indicator_price);
-  bool   step_mode           = (Grid_Trailing_Strategy_Mode == TRAILING_STEP);
-
-  if(step_mode)
-  {
-    double point_size = GridResolvePointSize();
-    if(point_size <= 0.0)
-      point_size = 0.0001;
-
-    double step_points = offset_pts;
-    if(step_points <= 0.0)
-      step_points = EnforceBrokerDistance(g_symbol_constraints);
-    double step_price = step_points / digit_scale;
-
-    double current_stop = grid_trailing_price;
-    if(signal_params.signal_type == BULLISH)
-    {
-      double base_stop = current_price - step_price;
-      if(current_stop <= 0.0)
-        return MathMax(base_stop, 0.0);
-
-      double delta = current_price - current_stop;
-      if(delta >= step_price)
-      {
-        double candidate = current_price - step_price;
-        return MathMax(candidate, current_stop);
-      }
-      return current_stop;
-    }
-
-    if(signal_params.signal_type == BEARISH)
-    {
-      double base_stop = current_price + step_price;
-      if(current_stop <= 0.0)
-        return base_stop;
-
-      double delta = current_stop - current_price;
-      if(delta >= step_price)
-      {
-        double candidate = current_price + step_price;
-        return MathMin(candidate, current_stop);
-      }
-      return current_stop;
-    }
-  }
-
-  if(indicator_mode && indicator_price > 0.0)
-  {
-    double broker_price = EnforceBrokerDistance(g_symbol_constraints) / digit_scale;
-    if(broker_price < 0.0)
-      broker_price = 0.0;
-
-    if(signal_params.signal_type == BULLISH)
-    {
-      double candidate = indicator_price + offset_price;
-      if(broker_price > 0.0 && grid_trailing_price <= 0.0)
-      {
-        double cap_price = current_price - broker_price;
-        if(cap_price > 0.0 && candidate > cap_price)
-          candidate = cap_price;
-      }
-
-      if(grid_trailing_price > 0.0)
-        candidate = MathMax(candidate, grid_trailing_price);
-      return candidate;
-    }
-    if(signal_params.signal_type == BEARISH)
-    {
-      double candidate = indicator_price - offset_price;
-      if(broker_price > 0.0 && grid_trailing_price <= 0.0)
-      {
-        double floor_price = current_price + broker_price;
-        if(floor_price > 0.0 && candidate < floor_price)
-          candidate = floor_price;
-      }
-
-      if(grid_trailing_price > 0.0)
-        candidate = MathMin(candidate, grid_trailing_price);
-      return candidate;
-    }
-  }
-
-  double safe_fallback_price = 0.0;
-  double candidate           = 0.0;
-
-  if(signal_params.signal_type == BULLISH)
-  {
-    safe_fallback_price = current_price - (EnforceBrokerDistance(g_symbol_constraints) / digit_scale);
-    candidate           = current_price - (offset_pts / digit_scale);
-
-    if(candidate > grid_trailing_price)
-      return candidate;
-    return grid_trailing_price == 0 ? safe_fallback_price : grid_trailing_price;
-  }
-  if(signal_params.signal_type == BEARISH)
-  {
-    safe_fallback_price = current_price + (EnforceBrokerDistance(g_symbol_constraints) / digit_scale);
-    candidate           = current_price + (offset_pts / digit_scale);
-
-    if(candidate < grid_trailing_price)
-      return candidate;
-    return grid_trailing_price == 0 ? candidate : grid_trailing_price;
-  }
-
-  return safe_fallback_price;
 }
 
 void ResetGridOrderPricesByDirection(SignalParams &signal_params, int grid_order_level)
@@ -615,20 +344,13 @@ void ResetGridOrderPricesByDirection(SignalParams &signal_params, int grid_order
     signal_params.grid_orders[grid_order_level].entry_reference_price   = DBL_MAX;
     signal_params.grid_orders[grid_order_level].next_level_price        = DBL_MAX;
     signal_params.grid_orders[grid_order_level].take_profit_price       = -DBL_MAX;
-    signal_params.grid_orders[grid_order_level].final_take_profit_price = -DBL_MAX;
-    signal_params.grid_orders[grid_order_level].trailing_price          = -DBL_MAX;
   }
   if(signal_params.signal_type == BEARISH)
   {
     signal_params.grid_orders[grid_order_level].entry_reference_price   = -DBL_MAX;
     signal_params.grid_orders[grid_order_level].next_level_price        = -DBL_MAX;
     signal_params.grid_orders[grid_order_level].take_profit_price       = DBL_MAX;
-    signal_params.grid_orders[grid_order_level].final_take_profit_price = DBL_MAX;
-    signal_params.grid_orders[grid_order_level].trailing_price          = DBL_MAX;
   }
-  signal_params.grid_orders[grid_order_level].break_even_active = false;
-  signal_params.grid_orders[grid_order_level].break_even_price  = 0.0;
-  signal_params.grid_orders[grid_order_level].partial_take_executed = false;
 }
 
 // --- New pricing helpers (points-based, broker-safe) ---
@@ -645,6 +367,33 @@ double ComputeLevelDistancePoints(const SignalParams &signal_params,
   double distance_pts = base_pts * MathPow(mult, (double)level_index);
   distance_pts = EnforceBrokerDistance(g_symbol_constraints, distance_pts);
   return distance_pts;
+}
+
+double ResolveGridLevelDistancePoints(const SignalParams &signal_params,
+                                      const GridOrderState &state)
+{
+  if(Grid_Base_Strategy_Type == FIB_LEVEL_RANGE)
+  {
+    double fib_level_price = 0.0;
+    if(!ResolveFibonacciGridLevelPrice(signal_params, state.level_index, fib_level_price))
+      return signal_params.grid_base_distance_points;
+
+    double entry_price = state.entry_reference_price;
+    if(entry_price <= 0.0)
+      entry_price = signal_params.grid_entry_reference_price;
+    if(entry_price <= 0.0)
+      entry_price = signal_params.entry_price;
+
+    double point_size = GridResolvePointSize();
+    if(point_size <= 0.0 || entry_price <= 0.0)
+      return 0.0;
+
+    double distance_pts = MathAbs(entry_price - fib_level_price) / point_size;
+    distance_pts = EnforceBrokerDistance(g_symbol_constraints, distance_pts);
+    return distance_pts;
+  }
+
+  return ComputeLevelDistancePoints(signal_params, state.level_index);
 }
 
 double ComputeEntryReferencePrice(const SignalParams &signal_params,
@@ -719,50 +468,6 @@ bool GridFindLatestFilledOrder(const SignalParams &signal_params,
   return false;
 }
 
-double GridCollectSignalFloatingProfit(const SignalParams &signal_params)
-{
-  double cumulative = 0.0;
-  int total_levels = ArraySize(signal_params.grid_orders);
-  for(int idx = 0; idx < total_levels; idx++)
-  {
-    GridOrderState state = signal_params.grid_orders[idx];
-    if(state.position_ticket <= 0)
-      continue;
-    if(!PositionSelectByTicket(state.position_ticket))
-      continue;
-    if(PositionGetInteger(POSITION_MAGIC) != g_magic_number)
-      continue;
-    if(PositionGetString(POSITION_SYMBOL) != _Symbol)
-      continue;
-    cumulative += PositionGetDouble(POSITION_PROFIT);
-  }
-  return cumulative;
-}
-
-double GridCollectSignalFloatingProfitWithoutHedge(const SignalParams &signal_params)
-{
-  double cumulative = 0.0;
-  int total_levels = ArraySize(signal_params.grid_orders);
-  ulong hedge_ticket = signal_params.hedge_position_ticket;
-
-  for(int idx = 0; idx < total_levels; idx++)
-  {
-    GridOrderState state = signal_params.grid_orders[idx];
-    if(state.position_ticket <= 0)
-      continue;
-    if(state.position_ticket == hedge_ticket && hedge_ticket > 0)
-      continue;
-    if(!PositionSelectByTicket(state.position_ticket))
-      continue;
-    if(PositionGetInteger(POSITION_MAGIC) != g_magic_number)
-      continue;
-    if(PositionGetString(POSITION_SYMBOL) != _Symbol)
-      continue;
-    cumulative += PositionGetDouble(POSITION_PROFIT);
-  }
-  return cumulative;
-}
-
 bool GridSignalHasExecutedLevel(const SignalParams &signal_params)
 {
   int total_levels = ArraySize(signal_params.grid_orders);
@@ -772,110 +477,207 @@ bool GridSignalHasExecutedLevel(const SignalParams &signal_params)
     if(state.entry_price <= 0.0)
       continue;
     if(state.status == GRID_ORDER_ACTIVE ||
-       state.status == GRID_ORDER_TP_TRAILING_ACTIVE ||
        state.status == GRID_ORDER_COMPLETED)
       return true;
   }
   return false;
 }
 
-bool GridSignalChannelGuardSatisfied(const SignalParams &signal_params,
-                                     const double entry_reference_price,
-                                     double &distance_points,
-                                     double &required_points,
-                                     double &reference_price)
+bool ResolveSignalStructureSnapshot(const SignalParams &signal_params,
+                                    StochasticMarketStructure &structure)
 {
-  distance_points = 0.0;
-  reference_price = entry_reference_price;
-  required_points = EnforceBrokerDistance(g_symbol_constraints, Grid_Points_Range_Setup);
-  if(signal_params.signal_type == NO_SIGNAL)
-    return true;
-  return true;
-}
-
-double ResolveStochStructureDistancePoints(const SignalParams &signal_params,
-                                            const double entry_reference_price)
-{
-  if(signal_params.grid_initialized &&
-     ArraySize(signal_params.grid_orders) > 0 &&
-     signal_params.grid_base_distance_points > 0.0)
-  {
-    return EnforceBrokerDistance(g_symbol_constraints,
-                                 signal_params.grid_base_distance_points);
-  }
-
-  double structure_price = 0.0;
-  datetime structure_time = 0;
-  bool structure_valid = false;
-  StochasticMarketStructure stoch;
-
+  bool valid = false;
   switch(signal_params.strategy_context)
   {
     case CONTEXT_SLOT_TREND:
-      structure_valid = signal_params.trend_structure_valid;
-      stoch = signal_params.trend_structure_data;
+      valid = signal_params.trend_structure_valid;
+      structure = signal_params.trend_structure_data;
       break;
     case CONTEXT_SLOT_MACRO:
-      structure_valid = signal_params.macro_structure_valid;
-      stoch = signal_params.macro_structure_data;
+      valid = signal_params.macro_structure_valid;
+      structure = signal_params.macro_structure_data;
       break;
     case CONTEXT_SLOT_SESSION:
-      structure_valid = signal_params.session_structure_valid;
-      stoch = signal_params.session_structure_data;
+      valid = signal_params.session_structure_valid;
+      structure = signal_params.session_structure_data;
       break;
     case CONTEXT_SLOT_BASE:
     default:
-      structure_valid = signal_params.base_structure_valid;
-      stoch = signal_params.base_structure_data;
+      valid = signal_params.base_structure_valid;
+      structure = signal_params.base_structure_data;
       break;
   }
+  return valid;
+}
 
-  if(structure_valid)
+bool ResolveSignalStructureRange(const SignalParams &signal_params,
+                                 double &peak_price,
+                                 double &bottom_price)
+{
+  peak_price = 0.0;
+  bottom_price = 0.0;
+
+  StochasticMarketStructure structure;
+  if(!ResolveSignalStructureSnapshot(signal_params, structure))
+    return false;
+
+  return ResolveStructureReferenceRange(structure, peak_price, bottom_price);
+}
+
+bool ResolveFibonacciEntryPercent(const SignalParams &signal_params,
+                                  const double entry_price,
+                                  double &entry_percent,
+                                  double &peak_price,
+                                  double &bottom_price)
+{
+  entry_percent = 0.0;
+  peak_price = 0.0;
+  bottom_price = 0.0;
+
+  if(entry_price <= 0.0)
+    return false;
+
+  if(!ResolveSignalStructureRange(signal_params, peak_price, bottom_price))
+    return false;
+
+  return ResolveStructurePercentForPrice(peak_price,
+                                         bottom_price,
+                                         signal_params.signal_type,
+                                         entry_price,
+                                         entry_percent);
+}
+
+bool ResolveFibonacciGridLevelPrice(const SignalParams &signal_params,
+                                    const int level_index,
+                                    double &price_out)
+{
+  price_out = 0.0;
+  if(!g_structure_fibo_config.valid)
+    return false;
+
+  double entry_price = signal_params.entry_price;
+  if(entry_price <= 0.0)
+    entry_price = signal_params.grid_entry_reference_price;
+  if(entry_price <= 0.0)
+    return false;
+
+  double entry_percent = 0.0;
+  double peak_price = 0.0;
+  double bottom_price = 0.0;
+  if(!ResolveFibonacciEntryPercent(signal_params,
+                                   entry_price,
+                                   entry_percent,
+                                   peak_price,
+                                   bottom_price))
+    return false;
+
+  int steps = signal_params.fib_level_offset_steps + level_index;
+  if(steps <= 0)
+    steps = 1;
+
+  double level_percent = 0.0;
+  if(!ResolveFibonacciNextPercent(g_structure_fibo_config.levels,
+                                  ArraySize(g_structure_fibo_config.levels),
+                                  entry_percent,
+                                  steps,
+                                  level_percent))
+    return false;
+
+  return ResolveStructurePriceForPercent(peak_price,
+                                         bottom_price,
+                                         signal_params.signal_type,
+                                         level_percent,
+                                         price_out);
+}
+
+bool ResolveFibonacciGridBaseDistance(const SignalParams &signal_params,
+                                      const double entry_reference_price,
+                                      int &steps_out,
+                                      double &distance_points_out)
+{
+  steps_out = 1;
+  distance_points_out = 0.0;
+
+  if(!g_structure_fibo_config.valid)
+    return false;
+
+  double entry_price = entry_reference_price;
+  if(entry_price <= 0.0)
+    return false;
+
+  double entry_percent = 0.0;
+  double peak_price = 0.0;
+  double bottom_price = 0.0;
+  if(!ResolveFibonacciEntryPercent(signal_params,
+                                   entry_price,
+                                   entry_percent,
+                                   peak_price,
+                                   bottom_price))
+    return false;
+
+  double point_size = GridResolvePointSize();
+  if(point_size <= 0.0)
+    return false;
+
+  int total_levels = ArraySize(g_structure_fibo_config.levels);
+  if(total_levels < 2)
+    return false;
+
+  double required_points = EnforceBrokerDistance(g_symbol_constraints, Grid_Points_Range_Setup);
+  int max_steps = total_levels + 10;
+
+  if(signal_params.entry_trigger_mode == LEVEL_AS_ZONE && required_points > 0.0)
   {
-    OscillatorStructureTypes types[4] = {stoch.first_structure_type,
-                                         stoch.second_structure_type,
-                                         stoch.third_structure_type,
-                                         stoch.fourth_structure_type};
-    double prices[4] = {stoch.first_structure_price,
-                        stoch.second_structure_price,
-                        stoch.third_structure_price,
-                        stoch.fourth_structure_price};
-    datetime times[4] = {stoch.first_structure_time,
-                        stoch.second_structure_time,
-                        stoch.third_structure_time,
-                        stoch.fourth_structure_time};
-
-    // Prefer the latest prior swing (skip current index 0), then fall back to current.
-    for(int i = 1; i < 4; i++)
+    for(int step = 1; step <= max_steps; step++)
     {
-      if(signal_params.signal_type == BULLISH &&
-         (types[i] == OSCILLATOR_STRUCTURE_LL || types[i] == OSCILLATOR_STRUCTURE_LH) &&
-         prices[i] > 0.0 && prices[i] < g_ask)
+      double next_percent = 0.0;
+      if(!ResolveFibonacciNextPercent(g_structure_fibo_config.levels,
+                                      total_levels,
+                                      entry_percent,
+                                      step,
+                                      next_percent))
+        return false;
+
+      double next_price = 0.0;
+      if(!ResolveStructurePriceForPercent(peak_price,
+                                          bottom_price,
+                                          signal_params.signal_type,
+                                          next_percent,
+                                          next_price))
+        continue;
+
+      double distance_points = MathAbs(entry_price - next_price) / point_size;
+      if(distance_points >= required_points)
       {
-        structure_price = prices[i];
-        structure_time = times[i];
-        break;
-      }
-      if(signal_params.signal_type == BEARISH &&
-         (types[i] == OSCILLATOR_STRUCTURE_HH || types[i] == OSCILLATOR_STRUCTURE_HL) &&
-         prices[i] > 0.0 && prices[i] > g_bid)
-      {
-        structure_price = prices[i];
-        structure_time = times[i];
-        break;
+        steps_out = step;
+        distance_points_out = EnforceBrokerDistance(g_symbol_constraints, distance_points);
+        return (distance_points_out > 0.0);
       }
     }
+
+    return false;
   }
 
-  if(structure_price <= 0.0)
-    return 0.0;
+  double next_percent = 0.0;
+  if(!ResolveFibonacciNextPercent(g_structure_fibo_config.levels,
+                                  total_levels,
+                                  entry_percent,
+                                  1,
+                                  next_percent))
+    return false;
 
-  double point_size = GridResolvePointSizeSafe();
-  if(point_size <= 0.0)
-    return 0.0;
+  double next_price = 0.0;
+  if(!ResolveStructurePriceForPercent(peak_price,
+                                      bottom_price,
+                                      signal_params.signal_type,
+                                      next_percent,
+                                      next_price))
+    return false;
 
-  double distance_points = MathAbs(structure_price - entry_reference_price) / point_size;
-  return EnforceBrokerDistance(g_symbol_constraints, distance_points);
+  steps_out = 1;
+  distance_points_out = MathAbs(entry_price - next_price) / point_size;
+  distance_points_out = EnforceBrokerDistance(g_symbol_constraints, distance_points_out);
+  return (distance_points_out > 0.0);
 }
 
 #endif // _MICROSERVICES_TRADING_SIGNALS_GRID_ORDER_HELPERS_MQH_

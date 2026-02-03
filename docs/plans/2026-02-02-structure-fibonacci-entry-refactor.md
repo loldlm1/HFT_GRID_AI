@@ -19,6 +19,14 @@
 6. **Grid spacing default:** Use `POINTS_RANGE` as the default grid spacing mode (channels removed).
 7. **LEVEL_AS_ZONE execution:** Enter by **market at current close** when inside the fib range.
 
+## Confirmed Decisions (Feb 3, 2026)
+1. **Remove Grid Trend Risk Strategy:** Delete the entire group, services, and logic.
+2. **Remove Grid Trailing Strategy Settings:** Delete trailing/break-even features and logic.
+3. **Base strategy types:** Keep only `ATR_RANGE`, `POINTS_RANGE`, and `FIB_LEVEL_RANGE`.
+4. **Fib grid spacing guard:** Use `Grid_Points_Range_Setup` as the minimum spacing guard (range width for LEVELS_AS_LIMITS; extra next-level spacing validation for LEVEL_AS_ZONE).
+5. **Take-profit simplification:** Use a single `Grid_TP_Percent` (remove final/robust/scalper/aggressive TP modes).
+6. **Cleanup:** Remove now-unused channel/alligator/Bollinger/MA/stoch-entry indicator files and related services.
+
 ## Remaining Questions
 None.
 
@@ -234,6 +242,31 @@ bool LoadStructureFibonacciLevels(const string csv,
 
 #endif // _SERVICES_TRADING_MANAGEMENT_STRUCTURE_FIBONACCI_LEVELS_MQH_
 ```
+
+---
+
+### Task 6: Cleanup + simplify grid strategies (Feb 3, 2026)
+
+**Scope:**
+- Remove Grid Trend Risk Strategy and Grid Trailing Strategy Settings inputs + logic.
+- Keep only `ATR_RANGE`, `POINTS_RANGE`, `FIB_LEVEL_RANGE` in `GridBaseStrategyTypes`.
+- Implement `FIB_LEVEL_RANGE` grid spacing using Fibonacci levels.
+- Enforce `Grid_Points_Range_Setup` for fib range width; add next-level spacing guard for `LEVEL_AS_ZONE`.
+- Remove final/robust/scalper/aggressive TP modes; keep `Grid_TP_Percent`.
+- Delete unused indicator/service files (channel/alligator/Bollinger/MA/stoch-entry).
+
+**Status:** Completed (Feb 3, 2026)
+
+**Files (high-level):**
+- `services/core/enums.mqh`
+- `services/trading_management/ea_inputs.mqh`
+- `services/trading_signals/grid_order_helpers.mqh`
+- `services/trading_signals/grid_planner.mqh`
+- `services/trading_signals/grid_order_controller.mqh`
+- `services/trading_signals/grid_order_logging.mqh`
+- `services/trading_signals/market_signal_cleanup.mqh`
+- `services/frontend/grid_visualization.mqh`
+- Delete: unused indicator + risk/trailing services listed above.
 
 Modify `services/core/enums.mqh` (add near other enums):
 ```mq5
@@ -832,7 +865,7 @@ git commit -m "refactor: simplify indicator loading and risk fallbacks"
 
 ---
 
-### Task 6: Manual smoke test (Strategy Tester)
+### Task 7: Manual smoke test (Strategy Tester)
 
 **Files:**
 - No code changes.

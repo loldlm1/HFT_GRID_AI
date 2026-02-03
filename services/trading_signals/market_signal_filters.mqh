@@ -471,6 +471,23 @@ bool ResolveStructureFibonacciEntry(const StrategyContextIndicators &snapshot,
   if(!close_in && !extreme_in)
     return true; // no trigger but not fatal
 
+  double required_points = EnforceBrokerDistance(g_symbol_constraints, Grid_Points_Range_Setup);
+  if(required_points > 0.0)
+  {
+    double lower_price = 0.0;
+    double upper_price = 0.0;
+    if(ResolveStructurePriceForPercent(peak_price, bottom_price, direction, lower, lower_price) &&
+       ResolveStructurePriceForPercent(peak_price, bottom_price, direction, upper, upper_price))
+    {
+      double point_size = GridResolvePointSizeSafe();
+      double range_points = (point_size > 0.0)
+                              ? MathAbs(lower_price - upper_price) / point_size
+                              : 0.0;
+      if(range_points < required_points)
+        return true; // range too tight, skip entry
+    }
+  }
+
   in_zone = true;
   entry_is_limit = (trigger_mode == LEVELS_AS_LIMITS);
 
