@@ -34,89 +34,21 @@ bool CalculateBaseGridContext(const SignalParams &signal_params,
                               double &entry_reference_price)
 {
   entry_reference_price = GridCurrentPriceForDirection(signal_params.signal_type, true);
+  if(signal_params.entry_is_limit && signal_params.entry_price > 0.0)
+    entry_reference_price = signal_params.entry_price;
 
   double point_size = GridResolvePointSizeSafe();
   double direction_mult = GridResolveDirectionMultiplierSafe(signal_params.signal_type);
   if(point_size <= 0.0 || direction_mult == 0.0 || entry_reference_price <= 0.0)
     return false;
 
-  bool uses_channel_strategy = GridStrategyUsesChannelIndicator();
+  GridBaseStrategyTypes base_strategy = Grid_Base_Strategy_Type;
+  if(base_strategy != POINTS_RANGE && base_strategy != STOCH_STRUCTURE_RANGE)
+    base_strategy = POINTS_RANGE;
 
-  if(uses_channel_strategy)
-  {
-    GridBaseStrategyTypes channel_type = ResolveActiveChannelStrategy();
-    bool use_midline = (signal_params.entry_trigger_mode == ENTRY_MODE_BREAKOUT);
-    GridChannelLineTypes line_type = use_midline
-                                       ? GRID_CHANNEL_LINE_MIDDLE
-                                       : ((signal_params.signal_type == BULLISH)
-                                            ? GRID_CHANNEL_LINE_SUPPORT
-                                            : GRID_CHANNEL_LINE_RESISTANCE);
-    double channel_price = 0.0;
-    if(!GridResolveChannelLinePrice(channel_type, line_type, tf, channel_price, 1))
-    {
-      if(use_midline)
-      {
-        line_type = (signal_params.signal_type == BULLISH)
-                      ? GRID_CHANNEL_LINE_SUPPORT
-                      : GRID_CHANNEL_LINE_RESISTANCE;
-        if(!GridResolveChannelLinePrice(channel_type, line_type, tf, channel_price, 1))
-          return false;
-      }
-      else
-      {
-        return false;
-      }
-    }
-
-    distance_points = MathAbs(channel_price - entry_reference_price) / point_size;
-    distance_points = EnforceBrokerDistance(g_symbol_constraints, distance_points);
-    return (distance_points > 0.0);
-  }
-
-  if(Grid_Base_Strategy_Type == STOCH_STRUCTURE_RANGE)
+  if(base_strategy == STOCH_STRUCTURE_RANGE)
   {
     distance_points = ResolveStochStructureDistancePoints(signal_params, entry_reference_price);
-    return (distance_points > 0.0);
-  }
-
-  if(Grid_Base_Strategy_Type == ATR_MA_RANGE)
-  {
-    double atr_value = 0.0;
-    double atr_ma_value = 0.0;
-    bool atr_loaded = GridCopyChannelBufferValue(ATR_RANGE, tf, 0, atr_value, 1);
-    bool ma_loaded  = GridCopyChannelBufferValue(ATR_RANGE, tf, 1, atr_ma_value, 1);
-    double stored   = signal_params.grid_initial_indicator_distance_points;
-
-    if(!signal_params.grid_initialized)
-    {
-      if(!atr_loaded || !ma_loaded)
-        return false;
-      double atr_points = atr_value / point_size;
-      if(atr_points <= 0.0)
-        return false;
-      if(atr_ma_value > 0.0 && atr_value <= atr_ma_value)
-        return false;
-      double guard_points = EnforceBrokerDistance(g_symbol_constraints, Grid_Points_Range_Setup);
-      if(guard_points > 0.0 && guard_points > atr_points)
-        return false;
-      distance_points = EnforceBrokerDistance(g_symbol_constraints, atr_points);
-      return (distance_points > 0.0);
-    }
-
-    // Grid running: allow only non-decreasing spacing; fallback to stored on failures.
-    if(!atr_loaded && stored > 0.0)
-    {
-      distance_points = EnforceBrokerDistance(g_symbol_constraints, stored);
-      return (distance_points > 0.0);
-    }
-
-    double atr_points = atr_value / point_size;
-    if(atr_points <= 0.0 && stored > 0.0)
-      atr_points = stored;
-    if(stored > 0.0 && atr_points < stored)
-      atr_points = stored;
-
-    distance_points = EnforceBrokerDistance(g_symbol_constraints, atr_points);
     return (distance_points > 0.0);
   }
 
@@ -296,31 +228,7 @@ double GridComputeSequenceDrawdownCurrency(const SignalParams &signal_params,
 
 double ResolveIndicatorMinimumBaseDistance(const SignalParams &signal_params)
 {
-  if(!GridStrategyUsesChannelIndicator())
-    return 0.0;
-
-  int existing_levels = ArraySize(signal_params.grid_orders);
-  if(existing_levels <= 0)
-    return 0.0;
-
-  double stored_base = signal_params.grid_base_distance_points;
-  if(stored_base <= 0.0)
-    return 0.0;
-
-  double previous_distance = ComputeLevelDistancePoints(signal_params, existing_levels - 1);
-  if(previous_distance <= 0.0)
-    return 0.0;
-
-  double multiplier = Grid_Exponential_Multiplier;
-  if(multiplier <= 0.0)
-    multiplier = 1.0;
-
-  double pow_factor = MathPow(multiplier, (double)existing_levels);
-  if(pow_factor <= 0.0)
-    pow_factor = 1.0;
-
-  double min_base = previous_distance / pow_factor;
-  return EnforceBrokerDistance(g_symbol_constraints, min_base);
+  return 0.0;
 }
 
 double ResolveGridOrderLotSize(SignalParams &signal_params,
@@ -503,15 +411,6 @@ bool BuildGridSignalPoints(SignalParams &signal_params)
     base_distance_points = EnforceBrokerDistance(g_symbol_constraints, base_distance_points);
   }
 
-  if(Grid_Base_Strategy_Type == ATR_MA_RANGE)
-  {
-    if(signal_params.grid_initial_indicator_distance_points > 0.0 &&
-       base_distance_points < signal_params.grid_initial_indicator_distance_points)
-    {
-      base_distance_points = signal_params.grid_initial_indicator_distance_points;
-    }
-  }
-
   if(GridSignalHasExecutedLevel(signal_params) &&
      signal_params.grid_initial_indicator_distance_points > 0.0 &&
      base_distance_points < signal_params.grid_initial_indicator_distance_points)
@@ -536,7 +435,10 @@ bool BuildGridSignalPoints(SignalParams &signal_params)
 
   double unified_stop_percent = GridResolveUnifiedStopPercent();
   double entry_offset_points = 0.0;
-  if(Grid_Initial_Entry_Style == GRID_ENTRY_STYLE_STOP && unified_stop_percent > 0.0)
+  GridEntryStyles effective_entry_style = Grid_Initial_Entry_Style;
+  if(signal_params.entry_is_limit || signal_params.entry_trigger_mode == LEVEL_AS_ZONE)
+    effective_entry_style = GRID_ENTRY_STYLE_LIMIT;
+  if(effective_entry_style == GRID_ENTRY_STYLE_STOP && unified_stop_percent > 0.0)
   {
     entry_offset_points = base_distance_points * (unified_stop_percent / 100.0);
     if(entry_offset_points > 0.0)

@@ -68,10 +68,7 @@ ENUM_TIMEFRAMES GridResolveRiskTrendStrategyTimeframe(const GridRiskTrendStrateg
 string GridRiskTrendComposeLogLabel(const GridRiskTrendStrategyConfig &config,
                                     const string suffix)
 {
-  string reference_label = (config.reference == GRID_RISK_REF_TEETH) ? "TEETH" : "JAWS";
-  return StringFormat("GRID_RISK_TREND_%s_%s",
-                      reference_label,
-                      suffix);
+  return StringFormat("GRID_RISK_TREND_%s", suffix);
 }
 
 #endif // _GRID_RISK_TREND_STRAT_MQH_

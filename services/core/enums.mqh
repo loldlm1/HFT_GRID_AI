@@ -21,34 +21,6 @@ enum SignalStates
 	CLOSED  = 3
 };
 
-// BASE INDICATOR STRATEGIES
-enum BaseIndicatorStrategyTypes
-{
-	BB_NONE_TYPE = 0,
-	MA_TYPE      = 1,
-	BANDS_TYPE   = 2
-};
-
-// BASE INDICATOR PERIOD OPTIONS (LINKED TO BB_PERCENT_STANDARD)
-enum BaseIndicatorPeriodTypes
-{
-  BASE_PERIOD_5  = 5,
-  BASE_PERIOD_8  = 8,
-  BASE_PERIOD_13 = 13,
-  BASE_PERIOD_21 = 21,
-  BASE_PERIOD_34 = 34,
-  BASE_PERIOD_55 = 55
-};
-
-enum IndicatorShiftTypes
-{
-  INDICATOR_SHIFT_0 = 0,
-  INDICATOR_SHIFT_1 = 1,
-  INDICATOR_SHIFT_2 = 2,
-  INDICATOR_SHIFT_3 = 3,
-  INDICATOR_SHIFT_5 = 5
-};
-
 // SOLID INDICATOR PERIOD OPTIONS (LINKED TO STOCHASTIC_STRUCTURE)
 enum StochStructurePeriodTypes
 {
@@ -67,6 +39,12 @@ enum StrategyDirectionTypes
   BOTH_DIRECTION    = 0,
   BULLISH_DIRECTION = 1,
   BEARISH_DIRECTION = 2
+};
+
+enum StructureTriggerEntryModes
+{
+  LEVELS_AS_LIMITS = 0,
+  LEVEL_AS_ZONE    = 1
 };
 
 enum SignalConcurrencyModes
@@ -182,13 +160,6 @@ enum BodyMATypes
 	BODY_BEARISH_MA = 2
 };
 
-enum BodyVolumeFilterModes
-{
-  BODY_VOLUME_OFF  = 0,
-  BODY_VOLUME_HIGH = 1,
-  BODY_VOLUME_LOW  = 2
-};
-
 enum GridOrderStatuses
 {
   GRID_ORDER_INACTIVE             = 0,
@@ -281,36 +252,6 @@ enum ProtectionRiskValueTypes
   PROTECTION_RISK_FIXED_CURRENCY         = 2
 };
 
-enum ChannelIndicatorTypes
-{
-  CHANNEL_INDICATOR_BOLLINGER = 0,
-  CHANNEL_INDICATOR_KELTNER   = 1,
-  CHANNEL_INDICATOR_ATR       = 2
-};
-
-enum StrategyEntryChannelModes
-{
-  ENTRY_EVAL_OFF              = 0,
-  ENTRY_EVAL_GLOBAL           = 1,
-  ENTRY_MODE_MA_TREND         = 2,
-  ENTRY_MODE_REVERSION        = 3,
-  ENTRY_MODE_BREAKOUT         = 4,
-  ENTRY_EVAL_ON_TREND         = 5
-};
-
-enum StrategyGlobalStochEntryModes
-{
-  STOCH_ENTRY_OFF     = 0,
-  STOCH_ENTRY_OVER_BS = 1
-};
-
-enum StrategyTrendModes
-{
-  TREND_OFF            = 0,
-  TREND_ALLIGATOR_JAWS = 1,
-  TREND_ALLIGATOR_TEETH = 2
-};
-
 enum StrategyContextTypes
 {
   CONTEXT_SLOT_BASE    = 0,
@@ -320,40 +261,6 @@ enum StrategyContextTypes
 };
 
 const int STRATEGY_CONTEXT_TOTAL = 4;
-
-inline bool EntryEvaluationUsesBPercentWindow(const StrategyEntryChannelModes mode)
-{
-  return false;
-}
-
-inline bool EntryEvaluationUsesBPercentMean(const StrategyEntryChannelModes mode)
-{
-  return (mode == ENTRY_MODE_MA_TREND ||
-          mode == ENTRY_MODE_REVERSION ||
-          mode == ENTRY_MODE_BREAKOUT);
-}
-
-inline bool EntryEvaluationUsesAnyBPercent(const StrategyEntryChannelModes mode)
-{
-  return EntryEvaluationUsesBPercentMean(mode);
-}
-
-inline bool TrendModeUsesAlligator(const StrategyTrendModes mode)
-{
-  return mode != TREND_OFF;
-}
-
-inline bool TrendModeUsesTeethAlligator(const StrategyTrendModes mode)
-{
-  return mode == TREND_ALLIGATOR_TEETH;
-}
-
-inline bool TrendModeUsesJawsAlligator(const StrategyTrendModes mode)
-{
-  if(!TrendModeUsesAlligator(mode))
-    return false;
-  return !TrendModeUsesTeethAlligator(mode);
-}
 
 enum TrendStructureFilterModes
 {
