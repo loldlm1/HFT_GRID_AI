@@ -242,8 +242,8 @@ inline bool ContextRequiresStructure(const StrategyContextTypes context,
   if(!ctx.enabled)
     return false;
 
-  // Base spacing needs structure distances when using the stoch structure grid mode
-  if(context == CONTEXT_SLOT_BASE && Grid_Base_Strategy_Type == STOCH_STRUCTURE_RANGE)
+  // Base spacing needs structure distances when using the fib level grid mode
+  if(context == CONTEXT_SLOT_BASE && Grid_Base_Strategy_Type == FIB_LEVEL_RANGE)
     return true;
 
   return StructureFiltersRequested(ctx) ||

@@ -59,7 +59,7 @@ bool CaptureContextIndicators(const StrategyContextTypes context,
   StrategyStructureLayerContext structure_ctx = BuildStructureLayerForContext(context);
   bool require_structure = ContextRequiresStructure(context, structure_ctx);
 
-  if(Grid_Base_Strategy_Type == STOCH_STRUCTURE_RANGE)
+  if(Grid_Base_Strategy_Type == FIB_LEVEL_RANGE)
     require_structure = true;
 
   if(require_structure)

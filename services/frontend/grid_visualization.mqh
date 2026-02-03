@@ -1,27 +1,6 @@
 #ifndef _SERVICES_FRONTEND_GRID_VISUALIZATION_MQH_
 #define _SERVICES_FRONTEND_GRID_VISUALIZATION_MQH_
 
-double ResolveBreakEvenLinePrice(const SignalParams &signal_params)
-{
-  if(Grid_BreakEven_Mode == BE_DISABLE)
-    return 0.0;
-
-  int total_levels = ArraySize(signal_params.grid_orders);
-  if(total_levels <= 0)
-    return 0.0;
-
-  for(int i = total_levels - 1; i >= 0; i--)
-  {
-    GridOrderState state = signal_params.grid_orders[i];
-    if(state.break_even_active &&
-       state.break_even_price > 0.0 &&
-       state.status == GRID_ORDER_ACTIVE)
-      return state.break_even_price;
-  }
-
-  return 0.0;
-}
-
 string FormatTimeframeLabel(const ENUM_TIMEFRAMES tf_value)
 {
   string label = EnumToString(tf_value);
@@ -38,13 +17,9 @@ void DrawGridLevels(const long chart_id,
   if(!signal_params.grid_initialized)
     return;
 
-  string stop_name  = GridSignalObjectName(signal_params, "STOP");
   string tp_name    = GridSignalObjectName(signal_params, "TP");
-  string final_name = GridSignalObjectName(signal_params, "TP_FINAL");
   string entry_name = GridSignalObjectName(signal_params, "ENTRY");
   string next_name  = GridSignalObjectName(signal_params, "NEXT");
-  string trailing_name = GridSignalObjectName(signal_params, "TP_TRAILING");
-  string break_even_name = GridSignalObjectName(signal_params, "BREAK_EVEN");
 
   int grid_order_level = ArraySize(signal_params.grid_orders)-1;
   if(grid_order_level < 0)
@@ -53,16 +28,11 @@ void DrawGridLevels(const long chart_id,
 
   double entry_price_line = level_state.entry_reference_price;
   double tp_price         = level_state.take_profit_price;
-  double final_price      = level_state.final_take_profit_price;
   double next_level_price = level_state.next_level_price;
-  double trailing_price   = level_state.trailing_price;
 
   string entry_label    = GridSignalLineLabel(signal_params, "ENTRY");
   string tp_label       = GridSignalLineLabel(signal_params, "TP");
-  string final_label    = GridSignalLineLabel(signal_params, "FINAL TP");
   string next_label     = GridSignalLineLabel(signal_params, "NEXT");
-  string trailing_label = GridSignalLineLabel(signal_params, "TP TRAILING");
-  string break_even_label = GridSignalLineLabel(signal_params, "BREAK EVEN");
 
   int level_index = level_state.level_index;
   double level_lot_size = level_state.lot_size;
@@ -73,25 +43,7 @@ void DrawGridLevels(const long chart_id,
 
   UpdateHorizontalLine(chart_id, entry_name, COLOR_PROFIT_NEUTRAL, entry_price_line, entry_label);
   UpdateHorizontalLine(chart_id, tp_name, COLOR_PROFIT_POSITIVE, tp_price, tp_label);
-  UpdateHorizontalLine(chart_id, final_name, COLOR_PROFIT_POSITIVE, final_price, final_label);
   UpdateHorizontalLine(chart_id, next_name, COLOR_PROFIT_POSITIVE, next_level_price, next_label);
-
-  // Trailing active: swap TP for trailing; keep final visible
-  if(level_state.status == GRID_ORDER_TP_TRAILING_ACTIVE)
-  {
-    UpdateHorizontalLine(chart_id, tp_name, COLOR_PROFIT_POSITIVE, 0.0);
-    UpdateHorizontalLine(chart_id, trailing_name, COLOR_PROFIT_POSITIVE, trailing_price, trailing_label);
-  }
-
-  if(Grid_BreakEven_Mode != BE_DISABLE)
-  {
-    double break_even_price = ResolveBreakEvenLinePrice(signal_params);
-    UpdateHorizontalLine(chart_id, break_even_name, COLOR_PROFIT_NEUTRAL, break_even_price, break_even_label, STYLE_DASHDOT);
-  }
-  else
-  {
-    UpdateHorizontalLine(chart_id, break_even_name, COLOR_PROFIT_NEUTRAL, 0.0);
-  }
 }
 
 void BuildSignalSummary(const SignalParams &signal_params,

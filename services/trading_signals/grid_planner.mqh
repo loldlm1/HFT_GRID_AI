@@ -31,10 +31,13 @@ double GridResolveDirectionMultiplierSafe(const SignalTypes direction)
 bool CalculateBaseGridContext(const SignalParams &signal_params,
                               const ENUM_TIMEFRAMES tf,
                               double &distance_points,
-                              double &entry_reference_price)
+                              double &entry_reference_price,
+                              int &fibo_steps_out)
 {
+  fibo_steps_out = 1;
   entry_reference_price = GridCurrentPriceForDirection(signal_params.signal_type, true);
-  if(signal_params.entry_is_limit && signal_params.entry_price > 0.0)
+  if(signal_params.entry_price > 0.0 &&
+     (signal_params.entry_is_limit || signal_params.entry_trigger_mode == LEVEL_AS_ZONE))
     entry_reference_price = signal_params.entry_price;
 
   double point_size = GridResolvePointSizeSafe();
@@ -43,14 +46,22 @@ bool CalculateBaseGridContext(const SignalParams &signal_params,
     return false;
 
   GridBaseStrategyTypes base_strategy = Grid_Base_Strategy_Type;
-  if(base_strategy != POINTS_RANGE && base_strategy != STOCH_STRUCTURE_RANGE)
-    base_strategy = POINTS_RANGE;
-
-  if(base_strategy == STOCH_STRUCTURE_RANGE)
+  if(base_strategy == FIB_LEVEL_RANGE)
   {
-    distance_points = ResolveStochStructureDistancePoints(signal_params, entry_reference_price);
+    int fibo_steps = 1;
+    double fibo_distance = 0.0;
+    if(!ResolveFibonacciGridBaseDistance(signal_params,
+                                         entry_reference_price,
+                                         fibo_steps,
+                                         fibo_distance))
+      return false;
+    fibo_steps_out = fibo_steps;
+    distance_points = fibo_distance;
     return (distance_points > 0.0);
   }
+
+  if(base_strategy != POINTS_RANGE && base_strategy != ATR_RANGE)
+    base_strategy = POINTS_RANGE;
 
   double requested_points = EnforceBrokerDistance(g_symbol_constraints, Grid_Points_Range_Setup);
   double projected_price = entry_reference_price + direction_mult * requested_points * point_size;
@@ -156,7 +167,7 @@ double GridResolveLotReferencePoints(const SignalParams &signal_params,
       return span_points;
   }
 
-  double fallback_points = ComputeLevelDistancePoints(signal_params, state.level_index);
+  double fallback_points = ResolveGridLevelDistancePoints(signal_params, state);
   if(fallback_points <= 0.0)
     fallback_points = signal_params.grid_base_distance_points;
   if(fallback_points <= 0.0)
@@ -181,7 +192,7 @@ double GridComputeLevelDrawdownPoints(const SignalParams &signal_params,
 
   if(next_level <= 0.0)
   {
-    double fallback_points = ComputeLevelDistancePoints(signal_params, state.level_index);
+    double fallback_points = ResolveGridLevelDistancePoints(signal_params, state);
     return MathMax(fallback_points, 0.0);
   }
 
@@ -261,8 +272,6 @@ double ResolveGridOrderLotSize(SignalParams &signal_params,
   double resolved_lot = fallback_lot;
 
   GridLotTypes effective_lot_type = Grid_Lot_Type;
-  if(signal_params.is_sar_signal)
-    effective_lot_type = GRID_LOT_CALCULATED;
 
   bool percent_type  = (effective_lot_type == GRID_LOT_PERCENTAGE_BASED ||
                         effective_lot_type == GRID_LOT_EQUITY_PERCENT_BASED);
@@ -368,7 +377,7 @@ void LogGridPlanLevelDetail(const SignalParams &signal_params,
   double pending_points = 0; // SHOULD BE USING THE signal_params pending_points
   double tick_size = ResolveEffectiveTickSize(g_symbol_constraints.tick_size,
                                               g_symbol_constraints.point_size);
-  string detail = StringFormat("dir=%s|level=%d|dist=%.2f|pending=%.2f|entry_offset=%.2f|activation=%.2f|tp=%.2f|tp_final=%.2f|trail=%.2f|lot=%.2f|style=%s|next_limit=%.5f|tick=%.5f|spread_pts=%.1f",
+  string detail = StringFormat("dir=%s|level=%d|dist=%.2f|pending=%.2f|entry_offset=%.2f|activation=%.2f|tp=%.2f|lot=%.2f|style=%s|next_limit=%.5f|tick=%.5f|spread_pts=%.1f",
                                direction,
                                state.level_index,
                                signal_params.grid_base_distance_points,
@@ -376,8 +385,6 @@ void LogGridPlanLevelDetail(const SignalParams &signal_params,
                                signal_params.grid_entry_offset_points,
                                0,
                                0, // SHOULD BE CALCULATED TP
-                               0, // SHOULD BE CALCULATED TP FINAL
-                               0, // SHOULD BE CALCULATED TRAILING POINTS
                                state.lot_size,
                                EnumToString(state.entry_style),
                                state.next_level_price,
@@ -390,6 +397,7 @@ bool BuildGridSignalPoints(SignalParams &signal_params)
 {
   double base_distance_points = 0.0;
   double entry_reference_price = 0.0;
+  int fibo_steps = 1;
   double min_base_distance_from_trailing = ResolveIndicatorMinimumBaseDistance(signal_params);
 
   ENUM_TIMEFRAMES grid_tf = signal_params.strategy_timeframe;
@@ -399,7 +407,8 @@ bool BuildGridSignalPoints(SignalParams &signal_params)
   if(!CalculateBaseGridContext(signal_params,
                                grid_tf,
                                base_distance_points,
-                               entry_reference_price))
+                               entry_reference_price,
+                               fibo_steps))
   {
     Print("Grid plan aborted: base distance not available.");
     return false;
@@ -451,6 +460,16 @@ bool BuildGridSignalPoints(SignalParams &signal_params)
   signal_params.grid_entry_reference_price     = entry_reference_price;
   signal_params.grid_entry_gap_points          = base_distance_points;
   signal_params.grid_entry_offset_points       = entry_offset_points;
+  if(Grid_Base_Strategy_Type == FIB_LEVEL_RANGE)
+  {
+    if(fibo_steps <= 0)
+      fibo_steps = 1;
+    signal_params.fib_level_offset_steps = fibo_steps;
+  }
+  else
+  {
+    signal_params.fib_level_offset_steps = 1;
+  }
 
   if(signal_params.grid_initial_indicator_distance_points <= 0.0 &&
      base_distance_points > 0.0)
@@ -510,9 +529,6 @@ bool BuildGridOrderForSignal(SignalParams &signal_params)
   signal_params.grid_orders[grid_order_level].take_profit_price      = GetGridTakeProfitPrice(signal_params.signal_type,
                                                                               signal_params,
                                                                               signal_params.grid_orders[grid_order_level]);
-  signal_params.grid_orders[grid_order_level].final_take_profit_price = GetGridTakeProfitFinalPrice(signal_params.signal_type,
-                                                                              signal_params,
-                                                                              signal_params.grid_orders[grid_order_level]);
   signal_params.grid_orders[grid_order_level].lot_size = ResolveGridOrderLotSize(signal_params, grid_order_level);
 
   // Telemetry
@@ -541,9 +557,6 @@ bool UpdateGridOrderForSignal(SignalParams &signal_params)
                                                                               signal_params,
                                                                               signal_params.grid_orders[grid_order_level]);
   signal_params.grid_orders[grid_order_level].take_profit_price      = GetGridTakeProfitPrice(signal_params.signal_type,
-                                                                              signal_params,
-                                                                              signal_params.grid_orders[grid_order_level]);
-  signal_params.grid_orders[grid_order_level].final_take_profit_price = GetGridTakeProfitFinalPrice(signal_params.signal_type,
                                                                               signal_params,
                                                                               signal_params.grid_orders[grid_order_level]);
   signal_params.grid_orders[grid_order_level].lot_size = ResolveGridOrderLotSize(signal_params, grid_order_level);

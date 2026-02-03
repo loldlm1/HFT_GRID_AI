@@ -17,7 +17,7 @@ void GridLogEvent(const string label,
   double point_size = GridResolvePointSize();
   double stop_price = 0; // SHOULD BE USING THE order_state stop price
 
-  string message = StringFormat("dir=%s|level=%d|status=%s|entry_ref=%.5f|stop=%.5f|limit=%.5f|entry=%.5f|tp=%.5f|tp_final=%.5f|lot=%.2f",
+  string message = StringFormat("dir=%s|level=%d|status=%s|entry_ref=%.5f|stop=%.5f|limit=%.5f|entry=%.5f|tp=%.5f|lot=%.2f",
                                 direction,
                                 order_state.level_index,
                                 EnumToString(order_state.status),
@@ -26,7 +26,6 @@ void GridLogEvent(const string label,
                                 order_state.next_level_price,
                                 order_state.entry_price,
                                 order_state.take_profit_price,
-                                order_state.final_take_profit_price,
                                 order_state.lot_size);
   AppendTimestampedLog("query_debug.txt", label, message);
 }

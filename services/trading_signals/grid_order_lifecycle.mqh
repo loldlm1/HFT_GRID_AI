@@ -98,42 +98,6 @@ bool GridShouldActivateNextLevelLimit(const SignalParams &signal_params,
   return false;
 }
 
-bool ShouldSwitchToTrailingTP(const SignalTypes direction,
-                              const GridOrderState &order_state,
-                              const double current_price)
-{
-  if(order_state.take_profit_price <= 0.0)
-    return false;
-  if(direction == BULLISH)
-    return current_price >= order_state.take_profit_price;
-  if(direction == BEARISH)
-    return current_price <= order_state.take_profit_price;
-  return false;
-}
-
-bool GridShouldActivateTrailing(SignalParams &signal_params,
-                                const GridOrderState &order_state,
-                                const double current_price)
-{
-  SignalTypes direction = signal_params.signal_type;
-  if(Grid_Trailing_Execution_Mode != TRAILING_EXECUTION_AGGRESIVE)
-    return ShouldSwitchToTrailingTP(direction, order_state, current_price);
-
-  double indicator_price = 0.0;
-  if(!GridResolveTrailingStrategyPrice(signal_params, indicator_price))
-    return ShouldSwitchToTrailingTP(direction, order_state, current_price);
-
-  double reference_price = order_state.take_profit_price;
-  if(reference_price <= 0.0)
-    return ShouldSwitchToTrailingTP(direction, order_state, current_price);
-
-  if(direction == BULLISH)
-    return indicator_price >= reference_price;
-  if(direction == BEARISH)
-    return indicator_price <= reference_price;
-  return false;
-}
-
 bool GridExecuteLevelTrade(SignalParams &signal_params,
                            GridOrderState &order_state,
                            const double point_size,
@@ -248,25 +212,7 @@ void GridCloseAllLevels(SignalParams &signal_params,
     signal_params.grid_orders[i] = state;
   }
 
-  if(signal_params.hedge_position_ticket > 0 &&
-     PositionSelectByTicket(signal_params.hedge_position_ticket))
-  {
-    long position_magic = PositionGetInteger(POSITION_MAGIC);
-    string position_symbol = PositionGetString(POSITION_SYMBOL);
-    if(position_magic == g_magic_number && position_symbol == _Symbol)
-    {
-      g_position.PositionClose(signal_params.hedge_position_ticket);
-      GridOrderState hedge_state;
-      hedge_state.position_ticket = signal_params.hedge_position_ticket;
-      hedge_state.status = GRID_ORDER_COMPLETED;
-      hedge_state.entry_price = PositionGetDouble(POSITION_PRICE_OPEN);
-      GridLogEvent("HEDGE_CLOSE_ALL", signal_params, hedge_state);
-    }
-    signal_params.hedge_position_ticket = 0;
-    signal_params.hedge_sl_active = false;
-    signal_params.hedge_sl_price = 0.0;
-  }
-  signal_params.hedge_finalized = true;
+  return;
 }
 
 int GetActivePositionsCount(const SignalTypes direction)
@@ -310,8 +256,7 @@ bool IsGridSignalComplete(const SignalParams &signal_params)
     GridOrderState state = signal_params.grid_orders[i];
     if(state.status == GRID_ORDER_WAITING ||
        state.status == GRID_ORDER_STOP_TRAILING_ACTIVE ||
-       state.status == GRID_ORDER_ACTIVE ||
-       state.status == GRID_ORDER_TP_TRAILING_ACTIVE)
+       state.status == GRID_ORDER_ACTIVE)
       return false;
   }
 

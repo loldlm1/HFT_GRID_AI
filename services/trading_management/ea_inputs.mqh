@@ -102,12 +102,9 @@ input group  "+= Grid Strategy Settings =+";
 input GridBaseStrategyTypes Grid_Base_Strategy_Type      = POINTS_RANGE;
 input double                Grid_Points_Range_Setup      = 100.0;
 input double                Grid_Points_TP               = 0.0;
+input double                Grid_TP_Percent              = 100.0;
 input double                Grid_Exponential_Multiplier  = 1.0;
 input double                Grid_Positions_Stops_Percent = 10.0;
-input double                Grid_Final_TP_Percent        = 200.0;
-input bool                  Grid_Enable_Robust_TP        = false;
-input bool                  Grid_Enable_Scalper_TP       = false;
-input bool                  Grid_Enable_Aggressive_TP    = false;
 
 input group  "+= Grid Risk Managment Settings =+";
 input GridLotTypes         Grid_Lot_Type                 = GRID_LOT_SIZE;
@@ -117,24 +114,6 @@ input int                  Grid_Level_Position_Start     = 0;
 input int                  Grid_Level_Stop_Limit         = 0;
 input int                  Daily_Signal_Limit            = 0;
 input DailySignalLimitModes Daily_Signal_Limit_Mode      = STOP_DAILY_SIGNALS;
-
-input group  "+= Grid Trend Risk Strategy =+";
-input GridRiskTrendModes   Grid_Risk_Trend_Mode          = GRID_RM_TREND_OFF;
-input GridRiskAlligatorReferenceModes Grid_Risk_Alligator_Reference = GRID_RISK_REF_JAWS;
-input GridRiskTrendTimeframeSources   Grid_Risk_Timeframe_Source    = GRID_RISK_TF_TREND;
-input ENUM_TIMEFRAMES      Grid_Risk_Trend_Timeframe     = PERIOD_CURRENT;
-input double               Grid_Risk_Trend_Hedge_Points  = 0.0;
-input bool                 Grid_Risk_Trend_Hedge_SL      = true;
-input int                  Grid_Risk_Trend_Hedge_Level_Cover = 5;
-
-input group  "+= Grid Trailing Strategy Settings =+";
-input double                 Grid_TP_Percent              = 100.0;
-input double                 Grid_Trailing_TP_Percent     = 10.0;
-input ENUM_TIMEFRAMES        Grid_Trailing_Timeframe      = PERIOD_CURRENT;
-input TrailingStrategyModes  Grid_Trailing_Strategy_Mode  = TRAILING_DEFAULT;
-input TrailingExecutionModes Grid_Trailing_Execution_Mode = TRAILING_EXECUTION_DEFAULT;
-input BreakEvenModes         Grid_BreakEven_Mode          = BE_DISABLE;
-input double                 Grid_Partial_Take_Percentage = 50.0;
 
 input group  "+= Developer Debug Settings =+";
 input bool Enable_Logs              = false;
