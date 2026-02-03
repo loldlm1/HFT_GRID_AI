@@ -4,122 +4,6 @@
 #ifndef _SERVICES_TRADING_SIGNALS_MARKET_SIGNAL_FILTERS_MQH_
 #define _SERVICES_TRADING_SIGNALS_MARKET_SIGNAL_FILTERS_MQH_
 
-double ResolveBandsPercentAtShift(const BandsPercentStructure &bands_data,
-                                  const int shift)
-{
-  switch(shift)
-  {
-    case 0: return bands_data.bands_percent_1;
-    case 1: return bands_data.bands_percent_2;
-    case 2: return bands_data.bands_percent_3;
-    case 3: return bands_data.bands_percent_4;
-    case 4: return bands_data.bands_percent_5;
-    case 5: return bands_data.bands_percent_6;
-    case 6: return bands_data.bands_percent_7;
-    case 7: return bands_data.bands_percent_8;
-  }
-  return EMPTY_VALUE;
-}
-
-double ResolveBandsPercentMaAtShift(const BandsPercentStructure &bands_data,
-                                    const int shift)
-{
-  switch(shift)
-  {
-    case 0: return bands_data.bands_percent_ma_1;
-    case 1: return bands_data.bands_percent_ma_2;
-    case 2: return bands_data.bands_percent_ma_3;
-    case 3: return bands_data.bands_percent_ma_4;
-    case 4: return bands_data.bands_percent_ma_5;
-    case 5: return bands_data.bands_percent_ma_6;
-    case 6: return bands_data.bands_percent_ma_7;
-    case 7: return bands_data.bands_percent_ma_8;
-  }
-  return EMPTY_VALUE;
-}
-
-bool EvaluateBandsPercentTrigger(const BandsPercentStructure &bands_data,
-                                 const SignalTypes signal_type,
-                                 double percent_threshold,
-                                 const StrategyEntryChannelModes entry_mode,
-                                 const SlopeTypes slope_filter)
-{
-  if(!EntryEvaluationUsesAnyBPercent(entry_mode))
-    return true;
-
-  // Select shifted samples
-  int shift_current = (int)Strategy_Channel_Indicator_Shift;
-  int shift_prev = shift_current + 1;
-
-  double percent_1 = ResolveBandsPercentAtShift(bands_data, shift_current);
-  double percent_2 = ResolveBandsPercentAtShift(bands_data, shift_prev);
-  double percent_ma_1 = ResolveBandsPercentMaAtShift(bands_data, shift_current);
-  double percent_ma_2 = ResolveBandsPercentMaAtShift(bands_data, shift_prev);
-  if(percent_1 == EMPTY_VALUE || percent_2 == EMPTY_VALUE)
-    return false;
-  if(percent_ma_1 == EMPTY_VALUE || percent_ma_2 == EMPTY_VALUE)
-    return false;
-
-  percent_threshold = (signal_type == BULLISH)
-                        ? MathAbs(percent_threshold - 100)
-                        : percent_threshold;
-
-  bool pass = true;
-  if(entry_mode == ENTRY_MODE_MA_TREND)
-  {
-    pass = (signal_type == BULLISH)
-             ? (percent_2 < percent_threshold && (percent_1 >= percent_threshold && percent_1 < 100) && percent_ma_1 <= percent_threshold)
-             : (percent_2 > percent_threshold && (percent_1 <= percent_threshold && percent_1 > 0)   && percent_ma_1 >= percent_threshold);
-  }
-  else if(entry_mode == ENTRY_MODE_REVERSION)
-  {
-    pass = (signal_type == BULLISH)
-             ? (percent_2 <= percent_threshold && percent_1 > percent_threshold && percent_ma_1 <= 30)
-             : (percent_2 >= percent_threshold && percent_1 < percent_threshold && percent_ma_1 >= 70);
-  }
-  else if(entry_mode == ENTRY_MODE_BREAKOUT)
-  {
-    if(signal_type == BULLISH)
-      pass = (percent_1 >= percent_threshold) && (percent_2 < percent_threshold);
-    else if(signal_type == BEARISH)
-      pass = (percent_1 <= percent_threshold) && (percent_2 > percent_threshold);
-  }
-
-  if(!pass)
-    return false;
-
-  if(slope_filter == NO_SLOPE)
-    return true;
-
-  return (bands_data.bands_percent_slope_0 == slope_filter);
-}
-
-bool EvaluateAlligatorTrend(const AlligatorStructure &alligator_data,
-                            const SignalTypes signal_type,
-                            const StrategyTrendModes mode)
-{
-  double jaws_value  = alligator_data.jaws_value;
-  double teeth_value = alligator_data.teeth_value;
-  double lips_value  = alligator_data.lips_value;
-
-  bool use_teeth_branch = TrendModeUsesTeethAlligator(mode);
-
-  if(use_teeth_branch)
-  {
-    if(signal_type == BULLISH)
-      return (lips_value > teeth_value && teeth_value > jaws_value);
-    if(signal_type == BEARISH)
-      return (lips_value < teeth_value && teeth_value < jaws_value);
-    return false;
-  }
-
-  if(signal_type == BULLISH)
-    return (lips_value > jaws_value && teeth_value > jaws_value);
-  if(signal_type == BEARISH)
-    return (lips_value < jaws_value && teeth_value < jaws_value);
-  return false;
-}
-
 bool EvaluateDirectionalSlope(const double current_value,
                               const double previous_value,
                               const SignalTypes signal_type)
@@ -129,6 +13,77 @@ bool EvaluateDirectionalSlope(const double current_value,
   if(signal_type == BEARISH)
     return current_value <= previous_value;
   return true;
+}
+
+bool ResolveStructureReferenceRange(const StochasticMarketStructure &structure,
+                                    double &peak_price,
+                                    double &bottom_price)
+{
+  peak_price = 0.0;
+  bottom_price = 0.0;
+
+  int total = ArraySize(structure.os_market_structures);
+  if(total < 4)
+    return false;
+
+  bool initial_is_peak = structure.os_market_structures[0].is_peak;
+  bool initial_is_bottom = !initial_is_peak;
+
+  int structure_peaks_index   = initial_is_bottom ? 1 : 0;
+  int structure_bottoms_index = initial_is_peak   ? 1 : 0;
+
+  if(initial_is_bottom)
+  {
+    peak_price   = structure.os_market_structures[structure_bottoms_index + 1].extremum_high;
+    bottom_price = structure.os_market_structures[structure_bottoms_index + 2].extremum_low;
+  }
+  else
+  {
+    peak_price   = structure.os_market_structures[structure_peaks_index + 2].extremum_high;
+    bottom_price = structure.os_market_structures[structure_peaks_index + 1].extremum_low;
+  }
+
+  return (peak_price > 0.0 && bottom_price > 0.0 && peak_price != bottom_price);
+}
+
+bool ResolveStructurePercentForPrice(const double peak_price,
+                                     const double bottom_price,
+                                     const SignalTypes direction,
+                                     const double price,
+                                     double &percent_out)
+{
+  percent_out = 0.0;
+  if(direction == BULLISH)
+  {
+    percent_out = GetFiboTrendBottomPercent(peak_price, bottom_price, price);
+    return percent_out > 0.0;
+  }
+  if(direction == BEARISH)
+  {
+    percent_out = GetFiboTrendPeakPercent(peak_price, bottom_price, price);
+    return percent_out > 0.0;
+  }
+  return false;
+}
+
+bool ResolveStructurePriceForPercent(const double peak_price,
+                                     const double bottom_price,
+                                     const SignalTypes direction,
+                                     const double percent,
+                                     double &price_out)
+{
+  price_out = 0.0;
+  if(direction == BULLISH)
+  {
+    price_out = GetFiboTrendBottomPrice(peak_price, bottom_price, percent);
+    return price_out > 0.0;
+  }
+  if(direction == BEARISH)
+  {
+    price_out = GetFiboTrendPeakPrice(peak_price, bottom_price, percent);
+    return price_out > 0.0;
+  }
+  return false;
 }
 
 bool FetchStructureForContext(const StrategyContextIndicators &snapshot,
@@ -437,66 +392,98 @@ bool StructureLivePercentSatisfiesFilter(const StrategyStructureLayerContext &ct
   return (live_percent >= lower && live_percent <= upper);
 }
 
-bool StrategyContextEvaluateTrend(const StrategyContextIndicators &snapshot,
-                                  const SignalTypes direction,
-                                  bool &trend_ready,
-                                  bool &trend_pass)
+bool ResolveStructureFibonacciEntry(const StrategyContextIndicators &snapshot,
+                                    const SignalTypes direction,
+                                    const StructureTriggerEntryModes trigger_mode,
+                                    double &entry_price_out,
+                                    bool &in_zone,
+                                    bool &entry_is_limit)
 {
-  StrategyTrendModes trend_mode = StrategyContextTrendMode(snapshot.context);
-  StrategyContextTypes context = snapshot.context;
-  trend_ready = false;
-  trend_pass  = false;
+  entry_price_out = 0.0;
+  in_zone = false;
+  entry_is_limit = false;
 
-  if(StrategyContextBPercentSlopeEnabled(context))
-  {
-    if(!snapshot.bpercent_valid)
-      return false;
-    if(!EvaluateDirectionalSlope(snapshot.bpercent_data.bands_percent_0,
-                                 snapshot.bpercent_data.bands_percent_1,
-                                 direction))
-      return true;
-  }
-
-  if(StrategyContextStochasticSlopeEnabled(context))
-  {
-    if(!snapshot.stochastic_valid)
-      return false;
-    if(!EvaluateDirectionalSlope(snapshot.stochastic_data.stochastic_0,
-                                 snapshot.stochastic_data.stochastic_1,
-                                 direction))
-      return true;
-  }
-
-  if(StrategyContextAlligatorSlopeEnabled(context))
-  {
-    if(!snapshot.alligator_valid)
-      return false;
-    if(!EvaluateDirectionalSlope(snapshot.alligator_data.teeth_value,
-                                 snapshot.alligator_data.teeth_prev_value,
-                                 direction))
-      return true;
-  }
-
-  if(!TrendModeUsesAlligator(trend_mode))
-  {
-    trend_ready = true;
-    trend_pass  = true;
-    return true;
-  }
-
-  if(StrategyContextChannelFilterEnabled(context))
-  {
-    if(!StrategyContextChannelMaFilterAllowsSignal(context, snapshot))
-      return true;
-  }
-
-  if(!snapshot.alligator_valid)
+  if(!snapshot.structure_valid)
+    return false;
+  if(!g_structure_fibo_config.valid)
     return false;
 
-  trend_ready = true;
-  trend_pass  = EvaluateAlligatorTrend(snapshot.alligator_data,
-                                       direction,
-                                       trend_mode);
+  double peak_price = 0.0;
+  double bottom_price = 0.0;
+  if(!ResolveStructureReferenceRange(snapshot.structure_data, peak_price, bottom_price))
+    return false;
+
+  double close_price = iClose(_Symbol, snapshot.timeframe, 0);
+  double low_price   = iLow(_Symbol, snapshot.timeframe, 0);
+  double high_price  = iHigh(_Symbol, snapshot.timeframe, 0);
+
+  double close_percent = 0.0;
+  double extreme_percent = 0.0;
+
+  if(!ResolveStructurePercentForPrice(peak_price, bottom_price, direction, close_price, close_percent))
+    return false;
+
+  if(direction == BULLISH)
+  {
+    if(!ResolveStructurePercentForPrice(peak_price, bottom_price, direction, low_price, extreme_percent))
+      extreme_percent = close_percent;
+  }
+  else if(direction == BEARISH)
+  {
+    if(!ResolveStructurePercentForPrice(peak_price, bottom_price, direction, high_price, extreme_percent))
+      extreme_percent = close_percent;
+  }
+
+  double lower = 0.0;
+  double upper = 0.0;
+  bool range_ok = ResolveFibonacciRangeForPercent(g_structure_fibo_config.levels,
+                                                  ArraySize(g_structure_fibo_config.levels),
+                                                  close_percent,
+                                                  lower,
+                                                  upper);
+  bool close_in = false;
+  bool extreme_in = false;
+  if(range_ok)
+  {
+    close_in = (close_percent >= lower && close_percent <= upper);
+    extreme_in = (extreme_percent >= lower && extreme_percent <= upper);
+  }
+
+  if(!close_in && !extreme_in)
+  {
+    double ext_lower = 0.0;
+    double ext_upper = 0.0;
+    if(ResolveFibonacciRangeForPercent(g_structure_fibo_config.levels,
+                                       ArraySize(g_structure_fibo_config.levels),
+                                       extreme_percent,
+                                       ext_lower,
+                                       ext_upper))
+    {
+      if(extreme_percent >= ext_lower && extreme_percent <= ext_upper)
+      {
+        lower = ext_lower;
+        upper = ext_upper;
+        extreme_in = true;
+      }
+    }
+  }
+
+  if(!close_in && !extreme_in)
+    return true; // no trigger but not fatal
+
+  in_zone = true;
+  entry_is_limit = (trigger_mode == LEVELS_AS_LIMITS);
+
+  if(entry_is_limit)
+  {
+    if(!ResolveStructurePriceForPercent(peak_price, bottom_price, direction, upper, entry_price_out))
+      return false;
+  }
+  else
+  {
+    entry_price_out = close_price; // market execution at current close
+  }
+
   return true;
 }
 
@@ -504,90 +491,17 @@ bool StrategyContextEvaluateEntry(const StrategyContextIndicators &snapshot,
                                   const SignalTypes direction,
                                   datetime &structure_capture_time,
                                   bool &entry_allows,
-                                  bool &filters_pass)
+                                  bool &filters_pass,
+                                  double &entry_price_out,
+                                  bool &entry_is_limit)
 {
   structure_capture_time = 0;
   entry_allows = false;
   filters_pass = true;
+  entry_price_out = 0.0;
+  entry_is_limit = false;
 
   StrategyContextTypes context = snapshot.context;
-  StrategyEntryChannelModes entry_mode = StrategyContextEntryEvaluation(context);
-  bool entry_mode_disabled = (entry_mode == ENTRY_EVAL_OFF);
-  bool entry_on_trend = (entry_mode == ENTRY_EVAL_ON_TREND);
-  StrategyTrendModes trend_mode = StrategyContextTrendMode(context);
-  double percent_threshold = StrategyContextIndicatorPercent(context);
-
-  if(StrategyContextBPercentSlopeEnabled(context))
-  {
-    if(!snapshot.bpercent_valid)
-      return false;
-    if(!EvaluateDirectionalSlope(snapshot.bpercent_data.bands_percent_0,
-                                 snapshot.bpercent_data.bands_percent_1,
-                                 direction))
-    {
-      filters_pass = false;
-      return true;
-    }
-  }
-
-  if(StrategyContextStochasticSlopeEnabled(context))
-  {
-    if(!snapshot.stochastic_valid)
-      return false;
-    if(!EvaluateDirectionalSlope(snapshot.stochastic_data.stochastic_0,
-                                 snapshot.stochastic_data.stochastic_1,
-                                 direction))
-    {
-      filters_pass = false;
-      return true;
-    }
-  }
-
-  if(StrategyContextAlligatorSlopeEnabled(context))
-  {
-    if(!snapshot.alligator_valid)
-      return false;
-    if(!EvaluateDirectionalSlope(snapshot.alligator_data.teeth_value,
-                                 snapshot.alligator_data.teeth_prev_value,
-                                 direction))
-    {
-      filters_pass = false;
-      return true;
-    }
-  }
-
-  BodyVolumeFilterModes body_volume_mode = StrategyContextBodyVolumeMode(context);
-  if(body_volume_mode != BODY_VOLUME_OFF)
-  {
-    if(!snapshot.body_ma_valid)
-      return false;
-
-    double body_value    = snapshot.body_ma_data.body_value_1;
-    double body_ma_value = snapshot.body_ma_data.body_ma_1;
-    double open_1        = iOpen(_Symbol, snapshot.timeframe, 1);
-    double close_1       = iClose(_Symbol, snapshot.timeframe, 1);
-    if(body_ma_value == EMPTY_VALUE || body_value == EMPTY_VALUE)
-    {
-      entry_allows = false;
-      filters_pass = false;
-      return true;
-    }
-
-    bool pass = true;
-    if(body_volume_mode == BODY_VOLUME_HIGH)
-      pass = (direction == BULLISH && close_1 > open_1 && body_value >= body_ma_value) ||
-             (direction == BEARISH && close_1 < open_1 && body_value >= body_ma_value);
-    else if(body_volume_mode == BODY_VOLUME_LOW)
-      pass = (direction == BULLISH && close_1 >= open_1 && body_value < body_ma_value) ||
-             (direction == BEARISH && close_1 <= open_1 && body_value < body_ma_value);
-
-    if(!pass)
-    {
-      entry_allows = false;
-      filters_pass = false;
-      return true;
-    }
-  }
 
   StrategyStructureLayerContext structure_ctx = BuildStructureLayerForContext(context);
   if(!EvaluateStructureRetestTrigger(snapshot, direction, structure_ctx))
@@ -602,21 +516,6 @@ bool StrategyContextEvaluateEntry(const StrategyContextIndicators &snapshot,
     entry_allows = false;
     filters_pass = false;
     return true;
-  }
-
-  if(Strategy_Global_Stoch_Entry_Mode != STOCH_ENTRY_OFF)
-  {
-    if(!snapshot.stochastic_valid)
-      return false;
-    double stoch_signal = snapshot.stochastic_data.stochastic_signal_1;
-    bool stoch_pass = (direction == BULLISH) ? (stoch_signal < 30.0)
-                                             : (stoch_signal > 70.0);
-    if(!stoch_pass)
-    {
-      entry_allows = false;
-      filters_pass = false;
-      return true;
-    }
   }
 
   bool enforce_fresh = StrategyContextFreshStructureEnabled(context) && structure_ctx.enabled;
@@ -634,39 +533,24 @@ bool StrategyContextEvaluateEntry(const StrategyContextIndicators &snapshot,
     }
   }
 
+  double entry_price = 0.0;
+  bool in_zone = false;
+  bool resolved_is_limit = false;
+  if(!ResolveStructureFibonacciEntry(snapshot,
+                                     direction,
+                                     Structure_Trigger_Entry,
+                                     entry_price,
+                                     in_zone,
+                                     resolved_is_limit))
+    return false;
+
   filters_pass = true;
-
-  if(entry_mode_disabled)
+  entry_allows = in_zone;
+  if(in_zone)
   {
-    entry_allows = false;
-    return true;
+    entry_price_out = entry_price;
+    entry_is_limit = resolved_is_limit;
   }
-
-  if(entry_on_trend)
-  {
-    entry_allows = TrendModeUsesAlligator(trend_mode);
-    return true;
-  }
-
-  bool entry_requires_bpercent = EntryEvaluationUsesAnyBPercent(entry_mode);
-  bool bpercent_pass = true;
-  if(entry_requires_bpercent && percent_threshold >= 0.0)
-  {
-    if(!snapshot.bpercent_valid)
-      return false;
-    bpercent_pass = EvaluateBandsPercentTrigger(snapshot.bpercent_data,
-                                                direction,
-                                                percent_threshold,
-                                                entry_mode,
-                                                NO_SLOPE);
-    if(!bpercent_pass)
-    {
-      entry_allows = false;
-      return true;
-    }
-  }
-
-  entry_allows = (!entry_requires_bpercent || percent_threshold < 0.0 || bpercent_pass);
   return true;
 }
 

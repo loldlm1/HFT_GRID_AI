@@ -41,11 +41,11 @@ int OnInit()
 {
   //EncryptEA("197955914", "Admin", "Shurt", 300);
   // License Validation
-	if(MQLInfoInteger(MQL_TESTER) > 0) is_testing = true;
-	if(!DecryptEA())              { return(INIT_FAILED); }
-  if(!VerifyLicense())          { return(INIT_FAILED); }
-  if(!VerifyLicenseType())      { return(INIT_FAILED); }
-  if(!VerifyValidLicenseTime()) { return(INIT_FAILED); }
+	//if(MQLInfoInteger(MQL_TESTER) > 0) is_testing = true;
+	//if(!DecryptEA())              { return(INIT_FAILED); }
+  //if(!VerifyLicense())          { return(INIT_FAILED); }
+  //if(!VerifyLicenseType())      { return(INIT_FAILED); }
+  //if(!VerifyValidLicenseTime()) { return(INIT_FAILED); }
 
   // INITIALIZE GLOBAL VARIABLES
   g_symbol.Name(_Symbol);

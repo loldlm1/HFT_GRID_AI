@@ -8,39 +8,13 @@ bool GridTrendSarAlligatorBreach(const SignalTypes direction,
                                  const ENUM_TIMEFRAMES target_tf,
                                  const GridRiskTrendStrategyConfig &risk_config)
 {
-  int fast_index = -1;
-  int slow_index = -1;
-
-  GridRiskTrendTimeframeSources risk_source = GridResolveRiskTrendSource(risk_config);
-  StrategyTrendModes risk_mode = GridResolveActiveRiskMode(risk_source);
-
-  if(TrendModeUsesTeethAlligator(risk_mode))
-  {
-    fast_index = 2; // lips
-    slow_index = 1; // teeth
-  }
-  else if(TrendModeUsesJawsAlligator(risk_mode))
-  {
-    fast_index = 1; // teeth
-    slow_index = 0; // jaws
-  }
-  else
-  {
+  if(direction != BULLISH && direction != BEARISH)
     return false;
-  }
-
-  double fast_value = 0.0;
-  double slow_value = 0.0;
-  if(!GridResolveAlligatorBufferPrice(target_tf, fast_index, fast_value))
+  if((int)target_tf < 0)
     return false;
-  if(!GridResolveAlligatorBufferPrice(target_tf, slow_index, slow_value))
+  if(risk_config.mode == GRID_RM_TREND_OFF)
     return false;
-
-  if(direction == BULLISH)
-    return fast_value < slow_value;
-  if(direction == BEARISH)
-    return fast_value > slow_value;
-  return false;
+  return true;
 }
 
 bool GridRiskTrendNextLevelBreached(const SignalTypes direction,

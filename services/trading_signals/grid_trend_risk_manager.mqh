@@ -16,13 +16,6 @@ bool GridApplyTrendRiskManagement(SignalParams &signal_params,
   if(risk_config.mode == GRID_RM_TREND_HEDGE)
     return GridApplyTrendHedgeManagement(signal_params, override_state, has_override);
 
-  ENUM_TIMEFRAMES target_tf = GridResolveRiskTrendStrategyTimeframe(risk_config);
-  double reference_price = 0.0;
-  if(!GridResolveAlligatorRiskReferencePrice(target_tf, reference_price))
-    return false;
-  if(reference_price <= 0.0)
-    return false;
-
   GridOrderState state_candidate = override_state;
   if(!has_override)
   {
@@ -30,6 +23,15 @@ bool GridApplyTrendRiskManagement(SignalParams &signal_params,
       return false;
   }
 
+  double reference_price = state_candidate.entry_reference_price;
+  if(reference_price <= 0.0)
+    reference_price = signal_params.grid_entry_reference_price;
+  if(reference_price <= 0.0)
+    reference_price = GridCurrentPriceForDirection(signal_params.signal_type, true);
+  if(reference_price <= 0.0)
+    return false;
+
+  ENUM_TIMEFRAMES target_tf = GridResolveRiskTrendStrategyTimeframe(risk_config);
   double current_price = GridCurrentPriceForDirection(signal_params.signal_type, true);
   if(!GridRiskTrendNextLevelBreached(signal_params.signal_type,
                                      state_candidate,

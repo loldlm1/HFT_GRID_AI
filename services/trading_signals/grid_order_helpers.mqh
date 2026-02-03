@@ -4,27 +4,6 @@
 #ifndef _MICROSERVICES_TRADING_SIGNALS_GRID_ORDER_HELPERS_MQH_
 #define _MICROSERVICES_TRADING_SIGNALS_GRID_ORDER_HELPERS_MQH_
 
-inline StrategyTrendModes GridResolveActiveRiskMode(const GridRiskTrendTimeframeSources source)
-{
-  switch(source)
-  {
-    case GRID_RISK_TF_STRATEGY:
-      return Strategy_Base_Trend_Mode;
-    case GRID_RISK_TF_TREND:
-      return Strategy_Trend_Trend_Mode;
-    case GRID_RISK_TF_MACRO:
-      return Strategy_Macro_Trend_Mode;
-    case GRID_RISK_TF_SESSION:
-      return Strategy_Session_Trend_Mode;
-  }
-  return Strategy_Trend_Trend_Mode;
-}
-
-inline StrategyTrendModes GridResolveActiveRiskMode()
-{
-  return GridResolveActiveRiskMode(Grid_Risk_Timeframe_Source);
-}
-
 double GridResolvePointSize()
 {
   double point_size = SymbolInfoDouble(_Symbol, SYMBOL_POINT);
@@ -171,54 +150,6 @@ ENUM_TIMEFRAMES GridResolveRiskTrendTimeframe()
   return Strategy_Timeframe;
 }
 
-bool GridResolveAlligatorBufferPrice(const ENUM_TIMEFRAMES target_tf,
-                                     const int buffer_index,
-                                     double &price_out)
-{
-  price_out = 0.0;
-
-  int total_handles = ArraySize(ExtAlligatorIndicatorsHandle);
-  if(total_handles <= 0)
-    return false;
-
-  for(int i = 0; i < total_handles; i++)
-  {
-    if(ExtAlligatorIndicatorsHandle[i].indicator_timeframe != target_tf)
-      continue;
-
-    double buffer[];
-    if(CopyBuffer(ExtAlligatorIndicatorsHandle[i].indicator_handle,
-                  buffer_index,
-                  0,
-                  1,
-                  buffer) <= 0)
-      continue;
-
-    double candidate = buffer[0];
-    if(candidate > 0.0)
-    {
-      price_out = NormalizeDouble(candidate, _Digits);
-      return true;
-    }
-  }
-
-  return false;
-}
-
-bool GridResolveAlligatorLipsTrailingPrice(const SignalParams &signal_params,
-                                           double &price_out)
-{
-  ENUM_TIMEFRAMES target_tf = GridResolveTrailingStrategyTimeframe();
-  return GridResolveAlligatorBufferPrice(target_tf, 2, price_out);
-}
-
-bool GridResolveAlligatorRiskReferencePrice(const ENUM_TIMEFRAMES target_tf,
-                                            double &price_out)
-{
-  int buffer_index = (Grid_Risk_Alligator_Reference == GRID_RISK_REF_TEETH) ? 1 : 0;
-  return GridResolveAlligatorBufferPrice(target_tf, buffer_index, price_out);
-}
-
 int GridAggressiveLotSplitCount()
 {
   double splits = MathMax(1.0, Grid_Lot_Strategy_Size);
@@ -288,61 +219,19 @@ double GridResolveAggressiveLotSize(const SignalTypes direction)
   return NormalizeVolumeForSymbol(_Symbol, normalized);
 }
 
-int GridResolveSarAlligatorBufferIndex()
-{
-  StrategyTrendModes risk_mode = GridResolveActiveRiskMode();
-  if(TrendModeUsesTeethAlligator(risk_mode))
-    return 2; // LIPS provides confirmation when teeth branch active
-  if(TrendModeUsesAlligator(risk_mode))
-    return 1; // TEETH when jaws branch active
-  return -1;
-}
-
 bool GridSarEntryConditionReady(const SignalParams &signal_params)
 {
   if(!signal_params.is_sar_signal)
     return true;
-
-  int buffer_index = GridResolveSarAlligatorBufferIndex();
-  if(buffer_index < 0)
-    return true;
-
-  ENUM_TIMEFRAMES target_tf = Strategy_TF_List[0];
-  if(target_tf <= 0)
-    target_tf = Strategy_Timeframe;
-
-  double ma_price = 0.0;
-  if(!GridResolveAlligatorBufferPrice(target_tf, buffer_index, ma_price))
-    return false;
-  if(ma_price <= 0.0)
-    return false;
-
-  double current_price = GridCurrentPriceForDirection(signal_params.signal_type, true);
-  if(signal_params.signal_type == BEARISH)
-    return current_price >= ma_price;
-  if(signal_params.signal_type == BULLISH)
-    return current_price <= ma_price;
-  return false;
+  return true;
 }
 
 bool GridResolveTrailingStrategyPrice(const SignalParams &signal_params,
                                       double &price_out)
 {
   price_out = 0.0;
-
-  if(Grid_Trailing_Strategy_Mode == TRAILING_ATR_BASED)
-  {
-    ENUM_TIMEFRAMES tf = GridResolveTrailingStrategyTimeframe();
-    GridBaseStrategyTypes channel_type = ResolveActiveChannelStrategy();
-    GridChannelLineTypes line_type = (signal_params.signal_type == BULLISH)
-                                       ? GRID_CHANNEL_LINE_RESISTANCE
-                                       : GRID_CHANNEL_LINE_SUPPORT;
-    return GridResolveChannelLinePrice(channel_type, line_type, tf, price_out, 0);
-  }
-
-  if(Grid_Trailing_Strategy_Mode == TRAILING_LIPS_MA)
-    return GridResolveAlligatorLipsTrailingPrice(signal_params, price_out);
-
+  if(signal_params.signal_type == NO_SIGNAL)
+    return false;
   return false;
 }
 
@@ -383,6 +272,14 @@ double GridPointsBetween(const SignalTypes direction,
 
 double GetGridStopReferencePrice(SignalTypes direction, SignalParams &signal_params, GridOrderState &grid_order_state)
 {
+  if(signal_params.entry_is_limit && grid_order_state.level_index == 0)
+  {
+    if(signal_params.entry_price > 0.0)
+      return signal_params.entry_price;
+    if(signal_params.grid_entry_reference_price > 0.0)
+      return signal_params.grid_entry_reference_price;
+  }
+
   double base_entry_price = GridCurrentPriceForDirection(direction, true);
   double stop_entry_price = grid_order_state.entry_reference_price;
 
@@ -889,26 +786,11 @@ bool GridSignalChannelGuardSatisfied(const SignalParams &signal_params,
                                      double &reference_price)
 {
   distance_points = 0.0;
-  reference_price = 0.0;
+  reference_price = entry_reference_price;
   required_points = EnforceBrokerDistance(g_symbol_constraints, Grid_Points_Range_Setup);
-
-  if(!GridStrategyUsesChannelIndicator() || required_points <= 0.0)
+  if(signal_params.signal_type == NO_SIGNAL)
     return true;
-  if(entry_reference_price <= 0.0)
-    return true;
-
-  GridBaseStrategyTypes channel_type = ResolveActiveChannelStrategy();
-
-  if(!GridResolveChannelGuardPoints(channel_type,
-                                    signal_params.signal_type,
-                                    Strategy_Timeframe,
-                                    entry_reference_price,
-                                    distance_points,
-                                    reference_price,
-                                    1))
-    return true;
-
-  return (distance_points >= required_points);
+  return true;
 }
 
 double ResolveStochStructureDistancePoints(const SignalParams &signal_params,

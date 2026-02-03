@@ -68,11 +68,15 @@ bool GridShouldActivateStopOrder(const SignalParams &signal_params,
   double stop_trigger = order_state.entry_reference_price;
   if(stop_trigger <= 0.0)
     return false;
+  if(signal_params.entry_is_limit)
+  {
+    if(direction == BULLISH) return entry_side_price <= stop_trigger;
+    if(direction == BEARISH) return entry_side_price >= stop_trigger;
+    return false;
+  }
   // BUY STOP: Ask >= stop; SELL STOP: Bid <= stop
   if(direction == BULLISH) return entry_side_price >= stop_trigger;
   if(direction == BEARISH) return entry_side_price <= stop_trigger;
-  return false;
-
   return false;
 }
 

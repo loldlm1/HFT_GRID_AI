@@ -5,19 +5,13 @@
 #define _SERVICES_TRADING_SIGNALS_MQH_
 
 // INDICATOR SERVICES
-#include "indicators/bands_percent_indicator.mqh"
-#include "indicators/alligator_indicator.mqh"
-#include "indicators/stochastic_indicator.mqh"
 #include "indicators/stochastic_market_indicator.mqh"
-#include "indicators/body_ma_indicator.mqh"
 
 // SIGNAL SERVICE FILES
-#include "trading_signals/grid_channel_utils.mqh"
 #include "trading_signals/signal_params_struct.mqh"
 #include "trading_signals/session_time_filter_manager.mqh"
 #include "trading_signals/market_signal_state.mqh"
 #include "trading_signals/market_signal_indicators.mqh"
-#include "trading_signals/market_signal_channel_guards.mqh"
 #include "trading_signals/market_signal_filters.mqh"
 #include "trading_signals/market_signal_cleanup.mqh"
 #include "trading_signals/market_signal_detection.mqh"
