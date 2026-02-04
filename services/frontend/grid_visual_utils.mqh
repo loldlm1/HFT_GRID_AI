@@ -79,4 +79,32 @@ string GridSignalLineLabel(const SignalParams &signal_params,
   return direction + " " + suffix;
 }
 
+string FormatFibEntryLabel(const string base_label,
+                           const double entry_level_percent,
+                           const bool include_actual,
+                           const double actual_percent)
+{
+  if(include_actual)
+    return StringFormat("%s %.1f%% (%.2f%%)",
+                        base_label,
+                        entry_level_percent,
+                        actual_percent);
+
+  return StringFormat("%s %.1f%%",
+                      base_label,
+                      entry_level_percent);
+}
+
+string FormatFibNextLabel(const string base_label,
+                          const double next_level_percent,
+                          const int level_index,
+                          const double lot_size)
+{
+  return StringFormat("%s %.1f%% L%d lot=%.2f",
+                      base_label,
+                      next_level_percent,
+                      level_index,
+                      lot_size);
+}
+
 #endif // _MICROSERVICES_FRONTEND_GRID_VISUAL_UTILS_MQH_

@@ -27,6 +27,12 @@ void DrawGridLevels(const long chart_id,
   GridOrderState level_state = signal_params.grid_orders[grid_order_level];
 
   double entry_price_line = level_state.entry_reference_price;
+  if(entry_price_line <= 0.0)
+  {
+    entry_price_line = signal_params.entry_price;
+    if(entry_price_line <= 0.0)
+      entry_price_line = signal_params.grid_entry_reference_price;
+  }
   double tp_price         = level_state.take_profit_price;
   double next_level_price = level_state.next_level_price;
 
@@ -36,10 +42,66 @@ void DrawGridLevels(const long chart_id,
 
   int level_index = level_state.level_index;
   double level_lot_size = level_state.lot_size;
-  next_label = StringFormat("%s L%d lot=%.2f",
-                            next_label,
-                            level_index,
-                            level_lot_size);
+
+  double entry_percent = 0.0;
+  double range_lower = 0.0;
+  double range_upper = 0.0;
+  bool fib_entry_ok = false;
+  if(entry_price_line > 0.0)
+  {
+    fib_entry_ok = ResolveFibonacciEntryRange(signal_params,
+                                              entry_price_line,
+                                              entry_percent,
+                                              range_lower,
+                                              range_upper);
+  }
+
+  double next_percent = 0.0;
+  bool fib_next_ok = ResolveFibonacciGridLevelPercent(signal_params,
+                                                      level_index,
+                                                      next_percent);
+
+  if(fib_entry_ok)
+  {
+    double entry_level_percent = entry_percent;
+    bool include_actual = false;
+    if(signal_params.entry_trigger_mode == LEVEL_AS_ZONE)
+    {
+      entry_level_percent = range_upper;
+      include_actual = true;
+      double peak_price = 0.0;
+      double bottom_price = 0.0;
+      if(ResolveSignalStructureRange(signal_params, peak_price, bottom_price))
+      {
+        double level_price = 0.0;
+        if(ResolveStructurePriceForPercent(peak_price,
+                                           bottom_price,
+                                           signal_params.signal_type,
+                                           entry_level_percent,
+                                           level_price))
+          entry_price_line = level_price;
+      }
+    }
+    entry_label = FormatFibEntryLabel(entry_label,
+                                      entry_level_percent,
+                                      include_actual,
+                                      entry_percent);
+  }
+
+  if(fib_next_ok)
+  {
+    next_label = FormatFibNextLabel(next_label,
+                                    next_percent,
+                                    level_index,
+                                    level_lot_size);
+  }
+  else
+  {
+    next_label = StringFormat("%s L%d lot=%.2f",
+                              next_label,
+                              level_index,
+                              level_lot_size);
+  }
 
   UpdateHorizontalLine(chart_id, entry_name, COLOR_PROFIT_NEUTRAL, entry_price_line, entry_label);
   UpdateHorizontalLine(chart_id, tp_name, COLOR_PROFIT_POSITIVE, tp_price, tp_label);

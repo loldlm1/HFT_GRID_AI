@@ -524,6 +524,21 @@ bool ResolveSignalStructureRange(const SignalParams &signal_params,
   return ResolveStructureReferenceRange(structure, peak_price, bottom_price);
 }
 
+bool ResolveStructureSnapshotTimeForContext(const StrategyContextTypes context,
+                                            const StochasticMarketStructure &structure,
+                                            datetime &time_out)
+{
+  time_out = 0;
+
+  StrategyStructureLayerContext ctx = BuildStructureLayerForContext(context);
+  datetime resolved = ResolveStructureSnapshotTimestamp(structure, ctx);
+  if(resolved <= 0)
+    return false;
+
+  time_out = resolved;
+  return true;
+}
+
 bool ResolveFibonacciEntryPercent(const SignalParams &signal_params,
                                   const double entry_price,
                                   double &entry_percent,
@@ -545,6 +560,88 @@ bool ResolveFibonacciEntryPercent(const SignalParams &signal_params,
                                          signal_params.signal_type,
                                          entry_price,
                                          entry_percent);
+}
+
+bool ResolveFibonacciEntryRange(const SignalParams &signal_params,
+                                const double entry_price,
+                                double &entry_percent_out,
+                                double &range_lower_out,
+                                double &range_upper_out)
+{
+  entry_percent_out = 0.0;
+  range_lower_out = 0.0;
+  range_upper_out = 0.0;
+
+  if(!g_structure_fibo_config.valid)
+    return false;
+
+  if(entry_price <= 0.0)
+    return false;
+
+  double entry_percent = 0.0;
+  double peak_price = 0.0;
+  double bottom_price = 0.0;
+  if(!ResolveFibonacciEntryPercent(signal_params,
+                                   entry_price,
+                                   entry_percent,
+                                   peak_price,
+                                   bottom_price))
+    return false;
+
+  double lower = 0.0;
+  double upper = 0.0;
+  if(!ResolveFibonacciRangeForPercent(g_structure_fibo_config.levels,
+                                      ArraySize(g_structure_fibo_config.levels),
+                                      entry_percent,
+                                      lower,
+                                      upper))
+    return false;
+
+  entry_percent_out = entry_percent;
+  range_lower_out = lower;
+  range_upper_out = upper;
+  return true;
+}
+
+bool ResolveFibonacciGridLevelPercent(const SignalParams &signal_params,
+                                      const int level_index,
+                                      double &level_percent_out)
+{
+  level_percent_out = 0.0;
+
+  if(!g_structure_fibo_config.valid)
+    return false;
+
+  double entry_price = signal_params.entry_price;
+  if(entry_price <= 0.0)
+    entry_price = signal_params.grid_entry_reference_price;
+  if(entry_price <= 0.0)
+    return false;
+
+  double entry_percent = 0.0;
+  double peak_price = 0.0;
+  double bottom_price = 0.0;
+  if(!ResolveFibonacciEntryPercent(signal_params,
+                                   entry_price,
+                                   entry_percent,
+                                   peak_price,
+                                   bottom_price))
+    return false;
+
+  int steps = signal_params.fib_level_offset_steps + level_index;
+  if(steps <= 0)
+    steps = 1;
+
+  double level_percent = 0.0;
+  if(!ResolveFibonacciNextPercent(g_structure_fibo_config.levels,
+                                  ArraySize(g_structure_fibo_config.levels),
+                                  entry_percent,
+                                  steps,
+                                  level_percent))
+    return false;
+
+  level_percent_out = level_percent;
+  return true;
 }
 
 bool ResolveFibonacciGridLevelPrice(const SignalParams &signal_params,
