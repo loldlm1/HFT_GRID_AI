@@ -13,6 +13,13 @@ void UpdateGridLifecycle(SignalParams &signal_params)
   int            grid_order_level  = ArraySize(signal_params.grid_orders)-1;
   GridOrderState grid_order        = signal_params.grid_orders[grid_order_level];
 
+  if(LimitSignalExpiredOnStructureChange(signal_params))
+  {
+    signal_params.signal_state = CLOSED;
+    GridLogEvent("LIMIT_EXPIRED_STRUCTURE", signal_params, grid_order);
+    return;
+  }
+
   if(grid_order.status == GRID_ORDER_STOP_TRAILING_ACTIVE)
   {
     if(UpdateGridOrderForSignal(signal_params))

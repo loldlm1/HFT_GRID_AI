@@ -98,6 +98,37 @@ bool GridShouldActivateNextLevelLimit(const SignalParams &signal_params,
   return false;
 }
 
+bool LimitSignalExpiredOnStructureChange(const SignalParams &signal_params)
+{
+  if(!signal_params.entry_is_limit)
+    return false;
+
+  if(GridSignalHasExecutedLevel(signal_params))
+    return false;
+
+  StochasticMarketStructure entry_structure;
+  if(!ResolveSignalStructureSnapshot(signal_params, entry_structure))
+    return false;
+
+  datetime entry_time = 0;
+  if(!ResolveStructureSnapshotTimeForContext(signal_params.strategy_context,
+                                             entry_structure,
+                                             entry_time))
+    return false;
+
+  StochasticMarketStructure current_structure;
+  if(!LoadContextStructureSnapshot(signal_params.strategy_context, current_structure))
+    return false;
+
+  datetime current_time = 0;
+  if(!ResolveStructureSnapshotTimeForContext(signal_params.strategy_context,
+                                             current_structure,
+                                             current_time))
+    return false;
+
+  return (current_time > entry_time);
+}
+
 bool GridExecuteLevelTrade(SignalParams &signal_params,
                            GridOrderState &order_state,
                            const double point_size,
