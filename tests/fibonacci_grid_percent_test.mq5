@@ -107,14 +107,14 @@ void OnStart()
                                  range_upper))
     errors += "entry range failed\n";
 
-  AssertClose("entry_percent", entry_percent, 50.0, 0.1, errors);
-  AssertClose("range_lower", range_lower, 50.0, 0.1, errors);
-  AssertClose("range_upper", range_upper, 61.8, 0.1, errors);
+  AssertClose("entry_percent", entry_percent, 100.0, 0.1, errors);
+  AssertClose("range_lower", range_lower, 100.0, 0.1, errors);
+  AssertClose("range_upper", range_upper, 121.4, 0.1, errors);
 
   double next_percent = 0.0;
   if(!ResolveFibonacciGridLevelPercent(signal, 0, next_percent))
     errors += "next percent failed\n";
-  AssertClose("next_percent", next_percent, 61.8, 0.1, errors);
+  AssertClose("next_percent", next_percent, 121.4, 0.1, errors);
 
   if(errors != "")
     Print("FAIL:\n", errors);

@@ -17,30 +17,33 @@ bool EvaluateDirectionalSlope(const double current_value,
 
 bool ResolveStructureReferenceRange(const StochasticMarketStructure &structure,
                                     double &peak_price,
-                                    double &bottom_price)
+                                    double &bottom_price,
+                                    bool &current_is_bottom)
 {
   peak_price = 0.0;
   bottom_price = 0.0;
+  current_is_bottom = false;
 
   int total = ArraySize(structure.os_market_structures);
-  if(total < 4)
+  if(total < 3)
     return false;
 
-  bool initial_is_peak = structure.os_market_structures[0].is_peak;
-  bool initial_is_bottom = !initial_is_peak;
+  bool first_is_peak = structure.os_market_structures[1].is_peak;
+  bool second_is_peak = structure.os_market_structures[2].is_peak;
+  if(first_is_peak == second_is_peak)
+    return false;
 
-  int structure_peaks_index   = initial_is_bottom ? 1 : 0;
-  int structure_bottoms_index = initial_is_peak   ? 1 : 0;
+  current_is_bottom = !second_is_peak;
 
-  if(initial_is_bottom)
+  if(current_is_bottom)
   {
-    peak_price   = structure.os_market_structures[structure_bottoms_index + 1].extremum_high;
-    bottom_price = structure.os_market_structures[structure_bottoms_index + 2].extremum_low;
+    peak_price   = structure.os_market_structures[1].extremum_high;
+    bottom_price = structure.os_market_structures[2].extremum_low;
   }
   else
   {
-    peak_price   = structure.os_market_structures[structure_peaks_index + 2].extremum_high;
-    bottom_price = structure.os_market_structures[structure_peaks_index + 1].extremum_low;
+    peak_price   = structure.os_market_structures[2].extremum_high;
+    bottom_price = structure.os_market_structures[1].extremum_low;
   }
 
   return (peak_price > 0.0 && bottom_price > 0.0 && peak_price != bottom_price);
@@ -48,42 +51,34 @@ bool ResolveStructureReferenceRange(const StochasticMarketStructure &structure,
 
 bool ResolveStructurePercentForPrice(const double peak_price,
                                      const double bottom_price,
-                                     const SignalTypes direction,
+                                     const bool current_is_bottom,
                                      const double price,
                                      double &percent_out)
 {
   percent_out = 0.0;
-  if(direction == BULLISH)
-  {
+
+  if(current_is_bottom)
     percent_out = GetFiboTrendBottomPercent(peak_price, bottom_price, price);
-    return percent_out > 0.0;
-  }
-  if(direction == BEARISH)
-  {
+  else
     percent_out = GetFiboTrendPeakPercent(peak_price, bottom_price, price);
-    return percent_out > 0.0;
-  }
-  return false;
+
+  return MathIsValidNumber(percent_out) && percent_out >= 0.0;
 }
 
 bool ResolveStructurePriceForPercent(const double peak_price,
                                      const double bottom_price,
-                                     const SignalTypes direction,
+                                     const bool current_is_bottom,
                                      const double percent,
                                      double &price_out)
 {
   price_out = 0.0;
-  if(direction == BULLISH)
-  {
+
+  if(current_is_bottom)
     price_out = GetFiboTrendBottomPrice(peak_price, bottom_price, percent);
-    return price_out > 0.0;
-  }
-  if(direction == BEARISH)
-  {
+  else
     price_out = GetFiboTrendPeakPrice(peak_price, bottom_price, percent);
-    return price_out > 0.0;
-  }
-  return false;
+
+  return price_out > 0.0;
 }
 
 bool FetchStructureForContext(const StrategyContextIndicators &snapshot,
@@ -410,7 +405,11 @@ bool ResolveStructureFibonacciEntry(const StrategyContextIndicators &snapshot,
 
   double peak_price = 0.0;
   double bottom_price = 0.0;
-  if(!ResolveStructureReferenceRange(snapshot.structure_data, peak_price, bottom_price))
+  bool current_is_bottom = false;
+  if(!ResolveStructureReferenceRange(snapshot.structure_data,
+                                     peak_price,
+                                     bottom_price,
+                                     current_is_bottom))
     return false;
 
   double close_price = iClose(_Symbol, snapshot.timeframe, 0);
@@ -420,17 +419,29 @@ bool ResolveStructureFibonacciEntry(const StrategyContextIndicators &snapshot,
   double close_percent = 0.0;
   double extreme_percent = 0.0;
 
-  if(!ResolveStructurePercentForPrice(peak_price, bottom_price, direction, close_price, close_percent))
+  if(!ResolveStructurePercentForPrice(peak_price,
+                                      bottom_price,
+                                      current_is_bottom,
+                                      close_price,
+                                      close_percent))
     return false;
 
   if(direction == BULLISH)
   {
-    if(!ResolveStructurePercentForPrice(peak_price, bottom_price, direction, low_price, extreme_percent))
+    if(!ResolveStructurePercentForPrice(peak_price,
+                                        bottom_price,
+                                        current_is_bottom,
+                                        low_price,
+                                        extreme_percent))
       extreme_percent = close_percent;
   }
   else if(direction == BEARISH)
   {
-    if(!ResolveStructurePercentForPrice(peak_price, bottom_price, direction, high_price, extreme_percent))
+    if(!ResolveStructurePercentForPrice(peak_price,
+                                        bottom_price,
+                                        current_is_bottom,
+                                        high_price,
+                                        extreme_percent))
       extreme_percent = close_percent;
   }
 
@@ -476,8 +487,16 @@ bool ResolveStructureFibonacciEntry(const StrategyContextIndicators &snapshot,
   {
     double lower_price = 0.0;
     double upper_price = 0.0;
-    if(ResolveStructurePriceForPercent(peak_price, bottom_price, direction, lower, lower_price) &&
-       ResolveStructurePriceForPercent(peak_price, bottom_price, direction, upper, upper_price))
+    if(ResolveStructurePriceForPercent(peak_price,
+                                       bottom_price,
+                                       current_is_bottom,
+                                       lower,
+                                       lower_price) &&
+       ResolveStructurePriceForPercent(peak_price,
+                                       bottom_price,
+                                       current_is_bottom,
+                                       upper,
+                                       upper_price))
     {
       double point_size = GridResolvePointSizeSafe();
       double range_points = (point_size > 0.0)
@@ -493,7 +512,11 @@ bool ResolveStructureFibonacciEntry(const StrategyContextIndicators &snapshot,
 
   if(entry_is_limit)
   {
-    if(!ResolveStructurePriceForPercent(peak_price, bottom_price, direction, upper, entry_price_out))
+    if(!ResolveStructurePriceForPercent(peak_price,
+                                        bottom_price,
+                                        current_is_bottom,
+                                        upper,
+                                        entry_price_out))
       return false;
   }
   else

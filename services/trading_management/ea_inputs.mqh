@@ -37,10 +37,7 @@ input string                 Session_NewYork_Filter_Time_Range = "12:00-20:00";
 
 input group  "+= Strategy Context =+";
 input ENUM_TIMEFRAMES           Strategy_Timeframe          = PERIOD_M1;
-input ENUM_TIMEFRAMES           Trend_Strategy_Timeframe    = PERIOD_CURRENT;
-input ENUM_TIMEFRAMES           Macro_Strategy_Timeframe    = PERIOD_CURRENT;
-input ENUM_TIMEFRAMES           Session_Strategy_Timeframe  = PERIOD_CURRENT;
-input StochStructurePeriodTypes Stoch_Structure_Period_Type = STOCH_STRUCTURE_PERIOD_5;
+input int                       Stoch_Structure_Period_Type = 5;
 input string                    Structure_Fibonacci_Levels = "23.6,38.2,50.0,61.8,78.6,100.0";
 input StructureTriggerEntryModes Structure_Trigger_Entry   = LEVELS_AS_LIMITS;
 input StrategyDirectionTypes    Strategy_Direction_Mode     = BOTH_DIRECTION;
@@ -58,45 +55,6 @@ input int                         Base_Resistance_Retest_Min_Count  = 1;
 input int                         Base_Min_Extern_Structures_Broken = 0;
 input bool                        Base_First_Structure_Close_Percent = false;
 input bool                        Base_Fresh_Structure_Time         = false;
-
-input group "+= Strategy Trend Context =+";
-input TrendStructureFilterModes   Trend_First_Structure_Filter       = BULLISH_STRUCT_OFF;
-input TrendStructureFilterModes   Trend_Second_Structure_Filter      = BEARISH_STRUCT_OFF;
-input TrendStructureFilterModes   Trend_Third_Structure_Filter       = BULLISH_STRUCT_OFF;
-input TrendStructureFilterModes   Trend_Fourth_Structure_Filter      = BEARISH_STRUCT_OFF;
-input SupportRetestFilterModes    Trend_Support_Filter               = SUPPORT_DISABLED;
-input ResistanceRetestFilterModes Trend_Resistance_Filter            = RESISTANCE_DISABLED;
-input int                         Trend_Support_Retest_Min_Count     = 1;
-input int                         Trend_Resistance_Retest_Min_Count  = 1;
-input int                         Trend_Min_Extern_Structures_Broken = 0;
-input bool                        Trend_First_Structure_Close_Percent = false;
-input bool                        Trend_Fresh_Structure_Time         = false;
-
-input group "+= Strategy Macro Context =+";
-input TrendStructureFilterModes   Macro_First_Structure_Filter       = BULLISH_STRUCT_OFF;
-input TrendStructureFilterModes   Macro_Second_Structure_Filter      = BEARISH_STRUCT_OFF;
-input TrendStructureFilterModes   Macro_Third_Structure_Filter       = BULLISH_STRUCT_OFF;
-input TrendStructureFilterModes   Macro_Fourth_Structure_Filter      = BEARISH_STRUCT_OFF;
-input SupportRetestFilterModes    Macro_Support_Filter               = SUPPORT_DISABLED;
-input ResistanceRetestFilterModes Macro_Resistance_Filter            = RESISTANCE_DISABLED;
-input int                         Macro_Support_Retest_Min_Count     = 1;
-input int                         Macro_Resistance_Retest_Min_Count  = 1;
-input int                         Macro_Min_Extern_Structures_Broken = 0;
-input bool                        Macro_First_Structure_Close_Percent = false;
-input bool                        Macro_Fresh_Structure_Time         = false;
-
-input group "+= Strategy Session Context =+";
-input TrendStructureFilterModes   Session_First_Structure_Filter       = BULLISH_STRUCT_OFF;
-input TrendStructureFilterModes   Session_Second_Structure_Filter      = BEARISH_STRUCT_OFF;
-input TrendStructureFilterModes   Session_Third_Structure_Filter       = BULLISH_STRUCT_OFF;
-input TrendStructureFilterModes   Session_Fourth_Structure_Filter      = BEARISH_STRUCT_OFF;
-input SupportRetestFilterModes    Session_Support_Filter               = SUPPORT_DISABLED;
-input ResistanceRetestFilterModes Session_Resistance_Filter            = RESISTANCE_DISABLED;
-input int                         Session_Support_Retest_Min_Count     = 1;
-input int                         Session_Resistance_Retest_Min_Count  = 1;
-input int                         Session_Min_Extern_Structures_Broken = 0;
-input bool                        Session_First_Structure_Close_Percent = false;
-input bool                        Session_Fresh_Structure_Time         = false;
 
 input group  "+= Grid Strategy Settings =+";
 input GridBaseStrategyTypes Grid_Base_Strategy_Type      = POINTS_RANGE;

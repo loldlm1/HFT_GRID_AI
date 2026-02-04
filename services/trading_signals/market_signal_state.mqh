@@ -25,9 +25,6 @@ StrategyContextRuntime g_context_runtime[4];
 
 const StrategyContextTypes STRATEGY_CONTEXT_EVALUATION_ORDER[] =
 {
-  CONTEXT_SLOT_SESSION,
-  CONTEXT_SLOT_MACRO,
-  CONTEXT_SLOT_TREND,
   CONTEXT_SLOT_BASE
 };
 
@@ -255,8 +252,7 @@ bool TrendStructureDataRequired()
   if(!trend_ctx.enabled)
     return false;
   bool needs_data = StructureFiltersRequested(trend_ctx) ||
-                    StructureTypeFiltersRequested(trend_ctx) ||
-                    Trend_Fresh_Structure_Time;
+                    StructureTypeFiltersRequested(trend_ctx);
   if(!needs_data)
     return false;
   return trend_ctx.uses_trend_dataset;
@@ -280,8 +276,7 @@ bool MacroStructureDataRequired()
   if(!macro_ctx.enabled)
     return false;
   bool needs_data = StructureFiltersRequested(macro_ctx) ||
-                    StructureTypeFiltersRequested(macro_ctx) ||
-                    Macro_Fresh_Structure_Time;
+                    StructureTypeFiltersRequested(macro_ctx);
   if(!needs_data)
     return false;
   return true;
@@ -305,8 +300,7 @@ bool SessionStructureDataRequired()
   if(!session_ctx.enabled)
     return false;
   bool needs_data = StructureFiltersRequested(session_ctx) ||
-                    StructureTypeFiltersRequested(session_ctx) ||
-                    Session_Fresh_Structure_Time;
+                    StructureTypeFiltersRequested(session_ctx);
   if(!needs_data)
     return false;
   return true;

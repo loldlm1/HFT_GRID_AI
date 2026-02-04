@@ -71,12 +71,16 @@ void DrawGridLevels(const long chart_id,
       include_actual = true;
       double peak_price = 0.0;
       double bottom_price = 0.0;
-      if(ResolveSignalStructureRange(signal_params, peak_price, bottom_price))
+      bool current_is_bottom = false;
+      if(ResolveSignalStructureRange(signal_params,
+                                     peak_price,
+                                     bottom_price,
+                                     current_is_bottom))
       {
         double level_price = 0.0;
         if(ResolveStructurePriceForPercent(peak_price,
                                            bottom_price,
-                                           signal_params.signal_type,
+                                           current_is_bottom,
                                            entry_level_percent,
                                            level_price))
           entry_price_line = level_price;

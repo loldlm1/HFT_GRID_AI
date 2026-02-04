@@ -30,44 +30,27 @@ bool LoadStructureSnapshotForTimeframe(const ENUM_TIMEFRAMES tf,
 bool LoadContextStructureSnapshot(const StrategyContextTypes context,
                                   StochasticMarketStructure &snapshot)
 {
-  ENUM_TIMEFRAMES tf = StrategyContextStructureTimeframe(context);
-  if(context == CONTEXT_SLOT_TREND)
-  {
-    if(LoadStructureSnapshotFromHandle(TrendStructStochIndicatorHandle, snapshot))
-      return true;
-  }
-  else if(context == CONTEXT_SLOT_MACRO)
-  {
-    if(LoadStructureSnapshotFromHandle(MacroStructStochIndicatorHandle, snapshot))
-      return true;
-  }
-  else if(context == CONTEXT_SLOT_SESSION)
-  {
-    if(LoadStructureSnapshotFromHandle(SessionStructStochIndicatorHandle, snapshot))
-      return true;
-  }
-
-  return LoadStructureSnapshotForTimeframe(tf, snapshot);
+  return LoadStructureSnapshotForTimeframe(Strategy_Timeframe, snapshot);
 }
 
 bool CaptureContextIndicators(const StrategyContextTypes context,
                               StrategyContextIndicators &snapshot)
 {
-  snapshot.context   = context;
-  snapshot.timeframe = StrategyContextTimeframe(context);
+  snapshot.context   = CONTEXT_SLOT_BASE;
+  snapshot.timeframe = Strategy_Timeframe;
 
-  StrategyStructureLayerContext structure_ctx = BuildStructureLayerForContext(context);
-  bool require_structure = ContextRequiresStructure(context, structure_ctx);
+  StrategyStructureLayerContext structure_ctx = BuildBaseStructureLayerContext();
+  bool require_structure = ContextRequiresStructure(CONTEXT_SLOT_BASE, structure_ctx);
 
   if(Grid_Base_Strategy_Type == FIB_LEVEL_RANGE)
     require_structure = true;
 
   if(require_structure)
   {
-    snapshot.structure_valid = LoadContextStructureSnapshot(context, snapshot.structure_data);
+    snapshot.structure_valid = LoadContextStructureSnapshot(CONTEXT_SLOT_BASE, snapshot.structure_data);
     if(!snapshot.structure_valid)
       return false;
-    if(StrategyContextFirstStructureUsesClosePercent(context))
+    if(StrategyContextFirstStructureUsesClosePercent(CONTEXT_SLOT_BASE))
     {
       double close_percent = snapshot.structure_data.first_structure_close_percent;
       if(close_percent > 0.0)
