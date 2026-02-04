@@ -21,6 +21,16 @@ double GridResolveDirectionMultiplier(const SignalTypes direction)
   return 0.0;
 }
 
+int ResolveFibonacciStepDirection(const SignalTypes signal_type,
+                                  const bool current_is_bottom)
+{
+  if(signal_type == BULLISH)
+    return current_is_bottom ? 1 : -1;
+  if(signal_type == BEARISH)
+    return current_is_bottom ? -1 : 1;
+  return 1;
+}
+
 double GridCurrentPriceForDirection(const SignalTypes direction,
                                     const bool use_entry_side)
 {
@@ -621,7 +631,7 @@ bool ResolveFibonacciGridLevelPercent(const SignalParams &signal_params,
 {
   level_percent_out = 0.0;
 
-  if(!g_structure_fibo_config.valid)
+  if(!g_structure_fibo_config.valid || !g_structure_fibo_config.cycle_valid)
     return false;
 
   double entry_price = signal_params.entry_price;
@@ -647,11 +657,14 @@ bool ResolveFibonacciGridLevelPercent(const SignalParams &signal_params,
     steps = 1;
 
   double level_percent = 0.0;
-  if(!ResolveFibonacciNextPercent(g_structure_fibo_config.levels,
-                                  ArraySize(g_structure_fibo_config.levels),
-                                  entry_percent,
-                                  steps,
-                                  level_percent))
+  int step_dir = ResolveFibonacciStepDirection(signal_params.signal_type, current_is_bottom);
+  if(!ResolveFibonacciNextPercentCycledWithCycle(g_structure_fibo_config.cycle_levels,
+                                                 ArraySize(g_structure_fibo_config.cycle_levels),
+                                                 g_structure_fibo_config.cycle_allow_zero,
+                                                 entry_percent,
+                                                 steps,
+                                                 step_dir,
+                                                 level_percent))
     return false;
 
   level_percent_out = level_percent;
@@ -663,7 +676,7 @@ bool ResolveFibonacciGridLevelPrice(const SignalParams &signal_params,
                                     double &price_out)
 {
   price_out = 0.0;
-  if(!g_structure_fibo_config.valid)
+  if(!g_structure_fibo_config.valid || !g_structure_fibo_config.cycle_valid)
     return false;
 
   double entry_price = signal_params.entry_price;
@@ -689,11 +702,14 @@ bool ResolveFibonacciGridLevelPrice(const SignalParams &signal_params,
     steps = 1;
 
   double level_percent = 0.0;
-  if(!ResolveFibonacciNextPercent(g_structure_fibo_config.levels,
-                                  ArraySize(g_structure_fibo_config.levels),
-                                  entry_percent,
-                                  steps,
-                                  level_percent))
+  int step_dir = ResolveFibonacciStepDirection(signal_params.signal_type, current_is_bottom);
+  if(!ResolveFibonacciNextPercentCycledWithCycle(g_structure_fibo_config.cycle_levels,
+                                                 ArraySize(g_structure_fibo_config.cycle_levels),
+                                                 g_structure_fibo_config.cycle_allow_zero,
+                                                 entry_percent,
+                                                 steps,
+                                                 step_dir,
+                                                 level_percent))
     return false;
 
   return ResolveStructurePriceForPercent(peak_price,
@@ -711,7 +727,7 @@ bool ResolveFibonacciGridBaseDistance(const SignalParams &signal_params,
   steps_out = 1;
   distance_points_out = 0.0;
 
-  if(!g_structure_fibo_config.valid)
+  if(!g_structure_fibo_config.valid || !g_structure_fibo_config.cycle_valid)
     return false;
 
   double entry_price = entry_reference_price;
@@ -730,6 +746,8 @@ bool ResolveFibonacciGridBaseDistance(const SignalParams &signal_params,
                                    current_is_bottom))
     return false;
 
+  int step_dir = ResolveFibonacciStepDirection(signal_params.signal_type, current_is_bottom);
+
   double point_size = GridResolvePointSize();
   if(point_size <= 0.0)
     return false;
@@ -746,11 +764,13 @@ bool ResolveFibonacciGridBaseDistance(const SignalParams &signal_params,
     for(int step = 1; step <= max_steps; step++)
     {
       double next_percent = 0.0;
-      if(!ResolveFibonacciNextPercent(g_structure_fibo_config.levels,
-                                      total_levels,
-                                      entry_percent,
-                                      step,
-                                      next_percent))
+      if(!ResolveFibonacciNextPercentCycledWithCycle(g_structure_fibo_config.cycle_levels,
+                                                     ArraySize(g_structure_fibo_config.cycle_levels),
+                                                     g_structure_fibo_config.cycle_allow_zero,
+                                                     entry_percent,
+                                                     step,
+                                                     step_dir,
+                                                     next_percent))
         return false;
 
       double next_price = 0.0;
@@ -774,11 +794,13 @@ bool ResolveFibonacciGridBaseDistance(const SignalParams &signal_params,
   }
 
   double next_percent = 0.0;
-  if(!ResolveFibonacciNextPercent(g_structure_fibo_config.levels,
-                                  total_levels,
-                                  entry_percent,
-                                  1,
-                                  next_percent))
+  if(!ResolveFibonacciNextPercentCycledWithCycle(g_structure_fibo_config.cycle_levels,
+                                                 ArraySize(g_structure_fibo_config.cycle_levels),
+                                                 g_structure_fibo_config.cycle_allow_zero,
+                                                 entry_percent,
+                                                 1,
+                                                 step_dir,
+                                                 next_percent))
     return false;
 
   double next_price = 0.0;
