@@ -403,18 +403,44 @@ bool ResolveStructureFibonacciEntry(const StrategyContextIndicators &snapshot,
   if(!g_structure_fibo_config.valid)
     return false;
 
+  int bar_index = (trigger_mode == LEVELS_AS_LIMITS) ? 1 : 0;
+  double close_price = iClose(_Symbol, snapshot.timeframe, bar_index);
+  double low_price   = iLow(_Symbol, snapshot.timeframe, bar_index);
+  double high_price  = iHigh(_Symbol, snapshot.timeframe, bar_index);
+
+  return ResolveStructureFibonacciEntryForPrices(snapshot.structure_data,
+                                                 close_price,
+                                                 low_price,
+                                                 high_price,
+                                                 direction,
+                                                 trigger_mode,
+                                                 entry_price_out,
+                                                 in_zone,
+                                                 entry_is_limit);
+}
+
+bool ResolveStructureFibonacciEntryForPrices(const StochasticMarketStructure &structure,
+                                             const double close_price,
+                                             const double low_price,
+                                             const double high_price,
+                                             const SignalTypes direction,
+                                             const StructureTriggerEntryModes trigger_mode,
+                                             double &entry_price_out,
+                                             bool &in_zone,
+                                             bool &entry_is_limit)
+{
+  entry_price_out = 0.0;
+  in_zone = false;
+  entry_is_limit = false;
+
+  if(!g_structure_fibo_config.valid)
+    return false;
+
   double peak_price = 0.0;
   double bottom_price = 0.0;
   bool current_is_bottom = false;
-  if(!ResolveStructureReferenceRange(snapshot.structure_data,
-                                     peak_price,
-                                     bottom_price,
-                                     current_is_bottom))
+  if(!ResolveStructureReferenceRange(structure, peak_price, bottom_price, current_is_bottom))
     return false;
-
-  double close_price = iClose(_Symbol, snapshot.timeframe, 0);
-  double low_price   = iLow(_Symbol, snapshot.timeframe, 0);
-  double high_price  = iHigh(_Symbol, snapshot.timeframe, 0);
 
   double close_percent = 0.0;
   double extreme_percent = 0.0;
@@ -444,31 +470,34 @@ bool ResolveStructureFibonacciEntry(const StrategyContextIndicators &snapshot,
                                         extreme_percent))
       extreme_percent = close_percent;
   }
+  else
+  {
+    extreme_percent = close_percent;
+  }
 
   double lower = 0.0;
   double upper = 0.0;
-  bool range_ok = ResolveFibonacciRangeForPercent(g_structure_fibo_config.levels,
-                                                  ArraySize(g_structure_fibo_config.levels),
-                                                  close_percent,
-                                                  lower,
-                                                  upper);
-  bool close_in = false;
+  bool close_ok = ResolveFibonacciRangeForPercentStrict(g_structure_fibo_config.levels,
+                                                        ArraySize(g_structure_fibo_config.levels),
+                                                        close_percent,
+                                                        lower,
+                                                        upper);
+  bool close_in = close_ok && (close_percent >= lower && close_percent <= upper);
   bool extreme_in = false;
-  if(range_ok)
+
+  if(close_in)
   {
-    close_in = (close_percent >= lower && close_percent <= upper);
     extreme_in = (extreme_percent >= lower && extreme_percent <= upper);
   }
-
-  if(!close_in && !extreme_in)
+  else
   {
     double ext_lower = 0.0;
     double ext_upper = 0.0;
-    if(ResolveFibonacciRangeForPercent(g_structure_fibo_config.levels,
-                                       ArraySize(g_structure_fibo_config.levels),
-                                       extreme_percent,
-                                       ext_lower,
-                                       ext_upper))
+    if(ResolveFibonacciRangeForPercentStrict(g_structure_fibo_config.levels,
+                                             ArraySize(g_structure_fibo_config.levels),
+                                             extreme_percent,
+                                             ext_lower,
+                                             ext_upper))
     {
       if(extreme_percent >= ext_lower && extreme_percent <= ext_upper)
       {
@@ -512,11 +541,33 @@ bool ResolveStructureFibonacciEntry(const StrategyContextIndicators &snapshot,
 
   if(entry_is_limit)
   {
+    double lower_price = 0.0;
+    double upper_price = 0.0;
     if(!ResolveStructurePriceForPercent(peak_price,
                                         bottom_price,
                                         current_is_bottom,
+                                        lower,
+                                        lower_price) ||
+       !ResolveStructurePriceForPercent(peak_price,
+                                        bottom_price,
+                                        current_is_bottom,
                                         upper,
-                                        entry_price_out))
+                                        upper_price))
+      return false;
+
+    double min_price = MathMin(lower_price, upper_price);
+    double max_price = MathMax(lower_price, upper_price);
+
+    if(direction == BULLISH)
+      entry_price_out = min_price;
+    else if(direction == BEARISH)
+      entry_price_out = max_price;
+    else
+      entry_price_out = close_price;
+
+    if(direction == BULLISH && entry_price_out > close_price)
+      return false;
+    if(direction == BEARISH && entry_price_out < close_price)
       return false;
   }
   else

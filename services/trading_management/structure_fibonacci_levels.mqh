@@ -118,6 +118,35 @@ bool ResolveFibonacciRangeForPercent(const double &levels[],
   return true;
 }
 
+bool ResolveFibonacciRangeForPercentStrict(const double &levels[],
+                                           const int total,
+                                           const double percent,
+                                           double &lower_out,
+                                           double &upper_out)
+{
+  lower_out = 0.0;
+  upper_out = 0.0;
+  if(total < 2)
+    return false;
+
+  if(percent < levels[0] || percent > levels[total - 1])
+    return false;
+
+  for(int i = 0; i < total - 1; i++)
+  {
+    double lower = levels[i];
+    double upper = levels[i + 1];
+    if(percent >= lower && percent <= upper)
+    {
+      lower_out = lower;
+      upper_out = upper;
+      return true;
+    }
+  }
+
+  return false;
+}
+
 bool ResolveFibonacciNextPercent(const double &levels[],
                                  const int total,
                                  const double percent,
