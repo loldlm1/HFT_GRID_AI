@@ -7,26 +7,8 @@
 void AssignContextSnapshotToSignal(const StrategyContextIndicators &snapshot,
                                    SignalParams &signal)
 {
-  if(snapshot.context == CONTEXT_SLOT_TREND)
-  {
-    signal.trend_structure_valid  = snapshot.structure_valid;
-    signal.trend_structure_data   = snapshot.structure_data;
-  }
-  else if(snapshot.context == CONTEXT_SLOT_MACRO)
-  {
-    signal.macro_structure_valid  = snapshot.structure_valid;
-    signal.macro_structure_data   = snapshot.structure_data;
-  }
-  else if(snapshot.context == CONTEXT_SLOT_SESSION)
-  {
-    signal.session_structure_valid  = snapshot.structure_valid;
-    signal.session_structure_data   = snapshot.structure_data;
-  }
-  else
-  {
-    signal.base_structure_valid  = snapshot.structure_valid;
-    signal.base_structure_data   = snapshot.structure_data;
-  }
+  signal.base_structure_valid  = snapshot.structure_valid;
+  signal.base_structure_data   = snapshot.structure_data;
 }
 
 void RefreshUpstreamTrendsOnBaseBar()

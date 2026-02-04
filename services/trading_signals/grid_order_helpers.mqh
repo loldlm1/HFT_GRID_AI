@@ -512,16 +512,21 @@ bool ResolveSignalStructureSnapshot(const SignalParams &signal_params,
 
 bool ResolveSignalStructureRange(const SignalParams &signal_params,
                                  double &peak_price,
-                                 double &bottom_price)
+                                 double &bottom_price,
+                                 bool &current_is_bottom)
 {
   peak_price = 0.0;
   bottom_price = 0.0;
+  current_is_bottom = false;
 
   StochasticMarketStructure structure;
   if(!ResolveSignalStructureSnapshot(signal_params, structure))
     return false;
 
-  return ResolveStructureReferenceRange(structure, peak_price, bottom_price);
+  return ResolveStructureReferenceRange(structure,
+                                        peak_price,
+                                        bottom_price,
+                                        current_is_bottom);
 }
 
 bool ResolveStructureSnapshotTimeForContext(const StrategyContextTypes context,
@@ -543,21 +548,26 @@ bool ResolveFibonacciEntryPercent(const SignalParams &signal_params,
                                   const double entry_price,
                                   double &entry_percent,
                                   double &peak_price,
-                                  double &bottom_price)
+                                  double &bottom_price,
+                                  bool &current_is_bottom)
 {
   entry_percent = 0.0;
   peak_price = 0.0;
   bottom_price = 0.0;
+  current_is_bottom = false;
 
   if(entry_price <= 0.0)
     return false;
 
-  if(!ResolveSignalStructureRange(signal_params, peak_price, bottom_price))
+  if(!ResolveSignalStructureRange(signal_params,
+                                  peak_price,
+                                  bottom_price,
+                                  current_is_bottom))
     return false;
 
   return ResolveStructurePercentForPrice(peak_price,
                                          bottom_price,
-                                         signal_params.signal_type,
+                                         current_is_bottom,
                                          entry_price,
                                          entry_percent);
 }
@@ -581,11 +591,13 @@ bool ResolveFibonacciEntryRange(const SignalParams &signal_params,
   double entry_percent = 0.0;
   double peak_price = 0.0;
   double bottom_price = 0.0;
+  bool current_is_bottom = false;
   if(!ResolveFibonacciEntryPercent(signal_params,
                                    entry_price,
                                    entry_percent,
                                    peak_price,
-                                   bottom_price))
+                                   bottom_price,
+                                   current_is_bottom))
     return false;
 
   double lower = 0.0;
@@ -621,11 +633,13 @@ bool ResolveFibonacciGridLevelPercent(const SignalParams &signal_params,
   double entry_percent = 0.0;
   double peak_price = 0.0;
   double bottom_price = 0.0;
+  bool current_is_bottom = false;
   if(!ResolveFibonacciEntryPercent(signal_params,
                                    entry_price,
                                    entry_percent,
                                    peak_price,
-                                   bottom_price))
+                                   bottom_price,
+                                   current_is_bottom))
     return false;
 
   int steps = signal_params.fib_level_offset_steps + level_index;
@@ -661,11 +675,13 @@ bool ResolveFibonacciGridLevelPrice(const SignalParams &signal_params,
   double entry_percent = 0.0;
   double peak_price = 0.0;
   double bottom_price = 0.0;
+  bool current_is_bottom = false;
   if(!ResolveFibonacciEntryPercent(signal_params,
                                    entry_price,
                                    entry_percent,
                                    peak_price,
-                                   bottom_price))
+                                   bottom_price,
+                                   current_is_bottom))
     return false;
 
   int steps = signal_params.fib_level_offset_steps + level_index;
@@ -682,7 +698,7 @@ bool ResolveFibonacciGridLevelPrice(const SignalParams &signal_params,
 
   return ResolveStructurePriceForPercent(peak_price,
                                          bottom_price,
-                                         signal_params.signal_type,
+                                         current_is_bottom,
                                          level_percent,
                                          price_out);
 }
@@ -705,11 +721,13 @@ bool ResolveFibonacciGridBaseDistance(const SignalParams &signal_params,
   double entry_percent = 0.0;
   double peak_price = 0.0;
   double bottom_price = 0.0;
+  bool current_is_bottom = false;
   if(!ResolveFibonacciEntryPercent(signal_params,
                                    entry_price,
                                    entry_percent,
                                    peak_price,
-                                   bottom_price))
+                                   bottom_price,
+                                   current_is_bottom))
     return false;
 
   double point_size = GridResolvePointSize();
@@ -738,7 +756,7 @@ bool ResolveFibonacciGridBaseDistance(const SignalParams &signal_params,
       double next_price = 0.0;
       if(!ResolveStructurePriceForPercent(peak_price,
                                           bottom_price,
-                                          signal_params.signal_type,
+                                          current_is_bottom,
                                           next_percent,
                                           next_price))
         continue;
@@ -766,7 +784,7 @@ bool ResolveFibonacciGridBaseDistance(const SignalParams &signal_params,
   double next_price = 0.0;
   if(!ResolveStructurePriceForPercent(peak_price,
                                       bottom_price,
-                                      signal_params.signal_type,
+                                      current_is_bottom,
                                       next_percent,
                                       next_price))
     return false;
