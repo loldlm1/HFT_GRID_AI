@@ -246,10 +246,11 @@ bool ResolveFibonacciNextPercentCycledUp(const double &levels[],
   if(max_level <= 0.0)
     return false;
 
+  double eps = 0.0001;
   if(percent < 0.0)
   {
     double abs_value = MathAbs(percent);
-    if(abs_value <= levels[0])
+    if(abs_value <= levels[0] + eps)
     {
       next_out = 0.0;
       return true;
@@ -258,7 +259,7 @@ bool ResolveFibonacciNextPercentCycledUp(const double &levels[],
     double prev = levels[0];
     for(int i = 1; i < total; i++)
     {
-      if(levels[i] >= abs_value)
+      if(levels[i] + eps >= abs_value)
         break;
       prev = levels[i];
     }
@@ -272,7 +273,7 @@ bool ResolveFibonacciNextPercentCycledUp(const double &levels[],
 
   for(int i = 0; i < total; i++)
   {
-    if(levels[i] > cursor)
+    if(levels[i] - cursor > eps)
     {
       next_out = base + levels[i];
       return true;
@@ -295,10 +296,11 @@ bool ResolveFibonacciNextPercentCycledDown(const double &levels[],
   if(max_level <= 0.0)
     return false;
 
+  double eps = 0.0001;
   if(percent <= 0.0)
   {
     double abs_value = MathAbs(percent);
-    if(abs_value < 0.0000001)
+    if(abs_value < eps)
     {
       int first_positive = 0;
       while(first_positive < total && levels[first_positive] <= 0.0)
@@ -311,7 +313,7 @@ bool ResolveFibonacciNextPercentCycledDown(const double &levels[],
 
     double base = MathFloor(abs_value / max_level) * max_level;
     double cursor = abs_value - base;
-    if(cursor < 0.0000001)
+    if(cursor < eps)
     {
       next_out = -(base + levels[0]);
       return true;
@@ -319,7 +321,7 @@ bool ResolveFibonacciNextPercentCycledDown(const double &levels[],
 
     for(int i = 0; i < total; i++)
     {
-      if(levels[i] > cursor)
+      if(levels[i] - cursor > eps)
       {
         next_out = -(base + levels[i]);
         return true;
@@ -332,13 +334,13 @@ bool ResolveFibonacciNextPercentCycledDown(const double &levels[],
 
   double base = MathFloor(percent / max_level) * max_level;
   double cursor = percent - base;
-  if(cursor < 0.0000001)
+  if(cursor < eps)
   {
     base -= max_level;
     cursor = max_level;
   }
 
-  if(cursor <= levels[0])
+  if(cursor <= levels[0] + eps)
   {
     next_out = base;
     return true;
@@ -347,7 +349,7 @@ bool ResolveFibonacciNextPercentCycledDown(const double &levels[],
   double prev = levels[0];
   for(int i = 1; i < total; i++)
   {
-    if(levels[i] >= cursor)
+    if(levels[i] + eps >= cursor)
       break;
     prev = levels[i];
   }
@@ -369,6 +371,7 @@ bool ResolveFibonacciNextPercentCycledWithCycle(const double &cycle_levels[],
     return false;
 
   int step_dir = (direction < 0) ? -1 : 1;
+  double eps = 0.0001;
   double cursor = percent;
   for(int i = 0; i < steps; i++)
   {
@@ -383,7 +386,7 @@ bool ResolveFibonacciNextPercentCycledWithCycle(const double &cycle_levels[],
         return false;
     }
 
-    if(!allow_zero && MathAbs(cursor) < 0.0000001)
+    if(!allow_zero && MathAbs(cursor) < eps)
     {
       if(step_dir > 0)
       {
