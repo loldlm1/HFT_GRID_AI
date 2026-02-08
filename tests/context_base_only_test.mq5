@@ -1,23 +1,17 @@
 #property script_show_inputs
-#include "../services/core/enums.mqh"
-#include "../services/trading_management/ea_inputs.mqh"
-#include "../services/trading_management/strategy_structure_context.mqh"
+#include "harness/cases/context_base_only_test_case.mqh"
 
 void OnStart()
 {
   string errors = "";
+  if(!RunTest_context_base_only_test(errors))
+  {
+    if(errors != "")
+      Print("FAIL:\n", errors);
+    else
+      Print("FAIL");
+    return;
+  }
 
-  if(!StrategyContextEnabled(CONTEXT_SLOT_BASE))
-    errors += "base context disabled\n";
-  if(StrategyContextEnabled(CONTEXT_SLOT_TREND))
-    errors += "trend context enabled\n";
-  if(StrategyContextEnabled(CONTEXT_SLOT_MACRO))
-    errors += "macro context enabled\n";
-  if(StrategyContextEnabled(CONTEXT_SLOT_SESSION))
-    errors += "session context enabled\n";
-
-  if(errors != "")
-    Print("FAIL:\n", errors);
-  else
-    Print("PASS");
+  Print("PASS");
 }

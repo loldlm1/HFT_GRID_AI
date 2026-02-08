@@ -22,8 +22,14 @@ Use the project runner to compile and execute script-based tests in `tests/*_tes
 
 What it enforces:
 - Compile gate is strict: any compiler `error` or `warning` fails the test.
-- Runtime gate is strict: script must load, unload, emit `PASS`, and must not emit `FAIL`.
+- Runtime runs once through `tests/hft_grid_ai_tests_harness.mq5` after compile passes.
+- Runtime gate is strict: harness must load/unload and emit per-test `TEST_PASS`/`TEST_FAIL` markers; missing markers fail the test.
 - Tests are expected to be mock-data driven (no broker/chart history dependency).
+
+Test file structure:
+- `tests/*_test.mq5`: thin wrappers (compile visibility per test).
+- `tests/harness/cases/*_test_case.mqh`: test case logic.
+- `tests/hft_grid_ai_tests_harness.mq5`: single runtime orchestrator.
 
 Cross-platform usage:
 - Windows (Git Bash/MSYS/Cygwin, native MT5 binaries): `./scripts/run_mql5_tests.sh --mt5-root "C:/path/to/mt5"`

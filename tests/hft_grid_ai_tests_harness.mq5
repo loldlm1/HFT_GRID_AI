@@ -1,0 +1,156 @@
+#property script_show_inputs
+
+#include "harness/cases/context_base_only_test_case.mqh"
+#include "harness/cases/fibonacci_cycled_levels_cases_test_case.mqh"
+#include "harness/cases/fibonacci_grid_percent_test_case.mqh"
+#include "harness/cases/fibonacci_negative_label_test_case.mqh"
+#include "harness/cases/grid_visual_label_format_test_case.mqh"
+#include "harness/cases/structure_entry_trigger_test_case.mqh"
+#include "harness/cases/structure_fibonacci_entry_levels_test_case.mqh"
+#include "harness/cases/structure_fibonacci_entry_price_test_case.mqh"
+#include "harness/cases/structure_fibonacci_levels_test_case.mqh"
+#include "harness/cases/structure_fibonacci_orientation_test_case.mqh"
+#include "harness/cases/structure_fibonacci_strict_range_test_case.mqh"
+#include "harness/cases/structure_snapshot_time_test_case.mqh"
+
+string HarnessCompactErrors(const string raw_errors)
+{
+  string compact = raw_errors;
+  StringReplace(compact, "\r", "");
+  StringReplace(compact, "\n", " | ");
+
+  while(StringFind(compact, " |  | ") >= 0)
+    StringReplace(compact, " |  | ", " | ");
+
+  while(StringLen(compact) >= 3 && StringSubstr(compact, StringLen(compact) - 3, 3) == " | ")
+    compact = StringSubstr(compact, 0, StringLen(compact) - 3);
+
+  return compact;
+}
+
+void HarnessRecordResult(const string test_name,
+                         const bool passed,
+                         const string errors,
+                         int &passed_count,
+                         int &failed_count,
+                         int &total_count)
+{
+  total_count++;
+  Print("TEST_START: ", test_name);
+
+  if(passed)
+  {
+    passed_count++;
+    Print("TEST_PASS: ", test_name);
+    return;
+  }
+
+  failed_count++;
+  Print("TEST_FAIL: ", test_name);
+
+  string compact = HarnessCompactErrors(errors);
+  if(compact != "")
+    Print("TEST_FAIL_DETAILS: ", test_name, " | ", compact);
+}
+
+void OnStart()
+{
+  int total_count = 0;
+  int passed_count = 0;
+  int failed_count = 0;
+  string errors = "";
+
+  HarnessRecordResult("context_base_only_test",
+                      RunTest_context_base_only_test(errors),
+                      errors,
+                      passed_count,
+                      failed_count,
+                      total_count);
+
+  HarnessRecordResult("fibonacci_cycled_levels_cases_test",
+                      RunTest_fibonacci_cycled_levels_cases_test(errors),
+                      errors,
+                      passed_count,
+                      failed_count,
+                      total_count);
+
+  HarnessRecordResult("fibonacci_grid_percent_test",
+                      RunTest_fibonacci_grid_percent_test(errors),
+                      errors,
+                      passed_count,
+                      failed_count,
+                      total_count);
+
+  HarnessRecordResult("fibonacci_negative_label_test",
+                      RunTest_fibonacci_negative_label_test(errors),
+                      errors,
+                      passed_count,
+                      failed_count,
+                      total_count);
+
+  HarnessRecordResult("grid_visual_label_format_test",
+                      RunTest_grid_visual_label_format_test(errors),
+                      errors,
+                      passed_count,
+                      failed_count,
+                      total_count);
+
+  HarnessRecordResult("structure_entry_trigger_test",
+                      RunTest_structure_entry_trigger_test(errors),
+                      errors,
+                      passed_count,
+                      failed_count,
+                      total_count);
+
+  HarnessRecordResult("structure_fibonacci_entry_levels_test",
+                      RunTest_structure_fibonacci_entry_levels_test(errors),
+                      errors,
+                      passed_count,
+                      failed_count,
+                      total_count);
+
+  HarnessRecordResult("structure_fibonacci_entry_price_test",
+                      RunTest_structure_fibonacci_entry_price_test(errors),
+                      errors,
+                      passed_count,
+                      failed_count,
+                      total_count);
+
+  HarnessRecordResult("structure_fibonacci_levels_test",
+                      RunTest_structure_fibonacci_levels_test(errors),
+                      errors,
+                      passed_count,
+                      failed_count,
+                      total_count);
+
+  HarnessRecordResult("structure_fibonacci_orientation_test",
+                      RunTest_structure_fibonacci_orientation_test(errors),
+                      errors,
+                      passed_count,
+                      failed_count,
+                      total_count);
+
+  HarnessRecordResult("structure_fibonacci_strict_range_test",
+                      RunTest_structure_fibonacci_strict_range_test(errors),
+                      errors,
+                      passed_count,
+                      failed_count,
+                      total_count);
+
+  HarnessRecordResult("structure_snapshot_time_test",
+                      RunTest_structure_snapshot_time_test(errors),
+                      errors,
+                      passed_count,
+                      failed_count,
+                      total_count);
+
+  PrintFormat("HARNESS_SUMMARY: passed=%d failed=%d total=%d",
+              passed_count,
+              failed_count,
+              total_count);
+
+  if(failed_count == 0)
+    Print("HARNESS_PASS");
+  else
+    Print("HARNESS_FAIL");
+}
