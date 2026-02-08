@@ -10,6 +10,7 @@
 // SIGNAL SERVICE FILES
 #include "trading_signals/signal_params_struct.mqh"
 #include "trading_signals/session_time_filter_manager.mqh"
+#include "trading_signals/signal_lot_strategy.mqh"
 #include "trading_signals/market_signal_state.mqh"
 #include "trading_signals/market_signal_indicators.mqh"
 #include "trading_signals/market_signal_filters.mqh"

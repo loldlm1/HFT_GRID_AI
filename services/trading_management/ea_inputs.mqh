@@ -60,18 +60,19 @@ input group  "+= Grid Strategy Settings =+";
 input GridBaseStrategyTypes Grid_Base_Strategy_Type      = POINTS_RANGE;
 input double                Grid_Points_Range_Setup      = 100.0;
 input double                Grid_Points_TP               = 0.0;
-input double                Grid_TP_Percent              = 100.0;
 input double                Grid_Exponential_Multiplier  = 1.0;
 input double                Grid_Positions_Stops_Percent = 10.0;
 
-input group  "+= Grid Risk Managment Settings =+";
-input GridLotTypes         Grid_Lot_Type                 = GRID_LOT_SIZE;
-input double               Grid_Lot_Strategy_Size        = 0.01;
-input double               Grid_Lot_Multiplier           = 2.0;
-input int                  Grid_Level_Position_Start     = 0;
-input int                  Grid_Level_Stop_Limit         = 0;
-input int                  Daily_Signal_Limit            = 0;
-input DailySignalLimitModes Daily_Signal_Limit_Mode      = STOP_DAILY_SIGNALS;
+input group  "+= Risk Managment Settings =+";
+input GridLotTypes          Lot_Type                 = GRID_LOT_SIZE;
+input double                Lot_Strategy_Size        = 0.01;
+input double                Lot_Multiplier           = 2.0;
+input SignalLotStrategyTypes Signal_Lot_Strategy     = RISK_STRATEGY_OFF;
+input double                TP_Percent               = 100.0;
+input int                   Level_Position_Start     = 0;
+input int                   Level_Stop_Limit         = 0;
+input int                   Daily_Signal_Limit       = 0;
+input DailySignalLimitModes Daily_Signal_Limit_Mode  = STOP_DAILY_SIGNALS;
 
 input group  "+= Developer Debug Settings =+";
 input bool Enable_Logs              = false;

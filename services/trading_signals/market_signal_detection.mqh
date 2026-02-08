@@ -82,6 +82,7 @@ void EvaluateContextSignals(const StrategyContextTypes context)
     signal.strategy_context_label = StrategyContextLabel(context);
     signal.entry_trigger_mode     = Structure_Trigger_Entry;
     signal.entry_is_limit         = entry_is_limit;
+    signal.signal_lot_sequence_step = ResolveSignalLotSequenceStepForNewSignal();
     signal.context_structure_snapshot_time = structure_time;
     AssignContextSnapshotToSignal(snapshot, signal);
 

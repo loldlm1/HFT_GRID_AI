@@ -134,79 +134,10 @@ int GridCountPositionOpeningLevels(const SignalParams &signal_params)
 bool GridNextLevelOpensPosition(const SignalParams &signal_params)
 {
   int next_index = ArraySize(signal_params.grid_orders);
-  int start_level = Grid_Level_Position_Start;
+  int start_level = Level_Position_Start;
   if(start_level < 0)
     start_level = 0;
   return (next_index >= start_level);
-}
-
-int GridAggressiveLotSplitCount()
-{
-  double splits = MathMax(1.0, Grid_Lot_Strategy_Size);
-  int rounded = (int)MathRound(splits);
-  if(rounded <= 0)
-    rounded = 1;
-  return rounded;
-}
-
-double GridResolveAggressiveLotSize(const SignalTypes direction)
-{
-  double free_margin = AccountInfoDouble(ACCOUNT_MARGIN_FREE);
-  if(free_margin <= 0.0)
-    return 0.0;
-
-  double price = GridCurrentPriceForDirection(direction, true);
-  if(price <= 0.0)
-    price = SymbolInfoDouble(_Symbol, SYMBOL_BID);
-  if(price <= 0.0)
-    return 0.0;
-
-  double margin_per_lot = SymbolInfoDouble(_Symbol, SYMBOL_MARGIN_INITIAL);
-  if(margin_per_lot <= 0.0)
-  {
-    double contract_size = SymbolInfoDouble(_Symbol, SYMBOL_TRADE_CONTRACT_SIZE);
-    double leverage = (double)AccountInfoInteger(ACCOUNT_LEVERAGE);
-    if(leverage <= 0.0)
-      leverage = 1.0;
-    margin_per_lot = (contract_size * price) / leverage;
-  }
-
-  if(margin_per_lot <= 0.0)
-    return 0.0;
-
-  double buffer = 0.995;
-  double max_lots = (free_margin * buffer) / margin_per_lot;
-  double volume_max = SymbolInfoDouble(_Symbol, SYMBOL_VOLUME_MAX);
-  if(volume_max > 0.0 && max_lots > volume_max)
-    max_lots = volume_max;
-
-  int split_count = GridAggressiveLotSplitCount();
-  double per_split = max_lots / (double)split_count;
-  if(per_split <= 0.0)
-    return 0.0;
-
-  double normalized = NormalizeVolumeForSymbol(_Symbol, per_split);
-
-  double volume_min = SymbolInfoDouble(_Symbol, SYMBOL_VOLUME_MIN);
-  if(volume_min <= 0.0)
-    volume_min = 0.01;
-
-  double volume_step = SymbolInfoDouble(_Symbol, SYMBOL_VOLUME_STEP);
-  if(volume_step <= 0.0)
-    volume_step = volume_min;
-
-  double required_margin = normalized * margin_per_lot;
-  while(normalized > volume_min && required_margin > free_margin)
-  {
-    normalized -= volume_step;
-    normalized = NormalizeVolumeForSymbol(_Symbol, normalized);
-    required_margin = normalized * margin_per_lot;
-  }
-
-  if(required_margin > free_margin)
-    return 0.0;
-
-  return NormalizeVolumeForSymbol(_Symbol, normalized);
 }
 
 void GridResetOrderStateForWaiting(GridOrderState &state,
@@ -319,7 +250,7 @@ double GetGridTakeProfitPrice(SignalTypes direction, SignalParams &signal_params
   if(Grid_Points_TP > 0.0)
     tp_span_pts = EnforceBrokerDistance(g_symbol_constraints, Grid_Points_TP);
   else
-    tp_span_pts = level_distance_pts * (Grid_TP_Percent / 100.0);
+    tp_span_pts = level_distance_pts * (TP_Percent / 100.0);
 
   if(direction == BULLISH)
   {
