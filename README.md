@@ -29,6 +29,10 @@ Cross-platform usage:
 - Windows (Git Bash/MSYS/Cygwin, native MT5 binaries): `./scripts/run_mql5_tests.sh --mt5-root "C:/path/to/mt5"`
 - Ubuntu 22.04+ (Wine): `./scripts/run_mql5_tests.sh --mt5-root "/path/to/mt5/root"`
 
+Preferred layout:
+- Place this repo at `<MT5_ROOT>/MQL5/Experts/HFT_Grid_AI`.
+- Keep `terminal64.exe` and `MetaEditor64.exe` at `<MT5_ROOT>` (shared binaries for all `Experts/*` projects).
+
 Options:
 - `--symbol` and `--period` set runtime chart context for startup (defaults `EURUSD`/`M1`).
 - `--report-dir` changes report root (default `logs/test-runner`).
