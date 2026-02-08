@@ -1,5 +1,6 @@
 #property script_show_inputs
-#include "../services/trading_tools.mqh"
+#include "../services/core/enums.mqh"
+#include "../services/trading_management/ea_inputs.mqh"
 #include "../services/trading_management/strategy_structure_context.mqh"
 
 void OnStart()

@@ -61,6 +61,8 @@ Keep this in sync with `~/.codex/config.toml` (do not copy here).
 - Compile gate is strict: warnings/errors fail the pipeline.
 - Runtime gate is strict: script load + unload + `PASS` required, any `FAIL` fails.
 - Tests should be mock-data driven; chart context (`--symbol`/`--period`) is provisioned only to satisfy runtime startup.
+- Runner keeps only `logs/test-runner/latest` (single latest report tree).
+- MT5 terminal must be closed before a run; MT5 cannot queue startup-script runs into an already-open instance for the same install root.
 
 ## 8) Canonical Repo Placement
 - Preferred layout: `<MT5_ROOT>/MQL5/Experts/HFT_Grid_AI` (and other projects in `<MT5_ROOT>/MQL5/Experts/*`).

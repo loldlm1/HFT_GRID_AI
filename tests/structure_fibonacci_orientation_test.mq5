@@ -1,6 +1,48 @@
 #property script_show_inputs
-#include "../services/trading_tools.mqh"
+#include "../services/core/enums.mqh"
+#include "../services/core/base_structures.mqh"
+#include "../services/utils/array_functions.mqh"
+#include "../services/utils/miscellaneous.mqh"
+#include "../services/utils/broker_constraints_helper.mqh"
+#include "../services/trading_management/ea_inputs.mqh"
+#include "../services/trading_management/strategy_structure_context.mqh"
 #include "../services/indicators/stochastic_market_indicator.mqh"
+#include "../services/indicators/fibonacci_calculator.mqh"
+#include "../services/trading_management/structure_fibonacci_levels.mqh"
+
+struct StrategyContextIndicators
+{
+  StrategyContextTypes      context;
+  ENUM_TIMEFRAMES           timeframe;
+  datetime                  bar_time;
+  bool                      structure_valid;
+  StochasticMarketStructure structure_data;
+
+  StrategyContextIndicators()
+  {
+    context         = CONTEXT_SLOT_BASE;
+    timeframe       = PERIOD_CURRENT;
+    bar_time        = 0;
+    structure_valid = false;
+  }
+};
+
+double GridResolvePointSizeSafe()
+{
+  double point_size = SymbolInfoDouble(_Symbol, SYMBOL_POINT);
+  if(point_size <= 0.0)
+    point_size = 0.0001;
+  return point_size;
+}
+
+datetime GetLastContextStructureTime(const StrategyContextTypes context,
+                                     const SignalTypes direction)
+{
+  return 0;
+}
+
+SymbolTradingConstraints g_symbol_constraints;
+
 #include "../services/trading_signals/market_signal_filters.mqh"
 
 bool AssertClose(const string label,

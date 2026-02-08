@@ -15,7 +15,7 @@ Options:
   --mt5-root PATH   MetaTrader root (contains terminal64.exe and MQL5/)
   --symbol SYMBOL   Symbol used when launching script tests (default: EURUSD)
   --period PERIOD   Period used when launching script tests (default: M1)
-  --report-dir DIR  Report output root (default: logs/test-runner)
+  --report-dir DIR  Report output root; runner writes only DIR/latest (default: logs/test-runner)
   -h, --help        Show this help
 EOF
 }
@@ -80,6 +80,18 @@ run_windows_binary() {
     require_command wine
     wine "$exe" "$@"
   fi
+}
+
+is_terminal_already_running() {
+  if is_windows; then
+    if command -v tasklist >/dev/null 2>&1; then
+      tasklist /NH /FI "IMAGENAME eq terminal64.exe" 2>/dev/null | grep -Eqi 'terminal64\.exe'
+      return $?
+    fi
+    return 1
+  fi
+
+  ps -eo args | grep -i '[t]erminal64\.exe' | grep -Fqi -- "$MT5_ROOT"
 }
 
 decode_log_to_utf8() {
@@ -279,6 +291,7 @@ require_command sed
 require_command sort
 require_command date
 require_command mktemp
+require_command ps
 
 if ! is_windows; then
   require_command wine
@@ -325,12 +338,18 @@ fi
 [[ -f "$TERMINAL_EXE" ]] || die "terminal64.exe not found at $TERMINAL_EXE"
 [[ -d "$MT5_ROOT/MQL5/Scripts" ]] || die "Scripts directory not found at $MT5_ROOT/MQL5/Scripts"
 
+TERMINAL_OWNER="system_opened"
+if is_terminal_already_running; then
+  TERMINAL_OWNER="user_opened"
+  die "Detected running terminal64.exe (owner=${TERMINAL_OWNER}). Close MT5 first: command-line runs cannot queue scripts into an already-open terminal for the same installation directory."
+fi
+
 mapfile -t TEST_FILES < <(find "$PROJECT_ROOT/tests" -maxdepth 1 -type f -name '*_test.mq5' | sort)
 [[ "${#TEST_FILES[@]}" -gt 0 ]] || die "No test files found in tests/*_test.mq5"
 discovered_tests="${#TEST_FILES[@]}"
 
 RUN_STAMP="$(date '+%Y%m%d_%H%M%S')"
-RUN_DIR="$REPORT_ROOT/$RUN_STAMP"
+RUN_DIR="$REPORT_ROOT/latest"
 COMPILE_DIR="$RUN_DIR/compile"
 RUNTIME_DIR="$RUN_DIR/runtime"
 CONFIG_DIR="$RUN_DIR/config"
@@ -340,6 +359,12 @@ MOCK_WARNINGS_TXT="$RUN_DIR/mock_dependency_warnings.txt"
 REPORT_MD="$RUN_DIR/report.md"
 REPORT_JSON="$RUN_DIR/report.json"
 
+mkdir -p "$REPORT_ROOT"
+if [[ -e "$RUN_DIR" || -L "$RUN_DIR" ]]; then
+  rm -rf "$RUN_DIR"
+fi
+find "$REPORT_ROOT" -mindepth 1 -maxdepth 1 -type d -name '20??????_??????' -exec rm -rf {} + 2>/dev/null || true
+
 mkdir -p "$COMPILE_DIR" "$RUNTIME_DIR" "$CONFIG_DIR" "$REPORT_ROOT" "$STAGE_DIR"
 : >"$RESULTS_TSV"
 : >"$MOCK_WARNINGS_TXT"
@@ -347,6 +372,7 @@ mkdir -p "$COMPILE_DIR" "$RUNTIME_DIR" "$CONFIG_DIR" "$REPORT_ROOT" "$STAGE_DIR"
 log "MT5 root: $MT5_ROOT"
 log "MetaEditor: $METAEDITOR_EXE"
 log "Terminal: $TERMINAL_EXE"
+log "Terminal owner: $TERMINAL_OWNER"
 log "Tests found: $discovered_tests"
 log "Report dir: $RUN_DIR"
 
@@ -371,6 +397,8 @@ write_reports() {
     echo "- Generated at: $(date '+%Y-%m-%d %H:%M:%S')"
     echo "- Project root: $PROJECT_ROOT"
     echo "- MT5 root: $MT5_ROOT"
+    echo "- Terminal owner: $TERMINAL_OWNER"
+    echo "- Run stamp: $RUN_STAMP"
     echo "- Test pattern: tests/*_test.mq5"
     echo "- Runtime symbol/period: ${TEST_SYMBOL}/${TEST_PERIOD}"
     echo "- Tests discovered: $discovered_tests"
@@ -420,6 +448,8 @@ write_reports() {
     echo "  \"generated_at\": \"$(json_escape "$(date '+%Y-%m-%d %H:%M:%S')")\","
     echo "  \"project_root\": \"$(json_escape "$PROJECT_ROOT")\","
     echo "  \"mt5_root\": \"$(json_escape "$MT5_ROOT")\","
+    echo "  \"terminal_owner\": \"$(json_escape "$TERMINAL_OWNER")\","
+    echo "  \"run_stamp\": \"$(json_escape "$RUN_STAMP")\","
     echo "  \"symbol\": \"$(json_escape "$TEST_SYMBOL")\","
     echo "  \"period\": \"$(json_escape "$TEST_PERIOD")\","
     echo "  \"total\": $discovered_tests,"
@@ -457,7 +487,6 @@ write_reports() {
     echo "}"
   } >"$REPORT_JSON"
 
-  ln -sfn "$RUN_DIR" "$REPORT_ROOT/latest" 2>/dev/null || true
   report_generated=1
 }
 

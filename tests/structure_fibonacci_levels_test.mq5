@@ -1,5 +1,4 @@
 #property script_show_inputs
-#include "../services/trading_tools.mqh"
 #include "../services/trading_management/structure_fibonacci_levels.mqh"
 
 bool AssertClose(const string label,
