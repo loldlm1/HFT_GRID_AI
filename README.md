@@ -13,6 +13,37 @@ HFT Grid AI is a MetaTrader 5 Expert Advisor that runs bullish/bearish grid sequ
 2. Attach the EA to a chart or run it in Strategy Tester (Every tick based on real ticks).
 3. Adjust inputs in MT5 as needed.
 
+## Automated `*_test.mq5` Runner
+Use the project runner to compile and execute script-based tests in `tests/*_test.mq5`:
+
+```bash
+./scripts/run_mql5_tests.sh
+```
+
+What it enforces:
+- Compile gate is strict: any compiler `error` or `warning` fails the test.
+- Runtime gate is strict: script must load, unload, emit `PASS`, and must not emit `FAIL`.
+- Tests are expected to be mock-data driven (no broker/chart history dependency).
+
+Cross-platform usage:
+- Windows (Git Bash/MSYS/Cygwin, native MT5 binaries): `./scripts/run_mql5_tests.sh --mt5-root "C:/path/to/mt5"`
+- Ubuntu 22.04+ (Wine): `./scripts/run_mql5_tests.sh --mt5-root "/path/to/mt5/root"`
+
+Options:
+- `--symbol` and `--period` set runtime chart context for startup (defaults `EURUSD`/`M1`).
+- `--report-dir` changes report root (default `logs/test-runner`).
+
+Outputs:
+- `logs/test-runner/<timestamp>/report.md`
+- `logs/test-runner/<timestamp>/report.json`
+- `logs/test-runner/<timestamp>/compile/*.utf8.log`
+- `logs/test-runner/<timestamp>/runtime/*.segment.log`
+- `logs/test-runner/latest` symlink to the latest run
+
+Note:
+- The runner intentionally has no timeout.
+- If interrupted (`Ctrl+C`), it writes a partial report for completed tests.
+
 ## Project Map (brief)
 - `services/` holds the ordered include pipeline (tools -> management -> strategies -> signals -> frontend).
 - `AGENTS.md` is the short architectural brief and source of truth for contributor rules.
