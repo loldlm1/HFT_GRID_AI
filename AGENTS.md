@@ -54,3 +54,10 @@ Minimal migration steps:
 
 ## 6) Codex Config (source of truth)
 Keep this in sync with `~/.codex/config.toml` (do not copy here).
+
+## 7) Test Automation (`*_test.mq5`)
+- Runner script: `scripts/run_mql5_tests.sh`.
+- Scope: only `tests/*_test.mq5` (script tests compiled to `.ex5` and executed headlessly).
+- Compile gate is strict: warnings/errors fail the pipeline.
+- Runtime gate is strict: script load + unload + `PASS` required, any `FAIL` fails.
+- Tests should be mock-data driven; chart context (`--symbol`/`--period`) is provisioned only to satisfy runtime startup.
