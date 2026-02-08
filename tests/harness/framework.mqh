@@ -17,6 +17,7 @@
 #include "../../services/indicators/fibonacci_calculator.mqh"
 #include "../../services/trading_management/structure_fibonacci_levels.mqh"
 #include "../../services/trading_signals/signal_params_struct.mqh"
+#include "../../services/trading_signals/signal_lot_strategy.mqh"
 #include "../../services/frontend/grid_visual_utils.mqh"
 
 struct StrategyContextIndicators
