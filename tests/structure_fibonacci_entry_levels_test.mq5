@@ -1,9 +1,15 @@
 #property script_show_inputs
-#include "../services/trading_tools.mqh"
+#include "../services/core/enums.mqh"
+#include "../services/core/base_structures.mqh"
+#include "../services/utils/array_functions.mqh"
+#include "../services/utils/miscellaneous.mqh"
+#include "../services/utils/broker_constraints_helper.mqh"
 #include "../services/trading_management/ea_inputs.mqh"
 #include "../services/trading_management/strategy_structure_context.mqh"
 #include "../services/indicators/stochastic_market_indicator.mqh"
+#include "../services/indicators/fibonacci_calculator.mqh"
 #include "../services/trading_management/structure_fibonacci_levels.mqh"
+#include "../services/trading_signals/signal_params_struct.mqh"
 
 struct StrategyContextIndicators
 {
