@@ -133,12 +133,23 @@ enum GridEntryStyles
 
 enum GridLotTypes
 {
-  GRID_LOT_SIZE                 = 0,
-  GRID_LOT_PERCENTAGE_BASED     = 1,
-  GRID_LOT_CURRENCY_BASED       = 2,
-  GRID_LOT_CALCULATED           = 3,
-  GRID_LOT_EQUITY_PERCENT_BASED = 4,
-  GRID_LOT_MAX_MARGIN_SPLIT     = 5
+  GRID_LOT_SIZE             = 0,
+  GRID_LOT_PERCENTAGE_BASED = 1,
+  GRID_LOT_CURRENCY_BASED   = 2
+};
+
+enum SignalLotStrategyTypes
+{
+  RISK_STRATEGY_OFF     = 0,
+  RISK_APPLIED_ON_LOSS  = 1,
+  RISK_APPLIED_ON_WIN   = 2
+};
+
+enum SignalOutcomeTypes
+{
+  SIGNAL_OUTCOME_NEUTRAL = 0,
+  SIGNAL_OUTCOME_WIN     = 1,
+  SIGNAL_OUTCOME_LOSS    = 2
 };
 
 enum DailySignalLimitModes

@@ -56,6 +56,7 @@ struct SignalParams
   double                     take_profit;
   double                     lot_size;
   double                     raw_profit;
+  int                        signal_lot_sequence_step;
   datetime                   entry_time;
   datetime                   close_time;
 
@@ -100,6 +101,7 @@ struct SignalParams
     take_profit                = 0.0;
     lot_size                   = 0.0;
     raw_profit                 = 0.0;
+    signal_lot_sequence_step   = 0;
     entry_time                 = 0;
     close_time                 = 0;
     grid_initialized           = false;
@@ -134,6 +136,7 @@ struct SignalParams
     take_profit                = signal_params.take_profit;
     lot_size                   = signal_params.lot_size;
     raw_profit                 = signal_params.raw_profit;
+    signal_lot_sequence_step   = signal_params.signal_lot_sequence_step;
     entry_time                 = signal_params.entry_time;
     close_time                 = signal_params.close_time;
     grid_initialized           = signal_params.grid_initialized;
