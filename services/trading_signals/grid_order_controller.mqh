@@ -103,16 +103,6 @@ void UpdateGridLifecycle(SignalParams &signal_params)
     }
 
     double normalized_volume = NormalizeVolumeForSymbol(_Symbol, grid_order.lot_size);
-    if(Grid_Lot_Type == GRID_LOT_MAX_MARGIN_SPLIT && !signal_params.is_sar_signal)
-    {
-      double aggressive_lot = GridResolveAggressiveLotSize(direction);
-      if(aggressive_lot > 0.0)
-      {
-        normalized_volume = aggressive_lot;
-        signal_params.grid_orders[grid_order_level].lot_size = aggressive_lot;
-        grid_order.lot_size = aggressive_lot;
-      }
-    }
 
     if(GridShouldActivateStopOrder(signal_params, grid_order, direction, point_size))
     {

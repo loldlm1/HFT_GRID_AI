@@ -75,6 +75,11 @@ int OnInit()
   // INITIALIZE THE EA
   CreateLicensePanelLive();
   LoadAllIndicatorDefinitions();
+  if(!EventSetTimer(license_timer_seconds))
+  {
+    Print("FAILED TO START LICENSE TIMER.");
+    return INIT_FAILED;
+  }
 
   return(INIT_SUCCEEDED);
 }

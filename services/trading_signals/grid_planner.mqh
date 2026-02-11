@@ -28,6 +28,44 @@ double GridResolveDirectionMultiplierSafe(const SignalTypes direction)
   return 0.0;
 }
 
+GridLotTypes GridResolveConfiguredLotType()
+{
+  int configured_value = (int)Grid_Lot_Type;
+  if(configured_value == (int)GRID_LOT_SIZE ||
+     configured_value == (int)GRID_LOT_PERCENTAGE_BASED ||
+     configured_value == (int)GRID_LOT_CURRENCY_BASED)
+  {
+    return (GridLotTypes)configured_value;
+  }
+
+  static int last_logged_invalid_value = -1000000;
+  if(last_logged_invalid_value != configured_value)
+  {
+    PrintFormat("Deprecated Grid_Lot_Type value %d detected. Falling back to GRID_LOT_SIZE.", configured_value);
+    last_logged_invalid_value = configured_value;
+  }
+
+  Grid_Lot_Type = GRID_LOT_SIZE;
+  return GRID_LOT_SIZE;
+}
+
+double GridResolveTargetAmountByLotType(const GridLotTypes lot_type)
+{
+  if(lot_type == GRID_LOT_PERCENTAGE_BASED)
+  {
+    double account_reference = Account_Size;
+    double account_balance = AccountInfoDouble(ACCOUNT_BALANCE);
+    if(account_balance > 0.0)
+      account_reference = account_balance;
+    return MathAbs(account_reference * (Grid_Lot_Strategy_Size / 100.0));
+  }
+
+  if(lot_type == GRID_LOT_CURRENCY_BASED)
+    return MathAbs(Grid_Lot_Strategy_Size);
+
+  return 0.0;
+}
+
 bool CalculateBaseGridContext(const SignalParams &signal_params,
                               const ENUM_TIMEFRAMES tf,
                               double &distance_points,
@@ -145,9 +183,10 @@ bool CalculateBaseGridContext(const SignalParams &signal_params,
 
 double ResolveBaseGridLot(const double base_distance_points)
 {
+  GridLotTypes lot_type = GridResolveConfiguredLotType();
   double base_lot = Grid_Lot_Strategy_Size;
 
-  if(Grid_Lot_Type == GRID_LOT_SIZE)
+  if(lot_type == GRID_LOT_SIZE)
     return NormalizeVolumeForSymbol(_Symbol, base_lot);
 
   double reference_points = base_distance_points;
@@ -156,24 +195,7 @@ double ResolveBaseGridLot(const double base_distance_points)
   if(reference_points <= 0.0)
     reference_points = base_distance_points;
 
-  double target_amount = 0.0;
-  if(Grid_Lot_Type == GRID_LOT_PERCENTAGE_BASED ||
-     Grid_Lot_Type == GRID_LOT_EQUITY_PERCENT_BASED)
-  {
-    double account_reference = Account_Size;
-    double account_value = (Grid_Lot_Type == GRID_LOT_EQUITY_PERCENT_BASED)
-                             ? AccountInfoDouble(ACCOUNT_EQUITY)
-                             : AccountInfoDouble(ACCOUNT_BALANCE);
-    if(account_value > 0.0)
-      account_reference = account_value;
-    target_amount = account_reference * (Grid_Lot_Strategy_Size / 100.0);
-  }
-  else if(Grid_Lot_Type == GRID_LOT_CURRENCY_BASED)
-  {
-    target_amount = Grid_Lot_Strategy_Size;
-  }
-
-  target_amount = MathAbs(target_amount);
+  double target_amount = GridResolveTargetAmountByLotType(lot_type);
 
   if(target_amount <= 0.0 || reference_points <= 0.0)
     return NormalizeVolumeForSymbol(_Symbol, base_lot);
@@ -249,66 +271,6 @@ double GridResolveLotReferencePoints(const SignalParams &signal_params,
   return fallback_points;
 }
 
-double GridComputeLevelDrawdownPoints(const SignalParams &signal_params,
-                                      const GridOrderState &state)
-{
-  double point_size = GridResolvePointSizeSafe();
-  if(point_size <= 0.0)
-    return 0.0;
-
-  double entry_reference = state.entry_reference_price;
-  double next_level      = state.next_level_price;
-
-  if(entry_reference <= 0.0)
-    return 0.0;
-
-  if(next_level <= 0.0)
-  {
-    double fallback_points = ComputeLevelDistancePoints(signal_params, state.level_index);
-    return MathMax(fallback_points, 0.0);
-  }
-
-  double range_points = MathAbs(entry_reference - next_level) / point_size;
-  return MathMax(range_points, 0.0);
-}
-
-double GridComputeLevelDrawdownCurrency(const SignalParams &signal_params,
-                                        const GridOrderState &state)
-{
-  if(!state.opens_position)
-    return 0.0;
-  if(state.lot_size <= 0.0)
-    return 0.0;
-
-  double drawdown_points = GridComputeLevelDrawdownPoints(signal_params, state);
-  if(drawdown_points <= 0.0)
-    return 0.0;
-
-  return ConvertLotsToAmount(_Symbol, state.lot_size, drawdown_points);
-}
-
-double GridComputeSequenceDrawdownCurrency(const SignalParams &signal_params,
-                                           const int upto_level_index)
-{
-  int total_levels = ArraySize(signal_params.grid_orders);
-  if(upto_level_index <= 0 || total_levels <= 0)
-    return 0.0;
-
-  int limit = upto_level_index;
-  if(limit > total_levels)
-    limit = total_levels;
-
-  double cumulative_amount = 0.0;
-  for(int i = 0; i < limit; i++)
-  {
-    GridOrderState level_state = signal_params.grid_orders[i];
-    if(!level_state.opens_position)
-      continue;
-    cumulative_amount += GridComputeLevelDrawdownCurrency(signal_params, level_state);
-  }
-  return cumulative_amount;
-}
-
 double ResolveIndicatorMinimumBaseDistance(const SignalParams &signal_params)
 {
   if(!GridStrategyUsesChannelIndicator())
@@ -367,32 +329,11 @@ double ResolveGridOrderLotSize(SignalParams &signal_params,
 
   double resolved_lot = fallback_lot;
 
-  GridLotTypes effective_lot_type = Grid_Lot_Type;
-  if(signal_params.is_sar_signal)
-    effective_lot_type = GRID_LOT_CALCULATED;
-
-  bool percent_type  = (effective_lot_type == GRID_LOT_PERCENTAGE_BASED ||
-                        effective_lot_type == GRID_LOT_EQUITY_PERCENT_BASED);
-  bool currency_type = (effective_lot_type == GRID_LOT_CURRENCY_BASED);
-
-  if(percent_type || currency_type)
+  GridLotTypes effective_lot_type = GridResolveConfiguredLotType();
+  if(effective_lot_type == GRID_LOT_PERCENTAGE_BASED ||
+     effective_lot_type == GRID_LOT_CURRENCY_BASED)
   {
-    double target_amount = 0.0;
-    if(percent_type)
-    {
-      double account_reference = Account_Size;
-      double account_value = (effective_lot_type == GRID_LOT_EQUITY_PERCENT_BASED)
-                               ? AccountInfoDouble(ACCOUNT_EQUITY)
-                               : AccountInfoDouble(ACCOUNT_BALANCE);
-      if(account_value > 0.0)
-        account_reference = account_value;
-      target_amount = account_reference * (Grid_Lot_Strategy_Size / 100.0);
-    }
-    else
-    {
-      target_amount = MathAbs(Grid_Lot_Strategy_Size);
-    }
-
+    double target_amount = GridResolveTargetAmountByLotType(effective_lot_type);
     if(target_amount > 0.0)
     {
       double converted = ConvertAmountToLots(_Symbol, target_amount, movement_points);
@@ -400,41 +341,8 @@ double ResolveGridOrderLotSize(SignalParams &signal_params,
         resolved_lot = converted;
     }
   }
-  else if(effective_lot_type == GRID_LOT_CALCULATED)
-  {
-    if(level_index == 0)
-    {
-      resolved_lot = fallback_lot;
-    }
-    else
-    {
-      double drawdown_amount = GridComputeSequenceDrawdownCurrency(signal_params, level_index);
-      if(drawdown_amount > 0.0)
-      {
-        double multiplier = Grid_Lot_Multiplier;
-        if(multiplier <= 0.0)
-          multiplier = 1.0;
-        double target_amount = drawdown_amount * multiplier;
-        double calculated = ConvertAmountToLots(_Symbol, target_amount, movement_points);
-        if(calculated > 0.0)
-          resolved_lot = calculated;
-      }
-    }
-  }
-  else if(effective_lot_type == GRID_LOT_MAX_MARGIN_SPLIT)
-  {
-    double aggressive = GridResolveAggressiveLotSize(signal_params.signal_type);
-    if(aggressive > 0.0)
-      resolved_lot = aggressive;
-  }
-  else
-  {
-    resolved_lot = fallback_lot;
-  }
 
-  if(effective_lot_type != GRID_LOT_CALCULATED &&
-     effective_lot_type != GRID_LOT_MAX_MARGIN_SPLIT &&
-     level_opens_position)
+  if(level_opens_position)
   {
     int executed_index = ResolveExecutedPositionIndex(signal_params, level_index);
     if(executed_index < 0)
