@@ -45,7 +45,6 @@ GridLotTypes GridResolveConfiguredLotType()
     last_logged_invalid_value = configured_value;
   }
 
-  Grid_Lot_Type = GRID_LOT_SIZE;
   return GRID_LOT_SIZE;
 }
 

@@ -95,11 +95,11 @@ JSON::Object* BuildBrokerAccountObject(const bool include_name)
 {
   JSON::Object* broker_account = new JSON::Object();
   if(include_name)
-    broker_account->setProperty("name", AccountInfoString(ACCOUNT_NAME));
+    broker_account.setProperty("name", AccountInfoString(ACCOUNT_NAME));
 
-  broker_account->setProperty("company", AccountInfoString(ACCOUNT_COMPANY));
-  broker_account->setProperty("account_number", (long)AccountInfoInteger(ACCOUNT_LOGIN));
-  broker_account->setProperty("account_type", AccountTypeToString());
+  broker_account.setProperty("company", AccountInfoString(ACCOUNT_COMPANY));
+  broker_account.setProperty("account_number", (long)AccountInfoInteger(ACCOUNT_LOGIN));
+  broker_account.setProperty("account_type", AccountTypeToString());
   return broker_account;
 }
 
@@ -118,9 +118,9 @@ JSON::Object* BuildDailyResultsBrokerAccountObject()
     broker_account_type = AccountTypeToString();
 
   JSON::Object* broker_account = new JSON::Object();
-  broker_account->setProperty("company", broker_company);
-  broker_account->setProperty("account_number", broker_account_number);
-  broker_account->setProperty("account_type", broker_account_type);
+  broker_account.setProperty("company", broker_company);
+  broker_account.setProperty("account_number", broker_account_number);
+  broker_account.setProperty("account_type", broker_account_type);
   return broker_account;
 }
 
@@ -142,7 +142,7 @@ void AppendOptionalAddons(JSON::Object &payload)
     string addon = Trim(values[i]);
     if(StringLen(addon) <= 0)
       continue;
-    addons->add(addon);
+    addons.add(addon);
     added++;
   }
 
@@ -250,23 +250,23 @@ void UpdateLicenseRuntimeContext(const JSON::Object &response)
   if(broker_account == NULL)
     return;
 
-  if(broker_account->isString("name"))
-    license_broker_name = broker_account->getString("name");
+  if(broker_account.isString("name"))
+    license_broker_name = broker_account.getString("name");
   else
     license_broker_name = "";
 
-  if(broker_account->isString("company"))
-    license_broker_company = broker_account->getString("company");
+  if(broker_account.isString("company"))
+    license_broker_company = broker_account.getString("company");
   else
     license_broker_company = "";
 
-  if(broker_account->isNumber("account_number"))
-    license_broker_account_number = (long)broker_account->getNumber("account_number");
+  if(broker_account.isNumber("account_number"))
+    license_broker_account_number = (long)broker_account.getNumber("account_number");
   else
     license_broker_account_number = 0;
 
-  if(broker_account->isString("account_type"))
-    license_broker_account_type = broker_account->getString("account_type");
+  if(broker_account.isString("account_type"))
+    license_broker_account_type = broker_account.getString("account_type");
   else
     license_broker_account_type = "";
 }
