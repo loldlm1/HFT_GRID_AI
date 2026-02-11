@@ -3,11 +3,11 @@
 //|                                                          loldlm1 |
 //|                                                                  |
 //+------------------------------------------------------------------+
-#property copyright     "https://t.me/TradingAlgoritmicoFx"
-#property description   "Copyright Traders Capital Team."
+#property copyright     "https://tradingsniperpanel.com"
+#property description   "Copyright BULLISH LIFE Team."
 #property version       "1.10"
-#property description   "Support Contact @loldlm"
-#property description   "All Rights Reserved for the Traders Capital Team."
+#property description   "Support Telegram Contact @chu4xtrade"
+#property description   "All Rights Reserved for the BULLISH LIFE Team."
 #property description   "PANDORA BOX EA"
 
 // STANDARD MQL5 LIBRARIES
@@ -39,8 +39,6 @@ SymbolTradingConstraints g_symbol_constraints;
 
 int OnInit()
 {
-  //EncryptEA("196120591", "Admin", "Shurt", 300);
-  // License Validation
 	if(MQLInfoInteger(MQL_TESTER) > 0) is_testing = true;
 	if(!DecryptEA())              { return(INIT_FAILED); }
   if(!VerifyLicense())          { return(INIT_FAILED); }

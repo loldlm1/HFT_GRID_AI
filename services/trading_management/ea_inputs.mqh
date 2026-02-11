@@ -25,15 +25,15 @@ input ProtectionRiskModes      Protection_Risk_Mode           = ENABLED_OFF;
 input ProtectionRiskValueTypes Protection_Risk_Drawdown_Type  = PROTECTION_RISK_ACCOUNT_SIZE_PERCENT;
 input double                   Protection_Risk_Drawdown_Value = 10.0;
 input double                   Account_Size                   = 500.0;
-input ENUM_TIMEFRAMES          Market_Close_Guard_Timeframe   = PERIOD_M10;
+ENUM_TIMEFRAMES          Market_Close_Guard_Timeframe   = PERIOD_M10;
 
-input group  "+= Time Filter Session Manager =+";
-input SessionTimeFilterModes Session_Asia_Filter_Mode      = SESSION_FILTER_ALLOW_RUN;
-input string                 Session_Asia_Filter_Time_Range = "13:30-15:00";
-input SessionTimeFilterModes Session_London_Filter_Mode    = SESSION_FILTER_OFF;
-input string                 Session_London_Filter_Time_Range = "07:00-12:00";
-input SessionTimeFilterModes Session_NewYork_Filter_Mode   = SESSION_FILTER_OFF;
-input string                 Session_NewYork_Filter_Time_Range = "12:00-20:00";
+//input group  "+= Time Filter Session Manager =+";
+SessionTimeFilterModes Session_Asia_Filter_Mode      = SESSION_FILTER_OFF;
+string                 Session_Asia_Filter_Time_Range = "13:30-15:00";
+SessionTimeFilterModes Session_London_Filter_Mode    = SESSION_FILTER_OFF;
+string                 Session_London_Filter_Time_Range = "07:00-12:00";
+SessionTimeFilterModes Session_NewYork_Filter_Mode   = SESSION_FILTER_OFF;
+string                 Session_NewYork_Filter_Time_Range = "12:00-20:00";
 input DstOffsetModes         Session_Time_Dst_Mode         = DST_MODE_AUTO_EXNESS;
 input int                    Session_Time_Dst_Manual_Offset_Minutes = 0;
 
