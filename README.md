@@ -41,7 +41,18 @@ Preferred layout:
 
 Options:
 - `--symbol` and `--period` set runtime chart context for startup (defaults `EURUSD`/`M1`).
+- `--symbols CSV` runs harness on multiple symbols (for example: `EURUSD,XAUUSD,US30`).
+- `--matrix-smoke` expands to `EURUSD,XAUUSD,US30`.
+- `--optional-symbol` appends one extra symbol (for example: `USDJPY` or `BTCUSD`).
+- `--fast` skips per-test wrapper compile and keeps harness compile strict.
+- `--compile-only` runs only compile gates and skips terminal runtime.
 - `--report-dir` changes report root (default `logs/test-runner`).
+
+Recommended workflow (two runs):
+1. Compile gate only:
+   `./scripts/run_mql5_tests.sh --compile-only`
+2. Fast multi-symbol runtime smoke:
+   `./scripts/run_mql5_tests.sh --matrix-smoke --optional-symbol USDJPY --fast`
 
 Outputs:
 - `logs/test-runner/latest/summary.log`
@@ -51,7 +62,8 @@ Outputs:
 
 Note:
 - The runner intentionally has no timeout.
-- MT5 terminal must be closed before running tests. MT5 is single-instance per installation directory, and command-line startup cannot queue script runs into an already-open terminal.
+- MT5 terminal must be closed before runtime-enabled runs. MT5 is single-instance per installation directory, and command-line startup cannot queue script runs into an already-open terminal.
+- `--compile-only` does not launch the terminal and can be used with an already-open MT5 session.
 
 ## Project Map (brief)
 - `services/` holds the ordered include pipeline (tools -> management -> strategies -> signals -> frontend).

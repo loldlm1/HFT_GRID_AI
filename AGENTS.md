@@ -60,10 +60,21 @@ Keep this in sync with `~/.codex/config.toml` (do not copy here).
 - Scope: only `tests/*_test.mq5` (compiled individually with strict gate), then executed via one harness script (`tests/hft_grid_ai_tests_harness.mq5`).
 - Compile gate is strict: warnings/errors fail the pipeline.
 - Runtime gate is strict: harness must load/unload cleanly and emit per-test markers (`TEST_PASS` / `TEST_FAIL`); missing markers fail the affected test.
+- Multi-symbol runtime is supported with `--symbols`, `--matrix-smoke`, and `--optional-symbol`.
+- `--fast` skips per-test wrapper compile (harness compile remains strict) for quicker runtime smoke runs.
+- `--compile-only` runs compile gates only and skips terminal runtime.
 - Tests should be mock-data driven; chart context (`--symbol`/`--period`) is provisioned only to satisfy runtime startup.
 - Runner keeps only `logs/test-runner/latest` (single latest report tree).
-- MT5 terminal must be closed before a run; MT5 cannot queue startup-script runs into an already-open instance for the same install root.
+- MT5 terminal must be closed before runtime-enabled runs; MT5 cannot queue startup-script runs into an already-open instance for the same install root.
 - Keep test logic in `tests/harness/cases/*_test_case.mqh`; keep `tests/*_test.mq5` as thin wrappers for per-test compile visibility.
+- Recommended workflow (two runs):
+  1. Compile gate only: `./scripts/run_mql5_tests.sh --compile-only`
+  2. Fast symbol smoke: `./scripts/run_mql5_tests.sh --matrix-smoke --optional-symbol USDJPY --fast`
+- Review only:
+  - `logs/test-runner/latest/summary.log`
+  - `logs/test-runner/latest/compile/*.metaeditor.log`
+  - `logs/test-runner/latest/runtime/*.terminal.log`
+  - `logs/test-runner/latest/runtime/*.mql.log`
 
 ## 8) Canonical Repo Placement
 - Preferred layout: `<MT5_ROOT>/MQL5/Experts/HFT_Grid_AI` (and other projects in `<MT5_ROOT>/MQL5/Experts/*`).
