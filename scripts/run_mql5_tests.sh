@@ -4,7 +4,7 @@ set -euo pipefail
 usage() {
   cat <<'USAGE'
 Usage:
-  scripts/run_mql5_tests.sh [--mt5-root PATH] [--symbol SYMBOL] [--symbols CSV] [--matrix-smoke] [--optional-symbol SYMBOL] [--period PERIOD] [--report-dir PATH] [--fast]
+  scripts/run_mql5_tests.sh [--mt5-root PATH] [--symbol SYMBOL] [--symbols CSV] [--matrix-smoke] [--optional-symbol SYMBOL] [--period PERIOD] [--report-dir PATH] [--fast] [--compile-only]
 
 Description:
   Compiles tests matching tests/*_test.mq5, then runs one harness script across one or more symbols.
@@ -20,6 +20,7 @@ Options:
   --period PERIOD      Period used for runtime startup context (default: M1)
   --report-dir DIR     Report output root; runner writes only DIR/latest (default: logs/test-runner)
   --fast               Skip per-test wrapper compile; compile harness only (faster, less strict)
+  --compile-only       Compile gates only; skip runtime (does not launch terminal64.exe)
   -h, --help           Show this help
 USAGE
 }
@@ -297,6 +298,7 @@ MATRIX_SMOKE=0
 OPTIONAL_SYMBOL=""
 TEST_PERIOD="${TEST_PERIOD:-M1}"
 FAST_MODE=0
+COMPILE_ONLY=0
 REPORT_ROOT="${PROJECT_ROOT}/logs/test-runner"
 
 while [[ $# -gt 0 ]]; do
@@ -337,6 +339,10 @@ while [[ $# -gt 0 ]]; do
       ;;
     --fast)
       FAST_MODE=1
+      shift
+      ;;
+    --compile-only)
+      COMPILE_ONLY=1
       shift
       ;;
     -h|--help)
@@ -442,7 +448,7 @@ fi
 [[ -f "$TERMINAL_EXE" ]] || die "terminal64.exe not found at $TERMINAL_EXE"
 [[ -d "$MT5_ROOT/MQL5/Scripts" ]] || die "Scripts directory not found at $MT5_ROOT/MQL5/Scripts"
 
-if is_terminal_already_running; then
+if [[ "$COMPILE_ONLY" -ne 1 ]] && is_terminal_already_running; then
   running_terminals="$(list_terminal_processes)"
   die "Detected running terminal64.exe. Close MT5 first. Processes: ${running_terminals:-unavailable}"
 fi
@@ -477,6 +483,7 @@ summary "MT5_ROOT=$MT5_ROOT"
 summary "SYMBOLS=$SYMBOLS_LIST"
 summary "PERIOD=$TEST_PERIOD"
 summary "FAST_MODE=$FAST_MODE"
+summary "COMPILE_ONLY=$COMPILE_ONLY"
 summary "TEST_COUNT_DISCOVERED=${#TEST_FILES[@]}"
 summary ""
 
@@ -486,6 +493,7 @@ log "Terminal: $TERMINAL_EXE"
 log "Tests discovered: ${#TEST_FILES[@]}"
 log "Runtime symbols: $SYMBOLS_LIST"
 log "Fast mode: $FAST_MODE"
+log "Compile only: $COMPILE_ONLY"
 log "Summary log: $SUMMARY_LOG"
 
 compile_failures=0
@@ -627,165 +635,201 @@ fi
 
 summary ""
 summary "[RUNTIME]"
-summary "[TEST_RESULTS]"
-
 passed_tests=0
 failed_tests=0
 
-for runtime_symbol in "${RUN_SYMBOLS[@]}"; do
-  symbol_token="$(sanitize_token "$runtime_symbol")"
-  harness_runtime_terminal_log="$RUNTIME_DIR/${HARNESS_NAME}.${symbol_token}.terminal.log"
-  harness_runtime_mql_log="$RUNTIME_DIR/${HARNESS_NAME}.${symbol_token}.mql.log"
-  harness_runtime_config="$CONFIG_DIR/${HARNESS_NAME}.${symbol_token}.ini"
+if [[ "$COMPILE_ONLY" -eq 1 ]]; then
+  summary "SKIP runtime compile_only=1"
+  summary ""
+else
+  summary "[TEST_RESULTS]"
 
-  symbol_harness_ready=0
-  symbol_harness_reason=""
-  symbol_harness_hint="none"
-  runtime_cmd_exit=0
+  for runtime_symbol in "${RUN_SYMBOLS[@]}"; do
+    symbol_token="$(sanitize_token "$runtime_symbol")"
+    harness_runtime_terminal_log="$RUNTIME_DIR/${HARNESS_NAME}.${symbol_token}.terminal.log"
+    harness_runtime_mql_log="$RUNTIME_DIR/${HARNESS_NAME}.${symbol_token}.mql.log"
+    harness_runtime_config="$CONFIG_DIR/${HARNESS_NAME}.${symbol_token}.ini"
 
-  summary "SYMBOL_BEGIN=$runtime_symbol"
+    symbol_harness_ready=0
+    symbol_harness_reason=""
+    symbol_harness_hint="none"
+    runtime_cmd_exit=0
 
-  if [[ "$harness_ready" -eq 1 && "${#COMPILE_OK_TESTS[@]}" -gt 0 ]]; then
-    terminal_before="$(latest_log_file "$MT5_ROOT/logs" '[0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9].log')"
-    mql_before="$(latest_log_file "$MT5_ROOT/MQL5/Logs" '[0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9].log')"
+    summary "SYMBOL_BEGIN=$runtime_symbol"
 
-    terminal_before_lines="$(decoded_line_count "$terminal_before")"
-    mql_before_lines="$(decoded_line_count "$mql_before")"
+    if [[ "$harness_ready" -eq 1 && "${#COMPILE_OK_TESTS[@]}" -gt 0 ]]; then
+      terminal_before="$(latest_log_file "$MT5_ROOT/logs" '[0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9].log')"
+      mql_before="$(latest_log_file "$MT5_ROOT/MQL5/Logs" '[0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9].log')"
 
-    {
-      echo "[StartUp]"
-      printf 'Script=HFT_Grid_AI_Tests\\%s\n' "$HARNESS_NAME"
-      printf 'Symbol=%s\n' "$runtime_symbol"
-      printf 'Period=%s\n' "$TEST_PERIOD"
-      echo "ShutdownTerminal=1"
-    } >"$harness_runtime_config"
+      terminal_before_lines="$(decoded_line_count "$terminal_before")"
+      mql_before_lines="$(decoded_line_count "$mql_before")"
 
-    harness_runtime_config_native="$(to_native_path "$harness_runtime_config")"
+      {
+        echo "[StartUp]"
+        printf 'Script=HFT_Grid_AI_Tests\\%s\n' "$HARNESS_NAME"
+        printf 'Symbol=%s\n' "$runtime_symbol"
+        printf 'Period=%s\n' "$TEST_PERIOD"
+        echo "ShutdownTerminal=1"
+      } >"$harness_runtime_config"
 
-    set +e
-    run_windows_binary "$TERMINAL_EXE" "/portable" "/config:$harness_runtime_config_native" >/dev/null 2>&1
-    runtime_cmd_exit=$?
-    set -e
+      harness_runtime_config_native="$(to_native_path "$harness_runtime_config")"
 
-    sleep 1
+      set +e
+      run_windows_binary "$TERMINAL_EXE" "/portable" "/config:$harness_runtime_config_native" >/dev/null 2>&1
+      runtime_cmd_exit=$?
+      set -e
 
-    terminal_after="$(latest_log_file "$MT5_ROOT/logs" '[0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9].log')"
-    mql_after="$(latest_log_file "$MT5_ROOT/MQL5/Logs" '[0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9].log')"
+      sleep 1
 
-    extract_new_segment "$terminal_before" "$terminal_before_lines" "$terminal_after" "$harness_runtime_terminal_log"
-    extract_new_segment "$mql_before" "$mql_before_lines" "$mql_after" "$harness_runtime_mql_log"
+      terminal_after="$(latest_log_file "$MT5_ROOT/logs" '[0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9].log')"
+      mql_after="$(latest_log_file "$MT5_ROOT/MQL5/Logs" '[0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9].log')"
 
-    has_loaded=0
-    has_removed=0
-    has_summary=0
-    has_harness_fail=0
+      extract_new_segment "$terminal_before" "$terminal_before_lines" "$terminal_after" "$harness_runtime_terminal_log"
+      extract_new_segment "$mql_before" "$mql_before_lines" "$mql_after" "$harness_runtime_mql_log"
 
-    if contains_script_token "$harness_runtime_terminal_log" "script ${HARNESS_NAME} (" "loaded successfully"; then
-      has_loaded=1
-    fi
-    if contains_script_token "$harness_runtime_terminal_log" "script ${HARNESS_NAME} (" "removed"; then
-      has_removed=1
-    fi
-    if contains_text_token "$harness_runtime_mql_log" "HARNESS_SUMMARY:"; then
-      has_summary=1
-    fi
-    if contains_text_token "$harness_runtime_mql_log" "HARNESS_FAIL"; then
-      has_harness_fail=1
-    fi
+      has_loaded=0
+      has_removed=0
+      has_summary=0
+      has_harness_fail=0
 
-    if [[ "$has_loaded" -ne 1 ]]; then
-      symbol_harness_reason="runtime: harness did not load"
-      symbol_harness_hint="$harness_runtime_terminal_log"
-    elif [[ "$has_removed" -ne 1 ]]; then
-      symbol_harness_reason="runtime: harness did not unload"
-      symbol_harness_hint="$harness_runtime_terminal_log"
-    elif [[ "$has_summary" -ne 1 ]]; then
-      symbol_harness_reason="runtime: missing HARNESS_SUMMARY marker"
-      symbol_harness_hint="$harness_runtime_mql_log"
-    else
-      symbol_harness_ready=1
-    fi
+      if contains_script_token "$harness_runtime_terminal_log" "script ${HARNESS_NAME} (" "loaded successfully"; then
+        has_loaded=1
+      fi
+      if contains_script_token "$harness_runtime_terminal_log" "script ${HARNESS_NAME} (" "removed"; then
+        has_removed=1
+      fi
+      if contains_text_token "$harness_runtime_mql_log" "HARNESS_SUMMARY:"; then
+        has_summary=1
+      fi
+      if contains_text_token "$harness_runtime_mql_log" "HARNESS_FAIL"; then
+        has_harness_fail=1
+      fi
 
-    if [[ "$symbol_harness_ready" -eq 1 ]]; then
-      summary_line="$(extract_harness_line "$harness_runtime_mql_log" 'HARNESS_SUMMARY:' '' || true)"
-      if [[ "$has_harness_fail" -eq 1 ]]; then
-        summary "FAIL harness runtime symbol=$runtime_symbol marker=HARNESS_FAIL exit_code=$runtime_cmd_exit summary=\"${summary_line:-missing}\" mql_log=$harness_runtime_mql_log"
+      if [[ "$has_loaded" -ne 1 ]]; then
+        symbol_harness_reason="runtime: harness did not load"
+        symbol_harness_hint="$harness_runtime_terminal_log"
+      elif [[ "$has_removed" -ne 1 ]]; then
+        symbol_harness_reason="runtime: harness did not unload"
+        symbol_harness_hint="$harness_runtime_terminal_log"
+      elif [[ "$has_summary" -ne 1 ]]; then
+        symbol_harness_reason="runtime: missing HARNESS_SUMMARY marker"
+        symbol_harness_hint="$harness_runtime_mql_log"
       else
-        summary "PASS harness runtime symbol=$runtime_symbol marker=HARNESS_PASS exit_code=$runtime_cmd_exit summary=\"${summary_line:-missing}\" mql_log=$harness_runtime_mql_log"
+        symbol_harness_ready=1
+      fi
+
+      if [[ "$symbol_harness_ready" -eq 1 ]]; then
+        summary_line="$(extract_harness_line "$harness_runtime_mql_log" 'HARNESS_SUMMARY:' '' || true)"
+        if [[ "$has_harness_fail" -eq 1 ]]; then
+          summary "FAIL harness runtime symbol=$runtime_symbol marker=HARNESS_FAIL exit_code=$runtime_cmd_exit summary=\"${summary_line:-missing}\" mql_log=$harness_runtime_mql_log"
+        else
+          summary "PASS harness runtime symbol=$runtime_symbol marker=HARNESS_PASS exit_code=$runtime_cmd_exit summary=\"${summary_line:-missing}\" mql_log=$harness_runtime_mql_log"
+        fi
+      else
+        summary "FAIL harness runtime symbol=$runtime_symbol reason=\"$symbol_harness_reason\" hint=$symbol_harness_hint exit_code=$runtime_cmd_exit"
       fi
     else
-      summary "FAIL harness runtime symbol=$runtime_symbol reason=\"$symbol_harness_reason\" hint=$symbol_harness_hint exit_code=$runtime_cmd_exit"
-    fi
-  else
-    if [[ "${#COMPILE_OK_TESTS[@]}" -eq 0 ]]; then
-      symbol_harness_reason="runtime skipped: no compile-pass tests"
-    else
-      symbol_harness_reason="${harness_reason:-runtime not started}"
-    fi
-    summary "FAIL harness runtime symbol=$runtime_symbol reason=\"$symbol_harness_reason\" hint=$symbol_harness_hint"
-  fi
-
-  symbol_passed_tests=0
-  symbol_failed_tests=0
-
-  for test_name in "${TEST_NAMES[@]}"; do
-    if [[ "${TEST_STATUS[$test_name]+set}" == "set" && "${TEST_STATUS[$test_name]}" == "FAIL" ]]; then
-      symbol_failed_tests=$((symbol_failed_tests + 1))
-      failed_tests=$((failed_tests + 1))
-      summary "FAIL $runtime_symbol $test_name ${TEST_REASON[$test_name]}"
-      continue
+      if [[ "${#COMPILE_OK_TESTS[@]}" -eq 0 ]]; then
+        symbol_harness_reason="runtime skipped: no compile-pass tests"
+      else
+        symbol_harness_reason="${harness_reason:-runtime not started}"
+      fi
+      summary "FAIL harness runtime symbol=$runtime_symbol reason=\"$symbol_harness_reason\" hint=$symbol_harness_hint"
     fi
 
-    if [[ "$symbol_harness_ready" -ne 1 ]]; then
-      symbol_failed_tests=$((symbol_failed_tests + 1))
-      failed_tests=$((failed_tests + 1))
-      runtime_failures=$((runtime_failures + 1))
-      summary "FAIL $runtime_symbol $test_name runtime ${symbol_harness_reason}"
-      continue
-    fi
+    symbol_passed_tests=0
+    symbol_failed_tests=0
 
-    has_pass=0
-    has_fail=0
+    for test_name in "${TEST_NAMES[@]}"; do
+      if [[ "${TEST_STATUS[$test_name]+set}" == "set" && "${TEST_STATUS[$test_name]}" == "FAIL" ]]; then
+        symbol_failed_tests=$((symbol_failed_tests + 1))
+        failed_tests=$((failed_tests + 1))
+        summary "FAIL $runtime_symbol $test_name ${TEST_REASON[$test_name]}"
+        continue
+      fi
 
-    if contains_harness_test_marker "$harness_runtime_mql_log" "TEST_PASS:" "$test_name"; then
-      has_pass=1
-    fi
-    if contains_harness_test_marker "$harness_runtime_mql_log" "TEST_FAIL:" "$test_name"; then
-      has_fail=1
-    fi
+      if [[ "$symbol_harness_ready" -ne 1 ]]; then
+        symbol_failed_tests=$((symbol_failed_tests + 1))
+        failed_tests=$((failed_tests + 1))
+        runtime_failures=$((runtime_failures + 1))
+        summary "FAIL $runtime_symbol $test_name runtime ${symbol_harness_reason}"
+        continue
+      fi
 
-    if [[ "$has_fail" -eq 1 ]]; then
-      fail_line="$(extract_harness_line "$harness_runtime_mql_log" 'TEST_FAIL_DETAILS:' "$test_name" || true)"
-      [[ -n "$fail_line" ]] || fail_line="$(extract_harness_line "$harness_runtime_mql_log" 'TEST_FAIL:' "$test_name" || true)"
-      symbol_failed_tests=$((symbol_failed_tests + 1))
-      failed_tests=$((failed_tests + 1))
-      runtime_failures=$((runtime_failures + 1))
-      summary "FAIL $runtime_symbol $test_name runtime ${fail_line:-TEST_FAIL marker}"
-    elif [[ "$has_pass" -ne 1 ]]; then
-      symbol_failed_tests=$((symbol_failed_tests + 1))
-      failed_tests=$((failed_tests + 1))
-      runtime_failures=$((runtime_failures + 1))
-      summary "FAIL $runtime_symbol $test_name runtime missing_TEST_MARKER"
-    else
-      symbol_passed_tests=$((symbol_passed_tests + 1))
-      passed_tests=$((passed_tests + 1))
-      summary "PASS $runtime_symbol $test_name runtime"
-    fi
+      has_pass=0
+      has_fail=0
+
+      if contains_harness_test_marker "$harness_runtime_mql_log" "TEST_PASS:" "$test_name"; then
+        has_pass=1
+      fi
+      if contains_harness_test_marker "$harness_runtime_mql_log" "TEST_FAIL:" "$test_name"; then
+        has_fail=1
+      fi
+
+      if [[ "$has_fail" -eq 1 ]]; then
+        fail_line="$(extract_harness_line "$harness_runtime_mql_log" 'TEST_FAIL_DETAILS:' "$test_name" || true)"
+        [[ -n "$fail_line" ]] || fail_line="$(extract_harness_line "$harness_runtime_mql_log" 'TEST_FAIL:' "$test_name" || true)"
+        symbol_failed_tests=$((symbol_failed_tests + 1))
+        failed_tests=$((failed_tests + 1))
+        runtime_failures=$((runtime_failures + 1))
+        summary "FAIL $runtime_symbol $test_name runtime ${fail_line:-TEST_FAIL marker}"
+      elif [[ "$has_pass" -ne 1 ]]; then
+        symbol_failed_tests=$((symbol_failed_tests + 1))
+        failed_tests=$((failed_tests + 1))
+        runtime_failures=$((runtime_failures + 1))
+        summary "FAIL $runtime_symbol $test_name runtime missing_TEST_MARKER"
+      else
+        symbol_passed_tests=$((symbol_passed_tests + 1))
+        passed_tests=$((passed_tests + 1))
+        summary "PASS $runtime_symbol $test_name runtime"
+      fi
+    done
+
+    summary "SYMBOL_TOTAL symbol=$runtime_symbol passed=$symbol_passed_tests failed=$symbol_failed_tests"
+    summary ""
   done
+fi
 
-  summary "SYMBOL_TOTAL symbol=$runtime_symbol passed=$symbol_passed_tests failed=$symbol_failed_tests"
-  summary ""
+compile_tests_passed=0
+compile_tests_failed=0
+for test_name in "${TEST_NAMES[@]}"; do
+  if [[ "${TEST_STATUS[$test_name]+set}" == "set" && "${TEST_STATUS[$test_name]}" == "FAIL" ]]; then
+    compile_tests_failed=$((compile_tests_failed + 1))
+  else
+    compile_tests_passed=$((compile_tests_passed + 1))
+  fi
 done
 
+executed_symbol_count=0
+total_test_executions=0
+if [[ "$COMPILE_ONLY" -ne 1 ]]; then
+  executed_symbol_count=${#RUN_SYMBOLS[@]}
+  total_test_executions=$(( ${#RUN_SYMBOLS[@]} * ${#TEST_NAMES[@]} ))
+fi
+
 summary "[TOTAL]"
-summary "SYMBOL_COUNT=${#RUN_SYMBOLS[@]}"
-summary "TOTAL_TEST_EXECUTIONS=$(( ${#RUN_SYMBOLS[@]} * ${#TEST_NAMES[@]} ))"
+summary "SYMBOL_COUNT=$executed_symbol_count"
+summary "TOTAL_TEST_EXECUTIONS=$total_test_executions"
+summary "COMPILE_TESTS_PASSED=$compile_tests_passed"
+summary "COMPILE_TESTS_FAILED=$compile_tests_failed"
 summary "PASSED=$passed_tests"
 summary "FAILED=$failed_tests"
 summary "COMPILE_FAILURES=$compile_failures"
 summary "RUNTIME_FAILURES=$runtime_failures"
 summary "COMPILE_LOG_DIR=$COMPILE_DIR"
 summary "RUNTIME_LOG_DIR=$RUNTIME_DIR"
+
+if [[ "$COMPILE_ONLY" -eq 1 ]]; then
+  if [[ "$compile_failures" -gt 0 ]]; then
+    summary "SUITE=FAIL"
+    log "Suite result: FAIL (compile-only, failures=$compile_failures)"
+    exit 1
+  fi
+
+  summary "SUITE=PASS"
+  log "Suite result: PASS (compile-only, tests=${#TEST_NAMES[@]} harness_compile=strict)"
+  exit 0
+fi
 
 if [[ "$failed_tests" -gt 0 ]]; then
   summary "SUITE=FAIL"
