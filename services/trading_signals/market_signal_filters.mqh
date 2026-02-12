@@ -220,86 +220,54 @@ bool TrendStructureFilterMatches(const TrendStructureFilterModes filter_mode,
                                  const SignalTypes signal_type,
                                  const OscillatorMarketStructure &latest_extremum)
 {
-  if(filter_mode == BULLISH_STRUCT_OFF || filter_mode == BEARISH_STRUCT_OFF)
+  if(filter_mode == STRUCT_FILTER_OFF)
     return true;
 
-  bool skip_eq_allowance = (filter_mode == BULLISH_STRUCT_HH_LH ||
-                            filter_mode == BEARISH_STRUCT_LL_HL);
-  if(!skip_eq_allowance)
-  {
-    if(signal_type == BULLISH && !latest_extremum.is_peak && structure_type == OSCILLATOR_STRUCTURE_EQ)
-      return true;
-    if(signal_type == BEARISH && latest_extremum.is_peak  && structure_type == OSCILLATOR_STRUCTURE_EQ)
-      return true;
-  }
+  bool filter_is_peak_family = (filter_mode == STRUCT_FILTER_HH ||
+                                filter_mode == STRUCT_FILTER_LH);
+  bool filter_is_bottom_family = (filter_mode == STRUCT_FILTER_LL ||
+                                  filter_mode == STRUCT_FILTER_HL);
 
-  bool struct_match = true;
-  switch(filter_mode)
-  {
-    case BULLISH_STRUCT_LL:
-      struct_match = (structure_type == OSCILLATOR_STRUCTURE_LL);
-      break;
-    case BULLISH_STRUCT_LH:
-      struct_match = (structure_type == OSCILLATOR_STRUCTURE_LH);
-      break;
-    case BULLISH_STRUCT_LL_LH:
-      struct_match = (structure_type == OSCILLATOR_STRUCTURE_LL ||
-                      structure_type == OSCILLATOR_STRUCTURE_LH);
-      break;
-    case BULLISH_STRUCT_HH_LH:
-      struct_match = (structure_type == OSCILLATOR_STRUCTURE_HH ||
-                      structure_type == OSCILLATOR_STRUCTURE_LH);
-      break;
-    case BEARISH_STRUCT_HH:
-      struct_match = (structure_type == OSCILLATOR_STRUCTURE_HH);
-      break;
-    case BEARISH_STRUCT_HL:
-      struct_match = (structure_type == OSCILLATOR_STRUCTURE_HL);
-      break;
-    case BEARISH_STRUCT_HH_HL:
-      struct_match = (structure_type == OSCILLATOR_STRUCTURE_HH ||
-                      structure_type == OSCILLATOR_STRUCTURE_HL);
-      break;
-    case BEARISH_STRUCT_LL_HL:
-      struct_match = (structure_type == OSCILLATOR_STRUCTURE_LL ||
-                      structure_type == OSCILLATOR_STRUCTURE_HL);
-      break;
-    default:
-      struct_match = true;
-      break;
-  }
-
-  if(!struct_match)
+  if(!filter_is_peak_family && !filter_is_bottom_family)
     return false;
 
-  bool filter_is_bullish =
-    (filter_mode == BULLISH_STRUCT_LL) ||
-    (filter_mode == BULLISH_STRUCT_LH) ||
-    (filter_mode == BULLISH_STRUCT_LL_LH) ||
-    (filter_mode == BULLISH_STRUCT_HH_LH);
-
-  bool filter_is_bearish =
-    (filter_mode == BEARISH_STRUCT_HH) ||
-    (filter_mode == BEARISH_STRUCT_HL) ||
-    (filter_mode == BEARISH_STRUCT_HH_HL) ||
-    (filter_mode == BEARISH_STRUCT_LL_HL);
-
-  if(!skip_eq_allowance)
+  if(signal_type == BULLISH)
   {
-    if(filter_is_bullish && signal_type == BULLISH)
-    {
-      if(latest_extremum.is_peak)
-        return false;
-    }
-
-    if(filter_is_bearish && signal_type == BEARISH)
-    {
-      if(!latest_extremum.is_peak)
-        return false;
-    }
+    if(latest_extremum.is_peak || !filter_is_bottom_family)
+      return false;
+  }
+  else if(signal_type == BEARISH)
+  {
+    if(!latest_extremum.is_peak || !filter_is_peak_family)
+      return false;
+  }
+  else
+  {
+    return false;
   }
 
-  return true;
+  if(structure_type == OSCILLATOR_STRUCTURE_EQ)
+  {
+    if(signal_type == BULLISH && filter_is_bottom_family)
+      return true;
+    if(signal_type == BEARISH && filter_is_peak_family)
+      return true;
+    return false;
+  }
+
+  switch(filter_mode)
+  {
+    case STRUCT_FILTER_LL:
+      return (structure_type == OSCILLATOR_STRUCTURE_LL);
+    case STRUCT_FILTER_HH:
+      return (structure_type == OSCILLATOR_STRUCTURE_HH);
+    case STRUCT_FILTER_LH:
+      return (structure_type == OSCILLATOR_STRUCTURE_LH);
+    case STRUCT_FILTER_HL:
+      return (structure_type == OSCILLATOR_STRUCTURE_HL);
+    default:
+      return false;
+  }
 }
 
 bool EvaluateStructureTypeFilters(const StrategyContextIndicators &snapshot,
