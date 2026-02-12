@@ -19,12 +19,14 @@ bool EntryPrice_AssertClose(const string label,
 
 bool RunTest_structure_fibonacci_entry_price_test(string &errors)
 {
-  double peak = 1.2000;
-  double bottom = 1.1000;
+  // Use wide synthetic prices so _Digits normalization remains stable across
+  // symbols with very different precision (FX, metals, indices, crypto).
+  double peak = 11000.0;
+  double bottom = 10000.0;
   double price_38 = GetFiboTrendBottomPrice(peak, bottom, 38.2);
 
   errors = "";
-  EntryPrice_AssertClose("price_38", price_38, 1.16180, 0.0002, errors);
+  EntryPrice_AssertClose("price_38", price_38, 10618.0, 0.1, errors);
 
   return (errors == "");
 }
