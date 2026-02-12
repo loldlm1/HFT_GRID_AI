@@ -4,7 +4,7 @@ set -euo pipefail
 usage() {
   cat <<'EOF'
 Usage:
-  scripts/run_mql5_tests.sh [--mt5-root PATH] [--symbol SYMBOL] [--period PERIOD] [--report-dir PATH]
+  scripts/run_mql5_tests.sh [--mt5-root PATH] [--symbol SYMBOL] [--period PERIOD] [--report-dir PATH] [--fast]
 
 Description:
   Compiles all tests matching tests/*_test.mq5, then runs one harness script.
@@ -16,6 +16,7 @@ Options:
   --symbol SYMBOL   Symbol used when launching script tests (default: EURUSD)
   --period PERIOD   Period used when launching script tests (default: M1)
   --report-dir DIR  Report output root; runner writes only DIR/latest (default: logs/test-runner)
+  --fast            Skip per-test wrapper compile; compile harness only and run runtime markers
   -h, --help        Show this help
 EOF
 }
@@ -91,7 +92,18 @@ is_terminal_already_running() {
     return 1
   fi
 
-  ps -eo args | grep -i '[t]erminal64\.exe' | grep -Fqi -- "$MT5_ROOT"
+  ps -eo args | grep -i '[t]erminal64\.exe' >/dev/null 2>&1
+}
+
+list_terminal_processes() {
+  if is_windows; then
+    if command -v tasklist >/dev/null 2>&1; then
+      tasklist /NH /FI "IMAGENAME eq terminal64.exe" 2>/dev/null || true
+    fi
+    return 0
+  fi
+
+  ps -eo pid,ppid,etime,args | grep -i '[t]erminal64\.exe' || true
 }
 
 decode_log_to_utf8() {
@@ -133,9 +145,10 @@ decoded_line_count() {
 
 latest_log_file() {
   local dir="$1"
+  local pattern="${2:-*.log}"
   local latest=""
-  if compgen -G "$dir/*.log" >/dev/null 2>&1; then
-    latest="$(ls -1t "$dir"/*.log | head -n 1)"
+  if compgen -G "$dir/$pattern" >/dev/null 2>&1; then
+    latest="$(ls -1t "$dir"/$pattern | head -n 1)"
   fi
   printf '%s' "$latest"
 }
@@ -332,6 +345,7 @@ MT5_ROOT_ARG=""
 TEST_SYMBOL="${TEST_SYMBOL:-EURUSD}"
 TEST_PERIOD="${TEST_PERIOD:-M1}"
 REPORT_ROOT="${PROJECT_ROOT}/logs/test-runner"
+FAST_MODE=0
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -354,6 +368,10 @@ while [[ $# -gt 0 ]]; do
       [[ $# -ge 2 ]] || die "--report-dir requires a value"
       REPORT_ROOT="$2"
       shift 2
+      ;;
+    --fast)
+      FAST_MODE=1
+      shift
       ;;
     -h|--help)
       usage
@@ -422,7 +440,8 @@ fi
 TERMINAL_OWNER="system_opened"
 if is_terminal_already_running; then
   TERMINAL_OWNER="user_opened"
-  die "Detected running terminal64.exe (owner=${TERMINAL_OWNER}). Close MT5 first: command-line runs cannot queue scripts into an already-open terminal for the same installation directory."
+  running_terminals="$(list_terminal_processes)"
+  die "Detected running terminal64.exe (owner=${TERMINAL_OWNER}). Close MT5 first: command-line runs cannot queue scripts into an already-open terminal for the same installation directory. Processes: ${running_terminals:-unavailable}"
 fi
 
 mapfile -t TEST_FILES < <(find "$PROJECT_ROOT/tests" -maxdepth 1 -type f -name '*_test.mq5' | sort)
@@ -459,6 +478,11 @@ log "MetaEditor: $METAEDITOR_EXE"
 log "Terminal: $TERMINAL_EXE"
 log "Terminal owner: $TERMINAL_OWNER"
 log "Tests found: $discovered_tests"
+if [[ "$FAST_MODE" -eq 1 ]]; then
+  log "Mode: FAST (harness-only compile)"
+else
+  log "Mode: FULL (compile all wrappers + harness)"
+fi
 log "Report dir: $RUN_DIR"
 
 total_tests=0
@@ -595,91 +619,95 @@ on_exit() {
 trap on_interrupt INT TERM
 trap on_exit EXIT
 
-for source_file in "${TEST_FILES[@]}"; do
-  total_tests=$((total_tests + 1))
-  test_name="$(basename "$source_file" .mq5)"
-  source_ex5="${source_file%.mq5}.ex5"
+if [[ "$FAST_MODE" -eq 1 ]]; then
+  total_tests="$discovered_tests"
+else
+  for source_file in "${TEST_FILES[@]}"; do
+    total_tests=$((total_tests + 1))
+    test_name="$(basename "$source_file" .mq5)"
+    source_ex5="${source_file%.mq5}.ex5"
 
-  compile_raw_log="$COMPILE_DIR/${test_name}.log"
-  compile_utf8_log="$COMPILE_DIR/${test_name}.utf8.log"
-  compile_stdout_log="$COMPILE_DIR/${test_name}.stdout.log"
+    compile_raw_log="$COMPILE_DIR/${test_name}.log"
+    compile_utf8_log="$COMPILE_DIR/${test_name}.utf8.log"
+    compile_stdout_log="$COMPILE_DIR/${test_name}.stdout.log"
 
-  runtime_terminal_segment="$RUNTIME_DIR/${test_name}.terminal.segment.log"
-  runtime_mql_segment="$RUNTIME_DIR/${test_name}.mql.segment.log"
+    runtime_terminal_segment="$RUNTIME_DIR/${test_name}.terminal.segment.log"
+    runtime_mql_segment="$RUNTIME_DIR/${test_name}.mql.segment.log"
 
-  phase="compile"
-  status="FAIL"
-  reason=""
-  hint=""
-  compile_result_line=""
+    phase="compile"
+    status="FAIL"
+    reason=""
+    hint=""
+    compile_result_line=""
 
-  mock_hits="$(scan_mock_dependency_usage "$source_file")"
-  if [[ -n "$mock_hits" ]]; then
-    {
-      printf '%s\n' "[$test_name]"
-      printf '%s\n\n' "$mock_hits"
-    } >>"$MOCK_WARNINGS_TXT"
-  fi
+    mock_hits="$(scan_mock_dependency_usage "$source_file")"
+    if [[ -n "$mock_hits" ]]; then
+      {
+        printf '%s\n' "[$test_name]"
+        printf '%s\n\n' "$mock_hits"
+      } >>"$MOCK_WARNINGS_TXT"
+    fi
 
-  rm -f "$source_ex5" "$compile_raw_log" "$compile_utf8_log" "$compile_stdout_log"
+    rm -f "$source_ex5" "$compile_raw_log" "$compile_utf8_log" "$compile_stdout_log"
 
-  source_native="$(to_native_path "$source_file")"
-  compile_log_native="$(to_native_path "$compile_raw_log")"
+    source_native="$(to_native_path "$source_file")"
+    compile_log_native="$(to_native_path "$compile_raw_log")"
 
-  set +e
-  run_windows_binary "$METAEDITOR_EXE" "/compile:$source_native" "/log:$compile_log_native" "/portable" >"$compile_stdout_log" 2>&1
-  compile_cmd_exit=$?
-  set -e
+    set +e
+    run_windows_binary "$METAEDITOR_EXE" "/compile:$source_native" "/log:$compile_log_native" "/portable" >"$compile_stdout_log" 2>&1
+    compile_cmd_exit=$?
+    set -e
 
-  decode_log_to_utf8 "$compile_raw_log" "$compile_utf8_log"
+    decode_log_to_utf8 "$compile_raw_log" "$compile_utf8_log"
 
-  parse_output="$(parse_compile_result "$compile_utf8_log" || true)"
-  if [[ -z "$parse_output" ]]; then
-    reason="compile log has no parseable result line"
-    hint="Check $compile_utf8_log for MetaEditor startup or path issues."
-    compile_failures=$((compile_failures + 1))
-    failed_tests=$((failed_tests + 1))
-    printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' \
-      "$test_name" "$status" "$phase" \
-      "$(sanitize_line "$reason")" "$(sanitize_line "$hint")" \
-      "$compile_utf8_log" "$runtime_terminal_segment" "$runtime_mql_segment" "$compile_cmd_exit" >>"$RESULTS_TSV"
-    log "FAIL [compile] $test_name - $reason"
-    continue
-  fi
+    parse_output="$(parse_compile_result "$compile_utf8_log" || true)"
+    if [[ -z "$parse_output" ]]; then
+      reason="compile log has no parseable result line"
+      hint="Check $compile_utf8_log for MetaEditor startup or path issues."
+      compile_failures=$((compile_failures + 1))
+      failed_tests=$((failed_tests + 1))
+      printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' \
+        "$test_name" "$status" "$phase" \
+        "$(sanitize_line "$reason")" "$(sanitize_line "$hint")" \
+        "$compile_utf8_log" "$runtime_terminal_segment" "$runtime_mql_segment" "$compile_cmd_exit" >>"$RESULTS_TSV"
+      log "FAIL [compile] $test_name - $reason"
+      continue
+    fi
 
-  compile_errors="$(printf '%s' "$parse_output" | awk -F '\t' '{print $1}')"
-  compile_warnings="$(printf '%s' "$parse_output" | awk -F '\t' '{print $2}')"
-  compile_result_line="$(printf '%s' "$parse_output" | awk -F '\t' '{print $3}')"
+    compile_errors="$(printf '%s' "$parse_output" | awk -F '\t' '{print $1}')"
+    compile_warnings="$(printf '%s' "$parse_output" | awk -F '\t' '{print $2}')"
+    compile_result_line="$(printf '%s' "$parse_output" | awk -F '\t' '{print $3}')"
 
-  if [[ "$compile_errors" != "0" || "$compile_warnings" != "0" ]]; then
-    reason="strict compile gate failed: ${compile_result_line}"
-    hint="Fix compiler errors and warnings in $source_file and re-run."
-    compile_failures=$((compile_failures + 1))
-    failed_tests=$((failed_tests + 1))
-    printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' \
-      "$test_name" "$status" "$phase" \
-      "$(sanitize_line "$reason")" "$(sanitize_line "$hint")" \
-      "$compile_utf8_log" "$runtime_terminal_segment" "$runtime_mql_segment" "$compile_cmd_exit" >>"$RESULTS_TSV"
-    log "FAIL [compile] $test_name - $compile_result_line"
-    continue
-  fi
+    if [[ "$compile_errors" != "0" || "$compile_warnings" != "0" ]]; then
+      reason="strict compile gate failed: ${compile_result_line}"
+      hint="Fix compiler errors and warnings in $source_file and re-run."
+      compile_failures=$((compile_failures + 1))
+      failed_tests=$((failed_tests + 1))
+      printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' \
+        "$test_name" "$status" "$phase" \
+        "$(sanitize_line "$reason")" "$(sanitize_line "$hint")" \
+        "$compile_utf8_log" "$runtime_terminal_segment" "$runtime_mql_segment" "$compile_cmd_exit" >>"$RESULTS_TSV"
+      log "FAIL [compile] $test_name - $compile_result_line"
+      continue
+    fi
 
-  if [[ ! -f "$source_ex5" ]]; then
-    reason="compile reported success but .ex5 artifact was not generated"
-    hint="Verify MetaEditor output path and permissions for $source_file."
-    compile_failures=$((compile_failures + 1))
-    failed_tests=$((failed_tests + 1))
-    printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' \
-      "$test_name" "$status" "$phase" \
-      "$(sanitize_line "$reason")" "$(sanitize_line "$hint")" \
-      "$compile_utf8_log" "$runtime_terminal_segment" "$runtime_mql_segment" "$compile_cmd_exit" >>"$RESULTS_TSV"
-    log "FAIL [compile] $test_name - missing .ex5 artifact"
-    continue
-  fi
+    if [[ ! -f "$source_ex5" ]]; then
+      reason="compile reported success but .ex5 artifact was not generated"
+      hint="Verify MetaEditor output path and permissions for $source_file."
+      compile_failures=$((compile_failures + 1))
+      failed_tests=$((failed_tests + 1))
+      printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' \
+        "$test_name" "$status" "$phase" \
+        "$(sanitize_line "$reason")" "$(sanitize_line "$hint")" \
+        "$compile_utf8_log" "$runtime_terminal_segment" "$runtime_mql_segment" "$compile_cmd_exit" >>"$RESULTS_TSV"
+      log "FAIL [compile] $test_name - missing .ex5 artifact"
+      continue
+    fi
 
-  cp -f "$source_ex5" "$STAGE_DIR/${test_name}.ex5"
-  printf '%s\t%s\t%s\n' "$test_name" "$compile_utf8_log" "$compile_cmd_exit" >>"$COMPILE_PASS_TSV"
-done
+    cp -f "$source_ex5" "$STAGE_DIR/${test_name}.ex5"
+    printf '%s\t%s\t%s\n' "$test_name" "$compile_utf8_log" "$compile_cmd_exit" >>"$COMPILE_PASS_TSV"
+  done
+fi
 
 harness_compile_raw_log="$COMPILE_DIR/${HARNESS_NAME}.log"
 harness_compile_utf8_log="$COMPILE_DIR/${HARNESS_NAME}.utf8.log"
@@ -694,6 +722,15 @@ runtime_cmd_exit=0
 runtime_harness_ready=0
 runtime_harness_reason=""
 runtime_harness_hint=""
+harness_compile_cmd_exit=0
+
+if [[ "$FAST_MODE" -eq 1 ]]; then
+  log "FAST mode enabled: wrapper compile skipped; runtime results will come from harness markers."
+  for source_file in "${TEST_FILES[@]}"; do
+    test_name="$(basename "$source_file" .mq5)"
+    printf '%s\t%s\t%s\n' "$test_name" "$harness_compile_utf8_log" "0" >>"$COMPILE_PASS_TSV"
+  done
+fi
 
 if [[ -s "$COMPILE_PASS_TSV" ]]; then
   if [[ ! -f "$HARNESS_SOURCE" ]]; then
@@ -742,8 +779,8 @@ if [[ -s "$COMPILE_PASS_TSV" ]]; then
       else
         cp -f "$harness_source_ex5" "$STAGE_DIR/${HARNESS_NAME}.ex5"
 
-        terminal_before="$(latest_log_file "$MT5_ROOT/logs")"
-        mql_before="$(latest_log_file "$MT5_ROOT/MQL5/Logs")"
+        terminal_before="$(latest_log_file "$MT5_ROOT/logs" '[0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9].log')"
+        mql_before="$(latest_log_file "$MT5_ROOT/MQL5/Logs" '[0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9].log')"
         terminal_before_lines=0
         mql_before_lines=0
 
@@ -771,8 +808,8 @@ if [[ -s "$COMPILE_PASS_TSV" ]]; then
 
         sleep 1
 
-        terminal_after="$(latest_log_file "$MT5_ROOT/logs")"
-        mql_after="$(latest_log_file "$MT5_ROOT/MQL5/Logs")"
+        terminal_after="$(latest_log_file "$MT5_ROOT/logs" '[0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9].log')"
+        mql_after="$(latest_log_file "$MT5_ROOT/MQL5/Logs" '[0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9].log')"
 
         extract_new_segment "$terminal_before" "$terminal_before_lines" "$terminal_after" "$harness_runtime_terminal_segment"
         extract_new_segment "$mql_before" "$mql_before_lines" "$mql_after" "$harness_runtime_mql_segment"

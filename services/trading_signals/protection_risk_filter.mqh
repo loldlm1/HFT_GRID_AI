@@ -123,6 +123,9 @@ void ProtectionRiskForceCloseSignalArray(SignalParams &signals[],
                                            signals[i].entry_price,
                                            close_price);
 
+    RegisterDailySignalOutcome(direction, signals[i].raw_profit);
+    RegisterSignalLotSequenceOutcome(signals[i].raw_profit);
+
     if(direction == BULLISH)
       CloseBullishSignal(signals[i]);
     else

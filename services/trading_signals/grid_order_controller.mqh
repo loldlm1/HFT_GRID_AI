@@ -26,16 +26,6 @@ void UpdateGridLifecycle(SignalParams &signal_params)
       grid_order = signal_params.grid_orders[grid_order_level];
 
     double normalized_volume = NormalizeVolumeForSymbol(_Symbol, grid_order.lot_size);
-    if(Grid_Lot_Type == GRID_LOT_MAX_MARGIN_SPLIT)
-    {
-      double aggressive_lot = GridResolveAggressiveLotSize(direction);
-      if(aggressive_lot > 0.0)
-      {
-        normalized_volume = aggressive_lot;
-        signal_params.grid_orders[grid_order_level].lot_size = aggressive_lot;
-        grid_order.lot_size = aggressive_lot;
-      }
-    }
 
     if(GridShouldActivateStopOrder(signal_params, grid_order, direction, point_size))
     {
@@ -66,12 +56,11 @@ void UpdateGridLifecycle(SignalParams &signal_params)
     }
     if(GridShouldActivateNextLevelLimit(signal_params, grid_order, direction, point_size))
     {
-      int current_levels = ArraySize(signal_params.grid_orders);
       int position_levels = GridCountPositionOpeningLevels(signal_params);
       bool next_level_opens_position = GridNextLevelOpensPosition(signal_params);
-      bool level_limit_hit = (Grid_Level_Stop_Limit > 0 &&
+      bool level_limit_hit = (Level_Stop_Limit > 0 &&
                               next_level_opens_position &&
-                              position_levels >= Grid_Level_Stop_Limit);
+                              position_levels >= Level_Stop_Limit);
 
       if(level_limit_hit)
       {
