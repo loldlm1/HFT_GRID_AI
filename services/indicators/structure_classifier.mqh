@@ -135,7 +135,7 @@ struct ExtremumStatistics
 };
 
 //+------------------------------------------------------------------+
-//| Determine structure type (HH, HL, LL, LH, EQ)                    |
+//| Determine structure type (HH, LH, HL, LL, EQ)                    |
 //+------------------------------------------------------------------+
 OscillatorStructureTypes GetOscillatorStructureType(
   OscillatorPricesTypes price_type,
@@ -150,12 +150,12 @@ OscillatorStructureTypes GetOscillatorStructureType(
   if(
     price_type == OSCILLATOR_HIGH_PRICES &&
     main_price < past_price
-  ) return OSCILLATOR_STRUCTURE_HL;
+  ) return OSCILLATOR_STRUCTURE_LH;
 
   if(
     price_type == OSCILLATOR_LOW_PRICES &&
     main_price > past_price
-  ) return OSCILLATOR_STRUCTURE_LH;
+  ) return OSCILLATOR_STRUCTURE_HL;
 
   if(
     price_type == OSCILLATOR_LOW_PRICES &&

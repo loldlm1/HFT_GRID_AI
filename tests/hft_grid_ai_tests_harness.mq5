@@ -6,9 +6,11 @@
 #include "harness/cases/fibonacci_negative_label_test_case.mqh"
 #include "harness/cases/grid_visual_label_format_test_case.mqh"
 #include "harness/cases/signal_lot_strategy_test_case.mqh"
+#include "harness/cases/structure_classifier_types_test_case.mqh"
 #include "harness/cases/structure_entry_trigger_test_case.mqh"
 #include "harness/cases/structure_fibonacci_entry_levels_test_case.mqh"
 #include "harness/cases/structure_fibonacci_entry_price_test_case.mqh"
+#include "harness/cases/structure_filter_mode_behavior_test_case.mqh"
 #include "harness/cases/structure_fibonacci_levels_test_case.mqh"
 #include "harness/cases/structure_fibonacci_orientation_test_case.mqh"
 #include "harness/cases/structure_fibonacci_strict_range_test_case.mqh"
@@ -103,6 +105,13 @@ void OnStart()
                       failed_count,
                       total_count);
 
+  HarnessRecordResult("structure_classifier_types_test",
+                      RunTest_structure_classifier_types_test(errors),
+                      errors,
+                      passed_count,
+                      failed_count,
+                      total_count);
+
   HarnessRecordResult("structure_entry_trigger_test",
                       RunTest_structure_entry_trigger_test(errors),
                       errors,
@@ -119,6 +128,13 @@ void OnStart()
 
   HarnessRecordResult("structure_fibonacci_entry_price_test",
                       RunTest_structure_fibonacci_entry_price_test(errors),
+                      errors,
+                      passed_count,
+                      failed_count,
+                      total_count);
+
+  HarnessRecordResult("structure_filter_mode_behavior_test",
+                      RunTest_structure_filter_mode_behavior_test(errors),
                       errors,
                       passed_count,
                       failed_count,

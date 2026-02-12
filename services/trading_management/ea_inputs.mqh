@@ -44,10 +44,10 @@ input StrategyDirectionTypes    Strategy_Direction_Mode     = BOTH_DIRECTION;
 input SignalConcurrencyModes    Signal_Concurrency_Mode     = SINGLE_RUNNING_SIGNAL;
 
 input group "+= Strategy Base Context =+";
-input TrendStructureFilterModes   Base_First_Structure_Filter       = BULLISH_STRUCT_OFF;
-input TrendStructureFilterModes   Base_Second_Structure_Filter      = BEARISH_STRUCT_OFF;
-input TrendStructureFilterModes   Base_Third_Structure_Filter       = BULLISH_STRUCT_OFF;
-input TrendStructureFilterModes   Base_Fourth_Structure_Filter      = BEARISH_STRUCT_OFF;
+input TrendStructureFilterModes   Base_First_Structure_Filter       = STRUCT_FILTER_OFF;
+input TrendStructureFilterModes   Base_Second_Structure_Filter      = STRUCT_FILTER_OFF;
+input TrendStructureFilterModes   Base_Third_Structure_Filter       = STRUCT_FILTER_OFF;
+input TrendStructureFilterModes   Base_Fourth_Structure_Filter      = STRUCT_FILTER_OFF;
 input SupportRetestFilterModes    Base_Support_Filter               = SUPPORT_DISABLED;
 input ResistanceRetestFilterModes Base_Resistance_Filter            = RESISTANCE_DISABLED;
 input int                         Base_Support_Retest_Min_Count     = 1;

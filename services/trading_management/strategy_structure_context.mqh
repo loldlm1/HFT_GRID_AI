@@ -22,8 +22,7 @@ struct StrategyStructureLayerContext
 
 inline bool StructureFilterIsEnabled(const TrendStructureFilterModes mode)
 {
-  return !(mode == BULLISH_STRUCT_OFF ||
-           mode == BEARISH_STRUCT_OFF);
+  return (mode != STRUCT_FILTER_OFF);
 }
 
 inline int ResolveStochStructurePeriod();
@@ -36,10 +35,10 @@ inline StrategyStructureLayerContext BuildDisabledStructureLayerContext()
   ctx.resistance_filter       = RESISTANCE_DISABLED;
   ctx.support_min_retests     = 0;
   ctx.resistance_min_retests  = 0;
-  ctx.first_structure_filter  = BULLISH_STRUCT_OFF;
-  ctx.second_structure_filter = BEARISH_STRUCT_OFF;
-  ctx.third_structure_filter  = BULLISH_STRUCT_OFF;
-  ctx.fourth_structure_filter = BEARISH_STRUCT_OFF;
+  ctx.first_structure_filter  = STRUCT_FILTER_OFF;
+  ctx.second_structure_filter = STRUCT_FILTER_OFF;
+  ctx.third_structure_filter  = STRUCT_FILTER_OFF;
+  ctx.fourth_structure_filter = STRUCT_FILTER_OFF;
   ctx.enabled                 = false;
   ctx.uses_trend_dataset      = false;
   return ctx;

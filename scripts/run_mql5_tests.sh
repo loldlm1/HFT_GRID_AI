@@ -2,31 +2,26 @@
 set -euo pipefail
 
 usage() {
-  cat <<'EOF'
+  cat <<'USAGE'
 Usage:
-  scripts/run_mql5_tests.sh [--mt5-root PATH] [--symbol SYMBOL] [--period PERIOD] [--report-dir PATH] [--fast]
+  scripts/run_mql5_tests.sh [--mt5-root PATH] [--symbol SYMBOL] [--period PERIOD] [--report-dir PATH]
 
 Description:
-  Compiles all tests matching tests/*_test.mq5, then runs one harness script.
+  Compiles tests matching tests/*_test.mq5, then runs one harness script.
   Compile gate is strict: any warning or error fails the test.
   Runtime gate is strict: harness must load/unload and emit TEST_PASS/TEST_FAIL markers.
 
 Options:
   --mt5-root PATH   MetaTrader root (contains terminal64.exe and MQL5/)
-  --symbol SYMBOL   Symbol used when launching script tests (default: EURUSD)
-  --period PERIOD   Period used when launching script tests (default: M1)
+  --symbol SYMBOL   Symbol used for runtime startup context (default: EURUSD)
+  --period PERIOD   Period used for runtime startup context (default: M1)
   --report-dir DIR  Report output root; runner writes only DIR/latest (default: logs/test-runner)
-  --fast            Skip per-test wrapper compile; compile harness only and run runtime markers
   -h, --help        Show this help
-EOF
+USAGE
 }
 
 log() {
   printf '[%s] %s\n' "$(date '+%Y-%m-%d %H:%M:%S')" "$*"
-}
-
-warn() {
-  printf '[%s] WARN: %s\n' "$(date '+%Y-%m-%d %H:%M:%S')" "$*" >&2
 }
 
 die() {
@@ -37,20 +32,6 @@ die() {
 require_command() {
   local cmd="$1"
   command -v "$cmd" >/dev/null 2>&1 || die "Required command not found: $cmd"
-}
-
-sanitize_line() {
-  printf '%s' "$1" | tr '\r\n\t' '   '
-}
-
-json_escape() {
-  local value="$1"
-  value="${value//\\/\\\\}"
-  value="${value//\"/\\\"}"
-  value="${value//$'\n'/\\n}"
-  value="${value//$'\r'/}"
-  value="${value//$'\t'/\\t}"
-  printf '%s' "$value"
 }
 
 is_windows() {
@@ -128,11 +109,19 @@ decode_log_to_utf8() {
   fi
 }
 
+latest_log_file() {
+  local dir="$1"
+  local pattern="$2"
+  if compgen -G "$dir/$pattern" >/dev/null 2>&1; then
+    ls -1t "$dir"/$pattern | head -n 1
+  fi
+}
+
 decoded_line_count() {
   local file="$1"
   local tmp
 
-  if [[ ! -f "$file" ]]; then
+  if [[ -z "$file" || ! -f "$file" ]]; then
     printf '0'
     return
   fi
@@ -141,16 +130,6 @@ decoded_line_count() {
   decode_log_to_utf8 "$file" "$tmp"
   wc -l <"$tmp" | tr -d ' '
   rm -f "$tmp"
-}
-
-latest_log_file() {
-  local dir="$1"
-  local pattern="${2:-*.log}"
-  local latest=""
-  if compgen -G "$dir/$pattern" >/dev/null 2>&1; then
-    latest="$(ls -1t "$dir"/$pattern | head -n 1)"
-  fi
-  printf '%s' "$latest"
 }
 
 extract_new_segment() {
@@ -181,6 +160,21 @@ extract_new_segment() {
   rm -f "$decoded"
 }
 
+parse_compile_result() {
+  local utf8_log="$1"
+  local result_line
+  local errors
+  local warnings
+
+  result_line="$(grep -Eio 'result:?[[:space:]]*[0-9]+[[:space:]]+errors?,[[:space:]]*[0-9]+[[:space:]]+warnings?' "$utf8_log" | tail -n 1 || true)"
+  [[ -n "$result_line" ]] || return 1
+
+  errors="$(printf '%s\n' "$result_line" | sed -E 's/.*result:?[[:space:]]*([0-9]+)[[:space:]]+errors?.*/\1/I')"
+  warnings="$(printf '%s\n' "$result_line" | sed -E 's/.*errors?,[[:space:]]*([0-9]+)[[:space:]]+warnings?.*/\1/I')"
+
+  printf '%s\t%s\t%s\n' "$errors" "$warnings" "$result_line"
+}
+
 contains_script_token() {
   local file="$1"
   local script_name="$2"
@@ -198,41 +192,33 @@ contains_script_token() {
       line = tolower($0);
       if(index(line, script_name) > 0 && index(line, token) > 0) {
         found = 1;
-        exit 0;
+        exit;
       }
     }
-    END {
-      if(found == 1) {
-        exit 0;
-      }
-      exit 1;
-    }
+    END { exit (found ? 0 : 1); }
   ' "$file"
 }
 
-extract_first_matching_line() {
+contains_text_token() {
   local file="$1"
-  local script_name="$2"
-  local token="$3"
-  local line=""
+  local token="$2"
 
-  if [[ -f "$file" ]]; then
-    line="$(awk -v script_name="$script_name" -v token="$token" '
-      BEGIN {
-        script_name = tolower(script_name);
-        token = tolower(token);
-      }
-      {
-        low = tolower($0);
-        if(index(low, script_name) > 0 && index(low, token) > 0) {
-          print $0;
-          exit 0;
-        }
-      }
-    ' "$file")"
-  fi
+  [[ -f "$file" ]] || return 1
 
-  printf '%s' "$line"
+  awk -v token="$token" '
+    BEGIN {
+      found = 0;
+      token = tolower(token);
+    }
+    {
+      line = tolower($0);
+      if(index(line, token) > 0) {
+        found = 1;
+        exit;
+      }
+    }
+    END { exit (found ? 0 : 1); }
+  ' "$file"
 }
 
 contains_harness_test_marker() {
@@ -252,15 +238,10 @@ contains_harness_test_marker() {
       line = tolower($0);
       if(index(line, marker) > 0 && index(line, test_name) > 0) {
         found = 1;
-        exit 0;
+        exit;
       }
     }
-    END {
-      if(found == 1) {
-        exit 0;
-      }
-      exit 1;
-    }
+    END { exit (found ? 0 : 1); }
   ' "$file"
 }
 
@@ -268,74 +249,25 @@ extract_harness_line() {
   local file="$1"
   local marker="$2"
   local test_name="$3"
-  local line=""
-
-  if [[ -f "$file" ]]; then
-    line="$(awk -v marker="$marker" -v test_name="$test_name" '
-      BEGIN {
-        marker = tolower(marker);
-        test_name = tolower(test_name);
-      }
-      {
-        low = tolower($0);
-        if(index(low, marker) > 0 && index(low, test_name) > 0) {
-          print $0;
-          exit 0;
-        }
-      }
-    ' "$file")"
-  fi
-
-  printf '%s' "$line"
-}
-
-contains_text_token() {
-  local file="$1"
-  local token="$2"
 
   [[ -f "$file" ]] || return 1
 
-  awk -v token="$token" '
+  awk -v marker="$marker" -v test_name="$test_name" '
     BEGIN {
       found = 0;
-      token = tolower(token);
+      marker = tolower(marker);
+      test_name = tolower(test_name);
     }
     {
       line = tolower($0);
-      if(index(line, token) > 0) {
+      if(index(line, marker) > 0 && (test_name == "" || index(line, test_name) > 0)) {
         found = 1;
-        exit 0;
+        print $0;
+        exit;
       }
     }
-    END {
-      if(found == 1) {
-        exit 0;
-      }
-      exit 1;
-    }
+    END { exit (found ? 0 : 1); }
   ' "$file"
-}
-
-parse_compile_result() {
-  local utf8_log="$1"
-  local result_line
-  local errors
-  local warnings
-
-  result_line="$(grep -Eio 'result:?[[:space:]]*[0-9]+[[:space:]]+errors?,[[:space:]]*[0-9]+[[:space:]]+warnings?' "$utf8_log" | tail -n 1 || true)"
-  [[ -n "$result_line" ]] || return 1
-
-  errors="$(printf '%s\n' "$result_line" | sed -E 's/.*result:?[[:space:]]*([0-9]+)[[:space:]]+errors?.*/\1/I')"
-  warnings="$(printf '%s\n' "$result_line" | sed -E 's/.*errors?,[[:space:]]*([0-9]+)[[:space:]]+warnings?.*/\1/I')"
-
-  printf '%s\t%s\t%s\n' "$errors" "$warnings" "$result_line"
-}
-
-scan_mock_dependency_usage() {
-  local source_file="$1"
-  local pattern
-  pattern='CopyRates|CopyTicks|CopyTicksRange|CopyBuffer|iOpen|iHigh|iLow|iClose|iVolume|SeriesInfoInteger|iBars|Bars\('
-  grep -nE "$pattern" "$source_file" || true
 }
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -345,7 +277,6 @@ MT5_ROOT_ARG=""
 TEST_SYMBOL="${TEST_SYMBOL:-EURUSD}"
 TEST_PERIOD="${TEST_PERIOD:-M1}"
 REPORT_ROOT="${PROJECT_ROOT}/logs/test-runner"
-FAST_MODE=0
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -368,10 +299,6 @@ while [[ $# -gt 0 ]]; do
       [[ $# -ge 2 ]] || die "--report-dir requires a value"
       REPORT_ROOT="$2"
       shift 2
-      ;;
-    --fast)
-      FAST_MODE=1
-      shift
       ;;
     -h|--help)
       usage
@@ -404,6 +331,7 @@ find_mt5_root() {
   local project_parent
   local -a candidates=()
   local candidate
+
   project_parent="$(cd "$PROJECT_ROOT/../../.." && pwd)"
 
   [[ -n "$MT5_ROOT_ARG" ]] && candidates+=("$MT5_ROOT_ARG")
@@ -417,6 +345,7 @@ find_mt5_root() {
       return 0
     fi
   done
+
   return 1
 }
 
@@ -437,529 +366,333 @@ fi
 [[ -f "$TERMINAL_EXE" ]] || die "terminal64.exe not found at $TERMINAL_EXE"
 [[ -d "$MT5_ROOT/MQL5/Scripts" ]] || die "Scripts directory not found at $MT5_ROOT/MQL5/Scripts"
 
-TERMINAL_OWNER="system_opened"
 if is_terminal_already_running; then
-  TERMINAL_OWNER="user_opened"
   running_terminals="$(list_terminal_processes)"
-  die "Detected running terminal64.exe (owner=${TERMINAL_OWNER}). Close MT5 first: command-line runs cannot queue scripts into an already-open terminal for the same installation directory. Processes: ${running_terminals:-unavailable}"
+  die "Detected running terminal64.exe. Close MT5 first. Processes: ${running_terminals:-unavailable}"
 fi
 
 mapfile -t TEST_FILES < <(find "$PROJECT_ROOT/tests" -maxdepth 1 -type f -name '*_test.mq5' | sort)
 [[ "${#TEST_FILES[@]}" -gt 0 ]] || die "No test files found in tests/*_test.mq5"
-discovered_tests="${#TEST_FILES[@]}"
 
 RUN_STAMP="$(date '+%Y%m%d_%H%M%S')"
 RUN_DIR="$REPORT_ROOT/latest"
 COMPILE_DIR="$RUN_DIR/compile"
 RUNTIME_DIR="$RUN_DIR/runtime"
 CONFIG_DIR="$RUN_DIR/config"
+SUMMARY_LOG="$RUN_DIR/summary.log"
 STAGE_DIR="$MT5_ROOT/MQL5/Scripts/HFT_Grid_AI_Tests"
-RESULTS_TSV="$RUN_DIR/results.tsv"
-COMPILE_PASS_TSV="$RUN_DIR/compile_pass.tsv"
-MOCK_WARNINGS_TXT="$RUN_DIR/mock_dependency_warnings.txt"
-REPORT_MD="$RUN_DIR/report.md"
-REPORT_JSON="$RUN_DIR/report.json"
 HARNESS_NAME="hft_grid_ai_tests_harness"
 HARNESS_SOURCE="$PROJECT_ROOT/tests/${HARNESS_NAME}.mq5"
 
 mkdir -p "$REPORT_ROOT"
-if [[ -e "$RUN_DIR" || -L "$RUN_DIR" ]]; then
-  rm -rf "$RUN_DIR"
-fi
-find "$REPORT_ROOT" -mindepth 1 -maxdepth 1 -type d -name '20??????_??????' -exec rm -rf {} + 2>/dev/null || true
+[[ -e "$RUN_DIR" || -L "$RUN_DIR" ]] && rm -rf "$RUN_DIR"
+mkdir -p "$COMPILE_DIR" "$RUNTIME_DIR" "$CONFIG_DIR" "$STAGE_DIR"
+: >"$SUMMARY_LOG"
 
-mkdir -p "$COMPILE_DIR" "$RUNTIME_DIR" "$CONFIG_DIR" "$REPORT_ROOT" "$STAGE_DIR"
-: >"$RESULTS_TSV"
-: >"$COMPILE_PASS_TSV"
-: >"$MOCK_WARNINGS_TXT"
+summary() {
+  printf '%s\n' "$*" | tee -a "$SUMMARY_LOG" >/dev/null
+}
+
+summary "RUN_STAMP=$RUN_STAMP"
+summary "PROJECT_ROOT=$PROJECT_ROOT"
+summary "MT5_ROOT=$MT5_ROOT"
+summary "SYMBOL=$TEST_SYMBOL"
+summary "PERIOD=$TEST_PERIOD"
+summary "TEST_COUNT_DISCOVERED=${#TEST_FILES[@]}"
+summary ""
 
 log "MT5 root: $MT5_ROOT"
 log "MetaEditor: $METAEDITOR_EXE"
 log "Terminal: $TERMINAL_EXE"
-log "Terminal owner: $TERMINAL_OWNER"
-log "Tests found: $discovered_tests"
-if [[ "$FAST_MODE" -eq 1 ]]; then
-  log "Mode: FAST (harness-only compile)"
-else
-  log "Mode: FULL (compile all wrappers + harness)"
-fi
-log "Report dir: $RUN_DIR"
+log "Tests discovered: ${#TEST_FILES[@]}"
+log "Summary log: $SUMMARY_LOG"
 
-total_tests=0
-passed_tests=0
-failed_tests=0
 compile_failures=0
 runtime_failures=0
-report_generated=0
-interrupted=0
-reports_ready=1
+harness_ready=0
+runtime_cmd_exit=0
+harness_reason=""
+harness_hint=""
 
-write_reports() {
-  local processed_tests
-  ((reports_ready == 1)) || return 0
-  ((report_generated == 0)) || return 0
-  processed_tests="$(wc -l <"$RESULTS_TSV" | tr -d ' ')"
+# shellcheck disable=SC2034
+declare -A TEST_STATUS=()
+declare -A TEST_REASON=()
+declare -A TEST_COMPILE_LOG=()
+declare -a COMPILE_OK_TESTS=()
 
-  {
-    echo "# MQL5 Test Runner Report"
-    echo
-    echo "- Generated at: $(date '+%Y-%m-%d %H:%M:%S')"
-    echo "- Project root: $PROJECT_ROOT"
-    echo "- MT5 root: $MT5_ROOT"
-    echo "- Terminal owner: $TERMINAL_OWNER"
-    echo "- Run stamp: $RUN_STAMP"
-    echo "- Test pattern: tests/*_test.mq5"
-    echo "- Runtime symbol/period: ${TEST_SYMBOL}/${TEST_PERIOD}"
-    echo "- Tests discovered: $discovered_tests"
-    echo "- Tests processed: $processed_tests"
-    echo "- Passed: $passed_tests"
-    echo "- Failed: $failed_tests"
-    echo "- Compile failures: $compile_failures"
-    echo "- Runtime failures: $runtime_failures"
-    echo
-    echo "## Results"
-    echo
-    echo "| Test | Status | Phase | Reason |"
-    echo "|---|---|---|---|"
-    while IFS=$'\t' read -r t_name t_status t_phase t_reason t_hint t_compile t_term t_mql t_exit; do
-      printf '| `%s` | **%s** | `%s` | %s |\n' "$t_name" "$t_status" "$t_phase" "$t_reason"
-    done <"$RESULTS_TSV"
-    echo
-    echo "## Failure Hints"
-    echo
-    while IFS=$'\t' read -r t_name t_status t_phase t_reason t_hint t_compile t_term t_mql t_exit; do
-      if [[ "$t_status" == "FAIL" ]]; then
-        echo "- $t_name ($t_phase): $t_hint"
-        echo "  Compile log: $t_compile"
-        echo "  Terminal segment: $t_term"
-        echo "  MQL segment: $t_mql"
-      fi
-    done <"$RESULTS_TSV"
-    echo
-    if [[ -s "$MOCK_WARNINGS_TXT" ]]; then
-      echo "## Mock-Dependency Warnings"
-      echo
-      echo "The following tests reference data-coupled APIs. They are not auto-failed, but should be reviewed:"
-      echo
-      sed 's/^/- /' "$MOCK_WARNINGS_TXT"
-      echo
-    fi
-    echo "## Agent Fix Workflow"
-    echo
-    echo "1. Open the failing compile/runtime log files listed above."
-    echo "2. Fix compile warnings/errors first; runtime is only valid after clean compile."
-    echo "3. For runtime FAIL, inspect first FAIL line in MQL segment and corresponding terminal segment."
-    echo "4. Re-run this script until all tests report PASS."
-  } >"$REPORT_MD"
+declare -a TEST_NAMES=()
+for source_file in "${TEST_FILES[@]}"; do
+  TEST_NAMES+=("$(basename "$source_file" .mq5)")
+done
 
-  {
-    echo "{"
-    echo "  \"generated_at\": \"$(json_escape "$(date '+%Y-%m-%d %H:%M:%S')")\","
-    echo "  \"project_root\": \"$(json_escape "$PROJECT_ROOT")\","
-    echo "  \"mt5_root\": \"$(json_escape "$MT5_ROOT")\","
-    echo "  \"terminal_owner\": \"$(json_escape "$TERMINAL_OWNER")\","
-    echo "  \"run_stamp\": \"$(json_escape "$RUN_STAMP")\","
-    echo "  \"symbol\": \"$(json_escape "$TEST_SYMBOL")\","
-    echo "  \"period\": \"$(json_escape "$TEST_PERIOD")\","
-    echo "  \"total\": $discovered_tests,"
-    echo "  \"processed\": $processed_tests,"
-    echo "  \"passed\": $passed_tests,"
-    echo "  \"failed\": $failed_tests,"
-    echo "  \"compile_failures\": $compile_failures,"
-    echo "  \"runtime_failures\": $runtime_failures,"
-    echo "  \"results\": ["
-    first_record=1
-    while IFS=$'\t' read -r t_name t_status t_phase t_reason t_hint t_compile t_term t_mql t_exit; do
-      if [[ "$first_record" -eq 0 ]]; then
-        echo "    ,"
-      fi
-      first_record=0
-      if [[ "$t_exit" =~ ^-?[0-9]+$ ]]; then
-        t_exit_value="$t_exit"
-      else
-        t_exit_value="0"
-      fi
-      echo "    {"
-      echo "      \"test\": \"$(json_escape "$t_name")\","
-      echo "      \"status\": \"$(json_escape "$t_status")\","
-      echo "      \"phase\": \"$(json_escape "$t_phase")\","
-      echo "      \"reason\": \"$(json_escape "$t_reason")\","
-      echo "      \"hint\": \"$(json_escape "$t_hint")\","
-      echo "      \"compile_log\": \"$(json_escape "$t_compile")\","
-      echo "      \"terminal_segment\": \"$(json_escape "$t_term")\","
-      echo "      \"mql_segment\": \"$(json_escape "$t_mql")\","
-      echo "      \"runner_exit_code\": $t_exit_value"
-      echo -n "    }"
-    done <"$RESULTS_TSV"
-    echo
-    echo "  ]"
-    echo "}"
-  } >"$REPORT_JSON"
+summary "[COMPILE]"
+for source_file in "${TEST_FILES[@]}"; do
+  test_name="$(basename "$source_file" .mq5)"
+  source_ex5="${source_file%.mq5}.ex5"
 
-  report_generated=1
-}
+  compile_raw_log="$COMPILE_DIR/${test_name}.metaeditor.raw.log"
+  compile_utf8_log="$COMPILE_DIR/${test_name}.metaeditor.log"
 
-on_interrupt() {
-  interrupted=1
-  warn "Interrupt received. Stopping run and writing partial report."
-  exit 130
-}
+  rm -f "$source_ex5" "$compile_raw_log" "$compile_utf8_log"
 
-on_exit() {
-  local exit_code=$?
-  if ((reports_ready == 1)) && ((report_generated == 0)); then
-    write_reports || true
+  source_native="$(to_native_path "$source_file")"
+  compile_log_native="$(to_native_path "$compile_raw_log")"
+
+  set +e
+  run_windows_binary "$METAEDITOR_EXE" "/compile:$source_native" "/log:$compile_log_native" "/portable" >/dev/null 2>&1
+  compile_exit=$?
+  set -e
+
+  decode_log_to_utf8 "$compile_raw_log" "$compile_utf8_log"
+  TEST_COMPILE_LOG["$test_name"]="$compile_utf8_log"
+
+  parse_output="$(parse_compile_result "$compile_utf8_log" || true)"
+  if [[ -z "$parse_output" ]]; then
+    TEST_STATUS["$test_name"]="FAIL"
+    TEST_REASON["$test_name"]="compile: no parseable result line"
+    compile_failures=$((compile_failures + 1))
+    summary "FAIL $test_name compile no_parseable_result exit_code=$compile_exit log=$compile_utf8_log"
+    continue
   fi
-  if ((interrupted == 1)); then
-    warn "Partial report available: $RUN_DIR"
+
+  compile_errors="$(printf '%s' "$parse_output" | awk -F '\t' '{print $1}')"
+  compile_warnings="$(printf '%s' "$parse_output" | awk -F '\t' '{print $2}')"
+  compile_result_line="$(printf '%s' "$parse_output" | awk -F '\t' '{print $3}')"
+
+  if [[ "$compile_errors" != "0" || "$compile_warnings" != "0" ]]; then
+    TEST_STATUS["$test_name"]="FAIL"
+    TEST_REASON["$test_name"]="compile: strict gate failed (${compile_result_line})"
+    compile_failures=$((compile_failures + 1))
+    summary "FAIL $test_name compile strict_gate result=\"$compile_result_line\" log=$compile_utf8_log"
+    continue
   fi
-  return "$exit_code"
-}
 
-trap on_interrupt INT TERM
-trap on_exit EXIT
+  if [[ ! -f "$source_ex5" ]]; then
+    TEST_STATUS["$test_name"]="FAIL"
+    TEST_REASON["$test_name"]="compile: missing ex5 artifact"
+    compile_failures=$((compile_failures + 1))
+    summary "FAIL $test_name compile missing_ex5 log=$compile_utf8_log"
+    continue
+  fi
 
-if [[ "$FAST_MODE" -eq 1 ]]; then
-  total_tests="$discovered_tests"
+  cp -f "$source_ex5" "$STAGE_DIR/${test_name}.ex5"
+  COMPILE_OK_TESTS+=("$test_name")
+  summary "PASS $test_name compile result=\"$compile_result_line\" log=$compile_utf8_log"
+done
+
+summary ""
+summary "[HARNESS_COMPILE]"
+
+harness_compile_raw_log="$COMPILE_DIR/${HARNESS_NAME}.metaeditor.raw.log"
+harness_compile_utf8_log="$COMPILE_DIR/${HARNESS_NAME}.metaeditor.log"
+harness_source_ex5="${HARNESS_SOURCE%.mq5}.ex5"
+
+rm -f "$harness_source_ex5" "$harness_compile_raw_log" "$harness_compile_utf8_log"
+
+if [[ ! -f "$HARNESS_SOURCE" ]]; then
+  harness_reason="harness source not found"
+  harness_hint="$HARNESS_SOURCE"
+  compile_failures=$((compile_failures + 1))
+  summary "FAIL harness compile source_missing path=$HARNESS_SOURCE"
 else
-  for source_file in "${TEST_FILES[@]}"; do
-    total_tests=$((total_tests + 1))
-    test_name="$(basename "$source_file" .mq5)"
-    source_ex5="${source_file%.mq5}.ex5"
+  harness_source_native="$(to_native_path "$HARNESS_SOURCE")"
+  harness_log_native="$(to_native_path "$harness_compile_raw_log")"
 
-    compile_raw_log="$COMPILE_DIR/${test_name}.log"
-    compile_utf8_log="$COMPILE_DIR/${test_name}.utf8.log"
-    compile_stdout_log="$COMPILE_DIR/${test_name}.stdout.log"
+  set +e
+  run_windows_binary "$METAEDITOR_EXE" "/compile:$harness_source_native" "/log:$harness_log_native" "/portable" >/dev/null 2>&1
+  harness_compile_exit=$?
+  set -e
 
-    runtime_terminal_segment="$RUNTIME_DIR/${test_name}.terminal.segment.log"
-    runtime_mql_segment="$RUNTIME_DIR/${test_name}.mql.segment.log"
+  decode_log_to_utf8 "$harness_compile_raw_log" "$harness_compile_utf8_log"
 
-    phase="compile"
-    status="FAIL"
-    reason=""
-    hint=""
-    compile_result_line=""
+  harness_parse_output="$(parse_compile_result "$harness_compile_utf8_log" || true)"
+  if [[ -z "$harness_parse_output" ]]; then
+    harness_reason="harness compile has no parseable result"
+    harness_hint="$harness_compile_utf8_log"
+    compile_failures=$((compile_failures + 1))
+    summary "FAIL harness compile no_parseable_result exit_code=$harness_compile_exit log=$harness_compile_utf8_log"
+  else
+    harness_errors="$(printf '%s' "$harness_parse_output" | awk -F '\t' '{print $1}')"
+    harness_warnings="$(printf '%s' "$harness_parse_output" | awk -F '\t' '{print $2}')"
+    harness_result_line="$(printf '%s' "$harness_parse_output" | awk -F '\t' '{print $3}')"
 
-    mock_hits="$(scan_mock_dependency_usage "$source_file")"
-    if [[ -n "$mock_hits" ]]; then
-      {
-        printf '%s\n' "[$test_name]"
-        printf '%s\n\n' "$mock_hits"
-      } >>"$MOCK_WARNINGS_TXT"
-    fi
-
-    rm -f "$source_ex5" "$compile_raw_log" "$compile_utf8_log" "$compile_stdout_log"
-
-    source_native="$(to_native_path "$source_file")"
-    compile_log_native="$(to_native_path "$compile_raw_log")"
-
-    set +e
-    run_windows_binary "$METAEDITOR_EXE" "/compile:$source_native" "/log:$compile_log_native" "/portable" >"$compile_stdout_log" 2>&1
-    compile_cmd_exit=$?
-    set -e
-
-    decode_log_to_utf8 "$compile_raw_log" "$compile_utf8_log"
-
-    parse_output="$(parse_compile_result "$compile_utf8_log" || true)"
-    if [[ -z "$parse_output" ]]; then
-      reason="compile log has no parseable result line"
-      hint="Check $compile_utf8_log for MetaEditor startup or path issues."
+    if [[ "$harness_errors" != "0" || "$harness_warnings" != "0" ]]; then
+      harness_reason="harness strict compile gate failed"
+      harness_hint="$harness_result_line"
       compile_failures=$((compile_failures + 1))
-      failed_tests=$((failed_tests + 1))
-      printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' \
-        "$test_name" "$status" "$phase" \
-        "$(sanitize_line "$reason")" "$(sanitize_line "$hint")" \
-        "$compile_utf8_log" "$runtime_terminal_segment" "$runtime_mql_segment" "$compile_cmd_exit" >>"$RESULTS_TSV"
-      log "FAIL [compile] $test_name - $reason"
-      continue
-    fi
-
-    compile_errors="$(printf '%s' "$parse_output" | awk -F '\t' '{print $1}')"
-    compile_warnings="$(printf '%s' "$parse_output" | awk -F '\t' '{print $2}')"
-    compile_result_line="$(printf '%s' "$parse_output" | awk -F '\t' '{print $3}')"
-
-    if [[ "$compile_errors" != "0" || "$compile_warnings" != "0" ]]; then
-      reason="strict compile gate failed: ${compile_result_line}"
-      hint="Fix compiler errors and warnings in $source_file and re-run."
+      summary "FAIL harness compile strict_gate result=\"$harness_result_line\" log=$harness_compile_utf8_log"
+    elif [[ ! -f "$harness_source_ex5" ]]; then
+      harness_reason="harness missing ex5 artifact"
+      harness_hint="$HARNESS_SOURCE"
       compile_failures=$((compile_failures + 1))
-      failed_tests=$((failed_tests + 1))
-      printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' \
-        "$test_name" "$status" "$phase" \
-        "$(sanitize_line "$reason")" "$(sanitize_line "$hint")" \
-        "$compile_utf8_log" "$runtime_terminal_segment" "$runtime_mql_segment" "$compile_cmd_exit" >>"$RESULTS_TSV"
-      log "FAIL [compile] $test_name - $compile_result_line"
-      continue
+      summary "FAIL harness compile missing_ex5 log=$harness_compile_utf8_log"
+    else
+      cp -f "$harness_source_ex5" "$STAGE_DIR/${HARNESS_NAME}.ex5"
+      summary "PASS harness compile result=\"$harness_result_line\" log=$harness_compile_utf8_log"
+      harness_ready=1
     fi
-
-    if [[ ! -f "$source_ex5" ]]; then
-      reason="compile reported success but .ex5 artifact was not generated"
-      hint="Verify MetaEditor output path and permissions for $source_file."
-      compile_failures=$((compile_failures + 1))
-      failed_tests=$((failed_tests + 1))
-      printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' \
-        "$test_name" "$status" "$phase" \
-        "$(sanitize_line "$reason")" "$(sanitize_line "$hint")" \
-        "$compile_utf8_log" "$runtime_terminal_segment" "$runtime_mql_segment" "$compile_cmd_exit" >>"$RESULTS_TSV"
-      log "FAIL [compile] $test_name - missing .ex5 artifact"
-      continue
-    fi
-
-    cp -f "$source_ex5" "$STAGE_DIR/${test_name}.ex5"
-    printf '%s\t%s\t%s\n' "$test_name" "$compile_utf8_log" "$compile_cmd_exit" >>"$COMPILE_PASS_TSV"
-  done
+  fi
 fi
 
-harness_compile_raw_log="$COMPILE_DIR/${HARNESS_NAME}.log"
-harness_compile_utf8_log="$COMPILE_DIR/${HARNESS_NAME}.utf8.log"
-harness_compile_stdout_log="$COMPILE_DIR/${HARNESS_NAME}.stdout.log"
-harness_source_ex5="${HARNESS_SOURCE%.mq5}.ex5"
-harness_runtime_stdout_log="$RUNTIME_DIR/${HARNESS_NAME}.stdout.log"
-harness_runtime_terminal_segment="$RUNTIME_DIR/${HARNESS_NAME}.terminal.segment.log"
-harness_runtime_mql_segment="$RUNTIME_DIR/${HARNESS_NAME}.mql.segment.log"
+harness_runtime_terminal_log="$RUNTIME_DIR/${HARNESS_NAME}.terminal.log"
+harness_runtime_mql_log="$RUNTIME_DIR/${HARNESS_NAME}.mql.log"
 harness_runtime_config="$CONFIG_DIR/${HARNESS_NAME}.ini"
 
-runtime_cmd_exit=0
-runtime_harness_ready=0
-runtime_harness_reason=""
-runtime_harness_hint=""
-harness_compile_cmd_exit=0
+summary ""
+summary "[RUNTIME]"
 
-if [[ "$FAST_MODE" -eq 1 ]]; then
-  log "FAST mode enabled: wrapper compile skipped; runtime results will come from harness markers."
-  for source_file in "${TEST_FILES[@]}"; do
-    test_name="$(basename "$source_file" .mq5)"
-    printf '%s\t%s\t%s\n' "$test_name" "$harness_compile_utf8_log" "0" >>"$COMPILE_PASS_TSV"
-  done
-fi
+if [[ "$harness_ready" -eq 1 && "${#COMPILE_OK_TESTS[@]}" -gt 0 ]]; then
+  terminal_before="$(latest_log_file "$MT5_ROOT/logs" '[0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9].log')"
+  mql_before="$(latest_log_file "$MT5_ROOT/MQL5/Logs" '[0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9].log')"
 
-if [[ -s "$COMPILE_PASS_TSV" ]]; then
-  if [[ ! -f "$HARNESS_SOURCE" ]]; then
-    runtime_harness_reason="harness source not found"
-    runtime_harness_hint="Expected file: $HARNESS_SOURCE"
-  else
-    rm -f "$harness_source_ex5" \
-          "$harness_compile_raw_log" \
-          "$harness_compile_utf8_log" \
-          "$harness_compile_stdout_log" \
-          "$harness_runtime_stdout_log" \
-          "$harness_runtime_terminal_segment" \
-          "$harness_runtime_mql_segment"
+  terminal_before_lines="$(decoded_line_count "$terminal_before")"
+  mql_before_lines="$(decoded_line_count "$mql_before")"
 
-    harness_source_native="$(to_native_path "$HARNESS_SOURCE")"
-    harness_compile_log_native="$(to_native_path "$harness_compile_raw_log")"
+  {
+    echo "[StartUp]"
+    printf 'Script=HFT_Grid_AI_Tests\\%s\n' "$HARNESS_NAME"
+    printf 'Symbol=%s\n' "$TEST_SYMBOL"
+    printf 'Period=%s\n' "$TEST_PERIOD"
+    echo "ShutdownTerminal=1"
+  } >"$harness_runtime_config"
 
-    set +e
-    run_windows_binary "$METAEDITOR_EXE" "/compile:$harness_source_native" "/log:$harness_compile_log_native" "/portable" >"$harness_compile_stdout_log" 2>&1
-    harness_compile_cmd_exit=$?
-    set -e
+  harness_runtime_config_native="$(to_native_path "$harness_runtime_config")"
 
-    decode_log_to_utf8 "$harness_compile_raw_log" "$harness_compile_utf8_log"
+  set +e
+  run_windows_binary "$TERMINAL_EXE" "/portable" "/config:$harness_runtime_config_native" >/dev/null 2>&1
+  runtime_cmd_exit=$?
+  set -e
 
-    harness_parse_output="$(parse_compile_result "$harness_compile_utf8_log" || true)"
-    if [[ -z "$harness_parse_output" ]]; then
-      compile_failures=$((compile_failures + 1))
-      runtime_harness_reason="harness compile log has no parseable result line"
-      runtime_harness_hint="Check $harness_compile_utf8_log for MetaEditor startup or path issues."
-      log "FAIL [compile] $HARNESS_NAME - no parseable compile result line"
+  sleep 1
+
+  terminal_after="$(latest_log_file "$MT5_ROOT/logs" '[0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9].log')"
+  mql_after="$(latest_log_file "$MT5_ROOT/MQL5/Logs" '[0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9].log')"
+
+  extract_new_segment "$terminal_before" "$terminal_before_lines" "$terminal_after" "$harness_runtime_terminal_log"
+  extract_new_segment "$mql_before" "$mql_before_lines" "$mql_after" "$harness_runtime_mql_log"
+
+  has_loaded=0
+  has_removed=0
+  has_summary=0
+  has_harness_pass=0
+  has_harness_fail=0
+
+  if contains_script_token "$harness_runtime_terminal_log" "script ${HARNESS_NAME} (" "loaded successfully"; then
+    has_loaded=1
+  fi
+  if contains_script_token "$harness_runtime_terminal_log" "script ${HARNESS_NAME} (" "removed"; then
+    has_removed=1
+  fi
+  if contains_text_token "$harness_runtime_mql_log" "HARNESS_SUMMARY:"; then
+    has_summary=1
+  fi
+  if contains_text_token "$harness_runtime_mql_log" "HARNESS_PASS"; then
+    has_harness_pass=1
+  fi
+  if contains_text_token "$harness_runtime_mql_log" "HARNESS_FAIL"; then
+    has_harness_fail=1
+  fi
+
+  if [[ "$has_loaded" -ne 1 ]]; then
+    harness_ready=0
+    harness_reason="runtime: harness did not load"
+    harness_hint="$harness_runtime_terminal_log"
+  elif [[ "$has_removed" -ne 1 ]]; then
+    harness_ready=0
+    harness_reason="runtime: harness did not unload"
+    harness_hint="$harness_runtime_terminal_log"
+  elif [[ "$has_summary" -ne 1 ]]; then
+    harness_ready=0
+    harness_reason="runtime: missing HARNESS_SUMMARY marker"
+    harness_hint="$harness_runtime_mql_log"
+  fi
+
+  if [[ "$harness_ready" -eq 1 ]]; then
+    summary_line="$(extract_harness_line "$harness_runtime_mql_log" 'HARNESS_SUMMARY:' '' || true)"
+    if [[ "$has_harness_fail" -eq 1 ]]; then
+      summary "FAIL harness runtime marker=HARNESS_FAIL exit_code=$runtime_cmd_exit summary=\"${summary_line:-missing}\" mql_log=$harness_runtime_mql_log"
     else
-      harness_compile_errors="$(printf '%s' "$harness_parse_output" | awk -F '\t' '{print $1}')"
-      harness_compile_warnings="$(printf '%s' "$harness_parse_output" | awk -F '\t' '{print $2}')"
-      harness_compile_result_line="$(printf '%s' "$harness_parse_output" | awk -F '\t' '{print $3}')"
-
-      if [[ "$harness_compile_errors" != "0" || "$harness_compile_warnings" != "0" ]]; then
-        compile_failures=$((compile_failures + 1))
-        runtime_harness_reason="harness strict compile gate failed"
-        runtime_harness_hint="$harness_compile_result_line"
-        log "FAIL [compile] $HARNESS_NAME - $harness_compile_result_line"
-      elif [[ ! -f "$harness_source_ex5" ]]; then
-        compile_failures=$((compile_failures + 1))
-        runtime_harness_reason="harness compile reported success but .ex5 artifact was not generated"
-        runtime_harness_hint="Verify MetaEditor output path and permissions for $HARNESS_SOURCE."
-        log "FAIL [compile] $HARNESS_NAME - missing .ex5 artifact"
-      else
-        cp -f "$harness_source_ex5" "$STAGE_DIR/${HARNESS_NAME}.ex5"
-
-        terminal_before="$(latest_log_file "$MT5_ROOT/logs" '[0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9].log')"
-        mql_before="$(latest_log_file "$MT5_ROOT/MQL5/Logs" '[0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9].log')"
-        terminal_before_lines=0
-        mql_before_lines=0
-
-        if [[ -n "$terminal_before" ]]; then
-          terminal_before_lines="$(decoded_line_count "$terminal_before")"
-        fi
-        if [[ -n "$mql_before" ]]; then
-          mql_before_lines="$(decoded_line_count "$mql_before")"
-        fi
-
-        {
-          echo "[StartUp]"
-          printf 'Script=HFT_Grid_AI_Tests\\%s\n' "$HARNESS_NAME"
-          printf 'Symbol=%s\n' "$TEST_SYMBOL"
-          printf 'Period=%s\n' "$TEST_PERIOD"
-          echo "ShutdownTerminal=1"
-        } >"$harness_runtime_config"
-
-        harness_runtime_config_native="$(to_native_path "$harness_runtime_config")"
-
-        set +e
-        run_windows_binary "$TERMINAL_EXE" "/portable" "/config:$harness_runtime_config_native" >"$harness_runtime_stdout_log" 2>&1
-        runtime_cmd_exit=$?
-        set -e
-
-        sleep 1
-
-        terminal_after="$(latest_log_file "$MT5_ROOT/logs" '[0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9].log')"
-        mql_after="$(latest_log_file "$MT5_ROOT/MQL5/Logs" '[0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9].log')"
-
-        extract_new_segment "$terminal_before" "$terminal_before_lines" "$terminal_after" "$harness_runtime_terminal_segment"
-        extract_new_segment "$mql_before" "$mql_before_lines" "$mql_after" "$harness_runtime_mql_segment"
-
-        has_wrong_type=0
-        has_loaded=0
-        has_removed=0
-        has_harness_summary=0
-        has_harness_pass=0
-        has_harness_fail=0
-
-        if contains_script_token "$harness_runtime_terminal_segment" "$HARNESS_NAME (" "wrong program type"; then
-          has_wrong_type=1
-        fi
-        if contains_script_token "$harness_runtime_terminal_segment" "script ${HARNESS_NAME} (" "loaded successfully"; then
-          has_loaded=1
-        fi
-        if contains_script_token "$harness_runtime_terminal_segment" "script ${HARNESS_NAME} (" "removed"; then
-          has_removed=1
-        fi
-        if contains_text_token "$harness_runtime_mql_segment" "HARNESS_PASS"; then
-          has_harness_pass=1
-        fi
-        if contains_text_token "$harness_runtime_mql_segment" "HARNESS_FAIL"; then
-          has_harness_fail=1
-        fi
-        if contains_text_token "$harness_runtime_mql_segment" "HARNESS_SUMMARY:"; then
-          has_harness_summary=1
-        fi
-
-        if [[ "$has_wrong_type" -eq 1 ]]; then
-          runtime_harness_reason="terminal reported wrong program type while loading harness"
-          runtime_harness_hint="Ensure harness artifact is staged under MQL5/Scripts and startup Script path is relative to Scripts."
-        elif [[ "$has_loaded" -ne 1 ]]; then
-          runtime_harness_reason="harness did not load successfully"
-          runtime_harness_hint="Check $harness_runtime_terminal_segment and $harness_runtime_stdout_log for startup/config issues."
-        elif [[ "$has_removed" -ne 1 ]]; then
-          runtime_harness_reason="harness did not unload cleanly"
-          runtime_harness_hint="Harness may be blocked in runtime loop; inspect $harness_runtime_terminal_segment."
-        elif [[ "$has_harness_summary" -ne 1 && "$has_harness_pass" -ne 1 && "$has_harness_fail" -ne 1 ]]; then
-          runtime_harness_reason="harness completed without summary markers"
-          runtime_harness_hint="Check $harness_runtime_mql_segment for HARNESS_SUMMARY/HARNESS_PASS/HARNESS_FAIL markers."
-        else
-          runtime_harness_ready=1
-          if [[ "$has_harness_fail" -eq 1 ]]; then
-            runtime_harness_hint="$(sanitize_line "$(extract_harness_line "$harness_runtime_mql_segment" "HARNESS_SUMMARY:" "")")"
-            [[ -n "$runtime_harness_hint" ]] || runtime_harness_hint="$(sanitize_line "$(extract_harness_line "$harness_runtime_mql_segment" "HARNESS_FAIL" "")")"
-            [[ -n "$runtime_harness_hint" ]] || runtime_harness_hint="Inspect $harness_runtime_mql_segment."
-            log "DONE [runtime] $HARNESS_NAME - harness reported failing tests"
-          else
-            log "PASS [runtime] $HARNESS_NAME"
-          fi
-        fi
-
-        if [[ "$runtime_harness_ready" -ne 1 ]]; then
-          log "FAIL [runtime] $HARNESS_NAME - $runtime_harness_reason"
-        fi
-      fi
+      summary "PASS harness runtime marker=HARNESS_PASS exit_code=$runtime_cmd_exit summary=\"${summary_line:-missing}\" mql_log=$harness_runtime_mql_log"
     fi
+  else
+    summary "FAIL harness runtime reason=\"$harness_reason\" hint=$harness_hint exit_code=$runtime_cmd_exit"
   fi
 else
-  log "Runtime skipped: no compile-pass tests available."
+  if [[ "${#COMPILE_OK_TESTS[@]}" -eq 0 ]]; then
+    harness_reason="runtime skipped: no compile-pass tests"
+    harness_hint=""
+  fi
+  summary "FAIL harness runtime reason=\"${harness_reason:-runtime not started}\" hint=${harness_hint:-none}"
 fi
 
-while IFS=$'\t' read -r test_name compile_utf8_log compile_cmd_exit; do
-  runtime_terminal_segment="$RUNTIME_DIR/${test_name}.terminal.segment.log"
-  runtime_mql_segment="$RUNTIME_DIR/${test_name}.mql.segment.log"
-  : >"$runtime_terminal_segment"
-  : >"$runtime_mql_segment"
+summary ""
+summary "[TEST_RESULTS]"
 
-  if [[ -f "$harness_runtime_terminal_segment" ]]; then
-    cp -f "$harness_runtime_terminal_segment" "$runtime_terminal_segment"
-  fi
+passed_tests=0
+failed_tests=0
 
-  if [[ -f "$harness_runtime_mql_segment" ]]; then
-    awk -v test_name="$test_name" '
-      BEGIN {
-        test_name = tolower(test_name);
-      }
-      {
-        low = tolower($0);
-        if(index(low, test_name) > 0 || index(low, "harness_") > 0) {
-          print $0;
-        }
-      }
-    ' "$harness_runtime_mql_segment" >"$runtime_mql_segment"
-  fi
-
-  phase="runtime"
-  status="FAIL"
-  reason=""
-  hint=""
-
-  if [[ "$runtime_harness_ready" -ne 1 ]]; then
-    reason="$runtime_harness_reason"
-    hint="$runtime_harness_hint"
-  else
-    has_pass=0
-    has_fail=0
-
-    if contains_harness_test_marker "$harness_runtime_mql_segment" "TEST_PASS:" "$test_name"; then
-      has_pass=1
-    fi
-    if contains_harness_test_marker "$harness_runtime_mql_segment" "TEST_FAIL:" "$test_name"; then
-      has_fail=1
-    fi
-
-    if [[ "$has_fail" -eq 1 ]]; then
-      reason="test emitted FAIL in harness"
-      fail_line="$(extract_harness_line "$harness_runtime_mql_segment" "TEST_FAIL_DETAILS:" "$test_name")"
-      if [[ -z "$fail_line" ]]; then
-        fail_line="$(extract_harness_line "$harness_runtime_mql_segment" "TEST_FAIL:" "$test_name")"
-      fi
-      hint="$(sanitize_line "$fail_line")"
-    elif [[ "$has_pass" -ne 1 ]]; then
-      reason="test result marker missing in harness output"
-      hint="Check $harness_runtime_mql_segment for TEST_PASS/TEST_FAIL markers."
-    else
-      status="PASS"
-      reason="PASS"
-      hint="runtime_cmd_exit=$runtime_cmd_exit"
-    fi
-  fi
-
-  if [[ "$status" == "FAIL" ]]; then
-    if grep -Eqi 'no history data|history.*not found|symbol.*not found|cannot select symbol|market closed|invalid symbol' "$runtime_terminal_segment" "$runtime_mql_segment" 2>/dev/null; then
-      hint="${hint} | Mock-only test appears context-sensitive. Validate chart symbol/period or remove market-data dependency."
-    fi
-    runtime_failures=$((runtime_failures + 1))
+for test_name in "${TEST_NAMES[@]}"; do
+  if [[ "${TEST_STATUS[$test_name]+set}" == "set" && "${TEST_STATUS[$test_name]}" == "FAIL" ]]; then
     failed_tests=$((failed_tests + 1))
-    log "FAIL [runtime] $test_name - $reason"
-  else
-    passed_tests=$((passed_tests + 1))
-    log "PASS [runtime] $test_name"
+    summary "FAIL $test_name ${TEST_REASON[$test_name]}"
+    continue
   fi
 
-  printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' \
-    "$test_name" "$status" "$phase" \
-    "$(sanitize_line "$reason")" "$(sanitize_line "$hint")" \
-    "$compile_utf8_log" "$runtime_terminal_segment" "$runtime_mql_segment" "$runtime_cmd_exit" >>"$RESULTS_TSV"
-done <"$COMPILE_PASS_TSV"
+  if [[ "$harness_ready" -ne 1 ]]; then
+    TEST_STATUS["$test_name"]="FAIL"
+    TEST_REASON["$test_name"]="$harness_reason"
+    failed_tests=$((failed_tests + 1))
+    summary "FAIL $test_name runtime ${harness_reason}"
+    runtime_failures=$((runtime_failures + 1))
+    continue
+  fi
 
-write_reports
+  has_pass=0
+  has_fail=0
 
-log "Markdown report: $REPORT_MD"
-log "JSON report: $REPORT_JSON"
+  if contains_harness_test_marker "$harness_runtime_mql_log" "TEST_PASS:" "$test_name"; then
+    has_pass=1
+  fi
+  if contains_harness_test_marker "$harness_runtime_mql_log" "TEST_FAIL:" "$test_name"; then
+    has_fail=1
+  fi
+
+  if [[ "$has_fail" -eq 1 ]]; then
+    fail_line="$(extract_harness_line "$harness_runtime_mql_log" 'TEST_FAIL_DETAILS:' "$test_name" || true)"
+    [[ -n "$fail_line" ]] || fail_line="$(extract_harness_line "$harness_runtime_mql_log" 'TEST_FAIL:' "$test_name" || true)"
+    TEST_STATUS["$test_name"]="FAIL"
+    TEST_REASON["$test_name"]="runtime: ${fail_line:-test emitted TEST_FAIL}"
+    failed_tests=$((failed_tests + 1))
+    runtime_failures=$((runtime_failures + 1))
+    summary "FAIL $test_name runtime ${fail_line:-TEST_FAIL marker}"
+  elif [[ "$has_pass" -ne 1 ]]; then
+    TEST_STATUS["$test_name"]="FAIL"
+    TEST_REASON["$test_name"]="runtime: missing TEST_PASS/TEST_FAIL marker"
+    failed_tests=$((failed_tests + 1))
+    runtime_failures=$((runtime_failures + 1))
+    summary "FAIL $test_name runtime missing_TEST_MARKER"
+  else
+    TEST_STATUS["$test_name"]="PASS"
+    TEST_REASON["$test_name"]="PASS"
+    passed_tests=$((passed_tests + 1))
+    summary "PASS $test_name runtime"
+  fi
+done
+
+summary ""
+summary "[TOTAL]"
+summary "PASSED=$passed_tests"
+summary "FAILED=$failed_tests"
+summary "COMPILE_FAILURES=$compile_failures"
+summary "RUNTIME_FAILURES=$runtime_failures"
+summary "COMPILE_LOG_DIR=$COMPILE_DIR"
+summary "RUNTIME_LOG_DIR=$RUNTIME_DIR"
 
 if [[ "$failed_tests" -gt 0 ]]; then
-  log "Suite result: FAIL ($failed_tests/$total_tests failed)"
+  summary "SUITE=FAIL"
+  log "Suite result: FAIL ($failed_tests/${#TEST_NAMES[@]} failed)"
   exit 1
 fi
 
-log "Suite result: PASS ($passed_tests/$total_tests passed)"
+summary "SUITE=PASS"
+log "Suite result: PASS ($passed_tests/${#TEST_NAMES[@]} passed)"

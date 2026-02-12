@@ -44,16 +44,14 @@ Options:
 - `--report-dir` changes report root (default `logs/test-runner`).
 
 Outputs:
-- `logs/test-runner/latest/report.md`
-- `logs/test-runner/latest/report.json`
-- `logs/test-runner/latest/compile/*.utf8.log`
-- `logs/test-runner/latest/runtime/*.segment.log`
-- old timestamped run folders are pruned by the runner
+- `logs/test-runner/latest/summary.log`
+- `logs/test-runner/latest/compile/*.metaeditor.log`
+- `logs/test-runner/latest/compile/*.metaeditor.raw.log`
+- `logs/test-runner/latest/runtime/*.log`
 
 Note:
 - The runner intentionally has no timeout.
 - MT5 terminal must be closed before running tests. MT5 is single-instance per installation directory, and command-line startup cannot queue script runs into an already-open terminal.
-- If interrupted (`Ctrl+C`), it writes a partial report for completed tests.
 
 ## Project Map (brief)
 - `services/` holds the ordered include pipeline (tools -> management -> strategies -> signals -> frontend).
