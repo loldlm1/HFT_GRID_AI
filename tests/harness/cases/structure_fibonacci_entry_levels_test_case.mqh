@@ -50,14 +50,20 @@ bool RunTest_structure_fibonacci_entry_levels_test(string &errors)
 
   errors = "";
 
+  // Keep wide ranges so point-based minimum-range checks remain symbol-agnostic.
+  double range_anchor = 10000.0;
+  double range_span = 1000.0;
+  double current_bottom = range_anchor;
+  double current_peak = range_anchor + range_span;
+
   StochasticMarketStructure s_bottom;
   ArrayResize(s_bottom.os_market_structures, 3);
   s_bottom.os_market_structures[0].is_peak = false;
-  s_bottom.os_market_structures[0].extremum_low = 1.0900;
+  s_bottom.os_market_structures[0].extremum_low = current_bottom - 100.0;
   s_bottom.os_market_structures[1].is_peak = true;
-  s_bottom.os_market_structures[1].extremum_high = 1.2000;
+  s_bottom.os_market_structures[1].extremum_high = current_peak;
   s_bottom.os_market_structures[2].is_peak = false;
-  s_bottom.os_market_structures[2].extremum_low = 1.1000;
+  s_bottom.os_market_structures[2].extremum_low = current_bottom;
 
   double close_price = EntryLevels_PriceForPercent(s_bottom, 31.5);
 
@@ -144,11 +150,11 @@ bool RunTest_structure_fibonacci_entry_levels_test(string &errors)
   StochasticMarketStructure s_peak;
   ArrayResize(s_peak.os_market_structures, 3);
   s_peak.os_market_structures[0].is_peak = true;
-  s_peak.os_market_structures[0].extremum_high = 1.2100;
+  s_peak.os_market_structures[0].extremum_high = current_peak + 100.0;
   s_peak.os_market_structures[1].is_peak = false;
-  s_peak.os_market_structures[1].extremum_low = 1.1000;
+  s_peak.os_market_structures[1].extremum_low = current_bottom;
   s_peak.os_market_structures[2].is_peak = true;
-  s_peak.os_market_structures[2].extremum_high = 1.2000;
+  s_peak.os_market_structures[2].extremum_high = current_peak;
 
   close_price = EntryLevels_PriceForPercent(s_peak, 31.5);
 

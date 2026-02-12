@@ -22,25 +22,32 @@ bool RunTest_fibonacci_grid_percent_test(string &errors)
   LoadStructureFibonacciLevels("23.6,38.2,50.0,61.8,78.6,100.0",
                                "23.6,38.2,50.0,61.8,78.6,100.0");
 
+  // Use wide synthetic ranges so expectations are stable across symbols with
+  // very different point sizes/digits (FX, metals, indices).
+  double range_anchor = 10000.0;
+  double range_span = 1000.0;
+  double current_bottom = range_anchor + 500.0;
+  double current_peak = range_anchor + range_span;
+
   StochasticMarketStructure s;
   ArrayResize(s.os_market_structures, 4);
 
   s.os_market_structures[0].is_peak = false;
-  s.os_market_structures[0].extremum_low = 1.1000;
+  s.os_market_structures[0].extremum_low = current_bottom - 100.0;
   s.os_market_structures[1].is_peak = true;
-  s.os_market_structures[1].extremum_high = 1.2000;
+  s.os_market_structures[1].extremum_high = current_peak;
   s.os_market_structures[2].is_peak = false;
-  s.os_market_structures[2].extremum_low = 1.1500;
+  s.os_market_structures[2].extremum_low = current_bottom;
   s.os_market_structures[3].is_peak = true;
-  s.os_market_structures[3].extremum_high = 1.2100;
+  s.os_market_structures[3].extremum_high = current_peak + 100.0;
 
   SignalParams signal;
   signal.signal_type = BULLISH;
   signal.strategy_context = CONTEXT_SLOT_BASE;
   signal.base_structure_valid = true;
   signal.base_structure_data = s;
-  signal.entry_price = 1.1500;
-  signal.grid_entry_reference_price = 1.1500;
+  signal.entry_price = current_bottom;
+  signal.grid_entry_reference_price = current_bottom;
   signal.fib_level_offset_steps = 1;
 
   errors = "";
@@ -91,17 +98,17 @@ bool RunTest_fibonacci_grid_percent_test(string &errors)
   StochasticMarketStructure s_peak;
   ArrayResize(s_peak.os_market_structures, 3);
   s_peak.os_market_structures[0].is_peak = true;
-  s_peak.os_market_structures[0].extremum_high = 1.2100;
+  s_peak.os_market_structures[0].extremum_high = current_peak + 100.0;
   s_peak.os_market_structures[1].is_peak = false;
-  s_peak.os_market_structures[1].extremum_low = 1.1000;
+  s_peak.os_market_structures[1].extremum_low = range_anchor;
   s_peak.os_market_structures[2].is_peak = true;
-  s_peak.os_market_structures[2].extremum_high = 1.2000;
+  s_peak.os_market_structures[2].extremum_high = current_peak;
 
   SignalParams peak_signal = signal;
   peak_signal.signal_type = BULLISH;
   peak_signal.base_structure_data = s_peak;
-  peak_signal.entry_price = 1.1800;
-  peak_signal.grid_entry_reference_price = 1.1800;
+  peak_signal.entry_price = range_anchor + 800.0;
+  peak_signal.grid_entry_reference_price = range_anchor + 800.0;
 
   double peak_entry_percent = 0.0;
   peak_price = 0.0;
