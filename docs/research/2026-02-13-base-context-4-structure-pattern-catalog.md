@@ -147,116 +147,110 @@ This section is a direct draft for a future coding plan.
 
 Current repository runtime:
 - There is no active compiled `TrendStructureCompoundModes` enum in `services/core/enums.mqh`.
-- Runtime still uses the legacy 4-slot filters (`Base_First...Base_Fourth`).
-
-Current document status:
-- The previous 6 `COMPOUND_MODE_*` names were a compact starter subset.
-- Full Pattern Catalog coverage is still needed for future implementation.
+- Runtime still uses legacy 4-slot filters (`Base_First...Base_Fourth`).
 
 Target for future tasks:
-- Add one canonical enum value per Pattern Catalog ID.
-- Keep optional friendly (marketing) profile names mapped to those canonical IDs.
+- Use one single compound input: `Base_Structure_Compound_Filter`.
+- Cover all Pattern Catalog IDs through robust, non-trader-friendly enum names.
+- Keep matching logic deterministic with no extra input toggles.
 
-### 8.2 Canonical enum draft (full Pattern Catalog IDs)
+### 8.2 Proposed enum draft (marketing names mapped to catalog IDs)
 
 ```cpp
 enum TrendStructureCompoundModes
 {
   COMPOUND_MODE_OFF = 0,
 
-  COMPOUND_MODE_CONT_BULL_01,
-  COMPOUND_MODE_CONT_BEAR_01,
-  COMPOUND_MODE_CONT_BULL_02,
-  COMPOUND_MODE_CONT_BEAR_02,
+  // Continuation
+  COMPOUND_MODE_TREND_RIDE_BUY,         // CONT_BULL_01
+  COMPOUND_MODE_TREND_RIDE_SELL,        // CONT_BEAR_01
+  COMPOUND_MODE_PULLBACK_CONTINUE_BUY,  // CONT_BULL_02
+  COMPOUND_MODE_PULLBACK_CONTINUE_SELL, // CONT_BEAR_02
 
-  COMPOUND_MODE_REV_BULL_01,
-  COMPOUND_MODE_REV_BEAR_01,
-  COMPOUND_MODE_REV_BULL_02,
-  COMPOUND_MODE_REV_BEAR_02,
+  // Reversion
+  COMPOUND_MODE_REVERSAL_CONFIRM_BUY,   // REV_BULL_01
+  COMPOUND_MODE_REVERSAL_CONFIRM_SELL,  // REV_BEAR_01
+  COMPOUND_MODE_REVERSAL_EARLY_BUY,     // REV_BULL_02
+  COMPOUND_MODE_REVERSAL_EARLY_SELL,    // REV_BEAR_02
 
-  COMPOUND_MODE_BRK_BULL_01,
-  COMPOUND_MODE_BRK_BEAR_01,
-  COMPOUND_MODE_BRK_BULL_02,
-  COMPOUND_MODE_BRK_BEAR_02,
+  // Breakout
+  COMPOUND_MODE_BREAKOUT_READY_BUY,     // BRK_BULL_01
+  COMPOUND_MODE_BREAKOUT_READY_SELL,    // BRK_BEAR_01
+  COMPOUND_MODE_BREAKOUT_FOLLOW_BUY,    // BRK_BULL_02
+  COMPOUND_MODE_BREAKOUT_FOLLOW_SELL,   // BRK_BEAR_02
 
-  COMPOUND_MODE_UNC_01,
-  COMPOUND_MODE_UNC_02,
-  COMPOUND_MODE_UNC_03
+  // Uncommon / defensive
+  COMPOUND_MODE_CHOP_GUARD,             // UNC_01
+  COMPOUND_MODE_VOLATILITY_TRAP,        // UNC_02
+  COMPOUND_MODE_COMPRESSION_WAIT        // UNC_03
 };
 ```
 
-### 8.3 Friendly profile aliases (optional UX layer)
+Mapping summary:
 
-Use friendly names as aliases to canonical IDs, not as the only logic layer.
+| Enum mode | Catalog ID | Sequence basis |
+|---|---|---|
+| `COMPOUND_MODE_TREND_RIDE_BUY` | `CONT_BULL_01` | `HL,HH,HL,HH` (+ parity twin) |
+| `COMPOUND_MODE_TREND_RIDE_SELL` | `CONT_BEAR_01` | `LL,LH,LL,LH` (+ parity twin) |
+| `COMPOUND_MODE_PULLBACK_CONTINUE_BUY` | `CONT_BULL_02` | `HL,HH,LL,LH` (+ parity twin) |
+| `COMPOUND_MODE_PULLBACK_CONTINUE_SELL` | `CONT_BEAR_02` | `LL,LH,HL,HH` (+ parity twin) |
+| `COMPOUND_MODE_REVERSAL_CONFIRM_BUY` | `REV_BULL_01` | `HL,HH,LL,LH` (+ parity twin) |
+| `COMPOUND_MODE_REVERSAL_CONFIRM_SELL` | `REV_BEAR_01` | `LL,LH,HL,HH` (+ parity twin) |
+| `COMPOUND_MODE_REVERSAL_EARLY_BUY` | `REV_BULL_02` | `HL,LH,LL,LH` (+ parity twin) |
+| `COMPOUND_MODE_REVERSAL_EARLY_SELL` | `REV_BEAR_02` | `LH,HL,HH,HL` (+ parity twin) |
+| `COMPOUND_MODE_BREAKOUT_READY_BUY` | `BRK_BULL_01` | `HL,HH,EQ,EQ` (+ parity twin) |
+| `COMPOUND_MODE_BREAKOUT_READY_SELL` | `BRK_BEAR_01` | `LL,LH,EQ,EQ` (+ parity twin) |
+| `COMPOUND_MODE_BREAKOUT_FOLLOW_BUY` | `BRK_BULL_02` | `EQ,EQ,HL,HH` (+ parity twin) |
+| `COMPOUND_MODE_BREAKOUT_FOLLOW_SELL` | `BRK_BEAR_02` | `EQ,EQ,LH,LL` (+ parity twin) |
+| `COMPOUND_MODE_CHOP_GUARD` | `UNC_01` | `HL,LH,HL,LH` (+ parity twin) |
+| `COMPOUND_MODE_VOLATILITY_TRAP` | `UNC_02` | `LL,HH,LL,HH` (+ parity twin) |
+| `COMPOUND_MODE_COMPRESSION_WAIT` | `UNC_03` | `EQ,EQ,EQ,EQ` |
 
-```cpp
-enum TrendStructureProfileModes
-{
-  COMPOUND_PROFILE_OFF = 0,
-  COMPOUND_PROFILE_TREND_RIDE_BUY,       // CONT_BULL_01
-  COMPOUND_PROFILE_TREND_RIDE_SELL,      // CONT_BEAR_01
-  COMPOUND_PROFILE_REVERSAL_CONFIRM_BUY, // REV_BULL_01
-  COMPOUND_PROFILE_REVERSAL_CONFIRM_SELL,// REV_BEAR_01
-  COMPOUND_PROFILE_BREAKOUT_READY_BUY,   // BRK_BULL_01
-  COMPOUND_PROFILE_BREAKOUT_READY_SELL   // BRK_BEAR_01
-};
-```
-
-### 8.4 Proposed inputs draft
+### 8.3 Proposed input draft (single-filter model)
 
 ```cpp
 input TrendStructureCompoundModes Base_Structure_Compound_Filter = COMPOUND_MODE_OFF;
-input TrendStructureProfileModes  Base_Structure_Profile_Filter  = COMPOUND_PROFILE_OFF;
-input StructureEqPolicyModes      Base_Structure_EQ_Policy       = STRUCT_EQ_ALLOWED;
-input bool                        Base_Structure_Allow_Parity_Twin = true;
 ```
 
-Optional strictness toggle:
+No extra profile selector, no `EQ` policy input, and no parity toggle input.
+All uncommon modes are intentionally visible in this enum from day one.
 
-```cpp
-enum StructureEqPolicyModes
-{
-  STRUCT_EQ_FORBIDDEN = 0,
-  STRUCT_EQ_ALLOWED   = 1,
-  STRUCT_EQ_REQUIRED  = 2
-};
-```
+### 8.4 Evaluation algorithm draft (simplified)
 
-Resolution rule draft:
-1. If `Base_Structure_Compound_Filter != COMPOUND_MODE_OFF`, use canonical mode directly.
-2. Else if `Base_Structure_Profile_Filter != COMPOUND_PROFILE_OFF`, map profile to canonical ID.
-3. Else keep legacy 4-slot filter path.
+1. Read latest structure snapshot from current backend source.
+2. Resolve expected template for selected compound mode.
+3. Evaluate both anchor parities internally (no user input needed).
+4. Match `S1..S4` exactly against template:
+   - `EQ` is required only where the chosen template defines `EQ`.
+   - Non-`EQ` slots reject `EQ`.
+5. Return pass if any parity variant fully matches.
+6. Fail-closed if structure data is unavailable/inconsistent.
 
-### 8.5 Evaluation algorithm draft
+### 8.5 Extremum depth note (not hard-limited to `[0..4]`)
 
-1. Read current structure snapshot (`S1..S4` as explicit types).
-2. Resolve candidate template set from selected canonical mode:
-   - main template
-   - optional parity twin template (if enabled)
-3. For each slot `S1..S4`, compare actual vs expected:
-   - if expected is not `EQ`, enforce equality.
-   - if expected is `EQ`, enforce by `Base_Structure_EQ_Policy`.
-4. Return `true` if any candidate template matches fully.
-5. Fail-closed if structure data is missing or inconsistent.
+Current patterns are defined on 4 slots (`S1..S4`), but implementation should read as many extrema as backend already provides.
+
+Practical rule:
+1. Require at least 4 extrema for current catalog matching.
+2. Keep matcher internals template-length ready, so future 6-slot/8-slot patterns can be added without changing inputs.
 
 ### 8.6 Backward compatibility draft
 
 Suggested staged migration:
-1. Keep current 4-slot inputs active as default.
-2. If compound filter/profile is selected, use compound matcher and ignore legacy 4-slot filters.
-3. Deprecate legacy 4-slot filters after quantitative validation period.
+1. Keep legacy 4-slot filters for compatibility.
+2. If `Base_Structure_Compound_Filter != COMPOUND_MODE_OFF`, run compound matcher and bypass legacy slot filters.
+3. Keep fail-closed behavior on invalid structure data.
 
 ### 8.7 Minimal test matrix draft
 
 Required unit tests before production:
-1. Exact-match pass for each canonical compound mode (both parity variants when enabled).
-2. One-slot mismatch fail for each canonical mode.
-3. `EQ` policy behavior:
-   - `FORBIDDEN`: any `EQ` in required non-`EQ` slot fails.
-   - `ALLOWED`: `EQ` accepted only where policy permits.
-   - `REQUIRED`: non-`EQ` value in `EQ` slot fails.
-4. Missing/invalid structure data fails closed.
-5. Compatibility tests proving legacy behavior unchanged when compound mode/profile is `OFF`.
+1. Exact-match pass for every compound mode in both parity variants.
+2. One-slot mismatch fail for every compound mode.
+3. `EQ` behavior:
+   - Required `EQ` slot rejects non-`EQ`.
+   - Non-`EQ` slot rejects `EQ`.
+4. Insufficient structure depth (`<4`) fails closed.
+5. Compatibility tests proving legacy behavior unchanged when compound mode is `OFF`.
 
 ### 8.8 Quant guardrails draft
 
@@ -266,7 +260,7 @@ Before enabling any compound in live deployment:
 3. Drawdown bounds under risk policy.
 4. Stability across at least two market regimes.
 
-### 8.9 Backend-verified `Structure_Trigger_Entry` behavior
+### 8.9 Back-end verified `Structure_Trigger_Entry` behavior
 
 Validated in:
 - `services/trading_signals/market_signal_filters.mqh`
@@ -313,17 +307,6 @@ These are plug-and-play research presets for future compound mode implementation
 1. Entry trigger stage is strict-range bounded. To trigger in `[100.0,161.8]`, both levels must exist in `Structure_Fibonacci_Levels`.
 2. To trigger at or above `161.8`, include at least one level above `161.8` (for example `200.0`), otherwise strict trigger rejects > max configured level.
 3. After a signal exists, grid-level progression can still cycle beyond base levels through cycled-level helpers, but that does not bypass initial strict entry gating.
-
-### 8.12 Break-even (BE) behavior recommendation (future risk module)
-
-Assuming BE means break-even logic:
-1. Arm BE after price reaches the next Fibonacci step from entry in trade direction.
-2. Move stop to `entry_price + costs_buffer` (spread + commission + small safety offset).
-3. Keep BE policy identical across buy/sell modes for user simplicity.
-
-Implementation note:
-- Current repository state does not include an active dedicated BE manager in runtime path.
-- Treat this BE block as future-plan guidance.
 
 ---
 
