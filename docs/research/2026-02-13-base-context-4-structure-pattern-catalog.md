@@ -143,40 +143,73 @@ To match this research exactly in backend logic:
 
 This section is a direct draft for a future coding plan.
 
-### 8.1 Proposed enum draft (non-trader friendly names)
+### 8.1 Coverage status (current vs target)
 
-Use one compound selector instead of four independent slot filters.
-The enum names below are intentionally product-like for non-trader users.
+Current repository runtime:
+- There is no active compiled `TrendStructureCompoundModes` enum in `services/core/enums.mqh`.
+- Runtime still uses the legacy 4-slot filters (`Base_First...Base_Fourth`).
+
+Current document status:
+- The previous 6 `COMPOUND_MODE_*` names were a compact starter subset.
+- Full Pattern Catalog coverage is still needed for future implementation.
+
+Target for future tasks:
+- Add one canonical enum value per Pattern Catalog ID.
+- Keep optional friendly (marketing) profile names mapped to those canonical IDs.
+
+### 8.2 Canonical enum draft (full Pattern Catalog IDs)
 
 ```cpp
 enum TrendStructureCompoundModes
 {
-  COMPOUND_MODE_OFF = 0,                  // No pattern filter
+  COMPOUND_MODE_OFF = 0,
 
-  // Continuation
-  COMPOUND_MODE_TREND_RIDE_BUY,           // CONT_BULL_01
-  COMPOUND_MODE_TREND_RIDE_SELL,          // CONT_BEAR_01
+  COMPOUND_MODE_CONT_BULL_01,
+  COMPOUND_MODE_CONT_BEAR_01,
+  COMPOUND_MODE_CONT_BULL_02,
+  COMPOUND_MODE_CONT_BEAR_02,
 
-  // Reversion
-  COMPOUND_MODE_REVERSAL_CONFIRM_BUY,     // REV_BULL_01
-  COMPOUND_MODE_REVERSAL_CONFIRM_SELL,    // REV_BEAR_01
+  COMPOUND_MODE_REV_BULL_01,
+  COMPOUND_MODE_REV_BEAR_01,
+  COMPOUND_MODE_REV_BULL_02,
+  COMPOUND_MODE_REV_BEAR_02,
 
-  // Breakout
-  COMPOUND_MODE_BREAKOUT_READY_BUY,       // BRK_BULL_01
-  COMPOUND_MODE_BREAKOUT_READY_SELL       // BRK_BEAR_01
+  COMPOUND_MODE_BRK_BULL_01,
+  COMPOUND_MODE_BRK_BEAR_01,
+  COMPOUND_MODE_BRK_BULL_02,
+  COMPOUND_MODE_BRK_BEAR_02,
+
+  COMPOUND_MODE_UNC_01,
+  COMPOUND_MODE_UNC_02,
+  COMPOUND_MODE_UNC_03
 };
 ```
 
-Recommended mapping table for documentation/tests:
+### 8.3 Friendly profile aliases (optional UX layer)
 
-| Friendly enum | Research ID | Core sequence |
-|---|---|---|
-| `COMPOUND_MODE_TREND_RIDE_BUY` | `CONT_BULL_01` | `HL,HH,HL,HH` (+ parity twin) |
-| `COMPOUND_MODE_TREND_RIDE_SELL` | `CONT_BEAR_01` | `LL,LH,LL,LH` (+ parity twin) |
-| `COMPOUND_MODE_REVERSAL_CONFIRM_BUY` | `REV_BULL_01` | `HL,HH,LL,LH` (+ parity twin) |
-| `COMPOUND_MODE_REVERSAL_CONFIRM_SELL` | `REV_BEAR_01` | `LL,LH,HL,HH` (+ parity twin) |
-| `COMPOUND_MODE_BREAKOUT_READY_BUY` | `BRK_BULL_01` | `HL,HH,EQ,EQ` (+ parity twin) |
-| `COMPOUND_MODE_BREAKOUT_READY_SELL` | `BRK_BEAR_01` | `LL,LH,EQ,EQ` (+ parity twin) |
+Use friendly names as aliases to canonical IDs, not as the only logic layer.
+
+```cpp
+enum TrendStructureProfileModes
+{
+  COMPOUND_PROFILE_OFF = 0,
+  COMPOUND_PROFILE_TREND_RIDE_BUY,       // CONT_BULL_01
+  COMPOUND_PROFILE_TREND_RIDE_SELL,      // CONT_BEAR_01
+  COMPOUND_PROFILE_REVERSAL_CONFIRM_BUY, // REV_BULL_01
+  COMPOUND_PROFILE_REVERSAL_CONFIRM_SELL,// REV_BEAR_01
+  COMPOUND_PROFILE_BREAKOUT_READY_BUY,   // BRK_BULL_01
+  COMPOUND_PROFILE_BREAKOUT_READY_SELL   // BRK_BEAR_01
+};
+```
+
+### 8.4 Proposed inputs draft
+
+```cpp
+input TrendStructureCompoundModes Base_Structure_Compound_Filter = COMPOUND_MODE_OFF;
+input TrendStructureProfileModes  Base_Structure_Profile_Filter  = COMPOUND_PROFILE_OFF;
+input StructureEqPolicyModes      Base_Structure_EQ_Policy       = STRUCT_EQ_ALLOWED;
+input bool                        Base_Structure_Allow_Parity_Twin = true;
+```
 
 Optional strictness toggle:
 
@@ -189,22 +222,15 @@ enum StructureEqPolicyModes
 };
 ```
 
-### 8.2 Proposed inputs draft
+Resolution rule draft:
+1. If `Base_Structure_Compound_Filter != COMPOUND_MODE_OFF`, use canonical mode directly.
+2. Else if `Base_Structure_Profile_Filter != COMPOUND_PROFILE_OFF`, map profile to canonical ID.
+3. Else keep legacy 4-slot filter path.
 
-```cpp
-input TrendStructureCompoundModes Base_Structure_Compound_Filter = COMPOUND_MODE_OFF;
-input StructureEqPolicyModes      Base_Structure_EQ_Policy       = STRUCT_EQ_ALLOWED;
-input bool                        Base_Structure_Allow_Parity_Twin = true;
-```
-
-Notes:
-- `Base_Structure_Allow_Parity_Twin = true` means the same pattern can match either anchor parity (`initial_is_bottom` or `initial_is_peak`).
-- When `false`, pattern matching is strict to a single declared anchor variant.
-
-### 8.3 Evaluation algorithm draft
+### 8.5 Evaluation algorithm draft
 
 1. Read current structure snapshot (`S1..S4` as explicit types).
-2. Resolve candidate template set from selected compound mode:
+2. Resolve candidate template set from selected canonical mode:
    - main template
    - optional parity twin template (if enabled)
 3. For each slot `S1..S4`, compare actual vs expected:
@@ -213,26 +239,26 @@ Notes:
 4. Return `true` if any candidate template matches fully.
 5. Fail-closed if structure data is missing or inconsistent.
 
-### 8.4 Backward compatibility draft
+### 8.6 Backward compatibility draft
 
 Suggested staged migration:
 1. Keep current 4-slot inputs active as default.
-2. If `Base_Structure_Compound_Filter != COMPOUND_MODE_OFF`, use compound matcher and ignore legacy 4-slot filters.
+2. If compound filter/profile is selected, use compound matcher and ignore legacy 4-slot filters.
 3. Deprecate legacy 4-slot filters after quantitative validation period.
 
-### 8.5 Minimal test matrix draft
+### 8.7 Minimal test matrix draft
 
 Required unit tests before production:
-1. Exact-match pass for each compound mode (both parity variants when enabled).
-2. One-slot mismatch fail for each compound mode.
+1. Exact-match pass for each canonical compound mode (both parity variants when enabled).
+2. One-slot mismatch fail for each canonical mode.
 3. `EQ` policy behavior:
    - `FORBIDDEN`: any `EQ` in required non-`EQ` slot fails.
    - `ALLOWED`: `EQ` accepted only where policy permits.
    - `REQUIRED`: non-`EQ` value in `EQ` slot fails.
 4. Missing/invalid structure data fails closed.
-5. Compatibility tests proving legacy behavior unchanged when compound mode is `OFF`.
+5. Compatibility tests proving legacy behavior unchanged when compound mode/profile is `OFF`.
 
-### 8.6 Quant guardrails draft
+### 8.8 Quant guardrails draft
 
 Before enabling any compound in live deployment:
 1. Minimum sample threshold (`N`) per symbol/timeframe.
@@ -240,21 +266,55 @@ Before enabling any compound in live deployment:
 3. Drawdown bounds under risk policy.
 4. Stability across at least two market regimes.
 
-### 8.7 Plug-and-play Fibonacci presets by compound mode
+### 8.9 Backend-verified `Structure_Trigger_Entry` behavior
 
-These presets are designed to match current backend behavior where entry is triggered by the active Fibonacci band and `LEVELS_AS_LIMITS` places entry at the selected boundary.
+Validated in:
+- `services/trading_signals/market_signal_filters.mqh`
+- `services/trading_signals/grid_planner.mqh`
+- `services/trading_signals/grid_order_lifecycle.mqh`
+- `services/trading_management/structure_fibonacci_levels.mqh`
 
-| Compound mode | Recommended `Structure_Fibonacci_Levels` | Why this set |
-|---|---|---|
-| `COMPOUND_MODE_TREND_RIDE_BUY` / `COMPOUND_MODE_TREND_RIDE_SELL` | `23.6,38.2,50.0,61.8,78.6,100.0` | Balanced continuation retracements with multiple decision bands. |
-| `COMPOUND_MODE_REVERSAL_CONFIRM_BUY` / `COMPOUND_MODE_REVERSAL_CONFIRM_SELL` | `38.2,50.0,61.8,78.6,100.0` | Focuses on deeper retracement zones for reversal confirmation. |
-| `COMPOUND_MODE_BREAKOUT_READY_BUY` / `COMPOUND_MODE_BREAKOUT_READY_SELL` | `0.0,61.8,100.0` | Simple compression-to-breakout structure with broad trigger zones. |
+| Mode | Candle source used for entry test | Trigger gate | Entry price resolved | Execution consequence |
+|---|---|---|---|---|
+| `LEVELS_AS_LIMITS` | `bar_index=1` (closed candle on strategy context TF) | `close_percent` or direction extreme percent must fall in one strict configured Fibonacci band | Boundary price of active band, direction-safe: bullish uses lower absolute boundary, bearish uses upper absolute boundary | `entry_is_limit=true`; level-0 activation uses passive limit logic |
+| `LEVEL_AS_ZONE` | `bar_index=0` (forming candle on strategy context TF) | same strict band gate as above | `entry_price = current close` | `entry_is_limit=false`; level-0 activation uses stop-style condition against reference close (typically immediate/near-immediate when condition holds) |
 
-Recommended default for non-trader onboarding:
-1. Start with `23.6,38.2,50.0,61.8,78.6,100.0`.
-2. Switch to `0.0,61.8,100.0` only for breakout-focused modes.
+Important behavior notes:
+1. Trigger band selection uses `ResolveFibonacciRangeForPercentStrict(...)`. Entry trigger is bounded by configured min/max levels.
+2. Out-of-band returns `true` with `in_zone=false` (filter blocks entry, not a hard runtime error).
+3. Evaluation cadence is once per new `Strategy_Timeframe` bar (`last_bar_time` gate), not every tick.
+4. With `LEVELS_AS_LIMITS`, entry is not always at `61.8`; it is whichever boundary belongs to the active band and satisfies passive-order direction checks.
+5. `100.0` is not automatically a broker SL. Orders are sent with broker `SL=0` in current runtime path; risk exits are managed by grid lifecycle logic.
 
-### 8.8 Break-even (BE) behavior recommendation (future risk module)
+Examples:
+1. Config `0.0,61.8,100.0`, bullish, `LEVELS_AS_LIMITS`, active band is `[0.0,61.8]`.
+   Result: entry limit is placed on the passive boundary of that band for bullish direction (not hardcoded to `61.8`).
+2. Same config, bearish, `LEVEL_AS_ZONE`, close/high enters `[61.8,100.0]`.
+   Result: signal is in-zone; entry reference is current close and level-0 can activate as soon as bearish stop condition is met.
+
+### 8.10 Fibonacci recommendations by Pattern Catalog ID
+
+These are plug-and-play research presets for future compound mode implementation.
+
+| Pattern ID(s) | Suggested use | `LEVELS_AS_LIMITS` levels | `LEVEL_AS_ZONE` levels | Quant note |
+|---|---|---|---|---|
+| `CONT_BULL_01`, `CONT_BEAR_01` | strong continuation | `23.6,38.2,50.0,61.8,78.6,100.0,127.2` | `38.2,50.0,61.8,78.6,100.0` | Balanced retracement entries with optional shallow continuation extension. |
+| `CONT_BULL_02`, `CONT_BEAR_02` | continuation after pullback | `38.2,50.0,61.8,78.6,100.0,127.2,161.8` | `50.0,61.8,78.6,100.0,127.2` | Bias to deeper pullback confirmation. |
+| `REV_BULL_01`, `REV_BEAR_01` | confirmed reversal | `50.0,61.8,78.6,100.0,127.2,161.8` | `61.8,78.6,100.0,127.2` | Avoid shallow reversal entries; demand stronger rejection context. |
+| `REV_BULL_02`, `REV_BEAR_02` | early reversal | `61.8,78.6,100.0,127.2,161.8,200.0` | `78.6,100.0,127.2,161.8` | Higher false-positive risk; require deeper levels and strict risk controls. |
+| `BRK_BULL_01`, `BRK_BEAR_01` | compression breakout | `0.0,61.8,100.0,127.2,161.8` | `61.8,100.0,127.2` | Keeps classic breakout map while supporting continuation extension. |
+| `BRK_BULL_02`, `BRK_BEAR_02` | post-breakout continuation | `23.6,38.2,50.0,61.8,100.0,127.2,161.8` | `38.2,61.8,100.0,127.2` | Use when structure confirms trend after compression release. |
+| `UNC_01` | converging / whipsaw | `38.2,61.8,100.0` | `61.8,100.0` | Keep disabled by default; enable only with additional confluence filters. |
+| `UNC_02` | expansion whipsaw | `OFF (recommended)` | `OFF (recommended)` | Baseline stack should block this regime. |
+| `UNC_03` | full compression | `0.0,61.8,100.0,127.2,161.8` | `61.8,100.0,127.2` | Enable only in dedicated breakout stack with spread/slippage controls. |
+
+### 8.11 Deep-level acceptance rules (`100..161.8` and `>=161.8`)
+
+1. Entry trigger stage is strict-range bounded. To trigger in `[100.0,161.8]`, both levels must exist in `Structure_Fibonacci_Levels`.
+2. To trigger at or above `161.8`, include at least one level above `161.8` (for example `200.0`), otherwise strict trigger rejects > max configured level.
+3. After a signal exists, grid-level progression can still cycle beyond base levels through cycled-level helpers, but that does not bypass initial strict entry gating.
+
+### 8.12 Break-even (BE) behavior recommendation (future risk module)
 
 Assuming BE means break-even logic:
 1. Arm BE after price reaches the next Fibonacci step from entry in trade direction.
@@ -263,7 +323,7 @@ Assuming BE means break-even logic:
 
 Implementation note:
 - Current repository state does not include an active dedicated BE manager in runtime path.
-- Treat this BE block as future-plan guidance to keep plug-and-play behavior coherent.
+- Treat this BE block as future-plan guidance.
 
 ---
 
