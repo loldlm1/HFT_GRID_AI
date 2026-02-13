@@ -13,6 +13,16 @@ HFT Grid AI is a MetaTrader 5 Expert Advisor that runs bullish/bearish grid sequ
 2. Attach the EA to a chart or run it in Strategy Tester (Every tick based on real ticks).
 3. Adjust inputs in MT5 as needed.
 
+## Candle Structure Filter
+- Input group: `Candle Structure Filter`.
+- Inputs: `Candle_Timeframe` (default `PERIOD_M15`), `Candle_Strategy_Type` (default `OFF_CANDLE_STRUCTURE`), `Candle_Strategy_Shift` (default `0`), `Candle_Strategy_Depth` (default `1`, runtime clamp to `1` when `<=0`).
+- Strategy modes:
+  - `SHRINKED`: `high_current <= high_past` and `low_current >= low_past`
+  - `EXPANDED`: `high_current > high_past` and `low_current < low_past`
+  - `BULLISH`: `high_current > high_past` and `low_current > low_past`
+  - `BEARISH`: `high_current < high_past` and `low_current < low_past`
+- Behavior: enabled modes are evaluated as a hard pre-entry gate; filter failure blocks signal creation (fail-closed).
+
 ## Automated `*_test.mq5` Runner
 Use the project runner to compile and execute script-based tests in `tests/*_test.mq5`:
 

@@ -1,6 +1,7 @@
 #property script_show_inputs
 
 #include "harness/cases/context_base_only_test_case.mqh"
+#include "harness/cases/candle_structure_filter_test_case.mqh"
 #include "harness/cases/fibonacci_cycled_levels_cases_test_case.mqh"
 #include "harness/cases/fibonacci_grid_percent_test_case.mqh"
 #include "harness/cases/fibonacci_negative_label_test_case.mqh"
@@ -65,6 +66,13 @@ void OnStart()
 
   HarnessRecordResult("context_base_only_test",
                       RunTest_context_base_only_test(errors),
+                      errors,
+                      passed_count,
+                      failed_count,
+                      total_count);
+
+  HarnessRecordResult("candle_structure_filter_test",
+                      RunTest_candle_structure_filter_test(errors),
                       errors,
                       passed_count,
                       failed_count,
