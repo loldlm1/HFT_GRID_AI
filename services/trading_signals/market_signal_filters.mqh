@@ -15,6 +15,122 @@ bool EvaluateDirectionalSlope(const double current_value,
   return true;
 }
 
+bool CandleStructurePairMatches(const CandleStrategyTypes mode,
+                                const double high_current,
+                                const double low_current,
+                                const double high_past,
+                                const double low_past)
+{
+  switch(mode)
+  {
+    case OFF_CANDLE_STRUCTURE:
+      return true;
+    case SHRINKED_CANDLE_STRUCTURE:
+      return (high_current <= high_past && low_current >= low_past);
+    case EXPANDED_CANDLE_STRUCTURE:
+      return (high_current > high_past && low_current < low_past);
+    case BULLISH_CANDLE_STRUCTURE:
+      return (high_current > high_past && low_current > low_past);
+    case BEARISH_CANDLE_STRUCTURE:
+      return (high_current < high_past && low_current < low_past);
+    default:
+      return false;
+  }
+}
+
+bool EvaluateCandleStructureChain(const CandleStrategyTypes mode,
+                                  const double &high_values[],
+                                  const double &low_values[],
+                                  const int shift,
+                                  const int depth)
+{
+  if(!CandleStructureFilterEnabled(mode))
+    return true;
+
+  int resolved_shift = ResolveCandleStructureShift(shift);
+  int resolved_depth = ResolveCandleStructureDepth(depth);
+  int required_bars = ResolveCandleStructureRequiredBars(resolved_shift, resolved_depth);
+
+  if(ArraySize(high_values) < required_bars || ArraySize(low_values) < required_bars)
+    return false;
+
+  for(int step = 0; step < resolved_depth; step++)
+  {
+    int current_index = resolved_shift + step;
+    int past_index = current_index + 1;
+
+    double high_current = high_values[current_index];
+    double low_current = low_values[current_index];
+    double high_past = high_values[past_index];
+    double low_past = low_values[past_index];
+
+    if(!MathIsValidNumber(high_current) ||
+       !MathIsValidNumber(low_current) ||
+       !MathIsValidNumber(high_past) ||
+       !MathIsValidNumber(low_past))
+      return false;
+
+    if(!CandleStructurePairMatches(mode,
+                                   high_current,
+                                   low_current,
+                                   high_past,
+                                   low_past))
+      return false;
+  }
+
+  return true;
+}
+
+bool EvaluateCandleStructureFilter(const ENUM_TIMEFRAMES timeframe,
+                                   const CandleStrategyTypes mode,
+                                   const int shift,
+                                   const int depth)
+{
+  if(!CandleStructureFilterEnabled(mode))
+    return true;
+
+  ENUM_TIMEFRAMES resolved_timeframe = ResolveCandleStructureTimeframe(timeframe);
+  int resolved_shift = ResolveCandleStructureShift(shift);
+  int resolved_depth = ResolveCandleStructureDepth(depth);
+  int required_bars = ResolveCandleStructureRequiredBars(resolved_shift, resolved_depth);
+
+  if(Bars(_Symbol, resolved_timeframe) < required_bars)
+    return false;
+
+  double high_values[];
+  double low_values[];
+  ArraySetAsSeries(high_values, true);
+  ArraySetAsSeries(low_values, true);
+
+  int copied_high = CopyHigh(_Symbol,
+                             resolved_timeframe,
+                             0,
+                             required_bars,
+                             high_values);
+  int copied_low = CopyLow(_Symbol,
+                           resolved_timeframe,
+                           0,
+                           required_bars,
+                           low_values);
+
+  if(copied_high < required_bars || copied_low < required_bars)
+    return false;
+
+  return EvaluateCandleStructureChain(mode,
+                                      high_values,
+                                      low_values,
+                                      resolved_shift,
+                                      resolved_depth);
+}
+
+bool EvaluateCandleStructureFilter()
+{
+  return EvaluateCandleStructureFilter(Candle_Timeframe,
+                                       Candle_Strategy_Type,
+                                       Candle_Strategy_Shift,
+                                       Candle_Strategy_Depth);
+}
+
 bool ResolveStructureReferenceRange(const StochasticMarketStructure &structure,
                                     double &peak_price,
                                     double &bottom_price,
@@ -561,6 +677,13 @@ bool StrategyContextEvaluateEntry(const StrategyContextIndicators &snapshot,
   entry_is_limit = false;
 
   StrategyContextTypes context = snapshot.context;
+
+  if(!EvaluateCandleStructureFilter())
+  {
+    entry_allows = false;
+    filters_pass = false;
+    return true;
+  }
 
   StrategyStructureLayerContext structure_ctx = BuildStructureLayerForContext(context);
   if(!EvaluateStructureRetestTrigger(snapshot, direction, structure_ctx))

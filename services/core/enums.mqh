@@ -35,6 +35,15 @@ enum StructureTriggerEntryModes
   LEVEL_AS_ZONE    = 1
 };
 
+enum CandleStrategyTypes
+{
+  OFF_CANDLE_STRUCTURE       = 0,
+  SHRINKED_CANDLE_STRUCTURE  = 1,
+  EXPANDED_CANDLE_STRUCTURE  = 2,
+  BULLISH_CANDLE_STRUCTURE   = 3,
+  BEARISH_CANDLE_STRUCTURE   = 4
+};
+
 enum SignalConcurrencyModes
 {
   SINGLE_RUNNING_SIGNAL   = 0,

@@ -12,6 +12,7 @@
 #include "../../services/utils/money_functions.mqh"
 #include "../../services/utils/broker_constraints_helper.mqh"
 #include "../../services/trading_management/ea_inputs.mqh"
+#include "../../services/trading_management/candle_structure_filter_context.mqh"
 #include "../../services/trading_management/strategy_structure_context.mqh"
 #include "../../services/indicators/stochastic_market_indicator.mqh"
 #include "../../services/indicators/fibonacci_calculator.mqh"

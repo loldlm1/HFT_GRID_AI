@@ -43,6 +43,12 @@ input StructureTriggerEntryModes Structure_Trigger_Entry   = LEVELS_AS_LIMITS;
 input StrategyDirectionTypes    Strategy_Direction_Mode     = BOTH_DIRECTION;
 input SignalConcurrencyModes    Signal_Concurrency_Mode     = SINGLE_RUNNING_SIGNAL;
 
+input group  "+= Candle Structure Filter =+";
+input ENUM_TIMEFRAMES   Candle_Timeframe      = PERIOD_M15;
+input CandleStrategyTypes Candle_Strategy_Type = OFF_CANDLE_STRUCTURE;
+input int               Candle_Strategy_Shift = 0;
+input int               Candle_Strategy_Depth = 1;
+
 input group "+= Strategy Base Context =+";
 input TrendStructureFilterModes   Base_First_Structure_Filter       = STRUCT_FILTER_OFF;
 input TrendStructureFilterModes   Base_Second_Structure_Filter      = STRUCT_FILTER_OFF;
