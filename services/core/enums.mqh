@@ -35,6 +35,12 @@ enum StructureTriggerEntryModes
   LEVEL_AS_ZONE    = 1
 };
 
+enum StructureTouchPolicyModes
+{
+  ALLOW_RETEST     = 0,
+  FIRST_TOUCH_ONLY = 1
+};
+
 enum CandleStrategyTypes
 {
   OFF_CANDLE_STRUCTURE       = 0,
