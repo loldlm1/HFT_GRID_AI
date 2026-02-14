@@ -50,12 +50,6 @@ bool CaptureContextIndicators(const StrategyContextTypes context,
     snapshot.structure_valid = LoadContextStructureSnapshot(CONTEXT_SLOT_BASE, snapshot.structure_data);
     if(!snapshot.structure_valid)
       return false;
-    if(StrategyContextFirstStructureUsesClosePercent(CONTEXT_SLOT_BASE))
-    {
-      double close_percent = snapshot.structure_data.first_structure_close_percent;
-      if(close_percent > 0.0)
-        snapshot.structure_data.first_fibonacci_level = close_percent;
-    }
   }
   else
   {

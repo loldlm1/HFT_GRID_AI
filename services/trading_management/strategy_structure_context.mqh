@@ -1,28 +1,20 @@
 //+------------------------------------------------------------------+
 //|                          strategy_structure_context.mqh          |
-//| Mirrors structure-related inputs for base/trend strategy layers. |
+//| Mirrors structure-related inputs for strategy context layers.    |
 //+------------------------------------------------------------------+
 #ifndef _SERVICES_TRADING_MANAGEMENT_STRATEGY_STRUCTURE_CONTEXT_MQH_
 #define _SERVICES_TRADING_MANAGEMENT_STRATEGY_STRUCTURE_CONTEXT_MQH_
 
 struct StrategyStructureLayerContext
 {
-  int                         min_extern_structures;
-  SupportRetestFilterModes    support_filter;
-  ResistanceRetestFilterModes resistance_filter;
-  int                         support_min_retests;
-  int                         resistance_min_retests;
-  TrendStructureFilterModes   first_structure_filter;
-  TrendStructureFilterModes   second_structure_filter;
-  TrendStructureFilterModes   third_structure_filter;
-  TrendStructureFilterModes   fourth_structure_filter;
+  TrendStructureCompoundModes structure_compound_filter;
   bool                        enabled;
   bool                        uses_trend_dataset;
 };
 
-inline bool StructureFilterIsEnabled(const TrendStructureFilterModes mode)
+inline bool StructureCompoundFilterIsEnabled(const TrendStructureCompoundModes mode)
 {
-  return (mode != STRUCT_FILTER_OFF);
+  return (mode != COMPOUND_MODE_OFF);
 }
 
 inline int ResolveStochStructurePeriod();
@@ -30,34 +22,18 @@ inline int ResolveStochStructurePeriod();
 inline StrategyStructureLayerContext BuildDisabledStructureLayerContext()
 {
   StrategyStructureLayerContext ctx;
-  ctx.min_extern_structures   = 0;
-  ctx.support_filter          = SUPPORT_DISABLED;
-  ctx.resistance_filter       = RESISTANCE_DISABLED;
-  ctx.support_min_retests     = 0;
-  ctx.resistance_min_retests  = 0;
-  ctx.first_structure_filter  = STRUCT_FILTER_OFF;
-  ctx.second_structure_filter = STRUCT_FILTER_OFF;
-  ctx.third_structure_filter  = STRUCT_FILTER_OFF;
-  ctx.fourth_structure_filter = STRUCT_FILTER_OFF;
-  ctx.enabled                 = false;
-  ctx.uses_trend_dataset      = false;
+  ctx.structure_compound_filter = COMPOUND_MODE_OFF;
+  ctx.enabled                   = false;
+  ctx.uses_trend_dataset        = false;
   return ctx;
 }
 
 inline StrategyStructureLayerContext BuildBaseStructureLayerContext()
 {
   StrategyStructureLayerContext ctx;
-  ctx.min_extern_structures  = Base_Min_Extern_Structures_Broken;
-  ctx.support_filter         = Base_Support_Filter;
-  ctx.resistance_filter      = Base_Resistance_Filter;
-  ctx.support_min_retests    = Base_Support_Retest_Min_Count;
-  ctx.resistance_min_retests = Base_Resistance_Retest_Min_Count;
-  ctx.first_structure_filter = Base_First_Structure_Filter;
-  ctx.second_structure_filter = Base_Second_Structure_Filter;
-  ctx.third_structure_filter  = Base_Third_Structure_Filter;
-  ctx.fourth_structure_filter = Base_Fourth_Structure_Filter;
-  ctx.enabled                = (ResolveStochStructurePeriod() >= 3);
-  ctx.uses_trend_dataset     = false;
+  ctx.structure_compound_filter = Base_Structure_Compound_Filter;
+  ctx.enabled                   = (ResolveStochStructurePeriod() >= 3);
+  ctx.uses_trend_dataset        = false;
   return ctx;
 }
 
@@ -76,24 +52,15 @@ inline StrategyStructureLayerContext BuildSessionStructureLayerContext()
   return BuildDisabledStructureLayerContext();
 }
 
-inline bool StructureFiltersRequested(const StrategyStructureLayerContext &ctx)
+inline bool StructureFiltersRequested(const StrategyStructureLayerContext &)
 {
-  if(!ctx.enabled)
-    return false;
-  return (ctx.min_extern_structures > 0) ||
-         (ctx.support_filter != SUPPORT_DISABLED) ||
-         (ctx.resistance_filter != RESISTANCE_DISABLED);
+  // Legacy retest/external-break filters were removed in the compound migration.
+  return false;
 }
 
-inline bool StructureFiltersRequested(const StrategyStructureLayerContext &ctx,
-                                      const SignalTypes signal_type)
+inline bool StructureFiltersRequested(const StrategyStructureLayerContext &,
+                                      const SignalTypes)
 {
-  if(!ctx.enabled)
-    return false;
-  if(signal_type == BULLISH)
-    return (ctx.support_filter != SUPPORT_DISABLED);
-  if(signal_type == BEARISH)
-    return (ctx.resistance_filter != RESISTANCE_DISABLED);
   return false;
 }
 
@@ -101,62 +68,21 @@ inline bool StructureTypeFiltersRequested(const StrategyStructureLayerContext &c
 {
   if(!ctx.enabled)
     return false;
-  return StructureFilterIsEnabled(ctx.first_structure_filter)  ||
-         StructureFilterIsEnabled(ctx.second_structure_filter) ||
-         StructureFilterIsEnabled(ctx.third_structure_filter)  ||
-         StructureFilterIsEnabled(ctx.fourth_structure_filter);
+  return StructureCompoundFilterIsEnabled(ctx.structure_compound_filter);
 }
 
-inline bool SupportFilterRequiresZone(const SupportRetestFilterModes mode,
-                                      const int zone_index)
+inline int ResolveRetestRequirement(const StrategyStructureLayerContext &,
+                                    const SignalTypes,
+                                    const int)
 {
-  if(mode == SUPPORT_DISABLED)
-    return false;
-  if(mode == SUPPORT_61)
-    return zone_index == 0;
-  if(mode == SUPPORT_78)
-    return zone_index == 1;
-  return false;
-}
-
-inline bool ResistanceFilterRequiresZone(const ResistanceRetestFilterModes mode,
-                                         const int zone_index)
-{
-  if(mode == RESISTANCE_DISABLED)
-    return false;
-  if(mode == RESISTANCE_61)
-    return zone_index == 0;
-  if(mode == RESISTANCE_78)
-    return zone_index == 1;
-  return false;
-}
-
-inline int ResolveRetestRequirement(const StrategyStructureLayerContext &ctx,
-                                    const SignalTypes signal_type,
-                                    const int zone_index)
-{
-  if(!ctx.enabled)
-    return 0;
-  if(signal_type == BULLISH)
-  {
-    if(!SupportFilterRequiresZone(ctx.support_filter, zone_index))
-      return 0;
-    return MathMax(ctx.support_min_retests, 1);
-  }
-  if(signal_type == BEARISH)
-  {
-    if(!ResistanceFilterRequiresZone(ctx.resistance_filter, zone_index))
-      return 0;
-    return MathMax(ctx.resistance_min_retests, 1);
-  }
   return 0;
 }
 
 inline bool AnyStructureGuardEnabled()
 {
   StrategyStructureLayerContext base_ctx = BuildBaseStructureLayerContext();
-  return StructureFiltersRequested(base_ctx) ||
-         StructureTypeFiltersRequested(base_ctx);
+  return StructureTypeFiltersRequested(base_ctx) ||
+         StrategyContextFreshStructureEnabled(CONTEXT_SLOT_BASE);
 }
 
 inline bool TrendContextEnabled()
@@ -201,12 +127,10 @@ inline bool ContextRequiresStructure(const StrategyContextTypes context,
   if(!ctx.enabled)
     return false;
 
-  // Base spacing needs structure distances when using the fib level grid mode
   if(context == CONTEXT_SLOT_BASE && Grid_Base_Strategy_Type == FIB_LEVEL_RANGE)
     return true;
 
-  return StructureFiltersRequested(ctx) ||
-         StructureTypeFiltersRequested(ctx) ||
+  return StructureTypeFiltersRequested(ctx) ||
          StrategyContextFreshStructureEnabled(context);
 }
 
@@ -223,17 +147,17 @@ inline bool StrategyContextFreshStructureEnabled(const StrategyContextTypes cont
   return (context == CONTEXT_SLOT_BASE) ? Base_Fresh_Structure_Time : false;
 }
 
-inline bool StrategyContextFirstStructureUsesClosePercent(const StrategyContextTypes context)
+inline bool StrategyContextFirstStructureUsesClosePercent(const StrategyContextTypes)
 {
-  return (context == CONTEXT_SLOT_BASE) ? Base_First_Structure_Close_Percent : false;
+  return false;
 }
 
-inline ENUM_TIMEFRAMES StrategyContextTimeframe(const StrategyContextTypes context)
+inline ENUM_TIMEFRAMES StrategyContextTimeframe(const StrategyContextTypes)
 {
   return Strategy_Timeframe;
 }
 
-inline ENUM_TIMEFRAMES StrategyContextStructureTimeframe(const StrategyContextTypes context)
+inline ENUM_TIMEFRAMES StrategyContextStructureTimeframe(const StrategyContextTypes)
 {
   return Strategy_Timeframe;
 }
