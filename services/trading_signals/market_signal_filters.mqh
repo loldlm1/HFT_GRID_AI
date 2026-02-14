@@ -207,26 +207,11 @@ bool FetchStructureForContext(const StrategyContextIndicators &snapshot,
 }
 
 datetime ResolveStructureSnapshotTimestamp(const StochasticMarketStructure &structure,
-                                           const StrategyStructureLayerContext &ctx)
+                                           const StrategyStructureLayerContext &)
 {
-  bool all_filters_disabled =
-    !StructureFilterIsEnabled(ctx.first_structure_filter)  &&
-    !StructureFilterIsEnabled(ctx.second_structure_filter) &&
-    !StructureFilterIsEnabled(ctx.third_structure_filter)  &&
-    !StructureFilterIsEnabled(ctx.fourth_structure_filter);
-
-  if(StructureFilterIsEnabled(ctx.fourth_structure_filter))
-    return structure.fourth_structure_time;
-  if(StructureFilterIsEnabled(ctx.third_structure_filter))
-    return structure.third_structure_time;
-  if(StructureFilterIsEnabled(ctx.second_structure_filter))
-    return structure.second_structure_time;
-  if(StructureFilterIsEnabled(ctx.first_structure_filter))
-    return structure.first_structure_time;
-
-  // No structure filters enabled: use the second structure timestamp when available to
-  // avoid reusing the same bar for fresh-structure checks.
-  if(all_filters_disabled && structure.second_structure_time > 0)
+  // Keep the immutable second slot as the preferred snapshot timestamp for
+  // fresh-structure checks. Fall back to the most recent slot.
+  if(structure.second_structure_time > 0)
     return structure.second_structure_time;
 
   return structure.first_structure_time;
@@ -261,134 +246,8 @@ bool ValidateFreshStructureTimestamp(const StrategyContextTypes context,
   return true;
 }
 
-bool ValidateExternStructuresRequirement(const ExtremumStatistics &latest_stats,
-                                         const StrategyStructureLayerContext &ctx)
-{
-  if(!ctx.enabled)
-    return true;
-  if(ctx.min_extern_structures <= 0)
-    return true;
-  return latest_stats.extern_structures_broken >= ctx.min_extern_structures;
-}
-
-bool ValidateRetestRequirements(const ExtremumStatistics &latest_stats,
-                                const SignalTypes signal_type,
-                                const StrategyStructureLayerContext &ctx)
-{
-  if(!ctx.enabled)
-    return true;
-  for(int zone_index = 0; zone_index < FIBO_RETEST_ZONES_TOTAL; zone_index++)
-  {
-    int required = ResolveRetestRequirement(ctx, signal_type, zone_index);
-    if(required <= 0)
-      continue;
-
-    int available = 0;
-    if(signal_type == BULLISH)
-      available = latest_stats.fibo_retest_zones[zone_index].support_retest_count;
-    if(signal_type == BEARISH)
-      available = latest_stats.fibo_retest_zones[zone_index].resistance_retest_count;
-
-    if(available < required)
-      return false;
-  }
-
-  return true;
-}
-
-bool EvaluateStructureRetestTrigger(const StrategyContextIndicators &snapshot,
-                                    const SignalTypes signal_type,
-                                    const StrategyStructureLayerContext &ctx)
-{
-  bool require_support_resistance = StructureFiltersRequested(ctx, signal_type);
-  bool require_extern_breaks = (ctx.enabled && ctx.min_extern_structures > 0);
-
-  if(!require_support_resistance && !require_extern_breaks)
-    return true;
-
-  StochasticMarketStructure structure;
-  if(!FetchStructureForContext(snapshot, structure))
-    return false;
-
-  if(StrategyContextFirstStructureUsesClosePercent(snapshot.context) && require_support_resistance)
-  {
-    double live_close_percent = structure.first_structure_close_percent;
-    if(!StructureLivePercentSatisfiesFilter(ctx, signal_type, live_close_percent))
-      return false;
-  }
-
-  if(ArraySize(structure.extremum_stats) <= 0)
-    return false;
-
-  ExtremumStatistics latest_stats = structure.extremum_stats[0];
-
-  if(require_extern_breaks && !ValidateExternStructuresRequirement(latest_stats, ctx))
-    return false;
-
-  if(require_support_resistance && !ValidateRetestRequirements(latest_stats, signal_type, ctx))
-    return false;
-
-  return true;
-}
-
-bool TrendStructureFilterMatches(const TrendStructureFilterModes filter_mode,
-                                 const OscillatorStructureTypes structure_type,
-                                 const SignalTypes signal_type,
-                                 const OscillatorMarketStructure &latest_extremum)
-{
-  if(filter_mode == STRUCT_FILTER_OFF)
-    return true;
-
-  bool filter_is_peak_family = (filter_mode == STRUCT_FILTER_HH ||
-                                filter_mode == STRUCT_FILTER_LH);
-  bool filter_is_bottom_family = (filter_mode == STRUCT_FILTER_LL ||
-                                  filter_mode == STRUCT_FILTER_HL);
-
-  if(!filter_is_peak_family && !filter_is_bottom_family)
-    return false;
-
-  if(signal_type == BULLISH)
-  {
-    if(latest_extremum.is_peak || !filter_is_bottom_family)
-      return false;
-  }
-  else if(signal_type == BEARISH)
-  {
-    if(!latest_extremum.is_peak || !filter_is_peak_family)
-      return false;
-  }
-  else
-  {
-    return false;
-  }
-
-  if(structure_type == OSCILLATOR_STRUCTURE_EQ)
-  {
-    if(signal_type == BULLISH && filter_is_bottom_family)
-      return true;
-    if(signal_type == BEARISH && filter_is_peak_family)
-      return true;
-    return false;
-  }
-
-  switch(filter_mode)
-  {
-    case STRUCT_FILTER_LL:
-      return (structure_type == OSCILLATOR_STRUCTURE_LL);
-    case STRUCT_FILTER_HH:
-      return (structure_type == OSCILLATOR_STRUCTURE_HH);
-    case STRUCT_FILTER_LH:
-      return (structure_type == OSCILLATOR_STRUCTURE_LH);
-    case STRUCT_FILTER_HL:
-      return (structure_type == OSCILLATOR_STRUCTURE_HL);
-    default:
-      return false;
-  }
-}
-
 bool EvaluateStructureTypeFilters(const StrategyContextIndicators &snapshot,
-                                  const StrategyStructureLayerContext &ctx,
-                                  const SignalTypes signal_type)
+                                  const StrategyStructureLayerContext &ctx)
 {
   if(!StructureTypeFiltersRequested(ctx))
     return true;
@@ -397,78 +256,7 @@ bool EvaluateStructureTypeFilters(const StrategyContextIndicators &snapshot,
   if(!FetchStructureForContext(snapshot, structure))
     return false;
 
-  OscillatorMarketStructure latest_extremum;
-  if(ArraySize(structure.os_market_structures) <= 0)
-    return false;
-  latest_extremum = structure.os_market_structures[0];
-
-  bool first_pass  = TrendStructureFilterMatches(ctx.first_structure_filter,
-                                                 structure.first_structure_type,
-                                                 signal_type,
-                                                 latest_extremum);
-  bool second_pass = TrendStructureFilterMatches(ctx.second_structure_filter,
-                                                 structure.second_structure_type,
-                                                 signal_type,
-                                                 latest_extremum);
-  bool third_pass  = TrendStructureFilterMatches(ctx.third_structure_filter,
-                                                 structure.third_structure_type,
-                                                 signal_type,
-                                                 latest_extremum);
-  bool fourth_pass = TrendStructureFilterMatches(ctx.fourth_structure_filter,
-                                                 structure.fourth_structure_type,
-                                                 signal_type,
-                                                 latest_extremum);
-
-  return first_pass && second_pass && third_pass && fourth_pass;
-}
-
-bool StructureLivePercentSatisfiesFilter(const StrategyStructureLayerContext &ctx,
-                                         const SignalTypes signal_type,
-                                         const double live_percent)
-{
-  if(live_percent <= 0.0)
-    return false;
-
-  bool support_filter_active    = (signal_type == BULLISH) && (ctx.support_filter != SUPPORT_DISABLED);
-  bool resistance_filter_active = (signal_type == BEARISH) && (ctx.resistance_filter != RESISTANCE_DISABLED);
-
-  if(!support_filter_active && !resistance_filter_active)
-    return true;
-
-  double lower = 0.0;
-  double upper = 0.0;
-
-  if(signal_type == BULLISH)
-  {
-    if(ctx.support_filter == SUPPORT_61)
-    {
-      lower = FIBO_RETEST_ZONE1_START;
-      upper = FIBO_RETEST_ZONE1_END;
-    }
-    else if(ctx.support_filter == SUPPORT_78)
-    {
-      lower = FIBO_RETEST_ZONE2_START;
-      upper = FIBO_RETEST_ZONE2_END;
-    }
-  }
-  else if(signal_type == BEARISH)
-  {
-    if(ctx.resistance_filter == RESISTANCE_61)
-    {
-      lower = FIBO_RETEST_ZONE1_START;
-      upper = FIBO_RETEST_ZONE1_END;
-    }
-    else if(ctx.resistance_filter == RESISTANCE_78)
-    {
-      lower = FIBO_RETEST_ZONE2_START;
-      upper = FIBO_RETEST_ZONE2_END;
-    }
-  }
-
-  if(lower == 0.0 && upper == 0.0)
-    return true;
-
-  return (live_percent >= lower && live_percent <= upper);
+  return EvaluateStructureCompoundMode(structure, ctx.structure_compound_filter);
 }
 
 bool ResolveStructureFibonacciEntry(const StrategyContextIndicators &snapshot,
@@ -686,14 +474,7 @@ bool StrategyContextEvaluateEntry(const StrategyContextIndicators &snapshot,
   }
 
   StrategyStructureLayerContext structure_ctx = BuildStructureLayerForContext(context);
-  if(!EvaluateStructureRetestTrigger(snapshot, direction, structure_ctx))
-  {
-    entry_allows = false;
-    filters_pass = false;
-    return true;
-  }
-
-  if(!EvaluateStructureTypeFilters(snapshot, structure_ctx, direction))
+  if(!EvaluateStructureTypeFilters(snapshot, structure_ctx))
   {
     entry_allows = false;
     filters_pass = false;

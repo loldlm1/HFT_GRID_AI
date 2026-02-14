@@ -12,7 +12,7 @@
 #include "harness/cases/structure_entry_trigger_test_case.mqh"
 #include "harness/cases/structure_fibonacci_entry_levels_test_case.mqh"
 #include "harness/cases/structure_fibonacci_entry_price_test_case.mqh"
-#include "harness/cases/structure_filter_mode_behavior_test_case.mqh"
+#include "harness/cases/structure_compound_modes_test_case.mqh"
 #include "harness/cases/structure_fibonacci_levels_test_case.mqh"
 #include "harness/cases/structure_fibonacci_orientation_test_case.mqh"
 #include "harness/cases/structure_fibonacci_strict_range_test_case.mqh"
@@ -149,8 +149,8 @@ void OnStart()
                       failed_count,
                       total_count);
 
-  HarnessRecordResult("structure_filter_mode_behavior_test",
-                      RunTest_structure_filter_mode_behavior_test(errors),
+  HarnessRecordResult("structure_compound_modes_test",
+                      RunTest_structure_compound_modes_test(errors),
                       errors,
                       passed_count,
                       failed_count,

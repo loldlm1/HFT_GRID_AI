@@ -49,17 +49,8 @@ input CandleStrategyTypes Candle_Strategy_Type = OFF_CANDLE_STRUCTURE;
 input int               Candle_Strategy_Shift = 0;
 input int               Candle_Strategy_Depth = 1;
 
-input group "+= Strategy Base Context =+";
-input TrendStructureFilterModes   Base_First_Structure_Filter       = STRUCT_FILTER_OFF;
-input TrendStructureFilterModes   Base_Second_Structure_Filter      = STRUCT_FILTER_OFF;
-input TrendStructureFilterModes   Base_Third_Structure_Filter       = STRUCT_FILTER_OFF;
-input TrendStructureFilterModes   Base_Fourth_Structure_Filter      = STRUCT_FILTER_OFF;
-input SupportRetestFilterModes    Base_Support_Filter               = SUPPORT_DISABLED;
-input ResistanceRetestFilterModes Base_Resistance_Filter            = RESISTANCE_DISABLED;
-input int                         Base_Support_Retest_Min_Count     = 1;
-input int                         Base_Resistance_Retest_Min_Count  = 1;
-input int                         Base_Min_Extern_Structures_Broken = 0;
-input bool                        Base_First_Structure_Close_Percent = false;
+input group "+= Structure Compound Context =+";
+input TrendStructureCompoundModes Base_Structure_Compound_Filter    = COMPOUND_MODE_OFF;
 input bool                        Base_Fresh_Structure_Time         = false;
 
 input group  "+= Grid Strategy Settings =+";
