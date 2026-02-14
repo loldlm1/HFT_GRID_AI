@@ -59,10 +59,10 @@ bool ResolveStructureCompoundCanonicalTemplate(const TrendStructureCompoundModes
       fourth_out = OSCILLATOR_STRUCTURE_HH;
       return true;
     case COMPOUND_MODE_TREND_RIDE_SELL:
-      first_out  = OSCILLATOR_STRUCTURE_LL;
-      second_out = OSCILLATOR_STRUCTURE_LH;
-      third_out  = OSCILLATOR_STRUCTURE_LL;
-      fourth_out = OSCILLATOR_STRUCTURE_LH;
+      first_out  = OSCILLATOR_STRUCTURE_LH;
+      second_out = OSCILLATOR_STRUCTURE_LL;
+      third_out  = OSCILLATOR_STRUCTURE_LH;
+      fourth_out = OSCILLATOR_STRUCTURE_LL;
       return true;
     case COMPOUND_MODE_PULLBACK_CONTINUE_BUY:
       first_out  = OSCILLATOR_STRUCTURE_HL;
@@ -71,10 +71,10 @@ bool ResolveStructureCompoundCanonicalTemplate(const TrendStructureCompoundModes
       fourth_out = OSCILLATOR_STRUCTURE_LH;
       return true;
     case COMPOUND_MODE_PULLBACK_CONTINUE_SELL:
-      first_out  = OSCILLATOR_STRUCTURE_LL;
-      second_out = OSCILLATOR_STRUCTURE_LH;
-      third_out  = OSCILLATOR_STRUCTURE_HL;
-      fourth_out = OSCILLATOR_STRUCTURE_HH;
+      first_out  = OSCILLATOR_STRUCTURE_LH;
+      second_out = OSCILLATOR_STRUCTURE_LL;
+      third_out  = OSCILLATOR_STRUCTURE_HH;
+      fourth_out = OSCILLATOR_STRUCTURE_HL;
       return true;
     case COMPOUND_MODE_REVERSAL_EARLY_BUY:
       first_out  = OSCILLATOR_STRUCTURE_HL;
@@ -89,46 +89,28 @@ bool ResolveStructureCompoundCanonicalTemplate(const TrendStructureCompoundModes
       fourth_out = OSCILLATOR_STRUCTURE_HL;
       return true;
     case COMPOUND_MODE_BREAKOUT_READY_BUY:
-      first_out  = OSCILLATOR_STRUCTURE_HL;
-      second_out = OSCILLATOR_STRUCTURE_HH;
-      third_out  = OSCILLATOR_STRUCTURE_EQ;
-      fourth_out = OSCILLATOR_STRUCTURE_EQ;
+      first_out  = OSCILLATOR_STRUCTURE_LH;
+      second_out = OSCILLATOR_STRUCTURE_HL;
+      third_out  = OSCILLATOR_STRUCTURE_LH;
+      fourth_out = OSCILLATOR_STRUCTURE_HL;
       return true;
     case COMPOUND_MODE_BREAKOUT_READY_SELL:
-      first_out  = OSCILLATOR_STRUCTURE_LL;
-      second_out = OSCILLATOR_STRUCTURE_LH;
-      third_out  = OSCILLATOR_STRUCTURE_EQ;
-      fourth_out = OSCILLATOR_STRUCTURE_EQ;
-      return true;
-    case COMPOUND_MODE_BREAKOUT_FOLLOW_BUY:
-      first_out  = OSCILLATOR_STRUCTURE_EQ;
-      second_out = OSCILLATOR_STRUCTURE_EQ;
-      third_out  = OSCILLATOR_STRUCTURE_HL;
-      fourth_out = OSCILLATOR_STRUCTURE_HH;
-      return true;
-    case COMPOUND_MODE_BREAKOUT_FOLLOW_SELL:
-      first_out  = OSCILLATOR_STRUCTURE_EQ;
-      second_out = OSCILLATOR_STRUCTURE_EQ;
-      third_out  = OSCILLATOR_STRUCTURE_LH;
-      fourth_out = OSCILLATOR_STRUCTURE_LL;
-      return true;
-    case COMPOUND_MODE_CHOP_GUARD:
       first_out  = OSCILLATOR_STRUCTURE_HL;
       second_out = OSCILLATOR_STRUCTURE_LH;
       third_out  = OSCILLATOR_STRUCTURE_HL;
       fourth_out = OSCILLATOR_STRUCTURE_LH;
       return true;
-    case COMPOUND_MODE_VOLATILITY_TRAP:
+    case COMPOUND_MODE_VOLATILITY_TRAP_BUY:
       first_out  = OSCILLATOR_STRUCTURE_LL;
       second_out = OSCILLATOR_STRUCTURE_HH;
       third_out  = OSCILLATOR_STRUCTURE_LL;
       fourth_out = OSCILLATOR_STRUCTURE_HH;
       return true;
-    case COMPOUND_MODE_COMPRESSION_WAIT:
-      first_out  = OSCILLATOR_STRUCTURE_EQ;
-      second_out = OSCILLATOR_STRUCTURE_EQ;
-      third_out  = OSCILLATOR_STRUCTURE_EQ;
-      fourth_out = OSCILLATOR_STRUCTURE_EQ;
+    case COMPOUND_MODE_VOLATILITY_TRAP_SELL:
+      first_out  = OSCILLATOR_STRUCTURE_HH;
+      second_out = OSCILLATOR_STRUCTURE_LL;
+      third_out  = OSCILLATOR_STRUCTURE_HH;
+      fourth_out = OSCILLATOR_STRUCTURE_LL;
       return true;
     default:
       return false;
