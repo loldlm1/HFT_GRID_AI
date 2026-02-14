@@ -40,6 +40,7 @@ input ENUM_TIMEFRAMES           Strategy_Timeframe          = PERIOD_M1;
 input int                       Stoch_Structure_Period_Type = 5;
 input string                    Structure_Fibonacci_Levels = "23.6,38.2,50.0,61.8,78.6,100.0";
 input StructureTriggerEntryModes Structure_Trigger_Entry   = LEVELS_AS_LIMITS;
+input StructureTouchPolicyModes Structure_Touch_Policy     = ALLOW_RETEST;
 input StrategyDirectionTypes    Strategy_Direction_Mode     = BOTH_DIRECTION;
 input SignalConcurrencyModes    Signal_Concurrency_Mode     = SINGLE_RUNNING_SIGNAL;
 

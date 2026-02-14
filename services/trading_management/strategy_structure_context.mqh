@@ -12,6 +12,9 @@ struct StrategyStructureLayerContext
   bool                        uses_trend_dataset;
 };
 
+StructureTouchPolicyModes g_structure_touch_policy_runtime = ALLOW_RETEST;
+bool g_structure_touch_policy_runtime_override = false;
+
 inline bool StructureCompoundFilterIsEnabled(const TrendStructureCompoundModes mode)
 {
   return (mode != COMPOUND_MODE_OFF);
@@ -145,6 +148,34 @@ inline int ResolveStochStructurePeriod()
 inline bool StrategyContextFreshStructureEnabled(const StrategyContextTypes context)
 {
   return (context == CONTEXT_SLOT_BASE) ? Base_Fresh_Structure_Time : false;
+}
+
+inline void SetStructureTouchPolicyRuntime(const StructureTouchPolicyModes mode)
+{
+  g_structure_touch_policy_runtime = mode;
+  g_structure_touch_policy_runtime_override = true;
+}
+
+inline void ClearStructureTouchPolicyRuntimeOverride()
+{
+  g_structure_touch_policy_runtime_override = false;
+}
+
+inline StructureTouchPolicyModes ResolveBaseStructureTouchPolicy()
+{
+  return g_structure_touch_policy_runtime_override
+           ? g_structure_touch_policy_runtime
+           : Structure_Touch_Policy;
+}
+
+inline StructureTouchPolicyModes StrategyContextTouchPolicy(const StrategyContextTypes context)
+{
+  return (context == CONTEXT_SLOT_BASE) ? ResolveBaseStructureTouchPolicy() : ALLOW_RETEST;
+}
+
+inline bool StrategyContextFirstTouchOnly(const StrategyContextTypes context)
+{
+  return (StrategyContextTouchPolicy(context) == FIRST_TOUCH_ONLY);
 }
 
 inline bool StrategyContextFirstStructureUsesClosePercent(const StrategyContextTypes)

@@ -259,6 +259,202 @@ bool EvaluateStructureTypeFilters(const StrategyContextIndicators &snapshot,
   return EvaluateStructureCompoundMode(structure, ctx.structure_compound_filter);
 }
 
+const double STRUCTURE_TOUCH_POLICY_EPS = 0.0001;
+
+struct StructureTouchProgressRuntime
+{
+  StrategyContextTypes context;
+  SignalTypes          direction;
+  datetime             structure_time;
+  int                  step_direction;
+  bool                 initialized;
+  double               progress_percent;
+
+  StructureTouchProgressRuntime()
+  {
+    context          = CONTEXT_SLOT_BASE;
+    direction        = NO_SIGNAL;
+    structure_time   = 0;
+    step_direction   = 1;
+    initialized      = false;
+    progress_percent = 0.0;
+  }
+};
+
+StructureTouchProgressRuntime g_structure_touch_progress_state[];
+
+void ClearStructureTouchPolicyState()
+{
+  ArrayResize(g_structure_touch_progress_state, 0);
+}
+
+datetime ResolveStructureTouchPolicyStructureTime(const StochasticMarketStructure &structure,
+                                                  const datetime fallback_time)
+{
+  if(fallback_time > 0)
+    return fallback_time;
+
+  if(structure.second_structure_time > 0)
+    return structure.second_structure_time;
+
+  return structure.first_structure_time;
+}
+
+int ResolveStructurePercentStepDirection(const SignalTypes direction,
+                                         const bool current_is_bottom)
+{
+  if(direction == BULLISH)
+    return current_is_bottom ? 1 : -1;
+
+  if(direction == BEARISH)
+    return current_is_bottom ? -1 : 1;
+
+  return 0;
+}
+
+int FindStructureTouchProgressSlot(const StrategyContextTypes context,
+                                   const SignalTypes direction)
+{
+  int total = ArraySize(g_structure_touch_progress_state);
+  for(int i = 0; i < total; i++)
+  {
+    StructureTouchProgressRuntime slot = g_structure_touch_progress_state[i];
+    if(slot.context == context && slot.direction == direction)
+      return i;
+  }
+  return -1;
+}
+
+bool EnsureStructureTouchProgressSlot(const StrategyContextTypes context,
+                                      const SignalTypes direction,
+                                      int &slot_index)
+{
+  slot_index = FindStructureTouchProgressSlot(context, direction);
+  if(slot_index >= 0)
+    return true;
+
+  StructureTouchProgressRuntime created;
+  created.context = context;
+  created.direction = direction;
+  int next = ArraySize(g_structure_touch_progress_state);
+  ArrayResize(g_structure_touch_progress_state, next + 1);
+  g_structure_touch_progress_state[next] = created;
+  slot_index = next;
+  return true;
+}
+
+bool ResolveStructureTouchProgressBefore(const StrategyContextTypes context,
+                                         const SignalTypes direction,
+                                         const datetime structure_time,
+                                         const int step_direction,
+                                         double &progress_before,
+                                         bool &has_progress)
+{
+  progress_before = 0.0;
+  has_progress = false;
+
+  if(structure_time <= 0)
+    return true;
+
+  int slot_index = -1;
+  if(!EnsureStructureTouchProgressSlot(context, direction, slot_index))
+    return false;
+
+  StructureTouchProgressRuntime slot = g_structure_touch_progress_state[slot_index];
+  if(!slot.initialized ||
+     slot.structure_time != structure_time ||
+     slot.step_direction != step_direction)
+    return true;
+
+  progress_before = slot.progress_percent;
+  has_progress = true;
+  return true;
+}
+
+bool CommitStructureTouchProgress(const StrategyContextTypes context,
+                                  const SignalTypes direction,
+                                  const datetime structure_time,
+                                  const int step_direction,
+                                  const double percent_value)
+{
+  if(structure_time <= 0 || !MathIsValidNumber(percent_value))
+    return true;
+
+  int slot_index = -1;
+  if(!EnsureStructureTouchProgressSlot(context, direction, slot_index))
+    return false;
+
+  StructureTouchProgressRuntime slot = g_structure_touch_progress_state[slot_index];
+
+  if(!slot.initialized ||
+     slot.structure_time != structure_time ||
+     slot.step_direction != step_direction)
+  {
+    slot.structure_time   = structure_time;
+    slot.step_direction   = step_direction;
+    slot.progress_percent = percent_value;
+    slot.initialized      = true;
+    g_structure_touch_progress_state[slot_index] = slot;
+    return true;
+  }
+
+  if(step_direction >= 0)
+  {
+    if(percent_value > slot.progress_percent)
+      slot.progress_percent = percent_value;
+  }
+  else
+  {
+    if(percent_value < slot.progress_percent)
+      slot.progress_percent = percent_value;
+  }
+
+  g_structure_touch_progress_state[slot_index] = slot;
+  return true;
+}
+
+bool PercentReachedTargetForStep(const double progress_percent,
+                                 const double target_percent,
+                                 const int step_direction)
+{
+  if(step_direction >= 0)
+    return (progress_percent + STRUCTURE_TOUCH_POLICY_EPS >= target_percent);
+
+  return (progress_percent - STRUCTURE_TOUCH_POLICY_EPS <= target_percent);
+}
+
+bool PercentReachedBandForStep(const double progress_percent,
+                               const double lower_percent,
+                               const double upper_percent,
+                               const int step_direction)
+{
+  if(step_direction >= 0)
+    return (progress_percent + STRUCTURE_TOUCH_POLICY_EPS >= lower_percent);
+
+  return (progress_percent - STRUCTURE_TOUCH_POLICY_EPS <= upper_percent);
+}
+
+bool FibonacciRangeEquals(const double first_lower,
+                          const double first_upper,
+                          const double second_lower,
+                          const double second_upper)
+{
+  return (MathAbs(first_lower - second_lower) <= STRUCTURE_TOUCH_POLICY_EPS) &&
+         (MathAbs(first_upper - second_upper) <= STRUCTURE_TOUCH_POLICY_EPS);
+}
+
+int ResolveStructureEntryBarIndex(const StrategyContextTypes context,
+                                  const StructureTriggerEntryModes trigger_mode)
+{
+  if(trigger_mode == LEVELS_AS_LIMITS)
+    return 1;
+
+  if(trigger_mode == LEVEL_AS_ZONE && StrategyContextFirstTouchOnly(context))
+    return 1;
+
+  return 0;
+}
+
 bool ResolveStructureFibonacciEntry(const StrategyContextIndicators &snapshot,
                                     const SignalTypes direction,
                                     const StructureTriggerEntryModes trigger_mode,
@@ -275,10 +471,16 @@ bool ResolveStructureFibonacciEntry(const StrategyContextIndicators &snapshot,
   if(!g_structure_fibo_config.valid)
     return false;
 
-  int bar_index = (trigger_mode == LEVELS_AS_LIMITS) ? 1 : 0;
+  int bar_index = ResolveStructureEntryBarIndex(snapshot.context, trigger_mode);
+  if(Bars(_Symbol, snapshot.timeframe) <= bar_index)
+    return false;
+
   double close_price = iClose(_Symbol, snapshot.timeframe, bar_index);
   double low_price   = iLow(_Symbol, snapshot.timeframe, bar_index);
   double high_price  = iHigh(_Symbol, snapshot.timeframe, bar_index);
+
+  StrategyStructureLayerContext structure_ctx = BuildStructureLayerForContext(snapshot.context);
+  datetime structure_snapshot_time = ResolveStructureSnapshotTimestamp(snapshot.structure_data, structure_ctx);
 
   return ResolveStructureFibonacciEntryForPrices(snapshot.structure_data,
                                                  close_price,
@@ -288,7 +490,9 @@ bool ResolveStructureFibonacciEntry(const StrategyContextIndicators &snapshot,
                                                  trigger_mode,
                                                  entry_price_out,
                                                  in_zone,
-                                                 entry_is_limit);
+                                                 entry_is_limit,
+                                                 snapshot.context,
+                                                 structure_snapshot_time);
 }
 
 bool ResolveStructureFibonacciEntryForPrices(const StochasticMarketStructure &structure,
@@ -299,7 +503,9 @@ bool ResolveStructureFibonacciEntryForPrices(const StochasticMarketStructure &st
                                              const StructureTriggerEntryModes trigger_mode,
                                              double &entry_price_out,
                                              bool &in_zone,
-                                             bool &entry_is_limit)
+                                             bool &entry_is_limit,
+                                             const StrategyContextTypes context = CONTEXT_SLOT_BASE,
+                                             const datetime structure_snapshot_time = 0)
 {
   entry_price_out = 0.0;
   in_zone = false;
@@ -347,36 +553,148 @@ bool ResolveStructureFibonacciEntryForPrices(const StochasticMarketStructure &st
     extreme_percent = close_percent;
   }
 
-  double lower = 0.0;
-  double upper = 0.0;
+  double close_lower = 0.0;
+  double close_upper = 0.0;
+  double extreme_lower = 0.0;
+  double extreme_upper = 0.0;
+
   bool close_ok = ResolveFibonacciRangeForPercentStrict(g_structure_fibo_config.levels,
                                                         ArraySize(g_structure_fibo_config.levels),
                                                         close_percent,
-                                                        lower,
-                                                        upper);
-  bool close_in = close_ok && (close_percent >= lower && close_percent <= upper);
-  bool extreme_in = false;
+                                                        close_lower,
+                                                        close_upper);
+  bool close_in = close_ok && (close_percent >= close_lower && close_percent <= close_upper);
 
+  bool extreme_ok = ResolveFibonacciRangeForPercentStrict(g_structure_fibo_config.levels,
+                                                           ArraySize(g_structure_fibo_config.levels),
+                                                           extreme_percent,
+                                                           extreme_lower,
+                                                           extreme_upper);
+  bool extreme_in = extreme_ok && (extreme_percent >= extreme_lower && extreme_percent <= extreme_upper);
+
+  double lower = 0.0;
+  double upper = 0.0;
   if(close_in)
   {
-    extreme_in = (extreme_percent >= lower && extreme_percent <= upper);
+    lower = close_lower;
+    upper = close_upper;
   }
-  else
+  else if(extreme_in)
   {
-    double ext_lower = 0.0;
-    double ext_upper = 0.0;
-    if(ResolveFibonacciRangeForPercentStrict(g_structure_fibo_config.levels,
-                                             ArraySize(g_structure_fibo_config.levels),
-                                             extreme_percent,
-                                             ext_lower,
-                                             ext_upper))
+    lower = extreme_lower;
+    upper = extreme_upper;
+  }
+
+  StructureTouchPolicyModes touch_policy = StrategyContextTouchPolicy(context);
+  bool first_touch_only = (touch_policy == FIRST_TOUCH_ONLY);
+  int step_direction = ResolveStructurePercentStepDirection(direction, current_is_bottom);
+  if(step_direction == 0)
+    step_direction = 1;
+
+  datetime resolved_structure_time = ResolveStructureTouchPolicyStructureTime(structure,
+                                                                              structure_snapshot_time);
+  if(first_touch_only && resolved_structure_time <= 0)
+    return false;
+
+  if(first_touch_only)
+  {
+    if(trigger_mode == LEVELS_AS_LIMITS)
     {
-      if(extreme_percent >= ext_lower && extreme_percent <= ext_upper)
+      if(!close_in && !extreme_in)
       {
-        lower = ext_lower;
-        upper = ext_upper;
-        extreme_in = true;
+        if(!CommitStructureTouchProgress(context,
+                                         direction,
+                                         resolved_structure_time,
+                                         step_direction,
+                                         extreme_percent))
+          return false;
+        return true;
       }
+
+      double target_percent = (step_direction > 0) ? upper : lower;
+      double progress_before = 0.0;
+      bool has_progress_before = false;
+      if(!ResolveStructureTouchProgressBefore(context,
+                                              direction,
+                                              resolved_structure_time,
+                                              step_direction,
+                                              progress_before,
+                                              has_progress_before))
+        return false;
+
+      bool touched_before = has_progress_before &&
+                            PercentReachedTargetForStep(progress_before,
+                                                        target_percent,
+                                                        step_direction);
+      bool touches_now = PercentReachedTargetForStep(extreme_percent,
+                                                     target_percent,
+                                                     step_direction);
+
+      if(!CommitStructureTouchProgress(context,
+                                       direction,
+                                       resolved_structure_time,
+                                       step_direction,
+                                       extreme_percent))
+        return false;
+
+      if(touched_before || touches_now)
+        return true;
+    }
+    else if(trigger_mode == LEVEL_AS_ZONE)
+    {
+      if(!close_in || !extreme_in)
+      {
+        if(!CommitStructureTouchProgress(context,
+                                         direction,
+                                         resolved_structure_time,
+                                         step_direction,
+                                         extreme_percent))
+          return false;
+        return true;
+      }
+
+      if(!FibonacciRangeEquals(close_lower,
+                               close_upper,
+                               extreme_lower,
+                               extreme_upper))
+      {
+        if(!CommitStructureTouchProgress(context,
+                                         direction,
+                                         resolved_structure_time,
+                                         step_direction,
+                                         extreme_percent))
+          return false;
+        return true;
+      }
+
+      double progress_before = 0.0;
+      bool has_progress_before = false;
+      if(!ResolveStructureTouchProgressBefore(context,
+                                              direction,
+                                              resolved_structure_time,
+                                              step_direction,
+                                              progress_before,
+                                              has_progress_before))
+        return false;
+
+      bool touched_before = has_progress_before &&
+                            PercentReachedBandForStep(progress_before,
+                                                      close_lower,
+                                                      close_upper,
+                                                      step_direction);
+
+      if(!CommitStructureTouchProgress(context,
+                                       direction,
+                                       resolved_structure_time,
+                                       step_direction,
+                                       extreme_percent))
+        return false;
+
+      if(touched_before)
+        return true;
+
+      lower = close_lower;
+      upper = close_upper;
     }
   }
 

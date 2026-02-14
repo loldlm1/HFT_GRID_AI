@@ -17,6 +17,7 @@
 #include "harness/cases/structure_fibonacci_orientation_test_case.mqh"
 #include "harness/cases/structure_fibonacci_strict_range_test_case.mqh"
 #include "harness/cases/structure_snapshot_time_test_case.mqh"
+#include "harness/cases/structure_touch_policy_test_case.mqh"
 
 string HarnessCompactErrors(const string raw_errors)
 {
@@ -179,6 +180,13 @@ void OnStart()
 
   HarnessRecordResult("structure_snapshot_time_test",
                       RunTest_structure_snapshot_time_test(errors),
+                      errors,
+                      passed_count,
+                      failed_count,
+                      total_count);
+
+  HarnessRecordResult("structure_touch_policy_test",
+                      RunTest_structure_touch_policy_test(errors),
                       errors,
                       passed_count,
                       failed_count,
