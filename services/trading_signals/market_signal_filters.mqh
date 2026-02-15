@@ -469,6 +469,21 @@ bool StructureLimitTerminalBandGuardEnabled(const StructureTriggerEntryModes tri
           Level_Position_Start == 0);
 }
 
+bool StructureBreakoutTwoLevelEndpointAnchoringEnabled(const StrategyContextTypes context,
+                                                       const StructureTriggerEntryModes trigger_mode)
+{
+  if(trigger_mode != LEVELS_AS_LIMITS)
+    return false;
+
+  if(!StrategyContextUsesBreakoutCompoundMode(context))
+    return false;
+
+  if(!g_structure_fibo_config.valid)
+    return false;
+
+  return (ArraySize(g_structure_fibo_config.levels) == 2);
+}
+
 bool StructureLimitEntryRequiresExtrapolatedStopAnchor(const double target_percent,
                                                        const int step_direction)
 {
@@ -753,7 +768,8 @@ bool ResolveStructureFibonacciEntryForPrices(const StochasticMarketStructure &st
   if(!close_in && !extreme_in)
     return true; // no trigger but not fatal
 
-  if(StructureLimitTerminalBandGuardEnabled(trigger_mode))
+  if(StructureLimitTerminalBandGuardEnabled(trigger_mode) &&
+     !StructureBreakoutTwoLevelEndpointAnchoringEnabled(context, trigger_mode))
   {
     double target_percent = (step_direction > 0) ? upper : lower;
     if(StructureLimitEntryRequiresExtrapolatedStopAnchor(target_percent, step_direction))

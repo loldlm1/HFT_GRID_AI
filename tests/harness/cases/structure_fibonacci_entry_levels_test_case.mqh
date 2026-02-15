@@ -200,6 +200,7 @@ bool RunTest_structure_fibonacci_entry_levels_test(string &errors)
 
   // Scoped guard: block terminal limit bands that require extrapolated stop anchors.
   ClearStructureLimitTerminalBandGuardRuntimeOverride();
+  ClearStructureCompoundFilterRuntimeOverride();
   LoadStructureFibonacciLevels("0.0,61.8,100.0",
                                "0.0,61.8,100.0");
 
@@ -258,6 +259,31 @@ bool RunTest_structure_fibonacci_entry_levels_test(string &errors)
   {
     errors += "terminal guard control should keep legacy behavior\n";
   }
+
+  // Breakout + 2 levels uses endpoint anchoring and bypasses terminal-band blocking.
+  SetStructureCompoundFilterRuntime(COMPOUND_MODE_BREAKOUT_READY_BUY);
+  LoadStructureFibonacciLevels("0.0,100.0",
+                               "0.0,100.0");
+  SetStructureLimitTerminalBandGuardRuntime(true);
+  if(!ResolveStructureFibonacciEntryForPrices(s_bottom,
+                                              terminal_band_price,
+                                              terminal_band_price,
+                                              terminal_band_price,
+                                              BULLISH,
+                                              LEVELS_AS_LIMITS,
+                                              entry_price,
+                                              in_zone,
+                                              entry_is_limit))
+  {
+    errors += "breakout two-level terminal guard resolve failed\n";
+  }
+  else if(!in_zone || !entry_is_limit)
+  {
+    errors += "breakout two-level terminal guard should allow entry\n";
+  }
+
+  ClearStructureCompoundFilterRuntimeOverride();
+  ClearStructureLimitTerminalBandGuardRuntimeOverride();
 
   return (errors == "");
 }

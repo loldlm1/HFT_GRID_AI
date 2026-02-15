@@ -556,6 +556,61 @@ bool ResolveFibonacciEntryRange(const SignalParams &signal_params,
   return true;
 }
 
+bool SignalUsesBreakoutTwoLevelEndpointAnchoring(const SignalParams &signal_params)
+{
+  if(signal_params.entry_trigger_mode != LEVELS_AS_LIMITS)
+    return false;
+
+  if(!signal_params.entry_is_limit)
+    return false;
+
+  if(!StrategyContextUsesBreakoutCompoundMode(signal_params.strategy_context))
+    return false;
+
+  if(!g_structure_fibo_config.valid)
+    return false;
+
+  return (ArraySize(g_structure_fibo_config.levels) == 2);
+}
+
+bool ResolveBreakoutTwoLevelOppositeEndpointPercent(const double entry_percent,
+                                                    double &opposite_percent_out)
+{
+  opposite_percent_out = 0.0;
+
+  if(!g_structure_fibo_config.valid)
+    return false;
+
+  int total_levels = ArraySize(g_structure_fibo_config.levels);
+  if(total_levels != 2)
+    return false;
+
+  double min_level = g_structure_fibo_config.levels[0];
+  double max_level = g_structure_fibo_config.levels[1];
+  double eps = 0.0001;
+
+  if(MathAbs(entry_percent - min_level) <= eps)
+  {
+    opposite_percent_out = max_level;
+    return true;
+  }
+
+  if(MathAbs(entry_percent - max_level) <= eps)
+  {
+    opposite_percent_out = min_level;
+    return true;
+  }
+
+  if(MathAbs(entry_percent - min_level) <= MathAbs(entry_percent - max_level))
+  {
+    opposite_percent_out = max_level;
+    return true;
+  }
+
+  opposite_percent_out = min_level;
+  return true;
+}
+
 bool ResolveFibonacciGridLevelPercent(const SignalParams &signal_params,
                                       const int level_index,
                                       double &level_percent_out)
@@ -582,6 +637,12 @@ bool ResolveFibonacciGridLevelPercent(const SignalParams &signal_params,
                                    bottom_price,
                                    current_is_bottom))
     return false;
+
+  if(level_index == 0 && SignalUsesBreakoutTwoLevelEndpointAnchoring(signal_params))
+  {
+    if(ResolveBreakoutTwoLevelOppositeEndpointPercent(entry_percent, level_percent_out))
+      return true;
+  }
 
   int steps = signal_params.fib_level_offset_steps + level_index;
   if(steps <= 0)
@@ -627,6 +688,19 @@ bool ResolveFibonacciGridLevelPrice(const SignalParams &signal_params,
                                    bottom_price,
                                    current_is_bottom))
     return false;
+
+  if(level_index == 0 && SignalUsesBreakoutTwoLevelEndpointAnchoring(signal_params))
+  {
+    double anchored_percent = 0.0;
+    if(ResolveBreakoutTwoLevelOppositeEndpointPercent(entry_percent, anchored_percent))
+    {
+      return ResolveStructurePriceForPercent(peak_price,
+                                             bottom_price,
+                                             current_is_bottom,
+                                             anchored_percent,
+                                             price_out);
+    }
+  }
 
   int steps = signal_params.fib_level_offset_steps + level_index;
   if(steps <= 0)
@@ -689,6 +763,28 @@ bool ResolveFibonacciGridBaseDistance(const SignalParams &signal_params,
 
   double required_points = EnforceBrokerDistance(g_symbol_constraints, Grid_Points_Range_Setup);
   int max_steps = total_levels + 10;
+
+  if(SignalUsesBreakoutTwoLevelEndpointAnchoring(signal_params))
+  {
+    double anchored_percent = 0.0;
+    if(!ResolveBreakoutTwoLevelOppositeEndpointPercent(entry_percent, anchored_percent))
+      return false;
+
+    double anchored_price = 0.0;
+    if(!ResolveStructurePriceForPercent(peak_price,
+                                        bottom_price,
+                                        current_is_bottom,
+                                        anchored_percent,
+                                        anchored_price))
+      return false;
+
+    steps_out = 1;
+    distance_points_out = MathAbs(entry_price - anchored_price) / point_size;
+    distance_points_out = EnforceBrokerDistance(g_symbol_constraints, distance_points_out);
+    if(required_points > 0.0 && distance_points_out < required_points)
+      return false;
+    return (distance_points_out > 0.0);
+  }
 
   if(signal_params.entry_trigger_mode == LEVEL_AS_ZONE && required_points > 0.0)
   {

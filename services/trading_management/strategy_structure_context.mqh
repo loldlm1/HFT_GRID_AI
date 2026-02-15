@@ -14,10 +14,18 @@ struct StrategyStructureLayerContext
 
 StructureTouchPolicyModes g_structure_touch_policy_runtime = ALLOW_RETEST;
 bool g_structure_touch_policy_runtime_override = false;
+TrendStructureCompoundModes g_structure_compound_filter_runtime = COMPOUND_MODE_OFF;
+bool g_structure_compound_filter_runtime_override = false;
 
 inline bool StructureCompoundFilterIsEnabled(const TrendStructureCompoundModes mode)
 {
   return (mode != COMPOUND_MODE_OFF);
+}
+
+inline bool StructureCompoundFilterIsBreakoutMode(const TrendStructureCompoundModes mode)
+{
+  return (mode == COMPOUND_MODE_BREAKOUT_READY_BUY ||
+          mode == COMPOUND_MODE_BREAKOUT_READY_SELL);
 }
 
 inline int ResolveStochStructurePeriod();
@@ -34,7 +42,9 @@ inline StrategyStructureLayerContext BuildDisabledStructureLayerContext()
 inline StrategyStructureLayerContext BuildBaseStructureLayerContext()
 {
   StrategyStructureLayerContext ctx;
-  ctx.structure_compound_filter = Base_Structure_Compound_Filter;
+  ctx.structure_compound_filter = g_structure_compound_filter_runtime_override
+                                    ? g_structure_compound_filter_runtime
+                                    : Base_Structure_Compound_Filter;
   ctx.enabled                   = (ResolveStochStructurePeriod() >= 3);
   ctx.uses_trend_dataset        = false;
   return ctx;
@@ -167,6 +177,17 @@ inline void ClearStructureTouchPolicyRuntimeOverride()
   g_structure_touch_policy_runtime_override = false;
 }
 
+inline void SetStructureCompoundFilterRuntime(const TrendStructureCompoundModes mode)
+{
+  g_structure_compound_filter_runtime = mode;
+  g_structure_compound_filter_runtime_override = true;
+}
+
+inline void ClearStructureCompoundFilterRuntimeOverride()
+{
+  g_structure_compound_filter_runtime_override = false;
+}
+
 inline StructureTouchPolicyModes ResolveBaseStructureTouchPolicy()
 {
   return g_structure_touch_policy_runtime_override
@@ -204,6 +225,14 @@ inline StrategyStructureLayerContext BuildStructureLayerForContext(const Strateg
   return (context == CONTEXT_SLOT_BASE)
            ? BuildBaseStructureLayerContext()
            : BuildDisabledStructureLayerContext();
+}
+
+inline bool StrategyContextUsesBreakoutCompoundMode(const StrategyContextTypes context)
+{
+  StrategyStructureLayerContext ctx = BuildStructureLayerForContext(context);
+  if(!ctx.enabled)
+    return false;
+  return StructureCompoundFilterIsBreakoutMode(ctx.structure_compound_filter);
 }
 
 #endif // _SERVICES_TRADING_MANAGEMENT_STRATEGY_STRUCTURE_CONTEXT_MQH_
