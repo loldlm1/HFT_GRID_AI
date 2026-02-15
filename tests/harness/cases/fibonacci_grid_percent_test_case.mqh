@@ -135,7 +135,55 @@ bool RunTest_fibonacci_grid_percent_test(string &errors)
   breakout_signal.entry_trigger_mode = LEVELS_AS_LIMITS;
   if(!ResolveFibonacciGridLevelPercent(breakout_signal, 0, next_percent))
     errors += "breakout next percent failed\n";
-  FibonacciGridPercent_AssertClose("breakout two-level anchored next percent", next_percent, 0.0, 0.1, errors);
+  FibonacciGridPercent_AssertClose("breakout anchored next percent", next_percent, 0.0, 0.1, errors);
+
+  LoadStructureFibonacciLevels("-61.8,0.0,100.0,161.8",
+                               "-61.8,0.0,100.0,161.8");
+
+  SignalParams breakout_multi_signal = signal;
+  breakout_multi_signal.signal_type = BULLISH;
+  breakout_multi_signal.entry_is_limit = true;
+  breakout_multi_signal.entry_trigger_mode = LEVELS_AS_LIMITS;
+  breakout_multi_signal.base_structure_data = s_peak;
+
+  peak_price = 0.0;
+  bottom_price = 0.0;
+  current_is_bottom = false;
+  if(!ResolveSignalStructureRange(breakout_multi_signal,
+                                  peak_price,
+                                  bottom_price,
+                                  current_is_bottom))
+  {
+    errors += "breakout multi range failed\n";
+  }
+  else
+  {
+    double breakout_entry_price = 0.0;
+    if(!ResolveStructurePriceForPercent(peak_price,
+                                        bottom_price,
+                                        current_is_bottom,
+                                        100.0,
+                                        breakout_entry_price))
+    {
+      errors += "breakout multi entry price failed\n";
+    }
+    else
+    {
+      breakout_multi_signal.entry_price = breakout_entry_price;
+      breakout_multi_signal.grid_entry_reference_price = breakout_entry_price;
+      breakout_multi_signal.fib_level_offset_steps = 1;
+
+      if(!ResolveFibonacciGridLevelPercent(breakout_multi_signal, 0, next_percent))
+        errors += "breakout multi level0 failed\n";
+      else
+        FibonacciGridPercent_AssertClose("breakout multi level0", next_percent, 0.0, 0.1, errors);
+
+      if(!ResolveFibonacciGridLevelPercent(breakout_multi_signal, 1, next_percent))
+        errors += "breakout multi level1 failed\n";
+      else
+        FibonacciGridPercent_AssertClose("breakout multi level1", next_percent, -61.8, 0.1, errors);
+    }
+  }
 
   ClearStructureCompoundFilterRuntimeOverride();
 
