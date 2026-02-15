@@ -282,6 +282,8 @@ struct StructureTouchProgressRuntime
 };
 
 StructureTouchProgressRuntime g_structure_touch_progress_state[];
+bool g_structure_limit_terminal_band_guard_runtime_override = false;
+bool g_structure_limit_terminal_band_guard_runtime_enabled = false;
 
 void ClearStructureTouchPolicyState()
 {
@@ -441,6 +443,56 @@ bool FibonacciRangeEquals(const double first_lower,
 {
   return (MathAbs(first_lower - second_lower) <= STRUCTURE_TOUCH_POLICY_EPS) &&
          (MathAbs(first_upper - second_upper) <= STRUCTURE_TOUCH_POLICY_EPS);
+}
+
+void SetStructureLimitTerminalBandGuardRuntime(const bool enabled)
+{
+  g_structure_limit_terminal_band_guard_runtime_enabled = enabled;
+  g_structure_limit_terminal_band_guard_runtime_override = true;
+}
+
+void ClearStructureLimitTerminalBandGuardRuntimeOverride()
+{
+  g_structure_limit_terminal_band_guard_runtime_override = false;
+}
+
+bool StructureLimitTerminalBandGuardEnabled(const StructureTriggerEntryModes trigger_mode)
+{
+  if(trigger_mode != LEVELS_AS_LIMITS)
+    return false;
+
+  if(g_structure_limit_terminal_band_guard_runtime_override)
+    return g_structure_limit_terminal_band_guard_runtime_enabled;
+
+  return (Grid_Base_Strategy_Type == FIB_LEVEL_RANGE &&
+          Level_Stop_Limit == 1 &&
+          Level_Position_Start == 0);
+}
+
+bool StructureLimitEntryRequiresExtrapolatedStopAnchor(const double target_percent,
+                                                       const int step_direction)
+{
+  if(!g_structure_fibo_config.valid || !g_structure_fibo_config.cycle_valid)
+    return false;
+
+  int total_levels = ArraySize(g_structure_fibo_config.levels);
+  if(total_levels < 2)
+    return false;
+
+  double next_percent = 0.0;
+  if(!ResolveFibonacciNextPercentCycledWithCycle(g_structure_fibo_config.cycle_levels,
+                                                 ArraySize(g_structure_fibo_config.cycle_levels),
+                                                 g_structure_fibo_config.cycle_allow_zero,
+                                                 target_percent,
+                                                 1,
+                                                 step_direction,
+                                                 next_percent))
+    return false;
+
+  double min_level = g_structure_fibo_config.levels[0];
+  double max_level = g_structure_fibo_config.levels[total_levels - 1];
+  return (next_percent < (min_level - STRUCTURE_TOUCH_POLICY_EPS) ||
+          next_percent > (max_level + STRUCTURE_TOUCH_POLICY_EPS));
 }
 
 int ResolveStructureEntryBarIndex(const StrategyContextTypes context,
@@ -700,6 +752,13 @@ bool ResolveStructureFibonacciEntryForPrices(const StochasticMarketStructure &st
 
   if(!close_in && !extreme_in)
     return true; // no trigger but not fatal
+
+  if(StructureLimitTerminalBandGuardEnabled(trigger_mode))
+  {
+    double target_percent = (step_direction > 0) ? upper : lower;
+    if(StructureLimitEntryRequiresExtrapolatedStopAnchor(target_percent, step_direction))
+      return true;
+  }
 
   double required_points = EnforceBrokerDistance(g_symbol_constraints, Grid_Points_Range_Setup);
   if(required_points > 0.0)

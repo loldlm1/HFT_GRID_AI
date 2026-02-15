@@ -73,6 +73,17 @@ void EvaluateContextSignals(const StrategyContextTypes context)
     if(!CanAttemptSignal(direction))
       continue;
 
+    datetime resolved_structure_time = structure_time;
+    if(resolved_structure_time <= 0 && snapshot.structure_valid)
+    {
+      StrategyStructureLayerContext structure_ctx = BuildStructureLayerForContext(context);
+      resolved_structure_time = ResolveStructureSnapshotTimestamp(snapshot.structure_data,
+                                                                  structure_ctx);
+    }
+
+    if(HasRunningSignalForStructure(context, direction, resolved_structure_time))
+      continue;
+
     SignalParams signal;
     signal.signal_type            = direction;
     signal.entry_time             = snapshot.bar_time;
@@ -83,7 +94,7 @@ void EvaluateContextSignals(const StrategyContextTypes context)
     signal.entry_trigger_mode     = Structure_Trigger_Entry;
     signal.entry_is_limit         = entry_is_limit;
     signal.signal_lot_sequence_step = ResolveSignalLotSequenceStepForNewSignal();
-    signal.context_structure_snapshot_time = structure_time;
+    signal.context_structure_snapshot_time = resolved_structure_time;
     AssignContextSnapshotToSignal(snapshot, signal);
 
     if(!BuildGridOrderForSignal(signal))

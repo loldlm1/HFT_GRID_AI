@@ -9,6 +9,7 @@
 #include "harness/cases/grid_visual_label_format_test_case.mqh"
 #include "harness/cases/signal_lot_strategy_test_case.mqh"
 #include "harness/cases/structure_classifier_types_test_case.mqh"
+#include "harness/cases/structure_context_requirements_test_case.mqh"
 #include "harness/cases/structure_entry_trigger_test_case.mqh"
 #include "harness/cases/structure_fibonacci_entry_levels_test_case.mqh"
 #include "harness/cases/structure_fibonacci_entry_price_test_case.mqh"
@@ -124,6 +125,13 @@ void OnStart()
 
   HarnessRecordResult("structure_classifier_types_test",
                       RunTest_structure_classifier_types_test(errors),
+                      errors,
+                      passed_count,
+                      failed_count,
+                      total_count);
+
+  HarnessRecordResult("structure_context_requirements_test",
+                      RunTest_structure_context_requirements_test(errors),
                       errors,
                       passed_count,
                       failed_count,

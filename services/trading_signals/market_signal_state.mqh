@@ -118,6 +118,57 @@ bool StrategyCascadeAllowsSignal(const StrategyContextTypes context,
   return true;
 }
 
+bool SignalMatchesStructureIdentity(const SignalParams &signal_params,
+                                    const StrategyContextTypes context,
+                                    const datetime structure_time)
+{
+  if(structure_time <= 0)
+    return false;
+
+  if(signal_params.signal_state == CLOSED)
+    return false;
+
+  if(signal_params.strategy_context != context)
+    return false;
+
+  if(signal_params.context_structure_snapshot_time <= 0)
+    return false;
+
+  return (signal_params.context_structure_snapshot_time == structure_time);
+}
+
+bool HasRunningSignalForStructure(const StrategyContextTypes context,
+                                  const SignalTypes direction,
+                                  const datetime structure_time)
+{
+  if(structure_time <= 0)
+    return false;
+
+  if(direction == BULLISH)
+  {
+    int total = ArraySize(running_bullish_signals);
+    for(int i = 0; i < total; i++)
+    {
+      if(SignalMatchesStructureIdentity(running_bullish_signals[i], context, structure_time))
+        return true;
+    }
+    return false;
+  }
+
+  if(direction == BEARISH)
+  {
+    int total = ArraySize(running_bearish_signals);
+    for(int i = 0; i < total; i++)
+    {
+      if(SignalMatchesStructureIdentity(running_bearish_signals[i], context, structure_time))
+        return true;
+    }
+    return false;
+  }
+
+  return false;
+}
+
 bool SignalConcurrencyAllowsAttempt(const SignalTypes direction)
 {
   if(Signal_Concurrency_Mode == MULTIPLE_RUNNING_SIGNALS)
