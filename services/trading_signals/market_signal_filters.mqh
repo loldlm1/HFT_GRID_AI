@@ -481,6 +481,50 @@ bool StructureBreakoutLimitAnchoringEnabled(const StrategyContextTypes context,
   return g_structure_fibo_config.valid;
 }
 
+bool ResolveBreakoutLimitBandTarget(const SignalTypes direction,
+                                    const double lower_percent,
+                                    const double upper_percent,
+                                    const double lower_price,
+                                    const double upper_price,
+                                    double &target_percent_out,
+                                    double &target_price_out)
+{
+  target_percent_out = 0.0;
+  target_price_out = 0.0;
+
+  if(direction == BULLISH)
+  {
+    if(upper_price >= lower_price)
+    {
+      target_percent_out = upper_percent;
+      target_price_out = upper_price;
+    }
+    else
+    {
+      target_percent_out = lower_percent;
+      target_price_out = lower_price;
+    }
+    return true;
+  }
+
+  if(direction == BEARISH)
+  {
+    if(upper_price <= lower_price)
+    {
+      target_percent_out = upper_percent;
+      target_price_out = upper_price;
+    }
+    else
+    {
+      target_percent_out = lower_percent;
+      target_price_out = lower_price;
+    }
+    return true;
+  }
+
+  return false;
+}
+
 bool StructureLimitEntryRequiresExtrapolatedStopAnchor(const double target_percent,
                                                        const int step_direction)
 {
@@ -649,6 +693,8 @@ bool ResolveStructureFibonacciEntryForPrices(const StochasticMarketStructure &st
     upper = extreme_upper;
   }
 
+  bool breakout_limit_mode = StructureBreakoutLimitAnchoringEnabled(context, trigger_mode);
+
   StructureTouchPolicyModes touch_policy = StrategyContextTouchPolicy(context);
   bool first_touch_only = (touch_policy == FIRST_TOUCH_ONLY);
   int step_direction = ResolveStructurePercentStepDirection(direction, current_is_bottom);
@@ -676,6 +722,32 @@ bool ResolveStructureFibonacciEntryForPrices(const StochasticMarketStructure &st
       }
 
       double target_percent = (step_direction > 0) ? upper : lower;
+      if(breakout_limit_mode)
+      {
+        double lower_price = 0.0;
+        double upper_price = 0.0;
+        if(!ResolveStructurePriceForPercent(peak_price,
+                                            bottom_price,
+                                            current_is_bottom,
+                                            lower,
+                                            lower_price) ||
+           !ResolveStructurePriceForPercent(peak_price,
+                                            bottom_price,
+                                            current_is_bottom,
+                                            upper,
+                                            upper_price))
+          return false;
+
+        double target_price = 0.0;
+        if(!ResolveBreakoutLimitBandTarget(direction,
+                                           lower,
+                                           upper,
+                                           lower_price,
+                                           upper_price,
+                                           target_percent,
+                                           target_price))
+          return false;
+      }
       double progress_before = 0.0;
       bool has_progress_before = false;
       if(!ResolveStructureTouchProgressBefore(context,
@@ -765,8 +837,6 @@ bool ResolveStructureFibonacciEntryForPrices(const StochasticMarketStructure &st
   if(!close_in && !extreme_in)
     return true; // no trigger but not fatal
 
-  bool breakout_limit_mode = StructureBreakoutLimitAnchoringEnabled(context, trigger_mode);
-
   if(StructureLimitTerminalBandGuardEnabled(trigger_mode) &&
      !breakout_limit_mode)
   {
@@ -821,15 +891,14 @@ bool ResolveStructureFibonacciEntryForPrices(const StochasticMarketStructure &st
 
     if(breakout_limit_mode)
     {
-      double entry_percent = (direction == BULLISH) ? upper : lower;
-      if(direction != BULLISH && direction != BEARISH)
-        entry_percent = close_percent;
-
-      if(!ResolveStructurePriceForPercent(peak_price,
-                                          bottom_price,
-                                          current_is_bottom,
-                                          entry_percent,
-                                          entry_price_out))
+      double entry_percent = 0.0;
+      if(!ResolveBreakoutLimitBandTarget(direction,
+                                         lower,
+                                         upper,
+                                         lower_price,
+                                         upper_price,
+                                         entry_percent,
+                                         entry_price_out))
         return false;
     }
     else

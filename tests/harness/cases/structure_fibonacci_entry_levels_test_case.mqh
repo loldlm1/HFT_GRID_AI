@@ -340,6 +340,33 @@ bool RunTest_structure_fibonacci_entry_levels_test(string &errors)
                             errors);
   }
 
+  SetStructureCompoundFilterRuntime(COMPOUND_MODE_BREAKOUT_READY_SELL);
+  double breakout_sell_mid_price = EntryLevels_PriceForPercent(s_peak, 70.0);
+  if(!ResolveStructureFibonacciEntryForPrices(s_peak,
+                                              breakout_sell_mid_price,
+                                              breakout_sell_mid_price,
+                                              breakout_sell_mid_price,
+                                              BEARISH,
+                                              LEVELS_AS_LIMITS,
+                                              entry_price,
+                                              in_zone,
+                                              entry_is_limit))
+  {
+    errors += "breakout dynamic bearish resolve failed\n";
+  }
+  else if(!in_zone || !entry_is_limit)
+  {
+    errors += "breakout dynamic bearish should allow entry\n";
+  }
+  else
+  {
+    EntryLevels_AssertClose("breakout dynamic bearish entry pct",
+                            EntryLevels_PercentForPrice(s_peak, entry_price),
+                            0.0,
+                            0.1,
+                            errors);
+  }
+
   ClearStructureCompoundFilterRuntimeOverride();
   ClearStructureLimitTerminalBandGuardRuntimeOverride();
 
