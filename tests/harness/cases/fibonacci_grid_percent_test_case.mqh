@@ -126,6 +126,19 @@ bool RunTest_fibonacci_grid_percent_test(string &errors)
     errors += "peak next percent failed\n";
   FibonacciGridPercent_AssertClose("peak bullish next percent", next_percent, 78.6, 0.1, errors);
 
+  SetStructureCompoundFilterRuntime(COMPOUND_MODE_BREAKOUT_READY_BUY);
+  LoadStructureFibonacciLevels("0.0,100.0",
+                               "0.0,100.0");
+
+  SignalParams breakout_signal = signal;
+  breakout_signal.entry_is_limit = true;
+  breakout_signal.entry_trigger_mode = LEVELS_AS_LIMITS;
+  if(!ResolveFibonacciGridLevelPercent(breakout_signal, 0, next_percent))
+    errors += "breakout next percent failed\n";
+  FibonacciGridPercent_AssertClose("breakout two-level anchored next percent", next_percent, 0.0, 0.1, errors);
+
+  ClearStructureCompoundFilterRuntimeOverride();
+
   return (errors == "");
 }
 

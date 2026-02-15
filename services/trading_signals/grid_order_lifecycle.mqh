@@ -91,6 +91,33 @@ bool GridShouldActivateNextLevelLimit(const SignalParams &signal_params,
   double next_trigger = order_state.next_level_price;
   if(next_trigger <= 0.0)
     return false;
+
+  if(order_state.level_index == 0 &&
+     SignalUsesBreakoutTwoLevelEndpointAnchoring(signal_params))
+  {
+    double reference_price = order_state.entry_reference_price;
+    if(reference_price <= 0.0)
+      reference_price = signal_params.entry_price;
+    if(reference_price <= 0.0)
+      reference_price = next_trigger;
+
+    if(direction == BULLISH)
+    {
+      if(next_trigger <= reference_price)
+        return entry_side_price <= next_trigger;
+      return entry_side_price >= next_trigger;
+    }
+
+    if(direction == BEARISH)
+    {
+      if(next_trigger >= reference_price)
+        return entry_side_price >= next_trigger;
+      return entry_side_price <= next_trigger;
+    }
+
+    return false;
+  }
+
   // Bullish: trigger when Ask <= next; Bearish: trigger when Bid >= next
   if(direction == BULLISH) return entry_side_price <= next_trigger;
   if(direction == BEARISH) return entry_side_price >= next_trigger;

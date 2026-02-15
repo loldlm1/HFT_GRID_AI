@@ -147,6 +147,35 @@ bool RunTest_structure_compound_modes_test(string &errors)
                                     4,
                                     false,
                                     errors);
+
+  // Breakout modes allow relaxed family matching (LH/LL and HL/HH families).
+  StructureCompound_AssertModeMatch("breakout ready buy relaxed family match",
+                                    COMPOUND_MODE_BREAKOUT_READY_BUY,
+                                    OSCILLATOR_STRUCTURE_LH,
+                                    OSCILLATOR_STRUCTURE_HH,
+                                    OSCILLATOR_STRUCTURE_LL,
+                                    OSCILLATOR_STRUCTURE_HL,
+                                    4,
+                                    true,
+                                    errors);
+  StructureCompound_AssertModeMatch("breakout ready sell relaxed family match",
+                                    COMPOUND_MODE_BREAKOUT_READY_SELL,
+                                    OSCILLATOR_STRUCTURE_HL,
+                                    OSCILLATOR_STRUCTURE_LL,
+                                    OSCILLATOR_STRUCTURE_HH,
+                                    OSCILLATOR_STRUCTURE_LH,
+                                    4,
+                                    true,
+                                    errors);
+  StructureCompound_AssertModeMatch("breakout ready buy relaxed mismatch",
+                                    COMPOUND_MODE_BREAKOUT_READY_BUY,
+                                    OSCILLATOR_STRUCTURE_HL,
+                                    OSCILLATOR_STRUCTURE_HH,
+                                    OSCILLATOR_STRUCTURE_LL,
+                                    OSCILLATOR_STRUCTURE_HL,
+                                    4,
+                                    false,
+                                    errors);
   StructureCompound_AssertModeMatch("trend ride buy rejects eq on non-eq slot",
                                     COMPOUND_MODE_TREND_RIDE_BUY,
                                     OSCILLATOR_STRUCTURE_EQ,
