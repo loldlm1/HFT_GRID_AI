@@ -198,6 +198,67 @@ bool RunTest_structure_fibonacci_entry_levels_test(string &errors)
       errors += "peak/bear entry not above close\n";
   }
 
+  // Scoped guard: block terminal limit bands that require extrapolated stop anchors.
+  ClearStructureLimitTerminalBandGuardRuntimeOverride();
+  LoadStructureFibonacciLevels("0.0,61.8,100.0",
+                               "0.0,61.8,100.0");
+
+  SetStructureLimitTerminalBandGuardRuntime(true);
+
+  double first_band_price = EntryLevels_PriceForPercent(s_bottom, 30.0);
+  if(!ResolveStructureFibonacciEntryForPrices(s_bottom,
+                                              first_band_price,
+                                              first_band_price,
+                                              first_band_price,
+                                              BULLISH,
+                                              LEVELS_AS_LIMITS,
+                                              entry_price,
+                                              in_zone,
+                                              entry_is_limit))
+  {
+    errors += "terminal guard first band resolve failed\n";
+  }
+  else if(!in_zone || !entry_is_limit)
+  {
+    errors += "terminal guard should allow first band\n";
+  }
+
+  double terminal_band_price = EntryLevels_PriceForPercent(s_bottom, 80.0);
+  if(!ResolveStructureFibonacciEntryForPrices(s_bottom,
+                                              terminal_band_price,
+                                              terminal_band_price,
+                                              terminal_band_price,
+                                              BULLISH,
+                                              LEVELS_AS_LIMITS,
+                                              entry_price,
+                                              in_zone,
+                                              entry_is_limit))
+  {
+    errors += "terminal guard terminal band resolve failed\n";
+  }
+  else if(in_zone)
+  {
+    errors += "terminal guard should block terminal band\n";
+  }
+
+  ClearStructureLimitTerminalBandGuardRuntimeOverride();
+  if(!ResolveStructureFibonacciEntryForPrices(s_bottom,
+                                              terminal_band_price,
+                                              terminal_band_price,
+                                              terminal_band_price,
+                                              BULLISH,
+                                              LEVELS_AS_LIMITS,
+                                              entry_price,
+                                              in_zone,
+                                              entry_is_limit))
+  {
+    errors += "terminal guard control resolve failed\n";
+  }
+  else if(!in_zone || !entry_is_limit)
+  {
+    errors += "terminal guard control should keep legacy behavior\n";
+  }
+
   return (errors == "");
 }
 

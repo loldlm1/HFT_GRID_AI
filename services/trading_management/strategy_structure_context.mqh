@@ -130,6 +130,12 @@ inline bool ContextRequiresStructure(const StrategyContextTypes context,
   if(!ctx.enabled)
     return false;
 
+  // Current entry trigger modes are structure-driven and always need a snapshot.
+  if(context == CONTEXT_SLOT_BASE &&
+     (Structure_Trigger_Entry == LEVELS_AS_LIMITS ||
+      Structure_Trigger_Entry == LEVEL_AS_ZONE))
+    return true;
+
   if(context == CONTEXT_SLOT_BASE && Grid_Base_Strategy_Type == FIB_LEVEL_RANGE)
     return true;
 
