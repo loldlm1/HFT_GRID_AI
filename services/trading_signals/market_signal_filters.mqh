@@ -469,8 +469,8 @@ bool StructureLimitTerminalBandGuardEnabled(const StructureTriggerEntryModes tri
           Level_Position_Start == 0);
 }
 
-bool StructureBreakoutTwoLevelEndpointAnchoringEnabled(const StrategyContextTypes context,
-                                                       const StructureTriggerEntryModes trigger_mode)
+bool StructureBreakoutLimitAnchoringEnabled(const StrategyContextTypes context,
+                                            const StructureTriggerEntryModes trigger_mode)
 {
   if(trigger_mode != LEVELS_AS_LIMITS)
     return false;
@@ -478,10 +478,7 @@ bool StructureBreakoutTwoLevelEndpointAnchoringEnabled(const StrategyContextType
   if(!StrategyContextUsesBreakoutCompoundMode(context))
     return false;
 
-  if(!g_structure_fibo_config.valid)
-    return false;
-
-  return (ArraySize(g_structure_fibo_config.levels) == 2);
+  return g_structure_fibo_config.valid;
 }
 
 bool StructureLimitEntryRequiresExtrapolatedStopAnchor(const double target_percent,
@@ -768,8 +765,10 @@ bool ResolveStructureFibonacciEntryForPrices(const StochasticMarketStructure &st
   if(!close_in && !extreme_in)
     return true; // no trigger but not fatal
 
+  bool breakout_limit_mode = StructureBreakoutLimitAnchoringEnabled(context, trigger_mode);
+
   if(StructureLimitTerminalBandGuardEnabled(trigger_mode) &&
-     !StructureBreakoutTwoLevelEndpointAnchoringEnabled(context, trigger_mode))
+     !breakout_limit_mode)
   {
     double target_percent = (step_direction > 0) ? upper : lower;
     if(StructureLimitEntryRequiresExtrapolatedStopAnchor(target_percent, step_direction))
@@ -820,20 +819,36 @@ bool ResolveStructureFibonacciEntryForPrices(const StochasticMarketStructure &st
                                         upper_price))
       return false;
 
-    double min_price = MathMin(lower_price, upper_price);
-    double max_price = MathMax(lower_price, upper_price);
+    if(breakout_limit_mode)
+    {
+      double entry_percent = (direction == BULLISH) ? upper : lower;
+      if(direction != BULLISH && direction != BEARISH)
+        entry_percent = close_percent;
 
-    if(direction == BULLISH)
-      entry_price_out = min_price;
-    else if(direction == BEARISH)
-      entry_price_out = max_price;
+      if(!ResolveStructurePriceForPercent(peak_price,
+                                          bottom_price,
+                                          current_is_bottom,
+                                          entry_percent,
+                                          entry_price_out))
+        return false;
+    }
     else
-      entry_price_out = close_price;
+    {
+      double min_price = MathMin(lower_price, upper_price);
+      double max_price = MathMax(lower_price, upper_price);
 
-    if(direction == BULLISH && entry_price_out > close_price)
-      return false;
-    if(direction == BEARISH && entry_price_out < close_price)
-      return false;
+      if(direction == BULLISH)
+        entry_price_out = min_price;
+      else if(direction == BEARISH)
+        entry_price_out = max_price;
+      else
+        entry_price_out = close_price;
+
+      if(direction == BULLISH && entry_price_out > close_price)
+        return false;
+      if(direction == BEARISH && entry_price_out < close_price)
+        return false;
+    }
   }
   else
   {

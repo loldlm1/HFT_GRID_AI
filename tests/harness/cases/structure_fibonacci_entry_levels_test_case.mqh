@@ -260,7 +260,8 @@ bool RunTest_structure_fibonacci_entry_levels_test(string &errors)
     errors += "terminal guard control should keep legacy behavior\n";
   }
 
-  // Breakout + 2 levels uses endpoint anchoring and bypasses terminal-band blocking.
+  // Breakout limit anchoring bypasses terminal-band blocking so 0/100 works as
+  // dynamic endpoint setup.
   SetStructureCompoundFilterRuntime(COMPOUND_MODE_BREAKOUT_READY_BUY);
   LoadStructureFibonacciLevels("0.0,100.0",
                                "0.0,100.0");
@@ -275,11 +276,68 @@ bool RunTest_structure_fibonacci_entry_levels_test(string &errors)
                                               in_zone,
                                               entry_is_limit))
   {
-    errors += "breakout two-level terminal guard resolve failed\n";
+    errors += "breakout terminal guard resolve failed\n";
   }
   else if(!in_zone || !entry_is_limit)
   {
-    errors += "breakout two-level terminal guard should allow entry\n";
+    errors += "breakout terminal guard should allow entry\n";
+  }
+
+  // Breakout + dynamic levels anchors bullish entries to the upper endpoint of
+  // the active band.
+  LoadStructureFibonacciLevels("-61.8,0.0,100.0,161.8",
+                               "-61.8,0.0,100.0,161.8");
+
+  double breakout_mid_price = EntryLevels_PriceForPercent(s_peak, 70.0);
+  if(!ResolveStructureFibonacciEntryForPrices(s_peak,
+                                              breakout_mid_price,
+                                              breakout_mid_price,
+                                              breakout_mid_price,
+                                              BULLISH,
+                                              LEVELS_AS_LIMITS,
+                                              entry_price,
+                                              in_zone,
+                                              entry_is_limit))
+  {
+    errors += "breakout dynamic first band resolve failed\n";
+  }
+  else if(!in_zone || !entry_is_limit)
+  {
+    errors += "breakout dynamic first band should allow entry\n";
+  }
+  else
+  {
+    EntryLevels_AssertClose("breakout dynamic first band entry pct",
+                            EntryLevels_PercentForPrice(s_peak, entry_price),
+                            100.0,
+                            0.1,
+                            errors);
+  }
+
+  double breakout_upper_price = EntryLevels_PriceForPercent(s_peak, 130.0);
+  if(!ResolveStructureFibonacciEntryForPrices(s_peak,
+                                              breakout_upper_price,
+                                              breakout_upper_price,
+                                              breakout_upper_price,
+                                              BULLISH,
+                                              LEVELS_AS_LIMITS,
+                                              entry_price,
+                                              in_zone,
+                                              entry_is_limit))
+  {
+    errors += "breakout dynamic upper band resolve failed\n";
+  }
+  else if(!in_zone || !entry_is_limit)
+  {
+    errors += "breakout dynamic upper band should allow entry\n";
+  }
+  else
+  {
+    EntryLevels_AssertClose("breakout dynamic upper band entry pct",
+                            EntryLevels_PercentForPrice(s_peak, entry_price),
+                            161.8,
+                            0.1,
+                            errors);
   }
 
   ClearStructureCompoundFilterRuntimeOverride();

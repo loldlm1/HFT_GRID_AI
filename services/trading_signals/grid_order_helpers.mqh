@@ -31,6 +31,16 @@ int ResolveFibonacciStepDirection(const SignalTypes signal_type,
   return 1;
 }
 
+int ResolveBreakoutLimitActivationDirection(const SignalTypes signal_type,
+                                            const bool current_is_bottom)
+{
+  if(signal_type == BULLISH)
+    return current_is_bottom ? -1 : 1;
+  if(signal_type == BEARISH)
+    return current_is_bottom ? 1 : -1;
+  return 0;
+}
+
 double GridCurrentPriceForDirection(const SignalTypes direction,
                                     const bool use_entry_side)
 {
@@ -556,7 +566,7 @@ bool ResolveFibonacciEntryRange(const SignalParams &signal_params,
   return true;
 }
 
-bool SignalUsesBreakoutTwoLevelEndpointAnchoring(const SignalParams &signal_params)
+bool SignalUsesBreakoutLimitAnchoring(const SignalParams &signal_params)
 {
   if(signal_params.entry_trigger_mode != LEVELS_AS_LIMITS)
     return false;
@@ -567,14 +577,11 @@ bool SignalUsesBreakoutTwoLevelEndpointAnchoring(const SignalParams &signal_para
   if(!StrategyContextUsesBreakoutCompoundMode(signal_params.strategy_context))
     return false;
 
-  if(!g_structure_fibo_config.valid)
-    return false;
-
-  return (ArraySize(g_structure_fibo_config.levels) == 2);
+  return g_structure_fibo_config.valid;
 }
 
-bool ResolveBreakoutTwoLevelOppositeEndpointPercent(const double entry_percent,
-                                                    double &opposite_percent_out)
+bool ResolveBreakoutLimitOppositeEndpointPercent(const double entry_percent,
+                                                 double &opposite_percent_out)
 {
   opposite_percent_out = 0.0;
 
@@ -582,32 +589,32 @@ bool ResolveBreakoutTwoLevelOppositeEndpointPercent(const double entry_percent,
     return false;
 
   int total_levels = ArraySize(g_structure_fibo_config.levels);
-  if(total_levels != 2)
+  if(total_levels < 2)
     return false;
 
-  double min_level = g_structure_fibo_config.levels[0];
-  double max_level = g_structure_fibo_config.levels[1];
-  double eps = 0.0001;
-
-  if(MathAbs(entry_percent - min_level) <= eps)
+  double lower = 0.0;
+  double upper = 0.0;
+  if(!ResolveFibonacciRangeForPercentStrict(g_structure_fibo_config.levels,
+                                            total_levels,
+                                            entry_percent,
+                                            lower,
+                                            upper))
   {
-    opposite_percent_out = max_level;
+    if(!ResolveFibonacciRangeForPercent(g_structure_fibo_config.levels,
+                                        total_levels,
+                                        entry_percent,
+                                        lower,
+                                        upper))
+      return false;
+  }
+
+  if(MathAbs(entry_percent - lower) <= MathAbs(entry_percent - upper))
+  {
+    opposite_percent_out = upper;
     return true;
   }
 
-  if(MathAbs(entry_percent - max_level) <= eps)
-  {
-    opposite_percent_out = min_level;
-    return true;
-  }
-
-  if(MathAbs(entry_percent - min_level) <= MathAbs(entry_percent - max_level))
-  {
-    opposite_percent_out = max_level;
-    return true;
-  }
-
-  opposite_percent_out = min_level;
+  opposite_percent_out = lower;
   return true;
 }
 
@@ -638,9 +645,9 @@ bool ResolveFibonacciGridLevelPercent(const SignalParams &signal_params,
                                    current_is_bottom))
     return false;
 
-  if(level_index == 0 && SignalUsesBreakoutTwoLevelEndpointAnchoring(signal_params))
+  if(level_index == 0 && SignalUsesBreakoutLimitAnchoring(signal_params))
   {
-    if(ResolveBreakoutTwoLevelOppositeEndpointPercent(entry_percent, level_percent_out))
+    if(ResolveBreakoutLimitOppositeEndpointPercent(entry_percent, level_percent_out))
       return true;
   }
 
@@ -689,10 +696,10 @@ bool ResolveFibonacciGridLevelPrice(const SignalParams &signal_params,
                                    current_is_bottom))
     return false;
 
-  if(level_index == 0 && SignalUsesBreakoutTwoLevelEndpointAnchoring(signal_params))
+  if(level_index == 0 && SignalUsesBreakoutLimitAnchoring(signal_params))
   {
     double anchored_percent = 0.0;
-    if(ResolveBreakoutTwoLevelOppositeEndpointPercent(entry_percent, anchored_percent))
+    if(ResolveBreakoutLimitOppositeEndpointPercent(entry_percent, anchored_percent))
     {
       return ResolveStructurePriceForPercent(peak_price,
                                              bottom_price,
@@ -764,10 +771,10 @@ bool ResolveFibonacciGridBaseDistance(const SignalParams &signal_params,
   double required_points = EnforceBrokerDistance(g_symbol_constraints, Grid_Points_Range_Setup);
   int max_steps = total_levels + 10;
 
-  if(SignalUsesBreakoutTwoLevelEndpointAnchoring(signal_params))
+  if(SignalUsesBreakoutLimitAnchoring(signal_params))
   {
     double anchored_percent = 0.0;
-    if(!ResolveBreakoutTwoLevelOppositeEndpointPercent(entry_percent, anchored_percent))
+    if(!ResolveBreakoutLimitOppositeEndpointPercent(entry_percent, anchored_percent))
       return false;
 
     double anchored_price = 0.0;
