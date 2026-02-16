@@ -330,6 +330,20 @@ bool ResolveFibonacciNextPercentCycledDown(const double &levels[],
     double cursor = abs_value - base;
     if(cursor < eps)
     {
+      // At exact negative cycle boundaries (e.g. -100 with 0,61.8,100),
+      // advance to the next deeper negative node instead of repeating itself.
+      if(levels[0] >= -eps)
+      {
+        int first_positive = 0;
+        while(first_positive < total && levels[first_positive] <= eps)
+          first_positive++;
+        if(first_positive < total)
+        {
+          next_out = -(base + levels[first_positive]);
+          return true;
+        }
+      }
+
       next_out = -(base + levels[0]);
       return true;
     }
