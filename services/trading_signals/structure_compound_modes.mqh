@@ -1,43 +1,11 @@
 //+------------------------------------------------------------------+
 //|                           structure_compound_modes.mqh          |
-//| Compound structure template resolution + parity-aware matching.  |
+//| Compound structure template resolution + strict slot matching.   |
 //+------------------------------------------------------------------+
 #ifndef _SERVICES_TRADING_SIGNALS_STRUCTURE_COMPOUND_MODES_MQH_
 #define _SERVICES_TRADING_SIGNALS_STRUCTURE_COMPOUND_MODES_MQH_
 
 const int STRUCTURE_COMPOUND_SLOT_TOTAL = 4;
-
-OscillatorStructureTypes ResolveParityTwinStructureType(const OscillatorStructureTypes structure_type)
-{
-  switch(structure_type)
-  {
-    case OSCILLATOR_STRUCTURE_HL:
-      return OSCILLATOR_STRUCTURE_HH;
-    case OSCILLATOR_STRUCTURE_LL:
-      return OSCILLATOR_STRUCTURE_LH;
-    case OSCILLATOR_STRUCTURE_HH:
-      return OSCILLATOR_STRUCTURE_HL;
-    case OSCILLATOR_STRUCTURE_LH:
-      return OSCILLATOR_STRUCTURE_LL;
-    default:
-      return OSCILLATOR_STRUCTURE_EQ;
-  }
-}
-
-void ResolveParityTwinSlots(const OscillatorStructureTypes first,
-                            const OscillatorStructureTypes second,
-                            const OscillatorStructureTypes third,
-                            const OscillatorStructureTypes fourth,
-                            OscillatorStructureTypes &first_out,
-                            OscillatorStructureTypes &second_out,
-                            OscillatorStructureTypes &third_out,
-                            OscillatorStructureTypes &fourth_out)
-{
-  first_out  = ResolveParityTwinStructureType(first);
-  second_out = ResolveParityTwinStructureType(second);
-  third_out  = ResolveParityTwinStructureType(third);
-  fourth_out = ResolveParityTwinStructureType(fourth);
-}
 
 bool ResolveStructureCompoundCanonicalTemplate(const TrendStructureCompoundModes mode,
                                                OscillatorStructureTypes &first_out,
@@ -142,49 +110,6 @@ bool StructureCompoundTemplateMatches(const OscillatorStructureTypes actual_firs
          StructureCompoundSlotMatches(expected_second, actual_second) &&
          StructureCompoundSlotMatches(expected_third, actual_third)   &&
          StructureCompoundSlotMatches(expected_fourth, actual_fourth);
-}
-
-bool StructureTypeIsHigherLowFamily(const OscillatorStructureTypes structure_type)
-{
-  return (structure_type == OSCILLATOR_STRUCTURE_HL ||
-          structure_type == OSCILLATOR_STRUCTURE_HH);
-}
-
-bool StructureTypeIsLowerHighFamily(const OscillatorStructureTypes structure_type)
-{
-  return (structure_type == OSCILLATOR_STRUCTURE_LH ||
-          structure_type == OSCILLATOR_STRUCTURE_LL);
-}
-
-bool StructureCompoundBreakoutRelaxedMatches(const TrendStructureCompoundModes mode,
-                                             const OscillatorStructureTypes actual_first,
-                                             const OscillatorStructureTypes actual_second,
-                                             const OscillatorStructureTypes actual_third,
-                                             const OscillatorStructureTypes actual_fourth)
-{
-  if(actual_first == OSCILLATOR_STRUCTURE_EQ  ||
-     actual_second == OSCILLATOR_STRUCTURE_EQ ||
-     actual_third == OSCILLATOR_STRUCTURE_EQ  ||
-     actual_fourth == OSCILLATOR_STRUCTURE_EQ)
-    return false;
-
-  if(mode == COMPOUND_MODE_BREAKOUT_READY_BUY)
-  {
-    return StructureTypeIsLowerHighFamily(actual_first)  &&
-           StructureTypeIsHigherLowFamily(actual_second) &&
-           StructureTypeIsLowerHighFamily(actual_third)  &&
-           StructureTypeIsHigherLowFamily(actual_fourth);
-  }
-
-  if(mode == COMPOUND_MODE_BREAKOUT_READY_SELL)
-  {
-    return StructureTypeIsHigherLowFamily(actual_first)  &&
-           StructureTypeIsLowerHighFamily(actual_second) &&
-           StructureTypeIsHigherLowFamily(actual_third)  &&
-           StructureTypeIsLowerHighFamily(actual_fourth);
-  }
-
-  return false;
 }
 
 bool ResolveStructureCompoundSnapshotSlots(const StochasticMarketStructure &structure,
