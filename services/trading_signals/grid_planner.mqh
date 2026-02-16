@@ -28,6 +28,45 @@ double GridResolveDirectionMultiplierSafe(const SignalTypes direction)
   return 0.0;
 }
 
+bool ResolveAtrRangeDistancePoints(const ENUM_TIMEFRAMES tf,
+                                   double &distance_points)
+{
+  distance_points = 0.0;
+
+  ENUM_TIMEFRAMES atr_tf = tf;
+  if(atr_tf == PERIOD_CURRENT)
+    atr_tf = Strategy_Timeframe;
+  if(atr_tf == PERIOD_CURRENT)
+    atr_tf = PERIOD_M1;
+
+  int atr_handle = iATR(_Symbol, atr_tf, 5);
+  if(atr_handle == INVALID_HANDLE)
+    return false;
+
+  double atr_values[];
+  ArraySetAsSeries(atr_values, true);
+  int copied = CopyBuffer(atr_handle, 0, 1, 1, atr_values); // closed candle: shift=1
+  IndicatorRelease(atr_handle);
+
+  if(copied < 1)
+    return false;
+
+  double atr_price = atr_values[0];
+  if(!MathIsValidNumber(atr_price) || atr_price <= 0.0)
+    return false;
+
+  double point_size = GridResolvePointSizeSafe();
+  if(point_size <= 0.0)
+    return false;
+
+  distance_points = atr_price / point_size;
+  if(!MathIsValidNumber(distance_points) || distance_points <= 0.0)
+    return false;
+
+  distance_points = EnforceBrokerDistance(g_symbol_constraints, distance_points);
+  return (distance_points > 0.0);
+}
+
 bool CalculateBaseGridContext(const SignalParams &signal_params,
                               const ENUM_TIMEFRAMES tf,
                               double &distance_points,
@@ -63,7 +102,17 @@ bool CalculateBaseGridContext(const SignalParams &signal_params,
   if(base_strategy != POINTS_RANGE && base_strategy != ATR_RANGE)
     base_strategy = POINTS_RANGE;
 
-  double requested_points = EnforceBrokerDistance(g_symbol_constraints, Grid_Points_Range_Setup);
+  double requested_points = 0.0;
+  if(base_strategy == ATR_RANGE)
+  {
+    if(!ResolveAtrRangeDistancePoints(tf, requested_points))
+      return false;
+  }
+  else
+  {
+    requested_points = EnforceBrokerDistance(g_symbol_constraints, Grid_Points_Range_Setup);
+  }
+
   double projected_price = entry_reference_price + direction_mult * requested_points * point_size;
 
   distance_points = MathAbs(projected_price - entry_reference_price) / point_size;
@@ -437,7 +486,7 @@ bool BuildGridOrderForSignal(SignalParams &signal_params)
   signal_params.grid_orders[grid_order_level].level_index = grid_order_level;
   signal_params.grid_orders[grid_order_level].status      = GRID_ORDER_STOP_TRAILING_ACTIVE;
   ResetGridOrderPricesByDirection(signal_params, grid_order_level);
-  int level_position_start = Level_Position_Start;
+  int level_position_start = Grid_Level_Position_Start;
   if(level_position_start < 0)
     level_position_start = 0;
   signal_params.grid_orders[grid_order_level].opens_position = (grid_order_level >= level_position_start);

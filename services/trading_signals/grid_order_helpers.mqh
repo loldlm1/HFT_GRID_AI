@@ -134,7 +134,7 @@ int GridCountPositionOpeningLevels(const SignalParams &signal_params)
 bool GridNextLevelOpensPosition(const SignalParams &signal_params)
 {
   int next_index = ArraySize(signal_params.grid_orders);
-  int start_level = Level_Position_Start;
+  int start_level = Grid_Level_Position_Start;
   if(start_level < 0)
     start_level = 0;
   return (next_index >= start_level);
