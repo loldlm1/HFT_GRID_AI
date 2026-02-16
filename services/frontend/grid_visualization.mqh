@@ -10,6 +10,41 @@ string FormatTimeframeLabel(const ENUM_TIMEFRAMES tf_value)
   return label;
 }
 
+bool ResolveGridNextLevelLotPreview(const SignalParams &signal_params,
+                                    const GridOrderState &current_level_state,
+                                    int &next_level_index_out,
+                                    double &next_lot_out)
+{
+  next_level_index_out = current_level_state.level_index + 1;
+  next_lot_out = current_level_state.lot_size;
+
+  if(next_level_index_out < 0 || !signal_params.grid_initialized)
+    return false;
+
+  SignalParams preview_signal = signal_params;
+  int total_levels = ArraySize(preview_signal.grid_orders);
+  if(total_levels <= next_level_index_out)
+    ArrayResize(preview_signal.grid_orders, next_level_index_out + 1);
+
+  GridOrderState preview_state;
+  preview_state.level_index = next_level_index_out;
+  preview_state.status      = GRID_ORDER_STOP_TRAILING_ACTIVE;
+
+  int level_position_start = Grid_Level_Position_Start;
+  if(level_position_start < 0)
+    level_position_start = 0;
+  preview_state.opens_position = (next_level_index_out >= level_position_start);
+
+  preview_signal.grid_orders[next_level_index_out] = preview_state;
+
+  double preview_lot = ResolveGridOrderLotSize(preview_signal, next_level_index_out);
+  if(preview_lot <= 0.0)
+    return false;
+
+  next_lot_out = preview_lot;
+  return true;
+}
+
 void DrawGridLevels(const long chart_id,
                     const SignalParams &signal_params,
                     string &tracked_objects[])
@@ -41,7 +76,12 @@ void DrawGridLevels(const long chart_id,
   string next_label     = GridSignalLineLabel(signal_params, "NEXT");
 
   int level_index = level_state.level_index;
-  double level_lot_size = level_state.lot_size;
+  int next_level_index = level_index + 1;
+  double next_level_lot_size = level_state.lot_size;
+  ResolveGridNextLevelLotPreview(signal_params,
+                                 level_state,
+                                 next_level_index,
+                                 next_level_lot_size);
 
   double entry_percent = 0.0;
   double range_lower = 0.0;
@@ -96,16 +136,16 @@ void DrawGridLevels(const long chart_id,
   {
     next_label = FormatFibNextLabel(next_label,
                                     next_percent,
-                                    level_index,
-                                    level_lot_size);
+                                    next_level_index,
+                                    next_level_lot_size);
   }
   else
   {
-    int display_level = ResolveGridDisplayLevel(level_index);
+    int display_level = ResolveGridNextDisplayLevel(level_index);
     next_label = StringFormat("%s L%d lot=%.2f",
                               next_label,
                               display_level,
-                              level_lot_size);
+                              next_level_lot_size);
   }
 
   UpdateHorizontalLine(chart_id, entry_name, COLOR_PROFIT_NEUTRAL, entry_price_line, entry_label);

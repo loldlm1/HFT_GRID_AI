@@ -102,6 +102,11 @@ int ResolveGridDisplayLevel(const int level_index)
   return level_index + 1;
 }
 
+int ResolveGridNextDisplayLevel(const int level_index)
+{
+  return ResolveGridDisplayLevel(level_index + 1);
+}
+
 string FormatFibNextLabel(const string base_label,
                           const double next_level_percent,
                           const int level_index,
