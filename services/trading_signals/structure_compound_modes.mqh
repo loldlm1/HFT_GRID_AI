@@ -236,42 +236,14 @@ bool EvaluateStructureCompoundMode(const StochasticMarketStructure &structure,
                                                 expected_fourth))
     return false;
 
-  if(StructureCompoundTemplateMatches(actual_first,
-                                      actual_second,
-                                      actual_third,
-                                      actual_fourth,
-                                      expected_first,
-                                      expected_second,
-                                      expected_third,
-                                      expected_fourth))
-    return true;
-
-  OscillatorStructureTypes twin_first = OSCILLATOR_STRUCTURE_EQ;
-  OscillatorStructureTypes twin_second = OSCILLATOR_STRUCTURE_EQ;
-  OscillatorStructureTypes twin_third = OSCILLATOR_STRUCTURE_EQ;
-  OscillatorStructureTypes twin_fourth = OSCILLATOR_STRUCTURE_EQ;
-  ResolveParityTwinSlots(expected_first,
-                         expected_second,
-                         expected_third,
-                         expected_fourth,
-                         twin_first,
-                         twin_second,
-                         twin_third,
-                         twin_fourth);
-
   return StructureCompoundTemplateMatches(actual_first,
                                           actual_second,
                                           actual_third,
                                           actual_fourth,
-                                          twin_first,
-                                          twin_second,
-                                          twin_third,
-                                          twin_fourth) ||
-         StructureCompoundBreakoutRelaxedMatches(mode,
-                                                 actual_first,
-                                                 actual_second,
-                                                 actual_third,
-                                                 actual_fourth);
+                                          expected_first,
+                                          expected_second,
+                                          expected_third,
+                                          expected_fourth);
 }
 
 #endif // _SERVICES_TRADING_SIGNALS_STRUCTURE_COMPOUND_MODES_MQH_
