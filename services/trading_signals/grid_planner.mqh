@@ -442,14 +442,6 @@ bool BuildGridSignalPoints(SignalParams &signal_params)
 
   LogGridPlanDiagnostics(signal_params, base_distance_points);
 
-  if(Enable_Logs)
-  {
-    PrintFormat("Grid plan ready | direction=%s | base_distance=%.2f pts | levels=%d",
-                EnumToString(signal_params.signal_type),
-                signal_params.grid_base_distance_points,
-                ArraySize(signal_params.grid_orders));
-  }
-
   return true;
 }
 
@@ -500,7 +492,10 @@ bool BuildGridOrderForSignal(SignalParams &signal_params)
                                           entry_side_price);
   }
 
-  GridLogEvent("LOT_RESOLVED", signal_params, signal_params.grid_orders[grid_order_level]);
+  if(grid_order_level == 0)
+    GridLogEvent("SIGNAL_INIT", signal_params, signal_params.grid_orders[grid_order_level]);
+  else
+    GridLogEvent("LEVEL_PENDING_INIT", signal_params, signal_params.grid_orders[grid_order_level]);
   LogGridPlanLevelDetail(signal_params, signal_params.grid_orders[grid_order_level]);
   if(Enable_File_Logs)
   {
@@ -533,7 +528,6 @@ bool UpdateGridOrderForSignal(SignalParams &signal_params)
                                                                               signal_params.grid_orders[grid_order_level]);
   signal_params.grid_orders[grid_order_level].lot_size = ResolveGridOrderLotSize(signal_params, grid_order_level);
 
-  GridLogEvent("NEXT_UPDATE", signal_params, signal_params.grid_orders[grid_order_level]);
   return true;
 }
 

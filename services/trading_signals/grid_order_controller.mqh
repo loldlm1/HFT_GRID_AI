@@ -47,7 +47,7 @@ void UpdateGridLifecycle(SignalParams &signal_params)
       {
         UpdateGridOrderForSignal(signal_params);
         grid_order = signal_params.grid_orders[grid_order_level];
-        GridLogEvent("GRID_ORDER_STOP_TRAILING_ACTIVE -> GRID_ORDER_ACTIVE", signal_params, grid_order);
+        GridLogEvent("LEVEL_REACHED", signal_params, grid_order);
       }
     }
   }
