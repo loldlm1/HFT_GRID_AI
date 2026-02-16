@@ -18,6 +18,11 @@ bool RunTest_grid_visual_label_format_test(string &errors)
   if(next != "BULLISH NEXT 78.6% L2 lot=0.12")
     errors += "next label mismatch\n";
 
+  if(ResolveGridNextDisplayLevel(0) != 2)
+    errors += "next display level from L1 should be L2\n";
+  if(ResolveGridNextDisplayLevel(1) != 3)
+    errors += "next display level from L2 should be L3\n";
+
   return (errors == "");
 }
 
