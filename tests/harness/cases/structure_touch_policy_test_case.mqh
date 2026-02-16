@@ -156,6 +156,72 @@ bool RunTest_structure_touch_policy_test(string &errors)
   if(!in_zone || !entry_is_limit)
     errors += "first touch only should allow untouched limit\n";
 
+  // Breakout limit mode ignores FIRST_TOUCH_ONLY suppression.
+  SetStructureCompoundFilterRuntime(COMPOUND_MODE_BREAKOUT_READY_BUY);
+  ClearStructureTouchPolicyState();
+  if(!TouchPolicy_ResolveEntry(touched_structure,
+                               30.0,
+                               80.0,
+                               30.0,
+                               BULLISH,
+                               LEVELS_AS_LIMITS,
+                               time_a,
+                               in_zone,
+                               entry_is_limit,
+                               errors))
+    return false;
+  if(!in_zone || !entry_is_limit)
+    errors += "breakout buy should ignore first touch only blocking\n";
+
+  // Breakout mode auto-coerces zone trigger into limit trigger.
+  ClearStructureTouchPolicyState();
+  if(!TouchPolicy_ResolveEntry(touched_structure,
+                               30.0,
+                               80.0,
+                               30.0,
+                               BULLISH,
+                               LEVEL_AS_ZONE,
+                               time_a,
+                               in_zone,
+                               entry_is_limit,
+                               errors))
+    return false;
+  if(!in_zone || !entry_is_limit)
+    errors += "breakout buy zone trigger should coerce to limit\n";
+
+  SetStructureCompoundFilterRuntime(COMPOUND_MODE_BREAKOUT_READY_SELL);
+  ClearStructureTouchPolicyState();
+  if(!TouchPolicy_ResolveEntry(touched_structure,
+                               30.0,
+                               30.0,
+                               0.0,
+                               BEARISH,
+                               LEVELS_AS_LIMITS,
+                               time_a,
+                               in_zone,
+                               entry_is_limit,
+                               errors))
+    return false;
+  if(!in_zone || !entry_is_limit)
+    errors += "breakout sell should ignore first touch only blocking\n";
+
+  ClearStructureTouchPolicyState();
+  if(!TouchPolicy_ResolveEntry(touched_structure,
+                               30.0,
+                               30.0,
+                               0.0,
+                               BEARISH,
+                               LEVEL_AS_ZONE,
+                               time_a,
+                               in_zone,
+                               entry_is_limit,
+                               errors))
+    return false;
+  if(!in_zone || !entry_is_limit)
+    errors += "breakout sell zone trigger should coerce to limit\n";
+
+  ClearStructureCompoundFilterRuntimeOverride();
+
   // Zone mode: first touch with close confirmation passes, retest blocks.
   ClearStructureTouchPolicyState();
   if(!TouchPolicy_ResolveEntry(untouched_structure,

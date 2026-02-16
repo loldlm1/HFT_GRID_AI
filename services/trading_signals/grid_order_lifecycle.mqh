@@ -71,22 +71,7 @@ bool GridShouldActivateStopOrder(const SignalParams &signal_params,
   if(signal_params.entry_is_limit)
   {
     if(SignalUsesBreakoutLimitAnchoring(signal_params))
-    {
-      double peak_price = 0.0;
-      double bottom_price = 0.0;
-      bool current_is_bottom = false;
-      if(ResolveSignalStructureRange(signal_params,
-                                     peak_price,
-                                     bottom_price,
-                                     current_is_bottom))
-      {
-        int activation_dir = ResolveBreakoutLimitActivationDirection(direction, current_is_bottom);
-        if(activation_dir < 0)
-          return entry_side_price <= stop_trigger;
-        if(activation_dir > 0)
-          return entry_side_price >= stop_trigger;
-      }
-    }
+      return ShouldActivateBreakoutLimitEntry(direction, entry_side_price, stop_trigger);
 
     if(direction == BULLISH) return entry_side_price <= stop_trigger;
     if(direction == BEARISH) return entry_side_price >= stop_trigger;

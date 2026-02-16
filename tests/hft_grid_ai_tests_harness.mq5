@@ -6,6 +6,7 @@
 #include "harness/cases/fibonacci_cycled_levels_cases_test_case.mqh"
 #include "harness/cases/fibonacci_grid_percent_test_case.mqh"
 #include "harness/cases/fibonacci_negative_label_test_case.mqh"
+#include "harness/cases/grid_order_lifecycle_level_stop_limit_test_case.mqh"
 #include "harness/cases/grid_visual_label_format_test_case.mqh"
 #include "harness/cases/signal_lot_strategy_test_case.mqh"
 #include "harness/cases/structure_classifier_types_test_case.mqh"
@@ -104,6 +105,13 @@ void OnStart()
 
   HarnessRecordResult("fibonacci_negative_label_test",
                       RunTest_fibonacci_negative_label_test(errors),
+                      errors,
+                      passed_count,
+                      failed_count,
+                      total_count);
+
+  HarnessRecordResult("grid_order_lifecycle_level_stop_limit_test",
+                      RunTest_grid_order_lifecycle_level_stop_limit_test(errors),
                       errors,
                       passed_count,
                       failed_count,

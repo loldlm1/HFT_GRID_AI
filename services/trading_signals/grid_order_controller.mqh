@@ -58,9 +58,9 @@ void UpdateGridLifecycle(SignalParams &signal_params)
     {
       int position_levels = GridCountPositionOpeningLevels(signal_params);
       bool next_level_opens_position = GridNextLevelOpensPosition(signal_params);
-      bool level_limit_hit = (Level_Stop_Limit > 0 &&
-                              next_level_opens_position &&
-                              position_levels >= Level_Stop_Limit);
+      bool level_limit_hit = ShouldBlockNextLevelByStopLimit(Level_Stop_Limit,
+                                                             next_level_opens_position,
+                                                             position_levels);
 
       if(level_limit_hit)
       {

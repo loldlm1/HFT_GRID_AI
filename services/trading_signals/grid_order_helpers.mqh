@@ -31,16 +31,6 @@ int ResolveFibonacciStepDirection(const SignalTypes signal_type,
   return 1;
 }
 
-int ResolveBreakoutLimitActivationDirection(const SignalTypes signal_type,
-                                            const bool current_is_bottom)
-{
-  if(signal_type == BULLISH)
-    return current_is_bottom ? -1 : 1;
-  if(signal_type == BEARISH)
-    return current_is_bottom ? 1 : -1;
-  return 0;
-}
-
 double GridCurrentPriceForDirection(const SignalTypes direction,
                                     const bool use_entry_side)
 {
@@ -176,6 +166,31 @@ double GridPointsBetween(const SignalTypes direction,
   if(direction == BULLISH)
     return (reference_price - candidate_price) / point_size;
   return (candidate_price - reference_price) / point_size;
+}
+
+bool ShouldActivateBreakoutLimitEntry(const SignalTypes direction,
+                                      const double entry_side_price,
+                                      const double trigger_price)
+{
+  if(trigger_price <= 0.0)
+    return false;
+
+  if(direction == BULLISH)
+    return (entry_side_price >= trigger_price);
+  if(direction == BEARISH)
+    return (entry_side_price <= trigger_price);
+  return false;
+}
+
+bool ShouldBlockNextLevelByStopLimit(const int level_stop_limit,
+                                     const bool next_level_opens_position,
+                                     const int position_levels)
+{
+  if(level_stop_limit <= 0)
+    return false;
+  if(!next_level_opens_position)
+    return false;
+  return (position_levels >= level_stop_limit);
 }
 
 double GetGridStopReferencePrice(SignalTypes direction, SignalParams &signal_params, GridOrderState &grid_order_state)
@@ -618,6 +633,43 @@ bool ResolveBreakoutLimitOppositeEndpointPercent(const double entry_percent,
   return true;
 }
 
+bool ResolveGridTraversalForLevel(const SignalParams &signal_params,
+                                  const double entry_percent,
+                                  const int level_index,
+                                  double &start_percent_out,
+                                  int &steps_out,
+                                  bool &return_anchor_only_out,
+                                  double &anchor_percent_out)
+{
+  start_percent_out = entry_percent;
+  steps_out = signal_params.fib_level_offset_steps + level_index;
+  if(steps_out <= 0)
+    steps_out = 1;
+  return_anchor_only_out = false;
+  anchor_percent_out = 0.0;
+
+  if(!SignalUsesBreakoutLimitAnchoring(signal_params))
+    return true;
+
+  if(!ResolveBreakoutLimitOppositeEndpointPercent(entry_percent, anchor_percent_out))
+    return false;
+
+  // Breakout level0 is the anchored opposite endpoint; deeper levels continue
+  // stepping from that anchored endpoint.
+  if(level_index <= 0)
+  {
+    return_anchor_only_out = true;
+    return true;
+  }
+
+  start_percent_out = anchor_percent_out;
+  steps_out = signal_params.fib_level_offset_steps + (level_index - 1);
+  if(steps_out <= 0)
+    steps_out = 1;
+
+  return true;
+}
+
 bool ResolveFibonacciGridLevelPercent(const SignalParams &signal_params,
                                       const int level_index,
                                       double &level_percent_out)
@@ -645,22 +697,30 @@ bool ResolveFibonacciGridLevelPercent(const SignalParams &signal_params,
                                    current_is_bottom))
     return false;
 
-  if(level_index == 0 && SignalUsesBreakoutLimitAnchoring(signal_params))
-  {
-    if(ResolveBreakoutLimitOppositeEndpointPercent(entry_percent, level_percent_out))
-      return true;
-  }
-
+  double start_percent = entry_percent;
   int steps = signal_params.fib_level_offset_steps + level_index;
-  if(steps <= 0)
-    steps = 1;
+  bool return_anchor_only = false;
+  double anchor_percent = 0.0;
+  if(!ResolveGridTraversalForLevel(signal_params,
+                                   entry_percent,
+                                   level_index,
+                                   start_percent,
+                                   steps,
+                                   return_anchor_only,
+                                   anchor_percent))
+    return false;
+  if(return_anchor_only)
+  {
+    level_percent_out = anchor_percent;
+    return true;
+  }
 
   double level_percent = 0.0;
   int step_dir = ResolveFibonacciStepDirection(signal_params.signal_type, current_is_bottom);
   if(!ResolveFibonacciNextPercentCycledWithCycle(g_structure_fibo_config.cycle_levels,
                                                  ArraySize(g_structure_fibo_config.cycle_levels),
                                                  g_structure_fibo_config.cycle_allow_zero,
-                                                 entry_percent,
+                                                 start_percent,
                                                  steps,
                                                  step_dir,
                                                  level_percent))
@@ -696,29 +756,33 @@ bool ResolveFibonacciGridLevelPrice(const SignalParams &signal_params,
                                    current_is_bottom))
     return false;
 
-  if(level_index == 0 && SignalUsesBreakoutLimitAnchoring(signal_params))
-  {
-    double anchored_percent = 0.0;
-    if(ResolveBreakoutLimitOppositeEndpointPercent(entry_percent, anchored_percent))
-    {
-      return ResolveStructurePriceForPercent(peak_price,
-                                             bottom_price,
-                                             current_is_bottom,
-                                             anchored_percent,
-                                             price_out);
-    }
-  }
-
+  double start_percent = entry_percent;
   int steps = signal_params.fib_level_offset_steps + level_index;
-  if(steps <= 0)
-    steps = 1;
+  bool return_anchor_only = false;
+  double anchor_percent = 0.0;
+  if(!ResolveGridTraversalForLevel(signal_params,
+                                   entry_percent,
+                                   level_index,
+                                   start_percent,
+                                   steps,
+                                   return_anchor_only,
+                                   anchor_percent))
+    return false;
+  if(return_anchor_only)
+  {
+    return ResolveStructurePriceForPercent(peak_price,
+                                           bottom_price,
+                                           current_is_bottom,
+                                           anchor_percent,
+                                           price_out);
+  }
 
   double level_percent = 0.0;
   int step_dir = ResolveFibonacciStepDirection(signal_params.signal_type, current_is_bottom);
   if(!ResolveFibonacciNextPercentCycledWithCycle(g_structure_fibo_config.cycle_levels,
                                                  ArraySize(g_structure_fibo_config.cycle_levels),
                                                  g_structure_fibo_config.cycle_allow_zero,
-                                                 entry_percent,
+                                                 start_percent,
                                                  steps,
                                                  step_dir,
                                                  level_percent))
