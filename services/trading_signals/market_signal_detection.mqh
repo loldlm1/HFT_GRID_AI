@@ -85,13 +85,15 @@ void EvaluateContextSignals(const StrategyContextTypes context)
       continue;
 
     SignalParams signal;
+    StructureTriggerEntryModes effective_trigger_mode = ResolveEffectiveStructureTriggerMode(context,
+                                                                                              Structure_Trigger_Entry);
     signal.signal_type            = direction;
     signal.entry_time             = snapshot.bar_time;
     signal.entry_price            = entry_price;
     signal.strategy_context       = context;
     signal.strategy_timeframe     = snapshot.timeframe;
     signal.strategy_context_label = StrategyContextLabel(context);
-    signal.entry_trigger_mode     = Structure_Trigger_Entry;
+    signal.entry_trigger_mode     = effective_trigger_mode;
     signal.entry_is_limit         = entry_is_limit;
     signal.signal_lot_sequence_step = ResolveSignalLotSequenceStepForNewSignal();
     signal.context_structure_snapshot_time = resolved_structure_time;

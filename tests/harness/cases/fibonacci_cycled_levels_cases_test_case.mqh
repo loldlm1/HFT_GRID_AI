@@ -80,6 +80,9 @@ bool RunTest_fibonacci_cycled_levels_cases_test(string &errors)
   FibonacciCycled_RunCase("implicit 100 down from 0",
                           "0.0,23.6,38.2,78.6",
                           0.0, 1, -1, -23.6, errors);
+  FibonacciCycled_RunCase("negative extension down from 0",
+                          "-61.8,0.0,100.0,161.8",
+                          0.0, 1, -1, -61.8, errors);
 
   FibonacciCycled_RunCase("implicit 0 down from 23.6",
                           "23.6,50.0,100.0",

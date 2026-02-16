@@ -481,6 +481,15 @@ bool StructureBreakoutLimitAnchoringEnabled(const StrategyContextTypes context,
   return g_structure_fibo_config.valid;
 }
 
+StructureTriggerEntryModes ResolveEffectiveStructureTriggerMode(const StrategyContextTypes context,
+                                                                const StructureTriggerEntryModes trigger_mode)
+{
+  if(trigger_mode == LEVEL_AS_ZONE && StrategyContextUsesBreakoutCompoundMode(context))
+    return LEVELS_AS_LIMITS;
+
+  return trigger_mode;
+}
+
 bool ResolveBreakoutLimitBandTarget(const SignalTypes direction,
                                     const double lower_percent,
                                     const double upper_percent,
@@ -579,7 +588,9 @@ bool ResolveStructureFibonacciEntry(const StrategyContextIndicators &snapshot,
   if(!g_structure_fibo_config.valid)
     return false;
 
-  int bar_index = ResolveStructureEntryBarIndex(snapshot.context, trigger_mode);
+  StructureTriggerEntryModes effective_trigger_mode = ResolveEffectiveStructureTriggerMode(snapshot.context,
+                                                                                            trigger_mode);
+  int bar_index = ResolveStructureEntryBarIndex(snapshot.context, effective_trigger_mode);
   if(Bars(_Symbol, snapshot.timeframe) <= bar_index)
     return false;
 
@@ -595,7 +606,7 @@ bool ResolveStructureFibonacciEntry(const StrategyContextIndicators &snapshot,
                                                  low_price,
                                                  high_price,
                                                  direction,
-                                                 trigger_mode,
+                                                 effective_trigger_mode,
                                                  entry_price_out,
                                                  in_zone,
                                                  entry_is_limit,
@@ -618,6 +629,8 @@ bool ResolveStructureFibonacciEntryForPrices(const StochasticMarketStructure &st
   entry_price_out = 0.0;
   in_zone = false;
   entry_is_limit = false;
+  StructureTriggerEntryModes effective_trigger_mode = ResolveEffectiveStructureTriggerMode(context,
+                                                                                            trigger_mode);
 
   if(!g_structure_fibo_config.valid)
     return false;
@@ -693,22 +706,23 @@ bool ResolveStructureFibonacciEntryForPrices(const StochasticMarketStructure &st
     upper = extreme_upper;
   }
 
-  bool breakout_limit_mode = StructureBreakoutLimitAnchoringEnabled(context, trigger_mode);
+  bool breakout_limit_mode = StructureBreakoutLimitAnchoringEnabled(context, effective_trigger_mode);
 
   StructureTouchPolicyModes touch_policy = StrategyContextTouchPolicy(context);
   bool first_touch_only = (touch_policy == FIRST_TOUCH_ONLY);
+  bool enforce_first_touch_only = first_touch_only && !breakout_limit_mode;
   int step_direction = ResolveStructurePercentStepDirection(direction, current_is_bottom);
   if(step_direction == 0)
     step_direction = 1;
 
   datetime resolved_structure_time = ResolveStructureTouchPolicyStructureTime(structure,
                                                                               structure_snapshot_time);
-  if(first_touch_only && resolved_structure_time <= 0)
+  if(enforce_first_touch_only && resolved_structure_time <= 0)
     return false;
 
-  if(first_touch_only)
+  if(enforce_first_touch_only)
   {
-    if(trigger_mode == LEVELS_AS_LIMITS)
+    if(effective_trigger_mode == LEVELS_AS_LIMITS)
     {
       if(!close_in && !extreme_in)
       {
@@ -776,7 +790,7 @@ bool ResolveStructureFibonacciEntryForPrices(const StochasticMarketStructure &st
       if(touched_before || touches_now)
         return true;
     }
-    else if(trigger_mode == LEVEL_AS_ZONE)
+    else if(effective_trigger_mode == LEVEL_AS_ZONE)
     {
       if(!close_in || !extreme_in)
       {
@@ -837,7 +851,7 @@ bool ResolveStructureFibonacciEntryForPrices(const StochasticMarketStructure &st
   if(!close_in && !extreme_in)
     return true; // no trigger but not fatal
 
-  if(StructureLimitTerminalBandGuardEnabled(trigger_mode) &&
+  if(StructureLimitTerminalBandGuardEnabled(effective_trigger_mode) &&
      !breakout_limit_mode)
   {
     double target_percent = (step_direction > 0) ? upper : lower;
@@ -871,7 +885,7 @@ bool ResolveStructureFibonacciEntryForPrices(const StochasticMarketStructure &st
   }
 
   in_zone = true;
-  entry_is_limit = (trigger_mode == LEVELS_AS_LIMITS);
+  entry_is_limit = (effective_trigger_mode == LEVELS_AS_LIMITS);
 
   if(entry_is_limit)
   {

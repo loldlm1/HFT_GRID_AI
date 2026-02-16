@@ -43,6 +43,45 @@ double EntryLevels_PercentForPrice(const StochasticMarketStructure &s, const dou
   return percent;
 }
 
+bool EntryLevels_AssertBreakoutBandEndpoint(const string label,
+                                            const StochasticMarketStructure &s,
+                                            const double band_lower_percent,
+                                            const double band_upper_percent,
+                                            const SignalTypes direction,
+                                            const double entry_price,
+                                            string &errors)
+{
+  double peak = 0.0;
+  double bottom = 0.0;
+  bool current_is_bottom = false;
+  if(!ResolveStructureReferenceRange(s, peak, bottom, current_is_bottom))
+  {
+    errors += StringFormat("%s range unavailable\n", label);
+    return false;
+  }
+
+  double lower_price = 0.0;
+  double upper_price = 0.0;
+  if(!ResolveStructurePriceForPercent(peak, bottom, current_is_bottom, band_lower_percent, lower_price) ||
+     !ResolveStructurePriceForPercent(peak, bottom, current_is_bottom, band_upper_percent, upper_price))
+  {
+    errors += StringFormat("%s endpoint prices unavailable\n", label);
+    return false;
+  }
+
+  double expected_price = entry_price;
+  if(direction == BULLISH)
+    expected_price = MathMax(lower_price, upper_price);
+  else if(direction == BEARISH)
+    expected_price = MathMin(lower_price, upper_price);
+
+  double tolerance = GridResolvePointSizeSafe() * 2.0;
+  if(tolerance <= 0.0)
+    tolerance = 0.0001;
+
+  return EntryLevels_AssertClose(label, entry_price, expected_price, tolerance, errors);
+}
+
 bool RunTest_structure_fibonacci_entry_levels_test(string &errors)
 {
   LoadStructureFibonacciLevels("23.6,38.2,50.0,61.8,78.6,100.0",
@@ -365,6 +404,115 @@ bool RunTest_structure_fibonacci_entry_levels_test(string &errors)
                             0.0,
                             0.1,
                             errors);
+  }
+
+  // Breakout endpoint anchoring uses the current active band (not absolute
+  // min/max configured levels) and supports zone input via auto-coercion.
+  LoadStructureFibonacciLevels("10.0,90.0,140.0",
+                               "10.0,90.0,140.0");
+
+  SetStructureCompoundFilterRuntime(COMPOUND_MODE_BREAKOUT_READY_BUY);
+  double breakout_custom_buy_price = EntryLevels_PriceForPercent(s_peak, 50.0);
+  if(!ResolveStructureFibonacciEntryForPrices(s_peak,
+                                              breakout_custom_buy_price,
+                                              breakout_custom_buy_price,
+                                              breakout_custom_buy_price,
+                                              BULLISH,
+                                              LEVELS_AS_LIMITS,
+                                              entry_price,
+                                              in_zone,
+                                              entry_is_limit))
+  {
+    errors += "breakout custom buy resolve failed\n";
+  }
+  else if(!in_zone || !entry_is_limit)
+  {
+    errors += "breakout custom buy should allow limit entry\n";
+  }
+  else
+  {
+    EntryLevels_AssertClose("breakout custom buy pct",
+                            EntryLevels_PercentForPrice(s_peak, entry_price),
+                            90.0,
+                            0.1,
+                            errors);
+    EntryLevels_AssertBreakoutBandEndpoint("breakout custom buy endpoint",
+                                           s_peak,
+                                           10.0,
+                                           90.0,
+                                           BULLISH,
+                                           entry_price,
+                                           errors);
+  }
+
+  SetStructureCompoundFilterRuntime(COMPOUND_MODE_BREAKOUT_READY_SELL);
+  double breakout_custom_sell_price = EntryLevels_PriceForPercent(s_peak, 120.0);
+  if(!ResolveStructureFibonacciEntryForPrices(s_peak,
+                                              breakout_custom_sell_price,
+                                              breakout_custom_sell_price,
+                                              breakout_custom_sell_price,
+                                              BEARISH,
+                                              LEVELS_AS_LIMITS,
+                                              entry_price,
+                                              in_zone,
+                                              entry_is_limit))
+  {
+    errors += "breakout custom sell resolve failed\n";
+  }
+  else if(!in_zone || !entry_is_limit)
+  {
+    errors += "breakout custom sell should allow limit entry\n";
+  }
+  else
+  {
+    EntryLevels_AssertClose("breakout custom sell pct",
+                            EntryLevels_PercentForPrice(s_peak, entry_price),
+                            90.0,
+                            0.1,
+                            errors);
+    EntryLevels_AssertBreakoutBandEndpoint("breakout custom sell endpoint",
+                                           s_peak,
+                                           90.0,
+                                           140.0,
+                                           BEARISH,
+                                           entry_price,
+                                           errors);
+  }
+
+  SetStructureCompoundFilterRuntime(COMPOUND_MODE_BREAKOUT_READY_BUY);
+  if(!ResolveStructureFibonacciEntryForPrices(s_peak,
+                                              breakout_custom_buy_price,
+                                              breakout_custom_buy_price,
+                                              breakout_custom_buy_price,
+                                              BULLISH,
+                                              LEVEL_AS_ZONE,
+                                              entry_price,
+                                              in_zone,
+                                              entry_is_limit))
+  {
+    errors += "breakout zone auto-coerce buy resolve failed\n";
+  }
+  else if(!in_zone || !entry_is_limit)
+  {
+    errors += "breakout zone auto-coerce buy should behave as limit\n";
+  }
+
+  SetStructureCompoundFilterRuntime(COMPOUND_MODE_BREAKOUT_READY_SELL);
+  if(!ResolveStructureFibonacciEntryForPrices(s_peak,
+                                              breakout_custom_sell_price,
+                                              breakout_custom_sell_price,
+                                              breakout_custom_sell_price,
+                                              BEARISH,
+                                              LEVEL_AS_ZONE,
+                                              entry_price,
+                                              in_zone,
+                                              entry_is_limit))
+  {
+    errors += "breakout zone auto-coerce sell resolve failed\n";
+  }
+  else if(!in_zone || !entry_is_limit)
+  {
+    errors += "breakout zone auto-coerce sell should behave as limit\n";
   }
 
   ClearStructureCompoundFilterRuntimeOverride();

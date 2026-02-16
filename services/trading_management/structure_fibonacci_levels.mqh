@@ -302,6 +302,21 @@ bool ResolveFibonacciNextPercentCycledDown(const double &levels[],
     double abs_value = MathAbs(percent);
     if(abs_value < eps)
     {
+      int nearest_negative = -1;
+      for(int i = total - 1; i >= 0; i--)
+      {
+        if(levels[i] < -eps)
+        {
+          nearest_negative = i;
+          break;
+        }
+      }
+      if(nearest_negative >= 0)
+      {
+        next_out = levels[nearest_negative];
+        return true;
+      }
+
       int first_positive = 0;
       while(first_positive < total && levels[first_positive] <= 0.0)
         first_positive++;
