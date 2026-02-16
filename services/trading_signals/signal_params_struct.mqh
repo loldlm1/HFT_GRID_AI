@@ -22,6 +22,7 @@ struct GridOrderState
   ulong    position_ticket;
   string   position_comment;
   bool     opens_position;
+  bool     limit_activation_armed;
 
   GridOrderState()
   {
@@ -37,6 +38,7 @@ struct GridOrderState
     position_ticket             = 0;
     position_comment            = "";
     opens_position              = true;
+    limit_activation_armed      = true;
   }
 };
 

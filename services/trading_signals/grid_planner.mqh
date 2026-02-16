@@ -320,19 +320,15 @@ double ResolveGridOrderLotSize(SignalParams &signal_params,
 }
 
 void LogGridPlanDiagnostics(const SignalParams &signal_params,
-                            const double point_size,
                             const double base_distance_points)
 {
   if(!Enable_File_Logs)
     return;
 
   string direction = (signal_params.signal_type == BULLISH) ? "BULLISH" : "BEARISH";
-  string header = StringFormat("dir=%s|entry=%.5f|ask=%.5f|bid=%.5f|point=%.5f|base_dist=%.2f|entry_ref=%.5f|entry_offset_pts=%.2f",
+  string header = StringFormat("dir=%s|entry=%.5f|base_dist=%.2f|entry_ref=%.5f|entry_offset_pts=%.2f",
                                direction,
                                signal_params.entry_price,
-                               g_ask,
-                               g_bid,
-                               point_size,
                                base_distance_points,
                                signal_params.grid_entry_reference_price,
                                signal_params.grid_entry_offset_points);
@@ -346,22 +342,15 @@ void LogGridPlanLevelDetail(const SignalParams &signal_params,
     return;
 
   string direction = (signal_params.signal_type == BULLISH) ? "BULLISH" : "BEARISH";
-  double pending_points = 0; // SHOULD BE USING THE signal_params pending_points
-  double tick_size = ResolveEffectiveTickSize(g_symbol_constraints.tick_size,
-                                              g_symbol_constraints.point_size);
-  string detail = StringFormat("dir=%s|level=%d|dist=%.2f|pending=%.2f|entry_offset=%.2f|activation=%.2f|tp=%.2f|lot=%.2f|style=%s|next_limit=%.5f|tick=%.5f|spread_pts=%.1f",
+  int display_level = GridDisplayLevelNumber(state.level_index);
+  string detail = StringFormat("dir=%s|L%d|entry_ref=%.5f|next=%.5f|tp=%.5f|lot=%.2f|status=%s",
                                direction,
-                               state.level_index,
-                               signal_params.grid_base_distance_points,
-                               pending_points,
-                               signal_params.grid_entry_offset_points,
-                               0,
-                               0, // SHOULD BE CALCULATED TP
-                               state.lot_size,
-                               EnumToString(state.entry_style),
+                               display_level,
+                               state.entry_reference_price,
                                state.next_level_price,
-                               tick_size,
-                               g_points_spread);
+                               state.take_profit_price,
+                               state.lot_size,
+                               EnumToString(state.status));
   AppendTimestampedLog("query_debug.txt", "GRID_PLAN_LEVEL", detail);
 }
 
@@ -451,8 +440,7 @@ bool BuildGridSignalPoints(SignalParams &signal_params)
 
   signal_params.grid_initialized = true;
 
-  double point_size = GridResolvePointSizeSafe();
-  LogGridPlanDiagnostics(signal_params, point_size, base_distance_points);
+  LogGridPlanDiagnostics(signal_params, base_distance_points);
 
   if(Enable_Logs)
   {
@@ -502,16 +490,28 @@ bool BuildGridOrderForSignal(SignalParams &signal_params)
                                                                               signal_params,
                                                                               signal_params.grid_orders[grid_order_level]);
   signal_params.grid_orders[grid_order_level].lot_size = ResolveGridOrderLotSize(signal_params, grid_order_level);
+  signal_params.grid_orders[grid_order_level].limit_activation_armed = true;
+  if(UsesNonBreakoutLimitEdgeActivation(signal_params, signal_params.grid_orders[grid_order_level]))
+  {
+    double entry_side_price = GridCurrentPriceForDirection(signal_params.signal_type, true);
+    signal_params.grid_orders[grid_order_level].limit_activation_armed =
+      ShouldArmNonBreakoutLimitActivation(signal_params,
+                                          signal_params.grid_orders[grid_order_level],
+                                          entry_side_price);
+  }
 
-  // Telemetry
   GridLogEvent("LOT_RESOLVED", signal_params, signal_params.grid_orders[grid_order_level]);
-  LogGridPlanLevelDetail(signal_params, signal_params.grid_orders[0]);
+  LogGridPlanLevelDetail(signal_params, signal_params.grid_orders[grid_order_level]);
   if(Enable_File_Logs)
+  {
+    int display_level = GridDisplayLevelNumber(signal_params.grid_orders[grid_order_level].level_index);
     AppendTimestampedLog("query_debug.txt", "LEVEL_PENDING_INIT",
-                          StringFormat("level=%d|entry_ref=%.5f|next=%.5f",
-                                      0,
-                                      signal_params.grid_orders[0].entry_reference_price,
-                                      signal_params.grid_orders[0].next_level_price));
+                         StringFormat("L%d|entry_ref=%.5f|next=%.5f|armed=%s",
+                                      display_level,
+                                      signal_params.grid_orders[grid_order_level].entry_reference_price,
+                                      signal_params.grid_orders[grid_order_level].next_level_price,
+                                      signal_params.grid_orders[grid_order_level].limit_activation_armed ? "true" : "false"));
+  }
   return true;
 }
 

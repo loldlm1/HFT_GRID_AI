@@ -95,15 +95,23 @@ string FormatFibEntryLabel(const string base_label,
                       entry_level_percent);
 }
 
+int ResolveGridDisplayLevel(const int level_index)
+{
+  if(level_index < 0)
+    return 1;
+  return level_index + 1;
+}
+
 string FormatFibNextLabel(const string base_label,
                           const double next_level_percent,
                           const int level_index,
                           const double lot_size)
 {
+  int display_level = ResolveGridDisplayLevel(level_index);
   return StringFormat("%s %.1f%% L%d lot=%.2f",
                       base_label,
                       next_level_percent,
-                      level_index,
+                      display_level,
                       lot_size);
 }
 

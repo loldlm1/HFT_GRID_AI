@@ -102,6 +102,69 @@ void GridAppendReason(string &target,
   target = target + ";" + token;
 }
 
+int GridDisplayLevelNumber(const int level_index)
+{
+  if(level_index < 0)
+    return 1;
+
+  return level_index + 1;
+}
+
+bool IsLimitTriggerReached(const SignalTypes direction,
+                           const double entry_side_price,
+                           const double trigger_price)
+{
+  if(trigger_price <= 0.0)
+    return false;
+
+  if(direction == BULLISH)
+    return (entry_side_price <= trigger_price);
+  if(direction == BEARISH)
+    return (entry_side_price >= trigger_price);
+  return false;
+}
+
+bool IsLimitTriggerOppositeSide(const SignalTypes direction,
+                                const double entry_side_price,
+                                const double trigger_price)
+{
+  if(trigger_price <= 0.0)
+    return false;
+
+  if(direction == BULLISH)
+    return (entry_side_price > trigger_price);
+  if(direction == BEARISH)
+    return (entry_side_price < trigger_price);
+  return false;
+}
+
+bool UsesNonBreakoutLimitEdgeActivation(const SignalParams &signal_params,
+                                        const GridOrderState &order_state)
+{
+  if(!signal_params.entry_is_limit)
+    return false;
+
+  if(order_state.level_index != 0)
+    return false;
+
+  if(SignalUsesBreakoutLimitAnchoring(signal_params))
+    return false;
+
+  return true;
+}
+
+bool ShouldArmNonBreakoutLimitActivation(const SignalParams &signal_params,
+                                         const GridOrderState &order_state,
+                                         const double entry_side_price)
+{
+  if(!UsesNonBreakoutLimitEdgeActivation(signal_params, order_state))
+    return true;
+
+  return IsLimitTriggerOppositeSide(signal_params.signal_type,
+                                    entry_side_price,
+                                    order_state.entry_reference_price);
+}
+
 string GridComposeLevelComment(const SignalParams &signal_params,
                                const GridOrderState &order_state)
 {
@@ -112,11 +175,12 @@ string GridComposeLevelComment(const SignalParams &signal_params,
   if(tf == PERIOD_CURRENT)
     tf = Strategy_Timeframe;
   string tf_label = EnumToString(tf);
+  int display_level = GridDisplayLevelNumber(order_state.level_index);
   return StringFormat("GRID_%s_%s_%s_L%d",
                       direction_label,
                       tf_label,
                       time_label,
-                      order_state.level_index);
+                      display_level);
 }
 
 int GridCountPositionOpeningLevels(const SignalParams &signal_params)
@@ -183,14 +247,15 @@ bool ShouldActivateBreakoutLimitEntry(const SignalTypes direction,
 }
 
 bool ShouldBlockNextLevelByStopLimit(const int level_stop_limit,
-                                     const bool next_level_opens_position,
-                                     const int position_levels)
+                                     const int active_level_index)
 {
   if(level_stop_limit <= 0)
     return false;
-  if(!next_level_opens_position)
+  if(active_level_index < 0)
     return false;
-  return (position_levels >= level_stop_limit);
+
+  int reached_level = GridDisplayLevelNumber(active_level_index);
+  return (reached_level >= level_stop_limit);
 }
 
 double GetGridStopReferencePrice(SignalTypes direction, SignalParams &signal_params, GridOrderState &grid_order_state)
