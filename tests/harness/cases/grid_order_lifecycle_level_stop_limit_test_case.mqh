@@ -22,7 +22,7 @@ bool RunTest_grid_order_lifecycle_level_stop_limit_test(string &errors)
   if(!ShouldActivateBreakoutLimitEntry(BEARISH, 99.0, 100.0))
     errors += "breakout sell should activate below trigger\n";
 
-  // Focused controller gate behavior for Level_Stop_Limit.
+  // Focused controller gate behavior for Grid_Level_Stop_Limit.
   if(ShouldBlockNextLevelByStopLimit(0, true, 999))
     errors += "level_stop_limit=0 must never block deeper levels\n";
   if(ShouldBlockNextLevelByStopLimit(-1, true, 999))
