@@ -101,9 +101,10 @@ void DrawGridLevels(const long chart_id,
   }
   else
   {
+    int display_level = ResolveGridDisplayLevel(level_index);
     next_label = StringFormat("%s L%d lot=%.2f",
                               next_label,
-                              level_index,
+                              display_level,
                               level_lot_size);
   }
 

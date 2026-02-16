@@ -14,15 +14,12 @@ void GridLogEvent(const string label,
     return;
 
   string direction = (signal_params.signal_type == BULLISH) ? "BULLISH" : "BEARISH";
-  double point_size = GridResolvePointSize();
-  double stop_price = 0; // SHOULD BE USING THE order_state stop price
-
-  string message = StringFormat("dir=%s|level=%d|status=%s|entry_ref=%.5f|stop=%.5f|limit=%.5f|entry=%.5f|tp=%.5f|lot=%.2f",
+  int display_level = GridDisplayLevelNumber(order_state.level_index);
+  string message = StringFormat("dir=%s|L%d|status=%s|entry_ref=%.5f|next=%.5f|entry=%.5f|tp=%.5f|lot=%.2f",
                                 direction,
-                                order_state.level_index,
+                                display_level,
                                 EnumToString(order_state.status),
                                 order_state.entry_reference_price,
-                                stop_price,
                                 order_state.next_level_price,
                                 order_state.entry_price,
                                 order_state.take_profit_price,
@@ -39,9 +36,10 @@ void GridLogGuardrailBlock(const string label,
     return;
 
   string direction = (signal_params.signal_type == BULLISH) ? "BULLISH" : "BEARISH";
-  string message = StringFormat("dir=%s|level=%d|status=%s|reason=%s",
+  int display_level = GridDisplayLevelNumber(order_state.level_index);
+  string message = StringFormat("dir=%s|L%d|status=%s|reason=%s",
                                 direction,
-                                order_state.level_index,
+                                display_level,
                                 EnumToString(order_state.status),
                                 reason);
   AppendTimestampedLog("query_debug.txt", label, message);

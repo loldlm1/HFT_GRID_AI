@@ -15,7 +15,7 @@ bool RunTest_grid_visual_label_format_test(string &errors)
     errors += "entry label mismatch\n";
 
   string next = FormatFibNextLabel("BULLISH NEXT", 78.6, 1, 0.12);
-  if(next != "BULLISH NEXT 78.6% L1 lot=0.12")
+  if(next != "BULLISH NEXT 78.6% L2 lot=0.12")
     errors += "next label mismatch\n";
 
   return (errors == "");

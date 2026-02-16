@@ -26,8 +26,22 @@ void UpdateGridLifecycle(SignalParams &signal_params)
       grid_order = signal_params.grid_orders[grid_order_level];
 
     double normalized_volume = NormalizeVolumeForSymbol(_Symbol, grid_order.lot_size);
+    double entry_side_price = GridCurrentPriceForDirection(direction, true);
+    bool use_limit_edge_activation = UsesNonBreakoutLimitEdgeActivation(signal_params, grid_order);
 
-    if(GridShouldActivateStopOrder(signal_params, grid_order, direction, point_size))
+    if(use_limit_edge_activation && !grid_order.limit_activation_armed)
+    {
+      if(ShouldArmNonBreakoutLimitActivation(signal_params, grid_order, entry_side_price))
+      {
+        grid_order.limit_activation_armed = true;
+        signal_params.grid_orders[grid_order_level] = grid_order;
+        GridLogEvent("LIMIT_EDGE_ARMED", signal_params, grid_order);
+      }
+    }
+
+    bool can_activate = (!use_limit_edge_activation || grid_order.limit_activation_armed);
+    if(can_activate &&
+       GridShouldActivateStopOrder(signal_params, grid_order, direction))
     {
       if(GridExecuteLevelTrade(signal_params, grid_order, point_size, normalized_volume))
       {
@@ -54,13 +68,10 @@ void UpdateGridLifecycle(SignalParams &signal_params)
         return;
       }
     }
-    if(GridShouldActivateNextLevelLimit(signal_params, grid_order, direction, point_size))
+    if(GridShouldActivateNextLevelLimit(signal_params, grid_order, direction))
     {
-      int position_levels = GridCountPositionOpeningLevels(signal_params);
-      bool next_level_opens_position = GridNextLevelOpensPosition(signal_params);
       bool level_limit_hit = ShouldBlockNextLevelByStopLimit(Grid_Level_Stop_Limit,
-                                                             next_level_opens_position,
-                                                             position_levels);
+                                                             grid_order.level_index);
 
       if(level_limit_hit)
       {

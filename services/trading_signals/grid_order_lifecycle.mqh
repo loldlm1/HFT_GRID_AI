@@ -59,9 +59,8 @@ ulong FindOpenPositionForSignal(const SignalTypes direction,
 }
 
 bool GridShouldActivateStopOrder(const SignalParams &signal_params,
-                                    const GridOrderState &order_state,
-                                    const SignalTypes direction,
-                                    const double point_size)
+                                 const GridOrderState &order_state,
+                                 const SignalTypes direction)
 {
   double entry_side_price = GridCurrentPriceForDirection(direction, true);
 
@@ -73,9 +72,7 @@ bool GridShouldActivateStopOrder(const SignalParams &signal_params,
     if(SignalUsesBreakoutLimitAnchoring(signal_params))
       return ShouldActivateBreakoutLimitEntry(direction, entry_side_price, stop_trigger);
 
-    if(direction == BULLISH) return entry_side_price <= stop_trigger;
-    if(direction == BEARISH) return entry_side_price >= stop_trigger;
-    return false;
+    return IsLimitTriggerReached(direction, entry_side_price, stop_trigger);
   }
   // BUY STOP: Ask >= stop; SELL STOP: Bid <= stop
   if(direction == BULLISH) return entry_side_price >= stop_trigger;
@@ -84,9 +81,8 @@ bool GridShouldActivateStopOrder(const SignalParams &signal_params,
 }
 
 bool GridShouldActivateNextLevelLimit(const SignalParams &signal_params,
-                                    const GridOrderState &order_state,
-                                    const SignalTypes direction,
-                                    const double point_size)
+                                      const GridOrderState &order_state,
+                                      const SignalTypes direction)
 {
   double entry_side_price = GridCurrentPriceForDirection(direction, true);
 
