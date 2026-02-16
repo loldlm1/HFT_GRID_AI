@@ -102,98 +102,178 @@ bool StructureCompound_AssertTypeFilter(const string label,
   return false;
 }
 
+OscillatorStructureTypes StructureCompound_ResolveParityTwin(const OscillatorStructureTypes structure_type)
+{
+  switch(structure_type)
+  {
+    case OSCILLATOR_STRUCTURE_HL:
+      return OSCILLATOR_STRUCTURE_HH;
+    case OSCILLATOR_STRUCTURE_HH:
+      return OSCILLATOR_STRUCTURE_HL;
+    case OSCILLATOR_STRUCTURE_LH:
+      return OSCILLATOR_STRUCTURE_LL;
+    case OSCILLATOR_STRUCTURE_LL:
+      return OSCILLATOR_STRUCTURE_LH;
+    default:
+      return OSCILLATOR_STRUCTURE_EQ;
+  }
+}
+
+bool StructureCompound_AssertStrictMode(const string label_prefix,
+                                        const TrendStructureCompoundModes mode,
+                                        const OscillatorStructureTypes first,
+                                        const OscillatorStructureTypes second,
+                                        const OscillatorStructureTypes third,
+                                        const OscillatorStructureTypes fourth,
+                                        string &errors)
+{
+  bool ok = true;
+
+  ok = StructureCompound_AssertModeMatch(label_prefix + " canonical",
+                                         mode,
+                                         first,
+                                         second,
+                                         third,
+                                         fourth,
+                                         4,
+                                         true,
+                                         errors) && ok;
+
+  ok = StructureCompound_AssertModeMatch(label_prefix + " parity twin rejected",
+                                         mode,
+                                         StructureCompound_ResolveParityTwin(first),
+                                         StructureCompound_ResolveParityTwin(second),
+                                         StructureCompound_ResolveParityTwin(third),
+                                         StructureCompound_ResolveParityTwin(fourth),
+                                         4,
+                                         false,
+                                         errors) && ok;
+
+  ok = StructureCompound_AssertModeMatch(label_prefix + " rotated sequence rejected",
+                                         mode,
+                                         second,
+                                         third,
+                                         fourth,
+                                         first,
+                                         4,
+                                         false,
+                                         errors) && ok;
+
+  ok = StructureCompound_AssertModeMatch(label_prefix + " eq slot rejected",
+                                         mode,
+                                         first,
+                                         second,
+                                         third,
+                                         OSCILLATOR_STRUCTURE_EQ,
+                                         4,
+                                         false,
+                                         errors) && ok;
+
+  ok = StructureCompound_AssertModeMatch(label_prefix + " insufficient depth",
+                                         mode,
+                                         first,
+                                         second,
+                                         third,
+                                         fourth,
+                                         3,
+                                         false,
+                                         errors) && ok;
+  return ok;
+}
+
 bool RunTest_structure_compound_modes_test(string &errors)
 {
   errors = "";
 
-  // Exact match and parity twin match.
-  StructureCompound_AssertModeMatch("trend ride buy canonical",
-                                    COMPOUND_MODE_TREND_RIDE_BUY,
-                                    OSCILLATOR_STRUCTURE_HL,
-                                    OSCILLATOR_STRUCTURE_HH,
-                                    OSCILLATOR_STRUCTURE_HL,
-                                    OSCILLATOR_STRUCTURE_HH,
-                                    4,
-                                    true,
-                                    errors);
-  StructureCompound_AssertModeMatch("trend ride buy parity twin",
-                                    COMPOUND_MODE_TREND_RIDE_BUY,
-                                    OSCILLATOR_STRUCTURE_HH,
-                                    OSCILLATOR_STRUCTURE_HL,
-                                    OSCILLATOR_STRUCTURE_HH,
-                                    OSCILLATOR_STRUCTURE_HL,
-                                    4,
-                                    true,
-                                    errors);
+  // Every active mode must be strict 1:1 positional matching.
+  StructureCompound_AssertStrictMode("trend ride buy",
+                                     COMPOUND_MODE_TREND_RIDE_BUY,
+                                     OSCILLATOR_STRUCTURE_HL,
+                                     OSCILLATOR_STRUCTURE_HH,
+                                     OSCILLATOR_STRUCTURE_HL,
+                                     OSCILLATOR_STRUCTURE_HH,
+                                     errors);
+  StructureCompound_AssertStrictMode("trend ride sell",
+                                     COMPOUND_MODE_TREND_RIDE_SELL,
+                                     OSCILLATOR_STRUCTURE_LH,
+                                     OSCILLATOR_STRUCTURE_LL,
+                                     OSCILLATOR_STRUCTURE_LH,
+                                     OSCILLATOR_STRUCTURE_LL,
+                                     errors);
+  StructureCompound_AssertStrictMode("pullback continue buy",
+                                     COMPOUND_MODE_PULLBACK_CONTINUE_BUY,
+                                     OSCILLATOR_STRUCTURE_HL,
+                                     OSCILLATOR_STRUCTURE_HH,
+                                     OSCILLATOR_STRUCTURE_LL,
+                                     OSCILLATOR_STRUCTURE_LH,
+                                     errors);
+  StructureCompound_AssertStrictMode("pullback continue sell",
+                                     COMPOUND_MODE_PULLBACK_CONTINUE_SELL,
+                                     OSCILLATOR_STRUCTURE_LH,
+                                     OSCILLATOR_STRUCTURE_LL,
+                                     OSCILLATOR_STRUCTURE_HH,
+                                     OSCILLATOR_STRUCTURE_HL,
+                                     errors);
+  StructureCompound_AssertStrictMode("reversal early buy",
+                                     COMPOUND_MODE_REVERSAL_EARLY_BUY,
+                                     OSCILLATOR_STRUCTURE_HL,
+                                     OSCILLATOR_STRUCTURE_LH,
+                                     OSCILLATOR_STRUCTURE_LL,
+                                     OSCILLATOR_STRUCTURE_LH,
+                                     errors);
+  StructureCompound_AssertStrictMode("reversal early sell",
+                                     COMPOUND_MODE_REVERSAL_EARLY_SELL,
+                                     OSCILLATOR_STRUCTURE_LH,
+                                     OSCILLATOR_STRUCTURE_HL,
+                                     OSCILLATOR_STRUCTURE_HH,
+                                     OSCILLATOR_STRUCTURE_HL,
+                                     errors);
+  StructureCompound_AssertStrictMode("breakout ready buy",
+                                     COMPOUND_MODE_BREAKOUT_READY_BUY,
+                                     OSCILLATOR_STRUCTURE_LH,
+                                     OSCILLATOR_STRUCTURE_HL,
+                                     OSCILLATOR_STRUCTURE_LH,
+                                     OSCILLATOR_STRUCTURE_HL,
+                                     errors);
+  StructureCompound_AssertStrictMode("breakout ready sell",
+                                     COMPOUND_MODE_BREAKOUT_READY_SELL,
+                                     OSCILLATOR_STRUCTURE_HL,
+                                     OSCILLATOR_STRUCTURE_LH,
+                                     OSCILLATOR_STRUCTURE_HL,
+                                     OSCILLATOR_STRUCTURE_LH,
+                                     errors);
+  StructureCompound_AssertStrictMode("volatility trap buy",
+                                     COMPOUND_MODE_VOLATILITY_TRAP_BUY,
+                                     OSCILLATOR_STRUCTURE_LL,
+                                     OSCILLATOR_STRUCTURE_HH,
+                                     OSCILLATOR_STRUCTURE_LL,
+                                     OSCILLATOR_STRUCTURE_HH,
+                                     errors);
+  StructureCompound_AssertStrictMode("volatility trap sell",
+                                     COMPOUND_MODE_VOLATILITY_TRAP_SELL,
+                                     OSCILLATOR_STRUCTURE_HH,
+                                     OSCILLATOR_STRUCTURE_LL,
+                                     OSCILLATOR_STRUCTURE_HH,
+                                     OSCILLATOR_STRUCTURE_LL,
+                                     errors);
 
-  // One-slot mismatch must fail.
-  StructureCompound_AssertModeMatch("trend ride buy mismatch",
-                                    COMPOUND_MODE_TREND_RIDE_BUY,
-                                    OSCILLATOR_STRUCTURE_HL,
-                                    OSCILLATOR_STRUCTURE_HH,
-                                    OSCILLATOR_STRUCTURE_LL,
-                                    OSCILLATOR_STRUCTURE_HH,
-                                    4,
-                                    false,
-                                    errors);
-
-  // EQ semantics: required where expected, forbidden otherwise.
-  StructureCompound_AssertModeMatch("breakout ready buy requires eq",
-                                    COMPOUND_MODE_BREAKOUT_READY_BUY,
-                                    OSCILLATOR_STRUCTURE_HL,
-                                    OSCILLATOR_STRUCTURE_HH,
-                                    OSCILLATOR_STRUCTURE_HL,
-                                    OSCILLATOR_STRUCTURE_EQ,
-                                    4,
-                                    false,
-                                    errors);
-
-  // Breakout modes allow relaxed family matching (LH/LL and HL/HH families).
-  StructureCompound_AssertModeMatch("breakout ready buy relaxed family match",
+  // Breakout family-only matches are no longer valid.
+  StructureCompound_AssertModeMatch("breakout ready buy relaxed family rejected",
                                     COMPOUND_MODE_BREAKOUT_READY_BUY,
                                     OSCILLATOR_STRUCTURE_LH,
                                     OSCILLATOR_STRUCTURE_HH,
                                     OSCILLATOR_STRUCTURE_LL,
                                     OSCILLATOR_STRUCTURE_HL,
                                     4,
-                                    true,
+                                    false,
                                     errors);
-  StructureCompound_AssertModeMatch("breakout ready sell relaxed family match",
+  StructureCompound_AssertModeMatch("breakout ready sell relaxed family rejected",
                                     COMPOUND_MODE_BREAKOUT_READY_SELL,
                                     OSCILLATOR_STRUCTURE_HL,
                                     OSCILLATOR_STRUCTURE_LL,
                                     OSCILLATOR_STRUCTURE_HH,
                                     OSCILLATOR_STRUCTURE_LH,
                                     4,
-                                    true,
-                                    errors);
-  StructureCompound_AssertModeMatch("breakout ready buy relaxed mismatch",
-                                    COMPOUND_MODE_BREAKOUT_READY_BUY,
-                                    OSCILLATOR_STRUCTURE_HL,
-                                    OSCILLATOR_STRUCTURE_HH,
-                                    OSCILLATOR_STRUCTURE_LL,
-                                    OSCILLATOR_STRUCTURE_HL,
-                                    4,
-                                    false,
-                                    errors);
-  StructureCompound_AssertModeMatch("trend ride buy rejects eq on non-eq slot",
-                                    COMPOUND_MODE_TREND_RIDE_BUY,
-                                    OSCILLATOR_STRUCTURE_EQ,
-                                    OSCILLATOR_STRUCTURE_HH,
-                                    OSCILLATOR_STRUCTURE_HL,
-                                    OSCILLATOR_STRUCTURE_HH,
-                                    4,
-                                    false,
-                                    errors);
-
-  // Active mode fails closed on insufficient depth.
-  StructureCompound_AssertModeMatch("compound active insufficient depth",
-                                    COMPOUND_MODE_TREND_RIDE_BUY,
-                                    OSCILLATOR_STRUCTURE_HL,
-                                    OSCILLATOR_STRUCTURE_HH,
-                                    OSCILLATOR_STRUCTURE_HL,
-                                    OSCILLATOR_STRUCTURE_HH,
-                                    3,
                                     false,
                                     errors);
 
@@ -223,19 +303,19 @@ bool RunTest_structure_compound_modes_test(string &errors)
                                      false,
                                      errors);
 
-  // Mode matching is direction-agnostic: sell templates still resolve as a pure
-  // structure gate and do not encode position direction by themselves.
+  // Structure matching remains direction-agnostic (pure structure gate).
   StructureCompound_AssertTypeFilter("direction agnostic compound filter",
                                      COMPOUND_MODE_TREND_RIDE_SELL,
                                      true,
                                      true,
-                                     OSCILLATOR_STRUCTURE_LL,
                                      OSCILLATOR_STRUCTURE_LH,
                                      OSCILLATOR_STRUCTURE_LL,
                                      OSCILLATOR_STRUCTURE_LH,
+                                     OSCILLATOR_STRUCTURE_LL,
                                      4,
                                      true,
                                      errors);
+
   return (errors == "");
 }
 
