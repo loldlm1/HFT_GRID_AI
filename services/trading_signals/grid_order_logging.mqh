@@ -102,6 +102,10 @@ void GridLogEvent(const string label,
   string direction = (signal_params.signal_type == BULLISH) ? "BULLISH" : "BEARISH";
   string direction_short = (signal_params.signal_type == BULLISH) ? "B" : "S";
   int display_level = GridDisplayLevelNumber(order_state.level_index);
+  string event_timestamp = TimeToString(TimeCurrent(),
+                                        TIME_DATE|TIME_SECONDS);
+  string event_timestamp_min = TimeToString(TimeCurrent(),
+                                            TIME_DATE|TIME_MINUTES);
   string signal_timestamp = "n/a";
   string signal_timestamp_min = "n/a";
   if(signal_params.entry_time > 0)
@@ -122,7 +126,7 @@ void GridLogEvent(const string label,
   }
   string structure_audit = GridResolveStructureAuditSummary(signal_params);
 
-  string message = StringFormat("dir=%s|L%d|status=%s|entry_ref=%.5f|next=%.5f|entry=%.5f|tp=%.5f|lot=%.2f|signal_ts=%s|structure_ts=%s|structure=%s",
+  string message = StringFormat("dir=%s|L%d|status=%s|entry_ref=%.5f|next=%.5f|entry=%.5f|tp=%.5f|lot=%.2f|event_ts=%s|signal_ts=%s|structure_ts=%s|structure=%s",
                                 direction,
                                 display_level,
                                 EnumToString(order_state.status),
@@ -131,6 +135,7 @@ void GridLogEvent(const string label,
                                 order_state.entry_price,
                                 order_state.take_profit_price,
                                 order_state.lot_size,
+                                event_timestamp,
                                 signal_timestamp,
                                 structure_timestamp,
                                 structure_audit);
@@ -140,10 +145,11 @@ void GridLogEvent(const string label,
 
   if(Enable_Logs && GridShouldPrintTerminalEvent(label))
   {
-    PrintFormat("[%s] %s L%d sg=%s st=%s",
+    PrintFormat("[%s] %s L%d ev=%s sg=%s st=%s",
                 label,
                 direction_short,
                 display_level,
+                event_timestamp_min,
                 signal_timestamp_min,
                 structure_timestamp_min);
     PrintFormat("[STRUCT] %s", structure_audit);
