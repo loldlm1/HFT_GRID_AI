@@ -16,6 +16,20 @@ One purchase includes both sides (BUY and SELL).
 ## Entitlement trigger rule
 Addon is required when `Base_Structure_Compound_Filter` is one of the Breakout Ready modes.
 
+## How this pattern builds structure
+1. It detects a compressed range where price repeatedly reacts between clear boundaries.
+2. It measures pressure buildup as price retests one side of the range.
+3. It validates breakout by acceptance outside the range, not just a single spike.
+4. It follows the breakout side while structure remains aligned and fresh.
+
+## Canonical structure sequence (oldest -> newest)
+Internal matcher order is `first -> fourth` (newest -> oldest).
+
+- Buy mode (`COMPOUND_MODE_BREAKOUT_READY_BUY`):
+  `[4] Higher Low -> [3] Lower High -> [2] Higher Low -> [1] Lower High`
+- Sell mode (`COMPOUND_MODE_BREAKOUT_READY_SELL`):
+  `[4] Lower High -> [3] Higher Low -> [2] Lower High -> [1] Higher Low`
+
 ## Recommended setups
 ### Setup A: Confirmed breakout entries (recommended)
 - `Base_Structure_Compound_Filter = COMPOUND_MODE_BREAKOUT_READY_BUY` for bullish breakouts
