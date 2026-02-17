@@ -57,9 +57,7 @@ input bool                        Base_Fresh_Structure_Time         = false;
 input group  "+= Grid Strategy Settings =+";
 input GridBaseStrategyTypes Grid_Base_Strategy_Type      = POINTS_RANGE;
 input double                Grid_Points_Range_Setup      = 100.0;
-input double                Grid_Points_TP               = 0.0;
 input double                Grid_Exponential_Multiplier  = 1.0;
-input double                Grid_Positions_Stops_Percent = 10.0;
 input int                   Grid_Level_Position_Start    = 0;
 input int                   Grid_Level_Stop_Limit        = 1;
 

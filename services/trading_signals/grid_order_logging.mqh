@@ -92,6 +92,8 @@ bool GridShouldPrintTerminalEvent(const string label)
           label == "LEVEL_REACHED" ||
           label == "LEVEL_TP_HIT" ||
           label == "GRID_STOP_LEVEL_LIMIT" ||
+          label == "LEVEL_ACTIVATION_FAILED_TARGET_LOT" ||
+          label == "LEVEL_ACTIVATION_FAILED_SEND" ||
           label == "LIMIT_EXPIRED_STRUCTURE");
 }
 

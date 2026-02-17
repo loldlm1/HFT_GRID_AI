@@ -23,6 +23,13 @@ HFT Grid AI is a MetaTrader 5 Expert Advisor that runs bullish/bearish grid sequ
   - `BEARISH`: `high_current < high_past` and `low_current < low_past`
 - Behavior: enabled modes are evaluated as a hard pre-entry gate; filter failure blocks signal creation (fail-closed).
 
+## Lot/TP Model (Current)
+- `TP_Percent` is the single TP driver for grid lot/TP target modes.
+- `GRID_LOT_CURRENCY_BASED`: target profit per signal = `Lot_Strategy_Size * (TP_Percent / 100)`.
+- `GRID_LOT_PERCENTAGE_BASED`: target profit per signal = `(ACCOUNT_BALANCE * Lot_Strategy_Size / 100) * (TP_Percent / 100)` with `Account_Size` fallback only when balance is invalid/non-positive.
+- `Lot_Multiplier` applies only to `GRID_LOT_SIZE`.
+- Deprecated and removed inputs: `Grid_Points_TP`, `Grid_Positions_Stops_Percent`.
+
 ## Automated `*_test.mq5` Runner
 Use the project runner to compile and execute script-based tests in `tests/*_test.mq5`:
 
