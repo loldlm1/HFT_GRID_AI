@@ -464,8 +464,8 @@ bool StructureLimitTerminalBandGuardEnabled(const StructureTriggerEntryModes tri
   if(g_structure_limit_terminal_band_guard_runtime_override)
     return g_structure_limit_terminal_band_guard_runtime_enabled;
 
-  return (Grid_Base_Strategy_Type == FIB_LEVEL_RANGE &&
-          Grid_Level_Stop_Limit == 1 &&
+  return (Base_Strategy_Type == FIB_LEVEL_RANGE &&
+          ResolveEffectiveGridLevelStopLimit() == 1 &&
           Grid_Level_Position_Start == 0);
 }
 
@@ -859,7 +859,7 @@ bool ResolveStructureFibonacciEntryForPrices(const StochasticMarketStructure &st
       return true;
   }
 
-  double required_points = EnforceBrokerDistance(g_symbol_constraints, Grid_Points_Range_Setup);
+  double required_points = EnforceBrokerDistance(g_symbol_constraints, Points_Range_Setup);
   if(required_points > 0.0)
   {
     double lower_price = 0.0;

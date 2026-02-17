@@ -55,13 +55,13 @@ input TrendStructureCompoundModes Base_Structure_Compound_Filter    = COMPOUND_M
 input bool                        Base_Fresh_Structure_Time         = false;
 
 input group  "+= Grid Strategy Settings =+";
-input GridBaseStrategyTypes Grid_Base_Strategy_Type      = POINTS_RANGE;
-input double                Grid_Points_Range_Setup      = 100.0;
 input double                Grid_Exponential_Multiplier  = 1.0;
 input int                   Grid_Level_Position_Start    = 0;
 input int                   Grid_Level_Stop_Limit        = 1;
 
 input group  "+= Risk Managment Settings =+";
+input GridBaseStrategyTypes Base_Strategy_Type       = POINTS_RANGE;
+input double                Points_Range_Setup       = 100.0;
 input GridLotTypes          Lot_Type                 = GRID_LOT_SIZE;
 input double                Lot_Strategy_Size        = 0.01;
 input double                Lot_Multiplier           = 2.0;

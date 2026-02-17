@@ -23,6 +23,13 @@ HFT Grid AI is a MetaTrader 5 Expert Advisor that runs bullish/bearish grid sequ
   - `BEARISH`: `high_current < high_past` and `low_current < low_past`
 - Behavior: enabled modes are evaluated as a hard pre-entry gate; filter failure blocks signal creation (fail-closed).
 
+## Addon Entitlements
+- MT5 input groups remain visible (compile-time), but runtime access is entitlement-gated.
+- Live/Demo startup blocks if selected addon-required inputs are not covered by license entitlements.
+- Live/Demo performs a daily license refresh; verification failure removes the EA.
+- Strategy Tester still requires a valid decryptable key and future expiry timestamp; addon checks are bypassed in tester.
+- Addon input guides are documented in `docs/addons/`.
+
 ## Lot/TP Model (Current)
 - `TP_Percent` is the single TP driver for grid lot/TP target modes.
 - `GRID_LOT_CURRENCY_BASED`: target profit per signal = `Lot_Strategy_Size * (TP_Percent / 100)`.

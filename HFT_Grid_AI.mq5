@@ -36,11 +36,21 @@ string       g_dataset_id = "";
 bool         g_ea_running;
 datetime     g_initial_ea_date;
 SymbolTradingConstraints g_symbol_constraints;
+string       g_startup_block_message = "";
 
 int OnInit()
 {
+  AddonPolicySyncRequestedAddonsForLicensePayload();
+
   if(!LicenseServiceInit())
     return(INIT_FAILED);
+
+  if(!AddonPolicyValidateEntitlementsForCurrentInputs(g_startup_block_message))
+  {
+    Comment(g_startup_block_message);
+    return(INIT_FAILED);
+  }
+  AddonPolicyApplyRuntimeLocks();
 
   // INITIALIZE GLOBAL VARIABLES
   g_symbol.Name(_Symbol);
@@ -90,6 +100,8 @@ void OnDeinit(const int reason)
 {
   LicenseServiceOnDeinit();
   EventKillTimer();
+  if(reason == REASON_INITFAILED && g_startup_block_message != "")
+    return;
   Comment("");
 }
 
@@ -115,7 +127,18 @@ void OnTradeTransaction(const MqlTradeTransaction& trans,
 //+------------------------------------------------------------------+
 void OnTimer()
 {
+  AddonPolicySyncRequestedAddonsForLicensePayload();
   LicenseServiceOnTimer();
+  AddonPolicyApplyRuntimeLocks();
+
+  string runtime_message = "";
+  if(!AddonPolicyValidateEntitlementsForCurrentInputs(runtime_message))
+  {
+    Comment(runtime_message);
+    Print("[AddonPolicy] Runtime entitlement mismatch. EA removed.");
+    ExpertRemove();
+    return;
+  }
 }
 
 //+------------------------------------------------------------------+
@@ -123,6 +146,7 @@ void OnTimer()
 //+------------------------------------------------------------------+
 void OnTick()
 {
+  AddonPolicyApplyRuntimeLocks();
   RefreshCustomSymbolRates();
   DebugEquityGuardAllowsProcessing();
   ProtectionRiskMonitorTradeMode();
