@@ -79,7 +79,7 @@ bool CalculateBaseGridContext(const SignalParams &signal_params,
   if(point_size <= 0.0 || direction_mult == 0.0 || entry_reference_price <= 0.0)
     return false;
 
-  GridBaseStrategyTypes base_strategy = Grid_Base_Strategy_Type;
+  GridBaseStrategyTypes base_strategy = Base_Strategy_Type;
   if(base_strategy == FIB_LEVEL_RANGE)
   {
     int fibo_steps = 1;
@@ -105,7 +105,7 @@ bool CalculateBaseGridContext(const SignalParams &signal_params,
   }
   else
   {
-    requested_points = EnforceBrokerDistance(g_symbol_constraints, Grid_Points_Range_Setup);
+    requested_points = EnforceBrokerDistance(g_symbol_constraints, Points_Range_Setup);
   }
 
   double projected_price = entry_reference_price + direction_mult * requested_points * point_size;
@@ -438,7 +438,7 @@ bool BuildGridSignalPoints(SignalParams &signal_params)
   signal_params.grid_entry_reference_price     = entry_reference_price;
   signal_params.grid_entry_gap_points          = base_distance_points;
   signal_params.grid_entry_offset_points       = entry_offset_points;
-  if(Grid_Base_Strategy_Type == FIB_LEVEL_RANGE)
+  if(Base_Strategy_Type == FIB_LEVEL_RANGE)
   {
     if(fibo_steps <= 0)
       fibo_steps = 1;

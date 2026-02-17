@@ -146,7 +146,7 @@ inline bool ContextRequiresStructure(const StrategyContextTypes context,
       Structure_Trigger_Entry == LEVEL_AS_ZONE))
     return true;
 
-  if(context == CONTEXT_SLOT_BASE && Grid_Base_Strategy_Type == FIB_LEVEL_RANGE)
+  if(context == CONTEXT_SLOT_BASE && Base_Strategy_Type == FIB_LEVEL_RANGE)
     return true;
 
   return StructureTypeFiltersRequested(ctx) ||

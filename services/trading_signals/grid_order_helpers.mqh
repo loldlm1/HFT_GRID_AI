@@ -298,7 +298,7 @@ double GetGridNextLevelPrice(SignalTypes direction, SignalParams &signal_params,
   double grid_base_entry_price   = grid_order_state.entry_reference_price;
   double grid_next_level_price   = grid_order_state.next_level_price;
 
-  if(Grid_Base_Strategy_Type == FIB_LEVEL_RANGE)
+  if(Base_Strategy_Type == FIB_LEVEL_RANGE)
   {
     double fib_level_price = 0.0;
     if(ResolveFibonacciGridLevelPrice(signal_params, grid_order_state.level_index, fib_level_price))
@@ -401,7 +401,7 @@ double ComputeLevelDistancePoints(const SignalParams &signal_params,
 double ResolveGridLevelDistancePoints(const SignalParams &signal_params,
                                       const GridOrderState &state)
 {
-  if(Grid_Base_Strategy_Type == FIB_LEVEL_RANGE)
+  if(Base_Strategy_Type == FIB_LEVEL_RANGE)
   {
     double fib_level_price = 0.0;
     if(!ResolveFibonacciGridLevelPrice(signal_params, state.level_index, fib_level_price))
@@ -895,7 +895,7 @@ bool ResolveFibonacciGridBaseDistance(const SignalParams &signal_params,
   if(total_levels < 2)
     return false;
 
-  double required_points = EnforceBrokerDistance(g_symbol_constraints, Grid_Points_Range_Setup);
+  double required_points = EnforceBrokerDistance(g_symbol_constraints, Points_Range_Setup);
   int max_steps = total_levels + 10;
 
   if(SignalUsesBreakoutLimitAnchoring(signal_params))

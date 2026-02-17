@@ -1,5 +1,6 @@
 //+------------------------------------------------------------------+
 #include "JsonParser.mqh"
+#include "core/addon_catalog.mqh"
 CBcrypt BCrypt;
 
 string primary_ci_key = "D3B634B92BDBC9D80BC84ED4F2640644929A5E0DA153FD7D471AF9B5A416B5FE";
@@ -28,6 +29,7 @@ string license_broker_company = "";
 long license_broker_account_number = 0;
 string license_broker_account_type = "";
 bool license_broker_account_synced = false;
+string license_granted_addons[];
 
 string SidToString(const uchar &sid[])
 {
@@ -48,6 +50,111 @@ string Trim(string value)
   StringTrimLeft(value);
   StringTrimRight(value);
   return value;
+}
+
+void LicenseSetRequestedAddonsCsv(const string addons_csv)
+{
+  license_addons = Trim(addons_csv);
+}
+
+string LicenseGetRequestedAddonsCsv()
+{
+  return license_addons;
+}
+
+void LicenseClearGrantedAddons()
+{
+  ArrayResize(license_granted_addons, 0);
+}
+
+void LicenseAppendGrantedAddon(const string addon_key)
+{
+  string normalized_key = AddonCatalogNormalizeKey(addon_key);
+  if(normalized_key == "")
+    return;
+
+  int total = ArraySize(license_granted_addons);
+  for(int i = 0; i < total; i++)
+  {
+    if(AddonCatalogKeysEqual(license_granted_addons[i], normalized_key))
+      return;
+  }
+
+  ArrayResize(license_granted_addons, total + 1);
+  license_granted_addons[total] = normalized_key;
+}
+
+int LicenseGrantedAddonCount()
+{
+  return ArraySize(license_granted_addons);
+}
+
+bool LicenseIsTestingMode()
+{
+  return is_testing;
+}
+
+bool LicenseHasAddon(const string addon_key)
+{
+  if(LicenseIsTestingMode())
+    return true;
+
+  string normalized_key = AddonCatalogNormalizeKey(addon_key);
+  if(normalized_key == "")
+    return false;
+
+  int total = ArraySize(license_granted_addons);
+  for(int i = 0; i < total; i++)
+  {
+    if(AddonCatalogKeysEqual(license_granted_addons[i], normalized_key))
+      return true;
+  }
+
+  return false;
+}
+
+bool LicenseHasAnyCompoundFamilyAddon()
+{
+  string compound_families[];
+  AddonCatalogAllCompoundFamilies(compound_families);
+
+  int total = ArraySize(compound_families);
+  for(int i = 0; i < total; i++)
+  {
+    if(LicenseHasAddon(compound_families[i]))
+      return true;
+  }
+  return false;
+}
+
+void LicenseCopyGrantedAddons(string &addons_out[])
+{
+  int total = ArraySize(license_granted_addons);
+  ArrayResize(addons_out, total);
+  for(int i = 0; i < total; i++)
+    addons_out[i] = license_granted_addons[i];
+}
+
+bool LicenseParseGrantedAddonsFromResponse(JSON::Object &response)
+{
+  LicenseClearGrantedAddons();
+
+  if(!response.isArray("granted_addons"))
+    return false;
+
+  JSON::Array *addons = response.getArray("granted_addons");
+  if(addons == NULL)
+    return false;
+
+  int total = addons.getLength();
+  for(int i = 0; i < total; i++)
+  {
+    if(!addons.isString(i))
+      continue;
+    LicenseAppendGrantedAddon(addons.getString(i));
+  }
+
+  return true;
 }
 
 bool IsValidEmail(const string email)
@@ -151,6 +258,7 @@ void License_ClearRuntimeDetails()
   license_broker_account_number=0;
   license_broker_account_type="";
   license_broker_account_synced=false;
+  LicenseClearGrantedAddons();
 }
 
 void License_ParseBrokerAccountFromResponse(JSON::Object &response)
@@ -330,6 +438,12 @@ bool VerifyLicenseOnline()
   license_trial=response.isBoolean("trial") ? response.getBoolean("trial") : false;
   license_plan_interval=response.isString("plan_interval") ? response.getString("plan_interval") : "";
   License_ParseBrokerAccountFromResponse(response);
+  if(!LicenseParseGrantedAddonsFromResponse(response))
+  {
+    license_last_error="invalid_granted_addons";
+    Print("LICENSE RESPONSE MISSING granted_addons.");
+    return false;
+  }
 
   long expires_at = 0;
   if(response.isNumber("expires_at"))
@@ -352,10 +466,11 @@ bool VerifyLicenseOnline()
   if(license_last_error!="" && License_IsAuthError(license_last_error))
     PrintFormat("VALID EA LICENSE (auth warning ignored: %s).",license_last_error);
   else
-    PrintFormat("VALID EA LICENSE! trial=%s plan_interval=%s broker_synced=%s",
+    PrintFormat("VALID EA LICENSE! trial=%s plan_interval=%s broker_synced=%s addons=%d",
                 (license_trial?"true":"false"),
                 (license_plan_interval==""?"n/a":license_plan_interval),
-                (license_broker_account_synced?"true":"false"));
+                (license_broker_account_synced?"true":"false"),
+                LicenseGrantedAddonCount());
   license_last_error="";
   return true;
 }

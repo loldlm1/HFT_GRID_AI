@@ -3,6 +3,7 @@
 #include "harness/cases/context_base_only_test_case.mqh"
 #include "harness/cases/candle_structure_filter_test_case.mqh"
 #include "harness/cases/candle_structure_shrinked_edges_test_case.mqh"
+#include "harness/cases/addon_runtime_policy_test_case.mqh"
 #include "harness/cases/fibonacci_cycled_levels_cases_test_case.mqh"
 #include "harness/cases/fibonacci_grid_percent_test_case.mqh"
 #include "harness/cases/fibonacci_negative_label_test_case.mqh"
@@ -86,6 +87,13 @@ void OnStart()
 
   HarnessRecordResult("candle_structure_shrinked_edges_test",
                       RunTest_candle_structure_shrinked_edges_test(errors),
+                      errors,
+                      passed_count,
+                      failed_count,
+                      total_count);
+
+  HarnessRecordResult("addon_runtime_policy_test",
+                      RunTest_addon_runtime_policy_test(errors),
                       errors,
                       passed_count,
                       failed_count,

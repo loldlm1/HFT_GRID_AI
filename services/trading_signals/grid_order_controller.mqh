@@ -88,7 +88,7 @@ void UpdateGridLifecycle(SignalParams &signal_params)
     }
     if(GridShouldActivateNextLevelLimit(signal_params, grid_order, direction))
     {
-      bool level_limit_hit = ShouldBlockNextLevelByStopLimit(Grid_Level_Stop_Limit,
+      bool level_limit_hit = ShouldBlockNextLevelByStopLimit(ResolveEffectiveGridLevelStopLimit(),
                                                              grid_order.level_index);
 
       if(level_limit_hit)

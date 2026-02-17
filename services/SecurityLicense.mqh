@@ -27,6 +27,7 @@
 #endif
 #else
 bool is_testing = false;
+string license_addons = "";
 #endif
 
 int LicenseServiceTimerSeconds()
@@ -104,6 +105,41 @@ bool VerifyLicenseType()
 bool VerifyValidLicenseTime()
 {
   return true;
+}
+
+void LicenseSetRequestedAddonsCsv(const string addons_csv)
+{
+  license_addons = addons_csv;
+}
+
+string LicenseGetRequestedAddonsCsv()
+{
+  return license_addons;
+}
+
+bool LicenseIsTestingMode()
+{
+  return is_testing;
+}
+
+bool LicenseHasAddon(const string)
+{
+  return true;
+}
+
+bool LicenseHasAnyCompoundFamilyAddon()
+{
+  return true;
+}
+
+int LicenseGrantedAddonCount()
+{
+  return 0;
+}
+
+void LicenseCopyGrantedAddons(string &addons_out[])
+{
+  ArrayResize(addons_out, 0);
 }
 
 bool IsAdmin()

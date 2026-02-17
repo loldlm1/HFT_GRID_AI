@@ -14,6 +14,14 @@ bool RunTest_license_service_facade_test(string &errors)
   if(LicenseServiceTimerSeconds() != LICENSE_SERVICE_TIMER_SECONDS)
     errors += "timer seconds must match compile-time constant\n";
 
+  LicenseSetRequestedAddonsCsv("addon_session_time_filter,addon_candle_structure");
+  if(LicenseGetRequestedAddonsCsv() == "")
+    errors += "requested addons csv should be settable\n";
+  if(!LicenseHasAddon("addon_session_time_filter"))
+    errors += "LicenseHasAddon should return true in compile-time-off mode\n";
+  if(LicenseGrantedAddonCount() != 0)
+    errors += "granted addon count should default to 0 in compile-time-off mode\n";
+
 #ifndef LICENSE_ENFORCEMENT_ENABLED
 #ifdef LICENSE_DAILY_RESULTS_ENABLED
   errors += "daily results must be forced off when enforcement is off\n";
@@ -26,6 +34,12 @@ bool RunTest_license_service_facade_test(string &errors)
     errors += "VerifyLicenseType should pass when enforcement is compile-time off\n";
   if(!VerifyValidLicenseTime())
     errors += "VerifyValidLicenseTime should pass when enforcement is compile-time off\n";
+  if(LicenseIsTestingMode())
+    errors += "LicenseIsTestingMode should be false for script runtime context\n";
+  string granted_addons[];
+  LicenseCopyGrantedAddons(granted_addons);
+  if(ArraySize(granted_addons) != 0)
+    errors += "granted addon array should default empty in compile-time-off mode\n";
   LicenseServiceOnTimer();
   LicenseServiceOnDeinit();
 #else
