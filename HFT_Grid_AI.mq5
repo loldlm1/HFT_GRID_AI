@@ -39,8 +39,7 @@ SymbolTradingConstraints g_symbol_constraints;
 
 int OnInit()
 {
-  //EncryptEA("197955914", "Admin", "Shurt", 300);
-  // License Validation
+  // License Validation - Uncomment in production
 	//if(MQLInfoInteger(MQL_TESTER) > 0) is_testing = true;
 	//if(!DecryptEA())              { return(INIT_FAILED); }
   //if(!VerifyLicense())          { return(INIT_FAILED); }
