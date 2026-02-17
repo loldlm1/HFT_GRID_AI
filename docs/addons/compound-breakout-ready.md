@@ -1,4 +1,4 @@
-# Addon: Structure Compound Context - Breakout Ready
+# Addon Guide: Structure Compound Context - Breakout Ready
 
 ## SKU
 - `addon_compound_breakout_ready`
@@ -7,9 +7,24 @@
 - `COMPOUND_MODE_BREAKOUT_READY_BUY`
 - `COMPOUND_MODE_BREAKOUT_READY_SELL`
 
-## Related base inputs
+One purchase includes both sides (BUY and SELL).
+
+## Inputs related to this addon
 - `Base_Structure_Compound_Filter`
 - `Base_Fresh_Structure_Time`
 
-## Missing entitlement behavior
-- If one of the included modes is selected without entitlement, startup is blocked.
+## Entitlement trigger rule
+Addon is required when `Base_Structure_Compound_Filter` is one of the Breakout Ready modes.
+
+## Recommended setups
+### Setup A: Confirmed breakout entries (recommended)
+- `Base_Structure_Compound_Filter = COMPOUND_MODE_BREAKOUT_READY_BUY` for bullish breakouts
+- `Base_Structure_Compound_Filter = COMPOUND_MODE_BREAKOUT_READY_SELL` for bearish breakouts
+- `Base_Fresh_Structure_Time = true`
+
+### Setup B: Opportunistic breakout mode
+- Keep Breakout Ready mode selected
+- `Base_Fresh_Structure_Time = false`
+
+## If addon is missing
+- EA startup is blocked when Breakout Ready mode is selected.
