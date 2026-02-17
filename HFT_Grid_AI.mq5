@@ -39,12 +39,8 @@ SymbolTradingConstraints g_symbol_constraints;
 
 int OnInit()
 {
-  // License Validation - Uncomment in production
-	//if(MQLInfoInteger(MQL_TESTER) > 0) is_testing = true;
-	//if(!DecryptEA())              { return(INIT_FAILED); }
-  //if(!VerifyLicense())          { return(INIT_FAILED); }
-  //if(!VerifyLicenseType())      { return(INIT_FAILED); }
-  //if(!VerifyValidLicenseTime()) { return(INIT_FAILED); }
+  if(!LicenseServiceInit())
+    return(INIT_FAILED);
 
   // INITIALIZE GLOBAL VARIABLES
   g_symbol.Name(_Symbol);
@@ -77,6 +73,13 @@ int OnInit()
   CreateLicensePanelLive();
   LoadAllIndicatorDefinitions();
 
+  if(!EventSetTimer(LicenseServiceTimerSeconds()))
+  {
+    PrintFormat("[EA] Failed to set timer (%d seconds).",
+                LicenseServiceTimerSeconds());
+    return(INIT_FAILED);
+  }
+
   return(INIT_SUCCEEDED);
 }
 
@@ -85,6 +88,7 @@ int OnInit()
 //+------------------------------------------------------------------+
 void OnDeinit(const int reason)
 {
+  LicenseServiceOnDeinit();
   EventKillTimer();
   Comment("");
 }
@@ -111,6 +115,7 @@ void OnTradeTransaction(const MqlTradeTransaction& trans,
 //+------------------------------------------------------------------+
 void OnTimer()
 {
+  LicenseServiceOnTimer();
 }
 
 //+------------------------------------------------------------------+
