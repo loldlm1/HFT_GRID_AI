@@ -1,4 +1,4 @@
-# Addon: Structure Compound Context - Trend Ride
+# Addon Guide: Structure Compound Context - Trend Ride
 
 ## SKU
 - `addon_compound_trend_ride`
@@ -7,9 +7,24 @@
 - `COMPOUND_MODE_TREND_RIDE_BUY`
 - `COMPOUND_MODE_TREND_RIDE_SELL`
 
-## Related base inputs
+One purchase includes both sides (BUY and SELL).
+
+## Inputs related to this addon
 - `Base_Structure_Compound_Filter`
 - `Base_Fresh_Structure_Time`
 
-## Missing entitlement behavior
-- If one of the included modes is selected without entitlement, startup is blocked.
+## Entitlement trigger rule
+Addon is required when `Base_Structure_Compound_Filter` is one of the Trend Ride modes.
+
+## Recommended setups
+### Setup A: Trend continuation (recommended)
+- `Base_Structure_Compound_Filter = COMPOUND_MODE_TREND_RIDE_BUY` for long trend systems
+- `Base_Structure_Compound_Filter = COMPOUND_MODE_TREND_RIDE_SELL` for short trend systems
+- `Base_Fresh_Structure_Time = true`
+
+### Setup B: More entries, less strict
+- Keep Trend Ride mode selected
+- `Base_Fresh_Structure_Time = false`
+
+## If addon is missing
+- EA startup is blocked when Trend Ride mode is selected.

@@ -7,9 +7,23 @@ Breaking input rename applied:
 
 ## Impact
 - Existing `.set` files using old names will not map automatically.
-- Tests or scripts that reference old names must be updated.
+- Tests, scripts, and docs that reference old names must be updated.
 
-## Recommended migration
+## `.set` example mapping
+Old:
+```text
+Grid_Base_Strategy_Type=1
+Grid_Points_Range_Setup=100.0
+```
+
+New:
+```text
+Base_Strategy_Type=1
+Points_Range_Setup=100.0
+```
+
+## Recommended migration flow
 1. Load old preset.
-2. Re-save preset after setting the new input names.
-3. Re-run compile/runtime test gates.
+2. Re-apply values to new input names.
+3. Save a new preset file version.
+4. Re-run compile/runtime gates.
