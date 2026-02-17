@@ -68,5 +68,6 @@ SymbolTradingConstraints g_symbol_constraints;
 
 #include "../../services/trading_signals/market_signal_filters.mqh"
 #include "../../services/trading_signals/grid_order_helpers.mqh"
+#include "../../services/trading_signals/grid_order_math.mqh"
 
 #endif

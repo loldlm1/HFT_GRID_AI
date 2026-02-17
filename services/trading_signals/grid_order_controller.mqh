@@ -25,7 +25,10 @@ void UpdateGridLifecycle(SignalParams &signal_params)
     if(UpdateGridOrderForSignal(signal_params))
       grid_order = signal_params.grid_orders[grid_order_level];
 
-    double normalized_volume = NormalizeVolumeForSymbol(_Symbol, grid_order.lot_size);
+    double requested_lot = grid_order.lot_size;
+    double normalized_volume = 0.0;
+    if(grid_order.opens_position && requested_lot > 0.0)
+      normalized_volume = NormalizeVolumeForSymbol(_Symbol, requested_lot);
     double entry_side_price = GridCurrentPriceForDirection(direction, true);
     bool use_limit_edge_activation = UsesNonBreakoutLimitEdgeActivation(signal_params, grid_order);
 
@@ -43,11 +46,26 @@ void UpdateGridLifecycle(SignalParams &signal_params)
     if(can_activate &&
        GridShouldActivateStopOrder(signal_params, grid_order, direction))
     {
+      if(grid_order.opens_position &&
+         GridUsesTargetProfitLotMode() &&
+         requested_lot <= 0.0)
+      {
+        GridCloseAllLevels(signal_params, point_size);
+        GridLogEvent("LEVEL_ACTIVATION_FAILED_TARGET_LOT", signal_params, grid_order);
+        return;
+      }
+
       if(GridExecuteLevelTrade(signal_params, grid_order, point_size, normalized_volume))
       {
         UpdateGridOrderForSignal(signal_params);
         grid_order = signal_params.grid_orders[grid_order_level];
         GridLogEvent("LEVEL_REACHED", signal_params, grid_order);
+      }
+      else if(grid_order.opens_position && GridUsesTargetProfitLotMode())
+      {
+        GridCloseAllLevels(signal_params, point_size);
+        GridLogEvent("LEVEL_ACTIVATION_FAILED_SEND", signal_params, grid_order);
+        return;
       }
     }
   }
