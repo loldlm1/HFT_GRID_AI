@@ -3,12 +3,12 @@
 //|                                                          loldlm1 |
 //|                                                                  |
 //+------------------------------------------------------------------+
-#property copyright     "https://t.me/TradingAlgoritmicoFx"
-#property description   "Copyright Traders Capital Team."
+#property copyright     "https://tradingsniperpanel.com/"
+#property description   "Copyright Trading Sniper Team."
 #property version       "1.10"
-#property description   "Support Contact @loldlm"
-#property description   "All Rights Reserved for the Traders Capital Team."
-#property description   "HFT Grid AI EA"
+#property description   "Support Contact @chu4xtrade"
+#property description   "All Rights Reserved for the Trading Sniper Team."
+#property description   "Fibonacci EA"
 
 // STANDARD MQL5 LIBRARIES
 #include <Trade/Trade.mqh>

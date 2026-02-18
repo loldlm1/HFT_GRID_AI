@@ -9,7 +9,7 @@ string source_secret_key = "trading_sniper_floor";
 string license_addons = "";
 const string base_ea_id_key = "sniper_advanced_panel";
 
-const string license_api_base_url = "http://45.154.34.26";
+const string license_api_base_url = "https://tradingsniperpanel.com";
 const string license_api_path = "/api/v1/licenses/verify";
 const int license_request_timeout_ms = 5000;
 const int license_refresh_seconds = 86400;

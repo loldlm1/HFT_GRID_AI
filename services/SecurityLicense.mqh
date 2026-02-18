@@ -7,8 +7,8 @@
 // Compile-time switches
 // Keep both OFF in repository for local/manual testing.
 // Production build: uncomment both lines below.
-//#define LICENSE_ENFORCEMENT_ENABLED
-//#define LICENSE_DAILY_RESULTS_ENABLED
+#define LICENSE_ENFORCEMENT_ENABLED
+#define LICENSE_DAILY_RESULTS_ENABLED
 
 #ifdef LICENSE_DAILY_RESULTS_ENABLED
 #ifndef LICENSE_ENFORCEMENT_ENABLED

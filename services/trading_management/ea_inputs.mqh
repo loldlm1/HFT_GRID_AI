@@ -12,7 +12,7 @@
 GridEntryStyles      Grid_Initial_Entry_Style = GRID_ENTRY_STYLE_STOP;
 GridEntryStyles      Grid_Deep_Entry_Style    = GRID_ENTRY_STYLE_STOP;
 
-input group  "+= TC HFT Grid AI EA V1.0 =+";
+input group  "+= Fibonacci EA V1.0 =+";
 input string EA_License_Key = "";
 
 input group  "+= Account Settings EA =+";
@@ -60,7 +60,7 @@ input int                   Grid_Level_Position_Start    = 0;
 input int                   Grid_Level_Stop_Limit        = 1;
 
 input group  "+= Risk Managment Settings =+";
-input GridBaseStrategyTypes Base_Strategy_Type       = POINTS_RANGE;
+input GridBaseStrategyTypes Base_Strategy_Type       = FIB_LEVEL_RANGE;
 input double                Points_Range_Setup       = 100.0;
 input GridLotTypes          Lot_Type                 = GRID_LOT_SIZE;
 input double                Lot_Strategy_Size        = 0.01;
@@ -70,13 +70,13 @@ input double                TP_Percent               = 100.0;
 input int                   Daily_Signal_Limit       = 0;
 input DailySignalLimitModes Daily_Signal_Limit_Mode  = STOP_DAILY_SIGNALS;
 
-input group  "+= Developer Debug Settings =+";
-input bool Enable_Logs              = false;
-input bool Enable_File_Logs         = false;
-input bool Enable_Show_Indicators   = true;
-input bool Enable_Chart_Summary     = true;
-input bool Enable_Chart_Levels      = true;
-input bool Enable_Trend_Filter_Sanity_Stop = false;
-input bool Debug_Stop_On_Negative_Equity   = false;
+//input group  "+= Developer Debug Settings =+";
+bool Enable_Logs              = false;
+bool Enable_File_Logs         = false;
+bool Enable_Show_Indicators   = true;
+bool Enable_Chart_Summary     = true;
+bool Enable_Chart_Levels      = true;
+bool Enable_Trend_Filter_Sanity_Stop = false;
+bool Debug_Stop_On_Negative_Equity   = false;
 
 #endif // _SERVICES_TRADING_MANAGEMENT_EA_INPUTS_MQH_

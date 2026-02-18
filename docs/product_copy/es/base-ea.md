@@ -1,15 +1,15 @@
 # Copy de Producto - Base EA
 
 ## Producto
-- Nombre: `HFT Grid AI - Base EA`
+- Nombre: `Fibonacci - Base EA`
 - Tipo: `Producto base`
 - SKU: `base_ea`
 
 ## Bloque Corto
-`HFT Grid AI Base incluye el motor principal: control de riesgo, contexto de estrategia y ajustes de ejecucion. Empieza con configuracion segura y activa addons solo cuando lo necesites.`
+`Fibonacci Base incluye el motor principal: control de riesgo, contexto de estrategia y ajustes de ejecucion. Empieza con configuracion segura y activa addons solo cuando lo necesites.`
 
 ## Bloque Medio
-`Base EA es el paquete principal de HFT Grid AI. Incluye el flujo completo del sistema: protecciones de cuenta, filtros de contexto de mercado y configuracion de tamano de posicion. Con esto, el usuario puede operar una version solida sin comprar addons desde el primer dia.`
+`Base EA es el paquete principal de Fibonacci. Incluye el flujo completo del sistema: protecciones de cuenta, filtros de contexto de mercado y configuracion de tamano de posicion. Con esto, el usuario puede operar una version solida sin comprar addons desde el primer dia.`
 
 `Para usuarios no traders: piensa en Base EA como la aplicacion principal, y los addons como funciones extra. La base ya maneja limites de seguridad y comportamiento estandar de estrategia.`
 
