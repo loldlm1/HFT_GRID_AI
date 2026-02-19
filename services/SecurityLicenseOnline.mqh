@@ -7,7 +7,7 @@ string primary_ci_key = "D3B634B92BDBC9D80BC84ED4F2640644929A5E0DA153FD7D471AF9B
 string base_secret_key = "loldlm-1994-Slayert1";
 string source_secret_key = "trading_sniper_floor";
 string license_addons = "";
-const string base_ea_id_key = "sniper_advanced_panel";
+const string base_ea_id_key = "fibonacci_elite";
 
 const string license_api_base_url = "https://tradingsniperpanel.com";
 const string license_api_path = "/api/v1/licenses/verify";
