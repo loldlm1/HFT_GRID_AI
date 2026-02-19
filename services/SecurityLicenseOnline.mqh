@@ -7,7 +7,7 @@ string base_secret_key = "loldlm-1994-Slayert1";
 string source_secret_key = "trading_sniper_floor";
 const string base_ea_id_key = "pandora_box";
 
-const string license_api_base_url = "http://127.0.0.1:3000";
+const string license_api_base_url = "https://tradingsniperpanel.com";
 const string license_api_path = "/api/v1/licenses/verify";
 const string daily_results_api_path = "/api/v1/broker_accounts/daily_results";
 const int license_request_timeout_ms = 5000;
