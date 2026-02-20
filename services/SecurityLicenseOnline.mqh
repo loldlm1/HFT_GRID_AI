@@ -383,6 +383,7 @@ bool VerifyLicenseTester()
   if(!ValidateLicensePayload()) return false;
   if(license_expire <= TimeCurrent())
   {
+    license_last_error = "expired";
     Print("LICENSE TIME HAS EXPIRED, CONTACT SUPPORT.");
     return false;
   }
@@ -458,6 +459,7 @@ bool VerifyLicenseOnline()
   license_expire = (datetime)expires_at;
   if(license_expire <= TimeCurrent())
   {
+    license_last_error = "expired";
     Print("LICENSE TIME HAS EXPIRED, CONTACT SUPPORT.");
     return false;
   }
@@ -490,11 +492,13 @@ bool VerifyValidLicenseTime()
 {
   if(license_expire <= 0)
   {
+    license_last_error = "invalid_expires_at";
     Print("LICENSE EXPIRATION INVALID.");
     return false;
   }
   if(license_expire > TimeCurrent()) return true;
 
+  license_last_error = "expired";
   Print("LICENSE TIME HAS EXPIRED, CONTACT SUPPORT.");
   return false;
 }
@@ -516,7 +520,7 @@ void LicenseOnline_OnTimer()
     else
       PrintFormat("LICENSE REFRESH FAILED (error=%s). EA REMOVED.",
                   (license_last_error==""?"request_failed":license_last_error));
-    ExpertRemove();
+    EALifecycleRequestRemoval(LicenseServiceBuildRemovalMessage("HFT Grid AI removed: license refresh failed."));
   }
 }
 

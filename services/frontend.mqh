@@ -9,6 +9,7 @@
 #include "frontend/chart_style_guide.mqh"
 #include "frontend/grid_visual_utils.mqh"
 #include "frontend/grid_visual_lines.mqh"
+#include "frontend/lightweight_status_ui.mqh"
 #include "frontend/grid_visualization.mqh"
 
 #endif // _SERVICES_FRONTEND_MQH_

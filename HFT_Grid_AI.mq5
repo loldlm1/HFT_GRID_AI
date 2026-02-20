@@ -38,6 +38,21 @@ datetime     g_initial_ea_date;
 SymbolTradingConstraints g_symbol_constraints;
 string       g_startup_block_message = "";
 
+bool ProcessPendingRemovalRequest()
+{
+  if(!EALifecycleHasPendingRemoval())
+    return false;
+
+  string removal_message = EALifecycleRemovalMessage();
+  if(removal_message != "")
+    Print("[EA] ", removal_message);
+  else
+    Print("[EA] Removal requested.");
+
+  ExpertRemove();
+  return true;
+}
+
 int OnInit()
 {
   AddonPolicySyncRequestedAddonsForLicensePayload();
@@ -47,12 +62,15 @@ int OnInit()
 
   if(!AddonPolicyValidateEntitlementsForCurrentInputs(g_startup_block_message))
   {
-    Comment(g_startup_block_message);
+    EALifecycleRequestRemoval(g_startup_block_message, true);
     return(INIT_FAILED);
   }
   AddonPolicyApplyRuntimeLocks();
+  EALifecycleClearRemovalRequest();
 
   // INITIALIZE GLOBAL VARIABLES
+  g_ea_running = false;
+  SetManualSignalEntryEnabled(true);
   g_symbol.Name(_Symbol);
   g_decimal_digits  = pow(10.0, Digits());
   g_initial_ea_date = TimeCurrent();
@@ -77,6 +95,9 @@ int OnInit()
   g_position.SetExpertMagicNumber(g_magic_number);
 
   // CHART SETUP
+  ClearPersistentChartError();
+  ResetGridVisualizationCache();
+  ResetLightweightUiCache();
   ApplyDefaultChartStyle(ChartID());
 
   // INITIALIZE THE EA
@@ -100,9 +121,21 @@ void OnDeinit(const int reason)
 {
   LicenseServiceOnDeinit();
   EventKillTimer();
-  if(reason == REASON_INITFAILED && g_startup_block_message != "")
-    return;
-  Comment("");
+
+  string removal_message = EALifecycleRemovalMessage();
+  bool preserve_error_object = EALifecyclePreserveErrorObject();
+
+  if(removal_message == "" && g_startup_block_message != "")
+    removal_message = g_startup_block_message;
+
+  DeleteEAChartObjects(ChartID(), false);
+  ResetGridVisualizationCache();
+  ResetLightweightUiCache();
+
+  if(preserve_error_object && removal_message != "")
+    RenderPersistentChartError(removal_message);
+
+  EALifecycleClearRemovalRequest();
 }
 
 //+------------------------------------------------------------------+
@@ -131,12 +164,15 @@ void OnTimer()
   LicenseServiceOnTimer();
   AddonPolicyApplyRuntimeLocks();
 
+  if(ProcessPendingRemovalRequest())
+    return;
+
   string runtime_message = "";
   if(!AddonPolicyValidateEntitlementsForCurrentInputs(runtime_message))
   {
-    Comment(runtime_message);
+    EALifecycleRequestRemoval(runtime_message, true);
     Print("[AddonPolicy] Runtime entitlement mismatch. EA removed.");
-    ExpertRemove();
+    ProcessPendingRemovalRequest();
     return;
   }
 }
@@ -179,9 +215,6 @@ void OnTick()
 
   bool broker_disabled = (MarketStatusGet() == MARKET_STATUS_BROKER_DISABLED);
 
-  // UPDATES THE STATUS COMMENT
-  UpdateEARunningMagic();
-
   //--- Phase 1 - check the emergence of a new bar and update the status
   if(current_time>=next_bar_open)
   {
@@ -198,6 +231,14 @@ void OnTick()
   if(!broker_disabled)
     Main_Tick();
   RefreshGridVisualization();
+}
+
+void OnChartEvent(const int id,
+                  const long &lparam,
+                  const double &dparam,
+                  const string &sparam)
+{
+  HandleLightweightChartUiEvent(id, lparam, dparam, sparam);
 }
 
 // DETECT BULLISH AND BEARISH SIGNALS

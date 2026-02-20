@@ -82,6 +82,18 @@ bool RunTest_addon_runtime_policy_test(string &errors)
     errors += "compile-time-off mode should not force runtime grid level stop limit\n";
 #endif
 
+  if(AddonCatalogDisplayLabel(ADDON_KEY_SESSION_TIME_FILTER) != "Session Time Filter")
+    errors += "session addon display label mismatch\n";
+  if(AddonCatalogDisplayLabel(ADDON_KEY_COMPOUND_ANY_FAMILY) != "Any Compound Family Addon")
+    errors += "compound-any addon display label mismatch\n";
+
+  string display_addons[];
+  ArrayResize(display_addons, 2);
+  display_addons[0] = ADDON_KEY_SESSION_TIME_FILTER;
+  display_addons[1] = ADDON_KEY_GRID_STRATEGY_CONFIG;
+  if(AddonCatalogJoinDisplayLabels(display_addons) != "Session Time Filter, Grid Strategy Settings")
+    errors += "addon display list join mismatch\n";
+
   return (errors == "");
 }
 

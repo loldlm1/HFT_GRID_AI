@@ -12,6 +12,11 @@ bool     g_market_close_guard_active     = false;
 datetime g_market_close_guard_session_end = 0;
 datetime g_market_close_guard_trigger_time = 0;
 
+bool ProtectionRiskDailyLockActive()
+{
+  return g_protection_daily_lock_active;
+}
+
 double ProtectionRiskResolveThreshold()
 {
   double safe_value = MathAbs(Protection_Risk_Drawdown_Value);

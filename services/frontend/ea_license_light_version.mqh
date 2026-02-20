@@ -10,22 +10,17 @@
 //+------------------------------------------------------------------+
 void CreateLicensePanelLive()
 {
-  CreateEATitleBar();
+  ResetLightweightUiCache();
 }
 
 void CreateEATitleBar()
 {
-  string ea_running = g_ea_running ? "Enabled" : "Disabled";
-
-  Comment(ea_running + "   /   Magic: " + (string)g_magic_number);
+  ResetLightweightUiCache();
 }
 
 void UpdateEARunningMagic()
 {
-  string ea_running     = g_ea_running ? "Enabled" : "Disabled";
-  string running_text   = ea_running + "   /   Magic: " + (string)g_magic_number;
-
-  Comment(running_text);
+  ResetLightweightUiCache();
 }
 
 int ChartWindowPosition()

@@ -14,6 +14,54 @@ const string ADDON_KEY_COMPOUND_PULLBACK_CONT   = "addon_compound_pullback_conti
 const string ADDON_KEY_COMPOUND_REVERSAL_EARLY  = "addon_compound_reversal_early";
 const string ADDON_KEY_COMPOUND_BREAKOUT_READY  = "addon_compound_breakout_ready";
 const string ADDON_KEY_COMPOUND_VOLATILITY_TRAP = "addon_compound_volatility_trap";
+const string ADDON_KEY_COMPOUND_ANY_FAMILY      = "addon_compound_family_any";
+
+string AddonCatalogDisplayLabel(const string addon_key)
+{
+  string normalized_key = AddonCatalogNormalizeKey(addon_key);
+
+  if(normalized_key == ADDON_KEY_SESSION_TIME_FILTER)
+    return "Session Time Filter";
+  if(normalized_key == ADDON_KEY_GRID_STRATEGY_CONFIG)
+    return "Grid Strategy Settings";
+  if(normalized_key == ADDON_KEY_CANDLE_STRUCTURE_FILTER)
+    return "Candle Structure Filter";
+  if(normalized_key == ADDON_KEY_COMPOUND_TREND_RIDE)
+    return "Compound Trend Ride";
+  if(normalized_key == ADDON_KEY_COMPOUND_PULLBACK_CONT)
+    return "Compound Pullback Continue";
+  if(normalized_key == ADDON_KEY_COMPOUND_REVERSAL_EARLY)
+    return "Compound Reversal Early";
+  if(normalized_key == ADDON_KEY_COMPOUND_BREAKOUT_READY)
+    return "Compound Breakout Ready";
+  if(normalized_key == ADDON_KEY_COMPOUND_VOLATILITY_TRAP)
+    return "Compound Volatility Trap";
+  if(normalized_key == ADDON_KEY_COMPOUND_ANY_FAMILY)
+    return "Any Compound Family Addon";
+
+  if(normalized_key == "")
+    return "";
+
+  return normalized_key;
+}
+
+string AddonCatalogJoinDisplayLabels(const string &addons[])
+{
+  string labels = "";
+  int total = ArraySize(addons);
+  for(int i = 0; i < total; i++)
+  {
+    string label = AddonCatalogDisplayLabel(addons[i]);
+    if(label == "")
+      continue;
+
+    if(labels != "")
+      labels += ", ";
+    labels += label;
+  }
+
+  return labels;
+}
 
 void AddonCatalogAllCompoundFamilies(string &addons_out[])
 {

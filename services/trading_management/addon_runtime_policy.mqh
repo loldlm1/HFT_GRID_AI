@@ -8,7 +8,6 @@
 const double GRID_ADDON_LOCKED_EXPONENTIAL_MULTIPLIER = 1.0;
 const int GRID_ADDON_LOCKED_LEVEL_POSITION_START = 0;
 const int GRID_ADDON_LOCKED_LEVEL_STOP_LIMIT = 1;
-const string ADDON_POLICY_COMPOUND_ANY_FAMILY_LABEL = "addon_compound_family_any";
 
 bool g_grid_level_stop_limit_runtime_override = false;
 int g_grid_level_stop_limit_runtime_value = GRID_ADDON_LOCKED_LEVEL_STOP_LIMIT;
@@ -166,29 +165,12 @@ void AddonPolicyResolveMissingAddons(string &requested_addons[],
   }
 
   if(require_any_compound_family && !AddonPolicyHasAnyCompoundFamilyEntitlement())
-    AddonPolicyAppendUnique(missing_addons_out, ADDON_POLICY_COMPOUND_ANY_FAMILY_LABEL);
+    AddonPolicyAppendUnique(missing_addons_out, ADDON_KEY_COMPOUND_ANY_FAMILY);
 }
 
 string AddonPolicyBuildMissingAddonsLabel(const string &missing_addons[])
 {
-  string label = "";
-  int total = ArraySize(missing_addons);
-  for(int i = 0; i < total; i++)
-  {
-    string item = missing_addons[i];
-    if(item == "")
-      continue;
-
-    if(label != "")
-      label += ", ";
-
-    if(item == ADDON_POLICY_COMPOUND_ANY_FAMILY_LABEL)
-      label += "any_compound_family_addon";
-    else
-      label += item;
-  }
-
-  return label;
+  return AddonCatalogJoinDisplayLabels(missing_addons);
 }
 
 bool AddonPolicyValidateEntitlementsForCurrentInputs(string &chart_message_out)

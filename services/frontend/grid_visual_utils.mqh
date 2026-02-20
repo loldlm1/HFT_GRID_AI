@@ -1,6 +1,58 @@
 #ifndef _MICROSERVICES_FRONTEND_GRID_VISUAL_UTILS_MQH_
 #define _MICROSERVICES_FRONTEND_GRID_VISUAL_UTILS_MQH_
 
+const string EA_CHART_OBJECT_PREFIX = "HFT_GRID_AI_";
+const string EA_CHART_UI_PANEL = "HFT_GRID_AI_UI_PANEL";
+const string EA_CHART_UI_STATUS = "HFT_GRID_AI_UI_STATUS";
+const string EA_CHART_UI_TOGGLE = "HFT_GRID_AI_UI_TOGGLE";
+const string EA_CHART_ERROR_OBJECT = "HFT_GRID_AI_ERROR_MESSAGE";
+string EA_CHART_LEGACY_GRID_OBJECTS[] =
+{
+  "STOP_BULLISH",
+  "TP_BULLISH",
+  "ENTRY_BULLISH",
+  "NEXT_BULLISH",
+  "STOP_BEARISH",
+  "TP_BEARISH",
+  "ENTRY_BEARISH",
+  "NEXT_BEARISH"
+};
+
+bool IsLegacyGridObjectName(const string name)
+{
+  int total = ArraySize(EA_CHART_LEGACY_GRID_OBJECTS);
+  for(int i = 0; i < total; i++)
+  {
+    if(EA_CHART_LEGACY_GRID_OBJECTS[i] == name)
+      return true;
+  }
+  return false;
+}
+
+bool IsEAOwnedObjectName(const string name)
+{
+  if(StringFind(name, EA_CHART_OBJECT_PREFIX) == 0)
+    return true;
+  return IsLegacyGridObjectName(name);
+}
+
+void DeleteEAChartObjects(const long chart_id,
+                          const bool preserve_error_object = false)
+{
+  int total = ObjectsTotal(chart_id, -1, -1);
+  for(int i = total - 1; i >= 0; i--)
+  {
+    string object_name = ObjectName(chart_id, i, -1, -1);
+    if(object_name == "")
+      continue;
+    if(!IsEAOwnedObjectName(object_name))
+      continue;
+    if(preserve_error_object && object_name == EA_CHART_ERROR_OBJECT)
+      continue;
+    ObjectDelete(chart_id, object_name);
+  }
+}
+
 bool ContainsObjectName(string &names[], const string name)
 {
   int total = ArraySize(names);
@@ -67,7 +119,7 @@ string GridSignalObjectName(const SignalParams &signal_params,
                             const string suffix)
 {
   string direction = (signal_params.signal_type == BULLISH) ? "BULLISH" : "BEARISH";
-  return suffix + "_" + direction;
+  return EA_CHART_OBJECT_PREFIX + suffix + "_" + direction;
 }
 
 string GridSignalLineLabel(const SignalParams &signal_params,

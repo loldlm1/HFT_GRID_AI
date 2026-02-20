@@ -1,6 +1,13 @@
 #ifndef _SERVICES_FRONTEND_GRID_VISUALIZATION_MQH_
 #define _SERVICES_FRONTEND_GRID_VISUALIZATION_MQH_
 
+string g_grid_visual_previous_objects[];
+
+void ResetGridVisualizationCache()
+{
+  ArrayResize(g_grid_visual_previous_objects, 0);
+}
+
 string FormatTimeframeLabel(const ENUM_TIMEFRAMES tf_value)
 {
   string label = EnumToString(tf_value);
@@ -193,7 +200,6 @@ void BuildSignalSummary(const SignalParams &signal_params,
 void RefreshGridVisualization()
 {
   long chart_id = ChartID();
-  static string previous_objects[];
   string current_objects[];
 
   datetime now_time = TimeCurrent();
@@ -211,9 +217,10 @@ void RefreshGridVisualization()
   }
   else
   {
-    int prev_total = ArraySize(previous_objects);
+    int prev_total = ArraySize(g_grid_visual_previous_objects);
     for(int k = 0; k < prev_total; k++)
-      ObjectDelete(chart_id, previous_objects[k]);
+      ObjectDelete(chart_id, g_grid_visual_previous_objects[k]);
+    ArrayResize(g_grid_visual_previous_objects, 0);
   }
 
   if(Enable_Chart_Summary)
@@ -225,32 +232,18 @@ void RefreshGridVisualization()
     int bearish_total = ArraySize(running_bearish_signals);
     for(int j = 0; j < bearish_total; j++)
       BuildSignalSummary(running_bearish_signals[j], summary_lines, now_time);
-
-    string market_status = MarketStatusToString(MarketStatusGet());
-    string header = StringFormat("%s   /   Magic: %d   /   Market: %s",
-                                 g_ea_running ? "Enabled" : "Disabled",
-                                 g_magic_number,
-                                 market_status);
-    string status_reason = MarketStatusReason();
-    if(status_reason != "")
-      header = header + " (" + status_reason + ")";
-
-    string comment_text = header;
-    int summary_total = ArraySize(summary_lines);
-    for(int idx = 0; idx < summary_total; idx++)
-      comment_text = comment_text + "\n" + summary_lines[idx];
-
-    Comment(comment_text);
   }
 
-  int previous_total = ArraySize(previous_objects);
+  RenderLightweightStatusTable(g_ea_running, g_magic_number, summary_lines);
+
+  int previous_total = ArraySize(g_grid_visual_previous_objects);
   for(int p = 0; p < previous_total; p++)
   {
-    if(!ContainsObjectName(current_objects, previous_objects[p]))
-      ObjectDelete(chart_id, previous_objects[p]);
+    if(!ContainsObjectName(current_objects, g_grid_visual_previous_objects[p]))
+      ObjectDelete(chart_id, g_grid_visual_previous_objects[p]);
   }
 
-  ArrayCopy(previous_objects, current_objects);
+  ArrayCopy(g_grid_visual_previous_objects, current_objects);
 }
 
 #endif // _SERVICES_FRONTEND_GRID_VISUALIZATION_MQH_
