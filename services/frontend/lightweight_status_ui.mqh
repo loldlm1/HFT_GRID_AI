@@ -1,8 +1,21 @@
 #ifndef _SERVICES_FRONTEND_LIGHTWEIGHT_STATUS_UI_MQH_
 #define _SERVICES_FRONTEND_LIGHTWEIGHT_STATUS_UI_MQH_
 
-string g_chart_ui_last_status_text = "";
+const int LIGHTWEIGHT_UI_PANEL_X = 8;
+const int LIGHTWEIGHT_UI_PANEL_Y = 24;
+const int LIGHTWEIGHT_UI_PANEL_PADDING_X = 8;
+const int LIGHTWEIGHT_UI_PANEL_PADDING_Y = 6;
+const int LIGHTWEIGHT_UI_PANEL_MIN_WIDTH = 260;
+const int LIGHTWEIGHT_UI_PANEL_MAX_WIDTH = 560;
+const int LIGHTWEIGHT_UI_BUTTON_H = 20;
+const int LIGHTWEIGHT_UI_BUTTON_TOP_OFFSET = 6;
+const int LIGHTWEIGHT_UI_FIRST_ROW_Y = 56;
+const int LIGHTWEIGHT_UI_ROW_STEP = 14;
+const int LIGHTWEIGHT_UI_MAX_ROWS = 18;
+const int LIGHTWEIGHT_UI_MAX_VALUE_CHARS = 62;
+
 string g_chart_ui_last_button_text = "";
+string g_chart_ui_last_rows[];
 
 string BoolOnOff(const bool enabled)
 {
@@ -34,67 +47,174 @@ string ResolveSignalBlockSourceLabel(const string source)
   return source;
 }
 
+string ClampUiValue(const string value,
+                    const int max_chars)
+{
+  if(max_chars < 4)
+    return value;
+
+  int len = StringLen(value);
+  if(len <= max_chars)
+    return value;
+
+  return StringSubstr(value, 0, max_chars - 3) + "...";
+}
+
+string LightweightUiRowObjectName(const int row_index)
+{
+  if(row_index <= 0)
+    return EA_CHART_UI_STATUS;
+
+  return EA_CHART_UI_ROW_PREFIX + IntegerToString(row_index);
+}
+
+void DeleteLightweightUiRows(const long chart_id)
+{
+  for(int i = 0; i < LIGHTWEIGHT_UI_MAX_ROWS; i++)
+    ObjectDelete(chart_id, LightweightUiRowObjectName(i));
+}
+
 void DeleteLightweightUiObjects(const long chart_id)
 {
   ObjectDelete(chart_id, EA_CHART_UI_PANEL);
-  ObjectDelete(chart_id, EA_CHART_UI_STATUS);
   ObjectDelete(chart_id, EA_CHART_UI_TOGGLE);
+  DeleteLightweightUiRows(chart_id);
 }
 
 void ResetLightweightUiCache()
 {
-  g_chart_ui_last_status_text = "";
   g_chart_ui_last_button_text = "";
+  ArrayResize(g_chart_ui_last_rows, 0);
+}
+
+color ResolveChartColor(const long chart_id,
+                        const ENUM_CHART_PROPERTY_INTEGER chart_prop,
+                        const color fallback_color)
+{
+  long chart_color = 0;
+  if(ChartGetInteger(chart_id, chart_prop, 0, chart_color))
+    return (color)chart_color;
+  return fallback_color;
+}
+
+color ResolveUiTextColor(const long chart_id)
+{
+  return ResolveChartColor(chart_id, CHART_COLOR_FOREGROUND, COLOR_CHART_FOREGROUND);
+}
+
+color ResolveUiBorderColor(const long chart_id)
+{
+  return ResolveUiTextColor(chart_id);
+}
+
+color ResolveUiPanelFillColor()
+{
+  return clrNONE;
+}
+
+color ResolveUiButtonTextColor(const long chart_id)
+{
+  return ResolveChartColor(chart_id, CHART_COLOR_BACKGROUND, COLOR_CHART_BACKGROUND);
+}
+
+color ResolveUiButtonBackground(const long chart_id,
+                                const bool fib_ea_enabled)
+{
+  if(fib_ea_enabled)
+    return ResolveChartColor(chart_id, CHART_COLOR_CHART_UP, COLOR_PROFIT_POSITIVE);
+
+  return ResolveChartColor(chart_id, CHART_COLOR_CHART_DOWN, COLOR_PROFIT_NEGATIVE);
+}
+
+void EnsureLightweightUiRowObject(const long chart_id,
+                                  const string object_name,
+                                  const int row_y,
+                                  const color text_color)
+{
+  if(ObjectFind(chart_id, object_name) < 0)
+  {
+    ObjectCreate(chart_id, object_name, OBJ_LABEL, 0, 0, 0);
+    ObjectSetInteger(chart_id, object_name, OBJPROP_CORNER, CORNER_LEFT_UPPER);
+    ObjectSetInteger(chart_id,
+                     object_name,
+                     OBJPROP_XDISTANCE,
+                     LIGHTWEIGHT_UI_PANEL_X + LIGHTWEIGHT_UI_PANEL_PADDING_X);
+    ObjectSetInteger(chart_id, object_name, OBJPROP_SELECTABLE, false);
+    ObjectSetInteger(chart_id, object_name, OBJPROP_SELECTED, false);
+    ObjectSetInteger(chart_id, object_name, OBJPROP_HIDDEN, false);
+    ObjectSetString(chart_id, object_name, OBJPROP_FONT, "Consolas");
+    ObjectSetInteger(chart_id, object_name, OBJPROP_FONTSIZE, 9);
+  }
+
+  ObjectSetInteger(chart_id, object_name, OBJPROP_YDISTANCE, row_y);
+  ObjectSetInteger(chart_id, object_name, OBJPROP_COLOR, text_color);
+}
+
+int EstimateUiRowWidth(const string row_value)
+{
+  int row_chars = StringLen(row_value);
+  if(row_chars < 0)
+    row_chars = 0;
+
+  return LIGHTWEIGHT_UI_PANEL_PADDING_X * 2 + row_chars * 6;
 }
 
 void EnsureLightweightUiObjects(const long chart_id,
-                                const int panel_height)
+                                const int panel_width,
+                                const int panel_height,
+                                const color border_color,
+                                const color panel_fill,
+                                const color button_text_color)
 {
   if(ObjectFind(chart_id, EA_CHART_UI_PANEL) < 0)
-  {
     ObjectCreate(chart_id, EA_CHART_UI_PANEL, OBJ_RECTANGLE_LABEL, 0, 0, 0);
-    ObjectSetInteger(chart_id, EA_CHART_UI_PANEL, OBJPROP_CORNER, CORNER_LEFT_UPPER);
-    ObjectSetInteger(chart_id, EA_CHART_UI_PANEL, OBJPROP_XDISTANCE, 8);
-    ObjectSetInteger(chart_id, EA_CHART_UI_PANEL, OBJPROP_YDISTANCE, 24);
-    ObjectSetInteger(chart_id, EA_CHART_UI_PANEL, OBJPROP_XSIZE, 440);
-    ObjectSetInteger(chart_id, EA_CHART_UI_PANEL, OBJPROP_BORDER_TYPE, BORDER_FLAT);
-    ObjectSetInteger(chart_id, EA_CHART_UI_PANEL, OBJPROP_BGCOLOR, clrWhiteSmoke);
-    ObjectSetInteger(chart_id, EA_CHART_UI_PANEL, OBJPROP_COLOR, clrDimGray);
-    ObjectSetInteger(chart_id, EA_CHART_UI_PANEL, OBJPROP_SELECTABLE, false);
-    ObjectSetInteger(chart_id, EA_CHART_UI_PANEL, OBJPROP_SELECTED, false);
-    ObjectSetInteger(chart_id, EA_CHART_UI_PANEL, OBJPROP_HIDDEN, false);
-    ObjectSetInteger(chart_id, EA_CHART_UI_PANEL, OBJPROP_BACK, false);
-  }
-  ObjectSetInteger(chart_id, EA_CHART_UI_PANEL, OBJPROP_YSIZE, panel_height);
 
-  if(ObjectFind(chart_id, EA_CHART_UI_STATUS) < 0)
-  {
-    ObjectCreate(chart_id, EA_CHART_UI_STATUS, OBJ_LABEL, 0, 0, 0);
-    ObjectSetInteger(chart_id, EA_CHART_UI_STATUS, OBJPROP_CORNER, CORNER_LEFT_UPPER);
-    ObjectSetInteger(chart_id, EA_CHART_UI_STATUS, OBJPROP_XDISTANCE, 16);
-    ObjectSetInteger(chart_id, EA_CHART_UI_STATUS, OBJPROP_YDISTANCE, 54);
-    ObjectSetInteger(chart_id, EA_CHART_UI_STATUS, OBJPROP_COLOR, clrBlack);
-    ObjectSetInteger(chart_id, EA_CHART_UI_STATUS, OBJPROP_FONTSIZE, 9);
-    ObjectSetInteger(chart_id, EA_CHART_UI_STATUS, OBJPROP_SELECTABLE, false);
-    ObjectSetInteger(chart_id, EA_CHART_UI_STATUS, OBJPROP_SELECTED, false);
-    ObjectSetInteger(chart_id, EA_CHART_UI_STATUS, OBJPROP_HIDDEN, false);
-    ObjectSetString(chart_id, EA_CHART_UI_STATUS, OBJPROP_FONT, "Consolas");
-  }
+  ObjectSetInteger(chart_id, EA_CHART_UI_PANEL, OBJPROP_CORNER, CORNER_LEFT_UPPER);
+  ObjectSetInteger(chart_id, EA_CHART_UI_PANEL, OBJPROP_XDISTANCE, LIGHTWEIGHT_UI_PANEL_X);
+  ObjectSetInteger(chart_id, EA_CHART_UI_PANEL, OBJPROP_YDISTANCE, LIGHTWEIGHT_UI_PANEL_Y);
+  ObjectSetInteger(chart_id, EA_CHART_UI_PANEL, OBJPROP_XSIZE, panel_width);
+  ObjectSetInteger(chart_id, EA_CHART_UI_PANEL, OBJPROP_YSIZE, panel_height);
+  ObjectSetInteger(chart_id, EA_CHART_UI_PANEL, OBJPROP_BORDER_TYPE, BORDER_FLAT);
+  ObjectSetInteger(chart_id, EA_CHART_UI_PANEL, OBJPROP_COLOR, border_color);
+  ObjectSetInteger(chart_id, EA_CHART_UI_PANEL, OBJPROP_BGCOLOR, panel_fill);
+  ObjectSetInteger(chart_id, EA_CHART_UI_PANEL, OBJPROP_SELECTABLE, false);
+  ObjectSetInteger(chart_id, EA_CHART_UI_PANEL, OBJPROP_SELECTED, false);
+  ObjectSetInteger(chart_id, EA_CHART_UI_PANEL, OBJPROP_HIDDEN, false);
+  ObjectSetInteger(chart_id, EA_CHART_UI_PANEL, OBJPROP_BACK, false);
 
   if(ObjectFind(chart_id, EA_CHART_UI_TOGGLE) < 0)
-  {
     ObjectCreate(chart_id, EA_CHART_UI_TOGGLE, OBJ_BUTTON, 0, 0, 0);
-    ObjectSetInteger(chart_id, EA_CHART_UI_TOGGLE, OBJPROP_CORNER, CORNER_LEFT_UPPER);
-    ObjectSetInteger(chart_id, EA_CHART_UI_TOGGLE, OBJPROP_XDISTANCE, 16);
-    ObjectSetInteger(chart_id, EA_CHART_UI_TOGGLE, OBJPROP_YDISTANCE, 30);
-    ObjectSetInteger(chart_id, EA_CHART_UI_TOGGLE, OBJPROP_XSIZE, 210);
-    ObjectSetInteger(chart_id, EA_CHART_UI_TOGGLE, OBJPROP_YSIZE, 20);
-    ObjectSetInteger(chart_id, EA_CHART_UI_TOGGLE, OBJPROP_BGCOLOR, clrForestGreen);
-    ObjectSetInteger(chart_id, EA_CHART_UI_TOGGLE, OBJPROP_COLOR, clrWhite);
-    ObjectSetInteger(chart_id, EA_CHART_UI_TOGGLE, OBJPROP_BORDER_COLOR, clrDimGray);
-    ObjectSetInteger(chart_id, EA_CHART_UI_TOGGLE, OBJPROP_STATE, false);
-    ObjectSetString(chart_id, EA_CHART_UI_TOGGLE, OBJPROP_FONT, "Consolas");
-  }
+
+  int button_x = LIGHTWEIGHT_UI_PANEL_X + LIGHTWEIGHT_UI_PANEL_PADDING_X;
+  int button_w = panel_width - LIGHTWEIGHT_UI_PANEL_PADDING_X * 2;
+  if(button_w < 120)
+    button_w = 120;
+
+  ObjectSetInteger(chart_id, EA_CHART_UI_TOGGLE, OBJPROP_CORNER, CORNER_LEFT_UPPER);
+  ObjectSetInteger(chart_id, EA_CHART_UI_TOGGLE, OBJPROP_XDISTANCE, button_x);
+  ObjectSetInteger(chart_id,
+                   EA_CHART_UI_TOGGLE,
+                   OBJPROP_YDISTANCE,
+                   LIGHTWEIGHT_UI_PANEL_Y + LIGHTWEIGHT_UI_BUTTON_TOP_OFFSET);
+  ObjectSetInteger(chart_id, EA_CHART_UI_TOGGLE, OBJPROP_XSIZE, button_w);
+  ObjectSetInteger(chart_id, EA_CHART_UI_TOGGLE, OBJPROP_YSIZE, LIGHTWEIGHT_UI_BUTTON_H);
+  ObjectSetInteger(chart_id, EA_CHART_UI_TOGGLE, OBJPROP_COLOR, button_text_color);
+  ObjectSetInteger(chart_id, EA_CHART_UI_TOGGLE, OBJPROP_BORDER_COLOR, border_color);
+  ObjectSetInteger(chart_id, EA_CHART_UI_TOGGLE, OBJPROP_STATE, false);
+  ObjectSetString(chart_id, EA_CHART_UI_TOGGLE, OBJPROP_FONT, "Consolas");
+}
+
+void AddLightweightUiRow(string &rows[],
+                         const string label,
+                         const string value)
+{
+  int total = ArraySize(rows);
+  if(total >= LIGHTWEIGHT_UI_MAX_ROWS)
+    return;
+
+  string safe_value = ClampUiValue(value, LIGHTWEIGHT_UI_MAX_VALUE_CHARS);
+  ArrayResize(rows, total + 1);
+  rows[total] = label + ": " + safe_value;
 }
 
 void CollectAddonUiState(string &requested_addons[],
@@ -202,60 +322,99 @@ void RenderLightweightStatusTable(const bool ea_running,
 
   int summary_total = ArraySize(summary_lines);
   int summary_limit = summary_total;
-  if(summary_limit > 4)
-    summary_limit = 4;
+  if(summary_limit > 3)
+    summary_limit = 3;
 
-  int panel_height = 180 + summary_limit * 16;
-  EnsureLightweightUiObjects(chart_id, panel_height);
+  string rows[];
+  AddLightweightUiRow(rows, "Magic", IntegerToString(magic_number));
+  AddLightweightUiRow(rows, "Fibonacci EA", BoolOnOff(fib_ea_enabled && ea_running));
+  AddLightweightUiRow(rows, "Algo Trading", BoolOnOff(algo_enabled));
+  AddLightweightUiRow(rows, "Manual Toggle", BoolOnOff(manual_enabled));
+  AddLightweightUiRow(rows, "Signal Gate", (signal_gate_enabled ? "ENABLED" : "DISABLED"));
+  AddLightweightUiRow(rows, "Market", market_status);
+  AddLightweightUiRow(rows, "Requested Addons", requested_labels);
+  AddLightweightUiRow(rows, "Granted Addons", granted_labels);
+  AddLightweightUiRow(rows, "Missing Addons", missing_labels);
 
-  string status_text = StringFormat("Magic: %d\n"
-                                    "Fibonacci EA State: %s\n"
-                                    "Algo Trading: %s\n"
-                                    "Manual Toggle: %s\n"
-                                    "Signal Gate: %s\n"
-                                    "Market: %s\n"
-                                    "Requested Addons: %s\n"
-                                    "Granted Addons: %s\n"
-                                    "Missing Addons: %s",
-                                    magic_number,
-                                    BoolOnOff(fib_ea_enabled && ea_running),
-                                    BoolOnOff(algo_enabled),
-                                    BoolOnOff(manual_enabled),
-                                    signal_gate_enabled ? "ENABLED" : "DISABLED",
-                                    market_status,
-                                    requested_labels,
-                                    granted_labels,
-                                    missing_labels);
-
-  if(effective_source != "" || effective_reason != "")
-  {
-    status_text += "\nBlock Source: " + effective_source;
-    if(effective_reason != "")
-      status_text += "\nBlock Reason: " + effective_reason;
-  }
+  if(effective_source != "")
+    AddLightweightUiRow(rows, "Block Source", effective_source);
+  if(effective_reason != "")
+    AddLightweightUiRow(rows, "Block Reason", effective_reason);
 
   if(Enable_Chart_Summary && summary_limit > 0)
   {
-    status_text += "\nSignals:";
+    AddLightweightUiRow(rows, "Signals", IntegerToString(summary_limit) + " row(s)");
     for(int i = 0; i < summary_limit; i++)
-      status_text += "\n - " + summary_lines[i];
+      AddLightweightUiRow(rows, StringFormat("S%d", i + 1), summary_lines[i]);
   }
 
-  string button_text = ResolveFibEaButtonText();
-
-  if(status_text != g_chart_ui_last_status_text)
+  int rows_total = ArraySize(rows);
+  if(rows_total <= 0)
   {
-    ObjectSetString(chart_id, EA_CHART_UI_STATUS, OBJPROP_TEXT, status_text);
-    g_chart_ui_last_status_text = status_text;
+    AddLightweightUiRow(rows, "Status", "No data");
+    rows_total = ArraySize(rows);
   }
 
-  if(button_text != g_chart_ui_last_button_text)
+  int panel_width = LIGHTWEIGHT_UI_PANEL_MIN_WIDTH;
+  for(int i = 0; i < rows_total; i++)
   {
-    ObjectSetString(chart_id, EA_CHART_UI_TOGGLE, OBJPROP_TEXT, button_text);
-    g_chart_ui_last_button_text = button_text;
+    int row_width = EstimateUiRowWidth(rows[i]);
+    if(row_width > panel_width)
+      panel_width = row_width;
+  }
+  if(panel_width > LIGHTWEIGHT_UI_PANEL_MAX_WIDTH)
+    panel_width = LIGHTWEIGHT_UI_PANEL_MAX_WIDTH;
+
+  color text_color = ResolveUiTextColor(chart_id);
+  color border_color = ResolveUiBorderColor(chart_id);
+  color panel_fill = ResolveUiPanelFillColor();
+  color button_text = ResolveUiButtonTextColor(chart_id);
+
+  int panel_height = LIGHTWEIGHT_UI_FIRST_ROW_Y + rows_total * LIGHTWEIGHT_UI_ROW_STEP + LIGHTWEIGHT_UI_PANEL_PADDING_Y;
+  EnsureLightweightUiObjects(chart_id,
+                             panel_width,
+                             panel_height,
+                             border_color,
+                             panel_fill,
+                             button_text);
+
+  int cached_total = ArraySize(g_chart_ui_last_rows);
+  if(cached_total < rows_total)
+  {
+    int previous_size = cached_total;
+    ArrayResize(g_chart_ui_last_rows, rows_total);
+    for(int i = previous_size; i < rows_total; i++)
+      g_chart_ui_last_rows[i] = "";
   }
 
-  color button_bg = (fib_ea_enabled ? clrForestGreen : clrIndianRed);
+  for(int i = 0; i < rows_total; i++)
+  {
+    string row_name = LightweightUiRowObjectName(i);
+    int row_y = LIGHTWEIGHT_UI_FIRST_ROW_Y + i * LIGHTWEIGHT_UI_ROW_STEP;
+
+    EnsureLightweightUiRowObject(chart_id, row_name, row_y, text_color);
+    if(g_chart_ui_last_rows[i] != rows[i])
+    {
+      ObjectSetString(chart_id, row_name, OBJPROP_TEXT, rows[i]);
+      g_chart_ui_last_rows[i] = rows[i];
+    }
+  }
+
+  if(cached_total > rows_total)
+  {
+    for(int i = rows_total; i < cached_total; i++)
+      ObjectDelete(chart_id, LightweightUiRowObjectName(i));
+  }
+  ArrayResize(g_chart_ui_last_rows, rows_total);
+
+  string button_text_value = ResolveFibEaButtonText();
+  if(button_text_value != g_chart_ui_last_button_text)
+  {
+    ObjectSetString(chart_id, EA_CHART_UI_TOGGLE, OBJPROP_TEXT, button_text_value);
+    g_chart_ui_last_button_text = button_text_value;
+  }
+
+  color button_bg = ResolveUiButtonBackground(chart_id, fib_ea_enabled);
   ObjectSetInteger(chart_id, EA_CHART_UI_TOGGLE, OBJPROP_BGCOLOR, button_bg);
 }
 
