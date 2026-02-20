@@ -88,6 +88,8 @@ bool RunTest_structure_fibonacci_entry_levels_test(string &errors)
                                "23.6,38.2,50.0,61.8,78.6,100.0");
 
   errors = "";
+  SetStructureLimitTerminalBandGuardRuntime(false);
+  ClearStructureCompoundFilterRuntimeOverride();
 
   // Keep wide ranges so point-based minimum-range checks remain symbol-agnostic.
   double range_anchor = 10000.0;
@@ -281,7 +283,7 @@ bool RunTest_structure_fibonacci_entry_levels_test(string &errors)
     errors += "terminal guard should block terminal band\n";
   }
 
-  ClearStructureLimitTerminalBandGuardRuntimeOverride();
+  SetStructureLimitTerminalBandGuardRuntime(false);
   if(!ResolveStructureFibonacciEntryForPrices(s_bottom,
                                               terminal_band_price,
                                               terminal_band_price,
