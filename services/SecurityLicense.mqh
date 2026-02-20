@@ -20,7 +20,72 @@
 #define LICENSE_SERVICE_TIMER_SECONDS 60
 #endif
 
+bool   g_ea_removal_requested             = false;
+bool   g_ea_removal_preserve_chart_error  = false;
+string g_ea_removal_chart_message         = "";
+
+void EALifecycleRequestRemoval(const string chart_message,
+                               const bool preserve_chart_error = true)
+{
+  g_ea_removal_requested            = true;
+  g_ea_removal_preserve_chart_error = preserve_chart_error;
+  g_ea_removal_chart_message        = chart_message;
+}
+
+bool EALifecycleHasPendingRemoval()
+{
+  return g_ea_removal_requested;
+}
+
+bool EALifecyclePreserveErrorObject()
+{
+  return g_ea_removal_preserve_chart_error;
+}
+
+string EALifecycleRemovalMessage()
+{
+  return g_ea_removal_chart_message;
+}
+
+void EALifecycleClearRemovalRequest()
+{
+  g_ea_removal_requested            = false;
+  g_ea_removal_preserve_chart_error = false;
+  g_ea_removal_chart_message        = "";
+}
+
+string LicenseServiceBuildRemovalMessage(const string fallback_message)
+{
 #ifdef LICENSE_ENFORCEMENT_ENABLED
+  string error_code = license_last_error;
+  StringToLower(error_code);
+
+  if(error_code == "request_failed")
+    return "HFT Grid AI removed: license server connection failed.";
+  if(error_code == "expired" || error_code == "license_not_found")
+    return "HFT Grid AI removed: license expired.";
+  if(error_code == "addons_required")
+    return "HFT Grid AI removed: required addon entitlement missing.";
+  if(error_code == "invalid_key" || error_code == "invalid_source")
+    return "HFT Grid AI removed: license validation failed.";
+  if(error_code == "invalid_granted_addons" || error_code == "invalid_expires_at")
+    return "HFT Grid AI removed: invalid license response.";
+
+  if(license_last_http_status >= 500)
+    return "HFT Grid AI removed: license server unavailable.";
+
+  if(error_code != "")
+    return "HFT Grid AI removed: license error (" + error_code + ").";
+#endif
+
+  if(fallback_message != "")
+    return fallback_message;
+
+  return "HFT Grid AI removed: license validation failed.";
+}
+
+#ifdef LICENSE_ENFORCEMENT_ENABLED
+#include "Bcrypt.mqh"
 #include "SecurityLicenseOnline.mqh"
 #ifdef LICENSE_DAILY_RESULTS_ENABLED
 #include "BrokerAccountDailyResultsOnline.mqh"
@@ -52,6 +117,7 @@ bool LicenseServiceInit()
     else
       PrintFormat("[License] Startup verification failed (error=%s).",
                   (license_last_error == "" ? "request_failed" : license_last_error));
+    EALifecycleRequestRemoval(LicenseServiceBuildRemovalMessage("HFT Grid AI removed: startup license verification failed."));
     return false;
   }
 

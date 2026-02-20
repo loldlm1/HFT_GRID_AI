@@ -7,6 +7,7 @@
 SignalParams running_bullish_signals[];
 SignalParams running_bearish_signals[];
 bool        g_forced_stop_triggered = false;
+bool        g_manual_signal_entry_enabled = true;
 
 struct StrategyContextRuntime
 {
@@ -370,31 +371,147 @@ bool TrendSanityCheck(const string reason)
   return false;
 }
 
-bool CanAttemptSignal(const SignalTypes signal_type)
+void SetManualSignalEntryEnabled(const bool enabled)
 {
-  if(!ProtectionRiskAllowsSignalAttempt())
-    return false;
+  g_manual_signal_entry_enabled = enabled;
+}
 
-  if(!DebugEquityGuardAllowsProcessing())
+bool ManualSignalEntryEnabled()
+{
+  return g_manual_signal_entry_enabled;
+}
+
+bool TerminalAlgoTradingEnabled()
+{
+  bool terminal_allowed = (TerminalInfoInteger(TERMINAL_TRADE_ALLOWED) > 0);
+  bool mql_allowed = (MQLInfoInteger(MQL_TRADE_ALLOWED) > 0);
+  return (terminal_allowed && mql_allowed);
+}
+
+bool ResolveSignalAttemptPermission(const SignalTypes signal_type,
+                                    const bool run_debug_side_effects,
+                                    string &block_source_out,
+                                    string &block_reason_out)
+{
+  block_source_out = "";
+  block_reason_out = "";
+
+  if(!ManualSignalEntryEnabled())
+  {
+    block_source_out = "manual_toggle";
+    block_reason_out = "Manual toggle is OFF";
     return false;
+  }
+
+  if(!TerminalAlgoTradingEnabled())
+  {
+    block_source_out = "algo_trading";
+    block_reason_out = "MT5 Algo Trading is OFF";
+    return false;
+  }
+
+  if(!ProtectionRiskAllowsSignalAttempt())
+  {
+    block_source_out = "protection_risk";
+
+    if(!MarketStatusAllowsSignalAttempts())
+      block_reason_out = "Market status blocked: " + MarketStatusToString(MarketStatusGet());
+    else if((Protection_Risk_Mode == ENABLED_GRID_PROTECTION_DAILY ||
+             Protection_Risk_Mode == ENABLED_GRID_PROTECTION_WEEKLY) &&
+            ProtectionRiskDailyLockActive())
+      block_reason_out = "Risk protection lock is active";
+    else
+      block_reason_out = "Protection risk filter blocked entries";
+
+    return false;
+  }
+
+  if(run_debug_side_effects && !DebugEquityGuardAllowsProcessing())
+  {
+    block_source_out = "debug_equity_guard";
+    block_reason_out = "Debug equity guard stopped processing";
+    return false;
+  }
 
   if(!SessionTimeFilterAllowsSignalAttempt())
+  {
+    block_source_out = "session_time_filter";
+    block_reason_out = "Outside configured session windows";
     return false;
+  }
 
   if(!DailySignalLimitAllowsAttempt(signal_type))
   {
-    if(Enable_Logs)
+    block_source_out = "daily_signal_limit";
+    block_reason_out = "Daily signal limit reached";
+    if(Enable_Logs && run_debug_side_effects)
       Print("Daily signal limit reached for direction: ", EnumToString(signal_type));
     return false;
   }
 
   if(!DirectionAllowed(signal_type))
+  {
+    block_source_out = "direction_mode";
+    block_reason_out = "Direction mode disabled this side";
     return false;
+  }
 
   if(!SignalConcurrencyAllowsAttempt(signal_type))
+  {
+    block_source_out = "signal_concurrency";
+    block_reason_out = "Signal concurrency limit reached";
     return false;
+  }
 
   return true;
+}
+
+bool ResolveAnyDirectionAttemptPermission(string &block_source_out,
+                                          string &block_reason_out)
+{
+  block_source_out = "";
+  block_reason_out = "";
+
+  bool direction_considered = false;
+  SignalTypes directions[2] = {BULLISH, BEARISH};
+  for(int i = 0; i < 2; i++)
+  {
+    SignalTypes direction = directions[i];
+    if(!DirectionAllowed(direction))
+      continue;
+
+    direction_considered = true;
+
+    string source = "";
+    string reason = "";
+    if(ResolveSignalAttemptPermission(direction, false, source, reason))
+      return true;
+
+    if(block_source_out == "")
+    {
+      block_source_out = source;
+      block_reason_out = reason;
+    }
+  }
+
+  if(!direction_considered)
+  {
+    block_source_out = "direction_mode";
+    block_reason_out = "All directions disabled by configuration";
+    return false;
+  }
+
+  return false;
+}
+
+bool CanAttemptSignal(const SignalTypes signal_type)
+{
+  string block_source = "";
+  string block_reason = "";
+  return ResolveSignalAttemptPermission(signal_type,
+                                        true,
+                                        block_source,
+                                        block_reason);
 }
 
 void RegisterFreshStructureUsage(const SignalParams &signal_params)
