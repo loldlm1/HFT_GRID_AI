@@ -7,7 +7,7 @@ const int LIGHTWEIGHT_UI_PANEL_PADDING_X = 10;
 const int LIGHTWEIGHT_UI_PANEL_PADDING_Y = 6;
 const int LIGHTWEIGHT_UI_PANEL_MIN_WIDTH = 260;
 const int LIGHTWEIGHT_UI_PANEL_MAX_WIDTH = 520;
-const int LIGHTWEIGHT_UI_PANEL_FILL_ALPHA = 36;
+const uchar LIGHTWEIGHT_UI_PANEL_FILL_ALPHA = 36;
 const int LIGHTWEIGHT_UI_BUTTON_H = 20;
 const int LIGHTWEIGHT_UI_BUTTON_TOP_OFFSET = 6;
 const int LIGHTWEIGHT_UI_FIRST_ROW_Y = 56;
@@ -470,12 +470,68 @@ void HandleLightweightChartUiEvent(const int id,
   ChartRedraw();
 }
 
+string NormalizeRemovalReason(const string removal_message)
+{
+  string normalized = removal_message;
+  StringTrimLeft(normalized);
+  StringTrimRight(normalized);
+
+  if(normalized == "")
+    return "";
+
+  string lower = normalized;
+  StringToLower(lower);
+
+  string hft_prefix = "hft grid ai removed:";
+  if(StringFind(lower, hft_prefix) == 0)
+  {
+    normalized = StringSubstr(normalized, StringLen(hft_prefix));
+    StringTrimLeft(normalized);
+    StringTrimRight(normalized);
+  }
+
+  lower = normalized;
+  StringToLower(lower);
+  string fib_prefix = "fibonacci ea removed:";
+  if(StringFind(lower, fib_prefix) == 0)
+  {
+    normalized = StringSubstr(normalized, StringLen(fib_prefix));
+    StringTrimLeft(normalized);
+    StringTrimRight(normalized);
+  }
+
+  return normalized;
+}
+
+int ResolveErrorMessageMaxChars(const long chart_id)
+{
+  long chart_width = 0;
+  if(!ChartGetInteger(chart_id, CHART_WIDTH_IN_PIXELS, 0, chart_width))
+    return 110;
+
+  int max_chars = (int)((chart_width - 24) / LIGHTWEIGHT_UI_CHAR_WIDTH_EST);
+  if(max_chars < 48)
+    max_chars = 48;
+  if(max_chars > 160)
+    max_chars = 160;
+  return max_chars;
+}
+
 void RenderPersistentChartError(const string error_message)
 {
   long chart_id = ChartID();
-  string safe_message = error_message;
-  if(safe_message == "")
-    safe_message = "HFT Grid AI removed: unknown error.";
+  string reason_message = NormalizeRemovalReason(error_message);
+  if(reason_message == "")
+    reason_message = "unknown error.";
+
+  string header = "FIBONACCI EA REMOVED";
+  string prefix = header + " | ";
+  int max_line_chars = ResolveErrorMessageMaxChars(chart_id);
+  int reason_max_chars = max_line_chars - StringLen(prefix);
+  if(reason_max_chars < 12)
+    reason_max_chars = 12;
+
+  string final_text = prefix + ClampUiValue(reason_message, reason_max_chars);
 
   ObjectDelete(chart_id, EA_CHART_ERROR_OBJECT);
   ObjectCreate(chart_id, EA_CHART_ERROR_OBJECT, OBJ_LABEL, 0, 0, 0);
@@ -483,10 +539,11 @@ void RenderPersistentChartError(const string error_message)
   ObjectSetInteger(chart_id, EA_CHART_ERROR_OBJECT, OBJPROP_XDISTANCE, 12);
   ObjectSetInteger(chart_id, EA_CHART_ERROR_OBJECT, OBJPROP_YDISTANCE, 24);
   ObjectSetInteger(chart_id, EA_CHART_ERROR_OBJECT, OBJPROP_COLOR, clrTomato);
-  ObjectSetInteger(chart_id, EA_CHART_ERROR_OBJECT, OBJPROP_FONTSIZE, 10);
+  ObjectSetInteger(chart_id, EA_CHART_ERROR_OBJECT, OBJPROP_FONTSIZE, 9);
   ObjectSetInteger(chart_id, EA_CHART_ERROR_OBJECT, OBJPROP_SELECTABLE, false);
   ObjectSetInteger(chart_id, EA_CHART_ERROR_OBJECT, OBJPROP_SELECTED, false);
   ObjectSetInteger(chart_id, EA_CHART_ERROR_OBJECT, OBJPROP_HIDDEN, false);
+  ObjectSetInteger(chart_id, EA_CHART_ERROR_OBJECT, OBJPROP_ANCHOR, ANCHOR_LEFT_UPPER);
   ObjectSetString(chart_id,
                   EA_CHART_ERROR_OBJECT,
                   OBJPROP_FONT,
@@ -494,7 +551,7 @@ void RenderPersistentChartError(const string error_message)
   ObjectSetString(chart_id,
                   EA_CHART_ERROR_OBJECT,
                   OBJPROP_TEXT,
-                  "FIBONACCI EA REMOVED\n" + safe_message);
+                  final_text);
 }
 
 void ClearPersistentChartError()
