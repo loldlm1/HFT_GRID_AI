@@ -3,16 +3,18 @@
 
 const int LIGHTWEIGHT_UI_PANEL_X = 8;
 const int LIGHTWEIGHT_UI_PANEL_Y = 24;
-const int LIGHTWEIGHT_UI_PANEL_PADDING_X = 8;
+const int LIGHTWEIGHT_UI_PANEL_PADDING_X = 10;
 const int LIGHTWEIGHT_UI_PANEL_PADDING_Y = 6;
 const int LIGHTWEIGHT_UI_PANEL_MIN_WIDTH = 260;
-const int LIGHTWEIGHT_UI_PANEL_MAX_WIDTH = 560;
+const int LIGHTWEIGHT_UI_PANEL_MAX_WIDTH = 520;
+const int LIGHTWEIGHT_UI_PANEL_FILL_ALPHA = 36;
 const int LIGHTWEIGHT_UI_BUTTON_H = 20;
 const int LIGHTWEIGHT_UI_BUTTON_TOP_OFFSET = 6;
 const int LIGHTWEIGHT_UI_FIRST_ROW_Y = 56;
 const int LIGHTWEIGHT_UI_ROW_STEP = 14;
 const int LIGHTWEIGHT_UI_MAX_ROWS = 18;
-const int LIGHTWEIGHT_UI_MAX_VALUE_CHARS = 62;
+const int LIGHTWEIGHT_UI_MAX_VALUE_CHARS = 52;
+const int LIGHTWEIGHT_UI_CHAR_WIDTH_EST = 7;
 
 string g_chart_ui_last_button_text = "";
 string g_chart_ui_last_rows[];
@@ -107,9 +109,26 @@ color ResolveUiBorderColor(const long chart_id)
   return ResolveUiTextColor(chart_id);
 }
 
-color ResolveUiPanelFillColor()
+int ResolveUiPanelMaxWidth(const long chart_id)
 {
-  return clrNONE;
+  long chart_width = 0;
+  if(!ChartGetInteger(chart_id, CHART_WIDTH_IN_PIXELS, 0, chart_width))
+    return LIGHTWEIGHT_UI_PANEL_MAX_WIDTH;
+
+  int max_width = (int)chart_width - LIGHTWEIGHT_UI_PANEL_X * 2;
+  if(max_width < LIGHTWEIGHT_UI_PANEL_MIN_WIDTH)
+    return LIGHTWEIGHT_UI_PANEL_MIN_WIDTH;
+  if(max_width > LIGHTWEIGHT_UI_PANEL_MAX_WIDTH)
+    return LIGHTWEIGHT_UI_PANEL_MAX_WIDTH;
+  return max_width;
+}
+
+color ResolveUiPanelFillColor(const long chart_id)
+{
+  color chart_background = ResolveChartColor(chart_id,
+                                             CHART_COLOR_BACKGROUND,
+                                             COLOR_CHART_BACKGROUND);
+  return (color)ColorToARGB(chart_background, LIGHTWEIGHT_UI_PANEL_FILL_ALPHA);
 }
 
 color ResolveUiButtonTextColor(const long chart_id)
@@ -134,18 +153,19 @@ void EnsureLightweightUiRowObject(const long chart_id,
   if(ObjectFind(chart_id, object_name) < 0)
   {
     ObjectCreate(chart_id, object_name, OBJ_LABEL, 0, 0, 0);
-    ObjectSetInteger(chart_id, object_name, OBJPROP_CORNER, CORNER_LEFT_UPPER);
-    ObjectSetInteger(chart_id,
-                     object_name,
-                     OBJPROP_XDISTANCE,
-                     LIGHTWEIGHT_UI_PANEL_X + LIGHTWEIGHT_UI_PANEL_PADDING_X);
     ObjectSetInteger(chart_id, object_name, OBJPROP_SELECTABLE, false);
     ObjectSetInteger(chart_id, object_name, OBJPROP_SELECTED, false);
     ObjectSetInteger(chart_id, object_name, OBJPROP_HIDDEN, false);
+    ObjectSetInteger(chart_id, object_name, OBJPROP_ANCHOR, ANCHOR_LEFT_UPPER);
     ObjectSetString(chart_id, object_name, OBJPROP_FONT, "Consolas");
     ObjectSetInteger(chart_id, object_name, OBJPROP_FONTSIZE, 9);
   }
 
+  ObjectSetInteger(chart_id, object_name, OBJPROP_CORNER, CORNER_LEFT_UPPER);
+  ObjectSetInteger(chart_id,
+                   object_name,
+                   OBJPROP_XDISTANCE,
+                   LIGHTWEIGHT_UI_PANEL_X + LIGHTWEIGHT_UI_PANEL_PADDING_X);
   ObjectSetInteger(chart_id, object_name, OBJPROP_YDISTANCE, row_y);
   ObjectSetInteger(chart_id, object_name, OBJPROP_COLOR, text_color);
 }
@@ -156,7 +176,7 @@ int EstimateUiRowWidth(const string row_value)
   if(row_chars < 0)
     row_chars = 0;
 
-  return LIGHTWEIGHT_UI_PANEL_PADDING_X * 2 + row_chars * 6;
+  return LIGHTWEIGHT_UI_PANEL_PADDING_X * 2 + row_chars * LIGHTWEIGHT_UI_CHAR_WIDTH_EST;
 }
 
 void EnsureLightweightUiObjects(const long chart_id,
@@ -289,6 +309,8 @@ void RenderLightweightStatusTable(const bool ea_running,
     granted_labels = "None";
   if(missing_labels == "")
     missing_labels = "None";
+  if(ArraySize(requested_addons) <= 0)
+    missing_labels = "N/A (no addon requested)";
 
   string gate_source = "";
   string gate_reason = "";
@@ -332,9 +354,9 @@ void RenderLightweightStatusTable(const bool ea_running,
   AddLightweightUiRow(rows, "Manual Toggle", BoolOnOff(manual_enabled));
   AddLightweightUiRow(rows, "Signal Gate", (signal_gate_enabled ? "ENABLED" : "DISABLED"));
   AddLightweightUiRow(rows, "Market", market_status);
-  AddLightweightUiRow(rows, "Requested Addons", requested_labels);
-  AddLightweightUiRow(rows, "Granted Addons", granted_labels);
-  AddLightweightUiRow(rows, "Missing Addons", missing_labels);
+  AddLightweightUiRow(rows, "Requested (Inputs)", requested_labels);
+  AddLightweightUiRow(rows, "Purchased Addons", granted_labels);
+  AddLightweightUiRow(rows, "Missing Required", missing_labels);
 
   if(effective_source != "")
     AddLightweightUiRow(rows, "Block Source", effective_source);
@@ -355,6 +377,8 @@ void RenderLightweightStatusTable(const bool ea_running,
     rows_total = ArraySize(rows);
   }
 
+  int panel_width_cap = ResolveUiPanelMaxWidth(chart_id);
+
   int panel_width = LIGHTWEIGHT_UI_PANEL_MIN_WIDTH;
   for(int i = 0; i < rows_total; i++)
   {
@@ -362,12 +386,12 @@ void RenderLightweightStatusTable(const bool ea_running,
     if(row_width > panel_width)
       panel_width = row_width;
   }
-  if(panel_width > LIGHTWEIGHT_UI_PANEL_MAX_WIDTH)
-    panel_width = LIGHTWEIGHT_UI_PANEL_MAX_WIDTH;
+  if(panel_width > panel_width_cap)
+    panel_width = panel_width_cap;
 
   color text_color = ResolveUiTextColor(chart_id);
   color border_color = ResolveUiBorderColor(chart_id);
-  color panel_fill = ResolveUiPanelFillColor();
+  color panel_fill = ResolveUiPanelFillColor(chart_id);
   color button_text = ResolveUiButtonTextColor(chart_id);
 
   int panel_height = LIGHTWEIGHT_UI_FIRST_ROW_Y + rows_total * LIGHTWEIGHT_UI_ROW_STEP + LIGHTWEIGHT_UI_PANEL_PADDING_Y;
