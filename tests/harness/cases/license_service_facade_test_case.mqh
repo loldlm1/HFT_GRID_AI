@@ -17,12 +17,12 @@ bool RunTest_license_service_facade_test(string &errors)
   LicenseSetRequestedAddonsCsv("addon_session_time_filter,addon_candle_structure");
   if(LicenseGetRequestedAddonsCsv() == "")
     errors += "requested addons csv should be settable\n";
+
+#ifndef LICENSE_ENFORCEMENT_ENABLED
   if(!LicenseHasAddon("addon_session_time_filter"))
     errors += "LicenseHasAddon should return true in compile-time-off mode\n";
   if(LicenseGrantedAddonCount() != 0)
     errors += "granted addon count should default to 0 in compile-time-off mode\n";
-
-#ifndef LICENSE_ENFORCEMENT_ENABLED
 #ifdef LICENSE_DAILY_RESULTS_ENABLED
   errors += "daily results must be forced off when enforcement is off\n";
 #endif
@@ -43,6 +43,10 @@ bool RunTest_license_service_facade_test(string &errors)
   LicenseServiceOnTimer();
   LicenseServiceOnDeinit();
 #else
+  // In enforcement mode, addon availability depends on online verification state.
+  // Keep this facade check mode-safe and ensure count remains valid.
+  if(LicenseGrantedAddonCount() < 0)
+    errors += "granted addon count should never be negative\n";
 #ifdef LICENSE_DAILY_RESULTS_ENABLED
   if(LicenseServiceTimerSeconds() < 1)
     errors += "timer should remain valid when online flags are enabled\n";
