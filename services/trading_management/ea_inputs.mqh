@@ -27,23 +27,19 @@ input double                   Protection_Risk_Drawdown_Value = 10.0;
 input double                   Account_Size                   = 500.0;
 ENUM_TIMEFRAMES          Market_Close_Guard_Timeframe   = PERIOD_M10;
 
-//input group  "+= Time Filter Session Manager =+";
-SessionTimeFilterModes Session_Asia_Filter_Mode      = SESSION_FILTER_OFF;
-string                 Session_Asia_Filter_Time_Range = "13:30-15:00";
-SessionTimeFilterModes Session_London_Filter_Mode    = SESSION_FILTER_OFF;
-string                 Session_London_Filter_Time_Range = "07:00-12:00";
-SessionTimeFilterModes Session_NewYork_Filter_Mode   = SESSION_FILTER_OFF;
-string                 Session_NewYork_Filter_Time_Range = "12:00-20:00";
+input group  "+= Time Filter Session Manager =+";
+input SessionTimeFilterModes Session_Asia_Filter_Mode      = SESSION_FILTER_OFF;
+input string                 Session_Asia_Filter_Time_Range = "13:30-15:00";
+input SessionTimeFilterModes Session_London_Filter_Mode    = SESSION_FILTER_OFF;
+input string                 Session_London_Filter_Time_Range = "07:00-12:00";
+input SessionTimeFilterModes Session_NewYork_Filter_Mode   = SESSION_FILTER_OFF;
+input string                 Session_NewYork_Filter_Time_Range = "12:00-20:00";
 input DstOffsetModes         Session_Time_Dst_Mode         = DST_MODE_AUTO_EXNESS;
 input int                    Session_Time_Dst_Manual_Offset_Minutes = 0;
 
 input group  "+= Pandora Box Strategy =+";
  bool   Pandora_Box_Enable             = true;
 input string Pandora_Box_Time_Range         = "12:00-13:30";
-input double Pandora_Box_Max_Range_Points   = 0.0;
-input double Pandora_Box_Offset_Points      = 50.0;
-input double Pandora_Points_SL              = 100.0;
-input double Pandora_Points_TP              = 100.0;
 input bool   Pandora_Box_Stop_On_First_Win  = true;
 input StrategyDirectionTypes Pandora_Box_Direction_Mode = BOTH_DIRECTION;
 input bool   Pandora_Box_Stop_After_Sides   = true;
@@ -56,6 +52,14 @@ input bool   Enable_Chart_Levels              = true;
  color  Pandora_Box_Breakout_Color     = clrDarkOrange;
  int    Pandora_Box_Line_Style         = STYLE_DASH;
  int    Pandora_Box_Breakout_Line_Style = STYLE_DASHDOT;
+
+input group  "+= Grid Risk Managment Settings =+";
+input GridLotTypes  Grid_Lot_Type                 = GRID_LOT_SIZE;
+input double        Grid_Lot_Strategy_Size        = 0.01;
+input double        Pandora_Box_Max_Range_Points   = 0.0;
+input double        Pandora_Box_Offset_Points      = 50.0;
+input double        Pandora_Points_SL              = 100.0;
+input double        Pandora_Points_TP              = 100.0;
 
 //input group  "+= Strategy Context =+";
  ENUM_TIMEFRAMES           Strategy_Timeframe          = PERIOD_M1;
@@ -167,14 +171,13 @@ input bool   Enable_Chart_Levels              = true;
  bool                  Grid_Enable_Scalper_TP       = false;
  bool                  Grid_Enable_Aggressive_TP    = false;
 
-input group  "+= Grid Risk Managment Settings =+";
-input GridLotTypes         Grid_Lot_Type                 = GRID_LOT_SIZE;
-input double               Grid_Lot_Strategy_Size        = 0.01;
- double               Grid_Lot_Multiplier           = 2.0;
- int                  Grid_Level_Position_Start     = 0;
- int                  Grid_Level_Stop_Limit         = 1;
- int                  Daily_Signal_Limit            = 0;
- DailySignalLimitModes Daily_Signal_Limit_Mode      = STOP_DAILY_SIGNALS;
+
+// inputs default group risk managment
+double               Grid_Lot_Multiplier           = 2.0;
+int                  Grid_Level_Position_Start     = 0;
+int                  Grid_Level_Stop_Limit         = 1;
+int                  Daily_Signal_Limit            = 0;
+DailySignalLimitModes Daily_Signal_Limit_Mode      = STOP_DAILY_SIGNALS;
 
 //input group  "+= Grid Trend Risk Strategy =+";
  GridRiskTrendModes   Grid_Risk_Trend_Mode          = GRID_RM_TREND_OFF;
