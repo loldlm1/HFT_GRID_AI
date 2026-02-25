@@ -379,8 +379,8 @@ double GetGridTakeProfitPrice(SignalTypes direction, SignalParams &signal_params
   // Per-level TP span based on exponential distance
   double level_distance_pts           = ComputeLevelDistancePoints(signal_params, grid_order_state.level_index);
   double tp_span_pts;
-  if(PandoraStrategyEnabled() && Pandora_Points_TP > 0.0)
-    tp_span_pts = EnforceBrokerDistance(g_symbol_constraints, Pandora_Points_TP);
+  if(PandoraStrategyEnabled())
+    tp_span_pts = PandoraResolveSignalTPPoints(signal_params, true);
   else if(Grid_Points_TP > 0.0)
     tp_span_pts = EnforceBrokerDistance(g_symbol_constraints, Grid_Points_TP);
   else

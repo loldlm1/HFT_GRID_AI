@@ -221,10 +221,11 @@ bool BuildPandoraOrderForSignal(SignalParams &signal_params)
   if(point_size <= 0.0)
     point_size = 0.0001;
 
-  double base_points = EnforceBrokerDistance(g_symbol_constraints, Pandora_Points_SL);
+  double base_points = PandoraResolveConfiguredSLPoints(true);
   if(base_points <= 0.0)
     return false;
 
+  bool step_trailing = PandoraRiskStepTrailingEnabled();
   double dir_mult = (signal_params.signal_type == BULLISH) ? 1.0 : -1.0;
   double entry_reference = (signal_params.signal_type == BULLISH)
                              ? g_pandora_box_state.breakout_high_price
@@ -234,10 +235,10 @@ bool BuildPandoraOrderForSignal(SignalParams &signal_params)
   if(entry_reference <= 0.0)
     return false;
 
-  double tp_points = Pandora_Points_TP;
-  if(tp_points > 0.0)
-    tp_points = EnforceBrokerDistance(g_symbol_constraints, tp_points);
+  double tp_points = PandoraResolveConfiguredTPPoints(true);
   double tp_price = (tp_points > 0.0) ? entry_reference + dir_mult * tp_points * point_size : 0.0;
+  if(step_trailing)
+    tp_price = 0.0;
 
   signal_params.lot_size                         = 0.0; // resolved after seeding the order
   signal_params.grid_base_lot_size               = 0.0;
@@ -248,6 +249,11 @@ bool BuildPandoraOrderForSignal(SignalParams &signal_params)
   signal_params.grid_initial_indicator_distance_points = base_points;
   signal_params.grid_resolved_distance_points    = 0.0;
   signal_params.grid_trailing_points             = 0.0;
+  signal_params.pandora_sl_points                = base_points;
+  signal_params.pandora_tp_points                = tp_points;
+  signal_params.pandora_trailing_step_points     = step_trailing ? base_points : 0.0;
+  signal_params.pandora_trailing_step_index      = 0;
+  signal_params.pandora_trailing_stop_price      = 0.0;
 
   GridOrderState state;
   state.level_index             = 0;
@@ -265,12 +271,12 @@ bool BuildPandoraOrderForSignal(SignalParams &signal_params)
   ArrayResize(signal_params.grid_orders, 1);
   signal_params.grid_orders[0] = state;
 
-  // Resolve lot size using the standard lot logic (respects Grid_Lot_Type).
+  // Resolve lot size using the standard lot logic (respects Pandora_Lot_Type).
   double resolved_lot = ResolveGridOrderLotSize(signal_params, 0);
   if(resolved_lot <= 0.0)
     resolved_lot = ResolveBaseGridLot(base_points);
   if(resolved_lot <= 0.0)
-    resolved_lot = NormalizeVolumeForSymbol(_Symbol, Grid_Lot_Strategy_Size);
+    resolved_lot = NormalizeVolumeForSymbol(_Symbol, Pandora_Lot_Strategy_Size);
 
   signal_params.lot_size           = resolved_lot;
   signal_params.grid_base_lot_size = resolved_lot;

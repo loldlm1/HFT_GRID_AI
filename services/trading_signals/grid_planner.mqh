@@ -30,18 +30,18 @@ double GridResolveDirectionMultiplierSafe(const SignalTypes direction)
 
 GridLotTypes GridResolveConfiguredLotType()
 {
-  int configured_value = (int)Grid_Lot_Type;
-  if(configured_value == (int)GRID_LOT_SIZE ||
-     configured_value == (int)GRID_LOT_PERCENTAGE_BASED ||
-     configured_value == (int)GRID_LOT_CURRENCY_BASED)
-  {
-    return (GridLotTypes)configured_value;
-  }
+  int configured_value = (int)Pandora_Lot_Type;
+  if(configured_value == (int)PANDORA_LOT_SIZE)
+    return GRID_LOT_SIZE;
+  if(configured_value == (int)PANDORA_LOT_PERCENTAGE_BASED)
+    return GRID_LOT_PERCENTAGE_BASED;
+  if(configured_value == (int)PANDORA_LOT_CURRENCY_BASED)
+    return GRID_LOT_CURRENCY_BASED;
 
   static int last_logged_invalid_value = -1000000;
   if(last_logged_invalid_value != configured_value)
   {
-    PrintFormat("Deprecated Grid_Lot_Type value %d detected. Falling back to GRID_LOT_SIZE.", configured_value);
+    PrintFormat("Invalid Pandora_Lot_Type value %d detected. Falling back to PANDORA_LOT_SIZE.", configured_value);
     last_logged_invalid_value = configured_value;
   }
 
@@ -56,11 +56,11 @@ double GridResolveTargetAmountByLotType(const GridLotTypes lot_type)
     double account_balance = AccountInfoDouble(ACCOUNT_BALANCE);
     if(account_balance > 0.0)
       account_reference = account_balance;
-    return MathAbs(account_reference * (Grid_Lot_Strategy_Size / 100.0));
+    return MathAbs(account_reference * (Pandora_Lot_Strategy_Size / 100.0));
   }
 
   if(lot_type == GRID_LOT_CURRENCY_BASED)
-    return MathAbs(Grid_Lot_Strategy_Size);
+    return MathAbs(Pandora_Lot_Strategy_Size);
 
   return 0.0;
 }
@@ -84,9 +84,9 @@ bool CalculateBaseGridContext(const SignalParams &signal_params,
 
   if(pandora_forces_points)
   {
-    double requested_points = EnforceBrokerDistance(g_symbol_constraints, Pandora_Points_SL);
+    double requested_points = PandoraResolveConfiguredSLPoints(true);
     if(requested_points <= 0.0)
-      requested_points = EnforceBrokerDistance(g_symbol_constraints, Grid_Points_Range_Setup);
+      return false;
     double projected_price = entry_reference_price + direction_mult * requested_points * point_size;
 
     distance_points = MathAbs(projected_price - entry_reference_price) / point_size;
@@ -183,7 +183,7 @@ bool CalculateBaseGridContext(const SignalParams &signal_params,
 double ResolveBaseGridLot(const double base_distance_points)
 {
   GridLotTypes lot_type = GridResolveConfiguredLotType();
-  double base_lot = Grid_Lot_Strategy_Size;
+  double base_lot = Pandora_Lot_Strategy_Size;
 
   if(lot_type == GRID_LOT_SIZE)
     return NormalizeVolumeForSymbol(_Symbol, base_lot);
@@ -311,7 +311,7 @@ double ResolveGridOrderLotSize(SignalParams &signal_params,
 
   double fallback_lot = signal_params.grid_base_lot_size;
   if(fallback_lot <= 0.0)
-    fallback_lot = Grid_Lot_Strategy_Size;
+    fallback_lot = Pandora_Lot_Strategy_Size;
   if(fallback_lot <= 0.0)
   {
     double min_vol = SymbolInfoDouble(_Symbol, SYMBOL_VOLUME_MIN);

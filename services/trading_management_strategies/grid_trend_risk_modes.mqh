@@ -68,7 +68,7 @@ bool GridRiskTrendHandleSar(const GridRiskTrendStrategyConfig &config,
   GridLogEvent(GridRiskTrendComposeLogLabel(config, "SAR_CLOSE"), signal_params, log_state);
   signal_params.signal_state = CLOSED;
 
-  // SAR reuses the configured Grid_Lot_Type flow; no special lot override.
+  // SAR reuses the configured Pandora_Lot_Type flow; no special lot override.
   if(!GridSpawnRiskSarSignal(sar_direction, 0.0, cumulative_loss))
     Print("Trend risk SAR: failed to launch reversal grid.");
 

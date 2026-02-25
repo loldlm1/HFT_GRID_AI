@@ -90,6 +90,11 @@ struct SignalParams
   double hedge_sl_price;
   bool   hedge_finalized;
   bool   hedge_reset_done;
+  double pandora_sl_points;
+  double pandora_tp_points;
+  double pandora_trailing_step_points;
+  int    pandora_trailing_step_index;
+  double pandora_trailing_stop_price;
   datetime context_structure_snapshot_time;
 
   bool                      base_bpercent_valid;
@@ -175,6 +180,11 @@ struct SignalParams
     hedge_sl_price             = 0.0;
     hedge_finalized            = false;
     hedge_reset_done           = false;
+    pandora_sl_points          = 0.0;
+    pandora_tp_points          = 0.0;
+    pandora_trailing_step_points = 0.0;
+    pandora_trailing_step_index = 0;
+    pandora_trailing_stop_price = 0.0;
     context_structure_snapshot_time = 0;
     trend_filter_mode          = TREND_OFF;
     trend_bpercent_valid       = false;
@@ -234,6 +244,11 @@ struct SignalParams
     hedge_sl_price              = signal_params.hedge_sl_price;
     hedge_finalized             = signal_params.hedge_finalized;
     hedge_reset_done            = signal_params.hedge_reset_done;
+    pandora_sl_points           = signal_params.pandora_sl_points;
+    pandora_tp_points           = signal_params.pandora_tp_points;
+    pandora_trailing_step_points = signal_params.pandora_trailing_step_points;
+    pandora_trailing_step_index = signal_params.pandora_trailing_step_index;
+    pandora_trailing_stop_price = signal_params.pandora_trailing_stop_price;
     strategy_context           = signal_params.strategy_context;
     strategy_timeframe         = signal_params.strategy_timeframe;
     strategy_context_label     = signal_params.strategy_context_label;

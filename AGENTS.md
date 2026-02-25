@@ -51,7 +51,7 @@ This document summarizes the current architecture, workflows, and guardrails for
 - **Exponential spread**: `Grid_Exponential_Multiplier` scales `ComputeLevelDistancePoints()` per level. `Grid_Points_TP` (when > 0) overrides the percent-based TP span with a fixed point value per level, similar to how `Grid_Points_Range_Setup` works for `POINTS_RANGE`.
 - **Lot sizing**:
   - Constant size, account %, equity %, currency budget, or `GRID_LOT_CALCULATED` (drawdown recovery using `Grid_Lot_Multiplier`).
-  - `GRID_LOT_MAX_MARGIN_SPLIT` spends as much free margin as possible and splits it into `Grid_Lot_Strategy_Size` chunks (rounded to at least 1) so each level opens with the largest margin-safe lot; volumes are recalculated right before order submission to stay aligned with live prices/margin.
+  - `GRID_LOT_MAX_MARGIN_SPLIT` spends as much free margin as possible and splits it into `Pandora_Lot_Strategy_Size` chunks (rounded to at least 1) so each level opens with the largest margin-safe lot; volumes are recalculated right before order submission to stay aligned with live prices/margin.
   - All conversions reuse the live entry→TP span from `GridResolveLotReferencePoints()`.
 - **Fresh diagnostics**: `GridLogEvent()` and `grid_visualization` surfaces ENTRY/TP/NEXT lines so backend/front-end stay in sync.
 

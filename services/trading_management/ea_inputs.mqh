@@ -53,13 +53,15 @@ input bool   Enable_Chart_Levels              = true;
  int    Pandora_Box_Line_Style         = STYLE_DASH;
  int    Pandora_Box_Breakout_Line_Style = STYLE_DASHDOT;
 
-input group  "+= Grid Risk Managment Settings =+";
-input GridLotTypes  Grid_Lot_Type                 = GRID_LOT_SIZE;
-input double        Grid_Lot_Strategy_Size        = 0.01;
+input group  "+= Pandora Risk Management Settings =+";
+input PandoraLotTypes  Pandora_Lot_Type               = PANDORA_LOT_SIZE;
+input double        Pandora_Lot_Strategy_Size      = 0.01;
 input double        Pandora_Box_Max_Range_Points   = 0.0;
 input double        Pandora_Box_Offset_Points      = 50.0;
 input double        Pandora_Points_SL              = 100.0;
 input double        Pandora_Points_TP              = 100.0;
+input PandoraPointsValueModes Pandora_Points_Value_Mode = PANDORA_POINTS_VALUE_MODE_POINTS;
+input PandoraRiskTrailingModes Pandora_Risk_Trailing_Mode = PANDORA_RISK_TRAILING_OFF;
 
 //input group  "+= Strategy Context =+";
  ENUM_TIMEFRAMES           Strategy_Timeframe          = PERIOD_M1;

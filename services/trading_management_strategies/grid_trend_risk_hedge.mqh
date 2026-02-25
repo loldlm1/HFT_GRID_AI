@@ -58,7 +58,7 @@ bool GridOpenHedgePosition(SignalParams &signal_params,
   if(lot_size <= 0.0)
     lot_size = signal_params.grid_base_lot_size;
   if(lot_size <= 0.0)
-    lot_size = Grid_Lot_Strategy_Size;
+    lot_size = Pandora_Lot_Strategy_Size;
 
   double normalized_volume = NormalizeVolumeForSymbol(_Symbol, lot_size);
   string guard_reason = "";

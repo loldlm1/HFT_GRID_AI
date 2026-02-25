@@ -334,6 +334,71 @@ bool IsPandoraSignal(const SignalParams &signal_params)
   return (signal_params.strategy_context_label == "PANDORA");
 }
 
+bool PandoraRiskStepTrailingEnabled()
+{
+  return (Pandora_Risk_Trailing_Mode == PANDORA_RISK_TRAILING_STEP_TP);
+}
+
+double PandoraResolveConfiguredDistancePoints(const double configured_value,
+                                              const bool enforce_broker_distance)
+{
+  double requested_points = MathMax(configured_value, 0.0);
+  if(requested_points <= 0.0)
+    return 0.0;
+
+  if(Pandora_Points_Value_Mode == PANDORA_POINTS_VALUE_MODE_BOX_PERCENT)
+  {
+    double box_range_points = g_pandora_box_state.box_range_points;
+    if(box_range_points <= 0.0)
+      return 0.0;
+    requested_points = box_range_points * (requested_points / 100.0);
+  }
+
+  if(requested_points <= 0.0)
+    return 0.0;
+
+  if(enforce_broker_distance)
+    return EnforceBrokerDistance(g_symbol_constraints, requested_points);
+  return requested_points;
+}
+
+double PandoraResolveConfiguredSLPoints(const bool enforce_broker_distance = true)
+{
+  return PandoraResolveConfiguredDistancePoints(Pandora_Points_SL,
+                                                enforce_broker_distance);
+}
+
+double PandoraResolveConfiguredTPPoints(const bool enforce_broker_distance = true)
+{
+  return PandoraResolveConfiguredDistancePoints(Pandora_Points_TP,
+                                                enforce_broker_distance);
+}
+
+double PandoraResolveSignalSLPoints(const SignalParams &signal_params,
+                                    const bool enforce_broker_distance = true)
+{
+  double cached_points = signal_params.pandora_sl_points;
+  if(cached_points > 0.0)
+    return cached_points;
+  return PandoraResolveConfiguredSLPoints(enforce_broker_distance);
+}
+
+double PandoraResolveSignalTPPoints(const SignalParams &signal_params,
+                                    const bool enforce_broker_distance = true)
+{
+  double cached_points = signal_params.pandora_tp_points;
+  if(cached_points > 0.0)
+    return cached_points;
+  return PandoraResolveConfiguredTPPoints(enforce_broker_distance);
+}
+
+double PandoraResolveSignalTrailingStepPoints(const SignalParams &signal_params)
+{
+  if(signal_params.pandora_trailing_step_points > 0.0)
+    return signal_params.pandora_trailing_step_points;
+  return PandoraResolveSignalSLPoints(signal_params, true);
+}
+
 bool PandoraResolveBrokerStops(const SignalParams &signal_params,
                                const GridOrderState &order_state,
                                double &sl_price,
@@ -348,23 +413,32 @@ bool PandoraResolveBrokerStops(const SignalParams &signal_params,
   if(point_size <= 0.0)
     return false;
 
-  double entry_ref = order_state.entry_reference_price;
+  double entry_ref = order_state.entry_price;
+  if(entry_ref <= 0.0)
+    entry_ref = order_state.entry_reference_price;
   if(entry_ref <= 0.0)
     entry_ref = GridCurrentPriceForDirection(signal_params.signal_type, true);
   if(entry_ref <= 0.0)
     return false;
 
-  double sl_points = EnforceBrokerDistance(g_symbol_constraints, Pandora_Points_SL);
-  double tp_points = EnforceBrokerDistance(g_symbol_constraints, Pandora_Points_TP);
+  bool step_trailing = PandoraRiskStepTrailingEnabled();
+  double sl_points = PandoraResolveSignalSLPoints(signal_params, true);
+  double tp_points = step_trailing ? 0.0 : PandoraResolveSignalTPPoints(signal_params, true);
+  if(sl_points <= 0.0 && signal_params.pandora_trailing_stop_price <= 0.0)
+    return false;
 
   if(signal_params.signal_type == BULLISH)
   {
-    sl_price = entry_ref - sl_points * point_size;
+    sl_price = (signal_params.pandora_trailing_stop_price > 0.0)
+                 ? signal_params.pandora_trailing_stop_price
+                 : entry_ref - sl_points * point_size;
     tp_price = (tp_points > 0.0) ? entry_ref + tp_points * point_size : 0.0;
   }
   else
   {
-    sl_price = entry_ref + sl_points * point_size;
+    sl_price = (signal_params.pandora_trailing_stop_price > 0.0)
+                 ? signal_params.pandora_trailing_stop_price
+                 : entry_ref + sl_points * point_size;
     tp_price = (tp_points > 0.0) ? entry_ref - tp_points * point_size : 0.0;
   }
 

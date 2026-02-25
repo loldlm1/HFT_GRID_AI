@@ -212,6 +212,25 @@ enum GridLotTypes
   GRID_LOT_CURRENCY_BASED   = 2
 };
 
+enum PandoraLotTypes
+{
+  PANDORA_LOT_SIZE             = 0,
+  PANDORA_LOT_PERCENTAGE_BASED = 1,
+  PANDORA_LOT_CURRENCY_BASED   = 2
+};
+
+enum PandoraPointsValueModes
+{
+  PANDORA_POINTS_VALUE_MODE_POINTS      = 0,
+  PANDORA_POINTS_VALUE_MODE_BOX_PERCENT = 1
+};
+
+enum PandoraRiskTrailingModes
+{
+  PANDORA_RISK_TRAILING_OFF     = 0,
+  PANDORA_RISK_TRAILING_STEP_TP = 1
+};
+
 enum GridRiskTrendModes
 {
   GRID_RM_TREND_OFF = 0,
