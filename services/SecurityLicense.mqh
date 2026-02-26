@@ -1,166 +1,234 @@
 //+------------------------------------------------------------------+
-CBcrypt BCrypt;
+//|                                        services/SecurityLicense  |
+//+------------------------------------------------------------------+
+#ifndef _SERVICES_SECURITY_LICENSE_MQH_
+#define _SERVICES_SECURITY_LICENSE_MQH_
 
-string   base_secret_key  = "loldlm-1994-Slayert1";
-string   current_account  = "";
-string   license_type     = "";
-string   license_name     = "";
-datetime license_expire   = 0;
-bool     is_testing       = false;
+// Compile-time switches
+// Keep both ON for production builds.
+// Local/dev mode: comment LICENSE_ENFORCEMENT_ENABLED when needed.
+#define LICENSE_ENFORCEMENT_ENABLED
+#define LICENSE_DAILY_RESULTS_ENABLED
 
-string SidToString(const uchar &sid[])
+#ifdef LICENSE_DAILY_RESULTS_ENABLED
+#ifndef LICENSE_ENFORCEMENT_ENABLED
+#undef LICENSE_DAILY_RESULTS_ENABLED
+#endif
+#endif
+
+#ifndef LICENSE_SERVICE_TIMER_SECONDS
+#define LICENSE_SERVICE_TIMER_SECONDS 60
+#endif
+
+bool   g_ea_removal_requested            = false;
+bool   g_ea_removal_preserve_chart_error = false;
+string g_ea_removal_chart_message        = "";
+
+void EALifecycleRequestRemoval(const string chart_message,
+                               const bool preserve_chart_error = true)
 {
-  string sidString;
-  int sidLength = ArraySize(sid);
-
-  for (int i = 0; i < sidLength; i++)
-  {
-    sidString += StringFormat("%02X", sid[i]);
-    if (i < sidLength - 1) sidString += "-";
-  }
-
-  return sidString;
+  g_ea_removal_requested            = true;
+  g_ea_removal_preserve_chart_error = preserve_chart_error;
+  g_ea_removal_chart_message        = chart_message;
 }
 
+bool EALifecycleHasPendingRemoval()
+{
+  return g_ea_removal_requested;
+}
+
+bool EALifecyclePreserveErrorObject()
+{
+  return g_ea_removal_preserve_chart_error;
+}
+
+string EALifecycleRemovalMessage()
+{
+  return g_ea_removal_chart_message;
+}
+
+void EALifecycleClearRemovalRequest()
+{
+  g_ea_removal_requested            = false;
+  g_ea_removal_preserve_chart_error = false;
+  g_ea_removal_chart_message        = "";
+}
+
+string LicenseServiceBuildRemovalMessage(const string fallback_message)
+{
+#ifdef LICENSE_ENFORCEMENT_ENABLED
+  string error_code = license_last_error;
+  StringToLower(error_code);
+
+  if(error_code == "request_failed")
+    return "Pandora Box EA removed: license server connection failed.";
+  if(error_code == "expired" || error_code == "license_not_found")
+    return "Pandora Box EA removed: license expired.";
+  if(error_code == "addons_required")
+    return "Pandora Box EA removed: required addon entitlement missing.";
+  if(error_code == "invalid_key" || error_code == "invalid_source")
+    return "Pandora Box EA removed: license validation failed.";
+  if(error_code == "invalid_expires_at")
+    return "Pandora Box EA removed: invalid license response.";
+
+  if(license_last_http_status >= 500)
+    return "Pandora Box EA removed: license server unavailable.";
+
+  if(error_code != "")
+    return "Pandora Box EA removed: license error (" + error_code + ").";
+#endif
+
+  if(fallback_message != "")
+    return fallback_message;
+
+  return "Pandora Box EA removed: license validation failed.";
+}
+
+#ifdef LICENSE_ENFORCEMENT_ENABLED
+#include "Bcrypt.mqh"
+#include "SecurityLicenseOnline.mqh"
+#ifdef LICENSE_DAILY_RESULTS_ENABLED
+#include "BrokerAccountDailyResultsOnline.mqh"
+#endif
+#else
+bool is_testing = false;
+string license_addons = "";
+#endif
+
+int LicenseServiceTimerSeconds()
+{
+  return LICENSE_SERVICE_TIMER_SECONDS;
+}
+
+bool LicenseServiceInit()
+{
+  is_testing = (MQLInfoInteger(MQL_TESTER) > 0);
+
+#ifndef LICENSE_ENFORCEMENT_ENABLED
+  Print("[License] Enforcement disabled at compile-time. Online validation/reporting skipped.");
+  return true;
+#else
+  if(!VerifyLicense())
+  {
+    if(license_last_http_status > 0)
+      PrintFormat("[License] Startup verification failed (HTTP %d, error=%s).",
+                  license_last_http_status,
+                  (license_last_error == "" ? "unknown" : license_last_error));
+    else
+      PrintFormat("[License] Startup verification failed (error=%s).",
+                  (license_last_error == "" ? "request_failed" : license_last_error));
+
+    EALifecycleRequestRemoval(LicenseServiceBuildRemovalMessage("Pandora Box EA removed: startup license verification failed."));
+    return false;
+  }
+
+#ifdef LICENSE_DAILY_RESULTS_ENABLED
+  DailyResults_ResetRuntime();
+#endif
+
+  return true;
+#endif
+}
+
+void LicenseServiceOnTimer()
+{
+#ifdef LICENSE_ENFORCEMENT_ENABLED
+  LicenseOnline_OnTimer();
+#ifdef LICENSE_DAILY_RESULTS_ENABLED
+  DailyResults_OnTimer();
+#endif
+#endif
+}
+
+void LicenseServiceOnDeinit()
+{
+}
+
+#ifndef LICENSE_ENFORCEMENT_ENABLED
 string EncryptEA(string account = "", string type = "Testing", string name = "", int days = 30)
 {
-  if(account == "") account = (string)AccountInfoInteger(ACCOUNT_LOGIN);
-  account = account + "," + type + "," + (string)(TimeCurrent() + (60 * 60 * 24 * days)) + "," + name;
-
-  BCrypt.Init("D3B634B92BDBC9D80BC84ED4F2640644929A5E0DA153FD7D471AF9B5A416B5FE", base_secret_key, account);
-  string encrypted_account = BCrypt.Encrypt();
-
-  Print("NEW LICENSE KEY= ", encrypted_account);
-
-  return encrypted_account;
+  return "";
 }
 
 bool DecryptEA()
 {
-  string license_privileges[];
-  ushort u_sep = StringGetCharacter(",", 0);
-  BCrypt.Init("D3B634B92BDBC9D80BC84ED4F2640644929A5E0DA153FD7D471AF9B5A416B5FE", base_secret_key);
-  string decrypted_account = BCrypt.Decrypt(EA_License_Key);
-
-  int license_ok = StringSplit(decrypted_account, u_sep, license_privileges);
-
-  if(license_ok < 3) { Print("Could not Decrypt the current License."); return false; }
-
-  current_account  = license_privileges[0];
-  license_type     = license_privileges[1];
-  license_expire   = (datetime)license_privileges[2];
-  license_name     = license_privileges[3];
-
-  //Print(current_account, " - ", license_type, " - ", license_expire, " - ", license_name, " - ", AllowDemo(), " - ", AllowLive());
-
-  Print("LICENSE DECRYPTED= ", current_account);
-
   return true;
 }
 
 bool VerifyOnlyValidEAs(string ea_name)
 {
-  if(IsAdmin()) return true;
-
-  long 	 chartID 		 = ChartFirst();
-  string expert_name = "";
-  string script_name = "";
-
-  while(chartID > 0)
-  {
-    expert_name = ChartGetString(chartID, CHART_EXPERT_NAME);
-    script_name = ChartGetString(chartID, CHART_SCRIPT_NAME);
-
-    if(StringLen(expert_name) > 0 && expert_name != ea_name) { Print("Only valid [", ea_name, "] system EAs."); return false; }
-    if(StringLen(script_name) > 0 && expert_name != ea_name) { Print("Only valid [", ea_name, "] system EAs."); return false; }
-
-    chartID = ChartNext(chartID);
-
-    if(chartID <= 0) break;
-  }
-
   return true;
 }
 
 bool VerifyLicense()
 {
-  if(current_account == AccountInfoString(ACCOUNT_NAME))
-  {
-    Print("VALID EA LICENSE!");
-    return true;
-  }
-
-  if(current_account == (string)AccountInfoInteger(ACCOUNT_LOGIN))
-  {
-    Print("VALID EA LICENSE!");
-    return true;
-  }
-
-  Print("LICENSE NAME/LOGIN DOES NOT MATCH WITH YOUR MT5 ACCOUNT, CONTACT SUPPORT.");
-
-  return false;
+  return true;
 }
 
 bool VerifyLicenseType()
 {
-  ENUM_ACCOUNT_TRADE_MODE trade_mode = (ENUM_ACCOUNT_TRADE_MODE)AccountInfoInteger(ACCOUNT_TRADE_MODE);
-
-  if(IsAdmin()) 																					 								return true;
-  if(is_testing && CanBacktest()) 	   										 								return true;
-  if(!is_testing && trade_mode == ACCOUNT_TRADE_MODE_DEMO && AllowDemo()) return true;
-  if(!is_testing && trade_mode == ACCOUNT_TRADE_MODE_REAL && AllowLive()) return true;
-
-  return false;
+  return true;
 }
 
 bool VerifyValidLicenseTime()
 {
-  if(IsAdmin()) 										 return true;
-  if(is_testing && CanBacktest())    return true;
-  if(license_expire > TimeCurrent()) return true;
+  return true;
+}
 
-  if(license_expire < TimeCurrent()) Print("LICENSE TIME HAS EXPIRED, CONTACT SUPPORT.");
+void LicenseSetRequestedAddonsCsv(const string addons_csv)
+{
+  license_addons = addons_csv;
+}
 
-  return false;
+string LicenseGetRequestedAddonsCsv()
+{
+  return license_addons;
+}
+
+bool LicenseIsTestingMode()
+{
+  return is_testing;
+}
+
+bool LicenseHasAddon(const string)
+{
+  return true;
+}
+
+bool LicenseHasAnyCompoundFamilyAddon()
+{
+  return true;
+}
+
+int LicenseGrantedAddonCount()
+{
+  return 0;
+}
+
+void LicenseCopyGrantedAddons(string &addons_out[])
+{
+  ArrayResize(addons_out, 0);
 }
 
 bool IsAdmin()
 {
-  if(StringFind(license_type, "Admin") >= 0) return true;
-  //if(EA_License_Key == "SnVzdFByb2ZpdEZyYW1ld29yayB3aXRoIDwz") return true;
-
   return false;
 }
 
 bool CanBacktest()
 {
-  if(StringFind(license_type, "Testing") >= 0) return true;
-
-  if(IsAdmin()) return true;
-
-  Print("BACKTESTING IS NOT ALLOWED");
-
-  return false;
+  return true;
 }
 
 bool AllowDemo()
 {
-  if(StringFind(license_type, "Demo") >= 0) return true;
-
-  if(IsAdmin()) return true;
-
-  Print("DEMO IS NOT ALLOWED");
-
-  return false;
+  return true;
 }
 
 bool AllowLive()
 {
-  if(StringFind(license_type, "Real") >= 0) return true;
-
-  if(IsAdmin()) return true;
-
-  Print("REAL IS NOT ALLOWED");
-
-  return false;
+  return true;
 }
+#endif
+
+#endif // _SERVICES_SECURITY_LICENSE_MQH_

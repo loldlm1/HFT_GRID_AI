@@ -16,8 +16,7 @@
 #include <Trade/SymbolInfo.mqh>
 
 // CUSTOM SERVICES - UTILITIES
-#include "services/Bcrypt.mqh"
-#include "services/SecurityLicenseOnline.mqh"
+#include "services/SecurityLicense.mqh"
 
 // CUSTOM SERVICES - AGGREGATORS
 #include "services/trading_tools.mqh"
@@ -37,15 +36,29 @@ bool         g_ea_running;
 datetime     g_initial_ea_date;
 SymbolTradingConstraints g_symbol_constraints;
 
+bool ProcessPendingRemovalRequest()
+{
+  if(!EALifecycleHasPendingRemoval())
+    return false;
+
+  string removal_message = EALifecycleRemovalMessage();
+  if(removal_message != "")
+    Print("[EA] ", removal_message);
+  else
+    Print("[EA] Removal requested.");
+
+  ExpertRemove();
+  return true;
+}
+
 int OnInit()
 {
-	if(MQLInfoInteger(MQL_TESTER) > 0) is_testing = true;
-	if(!DecryptEA())              { return(INIT_FAILED); }
-  if(!VerifyLicense())          { return(INIT_FAILED); }
-  if(!VerifyLicenseType())      { return(INIT_FAILED); }
-  if(!VerifyValidLicenseTime()) { return(INIT_FAILED); }
+  if(!LicenseServiceInit())
+    return(INIT_FAILED);
+  EALifecycleClearRemovalRequest();
 
   // INITIALIZE GLOBAL VARIABLES
+  g_ea_running = false;
   g_symbol.Name(_Symbol);
   g_decimal_digits  = pow(10.0, Digits());
   g_initial_ea_date = TimeCurrent();
@@ -75,9 +88,10 @@ int OnInit()
   // INITIALIZE THE EA
   CreateLicensePanelLive();
   LoadAllIndicatorDefinitions();
-  if(!EventSetTimer(license_timer_seconds))
+  if(!EventSetTimer(LicenseServiceTimerSeconds()))
   {
-    Print("FAILED TO START LICENSE TIMER.");
+    PrintFormat("[EA] Failed to set timer (%d seconds).",
+                LicenseServiceTimerSeconds());
     return INIT_FAILED;
   }
 
@@ -89,8 +103,10 @@ int OnInit()
 //+------------------------------------------------------------------+
 void OnDeinit(const int reason)
 {
+  LicenseServiceOnDeinit();
   EventKillTimer();
   Comment("");
+  EALifecycleClearRemovalRequest();
 }
 
 //+------------------------------------------------------------------+
@@ -115,7 +131,8 @@ void OnTradeTransaction(const MqlTradeTransaction& trans,
 //+------------------------------------------------------------------+
 void OnTimer()
 {
-  LicenseOnline_OnTimer();
+  LicenseServiceOnTimer();
+  ProcessPendingRemovalRequest();
 }
 
 //+------------------------------------------------------------------+
