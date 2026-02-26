@@ -346,7 +346,7 @@ double PandoraResolveConfiguredDistancePoints(const double configured_value,
   if(requested_points <= 0.0)
     return 0.0;
 
-  if(Pandora_Points_Value_Mode == PANDORA_POINTS_VALUE_MODE_BOX_PERCENT)
+  if(Pandora_Points_Value_Mode == PANDORA_VALUE_MODE_BOX_PERCENT)
   {
     double box_range_points = g_pandora_box_state.box_range_points;
     if(box_range_points <= 0.0)

@@ -60,7 +60,7 @@ input double        Pandora_Box_Max_Range_Points   = 0.0;
 input double        Pandora_Box_Offset_Points      = 50.0;
 input double        Pandora_Points_SL              = 100.0;
 input double        Pandora_Points_TP              = 100.0;
-input PandoraPointsValueModes Pandora_Points_Value_Mode = PANDORA_POINTS_VALUE_MODE_POINTS;
+input PandoraPointsValueModes Pandora_Points_Value_Mode = PANDORA_VALUE_MODE_POINTS;
 input PandoraRiskTrailingModes Pandora_Risk_Trailing_Mode = PANDORA_RISK_TRAILING_OFF;
 
 //input group  "+= Strategy Context =+";

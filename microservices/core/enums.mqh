@@ -221,8 +221,8 @@ enum PandoraLotTypes
 
 enum PandoraPointsValueModes
 {
-  PANDORA_POINTS_VALUE_MODE_POINTS      = 0,
-  PANDORA_POINTS_VALUE_MODE_BOX_PERCENT = 1
+  PANDORA_VALUE_MODE_POINTS      = 0,
+  PANDORA_VALUE_MODE_BOX_PERCENT = 1
 };
 
 enum PandoraRiskTrailingModes
