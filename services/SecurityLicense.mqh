@@ -7,7 +7,7 @@
 // Compile-time switches
 // Keep both ON for production builds.
 // Local/dev mode: comment LICENSE_ENFORCEMENT_ENABLED when needed.
-#define LICENSE_ENFORCEMENT_ENABLED
+//#define LICENSE_ENFORCEMENT_ENABLED
 #define LICENSE_DAILY_RESULTS_ENABLED
 
 #ifdef LICENSE_DAILY_RESULTS_ENABLED

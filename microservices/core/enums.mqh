@@ -231,6 +231,21 @@ enum PandoraRiskTrailingModes
   PANDORA_RISK_TRAILING_STEP_TP = 1
 };
 
+enum PandoraEntryCountModes
+{
+  COUNT_BOX_ENTRY_OFF   = 0,
+  COUNT_BOX_ENTRY_ON_SL = 1,
+  COUNT_BOX_ENTRY_ON_TP = 2
+};
+
+enum PandoraCloseOutcomes
+{
+  PANDORA_CLOSE_NONE = 0,
+  PANDORA_CLOSE_SL   = 1,
+  PANDORA_CLOSE_TP   = 2,
+  PANDORA_CLOSE_BE   = 3
+};
+
 enum GridRiskTrendModes
 {
   GRID_RM_TREND_OFF = 0,

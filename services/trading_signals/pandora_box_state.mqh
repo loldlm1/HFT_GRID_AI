@@ -5,6 +5,7 @@
 #define _SERVICES_TRADING_SIGNALS_PANDORA_BOX_STATE_MQH_
 
 const int PANDORA_MINUTES_PER_DAY = 24 * 60;
+const double PANDORA_EPSILON_EXTREME_BOX_RATIO = 5.0;
 
 struct PandoraBoxRuntimeState
 {
@@ -31,12 +32,17 @@ struct PandoraBoxRuntimeState
   double   max_range_points;
   StrategyDirectionTypes direction_mode;
   bool     stop_on_first_win;
+  PandoraEntryCountModes entry_count_mode;
+  int      max_entries;
+  int      counted_entries;
+  int      total_entries;
   bool     finished;
   bool     session_window_seen_active;
-  bool     bullish_consumed;
-  bool     bearish_consumed;
-  bool     bullish_closed;
-  bool     bearish_closed;
+  bool     bullish_rearm_required;
+  bool     bearish_rearm_required;
+  bool     bullish_rearm_ready;
+  bool     bearish_rearm_ready;
+  datetime last_rearm_close_bar_time;
   string   invalid_reason;
 
   PandoraBoxRuntimeState()
@@ -46,36 +52,41 @@ struct PandoraBoxRuntimeState
 
   void Reset()
   {
-    enabled                = false;
-    respect_session_filter = true;
-    visualization_enabled  = true;
-    window_parsed          = false;
-    window_valid           = false;
-    start_minutes          = 0;
-    end_minutes            = 0;
-    day_anchor             = 0;
-    window_start_time      = 0;
-    window_end_time        = 0;
-    window_closed          = false;
-    box_computed           = false;
-    box_valid              = false;
-    box_high               = 0.0;
-    box_low                = 0.0;
-    box_range_points       = 0.0;
-    breakout_high_price    = 0.0;
-    breakout_low_price     = 0.0;
-    offset_points          = 0.0;
-    effective_offset_points = 0.0;
-    max_range_points       = 0.0;
-    direction_mode         = BOTH_DIRECTION;
-    stop_on_first_win      = false;
-    finished               = false;
+    enabled                   = false;
+    respect_session_filter    = true;
+    visualization_enabled     = true;
+    window_parsed             = false;
+    window_valid              = false;
+    start_minutes             = 0;
+    end_minutes               = 0;
+    day_anchor                = 0;
+    window_start_time         = 0;
+    window_end_time           = 0;
+    window_closed             = false;
+    box_computed              = false;
+    box_valid                 = false;
+    box_high                  = 0.0;
+    box_low                   = 0.0;
+    box_range_points          = 0.0;
+    breakout_high_price       = 0.0;
+    breakout_low_price        = 0.0;
+    offset_points             = 0.0;
+    effective_offset_points   = 0.0;
+    max_range_points          = 0.0;
+    direction_mode            = BOTH_DIRECTION;
+    stop_on_first_win         = false;
+    entry_count_mode          = COUNT_BOX_ENTRY_OFF;
+    max_entries               = 0;
+    counted_entries           = 0;
+    total_entries             = 0;
+    finished                  = false;
     session_window_seen_active = false;
-    bullish_consumed       = false;
-    bearish_consumed       = false;
-    bullish_closed         = false;
-    bearish_closed         = false;
-    invalid_reason         = "";
+    bullish_rearm_required    = false;
+    bearish_rearm_required    = false;
+    bullish_rearm_ready       = false;
+    bearish_rearm_ready       = false;
+    last_rearm_close_bar_time = 0;
+    invalid_reason            = "";
   }
 };
 
@@ -86,24 +97,42 @@ bool PandoraStrategyEnabled()
   return Pandora_Box_Enable;
 }
 
+ENUM_TIMEFRAMES PandoraResolveBoxTimeframe()
+{
+  ENUM_TIMEFRAMES tf = Strategy_Timeframe;
+  if(tf == PERIOD_CURRENT)
+    tf = PERIOD_M1;
+  if(!IsStrategyTimeframeSupported(tf))
+    tf = PERIOD_M1;
+  return tf;
+}
+
+bool IsPandoraSignal(const SignalParams &signal_params)
+{
+  return (signal_params.strategy_context_label == "PANDORA");
+}
+
 void PandoraResetDailyState()
 {
-  g_pandora_box_state.box_computed        = false;
-  g_pandora_box_state.box_valid           = false;
-  g_pandora_box_state.box_high            = 0.0;
-  g_pandora_box_state.box_low             = 0.0;
-  g_pandora_box_state.box_range_points    = 0.0;
-  g_pandora_box_state.breakout_high_price = 0.0;
-  g_pandora_box_state.breakout_low_price  = 0.0;
-  g_pandora_box_state.bullish_consumed    = false;
-  g_pandora_box_state.bearish_consumed    = false;
-  g_pandora_box_state.bullish_closed      = false;
-  g_pandora_box_state.bearish_closed      = false;
-  g_pandora_box_state.invalid_reason      = "";
-  g_pandora_box_state.window_closed       = false;
+  g_pandora_box_state.box_computed            = false;
+  g_pandora_box_state.box_valid               = false;
+  g_pandora_box_state.box_high                = 0.0;
+  g_pandora_box_state.box_low                 = 0.0;
+  g_pandora_box_state.box_range_points        = 0.0;
+  g_pandora_box_state.breakout_high_price     = 0.0;
+  g_pandora_box_state.breakout_low_price      = 0.0;
+  g_pandora_box_state.invalid_reason          = "";
+  g_pandora_box_state.window_closed           = false;
   g_pandora_box_state.effective_offset_points = 0.0;
-  g_pandora_box_state.finished            = false;
+  g_pandora_box_state.finished                = false;
   g_pandora_box_state.session_window_seen_active = false;
+  g_pandora_box_state.counted_entries         = 0;
+  g_pandora_box_state.total_entries           = 0;
+  g_pandora_box_state.bullish_rearm_required  = false;
+  g_pandora_box_state.bearish_rearm_required  = false;
+  g_pandora_box_state.bullish_rearm_ready     = false;
+  g_pandora_box_state.bearish_rearm_ready     = false;
+  g_pandora_box_state.last_rearm_close_bar_time = 0;
 }
 
 void PandoraSyncRuntimeConfig()
@@ -115,6 +144,8 @@ void PandoraSyncRuntimeConfig()
   g_pandora_box_state.offset_points          = MathMax(Pandora_Box_Offset_Points, 0.0);
   g_pandora_box_state.max_range_points       = MathMax(Pandora_Box_Max_Range_Points, 0.0);
   g_pandora_box_state.stop_on_first_win      = Pandora_Box_Stop_On_First_Win;
+  g_pandora_box_state.entry_count_mode       = Pandora_Box_Entry_Count_Mode;
+  g_pandora_box_state.max_entries            = MathMax(Pandora_Box_Max_Entries, 0);
 }
 
 bool PandoraParseTimeComponent(string fragment,
@@ -185,7 +216,7 @@ void PandoraEnsureDayAnchor()
   datetime day = ResolveCurrentDayStart();
   if(g_pandora_box_state.day_anchor != day)
   {
-    g_pandora_box_state.day_anchor   = day;
+    g_pandora_box_state.day_anchor    = day;
     g_pandora_box_state.window_parsed = false;
     g_pandora_box_state.window_valid  = false;
     PandoraResetDailyState();
@@ -229,109 +260,162 @@ bool PandoraDirectionAllowed(const SignalTypes direction)
   return true;
 }
 
-bool PandoraSideConsumed(const SignalTypes direction)
+bool PandoraDirectionHasActiveSignal(const SignalTypes direction)
 {
   if(direction == BULLISH)
-    return g_pandora_box_state.bullish_consumed;
-  return g_pandora_box_state.bearish_consumed;
+  {
+    int total_bullish = ArraySize(running_bullish_signals);
+    for(int i = total_bullish - 1; i >= 0; i--)
+    {
+      if(!IsPandoraSignal(running_bullish_signals[i]))
+        continue;
+      if(running_bullish_signals[i].signal_state != CLOSED)
+        return true;
+    }
+    return false;
+  }
+
+  int total_bearish = ArraySize(running_bearish_signals);
+  for(int j = total_bearish - 1; j >= 0; j--)
+  {
+    if(!IsPandoraSignal(running_bearish_signals[j]))
+      continue;
+    if(running_bearish_signals[j].signal_state != CLOSED)
+      return true;
+  }
+  return false;
+}
+
+bool PandoraEntryBudgetReached()
+{
+  if(g_pandora_box_state.max_entries <= 0)
+    return false;
+  return (g_pandora_box_state.counted_entries >= g_pandora_box_state.max_entries);
 }
 
 bool PandoraDailyCompleted()
 {
   if(g_pandora_box_state.finished)
     return true;
-  if(!Pandora_Box_Stop_After_Sides)
-    return false;
-  StrategyDirectionTypes mode = g_pandora_box_state.direction_mode;
-  if(mode == BOTH_DIRECTION)
-    return g_pandora_box_state.bullish_consumed && g_pandora_box_state.bearish_consumed;
-  if(mode == BULLISH_DIRECTION)
-    return g_pandora_box_state.bullish_consumed;
-  if(mode == BEARISH_DIRECTION)
-    return g_pandora_box_state.bearish_consumed;
-  return false;
+  return PandoraEntryBudgetReached();
 }
 
-void PandoraMarkSideTriggered(const SignalTypes direction)
+bool PandoraDirectionNeedsRearm(const SignalTypes direction)
 {
   if(direction == BULLISH)
-    g_pandora_box_state.bullish_consumed = true;
-  else
-    g_pandora_box_state.bearish_consumed = true;
+    return g_pandora_box_state.bullish_rearm_required;
+  return g_pandora_box_state.bearish_rearm_required;
 }
 
-void PandoraMarkSideClosed(const SignalTypes direction)
+bool PandoraDirectionRearmReady(const SignalTypes direction)
 {
   if(direction == BULLISH)
-    g_pandora_box_state.bullish_closed = true;
-  else
-    g_pandora_box_state.bearish_closed = true;
+    return g_pandora_box_state.bullish_rearm_ready;
+  return g_pandora_box_state.bearish_rearm_ready;
 }
 
-void PandoraRegisterSideOutcome(const SignalTypes direction,
-                                const double raw_profit)
+void PandoraClearDirectionRearm(const SignalTypes direction)
 {
-  PandoraMarkSideClosed(direction);
-  if(raw_profit > 0.0 && g_pandora_box_state.stop_on_first_win)
+  if(direction == BULLISH)
   {
-    g_pandora_box_state.finished = true;
-    return;
+    g_pandora_box_state.bullish_rearm_required = false;
+    g_pandora_box_state.bullish_rearm_ready    = false;
   }
-
-  if(PandoraDailyCompleted())
-    g_pandora_box_state.finished = true;
+  else
+  {
+    g_pandora_box_state.bearish_rearm_required = false;
+    g_pandora_box_state.bearish_rearm_ready    = false;
+  }
 }
 
-bool PandoraFinishedForDay()
+void PandoraRequireDirectionRearm(const SignalTypes direction)
 {
-  if(g_pandora_box_state.finished)
-    return true;
-  return PandoraDailyCompleted();
+  if(direction == BULLISH)
+  {
+    g_pandora_box_state.bullish_rearm_required = true;
+    g_pandora_box_state.bullish_rearm_ready    = false;
+  }
+  else
+  {
+    g_pandora_box_state.bearish_rearm_required = true;
+    g_pandora_box_state.bearish_rearm_ready    = false;
+  }
 }
 
-bool PandoraWindowCompleted()
+bool PandoraPreviousCloseInsideBox()
 {
-  if(!g_pandora_box_state.window_valid)
-    return false;
-
-  datetime now_time = TimeCurrent();
-  g_pandora_box_state.window_closed = (g_pandora_box_state.window_end_time > 0 &&
-                                       now_time >= g_pandora_box_state.window_end_time);
-  return g_pandora_box_state.window_closed;
-}
-
-bool PandoraBoxReady()
-{
-  if(!g_pandora_box_state.enabled)
-    return false;
-  if(!g_pandora_box_state.box_computed)
-    return false;
   if(!g_pandora_box_state.box_valid)
     return false;
-  if(PandoraDailyCompleted())
+
+  ENUM_TIMEFRAMES tf = PandoraResolveBoxTimeframe();
+  double close_1 = iClose(_Symbol, tf, 1);
+  if(close_1 <= 0.0)
     return false;
-  return true;
+
+  return (close_1 >= g_pandora_box_state.box_low &&
+          close_1 <= g_pandora_box_state.box_high);
 }
 
-bool PandoraVisualizationEnabled()
+void PandoraRefreshRearmState()
 {
-  return g_pandora_box_state.enabled && g_pandora_box_state.visualization_enabled;
+  if(!g_pandora_box_state.window_closed ||
+     !g_pandora_box_state.box_computed ||
+     !g_pandora_box_state.box_valid)
+    return;
+
+  if(!g_pandora_box_state.bullish_rearm_required &&
+     !g_pandora_box_state.bearish_rearm_required)
+    return;
+
+  ENUM_TIMEFRAMES tf = PandoraResolveBoxTimeframe();
+  datetime close_bar_time = iTime(_Symbol, tf, 1);
+  if(close_bar_time <= 0)
+    return;
+
+  if(g_pandora_box_state.last_rearm_close_bar_time == close_bar_time)
+    return;
+
+  g_pandora_box_state.last_rearm_close_bar_time = close_bar_time;
+  if(!PandoraPreviousCloseInsideBox())
+    return;
+
+  if(g_pandora_box_state.bullish_rearm_required)
+    g_pandora_box_state.bullish_rearm_ready = true;
+  if(g_pandora_box_state.bearish_rearm_required)
+    g_pandora_box_state.bearish_rearm_ready = true;
 }
 
-string PandoraWindowLabel()
+bool PandoraDirectionReadyForEntry(const SignalTypes direction)
 {
-  if(!g_pandora_box_state.window_valid)
-    return Pandora_Box_Time_Range;
-  return StringFormat("%02d:%02d-%02d:%02d",
-                      g_pandora_box_state.start_minutes / 60,
-                      g_pandora_box_state.start_minutes % 60,
-                      g_pandora_box_state.end_minutes / 60,
-                      g_pandora_box_state.end_minutes % 60);
+  if(PandoraDirectionHasActiveSignal(direction))
+    return false;
+
+  if(!PandoraDirectionNeedsRearm(direction))
+    return true;
+
+  return PandoraDirectionRearmReady(direction);
 }
 
-bool IsPandoraSignal(const SignalParams &signal_params)
+void PandoraRegisterEntryTriggered(const SignalTypes direction)
 {
-  return (signal_params.strategy_context_label == "PANDORA");
+  g_pandora_box_state.total_entries++;
+  PandoraClearDirectionRearm(direction);
+}
+
+bool PandoraOutcomeCountsEntry(const PandoraCloseOutcomes outcome)
+{
+  if(outcome == PANDORA_CLOSE_NONE)
+    return false;
+
+  if(g_pandora_box_state.entry_count_mode == COUNT_BOX_ENTRY_ON_SL)
+    return (outcome == PANDORA_CLOSE_SL || outcome == PANDORA_CLOSE_BE);
+
+  if(g_pandora_box_state.entry_count_mode == COUNT_BOX_ENTRY_ON_TP)
+    return (outcome == PANDORA_CLOSE_TP || outcome == PANDORA_CLOSE_BE);
+
+  return (outcome == PANDORA_CLOSE_SL ||
+          outcome == PANDORA_CLOSE_TP ||
+          outcome == PANDORA_CLOSE_BE);
 }
 
 bool PandoraRiskStepTrailingEnabled()
@@ -452,6 +536,370 @@ bool PandoraResolveBrokerStops(const SignalParams &signal_params,
   sl_price = NormalizeDouble(sl_price, digits);
   tp_price = NormalizeDouble(tp_price, digits);
   return true;
+}
+
+double PandoraResolveSignalEpsilonPoints(const SignalParams &signal_params)
+{
+  double sl_points = PandoraResolveSignalSLPoints(signal_params, true);
+  double tp_points = PandoraResolveSignalTPPoints(signal_params, true);
+  if(PandoraRiskStepTrailingEnabled())
+    tp_points = 0.0;
+
+  double trade_ref_points = MathMax(sl_points, tp_points);
+  double box_range_points = MathMax(g_pandora_box_state.box_range_points, 0.0);
+  double raw_ref_points = MathMax(trade_ref_points, box_range_points);
+  if(raw_ref_points <= 0.0)
+    raw_ref_points = MathMax(sl_points, 1.0);
+  if(trade_ref_points <= 0.0)
+    trade_ref_points = raw_ref_points;
+
+  double structural_points = 0.01 * raw_ref_points;
+
+  double spread_floor = 0.20 * MathMax(g_points_spread, 0.0);
+  double freeze_floor = 0.10 * MathMax(g_symbol_constraints.freeze_level_points +
+                                       g_symbol_constraints.stops_level_points,
+                                       0.0);
+
+  double min_stop_points = g_symbol_constraints.min_stop_distance_points;
+  if(min_stop_points <= 0.0)
+    min_stop_points = MinBrokerDistancePoints(g_symbol_constraints);
+  double min_stop_floor = 0.25 * MathMax(min_stop_points, 0.0);
+
+  double execution_floor = MathMax(2.0,
+                                   MathMax(spread_floor,
+                                           MathMax(freeze_floor, min_stop_floor)));
+
+  double box_ratio = 0.0;
+  if(trade_ref_points > 0.0)
+    box_ratio = box_range_points / trade_ref_points;
+  bool is_extreme_box = (box_ratio >= PANDORA_EPSILON_EXTREME_BOX_RATIO);
+
+  double cap_points = is_extreme_box
+                      ? MathMax(5.0, 0.10 * trade_ref_points)
+                      : MathMax(5.0, 0.20 * trade_ref_points);
+
+  double bounded_structural = MathMin(structural_points, cap_points);
+  double epsilon_points = MathCeil(MathMax(execution_floor, bounded_structural));
+  if(epsilon_points < 1.0)
+    epsilon_points = 1.0;
+
+  return epsilon_points;
+}
+
+double PandoraResolveSignalEpsilonMoney(const SignalParams &signal_params,
+                                        const GridOrderState &order_state,
+                                        const double epsilon_points)
+{
+  if(epsilon_points <= 0.0)
+    return 0.0;
+
+  double volume = order_state.lot_size;
+  if(volume <= 0.0)
+    volume = signal_params.lot_size;
+  if(volume <= 0.0)
+    volume = NormalizeVolumeForSymbol(_Symbol, Pandora_Lot_Strategy_Size);
+  if(volume <= 0.0)
+    return 0.0;
+
+  double tick_value = SymbolInfoDouble(_Symbol, SYMBOL_TRADE_TICK_VALUE);
+  double tick_size  = SymbolInfoDouble(_Symbol, SYMBOL_TRADE_TICK_SIZE);
+  double point_size = SymbolInfoDouble(_Symbol, SYMBOL_POINT);
+
+  if(tick_value <= 0.0 || tick_size <= 0.0 || point_size <= 0.0)
+    return 0.0;
+
+  double point_value_per_lot = tick_value * (point_size / tick_size);
+  if(point_value_per_lot <= 0.0)
+    return 0.0;
+
+  return epsilon_points * point_value_per_lot * volume;
+}
+
+double PandoraResolveOutcomeEntryAnchorPrice(const SignalParams &signal_params,
+                                             const GridOrderState &order_state)
+{
+  double entry_anchor = order_state.entry_price;
+  if(entry_anchor <= 0.0)
+    entry_anchor = signal_params.entry_price;
+  if(entry_anchor <= 0.0)
+    entry_anchor = order_state.entry_reference_price;
+  return entry_anchor;
+}
+
+double PandoraResolveStopAnchorPrice(const SignalParams &signal_params,
+                                     const GridOrderState &order_state,
+                                     const double entry_anchor,
+                                     const double point_size)
+{
+  if(point_size <= 0.0 || entry_anchor <= 0.0)
+    return 0.0;
+
+  if(signal_params.pandora_trailing_stop_price > 0.0)
+    return signal_params.pandora_trailing_stop_price;
+
+  double sl_points = PandoraResolveSignalSLPoints(signal_params, true);
+  if(sl_points <= 0.0)
+    return 0.0;
+
+  if(signal_params.signal_type == BULLISH)
+    return entry_anchor - sl_points * point_size;
+  return entry_anchor + sl_points * point_size;
+}
+
+double PandoraResolveTakeProfitAnchorPrice(const SignalParams &signal_params,
+                                           const GridOrderState &order_state,
+                                           const double entry_anchor,
+                                           const double point_size)
+{
+  if(order_state.take_profit_price > 0.0)
+    return order_state.take_profit_price;
+
+  if(PandoraRiskStepTrailingEnabled())
+    return 0.0;
+
+  double tp_points = PandoraResolveSignalTPPoints(signal_params, true);
+  if(tp_points <= 0.0 || point_size <= 0.0 || entry_anchor <= 0.0)
+    return 0.0;
+
+  if(signal_params.signal_type == BULLISH)
+    return entry_anchor + tp_points * point_size;
+  return entry_anchor - tp_points * point_size;
+}
+
+PandoraCloseOutcomes PandoraResolveHistoryOutcomeByPosition(const ulong position_ticket)
+{
+  if(position_ticket <= 0)
+    return PANDORA_CLOSE_NONE;
+
+  datetime to_time = TimeCurrent();
+  datetime from_time = to_time - 5 * 86400;
+  if(from_time < 0)
+    from_time = 0;
+
+  if(!HistorySelect(from_time, to_time))
+    return PANDORA_CLOSE_NONE;
+
+  int total_deals = HistoryDealsTotal();
+  datetime latest_time = 0;
+  PandoraCloseOutcomes resolved = PANDORA_CLOSE_NONE;
+
+  for(int i = total_deals - 1; i >= 0; i--)
+  {
+    ulong ticket = HistoryDealGetTicket(i);
+    if(ticket <= 0)
+      continue;
+
+    ulong deal_position = (ulong)HistoryDealGetInteger(ticket, DEAL_POSITION_ID);
+    if(deal_position != position_ticket)
+      continue;
+
+    ENUM_DEAL_ENTRY deal_entry = (ENUM_DEAL_ENTRY)HistoryDealGetInteger(ticket, DEAL_ENTRY);
+    if(deal_entry != DEAL_ENTRY_OUT && deal_entry != DEAL_ENTRY_INOUT)
+      continue;
+
+    datetime deal_time = (datetime)HistoryDealGetInteger(ticket, DEAL_TIME);
+    if(deal_time < latest_time)
+      continue;
+
+    latest_time = deal_time;
+    ENUM_DEAL_REASON reason = (ENUM_DEAL_REASON)HistoryDealGetInteger(ticket, DEAL_REASON);
+    if(reason == DEAL_REASON_TP)
+      resolved = PANDORA_CLOSE_TP;
+    else if(reason == DEAL_REASON_SO)
+      resolved = PANDORA_CLOSE_SL;
+    else if(reason == DEAL_REASON_SL)
+      resolved = PANDORA_CLOSE_NONE; // Let epsilon classifier decide SL vs BE/TP on trailing/broker moves.
+    else
+      resolved = PANDORA_CLOSE_NONE;
+  }
+
+  return resolved;
+}
+
+PandoraCloseOutcomes PandoraResolveSignalCloseOutcome(const SignalParams &signal_params,
+                                                      const double close_price,
+                                                      const double raw_profit,
+                                                      double &epsilon_points_out)
+{
+  epsilon_points_out = 0.0;
+
+  if(!IsPandoraSignal(signal_params))
+    return PANDORA_CLOSE_NONE;
+
+  if(signal_params.pandora_close_outcome != PANDORA_CLOSE_NONE)
+  {
+    epsilon_points_out = signal_params.pandora_close_epsilon_points;
+    return signal_params.pandora_close_outcome;
+  }
+
+  int last_index = ArraySize(signal_params.grid_orders) - 1;
+  if(last_index < 0)
+  {
+    if(raw_profit > 0.0)
+      return PANDORA_CLOSE_TP;
+    if(raw_profit < 0.0)
+      return PANDORA_CLOSE_SL;
+    return PANDORA_CLOSE_BE;
+  }
+
+  GridOrderState order_state = signal_params.grid_orders[last_index];
+  if(order_state.position_ticket > 0)
+  {
+    PandoraCloseOutcomes history_outcome = PandoraResolveHistoryOutcomeByPosition(order_state.position_ticket);
+    if(history_outcome != PANDORA_CLOSE_NONE)
+      return history_outcome;
+  }
+
+  double point_size = GridResolvePointSize();
+  if(point_size <= 0.0)
+    point_size = SymbolInfoDouble(_Symbol, SYMBOL_POINT);
+
+  epsilon_points_out = PandoraResolveSignalEpsilonPoints(signal_params);
+  double epsilon_price = epsilon_points_out * point_size;
+
+  double entry_anchor = PandoraResolveOutcomeEntryAnchorPrice(signal_params, order_state);
+  double be_anchor = entry_anchor;
+  double sl_anchor = PandoraResolveStopAnchorPrice(signal_params,
+                                                   order_state,
+                                                   entry_anchor,
+                                                   point_size);
+  double tp_anchor = PandoraResolveTakeProfitAnchorPrice(signal_params,
+                                                         order_state,
+                                                         entry_anchor,
+                                                         point_size);
+
+  if(be_anchor > 0.0 && close_price > 0.0 &&
+     MathAbs(close_price - be_anchor) <= epsilon_price)
+  {
+    return PANDORA_CLOSE_BE;
+  }
+
+  if(tp_anchor > 0.0 && close_price > 0.0)
+  {
+    if(signal_params.signal_type == BULLISH && close_price >= (tp_anchor - epsilon_price))
+      return PANDORA_CLOSE_TP;
+    if(signal_params.signal_type == BEARISH && close_price <= (tp_anchor + epsilon_price))
+      return PANDORA_CLOSE_TP;
+  }
+
+  if(sl_anchor > 0.0 && close_price > 0.0)
+  {
+    bool hit_stop = false;
+    if(signal_params.signal_type == BULLISH)
+      hit_stop = (close_price <= (sl_anchor + epsilon_price));
+    else
+      hit_stop = (close_price >= (sl_anchor - epsilon_price));
+
+    if(hit_stop)
+    {
+      if(entry_anchor > 0.0)
+      {
+        if(signal_params.signal_type == BULLISH && sl_anchor > (entry_anchor + epsilon_price))
+          return PANDORA_CLOSE_TP;
+        if(signal_params.signal_type == BEARISH && sl_anchor < (entry_anchor - epsilon_price))
+          return PANDORA_CLOSE_TP;
+      }
+      return PANDORA_CLOSE_SL;
+    }
+  }
+
+  double epsilon_money = PandoraResolveSignalEpsilonMoney(signal_params,
+                                                          order_state,
+                                                          epsilon_points_out);
+  if(epsilon_money <= 0.0)
+    epsilon_money = 0.01;
+
+  if(MathAbs(raw_profit) <= epsilon_money)
+    return PANDORA_CLOSE_BE;
+  if(raw_profit > epsilon_money)
+    return PANDORA_CLOSE_TP;
+  if(raw_profit < -epsilon_money)
+    return PANDORA_CLOSE_SL;
+
+  return PANDORA_CLOSE_BE;
+}
+
+void PandoraFinalizeSignalOutcome(SignalParams &signal_params,
+                                  const double close_price,
+                                  const double raw_profit)
+{
+  if(!IsPandoraSignal(signal_params))
+    return;
+
+  double epsilon_points = 0.0;
+  PandoraCloseOutcomes outcome = PandoraResolveSignalCloseOutcome(signal_params,
+                                                                  close_price,
+                                                                  raw_profit,
+                                                                  epsilon_points);
+  signal_params.pandora_close_outcome = outcome;
+  signal_params.pandora_close_epsilon_points = epsilon_points;
+}
+
+void PandoraRegisterSideOutcome(const SignalParams &signal_params)
+{
+  if(!IsPandoraSignal(signal_params))
+    return;
+
+  PandoraRequireDirectionRearm(signal_params.signal_type);
+
+  if(signal_params.raw_profit > 0.0 && g_pandora_box_state.stop_on_first_win)
+  {
+    g_pandora_box_state.finished = true;
+    return;
+  }
+
+  if(PandoraOutcomeCountsEntry(signal_params.pandora_close_outcome))
+    g_pandora_box_state.counted_entries++;
+
+  if(PandoraEntryBudgetReached())
+    g_pandora_box_state.finished = true;
+}
+
+bool PandoraFinishedForDay()
+{
+  if(g_pandora_box_state.finished)
+    return true;
+  return PandoraDailyCompleted();
+}
+
+bool PandoraWindowCompleted()
+{
+  if(!g_pandora_box_state.window_valid)
+    return false;
+
+  datetime now_time = TimeCurrent();
+  g_pandora_box_state.window_closed = (g_pandora_box_state.window_end_time > 0 &&
+                                       now_time >= g_pandora_box_state.window_end_time);
+  return g_pandora_box_state.window_closed;
+}
+
+bool PandoraBoxReady()
+{
+  if(!g_pandora_box_state.enabled)
+    return false;
+  if(!g_pandora_box_state.box_computed)
+    return false;
+  if(!g_pandora_box_state.box_valid)
+    return false;
+  if(PandoraDailyCompleted())
+    return false;
+  return true;
+}
+
+bool PandoraVisualizationEnabled()
+{
+  return g_pandora_box_state.enabled && g_pandora_box_state.visualization_enabled;
+}
+
+string PandoraWindowLabel()
+{
+  if(!g_pandora_box_state.window_valid)
+    return Pandora_Box_Time_Range;
+  return StringFormat("%02d:%02d-%02d:%02d",
+                      g_pandora_box_state.start_minutes / 60,
+                      g_pandora_box_state.start_minutes % 60,
+                      g_pandora_box_state.end_minutes / 60,
+                      g_pandora_box_state.end_minutes % 60);
 }
 
 #endif // _SERVICES_TRADING_SIGNALS_PANDORA_BOX_STATE_MQH_

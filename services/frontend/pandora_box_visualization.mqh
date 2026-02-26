@@ -93,15 +93,27 @@ void PandoraAppendSummary(string &summary_lines[])
     double display_offset = g_pandora_box_state.effective_offset_points;
     if(display_offset <= 0.0)
       display_offset = g_pandora_box_state.offset_points;
-    string sides = "";
-    if(g_pandora_box_state.bullish_consumed)
-      sides = sides + "BULL_USED ";
-    if(g_pandora_box_state.bearish_consumed)
-      sides = sides + "BEAR_USED ";
-    status = StringFormat("PANDORA READY range=%.1f off=%.1f %s",
+
+    string count_mode = EnumToString(g_pandora_box_state.entry_count_mode);
+    string count_limit = "INF";
+    if(g_pandora_box_state.max_entries > 0)
+      count_limit = IntegerToString(g_pandora_box_state.max_entries);
+
+    string rearm_status = "";
+    if(g_pandora_box_state.bullish_rearm_required &&
+       !g_pandora_box_state.bullish_rearm_ready)
+      rearm_status = rearm_status + "WAIT_BULL ";
+    if(g_pandora_box_state.bearish_rearm_required &&
+       !g_pandora_box_state.bearish_rearm_ready)
+      rearm_status = rearm_status + "WAIT_BEAR ";
+
+    status = StringFormat("PANDORA READY range=%.1f off=%.1f mode=%s cnt=%d/%s %s",
                           g_pandora_box_state.box_range_points,
                           display_offset,
-                          sides);
+                          count_mode,
+                          g_pandora_box_state.counted_entries,
+                          count_limit,
+                          rearm_status);
   }
   else
   {

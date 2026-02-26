@@ -253,6 +253,24 @@ void UpdateGridLifecycle(SignalParams &signal_params)
 
         if(hit_sl || hit_tp)
         {
+          if(hit_tp)
+          {
+            signal_params.pandora_close_outcome = PANDORA_CLOSE_TP;
+            signal_params.pandora_close_epsilon_points = 0.0;
+          }
+          else
+          {
+            double estimate_profit = RawProfitUsd(direction,
+                                                  signal_params.entry_price,
+                                                  current_price);
+            double epsilon_points = 0.0;
+            PandoraCloseOutcomes close_outcome = PandoraResolveSignalCloseOutcome(signal_params,
+                                                                                  current_price,
+                                                                                  estimate_profit,
+                                                                                  epsilon_points);
+            signal_params.pandora_close_outcome = close_outcome;
+            signal_params.pandora_close_epsilon_points = epsilon_points;
+          }
           GridCloseAllLevels(signal_params, point_size);
           signal_params.grid_orders[grid_order_level].status = GRID_ORDER_COMPLETED;
           grid_order = signal_params.grid_orders[grid_order_level];
@@ -260,7 +278,12 @@ void UpdateGridLifecycle(SignalParams &signal_params)
       }
 
       if(grid_order.position_ticket > 0 && !PositionSelectByTicket(grid_order.position_ticket))
+      {
+        PandoraCloseOutcomes history_outcome = PandoraResolveHistoryOutcomeByPosition(grid_order.position_ticket);
+        if(history_outcome != PANDORA_CLOSE_NONE)
+          signal_params.pandora_close_outcome = history_outcome;
         grid_order.status = GRID_ORDER_COMPLETED;
+      }
       signal_params.grid_orders[grid_order_level] = grid_order;
     }
 

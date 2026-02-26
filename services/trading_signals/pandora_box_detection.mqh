@@ -12,16 +12,6 @@ double PandoraResolvePointSizeSafe()
   return point_size;
 }
 
-ENUM_TIMEFRAMES PandoraResolveBoxTimeframe()
-{
-  ENUM_TIMEFRAMES tf = Strategy_Timeframe;
-  if(tf == PERIOD_CURRENT)
-    tf = PERIOD_M1;
-  if(!IsStrategyTimeframeSupported(tf))
-    tf = PERIOD_M1;
-  return tf;
-}
-
 bool PandoraComputeBoxWindow()
 {
   if(!PandoraEnsureWindowParsed())
@@ -157,7 +147,7 @@ bool PandoraBuildSignal(const SignalTypes direction)
     AddElementToArray(running_bearish_signals, signal);
 
   RegisterDailySignalStart(signal);
-  PandoraMarkSideTriggered(direction);
+  PandoraRegisterEntryTriggered(direction);
   return true;
 }
 
@@ -196,13 +186,21 @@ void PandoraDetectSignals()
   if(!box_ready)
     return;
 
+  PandoraRefreshRearmState();
+
   SignalTypes directions[2] = {BULLISH, BEARISH};
   for(int i = 0; i < 2; i++)
   {
+    if(PandoraEntryBudgetReached())
+    {
+      g_pandora_box_state.finished = true;
+      break;
+    }
+
     SignalTypes dir = directions[i];
     if(!PandoraDirectionAllowed(dir))
       continue;
-    if(PandoraSideConsumed(dir))
+    if(!PandoraDirectionReadyForEntry(dir))
       continue;
     if(!PandoraPriceTriggersSignal(dir))
       continue;

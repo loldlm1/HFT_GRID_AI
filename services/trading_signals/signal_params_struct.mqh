@@ -95,6 +95,8 @@ struct SignalParams
   double pandora_trailing_step_points;
   int    pandora_trailing_step_index;
   double pandora_trailing_stop_price;
+  PandoraCloseOutcomes pandora_close_outcome;
+  double pandora_close_epsilon_points;
   datetime context_structure_snapshot_time;
 
   bool                      base_bpercent_valid;
@@ -185,6 +187,8 @@ struct SignalParams
     pandora_trailing_step_points = 0.0;
     pandora_trailing_step_index = 0;
     pandora_trailing_stop_price = 0.0;
+    pandora_close_outcome      = PANDORA_CLOSE_NONE;
+    pandora_close_epsilon_points = 0.0;
     context_structure_snapshot_time = 0;
     trend_filter_mode          = TREND_OFF;
     trend_bpercent_valid       = false;
@@ -249,6 +253,8 @@ struct SignalParams
     pandora_trailing_step_points = signal_params.pandora_trailing_step_points;
     pandora_trailing_step_index = signal_params.pandora_trailing_step_index;
     pandora_trailing_stop_price = signal_params.pandora_trailing_stop_price;
+    pandora_close_outcome       = signal_params.pandora_close_outcome;
+    pandora_close_epsilon_points = signal_params.pandora_close_epsilon_points;
     strategy_context           = signal_params.strategy_context;
     strategy_timeframe         = signal_params.strategy_timeframe;
     strategy_context_label     = signal_params.strategy_context_label;
