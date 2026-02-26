@@ -374,6 +374,12 @@ double PandoraResolveConfiguredTPPoints(const bool enforce_broker_distance = tru
                                                 enforce_broker_distance);
 }
 
+double PandoraResolveConfiguredOffsetPoints(const bool enforce_broker_distance = true)
+{
+  return PandoraResolveConfiguredDistancePoints(Pandora_Box_Offset_Points,
+                                                enforce_broker_distance);
+}
+
 double PandoraResolveSignalSLPoints(const SignalParams &signal_params,
                                     const bool enforce_broker_distance = true)
 {

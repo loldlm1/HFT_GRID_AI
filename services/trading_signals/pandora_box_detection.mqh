@@ -69,9 +69,7 @@ bool PandoraComputeBoxWindow()
   g_pandora_box_state.box_low          = box_low;
   g_pandora_box_state.box_range_points = range_points;
 
-  double offset_points = g_pandora_box_state.offset_points;
-  if(offset_points > 0.0)
-    offset_points = EnforceBrokerDistance(g_symbol_constraints, offset_points);
+  double offset_points = PandoraResolveConfiguredOffsetPoints(true);
   double offset_price = offset_points * point_size;
   g_pandora_box_state.effective_offset_points = offset_points;
 
