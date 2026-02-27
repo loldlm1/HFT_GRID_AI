@@ -1,42 +1,56 @@
 # Pandora Box Strategy Inputs Guide
 
-This guide documents the configurable fields under `"+= Pandora Box Strategy =+"` in `services/trading_management/ea_inputs.mqh` so users can set up the EA safely and consistently.
+This guide documents the MT5 `input` fields used by Pandora Box in `services/trading_management/ea_inputs.mqh` under both groups:
+- `"+= Pandora Box Strategy +="`
+- `"+= Pandora Risk Management Settings +="`
+
+Use this as the source of truth when configuring the EA in the Inputs panel.
 
 ## How Pandora Works
-- The EA builds a daily price box from `Pandora_Box_Time_Range`.
-- After the window closes, it watches for breakout above/below the box with `Pandora_Box_Offset_Points`.
-- On breakout, it opens a single-direction grid using `Pandora_Points_SL` / `Pandora_Points_TP` and current lot settings.
-- Re-entries are only re-armed after candle `close_1` returns inside the box.
-- Daily stopping is controlled by `Pandora_Box_Stop_On_First_Win` plus the opened-entry budget (`Pandora_Box_Max_Entries`).
-- `Pandora_Box_Entry_Count_Mode` controls an outcome counter (SL/TP/BE analytics), not the opened-entry budget.
-- Once the opened-entry budget is exhausted, Pandora enters `WAIT_CLOSE` and transitions to `DONE` only after all budgeted entries close.
+- The EA parses `Pandora_Box_Time_Range` (`HH:MM-HH:MM`, same day, start `<` end) and builds a daily box (`high/low`) after the window closes.
+- Breakout triggers are computed with `Pandora_Box_Offset_Points` above the box high and below the box low.
+- If `Pandora_Box_Max_Range_Points > 0`, the day is invalid when the box range exceeds that limit.
+- Direction filtering is controlled by `Pandora_Box_Direction_Mode`.
+- After each close, re-entry on that direction requires `close_1` to return inside the box before a new entry is allowed.
+- `Pandora_Box_Max_Entries` is an opened-entry budget (`0` means unlimited). When budget is reached and positions are still open, status becomes `PANDORA WAIT_CLOSE`; it becomes `PANDORA DONE` after budgeted entries are closed.
+- `Pandora_Box_Entry_Count_Mode` affects the `counted` analytics counter only (`SL`/`TP`/`BE` counting), not the opened-entry budget.
+- `Pandora_Box_Stop_On_First_Win = true` finishes the day after the first profitable Pandora closure.
+- `Pandora_Points_Value_Mode` decides whether offset/SL/TP values are raw points or percentages of the current box range.
+- `Pandora_Risk_Trailing_Mode = PANDORA_RISK_TRAILING_STEP_TP` disables fixed TP and advances SL in milestones.
+- `Pandora_Box_Set_Broker_SLTP` toggles broker-side SL/TP placement vs EA-managed local checks.
 
 ## Input Reference
 
 | Input | Default | What it does | Recommended usage |
 |---|---:|---|---|
-| `Pandora_Box_Time_Range` | `"12:00-13:30"` | Box build window. Format must be `HH:MM-HH:MM` with start `<` end (same day only). | Use liquid market windows. Keep 60-180 minutes. |
-| `Pandora_Box_Max_Range_Points` | `0.0` | Max allowed box range in points. If exceeded, box is invalid for the day. `0` disables this filter. | Start with a symbol-specific cap (for example 150-300 points) to avoid oversized days. |
-| `Pandora_Box_Offset_Points` | `50.0` | Breakout buffer added above box high / below box low. | Keep non-zero to reduce false breaks; broker minimum distance is enforced. |
-| `Pandora_Points_SL` | `100.0` | Stop distance in points for Pandora entries. Also used as base spacing for Pandora order construction. | Keep `> 0`. Tune per symbol volatility. |
-| `Pandora_Points_TP` | `100.0` | Take-profit distance in points for Pandora entries. If `<= 0`, TP is not set for Pandora entries. | Use positive values for explicit TP control. |
-| `Pandora_Box_Stop_On_First_Win` | `true` | Ends Pandora for the day after first profitable side closes. | `true` for conservative daily pacing. |
-| `Pandora_Box_Direction_Mode` | `BOTH_DIRECTION` | Allowed breakout direction(s): `BOTH_DIRECTION`, `BULLISH_DIRECTION`, `BEARISH_DIRECTION`. | Restrict to one side when running directional bias. |
-| `Pandora_Box_Entry_Count_Mode` | `COUNT_BOX_ENTRY_OFF` | Controls which closed outcomes increment the `counted` metric shown in chart summary: `OFF` counts all (`SL`/`TP`/`BE`), `COUNT_BOX_ENTRY_ON_SL` counts `SL` + `BE`, `COUNT_BOX_ENTRY_ON_TP` counts `TP` + `BE`. | Use `OFF` for full closure analytics, or SL/TP modes when you want filtered diagnostics. |
-| `Pandora_Box_Max_Entries` | `2` | Opened-entry budget for the Pandora day/window. `0` means unlimited entries. New entries stop when this budget is reached; `DONE` is shown after those entries close. | Keep `2` for conservative pacing; raise or set `0` only when your risk controls are already strict. |
+| `Pandora_Box_Time_Range` | `"12:00-13:30"` | Daily box build window. Must be `HH:MM-HH:MM`, same day, start `<` end. | Use liquid market windows; usually 60-180 minutes. |
+| `Pandora_Box_Stop_On_First_Win` | `true` | Ends Pandora for the day after first profitable closure. | Keep `true` for conservative pacing. |
+| `Pandora_Box_Direction_Mode` | `BOTH_DIRECTION` | Allowed side(s): `BOTH_DIRECTION`, `BULLISH_DIRECTION`, `BEARISH_DIRECTION`. | Restrict to one side only with a clear directional bias. |
 | `Pandora_Box_Use_Session_Filter` | `true` | Applies session manager gating to Pandora attempts. | Keep `true` if session windows are part of risk policy. |
-| `Pandora_Box_Enable_Visualization` | `true` | Draws box and breakout lines on chart. | Keep enabled during tuning/debugging. |
-| `Pandora_Box_Set_Broker_SLTP` | `true` | Sends SL/TP directly to broker at order open. If `false`, EA manages SL/TP checks internally in controller logic. | Keep `true` for broker-side protection. |
-| `Enable_Chart_Levels` | `true` | Enables chart level overlays used by frontend visualization. | Keep enabled in manual monitoring; can disable for cleaner charts. |
+| `Pandora_Box_Enable_Visualization` | `true` | Draws Pandora box and breakout lines on chart. | Keep enabled for setup and troubleshooting. |
+| `Pandora_Box_Set_Broker_SLTP` | `true` | Sends SL/TP at broker when opening/modifying positions. If `false`, EA enforces SL/TP in controller logic. | Keep `true` for broker-side protection. |
+| `Enable_Chart_Levels` | `true` | Enables chart overlays used by the frontend summary/levels. | Keep enabled while monitoring manually. |
+| `Pandora_Risk_Trailing_Mode` | `PANDORA_RISK_TRAILING_OFF` | Trailing mode: `OFF` keeps fixed TP/SL; `PANDORA_RISK_TRAILING_STEP_TP` trails SL in TP-like steps and uses no hard TP price. | Start with `OFF`; use `STEP_TP` only after tester validation. |
+| `Pandora_Lot_Type` | `PANDORA_LOT_SIZE` | Lot calculation mode: fixed lot, percentage-based, or currency-based. | Fixed lot for stable behavior; budget-based only with risk calibration. |
+| `Pandora_Lot_Strategy_Size` | `0.01` | Size parameter used by the selected lot mode. | Keep small for first live runs and scale gradually. |
+| `Pandora_Box_Max_Range_Points` | `0.0` | Max allowed box range in points. `0` disables filter. | Use a symbol-specific cap to avoid oversized range days. |
+| `Pandora_Points_Value_Mode` | `PANDORA_VALUE_MODE_POINTS` | Distance mode for offset/SL/TP: raw points or `%` of current box range. | Prefer `POINTS` initially; use `%` for volatility-adaptive behavior. |
+| `Pandora_Box_Offset_Points` | `1.0` | Breakout buffer distance from box high/low (interpreted by points value mode). | Keep non-zero to reduce false breakouts. |
+| `Pandora_Points_SL` | `100.0` | Pandora stop distance (also base spacing reference for Pandora order construction). | Must stay `> 0`; tune by symbol volatility. |
+| `Pandora_Points_TP` | `100.0` | Pandora take-profit distance. In step trailing mode TP price is not set. | Use positive values unless strategy explicitly relies on trailing-only exits. |
+| `Pandora_Box_Entry_Count_Mode` | `COUNT_BOX_ENTRY_OFF` | Controls `counted` metric: `OFF` counts `SL`/`TP`/`BE`, `ON_SL` counts `SL`+`BE`, `ON_TP` counts `TP`+`BE`. | Use `OFF` for full analytics, filtered modes for targeted diagnostics. |
+| `Pandora_Box_Max_Entries` | `2` | Opened-entry budget per Pandora day/window (`0` = unlimited). | Keep low (`1-2`) unless broader protections are strict. |
 
 ## Quick Setup Profiles
 
 ### Profile A: Conservative Intraday
 - `Pandora_Box_Time_Range = "08:00-09:30"`
 - `Pandora_Box_Max_Range_Points = 180`
-- `Pandora_Box_Offset_Points = 40`
+- `Pandora_Points_Value_Mode = PANDORA_VALUE_MODE_POINTS`
+- `Pandora_Box_Offset_Points = 20`
 - `Pandora_Points_SL = 120`
 - `Pandora_Points_TP = 120`
+- `Pandora_Risk_Trailing_Mode = PANDORA_RISK_TRAILING_OFF`
 - `Pandora_Box_Stop_On_First_Win = true`
 - `Pandora_Box_Entry_Count_Mode = COUNT_BOX_ENTRY_OFF`
 - `Pandora_Box_Max_Entries = 2`
@@ -45,23 +59,26 @@ This guide documents the configurable fields under `"+= Pandora Box Strategy =+"
 ### Profile B: Trend-Biased Session
 - `Pandora_Box_Time_Range = "12:00-13:30"`
 - `Pandora_Box_Max_Range_Points = 0`
-- `Pandora_Box_Offset_Points = 60`
-- `Pandora_Points_SL = 140`
-- `Pandora_Points_TP = 180`
+- `Pandora_Points_Value_Mode = PANDORA_VALUE_MODE_BOX_PERCENT`
+- `Pandora_Box_Offset_Points = 10` (10% of box range)
+- `Pandora_Points_SL = 40` (40% of box range)
+- `Pandora_Points_TP = 70` (70% of box range)
+- `Pandora_Risk_Trailing_Mode = PANDORA_RISK_TRAILING_STEP_TP`
 - `Pandora_Box_Stop_On_First_Win = false`
 - `Pandora_Box_Entry_Count_Mode = COUNT_BOX_ENTRY_ON_SL`
 - `Pandora_Box_Max_Entries = 2`
 - `Pandora_Box_Direction_Mode = BULLISH_DIRECTION` (or `BEARISH_DIRECTION`)
 
 ## Validation Checklist Before Live Run
-- Confirm time range format is valid (`HH:MM-HH:MM`) and start is earlier than end.
-- Confirm `Pandora_Points_SL > 0`.
-- If using max-range filter, confirm value fits symbol volatility.
-- Confirm direction mode aligns with your bias.
-- Confirm `Pandora_Box_Max_Entries` matches your opened-entry budget and `Pandora_Box_Entry_Count_Mode` matches your diagnostic needs.
-- Confirm session filter windows are configured when `Pandora_Box_Use_Session_Filter = true`.
-- Check chart status text for `PANDORA INVALID WINDOW`, `PANDORA INVALID BOX`, and `PANDORA WAIT_CLOSE` when budget is exhausted with open trades.
+- Confirm `Pandora_Box_Time_Range` format is valid (`HH:MM-HH:MM`) and start is earlier than end.
+- Confirm `Pandora_Points_SL > 0` for the selected points mode.
+- If `Pandora_Points_Value_Mode = PANDORA_VALUE_MODE_BOX_PERCENT`, verify percent values are realistic for your symbol.
+- If using `Pandora_Box_Max_Range_Points`, ensure the cap matches symbol volatility.
+- Confirm `Pandora_Box_Max_Entries` (opened budget) and `Pandora_Box_Entry_Count_Mode` (analytics counter) are not conflated.
+- Confirm session filters are configured when `Pandora_Box_Use_Session_Filter = true`.
+- Decide whether broker-side protection is required (`Pandora_Box_Set_Broker_SLTP = true`).
+- Check chart status text for `PANDORA INVALID WINDOW`, `PANDORA INVALID BOX`, `PANDORA WAIT_CLOSE`, and `PANDORA DONE`.
 
 ## Notes
-- `Pandora_Box_Enable` and visualization colors/styles are currently code-level fields (not MT5 `input` fields) in this branch.
-- If you need them user-editable in the Inputs panel, promote them to `input` variables in `ea_inputs.mqh`.
+- `Pandora_Box_Enable` and visualization colors/styles are code-level fields (not MT5 `input` fields) in this branch.
+- If you need those values editable from the Inputs panel, promote them to `input` variables in `ea_inputs.mqh`.
