@@ -36,6 +36,7 @@ struct PandoraBoxRuntimeState
   int      max_entries;
   int      counted_entries;
   int      total_entries;
+  int      closed_entries;
   bool     finished;
   bool     session_window_seen_active;
   bool     bullish_rearm_required;
@@ -79,6 +80,7 @@ struct PandoraBoxRuntimeState
     max_entries               = 0;
     counted_entries           = 0;
     total_entries             = 0;
+    closed_entries            = 0;
     finished                  = false;
     session_window_seen_active = false;
     bullish_rearm_required    = false;
@@ -128,6 +130,7 @@ void PandoraResetDailyState()
   g_pandora_box_state.session_window_seen_active = false;
   g_pandora_box_state.counted_entries         = 0;
   g_pandora_box_state.total_entries           = 0;
+  g_pandora_box_state.closed_entries          = 0;
   g_pandora_box_state.bullish_rearm_required  = false;
   g_pandora_box_state.bearish_rearm_required  = false;
   g_pandora_box_state.bullish_rearm_ready     = false;
@@ -286,18 +289,50 @@ bool PandoraDirectionHasActiveSignal(const SignalTypes direction)
   return false;
 }
 
+bool PandoraHasActiveSignals()
+{
+  if(PandoraDirectionHasActiveSignal(BULLISH))
+    return true;
+  return PandoraDirectionHasActiveSignal(BEARISH);
+}
+
+string PandoraLimitLabel()
+{
+  if(g_pandora_box_state.max_entries > 0)
+    return IntegerToString(g_pandora_box_state.max_entries);
+  return "INF";
+}
+
 bool PandoraEntryBudgetReached()
 {
   if(g_pandora_box_state.max_entries <= 0)
     return false;
-  return (g_pandora_box_state.counted_entries >= g_pandora_box_state.max_entries);
+  return (g_pandora_box_state.total_entries >= g_pandora_box_state.max_entries);
+}
+
+bool PandoraCloseBudgetReached()
+{
+  if(g_pandora_box_state.max_entries <= 0)
+    return false;
+  return (g_pandora_box_state.closed_entries >= g_pandora_box_state.max_entries);
 }
 
 bool PandoraDailyCompleted()
 {
   if(g_pandora_box_state.finished)
     return true;
-  return PandoraEntryBudgetReached();
+  if(!PandoraEntryBudgetReached())
+    return false;
+  if(!PandoraCloseBudgetReached())
+    return false;
+  return !PandoraHasActiveSignals();
+}
+
+bool PandoraWaitClosePending()
+{
+  if(!PandoraEntryBudgetReached())
+    return false;
+  return !PandoraDailyCompleted();
 }
 
 bool PandoraDirectionNeedsRearm(const SignalTypes direction)
@@ -400,6 +435,35 @@ void PandoraRegisterEntryTriggered(const SignalTypes direction)
 {
   g_pandora_box_state.total_entries++;
   PandoraClearDirectionRearm(direction);
+
+  if(!Enable_Logs)
+    return;
+
+  string limit_label = PandoraLimitLabel();
+  PrintFormat("PANDORA_ENTRY_OPEN dir=%s open=%d/%s close=%d/%s counted=%d/%s",
+              EnumToString(direction),
+              g_pandora_box_state.total_entries,
+              limit_label,
+              g_pandora_box_state.closed_entries,
+              limit_label,
+              g_pandora_box_state.counted_entries,
+              limit_label);
+
+  if(PandoraEntryBudgetReached())
+  {
+    PrintFormat("PANDORA_BUDGET_REACHED open=%d/%s close=%d/%s active=%s",
+                g_pandora_box_state.total_entries,
+                limit_label,
+                g_pandora_box_state.closed_entries,
+                limit_label,
+                PandoraHasActiveSignals() ? "true" : "false");
+    if(PandoraWaitClosePending())
+      PrintFormat("PANDORA_WAIT_CLOSE open=%d/%s close=%d/%s",
+                  g_pandora_box_state.total_entries,
+                  limit_label,
+                  g_pandora_box_state.closed_entries,
+                  limit_label);
+  }
 }
 
 bool PandoraOutcomeCountsEntry(const PandoraCloseOutcomes outcome)
@@ -666,6 +730,15 @@ double PandoraResolveTakeProfitAnchorPrice(const SignalParams &signal_params,
   return entry_anchor - tp_points * point_size;
 }
 
+PandoraCloseOutcomes PandoraResolveOutcomeFromDealProfit(const double deal_profit)
+{
+  if(deal_profit > 0.0)
+    return PANDORA_CLOSE_TP;
+  if(deal_profit < 0.0)
+    return PANDORA_CLOSE_SL;
+  return PANDORA_CLOSE_BE;
+}
+
 PandoraCloseOutcomes PandoraResolveHistoryOutcomeByPosition(const ulong position_ticket)
 {
   if(position_ticket <= 0)
@@ -708,9 +781,67 @@ PandoraCloseOutcomes PandoraResolveHistoryOutcomeByPosition(const ulong position
     else if(reason == DEAL_REASON_SO)
       resolved = PANDORA_CLOSE_SL;
     else if(reason == DEAL_REASON_SL)
-      resolved = PANDORA_CLOSE_NONE; // Let epsilon classifier decide SL vs BE/TP on trailing/broker moves.
+      resolved = PandoraResolveOutcomeFromDealProfit(HistoryDealGetDouble(ticket, DEAL_PROFIT));
     else
-      resolved = PANDORA_CLOSE_NONE;
+      resolved = PandoraResolveOutcomeFromDealProfit(HistoryDealGetDouble(ticket, DEAL_PROFIT));
+  }
+
+  return resolved;
+}
+
+PandoraCloseOutcomes PandoraResolveHistoryOutcomeByComment(const string position_comment)
+{
+  if(position_comment == "")
+    return PANDORA_CLOSE_NONE;
+
+  datetime to_time = TimeCurrent();
+  datetime from_time = to_time - 5 * 86400;
+  if(from_time < 0)
+    from_time = 0;
+
+  if(!HistorySelect(from_time, to_time))
+    return PANDORA_CLOSE_NONE;
+
+  int total_deals = HistoryDealsTotal();
+  datetime latest_time = 0;
+  PandoraCloseOutcomes resolved = PANDORA_CLOSE_NONE;
+
+  for(int i = total_deals - 1; i >= 0; i--)
+  {
+    ulong ticket = HistoryDealGetTicket(i);
+    if(ticket <= 0)
+      continue;
+
+    string deal_symbol = HistoryDealGetString(ticket, DEAL_SYMBOL);
+    if(deal_symbol != _Symbol)
+      continue;
+
+    long deal_magic = HistoryDealGetInteger(ticket, DEAL_MAGIC);
+    if(deal_magic != g_magic_number)
+      continue;
+
+    string deal_comment = HistoryDealGetString(ticket, DEAL_COMMENT);
+    if(deal_comment != position_comment)
+      continue;
+
+    ENUM_DEAL_ENTRY deal_entry = (ENUM_DEAL_ENTRY)HistoryDealGetInteger(ticket, DEAL_ENTRY);
+    if(deal_entry != DEAL_ENTRY_OUT && deal_entry != DEAL_ENTRY_INOUT)
+      continue;
+
+    datetime deal_time = (datetime)HistoryDealGetInteger(ticket, DEAL_TIME);
+    if(deal_time < latest_time)
+      continue;
+
+    latest_time = deal_time;
+    ENUM_DEAL_REASON reason = (ENUM_DEAL_REASON)HistoryDealGetInteger(ticket, DEAL_REASON);
+    if(reason == DEAL_REASON_TP)
+      resolved = PANDORA_CLOSE_TP;
+    else if(reason == DEAL_REASON_SO)
+      resolved = PANDORA_CLOSE_SL;
+    else if(reason == DEAL_REASON_SL)
+      resolved = PandoraResolveOutcomeFromDealProfit(HistoryDealGetDouble(ticket, DEAL_PROFIT));
+    else
+      resolved = PandoraResolveOutcomeFromDealProfit(HistoryDealGetDouble(ticket, DEAL_PROFIT));
   }
 
   return resolved;
@@ -841,18 +972,70 @@ void PandoraRegisterSideOutcome(const SignalParams &signal_params)
     return;
 
   PandoraRequireDirectionRearm(signal_params.signal_type);
+  g_pandora_box_state.closed_entries++;
 
   if(signal_params.raw_profit > 0.0 && g_pandora_box_state.stop_on_first_win)
   {
     g_pandora_box_state.finished = true;
+    if(Enable_Logs)
+    {
+      string limit_label = PandoraLimitLabel();
+      PrintFormat("PANDORA_DONE_FIRST_WIN open=%d/%s close=%d/%s counted=%d/%s",
+                  g_pandora_box_state.total_entries,
+                  limit_label,
+                  g_pandora_box_state.closed_entries,
+                  limit_label,
+                  g_pandora_box_state.counted_entries,
+                  limit_label);
+    }
     return;
   }
 
   if(PandoraOutcomeCountsEntry(signal_params.pandora_close_outcome))
     g_pandora_box_state.counted_entries++;
 
-  if(PandoraEntryBudgetReached())
+  if(Enable_Logs)
+  {
+    string limit_label = PandoraLimitLabel();
+    PrintFormat("PANDORA_ENTRY_CLOSE dir=%s outcome=%s open=%d/%s close=%d/%s counted=%d/%s",
+                EnumToString(signal_params.signal_type),
+                EnumToString(signal_params.pandora_close_outcome),
+                g_pandora_box_state.total_entries,
+                limit_label,
+                g_pandora_box_state.closed_entries,
+                limit_label,
+                g_pandora_box_state.counted_entries,
+                limit_label);
+  }
+
+  if(PandoraDailyCompleted())
+  {
     g_pandora_box_state.finished = true;
+    if(Enable_Logs)
+    {
+      string limit_label = PandoraLimitLabel();
+      PrintFormat("PANDORA_DONE open=%d/%s close=%d/%s counted=%d/%s",
+                  g_pandora_box_state.total_entries,
+                  limit_label,
+                  g_pandora_box_state.closed_entries,
+                  limit_label,
+                  g_pandora_box_state.counted_entries,
+                  limit_label);
+    }
+    return;
+  }
+
+  if(PandoraWaitClosePending() && Enable_Logs)
+  {
+    string limit_label = PandoraLimitLabel();
+    PrintFormat("PANDORA_WAIT_CLOSE open=%d/%s close=%d/%s counted=%d/%s",
+                g_pandora_box_state.total_entries,
+                limit_label,
+                g_pandora_box_state.closed_entries,
+                limit_label,
+                g_pandora_box_state.counted_entries,
+                limit_label);
+  }
 }
 
 bool PandoraFinishedForDay()

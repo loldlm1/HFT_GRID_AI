@@ -95,9 +95,8 @@ void PandoraAppendSummary(string &summary_lines[])
       display_offset = g_pandora_box_state.offset_points;
 
     string count_mode = EnumToString(g_pandora_box_state.entry_count_mode);
-    string count_limit = "INF";
-    if(g_pandora_box_state.max_entries > 0)
-      count_limit = IntegerToString(g_pandora_box_state.max_entries);
+    string count_limit = PandoraLimitLabel();
+    string lifecycle_label = PandoraWaitClosePending() ? "WAIT_CLOSE" : "READY";
 
     string rearm_status = "";
     if(g_pandora_box_state.bullish_rearm_required &&
@@ -107,10 +106,15 @@ void PandoraAppendSummary(string &summary_lines[])
        !g_pandora_box_state.bearish_rearm_ready)
       rearm_status = rearm_status + "WAIT_BEAR ";
 
-    status = StringFormat("PANDORA READY range=%.1f off=%.1f mode=%s cnt=%d/%s %s",
+    status = StringFormat("PANDORA %s range=%.1f off=%.1f mode=%s open=%d/%s close=%d/%s counted=%d/%s %s",
+                          lifecycle_label,
                           g_pandora_box_state.box_range_points,
                           display_offset,
                           count_mode,
+                          g_pandora_box_state.total_entries,
+                          count_limit,
+                          g_pandora_box_state.closed_entries,
+                          count_limit,
                           g_pandora_box_state.counted_entries,
                           count_limit,
                           rearm_status);

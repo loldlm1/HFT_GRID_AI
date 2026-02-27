@@ -277,6 +277,26 @@ void UpdateGridLifecycle(SignalParams &signal_params)
         }
       }
 
+      if(Pandora_Box_Set_Broker_SLTP &&
+         grid_order.status != GRID_ORDER_COMPLETED &&
+         grid_order.position_ticket <= 0 &&
+         grid_order.position_comment != "")
+      {
+        ulong rebound_ticket = FindOpenPositionForSignal(direction,
+                                                         grid_order.position_comment);
+        if(rebound_ticket > 0)
+          grid_order.position_ticket = rebound_ticket;
+        else
+        {
+          PandoraCloseOutcomes history_outcome = PandoraResolveHistoryOutcomeByComment(grid_order.position_comment);
+          if(history_outcome != PANDORA_CLOSE_NONE)
+          {
+            signal_params.pandora_close_outcome = history_outcome;
+            grid_order.status = GRID_ORDER_COMPLETED;
+          }
+        }
+      }
+
       if(grid_order.position_ticket > 0 && !PositionSelectByTicket(grid_order.position_ticket))
       {
         PandoraCloseOutcomes history_outcome = PandoraResolveHistoryOutcomeByPosition(grid_order.position_ticket);

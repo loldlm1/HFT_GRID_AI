@@ -193,7 +193,6 @@ void PandoraDetectSignals()
   {
     if(PandoraEntryBudgetReached())
     {
-      g_pandora_box_state.finished = true;
       break;
     }
 

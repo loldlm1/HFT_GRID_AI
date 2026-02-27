@@ -123,6 +123,11 @@ void ProtectionRiskForceCloseSignalArray(SignalParams &signals[],
                                            signals[i].entry_price,
                                            close_price);
 
+    PandoraFinalizeSignalOutcome(signals[i],
+                                 signals[i].close_price,
+                                 signals[i].raw_profit);
+    PandoraRegisterSideOutcome(signals[i]);
+
     if(direction == BULLISH)
       CloseBullishSignal(signals[i]);
     else
