@@ -16,13 +16,15 @@ This plan defines how to migrate EAs to the canonical shared service without amb
 
 ## Implementation Steps
 1. Prepare profile values for target EA.
+- Configure these macros in `services/license_service_setup.mqh`:
 - `LICENSE_SHARED_PROFILE_NAME`
 - `LICENSE_SHARED_BASE_EA_ID`
 - `LICENSE_SHARED_SOURCE_KEY`
 - `LICENSE_SHARED_REQUIRED_ADDONS_CSV` (empty when no add-ons required)
 
 2. Wire shared service hooks in EA entrypoint.
-- Include `services/shared/license_guard_v1/license_service.mqh` with profile macros.
+- Include `services/license_service_setup.mqh` in the EA entrypoint (`*.mq5`).
+- Ensure `services/license_service_setup.mqh` includes `services/shared/license_guard_v1/license_service.mqh`.
 - `OnInit`: call `LicenseServiceInit()` before trading setup.
 - `OnTimer`: call `LicenseServiceOnTimer()`.
 - `OnDeinit`: call `LicenseServiceOnDeinit()`.
@@ -47,6 +49,7 @@ This plan defines how to migrate EAs to the canonical shared service without amb
 
 ## Code Review Checklist
 - No duplicated license network callers remain outside shared service.
+- EA entrypoint includes `services/license_service_setup.mqh` (or documented custom equivalent).
 - EA does not generate random/local live magic values.
 - Daily results logic references cached backend magic.
 - `LicenseOnline_RequestLeaderReverify()` is used for missing broker account retries.
@@ -59,6 +62,7 @@ This plan defines how to migrate EAs to the canonical shared service without amb
 4. Keep contract file synchronized 1:1 across repos.
 
 ## Canonical References
+- Bootstrap wrapper: `services/license_service_setup.mqh`
 - Shared service: `services/shared/license_guard_v1/README.md`
 - Backend contract: `services/shared/license_guard_v1/backend-entitlements-contract.md`
 - Agent rules: `AGENTS.md`

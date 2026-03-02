@@ -8,6 +8,7 @@ Canonical reusable license service for MT5 EAs in this repository.
 - Provide a deterministic migration target for old and new EAs.
 
 ## Canonical Files
+- `services/license_service_setup.mqh` (EA bootstrap wrapper; recommended integration point)
 - `services/shared/license_guard_v1/license_guard_profile.mqh`
 - `services/shared/license_guard_v1/license_service.mqh`
 - `services/shared/license_guard_v1/license_guard_online.mqh`
@@ -20,18 +21,24 @@ Canonical reusable license service for MT5 EAs in this repository.
   - `services/SecurityLicense.mqh`
   - `services/SecurityLicenseOnline.mqh`
   - `services/BrokerAccountDailyResultsOnline.mqh`
-- New and old EAs must integrate directly against `license_service.mqh` with profile macros.
+- New and old EAs should integrate through `services/license_service_setup.mqh`.
+- `license_service.mqh` stays the shared core module; include it directly only for custom/advanced wiring.
 
 ## Integration Contract (EA side)
-1. Include `services/shared/license_guard_v1/license_service.mqh` after defining profile macros.
-2. Call `LicenseServiceInit()` in `OnInit` before trading initialization.
-3. Wire `OnTimer` to `LicenseServiceOnTimer()`.
-4. Wire `OnDeinit` to `LicenseServiceOnDeinit()`.
-5. Use `LicenseGetCachedMagicNumber()` as the runtime trading magic in live mode.
-6. If `LicenseGetCachedMagicNumber() <= 0` after startup verify, fail closed and remove EA.
+1. Include `services/license_service_setup.mqh` in the EA entrypoint (`*.mq5`).
+2. Define/update profile macros in `services/license_service_setup.mqh`.
+3. Keep `services/license_service_setup.mqh` including `services/shared/license_guard_v1/license_service.mqh`.
+4. Call `LicenseServiceInit()` in `OnInit` before trading initialization.
+5. Wire `OnTimer` to `LicenseServiceOnTimer()`.
+6. Wire `OnDeinit` to `LicenseServiceOnDeinit()`.
+7. Use `LicenseGetCachedMagicNumber()` as the runtime trading magic in live mode.
+8. If `LicenseGetCachedMagicNumber() <= 0` after startup verify, fail closed and remove EA.
+
+Advanced/custom option:
+- Include `services/shared/license_guard_v1/license_service.mqh` directly only when a repo intentionally does not use `services/license_service_setup.mqh`.
 
 ## Profile Macros
-Set per-EA values before including `license_service.mqh`.
+Set per-EA values in `services/license_service_setup.mqh` (recommended) before the shared include.
 
 - `LICENSE_SHARED_PROFILE_NAME` (chart/user message branding)
 - `LICENSE_SHARED_SOURCE_KEY`
@@ -43,6 +50,9 @@ Set per-EA values before including `license_service.mqh`.
 - `LICENSE_SHARED_DAILY_RESULTS_ENABLED` (`1` or `0`)
 - `LICENSE_SHARED_ENABLE_ADDON_ENTITLEMENTS` (`1` or `0`)
 - `LICENSE_SHARED_REQUIRED_ADDONS_CSV` (optional; empty string if no add-ons are required)
+
+Direct include option:
+- If using `license_service.mqh` directly, define the same macros before that include.
 
 ## Optional Add-on Entitlements
 - Add-ons are optional by profile.
