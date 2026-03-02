@@ -196,7 +196,7 @@ void RefreshGridVisualization()
       BuildSignalSummary(running_bearish_signals[j], summary_lines, now_time);
 
     string market_status = MarketStatusToString(MarketStatusGet());
-    string header = StringFormat("%s   /   Magic: %d   /   Market: %s",
+    string header = StringFormat("%s   /   Magic: %I64d   /   Market: %s",
                                  g_ea_running ? "Enabled" : "Disabled",
                                  g_magic_number,
                                  market_status);

@@ -5,8 +5,8 @@
 #define _SERVICES_SECURITY_LICENSE_MQH_
 
 // Compile-time switches
-// Keep both ON for production builds.
-// Local/dev mode: comment LICENSE_ENFORCEMENT_ENABLED when needed.
+// Keep both OFF in repository for local/manual testing.
+// Production build: uncomment both lines below.
 #define LICENSE_ENFORCEMENT_ENABLED
 #define LICENSE_DAILY_RESULTS_ENABLED
 
@@ -20,9 +20,15 @@
 #define LICENSE_SERVICE_TIMER_SECONDS 60
 #endif
 
-bool   g_ea_removal_requested            = false;
-bool   g_ea_removal_preserve_chart_error = false;
-string g_ea_removal_chart_message        = "";
+// Shared license service guide for new EAs:
+// 1) Include this file in the entrypoint.
+// 2) Call LicenseServiceInit() in OnInit before trading setup.
+// 3) Forward OnTimer/OnDeinit to LicenseServiceOnTimer()/LicenseServiceOnDeinit().
+// 4) Use LicenseGetCachedMagicNumber() as the EA magic after successful init.
+
+bool   g_ea_removal_requested             = false;
+bool   g_ea_removal_preserve_chart_error  = false;
+string g_ea_removal_chart_message         = "";
 
 void EALifecycleRequestRemoval(const string chart_message,
                                const bool preserve_chart_error = true)
@@ -68,7 +74,11 @@ string LicenseServiceBuildRemovalMessage(const string fallback_message)
     return "Pandora Box EA removed: required addon entitlement missing.";
   if(error_code == "invalid_key" || error_code == "invalid_source")
     return "Pandora Box EA removed: license validation failed.";
-  if(error_code == "invalid_expires_at")
+  if(error_code == "missing_magic_number" || error_code == "invalid_magic_number")
+    return "Pandora Box EA removed: backend magic number validation failed.";
+  if(error_code == "online_limit_reached")
+    return LicenseFriendlyOnlineLimitMessage();
+  if(error_code == "invalid_granted_addons" || error_code == "invalid_expires_at")
     return "Pandora Box EA removed: invalid license response.";
 
   if(license_last_http_status >= 500)
@@ -110,6 +120,13 @@ bool LicenseServiceInit()
 #else
   if(!VerifyLicense())
   {
+    if(LicenseLastFailureWasStartupOnlineLimit())
+    {
+      Print("[License] Startup verification failed with online_limit_reached. Requester chart removed.");
+      EALifecycleRequestRemoval(LicenseFriendlyOnlineLimitMessage());
+      return false;
+    }
+
     if(license_last_http_status > 0)
       PrintFormat("[License] Startup verification failed (HTTP %d, error=%s).",
                   license_last_http_status,
@@ -117,7 +134,6 @@ bool LicenseServiceInit()
     else
       PrintFormat("[License] Startup verification failed (error=%s).",
                   (license_last_error == "" ? "request_failed" : license_last_error));
-
     EALifecycleRequestRemoval(LicenseServiceBuildRemovalMessage("Pandora Box EA removed: startup license verification failed."));
     return false;
   }
@@ -125,7 +141,6 @@ bool LicenseServiceInit()
 #ifdef LICENSE_DAILY_RESULTS_ENABLED
   DailyResults_ResetRuntime();
 #endif
-
   return true;
 #endif
 }
@@ -142,6 +157,9 @@ void LicenseServiceOnTimer()
 
 void LicenseServiceOnDeinit()
 {
+#ifdef LICENSE_ENFORCEMENT_ENABLED
+  LicenseOnline_OnDeinit();
+#endif
 }
 
 #ifndef LICENSE_ENFORCEMENT_ENABLED
@@ -173,6 +191,51 @@ bool VerifyLicenseType()
 bool VerifyValidLicenseTime()
 {
   return true;
+}
+
+bool LicenseErrorIsHardAuth(const string)
+{
+  return false;
+}
+
+bool LicenseErrorIsRetryable(const string, const int)
+{
+  return false;
+}
+
+bool LicenseErrorIsOnlineLimitReached(const string)
+{
+  return false;
+}
+
+bool LicenseShouldRemoveForOnlineLimit(const bool, const int)
+{
+  return false;
+}
+
+bool LicenseLastFailureWasStartupOnlineLimit()
+{
+  return false;
+}
+
+string LicenseFriendlyOnlineLimitMessage()
+{
+  return "No license seat is currently available for this EA. Please close another active session or try again shortly.";
+}
+
+bool LicenseOnline_RequestLeaderReverify(const string)
+{
+  return false;
+}
+
+bool LicenseHasValidCachedMagicNumber()
+{
+  return false;
+}
+
+long LicenseGetCachedMagicNumber()
+{
+  return 0;
 }
 
 void LicenseSetRequestedAddonsCsv(const string addons_csv)

@@ -30,7 +30,7 @@ CTrade       g_position;
 CAccountInfo g_account;
 CSymbolInfo  g_symbol;
 double       g_bid, g_ask, g_decimal_digits, g_points_spread, g_local_spread;
-int          g_magic_number;
+long         g_magic_number;
 string       g_dataset_id = "";
 bool         g_ea_running;
 datetime     g_initial_ea_date;
@@ -78,9 +78,29 @@ int OnInit()
   }
 
   // SET THE MAGIC NUMBER
-  string rand_number = (string)MathRand() + "0";
-  g_magic_number     = Custom_Magic > 0 ? Custom_Magic : (int)rand_number + ChartWindowPosition();
-  g_position.SetExpertMagicNumber(g_magic_number);
+  if(LicenseIsTestingMode())
+  {
+    string rand_number = (string)MathRand() + "0";
+    g_magic_number     = (Custom_Magic > 0 ? (long)Custom_Magic : (long)StringToInteger(rand_number) + (long)ChartWindowPosition());
+  }
+  else
+  {
+    g_magic_number = LicenseGetCachedMagicNumber();
+    if(g_magic_number <= 0)
+    {
+      Print("[EA] Missing backend magic_number after license verification.");
+      EALifecycleRequestRemoval(LicenseServiceBuildRemovalMessage("Pandora Box EA removed: backend magic number validation failed."));
+      return INIT_FAILED;
+    }
+
+    if(Custom_Magic > 0 && (long)Custom_Magic != g_magic_number)
+    {
+      PrintFormat("[EA] Custom_Magic=%d ignored. Using backend magic_number=%I64d.",
+                  Custom_Magic,
+                  g_magic_number);
+    }
+  }
+  g_position.SetExpertMagicNumber((ulong)g_magic_number);
 
   // CHART SETUP
   ApplyDefaultChartStyle(ChartID());

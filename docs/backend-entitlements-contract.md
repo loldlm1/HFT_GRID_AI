@@ -28,7 +28,7 @@ Example shared payload fragment:
 {
   "source": "trading_sniper_floor",
   "email": "user@example.com",
-  "ea_id": "fibonacci_elite",
+  "ea_id": "pandora_box",
   "license_key": "ENCRYPTED_KEY",
   "broker_account": {
     "company": "Broker Ltd",
@@ -53,6 +53,7 @@ Purpose:
 - Validate required add-ons.
 - Allocate/refresh online seat lease.
 - Upsert broker account identity binding.
+- Issue or confirm the lane `magic_number` used by trading + daily results.
 
 Additional request fields:
 - `addons` string (optional CSV of requested add-on keys)
@@ -61,6 +62,7 @@ Success (`200 OK`) response:
 - `ok` boolean (`true`)
 - `expires_at` integer (unix seconds)
 - `granted_addons` array (always present, can be `[]`)
+- `magic_number` integer (`long`, `> 0`, required on every successful verify)
 - `trial` boolean
 - `plan_interval` string or null
 - `broker_account` object (echo of server-side account identity)
@@ -68,7 +70,7 @@ Success (`200 OK`) response:
 Known errors:
 - `401`: `invalid_source`, `invalid_key`, `trial_disabled`, `addons_required`
 - `404`: `user_not_found`, `ea_not_found`, `license_not_found`
-- `422`: `invalid_payload`, `expired`
+- `422`: `invalid_payload`, `expired`, `missing_magic_number`, `invalid_magic_number`
 - `429`: `rate_limited`, `online_limit_reached`
 - `500`: `internal_error`
 
@@ -76,6 +78,7 @@ Known errors:
 Purpose:
 - Refresh online seat lease only (no add-on validation).
 - Keep session active using timer-driven pings.
+- Must not rotate or reissue `magic_number` (EA reuses the latest verified local cache).
 
 Success (`200 OK`) response:
 - `ok` boolean (`true`)
@@ -97,13 +100,16 @@ Purpose:
 - Independent from online seat allocation logic.
 
 Additional required fields:
-- `magic_number` integer (`long`, `> 0`)
+- `magic_number` integer (`long`, `> 0`) from the latest successful `verify` cache
 - `result_timestamp` integer unix seconds (`> 0`)
 - `result_value` decimal string/number (max 2 decimals)
 
 Rules:
 - Broker account must already exist and belong to the verified license identity.
 - `magic_number` is required immediately (no compatibility fallback).
+- First successful `verify` is allowed to create/assign a new `magic_number`.
+- Every later `verify` for the same lane must return the same active `magic_number`.
+- If `verify` fails or returns no valid `magic_number`, EA must fail/remove (no local/random fallback).
 - Duplicate entries are rejected for the same uniqueness key:
   - `broker_account + ea_id + magic_number + UTC day`
 
@@ -112,7 +118,7 @@ Example request:
 {
   "source": "trading_sniper_floor",
   "email": "user@example.com",
-  "ea_id": "fibonacci_elite",
+  "ea_id": "pandora_box",
   "license_key": "ENCRYPTED_KEY",
   "broker_account": {
     "company": "Broker Ltd",
@@ -135,7 +141,7 @@ Known errors:
 - `401`: `invalid_source`, `invalid_key`, `trial_disabled`
 - `404`: `user_not_found`, `ea_not_found`, `license_not_found`, `broker_account_not_found`
 - `409`: `already_recorded`
-- `422`: `invalid_payload`, `expired`
+- `422`: `invalid_payload`, `expired`, `missing_magic_number`, `invalid_magic_number`
 - `500`: `internal_error`
 
 ## Online seat policy summary
@@ -183,6 +189,8 @@ Hard auth errors:
 - `user_not_found`
 - `ea_not_found`
 - `license_not_found`
+- `missing_magic_number`
+- `invalid_magic_number`
 
 Retryable errors:
 - `request_failed`
@@ -194,6 +202,7 @@ Retryable errors:
 Rules:
 - Hard auth errors must not create endless leader-rotation storms.
 - Retryable errors use backoff and stay single-sender.
+- Missing/invalid `magic_number` is hard-auth and requires EA removal (no fallback).
 
 ## Seat conflict policy (`online_limit_reached`)
 Startup verify behavior:
@@ -218,6 +227,7 @@ Message policy:
 - Leader transfer preserves continuity without forcing all followers to remove.
 - No request storms during reconnects or temporary backend failures.
 - Daily results remain independent per `ea_id + magic_number`.
+- Runtime trading magic is sourced from successful `verify` responses only (no random/local fallback in live mode).
 
 ## Add-on keys (server source of truth)
 - `addon_session_time_filter (299$)`
