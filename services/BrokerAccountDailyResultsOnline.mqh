@@ -62,12 +62,19 @@ string DailyResults_GlobalReportedKey()
   string ea_key=license_ea_id;
   if(ea_key=="")
     ea_key=base_ea_id_key;
-  return "SNP_AP_DAILY_REPORTED_" + StringFormat("%I64d",account_login) + "_" + DailyResults_SanitizeToken(ea_key);
+  long magic_number=LicenseGetCachedMagicNumber();
+  if(magic_number<=0)
+    return "";
+  return "SNP_AP_DAILY_REPORTED_" + StringFormat("%I64d",account_login) +
+         "_" + DailyResults_SanitizeToken(ea_key) +
+         "_" + StringFormat("%I64d",magic_number);
 }
 
 datetime DailyResults_ReadGlobalLastReportedDay()
 {
   string key=DailyResults_GlobalReportedKey();
+  if(key=="")
+    return 0;
   if(!GlobalVariableCheck(key))
     return 0;
 
@@ -81,6 +88,8 @@ datetime DailyResults_ReadGlobalLastReportedDay()
 void DailyResults_WriteGlobalLastReportedDay(const datetime day_start_utc)
 {
   string key=DailyResults_GlobalReportedKey();
+  if(key=="")
+    return;
   GlobalVariableSet(key,(double)((long)day_start_utc));
 }
 
@@ -130,15 +139,20 @@ bool DailyResults_IsAuthError(const string error_code)
   if(error_code=="license_not_found") return true;
   if(error_code=="user_not_found") return true;
   if(error_code=="ea_not_found") return true;
+  if(error_code=="missing_magic_number") return true;
+  if(error_code=="invalid_magic_number") return true;
   return false;
 }
 
 bool DailyResults_CalcNetClosedPnlForUtcDay(const datetime day_start_utc,
+                                            const long magic_number,
                                             double &pnl_out,
                                             int &deals_out)
 {
   pnl_out=0.0;
   deals_out=0;
+  if(magic_number<=0)
+    return false;
   datetime day_end_utc=day_start_utc + 86400;
   if(day_end_utc<=day_start_utc)
     return false;
@@ -175,6 +189,10 @@ bool DailyResults_CalcNetClosedPnlForUtcDay(const datetime day_start_utc,
 
     ENUM_DEAL_TYPE deal_type=(ENUM_DEAL_TYPE)HistoryDealGetInteger(ticket,DEAL_TYPE);
     if(deal_type!=DEAL_TYPE_BUY && deal_type!=DEAL_TYPE_SELL)
+      continue;
+
+    long deal_magic=(long)HistoryDealGetInteger(ticket,DEAL_MAGIC);
+    if(deal_magic!=magic_number)
       continue;
 
     double deal_profit=HistoryDealGetDouble(ticket,DEAL_PROFIT);
@@ -245,9 +263,16 @@ DailyResultsSubmitState DailyResults_SubmitDay(const datetime day_start_utc)
   daily_results_last_error="";
   daily_results_last_http_status=0;
 
+  long magic_number=LicenseGetCachedMagicNumber();
+  if(magic_number<=0)
+  {
+    daily_results_last_error="missing_magic_number";
+    return DAILY_RESULTS_SUBMIT_AUTH_ERROR;
+  }
+
   double net_result=0.0;
   int closed_deals=0;
-  if(!DailyResults_CalcNetClosedPnlForUtcDay(day_start_utc,net_result,closed_deals))
+  if(!DailyResults_CalcNetClosedPnlForUtcDay(day_start_utc,magic_number,net_result,closed_deals))
   {
     daily_results_last_error="history_unavailable";
     return DAILY_RESULTS_SUBMIT_RETRY;
@@ -277,6 +302,7 @@ DailyResultsSubmitState DailyResults_SubmitDay(const datetime day_start_utc)
   payload.setProperty("email",email);
   payload.setProperty("ea_id",ea_id);
   payload.setProperty("license_key",license_key);
+  payload.setProperty("magic_number",magic_number);
 
   JSON::Object *broker_account=new JSON::Object();
   broker_account.setProperty("company",broker_company);
@@ -351,6 +377,15 @@ void DailyResults_HandleSubmitFailure(const datetime now_server,
                                       const datetime target_day_start_utc,
                                       const DailyResultsSubmitState state)
 {
+  if(daily_results_last_error=="missing_magic_number" ||
+     daily_results_last_error=="invalid_magic_number")
+  {
+    PrintFormat("[DailyResults] Hard auth failure (error=%s). Removing EA.",
+                daily_results_last_error);
+    EALifecycleRequestRemoval(LicenseServiceBuildRemovalMessage("Pandora Box EA removed: backend magic number validation failed."));
+    return;
+  }
+
   if(state==DAILY_RESULTS_SUBMIT_INVALID_PAYLOAD)
   {
     daily_results_blocked_day_utc=target_day_start_utc;

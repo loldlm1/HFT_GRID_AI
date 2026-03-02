@@ -89,9 +89,14 @@ int OnInit()
                 g_symbol_constraints.volume_step);
   }
 
-  // SET THE MAGIC NUMBER
-  string rand_number = (string)MathRand() + "0";
-  g_magic_number     = Custom_Magic > 0 ? Custom_Magic : (int)rand_number + ChartWindowPosition();
+  // SET THE MAGIC NUMBER (strictly from successful license verify cache)
+  long verified_magic_number = LicenseGetCachedMagicNumber();
+  if(verified_magic_number <= 0)
+  {
+    EALifecycleRequestRemoval(LicenseServiceBuildRemovalMessage("Pandora Box EA removed: backend magic number validation failed."));
+    return INIT_FAILED;
+  }
+  g_magic_number = (int)verified_magic_number;
   g_position.SetExpertMagicNumber(g_magic_number);
 
   // CHART SETUP
