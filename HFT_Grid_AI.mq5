@@ -16,7 +16,7 @@
 #include <Trade/SymbolInfo.mqh>
 
 // CUSTOM SERVICES - UTILITIES
-#include "services/SecurityLicense.mqh"
+#include "services/license_service_setup.mqh"
 
 // CUSTOM SERVICES - AGGREGATORS
 #include "services/trading_tools.mqh"
@@ -89,7 +89,7 @@ int OnInit()
     if(g_magic_number <= 0)
     {
       Print("[EA] Missing backend magic_number after license verification.");
-      EALifecycleRequestRemoval(LicenseServiceBuildRemovalMessage("Pandora Box EA removed: backend magic number validation failed."));
+      EALifecycleRequestRemoval(LicenseServiceBuildRemovalMessage(""));
       return INIT_FAILED;
     }
 

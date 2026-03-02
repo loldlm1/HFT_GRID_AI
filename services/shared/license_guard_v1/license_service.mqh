@@ -1,14 +1,22 @@
 //+------------------------------------------------------------------+
-//|                                        services/SecurityLicense  |
+//|                      Shared License Guard Service (v1)           |
 //+------------------------------------------------------------------+
-#ifndef _SERVICES_SECURITY_LICENSE_MQH_
-#define _SERVICES_SECURITY_LICENSE_MQH_
+#ifndef _SERVICES_SHARED_LICENSE_GUARD_V1_LICENSE_SERVICE_MQH_
+#define _SERVICES_SHARED_LICENSE_GUARD_V1_LICENSE_SERVICE_MQH_
 
-// Compile-time switches
-// Keep both OFF in repository for local/manual testing.
-// Production build: uncomment both lines below.
+#include "license_guard_profile.mqh"
+
+#ifdef LICENSE_SHARED_ENFORCEMENT_ENABLED
+#ifndef LICENSE_ENFORCEMENT_ENABLED
 #define LICENSE_ENFORCEMENT_ENABLED
+#endif
+#endif
+
+#ifdef LICENSE_SHARED_DAILY_RESULTS_ENABLED
+#ifndef LICENSE_DAILY_RESULTS_ENABLED
 #define LICENSE_DAILY_RESULTS_ENABLED
+#endif
+#endif
 
 #ifdef LICENSE_DAILY_RESULTS_ENABLED
 #ifndef LICENSE_ENFORCEMENT_ENABLED
@@ -19,12 +27,6 @@
 #ifndef LICENSE_SERVICE_TIMER_SECONDS
 #define LICENSE_SERVICE_TIMER_SECONDS 60
 #endif
-
-// Shared license service guide for new EAs:
-// 1) Include this file in the entrypoint.
-// 2) Call LicenseServiceInit() in OnInit before trading setup.
-// 3) Forward OnTimer/OnDeinit to LicenseServiceOnTimer()/LicenseServiceOnDeinit().
-// 4) Use LicenseGetCachedMagicNumber() as the EA magic after successful init.
 
 bool   g_ea_removal_requested             = false;
 bool   g_ea_removal_preserve_chart_error  = false;
@@ -60,45 +62,51 @@ void EALifecycleClearRemovalRequest()
   g_ea_removal_chart_message        = "";
 }
 
+string LicenseSharedRemovalPrefix()
+{
+  return LICENSE_SHARED_PROFILE_NAME + " removed: ";
+}
+
 string LicenseServiceBuildRemovalMessage(const string fallback_message)
 {
 #ifdef LICENSE_ENFORCEMENT_ENABLED
   string error_code = license_last_error;
   StringToLower(error_code);
 
+  string prefix = LicenseSharedRemovalPrefix();
   if(error_code == "request_failed")
-    return "Pandora Box EA removed: license server connection failed.";
+    return prefix + "license server connection failed.";
   if(error_code == "expired" || error_code == "license_not_found")
-    return "Pandora Box EA removed: license expired.";
+    return prefix + "license expired.";
   if(error_code == "addons_required")
-    return "Pandora Box EA removed: required addon entitlement missing.";
+    return prefix + "required addon entitlement missing.";
   if(error_code == "invalid_key" || error_code == "invalid_source")
-    return "Pandora Box EA removed: license validation failed.";
+    return prefix + "license validation failed.";
   if(error_code == "missing_magic_number" || error_code == "invalid_magic_number")
-    return "Pandora Box EA removed: backend magic number validation failed.";
+    return prefix + "backend magic number validation failed.";
   if(error_code == "online_limit_reached")
     return LicenseFriendlyOnlineLimitMessage();
   if(error_code == "invalid_granted_addons" || error_code == "invalid_expires_at")
-    return "Pandora Box EA removed: invalid license response.";
+    return prefix + "invalid license response.";
 
   if(license_last_http_status >= 500)
-    return "Pandora Box EA removed: license server unavailable.";
+    return prefix + "license server unavailable.";
 
   if(error_code != "")
-    return "Pandora Box EA removed: license error (" + error_code + ").";
+    return prefix + "license error (" + error_code + ").";
 #endif
 
   if(fallback_message != "")
     return fallback_message;
 
-  return "Pandora Box EA removed: license validation failed.";
+  return LicenseSharedRemovalPrefix() + "license validation failed.";
 }
 
 #ifdef LICENSE_ENFORCEMENT_ENABLED
-#include "Bcrypt.mqh"
-#include "SecurityLicenseOnline.mqh"
+#include "../../Bcrypt.mqh"
+#include "license_guard_online.mqh"
 #ifdef LICENSE_DAILY_RESULTS_ENABLED
-#include "BrokerAccountDailyResultsOnline.mqh"
+#include "daily_results_online.mqh"
 #endif
 #else
 bool is_testing = false;
@@ -113,6 +121,14 @@ int LicenseServiceTimerSeconds()
 bool LicenseServiceInit()
 {
   is_testing = (MQLInfoInteger(MQL_TESTER) > 0);
+
+#ifdef LICENSE_ENFORCEMENT_ENABLED
+  if(StringLen(LicenseGetRequestedAddonsCsv()) == 0 &&
+     StringLen(LICENSE_SHARED_REQUIRED_ADDONS_CSV) > 0)
+  {
+    LicenseSetRequestedAddonsCsv(LICENSE_SHARED_REQUIRED_ADDONS_CSV);
+  }
+#endif
 
 #ifndef LICENSE_ENFORCEMENT_ENABLED
   Print("[License] Enforcement disabled at compile-time. Online validation/reporting skipped.");
@@ -134,7 +150,7 @@ bool LicenseServiceInit()
     else
       PrintFormat("[License] Startup verification failed (error=%s).",
                   (license_last_error == "" ? "request_failed" : license_last_error));
-    EALifecycleRequestRemoval(LicenseServiceBuildRemovalMessage("Pandora Box EA removed: startup license verification failed."));
+    EALifecycleRequestRemoval(LicenseServiceBuildRemovalMessage(""));
     return false;
   }
 
@@ -294,4 +310,4 @@ bool AllowLive()
 }
 #endif
 
-#endif // _SERVICES_SECURITY_LICENSE_MQH_
+#endif // _SERVICES_SHARED_LICENSE_GUARD_V1_LICENSE_SERVICE_MQH_

@@ -161,3 +161,18 @@ Use this checklist when implementing or reviewing features:
 - [ ] Documentation (README + AGENTS) updated after functional changes.
 
 Keeping this brief current ensures new agents can align quickly with the active architecture without sifting through obsolete phase plans.
+
+---
+
+## 8. Shared License Guard Rules
+- Canonical implementation lives at `services/shared/license_guard_v1/*`.
+- Use direct include + profile macros in EA entrypoints:
+  - `services/shared/license_guard_v1/license_service.mqh`
+- Do not reimplement verify/heartbeat/daily-results logic in EA-specific files.
+- Runtime live magic must come from `LicenseGetCachedMagicNumber()` after successful startup verify.
+- Missing/invalid backend `magic_number` is fail-closed and must trigger EA removal.
+- Daily results dedupe and aggregation must stay scoped by `ea_id + magic_number` (deal filtering by `DEAL_MAGIC`).
+- Add-on entitlements are profile-specific:
+  - EAs with required add-ons must set `LICENSE_SHARED_REQUIRED_ADDONS_CSV`.
+  - EAs without required add-ons must keep the value empty.
+- Migration and rollout instructions are defined in `services/shared/license_guard_v1/license-shared-service-migration-plan.md`.

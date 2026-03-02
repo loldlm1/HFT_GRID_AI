@@ -1,15 +1,48 @@
 //+------------------------------------------------------------------+
-#include "JsonParser.mqh"
-#include "core/addon_catalog.mqh"
+#ifndef _SERVICES_SHARED_LICENSE_GUARD_V1_ONLINE_MQH_
+#define _SERVICES_SHARED_LICENSE_GUARD_V1_ONLINE_MQH_
+#include "license_guard_profile.mqh"
+#include "../../JsonParser.mqh"
+#ifdef LICENSE_SHARED_ENABLE_ADDON_ENTITLEMENTS
+#include "../../core/addon_catalog.mqh"
+#else
+string AddonCatalogNormalizeKey(const string addon_key)
+{
+  string normalized = addon_key;
+  StringTrimLeft(normalized);
+  StringTrimRight(normalized);
+  StringToLower(normalized);
+  return normalized;
+}
+
+bool AddonCatalogKeysEqual(const string left_key, const string right_key)
+{
+  return (AddonCatalogNormalizeKey(left_key) == AddonCatalogNormalizeKey(right_key));
+}
+
+void AddonCatalogAllCompoundFamilies(string &families[])
+{
+  ArrayResize(families, 0);
+}
+
+#define ADDON_KEY_SESSION_TIME_FILTER      "addon_session_time_filter"
+#define ADDON_KEY_GRID_STRATEGY_CONFIG     "addon_grid_strategy_config"
+#define ADDON_KEY_CANDLE_STRUCTURE_FILTER   "addon_candle_structure"
+#define ADDON_KEY_COMPOUND_TREND_RIDE      "addon_compound_trend_ride"
+#define ADDON_KEY_COMPOUND_PULLBACK_CONT   "addon_compound_pullback_continue"
+#define ADDON_KEY_COMPOUND_REVERSAL_EARLY  "addon_compound_reversal_early"
+#define ADDON_KEY_COMPOUND_BREAKOUT_READY  "addon_compound_breakout_ready"
+#define ADDON_KEY_COMPOUND_VOLATILITY_TRAP "addon_compound_volatility_trap"
+#endif
 CBcrypt BCrypt;
 
-string primary_ci_key = "D3B634B92BDBC9D80BC84ED4F2640644929A5E0DA153FD7D471AF9B5A416B5FE";
-string base_secret_key = "loldlm-1994-Slayert1";
-string source_secret_key = "trading_sniper_floor";
+string primary_ci_key = LICENSE_SHARED_PRIMARY_CI_KEY;
+string base_secret_key = LICENSE_SHARED_BASE_SECRET_KEY;
+string source_secret_key = LICENSE_SHARED_SOURCE_KEY;
 string license_addons = "";
-const string base_ea_id_key = "pandora_box";
+const string base_ea_id_key = LICENSE_SHARED_BASE_EA_ID;
 
-const string license_api_base_url = "https://tradingsniperpanel.com";
+const string license_api_base_url = LICENSE_SHARED_API_BASE_URL;
 const string license_verify_api_path = "/api/v1/licenses/verify";
 const string license_heartbeat_api_path = "/api/v1/licenses/heartbeat";
 const int license_request_timeout_ms = 5000;
@@ -1207,7 +1240,7 @@ void LicenseOnline_OnTimer()
     if(LicenseLaneShouldRemoveFollowerForSharedHardError(now))
     {
       PrintFormat("[LicenseLane] Follower removal triggered by hard auth error (%s).", license_last_error);
-      EALifecycleRequestRemoval(LicenseServiceBuildRemovalMessage("Pandora Box EA removed: license validation failed."));
+      EALifecycleRequestRemoval(LicenseServiceBuildRemovalMessage(""));
     }
     return;
   }
@@ -1240,7 +1273,7 @@ void LicenseOnline_OnTimer()
     {
       PrintFormat("LICENSE REFRESH FAILED (hard auth) error=%s. EA REMOVED.",
                   (license_last_error == "" ? "unknown" : license_last_error));
-      EALifecycleRequestRemoval(LicenseServiceBuildRemovalMessage("Pandora Box EA removed: license refresh failed."));
+      EALifecycleRequestRemoval(LicenseServiceBuildRemovalMessage(""));
       return;
     }
   }
@@ -1290,7 +1323,7 @@ void LicenseOnline_OnTimer()
   {
     PrintFormat("LICENSE HEARTBEAT FAILED (hard auth) error=%s. EA REMOVED.",
                 (license_last_error == "" ? "unknown" : license_last_error));
-    EALifecycleRequestRemoval(LicenseServiceBuildRemovalMessage("Pandora Box EA removed: license heartbeat failed."));
+    EALifecycleRequestRemoval(LicenseServiceBuildRemovalMessage(""));
     return;
   }
 
@@ -1331,3 +1364,5 @@ bool AllowLive()
 {
   return true;
 }
+
+#endif // _SERVICES_SHARED_LICENSE_GUARD_V1_ONLINE_MQH_
