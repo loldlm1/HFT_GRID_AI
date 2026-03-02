@@ -11,6 +11,7 @@
 #include "harness/cases/grid_target_profit_math_test_case.mqh"
 #include "harness/cases/grid_visual_label_format_test_case.mqh"
 #include "harness/cases/license_service_facade_test_case.mqh"
+#include "harness/cases/license_error_policy_test_case.mqh"
 #include "harness/cases/signal_lot_strategy_test_case.mqh"
 #include "harness/cases/structure_classifier_types_test_case.mqh"
 #include "harness/cases/structure_context_requirements_test_case.mqh"
@@ -143,6 +144,13 @@ void OnStart()
 
   HarnessRecordResult("license_service_facade_test",
                       RunTest_license_service_facade_test(errors),
+                      errors,
+                      passed_count,
+                      failed_count,
+                      total_count);
+
+  HarnessRecordResult("license_error_policy_test",
+                      RunTest_license_error_policy_test(errors),
                       errors,
                       passed_count,
                       failed_count,

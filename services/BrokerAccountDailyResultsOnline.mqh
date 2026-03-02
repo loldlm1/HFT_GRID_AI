@@ -433,8 +433,8 @@ void DailyResults_OnTimer()
      daily_results_last_reverify_day_utc!=target_day_start_utc)
   {
     daily_results_last_reverify_day_utc=target_day_start_utc;
-    Print("[DailyResults] broker_account_not_found. Triggering license re-verify.");
-    if(VerifyLicenseOnline())
+    Print("[DailyResults] broker_account_not_found. Requesting leader license re-verify.");
+    if(LicenseOnline_RequestLeaderReverify("daily_results_missing_broker"))
     {
       state=DailyResults_SubmitDay(target_day_start_utc);
       if(state==DAILY_RESULTS_SUBMIT_SUCCESS)

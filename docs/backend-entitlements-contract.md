@@ -145,6 +145,10 @@ Known errors:
 - Subscription seats: shared across all EAs for the user.
 - One-time seats: independent per EA (`+8` cap when entitled).
 - Same lane on multiple charts counts as one seat.
+- Fixed guard timing for current EA implementations:
+  - Heartbeat interval: `180s`
+  - Leader stale timeout: `360s`
+  - Full verify interval: `86400s`
 
 ## EA license guard protocol (required)
 Goal:
@@ -162,6 +166,7 @@ Rules:
 - If leader is stale for more than 6 minutes (2 heartbeat cycles), followers may elect a new leader.
 - On identity change (`company`/`account_number`/`account_type`), reevaluate lane key and leadership before sending.
 - Retries/backoff must remain single-sender; followers must not run parallel retries.
+- `daily_results` reverify requests (`broker_account_not_found`) must be executed by leader only; followers queue a shared reverify request and never call verify directly.
 
 Leader transfer behavior:
 - If a leader chart is manually removed, crashes, or stops updating lease heartbeat, another chart in the same lane may take over.
@@ -189,6 +194,23 @@ Retryable errors:
 Rules:
 - Hard auth errors must not create endless leader-rotation storms.
 - Retryable errors use backoff and stay single-sender.
+
+## Seat conflict policy (`online_limit_reached`)
+Startup verify behavior:
+- If `POST /licenses/verify` at startup returns `online_limit_reached`, remove only that requester chart.
+- Keep other already-online charts/EAs running normally.
+- Show a non-technical EN chart message and log the technical error code.
+
+Runtime heartbeat behavior:
+- If leader heartbeat returns `online_limit_reached`, do not remove immediately.
+- Leader must run immediate `verify` confirmation in the same timer cycle.
+- Runtime removal requires 2 consecutive confirmations (`heartbeat + immediate verify`) returning `online_limit_reached`.
+- On confirmed runtime conflict, evict the newest claimant for that lane (ordered by successful startup verify time), preserving older active sessions.
+
+Message policy:
+- User-facing chart copy remains EN-only for simplicity.
+- Recommended chart message:
+  - `No license seat is currently available for this EA. Please close another active session or try again shortly.`
 
 ## Acceptance criteria
 - With N charts on the same lane, outbound license traffic behaves like 1 chart.

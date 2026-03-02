@@ -26,7 +26,10 @@ HFT Grid AI is a MetaTrader 5 Expert Advisor that runs bullish/bearish grid sequ
 ## Addon Entitlements
 - MT5 input groups remain visible (compile-time), but runtime access is entitlement-gated.
 - Live/Demo startup blocks if selected addon-required inputs are not covered by license entitlements.
-- Live/Demo performs a daily license refresh; verification failure removes the EA.
+- Live/Demo uses a lane leader/follower guard per `source+email+ea_id+company+account_number+account_type` to avoid duplicate `verify`/`heartbeat` traffic across charts.
+- Live/Demo heartbeat cadence is 180 seconds with 360-second leader stale takeover, plus 24-hour full verify refresh.
+- Startup `online_limit_reached` removes only the requester chart and keeps older online sessions running.
+- Runtime `online_limit_reached` requires two consecutive confirmations (`heartbeat` + immediate `verify`) before removing the newest claimant chart.
 - Strategy Tester still requires a valid decryptable key and future expiry timestamp; addon checks are bypassed in tester.
 - Addon input guides are documented in `docs/addons/`.
 

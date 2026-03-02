@@ -68,6 +68,8 @@ string LicenseServiceBuildRemovalMessage(const string fallback_message)
     return "HFT Grid AI removed: required addon entitlement missing.";
   if(error_code == "invalid_key" || error_code == "invalid_source")
     return "HFT Grid AI removed: license validation failed.";
+  if(error_code == "online_limit_reached")
+    return LicenseFriendlyOnlineLimitMessage();
   if(error_code == "invalid_granted_addons" || error_code == "invalid_expires_at")
     return "HFT Grid AI removed: invalid license response.";
 
@@ -110,6 +112,13 @@ bool LicenseServiceInit()
 #else
   if(!VerifyLicense())
   {
+    if(LicenseLastFailureWasStartupOnlineLimit())
+    {
+      Print("[License] Startup verification failed with online_limit_reached. Requester chart removed.");
+      EALifecycleRequestRemoval(LicenseFriendlyOnlineLimitMessage());
+      return false;
+    }
+
     if(license_last_http_status > 0)
       PrintFormat("[License] Startup verification failed (HTTP %d, error=%s).",
                   license_last_http_status,
@@ -140,6 +149,9 @@ void LicenseServiceOnTimer()
 
 void LicenseServiceOnDeinit()
 {
+#ifdef LICENSE_ENFORCEMENT_ENABLED
+  LicenseOnline_OnDeinit();
+#endif
 }
 
 #ifndef LICENSE_ENFORCEMENT_ENABLED
@@ -171,6 +183,41 @@ bool VerifyLicenseType()
 bool VerifyValidLicenseTime()
 {
   return true;
+}
+
+bool LicenseErrorIsHardAuth(const string)
+{
+  return false;
+}
+
+bool LicenseErrorIsRetryable(const string, const int)
+{
+  return false;
+}
+
+bool LicenseErrorIsOnlineLimitReached(const string)
+{
+  return false;
+}
+
+bool LicenseShouldRemoveForOnlineLimit(const bool, const int)
+{
+  return false;
+}
+
+bool LicenseLastFailureWasStartupOnlineLimit()
+{
+  return false;
+}
+
+string LicenseFriendlyOnlineLimitMessage()
+{
+  return "No license seat is currently available for this EA. Please close another active session or try again shortly.";
+}
+
+bool LicenseOnline_RequestLeaderReverify(const string)
+{
+  return false;
 }
 
 void LicenseSetRequestedAddonsCsv(const string addons_csv)
