@@ -9,6 +9,13 @@ This document is the source of truth for current EA-to-API integration.
 - `POST /broker_accounts/daily_results`
 - Content-Type for all endpoints: `application/json`
 
+## Canonical shared service reference
+- Canonical EA implementation: `services/shared/license_guard_v1/*`
+- Canonical EA entry include:
+  - `services/shared/license_guard_v1/license_service.mqh`
+- Legacy wrapper files were deprecated and removed during the V1 refactor to avoid duplicated auth paths.
+- Cross-repo migrations should reuse this shared service profile pattern and remove legacy local license logic to avoid double-auth behavior.
+
 ## Shared request fields
 Required for all endpoints:
 - `source` string
@@ -28,7 +35,7 @@ Example shared payload fragment:
 {
   "source": "trading_sniper_floor",
   "email": "user@example.com",
-  "ea_id": "example_ea_id",
+  "ea_id": "pandora_box",
   "license_key": "ENCRYPTED_KEY",
   "broker_account": {
     "company": "Broker Ltd",
@@ -57,6 +64,7 @@ Purpose:
 
 Additional request fields:
 - `addons` string (optional CSV of requested add-on keys)
+- If an EA does not require add-on entitlements, omit `addons` or send empty value.
 
 Success (`200 OK`) response:
 - `ok` boolean (`true`)
@@ -118,7 +126,7 @@ Example request:
 {
   "source": "trading_sniper_floor",
   "email": "user@example.com",
-  "ea_id": "example_ea_id",
+  "ea_id": "pandora_box",
   "license_key": "ENCRYPTED_KEY",
   "broker_account": {
     "company": "Broker Ltd",
