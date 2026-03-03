@@ -13,6 +13,8 @@ This document is the source of truth for current EA-to-API integration.
 - Canonical EA implementation: `services/shared/license_guard_v1/*`
 - Canonical EA entry include:
   - `services/shared/license_guard_v1/license_service.mqh`
+- Canonical shared add-on catalog:
+  - `services/shared/license_guard_v1/core/addon_catalog.mqh`
 - Legacy wrapper files were deprecated and removed during the V1 refactor to avoid duplicated auth paths.
 - Cross-repo migrations should reuse this shared service profile pattern and remove legacy local license logic to avoid double-auth behavior.
 
@@ -65,6 +67,7 @@ Purpose:
 Additional request fields:
 - `addons` string (optional CSV of requested add-on keys)
 - If an EA does not require add-on entitlements, omit `addons` or send empty value.
+- Required add-ons are configured per EA in that EA profile (`services/license_service_setup.mqh`), while key normalization/catalog stays shared in `services/shared/license_guard_v1/core/*`.
 
 Success (`200 OK`) response:
 - `ok` boolean (`true`)
@@ -246,6 +249,23 @@ Message policy:
 - `addon_compound_reversal_early (199$)`
 - `addon_compound_breakout_ready (299$)`
 - `addon_compound_volatility_trap (199$)`
+
+## EA add-on entitlement matrix (current)
+Fibonacci EA (`ea_id=fibonacci_elite`) current add-on keys:
+- `addon_session_time_filter`
+- `addon_grid_strategy_config`
+- `addon_candle_structure`
+- `addon_compound_trend_ride`
+- `addon_compound_pullback_continue`
+- `addon_compound_reversal_early`
+- `addon_compound_breakout_ready`
+- `addon_compound_volatility_trap`
+
+Pandora Box EA (`ea_id=pandora_box`) current add-on keys:
+- None (`LICENSE_SHARED_REQUIRED_ADDONS_CSV=""` in `services/license_service_setup.mqh`)
+
+Sniper Panel EA (`ea_id=sniper_advanced_panel`) current add-on keys:
+- None (`LICENSE_SHARED_REQUIRED_ADDONS_CSV=""` in `services/license_service_setup.mqh`)
 
 ## Strategy Tester behavior
 - Tester mode cannot rely on `WebRequest` in optimization flows.

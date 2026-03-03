@@ -1,10 +1,8 @@
 //+------------------------------------------------------------------+
-//|                                 services/core/addon_catalog.mqh  |
+//|      services/shared/license_guard_v1/core/addon_catalog.mqh     |
 //+------------------------------------------------------------------+
-#ifndef _SERVICES_CORE_ADDON_CATALOG_MQH_
-#define _SERVICES_CORE_ADDON_CATALOG_MQH_
-
-#include "enums.mqh"
+#ifndef _SERVICES_SHARED_LICENSE_GUARD_V1_CORE_ADDON_CATALOG_MQH_
+#define _SERVICES_SHARED_LICENSE_GUARD_V1_CORE_ADDON_CATALOG_MQH_
 
 const string ADDON_KEY_SESSION_TIME_FILTER      = "addon_session_time_filter";
 const string ADDON_KEY_GRID_STRATEGY_CONFIG     = "addon_grid_strategy_config";
@@ -15,6 +13,20 @@ const string ADDON_KEY_COMPOUND_REVERSAL_EARLY  = "addon_compound_reversal_early
 const string ADDON_KEY_COMPOUND_BREAKOUT_READY  = "addon_compound_breakout_ready";
 const string ADDON_KEY_COMPOUND_VOLATILITY_TRAP = "addon_compound_volatility_trap";
 const string ADDON_KEY_COMPOUND_ANY_FAMILY      = "addon_compound_family_any";
+
+enum AddonCompoundModeCodes
+{
+  ADDON_COMPOUND_MODE_TREND_RIDE_BUY         = 1,
+  ADDON_COMPOUND_MODE_TREND_RIDE_SELL        = 2,
+  ADDON_COMPOUND_MODE_PULLBACK_CONTINUE_BUY  = 3,
+  ADDON_COMPOUND_MODE_PULLBACK_CONTINUE_SELL = 4,
+  ADDON_COMPOUND_MODE_REVERSAL_EARLY_BUY     = 5,
+  ADDON_COMPOUND_MODE_REVERSAL_EARLY_SELL    = 6,
+  ADDON_COMPOUND_MODE_BREAKOUT_READY_BUY     = 7,
+  ADDON_COMPOUND_MODE_BREAKOUT_READY_SELL    = 8,
+  ADDON_COMPOUND_MODE_VOLATILITY_TRAP_BUY    = 9,
+  ADDON_COMPOUND_MODE_VOLATILITY_TRAP_SELL   = 10
+};
 
 string AddonCatalogDisplayLabel(const string addon_key)
 {
@@ -87,35 +99,34 @@ bool AddonCatalogKeysEqual(const string left, const string right)
   return (AddonCatalogNormalizeKey(left) == AddonCatalogNormalizeKey(right));
 }
 
-bool ResolveCompoundFamilyAddonKey(const TrendStructureCompoundModes mode,
-                                   string &addon_key_out)
+bool ResolveCompoundFamilyAddonKey(const int mode, string &addon_key_out)
 {
   addon_key_out = "";
 
   switch(mode)
   {
-    case COMPOUND_MODE_TREND_RIDE_BUY:
-    case COMPOUND_MODE_TREND_RIDE_SELL:
+    case ADDON_COMPOUND_MODE_TREND_RIDE_BUY:
+    case ADDON_COMPOUND_MODE_TREND_RIDE_SELL:
       addon_key_out = ADDON_KEY_COMPOUND_TREND_RIDE;
       return true;
 
-    case COMPOUND_MODE_PULLBACK_CONTINUE_BUY:
-    case COMPOUND_MODE_PULLBACK_CONTINUE_SELL:
+    case ADDON_COMPOUND_MODE_PULLBACK_CONTINUE_BUY:
+    case ADDON_COMPOUND_MODE_PULLBACK_CONTINUE_SELL:
       addon_key_out = ADDON_KEY_COMPOUND_PULLBACK_CONT;
       return true;
 
-    case COMPOUND_MODE_REVERSAL_EARLY_BUY:
-    case COMPOUND_MODE_REVERSAL_EARLY_SELL:
+    case ADDON_COMPOUND_MODE_REVERSAL_EARLY_BUY:
+    case ADDON_COMPOUND_MODE_REVERSAL_EARLY_SELL:
       addon_key_out = ADDON_KEY_COMPOUND_REVERSAL_EARLY;
       return true;
 
-    case COMPOUND_MODE_BREAKOUT_READY_BUY:
-    case COMPOUND_MODE_BREAKOUT_READY_SELL:
+    case ADDON_COMPOUND_MODE_BREAKOUT_READY_BUY:
+    case ADDON_COMPOUND_MODE_BREAKOUT_READY_SELL:
       addon_key_out = ADDON_KEY_COMPOUND_BREAKOUT_READY;
       return true;
 
-    case COMPOUND_MODE_VOLATILITY_TRAP_BUY:
-    case COMPOUND_MODE_VOLATILITY_TRAP_SELL:
+    case ADDON_COMPOUND_MODE_VOLATILITY_TRAP_BUY:
+    case ADDON_COMPOUND_MODE_VOLATILITY_TRAP_SELL:
       addon_key_out = ADDON_KEY_COMPOUND_VOLATILITY_TRAP;
       return true;
 
@@ -124,4 +135,4 @@ bool ResolveCompoundFamilyAddonKey(const TrendStructureCompoundModes mode,
   }
 }
 
-#endif // _SERVICES_CORE_ADDON_CATALOG_MQH_
+#endif // _SERVICES_SHARED_LICENSE_GUARD_V1_CORE_ADDON_CATALOG_MQH_

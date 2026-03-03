@@ -7,7 +7,7 @@
 // CORE SERVICES
 #include "core/enums.mqh"
 #include "core/base_structures.mqh"
-#include "core/addon_catalog.mqh"
+#include "shared/license_guard_v1/core/addon_catalog.mqh"
 
 // UTILITY SERVICES
 #include "utils/array_functions.mqh"

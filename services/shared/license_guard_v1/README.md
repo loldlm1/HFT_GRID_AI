@@ -13,8 +13,14 @@ Canonical reusable license service for MT5 EAs in this repository.
 - `services/shared/license_guard_v1/license_service.mqh`
 - `services/shared/license_guard_v1/license_guard_online.mqh`
 - `services/shared/license_guard_v1/daily_results_online.mqh`
+- `services/shared/license_guard_v1/core/addon_catalog.mqh`
 - `services/shared/license_guard_v1/backend-entitlements-contract.md`
 - `services/shared/license_guard_v1/license-shared-service-migration-plan.md`
+
+## Shared Core Layout
+- License-guard-owned helpers live under `services/shared/license_guard_v1/core/*`.
+- `license_guard_online.mqh` resolves add-on keys from this local shared core, not from repo/EA-local `services/core/*`.
+- Keep this folder synchronized across EA repos to preserve shared-service behavior parity.
 
 ## V1 Refactor Policy
 - Legacy wrapper files were deprecated and removed in this repo refactor:
@@ -46,9 +52,9 @@ Set per-EA values in `services/license_service_setup.mqh` (recommended) before t
 - `LICENSE_SHARED_API_BASE_URL`
 - `LICENSE_SHARED_PRIMARY_CI_KEY`
 - `LICENSE_SHARED_BASE_SECRET_KEY`
-- `LICENSE_SHARED_ENFORCEMENT_ENABLED` (`1` or `0`)
-- `LICENSE_SHARED_DAILY_RESULTS_ENABLED` (`1` or `0`)
-- `LICENSE_SHARED_ENABLE_ADDON_ENTITLEMENTS` (`1` or `0`)
+- `LICENSE_SHARED_ENFORCEMENT_ENABLED` (define to enable; undefine to disable)
+- `LICENSE_SHARED_DAILY_RESULTS_ENABLED` (define to enable; undefine to disable)
+- `LICENSE_SHARED_ENABLE_ADDON_ENTITLEMENTS` (define to enable; undefine to disable)
 - `LICENSE_SHARED_REQUIRED_ADDONS_CSV` (optional; empty string if no add-ons are required)
 
 Direct include option:
@@ -56,8 +62,10 @@ Direct include option:
 
 ## Optional Add-on Entitlements
 - Add-ons are optional by profile.
+- Each EA configures entitlements independently through `services/license_service_setup.mqh`.
 - EAs that do not require add-ons should keep `LICENSE_SHARED_REQUIRED_ADDONS_CSV` empty.
-- EAs that require add-ons should define the CSV list or call `LicenseSetRequestedAddonsCsv()` at startup.
+- EAs that require add-ons should define the CSV list (or call `LicenseSetRequestedAddonsCsv()` at startup).
+- The add-on key catalog stays shared and centralized in `services/shared/license_guard_v1/core/addon_catalog.mqh`.
 
 ## Lane Identity and Request Sharing
 The leader/follower lane key is derived from:

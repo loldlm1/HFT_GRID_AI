@@ -20,7 +20,9 @@ This plan defines how to migrate EAs to the canonical shared service without amb
 - `LICENSE_SHARED_PROFILE_NAME`
 - `LICENSE_SHARED_BASE_EA_ID`
 - `LICENSE_SHARED_SOURCE_KEY`
+- `LICENSE_SHARED_ENABLE_ADDON_ENTITLEMENTS` (define to enable add-on parsing; undefine to bypass)
 - `LICENSE_SHARED_REQUIRED_ADDONS_CSV` (empty when no add-ons required)
+- Keep license shared core files under `services/shared/license_guard_v1/core/*` (do not depend on EA-local `services/core/*` for add-on catalog keys).
 
 2. Wire shared service hooks in EA entrypoint.
 - Include `services/license_service_setup.mqh` in the EA entrypoint (`*.mq5`).
@@ -42,6 +44,7 @@ This plan defines how to migrate EAs to the canonical shared service without amb
 5. Configure add-ons correctly.
 - EAs with no required add-ons: keep `LICENSE_SHARED_REQUIRED_ADDONS_CSV=""`.
 - EAs with required add-ons: define CSV list, verify `addons_required` handling, and keep fail-closed behavior.
+- Keep per-EA add-on entitlement configuration in that EA's `services/license_service_setup.mqh` only.
 
 6. Validate compile.
 - Run headless compile for the target EA entrypoint.
@@ -64,5 +67,6 @@ This plan defines how to migrate EAs to the canonical shared service without amb
 ## Canonical References
 - Bootstrap wrapper: `services/license_service_setup.mqh`
 - Shared service: `services/shared/license_guard_v1/README.md`
+- Shared add-on catalog core: `services/shared/license_guard_v1/core/*`
 - Backend contract: `services/shared/license_guard_v1/backend-entitlements-contract.md`
 - Agent rules: `AGENTS.md`
