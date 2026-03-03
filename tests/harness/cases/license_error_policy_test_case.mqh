@@ -11,6 +11,10 @@ bool RunTest_license_error_policy_test(string &errors)
     errors += "invalid_key must be classified as hard auth\n";
   if(!LicenseErrorIsHardAuth("expired"))
     errors += "expired must be classified as hard auth\n";
+  if(!LicenseErrorIsHardAuth("missing_magic_number"))
+    errors += "missing_magic_number must be classified as hard auth\n";
+  if(!LicenseErrorIsHardAuth("invalid_magic_number"))
+    errors += "invalid_magic_number must be classified as hard auth\n";
   if(LicenseErrorIsHardAuth("online_limit_reached"))
     errors += "online_limit_reached must not be hard auth\n";
 
@@ -22,6 +26,10 @@ bool RunTest_license_error_policy_test(string &errors)
     errors += "http 500 must be retryable\n";
   if(LicenseErrorIsRetryable("invalid_key", 401))
     errors += "invalid_key must not be retryable\n";
+  if(LicenseErrorIsRetryable("missing_magic_number", 422))
+    errors += "missing_magic_number must not be retryable\n";
+  if(LicenseErrorIsRetryable("invalid_magic_number", 422))
+    errors += "invalid_magic_number must not be retryable\n";
 
   if(!LicenseErrorIsOnlineLimitReached("online_limit_reached"))
     errors += "online_limit_reached detector failed\n";

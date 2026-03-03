@@ -12,8 +12,7 @@ Short, current notes for contributors. Keep this file brief; deep details live i
 The EA follows a functional, sequential include chain. Keep this order and avoid sibling includes.
 
 ```
-services/Bcrypt.mqh
-services/SecurityLicense.mqh
+services/license_service_setup.mqh
 services/trading_tools.mqh
 services/trading_management.mqh
 services/trading_management_strategies.mqh

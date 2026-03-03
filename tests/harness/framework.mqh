@@ -12,7 +12,7 @@
 #include "../../services/utils/miscellaneous.mqh"
 #include "../../services/utils/money_functions.mqh"
 #include "../../services/utils/broker_constraints_helper.mqh"
-#include "../../services/SecurityLicense.mqh"
+#include "../../services/license_service_setup.mqh"
 #include "../../services/trading_management/ea_inputs.mqh"
 #include "../../services/trading_management/candle_structure_filter_context.mqh"
 #include "../../services/trading_management/strategy_structure_context.mqh"

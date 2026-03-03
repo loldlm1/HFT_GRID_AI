@@ -93,5 +93,6 @@ Note:
 - `--compile-only` does not launch the terminal and can be used with an already-open MT5 session.
 
 ## Project Map (brief)
+- `services/license_service_setup.mqh` is the canonical license bootstrap for this EA and includes the shared guard service under `services/shared/license_guard_v1/`.
 - `services/` holds the ordered include pipeline (tools -> management -> strategies -> signals -> frontend).
 - `AGENTS.md` is the short architectural brief and source of truth for contributor rules.

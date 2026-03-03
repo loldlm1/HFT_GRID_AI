@@ -2,8 +2,6 @@
 #define HFT_GRID_AI_TEST_CASE_LICENSE_SERVICE_FACADE_MQH
 
 #include "../framework.mqh"
-#include "../../../services/Bcrypt.mqh"
-#include "../../../services/SecurityLicense.mqh"
 
 bool RunTest_license_service_facade_test(string &errors)
 {
