@@ -4,7 +4,7 @@
 #include "license_guard_profile.mqh"
 #include "../../JsonParser.mqh"
 #ifdef LICENSE_SHARED_ENABLE_ADDON_ENTITLEMENTS
-#include "../../core/addon_catalog.mqh"
+#include "core/addon_catalog.mqh"
 #else
 string AddonCatalogNormalizeKey(const string addon_key)
 {

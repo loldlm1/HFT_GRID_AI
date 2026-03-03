@@ -7,6 +7,7 @@
 // CORE MICROSERVICES
 #include "../microservices/core/enums.mqh"
 #include "../microservices/core/base_structures.mqh"
+#include "shared/license_guard_v1/core/addon_catalog.mqh"
 
 // UTILITY MICROSERVICES
 #include "../microservices/utils/array_functions.mqh"
