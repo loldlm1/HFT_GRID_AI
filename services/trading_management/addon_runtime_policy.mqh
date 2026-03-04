@@ -5,6 +5,8 @@
 #ifndef _SERVICES_TRADING_MANAGEMENT_ADDON_RUNTIME_POLICY_MQH_
 #define _SERVICES_TRADING_MANAGEMENT_ADDON_RUNTIME_POLICY_MQH_
 
+#include "../shared/license_guard_v1/core/addon_catalog.mqh"
+
 const double GRID_ADDON_LOCKED_EXPONENTIAL_MULTIPLIER = 1.0;
 const int GRID_ADDON_LOCKED_LEVEL_POSITION_START = 0;
 const int GRID_ADDON_LOCKED_LEVEL_STOP_LIMIT = 1;
@@ -39,21 +41,6 @@ void AddonPolicyAppendUnique(string &values[], const string value)
   int total = ArraySize(values);
   ArrayResize(values, total + 1);
   values[total] = AddonCatalogNormalizeKey(value);
-}
-
-string AddonPolicyJoinCsv(string &values[])
-{
-  string joined = "";
-  int total = ArraySize(values);
-  for(int i = 0; i < total; i++)
-  {
-    if(values[i] == "")
-      continue;
-    if(joined != "")
-      joined += ",";
-    joined += values[i];
-  }
-  return joined;
 }
 
 bool SessionAddonRequested()
@@ -119,20 +106,6 @@ void AddonPolicyCollectRequestedAddons(string &addons_out[],
   }
 }
 
-string AddonPolicyResolveRequestedAddonsCsv()
-{
-  string requested[];
-  bool require_any_compound_family = false;
-  AddonPolicyCollectRequestedAddons(requested, require_any_compound_family);
-  return AddonPolicyJoinCsv(requested);
-}
-
-void AddonPolicySyncRequestedAddonsForLicensePayload()
-{
-  string requested_csv = AddonPolicyResolveRequestedAddonsCsv();
-  LicenseSetRequestedAddonsCsv(requested_csv);
-}
-
 bool AddonPolicyHasAnyCompoundFamilyEntitlement()
 {
   string compound_addons[];
@@ -176,7 +149,6 @@ string AddonPolicyBuildMissingAddonsLabel(const string &missing_addons[])
 bool AddonPolicyValidateEntitlementsForCurrentInputs(string &chart_message_out)
 {
   chart_message_out = "";
-  AddonPolicySyncRequestedAddonsForLicensePayload();
 
   if(LicenseIsTestingMode())
     return true;

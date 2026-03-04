@@ -54,8 +54,6 @@ bool ProcessPendingRemovalRequest()
 
 int OnInit()
 {
-  AddonPolicySyncRequestedAddonsForLicensePayload();
-
   if(!LicenseServiceInit())
     return(INIT_FAILED);
 
@@ -164,7 +162,6 @@ void OnTradeTransaction(const MqlTradeTransaction& trans,
 //+------------------------------------------------------------------+
 void OnTimer()
 {
-  AddonPolicySyncRequestedAddonsForLicensePayload();
   LicenseServiceOnTimer();
   AddonPolicyApplyRuntimeLocks();
 

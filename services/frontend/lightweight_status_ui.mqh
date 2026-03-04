@@ -1,6 +1,8 @@
 #ifndef _SERVICES_FRONTEND_LIGHTWEIGHT_STATUS_UI_MQH_
 #define _SERVICES_FRONTEND_LIGHTWEIGHT_STATUS_UI_MQH_
 
+#include "../shared/license_guard_v1/core/addon_catalog.mqh"
+
 const int LIGHTWEIGHT_UI_PANEL_X = 8;
 const int LIGHTWEIGHT_UI_PANEL_Y = 24;
 const int LIGHTWEIGHT_UI_PANEL_PADDING_X = 10;
