@@ -62,9 +62,10 @@ Direct include option:
 
 ## Optional Add-on Entitlements
 - Add-ons are optional by profile.
-- Each EA configures entitlements independently through `services/license_service_setup.mqh`.
+- Single source of truth per EA: `LICENSE_SHARED_REQUIRED_ADDONS_CSV` in `services/license_service_setup.mqh`.
+- `license_service.mqh` seeds the startup verify payload from `LICENSE_SHARED_REQUIRED_ADDONS_CSV`; keep this macro aligned with the EA's backend entitlement contract.
 - EAs that do not require add-ons should keep `LICENSE_SHARED_REQUIRED_ADDONS_CSV` empty.
-- EAs that require add-ons should define the CSV list (or call `LicenseSetRequestedAddonsCsv()` at startup).
+- EAs that require add-ons should define the CSV list in `services/license_service_setup.mqh`.
 - The add-on key catalog stays shared and centralized in `services/shared/license_guard_v1/core/addon_catalog.mqh`.
 
 ## Lane Identity and Request Sharing
