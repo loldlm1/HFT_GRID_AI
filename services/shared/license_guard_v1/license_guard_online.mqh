@@ -50,7 +50,7 @@ const int license_refresh_seconds = 86400;
 const int license_heartbeat_seconds = 180;
 const int license_leader_stale_seconds = 360;
 const int license_online_limit_runtime_confirmations = 2;
-const int license_startup_sync_max_polls = 10;
+const int license_startup_sync_max_polls = 25;
 const int license_startup_sync_poll_sleep_ms = 200;
 
 const string license_lane_key_prefix = "SNP_LANE";
@@ -1140,6 +1140,16 @@ bool VerifyLicenseOnline()
   return VerifyLicenseOnlineRequest(false);
 }
 
+int LicenseStartupGuardedFallbackPolls()
+{
+  int polls = (license_request_timeout_ms / license_startup_sync_poll_sleep_ms);
+  if((license_request_timeout_ms % license_startup_sync_poll_sleep_ms) != 0)
+    polls++;
+  if(polls < 1)
+    polls = 1;
+  return polls;
+}
+
 bool VerifyLicenseOnlineStartup()
 {
   if(!license_payload_ok && !DecryptEA())
@@ -1150,20 +1160,65 @@ bool VerifyLicenseOnlineStartup()
 
   datetime now = TimeCurrent();
   if(LicenseLaneTryAcquireLeadership(now, true))
+  {
+    Print("[LicenseLane] startup leader verify.");
     return VerifyLicenseOnlineRequest(true);
+  }
 
   for(int poll = 0; poll < license_startup_sync_max_polls; poll++)
   {
-    if(LicenseLaneApplySharedSuccessIfAvailable(TimeCurrent()))
+    datetime poll_now = TimeCurrent();
+    if(LicenseLaneApplySharedSuccessIfAvailable(poll_now))
+    {
+      Print("[LicenseLane] shared_success_applied (startup_sync).");
       return true;
+    }
+
+    if(LicenseLaneTryAcquireLeadership(poll_now, true))
+    {
+      Print("[LicenseLane] startup leader verify after sync wait.");
+      return VerifyLicenseOnlineRequest(true);
+    }
 
     Sleep(license_startup_sync_poll_sleep_ms);
   }
 
-  if(LicenseLaneTryAcquireLeadership(TimeCurrent(), true))
-    return VerifyLicenseOnlineRequest(true);
+  int guarded_polls = LicenseStartupGuardedFallbackPolls();
+  datetime guard_now = TimeCurrent();
+  if(LicenseLaneLeaderIsHealthy(guard_now))
+  {
+    PrintFormat("[LicenseLane] leader_healthy_wait (startup_guard) polls=%d.", guarded_polls);
+    for(int poll = 0; poll < guarded_polls; poll++)
+    {
+      datetime guarded_now = TimeCurrent();
+      if(LicenseLaneApplySharedSuccessIfAvailable(guarded_now))
+      {
+        Print("[LicenseLane] shared_success_applied (startup_guard).");
+        return true;
+      }
 
-  Print("[LicenseLane] Shared startup state unavailable as follower. Running direct verify fallback.");
+      if(LicenseLaneTryAcquireLeadership(guarded_now, true))
+      {
+        Print("[LicenseLane] startup leader verify after guarded wait.");
+        return VerifyLicenseOnlineRequest(true);
+      }
+
+      Sleep(license_startup_sync_poll_sleep_ms);
+    }
+  }
+
+  datetime fallback_now = TimeCurrent();
+  if(LicenseLaneTryAcquireLeadership(fallback_now, true))
+  {
+    Print("[LicenseLane] startup leader verify before fallback.");
+    return VerifyLicenseOnlineRequest(true);
+  }
+
+  if(LicenseLaneLeaderIsHealthy(fallback_now))
+    Print("[LicenseLane] guarded_fallback_verify (leader still healthy after extended wait).");
+  else
+    Print("[LicenseLane] stale_leader_fallback_verify.");
+
   return VerifyLicenseOnlineRequest(true);
 }
 
