@@ -55,7 +55,6 @@ int OnInit()
 {
   if(!LicenseServiceInit())
     return(INIT_FAILED);
-  EALifecycleClearRemovalRequest();
 
   // INITIALIZE GLOBAL VARIABLES
   g_ea_running = false;
