@@ -243,16 +243,9 @@ void CollectAddonUiState(string &requested_addons[],
                          string &granted_addons[],
                          string &missing_addons[])
 {
-  bool require_any_compound_family = false;
-  AddonPolicyCollectRequestedAddons(requested_addons, require_any_compound_family);
-
-  if(require_any_compound_family)
-    AddonPolicyAppendUnique(requested_addons, ADDON_KEY_COMPOUND_ANY_FAMILY);
-
+  LicenseCopyRequestedAddons(requested_addons);
   LicenseCopyGrantedAddons(granted_addons);
-  AddonPolicyResolveMissingAddons(requested_addons,
-                                  require_any_compound_family,
-                                  missing_addons);
+  LicenseCopyMissingAddons(missing_addons);
 }
 
 string ResolveRuntimeTickBlockSource()

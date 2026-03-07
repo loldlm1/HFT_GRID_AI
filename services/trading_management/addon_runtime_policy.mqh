@@ -1,18 +1,15 @@
 //+------------------------------------------------------------------+
 //|                           addon_runtime_policy.mqh               |
-//| Resolves requested addons from inputs and applies runtime locks. |
+//| Maps EA inputs into shared license addon requests.               |
 //+------------------------------------------------------------------+
 #ifndef _SERVICES_TRADING_MANAGEMENT_ADDON_RUNTIME_POLICY_MQH_
 #define _SERVICES_TRADING_MANAGEMENT_ADDON_RUNTIME_POLICY_MQH_
 
 #include "../shared/license_guard_v1/core/addon_catalog.mqh"
 
-const double GRID_ADDON_LOCKED_EXPONENTIAL_MULTIPLIER = 1.0;
-const int GRID_ADDON_LOCKED_LEVEL_POSITION_START = 0;
-const int GRID_ADDON_LOCKED_LEVEL_STOP_LIMIT = 1;
-
-bool g_grid_level_stop_limit_runtime_override = false;
-int g_grid_level_stop_limit_runtime_value = GRID_ADDON_LOCKED_LEVEL_STOP_LIMIT;
+const double GRID_ADDON_DEFAULT_EXPONENTIAL_MULTIPLIER = 1.0;
+const int GRID_ADDON_DEFAULT_LEVEL_POSITION_START = 0;
+const int GRID_ADDON_DEFAULT_LEVEL_STOP_LIMIT = 1;
 
 bool AddonPolicyDoubleEquals(const double left, const double right)
 {
@@ -31,168 +28,93 @@ bool AddonPolicyStringArrayContains(string &values[], const string needle)
   return false;
 }
 
-void AddonPolicyAppendUnique(string &values[], const string value)
+bool SessionAddonRequestedForModes(const SessionTimeFilterModes asia_filter_mode,
+                                   const SessionTimeFilterModes london_filter_mode,
+                                   const SessionTimeFilterModes newyork_filter_mode)
 {
-  if(value == "")
-    return;
-  if(AddonPolicyStringArrayContains(values, value))
-    return;
-
-  int total = ArraySize(values);
-  ArrayResize(values, total + 1);
-  values[total] = AddonCatalogNormalizeKey(value);
-}
-
-bool SessionAddonRequested()
-{
-  if(Session_Asia_Filter_Mode != SESSION_FILTER_OFF)
+  if(asia_filter_mode != SESSION_FILTER_OFF)
     return true;
-  if(Session_London_Filter_Mode != SESSION_FILTER_OFF)
+  if(london_filter_mode != SESSION_FILTER_OFF)
     return true;
-  if(Session_NewYork_Filter_Mode != SESSION_FILTER_OFF)
+  if(newyork_filter_mode != SESSION_FILTER_OFF)
     return true;
   return false;
 }
 
-bool CandleAddonRequested()
+bool CandleAddonRequestedForMode(const CandleStrategyTypes candle_strategy_type)
 {
-  return (Candle_Strategy_Type != OFF_CANDLE_STRUCTURE);
+  return (candle_strategy_type != OFF_CANDLE_STRUCTURE);
 }
 
-bool GridConfigAddonRequested()
+bool GridConfigAddonRequestedForValues(const double grid_exponential_multiplier,
+                                       const int grid_level_position_start,
+                                       const int grid_level_stop_limit)
 {
-  if(!AddonPolicyDoubleEquals(Grid_Exponential_Multiplier,
-                              GRID_ADDON_LOCKED_EXPONENTIAL_MULTIPLIER))
+  if(!AddonPolicyDoubleEquals(grid_exponential_multiplier,
+                              GRID_ADDON_DEFAULT_EXPONENTIAL_MULTIPLIER))
     return true;
-  if(Grid_Level_Position_Start != GRID_ADDON_LOCKED_LEVEL_POSITION_START)
+  if(grid_level_position_start != GRID_ADDON_DEFAULT_LEVEL_POSITION_START)
     return true;
-  if(Grid_Level_Stop_Limit != GRID_ADDON_LOCKED_LEVEL_STOP_LIMIT)
+  if(grid_level_stop_limit != GRID_ADDON_DEFAULT_LEVEL_STOP_LIMIT)
     return true;
   return false;
 }
 
-void AddonPolicyCollectRequestedAddons(string &addons_out[],
-                                       bool &require_any_compound_family)
+void AddonPolicyCollectRequestedAddonsForSettings(const SessionTimeFilterModes asia_filter_mode,
+                                                  const SessionTimeFilterModes london_filter_mode,
+                                                  const SessionTimeFilterModes newyork_filter_mode,
+                                                  const CandleStrategyTypes candle_strategy_type,
+                                                  const double grid_exponential_multiplier,
+                                                  const int grid_level_position_start,
+                                                  const int grid_level_stop_limit,
+                                                  const TrendStructureCompoundModes compound_mode,
+                                                  const bool fresh_structure_time,
+                                                  string &addons_out[])
 {
   ArrayResize(addons_out, 0);
-  require_any_compound_family = false;
 
-  if(SessionAddonRequested())
-    AddonPolicyAppendUnique(addons_out, ADDON_KEY_SESSION_TIME_FILTER);
+  if(SessionAddonRequestedForModes(asia_filter_mode,
+                                   london_filter_mode,
+                                   newyork_filter_mode))
+  {
+    LicenseAppendRequestedAddon(addons_out, ADDON_KEY_SESSION_TIME_FILTER);
+  }
 
-  if(CandleAddonRequested())
-    AddonPolicyAppendUnique(addons_out, ADDON_KEY_CANDLE_STRUCTURE_FILTER);
+  if(CandleAddonRequestedForMode(candle_strategy_type))
+    LicenseAppendRequestedAddon(addons_out, ADDON_KEY_CANDLE_STRUCTURE_FILTER);
 
-  if(GridConfigAddonRequested())
-    AddonPolicyAppendUnique(addons_out, ADDON_KEY_GRID_STRATEGY_CONFIG);
+  if(GridConfigAddonRequestedForValues(grid_exponential_multiplier,
+                                       grid_level_position_start,
+                                       grid_level_stop_limit))
+  {
+    LicenseAppendRequestedAddon(addons_out, ADDON_KEY_GRID_STRATEGY_CONFIG);
+  }
 
-  if(Base_Structure_Compound_Filter != COMPOUND_MODE_OFF)
+  if(compound_mode != COMPOUND_MODE_OFF)
   {
     string compound_addon = "";
-    if(ResolveCompoundFamilyAddonKey(Base_Structure_Compound_Filter, compound_addon))
-      AddonPolicyAppendUnique(addons_out, compound_addon);
+    if(ResolveCompoundFamilyAddonKey((int)compound_mode, compound_addon))
+      LicenseAppendRequestedAddon(addons_out, compound_addon);
   }
 
-  if(Base_Fresh_Structure_Time)
+  if(fresh_structure_time && compound_mode == COMPOUND_MODE_OFF)
   {
-    if(Base_Structure_Compound_Filter == COMPOUND_MODE_OFF)
-      require_any_compound_family = true;
-    else
-    {
-      string compound_addon = "";
-      if(ResolveCompoundFamilyAddonKey(Base_Structure_Compound_Filter, compound_addon))
-        AddonPolicyAppendUnique(addons_out, compound_addon);
-    }
+    LicenseAppendRequestedAddon(addons_out, ADDON_KEY_COMPOUND_ANY_FAMILY);
   }
 }
 
-bool AddonPolicyHasAnyCompoundFamilyEntitlement()
+void CollectRequestedAddonsForCurrentInputs(string &addons_out[])
 {
-  string compound_addons[];
-  AddonCatalogAllCompoundFamilies(compound_addons);
-
-  int total = ArraySize(compound_addons);
-  for(int i = 0; i < total; i++)
-  {
-    if(LicenseHasAddon(compound_addons[i]))
-      return true;
-  }
-  return false;
-}
-
-void AddonPolicyResolveMissingAddons(string &requested_addons[],
-                                     const bool require_any_compound_family,
-                                     string &missing_addons_out[])
-{
-  ArrayResize(missing_addons_out, 0);
-
-  int total = ArraySize(requested_addons);
-  for(int i = 0; i < total; i++)
-  {
-    string addon_key = AddonCatalogNormalizeKey(requested_addons[i]);
-    if(addon_key == "")
-      continue;
-    if(LicenseHasAddon(addon_key))
-      continue;
-    AddonPolicyAppendUnique(missing_addons_out, addon_key);
-  }
-
-  if(require_any_compound_family && !AddonPolicyHasAnyCompoundFamilyEntitlement())
-    AddonPolicyAppendUnique(missing_addons_out, ADDON_KEY_COMPOUND_ANY_FAMILY);
-}
-
-string AddonPolicyBuildMissingAddonsLabel(const string &missing_addons[])
-{
-  return AddonCatalogJoinDisplayLabels(missing_addons);
-}
-
-bool AddonPolicyValidateEntitlementsForCurrentInputs(string &chart_message_out)
-{
-  chart_message_out = "";
-
-  if(LicenseIsTestingMode())
-    return true;
-
-  string requested_addons[];
-  bool require_any_compound_family = false;
-  AddonPolicyCollectRequestedAddons(requested_addons, require_any_compound_family);
-
-  string missing_addons[];
-  AddonPolicyResolveMissingAddons(requested_addons,
-                                  require_any_compound_family,
-                                  missing_addons);
-
-  if(ArraySize(missing_addons) <= 0)
-    return true;
-
-  string missing_label = AddonPolicyBuildMissingAddonsLabel(missing_addons);
-  chart_message_out = "HFT Grid AI disabled: missing addon(s): " + missing_label;
-
-  PrintFormat("[AddonPolicy] Missing addon(s): %s", missing_label);
-  return false;
-}
-
-void AddonPolicyApplyRuntimeLocks()
-{
-  g_grid_level_stop_limit_runtime_override = false;
-  g_grid_level_stop_limit_runtime_value = GRID_ADDON_LOCKED_LEVEL_STOP_LIMIT;
-
-  if(LicenseIsTestingMode())
-    return;
-
-  if(!LicenseHasAddon(ADDON_KEY_GRID_STRATEGY_CONFIG))
-  {
-    g_grid_level_stop_limit_runtime_override = true;
-    g_grid_level_stop_limit_runtime_value = GRID_ADDON_LOCKED_LEVEL_STOP_LIMIT;
-  }
-}
-
-int ResolveEffectiveGridLevelStopLimit()
-{
-  if(!g_grid_level_stop_limit_runtime_override)
-    return Grid_Level_Stop_Limit;
-
-  return g_grid_level_stop_limit_runtime_value;
+  AddonPolicyCollectRequestedAddonsForSettings(Session_Asia_Filter_Mode,
+                                               Session_London_Filter_Mode,
+                                               Session_NewYork_Filter_Mode,
+                                               Candle_Strategy_Type,
+                                               Grid_Exponential_Multiplier,
+                                               Grid_Level_Position_Start,
+                                               Grid_Level_Stop_Limit,
+                                               Base_Structure_Compound_Filter,
+                                               Base_Fresh_Structure_Time,
+                                               addons_out);
 }
 
 #endif // _SERVICES_TRADING_MANAGEMENT_ADDON_RUNTIME_POLICY_MQH_

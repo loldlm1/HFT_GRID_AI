@@ -31,7 +31,7 @@
 
 ## If Addon Is Missing
 - Startup is blocked when advanced values are requested.
-- Runtime lock forces `Grid_Level_Stop_Limit = 1` as safety fallback.
+- The EA does not auto-clamp advanced grid values. Missing entitlement removes the chart instead of applying a local fallback.
 
 ## Note
 - `Base_Strategy_Type` and `Points_Range_Setup` remain base-allowed and do not need this addon.

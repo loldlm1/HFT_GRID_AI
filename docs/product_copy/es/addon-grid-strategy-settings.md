@@ -31,7 +31,7 @@
 
 ## Si Falta el Addon
 - Se bloquea el inicio si se solicitan valores avanzados.
-- En runtime se fuerza `Grid_Level_Stop_Limit = 1` como proteccion.
+- El EA no ajusta automaticamente los valores avanzados del grid. Si falta el entitlement, el grafico se elimina en lugar de aplicar un fallback local.
 
 ## Nota
 - `Base_Strategy_Type` y `Points_Range_Setup` siguen permitidos en Base EA.

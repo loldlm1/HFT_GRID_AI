@@ -7,7 +7,7 @@
 
 #include "../../services/core/enums.mqh"
 #include "../../services/core/base_structures.mqh"
-#include "../../services/core/addon_catalog.mqh"
+#include "../../services/shared/license_guard_v1/core/addon_catalog.mqh"
 #include "../../services/utils/array_functions.mqh"
 #include "../../services/utils/miscellaneous.mqh"
 #include "../../services/utils/money_functions.mqh"

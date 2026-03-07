@@ -25,6 +25,28 @@ bool AddonPolicyAssertCompoundFamilyMap(const string label,
   return true;
 }
 
+void AddonPolicyAssertRequestedAddon(const string label,
+                                     string &addons[],
+                                     const string expected_addon,
+                                     string &errors)
+{
+  if(!AddonPolicyStringArrayContains(addons, expected_addon))
+    errors += label + " expected requested addon\n";
+}
+
+void AddonPolicyAssertRequestedAddonCount(const string label,
+                                          string &addons[],
+                                          const int expected_count,
+                                          string &errors)
+{
+  if(ArraySize(addons) != expected_count)
+  {
+    errors += label + " expected ";
+    errors += IntegerToString(expected_count);
+    errors += " requested addon(s)\n";
+  }
+}
+
 bool RunTest_addon_runtime_policy_test(string &errors)
 {
   errors = "";
@@ -55,32 +77,130 @@ bool RunTest_addon_runtime_policy_test(string &errors)
                                      errors);
 
   string requested_addons[];
-  bool require_any_compound_family = false;
-  AddonPolicyCollectRequestedAddons(requested_addons, require_any_compound_family);
+  CollectRequestedAddonsForCurrentInputs(requested_addons);
 
   if(ArraySize(requested_addons) != 0)
     errors += "default input profile should not request paid addons\n";
-  if(require_any_compound_family)
-    errors += "default input profile should not require any compound family\n";
 
-  string synthetic_requested[];
-  ArrayResize(synthetic_requested, 2);
-  synthetic_requested[0] = ADDON_KEY_SESSION_TIME_FILTER;
-  synthetic_requested[1] = ADDON_KEY_GRID_STRATEGY_CONFIG;
+  string session_requested[];
+  AddonPolicyCollectRequestedAddonsForSettings(SESSION_FILTER_ALLOW_RUN,
+                                               SESSION_FILTER_OFF,
+                                               SESSION_FILTER_OFF,
+                                               OFF_CANDLE_STRUCTURE,
+                                               1.0,
+                                               0,
+                                               1,
+                                               COMPOUND_MODE_OFF,
+                                               false,
+                                               session_requested);
+  AddonPolicyAssertRequestedAddon("session filter",
+                                  session_requested,
+                                  ADDON_KEY_SESSION_TIME_FILTER,
+                                  errors);
+  AddonPolicyAssertRequestedAddonCount("session filter",
+                                       session_requested,
+                                       1,
+                                       errors);
 
-  string missing_addons[];
-  AddonPolicyResolveMissingAddons(synthetic_requested, false, missing_addons);
+  string candle_requested[];
+  AddonPolicyCollectRequestedAddonsForSettings(SESSION_FILTER_OFF,
+                                               SESSION_FILTER_OFF,
+                                               SESSION_FILTER_OFF,
+                                               BULLISH_CANDLE_STRUCTURE,
+                                               1.0,
+                                               0,
+                                               1,
+                                               COMPOUND_MODE_OFF,
+                                               false,
+                                               candle_requested);
+  AddonPolicyAssertRequestedAddon("candle filter",
+                                  candle_requested,
+                                  ADDON_KEY_CANDLE_STRUCTURE_FILTER,
+                                  errors);
+  AddonPolicyAssertRequestedAddonCount("candle filter",
+                                       candle_requested,
+                                       1,
+                                       errors);
 
-#ifndef LICENSE_ENFORCEMENT_ENABLED
-  if(ArraySize(missing_addons) != 0)
-    errors += "compile-time-off mode should not report missing addons\n";
-#endif
+  string grid_requested[];
+  AddonPolicyCollectRequestedAddonsForSettings(SESSION_FILTER_OFF,
+                                               SESSION_FILTER_OFF,
+                                               SESSION_FILTER_OFF,
+                                               OFF_CANDLE_STRUCTURE,
+                                               1.20,
+                                               0,
+                                               3,
+                                               COMPOUND_MODE_OFF,
+                                               false,
+                                               grid_requested);
+  AddonPolicyAssertRequestedAddon("grid config",
+                                  grid_requested,
+                                  ADDON_KEY_GRID_STRATEGY_CONFIG,
+                                  errors);
+  AddonPolicyAssertRequestedAddonCount("grid config",
+                                       grid_requested,
+                                       1,
+                                       errors);
 
-  AddonPolicyApplyRuntimeLocks();
-#ifndef LICENSE_ENFORCEMENT_ENABLED
-  if(ResolveEffectiveGridLevelStopLimit() != Grid_Level_Stop_Limit)
-    errors += "compile-time-off mode should not force runtime grid level stop limit\n";
-#endif
+  string compound_requested[];
+  AddonPolicyCollectRequestedAddonsForSettings(SESSION_FILTER_OFF,
+                                               SESSION_FILTER_OFF,
+                                               SESSION_FILTER_OFF,
+                                               OFF_CANDLE_STRUCTURE,
+                                               1.0,
+                                               0,
+                                               1,
+                                               COMPOUND_MODE_TREND_RIDE_BUY,
+                                               false,
+                                               compound_requested);
+  AddonPolicyAssertRequestedAddon("compound mode",
+                                  compound_requested,
+                                  ADDON_KEY_COMPOUND_TREND_RIDE,
+                                  errors);
+  AddonPolicyAssertRequestedAddonCount("compound mode",
+                                       compound_requested,
+                                       1,
+                                       errors);
+
+  string any_compound_requested[];
+  AddonPolicyCollectRequestedAddonsForSettings(SESSION_FILTER_OFF,
+                                               SESSION_FILTER_OFF,
+                                               SESSION_FILTER_OFF,
+                                               OFF_CANDLE_STRUCTURE,
+                                               1.0,
+                                               0,
+                                               1,
+                                               COMPOUND_MODE_OFF,
+                                               true,
+                                               any_compound_requested);
+  AddonPolicyAssertRequestedAddon("compound any family",
+                                  any_compound_requested,
+                                  ADDON_KEY_COMPOUND_ANY_FAMILY,
+                                  errors);
+  AddonPolicyAssertRequestedAddonCount("compound any family",
+                                       any_compound_requested,
+                                       1,
+                                       errors);
+
+  string fresh_compound_requested[];
+  AddonPolicyCollectRequestedAddonsForSettings(SESSION_FILTER_OFF,
+                                               SESSION_FILTER_OFF,
+                                               SESSION_FILTER_OFF,
+                                               OFF_CANDLE_STRUCTURE,
+                                               1.0,
+                                               0,
+                                               1,
+                                               COMPOUND_MODE_BREAKOUT_READY_BUY,
+                                               true,
+                                               fresh_compound_requested);
+  AddonPolicyAssertRequestedAddon("fresh compound concrete family",
+                                  fresh_compound_requested,
+                                  ADDON_KEY_COMPOUND_BREAKOUT_READY,
+                                  errors);
+  AddonPolicyAssertRequestedAddonCount("fresh compound concrete family",
+                                       fresh_compound_requested,
+                                       1,
+                                       errors);
 
   if(AddonCatalogDisplayLabel(ADDON_KEY_SESSION_TIME_FILTER) != "Session Time Filter")
     errors += "session addon display label mismatch\n";

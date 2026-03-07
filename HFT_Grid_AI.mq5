@@ -35,7 +35,6 @@ string       g_dataset_id = "";
 bool         g_ea_running;
 datetime     g_initial_ea_date;
 SymbolTradingConstraints g_symbol_constraints;
-string       g_startup_block_message = "";
 
 bool ProcessPendingRemovalRequest()
 {
@@ -56,14 +55,6 @@ int OnInit()
 {
   if(!LicenseServiceInit())
     return(INIT_FAILED);
-
-  if(!AddonPolicyValidateEntitlementsForCurrentInputs(g_startup_block_message))
-  {
-    EALifecycleRequestRemoval(g_startup_block_message, true);
-    return(INIT_FAILED);
-  }
-  AddonPolicyApplyRuntimeLocks();
-  EALifecycleClearRemovalRequest();
 
   // INITIALIZE GLOBAL VARIABLES
   g_ea_running = false;
@@ -127,9 +118,6 @@ void OnDeinit(const int reason)
   string removal_message = EALifecycleRemovalMessage();
   bool preserve_error_object = EALifecyclePreserveErrorObject();
 
-  if(removal_message == "" && g_startup_block_message != "")
-    removal_message = g_startup_block_message;
-
   DeleteEAChartObjects(ChartID(), false);
   ResetGridVisualizationCache();
   ResetLightweightUiCache();
@@ -163,19 +151,9 @@ void OnTradeTransaction(const MqlTradeTransaction& trans,
 void OnTimer()
 {
   LicenseServiceOnTimer();
-  AddonPolicyApplyRuntimeLocks();
 
   if(ProcessPendingRemovalRequest())
     return;
-
-  string runtime_message = "";
-  if(!AddonPolicyValidateEntitlementsForCurrentInputs(runtime_message))
-  {
-    EALifecycleRequestRemoval(runtime_message, true);
-    Print("[AddonPolicy] Runtime entitlement mismatch. EA removed.");
-    ProcessPendingRemovalRequest();
-    return;
-  }
 }
 
 //+------------------------------------------------------------------+
@@ -183,7 +161,6 @@ void OnTimer()
 //+------------------------------------------------------------------+
 void OnTick()
 {
-  AddonPolicyApplyRuntimeLocks();
   RefreshCustomSymbolRates();
   DebugEquityGuardAllowsProcessing();
   ProtectionRiskMonitorTradeMode();

@@ -41,4 +41,4 @@ Locked defaults:
 
 ## If addon is missing
 - Requesting non-default locked values blocks startup.
-- Runtime safety lock enforces `Grid_Level_Stop_Limit = 1`.
+- The EA does not auto-clamp advanced grid values. Missing entitlement removes the chart instead of applying a local fallback.

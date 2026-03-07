@@ -465,7 +465,7 @@ bool StructureLimitTerminalBandGuardEnabled(const StructureTriggerEntryModes tri
     return g_structure_limit_terminal_band_guard_runtime_enabled;
 
   return (Base_Strategy_Type == FIB_LEVEL_RANGE &&
-          ResolveEffectiveGridLevelStopLimit() == 1 &&
+          Grid_Level_Stop_Limit == 1 &&
           Grid_Level_Position_Start == 0);
 }
 

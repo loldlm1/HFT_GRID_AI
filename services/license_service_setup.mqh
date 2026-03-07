@@ -6,7 +6,7 @@
 
 // EA profile configuration for the shared license guard service.
 #ifndef LICENSE_SHARED_PROFILE_NAME
-#define LICENSE_SHARED_PROFILE_NAME "HFT Grid AI"
+#define LICENSE_SHARED_PROFILE_NAME "Fibonacci EA"
 #endif
 
 #ifndef LICENSE_SHARED_SOURCE_KEY
@@ -41,8 +41,14 @@
 #define LICENSE_SHARED_ENABLE_ADDON_ENTITLEMENTS 1
 #endif
 
+#ifndef LICENSE_SHARED_COLLECT_REQUESTED_ADDONS
+#define LICENSE_SHARED_COLLECT_REQUESTED_ADDONS CollectRequestedAddonsForCurrentInputs
+#endif
+
+void CollectRequestedAddonsForCurrentInputs(string &addons_out[]);
+
 #ifndef LICENSE_SHARED_REQUIRED_ADDONS_CSV
-#define LICENSE_SHARED_REQUIRED_ADDONS_CSV "addon_session_time_filter,addon_grid_strategy_config,addon_candle_structure,addon_compound_trend_ride,addon_compound_pullback_continue,addon_compound_reversal_early,addon_compound_breakout_ready,addon_compound_volatility_trap"
+#define LICENSE_SHARED_REQUIRED_ADDONS_CSV ""
 #endif
 
 #include "shared/license_guard_v1/license_service.mqh"
