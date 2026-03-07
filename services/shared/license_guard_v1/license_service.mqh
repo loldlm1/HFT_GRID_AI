@@ -6,10 +6,6 @@
 
 #include "license_guard_profile.mqh"
 
-#resource "images\\logo_oficial.bmp"
-
-#include "core/license_footer.mqh"
-
 #ifdef LICENSE_SHARED_ENFORCEMENT_ENABLED
 #ifndef LICENSE_ENFORCEMENT_ENABLED
 #define LICENSE_ENFORCEMENT_ENABLED
@@ -136,7 +132,6 @@ bool LicenseServiceInit()
 
 #ifndef LICENSE_ENFORCEMENT_ENABLED
   Print("[License] Enforcement disabled at compile-time. Online validation/reporting skipped.");
-  LicenseFooterEnsureVisible();
   return true;
 #else
   if(!VerifyLicense())
@@ -162,14 +157,12 @@ bool LicenseServiceInit()
 #ifdef LICENSE_DAILY_RESULTS_ENABLED
   DailyResults_ResetRuntime();
 #endif
-  LicenseFooterEnsureVisible();
   return true;
 #endif
 }
 
 void LicenseServiceOnTimer()
 {
-  LicenseFooterEnsureVisible();
 #ifdef LICENSE_ENFORCEMENT_ENABLED
   LicenseOnline_OnTimer();
 #ifdef LICENSE_DAILY_RESULTS_ENABLED
@@ -180,7 +173,6 @@ void LicenseServiceOnTimer()
 
 void LicenseServiceOnDeinit()
 {
-  LicenseFooterRemove();
 #ifdef LICENSE_ENFORCEMENT_ENABLED
   LicenseOnline_OnDeinit();
 #endif
