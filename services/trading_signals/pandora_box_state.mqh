@@ -6,6 +6,7 @@
 
 const int PANDORA_MINUTES_PER_DAY = 24 * 60;
 const double PANDORA_EPSILON_EXTREME_BOX_RATIO = 5.0;
+const int PANDORA_HISTORY_DAYS = 8;
 
 struct PandoraBoxRuntimeState
 {
@@ -92,7 +93,70 @@ struct PandoraBoxRuntimeState
   }
 };
 
+struct PandoraHistorySnapshot
+{
+  datetime day_anchor;
+  datetime window_start_time;
+  datetime window_end_time;
+  datetime data_end_time;
+  bool     is_current_day;
+  bool     window_valid;
+  bool     box_computed;
+  bool     box_valid;
+  double   box_high;
+  double   box_low;
+  double   box_range_points;
+  double   breakout_high_price;
+  double   breakout_low_price;
+  string   invalid_reason;
+
+  PandoraHistorySnapshot()
+  {
+    Reset();
+  }
+
+  PandoraHistorySnapshot(const PandoraHistorySnapshot &snapshot)
+  {
+    day_anchor          = snapshot.day_anchor;
+    window_start_time   = snapshot.window_start_time;
+    window_end_time     = snapshot.window_end_time;
+    data_end_time       = snapshot.data_end_time;
+    is_current_day      = snapshot.is_current_day;
+    window_valid        = snapshot.window_valid;
+    box_computed        = snapshot.box_computed;
+    box_valid           = snapshot.box_valid;
+    box_high            = snapshot.box_high;
+    box_low             = snapshot.box_low;
+    box_range_points    = snapshot.box_range_points;
+    breakout_high_price = snapshot.breakout_high_price;
+    breakout_low_price  = snapshot.breakout_low_price;
+    invalid_reason      = snapshot.invalid_reason;
+  }
+
+  void Reset()
+  {
+    day_anchor          = 0;
+    window_start_time   = 0;
+    window_end_time     = 0;
+    data_end_time       = 0;
+    is_current_day      = false;
+    window_valid        = false;
+    box_computed        = false;
+    box_valid           = false;
+    box_high            = 0.0;
+    box_low             = 0.0;
+    box_range_points    = 0.0;
+    breakout_high_price = 0.0;
+    breakout_low_price  = 0.0;
+    invalid_reason      = "";
+  }
+};
+
 PandoraBoxRuntimeState g_pandora_box_state;
+PandoraHistorySnapshot g_pandora_history_snapshots[];
+datetime               g_pandora_history_last_day_anchor = 0;
+datetime               g_pandora_history_last_bar_time = 0;
+string                 g_pandora_history_last_signature = "";
 
 bool PandoraStrategyEnabled()
 {
@@ -112,6 +176,14 @@ ENUM_TIMEFRAMES PandoraResolveBoxTimeframe()
 bool IsPandoraSignal(const SignalParams &signal_params)
 {
   return (signal_params.strategy_context_label == "PANDORA");
+}
+
+double PandoraResolvePointSizeSafe()
+{
+  double point_size = SymbolInfoDouble(_Symbol, SYMBOL_POINT);
+  if(point_size <= 0.0)
+    point_size = 0.0001;
+  return point_size;
 }
 
 void PandoraResetDailyState()
@@ -490,13 +562,21 @@ bool PandoraRiskStepTrailingEnabled()
 double PandoraResolveConfiguredDistancePoints(const double configured_value,
                                               const bool enforce_broker_distance)
 {
+  return PandoraResolveDistancePointsForRange(configured_value,
+                                              g_pandora_box_state.box_range_points,
+                                              enforce_broker_distance);
+}
+
+double PandoraResolveDistancePointsForRange(const double configured_value,
+                                            const double box_range_points,
+                                            const bool enforce_broker_distance)
+{
   double requested_points = MathMax(configured_value, 0.0);
   if(requested_points <= 0.0)
     return 0.0;
 
   if(Pandora_Points_Value_Mode == PANDORA_VALUE_MODE_BOX_PERCENT)
   {
-    double box_range_points = g_pandora_box_state.box_range_points;
     if(box_range_points <= 0.0)
       return 0.0;
     requested_points = box_range_points * (requested_points / 100.0);
@@ -1083,6 +1163,203 @@ string PandoraWindowLabel()
                       g_pandora_box_state.start_minutes % 60,
                       g_pandora_box_state.end_minutes / 60,
                       g_pandora_box_state.end_minutes % 60);
+}
+
+string PandoraHistoryConfigSignature()
+{
+  return StringFormat("%s|%d|%d|%.4f|%.4f|%d",
+                      Pandora_Box_Time_Range,
+                      (int)PandoraResolveBoxTimeframe(),
+                      ResolveTradingTimeOffsetMinutes(),
+                      Pandora_Box_Offset_Points,
+                      Pandora_Box_Max_Range_Points,
+                      (int)Pandora_Points_Value_Mode);
+}
+
+void PandoraClearHistorySnapshots()
+{
+  ArrayResize(g_pandora_history_snapshots, 0);
+  g_pandora_history_last_day_anchor = 0;
+  g_pandora_history_last_bar_time   = 0;
+  g_pandora_history_last_signature  = "";
+}
+
+bool PandoraResolveWindowForDay(const datetime day_anchor,
+                                datetime &window_start_time,
+                                datetime &window_end_time)
+{
+  int start_minutes = 0;
+  int end_minutes   = 0;
+  if(!PandoraParseWindowMinutes(Pandora_Box_Time_Range, start_minutes, end_minutes))
+  {
+    window_start_time = 0;
+    window_end_time   = 0;
+    return false;
+  }
+
+  int offset_minutes = ResolveTradingTimeOffsetMinutes();
+  window_start_time = day_anchor + ((start_minutes + offset_minutes) * 60);
+  window_end_time   = day_anchor + ((end_minutes + offset_minutes) * 60);
+  return true;
+}
+
+bool PandoraBuildHistorySnapshot(const datetime day_anchor,
+                                 const bool is_current_day,
+                                 PandoraHistorySnapshot &snapshot_out)
+{
+  snapshot_out.Reset();
+  snapshot_out.day_anchor     = day_anchor;
+  snapshot_out.is_current_day = is_current_day;
+  snapshot_out.window_valid   = PandoraResolveWindowForDay(day_anchor,
+                                                           snapshot_out.window_start_time,
+                                                           snapshot_out.window_end_time);
+  if(!snapshot_out.window_valid)
+  {
+    snapshot_out.invalid_reason = "Invalid Pandora box time range";
+    return false;
+  }
+
+  datetime query_end_time = snapshot_out.window_end_time;
+  if(is_current_day)
+  {
+    datetime now_time = TimeCurrent();
+    if(now_time < query_end_time)
+      query_end_time = now_time;
+  }
+
+  snapshot_out.data_end_time = query_end_time;
+  if(query_end_time <= snapshot_out.window_start_time)
+  {
+    snapshot_out.invalid_reason = "Pandora window pending";
+    return false;
+  }
+
+  ENUM_TIMEFRAMES tf = PandoraResolveBoxTimeframe();
+  MqlRates rates[];
+  int copied = CopyRates(_Symbol,
+                         tf,
+                         snapshot_out.window_start_time,
+                         query_end_time,
+                         rates);
+  if(copied <= 0)
+  {
+    snapshot_out.invalid_reason = "No data for Pandora box window";
+    return false;
+  }
+
+  double box_high = rates[0].high;
+  double box_low  = rates[0].low;
+  for(int i = 1; i < copied; i++)
+  {
+    if(rates[i].high > box_high)
+      box_high = rates[i].high;
+    if(rates[i].low < box_low || box_low <= 0.0)
+      box_low = rates[i].low;
+  }
+
+  double point_size = PandoraResolvePointSizeSafe();
+  double range_points = 0.0;
+  if(point_size > 0.0 && box_high > 0.0 && box_low > 0.0)
+    range_points = MathAbs(box_high - box_low) / point_size;
+
+  snapshot_out.box_computed     = true;
+  snapshot_out.box_high         = box_high;
+  snapshot_out.box_low          = box_low;
+  snapshot_out.box_range_points = range_points;
+
+  if(box_high <= 0.0 || box_low <= 0.0 || range_points <= 0.0)
+  {
+    snapshot_out.invalid_reason = "Failed to resolve Pandora box prices";
+    snapshot_out.box_valid      = false;
+    return false;
+  }
+
+  double offset_points = PandoraResolveDistancePointsForRange(Pandora_Box_Offset_Points,
+                                                              snapshot_out.box_range_points,
+                                                              true);
+  double offset_price = offset_points * point_size;
+  snapshot_out.breakout_high_price = box_high + offset_price;
+  snapshot_out.breakout_low_price  = box_low - offset_price;
+
+  snapshot_out.box_valid = true;
+  if(Pandora_Box_Max_Range_Points > 0.0 &&
+     range_points > Pandora_Box_Max_Range_Points)
+  {
+    snapshot_out.box_valid      = false;
+    snapshot_out.invalid_reason = "Pandora box range exceeded";
+  }
+
+  return true;
+}
+
+bool PandoraHistoryNeedsRefresh()
+{
+  if(!PandoraStrategyEnabled())
+    return (ArraySize(g_pandora_history_snapshots) > 0);
+
+  string signature = PandoraHistoryConfigSignature();
+  if(signature != g_pandora_history_last_signature)
+    return true;
+
+  datetime day_anchor = ResolveCurrentDayStart();
+  if(day_anchor != g_pandora_history_last_day_anchor)
+    return true;
+
+  datetime bar_time = iTime(_Symbol, PandoraResolveBoxTimeframe(), 0);
+  if(bar_time != g_pandora_history_last_bar_time)
+    return true;
+
+  return false;
+}
+
+void PandoraRebuildHistorySnapshots()
+{
+  if(!PandoraStrategyEnabled())
+  {
+    PandoraClearHistorySnapshots();
+    return;
+  }
+
+  ArrayResize(g_pandora_history_snapshots, PANDORA_HISTORY_DAYS);
+
+  int stored = 0;
+  for(int shift = 0; shift < PANDORA_HISTORY_DAYS; shift++)
+  {
+    datetime day_anchor = iTime(_Symbol, PERIOD_D1, shift);
+    if(day_anchor <= 0)
+      continue;
+
+    PandoraHistorySnapshot snapshot;
+    PandoraBuildHistorySnapshot(day_anchor, (shift == 0), snapshot);
+    g_pandora_history_snapshots[stored] = snapshot;
+    stored++;
+  }
+
+  ArrayResize(g_pandora_history_snapshots, stored);
+  g_pandora_history_last_day_anchor = ResolveCurrentDayStart();
+  g_pandora_history_last_bar_time   = iTime(_Symbol, PandoraResolveBoxTimeframe(), 0);
+  g_pandora_history_last_signature  = PandoraHistoryConfigSignature();
+}
+
+void PandoraEnsureHistorySnapshots()
+{
+  if(!PandoraHistoryNeedsRefresh())
+    return;
+  PandoraRebuildHistorySnapshots();
+}
+
+int PandoraHistorySnapshotCount()
+{
+  PandoraEnsureHistorySnapshots();
+  return ArraySize(g_pandora_history_snapshots);
+}
+
+PandoraHistorySnapshot PandoraHistorySnapshotAt(const int index)
+{
+  PandoraHistorySnapshot snapshot;
+  if(index < 0 || index >= ArraySize(g_pandora_history_snapshots))
+    return snapshot;
+  return g_pandora_history_snapshots[index];
 }
 
 #endif // _SERVICES_TRADING_SIGNALS_PANDORA_BOX_STATE_MQH_

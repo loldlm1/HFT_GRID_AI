@@ -4,14 +4,6 @@
 #ifndef _SERVICES_TRADING_SIGNALS_PANDORA_BOX_DETECTION_MQH_
 #define _SERVICES_TRADING_SIGNALS_PANDORA_BOX_DETECTION_MQH_
 
-double PandoraResolvePointSizeSafe()
-{
-  double point_size = SymbolInfoDouble(_Symbol, SYMBOL_POINT);
-  if(point_size <= 0.0)
-    point_size = 0.0001;
-  return point_size;
-}
-
 bool PandoraComputeBoxWindow()
 {
   if(!PandoraEnsureWindowParsed())

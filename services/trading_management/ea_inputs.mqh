@@ -46,9 +46,9 @@ input bool                   Pandora_Box_Use_Session_Filter   = true;
 input bool                   Pandora_Box_Enable_Visualization = true;
 input bool                   Pandora_Box_Set_Broker_SLTP      = true;
 input bool                   Enable_Chart_Levels              = true;
-color  Pandora_Box_Color              = clrDodgerBlue;
-color  Pandora_Box_Invalid_Color      = clrFireBrick;
-color  Pandora_Box_Breakout_Color     = clrDarkOrange;
+color  Pandora_Box_Color              = C'38,166,154';
+color  Pandora_Box_Invalid_Color      = C'239,83,80';
+color  Pandora_Box_Breakout_Color     = clrDarkTurquoise;
 int    Pandora_Box_Line_Style         = STYLE_DASH;
 int    Pandora_Box_Breakout_Line_Style = STYLE_DASHDOT;
 

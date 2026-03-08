@@ -9,6 +9,60 @@ string PandoraObjectName(const string suffix)
   return "PANDORA_" + suffix;
 }
 
+string PandoraHistoryObjectName(const datetime day_anchor,
+                                const string suffix)
+{
+  return PandoraObjectName("DAY_" + CompactTimeIdentifier(day_anchor) + "_" + suffix);
+}
+
+void PandoraDrawHistorySnapshot(const long chart_id,
+                                const PandoraHistorySnapshot &snapshot,
+                                string &tracked_objects[])
+{
+  if(snapshot.window_start_time <= 0 ||
+     snapshot.window_end_time <= 0 ||
+     snapshot.box_high <= 0.0 ||
+     snapshot.box_low <= 0.0)
+    return;
+
+  string rect_name = PandoraHistoryObjectName(snapshot.day_anchor, "BOX");
+  UpdateTrackedTimePriceRectangle(chart_id,
+                                  rect_name,
+                                  snapshot.window_start_time,
+                                  snapshot.box_high,
+                                  snapshot.window_end_time,
+                                  snapshot.box_low,
+                                  COLOR_HISTORY_FILL,
+                                  tracked_objects,
+                                  STYLE_SOLID,
+                                  1);
+
+  string invalid_label_name = PandoraHistoryObjectName(snapshot.day_anchor, "LABEL");
+  string invalid_label_text = snapshot.box_valid ? "" : "INV";
+  double label_price = snapshot.box_high;
+  UpdateTrackedTimePriceText(chart_id,
+                             invalid_label_name,
+                             snapshot.window_start_time,
+                             label_price,
+                             invalid_label_text,
+                             FRONTEND_PANEL_FONT,
+                             7,
+                             COLOR_HISTORY_LABEL,
+                             tracked_objects);
+}
+
+void PandoraDrawHistory(const long chart_id,
+                        string &tracked_objects[])
+{
+  PandoraEnsureHistorySnapshots();
+  int total = PandoraHistorySnapshotCount();
+  for(int i = total - 1; i >= 0; i--)
+  {
+    PandoraHistorySnapshot snapshot = PandoraHistorySnapshotAt(i);
+    PandoraDrawHistorySnapshot(chart_id, snapshot, tracked_objects);
+  }
+}
+
 void PandoraDrawVisualization(const long chart_id,
                               string &tracked_objects[])
 {
@@ -18,6 +72,8 @@ void PandoraDrawVisualization(const long chart_id,
 
   if(!PandoraVisualizationEnabled())
     return;
+
+  PandoraDrawHistory(chart_id, tracked_objects);
 
   color box_color = Pandora_Box_Color;
   bool  invalid_box = (g_pandora_box_state.box_computed && !g_pandora_box_state.box_valid);

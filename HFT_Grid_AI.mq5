@@ -124,6 +124,7 @@ void OnDeinit(const int reason)
 {
   LicenseServiceOnDeinit();
   EventKillTimer();
+  ClearFrontendVisualization();
   Comment("");
   EALifecycleClearRemovalRequest();
 }

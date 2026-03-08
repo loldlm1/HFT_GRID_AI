@@ -95,7 +95,7 @@ This document summarizes the current architecture, workflows, and guardrails for
 5. **Protection & Telemetry**
    - `ProtectionRiskFilter` enforces drawdown guard, market close guard, and daily lock.
    - `market_status_controller` coordinates `ACTIVE / CLOSE_GUARD / BROKER_CLOSEONLY / BROKER_DISABLED` transitions and pending force closes.
-   - `grid_visualization` mirrors backend state on chart objects; `Comment()` prints status summary (`Enabled/Disabled`, magic number, market status, running grid stats) and now annotates each grid with its context label/timeframe (e.g., `BULL BASE@M1`).
+   - `grid_visualization` now owns the fixed frontend pass: branded chart palette, compact top-left panel, Pandora current-day/past-day rectangles, and the grid level overlays. Live charts use the object-based panel; `Comment()` is kept only as a Strategy Tester fallback.
 
 ---
 
@@ -119,6 +119,7 @@ This document summarizes the current architecture, workflows, and guardrails for
   - `Debug_Stop_On_Negative_Equity` terminates hopeless simulations early and ensures all grids are closed so MT5 equity curves reflect realised P/L.
 - **Log Files**: `query_debug.txt` captures structured events (grid geometry, guardrail blocks, lifecycle transitions). Clear or rotate the file between long test sessions.
 - **Chart Output**: Use `Enable_Chart_Levels` and `Enable_Chart_Summary` to visualize backend state; disable for performance-sensitive optimizations.
+  - With both toggles enabled, the EA renders the fixed Pandora frontend: compact top-left panel plus up to 8 Pandora day zones (current day + previous 7 trading days). Invalid historical days keep the same DimGray fill and are marked with a simple label.
 
 ---
 

@@ -83,9 +83,9 @@ Follow these detailed steps to install and configure **Pandora Box** in MetaTrad
 | `Pandora_Box_Stop_On_First_Win` | `true` | Ends Pandora for the day after first profitable closure. | Keep `true` for conservative pacing. |
 | `Pandora_Box_Direction_Mode` | `BOTH_DIRECTION` | Allowed breakout side(s): both, bullish only, or bearish only. | Restrict to one side only with directional conviction. |
 | `Pandora_Box_Use_Session_Filter` | `true` | Applies session-time filters to Pandora attempts. | Keep `true` when session policy is part of risk management. |
-| `Pandora_Box_Enable_Visualization` | `true` | Draws Pandora box and breakout lines on chart. | Keep enabled during setup/tuning. |
+| `Pandora_Box_Enable_Visualization` | `true` | Draws the Pandora chart frontend: current box/breakout guides plus up to 8 day-zones (current day + previous 7 trading days). Invalid historical days keep the same DimGray fill and show a simple label. | Keep enabled during setup/tuning. |
 | `Pandora_Box_Set_Broker_SLTP` | `true` | Sends SL/TP to broker at execution; when `false`, EA handles checks locally. | Keep `true` for broker-side risk protection. |
-| `Enable_Chart_Levels` | `true` | Enables chart overlays/summary levels. | Keep enabled for manual monitoring. |
+| `Enable_Chart_Levels` | `true` | Enables the fixed frontend overlays. With `Enable_Chart_Summary` also active, live charts show the compact top-left panel instead of live `Comment()` text; Strategy Tester still uses comment fallback. | Keep enabled for manual monitoring. |
 | `Pandora_Risk_Trailing_Mode` | `PANDORA_RISK_TRAILING_OFF` | Trailing behavior: `OFF` or `PANDORA_RISK_TRAILING_STEP_TP`. | Start with `OFF`; use `STEP_TP` after tester validation. |
 | `Pandora_Lot_Type` | `PANDORA_LOT_SIZE` | Lot mode: fixed lot, percentage-based, or currency-based. | Use fixed lot initially; budget modes require calibration. |
 | `Pandora_Lot_Strategy_Size` | `0.01` | Size input consumed by the selected lot mode. | Start small and increase gradually. |

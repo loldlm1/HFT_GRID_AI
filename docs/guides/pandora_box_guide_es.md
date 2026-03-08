@@ -83,9 +83,9 @@ Sigue estos pasos detallados para instalar y configurar **Pandora Box** en MetaT
 | `Pandora_Box_Stop_On_First_Win` | `true` | Finaliza Pandora por el día tras el primer cierre con beneficio. | Mantén `true` para un ritmo conservador. |
 | `Pandora_Box_Direction_Mode` | `BOTH_DIRECTION` | Lado(s) permitidos de ruptura: ambos, solo alcista o solo bajista. | Restringe a un lado solo con sesgo direccional claro. |
 | `Pandora_Box_Use_Session_Filter` | `true` | Aplica filtros horarios de sesión a intentos Pandora. | Mantén `true` cuando la política de sesión sea parte del riesgo. |
-| `Pandora_Box_Enable_Visualization` | `true` | Dibuja líneas del box y rupturas en el gráfico. | Mantén activo durante configuración/ajuste. |
+| `Pandora_Box_Enable_Visualization` | `true` | Dibuja el frontend visual de Pandora: box actual, guías de ruptura y hasta 8 zonas diarias (día actual + 7 días previos de trading). Los días históricos inválidos conservan el relleno DimGray y muestran una etiqueta simple. | Mantén activo durante configuración/ajuste. |
 | `Pandora_Box_Set_Broker_SLTP` | `true` | Envía SL/TP al bróker en la ejecución; en `false`, el EA valida localmente. | Mantén `true` para protección del lado del bróker. |
-| `Enable_Chart_Levels` | `true` | Habilita overlays/niveles de resumen en gráfico. | Mantén activo para monitoreo manual. |
+| `Enable_Chart_Levels` | `true` | Habilita el frontend visual fijo. Cuando `Enable_Chart_Summary` también está activo, el gráfico en vivo usa el panel compacto en la esquina superior izquierda en lugar del `Comment()` en vivo; el Strategy Tester mantiene el fallback por comentario. | Mantén activo para monitoreo manual. |
 | `Pandora_Risk_Trailing_Mode` | `PANDORA_RISK_TRAILING_OFF` | Comportamiento de trailing: `OFF` o `PANDORA_RISK_TRAILING_STEP_TP`. | Comienza con `OFF`; usa `STEP_TP` tras validar en tester. |
 | `Pandora_Lot_Type` | `PANDORA_LOT_SIZE` | Modo de lote: fijo, basado en porcentaje o basado en moneda. | Usa lote fijo al inicio; los modos por presupuesto requieren calibración. |
 | `Pandora_Lot_Strategy_Size` | `0.01` | Tamaño usado por el modo de lote seleccionado. | Empieza pequeño y aumenta gradualmente. |

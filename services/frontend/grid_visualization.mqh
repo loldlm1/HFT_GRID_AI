@@ -1,6 +1,8 @@
 #ifndef _SERVICES_FRONTEND_GRID_VISUALIZATION_MQH_
 #define _SERVICES_FRONTEND_GRID_VISUALIZATION_MQH_
 
+string g_frontend_tracked_objects[];
+
 double ResolveBreakEvenLinePrice(const SignalParams &signal_params)
 {
   if(Grid_BreakEven_Mode == BE_DISABLE)
@@ -155,19 +157,15 @@ void BuildSignalSummary(const SignalParams &signal_params,
 
 void RefreshGridVisualization()
 {
-  if(!Enable_Chart_Levels)
-    return;
   long chart_id = ChartID();
-  static string previous_objects[];
   string current_objects[];
-
   datetime now_time = TimeCurrent();
   string summary_lines[];
 
-  PandoraDrawVisualization(chart_id, current_objects);
-
   if(Enable_Chart_Levels)
   {
+    PandoraDrawVisualization(chart_id, current_objects);
+
     int bullish_total = ArraySize(running_bullish_signals);
     for(int i = 0; i < bullish_total; i++)
       DrawGridLevels(chart_id, running_bullish_signals[i], current_objects);
@@ -175,12 +173,6 @@ void RefreshGridVisualization()
     int bearish_total = ArraySize(running_bearish_signals);
     for(int j = 0; j < bearish_total; j++)
       DrawGridLevels(chart_id, running_bearish_signals[j], current_objects);
-  }
-  else
-  {
-    int prev_total = ArraySize(previous_objects);
-    for(int k = 0; k < prev_total; k++)
-      ObjectDelete(chart_id, previous_objects[k]);
   }
 
   if(Enable_Chart_Summary)
@@ -195,31 +187,50 @@ void RefreshGridVisualization()
     for(int j = 0; j < bearish_total; j++)
       BuildSignalSummary(running_bearish_signals[j], summary_lines, now_time);
 
-    string market_status = MarketStatusToString(MarketStatusGet());
-    string header = StringFormat("%s   /   Magic: %I64d   /   Market: %s",
-                                 g_ea_running ? "Enabled" : "Disabled",
-                                 g_magic_number,
-                                 market_status);
-    string status_reason = MarketStatusReason();
-    if(status_reason != "")
-      header = header + " (" + status_reason + ")";
-
-    string comment_text = header;
-    int summary_total = ArraySize(summary_lines);
-    for(int idx = 0; idx < summary_total; idx++)
-      comment_text = comment_text + "\n" + summary_lines[idx];
-
-    Comment(comment_text);
   }
 
-  int previous_total = ArraySize(previous_objects);
+  string market_status = MarketStatusToString(MarketStatusGet());
+  string status_reason = MarketStatusReason();
+  if(FrontendPanelEnabled())
+  {
+    RenderFrontendPanel(chart_id,
+                        now_time,
+                        market_status,
+                        status_reason,
+                        summary_lines,
+                        current_objects);
+    Comment("");
+  }
+  else if(FrontendTesterCommentEnabled())
+  {
+    Comment(BuildTesterSummaryComment(now_time,
+                                     market_status,
+                                     status_reason,
+                                     summary_lines));
+  }
+  else
+  {
+    Comment("");
+  }
+
+  int previous_total = ArraySize(g_frontend_tracked_objects);
   for(int p = 0; p < previous_total; p++)
   {
-    if(!ContainsObjectName(current_objects, previous_objects[p]))
-      ObjectDelete(chart_id, previous_objects[p]);
+    if(!ContainsObjectName(current_objects, g_frontend_tracked_objects[p]))
+      ObjectDelete(chart_id, g_frontend_tracked_objects[p]);
   }
 
-  ArrayCopy(previous_objects, current_objects);
+  ArrayCopy(g_frontend_tracked_objects, current_objects);
+}
+
+void ClearFrontendVisualization()
+{
+  long chart_id = ChartID();
+  int total = ArraySize(g_frontend_tracked_objects);
+  for(int i = 0; i < total; i++)
+    ObjectDelete(chart_id, g_frontend_tracked_objects[i]);
+  ArrayResize(g_frontend_tracked_objects, 0);
+  Comment("");
 }
 
 #endif // _SERVICES_FRONTEND_GRID_VISUALIZATION_MQH_
