@@ -79,7 +79,7 @@ int OnInit()
 
   // SET THE MAGIC NUMBER (strictly from successful license verify cache)
   long verified_magic_number = LicenseGetCachedMagicNumber();
-  if(verified_magic_number <= 0)
+  if(verified_magic_number <= 0 && is_testing == false)
   {
     EALifecycleRequestRemoval(LicenseServiceBuildRemovalMessage(""));
     return INIT_FAILED;
