@@ -97,4 +97,5 @@ Note:
 - `services/` holds the ordered include pipeline (tools -> management -> strategies -> signals -> frontend).
 - `services/frontend/lightweight_status_layout.mqh` owns responsive layout profile selection for the lightweight chart panel.
 - `services/frontend/lightweight_status_ui.mqh` auto-selects `full` or `compact` panel rendering from chart size and refreshes on major chart changes.
+- Set `Enable_Chart_Ui_Debug_Logs = true` in `services/trading_management/ea_inputs.mqh` to emit removable `[UI_DIAG]` layout diagnostics for Windows vs Wine comparison.
 - `AGENTS.md` is the short architectural brief and source of truth for contributor rules.

@@ -8,6 +8,7 @@ const uchar LIGHTWEIGHT_UI_PANEL_FILL_ALPHA = 36;
 string g_chart_ui_last_button_text = "";
 string g_chart_ui_last_details_button_text = "";
 string g_chart_ui_last_rows[];
+string g_chart_ui_last_diag_signature = "";
 LightweightUiChartSnapshot g_chart_ui_last_snapshot;
 LightweightUiProfiles g_chart_ui_last_profile = LIGHTWEIGHT_UI_PROFILE_FULL;
 bool g_chart_ui_layout_dirty = true;
@@ -88,6 +89,7 @@ void ResetLightweightUiCache()
 {
   g_chart_ui_last_button_text = "";
   g_chart_ui_last_details_button_text = "";
+  g_chart_ui_last_diag_signature = "";
   ArrayResize(g_chart_ui_last_rows, 0);
   g_chart_ui_last_snapshot = LightweightUiChartSnapshot();
   g_chart_ui_last_profile = LIGHTWEIGHT_UI_PROFILE_FULL;
@@ -293,6 +295,127 @@ string ResolveRuntimeTickBlockSource()
     return "market_hours";
 
   return "";
+}
+
+string ResolveLightweightUiProfileLabel(const LightweightUiProfiles profile)
+{
+  if(IsLightweightUiCompactProfile(profile))
+    return "COMPACT";
+  return "FULL";
+}
+
+string BuildLightweightUiDiagnosticSignature(const LightweightUiChartSnapshot &snapshot,
+                                             const LightweightUiLayoutMetrics &layout,
+                                             const int row_budget,
+                                             const int rows_hidden,
+                                             const bool details_expanded,
+                                             string &rows[])
+{
+  string signature = StringFormat("%d|%d|%d|%d|%d|%d|%d|%d|%d|%d|%d",
+                                  snapshot.chart_width,
+                                  snapshot.chart_height,
+                                  layout.profile,
+                                  layout.panel_width,
+                                  layout.row_step,
+                                  layout.font_size,
+                                  row_budget,
+                                  ArraySize(rows),
+                                  rows_hidden,
+                                  layout.show_details_button,
+                                  details_expanded);
+
+  int rows_total = ArraySize(rows);
+  for(int i = 0; i < rows_total; i++)
+    signature = signature + "|" + rows[i];
+
+  return signature;
+}
+
+void LogLightweightUiEventDiagnostic(const string tag,
+                                     const string message)
+{
+  if(!Enable_Chart_Ui_Debug_Logs)
+    return;
+
+  PrintFormat("[UI_DIAG] %s | %s",
+              tag,
+              message);
+}
+
+void LogLightweightUiDiagnostics(const long chart_id,
+                                 const LightweightUiChartSnapshot &snapshot,
+                                 const LightweightUiLayoutMetrics &layout,
+                                 const int row_budget,
+                                 const int rows_hidden,
+                                 const int max_value_chars,
+                                 const bool details_expanded,
+                                 string &rows[])
+{
+  if(!Enable_Chart_Ui_Debug_Logs)
+    return;
+
+  string signature = BuildLightweightUiDiagnosticSignature(snapshot,
+                                                           layout,
+                                                           row_budget,
+                                                           rows_hidden,
+                                                           details_expanded,
+                                                           rows);
+  if(signature == g_chart_ui_last_diag_signature)
+    return;
+
+  g_chart_ui_last_diag_signature = signature;
+
+  long actual_panel_x = ObjectGetInteger(chart_id, EA_CHART_UI_PANEL, OBJPROP_XDISTANCE);
+  long actual_panel_y = ObjectGetInteger(chart_id, EA_CHART_UI_PANEL, OBJPROP_YDISTANCE);
+  long actual_panel_w = ObjectGetInteger(chart_id, EA_CHART_UI_PANEL, OBJPROP_XSIZE);
+  long actual_panel_h = ObjectGetInteger(chart_id, EA_CHART_UI_PANEL, OBJPROP_YSIZE);
+  long actual_toggle_x = ObjectGetInteger(chart_id, EA_CHART_UI_TOGGLE, OBJPROP_XDISTANCE);
+  long actual_toggle_y = ObjectGetInteger(chart_id, EA_CHART_UI_TOGGLE, OBJPROP_YDISTANCE);
+  long actual_toggle_w = ObjectGetInteger(chart_id, EA_CHART_UI_TOGGLE, OBJPROP_XSIZE);
+  long actual_toggle_h = ObjectGetInteger(chart_id, EA_CHART_UI_TOGGLE, OBJPROP_YSIZE);
+
+  PrintFormat("[UI_DIAG] layout chart=%I64d symbol=%s period=%d valid=%s width=%d height=%d profile=%s reduced=%s details_button=%s details_expanded=%s panel=(x=%d y=%d w=%d h=%d) actual_panel=(x=%I64d y=%I64d w=%I64d h=%I64d) toggle=(x=%I64d y=%I64d w=%I64d h=%I64d) font=%s/%d button_font=%d row_step=%d row_budget=%d rows_total=%d hidden_rows=%d max_value_chars=%d",
+              chart_id,
+              _Symbol,
+              _Period,
+              BoolOnOff(snapshot.valid),
+              snapshot.chart_width,
+              snapshot.chart_height,
+              ResolveLightweightUiProfileLabel(layout.profile),
+              BoolOnOff(layout.reduced_margins),
+              BoolOnOff(layout.show_details_button),
+              BoolOnOff(details_expanded),
+              layout.panel_x,
+              layout.panel_y,
+              layout.panel_width,
+              ResolveLightweightUiPanelHeight(layout, ArraySize(rows)),
+              actual_panel_x,
+              actual_panel_y,
+              actual_panel_w,
+              actual_panel_h,
+              actual_toggle_x,
+              actual_toggle_y,
+              actual_toggle_w,
+              actual_toggle_h,
+              layout.font_name,
+              layout.font_size,
+              layout.button_font_size,
+              layout.row_step,
+              row_budget,
+              ArraySize(rows),
+              rows_hidden,
+              max_value_chars);
+
+  int rows_total = ArraySize(rows);
+  for(int i = 0; i < rows_total; i++)
+  {
+    int row_y = layout.panel_y + layout.first_row_offset + i * layout.row_step;
+    PrintFormat("[UI_DIAG] row[%d] y=%d chars=%d text=\"%s\"",
+                i,
+                row_y,
+                StringLen(rows[i]),
+                rows[i]);
+  }
 }
 
 string BuildCompactAddonSummary(const int requested_total,
@@ -731,6 +854,15 @@ void RenderLightweightStatusTable(const bool ea_running,
   g_chart_ui_last_details_visible = layout.show_details_button;
   g_chart_ui_layout_dirty = false;
 
+  LogLightweightUiDiagnostics(chart_id,
+                              snapshot,
+                              layout,
+                              row_budget,
+                              rows_hidden,
+                              max_value_chars,
+                              details_expanded,
+                              rows);
+
   if(layout_changed)
     ChartRedraw(chart_id);
 }
@@ -744,6 +876,14 @@ bool HandleLightweightChartUiEvent(const int id,
   {
     LightweightUiChartSnapshot current_snapshot;
     ResolveLightweightUiChartSnapshot(ChartID(), current_snapshot);
+    LogLightweightUiEventDiagnostic("chart_change",
+                                    StringFormat("prev=%dx%d next=%dx%d prev_profile=%s next_profile=%s",
+                                                 g_chart_ui_last_snapshot.chart_width,
+                                                 g_chart_ui_last_snapshot.chart_height,
+                                                 current_snapshot.chart_width,
+                                                 current_snapshot.chart_height,
+                                                 ResolveLightweightUiProfileLabel(g_chart_ui_last_profile),
+                                                 ResolveLightweightUiProfileLabel(ResolveLightweightUiProfile(current_snapshot))));
     if(HasLightweightUiMajorChartChange(g_chart_ui_last_snapshot, current_snapshot))
     {
       InvalidateLightweightUiLayout();
@@ -761,6 +901,9 @@ bool HandleLightweightChartUiEvent(const int id,
   if(sparam == EA_CHART_UI_DETAILS)
   {
     g_chart_ui_details_expanded = !g_chart_ui_details_expanded;
+    LogLightweightUiEventDiagnostic("details_click",
+                                    StringFormat("details_expanded=%s",
+                                                 BoolOnOff(g_chart_ui_details_expanded)));
     InvalidateLightweightUiLayout();
     return true;
   }
@@ -777,6 +920,9 @@ bool HandleLightweightChartUiEvent(const int id,
   SetManualSignalEntryEnabled(!ManualSignalEntryEnabled());
   PrintFormat("[UI] Manual signal toggle set to %s.",
               (ManualSignalEntryEnabled() ? "ON" : "OFF"));
+  LogLightweightUiEventDiagnostic("toggle_click",
+                                  StringFormat("manual_toggle=%s",
+                                               BoolOnOff(ManualSignalEntryEnabled())));
 
   InvalidateLightweightUiLayout();
   return true;
