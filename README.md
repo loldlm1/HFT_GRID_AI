@@ -95,4 +95,6 @@ Note:
 ## Project Map (brief)
 - `services/license_service_setup.mqh` is the canonical license bootstrap for this EA and includes the shared guard service under `services/shared/license_guard_v1/`.
 - `services/` holds the ordered include pipeline (tools -> management -> strategies -> signals -> frontend).
+- `services/frontend/lightweight_status_layout.mqh` owns responsive layout profile selection for the lightweight chart panel.
+- `services/frontend/lightweight_status_ui.mqh` auto-selects `full` or `compact` panel rendering from chart size and refreshes on major chart changes.
 - `AGENTS.md` is the short architectural brief and source of truth for contributor rules.

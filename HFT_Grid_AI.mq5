@@ -88,9 +88,11 @@ int OnInit()
   g_position.SetExpertMagicNumber(g_magic_number);
 
   // CHART SETUP
+  RefreshCustomSymbolRates();
   ClearPersistentChartError();
   ResetGridVisualizationCache();
   ResetLightweightUiCache();
+  InvalidateLightweightUiLayout();
   ApplyDefaultChartStyle(ChartID());
 
   // INITIALIZE THE EA
@@ -103,6 +105,9 @@ int OnInit()
                 LicenseServiceTimerSeconds());
     return(INIT_FAILED);
   }
+
+  RefreshGridVisualization();
+  ChartRedraw(ChartID());
 
   return(INIT_SUCCEEDED);
 }
@@ -216,7 +221,11 @@ void OnChartEvent(const int id,
                   const double &dparam,
                   const string &sparam)
 {
-  HandleLightweightChartUiEvent(id, lparam, dparam, sparam);
+  if(HandleLightweightChartUiEvent(id, lparam, dparam, sparam))
+  {
+    RefreshGridVisualization();
+    ChartRedraw(ChartID());
+  }
 }
 
 // DETECT BULLISH AND BEARISH SIGNALS

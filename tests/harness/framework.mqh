@@ -24,6 +24,7 @@
 #include "../../services/trading_signals/signal_lot_strategy.mqh"
 #include "../../services/trading_signals/structure_compound_modes.mqh"
 #include "../../services/frontend/grid_visual_utils.mqh"
+#include "../../services/frontend/lightweight_status_layout.mqh"
 
 struct StrategyContextIndicators
 {

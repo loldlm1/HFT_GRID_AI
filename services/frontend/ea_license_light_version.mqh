@@ -11,16 +11,19 @@
 void CreateLicensePanelLive()
 {
   ResetLightweightUiCache();
+  InvalidateLightweightUiLayout();
 }
 
 void CreateEATitleBar()
 {
   ResetLightweightUiCache();
+  InvalidateLightweightUiLayout();
 }
 
 void UpdateEARunningMagic()
 {
   ResetLightweightUiCache();
+  InvalidateLightweightUiLayout();
 }
 
 int ChartWindowPosition()
