@@ -95,7 +95,7 @@ Note:
 ## Project Map (brief)
 - `services/license_service_setup.mqh` is the canonical license bootstrap for this EA and includes the shared guard service under `services/shared/license_guard_v1/`.
 - `services/` holds the ordered include pipeline (tools -> management -> strategies -> signals -> frontend).
-- `services/frontend/lightweight_status_layout.mqh` owns responsive layout profile selection for the lightweight chart panel.
-- `services/frontend/lightweight_status_ui.mqh` auto-selects `full` or `compact` panel rendering from chart size and refreshes on major chart changes.
+- `services/frontend/lightweight_status_layout.mqh` owns chart-size plus content-pressure fit decisions for the lightweight chart panel.
+- `services/frontend/lightweight_status_ui.mqh` auto-selects relaxed `full`, pressured `full`, or `compact` rendering from chart size, row density, and total row width pressure, then refreshes on major chart changes.
 - Set `Enable_Chart_Ui_Debug_Logs = true` in `services/trading_management/ea_inputs.mqh` to emit removable `[UI_DIAG]` layout diagnostics for Windows vs Wine comparison.
 - `AGENTS.md` is the short architectural brief and source of truth for contributor rules.
