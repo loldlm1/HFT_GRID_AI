@@ -7,6 +7,7 @@ This folder contains product-ready guides for the base EA and each paid addon.
 - `session-time-filter.md`
 - `grid-strategy-settings.md`
 - `candle-structure-filter.md`
+- `support-resistance-retest-chain.md`
 - `compound-trend-ride.md`
 - `compound-pullback-continue.md`
 - `compound-reversal-early.md`
@@ -19,6 +20,7 @@ This folder contains product-ready guides for the base EA and each paid addon.
 - Time Filter Session Manager: `addon_session_time_filter`
 - Grid Strategy Settings: `addon_grid_strategy_config`
 - Candle Structure Filter: `addon_candle_structure`
+- Support Resistance Retest Chain: `addon_support_resistance_retest_chain`
 - Structure Compound Context (Trend Ride): `addon_compound_trend_ride`
 - Structure Compound Context (Pullback Continue): `addon_compound_pullback_continue`
 - Structure Compound Context (Reversal Early): `addon_compound_reversal_early`

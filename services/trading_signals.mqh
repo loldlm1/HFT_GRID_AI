@@ -14,6 +14,7 @@
 #include "trading_signals/market_signal_state.mqh"
 #include "trading_signals/market_signal_indicators.mqh"
 #include "trading_signals/structure_compound_modes.mqh"
+#include "trading_signals/structure_support_resistance_filter.mqh"
 #include "trading_signals/market_signal_filters.mqh"
 #include "trading_signals/market_signal_cleanup.mqh"
 #include "trading_signals/market_signal_detection.mqh"

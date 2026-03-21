@@ -10,12 +10,29 @@ struct StrategyStructureLayerContext
   TrendStructureCompoundModes structure_compound_filter;
   bool                        enabled;
   bool                        uses_trend_dataset;
+  bool                        support_resistance_retest_chain_enabled;
+  int                         support_resistance_retest_chain_count;
+  double                      support_resistance_retest_chain_range_percent;
+
+  StrategyStructureLayerContext()
+  {
+    structure_compound_filter = COMPOUND_MODE_OFF;
+    enabled                   = false;
+    uses_trend_dataset        = false;
+    support_resistance_retest_chain_enabled = false;
+    support_resistance_retest_chain_count = 1;
+    support_resistance_retest_chain_range_percent = 10.0;
+  }
 };
 
 StructureTouchPolicyModes g_structure_touch_policy_runtime = ALLOW_RETEST;
 bool g_structure_touch_policy_runtime_override = false;
 TrendStructureCompoundModes g_structure_compound_filter_runtime = COMPOUND_MODE_OFF;
 bool g_structure_compound_filter_runtime_override = false;
+bool g_support_resistance_retest_chain_runtime_enabled = false;
+int g_support_resistance_retest_chain_runtime_count = 1;
+double g_support_resistance_retest_chain_runtime_range_percent = 10.0;
+bool g_support_resistance_retest_chain_runtime_override = false;
 
 inline bool StructureCompoundFilterIsEnabled(const TrendStructureCompoundModes mode)
 {
@@ -28,6 +45,72 @@ inline bool StructureCompoundFilterIsBreakoutMode(const TrendStructureCompoundMo
           mode == COMPOUND_MODE_BREAKOUT_READY_SELL);
 }
 
+inline bool SupportResistanceRetestChainEnabled(const bool enabled)
+{
+  return enabled;
+}
+
+inline int ResolveSupportResistanceRetestChainCount(const int count)
+{
+  if(count <= 0)
+    return 1;
+  return count;
+}
+
+inline double ResolveSupportResistanceRetestChainRangePercent(const double range_percent)
+{
+  if(!MathIsValidNumber(range_percent) || range_percent <= 0.0)
+    return 10.0;
+  return range_percent;
+}
+
+inline bool ResolveBaseSupportResistanceRetestChainEnabled()
+{
+  if(g_support_resistance_retest_chain_runtime_override)
+    return g_support_resistance_retest_chain_runtime_enabled;
+
+  return SupportResistanceRetestChainEnabled(Support_Resistance_Retest_Chain_Enabled);
+}
+
+inline int ResolveBaseSupportResistanceRetestChainCount()
+{
+  if(g_support_resistance_retest_chain_runtime_override)
+    return ResolveSupportResistanceRetestChainCount(g_support_resistance_retest_chain_runtime_count);
+
+  return ResolveSupportResistanceRetestChainCount(Support_Resistance_Retest_Chain_Count);
+}
+
+inline double ResolveBaseSupportResistanceRetestChainRangePercent()
+{
+  if(g_support_resistance_retest_chain_runtime_override)
+    return ResolveSupportResistanceRetestChainRangePercent(g_support_resistance_retest_chain_runtime_range_percent);
+
+  return ResolveSupportResistanceRetestChainRangePercent(Support_Resistance_Retest_Chain_Range_Percent);
+}
+
+inline void SetSupportResistanceRetestChainRuntime(const bool enabled,
+                                                   const int count,
+                                                   const double range_percent)
+{
+  g_support_resistance_retest_chain_runtime_enabled = enabled;
+  g_support_resistance_retest_chain_runtime_count = count;
+  g_support_resistance_retest_chain_runtime_range_percent = range_percent;
+  g_support_resistance_retest_chain_runtime_override = true;
+}
+
+inline void ClearSupportResistanceRetestChainRuntimeOverride()
+{
+  g_support_resistance_retest_chain_runtime_override = false;
+}
+
+inline bool SupportResistanceRetestChainFilterRequested(const StrategyStructureLayerContext &ctx)
+{
+  if(!ctx.enabled)
+    return false;
+
+  return ctx.support_resistance_retest_chain_enabled;
+}
+
 inline int ResolveStochStructurePeriod();
 
 inline StrategyStructureLayerContext BuildDisabledStructureLayerContext()
@@ -36,6 +119,9 @@ inline StrategyStructureLayerContext BuildDisabledStructureLayerContext()
   ctx.structure_compound_filter = COMPOUND_MODE_OFF;
   ctx.enabled                   = false;
   ctx.uses_trend_dataset        = false;
+  ctx.support_resistance_retest_chain_enabled = false;
+  ctx.support_resistance_retest_chain_count = 1;
+  ctx.support_resistance_retest_chain_range_percent = 10.0;
   return ctx;
 }
 
@@ -47,6 +133,9 @@ inline StrategyStructureLayerContext BuildBaseStructureLayerContext()
                                     : Base_Structure_Compound_Filter;
   ctx.enabled                   = (ResolveStochStructurePeriod() >= 3);
   ctx.uses_trend_dataset        = false;
+  ctx.support_resistance_retest_chain_enabled = ResolveBaseSupportResistanceRetestChainEnabled();
+  ctx.support_resistance_retest_chain_count = ResolveBaseSupportResistanceRetestChainCount();
+  ctx.support_resistance_retest_chain_range_percent = ResolveBaseSupportResistanceRetestChainRangePercent();
   return ctx;
 }
 
@@ -95,6 +184,7 @@ inline bool AnyStructureGuardEnabled()
 {
   StrategyStructureLayerContext base_ctx = BuildBaseStructureLayerContext();
   return StructureTypeFiltersRequested(base_ctx) ||
+         SupportResistanceRetestChainFilterRequested(base_ctx) ||
          StrategyContextFreshStructureEnabled(CONTEXT_SLOT_BASE);
 }
 
@@ -150,6 +240,7 @@ inline bool ContextRequiresStructure(const StrategyContextTypes context,
     return true;
 
   return StructureTypeFiltersRequested(ctx) ||
+         SupportResistanceRetestChainFilterRequested(ctx) ||
          StrategyContextFreshStructureEnabled(context);
 }
 

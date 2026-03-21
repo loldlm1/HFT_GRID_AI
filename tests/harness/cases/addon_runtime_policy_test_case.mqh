@@ -87,6 +87,7 @@ bool RunTest_addon_runtime_policy_test(string &errors)
                                                SESSION_FILTER_OFF,
                                                SESSION_FILTER_OFF,
                                                OFF_CANDLE_STRUCTURE,
+                                               false,
                                                1.0,
                                                0,
                                                1,
@@ -107,6 +108,7 @@ bool RunTest_addon_runtime_policy_test(string &errors)
                                                SESSION_FILTER_OFF,
                                                SESSION_FILTER_OFF,
                                                BULLISH_CANDLE_STRUCTURE,
+                                               false,
                                                1.0,
                                                0,
                                                1,
@@ -127,6 +129,7 @@ bool RunTest_addon_runtime_policy_test(string &errors)
                                                SESSION_FILTER_OFF,
                                                SESSION_FILTER_OFF,
                                                OFF_CANDLE_STRUCTURE,
+                                               false,
                                                1.20,
                                                0,
                                                3,
@@ -142,11 +145,33 @@ bool RunTest_addon_runtime_policy_test(string &errors)
                                        1,
                                        errors);
 
+  string support_resistance_requested[];
+  AddonPolicyCollectRequestedAddonsForSettings(SESSION_FILTER_OFF,
+                                               SESSION_FILTER_OFF,
+                                               SESSION_FILTER_OFF,
+                                               OFF_CANDLE_STRUCTURE,
+                                               true,
+                                               1.0,
+                                               0,
+                                               1,
+                                               COMPOUND_MODE_OFF,
+                                               false,
+                                               support_resistance_requested);
+  AddonPolicyAssertRequestedAddon("support resistance retest chain",
+                                  support_resistance_requested,
+                                  ADDON_KEY_SUPPORT_RESISTANCE_RETEST_CHAIN,
+                                  errors);
+  AddonPolicyAssertRequestedAddonCount("support resistance retest chain",
+                                       support_resistance_requested,
+                                       1,
+                                       errors);
+
   string compound_requested[];
   AddonPolicyCollectRequestedAddonsForSettings(SESSION_FILTER_OFF,
                                                SESSION_FILTER_OFF,
                                                SESSION_FILTER_OFF,
                                                OFF_CANDLE_STRUCTURE,
+                                               false,
                                                1.0,
                                                0,
                                                1,
@@ -167,6 +192,7 @@ bool RunTest_addon_runtime_policy_test(string &errors)
                                                SESSION_FILTER_OFF,
                                                SESSION_FILTER_OFF,
                                                OFF_CANDLE_STRUCTURE,
+                                               false,
                                                1.0,
                                                0,
                                                1,
@@ -187,6 +213,7 @@ bool RunTest_addon_runtime_policy_test(string &errors)
                                                SESSION_FILTER_OFF,
                                                SESSION_FILTER_OFF,
                                                OFF_CANDLE_STRUCTURE,
+                                               false,
                                                1.0,
                                                0,
                                                1,
@@ -204,6 +231,8 @@ bool RunTest_addon_runtime_policy_test(string &errors)
 
   if(AddonCatalogDisplayLabel(ADDON_KEY_SESSION_TIME_FILTER) != "Session Time Filter")
     errors += "session addon display label mismatch\n";
+  if(AddonCatalogDisplayLabel(ADDON_KEY_SUPPORT_RESISTANCE_RETEST_CHAIN) != "Support Resistance Retest Chain")
+    errors += "support resistance retest chain addon display label mismatch\n";
   if(AddonCatalogDisplayLabel(ADDON_KEY_COMPOUND_ANY_FAMILY) != "Any Compound Family Addon")
     errors += "compound-any addon display label mismatch\n";
 

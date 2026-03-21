@@ -7,6 +7,7 @@
 const string ADDON_KEY_SESSION_TIME_FILTER      = "addon_session_time_filter";
 const string ADDON_KEY_GRID_STRATEGY_CONFIG     = "addon_grid_strategy_config";
 const string ADDON_KEY_CANDLE_STRUCTURE_FILTER  = "addon_candle_structure";
+const string ADDON_KEY_SUPPORT_RESISTANCE_RETEST_CHAIN = "addon_support_resistance_retest_chain";
 const string ADDON_KEY_COMPOUND_TREND_RIDE      = "addon_compound_trend_ride";
 const string ADDON_KEY_COMPOUND_PULLBACK_CONT   = "addon_compound_pullback_continue";
 const string ADDON_KEY_COMPOUND_REVERSAL_EARLY  = "addon_compound_reversal_early";
@@ -38,6 +39,8 @@ string AddonCatalogDisplayLabel(const string addon_key)
     return "Grid Strategy Settings";
   if(normalized_key == ADDON_KEY_CANDLE_STRUCTURE_FILTER)
     return "Candle Structure Filter";
+  if(normalized_key == ADDON_KEY_SUPPORT_RESISTANCE_RETEST_CHAIN)
+    return "Support Resistance Retest Chain";
   if(normalized_key == ADDON_KEY_COMPOUND_TREND_RIDE)
     return "Compound Trend Ride";
   if(normalized_key == ADDON_KEY_COMPOUND_PULLBACK_CONT)

@@ -50,6 +50,11 @@ input CandleStrategyTypes Candle_Strategy_Type = OFF_CANDLE_STRUCTURE;
 input int               Candle_Strategy_Shift = 0;
 input int               Candle_Strategy_Depth = 1;
 
+input group  "+= Support Resistance Retest Chain =+";
+input bool   Support_Resistance_Retest_Chain_Enabled       = false;
+input int    Support_Resistance_Retest_Chain_Count         = 1;
+input double Support_Resistance_Retest_Chain_Range_Percent = 10.0;
+
 input group "+= Structure Compound Context =+";
 input TrendStructureCompoundModes Base_Structure_Compound_Filter    = COMPOUND_MODE_OFF;
 input bool                        Base_Fresh_Structure_Time         = false;

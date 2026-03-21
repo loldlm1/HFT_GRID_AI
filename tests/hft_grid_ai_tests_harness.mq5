@@ -14,6 +14,8 @@
 #include "harness/cases/license_service_facade_test_case.mqh"
 #include "harness/cases/license_error_policy_test_case.mqh"
 #include "harness/cases/signal_lot_strategy_test_case.mqh"
+#include "harness/cases/support_resistance_retest_chain_test_case.mqh"
+#include "harness/cases/support_resistance_signal_gate_test_case.mqh"
 #include "harness/cases/structure_classifier_types_test_case.mqh"
 #include "harness/cases/structure_context_requirements_test_case.mqh"
 #include "harness/cases/structure_entry_trigger_test_case.mqh"
@@ -166,6 +168,20 @@ void OnStart()
 
   HarnessRecordResult("signal_lot_strategy_test",
                       RunTest_signal_lot_strategy_test(errors),
+                      errors,
+                      passed_count,
+                      failed_count,
+                      total_count);
+
+  HarnessRecordResult("support_resistance_retest_chain_test",
+                      RunTest_support_resistance_retest_chain_test(errors),
+                      errors,
+                      passed_count,
+                      failed_count,
+                      total_count);
+
+  HarnessRecordResult("support_resistance_signal_gate_test",
+                      RunTest_support_resistance_signal_gate_test(errors),
                       errors,
                       passed_count,
                       failed_count,

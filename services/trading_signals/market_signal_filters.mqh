@@ -259,6 +259,42 @@ bool EvaluateStructureTypeFilters(const StrategyContextIndicators &snapshot,
   return EvaluateStructureCompoundMode(structure, ctx.structure_compound_filter);
 }
 
+bool EvaluateSupportResistanceRetestChainFilter(const StrategyContextIndicators &snapshot,
+                                                const StrategyStructureLayerContext &ctx,
+                                                const SignalTypes direction,
+                                                const double entry_price,
+                                                const bool entry_in_zone)
+{
+  if(!SupportResistanceRetestChainFilterRequested(ctx))
+    return true;
+
+  if(!entry_in_zone)
+    return true;
+
+  StochasticMarketStructure structure;
+  if(!FetchStructureForContext(snapshot, structure))
+    return false;
+
+  SupportResistanceRetestChainResult chain_result;
+  bool passes = EvaluateSupportResistanceRetestChain(structure,
+                                                     entry_price,
+                                                     ctx.support_resistance_retest_chain_count,
+                                                     ctx.support_resistance_retest_chain_range_percent,
+                                                     chain_result);
+  if(!passes && Enable_Logs)
+  {
+    PrintFormat("[SR_CHAIN] direction=%s entry=%.5f required=%d matched=%d first=%d last=%d",
+                EnumToString(direction),
+                entry_price,
+                chain_result.required_count,
+                chain_result.matched_count,
+                chain_result.first_match_index,
+                chain_result.last_match_index);
+  }
+
+  return passes;
+}
+
 const double STRUCTURE_TOUCH_POLICY_EPS = 0.0001;
 
 struct StructureTouchProgressRuntime
@@ -1002,6 +1038,17 @@ bool StrategyContextEvaluateEntry(const StrategyContextIndicators &snapshot,
   entry_allows = in_zone;
   if(in_zone)
   {
+    if(!EvaluateSupportResistanceRetestChainFilter(snapshot,
+                                                   structure_ctx,
+                                                   direction,
+                                                   entry_price,
+                                                   in_zone))
+    {
+      entry_allows = false;
+      filters_pass = false;
+      return true;
+    }
+
     entry_price_out = entry_price;
     entry_is_limit = resolved_is_limit;
   }
