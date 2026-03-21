@@ -77,7 +77,7 @@ bool Enable_Show_Indicators   = true;
 bool Enable_Chart_Summary     = true;
 bool Enable_Chart_Levels      = true;
 bool Enable_Chart_Lightweight_UI = true;
-bool Enable_Chart_Ui_Debug_Logs = true;
+bool Enable_Chart_Ui_Debug_Logs = false;
 bool Enable_Trend_Filter_Sanity_Stop = false;
 bool Debug_Stop_On_Negative_Equity   = false;
 
