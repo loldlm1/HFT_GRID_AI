@@ -59,6 +59,7 @@ void DrawGridLevels(const long chart_id,
   if(!signal_params.grid_initialized)
     return;
 
+  string stop_name  = GridSignalObjectName(signal_params, "STOP");
   string tp_name    = GridSignalObjectName(signal_params, "TP");
   string entry_name = GridSignalObjectName(signal_params, "ENTRY");
   string next_name  = GridSignalObjectName(signal_params, "NEXT");
@@ -75,9 +76,16 @@ void DrawGridLevels(const long chart_id,
     if(entry_price_line <= 0.0)
       entry_price_line = signal_params.grid_entry_reference_price;
   }
+  double stop_price       = 0.0;
   double tp_price         = level_state.take_profit_price;
   double next_level_price = level_state.next_level_price;
 
+  if(StructureTrailingEnabled() && signal_params.trailing_stop_price > 0.0)
+    stop_price = signal_params.trailing_stop_price;
+  if(StructureTrailingEnabled() && signal_params.trailing_take_profit_price > 0.0)
+    tp_price = signal_params.trailing_take_profit_price;
+
+  string stop_label     = GridSignalLineLabel(signal_params, "STOP");
   string entry_label    = GridSignalLineLabel(signal_params, "ENTRY");
   string tp_label       = GridSignalLineLabel(signal_params, "TP");
   string next_label     = GridSignalLineLabel(signal_params, "NEXT");
@@ -155,6 +163,7 @@ void DrawGridLevels(const long chart_id,
                               next_level_lot_size);
   }
 
+  UpdateHorizontalLine(chart_id, stop_name, COLOR_PROFIT_NEGATIVE, stop_price, stop_label);
   UpdateHorizontalLine(chart_id, entry_name, COLOR_PROFIT_NEUTRAL, entry_price_line, entry_label);
   UpdateHorizontalLine(chart_id, tp_name, COLOR_PROFIT_POSITIVE, tp_price, tp_label);
   UpdateHorizontalLine(chart_id, next_name, COLOR_PROFIT_POSITIVE, next_level_price, next_label);

@@ -7,6 +7,52 @@
 #include "grid_order_helpers.mqh"
 
 bool g_debug_no_money_abort_pending = false;
+const double GRID_VOLUME_EPSILON = 0.0000001;
+
+struct SignalOrderCloseCandidate
+{
+  int    order_index;
+  double projected_profit;
+
+  SignalOrderCloseCandidate()
+  {
+    order_index       = -1;
+    projected_profit  = 0.0;
+  }
+};
+
+double ResolveGridOrderTrackedVolume(const GridOrderState &order_state)
+{
+  if(order_state.position_ticket > 0 && PositionSelectByTicket(order_state.position_ticket))
+  {
+    double broker_volume = PositionGetDouble(POSITION_VOLUME);
+    if(broker_volume > 0.0)
+      return broker_volume;
+  }
+
+  return order_state.lot_size;
+}
+
+void RegisterSignalRealizedClose(SignalParams &signal_params,
+                                 const GridOrderState &order_state,
+                                 const double closed_volume,
+                                 const double close_price)
+{
+  if(closed_volume <= 0.0 || close_price <= 0.0)
+    return;
+
+  double entry_price = order_state.entry_price;
+  if(entry_price <= 0.0)
+    entry_price = order_state.entry_reference_price;
+  if(entry_price <= 0.0)
+    return;
+
+  signal_params.realized_profit += ResolveProjectedGridOrderProfitAtPrice(signal_params.signal_type,
+                                                                          entry_price,
+                                                                          close_price,
+                                                                          closed_volume);
+  signal_params.realized_closed_volume += closed_volume;
+}
 
 ulong ResolvePositionTicketFromDeal(const ulong deal_ticket)
 {
@@ -249,6 +295,208 @@ bool GridCloseBrokerPosition(GridOrderState &order_state,
     close_price = GridCurrentPriceForDirection(direction, false);
 
   order_state.position_ticket = 0;
+  order_state.lot_size = 0.0;
+  return true;
+}
+
+bool GridCloseBrokerPositionVolume(GridOrderState &order_state,
+                                   const SignalTypes direction,
+                                   const double requested_volume,
+                                   double &close_price,
+                                   double &closed_volume_out,
+                                   bool &fully_closed_out)
+{
+  close_price = 0.0;
+  closed_volume_out = 0.0;
+  fully_closed_out = false;
+
+  if(order_state.position_ticket <= 0)
+    return true;
+
+  if(!PositionSelectByTicket(order_state.position_ticket))
+  {
+    order_state.position_ticket = 0;
+    order_state.lot_size = 0.0;
+    fully_closed_out = true;
+    return true;
+  }
+
+  double current_volume = PositionGetDouble(POSITION_VOLUME);
+  if(current_volume <= 0.0)
+  {
+    order_state.position_ticket = 0;
+    order_state.lot_size = 0.0;
+    fully_closed_out = true;
+    return true;
+  }
+
+  double target_volume = requested_volume;
+  if(target_volume <= 0.0)
+    target_volume = current_volume;
+
+  target_volume = NormalizeVolumeForSymbol(_Symbol, target_volume);
+  if(target_volume <= 0.0 || target_volume >= current_volume - GRID_VOLUME_EPSILON)
+  {
+    bool close_all_result = GridCloseBrokerPosition(order_state, direction, close_price);
+    if(close_all_result)
+    {
+      closed_volume_out = current_volume;
+      fully_closed_out = true;
+    }
+    return close_all_result;
+  }
+
+  if(!g_position.PositionClosePartial(order_state.position_ticket, target_volume))
+  {
+    ulong retcode = g_position.ResultRetcode();
+    int last_error = GetLastError();
+    MarketStatusRegisterBrokerFailure("POSITION_CLOSE_PARTIAL_FAILED", retcode, last_error, true);
+    return false;
+  }
+
+  close_price = g_position.ResultPrice();
+  if(close_price <= 0.0)
+    close_price = GridCurrentPriceForDirection(direction, false);
+
+  closed_volume_out = target_volume;
+  if(PositionSelectByTicket(order_state.position_ticket))
+  {
+    double remaining_volume = PositionGetDouble(POSITION_VOLUME);
+    if(remaining_volume <= GRID_VOLUME_EPSILON)
+    {
+      order_state.position_ticket = 0;
+      order_state.lot_size = 0.0;
+      fully_closed_out = true;
+    }
+    else
+    {
+      order_state.lot_size = remaining_volume;
+      fully_closed_out = false;
+    }
+  }
+  else
+  {
+    order_state.position_ticket = 0;
+    order_state.lot_size = 0.0;
+    fully_closed_out = true;
+  }
+
+  return true;
+}
+
+bool ResolveSignalTrailingPartialCloseCandidates(const SignalParams &signal_params,
+                                                 SignalOrderCloseCandidate &candidates[])
+{
+  ArrayResize(candidates, 0);
+
+  double current_close_price = GridCurrentPriceForDirection(signal_params.signal_type, false);
+  if(current_close_price <= 0.0)
+    return false;
+
+  int total_levels = ArraySize(signal_params.grid_orders);
+  for(int idx = 0; idx < total_levels; idx++)
+  {
+    GridOrderState state = signal_params.grid_orders[idx];
+    if(!state.opens_position)
+      continue;
+    if(state.status != GRID_ORDER_ACTIVE)
+      continue;
+    if(state.position_ticket <= 0)
+      continue;
+    if(state.lot_size <= 0.0)
+      continue;
+
+    double entry_price = state.entry_price;
+    if(entry_price <= 0.0)
+      entry_price = state.entry_reference_price;
+    if(entry_price <= 0.0)
+      continue;
+
+    SignalOrderCloseCandidate candidate;
+    candidate.order_index = idx;
+    candidate.projected_profit = ResolveProjectedGridOrderProfitAtPrice(signal_params.signal_type,
+                                                                        entry_price,
+                                                                        current_close_price,
+                                                                        state.lot_size);
+
+    AddElementToArray(candidates, candidate);
+  }
+
+  int total_candidates = ArraySize(candidates);
+  for(int i = 0; i < total_candidates - 1; i++)
+  {
+    for(int j = 0; j < total_candidates - i - 1; j++)
+    {
+      if(candidates[j].projected_profit < candidates[j + 1].projected_profit)
+      {
+        SignalOrderCloseCandidate tmp = candidates[j];
+        candidates[j] = candidates[j + 1];
+        candidates[j + 1] = tmp;
+      }
+    }
+  }
+
+  return (ArraySize(candidates) > 0);
+}
+
+bool GridCloseSignalVolumeByPriority(SignalParams &signal_params,
+                                     const double requested_volume,
+                                     double &closed_volume_out)
+{
+  closed_volume_out = 0.0;
+
+  if(requested_volume <= 0.0)
+    return true;
+
+  SignalOrderCloseCandidate candidates[];
+  if(!ResolveSignalTrailingPartialCloseCandidates(signal_params, candidates))
+    return false;
+
+  double remaining_to_close = requested_volume;
+  int total_candidates = ArraySize(candidates);
+  for(int idx = 0; idx < total_candidates && remaining_to_close > GRID_VOLUME_EPSILON; idx++)
+  {
+    int order_index = candidates[idx].order_index;
+    if(order_index < 0 || order_index >= ArraySize(signal_params.grid_orders))
+      continue;
+
+    GridOrderState state = signal_params.grid_orders[order_index];
+    double tracked_volume = ResolveGridOrderTrackedVolume(state);
+    if(tracked_volume <= 0.0)
+      continue;
+
+    double volume_to_close = remaining_to_close;
+    if(volume_to_close > tracked_volume)
+      volume_to_close = tracked_volume;
+
+    double close_price = 0.0;
+    double closed_volume = 0.0;
+    bool fully_closed = false;
+    if(!GridCloseBrokerPositionVolume(state,
+                                      signal_params.signal_type,
+                                      volume_to_close,
+                                      close_price,
+                                      closed_volume,
+                                      fully_closed))
+    {
+      return false;
+    }
+
+    if(closed_volume <= 0.0)
+      continue;
+
+    RegisterSignalRealizedClose(signal_params, state, closed_volume, close_price);
+    if(fully_closed)
+      state.status = GRID_ORDER_COMPLETED;
+    else
+      state.status = GRID_ORDER_ACTIVE;
+
+    signal_params.grid_orders[order_index] = state;
+    remaining_to_close -= closed_volume;
+    closed_volume_out += closed_volume;
+  }
+
+  RefreshSignalExposureState(signal_params);
   return true;
 }
 
@@ -261,12 +509,19 @@ void GridCloseAllLevels(SignalParams &signal_params,
   for(int i = 0; i < total_levels; i++)
   {
     GridOrderState state = signal_params.grid_orders[i];
+    double tracked_volume = ResolveGridOrderTrackedVolume(state);
     double close_price = 0.0;
     result = GridCloseBrokerPosition(state, direction, close_price);
-    if(result) state.status = GRID_ORDER_COMPLETED;
+    if(result)
+    {
+      RegisterSignalRealizedClose(signal_params, state, tracked_volume, close_price);
+      state.status = GRID_ORDER_COMPLETED;
+    }
     GridLogEvent("LEVEL_CLOSE_ALL", signal_params, state);
     signal_params.grid_orders[i] = state;
   }
+
+  signal_params.remaining_open_volume = 0.0;
 
   return;
 }

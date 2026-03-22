@@ -1,6 +1,82 @@
 #ifndef _SERVICES_TRADING_SIGNALS_GRID_ORDER_CONTROLLER_MQH_
 #define _SERVICES_TRADING_SIGNALS_GRID_ORDER_CONTROLLER_MQH_
 
+bool ProcessSignalStructureTrailing(SignalParams &signal_params,
+                                    const double point_size)
+{
+  if(!StructureTrailingEnabled())
+    return false;
+
+  int active_level_index = -1;
+  if(!ResolveSignalCurrentActiveOrderIndex(signal_params, active_level_index))
+    return false;
+
+  double trailing_stop_price = 0.0;
+  datetime trailing_stop_time = 0;
+  bool has_stop_update = false;
+  double trailing_tp_price = 0.0;
+  datetime trailing_tp_time = 0;
+  bool has_tp_update = false;
+  ResolveSignalTrailingTargets(signal_params,
+                               trailing_stop_price,
+                               trailing_stop_time,
+                               has_stop_update,
+                               trailing_tp_price,
+                               trailing_tp_time,
+                               has_tp_update);
+  ApplySignalTrailingTargetUpdates(signal_params,
+                                   trailing_stop_price,
+                                   trailing_stop_time,
+                                   has_stop_update,
+                                   trailing_tp_price,
+                                   trailing_tp_time,
+                                   has_tp_update);
+
+  GridOrderState active_state = signal_params.grid_orders[active_level_index];
+  if(has_stop_update)
+    GridLogEvent("TRAILING_SL_UPDATE", signal_params, active_state);
+  if(has_tp_update)
+    GridLogEvent("TRAILING_TP_UPDATE", signal_params, active_state);
+
+  if(SignalTrailingStopHit(signal_params))
+  {
+    GridCloseAllLevels(signal_params, point_size);
+    signal_params.signal_state = CLOSED;
+    GridLogEvent("TRAILING_SL_HIT", signal_params, active_state);
+    return true;
+  }
+
+  if(!StructureTrailingTpCloseEnabled())
+    return false;
+
+  if(!SignalTrailingTakeProfitHit(signal_params))
+    return false;
+
+  double requested_close_volume = ResolveSignalRequestedPartialCloseVolume(signal_params);
+  if(requested_close_volume <= 0.0)
+    return false;
+
+  double closed_volume = 0.0;
+  if(!GridCloseSignalVolumeByPriority(signal_params,
+                                      requested_close_volume,
+                                      closed_volume))
+  {
+    GridLogEvent("TRAILING_TP_CLOSE_FAILED", signal_params, active_state);
+    return false;
+  }
+
+  ClearSignalTrailingTakeProfit(signal_params);
+  GridLogEvent("TRAILING_TP_HIT", signal_params, active_state);
+
+  if(signal_params.remaining_open_volume <= GRID_VOLUME_EPSILON)
+  {
+    signal_params.signal_state = CLOSED;
+    GridLogEvent("TRAILING_TP_SIGNAL_CLOSED", signal_params, active_state);
+  }
+
+  return true;
+}
+
 void UpdateGridLifecycle(SignalParams &signal_params)
 {
   if(!signal_params.grid_initialized)
@@ -70,12 +146,15 @@ void UpdateGridLifecycle(SignalParams &signal_params)
     }
   }
 
+  if(ProcessSignalStructureTrailing(signal_params, point_size))
+    return;
+
   grid_order = signal_params.grid_orders[grid_order_level];
 
   if(grid_order.status == GRID_ORDER_ACTIVE)
   {
     double current_price = GridCurrentPriceForDirection(direction, false);
-    if(grid_order.take_profit_price > 0.0)
+    if(!StructureTrailingEnabled() && grid_order.take_profit_price > 0.0)
     {
       bool hit_tp = (direction == BULLISH && current_price >= grid_order.take_profit_price) ||
                     (direction == BEARISH && current_price <= grid_order.take_profit_price);

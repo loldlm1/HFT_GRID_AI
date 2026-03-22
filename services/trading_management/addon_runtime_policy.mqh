@@ -51,6 +51,11 @@ bool SupportResistanceRetestChainAddonRequested(const bool enabled)
   return enabled;
 }
 
+bool StructureTrailingAddonRequested(const TrailingStructureModes trailing_mode)
+{
+  return (ResolveTrailingStructureModeValue(trailing_mode) != TRAILING_OFF);
+}
+
 bool GridConfigAddonRequestedForValues(const double grid_exponential_multiplier,
                                        const int grid_level_position_start,
                                        const int grid_level_stop_limit)
@@ -70,6 +75,7 @@ void AddonPolicyCollectRequestedAddonsForSettings(const SessionTimeFilterModes a
                                                   const SessionTimeFilterModes newyork_filter_mode,
                                                   const CandleStrategyTypes candle_strategy_type,
                                                   const bool support_resistance_retest_chain_enabled,
+                                                  const TrailingStructureModes trailing_mode,
                                                   const double grid_exponential_multiplier,
                                                   const int grid_level_position_start,
                                                   const int grid_level_stop_limit,
@@ -91,6 +97,9 @@ void AddonPolicyCollectRequestedAddonsForSettings(const SessionTimeFilterModes a
 
   if(SupportResistanceRetestChainAddonRequested(support_resistance_retest_chain_enabled))
     LicenseAppendRequestedAddon(addons_out, ADDON_KEY_SUPPORT_RESISTANCE_RETEST_CHAIN);
+
+  if(StructureTrailingAddonRequested(trailing_mode))
+    LicenseAppendRequestedAddon(addons_out, ADDON_KEY_STRUCTURE_TRAILING);
 
   if(GridConfigAddonRequestedForValues(grid_exponential_multiplier,
                                        grid_level_position_start,
@@ -119,6 +128,7 @@ void CollectRequestedAddonsForCurrentInputs(string &addons_out[])
                                                Session_NewYork_Filter_Mode,
                                                Candle_Strategy_Type,
                                                Support_Resistance_Retest_Chain_Enabled,
+                                               Trailing_Structure_Mode,
                                                Grid_Exponential_Multiplier,
                                                Grid_Level_Position_Start,
                                                Grid_Level_Stop_Limit,

@@ -91,6 +91,11 @@ bool GridShouldPrintTerminalEvent(const string label)
   return (label == "SIGNAL_INIT" ||
           label == "LEVEL_REACHED" ||
           label == "LEVEL_TP_HIT" ||
+          label == "TRAILING_SL_UPDATE" ||
+          label == "TRAILING_TP_UPDATE" ||
+          label == "TRAILING_SL_HIT" ||
+          label == "TRAILING_TP_HIT" ||
+          label == "TRAILING_TP_SIGNAL_CLOSED" ||
           label == "GRID_STOP_LEVEL_LIMIT" ||
           label == "LEVEL_ACTIVATION_FAILED_TARGET_LOT" ||
           label == "LEVEL_ACTIVATION_FAILED_SEND" ||
@@ -128,18 +133,21 @@ void GridLogEvent(const string label,
   }
   string structure_audit = GridResolveStructureAuditSummary(signal_params);
 
-  string message = StringFormat("dir=%s|L%d|status=%s|entry_ref=%.5f|next=%.5f|entry=%.5f|tp=%.5f|lot=%.2f|event_ts=%s|signal_ts=%s|structure_ts=%s|structure=%s",
+  string message = StringFormat("dir=%s|L%d|status=%s|entry_ref=%.5f|next=%.5f|entry=%.5f|stop=%.5f|tp=%.5f|lot=%.2f|event_ts=%s|signal_ts=%s|structure_ts=%s|trail_sl_ts=%s|trail_tp_ts=%s|structure=%s",
                                 direction,
                                 display_level,
                                 EnumToString(order_state.status),
                                 order_state.entry_reference_price,
                                 order_state.next_level_price,
                                 order_state.entry_price,
+                                signal_params.trailing_stop_price,
                                 order_state.take_profit_price,
                                 order_state.lot_size,
                                 event_timestamp,
                                 signal_timestamp,
                                 structure_timestamp,
+                                TimeToString(signal_params.trailing_last_sl_structure_time, TIME_DATE|TIME_SECONDS),
+                                TimeToString(signal_params.trailing_last_tp_structure_time, TIME_DATE|TIME_SECONDS),
                                 structure_audit);
 
   if(Enable_File_Logs)

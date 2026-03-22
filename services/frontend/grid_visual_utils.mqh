@@ -96,6 +96,9 @@ string CompactTimeIdentifier(const datetime time_value)
 
 string GridSignalIdentifier(const SignalParams &signal_params)
 {
+  if(signal_params.grid_sequence_id != "")
+    return signal_params.grid_sequence_id;
+
   string time_token = CompactTimeIdentifier(signal_params.entry_time);
   if(time_token != "")
     return time_token;
@@ -124,7 +127,11 @@ string GridSignalObjectName(const SignalParams &signal_params,
                             const string suffix)
 {
   string direction = (signal_params.signal_type == BULLISH) ? "BULLISH" : "BEARISH";
-  return EA_CHART_OBJECT_PREFIX + suffix + "_" + direction;
+  string identifier = GridSignalIdentifier(signal_params);
+  if(identifier == "")
+    return EA_CHART_OBJECT_PREFIX + suffix + "_" + direction;
+
+  return EA_CHART_OBJECT_PREFIX + suffix + "_" + direction + "_" + identifier;
 }
 
 string GridSignalLineLabel(const SignalParams &signal_params,

@@ -97,6 +97,9 @@ void EvaluateContextSignals(const StrategyContextTypes context)
     signal.entry_is_limit         = entry_is_limit;
     signal.signal_lot_sequence_step = ResolveSignalLotSequenceStepForNewSignal();
     signal.context_structure_snapshot_time = resolved_structure_time;
+    signal.grid_sequence_id       = BuildSignalSequenceId(direction,
+                                                          signal.entry_time,
+                                                          resolved_structure_time);
     AssignContextSnapshotToSignal(snapshot, signal);
 
     if(!BuildGridOrderForSignal(signal))

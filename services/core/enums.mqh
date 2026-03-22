@@ -195,6 +195,13 @@ enum GridTPReferenceModes
   GRID_TP_REF_NEXT    = 1
 };
 
+enum TrailingStructureModes
+{
+  TRAILING_OFF             = 0,
+  TRAILING_BY_STRUCTURE    = 1,
+  TRAILING_BY_STRUCTURE_TP_BE = 2
+};
+
 enum ProtectionRiskModes
 {
   ENABLED_OFF                 = 0,

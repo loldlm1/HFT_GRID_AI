@@ -13,9 +13,11 @@ struct GridOrderState
   GridEntryStyles   entry_style;
 
   double lot_size;
+  double initial_lot_size;
   double next_level_price;
   double entry_price;
   double take_profit_price;
+  double initial_take_profit_price;
   double entry_reference_price;
 
   datetime last_action_time;
@@ -30,9 +32,11 @@ struct GridOrderState
     status                      = GRID_ORDER_INACTIVE;
     entry_style                 = GRID_ENTRY_STYLE_STOP;
     lot_size                    = 0.0;
+    initial_lot_size            = 0.0;
     next_level_price            = 0.0;
     entry_price                 = 0.0;
     take_profit_price           = 0.0;
+    initial_take_profit_price   = 0.0;
     entry_reference_price       = 0.0;
     last_action_time            = 0;
     position_ticket             = 0;
@@ -61,6 +65,19 @@ struct SignalParams
   int                        signal_lot_sequence_step;
   datetime                   entry_time;
   datetime                   close_time;
+  double                     realized_profit;
+  double                     realized_closed_volume;
+  double                     remaining_open_volume;
+  double                     trailing_stop_price;
+  double                     trailing_take_profit_price;
+  double                     trailing_last_sl_price;
+  double                     trailing_last_tp_price;
+  double                     trailing_first_level_take_profit_price;
+  double                     trailing_reference_total_volume;
+  double                     trailing_partial_slice_volume;
+  datetime                   trailing_last_sl_structure_time;
+  datetime                   trailing_last_tp_structure_time;
+  int                        trailing_active_level_index;
 
   bool   grid_initialized;
   double grid_base_distance_points;
@@ -106,6 +123,19 @@ struct SignalParams
     signal_lot_sequence_step   = 0;
     entry_time                 = 0;
     close_time                 = 0;
+    realized_profit            = 0.0;
+    realized_closed_volume     = 0.0;
+    remaining_open_volume      = 0.0;
+    trailing_stop_price        = 0.0;
+    trailing_take_profit_price = 0.0;
+    trailing_last_sl_price     = 0.0;
+    trailing_last_tp_price     = 0.0;
+    trailing_first_level_take_profit_price = 0.0;
+    trailing_reference_total_volume = 0.0;
+    trailing_partial_slice_volume   = 0.0;
+    trailing_last_sl_structure_time = 0;
+    trailing_last_tp_structure_time = 0;
+    trailing_active_level_index     = -1;
     grid_initialized           = false;
     grid_base_distance_points  = 0.0;
     grid_initial_indicator_distance_points = 0.0;
@@ -141,6 +171,19 @@ struct SignalParams
     signal_lot_sequence_step   = signal_params.signal_lot_sequence_step;
     entry_time                 = signal_params.entry_time;
     close_time                 = signal_params.close_time;
+    realized_profit            = signal_params.realized_profit;
+    realized_closed_volume     = signal_params.realized_closed_volume;
+    remaining_open_volume      = signal_params.remaining_open_volume;
+    trailing_stop_price        = signal_params.trailing_stop_price;
+    trailing_take_profit_price = signal_params.trailing_take_profit_price;
+    trailing_last_sl_price     = signal_params.trailing_last_sl_price;
+    trailing_last_tp_price     = signal_params.trailing_last_tp_price;
+    trailing_first_level_take_profit_price = signal_params.trailing_first_level_take_profit_price;
+    trailing_reference_total_volume = signal_params.trailing_reference_total_volume;
+    trailing_partial_slice_volume   = signal_params.trailing_partial_slice_volume;
+    trailing_last_sl_structure_time = signal_params.trailing_last_sl_structure_time;
+    trailing_last_tp_structure_time = signal_params.trailing_last_tp_structure_time;
+    trailing_active_level_index     = signal_params.trailing_active_level_index;
     grid_initialized           = signal_params.grid_initialized;
     grid_base_distance_points  = signal_params.grid_base_distance_points;
     grid_initial_indicator_distance_points = signal_params.grid_initial_indicator_distance_points;
@@ -165,5 +208,16 @@ struct SignalParams
       grid_orders[n] = signal_params.grid_orders[n];
   }
 };
+
+string BuildSignalSequenceId(const SignalTypes direction,
+                             const datetime entry_time,
+                             const datetime structure_time)
+{
+  string direction_token = (direction == BULLISH) ? "B" : "S";
+  return StringFormat("%s_%d_%d",
+                      direction_token,
+                      (int)entry_time,
+                      (int)structure_time);
+}
 
 #endif // _SERVICES_TRADING_SIGNALS_SIGNAL_PARAMS_STRUCT_MQH_

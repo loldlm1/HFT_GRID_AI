@@ -69,6 +69,7 @@ void AddonCatalogAllCompoundFamilies(string &families[])
 #define ADDON_KEY_SESSION_TIME_FILTER      "addon_session_time_filter"
 #define ADDON_KEY_GRID_STRATEGY_CONFIG     "addon_grid_strategy_config"
 #define ADDON_KEY_CANDLE_STRUCTURE_FILTER   "addon_candle_structure"
+#define ADDON_KEY_STRUCTURE_TRAILING       "addon_structure_trailing"
 #define ADDON_KEY_COMPOUND_TREND_RIDE      "addon_compound_trend_ride"
 #define ADDON_KEY_COMPOUND_PULLBACK_CONT   "addon_compound_pullback_continue"
 #define ADDON_KEY_COMPOUND_REVERSAL_EARLY  "addon_compound_reversal_early"

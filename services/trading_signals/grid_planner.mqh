@@ -499,6 +499,9 @@ bool BuildGridOrderForSignal(SignalParams &signal_params)
                                                                               signal_params,
                                                                               signal_params.grid_orders[grid_order_level]);
   signal_params.grid_orders[grid_order_level].lot_size = ResolveGridOrderLotSize(signal_params, grid_order_level);
+  signal_params.grid_orders[grid_order_level].initial_lot_size = signal_params.grid_orders[grid_order_level].lot_size;
+  signal_params.grid_orders[grid_order_level].initial_take_profit_price =
+    signal_params.grid_orders[grid_order_level].take_profit_price;
   signal_params.grid_orders[grid_order_level].limit_activation_armed = true;
   if(UsesNonBreakoutLimitEdgeActivation(signal_params, signal_params.grid_orders[grid_order_level]))
   {
@@ -510,7 +513,12 @@ bool BuildGridOrderForSignal(SignalParams &signal_params)
   }
 
   if(grid_order_level == 0)
+  {
+    if(signal_params.trailing_first_level_take_profit_price <= 0.0)
+      signal_params.trailing_first_level_take_profit_price =
+        signal_params.grid_orders[grid_order_level].initial_take_profit_price;
     GridLogEvent("SIGNAL_INIT", signal_params, signal_params.grid_orders[grid_order_level]);
+  }
   else
     GridLogEvent("LEVEL_PENDING_INIT", signal_params, signal_params.grid_orders[grid_order_level]);
   LogGridPlanLevelDetail(signal_params, signal_params.grid_orders[grid_order_level]);

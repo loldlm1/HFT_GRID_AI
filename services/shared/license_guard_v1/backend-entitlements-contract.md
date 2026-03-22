@@ -254,6 +254,7 @@ Message policy:
 - `addon_session_time_filter (299$)`
 - `addon_grid_strategy_config (299$)`
 - `addon_candle_structure (299$)`
+- `addon_structure_trailing (299$)`
 - `addon_compound_trend_ride (299$)`
 - `addon_compound_pullback_continue (199$)`
 - `addon_compound_reversal_early (199$)`
@@ -265,6 +266,7 @@ Fibonacci EA (`ea_id=fibonacci_elite`) current add-on keys:
 - `addon_session_time_filter`
 - `addon_grid_strategy_config`
 - `addon_candle_structure`
+- `addon_structure_trailing`
 - `addon_compound_trend_ride`
 - `addon_compound_pullback_continue`
 - `addon_compound_reversal_early`

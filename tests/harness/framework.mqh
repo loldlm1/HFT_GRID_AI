@@ -16,6 +16,7 @@
 #include "../../services/trading_management/ea_inputs.mqh"
 #include "../../services/trading_management/candle_structure_filter_context.mqh"
 #include "../../services/trading_management/strategy_structure_context.mqh"
+#include "../../services/trading_management/trailing_structure_context.mqh"
 #include "../../services/trading_management/addon_runtime_policy.mqh"
 #include "../../services/indicators/stochastic_market_indicator.mqh"
 #include "../../services/indicators/fibonacci_calculator.mqh"
@@ -72,8 +73,16 @@ string g_dataset_id = "";
 bool g_ea_running = false;
 SymbolTradingConstraints g_symbol_constraints;
 
+bool LoadStructureSnapshotForTimeframe(const ENUM_TIMEFRAMES,
+                                       StochasticMarketStructure &snapshot)
+{
+  snapshot = StochasticMarketStructure();
+  return false;
+}
+
 #include "../../services/trading_signals/market_signal_filters.mqh"
 #include "../../services/trading_signals/grid_order_helpers.mqh"
 #include "../../services/trading_signals/grid_order_math.mqh"
+#include "../../services/trading_signals/structure_trailing_manager.mqh"
 
 #endif

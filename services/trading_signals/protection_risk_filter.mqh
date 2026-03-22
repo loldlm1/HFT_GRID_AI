@@ -123,10 +123,16 @@ void ProtectionRiskForceCloseSignalArray(SignalParams &signals[],
     signals[i].signal_state = CLOSED;
     signals[i].close_time   = close_time;
     signals[i].close_price  = close_price;
-    if(signals[i].entry_price > 0.0 && close_price > 0.0)
+    signals[i].raw_profit = signals[i].realized_profit;
+    if(MathAbs(signals[i].raw_profit) < 0.0000001 &&
+       signals[i].realized_closed_volume <= 0.0 &&
+       signals[i].entry_price > 0.0 &&
+       close_price > 0.0)
+    {
       signals[i].raw_profit = RawProfitUsd(direction,
                                            signals[i].entry_price,
                                            close_price);
+    }
 
     RegisterDailySignalOutcome(direction, signals[i].raw_profit);
     RegisterSignalLotSequenceOutcome(signals[i].raw_profit);

@@ -23,6 +23,7 @@
 #include "trading_signals/grid_order_helpers.mqh"
 #include "trading_signals/grid_order_math.mqh"
 #include "trading_signals/grid_order_logging.mqh"
+#include "trading_signals/structure_trailing_manager.mqh"
 #include "trading_signals/grid_order_lifecycle.mqh"
 #include "trading_signals/grid_planner.mqh"
 #include "trading_signals/grid_order_controller.mqh"

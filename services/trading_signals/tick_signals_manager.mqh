@@ -18,9 +18,14 @@ void CheckTickOpenBullishSignals()
     {
       running_bullish_signals[i].close_time  = TimeCurrent();
       running_bullish_signals[i].close_price = g_bid;
-      running_bullish_signals[i].raw_profit  = RawProfitUsd(BULLISH,
-                                                            running_bullish_signals[i].entry_price,
-                                                            running_bullish_signals[i].close_price);
+      running_bullish_signals[i].raw_profit  = running_bullish_signals[i].realized_profit;
+      if(MathAbs(running_bullish_signals[i].raw_profit) < 0.0000001 &&
+         running_bullish_signals[i].realized_closed_volume <= 0.0)
+      {
+        running_bullish_signals[i].raw_profit = RawProfitUsd(BULLISH,
+                                                             running_bullish_signals[i].entry_price,
+                                                             running_bullish_signals[i].close_price);
+      }
       running_bullish_signals[i].signal_state = CLOSED;
 
       RegisterDailySignalOutcome(BULLISH, running_bullish_signals[i].raw_profit);
@@ -44,9 +49,14 @@ void CheckTickOpenBearishSignals()
     {
       running_bearish_signals[i].close_time  = TimeCurrent();
       running_bearish_signals[i].close_price = g_ask;
-      running_bearish_signals[i].raw_profit  = RawProfitUsd(BEARISH,
-                                                            running_bearish_signals[i].entry_price,
-                                                            running_bearish_signals[i].close_price);
+      running_bearish_signals[i].raw_profit  = running_bearish_signals[i].realized_profit;
+      if(MathAbs(running_bearish_signals[i].raw_profit) < 0.0000001 &&
+         running_bearish_signals[i].realized_closed_volume <= 0.0)
+      {
+        running_bearish_signals[i].raw_profit = RawProfitUsd(BEARISH,
+                                                             running_bearish_signals[i].entry_price,
+                                                             running_bearish_signals[i].close_price);
+      }
       running_bearish_signals[i].signal_state = CLOSED;
 
       RegisterDailySignalOutcome(BEARISH, running_bearish_signals[i].raw_profit);

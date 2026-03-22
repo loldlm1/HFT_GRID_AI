@@ -55,6 +55,10 @@ input bool   Support_Resistance_Retest_Chain_Enabled       = false;
 input int    Support_Resistance_Retest_Chain_Count         = 1;
 input double Support_Resistance_Retest_Chain_Range_Percent = 10.0;
 
+input group  "+= Structure Trailing Addon =+";
+input TrailingStructureModes Trailing_Structure_Mode       = TRAILING_OFF;
+input double                Trailing_TP_Close_Percent      = 0.0;
+
 input group "+= Structure Compound Context =+";
 input TrendStructureCompoundModes Base_Structure_Compound_Filter    = COMPOUND_MODE_OFF;
 input bool                        Base_Fresh_Structure_Time         = false;
