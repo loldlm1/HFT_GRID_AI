@@ -41,6 +41,9 @@ bool IsEAOwnedObjectName(const string name)
 void DeleteEAChartObjects(const long chart_id,
                           const bool preserve_error_object = false)
 {
+  if(FrontendSkippingChartWork())
+    return;
+
   int total = ObjectsTotal(chart_id, -1, -1);
   for(int i = total - 1; i >= 0; i--)
   {

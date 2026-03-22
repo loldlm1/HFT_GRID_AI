@@ -10,24 +10,33 @@
 //+------------------------------------------------------------------+
 void CreateLicensePanelLive()
 {
+  if(FrontendSkippingChartWork())
+    return;
   ResetLightweightUiCache();
   InvalidateLightweightUiLayout();
 }
 
 void CreateEATitleBar()
 {
+  if(FrontendSkippingChartWork())
+    return;
   ResetLightweightUiCache();
   InvalidateLightweightUiLayout();
 }
 
 void UpdateEARunningMagic()
 {
+  if(FrontendSkippingChartWork())
+    return;
   ResetLightweightUiCache();
   InvalidateLightweightUiLayout();
 }
 
 int ChartWindowPosition()
 {
+  if(FrontendSkippingChartWork())
+    return 1;
+
   int     eas_total   = 1;
   long    chartID      = ChartFirst();
 

@@ -199,6 +199,12 @@ void BuildSignalSummary(const SignalParams &signal_params,
 
 void RefreshGridVisualization()
 {
+  if(FrontendSkippingChartWork())
+  {
+    ArrayResize(g_grid_visual_previous_objects, 0);
+    return;
+  }
+
   long chart_id = ChartID();
   string current_objects[];
 

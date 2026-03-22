@@ -968,6 +968,12 @@ void RenderLightweightStatusTable(const bool ea_running,
                                   const int magic_number,
                                   string &summary_lines[])
 {
+  if(FrontendSkippingChartWork())
+  {
+    ResetLightweightUiCache();
+    return;
+  }
+
   long chart_id = ChartID();
 
   if(!Enable_Chart_Lightweight_UI)
@@ -1276,6 +1282,9 @@ bool HandleLightweightChartUiEvent(const int id,
                                    const double &,
                                    const string &sparam)
 {
+  if(FrontendSkippingChartWork())
+    return false;
+
   if(id == CHARTEVENT_CHART_CHANGE)
   {
     LightweightUiChartSnapshot current_snapshot;
@@ -1384,6 +1393,9 @@ int ResolveErrorMessageMaxChars(const long chart_id)
 
 void RenderPersistentChartError(const string error_message)
 {
+  if(FrontendSkippingChartWork())
+    return;
+
   long chart_id = ChartID();
   string reason_message = NormalizeRemovalReason(error_message);
   if(reason_message == "")
@@ -1421,6 +1433,9 @@ void RenderPersistentChartError(const string error_message)
 
 void ClearPersistentChartError()
 {
+  if(FrontendSkippingChartWork())
+    return;
+
   ObjectDelete(ChartID(), EA_CHART_ERROR_OBJECT);
 }
 

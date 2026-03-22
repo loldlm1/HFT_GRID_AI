@@ -5,6 +5,7 @@
 #define _SERVICES_FRONTEND_MQH_
 
 // FRONTEND SERVICE FILES
+#include "frontend/runtime_guard.mqh"
 #include "frontend/ea_license_light_version.mqh"
 #include "frontend/chart_style_guide.mqh"
 #include "frontend/grid_visual_utils.mqh"

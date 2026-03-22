@@ -89,14 +89,18 @@ int OnInit()
 
   // CHART SETUP
   RefreshCustomSymbolRates();
-  ClearPersistentChartError();
   ResetGridVisualizationCache();
   ResetLightweightUiCache();
   InvalidateLightweightUiLayout();
-  ApplyDefaultChartStyle(ChartID());
+  if(FrontendChartWorkEnabled())
+  {
+    ClearPersistentChartError();
+    ApplyDefaultChartStyle(ChartID());
+  }
 
   // INITIALIZE THE EA
-  CreateLicensePanelLive();
+  if(FrontendChartWorkEnabled())
+    CreateLicensePanelLive();
   LoadAllIndicatorDefinitions();
 
   if(!EventSetTimer(LicenseServiceTimerSeconds()))
@@ -106,8 +110,11 @@ int OnInit()
     return(INIT_FAILED);
   }
 
-  RefreshGridVisualization();
-  ChartRedraw(ChartID());
+  if(FrontendChartWorkEnabled())
+  {
+    RefreshGridVisualization();
+    ChartRedraw(ChartID());
+  }
 
   return(INIT_SUCCEEDED);
 }
@@ -123,12 +130,15 @@ void OnDeinit(const int reason)
   string removal_message = EALifecycleRemovalMessage();
   bool preserve_error_object = EALifecyclePreserveErrorObject();
 
-  DeleteEAChartObjects(ChartID(), false);
-  ResetGridVisualizationCache();
-  ResetLightweightUiCache();
+  if(FrontendChartWorkEnabled())
+  {
+    DeleteEAChartObjects(ChartID(), false);
+    ResetGridVisualizationCache();
+    ResetLightweightUiCache();
 
-  if(preserve_error_object && removal_message != "")
-    RenderPersistentChartError(removal_message);
+    if(preserve_error_object && removal_message != "")
+      RenderPersistentChartError(removal_message);
+  }
 
   EALifecycleClearRemovalRequest();
 }
@@ -192,7 +202,8 @@ void OnTick()
   if(g_points_spread > Max_Spread || !IsMarketOpen())
   {
     g_ea_running = false;
-    RefreshGridVisualization();
+    if(FrontendChartWorkEnabled())
+      RefreshGridVisualization();
     return;
   }
 
@@ -213,7 +224,8 @@ void OnTick()
   // MANAGES THE BULLISH AND BEARISH SIGNALS
   if(!broker_disabled)
     Main_Tick();
-  RefreshGridVisualization();
+  if(FrontendChartWorkEnabled())
+    RefreshGridVisualization();
 }
 
 void OnChartEvent(const int id,
@@ -221,6 +233,9 @@ void OnChartEvent(const int id,
                   const double &dparam,
                   const string &sparam)
 {
+  if(!FrontendChartWorkEnabled())
+    return;
+
   if(HandleLightweightChartUiEvent(id, lparam, dparam, sparam))
   {
     RefreshGridVisualization();

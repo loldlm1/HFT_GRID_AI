@@ -5,6 +5,7 @@
 #include "harness/cases/candle_structure_shrinked_edges_test_case.mqh"
 #include "harness/cases/addon_runtime_policy_test_case.mqh"
 #include "harness/cases/fibonacci_cycled_levels_cases_test_case.mqh"
+#include "harness/cases/frontend_runtime_guard_test_case.mqh"
 #include "harness/cases/fibonacci_grid_percent_test_case.mqh"
 #include "harness/cases/fibonacci_negative_label_test_case.mqh"
 #include "harness/cases/grid_order_lifecycle_level_stop_limit_test_case.mqh"
@@ -105,6 +106,13 @@ void OnStart()
 
   HarnessRecordResult("fibonacci_cycled_levels_cases_test",
                       RunTest_fibonacci_cycled_levels_cases_test(errors),
+                      errors,
+                      passed_count,
+                      failed_count,
+                      total_count);
+
+  HarnessRecordResult("frontend_runtime_guard_test",
+                      RunTest_frontend_runtime_guard_test(errors),
                       errors,
                       passed_count,
                       failed_count,

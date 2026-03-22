@@ -22,6 +22,9 @@ const color COLOR_PROFIT_NEUTRAL   = clrBlue;
 // Applies the default layout configuration for the chart hosting the EA.
 void ApplyDefaultChartStyle(const long chart_id)
 {
+  if(FrontendSkippingChartWork())
+    return;
+
   ChartSetInteger(chart_id, CHART_SHOW_OBJECT_DESCR, true);
   ChartSetInteger(chart_id, CHART_QUICK_NAVIGATION, false);
   ChartSetInteger(chart_id, CHART_SHOW_GRID, 0, true);
