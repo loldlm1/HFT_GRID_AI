@@ -209,6 +209,33 @@ bool TrailingPriceImprovesDirectionally(const SignalParams &signal_params,
   return false;
 }
 
+datetime ResolveTrailingCandidateEligibilityTime(const SignalParams &signal_params,
+                                                 const bool for_stop)
+{
+  datetime eligible_after_time = for_stop
+                                 ? signal_params.trailing_last_sl_structure_time
+                                 : signal_params.trailing_last_tp_structure_time;
+
+  if(for_stop)
+    return eligible_after_time;
+
+  int active_level_index = -1;
+  if(!ResolveSignalCurrentActiveOrderIndex(signal_params, active_level_index))
+    return eligible_after_time;
+
+  if(active_level_index < 0 || active_level_index >= ArraySize(signal_params.grid_orders))
+    return eligible_after_time;
+
+  // TP trailing must wait for a structure formed after the currently active
+  // level went live, otherwise breakout-anchored entries can consume the same
+  // endpoint immediately after execution.
+  datetime level_activation_time = signal_params.grid_orders[active_level_index].last_action_time;
+  if(level_activation_time > eligible_after_time)
+    eligible_after_time = level_activation_time;
+
+  return eligible_after_time;
+}
+
 bool FindNextTrailingCandidate(const SignalParams &signal_params,
                                const StochasticMarketStructure &structure,
                                const bool for_stop,
@@ -218,9 +245,8 @@ bool FindNextTrailingCandidate(const SignalParams &signal_params,
   price_out = 0.0;
   time_out = 0;
 
-  datetime last_time = for_stop
-                       ? signal_params.trailing_last_sl_structure_time
-                       : signal_params.trailing_last_tp_structure_time;
+  datetime eligible_after_time = ResolveTrailingCandidateEligibilityTime(signal_params,
+                                                                         for_stop);
 
   int total = ArraySize(structure.os_market_structures);
   for(int idx = 1; idx < total; idx++)
@@ -230,7 +256,7 @@ bool FindNextTrailingCandidate(const SignalParams &signal_params,
       continue;
     if(extremum.extremum_time <= 0)
       continue;
-    if(last_time > 0 && extremum.extremum_time <= last_time)
+    if(eligible_after_time > 0 && extremum.extremum_time <= eligible_after_time)
       continue;
 
     double candidate_price = ResolveTrailingExtremumPrice(signal_params.signal_type,

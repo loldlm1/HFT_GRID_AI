@@ -29,6 +29,56 @@ void BuildStructureTrailingTestStructure(StochasticMarketStructure &structure_ou
   structure_out.os_market_structures[3].extremum_time = D'2026.03.22 12:00';
 }
 
+void BuildTrailingPreActivationTpStructure(StochasticMarketStructure &structure_out,
+                                           const double pre_activation_tp_price,
+                                           const double stop_candidate_price,
+                                           const double older_tp_price)
+{
+  structure_out = StochasticMarketStructure();
+  ArrayResize(structure_out.os_market_structures, 4);
+
+  structure_out.os_market_structures[0].is_peak = true;
+  structure_out.os_market_structures[0].extremum_high = pre_activation_tp_price + (pre_activation_tp_price - stop_candidate_price);
+  structure_out.os_market_structures[0].extremum_time = D'2026.03.22 12:03';
+
+  structure_out.os_market_structures[1].is_peak = true;
+  structure_out.os_market_structures[1].extremum_high = pre_activation_tp_price;
+  structure_out.os_market_structures[1].extremum_time = D'2026.03.22 12:02';
+
+  structure_out.os_market_structures[2].is_peak = false;
+  structure_out.os_market_structures[2].extremum_low = stop_candidate_price;
+  structure_out.os_market_structures[2].extremum_time = D'2026.03.22 12:01';
+
+  structure_out.os_market_structures[3].is_peak = true;
+  structure_out.os_market_structures[3].extremum_high = older_tp_price;
+  structure_out.os_market_structures[3].extremum_time = D'2026.03.22 12:00';
+}
+
+void BuildTrailingPostActivationTpStructure(StochasticMarketStructure &structure_out,
+                                            const double post_activation_tp_price,
+                                            const double stop_candidate_price,
+                                            const double pre_activation_tp_price)
+{
+  structure_out = StochasticMarketStructure();
+  ArrayResize(structure_out.os_market_structures, 4);
+
+  structure_out.os_market_structures[0].is_peak = true;
+  structure_out.os_market_structures[0].extremum_high = post_activation_tp_price + (post_activation_tp_price - stop_candidate_price);
+  structure_out.os_market_structures[0].extremum_time = D'2026.03.22 12:05';
+
+  structure_out.os_market_structures[1].is_peak = true;
+  structure_out.os_market_structures[1].extremum_high = post_activation_tp_price;
+  structure_out.os_market_structures[1].extremum_time = D'2026.03.22 12:04';
+
+  structure_out.os_market_structures[2].is_peak = false;
+  structure_out.os_market_structures[2].extremum_low = stop_candidate_price;
+  structure_out.os_market_structures[2].extremum_time = D'2026.03.22 12:03';
+
+  structure_out.os_market_structures[3].is_peak = true;
+  structure_out.os_market_structures[3].extremum_high = pre_activation_tp_price;
+  structure_out.os_market_structures[3].extremum_time = D'2026.03.22 12:02';
+}
+
 SignalParams BuildStructureTrailingActiveSignal(const SignalTypes direction,
                                                 const double entry_price,
                                                 const double lot_size,
@@ -87,6 +137,7 @@ bool RunTest_structure_trailing_logic_test(string &errors)
   double tp_candidate_price = base_price + 150.0 * point_size;
   double older_tp_price = base_price + 100.0 * point_size;
   double non_improving_tp_price = base_price + 160.0 * point_size;
+  double post_activation_tp_price = base_price + 170.0 * point_size;
 
   StochasticMarketStructure structure;
   BuildStructureTrailingTestStructure(structure,
@@ -146,6 +197,49 @@ bool RunTest_structure_trailing_logic_test(string &errors)
                                tp_time))
   {
     errors += "bullish trailing tp should reject non-improving peaks\n";
+  }
+
+  SignalParams breakout_signal = BuildStructureTrailingActiveSignal(BULLISH,
+                                                                    entry_price,
+                                                                    base_lot,
+                                                                    tp_anchor_price);
+  breakout_signal.grid_orders[0].last_action_time = D'2026.03.22 12:02:30';
+
+  StochasticMarketStructure pre_activation_structure;
+  BuildTrailingPreActivationTpStructure(pre_activation_structure,
+                                        tp_candidate_price,
+                                        stop_candidate_price,
+                                        older_tp_price);
+
+  if(FindNextTrailingCandidate(breakout_signal,
+                               pre_activation_structure,
+                               false,
+                               tp_price,
+                               tp_time))
+  {
+    errors += "trailing tp should ignore structure peaks that existed before the active level executed\n";
+  }
+
+  StochasticMarketStructure post_activation_structure;
+  BuildTrailingPostActivationTpStructure(post_activation_structure,
+                                         post_activation_tp_price,
+                                         stop_candidate_price,
+                                         tp_candidate_price);
+
+  if(!FindNextTrailingCandidate(breakout_signal,
+                                post_activation_structure,
+                                false,
+                                tp_price,
+                                tp_time))
+  {
+    errors += "trailing tp should accept the first qualifying peak formed after active level execution\n";
+  }
+  else
+  {
+    if(MathAbs(tp_price - post_activation_tp_price) > (point_size * 0.1))
+      errors += "post-activation trailing tp should use the newer peak price\n";
+    if(tp_time != D'2026.03.22 12:04')
+      errors += "post-activation trailing tp should use the newer peak time\n";
   }
 
   SetStructureTrailingRuntime(TRAILING_BY_STRUCTURE_TP_BE, 25.0);
