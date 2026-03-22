@@ -80,9 +80,77 @@ bool LoadStructureSnapshotForTimeframe(const ENUM_TIMEFRAMES,
   return false;
 }
 
+bool g_test_context_structure_snapshot_valid = false;
+StochasticMarketStructure g_test_context_structure_snapshot;
+int g_test_grid_log_count = 0;
+string g_test_grid_log_last_label = "";
+int g_test_build_grid_order_count = 0;
+int g_test_update_grid_order_count = 0;
+bool g_test_build_grid_order_result = true;
+bool g_test_update_grid_order_result = true;
+
+void ResetGridControllerTestStubs()
+{
+  g_test_context_structure_snapshot_valid = false;
+  g_test_context_structure_snapshot = StochasticMarketStructure();
+  g_test_grid_log_count = 0;
+  g_test_grid_log_last_label = "";
+  g_test_build_grid_order_count = 0;
+  g_test_update_grid_order_count = 0;
+  g_test_build_grid_order_result = true;
+  g_test_update_grid_order_result = true;
+}
+
+bool LoadContextStructureSnapshot(const StrategyContextTypes,
+                                  StochasticMarketStructure &snapshot)
+{
+  snapshot = StochasticMarketStructure();
+  if(!g_test_context_structure_snapshot_valid)
+    return false;
+
+  snapshot = g_test_context_structure_snapshot;
+  return true;
+}
+
+void GridLogEvent(const string label,
+                  const SignalParams &,
+                  const GridOrderState &)
+{
+  g_test_grid_log_count++;
+  g_test_grid_log_last_label = label;
+}
+
+void GridLogGuardrailBlock(const string,
+                           const SignalParams &,
+                           const GridOrderState &,
+                           const string)
+{
+}
+
+void MarketStatusRegisterBrokerFailure(const string,
+                                       const ulong,
+                                       const int,
+                                       const bool)
+{
+}
+
+bool BuildGridOrderForSignal(SignalParams &)
+{
+  g_test_build_grid_order_count++;
+  return g_test_build_grid_order_result;
+}
+
+bool UpdateGridOrderForSignal(SignalParams &)
+{
+  g_test_update_grid_order_count++;
+  return g_test_update_grid_order_result;
+}
+
 #include "../../services/trading_signals/market_signal_filters.mqh"
 #include "../../services/trading_signals/grid_order_helpers.mqh"
 #include "../../services/trading_signals/grid_order_math.mqh"
 #include "../../services/trading_signals/structure_trailing_manager.mqh"
+#include "../../services/trading_signals/grid_order_lifecycle.mqh"
+#include "../../services/trading_signals/grid_order_controller.mqh"
 
 #endif

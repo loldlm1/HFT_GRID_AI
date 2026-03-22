@@ -1,6 +1,26 @@
 #ifndef _SERVICES_TRADING_SIGNALS_GRID_ORDER_CONTROLLER_MQH_
 #define _SERVICES_TRADING_SIGNALS_GRID_ORDER_CONTROLLER_MQH_
 
+bool ShouldProcessTrailingBeforePendingActivation(const SignalParams &signal_params)
+{
+  if(!StructureTrailingEnabled())
+    return false;
+
+  int active_level_index = -1;
+  return ResolveSignalCurrentActiveOrderIndex(signal_params, active_level_index);
+}
+
+bool ShouldProcessTrailingAfterPendingActivation(const bool had_active_level_before,
+                                                 const bool level_activated_this_tick)
+{
+  if(had_active_level_before)
+    return false;
+  if(level_activated_this_tick)
+    return false;
+
+  return true;
+}
+
 bool ProcessSignalStructureTrailing(SignalParams &signal_params,
                                     const double point_size)
 {
@@ -88,6 +108,8 @@ void UpdateGridLifecycle(SignalParams &signal_params)
   SignalTypes    direction         = signal_params.signal_type;
   int            grid_order_level  = ArraySize(signal_params.grid_orders)-1;
   GridOrderState grid_order        = signal_params.grid_orders[grid_order_level];
+  bool           had_active_level_before = ShouldProcessTrailingBeforePendingActivation(signal_params);
+  bool           level_activated_this_tick = false;
 
   if(LimitSignalExpiredOnStructureChange(signal_params))
   {
@@ -95,6 +117,9 @@ void UpdateGridLifecycle(SignalParams &signal_params)
     GridLogEvent("LIMIT_EXPIRED_STRUCTURE", signal_params, grid_order);
     return;
   }
+
+  if(had_active_level_before && ProcessSignalStructureTrailing(signal_params, point_size))
+    return;
 
   if(grid_order.status == GRID_ORDER_STOP_TRAILING_ACTIVE)
   {
@@ -135,6 +160,7 @@ void UpdateGridLifecycle(SignalParams &signal_params)
       {
         UpdateGridOrderForSignal(signal_params);
         grid_order = signal_params.grid_orders[grid_order_level];
+        level_activated_this_tick = true;
         GridLogEvent("LEVEL_REACHED", signal_params, grid_order);
       }
       else if(grid_order.opens_position && GridUsesTargetProfitLotMode())
@@ -146,7 +172,9 @@ void UpdateGridLifecycle(SignalParams &signal_params)
     }
   }
 
-  if(ProcessSignalStructureTrailing(signal_params, point_size))
+  if(ShouldProcessTrailingAfterPendingActivation(had_active_level_before,
+                                                 level_activated_this_tick) &&
+     ProcessSignalStructureTrailing(signal_params, point_size))
     return;
 
   grid_order = signal_params.grid_orders[grid_order_level];

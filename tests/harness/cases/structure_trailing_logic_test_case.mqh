@@ -79,6 +79,56 @@ void BuildTrailingPostActivationTpStructure(StochasticMarketStructure &structure
   structure_out.os_market_structures[3].extremum_time = D'2026.03.22 12:02';
 }
 
+void BuildTrailingPreActivationStopStructure(StochasticMarketStructure &structure_out,
+                                             const double pre_activation_stop_price,
+                                             const double tp_candidate_price,
+                                             const double older_stop_price)
+{
+  structure_out = StochasticMarketStructure();
+  ArrayResize(structure_out.os_market_structures, 4);
+
+  structure_out.os_market_structures[0].is_peak = false;
+  structure_out.os_market_structures[0].extremum_low = pre_activation_stop_price - (tp_candidate_price - pre_activation_stop_price);
+  structure_out.os_market_structures[0].extremum_time = D'2026.03.22 12:03';
+
+  structure_out.os_market_structures[1].is_peak = false;
+  structure_out.os_market_structures[1].extremum_low = pre_activation_stop_price;
+  structure_out.os_market_structures[1].extremum_time = D'2026.03.22 12:02';
+
+  structure_out.os_market_structures[2].is_peak = true;
+  structure_out.os_market_structures[2].extremum_high = tp_candidate_price;
+  structure_out.os_market_structures[2].extremum_time = D'2026.03.22 12:01';
+
+  structure_out.os_market_structures[3].is_peak = false;
+  structure_out.os_market_structures[3].extremum_low = older_stop_price;
+  structure_out.os_market_structures[3].extremum_time = D'2026.03.22 12:00';
+}
+
+void BuildTrailingPostActivationStopStructure(StochasticMarketStructure &structure_out,
+                                              const double post_activation_stop_price,
+                                              const double tp_candidate_price,
+                                              const double pre_activation_stop_price)
+{
+  structure_out = StochasticMarketStructure();
+  ArrayResize(structure_out.os_market_structures, 4);
+
+  structure_out.os_market_structures[0].is_peak = false;
+  structure_out.os_market_structures[0].extremum_low = post_activation_stop_price - (tp_candidate_price - post_activation_stop_price);
+  structure_out.os_market_structures[0].extremum_time = D'2026.03.22 12:05';
+
+  structure_out.os_market_structures[1].is_peak = false;
+  structure_out.os_market_structures[1].extremum_low = post_activation_stop_price;
+  structure_out.os_market_structures[1].extremum_time = D'2026.03.22 12:04';
+
+  structure_out.os_market_structures[2].is_peak = true;
+  structure_out.os_market_structures[2].extremum_high = tp_candidate_price;
+  structure_out.os_market_structures[2].extremum_time = D'2026.03.22 12:03';
+
+  structure_out.os_market_structures[3].is_peak = false;
+  structure_out.os_market_structures[3].extremum_low = pre_activation_stop_price;
+  structure_out.os_market_structures[3].extremum_time = D'2026.03.22 12:02';
+}
+
 SignalParams BuildStructureTrailingActiveSignal(const SignalTypes direction,
                                                 const double entry_price,
                                                 const double lot_size,
@@ -114,6 +164,7 @@ SignalParams BuildStructureTrailingActiveSignal(const SignalTypes direction,
 bool RunTest_structure_trailing_logic_test(string &errors)
 {
   errors = "";
+  ResetGridControllerTestStubs();
 
   double volume_step = SymbolInfoDouble(_Symbol, SYMBOL_VOLUME_STEP);
   if(volume_step <= 0.0)
@@ -133,6 +184,9 @@ bool RunTest_structure_trailing_logic_test(string &errors)
   double stop_candidate_price = base_price + 50.0 * point_size;
   double prior_stop_price = base_price + 30.0 * point_size;
   double older_loss_stop_price = base_price - 100.0 * point_size;
+  double pre_activation_stop_price = base_price + 60.0 * point_size;
+  double older_stop_price = base_price + 20.0 * point_size;
+  double post_activation_stop_price = base_price + 80.0 * point_size;
   double tp_anchor_price = base_price + 120.0 * point_size;
   double tp_candidate_price = base_price + 150.0 * point_size;
   double older_tp_price = base_price + 100.0 * point_size;
@@ -199,6 +253,49 @@ bool RunTest_structure_trailing_logic_test(string &errors)
     errors += "bullish trailing tp should reject non-improving peaks\n";
   }
 
+  SignalParams stop_gated_signal = BuildStructureTrailingActiveSignal(BULLISH,
+                                                                      entry_price,
+                                                                      base_lot,
+                                                                      tp_anchor_price);
+  stop_gated_signal.grid_orders[0].last_action_time = D'2026.03.22 12:02:30';
+
+  StochasticMarketStructure pre_activation_stop_structure;
+  BuildTrailingPreActivationStopStructure(pre_activation_stop_structure,
+                                          pre_activation_stop_price,
+                                          tp_candidate_price,
+                                          older_stop_price);
+
+  if(FindNextTrailingCandidate(stop_gated_signal,
+                               pre_activation_stop_structure,
+                               true,
+                               stop_price,
+                               stop_time))
+  {
+    errors += "trailing stop should ignore structure bottoms that existed before the active level executed\n";
+  }
+
+  StochasticMarketStructure post_activation_stop_structure;
+  BuildTrailingPostActivationStopStructure(post_activation_stop_structure,
+                                           post_activation_stop_price,
+                                           tp_candidate_price,
+                                           pre_activation_stop_price);
+
+  if(!FindNextTrailingCandidate(stop_gated_signal,
+                                post_activation_stop_structure,
+                                true,
+                                stop_price,
+                                stop_time))
+  {
+    errors += "trailing stop should accept the first qualifying bottom formed after active level execution\n";
+  }
+  else
+  {
+    if(MathAbs(stop_price - post_activation_stop_price) > (point_size * 0.1))
+      errors += "post-activation trailing stop should use the newer bottom price\n";
+    if(stop_time != D'2026.03.22 12:04')
+      errors += "post-activation trailing stop should use the newer bottom time\n";
+  }
+
   SignalParams breakout_signal = BuildStructureTrailingActiveSignal(BULLISH,
                                                                     entry_price,
                                                                     base_lot,
@@ -241,6 +338,45 @@ bool RunTest_structure_trailing_logic_test(string &errors)
     if(tp_time != D'2026.03.22 12:04')
       errors += "post-activation trailing tp should use the newer peak time\n";
   }
+
+  SetStructureTrailingRuntime(TRAILING_BY_STRUCTURE, 0.0);
+
+  SignalParams lifecycle_signal = BuildStructureTrailingActiveSignal(BULLISH,
+                                                                     entry_price,
+                                                                     base_lot,
+                                                                     tp_anchor_price);
+  lifecycle_signal.grid_initialized = true;
+  lifecycle_signal.signal_state = WAITING;
+  lifecycle_signal.trailing_stop_price = base_price + 10.0 * point_size;
+  lifecycle_signal.trailing_last_sl_price = lifecycle_signal.trailing_stop_price;
+  lifecycle_signal.grid_orders[0].last_action_time = D'2026.03.22 12:01';
+  lifecycle_signal.grid_orders[0].position_ticket = 0;
+
+  GridOrderState pending_level;
+  pending_level.level_index = 1;
+  pending_level.status = GRID_ORDER_STOP_TRAILING_ACTIVE;
+  pending_level.opens_position = false;
+  pending_level.entry_reference_price = base_price - 5.0 * point_size;
+  pending_level.next_level_price = base_price - 25.0 * point_size;
+  pending_level.take_profit_price = tp_anchor_price + 20.0 * point_size;
+  pending_level.lot_size = base_lot;
+
+  ArrayResize(lifecycle_signal.grid_orders, 2);
+  lifecycle_signal.grid_orders[1] = pending_level;
+
+  g_bid = base_price;
+  g_ask = base_price + 2.0 * point_size;
+
+  UpdateGridLifecycle(lifecycle_signal);
+
+  if(lifecycle_signal.signal_state != CLOSED)
+    errors += "existing trailing stop should close the signal before a deeper pending level activates\n";
+  if(lifecycle_signal.grid_orders[1].status == GRID_ORDER_ACTIVE)
+    errors += "pending next level should not activate after an already-hit trailing stop\n";
+  if(g_test_update_grid_order_count != 0)
+    errors += "controller should not refresh pending level geometry after a pre-activation trailing stop hit\n";
+  if(g_test_grid_log_last_label != "TRAILING_SL_HIT")
+    errors += "pre-activation lifecycle guard should finish with trailing stop hit event\n";
 
   SetStructureTrailingRuntime(TRAILING_BY_STRUCTURE_TP_BE, 25.0);
 

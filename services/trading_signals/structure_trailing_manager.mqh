@@ -216,9 +216,6 @@ datetime ResolveTrailingCandidateEligibilityTime(const SignalParams &signal_para
                                  ? signal_params.trailing_last_sl_structure_time
                                  : signal_params.trailing_last_tp_structure_time;
 
-  if(for_stop)
-    return eligible_after_time;
-
   int active_level_index = -1;
   if(!ResolveSignalCurrentActiveOrderIndex(signal_params, active_level_index))
     return eligible_after_time;
@@ -226,9 +223,9 @@ datetime ResolveTrailingCandidateEligibilityTime(const SignalParams &signal_para
   if(active_level_index < 0 || active_level_index >= ArraySize(signal_params.grid_orders))
     return eligible_after_time;
 
-  // TP trailing must wait for a structure formed after the currently active
-  // level went live, otherwise breakout-anchored entries can consume the same
-  // endpoint immediately after execution.
+  // Both stop and TP trailing must wait for a structure formed after the
+  // currently active level went live, otherwise the EA can reuse stale
+  // pre-activation extrema on the same tick the level becomes active.
   datetime level_activation_time = signal_params.grid_orders[active_level_index].last_action_time;
   if(level_activation_time > eligible_after_time)
     eligible_after_time = level_activation_time;
