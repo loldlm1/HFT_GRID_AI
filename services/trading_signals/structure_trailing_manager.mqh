@@ -23,6 +23,31 @@ struct TrailingStructureCache
 
 TrailingStructureCache g_trailing_structure_caches[4];
 
+bool ResolveTrailingTpAnchorForSignal(const SignalParams &signal_params,
+                                      const int active_level_index,
+                                      double &anchor_price_out);
+
+bool SignalStructureTrailingActive(const SignalParams &signal_params)
+{
+  if(!StructureTrailingConfigured())
+    return false;
+
+  if(!StructureTrailingRequiresInitialTpArm())
+    return true;
+
+  return signal_params.trailing_structure_armed;
+}
+
+bool SignalStructureTrailingPendingInitialTpArm(const SignalParams &signal_params)
+{
+  if(!StructureTrailingConfigured())
+    return false;
+  if(!StructureTrailingRequiresInitialTpArm())
+    return false;
+
+  return !signal_params.trailing_structure_armed;
+}
+
 double TrailingPriceCompareEpsilon()
 {
   double point_size = GridResolvePointSize();
@@ -64,6 +89,67 @@ bool ResolveSignalCurrentActiveOrderIndex(const SignalParams &signal_params,
   }
 
   return false;
+}
+
+bool ResolveSignalInitialTrailingTpTarget(const SignalParams &signal_params,
+                                          int &active_level_index_out,
+                                          GridOrderState &active_order_out,
+                                          double &tp_price_out)
+{
+  active_level_index_out = -1;
+  active_order_out = GridOrderState();
+  tp_price_out = 0.0;
+
+  if(!ResolveSignalCurrentActiveOrderIndex(signal_params, active_level_index_out))
+    return false;
+  if(active_level_index_out < 0 ||
+     active_level_index_out >= ArraySize(signal_params.grid_orders))
+    return false;
+
+  active_order_out = signal_params.grid_orders[active_level_index_out];
+  return ResolveTrailingTpAnchorForSignal(signal_params,
+                                          active_level_index_out,
+                                          tp_price_out);
+}
+
+bool SignalPriceReachedDirectionalTarget(const SignalTypes signal_type,
+                                         const double current_price,
+                                         const double target_price)
+{
+  if(current_price <= 0.0 || target_price <= 0.0)
+    return false;
+
+  if(signal_type == BULLISH)
+    return (current_price >= target_price);
+  if(signal_type == BEARISH)
+    return (current_price <= target_price);
+
+  return false;
+}
+
+bool SignalReachedInitialTrailingTpTarget(const SignalParams &signal_params,
+                                          const double tp_price)
+{
+  double current_price = GridCurrentPriceForDirection(signal_params.signal_type,
+                                                      false);
+  return SignalPriceReachedDirectionalTarget(signal_params.signal_type,
+                                             current_price,
+                                             tp_price);
+}
+
+void ArmSignalStructureTrailing(SignalParams &signal_params,
+                                const datetime arm_time,
+                                const double arm_price)
+{
+  signal_params.trailing_structure_armed = true;
+  signal_params.trailing_structure_arm_time = arm_time;
+  signal_params.trailing_structure_arm_price = arm_price;
+  signal_params.trailing_stop_price = 0.0;
+  signal_params.trailing_take_profit_price = 0.0;
+  signal_params.trailing_last_sl_price = 0.0;
+  signal_params.trailing_last_tp_price = 0.0;
+  signal_params.trailing_last_sl_structure_time = 0;
+  signal_params.trailing_last_tp_structure_time = 0;
 }
 
 double CalculateSignalRemainingOpenVolume(const SignalParams &signal_params)
@@ -229,6 +315,9 @@ datetime ResolveTrailingCandidateEligibilityTime(const SignalParams &signal_para
   datetime level_activation_time = signal_params.grid_orders[active_level_index].last_action_time;
   if(level_activation_time > eligible_after_time)
     eligible_after_time = level_activation_time;
+
+  if(signal_params.trailing_structure_arm_time > eligible_after_time)
+    eligible_after_time = signal_params.trailing_structure_arm_time;
 
   return eligible_after_time;
 }
@@ -455,6 +544,8 @@ bool ResolveSignalTrailingTargets(SignalParams &signal_params,
   has_tp_update_out = false;
 
   if(!StructureTrailingEnabled())
+    return false;
+  if(!SignalStructureTrailingActive(signal_params))
     return false;
 
   int active_level_index = -1;

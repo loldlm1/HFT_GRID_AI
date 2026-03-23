@@ -258,6 +258,31 @@ bool RunTest_addon_runtime_policy_test(string &errors)
                                        1,
                                        errors);
 
+  string structure_trailing_when_tp_requested[];
+  AddonPolicyCollectRequestedAddonsForSettings(SESSION_FILTER_OFF,
+                                               SESSION_FILTER_OFF,
+                                               SESSION_FILTER_OFF,
+                                               OFF_CANDLE_STRUCTURE,
+                                               false,
+                                               TRAILING_BY_STRUCTURE_WHEN_TP,
+                                               1.0,
+                                               0,
+                                               1,
+                                               COMPOUND_MODE_OFF,
+                                               false,
+                                               structure_trailing_when_tp_requested);
+  AddonPolicyAssertRequestedAddon("structure trailing when tp",
+                                  structure_trailing_when_tp_requested,
+                                  ADDON_KEY_STRUCTURE_TRAILING,
+                                  errors);
+  AddonPolicyAssertRequestedAddonCount("structure trailing when tp",
+                                       structure_trailing_when_tp_requested,
+                                       1,
+                                       errors);
+
+  if(ResolveTrailingStructureModeValue(TRAILING_BY_STRUCTURE_WHEN_TP) != TRAILING_BY_STRUCTURE_WHEN_TP)
+    errors += "when-tp trailing mode should remain a valid runtime mode\n";
+
   if(AddonCatalogDisplayLabel(ADDON_KEY_SESSION_TIME_FILTER) != "Session Time Filter")
     errors += "session addon display label mismatch\n";
   if(AddonCatalogDisplayLabel(ADDON_KEY_SUPPORT_RESISTANCE_RETEST_CHAIN) != "Support Resistance Retest Chain")

@@ -91,6 +91,10 @@ bool GridShouldPrintTerminalEvent(const string label)
   return (label == "SIGNAL_INIT" ||
           label == "LEVEL_REACHED" ||
           label == "LEVEL_TP_HIT" ||
+          label == "INITIAL_TP_TRAILING_ARMED" ||
+          label == "INITIAL_TP_TRAILING_PARTIAL" ||
+          label == "INITIAL_TP_TRAILING_SIGNAL_CLOSED" ||
+          label == "INITIAL_TP_TRAILING_CLOSE_FAILED" ||
           label == "TRAILING_SL_UPDATE" ||
           label == "TRAILING_TP_UPDATE" ||
           label == "TRAILING_SL_HIT" ||
@@ -133,7 +137,7 @@ void GridLogEvent(const string label,
   }
   string structure_audit = GridResolveStructureAuditSummary(signal_params);
 
-  string message = StringFormat("dir=%s|L%d|status=%s|entry_ref=%.5f|next=%.5f|entry=%.5f|stop=%.5f|tp=%.5f|lot=%.2f|event_ts=%s|signal_ts=%s|structure_ts=%s|trail_sl_ts=%s|trail_tp_ts=%s|structure=%s",
+  string message = StringFormat("dir=%s|L%d|status=%s|entry_ref=%.5f|next=%.5f|entry=%.5f|stop=%.5f|tp=%.5f|lot=%.2f|event_ts=%s|signal_ts=%s|structure_ts=%s|trail_sl_ts=%s|trail_tp_ts=%s|trail_arm_ts=%s|trail_armed=%s|structure=%s",
                                 direction,
                                 display_level,
                                 EnumToString(order_state.status),
@@ -148,6 +152,8 @@ void GridLogEvent(const string label,
                                 structure_timestamp,
                                 TimeToString(signal_params.trailing_last_sl_structure_time, TIME_DATE|TIME_SECONDS),
                                 TimeToString(signal_params.trailing_last_tp_structure_time, TIME_DATE|TIME_SECONDS),
+                                TimeToString(signal_params.trailing_structure_arm_time, TIME_DATE|TIME_SECONDS),
+                                signal_params.trailing_structure_armed ? "true" : "false",
                                 structure_audit);
 
   if(Enable_File_Logs)

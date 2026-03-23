@@ -197,9 +197,10 @@ enum GridTPReferenceModes
 
 enum TrailingStructureModes
 {
-  TRAILING_OFF             = 0,
-  TRAILING_BY_STRUCTURE    = 1,
-  TRAILING_BY_STRUCTURE_TP_BE = 2
+  TRAILING_OFF                = 0,
+  TRAILING_BY_STRUCTURE       = 1,
+  TRAILING_BY_STRUCTURE_TP_BE = 2,
+  TRAILING_BY_STRUCTURE_WHEN_TP = 3
 };
 
 enum ProtectionRiskModes

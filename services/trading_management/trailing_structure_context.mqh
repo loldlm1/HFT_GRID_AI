@@ -12,7 +12,8 @@ bool g_trailing_tp_close_percent_runtime_override = false;
 inline TrailingStructureModes ResolveTrailingStructureModeValue(const TrailingStructureModes mode)
 {
   if(mode == TRAILING_BY_STRUCTURE ||
-     mode == TRAILING_BY_STRUCTURE_TP_BE)
+     mode == TRAILING_BY_STRUCTURE_TP_BE ||
+     mode == TRAILING_BY_STRUCTURE_WHEN_TP)
   {
     return mode;
   }
@@ -52,6 +53,23 @@ inline double ResolveTrailingTpClosePercent()
 inline bool StructureTrailingEnabled()
 {
   return (ResolveTrailingStructureMode() != TRAILING_OFF);
+}
+
+inline bool StructureTrailingConfigured()
+{
+  return StructureTrailingEnabled();
+}
+
+inline bool StructureTrailingRequiresInitialTpArm()
+{
+  return (ResolveTrailingStructureMode() == TRAILING_BY_STRUCTURE_WHEN_TP);
+}
+
+inline bool StructureTrailingActivatesImmediately()
+{
+  TrailingStructureModes mode = ResolveTrailingStructureMode();
+  return (mode == TRAILING_BY_STRUCTURE ||
+          mode == TRAILING_BY_STRUCTURE_TP_BE);
 }
 
 inline bool StructureTrailingTpBeModeEnabled()

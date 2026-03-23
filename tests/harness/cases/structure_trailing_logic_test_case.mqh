@@ -339,6 +339,94 @@ bool RunTest_structure_trailing_logic_test(string &errors)
       errors += "post-activation trailing tp should use the newer peak time\n";
   }
 
+  SetStructureTrailingRuntime(TRAILING_BY_STRUCTURE_WHEN_TP, 0.0);
+
+  SignalParams when_tp_signal = BuildStructureTrailingActiveSignal(BULLISH,
+                                                                   entry_price,
+                                                                   base_lot,
+                                                                   tp_anchor_price);
+  when_tp_signal.grid_initialized = true;
+  when_tp_signal.signal_state = WAITING;
+  when_tp_signal.grid_orders[0].last_action_time = D'2026.03.22 12:01';
+
+  g_bid = tp_anchor_price - 10.0 * point_size;
+  g_ask = g_bid + 2.0 * point_size;
+  UpdateGridLifecycle(when_tp_signal);
+
+  if(when_tp_signal.trailing_structure_armed)
+    errors += "when-tp mode should stay disarmed before the initial tp milestone is reached\n";
+  if(SignalStructureTrailingActive(when_tp_signal))
+    errors += "when-tp mode should not be active before arming\n";
+
+  g_bid = tp_anchor_price;
+  g_ask = g_bid + 2.0 * point_size;
+  UpdateGridLifecycle(when_tp_signal);
+
+  if(!when_tp_signal.trailing_structure_armed)
+    errors += "when-tp mode should arm once the initial tp milestone is reached\n";
+  if(!SignalStructureTrailingActive(when_tp_signal))
+    errors += "when-tp mode should become active after arming\n";
+  if(SignalStructureTrailingPendingInitialTpArm(when_tp_signal))
+    errors += "when-tp mode should clear the pending-arm state after arming\n";
+  if(when_tp_signal.signal_state == CLOSED)
+    errors += "0% when-tp mode should arm without closing the signal\n";
+  if(MathAbs(when_tp_signal.trailing_structure_arm_price - tp_anchor_price) > (point_size * 0.1))
+    errors += "when-tp mode should record the initial tp milestone price when it arms\n";
+  if(when_tp_signal.trailing_structure_arm_time <= 0)
+    errors += "when-tp mode should record a valid arm timestamp\n";
+  if(g_test_grid_log_last_label != "INITIAL_TP_TRAILING_ARMED")
+    errors += "when-tp arming should emit the dedicated gate armed event\n";
+
+  datetime first_arm_time = when_tp_signal.trailing_structure_arm_time;
+  UpdateGridLifecycle(when_tp_signal);
+  if(when_tp_signal.trailing_structure_arm_time != first_arm_time)
+    errors += "when-tp mode should arm only once per signal\n";
+
+  SignalParams armed_when_tp_signal = BuildStructureTrailingActiveSignal(BULLISH,
+                                                                         entry_price,
+                                                                         base_lot,
+                                                                         tp_anchor_price);
+  armed_when_tp_signal.trailing_structure_armed = true;
+  armed_when_tp_signal.trailing_structure_arm_time = D'2026.03.22 12:02:30';
+  armed_when_tp_signal.trailing_structure_arm_price = tp_anchor_price;
+  armed_when_tp_signal.grid_orders[0].last_action_time = D'2026.03.22 12:01';
+
+  if(FindNextTrailingCandidate(armed_when_tp_signal,
+                               pre_activation_structure,
+                               false,
+                               tp_price,
+                               tp_time))
+  {
+    errors += "when-tp mode should ignore tp structures that formed before the arm timestamp\n";
+  }
+
+  if(!FindNextTrailingCandidate(armed_when_tp_signal,
+                                post_activation_structure,
+                                false,
+                                tp_price,
+                                tp_time))
+  {
+    errors += "when-tp mode should accept tp structures formed after the arm timestamp\n";
+  }
+
+  if(FindNextTrailingCandidate(armed_when_tp_signal,
+                               pre_activation_stop_structure,
+                               true,
+                               stop_price,
+                               stop_time))
+  {
+    errors += "when-tp mode should ignore stop structures that formed before the arm timestamp\n";
+  }
+
+  if(!FindNextTrailingCandidate(armed_when_tp_signal,
+                                post_activation_stop_structure,
+                                true,
+                                stop_price,
+                                stop_time))
+  {
+    errors += "when-tp mode should accept stop structures formed after the arm timestamp\n";
+  }
+
   SetStructureTrailingRuntime(TRAILING_BY_STRUCTURE, 0.0);
 
   SignalParams lifecycle_signal = BuildStructureTrailingActiveSignal(BULLISH,

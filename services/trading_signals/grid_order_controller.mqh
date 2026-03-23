@@ -3,16 +3,19 @@
 
 bool ShouldProcessTrailingBeforePendingActivation(const SignalParams &signal_params)
 {
-  if(!StructureTrailingEnabled())
+  if(!SignalStructureTrailingActive(signal_params))
     return false;
 
   int active_level_index = -1;
   return ResolveSignalCurrentActiveOrderIndex(signal_params, active_level_index);
 }
 
-bool ShouldProcessTrailingAfterPendingActivation(const bool had_active_level_before,
+bool ShouldProcessTrailingAfterPendingActivation(const SignalParams &signal_params,
+                                                 const bool had_active_level_before,
                                                  const bool level_activated_this_tick)
 {
+  if(!SignalStructureTrailingActive(signal_params))
+    return false;
   if(had_active_level_before)
     return false;
   if(level_activated_this_tick)
@@ -24,7 +27,7 @@ bool ShouldProcessTrailingAfterPendingActivation(const bool had_active_level_bef
 bool ProcessSignalStructureTrailing(SignalParams &signal_params,
                                     const double point_size)
 {
-  if(!StructureTrailingEnabled())
+  if(!SignalStructureTrailingActive(signal_params))
     return false;
 
   int active_level_index = -1;
@@ -94,6 +97,60 @@ bool ProcessSignalStructureTrailing(SignalParams &signal_params,
     GridLogEvent("TRAILING_TP_SIGNAL_CLOSED", signal_params, active_state);
   }
 
+  return true;
+}
+
+bool ProcessSignalInitialTpStructureTrailingGate(SignalParams &signal_params)
+{
+  if(!SignalStructureTrailingPendingInitialTpArm(signal_params))
+    return false;
+
+  int active_level_index = -1;
+  GridOrderState active_state;
+  double initial_tp_price = 0.0;
+  if(!ResolveSignalInitialTrailingTpTarget(signal_params,
+                                           active_level_index,
+                                           active_state,
+                                           initial_tp_price))
+  {
+    return false;
+  }
+
+  if(!SignalReachedInitialTrailingTpTarget(signal_params, initial_tp_price))
+    return false;
+
+  signal_params.trailing_active_level_index = active_level_index;
+  RefreshSignalExposureState(signal_params);
+
+  double requested_close_volume = ResolveSignalRequestedPartialCloseVolume(signal_params);
+  if(requested_close_volume > 0.0)
+  {
+    double closed_volume = 0.0;
+    if(!GridCloseSignalVolumeByPriority(signal_params,
+                                        requested_close_volume,
+                                        closed_volume))
+    {
+      GridLogEvent("INITIAL_TP_TRAILING_CLOSE_FAILED", signal_params, active_state);
+      return true;
+    }
+    if(closed_volume <= 0.0)
+    {
+      GridLogEvent("INITIAL_TP_TRAILING_CLOSE_FAILED", signal_params, active_state);
+      return true;
+    }
+
+    GridLogEvent("INITIAL_TP_TRAILING_PARTIAL", signal_params, active_state);
+
+    if(signal_params.remaining_open_volume <= GRID_VOLUME_EPSILON)
+    {
+      signal_params.signal_state = CLOSED;
+      GridLogEvent("INITIAL_TP_TRAILING_SIGNAL_CLOSED", signal_params, active_state);
+      return true;
+    }
+  }
+
+  ArmSignalStructureTrailing(signal_params, TimeCurrent(), initial_tp_price);
+  GridLogEvent("INITIAL_TP_TRAILING_ARMED", signal_params, active_state);
   return true;
 }
 
@@ -172,9 +229,13 @@ void UpdateGridLifecycle(SignalParams &signal_params)
     }
   }
 
-  if(ShouldProcessTrailingAfterPendingActivation(had_active_level_before,
+  if(ShouldProcessTrailingAfterPendingActivation(signal_params,
+                                                 had_active_level_before,
                                                  level_activated_this_tick) &&
      ProcessSignalStructureTrailing(signal_params, point_size))
+    return;
+
+  if(ProcessSignalInitialTpStructureTrailingGate(signal_params))
     return;
 
   grid_order = signal_params.grid_orders[grid_order_level];
@@ -182,7 +243,7 @@ void UpdateGridLifecycle(SignalParams &signal_params)
   if(grid_order.status == GRID_ORDER_ACTIVE)
   {
     double current_price = GridCurrentPriceForDirection(direction, false);
-    if(!StructureTrailingEnabled() && grid_order.take_profit_price > 0.0)
+    if(!SignalStructureTrailingActive(signal_params) && grid_order.take_profit_price > 0.0)
     {
       bool hit_tp = (direction == BULLISH && current_price >= grid_order.take_profit_price) ||
                     (direction == BEARISH && current_price <= grid_order.take_profit_price);

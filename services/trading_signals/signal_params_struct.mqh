@@ -78,6 +78,9 @@ struct SignalParams
   datetime                   trailing_last_sl_structure_time;
   datetime                   trailing_last_tp_structure_time;
   int                        trailing_active_level_index;
+  bool                       trailing_structure_armed;
+  datetime                   trailing_structure_arm_time;
+  double                     trailing_structure_arm_price;
 
   bool   grid_initialized;
   double grid_base_distance_points;
@@ -136,6 +139,9 @@ struct SignalParams
     trailing_last_sl_structure_time = 0;
     trailing_last_tp_structure_time = 0;
     trailing_active_level_index     = -1;
+    trailing_structure_armed        = false;
+    trailing_structure_arm_time     = 0;
+    trailing_structure_arm_price    = 0.0;
     grid_initialized           = false;
     grid_base_distance_points  = 0.0;
     grid_initial_indicator_distance_points = 0.0;
@@ -184,6 +190,9 @@ struct SignalParams
     trailing_last_sl_structure_time = signal_params.trailing_last_sl_structure_time;
     trailing_last_tp_structure_time = signal_params.trailing_last_tp_structure_time;
     trailing_active_level_index     = signal_params.trailing_active_level_index;
+    trailing_structure_armed        = signal_params.trailing_structure_armed;
+    trailing_structure_arm_time     = signal_params.trailing_structure_arm_time;
+    trailing_structure_arm_price    = signal_params.trailing_structure_arm_price;
     grid_initialized           = signal_params.grid_initialized;
     grid_base_distance_points  = signal_params.grid_base_distance_points;
     grid_initial_indicator_distance_points = signal_params.grid_initial_indicator_distance_points;
