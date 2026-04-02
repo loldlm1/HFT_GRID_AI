@@ -23,6 +23,16 @@ HFT Grid AI is a MetaTrader 5 Expert Advisor that runs bullish/bearish grid sequ
   - `BEARISH`: `high_current < high_past` and `low_current < low_past`
 - Behavior: enabled modes are evaluated as a hard pre-entry gate; filter failure blocks signal creation (fail-closed).
 
+## Session DST Adaptation
+- Input group: `Time Filter Session Manager`.
+- Inputs: `Session_Time_Dst_Mode`, `Session_Time_Dst_Manual_Offset_Minutes`.
+- Default behavior on `main`: `Session_Time_Dst_Mode = DST_MODE_OFF`, which preserves the current session filter behavior.
+- `DST_MODE_AUTO_EXNESS` applies the Exness seasonal rule used by the Pandora branch:
+  - Exness summer: `0` minutes
+  - Exness winter: `+60` minutes
+- `DST_MODE_MANUAL` applies the configured raw minute offset.
+- Scope is intentionally narrow: the offset changes session-filter window evaluation only. Market-open and symbol tradability checks remain owned by the existing broker/market guards.
+
 ## Addon Entitlements
 - MT5 input groups remain visible (compile-time), but runtime access is entitlement-gated.
 - Live/Demo startup blocks if selected addon-required inputs are not covered by license entitlements.

@@ -189,6 +189,13 @@ enum SessionTimeFilterSlots
   SESSION_TIME_FILTER_NEWYORK = 2
 };
 
+enum DstOffsetModes
+{
+  DST_MODE_OFF         = 0,
+  DST_MODE_AUTO_EXNESS = 1,
+  DST_MODE_MANUAL      = 2
+};
+
 enum GridTPReferenceModes
 {
   GRID_TP_REF_CURRENT = 0,

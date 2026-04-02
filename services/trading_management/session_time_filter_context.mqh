@@ -223,11 +223,93 @@ bool SessionTimeFilterMinuteInRange(const SessionTimeFilterConfig &config,
   return false;
 }
 
+datetime SessionTimeFilterResolveCurrentTime()
+{
+  return TimeCurrent();
+}
+
+int SessionTimeFilterOffsetMinutesForSettings(const DstOffsetModes mode,
+                                              const int manual_offset_minutes,
+                                              const datetime current_time)
+{
+  return ResolveTradingTimeOffsetMinutesForMode(mode,
+                                                manual_offset_minutes,
+                                                current_time);
+}
+
+int SessionTimeFilterOffsetMinutesForTime(const datetime current_time)
+{
+  return SessionTimeFilterOffsetMinutesForSettings(Session_Time_Dst_Mode,
+                                                   Session_Time_Dst_Manual_Offset_Minutes,
+                                                   current_time);
+}
+
+int SessionTimeFilterOffsetMinutes()
+{
+  return SessionTimeFilterOffsetMinutesForTime(SessionTimeFilterResolveCurrentTime());
+}
+
+int SessionTimeFilterCurrentMinutesForSettings(const datetime current_time,
+                                               const DstOffsetModes mode,
+                                               const int manual_offset_minutes)
+{
+  datetime adjusted_time = current_time;
+  adjusted_time -= SessionTimeFilterOffsetMinutesForSettings(mode,
+                                                             manual_offset_minutes,
+                                                             current_time) * 60;
+
+  MqlDateTime now_struct;
+  ZeroMemory(now_struct);
+  if(!TimeToStruct(adjusted_time, now_struct))
+    return 0;
+
+  return now_struct.hour * 60 + now_struct.min;
+}
+
 int SessionTimeFilterCurrentMinutes()
 {
-  MqlDateTime now_struct;
-  TimeToStruct(TimeCurrent(), now_struct);
-  return now_struct.hour * 60 + now_struct.min;
+  return SessionTimeFilterCurrentMinutesForSettings(SessionTimeFilterResolveCurrentTime(),
+                                                    Session_Time_Dst_Mode,
+                                                    Session_Time_Dst_Manual_Offset_Minutes);
+}
+
+string SessionTimeFilterDstModeLabel(const DstOffsetModes mode)
+{
+  switch(mode)
+  {
+    case DST_MODE_AUTO_EXNESS:
+      return "EXNESS";
+    case DST_MODE_MANUAL:
+      return "MANUAL";
+  }
+  return "OFF";
+}
+
+string SessionTimeFilterFormatOffsetMinutes(const int offset_minutes)
+{
+  if(offset_minutes > 0)
+    return StringFormat("+%dm", offset_minutes);
+  return StringFormat("%dm", offset_minutes);
+}
+
+string SessionTimeFilterDstStatusSummaryForSettings(const DstOffsetModes mode,
+                                                    const int manual_offset_minutes,
+                                                    const datetime current_time)
+{
+  int offset_minutes = SessionTimeFilterOffsetMinutesForSettings(mode,
+                                                                 manual_offset_minutes,
+                                                                 current_time);
+  return SessionTimeFilterDstModeLabel(mode) +
+         " (" +
+         SessionTimeFilterFormatOffsetMinutes(offset_minutes) +
+         ")";
+}
+
+string SessionTimeFilterDstStatusSummary()
+{
+  return SessionTimeFilterDstStatusSummaryForSettings(Session_Time_Dst_Mode,
+                                                      Session_Time_Dst_Manual_Offset_Minutes,
+                                                      SessionTimeFilterResolveCurrentTime());
 }
 
 void SessionTimeFilterCopySlotConfig(const int slot,

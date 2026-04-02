@@ -34,6 +34,8 @@ input SessionTimeFilterModes Session_London_Filter_Mode    = SESSION_FILTER_OFF;
 input string                 Session_London_Filter_Time_Range = "07:00-12:00";
 input SessionTimeFilterModes Session_NewYork_Filter_Mode   = SESSION_FILTER_OFF;
 input string                 Session_NewYork_Filter_Time_Range = "12:00-20:00";
+input DstOffsetModes         Session_Time_Dst_Mode         = DST_MODE_OFF;
+input int                    Session_Time_Dst_Manual_Offset_Minutes = 0;
 
 input group  "+= Strategy Context =+";
 input ENUM_TIMEFRAMES           Strategy_Timeframe          = PERIOD_M1;

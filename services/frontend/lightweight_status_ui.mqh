@@ -60,15 +60,16 @@ enum LightweightUiRowLabelKeys
   LIGHTWEIGHT_UI_LABEL_MANUAL = 2,
   LIGHTWEIGHT_UI_LABEL_GATE = 3,
   LIGHTWEIGHT_UI_LABEL_MARKET = 4,
-  LIGHTWEIGHT_UI_LABEL_BLOCK_SOURCE = 5,
-  LIGHTWEIGHT_UI_LABEL_BLOCK_REASON = 6,
-  LIGHTWEIGHT_UI_LABEL_MAGIC = 7,
-  LIGHTWEIGHT_UI_LABEL_SIGNAL = 8,
-  LIGHTWEIGHT_UI_LABEL_SIGNALS = 9,
-  LIGHTWEIGHT_UI_LABEL_ADDONS = 10,
-  LIGHTWEIGHT_UI_LABEL_REQUESTED = 11,
-  LIGHTWEIGHT_UI_LABEL_PURCHASED = 12,
-  LIGHTWEIGHT_UI_LABEL_MISSING = 13
+  LIGHTWEIGHT_UI_LABEL_SESSION_DST = 5,
+  LIGHTWEIGHT_UI_LABEL_BLOCK_SOURCE = 6,
+  LIGHTWEIGHT_UI_LABEL_BLOCK_REASON = 7,
+  LIGHTWEIGHT_UI_LABEL_MAGIC = 8,
+  LIGHTWEIGHT_UI_LABEL_SIGNAL = 9,
+  LIGHTWEIGHT_UI_LABEL_SIGNALS = 10,
+  LIGHTWEIGHT_UI_LABEL_ADDONS = 11,
+  LIGHTWEIGHT_UI_LABEL_REQUESTED = 12,
+  LIGHTWEIGHT_UI_LABEL_PURCHASED = 13,
+  LIGHTWEIGHT_UI_LABEL_MISSING = 14
 };
 
 string ResolveLightweightUiRowLabel(const LightweightUiRowLabelKeys label_key,
@@ -87,6 +88,8 @@ string ResolveLightweightUiRowLabel(const LightweightUiRowLabelKeys label_key,
     return (short_labels ? "Gate" : "Signal Gate");
   if(label_key == LIGHTWEIGHT_UI_LABEL_MARKET)
     return "Market";
+  if(label_key == LIGHTWEIGHT_UI_LABEL_SESSION_DST)
+    return (short_labels ? "Sess DST" : "Session DST");
   if(label_key == LIGHTWEIGHT_UI_LABEL_BLOCK_SOURCE)
     return (short_labels ? "Block" : "Block Source");
   if(label_key == LIGHTWEIGHT_UI_LABEL_BLOCK_REASON)
@@ -883,6 +886,12 @@ void BuildLightweightUiRowSets(const bool compact_mode,
                                                    compact_mode,
                                                    pressured_mode),
                       market_status,
+                      row_max_chars);
+  AddLightweightUiRow(core_rows,
+                      ResolveLightweightUiRowLabel(LIGHTWEIGHT_UI_LABEL_SESSION_DST,
+                                                   compact_mode,
+                                                   pressured_mode),
+                      SessionTimeFilterDstStatusSummary(),
                       row_max_chars);
 
   if(effective_source != "")
