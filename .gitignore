@@ -17,5 +17,6 @@
 !/docs/lead_magnet/output/.gitkeep
 /docs/lead_magnet/dist/*.zip
 MetaEditor64.exe
-logs/test-runner/
+logs/test-runner/*
+logs/*
 .envrc
