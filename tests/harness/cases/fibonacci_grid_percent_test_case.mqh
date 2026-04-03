@@ -259,6 +259,96 @@ bool RunTest_fibonacci_grid_percent_test(string &errors)
 
   ClearStructureCompoundFilterRuntimeOverride();
 
+  LoadStructureFibonacciLevels("61.7,61.8,78.6,100.0",
+                               "61.7,61.8,78.6,100.0");
+
+  SymbolTradingConstraints saved_constraints = g_symbol_constraints;
+  g_symbol_constraints = SymbolTradingConstraints();
+  g_symbol_constraints.point_size = 0.00001;
+  g_symbol_constraints.tick_size = 0.00001;
+
+  StochasticMarketStructure tight_range_structure;
+  ArrayResize(tight_range_structure.os_market_structures, 3);
+  tight_range_structure.os_market_structures[0].is_peak = false;
+  tight_range_structure.os_market_structures[0].extremum_low = 1.09080;
+  tight_range_structure.os_market_structures[1].is_peak = true;
+  tight_range_structure.os_market_structures[1].extremum_high = 1.09262;
+  tight_range_structure.os_market_structures[2].is_peak = false;
+  tight_range_structure.os_market_structures[2].extremum_low = 1.09095;
+
+  SignalParams tight_signal;
+  tight_signal.signal_type = BULLISH;
+  tight_signal.strategy_context = CONTEXT_SLOT_BASE;
+  tight_signal.entry_trigger_mode = LEVELS_AS_LIMITS;
+  tight_signal.entry_is_limit = true;
+  tight_signal.base_structure_valid = true;
+  tight_signal.base_structure_data = tight_range_structure;
+  tight_signal.fib_level_offset_steps = 1;
+
+  peak_price = 0.0;
+  bottom_price = 0.0;
+  current_is_bottom = false;
+  if(!ResolveSignalStructureRange(tight_signal,
+                                  peak_price,
+                                  bottom_price,
+                                  current_is_bottom))
+  {
+    errors += "tight fib range failed\n";
+  }
+  else
+  {
+    double tight_entry_price = 0.0;
+    if(!ResolveStructurePriceForPercent(peak_price,
+                                        bottom_price,
+                                        current_is_bottom,
+                                        61.7,
+                                        tight_entry_price))
+    {
+      errors += "tight fib entry price failed\n";
+    }
+    else
+    {
+      tight_signal.entry_price = tight_entry_price;
+      tight_signal.grid_entry_reference_price = tight_entry_price;
+
+      double raw_next_price = 0.0;
+      if(!ResolveFibonacciGridLevelPrice(tight_signal, 0, raw_next_price))
+      {
+        errors += "tight fib next price failed\n";
+      }
+      else
+      {
+        double minimum_gap_points = GridResolveMinimumLevelDistancePoints();
+        double raw_gap_points = GridAbsolutePriceDistancePoints(tight_entry_price,
+                                                                raw_next_price);
+        if(raw_gap_points >= minimum_gap_points)
+          errors += "tight fib raw next price should remain below broker-safe gap\n";
+
+        GridOrderState tight_state;
+        tight_state.level_index = 0;
+        tight_state.entry_reference_price = tight_entry_price;
+
+        double emitted_next_price = GetGridNextLevelPrice(BULLISH,
+                                                          tight_signal,
+                                                          tight_state);
+        double emitted_gap_points = GridAbsolutePriceDistancePoints(tight_entry_price,
+                                                                    emitted_next_price);
+        if(MathAbs(emitted_gap_points - minimum_gap_points) > 0.2)
+        {
+          errors += StringFormat("tight fib emitted gap expected %.2f got %.2f\n",
+                                 minimum_gap_points,
+                                 emitted_gap_points);
+        }
+        if(!(emitted_next_price < tight_entry_price))
+          errors += "tight fib emitted next price should stay below bullish entry\n";
+      }
+    }
+  }
+
+  g_symbol_constraints = saved_constraints;
+  LoadStructureFibonacciLevels("23.6,38.2,50.0,61.8,78.6,100.0",
+                               "23.6,38.2,50.0,61.8,78.6,100.0");
+
   return (errors == "");
 }
 

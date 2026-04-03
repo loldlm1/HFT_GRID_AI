@@ -77,6 +77,50 @@ bool RunTest_grid_order_lifecycle_level_stop_limit_test(string &errors)
   if(!ShouldBlockNextLevelByStopLimit(2, 1))
     errors += "L2 should block when stop limit is L2\n";
 
+  SymbolTradingConstraints saved_constraints = g_symbol_constraints;
+  double saved_bid = g_bid;
+  double saved_ask = g_ask;
+
+  g_symbol_constraints = SymbolTradingConstraints();
+  g_symbol_constraints.point_size = 0.00001;
+  g_symbol_constraints.tick_size = 0.00001;
+
+  SignalParams next_level_signal;
+  next_level_signal.signal_type = BULLISH;
+  next_level_signal.strategy_context = CONTEXT_SLOT_BASE;
+  next_level_signal.entry_trigger_mode = LEVELS_AS_LIMITS;
+  next_level_signal.entry_is_limit = true;
+  next_level_signal.entry_price = 1.10000;
+  next_level_signal.grid_entry_reference_price = 1.10000;
+
+  GridOrderState degenerate_next_level;
+  degenerate_next_level.level_index = 0;
+  degenerate_next_level.entry_reference_price = 1.10000;
+  degenerate_next_level.next_level_price = 1.10000;
+
+  g_ask = 1.10000;
+  g_bid = 1.09998;
+  if(GridShouldActivateNextLevelLimit(next_level_signal,
+                                      degenerate_next_level,
+                                      BULLISH))
+  {
+    errors += "same-price next level must not trigger immediately\n";
+  }
+
+  GridOrderState distinct_next_level = degenerate_next_level;
+  distinct_next_level.next_level_price = 1.09990;
+  g_ask = 1.09989;
+  if(!GridShouldActivateNextLevelLimit(next_level_signal,
+                                       distinct_next_level,
+                                       BULLISH))
+  {
+    errors += "distinct next level should still trigger normally\n";
+  }
+
+  g_symbol_constraints = saved_constraints;
+  g_bid = saved_bid;
+  g_ask = saved_ask;
+
   // Comments/log labels must be one-based and aligned with chart levels.
   SignalParams comment_signal;
   comment_signal.signal_type = BULLISH;

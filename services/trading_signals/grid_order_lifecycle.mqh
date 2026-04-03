@@ -131,17 +131,20 @@ bool GridShouldActivateNextLevelLimit(const SignalParams &signal_params,
                                       const SignalTypes direction)
 {
   double entry_side_price = GridCurrentPriceForDirection(direction, true);
+  double reference_price = GridResolveOrderReferencePrice(signal_params,
+                                                          order_state);
 
   // Deeper levels activate on the NEXT level price (averaging on adverse move).
   double next_trigger = order_state.next_level_price;
   if(next_trigger <= 0.0)
     return false;
+  if(reference_price > 0.0 &&
+     !GridHasMeaningfulPriceGap(reference_price,
+                                next_trigger))
+    return false;
 
   if(SignalUsesBreakoutLimitAnchoring(signal_params))
   {
-    double reference_price = order_state.entry_reference_price;
-    if(reference_price <= 0.0)
-      reference_price = signal_params.entry_price;
     if(reference_price <= 0.0)
       reference_price = next_trigger;
 

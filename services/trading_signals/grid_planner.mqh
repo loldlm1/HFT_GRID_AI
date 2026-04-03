@@ -350,24 +350,18 @@ double ResolveGridOrderLotSize(SignalParams &signal_params,
 void LogGridPlanDiagnostics(const SignalParams &signal_params,
                             const double base_distance_points)
 {
-  if(!Enable_File_Logs)
-    return;
-
   string direction = (signal_params.signal_type == BULLISH) ? "BULLISH" : "BEARISH";
   string header = StringFormat("dir=%s|entry=%.5f|base_dist=%.2f|entry_ref=%.5f",
                                direction,
                                signal_params.entry_price,
                                base_distance_points,
                                signal_params.grid_entry_reference_price);
-  AppendTimestampedLog("query_debug.txt", "GRID_PLAN_BASE", header);
+  GridAppendQueryDebugLog("GRID_PLAN_BASE", header);
 }
 
 void LogGridPlanLevelDetail(const SignalParams &signal_params,
                             const GridOrderState &state)
 {
-  if(!Enable_File_Logs)
-    return;
-
   string direction = (signal_params.signal_type == BULLISH) ? "BULLISH" : "BEARISH";
   int display_level = GridDisplayLevelNumber(state.level_index);
   string detail = StringFormat("dir=%s|L%d|entry_ref=%.5f|next=%.5f|tp=%.5f|lot=%.2f|status=%s",
@@ -378,7 +372,7 @@ void LogGridPlanLevelDetail(const SignalParams &signal_params,
                                state.take_profit_price,
                                state.lot_size,
                                EnumToString(state.status));
-  AppendTimestampedLog("query_debug.txt", "GRID_PLAN_LEVEL", detail);
+  GridAppendQueryDebugLog("GRID_PLAN_LEVEL", detail);
 }
 
 bool BuildGridSignalPoints(SignalParams &signal_params)
@@ -522,16 +516,13 @@ bool BuildGridOrderForSignal(SignalParams &signal_params)
   else
     GridLogEvent("LEVEL_PENDING_INIT", signal_params, signal_params.grid_orders[grid_order_level]);
   LogGridPlanLevelDetail(signal_params, signal_params.grid_orders[grid_order_level]);
-  if(Enable_File_Logs)
-  {
-    int display_level = GridDisplayLevelNumber(signal_params.grid_orders[grid_order_level].level_index);
-    AppendTimestampedLog("query_debug.txt", "LEVEL_PENDING_INIT",
-                         StringFormat("L%d|entry_ref=%.5f|next=%.5f|armed=%s",
-                                      display_level,
-                                      signal_params.grid_orders[grid_order_level].entry_reference_price,
-                                      signal_params.grid_orders[grid_order_level].next_level_price,
-                                      signal_params.grid_orders[grid_order_level].limit_activation_armed ? "true" : "false"));
-  }
+  int display_level = GridDisplayLevelNumber(signal_params.grid_orders[grid_order_level].level_index);
+  GridAppendQueryDebugLog("LEVEL_PENDING_INIT",
+                          StringFormat("L%d|entry_ref=%.5f|next=%.5f|armed=%s",
+                                       display_level,
+                                       signal_params.grid_orders[grid_order_level].entry_reference_price,
+                                       signal_params.grid_orders[grid_order_level].next_level_price,
+                                       signal_params.grid_orders[grid_order_level].limit_activation_armed ? "true" : "false"));
   return true;
 }
 

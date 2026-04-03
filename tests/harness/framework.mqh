@@ -129,6 +129,19 @@ void GridLogGuardrailBlock(const string,
 {
 }
 
+void GridLogNextLevelTriggerDecision(const SignalParams &,
+                                     const GridOrderState &,
+                                     const SignalTypes)
+{
+}
+
+void GridLogStopLimitDecision(const SignalParams &,
+                              const GridOrderState &,
+                              const int,
+                              const bool)
+{
+}
+
 void MarketStatusRegisterBrokerFailure(const string,
                                        const ulong,
                                        const int,

@@ -254,10 +254,18 @@ void UpdateGridLifecycle(SignalParams &signal_params)
         return;
       }
     }
-    if(GridShouldActivateNextLevelLimit(signal_params, grid_order, direction))
+    bool next_level_triggered = GridShouldActivateNextLevelLimit(signal_params,
+                                                                 grid_order,
+                                                                 direction);
+    if(next_level_triggered)
     {
+      GridLogNextLevelTriggerDecision(signal_params, grid_order, direction);
       bool level_limit_hit = ShouldBlockNextLevelByStopLimit(Grid_Level_Stop_Limit,
                                                              grid_order.level_index);
+      GridLogStopLimitDecision(signal_params,
+                               grid_order,
+                               Grid_Level_Stop_Limit,
+                               level_limit_hit);
 
       if(level_limit_hit)
       {

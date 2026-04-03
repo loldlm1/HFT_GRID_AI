@@ -232,6 +232,51 @@ double GridPointsBetween(const SignalTypes direction,
   return (candidate_price - reference_price) / point_size;
 }
 
+double GridAbsolutePriceDistancePoints(const double reference_price,
+                                       const double candidate_price)
+{
+  double point_size = GridResolvePointSize();
+  if(point_size <= 0.0)
+    return 0.0;
+
+  return MathAbs(reference_price - candidate_price) / point_size;
+}
+
+double GridResolveMinimumLevelDistancePoints()
+{
+  double minimum_points = EnforceBrokerDistance(g_symbol_constraints, 1.0);
+  if(minimum_points <= 0.0)
+    minimum_points = 1.0;
+  return minimum_points;
+}
+
+bool GridHasMeaningfulPriceGap(const double reference_price,
+                               const double candidate_price,
+                               const double minimum_distance_points = 0.0)
+{
+  if(reference_price <= 0.0 || candidate_price <= 0.0)
+    return false;
+
+  double required_points = minimum_distance_points;
+  if(required_points <= 0.0)
+    required_points = GridResolveMinimumLevelDistancePoints();
+
+  double actual_points = GridAbsolutePriceDistancePoints(reference_price,
+                                                         candidate_price);
+  return (actual_points + 1.0e-9 >= required_points);
+}
+
+double GridResolveOrderReferencePrice(const SignalParams &signal_params,
+                                      const GridOrderState &order_state)
+{
+  double reference_price = order_state.entry_reference_price;
+  if(reference_price <= 0.0)
+    reference_price = signal_params.entry_price;
+  if(reference_price <= 0.0)
+    reference_price = signal_params.grid_entry_reference_price;
+  return reference_price;
+}
+
 bool ShouldActivateBreakoutLimitEntry(const SignalTypes direction,
                                       const double entry_side_price,
                                       const double trigger_price)
@@ -295,14 +340,33 @@ double GetGridStopReferencePrice(SignalTypes direction, SignalParams &signal_par
 double GetGridNextLevelPrice(SignalTypes direction, SignalParams &signal_params, GridOrderState &grid_order_state)
 {
   double grid_raw_pending_price  = 0;
-  double grid_base_entry_price   = grid_order_state.entry_reference_price;
+  double grid_base_entry_price   = GridResolveOrderReferencePrice(signal_params,
+                                                                  grid_order_state);
   double grid_next_level_price   = grid_order_state.next_level_price;
 
   if(Base_Strategy_Type == FIB_LEVEL_RANGE)
   {
     double fib_level_price = 0.0;
     if(ResolveFibonacciGridLevelPrice(signal_params, grid_order_state.level_index, fib_level_price))
+    {
+      double minimum_distance_points = ResolveGridLevelDistancePoints(signal_params,
+                                                                      grid_order_state);
+      if(minimum_distance_points <= 0.0)
+        minimum_distance_points = GridResolveMinimumLevelDistancePoints();
+
+      if(grid_base_entry_price > 0.0 &&
+         !GridHasMeaningfulPriceGap(grid_base_entry_price,
+                                    fib_level_price,
+                                    minimum_distance_points))
+      {
+        double fallback_price = ComputeNextLevelPrice(signal_params,
+                                                      grid_base_entry_price,
+                                                      minimum_distance_points);
+        if(fallback_price > 0.0)
+          return fallback_price;
+      }
       return fib_level_price;
+    }
     return grid_next_level_price;
   }
 

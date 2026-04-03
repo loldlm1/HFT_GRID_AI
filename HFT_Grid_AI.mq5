@@ -62,6 +62,7 @@ int OnInit()
   g_symbol.Name(_Symbol);
   g_decimal_digits  = pow(10.0, Digits());
   g_initial_ea_date = TimeCurrent();
+  ResetQueryDebugLogSession();
 
   if(!RefreshSymbolTradingConstraints(_Symbol, g_symbol_constraints))
   {
