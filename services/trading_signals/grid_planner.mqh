@@ -356,7 +356,62 @@ void LogGridPlanDiagnostics(const SignalParams &signal_params,
                                signal_params.entry_price,
                                base_distance_points,
                                signal_params.grid_entry_reference_price);
-  GridAppendQueryDebugLog("GRID_PLAN_BASE", header);
+
+  if(Base_Strategy_Type == FIB_LEVEL_RANGE)
+  {
+    bool resolved_entry_ok = SignalHasResolvedFibonacciEntryAnchor(signal_params);
+    double resolved_entry_percent = signal_params.resolved_fibonacci_entry.percent;
+    double resolved_entry_price = signal_params.resolved_fibonacci_entry.price;
+    double logical_next_percent = 0.0;
+    bool logical_next_percent_ok = ResolveFibonacciGridLevelPercent(signal_params,
+                                                                    0,
+                                                                    logical_next_percent);
+    double logical_next_price = 0.0;
+    bool logical_next_price_ok = ResolveFibonacciGridLevelPrice(signal_params,
+                                                                0,
+                                                                logical_next_price);
+
+    SignalParams preview_signal = signal_params;
+    GridOrderState preview_state;
+    preview_state.level_index = 0;
+    preview_state.entry_reference_price = signal_params.grid_entry_reference_price;
+    double emitted_next_price = GetGridNextLevelPrice(signal_params.signal_type,
+                                                      preview_signal,
+                                                      preview_state);
+    string next_source = "LOGICAL";
+    if(logical_next_price_ok)
+    {
+      double next_gap_points = GridAbsolutePriceDistancePoints(emitted_next_price,
+                                                               logical_next_price);
+      if(next_gap_points > 0.1)
+        next_source = "BROKER_SAFE";
+    }
+
+    header = header + StringFormat("|fib_steps=%d|logical_next_pct=%s|logical_next_price=%s|emitted_next=%s|next_src=%s",
+                                   signal_params.fib_level_offset_steps,
+                                   GridFormatDoubleOrToken(logical_next_percent_ok,
+                                                           logical_next_percent,
+                                                           2),
+                                   GridFormatDoubleOrToken(logical_next_price_ok,
+                                                           logical_next_price,
+                                                           5),
+                                   GridFormatDoubleOrToken(emitted_next_price > 0.0,
+                                                           emitted_next_price,
+                                                           5),
+                                   next_source);
+    header = header + StringFormat("|resolved_entry_pct=%s|resolved_entry_price=%s|entry_anchor_src=%s",
+                                   GridFormatDoubleOrToken(resolved_entry_ok,
+                                                           resolved_entry_percent,
+                                                           2),
+                                   GridFormatDoubleOrToken(resolved_entry_ok,
+                                                           resolved_entry_price,
+                                                           5),
+                                   resolved_entry_ok ? "SIGNAL" : "RAW");
+  }
+
+  GridAppendQueryDebugChangedLog("GRID_PLAN_BASE",
+                                 GridQueryDebugSignalKey(signal_params),
+                                 header);
 }
 
 void LogGridPlanLevelDetail(const SignalParams &signal_params,

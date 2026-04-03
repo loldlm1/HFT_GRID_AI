@@ -665,6 +665,115 @@ bool ResolveFibonacciEntryPercent(const SignalParams &signal_params,
                                          entry_percent);
 }
 
+bool SignalHasResolvedFibonacciEntryAnchor(const SignalParams &signal_params)
+{
+  if(!signal_params.resolved_fibonacci_entry.valid)
+    return false;
+
+  if(!MathIsValidNumber(signal_params.resolved_fibonacci_entry.percent))
+    return false;
+
+  if(!MathIsValidNumber(signal_params.resolved_fibonacci_entry.price))
+    return false;
+
+  return (signal_params.resolved_fibonacci_entry.price > 0.0);
+}
+
+bool ResolveFibonacciCanonicalEntryContext(const SignalParams &signal_params,
+                                           const double entry_price,
+                                           double &entry_percent_out,
+                                           double &band_lower_out,
+                                           double &band_upper_out,
+                                           double &canonical_percent_out,
+                                           double &canonical_price_out,
+                                           double &peak_price_out,
+                                           double &bottom_price_out,
+                                           bool &current_is_bottom_out,
+                                           bool &band_target_used_out)
+{
+  entry_percent_out = 0.0;
+  band_lower_out = 0.0;
+  band_upper_out = 0.0;
+  canonical_percent_out = 0.0;
+  canonical_price_out = 0.0;
+  peak_price_out = 0.0;
+  bottom_price_out = 0.0;
+  current_is_bottom_out = false;
+  band_target_used_out = false;
+
+  if(entry_price <= 0.0)
+    return false;
+
+  if(!ResolveFibonacciEntryPercent(signal_params,
+                                   entry_price,
+                                   entry_percent_out,
+                                   peak_price_out,
+                                   bottom_price_out,
+                                   current_is_bottom_out))
+    return false;
+
+  canonical_percent_out = entry_percent_out;
+  canonical_price_out = entry_price;
+
+  if(SignalHasResolvedFibonacciEntryAnchor(signal_params))
+  {
+    canonical_percent_out = signal_params.resolved_fibonacci_entry.percent;
+    canonical_price_out   = signal_params.resolved_fibonacci_entry.price;
+    band_target_used_out  = true;
+    return true;
+  }
+
+  if(!signal_params.entry_is_limit || SignalUsesBreakoutLimitAnchoring(signal_params))
+    return true;
+
+  bool band_ok = ResolveFibonacciRangeForPercentStrict(g_structure_fibo_config.levels,
+                                                       ArraySize(g_structure_fibo_config.levels),
+                                                       entry_percent_out,
+                                                       band_lower_out,
+                                                       band_upper_out);
+  if(!band_ok)
+  {
+    band_ok = ResolveFibonacciRangeForPercent(g_structure_fibo_config.levels,
+                                              ArraySize(g_structure_fibo_config.levels),
+                                              entry_percent_out,
+                                              band_lower_out,
+                                              band_upper_out);
+  }
+  if(!band_ok)
+    return true;
+
+  double lower_price = 0.0;
+  double upper_price = 0.0;
+  if(!ResolveStructurePriceForPercent(peak_price_out,
+                                      bottom_price_out,
+                                      current_is_bottom_out,
+                                      band_lower_out,
+                                      lower_price) ||
+     !ResolveStructurePriceForPercent(peak_price_out,
+                                      bottom_price_out,
+                                      current_is_bottom_out,
+                                      band_upper_out,
+                                      upper_price))
+    return true;
+
+  double target_percent = 0.0;
+  double target_price = 0.0;
+  if(!ResolveDirectionalLimitBandTarget(signal_params.signal_type,
+                                        current_is_bottom_out,
+                                        band_lower_out,
+                                        band_upper_out,
+                                        lower_price,
+                                        upper_price,
+                                        target_percent,
+                                        target_price))
+    return true;
+
+  canonical_percent_out = target_percent;
+  canonical_price_out = target_price;
+  band_target_used_out = true;
+  return true;
+}
+
 bool ResolveFibonacciEntryRange(const SignalParams &signal_params,
                                 const double entry_price,
                                 double &entry_percent_out,
@@ -768,7 +877,6 @@ bool ResolveGridTraversalForLevel(const SignalParams &signal_params,
                                   bool &return_anchor_only_out,
                                   double &anchor_percent_out)
 {
-  start_percent_out = entry_percent;
   steps_out = signal_params.fib_level_offset_steps + level_index;
   if(steps_out <= 0)
     steps_out = 1;
@@ -813,23 +921,33 @@ bool ResolveFibonacciGridLevelPercent(const SignalParams &signal_params,
     return false;
 
   double entry_percent = 0.0;
+  double band_lower = 0.0;
+  double band_upper = 0.0;
+  double canonical_entry_percent = 0.0;
+  double canonical_entry_price = 0.0;
   double peak_price = 0.0;
   double bottom_price = 0.0;
   bool current_is_bottom = false;
-  if(!ResolveFibonacciEntryPercent(signal_params,
-                                   entry_price,
-                                   entry_percent,
-                                   peak_price,
-                                   bottom_price,
-                                   current_is_bottom))
+  bool band_target_used = false;
+  if(!ResolveFibonacciCanonicalEntryContext(signal_params,
+                                            entry_price,
+                                            entry_percent,
+                                            band_lower,
+                                            band_upper,
+                                            canonical_entry_percent,
+                                            canonical_entry_price,
+                                            peak_price,
+                                            bottom_price,
+                                            current_is_bottom,
+                                            band_target_used))
     return false;
 
-  double start_percent = entry_percent;
+  double start_percent = canonical_entry_percent;
   int steps = signal_params.fib_level_offset_steps + level_index;
   bool return_anchor_only = false;
   double anchor_percent = 0.0;
   if(!ResolveGridTraversalForLevel(signal_params,
-                                   entry_percent,
+                                   canonical_entry_percent,
                                    level_index,
                                    start_percent,
                                    steps,
@@ -872,23 +990,33 @@ bool ResolveFibonacciGridLevelPrice(const SignalParams &signal_params,
     return false;
 
   double entry_percent = 0.0;
+  double canonical_entry_percent = 0.0;
   double peak_price = 0.0;
   double bottom_price = 0.0;
   bool current_is_bottom = false;
-  if(!ResolveFibonacciEntryPercent(signal_params,
-                                   entry_price,
-                                   entry_percent,
-                                   peak_price,
-                                   bottom_price,
-                                   current_is_bottom))
+  double band_lower = 0.0;
+  double band_upper = 0.0;
+  double canonical_entry_price = 0.0;
+  bool band_target_used = false;
+  if(!ResolveFibonacciCanonicalEntryContext(signal_params,
+                                            entry_price,
+                                            entry_percent,
+                                            band_lower,
+                                            band_upper,
+                                            canonical_entry_percent,
+                                            canonical_entry_price,
+                                            peak_price,
+                                            bottom_price,
+                                            current_is_bottom,
+                                            band_target_used))
     return false;
 
-  double start_percent = entry_percent;
+  double start_percent = canonical_entry_percent;
   int steps = signal_params.fib_level_offset_steps + level_index;
   bool return_anchor_only = false;
   double anchor_percent = 0.0;
   if(!ResolveGridTraversalForLevel(signal_params,
-                                   entry_percent,
+                                   canonical_entry_percent,
                                    level_index,
                                    start_percent,
                                    steps,
@@ -938,15 +1066,25 @@ bool ResolveFibonacciGridBaseDistance(const SignalParams &signal_params,
     return false;
 
   double entry_percent = 0.0;
+  double canonical_entry_percent = 0.0;
   double peak_price = 0.0;
   double bottom_price = 0.0;
   bool current_is_bottom = false;
-  if(!ResolveFibonacciEntryPercent(signal_params,
-                                   entry_price,
-                                   entry_percent,
-                                   peak_price,
-                                   bottom_price,
-                                   current_is_bottom))
+  double band_lower = 0.0;
+  double band_upper = 0.0;
+  double canonical_entry_price = 0.0;
+  bool band_target_used = false;
+  if(!ResolveFibonacciCanonicalEntryContext(signal_params,
+                                            entry_price,
+                                            entry_percent,
+                                            band_lower,
+                                            band_upper,
+                                            canonical_entry_percent,
+                                            canonical_entry_price,
+                                            peak_price,
+                                            bottom_price,
+                                            current_is_bottom,
+                                            band_target_used))
     return false;
 
   int step_dir = ResolveFibonacciStepDirection(signal_params.signal_type, current_is_bottom);
@@ -965,7 +1103,7 @@ bool ResolveFibonacciGridBaseDistance(const SignalParams &signal_params,
   if(SignalUsesBreakoutLimitAnchoring(signal_params))
   {
     double anchored_percent = 0.0;
-    if(!ResolveBreakoutLimitOppositeEndpointPercent(entry_percent, anchored_percent))
+    if(!ResolveBreakoutLimitOppositeEndpointPercent(canonical_entry_percent, anchored_percent))
       return false;
 
     double anchored_price = 0.0;
@@ -992,7 +1130,7 @@ bool ResolveFibonacciGridBaseDistance(const SignalParams &signal_params,
       if(!ResolveFibonacciNextPercentCycledWithCycle(g_structure_fibo_config.cycle_levels,
                                                      ArraySize(g_structure_fibo_config.cycle_levels),
                                                      g_structure_fibo_config.cycle_allow_zero,
-                                                     entry_percent,
+                                                     canonical_entry_percent,
                                                      step,
                                                      step_dir,
                                                      next_percent))
@@ -1022,7 +1160,7 @@ bool ResolveFibonacciGridBaseDistance(const SignalParams &signal_params,
   if(!ResolveFibonacciNextPercentCycledWithCycle(g_structure_fibo_config.cycle_levels,
                                                  ArraySize(g_structure_fibo_config.cycle_levels),
                                                  g_structure_fibo_config.cycle_allow_zero,
-                                                 entry_percent,
+                                                 canonical_entry_percent,
                                                  1,
                                                  step_dir,
                                                  next_percent))

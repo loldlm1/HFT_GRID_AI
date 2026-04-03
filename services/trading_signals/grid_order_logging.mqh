@@ -8,6 +8,8 @@
 
 const string QUERY_DEBUG_FILENAME = "query_debug.txt";
 bool g_query_debug_session_header_logged = false;
+string g_query_debug_state_keys[];
+string g_query_debug_state_messages[];
 
 string GridBoolToken(const bool value)
 {
@@ -29,6 +31,8 @@ string GridSessionModeToken(const SessionTimeFilterModes mode)
 void ResetQueryDebugLogSession()
 {
   g_query_debug_session_header_logged = false;
+  ArrayResize(g_query_debug_state_keys, 0);
+  ArrayResize(g_query_debug_state_messages, 0);
 }
 
 void GridAppendRawQueryDebugLine(const string line)
@@ -40,6 +44,48 @@ void GridAppendTimestampedQueryDebug(const string label,
                                      const string message)
 {
   AppendTimestampedLog(QUERY_DEBUG_FILENAME, label, message);
+}
+
+string GridQueryDebugSignalKey(const SignalParams &signal_params)
+{
+  if(signal_params.grid_sequence_id != "")
+    return signal_params.grid_sequence_id;
+
+  string direction = (signal_params.signal_type == BULLISH) ? "BULLISH" : "BEARISH";
+  string time_token = TimeToString(signal_params.entry_time, TIME_DATE|TIME_SECONDS);
+  return direction + "|" + time_token;
+}
+
+int GridFindQueryDebugStateIndex(const string state_key)
+{
+  int total = ArraySize(g_query_debug_state_keys);
+  for(int i = 0; i < total; i++)
+  {
+    if(g_query_debug_state_keys[i] == state_key)
+      return i;
+  }
+  return -1;
+}
+
+bool GridShouldLogChangedState(const string state_key,
+                               const string message)
+{
+  int index = GridFindQueryDebugStateIndex(state_key);
+  if(index < 0)
+  {
+    int total = ArraySize(g_query_debug_state_keys);
+    ArrayResize(g_query_debug_state_keys, total + 1);
+    ArrayResize(g_query_debug_state_messages, total + 1);
+    g_query_debug_state_keys[total] = state_key;
+    g_query_debug_state_messages[total] = message;
+    return true;
+  }
+
+  if(g_query_debug_state_messages[index] == message)
+    return false;
+
+  g_query_debug_state_messages[index] = message;
+  return true;
 }
 
 void EnsureQueryDebugSessionHeaderLogged()
@@ -94,6 +140,10 @@ void EnsureQueryDebugSessionHeaderLogged()
                                                EnumToString(Strategy_Direction_Mode),
                                                EnumToString(Signal_Concurrency_Mode)));
 
+  GridAppendTimestampedQueryDebug("INPUTS_FIB",
+                                  StringFormat("levels=%s",
+                                               Structure_Fibonacci_Levels));
+
   GridAppendTimestampedQueryDebug("INPUTS_GRID",
                                   StringFormat("base=%s|points_range=%.1f|grid_mult=%.2f|level_start=%d|stop_limit=%d|lot_type=%s|lot_size=%.2f|lot_mult=%.2f|tp_percent=%.1f",
                                                EnumToString(Base_Strategy_Type),
@@ -128,6 +178,20 @@ void GridAppendQueryDebugLog(const string label,
     return;
 
   EnsureQueryDebugSessionHeaderLogged();
+  GridAppendTimestampedQueryDebug(label, message);
+}
+
+void GridAppendQueryDebugChangedLog(const string label,
+                                    const string state_key,
+                                    const string message)
+{
+  if(!Enable_File_Logs)
+    return;
+
+  EnsureQueryDebugSessionHeaderLogged();
+  if(!GridShouldLogChangedState(label + "|" + state_key, message))
+    return;
+
   GridAppendTimestampedQueryDebug(label, message);
 }
 
@@ -267,12 +331,22 @@ string GridBuildLevelResolutionSummary(const SignalParams &signal_params,
   double bottom_price = 0.0;
   bool current_is_bottom = false;
   double entry_percent = 0.0;
-  bool entry_ok = ResolveFibonacciEntryPercent(signal_params,
-                                               entry_price,
-                                               entry_percent,
-                                               peak_price,
-                                               bottom_price,
-                                               current_is_bottom);
+  double band_lower = 0.0;
+  double band_upper = 0.0;
+  double resolved_entry_percent = 0.0;
+  double resolved_entry_price = 0.0;
+  bool band_target_used = false;
+  bool entry_ok = ResolveFibonacciCanonicalEntryContext(signal_params,
+                                                        entry_price,
+                                                        entry_percent,
+                                                        band_lower,
+                                                        band_upper,
+                                                        resolved_entry_percent,
+                                                        resolved_entry_price,
+                                                        peak_price,
+                                                        bottom_price,
+                                                        current_is_bottom,
+                                                        band_target_used);
   if(!entry_ok)
   {
     return StringFormat("source=FIB|resolved=false|reason=entry_percent|entry=%.5f|next=%.5f",
@@ -288,14 +362,42 @@ string GridBuildLevelResolutionSummary(const SignalParams &signal_params,
   bool level_price_ok = ResolveFibonacciGridLevelPrice(signal_params,
                                                        order_state.level_index,
                                                        fib_level_price);
+  string band_label = "n/a";
+  if(band_lower != 0.0 || band_upper != 0.0)
+    band_label = StringFormat("%.2f-%.2f", band_lower, band_upper);
 
-  return StringFormat("source=FIB|resolved=%s|entry=%.5f|entry_pct=%s|level_pct=%s|fib_price=%s|next=%.5f|peak=%.5f|bottom=%.5f|current_is_bottom=%s",
+  string next_source = "LOGICAL";
+  if(level_price_ok && order_state.next_level_price > 0.0)
+  {
+    double next_gap_points = GridAbsolutePriceDistancePoints(order_state.next_level_price,
+                                                             fib_level_price);
+    if(next_gap_points > 0.1)
+      next_source = "BROKER_SAFE";
+  }
+
+  int fib_steps = signal_params.fib_level_offset_steps + order_state.level_index;
+  if(fib_steps <= 0)
+    fib_steps = 1;
+
+  string entry_anchor_source = "RAW";
+  if(SignalHasResolvedFibonacciEntryAnchor(signal_params))
+    entry_anchor_source = "SIGNAL";
+  else if(band_target_used)
+    entry_anchor_source = "INFERRED";
+
+  return StringFormat("source=FIB|resolved=%s|entry=%.5f|entry_pct=%s|entry_band=%s|resolved_entry_pct=%s|resolved_entry_price=%s|entry_anchor_src=%s|level_pct=%s|logical_next_price=%s|emitted_next_price=%.5f|next_src=%s|fib_steps=%d|peak=%.5f|bottom=%.5f|current_is_bottom=%s",
                       GridBoolToken(level_percent_ok && level_price_ok),
                       entry_price,
                       GridFormatDoubleOrToken(true, entry_percent, 2),
+                      band_label,
+                      GridFormatDoubleOrToken(band_target_used, resolved_entry_percent, 2),
+                      GridFormatDoubleOrToken(band_target_used, resolved_entry_price, 5),
+                      entry_anchor_source,
                       GridFormatDoubleOrToken(level_percent_ok, level_percent, 2),
                       GridFormatDoubleOrToken(level_price_ok, fib_level_price, 5),
                       order_state.next_level_price,
+                      next_source,
+                      fib_steps,
                       peak_price,
                       bottom_price,
                       GridBoolToken(current_is_bottom));

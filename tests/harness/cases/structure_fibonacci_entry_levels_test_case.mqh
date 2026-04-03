@@ -130,6 +130,34 @@ bool RunTest_structure_fibonacci_entry_levels_test(string &errors)
     EntryLevels_AssertClose("bottom/bull limit pct", EntryLevels_PercentForPrice(s_bottom, entry_price), 38.2, 0.1, errors);
     if(!(entry_price < close_price))
       errors += "bottom/bull entry not below close\n";
+
+    ResolvedFibonacciEntryAnchor resolved_entry;
+    double resolved_entry_price = 0.0;
+    bool resolved_in_zone = false;
+    bool resolved_entry_is_limit = false;
+    if(!ResolveStructureFibonacciEntryForPricesDetailed(s_bottom,
+                                                        close_price,
+                                                        close_price,
+                                                        close_price,
+                                                        BULLISH,
+                                                        LEVELS_AS_LIMITS,
+                                                        resolved_entry_price,
+                                                        resolved_in_zone,
+                                                        resolved_entry_is_limit,
+                                                        resolved_entry))
+    {
+      errors += "bottom/bull detailed resolve failed\n";
+    }
+    else
+    {
+      if(!resolved_entry.valid)
+        errors += "bottom/bull resolved entry anchor missing\n";
+      else
+      {
+        EntryLevels_AssertClose("bottom/bull resolved entry pct", resolved_entry.percent, 38.2, 0.1, errors);
+        EntryLevels_AssertClose("bottom/bull resolved entry price", resolved_entry.price, entry_price, 0.00001, errors);
+      }
+    }
   }
 
   if(!ResolveStructureFibonacciEntryForPrices(s_bottom,

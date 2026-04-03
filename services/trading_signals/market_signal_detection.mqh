@@ -50,13 +50,15 @@ void EvaluateContextSignals(const StrategyContextTypes context)
     bool filters_pass = false;
     double entry_price = 0.0;
     bool entry_is_limit = false;
-    if(!StrategyContextEvaluateEntry(snapshot,
-                                     direction,
-                                     structure_time,
-                                     entry_allows,
-                                     filters_pass,
-                                     entry_price,
-                                     entry_is_limit))
+    ResolvedFibonacciEntryAnchor resolved_entry;
+    if(!StrategyContextEvaluateEntryDetailed(snapshot,
+                                            direction,
+                                            structure_time,
+                                            entry_allows,
+                                            filters_pass,
+                                            entry_price,
+                                            entry_is_limit,
+                                            resolved_entry))
       return;
 
     bool cascade_pass = filters_pass;
@@ -95,6 +97,7 @@ void EvaluateContextSignals(const StrategyContextTypes context)
     signal.strategy_context_label = StrategyContextLabel(context);
     signal.entry_trigger_mode     = effective_trigger_mode;
     signal.entry_is_limit         = entry_is_limit;
+    signal.resolved_fibonacci_entry = resolved_entry;
     signal.signal_lot_sequence_step = ResolveSignalLotSequenceStepForNewSignal();
     signal.context_structure_snapshot_time = resolved_structure_time;
     signal.grid_sequence_id       = BuildSignalSequenceId(direction,

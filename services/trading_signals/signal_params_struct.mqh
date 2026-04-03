@@ -46,6 +46,20 @@ struct GridOrderState
   }
 };
 
+struct ResolvedFibonacciEntryAnchor
+{
+  bool   valid;
+  double percent;
+  double price;
+
+  ResolvedFibonacciEntryAnchor()
+  {
+    valid   = false;
+    percent = 0.0;
+    price   = 0.0;
+  }
+};
+
 struct SignalParams
 {
   SignalTypes                signal_type;
@@ -56,6 +70,7 @@ struct SignalParams
   string                     strategy_context_label;
   StructureTriggerEntryModes entry_trigger_mode;
   double                     entry_price;
+  ResolvedFibonacciEntryAnchor resolved_fibonacci_entry;
   bool                       entry_is_limit;
   double                     close_price;
   double                     stop_loss;
@@ -117,6 +132,7 @@ struct SignalParams
     strategy_context_label     = "BASE";
     entry_trigger_mode         = LEVELS_AS_LIMITS;
     entry_price                = 0.0;
+    resolved_fibonacci_entry   = ResolvedFibonacciEntryAnchor();
     entry_is_limit             = false;
     close_price                = 0.0;
     stop_loss                  = 0.0;
@@ -168,6 +184,7 @@ struct SignalParams
     strategy_context_label     = signal_params.strategy_context_label;
     entry_trigger_mode         = signal_params.entry_trigger_mode;
     entry_price                = signal_params.entry_price;
+    resolved_fibonacci_entry   = signal_params.resolved_fibonacci_entry;
     entry_is_limit             = signal_params.entry_is_limit;
     close_price                = signal_params.close_price;
     stop_loss                  = signal_params.stop_loss;
