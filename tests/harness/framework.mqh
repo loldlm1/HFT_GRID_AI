@@ -142,6 +142,17 @@ void GridLogStopLimitDecision(const SignalParams &,
 {
 }
 
+void GridAppendQueryDebugLog(const string,
+                             const string)
+{
+}
+
+void GridAppendQueryDebugChangedLog(const string,
+                                    const string,
+                                    const string)
+{
+}
+
 void MarketStatusRegisterBrokerFailure(const string,
                                        const ulong,
                                        const int,

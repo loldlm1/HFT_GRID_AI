@@ -27,6 +27,30 @@ void TouchPolicy_PrepareBottomStructure(const double peak_price,
   structure_out.os_market_structures[2].extremum_low = current_bottom_price;
 }
 
+void TouchPolicy_PreparePeakStructure(const double peak_price,
+                                      const double bottom_price,
+                                      const double current_peak_percent,
+                                      const datetime first_time,
+                                      const datetime second_time,
+                                      StochasticMarketStructure &structure_out)
+{
+  structure_out = StochasticMarketStructure();
+  structure_out.first_structure_time = first_time;
+  structure_out.second_structure_time = second_time;
+
+  double current_peak_price = GetFiboTrendPeakPrice(peak_price,
+                                                    bottom_price,
+                                                    current_peak_percent);
+
+  ArrayResize(structure_out.os_market_structures, 3);
+  structure_out.os_market_structures[0].is_peak = true;
+  structure_out.os_market_structures[0].extremum_high = current_peak_price - 10.0;
+  structure_out.os_market_structures[1].is_peak = false;
+  structure_out.os_market_structures[1].extremum_low = bottom_price;
+  structure_out.os_market_structures[2].is_peak = true;
+  structure_out.os_market_structures[2].extremum_high = current_peak_price;
+}
+
 bool TouchPolicy_ResolveEntry(const StochasticMarketStructure &structure,
                               const double close_percent,
                               const double low_percent,
@@ -47,9 +71,16 @@ bool TouchPolicy_ResolveEntry(const StochasticMarketStructure &structure,
     return false;
   }
 
-  double close_price = GetFiboTrendBottomPrice(peak_price, bottom_price, close_percent);
-  double low_price = GetFiboTrendBottomPrice(peak_price, bottom_price, low_percent);
-  double high_price = GetFiboTrendBottomPrice(peak_price, bottom_price, high_percent);
+  double close_price = 0.0;
+  double low_price = 0.0;
+  double high_price = 0.0;
+  if(!ResolveStructurePriceForPercent(peak_price, bottom_price, current_is_bottom, close_percent, close_price) ||
+     !ResolveStructurePriceForPercent(peak_price, bottom_price, current_is_bottom, low_percent, low_price) ||
+     !ResolveStructurePriceForPercent(peak_price, bottom_price, current_is_bottom, high_percent, high_price))
+  {
+    errors += "resolve prices for percents\n";
+    return false;
+  }
 
   double entry_price = 0.0;
   bool ok = ResolveStructureFibonacciEntryForPrices(structure,
@@ -141,6 +172,22 @@ bool RunTest_structure_touch_policy_test(string &errors)
                                      D'2026.02.14 09:30',
                                      time_a,
                                      untouched_structure);
+
+  StochasticMarketStructure touched_peak_structure;
+  TouchPolicy_PreparePeakStructure(peak_price,
+                                   bottom_price,
+                                   20.0,
+                                   D'2026.02.14 09:15',
+                                   time_a,
+                                   touched_peak_structure);
+
+  StochasticMarketStructure untouched_peak_structure;
+  TouchPolicy_PreparePeakStructure(peak_price,
+                                   bottom_price,
+                                   60.0,
+                                   D'2026.02.14 09:45',
+                                   time_a,
+                                   untouched_peak_structure);
   ClearStructureTouchPolicyState();
   if(!TouchPolicy_ResolveEntry(untouched_structure,
                                30.0,
@@ -191,7 +238,7 @@ bool RunTest_structure_touch_policy_test(string &errors)
 
   SetStructureCompoundFilterRuntime(COMPOUND_MODE_BREAKOUT_READY_SELL);
   ClearStructureTouchPolicyState();
-  if(!TouchPolicy_ResolveEntry(touched_structure,
+  if(!TouchPolicy_ResolveEntry(touched_peak_structure,
                                30.0,
                                30.0,
                                0.0,
@@ -206,7 +253,7 @@ bool RunTest_structure_touch_policy_test(string &errors)
     errors += "breakout sell should ignore first touch only blocking\n";
 
   ClearStructureTouchPolicyState();
-  if(!TouchPolicy_ResolveEntry(touched_structure,
+  if(!TouchPolicy_ResolveEntry(touched_peak_structure,
                                30.0,
                                30.0,
                                0.0,
@@ -253,7 +300,7 @@ bool RunTest_structure_touch_policy_test(string &errors)
     errors += "zone retest should be blocked\n";
 
   // BOTH_DIRECTION: bearish lane is independent from bullish lane.
-  if(!TouchPolicy_ResolveEntry(untouched_structure,
+  if(!TouchPolicy_ResolveEntry(untouched_peak_structure,
                                70.0,
                                70.0,
                                70.0,
@@ -267,7 +314,7 @@ bool RunTest_structure_touch_policy_test(string &errors)
   if(!in_zone)
     errors += "bearish first touch should remain independent\n";
 
-  if(!TouchPolicy_ResolveEntry(untouched_structure,
+  if(!TouchPolicy_ResolveEntry(untouched_peak_structure,
                                70.0,
                                70.0,
                                70.0,

@@ -4,6 +4,12 @@
 #ifndef _SERVICES_TRADING_SIGNALS_MARKET_SIGNAL_FILTERS_MQH_
 #define _SERVICES_TRADING_SIGNALS_MARKET_SIGNAL_FILTERS_MQH_
 
+void GridAppendQueryDebugLog(const string label,
+                             const string message);
+void GridAppendQueryDebugChangedLog(const string label,
+                                    const string state_key,
+                                    const string message);
+
 bool EvaluateDirectionalSlope(const double current_value,
                               const double previous_value,
                               const SignalTypes signal_type)
@@ -348,6 +354,48 @@ int ResolveStructurePercentStepDirection(const SignalTypes direction,
     return current_is_bottom ? -1 : 1;
 
   return 0;
+}
+
+bool StructureDirectionMatchesOrientation(const SignalTypes direction,
+                                          const bool current_is_bottom)
+{
+  if(direction == BULLISH)
+    return current_is_bottom;
+  if(direction == BEARISH)
+    return !current_is_bottom;
+  return true;
+}
+
+string StructureOrientationToken(const bool current_is_bottom)
+{
+  return current_is_bottom ? "BOTTOM" : "PEAK";
+}
+
+void LogStructureDirectionMismatch(const StrategyContextTypes context,
+                                   const StructureTriggerEntryModes trigger_mode,
+                                   const SignalTypes direction,
+                                   const bool current_is_bottom,
+                                   const double peak_price,
+                                   const double bottom_price,
+                                   const double close_price,
+                                   const datetime structure_snapshot_time)
+{
+  string state_key = StringFormat("%s|%s|%s|%d",
+                                  EnumToString(context),
+                                  EnumToString(direction),
+                                  StructureOrientationToken(current_is_bottom),
+                                  (int)structure_snapshot_time);
+  string message = StringFormat("reason=STRUCTURE_DIRECTION_MISMATCH|context=%s|trigger=%s|dir=%s|orientation=%s|current_is_bottom=%s|peak=%.5f|bottom=%.5f|close=%.5f|structure_ts=%s",
+                                EnumToString(context),
+                                EnumToString(trigger_mode),
+                                EnumToString(direction),
+                                StructureOrientationToken(current_is_bottom),
+                                current_is_bottom ? "true" : "false",
+                                peak_price,
+                                bottom_price,
+                                close_price,
+                                TimeToString(structure_snapshot_time, TIME_DATE|TIME_SECONDS));
+  GridAppendQueryDebugChangedLog("SIGNAL_REJECT", state_key, message);
 }
 
 int FindStructureTouchProgressSlot(const StrategyContextTypes context,
@@ -748,6 +796,19 @@ bool ResolveStructureFibonacciEntryForPricesDetailed(const StochasticMarketStruc
   bool current_is_bottom = false;
   if(!ResolveStructureReferenceRange(structure, peak_price, bottom_price, current_is_bottom))
     return false;
+
+  if(!StructureDirectionMatchesOrientation(direction, current_is_bottom))
+  {
+    LogStructureDirectionMismatch(context,
+                                  effective_trigger_mode,
+                                  direction,
+                                  current_is_bottom,
+                                  peak_price,
+                                  bottom_price,
+                                  close_price,
+                                  structure_snapshot_time);
+    return true;
+  }
 
   double close_percent = 0.0;
   double extreme_percent = 0.0;

@@ -70,6 +70,43 @@ bool GridConfigAddonRequestedForValues(const double grid_exponential_multiplier,
   return false;
 }
 
+bool ResolveCompoundFamilyAddonKey(const TrendStructureCompoundModes mode,
+                                   string &addon_key_out)
+{
+  addon_key_out = "";
+
+  switch(mode)
+  {
+    case COMPOUND_MODE_TREND_RIDE_BUY:
+    case COMPOUND_MODE_TREND_RIDE_SELL:
+      addon_key_out = ADDON_KEY_COMPOUND_TREND_RIDE;
+      return true;
+
+    case COMPOUND_MODE_PULLBACK_CONTINUE_BUY:
+    case COMPOUND_MODE_PULLBACK_CONTINUE_SELL:
+      addon_key_out = ADDON_KEY_COMPOUND_PULLBACK_CONT;
+      return true;
+
+    case COMPOUND_MODE_REVERSAL_EARLY_BUY:
+    case COMPOUND_MODE_REVERSAL_EARLY_SELL:
+      addon_key_out = ADDON_KEY_COMPOUND_REVERSAL_EARLY;
+      return true;
+
+    case COMPOUND_MODE_BREAKOUT_READY_BUY:
+    case COMPOUND_MODE_BREAKOUT_READY_SELL:
+      addon_key_out = ADDON_KEY_COMPOUND_BREAKOUT_READY;
+      return true;
+
+    case COMPOUND_MODE_VOLATILITY_TRAP_BUY:
+    case COMPOUND_MODE_VOLATILITY_TRAP_SELL:
+      addon_key_out = ADDON_KEY_COMPOUND_VOLATILITY_TRAP;
+      return true;
+
+    default:
+      return false;
+  }
+}
+
 void AddonPolicyCollectRequestedAddonsForSettings(const SessionTimeFilterModes asia_filter_mode,
                                                   const SessionTimeFilterModes london_filter_mode,
                                                   const SessionTimeFilterModes newyork_filter_mode,
@@ -111,7 +148,7 @@ void AddonPolicyCollectRequestedAddonsForSettings(const SessionTimeFilterModes a
   if(compound_mode != COMPOUND_MODE_OFF)
   {
     string compound_addon = "";
-    if(ResolveCompoundFamilyAddonKey((int)compound_mode, compound_addon))
+    if(ResolveCompoundFamilyAddonKey(compound_mode, compound_addon))
       LicenseAppendRequestedAddon(addons_out, compound_addon);
   }
 

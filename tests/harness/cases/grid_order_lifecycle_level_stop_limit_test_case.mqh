@@ -80,10 +80,13 @@ bool RunTest_grid_order_lifecycle_level_stop_limit_test(string &errors)
   SymbolTradingConstraints saved_constraints = g_symbol_constraints;
   double saved_bid = g_bid;
   double saved_ask = g_ask;
+  double point_size = GridResolvePointSizeSafe();
+  if(point_size <= 0.0)
+    point_size = 0.0001;
 
   g_symbol_constraints = SymbolTradingConstraints();
-  g_symbol_constraints.point_size = 0.00001;
-  g_symbol_constraints.tick_size = 0.00001;
+  g_symbol_constraints.point_size = point_size;
+  g_symbol_constraints.tick_size = point_size;
 
   SignalParams next_level_signal;
   next_level_signal.signal_type = BULLISH;
@@ -99,7 +102,7 @@ bool RunTest_grid_order_lifecycle_level_stop_limit_test(string &errors)
   degenerate_next_level.next_level_price = 1.10000;
 
   g_ask = 1.10000;
-  g_bid = 1.09998;
+  g_bid = 1.10000 - (point_size * 2.0);
   if(GridShouldActivateNextLevelLimit(next_level_signal,
                                       degenerate_next_level,
                                       BULLISH))
@@ -108,8 +111,8 @@ bool RunTest_grid_order_lifecycle_level_stop_limit_test(string &errors)
   }
 
   GridOrderState distinct_next_level = degenerate_next_level;
-  distinct_next_level.next_level_price = 1.09990;
-  g_ask = 1.09989;
+  distinct_next_level.next_level_price = 1.10000 - (point_size * 20.0);
+  g_ask = distinct_next_level.next_level_price - point_size;
   if(!GridShouldActivateNextLevelLimit(next_level_signal,
                                        distinct_next_level,
                                        BULLISH))

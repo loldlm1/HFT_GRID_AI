@@ -82,6 +82,26 @@ bool EntryLevels_AssertBreakoutBandEndpoint(const string label,
   return EntryLevels_AssertClose(label, entry_price, expected_price, tolerance, errors);
 }
 
+bool EntryLevels_AssertRejected(const string label,
+                                const bool ok,
+                                const bool in_zone,
+                                string &errors)
+{
+  if(!ok)
+  {
+    errors += StringFormat("%s resolve failed\n", label);
+    return false;
+  }
+
+  if(in_zone)
+  {
+    errors += StringFormat("%s should reject opposite orientation\n", label);
+    return false;
+  }
+
+  return true;
+}
+
 bool RunTest_structure_fibonacci_entry_levels_test(string &errors)
 {
   LoadStructureFibonacciLevels("23.6,38.2,50.0,61.8,78.6,100.0",
@@ -90,6 +110,8 @@ bool RunTest_structure_fibonacci_entry_levels_test(string &errors)
   errors = "";
   SetStructureLimitTerminalBandGuardRuntime(false);
   ClearStructureCompoundFilterRuntimeOverride();
+  ClearStructureTouchPolicyState();
+  SetStructureTouchPolicyRuntime(ALLOW_RETEST);
 
   // Keep wide ranges so point-based minimum-range checks remain symbol-agnostic.
   double range_anchor = 10000.0;
@@ -169,15 +191,9 @@ bool RunTest_structure_fibonacci_entry_levels_test(string &errors)
                                               entry_price,
                                               in_zone,
                                               entry_is_limit) ||
-     !in_zone || !entry_is_limit)
+     in_zone)
   {
-    errors += "bottom/bear limit failed\n";
-  }
-  else
-  {
-    EntryLevels_AssertClose("bottom/bear limit pct", EntryLevels_PercentForPrice(s_bottom, entry_price), 23.6, 0.1, errors);
-    if(!(entry_price > close_price))
-      errors += "bottom/bear entry not above close\n";
+    errors += "bottom/bear limit should reject bottom-led structure\n";
   }
 
   if(!ResolveStructureFibonacciEntryForPrices(s_bottom,
@@ -236,15 +252,9 @@ bool RunTest_structure_fibonacci_entry_levels_test(string &errors)
                                               entry_price,
                                               in_zone,
                                               entry_is_limit) ||
-     !in_zone || !entry_is_limit)
+     in_zone)
   {
-    errors += "peak/bull limit failed\n";
-  }
-  else
-  {
-    EntryLevels_AssertClose("peak/bull limit pct", EntryLevels_PercentForPrice(s_peak, entry_price), 23.6, 0.1, errors);
-    if(!(entry_price < close_price))
-      errors += "peak/bull entry not below close\n";
+    errors += "peak/bull limit should reject peak-led structure\n";
   }
 
   if(!ResolveStructureFibonacciEntryForPrices(s_peak,
@@ -353,12 +363,12 @@ bool RunTest_structure_fibonacci_entry_levels_test(string &errors)
   }
 
   // Breakout + dynamic levels anchors bullish entries to the upper endpoint of
-  // the active band.
+  // the active band price-wise while still respecting direction orientation.
   LoadStructureFibonacciLevels("-61.8,0.0,100.0,161.8",
                                "-61.8,0.0,100.0,161.8");
 
-  double breakout_mid_price = EntryLevels_PriceForPercent(s_peak, 70.0);
-  if(!ResolveStructureFibonacciEntryForPrices(s_peak,
+  double breakout_mid_price = EntryLevels_PriceForPercent(s_bottom, 70.0);
+  if(!ResolveStructureFibonacciEntryForPrices(s_bottom,
                                               breakout_mid_price,
                                               breakout_mid_price,
                                               breakout_mid_price,
@@ -376,15 +386,17 @@ bool RunTest_structure_fibonacci_entry_levels_test(string &errors)
   }
   else
   {
-    EntryLevels_AssertClose("breakout dynamic first band entry pct",
-                            EntryLevels_PercentForPrice(s_peak, entry_price),
-                            100.0,
-                            0.1,
-                            errors);
+    EntryLevels_AssertBreakoutBandEndpoint("breakout dynamic first band endpoint",
+                                           s_bottom,
+                                           0.0,
+                                           100.0,
+                                           BULLISH,
+                                           entry_price,
+                                           errors);
   }
 
-  double breakout_upper_price = EntryLevels_PriceForPercent(s_peak, 130.0);
-  if(!ResolveStructureFibonacciEntryForPrices(s_peak,
+  double breakout_upper_price = EntryLevels_PriceForPercent(s_bottom, 130.0);
+  if(!ResolveStructureFibonacciEntryForPrices(s_bottom,
                                               breakout_upper_price,
                                               breakout_upper_price,
                                               breakout_upper_price,
@@ -402,11 +414,13 @@ bool RunTest_structure_fibonacci_entry_levels_test(string &errors)
   }
   else
   {
-    EntryLevels_AssertClose("breakout dynamic upper band entry pct",
-                            EntryLevels_PercentForPrice(s_peak, entry_price),
-                            161.8,
-                            0.1,
-                            errors);
+    EntryLevels_AssertBreakoutBandEndpoint("breakout dynamic upper band endpoint",
+                                           s_bottom,
+                                           100.0,
+                                           161.8,
+                                           BULLISH,
+                                           entry_price,
+                                           errors);
   }
 
   SetStructureCompoundFilterRuntime(COMPOUND_MODE_BREAKOUT_READY_SELL);
@@ -442,8 +456,8 @@ bool RunTest_structure_fibonacci_entry_levels_test(string &errors)
                                "10.0,90.0,140.0");
 
   SetStructureCompoundFilterRuntime(COMPOUND_MODE_BREAKOUT_READY_BUY);
-  double breakout_custom_buy_price = EntryLevels_PriceForPercent(s_peak, 50.0);
-  if(!ResolveStructureFibonacciEntryForPrices(s_peak,
+  double breakout_custom_buy_price = EntryLevels_PriceForPercent(s_bottom, 50.0);
+  if(!ResolveStructureFibonacciEntryForPrices(s_bottom,
                                               breakout_custom_buy_price,
                                               breakout_custom_buy_price,
                                               breakout_custom_buy_price,
@@ -461,13 +475,8 @@ bool RunTest_structure_fibonacci_entry_levels_test(string &errors)
   }
   else
   {
-    EntryLevels_AssertClose("breakout custom buy pct",
-                            EntryLevels_PercentForPrice(s_peak, entry_price),
-                            90.0,
-                            0.1,
-                            errors);
     EntryLevels_AssertBreakoutBandEndpoint("breakout custom buy endpoint",
-                                           s_peak,
+                                           s_bottom,
                                            10.0,
                                            90.0,
                                            BULLISH,
@@ -510,7 +519,7 @@ bool RunTest_structure_fibonacci_entry_levels_test(string &errors)
   }
 
   SetStructureCompoundFilterRuntime(COMPOUND_MODE_BREAKOUT_READY_BUY);
-  if(!ResolveStructureFibonacciEntryForPrices(s_peak,
+  if(!ResolveStructureFibonacciEntryForPrices(s_bottom,
                                               breakout_custom_buy_price,
                                               breakout_custom_buy_price,
                                               breakout_custom_buy_price,
@@ -547,6 +556,8 @@ bool RunTest_structure_fibonacci_entry_levels_test(string &errors)
 
   ClearStructureCompoundFilterRuntimeOverride();
   ClearStructureLimitTerminalBandGuardRuntimeOverride();
+  ClearStructureTouchPolicyRuntimeOverride();
+  ClearStructureTouchPolicyState();
 
   return (errors == "");
 }

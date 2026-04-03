@@ -17,6 +17,36 @@ bool FibonacciGridPercent_AssertClose(const string label,
   return true;
 }
 
+bool FibonacciGridPercent_AssertMeaningfulEmission(const string label,
+                                                   const double entry_price,
+                                                   const double logical_next_price,
+                                                   const double emitted_next_price,
+                                                   const bool expect_below_entry,
+                                                   string &errors)
+{
+  double point_size = GridResolvePointSizeSafe();
+  double tolerance = point_size * 0.5;
+  if(tolerance <= 0.0)
+    tolerance = 0.00001;
+
+  if(GridHasMeaningfulPriceGap(entry_price, logical_next_price))
+  {
+    if(MathAbs(emitted_next_price - logical_next_price) > tolerance)
+      errors += label + " should match logical next price when gap is meaningful\n";
+    return (errors == "");
+  }
+
+  if(!GridHasMeaningfulPriceGap(entry_price, emitted_next_price))
+    errors += label + " should emit a meaningful fallback gap\n";
+
+  if(expect_below_entry && !(emitted_next_price < entry_price))
+    errors += label + " should stay below bullish entry\n";
+  if(!expect_below_entry && !(emitted_next_price > entry_price))
+    errors += label + " should stay above bearish entry\n";
+
+  return (errors == "");
+}
+
 bool RunTest_fibonacci_grid_percent_test(string &errors)
 {
   LoadStructureFibonacciLevels("23.6,38.2,50.0,61.8,78.6,100.0",
@@ -343,14 +373,24 @@ bool RunTest_fibonacci_grid_percent_test(string &errors)
       }
 
       double logical_next_price = 0.0;
+      double expected_next_price = 0.0;
+      if(!ResolveStructurePriceForPercent(peak_price,
+                                          bottom_price,
+                                          current_is_bottom,
+                                          100.0,
+                                          expected_next_price))
+      {
+        errors += "default fib expected next price failed\n";
+      }
+
       if(!ResolveFibonacciGridLevelPrice(tight_signal, 0, logical_next_price))
       {
         errors += "default fib next price from stored anchor failed\n";
       }
-      else if(MathAbs(logical_next_price - bottom_price) > 0.00001)
+      else if(MathAbs(logical_next_price - expected_next_price) > 0.00001)
       {
         errors += StringFormat("default fib next price from stored anchor expected %.5f got %.5f\n",
-                               bottom_price,
+                               expected_next_price,
                                logical_next_price);
       }
 
@@ -360,8 +400,12 @@ bool RunTest_fibonacci_grid_percent_test(string &errors)
       double emitted_next_price = GetGridNextLevelPrice(BULLISH,
                                                         tight_signal,
                                                         default_state);
-      if(MathAbs(emitted_next_price - logical_next_price) > 0.00001)
-        errors += "default fib emitted next price from stored anchor should match logical next price\n";
+      FibonacciGridPercent_AssertMeaningfulEmission("default fib emitted next price from stored anchor",
+                                                    actual_entry_above_anchor,
+                                                    logical_next_price,
+                                                    emitted_next_price,
+                                                    true,
+                                                    errors);
 
       SignalParams rounded_down_signal = tight_signal;
       rounded_down_signal.entry_price = actual_entry_below_anchor;
@@ -381,18 +425,22 @@ bool RunTest_fibonacci_grid_percent_test(string &errors)
       {
         errors += "default fib rounded-down next price from stored anchor failed\n";
       }
-      else if(MathAbs(logical_next_price - bottom_price) > 0.00001)
+      else if(MathAbs(logical_next_price - expected_next_price) > 0.00001)
       {
         errors += StringFormat("default fib rounded-down next price from stored anchor expected %.5f got %.5f\n",
-                               bottom_price,
+                               expected_next_price,
                                logical_next_price);
       }
 
       emitted_next_price = GetGridNextLevelPrice(BULLISH,
                                                  rounded_down_signal,
                                                  default_state);
-      if(MathAbs(emitted_next_price - logical_next_price) > 0.00001)
-        errors += "default fib rounded-down emitted next price from stored anchor should match logical next price\n";
+      FibonacciGridPercent_AssertMeaningfulEmission("default fib rounded-down emitted next price from stored anchor",
+                                                    actual_entry_below_anchor,
+                                                    logical_next_price,
+                                                    emitted_next_price,
+                                                    true,
+                                                    errors);
 
       LoadStructureFibonacciLevels("61.7,61.8,78.6,100.0",
                                    "61.7,61.8,78.6,100.0");
@@ -417,13 +465,31 @@ bool RunTest_fibonacci_grid_percent_test(string &errors)
       }
       else
       {
+        double expected_tight_next_price = 0.0;
+        if(!ResolveStructurePriceForPercent(peak_price,
+                                            bottom_price,
+                                            current_is_bottom,
+                                            78.6,
+                                            expected_tight_next_price))
+        {
+          errors += "tight fib expected next price failed\n";
+        }
+        else if(MathAbs(logical_next_price - expected_tight_next_price) > 0.00001)
+        {
+          errors += StringFormat("tight fib band next price from stored anchor expected %.5f got %.5f\n",
+                                 expected_tight_next_price,
+                                 logical_next_price);
+        }
+
         emitted_next_price = GetGridNextLevelPrice(BULLISH,
                                                    tight_signal,
                                                    default_state);
-        if(MathAbs(emitted_next_price - logical_next_price) > 0.00001)
-          errors += "tight fib emitted next price from stored anchor should match logical band next price\n";
-        if(!(emitted_next_price < actual_entry_above_anchor))
-          errors += "tight fib emitted next price should stay below bullish entry\n";
+        FibonacciGridPercent_AssertMeaningfulEmission("tight fib emitted next price from stored anchor",
+                                                      actual_entry_above_anchor,
+                                                      logical_next_price,
+                                                      emitted_next_price,
+                                                      true,
+                                                      errors);
       }
     }
   }

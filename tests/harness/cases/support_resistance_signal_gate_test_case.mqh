@@ -37,6 +37,8 @@ bool RunTest_support_resistance_signal_gate_test(string &errors)
 {
   errors = "";
   ClearSupportResistanceRetestChainRuntimeOverride();
+  ClearStructureTouchPolicyState();
+  SetStructureTouchPolicyRuntime(ALLOW_RETEST);
 
   LoadStructureFibonacciLevels("0.0,50.0,100.0",
                                "0.0,50.0,100.0");
@@ -143,7 +145,44 @@ bool RunTest_support_resistance_signal_gate_test(string &errors)
     errors += "disabled gate should no-op\n";
   }
 
+  StochasticMarketStructure bearish_structure;
+  SupportResistanceChain_PrepareBearishStructure(bearish_structure);
+
+  if(!SupportResistanceGate_ResolveEntry(bearish_structure,
+                                         105.0,
+                                         BEARISH,
+                                         LEVELS_AS_LIMITS,
+                                         entry_price,
+                                         in_zone,
+                                         entry_is_limit,
+                                         errors))
+    return false;
+
+  if(!in_zone || !entry_is_limit)
+  {
+    errors += "bearish limit entry should resolve in zone\n";
+    return false;
+  }
+
+  if(!SupportResistanceGate_ResolveEntry(bearish_structure,
+                                         105.0,
+                                         BULLISH,
+                                         LEVELS_AS_LIMITS,
+                                         entry_price,
+                                         in_zone,
+                                         entry_is_limit,
+                                         errors))
+    return false;
+
+  if(in_zone)
+  {
+    errors += "mismatch bullish gate should reject peak-led structure\n";
+    return false;
+  }
+
   ClearSupportResistanceRetestChainRuntimeOverride();
+  ClearStructureTouchPolicyRuntimeOverride();
+  ClearStructureTouchPolicyState();
   return (errors == "");
 }
 

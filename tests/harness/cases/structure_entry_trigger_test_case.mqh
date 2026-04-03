@@ -6,6 +6,8 @@
 bool RunTest_structure_entry_trigger_test(string &errors)
 {
   errors = "";
+  ClearStructureTouchPolicyState();
+  SetStructureTouchPolicyRuntime(ALLOW_RETEST);
 
   LoadStructureFibonacciLevels("23.6,38.2,50.0,61.8,78.6,100.0",
                                "23.6,38.2,50.0,61.8,78.6,100.0");
@@ -64,6 +66,23 @@ bool RunTest_structure_entry_trigger_test(string &errors)
   if(!ok || !in_zone || !entry_is_limit)
     errors += "entry not triggered\n";
 
+  ok = ResolveStructureFibonacciEntryForPrices(snapshot.structure_data,
+                                               close_price,
+                                               low_price,
+                                               high_price,
+                                               BEARISH,
+                                               LEVELS_AS_LIMITS,
+                                               entry_price,
+                                               in_zone,
+                                               entry_is_limit);
+
+  if(!ok)
+    errors += "mismatch resolve failed\n";
+  else if(in_zone)
+    errors += "mismatch direction should not trigger\n";
+
+  ClearStructureTouchPolicyRuntimeOverride();
+  ClearStructureTouchPolicyState();
   return (errors == "");
 }
 
