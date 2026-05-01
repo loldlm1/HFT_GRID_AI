@@ -66,6 +66,7 @@ Sigue estos pasos detallados para instalar y configurar **Pandora Box** en MetaT
 
 ### **Cómo Funciona Pandora Box**
 - El EA construye un box diario de precio usando `Pandora_Box_Time_Range`.
+- Las ventanas del mismo día usan inicio `<` fin; las ventanas nocturnas usan inicio `>` fin, pertenecen al día en que cierran y empiezan desde el día de la última vela D1 cerrada conocida. Valores iguales de inicio/fin son inválidos.
 - Después de cerrar la ventana, calcula precios de ruptura con `Pandora_Box_Offset_Points`.
 - Si el precio rompe por arriba/abajo y todas las validaciones se cumplen (dirección, sesión, límites diarios, concurrencia), se abre una señal Pandora.
 - La reentrada por cada lado se rearma solo cuando `close_1` vuelve dentro del box.
@@ -79,7 +80,7 @@ Sigue estos pasos detallados para instalar y configurar **Pandora Box** en MetaT
 
 | **Parámetro** | **Valor por Defecto** | **Descripción** | **Uso Recomendado** |
 |---|---:|---|---|
-| `Pandora_Box_Time_Range` | `"12:00-13:30"` | Ventana de construcción del box. Formato: `HH:MM-HH:MM`, inicio `<` fin, mismo día. | Usa ventanas líquidas (60-180 minutos). |
+| `Pandora_Box_Time_Range` | `"12:00-13:30"` | Ventana de construcción del box. Formato: `HH:MM-HH:MM`; usa inicio `<` fin para el mismo día o inicio `>` fin para ventanas nocturnas como `23:00-00:10`. | Usa ventanas líquidas (60-180 minutos). |
 | `Pandora_Box_Stop_On_First_Win` | `true` | Finaliza Pandora por el día tras el primer cierre con beneficio. | Mantén `true` para un ritmo conservador. |
 | `Pandora_Box_Direction_Mode` | `BOTH_DIRECTION` | Lado(s) permitidos de ruptura: ambos, solo alcista o solo bajista. | Restringe a un lado solo con sesgo direccional claro. |
 | `Pandora_Box_Use_Session_Filter` | `true` | Aplica filtros horarios de sesión a intentos Pandora. | Mantén `true` cuando la política de sesión sea parte del riesgo. |
@@ -132,7 +133,7 @@ Sigue estos pasos detallados para instalar y configurar **Pandora Box** en MetaT
 ## 6. Checklist de Validación Antes de Operar en Vivo
 Antes de ejecutar **Pandora Box** en una cuenta real, verifica:
 
-- El formato de horario es válido (`HH:MM-HH:MM`) y el inicio `<` fin.
+- El formato de horario es válido (`HH:MM-HH:MM`), usando inicio `<` fin para boxes del mismo día o inicio `>` fin para boxes nocturnos.
 - `Pandora_Points_SL > 0`.
 - Si usas modo `%`, que offset/SL/TP sean porcentajes realistas para el símbolo.
 - Que el modo de dirección coincida con tu sesgo de mercado.

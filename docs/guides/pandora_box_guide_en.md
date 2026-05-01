@@ -66,6 +66,7 @@ Follow these detailed steps to install and configure **Pandora Box** in MetaTrad
 
 ### **How Pandora Box Works**
 - The EA builds a daily price box from `Pandora_Box_Time_Range`.
+- Same-day ranges use `start < end`; overnight ranges use `start > end`, belong to the day they close, and start from the last known closed D1 candle day. Identical start/end values are invalid.
 - After the window closes, it computes breakout prices using `Pandora_Box_Offset_Points`.
 - If price breaks above/below and all guards pass (direction, session, daily limits, concurrency), a Pandora signal is opened.
 - Re-entry on each side is re-armed only after `close_1` returns inside the box.
@@ -79,7 +80,7 @@ Follow these detailed steps to install and configure **Pandora Box** in MetaTrad
 
 | **Parameter** | **Default Value** | **Description** | **Recommended Usage** |
 |---|---:|---|---|
-| `Pandora_Box_Time_Range` | `"12:00-13:30"` | Box construction window. Format: `HH:MM-HH:MM`, start `<` end, same day. | Use liquid market windows (60-180 minutes). |
+| `Pandora_Box_Time_Range` | `"12:00-13:30"` | Box construction window. Format: `HH:MM-HH:MM`; use `start < end` for same-day windows or `start > end` for overnight windows such as `23:00-00:10`. | Use liquid market windows (60-180 minutes). |
 | `Pandora_Box_Stop_On_First_Win` | `true` | Ends Pandora for the day after first profitable closure. | Keep `true` for conservative pacing. |
 | `Pandora_Box_Direction_Mode` | `BOTH_DIRECTION` | Allowed breakout side(s): both, bullish only, or bearish only. | Restrict to one side only with directional conviction. |
 | `Pandora_Box_Use_Session_Filter` | `true` | Applies session-time filters to Pandora attempts. | Keep `true` when session policy is part of risk management. |
@@ -132,7 +133,7 @@ Follow these detailed steps to install and configure **Pandora Box** in MetaTrad
 ## 6. Validation Checklist Before Live Run
 Before running **Pandora Box** on a live account, verify:
 
-- The time range format is valid (`HH:MM-HH:MM`) and start `<` end.
+- The time range format is valid (`HH:MM-HH:MM`), using `start < end` for same-day boxes or `start > end` for overnight boxes.
 - `Pandora_Points_SL > 0`.
 - If using `%` mode, offset/SL/TP percentages are realistic for the symbol.
 - Direction mode matches your market bias.

@@ -7,8 +7,10 @@ This guide documents the MT5 `input` fields used by Pandora Box in `services/tra
 Use this as the source of truth when configuring the EA in the Inputs panel.
 
 ## How Pandora Works
-- The EA parses `Pandora_Box_Time_Range` (`HH:MM-HH:MM`, same day, start `<` end) and builds a daily box (`high/low`) after the window closes.
+- The EA parses `Pandora_Box_Time_Range` (`HH:MM-HH:MM`) and builds a daily box (`high/low`) after the window closes.
+- Same-day windows use `start < end`; overnight windows use `start > end` and belong to the day they close. The overnight start day comes from the last known closed D1 candle, so broker-specific Friday/Saturday/Sunday history is respected. `start == end` is invalid.
 - Breakout triggers are computed with `Pandora_Box_Offset_Points` above the box high and below the box low.
+- `Pandora_Box_Use_Session_Filter` gates Pandora entry attempts only; it does not decide whether the box construction window is valid.
 - If `Pandora_Box_Max_Range_Points > 0`, the day is invalid when the box range exceeds that limit.
 - Direction filtering is controlled by `Pandora_Box_Direction_Mode`.
 - After each close, re-entry on that direction requires `close_1` to return inside the box before a new entry is allowed.
@@ -23,7 +25,7 @@ Use this as the source of truth when configuring the EA in the Inputs panel.
 
 | Input | Default | What it does | Recommended usage |
 |---|---:|---|---|
-| `Pandora_Box_Time_Range` | `"12:00-13:30"` | Daily box build window. Must be `HH:MM-HH:MM`, same day, start `<` end. | Use liquid market windows; usually 60-180 minutes. |
+| `Pandora_Box_Time_Range` | `"12:00-13:30"` | Daily box build window. Use `start < end` for same-day windows or `start > end` for overnight windows such as `23:00-00:10`; `start == end` is invalid. | Use liquid market windows; usually 60-180 minutes. |
 | `Pandora_Box_Stop_On_First_Win` | `true` | Ends Pandora for the day after first profitable closure. | Keep `true` for conservative pacing. |
 | `Pandora_Box_Direction_Mode` | `BOTH_DIRECTION` | Allowed side(s): `BOTH_DIRECTION`, `BULLISH_DIRECTION`, `BEARISH_DIRECTION`. | Restrict to one side only with a clear directional bias. |
 | `Pandora_Box_Use_Session_Filter` | `true` | Applies session manager gating to Pandora attempts. | Keep `true` if session windows are part of risk policy. |
@@ -70,7 +72,7 @@ Use this as the source of truth when configuring the EA in the Inputs panel.
 - `Pandora_Box_Direction_Mode = BULLISH_DIRECTION` (or `BEARISH_DIRECTION`)
 
 ## Validation Checklist Before Live Run
-- Confirm `Pandora_Box_Time_Range` format is valid (`HH:MM-HH:MM`) and start is earlier than end.
+- Confirm `Pandora_Box_Time_Range` format is valid (`HH:MM-HH:MM`), using `start < end` for same-day boxes or `start > end` for overnight boxes.
 - Confirm `Pandora_Points_SL > 0` for the selected points mode.
 - If `Pandora_Points_Value_Mode = PANDORA_VALUE_MODE_BOX_PERCENT`, verify percent values are realistic for your symbol.
 - If using `Pandora_Box_Max_Range_Points`, ensure the cap matches symbol volatility.

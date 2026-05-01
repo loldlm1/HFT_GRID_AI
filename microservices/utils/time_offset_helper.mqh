@@ -86,7 +86,7 @@ bool ExnessDstActive(const datetime now_time)
   return (now_time >= start && now_time < end);
 }
 
-int ResolveTradingTimeOffsetMinutes()
+int ResolveTradingTimeOffsetMinutesAt(const datetime reference_time)
 {
   if(Session_Time_Dst_Mode == DST_MODE_MANUAL)
     return Session_Time_Dst_Manual_Offset_Minutes;
@@ -95,12 +95,17 @@ int ResolveTradingTimeOffsetMinutes()
   {
     // Exness: summer opens one hour earlier (13:30) and winter opens one hour later (14:30).
     // Apply +60 only during winter (DST inactive), no offset during summer (DST active).
-    if(ExnessDstActive(TimeCurrent()))
+    if(ExnessDstActive(reference_time))
       return 0;
     return 60;
   }
 
   return 0;
+}
+
+int ResolveTradingTimeOffsetMinutes()
+{
+  return ResolveTradingTimeOffsetMinutesAt(TimeCurrent());
 }
 
 #endif // _MICROSERVICES_UTILS_TIME_OFFSET_HELPER_MQH_

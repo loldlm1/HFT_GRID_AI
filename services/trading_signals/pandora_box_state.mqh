@@ -7,6 +7,7 @@
 const int PANDORA_MINUTES_PER_DAY = 24 * 60;
 const double PANDORA_EPSILON_EXTREME_BOX_RATIO = 5.0;
 const int PANDORA_HISTORY_DAYS = 8;
+const string PANDORA_INVALID_PREVIOUS_D1_ANCHOR = "No previous D1 anchor for Pandora wrapped window";
 
 struct PandoraBoxRuntimeState
 {
@@ -17,6 +18,7 @@ struct PandoraBoxRuntimeState
   bool     window_valid;
   int      start_minutes;
   int      end_minutes;
+  bool     window_wraps;
   datetime day_anchor;
   datetime window_start_time;
   datetime window_end_time;
@@ -61,6 +63,7 @@ struct PandoraBoxRuntimeState
     window_valid              = false;
     start_minutes             = 0;
     end_minutes               = 0;
+    window_wraps              = false;
     day_anchor                = 0;
     window_start_time         = 0;
     window_end_time           = 0;
@@ -155,6 +158,8 @@ struct PandoraHistorySnapshot
 PandoraBoxRuntimeState g_pandora_box_state;
 PandoraHistorySnapshot g_pandora_history_snapshots[];
 datetime               g_pandora_history_last_day_anchor = 0;
+datetime               g_pandora_history_last_previous_day_anchor = 0;
+datetime               g_pandora_history_last_oldest_anchor = 0;
 datetime               g_pandora_history_last_bar_time = 0;
 string                 g_pandora_history_last_signature = "";
 
@@ -197,6 +202,7 @@ void PandoraResetDailyState()
   g_pandora_box_state.breakout_low_price      = 0.0;
   g_pandora_box_state.invalid_reason          = "";
   g_pandora_box_state.window_closed           = false;
+  g_pandora_box_state.window_wraps            = false;
   g_pandora_box_state.effective_offset_points = 0.0;
   g_pandora_box_state.finished                = false;
   g_pandora_box_state.session_window_seen_active = false;
@@ -250,12 +256,16 @@ bool PandoraParseTimeComponent(string fragment,
   return true;
 }
 
+// Pandora wrapped windows are owned by the day they close. When start > end,
+// the start side uses the last known closed D1 candle anchor.
 bool PandoraParseWindowMinutes(string range_str,
                                int &start_minutes,
-                               int &end_minutes)
+                               int &end_minutes,
+                               bool &wraps)
 {
   start_minutes = 0;
   end_minutes   = 0;
+  wraps          = false;
 
   StringTrimLeft(range_str);
   StringTrimRight(range_str);
@@ -278,11 +288,61 @@ bool PandoraParseWindowMinutes(string range_str,
   if(!PandoraParseTimeComponent(end_part, parsed_end))
     return false;
 
-  if(parsed_start >= parsed_end)
+  if(parsed_start == parsed_end)
     return false;
 
   start_minutes = parsed_start;
   end_minutes   = parsed_end;
+  wraps          = (parsed_start > parsed_end);
+  return true;
+}
+
+bool PandoraResolveWindowTimes(const datetime close_day_anchor,
+                               const datetime previous_day_anchor,
+                               const int start_minutes,
+                               const int end_minutes,
+                               const bool wraps,
+                               datetime &window_start_time,
+                               datetime &window_end_time,
+                               string &invalid_reason)
+{
+  window_start_time = 0;
+  window_end_time   = 0;
+  invalid_reason    = "";
+
+  if(close_day_anchor <= 0)
+  {
+    invalid_reason = "Invalid Pandora close day anchor";
+    return false;
+  }
+
+  datetime start_day_anchor = close_day_anchor;
+  if(wraps)
+  {
+    if(previous_day_anchor <= 0)
+    {
+      invalid_reason = PANDORA_INVALID_PREVIOUS_D1_ANCHOR;
+      return false;
+    }
+    start_day_anchor = previous_day_anchor;
+  }
+
+  int start_offset_minutes = ResolveTradingTimeOffsetMinutesAt(start_day_anchor);
+  int end_offset_minutes   = ResolveTradingTimeOffsetMinutesAt(close_day_anchor);
+
+  window_start_time = start_day_anchor +
+                      ((start_minutes + start_offset_minutes) * 60);
+  window_end_time   = close_day_anchor +
+                      ((end_minutes + end_offset_minutes) * 60);
+
+  if(window_start_time >= window_end_time)
+  {
+    invalid_reason = "Invalid resolved Pandora box window";
+    window_start_time = 0;
+    window_end_time   = 0;
+    return false;
+  }
+
   return true;
 }
 
@@ -301,25 +361,58 @@ void PandoraEnsureDayAnchor()
 bool PandoraEnsureWindowParsed()
 {
   if(g_pandora_box_state.window_parsed)
-    return g_pandora_box_state.window_valid;
+  {
+    if(g_pandora_box_state.window_valid)
+      return true;
+
+    if(g_pandora_box_state.window_wraps &&
+       g_pandora_box_state.invalid_reason == PANDORA_INVALID_PREVIOUS_D1_ANCHOR &&
+       iTime(_Symbol, PERIOD_D1, 1) > 0)
+    {
+      g_pandora_box_state.window_parsed = false;
+    }
+    else
+    {
+      return false;
+    }
+  }
 
   g_pandora_box_state.window_parsed = true;
   g_pandora_box_state.window_valid  = PandoraParseWindowMinutes(Pandora_Box_Time_Range,
                                                                 g_pandora_box_state.start_minutes,
-                                                                g_pandora_box_state.end_minutes);
+                                                                g_pandora_box_state.end_minutes,
+                                                                g_pandora_box_state.window_wraps);
   if(!g_pandora_box_state.window_valid)
   {
     g_pandora_box_state.window_start_time = 0;
     g_pandora_box_state.window_end_time   = 0;
+    g_pandora_box_state.window_wraps      = false;
     g_pandora_box_state.invalid_reason    = "Invalid Pandora box time range";
     return false;
   }
 
-  int offset_minutes = ResolveTradingTimeOffsetMinutes();
-  g_pandora_box_state.window_start_time = g_pandora_box_state.day_anchor +
-                                          ((g_pandora_box_state.start_minutes + offset_minutes) * 60);
-  g_pandora_box_state.window_end_time   = g_pandora_box_state.day_anchor +
-                                          ((g_pandora_box_state.end_minutes + offset_minutes) * 60);
+  datetime previous_day_anchor = 0;
+  if(g_pandora_box_state.window_wraps)
+    previous_day_anchor = iTime(_Symbol, PERIOD_D1, 1);
+
+  string invalid_reason = "";
+  g_pandora_box_state.window_valid = PandoraResolveWindowTimes(g_pandora_box_state.day_anchor,
+                                                               previous_day_anchor,
+                                                               g_pandora_box_state.start_minutes,
+                                                               g_pandora_box_state.end_minutes,
+                                                               g_pandora_box_state.window_wraps,
+                                                               g_pandora_box_state.window_start_time,
+                                                               g_pandora_box_state.window_end_time,
+                                                               invalid_reason);
+  if(!g_pandora_box_state.window_valid)
+  {
+    g_pandora_box_state.invalid_reason = invalid_reason;
+    if(g_pandora_box_state.invalid_reason == "")
+      g_pandora_box_state.invalid_reason = "Invalid Pandora box time range";
+    return false;
+  }
+
+  g_pandora_box_state.invalid_reason = "";
   return true;
 }
 
@@ -1167,9 +1260,11 @@ string PandoraWindowLabel()
 
 string PandoraHistoryConfigSignature()
 {
-  return StringFormat("%s|%d|%d|%.4f|%.4f|%d",
+  return StringFormat("%s|%d|%d|%d|%d|%.4f|%.4f|%d",
                       Pandora_Box_Time_Range,
                       (int)PandoraResolveBoxTimeframe(),
+                      (int)Session_Time_Dst_Mode,
+                      Session_Time_Dst_Manual_Offset_Minutes,
                       ResolveTradingTimeOffsetMinutes(),
                       Pandora_Box_Offset_Points,
                       Pandora_Box_Max_Range_Points,
@@ -1179,43 +1274,60 @@ string PandoraHistoryConfigSignature()
 void PandoraClearHistorySnapshots()
 {
   ArrayResize(g_pandora_history_snapshots, 0);
-  g_pandora_history_last_day_anchor = 0;
-  g_pandora_history_last_bar_time   = 0;
-  g_pandora_history_last_signature  = "";
+  g_pandora_history_last_day_anchor          = 0;
+  g_pandora_history_last_previous_day_anchor = 0;
+  g_pandora_history_last_oldest_anchor       = 0;
+  g_pandora_history_last_bar_time            = 0;
+  g_pandora_history_last_signature           = "";
 }
 
 bool PandoraResolveWindowForDay(const datetime day_anchor,
+                                const datetime previous_day_anchor,
                                 datetime &window_start_time,
-                                datetime &window_end_time)
+                                datetime &window_end_time,
+                                string &invalid_reason)
 {
   int start_minutes = 0;
   int end_minutes   = 0;
-  if(!PandoraParseWindowMinutes(Pandora_Box_Time_Range, start_minutes, end_minutes))
+  bool wraps         = false;
+  if(!PandoraParseWindowMinutes(Pandora_Box_Time_Range, start_minutes, end_minutes, wraps))
   {
     window_start_time = 0;
     window_end_time   = 0;
+    invalid_reason    = "Invalid Pandora box time range";
     return false;
   }
 
-  int offset_minutes = ResolveTradingTimeOffsetMinutes();
-  window_start_time = day_anchor + ((start_minutes + offset_minutes) * 60);
-  window_end_time   = day_anchor + ((end_minutes + offset_minutes) * 60);
-  return true;
+  return PandoraResolveWindowTimes(day_anchor,
+                                   previous_day_anchor,
+                                   start_minutes,
+                                   end_minutes,
+                                   wraps,
+                                   window_start_time,
+                                   window_end_time,
+                                   invalid_reason);
 }
 
 bool PandoraBuildHistorySnapshot(const datetime day_anchor,
+                                 const int day_shift,
                                  const bool is_current_day,
                                  PandoraHistorySnapshot &snapshot_out)
 {
   snapshot_out.Reset();
   snapshot_out.day_anchor     = day_anchor;
   snapshot_out.is_current_day = is_current_day;
+  datetime previous_day_anchor = iTime(_Symbol, PERIOD_D1, day_shift + 1);
+  string invalid_reason = "";
   snapshot_out.window_valid   = PandoraResolveWindowForDay(day_anchor,
+                                                           previous_day_anchor,
                                                            snapshot_out.window_start_time,
-                                                           snapshot_out.window_end_time);
+                                                           snapshot_out.window_end_time,
+                                                           invalid_reason);
   if(!snapshot_out.window_valid)
   {
-    snapshot_out.invalid_reason = "Invalid Pandora box time range";
+    snapshot_out.invalid_reason = invalid_reason;
+    if(snapshot_out.invalid_reason == "")
+      snapshot_out.invalid_reason = "Invalid Pandora box time range";
     return false;
   }
 
@@ -1305,6 +1417,14 @@ bool PandoraHistoryNeedsRefresh()
   if(day_anchor != g_pandora_history_last_day_anchor)
     return true;
 
+  datetime previous_day_anchor = iTime(_Symbol, PERIOD_D1, 1);
+  if(previous_day_anchor != g_pandora_history_last_previous_day_anchor)
+    return true;
+
+  datetime oldest_anchor = iTime(_Symbol, PERIOD_D1, PANDORA_HISTORY_DAYS);
+  if(oldest_anchor != g_pandora_history_last_oldest_anchor)
+    return true;
+
   datetime bar_time = iTime(_Symbol, PandoraResolveBoxTimeframe(), 0);
   if(bar_time != g_pandora_history_last_bar_time)
     return true;
@@ -1330,15 +1450,17 @@ void PandoraRebuildHistorySnapshots()
       continue;
 
     PandoraHistorySnapshot snapshot;
-    PandoraBuildHistorySnapshot(day_anchor, (shift == 0), snapshot);
+    PandoraBuildHistorySnapshot(day_anchor, shift, (shift == 0), snapshot);
     g_pandora_history_snapshots[stored] = snapshot;
     stored++;
   }
 
   ArrayResize(g_pandora_history_snapshots, stored);
-  g_pandora_history_last_day_anchor = ResolveCurrentDayStart();
-  g_pandora_history_last_bar_time   = iTime(_Symbol, PandoraResolveBoxTimeframe(), 0);
-  g_pandora_history_last_signature  = PandoraHistoryConfigSignature();
+  g_pandora_history_last_day_anchor          = ResolveCurrentDayStart();
+  g_pandora_history_last_previous_day_anchor = iTime(_Symbol, PERIOD_D1, 1);
+  g_pandora_history_last_oldest_anchor       = iTime(_Symbol, PERIOD_D1, PANDORA_HISTORY_DAYS);
+  g_pandora_history_last_bar_time            = iTime(_Symbol, PandoraResolveBoxTimeframe(), 0);
+  g_pandora_history_last_signature           = PandoraHistoryConfigSignature();
 }
 
 void PandoraEnsureHistorySnapshots()

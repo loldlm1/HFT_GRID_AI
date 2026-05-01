@@ -16,3 +16,5 @@
 !/docs/lead_magnet/output/.gitkeep
 /docs/lead_magnet/dist/*.zip
 .envrc
+/plans/archive/*
+/logs/*

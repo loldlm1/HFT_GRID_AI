@@ -96,6 +96,7 @@ This document summarizes the current architecture, workflows, and guardrails for
    - `ProtectionRiskFilter` enforces drawdown guard, market close guard, and daily lock.
    - `market_status_controller` coordinates `ACTIVE / CLOSE_GUARD / BROKER_CLOSEONLY / BROKER_DISABLED` transitions and pending force closes.
    - `grid_visualization` now owns the fixed frontend pass: branded chart palette, compact top-left panel, Pandora current-day/past-day rectangles, and the grid level overlays. Live charts use the object-based panel; `Comment()` is kept only as a Strategy Tester fallback.
+   - Pandora box windows support same-day ranges (`start < end`) and overnight ranges (`start > end`). Overnight boxes belong to the day they close and start from the last known closed D1 candle day; session filters still gate entry attempts only.
 
 ---
 
