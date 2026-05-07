@@ -133,6 +133,70 @@ bool GridShouldActivateTrailing(SignalParams &signal_params,
   return false;
 }
 
+bool GridRefreshPandoraStopsAfterFill(const SignalParams &signal_params,
+                                      GridOrderState &order_state)
+{
+  if(!IsPandoraSignal(signal_params))
+    return true;
+
+  double corrected_sl = 0.0;
+  double corrected_tp = 0.0;
+  if(!PandoraResolveBrokerStops(signal_params, order_state, corrected_sl, corrected_tp))
+    return false;
+
+  order_state.take_profit_price = corrected_tp;
+
+  if(!Pandora_Box_Set_Broker_SLTP)
+    return true;
+  if(order_state.position_ticket <= 0)
+    return false;
+  if(!PositionSelectByTicket(order_state.position_ticket))
+    return false;
+
+  double point_size = SymbolInfoDouble(_Symbol, SYMBOL_POINT);
+  if(point_size <= 0.0)
+    point_size = 0.00001;
+  double tolerance = point_size * 0.1;
+
+  double current_sl = PositionGetDouble(POSITION_SL);
+  double current_tp = PositionGetDouble(POSITION_TP);
+  bool sl_matches = (MathAbs(current_sl - corrected_sl) <= tolerance);
+  bool tp_matches = (MathAbs(current_tp - corrected_tp) <= tolerance);
+  if(sl_matches && tp_matches)
+    return true;
+
+  if(!g_position.PositionModify(order_state.position_ticket, corrected_sl, corrected_tp))
+  {
+    ulong retcode = g_position.ResultRetcode();
+    int last_error = GetLastError();
+    MarketStatusRegisterBrokerFailure("PANDORA_INITIAL_SLTP_CORRECT_FAILED", retcode, last_error, true);
+    if(Enable_Logs)
+    {
+      PrintFormat("PANDORA_INITIAL_SLTP_CORRECT_FAILED ticket=%I64u entry=%.5f sl=%.5f tp=%.5f retcode=%I64u error=%d",
+                  order_state.position_ticket,
+                  order_state.entry_price,
+                  corrected_sl,
+                  corrected_tp,
+                  retcode,
+                  last_error);
+    }
+    return false;
+  }
+
+  if(Enable_Logs)
+  {
+    PrintFormat("PANDORA_INITIAL_SLTP_CORRECTED ticket=%I64u entry=%.5f sl=%.5f tp=%.5f prev_sl=%.5f prev_tp=%.5f",
+                order_state.position_ticket,
+                order_state.entry_price,
+                corrected_sl,
+                corrected_tp,
+                current_sl,
+                current_tp);
+  }
+
+  return true;
+}
+
 bool GridExecuteLevelTrade(SignalParams &signal_params,
                            GridOrderState &order_state,
                            const double point_size,
@@ -171,7 +235,16 @@ bool GridExecuteLevelTrade(SignalParams &signal_params,
   double sl_price = 0.0;
   double tp_price = 0.0;
   if(Pandora_Box_Set_Broker_SLTP)
-    PandoraResolveBrokerStops(signal_params, order_state, sl_price, tp_price);
+  {
+    GridOrderState broker_seed_state = order_state;
+    if(IsPandoraSignal(signal_params) && broker_seed_state.entry_price <= 0.0)
+    {
+      broker_seed_state.entry_price = GridCurrentPriceForDirection(direction, true);
+      if(broker_seed_state.entry_price <= 0.0)
+        broker_seed_state.entry_price = order_state.entry_reference_price;
+    }
+    PandoraResolveBrokerStops(signal_params, broker_seed_state, sl_price, tp_price);
+  }
 
   if(direction == BULLISH)
     sent = g_position.Buy(normalized_volume, _Symbol, 0.0, sl_price, tp_price, comment);
@@ -203,6 +276,8 @@ bool GridExecuteLevelTrade(SignalParams &signal_params,
     order_state.position_ticket = FindOpenPositionForSignal(direction, comment);
   order_state.position_comment = comment;
   order_state.last_action_time = TimeCurrent();
+
+  GridRefreshPandoraStopsAfterFill(signal_params, order_state);
 
   signal_params.grid_orders[order_state.level_index] = order_state;
   return sent;
