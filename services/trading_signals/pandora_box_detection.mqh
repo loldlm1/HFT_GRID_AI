@@ -100,7 +100,7 @@ bool PandoraGuardsAllowAttempt(const SignalTypes direction)
   return true;
 }
 
-bool PandoraPriceTriggersSignal(const SignalTypes direction)
+bool PandoraWickPriceTriggersSignal(const SignalTypes direction)
 {
   double trigger_price = (direction == BULLISH)
                            ? g_pandora_box_state.breakout_high_price
@@ -112,6 +112,57 @@ bool PandoraPriceTriggersSignal(const SignalTypes direction)
   if(direction == BULLISH)
     return current_price >= trigger_price;
   return current_price <= trigger_price;
+}
+
+bool PandoraBodyCloseTriggersSignal(const SignalTypes direction)
+{
+  double trigger_price = (direction == BULLISH)
+                           ? g_pandora_box_state.breakout_high_price
+                           : g_pandora_box_state.breakout_low_price;
+  if(trigger_price <= 0.0)
+    return false;
+
+  ENUM_TIMEFRAMES tf = g_pandora_box_state.entry_body_timeframe;
+  if(!PandoraEntryBodyTimeframeSupported(tf))
+    tf = PandoraResolveEntryBodyTimeframe();
+
+  datetime close_bar_time = iTime(_Symbol, tf, 1);
+  if(close_bar_time <= 0)
+    return false;
+
+  if(PandoraBodyCandleAlreadyProcessed(direction, close_bar_time))
+    return false;
+
+  double close_price = iClose(_Symbol, tf, 1);
+  if(close_price <= 0.0)
+    return false;
+
+  bool triggered = (direction == BULLISH)
+                     ? (close_price >= trigger_price)
+                     : (close_price <= trigger_price);
+  if(!triggered)
+    return false;
+
+  PandoraMarkBodyCandleProcessed(direction, close_bar_time, close_price);
+
+  if(Enable_Logs)
+  {
+    PrintFormat("PANDORA_BODY_TRIGGER dir=%s body_tf=%s bar=%s body_close=%.5f trigger=%.5f",
+                EnumToString(direction),
+                PandoraEntryBodyTimeframeLabel(),
+                TimeToString(close_bar_time, TIME_DATE | TIME_MINUTES),
+                close_price,
+                trigger_price);
+  }
+
+  return true;
+}
+
+bool PandoraEntryTriggersSignal(const SignalTypes direction)
+{
+  if(PandoraBodyEntryMode())
+    return PandoraBodyCloseTriggersSignal(direction);
+  return PandoraWickPriceTriggersSignal(direction);
 }
 
 bool PandoraBuildSignal(const SignalTypes direction)
@@ -193,7 +244,7 @@ void PandoraDetectSignals()
       continue;
     if(!PandoraDirectionReadyForEntry(dir))
       continue;
-    if(!PandoraPriceTriggersSignal(dir))
+    if(!PandoraEntryTriggersSignal(dir))
       continue;
     if(!PandoraGuardsAllowAttempt(dir))
       continue;

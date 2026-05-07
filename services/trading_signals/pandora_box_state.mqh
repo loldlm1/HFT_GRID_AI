@@ -36,6 +36,8 @@ struct PandoraBoxRuntimeState
   StrategyDirectionTypes direction_mode;
   bool     stop_on_first_win;
   PandoraEntryCountModes entry_count_mode;
+  PandoraEntryTypes entry_type;
+  ENUM_TIMEFRAMES entry_body_timeframe;
   int      max_entries;
   int      counted_entries;
   int      total_entries;
@@ -47,6 +49,10 @@ struct PandoraBoxRuntimeState
   bool     bullish_rearm_ready;
   bool     bearish_rearm_ready;
   datetime last_rearm_close_bar_time;
+  datetime bullish_body_signal_bar_time;
+  datetime bearish_body_signal_bar_time;
+  double   bullish_body_signal_close_price;
+  double   bearish_body_signal_close_price;
   string   invalid_reason;
 
   PandoraBoxRuntimeState()
@@ -81,6 +87,8 @@ struct PandoraBoxRuntimeState
     direction_mode            = BOTH_DIRECTION;
     stop_on_first_win         = false;
     entry_count_mode          = COUNT_BOX_ENTRY_OFF;
+    entry_type                = ENTRY_WICK_TYPE;
+    entry_body_timeframe      = PERIOD_M5;
     max_entries               = 0;
     counted_entries           = 0;
     total_entries             = 0;
@@ -92,6 +100,10 @@ struct PandoraBoxRuntimeState
     bullish_rearm_ready       = false;
     bearish_rearm_ready       = false;
     last_rearm_close_bar_time = 0;
+    bullish_body_signal_bar_time = 0;
+    bearish_body_signal_bar_time = 0;
+    bullish_body_signal_close_price = 0.0;
+    bearish_body_signal_close_price = 0.0;
     invalid_reason            = "";
   }
 };
@@ -178,6 +190,137 @@ ENUM_TIMEFRAMES PandoraResolveBoxTimeframe()
   return tf;
 }
 
+PandoraEntryTypes PandoraResolveEntryType()
+{
+  int configured_value = (int)Pandora_Box_Entry_Type;
+  if(configured_value == (int)ENTRY_BODY_TYPE)
+    return ENTRY_BODY_TYPE;
+  return ENTRY_WICK_TYPE;
+}
+
+bool PandoraEntryBodyTimeframeSupported(const ENUM_TIMEFRAMES tf)
+{
+  switch(tf)
+  {
+    case PERIOD_M1:
+    case PERIOD_M2:
+    case PERIOD_M3:
+    case PERIOD_M4:
+    case PERIOD_M5:
+    case PERIOD_M6:
+    case PERIOD_M10:
+    case PERIOD_M12:
+    case PERIOD_M15:
+    case PERIOD_M20:
+    case PERIOD_M30:
+    case PERIOD_H1:
+    case PERIOD_H2:
+    case PERIOD_H3:
+    case PERIOD_H4:
+    case PERIOD_H6:
+    case PERIOD_H8:
+    case PERIOD_H12:
+    case PERIOD_D1:
+    case PERIOD_W1:
+    case PERIOD_MN1:
+      return true;
+  }
+  return false;
+}
+
+ENUM_TIMEFRAMES PandoraResolveEntryBodyTimeframe()
+{
+  ENUM_TIMEFRAMES tf = Pandora_Box_Entry_Body_Timeframe;
+  if(tf == PERIOD_CURRENT)
+    tf = PandoraResolveBoxTimeframe();
+
+  if(PandoraEntryBodyTimeframeSupported(tf))
+    return tf;
+
+  ENUM_TIMEFRAMES fallback_tf = PandoraResolveBoxTimeframe();
+  if(PandoraEntryBodyTimeframeSupported(fallback_tf))
+    return fallback_tf;
+
+  return PERIOD_M5;
+}
+
+bool PandoraBodyEntryMode()
+{
+  return (g_pandora_box_state.entry_type == ENTRY_BODY_TYPE);
+}
+
+string PandoraEntryTypeLabel()
+{
+  if(PandoraBodyEntryMode())
+    return "BODY";
+  return "WICK";
+}
+
+string PandoraEntryBodyTimeframeLabel()
+{
+  ENUM_TIMEFRAMES tf = g_pandora_box_state.entry_body_timeframe;
+  if(!PandoraEntryBodyTimeframeSupported(tf))
+    tf = PandoraResolveEntryBodyTimeframe();
+  return TimeframeToString(tf);
+}
+
+ENUM_TIMEFRAMES PandoraResolveRearmTimeframe()
+{
+  if(PandoraBodyEntryMode())
+    return g_pandora_box_state.entry_body_timeframe;
+  return PandoraResolveBoxTimeframe();
+}
+
+void PandoraResetBodyEntryState()
+{
+  g_pandora_box_state.bullish_body_signal_bar_time = 0;
+  g_pandora_box_state.bearish_body_signal_bar_time = 0;
+  g_pandora_box_state.bullish_body_signal_close_price = 0.0;
+  g_pandora_box_state.bearish_body_signal_close_price = 0.0;
+}
+
+bool PandoraBodyCandleAlreadyProcessed(const SignalTypes direction,
+                                       const datetime close_bar_time)
+{
+  if(close_bar_time <= 0)
+    return true;
+
+  if(direction == BULLISH)
+    return (g_pandora_box_state.bullish_body_signal_bar_time == close_bar_time);
+
+  return (g_pandora_box_state.bearish_body_signal_bar_time == close_bar_time);
+}
+
+void PandoraMarkBodyCandleProcessed(const SignalTypes direction,
+                                    const datetime close_bar_time,
+                                    const double close_price)
+{
+  if(direction == BULLISH)
+  {
+    g_pandora_box_state.bullish_body_signal_bar_time = close_bar_time;
+    g_pandora_box_state.bullish_body_signal_close_price = close_price;
+  }
+  else
+  {
+    g_pandora_box_state.bearish_body_signal_bar_time = close_bar_time;
+    g_pandora_box_state.bearish_body_signal_close_price = close_price;
+  }
+}
+
+datetime PandoraBodySignalBarTime(const SignalTypes direction)
+{
+  if(direction == BULLISH)
+    return g_pandora_box_state.bullish_body_signal_bar_time;
+  return g_pandora_box_state.bearish_body_signal_bar_time;
+}
+
+double PandoraBodySignalClosePrice(const SignalTypes direction)
+{
+  if(direction == BULLISH)
+    return g_pandora_box_state.bullish_body_signal_close_price;
+  return g_pandora_box_state.bearish_body_signal_close_price;
+}
+
 bool IsPandoraSignal(const SignalParams &signal_params)
 {
   return (signal_params.strategy_context_label == "PANDORA");
@@ -214,10 +357,16 @@ void PandoraResetDailyState()
   g_pandora_box_state.bullish_rearm_ready     = false;
   g_pandora_box_state.bearish_rearm_ready     = false;
   g_pandora_box_state.last_rearm_close_bar_time = 0;
+  PandoraResetBodyEntryState();
 }
 
 void PandoraSyncRuntimeConfig()
 {
+  PandoraEntryTypes resolved_entry_type = PandoraResolveEntryType();
+  ENUM_TIMEFRAMES resolved_body_timeframe = PandoraResolveEntryBodyTimeframe();
+  bool entry_config_changed = (g_pandora_box_state.entry_type != resolved_entry_type ||
+                               g_pandora_box_state.entry_body_timeframe != resolved_body_timeframe);
+
   g_pandora_box_state.enabled                = Pandora_Box_Enable;
   g_pandora_box_state.respect_session_filter = Pandora_Box_Use_Session_Filter;
   g_pandora_box_state.visualization_enabled  = Pandora_Box_Enable_Visualization;
@@ -226,7 +375,19 @@ void PandoraSyncRuntimeConfig()
   g_pandora_box_state.max_range_points       = MathMax(Pandora_Box_Max_Range_Points, 0.0);
   g_pandora_box_state.stop_on_first_win      = Pandora_Box_Stop_On_First_Win;
   g_pandora_box_state.entry_count_mode       = Pandora_Box_Entry_Count_Mode;
+  g_pandora_box_state.entry_type             = resolved_entry_type;
+  g_pandora_box_state.entry_body_timeframe   = resolved_body_timeframe;
   g_pandora_box_state.max_entries            = MathMax(Pandora_Box_Max_Entries, 0);
+
+  if(entry_config_changed)
+  {
+    PandoraResetBodyEntryState();
+    g_pandora_box_state.last_rearm_close_bar_time = 0;
+    if(g_pandora_box_state.bullish_rearm_required)
+      g_pandora_box_state.bullish_rearm_ready = false;
+    if(g_pandora_box_state.bearish_rearm_required)
+      g_pandora_box_state.bearish_rearm_ready = false;
+  }
 }
 
 bool PandoraParseTimeComponent(string fragment,
@@ -547,7 +708,7 @@ bool PandoraPreviousCloseInsideBox()
   if(!g_pandora_box_state.box_valid)
     return false;
 
-  ENUM_TIMEFRAMES tf = PandoraResolveBoxTimeframe();
+  ENUM_TIMEFRAMES tf = PandoraResolveRearmTimeframe();
   double close_1 = iClose(_Symbol, tf, 1);
   if(close_1 <= 0.0)
     return false;
@@ -567,7 +728,7 @@ void PandoraRefreshRearmState()
      !g_pandora_box_state.bearish_rearm_required)
     return;
 
-  ENUM_TIMEFRAMES tf = PandoraResolveBoxTimeframe();
+  ENUM_TIMEFRAMES tf = PandoraResolveRearmTimeframe();
   datetime close_bar_time = iTime(_Symbol, tf, 1);
   if(close_bar_time <= 0)
     return;
@@ -605,14 +766,36 @@ void PandoraRegisterEntryTriggered(const SignalTypes direction)
     return;
 
   string limit_label = PandoraLimitLabel();
-  PrintFormat("PANDORA_ENTRY_OPEN dir=%s open=%d/%s close=%d/%s counted=%d/%s",
-              EnumToString(direction),
-              g_pandora_box_state.total_entries,
-              limit_label,
-              g_pandora_box_state.closed_entries,
-              limit_label,
-              g_pandora_box_state.counted_entries,
-              limit_label);
+  if(PandoraBodyEntryMode())
+  {
+    datetime body_bar_time = PandoraBodySignalBarTime(direction);
+    double body_close_price = PandoraBodySignalClosePrice(direction);
+    PrintFormat("PANDORA_ENTRY_OPEN dir=%s entry=%s body_tf=%s bar=%s body_close=%.5f open=%d/%s close=%d/%s counted=%d/%s",
+                EnumToString(direction),
+                PandoraEntryTypeLabel(),
+                PandoraEntryBodyTimeframeLabel(),
+                TimeToString(body_bar_time, TIME_DATE | TIME_MINUTES),
+                body_close_price,
+                g_pandora_box_state.total_entries,
+                limit_label,
+                g_pandora_box_state.closed_entries,
+                limit_label,
+                g_pandora_box_state.counted_entries,
+                limit_label);
+  }
+  else
+  {
+    PrintFormat("PANDORA_ENTRY_OPEN dir=%s entry=%s body_tf=%s open=%d/%s close=%d/%s counted=%d/%s",
+                EnumToString(direction),
+                PandoraEntryTypeLabel(),
+                PandoraEntryBodyTimeframeLabel(),
+                g_pandora_box_state.total_entries,
+                limit_label,
+                g_pandora_box_state.closed_entries,
+                limit_label,
+                g_pandora_box_state.counted_entries,
+                limit_label);
+  }
 
   if(PandoraEntryBudgetReached())
   {

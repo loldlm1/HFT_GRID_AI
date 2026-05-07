@@ -10,10 +10,12 @@ Use this as the source of truth when configuring the EA in the Inputs panel.
 - The EA parses `Pandora_Box_Time_Range` (`HH:MM-HH:MM`) and builds a daily box (`high/low`) after the window closes.
 - Same-day windows use `start < end`; overnight windows use `start > end` and belong to the day they close. The overnight start day comes from the last known closed D1 candle, so broker-specific Friday/Saturday/Sunday history is respected. `start == end` is invalid.
 - Breakout triggers are computed with `Pandora_Box_Offset_Points` above the box high and below the box low.
+- `Pandora_Box_Entry_Type = ENTRY_WICK_TYPE` keeps the legacy tick/current-price breakout. `ENTRY_BODY_TYPE` requires the selected body timeframe's last closed candle to close outside the offset breakout level.
+- Body entries use inclusive checks (`close_1 >= breakout_high_price` for bullish, `close_1 <= breakout_low_price` for bearish) and consume each qualifying closed candle once per direction, even if a later guard blocks the order.
 - `Pandora_Box_Use_Session_Filter` gates Pandora entry attempts only; it does not decide whether the box construction window is valid.
 - If `Pandora_Box_Max_Range_Points > 0`, the day is invalid when the box range exceeds that limit.
 - Direction filtering is controlled by `Pandora_Box_Direction_Mode`.
-- After each close, re-entry on that direction requires `close_1` to return inside the box before a new entry is allowed.
+- After each close, re-entry on that direction requires `close_1` to return inside the raw box before a new entry is allowed. Wick mode uses the Pandora box timeframe; body mode uses `Pandora_Box_Entry_Body_Timeframe`.
 - `Pandora_Box_Max_Entries` is an opened-entry budget (`0` means unlimited). When budget is reached and positions are still open, status becomes `PANDORA WAIT_CLOSE`; it becomes `PANDORA DONE` after budgeted entries are closed.
 - `Pandora_Box_Entry_Count_Mode` affects the `counted` analytics counter only (`SL`/`TP`/`BE` counting), not the opened-entry budget.
 - `Pandora_Box_Stop_On_First_Win = true` finishes the day after the first profitable Pandora closure.
@@ -31,6 +33,8 @@ Use this as the source of truth when configuring the EA in the Inputs panel.
 | `Pandora_Box_Use_Session_Filter` | `true` | Applies session manager gating to Pandora attempts. | Keep `true` if session windows are part of risk policy. |
 | `Pandora_Box_Enable_Visualization` | `true` | Draws the Pandora visual layer: current box/breakout guides plus up to 8 day-zones (current day + previous 7 trading days). Invalid historical days keep the same DimGray fill and use a simple label. | Keep enabled for setup and troubleshooting. |
 | `Pandora_Box_Set_Broker_SLTP` | `true` | Sends SL/TP at broker when opening/modifying positions. If `false`, EA enforces SL/TP in controller logic. | Keep `true` for broker-side protection. |
+| `Pandora_Box_Entry_Type` | `ENTRY_WICK_TYPE` | Entry trigger style. `ENTRY_WICK_TYPE` uses live tick/current-price breakout; `ENTRY_BODY_TYPE` requires a closed candle outside the offset breakout level. | Keep `WICK` for legacy behavior; use `BODY` to reduce wick-only breaks. |
+| `Pandora_Box_Entry_Body_Timeframe` | `PERIOD_M5` | Standard MT5 timeframe used by `ENTRY_BODY_TYPE` for closed-candle breakout and rearm checks. `PERIOD_CURRENT` resolves through the Pandora/strategy timeframe fallback. | Start with `PERIOD_M5` for deterministic body confirmation. |
 | `Enable_Chart_Levels` | `true` | Enables the fixed chart frontend. When `Enable_Chart_Summary` is also active, live charts use the compact top-left panel instead of live `Comment()` text, while Strategy Tester keeps the text fallback. | Keep enabled while monitoring manually. |
 | `Pandora_Risk_Trailing_Mode` | `PANDORA_RISK_TRAILING_OFF` | Trailing mode: `OFF` keeps fixed TP/SL; `PANDORA_RISK_TRAILING_STEP_TP` trails SL in TP-like steps and uses no hard TP price. | Start with `OFF`; use `STEP_TP` only after tester validation. |
 | `Pandora_Lot_Type` | `PANDORA_LOT_SIZE` | Lot calculation mode: fixed lot, percentage-based, or currency-based. | Fixed lot for stable behavior; budget-based only with risk calibration. |
@@ -73,6 +77,7 @@ Use this as the source of truth when configuring the EA in the Inputs panel.
 
 ## Validation Checklist Before Live Run
 - Confirm `Pandora_Box_Time_Range` format is valid (`HH:MM-HH:MM`), using `start < end` for same-day boxes or `start > end` for overnight boxes.
+- If `Pandora_Box_Entry_Type = ENTRY_BODY_TYPE`, confirm `Pandora_Box_Entry_Body_Timeframe` matches the candle close you want to validate.
 - Confirm `Pandora_Points_SL > 0` for the selected points mode.
 - If `Pandora_Points_Value_Mode = PANDORA_VALUE_MODE_BOX_PERCENT`, verify percent values are realistic for your symbol.
 - If using `Pandora_Box_Max_Range_Points`, ensure the cap matches symbol volatility.

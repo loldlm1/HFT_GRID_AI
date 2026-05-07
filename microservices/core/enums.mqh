@@ -231,6 +231,12 @@ enum PandoraRiskTrailingModes
   PANDORA_RISK_TRAILING_STEP_TP = 1
 };
 
+enum PandoraEntryTypes
+{
+  ENTRY_WICK_TYPE = 0,
+  ENTRY_BODY_TYPE = 1
+};
+
 enum PandoraEntryCountModes
 {
   COUNT_BOX_ENTRY_OFF   = 0,

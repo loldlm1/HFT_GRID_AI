@@ -68,8 +68,10 @@ Sigue estos pasos detallados para instalar y configurar **Pandora Box** en MetaT
 - El EA construye un box diario de precio usando `Pandora_Box_Time_Range`.
 - Las ventanas del mismo día usan inicio `<` fin; las ventanas nocturnas usan inicio `>` fin, pertenecen al día en que cierran y empiezan desde el día de la última vela D1 cerrada conocida. Valores iguales de inicio/fin son inválidos.
 - Después de cerrar la ventana, calcula precios de ruptura con `Pandora_Box_Offset_Points`.
-- Si el precio rompe por arriba/abajo y todas las validaciones se cumplen (dirección, sesión, límites diarios, concurrencia), se abre una señal Pandora.
-- La reentrada por cada lado se rearma solo cuando `close_1` vuelve dentro del box.
+- `Pandora_Box_Entry_Type = ENTRY_WICK_TYPE` conserva la ruptura actual por tick/precio. `ENTRY_BODY_TYPE` espera que la última vela cerrada del timeframe seleccionado cierre fuera del nivel de ruptura con offset.
+- Las entradas por cuerpo usan validaciones inclusivas (`close_1 >= breakout_high_price` alcista, `close_1 <= breakout_low_price` bajista) y consumen cada vela cerrada válida una sola vez por dirección, aunque una validación posterior bloquee la orden.
+- Si el disparador seleccionado rompe por arriba/abajo y todas las validaciones se cumplen (dirección, sesión, límites diarios, concurrencia), se abre una señal Pandora.
+- La reentrada por cada lado se rearma solo cuando `close_1` vuelve dentro del box sin offset. En modo wick usa el timeframe del box Pandora; en modo body usa `Pandora_Box_Entry_Body_Timeframe`.
 - `Pandora_Box_Max_Entries` controla el presupuesto de entradas abiertas (`0` significa ilimitado).
 - Si el presupuesto se alcanza con operaciones aún abiertas, el estado muestra `PANDORA WAIT_CLOSE`; al cerrarse, pasa a `PANDORA DONE`.
 - `Pandora_Box_Entry_Count_Mode` solo controla el contador analítico `counted`; no reemplaza el presupuesto de entradas abiertas.
@@ -86,6 +88,8 @@ Sigue estos pasos detallados para instalar y configurar **Pandora Box** en MetaT
 | `Pandora_Box_Use_Session_Filter` | `true` | Aplica filtros horarios de sesión a intentos Pandora. | Mantén `true` cuando la política de sesión sea parte del riesgo. |
 | `Pandora_Box_Enable_Visualization` | `true` | Dibuja el frontend visual de Pandora: box actual, guías de ruptura y hasta 8 zonas diarias (día actual + 7 días previos de trading). Los días históricos inválidos conservan el relleno DimGray y muestran una etiqueta simple. | Mantén activo durante configuración/ajuste. |
 | `Pandora_Box_Set_Broker_SLTP` | `true` | Envía SL/TP al bróker en la ejecución; en `false`, el EA valida localmente. | Mantén `true` para protección del lado del bróker. |
+| `Pandora_Box_Entry_Type` | `ENTRY_WICK_TYPE` | Estilo de disparo de entrada. `ENTRY_WICK_TYPE` usa ruptura por tick/precio actual; `ENTRY_BODY_TYPE` exige una vela cerrada fuera del nivel de ruptura con offset. | Mantén `WICK` para comportamiento legacy; usa `BODY` para reducir rupturas solo por mecha. |
+| `Pandora_Box_Entry_Body_Timeframe` | `PERIOD_M5` | Timeframe estándar de MT5 usado por `ENTRY_BODY_TYPE` para ruptura por vela cerrada y rearme. `PERIOD_CURRENT` se resuelve con el fallback Pandora/estrategia. | Empieza con `PERIOD_M5` para confirmación determinística por cuerpo. |
 | `Enable_Chart_Levels` | `true` | Habilita el frontend visual fijo. Cuando `Enable_Chart_Summary` también está activo, el gráfico en vivo usa el panel compacto en la esquina superior izquierda en lugar del `Comment()` en vivo; el Strategy Tester mantiene el fallback por comentario. | Mantén activo para monitoreo manual. |
 | `Pandora_Risk_Trailing_Mode` | `PANDORA_RISK_TRAILING_OFF` | Comportamiento de trailing: `OFF` o `PANDORA_RISK_TRAILING_STEP_TP`. | Comienza con `OFF`; usa `STEP_TP` tras validar en tester. |
 | `Pandora_Lot_Type` | `PANDORA_LOT_SIZE` | Modo de lote: fijo, basado en porcentaje o basado en moneda. | Usa lote fijo al inicio; los modos por presupuesto requieren calibración. |

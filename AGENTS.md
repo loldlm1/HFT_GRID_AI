@@ -97,6 +97,7 @@ This document summarizes the current architecture, workflows, and guardrails for
    - `market_status_controller` coordinates `ACTIVE / CLOSE_GUARD / BROKER_CLOSEONLY / BROKER_DISABLED` transitions and pending force closes.
    - `grid_visualization` now owns the fixed frontend pass: branded chart palette, compact top-left panel, Pandora current-day/past-day rectangles, and the grid level overlays. Live charts use the object-based panel; `Comment()` is kept only as a Strategy Tester fallback.
    - Pandora box windows support same-day ranges (`start < end`) and overnight ranges (`start > end`). Overnight boxes belong to the day they close and start from the last known closed D1 candle day; session filters still gate entry attempts only.
+   - `Pandora_Box_Entry_Type` defaults to `ENTRY_WICK_TYPE`, preserving the tick/current-price breakout. `ENTRY_BODY_TYPE` uses the configured `Pandora_Box_Entry_Body_Timeframe` (default `PERIOD_M5`) and only triggers once per direction when the last closed candle closes inclusively beyond the offset breakout level. Body-mode rearm also uses that body timeframe for the required close back inside the raw box.
 
 ---
 
