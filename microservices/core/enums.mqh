@@ -252,6 +252,40 @@ enum PandoraCloseOutcomes
   PANDORA_CLOSE_BE   = 3
 };
 
+enum PandoraLocalEntryStatuses
+{
+  PANDORA_LOCAL_ENTRY_NONE      = 0,
+  PANDORA_LOCAL_ENTRY_ACTIVE    = 1,
+  PANDORA_LOCAL_ENTRY_COMPLETED = 2
+};
+
+enum PandoraBrokerExecutionStatuses
+{
+  PANDORA_BROKER_NOT_ATTEMPTED = 0,
+  PANDORA_BROKER_BLOCKED       = 1,
+  PANDORA_BROKER_REJECTED      = 2,
+  PANDORA_BROKER_EXECUTED      = 3,
+  PANDORA_BROKER_CLOSED        = 4
+};
+
+enum PandoraBrokerStopSyncStatuses
+{
+  PANDORA_BROKER_STOPS_NONE         = 0,
+  PANDORA_BROKER_STOPS_NOT_REQUIRED = 1,
+  PANDORA_BROKER_STOPS_PENDING      = 2,
+  PANDORA_BROKER_STOPS_WIDE         = 3,
+  PANDORA_BROKER_STOPS_TARGETED     = 4,
+  PANDORA_BROKER_STOPS_FAILED       = 5
+};
+
+enum PandoraLocalCloseMarkers
+{
+  PANDORA_LOCAL_CLOSE_NONE           = 0,
+  PANDORA_LOCAL_CLOSE_VIRTUAL        = 1,
+  PANDORA_LOCAL_CLOSE_BROKER         = 2,
+  PANDORA_LOCAL_CLOSE_LOCAL_REJECTED = 3
+};
+
 enum GridRiskTrendModes
 {
   GRID_RM_TREND_OFF = 0,

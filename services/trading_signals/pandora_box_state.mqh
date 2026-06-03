@@ -9,6 +9,190 @@ const double PANDORA_EPSILON_EXTREME_BOX_RATIO = 5.0;
 const int PANDORA_HISTORY_DAYS = 8;
 const string PANDORA_INVALID_PREVIOUS_D1_ANCHOR = "No previous D1 anchor for Pandora wrapped window";
 
+string PandoraLocalEntryStatusLabel(const PandoraLocalEntryStatuses status)
+{
+  switch(status)
+  {
+    case PANDORA_LOCAL_ENTRY_ACTIVE:
+      return "Posicion local activa";
+    case PANDORA_LOCAL_ENTRY_COMPLETED:
+      return "Posicion local cerrada";
+    case PANDORA_LOCAL_ENTRY_NONE:
+    default:
+      return "Posicion local";
+  }
+}
+
+string PandoraBrokerExecutionStatusLabel(const PandoraBrokerExecutionStatuses status)
+{
+  switch(status)
+  {
+    case PANDORA_BROKER_BLOCKED:
+      return "Broker bloqueado";
+    case PANDORA_BROKER_REJECTED:
+      return "Broker rechazado";
+    case PANDORA_BROKER_EXECUTED:
+      return "Posicion ejecutada";
+    case PANDORA_BROKER_CLOSED:
+      return "Posicion broker cerrada";
+    case PANDORA_BROKER_NOT_ATTEMPTED:
+    default:
+      return "Broker sin intento";
+  }
+}
+
+string PandoraBrokerStopSyncStatusLabel(const PandoraBrokerStopSyncStatuses status)
+{
+  switch(status)
+  {
+    case PANDORA_BROKER_STOPS_NOT_REQUIRED:
+      return "Stops broker no requeridos";
+    case PANDORA_BROKER_STOPS_PENDING:
+      return "Stops broker pendientes";
+    case PANDORA_BROKER_STOPS_WIDE:
+      return "Stops broker amplios";
+    case PANDORA_BROKER_STOPS_TARGETED:
+      return "Stops broker objetivo";
+    case PANDORA_BROKER_STOPS_FAILED:
+      return "Stops broker fallidos";
+    case PANDORA_BROKER_STOPS_NONE:
+    default:
+      return "Stops broker sin estado";
+  }
+}
+
+string PandoraLocalCloseMarkerLabel(const PandoraLocalCloseMarkers marker)
+{
+  switch(marker)
+  {
+    case PANDORA_LOCAL_CLOSE_VIRTUAL:
+      return "Cierre local virtual";
+    case PANDORA_LOCAL_CLOSE_BROKER:
+      return "Cierre broker";
+    case PANDORA_LOCAL_CLOSE_LOCAL_REJECTED:
+      return "Rechazo local";
+    case PANDORA_LOCAL_CLOSE_NONE:
+    default:
+      return "";
+  }
+}
+
+bool PandoraTextContains(const string text,
+                         const string token)
+{
+  if(token == "")
+    return false;
+  return (StringFind(text, token) >= 0);
+}
+
+string PandoraRetcodeShortLabel(const ulong retcode)
+{
+  switch(retcode)
+  {
+    case TRADE_RETCODE_INVALID_STOPS:
+      return "ERR_Stops";
+    case TRADE_RETCODE_INVALID_VOLUME:
+    case TRADE_RETCODE_LIMIT_VOLUME:
+      return "ERR_Volumen";
+    case TRADE_RETCODE_NO_MONEY:
+      return "ERR_Margen";
+    case TRADE_RETCODE_MARKET_CLOSED:
+      return "ERR_Mercado";
+    case TRADE_RETCODE_TRADE_DISABLED:
+    case TRADE_RETCODE_SERVER_DISABLES_AT:
+    case TRADE_RETCODE_CLIENT_DISABLES_AT:
+      return "ERR_Trading";
+    case TRADE_RETCODE_PRICE_CHANGED:
+    case TRADE_RETCODE_PRICE_OFF:
+    case TRADE_RETCODE_INVALID_PRICE:
+    case TRADE_RETCODE_REQUOTE:
+      return "ERR_Precio";
+    case TRADE_RETCODE_TIMEOUT:
+      return "ERR_Timeout";
+    case TRADE_RETCODE_TOO_MANY_REQUESTS:
+      return "ERR_Frecuencia";
+    case TRADE_RETCODE_INVALID_FILL:
+      return "ERR_Fill";
+    case TRADE_RETCODE_CONNECTION:
+      return "ERR_Conexion";
+    case TRADE_RETCODE_REJECT:
+    case TRADE_RETCODE_CANCEL:
+    case TRADE_RETCODE_ERROR:
+    case TRADE_RETCODE_INVALID:
+    default:
+      break;
+  }
+
+  if(retcode > 0)
+    return "ERR_Broker";
+  return "";
+}
+
+string PandoraBrokerRejectReasonLabel(const string context,
+                                      const string detail,
+                                      const ulong retcode)
+{
+  string combined = context + " " + detail;
+
+  if(PandoraTextContains(combined, "spread") ||
+     PandoraTextContains(combined, "Spread") ||
+     PandoraTextContains(combined, "SPREAD"))
+    return "ERR_Spread";
+
+  if(PandoraTextContains(combined, "margin") ||
+     PandoraTextContains(combined, "Margin") ||
+     PandoraTextContains(combined, "MARGIN"))
+    return "ERR_Margen";
+
+  string retcode_label = PandoraRetcodeShortLabel(retcode);
+  if(retcode_label != "")
+    return retcode_label;
+
+  if(context != "" || detail != "")
+    return "ERR_Local";
+  return "ERR_Broker";
+}
+
+string PandoraBrokerRejectSummary(const string context,
+                                  const string detail,
+                                  const ulong retcode,
+                                  const int last_error)
+{
+  string summary = PandoraBrokerRejectReasonLabel(context, detail, retcode);
+  if(retcode > 0)
+    summary = summary + StringFormat(" ret=%I64u", retcode);
+  if(last_error > 0)
+    summary = summary + StringFormat(" err=%d", last_error);
+  if(context != "")
+    summary = summary + " " + context;
+  if(detail != "")
+    summary = summary + " " + detail;
+
+  int max_len = 96;
+  if(StringLen(summary) > max_len)
+    summary = StringSubstr(summary, 0, max_len - 3) + "...";
+  return summary;
+}
+
+string PandoraPositionExecutionLabel(const PandoraBrokerExecutionStatuses broker_status,
+                                     const string rejection_reason)
+{
+  if(broker_status == PANDORA_BROKER_EXECUTED ||
+     broker_status == PANDORA_BROKER_CLOSED)
+    return "Posicion ejecutada";
+
+  if(broker_status == PANDORA_BROKER_BLOCKED ||
+     broker_status == PANDORA_BROKER_REJECTED)
+  {
+    string reason = rejection_reason;
+    if(reason == "")
+      reason = "ERR_Broker";
+    return "Posicion local - " + reason;
+  }
+
+  return "Posicion local";
+}
+
 struct PandoraBoxRuntimeState
 {
   bool     enabled;
