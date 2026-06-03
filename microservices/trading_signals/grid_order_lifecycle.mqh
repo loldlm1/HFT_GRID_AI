@@ -216,6 +216,7 @@ bool GridExecuteLevelTrade(SignalParams &signal_params,
 {
   SignalTypes direction = signal_params.signal_type;
   string comment = GridComposeLevelComment(signal_params, order_state);
+  bool pandora_signal = IsPandoraSignal(signal_params);
 
   if(!order_state.opens_position)
   {
@@ -234,12 +235,33 @@ bool GridExecuteLevelTrade(SignalParams &signal_params,
     return true;
   }
 
+  if(pandora_signal && PandoraBrokerAttemptAlreadyFinished(signal_params))
+  {
+    if(signal_params.pandora_broker_execution_status != PANDORA_BROKER_EXECUTED &&
+       order_state.status == GRID_ORDER_STOP_TRAILING_ACTIVE)
+    {
+      PandoraEnsureLocalEntryActive(signal_params, order_state, comment);
+      signal_params.grid_orders[order_state.level_index] = order_state;
+    }
+    return true;
+  }
+
   // Guardrails: spread/margin checks before sending
   string guard_reason = "";
   if(!GridGuardrailsAllowOrder(normalized_volume, guard_reason))
   {
     GridLogGuardrailBlock("GUARDRAIL_BLOCK", signal_params, order_state, guard_reason);
     if(Debug_Stop_On_Negative_Equity) g_debug_no_money_abort_pending = true;
+    if(pandora_signal)
+    {
+      PandoraMarkBrokerBlocked(signal_params,
+                               order_state,
+                               "GUARDRAIL_BLOCK",
+                               guard_reason,
+                               comment);
+      signal_params.grid_orders[order_state.level_index] = order_state;
+      return true;
+    }
     return false;
   }
 
@@ -260,36 +282,95 @@ bool GridExecuteLevelTrade(SignalParams &signal_params,
   }
 
   if(direction == BULLISH)
+  {
+    ResetLastError();
     sent = g_position.Buy(normalized_volume, _Symbol, 0.0, sl_price, tp_price, comment);
+  }
   else
+  {
+    ResetLastError();
     sent = g_position.Sell(normalized_volume, _Symbol, 0.0, sl_price, tp_price, comment);
+  }
 
+  ulong retcode = g_position.ResultRetcode();
+  int last_error = GetLastError();
   if(!sent)
   {
-    ulong retcode = g_position.ResultRetcode();
-    int last_error = GetLastError();
     if(Debug_Stop_On_Negative_Equity)
     {
       if(retcode == TRADE_RETCODE_NO_MONEY)
         g_debug_no_money_abort_pending = true;
     }
     MarketStatusRegisterBrokerFailure("ORDER_SEND_FAILED", retcode, last_error, false);
+    if(pandora_signal)
+    {
+      string reject_detail = PandoraBrokerRejectSummary("ORDER_SEND_FAILED", "", retcode, last_error);
+      PandoraMarkBrokerRejected(signal_params,
+                                order_state,
+                                "ORDER_SEND_FAILED",
+                                reject_detail,
+                                retcode,
+                                last_error,
+                                comment);
+      signal_params.grid_orders[order_state.level_index] = order_state;
+      return true;
+    }
     return false;
   }
-  MarketStatusClearExecutionError("ORDER_SEND_OK");
 
   double fill_price = g_position.ResultPrice();
   if(fill_price <= 0.0)
     fill_price = GridCurrentPriceForDirection(direction, true);
 
+  ulong deal_ticket = (ulong)g_position.ResultDeal();
+  ulong position_ticket = ResolvePositionTicketFromDeal(deal_ticket);
+  if(position_ticket == 0)
+    position_ticket = FindOpenPositionForSignal(direction, comment);
+
+  bool broker_executed = (retcode == TRADE_RETCODE_DONE ||
+                          retcode == TRADE_RETCODE_DONE_PARTIAL);
+  if(pandora_signal && (!broker_executed || position_ticket == 0))
+  {
+    string context = broker_executed ? "ORDER_SEND_POSITION_MISSING" : "ORDER_SEND_REJECTED";
+    string reject_detail = PandoraBrokerRejectSummary(context, "", retcode, last_error);
+    if(retcode == TRADE_RETCODE_DONE_PARTIAL)
+      reject_detail = reject_detail + StringFormat(" volume=%.2f", g_position.ResultVolume());
+    MarketStatusRegisterBrokerFailure(context, retcode, last_error, false);
+    PandoraMarkBrokerRejected(signal_params,
+                              order_state,
+                              context,
+                              reject_detail,
+                              retcode,
+                              last_error,
+                              comment);
+    signal_params.grid_orders[order_state.level_index] = order_state;
+    return true;
+  }
+
+  MarketStatusClearExecutionError("ORDER_SEND_OK");
+
   order_state.status = GRID_ORDER_ACTIVE;
   order_state.entry_price = fill_price;
-  ulong deal_ticket = (ulong)g_position.ResultDeal();
-  order_state.position_ticket = ResolvePositionTicketFromDeal(deal_ticket);
-  if(order_state.position_ticket == 0)
-    order_state.position_ticket = FindOpenPositionForSignal(direction, comment);
+  order_state.position_ticket = position_ticket;
   order_state.position_comment = comment;
   order_state.last_action_time = TimeCurrent();
+
+  if(pandora_signal)
+  {
+    if(retcode == TRADE_RETCODE_DONE_PARTIAL && Enable_Logs)
+    {
+      PrintFormat("PANDORA_BROKER_PARTIAL_FILL ticket=%I64u retcode=%I64u volume=%.2f requested=%.2f",
+                  order_state.position_ticket,
+                  retcode,
+                  g_position.ResultVolume(),
+                  normalized_volume);
+    }
+    PandoraMarkBrokerExecuted(signal_params,
+                              order_state,
+                              retcode,
+                              last_error,
+                              comment);
+  }
 
   GridRefreshPandoraStopsAfterFill(signal_params, order_state);
 

@@ -267,6 +267,14 @@ void OnTick()
   // AVOID BROKER/LIFECYCLE SEQUENCE WHEN CRAZY TICKS OR MARKET IS CLOSED
   if(g_points_spread > Max_Spread || !market_open)
   {
+    if(g_points_spread > Max_Spread)
+    {
+      string spread_reason = StringFormat("spread=%.1f>%.1f",
+                                          g_points_spread,
+                                          Max_Spread);
+      if(PandoraMarkPendingBrokerBlocked("PANDORA_BROKER_SPREAD_BLOCK", spread_reason))
+        MarketStatusRegisterExecutionError("PANDORA_BROKER_SPREAD_BLOCK", spread_reason, 0, 0);
+    }
     g_ea_running = false;
     RefreshGridVisualization();
     return;

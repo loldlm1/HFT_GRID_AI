@@ -193,6 +193,172 @@ string PandoraPositionExecutionLabel(const PandoraBrokerExecutionStatuses broker
   return "Posicion local";
 }
 
+bool PandoraBrokerAttemptAlreadyFinished(const SignalParams &signal_params)
+{
+  if(!IsPandoraSignal(signal_params))
+    return false;
+  if(signal_params.pandora_broker_send_attempted)
+    return true;
+  return (signal_params.pandora_broker_execution_status != PANDORA_BROKER_NOT_ATTEMPTED);
+}
+
+double PandoraResolveLocalEntryPrice(const SignalParams &signal_params,
+                                     const GridOrderState &order_state)
+{
+  if(signal_params.pandora_local_entry_price > 0.0)
+    return signal_params.pandora_local_entry_price;
+  if(signal_params.entry_price > 0.0)
+    return signal_params.entry_price;
+  if(order_state.entry_price > 0.0)
+    return order_state.entry_price;
+  if(order_state.entry_reference_price > 0.0)
+    return order_state.entry_reference_price;
+  return GridCurrentPriceForDirection(signal_params.signal_type, true);
+}
+
+void PandoraEnsureLocalEntryActive(SignalParams &signal_params,
+                                   GridOrderState &order_state,
+                                   const string position_comment)
+{
+  if(!IsPandoraSignal(signal_params))
+    return;
+
+  datetime now_time = TimeCurrent();
+  double local_entry_price = PandoraResolveLocalEntryPrice(signal_params, order_state);
+
+  if(signal_params.pandora_local_entry_status == PANDORA_LOCAL_ENTRY_NONE)
+    signal_params.pandora_local_entry_status = PANDORA_LOCAL_ENTRY_ACTIVE;
+  if(signal_params.pandora_local_entry_time <= 0)
+    signal_params.pandora_local_entry_time = (signal_params.entry_time > 0)
+                                             ? signal_params.entry_time
+                                             : now_time;
+  if(signal_params.pandora_local_entry_price <= 0.0)
+    signal_params.pandora_local_entry_price = local_entry_price;
+
+  if(signal_params.entry_price <= 0.0)
+    signal_params.entry_price = local_entry_price;
+
+  order_state.status = GRID_ORDER_ACTIVE;
+  if(order_state.entry_price <= 0.0)
+    order_state.entry_price = local_entry_price;
+  order_state.position_ticket = 0;
+  if(order_state.position_comment == "" && position_comment != "")
+    order_state.position_comment = position_comment;
+  order_state.last_action_time = now_time;
+}
+
+void PandoraMarkBrokerBlocked(SignalParams &signal_params,
+                              GridOrderState &order_state,
+                              const string context,
+                              const string detail,
+                              const string position_comment)
+{
+  if(!IsPandoraSignal(signal_params))
+    return;
+
+  PandoraEnsureLocalEntryActive(signal_params, order_state, position_comment);
+  signal_params.pandora_broker_send_attempted = true;
+  signal_params.pandora_broker_execution_status = PANDORA_BROKER_BLOCKED;
+  signal_params.pandora_broker_stop_sync_status = PANDORA_BROKER_STOPS_NOT_REQUIRED;
+  signal_params.pandora_broker_attempt_time = TimeCurrent();
+  signal_params.pandora_broker_retcode = 0;
+  signal_params.pandora_broker_last_error = 0;
+  signal_params.pandora_broker_reject_context = context;
+  signal_params.pandora_broker_reject_detail = detail;
+}
+
+void PandoraMarkBrokerRejected(SignalParams &signal_params,
+                               GridOrderState &order_state,
+                               const string context,
+                               const string detail,
+                               const ulong retcode,
+                               const int last_error,
+                               const string position_comment)
+{
+  if(!IsPandoraSignal(signal_params))
+    return;
+
+  PandoraEnsureLocalEntryActive(signal_params, order_state, position_comment);
+  signal_params.pandora_broker_send_attempted = true;
+  signal_params.pandora_broker_execution_status = PANDORA_BROKER_REJECTED;
+  signal_params.pandora_broker_stop_sync_status = PANDORA_BROKER_STOPS_NOT_REQUIRED;
+  signal_params.pandora_broker_attempt_time = TimeCurrent();
+  signal_params.pandora_broker_retcode = retcode;
+  signal_params.pandora_broker_last_error = last_error;
+  signal_params.pandora_broker_reject_context = context;
+  signal_params.pandora_broker_reject_detail = detail;
+}
+
+void PandoraMarkBrokerExecuted(SignalParams &signal_params,
+                               GridOrderState &order_state,
+                               const ulong retcode,
+                               const int last_error,
+                               const string position_comment)
+{
+  if(!IsPandoraSignal(signal_params))
+    return;
+
+  if(signal_params.pandora_local_entry_status == PANDORA_LOCAL_ENTRY_NONE)
+    signal_params.pandora_local_entry_status = PANDORA_LOCAL_ENTRY_ACTIVE;
+  if(signal_params.pandora_local_entry_time <= 0)
+    signal_params.pandora_local_entry_time = (signal_params.entry_time > 0)
+                                             ? signal_params.entry_time
+                                             : TimeCurrent();
+  if(signal_params.pandora_local_entry_price <= 0.0)
+    signal_params.pandora_local_entry_price = PandoraResolveLocalEntryPrice(signal_params, order_state);
+
+  signal_params.pandora_broker_send_attempted = true;
+  signal_params.pandora_broker_execution_status = PANDORA_BROKER_EXECUTED;
+  signal_params.pandora_broker_attempt_time = TimeCurrent();
+  signal_params.pandora_broker_retcode = retcode;
+  signal_params.pandora_broker_last_error = last_error;
+  signal_params.pandora_broker_reject_context = "";
+  signal_params.pandora_broker_reject_detail = "";
+  if(order_state.position_comment == "" && position_comment != "")
+    order_state.position_comment = position_comment;
+}
+
+bool PandoraMarkPendingBrokerBlockedInArray(SignalParams &signals[],
+                                            const string context,
+                                            const string detail)
+{
+  bool marked = false;
+  int total = ArraySize(signals);
+  for(int i = total - 1; i >= 0; i--)
+  {
+    if(!IsPandoraSignal(signals[i]))
+      continue;
+    if(signals[i].signal_state == CLOSED)
+      continue;
+    if(PandoraBrokerAttemptAlreadyFinished(signals[i]))
+      continue;
+
+    int grid_order_level = ArraySize(signals[i].grid_orders) - 1;
+    if(grid_order_level < 0)
+      continue;
+
+    GridOrderState order_state = signals[i].grid_orders[grid_order_level];
+    if(order_state.status != GRID_ORDER_STOP_TRAILING_ACTIVE)
+      continue;
+
+    PandoraMarkBrokerBlocked(signals[i], order_state, context, detail, "");
+    signals[i].grid_orders[grid_order_level] = order_state;
+    marked = true;
+  }
+  return marked;
+}
+
+bool PandoraMarkPendingBrokerBlocked(const string context,
+                                     const string detail)
+{
+  bool marked = false;
+  if(PandoraMarkPendingBrokerBlockedInArray(running_bullish_signals, context, detail))
+    marked = true;
+  if(PandoraMarkPendingBrokerBlockedInArray(running_bearish_signals, context, detail))
+    marked = true;
+  return marked;
+}
+
 struct PandoraBoxRuntimeState
 {
   bool     enabled;
