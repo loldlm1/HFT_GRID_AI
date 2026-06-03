@@ -16,7 +16,7 @@ The resolved identity approach is to keep the backend as the source of truth for
 - The backend contract in `services/shared/license_guard_v1/backend-entitlements-contract.md` says a lane returns one stable `magic_number`, daily results dedupe by `broker_account + ea_id + magic_number + UTC day`, and missing/invalid magic must fail closed.
 - Position and deal ownership is usually scoped by `g_magic_number + _Symbol`, but `GetActivePositionsCount()` in `microservices/trading_signals/grid_order_lifecycle.mqh` filters by magic and direction without checking `_Symbol`.
 - Grid entry comments are centralized through `GridComposeLevelComment()` in `microservices/trading_signals/grid_order_helpers.mqh`.
-- Hedge orders currently use the literal comment `GRID_HEDGE` in `services/trading_management_strategies/grid_trend_risk_hedge.mqh`.
+- Hedge orders previously used the literal comment `GRID_HEDGE` in `services/trading_management_strategies/grid_trend_risk_hedge.mqh`.
 - `FindOpenPositionForSignal()` uses symbol, direction, and optional comment, but does not filter magic before returning a ticket.
 - `OnTick()` in `HFT_Grid_AI.mq5` monitors symbol trade mode and market status, but there is no explicit pre-trade gate for `MQL_TRADE_ALLOWED`, `TERMINAL_TRADE_ALLOWED`, or account expert-trading allowance before `Main()` / `Main_Tick()`.
 - `MarketStatusRegisterBrokerFailure()` records only broker-disabled/market-closed style failures; no-money, invalid stops, margin, requote, or generic trade send failures are not surfaced in the frontend unless they also imply closure.
@@ -160,6 +160,7 @@ The resolved identity approach is to keep the backend as the source of truth for
 - **Location**: `services/trading_management_strategies/grid_trend_risk_hedge.mqh`
 - **Description**: Decide whether hedge orders are part of the requested numbering. If yes, compose a deterministic `pandora_box_pos_n` comment for hedge orders; if no, use a documented companion comment such as `pandora_box_hedge`.
 - **Dependencies**: Task 2.1.
+- **Chosen Policy**: Hedge orders use `GridComposeHedgeComment()` and reserve a deterministic `pandora_box_pos_n` index outside normal level numbering. Finite grids use `Grid_Level_Stop_Limit + 1`; unlimited grids reserve `pandora_box_pos_9999`.
 - **Acceptance Criteria**:
   - Hedge recovery through `FindOpenPositionForSignal()` still works.
   - Hedge comments cannot collide with normal level comments for the same signal.

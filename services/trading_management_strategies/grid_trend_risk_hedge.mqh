@@ -70,7 +70,7 @@ bool GridOpenHedgePosition(SignalParams &signal_params,
 
   double entry_price = GridCurrentPriceForDirection(hedge_direction, true);
 
-  string comment = "GRID_HEDGE";
+  string comment = GridComposeHedgeComment(signal_params);
   bool sent = false;
   if(hedge_direction == BULLISH)
     sent = g_position.Buy(normalized_volume, _Symbol, 0.0, 0.0, 0.0, comment);
@@ -112,6 +112,7 @@ bool GridOpenHedgePosition(SignalParams &signal_params,
 
   GridOrderState hedge_state = state_candidate;
   hedge_state.position_ticket = position_ticket;
+  hedge_state.position_comment = comment;
   hedge_state.entry_price = fill_price;
   hedge_state.status = GRID_ORDER_ACTIVE;
   GridLogEvent("HEDGE_OPEN", signal_params, hedge_state);
@@ -207,6 +208,7 @@ bool GridCloseHedgePosition(SignalParams &signal_params,
   GridOrderState hedge_state;
   hedge_state.entry_price = signal_params.hedge_entry_price;
   hedge_state.position_ticket = ticket;
+  hedge_state.position_comment = GridComposeHedgeComment(signal_params);
   hedge_state.status = GRID_ORDER_COMPLETED;
   GridLogEvent(log_label, signal_params, hedge_state);
   if(finalize)

@@ -113,21 +113,49 @@ void GridAppendReason(string &target,
   target = target + ";" + token;
 }
 
+string GridComposePositionComment(const int position_index)
+{
+  int safe_index = position_index;
+  if(safe_index < 1)
+    safe_index = 1;
+  return StringFormat("pandora_box_pos_%d", safe_index);
+}
+
+int GridResolveLevelPositionCommentIndex(const SignalParams &signal_params,
+                                         const GridOrderState &order_state)
+{
+  if(!order_state.opens_position)
+  {
+    if(order_state.level_index >= 0)
+      return order_state.level_index + 1;
+    return 1;
+  }
+
+  int total_levels = ArraySize(signal_params.grid_orders);
+  int position_index = 0;
+  for(int idx = 0; idx < total_levels; idx++)
+  {
+    GridOrderState state = signal_params.grid_orders[idx];
+    if(!state.opens_position)
+      continue;
+
+    position_index++;
+    if(state.level_index == order_state.level_index || idx == order_state.level_index)
+      return position_index;
+  }
+
+  if(position_index > 0)
+    return position_index + 1;
+  if(order_state.level_index >= 0)
+    return order_state.level_index + 1;
+  return 1;
+}
+
 string GridComposeLevelComment(const SignalParams &signal_params,
                                const GridOrderState &order_state)
 {
-  string direction_label = (signal_params.signal_type == BULLISH) ? "B" : "S";
-  datetime entry_time    = signal_params.entry_time;
-  string time_label      = TimeToString(entry_time, TIME_MINUTES);
-  ENUM_TIMEFRAMES tf = signal_params.strategy_timeframe;
-  if(tf == PERIOD_CURRENT)
-    tf = Strategy_Timeframe;
-  string tf_label = EnumToString(tf);
-  return StringFormat("GRID_%s_%s_%s_L%d",
-                      direction_label,
-                      tf_label,
-                      time_label,
-                      order_state.level_index);
+  int position_index = GridResolveLevelPositionCommentIndex(signal_params, order_state);
+  return GridComposePositionComment(position_index);
 }
 
 int GridCountPositionOpeningLevels(const SignalParams &signal_params)
@@ -140,6 +168,24 @@ int GridCountPositionOpeningLevels(const SignalParams &signal_params)
       count++;
   }
   return count;
+}
+
+int GridResolveHedgePositionCommentIndex(const SignalParams &signal_params)
+{
+  int hedge_index = GridCountPositionOpeningLevels(signal_params) + 1;
+  int configured_position_limit = Grid_Level_Stop_Limit;
+
+  if(configured_position_limit > 0 && hedge_index <= configured_position_limit)
+    hedge_index = configured_position_limit + 1;
+  if(configured_position_limit <= 0 && hedge_index < 9999)
+    hedge_index = 9999;
+
+  return hedge_index;
+}
+
+string GridComposeHedgeComment(const SignalParams &signal_params)
+{
+  return GridComposePositionComment(GridResolveHedgePositionCommentIndex(signal_params));
 }
 
 bool GridNextLevelOpensPosition(const SignalParams &signal_params)
