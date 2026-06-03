@@ -20,11 +20,16 @@ double PandoraResolveInitialStopPrice(const SignalParams &signal_params,
   if(point_size <= 0.0)
     return 0.0;
 
+  double local_stop_price = PandoraResolveLocalStopTargetPrice(signal_params,
+                                                               grid_order);
+  if(local_stop_price > 0.0)
+    return local_stop_price;
+
   double entry_anchor = PandoraResolveEntryAnchorPrice(grid_order, direction);
   if(entry_anchor <= 0.0)
     return 0.0;
 
-  double sl_points = PandoraResolveSignalSLPoints(signal_params, true);
+  double sl_points = PandoraResolveSignalSLPoints(signal_params, false);
   if(sl_points <= 0.0)
     return 0.0;
 
@@ -168,21 +173,22 @@ bool PandoraApplyStepTrailing(SignalParams &signal_params,
   if(!PandoraTrailingStopImproves(direction, candidate_stop, current_stop, tolerance))
     return false;
 
-  if(Pandora_Box_Set_Broker_SLTP)
+  if(Pandora_Box_Set_Broker_SLTP &&
+     grid_order.position_ticket > 0 &&
+     PositionSelectByTicket(grid_order.position_ticket) &&
+     PandoraBrokerStopDistanceSatisfied(direction, current_price, candidate_stop, point_size))
   {
-    if(grid_order.position_ticket <= 0 || !PositionSelectByTicket(grid_order.position_ticket))
-      return false;
-    if(!PandoraBrokerStopDistanceSatisfied(direction, current_price, candidate_stop, point_size))
-      return false;
-
+    ResetLastError();
     if(!g_position.PositionModify(grid_order.position_ticket, candidate_stop, 0.0))
     {
       ulong retcode = g_position.ResultRetcode();
       int last_error = GetLastError();
       MarketStatusRegisterBrokerFailure("PANDORA_STEP_TRAIL_MODIFY_FAILED", retcode, last_error, true);
-      return false;
     }
-    MarketStatusClearExecutionError("PANDORA_STEP_TRAIL_MODIFY_OK");
+    else
+    {
+      MarketStatusClearExecutionError("PANDORA_STEP_TRAIL_MODIFY_OK");
+    }
   }
 
   signal_params.pandora_trailing_step_index = target_step_index;
@@ -229,6 +235,7 @@ void UpdateGridLifecycle(SignalParams &signal_params)
       bool step_trailing = PandoraRiskStepTrailingEnabled();
       if(step_trailing && grid_order.entry_price > 0.0 && point_size > 0.0)
       {
+        PandoraEnsureLocalTargetPrices(signal_params, grid_order);
         PandoraApplyStepTrailing(signal_params,
                                  grid_order_level,
                                  grid_order,
@@ -238,13 +245,15 @@ void UpdateGridLifecycle(SignalParams &signal_params)
         grid_order = signal_params.grid_orders[grid_order_level];
       }
 
-      if(!Pandora_Box_Set_Broker_SLTP && grid_order.entry_price > 0.0 && point_size > 0.0)
+      if(grid_order.entry_price > 0.0 && point_size > 0.0)
       {
+        PandoraEnsureLocalTargetPrices(signal_params, grid_order);
         double sl_price = PandoraResolveActiveStopPrice(signal_params,
                                                         grid_order,
                                                         direction,
                                                         point_size);
-        double tp_price = step_trailing ? 0.0 : grid_order.take_profit_price;
+        double tp_price = PandoraResolveLocalTakeProfitTargetPrice(signal_params,
+                                                                   grid_order);
 
         bool hit_sl = PandoraStopHit(direction, current_price, sl_price);
         bool hit_tp = false;
@@ -273,8 +282,15 @@ void UpdateGridLifecycle(SignalParams &signal_params)
             signal_params.pandora_close_epsilon_points = epsilon_points;
           }
           GridCloseAllLevels(signal_params, point_size);
-          signal_params.grid_orders[grid_order_level].status = GRID_ORDER_COMPLETED;
           grid_order = signal_params.grid_orders[grid_order_level];
+          if(grid_order.status == GRID_ORDER_COMPLETED && IsGridSignalComplete(signal_params))
+          {
+            PandoraMarkLocalClose(signal_params,
+                                  grid_order,
+                                  current_price,
+                                  signal_params.pandora_close_outcome,
+                                  signal_params.pandora_close_epsilon_points);
+          }
         }
       }
 

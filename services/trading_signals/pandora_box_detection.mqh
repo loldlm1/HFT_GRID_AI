@@ -191,6 +191,12 @@ bool PandoraBuildSignal(const SignalTypes direction)
                                            : PANDORA_BROKER_STOPS_NOT_REQUIRED;
   signal.pandora_local_entry_time = signal.entry_time;
   signal.pandora_local_entry_price = signal.entry_price;
+  if(ArraySize(signal.grid_orders) > 0)
+  {
+    GridOrderState local_state = signal.grid_orders[0];
+    PandoraEnsureLocalTargetPrices(signal, local_state);
+    signal.grid_orders[0] = local_state;
+  }
 
   if(direction == BULLISH)
     AddElementToArray(running_bullish_signals, signal);

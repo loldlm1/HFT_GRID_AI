@@ -216,6 +216,166 @@ double PandoraResolveLocalEntryPrice(const SignalParams &signal_params,
   return GridCurrentPriceForDirection(signal_params.signal_type, true);
 }
 
+double PandoraNormalizeTargetPrice(const double price)
+{
+  if(price <= 0.0)
+    return 0.0;
+
+  int digits = (int)SymbolInfoInteger(_Symbol, SYMBOL_DIGITS);
+  return NormalizeDouble(price, digits);
+}
+
+bool PandoraComputeLocalTargetPrices(const SignalParams &signal_params,
+                                     const GridOrderState &order_state,
+                                     double &sl_price,
+                                     double &tp_price)
+{
+  sl_price = 0.0;
+  tp_price = 0.0;
+
+  if(!IsPandoraSignal(signal_params))
+    return false;
+
+  double point_size = PandoraResolvePointSizeSafe();
+  if(point_size <= 0.0)
+    return false;
+
+  double entry_anchor = PandoraResolveLocalEntryPrice(signal_params, order_state);
+  if(entry_anchor <= 0.0)
+    return false;
+
+  double sl_points = PandoraResolveConfiguredSLPoints(false);
+  double tp_points = PandoraRiskStepTrailingEnabled()
+                     ? 0.0
+                     : PandoraResolveConfiguredTPPoints(false);
+  if(sl_points <= 0.0 && tp_points <= 0.0)
+    return false;
+
+  if(signal_params.signal_type == BULLISH)
+  {
+    if(sl_points > 0.0)
+      sl_price = entry_anchor - sl_points * point_size;
+    if(tp_points > 0.0)
+      tp_price = entry_anchor + tp_points * point_size;
+  }
+  else
+  {
+    if(sl_points > 0.0)
+      sl_price = entry_anchor + sl_points * point_size;
+    if(tp_points > 0.0)
+      tp_price = entry_anchor - tp_points * point_size;
+  }
+
+  sl_price = PandoraNormalizeTargetPrice(sl_price);
+  tp_price = PandoraNormalizeTargetPrice(tp_price);
+  return (sl_price > 0.0 || tp_price > 0.0);
+}
+
+void PandoraEnsureLocalTargetPrices(SignalParams &signal_params,
+                                    GridOrderState &order_state)
+{
+  if(!IsPandoraSignal(signal_params))
+    return;
+
+  if(signal_params.pandora_local_sl_price > 0.0 &&
+     (PandoraRiskStepTrailingEnabled() || signal_params.pandora_local_tp_price > 0.0))
+    return;
+
+  double sl_price = 0.0;
+  double tp_price = 0.0;
+  if(!PandoraComputeLocalTargetPrices(signal_params, order_state, sl_price, tp_price))
+    return;
+
+  if(signal_params.pandora_local_sl_price <= 0.0 && sl_price > 0.0)
+    signal_params.pandora_local_sl_price = sl_price;
+  if(signal_params.pandora_local_tp_price <= 0.0 && tp_price > 0.0)
+    signal_params.pandora_local_tp_price = tp_price;
+}
+
+double PandoraResolveLocalStopTargetPrice(const SignalParams &signal_params,
+                                          const GridOrderState &order_state)
+{
+  if(signal_params.pandora_trailing_stop_price > 0.0)
+    return signal_params.pandora_trailing_stop_price;
+  if(signal_params.pandora_local_sl_price > 0.0)
+    return signal_params.pandora_local_sl_price;
+
+  double sl_price = 0.0;
+  double tp_price = 0.0;
+  if(PandoraComputeLocalTargetPrices(signal_params, order_state, sl_price, tp_price) &&
+     sl_price > 0.0)
+    return sl_price;
+
+  return 0.0;
+}
+
+double PandoraResolveLocalTakeProfitTargetPrice(const SignalParams &signal_params,
+                                                const GridOrderState &order_state)
+{
+  if(PandoraRiskStepTrailingEnabled())
+    return 0.0;
+  if(signal_params.pandora_local_tp_price > 0.0)
+    return signal_params.pandora_local_tp_price;
+
+  double sl_price = 0.0;
+  double tp_price = 0.0;
+  if(PandoraComputeLocalTargetPrices(signal_params, order_state, sl_price, tp_price) &&
+     tp_price > 0.0)
+    return tp_price;
+
+  if(order_state.take_profit_price > 0.0)
+    return order_state.take_profit_price;
+  return 0.0;
+}
+
+PandoraLocalCloseMarkers PandoraResolveLocalCloseMarker(const SignalParams &signal_params,
+                                                        const GridOrderState &order_state)
+{
+  if(order_state.position_ticket > 0 ||
+     signal_params.pandora_broker_execution_status == PANDORA_BROKER_EXECUTED ||
+     signal_params.pandora_broker_execution_status == PANDORA_BROKER_CLOSED)
+    return PANDORA_LOCAL_CLOSE_BROKER;
+
+  if(signal_params.pandora_broker_execution_status == PANDORA_BROKER_BLOCKED ||
+     signal_params.pandora_broker_execution_status == PANDORA_BROKER_REJECTED)
+    return PANDORA_LOCAL_CLOSE_LOCAL_REJECTED;
+
+  return PANDORA_LOCAL_CLOSE_VIRTUAL;
+}
+
+void PandoraMarkLocalClose(SignalParams &signal_params,
+                           const GridOrderState &order_state,
+                           const double close_price,
+                           const PandoraCloseOutcomes outcome,
+                           const double epsilon_points)
+{
+  if(!IsPandoraSignal(signal_params))
+    return;
+
+  datetime close_time = TimeCurrent();
+  signal_params.pandora_local_entry_status = PANDORA_LOCAL_ENTRY_COMPLETED;
+  if(signal_params.pandora_local_close_time <= 0)
+    signal_params.pandora_local_close_time = close_time;
+  if(signal_params.pandora_local_close_price <= 0.0 && close_price > 0.0)
+    signal_params.pandora_local_close_price = close_price;
+  if(signal_params.pandora_local_close_marker == PANDORA_LOCAL_CLOSE_NONE)
+    signal_params.pandora_local_close_marker = PandoraResolveLocalCloseMarker(signal_params,
+                                                                              order_state);
+
+  if(outcome != PANDORA_CLOSE_NONE)
+    signal_params.pandora_close_outcome = outcome;
+  signal_params.pandora_close_epsilon_points = epsilon_points;
+
+  if(signal_params.close_time <= 0)
+    signal_params.close_time = signal_params.pandora_local_close_time;
+  if(signal_params.close_price <= 0.0 && signal_params.pandora_local_close_price > 0.0)
+    signal_params.close_price = signal_params.pandora_local_close_price;
+
+  if(signal_params.pandora_local_close_marker == PANDORA_LOCAL_CLOSE_BROKER &&
+     signal_params.pandora_broker_execution_status == PANDORA_BROKER_EXECUTED)
+    signal_params.pandora_broker_execution_status = PANDORA_BROKER_CLOSED;
+}
+
 void PandoraEnsureLocalEntryActive(SignalParams &signal_params,
                                    GridOrderState &order_state,
                                    const string position_comment)
@@ -245,6 +405,8 @@ void PandoraEnsureLocalEntryActive(SignalParams &signal_params,
   if(order_state.position_comment == "" && position_comment != "")
     order_state.position_comment = position_comment;
   order_state.last_action_time = now_time;
+
+  PandoraEnsureLocalTargetPrices(signal_params, order_state);
 }
 
 void PandoraMarkBrokerBlocked(SignalParams &signal_params,
@@ -306,6 +468,7 @@ void PandoraMarkBrokerExecuted(SignalParams &signal_params,
                                              : TimeCurrent();
   if(signal_params.pandora_local_entry_price <= 0.0)
     signal_params.pandora_local_entry_price = PandoraResolveLocalEntryPrice(signal_params, order_state);
+  PandoraEnsureLocalTargetPrices(signal_params, order_state);
 
   signal_params.pandora_broker_send_attempted = true;
   signal_params.pandora_broker_execution_status = PANDORA_BROKER_EXECUTED;
@@ -1404,10 +1567,12 @@ double PandoraResolveStopAnchorPrice(const SignalParams &signal_params,
   if(point_size <= 0.0 || entry_anchor <= 0.0)
     return 0.0;
 
-  if(signal_params.pandora_trailing_stop_price > 0.0)
-    return signal_params.pandora_trailing_stop_price;
+  double local_stop_price = PandoraResolveLocalStopTargetPrice(signal_params,
+                                                               order_state);
+  if(local_stop_price > 0.0)
+    return local_stop_price;
 
-  double sl_points = PandoraResolveSignalSLPoints(signal_params, true);
+  double sl_points = PandoraResolveSignalSLPoints(signal_params, false);
   if(sl_points <= 0.0)
     return 0.0;
 
@@ -1421,13 +1586,15 @@ double PandoraResolveTakeProfitAnchorPrice(const SignalParams &signal_params,
                                            const double entry_anchor,
                                            const double point_size)
 {
-  if(order_state.take_profit_price > 0.0)
-    return order_state.take_profit_price;
-
   if(PandoraRiskStepTrailingEnabled())
     return 0.0;
 
-  double tp_points = PandoraResolveSignalTPPoints(signal_params, true);
+  double local_tp_price = PandoraResolveLocalTakeProfitTargetPrice(signal_params,
+                                                                   order_state);
+  if(local_tp_price > 0.0)
+    return local_tp_price;
+
+  double tp_points = PandoraResolveSignalTPPoints(signal_params, false);
   if(tp_points <= 0.0 || point_size <= 0.0 || entry_anchor <= 0.0)
     return 0.0;
 
@@ -1670,6 +1837,17 @@ void PandoraFinalizeSignalOutcome(SignalParams &signal_params,
                                                                   epsilon_points);
   signal_params.pandora_close_outcome = outcome;
   signal_params.pandora_close_epsilon_points = epsilon_points;
+
+  int last_index = ArraySize(signal_params.grid_orders) - 1;
+  GridOrderState order_state;
+  if(last_index >= 0)
+    order_state = signal_params.grid_orders[last_index];
+
+  PandoraMarkLocalClose(signal_params,
+                        order_state,
+                        close_price,
+                        outcome,
+                        epsilon_points);
 }
 
 void PandoraRegisterSideOutcome(const SignalParams &signal_params)
