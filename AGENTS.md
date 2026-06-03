@@ -53,8 +53,9 @@ Default execution policy:
 - High complexity: execute at most 33% of total Sprints per batch, usually max 3.
 - Critical or trading-safety/license-sensitive plans: execute one Sprint per
   batch.
-- Complete validation before moving to the next Sprint. Create one commit per
-  Sprint only when the user asked for commits or the plan requires them.
+- Complete validation before moving to the next Sprint. Every completed Sprint
+  must have one brief commit summarizing that Sprint's feature or fix before
+  continuing, unless the user explicitly forbids commits or git is unavailable.
 
 If the plan becomes stale, unsafe, ambiguous, or incomplete, stop and update or
 request revision before continuing.
