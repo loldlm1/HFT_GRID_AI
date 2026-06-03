@@ -148,6 +148,7 @@ void GridAttemptPartialTake(SignalParams &signal_params,
     MarketStatusRegisterBrokerFailure("BREAK_EVEN_PARTIAL_FAIL", retcode, last_error, true);
     return;
   }
+  MarketStatusClearExecutionError("BREAK_EVEN_PARTIAL_OK");
 
   if(PositionSelectByTicket(state.position_ticket))
   {

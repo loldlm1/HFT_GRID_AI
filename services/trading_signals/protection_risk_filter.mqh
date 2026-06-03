@@ -95,9 +95,16 @@ void ProtectionRiskForceClosePositions()
 
     if(!g_position.PositionClose(position_ticket))
     {
+      ulong retcode = g_position.ResultRetcode();
+      int last_error = GetLastError();
+      MarketStatusRegisterBrokerFailure("PROTECTION_FORCE_CLOSE_FAILED", retcode, last_error, true);
       PrintFormat("ProtectionRiskForceClosePositions failed | ticket=%I64u | err=%d",
                   position_ticket,
-                  GetLastError());
+                  last_error);
+    }
+    else
+    {
+      MarketStatusClearExecutionError("PROTECTION_FORCE_CLOSE_OK");
     }
   }
 }
@@ -314,6 +321,7 @@ void ProtectionRiskMonitorTradeMode()
 
   if(trade_mode == SYMBOL_TRADE_MODE_CLOSEONLY)
   {
+    MarketStatusRegisterExecutionError("BROKER_CLOSEONLY", "Symbol trade mode close-only", 0, 0);
     MarketStatusUpdate(MARKET_STATUS_BROKER_CLOSEONLY, "Symbol trade mode close-only");
     ProtectionRiskScheduleForceClose("Broker close-only mode");
     return;
@@ -321,6 +329,7 @@ void ProtectionRiskMonitorTradeMode()
 
   if(trade_mode == SYMBOL_TRADE_MODE_DISABLED)
   {
+    MarketStatusRegisterExecutionError("BROKER_DISABLED", "Symbol trade mode disabled", 0, 0);
     MarketStatusUpdate(MARKET_STATUS_BROKER_DISABLED, "Symbol trade mode disabled");
     ProtectionRiskScheduleForceClose("Broker disabled mode");
     return;
@@ -337,7 +346,10 @@ void ProtectionRiskMonitorTradeMode()
   }
 
   if(MarketStatusGet() != MARKET_STATUS_ACTIVE)
+  {
+    MarketStatusClearExecutionError("Trading restored");
     MarketStatusUpdate(MARKET_STATUS_ACTIVE, "Trading restored");
+  }
 }
 
 void ProtectionRiskFilterTick()
@@ -359,6 +371,10 @@ void ProtectionRiskFilterTick()
   if(drawdown < threshold)
     return;
 
+  string drawdown_reason = StringFormat("drawdown=%.2f threshold=%.2f",
+                                        drawdown,
+                                        threshold);
+  MarketStatusRegisterExecutionError("DRAWDOWN_GUARD", drawdown_reason, 0, 0);
   PrintFormat("ProtectionRiskFilter triggered | drawdown=%.2f | threshold=%.2f | mode=%d",
               drawdown,
               threshold,

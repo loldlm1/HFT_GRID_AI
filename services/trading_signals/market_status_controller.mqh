@@ -9,6 +9,17 @@ string            g_market_force_close_reason = "";
 bool              g_market_platform_trade_allowed = true;
 string            g_market_platform_trade_reason = "";
 datetime          g_market_platform_trade_updated = 0;
+bool              g_market_error_active = false;
+string            g_market_error_context = "";
+string            g_market_error_detail = "";
+ulong             g_market_error_retcode = 0;
+int               g_market_error_last_error = 0;
+datetime          g_market_error_time = 0;
+string            g_market_last_error_context = "";
+string            g_market_last_error_detail = "";
+ulong             g_market_last_error_retcode = 0;
+int               g_market_last_error_last_error = 0;
+datetime          g_market_last_error_time = 0;
 
 string MarketStatusToString(const MarketStatusTypes status)
 {
@@ -64,6 +75,94 @@ string MarketStatusReason()
   return g_market_status_reason;
 }
 
+void MarketStatusRegisterExecutionError(const string context,
+                                        const string detail,
+                                        const ulong retcode,
+                                        const int last_error)
+{
+  datetime now_time = TimeCurrent();
+
+  g_market_error_active     = true;
+  g_market_error_context    = context;
+  g_market_error_detail     = detail;
+  g_market_error_retcode    = retcode;
+  g_market_error_last_error = last_error;
+  g_market_error_time       = now_time;
+
+  g_market_last_error_context    = context;
+  g_market_last_error_detail     = detail;
+  g_market_last_error_retcode    = retcode;
+  g_market_last_error_last_error = last_error;
+  g_market_last_error_time       = now_time;
+}
+
+void MarketStatusClearExecutionError(const string reason)
+{
+  string clear_reason = reason;
+  if(!g_market_error_active)
+    return;
+
+  if(clear_reason == "")
+    clear_reason = "cleared";
+
+  g_market_error_active     = false;
+  g_market_error_context    = "";
+  g_market_error_detail     = "";
+  g_market_error_retcode    = 0;
+  g_market_error_last_error = 0;
+  g_market_error_time       = TimeCurrent();
+}
+
+string MarketStatusBuildErrorSummary(const bool active,
+                                     const string context,
+                                     const string detail,
+                                     const ulong retcode,
+                                     const int last_error,
+                                     const datetime error_time)
+{
+  string prefix = active ? "Error: ACTIVE " : "Last error: ";
+  string text = prefix + context;
+
+  if(retcode > 0)
+    text = text + StringFormat(" ret=%I64u", retcode);
+  if(last_error > 0)
+    text = text + StringFormat(" err=%d", last_error);
+  if(detail != "")
+    text = text + " " + detail;
+  if(error_time > 0)
+    text = text + " @" + TimeToString(error_time, TIME_SECONDS);
+
+  int max_len = 110;
+  if(StringLen(text) > max_len)
+    text = StringSubstr(text, 0, max_len - 3) + "...";
+  return text;
+}
+
+string MarketStatusErrorSummary()
+{
+  if(g_market_error_active)
+  {
+    return MarketStatusBuildErrorSummary(true,
+                                         g_market_error_context,
+                                         g_market_error_detail,
+                                         g_market_error_retcode,
+                                         g_market_error_last_error,
+                                         g_market_error_time);
+  }
+
+  if(g_market_last_error_context != "")
+  {
+    return MarketStatusBuildErrorSummary(false,
+                                         g_market_last_error_context,
+                                         g_market_last_error_detail,
+                                         g_market_last_error_retcode,
+                                         g_market_last_error_last_error,
+                                         g_market_last_error_time);
+  }
+
+  return "Error: OK";
+}
+
 string MarketStatusResolvePlatformTradeReason()
 {
   if(TerminalInfoInteger(TERMINAL_TRADE_ALLOWED) == 0)
@@ -82,6 +181,7 @@ bool MarketStatusRefreshPlatformTradePermission()
 {
   string reason = MarketStatusResolvePlatformTradeReason();
   bool allowed = (reason == "");
+  bool previous_allowed = g_market_platform_trade_allowed;
 
   if(g_market_platform_trade_allowed == allowed &&
      g_market_platform_trade_reason == reason)
@@ -90,6 +190,12 @@ bool MarketStatusRefreshPlatformTradePermission()
   g_market_platform_trade_allowed = allowed;
   g_market_platform_trade_reason  = reason;
   g_market_platform_trade_updated = TimeCurrent();
+
+  if(!allowed)
+    MarketStatusRegisterExecutionError("PLATFORM_DISABLED", reason, 0, 0);
+  else if(!previous_allowed)
+    MarketStatusClearExecutionError("Platform trading restored");
+
   return allowed;
 }
 
@@ -170,6 +276,8 @@ void MarketStatusRegisterBrokerFailure(const string context,
                                        const int last_error,
                                        const bool requires_force_close)
 {
+  MarketStatusRegisterExecutionError(context, "", retcode, last_error);
+
   if(!MarketStatusRetcodeImpliesClosure(retcode, last_error))
     return;
 

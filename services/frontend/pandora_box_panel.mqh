@@ -108,6 +108,7 @@ void FrontendBuildPanelLines(const datetime now_time,
                                   g_ea_running ? "Enabled" : "Disabled",
                                   g_magic_number,
                                   market_status));
+  FrontendAppendLine(panel_lines, MarketStatusErrorSummary());
   if(status_reason != "")
     FrontendAppendLine(panel_lines, "Motivo: " + status_reason);
 

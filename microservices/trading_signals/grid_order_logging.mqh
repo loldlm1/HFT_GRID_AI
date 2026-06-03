@@ -36,6 +36,8 @@ void GridLogGuardrailBlock(const string label,
                            const GridOrderState &order_state,
                            const string reason)
 {
+  MarketStatusRegisterExecutionError(label, reason, 0, 0);
+
   if(!Enable_File_Logs)
     return;
 

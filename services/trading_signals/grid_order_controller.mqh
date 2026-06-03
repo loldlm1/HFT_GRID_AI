@@ -182,6 +182,7 @@ bool PandoraApplyStepTrailing(SignalParams &signal_params,
       MarketStatusRegisterBrokerFailure("PANDORA_STEP_TRAIL_MODIFY_FAILED", retcode, last_error, true);
       return false;
     }
+    MarketStatusClearExecutionError("PANDORA_STEP_TRAIL_MODIFY_OK");
   }
 
   signal_params.pandora_trailing_step_index = target_step_index;

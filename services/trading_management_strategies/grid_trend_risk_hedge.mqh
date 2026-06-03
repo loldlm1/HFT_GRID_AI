@@ -84,6 +84,7 @@ bool GridOpenHedgePosition(SignalParams &signal_params,
     MarketStatusRegisterBrokerFailure("HEDGE_ORDER_SEND_FAILED", retcode, last_error, false);
     return false;
   }
+  MarketStatusClearExecutionError("HEDGE_ORDER_SEND_OK");
 
   double fill_price = g_position.ResultPrice();
   if(fill_price <= 0.0)
@@ -199,6 +200,7 @@ bool GridCloseHedgePosition(SignalParams &signal_params,
     MarketStatusRegisterBrokerFailure("HEDGE_CLOSE_FAILED", retcode, last_error, true);
     return false;
   }
+  MarketStatusClearExecutionError("HEDGE_CLOSE_OK");
 
   signal_params.hedge_position_ticket = 0;
   signal_params.hedge_sl_active = false;

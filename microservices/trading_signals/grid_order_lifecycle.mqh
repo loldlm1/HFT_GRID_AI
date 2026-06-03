@@ -144,16 +144,25 @@ bool GridRefreshPandoraStopsAfterFill(const SignalParams &signal_params,
   double corrected_sl = 0.0;
   double corrected_tp = 0.0;
   if(!PandoraResolveBrokerStops(signal_params, order_state, corrected_sl, corrected_tp))
+  {
+    MarketStatusRegisterExecutionError("PANDORA_INITIAL_SLTP_RESOLVE_FAILED", "post_fill", 0, GetLastError());
     return false;
+  }
 
   order_state.take_profit_price = corrected_tp;
 
   if(!Pandora_Box_Set_Broker_SLTP)
     return true;
   if(order_state.position_ticket <= 0)
+  {
+    MarketStatusRegisterExecutionError("PANDORA_INITIAL_SLTP_CORRECT_FAILED", "missing_position_ticket", 0, 0);
     return false;
+  }
   if(!PositionSelectByTicket(order_state.position_ticket))
+  {
+    MarketStatusRegisterExecutionError("PANDORA_INITIAL_SLTP_CORRECT_FAILED", "position_not_found", 0, GetLastError());
     return false;
+  }
 
   double point_size = SymbolInfoDouble(_Symbol, SYMBOL_POINT);
   if(point_size <= 0.0)
@@ -184,6 +193,7 @@ bool GridRefreshPandoraStopsAfterFill(const SignalParams &signal_params,
     }
     return false;
   }
+  MarketStatusClearExecutionError("PANDORA_INITIAL_SLTP_CORRECTED");
 
   if(Enable_Logs)
   {
@@ -245,7 +255,8 @@ bool GridExecuteLevelTrade(SignalParams &signal_params,
       if(broker_seed_state.entry_price <= 0.0)
         broker_seed_state.entry_price = order_state.entry_reference_price;
     }
-    PandoraResolveBrokerStops(signal_params, broker_seed_state, sl_price, tp_price);
+    if(!PandoraResolveBrokerStops(signal_params, broker_seed_state, sl_price, tp_price))
+      MarketStatusRegisterExecutionError("PANDORA_BROKER_STOPS_RESOLVE_FAILED", "pre_send", 0, GetLastError());
   }
 
   if(direction == BULLISH)
@@ -265,6 +276,7 @@ bool GridExecuteLevelTrade(SignalParams &signal_params,
     MarketStatusRegisterBrokerFailure("ORDER_SEND_FAILED", retcode, last_error, false);
     return false;
   }
+  MarketStatusClearExecutionError("ORDER_SEND_OK");
 
   double fill_price = g_position.ResultPrice();
   if(fill_price <= 0.0)
@@ -304,6 +316,7 @@ bool GridCloseBrokerPosition(GridOrderState &order_state,
     MarketStatusRegisterBrokerFailure("POSITION_CLOSE_FAILED", retcode, last_error, true);
     return false;
   }
+  MarketStatusClearExecutionError("POSITION_CLOSE_OK");
 
   close_price = g_position.ResultPrice();
   if(close_price <= 0.0)
@@ -336,7 +349,16 @@ void GridCloseAllLevels(SignalParams &signal_params,
     string position_symbol = PositionGetString(POSITION_SYMBOL);
     if(position_magic == g_magic_number && position_symbol == _Symbol)
     {
-      g_position.PositionClose(signal_params.hedge_position_ticket);
+      if(!g_position.PositionClose(signal_params.hedge_position_ticket))
+      {
+        ulong retcode = g_position.ResultRetcode();
+        int last_error = GetLastError();
+        MarketStatusRegisterBrokerFailure("HEDGE_CLOSE_ALL_FAILED", retcode, last_error, true);
+      }
+      else
+      {
+        MarketStatusClearExecutionError("HEDGE_CLOSE_ALL_OK");
+      }
       GridOrderState hedge_state;
       hedge_state.position_ticket = signal_params.hedge_position_ticket;
       hedge_state.status = GRID_ORDER_COMPLETED;
