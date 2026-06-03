@@ -76,6 +76,14 @@ Sigue estos pasos detallados para instalar y configurar **Pandora Box** en MetaT
 - Si el presupuesto se alcanza con operaciones aún abiertas, el estado muestra `PANDORA WAIT_CLOSE`; al cerrarse, pasa a `PANDORA DONE`.
 - `Pandora_Box_Entry_Count_Mode` solo controla el contador analítico `counted`; no reemplaza el presupuesto de entradas abiertas.
 
+### **Identidad de Ejecución, Comentarios y Panel de Estado**
+- En modo live, Pandora Box usa el magic de operación aprobado por el backend para esa instancia del EA después de validar la licencia. `Custom_Magic` sigue siendo útil para Strategy Tester, pero el live no depende de magic aleatorio.
+- `EA_Instance_Id` puede dejarse vacío para que el EA persista localmente un id de instancia del gráfico. Defínelo manualmente solo si necesitas conservar la misma identidad tras reinstalar o migrar.
+- Cada gráfico de producción debe operar como su propia instancia del EA. Dos gráficos en el mismo terminal deben mostrar magic runtime distintos y no deben gestionar posiciones del otro.
+- Los nuevos comentarios del broker usan el formato en minúsculas `pandora_box_pos_n`, por ejemplo `pandora_box_pos_1`.
+- Si MT5 Algo Trading, el permiso de trading del EA o el permiso experto de la cuenta están desactivados, el EA muestra estado disabled/platform y omite acciones de broker hasta que el permiso vuelva. El SL/TP del broker queda como única protección activa mientras está desactivado.
+- El panel y el comentario del Strategy Tester muestran `Error: OK`, `Error: ACTIVE ...` o `Last error: ...`. Esta etiqueta es solo informativa y no cambia las decisiones de trading.
+
 ---
 
 ### **Parámetros de Entrada**
@@ -144,6 +152,10 @@ Antes de ejecutar **Pandora Box** en una cuenta real, verifica:
 - Que `Pandora_Box_Max_Entries` coincida con tu presupuesto de entradas abiertas.
 - Que los filtros de sesión estén configurados si `Pandora_Box_Use_Session_Filter = true`.
 - Que `Permitir WebRequest para la URL indicada` esté activo con `https://tradingsniperpanel.com`.
+- Que cada gráfico de producción muestre su propio magic runtime aprobado por backend y no gestione posiciones de otros gráficos/símbolos.
+- Que las nuevas operaciones muestren comentarios como `pandora_box_pos_1`.
+- Que al apagar MT5 Algo Trading se muestre estado disabled/platform y se detengan intentos de orden, cierre, cierre parcial, hedge y modificación SL/TP.
+- Que el panel/comentario del tester muestre `Error: OK` en operación normal y un error activo/histórico útil después de una prueba segura de rechazo.
 - Que el estado del gráfico no muestre `PANDORA INVALID WINDOW` ni `PANDORA INVALID BOX`.
 
 ---

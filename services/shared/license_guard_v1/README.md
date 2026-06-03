@@ -38,10 +38,10 @@ Canonical reusable license service for MT5 EAs in this repository.
 4. Call `LicenseServiceInit()` in `OnInit` before trading initialization.
 5. Wire `OnTimer` to `LicenseServiceOnTimer()`.
 6. Wire `OnDeinit` to `LicenseServiceOnDeinit()`.
-7. Use `LicenseGetCachedMagicNumber()` as the runtime trading magic in live mode for the current lane-magic contract.
+7. Use `LicenseGetCachedMagicNumber()` as the runtime instance-scoped trading magic in live mode.
 8. If `LicenseGetCachedMagicNumber() <= 0` after startup verify, fail closed and remove EA.
-9. If a rollout reassigns an oversized legacy lane value, trust the latest successful `verify` response as the new runtime magic source.
-10. For the proposed per-chart trade magic rollout, see `backend-instance-magic-contract-update.md`; backend support must ship before EA runtime magic changes.
+9. If a rollout reassigns an oversized legacy lane value, trust the latest successful verify plus instance-magic resolution as the runtime magic source.
+10. For the per-chart trade magic contract, see `backend-instance-magic-contract-update.md`; backend support must ship before enabling live EA runtime magic changes.
 
 Advanced/custom option:
 - Include `services/shared/license_guard_v1/license_service.mqh` directly only when a repo intentionally does not use `services/license_service_setup.mqh`.

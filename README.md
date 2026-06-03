@@ -127,12 +127,19 @@ Per-context runtime state lives in `market_signal_state.mqh`: each context slot 
    - `POST /api/v1/broker_accounts/daily_results` reports once per completed UTC day (`result_timestamp` at `00:00:00 UTC`) using account-wide closed P/L: `profit + swap + commission + fee`.
    - Status handling is idempotent and safe: `201`/`409` = synced, `404 broker_account_not_found` = one re-verify + one retry, `422 invalid_payload` = block retries for that day, and `429`/`5xx`/network failures = bounded backoff retries.
 
+7. **Runtime Identity, Comments, And Status Panel**
+   - In live mode, the EA uses the backend-issued instance trade magic after license verification. `EA_Instance_Id` can be set manually for a stable chart instance; if left empty, the EA persists an instance id locally. `Custom_Magic` is still useful for Strategy Tester, but live trading does not use weak random magic.
+   - Each chart instance must receive its own runtime magic. If legacy positions with the old lane magic are still open on the same symbol, initialization fails closed so those positions are not silently orphaned.
+   - New broker comments use `pandora_box_pos_n`. Normal grid positions count only levels that open broker positions. Hedge comments reserve a deterministic `pandora_box_pos_n` outside normal level numbering.
+   - The MT5 Algo Trading button is treated as authoritative. When platform, EA, or account expert trading is disabled, rates and frontend refresh continue, but new signals, order sends, closes, partial closes, SL/TP modifies, hedge actions, and force-close attempts are skipped until permissions return.
+   - The panel/tester comment includes `Error: OK`, `Error: ACTIVE ...`, or `Last error: ...`. This label is informational only; it never authorizes or blocks trading by itself.
+
 ---
 
 ## 6. Input Reference (abridged)
 | Group | Highlights |
 | --- | --- |
-| **Account / Protection** | `Custom_Magic`, `Max_Spread`, `Protection_Risk_Mode`, drawdown inputs, `Market_Close_Guard_Timeframe`. |
+| **Account / Protection** | `Custom_Magic` for tester identity, optional live `EA_Instance_Id`, `Max_Spread`, `Protection_Risk_Mode`, drawdown inputs, `Market_Close_Guard_Timeframe`. |
 | **Session Time Filters** | `Session_*_Filter_Mode` (OFF / allow-run / force-close) and `Session_*_Filter_Time_Range` (HH:MM-HH:MM strings for Asia, London, NewYork). When any session is enabled, new grids only spawn inside at least one active window; FORCE_CLOSE also liquidates every running grid the moment its session closes. Leave all modes OFF to keep the EA running 24/7. |
 | **Strategy Context** | `Strategy_Timeframe`, `Trend/Macro/Session_Strategy_Timeframe`, `Strategy_*_Entry_Evaluation`, `Strategy_*_Trend_Mode`, `Strategy_Channel_Indicator_Type`, `Strategy_Global_Entry_Mode`, `Strategy_Global_Entry_Evaluation_Mode`, indicator period/MA, `Strategy_Direction_Mode`. |
 | **Strategy Base Context** | Percent, slope, structure filters, retest selectors, fresh-structure toggle. |
@@ -154,6 +161,8 @@ Refer to `services/trading_management/ea_inputs.mqh` for defaults and descriptio
   - Use MT5 Strategy Tester (visual + log review). Enable `Enable_Logs`/`Enable_File_Logs` for deeper traces.
   - Use `Debug_Stop_On_Negative_Euity` during optimization campaigns to skip doomed parameter sets early.
   - `ProtectionRiskModes` + `MarketStatus` watchers should always remain active during tests to ensure consistent cleanup.
+  - For multi-chart validation, attach the EA to two symbols in the same terminal and confirm each chart displays its own runtime magic, ignores the other symbol's positions, and reports daily results against its own trade magic.
+  - Toggle MT5 Algo Trading off/on on a demo chart: while off, the panel should show disabled/platform status and no broker action attempts should repeat; when on, normal processing should resume.
 
 ---
 

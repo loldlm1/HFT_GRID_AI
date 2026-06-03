@@ -76,6 +76,14 @@ Follow these detailed steps to install and configure **Pandora Box** in MetaTrad
 - If the budget is reached while trades remain open, status shows `PANDORA WAIT_CLOSE`; after closure, it transitions to `PANDORA DONE`.
 - `Pandora_Box_Entry_Count_Mode` only controls the `counted` analytics counter; it does not replace the opened-entry budget.
 
+### **Runtime Identity, Order Comments, and Status Panel**
+- In live mode, Pandora Box uses the backend-approved instance trade magic after license verification. `Custom_Magic` remains useful for Strategy Tester, but live trading does not rely on random magic.
+- `EA_Instance_Id` can be left empty so the EA persists a chart-instance id locally. Set it manually only when you intentionally need the same instance identity after reinstall or migration.
+- Attach each production chart as its own EA instance. Two charts in the same terminal should show different runtime magic values and should not manage each other's positions.
+- New broker comments use the lowercase format `pandora_box_pos_n`, such as `pandora_box_pos_1`.
+- If MT5 Algo Trading, EA trading, or account expert trading is disabled, the EA shows disabled/platform status and skips broker actions until permissions return. Broker-side SL/TP remains the only active protection while disabled.
+- The panel and Strategy Tester comment show `Error: OK`, `Error: ACTIVE ...`, or `Last error: ...`. This label is informational only and does not change trading decisions.
+
 ---
 
 ### **Input Parameters**
@@ -144,6 +152,10 @@ Before running **Pandora Box** on a live account, verify:
 - `Pandora_Box_Max_Entries` matches intended opened-entry budget.
 - Session filters are configured if `Pandora_Box_Use_Session_Filter = true`.
 - `Allow WebRequest for listed URL` is enabled with `https://tradingsniperpanel.com`.
+- Each production chart shows its own backend-approved runtime magic and ignores positions from other charts/symbols.
+- New orders show comments like `pandora_box_pos_1`.
+- MT5 Algo Trading off shows disabled/platform status and stops new order, close, partial close, hedge, and SL/TP modification attempts.
+- The panel/tester comment shows `Error: OK` in normal operation and a useful active/last error after a safe rejection test.
 - Chart status does not show `PANDORA INVALID WINDOW` or `PANDORA INVALID BOX`.
 
 ---

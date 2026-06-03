@@ -47,6 +47,18 @@ Use this as the source of truth when configuring the EA in the Inputs panel.
 | `Pandora_Box_Entry_Count_Mode` | `COUNT_BOX_ENTRY_OFF` | Controls `counted` metric: `OFF` counts `SL`/`TP`/`BE`, `ON_SL` counts `SL`+`BE`, `ON_TP` counts `TP`+`BE`. | Use `OFF` for full analytics, filtered modes for targeted diagnostics. |
 | `Pandora_Box_Max_Entries` | `2` | Opened-entry budget per Pandora day/window (`0` = unlimited). | Keep low (`1-2`) unless broader protections are strict. |
 
+## Runtime Identity, Order Comments, And Status Panel
+
+These fields and labels are not Pandora entry rules, but they are required for safe production operation:
+
+| Item | What it means | Validation |
+|---|---|---|
+| `EA_Instance_Id` | Optional stable id for this chart EA instance. Leave empty to let the EA persist one locally; set manually only when you intentionally want the same chart instance identity after reinstall/migration. | Two charts in the same terminal should display different runtime magic values after backend validation. |
+| `Custom_Magic` | Tester-friendly magic override. In live mode, the backend-issued instance trade magic is authoritative after license verification. | Do not rely on random live magic. If live backend magic is missing or invalid, initialization fails closed. |
+| `pandora_box_pos_n` comments | New broker comments for Pandora/grid positions. `n` counts position-opening levels, not virtual grid levels. Hedge orders reserve a deterministic `pandora_box_pos_n` outside normal level numbering. | Open a demo/tester position and confirm the broker comment uses the lowercase format. |
+| MT5 Algo Trading status | When MT5 Algo Trading, EA trading, or account expert trading is disabled, the EA keeps rates/UI fresh but skips signal/order/close/modify/force-close actions. Broker-side SL/TP remains the only active protection while disabled. | Toggle Algo Trading off/on on a demo chart and confirm no repeated trade errors occur while disabled. |
+| Error label | The chart panel and Strategy Tester comment show `Error: OK`, `Error: ACTIVE ...`, or `Last error: ...` for order-send failures, guardrail blocks, broker disabled/close-only, margin/no-money, SL/TP failures, close failures, and platform-disabled state. | Treat the label as informational only; it does not change trading decisions. |
+
 ## Quick Setup Profiles
 
 ### Profile A: Conservative Intraday
@@ -84,6 +96,10 @@ Use this as the source of truth when configuring the EA in the Inputs panel.
 - Confirm `Pandora_Box_Max_Entries` (opened budget) and `Pandora_Box_Entry_Count_Mode` (analytics counter) are not conflated.
 - Confirm session filters are configured when `Pandora_Box_Use_Session_Filter = true`.
 - Decide whether broker-side protection is required (`Pandora_Box_Set_Broker_SLTP = true`).
+- For production multi-chart use, confirm every attached chart shows a distinct backend-approved magic and that each chart ignores positions from other symbols/charts.
+- Toggle MT5 Algo Trading off and confirm the panel/tester comment shows disabled/platform status while broker actions stop.
+- Confirm new positions use comments like `pandora_box_pos_1`.
+- Confirm the error label reads `Error: OK` during normal operation and becomes `Error: ACTIVE ...` or `Last error: ...` after a safe forced rejection test.
 - Check chart status text for `PANDORA INVALID WINDOW`, `PANDORA INVALID BOX`, `PANDORA WAIT_CLOSE`, and `PANDORA DONE`.
 
 ## Notes
