@@ -184,6 +184,14 @@ bool PandoraBuildSignal(const SignalTypes direction)
     return false;
   }
 
+  signal.pandora_local_entry_status = PANDORA_LOCAL_ENTRY_ACTIVE;
+  signal.pandora_broker_execution_status = PANDORA_BROKER_NOT_ATTEMPTED;
+  signal.pandora_broker_stop_sync_status = Pandora_Box_Set_Broker_SLTP
+                                           ? PANDORA_BROKER_STOPS_PENDING
+                                           : PANDORA_BROKER_STOPS_NOT_REQUIRED;
+  signal.pandora_local_entry_time = signal.entry_time;
+  signal.pandora_local_entry_price = signal.entry_price;
+
   if(direction == BULLISH)
     AddElementToArray(running_bullish_signals, signal);
   else
