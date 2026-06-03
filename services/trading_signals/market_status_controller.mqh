@@ -6,6 +6,9 @@ string            g_market_status_reason = "";
 datetime          g_market_status_updated = 0;
 bool              g_market_force_close_pending = false;
 string            g_market_force_close_reason = "";
+bool              g_market_platform_trade_allowed = true;
+string            g_market_platform_trade_reason = "";
+datetime          g_market_platform_trade_updated = 0;
 
 string MarketStatusToString(const MarketStatusTypes status)
 {
@@ -17,6 +20,8 @@ string MarketStatusToString(const MarketStatusTypes status)
       return "BROKER_CLOSEONLY";
     case MARKET_STATUS_BROKER_DISABLED:
       return "BROKER_DISABLED";
+    case MARKET_STATUS_PLATFORM_DISABLED:
+      return "PLATFORM_DISABLED";
     case MARKET_STATUS_ACTIVE:
     default:
       return "ACTIVE";
@@ -59,13 +64,63 @@ string MarketStatusReason()
   return g_market_status_reason;
 }
 
+string MarketStatusResolvePlatformTradeReason()
+{
+  if(TerminalInfoInteger(TERMINAL_TRADE_ALLOWED) == 0)
+    return "Algo Trading disabled";
+  if(MQLInfoInteger(MQL_TRADE_ALLOWED) == 0)
+    return "EA trading disabled";
+  if(AccountInfoInteger(ACCOUNT_TRADE_ALLOWED) == 0)
+    return "Account trading disabled";
+  if(AccountInfoInteger(ACCOUNT_TRADE_EXPERT) == 0)
+    return "Expert trading disabled by account";
+
+  return "";
+}
+
+bool MarketStatusRefreshPlatformTradePermission()
+{
+  string reason = MarketStatusResolvePlatformTradeReason();
+  bool allowed = (reason == "");
+
+  if(g_market_platform_trade_allowed == allowed &&
+     g_market_platform_trade_reason == reason)
+    return allowed;
+
+  g_market_platform_trade_allowed = allowed;
+  g_market_platform_trade_reason  = reason;
+  g_market_platform_trade_updated = TimeCurrent();
+  return allowed;
+}
+
+bool MarketStatusPlatformTradeAllowed()
+{
+  return g_market_platform_trade_allowed;
+}
+
+string MarketStatusPlatformTradeReason()
+{
+  return g_market_platform_trade_reason;
+}
+
+bool MarketStatusCanShowPlatformDisabled()
+{
+  return (g_market_status == MARKET_STATUS_ACTIVE ||
+          g_market_status == MARKET_STATUS_PLATFORM_DISABLED);
+}
+
 bool MarketStatusAllowsSignalAttempts()
 {
+  if(!g_market_platform_trade_allowed)
+    return false;
   return (g_market_status == MARKET_STATUS_ACTIVE);
 }
 
 bool MarketStatusAllowsBrokerActions()
 {
+  if(!g_market_platform_trade_allowed)
+    return false;
+
   return (g_market_status == MARKET_STATUS_ACTIVE) ||
          (g_market_status == MARKET_STATUS_CLOSE_GUARD) ||
          (g_market_status == MARKET_STATUS_BROKER_CLOSEONLY);

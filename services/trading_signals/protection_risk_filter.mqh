@@ -73,6 +73,9 @@ double ProtectionRiskCollectDrawdown()
 
 void ProtectionRiskForceClosePositions()
 {
+  if(!MarketStatusAllowsBrokerActions())
+    return;
+
   int total_positions = PositionsTotal();
   for(int i = total_positions-1; i >= 0; i--)
   {
@@ -139,6 +142,9 @@ void ProtectionRiskForceCloseSignalArray(SignalParams &signals[],
 
 void ProtectionRiskEnforceDrawdownGuard()
 {
+  if(!MarketStatusAllowsBrokerActions())
+    return;
+
   ProtectionRiskForceCloseSignalArray(running_bullish_signals, BULLISH);
   ProtectionRiskForceCloseSignalArray(running_bearish_signals, BEARISH);
   ProtectionRiskForceClosePositions();
@@ -208,6 +214,20 @@ void ProtectionRiskResetDailyLock()
   }
 }
 
+void ProtectionRiskActivatePeriodLock()
+{
+  if(Protection_Risk_Mode == ENABLED_GRID_PROTECTION_DAILY)
+  {
+    g_protection_daily_lock_active = true;
+    g_protection_daily_lock_anchor = iTime(_Symbol, PERIOD_D1, 0);
+  }
+  if(Protection_Risk_Mode == ENABLED_GRID_PROTECTION_WEEKLY)
+  {
+    g_protection_daily_lock_active = true;
+    g_protection_daily_lock_anchor = iTime(_Symbol, PERIOD_W1, 0);
+  }
+}
+
 void ProtectionRiskResetMarketCloseGuard()
 {
   bool was_active = g_market_close_guard_active;
@@ -216,7 +236,12 @@ void ProtectionRiskResetMarketCloseGuard()
   g_market_close_guard_trigger_time = 0;
 
   if(was_active && MarketStatusGet() == MARKET_STATUS_CLOSE_GUARD)
-    MarketStatusUpdate(MARKET_STATUS_ACTIVE, "Market close guard cleared");
+  {
+    if(MarketStatusPlatformTradeAllowed())
+      MarketStatusUpdate(MARKET_STATUS_ACTIVE, "Market close guard cleared");
+    else
+      MarketStatusUpdate(MARKET_STATUS_PLATFORM_DISABLED, MarketStatusPlatformTradeReason());
+  }
 }
 
 void ProtectionRiskCheckMarketCloseGuard()
@@ -279,6 +304,11 @@ void ProtectionRiskCheckMarketCloseGuard()
 
 void ProtectionRiskMonitorTradeMode()
 {
+  bool platform_trade_allowed = MarketStatusRefreshPlatformTradePermission();
+
+  if(!platform_trade_allowed && MarketStatusCanShowPlatformDisabled())
+    MarketStatusUpdate(MARKET_STATUS_PLATFORM_DISABLED, MarketStatusPlatformTradeReason());
+
   ENUM_SYMBOL_TRADE_MODE trade_mode =
     (ENUM_SYMBOL_TRADE_MODE)SymbolInfoInteger(_Symbol, SYMBOL_TRADE_MODE);
 
@@ -295,6 +325,9 @@ void ProtectionRiskMonitorTradeMode()
     ProtectionRiskScheduleForceClose("Broker disabled mode");
     return;
   }
+
+  if(!platform_trade_allowed)
+    return;
 
   if(g_market_close_guard_active)
   {
@@ -335,16 +368,7 @@ void ProtectionRiskFilterTick()
   if(ProtectionRiskHasActiveEntities())
     ProtectionRiskScheduleForceClose("Drawdown guard pending close");
 
-  if(Protection_Risk_Mode == ENABLED_GRID_PROTECTION_DAILY)
-  {
-    g_protection_daily_lock_active = true;
-    g_protection_daily_lock_anchor = iTime(_Symbol, PERIOD_D1, 0);
-  }
-  if(Protection_Risk_Mode == ENABLED_GRID_PROTECTION_WEEKLY)
-  {
-    g_protection_daily_lock_active = true;
-    g_protection_daily_lock_anchor = iTime(_Symbol, PERIOD_W1, 0);
-  }
+  ProtectionRiskActivatePeriodLock();
 }
 
 bool ProtectionRiskAllowsSignalAttempt()

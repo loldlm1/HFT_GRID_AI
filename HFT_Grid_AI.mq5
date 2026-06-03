@@ -236,7 +236,9 @@ void OnTick()
   DebugEquityGuardAllowsProcessing();
   ProtectionRiskMonitorTradeMode();
   ProtectionRiskFilterTick();
-  g_ea_running                            = true;
+  bool signal_attempts_allowed            = MarketStatusAllowsSignalAttempts();
+  bool broker_actions_allowed             = MarketStatusAllowsBrokerActions();
+  g_ea_running                            = MarketStatusPlatformTradeAllowed();
   static datetime next_bar_open           = 0;
   static datetime next_minute_bar_open    = 0;
   datetime        current_time            = TimeCurrent();
@@ -262,15 +264,13 @@ void OnTick()
     return;
   }
 
-  bool broker_disabled = (MarketStatusGet() == MARKET_STATUS_BROKER_DISABLED);
-
   // UPDATES THE STATUS COMMENT
   UpdateEARunningMagic();
 
   //--- Phase 1 - check the emergence of a new bar and update the status
   if(current_time>=next_bar_open)
   {
-    if(!broker_disabled)
+    if(signal_attempts_allowed)
       Main();
 
     //--- set the new bar opening time
@@ -280,7 +280,7 @@ void OnTick()
   }
 
   // MANAGES THE BULLISH AND BEARISH SIGNALS
-  if(!broker_disabled)
+  if(broker_actions_allowed)
     Main_Tick();
   RefreshGridVisualization();
 }
