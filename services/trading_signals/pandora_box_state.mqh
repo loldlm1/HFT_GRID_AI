@@ -225,6 +225,229 @@ double PandoraNormalizeTargetPrice(const double price)
   return NormalizeDouble(price, digits);
 }
 
+double PandoraResolveBrokerTickSize()
+{
+  return ResolveEffectiveTickSize(g_symbol_constraints.tick_size,
+                                  g_symbol_constraints.point_size);
+}
+
+double PandoraNormalizeBrokerPrice(const double price,
+                                   const bool round_up)
+{
+  if(price <= 0.0)
+    return 0.0;
+
+  double tick_size = PandoraResolveBrokerTickSize();
+  if(tick_size <= 0.0)
+    return PandoraNormalizeTargetPrice(price);
+
+  double ticks = price / tick_size;
+  double rounded_price = round_up
+                         ? MathCeil(ticks - 1e-9) * tick_size
+                         : MathFloor(ticks + 1e-9) * tick_size;
+
+  return PandoraNormalizeTargetPrice(rounded_price);
+}
+
+bool PandoraBrokerStopAboveReference(const SignalTypes direction,
+                                     const bool stop_loss)
+{
+  if(direction == BULLISH)
+    return !stop_loss;
+  return stop_loss;
+}
+
+double PandoraBrokerProtectionReferencePrice(const SignalTypes direction)
+{
+  double reference_price = (direction == BULLISH) ? g_bid : g_ask;
+  if(reference_price > 0.0)
+    return reference_price;
+
+  reference_price = (direction == BULLISH)
+                    ? SymbolInfoDouble(_Symbol, SYMBOL_BID)
+                    : SymbolInfoDouble(_Symbol, SYMBOL_ASK);
+  if(reference_price > 0.0)
+    return reference_price;
+
+  return GridCurrentPriceForDirection(direction, false);
+}
+
+double PandoraBrokerMinProtectionDistancePrice()
+{
+  double point_size = PandoraResolvePointSizeSafe();
+  if(point_size <= 0.0)
+    return 0.0;
+
+  double distance_points = EnforceBrokerDistance(g_symbol_constraints, 0.0);
+  if(distance_points <= 0.0)
+    distance_points = MinBrokerDistancePoints(g_symbol_constraints);
+
+  double tick_size = PandoraResolveBrokerTickSize();
+  double min_distance = distance_points * point_size;
+  if(tick_size > 0.0)
+    min_distance = MathMax(min_distance, tick_size);
+  return min_distance;
+}
+
+bool PandoraBrokerProtectionPriceLegal(const SignalTypes direction,
+                                       const bool stop_loss,
+                                       const double price,
+                                       const double reference_price,
+                                       const double min_distance_price)
+{
+  if(price <= 0.0 || reference_price <= 0.0 || min_distance_price <= 0.0)
+    return false;
+
+  double tolerance = PandoraResolveBrokerTickSize() * 0.1;
+  if(tolerance <= 0.0)
+    tolerance = PandoraResolvePointSizeSafe() * 0.1;
+
+  bool above_reference = PandoraBrokerStopAboveReference(direction, stop_loss);
+  if(above_reference)
+    return price >= reference_price + min_distance_price - tolerance;
+  return price <= reference_price - min_distance_price + tolerance;
+}
+
+double PandoraResolveBrokerSafeProtectionPrice(const SignalTypes direction,
+                                               const bool stop_loss,
+                                               const double local_price,
+                                               const double reference_price,
+                                               const double min_distance_price,
+                                               bool &is_exact)
+{
+  is_exact = false;
+  if(local_price <= 0.0 || reference_price <= 0.0 || min_distance_price <= 0.0)
+    return 0.0;
+
+  bool above_reference = PandoraBrokerStopAboveReference(direction, stop_loss);
+  double rounded_local = PandoraNormalizeBrokerPrice(local_price, above_reference);
+  if(rounded_local <= 0.0)
+    return 0.0;
+
+  if(PandoraBrokerProtectionPriceLegal(direction,
+                                       stop_loss,
+                                       rounded_local,
+                                       reference_price,
+                                       min_distance_price))
+  {
+    double tolerance = PandoraResolveBrokerTickSize() * 0.5;
+    if(tolerance <= 0.0)
+      tolerance = PandoraResolvePointSizeSafe() * 0.5;
+    is_exact = (MathAbs(rounded_local - local_price) <= tolerance);
+    return rounded_local;
+  }
+
+  double required_price = above_reference
+                          ? reference_price + min_distance_price
+                          : reference_price - min_distance_price;
+  double safe_price = PandoraNormalizeBrokerPrice(required_price, above_reference);
+  if(safe_price <= 0.0)
+    return 0.0;
+
+  if(!PandoraBrokerProtectionPriceLegal(direction,
+                                        stop_loss,
+                                        safe_price,
+                                        reference_price,
+                                        min_distance_price))
+    return 0.0;
+
+  return safe_price;
+}
+
+void PandoraSetBrokerStopSyncResolvedStatus(SignalParams &signal_params,
+                                            const bool all_exact)
+{
+  signal_params.pandora_broker_stop_sync_status = all_exact
+                                                  ? PANDORA_BROKER_STOPS_TARGETED
+                                                  : PANDORA_BROKER_STOPS_WIDE;
+}
+
+bool PandoraResolveBrokerSafeStops(SignalParams &signal_params,
+                                   GridOrderState &order_state,
+                                   double &sl_price,
+                                   double &tp_price,
+                                   bool &all_exact,
+                                   string &detail)
+{
+  sl_price = 0.0;
+  tp_price = 0.0;
+  all_exact = false;
+  detail = "";
+
+  if(!IsPandoraSignal(signal_params))
+    return false;
+
+  PandoraEnsureLocalTargetPrices(signal_params, order_state);
+
+  double local_sl = PandoraResolveLocalStopTargetPrice(signal_params, order_state);
+  double local_tp = PandoraResolveLocalTakeProfitTargetPrice(signal_params, order_state);
+  signal_params.pandora_broker_sl_target_price = local_sl;
+  signal_params.pandora_broker_tp_target_price = local_tp;
+
+  if(local_sl <= 0.0 && local_tp <= 0.0)
+  {
+    detail = "no_local_targets";
+    signal_params.pandora_broker_stop_sync_status = PANDORA_BROKER_STOPS_FAILED;
+    return false;
+  }
+
+  double reference_price = PandoraBrokerProtectionReferencePrice(signal_params.signal_type);
+  double min_distance_price = PandoraBrokerMinProtectionDistancePrice();
+  if(reference_price <= 0.0 || min_distance_price <= 0.0)
+  {
+    detail = "missing_reference";
+    signal_params.pandora_broker_stop_sync_status = PANDORA_BROKER_STOPS_FAILED;
+    return false;
+  }
+
+  bool sl_exact = true;
+  bool tp_exact = true;
+  if(local_sl > 0.0)
+  {
+    sl_price = PandoraResolveBrokerSafeProtectionPrice(signal_params.signal_type,
+                                                       true,
+                                                       local_sl,
+                                                       reference_price,
+                                                       min_distance_price,
+                                                       sl_exact);
+    if(sl_price <= 0.0)
+      sl_exact = false;
+  }
+
+  if(local_tp > 0.0)
+  {
+    tp_price = PandoraResolveBrokerSafeProtectionPrice(signal_params.signal_type,
+                                                       false,
+                                                       local_tp,
+                                                       reference_price,
+                                                       min_distance_price,
+                                                       tp_exact);
+    if(tp_price <= 0.0)
+      tp_exact = false;
+  }
+
+  if(sl_price <= 0.0 && tp_price <= 0.0)
+  {
+    detail = "no_legal_protection";
+    signal_params.pandora_broker_stop_sync_status = PANDORA_BROKER_STOPS_FAILED;
+    return false;
+  }
+
+  signal_params.pandora_broker_sl_protection_price = sl_price;
+  signal_params.pandora_broker_tp_protection_price = tp_price;
+
+  all_exact = true;
+  if(local_sl > 0.0 && !sl_exact)
+    all_exact = false;
+  if(local_tp > 0.0 && !tp_exact)
+    all_exact = false;
+
+  PandoraSetBrokerStopSyncResolvedStatus(signal_params, all_exact);
+  if(!all_exact)
+    detail = "wide_protection";
+  return true;
+}
+
 bool PandoraComputeLocalTargetPrices(const SignalParams &signal_params,
                                      const GridOrderState &order_state,
                                      double &sl_price,
@@ -1427,48 +1650,19 @@ bool PandoraResolveBrokerStops(const SignalParams &signal_params,
                                double &sl_price,
                                double &tp_price)
 {
-  sl_price = 0.0;
-  tp_price = 0.0;
-  if(!IsPandoraSignal(signal_params))
-    return false;
+  bool all_exact = false;
+  string detail = "";
 
-  double point_size = SymbolInfoDouble(_Symbol, SYMBOL_POINT);
-  if(point_size <= 0.0)
-    return false;
+  SignalParams signal_copy(signal_params);
+  GridOrderState order_copy;
+  order_copy = order_state;
 
-  double entry_ref = order_state.entry_price;
-  if(entry_ref <= 0.0)
-    entry_ref = order_state.entry_reference_price;
-  if(entry_ref <= 0.0)
-    entry_ref = GridCurrentPriceForDirection(signal_params.signal_type, true);
-  if(entry_ref <= 0.0)
-    return false;
-
-  bool step_trailing = PandoraRiskStepTrailingEnabled();
-  double sl_points = PandoraResolveSignalSLPoints(signal_params, true);
-  double tp_points = step_trailing ? 0.0 : PandoraResolveSignalTPPoints(signal_params, true);
-  if(sl_points <= 0.0 && signal_params.pandora_trailing_stop_price <= 0.0)
-    return false;
-
-  if(signal_params.signal_type == BULLISH)
-  {
-    sl_price = (signal_params.pandora_trailing_stop_price > 0.0)
-                 ? signal_params.pandora_trailing_stop_price
-                 : entry_ref - sl_points * point_size;
-    tp_price = (tp_points > 0.0) ? entry_ref + tp_points * point_size : 0.0;
-  }
-  else
-  {
-    sl_price = (signal_params.pandora_trailing_stop_price > 0.0)
-                 ? signal_params.pandora_trailing_stop_price
-                 : entry_ref + sl_points * point_size;
-    tp_price = (tp_points > 0.0) ? entry_ref - tp_points * point_size : 0.0;
-  }
-
-  int digits = (int)SymbolInfoInteger(_Symbol, SYMBOL_DIGITS);
-  sl_price = NormalizeDouble(sl_price, digits);
-  tp_price = NormalizeDouble(tp_price, digits);
-  return true;
+  return PandoraResolveBrokerSafeStops(signal_copy,
+                                       order_copy,
+                                       sl_price,
+                                       tp_price,
+                                       all_exact,
+                                       detail);
 }
 
 double PandoraResolveSignalEpsilonPoints(const SignalParams &signal_params)

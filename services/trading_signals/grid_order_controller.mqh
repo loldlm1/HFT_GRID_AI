@@ -173,24 +173,6 @@ bool PandoraApplyStepTrailing(SignalParams &signal_params,
   if(!PandoraTrailingStopImproves(direction, candidate_stop, current_stop, tolerance))
     return false;
 
-  if(Pandora_Box_Set_Broker_SLTP &&
-     grid_order.position_ticket > 0 &&
-     PositionSelectByTicket(grid_order.position_ticket) &&
-     PandoraBrokerStopDistanceSatisfied(direction, current_price, candidate_stop, point_size))
-  {
-    ResetLastError();
-    if(!g_position.PositionModify(grid_order.position_ticket, candidate_stop, 0.0))
-    {
-      ulong retcode = g_position.ResultRetcode();
-      int last_error = GetLastError();
-      MarketStatusRegisterBrokerFailure("PANDORA_STEP_TRAIL_MODIFY_FAILED", retcode, last_error, true);
-    }
-    else
-    {
-      MarketStatusClearExecutionError("PANDORA_STEP_TRAIL_MODIFY_OK");
-    }
-  }
-
   signal_params.pandora_trailing_step_index = target_step_index;
   signal_params.pandora_trailing_stop_price = candidate_stop;
   signal_params.grid_orders[grid_order_level].status = GRID_ORDER_TP_TRAILING_ACTIVE;
@@ -320,6 +302,16 @@ void UpdateGridLifecycle(SignalParams &signal_params)
         if(history_outcome != PANDORA_CLOSE_NONE)
           signal_params.pandora_close_outcome = history_outcome;
         grid_order.status = GRID_ORDER_COMPLETED;
+      }
+
+      if(Pandora_Box_Set_Broker_SLTP &&
+         grid_order.status != GRID_ORDER_COMPLETED &&
+         grid_order.position_ticket > 0)
+      {
+        GridSyncPandoraBrokerStops(signal_params,
+                                   grid_order,
+                                   "PANDORA_BROKER_SLTP_SYNC",
+                                   true);
       }
       signal_params.grid_orders[grid_order_level] = grid_order;
     }

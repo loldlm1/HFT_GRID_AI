@@ -135,78 +135,100 @@ bool GridShouldActivateTrailing(SignalParams &signal_params,
   return false;
 }
 
-bool GridRefreshPandoraStopsAfterFill(const SignalParams &signal_params,
-                                      GridOrderState &order_state)
+bool GridBrokerStopPriceMatches(const double current_price,
+                                const double target_price,
+                                const double tolerance)
+{
+  if(target_price <= 0.0)
+    return (current_price <= tolerance);
+  return MathAbs(current_price - target_price) <= tolerance;
+}
+
+bool GridSyncPandoraBrokerStops(SignalParams &signal_params,
+                                GridOrderState &order_state,
+                                const string context,
+                                const bool throttle)
 {
   if(!IsPandoraSignal(signal_params))
     return true;
 
-  double corrected_sl = 0.0;
-  double corrected_tp = 0.0;
-  if(!PandoraResolveBrokerStops(signal_params, order_state, corrected_sl, corrected_tp))
-  {
-    MarketStatusRegisterExecutionError("PANDORA_INITIAL_SLTP_RESOLVE_FAILED", "post_fill", 0, GetLastError());
-    return false;
-  }
-
-  order_state.take_profit_price = corrected_tp;
-
   if(!Pandora_Box_Set_Broker_SLTP)
     return true;
+
   if(order_state.position_ticket <= 0)
-  {
-    MarketStatusRegisterExecutionError("PANDORA_INITIAL_SLTP_CORRECT_FAILED", "missing_position_ticket", 0, 0);
-    return false;
-  }
+    return true;
+
+  datetime now_time = TimeCurrent();
+  if(throttle &&
+     signal_params.pandora_broker_stop_sync_time > 0 &&
+     now_time - signal_params.pandora_broker_stop_sync_time < 1)
+    return true;
+
+  if(throttle)
+    signal_params.pandora_broker_stop_sync_time = now_time;
+
   if(!PositionSelectByTicket(order_state.position_ticket))
   {
-    MarketStatusRegisterExecutionError("PANDORA_INITIAL_SLTP_CORRECT_FAILED", "position_not_found", 0, GetLastError());
+    signal_params.pandora_broker_stop_sync_status = PANDORA_BROKER_STOPS_FAILED;
+    MarketStatusRegisterExecutionError(context + "_FAILED", "position_not_found", 0, GetLastError());
     return false;
   }
 
-  double point_size = SymbolInfoDouble(_Symbol, SYMBOL_POINT);
-  if(point_size <= 0.0)
-    point_size = 0.00001;
-  double tolerance = point_size * 0.1;
+  double target_sl = 0.0;
+  double target_tp = 0.0;
+  bool all_exact = false;
+  string detail = "";
+  if(!PandoraResolveBrokerSafeStops(signal_params,
+                                    order_state,
+                                    target_sl,
+                                    target_tp,
+                                    all_exact,
+                                    detail))
+  {
+    if(detail == "")
+      detail = "resolve_failed";
+    MarketStatusRegisterExecutionError(context + "_UNAVAILABLE", detail, 0, GetLastError());
+    return false;
+  }
+
+  double tolerance = PandoraResolveBrokerTickSize() * 0.5;
+  if(tolerance <= 0.0)
+    tolerance = PandoraResolvePointSizeSafe() * 0.5;
 
   double current_sl = PositionGetDouble(POSITION_SL);
   double current_tp = PositionGetDouble(POSITION_TP);
-  bool sl_matches = (MathAbs(current_sl - corrected_sl) <= tolerance);
-  bool tp_matches = (MathAbs(current_tp - corrected_tp) <= tolerance);
+  bool sl_matches = GridBrokerStopPriceMatches(current_sl, target_sl, tolerance);
+  bool tp_matches = GridBrokerStopPriceMatches(current_tp, target_tp, tolerance);
   if(sl_matches && tp_matches)
+  {
+    PandoraSetBrokerStopSyncResolvedStatus(signal_params, all_exact);
     return true;
+  }
 
-  if(!g_position.PositionModify(order_state.position_ticket, corrected_sl, corrected_tp))
+  ResetLastError();
+  if(!g_position.PositionModify(order_state.position_ticket, target_sl, target_tp))
   {
     ulong retcode = g_position.ResultRetcode();
     int last_error = GetLastError();
-    MarketStatusRegisterBrokerFailure("PANDORA_INITIAL_SLTP_CORRECT_FAILED", retcode, last_error, true);
-    if(Enable_Logs)
-    {
-      PrintFormat("PANDORA_INITIAL_SLTP_CORRECT_FAILED ticket=%I64u entry=%.5f sl=%.5f tp=%.5f retcode=%I64u error=%d",
-                  order_state.position_ticket,
-                  order_state.entry_price,
-                  corrected_sl,
-                  corrected_tp,
-                  retcode,
-                  last_error);
-    }
+    signal_params.pandora_broker_stop_sync_status = PANDORA_BROKER_STOPS_FAILED;
+    MarketStatusRegisterBrokerFailure(context + "_FAILED", retcode, last_error, true);
     return false;
   }
-  MarketStatusClearExecutionError("PANDORA_INITIAL_SLTP_CORRECTED");
 
-  if(Enable_Logs)
-  {
-    PrintFormat("PANDORA_INITIAL_SLTP_CORRECTED ticket=%I64u entry=%.5f sl=%.5f tp=%.5f prev_sl=%.5f prev_tp=%.5f",
-                order_state.position_ticket,
-                order_state.entry_price,
-                corrected_sl,
-                corrected_tp,
-                current_sl,
-                current_tp);
-  }
+  signal_params.pandora_broker_stop_sync_time = now_time;
+  PandoraSetBrokerStopSyncResolvedStatus(signal_params, all_exact);
+  MarketStatusClearExecutionError(context + "_OK");
 
   return true;
+}
+
+bool GridRefreshPandoraStopsAfterFill(SignalParams &signal_params,
+                                      GridOrderState &order_state)
+{
+  return GridSyncPandoraBrokerStops(signal_params,
+                                    order_state,
+                                    "PANDORA_INITIAL_SLTP_SYNC",
+                                    false);
 }
 
 bool GridExecuteLevelTrade(SignalParams &signal_params,
@@ -268,17 +290,30 @@ bool GridExecuteLevelTrade(SignalParams &signal_params,
   bool sent = false;
   double sl_price = 0.0;
   double tp_price = 0.0;
-  if(Pandora_Box_Set_Broker_SLTP)
+  if(pandora_signal && Pandora_Box_Set_Broker_SLTP)
   {
     GridOrderState broker_seed_state = order_state;
-    if(IsPandoraSignal(signal_params) && broker_seed_state.entry_price <= 0.0)
+    if(broker_seed_state.entry_price <= 0.0)
     {
       broker_seed_state.entry_price = GridCurrentPriceForDirection(direction, true);
       if(broker_seed_state.entry_price <= 0.0)
         broker_seed_state.entry_price = order_state.entry_reference_price;
     }
-    if(!PandoraResolveBrokerStops(signal_params, broker_seed_state, sl_price, tp_price))
-      MarketStatusRegisterExecutionError("PANDORA_BROKER_STOPS_RESOLVE_FAILED", "pre_send", 0, GetLastError());
+    bool all_exact = false;
+    string detail = "";
+    if(!PandoraResolveBrokerSafeStops(signal_params,
+                                      broker_seed_state,
+                                      sl_price,
+                                      tp_price,
+                                      all_exact,
+                                      detail))
+    {
+      if(detail == "")
+        detail = "pre_send";
+      MarketStatusRegisterExecutionError("PANDORA_BROKER_STOPS_UNAVAILABLE", detail, 0, GetLastError());
+      sl_price = 0.0;
+      tp_price = 0.0;
+    }
   }
 
   if(direction == BULLISH)
