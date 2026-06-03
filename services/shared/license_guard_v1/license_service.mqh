@@ -92,6 +92,10 @@ string LicenseServiceBuildRemovalMessage(const string fallback_message)
     return prefix + "license validation failed.";
   if(error_code == "missing_magic_number" || error_code == "invalid_magic_number")
     return prefix + "backend magic number validation failed.";
+  if(error_code == "missing_instance_id" ||
+     error_code == "invalid_instance_id" ||
+     error_code == "duplicate_instance_id")
+    return prefix + "EA instance identity validation failed.";
   if(error_code == "online_limit_reached")
     return LicenseFriendlyOnlineLimitMessage();
   if(error_code == "invalid_granted_addons" || error_code == "invalid_expires_at")
@@ -158,6 +162,19 @@ bool LicenseServiceInit()
                   (license_last_error == "" ? "unknown" : license_last_error));
     else
       PrintFormat("[License] Startup verification failed (error=%s).",
+                  (license_last_error == "" ? "request_failed" : license_last_error));
+    EALifecycleRequestRemoval(LicenseServiceBuildRemovalMessage(""));
+    return false;
+  }
+
+  if(!LicenseResolveInstanceTradeMagic())
+  {
+    if(license_last_http_status > 0)
+      PrintFormat("[License] Instance magic resolution failed (HTTP %d, error=%s).",
+                  license_last_http_status,
+                  (license_last_error == "" ? "unknown" : license_last_error));
+    else
+      PrintFormat("[License] Instance magic resolution failed (error=%s).",
                   (license_last_error == "" ? "request_failed" : license_last_error));
     EALifecycleRequestRemoval(LicenseServiceBuildRemovalMessage(""));
     return false;
@@ -266,6 +283,31 @@ bool LicenseHasValidCachedMagicNumber()
 long LicenseGetCachedMagicNumber()
 {
   return 0;
+}
+
+bool LicenseHasValidCachedLaneMagicNumber()
+{
+  return false;
+}
+
+long LicenseGetCachedLaneMagicNumber()
+{
+  return 0;
+}
+
+bool LicenseHasInstanceTradeMagicNumber()
+{
+  return false;
+}
+
+string LicenseGetTradeInstanceId()
+{
+  return "";
+}
+
+bool LicenseResolveInstanceTradeMagic()
+{
+  return true;
 }
 
 void LicenseSetRequestedAddonsCsv(const string addons_csv)

@@ -87,6 +87,7 @@ const string base_ea_id_key = LICENSE_SHARED_BASE_EA_ID;
 const string license_api_base_url = LICENSE_SHARED_API_BASE_URL;
 const string license_verify_api_path = "/api/v1/licenses/verify";
 const string license_heartbeat_api_path = "/api/v1/licenses/heartbeat";
+const string license_instance_magic_api_path = "/api/v1/licenses/instance_magic";
 const int license_request_timeout_ms = 5000;
 const int license_refresh_seconds = 86400;
 const int license_heartbeat_seconds = 180;
@@ -94,8 +95,10 @@ const int license_leader_stale_seconds = 360;
 const int license_online_limit_runtime_confirmations = 2;
 const int license_startup_sync_max_polls = 25;
 const int license_startup_sync_poll_sleep_ms = 200;
+const int license_trade_instance_active_stale_seconds = 600;
 
 const string license_lane_key_prefix = "SNP_LANE";
+const string license_trade_instance_key_prefix = "SNP_TRADE_INSTANCE";
 const long license_magic_number_min = 1;
 const long license_magic_number_max = 2147483647;
 
@@ -144,8 +147,13 @@ string license_broker_company = "";
 long license_broker_account_number = 0;
 string license_broker_account_type = "";
 bool license_broker_account_synced = false;
+long license_lane_magic_number = 0;
+bool license_lane_magic_number_synced = false;
 long license_magic_number = 0;
 bool license_magic_number_synced = false;
+bool license_instance_magic_number_synced = false;
+string license_trade_instance_id = "";
+bool license_trade_instance_id_manual = false;
 string license_granted_addons[];
 string license_requested_addons[];
 string license_missing_addons[];
@@ -245,6 +253,9 @@ bool License_IsAuthError(const string error_code)
   if(normalized == "license_not_found") return true;
   if(normalized == "missing_magic_number") return true;
   if(normalized == "invalid_magic_number") return true;
+  if(normalized == "missing_instance_id") return true;
+  if(normalized == "invalid_instance_id") return true;
+  if(normalized == "duplicate_instance_id") return true;
   return false;
 }
 
@@ -403,6 +414,28 @@ long LicenseGetCachedMagicNumber()
   if(!LicenseHasValidCachedMagicNumber())
     return 0;
   return license_magic_number;
+}
+
+bool LicenseHasValidCachedLaneMagicNumber()
+{
+  return (license_lane_magic_number_synced && LicenseMagicNumberIsSupported(license_lane_magic_number));
+}
+
+long LicenseGetCachedLaneMagicNumber()
+{
+  if(!LicenseHasValidCachedLaneMagicNumber())
+    return 0;
+  return license_lane_magic_number;
+}
+
+bool LicenseHasInstanceTradeMagicNumber()
+{
+  return (license_instance_magic_number_synced && LicenseHasValidCachedMagicNumber());
+}
+
+string LicenseGetTradeInstanceId()
+{
+  return license_trade_instance_id;
 }
 
 bool LicenseHasAddon(const string addon_key)
@@ -675,6 +708,246 @@ string LicenseLaneBuildHash(const string identity_raw)
   return StringFormat("%08X%08X", hi, lo);
 }
 
+string LicenseFormatHash64(const ulong hash)
+{
+  uint hi = (uint)(hash >> 32);
+  uint lo = (uint)(hash & 0xFFFFFFFF);
+  return StringFormat("%08X%08X", hi, lo);
+}
+
+string LicenseNormalizeInstanceId(const string raw_value)
+{
+  string source = Trim(raw_value);
+  string result = "";
+  int len = StringLen(source);
+  for(int i = 0; i < len && StringLen(result) < 64; i++)
+  {
+    int ch = StringGetCharacter(source, i);
+    bool allowed = (ch >= '0' && ch <= '9') ||
+                   (ch >= 'A' && ch <= 'Z') ||
+                   (ch >= 'a' && ch <= 'z') ||
+                   ch == '_' ||
+                   ch == '-';
+    if(allowed)
+      result += CharToString((uchar)ch);
+    else
+      result += "_";
+  }
+
+  return result;
+}
+
+string LicenseTradeInstanceObjectName()
+{
+  return "SNP_TRADE_INSTANCE_ID_" + LicenseNormalizeInstanceId(base_ea_id_key);
+}
+
+string LicenseTradeInstancePrefix()
+{
+  string prefix = LicenseNormalizeInstanceId(base_ea_id_key);
+  if(prefix == "")
+    prefix = "ea";
+  if(StringLen(prefix) > 24)
+    prefix = StringSubstr(prefix, 0, 24);
+  return prefix;
+}
+
+string LicenseGenerateTradeInstanceId(const string salt)
+{
+  string seed = source_secret_key + "|" +
+                LicenseNormalizeErrorCode(license_email) + "|" +
+                LicenseNormalizeErrorCode(license_ea_id) + "|" +
+                AccountInfoString(ACCOUNT_COMPANY) + "|" +
+                StringFormat("%I64d", (long)AccountInfoInteger(ACCOUNT_LOGIN)) + "|" +
+                AccountTypeToString() + "|" +
+                StringFormat("%I64d", (long)ChartID()) + "|" +
+                StringFormat("%I64d", (long)TimeLocal()) + "|" +
+                StringFormat("%d", GetTickCount()) + "|" +
+                salt;
+  return LicenseTradeInstancePrefix() + "_" + LicenseFormatHash64(LicenseFNV1a64(seed));
+}
+
+bool LicenseReadChartTradeInstanceId(string &instance_id)
+{
+  instance_id = "";
+  string name = LicenseTradeInstanceObjectName();
+  long chart_id = ChartID();
+  if(ObjectFind(chart_id, name) < 0)
+    return false;
+
+  string raw_id = ObjectGetString(chart_id, name, OBJPROP_TEXT);
+  string normalized = LicenseNormalizeInstanceId(raw_id);
+  if(normalized == "")
+    return false;
+
+  instance_id = normalized;
+  return true;
+}
+
+bool LicenseWriteChartTradeInstanceId(const string instance_id)
+{
+  string normalized = LicenseNormalizeInstanceId(instance_id);
+  if(normalized == "")
+    return false;
+
+  string name = LicenseTradeInstanceObjectName();
+  long chart_id = ChartID();
+  if(ObjectFind(chart_id, name) < 0)
+  {
+    if(!ObjectCreate(chart_id, name, OBJ_LABEL, 0, 0, 0))
+      return false;
+  }
+
+  ObjectSetString(chart_id, name, OBJPROP_TEXT, normalized);
+  ObjectSetInteger(chart_id, name, OBJPROP_CORNER, CORNER_LEFT_UPPER);
+  ObjectSetInteger(chart_id, name, OBJPROP_XDISTANCE, 0);
+  ObjectSetInteger(chart_id, name, OBJPROP_YDISTANCE, 0);
+  ObjectSetInteger(chart_id, name, OBJPROP_FONTSIZE, 1);
+  ObjectSetInteger(chart_id, name, OBJPROP_SELECTABLE, false);
+  ObjectSetInteger(chart_id, name, OBJPROP_SELECTED, false);
+  ObjectSetInteger(chart_id, name, OBJPROP_HIDDEN, true);
+  ObjectSetInteger(chart_id, name, OBJPROP_TIMEFRAMES, OBJ_NO_PERIODS);
+  return true;
+}
+
+string LicenseTradeInstanceChartGlobalKey()
+{
+  string lane_key = (license_lane_hash == "" ? "NO_LANE" : license_lane_hash);
+  return license_trade_instance_key_prefix + "_CHART_" +
+         lane_key + "_" +
+         StringFormat("%I64d", (long)ChartID());
+}
+
+string LicenseBuildTradeInstanceIdFromToken(const long token)
+{
+  if(token <= 0)
+    return "";
+  return LicenseTradeInstancePrefix() + "_" + StringFormat("%08X", (uint)token);
+}
+
+bool LicenseReadGlobalTradeInstanceId(string &instance_id)
+{
+  instance_id = "";
+  string key = LicenseTradeInstanceChartGlobalKey();
+  if(!GlobalVariableCheck(key))
+    return false;
+
+  long token = (long)GlobalVariableGet(key);
+  instance_id = LicenseBuildTradeInstanceIdFromToken(token);
+  return (instance_id != "");
+}
+
+void LicenseWriteGlobalTradeInstanceId(const string instance_id)
+{
+  ulong hash = LicenseFNV1a64(instance_id);
+  long token = (long)(hash & 0x7FFFFFFF);
+  if(token <= 0)
+    token = 1;
+  GlobalVariableSet(LicenseTradeInstanceChartGlobalKey(), (double)token);
+}
+
+string LicenseTradeInstanceActiveKey(const string instance_id,
+                                     const string suffix)
+{
+  string hash = LicenseLaneBuildHash(LicenseNormalizeInstanceId(instance_id));
+  return license_trade_instance_key_prefix + "_ACTIVE_" + hash + "_" + suffix;
+}
+
+bool LicenseTradeInstanceHasActiveDuplicate(const string instance_id,
+                                            const datetime now)
+{
+  string key_chart = LicenseTradeInstanceActiveKey(instance_id, "CHART");
+  string key_at = LicenseTradeInstanceActiveKey(instance_id, "AT");
+  if(!GlobalVariableCheck(key_chart) || !GlobalVariableCheck(key_at))
+    return false;
+
+  long active_chart = (long)GlobalVariableGet(key_chart);
+  datetime active_at = (datetime)((long)GlobalVariableGet(key_at));
+  if(active_chart == 0 || active_chart == (long)ChartID())
+    return false;
+  if(active_at <= 0)
+    return false;
+
+  return ((now - active_at) <= license_trade_instance_active_stale_seconds);
+}
+
+void LicenseTradeInstanceTouchActive(const datetime now)
+{
+  if(license_trade_instance_id == "")
+    return;
+
+  GlobalVariableSet(LicenseTradeInstanceActiveKey(license_trade_instance_id, "CHART"),
+                    (double)((long)ChartID()));
+  GlobalVariableSet(LicenseTradeInstanceActiveKey(license_trade_instance_id, "AT"),
+                    (double)((long)now));
+}
+
+void LicenseTradeInstanceReleaseActive()
+{
+  if(license_trade_instance_id == "")
+    return;
+
+  string key_chart = LicenseTradeInstanceActiveKey(license_trade_instance_id, "CHART");
+  string key_at = LicenseTradeInstanceActiveKey(license_trade_instance_id, "AT");
+  if(GlobalVariableCheck(key_chart))
+  {
+    long active_chart = (long)GlobalVariableGet(key_chart);
+    if(active_chart == (long)ChartID())
+    {
+      GlobalVariableDel(key_chart);
+      if(GlobalVariableCheck(key_at))
+        GlobalVariableDel(key_at);
+    }
+  }
+}
+
+bool LicenseResolveTradeInstanceId()
+{
+  if(license_trade_instance_id != "")
+    return true;
+
+  datetime now = TimeCurrent();
+  string manual_id = LicenseNormalizeInstanceId(EA_Instance_Id);
+  if(manual_id != "")
+  {
+    if(LicenseTradeInstanceHasActiveDuplicate(manual_id, now))
+    {
+      license_last_error = "duplicate_instance_id";
+      Print("[LicenseInstance] Duplicate manual EA_Instance_Id is already active in this terminal.");
+      return false;
+    }
+
+    license_trade_instance_id = manual_id;
+    license_trade_instance_id_manual = true;
+    LicenseTradeInstanceTouchActive(now);
+    return true;
+  }
+
+  string resolved_id = "";
+  if(!LicenseReadChartTradeInstanceId(resolved_id))
+    LicenseReadGlobalTradeInstanceId(resolved_id);
+
+  if(resolved_id == "")
+  {
+    resolved_id = LicenseGenerateTradeInstanceId("auto");
+    LicenseWriteChartTradeInstanceId(resolved_id);
+    LicenseWriteGlobalTradeInstanceId(resolved_id);
+  }
+
+  if(LicenseTradeInstanceHasActiveDuplicate(resolved_id, now))
+  {
+    string regenerated_id = LicenseGenerateTradeInstanceId("duplicate_regen");
+    LicenseWriteChartTradeInstanceId(regenerated_id);
+    LicenseWriteGlobalTradeInstanceId(regenerated_id);
+    resolved_id = regenerated_id;
+  }
+
+  license_trade_instance_id = resolved_id;
+  license_trade_instance_id_manual = false;
+  LicenseTradeInstanceTouchActive(now);
+  return (license_trade_instance_id != "");
+}
+
 string LicenseLaneGlobalKey(const string suffix)
 {
   return license_lane_key_prefix + "_" + license_lane_hash + "_" + suffix;
@@ -799,7 +1072,7 @@ void LicenseLaneWriteSharedSuccess(const datetime now)
   GlobalVariableSet(LicenseLaneGlobalKey("HTTP"), (double)license_last_http_status);
   GlobalVariableSet(LicenseLaneGlobalKey("ADDON"), (double)LicenseGrantedAddonsMask());
   GlobalVariableSet(LicenseLaneGlobalKey("MAGIC"),
-                    (LicenseMagicNumberIsSupported(license_magic_number) ? (double)license_magic_number : 0.0));
+                    (LicenseMagicNumberIsSupported(license_lane_magic_number) ? (double)license_lane_magic_number : 0.0));
   GlobalVariableSet(LicenseLaneGlobalKey("CLAIM_AT"), (double)((long)license_instance_verified_startup_at));
 }
 
@@ -954,8 +1227,13 @@ bool LicenseLaneApplySharedSuccessIfAvailable(const datetime now)
   last_validation_time = shared_last_ok;
   license_last_error = "";
   license_last_http_status = 200;
-  license_magic_number = shared_magic;
-  license_magic_number_synced = true;
+  license_lane_magic_number = shared_magic;
+  license_lane_magic_number_synced = true;
+  if(!license_instance_magic_number_synced)
+  {
+    license_magic_number = shared_magic;
+    license_magic_number_synced = true;
+  }
   LicenseApplyGrantedAddonsMask(shared_mask);
   LicenseClearAddonFailureDetails();
   return true;
@@ -1035,6 +1313,25 @@ string BuildLicensePayload(const bool include_addons,
 
   if(request_type == LICENSE_REQUEST_VERIFY && include_addons && StringLen(Trim(license_addons)) > 0)
     payload.setProperty("addons", Trim(license_addons));
+
+  JSON::Object* broker_account = new JSON::Object();
+  broker_account.setProperty("name", AccountInfoString(ACCOUNT_NAME));
+  broker_account.setProperty("company", AccountInfoString(ACCOUNT_COMPANY));
+  broker_account.setProperty("account_number", (long)AccountInfoInteger(ACCOUNT_LOGIN));
+  broker_account.setProperty("account_type", AccountTypeToString());
+  payload.setProperty("broker_account", broker_account);
+
+  return payload.toString();
+}
+
+string BuildLicenseInstanceMagicPayload()
+{
+  JSON::Object payload;
+  payload.setProperty("source", source_secret_key);
+  payload.setProperty("email", license_email);
+  payload.setProperty("ea_id", license_ea_id);
+  payload.setProperty("license_key", EA_License_Key);
+  payload.setProperty("instance_id", license_trade_instance_id);
 
   JSON::Object* broker_account = new JSON::Object();
   broker_account.setProperty("name", AccountInfoString(ACCOUNT_NAME));
@@ -1135,8 +1432,13 @@ void License_ClearRuntimeDetails()
   license_broker_account_number = 0;
   license_broker_account_type = "";
   license_broker_account_synced = false;
+  license_lane_magic_number = 0;
+  license_lane_magic_number_synced = false;
   license_magic_number = 0;
   license_magic_number_synced = false;
+  license_instance_magic_number_synced = false;
+  license_trade_instance_id = "";
+  license_trade_instance_id_manual = false;
   LicenseClearGrantedAddons();
   ArrayResize(license_requested_addons, 0);
   LicenseClearMissingRequestedAddons();
@@ -1174,8 +1476,10 @@ void License_ParseBrokerAccountFromResponse(JSON::Object &response)
                                     license_broker_account_type == "demo"));
 }
 
-bool License_ParseMagicNumberFromResponse(JSON::Object &response)
+bool LicenseParseMagicNumberValue(JSON::Object &response,
+                                  long &parsed_magic_number)
 {
+  parsed_magic_number = 0;
   if(!response.isNumber("magic_number"))
   {
     license_last_error = "missing_magic_number";
@@ -1183,7 +1487,7 @@ bool License_ParseMagicNumberFromResponse(JSON::Object &response)
     return false;
   }
 
-  long parsed_magic_number = (long)response.getNumber("magic_number");
+  parsed_magic_number = (long)response.getNumber("magic_number");
   if(!LicenseMagicNumberIsSupported(parsed_magic_number))
   {
     license_last_error = "invalid_magic_number";
@@ -1192,8 +1496,34 @@ bool License_ParseMagicNumberFromResponse(JSON::Object &response)
     return false;
   }
 
+  return true;
+}
+
+bool License_ParseMagicNumberFromResponse(JSON::Object &response)
+{
+  long parsed_magic_number = 0;
+  if(!LicenseParseMagicNumberValue(response, parsed_magic_number))
+    return false;
+
+  license_lane_magic_number = parsed_magic_number;
+  license_lane_magic_number_synced = true;
+  if(!license_instance_magic_number_synced)
+  {
+    license_magic_number = parsed_magic_number;
+    license_magic_number_synced = true;
+  }
+  return true;
+}
+
+bool License_ParseInstanceMagicNumberFromResponse(JSON::Object &response)
+{
+  long parsed_magic_number = 0;
+  if(!LicenseParseMagicNumberValue(response, parsed_magic_number))
+    return false;
+
   license_magic_number = parsed_magic_number;
   license_magic_number_synced = true;
+  license_instance_magic_number_synced = true;
   return true;
 }
 
@@ -1311,6 +1641,72 @@ bool LicenseSendOnlineRequest(const LicenseRequestType request_type,
 
   license_last_error = "";
   LicenseClearAddonFailureDetails();
+  return true;
+}
+
+bool LicenseResolveInstanceTradeMagic()
+{
+  if(is_testing)
+    return true;
+
+  license_last_error = "";
+  license_last_http_status = 0;
+
+  if(!LicenseResolveTradeInstanceId())
+  {
+    if(license_last_error == "")
+      license_last_error = "missing_instance_id";
+    return false;
+  }
+
+  string url = license_api_base_url + license_instance_magic_api_path;
+  string payload = BuildLicenseInstanceMagicPayload();
+  string response_body = "";
+  int status_code = 0;
+
+  if(!HttpPostJson(url, payload, response_body, status_code))
+  {
+    license_last_error = "request_failed";
+    return false;
+  }
+
+  license_last_http_status = status_code;
+  string response_copy = response_body;
+  JSON::Object response(response_copy);
+
+  if(response.isString("error"))
+    license_last_error = LicenseNormalizeErrorCode(response.getString("error"));
+
+  bool ok = response.isBoolean("ok") ? response.getBoolean("ok") : false;
+  if(status_code < 200 || status_code >= 300 || !ok)
+  {
+    if(license_last_error == "")
+      license_last_error = "request_failed";
+
+    PrintFormat("LICENSE INSTANCE MAGIC REJECTED HTTP %d: %s",
+                status_code,
+                license_last_error);
+    return false;
+  }
+
+  if(response.isString("instance_id"))
+  {
+    string response_instance_id = LicenseNormalizeInstanceId(response.getString("instance_id"));
+    if(response_instance_id != "" && response_instance_id != license_trade_instance_id)
+    {
+      license_last_error = "invalid_instance_id";
+      Print("[LicenseInstance] Backend returned a different instance_id.");
+      return false;
+    }
+  }
+
+  if(!License_ParseInstanceMagicNumberFromResponse(response))
+    return false;
+
+  license_last_error = "";
+  PrintFormat("[LicenseInstance] Scoped trade magic resolved | instance=%s | magic=%I64d",
+              license_trade_instance_id,
+              license_magic_number);
   return true;
 }
 
@@ -1446,11 +1842,11 @@ bool VerifyLicenseOnlineRequest(const bool is_startup)
     license_instance_verified_startup_at = now;
 
   LicenseLaneWriteSharedSuccess(now);
-  PrintFormat("VALID EA LICENSE! trial=%s plan_interval=%s broker_synced=%s magic=%I64d addons=%d",
+  PrintFormat("VALID EA LICENSE! trial=%s plan_interval=%s broker_synced=%s lane_magic=%I64d addons=%d",
               (license_trial ? "true" : "false"),
               (license_plan_interval == "" ? "n/a" : license_plan_interval),
               (license_broker_account_synced ? "true" : "false"),
-              license_magic_number,
+              license_lane_magic_number,
               LicenseGrantedAddonCount());
   return true;
 }
@@ -1607,6 +2003,7 @@ void LicenseOnline_OnTimer()
     return;
 
   datetime now = TimeCurrent();
+  LicenseTradeInstanceTouchActive(now);
   LicenseLaneTryAcquireLeadership(now, true);
 
   if(!license_lane_is_leader)
@@ -1722,6 +2119,7 @@ void LicenseOnline_OnTimer()
 
 void LicenseOnline_OnDeinit()
 {
+  LicenseTradeInstanceReleaseActive();
   LicenseLaneReleaseLeadership();
 }
 

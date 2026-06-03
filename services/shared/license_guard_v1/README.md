@@ -15,6 +15,7 @@ Canonical reusable license service for MT5 EAs in this repository.
 - `services/shared/license_guard_v1/daily_results_online.mqh`
 - `services/shared/license_guard_v1/core/addon_catalog.mqh`
 - `services/shared/license_guard_v1/backend-entitlements-contract.md`
+- `services/shared/license_guard_v1/backend-instance-magic-contract-update.md`
 - `services/shared/license_guard_v1/license-shared-service-migration-plan.md`
 
 ## Shared Core Layout
@@ -37,9 +38,10 @@ Canonical reusable license service for MT5 EAs in this repository.
 4. Call `LicenseServiceInit()` in `OnInit` before trading initialization.
 5. Wire `OnTimer` to `LicenseServiceOnTimer()`.
 6. Wire `OnDeinit` to `LicenseServiceOnDeinit()`.
-7. Use `LicenseGetCachedMagicNumber()` as the runtime trading magic in live mode.
+7. Use `LicenseGetCachedMagicNumber()` as the runtime trading magic in live mode for the current lane-magic contract.
 8. If `LicenseGetCachedMagicNumber() <= 0` after startup verify, fail closed and remove EA.
 9. If a rollout reassigns an oversized legacy lane value, trust the latest successful `verify` response as the new runtime magic source.
+10. For the proposed per-chart trade magic rollout, see `backend-instance-magic-contract-update.md`; backend support must ship before EA runtime magic changes.
 
 Advanced/custom option:
 - Include `services/shared/license_guard_v1/license_service.mqh` directly only when a repo intentionally does not use `services/license_service_setup.mqh`.

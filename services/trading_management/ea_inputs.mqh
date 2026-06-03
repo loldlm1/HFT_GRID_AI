@@ -17,6 +17,7 @@ input string EA_License_Key = "";
 
 input group  "+= Account Settings EA =+";
 input int    Custom_Magic     = 0;
+input string EA_Instance_Id   = "";
 input double Max_Spread       = 200.0;
 input double Min_Range_Points = 200.0;
 

@@ -1,6 +1,8 @@
 # Backend Entitlements + Daily Results Contract
 
 This document is the source of truth for current EA-to-API integration.
+For the proposed additive rollout that separates license lane identity from
+per-chart trade magic, see `backend-instance-magic-contract-update.md`.
 
 ## Base URL and endpoints
 - Base URL: `https://tradingsniperpanel.com/api/v1`

@@ -39,6 +39,8 @@ ulong FindOpenPositionForSignal(const SignalTypes direction,
       continue;
     if(PositionGetString(POSITION_SYMBOL) != _Symbol)
       continue;
+    if(PositionGetInteger(POSITION_MAGIC) != g_magic_number)
+      continue;
 
     ENUM_POSITION_TYPE pos_type = (ENUM_POSITION_TYPE)PositionGetInteger(POSITION_TYPE);
     if(direction == BULLISH && pos_type != POSITION_TYPE_BUY)
@@ -365,6 +367,10 @@ int GetActivePositionsCount(const SignalTypes direction)
     // Validar magic number
     long position_magic = PositionGetInteger(POSITION_MAGIC);
     if(position_magic != g_magic_number)
+      continue;
+
+    string position_symbol = PositionGetString(POSITION_SYMBOL);
+    if(position_symbol != _Symbol)
       continue;
 
     ENUM_POSITION_TYPE pos_type = (ENUM_POSITION_TYPE)PositionGetInteger(POSITION_TYPE);

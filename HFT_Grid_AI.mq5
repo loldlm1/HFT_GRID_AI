@@ -36,6 +36,98 @@ bool         g_ea_running;
 datetime     g_initial_ea_date;
 SymbolTradingConstraints g_symbol_constraints;
 
+ulong EARuntimeMagicHash(const string input_value)
+{
+  ulong hash = 1469598103934665603;
+  int len = StringLen(input_value);
+  for(int i = 0; i < len; i++)
+  {
+    hash ^= (ulong)(uchar)StringGetCharacter(input_value, i);
+    hash *= 1099511628211;
+  }
+  return hash;
+}
+
+long ResolveTesterRuntimeMagicNumber()
+{
+  if(Custom_Magic > 0)
+    return (long)Custom_Magic;
+
+  string seed = StringFormat("%s|%s|%d|%I64d",
+                             "pandora_box",
+                             _Symbol,
+                             (int)_Period,
+                             (long)ChartID());
+  ulong hash = EARuntimeMagicHash(seed);
+  long magic = (long)(hash % (ulong)(2147483646)) + 1;
+  return magic;
+}
+
+bool HasLegacyLaneMagicPositions(const long lane_magic,
+                                 const long runtime_magic)
+{
+  if(lane_magic <= 0 || runtime_magic <= 0 || lane_magic == runtime_magic)
+    return false;
+
+  int total_positions = PositionsTotal();
+  for(int i = total_positions - 1; i >= 0; i--)
+  {
+    ulong position_ticket = PositionGetTicket(i);
+    if(position_ticket == 0)
+      continue;
+    if(!PositionSelectByTicket(position_ticket))
+      continue;
+    if(PositionGetString(POSITION_SYMBOL) != _Symbol)
+      continue;
+    if(PositionGetInteger(POSITION_MAGIC) != lane_magic)
+      continue;
+
+    PrintFormat("[EA] Legacy lane-magic position detected | symbol=%s | ticket=%I64u | lane_magic=%I64d | runtime_magic=%I64d",
+                _Symbol,
+                position_ticket,
+                lane_magic,
+                runtime_magic);
+    return true;
+  }
+
+  return false;
+}
+
+bool ResolveRuntimeTradeMagicNumber(long &runtime_magic)
+{
+  runtime_magic = 0;
+
+  if(LicenseIsTestingMode())
+  {
+    runtime_magic = ResolveTesterRuntimeMagicNumber();
+    return (runtime_magic > 0);
+  }
+
+  runtime_magic = LicenseGetCachedMagicNumber();
+  if(runtime_magic <= 0)
+  {
+    Print("[EA] Missing backend instance-scoped magic_number after license verification.");
+    EALifecycleRequestRemoval(LicenseServiceBuildRemovalMessage(""));
+    return false;
+  }
+
+  long lane_magic = LicenseGetCachedLaneMagicNumber();
+  if(HasLegacyLaneMagicPositions(lane_magic, runtime_magic))
+  {
+    EALifecycleRequestRemoval("Pandora Box EA removed: legacy lane-magic positions are still open on this symbol.");
+    return false;
+  }
+
+  if(Custom_Magic > 0 && (long)Custom_Magic != runtime_magic)
+  {
+    PrintFormat("[EA] Custom_Magic=%d ignored. Using backend instance magic=%I64d.",
+                Custom_Magic,
+                runtime_magic);
+  }
+
+  return true;
+}
+
 bool ProcessPendingRemovalRequest()
 {
   if(!EALifecycleHasPendingRemoval())
@@ -77,28 +169,8 @@ int OnInit()
   }
 
   // SET THE MAGIC NUMBER
-  if(LicenseIsTestingMode())
-  {
-    string rand_number = (string)MathRand() + "0";
-    g_magic_number     = (Custom_Magic > 0 ? (long)Custom_Magic : (long)StringToInteger(rand_number) + (long)ChartWindowPosition());
-  }
-  else
-  {
-    g_magic_number = LicenseGetCachedMagicNumber();
-    if(g_magic_number <= 0)
-    {
-      Print("[EA] Missing backend magic_number after license verification.");
-      EALifecycleRequestRemoval(LicenseServiceBuildRemovalMessage(""));
-      return INIT_FAILED;
-    }
-
-    if(Custom_Magic > 0 && (long)Custom_Magic != g_magic_number)
-    {
-      PrintFormat("[EA] Custom_Magic=%d ignored. Using backend magic_number=%I64d.",
-                  Custom_Magic,
-                  g_magic_number);
-    }
-  }
+  if(!ResolveRuntimeTradeMagicNumber(g_magic_number))
+    return INIT_FAILED;
   g_position.SetExpertMagicNumber((ulong)g_magic_number);
 
   // CHART SETUP
