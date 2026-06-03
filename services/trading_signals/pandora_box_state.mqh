@@ -7,6 +7,7 @@
 const int PANDORA_MINUTES_PER_DAY = 24 * 60;
 const double PANDORA_EPSILON_EXTREME_BOX_RATIO = 5.0;
 const int PANDORA_HISTORY_DAYS = 8;
+const int PANDORA_TRADE_MARKER_MAX = 64;
 const string PANDORA_INVALID_PREVIOUS_D1_ANCHOR = "No previous D1 anchor for Pandora wrapped window";
 
 string PandoraLocalEntryStatusLabel(const PandoraLocalEntryStatuses status)
@@ -597,6 +598,8 @@ void PandoraMarkLocalClose(SignalParams &signal_params,
   if(signal_params.pandora_local_close_marker == PANDORA_LOCAL_CLOSE_BROKER &&
      signal_params.pandora_broker_execution_status == PANDORA_BROKER_EXECUTED)
     signal_params.pandora_broker_execution_status = PANDORA_BROKER_CLOSED;
+
+  PandoraUpsertTradeMarkerSnapshot(signal_params);
 }
 
 void PandoraEnsureLocalEntryActive(SignalParams &signal_params,
@@ -630,6 +633,7 @@ void PandoraEnsureLocalEntryActive(SignalParams &signal_params,
   order_state.last_action_time = now_time;
 
   PandoraEnsureLocalTargetPrices(signal_params, order_state);
+  PandoraUpsertTradeMarkerSnapshot(signal_params);
 }
 
 void PandoraMarkBrokerBlocked(SignalParams &signal_params,
@@ -650,6 +654,7 @@ void PandoraMarkBrokerBlocked(SignalParams &signal_params,
   signal_params.pandora_broker_last_error = 0;
   signal_params.pandora_broker_reject_context = context;
   signal_params.pandora_broker_reject_detail = detail;
+  PandoraUpsertTradeMarkerSnapshot(signal_params);
 }
 
 void PandoraMarkBrokerRejected(SignalParams &signal_params,
@@ -672,6 +677,7 @@ void PandoraMarkBrokerRejected(SignalParams &signal_params,
   signal_params.pandora_broker_last_error = last_error;
   signal_params.pandora_broker_reject_context = context;
   signal_params.pandora_broker_reject_detail = detail;
+  PandoraUpsertTradeMarkerSnapshot(signal_params);
 }
 
 void PandoraMarkBrokerExecuted(SignalParams &signal_params,
@@ -702,6 +708,7 @@ void PandoraMarkBrokerExecuted(SignalParams &signal_params,
   signal_params.pandora_broker_reject_detail = "";
   if(order_state.position_comment == "" && position_comment != "")
     order_state.position_comment = position_comment;
+  PandoraUpsertTradeMarkerSnapshot(signal_params);
 }
 
 bool PandoraMarkPendingBrokerBlockedInArray(SignalParams &signals[],
@@ -903,8 +910,65 @@ struct PandoraHistorySnapshot
   }
 };
 
+struct PandoraTradeMarkerSnapshot
+{
+  string   marker_id;
+  datetime day_anchor;
+  SignalTypes direction;
+  datetime entry_time;
+  datetime close_time;
+  double   entry_price;
+  double   close_price;
+  double   raw_profit;
+  PandoraCloseOutcomes          close_outcome;
+  PandoraBrokerExecutionStatuses broker_status;
+  PandoraLocalCloseMarkers      close_marker;
+  string   reject_reason;
+  bool     completed;
+
+  PandoraTradeMarkerSnapshot()
+  {
+    Reset();
+  }
+
+  PandoraTradeMarkerSnapshot(const PandoraTradeMarkerSnapshot &snapshot)
+  {
+    marker_id      = snapshot.marker_id;
+    day_anchor     = snapshot.day_anchor;
+    direction      = snapshot.direction;
+    entry_time     = snapshot.entry_time;
+    close_time     = snapshot.close_time;
+    entry_price    = snapshot.entry_price;
+    close_price    = snapshot.close_price;
+    raw_profit     = snapshot.raw_profit;
+    close_outcome  = snapshot.close_outcome;
+    broker_status  = snapshot.broker_status;
+    close_marker   = snapshot.close_marker;
+    reject_reason  = snapshot.reject_reason;
+    completed      = snapshot.completed;
+  }
+
+  void Reset()
+  {
+    marker_id      = "";
+    day_anchor     = 0;
+    direction      = NO_SIGNAL;
+    entry_time     = 0;
+    close_time     = 0;
+    entry_price    = 0.0;
+    close_price    = 0.0;
+    raw_profit     = 0.0;
+    close_outcome  = PANDORA_CLOSE_NONE;
+    broker_status  = PANDORA_BROKER_NOT_ATTEMPTED;
+    close_marker   = PANDORA_LOCAL_CLOSE_NONE;
+    reject_reason  = "";
+    completed      = false;
+  }
+};
+
 PandoraBoxRuntimeState g_pandora_box_state;
 PandoraHistorySnapshot g_pandora_history_snapshots[];
+PandoraTradeMarkerSnapshot g_pandora_trade_marker_snapshots[];
 datetime               g_pandora_history_last_day_anchor = 0;
 datetime               g_pandora_history_last_previous_day_anchor = 0;
 datetime               g_pandora_history_last_oldest_anchor = 0;
@@ -1070,6 +1134,200 @@ double PandoraResolvePointSizeSafe()
   return point_size;
 }
 
+string PandoraCompactTimeIdentifier(const datetime time_value)
+{
+  if(time_value <= 0)
+    return "";
+
+  MqlDateTime ts;
+  if(!TimeToStruct(time_value, ts))
+    return "";
+
+  return StringFormat("%04d%02d%02d_%02d%02d%02d",
+                      ts.year,
+                      ts.mon,
+                      ts.day,
+                      ts.hour,
+                      ts.min,
+                      ts.sec);
+}
+
+string PandoraDirectionToken(const SignalTypes direction)
+{
+  if(direction == BULLISH)
+    return "BULL";
+  if(direction == BEARISH)
+    return "BEAR";
+  return "NA";
+}
+
+string PandoraPriceToken(const double price)
+{
+  if(price <= 0.0)
+    return "0";
+
+  int digits = (int)SymbolInfoInteger(_Symbol, SYMBOL_DIGITS);
+  if(digits <= 0)
+    digits = 5;
+
+  string price_token = DoubleToString(price, digits);
+  StringReplace(price_token, ".", "");
+  StringReplace(price_token, ",", "");
+  StringReplace(price_token, "-", "N");
+  return price_token;
+}
+
+string PandoraBuildTradeMarkerId(const SignalParams &signal_params)
+{
+  datetime day_anchor = g_pandora_box_state.day_anchor;
+  if(day_anchor <= 0)
+    day_anchor = ResolveCurrentDayStart();
+
+  datetime entry_time = signal_params.pandora_local_entry_time;
+  if(entry_time <= 0)
+    entry_time = signal_params.entry_time;
+  if(entry_time <= 0)
+    entry_time = TimeCurrent();
+
+  double entry_price = signal_params.pandora_local_entry_price;
+  if(entry_price <= 0.0)
+    entry_price = signal_params.entry_price;
+
+  int sequence = g_pandora_box_state.total_entries + 1;
+  if(sequence <= 0)
+    sequence = ArraySize(g_pandora_trade_marker_snapshots) + 1;
+
+  return StringFormat("%s_%s_%s_%03d_%s",
+                      PandoraCompactTimeIdentifier(day_anchor),
+                      PandoraDirectionToken(signal_params.signal_type),
+                      PandoraCompactTimeIdentifier(entry_time),
+                      sequence,
+                      PandoraPriceToken(entry_price));
+}
+
+void PandoraEnsureTradeMarkerId(SignalParams &signal_params)
+{
+  if(!IsPandoraSignal(signal_params))
+    return;
+  if(signal_params.pandora_marker_id != "")
+    return;
+
+  signal_params.pandora_marker_id = PandoraBuildTradeMarkerId(signal_params);
+}
+
+int PandoraFindTradeMarkerSnapshotIndex(const string marker_id)
+{
+  if(marker_id == "")
+    return -1;
+
+  int total = ArraySize(g_pandora_trade_marker_snapshots);
+  for(int i = 0; i < total; i++)
+  {
+    if(g_pandora_trade_marker_snapshots[i].marker_id == marker_id)
+      return i;
+  }
+  return -1;
+}
+
+void PandoraTrimTradeMarkerSnapshots()
+{
+  int total = ArraySize(g_pandora_trade_marker_snapshots);
+  while(total > PANDORA_TRADE_MARKER_MAX)
+  {
+    for(int i = 1; i < total; i++)
+      g_pandora_trade_marker_snapshots[i - 1] = g_pandora_trade_marker_snapshots[i];
+    total--;
+    ArrayResize(g_pandora_trade_marker_snapshots, total);
+  }
+}
+
+string PandoraResolveMarkerRejectReason(const SignalParams &signal_params)
+{
+  if(signal_params.pandora_broker_execution_status != PANDORA_BROKER_BLOCKED &&
+     signal_params.pandora_broker_execution_status != PANDORA_BROKER_REJECTED)
+    return "";
+
+  return PandoraBrokerRejectReasonLabel(signal_params.pandora_broker_reject_context,
+                                        signal_params.pandora_broker_reject_detail,
+                                        signal_params.pandora_broker_retcode);
+}
+
+void PandoraUpsertTradeMarkerSnapshot(SignalParams &signal_params)
+{
+  if(!IsPandoraSignal(signal_params))
+    return;
+
+  PandoraEnsureTradeMarkerId(signal_params);
+
+  datetime entry_time = signal_params.pandora_local_entry_time;
+  if(entry_time <= 0)
+    entry_time = signal_params.entry_time;
+
+  double entry_price = signal_params.pandora_local_entry_price;
+  if(entry_price <= 0.0)
+    entry_price = signal_params.entry_price;
+
+  if(signal_params.pandora_marker_id == "" ||
+     entry_time <= 0 ||
+     entry_price <= 0.0)
+    return;
+
+  int marker_index = PandoraFindTradeMarkerSnapshotIndex(signal_params.pandora_marker_id);
+  if(marker_index < 0)
+  {
+    marker_index = ArraySize(g_pandora_trade_marker_snapshots);
+    ArrayResize(g_pandora_trade_marker_snapshots, marker_index + 1, PANDORA_TRADE_MARKER_MAX);
+  }
+
+  datetime day_anchor = g_pandora_box_state.day_anchor;
+  if(day_anchor <= 0)
+    day_anchor = ResolveCurrentDayStart();
+
+  PandoraTradeMarkerSnapshot snapshot;
+  snapshot.marker_id     = signal_params.pandora_marker_id;
+  snapshot.day_anchor    = day_anchor;
+  snapshot.direction     = signal_params.signal_type;
+  snapshot.entry_time    = entry_time;
+  snapshot.entry_price   = entry_price;
+  snapshot.close_time    = signal_params.pandora_local_close_time;
+  snapshot.close_price   = signal_params.pandora_local_close_price;
+  snapshot.raw_profit    = signal_params.raw_profit;
+  snapshot.close_outcome = signal_params.pandora_close_outcome;
+  snapshot.broker_status = signal_params.pandora_broker_execution_status;
+  snapshot.close_marker  = signal_params.pandora_local_close_marker;
+  snapshot.reject_reason = PandoraResolveMarkerRejectReason(signal_params);
+  snapshot.completed     = (signal_params.pandora_local_entry_status == PANDORA_LOCAL_ENTRY_COMPLETED ||
+                            signal_params.signal_state == CLOSED ||
+                            snapshot.close_time > 0 ||
+                            snapshot.close_price > 0.0);
+
+  if(snapshot.close_time <= 0 && signal_params.close_time > 0)
+    snapshot.close_time = signal_params.close_time;
+  if(snapshot.close_price <= 0.0 && signal_params.close_price > 0.0)
+    snapshot.close_price = signal_params.close_price;
+
+  g_pandora_trade_marker_snapshots[marker_index] = snapshot;
+  PandoraTrimTradeMarkerSnapshots();
+}
+
+void PandoraClearTradeMarkerSnapshots()
+{
+  ArrayResize(g_pandora_trade_marker_snapshots, 0);
+}
+
+int PandoraTradeMarkerSnapshotCount()
+{
+  return ArraySize(g_pandora_trade_marker_snapshots);
+}
+
+PandoraTradeMarkerSnapshot PandoraTradeMarkerSnapshotAt(const int index)
+{
+  PandoraTradeMarkerSnapshot snapshot;
+  if(index < 0 || index >= ArraySize(g_pandora_trade_marker_snapshots))
+    return snapshot;
+  return g_pandora_trade_marker_snapshots[index];
+}
+
 void PandoraResetDailyState()
 {
   g_pandora_box_state.box_computed            = false;
@@ -1094,6 +1352,7 @@ void PandoraResetDailyState()
   g_pandora_box_state.bearish_rearm_ready     = false;
   g_pandora_box_state.last_rearm_close_bar_time = 0;
   PandoraResetBodyEntryState();
+  PandoraClearTradeMarkerSnapshots();
 }
 
 void PandoraSyncRuntimeConfig()

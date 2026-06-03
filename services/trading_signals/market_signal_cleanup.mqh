@@ -7,6 +7,7 @@
 void CloseBullishSignal(SignalParams &signal_bullish)
 {
   signal_bullish.signal_state = CLOSED;
+  PandoraUpsertTradeMarkerSnapshot(signal_bullish);
   long chart_id = ChartID();
   RemoveGridLevels(chart_id, signal_bullish);
 }
@@ -14,6 +15,7 @@ void CloseBullishSignal(SignalParams &signal_bullish)
 void CloseBearishSignal(SignalParams &signal_bearish)
 {
   signal_bearish.signal_state = CLOSED;
+  PandoraUpsertTradeMarkerSnapshot(signal_bearish);
   long chart_id = ChartID();
   RemoveGridLevels(chart_id, signal_bearish);
 }

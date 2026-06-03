@@ -118,6 +118,7 @@ struct SignalParams
   int      pandora_broker_last_error;
   string   pandora_broker_reject_context;
   string   pandora_broker_reject_detail;
+  string   pandora_marker_id;
   datetime context_structure_snapshot_time;
 
   bool                      base_bpercent_valid;
@@ -231,6 +232,7 @@ struct SignalParams
     pandora_broker_last_error  = 0;
     pandora_broker_reject_context = "";
     pandora_broker_reject_detail = "";
+    pandora_marker_id          = "";
     context_structure_snapshot_time = 0;
     trend_filter_mode          = TREND_OFF;
     trend_bpercent_valid       = false;
@@ -318,6 +320,7 @@ struct SignalParams
     pandora_broker_last_error    = signal_params.pandora_broker_last_error;
     pandora_broker_reject_context = signal_params.pandora_broker_reject_context;
     pandora_broker_reject_detail = signal_params.pandora_broker_reject_detail;
+    pandora_marker_id            = signal_params.pandora_marker_id;
     strategy_context           = signal_params.strategy_context;
     strategy_timeframe         = signal_params.strategy_timeframe;
     strategy_context_label     = signal_params.strategy_context_label;
