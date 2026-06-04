@@ -109,9 +109,9 @@ These fields and labels are not Pandora entry rules, but they are required for s
 - Confirm the error label reads `Error: OK` during normal operation and becomes `Error: ACTIVE ...` or `Last error: ...` after a safe forced rejection test.
 - Check chart status text for `PANDORA INVALID WINDOW`, `PANDORA INVALID BOX`, `PANDORA WAIT_CLOSE`, and `PANDORA DONE`.
 
-## Manual And Tester Regression Matrix
+## Manual And Tester Regression Checklist
 
-Run these scenarios in Strategy Tester visual mode when changing Pandora lifecycle, broker sends, stop safety, or chart markers. Use "Every tick based on real ticks" when spread, stop/freeze distance, or tick-level local SL/TP timing matters.
+Run these scenarios manually in Strategy Tester visual mode or on a demo chart when changing Pandora lifecycle, broker sends, stop safety, or chart markers. Use "Every tick based on real ticks" when spread, stop/freeze distance, or tick-level local SL/TP timing matters. Do not treat this as a headless MT5 matrix test requirement.
 
 | Scenario | Inputs/setup | Expected logs/status | Expected chart label | Expected budget/statistics |
 |---|---|---|---|---|

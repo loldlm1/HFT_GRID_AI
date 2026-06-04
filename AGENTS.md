@@ -150,8 +150,14 @@ request revision before continuing.
 & "C:\Program Files\MetaTrader 5-1\MetaEditor64.exe" /compile:"C:\Program Files\MetaTrader 5-1\MQL5\Experts\HFT_Grid_AI\HFT_Grid_AI.mq5" /log:"C:\Program Files\MetaTrader 5-1\MQL5\Experts\HFT_Grid_AI\BUILD.log"
 ```
 
+- After reading `BUILD.log` and confirming the compile result, remove
+  `BUILD.log`. This EA is compiled from a portable MT5 install, and stale build
+  logs must not be reused as current validation evidence.
 - If a future local test runner exists, prefer it for script harnesses and parse
   pass/fail markers plus MetaEditor warnings/errors.
+- Do not build or require headless Strategy Tester matrix tests for MT5. Use
+  compile gates plus manual/visual Strategy Tester or demo-chart validation when
+  runtime broker behavior must be inspected.
 - For Strategy Tester validation, prefer "Every tick based on real ticks" when
   tick-by-tick behavior, order lifecycle, session windows, or grid timing matters.
 - Keep development logs compact. `query_debug.txt` may capture grid geometry,

@@ -441,7 +441,7 @@ Pandora operations, and keep them visible for the current day/session.
   - MetaEditor compile.
   - Manual day-reset/deinit cleanup check.
 
-## Sprint 7: Documentation, Regression Matrix, And Final Verification
+## Sprint 7: Documentation, Manual Checklist, And Final Verification
 
 **Goal**: Document the new Pandora-local semantics and validate the full flow
 against expected trading behavior.
@@ -449,8 +449,8 @@ against expected trading behavior.
 **Demo/Validation**:
 - Documentation explains local-vs-broker execution clearly.
 - MetaEditor compile passes.
-- Manual/tester matrix covers spread, invalid stops, broker success, and local
-  SL/TP closure.
+- Manual/tester checklist covers spread, invalid stops, broker success, and
+  local SL/TP closure. This is not a headless MT5 test matrix.
 
 ### Task 7.1: Update Pandora User Documentation
 
@@ -476,9 +476,9 @@ against expected trading behavior.
   - `docs/guides/pandora-box-strategy-inputs.md`
   - or a new focused checklist under `docs/guides/` if the existing guide would
     become too long
-- **Description**: Add a concrete validation matrix for high spread, invalid
-  stops, invalid volume/no money, broker success, local-only SL, local-only TP,
-  and broker stop tightening.
+- **Description**: Add a concrete manual validation checklist for high spread,
+  invalid stops, invalid volume/no money, broker success, local-only SL,
+  local-only TP, and broker stop tightening.
 - **Dependencies**: Task 7.1.
 - **Acceptance Criteria**:
   - Each scenario lists inputs/setup, expected logs/status, expected chart label,
@@ -504,10 +504,114 @@ against expected trading behavior.
   - `git diff --check`.
   - Manual diff review.
 
+## Sprint 8: Broker Send Failure Diagnostics
+
+**Goal**: Make failed broker open attempts explainable without changing Pandora
+entry decisions, broker retry behavior, local deterministic lifecycle, or
+statistics.
+
+**Demo/Validation**:
+- A failed broker open records a concise panel label plus a richer file/journal
+  diagnostic with retcode, runtime error, broker comment, CTrade description,
+  request snapshot, symbol constraints, and account/market context.
+- `TRADE_RETCODE_ERROR` + `ERR_TRADE_SEND_FAILED` is classified as a generic
+  broker/terminal send failure instead of an ambiguous local strategy error.
+- MetaEditor compile passes, `BUILD.log` is inspected, and `BUILD.log` is removed
+  after verification.
+- No headless Strategy Tester matrix tests are added or required.
+
+### Task 8.1: Add Broker Failure Diagnostic Snapshot
+
+- **Location**:
+  - `microservices/trading_signals/grid_order_lifecycle.mqh`
+  - `microservices/trading_signals/grid_order_logging.mqh`
+  - supporting helpers only if an existing local boundary clearly fits
+- **Description**: On failed `g_position.Buy()` / `g_position.Sell()`, log a
+  compact diagnostic snapshot that includes direction, symbol, volume, requested
+  SL/TP, local entry reference, bid/ask/spread, magic, comment, retcode,
+  `GetLastError()`, `ResultRetcodeDescription()`, and `ResultComment()`.
+- **Dependencies**: Sprints 1-7.
+- **Acceptance Criteria**:
+  - No change to whether a Pandora local entry is opened, blocked, rejected,
+    retried, or closed.
+  - Full diagnostic output is gated through existing logging/file-log paths so
+    the hot path is not noisy by default.
+  - Logs do not include account numbers, license keys, backend tokens, or
+    proprietary optimization sets.
+- **Validation**:
+  - MetaEditor compile.
+  - Manual diff review of open-order failure paths.
+
+### Task 8.2: Add Pre-Send OrderCheck Diagnostics
+
+- **Location**:
+  - `microservices/trading_signals/grid_order_lifecycle.mqh`
+  - existing broker/order helper modules if a reusable request builder is needed
+- **Description**: Before Pandora broker sends, run an `OrderCheck()` diagnostic
+  for the same market order parameters when feasible and record `check.retcode`,
+  `check.comment`, `check.margin`, `check.margin_free`, and
+  `check.margin_level`. Treat the result as diagnostics only; do not block a send
+  unless the existing guardrails already block it.
+- **Dependencies**: Task 8.1.
+- **Acceptance Criteria**:
+  - `OrderCheck()` diagnostics help distinguish no-money, invalid parameter,
+    invalid stops, trade-disabled, and generic broker-processing errors.
+  - A failed or inconclusive `OrderCheck()` does not alter local deterministic
+    Pandora state by itself.
+  - Request fields match the broker send path closely enough for useful
+    diagnosis: action, symbol, type, volume, price side, SL, TP, magic, comment,
+    filling, and time type.
+- **Validation**:
+  - MetaEditor compile.
+  - Manual log review in Strategy Tester or demo chart when a broker rejection
+    can be reproduced.
+
+### Task 8.3: Improve Concise Error Classification
+
+- **Location**:
+  - `services/trading_signals/pandora_box_state.mqh`
+  - `services/trading_signals/market_status_controller.mqh` only if needed for
+    panel summary formatting
+- **Description**: Add a clearer short reason for generic send failures such as
+  `TRADE_RETCODE_ERROR` plus `ERR_TRADE_SEND_FAILED`, for example
+  `ERR_Send_Failed` or `ERR_Broker_Common`, while keeping the raw `ret` and
+  `err` values visible.
+- **Dependencies**: Task 8.1.
+- **Acceptance Criteria**:
+  - The panel stays compact and does not overflow the existing status summary.
+  - Raw codes remain available for exact broker/support escalation.
+  - Existing specific mappings (`ERR_Stops`, `ERR_Volumen`, `ERR_Margen`,
+    `ERR_Spread`, etc.) are preserved.
+- **Validation**:
+  - MetaEditor compile.
+  - Review sample formatted strings against the current panel width.
+
+### Task 8.4: Validation And Build Log Hygiene
+
+- **Location**:
+  - Entire project
+  - `AGENTS.md`
+- **Description**: Compile with the project MetaEditor command, inspect
+  `BUILD.log`, report errors/warnings, then remove `BUILD.log` after verification.
+  Do not add automated/headless MT5 Strategy Tester matrix tests.
+- **Dependencies**: Tasks 8.1-8.3.
+- **Acceptance Criteria**:
+  - Compile has no errors.
+  - Warnings are reviewed and either resolved or explicitly accepted.
+  - `BUILD.log` is absent after the verified compile result is recorded.
+  - Diff is scoped to broker-send diagnostics and documentation/instructions.
+- **Validation**:
+  - MetaEditor compile command from this plan.
+  - Read `BUILD.log`, then delete `BUILD.log`.
+  - `git diff --check`.
+  - Manual diff review.
+
 ## Testing Strategy
 
 - **Compile gate**: Run MetaEditor compile after every implementation Sprint.
-- **Focused tester scenarios**:
+- **Focused manual tester/demo scenarios**:
+  - Do not build or require headless MT5 matrix tests; MT5 Strategy Tester
+    validation is manual/visual unless a future local runner is explicitly added.
   - `Pandora_Box_Max_Entries = 1`, high spread at breakout, normal spread later:
     one local entry only, no later broker retry.
   - Broker invalid stops: local entry remains active, broker rejection recorded,
@@ -556,7 +660,11 @@ against expected trading behavior.
   only server-side protection while no ticks are processed.
 - Strategy Tester may not reproduce all broker retcodes. Mitigation: include
   controllable guardrail scenarios plus manual demo-account validation for
-  broker-specific `INVALID_STOPS` behavior.
+  broker-specific behavior; do not model these as required headless matrix tests.
+- Generic `TRADE_RETCODE_ERROR` / `ERR_TRADE_SEND_FAILED` results can be caused
+  by broker-side rules that MT5 does not expose precisely. Mitigation: capture
+  request, symbol, account, CTrade result, and OrderCheck diagnostics before
+  escalating to broker support.
 
 ## Rollback Plan
 
@@ -568,4 +676,3 @@ against expected trading behavior.
 - If local deterministic behavior must be disabled urgently, restore the old
   `OnTick()` spread return ordering and Pandora broker execution path, then
   recompile and validate `Pandora_Box_Max_Entries` legacy behavior.
-
