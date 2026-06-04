@@ -231,6 +231,88 @@ bool GridRefreshPandoraStopsAfterFill(SignalParams &signal_params,
                                     false);
 }
 
+ENUM_ORDER_TYPE GridBrokerOrderTypeForSignal(const SignalTypes direction)
+{
+  if(direction == BULLISH)
+    return ORDER_TYPE_BUY;
+  return ORDER_TYPE_SELL;
+}
+
+ENUM_ORDER_TYPE_FILLING GridResolveDiagnosticFillingType()
+{
+  ENUM_SYMBOL_TRADE_EXECUTION execution_mode =
+    (ENUM_SYMBOL_TRADE_EXECUTION)SymbolInfoInteger(_Symbol, SYMBOL_TRADE_EXEMODE);
+  long filling_mode = SymbolInfoInteger(_Symbol, SYMBOL_FILLING_MODE);
+
+  if(execution_mode == SYMBOL_TRADE_EXECUTION_MARKET)
+  {
+    if((filling_mode & SYMBOL_FILLING_FOK) == SYMBOL_FILLING_FOK)
+      return ORDER_FILLING_FOK;
+    if((filling_mode & SYMBOL_FILLING_IOC) == SYMBOL_FILLING_IOC)
+      return ORDER_FILLING_IOC;
+  }
+
+  return ORDER_FILLING_FOK;
+}
+
+bool GridBuildBrokerDealCheckRequest(const SignalTypes direction,
+                                     const double normalized_volume,
+                                     const double sl_price,
+                                     const double tp_price,
+                                     const string comment,
+                                     MqlTradeRequest &request)
+{
+  ZeroMemory(request);
+
+  if(normalized_volume <= 0.0)
+    return false;
+
+  request.action       = TRADE_ACTION_DEAL;
+  request.symbol       = _Symbol;
+  request.magic        = (ulong)g_magic_number;
+  request.volume       = normalized_volume;
+  request.type         = GridBrokerOrderTypeForSignal(direction);
+  request.price        = GridCurrentPriceForDirection(direction, true);
+  request.sl           = sl_price;
+  request.tp           = tp_price;
+  request.deviation    = 10;
+  request.type_filling = GridResolveDiagnosticFillingType();
+  request.type_time    = ORDER_TIME_GTC;
+  request.comment      = comment;
+
+  return (request.price > 0.0);
+}
+
+void GridRunBrokerDealOrderCheck(const SignalTypes direction,
+                                 const double normalized_volume,
+                                 const double sl_price,
+                                 const double tp_price,
+                                 const string comment,
+                                 MqlTradeCheckResult &check_result,
+                                 bool &check_available,
+                                 bool &check_sent,
+                                 int &check_error)
+{
+  ZeroMemory(check_result);
+  check_available = false;
+  check_sent = false;
+  check_error = 0;
+
+  MqlTradeRequest check_request;
+  if(!GridBuildBrokerDealCheckRequest(direction,
+                                      normalized_volume,
+                                      sl_price,
+                                      tp_price,
+                                      comment,
+                                      check_request))
+    return;
+
+  check_available = true;
+  ResetLastError();
+  check_sent = OrderCheck(check_request, check_result);
+  check_error = GetLastError();
+}
+
 bool GridExecuteLevelTrade(SignalParams &signal_params,
                            GridOrderState &order_state,
                            const double point_size,
@@ -316,6 +398,24 @@ bool GridExecuteLevelTrade(SignalParams &signal_params,
     }
   }
 
+  MqlTradeCheckResult broker_check_result;
+  ZeroMemory(broker_check_result);
+  bool broker_check_available = false;
+  bool broker_check_sent = false;
+  int broker_check_error = 0;
+  if(pandora_signal)
+  {
+    GridRunBrokerDealOrderCheck(direction,
+                                normalized_volume,
+                                sl_price,
+                                tp_price,
+                                comment,
+                                broker_check_result,
+                                broker_check_available,
+                                broker_check_sent,
+                                broker_check_error);
+  }
+
   if(direction == BULLISH)
   {
     ResetLastError();
@@ -331,6 +431,22 @@ bool GridExecuteLevelTrade(SignalParams &signal_params,
   int last_error = GetLastError();
   if(!sent)
   {
+    MqlTradeRequest broker_request;
+    ZeroMemory(broker_request);
+    g_position.Request(broker_request);
+    GridLogBrokerSendDiagnostic("ORDER_SEND_DIAGNOSTIC",
+                                signal_params,
+                                order_state,
+                                broker_request,
+                                broker_check_result,
+                                broker_check_available,
+                                broker_check_sent,
+                                broker_check_error,
+                                retcode,
+                                last_error,
+                                g_position.ResultRetcodeDescription(),
+                                g_position.ResultComment());
+
     if(Debug_Stop_On_Negative_Equity)
     {
       if(retcode == TRADE_RETCODE_NO_MONEY)
@@ -370,6 +486,21 @@ bool GridExecuteLevelTrade(SignalParams &signal_params,
     string reject_detail = PandoraBrokerRejectSummary(context, "", retcode, last_error);
     if(retcode == TRADE_RETCODE_DONE_PARTIAL)
       reject_detail = reject_detail + StringFormat(" volume=%.2f", g_position.ResultVolume());
+    MqlTradeRequest broker_request;
+    ZeroMemory(broker_request);
+    g_position.Request(broker_request);
+    GridLogBrokerSendDiagnostic(context + "_DIAGNOSTIC",
+                                signal_params,
+                                order_state,
+                                broker_request,
+                                broker_check_result,
+                                broker_check_available,
+                                broker_check_sent,
+                                broker_check_error,
+                                retcode,
+                                last_error,
+                                g_position.ResultRetcodeDescription(),
+                                g_position.ResultComment());
     MarketStatusRegisterBrokerFailure(context, retcode, last_error, false);
     PandoraMarkBrokerRejected(signal_params,
                               order_state,

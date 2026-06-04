@@ -88,7 +88,7 @@ bool PandoraTextContains(const string text,
 
 string PandoraRetcodeShortLabel(const ulong retcode)
 {
-  switch(retcode)
+  switch((int)retcode)
   {
     case TRADE_RETCODE_INVALID_STOPS:
       return "ERR_Stops";
@@ -116,9 +116,10 @@ string PandoraRetcodeShortLabel(const ulong retcode)
       return "ERR_Fill";
     case TRADE_RETCODE_CONNECTION:
       return "ERR_Conexion";
+    case TRADE_RETCODE_ERROR:
+      return "ERR_Send_Failed";
     case TRADE_RETCODE_REJECT:
     case TRADE_RETCODE_CANCEL:
-    case TRADE_RETCODE_ERROR:
     case TRADE_RETCODE_INVALID:
     default:
       break;
