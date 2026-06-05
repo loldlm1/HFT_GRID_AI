@@ -39,10 +39,6 @@ Use this as the source of truth when configuring the EA in the Inputs panel.
 | `Pandora_Box_Use_Session_Filter` | `true` | Applies session manager gating to Pandora attempts. | Keep `true` if session windows are part of risk policy. |
 | `Pandora_Box_Enable_Visualization` | `true` | Draws the Pandora visual layer: current box/breakout guides plus up to 8 day-zones (current day + previous 7 trading days). Invalid historical days keep the same DimGray fill and use a simple label. | Keep enabled for setup and troubleshooting. |
 | `Pandora_Box_Set_Broker_SLTP` | `true` | Adds broker-side SL/TP protection when opening/modifying positions. The exact Pandora SL/TP is still enforced locally; broker stops can be wider temporarily and tightened later. | Keep `true` for extra server-side protection, but validate local SL/TP behavior in tester. |
-| `Pandora_Box_Broker_Retry_Attempts` | `3` | Total broker open send attempts for one Pandora local entry, including the first send. `1` disables retry. | Start with `3`; increase only after demo validation with broker retcodes. |
-| `Pandora_Box_Broker_Retry_Min_Seconds` | `1` | Minimum seconds between retry attempts. This prevents same-second send bursts. | Keep at `1` or higher unless the broker explicitly tolerates faster retries. |
-| `Pandora_Box_Broker_Retry_Window_Seconds` | `5` | Maximum time window from the local entry for broker open retry eligibility. `0` disables the time window. | Keep short so delayed broker fills stay close to the local model. |
-| `Pandora_Box_Broker_Retry_Max_Drift_Points` | `50.0` | Maximum allowed absolute price drift from the local entry before broker retries are abandoned. `0` disables the drift guard. | Keep bounded by symbol liquidity and expected slippage; lower values protect statistics alignment. |
 | `Pandora_Box_Entry_Type` | `ENTRY_WICK_TYPE` | Entry trigger style. `ENTRY_WICK_TYPE` uses live tick/current-price breakout; `ENTRY_BODY_TYPE` requires a closed candle outside the offset breakout level. | Keep `WICK` for legacy behavior; use `BODY` to reduce wick-only breaks. |
 | `Pandora_Box_Entry_Body_Timeframe` | `PERIOD_M5` | Standard MT5 timeframe used by `ENTRY_BODY_TYPE` for closed-candle breakout and rearm checks. `PERIOD_CURRENT` resolves through the Pandora/strategy timeframe fallback. | Start with `PERIOD_M5` for deterministic body confirmation. |
 | `Enable_Chart_Levels` | `true` | Enables the fixed chart frontend. When `Enable_Chart_Summary` is also active, live charts use the compact top-left panel instead of live `Comment()` text, while Strategy Tester keeps the text fallback. Pandora trade markers draw local and broker-executed entries. | Keep enabled while monitoring manually. |
@@ -71,6 +67,17 @@ These fields and labels are not Pandora entry rules, but they are required for s
 | Pandora broker stop status | `Stops broker amplios` means broker protection is wider than the exact local target; `Stops broker objetivo` means broker-side protection matches the local target. `Stops broker fallidos` is non-fatal for the local lifecycle. | With `Pandora_Box_Set_Broker_SLTP = true`, confirm local SL/TP closes remain exact even while broker stops are pending/wide/failed. |
 | MT5 Algo Trading status | When MT5 Algo Trading, EA trading, or account expert trading is disabled, the EA keeps rates/UI fresh but skips signal/order/close/modify/force-close actions. Broker-side SL/TP remains the only active protection while disabled. | Toggle Algo Trading off/on on a demo chart and confirm no repeated trade errors occur while disabled. |
 | Error label | The chart panel and Strategy Tester comment show `Error: OK`, `Error: ACTIVE ...`, or `Last error: ...` for order-send failures, guardrail blocks, broker disabled/close-only, margin/no-money, SL/TP failures, close failures, and platform-disabled state. | Treat the label as informational only; it does not change trading decisions. |
+
+## Developer-Only Broker Retry Defaults
+
+These values are internal globals in `services/trading_management/ea_inputs.mqh`, not MT5 `input` fields. Change them in code only when adjusting broker execution policy:
+
+| Field | Default | What it does |
+|---|---:|---|
+| `Pandora_Box_Broker_Retry_Attempts` | `3` | Total broker open send attempts for one Pandora local entry, including the first send. `1` disables retry. |
+| `Pandora_Box_Broker_Retry_Min_Seconds` | `1` | Minimum seconds between retry attempts. |
+| `Pandora_Box_Broker_Retry_Window_Seconds` | `5` | Maximum time window from local entry for broker open retry eligibility. `0` disables the time window. |
+| `Pandora_Box_Broker_Retry_Max_Drift_Symbol_Factor` | `1.0` | Multiplier over the current symbol-derived drift base. The base is the max of current spread points, broker stop/freeze minimum points, and tick-size points. `0` disables the drift guard. |
 
 ## Quick Setup Profiles
 
@@ -109,7 +116,7 @@ These fields and labels are not Pandora entry rules, but they are required for s
 - Confirm `Pandora_Box_Max_Entries` (opened budget) and `Pandora_Box_Entry_Count_Mode` (analytics counter) are not conflated.
 - Confirm session filters are configured when `Pandora_Box_Use_Session_Filter = true`.
 - Decide whether broker-side protection is required (`Pandora_Box_Set_Broker_SLTP = true`).
-- Confirm broker retry settings match the broker/server behavior. Use `Pandora_Box_Broker_Retry_Attempts = 1` when you need strict one-shot broker execution.
+- Confirm developer broker retry defaults match the broker/server behavior. Set `Pandora_Box_Broker_Retry_Attempts = 1` in code when you need strict one-shot broker execution.
 - For production multi-chart use, confirm every attached chart shows a distinct backend-approved magic and that each chart ignores positions from other symbols/charts.
 - Toggle MT5 Algo Trading off and confirm the panel/tester comment shows disabled/platform status while broker actions stop.
 - Confirm new positions use comments like `pandora_box_pos_1`.

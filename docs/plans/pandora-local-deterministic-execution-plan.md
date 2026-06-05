@@ -622,15 +622,16 @@ without changing the deterministic local entry lifecycle or local statistics.
 - Local entry time/price, local SL/TP, and `Pandora_Box_Max_Entries` semantics
   remain unchanged.
 
-### Task 9.1: Add Retry Inputs And State
+### Task 9.1: Add Retry Developer Defaults And State
 
 - **Location**:
   - `services/trading_management/ea_inputs.mqh`
   - `microservices/core/enums.mqh`
   - `services/trading_signals/signal_params_struct.mqh`
-- **Description**: Add Pandora-only inputs for total broker open attempts,
-  minimum seconds between attempts, maximum retry window, and maximum entry
-  drift. Add retry-pending state and per-signal counters/timestamps.
+- **Description**: Add Pandora-only developer defaults for total broker open
+  attempts, minimum seconds between attempts, maximum retry window, and current
+  symbol-derived maximum entry drift. Add retry-pending state and per-signal
+  counters/timestamps.
 - **Dependencies**: Sprint 8.
 - **Acceptance Criteria**:
   - Defaults are conservative: 3 total attempts, 1 second minimum spacing,
@@ -679,16 +680,18 @@ without changing the deterministic local entry lifecycle or local statistics.
   - MetaEditor compile.
   - Manual Strategy Tester/demo review for transient failure when practical.
 
-### Task 9.4: Document Retry Inputs And Hygiene
+### Task 9.4: Document Retry Developer Defaults And Hygiene
 
 - **Location**:
   - `docs/guides/pandora-box-strategy-inputs.md`
   - optional language guides if touched by the public input table
-- **Description**: Document the retry inputs, default policy, and the fact that
-  retries affect broker execution only, not local statistics. Keep ASCII text.
+- **Description**: Document the retry developer defaults, default policy, and
+  the fact that retries affect broker execution only, not local statistics. Keep
+  ASCII text.
 - **Dependencies**: Tasks 9.1-9.3.
 - **Acceptance Criteria**:
-  - Public input guide describes total attempts, spacing, window, and drift.
+  - Public guide describes internal total attempts, spacing, window, and
+    symbol-derived drift defaults without exposing them as MT5 inputs.
   - Regression checklist includes controlled retry expectations.
   - `BUILD.log` is deleted after verified compilation.
 - **Validation**:

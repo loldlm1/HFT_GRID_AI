@@ -223,9 +223,32 @@ int PandoraBrokerRetryWindowSeconds()
   return MathMax(Pandora_Box_Broker_Retry_Window_Seconds, 0);
 }
 
+double PandoraBrokerRetrySymbolBaseDriftPoints()
+{
+  double point_size = SymbolInfoDouble(_Symbol, SYMBOL_POINT);
+  double tick_size = SymbolInfoDouble(_Symbol, SYMBOL_TRADE_TICK_SIZE);
+  double tick_points = 1.0;
+  if(point_size > 0.0 && tick_size > 0.0)
+    tick_points = MathMax(1.0, tick_size / point_size);
+
+  double broker_min_points = MinBrokerDistancePoints(g_symbol_constraints);
+  if(broker_min_points <= 0.0)
+    broker_min_points = EnforceBrokerDistance(g_symbol_constraints, 0.0);
+
+  double spread_points = MathMax(g_points_spread, 0.0);
+  double base_points = MathMax(tick_points,
+                               MathMax(broker_min_points, spread_points));
+  if(base_points <= 0.0)
+    base_points = 10.0;
+  return base_points;
+}
+
 double PandoraBrokerRetryMaxDriftPoints()
 {
-  return MathMax(Pandora_Box_Broker_Retry_Max_Drift_Points, 0.0);
+  double factor = MathMax(Pandora_Box_Broker_Retry_Max_Drift_Symbol_Factor, 0.0);
+  if(factor <= 0.0)
+    return 0.0;
+  return PandoraBrokerRetrySymbolBaseDriftPoints() * factor;
 }
 
 bool PandoraBrokerRetryEnabled()
