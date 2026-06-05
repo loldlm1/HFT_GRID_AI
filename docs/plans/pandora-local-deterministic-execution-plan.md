@@ -29,7 +29,9 @@ grid strategy semantics are out of scope.
   it, even when no broker position exists.
 - Spread blocks broker sending, not local entry observation or budget
   consumption.
-- Broker rejections must not trigger automatic retries for the same local entry.
+- Broker rejections may trigger a bounded Pandora-only broker retry budget when
+  the failure is classified as transient. Retries are execution-only: the local
+  entry time/price and local SL/TP remain the statistical source of truth.
 - `Pandora_Box_Max_Entries = 1` means one deterministic local entry per
   Pandora day/window, even if the broker never opens a real position.
 - `Pandora_Box_Set_Broker_SLTP = true` means "attempt broker protection" only;
@@ -606,6 +608,94 @@ statistics.
   - `git diff --check`.
   - Manual diff review.
 
+## Sprint 9: Controlled Pandora Broker Retry Budget
+
+**Goal**: Add a bounded broker execution retry layer for Pandora local entries
+without changing the deterministic local entry lifecycle or local statistics.
+
+**Demo/Validation**:
+- MetaEditor compile passes with `0 errors, 0 warnings`.
+- `BUILD.log` is removed after verification.
+- A transient broker open failure can move to retry-pending state and later
+  execute within the configured budget/window.
+- Permanent failures still become final local-only broker rejections.
+- Local entry time/price, local SL/TP, and `Pandora_Box_Max_Entries` semantics
+  remain unchanged.
+
+### Task 9.1: Add Retry Inputs And State
+
+- **Location**:
+  - `services/trading_management/ea_inputs.mqh`
+  - `microservices/core/enums.mqh`
+  - `services/trading_signals/signal_params_struct.mqh`
+- **Description**: Add Pandora-only inputs for total broker open attempts,
+  minimum seconds between attempts, maximum retry window, and maximum entry
+  drift. Add retry-pending state and per-signal counters/timestamps.
+- **Dependencies**: Sprint 8.
+- **Acceptance Criteria**:
+  - Defaults are conservative: 3 total attempts, 1 second minimum spacing,
+    5 second window, and bounded price drift.
+  - Constructors initialize all new state and copy constructors preserve it.
+  - Non-Pandora state and inputs are unaffected.
+- **Validation**:
+  - MetaEditor compile.
+  - Manual constructor/copy diff review.
+
+### Task 9.2: Classify Retryable And Final Broker Failures
+
+- **Location**:
+  - `services/trading_signals/pandora_box_state.mqh`
+  - `microservices/trading_signals/grid_order_lifecycle.mqh`
+- **Description**: Treat only transient failures as retryable: common send
+  error, price changed/off, requote, timeout, connection, too many requests, and
+  spread guard blocks inside the retry window. Keep invalid volume, no money,
+  disabled/closed market, invalid fill, and persistent invalid stops final.
+- **Dependencies**: Task 9.1.
+- **Acceptance Criteria**:
+  - A retryable failure marks broker status as retry-pending, not final rejected.
+  - Final failures still produce local-only rejection labels and do not retry.
+  - Retry decisions keep raw retcode/error diagnostics visible.
+- **Validation**:
+  - MetaEditor compile.
+  - Manual diff review of failure branches.
+
+### Task 9.3: Execute Eligible Retries From Active Local Lifecycle
+
+- **Location**:
+  - `services/trading_signals/grid_order_controller.mqh`
+  - `microservices/trading_signals/grid_order_lifecycle.mqh`
+- **Description**: While a Pandora local entry remains active and has no broker
+  ticket, retry broker open only when the retry budget, spacing, window, spread,
+  drift, and no-duplicate-position checks pass. A successful retry attaches the
+  broker ticket without moving local entry statistics.
+- **Dependencies**: Task 9.2.
+- **Acceptance Criteria**:
+  - Retries do not happen after local SL/TP closes.
+  - Retries do not happen when a matching broker position already exists.
+  - Retry success marks broker executed while preserving local entry price/time.
+  - Retry exhaustion or drift/window expiry finalizes the broker side as
+    local-only rejected.
+- **Validation**:
+  - MetaEditor compile.
+  - Manual Strategy Tester/demo review for transient failure when practical.
+
+### Task 9.4: Document Retry Inputs And Hygiene
+
+- **Location**:
+  - `docs/guides/pandora-box-strategy-inputs.md`
+  - optional language guides if touched by the public input table
+- **Description**: Document the retry inputs, default policy, and the fact that
+  retries affect broker execution only, not local statistics. Keep ASCII text.
+- **Dependencies**: Tasks 9.1-9.3.
+- **Acceptance Criteria**:
+  - Public input guide describes total attempts, spacing, window, and drift.
+  - Regression checklist includes controlled retry expectations.
+  - `BUILD.log` is deleted after verified compilation.
+- **Validation**:
+  - MetaEditor compile.
+  - Read and delete `BUILD.log`.
+  - `git diff --check`.
+
 ## Testing Strategy
 
 - **Compile gate**: Run MetaEditor compile after every implementation Sprint.
@@ -613,7 +703,8 @@ statistics.
   - Do not build or require headless MT5 matrix tests; MT5 Strategy Tester
     validation is manual/visual unless a future local runner is explicitly added.
   - `Pandora_Box_Max_Entries = 1`, high spread at breakout, normal spread later:
-    one local entry only, no later broker retry.
+    one local entry only; broker execution may retry only inside the configured
+    Pandora retry budget/window.
   - Broker invalid stops: local entry remains active, broker rejection recorded,
     no retry of initial open, local SL/TP closes.
   - Broker success with widened protection: local close triggers at exact local
@@ -661,6 +752,10 @@ statistics.
 - Strategy Tester may not reproduce all broker retcodes. Mitigation: include
   controllable guardrail scenarios plus manual demo-account validation for
   broker-specific behavior; do not model these as required headless matrix tests.
+- Broker retry can improve real execution capture but can also create fill-price
+  drift versus the deterministic local entry. Mitigation: keep retry attempts,
+  spacing, time window, and max drift bounded and configurable; never move the
+  local entry anchor after a delayed broker fill.
 - Generic `TRADE_RETCODE_ERROR` / `ERR_TRADE_SEND_FAILED` results can be caused
   by broker-side rules that MT5 does not expose precisely. Mitigation: capture
   request, symbol, account, CTrade result, and OrderCheck diagnostics before

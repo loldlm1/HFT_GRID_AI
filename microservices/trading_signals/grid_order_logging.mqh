@@ -69,7 +69,7 @@ void GridLogBrokerSendDiagnostic(const string label,
   string direction = (signal_params.signal_type == BULLISH) ? "BULLISH" : "BEARISH";
   string check_status = check_available ? (check_sent ? "sent" : "failed") : "none";
 
-  string message = StringFormat("dir=%s|symbol=%s|level=%d|status=%s|vol=%.2f|req_price=%.5f|sl=%.5f|tp=%.5f|entry_ref=%.5f|entry=%.5f|bid=%.5f|ask=%.5f|spread=%.1f|max_spread=%.1f|magic=%I64u|comment=%s|ret=%I64u|err=%d|ret_desc=%s|result_comment=%s|check=%s|check_ret=%u|check_err=%d|check_margin=%.2f|check_free=%.2f|check_level=%.2f|check_comment=%s|trade_mode=%d|exec_mode=%d|filling=%d|order_mode=%d|vol_min=%.2f|vol_max=%.2f|vol_step=%.2f|freeze=%.1f|stops=%.1f",
+  string message = StringFormat("dir=%s|symbol=%s|level=%d|status=%s|vol=%.2f|req_price=%.5f|sl=%.5f|tp=%.5f|entry_ref=%.5f|entry=%.5f|bid=%.5f|ask=%.5f|spread=%.1f|max_spread=%.1f|magic=%I64u|comment=%s|attempt=%d|retry_next=%s|retry_deadline=%s|ret=%I64u|err=%d|ret_desc=%s|result_comment=%s|check=%s|check_ret=%u|check_err=%d|check_margin=%.2f|check_free=%.2f|check_level=%.2f|check_comment=%s|trade_mode=%d|exec_mode=%d|filling=%d|order_mode=%d|vol_min=%.2f|vol_max=%.2f|vol_step=%.2f|freeze=%.1f|stops=%.1f",
                                 direction,
                                 request.symbol,
                                 order_state.level_index,
@@ -86,6 +86,9 @@ void GridLogBrokerSendDiagnostic(const string label,
                                 Max_Spread,
                                 request.magic,
                                 request.comment,
+                                signal_params.pandora_broker_attempt_count,
+                                TimeToString(signal_params.pandora_broker_retry_next_time, TIME_SECONDS),
+                                TimeToString(signal_params.pandora_broker_retry_deadline, TIME_SECONDS),
                                 retcode,
                                 last_error,
                                 result_description,

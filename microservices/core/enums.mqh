@@ -265,7 +265,8 @@ enum PandoraBrokerExecutionStatuses
   PANDORA_BROKER_BLOCKED       = 1,
   PANDORA_BROKER_REJECTED      = 2,
   PANDORA_BROKER_EXECUTED      = 3,
-  PANDORA_BROKER_CLOSED        = 4
+  PANDORA_BROKER_CLOSED        = 4,
+  PANDORA_BROKER_RETRY_PENDING = 5
 };
 
 enum PandoraBrokerStopSyncStatuses

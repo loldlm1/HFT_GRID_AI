@@ -32,6 +32,8 @@ string PandoraBrokerExecutionStatusLabel(const PandoraBrokerExecutionStatuses st
       return "Broker bloqueado";
     case PANDORA_BROKER_REJECTED:
       return "Broker rechazado";
+    case PANDORA_BROKER_RETRY_PENDING:
+      return "Broker retry pendiente";
     case PANDORA_BROKER_EXECUTED:
       return "Posicion ejecutada";
     case PANDORA_BROKER_CLOSED:
@@ -184,6 +186,7 @@ string PandoraPositionExecutionLabel(const PandoraBrokerExecutionStatuses broker
     return "Posicion ejecutada";
 
   if(broker_status == PANDORA_BROKER_BLOCKED ||
+     broker_status == PANDORA_BROKER_RETRY_PENDING ||
      broker_status == PANDORA_BROKER_REJECTED)
   {
     string reason = rejection_reason;
@@ -199,9 +202,193 @@ bool PandoraBrokerAttemptAlreadyFinished(const SignalParams &signal_params)
 {
   if(!IsPandoraSignal(signal_params))
     return false;
-  if(signal_params.pandora_broker_send_attempted)
+  return (signal_params.pandora_broker_execution_status == PANDORA_BROKER_BLOCKED ||
+          signal_params.pandora_broker_execution_status == PANDORA_BROKER_REJECTED ||
+          signal_params.pandora_broker_execution_status == PANDORA_BROKER_EXECUTED ||
+          signal_params.pandora_broker_execution_status == PANDORA_BROKER_CLOSED);
+}
+
+int PandoraBrokerRetryMaxAttempts()
+{
+  return MathMax(Pandora_Box_Broker_Retry_Attempts, 1);
+}
+
+int PandoraBrokerRetryMinSeconds()
+{
+  return MathMax(Pandora_Box_Broker_Retry_Min_Seconds, 0);
+}
+
+int PandoraBrokerRetryWindowSeconds()
+{
+  return MathMax(Pandora_Box_Broker_Retry_Window_Seconds, 0);
+}
+
+double PandoraBrokerRetryMaxDriftPoints()
+{
+  return MathMax(Pandora_Box_Broker_Retry_Max_Drift_Points, 0.0);
+}
+
+bool PandoraBrokerRetryEnabled()
+{
+  return (PandoraBrokerRetryMaxAttempts() > 1);
+}
+
+bool PandoraBrokerRetryPending(const SignalParams &signal_params)
+{
+  return (IsPandoraSignal(signal_params) &&
+          signal_params.pandora_broker_execution_status == PANDORA_BROKER_RETRY_PENDING);
+}
+
+bool PandoraBrokerRetryBudgetAvailable(const SignalParams &signal_params)
+{
+  if(!PandoraBrokerRetryEnabled())
+    return false;
+  return (signal_params.pandora_broker_attempt_count < PandoraBrokerRetryMaxAttempts());
+}
+
+bool PandoraBrokerGuardrailRetryable(const string detail)
+{
+  return (PandoraTextContains(detail, "spread=") ||
+          PandoraTextContains(detail, "spread>") ||
+          PandoraTextContains(detail, "ERR_Spread"));
+}
+
+bool PandoraBrokerRetcodeRetryable(const ulong retcode,
+                                   const int last_error)
+{
+  switch((int)retcode)
+  {
+    case TRADE_RETCODE_ERROR:
+    case TRADE_RETCODE_PRICE_CHANGED:
+    case TRADE_RETCODE_PRICE_OFF:
+    case TRADE_RETCODE_REQUOTE:
+    case TRADE_RETCODE_TIMEOUT:
+    case TRADE_RETCODE_CONNECTION:
+    case TRADE_RETCODE_TOO_MANY_REQUESTS:
+      return true;
+    default:
+      break;
+  }
+
+  if(retcode == 0 && last_error == ERR_TRADE_SEND_FAILED)
     return true;
-  return (signal_params.pandora_broker_execution_status != PANDORA_BROKER_NOT_ATTEMPTED);
+  return false;
+}
+
+bool PandoraBrokerRetcodeFinal(const ulong retcode)
+{
+  switch((int)retcode)
+  {
+    case TRADE_RETCODE_INVALID_STOPS:
+    case TRADE_RETCODE_INVALID_VOLUME:
+    case TRADE_RETCODE_LIMIT_VOLUME:
+    case TRADE_RETCODE_NO_MONEY:
+    case TRADE_RETCODE_MARKET_CLOSED:
+    case TRADE_RETCODE_TRADE_DISABLED:
+    case TRADE_RETCODE_SERVER_DISABLES_AT:
+    case TRADE_RETCODE_CLIENT_DISABLES_AT:
+    case TRADE_RETCODE_INVALID_FILL:
+    case TRADE_RETCODE_INVALID_PRICE:
+    case TRADE_RETCODE_INVALID:
+      return true;
+    default:
+      break;
+  }
+  return false;
+}
+
+bool PandoraBrokerCheckFinalFailure(const MqlTradeCheckResult &check_result,
+                                    const bool check_available,
+                                    const bool check_sent)
+{
+  if(!check_available || !check_sent)
+    return false;
+  return PandoraBrokerRetcodeFinal(check_result.retcode);
+}
+
+bool PandoraBrokerFailureRetryable(const string context,
+                                   const string detail,
+                                   const ulong retcode,
+                                   const int last_error,
+                                   const MqlTradeCheckResult &check_result,
+                                   const bool check_available,
+                                   const bool check_sent)
+{
+  if(!PandoraBrokerRetryEnabled())
+    return false;
+  if(PandoraBrokerCheckFinalFailure(check_result, check_available, check_sent))
+    return false;
+  if(PandoraBrokerGuardrailRetryable(context) ||
+     PandoraBrokerGuardrailRetryable(detail))
+    return true;
+  if(PandoraBrokerRetcodeFinal(retcode))
+    return false;
+  return PandoraBrokerRetcodeRetryable(retcode, last_error);
+}
+
+void PandoraRecordBrokerSendAttempt(SignalParams &signal_params)
+{
+  if(!IsPandoraSignal(signal_params))
+    return;
+
+  signal_params.pandora_broker_send_attempted = true;
+  signal_params.pandora_broker_attempt_count++;
+  signal_params.pandora_broker_attempt_time = TimeCurrent();
+}
+
+void PandoraEnsureBrokerRetryWindow(SignalParams &signal_params)
+{
+  if(!IsPandoraSignal(signal_params))
+    return;
+  if(signal_params.pandora_broker_retry_deadline > 0)
+    return;
+
+  int window_seconds = PandoraBrokerRetryWindowSeconds();
+  if(window_seconds <= 0)
+    return;
+
+  datetime base_time = signal_params.pandora_local_entry_time;
+  if(base_time <= 0)
+    base_time = signal_params.entry_time;
+  if(base_time <= 0)
+    base_time = TimeCurrent();
+
+  signal_params.pandora_broker_retry_deadline = base_time + window_seconds;
+}
+
+bool PandoraBrokerRetryWindowExpired(const SignalParams &signal_params,
+                                     const datetime now_time)
+{
+  if(signal_params.pandora_broker_retry_deadline <= 0)
+    return false;
+  return (now_time > signal_params.pandora_broker_retry_deadline);
+}
+
+bool PandoraBrokerRetryDriftExceeded(const SignalParams &signal_params,
+                                     const GridOrderState &order_state,
+                                     const double current_entry_price,
+                                     const double point_size,
+                                     string &detail)
+{
+  detail = "";
+  double max_drift_points = PandoraBrokerRetryMaxDriftPoints();
+  if(max_drift_points <= 0.0)
+    return false;
+  if(current_entry_price <= 0.0 || point_size <= 0.0)
+    return false;
+
+  double local_entry_price = PandoraResolveLocalEntryPrice(signal_params, order_state);
+  if(local_entry_price <= 0.0)
+    return false;
+
+  double drift_points = MathAbs(current_entry_price - local_entry_price) / point_size;
+  if(drift_points <= max_drift_points)
+    return false;
+
+  detail = StringFormat("retry_drift=%.1f>%.1f",
+                        drift_points,
+                        max_drift_points);
+  return true;
 }
 
 double PandoraResolveLocalEntryPrice(const SignalParams &signal_params,
@@ -562,6 +749,7 @@ PandoraLocalCloseMarkers PandoraResolveLocalCloseMarker(const SignalParams &sign
     return PANDORA_LOCAL_CLOSE_BROKER;
 
   if(signal_params.pandora_broker_execution_status == PANDORA_BROKER_BLOCKED ||
+     signal_params.pandora_broker_execution_status == PANDORA_BROKER_RETRY_PENDING ||
      signal_params.pandora_broker_execution_status == PANDORA_BROKER_REJECTED)
     return PANDORA_LOCAL_CLOSE_LOCAL_REJECTED;
 
@@ -651,10 +839,40 @@ void PandoraMarkBrokerBlocked(SignalParams &signal_params,
   signal_params.pandora_broker_execution_status = PANDORA_BROKER_BLOCKED;
   signal_params.pandora_broker_stop_sync_status = PANDORA_BROKER_STOPS_NOT_REQUIRED;
   signal_params.pandora_broker_attempt_time = TimeCurrent();
+  signal_params.pandora_broker_retry_next_time = 0;
+  signal_params.pandora_broker_retry_deadline = 0;
   signal_params.pandora_broker_retcode = 0;
   signal_params.pandora_broker_last_error = 0;
   signal_params.pandora_broker_reject_context = context;
   signal_params.pandora_broker_reject_detail = detail;
+  PandoraUpsertTradeMarkerSnapshot(signal_params);
+}
+
+void PandoraMarkBrokerRetryPending(SignalParams &signal_params,
+                                   GridOrderState &order_state,
+                                   const string context,
+                                   const string detail,
+                                   const ulong retcode,
+                                   const int last_error,
+                                   const string position_comment)
+{
+  if(!IsPandoraSignal(signal_params))
+    return;
+
+  datetime now_time = TimeCurrent();
+  PandoraEnsureLocalEntryActive(signal_params, order_state, position_comment);
+  signal_params.pandora_broker_execution_status = PANDORA_BROKER_RETRY_PENDING;
+  signal_params.pandora_broker_stop_sync_status = PANDORA_BROKER_STOPS_NOT_REQUIRED;
+  signal_params.pandora_broker_attempt_time = now_time;
+  signal_params.pandora_broker_retcode = retcode;
+  signal_params.pandora_broker_last_error = last_error;
+  signal_params.pandora_broker_reject_context = context;
+  signal_params.pandora_broker_reject_detail = detail;
+  PandoraEnsureBrokerRetryWindow(signal_params);
+
+  if(signal_params.pandora_broker_retry_next_time <= now_time)
+    signal_params.pandora_broker_retry_next_time = now_time + PandoraBrokerRetryMinSeconds();
+
   PandoraUpsertTradeMarkerSnapshot(signal_params);
 }
 
@@ -674,6 +892,8 @@ void PandoraMarkBrokerRejected(SignalParams &signal_params,
   signal_params.pandora_broker_execution_status = PANDORA_BROKER_REJECTED;
   signal_params.pandora_broker_stop_sync_status = PANDORA_BROKER_STOPS_NOT_REQUIRED;
   signal_params.pandora_broker_attempt_time = TimeCurrent();
+  signal_params.pandora_broker_retry_next_time = 0;
+  signal_params.pandora_broker_retry_deadline = 0;
   signal_params.pandora_broker_retcode = retcode;
   signal_params.pandora_broker_last_error = last_error;
   signal_params.pandora_broker_reject_context = context;
@@ -703,6 +923,8 @@ void PandoraMarkBrokerExecuted(SignalParams &signal_params,
   signal_params.pandora_broker_send_attempted = true;
   signal_params.pandora_broker_execution_status = PANDORA_BROKER_EXECUTED;
   signal_params.pandora_broker_attempt_time = TimeCurrent();
+  signal_params.pandora_broker_retry_next_time = 0;
+  signal_params.pandora_broker_retry_deadline = 0;
   signal_params.pandora_broker_retcode = retcode;
   signal_params.pandora_broker_last_error = last_error;
   signal_params.pandora_broker_reject_context = "";
@@ -726,6 +948,11 @@ bool PandoraMarkPendingBrokerBlockedInArray(SignalParams &signals[],
       continue;
     if(PandoraBrokerAttemptAlreadyFinished(signals[i]))
       continue;
+    if(PandoraBrokerRetryPending(signals[i]))
+    {
+      marked = true;
+      continue;
+    }
 
     int grid_order_level = ArraySize(signals[i].grid_orders) - 1;
     if(grid_order_level < 0)
@@ -735,7 +962,21 @@ bool PandoraMarkPendingBrokerBlockedInArray(SignalParams &signals[],
     if(order_state.status != GRID_ORDER_STOP_TRAILING_ACTIVE)
       continue;
 
-    PandoraMarkBrokerBlocked(signals[i], order_state, context, detail, "");
+    if(PandoraBrokerRetryBudgetAvailable(signals[i]) &&
+       PandoraBrokerGuardrailRetryable(detail))
+    {
+      PandoraMarkBrokerRetryPending(signals[i],
+                                    order_state,
+                                    context,
+                                    detail,
+                                    0,
+                                    0,
+                                    "");
+    }
+    else
+    {
+      PandoraMarkBrokerBlocked(signals[i], order_state, context, detail, "");
+    }
     signals[i].grid_orders[grid_order_level] = order_state;
     marked = true;
   }
@@ -1245,6 +1486,7 @@ void PandoraTrimTradeMarkerSnapshots()
 string PandoraResolveMarkerRejectReason(const SignalParams &signal_params)
 {
   if(signal_params.pandora_broker_execution_status != PANDORA_BROKER_BLOCKED &&
+     signal_params.pandora_broker_execution_status != PANDORA_BROKER_RETRY_PENDING &&
      signal_params.pandora_broker_execution_status != PANDORA_BROKER_REJECTED)
     return "";
 

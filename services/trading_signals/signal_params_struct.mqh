@@ -102,9 +102,12 @@ struct SignalParams
   PandoraBrokerStopSyncStatuses  pandora_broker_stop_sync_status;
   PandoraLocalCloseMarkers       pandora_local_close_marker;
   bool     pandora_broker_send_attempted;
+  int      pandora_broker_attempt_count;
   datetime pandora_local_entry_time;
   datetime pandora_local_close_time;
   datetime pandora_broker_attempt_time;
+  datetime pandora_broker_retry_next_time;
+  datetime pandora_broker_retry_deadline;
   datetime pandora_broker_stop_sync_time;
   double   pandora_local_entry_price;
   double   pandora_local_close_price;
@@ -216,9 +219,12 @@ struct SignalParams
     pandora_broker_stop_sync_status = PANDORA_BROKER_STOPS_NONE;
     pandora_local_close_marker = PANDORA_LOCAL_CLOSE_NONE;
     pandora_broker_send_attempted = false;
+    pandora_broker_attempt_count = 0;
     pandora_local_entry_time   = 0;
     pandora_local_close_time   = 0;
     pandora_broker_attempt_time = 0;
+    pandora_broker_retry_next_time = 0;
+    pandora_broker_retry_deadline = 0;
     pandora_broker_stop_sync_time = 0;
     pandora_local_entry_price  = 0.0;
     pandora_local_close_price  = 0.0;
@@ -304,9 +310,12 @@ struct SignalParams
     pandora_broker_stop_sync_status = signal_params.pandora_broker_stop_sync_status;
     pandora_local_close_marker   = signal_params.pandora_local_close_marker;
     pandora_broker_send_attempted = signal_params.pandora_broker_send_attempted;
+    pandora_broker_attempt_count = signal_params.pandora_broker_attempt_count;
     pandora_local_entry_time     = signal_params.pandora_local_entry_time;
     pandora_local_close_time     = signal_params.pandora_local_close_time;
     pandora_broker_attempt_time  = signal_params.pandora_broker_attempt_time;
+    pandora_broker_retry_next_time = signal_params.pandora_broker_retry_next_time;
+    pandora_broker_retry_deadline = signal_params.pandora_broker_retry_deadline;
     pandora_broker_stop_sync_time = signal_params.pandora_broker_stop_sync_time;
     pandora_local_entry_price    = signal_params.pandora_local_entry_price;
     pandora_local_close_price    = signal_params.pandora_local_close_price;

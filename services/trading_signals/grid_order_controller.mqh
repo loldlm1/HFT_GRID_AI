@@ -276,6 +276,18 @@ void UpdateGridLifecycle(SignalParams &signal_params)
         }
       }
 
+      if(grid_order.status != GRID_ORDER_COMPLETED &&
+         grid_order.position_ticket <= 0 &&
+         PandoraBrokerRetryPending(signal_params))
+      {
+        double normalized_volume = NormalizeVolumeForSymbol(_Symbol, grid_order.lot_size);
+        if(GridHandlePandoraBrokerRetry(signal_params,
+                                        grid_order,
+                                        point_size,
+                                        normalized_volume))
+          grid_order = signal_params.grid_orders[grid_order_level];
+      }
+
       if(Pandora_Box_Set_Broker_SLTP &&
          grid_order.status != GRID_ORDER_COMPLETED &&
          grid_order.position_ticket <= 0 &&
