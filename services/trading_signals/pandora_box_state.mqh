@@ -14,6 +14,8 @@ string PandoraLocalEntryStatusLabel(const PandoraLocalEntryStatuses status)
 {
   switch(status)
   {
+    case PANDORA_LOCAL_ENTRY_PENDING:
+      return "Posicion local pendiente";
     case PANDORA_LOCAL_ENTRY_ACTIVE:
       return "Posicion local activa";
     case PANDORA_LOCAL_ENTRY_COMPLETED:
@@ -21,6 +23,22 @@ string PandoraLocalEntryStatusLabel(const PandoraLocalEntryStatuses status)
     case PANDORA_LOCAL_ENTRY_NONE:
     default:
       return "Posicion local";
+  }
+}
+
+string PandoraExecutionSourceLabel(const PandoraExecutionSourceStatuses source)
+{
+  switch(source)
+  {
+    case PANDORA_EXECUTION_SOURCE_THEORETICAL:
+      return "Teorica";
+    case PANDORA_EXECUTION_SOURCE_BROKER_SIMULATED:
+      return "Broker simulado";
+    case PANDORA_EXECUTION_SOURCE_BROKER_FILLED:
+      return "Broker fill";
+    case PANDORA_EXECUTION_SOURCE_NONE:
+    default:
+      return "Sin fuente";
   }
 }
 
@@ -206,6 +224,220 @@ bool PandoraBrokerAttemptAlreadyFinished(const SignalParams &signal_params)
           signal_params.pandora_broker_execution_status == PANDORA_BROKER_REJECTED ||
           signal_params.pandora_broker_execution_status == PANDORA_BROKER_EXECUTED ||
           signal_params.pandora_broker_execution_status == PANDORA_BROKER_CLOSED);
+}
+
+bool PandoraSpreadWithinBrokerRealisticRange()
+{
+  return (g_points_spread <= Max_Spread);
+}
+
+bool PandoraLocalEntryPendingAdmission(const SignalParams &signal_params)
+{
+  return (IsPandoraSignal(signal_params) &&
+          signal_params.pandora_local_entry_status == PANDORA_LOCAL_ENTRY_PENDING);
+}
+
+double PandoraResolveExecutableEntryPrice(const SignalTypes direction)
+{
+  double entry_price = GridCurrentPriceForDirection(direction, true);
+  if(entry_price > 0.0)
+    return entry_price;
+
+  if(direction == BULLISH)
+    return SymbolInfoDouble(_Symbol, SYMBOL_ASK);
+  if(direction == BEARISH)
+    return SymbolInfoDouble(_Symbol, SYMBOL_BID);
+  return 0.0;
+}
+
+bool PandoraBrokerRetcodeAllowsLocalSimulation(const ulong retcode)
+{
+  switch((int)retcode)
+  {
+    case TRADE_RETCODE_MARKET_CLOSED:
+    case TRADE_RETCODE_TRADE_DISABLED:
+    case TRADE_RETCODE_SERVER_DISABLES_AT:
+    case TRADE_RETCODE_CLIENT_DISABLES_AT:
+      return false;
+    default:
+      break;
+  }
+  return true;
+}
+
+void PandoraResetLocalTargetCache(SignalParams &signal_params,
+                                  GridOrderState &order_state)
+{
+  signal_params.pandora_local_sl_price = 0.0;
+  signal_params.pandora_local_tp_price = 0.0;
+  signal_params.pandora_broker_sl_target_price = 0.0;
+  signal_params.pandora_broker_tp_target_price = 0.0;
+  signal_params.pandora_broker_sl_protection_price = 0.0;
+  signal_params.pandora_broker_tp_protection_price = 0.0;
+  signal_params.pandora_trailing_step_index = 0;
+  signal_params.pandora_trailing_stop_price = 0.0;
+  order_state.trailing_price = 0.0;
+  order_state.is_trailing_active = false;
+  order_state.tp_reached = false;
+}
+
+void PandoraSetActiveSourceAnchor(SignalParams &signal_params,
+                                  GridOrderState &order_state,
+                                  const PandoraExecutionSourceStatuses source,
+                                  const double entry_price,
+                                  const datetime entry_time,
+                                  const string position_comment)
+{
+  if(!IsPandoraSignal(signal_params) || entry_price <= 0.0)
+    return;
+
+  datetime resolved_time = entry_time;
+  if(resolved_time <= 0)
+    resolved_time = TimeCurrent();
+
+  signal_params.pandora_execution_source = source;
+  signal_params.pandora_source_entry_price = entry_price;
+  signal_params.pandora_source_entry_time = resolved_time;
+  signal_params.pandora_local_entry_price = entry_price;
+  signal_params.pandora_local_entry_time = resolved_time;
+  signal_params.entry_price = entry_price;
+  if(signal_params.entry_time <= 0)
+    signal_params.entry_time = resolved_time;
+
+  if(source == PANDORA_EXECUTION_SOURCE_BROKER_SIMULATED)
+  {
+    signal_params.pandora_broker_simulated_entry_price = entry_price;
+    signal_params.pandora_broker_simulated_entry_time = resolved_time;
+  }
+  else if(source == PANDORA_EXECUTION_SOURCE_BROKER_FILLED)
+  {
+    signal_params.pandora_broker_fill_price = entry_price;
+    signal_params.pandora_broker_fill_time = resolved_time;
+  }
+
+  signal_params.pandora_local_entry_status = PANDORA_LOCAL_ENTRY_ACTIVE;
+  order_state.status = GRID_ORDER_ACTIVE;
+  order_state.entry_price = entry_price;
+  if(order_state.position_comment == "" && position_comment != "")
+    order_state.position_comment = position_comment;
+  order_state.last_action_time = resolved_time;
+
+  PandoraResetLocalTargetCache(signal_params, order_state);
+}
+
+bool PandoraRefreshLocalTargetPrices(SignalParams &signal_params,
+                                     GridOrderState &order_state)
+{
+  if(!IsPandoraSignal(signal_params))
+    return false;
+  if(signal_params.pandora_local_entry_status == PANDORA_LOCAL_ENTRY_PENDING)
+    return false;
+
+  double sl_price = 0.0;
+  double tp_price = 0.0;
+  if(!PandoraComputeLocalTargetPrices(signal_params, order_state, sl_price, tp_price))
+    return false;
+
+  signal_params.pandora_local_sl_price = sl_price;
+  signal_params.pandora_local_tp_price = tp_price;
+  if(tp_price > 0.0)
+    order_state.take_profit_price = tp_price;
+  else if(PandoraRiskStepTrailingEnabled())
+    order_state.take_profit_price = 0.0;
+  return true;
+}
+
+bool PandoraAdmitBrokerRealisticLocalEntry(SignalParams &signal_params,
+                                           GridOrderState &order_state,
+                                           const string position_comment)
+{
+  if(!IsPandoraSignal(signal_params))
+    return true;
+  if(signal_params.pandora_local_entry_status == PANDORA_LOCAL_ENTRY_ACTIVE)
+    return true;
+  if(signal_params.pandora_local_entry_status == PANDORA_LOCAL_ENTRY_COMPLETED)
+    return false;
+  if(!PandoraSpreadWithinBrokerRealisticRange())
+    return false;
+
+  double entry_price = PandoraResolveExecutableEntryPrice(signal_params.signal_type);
+  if(entry_price <= 0.0)
+    return false;
+
+  PandoraSetActiveSourceAnchor(signal_params,
+                               order_state,
+                               PANDORA_EXECUTION_SOURCE_BROKER_SIMULATED,
+                               entry_price,
+                               TimeCurrent(),
+                               position_comment);
+  PandoraRefreshLocalTargetPrices(signal_params, order_state);
+  PandoraEnsureTradeMarkerId(signal_params);
+  PandoraUpsertTradeMarkerSnapshot(signal_params);
+  return true;
+}
+
+void PandoraRebaseToBrokerFill(SignalParams &signal_params,
+                               GridOrderState &order_state,
+                               const double fill_price,
+                               const datetime fill_time,
+                               const string position_comment)
+{
+  if(!IsPandoraSignal(signal_params) || fill_price <= 0.0)
+    return;
+
+  PandoraSetActiveSourceAnchor(signal_params,
+                               order_state,
+                               PANDORA_EXECUTION_SOURCE_BROKER_FILLED,
+                               fill_price,
+                               fill_time,
+                               position_comment);
+  PandoraRefreshLocalTargetPrices(signal_params, order_state);
+}
+
+void PandoraCompleteNonOperableBrokerRejection(SignalParams &signal_params,
+                                               GridOrderState &order_state,
+                                               const string context,
+                                               const string detail,
+                                               const ulong retcode,
+                                               const int last_error,
+                                               const string position_comment)
+{
+  if(!IsPandoraSignal(signal_params))
+    return;
+
+  datetime now_time = TimeCurrent();
+  signal_params.pandora_broker_send_attempted = true;
+  signal_params.pandora_broker_execution_status = PANDORA_BROKER_REJECTED;
+  signal_params.pandora_broker_stop_sync_status = PANDORA_BROKER_STOPS_NOT_REQUIRED;
+  signal_params.pandora_broker_attempt_time = now_time;
+  signal_params.pandora_broker_retry_next_time = 0;
+  signal_params.pandora_broker_retry_deadline = 0;
+  signal_params.pandora_broker_retcode = retcode;
+  signal_params.pandora_broker_last_error = last_error;
+  signal_params.pandora_broker_reject_context = context;
+  signal_params.pandora_broker_reject_detail = detail;
+
+  signal_params.pandora_local_entry_status = PANDORA_LOCAL_ENTRY_COMPLETED;
+  signal_params.pandora_local_close_marker = PANDORA_LOCAL_CLOSE_LOCAL_REJECTED;
+  signal_params.pandora_local_close_time = now_time;
+  double close_price = signal_params.pandora_source_entry_price;
+  if(close_price <= 0.0)
+    close_price = signal_params.pandora_local_entry_price;
+  if(close_price <= 0.0)
+    close_price = GridCurrentPriceForDirection(signal_params.signal_type, false);
+  signal_params.pandora_local_close_price = close_price;
+  signal_params.close_time = now_time;
+  signal_params.close_price = close_price;
+  signal_params.raw_profit = 0.0;
+  signal_params.pandora_close_outcome = PANDORA_CLOSE_BE;
+
+  order_state.status = GRID_ORDER_COMPLETED;
+  order_state.position_ticket = 0;
+  if(order_state.position_comment == "" && position_comment != "")
+    order_state.position_comment = position_comment;
+  order_state.last_action_time = now_time;
+
+  PandoraUpsertTradeMarkerSnapshot(signal_params);
 }
 
 int PandoraBrokerRetryMaxAttempts()
@@ -417,12 +649,20 @@ bool PandoraBrokerRetryDriftExceeded(const SignalParams &signal_params,
 double PandoraResolveLocalEntryPrice(const SignalParams &signal_params,
                                      const GridOrderState &order_state)
 {
+  if(signal_params.pandora_source_entry_price > 0.0)
+    return signal_params.pandora_source_entry_price;
   if(signal_params.pandora_local_entry_price > 0.0)
     return signal_params.pandora_local_entry_price;
-  if(signal_params.entry_price > 0.0)
-    return signal_params.entry_price;
+  if(signal_params.pandora_broker_fill_price > 0.0)
+    return signal_params.pandora_broker_fill_price;
+  if(signal_params.pandora_broker_simulated_entry_price > 0.0)
+    return signal_params.pandora_broker_simulated_entry_price;
+  if(signal_params.pandora_local_entry_status == PANDORA_LOCAL_ENTRY_PENDING)
+    return 0.0;
   if(order_state.entry_price > 0.0)
     return order_state.entry_price;
+  if(signal_params.entry_price > 0.0)
+    return signal_params.entry_price;
   if(order_state.entry_reference_price > 0.0)
     return order_state.entry_reference_price;
   return GridCurrentPriceForDirection(signal_params.signal_type, true);
@@ -811,6 +1051,15 @@ void PandoraMarkLocalClose(SignalParams &signal_params,
      signal_params.pandora_broker_execution_status == PANDORA_BROKER_EXECUTED)
     signal_params.pandora_broker_execution_status = PANDORA_BROKER_CLOSED;
 
+  if(signal_params.pandora_broker_execution_status == PANDORA_BROKER_RETRY_PENDING)
+  {
+    signal_params.pandora_broker_execution_status = PANDORA_BROKER_REJECTED;
+    signal_params.pandora_broker_reject_context = "PANDORA_BROKER_RETRY_CANCELLED";
+    signal_params.pandora_broker_reject_detail = "local_closed_before_retry";
+  }
+  signal_params.pandora_broker_retry_next_time = 0;
+  signal_params.pandora_broker_retry_deadline = 0;
+
   PandoraUpsertTradeMarkerSnapshot(signal_params);
 }
 
@@ -821,11 +1070,18 @@ void PandoraEnsureLocalEntryActive(SignalParams &signal_params,
   if(!IsPandoraSignal(signal_params))
     return;
 
+  if(signal_params.pandora_local_entry_status != PANDORA_LOCAL_ENTRY_ACTIVE)
+  {
+    if(!PandoraAdmitBrokerRealisticLocalEntry(signal_params, order_state, position_comment))
+      return;
+  }
+
   datetime now_time = TimeCurrent();
   double local_entry_price = PandoraResolveLocalEntryPrice(signal_params, order_state);
+  if(local_entry_price <= 0.0)
+    return;
 
-  if(signal_params.pandora_local_entry_status == PANDORA_LOCAL_ENTRY_NONE)
-    signal_params.pandora_local_entry_status = PANDORA_LOCAL_ENTRY_ACTIVE;
+  signal_params.pandora_local_entry_status = PANDORA_LOCAL_ENTRY_ACTIVE;
   if(signal_params.pandora_local_entry_time <= 0)
     signal_params.pandora_local_entry_time = (signal_params.entry_time > 0)
                                              ? signal_params.entry_time
@@ -844,7 +1100,7 @@ void PandoraEnsureLocalEntryActive(SignalParams &signal_params,
     order_state.position_comment = position_comment;
   order_state.last_action_time = now_time;
 
-  PandoraEnsureLocalTargetPrices(signal_params, order_state);
+  PandoraRefreshLocalTargetPrices(signal_params, order_state);
   PandoraUpsertTradeMarkerSnapshot(signal_params);
 }
 
@@ -933,15 +1189,25 @@ void PandoraMarkBrokerExecuted(SignalParams &signal_params,
   if(!IsPandoraSignal(signal_params))
     return;
 
-  if(signal_params.pandora_local_entry_status == PANDORA_LOCAL_ENTRY_NONE)
-    signal_params.pandora_local_entry_status = PANDORA_LOCAL_ENTRY_ACTIVE;
-  if(signal_params.pandora_local_entry_time <= 0)
-    signal_params.pandora_local_entry_time = (signal_params.entry_time > 0)
-                                             ? signal_params.entry_time
-                                             : TimeCurrent();
-  if(signal_params.pandora_local_entry_price <= 0.0)
-    signal_params.pandora_local_entry_price = PandoraResolveLocalEntryPrice(signal_params, order_state);
-  PandoraEnsureLocalTargetPrices(signal_params, order_state);
+  double fill_price = order_state.entry_price;
+  datetime fill_time = TimeCurrent();
+  if(order_state.position_ticket > 0 && PositionSelectByTicket(order_state.position_ticket))
+  {
+    double position_open_price = PositionGetDouble(POSITION_PRICE_OPEN);
+    if(position_open_price > 0.0)
+      fill_price = position_open_price;
+    datetime position_open_time = (datetime)PositionGetInteger(POSITION_TIME);
+    if(position_open_time > 0)
+      fill_time = position_open_time;
+  }
+  if(fill_price <= 0.0)
+    fill_price = GridCurrentPriceForDirection(signal_params.signal_type, true);
+  if(fill_price > 0.0)
+    PandoraRebaseToBrokerFill(signal_params,
+                              order_state,
+                              fill_price,
+                              fill_time,
+                              position_comment);
 
   signal_params.pandora_broker_send_attempted = true;
   signal_params.pandora_broker_execution_status = PANDORA_BROKER_EXECUTED;
@@ -972,6 +1238,11 @@ bool PandoraMarkPendingBrokerBlockedInArray(SignalParams &signals[],
     if(PandoraBrokerAttemptAlreadyFinished(signals[i]))
       continue;
     if(PandoraBrokerRetryPending(signals[i]))
+    {
+      marked = true;
+      continue;
+    }
+    if(PandoraLocalEntryPendingAdmission(signals[i]))
     {
       marked = true;
       continue;
@@ -1454,7 +1725,9 @@ string PandoraBuildTradeMarkerId(const SignalParams &signal_params)
   if(entry_time <= 0)
     entry_time = TimeCurrent();
 
-  double entry_price = signal_params.pandora_local_entry_price;
+  double entry_price = signal_params.pandora_source_entry_price;
+  if(entry_price <= 0.0)
+    entry_price = signal_params.pandora_local_entry_price;
   if(entry_price <= 0.0)
     entry_price = signal_params.entry_price;
 
@@ -1522,6 +1795,8 @@ void PandoraUpsertTradeMarkerSnapshot(SignalParams &signal_params)
 {
   if(!IsPandoraSignal(signal_params))
     return;
+  if(signal_params.pandora_local_entry_status == PANDORA_LOCAL_ENTRY_PENDING)
+    return;
 
   PandoraEnsureTradeMarkerId(signal_params);
 
@@ -1529,7 +1804,9 @@ void PandoraUpsertTradeMarkerSnapshot(SignalParams &signal_params)
   if(entry_time <= 0)
     entry_time = signal_params.entry_time;
 
-  double entry_price = signal_params.pandora_local_entry_price;
+  double entry_price = signal_params.pandora_source_entry_price;
+  if(entry_price <= 0.0)
+    entry_price = signal_params.pandora_local_entry_price;
   if(entry_price <= 0.0)
     entry_price = signal_params.entry_price;
 
@@ -2270,7 +2547,11 @@ double PandoraResolveSignalEpsilonMoney(const SignalParams &signal_params,
 double PandoraResolveOutcomeEntryAnchorPrice(const SignalParams &signal_params,
                                              const GridOrderState &order_state)
 {
-  double entry_anchor = order_state.entry_price;
+  double entry_anchor = PandoraResolveLocalEntryPrice(signal_params, order_state);
+  if(entry_anchor > 0.0)
+    return entry_anchor;
+
+  entry_anchor = order_state.entry_price;
   if(entry_anchor <= 0.0)
     entry_anchor = signal_params.entry_price;
   if(entry_anchor <= 0.0)

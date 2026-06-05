@@ -67,7 +67,8 @@ int PandoraResolveTrailingStepIndex(const SignalParams &signal_params,
 {
   if(!PandoraRiskStepTrailingEnabled())
     return 0;
-  if(grid_order.entry_price <= 0.0 || current_price <= 0.0 || point_size <= 0.0)
+  double entry_anchor = PandoraResolveLocalEntryPrice(signal_params, grid_order);
+  if(entry_anchor <= 0.0 || current_price <= 0.0 || point_size <= 0.0)
     return 0;
 
   double step_points = PandoraResolveSignalTrailingStepPoints(signal_params);
@@ -75,8 +76,8 @@ int PandoraResolveTrailingStepIndex(const SignalParams &signal_params,
     return 0;
 
   double move_points = (direction == BULLISH)
-                       ? (current_price - grid_order.entry_price) / point_size
-                       : (grid_order.entry_price - current_price) / point_size;
+                       ? (current_price - entry_anchor) / point_size
+                       : (entry_anchor - current_price) / point_size;
   if(move_points <= 0.0)
     return 0;
 
@@ -89,7 +90,8 @@ double PandoraResolveStepStopPrice(const SignalParams &signal_params,
                                    const int step_index,
                                    const double point_size)
 {
-  if(step_index <= 0 || grid_order.entry_price <= 0.0 || point_size <= 0.0)
+  double entry_anchor = PandoraResolveLocalEntryPrice(signal_params, grid_order);
+  if(step_index <= 0 || entry_anchor <= 0.0 || point_size <= 0.0)
     return 0.0;
 
   double step_points = PandoraResolveSignalTrailingStepPoints(signal_params);
@@ -98,8 +100,8 @@ double PandoraResolveStepStopPrice(const SignalParams &signal_params,
 
   double moved_points = (double)(step_index - 1) * step_points;
   if(direction == BULLISH)
-    return grid_order.entry_price + moved_points * point_size;
-  return grid_order.entry_price - moved_points * point_size;
+    return entry_anchor + moved_points * point_size;
+  return entry_anchor - moved_points * point_size;
 }
 
 bool PandoraTrailingStopImproves(const SignalTypes direction,
@@ -205,7 +207,9 @@ void UpdateGridLifecycle(SignalParams &signal_params)
     if(grid_order.status == GRID_ORDER_STOP_TRAILING_ACTIVE)
     {
       double normalized_volume = NormalizeVolumeForSymbol(_Symbol, grid_order.lot_size);
-      if(GridShouldActivateStopOrder(signal_params, grid_order, direction, point_size) &&
+      bool pending_admission = PandoraLocalEntryPendingAdmission(signal_params);
+      if((pending_admission ||
+          GridShouldActivateStopOrder(signal_params, grid_order, direction, point_size)) &&
          GridExecuteLevelTrade(signal_params, grid_order, GridResolvePointSize(), normalized_volume))
       {
         signal_params.grid_orders[grid_order_level] = grid_order;

@@ -170,7 +170,6 @@ bool PandoraBuildSignal(const SignalTypes direction)
   SignalParams signal;
   signal.signal_type            = direction;
   signal.entry_time             = TimeCurrent();
-  signal.entry_price            = GridCurrentPriceForDirection(direction, true);
   signal.strategy_context       = CONTEXT_SLOT_BASE;
   signal.strategy_timeframe     = Strategy_Timeframe;
   signal.strategy_context_label = "PANDORA";
@@ -184,21 +183,21 @@ bool PandoraBuildSignal(const SignalTypes direction)
     return false;
   }
 
-  signal.pandora_local_entry_status = PANDORA_LOCAL_ENTRY_ACTIVE;
+  double theoretical_entry = signal.grid_entry_reference_price;
+  if(theoretical_entry <= 0.0 && ArraySize(signal.grid_orders) > 0)
+    theoretical_entry = signal.grid_orders[0].entry_reference_price;
+  if(theoretical_entry <= 0.0)
+    theoretical_entry = GridCurrentPriceForDirection(direction, true);
+
+  signal.entry_price = theoretical_entry;
+  signal.pandora_theoretical_entry_price = theoretical_entry;
+  signal.pandora_theoretical_entry_time = signal.entry_time;
+  signal.pandora_execution_source = PANDORA_EXECUTION_SOURCE_THEORETICAL;
+  signal.pandora_local_entry_status = PANDORA_LOCAL_ENTRY_PENDING;
   signal.pandora_broker_execution_status = PANDORA_BROKER_NOT_ATTEMPTED;
   signal.pandora_broker_stop_sync_status = Pandora_Box_Set_Broker_SLTP
                                            ? PANDORA_BROKER_STOPS_PENDING
                                            : PANDORA_BROKER_STOPS_NOT_REQUIRED;
-  signal.pandora_local_entry_time = signal.entry_time;
-  signal.pandora_local_entry_price = signal.entry_price;
-  PandoraEnsureTradeMarkerId(signal);
-  if(ArraySize(signal.grid_orders) > 0)
-  {
-    GridOrderState local_state = signal.grid_orders[0];
-    PandoraEnsureLocalTargetPrices(signal, local_state);
-    signal.grid_orders[0] = local_state;
-  }
-  PandoraUpsertTradeMarkerSnapshot(signal);
 
   if(direction == BULLISH)
     AddElementToArray(running_bullish_signals, signal);

@@ -5,18 +5,21 @@
 
 ## Overview
 
-Pandora Box must consume its entry budget from the first deterministic local
-entry event, not from broker execution success. When a Pandora breakout is
-authorized locally, the EA should create a local position lifecycle even if the
-broker send is blocked or rejected by spread, invalid stops, invalid volume,
-margin, market state, or another trade server retcode.
+Pandora Box must consume or reserve its entry budget from the first eligible
+Pandora breakout event, but the statistical source of truth must now be
+broker-realistic rather than purely theoretical. The EA should observe the local
+signal deterministically, then anchor the active position to broker conditions:
+an actual broker fill wins; otherwise a broker-simulated local anchor uses the
+current executable side of the quote when spread and market state allow it.
 
-The local SL/TP remains the exact statistical and logical source of truth. When
-`Pandora_Box_Set_Broker_SLTP = true`, broker-side SL/TP is only an additional
-server protection layer: it may start wider than the configured local levels if
-broker stop/freeze rules require it, and the EA should keep trying to tighten it
-to the exact local target when it becomes legal. Any broker modification failure
-must be non-fatal to the local lifecycle.
+The active source-of-truth entry drives local SL, TP, trailing, markers, and
+statistics. If a later broker retry succeeds, the real broker fill replaces any
+previous broker-simulated anchor completely. When `Pandora_Box_Set_Broker_SLTP =
+true`, broker-side SL/TP remains an additional server protection layer: it may
+start wider than the configured local levels if broker stop/freeze rules require
+it, and the EA should keep trying to tighten it to the active source-of-truth
+local target when it becomes legal. Any broker modification failure must be
+non-fatal to the local lifecycle.
 
 This plan applies only to Pandora Box. Non-Pandora grid behavior, license
 contracts, magic-number scope, shared backend entitlement logic, and general
@@ -25,20 +28,43 @@ grid strategy semantics are out of scope.
 ## Confirmed Decisions
 
 - Scope is Pandora Box only.
-- A locally triggered Pandora entry stays alive until local virtual SL/TP closes
+- Source-of-truth priority is:
+  1. Real broker fill, including a successful retry.
+  2. Broker-simulated local anchor from current executable Bid/Ask when no real
+     fill exists.
+  3. The theoretical breakout trigger as metadata only, never as the active
+     SL/TP anchor.
+- A broker-simulated Pandora entry stays alive until local virtual SL/TP closes
   it, even when no broker position exists.
-- Spread blocks broker sending, not local entry observation or budget
-  consumption.
+- If a broker-simulated local entry closes by local SL/TP before a retry fills,
+  all future retries for that entry are cancelled.
+- Spread above range should not create an active broker-realistic local
+  position. The breakout/budget may be reserved as pending, but the active local
+  anchor is created only after spread returns inside range.
 - Broker rejections may trigger a bounded Pandora-only broker retry budget when
-  the failure is classified as transient. Retries are execution-only: the local
-  entry time/price and local SL/TP remain the statistical source of truth.
-- `Pandora_Box_Max_Entries = 1` means one deterministic local entry per
+  the failure is classified as transient. A successful retry updates the local
+  position completely to the actual broker fill and redraws the marker from the
+  real entry.
+- The retry drift/envelope remains developer-controlled through the existing
+  internal symbol-derived multiplier defaults; once an accepted fill occurs, the
+  fill is the only active source of truth.
+- `Pandora_Box_Max_Entries = 1` means one Pandora source-of-truth entry per
   Pandora day/window, even if the broker never opens a real position.
 - `Pandora_Box_Set_Broker_SLTP = true` means "attempt broker protection" only;
-  local SL/TP still owns lifecycle and statistics.
-- Broker protection may be wider than the configured local SL/TP. The EA should
-  tighten it toward the exact local levels only when broker rules allow it.
-- Chart labels should be Spanish ASCII, for example:
+  local SL/TP still owns lifecycle and statistics from the active
+  source-of-truth entry.
+- SL and TP share the same philosophy: compute exact local targets from the
+  active source-of-truth entry and configured Pandora points. Broker protection
+  may be wider temporarily, then tightened toward those exact targets when broker
+  rules allow it.
+- Pandora trailing runs from the active source-of-truth entry. For example, with
+  `250` configured points, the first step is reached after `250` points from the
+  real fill or broker-simulated anchor, not from the old theoretical trigger.
+- Market closed, trading disabled, or close-only states should not be simulated
+  as normal local trades. Other broker open failures may still create a
+  broker-realistic local entry when spread is inside range and the EA can model
+  the executable quote.
+- Chart labels should stay simple and Spanish ASCII, for example:
   `Posicion local - ERR_Spread` and `Posicion ejecutada`.
 - Rejected local entries should avoid backend schema changes. If an existing
   reporting path requires a compatible close outcome, map the rejected-local
@@ -47,6 +73,14 @@ grid strategy semantics are out of scope.
 - Execute this plan one Sprint per batch. Complete validation and create one
   brief commit per completed Sprint before continuing, unless the user forbids
   commits or git is unavailable.
+
+## Current Supersession Note
+
+Sprints 1-9 document the completed path that introduced local deterministic
+execution, broker diagnostics, and controlled retries. Sprint 10 is a deliberate
+revision of the source-of-truth contract. When Sprint 10 conflicts with older
+Sprint text about high-spread local creation or preserving the original local
+entry after retry fill, Sprint 10 and the current confirmed decisions win.
 
 ## Prerequisites
 
@@ -699,6 +733,155 @@ without changing the deterministic local entry lifecycle or local statistics.
   - Read and delete `BUILD.log`.
   - `git diff --check`.
 
+## Sprint 10: Broker-Realistic Source Of Truth
+
+**Goal**: Rebase Pandora local lifecycle, SL/TP, trailing, statistics, and
+markers to broker-realistic execution conditions instead of the theoretical
+breakout anchor.
+
+**Sprint 10 Supersession Note**:
+- Sprint 9 intentionally preserved the local deterministic entry after a retry.
+  Sprint 10 revises that contract: bounded retry controls remain, but a
+  successful broker fill now becomes the only active source of truth.
+- Earlier local-only semantics remain useful only when no real broker fill
+  exists. In that case, the local anchor must be a broker-simulated executable
+  quote, not the theoretical trigger.
+
+**Demo/Validation**:
+- MetaEditor compile passes with `0 errors, 0 warnings`.
+- `BUILD.log` is inspected and removed after verification.
+- A high-spread breakout reserves/prevents duplicate Pandora entry behavior but
+  does not create an active local position until spread returns inside range.
+- A broker-simulated local entry uses the current executable quote side as
+  entry: Ask for buy, Bid for sell.
+- A retry fill replaces the broker-simulated entry, recalculates exact local
+  SL/TP from the real fill, resets trailing anchors as needed, and redraws the
+  visual marker from the real entry.
+- The US30-style case is corrected: if a sell fills at `49196.3` with `250`
+  points and `_Point = 0.1`, exact local SL should be based around `49221.3`
+  unless broker-side protection must be wider temporarily.
+
+### Task 10.1: Add Pandora Source-Of-Truth State
+
+- **Location**:
+  - `microservices/core/enums.mqh`
+  - `services/trading_signals/signal_params_struct.mqh`
+  - `services/trading_signals/pandora_box_state.mqh`
+- **Description**: Add explicit Pandora execution-source state and anchor fields
+  for theoretical trigger price, broker-simulated entry, broker fill entry,
+  active source-of-truth entry, source timestamp, and pending spread admission.
+- **Dependencies**: Sprint 9.
+- **Acceptance Criteria**:
+  - Constructors initialize all new fields.
+  - Copy constructors preserve all source-of-truth and pending-admission state.
+  - The theoretical trigger remains available for logs/debugging but does not
+    drive active SL/TP after Sprint 10.
+  - Non-Pandora signals remain unaffected.
+- **Validation**:
+  - MetaEditor compile.
+  - Manual constructor/copy diff review.
+
+### Task 10.2: Create Broker-Realistic Local Admission
+
+- **Location**:
+  - `services/trading_signals/pandora_box_detection.mqh`
+  - `services/trading_signals/pandora_box_state.mqh`
+  - `microservices/trading_signals/grid_order_lifecycle.mqh`
+  - `services/trading_signals/grid_order_controller.mqh`
+- **Description**: When a valid Pandora breakout occurs, reserve the entry
+  budget deterministically. If spread is outside range, keep the event pending
+  and do not create an active local position. Once spread and market state are
+  valid, create the active local position from the current executable broker
+  quote side and compute exact local SL/TP from that anchor.
+- **Dependencies**: Task 10.1.
+- **Acceptance Criteria**:
+  - High spread cannot create a second Pandora entry while the first breakout is
+    pending.
+  - No active local SL/TP or chart entry marker is created until a
+    broker-realistic anchor exists.
+  - Buy anchors use Ask; sell anchors use Bid.
+  - Market closed, trading disabled, and close-only states do not create normal
+    local simulated trades.
+  - Other broker open failures can still leave a broker-realistic local entry
+    active when spread is inside range and the executable quote was known.
+- **Validation**:
+  - MetaEditor compile.
+  - Manual/tester high-spread then normal-spread scenario.
+  - Diff review for session, daily budget, license, and protection gates.
+
+### Task 10.3: Rebase On Real Broker Fill Or Retry Fill
+
+- **Location**:
+  - `microservices/trading_signals/grid_order_lifecycle.mqh`
+  - `services/trading_signals/grid_order_controller.mqh`
+  - `services/trading_signals/pandora_box_state.mqh`
+  - `services/frontend/*` or existing Pandora marker helper boundaries if marker
+    snapshots are stored there
+- **Description**: When initial broker send or any eligible retry fills, replace
+  the current local anchor with the actual broker fill price/time/ticket. Recompute
+  exact local SL/TP from the fill, refresh broker protection against the new
+  targets, reset trailing anchors that depend on entry, and redraw the marker
+  from the real entry.
+- **Dependencies**: Task 10.2.
+- **Acceptance Criteria**:
+  - `PandoraMarkBrokerExecuted` and retry success paths no longer preserve an
+    older broker-simulated or theoretical entry.
+  - The accepted retry drift/envelope still limits whether a retry can fill, but
+    after acceptance the real fill wins completely.
+  - Existing broker ticket, symbol, magic, and comment scoping remain intact.
+  - Visual labels remain simple Spanish ASCII and do not expose extra backend
+    fields.
+- **Validation**:
+  - MetaEditor compile.
+  - Manual diff review of retry success and marker update paths.
+
+### Task 10.4: Align Local SL/TP, TP, And Trailing To Active Anchor
+
+- **Location**:
+  - `services/trading_signals/pandora_box_state.mqh`
+  - `services/trading_signals/grid_order_controller.mqh`
+  - `services/trading_management_strategies/*` only if Pandora trailing glue
+    requires it
+- **Description**: Ensure local stop, take-profit, and trailing checks always
+  use the active source-of-truth entry. If a broker-simulated local entry reaches
+  SL/TP before a retry fills, close it locally and cancel future retries.
+- **Dependencies**: Task 10.3.
+- **Acceptance Criteria**:
+  - Local SL/TP never close from the old theoretical entry after a broker fill or
+    broker-simulated anchor exists.
+  - Fixed TP uses the same source-of-truth philosophy as SL.
+  - `PANDORA_RISK_TRAILING_STEP_TP` starts from the active anchor and activates
+    only after the configured points threshold from that anchor.
+  - Once trailing has legitimately moved the stop to BE/profit, the initial SL
+    distance is no longer enforced as a separate close rule.
+  - A local SL/TP close before retry fill cancels the retry state.
+- **Validation**:
+  - MetaEditor compile.
+  - Manual review of SL/TP and trailing calculations against points mode.
+
+### Task 10.5: Update Documentation And Validation Checklist
+
+- **Location**:
+  - `docs/guides/pandora-box-strategy-inputs.md`
+  - `docs/guides/pandora_box_guide_en.md`
+  - `docs/guides/pandora_box_guide_es.md`
+  - `docs/plans/pandora-local-deterministic-execution-plan.md`
+- **Description**: Document the broker-realistic source-of-truth model, retry
+  rebase behavior, spread-pending admission, and temporary wider broker
+  protection policy. Keep Spanish UI text ASCII where examples are shown.
+- **Dependencies**: Tasks 10.1-10.4.
+- **Acceptance Criteria**:
+  - Docs no longer promise that retry success preserves the original local
+    entry.
+  - Docs explain that theoretical trigger price is diagnostic metadata only.
+  - Regression checklist includes the US30 fill-vs-SL distance scenario.
+  - `BUILD.log` is deleted after verified compilation.
+- **Validation**:
+  - MetaEditor compile.
+  - Read and delete `BUILD.log`.
+  - `git diff --check`.
+  - Manual doc proofread.
+
 ## Testing Strategy
 
 - **Compile gate**: Run MetaEditor compile after every implementation Sprint.
@@ -706,14 +889,22 @@ without changing the deterministic local entry lifecycle or local statistics.
   - Do not build or require headless MT5 matrix tests; MT5 Strategy Tester
     validation is manual/visual unless a future local runner is explicitly added.
   - `Pandora_Box_Max_Entries = 1`, high spread at breakout, normal spread later:
-    one local entry only; broker execution may retry only inside the configured
-    Pandora retry budget/window.
-  - Broker invalid stops: local entry remains active, broker rejection recorded,
-    no retry of initial open, local SL/TP closes.
+    one Pandora entry is reserved/pending only; the active local anchor is
+    created from the current executable quote only after spread returns inside
+    range.
+  - Broker invalid stops: local entry remains active from the broker-realistic
+    anchor, broker rejection is recorded, local SL/TP closes from the active
+    anchor, and broker protection can start wider then tighten when legal.
   - Broker success with widened protection: local close triggers at exact local
-    target before any wider broker TP/SL can alter statistics.
+    target from the real fill or broker-simulated anchor before any wider broker
+    TP/SL can alter statistics.
+  - Broker retry success: accepted retry fill replaces previous local anchor,
+    recalculates local SL/TP, and redraws the entry marker from the real fill.
   - Broker stop tightening: initial wide stop later tightens to exact local
     level when valid; rejection is non-fatal and retried with throttle.
+  - US30 points scenario: with `250` points and `_Point = 0.1`, a sell fill at
+    `49196.3` should derive exact local SL around `49221.3`, not from an older
+    theoretical trigger.
   - Body entry mode: same closed candle cannot be reused after local entry.
   - `Pandora_Box_Set_Broker_SLTP = false`: local lifecycle still works with no
     broker stop attempts.
@@ -756,13 +947,18 @@ without changing the deterministic local entry lifecycle or local statistics.
   controllable guardrail scenarios plus manual demo-account validation for
   broker-specific behavior; do not model these as required headless matrix tests.
 - Broker retry can improve real execution capture but can also create fill-price
-  drift versus the deterministic local entry. Mitigation: keep retry attempts,
-  spacing, time window, and max drift bounded and configurable; never move the
-  local entry anchor after a delayed broker fill.
+  drift versus the original theoretical trigger. Mitigation: keep retry
+  attempts, spacing, time window, and symbol-derived max drift bounded; once an
+  accepted delayed broker fill occurs, rebase the local anchor and markers to the
+  real fill so statistics match broker reality.
 - Generic `TRADE_RETCODE_ERROR` / `ERR_TRADE_SEND_FAILED` results can be caused
   by broker-side rules that MT5 does not expose precisely. Mitigation: capture
   request, symbol, account, CTrade result, and OrderCheck diagnostics before
   escalating to broker support.
+- Waiting for spread to return before creating the active local anchor can delay
+  statistical entry versus the theoretical breakout. Mitigation: reserve the
+  Pandora entry/budget while pending so no duplicate entry is created, and record
+  the theoretical trigger as metadata for review.
 
 ## Rollback Plan
 

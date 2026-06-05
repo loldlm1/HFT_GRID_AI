@@ -272,8 +272,7 @@ void OnTick()
       string spread_reason = StringFormat("spread=%.1f>%.1f",
                                           g_points_spread,
                                           Max_Spread);
-      if(PandoraMarkPendingBrokerBlocked("PANDORA_BROKER_SPREAD_BLOCK", spread_reason))
-        MarketStatusRegisterExecutionError("PANDORA_BROKER_SPREAD_BLOCK", spread_reason, 0, 0);
+      MarketStatusRegisterExecutionError("PANDORA_BROKER_SPREAD_BLOCK", spread_reason, 0, 0);
     }
     g_ea_running = false;
     RefreshGridVisualization();

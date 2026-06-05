@@ -27,6 +27,9 @@ void CheckTickOpenBullishSignals()
       }
       double entry_price = running_bullish_signals[i].entry_price;
       if(IsPandoraSignal(running_bullish_signals[i]) &&
+         running_bullish_signals[i].pandora_source_entry_price > 0.0)
+        entry_price = running_bullish_signals[i].pandora_source_entry_price;
+      else if(IsPandoraSignal(running_bullish_signals[i]) &&
          running_bullish_signals[i].pandora_local_entry_price > 0.0)
         entry_price = running_bullish_signals[i].pandora_local_entry_price;
       running_bullish_signals[i].raw_profit  = RawProfitUsd(BULLISH,
@@ -67,6 +70,9 @@ void CheckTickOpenBearishSignals()
       }
       double entry_price = running_bearish_signals[i].entry_price;
       if(IsPandoraSignal(running_bearish_signals[i]) &&
+         running_bearish_signals[i].pandora_source_entry_price > 0.0)
+        entry_price = running_bearish_signals[i].pandora_source_entry_price;
+      else if(IsPandoraSignal(running_bearish_signals[i]) &&
          running_bearish_signals[i].pandora_local_entry_price > 0.0)
         entry_price = running_bearish_signals[i].pandora_local_entry_price;
       running_bearish_signals[i].raw_profit  = RawProfitUsd(BEARISH,
