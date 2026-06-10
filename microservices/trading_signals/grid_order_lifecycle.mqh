@@ -329,6 +329,234 @@ void GridRunBrokerDealOrderCheck(const SignalTypes direction,
   check_error = GetLastError();
 }
 
+ulong GridBrokerCheckRetcode(const MqlTradeCheckResult &check_result,
+                             const bool check_sent)
+{
+  if(!check_sent)
+    return 0;
+  return (ulong)check_result.retcode;
+}
+
+bool GridBrokerCheckAllowsSend(const MqlTradeCheckResult &check_result,
+                               const bool check_sent)
+{
+  if(!check_sent)
+    return false;
+
+  ulong retcode = (ulong)check_result.retcode;
+  return (retcode == TRADE_RETCODE_DONE ||
+          retcode == TRADE_RETCODE_DONE_PARTIAL ||
+          retcode == TRADE_RETCODE_PLACED);
+}
+
+bool GridBrokerCheckInvalidStops(const MqlTradeCheckResult &check_result,
+                                 const bool check_sent)
+{
+  return (GridBrokerCheckRetcode(check_result, check_sent) == TRADE_RETCODE_INVALID_STOPS);
+}
+
+bool GridBrokerCheckInvalidVolume(const MqlTradeCheckResult &check_result,
+                                  const bool check_sent)
+{
+  return (GridBrokerCheckRetcode(check_result, check_sent) == TRADE_RETCODE_INVALID_VOLUME);
+}
+
+bool GridRunPandoraCandidateOrderCheck(const SignalTypes direction,
+                                       const GridOrderState &order_state,
+                                       const PandoraBrokerOpenStopCandidate &candidate,
+                                       double &broker_volume,
+                                       const string comment,
+                                       MqlTradeCheckResult &check_result,
+                                       bool &check_available,
+                                       bool &check_sent,
+                                       int &check_error,
+                                       bool &volume_repair_used)
+{
+  GridRunBrokerDealOrderCheck(direction,
+                              broker_volume,
+                              candidate.sl_price,
+                              candidate.tp_price,
+                              comment,
+                              check_result,
+                              check_available,
+                              check_sent,
+                              check_error);
+
+  if(GridBrokerCheckAllowsSend(check_result, check_sent))
+    return true;
+
+  if(!GridBrokerCheckInvalidVolume(check_result, check_sent) ||
+     volume_repair_used)
+    return false;
+
+  volume_repair_used = true;
+  GridRefreshBrokerConstraintsForAction("PANDORA_VOLUME_REPAIR");
+
+  double repaired_volume = NormalizeVolumeForSymbol(_Symbol,
+                                                    order_state.lot_size);
+  if(repaired_volume <= 0.0)
+    return false;
+
+  broker_volume = repaired_volume;
+  GridRunBrokerDealOrderCheck(direction,
+                              broker_volume,
+                              candidate.sl_price,
+                              candidate.tp_price,
+                              comment,
+                              check_result,
+                              check_available,
+                              check_sent,
+                              check_error);
+
+  return GridBrokerCheckAllowsSend(check_result, check_sent);
+}
+
+bool GridEvaluatePandoraBrokerOpenCandidate(const SignalTypes direction,
+                                            const GridOrderState &order_state,
+                                            const PandoraBrokerOpenStopCandidate &candidate,
+                                            double &broker_volume,
+                                            double &sl_price,
+                                            double &tp_price,
+                                            const string comment,
+                                            MqlTradeCheckResult &check_result,
+                                            bool &check_available,
+                                            bool &check_sent,
+                                            int &check_error,
+                                            bool &volume_repair_used,
+                                            bool &continue_to_next_candidate)
+{
+  continue_to_next_candidate = false;
+  if(!candidate.available)
+    return false;
+
+  sl_price = candidate.sl_price;
+  tp_price = candidate.tp_price;
+
+  if(GridRunPandoraCandidateOrderCheck(direction,
+                                       order_state,
+                                       candidate,
+                                       broker_volume,
+                                       comment,
+                                       check_result,
+                                       check_available,
+                                       check_sent,
+                                       check_error,
+                                       volume_repair_used))
+    return true;
+
+  if(GridBrokerCheckInvalidStops(check_result, check_sent))
+  {
+    continue_to_next_candidate = true;
+    return false;
+  }
+
+  return false;
+}
+
+bool GridSelectPandoraBrokerOpenRequest(SignalParams &signal_params,
+                                        GridOrderState &order_state,
+                                        const SignalTypes direction,
+                                        double &broker_volume,
+                                        double &sl_price,
+                                        double &tp_price,
+                                        const string comment,
+                                        MqlTradeCheckResult &check_result,
+                                        bool &check_available,
+                                        bool &check_sent,
+                                        int &check_error,
+                                        string &reject_context)
+{
+  reject_context = "";
+
+  PandoraBrokerOpenStopCandidate exact_candidate;
+  PandoraBrokerOpenStopCandidate wide_candidate;
+  PandoraBrokerOpenStopCandidate no_stop_candidate;
+  string candidate_detail = "";
+  PandoraBuildBrokerOpenStopCandidates(signal_params,
+                                       order_state,
+                                       exact_candidate,
+                                       wide_candidate,
+                                       no_stop_candidate,
+                                       candidate_detail);
+
+  bool volume_repair_used = false;
+  bool continue_to_next_candidate = false;
+
+  if(PandoraBrokerOpenStopCandidateHasStops(exact_candidate))
+  {
+    if(GridEvaluatePandoraBrokerOpenCandidate(direction,
+                                             order_state,
+                                             exact_candidate,
+                                             broker_volume,
+                                             sl_price,
+                                             tp_price,
+                                             comment,
+                                             check_result,
+                                             check_available,
+                                             check_sent,
+                                             check_error,
+                                             volume_repair_used,
+                                             continue_to_next_candidate))
+    {
+      signal_params.pandora_broker_stop_sync_status = exact_candidate.stop_status;
+      return true;
+    }
+    if(!continue_to_next_candidate)
+    {
+      reject_context = "ORDER_CHECK_BLOCKED";
+      return false;
+    }
+  }
+
+  if(PandoraBrokerOpenStopCandidateHasStops(wide_candidate))
+  {
+    if(GridEvaluatePandoraBrokerOpenCandidate(direction,
+                                             order_state,
+                                             wide_candidate,
+                                             broker_volume,
+                                             sl_price,
+                                             tp_price,
+                                             comment,
+                                             check_result,
+                                             check_available,
+                                             check_sent,
+                                             check_error,
+                                             volume_repair_used,
+                                             continue_to_next_candidate))
+    {
+      signal_params.pandora_broker_stop_sync_status = wide_candidate.stop_status;
+      return true;
+    }
+    if(!continue_to_next_candidate)
+    {
+      reject_context = "ORDER_CHECK_BLOCKED";
+      return false;
+    }
+  }
+
+  if(GridEvaluatePandoraBrokerOpenCandidate(direction,
+                                           order_state,
+                                           no_stop_candidate,
+                                           broker_volume,
+                                           sl_price,
+                                           tp_price,
+                                           comment,
+                                           check_result,
+                                           check_available,
+                                           check_sent,
+                                           check_error,
+                                           volume_repair_used,
+                                           continue_to_next_candidate))
+  {
+    signal_params.pandora_broker_stop_sync_status = no_stop_candidate.stop_status;
+    return true;
+  }
+
+  reject_context = (candidate_detail == "") ? "ORDER_CHECK_BLOCKED"
+                                            : "ORDER_CHECK_BLOCKED_" + candidate_detail;
+  return false;
+}
+
 bool GridExecuteLevelTrade(SignalParams &signal_params,
                            GridOrderState &order_state,
                            const double point_size,
@@ -422,53 +650,149 @@ bool GridExecuteLevelTrade(SignalParams &signal_params,
   }
 
   bool sent = false;
+  double broker_volume = normalized_volume;
   double sl_price = 0.0;
   double tp_price = 0.0;
   if(pandora_signal)
     GridRefreshBrokerConstraintsForAction("PANDORA_BROKER_SEND");
-
-  if(pandora_signal && Pandora_Box_Set_Broker_SLTP)
-  {
-    GridOrderState broker_seed_state = order_state;
-    if(broker_seed_state.entry_price <= 0.0)
-    {
-      broker_seed_state.entry_price = GridCurrentPriceForDirection(direction, true);
-      if(broker_seed_state.entry_price <= 0.0)
-        broker_seed_state.entry_price = order_state.entry_reference_price;
-    }
-    bool all_exact = false;
-    string detail = "";
-    if(!PandoraResolveBrokerSafeStops(signal_params,
-                                      broker_seed_state,
-                                      sl_price,
-                                      tp_price,
-                                      all_exact,
-                                      detail))
-    {
-      if(detail == "")
-        detail = "pre_send";
-      MarketStatusRegisterExecutionError("PANDORA_BROKER_STOPS_UNAVAILABLE", detail, 0, GetLastError());
-      sl_price = 0.0;
-      tp_price = 0.0;
-    }
-  }
 
   MqlTradeCheckResult broker_check_result;
   ZeroMemory(broker_check_result);
   bool broker_check_available = false;
   bool broker_check_sent = false;
   int broker_check_error = 0;
+  string order_check_block_context = "";
   if(pandora_signal)
   {
-    GridRunBrokerDealOrderCheck(direction,
-                                normalized_volume,
-                                sl_price,
-                                tp_price,
-                                comment,
-                                broker_check_result,
-                                broker_check_available,
-                                broker_check_sent,
-                                broker_check_error);
+    bool selected_request = false;
+    if(Pandora_Box_Set_Broker_SLTP)
+    {
+      GridOrderState broker_seed_state = order_state;
+      if(broker_seed_state.entry_price <= 0.0)
+      {
+        broker_seed_state.entry_price = GridCurrentPriceForDirection(direction, true);
+        if(broker_seed_state.entry_price <= 0.0)
+          broker_seed_state.entry_price = order_state.entry_reference_price;
+      }
+
+      selected_request = GridSelectPandoraBrokerOpenRequest(signal_params,
+                                                            broker_seed_state,
+                                                            direction,
+                                                            broker_volume,
+                                                            sl_price,
+                                                            tp_price,
+                                                            comment,
+                                                            broker_check_result,
+                                                            broker_check_available,
+                                                            broker_check_sent,
+                                                            broker_check_error,
+                                                            order_check_block_context);
+    }
+    else
+    {
+      PandoraBrokerOpenStopCandidate no_stop_candidate;
+      PandoraSetBrokerOpenStopCandidate(no_stop_candidate,
+                                        "no_initial_sltp",
+                                        0.0,
+                                        0.0,
+                                        PANDORA_BROKER_STOPS_NOT_REQUIRED);
+      bool volume_repair_used = false;
+      selected_request = GridRunPandoraCandidateOrderCheck(direction,
+                                                           order_state,
+                                                           no_stop_candidate,
+                                                           broker_volume,
+                                                           comment,
+                                                           broker_check_result,
+                                                           broker_check_available,
+                                                           broker_check_sent,
+                                                           broker_check_error,
+                                                           volume_repair_used);
+      if(!selected_request)
+        order_check_block_context = "ORDER_CHECK_BLOCKED";
+    }
+
+    if(!selected_request)
+    {
+      ulong check_retcode = GridBrokerCheckRetcode(broker_check_result,
+                                                  broker_check_sent);
+      int check_last_error = broker_check_error;
+      MqlTradeRequest broker_request;
+      ZeroMemory(broker_request);
+      GridBuildBrokerDealCheckRequest(direction,
+                                      broker_volume,
+                                      sl_price,
+                                      tp_price,
+                                      comment,
+                                      broker_request);
+      GridLogBrokerSendDiagnostic("ORDER_CHECK_BLOCK_DIAGNOSTIC",
+                                  signal_params,
+                                  order_state,
+                                  broker_request,
+                                  broker_check_result,
+                                  broker_check_available,
+                                  broker_check_sent,
+                                  broker_check_error,
+                                  check_retcode,
+                                  check_last_error,
+                                  "OrderCheck blocked send",
+                                  broker_check_result.comment);
+
+      PandoraRecordBrokerSendAttempt(signal_params);
+      if(Debug_Stop_On_Negative_Equity)
+      {
+        if(check_retcode == TRADE_RETCODE_NO_MONEY)
+          g_debug_no_money_abort_pending = true;
+      }
+      MarketStatusRegisterBrokerFailure(order_check_block_context,
+                                        check_retcode,
+                                        check_last_error,
+                                        false);
+
+      string reject_detail = PandoraBrokerRejectSummary(order_check_block_context,
+                                                        broker_check_result.comment,
+                                                        check_retcode,
+                                                        check_last_error);
+      if(!PandoraBrokerRetcodeAllowsLocalSimulation(check_retcode))
+      {
+        PandoraCompleteNonOperableBrokerRejection(signal_params,
+                                                  order_state,
+                                                  order_check_block_context,
+                                                  reject_detail,
+                                                  check_retcode,
+                                                  check_last_error,
+                                                  comment);
+      }
+      else if(PandoraBrokerRetryBudgetAvailable(signal_params) &&
+         PandoraBrokerFailureRetryable(order_check_block_context,
+                                       reject_detail,
+                                       check_retcode,
+                                       check_last_error,
+                                       broker_check_result,
+                                       broker_check_available,
+                                       broker_check_sent))
+      {
+        PandoraMarkBrokerRetryPending(signal_params,
+                                      order_state,
+                                      order_check_block_context,
+                                      reject_detail,
+                                      check_retcode,
+                                      check_last_error,
+                                      comment);
+      }
+      else
+      {
+        PandoraMarkBrokerRejected(signal_params,
+                                  order_state,
+                                  order_check_block_context,
+                                  reject_detail,
+                                  check_retcode,
+                                  check_last_error,
+                                  comment);
+      }
+
+      signal_params.grid_orders[order_state.level_index] = order_state;
+      return true;
+    }
   }
 
   if(direction == BULLISH)
@@ -476,14 +800,14 @@ bool GridExecuteLevelTrade(SignalParams &signal_params,
     ResetLastError();
     if(pandora_signal)
       PandoraRecordBrokerSendAttempt(signal_params);
-    sent = g_position.Buy(normalized_volume, _Symbol, 0.0, sl_price, tp_price, comment);
+    sent = g_position.Buy(broker_volume, _Symbol, 0.0, sl_price, tp_price, comment);
   }
   else
   {
     ResetLastError();
     if(pandora_signal)
       PandoraRecordBrokerSendAttempt(signal_params);
-    sent = g_position.Sell(normalized_volume, _Symbol, 0.0, sl_price, tp_price, comment);
+    sent = g_position.Sell(broker_volume, _Symbol, 0.0, sl_price, tp_price, comment);
   }
 
   ulong retcode = g_position.ResultRetcode();
@@ -649,7 +973,7 @@ bool GridExecuteLevelTrade(SignalParams &signal_params,
                   order_state.position_ticket,
                   retcode,
                   g_position.ResultVolume(),
-                  normalized_volume);
+                  broker_volume);
     }
     PandoraMarkBrokerExecuted(signal_params,
                               order_state,

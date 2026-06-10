@@ -782,6 +782,160 @@ string PandoraBrokerProtectionPolicyLabel(const SignalParams &signal_params,
   return "custom";
 }
 
+struct PandoraBrokerOpenStopCandidate
+{
+  string policy;
+  double sl_price;
+  double tp_price;
+  PandoraBrokerStopSyncStatuses stop_status;
+  bool available;
+
+  PandoraBrokerOpenStopCandidate()
+  {
+    policy = "";
+    sl_price = 0.0;
+    tp_price = 0.0;
+    stop_status = PANDORA_BROKER_STOPS_NONE;
+    available = false;
+  }
+};
+
+void PandoraResetBrokerOpenStopCandidate(PandoraBrokerOpenStopCandidate &candidate)
+{
+  candidate.policy = "";
+  candidate.sl_price = 0.0;
+  candidate.tp_price = 0.0;
+  candidate.stop_status = PANDORA_BROKER_STOPS_NONE;
+  candidate.available = false;
+}
+
+void PandoraSetBrokerOpenStopCandidate(PandoraBrokerOpenStopCandidate &candidate,
+                                       const string policy,
+                                       const double sl_price,
+                                       const double tp_price,
+                                       const PandoraBrokerStopSyncStatuses stop_status)
+{
+  candidate.policy = policy;
+  candidate.sl_price = sl_price;
+  candidate.tp_price = tp_price;
+  candidate.stop_status = stop_status;
+  candidate.available = true;
+}
+
+bool PandoraBrokerOpenStopCandidateHasStops(const PandoraBrokerOpenStopCandidate &candidate)
+{
+  return (candidate.available &&
+          (candidate.sl_price > 0.0 || candidate.tp_price > 0.0));
+}
+
+bool PandoraBrokerOpenStopCandidateMatches(const PandoraBrokerOpenStopCandidate &left,
+                                           const PandoraBrokerOpenStopCandidate &right)
+{
+  if(!left.available || !right.available)
+    return false;
+
+  double tolerance = PandoraResolveBrokerTickSize() * 0.5;
+  if(tolerance <= 0.0)
+    tolerance = PandoraResolvePointSizeSafe() * 0.5;
+
+  return PandoraStopPriceMatches(left.sl_price, right.sl_price, tolerance) &&
+         PandoraStopPriceMatches(left.tp_price, right.tp_price, tolerance);
+}
+
+int PandoraBuildBrokerOpenStopCandidates(SignalParams &signal_params,
+                                         GridOrderState &order_state,
+                                         PandoraBrokerOpenStopCandidate &exact_candidate,
+                                         PandoraBrokerOpenStopCandidate &wide_candidate,
+                                         PandoraBrokerOpenStopCandidate &no_stop_candidate,
+                                         string &detail)
+{
+  PandoraResetBrokerOpenStopCandidate(exact_candidate);
+  PandoraResetBrokerOpenStopCandidate(wide_candidate);
+  PandoraResetBrokerOpenStopCandidate(no_stop_candidate);
+  detail = "";
+
+  if(!IsPandoraSignal(signal_params))
+    return 0;
+
+  int total_candidates = 0;
+  PandoraEnsureLocalTargetPrices(signal_params, order_state);
+
+  double local_sl = PandoraResolveLocalStopTargetPrice(signal_params, order_state);
+  double local_tp = PandoraResolveLocalTakeProfitTargetPrice(signal_params, order_state);
+  signal_params.pandora_broker_sl_target_price = local_sl;
+  signal_params.pandora_broker_tp_target_price = local_tp;
+
+  if(local_sl > 0.0 || local_tp > 0.0)
+  {
+    double exact_sl = 0.0;
+    double exact_tp = 0.0;
+    if(local_sl > 0.0)
+      exact_sl = PandoraNormalizeBrokerPrice(local_sl,
+                                             PandoraBrokerStopAboveReference(signal_params.signal_type,
+                                                                            true));
+    if(local_tp > 0.0)
+      exact_tp = PandoraNormalizeBrokerPrice(local_tp,
+                                             PandoraBrokerStopAboveReference(signal_params.signal_type,
+                                                                            false));
+
+    if(exact_sl > 0.0 || exact_tp > 0.0)
+    {
+      PandoraSetBrokerOpenStopCandidate(exact_candidate,
+                                        "exact",
+                                        exact_sl,
+                                        exact_tp,
+                                        PANDORA_BROKER_STOPS_TARGETED);
+      total_candidates++;
+    }
+  }
+  else
+  {
+    detail = "no_local_targets";
+  }
+
+  double wide_sl = 0.0;
+  double wide_tp = 0.0;
+  bool all_exact = false;
+  string wide_detail = "";
+  if(PandoraResolveBrokerSafeStops(signal_params,
+                                   order_state,
+                                   wide_sl,
+                                   wide_tp,
+                                   all_exact,
+                                   wide_detail))
+  {
+    PandoraBrokerOpenStopCandidate candidate;
+    PandoraSetBrokerOpenStopCandidate(candidate,
+                                      all_exact ? "exact_safe" : "wide",
+                                      wide_sl,
+                                      wide_tp,
+                                      all_exact ? PANDORA_BROKER_STOPS_TARGETED
+                                                : PANDORA_BROKER_STOPS_WIDE);
+    if(!PandoraBrokerOpenStopCandidateMatches(candidate, exact_candidate))
+    {
+      PandoraSetBrokerOpenStopCandidate(wide_candidate,
+                                        candidate.policy,
+                                        candidate.sl_price,
+                                        candidate.tp_price,
+                                        candidate.stop_status);
+      total_candidates++;
+    }
+  }
+  else if(detail == "")
+  {
+    detail = wide_detail;
+  }
+
+  PandoraSetBrokerOpenStopCandidate(no_stop_candidate,
+                                    "no_initial_sltp",
+                                    0.0,
+                                    0.0,
+                                    PANDORA_BROKER_STOPS_PENDING);
+  total_candidates++;
+
+  return total_candidates;
+}
+
 bool PandoraBrokerProtectionPriceLegal(const SignalTypes direction,
                                        const bool stop_loss,
                                        const double price,
