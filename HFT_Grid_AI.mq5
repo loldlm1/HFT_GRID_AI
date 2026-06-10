@@ -154,7 +154,7 @@ int OnInit()
   g_decimal_digits  = pow(10.0, Digits());
   g_initial_ea_date = TimeCurrent();
 
-  if(!RefreshSymbolTradingConstraints(_Symbol, g_symbol_constraints))
+  if(!RefreshBrokerConstraintsForAction(_Symbol, g_symbol_constraints, "EA_INIT"))
   {
     Print("ERROR LOADING BROKER CONSTRAINTS FOR SYMBOL: ", _Symbol);
     return INIT_FAILED;

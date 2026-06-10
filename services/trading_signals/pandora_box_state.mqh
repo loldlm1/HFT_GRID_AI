@@ -726,19 +726,60 @@ double PandoraBrokerProtectionReferencePrice(const SignalTypes direction)
 
 double PandoraBrokerMinProtectionDistancePrice()
 {
-  double point_size = PandoraResolvePointSizeSafe();
-  if(point_size <= 0.0)
-    return 0.0;
+  return EffectiveBrokerDistancePrice(g_symbol_constraints, 0.0, 1.0);
+}
 
-  double distance_points = EnforceBrokerDistance(g_symbol_constraints, 0.0);
-  if(distance_points <= 0.0)
-    distance_points = MinBrokerDistancePoints(g_symbol_constraints);
+double PandoraBrokerEffectiveProtectionDistancePoints()
+{
+  return EffectiveBrokerDistancePoints(g_symbol_constraints, 0.0, 1.0);
+}
 
-  double tick_size = PandoraResolveBrokerTickSize();
-  double min_distance = distance_points * point_size;
-  if(tick_size > 0.0)
-    min_distance = MathMax(min_distance, tick_size);
-  return min_distance;
+bool PandoraStopPriceMatches(const double current_price,
+                             const double target_price,
+                             const double tolerance)
+{
+  if(target_price <= 0.0)
+    return (current_price <= tolerance);
+  return MathAbs(current_price - target_price) <= tolerance;
+}
+
+string PandoraBrokerProtectionPolicyLabel(const SignalParams &signal_params,
+                                          const double sl_price,
+                                          const double tp_price)
+{
+  if(!IsPandoraSignal(signal_params))
+    return "-";
+
+  if(sl_price <= 0.0 && tp_price <= 0.0)
+    return "no_initial_sltp";
+
+  double tolerance = PandoraResolveBrokerTickSize() * 0.5;
+  if(tolerance <= 0.0)
+    tolerance = PandoraResolvePointSizeSafe() * 0.5;
+
+  bool has_local_targets = (signal_params.pandora_broker_sl_target_price > 0.0 ||
+                            signal_params.pandora_broker_tp_target_price > 0.0);
+  bool exact_sl = PandoraStopPriceMatches(sl_price,
+                                          signal_params.pandora_broker_sl_target_price,
+                                          tolerance);
+  bool exact_tp = PandoraStopPriceMatches(tp_price,
+                                          signal_params.pandora_broker_tp_target_price,
+                                          tolerance);
+  if(has_local_targets && exact_sl && exact_tp)
+    return "exact";
+
+  bool has_protection = (signal_params.pandora_broker_sl_protection_price > 0.0 ||
+                         signal_params.pandora_broker_tp_protection_price > 0.0);
+  bool wide_sl = PandoraStopPriceMatches(sl_price,
+                                         signal_params.pandora_broker_sl_protection_price,
+                                         tolerance);
+  bool wide_tp = PandoraStopPriceMatches(tp_price,
+                                         signal_params.pandora_broker_tp_protection_price,
+                                         tolerance);
+  if(has_protection && wide_sl && wide_tp)
+    return "wide";
+
+  return "custom";
 }
 
 bool PandoraBrokerProtectionPriceLegal(const SignalTypes direction,

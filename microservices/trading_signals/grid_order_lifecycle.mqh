@@ -8,6 +8,20 @@
 
 bool g_debug_no_money_abort_pending = false;
 
+bool GridRefreshBrokerConstraintsForAction(const string context)
+{
+  if(RefreshBrokerConstraintsForAction(_Symbol,
+                                       g_symbol_constraints,
+                                       context))
+    return true;
+
+  MarketStatusRegisterExecutionError(context + "_CONSTRAINTS_REFRESH_FAILED",
+                                     "symbol_specs_unavailable",
+                                     0,
+                                     GetLastError());
+  return false;
+}
+
 ulong ResolvePositionTicketFromDeal(const ulong deal_ticket)
 {
   if(deal_ticket <= 0)
@@ -166,6 +180,8 @@ bool GridSyncPandoraBrokerStops(SignalParams &signal_params,
 
   if(throttle)
     signal_params.pandora_broker_stop_sync_time = now_time;
+
+  GridRefreshBrokerConstraintsForAction(context + "_CONSTRAINTS");
 
   if(!PositionSelectByTicket(order_state.position_ticket))
   {
@@ -408,6 +424,9 @@ bool GridExecuteLevelTrade(SignalParams &signal_params,
   bool sent = false;
   double sl_price = 0.0;
   double tp_price = 0.0;
+  if(pandora_signal)
+    GridRefreshBrokerConstraintsForAction("PANDORA_BROKER_SEND");
+
   if(pandora_signal && Pandora_Box_Set_Broker_SLTP)
   {
     GridOrderState broker_seed_state = order_state;
