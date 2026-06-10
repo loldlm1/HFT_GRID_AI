@@ -364,15 +364,21 @@ ulong GridBrokerCheckRetcode(const MqlTradeCheckResult &check_result,
 }
 
 bool GridBrokerCheckAllowsSend(const MqlTradeCheckResult &check_result,
-                               const bool check_sent)
+                               const bool check_sent,
+                               const int check_error)
 {
   if(!check_sent)
     return false;
 
   ulong retcode = (ulong)check_result.retcode;
-  return (retcode == TRADE_RETCODE_DONE ||
-          retcode == TRADE_RETCODE_DONE_PARTIAL ||
-          retcode == TRADE_RETCODE_PLACED);
+  if(retcode == TRADE_RETCODE_DONE ||
+     retcode == TRADE_RETCODE_DONE_PARTIAL ||
+     retcode == TRADE_RETCODE_PLACED)
+    return true;
+
+  return (retcode == 0 &&
+          check_error == 0 &&
+          check_result.comment == "");
 }
 
 bool GridBrokerCheckInvalidStops(const MqlTradeCheckResult &check_result,
@@ -422,7 +428,9 @@ void GridLogPandoraCandidateOrderCheck(const SignalParams &signal_params,
                                   comment,
                                   broker_request);
 
-  bool allowed = GridBrokerCheckAllowsSend(check_result, check_sent);
+  bool allowed = GridBrokerCheckAllowsSend(check_result,
+                                           check_sent,
+                                           check_error);
   ulong check_retcode = GridBrokerCheckRetcode(check_result, check_sent);
   string detail = StringFormat("candidate=%s phase=%s candidate_available=%s candidate_stop_status=%s allowed=%s",
                                candidate.policy,
@@ -482,7 +490,9 @@ bool GridRunPandoraCandidateOrderCheck(const SignalTypes direction,
                                     "initial",
                                     volume_repair_used);
 
-  if(GridBrokerCheckAllowsSend(check_result, check_sent))
+  if(GridBrokerCheckAllowsSend(check_result,
+                               check_sent,
+                               check_error))
     return true;
 
   if(!GridBrokerCheckInvalidVolume(check_result, check_sent) ||
@@ -520,7 +530,9 @@ bool GridRunPandoraCandidateOrderCheck(const SignalTypes direction,
                                     "volume_repair",
                                     volume_repair_used);
 
-  return GridBrokerCheckAllowsSend(check_result, check_sent);
+  return GridBrokerCheckAllowsSend(check_result,
+                                   check_sent,
+                                   check_error);
 }
 
 bool GridEvaluatePandoraBrokerOpenCandidate(const SignalTypes direction,

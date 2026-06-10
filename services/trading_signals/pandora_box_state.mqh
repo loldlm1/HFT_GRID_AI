@@ -586,9 +586,13 @@ bool PandoraBrokerCheckAllowsSend(const MqlTradeCheckResult &check_result,
     return false;
 
   ulong retcode = (ulong)check_result.retcode;
-  return (retcode == TRADE_RETCODE_DONE ||
-          retcode == TRADE_RETCODE_DONE_PARTIAL ||
-          retcode == TRADE_RETCODE_PLACED);
+  if(retcode == TRADE_RETCODE_DONE ||
+     retcode == TRADE_RETCODE_DONE_PARTIAL ||
+     retcode == TRADE_RETCODE_PLACED)
+    return true;
+
+  return (retcode == 0 &&
+          check_result.comment == "");
 }
 
 bool PandoraBrokerCheckFinalFailure(const MqlTradeCheckResult &check_result,
