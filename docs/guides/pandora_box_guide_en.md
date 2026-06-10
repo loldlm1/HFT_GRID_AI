@@ -76,8 +76,8 @@ Follow these detailed steps to install and configure **Pandora Box** in MetaTrad
 - If the budget is reached while local entries remain open, status shows `PANDORA WAIT_CLOSE`; after local closure, it transitions to `PANDORA DONE`.
 - `Pandora_Box_Entry_Count_Mode` only controls the `counted` analytics counter; it does not replace the opened-entry budget.
 - `Pandora_Box_Set_Broker_SLTP` is an extra broker-side protection layer. Exact Pandora SL/TP remains local and is calculated from the active broker-realistic entry.
-- Broker SL/TP can be wider temporarily when broker stops/freeze rules require it, then tightened later when the server permits the exact local targets.
-- If spread is above range at breakout, Pandora waits before creating the active local entry. If invalid stops, volume, margin, or another operable broker rule blocks the send after a broker-realistic anchor exists, Pandora keeps the local entry alive as `local_rejected` until local SL/TP/BE/trailing logic closes it. Market closed/disabled states are not simulated as normal trades.
+- Broker SL/TP can start exact, wider, pending, or temporarily absent when broker stops/freeze rules require it, then tighten later when the server permits the exact local targets.
+- If spread is above range at breakout, Pandora waits before creating the active local entry. If invalid stops are the only blocker, Pandora checks exact SL/TP, broker-safe wide SL/TP, then no initial broker SL/TP when that no-stop market request is otherwise valid. Volume is repaired once; unrepaired volume, margin, market closed/disabled, close-only, and account/symbol restrictions are final.
 - A successful retry replaces any previous simulated local anchor with the real broker fill, recalculates local SL/TP/trailing, and redraws the marker from the real entry.
 - Chart trade markers draw active broker-realistic entries. Executed broker entries use labels such as `20$ (Posicion ejecutada)`; blocked/rejected entries use labels such as `10$ (Posicion local - ERR_Stops)`, `ERR_Volumen`, or `ERR_Margen`.
 
@@ -101,7 +101,7 @@ Follow these detailed steps to install and configure **Pandora Box** in MetaTrad
 | `Pandora_Box_Direction_Mode` | `BOTH_DIRECTION` | Allowed breakout side(s): both, bullish only, or bearish only. | Restrict to one side only with directional conviction. |
 | `Pandora_Box_Use_Session_Filter` | `true` | Applies session-time filters to Pandora attempts. | Keep `true` when session policy is part of risk management. |
 | `Pandora_Box_Enable_Visualization` | `true` | Draws the Pandora chart frontend: current box/breakout guides plus up to 8 day-zones (current day + previous 7 trading days). Invalid historical days keep the same DimGray fill and show a simple label. | Keep enabled during setup/tuning. |
-| `Pandora_Box_Set_Broker_SLTP` | `true` | Adds broker-side SL/TP protection when opening/modifying positions. Exact Pandora SL/TP is still enforced locally from the active broker-realistic entry; broker stops can be wider temporarily and tightened later. | Keep `true` for extra server-side protection, but validate source-of-truth SL/TP behavior in tester. |
+| `Pandora_Box_Set_Broker_SLTP` | `true` | Adds broker-side SL/TP protection when opening/modifying positions. Exact Pandora SL/TP is still enforced locally from the active broker-realistic entry; broker stops can be exact, wider, pending, or temporarily absent before later tightening. | Keep `true` for extra server-side protection, but validate source-of-truth SL/TP behavior in tester. |
 | `Pandora_Box_Entry_Type` | `ENTRY_WICK_TYPE` | Entry trigger style. `ENTRY_WICK_TYPE` uses live tick/current-price breakout; `ENTRY_BODY_TYPE` requires a closed candle outside the offset breakout level. | Keep `WICK` for legacy behavior; use `BODY` to reduce wick-only breaks. |
 | `Pandora_Box_Entry_Body_Timeframe` | `PERIOD_M5` | Standard MT5 timeframe used by `ENTRY_BODY_TYPE` for closed-candle breakout and rearm checks. `PERIOD_CURRENT` resolves through the Pandora/strategy timeframe fallback. | Start with `PERIOD_M5` for deterministic body confirmation. |
 | `Enable_Chart_Levels` | `true` | Enables the fixed frontend overlays. With `Enable_Chart_Summary` also active, live charts show the compact top-left panel instead of live `Comment()` text; Strategy Tester still uses comment fallback. Pandora trade markers draw local and broker-executed entries. | Keep enabled for manual monitoring. |
@@ -157,7 +157,7 @@ Before running **Pandora Box** on a live account, verify:
 - Direction mode matches your market bias.
 - `Pandora_Box_Max_Entries` matches the intended Pandora entry budget.
 - Local-rejected scenarios are understood: stops/volume/margin rejection can still leave one broker-realistic local entry alive until local SL/TP/BE/trailing closes it.
-- Broker-side SL/TP is validated as extra protection only; local exact SL/TP remains based on the active broker fill or simulated anchor even when broker stops are temporarily wider.
+- Broker-side SL/TP is validated as extra protection only; local exact SL/TP remains based on the active broker fill or simulated anchor even when broker stops are temporarily wider, pending, or absent after a valid no-initial-SLTP open.
 - Session filters are configured if `Pandora_Box_Use_Session_Filter = true`.
 - `Allow WebRequest for listed URL` is enabled with `https://tradingsniperpanel.com`.
 - Each production chart shows its own backend-approved runtime magic and ignores positions from other charts/symbols.
