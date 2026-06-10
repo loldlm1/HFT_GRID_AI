@@ -208,8 +208,8 @@ DailySignalLimitModes Daily_Signal_Limit_Mode      = STOP_DAILY_SIGNALS;
  double                 Grid_Partial_Take_Percentage = 50.0;
 
 //input group  "+= Developer Debug Settings =+";
- bool Enable_Logs              = false;
- bool Enable_File_Logs         = false;
+ bool Enable_Logs              = true;
+ bool Enable_File_Logs         = true;
  bool Enable_Show_Indicators   = true;
  bool Enable_Chart_Summary     = true;
  bool Enable_Trend_Filter_Sanity_Stop = false;
