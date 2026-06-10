@@ -158,6 +158,27 @@ bool GridBrokerStopPriceMatches(const double current_price,
   return MathAbs(current_price - target_price) <= tolerance;
 }
 
+bool GridPandoraStopSyncFailureIsPending(const ulong retcode)
+{
+  switch((int)retcode)
+  {
+    case TRADE_RETCODE_INVALID_STOPS:
+    case TRADE_RETCODE_FROZEN:
+    case TRADE_RETCODE_PRICE_CHANGED:
+    case TRADE_RETCODE_PRICE_OFF:
+    case TRADE_RETCODE_REQUOTE:
+    case TRADE_RETCODE_TIMEOUT:
+    case TRADE_RETCODE_CONNECTION:
+    case TRADE_RETCODE_TOO_MANY_REQUESTS:
+    case TRADE_RETCODE_LOCKED:
+    case TRADE_RETCODE_ERROR:
+      return true;
+    default:
+      break;
+  }
+  return false;
+}
+
 bool GridSyncPandoraBrokerStops(SignalParams &signal_params,
                                 GridOrderState &order_state,
                                 const string context,
@@ -215,6 +236,7 @@ bool GridSyncPandoraBrokerStops(SignalParams &signal_params,
   double current_tp = PositionGetDouble(POSITION_TP);
   bool sl_matches = GridBrokerStopPriceMatches(current_sl, target_sl, tolerance);
   bool tp_matches = GridBrokerStopPriceMatches(current_tp, target_tp, tolerance);
+  bool current_has_broker_stops = (current_sl > tolerance || current_tp > tolerance);
   if(sl_matches && tp_matches)
   {
     PandoraSetBrokerStopSyncResolvedStatus(signal_params, all_exact);
@@ -226,8 +248,12 @@ bool GridSyncPandoraBrokerStops(SignalParams &signal_params,
   {
     ulong retcode = g_position.ResultRetcode();
     int last_error = GetLastError();
-    signal_params.pandora_broker_stop_sync_status = PANDORA_BROKER_STOPS_FAILED;
-    MarketStatusRegisterBrokerFailure(context + "_FAILED", retcode, last_error, true);
+    signal_params.pandora_broker_stop_sync_status =
+      GridPandoraStopSyncFailureIsPending(retcode)
+      ? (current_has_broker_stops ? PANDORA_BROKER_STOPS_WIDE
+                                  : PANDORA_BROKER_STOPS_PENDING)
+      : PANDORA_BROKER_STOPS_FAILED;
+    MarketStatusRegisterBrokerFailure(context + "_FAILED", retcode, last_error, false);
     return false;
   }
 
@@ -361,6 +387,16 @@ bool GridBrokerCheckInvalidVolume(const MqlTradeCheckResult &check_result,
   return (GridBrokerCheckRetcode(check_result, check_sent) == TRADE_RETCODE_INVALID_VOLUME);
 }
 
+string GridAppendPandoraBrokerDetail(const string detail,
+                                     const string extra_detail)
+{
+  if(extra_detail == "")
+    return detail;
+  if(detail == "")
+    return extra_detail;
+  return detail + " " + extra_detail;
+}
+
 bool GridRunPandoraCandidateOrderCheck(const SignalTypes direction,
                                        const GridOrderState &order_state,
                                        const PandoraBrokerOpenStopCandidate &candidate,
@@ -464,9 +500,11 @@ bool GridSelectPandoraBrokerOpenRequest(SignalParams &signal_params,
                                         bool &check_available,
                                         bool &check_sent,
                                         int &check_error,
-                                        string &reject_context)
+                                        string &reject_context,
+                                        bool &volume_repair_used)
 {
   reject_context = "";
+  volume_repair_used = false;
 
   PandoraBrokerOpenStopCandidate exact_candidate;
   PandoraBrokerOpenStopCandidate wide_candidate;
@@ -479,7 +517,6 @@ bool GridSelectPandoraBrokerOpenRequest(SignalParams &signal_params,
                                        no_stop_candidate,
                                        candidate_detail);
 
-  bool volume_repair_used = false;
   bool continue_to_next_candidate = false;
 
   if(PandoraBrokerOpenStopCandidateHasStops(exact_candidate))
@@ -653,6 +690,8 @@ bool GridExecuteLevelTrade(SignalParams &signal_params,
   double broker_volume = normalized_volume;
   double sl_price = 0.0;
   double tp_price = 0.0;
+  bool broker_volume_repair_used = false;
+  PandoraBrokerStopSyncStatuses selected_stop_status = PANDORA_BROKER_STOPS_NOT_REQUIRED;
   if(pandora_signal)
     GridRefreshBrokerConstraintsForAction("PANDORA_BROKER_SEND");
 
@@ -686,7 +725,8 @@ bool GridExecuteLevelTrade(SignalParams &signal_params,
                                                             broker_check_available,
                                                             broker_check_sent,
                                                             broker_check_error,
-                                                            order_check_block_context);
+                                                            order_check_block_context,
+                                                            broker_volume_repair_used);
     }
     else
     {
@@ -696,7 +736,6 @@ bool GridExecuteLevelTrade(SignalParams &signal_params,
                                         0.0,
                                         0.0,
                                         PANDORA_BROKER_STOPS_NOT_REQUIRED);
-      bool volume_repair_used = false;
       selected_request = GridRunPandoraCandidateOrderCheck(direction,
                                                            order_state,
                                                            no_stop_candidate,
@@ -706,9 +745,11 @@ bool GridExecuteLevelTrade(SignalParams &signal_params,
                                                            broker_check_available,
                                                            broker_check_sent,
                                                            broker_check_error,
-                                                           volume_repair_used);
+                                                           broker_volume_repair_used);
       if(!selected_request)
         order_check_block_context = "ORDER_CHECK_BLOCKED";
+      else
+        signal_params.pandora_broker_stop_sync_status = PANDORA_BROKER_STOPS_NOT_REQUIRED;
     }
 
     if(!selected_request)
@@ -724,6 +765,10 @@ bool GridExecuteLevelTrade(SignalParams &signal_params,
                                       tp_price,
                                       comment,
                                       broker_request);
+      string check_detail = broker_check_result.comment;
+      if(broker_volume_repair_used)
+        check_detail = GridAppendPandoraBrokerDetail(check_detail,
+                                                     "volume_repair=1");
       GridLogBrokerSendDiagnostic("ORDER_CHECK_BLOCK_DIAGNOSTIC",
                                   signal_params,
                                   order_state,
@@ -735,7 +780,7 @@ bool GridExecuteLevelTrade(SignalParams &signal_params,
                                   check_retcode,
                                   check_last_error,
                                   "OrderCheck blocked send",
-                                  broker_check_result.comment);
+                                  check_detail);
 
       PandoraRecordBrokerSendAttempt(signal_params);
       if(Debug_Stop_On_Negative_Equity)
@@ -749,7 +794,7 @@ bool GridExecuteLevelTrade(SignalParams &signal_params,
                                         false);
 
       string reject_detail = PandoraBrokerRejectSummary(order_check_block_context,
-                                                        broker_check_result.comment,
+                                                        check_detail,
                                                         check_retcode,
                                                         check_last_error);
       if(!PandoraBrokerRetcodeAllowsLocalSimulation(check_retcode))
@@ -793,6 +838,8 @@ bool GridExecuteLevelTrade(SignalParams &signal_params,
       signal_params.grid_orders[order_state.level_index] = order_state;
       return true;
     }
+
+    selected_stop_status = signal_params.pandora_broker_stop_sync_status;
   }
 
   if(direction == BULLISH)
@@ -817,6 +864,10 @@ bool GridExecuteLevelTrade(SignalParams &signal_params,
     MqlTradeRequest broker_request;
     ZeroMemory(broker_request);
     g_position.Request(broker_request);
+    string send_comment = g_position.ResultComment();
+    if(broker_volume_repair_used)
+      send_comment = GridAppendPandoraBrokerDetail(send_comment,
+                                                   "volume_repair=1");
     GridLogBrokerSendDiagnostic("ORDER_SEND_DIAGNOSTIC",
                                 signal_params,
                                 order_state,
@@ -828,7 +879,7 @@ bool GridExecuteLevelTrade(SignalParams &signal_params,
                                 retcode,
                                 last_error,
                                 g_position.ResultRetcodeDescription(),
-                                g_position.ResultComment());
+                                send_comment);
 
     if(Debug_Stop_On_Negative_Equity)
     {
@@ -838,7 +889,11 @@ bool GridExecuteLevelTrade(SignalParams &signal_params,
     MarketStatusRegisterBrokerFailure("ORDER_SEND_FAILED", retcode, last_error, false);
     if(pandora_signal)
     {
-      string reject_detail = PandoraBrokerRejectSummary("ORDER_SEND_FAILED", "", retcode, last_error);
+      string send_detail = broker_volume_repair_used ? "volume_repair=1" : "";
+      string reject_detail = PandoraBrokerRejectSummary("ORDER_SEND_FAILED",
+                                                        send_detail,
+                                                        retcode,
+                                                        last_error);
       if(!PandoraBrokerRetcodeAllowsLocalSimulation(retcode))
       {
         PandoraCompleteNonOperableBrokerRejection(signal_params,
@@ -896,12 +951,17 @@ bool GridExecuteLevelTrade(SignalParams &signal_params,
   if(pandora_signal && (!broker_executed || position_ticket == 0))
   {
     string context = broker_executed ? "ORDER_SEND_POSITION_MISSING" : "ORDER_SEND_REJECTED";
-    string reject_detail = PandoraBrokerRejectSummary(context, "", retcode, last_error);
+    string send_detail = broker_volume_repair_used ? "volume_repair=1" : "";
+    string reject_detail = PandoraBrokerRejectSummary(context, send_detail, retcode, last_error);
     if(retcode == TRADE_RETCODE_DONE_PARTIAL)
       reject_detail = reject_detail + StringFormat(" volume=%.2f", g_position.ResultVolume());
     MqlTradeRequest broker_request;
     ZeroMemory(broker_request);
     g_position.Request(broker_request);
+    string send_comment = g_position.ResultComment();
+    if(broker_volume_repair_used)
+      send_comment = GridAppendPandoraBrokerDetail(send_comment,
+                                                   "volume_repair=1");
     GridLogBrokerSendDiagnostic(context + "_DIAGNOSTIC",
                                 signal_params,
                                 order_state,
@@ -913,7 +973,7 @@ bool GridExecuteLevelTrade(SignalParams &signal_params,
                                 retcode,
                                 last_error,
                                 g_position.ResultRetcodeDescription(),
-                                g_position.ResultComment());
+                                send_comment);
     MarketStatusRegisterBrokerFailure(context, retcode, last_error, false);
     if(!PandoraBrokerRetcodeAllowsLocalSimulation(retcode))
     {
@@ -980,6 +1040,8 @@ bool GridExecuteLevelTrade(SignalParams &signal_params,
                               retcode,
                               last_error,
                               comment);
+    if(Pandora_Box_Set_Broker_SLTP)
+      signal_params.pandora_broker_stop_sync_status = selected_stop_status;
   }
 
   GridRefreshPandoraStopsAfterFill(signal_params, order_state);

@@ -254,10 +254,23 @@ bool PandoraBrokerRetcodeAllowsLocalSimulation(const ulong retcode)
 {
   switch((int)retcode)
   {
+    case TRADE_RETCODE_INVALID_VOLUME:
+    case TRADE_RETCODE_LIMIT_VOLUME:
+    case TRADE_RETCODE_NO_MONEY:
     case TRADE_RETCODE_MARKET_CLOSED:
     case TRADE_RETCODE_TRADE_DISABLED:
     case TRADE_RETCODE_SERVER_DISABLES_AT:
     case TRADE_RETCODE_CLIENT_DISABLES_AT:
+    case TRADE_RETCODE_CLOSE_ONLY:
+    case TRADE_RETCODE_LONG_ONLY:
+    case TRADE_RETCODE_SHORT_ONLY:
+    case TRADE_RETCODE_ONLY_REAL:
+    case TRADE_RETCODE_HEDGE_PROHIBITED:
+    case TRADE_RETCODE_INVALID_FILL:
+    case TRADE_RETCODE_INVALID_ORDER:
+    case TRADE_RETCODE_INVALID_EXPIRATION:
+    case TRADE_RETCODE_LIMIT_POSITIONS:
+    case TRADE_RETCODE_LIMIT_ORDERS:
       return false;
     default:
       break;
@@ -520,6 +533,8 @@ bool PandoraBrokerRetcodeRetryable(const ulong retcode,
     case TRADE_RETCODE_TIMEOUT:
     case TRADE_RETCODE_CONNECTION:
     case TRADE_RETCODE_TOO_MANY_REQUESTS:
+    case TRADE_RETCODE_LOCKED:
+    case TRADE_RETCODE_FROZEN:
       return true;
     default:
       break;
@@ -542,14 +557,38 @@ bool PandoraBrokerRetcodeFinal(const ulong retcode)
     case TRADE_RETCODE_TRADE_DISABLED:
     case TRADE_RETCODE_SERVER_DISABLES_AT:
     case TRADE_RETCODE_CLIENT_DISABLES_AT:
+    case TRADE_RETCODE_CLOSE_ONLY:
+    case TRADE_RETCODE_LONG_ONLY:
+    case TRADE_RETCODE_SHORT_ONLY:
+    case TRADE_RETCODE_ONLY_REAL:
+    case TRADE_RETCODE_HEDGE_PROHIBITED:
+    case TRADE_RETCODE_INVALID_ORDER:
+    case TRADE_RETCODE_INVALID_EXPIRATION:
+    case TRADE_RETCODE_LIMIT_POSITIONS:
+    case TRADE_RETCODE_LIMIT_ORDERS:
     case TRADE_RETCODE_INVALID_FILL:
     case TRADE_RETCODE_INVALID_PRICE:
     case TRADE_RETCODE_INVALID:
+    case TRADE_RETCODE_REJECT:
+    case TRADE_RETCODE_CANCEL:
       return true;
     default:
       break;
   }
   return false;
+}
+
+bool PandoraBrokerCheckAllowsSend(const MqlTradeCheckResult &check_result,
+                                  const bool check_available,
+                                  const bool check_sent)
+{
+  if(!check_available || !check_sent)
+    return false;
+
+  ulong retcode = (ulong)check_result.retcode;
+  return (retcode == TRADE_RETCODE_DONE ||
+          retcode == TRADE_RETCODE_DONE_PARTIAL ||
+          retcode == TRADE_RETCODE_PLACED);
 }
 
 bool PandoraBrokerCheckFinalFailure(const MqlTradeCheckResult &check_result,
@@ -559,6 +598,22 @@ bool PandoraBrokerCheckFinalFailure(const MqlTradeCheckResult &check_result,
   if(!check_available || !check_sent)
     return false;
   return PandoraBrokerRetcodeFinal(check_result.retcode);
+}
+
+bool PandoraBrokerInvalidStopsRetryableAfterSend(const string context,
+                                                 const ulong retcode,
+                                                 const MqlTradeCheckResult &check_result,
+                                                 const bool check_available,
+                                                 const bool check_sent)
+{
+  if(retcode != TRADE_RETCODE_INVALID_STOPS)
+    return false;
+
+  if(context != "ORDER_SEND_FAILED" &&
+     context != "ORDER_SEND_REJECTED")
+    return false;
+
+  return PandoraBrokerCheckAllowsSend(check_result, check_available, check_sent);
 }
 
 bool PandoraBrokerFailureRetryable(const string context,
@@ -571,6 +626,12 @@ bool PandoraBrokerFailureRetryable(const string context,
 {
   if(!PandoraBrokerRetryEnabled())
     return false;
+  if(PandoraBrokerInvalidStopsRetryableAfterSend(context,
+                                                 retcode,
+                                                 check_result,
+                                                 check_available,
+                                                 check_sent))
+    return true;
   if(PandoraBrokerCheckFinalFailure(check_result, check_available, check_sent))
     return false;
   if(PandoraBrokerGuardrailRetryable(context) ||
