@@ -578,37 +578,8 @@ bool PandoraBrokerRetcodeFinal(const ulong retcode)
   return false;
 }
 
-bool PandoraBrokerCheckAllowsSend(const MqlTradeCheckResult &check_result,
-                                  const bool check_available,
-                                  const bool check_sent)
-{
-  if(!check_available || !check_sent)
-    return false;
-
-  ulong retcode = (ulong)check_result.retcode;
-  if(retcode == TRADE_RETCODE_DONE ||
-     retcode == TRADE_RETCODE_DONE_PARTIAL ||
-     retcode == TRADE_RETCODE_PLACED)
-    return true;
-
-  return (retcode == 0 &&
-          check_result.comment == "");
-}
-
-bool PandoraBrokerCheckFinalFailure(const MqlTradeCheckResult &check_result,
-                                    const bool check_available,
-                                    const bool check_sent)
-{
-  if(!check_available || !check_sent)
-    return false;
-  return PandoraBrokerRetcodeFinal(check_result.retcode);
-}
-
 bool PandoraBrokerInvalidStopsRetryableAfterSend(const string context,
-                                                 const ulong retcode,
-                                                 const MqlTradeCheckResult &check_result,
-                                                 const bool check_available,
-                                                 const bool check_sent)
+                                                 const ulong retcode)
 {
   if(retcode != TRADE_RETCODE_INVALID_STOPS)
     return false;
@@ -617,27 +588,19 @@ bool PandoraBrokerInvalidStopsRetryableAfterSend(const string context,
      context != "ORDER_SEND_REJECTED")
     return false;
 
-  return PandoraBrokerCheckAllowsSend(check_result, check_available, check_sent);
+  return true;
 }
 
 bool PandoraBrokerFailureRetryable(const string context,
                                    const string detail,
                                    const ulong retcode,
-                                   const int last_error,
-                                   const MqlTradeCheckResult &check_result,
-                                   const bool check_available,
-                                   const bool check_sent)
+                                   const int last_error)
 {
   if(!PandoraBrokerRetryEnabled())
     return false;
   if(PandoraBrokerInvalidStopsRetryableAfterSend(context,
-                                                 retcode,
-                                                 check_result,
-                                                 check_available,
-                                                 check_sent))
+                                                 retcode))
     return true;
-  if(PandoraBrokerCheckFinalFailure(check_result, check_available, check_sent))
-    return false;
   if(PandoraBrokerGuardrailRetryable(context) ||
      PandoraBrokerGuardrailRetryable(detail))
     return true;

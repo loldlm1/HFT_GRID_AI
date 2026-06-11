@@ -31,8 +31,10 @@ broker SL/TP followed by post-fill stop synchronization.
 - Preserve Pandora local SL/TP/trailing as the source of truth.
 - Preserve magic-number, symbol, comment, session, daily budget, protection,
   market-status, spread, margin, volume, and license guards.
-- Treat market closed, trading disabled, invalid volume, no money, invalid fill,
-  and close-only/disabled broker states as hard limitations.
+- Treat local guardrails and request-construction failures as pre-send
+  limitations. Broker retcodes, including market closed, trading disabled,
+  invalid volume, no money, invalid fill, and close-only/disabled states, are
+  authoritative only when returned by `OrderSend`.
 - Treat broker stop/freeze/spread limitations as operable constraints whenever
   there is still a valid, scoped, market-open execution path.
 - Only the final Sprint runs the MetaEditor compile and related BUILD.log error
@@ -50,10 +52,10 @@ broker SL/TP followed by post-fill stop synchronization.
 - Invalid-stops recovery resolves in the same tick through the deterministic
   candidate cascade: exact broker SL/TP -> widened broker-safe SL/TP -> market
   open without initial broker SL/TP -> post-fill broker stop synchronization.
-- Invalid volume is repairable once in the same tick by refreshing symbol
-  constraints and recalculating/renormalizing volume. If the repaired request
-  still fails volume validation, the broker-open attempt is final for that
-  Pandora entry.
+- Invalid volume reported by `OrderCheck` is repairable once in the same tick by
+  refreshing symbol constraints and recalculating/renormalizing volume. The
+  resulting request is still sent so `OrderSend` remains the broker source of
+  truth.
 
 ## Retcode Policy
 
@@ -84,6 +86,9 @@ an already-open matching position by magic, symbol, and comment so the EA does
 not duplicate a position after a delayed server response.
 
 ### Final Broker Limitations
+
+These classifications apply to `OrderSend` results only. An `OrderCheck`
+result never finalizes or blocks the Pandora broker-open attempt.
 
 - `TRADE_RETCODE_MARKET_CLOSED`
 - `TRADE_RETCODE_TRADE_DISABLED`
@@ -209,28 +214,28 @@ as invalid stops.
 - **Validation**:
   - Static review against Pandora local target fields and stop sync statuses.
 
-### Task 2.2: Promote OrderCheck To A Gate
+### Task 2.2: Use OrderCheck As An Advisory Candidate Probe
 
 - **Location**:
   - `microservices/trading_signals/grid_order_lifecycle.mqh`
-- **Description**: Use `OrderCheck` as a pre-send gate for each candidate. If a
-  candidate fails with `TRADE_RETCODE_INVALID_STOPS`, evaluate the next
-  candidate instead of sending the rejected values. If the check fails for
-  invalid volume, refresh constraints and recalculate normalized volume once
-  before deciding final failure. If the check fails for margin, market closed,
-  disabled trading, invalid fill after one filling repair, or another final
-  broker limitation, preserve the final classification.
+- **Description**: Use `OrderCheck` as an advisory probe for each candidate. If
+  a candidate reports `TRADE_RETCODE_INVALID_STOPS`, evaluate the next
+  candidate instead of knowingly sending those stop values. If the check
+  reports invalid volume, refresh constraints and recalculate normalized
+  volume once. All other preflight results continue to `OrderSend`, whose
+  result is authoritative.
 - **Dependencies**: Task 2.1.
 - **Acceptance Criteria**:
-  - The final `Buy/Sell` request reuses a candidate that passed `OrderCheck`, or
-    the no-initial-SLTP fallback after invalid-stops-only failures.
+  - The final request is the exact request most recently inspected by
+    `OrderCheck`.
   - `INVALID_STOPS` no longer causes a one-shot final rejection when the no-stop
-    market request is check-valid.
-  - `INVALID_VOLUME` receives exactly one same-tick repair attempt before final
-    rejection.
-  - Hard blockers are not bypassed.
+    market request can be constructed.
+  - `INVALID_VOLUME` receives exactly one same-tick repair attempt before
+    `OrderSend`.
+  - No `OrderCheck` retcode blocks a constructible Pandora market request.
 - **Validation**:
-  - Static control-flow review for each retcode family.
+  - Static control-flow review confirms only invalid stops changes candidates
+    and every constructible final request reaches `OrderSend`.
 
 ### Task 2.3: Preserve Deterministic Local Admission
 
@@ -400,8 +405,9 @@ stops, broker constraints, and local determinism.
 ## Potential Risks And Gotchas
 
 - Some brokers may reject a market order without initial SL/TP if account or
-  symbol policy requires protection. The candidate pipeline must treat that as
-  a final broker limitation after `OrderCheck`, not force execution.
+  symbol policy requires protection. The candidate pipeline still sends the
+  constructible request and treats the resulting `OrderSend` retcode as the
+  final broker response.
 - A short-lived broker position without server SL/TP is a risk if the terminal,
   VPS, network, or EA dies before stop sync. This is why the fallback must be
   explicit and documented.
@@ -424,3 +430,44 @@ stops, broker constraints, and local determinism.
   the execution fix.
 - Restore previous `TRADE_RETCODE_INVALID_STOPS` final behavior only if broker
   safety policy rejects the fallback model.
+
+## Post-Plan Runtime Sprints
+
+### Sprint 5: OrderCheck Runtime Diagnostics
+
+**Goal**: Capture candidate-level `OrderCheck` evidence in Strategy Tester
+without changing the execution decision.
+
+**Status**: Completed in commit `732b82c`.
+
+### Sprint 6: Authoritative Market OrderSend
+
+**Goal**: Make `OrderCheck` advisory for Pandora market opens while retaining
+the deterministic invalid-stops candidate cascade.
+
+**Tasks**:
+
+- Build the final Pandora `MqlTradeRequest` once per selected candidate.
+- Run `OrderCheck` against that request.
+- Use only `TRADE_RETCODE_INVALID_STOPS` to move from exact to wide and then to
+  no initial SL/TP.
+- Never block the broker-open attempt because of another `OrderCheck` result.
+- Send the exact selected request with `OrderSend`.
+- Base broker execution, rejection, retry, and final classification only on the
+  `OrderSend` result.
+- Preserve local SL/TP and later broker protection synchronization.
+
+**Demo/Validation**:
+
+- Static trace reaches `OrderSend` for every constructible Pandora market
+  request regardless of the preflight retcode.
+- Exact and wide candidates still fall back only on invalid stops.
+- MetaEditor compile passes with zero errors and warnings.
+
+### Sprint 7: Silent OrderCheck Compatibility
+
+**Goal**: Accept Strategy Tester and broker environments that return a
+successful but silent `OrderCheck`.
+
+**Status**: Completed earlier in commit `5dbd2f0`, originally labeled Sprint 6.
+The Git history is intentionally not rewritten.

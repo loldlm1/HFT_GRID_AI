@@ -325,11 +325,7 @@ bool GridBuildBrokerDealCheckRequest(const SignalTypes direction,
   return (request.price > 0.0);
 }
 
-void GridRunBrokerDealOrderCheck(const SignalTypes direction,
-                                 const double normalized_volume,
-                                 const double sl_price,
-                                 const double tp_price,
-                                 const string comment,
+void GridRunBrokerDealOrderCheck(MqlTradeRequest &check_request,
                                  MqlTradeCheckResult &check_result,
                                  bool &check_available,
                                  bool &check_sent,
@@ -340,13 +336,10 @@ void GridRunBrokerDealOrderCheck(const SignalTypes direction,
   check_sent = false;
   check_error = 0;
 
-  MqlTradeRequest check_request;
-  if(!GridBuildBrokerDealCheckRequest(direction,
-                                      normalized_volume,
-                                      sl_price,
-                                      tp_price,
-                                      comment,
-                                      check_request))
+  if(check_request.action != TRADE_ACTION_DEAL ||
+     check_request.symbol == "" ||
+     check_request.volume <= 0.0 ||
+     check_request.price <= 0.0)
     return;
 
   check_available = true;
@@ -355,17 +348,14 @@ void GridRunBrokerDealOrderCheck(const SignalTypes direction,
   check_error = GetLastError();
 }
 
-ulong GridBrokerCheckRetcode(const MqlTradeCheckResult &check_result,
-                             const bool check_sent)
+ulong GridBrokerCheckRetcode(const MqlTradeCheckResult &check_result)
 {
-  if(!check_sent)
-    return 0;
   return (ulong)check_result.retcode;
 }
 
-bool GridBrokerCheckAllowsSend(const MqlTradeCheckResult &check_result,
-                               const bool check_sent,
-                               const int check_error)
+bool GridBrokerCheckReportsSuccess(const MqlTradeCheckResult &check_result,
+                                   const bool check_sent,
+                                   const int check_error)
 {
   if(!check_sent)
     return false;
@@ -381,16 +371,14 @@ bool GridBrokerCheckAllowsSend(const MqlTradeCheckResult &check_result,
           check_result.comment == "");
 }
 
-bool GridBrokerCheckInvalidStops(const MqlTradeCheckResult &check_result,
-                                 const bool check_sent)
+bool GridBrokerCheckInvalidStops(const MqlTradeCheckResult &check_result)
 {
-  return (GridBrokerCheckRetcode(check_result, check_sent) == TRADE_RETCODE_INVALID_STOPS);
+  return (GridBrokerCheckRetcode(check_result) == TRADE_RETCODE_INVALID_STOPS);
 }
 
-bool GridBrokerCheckInvalidVolume(const MqlTradeCheckResult &check_result,
-                                  const bool check_sent)
+bool GridBrokerCheckInvalidVolume(const MqlTradeCheckResult &check_result)
 {
-  return (GridBrokerCheckRetcode(check_result, check_sent) == TRADE_RETCODE_INVALID_VOLUME);
+  return (GridBrokerCheckRetcode(check_result) == TRADE_RETCODE_INVALID_VOLUME);
 }
 
 string GridAppendPandoraBrokerDetail(const string detail,
@@ -404,11 +392,9 @@ string GridAppendPandoraBrokerDetail(const string detail,
 }
 
 void GridLogPandoraCandidateOrderCheck(const SignalParams &signal_params,
-                                       const SignalTypes direction,
                                        const GridOrderState &order_state,
                                        const PandoraBrokerOpenStopCandidate &candidate,
-                                       const double broker_volume,
-                                       const string comment,
+                                       const MqlTradeRequest &broker_request,
                                        const MqlTradeCheckResult &check_result,
                                        const bool check_available,
                                        const bool check_sent,
@@ -419,25 +405,16 @@ void GridLogPandoraCandidateOrderCheck(const SignalParams &signal_params,
   if(!Enable_File_Logs)
     return;
 
-  MqlTradeRequest broker_request;
-  ZeroMemory(broker_request);
-  GridBuildBrokerDealCheckRequest(direction,
-                                  broker_volume,
-                                  candidate.sl_price,
-                                  candidate.tp_price,
-                                  comment,
-                                  broker_request);
-
-  bool allowed = GridBrokerCheckAllowsSend(check_result,
-                                           check_sent,
-                                           check_error);
-  ulong check_retcode = GridBrokerCheckRetcode(check_result, check_sent);
-  string detail = StringFormat("candidate=%s phase=%s candidate_available=%s candidate_stop_status=%s allowed=%s",
+  bool check_success = GridBrokerCheckReportsSuccess(check_result,
+                                                     check_sent,
+                                                     check_error);
+  ulong check_retcode = GridBrokerCheckRetcode(check_result);
+  string detail = StringFormat("candidate=%s phase=%s candidate_available=%s candidate_stop_status=%s check_success=%s",
                                candidate.policy,
                                phase,
                                candidate.available ? "1" : "0",
                                EnumToString(candidate.stop_status),
-                               allowed ? "1" : "0");
+                               check_success ? "1" : "0");
   if(volume_repair_used)
     detail = GridAppendPandoraBrokerDetail(detail, "volume_repair=1");
 
@@ -451,38 +428,41 @@ void GridLogPandoraCandidateOrderCheck(const SignalParams &signal_params,
                               check_error,
                               check_retcode,
                               check_error,
-                              allowed ? "OrderCheck candidate allowed"
-                                      : "OrderCheck candidate blocked",
+                              check_success ? "OrderCheck reports success"
+                                            : "OrderCheck advisory result",
                               detail);
 }
 
-bool GridRunPandoraCandidateOrderCheck(const SignalTypes direction,
-                                       const SignalParams &signal_params,
-                                       const GridOrderState &order_state,
-                                       const PandoraBrokerOpenStopCandidate &candidate,
-                                       double &broker_volume,
-                                       const string comment,
-                                       MqlTradeCheckResult &check_result,
-                                       bool &check_available,
-                                       bool &check_sent,
-                                       int &check_error,
-                                       bool &volume_repair_used)
+bool GridPreparePandoraCandidateRequest(const SignalTypes direction,
+                                        const SignalParams &signal_params,
+                                        const GridOrderState &order_state,
+                                        const PandoraBrokerOpenStopCandidate &candidate,
+                                        double &broker_volume,
+                                        const string comment,
+                                        MqlTradeRequest &broker_request,
+                                        MqlTradeCheckResult &check_result,
+                                        bool &check_available,
+                                        bool &check_sent,
+                                        int &check_error,
+                                        bool &volume_repair_used)
 {
-  GridRunBrokerDealOrderCheck(direction,
-                              broker_volume,
-                              candidate.sl_price,
-                              candidate.tp_price,
-                              comment,
+  if(!GridBuildBrokerDealCheckRequest(direction,
+                                      broker_volume,
+                                      candidate.sl_price,
+                                      candidate.tp_price,
+                                      comment,
+                                      broker_request))
+    return false;
+
+  GridRunBrokerDealOrderCheck(broker_request,
                               check_result,
                               check_available,
                               check_sent,
                               check_error);
   GridLogPandoraCandidateOrderCheck(signal_params,
-                                    direction,
                                     order_state,
                                     candidate,
-                                    broker_volume,
-                                    comment,
+                                    broker_request,
                                     check_result,
                                     check_available,
                                     check_sent,
@@ -490,14 +470,9 @@ bool GridRunPandoraCandidateOrderCheck(const SignalTypes direction,
                                     "initial",
                                     volume_repair_used);
 
-  if(GridBrokerCheckAllowsSend(check_result,
-                               check_sent,
-                               check_error))
-    return true;
-
-  if(!GridBrokerCheckInvalidVolume(check_result, check_sent) ||
+  if(!GridBrokerCheckInvalidVolume(check_result) ||
      volume_repair_used)
-    return false;
+    return true;
 
   volume_repair_used = true;
   GridRefreshBrokerConstraintsForAction("PANDORA_VOLUME_REPAIR");
@@ -505,24 +480,23 @@ bool GridRunPandoraCandidateOrderCheck(const SignalTypes direction,
   double repaired_volume = NormalizeVolumeForSymbol(_Symbol,
                                                     order_state.lot_size);
   if(repaired_volume <= 0.0)
-    return false;
+    return true;
 
   broker_volume = repaired_volume;
-  GridRunBrokerDealOrderCheck(direction,
-                              broker_volume,
-                              candidate.sl_price,
-                              candidate.tp_price,
-                              comment,
+  broker_request.volume = broker_volume;
+  double refreshed_price = GridCurrentPriceForDirection(direction, true);
+  if(refreshed_price > 0.0)
+    broker_request.price = refreshed_price;
+
+  GridRunBrokerDealOrderCheck(broker_request,
                               check_result,
                               check_available,
                               check_sent,
                               check_error);
   GridLogPandoraCandidateOrderCheck(signal_params,
-                                    direction,
                                     order_state,
                                     candidate,
-                                    broker_volume,
-                                    comment,
+                                    broker_request,
                                     check_result,
                                     check_available,
                                     check_sent,
@@ -530,9 +504,7 @@ bool GridRunPandoraCandidateOrderCheck(const SignalTypes direction,
                                     "volume_repair",
                                     volume_repair_used);
 
-  return GridBrokerCheckAllowsSend(check_result,
-                                   check_sent,
-                                   check_error);
+  return true;
 }
 
 bool GridEvaluatePandoraBrokerOpenCandidate(const SignalTypes direction,
@@ -543,6 +515,7 @@ bool GridEvaluatePandoraBrokerOpenCandidate(const SignalTypes direction,
                                             double &sl_price,
                                             double &tp_price,
                                             const string comment,
+                                            MqlTradeRequest &broker_request,
                                             MqlTradeCheckResult &check_result,
                                             bool &check_available,
                                             bool &check_sent,
@@ -557,26 +530,30 @@ bool GridEvaluatePandoraBrokerOpenCandidate(const SignalTypes direction,
   sl_price = candidate.sl_price;
   tp_price = candidate.tp_price;
 
-  if(GridRunPandoraCandidateOrderCheck(direction,
-                                       signal_params,
-                                       order_state,
-                                       candidate,
-                                       broker_volume,
-                                       comment,
-                                       check_result,
-                                       check_available,
-                                       check_sent,
-                                       check_error,
-                                       volume_repair_used))
-    return true;
+  if(!GridPreparePandoraCandidateRequest(direction,
+                                         signal_params,
+                                         order_state,
+                                         candidate,
+                                         broker_volume,
+                                         comment,
+                                         broker_request,
+                                         check_result,
+                                         check_available,
+                                         check_sent,
+                                         check_error,
+                                         volume_repair_used))
+    return false;
 
-  if(GridBrokerCheckInvalidStops(check_result, check_sent))
+  if(PandoraBrokerOpenStopCandidateHasStops(candidate) &&
+     GridBrokerCheckInvalidStops(check_result))
   {
     continue_to_next_candidate = true;
     return false;
   }
 
-  return false;
+  sl_price = broker_request.sl;
+  tp_price = broker_request.tp;
+  return true;
 }
 
 bool GridSelectPandoraBrokerOpenRequest(SignalParams &signal_params,
@@ -586,6 +563,7 @@ bool GridSelectPandoraBrokerOpenRequest(SignalParams &signal_params,
                                         double &sl_price,
                                         double &tp_price,
                                         const string comment,
+                                        MqlTradeRequest &broker_request,
                                         MqlTradeCheckResult &check_result,
                                         bool &check_available,
                                         bool &check_sent,
@@ -619,6 +597,7 @@ bool GridSelectPandoraBrokerOpenRequest(SignalParams &signal_params,
                                              sl_price,
                                              tp_price,
                                              comment,
+                                             broker_request,
                                              check_result,
                                              check_available,
                                              check_sent,
@@ -631,7 +610,7 @@ bool GridSelectPandoraBrokerOpenRequest(SignalParams &signal_params,
     }
     if(!continue_to_next_candidate)
     {
-      reject_context = "ORDER_CHECK_BLOCKED";
+      reject_context = "ORDER_REQUEST_BUILD_FAILED";
       return false;
     }
   }
@@ -646,6 +625,7 @@ bool GridSelectPandoraBrokerOpenRequest(SignalParams &signal_params,
                                              sl_price,
                                              tp_price,
                                              comment,
+                                             broker_request,
                                              check_result,
                                              check_available,
                                              check_sent,
@@ -658,7 +638,7 @@ bool GridSelectPandoraBrokerOpenRequest(SignalParams &signal_params,
     }
     if(!continue_to_next_candidate)
     {
-      reject_context = "ORDER_CHECK_BLOCKED";
+      reject_context = "ORDER_REQUEST_BUILD_FAILED";
       return false;
     }
   }
@@ -671,6 +651,7 @@ bool GridSelectPandoraBrokerOpenRequest(SignalParams &signal_params,
                                            sl_price,
                                            tp_price,
                                            comment,
+                                           broker_request,
                                            check_result,
                                            check_available,
                                            check_sent,
@@ -682,8 +663,8 @@ bool GridSelectPandoraBrokerOpenRequest(SignalParams &signal_params,
     return true;
   }
 
-  reject_context = (candidate_detail == "") ? "ORDER_CHECK_BLOCKED"
-                                            : "ORDER_CHECK_BLOCKED_" + candidate_detail;
+  reject_context = (candidate_detail == "") ? "ORDER_REQUEST_BUILD_FAILED"
+                                            : "ORDER_REQUEST_BUILD_FAILED_" + candidate_detail;
   return false;
 }
 
@@ -739,16 +720,11 @@ bool GridExecuteLevelTrade(SignalParams &signal_params,
         return true;
       }
 
-      MqlTradeCheckResult empty_check_result;
-      ZeroMemory(empty_check_result);
       if(PandoraBrokerRetryBudgetAvailable(signal_params) &&
          PandoraBrokerFailureRetryable("GUARDRAIL_BLOCK",
                                        guard_reason,
                                        0,
-                                       0,
-                                       empty_check_result,
-                                       false,
-                                       false))
+                                       0))
       {
         PandoraMarkBrokerRetryPending(signal_params,
                                       order_state,
@@ -790,6 +766,10 @@ bool GridExecuteLevelTrade(SignalParams &signal_params,
 
   MqlTradeCheckResult broker_check_result;
   ZeroMemory(broker_check_result);
+  MqlTradeRequest broker_send_request;
+  ZeroMemory(broker_send_request);
+  MqlTradeResult broker_send_result;
+  ZeroMemory(broker_send_result);
   bool broker_check_available = false;
   bool broker_check_sent = false;
   int broker_check_error = 0;
@@ -814,6 +794,7 @@ bool GridExecuteLevelTrade(SignalParams &signal_params,
                                                             sl_price,
                                                             tp_price,
                                                             comment,
+                                                            broker_send_request,
                                                             broker_check_result,
                                                             broker_check_available,
                                                             broker_check_sent,
@@ -829,59 +810,45 @@ bool GridExecuteLevelTrade(SignalParams &signal_params,
                                         0.0,
                                         0.0,
                                         PANDORA_BROKER_STOPS_NOT_REQUIRED);
-      selected_request = GridRunPandoraCandidateOrderCheck(direction,
-                                                           signal_params,
-                                                           order_state,
-                                                           no_stop_candidate,
-                                                           broker_volume,
-                                                           comment,
-                                                           broker_check_result,
-                                                           broker_check_available,
-                                                           broker_check_sent,
-                                                           broker_check_error,
-                                                           broker_volume_repair_used);
+      selected_request = GridPreparePandoraCandidateRequest(direction,
+                                                            signal_params,
+                                                            order_state,
+                                                            no_stop_candidate,
+                                                            broker_volume,
+                                                            comment,
+                                                            broker_send_request,
+                                                            broker_check_result,
+                                                            broker_check_available,
+                                                            broker_check_sent,
+                                                            broker_check_error,
+                                                            broker_volume_repair_used);
       if(!selected_request)
-        order_check_block_context = "ORDER_CHECK_BLOCKED";
+        order_check_block_context = "ORDER_REQUEST_BUILD_FAILED";
       else
         signal_params.pandora_broker_stop_sync_status = PANDORA_BROKER_STOPS_NOT_REQUIRED;
     }
 
     if(!selected_request)
     {
-      ulong check_retcode = GridBrokerCheckRetcode(broker_check_result,
-                                                  broker_check_sent);
+      ulong check_retcode = GridBrokerCheckRetcode(broker_check_result);
       int check_last_error = broker_check_error;
-      MqlTradeRequest broker_request;
-      ZeroMemory(broker_request);
-      GridBuildBrokerDealCheckRequest(direction,
-                                      broker_volume,
-                                      sl_price,
-                                      tp_price,
-                                      comment,
-                                      broker_request);
       string check_detail = broker_check_result.comment;
       if(broker_volume_repair_used)
         check_detail = GridAppendPandoraBrokerDetail(check_detail,
                                                      "volume_repair=1");
-      GridLogBrokerSendDiagnostic("ORDER_CHECK_BLOCK_DIAGNOSTIC",
+      GridLogBrokerSendDiagnostic("ORDER_REQUEST_BUILD_DIAGNOSTIC",
                                   signal_params,
                                   order_state,
-                                  broker_request,
+                                  broker_send_request,
                                   broker_check_result,
                                   broker_check_available,
                                   broker_check_sent,
                                   broker_check_error,
                                   check_retcode,
                                   check_last_error,
-                                  "OrderCheck blocked send",
+                                  "Market request build failed",
                                   check_detail);
 
-      PandoraRecordBrokerSendAttempt(signal_params);
-      if(Debug_Stop_On_Negative_Equity)
-      {
-        if(check_retcode == TRADE_RETCODE_NO_MONEY)
-          g_debug_no_money_abort_pending = true;
-      }
       MarketStatusRegisterBrokerFailure(order_check_block_context,
                                         check_retcode,
                                         check_last_error,
@@ -905,10 +872,7 @@ bool GridExecuteLevelTrade(SignalParams &signal_params,
          PandoraBrokerFailureRetryable(order_check_block_context,
                                        reject_detail,
                                        check_retcode,
-                                       check_last_error,
-                                       broker_check_result,
-                                       broker_check_available,
-                                       broker_check_sent))
+                                       check_last_error))
       {
         PandoraMarkBrokerRetryPending(signal_params,
                                       order_state,
@@ -936,43 +900,46 @@ bool GridExecuteLevelTrade(SignalParams &signal_params,
     selected_stop_status = signal_params.pandora_broker_stop_sync_status;
   }
 
-  if(direction == BULLISH)
+  ResetLastError();
+  if(pandora_signal)
   {
-    ResetLastError();
-    if(pandora_signal)
-      PandoraRecordBrokerSendAttempt(signal_params);
-    sent = g_position.Buy(broker_volume, _Symbol, 0.0, sl_price, tp_price, comment);
+    PandoraRecordBrokerSendAttempt(signal_params);
+    sent = OrderSend(broker_send_request, broker_send_result);
   }
   else
   {
-    ResetLastError();
-    if(pandora_signal)
-      PandoraRecordBrokerSendAttempt(signal_params);
-    sent = g_position.Sell(broker_volume, _Symbol, 0.0, sl_price, tp_price, comment);
+    if(direction == BULLISH)
+      sent = g_position.Buy(broker_volume, _Symbol, 0.0, sl_price, tp_price, comment);
+    else
+      sent = g_position.Sell(broker_volume, _Symbol, 0.0, sl_price, tp_price, comment);
+
+    g_position.Request(broker_send_request);
+    g_position.Result(broker_send_result);
   }
 
-  ulong retcode = g_position.ResultRetcode();
+  ulong retcode = (ulong)broker_send_result.retcode;
   int last_error = GetLastError();
+  string result_description = "";
+  g_position.FormatRequestResult(result_description,
+                                 broker_send_request,
+                                 broker_send_result);
   if(!sent)
   {
-    MqlTradeRequest broker_request;
-    ZeroMemory(broker_request);
-    g_position.Request(broker_request);
-    string send_comment = g_position.ResultComment();
+    string send_comment = broker_send_result.comment;
     if(broker_volume_repair_used)
       send_comment = GridAppendPandoraBrokerDetail(send_comment,
                                                    "volume_repair=1");
     GridLogBrokerSendDiagnostic("ORDER_SEND_DIAGNOSTIC",
                                 signal_params,
                                 order_state,
-                                broker_request,
+                                broker_send_request,
                                 broker_check_result,
                                 broker_check_available,
                                 broker_check_sent,
                                 broker_check_error,
                                 retcode,
                                 last_error,
-                                g_position.ResultRetcodeDescription(),
+                                result_description,
                                 send_comment);
 
     if(Debug_Stop_On_Negative_Equity)
@@ -1002,10 +969,7 @@ bool GridExecuteLevelTrade(SignalParams &signal_params,
          PandoraBrokerFailureRetryable("ORDER_SEND_FAILED",
                                        reject_detail,
                                        retcode,
-                                       last_error,
-                                       broker_check_result,
-                                       broker_check_available,
-                                       broker_check_sent))
+                                       last_error))
       {
         PandoraMarkBrokerRetryPending(signal_params,
                                       order_state,
@@ -1031,11 +995,11 @@ bool GridExecuteLevelTrade(SignalParams &signal_params,
     return false;
   }
 
-  double fill_price = g_position.ResultPrice();
+  double fill_price = broker_send_result.price;
   if(fill_price <= 0.0)
     fill_price = GridCurrentPriceForDirection(direction, true);
 
-  ulong deal_ticket = (ulong)g_position.ResultDeal();
+  ulong deal_ticket = (ulong)broker_send_result.deal;
   ulong position_ticket = ResolvePositionTicketFromDeal(deal_ticket);
   if(position_ticket == 0)
     position_ticket = FindOpenPositionForSignal(direction, comment);
@@ -1048,25 +1012,22 @@ bool GridExecuteLevelTrade(SignalParams &signal_params,
     string send_detail = broker_volume_repair_used ? "volume_repair=1" : "";
     string reject_detail = PandoraBrokerRejectSummary(context, send_detail, retcode, last_error);
     if(retcode == TRADE_RETCODE_DONE_PARTIAL)
-      reject_detail = reject_detail + StringFormat(" volume=%.2f", g_position.ResultVolume());
-    MqlTradeRequest broker_request;
-    ZeroMemory(broker_request);
-    g_position.Request(broker_request);
-    string send_comment = g_position.ResultComment();
+      reject_detail = reject_detail + StringFormat(" volume=%.2f", broker_send_result.volume);
+    string send_comment = broker_send_result.comment;
     if(broker_volume_repair_used)
       send_comment = GridAppendPandoraBrokerDetail(send_comment,
                                                    "volume_repair=1");
     GridLogBrokerSendDiagnostic(context + "_DIAGNOSTIC",
                                 signal_params,
                                 order_state,
-                                broker_request,
+                                broker_send_request,
                                 broker_check_result,
                                 broker_check_available,
                                 broker_check_sent,
                                 broker_check_error,
                                 retcode,
                                 last_error,
-                                g_position.ResultRetcodeDescription(),
+                                result_description,
                                 send_comment);
     MarketStatusRegisterBrokerFailure(context, retcode, last_error, false);
     if(!PandoraBrokerRetcodeAllowsLocalSimulation(retcode))
@@ -1084,10 +1045,7 @@ bool GridExecuteLevelTrade(SignalParams &signal_params,
        PandoraBrokerFailureRetryable(context,
                                      reject_detail,
                                      retcode,
-                                     last_error,
-                                     broker_check_result,
-                                     broker_check_available,
-                                     broker_check_sent))
+                                     last_error))
     {
       PandoraMarkBrokerRetryPending(signal_params,
                                     order_state,
@@ -1126,7 +1084,7 @@ bool GridExecuteLevelTrade(SignalParams &signal_params,
       PrintFormat("PANDORA_BROKER_PARTIAL_FILL ticket=%I64u retcode=%I64u volume=%.2f requested=%.2f",
                   order_state.position_ticket,
                   retcode,
-                  g_position.ResultVolume(),
+                  broker_send_result.volume,
                   broker_volume);
     }
     PandoraMarkBrokerExecuted(signal_params,
