@@ -59,6 +59,10 @@ broker SL/TP followed by post-fill stop synchronization.
 
 ## Retcode Policy
 
+> Historical policy for Sprints 1-7. Sprint 8 supersedes these final/retry
+> classifications for Pandora broker-open `OrderSend` results: every
+> unsuccessful or unresolved send remains retryable until attempt 8.
+
 ### Same-Tick Repair Candidates
 
 - `TRADE_RETCODE_INVALID_STOPS`: try exact SL/TP, widened SL/TP, then no initial
@@ -471,3 +475,57 @@ successful but silent `OrderCheck`.
 
 **Status**: Completed earlier in commit `5dbd2f0`, originally labeled Sprint 6.
 The Git history is intentionally not rewritten.
+
+### Sprint 8: OrderSend-Driven Tick Retries
+
+**Goal**: Retry Pandora market execution on consecutive ticks using a freshly
+rebuilt market request, with the latest `OrderSend` result as the only broker
+decision that advances or exhausts the retry lifecycle.
+
+**Execution Policy**:
+
+- Allow up to 8 total `OrderSend` attempts, including the initial attempt.
+- Run at most one Pandora broker-open attempt per signal lifecycle pass/tick.
+- Rebuild current Bid/Ask, broker constraints, volume normalization, stop
+  candidates, and the final market request for every retry.
+- Remove elapsed-time, retry-window, and price-drift cancellation from Pandora
+  broker-open retries.
+- Retry after every non-successful or unresolved `OrderSend` result while the
+  attempt budget remains. No broker retcode is final before attempt 8.
+- Keep `OrderCheck` advisory. It may provide diagnostics and help prepare the
+  current request, but it does not create, cancel, or exhaust retries.
+- Preserve the selected broker-stop stage between attempts. An
+  `OrderSend` invalid-stops result advances targeted stops to wide stops and
+  then to no initial SL/TP; other retcodes retry the current stage.
+- Check for an already-open matching position before every retry to prevent a
+  duplicate after an ambiguous or delayed broker response.
+- Resolve the pending broker-open retry before local SL/TP lifecycle evaluation.
+  While attempts remain pending, keep the local position active; after success
+  continue from the real fill, and after attempt 8 continue as local-only.
+- Preserve definitive local admission controls, symbol/magic scoping, session
+  and protection locks, spread and margin guards, and platform broker-action
+  gates.
+
+**Tasks**:
+
+- Set the Pandora broker attempt budget to 8.
+- Simplify retry state so pending means "retry on the next eligible tick."
+- Remove broker-retcode retry/final allowlists from the Pandora market-open
+  retry decision.
+- Rebuild and send the current-tick request from the saved stop stage.
+- Prevent intermediate send failures from disabling broker lifecycle processing
+  before the retry budget is exhausted.
+- Reorder Pandora lifecycle handling so pending broker execution is resolved
+  before local SL/TP evaluation.
+- Mark the eighth failed or unresolved send as the final broker result while
+  preserving the deterministic local position lifecycle.
+
+**Demo/Validation**:
+
+- Static trace shows one initial send plus at most seven tick retries.
+- Every retry request obtains a fresh current entry-side price.
+- Any `OrderSend` failure remains pending before attempt 8.
+- Attempt 8 either binds an existing/successful broker position or marks broker
+  execution rejected without deleting the local position.
+- `git diff --check` passes.
+- MetaEditor compilation is intentionally deferred to the user for this Sprint.

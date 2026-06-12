@@ -668,6 +668,162 @@ bool GridSelectPandoraBrokerOpenRequest(SignalParams &signal_params,
   return false;
 }
 
+bool GridPreparePandoraRetryRequest(SignalParams &signal_params,
+                                    const GridOrderState &order_state,
+                                    const SignalTypes direction,
+                                    const PandoraBrokerOpenStopCandidate &candidate,
+                                    double &broker_volume,
+                                    double &sl_price,
+                                    double &tp_price,
+                                    const string comment,
+                                    MqlTradeRequest &broker_request,
+                                    MqlTradeCheckResult &check_result,
+                                    bool &check_available,
+                                    bool &check_sent,
+                                    int &check_error,
+                                    bool &volume_repair_used)
+{
+  if(!candidate.available)
+    return false;
+
+  sl_price = candidate.sl_price;
+  tp_price = candidate.tp_price;
+  if(!GridPreparePandoraCandidateRequest(direction,
+                                         signal_params,
+                                         order_state,
+                                         candidate,
+                                         broker_volume,
+                                         comment,
+                                         broker_request,
+                                         check_result,
+                                         check_available,
+                                         check_sent,
+                                         check_error,
+                                         volume_repair_used))
+    return false;
+
+  sl_price = broker_request.sl;
+  tp_price = broker_request.tp;
+  signal_params.pandora_broker_stop_sync_status = candidate.stop_status;
+  return true;
+}
+
+bool GridSelectPandoraBrokerRetryRequest(SignalParams &signal_params,
+                                         GridOrderState &order_state,
+                                         const SignalTypes direction,
+                                         double &broker_volume,
+                                         double &sl_price,
+                                         double &tp_price,
+                                         const string comment,
+                                         MqlTradeRequest &broker_request,
+                                         MqlTradeCheckResult &check_result,
+                                         bool &check_available,
+                                         bool &check_sent,
+                                         int &check_error,
+                                         string &reject_context,
+                                         bool &volume_repair_used)
+{
+  reject_context = "";
+  volume_repair_used = false;
+
+  PandoraBrokerOpenStopCandidate exact_candidate;
+  PandoraBrokerOpenStopCandidate wide_candidate;
+  PandoraBrokerOpenStopCandidate no_stop_candidate;
+  string candidate_detail = "";
+  PandoraBuildBrokerOpenStopCandidates(signal_params,
+                                       order_state,
+                                       exact_candidate,
+                                       wide_candidate,
+                                       no_stop_candidate,
+                                       candidate_detail);
+
+  PandoraBrokerStopSyncStatuses previous_status =
+    signal_params.pandora_broker_stop_sync_status;
+  bool advance_stop_stage =
+    (signal_params.pandora_broker_retcode == TRADE_RETCODE_INVALID_STOPS);
+  PandoraBrokerOpenStopCandidate selected_candidate;
+  if(previous_status == PANDORA_BROKER_STOPS_TARGETED)
+  {
+    if(!advance_stop_stage && exact_candidate.available)
+      selected_candidate = exact_candidate;
+    else if(wide_candidate.available)
+      selected_candidate = wide_candidate;
+  }
+  else if(previous_status == PANDORA_BROKER_STOPS_WIDE)
+  {
+    if(!advance_stop_stage && wide_candidate.available)
+      selected_candidate = wide_candidate;
+  }
+  else if(previous_status != PANDORA_BROKER_STOPS_PENDING &&
+          previous_status != PANDORA_BROKER_STOPS_NOT_REQUIRED)
+  {
+    if(exact_candidate.available)
+      selected_candidate = exact_candidate;
+    else if(wide_candidate.available)
+      selected_candidate = wide_candidate;
+  }
+
+  if(!selected_candidate.available)
+    selected_candidate = no_stop_candidate;
+
+  if(GridPreparePandoraRetryRequest(signal_params,
+                                   order_state,
+                                   direction,
+                                   selected_candidate,
+                                   broker_volume,
+                                   sl_price,
+                                   tp_price,
+                                   comment,
+                                   broker_request,
+                                   check_result,
+                                   check_available,
+                                   check_sent,
+                                   check_error,
+                                   volume_repair_used))
+    return true;
+
+  reject_context = (candidate_detail == "") ? "ORDER_RETRY_REQUEST_BUILD_FAILED"
+                                            : "ORDER_RETRY_REQUEST_BUILD_FAILED_" + candidate_detail;
+  return false;
+}
+
+void GridHandlePandoraOrderSendFailure(SignalParams &signal_params,
+                                       GridOrderState &order_state,
+                                       const string context,
+                                       const string detail,
+                                       const ulong retcode,
+                                       const int last_error,
+                                       const string comment)
+{
+  if(PandoraBrokerRetryBudgetAvailable(signal_params))
+  {
+    MarketStatusRegisterExecutionError(context,
+                                       detail,
+                                       retcode,
+                                       last_error);
+    PandoraMarkBrokerRetryPending(signal_params,
+                                  order_state,
+                                  context,
+                                  detail,
+                                  retcode,
+                                  last_error,
+                                  comment);
+    return;
+  }
+
+  MarketStatusRegisterBrokerFailure(context,
+                                    retcode,
+                                    last_error,
+                                    false);
+  PandoraMarkBrokerRejected(signal_params,
+                            order_state,
+                            context,
+                            detail,
+                            retcode,
+                            last_error,
+                            comment);
+}
+
 bool GridExecuteLevelTrade(SignalParams &signal_params,
                            GridOrderState &order_state,
                            const double point_size,
@@ -676,6 +832,8 @@ bool GridExecuteLevelTrade(SignalParams &signal_params,
   SignalTypes direction = signal_params.signal_type;
   string comment = GridComposeLevelComment(signal_params, order_state);
   bool pandora_signal = IsPandoraSignal(signal_params);
+  bool pandora_retry_attempt = pandora_signal &&
+                               PandoraBrokerRetryPending(signal_params);
 
   if(!order_state.opens_position)
   {
@@ -720,28 +878,11 @@ bool GridExecuteLevelTrade(SignalParams &signal_params,
         return true;
       }
 
-      if(PandoraBrokerRetryBudgetAvailable(signal_params) &&
-         PandoraBrokerFailureRetryable("GUARDRAIL_BLOCK",
-                                       guard_reason,
-                                       0,
-                                       0))
-      {
-        PandoraMarkBrokerRetryPending(signal_params,
-                                      order_state,
-                                      "GUARDRAIL_BLOCK",
-                                      guard_reason,
-                                      0,
-                                      0,
-                                      comment);
-      }
-      else
-      {
-        PandoraMarkBrokerBlocked(signal_params,
-                                 order_state,
-                                 "GUARDRAIL_BLOCK",
-                                 guard_reason,
-                                 comment);
-      }
+      PandoraMarkBrokerBlocked(signal_params,
+                               order_state,
+                               "GUARDRAIL_BLOCK",
+                               guard_reason,
+                               comment);
       signal_params.grid_orders[order_state.level_index] = order_state;
       return true;
     }
@@ -787,20 +928,40 @@ bool GridExecuteLevelTrade(SignalParams &signal_params,
           broker_seed_state.entry_price = order_state.entry_reference_price;
       }
 
-      selected_request = GridSelectPandoraBrokerOpenRequest(signal_params,
-                                                            broker_seed_state,
-                                                            direction,
-                                                            broker_volume,
-                                                            sl_price,
-                                                            tp_price,
-                                                            comment,
-                                                            broker_send_request,
-                                                            broker_check_result,
-                                                            broker_check_available,
-                                                            broker_check_sent,
-                                                            broker_check_error,
-                                                            order_check_block_context,
-                                                            broker_volume_repair_used);
+      if(pandora_retry_attempt)
+      {
+        selected_request = GridSelectPandoraBrokerRetryRequest(signal_params,
+                                                               broker_seed_state,
+                                                               direction,
+                                                               broker_volume,
+                                                               sl_price,
+                                                               tp_price,
+                                                               comment,
+                                                               broker_send_request,
+                                                               broker_check_result,
+                                                               broker_check_available,
+                                                               broker_check_sent,
+                                                               broker_check_error,
+                                                               order_check_block_context,
+                                                               broker_volume_repair_used);
+      }
+      else
+      {
+        selected_request = GridSelectPandoraBrokerOpenRequest(signal_params,
+                                                              broker_seed_state,
+                                                              direction,
+                                                              broker_volume,
+                                                              sl_price,
+                                                              tp_price,
+                                                              comment,
+                                                              broker_send_request,
+                                                              broker_check_result,
+                                                              broker_check_available,
+                                                              broker_check_sent,
+                                                              broker_check_error,
+                                                              order_check_block_context,
+                                                              broker_volume_repair_used);
+      }
     }
     else
     {
@@ -849,48 +1010,22 @@ bool GridExecuteLevelTrade(SignalParams &signal_params,
                                   "Market request build failed",
                                   check_detail);
 
-      MarketStatusRegisterBrokerFailure(order_check_block_context,
-                                        check_retcode,
-                                        check_last_error,
-                                        false);
+      MarketStatusRegisterExecutionError(order_check_block_context,
+                                         check_detail,
+                                         check_retcode,
+                                         check_last_error);
 
       string reject_detail = PandoraBrokerRejectSummary(order_check_block_context,
                                                         check_detail,
                                                         check_retcode,
                                                         check_last_error);
-      if(!PandoraBrokerRetcodeAllowsLocalSimulation(check_retcode))
+      if(!pandora_retry_attempt)
       {
-        PandoraCompleteNonOperableBrokerRejection(signal_params,
-                                                  order_state,
-                                                  order_check_block_context,
-                                                  reject_detail,
-                                                  check_retcode,
-                                                  check_last_error,
-                                                  comment);
-      }
-      else if(PandoraBrokerRetryBudgetAvailable(signal_params) &&
-         PandoraBrokerFailureRetryable(order_check_block_context,
-                                       reject_detail,
-                                       check_retcode,
-                                       check_last_error))
-      {
-        PandoraMarkBrokerRetryPending(signal_params,
-                                      order_state,
-                                      order_check_block_context,
-                                      reject_detail,
-                                      check_retcode,
-                                      check_last_error,
-                                      comment);
-      }
-      else
-      {
-        PandoraMarkBrokerRejected(signal_params,
-                                  order_state,
-                                  order_check_block_context,
-                                  reject_detail,
-                                  check_retcode,
-                                  check_last_error,
-                                  comment);
+        PandoraMarkBrokerBlocked(signal_params,
+                                 order_state,
+                                 order_check_block_context,
+                                 reject_detail,
+                                 comment);
       }
 
       signal_params.grid_orders[order_state.level_index] = order_state;
@@ -947,7 +1082,6 @@ bool GridExecuteLevelTrade(SignalParams &signal_params,
       if(retcode == TRADE_RETCODE_NO_MONEY)
         g_debug_no_money_abort_pending = true;
     }
-    MarketStatusRegisterBrokerFailure("ORDER_SEND_FAILED", retcode, last_error, false);
     if(pandora_signal)
     {
       string send_detail = broker_volume_repair_used ? "volume_repair=1" : "";
@@ -955,43 +1089,17 @@ bool GridExecuteLevelTrade(SignalParams &signal_params,
                                                         send_detail,
                                                         retcode,
                                                         last_error);
-      if(!PandoraBrokerRetcodeAllowsLocalSimulation(retcode))
-      {
-        PandoraCompleteNonOperableBrokerRejection(signal_params,
-                                                  order_state,
-                                                  "ORDER_SEND_FAILED",
-                                                  reject_detail,
-                                                  retcode,
-                                                  last_error,
-                                                  comment);
-      }
-      else if(PandoraBrokerRetryBudgetAvailable(signal_params) &&
-         PandoraBrokerFailureRetryable("ORDER_SEND_FAILED",
-                                       reject_detail,
-                                       retcode,
-                                       last_error))
-      {
-        PandoraMarkBrokerRetryPending(signal_params,
-                                      order_state,
-                                      "ORDER_SEND_FAILED",
-                                      reject_detail,
-                                      retcode,
-                                      last_error,
-                                      comment);
-      }
-      else
-      {
-        PandoraMarkBrokerRejected(signal_params,
-                                  order_state,
-                                  "ORDER_SEND_FAILED",
-                                  reject_detail,
-                                  retcode,
-                                  last_error,
-                                  comment);
-      }
+      GridHandlePandoraOrderSendFailure(signal_params,
+                                        order_state,
+                                        "ORDER_SEND_FAILED",
+                                        reject_detail,
+                                        retcode,
+                                        last_error,
+                                        comment);
       signal_params.grid_orders[order_state.level_index] = order_state;
       return true;
     }
+    MarketStatusRegisterBrokerFailure("ORDER_SEND_FAILED", retcode, last_error, false);
     return false;
   }
 
@@ -1005,10 +1113,11 @@ bool GridExecuteLevelTrade(SignalParams &signal_params,
     position_ticket = FindOpenPositionForSignal(direction, comment);
 
   bool broker_executed = (retcode == TRADE_RETCODE_DONE ||
-                          retcode == TRADE_RETCODE_DONE_PARTIAL);
-  if(pandora_signal && (!broker_executed || position_ticket == 0))
+                          retcode == TRADE_RETCODE_DONE_PARTIAL ||
+                          retcode == TRADE_RETCODE_PLACED);
+  if(pandora_signal && !broker_executed)
   {
-    string context = broker_executed ? "ORDER_SEND_POSITION_MISSING" : "ORDER_SEND_REJECTED";
+    string context = "ORDER_SEND_REJECTED";
     string send_detail = broker_volume_repair_used ? "volume_repair=1" : "";
     string reject_detail = PandoraBrokerRejectSummary(context, send_detail, retcode, last_error);
     if(retcode == TRADE_RETCODE_DONE_PARTIAL)
@@ -1029,42 +1138,13 @@ bool GridExecuteLevelTrade(SignalParams &signal_params,
                                 last_error,
                                 result_description,
                                 send_comment);
-    MarketStatusRegisterBrokerFailure(context, retcode, last_error, false);
-    if(!PandoraBrokerRetcodeAllowsLocalSimulation(retcode))
-    {
-      PandoraCompleteNonOperableBrokerRejection(signal_params,
-                                                order_state,
-                                                context,
-                                                reject_detail,
-                                                retcode,
-                                                last_error,
-                                                comment);
-    }
-    else if(context != "ORDER_SEND_POSITION_MISSING" &&
-       PandoraBrokerRetryBudgetAvailable(signal_params) &&
-       PandoraBrokerFailureRetryable(context,
-                                     reject_detail,
-                                     retcode,
-                                     last_error))
-    {
-      PandoraMarkBrokerRetryPending(signal_params,
-                                    order_state,
-                                    context,
-                                    reject_detail,
-                                    retcode,
-                                    last_error,
-                                    comment);
-    }
-    else
-    {
-      PandoraMarkBrokerRejected(signal_params,
-                                order_state,
-                                context,
-                                reject_detail,
-                                retcode,
-                                last_error,
-                                comment);
-    }
+    GridHandlePandoraOrderSendFailure(signal_params,
+                                      order_state,
+                                      context,
+                                      reject_detail,
+                                      retcode,
+                                      last_error,
+                                      comment);
     signal_params.grid_orders[order_state.level_index] = order_state;
     return true;
   }
@@ -1116,27 +1196,6 @@ bool GridHandlePandoraBrokerRetry(SignalParams &signal_params,
   if(order_state.position_ticket > 0)
     return false;
 
-  datetime now_time = TimeCurrent();
-  if(PandoraBrokerRetryWindowExpired(signal_params, now_time))
-  {
-    string expired_comment = order_state.position_comment;
-    if(expired_comment == "")
-      expired_comment = GridComposeLevelComment(signal_params, order_state);
-    string detail = "retry_window_expired";
-    PandoraMarkBrokerRejected(signal_params,
-                              order_state,
-                              "PANDORA_BROKER_RETRY_EXPIRED",
-                              detail,
-                              signal_params.pandora_broker_retcode,
-                              signal_params.pandora_broker_last_error,
-                              expired_comment);
-    signal_params.grid_orders[order_state.level_index] = order_state;
-    return true;
-  }
-
-  if(signal_params.pandora_broker_retry_next_time > now_time)
-    return false;
-
   string comment = order_state.position_comment;
   if(comment == "")
   {
@@ -1172,25 +1231,6 @@ bool GridHandlePandoraBrokerRetry(SignalParams &signal_params,
                               order_state,
                               "PANDORA_BROKER_RETRY_GIVE_UP",
                               detail,
-                              signal_params.pandora_broker_retcode,
-                              signal_params.pandora_broker_last_error,
-                              comment);
-    signal_params.grid_orders[order_state.level_index] = order_state;
-    return true;
-  }
-
-  double current_entry_price = GridCurrentPriceForDirection(signal_params.signal_type, true);
-  string drift_detail = "";
-  if(PandoraBrokerRetryDriftExceeded(signal_params,
-                                     order_state,
-                                     current_entry_price,
-                                     point_size,
-                                     drift_detail))
-  {
-    PandoraMarkBrokerRejected(signal_params,
-                              order_state,
-                              "PANDORA_BROKER_RETRY_DRIFT",
-                              drift_detail,
                               signal_params.pandora_broker_retcode,
                               signal_params.pandora_broker_last_error,
                               comment);

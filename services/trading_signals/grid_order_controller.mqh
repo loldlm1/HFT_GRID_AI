@@ -217,6 +217,40 @@ void UpdateGridLifecycle(SignalParams &signal_params)
     }
     else if(grid_order.status == GRID_ORDER_ACTIVE || grid_order.status == GRID_ORDER_TP_TRAILING_ACTIVE)
     {
+      if(grid_order.position_ticket <= 0 &&
+         PandoraBrokerRetryPending(signal_params))
+      {
+        double normalized_volume = NormalizeVolumeForSymbol(_Symbol, grid_order.lot_size);
+        if(GridHandlePandoraBrokerRetry(signal_params,
+                                        grid_order,
+                                        point_size,
+                                        normalized_volume))
+          grid_order = signal_params.grid_orders[grid_order_level];
+
+        if(PandoraBrokerRetryPending(signal_params))
+        {
+          signal_params.grid_orders[grid_order_level] = grid_order;
+          return;
+        }
+      }
+
+      if(grid_order.position_ticket <= 0 &&
+         signal_params.pandora_broker_execution_status == PANDORA_BROKER_EXECUTED &&
+         grid_order.position_comment != "")
+      {
+        ulong accepted_ticket = FindOpenPositionForSignal(direction,
+                                                          grid_order.position_comment);
+        if(accepted_ticket > 0)
+        {
+          grid_order.position_ticket = accepted_ticket;
+          PandoraMarkBrokerExecuted(signal_params,
+                                    grid_order,
+                                    signal_params.pandora_broker_retcode,
+                                    signal_params.pandora_broker_last_error,
+                                    grid_order.position_comment);
+        }
+      }
+
       double current_price = GridCurrentPriceForDirection(direction, false);
       bool step_trailing = PandoraRiskStepTrailingEnabled();
       if(step_trailing && grid_order.entry_price > 0.0 && point_size > 0.0)
@@ -280,18 +314,6 @@ void UpdateGridLifecycle(SignalParams &signal_params)
         }
       }
 
-      if(grid_order.status != GRID_ORDER_COMPLETED &&
-         grid_order.position_ticket <= 0 &&
-         PandoraBrokerRetryPending(signal_params))
-      {
-        double normalized_volume = NormalizeVolumeForSymbol(_Symbol, grid_order.lot_size);
-        if(GridHandlePandoraBrokerRetry(signal_params,
-                                        grid_order,
-                                        point_size,
-                                        normalized_volume))
-          grid_order = signal_params.grid_orders[grid_order_level];
-      }
-
       if(Pandora_Box_Set_Broker_SLTP &&
          grid_order.status != GRID_ORDER_COMPLETED &&
          grid_order.position_ticket <= 0 &&
@@ -300,7 +322,14 @@ void UpdateGridLifecycle(SignalParams &signal_params)
         ulong rebound_ticket = FindOpenPositionForSignal(direction,
                                                          grid_order.position_comment);
         if(rebound_ticket > 0)
+        {
           grid_order.position_ticket = rebound_ticket;
+          PandoraMarkBrokerExecuted(signal_params,
+                                    grid_order,
+                                    signal_params.pandora_broker_retcode,
+                                    signal_params.pandora_broker_last_error,
+                                    grid_order.position_comment);
+        }
         else
         {
           PandoraCloseOutcomes history_outcome = PandoraResolveHistoryOutcomeByComment(grid_order.position_comment);
