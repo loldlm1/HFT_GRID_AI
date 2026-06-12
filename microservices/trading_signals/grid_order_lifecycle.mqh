@@ -787,6 +787,58 @@ bool GridSelectPandoraBrokerRetryRequest(SignalParams &signal_params,
   return false;
 }
 
+bool GridSelectPandoraBrokerNoInitialSLTPRequest(SignalParams &signal_params,
+                                                GridOrderState &order_state,
+                                                const SignalTypes direction,
+                                                double &broker_volume,
+                                                double &sl_price,
+                                                double &tp_price,
+                                                const string comment,
+                                                MqlTradeRequest &broker_request,
+                                                MqlTradeCheckResult &check_result,
+                                                bool &check_available,
+                                                bool &check_sent,
+                                                int &check_error,
+                                                string &reject_context,
+                                                bool &volume_repair_used)
+{
+  reject_context = "";
+  volume_repair_used = false;
+
+  PandoraBrokerStopSyncStatuses no_stop_status =
+    Pandora_Box_Set_Broker_SLTP ? PANDORA_BROKER_STOPS_PENDING
+                                : PANDORA_BROKER_STOPS_NOT_REQUIRED;
+
+  PandoraBrokerOpenStopCandidate no_stop_candidate;
+  PandoraSetBrokerOpenStopCandidate(no_stop_candidate,
+                                    "no_initial_sltp",
+                                    0.0,
+                                    0.0,
+                                    no_stop_status);
+
+  if(!GridPreparePandoraCandidateRequest(direction,
+                                         signal_params,
+                                         order_state,
+                                         no_stop_candidate,
+                                         broker_volume,
+                                         comment,
+                                         broker_request,
+                                         check_result,
+                                         check_available,
+                                         check_sent,
+                                         check_error,
+                                         volume_repair_used))
+  {
+    reject_context = "ORDER_REQUEST_BUILD_FAILED";
+    return false;
+  }
+
+  sl_price = broker_request.sl;
+  tp_price = broker_request.tp;
+  signal_params.pandora_broker_stop_sync_status = no_stop_candidate.stop_status;
+  return true;
+}
+
 void GridHandlePandoraOrderSendFailure(SignalParams &signal_params,
                                        GridOrderState &order_state,
                                        const string context,
@@ -918,76 +970,20 @@ bool GridExecuteLevelTrade(SignalParams &signal_params,
   if(pandora_signal)
   {
     bool selected_request = false;
-    if(Pandora_Box_Set_Broker_SLTP)
-    {
-      GridOrderState broker_seed_state = order_state;
-      if(broker_seed_state.entry_price <= 0.0)
-      {
-        broker_seed_state.entry_price = GridCurrentPriceForDirection(direction, true);
-        if(broker_seed_state.entry_price <= 0.0)
-          broker_seed_state.entry_price = order_state.entry_reference_price;
-      }
-
-      if(pandora_retry_attempt)
-      {
-        selected_request = GridSelectPandoraBrokerRetryRequest(signal_params,
-                                                               broker_seed_state,
-                                                               direction,
-                                                               broker_volume,
-                                                               sl_price,
-                                                               tp_price,
-                                                               comment,
-                                                               broker_send_request,
-                                                               broker_check_result,
-                                                               broker_check_available,
-                                                               broker_check_sent,
-                                                               broker_check_error,
-                                                               order_check_block_context,
-                                                               broker_volume_repair_used);
-      }
-      else
-      {
-        selected_request = GridSelectPandoraBrokerOpenRequest(signal_params,
-                                                              broker_seed_state,
-                                                              direction,
-                                                              broker_volume,
-                                                              sl_price,
-                                                              tp_price,
-                                                              comment,
-                                                              broker_send_request,
-                                                              broker_check_result,
-                                                              broker_check_available,
-                                                              broker_check_sent,
-                                                              broker_check_error,
-                                                              order_check_block_context,
-                                                              broker_volume_repair_used);
-      }
-    }
-    else
-    {
-      PandoraBrokerOpenStopCandidate no_stop_candidate;
-      PandoraSetBrokerOpenStopCandidate(no_stop_candidate,
-                                        "no_initial_sltp",
-                                        0.0,
-                                        0.0,
-                                        PANDORA_BROKER_STOPS_NOT_REQUIRED);
-      selected_request = GridPreparePandoraCandidateRequest(direction,
-                                                            signal_params,
-                                                            order_state,
-                                                            no_stop_candidate,
-                                                            broker_volume,
-                                                            comment,
-                                                            broker_send_request,
-                                                            broker_check_result,
-                                                            broker_check_available,
-                                                            broker_check_sent,
-                                                            broker_check_error,
-                                                            broker_volume_repair_used);
-      if(!selected_request)
-        order_check_block_context = "ORDER_REQUEST_BUILD_FAILED";
-      else
-        signal_params.pandora_broker_stop_sync_status = PANDORA_BROKER_STOPS_NOT_REQUIRED;
-    }
+    selected_request = GridSelectPandoraBrokerNoInitialSLTPRequest(signal_params,
+                                                                   order_state,
+                                                                   direction,
+                                                                   broker_volume,
+                                                                   sl_price,
+                                                                   tp_price,
+                                                                   comment,
+                                                                   broker_send_request,
+                                                                   broker_check_result,
+                                                                   broker_check_available,
+                                                                   broker_check_sent,
+                                                                   broker_check_error,
+                                                                   order_check_block_context,
+                                                                   broker_volume_repair_used);
 
     if(!selected_request)
     {
@@ -1172,8 +1168,7 @@ bool GridExecuteLevelTrade(SignalParams &signal_params,
                               retcode,
                               last_error,
                               comment);
-    if(Pandora_Box_Set_Broker_SLTP)
-      signal_params.pandora_broker_stop_sync_status = selected_stop_status;
+    signal_params.pandora_broker_stop_sync_status = selected_stop_status;
   }
 
   GridRefreshPandoraStopsAfterFill(signal_params, order_state);

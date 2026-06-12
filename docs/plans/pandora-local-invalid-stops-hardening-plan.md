@@ -13,16 +13,14 @@ This plan intentionally excludes real broker pending orders
 (`BUY_STOP`, `SELL_STOP`, `BUY_LIMIT`, `SELL_LIMIT`). The EA should continue to
 use the current local trigger and market `Buy/Sell` path. The source of truth
 for Pandora SL/TP/trailing remains the deterministic local entry or the later
-real broker fill. Broker-side SL/TP remains an extra protection layer that may
-start exact, wide, pending, or temporarily absent, then tighten toward the exact
-local targets when broker rules allow it.
+real broker fill. Broker-side SL/TP remains an extra protection layer that is
+attached after a successful market fill when broker rules allow it.
 
-The core change is to stop treating `TRADE_RETCODE_INVALID_STOPS` as a final
-unrecoverable broker-open failure when the market order itself is otherwise
-valid. Instead, the EA should pre-check broker SL/TP candidates, avoid sending a
-known invalid SL/TP request, and prefer a deterministic fallback sequence:
-exact broker stops, widened broker-safe stops, then market open without initial
-broker SL/TP followed by post-fill stop synchronization.
+The core change is to stop treating broker-side SL/TP constraints as reasons to
+miss a valid market entry. Sprint 9 supersedes the earlier exact/wide/no-stop
+open-candidate cascade: Pandora market opens are sent without initial broker
+SL/TP, then the EA recalculates exact local SL/TP from the real fill and
+synchronizes broker protection afterward.
 
 ## Confirmed Scope
 
@@ -42,16 +40,16 @@ broker SL/TP followed by post-fill stop synchronization.
 
 ## Confirmed Execution Decisions
 
-- A short-lived broker position with no initial server SL/TP is acceptable only
-  after `OrderCheck` proves exact and widened SL/TP candidates fail because of
-  invalid stops, while the market request without SL/TP is otherwise valid.
-  Local SL/TP remains active immediately in EA state, and broker protection is
-  synchronized as soon as it becomes legal.
+- A short-lived broker position with no initial server SL/TP is acceptable for
+  Pandora market opens. Local SL/TP remains active in EA state from the active
+  source-of-truth entry, and broker protection is synchronized as soon as it
+  becomes legal.
 - Invalid-stops recovery is Pandora-only in this plan. Non-Pandora grid market
   opens keep their current behavior unless explicitly changed later.
-- Invalid-stops recovery resolves in the same tick through the deterministic
-  candidate cascade: exact broker SL/TP -> widened broker-safe SL/TP -> market
-  open without initial broker SL/TP -> post-fill broker stop synchronization.
+- Invalid-stops recovery no longer belongs to the entry `OrderSend` request,
+  because initial broker SL/TP is not attached. It belongs to post-fill broker
+  stop synchronization, where failed `PositionModify` attempts are non-fatal to
+  the local lifecycle.
 - Invalid volume reported by `OrderCheck` is repairable once in the same tick by
   refreshing symbol constraints and recalculating/renormalizing volume. The
   resulting request is still sent so `OrderSend` remains the broker source of
@@ -61,7 +59,10 @@ broker SL/TP followed by post-fill stop synchronization.
 
 > Historical policy for Sprints 1-7. Sprint 8 supersedes these final/retry
 > classifications for Pandora broker-open `OrderSend` results: every
-> unsuccessful or unresolved send remains retryable until attempt 8.
+> unsuccessful or unresolved send remains retryable until attempt 8. Sprint 9
+> supersedes the initial stop-stage cascade: Pandora broker-open `OrderSend`
+> requests carry no initial SL/TP, and broker protection is synchronized only
+> after a real market fill.
 
 ### Same-Tick Repair Candidates
 
@@ -527,5 +528,54 @@ decision that advances or exhausts the retry lifecycle.
 - Any `OrderSend` failure remains pending before attempt 8.
 - Attempt 8 either binds an existing/successful broker position or marks broker
   execution rejected without deleting the local position.
+- `git diff --check` passes.
+- MetaEditor compilation is intentionally deferred to the user for this Sprint.
+
+### Sprint 9: No-Initial-SLTP Broker Opens
+
+**Goal**: Prioritize market entry by sending Pandora broker-open requests
+without initial SL/TP, then define local SL/TP from the real position entry and
+synchronize broker-side protection afterward.
+
+**Execution Policy**:
+
+- `Pandora_Box_Set_Broker_SLTP = true` means "attach broker protection after a
+  successful fill," not "attach SL/TP to the opening market request."
+- Initial Pandora `OrderSend` requests use `SL=0` and `TP=0` for both first
+  attempts and tick retries.
+- Retry attempts continue to rebuild current tick price, volume, filling mode,
+  and request data, but they do not advance through exact/wide stop stages.
+- A successful broker fill rebases the active source-of-truth entry to
+  `POSITION_PRICE_OPEN` when the position ticket is available, then recalculates
+  local SL/TP/trailing from that real entry.
+- Post-fill `PositionModify` attempts may attach exact or broker-safe protection
+  when legal. Failures remain non-fatal because local SL/TP/trailing owns the
+  deterministic close lifecycle.
+- `Pandora_Box_Set_Broker_SLTP = false` keeps the same no-initial-SLTP request,
+  but does not schedule broker stop synchronization.
+
+**Tasks**:
+
+- Route Pandora market opens and broker-open retries through one
+  `no_initial_sltp` request builder.
+- Mark broker stop sync as pending only when `Pandora_Box_Set_Broker_SLTP` is
+  enabled; otherwise keep broker stops not required.
+- Preserve `OrderSend` as the retry source of truth and keep the 8-attempt tick
+  retry budget.
+- Preserve local admission, spread/margin/session/protection guards, symbol and
+  magic scoping, comment-based position binding, and post-fill rebasing.
+- Update user-facing Pandora docs and tester scenarios to remove the old
+  exact/wide/open-candidate language from the entry path.
+
+**Demo/Validation**:
+
+- Static trace shows Pandora first attempts and retries build market requests
+  with `request.sl = 0` and `request.tp = 0`.
+- With `Pandora_Box_Set_Broker_SLTP = true`, successful fills enter stop sync as
+  pending and then try `PositionModify`.
+- With `Pandora_Box_Set_Broker_SLTP = false`, successful fills do not require
+  broker stop sync.
+- Local SL/TP/trailing continues to rebase from the real fill through
+  `PandoraMarkBrokerExecuted`.
 - `git diff --check` passes.
 - MetaEditor compilation is intentionally deferred to the user for this Sprint.
