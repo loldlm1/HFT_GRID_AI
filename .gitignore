@@ -17,4 +17,5 @@
 /docs/lead_magnet/dist/*.zip
 .envrc
 /plans/archive/*
+.codex-hook-state/
 /logs/*
