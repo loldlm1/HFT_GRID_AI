@@ -71,8 +71,9 @@ Follow these detailed steps to install and configure **Pandora Box** in MetaTrad
 - `Pandora_Box_Entry_Type = ENTRY_WICK_TYPE` keeps the current tick/current-price breakout behavior. `ENTRY_BODY_TYPE` waits for the selected body timeframe's last closed candle to close outside the offset breakout level.
 - Body entries use inclusive checks (`close_1 >= breakout_high_price` bullish, `close_1 <= breakout_low_price` bearish) and consume each qualifying closed candle once per direction, even if a later guard blocks the order.
 - If the selected trigger breaks above/below and all local admission guards pass (direction, session, daily limits, concurrency), Pandora reserves the entry budget. The active local entry is anchored to broker-realistic execution: real broker fill first, otherwise current executable Bid/Ask after spread is inside range.
-- `Pandora_First_Entry_Mode` controls when the first real market entry is admitted. `First_Entry_Breakout` preserves the default breakout entry. `First_Entry_Off` creates a local-only entry and never calls `OrderSend`.
-- `First_Entry_Sl_1` and `First_Entry_Sl_2` test same-direction deep entries. If the local breakout observation reaches TP before the requested deep level, the opportunity is discarded as a local win. If the deep level is touched first, the normal broker-realistic market-entry flow starts.
+- `Pandora_First_Entry_Mode` is an integer depth input that controls when the first real market entry is admitted. `0` preserves the default breakout entry. `-1` creates a local-only entry and never calls `OrderSend`.
+- Values `1`, `2`, and higher test same-direction deep entries (`SL1`, `SL2`, `SLN`, clamped to `20`). If the local breakout observation reaches TP before the requested deep level, the opportunity is discarded as a local win. If the deep level is touched first, the normal broker-realistic market-entry flow starts.
+- Existing `.set` files that used the old enum labels need manual migration: `First_Entry_Breakout` -> `0`, `First_Entry_Sl_1` -> `1`, `First_Entry_Sl_2` -> `2`, `First_Entry_Off` -> `-1`.
 - Deep-entry observations always use fixed TP, even when step trailing is enabled. Step trailing applies only after a real broker market entry is admitted.
 - Runtime performance gates are internal only. In Strategy Tester, idle chart/comment refresh is throttled by new chart bars, while active Pandora observations, broker retries, positions, closes, force-close states, and work-window transitions continue to use tick-level lifecycle checks.
 - Re-entry on each side is re-armed only after `close_1` returns inside the raw box. Wick mode uses the Pandora box timeframe; body mode uses `Pandora_Box_Entry_Body_Timeframe`.
@@ -119,7 +120,7 @@ Follow these detailed steps to install and configure **Pandora Box** in MetaTrad
 | `Pandora_Points_TP` | `100.0` | Take-profit distance for Pandora entries. | Keep positive unless trailing-only exit is intended. |
 | `Pandora_Box_Entry_Count_Mode` | `COUNT_BOX_ENTRY_OFF` | Controls `counted` analytics: all (`SL/TP/BE`), `SL+BE`, or `TP+BE`. | Use `OFF` for full diagnostics. |
 | `Pandora_Box_Max_Entries` | `2` | Broker-realistic Pandora-entry budget per day/window (`0` = unlimited). Pending spread admission and broker-blocked/rejected entries still count. | Keep low (`1-2`) unless broader protections are strict. |
-| `Pandora_First_Entry_Mode` | `First_Entry_Breakout` | First-entry policy: default breakout, local-only off, or same-direction SL1/SL2 deep-entry observation. | Keep `Breakout` for production default; use `Sl_1`/`Sl_2` for Strategy Tester research. |
+| `Pandora_First_Entry_Mode` | `0` | First-entry depth: `-1` local-only/no broker market, `0` breakout default, `1` SL1, `2` SL2, `N` up to `20` for deeper same-direction levels. | Keep `0` for production default; use `1+` for Strategy Tester research. |
 
 ---
 

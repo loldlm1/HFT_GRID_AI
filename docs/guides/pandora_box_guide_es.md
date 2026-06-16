@@ -71,8 +71,9 @@ Sigue estos pasos detallados para instalar y configurar **Pandora Box** en MetaT
 - `Pandora_Box_Entry_Type = ENTRY_WICK_TYPE` conserva la ruptura actual por tick/precio. `ENTRY_BODY_TYPE` espera que la última vela cerrada del timeframe seleccionado cierre fuera del nivel de ruptura con offset.
 - Las entradas por cuerpo usan validaciones inclusivas (`close_1 >= breakout_high_price` alcista, `close_1 <= breakout_low_price` bajista) y consumen cada vela cerrada válida una sola vez por dirección, aunque una validación posterior bloquee la orden.
 - Si el disparador seleccionado rompe por arriba/abajo y todas las validaciones locales se cumplen (direccion, sesion, limites diarios, concurrencia), Pandora reserva el presupuesto de entrada. La entrada local activa se ancla a ejecucion broker-realistic: fill real del broker primero, o Bid/Ask ejecutable cuando el spread vuelve a rango.
-- `Pandora_First_Entry_Mode` controla cuando se admite la primera entrada real al mercado. `First_Entry_Breakout` conserva la entrada default en breakout. `First_Entry_Off` crea una entrada solo local y nunca llama `OrderSend`.
-- `First_Entry_Sl_1` y `First_Entry_Sl_2` prueban entradas profundas en la misma direccion. Si la observacion local del breakout toca TP antes del nivel profundo, la oportunidad se descarta como win local. Si el nivel profundo se toca primero, inicia el flujo normal broker-realistic.
+- `Pandora_First_Entry_Mode` es un input entero de profundidad que controla cuando se admite la primera entrada real al mercado. `0` conserva la entrada default en breakout. `-1` crea una entrada solo local y nunca llama `OrderSend`.
+- Los valores `1`, `2` y superiores prueban entradas profundas en la misma direccion (`SL1`, `SL2`, `SLN`, con clamp a `20`). Si la observacion local del breakout toca TP antes del nivel profundo solicitado, la oportunidad se descarta como win local. Si el nivel profundo se toca primero, inicia el flujo normal broker-realistic.
+- Los `.set` existentes que usaban los labels enum anteriores requieren migracion manual: `First_Entry_Breakout` -> `0`, `First_Entry_Sl_1` -> `1`, `First_Entry_Sl_2` -> `2`, `First_Entry_Off` -> `-1`.
 - Las observaciones profundas usan TP fijo aunque el step trailing este activo. El trailing solo aplica despues de admitir una entrada real al mercado.
 - Las compuertas de performance son internas. En Strategy Tester, el refresh idle de grafico/comentario se limita a nuevas velas del chart, mientras observaciones Pandora activas, retries broker, posiciones, cierres, force-close y transiciones de ventana operativa siguen usando checks por tick.
 - La reentrada por cada lado se rearma solo cuando `close_1` vuelve dentro del box sin offset. En modo wick usa el timeframe del box Pandora; en modo body usa `Pandora_Box_Entry_Body_Timeframe`.
@@ -119,7 +120,7 @@ Sigue estos pasos detallados para instalar y configurar **Pandora Box** en MetaT
 | `Pandora_Points_TP` | `100.0` | Distancia de take profit para entradas Pandora. | Mantén positivo salvo que quieras salida solo por trailing. |
 | `Pandora_Box_Entry_Count_Mode` | `COUNT_BOX_ENTRY_OFF` | Controla la analítica `counted`: todo (`SL/TP/BE`), `SL+BE` o `TP+BE`. | Usa `OFF` para diagnóstico completo. |
 | `Pandora_Box_Max_Entries` | `2` | Presupuesto de entradas Pandora broker-realistic por dia/ventana (`0` = ilimitado). Entradas pending por spread y bloqueadas/rechazadas por broker tambien cuentan. | Manten bajo (`1-2`) salvo que tus protecciones globales sean estrictas. |
-| `Pandora_First_Entry_Mode` | `First_Entry_Breakout` | Politica de primera entrada: breakout default, local-only off, u observacion profunda SL1/SL2 en la misma direccion. | Manten `Breakout` como default; usa `Sl_1`/`Sl_2` para investigacion en Strategy Tester. |
+| `Pandora_First_Entry_Mode` | `0` | Profundidad de primera entrada: `-1` local-only/sin mercado broker, `0` breakout default, `1` SL1, `2` SL2, `N` hasta `20` para niveles mas profundos en la misma direccion. | Manten `0` como default; usa `1+` para investigacion en Strategy Tester. |
 
 ---
 
