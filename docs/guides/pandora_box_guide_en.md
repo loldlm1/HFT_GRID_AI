@@ -74,7 +74,7 @@ Follow these detailed steps to install and configure **Pandora Box** in MetaTrad
 - `Pandora_First_Entry_Mode` is an integer depth input that controls when the first real market entry is admitted. `0` preserves the default breakout entry. `-1` creates a local-only entry and never calls `OrderSend`.
 - Values `1`, `2`, and higher test same-direction deep entries (`SL1`, `SL2`, `SLN`, clamped to `20`). If the local breakout observation reaches TP before the requested deep level, the opportunity is discarded as a local win. If the deep level is touched first, the normal broker-realistic market-entry flow starts.
 - Existing `.set` files that used the old enum labels need manual migration: `First_Entry_Breakout` -> `0`, `First_Entry_Sl_1` -> `1`, `First_Entry_Sl_2` -> `2`, `First_Entry_Off` -> `-1`.
-- Deep-entry observations always use fixed TP, even when step trailing is enabled. Step trailing applies only after a real broker market entry is admitted.
+- Deep-entry observations always use a fixed TP invalidation level. In fixed-TP mode it uses `Pandora_Points_TP`; in step trailing mode it uses the same resolved distance as `Pandora_Points_SL`. Step trailing applies only after a real broker market entry is admitted.
 - Runtime performance gates are internal only. In Strategy Tester, idle chart/comment refresh is throttled by new chart bars, while active Pandora observations, broker retries, positions, closes, force-close states, and work-window transitions continue to use tick-level lifecycle checks.
 - Re-entry on each side is re-armed only after `close_1` returns inside the raw box. Wick mode uses the Pandora box timeframe; body mode uses `Pandora_Box_Entry_Body_Timeframe`.
 - `Pandora_Box_Max_Entries` controls the Pandora entry budget (`0` means unlimited). A high-spread breakout can reserve the budget while waiting for spread to return inside range.
@@ -117,7 +117,7 @@ Follow these detailed steps to install and configure **Pandora Box** in MetaTrad
 | `Pandora_Points_Value_Mode` | `PANDORA_VALUE_MODE_POINTS` | Interprets offset/SL/TP as points or `%` of box range. | Prefer points first; use `%` for adaptive scaling. |
 | `Pandora_Box_Offset_Points` | `1.0` | Breakout buffer distance from box high/low. | Keep non-zero to reduce false breaks. |
 | `Pandora_Points_SL` | `100.0` | Stop distance for Pandora entries. | Must be `> 0`; tune by symbol. |
-| `Pandora_Points_TP` | `100.0` | Take-profit distance for Pandora entries. | Keep positive unless trailing-only exit is intended. |
+| `Pandora_Points_TP` | `100.0` | Take-profit distance for Pandora entries. In step trailing mode, deep-entry observation invalidation uses `Pandora_Points_SL` instead. | Keep positive unless trailing-only exit is intended. |
 | `Pandora_Box_Entry_Count_Mode` | `COUNT_BOX_ENTRY_OFF` | Controls `counted` analytics: all (`SL/TP/BE`), `SL+BE`, or `TP+BE`. | Use `OFF` for full diagnostics. |
 | `Pandora_Box_Max_Entries` | `2` | Broker-realistic Pandora-entry budget per day/window (`0` = unlimited). Pending spread admission and broker-blocked/rejected entries still count. | Keep low (`1-2`) unless broader protections are strict. |
 | `Pandora_First_Entry_Mode` | `0` | First-entry depth: `-1` local-only/no broker market, `0` breakout default, `1` SL1, `2` SL2, `N` up to `20` for deeper same-direction levels. | Keep `0` for production default; use `1+` for Strategy Tester research. |
@@ -162,7 +162,7 @@ Before running **Pandora Box** on a live account, verify:
 - If using `%` mode, offset/SL/TP percentages are realistic for the symbol.
 - Direction mode matches your market bias.
 - `Pandora_Box_Max_Entries` matches the intended Pandora entry budget.
-- Deep-entry mode chart lines (`TP obs`, `SL1 entry`, `SL2 entry`) match the expected same-direction levels before evaluating tester results.
+- Deep-entry mode chart lines (`TP obs`, `SLN entry`) match the expected same-direction levels before evaluating tester results.
 - In Strategy Tester, idle chart/comment updates can appear on new chart bars rather than every tick; active entries, observations, retries, and closes should still update immediately.
 - Local-rejected scenarios are understood: stops/volume/margin rejection can still leave one broker-realistic local entry alive until local SL/TP/BE/trailing closes it.
 - Broker-side SL/TP is validated as extra protection only after the broker fill; local exact SL/TP remains based on the active broker fill or simulated anchor even when broker stops are temporarily wider, pending, failed, or absent after a valid no-initial-SLTP open.

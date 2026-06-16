@@ -74,7 +74,7 @@ Sigue estos pasos detallados para instalar y configurar **Pandora Box** en MetaT
 - `Pandora_First_Entry_Mode` es un input entero de profundidad que controla cuando se admite la primera entrada real al mercado. `0` conserva la entrada default en breakout. `-1` crea una entrada solo local y nunca llama `OrderSend`.
 - Los valores `1`, `2` y superiores prueban entradas profundas en la misma direccion (`SL1`, `SL2`, `SLN`, con clamp a `20`). Si la observacion local del breakout toca TP antes del nivel profundo solicitado, la oportunidad se descarta como win local. Si el nivel profundo se toca primero, inicia el flujo normal broker-realistic.
 - Los `.set` existentes que usaban los labels enum anteriores requieren migracion manual: `First_Entry_Breakout` -> `0`, `First_Entry_Sl_1` -> `1`, `First_Entry_Sl_2` -> `2`, `First_Entry_Off` -> `-1`.
-- Las observaciones profundas usan TP fijo aunque el step trailing este activo. El trailing solo aplica despues de admitir una entrada real al mercado.
+- Las observaciones profundas usan un TP fijo de invalidacion. En modo TP fijo usa `Pandora_Points_TP`; en step trailing usa la misma distancia resuelta que `Pandora_Points_SL`. El trailing solo aplica despues de admitir una entrada real al mercado.
 - Las compuertas de performance son internas. En Strategy Tester, el refresh idle de grafico/comentario se limita a nuevas velas del chart, mientras observaciones Pandora activas, retries broker, posiciones, cierres, force-close y transiciones de ventana operativa siguen usando checks por tick.
 - La reentrada por cada lado se rearma solo cuando `close_1` vuelve dentro del box sin offset. En modo wick usa el timeframe del box Pandora; en modo body usa `Pandora_Box_Entry_Body_Timeframe`.
 - `Pandora_Box_Max_Entries` controla el presupuesto de entradas Pandora (`0` significa ilimitado). Una ruptura con spread alto puede reservar el presupuesto mientras espera que el spread vuelva a rango.
@@ -117,7 +117,7 @@ Sigue estos pasos detallados para instalar y configurar **Pandora Box** en MetaT
 | `Pandora_Points_Value_Mode` | `PANDORA_VALUE_MODE_POINTS` | Interpreta offset/SL/TP como puntos o `%` del rango del box. | Prefiere puntos primero; usa `%` para escalado adaptativo. |
 | `Pandora_Box_Offset_Points` | `1.0` | Distancia buffer de ruptura desde el high/low del box. | Mantén valor distinto de cero para reducir rupturas falsas. |
 | `Pandora_Points_SL` | `100.0` | Distancia de stop para entradas Pandora. | Debe ser `> 0`; ajusta por símbolo. |
-| `Pandora_Points_TP` | `100.0` | Distancia de take profit para entradas Pandora. | Mantén positivo salvo que quieras salida solo por trailing. |
+| `Pandora_Points_TP` | `100.0` | Distancia de take profit para entradas Pandora. En step trailing, la invalidacion de observacion profunda usa `Pandora_Points_SL` en su lugar. | Mantén positivo salvo que quieras salida solo por trailing. |
 | `Pandora_Box_Entry_Count_Mode` | `COUNT_BOX_ENTRY_OFF` | Controla la analítica `counted`: todo (`SL/TP/BE`), `SL+BE` o `TP+BE`. | Usa `OFF` para diagnóstico completo. |
 | `Pandora_Box_Max_Entries` | `2` | Presupuesto de entradas Pandora broker-realistic por dia/ventana (`0` = ilimitado). Entradas pending por spread y bloqueadas/rechazadas por broker tambien cuentan. | Manten bajo (`1-2`) salvo que tus protecciones globales sean estrictas. |
 | `Pandora_First_Entry_Mode` | `0` | Profundidad de primera entrada: `-1` local-only/sin mercado broker, `0` breakout default, `1` SL1, `2` SL2, `N` hasta `20` para niveles mas profundos en la misma direccion. | Manten `0` como default; usa `1+` para investigacion en Strategy Tester. |
@@ -162,7 +162,7 @@ Antes de ejecutar **Pandora Box** en una cuenta real, verifica:
 - Si usas modo `%`, que offset/SL/TP sean porcentajes realistas para el símbolo.
 - Que el modo de dirección coincida con tu sesgo de mercado.
 - Que `Pandora_Box_Max_Entries` coincida con tu presupuesto de entradas Pandora.
-- Que las lineas de modo profundo (`TP obs`, `SL1 entry`, `SL2 entry`) coincidan con los niveles esperados antes de evaluar resultados del tester.
+- Que las lineas de modo profundo (`TP obs`, `SLN entry`) coincidan con los niveles esperados antes de evaluar resultados del tester.
 - En Strategy Tester, recuerda que las actualizaciones idle de grafico/comentario pueden aparecer por nueva vela del chart en vez de cada tick; entradas, observaciones, retries y cierres activos deben seguir actualizando inmediatamente.
 - Que los escenarios `local_rejected` esten claros: rechazo por stops/volumen/margen puede dejar una entrada broker-realistic local viva hasta cierre local por SL/TP/BE/trailing.
 - Que el SL/TP broker se valide como proteccion extra despues del fill; el SL/TP local exacto se basa en el fill real o anchor simulado activo aunque los stops broker esten temporalmente mas amplios, pendientes, fallidos o ausentes tras una apertura valida sin SL/TP inicial.

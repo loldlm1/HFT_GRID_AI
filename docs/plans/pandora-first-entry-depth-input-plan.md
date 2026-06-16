@@ -366,6 +366,53 @@ Strategy Tester runs.
 - **Validation**:
   - Manual docs review.
 
+## Sprint 7: Trailing Deep Observation TP Alignment
+
+**Goal**: When `Pandora_Risk_Trailing_Mode = PANDORA_RISK_TRAILING_STEP_TP` and
+`Pandora_First_Entry_Mode > 0`, make the local observation TP that invalidates a
+deep entry use the same resolved distance as `Pandora_Points_SL`.
+**Commit**: `Sprint 7: align Pandora trailing observation TP with SL distance`
+**Demo/Validation**:
+- MetaEditor compile passes with zero errors and warnings.
+- With trailing enabled and depth `1+`, observation trigger and observation TP
+  are symmetric around the current observation anchor using resolved SL points.
+- Without trailing, observation TP continues to use `Pandora_Points_TP`.
+
+### Task 7.1: Update Observation Target Math
+
+- **Location**:
+  - `services/trading_signals/pandora_box_state.mqh`
+- **Description**: In `PandoraBuildFirstEntryObservationTargets()`, keep the
+  deep trigger based on resolved SL points. When step trailing is enabled, set
+  the observation invalidation TP distance to the same resolved SL points;
+  otherwise keep using resolved TP points.
+- **Dependencies**: Sprints 1-6.
+- **Acceptance Criteria**:
+  - No new public input is introduced.
+  - The change applies only to deep first-entry observation targets.
+  - Real market entry trailing behavior remains unchanged and still starts only
+    after broker-realistic market admission.
+- **Validation**:
+  - MetaEditor compile.
+  - Manual code review of bullish/bearish observation math.
+
+### Task 7.2: Update Documentation And Handoff Notes
+
+- **Location**:
+  - `docs/guides/pandora-box-strategy-inputs.md`
+  - `docs/guides/pandora_box_guide_en.md`
+  - `docs/guides/pandora_box_guide_es.md`
+  - `docs/plans/pandora-first-entry-depth-input-plan.md`
+- **Description**: Document that deep-entry observation TP uses
+  `Pandora_Points_TP` in fixed-TP mode and resolved `Pandora_Points_SL` in step
+  trailing mode.
+- **Dependencies**: Task 7.1.
+- **Acceptance Criteria**:
+  - Tester guidance makes the trailing/deep-mode invalidation rule explicit.
+  - Existing migration notes remain unchanged.
+- **Validation**:
+  - Manual docs review.
+
 ## Testing Strategy
 
 - Compile after every Sprint with MetaEditor and delete `BUILD.log` after
@@ -379,13 +426,16 @@ Strategy Tester runs.
     admission at SL3.
   - Intermediate TP discard before target depth.
   - Session expiration while observing.
-  - Step trailing enabled: local observations still use fixed TP; trailing only
-    starts after real market admission.
+  - Step trailing enabled: local observations still use fixed TP, but the fixed
+    invalidation distance uses resolved SL points; trailing only starts after
+    real market admission.
 - Compare depth 1 and 2 against known current behavior before trusting depth 3+.
 
 ## Execution Notes
 
-- Sprint batch executed in order from Sprint 1 through Sprint 6.
+- Original sprint batch executed in order from Sprint 1 through Sprint 6.
+- Sprint 7 was added as a follow-up to align deep-observation invalidation TP
+  with SL distance when step trailing is enabled.
 - Sprint 1 completed in commit `e8a8fe8`:
   `Sprint 1: add Pandora first entry depth input`.
 - Sprint 2 completed in commit `f88be0c`:
@@ -398,8 +448,15 @@ Strategy Tester runs.
   `Sprint 5: document Pandora first entry depth input`.
 - Sprint 6 final hardening validates this plan state and the final MetaEditor
   compile gate.
-- Final compile gate on 2026-06-16 passed with `0 errors, 0 warnings`; the
-  generated `BUILD.log` was inspected and removed.
+- Sprint 6 final compile gate on 2026-06-16 passed with `0 errors, 0 warnings`;
+  the generated `BUILD.log` was inspected and removed.
+- Sprint 7 final compile gate on 2026-06-16 passed with `0 errors, 0 warnings`;
+  the generated `BUILD.log` was inspected and removed.
+- Sprint 7 behavior rule: with `Pandora_Risk_Trailing_Mode =
+  PANDORA_RISK_TRAILING_STEP_TP` and `Pandora_First_Entry_Mode > 0`, the
+  observation TP that invalidates a deep entry uses resolved `Pandora_Points_SL`
+  distance. Without trailing, observation TP continues to use resolved
+  `Pandora_Points_TP`.
 - Final public mapping:
   - `Pandora_First_Entry_Mode = -1`: local-only compatibility, no broker market
     position.
@@ -421,8 +478,8 @@ Strategy Tester runs.
   - Depth `-1`: confirm local-only compatibility creates no broker history.
   - Session expiration while observing: confirm observation closes with the
     existing expiration path.
-  - Step trailing enabled: confirm observation still uses fixed TP and trailing
-    starts only after real broker market admission.
+  - Step trailing enabled: confirm observation TP uses resolved SL distance and
+    trailing starts only after real broker market admission.
 
 ## Potential Risks & Gotchas
 

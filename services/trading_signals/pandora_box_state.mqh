@@ -1684,7 +1684,9 @@ bool PandoraBuildFirstEntryObservationTargets(const SignalParams &signal_params,
   if(sl_points <= 0.0 || point_size <= 0.0)
     return false;
 
-  double tp_points = PandoraResolveSignalTPPoints(signal_params, false);
+  double tp_points = PandoraRiskStepTrailingEnabled()
+                     ? sl_points
+                     : PandoraResolveSignalTPPoints(signal_params, false);
   trigger_price = PandoraFirstEntrySignedStepPrice(signal_params.signal_type,
                                                    anchor_price,
                                                    sl_points,
