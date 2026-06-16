@@ -74,6 +74,7 @@ Follow these detailed steps to install and configure **Pandora Box** in MetaTrad
 - `Pandora_First_Entry_Mode` controls when the first real market entry is admitted. `First_Entry_Breakout` preserves the default breakout entry. `First_Entry_Off` creates a local-only entry and never calls `OrderSend`.
 - `First_Entry_Sl_1` and `First_Entry_Sl_2` test same-direction deep entries. If the local breakout observation reaches TP before the requested deep level, the opportunity is discarded as a local win. If the deep level is touched first, the normal broker-realistic market-entry flow starts.
 - Deep-entry observations always use fixed TP, even when step trailing is enabled. Step trailing applies only after a real broker market entry is admitted.
+- Runtime performance gates are internal only. In Strategy Tester, idle chart/comment refresh is throttled by new chart bars, while active Pandora observations, broker retries, positions, closes, force-close states, and work-window transitions continue to use tick-level lifecycle checks.
 - Re-entry on each side is re-armed only after `close_1` returns inside the raw box. Wick mode uses the Pandora box timeframe; body mode uses `Pandora_Box_Entry_Body_Timeframe`.
 - `Pandora_Box_Max_Entries` controls the Pandora entry budget (`0` means unlimited). A high-spread breakout can reserve the budget while waiting for spread to return inside range.
 - If the budget is reached while local entries remain open, status shows `PANDORA WAIT_CLOSE`; after local closure, it transitions to `PANDORA DONE`.
@@ -107,7 +108,7 @@ Follow these detailed steps to install and configure **Pandora Box** in MetaTrad
 | `Pandora_Box_Set_Broker_SLTP` | `true` | Adds broker-side SL/TP protection after broker fills and during later modify attempts. Opening market requests are sent without initial SL/TP; exact Pandora SL/TP is still enforced locally from the active broker-realistic entry. | Keep `true` for extra server-side protection, but validate source-of-truth SL/TP behavior in tester. |
 | `Pandora_Box_Entry_Type` | `ENTRY_WICK_TYPE` | Entry trigger style. `ENTRY_WICK_TYPE` uses live tick/current-price breakout; `ENTRY_BODY_TYPE` requires a closed candle outside the offset breakout level. | Keep `WICK` for legacy behavior; use `BODY` to reduce wick-only breaks. |
 | `Pandora_Box_Entry_Body_Timeframe` | `PERIOD_M5` | Standard MT5 timeframe used by `ENTRY_BODY_TYPE` for closed-candle breakout and rearm checks. `PERIOD_CURRENT` resolves through the Pandora/strategy timeframe fallback. | Start with `PERIOD_M5` for deterministic body confirmation. |
-| `Enable_Chart_Levels` | `true` | Enables the fixed frontend overlays. With `Enable_Chart_Summary` also active, live charts show the compact top-left panel instead of live `Comment()` text; Strategy Tester still uses comment fallback. Pandora trade markers draw local and broker-executed entries. | Keep enabled for manual monitoring. |
+| `Enable_Chart_Levels` | `true` | Enables the fixed frontend overlays. With `Enable_Chart_Summary` also active, live charts show the compact top-left panel instead of live `Comment()` text; Strategy Tester still uses comment fallback. Tester refresh is throttled while idle and resumes immediately for active Pandora lifecycle work. Pandora trade markers draw local and broker-executed entries. | Keep enabled for manual monitoring. |
 | `Pandora_Risk_Trailing_Mode` | `PANDORA_RISK_TRAILING_OFF` | Trailing behavior: `OFF` or `PANDORA_RISK_TRAILING_STEP_TP`. | Start with `OFF`; use `STEP_TP` after tester validation. |
 | `Pandora_Lot_Type` | `PANDORA_LOT_SIZE` | Lot mode: fixed lot, percentage-based, or currency-based. | Use fixed lot initially; budget modes require calibration. |
 | `Pandora_Lot_Strategy_Size` | `0.01` | Size input consumed by the selected lot mode. | Start small and increase gradually. |
@@ -161,6 +162,7 @@ Before running **Pandora Box** on a live account, verify:
 - Direction mode matches your market bias.
 - `Pandora_Box_Max_Entries` matches the intended Pandora entry budget.
 - Deep-entry mode chart lines (`TP obs`, `SL1 entry`, `SL2 entry`) match the expected same-direction levels before evaluating tester results.
+- In Strategy Tester, idle chart/comment updates can appear on new chart bars rather than every tick; active entries, observations, retries, and closes should still update immediately.
 - Local-rejected scenarios are understood: stops/volume/margin rejection can still leave one broker-realistic local entry alive until local SL/TP/BE/trailing closes it.
 - Broker-side SL/TP is validated as extra protection only after the broker fill; local exact SL/TP remains based on the active broker fill or simulated anchor even when broker stops are temporarily wider, pending, failed, or absent after a valid no-initial-SLTP open.
 - Session filters are configured if `Pandora_Box_Use_Session_Filter = true`.

@@ -465,6 +465,30 @@ off manual Strategy Tester checks.
 - **Validation**:
   - Manual docs review.
 
+## Execution Notes
+
+- Sprint batch executed in order from Sprint 1 through Sprint 6.
+- Sprint 1 commit: `9f5c5e9` (`Sprint 1: classify Pandora runtime work states`).
+- Sprint 2 commit: `297edeb` (`Sprint 2: throttle Pandora tester visualization`).
+- Sprint 3 commit: `6a07529` (`Sprint 3: gate Pandora detection by runtime window`).
+- Sprint 4 commit: `a34df03` (`Sprint 4: add Pandora done idle fast path`).
+- Sprint 5 commit: `ebc9c79` (`Sprint 5: throttle idle Pandora protection checks`).
+- MetaEditor compile gate passed after every implementation Sprint with
+  `0 errors, 0 warnings`; `BUILD.log` was inspected and removed after each run.
+- Sprint 6 final compile gate passed on 2026-06-16 with `0 errors, 0 warnings`.
+- Manual Strategy Tester speed comparison remains a user handoff item. Use the
+  same symbol, date range, model, inputs, and visual/comment settings before and
+  after this batch when comparing runtime.
+- Recommended manual tester scenarios for this exact batch:
+  - Long range with most ticks outside the configured session filter.
+  - Pandora day completes early with `Pandora_Box_Stop_On_First_Win = true`.
+  - Default `First_Entry_Breakout` near session activation.
+  - `First_Entry_Off` local-only close.
+  - `First_Entry_Sl_1` observation discard and market admission.
+  - `First_Entry_Sl_2` stage advance and market admission.
+  - Session transition from outside window to prewarm to active.
+  - Tester visual mode with `Enable_Chart_Summary = true`.
+
 ## Testing Strategy
 
 - Run MetaEditor compile after each Sprint and remove `BUILD.log` after reading
