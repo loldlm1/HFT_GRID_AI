@@ -175,7 +175,6 @@ bool PandoraBuildSignal(const SignalTypes direction)
   signal.strategy_context_label = "PANDORA";
   signal.entry_trigger_mode     = ENTRY_EVAL_OFF;
   signal.entry_evaluation_mode  = ENTRY_EVAL_OFF;
-  signal.pandora_first_entry_mode = g_pandora_box_state.first_entry_mode;
   signal.pandora_first_entry_target_depth = g_pandora_box_state.first_entry_target_depth;
   signal.pandora_first_entry_observation_depth = 0;
 
@@ -202,7 +201,7 @@ bool PandoraBuildSignal(const SignalTypes direction)
                                            ? PANDORA_BROKER_STOPS_PENDING
                                            : PANDORA_BROKER_STOPS_NOT_REQUIRED;
 
-  if(PandoraFirstEntryModeIsDeep(signal.pandora_first_entry_mode))
+  if(PandoraFirstEntryDepthIsDeep(signal.pandora_first_entry_target_depth))
   {
     if(ArraySize(signal.grid_orders) > 0)
       signal.grid_orders[0].status = GRID_ORDER_WAITING;
@@ -219,16 +218,18 @@ bool PandoraBuildSignal(const SignalTypes direction)
 
     if(Enable_Logs)
     {
-      PrintFormat("PANDORA_FIRST_ENTRY_OBSERVE dir=%s mode=%s anchor=%.5f trigger=%.5f tp=%.5f",
+      PrintFormat("PANDORA_FIRST_ENTRY_OBSERVE dir=%s target=%s stage=%s next=%s anchor=%.5f trigger=%.5f tp=%.5f",
                   EnumToString(direction),
-                  PandoraFirstEntryModeLabel(signal.pandora_first_entry_mode),
+                  PandoraFirstEntryDepthLabel(signal.pandora_first_entry_target_depth),
+                  PandoraFirstEntryObservationStageLabel(signal),
+                  PandoraFirstEntryObservationTriggerLabel(signal),
                   signal.pandora_observation_anchor_price,
                   signal.pandora_observation_trigger_price,
                   signal.pandora_observation_tp_price);
     }
   }
 
-  if(!PandoraFirstEntryModeIsDeep(signal.pandora_first_entry_mode))
+  if(!PandoraFirstEntryDepthIsDeep(signal.pandora_first_entry_target_depth))
   {
     RegisterDailySignalStart(signal);
     PandoraRegisterEntryTriggered(direction);

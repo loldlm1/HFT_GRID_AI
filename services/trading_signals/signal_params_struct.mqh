@@ -97,7 +97,6 @@ struct SignalParams
   double pandora_trailing_stop_price;
   PandoraCloseOutcomes pandora_close_outcome;
   double pandora_close_epsilon_points;
-  PandoraFirstEntryModes  pandora_first_entry_mode;
   PandoraFirstEntryStages pandora_first_entry_stage;
   int                     pandora_first_entry_target_depth;
   int                     pandora_first_entry_observation_depth;
@@ -231,7 +230,6 @@ struct SignalParams
     pandora_trailing_stop_price = 0.0;
     pandora_close_outcome      = PANDORA_CLOSE_NONE;
     pandora_close_epsilon_points = 0.0;
-    pandora_first_entry_mode   = First_Entry_Breakout;
     pandora_first_entry_stage  = PANDORA_FIRST_ENTRY_STAGE_NONE;
     pandora_first_entry_target_depth = 0;
     pandora_first_entry_observation_depth = 0;
@@ -339,7 +337,6 @@ struct SignalParams
     pandora_trailing_stop_price = signal_params.pandora_trailing_stop_price;
     pandora_close_outcome       = signal_params.pandora_close_outcome;
     pandora_close_epsilon_points = signal_params.pandora_close_epsilon_points;
-    pandora_first_entry_mode    = signal_params.pandora_first_entry_mode;
     pandora_first_entry_stage   = signal_params.pandora_first_entry_stage;
     pandora_first_entry_target_depth = signal_params.pandora_first_entry_target_depth;
     pandora_first_entry_observation_depth = signal_params.pandora_first_entry_observation_depth;

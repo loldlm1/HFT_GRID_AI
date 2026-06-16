@@ -244,14 +244,6 @@ enum PandoraEntryCountModes
   COUNT_BOX_ENTRY_ON_TP = 2
 };
 
-enum PandoraFirstEntryModes
-{
-  First_Entry_Off      = 0,
-  First_Entry_Breakout = 1,
-  First_Entry_Sl_1     = 2,
-  First_Entry_Sl_2     = 3
-};
-
 enum PandoraFirstEntryStages
 {
   PANDORA_FIRST_ENTRY_STAGE_NONE             = 0,

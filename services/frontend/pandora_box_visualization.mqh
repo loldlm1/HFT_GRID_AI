@@ -251,7 +251,7 @@ void PandoraAppendSummary(string &summary_lines[])
   string status = "PANDORA";
   string entry_label = PandoraEntryTypeLabel();
   string body_tf_label = PandoraEntryBodyTimeframeLabel();
-  string first_entry_label = PandoraFirstEntryModeLabel(g_pandora_box_state.first_entry_mode);
+  string first_entry_label = PandoraFirstEntryDepthLabel(g_pandora_box_state.first_entry_target_depth);
   if(!g_pandora_box_state.window_valid)
   {
     status = StringFormat("PANDORA entry=%s first=%s body_tf=%s INVALID WINDOW %s",

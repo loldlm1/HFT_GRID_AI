@@ -388,9 +388,10 @@ bool PandoraFirstEntryRequiresFixedLocalTP(const SignalParams &signal_params,
 {
   if(!IsPandoraSignal(signal_params))
     return false;
-  if(signal_params.pandora_first_entry_mode == First_Entry_Off)
+  int target_depth = signal_params.pandora_first_entry_target_depth;
+  if(PandoraFirstEntryDepthIsLocalOnly(target_depth))
     return true;
-  if(PandoraFirstEntryModeIsDeep(signal_params.pandora_first_entry_mode) &&
+  if(PandoraFirstEntryDepthIsDeep(target_depth) &&
      order_state.position_ticket <= 0 &&
      signal_params.pandora_broker_execution_status != PANDORA_BROKER_EXECUTED &&
      signal_params.pandora_broker_execution_status != PANDORA_BROKER_CLOSED)
@@ -403,9 +404,10 @@ bool PandoraFirstEntryTrailingAllowed(const SignalParams &signal_params,
 {
   if(!IsPandoraSignal(signal_params))
     return true;
-  if(signal_params.pandora_first_entry_mode == First_Entry_Off)
+  int target_depth = signal_params.pandora_first_entry_target_depth;
+  if(PandoraFirstEntryDepthIsLocalOnly(target_depth))
     return false;
-  if(PandoraFirstEntryModeIsDeep(signal_params.pandora_first_entry_mode) &&
+  if(PandoraFirstEntryDepthIsDeep(target_depth) &&
      order_state.position_ticket <= 0 &&
      signal_params.pandora_broker_execution_status != PANDORA_BROKER_EXECUTED &&
      signal_params.pandora_broker_execution_status != PANDORA_BROKER_CLOSED)
@@ -419,7 +421,7 @@ bool PandoraAdmitFirstEntryLocalOnly(SignalParams &signal_params,
 {
   if(!IsPandoraSignal(signal_params))
     return false;
-  if(signal_params.pandora_first_entry_mode != First_Entry_Off)
+  if(!PandoraFirstEntryDepthIsLocalOnly(signal_params.pandora_first_entry_target_depth))
     return false;
   if(signal_params.pandora_local_entry_status == PANDORA_LOCAL_ENTRY_ACTIVE)
     return true;
@@ -1334,7 +1336,6 @@ struct PandoraBoxRuntimeState
   PandoraEntryCountModes entry_count_mode;
   PandoraEntryTypes entry_type;
   ENUM_TIMEFRAMES entry_body_timeframe;
-  PandoraFirstEntryModes first_entry_mode;
   int      first_entry_target_depth;
   int      max_entries;
   int      counted_entries;
@@ -1387,7 +1388,6 @@ struct PandoraBoxRuntimeState
     entry_count_mode          = COUNT_BOX_ENTRY_OFF;
     entry_type                = ENTRY_WICK_TYPE;
     entry_body_timeframe      = PERIOD_M5;
-    first_entry_mode          = First_Entry_Breakout;
     first_entry_target_depth  = PANDORA_FIRST_ENTRY_BREAKOUT_DEPTH;
     max_entries               = 0;
     counted_entries           = 0;
@@ -1555,18 +1555,6 @@ PandoraEntryTypes PandoraResolveEntryType()
   return ENTRY_WICK_TYPE;
 }
 
-PandoraFirstEntryModes PandoraResolveFirstEntryMode()
-{
-  int configured_value = PandoraResolveFirstEntryDepth();
-  if(configured_value == PANDORA_FIRST_ENTRY_OFF_DEPTH)
-    return First_Entry_Off;
-  if(configured_value == 1)
-    return First_Entry_Sl_1;
-  if(configured_value >= 2)
-    return First_Entry_Sl_2;
-  return First_Entry_Breakout;
-}
-
 int PandoraClampFirstEntryDepth(const int configured_value)
 {
   if(configured_value < PANDORA_FIRST_ENTRY_OFF_DEPTH)
@@ -1593,38 +1581,12 @@ bool PandoraFirstEntryDepthIsDeep(const int depth)
 
 string PandoraFirstEntryDepthLabel(const int depth)
 {
-  if(depth == PANDORA_FIRST_ENTRY_OFF_DEPTH)
+  int safe_depth = PandoraClampFirstEntryDepth(depth);
+  if(safe_depth == PANDORA_FIRST_ENTRY_OFF_DEPTH)
     return "OFF";
-  if(depth <= PANDORA_FIRST_ENTRY_BREAKOUT_DEPTH)
+  if(safe_depth <= PANDORA_FIRST_ENTRY_BREAKOUT_DEPTH)
     return "BREAKOUT";
-  return "SL" + IntegerToString(depth);
-}
-
-bool PandoraFirstEntryModeIsDeep(const PandoraFirstEntryModes mode)
-{
-  return (mode == First_Entry_Sl_1 || mode == First_Entry_Sl_2);
-}
-
-bool PandoraFirstEntryModeUsesObservation(const PandoraFirstEntryModes mode)
-{
-  return (mode == First_Entry_Off || PandoraFirstEntryModeIsDeep(mode));
-}
-
-string PandoraFirstEntryModeLabel(const PandoraFirstEntryModes mode)
-{
-  switch(mode)
-  {
-    case First_Entry_Off:
-      return "OFF";
-    case First_Entry_Sl_1:
-      return "SL1";
-    case First_Entry_Sl_2:
-      return "SL2";
-    case First_Entry_Breakout:
-    default:
-      break;
-  }
-  return "BREAKOUT";
+  return "SL" + IntegerToString(safe_depth);
 }
 
 string PandoraFirstEntryStageLabel(const PandoraFirstEntryStages stage)
@@ -1831,10 +1793,10 @@ void PandoraRegisterFirstEntryBudget(SignalParams &signal_params,
 
   if(Enable_Logs)
   {
-    PrintFormat("PANDORA_FIRST_ENTRY_BUDGET dir=%s mode=%s stage=%s reason=%s open=%d/%s",
+    PrintFormat("PANDORA_FIRST_ENTRY_BUDGET dir=%s target=%s stage=%s reason=%s open=%d/%s",
                 EnumToString(signal_params.signal_type),
-                PandoraFirstEntryModeLabel(signal_params.pandora_first_entry_mode),
-                PandoraFirstEntryStageLabel(signal_params.pandora_first_entry_stage),
+                PandoraFirstEntryDepthLabel(signal_params.pandora_first_entry_target_depth),
+                PandoraFirstEntryObservationStageLabel(signal_params),
                 reason,
                 g_pandora_box_state.total_entries,
                 PandoraLimitLabel());
@@ -1892,9 +1854,9 @@ void PandoraCloseFirstEntryObservation(SignalParams &signal_params,
 
   if(Enable_Logs)
   {
-    PrintFormat("PANDORA_FIRST_ENTRY_OBSERVATION_CLOSE dir=%s mode=%s stage=%s reason=%s price=%.5f budget=%s",
+    PrintFormat("PANDORA_FIRST_ENTRY_OBSERVATION_CLOSE dir=%s target=%s stage=%s reason=%s price=%.5f budget=%s",
                 EnumToString(signal_params.signal_type),
-                PandoraFirstEntryModeLabel(signal_params.pandora_first_entry_mode),
+                PandoraFirstEntryDepthLabel(signal_params.pandora_first_entry_target_depth),
                 PandoraFirstEntryStageLabel(final_stage),
                 reason,
                 resolved_close_price,
@@ -2271,7 +2233,6 @@ void PandoraSyncRuntimeConfig()
   PandoraEntryTypes resolved_entry_type = PandoraResolveEntryType();
   ENUM_TIMEFRAMES resolved_body_timeframe = PandoraResolveEntryBodyTimeframe();
   int resolved_first_entry_depth = PandoraResolveFirstEntryDepth();
-  PandoraFirstEntryModes resolved_first_entry_mode = PandoraResolveFirstEntryMode();
   bool entry_config_changed = (g_pandora_box_state.entry_type != resolved_entry_type ||
                                g_pandora_box_state.entry_body_timeframe != resolved_body_timeframe);
 
@@ -2285,7 +2246,6 @@ void PandoraSyncRuntimeConfig()
   g_pandora_box_state.entry_count_mode       = Pandora_Box_Entry_Count_Mode;
   g_pandora_box_state.entry_type             = resolved_entry_type;
   g_pandora_box_state.entry_body_timeframe   = resolved_body_timeframe;
-  g_pandora_box_state.first_entry_mode       = resolved_first_entry_mode;
   g_pandora_box_state.first_entry_target_depth = resolved_first_entry_depth;
   g_pandora_box_state.max_entries            = MathMax(Pandora_Box_Max_Entries, 0);
 

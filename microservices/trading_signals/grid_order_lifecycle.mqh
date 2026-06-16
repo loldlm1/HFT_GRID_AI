@@ -888,7 +888,7 @@ bool GridExecuteLevelTrade(SignalParams &signal_params,
                                PandoraBrokerRetryPending(signal_params);
 
   if(pandora_signal &&
-     signal_params.pandora_first_entry_mode == First_Entry_Off &&
+     PandoraFirstEntryDepthIsLocalOnly(signal_params.pandora_first_entry_target_depth) &&
      !pandora_retry_attempt)
   {
     if(PandoraAdmitFirstEntryLocalOnly(signal_params,
