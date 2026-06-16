@@ -227,21 +227,58 @@ void OnTimer()
   ProcessPendingRemovalRequest();
 }
 
+bool PandoraIdleProtectionCheckDue(const datetime current_time)
+{
+  if(!PandoraStrategyEnabled())
+    return true;
+  if(MarketStatusHasPendingForceClose())
+    return true;
+  if(PandoraHasRuntimeActiveEntities())
+    return true;
+  if(PandoraRuntimeWorkWindowActive())
+    return true;
+
+  static datetime next_idle_check_time = 0;
+  static datetime last_idle_bar_time = 0;
+
+  datetime current_bar_time = iTime(_Symbol, _Period, 0);
+  if(current_bar_time <= 0)
+    current_bar_time = current_time;
+
+  bool bar_changed = (current_bar_time != last_idle_bar_time);
+  bool minute_due = (next_idle_check_time <= 0 || current_time >= next_idle_check_time);
+  if(!bar_changed && !minute_due)
+    return false;
+
+  int minute_seconds = PeriodSeconds(PERIOD_M1);
+  if(minute_seconds <= 0)
+    minute_seconds = 60;
+
+  next_idle_check_time = current_time;
+  next_idle_check_time -= next_idle_check_time % minute_seconds;
+  next_idle_check_time += minute_seconds;
+  last_idle_bar_time = current_bar_time;
+  return true;
+}
+
 //+------------------------------------------------------------------+
 //| Expert tick function                                             |
 //+------------------------------------------------------------------+
 void OnTick()
 {
   RefreshCustomSymbolRates();
+  datetime current_time = TimeCurrent();
   DebugEquityGuardAllowsProcessing();
-  ProtectionRiskMonitorTradeMode();
-  ProtectionRiskFilterTick();
+  if(PandoraIdleProtectionCheckDue(current_time))
+  {
+    ProtectionRiskMonitorTradeMode();
+    ProtectionRiskFilterTick();
+  }
   bool signal_attempts_allowed            = MarketStatusAllowsSignalAttempts();
   bool broker_actions_allowed             = MarketStatusAllowsBrokerActions();
   g_ea_running                            = MarketStatusPlatformTradeAllowed();
   static datetime next_bar_open           = 0;
   static datetime next_minute_bar_open    = 0;
-  datetime        current_time            = TimeCurrent();
   datetime        current_daily_time      = iTime(_Symbol, PERIOD_D1, 0);
   int             defined_tick_seconds    = PeriodSeconds(_Period);
   int             defined_tick_M1_seconds = PeriodSeconds(PERIOD_M1);
