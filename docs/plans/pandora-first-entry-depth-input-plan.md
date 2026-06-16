@@ -1,6 +1,7 @@
 # Plan: Pandora First Entry Depth Input
 
 **Generated**: 2026-06-16
+**Status**: Completed on 2026-06-16
 **Estimated Complexity**: Medium / Trading-Safety Sensitive
 
 ## Overview
@@ -381,6 +382,47 @@ Strategy Tester runs.
   - Step trailing enabled: local observations still use fixed TP; trailing only
     starts after real market admission.
 - Compare depth 1 and 2 against known current behavior before trusting depth 3+.
+
+## Execution Notes
+
+- Sprint batch executed in order from Sprint 1 through Sprint 6.
+- Sprint 1 completed in commit `e8a8fe8`:
+  `Sprint 1: add Pandora first entry depth input`.
+- Sprint 2 completed in commit `f88be0c`:
+  `Sprint 2: generalize Pandora first entry observation targets`.
+- Sprint 3 completed in commit `15a51dd`:
+  `Sprint 3: generalize Pandora first entry depth lifecycle`.
+- Sprint 4 completed in commit `a77fe9a`:
+  `Sprint 4: remove Pandora first entry enum coupling`.
+- Sprint 5 completed in commit `bfd91fe`:
+  `Sprint 5: document Pandora first entry depth input`.
+- Sprint 6 final hardening validates this plan state and the final MetaEditor
+  compile gate.
+- Final compile gate on 2026-06-16 passed with `0 errors, 0 warnings`; the
+  generated `BUILD.log` was inspected and removed.
+- Final public mapping:
+  - `Pandora_First_Entry_Mode = -1`: local-only compatibility, no broker market
+    position.
+  - `Pandora_First_Entry_Mode = 0`: default breakout admission.
+  - `Pandora_First_Entry_Mode = 1`: SL1 deep admission.
+  - `Pandora_First_Entry_Mode = 2`: SL2 staged observation/admission.
+  - `Pandora_First_Entry_Mode = N`: repeat same-direction staged observation up
+    to the internal clamp of `20`.
+- Migration risk: old enum-based `.set` files must be updated manually. The old
+  enum numeric values do not match the new integer-depth contract.
+- Recommended manual Strategy Tester scenarios:
+  - Depth `0`: confirm normal breakout admission remains unchanged.
+  - Depth `1`: confirm breakout observation admits at SL1 and discards on
+    observation TP.
+  - Depth `2`: confirm one `PANDORA_FIRST_ENTRY_OBSERVE_ADVANCE`, then market
+    admission at SL2 or discard on intermediate TP.
+  - Depth `3+`: confirm chart/log labels advance dynamically (`SL1 entry`,
+    `SL2 entry`, `SL3 entry`) and market admission occurs only at target depth.
+  - Depth `-1`: confirm local-only compatibility creates no broker history.
+  - Session expiration while observing: confirm observation closes with the
+    existing expiration path.
+  - Step trailing enabled: confirm observation still uses fixed TP and trailing
+    starts only after real broker market admission.
 
 ## Potential Risks & Gotchas
 
