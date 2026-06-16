@@ -190,12 +190,60 @@ void BuildSignalSummary(const SignalParams &signal_params,
   }
 }
 
+bool FrontendHasRunningSignals()
+{
+  if(ArraySize(running_bullish_signals) > 0)
+    return true;
+  return (ArraySize(running_bearish_signals) > 0);
+}
+
+bool FrontendRefreshDue(const datetime now_time)
+{
+  if(MQLInfoInteger(MQL_TESTER) <= 0)
+    return true;
+  if(FrontendHasRunningSignals())
+    return true;
+  if(PandoraHasRuntimeActiveEntities())
+    return true;
+
+  static datetime last_tester_bar_time = 0;
+  static MarketStatusTypes last_market_status = MARKET_STATUS_ACTIVE;
+  static datetime last_market_status_time = 0;
+  static datetime last_error_time = 0;
+
+  datetime bar_time = iTime(_Symbol, _Period, 0);
+  if(bar_time <= 0)
+    bar_time = now_time;
+
+  MarketStatusTypes current_status = MarketStatusGet();
+  datetime current_status_time = MarketStatusLastChangeTime();
+  datetime current_error_time = MarketStatusErrorLastChangeTime();
+
+  bool first_refresh = (last_tester_bar_time <= 0);
+  bool bar_changed = (bar_time != last_tester_bar_time);
+  bool status_changed = (current_status != last_market_status ||
+                         current_status_time != last_market_status_time ||
+                         current_error_time != last_error_time);
+
+  if(!first_refresh && !bar_changed && !status_changed)
+    return false;
+
+  last_tester_bar_time = bar_time;
+  last_market_status = current_status;
+  last_market_status_time = current_status_time;
+  last_error_time = current_error_time;
+  return true;
+}
+
 void RefreshGridVisualization()
 {
   long chart_id = ChartID();
   string current_objects[];
   datetime now_time = TimeCurrent();
   string summary_lines[];
+
+  if(!FrontendRefreshDue(now_time))
+    return;
 
   if(Enable_Chart_Levels)
   {

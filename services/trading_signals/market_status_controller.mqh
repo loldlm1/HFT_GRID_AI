@@ -70,6 +70,13 @@ datetime MarketStatusLastChangeTime()
   return g_market_status_updated;
 }
 
+datetime MarketStatusErrorLastChangeTime()
+{
+  if(g_market_error_active)
+    return g_market_error_time;
+  return g_market_last_error_time;
+}
+
 string MarketStatusReason()
 {
   return g_market_status_reason;
