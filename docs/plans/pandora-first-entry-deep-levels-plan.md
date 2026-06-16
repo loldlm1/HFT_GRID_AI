@@ -511,11 +511,22 @@ clean up edge cases before handoff.
   - `PANDORA_VALUE_MODE_POINTS` uses configured points.
   - `PANDORA_VALUE_MODE_BOX_PERCENT` resolves all SL/TP observation targets from
     the box range.
-  - Step trailing is ignored during local observation.
-  - Step trailing starts only after real market admission.
+- Step trailing is ignored during local observation.
+- Step trailing starts only after real market admission.
 - **Validation**:
   - Strategy Tester visual mode.
   - Manual calculation against chart levels.
+
+## Execution Notes
+
+- Sprint batch executed in order from Sprint 1 through Sprint 6.
+- MetaEditor compile gate passed after each Sprint with `0 errors, 0 warnings`;
+  `BUILD.log` was inspected and removed after each run.
+- Sprint 6 final hardening included accumulated diff review, path review, and
+  targeted review of observation, budget, admission, and local-close paths.
+- Strategy Tester visual scenarios remain a manual handoff item, preferably
+  with "Every tick based on real ticks" for deep-trigger, retry, and trailing
+  timing.
 
 ## Testing Strategy
 
