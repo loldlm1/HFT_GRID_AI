@@ -232,20 +232,26 @@ bool GridUpdatePandoraFirstEntryObservation(SignalParams &signal_params,
   if(trigger_anchor <= 0.0)
     trigger_anchor = current_price;
 
-  if(signal_params.pandora_first_entry_stage == PANDORA_FIRST_ENTRY_STAGE_BREAKOUT_OBSERVE &&
-     signal_params.pandora_first_entry_mode == First_Entry_Sl_2)
+  int next_observation_depth = signal_params.pandora_first_entry_observation_depth + 1;
+  if(next_observation_depth < 1)
+    next_observation_depth = 1;
+
+  int target_depth = signal_params.pandora_first_entry_target_depth;
+  if(target_depth > next_observation_depth)
   {
     signal_params.entry_price = trigger_anchor;
     signal_params.pandora_observation_entry_time = TimeCurrent();
     if(PandoraSetFirstEntryObservationTargets(signal_params,
                                              trigger_anchor,
-                                             1))
+                                             next_observation_depth))
     {
       if(Enable_Logs)
       {
-        PrintFormat("PANDORA_FIRST_ENTRY_OBSERVE_ADVANCE dir=%s mode=%s anchor=%.5f trigger=%.5f tp=%.5f",
+        PrintFormat("PANDORA_FIRST_ENTRY_OBSERVE_ADVANCE dir=%s target=%s stage=%s next=%s anchor=%.5f trigger=%.5f tp=%.5f",
                     EnumToString(direction),
-                    PandoraFirstEntryModeLabel(signal_params.pandora_first_entry_mode),
+                    PandoraFirstEntryDepthLabel(target_depth),
+                    PandoraFirstEntryObservationStageLabel(signal_params),
+                    PandoraFirstEntryObservationTriggerLabel(signal_params),
                     signal_params.pandora_observation_anchor_price,
                     signal_params.pandora_observation_trigger_price,
                     signal_params.pandora_observation_tp_price);
@@ -255,6 +261,8 @@ bool GridUpdatePandoraFirstEntryObservation(SignalParams &signal_params,
     }
   }
 
+  signal_params.entry_price = trigger_anchor;
+  signal_params.pandora_first_entry_observation_depth = next_observation_depth;
   PandoraRegisterFirstEntryBudget(signal_params, "DEEP_ENTRY_TRIGGER");
   signal_params.pandora_first_entry_stage = PANDORA_FIRST_ENTRY_STAGE_MARKET_ADMITTED;
   signal_params.pandora_observation_close_reason = "DEEP_ENTRY_TRIGGER";
@@ -271,9 +279,10 @@ bool GridUpdatePandoraFirstEntryObservation(SignalParams &signal_params,
 
   if(Enable_Logs)
   {
-    PrintFormat("PANDORA_FIRST_ENTRY_MARKET_ADMITTED dir=%s mode=%s trigger=%.5f current=%.5f",
+    PrintFormat("PANDORA_FIRST_ENTRY_MARKET_ADMITTED dir=%s target=%s depth=%d trigger=%.5f current=%.5f",
                 EnumToString(direction),
-                PandoraFirstEntryModeLabel(signal_params.pandora_first_entry_mode),
+                PandoraFirstEntryDepthLabel(target_depth),
+                next_observation_depth,
                 trigger_anchor,
                 current_price);
   }
