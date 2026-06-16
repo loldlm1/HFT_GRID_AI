@@ -258,6 +258,15 @@ bool GridUpdatePandoraFirstEntryObservation(SignalParams &signal_params,
   PandoraRegisterFirstEntryBudget(signal_params, "DEEP_ENTRY_TRIGGER");
   signal_params.pandora_first_entry_stage = PANDORA_FIRST_ENTRY_STAGE_MARKET_ADMITTED;
   signal_params.pandora_observation_close_reason = "DEEP_ENTRY_TRIGGER";
+  signal_params.pandora_local_entry_status = PANDORA_LOCAL_ENTRY_PENDING;
+  signal_params.pandora_broker_execution_status = PANDORA_BROKER_NOT_ATTEMPTED;
+  signal_params.pandora_broker_stop_sync_status = Pandora_Box_Set_Broker_SLTP
+                                                  ? PANDORA_BROKER_STOPS_PENDING
+                                                  : PANDORA_BROKER_STOPS_NOT_REQUIRED;
+  grid_order.status = GRID_ORDER_STOP_TRAILING_ACTIVE;
+  grid_order.entry_reference_price = trigger_anchor;
+  grid_order.entry_price = 0.0;
+  grid_order.position_ticket = 0;
   signal_params.grid_orders[grid_order_level] = grid_order;
 
   if(Enable_Logs)
@@ -268,7 +277,7 @@ bool GridUpdatePandoraFirstEntryObservation(SignalParams &signal_params,
                 trigger_anchor,
                 current_price);
   }
-  return true;
+  return false;
 }
 
 void UpdateGridLifecycle(SignalParams &signal_params)
@@ -343,7 +352,9 @@ void UpdateGridLifecycle(SignalParams &signal_params)
       }
 
       double current_price = GridCurrentPriceForDirection(direction, false);
-      bool step_trailing = PandoraRiskStepTrailingEnabled();
+      bool step_trailing = PandoraRiskStepTrailingEnabled() &&
+                           PandoraFirstEntryTrailingAllowed(signal_params,
+                                                            grid_order);
       if(step_trailing && grid_order.entry_price > 0.0 && point_size > 0.0)
       {
         PandoraEnsureLocalTargetPrices(signal_params, grid_order);

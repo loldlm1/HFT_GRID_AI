@@ -379,6 +379,80 @@ void PandoraRebaseToBrokerFill(SignalParams &signal_params,
   PandoraRefreshLocalTargetPrices(signal_params, order_state);
 }
 
+bool PandoraFirstEntryRequiresFixedLocalTP(const SignalParams &signal_params,
+                                           const GridOrderState &order_state)
+{
+  if(!IsPandoraSignal(signal_params))
+    return false;
+  if(signal_params.pandora_first_entry_mode == First_Entry_Off)
+    return true;
+  if(PandoraFirstEntryModeIsDeep(signal_params.pandora_first_entry_mode) &&
+     order_state.position_ticket <= 0 &&
+     signal_params.pandora_broker_execution_status != PANDORA_BROKER_EXECUTED &&
+     signal_params.pandora_broker_execution_status != PANDORA_BROKER_CLOSED)
+    return true;
+  return false;
+}
+
+bool PandoraFirstEntryTrailingAllowed(const SignalParams &signal_params,
+                                      const GridOrderState &order_state)
+{
+  if(!IsPandoraSignal(signal_params))
+    return true;
+  if(signal_params.pandora_first_entry_mode == First_Entry_Off)
+    return false;
+  if(PandoraFirstEntryModeIsDeep(signal_params.pandora_first_entry_mode) &&
+     order_state.position_ticket <= 0 &&
+     signal_params.pandora_broker_execution_status != PANDORA_BROKER_EXECUTED &&
+     signal_params.pandora_broker_execution_status != PANDORA_BROKER_CLOSED)
+    return false;
+  return true;
+}
+
+bool PandoraAdmitFirstEntryLocalOnly(SignalParams &signal_params,
+                                     GridOrderState &order_state,
+                                     const string position_comment)
+{
+  if(!IsPandoraSignal(signal_params))
+    return false;
+  if(signal_params.pandora_first_entry_mode != First_Entry_Off)
+    return false;
+  if(signal_params.pandora_local_entry_status == PANDORA_LOCAL_ENTRY_ACTIVE)
+    return true;
+  if(signal_params.pandora_local_entry_status == PANDORA_LOCAL_ENTRY_COMPLETED)
+    return false;
+
+  double entry_price = PandoraResolveExecutableEntryPrice(signal_params.signal_type);
+  if(entry_price <= 0.0)
+    return false;
+
+  PandoraSetActiveSourceAnchor(signal_params,
+                               order_state,
+                               PANDORA_EXECUTION_SOURCE_BROKER_SIMULATED,
+                               entry_price,
+                               TimeCurrent(),
+                               position_comment);
+  signal_params.pandora_broker_send_attempted = false;
+  signal_params.pandora_broker_execution_status = PANDORA_BROKER_NOT_ATTEMPTED;
+  signal_params.pandora_broker_stop_sync_status = PANDORA_BROKER_STOPS_NOT_REQUIRED;
+  order_state.position_ticket = 0;
+  if(order_state.position_comment == "" && position_comment != "")
+    order_state.position_comment = position_comment;
+
+  PandoraRefreshLocalTargetPrices(signal_params, order_state);
+  PandoraEnsureTradeMarkerId(signal_params);
+  PandoraUpsertTradeMarkerSnapshot(signal_params);
+
+  if(Enable_Logs)
+  {
+    PrintFormat("PANDORA_FIRST_ENTRY_LOCAL_ONLY dir=%s price=%.5f comment=%s",
+                EnumToString(signal_params.signal_type),
+                entry_price,
+                position_comment);
+  }
+  return true;
+}
+
 int PandoraBrokerRetryMaxAttempts()
 {
   return MathMax(Pandora_Box_Broker_Retry_Attempts, 1);
@@ -881,7 +955,9 @@ bool PandoraComputeLocalTargetPrices(const SignalParams &signal_params,
     return false;
 
   double sl_points = PandoraResolveConfiguredSLPoints(false);
-  double tp_points = PandoraRiskStepTrailingEnabled()
+  bool fixed_local_tp = PandoraFirstEntryRequiresFixedLocalTP(signal_params,
+                                                              order_state);
+  double tp_points = (PandoraRiskStepTrailingEnabled() && !fixed_local_tp)
                      ? 0.0
                      : PandoraResolveConfiguredTPPoints(false);
   if(sl_points <= 0.0 && tp_points <= 0.0)
@@ -913,8 +989,11 @@ void PandoraEnsureLocalTargetPrices(SignalParams &signal_params,
   if(!IsPandoraSignal(signal_params))
     return;
 
+  bool fixed_local_tp = PandoraFirstEntryRequiresFixedLocalTP(signal_params,
+                                                              order_state);
   if(signal_params.pandora_local_sl_price > 0.0 &&
-     (PandoraRiskStepTrailingEnabled() || signal_params.pandora_local_tp_price > 0.0))
+     ((PandoraRiskStepTrailingEnabled() && !fixed_local_tp) ||
+      signal_params.pandora_local_tp_price > 0.0))
     return;
 
   double sl_price = 0.0;
@@ -948,7 +1027,8 @@ double PandoraResolveLocalStopTargetPrice(const SignalParams &signal_params,
 double PandoraResolveLocalTakeProfitTargetPrice(const SignalParams &signal_params,
                                                 const GridOrderState &order_state)
 {
-  if(PandoraRiskStepTrailingEnabled())
+  if(PandoraRiskStepTrailingEnabled() &&
+     !PandoraFirstEntryRequiresFixedLocalTP(signal_params, order_state))
     return 0.0;
   if(signal_params.pandora_local_tp_price > 0.0)
     return signal_params.pandora_local_tp_price;

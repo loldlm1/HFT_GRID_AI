@@ -887,6 +887,23 @@ bool GridExecuteLevelTrade(SignalParams &signal_params,
   bool pandora_retry_attempt = pandora_signal &&
                                PandoraBrokerRetryPending(signal_params);
 
+  if(pandora_signal &&
+     signal_params.pandora_first_entry_mode == First_Entry_Off &&
+     !pandora_retry_attempt)
+  {
+    if(PandoraAdmitFirstEntryLocalOnly(signal_params,
+                                       order_state,
+                                       comment))
+    {
+      GridRefreshPandoraStopsAfterFill(signal_params, order_state);
+      signal_params.grid_orders[order_state.level_index] = order_state;
+      return true;
+    }
+
+    signal_params.grid_orders[order_state.level_index] = order_state;
+    return true;
+  }
+
   if(!order_state.opens_position)
   {
     double fill_price = GridCurrentPriceForDirection(direction, true);
