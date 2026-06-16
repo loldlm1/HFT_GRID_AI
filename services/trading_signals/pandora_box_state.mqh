@@ -1250,6 +1250,7 @@ struct PandoraBoxRuntimeState
   PandoraEntryCountModes entry_count_mode;
   PandoraEntryTypes entry_type;
   ENUM_TIMEFRAMES entry_body_timeframe;
+  PandoraFirstEntryModes first_entry_mode;
   int      max_entries;
   int      counted_entries;
   int      total_entries;
@@ -1301,6 +1302,7 @@ struct PandoraBoxRuntimeState
     entry_count_mode          = COUNT_BOX_ENTRY_OFF;
     entry_type                = ENTRY_WICK_TYPE;
     entry_body_timeframe      = PERIOD_M5;
+    first_entry_mode          = First_Entry_Breakout;
     max_entries               = 0;
     counted_entries           = 0;
     total_entries             = 0;
@@ -1465,6 +1467,18 @@ PandoraEntryTypes PandoraResolveEntryType()
   if(configured_value == (int)ENTRY_BODY_TYPE)
     return ENTRY_BODY_TYPE;
   return ENTRY_WICK_TYPE;
+}
+
+PandoraFirstEntryModes PandoraResolveFirstEntryMode()
+{
+  int configured_value = (int)Pandora_First_Entry_Mode;
+  if(configured_value == (int)First_Entry_Off)
+    return First_Entry_Off;
+  if(configured_value == (int)First_Entry_Sl_1)
+    return First_Entry_Sl_1;
+  if(configured_value == (int)First_Entry_Sl_2)
+    return First_Entry_Sl_2;
+  return First_Entry_Breakout;
 }
 
 bool PandoraEntryBodyTimeframeSupported(const ENUM_TIMEFRAMES tf)
@@ -1835,6 +1849,7 @@ void PandoraSyncRuntimeConfig()
 {
   PandoraEntryTypes resolved_entry_type = PandoraResolveEntryType();
   ENUM_TIMEFRAMES resolved_body_timeframe = PandoraResolveEntryBodyTimeframe();
+  PandoraFirstEntryModes resolved_first_entry_mode = PandoraResolveFirstEntryMode();
   bool entry_config_changed = (g_pandora_box_state.entry_type != resolved_entry_type ||
                                g_pandora_box_state.entry_body_timeframe != resolved_body_timeframe);
 
@@ -1848,6 +1863,7 @@ void PandoraSyncRuntimeConfig()
   g_pandora_box_state.entry_count_mode       = Pandora_Box_Entry_Count_Mode;
   g_pandora_box_state.entry_type             = resolved_entry_type;
   g_pandora_box_state.entry_body_timeframe   = resolved_body_timeframe;
+  g_pandora_box_state.first_entry_mode       = resolved_first_entry_mode;
   g_pandora_box_state.max_entries            = MathMax(Pandora_Box_Max_Entries, 0);
 
   if(entry_config_changed)

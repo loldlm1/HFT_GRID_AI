@@ -67,6 +67,7 @@ input double                   Pandora_Points_SL            = 100.0;
 input double                   Pandora_Points_TP            = 100.0;
 input PandoraEntryCountModes   Pandora_Box_Entry_Count_Mode = COUNT_BOX_ENTRY_OFF;
 input int                      Pandora_Box_Max_Entries      = 2;
+input PandoraFirstEntryModes   Pandora_First_Entry_Mode     = First_Entry_Breakout;
 
 //input group  "+= Strategy Context =+";
  ENUM_TIMEFRAMES           Strategy_Timeframe          = PERIOD_M1;
