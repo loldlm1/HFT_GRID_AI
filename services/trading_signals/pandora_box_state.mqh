@@ -1658,6 +1658,98 @@ bool PandoraFirstEntryObservationExpired()
   return false;
 }
 
+bool PandoraFirstEntryBudgetRegistered(const SignalParams &signal_params)
+{
+  if(!IsPandoraSignal(signal_params))
+    return false;
+  return signal_params.pandora_first_entry_budget_registered;
+}
+
+void PandoraRegisterFirstEntryBudget(SignalParams &signal_params,
+                                     const string reason)
+{
+  if(!IsPandoraSignal(signal_params))
+    return;
+  if(signal_params.pandora_first_entry_budget_registered)
+    return;
+
+  RegisterDailySignalStart(signal_params);
+  PandoraRegisterEntryTriggered(signal_params.signal_type);
+  signal_params.pandora_first_entry_budget_registered = true;
+
+  if(Enable_Logs)
+  {
+    PrintFormat("PANDORA_FIRST_ENTRY_BUDGET dir=%s mode=%s stage=%s reason=%s open=%d/%s",
+                EnumToString(signal_params.signal_type),
+                PandoraFirstEntryModeLabel(signal_params.pandora_first_entry_mode),
+                PandoraFirstEntryStageLabel(signal_params.pandora_first_entry_stage),
+                reason,
+                g_pandora_box_state.total_entries,
+                PandoraLimitLabel());
+  }
+}
+
+void PandoraCloseFirstEntryObservation(SignalParams &signal_params,
+                                       GridOrderState &order_state,
+                                       const double close_price,
+                                       const PandoraFirstEntryStages final_stage,
+                                       const PandoraCloseOutcomes outcome,
+                                       const string reason,
+                                       const bool consume_budget)
+{
+  if(!IsPandoraSignal(signal_params))
+    return;
+
+  if(consume_budget)
+    PandoraRegisterFirstEntryBudget(signal_params, reason);
+
+  double resolved_close_price = close_price;
+  if(resolved_close_price <= 0.0)
+    resolved_close_price = GridCurrentPriceForDirection(signal_params.signal_type, false);
+  if(resolved_close_price <= 0.0)
+    resolved_close_price = signal_params.pandora_observation_anchor_price;
+  if(resolved_close_price <= 0.0)
+    resolved_close_price = signal_params.entry_price;
+
+  signal_params.pandora_first_entry_stage = final_stage;
+  signal_params.pandora_observation_close_reason = reason;
+  signal_params.pandora_close_outcome = outcome;
+  signal_params.pandora_close_epsilon_points = 0.0;
+  signal_params.close_price = resolved_close_price;
+  signal_params.close_time = TimeCurrent();
+  signal_params.pandora_local_close_price = resolved_close_price;
+  signal_params.pandora_local_close_time = signal_params.close_time;
+
+  double entry_anchor = signal_params.entry_price;
+  if(entry_anchor <= 0.0)
+    entry_anchor = signal_params.pandora_observation_anchor_price;
+  if(entry_anchor > 0.0 && resolved_close_price > 0.0)
+    signal_params.raw_profit = RawProfitUsd(signal_params.signal_type,
+                                            entry_anchor,
+                                            resolved_close_price);
+
+  order_state.status = GRID_ORDER_COMPLETED;
+  order_state.position_ticket = 0;
+  signal_params.signal_state = CLOSED;
+
+  PandoraMarkLocalClose(signal_params,
+                        order_state,
+                        resolved_close_price,
+                        outcome,
+                        0.0);
+
+  if(Enable_Logs)
+  {
+    PrintFormat("PANDORA_FIRST_ENTRY_OBSERVATION_CLOSE dir=%s mode=%s stage=%s reason=%s price=%.5f budget=%s",
+                EnumToString(signal_params.signal_type),
+                PandoraFirstEntryModeLabel(signal_params.pandora_first_entry_mode),
+                PandoraFirstEntryStageLabel(final_stage),
+                reason,
+                resolved_close_price,
+                consume_budget ? "true" : "false");
+  }
+}
+
 bool PandoraEntryBodyTimeframeSupported(const ENUM_TIMEFRAMES tf)
 {
   switch(tf)
@@ -2957,10 +3049,23 @@ void PandoraFinalizeSignalOutcome(SignalParams &signal_params,
     return;
 
   double epsilon_points = 0.0;
-  PandoraCloseOutcomes outcome = PandoraResolveSignalCloseOutcome(signal_params,
-                                                                  close_price,
-                                                                  raw_profit,
-                                                                  epsilon_points);
+  PandoraCloseOutcomes outcome = PANDORA_CLOSE_NONE;
+  if(signal_params.pandora_first_entry_stage == PANDORA_FIRST_ENTRY_STAGE_EXPIRED)
+  {
+    outcome = PANDORA_CLOSE_NONE;
+  }
+  else if(signal_params.pandora_first_entry_stage == PANDORA_FIRST_ENTRY_STAGE_DISCARDED &&
+          signal_params.pandora_close_outcome != PANDORA_CLOSE_NONE)
+  {
+    outcome = signal_params.pandora_close_outcome;
+  }
+  else
+  {
+    outcome = PandoraResolveSignalCloseOutcome(signal_params,
+                                               close_price,
+                                               raw_profit,
+                                               epsilon_points);
+  }
   signal_params.pandora_close_outcome = outcome;
   signal_params.pandora_close_epsilon_points = epsilon_points;
 
@@ -2982,6 +3087,26 @@ void PandoraRegisterSideOutcome(const SignalParams &signal_params)
     return;
 
   PandoraRequireDirectionRearm(signal_params.signal_type);
+
+  if(signal_params.pandora_first_entry_stage == PANDORA_FIRST_ENTRY_STAGE_EXPIRED &&
+     !signal_params.pandora_first_entry_budget_registered)
+  {
+    g_pandora_box_state.finished = true;
+    if(Enable_Logs)
+    {
+      string limit_label = PandoraLimitLabel();
+      PrintFormat("PANDORA_FIRST_ENTRY_EXPIRED dir=%s open=%d/%s close=%d/%s counted=%d/%s",
+                  EnumToString(signal_params.signal_type),
+                  g_pandora_box_state.total_entries,
+                  limit_label,
+                  g_pandora_box_state.closed_entries,
+                  limit_label,
+                  g_pandora_box_state.counted_entries,
+                  limit_label);
+    }
+    return;
+  }
+
   g_pandora_box_state.closed_entries++;
 
   if(signal_params.raw_profit > 0.0 && g_pandora_box_state.stop_on_first_win)

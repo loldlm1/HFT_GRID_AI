@@ -186,6 +186,91 @@ bool PandoraApplyStepTrailing(SignalParams &signal_params,
   return true;
 }
 
+bool GridUpdatePandoraFirstEntryObservation(SignalParams &signal_params,
+                                            const int grid_order_level,
+                                            GridOrderState &grid_order,
+                                            const SignalTypes direction)
+{
+  if(!PandoraFirstEntryStageIsObservation(signal_params.pandora_first_entry_stage))
+    return false;
+
+  double current_price = GridCurrentPriceForDirection(direction, false);
+
+  if(PandoraFirstEntryObservationExpired())
+  {
+    PandoraCloseFirstEntryObservation(signal_params,
+                                      grid_order,
+                                      current_price,
+                                      PANDORA_FIRST_ENTRY_STAGE_EXPIRED,
+                                      PANDORA_CLOSE_NONE,
+                                      "OPERATING_WINDOW_END",
+                                      false);
+    signal_params.grid_orders[grid_order_level] = grid_order;
+    return true;
+  }
+
+  if(PandoraFirstEntryObservationTakeProfitHit(signal_params, current_price))
+  {
+    PandoraCloseFirstEntryObservation(signal_params,
+                                      grid_order,
+                                      current_price,
+                                      PANDORA_FIRST_ENTRY_STAGE_DISCARDED,
+                                      PANDORA_CLOSE_TP,
+                                      "OBSERVATION_TP_BEFORE_DEEP_ENTRY",
+                                      true);
+    signal_params.grid_orders[grid_order_level] = grid_order;
+    return true;
+  }
+
+  if(!PandoraFirstEntryObservationTriggerHit(signal_params, current_price))
+  {
+    signal_params.grid_orders[grid_order_level] = grid_order;
+    return true;
+  }
+
+  double trigger_anchor = signal_params.pandora_observation_trigger_price;
+  if(trigger_anchor <= 0.0)
+    trigger_anchor = current_price;
+
+  if(signal_params.pandora_first_entry_stage == PANDORA_FIRST_ENTRY_STAGE_BREAKOUT_OBSERVE &&
+     signal_params.pandora_first_entry_mode == First_Entry_Sl_2)
+  {
+    signal_params.entry_price = trigger_anchor;
+    signal_params.pandora_observation_entry_time = TimeCurrent();
+    if(PandoraSetFirstEntryObservationTargets(signal_params,
+                                             trigger_anchor,
+                                             PANDORA_FIRST_ENTRY_STAGE_SL1_OBSERVE))
+    {
+      if(Enable_Logs)
+      {
+        PrintFormat("PANDORA_FIRST_ENTRY_OBSERVE_ADVANCE dir=%s mode=%s anchor=%.5f trigger=%.5f tp=%.5f",
+                    EnumToString(direction),
+                    PandoraFirstEntryModeLabel(signal_params.pandora_first_entry_mode),
+                    signal_params.pandora_observation_anchor_price,
+                    signal_params.pandora_observation_trigger_price,
+                    signal_params.pandora_observation_tp_price);
+      }
+      signal_params.grid_orders[grid_order_level] = grid_order;
+      return true;
+    }
+  }
+
+  PandoraRegisterFirstEntryBudget(signal_params, "DEEP_ENTRY_TRIGGER");
+  signal_params.pandora_first_entry_stage = PANDORA_FIRST_ENTRY_STAGE_MARKET_ADMITTED;
+  signal_params.pandora_observation_close_reason = "DEEP_ENTRY_TRIGGER";
+  signal_params.grid_orders[grid_order_level] = grid_order;
+
+  if(Enable_Logs)
+  {
+    PrintFormat("PANDORA_FIRST_ENTRY_MARKET_ADMITTED dir=%s mode=%s trigger=%.5f current=%.5f",
+                EnumToString(direction),
+                PandoraFirstEntryModeLabel(signal_params.pandora_first_entry_mode),
+                trigger_anchor,
+                current_price);
+  }
+  return true;
+}
+
 void UpdateGridLifecycle(SignalParams &signal_params)
 {
   if(!GridEnsureSarSignalInitialized(signal_params, true))
@@ -203,6 +288,12 @@ void UpdateGridLifecycle(SignalParams &signal_params)
     GridOrderState grid_order = signal_params.grid_orders[grid_order_level];
     SignalTypes direction = signal_params.signal_type;
     double point_size = GridResolvePointSize();
+
+    if(GridUpdatePandoraFirstEntryObservation(signal_params,
+                                             grid_order_level,
+                                             grid_order,
+                                             direction))
+      return;
 
     if(grid_order.status == GRID_ORDER_STOP_TRAILING_ACTIVE)
     {

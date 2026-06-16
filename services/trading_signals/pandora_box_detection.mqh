@@ -175,6 +175,7 @@ bool PandoraBuildSignal(const SignalTypes direction)
   signal.strategy_context_label = "PANDORA";
   signal.entry_trigger_mode     = ENTRY_EVAL_OFF;
   signal.entry_evaluation_mode  = ENTRY_EVAL_OFF;
+  signal.pandora_first_entry_mode = g_pandora_box_state.first_entry_mode;
 
   if(!BuildPandoraOrderForSignal(signal))
   {
@@ -199,13 +200,43 @@ bool PandoraBuildSignal(const SignalTypes direction)
                                            ? PANDORA_BROKER_STOPS_PENDING
                                            : PANDORA_BROKER_STOPS_NOT_REQUIRED;
 
+  if(PandoraFirstEntryModeIsDeep(signal.pandora_first_entry_mode))
+  {
+    if(ArraySize(signal.grid_orders) > 0)
+      signal.grid_orders[0].status = GRID_ORDER_WAITING;
+    signal.pandora_local_entry_status = PANDORA_LOCAL_ENTRY_NONE;
+    signal.pandora_broker_stop_sync_status = PANDORA_BROKER_STOPS_NOT_REQUIRED;
+    if(!PandoraSetFirstEntryObservationTargets(signal,
+                                               theoretical_entry,
+                                               PANDORA_FIRST_ENTRY_STAGE_BREAKOUT_OBSERVE))
+    {
+      if(Enable_Logs)
+        Print("Pandora first-entry observation setup failed for direction: ", EnumToString(direction));
+      return false;
+    }
+
+    if(Enable_Logs)
+    {
+      PrintFormat("PANDORA_FIRST_ENTRY_OBSERVE dir=%s mode=%s anchor=%.5f trigger=%.5f tp=%.5f",
+                  EnumToString(direction),
+                  PandoraFirstEntryModeLabel(signal.pandora_first_entry_mode),
+                  signal.pandora_observation_anchor_price,
+                  signal.pandora_observation_trigger_price,
+                  signal.pandora_observation_tp_price);
+    }
+  }
+
+  if(!PandoraFirstEntryModeIsDeep(signal.pandora_first_entry_mode))
+  {
+    RegisterDailySignalStart(signal);
+    PandoraRegisterEntryTriggered(direction);
+    signal.pandora_first_entry_budget_registered = true;
+  }
+
   if(direction == BULLISH)
     AddElementToArray(running_bullish_signals, signal);
   else
     AddElementToArray(running_bearish_signals, signal);
-
-  RegisterDailySignalStart(signal);
-  PandoraRegisterEntryTriggered(direction);
   return true;
 }
 
