@@ -266,6 +266,9 @@ void PandoraDetectSignals()
     }
   }
 
+  if(!PandoraRuntimeRequiresFullTick())
+    return;
+
   bool box_ready = PandoraComputeBoxWindow();
   if(!g_pandora_box_state.window_closed)
     return;
