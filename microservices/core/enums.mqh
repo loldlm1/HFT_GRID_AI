@@ -252,6 +252,16 @@ enum PandoraFirstEntryModes
   First_Entry_Sl_2     = 3
 };
 
+enum PandoraFirstEntryStages
+{
+  PANDORA_FIRST_ENTRY_STAGE_NONE             = 0,
+  PANDORA_FIRST_ENTRY_STAGE_BREAKOUT_OBSERVE = 1,
+  PANDORA_FIRST_ENTRY_STAGE_SL1_OBSERVE      = 2,
+  PANDORA_FIRST_ENTRY_STAGE_MARKET_ADMITTED  = 3,
+  PANDORA_FIRST_ENTRY_STAGE_DISCARDED        = 4,
+  PANDORA_FIRST_ENTRY_STAGE_EXPIRED          = 5
+};
+
 enum PandoraCloseOutcomes
 {
   PANDORA_CLOSE_NONE = 0,

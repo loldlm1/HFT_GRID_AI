@@ -1481,6 +1481,183 @@ PandoraFirstEntryModes PandoraResolveFirstEntryMode()
   return First_Entry_Breakout;
 }
 
+bool PandoraFirstEntryModeIsDeep(const PandoraFirstEntryModes mode)
+{
+  return (mode == First_Entry_Sl_1 || mode == First_Entry_Sl_2);
+}
+
+bool PandoraFirstEntryModeUsesObservation(const PandoraFirstEntryModes mode)
+{
+  return (mode == First_Entry_Off || PandoraFirstEntryModeIsDeep(mode));
+}
+
+string PandoraFirstEntryModeLabel(const PandoraFirstEntryModes mode)
+{
+  switch(mode)
+  {
+    case First_Entry_Off:
+      return "OFF";
+    case First_Entry_Sl_1:
+      return "SL1";
+    case First_Entry_Sl_2:
+      return "SL2";
+    case First_Entry_Breakout:
+    default:
+      break;
+  }
+  return "BREAKOUT";
+}
+
+string PandoraFirstEntryStageLabel(const PandoraFirstEntryStages stage)
+{
+  switch(stage)
+  {
+    case PANDORA_FIRST_ENTRY_STAGE_BREAKOUT_OBSERVE:
+      return "OBS_BREAKOUT";
+    case PANDORA_FIRST_ENTRY_STAGE_SL1_OBSERVE:
+      return "OBS_SL1";
+    case PANDORA_FIRST_ENTRY_STAGE_MARKET_ADMITTED:
+      return "MARKET";
+    case PANDORA_FIRST_ENTRY_STAGE_DISCARDED:
+      return "DISCARDED";
+    case PANDORA_FIRST_ENTRY_STAGE_EXPIRED:
+      return "EXPIRED";
+    case PANDORA_FIRST_ENTRY_STAGE_NONE:
+    default:
+      break;
+  }
+  return "NONE";
+}
+
+bool PandoraFirstEntryStageIsObservation(const PandoraFirstEntryStages stage)
+{
+  return (stage == PANDORA_FIRST_ENTRY_STAGE_BREAKOUT_OBSERVE ||
+          stage == PANDORA_FIRST_ENTRY_STAGE_SL1_OBSERVE);
+}
+
+double PandoraFirstEntrySignedStepPrice(const SignalTypes direction,
+                                        const double anchor_price,
+                                        const double points,
+                                        const double point_size,
+                                        const bool favorable)
+{
+  if(anchor_price <= 0.0 || points <= 0.0 || point_size <= 0.0)
+    return 0.0;
+
+  double direction_mult = (direction == BULLISH) ? 1.0 : -1.0;
+  if(!favorable)
+    direction_mult = -direction_mult;
+  return PandoraNormalizeTargetPrice(anchor_price + direction_mult * points * point_size);
+}
+
+bool PandoraBuildFirstEntryObservationTargets(const SignalParams &signal_params,
+                                             const double anchor_price,
+                                             const PandoraFirstEntryStages stage,
+                                             double &trigger_price,
+                                             double &tp_price)
+{
+  trigger_price = 0.0;
+  tp_price = 0.0;
+
+  if(!IsPandoraSignal(signal_params))
+    return false;
+  if(anchor_price <= 0.0)
+    return false;
+  if(!PandoraFirstEntryStageIsObservation(stage))
+    return false;
+
+  PandoraFirstEntryModes mode = signal_params.pandora_first_entry_mode;
+  if(!PandoraFirstEntryModeIsDeep(mode))
+    return false;
+  if(stage == PANDORA_FIRST_ENTRY_STAGE_SL1_OBSERVE && mode != First_Entry_Sl_2)
+    return false;
+
+  double point_size = PandoraResolvePointSizeSafe();
+  double sl_points = PandoraResolveSignalSLPoints(signal_params, false);
+  if(sl_points <= 0.0 || point_size <= 0.0)
+    return false;
+
+  double tp_points = PandoraResolveSignalTPPoints(signal_params, false);
+  trigger_price = PandoraFirstEntrySignedStepPrice(signal_params.signal_type,
+                                                   anchor_price,
+                                                   sl_points,
+                                                   point_size,
+                                                   false);
+  if(tp_points > 0.0)
+    tp_price = PandoraFirstEntrySignedStepPrice(signal_params.signal_type,
+                                                anchor_price,
+                                                tp_points,
+                                                point_size,
+                                                true);
+
+  return (trigger_price > 0.0);
+}
+
+bool PandoraSetFirstEntryObservationTargets(SignalParams &signal_params,
+                                            const double anchor_price,
+                                            const PandoraFirstEntryStages stage)
+{
+  double trigger_price = 0.0;
+  double tp_price = 0.0;
+  if(!PandoraBuildFirstEntryObservationTargets(signal_params,
+                                               anchor_price,
+                                               stage,
+                                               trigger_price,
+                                               tp_price))
+    return false;
+
+  signal_params.pandora_first_entry_stage = stage;
+  signal_params.pandora_observation_anchor_price = PandoraNormalizeTargetPrice(anchor_price);
+  signal_params.pandora_observation_trigger_price = trigger_price;
+  signal_params.pandora_observation_tp_price = tp_price;
+  if(signal_params.pandora_observation_entry_time <= 0)
+    signal_params.pandora_observation_entry_time = TimeCurrent();
+  return true;
+}
+
+bool PandoraFirstEntryObservationTriggerHit(const SignalParams &signal_params,
+                                           const double current_price)
+{
+  if(!PandoraFirstEntryStageIsObservation(signal_params.pandora_first_entry_stage))
+    return false;
+  if(current_price <= 0.0 || signal_params.pandora_observation_trigger_price <= 0.0)
+    return false;
+
+  if(signal_params.signal_type == BULLISH)
+    return current_price <= signal_params.pandora_observation_trigger_price;
+  if(signal_params.signal_type == BEARISH)
+    return current_price >= signal_params.pandora_observation_trigger_price;
+  return false;
+}
+
+bool PandoraFirstEntryObservationTakeProfitHit(const SignalParams &signal_params,
+                                               const double current_price)
+{
+  if(!PandoraFirstEntryStageIsObservation(signal_params.pandora_first_entry_stage))
+    return false;
+  if(current_price <= 0.0 || signal_params.pandora_observation_tp_price <= 0.0)
+    return false;
+
+  if(signal_params.signal_type == BULLISH)
+    return current_price >= signal_params.pandora_observation_tp_price;
+  if(signal_params.signal_type == BEARISH)
+    return current_price <= signal_params.pandora_observation_tp_price;
+  return false;
+}
+
+bool PandoraFirstEntryObservationExpired()
+{
+  if(g_pandora_box_state.respect_session_filter)
+  {
+    if(g_pandora_box_state.session_window_seen_active &&
+       !SessionTimeFilterWindowIsOpen())
+      return true;
+    return false;
+  }
+
+  return false;
+}
+
 bool PandoraEntryBodyTimeframeSupported(const ENUM_TIMEFRAMES tf)
 {
   switch(tf)

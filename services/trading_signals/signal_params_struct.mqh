@@ -97,6 +97,8 @@ struct SignalParams
   double pandora_trailing_stop_price;
   PandoraCloseOutcomes pandora_close_outcome;
   double pandora_close_epsilon_points;
+  PandoraFirstEntryModes  pandora_first_entry_mode;
+  PandoraFirstEntryStages pandora_first_entry_stage;
   PandoraLocalEntryStatuses      pandora_local_entry_status;
   PandoraExecutionSourceStatuses pandora_execution_source;
   PandoraBrokerExecutionStatuses pandora_broker_execution_status;
@@ -112,12 +114,16 @@ struct SignalParams
   datetime pandora_local_close_time;
   datetime pandora_broker_attempt_time;
   datetime pandora_broker_stop_sync_time;
+  datetime pandora_observation_entry_time;
   double   pandora_theoretical_entry_price;
   double   pandora_source_entry_price;
   double   pandora_broker_simulated_entry_price;
   double   pandora_broker_fill_price;
   double   pandora_local_entry_price;
   double   pandora_local_close_price;
+  double   pandora_observation_anchor_price;
+  double   pandora_observation_trigger_price;
+  double   pandora_observation_tp_price;
   double   pandora_local_sl_price;
   double   pandora_local_tp_price;
   double   pandora_broker_sl_target_price;
@@ -128,6 +134,7 @@ struct SignalParams
   int      pandora_broker_last_error;
   string   pandora_broker_reject_context;
   string   pandora_broker_reject_detail;
+  string   pandora_observation_close_reason;
   string   pandora_marker_id;
   datetime context_structure_snapshot_time;
 
@@ -221,6 +228,8 @@ struct SignalParams
     pandora_trailing_stop_price = 0.0;
     pandora_close_outcome      = PANDORA_CLOSE_NONE;
     pandora_close_epsilon_points = 0.0;
+    pandora_first_entry_mode   = First_Entry_Breakout;
+    pandora_first_entry_stage  = PANDORA_FIRST_ENTRY_STAGE_NONE;
     pandora_local_entry_status = PANDORA_LOCAL_ENTRY_NONE;
     pandora_execution_source = PANDORA_EXECUTION_SOURCE_NONE;
     pandora_broker_execution_status = PANDORA_BROKER_NOT_ATTEMPTED;
@@ -236,12 +245,16 @@ struct SignalParams
     pandora_local_close_time   = 0;
     pandora_broker_attempt_time = 0;
     pandora_broker_stop_sync_time = 0;
+    pandora_observation_entry_time = 0;
     pandora_theoretical_entry_price = 0.0;
     pandora_source_entry_price = 0.0;
     pandora_broker_simulated_entry_price = 0.0;
     pandora_broker_fill_price = 0.0;
     pandora_local_entry_price  = 0.0;
     pandora_local_close_price  = 0.0;
+    pandora_observation_anchor_price = 0.0;
+    pandora_observation_trigger_price = 0.0;
+    pandora_observation_tp_price = 0.0;
     pandora_local_sl_price     = 0.0;
     pandora_local_tp_price     = 0.0;
     pandora_broker_sl_target_price = 0.0;
@@ -252,6 +265,7 @@ struct SignalParams
     pandora_broker_last_error  = 0;
     pandora_broker_reject_context = "";
     pandora_broker_reject_detail = "";
+    pandora_observation_close_reason = "";
     pandora_marker_id          = "";
     context_structure_snapshot_time = 0;
     trend_filter_mode          = TREND_OFF;
@@ -319,6 +333,8 @@ struct SignalParams
     pandora_trailing_stop_price = signal_params.pandora_trailing_stop_price;
     pandora_close_outcome       = signal_params.pandora_close_outcome;
     pandora_close_epsilon_points = signal_params.pandora_close_epsilon_points;
+    pandora_first_entry_mode    = signal_params.pandora_first_entry_mode;
+    pandora_first_entry_stage   = signal_params.pandora_first_entry_stage;
     pandora_local_entry_status   = signal_params.pandora_local_entry_status;
     pandora_execution_source     = signal_params.pandora_execution_source;
     pandora_broker_execution_status = signal_params.pandora_broker_execution_status;
@@ -334,12 +350,16 @@ struct SignalParams
     pandora_local_close_time     = signal_params.pandora_local_close_time;
     pandora_broker_attempt_time  = signal_params.pandora_broker_attempt_time;
     pandora_broker_stop_sync_time = signal_params.pandora_broker_stop_sync_time;
+    pandora_observation_entry_time = signal_params.pandora_observation_entry_time;
     pandora_theoretical_entry_price = signal_params.pandora_theoretical_entry_price;
     pandora_source_entry_price    = signal_params.pandora_source_entry_price;
     pandora_broker_simulated_entry_price = signal_params.pandora_broker_simulated_entry_price;
     pandora_broker_fill_price     = signal_params.pandora_broker_fill_price;
     pandora_local_entry_price    = signal_params.pandora_local_entry_price;
     pandora_local_close_price    = signal_params.pandora_local_close_price;
+    pandora_observation_anchor_price = signal_params.pandora_observation_anchor_price;
+    pandora_observation_trigger_price = signal_params.pandora_observation_trigger_price;
+    pandora_observation_tp_price = signal_params.pandora_observation_tp_price;
     pandora_local_sl_price       = signal_params.pandora_local_sl_price;
     pandora_local_tp_price       = signal_params.pandora_local_tp_price;
     pandora_broker_sl_target_price = signal_params.pandora_broker_sl_target_price;
@@ -350,6 +370,7 @@ struct SignalParams
     pandora_broker_last_error    = signal_params.pandora_broker_last_error;
     pandora_broker_reject_context = signal_params.pandora_broker_reject_context;
     pandora_broker_reject_detail = signal_params.pandora_broker_reject_detail;
+    pandora_observation_close_reason = signal_params.pandora_observation_close_reason;
     pandora_marker_id            = signal_params.pandora_marker_id;
     strategy_context           = signal_params.strategy_context;
     strategy_timeframe         = signal_params.strategy_timeframe;
