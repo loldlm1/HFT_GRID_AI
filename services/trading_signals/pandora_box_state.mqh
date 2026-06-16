@@ -8,6 +8,7 @@ const int PANDORA_MINUTES_PER_DAY = 24 * 60;
 const double PANDORA_EPSILON_EXTREME_BOX_RATIO = 5.0;
 const int PANDORA_HISTORY_DAYS = 8;
 const int PANDORA_TRADE_MARKER_MAX = 64;
+const int PANDORA_PERFORMANCE_PREWARM_BARS = 2;
 const string PANDORA_INVALID_PREVIOUS_D1_ANCHOR = "No previous D1 anchor for Pandora wrapped window";
 
 string PandoraLocalEntryStatusLabel(const PandoraLocalEntryStatuses status)
@@ -2456,6 +2457,225 @@ bool PandoraHasActiveSignals()
   if(PandoraDirectionHasActiveSignal(BULLISH))
     return true;
   return PandoraDirectionHasActiveSignal(BEARISH);
+}
+
+int PandoraPerformancePrewarmSeconds()
+{
+  int period_seconds = PeriodSeconds(_Period);
+  if(period_seconds <= 0)
+    period_seconds = 60;
+  return period_seconds * PANDORA_PERFORMANCE_PREWARM_BARS;
+}
+
+int PandoraPerformancePrewarmMinutes()
+{
+  int prewarm_seconds = PandoraPerformancePrewarmSeconds();
+  if(prewarm_seconds <= 0)
+    return 0;
+  return (prewarm_seconds + 59) / 60;
+}
+
+int PandoraNormalizeMinuteOfDay(const int minute_value)
+{
+  int normalized = minute_value % PANDORA_MINUTES_PER_DAY;
+  if(normalized < 0)
+    normalized += PANDORA_MINUTES_PER_DAY;
+  return normalized;
+}
+
+bool PandoraMinuteInRangeWithPrewarm(const int start_minutes,
+                                     const int end_minutes,
+                                     const bool wraps,
+                                     const int current_minutes,
+                                     const int prewarm_minutes)
+{
+  int safe_prewarm_minutes = prewarm_minutes;
+  if(safe_prewarm_minutes < 0)
+    safe_prewarm_minutes = 0;
+
+  int expanded_start = PandoraNormalizeMinuteOfDay(start_minutes - safe_prewarm_minutes);
+  int normalized_current = PandoraNormalizeMinuteOfDay(current_minutes);
+
+  if(start_minutes == end_minutes)
+    return true;
+
+  bool expanded_wraps = wraps;
+  if(safe_prewarm_minutes > 0 && expanded_start > start_minutes)
+    expanded_wraps = true;
+  if(!expanded_wraps && expanded_start <= end_minutes)
+    return (normalized_current >= expanded_start &&
+            normalized_current < end_minutes);
+
+  if(normalized_current >= expanded_start)
+    return true;
+  if(normalized_current < end_minutes)
+    return true;
+  return false;
+}
+
+bool PandoraSessionRuntimeWindowActive()
+{
+  if(!g_pandora_box_state.respect_session_filter)
+    return true;
+  if(!SessionTimeFilterAnyEnabled())
+    return true;
+
+  int current_minutes = SessionTimeFilterCurrentMinutes();
+  int prewarm_minutes = PandoraPerformancePrewarmMinutes();
+
+  for(int slot = 0; slot < SESSION_TIME_FILTER_SLOT_TOTAL; slot++)
+  {
+    SessionTimeFilterConfig config;
+    SessionTimeFilterCopySlotConfig(slot, config);
+    if(!SessionTimeFilterSlotEnabled(config))
+      continue;
+    if(!config.valid_range)
+      return true;
+    if(PandoraMinuteInRangeWithPrewarm(config.start_minutes,
+                                       config.end_minutes,
+                                       config.wraps,
+                                       current_minutes,
+                                       prewarm_minutes))
+      return true;
+  }
+
+  return false;
+}
+
+bool PandoraTimeInWindowWithPrewarm(const datetime current_time,
+                                    const datetime window_start_time,
+                                    const datetime window_end_time,
+                                    const int prewarm_seconds)
+{
+  if(window_start_time <= 0 || window_end_time <= 0)
+    return true;
+  if(window_start_time >= window_end_time)
+    return true;
+
+  int safe_prewarm_seconds = prewarm_seconds;
+  if(safe_prewarm_seconds < 0)
+    safe_prewarm_seconds = 0;
+
+  datetime expanded_start = window_start_time - safe_prewarm_seconds;
+  return (current_time >= expanded_start && current_time < window_end_time);
+}
+
+bool PandoraBoxMaintenanceWindowActive()
+{
+  if(!g_pandora_box_state.window_valid)
+    return true;
+
+  datetime current_time = TimeCurrent();
+  int prewarm_seconds = PandoraPerformancePrewarmSeconds();
+  if(PandoraTimeInWindowWithPrewarm(current_time,
+                                    g_pandora_box_state.window_start_time,
+                                    g_pandora_box_state.window_end_time,
+                                    prewarm_seconds))
+    return true;
+
+  if(!g_pandora_box_state.box_computed &&
+     g_pandora_box_state.window_end_time > 0 &&
+     current_time >= g_pandora_box_state.window_end_time)
+    return true;
+
+  return false;
+}
+
+bool PandoraSignalHasRuntimeActiveEntity(const SignalParams &signal_params)
+{
+  if(!IsPandoraSignal(signal_params))
+    return false;
+  if(signal_params.signal_state != CLOSED)
+    return true;
+  if(PandoraFirstEntryStageIsObservation(signal_params.pandora_first_entry_stage))
+    return true;
+  if(PandoraBrokerRetryPending(signal_params))
+    return true;
+  return false;
+}
+
+bool PandoraSignalArrayHasRuntimeActiveEntities(SignalParams &signals[])
+{
+  int total = ArraySize(signals);
+  for(int i = total - 1; i >= 0; i--)
+  {
+    if(PandoraSignalHasRuntimeActiveEntity(signals[i]))
+      return true;
+  }
+  return false;
+}
+
+bool PandoraHasMatchingBrokerPosition()
+{
+  int total_positions = PositionsTotal();
+  for(int i = total_positions - 1; i >= 0; i--)
+  {
+    ulong position_ticket = PositionGetTicket(i);
+    if(position_ticket == 0)
+      continue;
+    if(!PositionSelectByTicket(position_ticket))
+      continue;
+    if(PositionGetString(POSITION_SYMBOL) != _Symbol)
+      continue;
+    if(PositionGetInteger(POSITION_MAGIC) != g_magic_number)
+      continue;
+    return true;
+  }
+  return false;
+}
+
+bool PandoraHasRuntimeActiveEntities()
+{
+  if(PandoraSignalArrayHasRuntimeActiveEntities(running_bullish_signals))
+    return true;
+  if(PandoraSignalArrayHasRuntimeActiveEntities(running_bearish_signals))
+    return true;
+  return PandoraHasMatchingBrokerPosition();
+}
+
+bool PandoraRuntimeWorkWindowActive()
+{
+  if(!PandoraStrategyEnabled())
+    return false;
+
+  PandoraEnsureDayAnchor();
+  if(!PandoraEnsureWindowParsed())
+    return true;
+  PandoraWindowCompleted();
+
+  if(PandoraBoxMaintenanceWindowActive())
+    return true;
+  if(PandoraFinishedForDay())
+    return false;
+  if(!g_pandora_box_state.window_closed)
+    return false;
+  if(g_pandora_box_state.box_computed && !g_pandora_box_state.box_valid)
+    return false;
+  return PandoraSessionRuntimeWindowActive();
+}
+
+bool PandoraRuntimeRequiresFullTick()
+{
+  if(!PandoraStrategyEnabled())
+    return false;
+  if(PandoraHasRuntimeActiveEntities())
+    return true;
+  return PandoraRuntimeWorkWindowActive();
+}
+
+bool PandoraRuntimeCanUseIdleFastPath()
+{
+  if(!PandoraStrategyEnabled())
+    return false;
+
+  PandoraEnsureDayAnchor();
+  if(!PandoraEnsureWindowParsed())
+    return false;
+  PandoraWindowCompleted();
+
+  if(PandoraHasRuntimeActiveEntities())
+    return false;
+  return PandoraFinishedForDay();
 }
 
 string PandoraLimitLabel()
