@@ -99,6 +99,8 @@ struct SignalParams
   double pandora_close_epsilon_points;
   PandoraFirstEntryModes  pandora_first_entry_mode;
   PandoraFirstEntryStages pandora_first_entry_stage;
+  int                     pandora_first_entry_target_depth;
+  int                     pandora_first_entry_observation_depth;
   bool                    pandora_first_entry_budget_registered;
   PandoraLocalEntryStatuses      pandora_local_entry_status;
   PandoraExecutionSourceStatuses pandora_execution_source;
@@ -231,6 +233,8 @@ struct SignalParams
     pandora_close_epsilon_points = 0.0;
     pandora_first_entry_mode   = First_Entry_Breakout;
     pandora_first_entry_stage  = PANDORA_FIRST_ENTRY_STAGE_NONE;
+    pandora_first_entry_target_depth = 0;
+    pandora_first_entry_observation_depth = 0;
     pandora_first_entry_budget_registered = false;
     pandora_local_entry_status = PANDORA_LOCAL_ENTRY_NONE;
     pandora_execution_source = PANDORA_EXECUTION_SOURCE_NONE;
@@ -337,6 +341,8 @@ struct SignalParams
     pandora_close_epsilon_points = signal_params.pandora_close_epsilon_points;
     pandora_first_entry_mode    = signal_params.pandora_first_entry_mode;
     pandora_first_entry_stage   = signal_params.pandora_first_entry_stage;
+    pandora_first_entry_target_depth = signal_params.pandora_first_entry_target_depth;
+    pandora_first_entry_observation_depth = signal_params.pandora_first_entry_observation_depth;
     pandora_first_entry_budget_registered = signal_params.pandora_first_entry_budget_registered;
     pandora_local_entry_status   = signal_params.pandora_local_entry_status;
     pandora_execution_source     = signal_params.pandora_execution_source;

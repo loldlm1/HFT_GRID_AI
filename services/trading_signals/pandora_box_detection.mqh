@@ -176,6 +176,8 @@ bool PandoraBuildSignal(const SignalTypes direction)
   signal.entry_trigger_mode     = ENTRY_EVAL_OFF;
   signal.entry_evaluation_mode  = ENTRY_EVAL_OFF;
   signal.pandora_first_entry_mode = g_pandora_box_state.first_entry_mode;
+  signal.pandora_first_entry_target_depth = g_pandora_box_state.first_entry_target_depth;
+  signal.pandora_first_entry_observation_depth = 0;
 
   if(!BuildPandoraOrderForSignal(signal))
   {
