@@ -62,13 +62,22 @@ void DrawGridLevels(const long chart_id,
 
   if(IsPandoraSignal(signal_params))
   {
-    double resolved_sl = 0.0;
-    double resolved_tp = 0.0;
-    if(PandoraResolveBrokerStops(signal_params, level_state, resolved_sl, resolved_tp))
+    if(PandoraFirstEntryStageIsObservation(signal_params.pandora_first_entry_stage))
     {
-      stop_price_line = resolved_sl;
-      if(resolved_tp > 0.0)
-        tp_price = resolved_tp;
+      entry_price_line = signal_params.pandora_observation_anchor_price;
+      stop_price_line  = signal_params.pandora_observation_trigger_price;
+      tp_price         = signal_params.pandora_observation_tp_price;
+    }
+    else
+    {
+      double resolved_sl = 0.0;
+      double resolved_tp = 0.0;
+      if(PandoraResolveBrokerStops(signal_params, level_state, resolved_sl, resolved_tp))
+      {
+        stop_price_line = resolved_sl;
+        if(resolved_tp > 0.0)
+          tp_price = resolved_tp;
+      }
     }
     // Hide unused grid visuals to reduce clutter for Pandora.
     final_price      = 0.0;
@@ -82,6 +91,17 @@ void DrawGridLevels(const long chart_id,
   string next_label     = GridSignalLineLabel(signal_params, "NEXT");
   string trailing_label = GridSignalLineLabel(signal_params, "TP TRAILING");
   string break_even_label = GridSignalLineLabel(signal_params, "BREAK EVEN");
+  string stop_label = GridSignalLineLabel(signal_params, "SL");
+
+  if(IsPandoraSignal(signal_params) &&
+     PandoraFirstEntryStageIsObservation(signal_params.pandora_first_entry_stage))
+  {
+    entry_label = GridSignalLineLabel(signal_params, "OBS ENTRY");
+    tp_label = GridSignalLineLabel(signal_params, "TP obs");
+    stop_label = (signal_params.pandora_first_entry_stage == PANDORA_FIRST_ENTRY_STAGE_SL1_OBSERVE)
+                 ? GridSignalLineLabel(signal_params, "SL2 entry")
+                 : GridSignalLineLabel(signal_params, "SL1 entry");
+  }
 
   int level_index = level_state.level_index;
   double level_lot_size = level_state.lot_size;
@@ -96,7 +116,7 @@ void DrawGridLevels(const long chart_id,
   UpdateHorizontalLine(chart_id, next_name, COLOR_PROFIT_POSITIVE, next_level_price, next_label);
 
   if(stop_price_line > 0.0)
-    UpdateHorizontalLine(chart_id, stop_name, COLOR_PROFIT_NEGATIVE, stop_price_line, GridSignalLineLabel(signal_params, "SL"));
+    UpdateHorizontalLine(chart_id, stop_name, COLOR_PROFIT_NEGATIVE, stop_price_line, stop_label);
   else
     UpdateHorizontalLine(chart_id, stop_name, COLOR_PROFIT_NEGATIVE, 0.0);
 
@@ -146,13 +166,28 @@ void BuildSignalSummary(const SignalParams &signal_params,
   int summary_index = ArraySize(summary_lines);
   ArrayResize(summary_lines, summary_index + 1);
 
-  summary_lines[summary_index] = StringFormat("%s %s@%s | act=%d pend=%d tot=%d",
-                                              direction_label,
-                                              context_label,
-                                              timeframe_label,
-                                              active_levels,
-                                              pending_levels,
-                                              total_levels);
+  if(IsPandoraSignal(signal_params))
+  {
+    summary_lines[summary_index] = StringFormat("%s %s %s/%s | act=%d pend=%d trig=%.5f tp=%.5f",
+                                                direction_label,
+                                                context_label,
+                                                PandoraFirstEntryModeLabel(signal_params.pandora_first_entry_mode),
+                                                PandoraFirstEntryStageLabel(signal_params.pandora_first_entry_stage),
+                                                active_levels,
+                                                pending_levels,
+                                                signal_params.pandora_observation_trigger_price,
+                                                signal_params.pandora_observation_tp_price);
+  }
+  else
+  {
+    summary_lines[summary_index] = StringFormat("%s %s@%s | act=%d pend=%d tot=%d",
+                                                direction_label,
+                                                context_label,
+                                                timeframe_label,
+                                                active_levels,
+                                                pending_levels,
+                                                total_levels);
+  }
 }
 
 void RefreshGridVisualization()

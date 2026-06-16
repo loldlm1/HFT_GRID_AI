@@ -13,6 +13,10 @@ Use this as the source of truth when configuring the EA in the Inputs panel.
 - `Pandora_Box_Entry_Type = ENTRY_WICK_TYPE` keeps the legacy tick/current-price breakout. `ENTRY_BODY_TYPE` requires the selected body timeframe's last closed candle to close outside the offset breakout level.
 - Body entries use inclusive checks (`close_1 >= breakout_high_price` for bullish, `close_1 <= breakout_low_price` for bearish) and consume each qualifying closed candle once per direction, even if a later guard blocks the order.
 - When the selected trigger passes local admission guards, Pandora reserves the Pandora entry budget. The active local entry is anchored to broker-realistic execution conditions: real broker fill first, otherwise current executable Bid/Ask after spread is inside range.
+- `Pandora_First_Entry_Mode = First_Entry_Breakout` keeps the default behavior: the first real entry is admitted at the Pandora breakout.
+- `First_Entry_Off` opens the first entry locally only, from the current executable Bid/Ask, and never calls `OrderSend`.
+- `First_Entry_Sl_1` and `First_Entry_Sl_2` are same-direction deep-entry tests. They observe the breakout locally first; if the observation TP hits before the requested deep SL level, the opportunity is discarded as a local win. If the deep level hits first, the EA admits the real market entry through the existing broker-realistic path.
+- Deep-entry observation uses fixed TP levels even when `Pandora_Risk_Trailing_Mode = PANDORA_RISK_TRAILING_STEP_TP`. Step trailing starts only after a real broker market entry is admitted.
 - `Pandora_Box_Use_Session_Filter` gates Pandora entry attempts only; it does not decide whether the box construction window is valid.
 - If `Pandora_Box_Max_Range_Points > 0`, the day is invalid when the box range exceeds that limit.
 - Direction filtering is controlled by `Pandora_Box_Direction_Mode`.
@@ -54,6 +58,7 @@ Use this as the source of truth when configuring the EA in the Inputs panel.
 | `Pandora_Points_TP` | `100.0` | Pandora take-profit distance. In step trailing mode TP price is not set. | Use positive values unless strategy explicitly relies on trailing-only exits. |
 | `Pandora_Box_Entry_Count_Mode` | `COUNT_BOX_ENTRY_OFF` | Controls `counted` metric: `OFF` counts `SL`/`TP`/`BE`, `ON_SL` counts `SL`+`BE`, `ON_TP` counts `TP`+`BE`. | Use `OFF` for full analytics, filtered modes for targeted diagnostics. |
 | `Pandora_Box_Max_Entries` | `2` | Broker-realistic Pandora-entry budget per day/window (`0` = unlimited). Pending spread admission and broker-blocked/rejected entries still count. | Keep low (`1-2`) unless broader protections are strict. |
+| `Pandora_First_Entry_Mode` | `First_Entry_Breakout` | First entry policy: default breakout, local-only off, or same-direction deep entry at SL1/SL2 after local observation. | Keep `Breakout` for live default; use `Sl_1`/`Sl_2` only for focused Strategy Tester research. |
 
 ## Runtime Identity, Order Comments, And Status Panel
 
@@ -113,6 +118,7 @@ These values are internal globals in `services/trading_management/ea_inputs.mqh`
 - If `Pandora_Points_Value_Mode = PANDORA_VALUE_MODE_BOX_PERCENT`, verify percent values are realistic for your symbol.
 - If using `Pandora_Box_Max_Range_Points`, ensure the cap matches symbol volatility.
 - Confirm `Pandora_Box_Max_Entries` (reserved/opened Pandora budget) and `Pandora_Box_Entry_Count_Mode` (analytics counter) are not conflated.
+- If using `Pandora_First_Entry_Mode = First_Entry_Sl_1` or `First_Entry_Sl_2`, confirm chart observation lines show `TP obs`, `SL1 entry`, or `SL2 entry` before relying on the run.
 - Confirm session filters are configured when `Pandora_Box_Use_Session_Filter = true`.
 - Decide whether broker-side protection is required (`Pandora_Box_Set_Broker_SLTP = true`).
 - Confirm developer broker retry defaults match the broker/server behavior. Set `Pandora_Box_Broker_Retry_Attempts = 1` in code when you need strict one-shot broker execution.
@@ -136,6 +142,10 @@ Run these scenarios manually in Strategy Tester visual mode or on a demo chart w
 | Broker success | Normal lot, legal stops, acceptable spread, valid breakout. | `PANDORA_ENTRY_OPEN`; broker status becomes executed; panel error returns to `Error: OK` after successful send/sync. | `... (Posicion ejecutada)`. | Local entry and broker position are aligned. Broker history contains the position/deal, while Pandora open/close/count metrics still come from local lifecycle. |
 | Local-only SL close | Force a blocked/rejected local entry, then move price to exact local SL. | `PANDORA_ENTRY_CLOSE` with SL-like outcome; no broker close is required when ticket is `0`. | Negative marker like `... (Posicion local - ERR_Spread)` or the actual reject reason. | `closed_entries` increments; `counted_entries` follows `Pandora_Box_Entry_Count_Mode`; local loss is separate from broker history. |
 | Local-only TP close | Force a blocked/rejected local entry, then move price to exact local TP. | `PANDORA_ENTRY_CLOSE` with TP-like outcome; `Pandora_Box_Stop_On_First_Win = true` can finish the day. | Positive marker like `... (Posicion local - ERR_Spread)` or the actual reject reason. | `closed_entries` increments; `PANDORA DONE` appears when budget/first-win rules require it; broker history has no matching profit. |
+| First entry off | `Pandora_First_Entry_Mode = First_Entry_Off`, valid breakout, normal prices. | `PANDORA_FIRST_ENTRY_LOCAL_ONLY`; no `OrderSend` should be attempted. | Local marker only, no broker deal. | Budget counts once and closes from local fixed SL/TP. |
+| SL1 discard | `Pandora_First_Entry_Mode = First_Entry_Sl_1`; price reaches breakout observation TP before SL1. | `PANDORA_FIRST_ENTRY_OBSERVATION_CLOSE` with discard reason. | Observation lines disappear after close marker. | Budget counts once; outcome is TP-like and can finish day on first win. |
+| SL1 market admission | `Pandora_First_Entry_Mode = First_Entry_Sl_1`; price reaches SL1 before observation TP. | `PANDORA_FIRST_ENTRY_MARKET_ADMITTED`, then normal broker send/retry logs. | Entry marker uses broker fill or executable local anchor, not breakout. | Budget counts once; real close completes the day/budget. |
+| SL2 staged observation | `Pandora_First_Entry_Mode = First_Entry_Sl_2`; price reaches SL1 first. | `PANDORA_FIRST_ENTRY_OBSERVE_ADVANCE`; chart target changes from SL1 to SL2. | `TP obs` is recalculated from SL1 stage. | No budget count until SL1 TP discard or SL2 market admission. |
 | Broker stop tightening | Successful broker entry where no initial SL/TP was attached and exact SL/TP is unsafe at fill time. Keep price moving until exact local targets become legal for broker modification. | Stop status starts as pending/absent, then becomes `Stops broker objetivo` or `Stops broker amplios` after safe sync. Failed modify attempts should be non-fatal and throttled. | `... (Posicion ejecutada)`. | Local SL/TP does not move just because broker stops are wider or absent. Statistics use exact local close price, not the temporary broker protection state. |
 
 ## Notes

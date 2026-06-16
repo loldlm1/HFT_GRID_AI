@@ -71,6 +71,9 @@ Follow these detailed steps to install and configure **Pandora Box** in MetaTrad
 - `Pandora_Box_Entry_Type = ENTRY_WICK_TYPE` keeps the current tick/current-price breakout behavior. `ENTRY_BODY_TYPE` waits for the selected body timeframe's last closed candle to close outside the offset breakout level.
 - Body entries use inclusive checks (`close_1 >= breakout_high_price` bullish, `close_1 <= breakout_low_price` bearish) and consume each qualifying closed candle once per direction, even if a later guard blocks the order.
 - If the selected trigger breaks above/below and all local admission guards pass (direction, session, daily limits, concurrency), Pandora reserves the entry budget. The active local entry is anchored to broker-realistic execution: real broker fill first, otherwise current executable Bid/Ask after spread is inside range.
+- `Pandora_First_Entry_Mode` controls when the first real market entry is admitted. `First_Entry_Breakout` preserves the default breakout entry. `First_Entry_Off` creates a local-only entry and never calls `OrderSend`.
+- `First_Entry_Sl_1` and `First_Entry_Sl_2` test same-direction deep entries. If the local breakout observation reaches TP before the requested deep level, the opportunity is discarded as a local win. If the deep level is touched first, the normal broker-realistic market-entry flow starts.
+- Deep-entry observations always use fixed TP, even when step trailing is enabled. Step trailing applies only after a real broker market entry is admitted.
 - Re-entry on each side is re-armed only after `close_1` returns inside the raw box. Wick mode uses the Pandora box timeframe; body mode uses `Pandora_Box_Entry_Body_Timeframe`.
 - `Pandora_Box_Max_Entries` controls the Pandora entry budget (`0` means unlimited). A high-spread breakout can reserve the budget while waiting for spread to return inside range.
 - If the budget is reached while local entries remain open, status shows `PANDORA WAIT_CLOSE`; after local closure, it transitions to `PANDORA DONE`.
@@ -115,6 +118,7 @@ Follow these detailed steps to install and configure **Pandora Box** in MetaTrad
 | `Pandora_Points_TP` | `100.0` | Take-profit distance for Pandora entries. | Keep positive unless trailing-only exit is intended. |
 | `Pandora_Box_Entry_Count_Mode` | `COUNT_BOX_ENTRY_OFF` | Controls `counted` analytics: all (`SL/TP/BE`), `SL+BE`, or `TP+BE`. | Use `OFF` for full diagnostics. |
 | `Pandora_Box_Max_Entries` | `2` | Broker-realistic Pandora-entry budget per day/window (`0` = unlimited). Pending spread admission and broker-blocked/rejected entries still count. | Keep low (`1-2`) unless broader protections are strict. |
+| `Pandora_First_Entry_Mode` | `First_Entry_Breakout` | First-entry policy: default breakout, local-only off, or same-direction SL1/SL2 deep-entry observation. | Keep `Breakout` for production default; use `Sl_1`/`Sl_2` for Strategy Tester research. |
 
 ---
 
@@ -156,6 +160,7 @@ Before running **Pandora Box** on a live account, verify:
 - If using `%` mode, offset/SL/TP percentages are realistic for the symbol.
 - Direction mode matches your market bias.
 - `Pandora_Box_Max_Entries` matches the intended Pandora entry budget.
+- Deep-entry mode chart lines (`TP obs`, `SL1 entry`, `SL2 entry`) match the expected same-direction levels before evaluating tester results.
 - Local-rejected scenarios are understood: stops/volume/margin rejection can still leave one broker-realistic local entry alive until local SL/TP/BE/trailing closes it.
 - Broker-side SL/TP is validated as extra protection only after the broker fill; local exact SL/TP remains based on the active broker fill or simulated anchor even when broker stops are temporarily wider, pending, failed, or absent after a valid no-initial-SLTP open.
 - Session filters are configured if `Pandora_Box_Use_Session_Filter = true`.

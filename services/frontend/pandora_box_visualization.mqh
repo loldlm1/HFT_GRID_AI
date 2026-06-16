@@ -251,10 +251,12 @@ void PandoraAppendSummary(string &summary_lines[])
   string status = "PANDORA";
   string entry_label = PandoraEntryTypeLabel();
   string body_tf_label = PandoraEntryBodyTimeframeLabel();
+  string first_entry_label = PandoraFirstEntryModeLabel(g_pandora_box_state.first_entry_mode);
   if(!g_pandora_box_state.window_valid)
   {
-    status = StringFormat("PANDORA entry=%s body_tf=%s INVALID WINDOW %s",
+    status = StringFormat("PANDORA entry=%s first=%s body_tf=%s INVALID WINDOW %s",
                           entry_label,
+                          first_entry_label,
                           body_tf_label,
                           Pandora_Box_Time_Range);
     if(g_pandora_box_state.invalid_reason != "")
@@ -262,15 +264,17 @@ void PandoraAppendSummary(string &summary_lines[])
   }
   else if(!g_pandora_box_state.window_closed)
   {
-    status = StringFormat("PANDORA WAIT %s entry=%s body_tf=%s",
+    status = StringFormat("PANDORA WAIT %s entry=%s first=%s body_tf=%s",
                           PandoraWindowLabel(),
                           entry_label,
+                          first_entry_label,
                           body_tf_label);
   }
   else if(g_pandora_box_state.box_computed && !g_pandora_box_state.box_valid)
   {
-    status = StringFormat("PANDORA entry=%s body_tf=%s INVALID BOX range=%.1f limit=%.1f",
+    status = StringFormat("PANDORA entry=%s first=%s body_tf=%s INVALID BOX range=%.1f limit=%.1f",
                           entry_label,
+                          first_entry_label,
                           body_tf_label,
                           g_pandora_box_state.box_range_points,
                           g_pandora_box_state.max_range_points);
@@ -279,8 +283,9 @@ void PandoraAppendSummary(string &summary_lines[])
   }
   else if(PandoraDailyCompleted())
   {
-    status = StringFormat("PANDORA DONE entry=%s body_tf=%s",
+    status = StringFormat("PANDORA DONE entry=%s first=%s body_tf=%s",
                           entry_label,
+                          first_entry_label,
                           body_tf_label);
   }
   else if(g_pandora_box_state.box_computed && g_pandora_box_state.box_valid)
@@ -301,9 +306,10 @@ void PandoraAppendSummary(string &summary_lines[])
        !g_pandora_box_state.bearish_rearm_ready)
       rearm_status = rearm_status + "WAIT_BEAR ";
 
-    status = StringFormat("PANDORA %s entry=%s body_tf=%s range=%.1f off=%.1f mode=%s open=%d/%s close=%d/%s counted=%d/%s %s",
+    status = StringFormat("PANDORA %s entry=%s first=%s body_tf=%s range=%.1f off=%.1f mode=%s open=%d/%s close=%d/%s counted=%d/%s %s",
                           lifecycle_label,
                           entry_label,
+                          first_entry_label,
                           body_tf_label,
                           g_pandora_box_state.box_range_points,
                           display_offset,
@@ -318,9 +324,10 @@ void PandoraAppendSummary(string &summary_lines[])
   }
   else
   {
-    status = StringFormat("PANDORA ARMED %s entry=%s body_tf=%s",
+    status = StringFormat("PANDORA ARMED %s entry=%s first=%s body_tf=%s",
                           PandoraWindowLabel(),
                           entry_label,
+                          first_entry_label,
                           body_tf_label);
   }
 

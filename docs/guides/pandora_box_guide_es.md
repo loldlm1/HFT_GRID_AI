@@ -71,6 +71,9 @@ Sigue estos pasos detallados para instalar y configurar **Pandora Box** en MetaT
 - `Pandora_Box_Entry_Type = ENTRY_WICK_TYPE` conserva la ruptura actual por tick/precio. `ENTRY_BODY_TYPE` espera que la última vela cerrada del timeframe seleccionado cierre fuera del nivel de ruptura con offset.
 - Las entradas por cuerpo usan validaciones inclusivas (`close_1 >= breakout_high_price` alcista, `close_1 <= breakout_low_price` bajista) y consumen cada vela cerrada válida una sola vez por dirección, aunque una validación posterior bloquee la orden.
 - Si el disparador seleccionado rompe por arriba/abajo y todas las validaciones locales se cumplen (direccion, sesion, limites diarios, concurrencia), Pandora reserva el presupuesto de entrada. La entrada local activa se ancla a ejecucion broker-realistic: fill real del broker primero, o Bid/Ask ejecutable cuando el spread vuelve a rango.
+- `Pandora_First_Entry_Mode` controla cuando se admite la primera entrada real al mercado. `First_Entry_Breakout` conserva la entrada default en breakout. `First_Entry_Off` crea una entrada solo local y nunca llama `OrderSend`.
+- `First_Entry_Sl_1` y `First_Entry_Sl_2` prueban entradas profundas en la misma direccion. Si la observacion local del breakout toca TP antes del nivel profundo, la oportunidad se descarta como win local. Si el nivel profundo se toca primero, inicia el flujo normal broker-realistic.
+- Las observaciones profundas usan TP fijo aunque el step trailing este activo. El trailing solo aplica despues de admitir una entrada real al mercado.
 - La reentrada por cada lado se rearma solo cuando `close_1` vuelve dentro del box sin offset. En modo wick usa el timeframe del box Pandora; en modo body usa `Pandora_Box_Entry_Body_Timeframe`.
 - `Pandora_Box_Max_Entries` controla el presupuesto de entradas Pandora (`0` significa ilimitado). Una ruptura con spread alto puede reservar el presupuesto mientras espera que el spread vuelva a rango.
 - Si el presupuesto se alcanza con entradas locales aun abiertas, el estado muestra `PANDORA WAIT_CLOSE`; al cerrarse localmente, pasa a `PANDORA DONE`.
@@ -115,6 +118,7 @@ Sigue estos pasos detallados para instalar y configurar **Pandora Box** en MetaT
 | `Pandora_Points_TP` | `100.0` | Distancia de take profit para entradas Pandora. | Mantén positivo salvo que quieras salida solo por trailing. |
 | `Pandora_Box_Entry_Count_Mode` | `COUNT_BOX_ENTRY_OFF` | Controla la analítica `counted`: todo (`SL/TP/BE`), `SL+BE` o `TP+BE`. | Usa `OFF` para diagnóstico completo. |
 | `Pandora_Box_Max_Entries` | `2` | Presupuesto de entradas Pandora broker-realistic por dia/ventana (`0` = ilimitado). Entradas pending por spread y bloqueadas/rechazadas por broker tambien cuentan. | Manten bajo (`1-2`) salvo que tus protecciones globales sean estrictas. |
+| `Pandora_First_Entry_Mode` | `First_Entry_Breakout` | Politica de primera entrada: breakout default, local-only off, u observacion profunda SL1/SL2 en la misma direccion. | Manten `Breakout` como default; usa `Sl_1`/`Sl_2` para investigacion en Strategy Tester. |
 
 ---
 
@@ -156,6 +160,7 @@ Antes de ejecutar **Pandora Box** en una cuenta real, verifica:
 - Si usas modo `%`, que offset/SL/TP sean porcentajes realistas para el símbolo.
 - Que el modo de dirección coincida con tu sesgo de mercado.
 - Que `Pandora_Box_Max_Entries` coincida con tu presupuesto de entradas Pandora.
+- Que las lineas de modo profundo (`TP obs`, `SL1 entry`, `SL2 entry`) coincidan con los niveles esperados antes de evaluar resultados del tester.
 - Que los escenarios `local_rejected` esten claros: rechazo por stops/volumen/margen puede dejar una entrada broker-realistic local viva hasta cierre local por SL/TP/BE/trailing.
 - Que el SL/TP broker se valide como proteccion extra despues del fill; el SL/TP local exacto se basa en el fill real o anchor simulado activo aunque los stops broker esten temporalmente mas amplios, pendientes, fallidos o ausentes tras una apertura valida sin SL/TP inicial.
 - Que los filtros de sesión estén configurados si `Pandora_Box_Use_Session_Filter = true`.
