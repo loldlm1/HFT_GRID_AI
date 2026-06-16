@@ -257,6 +257,12 @@ void OnTick()
   }
 
   bool market_open = IsMarketOpen();
+  if(PandoraRuntimeCanUseIdleFastPath() && !MarketStatusHasPendingForceClose())
+  {
+    RefreshGridVisualization();
+    return;
+  }
+
   bool pandora_observed_this_tick = false;
   if(signal_attempts_allowed && market_open && PandoraStrategyEnabled())
   {

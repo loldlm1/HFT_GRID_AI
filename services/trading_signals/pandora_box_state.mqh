@@ -2663,15 +2663,25 @@ bool PandoraRuntimeRequiresFullTick()
   return PandoraRuntimeWorkWindowActive();
 }
 
+void PandoraRuntimeIdleMaintenance()
+{
+  if(!PandoraStrategyEnabled())
+    return;
+
+  PandoraSyncRuntimeConfig();
+  PandoraEnsureDayAnchor();
+  if(PandoraEnsureWindowParsed())
+    PandoraWindowCompleted();
+}
+
 bool PandoraRuntimeCanUseIdleFastPath()
 {
   if(!PandoraStrategyEnabled())
     return false;
 
-  PandoraEnsureDayAnchor();
-  if(!PandoraEnsureWindowParsed())
+  PandoraRuntimeIdleMaintenance();
+  if(!g_pandora_box_state.window_valid)
     return false;
-  PandoraWindowCompleted();
 
   if(PandoraHasRuntimeActiveEntities())
     return false;
