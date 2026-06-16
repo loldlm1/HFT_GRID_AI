@@ -98,9 +98,8 @@ void DrawGridLevels(const long chart_id,
   {
     entry_label = GridSignalLineLabel(signal_params, "OBS ENTRY");
     tp_label = GridSignalLineLabel(signal_params, "TP obs");
-    stop_label = (signal_params.pandora_first_entry_stage == PANDORA_FIRST_ENTRY_STAGE_SL1_OBSERVE)
-                 ? GridSignalLineLabel(signal_params, "SL2 entry")
-                 : GridSignalLineLabel(signal_params, "SL1 entry");
+    stop_label = GridSignalLineLabel(signal_params,
+                                     PandoraFirstEntryObservationTriggerLabel(signal_params) + " entry");
   }
 
   int level_index = level_state.level_index;
@@ -171,8 +170,8 @@ void BuildSignalSummary(const SignalParams &signal_params,
     summary_lines[summary_index] = StringFormat("%s %s %s/%s | act=%d pend=%d trig=%.5f tp=%.5f",
                                                 direction_label,
                                                 context_label,
-                                                PandoraFirstEntryModeLabel(signal_params.pandora_first_entry_mode),
-                                                PandoraFirstEntryStageLabel(signal_params.pandora_first_entry_stage),
+                                                PandoraFirstEntryDepthLabel(signal_params.pandora_first_entry_target_depth),
+                                                PandoraFirstEntryObservationStageLabel(signal_params),
                                                 active_levels,
                                                 pending_levels,
                                                 signal_params.pandora_observation_trigger_price,

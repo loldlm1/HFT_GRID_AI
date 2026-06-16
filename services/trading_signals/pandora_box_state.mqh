@@ -1648,6 +1648,30 @@ string PandoraFirstEntryStageLabel(const PandoraFirstEntryStages stage)
   return "NONE";
 }
 
+int PandoraFirstEntryObservationTriggerDepth(const SignalParams &signal_params)
+{
+  int observation_depth = signal_params.pandora_first_entry_observation_depth;
+  if(observation_depth < 0)
+    observation_depth = 0;
+  return observation_depth + 1;
+}
+
+string PandoraFirstEntryObservationStageLabel(const SignalParams &signal_params)
+{
+  if(!PandoraFirstEntryStageIsObservation(signal_params.pandora_first_entry_stage))
+    return PandoraFirstEntryStageLabel(signal_params.pandora_first_entry_stage);
+
+  int observation_depth = signal_params.pandora_first_entry_observation_depth;
+  if(observation_depth <= 0)
+    return "OBS_BREAKOUT";
+  return "OBS_SL" + IntegerToString(observation_depth);
+}
+
+string PandoraFirstEntryObservationTriggerLabel(const SignalParams &signal_params)
+{
+  return "SL" + IntegerToString(PandoraFirstEntryObservationTriggerDepth(signal_params));
+}
+
 bool PandoraFirstEntryStageIsObservation(const PandoraFirstEntryStages stage)
 {
   return (stage == PANDORA_FIRST_ENTRY_STAGE_BREAKOUT_OBSERVE ||
@@ -1671,7 +1695,7 @@ double PandoraFirstEntrySignedStepPrice(const SignalTypes direction,
 
 bool PandoraBuildFirstEntryObservationTargets(const SignalParams &signal_params,
                                              const double anchor_price,
-                                             const PandoraFirstEntryStages stage,
+                                             const int observation_depth,
                                              double &trigger_price,
                                              double &tp_price)
 {
@@ -1682,13 +1706,15 @@ bool PandoraBuildFirstEntryObservationTargets(const SignalParams &signal_params,
     return false;
   if(anchor_price <= 0.0)
     return false;
-  if(!PandoraFirstEntryStageIsObservation(stage))
+
+  int target_depth = signal_params.pandora_first_entry_target_depth;
+  if(!PandoraFirstEntryDepthIsDeep(target_depth))
     return false;
 
-  PandoraFirstEntryModes mode = signal_params.pandora_first_entry_mode;
-  if(!PandoraFirstEntryModeIsDeep(mode))
-    return false;
-  if(stage == PANDORA_FIRST_ENTRY_STAGE_SL1_OBSERVE && mode != First_Entry_Sl_2)
+  int safe_observation_depth = observation_depth;
+  if(safe_observation_depth < 0)
+    safe_observation_depth = 0;
+  if(safe_observation_depth >= target_depth)
     return false;
 
   double point_size = PandoraResolvePointSizeSafe();
@@ -1714,18 +1740,25 @@ bool PandoraBuildFirstEntryObservationTargets(const SignalParams &signal_params,
 
 bool PandoraSetFirstEntryObservationTargets(SignalParams &signal_params,
                                             const double anchor_price,
-                                            const PandoraFirstEntryStages stage)
+                                            const int observation_depth)
 {
   double trigger_price = 0.0;
   double tp_price = 0.0;
   if(!PandoraBuildFirstEntryObservationTargets(signal_params,
                                                anchor_price,
-                                               stage,
+                                               observation_depth,
                                                trigger_price,
                                                tp_price))
     return false;
 
-  signal_params.pandora_first_entry_stage = stage;
+  int safe_observation_depth = observation_depth;
+  if(safe_observation_depth < 0)
+    safe_observation_depth = 0;
+
+  signal_params.pandora_first_entry_stage = (safe_observation_depth <= 0)
+                                            ? PANDORA_FIRST_ENTRY_STAGE_BREAKOUT_OBSERVE
+                                            : PANDORA_FIRST_ENTRY_STAGE_SL1_OBSERVE;
+  signal_params.pandora_first_entry_observation_depth = safe_observation_depth;
   signal_params.pandora_observation_anchor_price = PandoraNormalizeTargetPrice(anchor_price);
   signal_params.pandora_observation_trigger_price = trigger_price;
   signal_params.pandora_observation_tp_price = tp_price;

@@ -210,7 +210,7 @@ bool PandoraBuildSignal(const SignalTypes direction)
     signal.pandora_broker_stop_sync_status = PANDORA_BROKER_STOPS_NOT_REQUIRED;
     if(!PandoraSetFirstEntryObservationTargets(signal,
                                                theoretical_entry,
-                                               PANDORA_FIRST_ENTRY_STAGE_BREAKOUT_OBSERVE))
+                                               0))
     {
       if(Enable_Logs)
         Print("Pandora first-entry observation setup failed for direction: ", EnumToString(direction));

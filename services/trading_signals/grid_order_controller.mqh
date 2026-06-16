@@ -239,7 +239,7 @@ bool GridUpdatePandoraFirstEntryObservation(SignalParams &signal_params,
     signal_params.pandora_observation_entry_time = TimeCurrent();
     if(PandoraSetFirstEntryObservationTargets(signal_params,
                                              trigger_anchor,
-                                             PANDORA_FIRST_ENTRY_STAGE_SL1_OBSERVE))
+                                             1))
     {
       if(Enable_Logs)
       {
