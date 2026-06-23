@@ -198,6 +198,7 @@ void OnDeinit(const int reason)
   LicenseServiceOnDeinit();
   EventKillTimer();
   PandoraXBoostSave();
+  PandoraXBoostResetRuntimeState();
   ClearFrontendVisualization();
   Comment("");
   EALifecycleClearRemovalRequest();

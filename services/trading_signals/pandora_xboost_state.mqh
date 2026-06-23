@@ -21,6 +21,7 @@ void PandoraXBoostBuildNextCandidatesFromClosedSignal(const SignalParams &closed
                                                       const int next_depth);
 bool PandoraXBoostApplyBrokerDecision(SignalParams &signal_params);
 void PandoraXBoostReleaseBrokerAfterClose(const SignalParams &signal_params);
+void PandoraXBoostResetRuntimeState();
 
 int PandoraXBoostClampDepth(const int configured_depth)
 {
@@ -570,6 +571,44 @@ void PandoraXBoostClearTopCandidates()
   ArrayResize(g_pandora_xboost_top_candidates, 0, 0);
 }
 
+void PandoraXBoostResetRuntimeState()
+{
+  PandoraXBoostRootState reset_root;
+  g_pandora_xboost_root = reset_root;
+  PandoraXBoostClearTopCandidates();
+}
+
+bool PandoraXBoostIsDerivedNode(const SignalParams &signal_params)
+{
+  return (signal_params.pandora_xboost_enabled &&
+          signal_params.pandora_xboost_depth > 1);
+}
+
+bool PandoraXBoostShouldSkipPandoraDailyOutcome(const SignalParams &signal_params)
+{
+  return PandoraXBoostIsDerivedNode(signal_params);
+}
+
+bool PandoraXBoostShouldSkipDailySignalOutcome(const SignalParams &signal_params)
+{
+  return (PandoraXBoostIsDerivedNode(signal_params) &&
+          !signal_params.pandora_xboost_broker_selected);
+}
+
+bool PandoraXBoostBrokerDailyLimitAllows(const SignalParams &signal_params)
+{
+  if(!PandoraXBoostIsDerivedNode(signal_params))
+    return true;
+  return DailySignalLimitAllowsAttempt(signal_params.signal_type);
+}
+
+void PandoraXBoostRegisterBrokerDailyStart(const SignalParams &signal_params)
+{
+  if(!PandoraXBoostIsDerivedNode(signal_params))
+    return;
+  RegisterDailySignalStart(signal_params);
+}
+
 int PandoraXBoostMinSamplesForDepth(const int depth)
 {
   if(depth <= 1)
@@ -1066,6 +1105,8 @@ bool PandoraXBoostApplyBrokerDecision(SignalParams &signal_params)
   PandoraXBoostCandidate candidate;
   if(!PandoraXBoostFindReadyCandidateForSignal(signal_params, candidate))
     return false;
+  if(!PandoraXBoostBrokerDailyLimitAllows(signal_params))
+    return false;
 
   int next_trade_index = 0;
   if(!PandoraXBoostBrokerBudgetAllowsDepth(signal_params.pandora_xboost_depth,
@@ -1082,6 +1123,7 @@ bool PandoraXBoostApplyBrokerDecision(SignalParams &signal_params)
                                                   : PANDORA_BROKER_STOPS_NOT_REQUIRED;
   g_pandora_xboost_root.broker_active = true;
   g_pandora_xboost_root.broker_trade_count = next_trade_index;
+  PandoraXBoostRegisterBrokerDailyStart(signal_params);
 
   if(Enable_Logs)
   {

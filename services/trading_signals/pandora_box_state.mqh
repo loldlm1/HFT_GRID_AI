@@ -14,6 +14,8 @@ const int PANDORA_FIRST_ENTRY_BREAKOUT_DEPTH = 0;
 const int PANDORA_FIRST_ENTRY_MAX_DEPTH = 20;
 const string PANDORA_INVALID_PREVIOUS_D1_ANCHOR = "No previous D1 anchor for Pandora wrapped window";
 
+void PandoraXBoostResetRuntimeState();
+
 string PandoraLocalEntryStatusLabel(const PandoraLocalEntryStatuses status)
 {
   switch(status)
@@ -2228,6 +2230,7 @@ void PandoraResetDailyState()
   g_pandora_box_state.last_rearm_close_bar_time = 0;
   PandoraResetBodyEntryState();
   PandoraClearTradeMarkerSnapshots();
+  PandoraXBoostResetRuntimeState();
 }
 
 void PandoraSyncRuntimeConfig()

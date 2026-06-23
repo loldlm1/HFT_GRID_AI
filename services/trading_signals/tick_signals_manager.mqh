@@ -42,8 +42,10 @@ void CheckTickOpenBullishSignals()
                                    running_bullish_signals[i].raw_profit);
       PandoraXBoostRecordClosedSignal(running_bullish_signals[i], false);
       PandoraXBoostAdvanceAfterClose(running_bullish_signals[i]);
-      RegisterDailySignalOutcome(BULLISH, running_bullish_signals[i].raw_profit);
-      PandoraRegisterSideOutcome(running_bullish_signals[i]);
+      if(!PandoraXBoostShouldSkipDailySignalOutcome(running_bullish_signals[i]))
+        RegisterDailySignalOutcome(BULLISH, running_bullish_signals[i].raw_profit);
+      if(!PandoraXBoostShouldSkipPandoraDailyOutcome(running_bullish_signals[i]))
+        PandoraRegisterSideOutcome(running_bullish_signals[i]);
       CloseBullishSignal(running_bullish_signals[i]);
       RemoveElementFromArray(running_bullish_signals, i);
     }
@@ -87,8 +89,10 @@ void CheckTickOpenBearishSignals()
                                    running_bearish_signals[i].raw_profit);
       PandoraXBoostRecordClosedSignal(running_bearish_signals[i], false);
       PandoraXBoostAdvanceAfterClose(running_bearish_signals[i]);
-      RegisterDailySignalOutcome(BEARISH, running_bearish_signals[i].raw_profit);
-      PandoraRegisterSideOutcome(running_bearish_signals[i]);
+      if(!PandoraXBoostShouldSkipDailySignalOutcome(running_bearish_signals[i]))
+        RegisterDailySignalOutcome(BEARISH, running_bearish_signals[i].raw_profit);
+      if(!PandoraXBoostShouldSkipPandoraDailyOutcome(running_bearish_signals[i]))
+        PandoraRegisterSideOutcome(running_bearish_signals[i]);
       CloseBearishSignal(running_bearish_signals[i]);
       RemoveElementFromArray(running_bearish_signals, i);
     }
