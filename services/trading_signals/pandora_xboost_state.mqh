@@ -760,9 +760,61 @@ struct PandoraXBoostBrokerTradeRow
   }
 };
 
+struct PandoraXBoostSampleRow
+{
+  string   sample_id;
+  string   node_key;
+  double   r_multiple;
+  datetime seen_at;
+
+  PandoraXBoostSampleRow()
+  {
+    sample_id = "";
+    node_key = "";
+    r_multiple = 0.0;
+    seen_at = 0;
+  }
+
+  PandoraXBoostSampleRow(const PandoraXBoostSampleRow &row)
+  {
+    sample_id = row.sample_id;
+    node_key = row.node_key;
+    r_multiple = row.r_multiple;
+    seen_at = row.seen_at;
+  }
+};
+
+struct PandoraXBoostRollingStats
+{
+  int      samples;
+  double   total_r;
+  double   sum_r2;
+  double   avg_r;
+  datetime last_seen;
+
+  PandoraXBoostRollingStats()
+  {
+    samples = 0;
+    total_r = 0.0;
+    sum_r2 = 0.0;
+    avg_r = 0.0;
+    last_seen = 0;
+  }
+
+  PandoraXBoostRollingStats(const PandoraXBoostRollingStats &stats)
+  {
+    samples = stats.samples;
+    total_r = stats.total_r;
+    sum_r2 = stats.sum_r2;
+    avg_r = stats.avg_r;
+    last_seen = stats.last_seen;
+  }
+};
+
 PandoraXBoostRootState g_pandora_xboost_root;
 PandoraXBoostStats     g_pandora_xboost_stats[];
 string                 g_pandora_xboost_sample_ids[];
+PandoraXBoostSampleRow g_pandora_xboost_sample_rows[];
 PandoraXBoostCandidate g_pandora_xboost_top_candidates[];
 string                 g_pandora_xboost_pending_sample_rows[];
 PandoraXBoostBrokerTradeRow g_pandora_xboost_broker_trades[];
@@ -785,6 +837,99 @@ void PandoraXBoostResetRuntimeState()
   PandoraXBoostRootState reset_root;
   g_pandora_xboost_root = reset_root;
   PandoraXBoostClearTopCandidates();
+}
+
+bool PandoraXBoostStringStartsWith(const string value,
+                                   const string prefix)
+{
+  if(prefix == "")
+    return false;
+  return (StringFind(value, prefix) == 0);
+}
+
+datetime PandoraXBoostRollingCutoffDays(const int days)
+{
+  if(days <= 0)
+    return 0;
+  return TimeCurrent() - (days * 86400);
+}
+
+void PandoraXBoostRollingStatsAdd(PandoraXBoostRollingStats &stats,
+                                  const double r_multiple,
+                                  const datetime seen_at)
+{
+  stats.samples++;
+  stats.total_r += r_multiple;
+  stats.sum_r2 += r_multiple * r_multiple;
+  stats.avg_r = stats.total_r / stats.samples;
+  if(seen_at > stats.last_seen)
+    stats.last_seen = seen_at;
+}
+
+bool PandoraXBoostRememberSampleRow(const string sample_id,
+                                    const string node_key,
+                                    const double r_multiple,
+                                    const datetime seen_at)
+{
+  if(sample_id == "" || node_key == "")
+    return false;
+
+  PandoraXBoostSampleRow row;
+  row.sample_id = sample_id;
+  row.node_key = node_key;
+  row.r_multiple = r_multiple;
+  row.seen_at = seen_at;
+
+  int total = ArraySize(g_pandora_xboost_sample_rows);
+  ArrayResize(g_pandora_xboost_sample_rows, total + 1, 128);
+  g_pandora_xboost_sample_rows[total] = row;
+  return true;
+}
+
+bool PandoraXBoostAggregateNodeSamples(const string node_key,
+                                       const datetime cutoff_time,
+                                       PandoraXBoostRollingStats &stats)
+{
+  PandoraXBoostRollingStats reset_stats;
+  stats = reset_stats;
+  if(node_key == "")
+    return false;
+
+  int total = ArraySize(g_pandora_xboost_sample_rows);
+  for(int i = 0; i < total; i++)
+  {
+    PandoraXBoostSampleRow row = g_pandora_xboost_sample_rows[i];
+    if(row.node_key != node_key)
+      continue;
+    if(cutoff_time > 0 && row.seen_at < cutoff_time)
+      continue;
+
+    PandoraXBoostRollingStatsAdd(stats, row.r_multiple, row.seen_at);
+  }
+  return (stats.samples > 0);
+}
+
+bool PandoraXBoostAggregateStrategySamples(const string strategy_key,
+                                           const datetime cutoff_time,
+                                           PandoraXBoostRollingStats &stats)
+{
+  PandoraXBoostRollingStats reset_stats;
+  stats = reset_stats;
+  if(strategy_key == "")
+    return false;
+
+  int total = ArraySize(g_pandora_xboost_sample_rows);
+  for(int i = 0; i < total; i++)
+  {
+    PandoraXBoostSampleRow row = g_pandora_xboost_sample_rows[i];
+    if(!PandoraXBoostStringStartsWith(row.node_key, strategy_key))
+      continue;
+    if(cutoff_time > 0 && row.seen_at < cutoff_time)
+      continue;
+
+    PandoraXBoostRollingStatsAdd(stats, row.r_multiple, row.seen_at);
+  }
+  return (stats.samples > 0);
 }
 
 bool PandoraXBoostIsDerivedNode(const SignalParams &signal_params)
@@ -1050,6 +1195,37 @@ void PandoraXBoostBuildCandidate(const string strategy_key,
   candidate.expectancy_r   = 0.0;
   candidate.edge_r         = 0.0;
   candidate.score_r        = 0.0;
+  candidate.posterior_r    = 0.0;
+  candidate.conservative_score_r = 0.0;
+  candidate.uncertainty_penalty_r = 0.0;
+  candidate.depth_penalty_r = 0.0;
+  candidate.broker_degradation_r = 0.0;
+  candidate.local_window_120_samples = 0;
+  candidate.local_window_60_samples = 0;
+  candidate.broker_node_samples = 0;
+  candidate.broker_recent_samples = 0;
+  candidate.local_window_120_avg_r = 0.0;
+  candidate.local_window_60_avg_r = 0.0;
+  candidate.broker_node_avg_r = 0.0;
+  candidate.broker_recent_avg_r = 0.0;
+
+  PandoraXBoostRollingStats window_120;
+  if(PandoraXBoostAggregateNodeSamples(node_key,
+                                       PandoraXBoostRollingCutoffDays(PANDORA_XBOOST_ROLLING_DAYS_120),
+                                       window_120))
+  {
+    candidate.local_window_120_samples = window_120.samples;
+    candidate.local_window_120_avg_r = window_120.avg_r;
+  }
+
+  PandoraXBoostRollingStats window_60;
+  if(PandoraXBoostAggregateNodeSamples(node_key,
+                                       PandoraXBoostRollingCutoffDays(PANDORA_XBOOST_ROLLING_DAYS_60),
+                                       window_60))
+  {
+    candidate.local_window_60_samples = window_60.samples;
+    candidate.local_window_60_avg_r = window_60.avg_r;
+  }
 
   PandoraXBoostStats stats;
   if(!PandoraXBoostLookupStats(node_key, stats))

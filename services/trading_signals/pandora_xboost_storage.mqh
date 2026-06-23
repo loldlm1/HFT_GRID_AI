@@ -273,6 +273,7 @@ void PandoraXBoostClearStorageMemory()
 {
   ArrayResize(g_pandora_xboost_stats, 0, 0);
   ArrayResize(g_pandora_xboost_sample_ids, 0, 0);
+  ArrayResize(g_pandora_xboost_sample_rows, 0, 0);
   ArrayResize(g_pandora_xboost_pending_sample_rows, 0, 0);
   ArrayResize(g_pandora_xboost_broker_trades, 0, 0);
   ArrayResize(g_pandora_xboost_broker_trade_ids, 0, 0);
@@ -402,7 +403,16 @@ bool PandoraXBoostLoadSampleIds()
       continue;
 
     if(PandoraXBoostRememberSampleId(fields[0]))
+    {
       ids_loaded++;
+      if(ArraySize(fields) >= 5)
+      {
+        PandoraXBoostRememberSampleRow(fields[0],
+                                       fields[1],
+                                       StringToDouble(fields[3]),
+                                       (datetime)StringToInteger(fields[4]));
+      }
+    }
   }
 
   FileClose(handle);
@@ -1026,12 +1036,13 @@ bool PandoraXBoostRecordClosedSignal(SignalParams &signal_params,
     return false;
   }
 
+  datetime seen_at = TimeCurrent();
   string row = StringFormat("%s,%s,%s,%.8f,%I64d",
                             sample_id,
                             node_key,
                             close_label,
                             r_multiple,
-                            (long)TimeCurrent());
+                            (long)seen_at);
   if(!PandoraXBoostAppendPendingSampleRow(sample_id, row))
   {
     PandoraXBoostLogEvent("PANDORA_XBOOST_SAMPLE_APPEND_FAIL",
@@ -1041,7 +1052,11 @@ bool PandoraXBoostRecordClosedSignal(SignalParams &signal_params,
     return false;
   }
 
-  PandoraXBoostUpdateStats(node_key, r_multiple, TimeCurrent());
+  PandoraXBoostRememberSampleRow(sample_id,
+                                 node_key,
+                                 r_multiple,
+                                 seen_at);
+  PandoraXBoostUpdateStats(node_key, r_multiple, seen_at);
   signal_params.pandora_xboost_sample_id = sample_id;
   signal_params.pandora_xboost_node_key = node_key;
   PandoraXBoostRecordBrokerTrade(signal_params,
