@@ -345,7 +345,8 @@ bool PandoraXBoostRecordClosedSignal(SignalParams &signal_params,
                                          parent_event,
                                          depth,
                                          signal_params.signal_type,
-                                         event_step_index);
+                                         event_step_index,
+                                         signal_params.pandora_xboost_node_path);
   }
 
   PandoraXBoostCloseEvents close_event = PandoraXBoostResolveCloseEvent(signal_params,

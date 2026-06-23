@@ -137,6 +137,7 @@ void ProtectionRiskForceCloseSignalArray(SignalParams &signals[],
                                  signals[i].close_price,
                                  signals[i].raw_profit);
     PandoraXBoostRecordClosedSignal(signals[i], true);
+    PandoraXBoostAdvanceAfterClose(signals[i]);
     PandoraRegisterSideOutcome(signals[i]);
 
     if(direction == BULLISH)

@@ -40,6 +40,7 @@
 #include "trading_management_strategies/grid_trend_risk_modes.mqh"
 #include "trading_signals/grid_trend_risk_manager.mqh"
 #include "trading_signals/grid_order_controller.mqh"
+#include "trading_signals/pandora_xboost_progression.mqh"
 #include "trading_signals/tick_signals_manager.mqh"
 #include "trading_signals/protection_risk_filter.mqh"
 

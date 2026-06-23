@@ -149,6 +149,7 @@ struct SignalParams
   string   pandora_xboost_strategy_key;
   string   pandora_xboost_root_id;
   string   pandora_xboost_node_key;
+  string   pandora_xboost_node_path;
   string   pandora_xboost_sample_id;
   string   pandora_xboost_display_id;
   datetime context_structure_snapshot_time;
@@ -295,6 +296,7 @@ struct SignalParams
     pandora_xboost_strategy_key = "";
     pandora_xboost_root_id     = "";
     pandora_xboost_node_key    = "";
+    pandora_xboost_node_path   = "";
     pandora_xboost_sample_id   = "";
     pandora_xboost_display_id  = "";
     context_structure_snapshot_time = 0;
@@ -415,6 +417,7 @@ struct SignalParams
     pandora_xboost_strategy_key  = signal_params.pandora_xboost_strategy_key;
     pandora_xboost_root_id       = signal_params.pandora_xboost_root_id;
     pandora_xboost_node_key      = signal_params.pandora_xboost_node_key;
+    pandora_xboost_node_path     = signal_params.pandora_xboost_node_path;
     pandora_xboost_sample_id     = signal_params.pandora_xboost_sample_id;
     pandora_xboost_display_id    = signal_params.pandora_xboost_display_id;
     strategy_context           = signal_params.strategy_context;

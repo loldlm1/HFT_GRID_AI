@@ -200,6 +200,7 @@ bool PandoraBuildSignal(const SignalTypes direction)
   signal.pandora_broker_stop_sync_status = Pandora_Box_Set_Broker_SLTP
                                            ? PANDORA_BROKER_STOPS_PENDING
                                            : PANDORA_BROKER_STOPS_NOT_REQUIRED;
+  PandoraXBoostPrepareRootSignal(signal);
 
   if(PandoraFirstEntryDepthIsDeep(signal.pandora_first_entry_target_depth))
   {

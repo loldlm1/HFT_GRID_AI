@@ -201,18 +201,21 @@ string PandoraXBoostBuildNodeKey(const string strategy_key,
                                  const PandoraXBoostCloseEvents parent_event,
                                  const int depth,
                                  const SignalTypes candidate_side,
-                                 const int event_step_index = 0)
+                                 const int event_step_index = 0,
+                                 const string node_path = "")
 {
   int safe_depth = depth;
   if(safe_depth < 1)
     safe_depth = 1;
-  return StringFormat("%s|%s|%s|%s|%d|%s",
+  string safe_path = PandoraXBoostSafeKeyPart(node_path);
+  return StringFormat("%s|%s|%s|%s|%d|%s|%s",
                       strategy_key,
                       PandoraXBoostDateKey(root_date),
                       PandoraXBoostDirectionLabel(root_side),
                       PandoraXBoostCloseEventLabel(parent_event, event_step_index),
                       safe_depth,
-                      PandoraXBoostDirectionLabel(candidate_side));
+                      PandoraXBoostDirectionLabel(candidate_side),
+                      safe_path);
 }
 
 string PandoraXBoostBuildSampleId(const string strategy_key,
@@ -241,6 +244,92 @@ string PandoraXBoostBuildDisplayId(const SignalTypes candidate_side,
 {
   return PandoraXBoostDirectionLabel(candidate_side) + "-" +
          PandoraXBoostCloseEventLabel(parent_event, event_step_index);
+}
+
+void PandoraXBoostPrepareSignalMetadata(SignalParams &signal_params,
+                                        const string strategy_key,
+                                        const string root_id,
+                                        const datetime root_date,
+                                        const SignalTypes root_side,
+                                        const PandoraXBoostCloseEvents parent_event,
+                                        const int depth,
+                                        const bool local_only,
+                                        const string parent_node_path = "")
+{
+  int safe_depth = depth;
+  if(safe_depth < 1)
+    safe_depth = 1;
+
+  signal_params.pandora_xboost_enabled = true;
+  signal_params.pandora_xboost_local_only = local_only;
+  signal_params.pandora_xboost_broker_selected = false;
+  signal_params.pandora_xboost_depth = safe_depth;
+  signal_params.pandora_xboost_broker_trade_index = 0;
+  signal_params.pandora_xboost_root_side = root_side;
+  signal_params.pandora_xboost_parent_event = parent_event;
+  signal_params.pandora_xboost_close_event = PANDORA_XBOOST_EVENT_NONE;
+  signal_params.pandora_xboost_strategy_key = strategy_key;
+  signal_params.pandora_xboost_root_id = root_id;
+  signal_params.pandora_xboost_display_id =
+    PandoraXBoostBuildDisplayId(signal_params.signal_type, parent_event);
+  if(parent_node_path == "")
+    signal_params.pandora_xboost_node_path = signal_params.pandora_xboost_display_id;
+  else
+    signal_params.pandora_xboost_node_path = parent_node_path + ">" +
+                                             signal_params.pandora_xboost_display_id;
+  signal_params.pandora_xboost_node_key =
+    PandoraXBoostBuildNodeKey(strategy_key,
+                              root_date,
+                              root_side,
+                              parent_event,
+                              safe_depth,
+                              signal_params.signal_type,
+                              0,
+                              signal_params.pandora_xboost_node_path);
+  signal_params.pandora_xboost_sample_id = "";
+}
+
+void PandoraXBoostPrepareRootSignal(SignalParams &signal_params)
+{
+  if(!PandoraXBoostEnabled())
+    return;
+  if(!IsPandoraSignal(signal_params))
+    return;
+
+  datetime root_date = g_pandora_box_state.day_anchor;
+  if(root_date <= 0)
+    root_date = ResolveCurrentDayStart();
+
+  SignalTypes root_side = signal_params.signal_type;
+  PandoraXBoostCloseEvents root_event = PandoraXBoostRootEventForDirection(root_side);
+  string strategy_key = PandoraXBoostBuildStrategyKey();
+  string root_id = StringFormat("%s|%s|%s",
+                                strategy_key,
+                                PandoraXBoostDateKey(root_date),
+                                PandoraXBoostDirectionLabel(root_side));
+
+  g_pandora_xboost_root.active = true;
+  g_pandora_xboost_root.broker_active = false;
+  g_pandora_xboost_root.root_side = root_side;
+  g_pandora_xboost_root.last_event = root_event;
+  g_pandora_xboost_root.root_date = root_date;
+  g_pandora_xboost_root.strategy_key = strategy_key;
+  g_pandora_xboost_root.root_id = root_id;
+  g_pandora_xboost_root.current_depth = 1;
+  g_pandora_xboost_root.broker_trade_count = 0;
+
+  PandoraXBoostPrepareSignalMetadata(signal_params,
+                                     strategy_key,
+                                     root_id,
+                                     root_date,
+                                     root_side,
+                                     root_event,
+                                     1,
+                                     true);
+
+  signal_params.pandora_first_entry_target_depth = PANDORA_FIRST_ENTRY_OFF_DEPTH;
+  signal_params.pandora_broker_execution_status = PANDORA_BROKER_NOT_ATTEMPTED;
+  signal_params.pandora_broker_stop_sync_status = PANDORA_BROKER_STOPS_NOT_REQUIRED;
 }
 
 PandoraXBoostCloseEvents PandoraXBoostResolveCloseEvent(const SignalParams &signal_params,
