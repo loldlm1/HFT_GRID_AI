@@ -101,6 +101,13 @@ void DrawGridLevels(const long chart_id,
     stop_label = GridSignalLineLabel(signal_params,
                                      PandoraFirstEntryObservationTriggerLabel(signal_params) + " entry");
   }
+  else if(IsPandoraSignal(signal_params) &&
+          level_state.status == GRID_ORDER_TP_TRAILING_ACTIVE)
+  {
+    stop_label = GridSignalLineLabel(signal_params,
+                                    "TRAIL SL step=" +
+                                    IntegerToString(signal_params.pandora_trailing_step_index));
+  }
 
   int level_index = level_state.level_index;
   double level_lot_size = level_state.lot_size;
@@ -119,11 +126,15 @@ void DrawGridLevels(const long chart_id,
   else
     UpdateHorizontalLine(chart_id, stop_name, COLOR_PROFIT_NEGATIVE, 0.0);
 
-  // Trailing active: swap TP for trailing; keep final visible
+  // Trailing active: swap TP for trailing; Pandora shows the resolved trailing
+  // stop on the SL line because broker/local stop handling is SL-based.
   if(level_state.status == GRID_ORDER_TP_TRAILING_ACTIVE)
   {
     UpdateHorizontalLine(chart_id, tp_name, COLOR_PROFIT_POSITIVE, 0.0);
-    UpdateHorizontalLine(chart_id, trailing_name, COLOR_PROFIT_POSITIVE, trailing_price, trailing_label);
+    if(IsPandoraSignal(signal_params))
+      UpdateHorizontalLine(chart_id, trailing_name, COLOR_PROFIT_POSITIVE, 0.0);
+    else
+      UpdateHorizontalLine(chart_id, trailing_name, COLOR_PROFIT_POSITIVE, trailing_price, trailing_label);
   }
 
   if(Grid_BreakEven_Mode != BE_DISABLE)
@@ -167,15 +178,40 @@ void BuildSignalSummary(const SignalParams &signal_params,
 
   if(IsPandoraSignal(signal_params))
   {
-    summary_lines[summary_index] = StringFormat("%s %s %s/%s | act=%d pend=%d trig=%.5f tp=%.5f",
-                                                direction_label,
-                                                context_label,
-                                                PandoraFirstEntryDepthLabel(signal_params.pandora_first_entry_target_depth),
-                                                PandoraFirstEntryObservationStageLabel(signal_params),
-                                                active_levels,
-                                                pending_levels,
-                                                signal_params.pandora_observation_trigger_price,
-                                                signal_params.pandora_observation_tp_price);
+    string pandora_summary = StringFormat("%s %s %s/%s | act=%d pend=%d trig=%.5f tp=%.5f",
+                                          direction_label,
+                                          context_label,
+                                          PandoraFirstEntryDepthLabel(signal_params.pandora_first_entry_target_depth),
+                                          PandoraFirstEntryObservationStageLabel(signal_params),
+                                          active_levels,
+                                          pending_levels,
+                                          signal_params.pandora_observation_trigger_price,
+                                          signal_params.pandora_observation_tp_price);
+    if(signal_params.pandora_xboost_enabled)
+    {
+      string execution_label = "watch";
+      if(signal_params.pandora_xboost_broker_selected)
+        execution_label = "broker";
+      else if(signal_params.pandora_xboost_local_only)
+        execution_label = "local";
+
+      string display_id = signal_params.pandora_xboost_display_id;
+      if(display_id == "")
+        display_id = "XB";
+
+      pandora_summary = pandora_summary +
+                        StringFormat(" | XB d%d %s %s",
+                                     signal_params.pandora_xboost_depth,
+                                     display_id,
+                                     execution_label);
+      if(signal_params.pandora_trailing_step_index > 0)
+      {
+        pandora_summary = pandora_summary +
+                          " ts=" +
+                          IntegerToString(signal_params.pandora_trailing_step_index);
+      }
+    }
+    summary_lines[summary_index] = pandora_summary;
   }
   else
   {
