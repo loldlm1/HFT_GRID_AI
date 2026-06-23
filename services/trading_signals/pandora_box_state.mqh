@@ -385,6 +385,13 @@ void PandoraRebaseToBrokerFill(SignalParams &signal_params,
   PandoraRefreshLocalTargetPrices(signal_params, order_state);
 }
 
+bool PandoraXBoostLocalBranchUsesStepTrailing(const SignalParams &signal_params)
+{
+  return (signal_params.pandora_xboost_enabled &&
+          signal_params.pandora_xboost_local_only &&
+          PandoraRiskStepTrailingEnabled());
+}
+
 bool PandoraFirstEntryRequiresFixedLocalTP(const SignalParams &signal_params,
                                            const GridOrderState &order_state)
 {
@@ -392,7 +399,7 @@ bool PandoraFirstEntryRequiresFixedLocalTP(const SignalParams &signal_params,
     return false;
   int target_depth = signal_params.pandora_first_entry_target_depth;
   if(PandoraFirstEntryDepthIsLocalOnly(target_depth))
-    return true;
+    return !PandoraXBoostLocalBranchUsesStepTrailing(signal_params);
   if(PandoraFirstEntryDepthIsDeep(target_depth) &&
      order_state.position_ticket <= 0 &&
      signal_params.pandora_broker_execution_status != PANDORA_BROKER_EXECUTED &&
@@ -408,7 +415,7 @@ bool PandoraFirstEntryTrailingAllowed(const SignalParams &signal_params,
     return true;
   int target_depth = signal_params.pandora_first_entry_target_depth;
   if(PandoraFirstEntryDepthIsLocalOnly(target_depth))
-    return false;
+    return PandoraXBoostLocalBranchUsesStepTrailing(signal_params);
   if(PandoraFirstEntryDepthIsDeep(target_depth) &&
      order_state.position_ticket <= 0 &&
      signal_params.pandora_broker_execution_status != PANDORA_BROKER_EXECUTED &&

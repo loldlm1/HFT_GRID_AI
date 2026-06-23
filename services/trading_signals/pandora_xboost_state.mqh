@@ -22,6 +22,7 @@ void PandoraXBoostBuildNextCandidatesFromClosedSignal(const SignalParams &closed
 bool PandoraXBoostApplyBrokerDecision(SignalParams &signal_params);
 void PandoraXBoostReleaseBrokerAfterClose(const SignalParams &signal_params);
 void PandoraXBoostResetRuntimeState();
+void PandoraXBoostLogEvent(const string label, const string message);
 string PandoraXBoostStorageShortLabel();
 
 int PandoraXBoostClampDepth(const int configured_depth)
@@ -340,6 +341,12 @@ void PandoraXBoostPrepareRootSignal(SignalParams &signal_params)
                                      true);
   PandoraXBoostBuildRootCandidates(signal_params);
   PandoraXBoostApplyBrokerDecision(signal_params);
+  PandoraXBoostLogEvent("PANDORA_XBOOST_ROOT",
+                        StringFormat("depth=1 id=%s root=%s mode=%s node=%s",
+                                     signal_params.pandora_xboost_display_id,
+                                     root_id,
+                                     PandoraXBoostModeLabel(Pandora_XBoost_Mode),
+                                     signal_params.pandora_xboost_node_key));
 }
 
 PandoraXBoostCloseEvents PandoraXBoostResolveCloseEvent(const SignalParams &signal_params,
@@ -909,23 +916,26 @@ void PandoraXBoostApplyCandidateEdge(PandoraXBoostCandidate &candidate,
 
 void PandoraXBoostLogTopCandidates()
 {
-  if(!Enable_Logs)
+  if(!Enable_Logs && !Enable_File_Logs)
     return;
 
   int total = ArraySize(g_pandora_xboost_top_candidates);
   for(int i = 0; i < total; i++)
   {
     PandoraXBoostCandidate candidate = g_pandora_xboost_top_candidates[i];
-    PrintFormat("PANDORA_XBOOST_DRYRUN rank=%d depth=%d id=%s status=%s samples=%d exp=%.3f edge=%.3f score=%.3f reason=%s",
-                i + 1,
-                candidate.depth,
-                candidate.display_id,
-                PandoraXBoostCandidateStatusLabel(candidate.status),
-                candidate.samples,
-                candidate.expectancy_r,
-                candidate.edge_r,
-                candidate.score_r,
-                candidate.reason);
+    string message = StringFormat("rank=%d depth=%d id=%s status=%s samples=%d exp=%.3f edge=%.3f score=%.3f reason=%s",
+                                  i + 1,
+                                  candidate.depth,
+                                  candidate.display_id,
+                                  PandoraXBoostCandidateStatusLabel(candidate.status),
+                                  candidate.samples,
+                                  candidate.expectancy_r,
+                                  candidate.edge_r,
+                                  candidate.score_r,
+                                  candidate.reason);
+    if(Enable_Logs)
+      Print("PANDORA_XBOOST_DRYRUN ", message);
+    PandoraXBoostLogEvent("PANDORA_XBOOST_DRYRUN", message);
   }
 }
 
@@ -1101,18 +1111,43 @@ bool PandoraXBoostApplyBrokerDecision(SignalParams &signal_params)
 
   PandoraXBoostForceLocalOnly(signal_params);
   if(!PandoraXBoostInferenceMode())
+  {
+    PandoraXBoostLogEvent("PANDORA_XBOOST_BROKER_SKIP",
+                          StringFormat("depth=%d id=%s reason=MODE_%s",
+                                       signal_params.pandora_xboost_depth,
+                                       signal_params.pandora_xboost_display_id,
+                                       PandoraXBoostModeLabel(Pandora_XBoost_Mode)));
     return false;
+  }
 
   PandoraXBoostCandidate candidate;
   if(!PandoraXBoostFindReadyCandidateForSignal(signal_params, candidate))
+  {
+    PandoraXBoostLogEvent("PANDORA_XBOOST_BROKER_SKIP",
+                          StringFormat("depth=%d id=%s reason=NO_READY_CANDIDATE",
+                                       signal_params.pandora_xboost_depth,
+                                       signal_params.pandora_xboost_display_id));
     return false;
+  }
   if(!PandoraXBoostBrokerDailyLimitAllows(signal_params))
+  {
+    PandoraXBoostLogEvent("PANDORA_XBOOST_BROKER_SKIP",
+                          StringFormat("depth=%d id=%s reason=DAILY_LIMIT",
+                                       signal_params.pandora_xboost_depth,
+                                       signal_params.pandora_xboost_display_id));
     return false;
+  }
 
   int next_trade_index = 0;
   if(!PandoraXBoostBrokerBudgetAllowsDepth(signal_params.pandora_xboost_depth,
                                            next_trade_index))
+  {
+    PandoraXBoostLogEvent("PANDORA_XBOOST_BROKER_SKIP",
+                          StringFormat("depth=%d id=%s reason=BUDGET_OR_ACTIVE",
+                                       signal_params.pandora_xboost_depth,
+                                       signal_params.pandora_xboost_display_id));
     return false;
+  }
 
   signal_params.pandora_xboost_local_only = false;
   signal_params.pandora_xboost_broker_selected = true;
@@ -1136,6 +1171,14 @@ bool PandoraXBoostApplyBrokerDecision(SignalParams &signal_params)
                 candidate.expectancy_r,
                 candidate.edge_r);
   }
+  PandoraXBoostLogEvent("PANDORA_XBOOST_BROKER_SELECTED",
+                        StringFormat("depth=%d trade=%d id=%s samples=%d exp=%.3f edge=%.3f",
+                                     signal_params.pandora_xboost_depth,
+                                     next_trade_index,
+                                     signal_params.pandora_xboost_display_id,
+                                     candidate.samples,
+                                     candidate.expectancy_r,
+                                     candidate.edge_r));
   return true;
 }
 

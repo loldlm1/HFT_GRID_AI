@@ -834,6 +834,84 @@ chart objects.
 - **Validation**:
   - Static review of label strings and existing panel width limits.
 
+## Sprint 13: XBoost Audit Logging And Trailing Local Lifecycle
+
+**Goal**: Make XBoost persistence auditable through `query_debug.txt`, surface
+CSV folder/file failures explicitly, and make local XBoost branches inherit
+Pandora trailing semantics instead of falling back to fixed local TP behavior.
+**Commit**: `Sprint 13: audit XBoost storage and trailing lifecycle`
+**Demo/Validation**:
+- `Enable_File_Logs=true` writes XBoost load/save/candidate/branch/storage
+  diagnostics into `query_debug.txt`.
+- XBoost creates/checks the Common storage folder during init and save, and
+  logs `GetLastError()` details when folder or CSV operations fail.
+- In `Pandora_Risk_Trailing_Mode=PANDORA_RISK_TRAILING_STEP_TP`, XBoost local
+  branches do not use fixed TP closure simply because they are local-only
+  statistical branches.
+- MetaEditor compile passes with zero errors and zero warnings.
+
+### Task 13.1: Add XBoost File Logging Helpers
+
+- **Location**:
+  - `services/trading_signals/pandora_xboost_storage.mqh`
+  - `services/trading_signals/pandora_xboost_state.mqh`
+  - `services/trading_signals/pandora_xboost_progression.mqh`
+- **Description**: Add compact XBoost log helpers that write to
+  `query_debug.txt` when `Enable_File_Logs` is enabled, mirroring key `Print`
+  diagnostics for load, save, candidates, broker selection, and local branch
+  creation.
+- **Dependencies**: Sprint 12.
+- **Acceptance Criteria**:
+  - `query_debug.txt` includes `PANDORA_XBOOST_LOAD`,
+    `PANDORA_XBOOST_SAVE`, `PANDORA_XBOOST_DRYRUN`,
+    `PANDORA_XBOOST_BROKER_SELECTED`, and
+    `PANDORA_XBOOST_LOCAL_BRANCH` when those events occur.
+  - Log lines stay compact and avoid account/license data.
+  - No new per-tick disk logging is added beyond existing candidate/branch/save
+    event points.
+- **Validation**:
+  - Static review of log call sites and sensitive data exposure.
+
+### Task 13.2: Harden Common CSV Folder And File Diagnostics
+
+- **Location**:
+  - `services/trading_signals/pandora_xboost_storage.mqh`
+  - `HFT_Grid_AI.mq5`
+- **Description**: Ensure the Common storage folder is attempted during XBoost
+  load/init and before save, log folder/file open failures with `GetLastError`,
+  and keep save behavior fail-visible instead of silently returning false.
+- **Dependencies**: Task 13.1.
+- **Acceptance Criteria**:
+  - A run with XBoost enabled attempts to create
+    `Common\Files\PandoraXBoost\...` before any sample exists.
+  - Failed `FileOpen` calls for stats or samples log the filename and error
+    code to `query_debug.txt`.
+  - Empty stats snapshots still create `_stats.csv` with the header when
+    `OnDeinit` runs successfully.
+- **Validation**:
+  - Static review of folder creation, file flags, and save/deinit paths.
+
+### Task 13.3: Allow XBoost Local Branches To Trail
+
+- **Location**:
+  - `services/trading_signals/pandora_box_state.mqh`
+  - `services/trading_signals/pandora_xboost_state.mqh`
+  - `services/trading_signals/pandora_xboost_progression.mqh`
+- **Description**: Distinguish XBoost statistical local branches from normal
+  Pandora first-entry local-only observation. For XBoost branches, allow step
+  trailing and suppress fixed local TP when trailing mode is active.
+- **Dependencies**: Task 13.2.
+- **Acceptance Criteria**:
+  - Normal non-XBoost `First_Entry_Off` behavior remains unchanged.
+  - XBoost local-only branches in step-trailing mode can reach
+    `GRID_ORDER_TP_TRAILING_ACTIVE`.
+  - XBoost local-only branches in step-trailing mode do not close through a
+    fixed TP target generated only because the branch is local-only.
+- **Validation**:
+  - Static trace from XBoost local branch creation through
+    `PandoraFirstEntryRequiresFixedLocalTP`,
+    `PandoraFirstEntryTrailingAllowed`, and local close checks.
+
 ## Validation Strategy
 
 - **Intermediate Sprint validation**: Do not compile after Sprints 1-9. Use

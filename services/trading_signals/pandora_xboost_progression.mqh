@@ -112,6 +112,13 @@ bool PandoraXBoostAddLocalBranch(const SignalParams &parent_signal,
                 branch_signal.pandora_xboost_display_id,
                 branch_signal.pandora_xboost_node_key);
   }
+  PandoraXBoostLogEvent("PANDORA_XBOOST_LOCAL_BRANCH",
+                        StringFormat("depth=%d id=%s local=%s broker=%s node=%s",
+                                     next_depth,
+                                     branch_signal.pandora_xboost_display_id,
+                                     branch_signal.pandora_xboost_local_only ? "1" : "0",
+                                     branch_signal.pandora_xboost_broker_selected ? "1" : "0",
+                                     branch_signal.pandora_xboost_node_key));
   return true;
 }
 
