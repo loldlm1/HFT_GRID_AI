@@ -109,6 +109,10 @@ void PandoraXBoostClearStorageMemory()
   ArrayResize(g_pandora_xboost_stats, 0, 0);
   ArrayResize(g_pandora_xboost_sample_ids, 0, 0);
   ArrayResize(g_pandora_xboost_pending_sample_rows, 0, 0);
+  PandoraXBoostClearTopCandidates();
+  g_pandora_xboost_lookup_cache_key = "";
+  g_pandora_xboost_lookup_cache_hash = 0;
+  g_pandora_xboost_lookup_cache_index = -1;
   g_pandora_xboost_storage_loaded = false;
   g_pandora_xboost_storage_dirty = false;
   g_pandora_xboost_storage_load_time = 0;
@@ -142,7 +146,7 @@ bool PandoraXBoostLoadStats()
 
     PandoraXBoostStats stats;
     stats.node_key       = fields[0];
-    stats.key_hash       = (ulong)StringToInteger(fields[1]);
+    stats.key_hash       = PandoraXBoostHashKey(stats.node_key);
     stats.samples        = (int)StringToInteger(fields[2]);
     stats.wins           = (int)StringToInteger(fields[3]);
     stats.losses         = (int)StringToInteger(fields[4]);

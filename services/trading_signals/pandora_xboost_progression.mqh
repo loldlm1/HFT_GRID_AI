@@ -138,6 +138,9 @@ bool PandoraXBoostAdvanceAfterClose(const SignalParams &closed_signal)
   g_pandora_xboost_root.active = true;
   g_pandora_xboost_root.current_depth = next_depth;
   g_pandora_xboost_root.last_event = close_event;
+  PandoraXBoostBuildNextCandidatesFromClosedSignal(closed_signal,
+                                                   close_event,
+                                                   next_depth);
 
   bool bullish_added = PandoraXBoostAddLocalBranch(closed_signal,
                                                    BULLISH,

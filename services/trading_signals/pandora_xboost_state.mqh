@@ -15,6 +15,11 @@ const double PANDORA_XBOOST_MIN_EDGE_R           = 0.05;
 const double PANDORA_XBOOST_DEPTH_PENALTY_R      = 0.03;
 const int    PANDORA_XBOOST_TOP_CANDIDATE_LIMIT  = 3;
 
+void PandoraXBoostBuildRootCandidates(const SignalParams &root_signal);
+void PandoraXBoostBuildNextCandidatesFromClosedSignal(const SignalParams &closed_signal,
+                                                      const PandoraXBoostCloseEvents close_event,
+                                                      const int next_depth);
+
 int PandoraXBoostClampDepth(const int configured_depth)
 {
   if(configured_depth < PANDORA_XBOOST_MIN_DEPTH)
@@ -326,6 +331,7 @@ void PandoraXBoostPrepareRootSignal(SignalParams &signal_params)
                                      root_event,
                                      1,
                                      true);
+  PandoraXBoostBuildRootCandidates(signal_params);
 
   signal_params.pandora_first_entry_target_depth = PANDORA_FIRST_ENTRY_OFF_DEPTH;
   signal_params.pandora_broker_execution_status = PANDORA_BROKER_NOT_ATTEMPTED;
@@ -553,19 +559,64 @@ string                 g_pandora_xboost_pending_sample_rows[];
 bool                   g_pandora_xboost_storage_loaded = false;
 bool                   g_pandora_xboost_storage_dirty  = false;
 datetime               g_pandora_xboost_storage_load_time = 0;
+string                 g_pandora_xboost_lookup_cache_key = "";
+ulong                  g_pandora_xboost_lookup_cache_hash = 0;
+int                    g_pandora_xboost_lookup_cache_index = -1;
+
+void PandoraXBoostClearTopCandidates()
+{
+  ArrayResize(g_pandora_xboost_top_candidates, 0, 0);
+}
+
+int PandoraXBoostMinSamplesForDepth(const int depth)
+{
+  if(depth <= 1)
+    return PANDORA_XBOOST_MIN_SAMPLES_DEPTH_1;
+  if(depth == 2)
+    return PANDORA_XBOOST_MIN_SAMPLES_DEPTH_2;
+  return PANDORA_XBOOST_MIN_SAMPLES_DEPTH_3;
+}
 
 int PandoraXBoostFindStatsIndexByNodeKey(const string node_key)
 {
   if(node_key == "")
     return -1;
 
+  ulong key_hash = PandoraXBoostHashKey(node_key);
+  int cached_total = ArraySize(g_pandora_xboost_stats);
+  if(g_pandora_xboost_lookup_cache_index >= 0 &&
+     g_pandora_xboost_lookup_cache_index < cached_total &&
+     g_pandora_xboost_lookup_cache_hash == key_hash &&
+     g_pandora_xboost_lookup_cache_key == node_key &&
+     g_pandora_xboost_stats[g_pandora_xboost_lookup_cache_index].node_key == node_key)
+  {
+    return g_pandora_xboost_lookup_cache_index;
+  }
+
   int total = ArraySize(g_pandora_xboost_stats);
   for(int i = 0; i < total; i++)
   {
-    if(g_pandora_xboost_stats[i].node_key == node_key)
+    if(g_pandora_xboost_stats[i].key_hash == key_hash &&
+       g_pandora_xboost_stats[i].node_key == node_key)
+    {
+      g_pandora_xboost_lookup_cache_key = node_key;
+      g_pandora_xboost_lookup_cache_hash = key_hash;
+      g_pandora_xboost_lookup_cache_index = i;
       return i;
+    }
   }
   return -1;
+}
+
+bool PandoraXBoostLookupStats(const string node_key,
+                              PandoraXBoostStats &stats)
+{
+  int stats_index = PandoraXBoostFindStatsIndexByNodeKey(node_key);
+  if(stats_index < 0)
+    return false;
+
+  stats = g_pandora_xboost_stats[stats_index];
+  return true;
 }
 
 int PandoraXBoostEnsureStatsIndex(const string node_key)
@@ -627,6 +678,330 @@ void PandoraXBoostUpdateStats(const string node_key,
   stats.last_seen = seen_at;
   g_pandora_xboost_stats[stats_index] = stats;
   g_pandora_xboost_storage_dirty = true;
+}
+
+int PandoraXBoostCandidateStatusRank(const PandoraXBoostCandidateStatuses status)
+{
+  switch(status)
+  {
+    case PANDORA_XBOOST_CANDIDATE_READY:
+      return 4;
+    case PANDORA_XBOOST_CANDIDATE_WATCH:
+      return 3;
+    case PANDORA_XBOOST_CANDIDATE_WAIT:
+      return 2;
+    case PANDORA_XBOOST_CANDIDATE_BLOCK:
+      return 1;
+    case PANDORA_XBOOST_CANDIDATE_NONE:
+    default:
+      return 0;
+  }
+}
+
+bool PandoraXBoostCandidateIsBetter(const PandoraXBoostCandidate &left,
+                                    const PandoraXBoostCandidate &right)
+{
+  int left_rank = PandoraXBoostCandidateStatusRank(left.status);
+  int right_rank = PandoraXBoostCandidateStatusRank(right.status);
+  if(left_rank != right_rank)
+    return (left_rank > right_rank);
+  if(left.score_r != right.score_r)
+    return (left.score_r > right.score_r);
+  return (left.expectancy_r > right.expectancy_r);
+}
+
+void PandoraXBoostSortTopCandidates()
+{
+  int total = ArraySize(g_pandora_xboost_top_candidates);
+  for(int i = 0; i < total - 1; i++)
+  {
+    for(int j = i + 1; j < total; j++)
+    {
+      if(PandoraXBoostCandidateIsBetter(g_pandora_xboost_top_candidates[j],
+                                        g_pandora_xboost_top_candidates[i]))
+      {
+        PandoraXBoostCandidate tmp = g_pandora_xboost_top_candidates[i];
+        g_pandora_xboost_top_candidates[i] = g_pandora_xboost_top_candidates[j];
+        g_pandora_xboost_top_candidates[j] = tmp;
+      }
+    }
+  }
+}
+
+void PandoraXBoostAddTopCandidate(const PandoraXBoostCandidate &candidate)
+{
+  if(candidate.status == PANDORA_XBOOST_CANDIDATE_NONE)
+    return;
+
+  int total = ArraySize(g_pandora_xboost_top_candidates);
+  if(total < PANDORA_XBOOST_TOP_CANDIDATE_LIMIT)
+  {
+    ArrayResize(g_pandora_xboost_top_candidates, total + 1, PANDORA_XBOOST_TOP_CANDIDATE_LIMIT);
+    g_pandora_xboost_top_candidates[total] = candidate;
+  }
+  else if(PandoraXBoostCandidateIsBetter(candidate,
+                                         g_pandora_xboost_top_candidates[total - 1]))
+  {
+    g_pandora_xboost_top_candidates[total - 1] = candidate;
+  }
+
+  PandoraXBoostSortTopCandidates();
+}
+
+string PandoraXBoostBuildCandidatePath(const string parent_node_path,
+                                       const SignalTypes candidate_side,
+                                       const PandoraXBoostCloseEvents parent_event)
+{
+  string display_id = PandoraXBoostBuildDisplayId(candidate_side, parent_event);
+  if(parent_node_path == "")
+    return display_id;
+  return parent_node_path + ">" + display_id;
+}
+
+bool PandoraXBoostCandidateHasMinimumStats(const PandoraXBoostCandidate &candidate)
+{
+  int min_samples = PandoraXBoostMinSamplesForDepth(candidate.depth);
+  return (candidate.samples >= min_samples &&
+          candidate.expectancy_r >= PANDORA_XBOOST_MIN_EXPECTANCY_R);
+}
+
+void PandoraXBoostBuildCandidate(const string strategy_key,
+                                 const datetime root_date,
+                                 const SignalTypes root_side,
+                                 const PandoraXBoostCloseEvents parent_event,
+                                 const int depth,
+                                 const SignalTypes candidate_side,
+                                 const string parent_node_path,
+                                 PandoraXBoostCandidate &candidate)
+{
+  int safe_depth = depth;
+  if(safe_depth < 1)
+    safe_depth = 1;
+
+  string node_path = PandoraXBoostBuildCandidatePath(parent_node_path,
+                                                    candidate_side,
+                                                    parent_event);
+  string node_key = PandoraXBoostBuildNodeKey(strategy_key,
+                                              root_date,
+                                              root_side,
+                                              parent_event,
+                                              safe_depth,
+                                              candidate_side,
+                                              0,
+                                              node_path);
+
+  candidate.candidate_side = candidate_side;
+  candidate.status         = PANDORA_XBOOST_CANDIDATE_WAIT;
+  candidate.parent_event   = parent_event;
+  candidate.key_hash       = PandoraXBoostHashKey(node_key);
+  candidate.node_key       = node_key;
+  candidate.display_id     = PandoraXBoostBuildDisplayId(candidate_side, parent_event);
+  candidate.reason         = "NO_STATS";
+  candidate.depth          = safe_depth;
+  candidate.samples        = 0;
+  candidate.expectancy_r   = 0.0;
+  candidate.edge_r         = 0.0;
+  candidate.score_r        = 0.0;
+
+  PandoraXBoostStats stats;
+  if(!PandoraXBoostLookupStats(node_key, stats))
+    return;
+
+  candidate.samples      = stats.samples;
+  candidate.expectancy_r = stats.expectancy_r;
+  candidate.score_r      = stats.expectancy_r -
+                           ((safe_depth - 1) * PANDORA_XBOOST_DEPTH_PENALTY_R);
+
+  int min_samples = PandoraXBoostMinSamplesForDepth(safe_depth);
+  if(stats.samples < min_samples)
+  {
+    candidate.status = PANDORA_XBOOST_CANDIDATE_WAIT;
+    candidate.reason = StringFormat("SAMPLES_%d_%d", stats.samples, min_samples);
+    return;
+  }
+
+  if(stats.expectancy_r < PANDORA_XBOOST_MIN_EXPECTANCY_R)
+  {
+    candidate.status = PANDORA_XBOOST_CANDIDATE_BLOCK;
+    candidate.reason = "EXPECTANCY";
+    return;
+  }
+
+  candidate.status = PANDORA_XBOOST_CANDIDATE_WATCH;
+  candidate.reason = "EDGE";
+}
+
+void PandoraXBoostApplyCandidateEdge(PandoraXBoostCandidate &candidate,
+                                     const PandoraXBoostCandidate &alternative,
+                                     const bool has_alternative)
+{
+  if(!PandoraXBoostCandidateHasMinimumStats(candidate))
+    return;
+
+  double alternative_expectancy = 0.0;
+  bool alternative_ready_stats = false;
+  if(has_alternative)
+  {
+    alternative_expectancy = alternative.expectancy_r;
+    alternative_ready_stats = PandoraXBoostCandidateHasMinimumStats(alternative);
+  }
+
+  candidate.edge_r = candidate.expectancy_r - alternative_expectancy;
+  if(candidate.edge_r < PANDORA_XBOOST_MIN_EDGE_R)
+  {
+    candidate.status = PANDORA_XBOOST_CANDIDATE_WATCH;
+    candidate.reason = "EDGE";
+    return;
+  }
+
+  if(alternative_ready_stats && candidate.score_r <= alternative.score_r)
+  {
+    candidate.status = PANDORA_XBOOST_CANDIDATE_WATCH;
+    candidate.reason = "ALT_SCORE";
+    return;
+  }
+
+  candidate.status = PANDORA_XBOOST_CANDIDATE_READY;
+  candidate.reason = "READY";
+}
+
+void PandoraXBoostLogTopCandidates()
+{
+  if(!Enable_Logs)
+    return;
+
+  int total = ArraySize(g_pandora_xboost_top_candidates);
+  for(int i = 0; i < total; i++)
+  {
+    PandoraXBoostCandidate candidate = g_pandora_xboost_top_candidates[i];
+    PrintFormat("PANDORA_XBOOST_DRYRUN rank=%d depth=%d id=%s status=%s samples=%d exp=%.3f edge=%.3f score=%.3f reason=%s",
+                i + 1,
+                candidate.depth,
+                candidate.display_id,
+                PandoraXBoostCandidateStatusLabel(candidate.status),
+                candidate.samples,
+                candidate.expectancy_r,
+                candidate.edge_r,
+                candidate.score_r,
+                candidate.reason);
+  }
+}
+
+void PandoraXBoostBuildCandidateSet(const string strategy_key,
+                                    const datetime root_date,
+                                    const SignalTypes root_side,
+                                    const PandoraXBoostCloseEvents parent_event,
+                                    const int depth,
+                                    const string parent_node_path,
+                                    const bool include_both_sides,
+                                    const SignalTypes single_side)
+{
+  PandoraXBoostClearTopCandidates();
+  if(!PandoraXBoostEnabled())
+    return;
+
+  PandoraXBoostCandidate bullish_candidate;
+  PandoraXBoostCandidate bearish_candidate;
+  bool has_bullish = false;
+  bool has_bearish = false;
+
+  if(include_both_sides || single_side == BULLISH)
+  {
+    PandoraXBoostBuildCandidate(strategy_key,
+                                root_date,
+                                root_side,
+                                parent_event,
+                                depth,
+                                BULLISH,
+                                parent_node_path,
+                                bullish_candidate);
+    has_bullish = true;
+  }
+
+  if(include_both_sides || single_side == BEARISH)
+  {
+    PandoraXBoostBuildCandidate(strategy_key,
+                                root_date,
+                                root_side,
+                                parent_event,
+                                depth,
+                                BEARISH,
+                                parent_node_path,
+                                bearish_candidate);
+    has_bearish = true;
+  }
+
+  if(has_bullish)
+    PandoraXBoostApplyCandidateEdge(bullish_candidate, bearish_candidate, has_bearish);
+  if(has_bearish)
+    PandoraXBoostApplyCandidateEdge(bearish_candidate, bullish_candidate, has_bullish);
+
+  if(has_bullish)
+    PandoraXBoostAddTopCandidate(bullish_candidate);
+  if(has_bearish)
+    PandoraXBoostAddTopCandidate(bearish_candidate);
+
+  PandoraXBoostLogTopCandidates();
+}
+
+void PandoraXBoostBuildRootCandidates(const SignalParams &root_signal)
+{
+  if(!PandoraXBoostEnabled())
+  {
+    PandoraXBoostClearTopCandidates();
+    return;
+  }
+  if(!root_signal.pandora_xboost_enabled)
+    return;
+
+  datetime root_date = g_pandora_xboost_root.root_date;
+  if(root_date <= 0)
+    root_date = ResolveCurrentDayStart();
+
+  PandoraXBoostBuildCandidateSet(root_signal.pandora_xboost_strategy_key,
+                                 root_date,
+                                 root_signal.pandora_xboost_root_side,
+                                 root_signal.pandora_xboost_parent_event,
+                                 root_signal.pandora_xboost_depth,
+                                 "",
+                                 false,
+                                 root_signal.signal_type);
+}
+
+void PandoraXBoostBuildNextCandidatesFromClosedSignal(const SignalParams &closed_signal,
+                                                      const PandoraXBoostCloseEvents close_event,
+                                                      const int next_depth)
+{
+  if(!PandoraXBoostEnabled())
+  {
+    PandoraXBoostClearTopCandidates();
+    return;
+  }
+  if(!closed_signal.pandora_xboost_enabled)
+    return;
+
+  string strategy_key = closed_signal.pandora_xboost_strategy_key;
+  if(strategy_key == "")
+    strategy_key = PandoraXBoostBuildStrategyKey();
+
+  datetime root_date = g_pandora_xboost_root.root_date;
+  if(root_date <= 0)
+    root_date = g_pandora_box_state.day_anchor;
+  if(root_date <= 0)
+    root_date = ResolveCurrentDayStart();
+
+  SignalTypes root_side = closed_signal.pandora_xboost_root_side;
+  if(root_side == NO_SIGNAL)
+    root_side = closed_signal.signal_type;
+
+  PandoraXBoostBuildCandidateSet(strategy_key,
+                                 root_date,
+                                 root_side,
+                                 close_event,
+                                 next_depth,
+                                 closed_signal.pandora_xboost_node_path,
+                                 true,
+                                 NO_SIGNAL);
 }
 
 #endif // _SERVICES_TRADING_SIGNALS_PANDORA_XBOOST_STATE_MQH_
