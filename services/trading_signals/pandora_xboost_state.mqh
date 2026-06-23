@@ -25,6 +25,8 @@ const double PANDORA_XBOOST_BAYES_UNCERTAINTY_FLOOR_R = 0.03;
 const double PANDORA_XBOOST_BAYES_MIN_CONSERVATIVE_R = 0.03;
 const double PANDORA_XBOOST_BROKER_DEGRADATION_FLOOR_R = -0.05;
 const double PANDORA_XBOOST_BROKER_DEGRADATION_WEIGHT = 1.0;
+const int    PANDORA_XBOOST_BROKER_MIN_NODE_SAMPLES = 5;
+const int    PANDORA_XBOOST_BROKER_MIN_RECENT_SAMPLES = 10;
 
 void PandoraXBoostBuildRootCandidates(const SignalParams &root_signal);
 void PandoraXBoostBuildNextCandidatesFromClosedSignal(const SignalParams &closed_signal,
@@ -933,6 +935,98 @@ bool PandoraXBoostAggregateStrategySamples(const string strategy_key,
   return (stats.samples > 0);
 }
 
+bool PandoraXBoostBrokerTradeMatchesStrategy(const PandoraXBoostBrokerTradeRow &trade_row,
+                                             const string strategy_key)
+{
+  if(strategy_key == "")
+    return false;
+  return (trade_row.strategy_key == strategy_key);
+}
+
+bool PandoraXBoostSelectedIndexExists(int &selected_indices[],
+                                      const int selected_total,
+                                      const int candidate_index)
+{
+  for(int i = 0; i < selected_total; i++)
+  {
+    if(selected_indices[i] == candidate_index)
+      return true;
+  }
+  return false;
+}
+
+bool PandoraXBoostAggregateBrokerNodeTrades(const string node_key,
+                                            PandoraXBoostRollingStats &stats)
+{
+  PandoraXBoostRollingStats reset_stats;
+  stats = reset_stats;
+  if(node_key == "")
+    return false;
+
+  int total = ArraySize(g_pandora_xboost_broker_trades);
+  for(int i = 0; i < total; i++)
+  {
+    PandoraXBoostBrokerTradeRow trade_row = g_pandora_xboost_broker_trades[i];
+    if(trade_row.node_key != node_key)
+      continue;
+
+    PandoraXBoostRollingStatsAdd(stats,
+                                 trade_row.r_multiple_broker,
+                                 trade_row.close_time);
+  }
+  return (stats.samples > 0);
+}
+
+bool PandoraXBoostAggregateBrokerRecentTrades(const string strategy_key,
+                                              const int max_trades,
+                                              PandoraXBoostRollingStats &stats)
+{
+  PandoraXBoostRollingStats reset_stats;
+  stats = reset_stats;
+  if(strategy_key == "" || max_trades <= 0)
+    return false;
+
+  int selected_indices[];
+  int selected_total = 0;
+  int total = ArraySize(g_pandora_xboost_broker_trades);
+  for(int rank = 0; rank < max_trades; rank++)
+  {
+    int best_index = -1;
+    datetime best_close_time = 0;
+    for(int i = 0; i < total; i++)
+    {
+      if(PandoraXBoostSelectedIndexExists(selected_indices,
+                                          selected_total,
+                                          i))
+        continue;
+
+      PandoraXBoostBrokerTradeRow trade_row = g_pandora_xboost_broker_trades[i];
+      if(!PandoraXBoostBrokerTradeMatchesStrategy(trade_row, strategy_key))
+        continue;
+      if(trade_row.close_time <= 0)
+        continue;
+      if(best_index < 0 || trade_row.close_time > best_close_time)
+      {
+        best_index = i;
+        best_close_time = trade_row.close_time;
+      }
+    }
+
+    if(best_index < 0)
+      break;
+
+    ArrayResize(selected_indices, selected_total + 1, max_trades);
+    selected_indices[selected_total] = best_index;
+    selected_total++;
+
+    PandoraXBoostBrokerTradeRow selected = g_pandora_xboost_broker_trades[best_index];
+    PandoraXBoostRollingStatsAdd(stats,
+                                 selected.r_multiple_broker,
+                                 selected.close_time);
+  }
+  return (stats.samples > 0);
+}
+
 int PandoraXBoostBayesPriorWeightForDepth(const int depth)
 {
   if(depth <= 1)
@@ -1235,6 +1329,74 @@ bool PandoraXBoostRollingWindowBlocks(const PandoraXBoostCandidate &candidate,
   return false;
 }
 
+void PandoraXBoostApplyBrokerCalibration(PandoraXBoostCandidate &candidate,
+                                         const string strategy_key)
+{
+  PandoraXBoostRollingStats broker_node;
+  if(PandoraXBoostAggregateBrokerNodeTrades(candidate.node_key, broker_node))
+  {
+    candidate.broker_node_samples = broker_node.samples;
+    candidate.broker_node_avg_r = broker_node.avg_r;
+  }
+
+  PandoraXBoostRollingStats broker_recent;
+  if(PandoraXBoostAggregateBrokerRecentTrades(strategy_key,
+                                              PANDORA_XBOOST_BROKER_RECENT_TRADES,
+                                              broker_recent))
+  {
+    candidate.broker_recent_samples = broker_recent.samples;
+    candidate.broker_recent_avg_r = broker_recent.avg_r;
+  }
+
+  if(candidate.broker_recent_samples >= PANDORA_XBOOST_BROKER_MIN_RECENT_SAMPLES &&
+     candidate.broker_recent_avg_r < PANDORA_XBOOST_BROKER_DEGRADATION_FLOOR_R)
+  {
+    candidate.status = PANDORA_XBOOST_CANDIDATE_BLOCK;
+    candidate.reason = "BROKER_30";
+    return;
+  }
+
+  if(candidate.broker_node_samples >= PANDORA_XBOOST_BROKER_MIN_NODE_SAMPLES &&
+     candidate.broker_node_avg_r < PANDORA_XBOOST_BROKER_DEGRADATION_FLOOR_R)
+  {
+    candidate.status = PANDORA_XBOOST_CANDIDATE_BLOCK;
+    candidate.reason = "BROKER_NODE";
+    return;
+  }
+
+  double broker_reference_r = candidate.score_r;
+  bool has_broker_reference = false;
+  if(candidate.broker_node_samples >= PANDORA_XBOOST_BROKER_MIN_NODE_SAMPLES)
+  {
+    broker_reference_r = candidate.broker_node_avg_r;
+    has_broker_reference = true;
+  }
+  if(candidate.broker_recent_samples >= PANDORA_XBOOST_BROKER_MIN_RECENT_SAMPLES)
+  {
+    if(!has_broker_reference || candidate.broker_recent_avg_r < broker_reference_r)
+      broker_reference_r = candidate.broker_recent_avg_r;
+    has_broker_reference = true;
+  }
+
+  if(!has_broker_reference || broker_reference_r >= candidate.score_r)
+    return;
+
+  double degradation_r =
+    (candidate.score_r - broker_reference_r) *
+    PANDORA_XBOOST_BROKER_DEGRADATION_WEIGHT;
+  if(degradation_r <= 0.0)
+    return;
+
+  candidate.broker_degradation_r = degradation_r;
+  candidate.score_r -= degradation_r;
+  candidate.conservative_score_r = candidate.score_r;
+  if(candidate.score_r < PANDORA_XBOOST_BAYES_MIN_CONSERVATIVE_R)
+  {
+    candidate.status = PANDORA_XBOOST_CANDIDATE_BLOCK;
+    candidate.reason = "BROKER_DEGRADE";
+  }
+}
+
 void PandoraXBoostBuildCandidate(const string strategy_key,
                                  const SignalTypes root_side,
                                  const PandoraXBoostCloseEvents parent_event,
@@ -1367,6 +1529,10 @@ void PandoraXBoostBuildCandidate(const string strategy_key,
     candidate.reason = rolling_reason;
     return;
   }
+
+  PandoraXBoostApplyBrokerCalibration(candidate, strategy_key);
+  if(candidate.status == PANDORA_XBOOST_CANDIDATE_BLOCK)
+    return;
 
   candidate.status = PANDORA_XBOOST_CANDIDATE_WATCH;
   candidate.reason = "EDGE";
