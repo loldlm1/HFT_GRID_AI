@@ -68,6 +68,9 @@ input double                   Pandora_Points_TP            = 100.0;
 input PandoraEntryCountModes   Pandora_Box_Entry_Count_Mode = COUNT_BOX_ENTRY_OFF;
 input int                      Pandora_Box_Max_Entries      = 2;
 input int                      Pandora_First_Entry_Mode     = 0;
+input PandoraXBoostModes       Pandora_XBoost_Mode          = PANDORA_XBOOST_DISABLED;
+input string                   Pandora_XBoost_Strategy_Id   = "default";
+input int                      Pandora_XBoost_Max_Depth     = 3;
 
 //input group  "+= Strategy Context =+";
  ENUM_TIMEFRAMES           Strategy_Timeframe          = PERIOD_M1;
