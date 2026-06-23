@@ -21,6 +21,7 @@ const int    PANDORA_XBOOST_BAYES_PRIOR_WEIGHT_DEPTH_1 = 30;
 const int    PANDORA_XBOOST_BAYES_PRIOR_WEIGHT_DEPTH_2 = 20;
 const int    PANDORA_XBOOST_BAYES_PRIOR_WEIGHT_DEPTH_3 = 12;
 const double PANDORA_XBOOST_BAYES_UNCERTAINTY_Z = 1.0;
+const double PANDORA_XBOOST_BAYES_UNCERTAINTY_FLOOR_R = 0.03;
 const double PANDORA_XBOOST_BAYES_MIN_CONSERVATIVE_R = 0.03;
 const double PANDORA_XBOOST_BROKER_DEGRADATION_FLOOR_R = -0.05;
 const double PANDORA_XBOOST_BROKER_DEGRADATION_WEIGHT = 1.0;
@@ -932,6 +933,59 @@ bool PandoraXBoostAggregateStrategySamples(const string strategy_key,
   return (stats.samples > 0);
 }
 
+int PandoraXBoostBayesPriorWeightForDepth(const int depth)
+{
+  if(depth <= 1)
+    return PANDORA_XBOOST_BAYES_PRIOR_WEIGHT_DEPTH_1;
+  if(depth == 2)
+    return PANDORA_XBOOST_BAYES_PRIOR_WEIGHT_DEPTH_2;
+  return PANDORA_XBOOST_BAYES_PRIOR_WEIGHT_DEPTH_3;
+}
+
+double PandoraXBoostRollingVariance(const PandoraXBoostRollingStats &stats)
+{
+  if(stats.samples <= 1)
+    return 0.0;
+
+  double mean_square = stats.total_r * stats.total_r / stats.samples;
+  double variance = (stats.sum_r2 - mean_square) / (stats.samples - 1);
+  if(variance < 0.0)
+    variance = 0.0;
+  return variance;
+}
+
+double PandoraXBoostStandardErrorR(const PandoraXBoostRollingStats &stats)
+{
+  if(stats.samples <= 1)
+    return 0.0;
+
+  double variance = PandoraXBoostRollingVariance(stats);
+  if(variance <= 0.0)
+    return 0.0;
+
+  return MathSqrt(variance / stats.samples);
+}
+
+double PandoraXBoostBayesianPosteriorAverage(const int node_samples,
+                                             const double node_avg_r,
+                                             const double prior_avg_r,
+                                             const int prior_weight)
+{
+  int safe_samples = node_samples;
+  if(safe_samples < 0)
+    safe_samples = 0;
+  int safe_prior_weight = prior_weight;
+  if(safe_prior_weight < 0)
+    safe_prior_weight = 0;
+
+  int denominator = safe_samples + safe_prior_weight;
+  if(denominator <= 0)
+    return 0.0;
+
+  return ((safe_samples * node_avg_r) +
+          (safe_prior_weight * prior_avg_r)) / denominator;
+}
+
 bool PandoraXBoostIsDerivedNode(const SignalParams &signal_params)
 {
   return (signal_params.pandora_xboost_enabled &&
@@ -1156,8 +1210,29 @@ string PandoraXBoostBuildCandidatePath(const string parent_node_path,
 bool PandoraXBoostCandidateHasMinimumStats(const PandoraXBoostCandidate &candidate)
 {
   int min_samples = PandoraXBoostMinSamplesForDepth(candidate.depth);
-  return (candidate.samples >= min_samples &&
-          candidate.expectancy_r >= PANDORA_XBOOST_MIN_EXPECTANCY_R);
+  return (candidate.status != PANDORA_XBOOST_CANDIDATE_BLOCK &&
+          candidate.samples >= min_samples &&
+          candidate.conservative_score_r >= PANDORA_XBOOST_BAYES_MIN_CONSERVATIVE_R);
+}
+
+bool PandoraXBoostRollingWindowBlocks(const PandoraXBoostCandidate &candidate,
+                                      const int min_samples,
+                                      string &reason)
+{
+  double floor_r = -PANDORA_XBOOST_BAYES_MIN_CONSERVATIVE_R;
+  if(candidate.local_window_60_samples >= min_samples &&
+     candidate.local_window_60_avg_r < floor_r)
+  {
+    reason = "ROLLING_60";
+    return true;
+  }
+  if(candidate.local_window_120_samples >= min_samples &&
+     candidate.local_window_120_avg_r < floor_r)
+  {
+    reason = "ROLLING_120";
+    return true;
+  }
+  return false;
 }
 
 void PandoraXBoostBuildCandidate(const string strategy_key,
@@ -1233,8 +1308,42 @@ void PandoraXBoostBuildCandidate(const string strategy_key,
 
   candidate.samples      = stats.samples;
   candidate.expectancy_r = stats.expectancy_r;
-  candidate.score_r      = stats.expectancy_r -
-                           ((safe_depth - 1) * PANDORA_XBOOST_DEPTH_PENALTY_R);
+
+  PandoraXBoostRollingStats node_all;
+  bool has_node_all = PandoraXBoostAggregateNodeSamples(node_key, 0, node_all);
+  int bayes_samples = has_node_all ? node_all.samples : stats.samples;
+  double node_avg_r = has_node_all ? node_all.avg_r : stats.expectancy_r;
+
+  PandoraXBoostRollingStats strategy_all;
+  double prior_avg_r = 0.0;
+  if(PandoraXBoostAggregateStrategySamples(strategy_key, 0, strategy_all))
+    prior_avg_r = strategy_all.avg_r;
+
+  int prior_weight = PandoraXBoostBayesPriorWeightForDepth(safe_depth);
+  double posterior_r =
+    PandoraXBoostBayesianPosteriorAverage(bayes_samples,
+                                          node_avg_r,
+                                          prior_avg_r,
+                                          prior_weight);
+  double standard_error_r = has_node_all
+                            ? PandoraXBoostStandardErrorR(node_all)
+                            : 0.0;
+  double uncertainty_penalty_r = 0.0;
+  if(standard_error_r > 0.0)
+    uncertainty_penalty_r = PANDORA_XBOOST_BAYES_UNCERTAINTY_Z * standard_error_r;
+  else if(bayes_samples <= 1)
+    uncertainty_penalty_r = PANDORA_XBOOST_BAYES_UNCERTAINTY_FLOOR_R;
+
+  double depth_penalty_r = (safe_depth - 1) * PANDORA_XBOOST_DEPTH_PENALTY_R;
+  double conservative_score_r = posterior_r -
+                                uncertainty_penalty_r -
+                                depth_penalty_r;
+
+  candidate.posterior_r = posterior_r;
+  candidate.uncertainty_penalty_r = uncertainty_penalty_r;
+  candidate.depth_penalty_r = depth_penalty_r;
+  candidate.conservative_score_r = conservative_score_r;
+  candidate.score_r = conservative_score_r;
 
   int min_samples = PandoraXBoostMinSamplesForDepth(safe_depth);
   if(stats.samples < min_samples)
@@ -1244,10 +1353,18 @@ void PandoraXBoostBuildCandidate(const string strategy_key,
     return;
   }
 
-  if(stats.expectancy_r < PANDORA_XBOOST_MIN_EXPECTANCY_R)
+  if(candidate.conservative_score_r < PANDORA_XBOOST_BAYES_MIN_CONSERVATIVE_R)
   {
     candidate.status = PANDORA_XBOOST_CANDIDATE_BLOCK;
-    candidate.reason = "EXPECTANCY";
+    candidate.reason = "BAYES_SCORE";
+    return;
+  }
+
+  string rolling_reason = "";
+  if(PandoraXBoostRollingWindowBlocks(candidate, min_samples, rolling_reason))
+  {
+    candidate.status = PANDORA_XBOOST_CANDIDATE_BLOCK;
+    candidate.reason = rolling_reason;
     return;
   }
 
@@ -1259,6 +1376,8 @@ void PandoraXBoostApplyCandidateEdge(PandoraXBoostCandidate &candidate,
                                      const PandoraXBoostCandidate &alternative,
                                      const bool has_alternative)
 {
+  if(candidate.status == PANDORA_XBOOST_CANDIDATE_BLOCK)
+    return;
   if(!PandoraXBoostCandidateHasMinimumStats(candidate))
     return;
 
@@ -1266,11 +1385,11 @@ void PandoraXBoostApplyCandidateEdge(PandoraXBoostCandidate &candidate,
   bool alternative_ready_stats = false;
   if(has_alternative)
   {
-    alternative_expectancy = alternative.expectancy_r;
+    alternative_expectancy = alternative.score_r;
     alternative_ready_stats = PandoraXBoostCandidateHasMinimumStats(alternative);
   }
 
-  candidate.edge_r = candidate.expectancy_r - alternative_expectancy;
+  candidate.edge_r = candidate.score_r - alternative_expectancy;
   if(candidate.edge_r < PANDORA_XBOOST_MIN_EDGE_R)
   {
     candidate.status = PANDORA_XBOOST_CANDIDATE_WATCH;
