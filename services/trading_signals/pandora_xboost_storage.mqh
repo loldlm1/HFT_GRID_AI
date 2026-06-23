@@ -303,4 +303,82 @@ bool PandoraXBoostSave()
   return samples_saved && stats_saved;
 }
 
+bool PandoraXBoostRecordClosedSignal(SignalParams &signal_params,
+                                     const bool force_close)
+{
+  if(!PandoraXBoostEnabled())
+    return false;
+  if(!IsPandoraSignal(signal_params))
+    return false;
+  if(!signal_params.pandora_xboost_enabled)
+    return false;
+
+  string strategy_key = signal_params.pandora_xboost_strategy_key;
+  if(strategy_key == "")
+    strategy_key = PandoraXBoostBuildStrategyKey();
+
+  SignalTypes root_side = signal_params.pandora_xboost_root_side;
+  if(root_side == NO_SIGNAL)
+    root_side = signal_params.signal_type;
+
+  datetime root_date = g_pandora_box_state.day_anchor;
+  if(root_date <= 0)
+    root_date = ResolveCurrentDayStart();
+
+  int depth = signal_params.pandora_xboost_depth;
+  if(depth <= 0)
+    depth = 1;
+
+  PandoraXBoostCloseEvents parent_event = signal_params.pandora_xboost_parent_event;
+  if(parent_event == PANDORA_XBOOST_EVENT_NONE)
+    parent_event = PandoraXBoostRootEventForDirection(root_side);
+
+  int event_step_index = signal_params.pandora_trailing_step_index;
+  if(event_step_index < 0)
+    event_step_index = 0;
+  string node_key = signal_params.pandora_xboost_node_key;
+  if(node_key == "")
+  {
+    node_key = PandoraXBoostBuildNodeKey(strategy_key,
+                                         root_date,
+                                         root_side,
+                                         parent_event,
+                                         depth,
+                                         signal_params.signal_type,
+                                         event_step_index);
+  }
+
+  PandoraXBoostCloseEvents close_event = PandoraXBoostResolveCloseEvent(signal_params,
+                                                                        force_close);
+  signal_params.pandora_xboost_close_event = close_event;
+  if(close_event == PANDORA_XBOOST_EVENT_NONE)
+    return false;
+
+  double r_multiple = PandoraXBoostResolveSignalRMultiple(signal_params);
+  string close_label = PandoraXBoostCloseEventLabel(close_event, event_step_index);
+  string sample_id = PandoraXBoostBuildSampleId(strategy_key,
+                                                root_date,
+                                                node_key,
+                                                depth,
+                                                signal_params.signal_type,
+                                                close_event,
+                                                event_step_index);
+  if(PandoraXBoostSampleIdExists(sample_id))
+    return false;
+
+  string row = StringFormat("%s,%s,%s,%.8f,%I64d",
+                            sample_id,
+                            node_key,
+                            close_label,
+                            r_multiple,
+                            (long)TimeCurrent());
+  if(!PandoraXBoostAppendPendingSampleRow(sample_id, row))
+    return false;
+
+  PandoraXBoostUpdateStats(node_key, r_multiple, TimeCurrent());
+  signal_params.pandora_xboost_sample_id = sample_id;
+  signal_params.pandora_xboost_node_key = node_key;
+  return true;
+}
+
 #endif // _SERVICES_TRADING_SIGNALS_PANDORA_XBOOST_STORAGE_MQH_

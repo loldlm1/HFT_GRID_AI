@@ -96,12 +96,16 @@ string PandoraXBoostCloseEventLabel(const PandoraXBoostCloseEvents event_type,
       return "TBES";
     case PANDORA_XBOOST_EVENT_TTPL:
     {
-      int safe_step = MathMax(step_index, 1);
+      int safe_step = step_index;
+      if(safe_step < 1)
+        safe_step = 1;
       return StringFormat("TTPL%d", safe_step);
     }
     case PANDORA_XBOOST_EVENT_TTPS:
     {
-      int safe_step = MathMax(step_index, 1);
+      int safe_step = step_index;
+      if(safe_step < 1)
+        safe_step = 1;
       return StringFormat("TTPS%d", safe_step);
     }
     case PANDORA_XBOOST_EVENT_FORCE_CLOSE:
@@ -110,6 +114,202 @@ string PandoraXBoostCloseEventLabel(const PandoraXBoostCloseEvents event_type,
     default:
       return "NONE";
   }
+}
+
+string PandoraXBoostSafeKeyPart(const string raw_value)
+{
+  string value = raw_value;
+  if(value == "")
+    value = "none";
+
+  string result = "";
+  int total = StringLen(value);
+  for(int i = 0; i < total; i++)
+  {
+    ushort ch = StringGetCharacter(value, i);
+    bool is_digit = (ch >= '0' && ch <= '9');
+    bool is_upper = (ch >= 'A' && ch <= 'Z');
+    bool is_lower = (ch >= 'a' && ch <= 'z');
+    bool is_safe = is_digit || is_upper || is_lower || ch == '_' || ch == '-' || ch == '.';
+    if(is_safe)
+      result = result + StringSubstr(value, i, 1);
+    else
+      result = result + "_";
+  }
+
+  if(result == "")
+    result = "none";
+  return result;
+}
+
+ulong PandoraXBoostHashKey(const string input_value)
+{
+  ulong hash = 1469598103934665603;
+  int total = StringLen(input_value);
+  for(int i = 0; i < total; i++)
+  {
+    hash ^= (ulong)StringGetCharacter(input_value, i);
+    hash *= 1099511628211;
+  }
+  return hash;
+}
+
+string PandoraXBoostDirectionLabel(const SignalTypes direction)
+{
+  if(direction == BULLISH)
+    return "L";
+  if(direction == BEARISH)
+    return "S";
+  return "N";
+}
+
+PandoraXBoostCloseEvents PandoraXBoostRootEventForDirection(const SignalTypes direction)
+{
+  if(direction == BULLISH)
+    return PANDORA_XBOOST_EVENT_ROOTL;
+  if(direction == BEARISH)
+    return PANDORA_XBOOST_EVENT_ROOTS;
+  return PANDORA_XBOOST_EVENT_NONE;
+}
+
+string PandoraXBoostDateKey(const datetime value)
+{
+  datetime safe_value = value;
+  if(safe_value <= 0)
+    safe_value = TimeCurrent();
+  return PandoraXBoostSafeKeyPart(TimeToString(safe_value, TIME_DATE));
+}
+
+string PandoraXBoostBuildStrategyKey()
+{
+  int max_depth = PandoraXBoostClampDepth(Pandora_XBoost_Max_Depth);
+  return StringFormat("v%d|%s|%s|%d|%d|%d|%d|%s|%d",
+                      PANDORA_XBOOST_SCHEMA_VERSION,
+                      PandoraXBoostSafeKeyPart(Pandora_XBoost_Strategy_Id),
+                      PandoraXBoostSafeKeyPart(_Symbol),
+                      (int)Strategy_Timeframe,
+                      (int)Pandora_Box_Entry_Type,
+                      (int)Pandora_Risk_Trailing_Mode,
+                      (int)Pandora_Points_Value_Mode,
+                      PandoraXBoostSafeKeyPart(Pandora_Box_Time_Range),
+                      max_depth);
+}
+
+string PandoraXBoostBuildNodeKey(const string strategy_key,
+                                 const datetime root_date,
+                                 const SignalTypes root_side,
+                                 const PandoraXBoostCloseEvents parent_event,
+                                 const int depth,
+                                 const SignalTypes candidate_side,
+                                 const int event_step_index = 0)
+{
+  int safe_depth = depth;
+  if(safe_depth < 1)
+    safe_depth = 1;
+  return StringFormat("%s|%s|%s|%s|%d|%s",
+                      strategy_key,
+                      PandoraXBoostDateKey(root_date),
+                      PandoraXBoostDirectionLabel(root_side),
+                      PandoraXBoostCloseEventLabel(parent_event, event_step_index),
+                      safe_depth,
+                      PandoraXBoostDirectionLabel(candidate_side));
+}
+
+string PandoraXBoostBuildSampleId(const string strategy_key,
+                                  const datetime root_date,
+                                  const string node_path,
+                                  const int depth,
+                                  const SignalTypes candidate_side,
+                                  const PandoraXBoostCloseEvents close_event,
+                                  const int event_step_index = 0)
+{
+  int safe_depth = depth;
+  if(safe_depth < 1)
+    safe_depth = 1;
+  return StringFormat("%s|%s|%s|%d|%s|%s",
+                      strategy_key,
+                      PandoraXBoostDateKey(root_date),
+                      PandoraXBoostSafeKeyPart(node_path),
+                      safe_depth,
+                      PandoraXBoostDirectionLabel(candidate_side),
+                      PandoraXBoostCloseEventLabel(close_event, event_step_index));
+}
+
+string PandoraXBoostBuildDisplayId(const SignalTypes candidate_side,
+                                   const PandoraXBoostCloseEvents parent_event,
+                                   const int event_step_index = 0)
+{
+  return PandoraXBoostDirectionLabel(candidate_side) + "-" +
+         PandoraXBoostCloseEventLabel(parent_event, event_step_index);
+}
+
+PandoraXBoostCloseEvents PandoraXBoostResolveCloseEvent(const SignalParams &signal_params,
+                                                        const bool force_close)
+{
+  if(force_close)
+    return PANDORA_XBOOST_EVENT_FORCE_CLOSE;
+
+  SignalTypes direction = signal_params.signal_type;
+  bool trailing_seen = (signal_params.pandora_trailing_step_index > 0 ||
+                        signal_params.pandora_trailing_stop_price > 0.0);
+
+  if(signal_params.pandora_close_outcome == PANDORA_CLOSE_TP)
+  {
+    if(trailing_seen)
+      return (direction == BULLISH) ? PANDORA_XBOOST_EVENT_TTPL
+                                    : PANDORA_XBOOST_EVENT_TTPS;
+    return (direction == BULLISH) ? PANDORA_XBOOST_EVENT_TPL
+                                  : PANDORA_XBOOST_EVENT_TPS;
+  }
+
+  if(signal_params.pandora_close_outcome == PANDORA_CLOSE_BE)
+  {
+    if(trailing_seen)
+      return (direction == BULLISH) ? PANDORA_XBOOST_EVENT_TBEL
+                                    : PANDORA_XBOOST_EVENT_TBES;
+    return PANDORA_XBOOST_EVENT_TBE;
+  }
+
+  if(signal_params.pandora_close_outcome == PANDORA_CLOSE_SL)
+    return (direction == BULLISH) ? PANDORA_XBOOST_EVENT_SLL1
+                                  : PANDORA_XBOOST_EVENT_SLS1;
+
+  return PANDORA_XBOOST_EVENT_NONE;
+}
+
+double PandoraXBoostResolveSignalRMultiple(const SignalParams &signal_params)
+{
+  if(!IsPandoraSignal(signal_params))
+    return 0.0;
+
+  double point_size = SymbolInfoDouble(_Symbol, SYMBOL_POINT);
+  if(point_size <= 0.0)
+    return 0.0;
+
+  double entry_price = signal_params.pandora_source_entry_price;
+  if(entry_price <= 0.0)
+    entry_price = signal_params.pandora_local_entry_price;
+  if(entry_price <= 0.0)
+    entry_price = signal_params.entry_price;
+  double close_price = signal_params.close_price;
+  if(close_price <= 0.0)
+    close_price = signal_params.pandora_local_close_price;
+  if(entry_price <= 0.0 || close_price <= 0.0)
+    return 0.0;
+
+  double sl_points = PandoraResolveSignalSLPoints(signal_params, false);
+  if(sl_points <= 0.0)
+    return 0.0;
+
+  double profit_points = 0.0;
+  if(signal_params.signal_type == BULLISH)
+    profit_points = (close_price - entry_price) / point_size;
+  else if(signal_params.signal_type == BEARISH)
+    profit_points = (entry_price - close_price) / point_size;
+  else
+    return 0.0;
+
+  return profit_points / sl_points;
 }
 
 struct PandoraXBoostStats
@@ -264,5 +464,80 @@ string                 g_pandora_xboost_pending_sample_rows[];
 bool                   g_pandora_xboost_storage_loaded = false;
 bool                   g_pandora_xboost_storage_dirty  = false;
 datetime               g_pandora_xboost_storage_load_time = 0;
+
+int PandoraXBoostFindStatsIndexByNodeKey(const string node_key)
+{
+  if(node_key == "")
+    return -1;
+
+  int total = ArraySize(g_pandora_xboost_stats);
+  for(int i = 0; i < total; i++)
+  {
+    if(g_pandora_xboost_stats[i].node_key == node_key)
+      return i;
+  }
+  return -1;
+}
+
+int PandoraXBoostEnsureStatsIndex(const string node_key)
+{
+  int existing = PandoraXBoostFindStatsIndexByNodeKey(node_key);
+  if(existing >= 0)
+    return existing;
+
+  PandoraXBoostStats stats;
+  stats.node_key = node_key;
+  stats.key_hash = PandoraXBoostHashKey(node_key);
+
+  int total = ArraySize(g_pandora_xboost_stats);
+  ArrayResize(g_pandora_xboost_stats, total + 1, 128);
+  g_pandora_xboost_stats[total] = stats;
+  return total;
+}
+
+void PandoraXBoostUpdateStats(const string node_key,
+                              const double r_multiple,
+                              const datetime seen_at)
+{
+  int stats_index = PandoraXBoostEnsureStatsIndex(node_key);
+  if(stats_index < 0)
+    return;
+
+  PandoraXBoostStats stats = g_pandora_xboost_stats[stats_index];
+  double win_sum = stats.avg_win_r * stats.wins;
+  double loss_sum = stats.avg_loss_r * stats.losses;
+
+  stats.samples++;
+  stats.total_r += r_multiple;
+  stats.avg_r = (stats.samples > 0) ? stats.total_r / stats.samples : 0.0;
+
+  if(r_multiple > 0.0)
+  {
+    stats.wins++;
+    win_sum += r_multiple;
+    stats.avg_win_r = win_sum / stats.wins;
+    if(stats.wins == 1 || r_multiple > stats.max_win_r)
+      stats.max_win_r = r_multiple;
+  }
+  else if(r_multiple < 0.0)
+  {
+    stats.losses++;
+    loss_sum += r_multiple;
+    stats.avg_loss_r = loss_sum / stats.losses;
+    if(stats.losses == 1 || r_multiple < stats.max_loss_r)
+      stats.max_loss_r = r_multiple;
+    if(r_multiple < stats.max_drawdown_r)
+      stats.max_drawdown_r = r_multiple;
+  }
+  else
+  {
+    stats.be++;
+  }
+
+  stats.expectancy_r = stats.avg_r;
+  stats.last_seen = seen_at;
+  g_pandora_xboost_stats[stats_index] = stats;
+  g_pandora_xboost_storage_dirty = true;
+}
 
 #endif // _SERVICES_TRADING_SIGNALS_PANDORA_XBOOST_STATE_MQH_

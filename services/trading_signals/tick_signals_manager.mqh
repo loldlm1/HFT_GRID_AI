@@ -40,6 +40,7 @@ void CheckTickOpenBullishSignals()
       PandoraFinalizeSignalOutcome(running_bullish_signals[i],
                                    running_bullish_signals[i].close_price,
                                    running_bullish_signals[i].raw_profit);
+      PandoraXBoostRecordClosedSignal(running_bullish_signals[i], false);
       RegisterDailySignalOutcome(BULLISH, running_bullish_signals[i].raw_profit);
       PandoraRegisterSideOutcome(running_bullish_signals[i]);
       CloseBullishSignal(running_bullish_signals[i]);
@@ -83,6 +84,7 @@ void CheckTickOpenBearishSignals()
       PandoraFinalizeSignalOutcome(running_bearish_signals[i],
                                    running_bearish_signals[i].close_price,
                                    running_bearish_signals[i].raw_profit);
+      PandoraXBoostRecordClosedSignal(running_bearish_signals[i], false);
       RegisterDailySignalOutcome(BEARISH, running_bearish_signals[i].raw_profit);
       PandoraRegisterSideOutcome(running_bearish_signals[i]);
       CloseBearishSignal(running_bearish_signals[i]);
