@@ -770,6 +770,189 @@ bool PandoraXBoostSave()
   return samples_saved && broker_trades_saved && stats_saved;
 }
 
+datetime PandoraXBoostResolveBrokerEntryTime(const SignalParams &signal_params)
+{
+  if(signal_params.pandora_broker_fill_time > 0)
+    return signal_params.pandora_broker_fill_time;
+  if(signal_params.pandora_local_entry_time > 0)
+    return signal_params.pandora_local_entry_time;
+  if(signal_params.entry_time > 0)
+    return signal_params.entry_time;
+  return TimeCurrent();
+}
+
+double PandoraXBoostResolveBrokerEntryPrice(const SignalParams &signal_params)
+{
+  if(signal_params.pandora_broker_fill_price > 0.0)
+    return signal_params.pandora_broker_fill_price;
+  if(signal_params.pandora_source_entry_price > 0.0)
+    return signal_params.pandora_source_entry_price;
+  if(signal_params.pandora_local_entry_price > 0.0)
+    return signal_params.pandora_local_entry_price;
+  return signal_params.entry_price;
+}
+
+datetime PandoraXBoostResolveBrokerCloseTime(const SignalParams &signal_params)
+{
+  if(signal_params.close_time > 0)
+    return signal_params.close_time;
+  if(signal_params.pandora_local_close_time > 0)
+    return signal_params.pandora_local_close_time;
+  return TimeCurrent();
+}
+
+double PandoraXBoostResolveBrokerClosePrice(const SignalParams &signal_params)
+{
+  if(signal_params.close_price > 0.0)
+    return signal_params.close_price;
+  return signal_params.pandora_local_close_price;
+}
+
+double PandoraXBoostResolveBrokerRMultiple(const SignalParams &signal_params,
+                                           double &sl_points,
+                                           double &entry_price,
+                                           double &close_price)
+{
+  sl_points = PandoraResolveSignalSLPoints(signal_params, false);
+  entry_price = PandoraXBoostResolveBrokerEntryPrice(signal_params);
+  close_price = PandoraXBoostResolveBrokerClosePrice(signal_params);
+  if(sl_points <= 0.0 || entry_price <= 0.0 || close_price <= 0.0)
+    return 0.0;
+
+  double point_size = PandoraResolvePointSizeSafe();
+  if(point_size <= 0.0)
+    return 0.0;
+
+  double profit_points = 0.0;
+  if(signal_params.signal_type == BULLISH)
+    profit_points = (close_price - entry_price) / point_size;
+  else if(signal_params.signal_type == BEARISH)
+    profit_points = (entry_price - close_price) / point_size;
+  else
+    return 0.0;
+
+  return profit_points / sl_points;
+}
+
+bool PandoraXBoostRecordBrokerTrade(SignalParams &signal_params,
+                                    const string strategy_key,
+                                    const datetime root_date,
+                                    const string node_key,
+                                    const string node_path,
+                                    const string sample_id,
+                                    const int depth,
+                                    const PandoraXBoostCloseEvents close_event,
+                                    const string close_label,
+                                    const bool force_close)
+{
+  if(!signal_params.pandora_xboost_broker_selected)
+    return false;
+  if(signal_params.pandora_broker_execution_status != PANDORA_BROKER_EXECUTED &&
+     signal_params.pandora_broker_execution_status != PANDORA_BROKER_CLOSED)
+  {
+    PandoraXBoostLogEvent("PANDORA_XBOOST_BROKER_TRADE_SKIP",
+                          StringFormat("depth=%d id=%s reason=NOT_EXECUTED status=%s",
+                                       depth,
+                                       signal_params.pandora_xboost_display_id,
+                                       PandoraBrokerExecutionStatusLabel(signal_params.pandora_broker_execution_status)));
+    return false;
+  }
+
+  double sl_points = 0.0;
+  double entry_price = 0.0;
+  double close_price = 0.0;
+  double r_multiple_broker =
+    PandoraXBoostResolveBrokerRMultiple(signal_params,
+                                        sl_points,
+                                        entry_price,
+                                        close_price);
+  if(sl_points <= 0.0 || entry_price <= 0.0 || close_price <= 0.0)
+  {
+    PandoraXBoostLogEvent("PANDORA_XBOOST_BROKER_TRADE_SKIP",
+                          StringFormat("depth=%d id=%s reason=INVALID_R_INPUTS sl=%.3f entry=%.5f close=%.5f",
+                                       depth,
+                                       signal_params.pandora_xboost_display_id,
+                                       sl_points,
+                                       entry_price,
+                                       close_price));
+    return false;
+  }
+
+  datetime entry_time = PandoraXBoostResolveBrokerEntryTime(signal_params);
+  datetime close_time = PandoraXBoostResolveBrokerCloseTime(signal_params);
+  string broker_trade_id = signal_params.pandora_xboost_broker_trade_id;
+  if(broker_trade_id == "")
+    broker_trade_id = PandoraXBoostBuildBrokerTradeId(strategy_key,
+                                                      root_date,
+                                                      node_path,
+                                                      depth,
+                                                      signal_params.pandora_xboost_broker_trade_index,
+                                                      signal_params.signal_type,
+                                                      entry_time);
+
+  if(PandoraXBoostBrokerTradeIdExists(broker_trade_id))
+  {
+    PandoraXBoostLogEvent("PANDORA_XBOOST_BROKER_TRADE_DUP",
+                          StringFormat("depth=%d id=%s trade=%s",
+                                       depth,
+                                       signal_params.pandora_xboost_display_id,
+                                       broker_trade_id));
+    return false;
+  }
+
+  string close_reason = signal_params.pandora_observation_close_reason;
+  if(close_reason == "")
+    close_reason = force_close ? "force_close" : close_label;
+
+  PandoraXBoostBrokerTradeRow trade_row;
+  trade_row.broker_trade_id = broker_trade_id;
+  trade_row.strategy_key = strategy_key;
+  trade_row.root_id = signal_params.pandora_xboost_root_id;
+  trade_row.root_date = root_date;
+  trade_row.node_key = node_key;
+  trade_row.node_path = node_path;
+  trade_row.sample_id = sample_id;
+  trade_row.depth = depth;
+  trade_row.broker_trade_index = signal_params.pandora_xboost_broker_trade_index;
+  trade_row.side = signal_params.signal_type;
+  trade_row.entry_time = entry_time;
+  trade_row.close_time = close_time;
+  trade_row.entry_price = entry_price;
+  trade_row.close_price = close_price;
+  trade_row.sl_points = sl_points;
+  trade_row.r_multiple_broker = r_multiple_broker;
+  trade_row.net_profit = signal_params.raw_profit;
+  trade_row.close_event = close_event;
+  trade_row.close_reason = close_reason;
+  trade_row.model_score_r = signal_params.pandora_xboost_model_score_r;
+  trade_row.model_posterior_r = signal_params.pandora_xboost_model_posterior_r;
+  trade_row.model_samples = signal_params.pandora_xboost_model_samples;
+  trade_row.broker_window_samples =
+    signal_params.pandora_xboost_broker_window_samples;
+  trade_row.seen_at = TimeCurrent();
+
+  if(!PandoraXBoostAppendPendingBrokerTradeRow(trade_row))
+  {
+    PandoraXBoostLogEvent("PANDORA_XBOOST_BROKER_TRADE_APPEND_FAIL",
+                          StringFormat("depth=%d id=%s trade=%s",
+                                       depth,
+                                       signal_params.pandora_xboost_display_id,
+                                       broker_trade_id));
+    return false;
+  }
+
+  signal_params.pandora_xboost_broker_trade_id = broker_trade_id;
+  PandoraXBoostLogEvent("PANDORA_XBOOST_BROKER_TRADE_RECORDED",
+                        StringFormat("depth=%d trade=%d id=%s r=%.3f sample=%s broker_id=%s",
+                                     depth,
+                                     signal_params.pandora_xboost_broker_trade_index,
+                                     signal_params.pandora_xboost_display_id,
+                                     r_multiple_broker,
+                                     sample_id,
+                                     broker_trade_id));
+  return true;
+}
+
 bool PandoraXBoostRecordClosedSignal(SignalParams &signal_params,
                                      const bool force_close)
 {
@@ -861,6 +1044,16 @@ bool PandoraXBoostRecordClosedSignal(SignalParams &signal_params,
   PandoraXBoostUpdateStats(node_key, r_multiple, TimeCurrent());
   signal_params.pandora_xboost_sample_id = sample_id;
   signal_params.pandora_xboost_node_key = node_key;
+  PandoraXBoostRecordBrokerTrade(signal_params,
+                                 strategy_key,
+                                 root_date,
+                                 node_key,
+                                 sample_path,
+                                 sample_id,
+                                 depth,
+                                 close_event,
+                                 close_label,
+                                 force_close);
   PandoraXBoostLogEvent("PANDORA_XBOOST_SAMPLE_RECORDED",
                         StringFormat("depth=%d id=%s date=%s close=%s r=%.3f model=%s sample=%s",
                                      depth,
