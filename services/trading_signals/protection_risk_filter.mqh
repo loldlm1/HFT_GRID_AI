@@ -97,6 +97,13 @@ void ProtectionRiskForceClosePositions()
     {
       ulong retcode = g_position.ResultRetcode();
       int last_error = GetLastError();
+      if(!PositionSelectByTicket(position_ticket))
+      {
+        PandoraXBoostLogEvent("PANDORA_BROKER_TICKET_MISSING",
+                              StringFormat("context=PROTECTION_FORCE_CLOSE ticket=%I64u detail=already_closed",
+                                           position_ticket));
+        continue;
+      }
       MarketStatusRegisterBrokerFailure("PROTECTION_FORCE_CLOSE_FAILED", retcode, last_error, true);
       PrintFormat("ProtectionRiskForceClosePositions failed | ticket=%I64u | err=%d",
                   position_ticket,

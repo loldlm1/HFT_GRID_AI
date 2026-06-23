@@ -318,7 +318,10 @@ bool GridHedgeHandlePrevCloseOnNextLevel(SignalParams &signal_params,
   if(prev_state.position_ticket > 0)
   {
     double close_price = 0.0;
-    if(GridCloseBrokerPosition(prev_state, signal_params.signal_type, close_price))
+    if(GridCloseBrokerPosition(signal_params,
+                               prev_state,
+                               signal_params.signal_type,
+                               close_price))
     {
       prev_state.status = GRID_ORDER_COMPLETED;
       prev_state.opens_position = false;

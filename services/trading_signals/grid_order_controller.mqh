@@ -454,10 +454,10 @@ void UpdateGridLifecycle(SignalParams &signal_params)
 
       if(grid_order.position_ticket > 0 && !PositionSelectByTicket(grid_order.position_ticket))
       {
-        PandoraCloseOutcomes history_outcome = PandoraResolveHistoryOutcomeByPosition(grid_order.position_ticket);
-        if(history_outcome != PANDORA_CLOSE_NONE)
-          signal_params.pandora_close_outcome = history_outcome;
-        grid_order.status = GRID_ORDER_COMPLETED;
+        GridMarkMissingBrokerPosition(signal_params,
+                                      grid_order,
+                                      "PANDORA_BROKER_POSITION_SCAN",
+                                      true);
       }
 
       if(Pandora_Box_Set_Broker_SLTP &&

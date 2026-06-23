@@ -74,6 +74,64 @@ ulong FindOpenPositionForSignal(const SignalTypes direction,
   return 0;
 }
 
+string GridPandoraCloseOutcomeShortLabel(const PandoraCloseOutcomes outcome)
+{
+  switch(outcome)
+  {
+    case PANDORA_CLOSE_SL:
+      return "SL";
+    case PANDORA_CLOSE_TP:
+      return "TP";
+    case PANDORA_CLOSE_BE:
+      return "BE";
+    case PANDORA_CLOSE_NONE:
+    default:
+      return "NONE";
+  }
+}
+
+void GridLogBrokerLifecycleCleanup(const string label,
+                                   const string context,
+                                   const ulong position_ticket,
+                                   const string detail)
+{
+  PandoraXBoostLogEvent(label,
+                        StringFormat("context=%s ticket=%I64u detail=%s",
+                                     context,
+                                     position_ticket,
+                                     detail));
+}
+
+bool GridMarkMissingBrokerPosition(SignalParams &signal_params,
+                                   GridOrderState &order_state,
+                                   const string context,
+                                   const bool complete_level)
+{
+  if(order_state.position_ticket <= 0)
+    return false;
+
+  ulong missing_ticket = order_state.position_ticket;
+  PandoraCloseOutcomes history_outcome =
+    PandoraResolveHistoryOutcomeByPosition(missing_ticket);
+  if(history_outcome != PANDORA_CLOSE_NONE)
+    signal_params.pandora_close_outcome = history_outcome;
+
+  order_state.position_ticket = 0;
+  signal_params.pandora_broker_stop_sync_status =
+    PANDORA_BROKER_STOPS_NOT_REQUIRED;
+  if(signal_params.pandora_broker_execution_status == PANDORA_BROKER_EXECUTED)
+    signal_params.pandora_broker_execution_status = PANDORA_BROKER_CLOSED;
+  if(complete_level)
+    order_state.status = GRID_ORDER_COMPLETED;
+
+  GridLogBrokerLifecycleCleanup("PANDORA_BROKER_TICKET_MISSING",
+                                context,
+                                missing_ticket,
+                                "outcome=" +
+                                GridPandoraCloseOutcomeShortLabel(history_outcome));
+  return true;
+}
+
 bool GridShouldActivateStopOrder(const SignalParams &signal_params,
                                     const GridOrderState &order_state,
                                     const SignalTypes direction,
@@ -206,9 +264,11 @@ bool GridSyncPandoraBrokerStops(SignalParams &signal_params,
 
   if(!PositionSelectByTicket(order_state.position_ticket))
   {
-    signal_params.pandora_broker_stop_sync_status = PANDORA_BROKER_STOPS_FAILED;
-    MarketStatusRegisterExecutionError(context + "_FAILED", "position_not_found", 0, GetLastError());
-    return false;
+    GridMarkMissingBrokerPosition(signal_params,
+                                  order_state,
+                                  context + "_SYNC_SELECT",
+                                  true);
+    return true;
   }
 
   double target_sl = 0.0;
@@ -248,6 +308,14 @@ bool GridSyncPandoraBrokerStops(SignalParams &signal_params,
   {
     ulong retcode = g_position.ResultRetcode();
     int last_error = GetLastError();
+    if(!PositionSelectByTicket(order_state.position_ticket))
+    {
+      GridMarkMissingBrokerPosition(signal_params,
+                                    order_state,
+                                    context + "_SYNC_MODIFY",
+                                    true);
+      return true;
+    }
     signal_params.pandora_broker_stop_sync_status =
       GridPandoraStopSyncFailureIsPending(retcode)
       ? (current_has_broker_stops ? PANDORA_BROKER_STOPS_WIDE
@@ -1256,7 +1324,8 @@ bool GridHandlePandoraBrokerRetry(SignalParams &signal_params,
                                normalized_volume);
 }
 
-bool GridCloseBrokerPosition(GridOrderState &order_state,
+bool GridCloseBrokerPosition(SignalParams &signal_params,
+                             GridOrderState &order_state,
                              const SignalTypes direction,
                              double &close_price)
 {
@@ -1266,12 +1335,26 @@ bool GridCloseBrokerPosition(GridOrderState &order_state,
     return true;
 
   if(!PositionSelectByTicket(order_state.position_ticket))
+  {
+    GridMarkMissingBrokerPosition(signal_params,
+                                  order_state,
+                                  "POSITION_CLOSE_SELECT",
+                                  false);
     return true;
+  }
 
   if(!g_position.PositionClose(order_state.position_ticket))
   {
     ulong retcode = g_position.ResultRetcode();
     int last_error = GetLastError();
+    if(!PositionSelectByTicket(order_state.position_ticket))
+    {
+      GridMarkMissingBrokerPosition(signal_params,
+                                    order_state,
+                                    "POSITION_CLOSE_SEND",
+                                    false);
+      return true;
+    }
     MarketStatusRegisterBrokerFailure("POSITION_CLOSE_FAILED", retcode, last_error, true);
     return false;
   }
@@ -1295,34 +1378,52 @@ void GridCloseAllLevels(SignalParams &signal_params,
   {
     GridOrderState state = signal_params.grid_orders[i];
     double close_price = 0.0;
-    result = GridCloseBrokerPosition(state, direction, close_price);
+    result = GridCloseBrokerPosition(signal_params, state, direction, close_price);
     if(result) state.status = GRID_ORDER_COMPLETED;
     GridLogEvent("LEVEL_CLOSE_ALL", signal_params, state);
     signal_params.grid_orders[i] = state;
   }
 
-  if(signal_params.hedge_position_ticket > 0 &&
-     PositionSelectByTicket(signal_params.hedge_position_ticket))
+  if(signal_params.hedge_position_ticket > 0)
   {
-    long position_magic = PositionGetInteger(POSITION_MAGIC);
-    string position_symbol = PositionGetString(POSITION_SYMBOL);
-    if(position_magic == g_magic_number && position_symbol == _Symbol)
+    if(PositionSelectByTicket(signal_params.hedge_position_ticket))
     {
-      if(!g_position.PositionClose(signal_params.hedge_position_ticket))
+      long position_magic = PositionGetInteger(POSITION_MAGIC);
+      string position_symbol = PositionGetString(POSITION_SYMBOL);
+      if(position_magic == g_magic_number && position_symbol == _Symbol)
       {
-        ulong retcode = g_position.ResultRetcode();
-        int last_error = GetLastError();
-        MarketStatusRegisterBrokerFailure("HEDGE_CLOSE_ALL_FAILED", retcode, last_error, true);
+        double hedge_entry_price = PositionGetDouble(POSITION_PRICE_OPEN);
+        if(!g_position.PositionClose(signal_params.hedge_position_ticket))
+        {
+          ulong retcode = g_position.ResultRetcode();
+          int last_error = GetLastError();
+          if(PositionSelectByTicket(signal_params.hedge_position_ticket))
+            MarketStatusRegisterBrokerFailure("HEDGE_CLOSE_ALL_FAILED", retcode, last_error, true);
+          else
+          {
+            GridLogBrokerLifecycleCleanup("PANDORA_BROKER_TICKET_MISSING",
+                                          "HEDGE_CLOSE_ALL",
+                                          signal_params.hedge_position_ticket,
+                                          "already_closed");
+          }
+        }
+        else
+        {
+          MarketStatusClearExecutionError("HEDGE_CLOSE_ALL_OK");
+        }
+        GridOrderState hedge_state;
+        hedge_state.position_ticket = signal_params.hedge_position_ticket;
+        hedge_state.status = GRID_ORDER_COMPLETED;
+        hedge_state.entry_price = hedge_entry_price;
+        GridLogEvent("HEDGE_CLOSE_ALL", signal_params, hedge_state);
       }
-      else
-      {
-        MarketStatusClearExecutionError("HEDGE_CLOSE_ALL_OK");
-      }
-      GridOrderState hedge_state;
-      hedge_state.position_ticket = signal_params.hedge_position_ticket;
-      hedge_state.status = GRID_ORDER_COMPLETED;
-      hedge_state.entry_price = PositionGetDouble(POSITION_PRICE_OPEN);
-      GridLogEvent("HEDGE_CLOSE_ALL", signal_params, hedge_state);
+    }
+    else
+    {
+      GridLogBrokerLifecycleCleanup("PANDORA_BROKER_TICKET_MISSING",
+                                    "HEDGE_CLOSE_ALL_SELECT",
+                                    signal_params.hedge_position_ticket,
+                                    "already_closed");
     }
     signal_params.hedge_position_ticket = 0;
     signal_params.hedge_sl_active = false;
