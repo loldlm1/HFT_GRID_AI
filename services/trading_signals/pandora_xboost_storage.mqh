@@ -8,6 +8,8 @@ const string PANDORA_XBOOST_STATS_HEADER =
   "node_key,key_hash,samples,wins,losses,be,total_r,avg_r,avg_win_r,avg_loss_r,max_win_r,max_loss_r,max_drawdown_r,expectancy_r,last_seen";
 const string PANDORA_XBOOST_SAMPLES_HEADER =
   "sample_id,node_key,close_event,r_multiple,seen_at";
+const string PANDORA_XBOOST_BROKER_TRADES_HEADER =
+  "broker_trade_id,strategy_key,root_id,root_date,node_key,node_path,sample_id,depth,broker_trade_index,side,entry_time,close_time,entry_price,close_price,sl_points,r_multiple_broker,net_profit,close_event,close_reason,model_score_r,model_posterior_r,model_samples,broker_window_samples,seen_at";
 const string PANDORA_XBOOST_STORAGE_ROOT = "PandoraXBoost";
 const string PANDORA_XBOOST_DEBUG_LOG = "query_debug.txt";
 
@@ -165,6 +167,11 @@ string PandoraXBoostSamplesFilename()
   return PandoraXBoostFilePrefix() + "_samples.csv";
 }
 
+string PandoraXBoostBrokerTradesFilename()
+{
+  return PandoraXBoostFilePrefix() + "_broker_trades.csv";
+}
+
 bool PandoraXBoostSplitCsvLine(const string row,
                                string &fields[])
 {
@@ -197,6 +204,53 @@ bool PandoraXBoostRememberSampleId(const string sample_id)
   int total = ArraySize(g_pandora_xboost_sample_ids);
   ArrayResize(g_pandora_xboost_sample_ids, total + 1, 128);
   g_pandora_xboost_sample_ids[total] = sample_id;
+  return true;
+}
+
+string PandoraXBoostCsvCell(const string raw_value)
+{
+  string value = raw_value;
+  StringReplace(value, "\r", " ");
+  StringReplace(value, "\n", " ");
+  StringReplace(value, ",", ";");
+  return value;
+}
+
+bool PandoraXBoostBrokerTradeIdExists(const string broker_trade_id)
+{
+  if(broker_trade_id == "")
+    return false;
+
+  int total = ArraySize(g_pandora_xboost_broker_trade_ids);
+  for(int i = 0; i < total; i++)
+  {
+    if(g_pandora_xboost_broker_trade_ids[i] == broker_trade_id)
+      return true;
+  }
+  return false;
+}
+
+bool PandoraXBoostRememberBrokerTradeId(const string broker_trade_id)
+{
+  if(broker_trade_id == "")
+    return false;
+  if(PandoraXBoostBrokerTradeIdExists(broker_trade_id))
+    return false;
+
+  int total = ArraySize(g_pandora_xboost_broker_trade_ids);
+  ArrayResize(g_pandora_xboost_broker_trade_ids, total + 1, 128);
+  g_pandora_xboost_broker_trade_ids[total] = broker_trade_id;
+  return true;
+}
+
+bool PandoraXBoostRememberBrokerTradeRow(const PandoraXBoostBrokerTradeRow &trade_row)
+{
+  if(!PandoraXBoostRememberBrokerTradeId(trade_row.broker_trade_id))
+    return false;
+
+  int total = ArraySize(g_pandora_xboost_broker_trades);
+  ArrayResize(g_pandora_xboost_broker_trades, total + 1, 128);
+  g_pandora_xboost_broker_trades[total] = trade_row;
   return true;
 }
 
@@ -359,6 +413,91 @@ bool PandoraXBoostLoadSampleIds()
   return true;
 }
 
+bool PandoraXBoostLoadBrokerTrades()
+{
+  string filename = PandoraXBoostBrokerTradesFilename();
+  if(!FileIsExist(filename, FILE_COMMON))
+  {
+    PandoraXBoostLogEvent("PANDORA_XBOOST_BROKER_TRADES_MISSING",
+                          "file=" + filename);
+    return true;
+  }
+
+  ResetLastError();
+  int handle = FileOpen(filename, FILE_READ | FILE_TXT | FILE_ANSI | FILE_COMMON);
+  if(handle == INVALID_HANDLE)
+  {
+    int open_error = GetLastError();
+    PandoraXBoostLogEvent("PANDORA_XBOOST_BROKER_TRADES_OPEN_FAIL",
+                          StringFormat("file=%s err=%d",
+                                       filename,
+                                       open_error));
+    return false;
+  }
+
+  bool header_seen = false;
+  int rows_loaded = 0;
+  int rows_skipped = 0;
+  while(!FileIsEnding(handle))
+  {
+    string row = FileReadString(handle);
+    if(row == "")
+      continue;
+    if(!header_seen)
+    {
+      header_seen = true;
+      if(row == PANDORA_XBOOST_BROKER_TRADES_HEADER)
+        continue;
+    }
+
+    string fields[];
+    if(!PandoraXBoostSplitCsvLine(row, fields) || ArraySize(fields) < 24)
+    {
+      rows_skipped++;
+      continue;
+    }
+
+    PandoraXBoostBrokerTradeRow trade_row;
+    trade_row.broker_trade_id      = fields[0];
+    trade_row.strategy_key         = fields[1];
+    trade_row.root_id              = fields[2];
+    trade_row.root_date            = (datetime)StringToInteger(fields[3]);
+    trade_row.node_key             = fields[4];
+    trade_row.node_path            = fields[5];
+    trade_row.sample_id            = fields[6];
+    trade_row.depth                = (int)StringToInteger(fields[7]);
+    trade_row.broker_trade_index   = (int)StringToInteger(fields[8]);
+    trade_row.side                 = PandoraXBoostDirectionFromLabel(fields[9]);
+    trade_row.entry_time           = (datetime)StringToInteger(fields[10]);
+    trade_row.close_time           = (datetime)StringToInteger(fields[11]);
+    trade_row.entry_price          = StringToDouble(fields[12]);
+    trade_row.close_price          = StringToDouble(fields[13]);
+    trade_row.sl_points            = StringToDouble(fields[14]);
+    trade_row.r_multiple_broker    = StringToDouble(fields[15]);
+    trade_row.net_profit           = StringToDouble(fields[16]);
+    trade_row.close_event          = PandoraXBoostCloseEventFromLabel(fields[17]);
+    trade_row.close_reason         = fields[18];
+    trade_row.model_score_r        = StringToDouble(fields[19]);
+    trade_row.model_posterior_r    = StringToDouble(fields[20]);
+    trade_row.model_samples        = (int)StringToInteger(fields[21]);
+    trade_row.broker_window_samples = (int)StringToInteger(fields[22]);
+    trade_row.seen_at              = (datetime)StringToInteger(fields[23]);
+
+    if(PandoraXBoostRememberBrokerTradeRow(trade_row))
+      rows_loaded++;
+    else
+      rows_skipped++;
+  }
+
+  FileClose(handle);
+  PandoraXBoostLogEvent("PANDORA_XBOOST_BROKER_TRADES_LOADED",
+                        StringFormat("file=%s rows=%d skipped=%d",
+                                     filename,
+                                     rows_loaded,
+                                     rows_skipped));
+  return true;
+}
+
 bool PandoraXBoostLoad()
 {
   PandoraXBoostClearStorageMemory();
@@ -368,30 +507,36 @@ bool PandoraXBoostLoad()
   PandoraXBoostEnsureStorageFolder();
   bool stats_loaded = PandoraXBoostLoadStats();
   bool samples_loaded = PandoraXBoostLoadSampleIds();
-  g_pandora_xboost_storage_loaded = stats_loaded && samples_loaded;
+  bool broker_trades_loaded = PandoraXBoostLoadBrokerTrades();
+  g_pandora_xboost_storage_loaded =
+    stats_loaded && samples_loaded && broker_trades_loaded;
   g_pandora_xboost_storage_load_time = TimeCurrent();
   if(g_pandora_xboost_storage_loaded)
     PandoraXBoostSaveStatsSnapshot();
 
   if(Enable_Logs)
   {
-    PrintFormat("PANDORA_XBOOST_LOAD mode=%s stats=%d samples=%d folder=%s stats_file=%s samples_file=%s",
+    PrintFormat("PANDORA_XBOOST_LOAD mode=%s stats=%d samples=%d broker=%d folder=%s stats_file=%s samples_file=%s broker_file=%s",
                 PandoraXBoostModeLabel(Pandora_XBoost_Mode),
                 ArraySize(g_pandora_xboost_stats),
                 ArraySize(g_pandora_xboost_sample_ids),
+                ArraySize(g_pandora_xboost_broker_trades),
                 PandoraXBoostStorageAbsoluteFolder(),
                 PandoraXBoostStatsFilename(),
-                PandoraXBoostSamplesFilename());
+                PandoraXBoostSamplesFilename(),
+                PandoraXBoostBrokerTradesFilename());
   }
   PandoraXBoostLogEvent("PANDORA_XBOOST_LOAD",
-                        StringFormat("mode=%s loaded=%s stats=%d samples=%d folder=%s stats_file=%s samples_file=%s",
+                        StringFormat("mode=%s loaded=%s stats=%d samples=%d broker=%d folder=%s stats_file=%s samples_file=%s broker_file=%s",
                                      PandoraXBoostModeLabel(Pandora_XBoost_Mode),
                                      g_pandora_xboost_storage_loaded ? "OK" : "FAIL",
                                      ArraySize(g_pandora_xboost_stats),
                                      ArraySize(g_pandora_xboost_sample_ids),
+                                     ArraySize(g_pandora_xboost_broker_trades),
                                      PandoraXBoostStorageAbsoluteFolder(),
                                      PandoraXBoostStatsFilename(),
-                                     PandoraXBoostSamplesFilename()));
+                                     PandoraXBoostSamplesFilename(),
+                                     PandoraXBoostBrokerTradesFilename()));
 
   return g_pandora_xboost_storage_loaded;
 }
@@ -489,38 +634,140 @@ bool PandoraXBoostFlushPendingSamples()
   return true;
 }
 
+string PandoraXBoostFormatBrokerTradeRow(const PandoraXBoostBrokerTradeRow &trade_row)
+{
+  return StringFormat("%s,%s,%s,%I64d,%s,%s,%s,%d,%d,%s,%I64d,%I64d,%.8f,%.8f,%.8f,%.8f,%.8f,%s,%s,%.8f,%.8f,%d,%d,%I64d",
+                      PandoraXBoostCsvCell(trade_row.broker_trade_id),
+                      PandoraXBoostCsvCell(trade_row.strategy_key),
+                      PandoraXBoostCsvCell(trade_row.root_id),
+                      (long)trade_row.root_date,
+                      PandoraXBoostCsvCell(trade_row.node_key),
+                      PandoraXBoostCsvCell(trade_row.node_path),
+                      PandoraXBoostCsvCell(trade_row.sample_id),
+                      trade_row.depth,
+                      trade_row.broker_trade_index,
+                      PandoraXBoostDirectionLabel(trade_row.side),
+                      (long)trade_row.entry_time,
+                      (long)trade_row.close_time,
+                      trade_row.entry_price,
+                      trade_row.close_price,
+                      trade_row.sl_points,
+                      trade_row.r_multiple_broker,
+                      trade_row.net_profit,
+                      PandoraXBoostCloseEventLabel(trade_row.close_event),
+                      PandoraXBoostCsvCell(trade_row.close_reason),
+                      trade_row.model_score_r,
+                      trade_row.model_posterior_r,
+                      trade_row.model_samples,
+                      trade_row.broker_window_samples,
+                      (long)trade_row.seen_at);
+}
+
+bool PandoraXBoostAppendPendingBrokerTradeRow(const PandoraXBoostBrokerTradeRow &trade_row)
+{
+  if(trade_row.broker_trade_id == "")
+    return false;
+  if(PandoraXBoostBrokerTradeIdExists(trade_row.broker_trade_id))
+    return false;
+
+  string row = PandoraXBoostFormatBrokerTradeRow(trade_row);
+  if(row == "")
+    return false;
+
+  if(!PandoraXBoostRememberBrokerTradeRow(trade_row))
+    return false;
+
+  int total = ArraySize(g_pandora_xboost_pending_broker_trade_rows);
+  ArrayResize(g_pandora_xboost_pending_broker_trade_rows, total + 1, 128);
+  g_pandora_xboost_pending_broker_trade_rows[total] = row;
+  g_pandora_xboost_storage_dirty = true;
+  return true;
+}
+
+bool PandoraXBoostFlushPendingBrokerTrades()
+{
+  int total = ArraySize(g_pandora_xboost_pending_broker_trade_rows);
+  if(total <= 0)
+  {
+    PandoraXBoostLogEvent("PANDORA_XBOOST_BROKER_TRADES_FLUSH",
+                          "pending=0 result=SKIP");
+    return true;
+  }
+
+  string filename = PandoraXBoostBrokerTradesFilename();
+  PandoraXBoostEnsureStorageFolder();
+  bool needs_header = !FileIsExist(filename, FILE_COMMON);
+  ResetLastError();
+  int handle = FileOpen(filename, FILE_WRITE | FILE_READ | FILE_TXT | FILE_ANSI | FILE_COMMON);
+  if(handle == INVALID_HANDLE)
+  {
+    int open_error = GetLastError();
+    PandoraXBoostLogEvent("PANDORA_XBOOST_BROKER_TRADES_SAVE_FAIL",
+                          StringFormat("file=%s err=%d pending=%d",
+                                       filename,
+                                       open_error,
+                                       total));
+    return false;
+  }
+
+  FileSeek(handle, 0, SEEK_END);
+  if(needs_header)
+    FileWrite(handle, PANDORA_XBOOST_BROKER_TRADES_HEADER);
+
+  for(int i = 0; i < total; i++)
+    FileWrite(handle, g_pandora_xboost_pending_broker_trade_rows[i]);
+
+  FileClose(handle);
+  ArrayResize(g_pandora_xboost_pending_broker_trade_rows, 0, 0);
+  PandoraXBoostLogEvent("PANDORA_XBOOST_BROKER_TRADES_SAVED",
+                        StringFormat("file=%s rows=%d header=%s",
+                                     filename,
+                                     total,
+                                     needs_header ? "1" : "0"));
+  return true;
+}
+
 bool PandoraXBoostSave()
 {
   if(!PandoraXBoostEnabled())
     return true;
 
   int pending_before = ArraySize(g_pandora_xboost_pending_sample_rows);
+  int pending_broker_before = ArraySize(g_pandora_xboost_pending_broker_trade_rows);
   bool samples_saved = PandoraXBoostFlushPendingSamples();
+  bool broker_trades_saved = PandoraXBoostFlushPendingBrokerTrades();
   bool stats_saved = PandoraXBoostSaveStatsSnapshot();
-  if(samples_saved && stats_saved)
+  if(samples_saved && broker_trades_saved && stats_saved)
     g_pandora_xboost_storage_dirty = false;
 
   if(Enable_Logs)
   {
-    PrintFormat("PANDORA_XBOOST_SAVE samples=%s stats=%s pending=%d folder=%s stats_file=%s samples_file=%s",
+    PrintFormat("PANDORA_XBOOST_SAVE samples=%s broker=%s stats=%s pending=%d broker_pending=%d folder=%s stats_file=%s samples_file=%s broker_file=%s",
                 samples_saved ? "OK" : "FAIL",
+                broker_trades_saved ? "OK" : "FAIL",
                 stats_saved ? "OK" : "FAIL",
                 pending_before,
+                pending_broker_before,
                 PandoraXBoostStorageAbsoluteFolder(),
                 PandoraXBoostStatsFilename(),
-                PandoraXBoostSamplesFilename());
+                PandoraXBoostSamplesFilename(),
+                PandoraXBoostBrokerTradesFilename());
   }
   PandoraXBoostLogEvent("PANDORA_XBOOST_SAVE",
-                        StringFormat("samples=%s stats=%s pending_before=%d pending_after=%d folder=%s stats_file=%s samples_file=%s",
+                        StringFormat("samples=%s broker=%s stats=%s pending_before=%d broker_pending_before=%d pending_after=%d broker_pending_after=%d folder=%s stats_file=%s samples_file=%s broker_file=%s",
                                      samples_saved ? "OK" : "FAIL",
+                                     broker_trades_saved ? "OK" : "FAIL",
                                      stats_saved ? "OK" : "FAIL",
                                      pending_before,
+                                     pending_broker_before,
                                      ArraySize(g_pandora_xboost_pending_sample_rows),
+                                     ArraySize(g_pandora_xboost_pending_broker_trade_rows),
                                      PandoraXBoostStorageAbsoluteFolder(),
                                      PandoraXBoostStatsFilename(),
-                                     PandoraXBoostSamplesFilename()));
+                                     PandoraXBoostSamplesFilename(),
+                                     PandoraXBoostBrokerTradesFilename()));
 
-  return samples_saved && stats_saved;
+  return samples_saved && broker_trades_saved && stats_saved;
 }
 
 bool PandoraXBoostRecordClosedSignal(SignalParams &signal_params,

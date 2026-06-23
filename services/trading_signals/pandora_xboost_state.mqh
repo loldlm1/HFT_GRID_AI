@@ -183,6 +183,44 @@ string PandoraXBoostDirectionLabel(const SignalTypes direction)
   return "N";
 }
 
+SignalTypes PandoraXBoostDirectionFromLabel(const string label)
+{
+  if(label == "L")
+    return BULLISH;
+  if(label == "S")
+    return BEARISH;
+  return NO_SIGNAL;
+}
+
+PandoraXBoostCloseEvents PandoraXBoostCloseEventFromLabel(const string label)
+{
+  if(label == "ROOTL")
+    return PANDORA_XBOOST_EVENT_ROOTL;
+  if(label == "ROOTS")
+    return PANDORA_XBOOST_EVENT_ROOTS;
+  if(label == "SLL1")
+    return PANDORA_XBOOST_EVENT_SLL1;
+  if(label == "SLS1")
+    return PANDORA_XBOOST_EVENT_SLS1;
+  if(label == "TPL")
+    return PANDORA_XBOOST_EVENT_TPL;
+  if(label == "TPS")
+    return PANDORA_XBOOST_EVENT_TPS;
+  if(label == "TBE")
+    return PANDORA_XBOOST_EVENT_TBE;
+  if(label == "TBEL")
+    return PANDORA_XBOOST_EVENT_TBEL;
+  if(label == "TBES")
+    return PANDORA_XBOOST_EVENT_TBES;
+  if(StringFind(label, "TTPL") == 0)
+    return PANDORA_XBOOST_EVENT_TTPL;
+  if(StringFind(label, "TTPS") == 0)
+    return PANDORA_XBOOST_EVENT_TTPS;
+  if(label == "FORCE_CLOSE")
+    return PANDORA_XBOOST_EVENT_FORCE_CLOSE;
+  return PANDORA_XBOOST_EVENT_NONE;
+}
+
 PandoraXBoostCloseEvents PandoraXBoostRootEventForDirection(const SignalTypes direction)
 {
   if(direction == BULLISH)
@@ -254,6 +292,31 @@ string PandoraXBoostBuildSampleId(const string strategy_key,
                       safe_depth,
                       PandoraXBoostDirectionLabel(candidate_side),
                       PandoraXBoostCloseEventLabel(close_event, event_step_index));
+}
+
+string PandoraXBoostBuildBrokerTradeId(const string strategy_key,
+                                       const datetime root_date,
+                                       const string node_path,
+                                       const int depth,
+                                       const int broker_trade_index,
+                                       const SignalTypes side,
+                                       const datetime entry_time)
+{
+  int safe_depth = depth;
+  if(safe_depth < 1)
+    safe_depth = 1;
+  int safe_trade_index = broker_trade_index;
+  if(safe_trade_index < 0)
+    safe_trade_index = 0;
+
+  return StringFormat("%s|%s|%s|%d|%d|%s|%I64d",
+                      strategy_key,
+                      PandoraXBoostDateKey(root_date),
+                      PandoraXBoostSafeKeyPart(node_path),
+                      safe_depth,
+                      safe_trade_index,
+                      PandoraXBoostDirectionLabel(side),
+                      (long)entry_time);
 }
 
 string PandoraXBoostBuildDisplayId(const SignalTypes candidate_side,
