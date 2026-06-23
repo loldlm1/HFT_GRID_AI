@@ -19,6 +19,8 @@ void PandoraXBoostBuildRootCandidates(const SignalParams &root_signal);
 void PandoraXBoostBuildNextCandidatesFromClosedSignal(const SignalParams &closed_signal,
                                                       const PandoraXBoostCloseEvents close_event,
                                                       const int next_depth);
+bool PandoraXBoostApplyBrokerDecision(SignalParams &signal_params);
+void PandoraXBoostReleaseBrokerAfterClose(const SignalParams &signal_params);
 
 int PandoraXBoostClampDepth(const int configured_depth)
 {
@@ -312,16 +314,19 @@ void PandoraXBoostPrepareRootSignal(SignalParams &signal_params)
                                 strategy_key,
                                 PandoraXBoostDateKey(root_date),
                                 PandoraXBoostDirectionLabel(root_side));
+  bool same_root = (g_pandora_xboost_root.root_id == root_id);
+  bool broker_active = same_root && g_pandora_xboost_root.broker_active;
+  int broker_trade_count = same_root ? g_pandora_xboost_root.broker_trade_count : 0;
 
   g_pandora_xboost_root.active = true;
-  g_pandora_xboost_root.broker_active = false;
+  g_pandora_xboost_root.broker_active = broker_active;
   g_pandora_xboost_root.root_side = root_side;
   g_pandora_xboost_root.last_event = root_event;
   g_pandora_xboost_root.root_date = root_date;
   g_pandora_xboost_root.strategy_key = strategy_key;
   g_pandora_xboost_root.root_id = root_id;
   g_pandora_xboost_root.current_depth = 1;
-  g_pandora_xboost_root.broker_trade_count = 0;
+  g_pandora_xboost_root.broker_trade_count = broker_trade_count;
 
   PandoraXBoostPrepareSignalMetadata(signal_params,
                                      strategy_key,
@@ -332,10 +337,7 @@ void PandoraXBoostPrepareRootSignal(SignalParams &signal_params)
                                      1,
                                      true);
   PandoraXBoostBuildRootCandidates(signal_params);
-
-  signal_params.pandora_first_entry_target_depth = PANDORA_FIRST_ENTRY_OFF_DEPTH;
-  signal_params.pandora_broker_execution_status = PANDORA_BROKER_NOT_ATTEMPTED;
-  signal_params.pandora_broker_stop_sync_status = PANDORA_BROKER_STOPS_NOT_REQUIRED;
+  PandoraXBoostApplyBrokerDecision(signal_params);
 }
 
 PandoraXBoostCloseEvents PandoraXBoostResolveCloseEvent(const SignalParams &signal_params,
@@ -1002,6 +1004,114 @@ void PandoraXBoostBuildNextCandidatesFromClosedSignal(const SignalParams &closed
                                  closed_signal.pandora_xboost_node_path,
                                  true,
                                  NO_SIGNAL);
+}
+
+void PandoraXBoostForceLocalOnly(SignalParams &signal_params)
+{
+  signal_params.pandora_xboost_local_only = true;
+  signal_params.pandora_xboost_broker_selected = false;
+  signal_params.pandora_xboost_broker_trade_index = 0;
+  signal_params.pandora_first_entry_target_depth = PANDORA_FIRST_ENTRY_OFF_DEPTH;
+  signal_params.pandora_broker_execution_status = PANDORA_BROKER_NOT_ATTEMPTED;
+  signal_params.pandora_broker_stop_sync_status = PANDORA_BROKER_STOPS_NOT_REQUIRED;
+}
+
+bool PandoraXBoostFindReadyCandidateForSignal(const SignalParams &signal_params,
+                                              PandoraXBoostCandidate &candidate)
+{
+  int total = ArraySize(g_pandora_xboost_top_candidates);
+  for(int i = 0; i < total; i++)
+  {
+    PandoraXBoostCandidate current = g_pandora_xboost_top_candidates[i];
+    if(current.status != PANDORA_XBOOST_CANDIDATE_READY)
+      continue;
+    if(current.candidate_side != signal_params.signal_type)
+      continue;
+    if(current.node_key != signal_params.pandora_xboost_node_key)
+      continue;
+
+    candidate = current;
+    return true;
+  }
+  return false;
+}
+
+bool PandoraXBoostBrokerBudgetAllowsDepth(const int depth,
+                                          int &next_trade_index)
+{
+  next_trade_index = 0;
+  int max_depth = PandoraXBoostClampDepth(Pandora_XBoost_Max_Depth);
+  if(max_depth < 1)
+    return false;
+  if(depth < 1 || depth > max_depth)
+    return false;
+  if(g_pandora_xboost_root.broker_active)
+    return false;
+
+  next_trade_index = g_pandora_xboost_root.broker_trade_count + 1;
+  if(next_trade_index > max_depth)
+    return false;
+  return true;
+}
+
+bool PandoraXBoostApplyBrokerDecision(SignalParams &signal_params)
+{
+  if(!PandoraXBoostEnabled() || !signal_params.pandora_xboost_enabled)
+    return false;
+
+  PandoraXBoostForceLocalOnly(signal_params);
+  if(!PandoraXBoostInferenceMode())
+    return false;
+
+  PandoraXBoostCandidate candidate;
+  if(!PandoraXBoostFindReadyCandidateForSignal(signal_params, candidate))
+    return false;
+
+  int next_trade_index = 0;
+  if(!PandoraXBoostBrokerBudgetAllowsDepth(signal_params.pandora_xboost_depth,
+                                           next_trade_index))
+    return false;
+
+  signal_params.pandora_xboost_local_only = false;
+  signal_params.pandora_xboost_broker_selected = true;
+  signal_params.pandora_xboost_broker_trade_index = next_trade_index;
+  signal_params.pandora_first_entry_target_depth = PANDORA_FIRST_ENTRY_BREAKOUT_DEPTH;
+  signal_params.pandora_broker_execution_status = PANDORA_BROKER_NOT_ATTEMPTED;
+  signal_params.pandora_broker_stop_sync_status = Pandora_Box_Set_Broker_SLTP
+                                                  ? PANDORA_BROKER_STOPS_PENDING
+                                                  : PANDORA_BROKER_STOPS_NOT_REQUIRED;
+  g_pandora_xboost_root.broker_active = true;
+  g_pandora_xboost_root.broker_trade_count = next_trade_index;
+
+  if(Enable_Logs)
+  {
+    PrintFormat("PANDORA_XBOOST_BROKER_SELECTED depth=%d trade=%d id=%s samples=%d exp=%.3f edge=%.3f",
+                signal_params.pandora_xboost_depth,
+                next_trade_index,
+                signal_params.pandora_xboost_display_id,
+                candidate.samples,
+                candidate.expectancy_r,
+                candidate.edge_r);
+  }
+  return true;
+}
+
+void PandoraXBoostReleaseBrokerAfterClose(const SignalParams &signal_params)
+{
+  if(!signal_params.pandora_xboost_enabled ||
+     !signal_params.pandora_xboost_broker_selected)
+    return;
+
+  if(signal_params.pandora_xboost_broker_trade_index > 0 &&
+     !signal_params.pandora_broker_send_attempted &&
+     g_pandora_xboost_root.broker_trade_count == signal_params.pandora_xboost_broker_trade_index)
+  {
+    g_pandora_xboost_root.broker_trade_count--;
+    if(g_pandora_xboost_root.broker_trade_count < 0)
+      g_pandora_xboost_root.broker_trade_count = 0;
+  }
+
+  g_pandora_xboost_root.broker_active = false;
 }
 
 #endif // _SERVICES_TRADING_SIGNALS_PANDORA_XBOOST_STATE_MQH_

@@ -154,6 +154,15 @@ int GridResolveLevelPositionCommentIndex(const SignalParams &signal_params,
 string GridComposeLevelComment(const SignalParams &signal_params,
                                const GridOrderState &order_state)
 {
+  if(signal_params.pandora_xboost_enabled &&
+     signal_params.pandora_xboost_broker_selected)
+  {
+    int xboost_index = signal_params.pandora_xboost_broker_trade_index;
+    if(xboost_index < 1)
+      xboost_index = g_pandora_xboost_root.broker_trade_count + 1;
+    return StringFormat("pandora_xb_pos_%d", xboost_index);
+  }
+
   int position_index = GridResolveLevelPositionCommentIndex(signal_params, order_state);
   return GridComposePositionComment(position_index);
 }

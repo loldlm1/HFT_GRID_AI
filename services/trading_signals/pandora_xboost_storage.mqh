@@ -356,6 +356,7 @@ bool PandoraXBoostRecordClosedSignal(SignalParams &signal_params,
   PandoraXBoostCloseEvents close_event = PandoraXBoostResolveCloseEvent(signal_params,
                                                                         force_close);
   signal_params.pandora_xboost_close_event = close_event;
+  PandoraXBoostReleaseBrokerAfterClose(signal_params);
   if(close_event == PANDORA_XBOOST_EVENT_NONE)
     return false;
 

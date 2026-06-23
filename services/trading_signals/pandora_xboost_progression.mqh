@@ -81,6 +81,7 @@ bool PandoraXBoostBuildLocalBranchSignal(const SignalParams &parent_signal,
                                      next_depth,
                                      true,
                                      parent_signal.pandora_xboost_node_path);
+  PandoraXBoostApplyBrokerDecision(branch_signal);
   return true;
 }
 
