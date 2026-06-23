@@ -17,6 +17,11 @@ Use this as the source of truth when configuring the EA in the Inputs panel.
 - `Pandora_First_Entry_Mode = -1` opens the first entry locally only, from the current executable Bid/Ask, and never calls `OrderSend`.
 - `Pandora_First_Entry_Mode = 1`, `2`, or higher tests same-direction deep entries. The EA observes the breakout locally first; if observation TP hits before the requested deep SL level, the opportunity is discarded as a local win. If the deep level hits first, the EA admits the real market entry through the existing broker-realistic path. Values above `20` clamp to `20`.
 - Deep-entry observation uses a fixed TP invalidation level. In fixed-TP mode it uses `Pandora_Points_TP`; in `PANDORA_RISK_TRAILING_STEP_TP` mode it uses the same resolved distance as `Pandora_Points_SL`. Step trailing starts only after a real broker market entry is admitted.
+- `Pandora_XBoost_Mode = PANDORA_XBOOST_TRAINING` keeps XBoost broker execution disabled and builds local idempotent statistics from the Pandora root and derived local branches.
+- `Pandora_XBoost_Mode = PANDORA_XBOOST_INFERENCE` loads those statistics and may select one READY XBoost branch for real broker execution at a time. If no candidate qualifies, the branch remains local-only and still contributes statistics.
+- XBoost is rooted in the first Pandora signal of the day. Use `Pandora_Box_Max_Entries = 1` when you want exactly one Pandora root and let `Pandora_XBoost_Max_Depth` control the maximum sequential XBoost broker decisions/trades derived from that root.
+- XBoost never opens simultaneous real long and short positions. A new real XBoost branch can be selected only after the previous selected XBoost signal has closed.
+- XBoost uses the existing Pandora fixed TP, BE, and step trailing rules; it does not add a separate trailing engine.
 - `Pandora_Box_Use_Session_Filter` gates Pandora entry attempts only; it does not decide whether the box construction window is valid.
 - Runtime performance gates are internal only. In Strategy Tester, idle chart/comment refresh is throttled by new chart bars, while active Pandora observations, broker retries, positions, closes, force-close states, and work-window transitions continue to use tick-level lifecycle checks.
 - If `Pandora_Box_Max_Range_Points > 0`, the day is invalid when the box range exceeds that limit.
@@ -60,6 +65,9 @@ Use this as the source of truth when configuring the EA in the Inputs panel.
 | `Pandora_Box_Entry_Count_Mode` | `COUNT_BOX_ENTRY_OFF` | Controls `counted` metric: `OFF` counts `SL`/`TP`/`BE`, `ON_SL` counts `SL`+`BE`, `ON_TP` counts `TP`+`BE`. | Use `OFF` for full analytics, filtered modes for targeted diagnostics. |
 | `Pandora_Box_Max_Entries` | `2` | Broker-realistic Pandora-entry budget per day/window (`0` = unlimited). Pending spread admission and broker-blocked/rejected entries still count. | Keep low (`1-2`) unless broader protections are strict. |
 | `Pandora_First_Entry_Mode` | `0` | First entry depth: `-1` local-only/no broker market, `0` breakout default, `1` SL1, `2` SL2, `N` up to `20` for deeper same-direction SL levels. | Keep `0` for live default; use `1+` only for focused Strategy Tester research. |
+| `Pandora_XBoost_Mode` | `PANDORA_XBOOST_DISABLED` | XBoost mode. `DISABLED` preserves current Pandora behavior, `TRAINING` records local tree statistics only, and `INFERENCE` uses loaded stats to allow READY branches through the existing broker path. | Train first, then validate out-of-sample before live inference. |
+| `Pandora_XBoost_Strategy_Id` | `"default"` | User-managed preset id included in XBoost file names and strategy keys. The runtime key also includes symbol, timeframe, entry type, trailing mode, points mode, box window, and max depth. | Use a unique id per preset so incompatible stats are not mixed. |
+| `Pandora_XBoost_Max_Depth` | `3` | Maximum XBoost progression depth and maximum sequential XBoost real broker decisions/trades derived from one Pandora root day. Supported experimental range is `0-3`; practical inference values are usually `1-3`. | Start with `3` for research; lower it when you want fewer possible real trades. |
 
 ## Runtime Identity, Order Comments, And Status Panel
 
@@ -72,6 +80,9 @@ These fields and labels are not Pandora entry rules, but they are required for s
 | `pandora_box_pos_n` comments | New broker comments for Pandora/grid positions. `n` counts position-opening levels, not virtual grid levels. Hedge orders reserve a deterministic `pandora_box_pos_n` outside normal level numbering. | Open a demo/tester position and confirm the broker comment uses the lowercase format. |
 | Local rejected entries | A local Pandora entry can remain active when an operable broker send is blocked or rejected after a broker-realistic anchor exists. Keep the rejection reason as local state (`local_rejected`) and do not assume broker history contains a matching position. | Force stops/volume/margin rejection in tester and confirm the local entry remains alive until local SL/TP/BE/trailing closes it. |
 | Broker retry entries | Retry pending means the local entry already exists and the EA is trying to attach real broker execution on consecutive eligible ticks. `OrderSend` is the broker source of truth, and no broker retcode is final before the attempt budget is exhausted. | Confirm every retry uses the current tick price, retry success rebases local entry price/time and attempt 8 becomes final when no broker position exists. |
+| XBoost stats files | XBoost stores CSV files in the terminal files area with names like `pandora_xboost_v1_<strategy>_<symbol>_<period>_stats.csv` and `_samples.csv`. Sample ids are loaded once and skipped when a repeated tester run sees the same day/node/outcome again. | Run the same training range twice and confirm sample counts do not duplicate. Delete or archive these files to reset training data for a preset. |
+| `pandora_xb_pos_n` comments | Broker comments for XBoost-selected real positions. `n` follows the sequential XBoost broker decision index for the root day. | In inference, confirm there is never more than one active XBoost broker position and comments advance only after closed selected signals. |
+| XBoost panel lines | The panel/tester comment shows `XBOOST <mode> root=<side> day=<date> d=<depth> broker=<n>/<max>` plus up to three `XB#` candidate rows with id, status, samples, expectancy R, and edge R. | Use the panel to anticipate the next branches that may open real positions; it is display-only and does not affect trading decisions. |
 | Pandora broker stop status | `Stops broker pendientes` means broker protection is not yet attached or could not be tightened on the latest legal attempt; `Stops broker amplios` means broker protection is wider than the exact source-of-truth local target; `Stops broker objetivo` means broker-side protection matches that target. `Stops broker fallidos` is non-fatal for the local lifecycle. | With `Pandora_Box_Set_Broker_SLTP = true`, confirm local SL/TP closes remain aligned to the active fill/simulated anchor while broker stops are pending/wide/failed. |
 | MT5 Algo Trading status | When MT5 Algo Trading, EA trading, or account expert trading is disabled, the EA keeps rates/UI fresh but skips signal/order/close/modify/force-close actions. Broker-side SL/TP remains the only active protection while disabled. | Toggle Algo Trading off/on on a demo chart and confirm no repeated trade errors occur while disabled. |
 | Error label | The chart panel and Strategy Tester comment show `Error: OK`, `Error: ACTIVE ...`, or `Last error: ...` for order-send failures, guardrail blocks, broker disabled/close-only, margin/no-money, SL/TP failures, close failures, and platform-disabled state. | Treat the label as informational only; it does not change trading decisions. |
@@ -83,6 +94,18 @@ These values are internal globals in `services/trading_management/ea_inputs.mqh`
 | Field | Default | What it does |
 |---|---:|---|
 | `Pandora_Box_Broker_Retry_Attempts` | `8` | Total broker open `OrderSend` attempts for one Pandora local entry, including the first send. `1` disables retry. Retries occur on consecutive eligible ticks without a seconds-based delay, time window, or price-drift cancellation. |
+
+## XBoost Training And Inference Workflow
+
+Use this workflow when testing the XBoost progression tree:
+
+1. Set `Pandora_Box_Max_Entries = 1`, choose a unique `Pandora_XBoost_Strategy_Id`, set `Pandora_XBoost_Max_Depth`, and run period A with `Pandora_XBoost_Mode = PANDORA_XBOOST_TRAINING`.
+2. The training run writes idempotent local samples and aggregate stats. Re-running the exact same range is a functional check for duplicate protection, not proof of predictive edge.
+3. Run the same range with `Pandora_XBoost_Mode = PANDORA_XBOOST_INFERENCE` only to confirm that loaded stats, candidate statuses, Top rows, and broker gates behave as expected.
+4. For edge validation, freeze the stats from period A and run a later period B out-of-sample. Treat this as a walk-forward validation, not a same-data replay.
+5. In inference, only `READY` candidates can be selected for broker execution. `WAIT`, `WATCH`, and `BLOCK` remain local-only and continue collecting stats.
+
+Initial scorer thresholds are code-level constants: depth 1 needs 30 samples, depth 2 needs 20, depth 3 needs 12, minimum expectancy is `0.05R`, minimum edge is `0.05R`, and the score applies a `0.03R` depth penalty.
 
 ## Quick Setup Profiles
 
@@ -120,6 +143,10 @@ These values are internal globals in `services/trading_management/ea_inputs.mqh`
 - If using `Pandora_Box_Max_Range_Points`, ensure the cap matches symbol volatility.
 - Confirm `Pandora_Box_Max_Entries` (reserved/opened Pandora budget) and `Pandora_Box_Entry_Count_Mode` (analytics counter) are not conflated.
 - If using `Pandora_First_Entry_Mode >= 1`, confirm chart observation lines show `TP obs` and the expected `SLN entry` target before relying on the run.
+- If using XBoost, confirm `Pandora_XBoost_Strategy_Id` is unique to the preset and that the stats/sample CSV files are the intended ones for the run.
+- Confirm `Pandora_XBoost_Mode = PANDORA_XBOOST_TRAINING` never opens broker positions from XBoost branches.
+- Confirm `Pandora_XBoost_Mode = PANDORA_XBOOST_INFERENCE` opens broker positions only for `READY` candidates and never while another XBoost broker position is active.
+- Confirm `Pandora_XBoost_Max_Depth` matches the maximum sequential XBoost real broker decisions/trades you are willing to allow from one root day.
 - In Strategy Tester, remember idle chart/comment updates can appear on new chart bars rather than every tick; active entries, observations, retries, and closes should still update immediately.
 - Confirm session filters are configured when `Pandora_Box_Use_Session_Filter = true`.
 - Decide whether broker-side protection is required (`Pandora_Box_Set_Broker_SLTP = true`).
@@ -149,6 +176,13 @@ Run these scenarios manually in Strategy Tester visual mode or on a demo chart w
 | SL1 market admission | `Pandora_First_Entry_Mode = 1`; price reaches SL1 before observation TP. | `PANDORA_FIRST_ENTRY_MARKET_ADMITTED`, then normal broker send/retry logs. | Entry marker uses broker fill or executable local anchor, not breakout. | Budget counts once; real close completes the day/budget. |
 | SL2 staged observation | `Pandora_First_Entry_Mode = 2`; price reaches SL1 first. | `PANDORA_FIRST_ENTRY_OBSERVE_ADVANCE`; chart target changes from `SL1 entry` to `SL2 entry`. | `TP obs` is recalculated from SL1 stage. | No budget count until SL1 TP discard or SL2 market admission. |
 | SL3 staged observation | `Pandora_First_Entry_Mode = 3`; price reaches SL1, then SL2, before observation TP. | Two `PANDORA_FIRST_ENTRY_OBSERVE_ADVANCE` logs, then `PANDORA_FIRST_ENTRY_MARKET_ADMITTED` at SL3. | Chart target advances from `SL1 entry` to `SL2 entry` to `SL3 entry`. | No budget count until an observation TP discard or SL3 market admission. |
+| XBoost training pass | `Pandora_Box_Max_Entries = 1`, unique `Pandora_XBoost_Strategy_Id`, `Pandora_XBoost_Mode = PANDORA_XBOOST_TRAINING`, selected depth. | `PANDORA_XBOOST_LOCAL_BRANCH` and save/load logs when enabled; no broker selected logs. | XBoost panel line shows training mode and candidate rows when stats exist. | Stats and samples CSV files are written on deinit; broker history is unchanged by XBoost. |
+| XBoost duplicate replay | Re-run the exact same training range with the same strategy id and preset. | No duplicate sample growth for already seen sample ids. | Panel remains display-only. | Treat this as idempotency validation only, not predictive edge validation. |
+| XBoost inference replay | Run the same range with `Pandora_XBoost_Mode = PANDORA_XBOOST_INFERENCE` using stats from the training pass. | Candidate rows show `READY`, `WAIT`, `WATCH`, or `BLOCK`; broker selected logs appear only for READY candidates. | READY selected broker entries use comments like `pandora_xb_pos_1`. | This confirms wiring and gates only; it is not a valid edge backtest because the same data trained the stats. |
+| XBoost out-of-sample validation | Train period A, keep its stats files, then run later period B in inference. | Broker selections occur only for READY candidates based on period A stats. | Panel shows expected next branches before any real XBoost send. | Use this walk-forward style to evaluate edge; compare period B results against local-only candidates and normal Pandora. |
+| XBoost no-candidate day | Inference mode with missing or insufficient stats for the current root/branch. | Candidate status is `WAIT`, `WATCH`, or `BLOCK`; no `PANDORA_XBOOST_BROKER_SELECTED` log. | No `pandora_xb_pos_n` broker comment should appear. | Local branches still close and record idempotent samples. |
+| XBoost trailing close to next depth | Step trailing mode enabled; selected or local XBoost node trails SL into profit or BE and then closes. | Close event maps to `TBEL`/`TBES` or `TTPLn`/`TTPSn`; next-depth candidates are rebuilt. | Panel updates to the next depth candidates after close. | No next real broker branch opens until the prior selected XBoost signal is closed. |
+| XBoost max-depth stop | Set `Pandora_XBoost_Max_Depth = 1`, `2`, or `3` and force enough closes to reach the limit. | No branch advances beyond the configured max depth. | Broker count never exceeds the configured max depth. | Derived local stats can continue only up to max depth, and real broker selections stop at the depth limit. |
 | Broker stop tightening | Successful broker entry where no initial SL/TP was attached and exact SL/TP is unsafe at fill time. Keep price moving until exact local targets become legal for broker modification. | Stop status starts as pending/absent, then becomes `Stops broker objetivo` or `Stops broker amplios` after safe sync. Failed modify attempts should be non-fatal and throttled. | `... (Posicion ejecutada)`. | Local SL/TP does not move just because broker stops are wider or absent. Statistics use exact local close price, not the temporary broker protection state. |
 
 ## Notes
