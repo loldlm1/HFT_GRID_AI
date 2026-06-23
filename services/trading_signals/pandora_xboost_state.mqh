@@ -260,5 +260,9 @@ PandoraXBoostRootState g_pandora_xboost_root;
 PandoraXBoostStats     g_pandora_xboost_stats[];
 string                 g_pandora_xboost_sample_ids[];
 PandoraXBoostCandidate g_pandora_xboost_top_candidates[];
+string                 g_pandora_xboost_pending_sample_rows[];
+bool                   g_pandora_xboost_storage_loaded = false;
+bool                   g_pandora_xboost_storage_dirty  = false;
+datetime               g_pandora_xboost_storage_load_time = 0;
 
 #endif // _SERVICES_TRADING_SIGNALS_PANDORA_XBOOST_STATE_MQH_

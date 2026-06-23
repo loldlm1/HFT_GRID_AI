@@ -179,6 +179,7 @@ int OnInit()
   // INITIALIZE THE EA
   CreateLicensePanelLive();
   LoadAllIndicatorDefinitions();
+  PandoraXBoostLoad();
   if(!EventSetTimer(LicenseServiceTimerSeconds()))
   {
     PrintFormat("[EA] Failed to set timer (%d seconds).",
@@ -196,6 +197,7 @@ void OnDeinit(const int reason)
 {
   LicenseServiceOnDeinit();
   EventKillTimer();
+  PandoraXBoostSave();
   ClearFrontendVisualization();
   Comment("");
   EALifecycleClearRemovalRequest();
