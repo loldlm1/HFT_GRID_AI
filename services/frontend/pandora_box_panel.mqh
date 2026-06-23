@@ -113,7 +113,7 @@ void FrontendBuildPanelLines(const datetime now_time,
     FrontendAppendLine(panel_lines, "Motivo: " + status_reason);
 
   int summary_total = ArraySize(summary_lines);
-  int max_summary_lines = 4;
+  int max_summary_lines = PandoraXBoostEnabled() ? 7 : 4;
   for(int i = 0; i < summary_total && i < max_summary_lines; i++)
     FrontendAppendLine(panel_lines, summary_lines[i]);
 

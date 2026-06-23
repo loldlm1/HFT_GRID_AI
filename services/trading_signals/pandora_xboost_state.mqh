@@ -1156,4 +1156,43 @@ void PandoraXBoostReleaseBrokerAfterClose(const SignalParams &signal_params)
   g_pandora_xboost_root.broker_active = false;
 }
 
+void PandoraXBoostAppendSummaryLines(string &summary_lines[])
+{
+  if(!PandoraXBoostEnabled())
+    return;
+
+  int max_depth = PandoraXBoostClampDepth(Pandora_XBoost_Max_Depth);
+  string root_label = PandoraXBoostDirectionLabel(g_pandora_xboost_root.root_side);
+  string day_label = (g_pandora_xboost_root.root_date > 0)
+                     ? PandoraXBoostDateKey(g_pandora_xboost_root.root_date)
+                     : "none";
+  int idx = ArraySize(summary_lines);
+  ArrayResize(summary_lines, idx + 1);
+  summary_lines[idx] = StringFormat("XBOOST %s root=%s day=%s d=%d broker=%d/%d",
+                                    PandoraXBoostModeLabel(Pandora_XBoost_Mode),
+                                    root_label,
+                                    day_label,
+                                    g_pandora_xboost_root.current_depth,
+                                    g_pandora_xboost_root.broker_trade_count,
+                                    max_depth);
+
+  int total = ArraySize(g_pandora_xboost_top_candidates);
+  if(total > PANDORA_XBOOST_TOP_CANDIDATE_LIMIT)
+    total = PANDORA_XBOOST_TOP_CANDIDATE_LIMIT;
+
+  for(int i = 0; i < total; i++)
+  {
+    PandoraXBoostCandidate candidate = g_pandora_xboost_top_candidates[i];
+    int line_index = ArraySize(summary_lines);
+    ArrayResize(summary_lines, line_index + 1);
+    summary_lines[line_index] = StringFormat("XB%d %s %s n=%d exp=%.2f edge=%.2f",
+                                             i + 1,
+                                             candidate.display_id,
+                                             PandoraXBoostCandidateStatusLabel(candidate.status),
+                                             candidate.samples,
+                                             candidate.expectancy_r,
+                                             candidate.edge_r);
+  }
+}
+
 #endif // _SERVICES_TRADING_SIGNALS_PANDORA_XBOOST_STATE_MQH_

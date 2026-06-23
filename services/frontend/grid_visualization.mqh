@@ -260,6 +260,7 @@ void RefreshGridVisualization()
   if(Enable_Chart_Summary)
   {
     PandoraAppendSummary(summary_lines);
+    PandoraXBoostAppendSummaryLines(summary_lines);
 
     int bullish_total = ArraySize(running_bullish_signals);
     for(int i = 0; i < bullish_total; i++)
