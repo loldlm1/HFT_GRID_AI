@@ -4,7 +4,7 @@
 #ifndef _SERVICES_TRADING_SIGNALS_PANDORA_XBOOST_STATE_MQH_
 #define _SERVICES_TRADING_SIGNALS_PANDORA_XBOOST_STATE_MQH_
 
-const int    PANDORA_XBOOST_SCHEMA_VERSION       = 1;
+const int    PANDORA_XBOOST_SCHEMA_VERSION       = 2;
 const int    PANDORA_XBOOST_MIN_DEPTH            = 0;
 const int    PANDORA_XBOOST_MAX_DEPTH            = 3;
 const int    PANDORA_XBOOST_MIN_SAMPLES_DEPTH_1  = 30;
@@ -206,7 +206,6 @@ string PandoraXBoostBuildStrategyKey()
 }
 
 string PandoraXBoostBuildNodeKey(const string strategy_key,
-                                 const datetime root_date,
                                  const SignalTypes root_side,
                                  const PandoraXBoostCloseEvents parent_event,
                                  const int depth,
@@ -218,9 +217,8 @@ string PandoraXBoostBuildNodeKey(const string strategy_key,
   if(safe_depth < 1)
     safe_depth = 1;
   string safe_path = PandoraXBoostSafeKeyPart(node_path);
-  return StringFormat("%s|%s|%s|%s|%d|%s|%s",
+  return StringFormat("%s|%s|%s|%d|%s|%s",
                       strategy_key,
-                      PandoraXBoostDateKey(root_date),
                       PandoraXBoostDirectionLabel(root_side),
                       PandoraXBoostCloseEventLabel(parent_event, event_step_index),
                       safe_depth,
@@ -259,7 +257,6 @@ string PandoraXBoostBuildDisplayId(const SignalTypes candidate_side,
 void PandoraXBoostPrepareSignalMetadata(SignalParams &signal_params,
                                         const string strategy_key,
                                         const string root_id,
-                                        const datetime root_date,
                                         const SignalTypes root_side,
                                         const PandoraXBoostCloseEvents parent_event,
                                         const int depth,
@@ -289,7 +286,6 @@ void PandoraXBoostPrepareSignalMetadata(SignalParams &signal_params,
                                              signal_params.pandora_xboost_display_id;
   signal_params.pandora_xboost_node_key =
     PandoraXBoostBuildNodeKey(strategy_key,
-                              root_date,
                               root_side,
                               parent_event,
                               safe_depth,
@@ -334,7 +330,6 @@ void PandoraXBoostPrepareRootSignal(SignalParams &signal_params)
   PandoraXBoostPrepareSignalMetadata(signal_params,
                                      strategy_key,
                                      root_id,
-                                     root_date,
                                      root_side,
                                      root_event,
                                      1,
@@ -815,7 +810,6 @@ bool PandoraXBoostCandidateHasMinimumStats(const PandoraXBoostCandidate &candida
 }
 
 void PandoraXBoostBuildCandidate(const string strategy_key,
-                                 const datetime root_date,
                                  const SignalTypes root_side,
                                  const PandoraXBoostCloseEvents parent_event,
                                  const int depth,
@@ -831,7 +825,6 @@ void PandoraXBoostBuildCandidate(const string strategy_key,
                                                     candidate_side,
                                                     parent_event);
   string node_key = PandoraXBoostBuildNodeKey(strategy_key,
-                                              root_date,
                                               root_side,
                                               parent_event,
                                               safe_depth,
@@ -923,7 +916,7 @@ void PandoraXBoostLogTopCandidates()
   for(int i = 0; i < total; i++)
   {
     PandoraXBoostCandidate candidate = g_pandora_xboost_top_candidates[i];
-    string message = StringFormat("rank=%d depth=%d id=%s status=%s samples=%d exp=%.3f edge=%.3f score=%.3f reason=%s",
+    string message = StringFormat("rank=%d depth=%d id=%s status=%s samples=%d exp=%.3f edge=%.3f score=%.3f reason=%s model=%s",
                                   i + 1,
                                   candidate.depth,
                                   candidate.display_id,
@@ -932,7 +925,8 @@ void PandoraXBoostLogTopCandidates()
                                   candidate.expectancy_r,
                                   candidate.edge_r,
                                   candidate.score_r,
-                                  candidate.reason);
+                                  candidate.reason,
+                                  candidate.node_key);
     if(Enable_Logs)
       Print("PANDORA_XBOOST_DRYRUN ", message);
     PandoraXBoostLogEvent("PANDORA_XBOOST_DRYRUN", message);
@@ -940,7 +934,6 @@ void PandoraXBoostLogTopCandidates()
 }
 
 void PandoraXBoostBuildCandidateSet(const string strategy_key,
-                                    const datetime root_date,
                                     const SignalTypes root_side,
                                     const PandoraXBoostCloseEvents parent_event,
                                     const int depth,
@@ -960,7 +953,6 @@ void PandoraXBoostBuildCandidateSet(const string strategy_key,
   if(include_both_sides || single_side == BULLISH)
   {
     PandoraXBoostBuildCandidate(strategy_key,
-                                root_date,
                                 root_side,
                                 parent_event,
                                 depth,
@@ -973,7 +965,6 @@ void PandoraXBoostBuildCandidateSet(const string strategy_key,
   if(include_both_sides || single_side == BEARISH)
   {
     PandoraXBoostBuildCandidate(strategy_key,
-                                root_date,
                                 root_side,
                                 parent_event,
                                 depth,
@@ -1006,12 +997,7 @@ void PandoraXBoostBuildRootCandidates(const SignalParams &root_signal)
   if(!root_signal.pandora_xboost_enabled)
     return;
 
-  datetime root_date = g_pandora_xboost_root.root_date;
-  if(root_date <= 0)
-    root_date = ResolveCurrentDayStart();
-
   PandoraXBoostBuildCandidateSet(root_signal.pandora_xboost_strategy_key,
-                                 root_date,
                                  root_signal.pandora_xboost_root_side,
                                  root_signal.pandora_xboost_parent_event,
                                  root_signal.pandora_xboost_depth,
@@ -1036,18 +1022,11 @@ void PandoraXBoostBuildNextCandidatesFromClosedSignal(const SignalParams &closed
   if(strategy_key == "")
     strategy_key = PandoraXBoostBuildStrategyKey();
 
-  datetime root_date = g_pandora_xboost_root.root_date;
-  if(root_date <= 0)
-    root_date = g_pandora_box_state.day_anchor;
-  if(root_date <= 0)
-    root_date = ResolveCurrentDayStart();
-
   SignalTypes root_side = closed_signal.pandora_xboost_root_side;
   if(root_side == NO_SIGNAL)
     root_side = closed_signal.signal_type;
 
   PandoraXBoostBuildCandidateSet(strategy_key,
-                                 root_date,
                                  root_side,
                                  close_event,
                                  next_depth,

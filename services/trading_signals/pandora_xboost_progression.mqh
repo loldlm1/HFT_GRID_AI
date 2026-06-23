@@ -58,12 +58,6 @@ bool PandoraXBoostBuildLocalBranchSignal(const SignalParams &parent_signal,
   if(strategy_key == "")
     strategy_key = PandoraXBoostBuildStrategyKey();
 
-  datetime root_date = g_pandora_xboost_root.root_date;
-  if(root_date <= 0)
-    root_date = g_pandora_box_state.day_anchor;
-  if(root_date <= 0)
-    root_date = ResolveCurrentDayStart();
-
   SignalTypes root_side = parent_signal.pandora_xboost_root_side;
   if(root_side == NO_SIGNAL)
     root_side = parent_signal.signal_type;
@@ -75,7 +69,6 @@ bool PandoraXBoostBuildLocalBranchSignal(const SignalParams &parent_signal,
   PandoraXBoostPrepareSignalMetadata(branch_signal,
                                      strategy_key,
                                      root_id,
-                                     root_date,
                                      root_side,
                                      parent_event,
                                      next_depth,

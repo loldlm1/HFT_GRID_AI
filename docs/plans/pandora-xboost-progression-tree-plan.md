@@ -912,6 +912,72 @@ Pandora trailing semantics instead of falling back to fixed local TP behavior.
     `PandoraFirstEntryRequiresFixedLocalTP`,
     `PandoraFirstEntryTrailingAllowed`, and local close checks.
 
+## Sprint 14: Date-Agnostic XBoost Model Keys
+
+**Goal**: Separate XBoost statistical model identity from daily sample
+idempotency so inference can learn across days while each daily branch sample
+remains deduplicated.
+**Commit**: `Sprint 14: separate XBoost model and sample keys`
+**Demo/Validation**:
+- XBoost `_stats.csv` aggregates rows by strategy/root/event/depth/side/path
+  without embedding the trading date in `node_key`.
+- XBoost `_samples.csv` keeps date-specific `sample_id` values so replaying the
+  same day remains idempotent.
+- `query_debug.txt` exposes enough model/sample identity to audit candidate
+  lookup, sample recording, and save behavior.
+- MetaEditor compile passes with zero errors and zero warnings.
+
+### Task 14.1: Version The XBoost Key Contract
+
+- **Location**:
+  - `services/trading_signals/pandora_xboost_state.mqh`
+  - `services/trading_signals/pandora_xboost_storage.mqh`
+- **Description**: Bump the XBoost schema version because stats row identity is
+  changing from date-scoped keys to reusable model keys. New runs should write
+  `v2` CSV files instead of mixing old `v1` date-scoped stats.
+- **Dependencies**: Sprint 13.
+- **Acceptance Criteria**:
+  - File prefixes and strategy keys use schema version `v2`.
+  - Existing `v1` files are left untouched as external runtime artifacts.
+- **Validation**:
+  - Static review of file prefix and strategy key usage.
+
+### Task 14.2: Remove Date From Statistical Node Keys
+
+- **Location**:
+  - `services/trading_signals/pandora_xboost_state.mqh`
+  - `services/trading_signals/pandora_xboost_progression.mqh`
+- **Description**: Make `PandoraXBoostBuildNodeKey()` build the aggregate model
+  key from strategy signature, root side, parent close event, depth, candidate
+  side, and branch path only. Keep root date for root/session tracking and
+  sample idempotency, not for stat lookup.
+- **Dependencies**: Task 14.1.
+- **Acceptance Criteria**:
+  - Candidate lookup and stat update use the same date-agnostic `node_key`.
+  - Multiple days with the same branch identity increment the same stats row.
+  - Root and branch runtime state still carries date for daily lifecycle.
+- **Validation**:
+  - Static trace from root/branch metadata to candidate lookup and stat update.
+
+### Task 14.3: Keep Daily Sample IDs Idempotent
+
+- **Location**:
+  - `services/trading_signals/pandora_xboost_storage.mqh`
+  - `services/trading_signals/pandora_xboost_state.mqh`
+- **Description**: Build sample IDs from strategy signature, root date, branch
+  path, depth, side, and close event so samples remain replay-safe even though
+  stats aggregate across dates.
+- **Dependencies**: Task 14.2.
+- **Acceptance Criteria**:
+  - Replaying the same day still produces duplicate sample IDs and does not
+    double-count stats.
+  - Replaying a different day with the same branch path increments the same
+    stats row.
+  - Logs include model key and sample id context for audit.
+- **Validation**:
+  - Static review of duplicate check order, sample id construction, and stats
+    update path.
+
 ## Validation Strategy
 
 - **Intermediate Sprint validation**: Do not compile after Sprints 1-9. Use

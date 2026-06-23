@@ -557,7 +557,6 @@ bool PandoraXBoostRecordClosedSignal(SignalParams &signal_params,
   if(node_key == "")
   {
     node_key = PandoraXBoostBuildNodeKey(strategy_key,
-                                         root_date,
                                          root_side,
                                          parent_event,
                                          depth,
@@ -575,9 +574,12 @@ bool PandoraXBoostRecordClosedSignal(SignalParams &signal_params,
 
   double r_multiple = PandoraXBoostResolveSignalRMultiple(signal_params);
   string close_label = PandoraXBoostCloseEventLabel(close_event, event_step_index);
+  string sample_path = signal_params.pandora_xboost_node_path;
+  if(sample_path == "")
+    sample_path = node_key;
   string sample_id = PandoraXBoostBuildSampleId(strategy_key,
                                                 root_date,
-                                                node_key,
+                                                sample_path,
                                                 depth,
                                                 signal_params.signal_type,
                                                 close_event,
@@ -610,12 +612,14 @@ bool PandoraXBoostRecordClosedSignal(SignalParams &signal_params,
   signal_params.pandora_xboost_sample_id = sample_id;
   signal_params.pandora_xboost_node_key = node_key;
   PandoraXBoostLogEvent("PANDORA_XBOOST_SAMPLE_RECORDED",
-                        StringFormat("depth=%d id=%s close=%s r=%.3f node=%s",
+                        StringFormat("depth=%d id=%s date=%s close=%s r=%.3f model=%s sample=%s",
                                      depth,
                                      signal_params.pandora_xboost_display_id,
+                                     PandoraXBoostDateKey(root_date),
                                      close_label,
                                      r_multiple,
-                                     node_key));
+                                     node_key,
+                                     sample_id));
   if(!PandoraXBoostSave())
   {
     PandoraXBoostLogEvent("PANDORA_XBOOST_SAMPLE_SAVE_FAIL",
