@@ -220,6 +220,9 @@ void PandoraXBoostClearStorageMemory()
   ArrayResize(g_pandora_xboost_stats, 0, 0);
   ArrayResize(g_pandora_xboost_sample_ids, 0, 0);
   ArrayResize(g_pandora_xboost_pending_sample_rows, 0, 0);
+  ArrayResize(g_pandora_xboost_broker_trades, 0, 0);
+  ArrayResize(g_pandora_xboost_broker_trade_ids, 0, 0);
+  ArrayResize(g_pandora_xboost_pending_broker_trade_rows, 0, 0);
   PandoraXBoostClearTopCandidates();
   g_pandora_xboost_lookup_cache_key = "";
   g_pandora_xboost_lookup_cache_hash = 0;

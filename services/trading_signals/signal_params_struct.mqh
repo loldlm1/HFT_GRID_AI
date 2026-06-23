@@ -152,6 +152,13 @@ struct SignalParams
   string   pandora_xboost_node_path;
   string   pandora_xboost_sample_id;
   string   pandora_xboost_display_id;
+  string   pandora_xboost_broker_trade_id;
+  int      pandora_xboost_selected_rank;
+  int      pandora_xboost_model_samples;
+  int      pandora_xboost_broker_window_samples;
+  double   pandora_xboost_model_score_r;
+  double   pandora_xboost_model_posterior_r;
+  double   pandora_xboost_model_conservative_r;
   datetime context_structure_snapshot_time;
 
   bool                      base_bpercent_valid;
@@ -299,6 +306,13 @@ struct SignalParams
     pandora_xboost_node_path   = "";
     pandora_xboost_sample_id   = "";
     pandora_xboost_display_id  = "";
+    pandora_xboost_broker_trade_id = "";
+    pandora_xboost_selected_rank = 0;
+    pandora_xboost_model_samples = 0;
+    pandora_xboost_broker_window_samples = 0;
+    pandora_xboost_model_score_r = 0.0;
+    pandora_xboost_model_posterior_r = 0.0;
+    pandora_xboost_model_conservative_r = 0.0;
     context_structure_snapshot_time = 0;
     trend_filter_mode          = TREND_OFF;
     trend_bpercent_valid       = false;
@@ -420,6 +434,13 @@ struct SignalParams
     pandora_xboost_node_path     = signal_params.pandora_xboost_node_path;
     pandora_xboost_sample_id     = signal_params.pandora_xboost_sample_id;
     pandora_xboost_display_id    = signal_params.pandora_xboost_display_id;
+    pandora_xboost_broker_trade_id = signal_params.pandora_xboost_broker_trade_id;
+    pandora_xboost_selected_rank = signal_params.pandora_xboost_selected_rank;
+    pandora_xboost_model_samples = signal_params.pandora_xboost_model_samples;
+    pandora_xboost_broker_window_samples = signal_params.pandora_xboost_broker_window_samples;
+    pandora_xboost_model_score_r = signal_params.pandora_xboost_model_score_r;
+    pandora_xboost_model_posterior_r = signal_params.pandora_xboost_model_posterior_r;
+    pandora_xboost_model_conservative_r = signal_params.pandora_xboost_model_conservative_r;
     strategy_context           = signal_params.strategy_context;
     strategy_timeframe         = signal_params.strategy_timeframe;
     strategy_context_label     = signal_params.strategy_context_label;
