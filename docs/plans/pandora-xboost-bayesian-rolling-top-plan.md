@@ -2,7 +2,7 @@
 
 **Generated**: 2026-06-23
 **Estimated Complexity**: Critical / Trading-Sensitive
-**Status**: Draft ready for Sprint execution
+**Status**: Implementation in progress
 
 ## Overview
 
@@ -891,3 +891,13 @@ Remove-Item -LiteralPath $build_log -ErrorAction SilentlyContinue
   needed.
 - Because schema v3 uses separate file names, existing v2 runtime artifacts can
   remain untouched.
+
+## Execution Notes
+
+- Sprints 1-9 follow the original methodology: local tree stats remain the
+  discovery model, while the real broker ledger only degrades or blocks
+  candidates.
+- No separate global XBoost kill-switch input was added. Days with no `READY`
+  candidate simply continue local branch statistics without opening broker
+  trades.
+- Regime filtering remains intentionally deferred to a future feature.

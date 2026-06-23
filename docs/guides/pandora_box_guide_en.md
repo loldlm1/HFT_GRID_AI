@@ -154,7 +154,80 @@ Follow these detailed steps to install and configure **Pandora Box** in MetaTrad
 
 ---
 
-## 6. Validation Checklist Before Live Run
+## 6. Pandora XBoost Bayesian v3
+
+Pandora XBoost is an optional progression-tree layer for Pandora Box. It is
+rooted in the first Pandora signal of the day and can evaluate up to
+`Pandora_XBoost_Max_Depth` sequential branch decisions.
+
+### Operating Modes
+- `PANDORA_XBOOST_DISABLED`: XBoost is off and Pandora keeps normal behavior.
+- `PANDORA_XBOOST_TRAINING`: records local branch statistics only; no real
+  broker trades are opened by XBoost.
+- `PANDORA_XBOOST_INFERENCE`: records local branch statistics and may open one
+  real broker trade when a candidate is `READY` and all normal broker guards
+  pass.
+
+### Model Methodology
+- The local progression tree is the discovery model because it observes every
+  branch, including branches that are not opened at the broker.
+- The real broker ledger is a calibration layer. It can degrade or block a
+  candidate, but it does not promote a weak local candidate by itself.
+- Bayesian shrinkage pulls low-sample branches toward the strategy-level prior
+  before ranking them.
+- Fixed rolling windows are used for confirmation: global history, last 120
+  days, last 60 days, and the last 30 real broker trades.
+- Regime filtering is intentionally deferred to a future feature to avoid
+  fragmenting samples too early.
+- There is no separate XBoost kill-switch input in v3. If no candidate reaches
+  `READY`, XBoost opens no real broker trade and continues local statistics.
+
+### Candidate States
+- `READY`: the candidate passed local samples, Bayesian conservative score,
+  edge, rolling checks, broker calibration, and normal broker-budget gates.
+- `WATCH`: the candidate has useful information but is not strong enough for
+  real broker execution.
+- `BLOCK`: the candidate is explicitly blocked by conservative score, rolling
+  degradation, broker-ledger degradation, or another XBoost gate.
+
+### CSV Files
+XBoost v3 writes separate Common-storage CSV files under the existing
+`PandoraXBoost` folder:
+
+- `*_stats.csv`: aggregate local model stats by model node.
+- `*_samples.csv`: idempotent local branch samples by day/sample id.
+- `*_broker_trades.csv`: closed real broker trades selected by XBoost only.
+
+### Panel Example
+
+```text
+XBOOST INFERENCE v3 root=L day=2026.06.23 d=2 broker=1/3
+XB data stats=86 samples=4417 broker=184 pend=0/0 Common\mt5_xxx\us_30_v1
+XB1 L-TTPL2 READY n=72 p=0.18 c=0.11 br30=0.06
+XB2 S-TTPL2 WATCH n=41 p=0.04 c=-0.01 reason=EDGE
+XB3 L-TBES BLOCK n=56 p=0.09 c=-0.08 reason=BROKER_30
+```
+
+`p` is posterior R, `c` is conservative score R after penalties, and `br30`
+is the recent real broker calibration when available.
+
+### Manual QA Workflow
+- Run a short 5-day inference pass with `Enable_File_Logs = true`.
+- Confirm v3 `stats`, `samples`, and `broker_trades` files exist in Common
+  storage after at least one real XBoost broker trade closes.
+- Confirm `query_debug.txt` includes `PANDORA_XBOOST_DRYRUN`,
+  `PANDORA_XBOOST_BROKER_SELECTED`, and broker ledger save/load diagnostics.
+- Confirm replaying the same date range does not duplicate sample ids or broker
+  trade ids.
+- Confirm days with only `WATCH`/`BLOCK` candidates do not open real broker
+  trades but still continue local branch statistics.
+- Confirm XBoost does not open simultaneous real broker positions.
+- Treat long inference runs as adaptive integration tests. A true A/B forward
+  validation requires period A data to be evaluated on a later unseen period B.
+
+---
+
+## 7. Validation Checklist Before Live Run
 Before running **Pandora Box** on a live account, verify:
 
 - The time range format is valid (`HH:MM-HH:MM`), using `start < end` for same-day boxes or `start > end` for overnight boxes.
@@ -176,7 +249,7 @@ Before running **Pandora Box** on a live account, verify:
 
 ---
 
-## 7. License and WebRequest Troubleshooting
+## 8. License and WebRequest Troubleshooting
 If WebRequest is not configured, online license verification can fail and the EA can remove itself after initialization/refresh checks.
 
 ### Common symptoms

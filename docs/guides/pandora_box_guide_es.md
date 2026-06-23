@@ -154,7 +154,84 @@ Sigue estos pasos detallados para instalar y configurar **Pandora Box** en MetaT
 
 ---
 
-## 6. Checklist de Validación Antes de Operar en Vivo
+## 6. Pandora XBoost Bayesian v3
+
+Pandora XBoost es una capa opcional de arbol de progresion para Pandora Box.
+Se basa en la primera senal Pandora del dia y puede evaluar hasta
+`Pandora_XBoost_Max_Depth` decisiones secuenciales de rama.
+
+### Modos Operativos
+- `PANDORA_XBOOST_DISABLED`: XBoost esta apagado y Pandora conserva su
+  comportamiento normal.
+- `PANDORA_XBOOST_TRAINING`: registra estadisticas de ramas locales solamente;
+  XBoost no abre trades reales al broker.
+- `PANDORA_XBOOST_INFERENCE`: registra estadisticas locales y puede abrir un
+  trade real broker cuando un candidato esta `READY` y pasan todas las
+  compuertas normales de broker.
+
+### Metodologia del Modelo
+- El arbol local de progresion es el modelo de descubrimiento porque observa
+  todas las ramas, incluso las que no se abren en broker.
+- El ledger real broker es una capa de calibracion. Puede degradar o bloquear
+  un candidato, pero no promueve por si solo un candidato local debil.
+- Bayesian shrinkage acerca ramas con pocas muestras al prior global de la
+  estrategia antes de rankearlas.
+- Se usan ventanas rolling fijas como confirmacion: historico global, ultimos
+  120 dias, ultimos 60 dias y ultimos 30 trades reales broker.
+- El filtro de regimen se deja para un feature futuro para no fragmentar
+  muestras demasiado temprano.
+- En v3 no hay un kill switch global separado de XBoost. Si ningun candidato
+  llega a `READY`, XBoost no abre trade real y continua generando estadisticas
+  locales.
+
+### Estados de Candidato
+- `READY`: el candidato paso muestras locales, score conservador Bayesiano,
+  edge, rolling windows, calibracion broker y presupuesto/guards normales.
+- `WATCH`: el candidato tiene informacion util pero no es suficientemente fuerte
+  para ejecucion real broker.
+- `BLOCK`: el candidato queda bloqueado por score conservador, degradacion
+  rolling, degradacion broker ledger u otra compuerta XBoost.
+
+### Archivos CSV
+XBoost v3 escribe archivos CSV separados en Common storage bajo la carpeta
+existente `PandoraXBoost`:
+
+- `*_stats.csv`: estadisticas agregadas del modelo local por nodo.
+- `*_samples.csv`: samples locales idempotentes por dia/sample id.
+- `*_broker_trades.csv`: trades reales cerrados que fueron seleccionados por
+  XBoost solamente.
+
+### Ejemplo de Panel
+
+```text
+XBOOST INFERENCE v3 root=L day=2026.06.23 d=2 broker=1/3
+XB data stats=86 samples=4417 broker=184 pend=0/0 Common\mt5_xxx\us_30_v1
+XB1 L-TTPL2 READY n=72 p=0.18 c=0.11 br30=0.06
+XB2 S-TTPL2 WATCH n=41 p=0.04 c=-0.01 reason=EDGE
+XB3 L-TBES BLOCK n=56 p=0.09 c=-0.08 reason=BROKER_30
+```
+
+`p` es posterior R, `c` es el score conservador R despues de penalizaciones y
+`br30` es la calibracion reciente de trades reales broker cuando existe.
+
+### Workflow de QA Manual
+- Corre una prueba corta de 5 dias en inferencia con `Enable_File_Logs = true`.
+- Confirma que existan archivos v3 `stats`, `samples` y `broker_trades` en
+  Common storage despues de que cierre al menos un trade real XBoost broker.
+- Confirma que `query_debug.txt` incluya `PANDORA_XBOOST_DRYRUN`,
+  `PANDORA_XBOOST_BROKER_SELECTED` y diagnosticos de save/load del ledger.
+- Confirma que repetir el mismo rango de fechas no duplique sample ids ni
+  broker trade ids.
+- Confirma que dias con solo candidatos `WATCH`/`BLOCK` no abran trades reales,
+  pero sigan generando estadisticas locales.
+- Confirma que XBoost no abra posiciones reales simultaneas en broker.
+- Trata pruebas largas de inferencia como integracion adaptativa. Una validacion
+  A/B real requiere datos del periodo A evaluados en un periodo B posterior no
+  visto.
+
+---
+
+## 7. Checklist de Validación Antes de Operar en Vivo
 Antes de ejecutar **Pandora Box** en una cuenta real, verifica:
 
 - El formato de horario es válido (`HH:MM-HH:MM`), usando inicio `<` fin para boxes del mismo día o inicio `>` fin para boxes nocturnos.
@@ -176,7 +253,7 @@ Antes de ejecutar **Pandora Box** en una cuenta real, verifica:
 
 ---
 
-## 7. Solución de Problemas de Licencia y WebRequest
+## 8. Solución de Problemas de Licencia y WebRequest
 Si WebRequest no está configurado, la validación de licencia en línea puede fallar y el EA puede retirarse después de los chequeos de inicialización/refresh.
 
 ### Síntomas comunes
