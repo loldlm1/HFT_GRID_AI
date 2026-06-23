@@ -752,19 +752,20 @@ bool PandoraXBoostSave()
 
   if(Enable_Logs)
   {
-    PrintFormat("PANDORA_XBOOST_SAVE samples=%s broker=%s stats=%s pending=%d broker_pending=%d folder=%s stats_file=%s samples_file=%s broker_file=%s",
+    PrintFormat("PANDORA_XBOOST_SAVE samples=%s broker=%s stats=%s pending=%d broker_pending=%d broker_rows=%d folder=%s stats_file=%s samples_file=%s broker_file=%s",
                 samples_saved ? "OK" : "FAIL",
                 broker_trades_saved ? "OK" : "FAIL",
                 stats_saved ? "OK" : "FAIL",
                 pending_before,
                 pending_broker_before,
+                ArraySize(g_pandora_xboost_broker_trades),
                 PandoraXBoostStorageAbsoluteFolder(),
                 PandoraXBoostStatsFilename(),
                 PandoraXBoostSamplesFilename(),
                 PandoraXBoostBrokerTradesFilename());
   }
   PandoraXBoostLogEvent("PANDORA_XBOOST_SAVE",
-                        StringFormat("samples=%s broker=%s stats=%s pending_before=%d broker_pending_before=%d pending_after=%d broker_pending_after=%d folder=%s stats_file=%s samples_file=%s broker_file=%s",
+                        StringFormat("samples=%s broker=%s stats=%s pending_before=%d broker_pending_before=%d pending_after=%d broker_pending_after=%d broker_rows=%d folder=%s stats_file=%s samples_file=%s broker_file=%s",
                                      samples_saved ? "OK" : "FAIL",
                                      broker_trades_saved ? "OK" : "FAIL",
                                      stats_saved ? "OK" : "FAIL",
@@ -772,6 +773,7 @@ bool PandoraXBoostSave()
                                      pending_broker_before,
                                      ArraySize(g_pandora_xboost_pending_sample_rows),
                                      ArraySize(g_pandora_xboost_pending_broker_trade_rows),
+                                     ArraySize(g_pandora_xboost_broker_trades),
                                      PandoraXBoostStorageAbsoluteFolder(),
                                      PandoraXBoostStatsFilename(),
                                      PandoraXBoostSamplesFilename(),
