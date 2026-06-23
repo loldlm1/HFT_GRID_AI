@@ -742,12 +742,107 @@ Remove-Item -LiteralPath "C:\Program Files\MetaTrader 5-1\MQL5\Experts\HFT_Grid_
   - Re-run the compile command until the final result is clean or remaining
     unrelated warnings are documented.
 
+## Sprint 11: Common File Storage And Dataset Diagnostics
+
+**Goal**: Move XBoost CSV persistence to the MT5 common Files sandbox with a
+stable terminal-separated folder layout, and make the active dataset path easy
+to audit from tester logs and panel/comment output.
+**Commit**: `Sprint 11: move XBoost stats to common files`
+**Demo/Validation**:
+- No compile in this Sprint.
+- Static review confirms all XBoost file reads/writes use `FILE_COMMON`.
+- `Enable_Logs` output includes the common folder, stats filename, samples
+  filename, and load/save counts.
+- Panel/tester comment shows a compact common-dataset hint when XBoost is
+  enabled.
+
+### Task 11.1: Add Common Storage Path Helpers
+
+- **Location**:
+  - `services/trading_signals/pandora_xboost_storage.mqh`
+- **Description**: Add helper functions for a common storage folder rooted at
+  `PandoraXBoost`, separated by a deterministic MT5 terminal key, account
+  server, strategy ID, symbol, and timeframe. Ensure write paths create missing
+  folders before opening files.
+- **Dependencies**: Sprint 10.
+- **Acceptance Criteria**:
+  - Stats and samples filenames resolve to subpaths under `FILE_COMMON`.
+  - Folder and filename components are sanitized.
+  - Terminal separation does not expose account numbers or credentials.
+- **Validation**:
+  - Static review of FileOpen/FileIsExist/FolderCreate flags and path strings.
+
+### Task 11.2: Expose Dataset Diagnostics
+
+- **Location**:
+  - `services/trading_signals/pandora_xboost_storage.mqh`
+  - `services/trading_signals/pandora_xboost_state.mqh`
+- **Description**: Add compact helpers for dataset folder/filename labels and
+  append them to logs and XBoost panel/comment summary lines.
+- **Dependencies**: Task 11.1.
+- **Acceptance Criteria**:
+  - `PANDORA_XBOOST_LOAD` and `PANDORA_XBOOST_SAVE` logs identify the common
+    folder and stats/samples files.
+  - Panel/comment includes loaded stat count, known sample ID count, pending
+    sample count, and a short common dataset folder hint.
+  - No per-tick disk reads or writes are introduced.
+- **Validation**:
+  - Static review of summary-line length and hot-path cost.
+
+## Sprint 12: XBoost Chart Audit Visibility
+
+**Goal**: Make local XBoost branches and trailing lines visually distinguishable
+in Strategy Tester so multiple local branches do not overwrite each other's
+chart objects.
+**Commit**: `Sprint 12: improve XBoost chart audit labels`
+**Demo/Validation**:
+- No compile in this Sprint.
+- Static review confirms grid object names remain stable but include unique
+  XBoost node identity when present.
+- XBoost line labels show depth, display ID, local/broker mode, and trailing
+  step when relevant.
+
+### Task 12.1: Add XBoost-Aware Object Names
+
+- **Location**:
+  - `microservices/frontend/grid_visual_utils.mqh`
+  - `services/trading_signals/market_signal_cleanup.mqh`
+- **Description**: Extend grid object name generation with a compact XBoost
+  token derived from node path/hash/depth when a signal is XBoost-enabled, so
+  simultaneous local long/short or deeper branch visuals cannot collide.
+- **Dependencies**: Sprint 11.
+- **Acceptance Criteria**:
+  - Non-XBoost object names remain unchanged.
+  - XBoost object names remain deterministic across draw/remove calls.
+  - Object names are short enough for chart object handling.
+- **Validation**:
+  - Static review of draw/remove symmetry.
+
+### Task 12.2: Add XBoost-Aware Line Labels And Summaries
+
+- **Location**:
+  - `microservices/frontend/grid_visual_utils.mqh`
+  - `services/frontend/grid_visualization.mqh`
+- **Description**: Include compact XBoost metadata in chart line labels and
+  active signal summaries without changing trade state or scoring behavior.
+- **Dependencies**: Task 12.1.
+- **Acceptance Criteria**:
+  - Labels identify branch depth and display ID.
+  - Trailing-active labels expose the current trailing step index.
+  - Active signal summary distinguishes local-only versus broker-selected
+    XBoost branches.
+- **Validation**:
+  - Static review of label strings and existing panel width limits.
+
 ## Validation Strategy
 
 - **Intermediate Sprint validation**: Do not compile after Sprints 1-9. Use
   focused static review, scope review, and path tracing only.
-- **Final compile gate**: Run MetaEditor compile only in Sprint 10. Read and
-  remove `BUILD.log`.
+- **Extension Sprint validation**: Sprints 11-12 are validated with static path
+  and chart-object review, then the EA is compiled once after the extension
+  batch.
+- **Final compile gate**: Run MetaEditor compile only at the planned final
+  compile gates. Read and remove `BUILD.log`.
 - **No MQL5 test/CI harnesses**: Do not build unit tests, script harnesses,
   headless tester matrices, or CI for this feature.
 - **Static review focus**: Check include layering, constructors/copy constructors,

@@ -22,6 +22,7 @@ void PandoraXBoostBuildNextCandidatesFromClosedSignal(const SignalParams &closed
 bool PandoraXBoostApplyBrokerDecision(SignalParams &signal_params);
 void PandoraXBoostReleaseBrokerAfterClose(const SignalParams &signal_params);
 void PandoraXBoostResetRuntimeState();
+string PandoraXBoostStorageShortLabel();
 
 int PandoraXBoostClampDepth(const int configured_depth)
 {
@@ -1175,6 +1176,14 @@ void PandoraXBoostAppendSummaryLines(string &summary_lines[])
                                     g_pandora_xboost_root.current_depth,
                                     g_pandora_xboost_root.broker_trade_count,
                                     max_depth);
+
+  idx = ArraySize(summary_lines);
+  ArrayResize(summary_lines, idx + 1);
+  summary_lines[idx] = StringFormat("XB data stats=%d ids=%d pend=%d %s",
+                                    ArraySize(g_pandora_xboost_stats),
+                                    ArraySize(g_pandora_xboost_sample_ids),
+                                    ArraySize(g_pandora_xboost_pending_sample_rows),
+                                    PandoraXBoostStorageShortLabel());
 
   int total = ArraySize(g_pandora_xboost_top_candidates);
   if(total > PANDORA_XBOOST_TOP_CANDIDATE_LIMIT)

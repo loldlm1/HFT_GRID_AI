@@ -8,6 +8,16 @@ const string PANDORA_XBOOST_STATS_HEADER =
   "node_key,key_hash,samples,wins,losses,be,total_r,avg_r,avg_win_r,avg_loss_r,max_win_r,max_loss_r,max_drawdown_r,expectancy_r,last_seen";
 const string PANDORA_XBOOST_SAMPLES_HEADER =
   "sample_id,node_key,close_event,r_multiple,seen_at";
+const string PANDORA_XBOOST_STORAGE_ROOT = "PandoraXBoost";
+
+string PandoraXBoostTerminalFolder();
+string PandoraXBoostServerFolder();
+string PandoraXBoostSymbolTimeframeFolder();
+string PandoraXBoostStorageFolder();
+string PandoraXBoostStorageFolderLabel();
+string PandoraXBoostStorageShortLabel();
+string PandoraXBoostStorageAbsoluteFolder();
+bool PandoraXBoostEnsureStorageFolder();
 
 string PandoraXBoostSanitizeFilePart(const string raw_value)
 {
@@ -37,11 +47,88 @@ string PandoraXBoostSanitizeFilePart(const string raw_value)
 
 string PandoraXBoostFilePrefix()
 {
-  return StringFormat("pandora_xboost_v%d_%s_%s_%d",
+  string filename_prefix = StringFormat("pandora_xboost_v%d_%s_%s_%d",
                       PANDORA_XBOOST_SCHEMA_VERSION,
                       PandoraXBoostSanitizeFilePart(Pandora_XBoost_Strategy_Id),
                       PandoraXBoostSanitizeFilePart(_Symbol),
                       (int)_Period);
+  return PandoraXBoostStorageFolder() + "\\" + filename_prefix;
+}
+
+string PandoraXBoostTerminalFolder()
+{
+  string data_path = TerminalInfoString(TERMINAL_DATA_PATH);
+  if(data_path == "")
+    data_path = TerminalInfoString(TERMINAL_COMMONDATA_PATH);
+
+  ulong terminal_hash = PandoraXBoostHashKey(data_path) % 100000000;
+  return StringFormat("mt5_%I64u", terminal_hash);
+}
+
+string PandoraXBoostServerFolder()
+{
+  string server_name = AccountInfoString(ACCOUNT_SERVER);
+  if(server_name == "")
+    server_name = "server_unknown";
+  return PandoraXBoostSanitizeFilePart(server_name);
+}
+
+string PandoraXBoostSymbolTimeframeFolder()
+{
+  return PandoraXBoostSanitizeFilePart(_Symbol) + "_tf_" + IntegerToString((int)_Period);
+}
+
+string PandoraXBoostStorageFolder()
+{
+  return PANDORA_XBOOST_STORAGE_ROOT + "\\" +
+         PandoraXBoostTerminalFolder() + "\\" +
+         PandoraXBoostServerFolder() + "\\" +
+         PandoraXBoostSanitizeFilePart(Pandora_XBoost_Strategy_Id) + "\\" +
+         PandoraXBoostSymbolTimeframeFolder();
+}
+
+string PandoraXBoostStorageFolderLabel()
+{
+  return "Common\\Files\\" + PandoraXBoostStorageFolder();
+}
+
+string PandoraXBoostStorageShortLabel()
+{
+  return "Common\\" + PandoraXBoostTerminalFolder() + "\\" +
+         PandoraXBoostSanitizeFilePart(Pandora_XBoost_Strategy_Id) + "\\" +
+         PandoraXBoostSymbolTimeframeFolder();
+}
+
+string PandoraXBoostStorageAbsoluteFolder()
+{
+  string common_path = TerminalInfoString(TERMINAL_COMMONDATA_PATH);
+  if(common_path == "")
+    return PandoraXBoostStorageFolderLabel();
+  return common_path + "\\Files\\" + PandoraXBoostStorageFolder();
+}
+
+bool PandoraXBoostEnsureStorageFolder()
+{
+  string parts[];
+  ushort delimiter = StringGetCharacter("\\", 0);
+  int total = StringSplit(PandoraXBoostStorageFolder(), delimiter, parts);
+  if(total <= 0)
+    return false;
+
+  string current_folder = "";
+  for(int i = 0; i < total; i++)
+  {
+    if(parts[i] == "")
+      continue;
+    if(current_folder == "")
+      current_folder = parts[i];
+    else
+      current_folder = current_folder + "\\" + parts[i];
+
+    ResetLastError();
+    FolderCreate(current_folder, FILE_COMMON);
+  }
+  return true;
 }
 
 string PandoraXBoostStatsFilename()
@@ -121,7 +208,7 @@ void PandoraXBoostClearStorageMemory()
 bool PandoraXBoostLoadStats()
 {
   string filename = PandoraXBoostStatsFilename();
-  int handle = FileOpen(filename, FILE_READ | FILE_TXT | FILE_ANSI);
+  int handle = FileOpen(filename, FILE_READ | FILE_TXT | FILE_ANSI | FILE_COMMON);
   if(handle == INVALID_HANDLE)
     return true;
 
@@ -173,7 +260,7 @@ bool PandoraXBoostLoadStats()
 bool PandoraXBoostLoadSampleIds()
 {
   string filename = PandoraXBoostSamplesFilename();
-  int handle = FileOpen(filename, FILE_READ | FILE_TXT | FILE_ANSI);
+  int handle = FileOpen(filename, FILE_READ | FILE_TXT | FILE_ANSI | FILE_COMMON);
   if(handle == INVALID_HANDLE)
     return true;
 
@@ -216,11 +303,13 @@ bool PandoraXBoostLoad()
 
   if(Enable_Logs)
   {
-    PrintFormat("PANDORA_XBOOST_LOAD mode=%s stats=%d samples=%d prefix=%s",
+    PrintFormat("PANDORA_XBOOST_LOAD mode=%s stats=%d samples=%d folder=%s stats_file=%s samples_file=%s",
                 PandoraXBoostModeLabel(Pandora_XBoost_Mode),
                 ArraySize(g_pandora_xboost_stats),
                 ArraySize(g_pandora_xboost_sample_ids),
-                PandoraXBoostFilePrefix());
+                PandoraXBoostStorageAbsoluteFolder(),
+                PandoraXBoostStatsFilename(),
+                PandoraXBoostSamplesFilename());
   }
 
   return g_pandora_xboost_storage_loaded;
@@ -248,8 +337,9 @@ string PandoraXBoostFormatStatsRow(const PandoraXBoostStats &stats)
 
 bool PandoraXBoostSaveStatsSnapshot()
 {
+  PandoraXBoostEnsureStorageFolder();
   string filename = PandoraXBoostStatsFilename();
-  int handle = FileOpen(filename, FILE_WRITE | FILE_TXT | FILE_ANSI);
+  int handle = FileOpen(filename, FILE_WRITE | FILE_TXT | FILE_ANSI | FILE_COMMON);
   if(handle == INVALID_HANDLE)
     return false;
 
@@ -269,8 +359,9 @@ bool PandoraXBoostFlushPendingSamples()
     return true;
 
   string filename = PandoraXBoostSamplesFilename();
-  bool needs_header = !FileIsExist(filename);
-  int handle = FileOpen(filename, FILE_WRITE | FILE_READ | FILE_TXT | FILE_ANSI);
+  PandoraXBoostEnsureStorageFolder();
+  bool needs_header = !FileIsExist(filename, FILE_COMMON);
+  int handle = FileOpen(filename, FILE_WRITE | FILE_READ | FILE_TXT | FILE_ANSI | FILE_COMMON);
   if(handle == INVALID_HANDLE)
     return false;
 
@@ -298,10 +389,13 @@ bool PandoraXBoostSave()
 
   if(Enable_Logs)
   {
-    PrintFormat("PANDORA_XBOOST_SAVE samples=%s stats=%s prefix=%s",
+    PrintFormat("PANDORA_XBOOST_SAVE samples=%s stats=%s pending=%d folder=%s stats_file=%s samples_file=%s",
                 samples_saved ? "OK" : "FAIL",
                 stats_saved ? "OK" : "FAIL",
-                PandoraXBoostFilePrefix());
+                ArraySize(g_pandora_xboost_pending_sample_rows),
+                PandoraXBoostStorageAbsoluteFolder(),
+                PandoraXBoostStatsFilename(),
+                PandoraXBoostSamplesFilename());
   }
 
   return samples_saved && stats_saved;
