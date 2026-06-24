@@ -6,10 +6,12 @@
 
 const int    PANDORA_XBOOST_SCHEMA_VERSION       = 4;
 const int    PANDORA_XBOOST_MIN_DEPTH            = 0;
-const int    PANDORA_XBOOST_MAX_DEPTH            = 3;
+const int    PANDORA_XBOOST_MAX_DEPTH            = 5;
 const int    PANDORA_XBOOST_MIN_SAMPLES_DEPTH_1  = 30;
 const int    PANDORA_XBOOST_MIN_SAMPLES_DEPTH_2  = 20;
 const int    PANDORA_XBOOST_MIN_SAMPLES_DEPTH_3  = 12;
+const int    PANDORA_XBOOST_MIN_SAMPLES_DEPTH_4  = 12;
+const int    PANDORA_XBOOST_MIN_SAMPLES_DEPTH_5  = 12;
 const double PANDORA_XBOOST_MIN_EXPECTANCY_R     = 0.05;
 const double PANDORA_XBOOST_MIN_EDGE_R           = 0.05;
 const double PANDORA_XBOOST_DEPTH_PENALTY_R      = 0.03;
@@ -20,6 +22,8 @@ const int    PANDORA_XBOOST_BROKER_RECENT_TRADES = 30;
 const int    PANDORA_XBOOST_BAYES_PRIOR_WEIGHT_DEPTH_1 = 30;
 const int    PANDORA_XBOOST_BAYES_PRIOR_WEIGHT_DEPTH_2 = 20;
 const int    PANDORA_XBOOST_BAYES_PRIOR_WEIGHT_DEPTH_3 = 12;
+const int    PANDORA_XBOOST_BAYES_PRIOR_WEIGHT_DEPTH_4 = 12;
+const int    PANDORA_XBOOST_BAYES_PRIOR_WEIGHT_DEPTH_5 = 12;
 const double PANDORA_XBOOST_BAYES_UNCERTAINTY_Z = 1.0;
 const double PANDORA_XBOOST_BAYES_UNCERTAINTY_FLOOR_R = 0.03;
 const double PANDORA_XBOOST_BAYES_MIN_CONSERVATIVE_R = 0.03;
@@ -1472,7 +1476,11 @@ int PandoraXBoostBayesPriorWeightForDepth(const int depth)
     return PANDORA_XBOOST_BAYES_PRIOR_WEIGHT_DEPTH_1;
   if(depth == 2)
     return PANDORA_XBOOST_BAYES_PRIOR_WEIGHT_DEPTH_2;
-  return PANDORA_XBOOST_BAYES_PRIOR_WEIGHT_DEPTH_3;
+  if(depth == 3)
+    return PANDORA_XBOOST_BAYES_PRIOR_WEIGHT_DEPTH_3;
+  if(depth == 4)
+    return PANDORA_XBOOST_BAYES_PRIOR_WEIGHT_DEPTH_4;
+  return PANDORA_XBOOST_BAYES_PRIOR_WEIGHT_DEPTH_5;
 }
 
 double PandoraXBoostRollingVariance(const PandoraXBoostRollingStats &stats)
@@ -1639,7 +1647,11 @@ int PandoraXBoostMinSamplesForDepth(const int depth)
     return PANDORA_XBOOST_MIN_SAMPLES_DEPTH_1;
   if(depth == 2)
     return PANDORA_XBOOST_MIN_SAMPLES_DEPTH_2;
-  return PANDORA_XBOOST_MIN_SAMPLES_DEPTH_3;
+  if(depth == 3)
+    return PANDORA_XBOOST_MIN_SAMPLES_DEPTH_3;
+  if(depth == 4)
+    return PANDORA_XBOOST_MIN_SAMPLES_DEPTH_4;
+  return PANDORA_XBOOST_MIN_SAMPLES_DEPTH_5;
 }
 
 int PandoraXBoostFindStatsIndexByNodeKey(const string node_key)

@@ -540,6 +540,64 @@ controls.
   - `git diff --check`
   - `git status --short`
 
+## Sprint 9: Explicit Depth 4/5 Support
+
+**Goal**: Allow `Pandora_XBoost_Max_Depth` values 4 and 5 to generate local
+branches and broker candidates while preserving existing behavior for depth 1,
+2, and 3.
+
+**Commit**: `Sprint 9: support XBoost depth five`
+
+**Demo/Validation**:
+- `Pandora_XBoost_Max_Depth = 3` remains capped at depth 3 with unchanged
+  thresholds and prior weights.
+- `Pandora_XBoost_Max_Depth = 4` can progress to depth 4.
+- `Pandora_XBoost_Max_Depth = 5` can progress to depth 5.
+- MetaEditor compile returns `0 errors, 0 warnings`.
+- `BUILD.log` is removed after reading.
+
+### Task 9.1: Extend Internal Depth Cap
+
+- **Location**: `services/trading_signals/pandora_xboost_state.mqh`
+- **Description**: Raise `PANDORA_XBOOST_MAX_DEPTH` from 3 to 5 without changing
+  the input default.
+- **Dependencies**: Sprint 8.
+- **Acceptance Criteria**:
+  - Existing input values 1, 2, and 3 clamp exactly as before.
+  - Values above 5 clamp to 5.
+- **Validation**:
+  - Static review of `PandoraXBoostClampDepth()`.
+
+### Task 9.2: Add Explicit Depth 4/5 Sample And Prior Constants
+
+- **Location**: `services/trading_signals/pandora_xboost_state.mqh`
+- **Description**: Add explicit min-sample and Bayesian prior constants for
+  depth 4 and 5, initially matching depth 3 to keep deeper branches
+  conservative.
+- **Dependencies**: Task 9.1.
+- **Acceptance Criteria**:
+  - Depth 1, 2, and 3 thresholds remain unchanged.
+  - Depth 4 and 5 do not silently inherit fallback behavior.
+- **Validation**:
+  - Static review of `PandoraXBoostMinSamplesForDepth()` and
+    `PandoraXBoostBayesPriorWeightForDepth()`.
+
+### Task 9.3: Compile And Review Depth Expansion
+
+- **Location**: full repo diff.
+- **Description**: Compile the EA, remove `BUILD.log`, and review that only the
+  depth cap and depth constants changed.
+- **Dependencies**: Tasks 9.1-9.2.
+- **Acceptance Criteria**:
+  - Compile has `0 errors, 0 warnings`.
+  - No scoring formulas, broker admission gates, trailing lifecycle, or risk
+    controls change.
+  - Sprint is committed independently.
+- **Validation**:
+  - `rg "PANDORA_XBOOST_MAX_DEPTH|MIN_SAMPLES_DEPTH|BAYES_PRIOR_WEIGHT_DEPTH"`
+  - `git diff --check`
+  - MetaEditor compile log
+
 ## Manual QA Workflow After Implementation
 
 Run manual Strategy Tester checks in this order:
@@ -586,4 +644,5 @@ Run manual Strategy Tester checks in this order:
 - Implemented in Sprint commits 1-7.
 - Final compile gate passed with `0 errors, 0 warnings`.
 - Sprint 8 added as an audit-only extension for long inference QA.
+- Sprint 9 added as a conservative depth 4/5 expansion.
 - Manual Strategy Tester QA remains the required runtime validation step.
