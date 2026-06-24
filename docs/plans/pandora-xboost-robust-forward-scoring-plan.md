@@ -464,6 +464,82 @@ node/path-level degradation.
   - `git status --short`
   - `git diff --check`
 
+## Sprint 8: Audit Pack For Long Inference Runs
+
+**Goal**: Improve XBoost v4 auditability for long adaptive inference runs without
+changing candidate scoring, broker admission, trailing lifecycle, or risk
+controls.
+
+**Commit**: `Sprint 8: add XBoost v4 audit exports`
+
+**Demo/Validation**:
+- `PANDORA_XBOOST_BROKER_SELECTED` includes enough strategy/model metrics to
+  reconcile query debug logs with `broker_trades.csv`.
+- XBoost writes compact aggregate audit CSVs in the existing Common storage
+  folder.
+- MetaEditor compile returns `0 errors, 0 warnings`.
+- `BUILD.log` is removed after reading.
+
+### Task 8.1: Expand Broker Selection Audit Logs
+
+- **Location**: `services/trading_signals/pandora_xboost_state.mqh`
+- **Description**: Add strategy key, model node key, v4 score, posterior,
+  median, profit factor, broker node/path stats, and reason to
+  `PANDORA_XBOOST_BROKER_SELECTED`.
+- **Dependencies**: Sprint 7.
+- **Acceptance Criteria**:
+  - Logs remain behind existing `Enable_Logs` / `Enable_File_Logs` gates.
+  - No new data is used for trading decisions.
+  - Selected log lines can be filtered by strategy/model.
+- **Validation**:
+  - Static review of log-only path.
+
+### Task 8.2: Add Aggregate Audit CSV Snapshots
+
+- **Location**: `services/trading_signals/pandora_xboost_storage.mqh`
+- **Description**: Save run-level, monthly, depth/side/event, and node-path
+  broker summaries from the in-memory broker ledger during the existing
+  `PandoraXBoostSave()` flow.
+- **Dependencies**: Task 8.1.
+- **Acceptance Criteria**:
+  - New files use the existing v4 prefix and Common storage folder.
+  - The save path is outside per-tick candidate evaluation.
+  - Failure to write audit snapshots is logged but does not change trading
+    decisions.
+- **Validation**:
+  - Static review of file write path and aggregation loops.
+
+### Task 8.3: Align Broker Node Sample Naming
+
+- **Location**:
+  - `services/trading_signals/pandora_xboost_state.mqh`
+  - `services/trading_signals/pandora_xboost_storage.mqh`
+  - `services/trading_signals/signal_params_struct.mqh`
+- **Description**: Rename internal `broker_window_samples` fields to
+  `broker_node_samples` where they already represent the CSV
+  `broker_node_samples` value.
+- **Dependencies**: Task 8.2.
+- **Acceptance Criteria**:
+  - CSV schema remains compatible.
+  - Compile proves all renamed fields are updated.
+- **Validation**:
+  - `rg "broker_window_samples"` returns no stale XBoost references.
+
+### Task 8.4: Compile And Sprint Review
+
+- **Location**: full repo diff.
+- **Description**: Run the project compile command from `AGENTS.md`, remove
+  `BUILD.log`, and review the diff for audit-only scope.
+- **Dependencies**: Tasks 8.1-8.3.
+- **Acceptance Criteria**:
+  - Compile has `0 errors, 0 warnings`.
+  - No trading decision logic changes.
+  - Sprint is committed independently.
+- **Validation**:
+  - MetaEditor compile log.
+  - `git diff --check`
+  - `git status --short`
+
 ## Manual QA Workflow After Implementation
 
 Run manual Strategy Tester checks in this order:
@@ -509,4 +585,5 @@ Run manual Strategy Tester checks in this order:
 
 - Implemented in Sprint commits 1-7.
 - Final compile gate passed with `0 errors, 0 warnings`.
+- Sprint 8 added as an audit-only extension for long inference QA.
 - Manual Strategy Tester QA remains the required runtime validation step.

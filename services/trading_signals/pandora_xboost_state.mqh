@@ -392,7 +392,7 @@ void PandoraXBoostPrepareSignalMetadata(SignalParams &signal_params,
   signal_params.pandora_xboost_broker_trade_id = "";
   signal_params.pandora_xboost_selected_rank = 0;
   signal_params.pandora_xboost_model_samples = 0;
-  signal_params.pandora_xboost_broker_window_samples = 0;
+  signal_params.pandora_xboost_broker_node_samples = 0;
   signal_params.pandora_xboost_model_score_r = 0.0;
   signal_params.pandora_xboost_model_posterior_r = 0.0;
   signal_params.pandora_xboost_model_conservative_r = 0.0;
@@ -771,7 +771,7 @@ struct PandoraXBoostBrokerTradeRow
   double                    model_score_r;
   double                    model_posterior_r;
   int                       model_samples;
-  int                       broker_window_samples;
+  int                       broker_node_samples;
   datetime                  seen_at;
 
   PandoraXBoostBrokerTradeRow()
@@ -798,7 +798,7 @@ struct PandoraXBoostBrokerTradeRow
     model_score_r = 0.0;
     model_posterior_r = 0.0;
     model_samples = 0;
-    broker_window_samples = 0;
+    broker_node_samples = 0;
     seen_at = 0;
   }
 
@@ -826,7 +826,7 @@ struct PandoraXBoostBrokerTradeRow
     model_score_r = row.model_score_r;
     model_posterior_r = row.model_posterior_r;
     model_samples = row.model_samples;
-    broker_window_samples = row.broker_window_samples;
+    broker_node_samples = row.broker_node_samples;
     seen_at = row.seen_at;
   }
 };
@@ -2276,7 +2276,7 @@ void PandoraXBoostForceLocalOnly(SignalParams &signal_params)
   signal_params.pandora_xboost_broker_trade_id = "";
   signal_params.pandora_xboost_selected_rank = 0;
   signal_params.pandora_xboost_model_samples = 0;
-  signal_params.pandora_xboost_broker_window_samples = 0;
+  signal_params.pandora_xboost_broker_node_samples = 0;
   signal_params.pandora_xboost_model_score_r = 0.0;
   signal_params.pandora_xboost_model_posterior_r = 0.0;
   signal_params.pandora_xboost_model_conservative_r = 0.0;
@@ -2379,7 +2379,7 @@ bool PandoraXBoostApplyBrokerDecision(SignalParams &signal_params)
   signal_params.pandora_xboost_broker_trade_index = next_trade_index;
   signal_params.pandora_xboost_selected_rank = selected_rank;
   signal_params.pandora_xboost_model_samples = candidate.samples;
-  signal_params.pandora_xboost_broker_window_samples =
+  signal_params.pandora_xboost_broker_node_samples =
     candidate.broker_node_samples;
   signal_params.pandora_xboost_model_score_r = candidate.score_r;
   signal_params.pandora_xboost_model_posterior_r =
@@ -2397,26 +2397,32 @@ bool PandoraXBoostApplyBrokerDecision(SignalParams &signal_params)
   g_pandora_xboost_root.broker_trade_count = next_trade_index;
   PandoraXBoostRegisterBrokerDailyStart(signal_params);
 
+  string selected_message =
+    StringFormat("strategy=%s depth=%d trade=%d rank=%d id=%s model=%s path=%s samples=%d exp=%.3f post=%.3f score_v4=%.3f edge=%.3f med=%.3f pf=%.3f brnode=%d/%.3f brpath=%d/%.3f br30=%d/%.3f reason=%s",
+                 signal_params.pandora_xboost_strategy_key,
+                 signal_params.pandora_xboost_depth,
+                 next_trade_index,
+                 selected_rank,
+                 signal_params.pandora_xboost_display_id,
+                 candidate.node_key,
+                 candidate.node_path,
+                 candidate.samples,
+                 candidate.expectancy_r,
+                 candidate.posterior_r,
+                 candidate.score_r,
+                 candidate.edge_r,
+                 candidate.median_r,
+                 candidate.profit_factor_r,
+                 candidate.broker_node_samples,
+                 candidate.broker_node_avg_r,
+                 candidate.broker_path_samples,
+                 candidate.broker_path_avg_r,
+                 candidate.broker_recent_samples,
+                 candidate.broker_recent_avg_r,
+                 candidate.reason);
   if(Enable_Logs)
-  {
-    PrintFormat("PANDORA_XBOOST_BROKER_SELECTED depth=%d trade=%d rank=%d id=%s samples=%d exp=%.3f edge=%.3f",
-                signal_params.pandora_xboost_depth,
-                next_trade_index,
-                selected_rank,
-                signal_params.pandora_xboost_display_id,
-                candidate.samples,
-                candidate.expectancy_r,
-                candidate.edge_r);
-  }
-  PandoraXBoostLogEvent("PANDORA_XBOOST_BROKER_SELECTED",
-                        StringFormat("depth=%d trade=%d rank=%d id=%s samples=%d exp=%.3f edge=%.3f",
-                                     signal_params.pandora_xboost_depth,
-                                     next_trade_index,
-                                     selected_rank,
-                                     signal_params.pandora_xboost_display_id,
-                                     candidate.samples,
-                                     candidate.expectancy_r,
-                                     candidate.edge_r));
+    Print("PANDORA_XBOOST_BROKER_SELECTED " + selected_message);
+  PandoraXBoostLogEvent("PANDORA_XBOOST_BROKER_SELECTED", selected_message);
   return true;
 }
 

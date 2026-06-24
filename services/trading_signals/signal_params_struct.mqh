@@ -155,7 +155,7 @@ struct SignalParams
   string   pandora_xboost_broker_trade_id;
   int      pandora_xboost_selected_rank;
   int      pandora_xboost_model_samples;
-  int      pandora_xboost_broker_window_samples;
+  int      pandora_xboost_broker_node_samples;
   double   pandora_xboost_model_score_r;
   double   pandora_xboost_model_posterior_r;
   double   pandora_xboost_model_conservative_r;
@@ -309,7 +309,7 @@ struct SignalParams
     pandora_xboost_broker_trade_id = "";
     pandora_xboost_selected_rank = 0;
     pandora_xboost_model_samples = 0;
-    pandora_xboost_broker_window_samples = 0;
+    pandora_xboost_broker_node_samples = 0;
     pandora_xboost_model_score_r = 0.0;
     pandora_xboost_model_posterior_r = 0.0;
     pandora_xboost_model_conservative_r = 0.0;
@@ -437,7 +437,7 @@ struct SignalParams
     pandora_xboost_broker_trade_id = signal_params.pandora_xboost_broker_trade_id;
     pandora_xboost_selected_rank = signal_params.pandora_xboost_selected_rank;
     pandora_xboost_model_samples = signal_params.pandora_xboost_model_samples;
-    pandora_xboost_broker_window_samples = signal_params.pandora_xboost_broker_window_samples;
+    pandora_xboost_broker_node_samples = signal_params.pandora_xboost_broker_node_samples;
     pandora_xboost_model_score_r = signal_params.pandora_xboost_model_score_r;
     pandora_xboost_model_posterior_r = signal_params.pandora_xboost_model_posterior_r;
     pandora_xboost_model_conservative_r = signal_params.pandora_xboost_model_conservative_r;

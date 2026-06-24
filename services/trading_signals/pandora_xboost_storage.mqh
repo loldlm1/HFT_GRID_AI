@@ -10,6 +10,10 @@ const string PANDORA_XBOOST_SAMPLES_HEADER =
   "sample_id,node_key,close_event,r_multiple,seen_at";
 const string PANDORA_XBOOST_BROKER_TRADES_HEADER =
   "broker_trade_id,strategy_key,root_id,root_date,node_key,node_path,sample_id,depth,broker_trade_index,side,entry_time,close_time,entry_price,close_price,sl_points,r_multiple_broker,net_profit,close_event,close_reason,model_score_r,model_posterior_r,model_samples,broker_node_samples,seen_at";
+const string PANDORA_XBOOST_RUN_SUMMARY_HEADER =
+  "scope,key,trades,wins,losses,be,total_r,avg_r,median_r,min_r,max_r,net_profit,first_close,last_close,stats_nodes,local_samples,broker_trades";
+const string PANDORA_XBOOST_NODE_SUMMARY_HEADER =
+  "node_path,node_key,depth,side,trades,wins,losses,be,total_r,avg_r,median_r,min_r,max_r,net_profit,first_close,last_close";
 const string PANDORA_XBOOST_STORAGE_ROOT = "PandoraXBoost";
 const string PANDORA_XBOOST_DEBUG_LOG = "query_debug.txt";
 
@@ -172,6 +176,16 @@ string PandoraXBoostBrokerTradesFilename()
   return PandoraXBoostFilePrefix() + "_broker_trades.csv";
 }
 
+string PandoraXBoostRunSummaryFilename()
+{
+  return PandoraXBoostFilePrefix() + "_run_summary.csv";
+}
+
+string PandoraXBoostNodeSummaryFilename()
+{
+  return PandoraXBoostFilePrefix() + "_node_summary.csv";
+}
+
 bool PandoraXBoostSplitCsvLine(const string row,
                                string &fields[])
 {
@@ -214,6 +228,312 @@ string PandoraXBoostCsvCell(const string raw_value)
   StringReplace(value, "\n", " ");
   StringReplace(value, ",", ";");
   return value;
+}
+
+struct PandoraXBoostBrokerAuditBucket
+{
+  string                    scope;
+  string                    key;
+  string                    node_key;
+  string                    node_path;
+  int                       depth;
+  SignalTypes               side;
+  PandoraXBoostCloseEvents  close_event;
+  int                       trades;
+  int                       wins;
+  int                       losses;
+  int                       be;
+  double                    total_r;
+  double                    net_profit;
+  double                    min_r;
+  double                    max_r;
+  datetime                  first_close;
+  datetime                  last_close;
+
+  PandoraXBoostBrokerAuditBucket()
+  {
+    scope = "";
+    key = "";
+    node_key = "";
+    node_path = "";
+    depth = 0;
+    side = NO_SIGNAL;
+    close_event = PANDORA_XBOOST_EVENT_NONE;
+    trades = 0;
+    wins = 0;
+    losses = 0;
+    be = 0;
+    total_r = 0.0;
+    net_profit = 0.0;
+    min_r = 0.0;
+    max_r = 0.0;
+    first_close = 0;
+    last_close = 0;
+  }
+
+  PandoraXBoostBrokerAuditBucket(const PandoraXBoostBrokerAuditBucket &bucket)
+  {
+    scope = bucket.scope;
+    key = bucket.key;
+    node_key = bucket.node_key;
+    node_path = bucket.node_path;
+    depth = bucket.depth;
+    side = bucket.side;
+    close_event = bucket.close_event;
+    trades = bucket.trades;
+    wins = bucket.wins;
+    losses = bucket.losses;
+    be = bucket.be;
+    total_r = bucket.total_r;
+    net_profit = bucket.net_profit;
+    min_r = bucket.min_r;
+    max_r = bucket.max_r;
+    first_close = bucket.first_close;
+    last_close = bucket.last_close;
+  }
+};
+
+datetime PandoraXBoostAuditTradeTime(const PandoraXBoostBrokerTradeRow &trade_row)
+{
+  if(trade_row.close_time > 0)
+    return trade_row.close_time;
+  if(trade_row.seen_at > 0)
+    return trade_row.seen_at;
+  return trade_row.entry_time;
+}
+
+string PandoraXBoostAuditYearKey(const datetime value)
+{
+  if(value <= 0)
+    return "unknown";
+
+  MqlDateTime ts;
+  if(!TimeToStruct(value, ts))
+    return "unknown";
+
+  return StringFormat("%04d", ts.year);
+}
+
+string PandoraXBoostAuditMonthKey(const datetime value)
+{
+  if(value <= 0)
+    return "unknown";
+
+  MqlDateTime ts;
+  if(!TimeToStruct(value, ts))
+    return "unknown";
+
+  return StringFormat("%04d.%02d", ts.year, ts.mon);
+}
+
+string PandoraXBoostAuditScopeKey(const PandoraXBoostBrokerTradeRow &trade_row,
+                                  const string scope)
+{
+  datetime trade_time = PandoraXBoostAuditTradeTime(trade_row);
+  if(scope == "ALL")
+    return "ALL";
+  if(scope == "YEAR")
+    return PandoraXBoostAuditYearKey(trade_time);
+  if(scope == "MONTH")
+    return PandoraXBoostAuditMonthKey(trade_time);
+  if(scope == "DEPTH")
+    return StringFormat("D%d", trade_row.depth);
+  if(scope == "SIDE")
+    return PandoraXBoostDirectionLabel(trade_row.side);
+  if(scope == "EVENT")
+    return PandoraXBoostCloseEventLabel(trade_row.close_event);
+  return "";
+}
+
+int PandoraXBoostAuditFindBucket(PandoraXBoostBrokerAuditBucket &buckets[],
+                                 const int bucket_total,
+                                 const string scope,
+                                 const string key)
+{
+  for(int i = 0; i < bucket_total; i++)
+  {
+    if(buckets[i].scope == scope && buckets[i].key == key)
+      return i;
+  }
+  return -1;
+}
+
+void PandoraXBoostAuditBucketAddTrade(PandoraXBoostBrokerAuditBucket &bucket,
+                                      const PandoraXBoostBrokerTradeRow &trade_row)
+{
+  double r_multiple = trade_row.r_multiple_broker;
+  datetime trade_time = PandoraXBoostAuditTradeTime(trade_row);
+
+  if(bucket.trades <= 0)
+  {
+    bucket.min_r = r_multiple;
+    bucket.max_r = r_multiple;
+    bucket.first_close = trade_time;
+    bucket.last_close = trade_time;
+    if(bucket.node_key == "")
+      bucket.node_key = trade_row.node_key;
+    if(bucket.node_path == "")
+    {
+      bucket.node_path = trade_row.node_path;
+      if(bucket.node_path == "")
+        bucket.node_path = trade_row.node_key;
+    }
+    bucket.depth = trade_row.depth;
+    bucket.side = trade_row.side;
+    bucket.close_event = trade_row.close_event;
+  }
+  else
+  {
+    if(r_multiple < bucket.min_r)
+      bucket.min_r = r_multiple;
+    if(r_multiple > bucket.max_r)
+      bucket.max_r = r_multiple;
+    if(trade_time > 0 && (bucket.first_close <= 0 || trade_time < bucket.first_close))
+      bucket.first_close = trade_time;
+    if(trade_time > bucket.last_close)
+      bucket.last_close = trade_time;
+  }
+
+  bucket.trades++;
+  bucket.total_r += r_multiple;
+  bucket.net_profit += trade_row.net_profit;
+  if(r_multiple > PANDORA_XBOOST_ROBUST_BE_TOLERANCE_R)
+    bucket.wins++;
+  else if(r_multiple < -PANDORA_XBOOST_ROBUST_BE_TOLERANCE_R)
+    bucket.losses++;
+  else
+    bucket.be++;
+}
+
+void PandoraXBoostAuditAddScopeTrade(PandoraXBoostBrokerAuditBucket &buckets[],
+                                     int &bucket_total,
+                                     const string scope,
+                                     const PandoraXBoostBrokerTradeRow &trade_row)
+{
+  string key = PandoraXBoostAuditScopeKey(trade_row, scope);
+  if(key == "")
+    return;
+
+  int bucket_index = PandoraXBoostAuditFindBucket(buckets,
+                                                  bucket_total,
+                                                  scope,
+                                                  key);
+  if(bucket_index < 0)
+  {
+    ArrayResize(buckets, bucket_total + 1, 64);
+    bucket_index = bucket_total;
+    bucket_total++;
+    buckets[bucket_index].scope = scope;
+    buckets[bucket_index].key = key;
+  }
+
+  PandoraXBoostAuditBucketAddTrade(buckets[bucket_index], trade_row);
+}
+
+bool PandoraXBoostAuditTradeMatchesBucket(const PandoraXBoostBrokerTradeRow &trade_row,
+                                          const PandoraXBoostBrokerAuditBucket &bucket)
+{
+  return (PandoraXBoostAuditScopeKey(trade_row, bucket.scope) == bucket.key);
+}
+
+double PandoraXBoostAuditMedianForBucket(const PandoraXBoostBrokerAuditBucket &bucket)
+{
+  double values[];
+  int value_total = 0;
+  int total = ArraySize(g_pandora_xboost_broker_trades);
+  for(int i = 0; i < total; i++)
+  {
+    PandoraXBoostBrokerTradeRow trade_row = g_pandora_xboost_broker_trades[i];
+    if(!PandoraXBoostAuditTradeMatchesBucket(trade_row, bucket))
+      continue;
+
+    ArrayResize(values, value_total + 1, 64);
+    values[value_total] = trade_row.r_multiple_broker;
+    value_total++;
+  }
+
+  if(value_total <= 0)
+    return 0.0;
+
+  ArraySort(values);
+  return PandoraXBoostMedianFromSortedValues(values);
+}
+
+double PandoraXBoostAuditMedianForNodePath(const string node_path)
+{
+  double values[];
+  int value_total = 0;
+  int total = ArraySize(g_pandora_xboost_broker_trades);
+  for(int i = 0; i < total; i++)
+  {
+    PandoraXBoostBrokerTradeRow trade_row = g_pandora_xboost_broker_trades[i];
+    string trade_node_path = trade_row.node_path;
+    if(trade_node_path == "")
+      trade_node_path = trade_row.node_key;
+    if(trade_node_path != node_path)
+      continue;
+
+    ArrayResize(values, value_total + 1, 64);
+    values[value_total] = trade_row.r_multiple_broker;
+    value_total++;
+  }
+
+  if(value_total <= 0)
+    return 0.0;
+
+  ArraySort(values);
+  return PandoraXBoostMedianFromSortedValues(values);
+}
+
+string PandoraXBoostFormatRunAuditRow(const PandoraXBoostBrokerAuditBucket &bucket)
+{
+  double avg_r = (bucket.trades > 0)
+                 ? bucket.total_r / (double)bucket.trades
+                 : 0.0;
+  double median_r = PandoraXBoostAuditMedianForBucket(bucket);
+  return StringFormat("%s,%s,%d,%d,%d,%d,%.8f,%.8f,%.8f,%.8f,%.8f,%.8f,%I64d,%I64d,%d,%d,%d",
+                      PandoraXBoostCsvCell(bucket.scope),
+                      PandoraXBoostCsvCell(bucket.key),
+                      bucket.trades,
+                      bucket.wins,
+                      bucket.losses,
+                      bucket.be,
+                      bucket.total_r,
+                      avg_r,
+                      median_r,
+                      bucket.min_r,
+                      bucket.max_r,
+                      bucket.net_profit,
+                      (long)bucket.first_close,
+                      (long)bucket.last_close,
+                      ArraySize(g_pandora_xboost_stats),
+                      ArraySize(g_pandora_xboost_sample_rows),
+                      ArraySize(g_pandora_xboost_broker_trades));
+}
+
+string PandoraXBoostFormatNodeAuditRow(const PandoraXBoostBrokerAuditBucket &bucket)
+{
+  double avg_r = (bucket.trades > 0)
+                 ? bucket.total_r / (double)bucket.trades
+                 : 0.0;
+  double median_r = PandoraXBoostAuditMedianForNodePath(bucket.node_path);
+  return StringFormat("%s,%s,%d,%s,%d,%d,%d,%d,%.8f,%.8f,%.8f,%.8f,%.8f,%.8f,%I64d,%I64d",
+                      PandoraXBoostCsvCell(bucket.node_path),
+                      PandoraXBoostCsvCell(bucket.node_key),
+                      bucket.depth,
+                      PandoraXBoostDirectionLabel(bucket.side),
+                      bucket.trades,
+                      bucket.wins,
+                      bucket.losses,
+                      bucket.be,
+                      bucket.total_r,
+                      avg_r,
+                      median_r,
+                      bucket.min_r,
+                      bucket.max_r,
+                      bucket.net_profit,
+                      (long)bucket.first_close,
+                      (long)bucket.last_close);
 }
 
 bool PandoraXBoostBrokerTradeIdExists(const string broker_trade_id)
@@ -490,7 +810,7 @@ bool PandoraXBoostLoadBrokerTrades()
     trade_row.model_score_r        = StringToDouble(fields[19]);
     trade_row.model_posterior_r    = StringToDouble(fields[20]);
     trade_row.model_samples        = (int)StringToInteger(fields[21]);
-    trade_row.broker_window_samples = (int)StringToInteger(fields[22]);
+    trade_row.broker_node_samples = (int)StringToInteger(fields[22]);
     trade_row.seen_at              = (datetime)StringToInteger(fields[23]);
 
     if(PandoraXBoostRememberBrokerTradeRow(trade_row))
@@ -669,7 +989,7 @@ string PandoraXBoostFormatBrokerTradeRow(const PandoraXBoostBrokerTradeRow &trad
                       trade_row.model_score_r,
                       trade_row.model_posterior_r,
                       trade_row.model_samples,
-                      trade_row.broker_window_samples,
+                      trade_row.broker_node_samples,
                       (long)trade_row.seen_at);
 }
 
@@ -737,6 +1057,142 @@ bool PandoraXBoostFlushPendingBrokerTrades()
   return true;
 }
 
+bool PandoraXBoostSaveRunAuditSnapshot()
+{
+  PandoraXBoostBrokerAuditBucket buckets[];
+  int bucket_total = 0;
+  int total = ArraySize(g_pandora_xboost_broker_trades);
+  for(int i = 0; i < total; i++)
+  {
+    PandoraXBoostBrokerTradeRow trade_row = g_pandora_xboost_broker_trades[i];
+    PandoraXBoostAuditAddScopeTrade(buckets, bucket_total, "ALL", trade_row);
+    PandoraXBoostAuditAddScopeTrade(buckets, bucket_total, "YEAR", trade_row);
+    PandoraXBoostAuditAddScopeTrade(buckets, bucket_total, "MONTH", trade_row);
+    PandoraXBoostAuditAddScopeTrade(buckets, bucket_total, "DEPTH", trade_row);
+    PandoraXBoostAuditAddScopeTrade(buckets, bucket_total, "SIDE", trade_row);
+    PandoraXBoostAuditAddScopeTrade(buckets, bucket_total, "EVENT", trade_row);
+  }
+
+  if(bucket_total <= 0)
+  {
+    ArrayResize(buckets, 1, 1);
+    bucket_total = 1;
+    buckets[0].scope = "ALL";
+    buckets[0].key = "ALL";
+  }
+
+  string filename = PandoraXBoostRunSummaryFilename();
+  PandoraXBoostEnsureStorageFolder();
+  ResetLastError();
+  int handle = FileOpen(filename, FILE_WRITE | FILE_TXT | FILE_ANSI | FILE_COMMON);
+  if(handle == INVALID_HANDLE)
+  {
+    int open_error = GetLastError();
+    PandoraXBoostLogEvent("PANDORA_XBOOST_RUN_SUMMARY_SAVE_FAIL",
+                          StringFormat("file=%s err=%d rows=%d",
+                                       filename,
+                                       open_error,
+                                       bucket_total));
+    return false;
+  }
+
+  FileWrite(handle, PANDORA_XBOOST_RUN_SUMMARY_HEADER);
+  for(int i = 0; i < bucket_total; i++)
+    FileWrite(handle, PandoraXBoostFormatRunAuditRow(buckets[i]));
+
+  FileClose(handle);
+  PandoraXBoostLogEvent("PANDORA_XBOOST_RUN_SUMMARY_SAVED",
+                        StringFormat("file=%s rows=%d",
+                                     filename,
+                                     bucket_total));
+  return true;
+}
+
+int PandoraXBoostAuditFindNodeBucket(PandoraXBoostBrokerAuditBucket &buckets[],
+                                     const int bucket_total,
+                                     const string node_path)
+{
+  for(int i = 0; i < bucket_total; i++)
+  {
+    if(buckets[i].node_path == node_path)
+      return i;
+  }
+  return -1;
+}
+
+void PandoraXBoostAuditAddNodeTrade(PandoraXBoostBrokerAuditBucket &buckets[],
+                                    int &bucket_total,
+                                    const PandoraXBoostBrokerTradeRow &trade_row)
+{
+  string node_path = trade_row.node_path;
+  if(node_path == "")
+    node_path = trade_row.node_key;
+  if(node_path == "")
+    return;
+
+  int bucket_index = PandoraXBoostAuditFindNodeBucket(buckets,
+                                                      bucket_total,
+                                                      node_path);
+  if(bucket_index < 0)
+  {
+    ArrayResize(buckets, bucket_total + 1, 64);
+    bucket_index = bucket_total;
+    bucket_total++;
+    buckets[bucket_index].scope = "NODE";
+    buckets[bucket_index].key = node_path;
+    buckets[bucket_index].node_path = node_path;
+    buckets[bucket_index].node_key = trade_row.node_key;
+    buckets[bucket_index].depth = trade_row.depth;
+    buckets[bucket_index].side = trade_row.side;
+  }
+
+  PandoraXBoostAuditBucketAddTrade(buckets[bucket_index], trade_row);
+}
+
+bool PandoraXBoostSaveNodeAuditSnapshot()
+{
+  PandoraXBoostBrokerAuditBucket buckets[];
+  int bucket_total = 0;
+  int total = ArraySize(g_pandora_xboost_broker_trades);
+  for(int i = 0; i < total; i++)
+    PandoraXBoostAuditAddNodeTrade(buckets,
+                                   bucket_total,
+                                   g_pandora_xboost_broker_trades[i]);
+
+  string filename = PandoraXBoostNodeSummaryFilename();
+  PandoraXBoostEnsureStorageFolder();
+  ResetLastError();
+  int handle = FileOpen(filename, FILE_WRITE | FILE_TXT | FILE_ANSI | FILE_COMMON);
+  if(handle == INVALID_HANDLE)
+  {
+    int open_error = GetLastError();
+    PandoraXBoostLogEvent("PANDORA_XBOOST_NODE_SUMMARY_SAVE_FAIL",
+                          StringFormat("file=%s err=%d rows=%d",
+                                       filename,
+                                       open_error,
+                                       bucket_total));
+    return false;
+  }
+
+  FileWrite(handle, PANDORA_XBOOST_NODE_SUMMARY_HEADER);
+  for(int i = 0; i < bucket_total; i++)
+    FileWrite(handle, PandoraXBoostFormatNodeAuditRow(buckets[i]));
+
+  FileClose(handle);
+  PandoraXBoostLogEvent("PANDORA_XBOOST_NODE_SUMMARY_SAVED",
+                        StringFormat("file=%s rows=%d",
+                                     filename,
+                                     bucket_total));
+  return true;
+}
+
+bool PandoraXBoostSaveAuditSnapshots()
+{
+  bool run_saved = PandoraXBoostSaveRunAuditSnapshot();
+  bool node_saved = PandoraXBoostSaveNodeAuditSnapshot();
+  return run_saved && node_saved;
+}
+
 bool PandoraXBoostSave()
 {
   if(!PandoraXBoostEnabled())
@@ -747,28 +1203,33 @@ bool PandoraXBoostSave()
   bool samples_saved = PandoraXBoostFlushPendingSamples();
   bool broker_trades_saved = PandoraXBoostFlushPendingBrokerTrades();
   bool stats_saved = PandoraXBoostSaveStatsSnapshot();
+  bool audit_saved = PandoraXBoostSaveAuditSnapshots();
   if(samples_saved && broker_trades_saved && stats_saved)
     g_pandora_xboost_storage_dirty = false;
 
   if(Enable_Logs)
   {
-    PrintFormat("PANDORA_XBOOST_SAVE samples=%s broker=%s stats=%s pending=%d broker_pending=%d broker_rows=%d folder=%s stats_file=%s samples_file=%s broker_file=%s",
+    PrintFormat("PANDORA_XBOOST_SAVE samples=%s broker=%s stats=%s audit=%s pending=%d broker_pending=%d broker_rows=%d folder=%s stats_file=%s samples_file=%s broker_file=%s run_file=%s node_file=%s",
                 samples_saved ? "OK" : "FAIL",
                 broker_trades_saved ? "OK" : "FAIL",
                 stats_saved ? "OK" : "FAIL",
+                audit_saved ? "OK" : "FAIL",
                 pending_before,
                 pending_broker_before,
                 ArraySize(g_pandora_xboost_broker_trades),
                 PandoraXBoostStorageAbsoluteFolder(),
                 PandoraXBoostStatsFilename(),
                 PandoraXBoostSamplesFilename(),
-                PandoraXBoostBrokerTradesFilename());
+                PandoraXBoostBrokerTradesFilename(),
+                PandoraXBoostRunSummaryFilename(),
+                PandoraXBoostNodeSummaryFilename());
   }
   PandoraXBoostLogEvent("PANDORA_XBOOST_SAVE",
-                        StringFormat("samples=%s broker=%s stats=%s pending_before=%d broker_pending_before=%d pending_after=%d broker_pending_after=%d broker_rows=%d folder=%s stats_file=%s samples_file=%s broker_file=%s",
+                        StringFormat("samples=%s broker=%s stats=%s audit=%s pending_before=%d broker_pending_before=%d pending_after=%d broker_pending_after=%d broker_rows=%d folder=%s stats_file=%s samples_file=%s broker_file=%s run_file=%s node_file=%s",
                                      samples_saved ? "OK" : "FAIL",
                                      broker_trades_saved ? "OK" : "FAIL",
                                      stats_saved ? "OK" : "FAIL",
+                                     audit_saved ? "OK" : "FAIL",
                                      pending_before,
                                      pending_broker_before,
                                      ArraySize(g_pandora_xboost_pending_sample_rows),
@@ -777,7 +1238,9 @@ bool PandoraXBoostSave()
                                      PandoraXBoostStorageAbsoluteFolder(),
                                      PandoraXBoostStatsFilename(),
                                      PandoraXBoostSamplesFilename(),
-                                     PandoraXBoostBrokerTradesFilename()));
+                                     PandoraXBoostBrokerTradesFilename(),
+                                     PandoraXBoostRunSummaryFilename(),
+                                     PandoraXBoostNodeSummaryFilename()));
 
   return samples_saved && broker_trades_saved && stats_saved;
 }
@@ -939,8 +1402,8 @@ bool PandoraXBoostRecordBrokerTrade(SignalParams &signal_params,
   trade_row.model_score_r = signal_params.pandora_xboost_model_score_r;
   trade_row.model_posterior_r = signal_params.pandora_xboost_model_posterior_r;
   trade_row.model_samples = signal_params.pandora_xboost_model_samples;
-  trade_row.broker_window_samples =
-    signal_params.pandora_xboost_broker_window_samples;
+  trade_row.broker_node_samples =
+    signal_params.pandora_xboost_broker_node_samples;
   trade_row.seen_at = TimeCurrent();
 
   if(!PandoraXBoostAppendPendingBrokerTradeRow(trade_row))
