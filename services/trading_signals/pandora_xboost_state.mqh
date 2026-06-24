@@ -36,6 +36,11 @@ const double PANDORA_XBOOST_ROBUST_FORWARD_PENALTY_WEIGHT = 0.50;
 const double PANDORA_XBOOST_ROBUST_BROKER_NODE_WEIGHT = 0.70;
 const double PANDORA_XBOOST_ROBUST_BE_TOLERANCE_R = 0.05;
 const int    PANDORA_XBOOST_ROBUST_OUTLIER_TOP_COUNT = 3;
+const double PANDORA_XBOOST_ROBUST_LOSS_RATE_FLOOR = 0.55;
+const double PANDORA_XBOOST_ROBUST_OUTLIER_FLOOR = 0.65;
+const double PANDORA_XBOOST_ROBUST_PAYOFF_MIN_RATIO = 1.60;
+const double PANDORA_XBOOST_ROBUST_PAYOFF_MIN_PROFIT_FACTOR = 1.05;
+const double PANDORA_XBOOST_ROBUST_FRAGILITY_CAP_R = 0.16;
 
 void PandoraXBoostBuildRootCandidates(const SignalParams &root_signal);
 void PandoraXBoostBuildNextCandidatesFromClosedSignal(const SignalParams &closed_signal,
@@ -1332,6 +1337,87 @@ double PandoraXBoostBayesianPosteriorAverage(const int node_samples,
           (safe_prior_weight * prior_avg_r)) / denominator;
 }
 
+double PandoraXBoostClampDouble(const double value,
+                                const double min_value,
+                                const double max_value)
+{
+  if(value < min_value)
+    return min_value;
+  if(value > max_value)
+    return max_value;
+  return value;
+}
+
+double PandoraXBoostComputeFragilityPenalty(const PandoraXBoostCandidate &candidate)
+{
+  if(candidate.samples <= 0)
+    return 0.0;
+
+  double penalty_r = 0.0;
+  if(candidate.median_r < -PANDORA_XBOOST_ROBUST_BE_TOLERANCE_R)
+  {
+    penalty_r += MathAbs(candidate.median_r) *
+                 PANDORA_XBOOST_ROBUST_MEDIAN_PENALTY_WEIGHT;
+  }
+
+  if(candidate.loss_rate > PANDORA_XBOOST_ROBUST_LOSS_RATE_FLOOR)
+  {
+    penalty_r += (candidate.loss_rate - PANDORA_XBOOST_ROBUST_LOSS_RATE_FLOOR) *
+                 PANDORA_XBOOST_ROBUST_LOSS_RATE_PENALTY_WEIGHT;
+  }
+
+  if(candidate.outlier_dependency_r > PANDORA_XBOOST_ROBUST_OUTLIER_FLOOR &&
+     candidate.median_r < PANDORA_XBOOST_ROBUST_BE_TOLERANCE_R)
+  {
+    penalty_r += (candidate.outlier_dependency_r - PANDORA_XBOOST_ROBUST_OUTLIER_FLOOR) *
+                 PANDORA_XBOOST_ROBUST_OUTLIER_PENALTY_WEIGHT;
+  }
+
+  return PandoraXBoostClampDouble(penalty_r,
+                                  0.0,
+                                  PANDORA_XBOOST_ROBUST_FRAGILITY_CAP_R);
+}
+
+double PandoraXBoostComputeTrailingPayoffCredit(const PandoraXBoostCandidate &candidate)
+{
+  if(candidate.samples <= 0 || candidate.expectancy_r <= 0.0)
+    return 0.0;
+  if(candidate.payoff_ratio_r < PANDORA_XBOOST_ROBUST_PAYOFF_MIN_RATIO)
+    return 0.0;
+  if(candidate.profit_factor_r < PANDORA_XBOOST_ROBUST_PAYOFF_MIN_PROFIT_FACTOR)
+    return 0.0;
+
+  double payoff_credit =
+    (candidate.payoff_ratio_r - PANDORA_XBOOST_ROBUST_PAYOFF_MIN_RATIO) * 0.01;
+  double factor_credit =
+    (candidate.profit_factor_r - PANDORA_XBOOST_ROBUST_PAYOFF_MIN_PROFIT_FACTOR) * 0.02;
+  double credit_r = payoff_credit + factor_credit;
+
+  if(candidate.outlier_dependency_r > PANDORA_XBOOST_ROBUST_OUTLIER_FLOOR)
+  {
+    double outlier_discount = 1.0 -
+      ((candidate.outlier_dependency_r - PANDORA_XBOOST_ROBUST_OUTLIER_FLOOR) * 0.50);
+    outlier_discount = PandoraXBoostClampDouble(outlier_discount, 0.50, 1.0);
+    credit_r *= outlier_discount;
+  }
+
+  return PandoraXBoostClampDouble(credit_r,
+                                  0.0,
+                                  PANDORA_XBOOST_ROBUST_PAYOFF_CREDIT_CAP_R);
+}
+
+void PandoraXBoostApplyRobustCandidateScore(PandoraXBoostCandidate &candidate)
+{
+  candidate.fragility_penalty_r =
+    PandoraXBoostComputeFragilityPenalty(candidate);
+  candidate.trailing_payoff_credit_r =
+    PandoraXBoostComputeTrailingPayoffCredit(candidate);
+  candidate.robust_score_r = candidate.conservative_score_r +
+                             candidate.trailing_payoff_credit_r -
+                             candidate.fragility_penalty_r;
+  candidate.score_r = candidate.robust_score_r;
+}
+
 bool PandoraXBoostIsDerivedNode(const SignalParams &signal_params)
 {
   return (signal_params.pandora_xboost_enabled &&
@@ -1558,7 +1644,7 @@ bool PandoraXBoostCandidateHasMinimumStats(const PandoraXBoostCandidate &candida
   int min_samples = PandoraXBoostMinSamplesForDepth(candidate.depth);
   return (candidate.status != PANDORA_XBOOST_CANDIDATE_BLOCK &&
           candidate.samples >= min_samples &&
-          candidate.conservative_score_r >= PANDORA_XBOOST_BAYES_MIN_CONSERVATIVE_R);
+          candidate.score_r >= PANDORA_XBOOST_ROBUST_MIN_SCORE_R);
 }
 
 bool PandoraXBoostRollingWindowBlocks(const PandoraXBoostCandidate &candidate,
@@ -1641,8 +1727,8 @@ void PandoraXBoostApplyBrokerCalibration(PandoraXBoostCandidate &candidate,
 
   candidate.broker_degradation_r = degradation_r;
   candidate.score_r -= degradation_r;
-  candidate.conservative_score_r = candidate.score_r;
-  if(candidate.score_r < PANDORA_XBOOST_BAYES_MIN_CONSERVATIVE_R)
+  candidate.robust_score_r = candidate.score_r;
+  if(candidate.score_r < PANDORA_XBOOST_ROBUST_MIN_SCORE_R)
   {
     candidate.status = PANDORA_XBOOST_CANDIDATE_BLOCK;
     candidate.reason = "BROKER_DEGRADE";
@@ -1775,6 +1861,7 @@ void PandoraXBoostBuildCandidate(const string strategy_key,
   candidate.depth_penalty_r = depth_penalty_r;
   candidate.conservative_score_r = conservative_score_r;
   candidate.score_r = conservative_score_r;
+  PandoraXBoostApplyRobustCandidateScore(candidate);
 
   int min_samples = PandoraXBoostMinSamplesForDepth(safe_depth);
   if(stats.samples < min_samples)
@@ -1784,10 +1871,10 @@ void PandoraXBoostBuildCandidate(const string strategy_key,
     return;
   }
 
-  if(candidate.conservative_score_r < PANDORA_XBOOST_BAYES_MIN_CONSERVATIVE_R)
+  if(candidate.score_r < PANDORA_XBOOST_ROBUST_MIN_SCORE_R)
   {
     candidate.status = PANDORA_XBOOST_CANDIDATE_BLOCK;
-    candidate.reason = "BAYES_SCORE";
+    candidate.reason = "ROBUST_SCORE";
     return;
   }
 
