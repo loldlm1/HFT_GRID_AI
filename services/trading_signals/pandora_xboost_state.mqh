@@ -34,6 +34,8 @@ const double PANDORA_XBOOST_ROBUST_OUTLIER_PENALTY_WEIGHT = 0.08;
 const double PANDORA_XBOOST_ROBUST_PAYOFF_CREDIT_CAP_R = 0.04;
 const double PANDORA_XBOOST_ROBUST_FORWARD_PENALTY_WEIGHT = 0.50;
 const double PANDORA_XBOOST_ROBUST_BROKER_NODE_WEIGHT = 0.70;
+const double PANDORA_XBOOST_ROBUST_BE_TOLERANCE_R = 0.05;
+const int    PANDORA_XBOOST_ROBUST_OUTLIER_TOP_COUNT = 3;
 
 void PandoraXBoostBuildRootCandidates(const SignalParams &root_signal);
 void PandoraXBoostBuildNextCandidatesFromClosedSignal(const SignalParams &closed_signal,
@@ -860,6 +862,69 @@ struct PandoraXBoostRollingStats
   }
 };
 
+struct PandoraXBoostDistributionStats
+{
+  int      samples;
+  int      wins;
+  int      losses;
+  int      be;
+  double   total_r;
+  double   total_win_r;
+  double   total_loss_r;
+  double   avg_r;
+  double   avg_win_r;
+  double   avg_loss_r;
+  double   win_rate;
+  double   loss_rate;
+  double   be_rate;
+  double   median_r;
+  double   profit_factor_r;
+  double   payoff_ratio_r;
+  double   outlier_dependency_r;
+
+  PandoraXBoostDistributionStats()
+  {
+    samples = 0;
+    wins = 0;
+    losses = 0;
+    be = 0;
+    total_r = 0.0;
+    total_win_r = 0.0;
+    total_loss_r = 0.0;
+    avg_r = 0.0;
+    avg_win_r = 0.0;
+    avg_loss_r = 0.0;
+    win_rate = 0.0;
+    loss_rate = 0.0;
+    be_rate = 0.0;
+    median_r = 0.0;
+    profit_factor_r = 0.0;
+    payoff_ratio_r = 0.0;
+    outlier_dependency_r = 0.0;
+  }
+
+  PandoraXBoostDistributionStats(const PandoraXBoostDistributionStats &stats)
+  {
+    samples = stats.samples;
+    wins = stats.wins;
+    losses = stats.losses;
+    be = stats.be;
+    total_r = stats.total_r;
+    total_win_r = stats.total_win_r;
+    total_loss_r = stats.total_loss_r;
+    avg_r = stats.avg_r;
+    avg_win_r = stats.avg_win_r;
+    avg_loss_r = stats.avg_loss_r;
+    win_rate = stats.win_rate;
+    loss_rate = stats.loss_rate;
+    be_rate = stats.be_rate;
+    median_r = stats.median_r;
+    profit_factor_r = stats.profit_factor_r;
+    payoff_ratio_r = stats.payoff_ratio_r;
+    outlier_dependency_r = stats.outlier_dependency_r;
+  }
+};
+
 PandoraXBoostRootState g_pandora_xboost_root;
 PandoraXBoostStats     g_pandora_xboost_stats[];
 string                 g_pandora_xboost_sample_ids[];
@@ -915,6 +980,74 @@ void PandoraXBoostRollingStatsAdd(PandoraXBoostRollingStats &stats,
     stats.last_seen = seen_at;
 }
 
+void PandoraXBoostDistributionStatsAdd(PandoraXBoostDistributionStats &stats,
+                                       const double r_multiple)
+{
+  stats.samples++;
+  stats.total_r += r_multiple;
+  stats.avg_r = stats.total_r / stats.samples;
+
+  if(r_multiple > PANDORA_XBOOST_ROBUST_BE_TOLERANCE_R)
+  {
+    stats.wins++;
+    stats.total_win_r += r_multiple;
+  }
+  else if(r_multiple < -PANDORA_XBOOST_ROBUST_BE_TOLERANCE_R)
+  {
+    stats.losses++;
+    stats.total_loss_r += r_multiple;
+  }
+  else
+  {
+    stats.be++;
+  }
+}
+
+double PandoraXBoostMedianFromSortedValues(double &values[])
+{
+  int total = ArraySize(values);
+  if(total <= 0)
+    return 0.0;
+
+  int middle = total / 2;
+  if((total % 2) == 1)
+    return values[middle];
+
+  return (values[middle - 1] + values[middle]) * 0.5;
+}
+
+double PandoraXBoostOutlierDependencyFromSortedValues(double &values[],
+                                                      const double total_win_r,
+                                                      const double total_r)
+{
+  if(total_win_r <= 0.0 || total_r <= 0.0)
+    return 0.0;
+
+  int total = ArraySize(values);
+  int selected = 0;
+  double top_win_r = 0.0;
+  for(int i = total - 1; i >= 0; i--)
+  {
+    if(values[i] <= PANDORA_XBOOST_ROBUST_BE_TOLERANCE_R)
+      continue;
+
+    top_win_r += values[i];
+    selected++;
+    if(selected >= PANDORA_XBOOST_ROBUST_OUTLIER_TOP_COUNT)
+      break;
+  }
+
+  if(top_win_r <= 0.0)
+    return 0.0;
+
+  double dependency = top_win_r / total_win_r;
+  if(dependency < 0.0)
+    dependency = 0.0;
+  if(dependency > 1.0)
+    dependency = 1.0;
+  return dependency;
+}
+
 bool PandoraXBoostRememberSampleRow(const string sample_id,
                                     const string node_key,
                                     const double r_multiple,
@@ -956,6 +1089,79 @@ bool PandoraXBoostAggregateNodeSamples(const string node_key,
     PandoraXBoostRollingStatsAdd(stats, row.r_multiple, row.seen_at);
   }
   return (stats.samples > 0);
+}
+
+bool PandoraXBoostAggregateNodeDistribution(const string node_key,
+                                            const datetime cutoff_time,
+                                            PandoraXBoostDistributionStats &stats)
+{
+  PandoraXBoostDistributionStats reset_stats;
+  stats = reset_stats;
+  if(node_key == "")
+    return false;
+
+  double values[];
+  int value_total = 0;
+  int total = ArraySize(g_pandora_xboost_sample_rows);
+  for(int i = 0; i < total; i++)
+  {
+    PandoraXBoostSampleRow row = g_pandora_xboost_sample_rows[i];
+    if(row.node_key != node_key)
+      continue;
+    if(cutoff_time > 0 && row.seen_at < cutoff_time)
+      continue;
+
+    ArrayResize(values, value_total + 1, 64);
+    values[value_total] = row.r_multiple;
+    value_total++;
+    PandoraXBoostDistributionStatsAdd(stats, row.r_multiple);
+  }
+
+  if(stats.samples <= 0)
+    return false;
+
+  if(stats.samples > 0)
+  {
+    stats.win_rate = (double)stats.wins / (double)stats.samples;
+    stats.loss_rate = (double)stats.losses / (double)stats.samples;
+    stats.be_rate = (double)stats.be / (double)stats.samples;
+  }
+  if(stats.wins > 0)
+    stats.avg_win_r = stats.total_win_r / (double)stats.wins;
+  if(stats.losses > 0)
+    stats.avg_loss_r = stats.total_loss_r / (double)stats.losses;
+
+  double loss_abs_r = MathAbs(stats.total_loss_r);
+  if(loss_abs_r > 0.0)
+    stats.profit_factor_r = stats.total_win_r / loss_abs_r;
+  else if(stats.total_win_r > 0.0)
+    stats.profit_factor_r = stats.total_win_r;
+
+  double avg_loss_abs_r = MathAbs(stats.avg_loss_r);
+  if(avg_loss_abs_r > 0.0)
+    stats.payoff_ratio_r = stats.avg_win_r / avg_loss_abs_r;
+  else if(stats.avg_win_r > 0.0)
+    stats.payoff_ratio_r = stats.avg_win_r;
+
+  ArraySort(values);
+  stats.median_r = PandoraXBoostMedianFromSortedValues(values);
+  stats.outlier_dependency_r =
+    PandoraXBoostOutlierDependencyFromSortedValues(values,
+                                                  stats.total_win_r,
+                                                  stats.total_r);
+  return true;
+}
+
+void PandoraXBoostApplyDistributionMetrics(PandoraXBoostCandidate &candidate,
+                                           const PandoraXBoostDistributionStats &stats)
+{
+  candidate.win_rate = stats.win_rate;
+  candidate.loss_rate = stats.loss_rate;
+  candidate.be_rate = stats.be_rate;
+  candidate.median_r = stats.median_r;
+  candidate.profit_factor_r = stats.profit_factor_r;
+  candidate.payoff_ratio_r = stats.payoff_ratio_r;
+  candidate.outlier_dependency_r = stats.outlier_dependency_r;
 }
 
 bool PandoraXBoostAggregateStrategySamples(const string strategy_key,
@@ -1529,6 +1735,10 @@ void PandoraXBoostBuildCandidate(const string strategy_key,
 
   candidate.samples      = stats.samples;
   candidate.expectancy_r = stats.expectancy_r;
+
+  PandoraXBoostDistributionStats distribution_stats;
+  if(PandoraXBoostAggregateNodeDistribution(node_key, 0, distribution_stats))
+    PandoraXBoostApplyDistributionMetrics(candidate, distribution_stats);
 
   PandoraXBoostRollingStats node_all;
   bool has_node_all = PandoraXBoostAggregateNodeSamples(node_key, 0, node_all);
