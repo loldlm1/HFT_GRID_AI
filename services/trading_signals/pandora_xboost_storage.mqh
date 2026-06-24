@@ -9,7 +9,7 @@ const string PANDORA_XBOOST_STATS_HEADER =
 const string PANDORA_XBOOST_SAMPLES_HEADER =
   "sample_id,node_key,close_event,r_multiple,seen_at";
 const string PANDORA_XBOOST_BROKER_TRADES_HEADER =
-  "broker_trade_id,strategy_key,root_id,root_date,node_key,node_path,sample_id,depth,broker_trade_index,side,entry_time,close_time,entry_price,close_price,sl_points,r_multiple_broker,net_profit,close_event,close_reason,model_score_r,model_posterior_r,model_samples,broker_window_samples,seen_at";
+  "broker_trade_id,strategy_key,root_id,root_date,node_key,node_path,sample_id,depth,broker_trade_index,side,entry_time,close_time,entry_price,close_price,sl_points,r_multiple_broker,net_profit,close_event,close_reason,model_score_r,model_posterior_r,model_samples,broker_node_samples,seen_at";
 const string PANDORA_XBOOST_STORAGE_ROOT = "PandoraXBoost";
 const string PANDORA_XBOOST_DEBUG_LOG = "query_debug.txt";
 

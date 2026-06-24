@@ -42,6 +42,8 @@ const double PANDORA_XBOOST_ROBUST_PAYOFF_MIN_RATIO = 1.60;
 const double PANDORA_XBOOST_ROBUST_PAYOFF_MIN_PROFIT_FACTOR = 1.05;
 const double PANDORA_XBOOST_ROBUST_FRAGILITY_CAP_R = 0.16;
 const double PANDORA_XBOOST_ROBUST_FORWARD_PENALTY_CAP_R = 0.12;
+const double PANDORA_XBOOST_ROBUST_BROKER_PATH_WEIGHT = 0.35;
+const double PANDORA_XBOOST_ROBUST_BROKER_DEGRADATION_CAP_R = 0.20;
 
 void PandoraXBoostBuildRootCandidates(const SignalParams &root_signal);
 void PandoraXBoostBuildNextCandidatesFromClosedSignal(const SignalParams &closed_signal,
@@ -578,6 +580,7 @@ struct PandoraXBoostCandidate
   PandoraXBoostCloseEvents       parent_event;
   ulong                          key_hash;
   string                         node_key;
+  string                         node_path;
   string                         display_id;
   string                         reason;
   int                            depth;
@@ -606,10 +609,12 @@ struct PandoraXBoostCandidate
   int                            local_window_120_samples;
   int                            local_window_60_samples;
   int                            broker_node_samples;
+  int                            broker_path_samples;
   int                            broker_recent_samples;
   double                         local_window_120_avg_r;
   double                         local_window_60_avg_r;
   double                         broker_node_avg_r;
+  double                         broker_path_avg_r;
   double                         broker_recent_avg_r;
 
   PandoraXBoostCandidate()
@@ -619,6 +624,7 @@ struct PandoraXBoostCandidate
     parent_event   = PANDORA_XBOOST_EVENT_NONE;
     key_hash       = 0;
     node_key       = "";
+    node_path      = "";
     display_id     = "";
     reason         = "";
     depth          = 0;
@@ -647,10 +653,12 @@ struct PandoraXBoostCandidate
     local_window_120_samples = 0;
     local_window_60_samples = 0;
     broker_node_samples = 0;
+    broker_path_samples = 0;
     broker_recent_samples = 0;
     local_window_120_avg_r = 0.0;
     local_window_60_avg_r = 0.0;
     broker_node_avg_r = 0.0;
+    broker_path_avg_r = 0.0;
     broker_recent_avg_r = 0.0;
   }
 
@@ -661,6 +669,7 @@ struct PandoraXBoostCandidate
     parent_event   = candidate.parent_event;
     key_hash       = candidate.key_hash;
     node_key       = candidate.node_key;
+    node_path      = candidate.node_path;
     display_id     = candidate.display_id;
     reason         = candidate.reason;
     depth          = candidate.depth;
@@ -689,10 +698,12 @@ struct PandoraXBoostCandidate
     local_window_120_samples = candidate.local_window_120_samples;
     local_window_60_samples = candidate.local_window_60_samples;
     broker_node_samples = candidate.broker_node_samples;
+    broker_path_samples = candidate.broker_path_samples;
     broker_recent_samples = candidate.broker_recent_samples;
     local_window_120_avg_r = candidate.local_window_120_avg_r;
     local_window_60_avg_r = candidate.local_window_60_avg_r;
     broker_node_avg_r = candidate.broker_node_avg_r;
+    broker_path_avg_r = candidate.broker_path_avg_r;
     broker_recent_avg_r = candidate.broker_recent_avg_r;
   }
 };
@@ -1324,6 +1335,24 @@ bool PandoraXBoostBrokerTradeMatchesStrategy(const PandoraXBoostBrokerTradeRow &
   return (trade_row.strategy_key == strategy_key);
 }
 
+string PandoraXBoostParentNodePath(const string node_path)
+{
+  int last_pos = -1;
+  int search_pos = 0;
+  while(true)
+  {
+    int pos = StringFind(node_path, ">", search_pos);
+    if(pos < 0)
+      break;
+    last_pos = pos;
+    search_pos = pos + 1;
+  }
+
+  if(last_pos <= 0)
+    return "";
+  return StringSubstr(node_path, 0, last_pos);
+}
+
 bool PandoraXBoostSelectedIndexExists(int &selected_indices[],
                                       const int selected_total,
                                       const int candidate_index)
@@ -1349,6 +1378,35 @@ bool PandoraXBoostAggregateBrokerNodeTrades(const string node_key,
   {
     PandoraXBoostBrokerTradeRow trade_row = g_pandora_xboost_broker_trades[i];
     if(trade_row.node_key != node_key)
+      continue;
+
+    PandoraXBoostRollingStatsAdd(stats,
+                                 trade_row.r_multiple_broker,
+                                 trade_row.close_time);
+  }
+  return (stats.samples > 0);
+}
+
+bool PandoraXBoostAggregateBrokerPathFamilyTrades(const string strategy_key,
+                                                  const string node_path,
+                                                  PandoraXBoostRollingStats &stats)
+{
+  PandoraXBoostRollingStats reset_stats;
+  stats = reset_stats;
+  string parent_path = PandoraXBoostParentNodePath(node_path);
+  if(strategy_key == "" || parent_path == "")
+    return false;
+
+  string family_prefix = parent_path + ">";
+  int total = ArraySize(g_pandora_xboost_broker_trades);
+  for(int i = 0; i < total; i++)
+  {
+    PandoraXBoostBrokerTradeRow trade_row = g_pandora_xboost_broker_trades[i];
+    if(!PandoraXBoostBrokerTradeMatchesStrategy(trade_row, strategy_key))
+      continue;
+    if(trade_row.node_path == node_path)
+      continue;
+    if(!PandoraXBoostStringStartsWith(trade_row.node_path, family_prefix))
       continue;
 
     PandoraXBoostRollingStatsAdd(stats,
@@ -1803,6 +1861,15 @@ void PandoraXBoostApplyBrokerCalibration(PandoraXBoostCandidate &candidate,
     candidate.broker_node_avg_r = broker_node.avg_r;
   }
 
+  PandoraXBoostRollingStats broker_path;
+  if(PandoraXBoostAggregateBrokerPathFamilyTrades(strategy_key,
+                                                  candidate.node_path,
+                                                  broker_path))
+  {
+    candidate.broker_path_samples = broker_path.samples;
+    candidate.broker_path_avg_r = broker_path.avg_r;
+  }
+
   PandoraXBoostRollingStats broker_recent;
   if(PandoraXBoostAggregateBrokerRecentTrades(strategy_key,
                                               PANDORA_XBOOST_BROKER_RECENT_TRADES,
@@ -1812,52 +1879,43 @@ void PandoraXBoostApplyBrokerCalibration(PandoraXBoostCandidate &candidate,
     candidate.broker_recent_avg_r = broker_recent.avg_r;
   }
 
-  if(candidate.broker_recent_samples >= PANDORA_XBOOST_BROKER_MIN_RECENT_SAMPLES &&
-     candidate.broker_recent_avg_r < PANDORA_XBOOST_BROKER_DEGRADATION_FLOOR_R)
-  {
-    candidate.status = PANDORA_XBOOST_CANDIDATE_BLOCK;
-    candidate.reason = "BROKER_30";
-    return;
-  }
-
-  if(candidate.broker_node_samples >= PANDORA_XBOOST_BROKER_MIN_NODE_SAMPLES &&
-     candidate.broker_node_avg_r < PANDORA_XBOOST_BROKER_DEGRADATION_FLOOR_R)
-  {
-    candidate.status = PANDORA_XBOOST_CANDIDATE_BLOCK;
-    candidate.reason = "BROKER_NODE";
-    return;
-  }
-
-  double broker_reference_r = candidate.score_r;
-  bool has_broker_reference = false;
+  double degradation_r = 0.0;
+  string degradation_reason = "";
   if(candidate.broker_node_samples >= PANDORA_XBOOST_BROKER_MIN_NODE_SAMPLES)
   {
-    broker_reference_r = candidate.broker_node_avg_r;
-    has_broker_reference = true;
+    if(candidate.broker_node_avg_r < candidate.score_r)
+    {
+      degradation_r += (candidate.score_r - candidate.broker_node_avg_r) *
+                       PANDORA_XBOOST_ROBUST_BROKER_NODE_WEIGHT;
+      degradation_reason = "BROKER_NODE";
+    }
   }
-  if(candidate.broker_recent_samples >= PANDORA_XBOOST_BROKER_MIN_RECENT_SAMPLES)
+  if(candidate.broker_path_samples >= PANDORA_XBOOST_BROKER_MIN_NODE_SAMPLES)
   {
-    if(!has_broker_reference || candidate.broker_recent_avg_r < broker_reference_r)
-      broker_reference_r = candidate.broker_recent_avg_r;
-    has_broker_reference = true;
+    if(candidate.broker_path_avg_r < candidate.score_r)
+    {
+      degradation_r += (candidate.score_r - candidate.broker_path_avg_r) *
+                       PANDORA_XBOOST_ROBUST_BROKER_PATH_WEIGHT;
+      if(degradation_reason == "")
+        degradation_reason = "BROKER_PATH";
+    }
   }
 
-  if(!has_broker_reference || broker_reference_r >= candidate.score_r)
-    return;
-
-  double degradation_r =
-    (candidate.score_r - broker_reference_r) *
-    PANDORA_XBOOST_BROKER_DEGRADATION_WEIGHT;
   if(degradation_r <= 0.0)
     return;
 
+  degradation_r = PandoraXBoostClampDouble(degradation_r,
+                                           0.0,
+                                           PANDORA_XBOOST_ROBUST_BROKER_DEGRADATION_CAP_R);
+  candidate.broker_node_degradation_r = degradation_r;
   candidate.broker_degradation_r = degradation_r;
   candidate.score_r -= degradation_r;
   candidate.robust_score_r = candidate.score_r;
   if(candidate.score_r < PANDORA_XBOOST_ROBUST_MIN_SCORE_R)
   {
     candidate.status = PANDORA_XBOOST_CANDIDATE_BLOCK;
-    candidate.reason = "BROKER_DEGRADE";
+    candidate.reason = (degradation_reason == "") ? "BROKER_DEGRADE"
+                                                  : degradation_reason;
   }
 }
 
@@ -1889,6 +1947,7 @@ void PandoraXBoostBuildCandidate(const string strategy_key,
   candidate.parent_event   = parent_event;
   candidate.key_hash       = PandoraXBoostHashKey(node_key);
   candidate.node_key       = node_key;
+  candidate.node_path      = node_path;
   candidate.display_id     = PandoraXBoostBuildDisplayId(candidate_side, parent_event);
   candidate.reason         = "NO_STATS";
   candidate.depth          = safe_depth;
@@ -1917,10 +1976,12 @@ void PandoraXBoostBuildCandidate(const string strategy_key,
   candidate.local_window_120_samples = 0;
   candidate.local_window_60_samples = 0;
   candidate.broker_node_samples = 0;
+  candidate.broker_path_samples = 0;
   candidate.broker_recent_samples = 0;
   candidate.local_window_120_avg_r = 0.0;
   candidate.local_window_60_avg_r = 0.0;
   candidate.broker_node_avg_r = 0.0;
+  candidate.broker_path_avg_r = 0.0;
   candidate.broker_recent_avg_r = 0.0;
 
   PandoraXBoostRollingStats window_120;
@@ -2312,7 +2373,7 @@ bool PandoraXBoostApplyBrokerDecision(SignalParams &signal_params)
   signal_params.pandora_xboost_selected_rank = selected_rank;
   signal_params.pandora_xboost_model_samples = candidate.samples;
   signal_params.pandora_xboost_broker_window_samples =
-    candidate.broker_recent_samples;
+    candidate.broker_node_samples;
   signal_params.pandora_xboost_model_score_r = candidate.score_r;
   signal_params.pandora_xboost_model_posterior_r =
     (candidate.posterior_r != 0.0) ? candidate.posterior_r
