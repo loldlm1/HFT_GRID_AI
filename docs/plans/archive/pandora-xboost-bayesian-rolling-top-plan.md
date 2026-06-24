@@ -2,7 +2,12 @@
 
 **Generated**: 2026-06-23
 **Estimated Complexity**: Critical / Trading-Sensitive
-**Status**: Implementation in progress
+**Status**: Completed and archived on 2026-06-24
+
+This v3 Bayesian rolling TOP plan was implemented, validated, compiled, and
+committed through Sprint 10. It is archived because the next iteration is a v4
+robust forward-scoring methodology focused on reducing fragile TOP selection
+while preserving adaptive inference.
 
 ## Overview
 
