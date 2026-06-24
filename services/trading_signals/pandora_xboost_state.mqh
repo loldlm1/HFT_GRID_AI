@@ -4,7 +4,7 @@
 #ifndef _SERVICES_TRADING_SIGNALS_PANDORA_XBOOST_STATE_MQH_
 #define _SERVICES_TRADING_SIGNALS_PANDORA_XBOOST_STATE_MQH_
 
-const int    PANDORA_XBOOST_SCHEMA_VERSION       = 3;
+const int    PANDORA_XBOOST_SCHEMA_VERSION       = 4;
 const int    PANDORA_XBOOST_MIN_DEPTH            = 0;
 const int    PANDORA_XBOOST_MAX_DEPTH            = 3;
 const int    PANDORA_XBOOST_MIN_SAMPLES_DEPTH_1  = 30;
@@ -27,6 +27,13 @@ const double PANDORA_XBOOST_BROKER_DEGRADATION_FLOOR_R = -0.05;
 const double PANDORA_XBOOST_BROKER_DEGRADATION_WEIGHT = 1.0;
 const int    PANDORA_XBOOST_BROKER_MIN_NODE_SAMPLES = 5;
 const int    PANDORA_XBOOST_BROKER_MIN_RECENT_SAMPLES = 10;
+const double PANDORA_XBOOST_ROBUST_MIN_SCORE_R = 0.02;
+const double PANDORA_XBOOST_ROBUST_MEDIAN_PENALTY_WEIGHT = 0.35;
+const double PANDORA_XBOOST_ROBUST_LOSS_RATE_PENALTY_WEIGHT = 0.10;
+const double PANDORA_XBOOST_ROBUST_OUTLIER_PENALTY_WEIGHT = 0.08;
+const double PANDORA_XBOOST_ROBUST_PAYOFF_CREDIT_CAP_R = 0.04;
+const double PANDORA_XBOOST_ROBUST_FORWARD_PENALTY_WEIGHT = 0.50;
+const double PANDORA_XBOOST_ROBUST_BROKER_NODE_WEIGHT = 0.70;
 
 void PandoraXBoostBuildRootCandidates(const SignalParams &root_signal);
 void PandoraXBoostBuildNextCandidatesFromClosedSignal(const SignalParams &closed_signal,
@@ -572,6 +579,19 @@ struct PandoraXBoostCandidate
   double                         uncertainty_penalty_r;
   double                         depth_penalty_r;
   double                         broker_degradation_r;
+  double                         robust_score_r;
+  double                         win_rate;
+  double                         loss_rate;
+  double                         be_rate;
+  double                         median_r;
+  double                         profit_factor_r;
+  double                         payoff_ratio_r;
+  double                         outlier_dependency_r;
+  double                         fragility_penalty_r;
+  double                         trailing_payoff_credit_r;
+  double                         forward_stability_r;
+  double                         forward_penalty_r;
+  double                         broker_node_degradation_r;
   int                            local_window_120_samples;
   int                            local_window_60_samples;
   int                            broker_node_samples;
@@ -600,6 +620,19 @@ struct PandoraXBoostCandidate
     uncertainty_penalty_r = 0.0;
     depth_penalty_r = 0.0;
     broker_degradation_r = 0.0;
+    robust_score_r = 0.0;
+    win_rate = 0.0;
+    loss_rate = 0.0;
+    be_rate = 0.0;
+    median_r = 0.0;
+    profit_factor_r = 0.0;
+    payoff_ratio_r = 0.0;
+    outlier_dependency_r = 0.0;
+    fragility_penalty_r = 0.0;
+    trailing_payoff_credit_r = 0.0;
+    forward_stability_r = 0.0;
+    forward_penalty_r = 0.0;
+    broker_node_degradation_r = 0.0;
     local_window_120_samples = 0;
     local_window_60_samples = 0;
     broker_node_samples = 0;
@@ -629,6 +662,19 @@ struct PandoraXBoostCandidate
     uncertainty_penalty_r = candidate.uncertainty_penalty_r;
     depth_penalty_r = candidate.depth_penalty_r;
     broker_degradation_r = candidate.broker_degradation_r;
+    robust_score_r = candidate.robust_score_r;
+    win_rate = candidate.win_rate;
+    loss_rate = candidate.loss_rate;
+    be_rate = candidate.be_rate;
+    median_r = candidate.median_r;
+    profit_factor_r = candidate.profit_factor_r;
+    payoff_ratio_r = candidate.payoff_ratio_r;
+    outlier_dependency_r = candidate.outlier_dependency_r;
+    fragility_penalty_r = candidate.fragility_penalty_r;
+    trailing_payoff_credit_r = candidate.trailing_payoff_credit_r;
+    forward_stability_r = candidate.forward_stability_r;
+    forward_penalty_r = candidate.forward_penalty_r;
+    broker_node_degradation_r = candidate.broker_node_degradation_r;
     local_window_120_samples = candidate.local_window_120_samples;
     local_window_60_samples = candidate.local_window_60_samples;
     broker_node_samples = candidate.broker_node_samples;
@@ -1437,6 +1483,19 @@ void PandoraXBoostBuildCandidate(const string strategy_key,
   candidate.uncertainty_penalty_r = 0.0;
   candidate.depth_penalty_r = 0.0;
   candidate.broker_degradation_r = 0.0;
+  candidate.robust_score_r = 0.0;
+  candidate.win_rate = 0.0;
+  candidate.loss_rate = 0.0;
+  candidate.be_rate = 0.0;
+  candidate.median_r = 0.0;
+  candidate.profit_factor_r = 0.0;
+  candidate.payoff_ratio_r = 0.0;
+  candidate.outlier_dependency_r = 0.0;
+  candidate.fragility_penalty_r = 0.0;
+  candidate.trailing_payoff_credit_r = 0.0;
+  candidate.forward_stability_r = 0.0;
+  candidate.forward_penalty_r = 0.0;
+  candidate.broker_node_degradation_r = 0.0;
   candidate.local_window_120_samples = 0;
   candidate.local_window_60_samples = 0;
   candidate.broker_node_samples = 0;
