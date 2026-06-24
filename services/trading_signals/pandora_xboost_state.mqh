@@ -41,6 +41,7 @@ const double PANDORA_XBOOST_ROBUST_OUTLIER_FLOOR = 0.65;
 const double PANDORA_XBOOST_ROBUST_PAYOFF_MIN_RATIO = 1.60;
 const double PANDORA_XBOOST_ROBUST_PAYOFF_MIN_PROFIT_FACTOR = 1.05;
 const double PANDORA_XBOOST_ROBUST_FRAGILITY_CAP_R = 0.16;
+const double PANDORA_XBOOST_ROBUST_FORWARD_PENALTY_CAP_R = 0.12;
 
 void PandoraXBoostBuildRootCandidates(const SignalParams &root_signal);
 void PandoraXBoostBuildNextCandidatesFromClosedSignal(const SignalParams &closed_signal,
@@ -51,6 +52,9 @@ void PandoraXBoostReleaseBrokerAfterClose(const SignalParams &signal_params);
 void PandoraXBoostResetRuntimeState();
 void PandoraXBoostLogEvent(const string label, const string message);
 string PandoraXBoostStorageShortLabel();
+double PandoraXBoostClampDouble(const double value,
+                                const double min_value,
+                                const double max_value);
 
 int PandoraXBoostClampDepth(const int configured_depth)
 {
@@ -1169,6 +1173,126 @@ void PandoraXBoostApplyDistributionMetrics(PandoraXBoostCandidate &candidate,
   candidate.outlier_dependency_r = stats.outlier_dependency_r;
 }
 
+bool PandoraXBoostCollectNodeSampleValues(const string node_key,
+                                          const datetime cutoff_time,
+                                          double &values[],
+                                          datetime &seen_times[])
+{
+  ArrayResize(values, 0, 0);
+  ArrayResize(seen_times, 0, 0);
+  if(node_key == "")
+    return false;
+
+  int value_total = 0;
+  int total = ArraySize(g_pandora_xboost_sample_rows);
+  for(int i = 0; i < total; i++)
+  {
+    PandoraXBoostSampleRow row = g_pandora_xboost_sample_rows[i];
+    if(row.node_key != node_key)
+      continue;
+    if(cutoff_time > 0 && row.seen_at < cutoff_time)
+      continue;
+
+    ArrayResize(values, value_total + 1, 64);
+    ArrayResize(seen_times, value_total + 1, 64);
+    values[value_total] = row.r_multiple;
+    seen_times[value_total] = row.seen_at;
+    value_total++;
+  }
+
+  return (value_total > 0);
+}
+
+void PandoraXBoostSortSampleValuesByTime(double &values[],
+                                         datetime &seen_times[])
+{
+  int total = ArraySize(values);
+  for(int i = 1; i < total; i++)
+  {
+    double value_key = values[i];
+    datetime time_key = seen_times[i];
+    int j = i - 1;
+    while(j >= 0 && seen_times[j] > time_key)
+    {
+      values[j + 1] = values[j];
+      seen_times[j + 1] = seen_times[j];
+      j--;
+    }
+    values[j + 1] = value_key;
+    seen_times[j + 1] = time_key;
+  }
+}
+
+double PandoraXBoostAverageValueRange(double &values[],
+                                      const int start_index,
+                                      const int count)
+{
+  int total = ArraySize(values);
+  if(total <= 0 || count <= 0 || start_index < 0 || start_index >= total)
+    return 0.0;
+
+  int end_index = start_index + count;
+  if(end_index > total)
+    end_index = total;
+
+  double sum = 0.0;
+  int used = 0;
+  for(int i = start_index; i < end_index; i++)
+  {
+    sum += values[i];
+    used++;
+  }
+  if(used <= 0)
+    return 0.0;
+  return sum / (double)used;
+}
+
+bool PandoraXBoostComputeForwardStability(const string node_key,
+                                          const int min_segment_samples,
+                                          double &stability_r,
+                                          double &penalty_r)
+{
+  stability_r = 0.0;
+  penalty_r = 0.0;
+  int safe_min_samples = min_segment_samples;
+  if(safe_min_samples < 1)
+    safe_min_samples = 1;
+
+  double values[];
+  datetime seen_times[];
+  if(!PandoraXBoostCollectNodeSampleValues(node_key, 0, values, seen_times))
+    return false;
+
+  int total = ArraySize(values);
+  if(total < safe_min_samples * 2)
+    return false;
+
+  PandoraXBoostSortSampleValuesByTime(values, seen_times);
+  int segment_count = (total >= safe_min_samples * 3) ? 3 : 2;
+  int latest_count = total / segment_count;
+  if(latest_count < safe_min_samples)
+    latest_count = safe_min_samples;
+  if(latest_count >= total)
+    return false;
+
+  int latest_start = total - latest_count;
+  int previous_count = latest_start;
+  double previous_avg = PandoraXBoostAverageValueRange(values, 0, previous_count);
+  double latest_avg = PandoraXBoostAverageValueRange(values,
+                                                    latest_start,
+                                                    latest_count);
+  stability_r = latest_avg - previous_avg;
+  if(stability_r < 0.0)
+  {
+    penalty_r = MathAbs(stability_r) *
+                PANDORA_XBOOST_ROBUST_FORWARD_PENALTY_WEIGHT;
+    penalty_r = PandoraXBoostClampDouble(penalty_r,
+                                         0.0,
+                                         PANDORA_XBOOST_ROBUST_FORWARD_PENALTY_CAP_R);
+  }
+  return true;
+}
+
 bool PandoraXBoostAggregateStrategySamples(const string strategy_key,
                                            const datetime cutoff_time,
                                            PandoraXBoostRollingStats &stats)
@@ -1414,7 +1538,9 @@ void PandoraXBoostApplyRobustCandidateScore(PandoraXBoostCandidate &candidate)
     PandoraXBoostComputeTrailingPayoffCredit(candidate);
   candidate.robust_score_r = candidate.conservative_score_r +
                              candidate.trailing_payoff_credit_r -
-                             candidate.fragility_penalty_r;
+                             candidate.fragility_penalty_r -
+                             candidate.forward_penalty_r -
+                             candidate.broker_node_degradation_r;
   candidate.score_r = candidate.robust_score_r;
 }
 
@@ -1821,6 +1947,7 @@ void PandoraXBoostBuildCandidate(const string strategy_key,
 
   candidate.samples      = stats.samples;
   candidate.expectancy_r = stats.expectancy_r;
+  int min_samples = PandoraXBoostMinSamplesForDepth(safe_depth);
 
   PandoraXBoostDistributionStats distribution_stats;
   if(PandoraXBoostAggregateNodeDistribution(node_key, 0, distribution_stats))
@@ -1861,9 +1988,12 @@ void PandoraXBoostBuildCandidate(const string strategy_key,
   candidate.depth_penalty_r = depth_penalty_r;
   candidate.conservative_score_r = conservative_score_r;
   candidate.score_r = conservative_score_r;
+  PandoraXBoostComputeForwardStability(node_key,
+                                       min_samples,
+                                       candidate.forward_stability_r,
+                                       candidate.forward_penalty_r);
   PandoraXBoostApplyRobustCandidateScore(candidate);
 
-  int min_samples = PandoraXBoostMinSamplesForDepth(safe_depth);
   if(stats.samples < min_samples)
   {
     candidate.status = PANDORA_XBOOST_CANDIDATE_WAIT;
