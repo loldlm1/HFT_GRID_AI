@@ -2,7 +2,7 @@
 
 **Generated**: 2026-06-24
 **Estimated Complexity**: Critical / Trading-Sensitive
-**Status**: Proposed
+**Status**: Implemented and compiled on 2026-06-24
 
 ## Overview
 
@@ -505,3 +505,8 @@ Run manual Strategy Tester checks in this order:
 - Revert to the last v3 commit if v4 scoring behaves worse in manual QA.
 - Because v4 uses schema-separated CSV files, v3 data remains intact.
 
+## Execution Notes
+
+- Implemented in Sprint commits 1-7.
+- Final compile gate passed with `0 errors, 0 warnings`.
+- Manual Strategy Tester QA remains the required runtime validation step.
