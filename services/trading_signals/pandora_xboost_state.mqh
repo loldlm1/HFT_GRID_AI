@@ -2130,7 +2130,7 @@ void PandoraXBoostLogTopCandidates()
   for(int i = 0; i < total; i++)
   {
     PandoraXBoostCandidate candidate = g_pandora_xboost_top_candidates[i];
-    string message = StringFormat("rank=%d depth=%d id=%s status=%s samples=%d exp=%.3f post=%.3f score=%.3f edge=%.3f u=%.3f dp=%.3f bd=%.3f w120=%d/%.3f w60=%d/%.3f brnode=%d/%.3f br30=%d/%.3f reason=%s model=%s",
+    string message = StringFormat("rank=%d depth=%d id=%s status=%s samples=%d exp=%.3f post=%.3f score_v4=%.3f edge=%.3f med=%.3f wr=%.3f pf=%.3f payoff=%.3f frag=%.3f credit=%.3f fwd=%.3f bd=%.3f w120=%d/%.3f w60=%d/%.3f brnode=%d/%.3f brpath=%d/%.3f br30=%d/%.3f reason=%s model=%s",
                                   i + 1,
                                   candidate.depth,
                                   candidate.display_id,
@@ -2140,8 +2140,13 @@ void PandoraXBoostLogTopCandidates()
                                   candidate.posterior_r,
                                   candidate.score_r,
                                   candidate.edge_r,
-                                  candidate.uncertainty_penalty_r,
-                                  candidate.depth_penalty_r,
+                                  candidate.median_r,
+                                  candidate.win_rate,
+                                  candidate.profit_factor_r,
+                                  candidate.payoff_ratio_r,
+                                  candidate.fragility_penalty_r,
+                                  candidate.trailing_payoff_credit_r,
+                                  candidate.forward_stability_r,
                                   candidate.broker_degradation_r,
                                   candidate.local_window_120_samples,
                                   candidate.local_window_120_avg_r,
@@ -2149,6 +2154,8 @@ void PandoraXBoostLogTopCandidates()
                                   candidate.local_window_60_avg_r,
                                   candidate.broker_node_samples,
                                   candidate.broker_node_avg_r,
+                                  candidate.broker_path_samples,
+                                  candidate.broker_path_avg_r,
                                   candidate.broker_recent_samples,
                                   candidate.broker_recent_avg_r,
                                   candidate.reason,
@@ -2474,16 +2481,18 @@ void PandoraXBoostAppendSummaryLines(string &summary_lines[])
     string reason = (candidate.status == PANDORA_XBOOST_CANDIDATE_READY)
                     ? ""
                     : " reason=" + candidate.reason;
-    string broker_label = (candidate.broker_recent_samples > 0)
-                          ? StringFormat(" br30=%.2f", candidate.broker_recent_avg_r)
+    string broker_label = (candidate.broker_node_samples > 0)
+                          ? StringFormat(" brn=%.2f", candidate.broker_node_avg_r)
                           : "";
-    summary_lines[line_index] = StringFormat("XB%d %s %s n=%d p=%.2f c=%.2f%s%s",
+    summary_lines[line_index] = StringFormat("XB%d %s %s n=%d v4=%.2f p=%.2f med=%.2f pf=%.2f%s%s",
                                              i + 1,
                                              candidate.display_id,
                                              PandoraXBoostCandidateStatusLabel(candidate.status),
                                              candidate.samples,
-                                             candidate.posterior_r,
                                              candidate.score_r,
+                                             candidate.posterior_r,
+                                             candidate.median_r,
+                                             candidate.profit_factor_r,
                                              broker_label,
                                              reason);
   }
