@@ -174,6 +174,15 @@ rooted in the first Pandora signal of the day and can evaluate up to
   branch, including branches that are not opened at the broker.
 - The base score still uses Bayesian shrinkage to pull low-sample branches
   toward the strategy-level prior.
+- One XBoost sample is one closed branch/node result, not the whole daily tree.
+  One root day can produce multiple samples when different branches or depths
+  close.
+- Recent robustness uses the last `60` and `120` samples for the same
+  `node_key`. The legacy `60/120` calendar-day windows remain in logs for audit,
+  but they are no longer the primary recent-degradation gate.
+- The freshness guard applies a small penalty when the node's newest sample is
+  too old. This prevents stale evidence from looking current without adding new
+  inputs or a temporal Bayesian cascade.
 - The v4 score adds limited trailing-payoff credit when large winners look
   repeatable.
 - The v4 score subtracts penalties for distribution fragility, negative median,
@@ -192,15 +201,17 @@ rooted in the first Pandora signal of the day and can evaluate up to
   stability, node/path broker degradation, and normal broker-budget gates.
 - `WATCH`: the candidate has useful information but is not strong enough for
   real broker execution.
-- `BLOCK`: the candidate is explicitly blocked by robust score, rolling
-  degradation, node/path broker degradation, or another XBoost gate.
+- `BLOCK`: the candidate is explicitly blocked by robust score, recent sample
+  window (`SAMPLE_60`/`SAMPLE_120`), stale evidence (`STALE_SAMPLE`), node/path
+  broker degradation, or another XBoost gate.
 
 ### CSV Files
 XBoost v4 writes separate Common-storage CSV files under the existing
 `PandoraXBoost` folder:
 
 - `*_stats.csv`: aggregate local model stats by model node.
-- `*_samples.csv`: idempotent local branch samples by day/sample id.
+- `*_samples.csv`: idempotent local branch samples by day, branch/node, and
+  sample id.
 - `*_broker_trades.csv`: closed real broker trades selected by XBoost only.
 
 ### Panel Example
@@ -223,7 +234,11 @@ local profit factor, and `brn` is exact-node broker evidence when available.
 - Confirm `query_debug.txt` includes `PANDORA_XBOOST_DRYRUN`,
   `PANDORA_XBOOST_BROKER_SELECTED`, and broker ledger save/load diagnostics.
 - Confirm `PANDORA_XBOOST_DRYRUN` shows `score_v4`, `med`, `wr`, `pf`, `frag`,
-  `fwd`, `brnode`, and `brpath`.
+  `fwd`, `w120_days`, `w60_days`, `s120`, `s60`, `age`, `brnode`, and `brpath`.
+- Confirm `s60` and `s120` represent samples for the same `node_key`, not
+  calendar days or complete daily trees.
+- If a candidate is `BLOCK`, check whether the reason is `SAMPLE_60`,
+  `SAMPLE_120`, `STALE_SAMPLE`, `ROBUST_SCORE`, or broker/path degradation.
 - Confirm replaying the same date range does not duplicate sample ids or broker
   trade ids.
 - Confirm days with only `WATCH`/`BLOCK` candidates do not open real broker

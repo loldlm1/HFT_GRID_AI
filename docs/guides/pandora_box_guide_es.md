@@ -175,6 +175,15 @@ Se basa en la primera senal Pandora del dia y puede evaluar hasta
   todas las ramas, incluso las que no se abren en broker.
 - El score base sigue usando Bayesian shrinkage para acercar ramas con pocas
   muestras al prior global de la estrategia.
+- Un sample XBoost es un resultado cerrado de una rama/nodo individual, no todo
+  el arbol del dia. Una misma raiz diaria puede producir varios samples si
+  cierran ramas o profundidades distintas.
+- La robustez reciente usa los ultimos `60` y `120` samples del mismo
+  `node_key`. Las ventanas calendario de `60/120` dias permanecen en logs como
+  auditoria, pero ya no son el gate principal de degradacion reciente.
+- El freshness guard aplica una penalizacion pequena cuando el ultimo sample del
+  nodo es demasiado antiguo. Esto evita que evidencia vieja parezca actual sin
+  agregar nuevos inputs ni una cascada bayesiana temporal.
 - El score v4 agrega credito limitado por payoff trailing cuando los ganadores
   grandes parecen repetibles.
 - El score v4 resta penalizaciones por fragilidad de distribucion, mediana
@@ -195,7 +204,8 @@ Se basa en la primera senal Pandora del dia y puede evaluar hasta
   normales.
 - `WATCH`: el candidato tiene informacion util pero no es suficientemente fuerte
   para ejecucion real broker.
-- `BLOCK`: el candidato queda bloqueado por score robusto, degradacion rolling,
+- `BLOCK`: el candidato queda bloqueado por score robusto, ventana de samples
+  reciente (`SAMPLE_60`/`SAMPLE_120`), evidencia stale (`STALE_SAMPLE`),
   degradacion broker por nodo/path u otra compuerta XBoost.
 
 ### Archivos CSV
@@ -203,7 +213,7 @@ XBoost v4 escribe archivos CSV separados en Common storage bajo la carpeta
 existente `PandoraXBoost`:
 
 - `*_stats.csv`: estadisticas agregadas del modelo local por nodo.
-- `*_samples.csv`: samples locales idempotentes por dia/sample id.
+- `*_samples.csv`: samples locales idempotentes por dia, rama/nodo y sample id.
 - `*_broker_trades.csv`: trades reales cerrados que fueron seleccionados por
   XBoost solamente.
 
@@ -228,7 +238,12 @@ existe.
 - Confirma que `query_debug.txt` incluya `PANDORA_XBOOST_DRYRUN`,
   `PANDORA_XBOOST_BROKER_SELECTED` y diagnosticos de save/load del ledger.
 - Confirma que `PANDORA_XBOOST_DRYRUN` muestre `score_v4`, `med`, `wr`, `pf`,
-  `frag`, `fwd`, `brnode` y `brpath`.
+  `frag`, `fwd`, `w120_days`, `w60_days`, `s120`, `s60`, `age`, `brnode` y
+  `brpath`.
+- Confirma que `s60` y `s120` representan samples del mismo `node_key`, no dias
+  calendario ni arboles diarios completos.
+- Si un candidato queda `BLOCK`, revisa si la razon es `SAMPLE_60`,
+  `SAMPLE_120`, `STALE_SAMPLE`, `ROBUST_SCORE` o degradacion broker/path.
 - Confirma que repetir el mismo rango de fechas no duplique sample ids ni
   broker trade ids.
 - Confirma que dias con solo candidatos `WATCH`/`BLOCK` no abran trades reales,

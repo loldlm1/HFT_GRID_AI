@@ -22,6 +22,8 @@ Use this as the source of truth when configuring the EA in the Inputs panel.
 - XBoost is rooted in the first Pandora signal of the day. Use `Pandora_Box_Max_Entries = 1` when you want exactly one Pandora root and let `Pandora_XBoost_Max_Depth` control the maximum sequential XBoost broker decisions/trades derived from that root.
 - XBoost never opens simultaneous real long and short positions. A new real XBoost branch can be selected only after the previous selected XBoost signal has closed.
 - XBoost uses the existing Pandora fixed TP, BE, and step trailing rules; it does not add a separate trailing engine.
+- One XBoost sample is one closed branch/node result for a `node_key`, not the whole root day. A single root day can produce multiple samples across different branches or depths.
+- Recent XBoost robustness uses last-60 and last-120 sample windows per `node_key`, plus a simple freshness guard. Calendar-day rolling metrics remain in debug logs for audit, but sample windows are the primary recent-degradation gate.
 - `Pandora_Box_Use_Session_Filter` gates Pandora entry attempts only; it does not decide whether the box construction window is valid.
 - Runtime performance gates are internal only. In Strategy Tester, idle chart/comment refresh is throttled by new chart bars, while active Pandora observations, broker retries, positions, closes, force-close states, and work-window transitions continue to use tick-level lifecycle checks.
 - If `Pandora_Box_Max_Range_Points > 0`, the day is invalid when the box range exceeds that limit.
@@ -105,7 +107,7 @@ Use this workflow when testing the XBoost progression tree:
 4. For edge validation, freeze the stats from period A and run a later period B out-of-sample. Treat this as a walk-forward validation, not a same-data replay.
 5. In inference, only `READY` candidates can be selected for broker execution. `WAIT`, `WATCH`, and `BLOCK` remain local-only and continue collecting stats.
 
-Initial scorer thresholds are code-level constants: depth 1 needs 30 samples, depth 2 needs 20, depth 3 needs 12, minimum expectancy is `0.05R`, minimum edge is `0.05R`, and the score applies a `0.03R` depth penalty.
+Initial scorer thresholds are code-level constants: depth 1 needs 30 samples, depth 2 needs 20, depth 3 needs 12, minimum expectancy is `0.05R`, minimum edge is `0.05R`, and the score applies a `0.03R` depth penalty. Recent robustness uses internal last-sample windows of `60` and `120` samples per node, plus a conservative freshness penalty when the newest sample is stale.
 
 ## Quick Setup Profiles
 
@@ -147,6 +149,8 @@ Initial scorer thresholds are code-level constants: depth 1 needs 30 samples, de
 - Confirm `Pandora_XBoost_Mode = PANDORA_XBOOST_TRAINING` never opens broker positions from XBoost branches.
 - Confirm `Pandora_XBoost_Mode = PANDORA_XBOOST_INFERENCE` opens broker positions only for `READY` candidates and never while another XBoost broker position is active.
 - Confirm `Pandora_XBoost_Max_Depth` matches the maximum sequential XBoost real broker decisions/trades you are willing to allow from one root day.
+- With `Enable_File_Logs = true`, confirm `PANDORA_XBOOST_DRYRUN` includes both legacy calendar audit fields (`w120_days`, `w60_days`) and sample-window decision fields (`s120`, `s60`, `age`).
+- For XBoost `BLOCK` candidates, check whether the reason is `SAMPLE_60`, `SAMPLE_120`, `STALE_SAMPLE`, `ROBUST_SCORE`, or broker/node degradation.
 - In Strategy Tester, remember idle chart/comment updates can appear on new chart bars rather than every tick; active entries, observations, retries, and closes should still update immediately.
 - Confirm session filters are configured when `Pandora_Box_Use_Session_Filter = true`.
 - Decide whether broker-side protection is required (`Pandora_Box_Set_Broker_SLTP = true`).
@@ -178,7 +182,7 @@ Run these scenarios manually in Strategy Tester visual mode or on a demo chart w
 | SL3 staged observation | `Pandora_First_Entry_Mode = 3`; price reaches SL1, then SL2, before observation TP. | Two `PANDORA_FIRST_ENTRY_OBSERVE_ADVANCE` logs, then `PANDORA_FIRST_ENTRY_MARKET_ADMITTED` at SL3. | Chart target advances from `SL1 entry` to `SL2 entry` to `SL3 entry`. | No budget count until an observation TP discard or SL3 market admission. |
 | XBoost training pass | `Pandora_Box_Max_Entries = 1`, unique `Pandora_XBoost_Strategy_Id`, `Pandora_XBoost_Mode = PANDORA_XBOOST_TRAINING`, selected depth. | `PANDORA_XBOOST_LOCAL_BRANCH` and save/load logs when enabled; no broker selected logs. | XBoost panel line shows training mode and candidate rows when stats exist. | Stats and samples CSV files are written on deinit; broker history is unchanged by XBoost. |
 | XBoost duplicate replay | Re-run the exact same training range with the same strategy id and preset. | No duplicate sample growth for already seen sample ids. | Panel remains display-only. | Treat this as idempotency validation only, not predictive edge validation. |
-| XBoost inference replay | Run the same range with `Pandora_XBoost_Mode = PANDORA_XBOOST_INFERENCE` using stats from the training pass. | Candidate rows show `READY`, `WAIT`, `WATCH`, or `BLOCK`; broker selected logs appear only for READY candidates. | READY selected broker entries use comments like `pandora_xb_pos_1`. | This confirms wiring and gates only; it is not a valid edge backtest because the same data trained the stats. |
+| XBoost inference replay | Run the same range with `Pandora_XBoost_Mode = PANDORA_XBOOST_INFERENCE` using stats from the training pass. | Candidate rows show `READY`, `WAIT`, `WATCH`, or `BLOCK`; broker selected logs appear only for READY candidates. `PANDORA_XBOOST_DRYRUN` should show `s120`, `s60`, and `age`. | READY selected broker entries use comments like `pandora_xb_pos_1`. | This confirms wiring and gates only; it is not a valid edge backtest because the same data trained the stats. |
 | XBoost out-of-sample validation | Train period A, keep its stats files, then run later period B in inference. | Broker selections occur only for READY candidates based on period A stats. | Panel shows expected next branches before any real XBoost send. | Use this walk-forward style to evaluate edge; compare period B results against local-only candidates and normal Pandora. |
 | XBoost no-candidate day | Inference mode with missing or insufficient stats for the current root/branch. | Candidate status is `WAIT`, `WATCH`, or `BLOCK`; no `PANDORA_XBOOST_BROKER_SELECTED` log. | No `pandora_xb_pos_n` broker comment should appear. | Local branches still close and record idempotent samples. |
 | XBoost trailing close to next depth | Step trailing mode enabled; selected or local XBoost node trails SL into profit or BE and then closes. | Close event maps to `TBEL`/`TBES` or `TTPLn`/`TTPSn`; next-depth candidates are rebuilt. | Panel updates to the next depth candidates after close. | No next real broker branch opens until the prior selected XBoost signal is closed. |
