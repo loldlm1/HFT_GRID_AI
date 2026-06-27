@@ -1,7 +1,7 @@
 # Plan: Pandora XBoost Sample Window Scoring
 
 **Generated**: 2026-06-27
-**Status**: Proposed
+**Status**: Completed on 2026-06-27
 **Estimated Complexity**: High / Trading-Sensitive
 
 ## Overview
@@ -358,6 +358,7 @@ and the model remains auditable.
 **Goal**: Validate the sample-window scoring refinement with the project compile
 gate and focused static review.
 **Commit**: `chore: validate XBoost sample window scoring`
+**Execution Status**: Completed on 2026-06-27.
 **Demo/Validation**:
 
 - MetaEditor compile passes with zero errors and warnings.
@@ -398,6 +399,16 @@ gate and focused static review.
   - `BUILD.log` is removed after review.
 - **Validation**:
   - Compile log inspection.
+
+### Sprint 6 Execution Notes
+
+- Static review confirmed the sample-window fields only affect XBoost candidate
+  scoring and logging; broker lifecycle, storage schemas, trailing, sessions,
+  protection, license, and magic-number paths were not changed.
+- Final compile was run with the same entrypoint and `BUILD.log` gate plus
+  `/portable`, so MetaEditor used the install-local MQL5 include tree.
+- `BUILD.log` reported `Result: 0 errors, 0 warnings` and was removed after
+  inspection.
 
 ## Testing Strategy
 
