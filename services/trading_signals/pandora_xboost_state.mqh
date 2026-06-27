@@ -1971,6 +1971,38 @@ bool PandoraXBoostRollingWindowBlocks(const PandoraXBoostCandidate &candidate,
   return false;
 }
 
+bool PandoraXBoostSampleWindowBlocks(const PandoraXBoostCandidate &candidate,
+                                     const int min_samples,
+                                     string &reason)
+{
+  double floor_r = -PANDORA_XBOOST_BAYES_MIN_CONSERVATIVE_R;
+  if(candidate.sample_window_60_samples >= min_samples &&
+     candidate.sample_window_60_avg_r < floor_r)
+  {
+    reason = "SAMPLE_60";
+    return true;
+  }
+  if(candidate.sample_window_120_samples >= min_samples &&
+     candidate.sample_window_120_avg_r < floor_r)
+  {
+    reason = "SAMPLE_120";
+    return true;
+  }
+  return false;
+}
+
+void PandoraXBoostApplySampleFreshnessPenalty(PandoraXBoostCandidate &candidate)
+{
+  if(candidate.sample_window_last_seen <= 0)
+    return;
+  if(candidate.sample_window_age_days <= PANDORA_XBOOST_SAMPLE_FRESHNESS_MAX_DAYS)
+    return;
+
+  candidate.sample_window_freshness_reason = "STALE";
+  candidate.score_r -= PANDORA_XBOOST_SAMPLE_FRESHNESS_PENALTY_R;
+  candidate.robust_score_r = candidate.score_r;
+}
+
 void PandoraXBoostApplyBrokerCalibration(PandoraXBoostCandidate &candidate,
                                          const string strategy_key)
 {
@@ -2212,6 +2244,7 @@ void PandoraXBoostBuildCandidate(const string strategy_key,
                                        candidate.forward_stability_r,
                                        candidate.forward_penalty_r);
   PandoraXBoostApplyRobustCandidateScore(candidate);
+  PandoraXBoostApplySampleFreshnessPenalty(candidate);
 
   if(stats.samples < min_samples)
   {
@@ -2223,15 +2256,17 @@ void PandoraXBoostBuildCandidate(const string strategy_key,
   if(candidate.score_r < PANDORA_XBOOST_ROBUST_MIN_SCORE_R)
   {
     candidate.status = PANDORA_XBOOST_CANDIDATE_BLOCK;
-    candidate.reason = "ROBUST_SCORE";
+    candidate.reason = (candidate.sample_window_freshness_reason == "STALE")
+                       ? "STALE_SAMPLE"
+                       : "ROBUST_SCORE";
     return;
   }
 
-  string rolling_reason = "";
-  if(PandoraXBoostRollingWindowBlocks(candidate, min_samples, rolling_reason))
+  string sample_window_reason = "";
+  if(PandoraXBoostSampleWindowBlocks(candidate, min_samples, sample_window_reason))
   {
     candidate.status = PANDORA_XBOOST_CANDIDATE_BLOCK;
-    candidate.reason = rolling_reason;
+    candidate.reason = sample_window_reason;
     return;
   }
 
