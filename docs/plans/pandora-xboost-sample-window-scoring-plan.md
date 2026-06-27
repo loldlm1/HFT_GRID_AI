@@ -257,6 +257,10 @@ legacy rolling-day windows in short and long Strategy Tester runs.
 - **Validation**:
   - Static review of CSV readers and writers.
 
+**Execution Note**: Keep loader-backed CSV schemas unchanged unless later manual
+QA proves summary columns are needed. Query debug candidate lines are sufficient
+for the first audit pass and preserve storage compatibility.
+
 ## Sprint 4: Sample Windows As Recent-Robustness Gate
 
 **Goal**: Use last-N sample windows as the primary recent robustness gate while
