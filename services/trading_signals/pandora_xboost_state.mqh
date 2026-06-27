@@ -616,11 +616,18 @@ struct PandoraXBoostCandidate
   double                         broker_node_degradation_r;
   int                            local_window_120_samples;
   int                            local_window_60_samples;
+  int                            sample_window_120_samples;
+  int                            sample_window_60_samples;
   int                            broker_node_samples;
   int                            broker_path_samples;
   int                            broker_recent_samples;
   double                         local_window_120_avg_r;
   double                         local_window_60_avg_r;
+  double                         sample_window_120_avg_r;
+  double                         sample_window_60_avg_r;
+  datetime                       sample_window_last_seen;
+  int                            sample_window_age_days;
+  string                         sample_window_freshness_reason;
   double                         broker_node_avg_r;
   double                         broker_path_avg_r;
   double                         broker_recent_avg_r;
@@ -660,11 +667,18 @@ struct PandoraXBoostCandidate
     broker_node_degradation_r = 0.0;
     local_window_120_samples = 0;
     local_window_60_samples = 0;
+    sample_window_120_samples = 0;
+    sample_window_60_samples = 0;
     broker_node_samples = 0;
     broker_path_samples = 0;
     broker_recent_samples = 0;
     local_window_120_avg_r = 0.0;
     local_window_60_avg_r = 0.0;
+    sample_window_120_avg_r = 0.0;
+    sample_window_60_avg_r = 0.0;
+    sample_window_last_seen = 0;
+    sample_window_age_days = -1;
+    sample_window_freshness_reason = "NO_SAMPLE";
     broker_node_avg_r = 0.0;
     broker_path_avg_r = 0.0;
     broker_recent_avg_r = 0.0;
@@ -705,11 +719,18 @@ struct PandoraXBoostCandidate
     broker_node_degradation_r = candidate.broker_node_degradation_r;
     local_window_120_samples = candidate.local_window_120_samples;
     local_window_60_samples = candidate.local_window_60_samples;
+    sample_window_120_samples = candidate.sample_window_120_samples;
+    sample_window_60_samples = candidate.sample_window_60_samples;
     broker_node_samples = candidate.broker_node_samples;
     broker_path_samples = candidate.broker_path_samples;
     broker_recent_samples = candidate.broker_recent_samples;
     local_window_120_avg_r = candidate.local_window_120_avg_r;
     local_window_60_avg_r = candidate.local_window_60_avg_r;
+    sample_window_120_avg_r = candidate.sample_window_120_avg_r;
+    sample_window_60_avg_r = candidate.sample_window_60_avg_r;
+    sample_window_last_seen = candidate.sample_window_last_seen;
+    sample_window_age_days = candidate.sample_window_age_days;
+    sample_window_freshness_reason = candidate.sample_window_freshness_reason;
     broker_node_avg_r = candidate.broker_node_avg_r;
     broker_path_avg_r = candidate.broker_path_avg_r;
     broker_recent_avg_r = candidate.broker_recent_avg_r;
@@ -1094,6 +1115,89 @@ bool PandoraXBoostRememberSampleRow(const string sample_id,
   ArrayResize(g_pandora_xboost_sample_rows, total + 1, 128);
   g_pandora_xboost_sample_rows[total] = row;
   return true;
+}
+
+int PandoraXBoostSampleAgeDays(const datetime seen_at)
+{
+  if(seen_at <= 0)
+    return -1;
+
+  long age_seconds = (long)(TimeCurrent() - seen_at);
+  if(age_seconds < 0)
+    age_seconds = 0;
+
+  return (int)(age_seconds / 86400);
+}
+
+string PandoraXBoostSampleFreshnessReason(const datetime seen_at)
+{
+  int age_days = PandoraXBoostSampleAgeDays(seen_at);
+  if(age_days < 0)
+    return "NO_SAMPLE";
+  if(age_days > PANDORA_XBOOST_SAMPLE_FRESHNESS_MAX_DAYS)
+    return "STALE";
+  return "FRESH";
+}
+
+bool PandoraXBoostAggregateLastNodeSamples(const string node_key,
+                                           const int sample_limit,
+                                           PandoraXBoostRollingStats &stats)
+{
+  PandoraXBoostRollingStats reset_stats;
+  stats = reset_stats;
+  if(node_key == "" || sample_limit <= 0)
+    return false;
+
+  datetime selected_times[];
+  double selected_values[];
+  ArrayResize(selected_times, sample_limit);
+  ArrayResize(selected_values, sample_limit);
+
+  int selected = 0;
+  int total = ArraySize(g_pandora_xboost_sample_rows);
+  for(int i = 0; i < total; i++)
+  {
+    PandoraXBoostSampleRow row = g_pandora_xboost_sample_rows[i];
+    if(row.node_key != node_key)
+      continue;
+    if(row.seen_at <= 0)
+      continue;
+
+    int insert_index = selected;
+    if(selected < sample_limit)
+    {
+      selected++;
+      insert_index = selected - 1;
+    }
+    else
+    {
+      insert_index = selected - 1;
+      if(row.seen_at <= selected_times[insert_index])
+        continue;
+    }
+
+    selected_times[insert_index] = row.seen_at;
+    selected_values[insert_index] = row.r_multiple;
+
+    while(insert_index > 0 &&
+          selected_times[insert_index] > selected_times[insert_index - 1])
+    {
+      datetime swap_time = selected_times[insert_index - 1];
+      double swap_value = selected_values[insert_index - 1];
+      selected_times[insert_index - 1] = selected_times[insert_index];
+      selected_values[insert_index - 1] = selected_values[insert_index];
+      selected_times[insert_index] = swap_time;
+      selected_values[insert_index] = swap_value;
+      insert_index--;
+    }
+  }
+
+  for(int i = 0; i < selected; i++)
+    PandoraXBoostRollingStatsAdd(stats,
+                                 selected_values[i],
+                                 selected_times[i]);
+
+  return (stats.samples > 0);
 }
 
 bool PandoraXBoostAggregateNodeSamples(const string node_key,
@@ -1991,11 +2095,18 @@ void PandoraXBoostBuildCandidate(const string strategy_key,
   candidate.broker_node_degradation_r = 0.0;
   candidate.local_window_120_samples = 0;
   candidate.local_window_60_samples = 0;
+  candidate.sample_window_120_samples = 0;
+  candidate.sample_window_60_samples = 0;
   candidate.broker_node_samples = 0;
   candidate.broker_path_samples = 0;
   candidate.broker_recent_samples = 0;
   candidate.local_window_120_avg_r = 0.0;
   candidate.local_window_60_avg_r = 0.0;
+  candidate.sample_window_120_avg_r = 0.0;
+  candidate.sample_window_60_avg_r = 0.0;
+  candidate.sample_window_last_seen = 0;
+  candidate.sample_window_age_days = -1;
+  candidate.sample_window_freshness_reason = "NO_SAMPLE";
   candidate.broker_node_avg_r = 0.0;
   candidate.broker_path_avg_r = 0.0;
   candidate.broker_recent_avg_r = 0.0;
@@ -2016,6 +2127,37 @@ void PandoraXBoostBuildCandidate(const string strategy_key,
   {
     candidate.local_window_60_samples = window_60.samples;
     candidate.local_window_60_avg_r = window_60.avg_r;
+  }
+
+  PandoraXBoostRollingStats sample_window_120;
+  if(PandoraXBoostAggregateLastNodeSamples(node_key,
+                                           PANDORA_XBOOST_SAMPLE_WINDOW_120,
+                                           sample_window_120))
+  {
+    candidate.sample_window_120_samples = sample_window_120.samples;
+    candidate.sample_window_120_avg_r = sample_window_120.avg_r;
+    candidate.sample_window_last_seen = sample_window_120.last_seen;
+    candidate.sample_window_age_days =
+      PandoraXBoostSampleAgeDays(sample_window_120.last_seen);
+    candidate.sample_window_freshness_reason =
+      PandoraXBoostSampleFreshnessReason(sample_window_120.last_seen);
+  }
+
+  PandoraXBoostRollingStats sample_window_60;
+  if(PandoraXBoostAggregateLastNodeSamples(node_key,
+                                           PANDORA_XBOOST_SAMPLE_WINDOW_60,
+                                           sample_window_60))
+  {
+    candidate.sample_window_60_samples = sample_window_60.samples;
+    candidate.sample_window_60_avg_r = sample_window_60.avg_r;
+    if(sample_window_60.last_seen > candidate.sample_window_last_seen)
+    {
+      candidate.sample_window_last_seen = sample_window_60.last_seen;
+      candidate.sample_window_age_days =
+        PandoraXBoostSampleAgeDays(sample_window_60.last_seen);
+      candidate.sample_window_freshness_reason =
+        PandoraXBoostSampleFreshnessReason(sample_window_60.last_seen);
+    }
   }
 
   PandoraXBoostStats stats;
