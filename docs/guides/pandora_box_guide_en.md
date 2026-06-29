@@ -154,7 +154,7 @@ Follow these detailed steps to install and configure **Pandora Box** in MetaTrad
 
 ---
 
-## 6. Pandora XBoost Robust Forward Scoring v4
+## 6. Pandora XBoost Hybrid Adaptive Scoring v5
 
 Pandora XBoost is an optional progression-tree layer for Pandora Box. It is
 rooted in the first Pandora signal of the day and can evaluate up to
@@ -177,36 +177,39 @@ rooted in the first Pandora signal of the day and can evaluate up to
 - One XBoost sample is one closed branch/node result, not the whole daily tree.
   One root day can produce multiple samples when different branches or depths
   close.
-- Recent robustness uses the last `60` and `120` samples for the same
-  `node_key`. The legacy `60/120` calendar-day windows remain in logs for audit,
-  but they are no longer the primary recent-degradation gate.
+- V5 blends `60/120` calendar windows and last-`60/120` sample windows for the
+  same `node_key`. Calendar windows help track the current market regime when
+  sufficiently sampled; sample windows support and audit the decision.
 - The freshness guard applies a small penalty when the node's newest sample is
   too old. This prevents stale evidence from looking current without adding new
   inputs or a temporal Bayesian cascade.
-- The v4 score adds limited trailing-payoff credit when large winners look
+- The V5 score adds limited trailing-payoff credit when large winners look
   repeatable.
-- The v4 score subtracts penalties for distribution fragility, negative median,
-  dependency on a few outliers, and forward degradation.
+- The V5 score subtracts bounded penalties for distribution fragility, negative
+  median, dependency on a few outliers, forward degradation, stale samples, and
+  broker-real degradation.
 - Forward stability is calculated from available sample-count segments, not a
   fixed annual window. If samples are too sparse, it stays neutral.
-- The real broker ledger degrades by exact node or path family. It no longer
-  acts as a noisy global strategy block.
+- The real broker ledger degrades by exact node, path family, and recent real
+  trades. It penalizes first and blocks only when sufficiently sampled broker
+  sources agree that the candidate is weak.
 - Regime filtering is intentionally deferred to a future feature to avoid
   fragmenting samples too early.
-- There is no separate XBoost kill-switch input in v4. If no candidate reaches
+- There is no separate XBoost kill-switch input in V5. If no candidate reaches
   `READY`, XBoost opens no real broker trade and continues local statistics.
 
 ### Candidate States
-- `READY`: the candidate passed local samples, robust v4 score, edge, forward
+- `READY`: the candidate passed local samples, V5 score, edge, forward
   stability, node/path broker degradation, and normal broker-budget gates.
 - `WATCH`: the candidate has useful information but is not strong enough for
   real broker execution.
-- `BLOCK`: the candidate is explicitly blocked by robust score, recent sample
-  window (`SAMPLE_60`/`SAMPLE_120`), stale evidence (`STALE_SAMPLE`), node/path
-  broker degradation, or another XBoost gate.
+- `BLOCK`: the candidate is explicitly blocked by insufficient samples,
+  two-source recent weakness (`V5_RECENT`), weak V5 score (`V5_SCORE`), stale
+  evidence (`STALE_SAMPLE`), session mask, broker degradation, or another
+  XBoost gate.
 
 ### CSV Files
-XBoost v4 writes separate Common-storage CSV files under the existing
+XBoost V5 writes separate Common-storage CSV files under the existing
 `PandoraXBoost` folder:
 
 - `*_stats.csv`: aggregate local model stats by model node.
@@ -217,34 +220,39 @@ XBoost v4 writes separate Common-storage CSV files under the existing
 ### Panel Example
 
 ```text
-XBOOST INFERENCE v4 root=L day=2026.06.23 d=2 broker=1/3
+XBOOST INFERENCE v5 root=L day=2026.06.23 d=2 broker=1/3
 XB data stats=86 samples=4417 broker=184 pend=0/0 Common\mt5_xxx\us_30_v1
-XB1 L-TTPL2 READY n=72 v4=0.08 p=0.18 med=-0.02 pf=1.42 brn=0.06
-XB2 S-TTPL2 WATCH n=41 v4=0.01 p=0.04 med=-0.98 pf=0.91 reason=EDGE
-XB3 L-TBES BLOCK n=56 v4=-0.04 p=0.09 med=-1.00 pf=1.04 reason=ROBUST_SCORE
+XB1 L-TTPL2 READY n=72 v5=0.08 p=0.18 med=-0.02 pf=1.42 brn=0.06
+XB2 S-TTPL2 WATCH n=41 v5=0.01 p=0.04 med=-0.98 pf=0.91 reason=EDGE
+XB3 L-TBES BLOCK n=56 v5=-0.04 p=0.09 med=-1.00 pf=1.04 reason=V5_SCORE
 ```
 
-`p` is posterior R, `v4` is the final robust score, `med` is median R, `pf` is
+`p` is posterior R, `v5` is the hybrid adaptive score, `med` is median R, `pf` is
 local profit factor, and `brn` is exact-node broker evidence when available.
 
 ### Manual QA Workflow
 - Run a short 5-day inference pass with `Enable_File_Logs = true`.
-- Confirm v4 `stats`, `samples`, and `broker_trades` files exist in Common
+- Confirm V5 `stats`, `samples`, and `broker_trades` files exist in Common
   storage after at least one real XBoost broker trade closes.
 - Confirm `query_debug.txt` includes `PANDORA_XBOOST_DRYRUN`,
   `PANDORA_XBOOST_BROKER_SELECTED`, and broker ledger save/load diagnostics.
-- Confirm `PANDORA_XBOOST_DRYRUN` shows `score_v4`, `med`, `wr`, `pf`, `frag`,
-  `fwd`, `w120_days`, `w60_days`, `s120`, `s60`, `age`, `brnode`, and `brpath`.
+- Confirm `PANDORA_XBOOST_DRYRUN` shows `score`, `v5`, `ar`, `cr`, `sr`, `shr`,
+  `sfrag`, `sbr`, `med`, `wr`, `pf`, `frag`, `fwd`, `w120_days`, `w60_days`,
+  `s120`, `s60`, `age`, `brnode`, `brpath`, and `br30`.
 - Confirm `s60` and `s120` represent samples for the same `node_key`, not
   calendar days or complete daily trees.
-- If a candidate is `BLOCK`, check whether the reason is `SAMPLE_60`,
-  `SAMPLE_120`, `STALE_SAMPLE`, `ROBUST_SCORE`, or broker/path degradation.
+- If a candidate is `BLOCK`, check whether the reason is `SAMPLES_<have>_<need>`,
+  `V5_RECENT`, `V5_SCORE`, `STALE_SAMPLE`, `SESSION_MASK`, or
+  `BROKER_DEGRADATION`.
+- If `Pandora_XBoost_Session_Mask_File` is configured, confirm
+  `PANDORA_XBOOST_MASK_LOAD`, `PANDORA_XBOOST_SAMPLE_SKIP`, and
+  `PANDORA_XBOOST_BROKER_SKIP` match the expected clean/excluded/warmup dates.
 - Confirm replaying the same date range does not duplicate sample ids or broker
   trade ids.
 - Confirm days with only `WATCH`/`BLOCK` candidates do not open real broker
   trades but still continue local branch statistics.
 - Confirm XBoost does not open simultaneous real broker positions.
-- Treat long inference runs as adaptive integration tests. The main v4 goal is
+- Treat long inference runs as adaptive integration tests. The main V5 goal is
   to increase real trades without accepting fragile branches that only look
   positive because of a few trailing outliers.
 

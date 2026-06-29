@@ -469,6 +469,18 @@ run.
 - **Validation**:
   - Read-through for consistency with inputs and logs.
 
+### Sprint 6 Execution Notes
+
+- Panel candidate rows now display `v5=` instead of `v4=` so the visible score
+  matches the active admission score.
+- The inputs guide documents V5 hybrid scoring, depth `0-5`, versioned Common
+  CSV files, and optional `Pandora_XBoost_Session_Mask_File` behavior.
+- English and Spanish Pandora guides now describe V5 adaptive inference,
+  two-source recent weakness, soft broker degradation, session mask audit logs,
+  and the current `PANDORA_XBOOST_DRYRUN` fields.
+- Manual QA notes now distinguish `SAMPLES_<have>_<need>`, `V5_RECENT`,
+  `V5_SCORE`, `STALE_SAMPLE`, `SESSION_MASK`, and `BROKER_DEGRADATION`.
+
 ## Sprint 7: Final Compile And Manual Test Handoff
 
 **Goal**: Validate the implementation with MetaEditor compile and produce a

@@ -3096,7 +3096,7 @@ void PandoraXBoostAppendSummaryLines(string &summary_lines[])
     string broker_label = (candidate.broker_node_samples > 0)
                           ? StringFormat(" brn=%.2f", candidate.broker_node_avg_r)
                           : "";
-    summary_lines[line_index] = StringFormat("XB%d %s %s n=%d v4=%.2f p=%.2f med=%.2f pf=%.2f%s%s",
+    summary_lines[line_index] = StringFormat("XB%d %s %s n=%d v5=%.2f p=%.2f med=%.2f pf=%.2f%s%s",
                                              i + 1,
                                              candidate.display_id,
                                              PandoraXBoostCandidateStatusLabel(candidate.status),
