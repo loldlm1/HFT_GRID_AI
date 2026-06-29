@@ -244,9 +244,10 @@ local profit factor, and `brn` is exact-node broker evidence when available.
 - If a candidate is `BLOCK`, check whether the reason is `SAMPLES_<have>_<need>`,
   `V5_RECENT`, `V5_SCORE`, `STALE_SAMPLE`, `SESSION_MASK`, or
   `BROKER_DEGRADATION`.
-- If `Pandora_XBoost_Session_Mask_File` is configured, confirm
+- If `Common\Files\session_mask.csv` exists, confirm
   `PANDORA_XBOOST_MASK_LOAD`, `PANDORA_XBOOST_SAMPLE_SKIP`, and
   `PANDORA_XBOOST_BROKER_SKIP` match the expected clean/excluded/warmup dates.
+  Delete or rename that file to disable mask mode.
 - Confirm replaying the same date range does not duplicate sample ids or broker
   trade ids.
 - Confirm days with only `WATCH`/`BLOCK` candidates do not open real broker

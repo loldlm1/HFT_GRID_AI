@@ -627,20 +627,13 @@ void PandoraXBoostClearStorageMemory()
 bool PandoraXBoostLoadSessionMask()
 {
   PandoraXBoostResetSessionMask();
-  string filename = Pandora_XBoost_Session_Mask_File;
-  if(filename == "")
-  {
-    PandoraXBoostLogEvent("PANDORA_XBOOST_MASK_DISABLED",
-                          "reason=empty_input");
-    return true;
-  }
+  string filename = PANDORA_XBOOST_SESSION_MASK_FILE;
 
   if(!FileIsExist(filename, FILE_COMMON))
   {
-    PandoraXBoostSetSessionMaskLoaded(filename, false, true);
-    PandoraXBoostLogEvent("PANDORA_XBOOST_MASK_MISSING",
-                          "file=" + filename);
-    return false;
+    PandoraXBoostLogEvent("PANDORA_XBOOST_MASK_DISABLED",
+                          "reason=file_missing file=" + filename);
+    return true;
   }
 
   ResetLastError();

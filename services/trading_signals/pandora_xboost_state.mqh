@@ -58,6 +58,7 @@ const double PANDORA_XBOOST_V5_SHRINKAGE_WEIGHT = 0.25;
 const double PANDORA_XBOOST_V5_FRAGILITY_WEIGHT = 0.60;
 const double PANDORA_XBOOST_V5_FORWARD_WEIGHT = 0.50;
 const double PANDORA_XBOOST_V5_BROKER_WEIGHT = 0.50;
+const string PANDORA_XBOOST_SESSION_MASK_FILE = "session_mask.csv";
 
 void PandoraXBoostBuildRootCandidates(const SignalParams &root_signal);
 void PandoraXBoostBuildNextCandidatesFromClosedSignal(const SignalParams &closed_signal,
@@ -1113,7 +1114,7 @@ bool PandoraXBoostBoolFromMaskValue(const string raw_value)
 
 bool PandoraXBoostSessionMaskConfigured()
 {
-  return (Pandora_XBoost_Session_Mask_File != "");
+  return (g_pandora_xboost_session_mask_file != "");
 }
 
 void PandoraXBoostResetSessionMask()

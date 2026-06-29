@@ -249,10 +249,10 @@ existe.
 - Si un candidato queda `BLOCK`, revisa si la razon es `SAMPLES_<have>_<need>`,
   `V5_RECENT`, `V5_SCORE`, `STALE_SAMPLE`, `SESSION_MASK` o
   `BROKER_DEGRADATION`.
-- Si `Pandora_XBoost_Session_Mask_File` esta configurado, confirma que
+- Si `Common\Files\session_mask.csv` existe, confirma que
   `PANDORA_XBOOST_MASK_LOAD`, `PANDORA_XBOOST_SAMPLE_SKIP` y
   `PANDORA_XBOOST_BROKER_SKIP` coincidan con las fechas limpias/excluidas/warmup
-  esperadas.
+  esperadas. Borra o renombra ese archivo para desactivar mask mode.
 - Confirma que repetir el mismo rango de fechas no duplique sample ids ni
   broker trade ids.
 - Confirma que dias con solo candidatos `WATCH`/`BLOCK` no abran trades reales,

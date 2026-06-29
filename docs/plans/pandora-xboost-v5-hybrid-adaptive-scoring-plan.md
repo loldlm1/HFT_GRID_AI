@@ -2,7 +2,7 @@
 
 **Generated**: 2026-06-29
 **Estimated Complexity**: High / Trading-Sensitive
-**Status**: Completed on 2026-06-29 after Sprint 8 clean-session mask staging
+**Status**: Completed on 2026-06-29 after Sprint 9 automatic Common Files mask detection
 
 ## Overview
 
@@ -180,20 +180,20 @@ dataset Strategy Tester runs without affecting normal broker/live operation.
 - With mask disabled, behavior is unchanged.
 - With mask enabled, excluded/warmup dates are logged and skipped correctly.
 
-### Task 2.1: Add Minimal Mask Inputs
+### Task 2.1: Define Minimal Mask Activation
 
 - **Location**: `services/trading_management/ea_inputs.mqh`
-- **Description**: Add the smallest practical input surface for mask use.
-  Recommended shape:
-  - `Pandora_XBoost_Session_Mask_File = ""`
-  - empty means disabled.
+- **Description**: Add the smallest practical activation rule for mask use.
+  Final shape:
+  - `Common\Files\session_mask.csv` exists means enabled.
+  - missing file means disabled.
 - **Dependencies**: Sprint 1.
 - **Acceptance Criteria**:
   - No new required input for normal users.
   - Existing presets remain valid.
-  - The input can point to a Common Files CSV path.
+  - The mask uses a fixed Common Files CSV path.
 - **Validation**:
-  - Static check that default empty value produces disabled mode.
+  - Static check that missing file produces disabled mode.
 
 ### Task 2.2: Implement Mask Loader
 
@@ -207,8 +207,8 @@ dataset Strategy Tester runs without affecting normal broker/live operation.
   - Converts dates to integer `yyyymmdd`.
   - Sorts rows once for binary search.
   - Logs row count and file path.
-  - Missing/invalid file disables only when input is empty; if input is set and
-    load fails, XBoost mask mode fails closed with clear logs.
+  - Missing fixed file disables mask mode.
+  - Existing but invalid or unreadable fixed file fails closed with clear logs.
 - **Validation**:
   - Static review for no per-tick file reads.
   - Query debug labels such as `PANDORA_XBOOST_MASK_LOAD`.
@@ -232,10 +232,11 @@ dataset Strategy Tester runs without affecting normal broker/live operation.
 
 ### Sprint 2 Execution Notes
 
-- `Pandora_XBoost_Session_Mask_File = ""` disables the mask and preserves
+- Missing `Common\Files\session_mask.csv` disables the mask and preserves
   current behavior.
-- When configured, the mask is loaded once during `PandoraXBoostLoad()` from
-  Common Files using `FILE_COMMON`; there is no per-tick file I/O.
+- When `session_mask.csv` exists, the mask is loaded once during
+  `PandoraXBoostLoad()` from Common Files using `FILE_COMMON`; there is no
+  per-tick file I/O.
 - Mask rows are stored in memory as sorted `yyyymmdd` keys and resolved with
   binary search.
 - `train_allowed=false` skips XBoost sample/stat recording with
@@ -474,7 +475,7 @@ run.
 - Panel candidate rows now display `v5=` instead of `v4=` so the visible score
   matches the active admission score.
 - The inputs guide documents V5 hybrid scoring, depth `0-5`, versioned Common
-  CSV files, and optional `Pandora_XBoost_Session_Mask_File` behavior.
+  CSV files, and optional fixed `session_mask.csv` behavior.
 - English and Spanish Pandora guides now describe V5 adaptive inference,
   two-source recent weakness, soft broker degradation, session mask audit logs,
   and the current `PANDORA_XBOOST_DRYRUN` fields.
@@ -549,12 +550,12 @@ clear manual Strategy Tester checklist.
 ## Sprint 8: Common Session Mask Staging
 
 **Goal**: Remove clean-data tester ambiguity by staging the current
-`session_mask.csv` under MT5 Common Files and documenting the exact EA input
-path for the next Dukascopy clean smoke test.
+`session_mask.csv` under MT5 Common Files for the next Dukascopy clean smoke
+test.
 **Commit**: `docs: document XBoost clean session mask staging`
 **Demo/Validation**:
 - The staged Common Files mask exists and matches the source file hash.
-- Operator docs name the exact `Pandora_XBoost_Session_Mask_File` value.
+- Operator docs name the exact Common Files location.
 - No MQL compile is required because this sprint changes docs and external CSV
   staging only.
 
@@ -564,7 +565,7 @@ path for the next Dukascopy clean smoke test.
   - Source:
     `C:\Users\loldlm\Documents\MQL5-Data-validator\reports\session_quality\session_mask.csv`
   - Destination:
-    `C:\Users\loldlm\AppData\Roaming\MetaQuotes\Terminal\Common\Files\PandoraXBoost\session_masks\US30_Dukas_Clean_v2_session_mask.csv`
+    `C:\Users\loldlm\AppData\Roaming\MetaQuotes\Terminal\Common\Files\session_mask.csv`
 - **Description**: Copy the validated data-validator mask into a stable Common
   Files subfolder that the EA can read with `FILE_COMMON`.
 - **Dependencies**: Sprint 7.
@@ -575,19 +576,18 @@ path for the next Dukascopy clean smoke test.
 - **Validation**:
   - PowerShell hash comparison and CSV row count check.
 
-### Task 8.2: Document MT5 Input Path
+### Task 8.2: Document MT5 Common Files Path
 
 - **Location**:
   - `docs/guides/pandora-box-strategy-inputs.md`
   - `C:\Users\loldlm\Documents\MQL5-Data-validator\docs\pandora_xboost_clean_session_handoff.md`
 - **Description**: Update the EA and data-validator handoffs with the exact
-  relative Common Files input:
-  `PandoraXBoost\session_masks\US30_Dukas_Clean_v2_session_mask.csv`.
+  fixed Common Files location: `Common\Files\session_mask.csv`.
 - **Dependencies**: Task 8.1.
 - **Acceptance Criteria**:
   - Docs no longer imply the EA lacks a session-mask gate.
   - The clean-data smoke test checklist requires `PANDORA_XBOOST_MASK_LOAD`.
-  - The handoff states that an empty input disables mask mode.
+  - The handoff states that missing `session_mask.csv` disables mask mode.
 - **Validation**:
   - Static grep for the input path and obsolete wording.
 
@@ -598,7 +598,7 @@ path for the next Dukascopy clean smoke test.
 - **Dependencies**: Tasks 8.1-8.2.
 - **Acceptance Criteria**:
   - Execution notes include the staged path, row count, and validation result.
-  - Final handoff tells the operator which input to set before rerunning the
+  - Final handoff tells the operator which file must exist before rerunning the
     short clean-data test.
 - **Validation**:
   - `git diff --check`.
@@ -608,9 +608,9 @@ path for the next Dukascopy clean smoke test.
 - Staged the latest data-validator mask from
   `C:\Users\loldlm\Documents\MQL5-Data-validator\reports\session_quality\session_mask.csv`
   into MT5 Common Files:
-  `C:\Users\loldlm\AppData\Roaming\MetaQuotes\Terminal\Common\Files\PandoraXBoost\session_masks\US30_Dukas_Clean_v2_session_mask.csv`.
-- The MT5 input for the next clean-data smoke test is:
-  `Pandora_XBoost_Session_Mask_File = PandoraXBoost\session_masks\US30_Dukas_Clean_v2_session_mask.csv`.
+  `C:\Users\loldlm\AppData\Roaming\MetaQuotes\Terminal\Common\Files\session_mask.csv`.
+- The next clean-data smoke test enables mask mode by leaving
+  `session_mask.csv` at that Common Files root path.
 - Hash validation passed with SHA256
   `049984BE37D62EDBFCFADD1C9AB472D3D403CBBD1542F51781EE908F6749765F`.
 - The staged mask has 4303 data rows.
@@ -619,6 +619,103 @@ path for the next Dukascopy clean smoke test.
   results.
 - No MQL compile was run because Sprint 8 changed documentation and staged an
   external CSV only.
+
+## Sprint 9: Automatic Common Files Session Mask
+
+**Goal**: Remove the manual mask input and make clean-session gating activate
+only when `session_mask.csv` exists directly in MT5 Common Files.
+**Commit**: `feat: auto-detect XBoost session mask file`
+**Demo/Validation**:
+- With `Common\Files\session_mask.csv` present, startup logs
+  `PANDORA_XBOOST_MASK_LOAD` and applies train/trade gates.
+- With that file absent, startup logs `PANDORA_XBOOST_MASK_DISABLED` and
+  preserves normal XBoost behavior.
+- MetaEditor compile passes with zero errors and warnings.
+
+### Task 9.1: Replace Manual Input With Fixed Common File
+
+- **Location**:
+  - `services/trading_management/ea_inputs.mqh`
+  - `services/trading_signals/pandora_xboost_state.mqh`
+  - `services/trading_signals/pandora_xboost_storage.mqh`
+- **Description**: Remove the visible `Pandora_XBoost_Session_Mask_File`
+  input. Load only `session_mask.csv` from Common Files, once at XBoost
+  startup.
+- **Dependencies**: Sprint 8.
+- **Acceptance Criteria**:
+  - No visible MT5 input is required for session-mask mode.
+  - Missing `session_mask.csv` disables mask mode without failing storage load.
+  - Existing but invalid/unreadable `session_mask.csv` still fails closed.
+  - No file reads occur in per-tick candidate or sample paths.
+- **Validation**:
+  - Static trace through `PandoraXBoostLoadSessionMask()` and
+    `PandoraXBoostSessionMaskConfigured()`.
+
+### Task 9.2: Stage Root Common File And Remove Old Staged Path
+
+- **Location**:
+  - Source:
+    `C:\Users\loldlm\Documents\MQL5-Data-validator\reports\session_quality\session_mask.csv`
+  - Destination:
+    `C:\Users\loldlm\AppData\Roaming\MetaQuotes\Terminal\Common\Files\session_mask.csv`
+- **Description**: Put the mask at the fixed auto-detect location and remove
+  the older `PandoraXBoost\session_masks\...` staged copy to avoid ambiguity.
+- **Dependencies**: Task 9.1.
+- **Acceptance Criteria**:
+  - Root Common Files mask exists and matches the source hash.
+  - Old staged subfolder copy is absent.
+- **Validation**:
+  - PowerShell hash comparison and file existence checks.
+
+### Task 9.3: Update Operator Documentation
+
+- **Location**:
+  - `docs/guides/pandora-box-strategy-inputs.md`
+  - `docs/guides/pandora_box_guide_en.md`
+  - `docs/guides/pandora_box_guide_es.md`
+  - `C:\Users\loldlm\Documents\MQL5-Data-validator\docs\pandora_xboost_clean_session_handoff.md`
+- **Description**: Replace input-based instructions with fixed-file
+  instructions.
+- **Dependencies**: Tasks 9.1-9.2.
+- **Acceptance Criteria**:
+  - Docs state that `Common\Files\session_mask.csv` enables mask mode.
+  - Docs state that deleting or renaming the file disables mask mode.
+  - No docs instruct the operator to set `Pandora_XBoost_Session_Mask_File`.
+- **Validation**:
+  - Static grep for obsolete input references.
+
+### Task 9.4: Compile And Handoff
+
+- **Location**: `HFT_Grid_AI.mq5`
+- **Description**: Run the MetaEditor compile gate after the MQL change.
+- **Dependencies**: Tasks 9.1-9.3.
+- **Acceptance Criteria**:
+  - Compile finishes with zero errors and warnings.
+  - `BUILD.log` is inspected and removed.
+  - Sprint execution notes include the fixed filename, hash validation, and
+    compile result.
+- **Validation**:
+  - Run the project MetaEditor compile command.
+
+### Sprint 9 Execution Notes
+
+- Removed the visible `Pandora_XBoost_Session_Mask_File` input.
+- XBoost now auto-detects `session_mask.csv` directly in MT5 Common Files:
+  `C:\Users\loldlm\AppData\Roaming\MetaQuotes\Terminal\Common\Files\session_mask.csv`.
+- Missing `session_mask.csv` logs `PANDORA_XBOOST_MASK_DISABLED` and keeps
+  XBoost behavior unchanged.
+- Existing but unreadable or invalid `session_mask.csv` still fails closed so a
+  bad clean-data mask cannot silently train or trade.
+- Staged the current data-validator mask at the fixed root Common Files path,
+  removed the previous `PandoraXBoost\session_masks\...` staged copy, and
+  verified SHA256
+  `049984BE37D62EDBFCFADD1C9AB472D3D403CBBD1542F51781EE908F6749765F`
+  with 4303 data rows.
+- Updated EA guides and the data-validator handoff to use the fixed-file rule:
+  leave `session_mask.csv` in Common Files to enable mask mode; delete or rename
+  it to disable mask mode.
+- MetaEditor compile result: `0 errors, 0 warnings, 20191 ms elapsed`.
+- `BUILD.log` was inspected and removed after validation.
 
 ## Testing Strategy
 
@@ -664,7 +761,7 @@ path for the next Dukascopy clean smoke test.
 
 ## Rollback Plan
 
-- Disable mask mode by clearing `Pandora_XBoost_Session_Mask_File`.
+- Disable mask mode by deleting or renaming `Common\Files\session_mask.csv`.
 - Revert to archived V4 plan/commits if V5 compile or audit behavior is worse.
 - Because V5 uses a separate namespace, V4 CSV files remain intact.
 - If V5 produces too many trades, restore stricter V5 internal constants before
