@@ -361,6 +361,19 @@ and edge safeguards.
 - **Validation**:
   - Static trace through `PandoraXBoostApplyCandidateEdge()` and top sorting.
 
+### Sprint 4 Execution Notes
+
+- `PANDORA_XBOOST_SCHEMA_VERSION` is now `5`, separating V5 files and keys from
+  V4 inference history.
+- `PandoraXBoostApplyV5AdmissionScore()` assigns `v5_score_r` to the candidate
+  score used by edge ranking and TOP selection.
+- The old single-source sample-window veto was removed from the active
+  admission flow; it remains available as an audit helper.
+- `PandoraXBoostV5RecentWeaknessBlocks()` blocks only when both calendar-window
+  and sample-window evidence are sufficiently sampled and weak.
+- Active debug logs now use `score=` for the admission score and keep `v5=` plus
+  component fields for audit.
+
 ## Sprint 5: Broker Degradation Rebalance
 
 **Goal**: Keep broker-real feedback valuable without allowing a small number of

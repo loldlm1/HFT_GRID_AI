@@ -4,7 +4,7 @@
 #ifndef _SERVICES_TRADING_SIGNALS_PANDORA_XBOOST_STATE_MQH_
 #define _SERVICES_TRADING_SIGNALS_PANDORA_XBOOST_STATE_MQH_
 
-const int    PANDORA_XBOOST_SCHEMA_VERSION       = 4;
+const int    PANDORA_XBOOST_SCHEMA_VERSION       = 5;
 const int    PANDORA_XBOOST_MIN_DEPTH            = 0;
 const int    PANDORA_XBOOST_MAX_DEPTH            = 5;
 const int    PANDORA_XBOOST_MIN_SAMPLES_DEPTH_1  = 30;
@@ -2012,6 +2012,46 @@ void PandoraXBoostApplyV5ShadowScore(PandoraXBoostCandidate &candidate,
                          (candidate.forward_penalty_r * PANDORA_XBOOST_V5_FORWARD_WEIGHT) -
                          candidate.soft_broker_r -
                          candidate.depth_penalty_r;
+  if(candidate.sample_window_freshness_reason == "STALE")
+    candidate.v5_score_r -= PANDORA_XBOOST_SAMPLE_FRESHNESS_PENALTY_R;
+}
+
+bool PandoraXBoostV5RecentWeaknessBlocks(const PandoraXBoostCandidate &candidate,
+                                         const int min_samples,
+                                         string &reason)
+{
+  reason = "";
+  double floor_r = -PANDORA_XBOOST_BAYES_MIN_CONSERVATIVE_R;
+  double calendar_recent = 0.0;
+  bool has_calendar =
+    PandoraXBoostResolveWindowBlend(candidate.local_window_60_samples,
+                                    candidate.local_window_60_avg_r,
+                                    candidate.local_window_120_samples,
+                                    candidate.local_window_120_avg_r,
+                                    min_samples,
+                                    calendar_recent);
+  double sample_recent = 0.0;
+  bool has_sample =
+    PandoraXBoostResolveWindowBlend(candidate.sample_window_60_samples,
+                                    candidate.sample_window_60_avg_r,
+                                    candidate.sample_window_120_samples,
+                                    candidate.sample_window_120_avg_r,
+                                    min_samples,
+                                    sample_recent);
+
+  if(has_calendar && has_sample &&
+     calendar_recent < floor_r &&
+     sample_recent < floor_r)
+  {
+    reason = "V5_RECENT";
+    return true;
+  }
+  return false;
+}
+
+void PandoraXBoostApplyV5AdmissionScore(PandoraXBoostCandidate &candidate)
+{
+  candidate.score_r = candidate.v5_score_r;
 }
 
 void PandoraXBoostApplyRobustCandidateScore(PandoraXBoostCandidate &candidate)
@@ -2571,20 +2611,23 @@ void PandoraXBoostBuildCandidate(const string strategy_key,
     return;
   }
 
+  string recent_weakness_reason = "";
+  if(PandoraXBoostV5RecentWeaknessBlocks(candidate,
+                                         min_samples,
+                                         recent_weakness_reason))
+  {
+    candidate.status = PANDORA_XBOOST_CANDIDATE_BLOCK;
+    candidate.reason = recent_weakness_reason;
+    return;
+  }
+
+  PandoraXBoostApplyV5AdmissionScore(candidate);
   if(candidate.score_r < PANDORA_XBOOST_ROBUST_MIN_SCORE_R)
   {
     candidate.status = PANDORA_XBOOST_CANDIDATE_BLOCK;
     candidate.reason = (candidate.sample_window_freshness_reason == "STALE")
                        ? "STALE_SAMPLE"
-                       : "ROBUST_SCORE";
-    return;
-  }
-
-  string sample_window_reason = "";
-  if(PandoraXBoostSampleWindowBlocks(candidate, min_samples, sample_window_reason))
-  {
-    candidate.status = PANDORA_XBOOST_CANDIDATE_BLOCK;
-    candidate.reason = sample_window_reason;
+                       : "V5_SCORE";
     return;
   }
 
@@ -2592,6 +2635,16 @@ void PandoraXBoostBuildCandidate(const string strategy_key,
   PandoraXBoostApplyV5ShadowScore(candidate, min_samples);
   if(candidate.status == PANDORA_XBOOST_CANDIDATE_BLOCK)
     return;
+
+  PandoraXBoostApplyV5AdmissionScore(candidate);
+  if(candidate.score_r < PANDORA_XBOOST_ROBUST_MIN_SCORE_R)
+  {
+    candidate.status = PANDORA_XBOOST_CANDIDATE_BLOCK;
+    candidate.reason = (candidate.sample_window_freshness_reason == "STALE")
+                       ? "STALE_SAMPLE"
+                       : "V5_SCORE";
+    return;
+  }
 
   candidate.status = PANDORA_XBOOST_CANDIDATE_WATCH;
   candidate.reason = "EDGE";
@@ -2642,7 +2695,7 @@ void PandoraXBoostLogTopCandidates()
   for(int i = 0; i < total; i++)
   {
     PandoraXBoostCandidate candidate = g_pandora_xboost_top_candidates[i];
-    string message = StringFormat("rank=%d depth=%d id=%s status=%s samples=%d exp=%.3f post=%.3f score_v4=%.3f edge=%.3f med=%.3f wr=%.3f pf=%.3f payoff=%.3f frag=%.3f credit=%.3f fwd=%.3f bd=%.3f v5=%.3f ar=%.3f cr=%.3f sr=%.3f shr=%.3f sfrag=%.3f sbr=%.3f w120_days=%d/%.3f w60_days=%d/%.3f s120=%d/%.3f s60=%d/%.3f age=%d/%s brnode=%d/%.3f brpath=%d/%.3f br30=%d/%.3f reason=%s model=%s",
+    string message = StringFormat("rank=%d depth=%d id=%s status=%s samples=%d exp=%.3f post=%.3f score=%.3f edge=%.3f med=%.3f wr=%.3f pf=%.3f payoff=%.3f frag=%.3f credit=%.3f fwd=%.3f bd=%.3f v5=%.3f ar=%.3f cr=%.3f sr=%.3f shr=%.3f sfrag=%.3f sbr=%.3f w120_days=%d/%.3f w60_days=%d/%.3f s120=%d/%.3f s60=%d/%.3f age=%d/%s brnode=%d/%.3f brpath=%d/%.3f br30=%d/%.3f reason=%s model=%s",
                                   i + 1,
                                   candidate.depth,
                                   candidate.display_id,
@@ -2938,7 +2991,7 @@ bool PandoraXBoostApplyBrokerDecision(SignalParams &signal_params)
   PandoraXBoostRegisterBrokerDailyStart(signal_params);
 
   string selected_message =
-    StringFormat("strategy=%s depth=%d trade=%d rank=%d id=%s model=%s path=%s samples=%d exp=%.3f post=%.3f score_v4=%.3f edge=%.3f med=%.3f pf=%.3f brnode=%d/%.3f brpath=%d/%.3f br30=%d/%.3f reason=%s",
+    StringFormat("strategy=%s depth=%d trade=%d rank=%d id=%s model=%s path=%s samples=%d exp=%.3f post=%.3f score=%.3f edge=%.3f med=%.3f pf=%.3f brnode=%d/%.3f brpath=%d/%.3f br30=%d/%.3f reason=%s",
                  signal_params.pandora_xboost_strategy_key,
                  signal_params.pandora_xboost_depth,
                  next_trade_index,
