@@ -194,6 +194,22 @@ bool PandoraXBoostSplitCsvLine(const string row,
   return (total > 0);
 }
 
+int PandoraXBoostCsvHeaderIndex(string &fields[],
+                                const string column_name)
+{
+  string wanted = column_name;
+  StringToLower(wanted);
+  int total = ArraySize(fields);
+  for(int i = 0; i < total; i++)
+  {
+    string value = fields[i];
+    StringToLower(value);
+    if(value == wanted)
+      return i;
+  }
+  return -1;
+}
+
 bool PandoraXBoostSampleIdExists(const string sample_id)
 {
   if(sample_id == "")
@@ -602,9 +618,128 @@ void PandoraXBoostClearStorageMemory()
   g_pandora_xboost_lookup_cache_key = "";
   g_pandora_xboost_lookup_cache_hash = 0;
   g_pandora_xboost_lookup_cache_index = -1;
+  PandoraXBoostResetSessionMask();
   g_pandora_xboost_storage_loaded = false;
   g_pandora_xboost_storage_dirty = false;
   g_pandora_xboost_storage_load_time = 0;
+}
+
+bool PandoraXBoostLoadSessionMask()
+{
+  PandoraXBoostResetSessionMask();
+  string filename = Pandora_XBoost_Session_Mask_File;
+  if(filename == "")
+  {
+    PandoraXBoostLogEvent("PANDORA_XBOOST_MASK_DISABLED",
+                          "reason=empty_input");
+    return true;
+  }
+
+  if(!FileIsExist(filename, FILE_COMMON))
+  {
+    PandoraXBoostSetSessionMaskLoaded(filename, false, true);
+    PandoraXBoostLogEvent("PANDORA_XBOOST_MASK_MISSING",
+                          "file=" + filename);
+    return false;
+  }
+
+  ResetLastError();
+  int handle = FileOpen(filename, FILE_READ | FILE_TXT | FILE_ANSI | FILE_COMMON);
+  if(handle == INVALID_HANDLE)
+  {
+    int open_error = GetLastError();
+    PandoraXBoostSetSessionMaskLoaded(filename, false, true);
+    PandoraXBoostLogEvent("PANDORA_XBOOST_MASK_OPEN_FAIL",
+                          StringFormat("file=%s err=%d",
+                                       filename,
+                                       open_error));
+    return false;
+  }
+
+  bool header_seen = false;
+  int date_index = -1;
+  int status_index = -1;
+  int train_index = -1;
+  int trade_index = -1;
+  int reason_index = -1;
+  int rows_loaded = 0;
+  int rows_skipped = 0;
+  while(!FileIsEnding(handle))
+  {
+    string row = FileReadString(handle);
+    if(row == "")
+      continue;
+
+    string fields[];
+    if(!PandoraXBoostSplitCsvLine(row, fields))
+      continue;
+
+    if(!header_seen)
+    {
+      header_seen = true;
+      date_index = PandoraXBoostCsvHeaderIndex(fields, "date");
+      status_index = PandoraXBoostCsvHeaderIndex(fields, "status");
+      train_index = PandoraXBoostCsvHeaderIndex(fields, "train_allowed");
+      trade_index = PandoraXBoostCsvHeaderIndex(fields, "trade_allowed");
+      reason_index = PandoraXBoostCsvHeaderIndex(fields, "reason");
+      if(date_index < 0 || status_index < 0 ||
+         train_index < 0 || trade_index < 0)
+      {
+        FileClose(handle);
+        PandoraXBoostSetSessionMaskLoaded(filename, false, true);
+        PandoraXBoostLogEvent("PANDORA_XBOOST_MASK_HEADER_FAIL",
+                              "file=" + filename);
+        return false;
+      }
+      continue;
+    }
+
+    int total_fields = ArraySize(fields);
+    int required_index = date_index;
+    if(status_index > required_index)
+      required_index = status_index;
+    if(train_index > required_index)
+      required_index = train_index;
+    if(trade_index > required_index)
+      required_index = trade_index;
+    if(total_fields <= required_index)
+    {
+      rows_skipped++;
+      continue;
+    }
+
+    int date_key = PandoraXBoostDateIntFromMaskValue(fields[date_index]);
+    if(date_key <= 0)
+    {
+      rows_skipped++;
+      continue;
+    }
+
+    string reason = "";
+    if(reason_index >= 0 && total_fields > reason_index)
+      reason = fields[reason_index];
+
+    if(PandoraXBoostAddSessionMaskRow(date_key,
+                                      PandoraXBoostBoolFromMaskValue(fields[train_index]),
+                                      PandoraXBoostBoolFromMaskValue(fields[trade_index]),
+                                      fields[status_index],
+                                      reason))
+      rows_loaded++;
+    else
+      rows_skipped++;
+  }
+
+  FileClose(handle);
+  PandoraXBoostSortSessionMaskRows();
+  bool loaded = (rows_loaded > 0);
+  PandoraXBoostSetSessionMaskLoaded(filename, loaded, !loaded);
+  PandoraXBoostLogEvent("PANDORA_XBOOST_MASK_LOAD",
+                        StringFormat("file=%s loaded=%s rows=%d skipped=%d",
+                                     filename,
+                                     loaded ? "OK" : "FAIL",
+                                     rows_loaded,
+                                     rows_skipped));
+  return loaded;
 }
 
 bool PandoraXBoostLoadStats()
@@ -835,11 +970,12 @@ bool PandoraXBoostLoad()
     return true;
 
   PandoraXBoostEnsureStorageFolder();
+  bool mask_loaded = PandoraXBoostLoadSessionMask();
   bool stats_loaded = PandoraXBoostLoadStats();
   bool samples_loaded = PandoraXBoostLoadSampleIds();
   bool broker_trades_loaded = PandoraXBoostLoadBrokerTrades();
   g_pandora_xboost_storage_loaded =
-    stats_loaded && samples_loaded && broker_trades_loaded;
+    mask_loaded && stats_loaded && samples_loaded && broker_trades_loaded;
   g_pandora_xboost_storage_load_time = TimeCurrent();
   if(g_pandora_xboost_storage_loaded)
     PandoraXBoostSaveStatsSnapshot();
@@ -1492,6 +1628,37 @@ bool PandoraXBoostRecordClosedSignal(SignalParams &signal_params,
                                                 signal_params.signal_type,
                                                 close_event,
                                                 event_step_index);
+  string train_mask_reason = "";
+  if(!PandoraXBoostSessionMaskAllowsTraining(root_date, train_mask_reason))
+  {
+    signal_params.pandora_xboost_sample_id = sample_id;
+    signal_params.pandora_xboost_node_key = node_key;
+    bool broker_recorded = PandoraXBoostRecordBrokerTrade(signal_params,
+                                                          strategy_key,
+                                                          root_date,
+                                                          node_key,
+                                                          sample_path,
+                                                          sample_id,
+                                                          depth,
+                                                          close_event,
+                                                          close_label,
+                                                          force_close);
+    PandoraXBoostLogEvent("PANDORA_XBOOST_SAMPLE_SKIP",
+                          StringFormat("depth=%d id=%s reason=SESSION_MASK detail=%s date=%s sample=%s",
+                                       depth,
+                                       signal_params.pandora_xboost_display_id,
+                                       train_mask_reason,
+                                       PandoraXBoostDateKey(root_date),
+                                       sample_id));
+    if(broker_recorded && !PandoraXBoostSave())
+    {
+      PandoraXBoostLogEvent("PANDORA_XBOOST_SAMPLE_SAVE_FAIL",
+                            StringFormat("depth=%d id=%s reason=MASK_BROKER_SAVE",
+                                         depth,
+                                         sample_id));
+    }
+    return broker_recorded;
+  }
   if(PandoraXBoostSampleIdExists(sample_id))
   {
     PandoraXBoostLogEvent("PANDORA_XBOOST_SAMPLE_DUP",

@@ -230,6 +230,21 @@ dataset Strategy Tester runs without affecting normal broker/live operation.
   - Static trace from `PandoraXBoostRecordClosedSignal()` and
     `PandoraXBoostFindReadyCandidateForSignal()`.
 
+### Sprint 2 Execution Notes
+
+- `Pandora_XBoost_Session_Mask_File = ""` disables the mask and preserves
+  current behavior.
+- When configured, the mask is loaded once during `PandoraXBoostLoad()` from
+  Common Files using `FILE_COMMON`; there is no per-tick file I/O.
+- Mask rows are stored in memory as sorted `yyyymmdd` keys and resolved with
+  binary search.
+- `train_allowed=false` skips XBoost sample/stat recording with
+  `PANDORA_XBOOST_SAMPLE_SKIP`.
+- `trade_allowed=false` blocks XBoost broker selection with
+  `PANDORA_XBOOST_BROKER_SKIP reason=SESSION_MASK`.
+- If the mask input is configured but the file is missing, unreadable, invalid,
+  or missing a date, XBoost mask checks fail closed.
+
 ## Sprint 3: V5 Audit Fields And Shadow Metrics
 
 **Goal**: Add V5 candidate fields and logs that show the hybrid score inputs

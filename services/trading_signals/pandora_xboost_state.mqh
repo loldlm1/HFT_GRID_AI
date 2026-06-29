@@ -65,6 +65,12 @@ string PandoraXBoostStorageShortLabel();
 double PandoraXBoostClampDouble(const double value,
                                 const double min_value,
                                 const double max_value);
+void PandoraXBoostResetSessionMask();
+bool PandoraXBoostSessionMaskConfigured();
+bool PandoraXBoostSessionMaskAllowsTraining(const datetime day_anchor,
+                                            string &reason);
+bool PandoraXBoostSessionMaskAllowsBroker(const datetime day_anchor,
+                                          string &reason);
 
 int PandoraXBoostClampDepth(const int configured_depth)
 {
@@ -884,6 +890,33 @@ struct PandoraXBoostSampleRow
   }
 };
 
+struct PandoraXBoostSessionMaskRow
+{
+  int    date_key;
+  bool   train_allowed;
+  bool   trade_allowed;
+  string status;
+  string reason;
+
+  PandoraXBoostSessionMaskRow()
+  {
+    date_key = 0;
+    train_allowed = false;
+    trade_allowed = false;
+    status = "";
+    reason = "";
+  }
+
+  PandoraXBoostSessionMaskRow(const PandoraXBoostSessionMaskRow &row)
+  {
+    date_key = row.date_key;
+    train_allowed = row.train_allowed;
+    trade_allowed = row.trade_allowed;
+    status = row.status;
+    reason = row.reason;
+  }
+};
+
 struct PandoraXBoostRollingStats
 {
   int      samples;
@@ -983,6 +1016,10 @@ string                 g_pandora_xboost_pending_sample_rows[];
 PandoraXBoostBrokerTradeRow g_pandora_xboost_broker_trades[];
 string                 g_pandora_xboost_broker_trade_ids[];
 string                 g_pandora_xboost_pending_broker_trade_rows[];
+PandoraXBoostSessionMaskRow g_pandora_xboost_session_mask_rows[];
+bool                   g_pandora_xboost_session_mask_loaded = false;
+bool                   g_pandora_xboost_session_mask_failed = false;
+string                 g_pandora_xboost_session_mask_file = "";
 bool                   g_pandora_xboost_storage_loaded = false;
 bool                   g_pandora_xboost_storage_dirty  = false;
 datetime               g_pandora_xboost_storage_load_time = 0;
@@ -1015,6 +1052,173 @@ datetime PandoraXBoostRollingCutoffDays(const int days)
   if(days <= 0)
     return 0;
   return TimeCurrent() - (days * 86400);
+}
+
+int PandoraXBoostDateIntFromTime(const datetime value)
+{
+  datetime safe_value = value;
+  if(safe_value <= 0)
+    safe_value = TimeCurrent();
+
+  MqlDateTime ts;
+  if(!TimeToStruct(safe_value, ts))
+    return 0;
+  return (ts.year * 10000) + (ts.mon * 100) + ts.day;
+}
+
+int PandoraXBoostDateIntFromMaskValue(const string raw_value)
+{
+  string value = raw_value;
+  StringReplace(value, "-", "");
+  StringReplace(value, ".", "");
+  StringReplace(value, "/", "");
+  if(StringLen(value) < 8)
+    return 0;
+  return (int)StringToInteger(StringSubstr(value, 0, 8));
+}
+
+bool PandoraXBoostBoolFromMaskValue(const string raw_value)
+{
+  string value = raw_value;
+  StringToLower(value);
+  return (value == "true" || value == "1" || value == "yes");
+}
+
+bool PandoraXBoostSessionMaskConfigured()
+{
+  return (Pandora_XBoost_Session_Mask_File != "");
+}
+
+void PandoraXBoostResetSessionMask()
+{
+  ArrayResize(g_pandora_xboost_session_mask_rows, 0, 0);
+  g_pandora_xboost_session_mask_loaded = false;
+  g_pandora_xboost_session_mask_failed = false;
+  g_pandora_xboost_session_mask_file = "";
+}
+
+bool PandoraXBoostAddSessionMaskRow(const int date_key,
+                                    const bool train_allowed,
+                                    const bool trade_allowed,
+                                    const string status,
+                                    const string reason)
+{
+  if(date_key <= 0)
+    return false;
+
+  int total = ArraySize(g_pandora_xboost_session_mask_rows);
+  ArrayResize(g_pandora_xboost_session_mask_rows, total + 1, 256);
+  g_pandora_xboost_session_mask_rows[total].date_key = date_key;
+  g_pandora_xboost_session_mask_rows[total].train_allowed = train_allowed;
+  g_pandora_xboost_session_mask_rows[total].trade_allowed = trade_allowed;
+  g_pandora_xboost_session_mask_rows[total].status = status;
+  g_pandora_xboost_session_mask_rows[total].reason = reason;
+  return true;
+}
+
+void PandoraXBoostSortSessionMaskRows()
+{
+  int total = ArraySize(g_pandora_xboost_session_mask_rows);
+  for(int i = 1; i < total; i++)
+  {
+    PandoraXBoostSessionMaskRow row = g_pandora_xboost_session_mask_rows[i];
+    int j = i - 1;
+    while(j >= 0 && g_pandora_xboost_session_mask_rows[j].date_key > row.date_key)
+    {
+      g_pandora_xboost_session_mask_rows[j + 1] =
+        g_pandora_xboost_session_mask_rows[j];
+      j--;
+    }
+    g_pandora_xboost_session_mask_rows[j + 1] = row;
+  }
+}
+
+void PandoraXBoostSetSessionMaskLoaded(const string filename,
+                                       const bool loaded,
+                                       const bool failed)
+{
+  g_pandora_xboost_session_mask_file = filename;
+  g_pandora_xboost_session_mask_loaded = loaded;
+  g_pandora_xboost_session_mask_failed = failed;
+}
+
+bool PandoraXBoostFindSessionMaskRow(const int date_key,
+                                     PandoraXBoostSessionMaskRow &row)
+{
+  int left = 0;
+  int right = ArraySize(g_pandora_xboost_session_mask_rows) - 1;
+  while(left <= right)
+  {
+    int middle = (left + right) / 2;
+    int current_key = g_pandora_xboost_session_mask_rows[middle].date_key;
+    if(current_key == date_key)
+    {
+      row = g_pandora_xboost_session_mask_rows[middle];
+      return true;
+    }
+    if(current_key < date_key)
+      left = middle + 1;
+    else
+      right = middle - 1;
+  }
+  return false;
+}
+
+bool PandoraXBoostSessionMaskAllowsDate(const datetime day_anchor,
+                                        const bool broker_decision,
+                                        string &reason)
+{
+  reason = "";
+  if(!PandoraXBoostSessionMaskConfigured())
+    return true;
+  if(!g_pandora_xboost_session_mask_loaded ||
+     g_pandora_xboost_session_mask_failed)
+  {
+    reason = "MASK_NOT_LOADED";
+    return false;
+  }
+
+  int date_key = PandoraXBoostDateIntFromTime(day_anchor);
+  if(date_key <= 0)
+  {
+    reason = "MASK_INVALID_DATE";
+    return false;
+  }
+
+  PandoraXBoostSessionMaskRow row;
+  if(!PandoraXBoostFindSessionMaskRow(date_key, row))
+  {
+    reason = StringFormat("MASK_MISSING_DATE_%d", date_key);
+    return false;
+  }
+
+  bool allowed = broker_decision ? row.trade_allowed : row.train_allowed;
+  if(allowed)
+    return true;
+
+  string status = row.status;
+  if(status == "")
+    status = "blocked";
+  string detail = row.reason;
+  if(detail == "")
+    detail = broker_decision ? "trade_allowed_false" : "train_allowed_false";
+  reason = StringFormat("SESSION_MASK_%d_%s_%s",
+                        date_key,
+                        status,
+                        detail);
+  return false;
+}
+
+bool PandoraXBoostSessionMaskAllowsTraining(const datetime day_anchor,
+                                            string &reason)
+{
+  return PandoraXBoostSessionMaskAllowsDate(day_anchor, false, reason);
+}
+
+bool PandoraXBoostSessionMaskAllowsBroker(const datetime day_anchor,
+                                          string &reason)
+{
+  return PandoraXBoostSessionMaskAllowsDate(day_anchor, true, reason);
 }
 
 void PandoraXBoostRollingStatsAdd(PandoraXBoostRollingStats &stats,
@@ -2538,6 +2742,21 @@ bool PandoraXBoostApplyBrokerDecision(SignalParams &signal_params)
                                        signal_params.pandora_xboost_depth,
                                        signal_params.pandora_xboost_display_id,
                                        PandoraXBoostModeLabel(Pandora_XBoost_Mode)));
+    return false;
+  }
+
+  datetime broker_day = g_pandora_box_state.day_anchor;
+  if(broker_day <= 0)
+    broker_day = ResolveCurrentDayStart();
+  string mask_reason = "";
+  if(!PandoraXBoostSessionMaskAllowsBroker(broker_day, mask_reason))
+  {
+    PandoraXBoostLogEvent("PANDORA_XBOOST_BROKER_SKIP",
+                          StringFormat("depth=%d id=%s reason=SESSION_MASK detail=%s date=%s",
+                                       signal_params.pandora_xboost_depth,
+                                       signal_params.pandora_xboost_display_id,
+                                       mask_reason,
+                                       PandoraXBoostDateKey(broker_day)));
     return false;
   }
 
