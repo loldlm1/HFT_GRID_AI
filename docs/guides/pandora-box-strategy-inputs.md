@@ -70,7 +70,7 @@ Use this as the source of truth when configuring the EA in the Inputs panel.
 | `Pandora_XBoost_Mode` | `PANDORA_XBOOST_DISABLED` | XBoost mode. `DISABLED` preserves current Pandora behavior, `TRAINING` records local tree statistics only, and `INFERENCE` uses loaded stats to allow READY branches through the existing broker path. | Train first, then validate out-of-sample before live inference. |
 | `Pandora_XBoost_Strategy_Id` | `"default"` | User-managed preset id included in XBoost file names and strategy keys. The runtime key also includes symbol, timeframe, entry type, trailing mode, points mode, box window, and max depth. | Use a unique id per preset so incompatible stats are not mixed. |
 | `Pandora_XBoost_Max_Depth` | `3` | Maximum XBoost progression depth and maximum sequential XBoost real broker decisions/trades derived from one Pandora root day. Supported experimental range is `0-5`; practical inference values are usually `1-3`, with `4-5` for deeper research only. | Start with `3` for research; lower it when you want fewer possible real trades. |
-| `Pandora_XBoost_Session_Mask_File` | `""` | Optional Common Files CSV mask for clean-data Strategy Tester audits. Empty disables the mask. When configured, missing or blocked dates fail closed for XBoost training/trading decisions only. | Use only with curated datasets that provide `date,status,train_allowed,trade_allowed`; leave empty for normal broker/live runs. |
+| `Pandora_XBoost_Session_Mask_File` | `""` | Optional Common Files CSV mask for clean-data Strategy Tester audits. Empty disables the mask. When configured, missing or blocked dates fail closed for XBoost training/trading decisions only. | Use only with curated datasets that provide `date,status,train_allowed,trade_allowed`; leave empty for normal broker/live runs. For the current Dukascopy clean dataset, use `PandoraXBoost\session_masks\US30_Dukas_Clean_v2_session_mask.csv`. |
 
 ## Runtime Identity, Order Comments, And Status Panel
 
@@ -116,7 +116,7 @@ Use these checks after changing XBoost scoring or preparing a clean-data Strateg
 
 Short masked smoke run:
 - Start from a clean V5 namespace or a known preset folder.
-- Configure `Pandora_XBoost_Session_Mask_File` only when the dataset provides a trusted mask with `date,status,train_allowed,trade_allowed`.
+- Configure `Pandora_XBoost_Session_Mask_File` only when the dataset provides a trusted mask with `date,status,train_allowed,trade_allowed`. For the current `US30_Dukas_Clean_v2` data, set it to `PandoraXBoost\session_masks\US30_Dukas_Clean_v2_session_mask.csv`.
 - Confirm `PANDORA_XBOOST_MASK_LOAD` appears once and reports the expected row count.
 - Confirm excluded, warmup, or missing mask dates create no new XBoost samples and no XBoost broker trades.
 - Confirm `trade_allowed=true` dates can still produce `READY` candidates and `PANDORA_XBOOST_BROKER_SELECTED` when normal broker guards pass.

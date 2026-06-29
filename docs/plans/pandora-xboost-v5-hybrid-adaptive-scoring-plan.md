@@ -2,7 +2,7 @@
 
 **Generated**: 2026-06-29
 **Estimated Complexity**: High / Trading-Sensitive
-**Status**: Completed on 2026-06-29
+**Status**: Completed on 2026-06-29 after Sprint 8 clean-session mask staging
 
 ## Overview
 
@@ -545,6 +545,80 @@ clear manual Strategy Tester checklist.
 - Compile log result: `0 errors, 0 warnings, 19376 ms elapsed`.
 - `BUILD.log` was inspected and removed after validation.
 - `HFT_Grid_AI.ex5` was regenerated locally but is not tracked by git.
+
+## Sprint 8: Common Session Mask Staging
+
+**Goal**: Remove clean-data tester ambiguity by staging the current
+`session_mask.csv` under MT5 Common Files and documenting the exact EA input
+path for the next Dukascopy clean smoke test.
+**Commit**: `docs: document XBoost clean session mask staging`
+**Demo/Validation**:
+- The staged Common Files mask exists and matches the source file hash.
+- Operator docs name the exact `Pandora_XBoost_Session_Mask_File` value.
+- No MQL compile is required because this sprint changes docs and external CSV
+  staging only.
+
+### Task 8.1: Stage Current Session Mask In Common Files
+
+- **Location**:
+  - Source:
+    `C:\Users\loldlm\Documents\MQL5-Data-validator\reports\session_quality\session_mask.csv`
+  - Destination:
+    `C:\Users\loldlm\AppData\Roaming\MetaQuotes\Terminal\Common\Files\PandoraXBoost\session_masks\US30_Dukas_Clean_v2_session_mask.csv`
+- **Description**: Copy the validated data-validator mask into a stable Common
+  Files subfolder that the EA can read with `FILE_COMMON`.
+- **Dependencies**: Sprint 7.
+- **Acceptance Criteria**:
+  - Destination folder exists.
+  - Destination file hash matches the source file hash.
+  - File row count is recorded in the handoff.
+- **Validation**:
+  - PowerShell hash comparison and CSV row count check.
+
+### Task 8.2: Document MT5 Input Path
+
+- **Location**:
+  - `docs/guides/pandora-box-strategy-inputs.md`
+  - `C:\Users\loldlm\Documents\MQL5-Data-validator\docs\pandora_xboost_clean_session_handoff.md`
+- **Description**: Update the EA and data-validator handoffs with the exact
+  relative Common Files input:
+  `PandoraXBoost\session_masks\US30_Dukas_Clean_v2_session_mask.csv`.
+- **Dependencies**: Task 8.1.
+- **Acceptance Criteria**:
+  - Docs no longer imply the EA lacks a session-mask gate.
+  - The clean-data smoke test checklist requires `PANDORA_XBOOST_MASK_LOAD`.
+  - The handoff states that an empty input disables mask mode.
+- **Validation**:
+  - Static grep for the input path and obsolete wording.
+
+### Task 8.3: Sprint Handoff
+
+- **Location**: `docs/plans/pandora-xboost-v5-hybrid-adaptive-scoring-plan.md`
+- **Description**: Record execution notes after staging and validation.
+- **Dependencies**: Tasks 8.1-8.2.
+- **Acceptance Criteria**:
+  - Execution notes include the staged path, row count, and validation result.
+  - Final handoff tells the operator which input to set before rerunning the
+    short clean-data test.
+- **Validation**:
+  - `git diff --check`.
+
+### Sprint 8 Execution Notes
+
+- Staged the latest data-validator mask from
+  `C:\Users\loldlm\Documents\MQL5-Data-validator\reports\session_quality\session_mask.csv`
+  into MT5 Common Files:
+  `C:\Users\loldlm\AppData\Roaming\MetaQuotes\Terminal\Common\Files\PandoraXBoost\session_masks\US30_Dukas_Clean_v2_session_mask.csv`.
+- The MT5 input for the next clean-data smoke test is:
+  `Pandora_XBoost_Session_Mask_File = PandoraXBoost\session_masks\US30_Dukas_Clean_v2_session_mask.csv`.
+- Hash validation passed with SHA256
+  `049984BE37D62EDBFCFADD1C9AB472D3D403CBBD1542F51781EE908F6749765F`.
+- The staged mask has 4303 data rows.
+- Updated the EA inputs guide and the data-validator handoff so future clean
+  tests require `PANDORA_XBOOST_MASK_LOAD` before accepting sample/broker audit
+  results.
+- No MQL compile was run because Sprint 8 changed documentation and staged an
+  external CSV only.
 
 ## Testing Strategy
 
