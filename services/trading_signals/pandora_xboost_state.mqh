@@ -2381,43 +2381,56 @@ void PandoraXBoostApplyBrokerCalibration(PandoraXBoostCandidate &candidate,
     candidate.broker_recent_avg_r = broker_recent.avg_r;
   }
 
+  double score_reference_r = candidate.score_r;
   double degradation_r = 0.0;
-  string degradation_reason = "";
+  bool broker_node_weak = false;
+  bool broker_path_weak = false;
+  bool broker_recent_weak = false;
   if(candidate.broker_node_samples >= PANDORA_XBOOST_BROKER_MIN_NODE_SAMPLES)
   {
-    if(candidate.broker_node_avg_r < candidate.score_r)
+    if(candidate.broker_node_avg_r < score_reference_r)
     {
-      degradation_r += (candidate.score_r - candidate.broker_node_avg_r) *
+      degradation_r += (score_reference_r - candidate.broker_node_avg_r) *
                        PANDORA_XBOOST_ROBUST_BROKER_NODE_WEIGHT;
-      degradation_reason = "BROKER_NODE";
     }
+    if(candidate.broker_node_avg_r < PANDORA_XBOOST_BROKER_DEGRADATION_FLOOR_R)
+      broker_node_weak = true;
   }
   if(candidate.broker_path_samples >= PANDORA_XBOOST_BROKER_MIN_NODE_SAMPLES)
   {
-    if(candidate.broker_path_avg_r < candidate.score_r)
+    if(candidate.broker_path_avg_r < score_reference_r)
     {
-      degradation_r += (candidate.score_r - candidate.broker_path_avg_r) *
+      degradation_r += (score_reference_r - candidate.broker_path_avg_r) *
                        PANDORA_XBOOST_ROBUST_BROKER_PATH_WEIGHT;
-      if(degradation_reason == "")
-        degradation_reason = "BROKER_PATH";
     }
+    if(candidate.broker_path_avg_r < PANDORA_XBOOST_BROKER_DEGRADATION_FLOOR_R)
+      broker_path_weak = true;
+  }
+  if(candidate.broker_recent_samples >= PANDORA_XBOOST_BROKER_MIN_RECENT_SAMPLES)
+  {
+    if(candidate.broker_recent_avg_r < score_reference_r)
+    {
+      degradation_r += (score_reference_r - candidate.broker_recent_avg_r) *
+                       PANDORA_XBOOST_BROKER_DEGRADATION_WEIGHT;
+    }
+    if(candidate.broker_recent_avg_r < PANDORA_XBOOST_BROKER_DEGRADATION_FLOOR_R)
+      broker_recent_weak = true;
   }
 
-  if(degradation_r <= 0.0)
-    return;
+  if(degradation_r > 0.0)
+  {
+    degradation_r = PandoraXBoostClampDouble(degradation_r,
+                                             0.0,
+                                             PANDORA_XBOOST_ROBUST_BROKER_DEGRADATION_CAP_R);
+    candidate.broker_node_degradation_r = degradation_r;
+    candidate.broker_degradation_r = degradation_r;
+  }
 
-  degradation_r = PandoraXBoostClampDouble(degradation_r,
-                                           0.0,
-                                           PANDORA_XBOOST_ROBUST_BROKER_DEGRADATION_CAP_R);
-  candidate.broker_node_degradation_r = degradation_r;
-  candidate.broker_degradation_r = degradation_r;
-  candidate.score_r -= degradation_r;
-  candidate.robust_score_r = candidate.score_r;
-  if(candidate.score_r < PANDORA_XBOOST_ROBUST_MIN_SCORE_R)
+  if((broker_recent_weak && (broker_node_weak || broker_path_weak)) ||
+     (broker_node_weak && broker_path_weak))
   {
     candidate.status = PANDORA_XBOOST_CANDIDATE_BLOCK;
-    candidate.reason = (degradation_reason == "") ? "BROKER_DEGRADE"
-                                                  : degradation_reason;
+    candidate.reason = "BROKER_DEGRADATION";
   }
 }
 
@@ -2633,10 +2646,10 @@ void PandoraXBoostBuildCandidate(const string strategy_key,
 
   PandoraXBoostApplyBrokerCalibration(candidate, strategy_key);
   PandoraXBoostApplyV5ShadowScore(candidate, min_samples);
+  PandoraXBoostApplyV5AdmissionScore(candidate);
   if(candidate.status == PANDORA_XBOOST_CANDIDATE_BLOCK)
     return;
 
-  PandoraXBoostApplyV5AdmissionScore(candidate);
   if(candidate.score_r < PANDORA_XBOOST_ROBUST_MIN_SCORE_R)
   {
     candidate.status = PANDORA_XBOOST_CANDIDATE_BLOCK;

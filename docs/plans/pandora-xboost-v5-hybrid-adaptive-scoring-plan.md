@@ -409,6 +409,19 @@ broker trades to shut down adaptation too early.
 - **Validation**:
   - Static grep for broker trade strategy matching.
 
+### Sprint 5 Execution Notes
+
+- Broker node, path-family, and recent-real-trade averages remain captured and
+  logged for every candidate.
+- Broker degradation now populates `broker_degradation_r` as a V5 soft penalty;
+  it no longer mutates `candidate.score_r` directly inside broker calibration.
+- Low broker sample counts do not hard-block a candidate.
+- Broker degradation hard-blocks only when weak broker evidence is confirmed by
+  at least two sufficiently sampled broker sources, with reason
+  `BROKER_DEGRADATION`.
+- V5 broker ledger separation is inherited from Sprint 4 schema version `5` and
+  strategy-key/file-prefix namespace changes.
+
 ## Sprint 6: Audit Output And Operator Visibility
 
 **Goal**: Make the V5 decision path easy to audit after one long Strategy Tester
