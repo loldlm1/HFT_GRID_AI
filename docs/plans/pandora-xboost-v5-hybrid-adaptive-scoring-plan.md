@@ -297,6 +297,18 @@ before changing admission behavior.
 - **Validation**:
   - Review `PANDORA_XBOOST_DRYRUN` formatting.
 
+### Sprint 3 Execution Notes
+
+- Added V5 shadow fields to `PandoraXBoostCandidate` and preserved default/copy
+  initialization.
+- `PandoraXBoostApplyV5ShadowScore()` computes audit-only hybrid metrics from
+  calendar windows, sample windows, Bayesian posterior, payoff credit, and soft
+  penalties.
+- Sprint 3 does not use `v5_score_r` for `READY`; broker admission still uses
+  the existing V4 `candidate.score_r` path until Sprint 4.
+- `PANDORA_XBOOST_DRYRUN` now includes compact V5 audit fields:
+  `v5`, `ar`, `cr`, `sr`, `shr`, `sfrag`, and `sbr`.
+
 ## Sprint 4: Hybrid Adaptive Admission
 
 **Goal**: Make V5 hybrid score the admission score while keeping minimum-sample

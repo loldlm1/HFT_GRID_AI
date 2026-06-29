@@ -52,6 +52,12 @@ const double PANDORA_XBOOST_ROBUST_FRAGILITY_CAP_R = 0.16;
 const double PANDORA_XBOOST_ROBUST_FORWARD_PENALTY_CAP_R = 0.12;
 const double PANDORA_XBOOST_ROBUST_BROKER_PATH_WEIGHT = 0.35;
 const double PANDORA_XBOOST_ROBUST_BROKER_DEGRADATION_CAP_R = 0.20;
+const double PANDORA_XBOOST_V5_CALENDAR_RECENT_WEIGHT = 0.65;
+const double PANDORA_XBOOST_V5_SAMPLE_RECENT_WEIGHT = 0.35;
+const double PANDORA_XBOOST_V5_SHRINKAGE_WEIGHT = 0.25;
+const double PANDORA_XBOOST_V5_FRAGILITY_WEIGHT = 0.60;
+const double PANDORA_XBOOST_V5_FORWARD_WEIGHT = 0.50;
+const double PANDORA_XBOOST_V5_BROKER_WEIGHT = 0.50;
 
 void PandoraXBoostBuildRootCandidates(const SignalParams &root_signal);
 void PandoraXBoostBuildNextCandidatesFromClosedSignal(const SignalParams &closed_signal,
@@ -637,6 +643,13 @@ struct PandoraXBoostCandidate
   double                         broker_node_avg_r;
   double                         broker_path_avg_r;
   double                         broker_recent_avg_r;
+  double                         adaptive_recent_r;
+  double                         calendar_recent_r;
+  double                         sample_recent_r;
+  double                         hybrid_shrinkage_r;
+  double                         soft_fragility_r;
+  double                         soft_broker_r;
+  double                         v5_score_r;
 
   PandoraXBoostCandidate()
   {
@@ -688,6 +701,13 @@ struct PandoraXBoostCandidate
     broker_node_avg_r = 0.0;
     broker_path_avg_r = 0.0;
     broker_recent_avg_r = 0.0;
+    adaptive_recent_r = 0.0;
+    calendar_recent_r = 0.0;
+    sample_recent_r = 0.0;
+    hybrid_shrinkage_r = 0.0;
+    soft_fragility_r = 0.0;
+    soft_broker_r = 0.0;
+    v5_score_r = 0.0;
   }
 
   PandoraXBoostCandidate(const PandoraXBoostCandidate &candidate)
@@ -740,6 +760,13 @@ struct PandoraXBoostCandidate
     broker_node_avg_r = candidate.broker_node_avg_r;
     broker_path_avg_r = candidate.broker_path_avg_r;
     broker_recent_avg_r = candidate.broker_recent_avg_r;
+    adaptive_recent_r = candidate.adaptive_recent_r;
+    calendar_recent_r = candidate.calendar_recent_r;
+    sample_recent_r = candidate.sample_recent_r;
+    hybrid_shrinkage_r = candidate.hybrid_shrinkage_r;
+    soft_fragility_r = candidate.soft_fragility_r;
+    soft_broker_r = candidate.soft_broker_r;
+    v5_score_r = candidate.v5_score_r;
   }
 };
 
@@ -1908,6 +1935,85 @@ double PandoraXBoostComputeTrailingPayoffCredit(const PandoraXBoostCandidate &ca
                                   PANDORA_XBOOST_ROBUST_PAYOFF_CREDIT_CAP_R);
 }
 
+bool PandoraXBoostResolveWindowBlend(const int fast_samples,
+                                     const double fast_avg_r,
+                                     const int slow_samples,
+                                     const double slow_avg_r,
+                                     const int min_samples,
+                                     double &blend_r)
+{
+  bool has_fast = (fast_samples >= min_samples);
+  bool has_slow = (slow_samples >= min_samples);
+  if(has_fast && has_slow)
+  {
+    blend_r = (fast_avg_r * 0.60) + (slow_avg_r * 0.40);
+    return true;
+  }
+  if(has_fast)
+  {
+    blend_r = fast_avg_r;
+    return true;
+  }
+  if(has_slow)
+  {
+    blend_r = slow_avg_r;
+    return true;
+  }
+  blend_r = 0.0;
+  return false;
+}
+
+void PandoraXBoostApplyV5ShadowScore(PandoraXBoostCandidate &candidate,
+                                     const int min_samples)
+{
+  double calendar_recent = 0.0;
+  bool has_calendar =
+    PandoraXBoostResolveWindowBlend(candidate.local_window_60_samples,
+                                    candidate.local_window_60_avg_r,
+                                    candidate.local_window_120_samples,
+                                    candidate.local_window_120_avg_r,
+                                    min_samples,
+                                    calendar_recent);
+
+  double sample_recent = 0.0;
+  bool has_sample =
+    PandoraXBoostResolveWindowBlend(candidate.sample_window_60_samples,
+                                    candidate.sample_window_60_avg_r,
+                                    candidate.sample_window_120_samples,
+                                    candidate.sample_window_120_avg_r,
+                                    min_samples,
+                                    sample_recent);
+
+  candidate.calendar_recent_r = has_calendar ? calendar_recent : 0.0;
+  candidate.sample_recent_r = has_sample ? sample_recent : 0.0;
+  if(has_calendar && has_sample)
+  {
+    candidate.adaptive_recent_r =
+      (calendar_recent * PANDORA_XBOOST_V5_CALENDAR_RECENT_WEIGHT) +
+      (sample_recent * PANDORA_XBOOST_V5_SAMPLE_RECENT_WEIGHT);
+  }
+  else if(has_calendar)
+    candidate.adaptive_recent_r = calendar_recent;
+  else if(has_sample)
+    candidate.adaptive_recent_r = sample_recent;
+  else
+    candidate.adaptive_recent_r = candidate.posterior_r;
+
+  candidate.hybrid_shrinkage_r =
+    candidate.posterior_r * PANDORA_XBOOST_V5_SHRINKAGE_WEIGHT;
+  candidate.soft_fragility_r =
+    candidate.fragility_penalty_r * PANDORA_XBOOST_V5_FRAGILITY_WEIGHT;
+  candidate.soft_broker_r =
+    candidate.broker_degradation_r * PANDORA_XBOOST_V5_BROKER_WEIGHT;
+  candidate.v5_score_r = candidate.adaptive_recent_r +
+                         candidate.hybrid_shrinkage_r +
+                         candidate.trailing_payoff_credit_r -
+                         candidate.soft_fragility_r -
+                         (candidate.forward_penalty_r * PANDORA_XBOOST_V5_FORWARD_WEIGHT) -
+                         candidate.soft_broker_r -
+                         candidate.depth_penalty_r;
+}
+
 void PandoraXBoostApplyRobustCandidateScore(PandoraXBoostCandidate &candidate)
 {
   candidate.fragility_penalty_r =
@@ -2346,6 +2452,13 @@ void PandoraXBoostBuildCandidate(const string strategy_key,
   candidate.broker_node_avg_r = 0.0;
   candidate.broker_path_avg_r = 0.0;
   candidate.broker_recent_avg_r = 0.0;
+  candidate.adaptive_recent_r = 0.0;
+  candidate.calendar_recent_r = 0.0;
+  candidate.sample_recent_r = 0.0;
+  candidate.hybrid_shrinkage_r = 0.0;
+  candidate.soft_fragility_r = 0.0;
+  candidate.soft_broker_r = 0.0;
+  candidate.v5_score_r = 0.0;
 
   PandoraXBoostRollingStats window_120;
   if(PandoraXBoostAggregateNodeSamples(node_key,
@@ -2449,6 +2562,7 @@ void PandoraXBoostBuildCandidate(const string strategy_key,
                                        candidate.forward_penalty_r);
   PandoraXBoostApplyRobustCandidateScore(candidate);
   PandoraXBoostApplySampleFreshnessPenalty(candidate);
+  PandoraXBoostApplyV5ShadowScore(candidate, min_samples);
 
   if(stats.samples < min_samples)
   {
@@ -2475,6 +2589,7 @@ void PandoraXBoostBuildCandidate(const string strategy_key,
   }
 
   PandoraXBoostApplyBrokerCalibration(candidate, strategy_key);
+  PandoraXBoostApplyV5ShadowScore(candidate, min_samples);
   if(candidate.status == PANDORA_XBOOST_CANDIDATE_BLOCK)
     return;
 
@@ -2527,7 +2642,7 @@ void PandoraXBoostLogTopCandidates()
   for(int i = 0; i < total; i++)
   {
     PandoraXBoostCandidate candidate = g_pandora_xboost_top_candidates[i];
-    string message = StringFormat("rank=%d depth=%d id=%s status=%s samples=%d exp=%.3f post=%.3f score_v4=%.3f edge=%.3f med=%.3f wr=%.3f pf=%.3f payoff=%.3f frag=%.3f credit=%.3f fwd=%.3f bd=%.3f w120_days=%d/%.3f w60_days=%d/%.3f s120=%d/%.3f s60=%d/%.3f age=%d/%s brnode=%d/%.3f brpath=%d/%.3f br30=%d/%.3f reason=%s model=%s",
+    string message = StringFormat("rank=%d depth=%d id=%s status=%s samples=%d exp=%.3f post=%.3f score_v4=%.3f edge=%.3f med=%.3f wr=%.3f pf=%.3f payoff=%.3f frag=%.3f credit=%.3f fwd=%.3f bd=%.3f v5=%.3f ar=%.3f cr=%.3f sr=%.3f shr=%.3f sfrag=%.3f sbr=%.3f w120_days=%d/%.3f w60_days=%d/%.3f s120=%d/%.3f s60=%d/%.3f age=%d/%s brnode=%d/%.3f brpath=%d/%.3f br30=%d/%.3f reason=%s model=%s",
                                   i + 1,
                                   candidate.depth,
                                   candidate.display_id,
@@ -2545,6 +2660,13 @@ void PandoraXBoostLogTopCandidates()
                                   candidate.trailing_payoff_credit_r,
                                   candidate.forward_stability_r,
                                   candidate.broker_degradation_r,
+                                  candidate.v5_score_r,
+                                  candidate.adaptive_recent_r,
+                                  candidate.calendar_recent_r,
+                                  candidate.sample_recent_r,
+                                  candidate.hybrid_shrinkage_r,
+                                  candidate.soft_fragility_r,
+                                  candidate.soft_broker_r,
                                   candidate.local_window_120_samples,
                                   candidate.local_window_120_avg_r,
                                   candidate.local_window_60_samples,
