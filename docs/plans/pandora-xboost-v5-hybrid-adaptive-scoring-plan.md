@@ -2,7 +2,7 @@
 
 **Generated**: 2026-06-29
 **Estimated Complexity**: High / Trading-Sensitive
-**Status**: Active
+**Status**: Completed on 2026-06-29
 
 ## Overview
 
@@ -535,6 +535,16 @@ clear manual Strategy Tester checklist.
 - **Validation**:
   - Manual audit of `samples.csv`, `broker_trades.csv`, `run_summary.csv`, and
     `query_debug.txt`.
+
+### Sprint 7 Execution Notes
+
+- Added short masked smoke-run and long deep-run V5 manual audit checklists to
+  `docs/guides/pandora-box-strategy-inputs.md`.
+- MetaEditor compile was run with the install-local `/portable` argument so the
+  current `C:\Program Files\MetaTrader 5-1\MQL5` include tree was used.
+- Compile log result: `0 errors, 0 warnings, 19376 ms elapsed`.
+- `BUILD.log` was inspected and removed after validation.
+- `HFT_Grid_AI.ex5` was regenerated locally but is not tracked by git.
 
 ## Testing Strategy
 

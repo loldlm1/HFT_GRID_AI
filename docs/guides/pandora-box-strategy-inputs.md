@@ -108,7 +108,27 @@ Use this workflow when testing the XBoost progression tree:
 4. For edge validation, freeze the stats from period A and run a later period B out-of-sample. Treat this as a walk-forward validation, not a same-data replay.
 5. In inference, only `READY` candidates can be selected for broker execution. `WAIT`, `WATCH`, and `BLOCK` remain local-only and continue collecting stats.
 
-Initial scorer thresholds are code-level constants: depth 1 needs 30 samples, depth 2 needs 20, depth 3 needs 12, minimum expectancy is `0.05R`, minimum edge is `0.05R`, and the score applies a `0.03R` depth penalty. Recent robustness uses internal last-sample windows of `60` and `120` samples per node, plus a conservative freshness penalty when the newest sample is stale.
+Initial scorer thresholds are code-level constants: depth 1 needs 30 samples, depth 2 needs 20, depths 3-5 need 12, minimum expectancy is `0.05R`, minimum edge is `0.05R`, and the score applies a `0.03R` depth penalty. V5 blends recent calendar windows and last-sample windows of `60` and `120` samples per node, then applies bounded Bayesian, freshness, fragility, forward, broker, and depth penalties.
+
+## XBoost V5 Manual Audit Checklist
+
+Use these checks after changing XBoost scoring or preparing a clean-data Strategy Tester run. Keep `Enable_File_Logs = true`.
+
+Short masked smoke run:
+- Start from a clean V5 namespace or a known preset folder.
+- Configure `Pandora_XBoost_Session_Mask_File` only when the dataset provides a trusted mask with `date,status,train_allowed,trade_allowed`.
+- Confirm `PANDORA_XBOOST_MASK_LOAD` appears once and reports the expected row count.
+- Confirm excluded, warmup, or missing mask dates create no new XBoost samples and no XBoost broker trades.
+- Confirm `trade_allowed=true` dates can still produce `READY` candidates and `PANDORA_XBOOST_BROKER_SELECTED` when normal broker guards pass.
+- Confirm `PANDORA_XBOOST_DRYRUN` shows `score`, `v5`, `ar`, `cr`, `sr`, `s120`, `s60`, `age`, `brnode`, `brpath`, and `br30`.
+
+Long deep-run audit:
+- Start with `stats=0 samples=0 broker=0` when the goal is a cold adaptive inference test.
+- Confirm V5 files are written under the expected Common `PandoraXBoost` folder and use the intended `Pandora_XBoost_Strategy_Id`.
+- Confirm broker trades only occur for `READY` candidates and never overlap another active XBoost broker trade.
+- Review yearly broker trades, total R, median R, profit factor, and reason distribution instead of relying only on final balance.
+- Expect more opportunity than V4's extreme under-trading, but no forced daily broker trade when all candidates are `WAIT`, `WATCH`, or `BLOCK`.
+- Compare `V5_RECENT`, `V5_SCORE`, `STALE_SAMPLE`, `SESSION_MASK`, and `BROKER_DEGRADATION` counts before tuning any constants.
 
 ## Quick Setup Profiles
 
