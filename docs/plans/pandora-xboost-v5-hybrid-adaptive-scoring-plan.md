@@ -2,7 +2,7 @@
 
 **Generated**: 2026-06-29
 **Estimated Complexity**: High / Trading-Sensitive
-**Status**: Completed on 2026-06-29 after Sprint 9 automatic Common Files mask detection
+**Status**: Completed on 2026-06-29 after Sprint 10 V5 adaptive admission calibration
 
 ## Overview
 
@@ -715,6 +715,75 @@ only when `session_mask.csv` exists directly in MT5 Common Files.
   leave `session_mask.csv` in Common Files to enable mask mode; delete or rename
   it to disable mask mode.
 - MetaEditor compile result: `0 errors, 0 warnings, 20191 ms elapsed`.
+- `BUILD.log` was inspected and removed after validation.
+
+## Sprint 10: V5 Adaptive Admission Calibration
+
+**Goal**: Make V5 less restrictive when fresh local/sample evidence shows real recovery, while keeping deeper branches more conservative and avoiding preset-specific tuning.
+**Commit**: Sprint 10 commit created after validation; see handoff for hash.
+**Demo/Validation**:
+- Depth 1/2 can recover from stale broker degradation when current sample/calendar evidence is fresh and positive.
+- Depth 3+ requires stronger current recovery evidence and pays an extra depth penalty before broker admission.
+- Broker degradation remains a hard block when current evidence is weak, stale, or contradictory.
+- Existing V5 CSV namespaces and optional `Common\Files\session_mask.csv` behavior remain unchanged.
+
+### Task 10.1 - Recency Recovery Blend
+
+- **Location**: `services/trading_signals/pandora_xboost_state.mqh`
+- **Description**: Add a bounded V5 recovery rule that can shift the adaptive recent blend toward sample-window evidence when that evidence is fresh and meaningfully positive.
+- **Dependencies**: Sprint 9.
+- **Acceptance Criteria**:
+  - Calendar windows still dominate normal V5 scoring.
+  - Fresh sample recovery can influence scoring when calendar evidence is sparse or temporarily weak.
+  - Stale sample evidence cannot trigger recovery.
+- **Validation**:
+  - Static read-through of `PandoraXBoostApplyV5ShadowScore()`.
+
+### Task 10.2 - Broker Degradation Recovery Path
+
+- **Location**: `services/trading_signals/pandora_xboost_state.mqh`
+- **Description**: Keep broker degradation as a soft penalty when current recovery evidence is strong enough, but keep the existing hard block for stale or weak candidates.
+- **Dependencies**: Task 10.1.
+- **Acceptance Criteria**:
+  - `BROKER_DEGRADATION` still blocks when at least two broker sources are weak and current recovery evidence is absent.
+  - Recovery candidates retain a discounted broker penalty instead of ignoring broker history.
+  - No broker file format changes.
+- **Validation**:
+  - Static read-through of `PandoraXBoostApplyBrokerCalibration()`.
+
+### Task 10.3 - Deep Branch Conservatism
+
+- **Location**: `services/trading_signals/pandora_xboost_state.mqh`
+- **Description**: Add an extra V5 penalty for depth 3+ so deeper branches need stronger current edge to enter the TOP 3.
+- **Dependencies**: Task 10.1.
+- **Acceptance Criteria**:
+  - Depth 1/2 behavior is not penalized by the new deep-branch rule.
+  - Depth 3/4/5 use the same conservative rule without separate preset-specific tuning.
+- **Validation**:
+  - Static read-through of depth penalty assignment and candidate logs.
+
+### Task 10.4 - Documentation And Compile
+
+- **Location**: `docs/plans/pandora-xboost-v5-hybrid-adaptive-scoring-plan.md`, `docs/guides/pandora-box-strategy-inputs.md`
+- **Description**: Document the Sprint 10 behavior and compile the EA.
+- **Dependencies**: Tasks 10.1-10.3.
+- **Acceptance Criteria**:
+  - Plan execution notes include compile result and commit hash.
+  - MetaEditor compile finishes with zero errors and warnings.
+  - `BUILD.log` is inspected and removed.
+- **Validation**:
+  - `git diff --check`.
+  - MetaEditor compile command from `AGENTS.md`.
+
+### Sprint 10 Execution Notes
+
+- Added bounded V5 recovery detection. Stale sample windows cannot trigger recovery, depth 3+ requires stronger sample recovery, and contradictory calendar/sample evidence blocks the recovery path.
+- When recovery is active, the adaptive recent blend can shift from normal calendar-heavy weighting to sample-heavy weighting; otherwise the existing V5 blend is preserved.
+- Broker degradation is still recorded and penalized. It remains a hard block when current recovery evidence is absent, but becomes a discounted soft penalty when fresh recovery evidence is strong enough.
+- Added an extra V5 deep-branch penalty for depth 3+ so deeper paths must clear stronger evidence before broker admission.
+- Updated the XBoost inputs guide with the recovery/deep-branch audit expectations.
+- `git diff --check` passed; Windows CRLF warnings only.
+- MetaEditor compile result: `0 errors, 0 warnings, 18370 ms elapsed`.
 - `BUILD.log` was inspected and removed after validation.
 
 ## Testing Strategy

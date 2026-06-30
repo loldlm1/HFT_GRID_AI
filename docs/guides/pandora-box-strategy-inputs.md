@@ -23,7 +23,7 @@ Use this as the source of truth when configuring the EA in the Inputs panel.
 - XBoost never opens simultaneous real long and short positions. A new real XBoost branch can be selected only after the previous selected XBoost signal has closed.
 - XBoost uses the existing Pandora fixed TP, BE, and step trailing rules; it does not add a separate trailing engine.
 - One XBoost sample is one closed branch/node result for a `node_key`, not the whole root day. A single root day can produce multiple samples across different branches or depths.
-- XBoost V5 blends recent calendar windows and last-60/last-120 sample windows per `node_key`. Calendar windows help identify the current regime when sufficiently sampled, sample windows support and audit the decision, and Bayesian shrinkage plus freshness/fragility/forward/broker penalties keep the score conservative.
+- XBoost V5 blends recent calendar windows and last-60/last-120 sample windows per `node_key`. Calendar windows help identify the current regime when sufficiently sampled, sample windows support and audit the decision, and Bayesian shrinkage plus freshness/fragility/forward/broker penalties keep the score conservative. When fresh sample evidence shows a meaningful recovery, V5 can temporarily weight that evidence more heavily; depth 3+ branches require stronger recovery and pay an extra deep-branch penalty.
 - `Pandora_Box_Use_Session_Filter` gates Pandora entry attempts only; it does not decide whether the box construction window is valid.
 - Runtime performance gates are internal only. In Strategy Tester, idle chart/comment refresh is throttled by new chart bars, while active Pandora observations, broker retries, positions, closes, force-close states, and work-window transitions continue to use tick-level lifecycle checks.
 - If `Pandora_Box_Max_Range_Points > 0`, the day is invalid when the box range exceeds that limit.
@@ -108,7 +108,7 @@ Use this workflow when testing the XBoost progression tree:
 4. For edge validation, freeze the stats from period A and run a later period B out-of-sample. Treat this as a walk-forward validation, not a same-data replay.
 5. In inference, only `READY` candidates can be selected for broker execution. `WAIT`, `WATCH`, and `BLOCK` remain local-only and continue collecting stats.
 
-Initial scorer thresholds are code-level constants: depth 1 needs 30 samples, depth 2 needs 20, depths 3-5 need 12, minimum expectancy is `0.05R`, minimum edge is `0.05R`, and the score applies a `0.03R` depth penalty. V5 blends recent calendar windows and last-sample windows of `60` and `120` samples per node, then applies bounded Bayesian, freshness, fragility, forward, broker, and depth penalties.
+Initial scorer thresholds are code-level constants: depth 1 needs 30 samples, depth 2 needs 20, depths 3-5 need 12, minimum expectancy is `0.05R`, minimum edge is `0.05R`, and the score applies a `0.03R` depth penalty plus an extra V5 deep-branch penalty from depth 3 onward. V5 blends recent calendar windows and last-sample windows of `60` and `120` samples per node, then applies bounded Bayesian, freshness, fragility, forward, broker, and depth penalties. Broker degradation stays a hard block when recent evidence is weak or stale; with strong fresh recovery it becomes a discounted soft penalty instead of a veto.
 
 ## XBoost V5 Manual Audit Checklist
 
@@ -121,6 +121,7 @@ Short masked smoke run:
 - Confirm excluded, warmup, or missing mask dates create no new XBoost samples and no XBoost broker trades.
 - Confirm `trade_allowed=true` dates can still produce `READY` candidates and `PANDORA_XBOOST_BROKER_SELECTED` when normal broker guards pass.
 - Confirm `PANDORA_XBOOST_DRYRUN` shows `score`, `v5`, `ar`, `cr`, `sr`, `s120`, `s60`, `age`, `brnode`, `brpath`, and `br30`.
+- When `BROKER_DEGRADATION` falls after a scoring change, confirm the candidate has fresh positive `sr`/`cr` evidence and is not merely bypassing old weak broker history.
 
 Long deep-run audit:
 - Start with `stats=0 samples=0 broker=0` when the goal is a cold adaptive inference test.
@@ -129,6 +130,7 @@ Long deep-run audit:
 - Review yearly broker trades, total R, median R, profit factor, and reason distribution instead of relying only on final balance.
 - Expect more opportunity than V4's extreme under-trading, but no forced daily broker trade when all candidates are `WAIT`, `WATCH`, or `BLOCK`.
 - Compare `V5_RECENT`, `V5_SCORE`, `STALE_SAMPLE`, `SESSION_MASK`, and `BROKER_DEGRADATION` counts before tuning any constants.
+- Review depth distribution separately. Depth 3+ should still appear only when the stronger recovery threshold and extra deep-branch penalty are cleared.
 
 ## Quick Setup Profiles
 

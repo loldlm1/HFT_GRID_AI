@@ -58,6 +58,13 @@ const double PANDORA_XBOOST_V5_SHRINKAGE_WEIGHT = 0.25;
 const double PANDORA_XBOOST_V5_FRAGILITY_WEIGHT = 0.60;
 const double PANDORA_XBOOST_V5_FORWARD_WEIGHT = 0.50;
 const double PANDORA_XBOOST_V5_BROKER_WEIGHT = 0.50;
+const double PANDORA_XBOOST_V5_RECOVERY_MIN_R = 0.08;
+const double PANDORA_XBOOST_V5_RECOVERY_STRONG_R = 0.20;
+const double PANDORA_XBOOST_V5_RECOVERY_OTHER_FLOOR_R = -0.15;
+const double PANDORA_XBOOST_V5_RECOVERY_CALENDAR_WEIGHT = 0.30;
+const double PANDORA_XBOOST_V5_RECOVERY_SAMPLE_WEIGHT = 0.70;
+const double PANDORA_XBOOST_V5_RECOVERY_BROKER_DISCOUNT = 0.50;
+const double PANDORA_XBOOST_V5_DEEP_BRANCH_EXTRA_PENALTY_R = 0.04;
 const string PANDORA_XBOOST_SESSION_MASK_FILE = "session_mask.csv";
 
 void PandoraXBoostBuildRootCandidates(const SignalParams &root_signal);
@@ -1964,6 +1971,63 @@ bool PandoraXBoostResolveWindowBlend(const int fast_samples,
   return false;
 }
 
+bool PandoraXBoostV5RecentRecoveryActive(const int depth,
+                                         const bool has_calendar,
+                                         const double calendar_recent,
+                                         const bool has_sample,
+                                         const double sample_recent,
+                                         const string freshness_reason)
+{
+  if(freshness_reason == "STALE")
+    return false;
+
+  double recovery_min_r = PANDORA_XBOOST_V5_RECOVERY_MIN_R;
+  if(depth >= 3)
+    recovery_min_r = PANDORA_XBOOST_V5_RECOVERY_STRONG_R;
+
+  bool calendar_recovery = (has_calendar && calendar_recent >= recovery_min_r);
+  bool sample_recovery = (has_sample && sample_recent >= recovery_min_r);
+  if(depth >= 3 && !sample_recovery)
+    return false;
+  if(!calendar_recovery && !sample_recovery)
+    return false;
+
+  if(has_calendar && has_sample)
+  {
+    if(sample_recovery && calendar_recent < PANDORA_XBOOST_V5_RECOVERY_OTHER_FLOOR_R)
+      return false;
+    if(calendar_recovery && sample_recent < PANDORA_XBOOST_V5_RECOVERY_OTHER_FLOOR_R)
+      return false;
+  }
+
+  return true;
+}
+
+bool PandoraXBoostV5BrokerRecoveryActive(const PandoraXBoostCandidate &candidate)
+{
+  int min_samples = PandoraXBoostMinSamplesForDepth(candidate.depth);
+  bool has_calendar =
+    (candidate.local_window_60_samples >= min_samples ||
+     candidate.local_window_120_samples >= min_samples);
+  bool has_sample =
+    (candidate.sample_window_60_samples >= min_samples ||
+     candidate.sample_window_120_samples >= min_samples);
+
+  if(!PandoraXBoostV5RecentRecoveryActive(candidate.depth,
+                                          has_calendar,
+                                          candidate.calendar_recent_r,
+                                          has_sample,
+                                          candidate.sample_recent_r,
+                                          candidate.sample_window_freshness_reason))
+    return false;
+
+  if(candidate.median_r < -PANDORA_XBOOST_ROBUST_BE_TOLERANCE_R &&
+     candidate.profit_factor_r < PANDORA_XBOOST_ROBUST_PAYOFF_MIN_PROFIT_FACTOR)
+    return false;
+
+  return true;
+}
+
 void PandoraXBoostApplyV5ShadowScore(PandoraXBoostCandidate &candidate,
                                      const int min_samples)
 {
@@ -1989,9 +2053,24 @@ void PandoraXBoostApplyV5ShadowScore(PandoraXBoostCandidate &candidate,
   candidate.sample_recent_r = has_sample ? sample_recent : 0.0;
   if(has_calendar && has_sample)
   {
-    candidate.adaptive_recent_r =
-      (calendar_recent * PANDORA_XBOOST_V5_CALENDAR_RECENT_WEIGHT) +
-      (sample_recent * PANDORA_XBOOST_V5_SAMPLE_RECENT_WEIGHT);
+    if(sample_recent > calendar_recent &&
+       PandoraXBoostV5RecentRecoveryActive(candidate.depth,
+                                           has_calendar,
+                                           calendar_recent,
+                                           has_sample,
+                                           sample_recent,
+                                           candidate.sample_window_freshness_reason))
+    {
+      candidate.adaptive_recent_r =
+        (calendar_recent * PANDORA_XBOOST_V5_RECOVERY_CALENDAR_WEIGHT) +
+        (sample_recent * PANDORA_XBOOST_V5_RECOVERY_SAMPLE_WEIGHT);
+    }
+    else
+    {
+      candidate.adaptive_recent_r =
+        (calendar_recent * PANDORA_XBOOST_V5_CALENDAR_RECENT_WEIGHT) +
+        (sample_recent * PANDORA_XBOOST_V5_SAMPLE_RECENT_WEIGHT);
+    }
   }
   else if(has_calendar)
     candidate.adaptive_recent_r = calendar_recent;
@@ -2418,17 +2497,21 @@ void PandoraXBoostApplyBrokerCalibration(PandoraXBoostCandidate &candidate,
       broker_recent_weak = true;
   }
 
+  bool recovery_active = PandoraXBoostV5BrokerRecoveryActive(candidate);
   if(degradation_r > 0.0)
   {
     degradation_r = PandoraXBoostClampDouble(degradation_r,
                                              0.0,
                                              PANDORA_XBOOST_ROBUST_BROKER_DEGRADATION_CAP_R);
+    if(recovery_active)
+      degradation_r *= PANDORA_XBOOST_V5_RECOVERY_BROKER_DISCOUNT;
     candidate.broker_node_degradation_r = degradation_r;
     candidate.broker_degradation_r = degradation_r;
   }
 
-  if((broker_recent_weak && (broker_node_weak || broker_path_weak)) ||
-     (broker_node_weak && broker_path_weak))
+  if(!recovery_active &&
+     ((broker_recent_weak && (broker_node_weak || broker_path_weak)) ||
+      (broker_node_weak && broker_path_weak)))
   {
     candidate.status = PANDORA_XBOOST_CANDIDATE_BLOCK;
     candidate.reason = "BROKER_DEGRADATION";
@@ -2601,6 +2684,8 @@ void PandoraXBoostBuildCandidate(const string strategy_key,
     uncertainty_penalty_r = PANDORA_XBOOST_BAYES_UNCERTAINTY_FLOOR_R;
 
   double depth_penalty_r = (safe_depth - 1) * PANDORA_XBOOST_DEPTH_PENALTY_R;
+  if(safe_depth >= 3)
+    depth_penalty_r += PANDORA_XBOOST_V5_DEEP_BRANCH_EXTRA_PENALTY_R;
   double conservative_score_r = posterior_r -
                                 uncertainty_penalty_r -
                                 depth_penalty_r;
