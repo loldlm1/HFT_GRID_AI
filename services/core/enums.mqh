@@ -41,7 +41,7 @@ enum SignalConcurrencyModes
   MULTIPLE_RUNNING_SIGNALS = 1
 };
 
-enum GridBaseStrategyTypes
+enum RangeStrategyTypes
 {
   ATR_RANGE               = 0,
   POINTS_RANGE            = 1,
@@ -102,26 +102,26 @@ enum BodyMATypes
 	BODY_BEARISH_MA = 2
 };
 
-enum GridOrderStatuses
+enum ExecutionLegStatuses
 {
-  GRID_ORDER_INACTIVE             = 0,
-  GRID_ORDER_WAITING              = 1,
-  GRID_ORDER_STOP_TRAILING_ACTIVE = 2,
-  GRID_ORDER_ACTIVE               = 3,
-  GRID_ORDER_COMPLETED            = 4
+  EXECUTION_LEG_INACTIVE             = 0,
+  EXECUTION_LEG_WAITING              = 1,
+  EXECUTION_LEG_PENDING              = 2,
+  EXECUTION_LEG_ACTIVE               = 3,
+  EXECUTION_LEG_COMPLETED            = 4
 };
 
-enum GridEntryStyles
+enum ExecutionEntryStyles
 {
-  GRID_ENTRY_STYLE_STOP  = 0,
-  GRID_ENTRY_STYLE_LIMIT = 1
+  EXECUTION_ENTRY_STYLE_STOP  = 0,
+  EXECUTION_ENTRY_STYLE_LIMIT = 1
 };
 
-enum GridLotTypes
+enum ExecutionLotTypes
 {
-  GRID_LOT_SIZE             = 0,
-  GRID_LOT_PERCENTAGE_BASED = 1,
-  GRID_LOT_CURRENCY_BASED   = 2
+  EXECUTION_LOT_FIXED_SIZE         = 0,
+  EXECUTION_LOT_ACCOUNT_PERCENTAGE = 1,
+  EXECUTION_LOT_TARGET_CURRENCY    = 2
 };
 
 enum SignalLotStrategyTypes
@@ -167,18 +167,18 @@ enum DstOffsetModes
   DST_MODE_MANUAL      = 2
 };
 
-enum GridTPReferenceModes
+enum ExecutionTPReferenceModes
 {
-  GRID_TP_REF_CURRENT = 0,
-  GRID_TP_REF_NEXT    = 1
+  EXECUTION_TP_REF_CURRENT = 0,
+  EXECUTION_TP_REF_NEXT    = 1
 };
 
 enum ProtectionRiskModes
 {
-  ENABLED_OFF                 = 0,
-  ENABLED_GRID_PROTECTION     = 1,
-  ENABLED_GRID_PROTECTION_DAILY = 2,
-  ENABLED_GRID_PROTECTION_WEEKLY = 3
+  ENABLED_OFF                         = 0,
+  ENABLED_EXECUTION_PROTECTION        = 1,
+  ENABLED_EXECUTION_PROTECTION_DAILY  = 2,
+  ENABLED_EXECUTION_PROTECTION_WEEKLY = 3
 };
 
 enum ProtectionRiskValueTypes

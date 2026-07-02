@@ -35,7 +35,7 @@ bool ResolveGridNextLevelLotPreview(const SignalParams &signal_params,
 
   GridOrderState preview_state;
   preview_state.level_index = next_level_index_out;
-  preview_state.status      = GRID_ORDER_STOP_TRAILING_ACTIVE;
+  preview_state.status      = EXECUTION_LEG_PENDING;
 
   int level_position_start = ResolveFoundationLevelPositionStart();
   preview_state.opens_position = (next_level_index_out >= level_position_start);
@@ -173,10 +173,10 @@ void BuildSignalSummary(const SignalParams &signal_params,
   for(int i = 0; i < total_levels; i++)
   {
     GridOrderState level_state = signal_params.grid_orders[i];
-    if(level_state.status == GRID_ORDER_ACTIVE)
+    if(level_state.status == EXECUTION_LEG_ACTIVE)
       active_levels++;
-    else if(level_state.status == GRID_ORDER_STOP_TRAILING_ACTIVE ||
-            level_state.status == GRID_ORDER_WAITING)
+    else if(level_state.status == EXECUTION_LEG_PENDING ||
+            level_state.status == EXECUTION_LEG_WAITING)
       pending_levels++;
   }
 

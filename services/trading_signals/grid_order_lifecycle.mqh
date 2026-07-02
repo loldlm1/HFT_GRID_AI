@@ -1,8 +1,8 @@
 //+------------------------------------------------------------------+
 //|                   microservices/trading_signals/... lifecycle    |
 //+------------------------------------------------------------------+
-#ifndef _MICROSERVICES_TRADING_SIGNALS_GRID_ORDER_LIFECYCLE_MQH_
-#define _MICROSERVICES_TRADING_SIGNALS_GRID_ORDER_LIFECYCLE_MQH_
+#ifndef _SERVICES_TRADING_SIGNALS_EXECUTION_LIFECYCLE_MQH_
+#define _SERVICES_TRADING_SIGNALS_EXECUTION_LIFECYCLE_MQH_
 // grid_price_resolver is provided via the trading_signals include cascade
 #include "grid_order_helpers.mqh"
 
@@ -219,7 +219,7 @@ bool GridExecuteLevelTrade(SignalParams &signal_params,
     if(fill_price <= 0.0)
       fill_price = GridCurrentPriceForDirection(direction, true);
 
-    order_state.status            = GRID_ORDER_ACTIVE;
+    order_state.status            = EXECUTION_LEG_ACTIVE;
     order_state.entry_price       = fill_price;
     order_state.position_ticket   = 0;
     order_state.position_comment  = comment;
@@ -260,7 +260,7 @@ bool GridExecuteLevelTrade(SignalParams &signal_params,
   if(fill_price <= 0.0)
     fill_price = GridCurrentPriceForDirection(direction, true);
 
-  order_state.status = GRID_ORDER_ACTIVE;
+  order_state.status = EXECUTION_LEG_ACTIVE;
   order_state.entry_price = fill_price;
   ulong deal_ticket = (ulong)g_position.ResultDeal();
   order_state.position_ticket = ResolvePositionTicketFromDeal(deal_ticket);
@@ -402,7 +402,7 @@ bool ResolveSignalTrailingPartialCloseCandidates(const SignalParams &signal_para
     GridOrderState state = signal_params.grid_orders[idx];
     if(!state.opens_position)
       continue;
-    if(state.status != GRID_ORDER_ACTIVE)
+    if(state.status != EXECUTION_LEG_ACTIVE)
       continue;
     if(state.position_ticket <= 0)
       continue;
@@ -490,9 +490,9 @@ bool GridCloseSignalVolumeByPriority(SignalParams &signal_params,
 
     RegisterSignalRealizedClose(signal_params, state, closed_volume, close_price);
     if(fully_closed)
-      state.status = GRID_ORDER_COMPLETED;
+      state.status = EXECUTION_LEG_COMPLETED;
     else
-      state.status = GRID_ORDER_ACTIVE;
+      state.status = EXECUTION_LEG_ACTIVE;
 
     signal_params.grid_orders[order_index] = state;
     remaining_to_close -= closed_volume;
@@ -518,7 +518,7 @@ void GridCloseAllLevels(SignalParams &signal_params,
     if(result)
     {
       RegisterSignalRealizedClose(signal_params, state, tracked_volume, close_price);
-      state.status = GRID_ORDER_COMPLETED;
+      state.status = EXECUTION_LEG_COMPLETED;
     }
     GridLogEvent("LEVEL_CLOSE_ALL", signal_params, state);
     signal_params.grid_orders[i] = state;
@@ -568,9 +568,9 @@ bool IsGridSignalComplete(const SignalParams &signal_params)
   for(int i = 0; i < total_levels; i++)
   {
     GridOrderState state = signal_params.grid_orders[i];
-    if(state.status == GRID_ORDER_WAITING ||
-       state.status == GRID_ORDER_STOP_TRAILING_ACTIVE ||
-       state.status == GRID_ORDER_ACTIVE)
+    if(state.status == EXECUTION_LEG_WAITING ||
+       state.status == EXECUTION_LEG_PENDING ||
+       state.status == EXECUTION_LEG_ACTIVE)
       return false;
   }
 
@@ -590,4 +590,4 @@ bool IsGridSignalComplete(const SignalParams &signal_params)
   return (attached_positions == 0);
 }
 
-#endif // _MICROSERVICES_TRADING_SIGNALS_GRID_ORDER_LIFECYCLE_MQH_
+#endif // _SERVICES_TRADING_SIGNALS_EXECUTION_LIFECYCLE_MQH_

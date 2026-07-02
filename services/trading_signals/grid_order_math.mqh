@@ -1,27 +1,27 @@
 //+------------------------------------------------------------------+
 //|                        microservices/trading_signals/... math    |
 //+------------------------------------------------------------------+
-#ifndef _MICROSERVICES_TRADING_SIGNALS_GRID_ORDER_MATH_MQH_
-#define _MICROSERVICES_TRADING_SIGNALS_GRID_ORDER_MATH_MQH_
+#ifndef _SERVICES_TRADING_SIGNALS_EXECUTION_LOT_MATH_MQH_
+#define _SERVICES_TRADING_SIGNALS_EXECUTION_LOT_MATH_MQH_
 // grid_order_helpers is provided earlier in the trading_signals cascade
 
-GridLotTypes ResolveEffectiveGridLotType(const GridLotTypes lot_type)
+ExecutionLotTypes ResolveEffectiveGridLotType(const ExecutionLotTypes lot_type)
 {
-  if(lot_type == GRID_LOT_PERCENTAGE_BASED ||
-     lot_type == GRID_LOT_CURRENCY_BASED ||
-     lot_type == GRID_LOT_SIZE)
+  if(lot_type == EXECUTION_LOT_ACCOUNT_PERCENTAGE ||
+     lot_type == EXECUTION_LOT_TARGET_CURRENCY ||
+     lot_type == EXECUTION_LOT_FIXED_SIZE)
   {
     return lot_type;
   }
 
-  return GRID_LOT_SIZE;
+  return EXECUTION_LOT_FIXED_SIZE;
 }
 
-bool GridIsTargetProfitLotType(const GridLotTypes lot_type)
+bool GridIsTargetProfitLotType(const ExecutionLotTypes lot_type)
 {
-  GridLotTypes effective_lot_type = ResolveEffectiveGridLotType(lot_type);
-  return (effective_lot_type == GRID_LOT_PERCENTAGE_BASED ||
-          effective_lot_type == GRID_LOT_CURRENCY_BASED);
+  ExecutionLotTypes effective_lot_type = ResolveEffectiveGridLotType(lot_type);
+  return (effective_lot_type == EXECUTION_LOT_ACCOUNT_PERCENTAGE ||
+          effective_lot_type == EXECUTION_LOT_TARGET_CURRENCY);
 }
 
 bool GridUsesTargetProfitLotMode()
@@ -29,10 +29,10 @@ bool GridUsesTargetProfitLotMode()
   return GridIsTargetProfitLotType(ResolveEffectiveGridLotType(Lot_Type));
 }
 
-bool GridShouldApplyLotMultiplier(const GridLotTypes lot_type)
+bool GridShouldApplyLotMultiplier(const ExecutionLotTypes lot_type)
 {
-  GridLotTypes effective_lot_type = ResolveEffectiveGridLotType(lot_type);
-  return (effective_lot_type == GRID_LOT_SIZE);
+  ExecutionLotTypes effective_lot_type = ResolveEffectiveGridLotType(lot_type);
+  return (effective_lot_type == EXECUTION_LOT_FIXED_SIZE);
 }
 
 double ResolveTargetProfitFactorFromPercent(const double tp_percent)
@@ -43,20 +43,20 @@ double ResolveTargetProfitFactorFromPercent(const double tp_percent)
   return tp_percent / 100.0;
 }
 
-double ResolveTargetProfitAmountFromInputs(const GridLotTypes lot_type,
+double ResolveTargetProfitAmountFromInputs(const ExecutionLotTypes lot_type,
                                            const double lot_strategy_size,
                                            const double tp_percent,
                                            const double account_balance,
                                            const double account_size_fallback)
 {
-  GridLotTypes effective_lot_type = ResolveEffectiveGridLotType(lot_type);
+  ExecutionLotTypes effective_lot_type = ResolveEffectiveGridLotType(lot_type);
   double factor = ResolveTargetProfitFactorFromPercent(tp_percent);
   double strategy_size = MathAbs(lot_strategy_size);
 
-  if(effective_lot_type == GRID_LOT_CURRENCY_BASED)
+  if(effective_lot_type == EXECUTION_LOT_TARGET_CURRENCY)
     return strategy_size * factor;
 
-  if(effective_lot_type == GRID_LOT_PERCENTAGE_BASED)
+  if(effective_lot_type == EXECUTION_LOT_ACCOUNT_PERCENTAGE)
   {
     double account_reference = MathAbs(account_balance);
     if(account_reference <= 0.0)
@@ -71,7 +71,7 @@ double ResolveTargetProfitAmountFromInputs(const GridLotTypes lot_type,
   return strategy_size;
 }
 
-double ResolveGridRuntimeTargetProfitAmount(const GridLotTypes lot_type)
+double ResolveGridRuntimeTargetProfitAmount(const ExecutionLotTypes lot_type)
 {
   double account_balance = AccountInfoDouble(ACCOUNT_BALANCE);
   return ResolveTargetProfitAmountFromInputs(lot_type,
@@ -175,7 +175,7 @@ double ResolveProjectedBasketProfitAtPrice(const SignalParams &signal_params,
     GridOrderState state = signal_params.grid_orders[idx];
     if(!state.opens_position)
       continue;
-    if(state.status != GRID_ORDER_ACTIVE)
+    if(state.status != EXECUTION_LEG_ACTIVE)
       continue;
     if(state.lot_size <= 0.0)
       continue;
@@ -323,4 +323,4 @@ bool NormalizeTargetModeRequiredLot(const string symbol,
   return true;
 }
 
-#endif // _MICROSERVICES_TRADING_SIGNALS_GRID_ORDER_MATH_MQH_
+#endif // _SERVICES_TRADING_SIGNALS_EXECUTION_LOT_MATH_MQH_

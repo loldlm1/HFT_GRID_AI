@@ -203,7 +203,7 @@ void ProtectionRiskResetDailyLock()
     return;
 
   ENUM_TIMEFRAMES anchor_tf = PERIOD_D1;
-  if(Protection_Risk_Mode == ENABLED_GRID_PROTECTION_WEEKLY)
+  if(Protection_Risk_Mode == ENABLED_EXECUTION_PROTECTION_WEEKLY)
     anchor_tf = PERIOD_W1;
 
   datetime current_anchor = iTime(_Symbol, anchor_tf, 0);
@@ -344,12 +344,12 @@ void ProtectionRiskFilterTick()
   if(ProtectionRiskHasActiveEntities())
     ProtectionRiskScheduleForceClose("Drawdown guard pending close");
 
-  if(Protection_Risk_Mode == ENABLED_GRID_PROTECTION_DAILY)
+  if(Protection_Risk_Mode == ENABLED_EXECUTION_PROTECTION_DAILY)
   {
     g_protection_daily_lock_active = true;
     g_protection_daily_lock_anchor = iTime(_Symbol, PERIOD_D1, 0);
   }
-  if(Protection_Risk_Mode == ENABLED_GRID_PROTECTION_WEEKLY)
+  if(Protection_Risk_Mode == ENABLED_EXECUTION_PROTECTION_WEEKLY)
   {
     g_protection_daily_lock_active = true;
     g_protection_daily_lock_anchor = iTime(_Symbol, PERIOD_W1, 0);
@@ -363,8 +363,8 @@ bool ProtectionRiskAllowsSignalAttempt()
     return false;
   if(Protection_Risk_Mode == ENABLED_OFF)
     return true;
-  if((Protection_Risk_Mode == ENABLED_GRID_PROTECTION_DAILY ||
-      Protection_Risk_Mode == ENABLED_GRID_PROTECTION_WEEKLY) &&
+  if((Protection_Risk_Mode == ENABLED_EXECUTION_PROTECTION_DAILY ||
+      Protection_Risk_Mode == ENABLED_EXECUTION_PROTECTION_WEEKLY) &&
      g_protection_daily_lock_active)
     return false;
 

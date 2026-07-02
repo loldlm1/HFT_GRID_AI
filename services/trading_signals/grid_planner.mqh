@@ -79,7 +79,7 @@ bool CalculateBaseGridContext(const SignalParams &signal_params,
   if(point_size <= 0.0 || direction_mult == 0.0 || entry_reference_price <= 0.0)
     return false;
 
-  GridBaseStrategyTypes base_strategy = Base_Strategy_Type;
+  RangeStrategyTypes base_strategy = Base_Strategy_Type;
   if(base_strategy == FIB_LEVEL_RANGE)
   {
     int fibo_steps = 1;
@@ -117,10 +117,10 @@ bool CalculateBaseGridContext(const SignalParams &signal_params,
 
 double ResolveBaseGridLot(const double base_distance_points)
 {
-  GridLotTypes effective_lot_type = ResolveEffectiveGridLotType(Lot_Type);
+  ExecutionLotTypes effective_lot_type = ResolveEffectiveGridLotType(Lot_Type);
   double base_lot = MathAbs(Lot_Strategy_Size);
 
-  if(effective_lot_type == GRID_LOT_SIZE)
+  if(effective_lot_type == EXECUTION_LOT_FIXED_SIZE)
     return NormalizeVolumeForSymbol(_Symbol, base_lot);
 
   if(!GridIsTargetProfitLotType(effective_lot_type))
@@ -181,8 +181,8 @@ int ResolveExecutedPositionIndex(const SignalParams &signal_params,
     GridOrderState prior_state = signal_params.grid_orders[i];
     if(!prior_state.opens_position)
       continue;
-    if(prior_state.status == GRID_ORDER_COMPLETED ||
-       prior_state.status == GRID_ORDER_INACTIVE)
+    if(prior_state.status == EXECUTION_LEG_COMPLETED ||
+       prior_state.status == EXECUTION_LEG_INACTIVE)
       continue;
     executed_index++;
   }
@@ -314,7 +314,7 @@ double ResolveGridOrderLotSize(SignalParams &signal_params,
 
   double resolved_lot = fallback_lot;
 
-  GridLotTypes effective_lot_type = ResolveEffectiveGridLotType(Lot_Type);
+  ExecutionLotTypes effective_lot_type = ResolveEffectiveGridLotType(Lot_Type);
   if(GridIsTargetProfitLotType(effective_lot_type))
   {
     double target_amount = ResolveGridRuntimeTargetProfitAmount(effective_lot_type);
@@ -530,7 +530,7 @@ bool BuildGridOrderForSignal(SignalParams &signal_params)
 
   // Seed level n
   signal_params.grid_orders[grid_order_level].level_index = grid_order_level;
-  signal_params.grid_orders[grid_order_level].status      = GRID_ORDER_STOP_TRAILING_ACTIVE;
+  signal_params.grid_orders[grid_order_level].status      = EXECUTION_LEG_PENDING;
   ResetGridOrderPricesByDirection(signal_params, grid_order_level);
   int level_position_start = ResolveFoundationLevelPositionStart();
   signal_params.grid_orders[grid_order_level].opens_position = (grid_order_level >= level_position_start);

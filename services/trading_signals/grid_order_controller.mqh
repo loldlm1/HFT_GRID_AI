@@ -1,5 +1,5 @@
-#ifndef _SERVICES_TRADING_SIGNALS_GRID_ORDER_CONTROLLER_MQH_
-#define _SERVICES_TRADING_SIGNALS_GRID_ORDER_CONTROLLER_MQH_
+#ifndef _SERVICES_TRADING_SIGNALS_EXECUTION_CONTROLLER_MQH_
+#define _SERVICES_TRADING_SIGNALS_EXECUTION_CONTROLLER_MQH_
 
 void UpdateGridLifecycle(SignalParams &signal_params)
 {
@@ -20,7 +20,7 @@ void UpdateGridLifecycle(SignalParams &signal_params)
     return;
   }
 
-  if(grid_order.status == GRID_ORDER_STOP_TRAILING_ACTIVE)
+  if(grid_order.status == EXECUTION_LEG_PENDING)
   {
     if(UpdateGridOrderForSignal(signal_params))
       grid_order = signal_params.grid_orders[grid_order_level];
@@ -72,7 +72,7 @@ void UpdateGridLifecycle(SignalParams &signal_params)
 
   grid_order = signal_params.grid_orders[grid_order_level];
 
-  if(grid_order.status == GRID_ORDER_ACTIVE)
+  if(grid_order.status == EXECUTION_LEG_ACTIVE)
   {
     double current_price = GridCurrentPriceForDirection(direction, false);
     if(grid_order.take_profit_price > 0.0)
@@ -117,4 +117,4 @@ void UpdateGridLifecycle(SignalParams &signal_params)
     signal_params.signal_state = CLOSED;
 }
 
-#endif // _SERVICES_TRADING_SIGNALS_GRID_ORDER_CONTROLLER_MQH_
+#endif // _SERVICES_TRADING_SIGNALS_EXECUTION_CONTROLLER_MQH_

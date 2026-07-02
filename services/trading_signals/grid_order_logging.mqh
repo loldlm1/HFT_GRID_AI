@@ -1,8 +1,8 @@
 //+------------------------------------------------------------------+
 //|                   microservices/trading_signals/... logging      |
 //+------------------------------------------------------------------+
-#ifndef _MICROSERVICES_TRADING_SIGNALS_GRID_ORDER_LOGGING_MQH_
-#define _MICROSERVICES_TRADING_SIGNALS_GRID_ORDER_LOGGING_MQH_
+#ifndef _SERVICES_TRADING_SIGNALS_EXECUTION_LOGGING_MQH_
+#define _SERVICES_TRADING_SIGNALS_EXECUTION_LOGGING_MQH_
 
 #include "grid_order_helpers.mqh"
 
@@ -482,4 +482,4 @@ void GridLogGuardrailBlock(const string label,
   GridAppendQueryDebugLog(label, message);
 }
 
-#endif // _MICROSERVICES_TRADING_SIGNALS_GRID_ORDER_LOGGING_MQH_
+#endif // _SERVICES_TRADING_SIGNALS_EXECUTION_LOGGING_MQH_

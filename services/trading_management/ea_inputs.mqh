@@ -9,8 +9,8 @@
 // (directly or through the trading_management aggregator).
 
 // DEFAULT VALUES (can be inputs)
-GridEntryStyles      Grid_Initial_Entry_Style = GRID_ENTRY_STYLE_STOP;
-GridEntryStyles      Grid_Deep_Entry_Style    = GRID_ENTRY_STYLE_STOP;
+ExecutionEntryStyles      Execution_Initial_Entry_Style = EXECUTION_ENTRY_STYLE_STOP;
+ExecutionEntryStyles      Execution_Deep_Entry_Style    = EXECUTION_ENTRY_STYLE_STOP;
 
 input group  "+= Fibonacci EA V1.0 =+";
 input string EA_License_Key = "";
@@ -44,9 +44,9 @@ input StrategyDirectionTypes    Strategy_Direction_Mode     = BOTH_DIRECTION;
 input SignalConcurrencyModes    Signal_Concurrency_Mode     = MULTIPLE_RUNNING_SIGNALS;
 
 input group  "+= Risk Managment Settings =+";
-input GridBaseStrategyTypes Base_Strategy_Type       = FIB_LEVEL_RANGE;
+input RangeStrategyTypes Base_Strategy_Type       = FIB_LEVEL_RANGE;
 input double                Points_Range_Setup       = 100.0;
-input GridLotTypes          Lot_Type                 = GRID_LOT_SIZE;
+input ExecutionLotTypes          Lot_Type                 = EXECUTION_LOT_FIXED_SIZE;
 input double                Lot_Strategy_Size        = 0.01;
 input double                Lot_Multiplier           = 2.0;
 input SignalLotStrategyTypes Signal_Lot_Strategy     = RISK_STRATEGY_OFF;

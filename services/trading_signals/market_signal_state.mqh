@@ -416,8 +416,8 @@ bool ResolveSignalAttemptPermission(const SignalTypes signal_type,
 
     if(!MarketStatusAllowsSignalAttempts())
       block_reason_out = "Market status blocked: " + MarketStatusToString(MarketStatusGet());
-    else if((Protection_Risk_Mode == ENABLED_GRID_PROTECTION_DAILY ||
-             Protection_Risk_Mode == ENABLED_GRID_PROTECTION_WEEKLY) &&
+    else if((Protection_Risk_Mode == ENABLED_EXECUTION_PROTECTION_DAILY ||
+             Protection_Risk_Mode == ENABLED_EXECUTION_PROTECTION_WEEKLY) &&
             ProtectionRiskDailyLockActive())
       block_reason_out = "Risk protection lock is active";
     else

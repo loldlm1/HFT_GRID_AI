@@ -9,8 +9,8 @@
 struct GridOrderState
 {
   int               level_index;
-  GridOrderStatuses status;
-  GridEntryStyles   entry_style;
+  ExecutionLegStatuses status;
+  ExecutionEntryStyles   entry_style;
 
   double lot_size;
   double initial_lot_size;
@@ -29,8 +29,8 @@ struct GridOrderState
   GridOrderState()
   {
     level_index                 = -1;
-    status                      = GRID_ORDER_INACTIVE;
-    entry_style                 = GRID_ENTRY_STYLE_STOP;
+    status                      = EXECUTION_LEG_INACTIVE;
+    entry_style                 = EXECUTION_ENTRY_STYLE_STOP;
     lot_size                    = 0.0;
     initial_lot_size            = 0.0;
     next_level_price            = 0.0;

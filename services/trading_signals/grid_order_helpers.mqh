@@ -1,8 +1,8 @@
 //+------------------------------------------------------------------+
 //|                               microservices/trading_signals/... |
 //+------------------------------------------------------------------+
-#ifndef _MICROSERVICES_TRADING_SIGNALS_GRID_ORDER_HELPERS_MQH_
-#define _MICROSERVICES_TRADING_SIGNALS_GRID_ORDER_HELPERS_MQH_
+#ifndef _SERVICES_TRADING_SIGNALS_EXECUTION_LEG_HELPERS_MQH_
+#define _SERVICES_TRADING_SIGNALS_EXECUTION_LEG_HELPERS_MQH_
 
 const double FOUNDATION_LEVEL_EXPONENTIAL_MULTIPLIER = 1.0;
 const int FOUNDATION_LEVEL_POSITION_START = 0;
@@ -232,7 +232,7 @@ void GridResetOrderStateForWaiting(GridOrderState &state,
   int level_index = state.level_index;
   state = template_state;
   state.level_index        = level_index;
-  state.status             = GRID_ORDER_WAITING;
+  state.status             = EXECUTION_LEG_WAITING;
   state.entry_price        = 0.0;
   state.take_profit_price  = 0.0;
   state.next_level_price   = template_state.next_level_price;
@@ -570,9 +570,9 @@ bool GridFindLatestFilledOrder(const SignalParams &signal_params,
       continue;
     if(state.entry_price <= 0.0)
       continue;
-    if(state.status == GRID_ORDER_INACTIVE ||
-       state.status == GRID_ORDER_WAITING ||
-       state.status == GRID_ORDER_STOP_TRAILING_ACTIVE)
+    if(state.status == EXECUTION_LEG_INACTIVE ||
+       state.status == EXECUTION_LEG_WAITING ||
+       state.status == EXECUTION_LEG_PENDING)
       continue;
     state_out = state;
     return true;
@@ -589,8 +589,8 @@ bool GridSignalHasExecutedLevel(const SignalParams &signal_params)
     GridOrderState state = signal_params.grid_orders[idx];
     if(state.entry_price <= 0.0)
       continue;
-    if(state.status == GRID_ORDER_ACTIVE ||
-       state.status == GRID_ORDER_COMPLETED)
+    if(state.status == EXECUTION_LEG_ACTIVE ||
+       state.status == EXECUTION_LEG_COMPLETED)
       return true;
   }
   return false;
@@ -1200,4 +1200,4 @@ bool ResolveFibonacciGridBaseDistance(const SignalParams &signal_params,
   return (distance_points_out > 0.0);
 }
 
-#endif // _MICROSERVICES_TRADING_SIGNALS_GRID_ORDER_HELPERS_MQH_
+#endif // _SERVICES_TRADING_SIGNALS_EXECUTION_LEG_HELPERS_MQH_
