@@ -175,6 +175,57 @@ Safety ownership contract:
 
 Any later phase that touches these controls must call out risk level in its phase plan and close with the end-of-phase MT5 compile gate.
 
+### Sprint 4 Completion: Compile Strategy And Phase 1 Readiness
+
+**Status**: Completed
+**Validation**: Path presence review only; no MT5 compile executed.
+**Commit target**: `docs: prepare phase 1 docs reset`
+
+Confirmed local MT5 paths:
+
+| Path | Status |
+| --- | --- |
+| `C:\Program Files\MetaTrader 5-1\MetaEditor64.exe` | Exists |
+| `C:\Program Files\MetaTrader 5-1\terminal64.exe` | Exists |
+| `C:\Program Files\MetaTrader 5-1\MQL5\Experts\HFT_Grid_AI\HFT_Grid_AI.mq5` | Exists |
+
+Confirmed end-of-phase compile command for implementation phases:
+
+```powershell
+$mt5Root = "C:\Program Files\MetaTrader 5-1"
+$metaeditor = Join-Path $mt5Root "MetaEditor64.exe"
+$entrypoint = Join-Path $mt5Root "MQL5\Experts\HFT_Grid_AI\HFT_Grid_AI.mq5"
+$log = Join-Path $mt5Root "MQL5\Experts\HFT_Grid_AI\logs\compile\phase-build.log"
+& $metaeditor /portable /s /compile:$entrypoint /log:$log
+```
+
+Confirmed fallback compile command:
+
+```powershell
+& $metaeditor /s /compile:$entrypoint /log:$log
+```
+
+Phase 1 intake notes:
+
+- Rewrite `AGENTS.md` around the refounded include pipeline, compile-only validation, no custom tests, no deprecated shims, no `GRID_` public domain, and broker-aware execution ownership.
+- Rewrite `README.md` to remove active legacy feature, add-on, and test-runner guidance.
+- Add or update an architecture document for local-and-broker-conditions-first execution.
+- Apply Sprint 2 documentation classification before code deletion begins.
+- Keep Phase 1 documentation-only unless the phase-specific `$planner` plan explicitly expands scope.
+
+Open decisions for Phase 1 planning:
+
+- Decide whether `docs/product_copy/` remains active. If not, delete the product-copy tree instead of rewriting base/session files.
+- Decide whether `docs/addons/input-migration-2026-02-17.md` has audit value. Default is delete from active docs if no audit need is stated.
+- Decide whether a tiny compile-only helper script is worth adding later. Default is no helper; use direct MetaEditor commands in phase plans.
+
+Phase 0 completion state:
+
+- Sprints 1-4 completed.
+- No `.mq5` or `.mqh` files changed.
+- No tests, scripts, or production files deleted.
+- No MT5 compile executed because Phase 0 remained documentation-only.
+
 ## Sprint 1: Scope Freeze
 
 **Goal**: Confirm the exact refoundation scope before implementation.  
