@@ -79,7 +79,7 @@ string ResolveLightweightUiRowLabel(const LightweightUiRowLabelKeys label_key,
   bool short_labels = (compact_mode || pressured_mode);
 
   if(label_key == LIGHTWEIGHT_UI_LABEL_FIBONACCI)
-    return (short_labels ? "Fib EA" : "Fibonacci EA");
+    return (short_labels ? "Exec EA" : "Execution EA");
   if(label_key == LIGHTWEIGHT_UI_LABEL_ALGO)
     return (short_labels ? "Algo" : "Algo Trading");
   if(label_key == LIGHTWEIGHT_UI_LABEL_MANUAL)
@@ -193,9 +193,9 @@ color ResolveUiButtonTextColor(const long chart_id)
 }
 
 color ResolveUiButtonBackground(const long chart_id,
-                                const bool fib_ea_enabled)
+                                const bool execution_ea_enabled)
 {
-  if(fib_ea_enabled)
+  if(execution_ea_enabled)
     return ResolveChartColor(chart_id, CHART_COLOR_CHART_UP, COLOR_PROFIT_POSITIVE);
 
   return ResolveChartColor(chart_id, CHART_COLOR_CHART_DOWN, COLOR_PROFIT_NEGATIVE);
@@ -824,15 +824,15 @@ string ResolveRuntimeTickBlockReason()
 
 string ResolveFibEaButtonText()
 {
-  bool fib_ea_enabled = ManualSignalEntryEnabled() && TerminalAlgoTradingEnabled();
-  return "FIBONACCI EA: " + BoolOnOff(fib_ea_enabled);
+  bool execution_ea_enabled = ManualSignalEntryEnabled() && TerminalAlgoTradingEnabled();
+  return "EXECUTION EA: " + BoolOnOff(execution_ea_enabled);
 }
 
 void BuildLightweightUiRowSets(const bool compact_mode,
                                const bool pressured_mode,
                                const int row_max_chars,
                                const bool ea_running,
-                               const bool fib_ea_enabled,
+                               const bool execution_ea_enabled,
                                const bool algo_enabled,
                                const bool manual_enabled,
                                const bool signal_gate_enabled,
@@ -861,7 +861,7 @@ void BuildLightweightUiRowSets(const bool compact_mode,
                       ResolveLightweightUiRowLabel(LIGHTWEIGHT_UI_LABEL_FIBONACCI,
                                                    compact_mode,
                                                    pressured_mode),
-                      BoolOnOff(fib_ea_enabled && ea_running),
+                      BoolOnOff(execution_ea_enabled && ea_running),
                       row_max_chars);
   AddLightweightUiRow(core_rows,
                       ResolveLightweightUiRowLabel(LIGHTWEIGHT_UI_LABEL_ALGO,
@@ -1034,7 +1034,7 @@ void RenderLightweightStatusTable(const bool ea_running,
     effective_reason = runtime_reason;
   }
 
-  bool fib_ea_enabled = (effective_source == "");
+  bool execution_ea_enabled = (effective_source == "");
   bool algo_enabled = TerminalAlgoTradingEnabled();
   bool manual_enabled = ManualSignalEntryEnabled();
 
@@ -1058,7 +1058,7 @@ void RenderLightweightStatusTable(const bool ea_running,
                             false,
                             LIGHTWEIGHT_UI_FIT_RAW_ROW_MAX_CHARS,
                             ea_running,
-                            fib_ea_enabled,
+                            execution_ea_enabled,
                             algo_enabled,
                             manual_enabled,
                             signal_gate_enabled,
@@ -1107,7 +1107,7 @@ void RenderLightweightStatusTable(const bool ea_running,
                             fit_decision.pressured,
                             base_layout.max_row_chars,
                             ea_running,
-                            fib_ea_enabled,
+                            execution_ea_enabled,
                             algo_enabled,
                             manual_enabled,
                             signal_gate_enabled,
@@ -1242,7 +1242,7 @@ void RenderLightweightStatusTable(const bool ea_running,
     layout_changed = true;
   }
 
-  color button_bg = ResolveUiButtonBackground(chart_id, fib_ea_enabled);
+  color button_bg = ResolveUiButtonBackground(chart_id, execution_ea_enabled);
   ObjectSetInteger(chart_id, EA_CHART_UI_TOGGLE, OBJPROP_BGCOLOR, button_bg);
 
   if(layout.show_details_button)

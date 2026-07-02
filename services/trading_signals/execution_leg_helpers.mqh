@@ -366,7 +366,7 @@ double GetExecutionNextLevelPrice(SignalTypes direction, SignalParams &signal_pa
                                                                   execution_leg_state);
   double execution_next_level_price   = execution_leg_state.next_level_price;
 
-  if(Base_Strategy_Type == FIB_LEVEL_RANGE)
+  if(Strategy_Range_Mode == STRATEGY_RANGE_STRUCTURE)
   {
     double fib_level_price = 0.0;
     if(ResolveFibonacciExecutionLevelPrice(signal_params, execution_leg_state.level_index, fib_level_price))
@@ -485,7 +485,7 @@ double ComputeLevelDistancePoints(const SignalParams &signal_params,
 double ResolveExecutionLegDistancePoints(const SignalParams &signal_params,
                                       const ExecutionLegState &state)
 {
-  if(Base_Strategy_Type == FIB_LEVEL_RANGE)
+  if(Strategy_Range_Mode == STRATEGY_RANGE_STRUCTURE)
   {
     double fib_level_price = 0.0;
     if(!ResolveFibonacciExecutionLevelPrice(signal_params, state.level_index, fib_level_price))
@@ -1117,7 +1117,7 @@ bool ResolveFibonacciExecutionBaseDistance(const SignalParams &signal_params,
   if(total_levels < 2)
     return false;
 
-  double required_points = EnforceBrokerDistance(g_symbol_constraints, Points_Range_Setup);
+  double required_points = EnforceBrokerDistance(g_symbol_constraints, Strategy_Range_Points);
   int max_steps = total_levels + 10;
 
   if(SignalUsesBreakoutLimitAnchoring(signal_params))

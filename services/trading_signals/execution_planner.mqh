@@ -79,8 +79,8 @@ bool CalculateBaseExecutionContext(const SignalParams &signal_params,
   if(point_size <= 0.0 || direction_mult == 0.0 || entry_reference_price <= 0.0)
     return false;
 
-  RangeStrategyTypes base_strategy = Base_Strategy_Type;
-  if(base_strategy == FIB_LEVEL_RANGE)
+  StrategyRangeTypes base_strategy = Strategy_Range_Mode;
+  if(base_strategy == STRATEGY_RANGE_STRUCTURE)
   {
     int fibo_steps = 1;
     double fibo_distance = 0.0;
@@ -94,18 +94,18 @@ bool CalculateBaseExecutionContext(const SignalParams &signal_params,
     return (distance_points > 0.0);
   }
 
-  if(base_strategy != POINTS_RANGE && base_strategy != ATR_RANGE)
-    base_strategy = POINTS_RANGE;
+  if(base_strategy != STRATEGY_RANGE_POINTS && base_strategy != STRATEGY_RANGE_ATR)
+    base_strategy = STRATEGY_RANGE_POINTS;
 
   double requested_points = 0.0;
-  if(base_strategy == ATR_RANGE)
+  if(base_strategy == STRATEGY_RANGE_ATR)
   {
     if(!ResolveAtrRangeDistancePoints(tf, requested_points))
       return false;
   }
   else
   {
-    requested_points = EnforceBrokerDistance(g_symbol_constraints, Points_Range_Setup);
+    requested_points = EnforceBrokerDistance(g_symbol_constraints, Strategy_Range_Points);
   }
 
   double projected_price = entry_reference_price + direction_mult * requested_points * point_size;
@@ -357,7 +357,7 @@ void LogExecutionPlanDiagnostics(const SignalParams &signal_params,
                                base_distance_points,
                                signal_params.execution_entry_reference_price);
 
-  if(Base_Strategy_Type == FIB_LEVEL_RANGE)
+  if(Strategy_Range_Mode == STRATEGY_RANGE_STRUCTURE)
   {
     bool resolved_entry_ok = SignalHasResolvedFibonacciEntryAnchor(signal_params);
     double resolved_entry_percent = signal_params.resolved_fibonacci_entry.percent;
@@ -487,7 +487,7 @@ bool BuildExecutionSignalPoints(SignalParams &signal_params)
   signal_params.execution_entry_reference_price     = entry_reference_price;
   signal_params.execution_entry_gap_points          = base_distance_points;
   signal_params.execution_entry_offset_points       = entry_offset_points;
-  if(Base_Strategy_Type == FIB_LEVEL_RANGE)
+  if(Strategy_Range_Mode == STRATEGY_RANGE_STRUCTURE)
   {
     if(fibo_steps <= 0)
       fibo_steps = 1;

@@ -12,7 +12,7 @@
 ExecutionEntryStyles      Execution_Initial_Entry_Style = EXECUTION_ENTRY_STYLE_STOP;
 ExecutionEntryStyles      Execution_Deep_Entry_Style    = EXECUTION_ENTRY_STYLE_STOP;
 
-input group  "+= Fibonacci EA V1.0 =+";
+input group  "+= Execution Foundation EA =+";
 input string EA_License_Key = "";
 
 input group  "+= Account Settings EA =+";
@@ -43,12 +43,12 @@ input int                       Stoch_Structure_Period_Type = 5;
 input StrategyDirectionTypes    Strategy_Direction_Mode     = BOTH_DIRECTION;
 input SignalConcurrencyModes    Signal_Concurrency_Mode     = MULTIPLE_RUNNING_SIGNALS;
 
-input group  "+= Risk Managment Settings =+";
-input RangeStrategyTypes Base_Strategy_Type       = FIB_LEVEL_RANGE;
-input double                Points_Range_Setup       = 100.0;
-input ExecutionLotTypes          Lot_Type                 = EXECUTION_LOT_FIXED_SIZE;
-input double                Lot_Strategy_Size        = 0.01;
-input double                Lot_Multiplier           = 2.0;
+input group  "+= Strategy Range And Risk Settings =+";
+input StrategyRangeTypes    Strategy_Range_Mode   = STRATEGY_RANGE_STRUCTURE;
+input double                Strategy_Range_Points = 100.0;
+input ExecutionLotTypes     Lot_Type              = EXECUTION_LOT_FIXED_SIZE;
+input double                Lot_Strategy_Size     = 0.01;
+input double                Lot_Multiplier        = 2.0;
 input SignalLotStrategyTypes Signal_Lot_Strategy     = RISK_STRATEGY_OFF;
 input double                TP_Percent               = 100.0;
 input int                   Daily_Signal_Limit       = 0;

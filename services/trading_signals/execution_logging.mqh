@@ -145,8 +145,8 @@ void EnsureQueryDebugSessionHeaderLogged()
 
   ExecutionAppendTimestampedQueryDebug("INPUTS_EXECUTION",
                                   StringFormat("base=%s|points_range=%.1f|execution_mult=%.2f|level_start=%d|stop_limit=%d|lot_type=%s|lot_size=%.2f|lot_mult=%.2f|tp_percent=%.1f",
-                                               EnumToString(Base_Strategy_Type),
-                                               Points_Range_Setup,
+                                               EnumToString(Strategy_Range_Mode),
+                                               Strategy_Range_Points,
                                                ResolveFoundationLevelExponentialMultiplier(),
                                                ResolveFoundationLevelPositionStart(),
                                                ResolveFoundationLevelStopLimit(),
@@ -249,7 +249,7 @@ bool ExecutionShouldPrintTerminalEvent(const string label)
 string ExecutionBuildLegResolutionSummary(const SignalParams &signal_params,
                                        const ExecutionLegState &leg_state)
 {
-  if(Base_Strategy_Type != FIB_LEVEL_RANGE)
+  if(Strategy_Range_Mode != STRATEGY_RANGE_STRUCTURE)
   {
     double distance_points = ResolveExecutionLegDistancePoints(signal_params, leg_state);
     return StringFormat("source=POINTS|next=%.5f|entry_ref=%.5f|distance_pts=%.2f",

@@ -75,7 +75,7 @@ inline int ResolveRetestRequirement(const StrategyStructureLayerContext &,
 
 inline bool AnyStructureGuardEnabled()
 {
-  return (ResolveStochStructurePeriod() >= 3 && Base_Strategy_Type == FIB_LEVEL_RANGE);
+  return (ResolveStochStructurePeriod() >= 3 && Strategy_Range_Mode == STRATEGY_RANGE_STRUCTURE);
 }
 
 inline bool TrendContextEnabled()
@@ -120,7 +120,7 @@ inline bool ContextRequiresStructure(const StrategyContextTypes context,
   if(!ctx.enabled)
     return false;
 
-  return (context == CONTEXT_SLOT_BASE && Base_Strategy_Type == FIB_LEVEL_RANGE);
+  return (context == CONTEXT_SLOT_BASE && Strategy_Range_Mode == STRATEGY_RANGE_STRUCTURE);
 }
 
 inline int ResolveStochStructurePeriod()

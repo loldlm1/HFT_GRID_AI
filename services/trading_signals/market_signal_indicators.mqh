@@ -42,7 +42,7 @@ bool CaptureContextIndicators(const StrategyContextTypes context,
   StrategyStructureLayerContext structure_ctx = BuildBaseStructureLayerContext();
   bool require_structure = ContextRequiresStructure(CONTEXT_SLOT_BASE, structure_ctx);
 
-  if(Base_Strategy_Type == FIB_LEVEL_RANGE)
+  if(Strategy_Range_Mode == STRATEGY_RANGE_STRUCTURE)
     require_structure = true;
 
   if(require_structure)

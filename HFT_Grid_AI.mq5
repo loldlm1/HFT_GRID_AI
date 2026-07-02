@@ -8,7 +8,7 @@
 #property version       "1.10"
 #property description   "Support Contact @chu4xtrade"
 #property description   "All Rights Reserved for the Trading Sniper Team."
-#property description   "Fibonacci EA"
+#property description   "Execution Foundation EA"
 
 // STANDARD MQL5 LIBRARIES
 #include <Trade/Trade.mqh>

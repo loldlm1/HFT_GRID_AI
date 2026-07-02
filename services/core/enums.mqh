@@ -41,11 +41,11 @@ enum SignalConcurrencyModes
   MULTIPLE_RUNNING_SIGNALS = 1
 };
 
-enum RangeStrategyTypes
+enum StrategyRangeTypes
 {
-  ATR_RANGE               = 0,
-  POINTS_RANGE            = 1,
-  FIB_LEVEL_RANGE        = 2
+  STRATEGY_RANGE_ATR       = 0,
+  STRATEGY_RANGE_POINTS    = 1,
+  STRATEGY_RANGE_STRUCTURE = 2
 };
 
 enum SlopeTypes
