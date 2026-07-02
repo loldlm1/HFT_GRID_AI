@@ -1,27 +1,15 @@
-# Product Copy Pack (EN + ES)
+# Product Copy Pack
 
-This folder contains product-page ready markdown copy blocks for:
-- Base EA
-- All paid addons
+This folder contains active product-page copy for the refounded EA baseline.
 
-## Structure
-- `en/`: English copy
-- `es/`: Spanish copy
+## Languages
 
-Each file includes:
-- Short copy block (card/listing)
-- Medium copy block (product detail section)
-- Plain-language input explanation
-- Recommended starter setup
-- Access rule and behavior when addon is missing
+- `en/`: English copy.
+- `es/`: Spanish copy.
 
-## Files covered in both languages
+## Active Files
+
 - `base-ea.md`
 - `addon-session-time-filter.md`
-- `addon-grid-strategy-settings.md`
-- `addon-candle-structure-filter.md`
-- `addon-compound-trend-ride.md`
-- `addon-compound-pullback-continue.md`
-- `addon-compound-reversal-early.md`
-- `addon-compound-breakout-ready.md`
-- `addon-compound-volatility-trap.md`
+
+Legacy add-on copy for removed strategy features has been removed from active documentation.

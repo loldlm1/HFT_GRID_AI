@@ -1,42 +1,32 @@
-# Addon Guide: Time Filter Session Manager
+# Session Time Filter Guide
 
-## SKU
-- `addon_session_time_filter`
+## Purpose
 
-## What this addon unlocks
-- Time-window gating for Asia, London, and New York sessions.
-- Per-session behavior control (`ALLOW_RUN` or `FORCE_CLOSE`).
+The session time filter is preserved as strategy-neutral foundation behavior. It controls when the EA may evaluate or act on strategy execution, independent of the removed legacy strategy add-ons.
 
-## Inputs in this group
+## Inputs
+
 - `Session_Asia_Filter_Mode`
 - `Session_Asia_Filter_Time_Range`
 - `Session_London_Filter_Mode`
 - `Session_London_Filter_Time_Range`
 - `Session_NewYork_Filter_Mode`
 - `Session_NewYork_Filter_Time_Range`
+- `Session_Time_Dst_Mode`
+- `Session_Time_Dst_Manual_Offset_Minutes`
 
-## Entitlement trigger rule
-Addon is required when any session mode is not `SESSION_FILTER_OFF`.
+## Behavior
 
-## Time format
-- Use `HH:MM-HH:MM` in 24h format.
-- Example: `07:00-12:00`.
+- `SESSION_FILTER_OFF` disables a session slot.
+- `SESSION_FILTER_ALLOW_RUN` allows execution during the configured session window.
+- `SESSION_FILTER_FORCE_CLOSE` is reserved for defensive session handling where supported by the execution lifecycle.
+- Time ranges use `HH:MM-HH:MM` in 24-hour format.
+- DST handling is controlled by the session DST inputs.
 
-## Recommended setups
-### Setup A: London + New York focus (balanced)
-- `Session_Asia_Filter_Mode = SESSION_FILTER_OFF`
-- `Session_London_Filter_Mode = SESSION_FILTER_ALLOW_RUN`
-- `Session_London_Filter_Time_Range = 07:00-12:00`
-- `Session_NewYork_Filter_Mode = SESSION_FILTER_ALLOW_RUN`
-- `Session_NewYork_Filter_Time_Range = 12:00-20:00`
+## Foundation Rule
 
-### Setup B: Day-end flattening (defensive)
-- `Session_Asia_Filter_Mode = SESSION_FILTER_OFF`
-- `Session_London_Filter_Mode = SESSION_FILTER_ALLOW_RUN`
-- `Session_London_Filter_Time_Range = 07:00-12:00`
-- `Session_NewYork_Filter_Mode = SESSION_FILTER_FORCE_CLOSE`
-- `Session_NewYork_Filter_Time_Range = 12:00-20:00`
+Session gating must be applied before local simulated execution and before real broker order sends. It must not be bypassed by future strategies unless a later phase explicitly changes the risk model.
 
-## If addon is missing
-- EA startup is blocked.
-- Chart comment shows missing addon key.
+## Validation
+
+This doc is maintained as active product guidance. Runtime implementation changes are validated by the phase-level MT5 compile gate, not by custom MQL5 tests.

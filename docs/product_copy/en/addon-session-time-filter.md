@@ -1,35 +1,32 @@
-# Addon Product Copy - Time Filter Session Manager
+# Product Copy - Session Time Filter
 
 ## Product
-- Name: `Time Filter Session Manager`
-- Type: `Addon`
+
+- Name: `Session Time Filter`
+- Type: `Foundation control`
 - SKU: `addon_session_time_filter`
 
 ## Short Copy Block
-`Control when the EA is allowed to trade. Activate session windows for Asia, London, and New York with optional force-close behavior.`
+
+`Control when the EA may evaluate or execute strategy logic by defining Asia, London, and New York session windows.`
 
 ## Medium Copy Block
-`This addon gives you scheduling control. You decide in which market sessions the EA can run and when it should stop opening positions. It is useful for users who want to avoid low-liquidity or high-noise hours.`
 
-`For non-traders: this is like setting business hours for your bot. Outside those hours, it can pause or close positions depending on your selected mode.`
+`The Session Time Filter is preserved as strategy-neutral foundation behavior. It helps users avoid unwanted market hours by allowing or restricting execution during configured session windows.`
 
-## Inputs Explained (Plain Language)
-- `Session_Asia_Filter_Mode`: behavior for Asia session (`OFF`, `ALLOW_RUN`, or `FORCE_CLOSE`).
-- `Session_Asia_Filter_Time_Range`: Asia time window in `HH:MM-HH:MM`.
-- `Session_London_Filter_Mode`: behavior for London session.
-- `Session_London_Filter_Time_Range`: London time window.
-- `Session_NewYork_Filter_Mode`: behavior for New York session.
-- `Session_NewYork_Filter_Time_Range`: New York time window.
+`For non-traders: this works like business hours for the EA. It defines when the system is allowed to operate before any future strategy proceeds to execution.`
 
-## Recommended Starter Setup
-- `Session_Asia_Filter_Mode = SESSION_FILTER_OFF`
-- `Session_London_Filter_Mode = SESSION_FILTER_ALLOW_RUN`
-- `Session_London_Filter_Time_Range = 07:00-12:00`
-- `Session_NewYork_Filter_Mode = SESSION_FILTER_ALLOW_RUN`
-- `Session_NewYork_Filter_Time_Range = 12:00-20:00`
+## Inputs Explained
 
-## Access Rule
-- Entitlement required if any session mode is different from `SESSION_FILTER_OFF`.
+- `Session_Asia_Filter_Mode`: Asia session behavior.
+- `Session_Asia_Filter_Time_Range`: Asia session range in `HH:MM-HH:MM`.
+- `Session_London_Filter_Mode`: London session behavior.
+- `Session_London_Filter_Time_Range`: London session range.
+- `Session_NewYork_Filter_Mode`: New York session behavior.
+- `Session_NewYork_Filter_Time_Range`: New York session range.
+- `Session_Time_Dst_Mode`: DST handling mode.
+- `Session_Time_Dst_Manual_Offset_Minutes`: manual DST offset when selected.
 
-## If Addon Is Missing
-- EA blocks startup and shows missing-addon details on chart.
+## Foundation Rule
+
+Session rules are evaluated before local simulated execution and before real broker sends.

@@ -1,67 +1,61 @@
 # Copy de Producto - Base EA
 
 ## Producto
-- Nombre: `Fibonacci - Base EA`
+
+- Nombre: `HFT Grid AI - Foundation EA`
 - Tipo: `Producto base`
 - SKU: `base_ea`
 
 ## Bloque Corto
-`Fibonacci Base incluye el motor principal: control de riesgo, contexto de estrategia y ajustes de ejecucion. Empieza con configuracion segura y activa addons solo cuando lo necesites.`
+
+`HFT Grid AI Foundation incluye la base principal del Expert Advisor para MT5: licencia, controles de cuenta, proteccion de riesgo, contexto Stoch Structure, limites de ejecucion con condiciones del broker y una base limpia para futuras estrategias.`
 
 ## Bloque Medio
-`Base EA es el paquete principal de Fibonacci. Incluye el flujo completo del sistema: protecciones de cuenta, filtros de contexto de mercado y configuracion de tamano de posicion. Con esto, el usuario puede operar una version solida sin comprar addons desde el primer dia.`
 
-`Para usuarios no traders: piensa en Base EA como la aplicacion principal, y los addons como funciones extra. La base ya maneja limites de seguridad y comportamiento estandar de estrategia.`
+`Foundation EA es la base refundada de HFT Grid AI. Su enfoque es un nucleo de ejecucion mas pequeno y limpio antes de agregar nuevas estrategias. El producto conserva controles esenciales como validacion de licencia, separacion por cuenta, guardas de spread, filtros de sesion, proteccion de riesgo y contexto de estrategia.`
 
-## Inputs Explicados (Lenguaje Simple)
+`Para usuarios no traders: esta es la capa principal de la aplicacion. Prepara al EA para evaluar contexto de mercado y condiciones del broker antes de que una estrategia intente una ejecucion real. Las futuras estrategias se podran integrar sobre esta base sin cargar supuestos legacy.`
+
+## Inputs Explicados
+
 ### Licencia y cuenta
-- `EA_License_Key`: clave de activacion. Si es invalida o expirada, el EA no inicia.
-- `Custom_Magic`: identificador unico para separar ordenes de este EA.
-- `Max_Spread`: bloquea operaciones cuando el costo de ejecucion es alto.
-- `Min_Range_Points`: movimiento minimo de mercado para permitir la logica.
 
-### Proteccion de riesgo
-- `Protection_Risk_Mode`: activa o desactiva la proteccion de cuenta.
-- `Protection_Risk_Drawdown_Type`: define como medir la perdida maxima.
+- `EA_License_Key`: clave de activacion. Si es invalida o expirada, el EA no inicia.
+- `Custom_Magic`: identificador unico para separar posiciones del broker de este EA.
+- `Max_Spread`: bloquea ejecucion cuando el costo de trading es alto.
+- `Min_Range_Points`: umbral minimo de movimiento para fundaciones de estrategia.
+
+### Proteccion
+
+- `Protection_Risk_Mode`: controla la proteccion de cuenta.
+- `Protection_Risk_Drawdown_Type`: define como se mide el drawdown.
 - `Protection_Risk_Drawdown_Value`: valor maximo permitido de drawdown.
-- `Account_Size`: referencia de tamano de cuenta para calculos de respaldo.
-- `Market_Close_Guard_Timeframe`: marco temporal para detectar cierre de mercado.
+- `Account_Size`: referencia de cuenta para calculos de riesgo.
+- `Market_Close_Guard_Timeframe`: timeframe usado por la guarda de cierre de mercado.
 
 ### Contexto de estrategia
-- `Strategy_Timeframe`: velocidad de grafico usada en decisiones.
-- `Stoch_Structure_Period_Type`: sensibilidad de deteccion de estructura.
-- `Structure_Fibonacci_Levels`: niveles usados para planificar entradas.
-- `Structure_Trigger_Entry`: entradas por nivel exacto o por zona.
-- `Structure_Touch_Policy`: primer toque o re-test permitido.
-- `Strategy_Direction_Mode`: permite compras, ventas o ambos.
-- `Signal_Concurrency_Mode`: una senal activa o varias en paralelo.
 
-### Ajustes de riesgo
-- `Base_Strategy_Type`: modelo base de distancia (ATR, puntos o fibonacci).
-- `Points_Range_Setup`: distancia fija en puntos cuando se usa modo de puntos.
-- `Lot_Type`: metodo de tamano de lote.
-- `Lot_Strategy_Size`: lote base o presupuesto de riesgo.
-- `Lot_Multiplier`: factor de crecimiento entre niveles.
-- `Signal_Lot_Strategy`: ajusta lote segun win/loss.
-- `TP_Percent`: escala del objetivo de beneficio.
-- `Daily_Signal_Limit`: maximo de senales por dia.
-- `Daily_Signal_Limit_Mode`: forma de aplicar el limite diario.
+- `Strategy_Timeframe`: timeframe usado por el contexto de estrategia.
+- `Stoch_Structure_Period_Type`: sensibilidad de Stoch Structure.
+- `Strategy_Direction_Mode`: permite compras, ventas o ambas.
+- `Signal_Concurrency_Mode`: controla si puede correr una o varias senales.
 
-## Configuracion Recomendada Inicial
-- `Protection_Risk_Mode = ENABLED_GRID_PROTECTION`
-- `Protection_Risk_Drawdown_Type = PROTECTION_RISK_ACCOUNT_SIZE_PERCENT`
-- `Protection_Risk_Drawdown_Value = 10`
-- `Strategy_Direction_Mode = BOTH_DIRECTION`
-- `Signal_Concurrency_Mode = SINGLE_RUNNING_SIGNAL`
-- `Base_Strategy_Type = POINTS_RANGE`
-- `Points_Range_Setup = 100`
-- `Lot_Type = GRID_LOT_SIZE`
-- `Lot_Strategy_Size = 0.01`
-- `TP_Percent = 100`
+### Fundacion de riesgo y rango
+
+- `Base_Strategy_Type`: placeholder de modelo de rango durante la refundacion.
+- `Points_Range_Setup`: rango fijo en puntos para fundaciones basadas en rango.
+- `Lot_Type`: metodo de tamano de lote, pendiente de renombrar fuera de terminos legacy de grid.
+- `Lot_Strategy_Size`: lote base o presupuesto de riesgo segun el modo.
+- `Signal_Lot_Strategy`: modo futuro-compatible de ajuste de lote por senal.
+- `TP_Percent`: escala de objetivo mientras se simplifica riesgo/rango.
+- `Daily_Signal_Limit`: maximo de senales diarias.
+- `Daily_Signal_Limit_Mode`: modo de aplicar el limite diario.
 
 ## Regla de Acceso
-- No requiere addon para funciones base.
-- Siempre requiere clave valida + expiracion futura.
 
-## Si la Licencia Falla
-- El EA hace hard-stop en `OnInit` y muestra mensaje en el grafico.
+- Los controles base no requieren add-ons legacy removidos.
+- Siempre se requiere una clave valida con expiracion futura.
+
+## Modelo de Validacion
+
+Esta refundacion usa compilacion MT5 al cierre de fases de implementacion. Los harnesses custom de tests MQL5 no son parte del modelo activo.

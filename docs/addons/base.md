@@ -1,51 +1,65 @@
-# Base EA Guide (No Addons Required)
+# Base Foundation Guide
 
-## Included input groups
+## Purpose
+
+HFT Grid AI is being refounded as an MT5 Expert Advisor foundation for future strategy integration. The base product owns licensing, account controls, strategy context, risk controls, execution planning boundaries, and broker-aware safety checks.
+
+This guide describes the foundation baseline only. Final production strategy rules are out of scope until later roadmap phases.
+
+## Included Control Groups
+
 - `EA_License_Key`
 - `Account Settings EA`
 - `Protection Risk Management`
+- `Time Filter Session Manager`
 - `Strategy Context`
 - `Risk Managment Settings`
+- `Developer Debug Settings`
 
-## Base controls that stay unlocked
-- `Base_Strategy_Type`
-- `Points_Range_Setup`
-- `Lot_Type`
-- `Lot_Strategy_Size`
-- `Lot_Multiplier`
-- `Signal_Lot_Strategy`
-- `TP_Percent`
-- `Daily_Signal_Limit`
-- `Daily_Signal_Limit_Mode`
+## Preserved Foundation Controls
 
-## Recommended baseline setup
-Use this as a safe starting profile before enabling paid addons.
+- License validation and account identity controls.
+- Spread and minimum range guards.
+- Protection/risk controls, to be simplified around strategy range foundations.
+- Session time filters.
+- Strategy timeframe, Stoch Structure period, direction mode, and concurrency mode unless a later phase changes them explicitly.
+- Lot sizing controls under the future non-grid lot type names.
+- Daily signal limits where they remain strategy-neutral.
+- Developer debug controls.
 
-- `Max_Spread = 200`
-- `Min_Range_Points = 200`
-- `Protection_Risk_Mode = ENABLED_GRID_PROTECTION`
-- `Protection_Risk_Drawdown_Type = PROTECTION_RISK_ACCOUNT_SIZE_PERCENT`
-- `Protection_Risk_Drawdown_Value = 10`
-- `Strategy_Timeframe = PERIOD_M1`
-- `Stoch_Structure_Period_Type = 5`
-- `Structure_Trigger_Entry = LEVELS_AS_LIMITS`
-- `Structure_Touch_Policy = ALLOW_RETEST`
-- `Strategy_Direction_Mode = BOTH_DIRECTION`
-- `Signal_Concurrency_Mode = SINGLE_RUNNING_SIGNAL`
-- `Base_Strategy_Type = POINTS_RANGE`
-- `Points_Range_Setup = 100`
-- `Lot_Type = GRID_LOT_SIZE`
-- `Lot_Strategy_Size = 0.01`
-- `Lot_Multiplier = 2.0`
-- `Signal_Lot_Strategy = RISK_STRATEGY_OFF`
-- `TP_Percent = 100`
+## Removed Legacy Feature Controls
 
-## License requirements
-- `EA_License_Key` must decrypt successfully.
-- Embedded key expiry timestamp must be in the future.
-- If key validation fails, `OnInit` fails and EA does not start.
+The following groups and inputs are not part of the refounded active baseline:
 
-## Runtime behavior
-- Live and Demo: license state is refreshed every 24h.
-- On refresh failure, EA removes itself.
-- Strategy Tester: key and expiry checks apply, addon entitlement checks are bypassed.
+- `Candle Structure Filter`
+- `Support Resistance Retest Chain`
+- `Structure Trailing Addon`
+- `Structure Compound Context`
+- `Grid Strategy Settings`
+- `Structure_Fibonacci_Levels`
+- `Structure_Trigger_Entry`
+- `Structure_Touch_Policy`
+
+Do not document these as active features or migration-compatible settings.
+
+## Execution Foundation
+
+The intended lifecycle is:
+
+```text
+inputs
+-> indicator/context hydration
+-> strategy candidate detection
+-> local broker-aware execution simulation
+-> execution plan
+-> optional real broker execution
+-> broker position reconciliation
+-> protection/risk controls
+-> telemetry/frontend
+```
+
+Before a real broker position exists, local simulation owns candidate state and must apply broker constraints. Once a real position exists, broker state owns ticket, volume, price, close state, and realized profit.
+
+## Validation
+
+Documentation-only changes do not run MT5 compile. Implementation phases compile once at phase end using MetaEditor, portable/headless first and normal MetaEditor fallback if needed.

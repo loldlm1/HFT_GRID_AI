@@ -1,41 +1,24 @@
-# HFT Grid AI Addons Guide
+# HFT Grid AI Foundation Docs
 
-This folder contains product-ready guides for the base EA and each paid addon.
+This folder contains active product-facing documentation for the refounded EA baseline. Removed legacy feature add-ons are no longer documented as active behavior.
 
-## Files
-- `base.md`
-- `session-time-filter.md`
-- `grid-strategy-settings.md`
-- `candle-structure-filter.md`
-- `support-resistance-retest-chain.md`
-- `structure-trailing.md`
-- `compound-trend-ride.md`
-- `compound-pullback-continue.md`
-- `compound-reversal-early.md`
-- `compound-breakout-ready.md`
-- `compound-volatility-trap.md`
-- `backend-entitlements-contract.md`
-- `input-migration-2026-02-17.md`
+## Active Files
 
-## Addon matrix
-- Time Filter Session Manager: `addon_session_time_filter`
-- Grid Strategy Settings: `addon_grid_strategy_config`
-- Candle Structure Filter: `addon_candle_structure`
-- Support Resistance Retest Chain: `addon_support_resistance_retest_chain`
-- Structure Trailing: `addon_structure_trailing`
-- Structure Compound Context (Trend Ride): `addon_compound_trend_ride`
-- Structure Compound Context (Pullback Continue): `addon_compound_pullback_continue`
-- Structure Compound Context (Reversal Early): `addon_compound_reversal_early`
-- Structure Compound Context (Breakout Ready): `addon_compound_breakout_ready`
-- Structure Compound Context (Volatility Trap): `addon_compound_volatility_trap`
+- `base.md`: refounded EA foundation baseline.
+- `session-time-filter.md`: preserved strategy-neutral session filter behavior.
 
-## Runtime policy summary
-- Inputs are always visible in MT5 because input groups are compile-time declarations.
-- Addon usage is validated at runtime against online license entitlements.
-- Missing required addon entitlement blocks EA startup with a chart message.
-- Live and Demo refresh license state every 24h (`86400` seconds) and remove EA on refresh failure.
-- Strategy Tester still requires a valid decryptable key and future expiry timestamp, but addon entitlement checks are bypassed.
+## Refoundation Rules
 
-## Important compound rule
-- Any compound family purchase includes both BUY and SELL modes from that family.
-- If `Base_Fresh_Structure_Time = true` while `Base_Structure_Compound_Filter = COMPOUND_MODE_OFF`, the EA requires at least one compound family entitlement.
+- The project validates documentation-only phases by review, not MT5 compile.
+- Implementation phases compile once at phase end.
+- Legacy custom MQL5 tests and harnesses are scheduled for removal in Phase 2.
+- Removed feature groups must not be reintroduced as product docs, compatibility shims, or deprecated aliases.
+
+## Removed From Active Docs
+
+- Candle Structure Filter
+- Support Resistance Retest Chain
+- Structure Trailing Addon
+- Structure Compound Context
+- Grid Strategy Settings
+- Fibonacci entry level policy inputs
