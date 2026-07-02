@@ -64,56 +64,6 @@ double ExecutionCurrentPriceForDirection(const SignalTypes direction,
   return use_entry_side ? g_bid : g_ask;
 }
 
-bool ExecutionGuardrailsAllowOrder(const double normalized_volume,
-                              string &reason)
-{
-  reason = "";
-  if(g_points_spread > Max_Spread)
-  {
-    reason = StringFormat("spread=%.1f>%.1f",
-                          g_points_spread,
-                          Max_Spread);
-    return false;
-  }
-
-  double free_margin = AccountInfoDouble(ACCOUNT_MARGIN_FREE);
-  if(free_margin <= 0.0)
-    return true;
-
-  double margin_per_lot = SymbolInfoDouble(_Symbol, SYMBOL_MARGIN_INITIAL);
-  if(margin_per_lot <= 0.0)
-  {
-    double contract_size = SymbolInfoDouble(_Symbol, SYMBOL_TRADE_CONTRACT_SIZE);
-    double price         = ExecutionCurrentPriceForDirection(BULLISH, true);
-    double leverage      = (double)AccountInfoInteger(ACCOUNT_LEVERAGE);
-    if(contract_size > 0.0 && leverage > 0.0)
-      margin_per_lot = (contract_size * price) / leverage;
-  }
-
-  if(margin_per_lot <= 0.0)
-    return true;
-
-  double required_margin = margin_per_lot * normalized_volume;
-  if(required_margin <= 0.0)
-    return true;
-
-  if(free_margin < required_margin)
-  {
-    reason = StringFormat("margin=%.2f<%.2f",
-                          free_margin,
-                          required_margin);
-    return false;
-  }
-
-  return true;
-}
-
-bool ExecutionGuardrailsAllowOrder(const double normalized_volume)
-{
-  string reason = "";
-  return ExecutionGuardrailsAllowOrder(normalized_volume, reason);
-}
-
 void ExecutionAppendReason(string &target,
                       const string token)
 {

@@ -257,4 +257,188 @@ bool CaptureBrokerExecutionSnapshot(const SignalTypes direction,
   return true;
 }
 
+double BrokerExecutionEntrySidePrice(const BrokerExecutionSnapshot &snapshot)
+{
+  if(snapshot.direction == BULLISH)
+    return snapshot.ask;
+  if(snapshot.direction == BEARISH)
+    return snapshot.bid;
+  return 0.0;
+}
+
+double BrokerExecutionPriceDistancePoints(const BrokerExecutionSnapshot &snapshot,
+                                          const double first_price,
+                                          const double second_price)
+{
+  if(snapshot.point_size <= 0.0 || first_price <= 0.0 || second_price <= 0.0)
+    return 0.0;
+
+  return MathAbs(first_price - second_price) / snapshot.point_size;
+}
+
+bool BrokerExecutionValidateLegDistance(const BrokerExecutionSnapshot &snapshot,
+                                        const double reference_price,
+                                        const double target_price,
+                                        const string source,
+                                        BrokerExecutionEligibility &eligibility)
+{
+  if(reference_price <= 0.0 || target_price <= 0.0)
+    return true;
+
+  double min_distance = snapshot.min_stop_distance_points;
+  if(min_distance <= 0.0)
+    return true;
+
+  double distance_points = BrokerExecutionPriceDistancePoints(snapshot,
+                                                             reference_price,
+                                                             target_price);
+  if(distance_points + 1e-9 >= min_distance)
+    return true;
+
+  BrokerExecutionBlock(eligibility,
+                       "broker_distance",
+                       StringFormat("%s=%.2f<%.2f", source, distance_points, min_distance));
+  return false;
+}
+
+bool EvaluateLocalExecutionLegEligibility(const SignalParams &signal_params,
+                                          const ExecutionLegState &leg_state,
+                                          const double requested_volume,
+                                          BrokerExecutionSnapshot &snapshot,
+                                          BrokerExecutionEligibility &eligibility)
+{
+  eligibility = BrokerExecutionEligibility();
+
+  if(!CaptureBrokerExecutionSnapshot(signal_params.signal_type,
+                                     requested_volume,
+                                     snapshot))
+  {
+    BrokerExecutionBlock(eligibility,
+                         "broker_snapshot",
+                         snapshot.invalid_reason);
+    return false;
+  }
+
+  if(signal_params.signal_type != BULLISH && signal_params.signal_type != BEARISH)
+  {
+    BrokerExecutionBlock(eligibility,
+                         "direction",
+                         "invalid_signal_direction");
+    return false;
+  }
+
+  if(!snapshot.terminal_algo_allowed)
+  {
+    BrokerExecutionBlock(eligibility,
+                         "algo_trading",
+                         "terminal_or_mql_trading_disabled");
+    return false;
+  }
+
+  if(!snapshot.market_allows_signal)
+  {
+    BrokerExecutionBlock(eligibility,
+                         "market_status",
+                         MarketStatusToString(snapshot.market_status));
+    return false;
+  }
+
+  if(!snapshot.protection_allows_signal)
+  {
+    BrokerExecutionBlock(eligibility,
+                         "protection_risk",
+                         "protection_filter_blocked");
+    return false;
+  }
+
+  if(!snapshot.session_allows_signal)
+  {
+    BrokerExecutionBlock(eligibility,
+                         "session_time_filter",
+                         "outside_configured_session");
+    return false;
+  }
+
+  if(snapshot.spread_points > Max_Spread)
+  {
+    BrokerExecutionBlock(eligibility,
+                         "spread_guard",
+                         StringFormat("spread=%.1f>%.1f",
+                                      snapshot.spread_points,
+                                      Max_Spread));
+    return false;
+  }
+
+  double entry_side_price = BrokerExecutionEntrySidePrice(snapshot);
+  if(entry_side_price <= 0.0)
+  {
+    BrokerExecutionBlock(eligibility,
+                         "price",
+                         "entry_side_price_invalid");
+    return false;
+  }
+
+  if(leg_state.entry_reference_price <= 0.0)
+  {
+    BrokerExecutionBlock(eligibility,
+                         "entry_reference",
+                         "entry_reference_invalid");
+    return false;
+  }
+
+  if(!BrokerExecutionValidateLegDistance(snapshot,
+                                         leg_state.entry_reference_price,
+                                         leg_state.take_profit_price,
+                                         "tp_distance",
+                                         eligibility))
+    return false;
+
+  if(!BrokerExecutionValidateLegDistance(snapshot,
+                                         leg_state.entry_reference_price,
+                                         leg_state.next_level_price,
+                                         "next_distance",
+                                         eligibility))
+    return false;
+
+  if(leg_state.opens_position)
+  {
+    if(requested_volume <= 0.0 || !snapshot.volume_valid)
+    {
+      BrokerExecutionBlock(eligibility,
+                           "volume",
+                           "normalized_volume_invalid");
+      return false;
+    }
+
+    if(snapshot.free_margin <= 0.0)
+    {
+      BrokerExecutionBlock(eligibility,
+                           "margin",
+                           "free_margin_unavailable");
+      return false;
+    }
+
+    if(snapshot.margin_per_lot <= 0.0)
+    {
+      BrokerExecutionBlock(eligibility,
+                           "margin",
+                           "margin_per_lot_unavailable");
+      return false;
+    }
+
+    if(!snapshot.margin_available)
+    {
+      BrokerExecutionBlock(eligibility,
+                           "margin",
+                           StringFormat("margin=%.2f<%.2f",
+                                        snapshot.free_margin,
+                                        snapshot.required_margin));
+      return false;
+    }
+  }
+
+  BrokerExecutionAllow(eligibility);
+  return true;
+}
+
 #endif // _SERVICES_TRADING_SIGNALS_EXECUTION_BROKER_CONTEXT_MQH_

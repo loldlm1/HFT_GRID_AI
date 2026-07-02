@@ -230,6 +230,22 @@ bool ExecuteExecutionLegTrade(SignalParams &signal_params,
 {
   SignalTypes direction = signal_params.signal_type;
   string comment = ExecutionComposeLegComment(signal_params, leg_state);
+  BrokerExecutionSnapshot broker_snapshot;
+  BrokerExecutionEligibility eligibility;
+  if(!EvaluateLocalExecutionLegEligibility(signal_params,
+                                           leg_state,
+                                           normalized_volume,
+                                           broker_snapshot,
+                                           eligibility))
+  {
+    string block_reason = eligibility.block_source;
+    if(eligibility.block_reason != "")
+      block_reason = block_reason + ":" + eligibility.block_reason;
+    ExecutionLogGuardrailBlock("LOCAL_EXECUTION_BLOCK", signal_params, leg_state, block_reason);
+    if(Debug_Stop_On_Negative_Equity && eligibility.block_source == "margin")
+      g_debug_no_money_abort_pending = true;
+    return false;
+  }
 
   if(!leg_state.opens_position)
   {
@@ -248,31 +264,28 @@ bool ExecuteExecutionLegTrade(SignalParams &signal_params,
     return true;
   }
 
-  // Guardrails: spread/margin checks before sending
-  string guard_reason = "";
-  if(!ExecutionGuardrailsAllowOrder(normalized_volume, guard_reason))
-  {
-    ExecutionLogGuardrailBlock("GUARDRAIL_BLOCK", signal_params, leg_state, guard_reason);
-    if(Debug_Stop_On_Negative_Equity) g_debug_no_money_abort_pending = true;
-    return false;
-  }
+  double order_volume = broker_snapshot.normalized_volume;
 
   bool sent = false;
   if(direction == BULLISH)
-    sent = g_position.Buy(normalized_volume, _Symbol, 0.0, 0.0, 0.0, comment);
+    sent = g_position.Buy(order_volume, _Symbol, 0.0, 0.0, 0.0, comment);
   else
-    sent = g_position.Sell(normalized_volume, _Symbol, 0.0, 0.0, 0.0, comment);
+    sent = g_position.Sell(order_volume, _Symbol, 0.0, 0.0, 0.0, comment);
 
   if(!sent)
   {
     ulong retcode = g_position.ResultRetcode();
     int last_error = GetLastError();
+    string send_reason = StringFormat("retcode=%I64u|error=%d",
+                                      retcode,
+                                      last_error);
+    ExecutionLogGuardrailBlock("BROKER_SEND_FAILED", signal_params, leg_state, send_reason);
     if(Debug_Stop_On_Negative_Equity)
     {
       if(retcode == TRADE_RETCODE_NO_MONEY)
         g_debug_no_money_abort_pending = true;
     }
-    MarketStatusRegisterBrokerFailure("ORDER_SEND_FAILED", retcode, last_error, false);
+    MarketStatusRegisterBrokerFailure("BROKER_SEND_FAILED", retcode, last_error, false);
     return false;
   }
 
