@@ -63,6 +63,64 @@ Confirmed validation policy:
 - Validate implementation phases with one MT5 compile gate at phase end.
 - Do not compile documentation-only phases.
 
+### Sprint 2 Completion: Documentation Inventory Decisions
+
+**Status**: Completed  
+**Validation**: Documentation inventory review only; no MT5 compile required.  
+**Commit target**: `docs: classify legacy documentation for refoundation`
+
+Active add-on documentation classification:
+
+| Path | Decision | Phase |
+| --- | --- | --- |
+| `docs/addons/base.md` | Rewrite for foundation baseline | Phase 1 |
+| `docs/addons/README.md` | Rewrite as active docs index | Phase 1 |
+| `docs/addons/session-time-filter.md` | Keep and update only if wording references removed flows | Phase 1 |
+| `docs/addons/input-migration-2026-02-17.md` | Archive or delete from active docs; default delete if not needed for audit history | Phase 1 |
+| `docs/addons/candle-structure-filter.md` | Delete from active docs | Phase 1 |
+| `docs/addons/support-resistance-retest-chain.md` | Delete from active docs | Phase 1 |
+| `docs/addons/structure-trailing.md` | Delete from active docs | Phase 1 |
+| `docs/addons/grid-strategy-settings.md` | Delete from active docs | Phase 1 |
+| `docs/addons/compound-trend-ride.md` | Delete from active docs | Phase 1 |
+| `docs/addons/compound-pullback-continue.md` | Delete from active docs | Phase 1 |
+| `docs/addons/compound-reversal-early.md` | Delete from active docs | Phase 1 |
+| `docs/addons/compound-breakout-ready.md` | Delete from active docs | Phase 1 |
+| `docs/addons/compound-volatility-trap.md` | Delete from active docs | Phase 1 |
+
+Product-copy documentation classification:
+
+| Path Pattern | Decision | Phase |
+| --- | --- | --- |
+| `docs/product_copy/README.md` | Rewrite or delete if product copy is no longer maintained in-repo | Phase 1 |
+| `docs/product_copy/en/README.md` | Rewrite or delete with parent product-copy decision | Phase 1 |
+| `docs/product_copy/es/README.md` | Rewrite or delete with parent product-copy decision | Phase 1 |
+| `docs/product_copy/en/base-ea.md` | Rewrite for foundation baseline | Phase 1 |
+| `docs/product_copy/es/base-ea.md` | Rewrite for foundation baseline | Phase 1 |
+| `docs/product_copy/en/addon-session-time-filter.md` | Keep and update if product-copy docs remain | Phase 1 |
+| `docs/product_copy/es/addon-session-time-filter.md` | Keep and update if product-copy docs remain | Phase 1 |
+| `docs/product_copy/en/addon-candle-structure-filter.md` | Delete | Phase 1 |
+| `docs/product_copy/es/addon-candle-structure-filter.md` | Delete | Phase 1 |
+| `docs/product_copy/en/addon-support-resistance-retest-chain.md` | Delete | Phase 1 |
+| `docs/product_copy/es/addon-support-resistance-retest-chain.md` | Delete | Phase 1 |
+| `docs/product_copy/en/addon-structure-trailing.md` | Delete | Phase 1 |
+| `docs/product_copy/es/addon-structure-trailing.md` | Delete | Phase 1 |
+| `docs/product_copy/en/addon-grid-strategy-settings.md` | Delete | Phase 1 |
+| `docs/product_copy/es/addon-grid-strategy-settings.md` | Delete | Phase 1 |
+| `docs/product_copy/en/addon-compound-*.md` | Delete | Phase 1 |
+| `docs/product_copy/es/addon-compound-*.md` | Delete | Phase 1 |
+
+Scripts and generated artifacts classification:
+
+| Path | Decision | Phase |
+| --- | --- | --- |
+| `scripts/run_mql5_tests.sh` | Delete; do not repurpose into compile helper unless a later phase explicitly requests it | Phase 2 |
+| `tests/` | Delete all custom test wrappers, harness files, and case includes | Phase 2 |
+| `logs/test-runner/` | Delete or ignore with the old harness cleanup | Phase 2 or Phase 8 |
+| `logs/compile/` | Keep only if used for phase compile logs | Phase 8 |
+| root `.ex5` generated artifacts | Review and clean only in final cleanup | Phase 8 |
+
+Phase 1 should remove active docs for deleted features before code deletion begins, so contributors do not follow stale product behavior while the refoundation is underway.
+
 ## Sprint 1: Scope Freeze
 
 **Goal**: Confirm the exact refoundation scope before implementation.  
