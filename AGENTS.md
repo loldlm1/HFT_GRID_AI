@@ -35,19 +35,7 @@ Rules:
 
 The project is being refounded away from legacy grid-specific strategy behavior. Removed feature groups and inputs must not be preserved through deprecated shims or compatibility aliases.
 
-Removed input groups:
-
-- `Candle Structure Filter`
-- `Support Resistance Retest Chain`
-- `Structure Trailing Addon`
-- `Structure Compound Context`
-- `Grid Strategy Settings`
-
-Removed individual inputs:
-
-- `Structure_Fibonacci_Levels`
-- `Structure_Trigger_Entry`
-- `Structure_Touch_Policy`
+Do not reintroduce removed strategy feature groups or their former public inputs as active code, docs, compatibility aliases, or entitlement mappings.
 
 Preserved foundation controls:
 

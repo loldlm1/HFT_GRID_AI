@@ -16,9 +16,4 @@ This folder contains active product-facing documentation for the refounded EA ba
 
 ## Removed From Active Docs
 
-- Candle Structure Filter
-- Support Resistance Retest Chain
-- Structure Trailing Addon
-- Structure Compound Context
-- Grid Strategy Settings
-- Fibonacci entry level policy inputs
+Legacy strategy feature add-ons and Fibonacci entry policy inputs are not part of the active foundation docs.

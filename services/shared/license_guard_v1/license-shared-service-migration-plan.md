@@ -63,9 +63,6 @@ void CollectRequestedAddonsForCurrentInputs(string &addons_out[])
 
   if(UseSessionFilter)
     LicenseAppendRequestedAddon(addons_out, ADDON_KEY_SESSION_TIME_FILTER);
-
-  if(NeedsAnyCompoundFamily)
-    LicenseAppendRequestedAddon(addons_out, ADDON_KEY_COMPOUND_ANY_FAMILY);
 }
 ```
 

@@ -59,16 +59,7 @@ The source of truth is split by lifecycle:
 In scope:
 
 - Remove legacy tests and harnesses.
-- Remove the five legacy feature input groups:
-  - `Candle Structure Filter`
-  - `Support Resistance Retest Chain`
-  - `Structure Trailing Addon`
-  - `Structure Compound Context`
-  - `Grid Strategy Settings`
-- Remove these strategy-context inputs:
-  - `Structure_Fibonacci_Levels`
-  - `Structure_Trigger_Entry`
-  - `Structure_Touch_Policy`
+- Remove the legacy feature input groups and strategy-context policy inputs identified in Phase 3.
 - Keep Stoch Structure as the structural context source.
 - Simplify risk management into strategy-range-compatible foundations.
 - Remove public and internal `GRID_` domain naming where it represents the removed grid feature model.
@@ -176,23 +167,14 @@ Acceptance criteria:
 
 ### Phase 3: Remove Legacy Feature Inputs
 
-**Goal**: Remove the five legacy feature groups and three strategy-context inputs from the EA input surface.  
+**Goal**: Remove legacy feature groups and strategy-context policy inputs from the EA input surface.
 **Planner output**: `docs/plans/phase-03-remove-legacy-inputs-plan.md`  
 **Compile**: Required once at phase end.  
 **Suggested commit**: `refactor: remove legacy strategy input groups`
 
 Deliverables:
 
-- Remove these input groups from `services/trading_management/ea_inputs.mqh`:
-  - `Candle Structure Filter`
-  - `Support Resistance Retest Chain`
-  - `Structure Trailing Addon`
-  - `Structure Compound Context`
-  - `Grid Strategy Settings`
-- Remove:
-  - `Structure_Fibonacci_Levels`
-  - `Structure_Trigger_Entry`
-  - `Structure_Touch_Policy`
+- Remove the Phase 3 legacy feature groups and strategy-context policy inputs from `services/trading_management/ea_inputs.mqh`.
 - Remove direct code paths that only exist for those inputs.
 - Update license add-on mapping so removed features no longer request entitlements.
 - Remove product/add-on docs tied only to removed feature groups.

@@ -40,19 +40,7 @@ Fallback:
 
 ## Refoundation Scope
 
-Removed feature groups:
-
-- `Candle Structure Filter`
-- `Support Resistance Retest Chain`
-- `Structure Trailing Addon`
-- `Structure Compound Context`
-- `Grid Strategy Settings`
-
-Removed individual inputs:
-
-- `Structure_Fibonacci_Levels`
-- `Structure_Trigger_Entry`
-- `Structure_Touch_Policy`
+Legacy strategy feature groups and their public inputs have been removed from the active foundation. Do not preserve them through deprecated shims, aliases, docs, or compatibility layers.
 
 Preserved foundation areas:
 

@@ -61,21 +61,7 @@ string AddonCatalogJoinKeys(const string &addons[])
   return keys;
 }
 
-void AddonCatalogAllCompoundFamilies(string &families[])
-{
-  ArrayResize(families, 0);
-}
-
 #define ADDON_KEY_SESSION_TIME_FILTER      "addon_session_time_filter"
-#define ADDON_KEY_GRID_STRATEGY_CONFIG     "addon_grid_strategy_config"
-#define ADDON_KEY_CANDLE_STRUCTURE_FILTER   "addon_candle_structure"
-#define ADDON_KEY_STRUCTURE_TRAILING       "addon_structure_trailing"
-#define ADDON_KEY_COMPOUND_TREND_RIDE      "addon_compound_trend_ride"
-#define ADDON_KEY_COMPOUND_PULLBACK_CONT   "addon_compound_pullback_continue"
-#define ADDON_KEY_COMPOUND_REVERSAL_EARLY  "addon_compound_reversal_early"
-#define ADDON_KEY_COMPOUND_BREAKOUT_READY  "addon_compound_breakout_ready"
-#define ADDON_KEY_COMPOUND_VOLATILITY_TRAP "addon_compound_volatility_trap"
-#define ADDON_KEY_COMPOUND_ANY_FAMILY      "addon_compound_family_any"
 #endif
 CBcrypt BCrypt;
 
@@ -425,20 +411,6 @@ bool LicenseHasAddon(const string addon_key)
   return false;
 }
 
-bool LicenseHasAnyCompoundFamilyAddon()
-{
-  string compound_families[];
-  AddonCatalogAllCompoundFamilies(compound_families);
-
-  int total = ArraySize(compound_families);
-  for(int i = 0; i < total; i++)
-  {
-    if(LicenseHasAddon(compound_families[i]))
-      return true;
-  }
-  return false;
-}
-
 void LicenseCopyGrantedAddons(string &addons_out[])
 {
   int total = ArraySize(license_granted_addons);
@@ -467,8 +439,6 @@ bool LicenseAddonIsSatisfied(const string addon_key)
   string normalized_key = AddonCatalogNormalizeKey(addon_key);
   if(normalized_key == "")
     return true;
-  if(normalized_key == ADDON_KEY_COMPOUND_ANY_FAMILY)
-    return LicenseHasAnyCompoundFamilyAddon();
 
   return LicenseHasAddon(normalized_key);
 }
@@ -555,13 +525,6 @@ int LicenseAddonBitIndex(const string addon_key)
 {
   string normalized = AddonCatalogNormalizeKey(addon_key);
   if(normalized == ADDON_KEY_SESSION_TIME_FILTER) return 0;
-  if(normalized == ADDON_KEY_GRID_STRATEGY_CONFIG) return 1;
-  if(normalized == ADDON_KEY_CANDLE_STRUCTURE_FILTER) return 2;
-  if(normalized == ADDON_KEY_COMPOUND_TREND_RIDE) return 3;
-  if(normalized == ADDON_KEY_COMPOUND_PULLBACK_CONT) return 4;
-  if(normalized == ADDON_KEY_COMPOUND_REVERSAL_EARLY) return 5;
-  if(normalized == ADDON_KEY_COMPOUND_BREAKOUT_READY) return 6;
-  if(normalized == ADDON_KEY_COMPOUND_VOLATILITY_TRAP) return 7;
   return -1;
 }
 
@@ -584,13 +547,6 @@ void LicenseApplyGrantedAddonsMask(const ulong mask)
   LicenseClearGrantedAddons();
 
   if((mask & (((ulong)1) << 0)) != 0) LicenseAppendGrantedAddon(ADDON_KEY_SESSION_TIME_FILTER);
-  if((mask & (((ulong)1) << 1)) != 0) LicenseAppendGrantedAddon(ADDON_KEY_GRID_STRATEGY_CONFIG);
-  if((mask & (((ulong)1) << 2)) != 0) LicenseAppendGrantedAddon(ADDON_KEY_CANDLE_STRUCTURE_FILTER);
-  if((mask & (((ulong)1) << 3)) != 0) LicenseAppendGrantedAddon(ADDON_KEY_COMPOUND_TREND_RIDE);
-  if((mask & (((ulong)1) << 4)) != 0) LicenseAppendGrantedAddon(ADDON_KEY_COMPOUND_PULLBACK_CONT);
-  if((mask & (((ulong)1) << 5)) != 0) LicenseAppendGrantedAddon(ADDON_KEY_COMPOUND_REVERSAL_EARLY);
-  if((mask & (((ulong)1) << 6)) != 0) LicenseAppendGrantedAddon(ADDON_KEY_COMPOUND_BREAKOUT_READY);
-  if((mask & (((ulong)1) << 7)) != 0) LicenseAppendGrantedAddon(ADDON_KEY_COMPOUND_VOLATILITY_TRAP);
 }
 
 bool LicenseParseGrantedAddonsFromResponse(JSON::Object &response)

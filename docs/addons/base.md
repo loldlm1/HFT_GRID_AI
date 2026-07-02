@@ -29,18 +29,7 @@ This guide describes the foundation baseline only. Final production strategy rul
 
 ## Removed Legacy Feature Controls
 
-The following groups and inputs are not part of the refounded active baseline:
-
-- `Candle Structure Filter`
-- `Support Resistance Retest Chain`
-- `Structure Trailing Addon`
-- `Structure Compound Context`
-- `Grid Strategy Settings`
-- `Structure_Fibonacci_Levels`
-- `Structure_Trigger_Entry`
-- `Structure_Touch_Policy`
-
-Do not document these as active features or migration-compatible settings.
+Legacy strategy feature groups and Fibonacci entry policy inputs are not part of the refounded active baseline. Do not document removed features as active behavior or migration-compatible settings.
 
 ## Execution Foundation
 
