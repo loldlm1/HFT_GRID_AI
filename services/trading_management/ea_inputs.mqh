@@ -40,35 +40,8 @@ input int                    Session_Time_Dst_Manual_Offset_Minutes = 0;
 input group  "+= Strategy Context =+";
 input ENUM_TIMEFRAMES           Strategy_Timeframe          = PERIOD_M1;
 input int                       Stoch_Structure_Period_Type = 5;
-input string                    Structure_Fibonacci_Levels = "0.0,61.8,100.0";
-input StructureTriggerEntryModes Structure_Trigger_Entry   = LEVELS_AS_LIMITS;
-input StructureTouchPolicyModes Structure_Touch_Policy     = FIRST_TOUCH_ONLY;
 input StrategyDirectionTypes    Strategy_Direction_Mode     = BOTH_DIRECTION;
 input SignalConcurrencyModes    Signal_Concurrency_Mode     = MULTIPLE_RUNNING_SIGNALS;
-
-input group  "+= Candle Structure Filter =+";
-input ENUM_TIMEFRAMES   Candle_Timeframe      = PERIOD_M15;
-input CandleStrategyTypes Candle_Strategy_Type = OFF_CANDLE_STRUCTURE;
-input int               Candle_Strategy_Shift = 0;
-input int               Candle_Strategy_Depth = 1;
-
-input group  "+= Support Resistance Retest Chain =+";
-input bool   Support_Resistance_Retest_Chain_Enabled       = false;
-input int    Support_Resistance_Retest_Chain_Count         = 1;
-input double Support_Resistance_Retest_Chain_Range_Percent = 10.0;
-
-input group  "+= Structure Trailing Addon =+";
-input TrailingStructureModes Trailing_Structure_Mode       = TRAILING_OFF;
-input double                Trailing_TP_Close_Percent      = 0.0;
-
-input group "+= Structure Compound Context =+";
-input TrendStructureCompoundModes Base_Structure_Compound_Filter    = COMPOUND_MODE_OFF;
-input bool                        Base_Fresh_Structure_Time         = false;
-
-input group  "+= Grid Strategy Settings =+";
-input double                Grid_Exponential_Multiplier  = 1.0;
-input int                   Grid_Level_Position_Start    = 0;
-input int                   Grid_Level_Stop_Limit        = 1;
 
 input group  "+= Risk Managment Settings =+";
 input GridBaseStrategyTypes Base_Strategy_Type       = FIB_LEVEL_RANGE;
