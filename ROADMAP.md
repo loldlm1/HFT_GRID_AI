@@ -189,10 +189,10 @@ Acceptance criteria:
 
 ### Phase 4: Rename The Domain To Execution
 
-**Status**: In progress
+**Status**: Completed
 **Goal**: Replace removed strategy-model public/internal naming with strategy execution foundation naming.
 **Planner output**: `docs/plans/phase-04-domain-rename-plan.md`  
-**Compile**: Required once at phase end.  
+**Compile**: Passed on 2026-07-02 via portable/headless MetaEditor (`result 0 errors, 0 warnings, 310 ms elapsed`; process exit code `1`; evidence log `logs/compile/phase-04-build.log`).
 **Suggested commit**: `refactor: rename execution modules and telemetry`
 
 Deliverables:

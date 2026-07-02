@@ -5,6 +5,8 @@
 **Roadmap Phase**: Phase 4
 **Primary Output**: Grid-domain naming replaced by strategy execution foundation naming without behavior expansion
 **Validation Policy**: Static validation per sprint; one MT5 compile gate at phase end, portable/headless first and normal MetaEditor fallback only if needed
+**Status**: Completed on 2026-07-02
+**Compile Evidence**: Portable/headless MetaEditor compile wrote `logs/compile/phase-04-build.log` with `result 0 errors, 0 warnings, 310 ms elapsed, cpu='X64 Regular'`. The MetaEditor process returned exit code `1`, so the explicit log result is the pass/fail source of truth for this phase.
 
 ## Overview
 
@@ -334,13 +336,13 @@ Rename files only after their public symbols are renamed and the aggregator incl
 
 ## Phase 4 Acceptance Criteria
 
-- Public lot type enum values no longer use `GRID_`.
-- Active production code no longer uses `Grid[A-Z]`, `grid_`, or `GRID_` identifiers for current behavior.
-- Execution state uses execution/leg/range vocabulary.
-- File names and include guards are renamed away from grid-domain module names.
-- Frontend chart helpers and logs no longer present active behavior as grid.
-- Historical archive plans may retain old vocabulary.
-- `HFT_Grid_AI.mq5` compiles with `0 errors, 0 warnings`.
+- [x] Public lot type enum values no longer use `GRID_`.
+- [x] Active production code no longer uses `Grid[A-Z]`, `grid_`, or `GRID_` identifiers for current behavior.
+- [x] Execution state uses execution/leg/range vocabulary.
+- [x] File names and include guards are renamed away from grid-domain module names.
+- [x] Frontend chart helpers and logs no longer present active behavior as grid.
+- [x] Historical archive plans may retain old vocabulary.
+- [x] `HFT_Grid_AI.mq5` compiles with `0 errors, 0 warnings`.
 
 ## Validation Strategy
 
