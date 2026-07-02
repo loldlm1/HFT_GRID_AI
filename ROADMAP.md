@@ -212,9 +212,10 @@ Acceptance criteria:
 
 ### Phase 5: Simplify Strategy Range And Risk Foundation
 
+**Status**: Completed
 **Goal**: Create a stable, strategy-neutral risk/range base for future strategies.  
 **Planner output**: `docs/plans/phase-05-risk-range-foundation-plan.md`  
-**Compile**: Required once at phase end.  
+**Compile**: Passed on 2026-07-02 via portable/headless MetaEditor (`result 0 errors, 0 warnings, 282 ms elapsed`; process exit code `1`; evidence log `logs/compile/phase-05-build.log`).
 **Suggested commit**: `refactor: simplify risk and range foundation`
 
 Deliverables:

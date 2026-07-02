@@ -5,7 +5,9 @@
 **Roadmap Phase**: Phase 5
 **Primary Output**: Strategy-neutral range and risk foundation that no longer depends on removed Fibonacci feature semantics
 **Validation Policy**: Static validation per sprint; one MT5 compile gate at phase end, portable/headless first and normal MetaEditor fallback only if needed
-**Status**: Planned
+**Status**: Completed on 2026-07-02
+**Compile Evidence**: Portable/headless MetaEditor compile wrote `logs/compile/phase-05-build.log` with `result 0 errors, 0 warnings, 282 ms elapsed, cpu='X64 Regular'`. The MetaEditor process returned exit code `1`, so the explicit log result is the pass/fail source of truth for this phase.
+**Static Sweep Evidence**: Active source no longer contains `Base_Strategy_Type`, `Points_Range_Setup`, `FIB_LEVEL_RANGE`, removed legacy grid-prefix names, or Fibonacci-facing EA labels. Retained Fibonacci references are limited to license/backend identity, historical docs, or low-level structure math implementation details.
 
 ## Overview
 
