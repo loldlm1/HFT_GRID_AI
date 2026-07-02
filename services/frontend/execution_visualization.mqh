@@ -94,10 +94,10 @@ void DrawExecutionLevels(const long chart_id,
   double entry_percent = 0.0;
   double range_lower = 0.0;
   double range_upper = 0.0;
-  bool fib_entry_ok = false;
+  bool structure_entry_ok = false;
   if(entry_price_line > 0.0)
   {
-    fib_entry_ok = ResolveFibonacciEntryRange(signal_params,
+    structure_entry_ok = ResolveStructureEntryRange(signal_params,
                                               entry_price_line,
                                               entry_percent,
                                               range_lower,
@@ -105,11 +105,11 @@ void DrawExecutionLevels(const long chart_id,
   }
 
   double next_percent = 0.0;
-  bool fib_next_ok = ResolveFibonacciExecutionLevelPercent(signal_params,
+  bool structure_next_ok = ResolveStructureExecutionLevelPercent(signal_params,
                                                       level_index,
                                                       next_percent);
 
-  if(fib_entry_ok)
+  if(structure_entry_ok)
   {
     double entry_level_percent = entry_percent;
     bool include_actual = false;
@@ -140,7 +140,7 @@ void DrawExecutionLevels(const long chart_id,
                                       entry_percent);
   }
 
-  if(fib_next_ok)
+  if(structure_next_ok)
   {
     next_label = FormatFibNextLabel(next_label,
                                     next_percent,

@@ -46,7 +46,7 @@ double ExecutionResolveDirectionMultiplier(const SignalTypes direction)
   return 0.0;
 }
 
-int ResolveFibonacciStepDirection(const SignalTypes signal_type,
+int ResolveStructureRangeStepDirection(const SignalTypes signal_type,
                                   const bool current_is_bottom)
 {
   if(signal_type == BULLISH)
@@ -368,8 +368,8 @@ double GetExecutionNextLevelPrice(SignalTypes direction, SignalParams &signal_pa
 
   if(Strategy_Range_Mode == STRATEGY_RANGE_STRUCTURE)
   {
-    double fib_level_price = 0.0;
-    if(ResolveFibonacciExecutionLevelPrice(signal_params, execution_leg_state.level_index, fib_level_price))
+    double structure_level_price = 0.0;
+    if(ResolveStructureExecutionLevelPrice(signal_params, execution_leg_state.level_index, structure_level_price))
     {
       double minimum_distance_points = ResolveExecutionLegDistancePoints(signal_params,
                                                                       execution_leg_state);
@@ -378,7 +378,7 @@ double GetExecutionNextLevelPrice(SignalTypes direction, SignalParams &signal_pa
 
       if(execution_base_entry_price > 0.0 &&
          !ExecutionHasMeaningfulPriceGap(execution_base_entry_price,
-                                    fib_level_price,
+                                    structure_level_price,
                                     minimum_distance_points))
       {
         double fallback_price = ComputeNextLevelPrice(signal_params,
@@ -387,7 +387,7 @@ double GetExecutionNextLevelPrice(SignalTypes direction, SignalParams &signal_pa
         if(fallback_price > 0.0)
           return fallback_price;
       }
-      return fib_level_price;
+      return structure_level_price;
     }
     return execution_next_level_price;
   }
@@ -487,8 +487,8 @@ double ResolveExecutionLegDistancePoints(const SignalParams &signal_params,
 {
   if(Strategy_Range_Mode == STRATEGY_RANGE_STRUCTURE)
   {
-    double fib_level_price = 0.0;
-    if(!ResolveFibonacciExecutionLevelPrice(signal_params, state.level_index, fib_level_price))
+    double structure_level_price = 0.0;
+    if(!ResolveStructureExecutionLevelPrice(signal_params, state.level_index, structure_level_price))
       return signal_params.execution_base_distance_points;
 
     double entry_price = state.entry_reference_price;
@@ -501,7 +501,7 @@ double ResolveExecutionLegDistancePoints(const SignalParams &signal_params,
     if(point_size <= 0.0 || entry_price <= 0.0)
       return 0.0;
 
-    double distance_pts = MathAbs(entry_price - fib_level_price) / point_size;
+    double distance_pts = MathAbs(entry_price - structure_level_price) / point_size;
     distance_pts = EnforceBrokerDistance(g_symbol_constraints, distance_pts);
     return distance_pts;
   }
@@ -657,7 +657,7 @@ bool ResolveStructureSnapshotTimeForContext(const StrategyContextTypes context,
   return true;
 }
 
-bool ResolveFibonacciEntryPercent(const SignalParams &signal_params,
+bool ResolveStructureRangeEntryPercent(const SignalParams &signal_params,
                                   const double entry_price,
                                   double &entry_percent,
                                   double &peak_price,
@@ -685,21 +685,21 @@ bool ResolveFibonacciEntryPercent(const SignalParams &signal_params,
                                          entry_percent);
 }
 
-bool SignalHasResolvedFibonacciEntryAnchor(const SignalParams &signal_params)
+bool SignalHasResolvedStructureEntryAnchor(const SignalParams &signal_params)
 {
-  if(!signal_params.resolved_fibonacci_entry.valid)
+  if(!signal_params.resolved_structure_entry.valid)
     return false;
 
-  if(!MathIsValidNumber(signal_params.resolved_fibonacci_entry.percent))
+  if(!MathIsValidNumber(signal_params.resolved_structure_entry.percent))
     return false;
 
-  if(!MathIsValidNumber(signal_params.resolved_fibonacci_entry.price))
+  if(!MathIsValidNumber(signal_params.resolved_structure_entry.price))
     return false;
 
-  return (signal_params.resolved_fibonacci_entry.price > 0.0);
+  return (signal_params.resolved_structure_entry.price > 0.0);
 }
 
-bool ResolveFibonacciCanonicalEntryContext(const SignalParams &signal_params,
+bool ResolveStructureRangeCanonicalEntryContext(const SignalParams &signal_params,
                                            const double entry_price,
                                            double &entry_percent_out,
                                            double &band_lower_out,
@@ -724,7 +724,7 @@ bool ResolveFibonacciCanonicalEntryContext(const SignalParams &signal_params,
   if(entry_price <= 0.0)
     return false;
 
-  if(!ResolveFibonacciEntryPercent(signal_params,
+  if(!ResolveStructureRangeEntryPercent(signal_params,
                                    entry_price,
                                    entry_percent_out,
                                    peak_price_out,
@@ -735,10 +735,10 @@ bool ResolveFibonacciCanonicalEntryContext(const SignalParams &signal_params,
   canonical_percent_out = entry_percent_out;
   canonical_price_out = entry_price;
 
-  if(SignalHasResolvedFibonacciEntryAnchor(signal_params))
+  if(SignalHasResolvedStructureEntryAnchor(signal_params))
   {
-    canonical_percent_out = signal_params.resolved_fibonacci_entry.percent;
-    canonical_price_out   = signal_params.resolved_fibonacci_entry.price;
+    canonical_percent_out = signal_params.resolved_structure_entry.percent;
+    canonical_price_out   = signal_params.resolved_structure_entry.price;
     band_target_used_out  = true;
     return true;
   }
@@ -794,7 +794,7 @@ bool ResolveFibonacciCanonicalEntryContext(const SignalParams &signal_params,
   return true;
 }
 
-bool ResolveFibonacciEntryRange(const SignalParams &signal_params,
+bool ResolveStructureEntryRange(const SignalParams &signal_params,
                                 const double entry_price,
                                 double &entry_percent_out,
                                 double &range_lower_out,
@@ -814,7 +814,7 @@ bool ResolveFibonacciEntryRange(const SignalParams &signal_params,
   double peak_price = 0.0;
   double bottom_price = 0.0;
   bool current_is_bottom = false;
-  if(!ResolveFibonacciEntryPercent(signal_params,
+  if(!ResolveStructureRangeEntryPercent(signal_params,
                                    entry_price,
                                    entry_percent,
                                    peak_price,
@@ -897,7 +897,7 @@ bool ResolveExecutionTraversalForLeg(const SignalParams &signal_params,
                                   bool &return_anchor_only_out,
                                   double &anchor_percent_out)
 {
-  steps_out = signal_params.fib_level_offset_steps + level_index;
+  steps_out = signal_params.structure_range_step_offset + level_index;
   if(steps_out <= 0)
     steps_out = 1;
   return_anchor_only_out = false;
@@ -918,14 +918,14 @@ bool ResolveExecutionTraversalForLeg(const SignalParams &signal_params,
   }
 
   start_percent_out = anchor_percent_out;
-  steps_out = signal_params.fib_level_offset_steps + (level_index - 1);
+  steps_out = signal_params.structure_range_step_offset + (level_index - 1);
   if(steps_out <= 0)
     steps_out = 1;
 
   return true;
 }
 
-bool ResolveFibonacciExecutionLevelPercent(const SignalParams &signal_params,
+bool ResolveStructureExecutionLevelPercent(const SignalParams &signal_params,
                                       const int level_index,
                                       double &level_percent_out)
 {
@@ -949,7 +949,7 @@ bool ResolveFibonacciExecutionLevelPercent(const SignalParams &signal_params,
   double bottom_price = 0.0;
   bool current_is_bottom = false;
   bool band_target_used = false;
-  if(!ResolveFibonacciCanonicalEntryContext(signal_params,
+  if(!ResolveStructureRangeCanonicalEntryContext(signal_params,
                                             entry_price,
                                             entry_percent,
                                             band_lower,
@@ -963,7 +963,7 @@ bool ResolveFibonacciExecutionLevelPercent(const SignalParams &signal_params,
     return false;
 
   double start_percent = canonical_entry_percent;
-  int steps = signal_params.fib_level_offset_steps + level_index;
+  int steps = signal_params.structure_range_step_offset + level_index;
   bool return_anchor_only = false;
   double anchor_percent = 0.0;
   if(!ResolveExecutionTraversalForLeg(signal_params,
@@ -981,7 +981,7 @@ bool ResolveFibonacciExecutionLevelPercent(const SignalParams &signal_params,
   }
 
   double level_percent = 0.0;
-  int step_dir = ResolveFibonacciStepDirection(signal_params.signal_type, current_is_bottom);
+  int step_dir = ResolveStructureRangeStepDirection(signal_params.signal_type, current_is_bottom);
   if(!ResolveFibonacciNextPercentCycledWithCycle(g_structure_fibo_config.cycle_levels,
                                                  ArraySize(g_structure_fibo_config.cycle_levels),
                                                  g_structure_fibo_config.cycle_allow_zero,
@@ -995,7 +995,7 @@ bool ResolveFibonacciExecutionLevelPercent(const SignalParams &signal_params,
   return true;
 }
 
-bool ResolveFibonacciExecutionLevelPrice(const SignalParams &signal_params,
+bool ResolveStructureExecutionLevelPrice(const SignalParams &signal_params,
                                     const int level_index,
                                     double &price_out)
 {
@@ -1018,7 +1018,7 @@ bool ResolveFibonacciExecutionLevelPrice(const SignalParams &signal_params,
   double band_upper = 0.0;
   double canonical_entry_price = 0.0;
   bool band_target_used = false;
-  if(!ResolveFibonacciCanonicalEntryContext(signal_params,
+  if(!ResolveStructureRangeCanonicalEntryContext(signal_params,
                                             entry_price,
                                             entry_percent,
                                             band_lower,
@@ -1032,7 +1032,7 @@ bool ResolveFibonacciExecutionLevelPrice(const SignalParams &signal_params,
     return false;
 
   double start_percent = canonical_entry_percent;
-  int steps = signal_params.fib_level_offset_steps + level_index;
+  int steps = signal_params.structure_range_step_offset + level_index;
   bool return_anchor_only = false;
   double anchor_percent = 0.0;
   if(!ResolveExecutionTraversalForLeg(signal_params,
@@ -1053,7 +1053,7 @@ bool ResolveFibonacciExecutionLevelPrice(const SignalParams &signal_params,
   }
 
   double level_percent = 0.0;
-  int step_dir = ResolveFibonacciStepDirection(signal_params.signal_type, current_is_bottom);
+  int step_dir = ResolveStructureRangeStepDirection(signal_params.signal_type, current_is_bottom);
   if(!ResolveFibonacciNextPercentCycledWithCycle(g_structure_fibo_config.cycle_levels,
                                                  ArraySize(g_structure_fibo_config.cycle_levels),
                                                  g_structure_fibo_config.cycle_allow_zero,
@@ -1070,7 +1070,7 @@ bool ResolveFibonacciExecutionLevelPrice(const SignalParams &signal_params,
                                          price_out);
 }
 
-bool ResolveFibonacciExecutionBaseDistance(const SignalParams &signal_params,
+bool ResolveStructureExecutionBaseDistance(const SignalParams &signal_params,
                                       const double entry_reference_price,
                                       int &steps_out,
                                       double &distance_points_out)
@@ -1094,7 +1094,7 @@ bool ResolveFibonacciExecutionBaseDistance(const SignalParams &signal_params,
   double band_upper = 0.0;
   double canonical_entry_price = 0.0;
   bool band_target_used = false;
-  if(!ResolveFibonacciCanonicalEntryContext(signal_params,
+  if(!ResolveStructureRangeCanonicalEntryContext(signal_params,
                                             entry_price,
                                             entry_percent,
                                             band_lower,
@@ -1107,7 +1107,7 @@ bool ResolveFibonacciExecutionBaseDistance(const SignalParams &signal_params,
                                             band_target_used))
     return false;
 
-  int step_dir = ResolveFibonacciStepDirection(signal_params.signal_type, current_is_bottom);
+  int step_dir = ResolveStructureRangeStepDirection(signal_params.signal_type, current_is_bottom);
 
   double point_size = ExecutionResolvePointSize();
   if(point_size <= 0.0)

@@ -50,7 +50,7 @@ void EvaluateContextSignals(const StrategyContextTypes context)
     bool filters_pass = false;
     double entry_price = 0.0;
     bool entry_is_limit = false;
-    ResolvedFibonacciEntryAnchor resolved_entry;
+    ResolvedStructureEntryAnchor resolved_entry;
     if(!StrategyContextEvaluateEntryDetailed(snapshot,
                                             direction,
                                             structure_time,
@@ -97,7 +97,7 @@ void EvaluateContextSignals(const StrategyContextTypes context)
     signal.strategy_context_label = StrategyContextLabel(context);
     signal.entry_trigger_mode     = effective_trigger_mode;
     signal.entry_is_limit         = entry_is_limit;
-    signal.resolved_fibonacci_entry = resolved_entry;
+    signal.resolved_structure_entry = resolved_entry;
     signal.signal_lot_sequence_step = ResolveSignalLotSequenceStepForNewSignal();
     signal.context_structure_snapshot_time = resolved_structure_time;
     signal.execution_sequence_id       = BuildSignalSequenceId(direction,

@@ -46,13 +46,13 @@ struct ExecutionLegState
   }
 };
 
-struct ResolvedFibonacciEntryAnchor
+struct ResolvedStructureEntryAnchor
 {
   bool   valid;
   double percent;
   double price;
 
-  ResolvedFibonacciEntryAnchor()
+  ResolvedStructureEntryAnchor()
   {
     valid   = false;
     percent = 0.0;
@@ -70,7 +70,7 @@ struct SignalParams
   string                     strategy_context_label;
   StructureTriggerEntryModes entry_trigger_mode;
   double                     entry_price;
-  ResolvedFibonacciEntryAnchor resolved_fibonacci_entry;
+  ResolvedStructureEntryAnchor  resolved_structure_entry;
   bool                       entry_is_limit;
   double                     close_price;
   double                     stop_loss;
@@ -92,7 +92,7 @@ struct SignalParams
   double execution_entry_reference_price;
   double execution_entry_gap_points;
   double execution_entry_offset_points;
-  int    fib_level_offset_steps;
+  int    structure_range_step_offset;
   datetime context_structure_snapshot_time;
 
   bool                      base_structure_valid;
@@ -113,13 +113,13 @@ struct SignalParams
   {
     signal_type                = NO_SIGNAL;
     signal_state               = WAITING;
-    execution_sequence_id           = "";
+    execution_sequence_id       = "";
     strategy_context           = CONTEXT_SLOT_BASE;
     strategy_timeframe         = PERIOD_CURRENT;
     strategy_context_label     = "BASE";
     entry_trigger_mode         = LEVELS_AS_LIMITS;
     entry_price                = 0.0;
-    resolved_fibonacci_entry   = ResolvedFibonacciEntryAnchor();
+    resolved_structure_entry   = ResolvedStructureEntryAnchor();
     entry_is_limit             = false;
     close_price                = 0.0;
     stop_loss                  = 0.0;
@@ -132,15 +132,15 @@ struct SignalParams
     realized_profit            = 0.0;
     realized_closed_volume     = 0.0;
     remaining_open_volume      = 0.0;
-    execution_initialized           = false;
-    execution_base_distance_points  = 0.0;
+    execution_initialized       = false;
+    execution_base_distance_points = 0.0;
     execution_initial_indicator_distance_points = 0.0;
     execution_resolved_distance_points = 0.0;
     execution_base_lot_size         = 0.0;
     execution_entry_reference_price = 0.0;
     execution_entry_gap_points      = 0.0;
     execution_entry_offset_points   = 0.0;
-    fib_level_offset_steps     = 1;
+    structure_range_step_offset     = 1;
     context_structure_snapshot_time = 0;
     base_structure_valid       = false;
     trend_structure_valid      = false;
@@ -152,13 +152,13 @@ struct SignalParams
   {
     signal_type                = signal_params.signal_type;
     signal_state               = signal_params.signal_state;
-    execution_sequence_id           = signal_params.execution_sequence_id;
+    execution_sequence_id       = signal_params.execution_sequence_id;
     strategy_context           = signal_params.strategy_context;
     strategy_timeframe         = signal_params.strategy_timeframe;
     strategy_context_label     = signal_params.strategy_context_label;
     entry_trigger_mode         = signal_params.entry_trigger_mode;
     entry_price                = signal_params.entry_price;
-    resolved_fibonacci_entry   = signal_params.resolved_fibonacci_entry;
+    resolved_structure_entry   = signal_params.resolved_structure_entry;
     entry_is_limit             = signal_params.entry_is_limit;
     close_price                = signal_params.close_price;
     stop_loss                  = signal_params.stop_loss;
@@ -171,15 +171,15 @@ struct SignalParams
     realized_profit            = signal_params.realized_profit;
     realized_closed_volume     = signal_params.realized_closed_volume;
     remaining_open_volume      = signal_params.remaining_open_volume;
-    execution_initialized           = signal_params.execution_initialized;
-    execution_base_distance_points  = signal_params.execution_base_distance_points;
+    execution_initialized       = signal_params.execution_initialized;
+    execution_base_distance_points = signal_params.execution_base_distance_points;
     execution_initial_indicator_distance_points = signal_params.execution_initial_indicator_distance_points;
     execution_resolved_distance_points = signal_params.execution_resolved_distance_points;
     execution_base_lot_size         = signal_params.execution_base_lot_size;
     execution_entry_reference_price = signal_params.execution_entry_reference_price;
     execution_entry_gap_points      = signal_params.execution_entry_gap_points;
     execution_entry_offset_points   = signal_params.execution_entry_offset_points;
-    fib_level_offset_steps     = signal_params.fib_level_offset_steps;
+    structure_range_step_offset     = signal_params.structure_range_step_offset;
     context_structure_snapshot_time = signal_params.context_structure_snapshot_time;
     base_structure_valid       = signal_params.base_structure_valid;
     base_structure_data        = signal_params.base_structure_data;

@@ -312,14 +312,14 @@ bool ResolveDirectionalLimitBandTarget(const SignalTypes direction,
   return false;
 }
 
-void ResetResolvedFibonacciEntryAnchor(ResolvedFibonacciEntryAnchor &anchor)
+void ResetResolvedStructureEntryAnchor(ResolvedStructureEntryAnchor &anchor)
 {
   anchor.valid   = false;
   anchor.percent = 0.0;
   anchor.price   = 0.0;
 }
 
-bool ResolveStructureFibonacciEntryForPricesDetailed(const StochasticMarketStructure &structure,
+bool ResolveStructureRangeEntryForPricesDetailed(const StochasticMarketStructure &structure,
                                                      const double close_price,
                                                      const double low_price,
                                                      const double high_price,
@@ -328,7 +328,7 @@ bool ResolveStructureFibonacciEntryForPricesDetailed(const StochasticMarketStruc
                                                      double &entry_price_out,
                                                      bool &in_zone,
                                                      bool &entry_is_limit,
-                                                     ResolvedFibonacciEntryAnchor &resolved_entry_out,
+                                                     ResolvedStructureEntryAnchor &resolved_entry_out,
                                                      const StrategyContextTypes context = CONTEXT_SLOT_BASE,
                                                      const datetime structure_snapshot_time = 0);
 
@@ -367,18 +367,18 @@ int ResolveStructureEntryBarIndex(const StrategyContextTypes context,
   return 0;
 }
 
-bool ResolveStructureFibonacciEntryDetailed(const StrategyContextIndicators &snapshot,
+bool ResolveStructureRangeEntryDetailed(const StrategyContextIndicators &snapshot,
                                             const SignalTypes direction,
                                             const StructureTriggerEntryModes trigger_mode,
                                             double &entry_price_out,
                                             bool &in_zone,
                                             bool &entry_is_limit,
-                                            ResolvedFibonacciEntryAnchor &resolved_entry_out)
+                                            ResolvedStructureEntryAnchor &resolved_entry_out)
 {
   entry_price_out = 0.0;
   in_zone = false;
   entry_is_limit = false;
-  ResetResolvedFibonacciEntryAnchor(resolved_entry_out);
+  ResetResolvedStructureEntryAnchor(resolved_entry_out);
 
   if(!snapshot.structure_valid)
     return false;
@@ -398,7 +398,7 @@ bool ResolveStructureFibonacciEntryDetailed(const StrategyContextIndicators &sna
   StrategyStructureLayerContext structure_ctx = BuildStructureLayerForContext(snapshot.context);
   datetime structure_snapshot_time = ResolveStructureSnapshotTimestamp(snapshot.structure_data, structure_ctx);
 
-  return ResolveStructureFibonacciEntryForPricesDetailed(snapshot.structure_data,
+  return ResolveStructureRangeEntryForPricesDetailed(snapshot.structure_data,
                                                          close_price,
                                                          low_price,
                                                          high_price,
@@ -412,15 +412,15 @@ bool ResolveStructureFibonacciEntryDetailed(const StrategyContextIndicators &sna
                                                          structure_snapshot_time);
 }
 
-bool ResolveStructureFibonacciEntry(const StrategyContextIndicators &snapshot,
+bool ResolveStructureRangeEntry(const StrategyContextIndicators &snapshot,
                                     const SignalTypes direction,
                                     const StructureTriggerEntryModes trigger_mode,
                                     double &entry_price_out,
                                     bool &in_zone,
                                     bool &entry_is_limit)
 {
-  ResolvedFibonacciEntryAnchor resolved_entry;
-  return ResolveStructureFibonacciEntryDetailed(snapshot,
+  ResolvedStructureEntryAnchor resolved_entry;
+  return ResolveStructureRangeEntryDetailed(snapshot,
                                                 direction,
                                                 trigger_mode,
                                                 entry_price_out,
@@ -429,7 +429,7 @@ bool ResolveStructureFibonacciEntry(const StrategyContextIndicators &snapshot,
                                                 resolved_entry);
 }
 
-bool ResolveStructureFibonacciEntryForPricesDetailed(const StochasticMarketStructure &structure,
+bool ResolveStructureRangeEntryForPricesDetailed(const StochasticMarketStructure &structure,
                                                      const double close_price,
                                                      const double low_price,
                                                      const double high_price,
@@ -438,14 +438,14 @@ bool ResolveStructureFibonacciEntryForPricesDetailed(const StochasticMarketStruc
                                                      double &entry_price_out,
                                                      bool &in_zone,
                                                      bool &entry_is_limit,
-                                                     ResolvedFibonacciEntryAnchor &resolved_entry_out,
+                                                     ResolvedStructureEntryAnchor &resolved_entry_out,
                                                      const StrategyContextTypes context,
                                                      const datetime structure_snapshot_time)
 {
   entry_price_out = 0.0;
   in_zone = false;
   entry_is_limit = false;
-  ResetResolvedFibonacciEntryAnchor(resolved_entry_out);
+  ResetResolvedStructureEntryAnchor(resolved_entry_out);
   StructureTriggerEntryModes effective_trigger_mode = ResolveEffectiveStructureTriggerMode(context,
                                                                                             trigger_mode);
 
@@ -645,7 +645,7 @@ bool ResolveStructureFibonacciEntryForPricesDetailed(const StochasticMarketStruc
   return true;
 }
 
-bool ResolveStructureFibonacciEntryForPrices(const StochasticMarketStructure &structure,
+bool ResolveStructureRangeEntryForPrices(const StochasticMarketStructure &structure,
                                              const double close_price,
                                              const double low_price,
                                              const double high_price,
@@ -657,8 +657,8 @@ bool ResolveStructureFibonacciEntryForPrices(const StochasticMarketStructure &st
                                              const StrategyContextTypes context = CONTEXT_SLOT_BASE,
                                              const datetime structure_snapshot_time = 0)
 {
-  ResolvedFibonacciEntryAnchor resolved_entry;
-  return ResolveStructureFibonacciEntryForPricesDetailed(structure,
+  ResolvedStructureEntryAnchor resolved_entry;
+  return ResolveStructureRangeEntryForPricesDetailed(structure,
                                                          close_price,
                                                          low_price,
                                                          high_price,
@@ -679,14 +679,14 @@ bool StrategyContextEvaluateEntryDetailed(const StrategyContextIndicators &snaps
                                           bool &filters_pass,
                                           double &entry_price_out,
                                           bool &entry_is_limit,
-                                          ResolvedFibonacciEntryAnchor &resolved_entry_out)
+                                          ResolvedStructureEntryAnchor &resolved_entry_out)
 {
   structure_capture_time = 0;
   entry_allows = false;
   filters_pass = true;
   entry_price_out = 0.0;
   entry_is_limit = false;
-  ResetResolvedFibonacciEntryAnchor(resolved_entry_out);
+  ResetResolvedStructureEntryAnchor(resolved_entry_out);
 
   StrategyContextTypes context = snapshot.context;
 
@@ -709,7 +709,7 @@ bool StrategyContextEvaluateEntryDetailed(const StrategyContextIndicators &snaps
   double entry_price = 0.0;
   bool in_zone = false;
   bool resolved_is_limit = false;
-  if(!ResolveStructureFibonacciEntryDetailed(snapshot,
+  if(!ResolveStructureRangeEntryDetailed(snapshot,
                                              direction,
                                              FOUNDATION_STRUCTURE_TRIGGER_MODE,
                                              entry_price,
@@ -736,7 +736,7 @@ bool StrategyContextEvaluateEntry(const StrategyContextIndicators &snapshot,
                                   double &entry_price_out,
                                   bool &entry_is_limit)
 {
-  ResolvedFibonacciEntryAnchor resolved_entry;
+  ResolvedStructureEntryAnchor resolved_entry;
   return StrategyContextEvaluateEntryDetailed(snapshot,
                                               direction,
                                               structure_capture_time,

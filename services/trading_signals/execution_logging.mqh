@@ -252,7 +252,8 @@ string ExecutionBuildLegResolutionSummary(const SignalParams &signal_params,
   if(Strategy_Range_Mode != STRATEGY_RANGE_STRUCTURE)
   {
     double distance_points = ResolveExecutionLegDistancePoints(signal_params, leg_state);
-    return StringFormat("source=POINTS|next=%.5f|entry_ref=%.5f|distance_pts=%.2f",
+    return StringFormat("source=%s|next=%.5f|entry_ref=%.5f|distance_pts=%.2f",
+                        EnumToString(Strategy_Range_Mode),
                         leg_state.next_level_price,
                         leg_state.entry_reference_price,
                         distance_points);
@@ -265,7 +266,7 @@ string ExecutionBuildLegResolutionSummary(const SignalParams &signal_params,
     entry_price = leg_state.entry_reference_price;
   if(entry_price <= 0.0)
   {
-    return StringFormat("source=FIB|resolved=false|reason=entry_price|next=%.5f",
+    return StringFormat("source=STRUCTURE|resolved=false|reason=entry_price|next=%.5f",
                         leg_state.next_level_price);
   }
 
@@ -278,7 +279,7 @@ string ExecutionBuildLegResolutionSummary(const SignalParams &signal_params,
   double resolved_entry_percent = 0.0;
   double resolved_entry_price = 0.0;
   bool band_target_used = false;
-  bool entry_ok = ResolveFibonacciCanonicalEntryContext(signal_params,
+  bool entry_ok = ResolveStructureRangeCanonicalEntryContext(signal_params,
                                                         entry_price,
                                                         entry_percent,
                                                         band_lower,
@@ -291,19 +292,19 @@ string ExecutionBuildLegResolutionSummary(const SignalParams &signal_params,
                                                         band_target_used);
   if(!entry_ok)
   {
-    return StringFormat("source=FIB|resolved=false|reason=entry_percent|entry=%.5f|next=%.5f",
+    return StringFormat("source=STRUCTURE|resolved=false|reason=entry_percent|entry=%.5f|next=%.5f",
                         entry_price,
                         leg_state.next_level_price);
   }
 
   double level_percent = 0.0;
-  bool level_percent_ok = ResolveFibonacciExecutionLevelPercent(signal_params,
+  bool level_percent_ok = ResolveStructureExecutionLevelPercent(signal_params,
                                                            leg_state.level_index,
                                                            level_percent);
-  double fib_level_price = 0.0;
-  bool level_price_ok = ResolveFibonacciExecutionLevelPrice(signal_params,
+  double structure_level_price = 0.0;
+  bool level_price_ok = ResolveStructureExecutionLevelPrice(signal_params,
                                                        leg_state.level_index,
-                                                       fib_level_price);
+                                                       structure_level_price);
   string band_label = "n/a";
   if(band_lower != 0.0 || band_upper != 0.0)
     band_label = StringFormat("%.2f-%.2f", band_lower, band_upper);
@@ -312,22 +313,22 @@ string ExecutionBuildLegResolutionSummary(const SignalParams &signal_params,
   if(level_price_ok && leg_state.next_level_price > 0.0)
   {
     double next_gap_points = ExecutionAbsolutePriceDistancePoints(leg_state.next_level_price,
-                                                             fib_level_price);
+                                                             structure_level_price);
     if(next_gap_points > 0.1)
       next_source = "BROKER_SAFE";
   }
 
-  int fib_steps = signal_params.fib_level_offset_steps + leg_state.level_index;
-  if(fib_steps <= 0)
-    fib_steps = 1;
+  int structure_steps = signal_params.structure_range_step_offset + leg_state.level_index;
+  if(structure_steps <= 0)
+    structure_steps = 1;
 
   string entry_anchor_source = "RAW";
-  if(SignalHasResolvedFibonacciEntryAnchor(signal_params))
+  if(SignalHasResolvedStructureEntryAnchor(signal_params))
     entry_anchor_source = "SIGNAL";
   else if(band_target_used)
     entry_anchor_source = "INFERRED";
 
-  return StringFormat("source=FIB|resolved=%s|entry=%.5f|entry_pct=%s|entry_band=%s|resolved_entry_pct=%s|resolved_entry_price=%s|entry_anchor_src=%s|level_pct=%s|logical_next_price=%s|emitted_next_price=%.5f|next_src=%s|fib_steps=%d|peak=%.5f|bottom=%.5f|current_is_bottom=%s",
+  return StringFormat("source=STRUCTURE|resolved=%s|entry=%.5f|entry_pct=%s|entry_band=%s|resolved_entry_pct=%s|resolved_entry_price=%s|entry_anchor_src=%s|level_pct=%s|logical_next_price=%s|emitted_next_price=%.5f|next_src=%s|structure_steps=%d|peak=%.5f|bottom=%.5f|current_is_bottom=%s",
                       ExecutionBoolToken(level_percent_ok && level_price_ok),
                       entry_price,
                       ExecutionFormatDoubleOrToken(true, entry_percent, 2),
@@ -336,10 +337,10 @@ string ExecutionBuildLegResolutionSummary(const SignalParams &signal_params,
                       ExecutionFormatDoubleOrToken(band_target_used, resolved_entry_price, 5),
                       entry_anchor_source,
                       ExecutionFormatDoubleOrToken(level_percent_ok, level_percent, 2),
-                      ExecutionFormatDoubleOrToken(level_price_ok, fib_level_price, 5),
+                      ExecutionFormatDoubleOrToken(level_price_ok, structure_level_price, 5),
                       leg_state.next_level_price,
                       next_source,
-                      fib_steps,
+                      structure_steps,
                       peak_price,
                       bottom_price,
                       ExecutionBoolToken(current_is_bottom));

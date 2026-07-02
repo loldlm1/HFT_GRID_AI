@@ -62,43 +62,59 @@ bool ResolveAtrRangeDistancePoints(const ENUM_TIMEFRAMES tf,
   return (distance_points > 0.0);
 }
 
-bool CalculateBaseExecutionContext(const SignalParams &signal_params,
-                              const ENUM_TIMEFRAMES tf,
-                              double &distance_points,
-                              double &entry_reference_price,
-                              int &fibo_steps_out)
+struct StrategyRangeResolution
 {
-  fibo_steps_out = 1;
-  entry_reference_price = ExecutionCurrentPriceForDirection(signal_params.signal_type, true);
+  StrategyRangeTypes range_mode;
+  double             distance_points;
+  double             entry_reference_price;
+  int                structure_steps;
+
+  StrategyRangeResolution()
+  {
+    range_mode            = STRATEGY_RANGE_POINTS;
+    distance_points       = 0.0;
+    entry_reference_price = 0.0;
+    structure_steps       = 1;
+  }
+};
+
+bool ResolveStrategyRangeExecutionContext(const SignalParams &signal_params,
+                                          const ENUM_TIMEFRAMES tf,
+                                          StrategyRangeResolution &resolution)
+{
+  resolution.range_mode = Strategy_Range_Mode;
+  resolution.distance_points = 0.0;
+  resolution.entry_reference_price = 0.0;
+  resolution.structure_steps = 1;
+  resolution.entry_reference_price = ExecutionCurrentPriceForDirection(signal_params.signal_type, true);
   if(signal_params.entry_price > 0.0 &&
      (signal_params.entry_is_limit || signal_params.entry_trigger_mode == LEVEL_AS_ZONE))
-    entry_reference_price = signal_params.entry_price;
+    resolution.entry_reference_price = signal_params.entry_price;
 
   double point_size = ExecutionResolvePointSizeSafe();
   double direction_mult = ExecutionResolveDirectionMultiplierSafe(signal_params.signal_type);
-  if(point_size <= 0.0 || direction_mult == 0.0 || entry_reference_price <= 0.0)
+  if(point_size <= 0.0 || direction_mult == 0.0 || resolution.entry_reference_price <= 0.0)
     return false;
 
-  StrategyRangeTypes base_strategy = Strategy_Range_Mode;
-  if(base_strategy == STRATEGY_RANGE_STRUCTURE)
+  if(resolution.range_mode == STRATEGY_RANGE_STRUCTURE)
   {
-    int fibo_steps = 1;
-    double fibo_distance = 0.0;
-    if(!ResolveFibonacciExecutionBaseDistance(signal_params,
-                                         entry_reference_price,
-                                         fibo_steps,
-                                         fibo_distance))
+    int structure_steps = 1;
+    double structure_distance = 0.0;
+    if(!ResolveStructureExecutionBaseDistance(signal_params,
+                                         resolution.entry_reference_price,
+                                         structure_steps,
+                                         structure_distance))
       return false;
-    fibo_steps_out = fibo_steps;
-    distance_points = fibo_distance;
-    return (distance_points > 0.0);
+    resolution.structure_steps = structure_steps;
+    resolution.distance_points = structure_distance;
+    return (resolution.distance_points > 0.0);
   }
 
-  if(base_strategy != STRATEGY_RANGE_POINTS && base_strategy != STRATEGY_RANGE_ATR)
-    base_strategy = STRATEGY_RANGE_POINTS;
+  if(resolution.range_mode != STRATEGY_RANGE_POINTS && resolution.range_mode != STRATEGY_RANGE_ATR)
+    resolution.range_mode = STRATEGY_RANGE_POINTS;
 
   double requested_points = 0.0;
-  if(base_strategy == STRATEGY_RANGE_ATR)
+  if(resolution.range_mode == STRATEGY_RANGE_ATR)
   {
     if(!ResolveAtrRangeDistancePoints(tf, requested_points))
       return false;
@@ -108,11 +124,11 @@ bool CalculateBaseExecutionContext(const SignalParams &signal_params,
     requested_points = EnforceBrokerDistance(g_symbol_constraints, Strategy_Range_Points);
   }
 
-  double projected_price = entry_reference_price + direction_mult * requested_points * point_size;
+  double projected_price = resolution.entry_reference_price + direction_mult * requested_points * point_size;
 
-  distance_points = MathAbs(projected_price - entry_reference_price) / point_size;
-  distance_points = EnforceBrokerDistance(g_symbol_constraints, distance_points);
-  return (distance_points > 0.0);
+  resolution.distance_points = MathAbs(projected_price - resolution.entry_reference_price) / point_size;
+  resolution.distance_points = EnforceBrokerDistance(g_symbol_constraints, resolution.distance_points);
+  return (resolution.distance_points > 0.0);
 }
 
 double ResolveBaseExecutionLot(const double base_distance_points)
@@ -359,15 +375,15 @@ void LogExecutionPlanDiagnostics(const SignalParams &signal_params,
 
   if(Strategy_Range_Mode == STRATEGY_RANGE_STRUCTURE)
   {
-    bool resolved_entry_ok = SignalHasResolvedFibonacciEntryAnchor(signal_params);
-    double resolved_entry_percent = signal_params.resolved_fibonacci_entry.percent;
-    double resolved_entry_price = signal_params.resolved_fibonacci_entry.price;
+    bool resolved_entry_ok = SignalHasResolvedStructureEntryAnchor(signal_params);
+    double resolved_entry_percent = signal_params.resolved_structure_entry.percent;
+    double resolved_entry_price = signal_params.resolved_structure_entry.price;
     double logical_next_percent = 0.0;
-    bool logical_next_percent_ok = ResolveFibonacciExecutionLevelPercent(signal_params,
+    bool logical_next_percent_ok = ResolveStructureExecutionLevelPercent(signal_params,
                                                                     0,
                                                                     logical_next_percent);
     double logical_next_price = 0.0;
-    bool logical_next_price_ok = ResolveFibonacciExecutionLevelPrice(signal_params,
+    bool logical_next_price_ok = ResolveStructureExecutionLevelPrice(signal_params,
                                                                 0,
                                                                 logical_next_price);
 
@@ -387,8 +403,8 @@ void LogExecutionPlanDiagnostics(const SignalParams &signal_params,
         next_source = "BROKER_SAFE";
     }
 
-    header = header + StringFormat("|fib_steps=%d|logical_next_pct=%s|logical_next_price=%s|emitted_next=%s|next_src=%s",
-                                   signal_params.fib_level_offset_steps,
+    header = header + StringFormat("|structure_steps=%d|logical_next_pct=%s|logical_next_price=%s|emitted_next=%s|next_src=%s",
+                                   signal_params.structure_range_step_offset,
                                    ExecutionFormatDoubleOrToken(logical_next_percent_ok,
                                                            logical_next_percent,
                                                            2),
@@ -432,24 +448,24 @@ void LogExecutionPlanLegDetail(const SignalParams &signal_params,
 
 bool BuildExecutionSignalPoints(SignalParams &signal_params)
 {
-  double base_distance_points = 0.0;
-  double entry_reference_price = 0.0;
-  int fibo_steps = 1;
+  StrategyRangeResolution range_resolution;
   double min_base_distance_from_trailing = ResolveIndicatorMinimumBaseDistance(signal_params);
 
   ENUM_TIMEFRAMES execution_tf = signal_params.strategy_timeframe;
   if(execution_tf == PERIOD_CURRENT)
     execution_tf = Strategy_Timeframe;
 
-  if(!CalculateBaseExecutionContext(signal_params,
-                               execution_tf,
-                               base_distance_points,
-                               entry_reference_price,
-                               fibo_steps))
+  if(!ResolveStrategyRangeExecutionContext(signal_params,
+                                           execution_tf,
+                                           range_resolution))
   {
     Print("Execution plan aborted: base distance not available.");
     return false;
   }
+
+  double base_distance_points = range_resolution.distance_points;
+  double entry_reference_price = range_resolution.entry_reference_price;
+  int structure_steps = range_resolution.structure_steps;
 
   if(min_base_distance_from_trailing > 0.0 && base_distance_points < min_base_distance_from_trailing)
   {
@@ -489,13 +505,13 @@ bool BuildExecutionSignalPoints(SignalParams &signal_params)
   signal_params.execution_entry_offset_points       = entry_offset_points;
   if(Strategy_Range_Mode == STRATEGY_RANGE_STRUCTURE)
   {
-    if(fibo_steps <= 0)
-      fibo_steps = 1;
-    signal_params.fib_level_offset_steps = fibo_steps;
+    if(structure_steps <= 0)
+      structure_steps = 1;
+    signal_params.structure_range_step_offset = structure_steps;
   }
   else
   {
-    signal_params.fib_level_offset_steps = 1;
+    signal_params.structure_range_step_offset = 1;
   }
 
   if(signal_params.execution_initial_indicator_distance_points <= 0.0 &&
