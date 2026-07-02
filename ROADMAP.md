@@ -11,6 +11,7 @@
 - Phase 1 plan created: `docs/plans/phase-01-docs-reset-plan.md`.
 - Execution foundation architecture added: `docs/architecture/execution-foundation.md`.
 - Phase 2 plan created: `docs/plans/phase-02-remove-tests-plan.md`.
+- Phase 2 completed: legacy tests and runner removed; portable compile log reports 0 errors and 0 warnings.
 
 ## Purpose
 
@@ -132,7 +133,7 @@ Acceptance criteria:
 
 ### Phase 1: Contributor And Product Docs Reset
 
-**Status**: Active
+**Status**: Completed
 **Goal**: Update project instructions before code movement begins.  
 **Planner output**: `docs/plans/phase-01-docs-reset-plan.md`  
 **Compile**: Not required for docs-only changes.  

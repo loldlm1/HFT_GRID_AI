@@ -271,6 +271,37 @@ Run the MT5 compile gate once after all sprints are complete.
 
 `docs/plans/archive/` contains historical planning material that may mention the deleted test harness. Phase 2 does not delete archive history by default. If the project requires zero repository-wide references to old tests, create a separate docs-archive cleanup decision before deleting archived planning records.
 
+## Phase 2 Completion Notes
+
+Completed in Sprint batch.
+
+Deleted:
+
+- `tests/`
+- `scripts/run_mql5_tests.sh`
+
+Updated active docs:
+
+- `README.md`
+- `AGENTS.md`
+- `ROADMAP.md`
+- `docs/addons/README.md`
+- `docs/architecture/execution-foundation.md`
+
+Compile gate:
+
+- Portable/headless command was executed first with `MetaEditor64.exe /portable /s /compile`.
+- Portable process returned ExitCode `1`, but the compile log produced by MetaEditor reports `result 0 errors, 0 warnings`.
+- Portable log path: `logs/compile/phase-02-build.log`.
+- Normal fallback was attempted because of the non-zero portable process exit code.
+- Fallback process returned ExitCode `0`, but fallback log reports missing standard include files under the non-portable AppData profile, starting with `Trade/Trade.mqh` not found. This is an environment/profile issue, not a Phase 2 source-code change.
+- Fallback log path: `logs/compile/phase-02-build-fallback.log`.
+
+Phase 2 compile status:
+
+- PASS by portable compile log: `0 errors, 0 warnings`.
+- No custom tests were run.
+
 ## Potential Risks And Gotchas
 
 - Deleting generated test `.ex5` files is expected; they are part of the legacy test tree.
@@ -284,4 +315,3 @@ Run the MT5 compile gate once after all sprints are complete.
 - If production compile fails because production code depended on tests, fix the production dependency instead of restoring the test harness.
 - If test deletion is rejected, restore `tests/` and `scripts/run_mql5_tests.sh` from the previous commit.
 - If docs need adjustment, revise active docs only; do not resurrect old runner instructions.
-
