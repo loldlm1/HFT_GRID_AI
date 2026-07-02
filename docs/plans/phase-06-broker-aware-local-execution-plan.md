@@ -5,7 +5,9 @@
 **Roadmap Phase**: Phase 6
 **Primary Output**: Broker-aware local execution foundation where local decisions apply broker conditions first, and real broker positions become source of truth once present
 **Validation Policy**: Static validation per sprint; one MT5 compile gate at phase end, portable/headless first and normal MetaEditor fallback only if needed
-**Status**: Planned
+**Status**: Completed on 2026-07-02
+**Compile Evidence**: Portable/headless MetaEditor compile wrote `logs/compile/phase-06-build.log` with `result 0 errors, 0 warnings, 296 ms elapsed, cpu='X64 Regular'`. The MetaEditor process returned exit code `1`, so the explicit log result is the pass/fail source of truth for this phase.
+**Static Sweep Evidence**: Active source now contains `BrokerExecutionSnapshot`, `BrokerExecutionEligibility`, `EvaluateLocalExecutionLegEligibility`, `BrokerPositionSnapshot`, and broker reconciliation helpers. Position selection and attachment paths validate symbol and magic scope. No custom tests, scripts, harnesses, or CI were added.
 
 ## Overview
 

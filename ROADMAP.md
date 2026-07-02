@@ -235,9 +235,10 @@ Acceptance criteria:
 
 ### Phase 6: Broker-Aware Local Execution Foundation
 
+**Status**: Completed
 **Goal**: Formalize local-and-broker-conditions-first execution before any final strategy work.  
 **Planner output**: `docs/plans/phase-06-broker-aware-local-execution-plan.md`  
-**Compile**: Required once at phase end.  
+**Compile**: Passed on 2026-07-02 via portable/headless MetaEditor (`result 0 errors, 0 warnings, 296 ms elapsed`; process exit code `1`; evidence log `logs/compile/phase-06-build.log`).
 **Suggested commit**: `feat: add broker-aware local execution foundation`
 
 Deliverables:

@@ -22,6 +22,10 @@ inputs
 
 ## Lifecycle Ownership
 
+### Phase 6 Implementation Status
+
+Phase 6 is implemented as of 2026-07-02. Active execution now has a broker execution snapshot/eligibility contract for local decisions and a broker position reconciliation layer for real-position source of truth.
+
 ### Before Real Execution
 
 Before a real broker position exists, local execution simulation owns candidate and planned execution state.
@@ -65,6 +69,8 @@ The foundation should use strategy-neutral naming:
 - `execution leg`: one planned, simulated, or real execution unit.
 - `broker snapshot`: the current broker position/order facts used for reconciliation.
 - `execution lifecycle`: activation, send, reconciliation, completion, and cleanup.
+- `broker execution snapshot`: current bid/ask, spread, constraints, permissions, volume, and margin facts used before local activation.
+- `broker position snapshot`: scoped real position facts selected by ticket first, then by symbol, magic number, direction, and execution comment fallback.
 
 Legacy strategy-specific names should be removed or isolated to historical artifacts scheduled for deletion.
 
@@ -108,7 +114,7 @@ Phase ownership:
 - Phase 3 removes legacy feature inputs and code paths.
 - Phase 4 renames the domain to execution foundation public/internal naming.
 - Phase 5 simplifies strategy range and risk foundations.
-- Phase 6 implements broker-aware local execution state and reconciliation.
+- Phase 6 implements broker-aware local execution state and reconciliation. Completed on 2026-07-02.
 - Phase 7 performs the real-tick performance pass.
 
-Until those phases are complete, this document is the contract for direction, not proof that the implementation already conforms.
+Phase 7 remains pending, so the performance principles above are still directional until the real-tick performance pass is complete.
