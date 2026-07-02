@@ -1,159 +1,6 @@
 #ifndef _SERVICES_TRADING_SIGNALS_GRID_ORDER_CONTROLLER_MQH_
 #define _SERVICES_TRADING_SIGNALS_GRID_ORDER_CONTROLLER_MQH_
 
-bool ShouldProcessTrailingBeforePendingActivation(const SignalParams &signal_params)
-{
-  if(!SignalStructureTrailingActive(signal_params))
-    return false;
-
-  int active_level_index = -1;
-  return ResolveSignalCurrentActiveOrderIndex(signal_params, active_level_index);
-}
-
-bool ShouldProcessTrailingAfterPendingActivation(const SignalParams &signal_params,
-                                                 const bool had_active_level_before,
-                                                 const bool level_activated_this_tick)
-{
-  if(!SignalStructureTrailingActive(signal_params))
-    return false;
-  if(had_active_level_before)
-    return false;
-  if(level_activated_this_tick)
-    return false;
-
-  return true;
-}
-
-bool ProcessSignalStructureTrailing(SignalParams &signal_params,
-                                    const double point_size)
-{
-  if(!SignalStructureTrailingActive(signal_params))
-    return false;
-
-  int active_level_index = -1;
-  if(!ResolveSignalCurrentActiveOrderIndex(signal_params, active_level_index))
-    return false;
-
-  double trailing_stop_price = 0.0;
-  datetime trailing_stop_time = 0;
-  bool has_stop_update = false;
-  double trailing_tp_price = 0.0;
-  datetime trailing_tp_time = 0;
-  bool has_tp_update = false;
-  ResolveSignalTrailingTargets(signal_params,
-                               trailing_stop_price,
-                               trailing_stop_time,
-                               has_stop_update,
-                               trailing_tp_price,
-                               trailing_tp_time,
-                               has_tp_update);
-  ApplySignalTrailingTargetUpdates(signal_params,
-                                   trailing_stop_price,
-                                   trailing_stop_time,
-                                   has_stop_update,
-                                   trailing_tp_price,
-                                   trailing_tp_time,
-                                   has_tp_update);
-
-  GridOrderState active_state = signal_params.grid_orders[active_level_index];
-  if(has_stop_update)
-    GridLogEvent("TRAILING_SL_UPDATE", signal_params, active_state);
-  if(has_tp_update)
-    GridLogEvent("TRAILING_TP_UPDATE", signal_params, active_state);
-
-  if(SignalTrailingStopHit(signal_params))
-  {
-    GridCloseAllLevels(signal_params, point_size);
-    signal_params.signal_state = CLOSED;
-    GridLogEvent("TRAILING_SL_HIT", signal_params, active_state);
-    return true;
-  }
-
-  if(!StructureTrailingTpCloseEnabled())
-    return false;
-
-  if(!SignalTrailingTakeProfitHit(signal_params))
-    return false;
-
-  double requested_close_volume = ResolveSignalRequestedPartialCloseVolume(signal_params);
-  if(requested_close_volume <= 0.0)
-    return false;
-
-  double closed_volume = 0.0;
-  if(!GridCloseSignalVolumeByPriority(signal_params,
-                                      requested_close_volume,
-                                      closed_volume))
-  {
-    GridLogEvent("TRAILING_TP_CLOSE_FAILED", signal_params, active_state);
-    return false;
-  }
-
-  ClearSignalTrailingTakeProfit(signal_params);
-  GridLogEvent("TRAILING_TP_HIT", signal_params, active_state);
-
-  if(signal_params.remaining_open_volume <= GRID_VOLUME_EPSILON)
-  {
-    signal_params.signal_state = CLOSED;
-    GridLogEvent("TRAILING_TP_SIGNAL_CLOSED", signal_params, active_state);
-  }
-
-  return true;
-}
-
-bool ProcessSignalInitialTpStructureTrailingGate(SignalParams &signal_params)
-{
-  if(!SignalStructureTrailingPendingInitialTpArm(signal_params))
-    return false;
-
-  int active_level_index = -1;
-  GridOrderState active_state;
-  double initial_tp_price = 0.0;
-  if(!ResolveSignalInitialTrailingTpTarget(signal_params,
-                                           active_level_index,
-                                           active_state,
-                                           initial_tp_price))
-  {
-    return false;
-  }
-
-  if(!SignalReachedInitialTrailingTpTarget(signal_params, initial_tp_price))
-    return false;
-
-  signal_params.trailing_active_level_index = active_level_index;
-  RefreshSignalExposureState(signal_params);
-
-  double requested_close_volume = ResolveSignalRequestedPartialCloseVolume(signal_params);
-  if(requested_close_volume > 0.0)
-  {
-    double closed_volume = 0.0;
-    if(!GridCloseSignalVolumeByPriority(signal_params,
-                                        requested_close_volume,
-                                        closed_volume))
-    {
-      GridLogEvent("INITIAL_TP_TRAILING_CLOSE_FAILED", signal_params, active_state);
-      return true;
-    }
-    if(closed_volume <= 0.0)
-    {
-      GridLogEvent("INITIAL_TP_TRAILING_CLOSE_FAILED", signal_params, active_state);
-      return true;
-    }
-
-    GridLogEvent("INITIAL_TP_TRAILING_PARTIAL", signal_params, active_state);
-
-    if(signal_params.remaining_open_volume <= GRID_VOLUME_EPSILON)
-    {
-      signal_params.signal_state = CLOSED;
-      GridLogEvent("INITIAL_TP_TRAILING_SIGNAL_CLOSED", signal_params, active_state);
-      return true;
-    }
-  }
-
-  ArmSignalStructureTrailing(signal_params, TimeCurrent(), initial_tp_price);
-  GridLogEvent("INITIAL_TP_TRAILING_ARMED", signal_params, active_state);
-  return true;
-}
-
 void UpdateGridLifecycle(SignalParams &signal_params)
 {
   if(!signal_params.grid_initialized)
@@ -165,8 +12,6 @@ void UpdateGridLifecycle(SignalParams &signal_params)
   SignalTypes    direction         = signal_params.signal_type;
   int            grid_order_level  = ArraySize(signal_params.grid_orders)-1;
   GridOrderState grid_order        = signal_params.grid_orders[grid_order_level];
-  bool           had_active_level_before = ShouldProcessTrailingBeforePendingActivation(signal_params);
-  bool           level_activated_this_tick = false;
 
   if(LimitSignalExpiredOnStructureChange(signal_params))
   {
@@ -174,9 +19,6 @@ void UpdateGridLifecycle(SignalParams &signal_params)
     GridLogEvent("LIMIT_EXPIRED_STRUCTURE", signal_params, grid_order);
     return;
   }
-
-  if(had_active_level_before && ProcessSignalStructureTrailing(signal_params, point_size))
-    return;
 
   if(grid_order.status == GRID_ORDER_STOP_TRAILING_ACTIVE)
   {
@@ -217,7 +59,6 @@ void UpdateGridLifecycle(SignalParams &signal_params)
       {
         UpdateGridOrderForSignal(signal_params);
         grid_order = signal_params.grid_orders[grid_order_level];
-        level_activated_this_tick = true;
         GridLogEvent("LEVEL_REACHED", signal_params, grid_order);
       }
       else if(grid_order.opens_position && GridUsesTargetProfitLotMode())
@@ -229,21 +70,12 @@ void UpdateGridLifecycle(SignalParams &signal_params)
     }
   }
 
-  if(ShouldProcessTrailingAfterPendingActivation(signal_params,
-                                                 had_active_level_before,
-                                                 level_activated_this_tick) &&
-     ProcessSignalStructureTrailing(signal_params, point_size))
-    return;
-
-  if(ProcessSignalInitialTpStructureTrailingGate(signal_params))
-    return;
-
   grid_order = signal_params.grid_orders[grid_order_level];
 
   if(grid_order.status == GRID_ORDER_ACTIVE)
   {
     double current_price = GridCurrentPriceForDirection(direction, false);
-    if(!SignalStructureTrailingActive(signal_params) && grid_order.take_profit_price > 0.0)
+    if(grid_order.take_profit_price > 0.0)
     {
       bool hit_tp = (direction == BULLISH && current_price >= grid_order.take_profit_price) ||
                     (direction == BEARISH && current_price <= grid_order.take_profit_price);
@@ -260,11 +92,12 @@ void UpdateGridLifecycle(SignalParams &signal_params)
     if(next_level_triggered)
     {
       GridLogNextLevelTriggerDecision(signal_params, grid_order, direction);
-      bool level_limit_hit = ShouldBlockNextLevelByStopLimit(Grid_Level_Stop_Limit,
+      int level_stop_limit = ResolveFoundationLevelStopLimit();
+      bool level_limit_hit = ShouldBlockNextLevelByStopLimit(level_stop_limit,
                                                              grid_order.level_index);
       GridLogStopLimitDecision(signal_params,
                                grid_order,
-                               Grid_Level_Stop_Limit,
+                               level_stop_limit,
                                level_limit_hit);
 
       if(level_limit_hit)

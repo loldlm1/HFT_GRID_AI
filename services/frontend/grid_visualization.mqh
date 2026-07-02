@@ -37,9 +37,7 @@ bool ResolveGridNextLevelLotPreview(const SignalParams &signal_params,
   preview_state.level_index = next_level_index_out;
   preview_state.status      = GRID_ORDER_STOP_TRAILING_ACTIVE;
 
-  int level_position_start = Grid_Level_Position_Start;
-  if(level_position_start < 0)
-    level_position_start = 0;
+  int level_position_start = ResolveFoundationLevelPositionStart();
   preview_state.opens_position = (next_level_index_out >= level_position_start);
 
   preview_signal.grid_orders[next_level_index_out] = preview_state;
@@ -79,13 +77,6 @@ void DrawGridLevels(const long chart_id,
   double stop_price       = 0.0;
   double tp_price         = level_state.take_profit_price;
   double next_level_price = level_state.next_level_price;
-  bool structure_trailing_active = SignalStructureTrailingActive(signal_params);
-
-  if(structure_trailing_active)
-  {
-    stop_price = signal_params.trailing_stop_price;
-    tp_price = signal_params.trailing_take_profit_price;
-  }
 
   string stop_label     = GridSignalLineLabel(signal_params, "STOP");
   string entry_label    = GridSignalLineLabel(signal_params, "ENTRY");

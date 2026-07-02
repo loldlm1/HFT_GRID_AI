@@ -35,39 +35,10 @@ enum StructureTriggerEntryModes
   LEVEL_AS_ZONE    = 1
 };
 
-enum StructureTouchPolicyModes
-{
-  ALLOW_RETEST     = 0,
-  FIRST_TOUCH_ONLY = 1
-};
-
-enum CandleStrategyTypes
-{
-  OFF_CANDLE_STRUCTURE       = 0,
-  SHRINKED_CANDLE_STRUCTURE  = 1,
-  EXPANDED_CANDLE_STRUCTURE  = 2,
-  BULLISH_CANDLE_STRUCTURE   = 3,
-  BEARISH_CANDLE_STRUCTURE   = 4
-};
-
 enum SignalConcurrencyModes
 {
   SINGLE_RUNNING_SIGNAL   = 0,
   MULTIPLE_RUNNING_SIGNALS = 1
-};
-
-enum SupportRetestFilterModes
-{
-  SUPPORT_DISABLED = 0,
-  SUPPORT_61       = 1,
-  SUPPORT_78       = 2
-};
-
-enum ResistanceRetestFilterModes
-{
-  RESISTANCE_DISABLED = 0,
-  RESISTANCE_61       = 1,
-  RESISTANCE_78       = 2
 };
 
 enum GridBaseStrategyTypes
@@ -202,14 +173,6 @@ enum GridTPReferenceModes
   GRID_TP_REF_NEXT    = 1
 };
 
-enum TrailingStructureModes
-{
-  TRAILING_OFF                = 0,
-  TRAILING_BY_STRUCTURE       = 1,
-  TRAILING_BY_STRUCTURE_TP_BE = 2,
-  TRAILING_BY_STRUCTURE_WHEN_TP = 3
-};
-
 enum ProtectionRiskModes
 {
   ENABLED_OFF                 = 0,
@@ -234,29 +197,6 @@ enum StrategyContextTypes
 };
 
 const int STRATEGY_CONTEXT_TOTAL = 4;
-
-enum TrendStructureCompoundModes
-{
-  COMPOUND_MODE_OFF = 0,
-
-  // BULLISH
-  // Continuation
-  COMPOUND_MODE_TREND_RIDE_BUY         = 1,
-  COMPOUND_MODE_PULLBACK_CONTINUE_BUY  = 2,
-  // Reversion
-  COMPOUND_MODE_REVERSAL_EARLY_BUY     = 3,
-  // Breakout
-  COMPOUND_MODE_BREAKOUT_READY_BUY     = 4,
-  // Uncommon / defensive
-  COMPOUND_MODE_VOLATILITY_TRAP_BUY    = 5,
-
-  // BEARISH
-  COMPOUND_MODE_TREND_RIDE_SELL        = 6,
-  COMPOUND_MODE_PULLBACK_CONTINUE_SELL = 7,
-  COMPOUND_MODE_REVERSAL_EARLY_SELL    = 8,
-  COMPOUND_MODE_BREAKOUT_READY_SELL    = 9,
-  COMPOUND_MODE_VOLATILITY_TRAP_SELL   = 10
-};
 
 enum MarketStatusTypes
 {

@@ -10,6 +10,9 @@ void GridAppendQueryDebugChangedLog(const string label,
                                     const string state_key,
                                     const string message);
 
+const StructureTriggerEntryModes FOUNDATION_STRUCTURE_TRIGGER_MODE = LEVELS_AS_LIMITS;
+const double STRUCTURE_PERCENT_EPS = 0.0001;
+
 bool EvaluateDirectionalSlope(const double current_value,
                               const double previous_value,
                               const SignalTypes signal_type)
@@ -19,122 +22,6 @@ bool EvaluateDirectionalSlope(const double current_value,
   if(signal_type == BEARISH)
     return current_value <= previous_value;
   return true;
-}
-
-bool CandleStructurePairMatches(const CandleStrategyTypes mode,
-                                const double high_current,
-                                const double low_current,
-                                const double high_past,
-                                const double low_past)
-{
-  switch(mode)
-  {
-    case OFF_CANDLE_STRUCTURE:
-      return true;
-    case SHRINKED_CANDLE_STRUCTURE:
-      return (high_current <= high_past && low_current >= low_past);
-    case EXPANDED_CANDLE_STRUCTURE:
-      return (high_current > high_past && low_current < low_past);
-    case BULLISH_CANDLE_STRUCTURE:
-      return (high_current > high_past && low_current > low_past);
-    case BEARISH_CANDLE_STRUCTURE:
-      return (high_current < high_past && low_current < low_past);
-    default:
-      return false;
-  }
-}
-
-bool EvaluateCandleStructureChain(const CandleStrategyTypes mode,
-                                  const double &high_values[],
-                                  const double &low_values[],
-                                  const int shift,
-                                  const int depth)
-{
-  if(!CandleStructureFilterEnabled(mode))
-    return true;
-
-  int resolved_shift = ResolveCandleStructureShift(shift);
-  int resolved_depth = ResolveCandleStructureDepth(depth);
-  int required_bars = ResolveCandleStructureRequiredBars(resolved_shift, resolved_depth);
-
-  if(ArraySize(high_values) < required_bars || ArraySize(low_values) < required_bars)
-    return false;
-
-  for(int step = 0; step < resolved_depth; step++)
-  {
-    int current_index = resolved_shift + step;
-    int past_index = current_index + 1;
-
-    double high_current = high_values[current_index];
-    double low_current = low_values[current_index];
-    double high_past = high_values[past_index];
-    double low_past = low_values[past_index];
-
-    if(!MathIsValidNumber(high_current) ||
-       !MathIsValidNumber(low_current) ||
-       !MathIsValidNumber(high_past) ||
-       !MathIsValidNumber(low_past))
-      return false;
-
-    if(!CandleStructurePairMatches(mode,
-                                   high_current,
-                                   low_current,
-                                   high_past,
-                                   low_past))
-      return false;
-  }
-
-  return true;
-}
-
-bool EvaluateCandleStructureFilter(const ENUM_TIMEFRAMES timeframe,
-                                   const CandleStrategyTypes mode,
-                                   const int shift,
-                                   const int depth)
-{
-  if(!CandleStructureFilterEnabled(mode))
-    return true;
-
-  ENUM_TIMEFRAMES resolved_timeframe = ResolveCandleStructureTimeframe(timeframe);
-  int resolved_shift = ResolveCandleStructureShift(shift);
-  int resolved_depth = ResolveCandleStructureDepth(depth);
-  int required_bars = ResolveCandleStructureRequiredBars(resolved_shift, resolved_depth);
-
-  if(Bars(_Symbol, resolved_timeframe) < required_bars)
-    return false;
-
-  double high_values[];
-  double low_values[];
-  ArraySetAsSeries(high_values, true);
-  ArraySetAsSeries(low_values, true);
-
-  int copied_high = CopyHigh(_Symbol,
-                             resolved_timeframe,
-                             0,
-                             required_bars,
-                             high_values);
-  int copied_low = CopyLow(_Symbol,
-                           resolved_timeframe,
-                           0,
-                           required_bars,
-                           low_values);
-
-  if(copied_high < required_bars || copied_low < required_bars)
-    return false;
-
-  return EvaluateCandleStructureChain(mode,
-                                      high_values,
-                                      low_values,
-                                      resolved_shift,
-                                      resolved_depth);
-}
-
-bool EvaluateCandleStructureFilter()
-{
-  return EvaluateCandleStructureFilter(Candle_Timeframe,
-                                       Candle_Strategy_Type,
-                                       Candle_Strategy_Shift,
-                                       Candle_Strategy_Depth);
 }
 
 bool ResolveStructureReferenceRange(const StochasticMarketStructure &structure,
@@ -252,97 +139,8 @@ bool ValidateFreshStructureTimestamp(const StrategyContextTypes context,
   return true;
 }
 
-bool EvaluateStructureTypeFilters(const StrategyContextIndicators &snapshot,
-                                  const StrategyStructureLayerContext &ctx)
-{
-  if(!StructureTypeFiltersRequested(ctx))
-    return true;
-
-  StochasticMarketStructure structure;
-  if(!FetchStructureForContext(snapshot, structure))
-    return false;
-
-  return EvaluateStructureCompoundMode(structure, ctx.structure_compound_filter);
-}
-
-bool EvaluateSupportResistanceRetestChainFilter(const StrategyContextIndicators &snapshot,
-                                                const StrategyStructureLayerContext &ctx,
-                                                const SignalTypes direction,
-                                                const double entry_price,
-                                                const bool entry_in_zone)
-{
-  if(!SupportResistanceRetestChainFilterRequested(ctx))
-    return true;
-
-  if(!entry_in_zone)
-    return true;
-
-  StochasticMarketStructure structure;
-  if(!FetchStructureForContext(snapshot, structure))
-    return false;
-
-  SupportResistanceRetestChainResult chain_result;
-  bool passes = EvaluateSupportResistanceRetestChain(structure,
-                                                     entry_price,
-                                                     ctx.support_resistance_retest_chain_count,
-                                                     ctx.support_resistance_retest_chain_range_percent,
-                                                     chain_result);
-  if(!passes && Enable_Logs)
-  {
-    PrintFormat("[SR_CHAIN] direction=%s entry=%.5f required=%d matched=%d first=%d last=%d",
-                EnumToString(direction),
-                entry_price,
-                chain_result.required_count,
-                chain_result.matched_count,
-                chain_result.first_match_index,
-                chain_result.last_match_index);
-  }
-
-  return passes;
-}
-
-const double STRUCTURE_TOUCH_POLICY_EPS = 0.0001;
-
-struct StructureTouchProgressRuntime
-{
-  StrategyContextTypes context;
-  SignalTypes          direction;
-  datetime             structure_time;
-  int                  step_direction;
-  bool                 initialized;
-  double               progress_percent;
-
-  StructureTouchProgressRuntime()
-  {
-    context          = CONTEXT_SLOT_BASE;
-    direction        = NO_SIGNAL;
-    structure_time   = 0;
-    step_direction   = 1;
-    initialized      = false;
-    progress_percent = 0.0;
-  }
-};
-
-StructureTouchProgressRuntime g_structure_touch_progress_state[];
 bool g_structure_limit_terminal_band_guard_runtime_override = false;
 bool g_structure_limit_terminal_band_guard_runtime_enabled = false;
-
-void ClearStructureTouchPolicyState()
-{
-  ArrayResize(g_structure_touch_progress_state, 0);
-}
-
-datetime ResolveStructureTouchPolicyStructureTime(const StochasticMarketStructure &structure,
-                                                  const datetime fallback_time)
-{
-  if(fallback_time > 0)
-    return fallback_time;
-
-  if(structure.second_structure_time > 0)
-    return structure.second_structure_time;
-
-  return structure.first_structure_time;
-}
 
 int ResolveStructurePercentStepDirection(const SignalTypes direction,
                                          const bool current_is_bottom)
@@ -398,137 +196,6 @@ void LogStructureDirectionMismatch(const StrategyContextTypes context,
   GridAppendQueryDebugChangedLog("SIGNAL_REJECT", state_key, message);
 }
 
-int FindStructureTouchProgressSlot(const StrategyContextTypes context,
-                                   const SignalTypes direction)
-{
-  int total = ArraySize(g_structure_touch_progress_state);
-  for(int i = 0; i < total; i++)
-  {
-    StructureTouchProgressRuntime slot = g_structure_touch_progress_state[i];
-    if(slot.context == context && slot.direction == direction)
-      return i;
-  }
-  return -1;
-}
-
-bool EnsureStructureTouchProgressSlot(const StrategyContextTypes context,
-                                      const SignalTypes direction,
-                                      int &slot_index)
-{
-  slot_index = FindStructureTouchProgressSlot(context, direction);
-  if(slot_index >= 0)
-    return true;
-
-  StructureTouchProgressRuntime created;
-  created.context = context;
-  created.direction = direction;
-  int next = ArraySize(g_structure_touch_progress_state);
-  ArrayResize(g_structure_touch_progress_state, next + 1);
-  g_structure_touch_progress_state[next] = created;
-  slot_index = next;
-  return true;
-}
-
-bool ResolveStructureTouchProgressBefore(const StrategyContextTypes context,
-                                         const SignalTypes direction,
-                                         const datetime structure_time,
-                                         const int step_direction,
-                                         double &progress_before,
-                                         bool &has_progress)
-{
-  progress_before = 0.0;
-  has_progress = false;
-
-  if(structure_time <= 0)
-    return true;
-
-  int slot_index = -1;
-  if(!EnsureStructureTouchProgressSlot(context, direction, slot_index))
-    return false;
-
-  StructureTouchProgressRuntime slot = g_structure_touch_progress_state[slot_index];
-  if(!slot.initialized ||
-     slot.structure_time != structure_time ||
-     slot.step_direction != step_direction)
-    return true;
-
-  progress_before = slot.progress_percent;
-  has_progress = true;
-  return true;
-}
-
-bool CommitStructureTouchProgress(const StrategyContextTypes context,
-                                  const SignalTypes direction,
-                                  const datetime structure_time,
-                                  const int step_direction,
-                                  const double percent_value)
-{
-  if(structure_time <= 0 || !MathIsValidNumber(percent_value))
-    return true;
-
-  int slot_index = -1;
-  if(!EnsureStructureTouchProgressSlot(context, direction, slot_index))
-    return false;
-
-  StructureTouchProgressRuntime slot = g_structure_touch_progress_state[slot_index];
-
-  if(!slot.initialized ||
-     slot.structure_time != structure_time ||
-     slot.step_direction != step_direction)
-  {
-    slot.structure_time   = structure_time;
-    slot.step_direction   = step_direction;
-    slot.progress_percent = percent_value;
-    slot.initialized      = true;
-    g_structure_touch_progress_state[slot_index] = slot;
-    return true;
-  }
-
-  if(step_direction >= 0)
-  {
-    if(percent_value > slot.progress_percent)
-      slot.progress_percent = percent_value;
-  }
-  else
-  {
-    if(percent_value < slot.progress_percent)
-      slot.progress_percent = percent_value;
-  }
-
-  g_structure_touch_progress_state[slot_index] = slot;
-  return true;
-}
-
-bool PercentReachedTargetForStep(const double progress_percent,
-                                 const double target_percent,
-                                 const int step_direction)
-{
-  if(step_direction >= 0)
-    return (progress_percent + STRUCTURE_TOUCH_POLICY_EPS >= target_percent);
-
-  return (progress_percent - STRUCTURE_TOUCH_POLICY_EPS <= target_percent);
-}
-
-bool PercentReachedBandForStep(const double progress_percent,
-                               const double lower_percent,
-                               const double upper_percent,
-                               const int step_direction)
-{
-  if(step_direction >= 0)
-    return (progress_percent + STRUCTURE_TOUCH_POLICY_EPS >= lower_percent);
-
-  return (progress_percent - STRUCTURE_TOUCH_POLICY_EPS <= upper_percent);
-}
-
-bool FibonacciRangeEquals(const double first_lower,
-                          const double first_upper,
-                          const double second_lower,
-                          const double second_upper)
-{
-  return (MathAbs(first_lower - second_lower) <= STRUCTURE_TOUCH_POLICY_EPS) &&
-         (MathAbs(first_upper - second_upper) <= STRUCTURE_TOUCH_POLICY_EPS);
-}
-
 void SetStructureLimitTerminalBandGuardRuntime(const bool enabled)
 {
   g_structure_limit_terminal_band_guard_runtime_enabled = enabled;
@@ -549,28 +216,25 @@ bool StructureLimitTerminalBandGuardEnabled(const StructureTriggerEntryModes tri
     return g_structure_limit_terminal_band_guard_runtime_enabled;
 
   return (Base_Strategy_Type == FIB_LEVEL_RANGE &&
-          Grid_Level_Stop_Limit == 1 &&
-          Grid_Level_Position_Start == 0);
+          ResolveFoundationLevelStopLimit() == 1 &&
+          ResolveFoundationLevelPositionStart() == 0);
 }
 
 bool StructureBreakoutLimitAnchoringEnabled(const StrategyContextTypes context,
                                             const StructureTriggerEntryModes trigger_mode)
 {
+  if(context != CONTEXT_SLOT_BASE)
+    return false;
   if(trigger_mode != LEVELS_AS_LIMITS)
     return false;
-
-  if(!StrategyContextUsesBreakoutCompoundMode(context))
-    return false;
-
-  return g_structure_fibo_config.valid;
+  return false;
 }
 
 StructureTriggerEntryModes ResolveEffectiveStructureTriggerMode(const StrategyContextTypes context,
                                                                 const StructureTriggerEntryModes trigger_mode)
 {
-  if(trigger_mode == LEVEL_AS_ZONE && StrategyContextUsesBreakoutCompoundMode(context))
-    return LEVELS_AS_LIMITS;
-
+  if(context != CONTEXT_SLOT_BASE)
+    return trigger_mode;
   return trigger_mode;
 }
 
@@ -690,17 +354,14 @@ bool StructureLimitEntryRequiresExtrapolatedStopAnchor(const double target_perce
 
   double min_level = g_structure_fibo_config.levels[0];
   double max_level = g_structure_fibo_config.levels[total_levels - 1];
-  return (next_percent < (min_level - STRUCTURE_TOUCH_POLICY_EPS) ||
-          next_percent > (max_level + STRUCTURE_TOUCH_POLICY_EPS));
+  return (next_percent < (min_level - STRUCTURE_PERCENT_EPS) ||
+          next_percent > (max_level + STRUCTURE_PERCENT_EPS));
 }
 
 int ResolveStructureEntryBarIndex(const StrategyContextTypes context,
                                   const StructureTriggerEntryModes trigger_mode)
 {
   if(trigger_mode == LEVELS_AS_LIMITS)
-    return 1;
-
-  if(trigger_mode == LEVEL_AS_ZONE && StrategyContextFirstTouchOnly(context))
     return 1;
 
   return 0;
@@ -876,146 +537,9 @@ bool ResolveStructureFibonacciEntryForPricesDetailed(const StochasticMarketStruc
   }
 
   bool breakout_limit_mode = StructureBreakoutLimitAnchoringEnabled(context, effective_trigger_mode);
-
-  StructureTouchPolicyModes touch_policy = StrategyContextTouchPolicy(context);
-  bool first_touch_only = (touch_policy == FIRST_TOUCH_ONLY);
-  bool enforce_first_touch_only = first_touch_only && !breakout_limit_mode;
   int step_direction = ResolveStructurePercentStepDirection(direction, current_is_bottom);
   if(step_direction == 0)
     step_direction = 1;
-
-  datetime resolved_structure_time = ResolveStructureTouchPolicyStructureTime(structure,
-                                                                              structure_snapshot_time);
-  if(enforce_first_touch_only && resolved_structure_time <= 0)
-    return false;
-
-  if(enforce_first_touch_only)
-  {
-    if(effective_trigger_mode == LEVELS_AS_LIMITS)
-    {
-      if(!close_in && !extreme_in)
-      {
-        if(!CommitStructureTouchProgress(context,
-                                         direction,
-                                         resolved_structure_time,
-                                         step_direction,
-                                         extreme_percent))
-          return false;
-        return true;
-      }
-
-      double target_percent = (step_direction > 0) ? upper : lower;
-      if(breakout_limit_mode)
-      {
-        double lower_price = 0.0;
-        double upper_price = 0.0;
-        if(!ResolveStructurePriceForPercent(peak_price,
-                                            bottom_price,
-                                            current_is_bottom,
-                                            lower,
-                                            lower_price) ||
-           !ResolveStructurePriceForPercent(peak_price,
-                                            bottom_price,
-                                            current_is_bottom,
-                                            upper,
-                                            upper_price))
-          return false;
-
-        double target_price = 0.0;
-        if(!ResolveBreakoutLimitBandTarget(direction,
-                                           lower,
-                                           upper,
-                                           lower_price,
-                                           upper_price,
-                                           target_percent,
-                                           target_price))
-          return false;
-      }
-      double progress_before = 0.0;
-      bool has_progress_before = false;
-      if(!ResolveStructureTouchProgressBefore(context,
-                                              direction,
-                                              resolved_structure_time,
-                                              step_direction,
-                                              progress_before,
-                                              has_progress_before))
-        return false;
-
-      bool touched_before = has_progress_before &&
-                            PercentReachedTargetForStep(progress_before,
-                                                        target_percent,
-                                                        step_direction);
-      bool touches_now = PercentReachedTargetForStep(extreme_percent,
-                                                     target_percent,
-                                                     step_direction);
-
-      if(!CommitStructureTouchProgress(context,
-                                       direction,
-                                       resolved_structure_time,
-                                       step_direction,
-                                       extreme_percent))
-        return false;
-
-      if(touched_before || touches_now)
-        return true;
-    }
-    else if(effective_trigger_mode == LEVEL_AS_ZONE)
-    {
-      if(!close_in || !extreme_in)
-      {
-        if(!CommitStructureTouchProgress(context,
-                                         direction,
-                                         resolved_structure_time,
-                                         step_direction,
-                                         extreme_percent))
-          return false;
-        return true;
-      }
-
-      if(!FibonacciRangeEquals(close_lower,
-                               close_upper,
-                               extreme_lower,
-                               extreme_upper))
-      {
-        if(!CommitStructureTouchProgress(context,
-                                         direction,
-                                         resolved_structure_time,
-                                         step_direction,
-                                         extreme_percent))
-          return false;
-        return true;
-      }
-
-      double progress_before = 0.0;
-      bool has_progress_before = false;
-      if(!ResolveStructureTouchProgressBefore(context,
-                                              direction,
-                                              resolved_structure_time,
-                                              step_direction,
-                                              progress_before,
-                                              has_progress_before))
-        return false;
-
-      bool touched_before = has_progress_before &&
-                            PercentReachedBandForStep(progress_before,
-                                                      close_lower,
-                                                      close_upper,
-                                                      step_direction);
-
-      if(!CommitStructureTouchProgress(context,
-                                       direction,
-                                       resolved_structure_time,
-                                       step_direction,
-                                       extreme_percent))
-        return false;
-
-      if(touched_before)
-        return true;
-
-      lower = close_lower;
-      upper = close_upper;
-    }
-  }
 
   if(!close_in && !extreme_in)
     return true; // no trigger but not fatal
@@ -1166,21 +690,7 @@ bool StrategyContextEvaluateEntryDetailed(const StrategyContextIndicators &snaps
 
   StrategyContextTypes context = snapshot.context;
 
-  if(!EvaluateCandleStructureFilter())
-  {
-    entry_allows = false;
-    filters_pass = false;
-    return true;
-  }
-
   StrategyStructureLayerContext structure_ctx = BuildStructureLayerForContext(context);
-  if(!EvaluateStructureTypeFilters(snapshot, structure_ctx))
-  {
-    entry_allows = false;
-    filters_pass = false;
-    return true;
-  }
-
   bool enforce_fresh = StrategyContextFreshStructureEnabled(context) && structure_ctx.enabled;
   if(enforce_fresh)
   {
@@ -1201,7 +711,7 @@ bool StrategyContextEvaluateEntryDetailed(const StrategyContextIndicators &snaps
   bool resolved_is_limit = false;
   if(!ResolveStructureFibonacciEntryDetailed(snapshot,
                                              direction,
-                                             Structure_Trigger_Entry,
+                                             FOUNDATION_STRUCTURE_TRIGGER_MODE,
                                              entry_price,
                                              in_zone,
                                              resolved_is_limit,
@@ -1212,17 +722,6 @@ bool StrategyContextEvaluateEntryDetailed(const StrategyContextIndicators &snaps
   entry_allows = in_zone;
   if(in_zone)
   {
-    if(!EvaluateSupportResistanceRetestChainFilter(snapshot,
-                                                   structure_ctx,
-                                                   direction,
-                                                   entry_price,
-                                                   in_zone))
-    {
-      entry_allows = false;
-      filters_pass = false;
-      return true;
-    }
-
     entry_price_out = entry_price;
     entry_is_limit = resolved_is_limit;
   }

@@ -132,43 +132,28 @@ void EnsureQueryDebugSessionHeaderLogged()
                                                Session_Time_Dst_Manual_Offset_Minutes));
 
   GridAppendTimestampedQueryDebug("INPUTS_STRATEGY",
-                                  StringFormat("tf=%s|stoch_period=%d|trigger=%s|touch=%s|direction=%s|concurrency=%s",
+                                  StringFormat("tf=%s|stoch_period=%d|direction=%s|concurrency=%s",
                                                EnumToString(Strategy_Timeframe),
                                                Stoch_Structure_Period_Type,
-                                               EnumToString(Structure_Trigger_Entry),
-                                               EnumToString(Structure_Touch_Policy),
                                                EnumToString(Strategy_Direction_Mode),
                                                EnumToString(Signal_Concurrency_Mode)));
 
-  GridAppendTimestampedQueryDebug("INPUTS_FIB",
-                                  StringFormat("levels=%s",
-                                               Structure_Fibonacci_Levels));
+  GridAppendTimestampedQueryDebug("FOUNDATION_STRUCTURE",
+                                  StringFormat("levels=%s|trigger=%s",
+                                               FOUNDATION_STRUCTURE_FIBONACCI_LEVELS,
+                                               EnumToString(FOUNDATION_STRUCTURE_TRIGGER_MODE)));
 
   GridAppendTimestampedQueryDebug("INPUTS_GRID",
                                   StringFormat("base=%s|points_range=%.1f|grid_mult=%.2f|level_start=%d|stop_limit=%d|lot_type=%s|lot_size=%.2f|lot_mult=%.2f|tp_percent=%.1f",
                                                EnumToString(Base_Strategy_Type),
                                                Points_Range_Setup,
-                                               Grid_Exponential_Multiplier,
-                                               Grid_Level_Position_Start,
-                                               Grid_Level_Stop_Limit,
+                                               ResolveFoundationLevelExponentialMultiplier(),
+                                               ResolveFoundationLevelPositionStart(),
+                                               ResolveFoundationLevelStopLimit(),
                                                EnumToString(Lot_Type),
                                                Lot_Strategy_Size,
                                                Lot_Multiplier,
                                                TP_Percent));
-
-  GridAppendTimestampedQueryDebug("INPUTS_FILTERS",
-                                  StringFormat("candle=%s@%s[shift=%d,depth=%d]|sr_chain=%s[count=%d,range=%.1f]|trailing=%s[tp_close=%.1f]|compound=%s|fresh=%s",
-                                               EnumToString(Candle_Strategy_Type),
-                                               EnumToString(Candle_Timeframe),
-                                               Candle_Strategy_Shift,
-                                               Candle_Strategy_Depth,
-                                               GridBoolToken(Support_Resistance_Retest_Chain_Enabled),
-                                               Support_Resistance_Retest_Chain_Count,
-                                               Support_Resistance_Retest_Chain_Range_Percent,
-                                               EnumToString(Trailing_Structure_Mode),
-                                               Trailing_TP_Close_Percent,
-                                               EnumToString(Base_Structure_Compound_Filter),
-                                               GridBoolToken(Base_Fresh_Structure_Time)));
 }
 
 void GridAppendQueryDebugLog(const string label,
@@ -245,43 +230,9 @@ string GridResolveCurrentSignalStructureSequence(const SignalParams &signal_para
                                       structure.fourth_structure_type);
 }
 
-bool GridResolveRequiredCompoundStructureSequence(const SignalParams &signal_params,
-                                                  string &required_sequence_out)
-{
-  required_sequence_out = "";
-
-  StrategyStructureLayerContext ctx = BuildStructureLayerForContext(signal_params.strategy_context);
-  if(!ctx.enabled)
-    return false;
-  if(!StructureCompoundFilterIsEnabled(ctx.structure_compound_filter))
-    return false;
-
-  OscillatorStructureTypes expected_first = OSCILLATOR_STRUCTURE_EQ;
-  OscillatorStructureTypes expected_second = OSCILLATOR_STRUCTURE_EQ;
-  OscillatorStructureTypes expected_third = OSCILLATOR_STRUCTURE_EQ;
-  OscillatorStructureTypes expected_fourth = OSCILLATOR_STRUCTURE_EQ;
-  if(!ResolveStructureCompoundCanonicalTemplate(ctx.structure_compound_filter,
-                                                expected_first,
-                                                expected_second,
-                                                expected_third,
-                                                expected_fourth))
-    return false;
-
-  required_sequence_out = GridComposeStructureSequence(expected_first,
-                                                       expected_second,
-                                                       expected_third,
-                                                       expected_fourth);
-  return true;
-}
-
 string GridResolveStructureAuditSummary(const SignalParams &signal_params)
 {
-  string current_sequence = GridResolveCurrentSignalStructureSequence(signal_params);
-  string required_sequence = "";
-  if(!GridResolveRequiredCompoundStructureSequence(signal_params, required_sequence))
-    return current_sequence;
-
-  return current_sequence + "==" + required_sequence;
+  return GridResolveCurrentSignalStructureSequence(signal_params);
 }
 
 bool GridShouldPrintTerminalEvent(const string label)
@@ -289,15 +240,6 @@ bool GridShouldPrintTerminalEvent(const string label)
   return (label == "SIGNAL_INIT" ||
           label == "LEVEL_REACHED" ||
           label == "LEVEL_TP_HIT" ||
-          label == "INITIAL_TP_TRAILING_ARMED" ||
-          label == "INITIAL_TP_TRAILING_PARTIAL" ||
-          label == "INITIAL_TP_TRAILING_SIGNAL_CLOSED" ||
-          label == "INITIAL_TP_TRAILING_CLOSE_FAILED" ||
-          label == "TRAILING_SL_UPDATE" ||
-          label == "TRAILING_TP_UPDATE" ||
-          label == "TRAILING_SL_HIT" ||
-          label == "TRAILING_TP_HIT" ||
-          label == "TRAILING_TP_SIGNAL_CLOSED" ||
           label == "GRID_STOP_LEVEL_LIMIT" ||
           label == "LEVEL_ACTIVATION_FAILED_TARGET_LOT" ||
           label == "LEVEL_ACTIVATION_FAILED_SEND" ||
@@ -493,23 +435,18 @@ void GridLogEvent(const string label,
   }
   string structure_audit = GridResolveStructureAuditSummary(signal_params);
 
-  string message = StringFormat("dir=%s|L%d|status=%s|entry_ref=%.5f|next=%.5f|entry=%.5f|stop=%.5f|tp=%.5f|lot=%.2f|event_ts=%s|signal_ts=%s|structure_ts=%s|trail_sl_ts=%s|trail_tp_ts=%s|trail_arm_ts=%s|trail_armed=%s|structure=%s",
+  string message = StringFormat("dir=%s|L%d|status=%s|entry_ref=%.5f|next=%.5f|entry=%.5f|tp=%.5f|lot=%.2f|event_ts=%s|signal_ts=%s|structure_ts=%s|structure=%s",
                                 direction,
                                 display_level,
                                 EnumToString(order_state.status),
                                 order_state.entry_reference_price,
                                 order_state.next_level_price,
                                 order_state.entry_price,
-                                signal_params.trailing_stop_price,
                                 order_state.take_profit_price,
                                 order_state.lot_size,
                                 event_timestamp,
                                 signal_timestamp,
                                 structure_timestamp,
-                                TimeToString(signal_params.trailing_last_sl_structure_time, TIME_DATE|TIME_SECONDS),
-                                TimeToString(signal_params.trailing_last_tp_structure_time, TIME_DATE|TIME_SECONDS),
-                                TimeToString(signal_params.trailing_structure_arm_time, TIME_DATE|TIME_SECONDS),
-                                signal_params.trailing_structure_armed ? "true" : "false",
                                 structure_audit);
 
   GridAppendQueryDebugLog(label, message);

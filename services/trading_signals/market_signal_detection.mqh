@@ -88,7 +88,7 @@ void EvaluateContextSignals(const StrategyContextTypes context)
 
     SignalParams signal;
     StructureTriggerEntryModes effective_trigger_mode = ResolveEffectiveStructureTriggerMode(context,
-                                                                                              Structure_Trigger_Entry);
+                                                                                              FOUNDATION_STRUCTURE_TRIGGER_MODE);
     signal.signal_type            = direction;
     signal.entry_time             = snapshot.bar_time;
     signal.entry_price            = entry_price;

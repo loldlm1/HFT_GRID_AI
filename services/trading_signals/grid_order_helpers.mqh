@@ -4,6 +4,31 @@
 #ifndef _MICROSERVICES_TRADING_SIGNALS_GRID_ORDER_HELPERS_MQH_
 #define _MICROSERVICES_TRADING_SIGNALS_GRID_ORDER_HELPERS_MQH_
 
+const double FOUNDATION_LEVEL_EXPONENTIAL_MULTIPLIER = 1.0;
+const int FOUNDATION_LEVEL_POSITION_START = 0;
+const int FOUNDATION_LEVEL_STOP_LIMIT = 1;
+
+int ResolveFoundationLevelPositionStart()
+{
+  if(FOUNDATION_LEVEL_POSITION_START < 0)
+    return 0;
+  return FOUNDATION_LEVEL_POSITION_START;
+}
+
+double ResolveFoundationLevelExponentialMultiplier()
+{
+  if(FOUNDATION_LEVEL_EXPONENTIAL_MULTIPLIER <= 0.0)
+    return 1.0;
+  return FOUNDATION_LEVEL_EXPONENTIAL_MULTIPLIER;
+}
+
+int ResolveFoundationLevelStopLimit()
+{
+  if(FOUNDATION_LEVEL_STOP_LIMIT < 0)
+    return 0;
+  return FOUNDATION_LEVEL_STOP_LIMIT;
+}
+
 double GridResolvePointSize()
 {
   double point_size = SymbolInfoDouble(_Symbol, SYMBOL_POINT);
@@ -198,10 +223,7 @@ int GridCountPositionOpeningLevels(const SignalParams &signal_params)
 bool GridNextLevelOpensPosition(const SignalParams &signal_params)
 {
   int next_index = ArraySize(signal_params.grid_orders);
-  int start_level = Grid_Level_Position_Start;
-  if(start_level < 0)
-    start_level = 0;
-  return (next_index >= start_level);
+  return (next_index >= ResolveFoundationLevelPositionStart());
 }
 
 void GridResetOrderStateForWaiting(GridOrderState &state,
@@ -454,9 +476,7 @@ double ComputeLevelDistancePoints(const SignalParams &signal_params,
   double base_pts = signal_params.grid_base_distance_points;
   if(base_pts <= 0.0)
     return 0.0;
-  double mult = Grid_Exponential_Multiplier;
-  if(mult <= 0.0)
-    mult = 1.0;
+  double mult = ResolveFoundationLevelExponentialMultiplier();
   double distance_pts = base_pts * MathPow(mult, (double)level_index);
   distance_pts = EnforceBrokerDistance(g_symbol_constraints, distance_pts);
   return distance_pts;
@@ -825,10 +845,10 @@ bool SignalUsesBreakoutLimitAnchoring(const SignalParams &signal_params)
   if(!signal_params.entry_is_limit)
     return false;
 
-  if(!StrategyContextUsesBreakoutCompoundMode(signal_params.strategy_context))
+  if(signal_params.strategy_context != CONTEXT_SLOT_BASE)
     return false;
 
-  return g_structure_fibo_config.valid;
+  return false;
 }
 
 bool ResolveBreakoutLimitOppositeEndpointPercent(const double entry_percent,

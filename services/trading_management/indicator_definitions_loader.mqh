@@ -8,6 +8,7 @@
 ENUM_TIMEFRAMES Strategy_TF_List[];
 IndicatorsHandleInfo ExtStructStochIndicatorsHandle[];
 int total_tf_list_load = 0;
+const string FOUNDATION_STRUCTURE_FIBONACCI_LEVELS = "0.0,61.8,100.0";
 
 // ── Helpers ─────────────────────────────────────────────────────────────
 
@@ -90,7 +91,7 @@ void LoadAllStructStochIndicators()
 void LoadAllIndicatorDefinitions()
 {
   PrepareStrategyTimeframes();
-  LoadStructureFibonacciLevels(Structure_Fibonacci_Levels,
+  LoadStructureFibonacciLevels(FOUNDATION_STRUCTURE_FIBONACCI_LEVELS,
                                "23.6,38.2,50.0,61.8,78.6,100.0");
 
   ArrayResize(ExtStructStochIndicatorsHandle, 0);

@@ -532,9 +532,7 @@ bool BuildGridOrderForSignal(SignalParams &signal_params)
   signal_params.grid_orders[grid_order_level].level_index = grid_order_level;
   signal_params.grid_orders[grid_order_level].status      = GRID_ORDER_STOP_TRAILING_ACTIVE;
   ResetGridOrderPricesByDirection(signal_params, grid_order_level);
-  int level_position_start = Grid_Level_Position_Start;
-  if(level_position_start < 0)
-    level_position_start = 0;
+  int level_position_start = ResolveFoundationLevelPositionStart();
   signal_params.grid_orders[grid_order_level].opens_position = (grid_order_level >= level_position_start);
 
   // Calculate trailing entry reference and next level activation
@@ -563,9 +561,6 @@ bool BuildGridOrderForSignal(SignalParams &signal_params)
 
   if(grid_order_level == 0)
   {
-    if(signal_params.trailing_first_level_take_profit_price <= 0.0)
-      signal_params.trailing_first_level_take_profit_price =
-        signal_params.grid_orders[grid_order_level].initial_take_profit_price;
     GridLogEvent("SIGNAL_INIT", signal_params, signal_params.grid_orders[grid_order_level]);
   }
   else
