@@ -11,7 +11,7 @@ This folder contains active product-facing documentation for the refounded EA ba
 
 - The project validates documentation-only phases by review, not MT5 compile.
 - Implementation phases compile once at phase end.
-- Legacy custom MQL5 tests and harnesses are scheduled for removal in Phase 2.
+- Legacy custom MQL5 tests and harnesses were removed in Phase 2.
 - Removed feature groups must not be reintroduced as product docs, compatibility shims, or deprecated aliases.
 
 ## Removed From Active Docs

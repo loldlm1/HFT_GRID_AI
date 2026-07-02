@@ -104,7 +104,7 @@ This document does not define final production strategy rules.
 
 Phase ownership:
 
-- Phase 2 removes legacy custom tests and harnesses.
+- Phase 2 removes legacy custom tests and harnesses from the active repository.
 - Phase 3 removes legacy feature inputs and code paths.
 - Phase 4 renames the domain away from grid-specific public/internal naming.
 - Phase 5 simplifies strategy range and risk foundations.
@@ -112,4 +112,3 @@ Phase ownership:
 - Phase 7 performs the real-tick performance pass.
 
 Until those phases are complete, this document is the contract for direction, not proof that the implementation already conforms.
-

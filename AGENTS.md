@@ -90,7 +90,7 @@ Any phase touching these controls must call out risk level in its phase plan.
 ## 7) Validation Policy
 
 - No custom MQL5 tests, test harnesses, or agentic CI are part of this refoundation.
-- Phase 2 owns deletion of legacy tests and the old test runner.
+- Legacy custom tests and the old test runner have been removed.
 - Documentation-only phases do not run MT5 compile.
 - Implementation phases compile once at phase end, not after every atomic task.
 - Compile portable/headless first whenever possible, then fallback to normal MetaEditor compile if needed.

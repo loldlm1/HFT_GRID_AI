@@ -4,7 +4,7 @@
 **Entrypoint:** `HFT_Grid_AI.mq5`
 **Current focus:** refounded EA foundation for future strategy integration
 
-HFT Grid AI is being refounded into a smaller, broker-aware MT5 Expert Advisor foundation. The active work removes legacy strategy features, legacy custom tests, and grid-specific public domain naming before new strategies are integrated.
+HFT Grid AI is being refounded into a smaller, broker-aware MT5 Expert Advisor foundation. The active work removes legacy strategy features and grid-specific public domain naming before new strategies are integrated.
 
 ## Current Docs
 
@@ -87,5 +87,5 @@ Before a real broker position exists, local simulation owns candidate state and 
 - `services/`: ordered include pipeline and EA services.
 - `indicators/`: indicator sources used by the EA.
 - `docs/`: active roadmap, plans, architecture, and product docs.
-- `tests/`: legacy custom tests scheduled for removal in Phase 2.
-- `scripts/run_mql5_tests.sh`: legacy test runner scheduled for removal in Phase 2.
+
+Legacy custom tests and the old test runner were removed in Phase 2. The active validation path is MT5 compile at implementation phase end.

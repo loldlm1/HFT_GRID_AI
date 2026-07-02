@@ -10,6 +10,7 @@
 - Phase 0 completed: `docs/plans/phase-00-foundation-contract-plan.md`.
 - Phase 1 plan created: `docs/plans/phase-01-docs-reset-plan.md`.
 - Execution foundation architecture added: `docs/architecture/execution-foundation.md`.
+- Phase 2 plan created: `docs/plans/phase-02-remove-tests-plan.md`.
 
 ## Purpose
 
@@ -152,6 +153,7 @@ Acceptance criteria:
 
 ### Phase 2: Remove Test Infrastructure
 
+**Status**: Active
 **Goal**: Delete legacy custom tests and harnesses so the repository validates by MT5 compile only.  
 **Planner output**: `docs/plans/phase-02-remove-tests-plan.md`  
 **Compile**: Required once at phase end.  
