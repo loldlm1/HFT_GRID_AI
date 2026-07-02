@@ -121,6 +121,60 @@ Scripts and generated artifacts classification:
 
 Phase 1 should remove active docs for deleted features before code deletion begins, so contributors do not follow stale product behavior while the refoundation is underway.
 
+### Sprint 3 Completion: New Domain Contract
+
+**Status**: Completed  
+**Validation**: Documentation review only; no MT5 compile required.  
+**Commit target**: `docs: define execution foundation vocabulary`
+
+Confirmed replacement vocabulary:
+
+| Legacy Term | Foundation Term | Decision |
+| --- | --- | --- |
+| `GridLotTypes` | `LotTypes` | Use generic lot type enum. |
+| `GRID_LOT_SIZE` | `LOT_FIXED_SIZE` | Preserve numeric value `0`. |
+| `GRID_LOT_PERCENTAGE_BASED` | `LOT_PERCENTAGE_BASED` | Preserve numeric value `1`. |
+| `GRID_LOT_CURRENCY_BASED` | `LOT_CURRENCY_BASED` | Preserve numeric value `2`. |
+| `GridOrderState` | `ExecutionLegState` | Use for one planned/simulated/real execution unit. |
+| `grid_orders` | `execution_legs` | Use for arrays of execution units. |
+| grid planner | execution planner | Owns strategy-neutral execution planning. |
+| grid lifecycle | execution lifecycle | Owns activation, reconciliation, completion, and cleanup. |
+| grid sequence | execution sequence | Use when multiple execution legs belong to one strategy signal. |
+| base grid distance | strategy range distance | Use for range-based strategy foundation. |
+| grid visualization | execution visualization | Keep only if frontend remains useful after feature removal. |
+
+Naming rules for implementation phases:
+
+- Do not introduce `GRID_` aliases for removed public enum values.
+- Do not keep compatibility wrappers for removed input names.
+- Preserve enum numeric semantics where user configuration compatibility depends on ordinal values.
+- Use `strategy`, `execution`, `range`, `leg`, and `broker snapshot` vocabulary for new foundation code.
+- Use `grid` only for historical artifacts scheduled for deletion in the same phase plan.
+
+Execution source-of-truth contract:
+
+- Before a real broker position exists, local execution simulation owns candidate state.
+- Local simulation must apply broker conditions before activation decisions: spread, stops level, freeze level, volume min/max/step, margin, market status, sessions, license, and protection gates.
+- After a real broker position exists, broker state owns ticket, volume, entry price, close state, and realized profit.
+- Local execution state may reconcile against broker facts, but must not overwrite broker facts.
+- Future statistics must distinguish simulated decisions from broker-confirmed outcomes.
+
+Safety ownership contract:
+
+| Control | Ownership Rule |
+| --- | --- |
+| License guard | Must remain fail-closed for live/demo paths. |
+| Spread guard | Must be checked before simulated or real activation. |
+| Broker stops/freeze | Must be normalized through broker-constraint helpers. |
+| Volume min/max/step | Must be normalized before local simulation and order send. |
+| Margin guard | Must block local activation and real send when insufficient. |
+| Drawdown/protection | Must not be weakened while simplifying risk/range inputs. |
+| Session filter | Preserved and applied before strategy execution. |
+| Market status | Must block disabled/close-only conditions. |
+| Magic number/symbol scope | Must isolate broker reconciliation and lifecycle decisions. |
+
+Any later phase that touches these controls must call out risk level in its phase plan and close with the end-of-phase MT5 compile gate.
+
 ## Sprint 1: Scope Freeze
 
 **Goal**: Confirm the exact refoundation scope before implementation.  
