@@ -11,43 +11,43 @@ const double GRID_VOLUME_EPSILON = 0.0000001;
 
 struct SignalOrderCloseCandidate
 {
-  int    order_index;
+  int    leg_index;
   double projected_profit;
 
   SignalOrderCloseCandidate()
   {
-    order_index       = -1;
+    leg_index       = -1;
     projected_profit  = 0.0;
   }
 };
 
-double ResolveGridOrderTrackedVolume(const GridOrderState &order_state)
+double ResolveExecutionLegTrackedVolume(const ExecutionLegState &leg_state)
 {
-  if(order_state.position_ticket > 0 && PositionSelectByTicket(order_state.position_ticket))
+  if(leg_state.position_ticket > 0 && PositionSelectByTicket(leg_state.position_ticket))
   {
     double broker_volume = PositionGetDouble(POSITION_VOLUME);
     if(broker_volume > 0.0)
       return broker_volume;
   }
 
-  return order_state.lot_size;
+  return leg_state.lot_size;
 }
 
 void RegisterSignalRealizedClose(SignalParams &signal_params,
-                                 const GridOrderState &order_state,
+                                 const ExecutionLegState &leg_state,
                                  const double closed_volume,
                                  const double close_price)
 {
   if(closed_volume <= 0.0 || close_price <= 0.0)
     return;
 
-  double entry_price = order_state.entry_price;
+  double entry_price = leg_state.entry_price;
   if(entry_price <= 0.0)
-    entry_price = order_state.entry_reference_price;
+    entry_price = leg_state.entry_reference_price;
   if(entry_price <= 0.0)
     return;
 
-  signal_params.realized_profit += ResolveProjectedGridOrderProfitAtPrice(signal_params.signal_type,
+  signal_params.realized_profit += ResolveProjectedExecutionLegProfitAtPrice(signal_params.signal_type,
                                                                           entry_price,
                                                                           close_price,
                                                                           closed_volume);
@@ -104,13 +104,13 @@ ulong FindOpenPositionForSignal(const SignalTypes direction,
   return 0;
 }
 
-bool GridShouldActivateStopOrder(const SignalParams &signal_params,
-                                 const GridOrderState &order_state,
+bool ExecutionShouldActivateStopLeg(const SignalParams &signal_params,
+                                 const ExecutionLegState &leg_state,
                                  const SignalTypes direction)
 {
-  double entry_side_price = GridCurrentPriceForDirection(direction, true);
+  double entry_side_price = ExecutionCurrentPriceForDirection(direction, true);
 
-  double stop_trigger = order_state.entry_reference_price;
+  double stop_trigger = leg_state.entry_reference_price;
   if(stop_trigger <= 0.0)
     return false;
   if(signal_params.entry_is_limit)
@@ -126,20 +126,20 @@ bool GridShouldActivateStopOrder(const SignalParams &signal_params,
   return false;
 }
 
-bool GridShouldActivateNextLevelLimit(const SignalParams &signal_params,
-                                      const GridOrderState &order_state,
+bool ExecutionShouldActivateNextLegLimit(const SignalParams &signal_params,
+                                      const ExecutionLegState &leg_state,
                                       const SignalTypes direction)
 {
-  double entry_side_price = GridCurrentPriceForDirection(direction, true);
-  double reference_price = GridResolveOrderReferencePrice(signal_params,
-                                                          order_state);
+  double entry_side_price = ExecutionCurrentPriceForDirection(direction, true);
+  double reference_price = ExecutionResolveLegReferencePrice(signal_params,
+                                                          leg_state);
 
   // Deeper levels activate on the NEXT level price (averaging on adverse move).
-  double next_trigger = order_state.next_level_price;
+  double next_trigger = leg_state.next_level_price;
   if(next_trigger <= 0.0)
     return false;
   if(reference_price > 0.0 &&
-     !GridHasMeaningfulPriceGap(reference_price,
+     !ExecutionHasMeaningfulPriceGap(reference_price,
                                 next_trigger))
     return false;
 
@@ -177,7 +177,7 @@ bool LimitSignalExpiredOnStructureChange(const SignalParams &signal_params)
   if(!signal_params.entry_is_limit)
     return false;
 
-  if(GridSignalHasExecutedLevel(signal_params))
+  if(ExecutionSignalHasExecutedLeg(signal_params))
     return false;
 
   StochasticMarketStructure entry_structure;
@@ -203,36 +203,36 @@ bool LimitSignalExpiredOnStructureChange(const SignalParams &signal_params)
   return (current_time > entry_time);
 }
 
-bool GridExecuteLevelTrade(SignalParams &signal_params,
-                           GridOrderState &order_state,
+bool ExecuteExecutionLegTrade(SignalParams &signal_params,
+                           ExecutionLegState &leg_state,
                            const double point_size,
                            const double normalized_volume)
 {
   SignalTypes direction = signal_params.signal_type;
-  string comment = GridComposeLevelComment(signal_params, order_state);
+  string comment = ExecutionComposeLegComment(signal_params, leg_state);
 
-  if(!order_state.opens_position)
+  if(!leg_state.opens_position)
   {
-    double fill_price = GridCurrentPriceForDirection(direction, true);
+    double fill_price = ExecutionCurrentPriceForDirection(direction, true);
     if(fill_price <= 0.0)
-      fill_price = order_state.entry_reference_price;
+      fill_price = leg_state.entry_reference_price;
     if(fill_price <= 0.0)
-      fill_price = GridCurrentPriceForDirection(direction, true);
+      fill_price = ExecutionCurrentPriceForDirection(direction, true);
 
-    order_state.status            = EXECUTION_LEG_ACTIVE;
-    order_state.entry_price       = fill_price;
-    order_state.position_ticket   = 0;
-    order_state.position_comment  = comment;
-    order_state.last_action_time  = TimeCurrent();
-    signal_params.grid_orders[order_state.level_index] = order_state;
+    leg_state.status            = EXECUTION_LEG_ACTIVE;
+    leg_state.entry_price       = fill_price;
+    leg_state.position_ticket   = 0;
+    leg_state.position_comment  = comment;
+    leg_state.last_action_time  = TimeCurrent();
+    signal_params.execution_legs[leg_state.level_index] = leg_state;
     return true;
   }
 
   // Guardrails: spread/margin checks before sending
   string guard_reason = "";
-  if(!GridGuardrailsAllowOrder(normalized_volume, guard_reason))
+  if(!ExecutionGuardrailsAllowOrder(normalized_volume, guard_reason))
   {
-    GridLogGuardrailBlock("GUARDRAIL_BLOCK", signal_params, order_state, guard_reason);
+    ExecutionLogGuardrailBlock("GUARDRAIL_BLOCK", signal_params, leg_state, guard_reason);
     if(Debug_Stop_On_Negative_Equity) g_debug_no_money_abort_pending = true;
     return false;
   }
@@ -258,34 +258,34 @@ bool GridExecuteLevelTrade(SignalParams &signal_params,
 
   double fill_price = g_position.ResultPrice();
   if(fill_price <= 0.0)
-    fill_price = GridCurrentPriceForDirection(direction, true);
+    fill_price = ExecutionCurrentPriceForDirection(direction, true);
 
-  order_state.status = EXECUTION_LEG_ACTIVE;
-  order_state.entry_price = fill_price;
+  leg_state.status = EXECUTION_LEG_ACTIVE;
+  leg_state.entry_price = fill_price;
   ulong deal_ticket = (ulong)g_position.ResultDeal();
-  order_state.position_ticket = ResolvePositionTicketFromDeal(deal_ticket);
-  if(order_state.position_ticket == 0)
-    order_state.position_ticket = FindOpenPositionForSignal(direction, comment);
-  order_state.position_comment = comment;
-  order_state.last_action_time = TimeCurrent();
+  leg_state.position_ticket = ResolvePositionTicketFromDeal(deal_ticket);
+  if(leg_state.position_ticket == 0)
+    leg_state.position_ticket = FindOpenPositionForSignal(direction, comment);
+  leg_state.position_comment = comment;
+  leg_state.last_action_time = TimeCurrent();
 
-  signal_params.grid_orders[order_state.level_index] = order_state;
+  signal_params.execution_legs[leg_state.level_index] = leg_state;
   return sent;
 }
 
-bool GridCloseBrokerPosition(GridOrderState &order_state,
+bool CloseExecutionLegBrokerPosition(ExecutionLegState &leg_state,
                              const SignalTypes direction,
                              double &close_price)
 {
   close_price = 0.0;
 
-  if(order_state.position_ticket <= 0)
+  if(leg_state.position_ticket <= 0)
     return true;
 
-  if(!PositionSelectByTicket(order_state.position_ticket))
+  if(!PositionSelectByTicket(leg_state.position_ticket))
     return true;
 
-  if(!g_position.PositionClose(order_state.position_ticket))
+  if(!g_position.PositionClose(leg_state.position_ticket))
   {
     ulong retcode = g_position.ResultRetcode();
     int last_error = GetLastError();
@@ -295,14 +295,14 @@ bool GridCloseBrokerPosition(GridOrderState &order_state,
 
   close_price = g_position.ResultPrice();
   if(close_price <= 0.0)
-    close_price = GridCurrentPriceForDirection(direction, false);
+    close_price = ExecutionCurrentPriceForDirection(direction, false);
 
-  order_state.position_ticket = 0;
-  order_state.lot_size = 0.0;
+  leg_state.position_ticket = 0;
+  leg_state.lot_size = 0.0;
   return true;
 }
 
-bool GridCloseBrokerPositionVolume(GridOrderState &order_state,
+bool CloseExecutionLegBrokerPositionVolume(ExecutionLegState &leg_state,
                                    const SignalTypes direction,
                                    const double requested_volume,
                                    double &close_price,
@@ -313,13 +313,13 @@ bool GridCloseBrokerPositionVolume(GridOrderState &order_state,
   closed_volume_out = 0.0;
   fully_closed_out = false;
 
-  if(order_state.position_ticket <= 0)
+  if(leg_state.position_ticket <= 0)
     return true;
 
-  if(!PositionSelectByTicket(order_state.position_ticket))
+  if(!PositionSelectByTicket(leg_state.position_ticket))
   {
-    order_state.position_ticket = 0;
-    order_state.lot_size = 0.0;
+    leg_state.position_ticket = 0;
+    leg_state.lot_size = 0.0;
     fully_closed_out = true;
     return true;
   }
@@ -327,8 +327,8 @@ bool GridCloseBrokerPositionVolume(GridOrderState &order_state,
   double current_volume = PositionGetDouble(POSITION_VOLUME);
   if(current_volume <= 0.0)
   {
-    order_state.position_ticket = 0;
-    order_state.lot_size = 0.0;
+    leg_state.position_ticket = 0;
+    leg_state.lot_size = 0.0;
     fully_closed_out = true;
     return true;
   }
@@ -340,7 +340,7 @@ bool GridCloseBrokerPositionVolume(GridOrderState &order_state,
   target_volume = NormalizeVolumeForSymbol(_Symbol, target_volume);
   if(target_volume <= 0.0 || target_volume >= current_volume - GRID_VOLUME_EPSILON)
   {
-    bool close_all_result = GridCloseBrokerPosition(order_state, direction, close_price);
+    bool close_all_result = CloseExecutionLegBrokerPosition(leg_state, direction, close_price);
     if(close_all_result)
     {
       closed_volume_out = current_volume;
@@ -349,7 +349,7 @@ bool GridCloseBrokerPositionVolume(GridOrderState &order_state,
     return close_all_result;
   }
 
-  if(!g_position.PositionClosePartial(order_state.position_ticket, target_volume))
+  if(!g_position.PositionClosePartial(leg_state.position_ticket, target_volume))
   {
     ulong retcode = g_position.ResultRetcode();
     int last_error = GetLastError();
@@ -359,28 +359,28 @@ bool GridCloseBrokerPositionVolume(GridOrderState &order_state,
 
   close_price = g_position.ResultPrice();
   if(close_price <= 0.0)
-    close_price = GridCurrentPriceForDirection(direction, false);
+    close_price = ExecutionCurrentPriceForDirection(direction, false);
 
   closed_volume_out = target_volume;
-  if(PositionSelectByTicket(order_state.position_ticket))
+  if(PositionSelectByTicket(leg_state.position_ticket))
   {
     double remaining_volume = PositionGetDouble(POSITION_VOLUME);
     if(remaining_volume <= GRID_VOLUME_EPSILON)
     {
-      order_state.position_ticket = 0;
-      order_state.lot_size = 0.0;
+      leg_state.position_ticket = 0;
+      leg_state.lot_size = 0.0;
       fully_closed_out = true;
     }
     else
     {
-      order_state.lot_size = remaining_volume;
+      leg_state.lot_size = remaining_volume;
       fully_closed_out = false;
     }
   }
   else
   {
-    order_state.position_ticket = 0;
-    order_state.lot_size = 0.0;
+    leg_state.position_ticket = 0;
+    leg_state.lot_size = 0.0;
     fully_closed_out = true;
   }
 
@@ -392,14 +392,14 @@ bool ResolveSignalTrailingPartialCloseCandidates(const SignalParams &signal_para
 {
   ArrayResize(candidates, 0);
 
-  double current_close_price = GridCurrentPriceForDirection(signal_params.signal_type, false);
+  double current_close_price = ExecutionCurrentPriceForDirection(signal_params.signal_type, false);
   if(current_close_price <= 0.0)
     return false;
 
-  int total_levels = ArraySize(signal_params.grid_orders);
+  int total_levels = ArraySize(signal_params.execution_legs);
   for(int idx = 0; idx < total_levels; idx++)
   {
-    GridOrderState state = signal_params.grid_orders[idx];
+    ExecutionLegState state = signal_params.execution_legs[idx];
     if(!state.opens_position)
       continue;
     if(state.status != EXECUTION_LEG_ACTIVE)
@@ -416,8 +416,8 @@ bool ResolveSignalTrailingPartialCloseCandidates(const SignalParams &signal_para
       continue;
 
     SignalOrderCloseCandidate candidate;
-    candidate.order_index = idx;
-    candidate.projected_profit = ResolveProjectedGridOrderProfitAtPrice(signal_params.signal_type,
+    candidate.leg_index = idx;
+    candidate.projected_profit = ResolveProjectedExecutionLegProfitAtPrice(signal_params.signal_type,
                                                                         entry_price,
                                                                         current_close_price,
                                                                         state.lot_size);
@@ -442,7 +442,7 @@ bool ResolveSignalTrailingPartialCloseCandidates(const SignalParams &signal_para
   return (ArraySize(candidates) > 0);
 }
 
-bool GridCloseSignalVolumeByPriority(SignalParams &signal_params,
+bool CloseSignalVolumeByExecutionPriority(SignalParams &signal_params,
                                      const double requested_volume,
                                      double &closed_volume_out)
 {
@@ -459,12 +459,12 @@ bool GridCloseSignalVolumeByPriority(SignalParams &signal_params,
   int total_candidates = ArraySize(candidates);
   for(int idx = 0; idx < total_candidates && remaining_to_close > GRID_VOLUME_EPSILON; idx++)
   {
-    int order_index = candidates[idx].order_index;
-    if(order_index < 0 || order_index >= ArraySize(signal_params.grid_orders))
+    int leg_index = candidates[idx].leg_index;
+    if(leg_index < 0 || leg_index >= ArraySize(signal_params.execution_legs))
       continue;
 
-    GridOrderState state = signal_params.grid_orders[order_index];
-    double tracked_volume = ResolveGridOrderTrackedVolume(state);
+    ExecutionLegState state = signal_params.execution_legs[leg_index];
+    double tracked_volume = ResolveExecutionLegTrackedVolume(state);
     if(tracked_volume <= 0.0)
       continue;
 
@@ -475,7 +475,7 @@ bool GridCloseSignalVolumeByPriority(SignalParams &signal_params,
     double close_price = 0.0;
     double closed_volume = 0.0;
     bool fully_closed = false;
-    if(!GridCloseBrokerPositionVolume(state,
+    if(!CloseExecutionLegBrokerPositionVolume(state,
                                       signal_params.signal_type,
                                       volume_to_close,
                                       close_price,
@@ -494,7 +494,7 @@ bool GridCloseSignalVolumeByPriority(SignalParams &signal_params,
     else
       state.status = EXECUTION_LEG_ACTIVE;
 
-    signal_params.grid_orders[order_index] = state;
+    signal_params.execution_legs[leg_index] = state;
     remaining_to_close -= closed_volume;
     closed_volume_out += closed_volume;
   }
@@ -503,25 +503,25 @@ bool GridCloseSignalVolumeByPriority(SignalParams &signal_params,
   return true;
 }
 
-void GridCloseAllLevels(SignalParams &signal_params,
+void CloseAllExecutionLegs(SignalParams &signal_params,
                         const double point_size)
 {
   bool result = false;
   SignalTypes direction = signal_params.signal_type;
-  int total_levels = ArraySize(signal_params.grid_orders);
+  int total_levels = ArraySize(signal_params.execution_legs);
   for(int i = 0; i < total_levels; i++)
   {
-    GridOrderState state = signal_params.grid_orders[i];
-    double tracked_volume = ResolveGridOrderTrackedVolume(state);
+    ExecutionLegState state = signal_params.execution_legs[i];
+    double tracked_volume = ResolveExecutionLegTrackedVolume(state);
     double close_price = 0.0;
-    result = GridCloseBrokerPosition(state, direction, close_price);
+    result = CloseExecutionLegBrokerPosition(state, direction, close_price);
     if(result)
     {
       RegisterSignalRealizedClose(signal_params, state, tracked_volume, close_price);
       state.status = EXECUTION_LEG_COMPLETED;
     }
-    GridLogEvent("LEVEL_CLOSE_ALL", signal_params, state);
-    signal_params.grid_orders[i] = state;
+    ExecutionLogEvent("LEVEL_CLOSE_ALL", signal_params, state);
+    signal_params.execution_legs[i] = state;
   }
 
   signal_params.remaining_open_volume = 0.0;
@@ -559,15 +559,15 @@ int GetActivePositionsCount(const SignalTypes direction)
   return count;
 }
 
-bool IsGridSignalComplete(const SignalParams &signal_params)
+bool IsExecutionSignalComplete(const SignalParams &signal_params)
 {
-  if(!signal_params.grid_initialized)
+  if(!signal_params.execution_initialized)
     return false;
 
-  int total_levels = ArraySize(signal_params.grid_orders);
+  int total_levels = ArraySize(signal_params.execution_legs);
   for(int i = 0; i < total_levels; i++)
   {
-    GridOrderState state = signal_params.grid_orders[i];
+    ExecutionLegState state = signal_params.execution_legs[i];
     if(state.status == EXECUTION_LEG_WAITING ||
        state.status == EXECUTION_LEG_PENDING ||
        state.status == EXECUTION_LEG_ACTIVE)
@@ -577,7 +577,7 @@ bool IsGridSignalComplete(const SignalParams &signal_params)
   int attached_positions = 0;
   for(int i = 0; i < total_levels; i++)
   {
-    GridOrderState state = signal_params.grid_orders[i];
+    ExecutionLegState state = signal_params.execution_legs[i];
     if(state.position_ticket > 0 && PositionSelectByTicket(state.position_ticket))
     {
       long position_magic = PositionGetInteger(POSITION_MAGIC);

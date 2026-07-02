@@ -1,6 +1,6 @@
 #ifndef _MICROSERVICES_TRADING_SIGNALS_GRID_PRICE_RESOLVER_MQH_
 #define _MICROSERVICES_TRADING_SIGNALS_GRID_PRICE_RESOLVER_MQH_
 
-// Relies on the include cascade to provide SignalParams, GridOrderState, etc.
+// Relies on the include cascade to provide SignalParams, ExecutionLegState, etc.
 
 #endif // _MICROSERVICES_TRADING_SIGNALS_GRID_PRICE_RESOLVER_MQH_

@@ -1,119 +1,119 @@
 #ifndef _SERVICES_TRADING_SIGNALS_EXECUTION_CONTROLLER_MQH_
 #define _SERVICES_TRADING_SIGNALS_EXECUTION_CONTROLLER_MQH_
 
-void UpdateGridLifecycle(SignalParams &signal_params)
+void UpdateExecutionLifecycle(SignalParams &signal_params)
 {
-  if(!signal_params.grid_initialized)
+  if(!signal_params.execution_initialized)
     return;
   if(signal_params.signal_state == CLOSED)
     return;
 
-  double         point_size        = GridResolvePointSize();
+  double         point_size        = ExecutionResolvePointSize();
   SignalTypes    direction         = signal_params.signal_type;
-  int            grid_order_level  = ArraySize(signal_params.grid_orders)-1;
-  GridOrderState grid_order        = signal_params.grid_orders[grid_order_level];
+  int            execution_leg_index  = ArraySize(signal_params.execution_legs)-1;
+  ExecutionLegState execution_leg        = signal_params.execution_legs[execution_leg_index];
 
   if(LimitSignalExpiredOnStructureChange(signal_params))
   {
     signal_params.signal_state = CLOSED;
-    GridLogEvent("LIMIT_EXPIRED_STRUCTURE", signal_params, grid_order);
+    ExecutionLogEvent("LIMIT_EXPIRED_STRUCTURE", signal_params, execution_leg);
     return;
   }
 
-  if(grid_order.status == EXECUTION_LEG_PENDING)
+  if(execution_leg.status == EXECUTION_LEG_PENDING)
   {
-    if(UpdateGridOrderForSignal(signal_params))
-      grid_order = signal_params.grid_orders[grid_order_level];
+    if(UpdateExecutionLegForSignal(signal_params))
+      execution_leg = signal_params.execution_legs[execution_leg_index];
 
-    double requested_lot = grid_order.lot_size;
+    double requested_lot = execution_leg.lot_size;
     double normalized_volume = 0.0;
-    if(grid_order.opens_position && requested_lot > 0.0)
+    if(execution_leg.opens_position && requested_lot > 0.0)
       normalized_volume = NormalizeVolumeForSymbol(_Symbol, requested_lot);
-    double entry_side_price = GridCurrentPriceForDirection(direction, true);
-    bool use_limit_edge_activation = UsesNonBreakoutLimitEdgeActivation(signal_params, grid_order);
+    double entry_side_price = ExecutionCurrentPriceForDirection(direction, true);
+    bool use_limit_edge_activation = UsesNonBreakoutLimitEdgeActivation(signal_params, execution_leg);
 
-    if(use_limit_edge_activation && !grid_order.limit_activation_armed)
+    if(use_limit_edge_activation && !execution_leg.limit_activation_armed)
     {
-      if(ShouldArmNonBreakoutLimitActivation(signal_params, grid_order, entry_side_price))
+      if(ShouldArmNonBreakoutLimitActivation(signal_params, execution_leg, entry_side_price))
       {
-        grid_order.limit_activation_armed = true;
-        signal_params.grid_orders[grid_order_level] = grid_order;
-        GridLogEvent("LIMIT_EDGE_ARMED", signal_params, grid_order);
+        execution_leg.limit_activation_armed = true;
+        signal_params.execution_legs[execution_leg_index] = execution_leg;
+        ExecutionLogEvent("LIMIT_EDGE_ARMED", signal_params, execution_leg);
       }
     }
 
-    bool can_activate = (!use_limit_edge_activation || grid_order.limit_activation_armed);
+    bool can_activate = (!use_limit_edge_activation || execution_leg.limit_activation_armed);
     if(can_activate &&
-       GridShouldActivateStopOrder(signal_params, grid_order, direction))
+       ExecutionShouldActivateStopLeg(signal_params, execution_leg, direction))
     {
-      if(grid_order.opens_position &&
-         GridUsesTargetProfitLotMode() &&
+      if(execution_leg.opens_position &&
+         ExecutionUsesTargetProfitLotMode() &&
          requested_lot <= 0.0)
       {
-        GridCloseAllLevels(signal_params, point_size);
-        GridLogEvent("LEVEL_ACTIVATION_FAILED_TARGET_LOT", signal_params, grid_order);
+        CloseAllExecutionLegs(signal_params, point_size);
+        ExecutionLogEvent("LEVEL_ACTIVATION_FAILED_TARGET_LOT", signal_params, execution_leg);
         return;
       }
 
-      if(GridExecuteLevelTrade(signal_params, grid_order, point_size, normalized_volume))
+      if(ExecuteExecutionLegTrade(signal_params, execution_leg, point_size, normalized_volume))
       {
-        UpdateGridOrderForSignal(signal_params);
-        grid_order = signal_params.grid_orders[grid_order_level];
-        GridLogEvent("LEVEL_REACHED", signal_params, grid_order);
+        UpdateExecutionLegForSignal(signal_params);
+        execution_leg = signal_params.execution_legs[execution_leg_index];
+        ExecutionLogEvent("LEVEL_REACHED", signal_params, execution_leg);
       }
-      else if(grid_order.opens_position && GridUsesTargetProfitLotMode())
+      else if(execution_leg.opens_position && ExecutionUsesTargetProfitLotMode())
       {
-        GridCloseAllLevels(signal_params, point_size);
-        GridLogEvent("LEVEL_ACTIVATION_FAILED_SEND", signal_params, grid_order);
+        CloseAllExecutionLegs(signal_params, point_size);
+        ExecutionLogEvent("LEVEL_ACTIVATION_FAILED_SEND", signal_params, execution_leg);
         return;
       }
     }
   }
 
-  grid_order = signal_params.grid_orders[grid_order_level];
+  execution_leg = signal_params.execution_legs[execution_leg_index];
 
-  if(grid_order.status == EXECUTION_LEG_ACTIVE)
+  if(execution_leg.status == EXECUTION_LEG_ACTIVE)
   {
-    double current_price = GridCurrentPriceForDirection(direction, false);
-    if(grid_order.take_profit_price > 0.0)
+    double current_price = ExecutionCurrentPriceForDirection(direction, false);
+    if(execution_leg.take_profit_price > 0.0)
     {
-      bool hit_tp = (direction == BULLISH && current_price >= grid_order.take_profit_price) ||
-                    (direction == BEARISH && current_price <= grid_order.take_profit_price);
+      bool hit_tp = (direction == BULLISH && current_price >= execution_leg.take_profit_price) ||
+                    (direction == BEARISH && current_price <= execution_leg.take_profit_price);
       if(hit_tp)
       {
-        GridCloseAllLevels(signal_params, point_size);
-        GridLogEvent("LEVEL_TP_HIT", signal_params, grid_order);
+        CloseAllExecutionLegs(signal_params, point_size);
+        ExecutionLogEvent("LEVEL_TP_HIT", signal_params, execution_leg);
         return;
       }
     }
-    bool next_level_triggered = GridShouldActivateNextLevelLimit(signal_params,
-                                                                 grid_order,
+    bool next_level_triggered = ExecutionShouldActivateNextLegLimit(signal_params,
+                                                                 execution_leg,
                                                                  direction);
     if(next_level_triggered)
     {
-      GridLogNextLevelTriggerDecision(signal_params, grid_order, direction);
+      ExecutionLogNextLegTriggerDecision(signal_params, execution_leg, direction);
       int level_stop_limit = ResolveFoundationLevelStopLimit();
       bool level_limit_hit = ShouldBlockNextLevelByStopLimit(level_stop_limit,
-                                                             grid_order.level_index);
-      GridLogStopLimitDecision(signal_params,
-                               grid_order,
+                                                             execution_leg.level_index);
+      ExecutionLogStopLimitDecision(signal_params,
+                               execution_leg,
                                level_stop_limit,
                                level_limit_hit);
 
       if(level_limit_hit)
       {
-        GridCloseAllLevels(signal_params, point_size);
-        GridLogEvent("GRID_STOP_LEVEL_LIMIT", signal_params, grid_order);
+        CloseAllExecutionLegs(signal_params, point_size);
+        ExecutionLogEvent("GRID_STOP_LEVEL_LIMIT", signal_params, execution_leg);
       }
       else
       {
-        BuildGridOrderForSignal(signal_params);
-        GridLogEvent("NEXT_LEVEL_ACTIVATED", signal_params, grid_order);
+        BuildExecutionLegForSignal(signal_params);
+        ExecutionLogEvent("NEXT_LEVEL_ACTIVATED", signal_params, execution_leg);
       }
     }
   }
 
-  if(IsGridSignalComplete(signal_params))
+  if(IsExecutionSignalComplete(signal_params))
     signal_params.signal_state = CLOSED;
 }
 

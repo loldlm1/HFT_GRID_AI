@@ -18,31 +18,31 @@ string FormatTimeframeLabel(const ENUM_TIMEFRAMES tf_value)
 }
 
 bool ResolveGridNextLevelLotPreview(const SignalParams &signal_params,
-                                    const GridOrderState &current_level_state,
+                                    const ExecutionLegState &current_level_state,
                                     int &next_level_index_out,
                                     double &next_lot_out)
 {
   next_level_index_out = current_level_state.level_index + 1;
   next_lot_out = current_level_state.lot_size;
 
-  if(next_level_index_out < 0 || !signal_params.grid_initialized)
+  if(next_level_index_out < 0 || !signal_params.execution_initialized)
     return false;
 
   SignalParams preview_signal = signal_params;
-  int total_levels = ArraySize(preview_signal.grid_orders);
+  int total_levels = ArraySize(preview_signal.execution_legs);
   if(total_levels <= next_level_index_out)
-    ArrayResize(preview_signal.grid_orders, next_level_index_out + 1);
+    ArrayResize(preview_signal.execution_legs, next_level_index_out + 1);
 
-  GridOrderState preview_state;
+  ExecutionLegState preview_state;
   preview_state.level_index = next_level_index_out;
   preview_state.status      = EXECUTION_LEG_PENDING;
 
   int level_position_start = ResolveFoundationLevelPositionStart();
   preview_state.opens_position = (next_level_index_out >= level_position_start);
 
-  preview_signal.grid_orders[next_level_index_out] = preview_state;
+  preview_signal.execution_legs[next_level_index_out] = preview_state;
 
-  double preview_lot = ResolveGridOrderLotSize(preview_signal, next_level_index_out);
+  double preview_lot = ResolveExecutionLegLotSize(preview_signal, next_level_index_out);
   if(preview_lot <= 0.0)
     return false;
 
@@ -54,7 +54,7 @@ void DrawGridLevels(const long chart_id,
                     const SignalParams &signal_params,
                     string &tracked_objects[])
 {
-  if(!signal_params.grid_initialized)
+  if(!signal_params.execution_initialized)
     return;
 
   string stop_name  = GridSignalObjectName(signal_params, "STOP");
@@ -62,17 +62,17 @@ void DrawGridLevels(const long chart_id,
   string entry_name = GridSignalObjectName(signal_params, "ENTRY");
   string next_name  = GridSignalObjectName(signal_params, "NEXT");
 
-  int grid_order_level = ArraySize(signal_params.grid_orders)-1;
-  if(grid_order_level < 0)
+  int execution_leg_index = ArraySize(signal_params.execution_legs)-1;
+  if(execution_leg_index < 0)
     return;
-  GridOrderState level_state = signal_params.grid_orders[grid_order_level];
+  ExecutionLegState level_state = signal_params.execution_legs[execution_leg_index];
 
   double entry_price_line = level_state.entry_reference_price;
   if(entry_price_line <= 0.0)
   {
     entry_price_line = signal_params.entry_price;
     if(entry_price_line <= 0.0)
-      entry_price_line = signal_params.grid_entry_reference_price;
+      entry_price_line = signal_params.execution_entry_reference_price;
   }
   double stop_price       = 0.0;
   double tp_price         = level_state.take_profit_price;
@@ -105,7 +105,7 @@ void DrawGridLevels(const long chart_id,
   }
 
   double next_percent = 0.0;
-  bool fib_next_ok = ResolveFibonacciGridLevelPercent(signal_params,
+  bool fib_next_ok = ResolveFibonacciExecutionLevelPercent(signal_params,
                                                       level_index,
                                                       next_percent);
 
@@ -166,13 +166,13 @@ void BuildSignalSummary(const SignalParams &signal_params,
                         string &summary_lines[],
                         const datetime now_time)
 {
-  int total_levels = ArraySize(signal_params.grid_orders);
+  int total_levels = ArraySize(signal_params.execution_legs);
   int active_levels = 0;
   int pending_levels = 0;
 
   for(int i = 0; i < total_levels; i++)
   {
-    GridOrderState level_state = signal_params.grid_orders[i];
+    ExecutionLegState level_state = signal_params.execution_legs[i];
     if(level_state.status == EXECUTION_LEG_ACTIVE)
       active_levels++;
     else if(level_state.status == EXECUTION_LEG_PENDING ||

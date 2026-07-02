@@ -100,12 +100,12 @@ void EvaluateContextSignals(const StrategyContextTypes context)
     signal.resolved_fibonacci_entry = resolved_entry;
     signal.signal_lot_sequence_step = ResolveSignalLotSequenceStepForNewSignal();
     signal.context_structure_snapshot_time = resolved_structure_time;
-    signal.grid_sequence_id       = BuildSignalSequenceId(direction,
+    signal.execution_sequence_id       = BuildSignalSequenceId(direction,
                                                           signal.entry_time,
                                                           resolved_structure_time);
     AssignContextSnapshotToSignal(snapshot, signal);
 
-    if(!BuildGridOrderForSignal(signal))
+    if(!BuildExecutionLegForSignal(signal))
     {
       if(Enable_Logs)
         PrintFormat("Grid planning failed for %s context %s signal.",

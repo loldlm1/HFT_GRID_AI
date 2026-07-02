@@ -111,14 +111,14 @@ void ProtectionRiskForceCloseSignalArray(SignalParams &signals[],
   if(total_signals <= 0)
     return;
 
-  double point_size = GridResolvePointSize();
+  double point_size = ExecutionResolvePointSize();
   double close_price = (direction == BULLISH) ? g_bid : g_ask;
   datetime close_time = TimeCurrent();
 
   for(int i = total_signals-1; i >= 0; i--)
   {
-    if(signals[i].grid_initialized)
-      GridCloseAllLevels(signals[i], point_size);
+    if(signals[i].execution_initialized)
+      CloseAllExecutionLegs(signals[i], point_size);
 
     signals[i].signal_state = CLOSED;
     signals[i].close_time   = close_time;

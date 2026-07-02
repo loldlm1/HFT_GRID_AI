@@ -183,17 +183,17 @@ bool SignalConcurrencyAllowsAttempt(const SignalTypes direction)
   return true;
 }
 
-void DebugForceCloseAllGrids()
+void DebugForceCloseAllExecutionLegs()
 {
-  double point_size = GridResolvePointSize();
+  double point_size = ExecutionResolvePointSize();
 
   int bullish_total = ArraySize(running_bullish_signals);
   for(int i = 0; i < bullish_total; i++)
-    GridCloseAllLevels(running_bullish_signals[i], point_size);
+    CloseAllExecutionLegs(running_bullish_signals[i], point_size);
 
   int bearish_total = ArraySize(running_bearish_signals);
   for(int j = 0; j < bearish_total; j++)
-    GridCloseAllLevels(running_bearish_signals[j], point_size);
+    CloseAllExecutionLegs(running_bearish_signals[j], point_size);
 }
 
 datetime ResolveCurrentDayStart()
@@ -268,7 +268,7 @@ bool DebugEquityGuardAllowsProcessing()
     g_forced_stop_triggered = true;
     g_debug_no_money_abort_pending = false;
     Print("TesterStop triggered: order send rejected due to insufficient funds while Debug_Stop_On_Negative_Equity is enabled.");
-    DebugForceCloseAllGrids();
+    DebugForceCloseAllExecutionLegs();
     TesterStop();
     return false;
   }
@@ -278,7 +278,7 @@ bool DebugEquityGuardAllowsProcessing()
   {
     g_forced_stop_triggered = true;
     Print("TesterStop triggered: equity <= 0 and Debug_Stop_On_Negative_Equity is enabled.");
-    DebugForceCloseAllGrids();
+    DebugForceCloseAllExecutionLegs();
     TesterStop();
     return false;
   }

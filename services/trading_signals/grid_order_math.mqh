@@ -17,19 +17,19 @@ ExecutionLotTypes ResolveEffectiveGridLotType(const ExecutionLotTypes lot_type)
   return EXECUTION_LOT_FIXED_SIZE;
 }
 
-bool GridIsTargetProfitLotType(const ExecutionLotTypes lot_type)
+bool IsExecutionTargetProfitLotType(const ExecutionLotTypes lot_type)
 {
   ExecutionLotTypes effective_lot_type = ResolveEffectiveGridLotType(lot_type);
   return (effective_lot_type == EXECUTION_LOT_ACCOUNT_PERCENTAGE ||
           effective_lot_type == EXECUTION_LOT_TARGET_CURRENCY);
 }
 
-bool GridUsesTargetProfitLotMode()
+bool ExecutionUsesTargetProfitLotMode()
 {
-  return GridIsTargetProfitLotType(ResolveEffectiveGridLotType(Lot_Type));
+  return IsExecutionTargetProfitLotType(ResolveEffectiveGridLotType(Lot_Type));
 }
 
-bool GridShouldApplyLotMultiplier(const ExecutionLotTypes lot_type)
+bool ExecutionShouldApplyLotMultiplier(const ExecutionLotTypes lot_type)
 {
   ExecutionLotTypes effective_lot_type = ResolveEffectiveGridLotType(lot_type);
   return (effective_lot_type == EXECUTION_LOT_FIXED_SIZE);
@@ -71,7 +71,7 @@ double ResolveTargetProfitAmountFromInputs(const ExecutionLotTypes lot_type,
   return strategy_size;
 }
 
-double ResolveGridRuntimeTargetProfitAmount(const ExecutionLotTypes lot_type)
+double ResolveExecutionRuntimeTargetProfitAmount(const ExecutionLotTypes lot_type)
 {
   double account_balance = AccountInfoDouble(ACCOUNT_BALANCE);
   return ResolveTargetProfitAmountFromInputs(lot_type,
@@ -126,7 +126,7 @@ double ResolveSymbolPointValuePerLot(const string symbol)
   return point_value_fallback;
 }
 
-double ResolveProjectedGridOrderProfitAtPrice(const SignalTypes direction,
+double ResolveProjectedExecutionLegProfitAtPrice(const SignalTypes direction,
                                               const double entry_price,
                                               const double close_price,
                                               const double lot_size)
@@ -165,14 +165,14 @@ double ResolveProjectedBasketProfitAtPrice(const SignalParams &signal_params,
                                            const int skip_level_index = -1)
 {
   double basket_profit = 0.0;
-  int total_levels = ArraySize(signal_params.grid_orders);
+  int total_levels = ArraySize(signal_params.execution_legs);
 
   for(int idx = 0; idx < total_levels; idx++)
   {
     if(idx == skip_level_index)
       continue;
 
-    GridOrderState state = signal_params.grid_orders[idx];
+    ExecutionLegState state = signal_params.execution_legs[idx];
     if(!state.opens_position)
       continue;
     if(state.status != EXECUTION_LEG_ACTIVE)
@@ -186,7 +186,7 @@ double ResolveProjectedBasketProfitAtPrice(const SignalParams &signal_params,
     if(entry_price <= 0.0)
       continue;
 
-    basket_profit += ResolveProjectedGridOrderProfitAtPrice(signal_params.signal_type,
+    basket_profit += ResolveProjectedExecutionLegProfitAtPrice(signal_params.signal_type,
                                                             entry_price,
                                                             close_price,
                                                             state.lot_size);
@@ -215,7 +215,7 @@ bool ResolveRequiredLotForTargetAtPrice(const SignalParams &signal_params,
   double projected_existing_profit = ResolveProjectedBasketProfitAtPrice(signal_params,
                                                                          close_price,
                                                                          candidate_level_index);
-  double projected_profit_per_lot = ResolveProjectedGridOrderProfitAtPrice(signal_params.signal_type,
+  double projected_profit_per_lot = ResolveProjectedExecutionLegProfitAtPrice(signal_params.signal_type,
                                                                             candidate_entry_price,
                                                                             close_price,
                                                                             1.0);

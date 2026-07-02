@@ -6,7 +6,7 @@
 
 const int GRID_MAX_LEVELS = 10;
 
-double GridResolvePointSizeSafe()
+double ExecutionResolvePointSizeSafe()
 {
   double point_size = SymbolInfoDouble(_Symbol, SYMBOL_POINT);
   if(point_size <= 0.0)
@@ -14,7 +14,7 @@ double GridResolvePointSizeSafe()
   return point_size;
 }
 
-double GridResolveDirectionMultiplierSafe(const SignalTypes direction)
+double ExecutionResolveDirectionMultiplierSafe(const SignalTypes direction)
 {
   if(direction == BULLISH)
     return 1.0;
@@ -50,7 +50,7 @@ bool ResolveAtrRangeDistancePoints(const ENUM_TIMEFRAMES tf,
   if(!MathIsValidNumber(atr_price) || atr_price <= 0.0)
     return false;
 
-  double point_size = GridResolvePointSizeSafe();
+  double point_size = ExecutionResolvePointSizeSafe();
   if(point_size <= 0.0)
     return false;
 
@@ -69,13 +69,13 @@ bool CalculateBaseGridContext(const SignalParams &signal_params,
                               int &fibo_steps_out)
 {
   fibo_steps_out = 1;
-  entry_reference_price = GridCurrentPriceForDirection(signal_params.signal_type, true);
+  entry_reference_price = ExecutionCurrentPriceForDirection(signal_params.signal_type, true);
   if(signal_params.entry_price > 0.0 &&
      (signal_params.entry_is_limit || signal_params.entry_trigger_mode == LEVEL_AS_ZONE))
     entry_reference_price = signal_params.entry_price;
 
-  double point_size = GridResolvePointSizeSafe();
-  double direction_mult = GridResolveDirectionMultiplierSafe(signal_params.signal_type);
+  double point_size = ExecutionResolvePointSizeSafe();
+  double direction_mult = ExecutionResolveDirectionMultiplierSafe(signal_params.signal_type);
   if(point_size <= 0.0 || direction_mult == 0.0 || entry_reference_price <= 0.0)
     return false;
 
@@ -123,7 +123,7 @@ double ResolveBaseGridLot(const double base_distance_points)
   if(effective_lot_type == EXECUTION_LOT_FIXED_SIZE)
     return NormalizeVolumeForSymbol(_Symbol, base_lot);
 
-  if(!GridIsTargetProfitLotType(effective_lot_type))
+  if(!IsExecutionTargetProfitLotType(effective_lot_type))
     return NormalizeVolumeForSymbol(_Symbol, base_lot);
 
   double tp_factor = ResolveTargetProfitFactorFromPercent(TP_Percent);
@@ -131,7 +131,7 @@ double ResolveBaseGridLot(const double base_distance_points)
   if(reference_points <= 0.0)
     reference_points = base_distance_points;
 
-  double target_amount = ResolveGridRuntimeTargetProfitAmount(effective_lot_type);
+  double target_amount = ResolveExecutionRuntimeTargetProfitAmount(effective_lot_type);
   if(target_amount <= 0.0 || reference_points <= 0.0)
     return NormalizeVolumeForSymbol(_Symbol, base_lot);
 
@@ -167,18 +167,18 @@ double ApplyGridLotMultiplier(const double lot_size,
 int ResolveExecutedPositionIndex(const SignalParams &signal_params,
                                  const int level_index)
 {
-  int total_levels = ArraySize(signal_params.grid_orders);
+  int total_levels = ArraySize(signal_params.execution_legs);
   if(level_index < 0 || level_index >= total_levels)
     return -1;
 
-  GridOrderState state = signal_params.grid_orders[level_index];
+  ExecutionLegState state = signal_params.execution_legs[level_index];
   if(!state.opens_position)
     return -1;
 
   int executed_index = 0;
   for(int i = 0; i < level_index; i++)
   {
-    GridOrderState prior_state = signal_params.grid_orders[i];
+    ExecutionLegState prior_state = signal_params.execution_legs[i];
     if(!prior_state.opens_position)
       continue;
     if(prior_state.status == EXECUTION_LEG_COMPLETED ||
@@ -189,12 +189,12 @@ int ResolveExecutedPositionIndex(const SignalParams &signal_params,
   return executed_index;
 }
 
-double GridResolveLotReferencePoints(const SignalParams &signal_params,
-                                     const GridOrderState &state)
+double ExecutionResolveLotReferencePoints(const SignalParams &signal_params,
+                                     const ExecutionLegState &state)
 {
-  double point_size = GridResolvePointSizeSafe();
+  double point_size = ExecutionResolvePointSizeSafe();
   if(point_size <= 0.0)
-    return signal_params.grid_base_distance_points;
+    return signal_params.execution_base_distance_points;
 
   double entry_reference = state.entry_reference_price;
   double tp_price        = state.take_profit_price;
@@ -205,11 +205,11 @@ double GridResolveLotReferencePoints(const SignalParams &signal_params,
       return span_points;
   }
 
-  double fallback_points = ResolveGridLevelDistancePoints(signal_params, state);
+  double fallback_points = ResolveExecutionLegDistancePoints(signal_params, state);
   if(fallback_points <= 0.0)
-    fallback_points = signal_params.grid_base_distance_points;
+    fallback_points = signal_params.execution_base_distance_points;
   if(fallback_points <= 0.0)
-    fallback_points = signal_params.grid_entry_gap_points;
+    fallback_points = signal_params.execution_entry_gap_points;
   if(fallback_points <= 0.0)
     fallback_points = EnforceBrokerDistance(g_symbol_constraints, 1.0);
   return fallback_points;
@@ -220,9 +220,9 @@ double ResolveIndicatorMinimumBaseDistance(const SignalParams &signal_params)
   return 0.0;
 }
 
-bool ResolveTargetModeLotForGridOrder(SignalParams &signal_params,
+bool ResolveTargetModeLotForExecutionLeg(SignalParams &signal_params,
                                       const int level_index,
-                                      const GridOrderState &level_state,
+                                      const ExecutionLegState &level_state,
                                       const double target_amount,
                                       double &lot_out)
 {
@@ -231,12 +231,12 @@ bool ResolveTargetModeLotForGridOrder(SignalParams &signal_params,
   if(!level_state.opens_position)
     return true;
 
-  if(level_index < 0 || level_index >= ArraySize(signal_params.grid_orders))
+  if(level_index < 0 || level_index >= ArraySize(signal_params.execution_legs))
     return false;
 
   if(target_amount <= 0.0)
   {
-    signal_params.grid_orders[level_index].opens_position = false;
+    signal_params.execution_legs[level_index].opens_position = false;
     lot_out = 0.0;
     return true;
   }
@@ -244,13 +244,13 @@ bool ResolveTargetModeLotForGridOrder(SignalParams &signal_params,
   double tp_price = level_state.take_profit_price;
   double candidate_entry_price = level_state.entry_reference_price;
   if(candidate_entry_price <= 0.0)
-    candidate_entry_price = signal_params.grid_entry_reference_price;
+    candidate_entry_price = signal_params.execution_entry_reference_price;
   if(candidate_entry_price <= 0.0)
     candidate_entry_price = signal_params.entry_price;
 
   if(tp_price <= 0.0 || candidate_entry_price <= 0.0)
   {
-    signal_params.grid_orders[level_index].opens_position = true;
+    signal_params.execution_legs[level_index].opens_position = true;
     lot_out = -1.0;
     return false;
   }
@@ -263,14 +263,14 @@ bool ResolveTargetModeLotForGridOrder(SignalParams &signal_params,
                                          target_amount,
                                          required_raw_lot))
   {
-    signal_params.grid_orders[level_index].opens_position = true;
+    signal_params.execution_legs[level_index].opens_position = true;
     lot_out = -1.0;
     return false;
   }
 
   if(required_raw_lot <= 0.0)
   {
-    signal_params.grid_orders[level_index].opens_position = false;
+    signal_params.execution_legs[level_index].opens_position = false;
     lot_out = 0.0;
     return true;
   }
@@ -282,26 +282,26 @@ bool ResolveTargetModeLotForGridOrder(SignalParams &signal_params,
                                      normalized_lot,
                                      infeasible))
   {
-    signal_params.grid_orders[level_index].opens_position = true;
+    signal_params.execution_legs[level_index].opens_position = true;
     lot_out = -1.0;
     return false;
   }
 
-  signal_params.grid_orders[level_index].opens_position = true;
+  signal_params.execution_legs[level_index].opens_position = true;
   lot_out = normalized_lot;
   return true;
 }
 
-double ResolveGridOrderLotSize(SignalParams &signal_params,
+double ResolveExecutionLegLotSize(SignalParams &signal_params,
                                const int level_index)
 {
-  int total_levels = ArraySize(signal_params.grid_orders);
+  int total_levels = ArraySize(signal_params.execution_legs);
   if(level_index < 0 || level_index >= total_levels)
     return 0.0;
 
-  GridOrderState level_state = signal_params.grid_orders[level_index];
+  ExecutionLegState level_state = signal_params.execution_legs[level_index];
 
-  double fallback_lot = signal_params.grid_base_lot_size;
+  double fallback_lot = signal_params.execution_base_lot_size;
   if(fallback_lot <= 0.0)
     fallback_lot = MathAbs(Lot_Strategy_Size);
   if(fallback_lot <= 0.0)
@@ -315,11 +315,11 @@ double ResolveGridOrderLotSize(SignalParams &signal_params,
   double resolved_lot = fallback_lot;
 
   ExecutionLotTypes effective_lot_type = ResolveEffectiveGridLotType(Lot_Type);
-  if(GridIsTargetProfitLotType(effective_lot_type))
+  if(IsExecutionTargetProfitLotType(effective_lot_type))
   {
-    double target_amount = ResolveGridRuntimeTargetProfitAmount(effective_lot_type);
+    double target_amount = ResolveExecutionRuntimeTargetProfitAmount(effective_lot_type);
     double target_mode_lot = 0.0;
-    bool resolved_target_mode = ResolveTargetModeLotForGridOrder(signal_params,
+    bool resolved_target_mode = ResolveTargetModeLotForExecutionLeg(signal_params,
                                                                  level_index,
                                                                  level_state,
                                                                  target_amount,
@@ -330,8 +330,8 @@ double ResolveGridOrderLotSize(SignalParams &signal_params,
   }
 
   resolved_lot = fallback_lot;
-  bool level_opens_position = signal_params.grid_orders[level_index].opens_position;
-  if(level_opens_position && GridShouldApplyLotMultiplier(effective_lot_type))
+  bool level_opens_position = signal_params.execution_legs[level_index].opens_position;
+  if(level_opens_position && ExecutionShouldApplyLotMultiplier(effective_lot_type))
   {
     int executed_index = ResolveExecutedPositionIndex(signal_params, level_index);
     if(executed_index < 0)
@@ -355,7 +355,7 @@ void LogGridPlanDiagnostics(const SignalParams &signal_params,
                                direction,
                                signal_params.entry_price,
                                base_distance_points,
-                               signal_params.grid_entry_reference_price);
+                               signal_params.execution_entry_reference_price);
 
   if(Base_Strategy_Type == FIB_LEVEL_RANGE)
   {
@@ -363,25 +363,25 @@ void LogGridPlanDiagnostics(const SignalParams &signal_params,
     double resolved_entry_percent = signal_params.resolved_fibonacci_entry.percent;
     double resolved_entry_price = signal_params.resolved_fibonacci_entry.price;
     double logical_next_percent = 0.0;
-    bool logical_next_percent_ok = ResolveFibonacciGridLevelPercent(signal_params,
+    bool logical_next_percent_ok = ResolveFibonacciExecutionLevelPercent(signal_params,
                                                                     0,
                                                                     logical_next_percent);
     double logical_next_price = 0.0;
-    bool logical_next_price_ok = ResolveFibonacciGridLevelPrice(signal_params,
+    bool logical_next_price_ok = ResolveFibonacciExecutionLevelPrice(signal_params,
                                                                 0,
                                                                 logical_next_price);
 
     SignalParams preview_signal = signal_params;
-    GridOrderState preview_state;
+    ExecutionLegState preview_state;
     preview_state.level_index = 0;
-    preview_state.entry_reference_price = signal_params.grid_entry_reference_price;
-    double emitted_next_price = GetGridNextLevelPrice(signal_params.signal_type,
+    preview_state.entry_reference_price = signal_params.execution_entry_reference_price;
+    double emitted_next_price = GetExecutionNextLevelPrice(signal_params.signal_type,
                                                       preview_signal,
                                                       preview_state);
     string next_source = "LOGICAL";
     if(logical_next_price_ok)
     {
-      double next_gap_points = GridAbsolutePriceDistancePoints(emitted_next_price,
+      double next_gap_points = ExecutionAbsolutePriceDistancePoints(emitted_next_price,
                                                                logical_next_price);
       if(next_gap_points > 0.1)
         next_source = "BROKER_SAFE";
@@ -389,36 +389,36 @@ void LogGridPlanDiagnostics(const SignalParams &signal_params,
 
     header = header + StringFormat("|fib_steps=%d|logical_next_pct=%s|logical_next_price=%s|emitted_next=%s|next_src=%s",
                                    signal_params.fib_level_offset_steps,
-                                   GridFormatDoubleOrToken(logical_next_percent_ok,
+                                   ExecutionFormatDoubleOrToken(logical_next_percent_ok,
                                                            logical_next_percent,
                                                            2),
-                                   GridFormatDoubleOrToken(logical_next_price_ok,
+                                   ExecutionFormatDoubleOrToken(logical_next_price_ok,
                                                            logical_next_price,
                                                            5),
-                                   GridFormatDoubleOrToken(emitted_next_price > 0.0,
+                                   ExecutionFormatDoubleOrToken(emitted_next_price > 0.0,
                                                            emitted_next_price,
                                                            5),
                                    next_source);
     header = header + StringFormat("|resolved_entry_pct=%s|resolved_entry_price=%s|entry_anchor_src=%s",
-                                   GridFormatDoubleOrToken(resolved_entry_ok,
+                                   ExecutionFormatDoubleOrToken(resolved_entry_ok,
                                                            resolved_entry_percent,
                                                            2),
-                                   GridFormatDoubleOrToken(resolved_entry_ok,
+                                   ExecutionFormatDoubleOrToken(resolved_entry_ok,
                                                            resolved_entry_price,
                                                            5),
                                    resolved_entry_ok ? "SIGNAL" : "RAW");
   }
 
-  GridAppendQueryDebugChangedLog("GRID_PLAN_BASE",
-                                 GridQueryDebugSignalKey(signal_params),
+  ExecutionAppendQueryDebugChangedLog("GRID_PLAN_BASE",
+                                 ExecutionQueryDebugSignalKey(signal_params),
                                  header);
 }
 
-void LogGridPlanLevelDetail(const SignalParams &signal_params,
-                            const GridOrderState &state)
+void LogExecutionPlanLegDetail(const SignalParams &signal_params,
+                            const ExecutionLegState &state)
 {
   string direction = (signal_params.signal_type == BULLISH) ? "BULLISH" : "BEARISH";
-  int display_level = GridDisplayLevelNumber(state.level_index);
+  int display_level = ExecutionDisplayLegNumber(state.level_index);
   string detail = StringFormat("dir=%s|L%d|entry_ref=%.5f|next=%.5f|tp=%.5f|lot=%.2f|status=%s",
                                direction,
                                display_level,
@@ -427,22 +427,22 @@ void LogGridPlanLevelDetail(const SignalParams &signal_params,
                                state.take_profit_price,
                                state.lot_size,
                                EnumToString(state.status));
-  GridAppendQueryDebugLog("GRID_PLAN_LEVEL", detail);
+  ExecutionAppendQueryDebugLog("GRID_PLAN_LEVEL", detail);
 }
 
-bool BuildGridSignalPoints(SignalParams &signal_params)
+bool BuildExecutionSignalPoints(SignalParams &signal_params)
 {
   double base_distance_points = 0.0;
   double entry_reference_price = 0.0;
   int fibo_steps = 1;
   double min_base_distance_from_trailing = ResolveIndicatorMinimumBaseDistance(signal_params);
 
-  ENUM_TIMEFRAMES grid_tf = signal_params.strategy_timeframe;
-  if(grid_tf == PERIOD_CURRENT)
-    grid_tf = Strategy_Timeframe;
+  ENUM_TIMEFRAMES execution_tf = signal_params.strategy_timeframe;
+  if(execution_tf == PERIOD_CURRENT)
+    execution_tf = Strategy_Timeframe;
 
   if(!CalculateBaseGridContext(signal_params,
-                               grid_tf,
+                               execution_tf,
                                base_distance_points,
                                entry_reference_price,
                                fibo_steps))
@@ -457,11 +457,11 @@ bool BuildGridSignalPoints(SignalParams &signal_params)
     base_distance_points = EnforceBrokerDistance(g_symbol_constraints, base_distance_points);
   }
 
-  if(GridSignalHasExecutedLevel(signal_params) &&
-     signal_params.grid_initial_indicator_distance_points > 0.0 &&
-     base_distance_points < signal_params.grid_initial_indicator_distance_points)
+  if(ExecutionSignalHasExecutedLeg(signal_params) &&
+     signal_params.execution_initial_indicator_distance_points > 0.0 &&
+     base_distance_points < signal_params.execution_initial_indicator_distance_points)
   {
-    base_distance_points = signal_params.grid_initial_indicator_distance_points;
+    base_distance_points = signal_params.execution_initial_indicator_distance_points;
   }
 
   double base_lot = signal_params.lot_size;
@@ -481,12 +481,12 @@ bool BuildGridSignalPoints(SignalParams &signal_params)
 
   double entry_offset_points = 0.0;
 
-  signal_params.grid_base_distance_points      = base_distance_points;
-  signal_params.grid_resolved_distance_points  = 0.0;
-  signal_params.grid_base_lot_size             = base_lot;
-  signal_params.grid_entry_reference_price     = entry_reference_price;
-  signal_params.grid_entry_gap_points          = base_distance_points;
-  signal_params.grid_entry_offset_points       = entry_offset_points;
+  signal_params.execution_base_distance_points      = base_distance_points;
+  signal_params.execution_resolved_distance_points  = 0.0;
+  signal_params.execution_base_lot_size             = base_lot;
+  signal_params.execution_entry_reference_price     = entry_reference_price;
+  signal_params.execution_entry_gap_points          = base_distance_points;
+  signal_params.execution_entry_offset_points       = entry_offset_points;
   if(Base_Strategy_Type == FIB_LEVEL_RANGE)
   {
     if(fibo_steps <= 0)
@@ -498,13 +498,13 @@ bool BuildGridSignalPoints(SignalParams &signal_params)
     signal_params.fib_level_offset_steps = 1;
   }
 
-  if(signal_params.grid_initial_indicator_distance_points <= 0.0 &&
+  if(signal_params.execution_initial_indicator_distance_points <= 0.0 &&
      base_distance_points > 0.0)
   {
-    signal_params.grid_initial_indicator_distance_points = base_distance_points;
+    signal_params.execution_initial_indicator_distance_points = base_distance_points;
   }
 
-  signal_params.grid_initialized = true;
+  signal_params.execution_initialized = true;
 
   LogGridPlanDiagnostics(signal_params, base_distance_points);
 
@@ -512,16 +512,16 @@ bool BuildGridSignalPoints(SignalParams &signal_params)
 }
 
 // Unified entry point to build (init) or refresh (tick) grid geometry and pending levels
-bool BuildGridOrderForSignal(SignalParams &signal_params)
+bool BuildExecutionLegForSignal(SignalParams &signal_params)
 {
-  if(!BuildGridSignalPoints(signal_params)) return false;
+  if(!BuildExecutionSignalPoints(signal_params)) return false;
 
-  int total_levels = ArraySize(signal_params.grid_orders);
-  GridOrderState grid_order;
+  int total_levels = ArraySize(signal_params.execution_legs);
+  ExecutionLegState execution_leg;
 
-  int grid_order_level = AddElementToArray(signal_params.grid_orders, grid_order)-1;
+  int execution_leg_index = AddElementToArray(signal_params.execution_legs, execution_leg)-1;
 
-  if(grid_order_level < 0)
+  if(execution_leg_index < 0)
   {
     Print("ERROR CREATING NEW GRID ORDER LEVEL");
     TesterStop();
@@ -529,70 +529,70 @@ bool BuildGridOrderForSignal(SignalParams &signal_params)
   }
 
   // Seed level n
-  signal_params.grid_orders[grid_order_level].level_index = grid_order_level;
-  signal_params.grid_orders[grid_order_level].status      = EXECUTION_LEG_PENDING;
-  ResetGridOrderPricesByDirection(signal_params, grid_order_level);
+  signal_params.execution_legs[execution_leg_index].level_index = execution_leg_index;
+  signal_params.execution_legs[execution_leg_index].status      = EXECUTION_LEG_PENDING;
+  ResetExecutionLegPricesByDirection(signal_params, execution_leg_index);
   int level_position_start = ResolveFoundationLevelPositionStart();
-  signal_params.grid_orders[grid_order_level].opens_position = (grid_order_level >= level_position_start);
+  signal_params.execution_legs[execution_leg_index].opens_position = (execution_leg_index >= level_position_start);
 
   // Calculate trailing entry reference and next level activation
-  signal_params.grid_orders[grid_order_level].entry_reference_price  = GetGridStopReferencePrice(signal_params.signal_type,
+  signal_params.execution_legs[execution_leg_index].entry_reference_price  = GetExecutionStopReferencePrice(signal_params.signal_type,
                                                                               signal_params,
-                                                                              signal_params.grid_orders[grid_order_level]);
-  signal_params.grid_orders[grid_order_level].next_level_price       = GetGridNextLevelPrice(signal_params.signal_type,
+                                                                              signal_params.execution_legs[execution_leg_index]);
+  signal_params.execution_legs[execution_leg_index].next_level_price       = GetExecutionNextLevelPrice(signal_params.signal_type,
                                                                               signal_params,
-                                                                              signal_params.grid_orders[grid_order_level]);
-  signal_params.grid_orders[grid_order_level].take_profit_price      = GetGridTakeProfitPrice(signal_params.signal_type,
+                                                                              signal_params.execution_legs[execution_leg_index]);
+  signal_params.execution_legs[execution_leg_index].take_profit_price      = GetExecutionTakeProfitPrice(signal_params.signal_type,
                                                                               signal_params,
-                                                                              signal_params.grid_orders[grid_order_level]);
-  signal_params.grid_orders[grid_order_level].lot_size = ResolveGridOrderLotSize(signal_params, grid_order_level);
-  signal_params.grid_orders[grid_order_level].initial_lot_size = signal_params.grid_orders[grid_order_level].lot_size;
-  signal_params.grid_orders[grid_order_level].initial_take_profit_price =
-    signal_params.grid_orders[grid_order_level].take_profit_price;
-  signal_params.grid_orders[grid_order_level].limit_activation_armed = true;
-  if(UsesNonBreakoutLimitEdgeActivation(signal_params, signal_params.grid_orders[grid_order_level]))
+                                                                              signal_params.execution_legs[execution_leg_index]);
+  signal_params.execution_legs[execution_leg_index].lot_size = ResolveExecutionLegLotSize(signal_params, execution_leg_index);
+  signal_params.execution_legs[execution_leg_index].initial_lot_size = signal_params.execution_legs[execution_leg_index].lot_size;
+  signal_params.execution_legs[execution_leg_index].initial_take_profit_price =
+    signal_params.execution_legs[execution_leg_index].take_profit_price;
+  signal_params.execution_legs[execution_leg_index].limit_activation_armed = true;
+  if(UsesNonBreakoutLimitEdgeActivation(signal_params, signal_params.execution_legs[execution_leg_index]))
   {
-    double entry_side_price = GridCurrentPriceForDirection(signal_params.signal_type, true);
-    signal_params.grid_orders[grid_order_level].limit_activation_armed =
+    double entry_side_price = ExecutionCurrentPriceForDirection(signal_params.signal_type, true);
+    signal_params.execution_legs[execution_leg_index].limit_activation_armed =
       ShouldArmNonBreakoutLimitActivation(signal_params,
-                                          signal_params.grid_orders[grid_order_level],
+                                          signal_params.execution_legs[execution_leg_index],
                                           entry_side_price);
   }
 
-  if(grid_order_level == 0)
+  if(execution_leg_index == 0)
   {
-    GridLogEvent("SIGNAL_INIT", signal_params, signal_params.grid_orders[grid_order_level]);
+    ExecutionLogEvent("SIGNAL_INIT", signal_params, signal_params.execution_legs[execution_leg_index]);
   }
   else
-    GridLogEvent("LEVEL_PENDING_INIT", signal_params, signal_params.grid_orders[grid_order_level]);
-  LogGridPlanLevelDetail(signal_params, signal_params.grid_orders[grid_order_level]);
-  int display_level = GridDisplayLevelNumber(signal_params.grid_orders[grid_order_level].level_index);
-  GridAppendQueryDebugLog("LEVEL_PENDING_INIT",
+    ExecutionLogEvent("LEVEL_PENDING_INIT", signal_params, signal_params.execution_legs[execution_leg_index]);
+  LogExecutionPlanLegDetail(signal_params, signal_params.execution_legs[execution_leg_index]);
+  int display_level = ExecutionDisplayLegNumber(signal_params.execution_legs[execution_leg_index].level_index);
+  ExecutionAppendQueryDebugLog("LEVEL_PENDING_INIT",
                           StringFormat("L%d|entry_ref=%.5f|next=%.5f|armed=%s",
                                        display_level,
-                                       signal_params.grid_orders[grid_order_level].entry_reference_price,
-                                       signal_params.grid_orders[grid_order_level].next_level_price,
-                                       signal_params.grid_orders[grid_order_level].limit_activation_armed ? "true" : "false"));
+                                       signal_params.execution_legs[execution_leg_index].entry_reference_price,
+                                       signal_params.execution_legs[execution_leg_index].next_level_price,
+                                       signal_params.execution_legs[execution_leg_index].limit_activation_armed ? "true" : "false"));
   return true;
 }
 
-bool UpdateGridOrderForSignal(SignalParams &signal_params)
+bool UpdateExecutionLegForSignal(SignalParams &signal_params)
 {
-  if(!BuildGridSignalPoints(signal_params)) return false;
+  if(!BuildExecutionSignalPoints(signal_params)) return false;
 
-  int grid_order_level = ArraySize(signal_params.grid_orders)-1;
+  int execution_leg_index = ArraySize(signal_params.execution_legs)-1;
 
   // Calculate trailing entry reference and next level activation
-  signal_params.grid_orders[grid_order_level].entry_reference_price  = GetGridStopReferencePrice(signal_params.signal_type,
+  signal_params.execution_legs[execution_leg_index].entry_reference_price  = GetExecutionStopReferencePrice(signal_params.signal_type,
                                                                               signal_params,
-                                                                              signal_params.grid_orders[grid_order_level]);
-  signal_params.grid_orders[grid_order_level].next_level_price       = GetGridNextLevelPrice(signal_params.signal_type,
+                                                                              signal_params.execution_legs[execution_leg_index]);
+  signal_params.execution_legs[execution_leg_index].next_level_price       = GetExecutionNextLevelPrice(signal_params.signal_type,
                                                                               signal_params,
-                                                                              signal_params.grid_orders[grid_order_level]);
-  signal_params.grid_orders[grid_order_level].take_profit_price      = GetGridTakeProfitPrice(signal_params.signal_type,
+                                                                              signal_params.execution_legs[execution_leg_index]);
+  signal_params.execution_legs[execution_leg_index].take_profit_price      = GetExecutionTakeProfitPrice(signal_params.signal_type,
                                                                               signal_params,
-                                                                              signal_params.grid_orders[grid_order_level]);
-  signal_params.grid_orders[grid_order_level].lot_size = ResolveGridOrderLotSize(signal_params, grid_order_level);
+                                                                              signal_params.execution_legs[execution_leg_index]);
+  signal_params.execution_legs[execution_leg_index].lot_size = ResolveExecutionLegLotSize(signal_params, execution_leg_index);
 
   return true;
 }

@@ -11,10 +11,10 @@ void CheckTickOpenBullishSignals()
 
   for(int i = running_signals_total-1; i >= 0; i--)
   {
-    UpdateGridLifecycle(running_bullish_signals[i]);
+    UpdateExecutionLifecycle(running_bullish_signals[i]);
 
     bool lifecycle_closed = (running_bullish_signals[i].signal_state == CLOSED);
-    if(lifecycle_closed || IsGridSignalComplete(running_bullish_signals[i]))
+    if(lifecycle_closed || IsExecutionSignalComplete(running_bullish_signals[i]))
     {
       running_bullish_signals[i].close_time  = TimeCurrent();
       running_bullish_signals[i].close_price = g_bid;
@@ -42,10 +42,10 @@ void CheckTickOpenBearishSignals()
 
   for(int i = running_signals_total-1; i >= 0; i--)
   {
-    UpdateGridLifecycle(running_bearish_signals[i]);
+    UpdateExecutionLifecycle(running_bearish_signals[i]);
 
     bool lifecycle_closed = (running_bearish_signals[i].signal_state == CLOSED);
-    if(lifecycle_closed || IsGridSignalComplete(running_bearish_signals[i]))
+    if(lifecycle_closed || IsExecutionSignalComplete(running_bearish_signals[i]))
     {
       running_bearish_signals[i].close_time  = TimeCurrent();
       running_bearish_signals[i].close_price = g_ask;

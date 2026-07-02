@@ -6,7 +6,7 @@
 
 // TRADING SIGNALS STRUCTURES
 
-struct GridOrderState
+struct ExecutionLegState
 {
   int               level_index;
   ExecutionLegStatuses status;
@@ -26,7 +26,7 @@ struct GridOrderState
   bool     opens_position;
   bool     limit_activation_armed;
 
-  GridOrderState()
+  ExecutionLegState()
   {
     level_index                 = -1;
     status                      = EXECUTION_LEG_INACTIVE;
@@ -64,7 +64,7 @@ struct SignalParams
 {
   SignalTypes                signal_type;
   SignalStates               signal_state;
-  string                     grid_sequence_id;
+  string                     execution_sequence_id;
   StrategyContextTypes       strategy_context;
   ENUM_TIMEFRAMES            strategy_timeframe;
   string                     strategy_context_label;
@@ -84,14 +84,14 @@ struct SignalParams
   double                     realized_closed_volume;
   double                     remaining_open_volume;
 
-  bool   grid_initialized;
-  double grid_base_distance_points;
-  double grid_initial_indicator_distance_points;
-  double grid_resolved_distance_points;
-  double grid_base_lot_size;
-  double grid_entry_reference_price;
-  double grid_entry_gap_points;
-  double grid_entry_offset_points;
+  bool   execution_initialized;
+  double execution_base_distance_points;
+  double execution_initial_indicator_distance_points;
+  double execution_resolved_distance_points;
+  double execution_base_lot_size;
+  double execution_entry_reference_price;
+  double execution_entry_gap_points;
+  double execution_entry_offset_points;
   int    fib_level_offset_steps;
   datetime context_structure_snapshot_time;
 
@@ -107,13 +107,13 @@ struct SignalParams
   bool                      session_structure_valid;
   StochasticMarketStructure session_structure_data;
 
-  GridOrderState grid_orders[];
+  ExecutionLegState execution_legs[];
 
   SignalParams()
   {
     signal_type                = NO_SIGNAL;
     signal_state               = WAITING;
-    grid_sequence_id           = "";
+    execution_sequence_id           = "";
     strategy_context           = CONTEXT_SLOT_BASE;
     strategy_timeframe         = PERIOD_CURRENT;
     strategy_context_label     = "BASE";
@@ -132,14 +132,14 @@ struct SignalParams
     realized_profit            = 0.0;
     realized_closed_volume     = 0.0;
     remaining_open_volume      = 0.0;
-    grid_initialized           = false;
-    grid_base_distance_points  = 0.0;
-    grid_initial_indicator_distance_points = 0.0;
-    grid_resolved_distance_points = 0.0;
-    grid_base_lot_size         = 0.0;
-    grid_entry_reference_price = 0.0;
-    grid_entry_gap_points      = 0.0;
-    grid_entry_offset_points   = 0.0;
+    execution_initialized           = false;
+    execution_base_distance_points  = 0.0;
+    execution_initial_indicator_distance_points = 0.0;
+    execution_resolved_distance_points = 0.0;
+    execution_base_lot_size         = 0.0;
+    execution_entry_reference_price = 0.0;
+    execution_entry_gap_points      = 0.0;
+    execution_entry_offset_points   = 0.0;
     fib_level_offset_steps     = 1;
     context_structure_snapshot_time = 0;
     base_structure_valid       = false;
@@ -152,7 +152,7 @@ struct SignalParams
   {
     signal_type                = signal_params.signal_type;
     signal_state               = signal_params.signal_state;
-    grid_sequence_id           = signal_params.grid_sequence_id;
+    execution_sequence_id           = signal_params.execution_sequence_id;
     strategy_context           = signal_params.strategy_context;
     strategy_timeframe         = signal_params.strategy_timeframe;
     strategy_context_label     = signal_params.strategy_context_label;
@@ -171,14 +171,14 @@ struct SignalParams
     realized_profit            = signal_params.realized_profit;
     realized_closed_volume     = signal_params.realized_closed_volume;
     remaining_open_volume      = signal_params.remaining_open_volume;
-    grid_initialized           = signal_params.grid_initialized;
-    grid_base_distance_points  = signal_params.grid_base_distance_points;
-    grid_initial_indicator_distance_points = signal_params.grid_initial_indicator_distance_points;
-    grid_resolved_distance_points = signal_params.grid_resolved_distance_points;
-    grid_base_lot_size         = signal_params.grid_base_lot_size;
-    grid_entry_reference_price = signal_params.grid_entry_reference_price;
-    grid_entry_gap_points      = signal_params.grid_entry_gap_points;
-    grid_entry_offset_points   = signal_params.grid_entry_offset_points;
+    execution_initialized           = signal_params.execution_initialized;
+    execution_base_distance_points  = signal_params.execution_base_distance_points;
+    execution_initial_indicator_distance_points = signal_params.execution_initial_indicator_distance_points;
+    execution_resolved_distance_points = signal_params.execution_resolved_distance_points;
+    execution_base_lot_size         = signal_params.execution_base_lot_size;
+    execution_entry_reference_price = signal_params.execution_entry_reference_price;
+    execution_entry_gap_points      = signal_params.execution_entry_gap_points;
+    execution_entry_offset_points   = signal_params.execution_entry_offset_points;
     fib_level_offset_steps     = signal_params.fib_level_offset_steps;
     context_structure_snapshot_time = signal_params.context_structure_snapshot_time;
     base_structure_valid       = signal_params.base_structure_valid;
@@ -189,10 +189,10 @@ struct SignalParams
     macro_structure_data       = signal_params.macro_structure_data;
     session_structure_valid    = signal_params.session_structure_valid;
     session_structure_data     = signal_params.session_structure_data;
-    int orders_total = ArraySize(signal_params.grid_orders);
-    ArrayResize(grid_orders, orders_total);
-    for(int n = 0; n < orders_total; n++)
-      grid_orders[n] = signal_params.grid_orders[n];
+    int legs_total = ArraySize(signal_params.execution_legs);
+    ArrayResize(execution_legs, legs_total);
+    for(int n = 0; n < legs_total; n++)
+      execution_legs[n] = signal_params.execution_legs[n];
   }
 };
 

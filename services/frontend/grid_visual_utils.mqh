@@ -96,14 +96,14 @@ string CompactTimeIdentifier(const datetime time_value)
 
 string GridSignalIdentifier(const SignalParams &signal_params)
 {
-  if(signal_params.grid_sequence_id != "")
-    return signal_params.grid_sequence_id;
+  if(signal_params.execution_sequence_id != "")
+    return signal_params.execution_sequence_id;
 
   string time_token = CompactTimeIdentifier(signal_params.entry_time);
   if(time_token != "")
     return time_token;
 
-  double anchor_price = signal_params.grid_entry_reference_price;
+  double anchor_price = signal_params.execution_entry_reference_price;
   if(anchor_price <= 0.0)
     anchor_price = (signal_params.signal_type == BULLISH) ? g_bid : g_ask;
 

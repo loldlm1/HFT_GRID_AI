@@ -4,9 +4,9 @@
 #ifndef _SERVICES_TRADING_SIGNALS_MARKET_SIGNAL_FILTERS_MQH_
 #define _SERVICES_TRADING_SIGNALS_MARKET_SIGNAL_FILTERS_MQH_
 
-void GridAppendQueryDebugLog(const string label,
+void ExecutionAppendQueryDebugLog(const string label,
                              const string message);
-void GridAppendQueryDebugChangedLog(const string label,
+void ExecutionAppendQueryDebugChangedLog(const string label,
                                     const string state_key,
                                     const string message);
 
@@ -193,7 +193,7 @@ void LogStructureDirectionMismatch(const StrategyContextTypes context,
                                 bottom_price,
                                 close_price,
                                 TimeToString(structure_snapshot_time, TIME_DATE|TIME_SECONDS));
-  GridAppendQueryDebugChangedLog("SIGNAL_REJECT", state_key, message);
+  ExecutionAppendQueryDebugChangedLog("SIGNAL_REJECT", state_key, message);
 }
 
 void SetStructureLimitTerminalBandGuardRuntime(const bool enabled)
@@ -568,7 +568,7 @@ bool ResolveStructureFibonacciEntryForPricesDetailed(const StochasticMarketStruc
                                        upper,
                                        upper_price))
     {
-      double point_size = GridResolvePointSizeSafe();
+      double point_size = ExecutionResolvePointSizeSafe();
       double range_points = (point_size > 0.0)
                               ? MathAbs(lower_price - upper_price) / point_size
                               : 0.0;
