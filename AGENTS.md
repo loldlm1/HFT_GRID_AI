@@ -1,17 +1,21 @@
-# AGENTS Brief · HFT Grid AI EA
+# AGENTS Brief - HFT Grid AI Refoundation
 
-Short, current notes for contributors. Keep this file brief; deep details live in code.
+Short, current notes for contributors. Keep this file brief; deeper implementation plans live in `ROADMAP.md` and `docs/plans/`.
 
 ---
 
-## 1) Purpose + Entrypoint
-- **Purpose**: MT5 grid EA that runs bullish/bearish sequences gated by multi-timeframe context filters and strict risk controls.
+## 1) Purpose And Entrypoint
+
+- **Purpose**: MT5 Expert Advisor foundation for future strategy integration, broker-aware execution planning, and strict risk controls.
 - **Entrypoint**: `HFT_Grid_AI.mq5`.
+- **Current roadmap**: `ROADMAP.md`.
+- **Current planning model**: each roadmap phase gets its own `$planner` plan under `docs/plans/`.
 
-## 2) Functional Include Pipeline (single ordered chain)
-The EA follows a functional, sequential include chain. Keep this order and avoid sibling includes.
+## 2) Functional Include Pipeline
 
-```
+The EA follows one ordered include chain from setup to frontend. Keep this order and avoid sibling include drift.
+
+```text
 services/license_service_setup.mqh
 services/trading_tools.mqh
 services/trading_management.mqh
@@ -21,61 +25,106 @@ services/frontend.mqh
 ```
 
 Rules:
-- Only include lower layers (or core/utils/indicators); never include siblings.
+
 - Aggregators are the single source of truth for include order.
+- Include lower layers only, or shared core/utils/indicators helpers.
+- Do not introduce circular includes or sibling service includes.
+- Keep the flow explicit: inputs -> indicators/context -> strategy candidate -> execution planning -> broker-aware simulation -> broker reconciliation -> protection/risk -> frontend/telemetry.
 
-## 3) One Source of Truth: merge `microservices/` into `services/`
-Goal: one ordered services tree with clear ownership and include order.
+## 3) Refoundation Scope
 
-Proposed mapping:
-- `microservices/core/*` -> `services/core/*`
-- `microservices/utils/*` -> `services/utils/*`
-- `microservices/indicators/*` -> `services/indicators/*`
-- `microservices/trading_signals/*` -> `services/trading_signals/*` (merge into existing)
-- `microservices/frontend/*` -> `services/frontend/*` (merge into existing)
+The project is being refounded away from legacy grid-specific strategy behavior. Removed feature groups and inputs must not be preserved through deprecated shims or compatibility aliases.
 
-Minimal migration steps:
-1. Move files into the mapped `services/*` folders (keep filenames).
-2. Update `services/*.mqh` aggregators and any direct includes to the new paths.
-3. Remove `microservices/` after the move (no shims).
+Removed input groups:
 
-## 4) Struct & Style Conventions
-- Prefer explicit constructors with initializer lists; add a copy constructor when structs are passed/assigned.
-- If a struct has a constructor, do not use aggregate initialization; add a default constructor when arrays are required.
-- Style: 2-space indentation, snake_case variables, CamelCase functions, ALL_CAPS enums/constants. Avoid C++11 features (`auto`, lambdas, range-for).
-- Keep the code functional and sequential: inputs -> indicators -> filters -> signal detection -> grid plan -> order lifecycle -> protection -> frontend.
+- `Candle Structure Filter`
+- `Support Resistance Retest Chain`
+- `Structure Trailing Addon`
+- `Structure Compound Context`
+- `Grid Strategy Settings`
 
-## 5) Skill (Quant/Math + MQL5)
-- **Skill path**: `/home/loldlm/.agents/skills/mql5-functional/SKILL.md`
-- Scope: grid spacing math (ATR/points/channel midline), lot sizing modes, trailing/break-even logic, structure filters, and risk controls.
-- Output style: concise, test-ready, and aligned to the include pipeline above.
-- Uses Context7 MCP for MQL5 documentation.
+Removed individual inputs:
 
-## 6) Codex Config (source of truth)
-Keep this in sync with `~/.codex/config.toml` (do not copy here).
+- `Structure_Fibonacci_Levels`
+- `Structure_Trigger_Entry`
+- `Structure_Touch_Policy`
 
-## 7) Test Automation (`*_test.mq5`)
-- Runner script: `scripts/run_mql5_tests.sh`.
-- Scope: only `tests/*_test.mq5` (compiled individually with strict gate), then executed via one harness script (`tests/hft_grid_ai_tests_harness.mq5`).
-- Compile gate is strict: warnings/errors fail the pipeline.
-- Runtime gate is strict: harness must load/unload cleanly and emit per-test markers (`TEST_PASS` / `TEST_FAIL`); missing markers fail the affected test.
-- Multi-symbol runtime is supported with `--symbols`, `--matrix-smoke`, and `--optional-symbol`.
-- `--fast` skips per-test wrapper compile (harness compile remains strict) for quicker runtime smoke runs.
-- `--compile-only` runs compile gates only and skips terminal runtime.
-- Tests should be mock-data driven; chart context (`--symbol`/`--period`) is provisioned only to satisfy runtime startup.
-- Runner keeps only `logs/test-runner/latest` (single latest report tree).
-- MT5 terminal must be closed before runtime-enabled runs; MT5 cannot queue startup-script runs into an already-open instance for the same install root.
-- Keep test logic in `tests/harness/cases/*_test_case.mqh`; keep `tests/*_test.mq5` as thin wrappers for per-test compile visibility.
-- Recommended workflow (two runs):
-  1. Compile gate only: `./scripts/run_mql5_tests.sh --compile-only`
-  2. Fast symbol smoke: `./scripts/run_mql5_tests.sh --matrix-smoke --optional-symbol USDJPY --fast`
-- Review only:
-  - `logs/test-runner/latest/summary.log`
-  - `logs/test-runner/latest/compile/*.metaeditor.log`
-  - `logs/test-runner/latest/runtime/*.terminal.log`
-  - `logs/test-runner/latest/runtime/*.mql.log`
+Preserved foundation controls:
 
-## 8) Canonical Repo Placement
-- Preferred layout: `<MT5_ROOT>/MQL5/Experts/HFT_Grid_AI` (and other projects in `<MT5_ROOT>/MQL5/Experts/*`).
-- Keep `terminal64.exe` and `MetaEditor64.exe` in `<MT5_ROOT>`, not inside individual EA repos.
-- `scripts/run_mql5_tests.sh` auto-detects `<MT5_ROOT>` from this layout; otherwise pass `--mt5-root` (or `MT5_ROOT` env).
+- License and account settings.
+- Protection/risk controls, to be simplified around strategy-range foundations.
+- Session time filters.
+- Strategy timeframe, Stoch Structure period, direction mode, and concurrency mode unless a later phase changes them explicitly.
+- Developer debug controls.
+- Stoch Structure remains the structural context source.
+
+## 4) Naming And Domain Rules
+
+- Do not introduce new public `GRID_` enum values, inputs, or strategy concepts.
+- Phase 4 owns the full domain rename away from grid terms.
+- Preserve enum numeric semantics where user configuration compatibility depends on ordinal values.
+- Preferred foundation vocabulary: `strategy`, `execution`, `range`, `leg`, `broker snapshot`, `execution planner`, and `execution lifecycle`.
+- Use `grid` only for historical artifacts scheduled for deletion or rename by an active phase plan.
+
+## 5) Execution Source Of Truth
+
+- Before a real broker position exists, local execution simulation owns candidate state.
+- Local simulation must apply broker conditions before activation decisions: spread, stops level, freeze level, volume min/max/step, margin, market status, sessions, license, and protection gates.
+- After a real broker position exists, broker state owns ticket, volume, entry price, close state, and realized profit.
+- Local state may reconcile against broker facts, but must not overwrite broker facts.
+- Future statistics must distinguish simulated decisions from broker-confirmed outcomes.
+
+## 6) Trading Safety Rules
+
+Never weaken these controls to make a refactor compile:
+
+- License guard and entitlement checks.
+- Spread, broker stops/freeze, volume min/max/step, and margin guards.
+- Drawdown/protection controls.
+- Session and market-status gates.
+- Magic-number and symbol scoping.
+- Real broker position reconciliation.
+
+Any phase touching these controls must call out risk level in its phase plan.
+
+## 7) Validation Policy
+
+- No custom MQL5 tests, test harnesses, or agentic CI are part of this refoundation.
+- Phase 2 owns deletion of legacy tests and the old test runner.
+- Documentation-only phases do not run MT5 compile.
+- Implementation phases compile once at phase end, not after every atomic task.
+- Compile portable/headless first whenever possible, then fallback to normal MetaEditor compile if needed.
+- Treat compiler warnings and errors as phase failures unless a temporary exception is explicitly documented.
+
+Preferred compile command shape for implementation phases:
+
+```powershell
+$mt5Root = "C:\Program Files\MetaTrader 5-1"
+$metaeditor = Join-Path $mt5Root "MetaEditor64.exe"
+$entrypoint = Join-Path $mt5Root "MQL5\Experts\HFT_Grid_AI\HFT_Grid_AI.mq5"
+$log = Join-Path $mt5Root "MQL5\Experts\HFT_Grid_AI\logs\compile\phase-build.log"
+& $metaeditor /portable /s /compile:$entrypoint /log:$log
+```
+
+Fallback:
+
+```powershell
+& $metaeditor /s /compile:$entrypoint /log:$log
+```
+
+## 8) Style
+
+- 2-space indentation.
+- `snake_case` variables.
+- `CamelCase` functions.
+- `ALL_CAPS` enum values and constants.
+- Avoid C++11 habits that MQL5 agents overuse: no `auto`, lambdas, or range-for.
+- Prefer explicit constructors with initializer lists; add default/copy constructors when structs are used in arrays or assigned.
+- Do not use aggregate initialization for structs that define constructors.
+- Keep hot paths cheap: no per-tick handle creation, full-history scans, unbounded logging, or repeated market-data calls without a clear reason.
+
+## 9) Canonical Repo Placement
+
+- Preferred layout: `<MT5_ROOT>/MQL5/Experts/HFT_Grid_AI`.
+- Keep `terminal64.exe` and `MetaEditor64.exe` in `<MT5_ROOT>`, not inside the EA repo.
+- This workstation currently uses `C:\Program Files\MetaTrader 5-1`.
