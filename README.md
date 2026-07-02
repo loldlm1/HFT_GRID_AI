@@ -1,111 +1,91 @@
-# HFT Grid AI EA
+# HFT Grid AI Refoundation
 
-**Version:** 1.10
 **Platform:** MetaTrader 5 (MQL5)
-**Contact:** @loldlm · https://t.me/TradingAlgoritmicoFx
-
-HFT Grid AI is a MetaTrader 5 Expert Advisor that runs bullish/bearish grid sequences gated by multi-timeframe context filters and strict risk controls.
-
 **Entrypoint:** `HFT_Grid_AI.mq5`
+**Current focus:** refounded EA foundation for future strategy integration
 
-## Quick Start
-1. Open `HFT_Grid_AI.mq5` in MetaEditor and compile.
-2. Attach the EA to a chart or run it in Strategy Tester (Every tick based on real ticks).
-3. Adjust inputs in MT5 as needed.
+HFT Grid AI is being refounded into a smaller, broker-aware MT5 Expert Advisor foundation. The active work removes legacy strategy features, legacy custom tests, and grid-specific public domain naming before new strategies are integrated.
 
-## Candle Structure Filter
-- Input group: `Candle Structure Filter`.
-- Inputs: `Candle_Timeframe` (default `PERIOD_M15`), `Candle_Strategy_Type` (default `OFF_CANDLE_STRUCTURE`), `Candle_Strategy_Shift` (default `0`), `Candle_Strategy_Depth` (default `1`, runtime clamp to `1` when `<=0`).
-- Strategy modes:
-  - `SHRINKED`: `high_current <= high_past` and `low_current >= low_past`
-  - `EXPANDED`: `high_current > high_past` and `low_current < low_past`
-  - `BULLISH`: `high_current > high_past` and `low_current > low_past`
-  - `BEARISH`: `high_current < high_past` and `low_current < low_past`
-- Behavior: enabled modes are evaluated as a hard pre-entry gate; filter failure blocks signal creation (fail-closed).
+## Current Docs
 
-## Session DST Adaptation
-- Input group: `Time Filter Session Manager`.
-- Inputs: `Session_Time_Dst_Mode`, `Session_Time_Dst_Manual_Offset_Minutes`.
-- Default behavior on `main`: `Session_Time_Dst_Mode = DST_MODE_OFF`, which preserves the current session filter behavior.
-- `DST_MODE_AUTO_EXNESS` applies the Exness seasonal rule used by the Pandora branch:
-  - Exness summer: `0` minutes
-  - Exness winter: `+60` minutes
-- `DST_MODE_MANUAL` applies the configured raw minute offset.
-- Scope is intentionally narrow: the offset changes session-filter window evaluation only. Market-open and symbol tradability checks remain owned by the existing broker/market guards.
+- `ROADMAP.md`: master refoundation roadmap.
+- `docs/plans/phase-00-foundation-contract-plan.md`: completed foundation contract plan.
+- `docs/plans/phase-01-docs-reset-plan.md`: active docs reset plan.
+- `docs/architecture/execution-foundation.md`: target local/broker execution foundation.
+- `AGENTS.md`: contributor rules for the current refoundation.
 
-## Addon Entitlements
-- MT5 input groups remain visible (compile-time), but runtime access is entitlement-gated.
-- Live/Demo startup blocks if selected addon-required inputs are not covered by license entitlements.
-- Live/Demo uses a lane leader/follower guard per `source+email+ea_id+company+account_number+account_type` to avoid duplicate `verify`/`heartbeat` traffic across charts.
-- Live/Demo heartbeat cadence is 180 seconds with 360-second leader stale takeover, plus 24-hour full verify refresh.
-- Startup `online_limit_reached` removes only the requester chart and keeps older online sessions running.
-- Runtime `online_limit_reached` requires two consecutive confirmations (`heartbeat` + immediate `verify`) before removing the newest claimant chart.
-- Strategy Tester still requires a valid decryptable key and future expiry timestamp; addon checks are bypassed in tester.
-- Addon input guides are documented in `docs/addons/`.
+## Validation Model
 
-## Lot/TP Model (Current)
-- `TP_Percent` is the single TP driver for grid lot/TP target modes.
-- `GRID_LOT_CURRENCY_BASED`: target profit per signal = `Lot_Strategy_Size * (TP_Percent / 100)`.
-- `GRID_LOT_PERCENTAGE_BASED`: target profit per signal = `(ACCOUNT_BALANCE * Lot_Strategy_Size / 100) * (TP_Percent / 100)` with `Account_Size` fallback only when balance is invalid/non-positive.
-- `Lot_Multiplier` applies only to `GRID_LOT_SIZE`.
-- Deprecated and removed inputs: `Grid_Points_TP`, `Grid_Positions_Stops_Percent`.
+- Documentation-only phases do not run MT5 compile.
+- Implementation phases compile once at phase end.
+- Portable/headless MetaEditor compile is preferred.
+- Normal MetaEditor compile is the fallback.
+- Legacy custom MQL5 tests, test harnesses, and agentic CI are not part of the active validation model.
 
-## Automated `*_test.mq5` Runner
-Use the project runner to compile and execute script-based tests in `tests/*_test.mq5`:
+Preferred compile command shape for implementation phases:
 
-```bash
-./scripts/run_mql5_tests.sh
+```powershell
+$mt5Root = "C:\Program Files\MetaTrader 5-1"
+$metaeditor = Join-Path $mt5Root "MetaEditor64.exe"
+$entrypoint = Join-Path $mt5Root "MQL5\Experts\HFT_Grid_AI\HFT_Grid_AI.mq5"
+$log = Join-Path $mt5Root "MQL5\Experts\HFT_Grid_AI\logs\compile\phase-build.log"
+& $metaeditor /portable /s /compile:$entrypoint /log:$log
 ```
 
-What it enforces:
-- Compile gate is strict: any compiler `error` or `warning` fails the test.
-- Runtime runs once through `tests/hft_grid_ai_tests_harness.mq5` after compile passes.
-- Runtime gate is strict: harness must load/unload and emit per-test `TEST_PASS`/`TEST_FAIL` markers; missing markers fail the test.
-- Tests are expected to be mock-data driven (no broker/chart history dependency).
+Fallback:
 
-Test file structure:
-- `tests/*_test.mq5`: thin wrappers (compile visibility per test).
-- `tests/harness/cases/*_test_case.mqh`: test case logic.
-- `tests/hft_grid_ai_tests_harness.mq5`: single runtime orchestrator.
+```powershell
+& $metaeditor /s /compile:$entrypoint /log:$log
+```
 
-Cross-platform usage:
-- Windows (Git Bash/MSYS/Cygwin, native MT5 binaries): `./scripts/run_mql5_tests.sh --mt5-root "C:/path/to/mt5"`
-- Ubuntu 22.04+ (Wine): `./scripts/run_mql5_tests.sh --mt5-root "/path/to/mt5/root"`
+## Refoundation Scope
 
-Preferred layout:
-- Place this repo at `<MT5_ROOT>/MQL5/Experts/HFT_Grid_AI`.
-- Keep `terminal64.exe` and `MetaEditor64.exe` at `<MT5_ROOT>` (shared binaries for all `Experts/*` projects).
+Removed feature groups:
 
-Options:
-- `--symbol` and `--period` set runtime chart context for startup (defaults `EURUSD`/`M1`).
-- `--symbols CSV` runs harness on multiple symbols (for example: `EURUSD,XAUUSD,US30`).
-- `--matrix-smoke` expands to `EURUSD,XAUUSD,US30`.
-- `--optional-symbol` appends one extra symbol (for example: `USDJPY` or `BTCUSD`).
-- `--fast` skips per-test wrapper compile and keeps harness compile strict.
-- `--compile-only` runs only compile gates and skips terminal runtime.
-- `--report-dir` changes report root (default `logs/test-runner`).
+- `Candle Structure Filter`
+- `Support Resistance Retest Chain`
+- `Structure Trailing Addon`
+- `Structure Compound Context`
+- `Grid Strategy Settings`
 
-Recommended workflow (two runs):
-1. Compile gate only:
-   `./scripts/run_mql5_tests.sh --compile-only`
-2. Fast multi-symbol runtime smoke:
-   `./scripts/run_mql5_tests.sh --matrix-smoke --optional-symbol USDJPY --fast`
+Removed individual inputs:
 
-Outputs:
-- `logs/test-runner/latest/summary.log`
-- `logs/test-runner/latest/compile/*.metaeditor.log`
-- `logs/test-runner/latest/compile/*.metaeditor.raw.log`
-- `logs/test-runner/latest/runtime/*.log`
+- `Structure_Fibonacci_Levels`
+- `Structure_Trigger_Entry`
+- `Structure_Touch_Policy`
 
-Note:
-- The runner intentionally has no timeout.
-- MT5 terminal must be closed before runtime-enabled runs. MT5 is single-instance per installation directory, and command-line startup cannot queue script runs into an already-open terminal.
-- `--compile-only` does not launch the terminal and can be used with an already-open MT5 session.
+Preserved foundation areas:
 
-## Project Map (brief)
-- `services/license_service_setup.mqh` is the canonical license bootstrap for this EA and includes the shared guard service under `services/shared/license_guard_v1/`.
-- `services/` holds the ordered include pipeline (tools -> management -> strategies -> signals -> frontend).
-- `services/frontend/lightweight_status_layout.mqh` owns chart-size plus content-pressure fit decisions for the lightweight chart panel.
-- `services/frontend/lightweight_status_ui.mqh` auto-selects relaxed `full`, pressured `full`, or `compact` rendering from chart size, row density, and total row width pressure, then refreshes on major chart changes.
-- Set `Enable_Chart_Ui_Debug_Logs = true` in `services/trading_management/ea_inputs.mqh` to emit removable `[UI_DIAG]` layout diagnostics for Windows vs Wine comparison.
-- `AGENTS.md` is the short architectural brief and source of truth for contributor rules.
+- License and account settings.
+- Protection/risk controls.
+- Session time filters.
+- Strategy timeframe, Stoch Structure period, direction mode, and concurrency mode unless a later phase changes them explicitly.
+- Developer debug controls.
+- Stoch Structure as the structural context source.
+
+## Execution Direction
+
+The target lifecycle is:
+
+```text
+inputs
+-> indicator/context hydration
+-> strategy candidate detection
+-> local broker-aware execution simulation
+-> execution plan
+-> optional real broker execution
+-> broker position reconciliation
+-> protection/risk controls
+-> telemetry/frontend
+```
+
+Before a real broker position exists, local simulation owns candidate state and applies broker conditions. After a real position exists, broker state owns ticket, volume, entry price, close state, and profit.
+
+## Repository Layout
+
+- `HFT_Grid_AI.mq5`: EA entrypoint.
+- `services/`: ordered include pipeline and EA services.
+- `indicators/`: indicator sources used by the EA.
+- `docs/`: active roadmap, plans, architecture, and product docs.
+- `tests/`: legacy custom tests scheduled for removal in Phase 2.
+- `scripts/run_mql5_tests.sh`: legacy test runner scheduled for removal in Phase 2.

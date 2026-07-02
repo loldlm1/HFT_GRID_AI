@@ -1,9 +1,15 @@
 # HFT Grid AI Refoundation Roadmap
 
 **Generated**: 2026-07-02  
-**Status**: Draft for implementation planning  
+**Status**: Active refoundation roadmap
 **Estimated complexity**: High  
 **Validation policy**: MT5 compile gate only, once at the end of each implementation phase
+
+## Progress
+
+- Phase 0 completed: `docs/plans/phase-00-foundation-contract-plan.md`.
+- Phase 1 plan created: `docs/plans/phase-01-docs-reset-plan.md`.
+- Execution foundation architecture added: `docs/architecture/execution-foundation.md`.
 
 ## Purpose
 
@@ -104,6 +110,7 @@ Expected root layout:
 
 ### Phase 0: Foundation Contract
 
+**Status**: Completed
 **Goal**: Convert this roadmap into an agreed implementation contract before touching code.  
 **Planner output**: `docs/plans/phase-00-foundation-contract-plan.md`  
 **Compile**: Not required unless code changes are introduced.  
@@ -124,6 +131,7 @@ Acceptance criteria:
 
 ### Phase 1: Contributor And Product Docs Reset
 
+**Status**: Active
 **Goal**: Update project instructions before code movement begins.  
 **Planner output**: `docs/plans/phase-01-docs-reset-plan.md`  
 **Compile**: Not required for docs-only changes.  
@@ -366,4 +374,3 @@ The refoundation is complete when:
 - Local simulated execution and broker reconciliation have separate, explicit ownership.
 - Real-tick hot paths are bounded and inspectable.
 - Final MetaEditor compile succeeds with no warnings or errors.
-
