@@ -15,7 +15,7 @@
 
 ## Purpose
 
-Refound HFT Grid AI into a clean MQL5 Expert Advisor foundation for future agentic strategy integration. This roadmap intentionally removes legacy strategy features, legacy tests, grid-specific public naming, and custom test infrastructure so the project can converge on a smaller, deterministic, broker-aware execution core.
+Refound HFT Grid AI into a clean MQL5 Expert Advisor foundation for future agentic strategy integration. This roadmap intentionally removes legacy strategy features, legacy tests, removed strategy-model public naming, and custom test infrastructure so the project can converge on a smaller, deterministic, broker-aware execution core.
 
 This document is the master roadmap. It is not the atomic implementation plan. Each implementation phase must create its own `$planner` plan before code changes begin.
 
@@ -62,7 +62,7 @@ In scope:
 - Remove the legacy feature input groups and strategy-context policy inputs identified in Phase 3.
 - Keep Stoch Structure as the structural context source.
 - Simplify risk management into strategy-range-compatible foundations.
-- Remove public and internal `GRID_` domain naming where it represents the removed grid feature model.
+- Remove public and internal removed-strategy domain naming where it represents the retired feature model.
 - Build a stable mock strategy foundation for later strategy integration.
 - Keep non-mentioned input groups working for future strategies.
 - Update `AGENTS.md`, `README.md`, and required docs to match the new foundation.
@@ -133,7 +133,7 @@ Acceptance criteria:
 Deliverables:
 
 - Rewrite `AGENTS.md` around the new foundation.
-- Update `README.md` to remove legacy grid/add-on/test runner guidance.
+- Update `README.md` to remove legacy feature/add-on/test runner guidance.
 - Add or update architecture docs for local-and-broker-conditions-first execution.
 - Mark this roadmap as active and link phase plans from docs.
 
@@ -187,24 +187,25 @@ Acceptance criteria:
 - License policy does not request add-ons for removed features.
 - `HFT_Grid_AI.mq5` compiles at phase end.
 
-### Phase 4: Rename The Domain Away From Grid
+### Phase 4: Rename The Domain To Execution
 
-**Goal**: Replace grid-specific public/internal naming with strategy execution foundation naming.  
+**Status**: In progress
+**Goal**: Replace removed strategy-model public/internal naming with strategy execution foundation naming.
 **Planner output**: `docs/plans/phase-04-domain-rename-plan.md`  
 **Compile**: Required once at phase end.  
-**Suggested commit**: `refactor: rename grid domain to execution foundation`
+**Suggested commit**: `refactor: rename execution modules and telemetry`
 
 Deliverables:
 
-- Replace `GridLotTypes` with a generic lot type enum.
-- Replace `GRID_LOT_SIZE`, `GRID_LOT_PERCENTAGE_BASED`, and `GRID_LOT_CURRENCY_BASED` with non-grid enum values while preserving numeric semantics.
-- Replace grid-specific lifecycle structs, helpers, logs, comments, and chart object names where the old concept is no longer valid.
+- Replace the old lot type enum with `ExecutionLotTypes`.
+- Replace old lot enum values with execution enum values while preserving numeric semantics.
+- Replace removed-strategy lifecycle structs, helpers, logs, comments, and chart object names where the old concept is no longer valid.
 - Remove deprecated aliases instead of keeping compatibility wrappers.
-- Keep names only where `grid` is part of a file or historical artifact scheduled for deletion in the same phase plan.
+- Keep removed domain names only where they are part of the unchanged product identity or historical planning artifacts.
 
 Acceptance criteria:
 
-- No `GRID_` enum value remains for the removed strategy model.
+- No removed-strategy enum value remains for the retired strategy model.
 - Lot sizing behavior remains compatible under the new enum names.
 - Compile errors from rename fallout are resolved in the same phase.
 - `HFT_Grid_AI.mq5` compiles at phase end.
@@ -221,12 +222,12 @@ Deliverables:
 - Simplify `Risk Managment Settings` into strategy-range-compatible inputs.
 - Keep lot sizing modes working under the new enum names.
 - Keep daily signal limits and protection controls only if they remain strategy-neutral.
-- Remove old assumptions tied to Fibonacci/grid sequencing.
+- Remove old assumptions tied to Fibonacci sequencing.
 - Define a mock strategy range model that compiles and gives later strategies a stable contract.
 
 Acceptance criteria:
 
-- Risk/range inputs no longer depend on removed grid/Fibonacci feature semantics.
+- Risk/range inputs no longer depend on removed Fibonacci feature semantics.
 - Lot sizing still normalizes volume against broker constraints.
 - Existing protection behavior is not weakened.
 - `HFT_Grid_AI.mq5` compiles at phase end.
@@ -342,7 +343,7 @@ Phase plans may adjust paths if the local MT5 root changes.
 ## Risks And Mitigations
 
 - **Hidden legacy coupling**: feature inputs are connected to license policy, frontend, logs, tests, and strategy state. Mitigate by deleting by domain and compiling only after each phase is internally coherent.
-- **Rename churn**: removing `GRID_` will touch many files. Mitigate with one dedicated rename phase and no behavior expansion during that phase.
+- **Rename churn**: removing the old domain vocabulary will touch many files. Mitigate with one dedicated rename phase and no behavior expansion during that phase.
 - **Compile latency**: MetaEditor compile can be slow. Mitigate by compiling once per phase, not per atomic task.
 - **Broker parity gaps**: local simulation can drift from broker execution. Mitigate by making broker reconciliation explicit and one-way once real positions exist.
 - **Docs drift**: current docs describe removed tests and add-ons. Mitigate by resetting docs before deeper code phases.
@@ -355,8 +356,8 @@ The refoundation is complete when:
 - Removed input groups and removed individual inputs are absent.
 - Legacy test infrastructure is absent.
 - Active docs no longer describe removed features as available.
-- Public lot type enum values no longer use `GRID_`.
-- Strategy/risk foundations compile without relying on grid or Fibonacci semantics.
+- Public lot type enum values use execution vocabulary.
+- Strategy/risk foundations compile without relying on removed Fibonacci semantics.
 - Local simulated execution and broker reconciliation have separate, explicit ownership.
 - Real-tick hot paths are bounded and inspectable.
 - Final MetaEditor compile succeeds with no warnings or errors.

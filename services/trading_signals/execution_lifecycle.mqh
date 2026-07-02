@@ -3,11 +3,11 @@
 //+------------------------------------------------------------------+
 #ifndef _SERVICES_TRADING_SIGNALS_EXECUTION_LIFECYCLE_MQH_
 #define _SERVICES_TRADING_SIGNALS_EXECUTION_LIFECYCLE_MQH_
-// grid_price_resolver is provided via the trading_signals include cascade
-#include "grid_order_helpers.mqh"
+// execution_price_resolver is provided via the trading_signals include cascade
+#include "execution_leg_helpers.mqh"
 
 bool g_debug_no_money_abort_pending = false;
-const double GRID_VOLUME_EPSILON = 0.0000001;
+const double EXECUTION_VOLUME_EPSILON = 0.0000001;
 
 struct SignalOrderCloseCandidate
 {
@@ -338,7 +338,7 @@ bool CloseExecutionLegBrokerPositionVolume(ExecutionLegState &leg_state,
     target_volume = current_volume;
 
   target_volume = NormalizeVolumeForSymbol(_Symbol, target_volume);
-  if(target_volume <= 0.0 || target_volume >= current_volume - GRID_VOLUME_EPSILON)
+  if(target_volume <= 0.0 || target_volume >= current_volume - EXECUTION_VOLUME_EPSILON)
   {
     bool close_all_result = CloseExecutionLegBrokerPosition(leg_state, direction, close_price);
     if(close_all_result)
@@ -365,7 +365,7 @@ bool CloseExecutionLegBrokerPositionVolume(ExecutionLegState &leg_state,
   if(PositionSelectByTicket(leg_state.position_ticket))
   {
     double remaining_volume = PositionGetDouble(POSITION_VOLUME);
-    if(remaining_volume <= GRID_VOLUME_EPSILON)
+    if(remaining_volume <= EXECUTION_VOLUME_EPSILON)
     {
       leg_state.position_ticket = 0;
       leg_state.lot_size = 0.0;
@@ -457,7 +457,7 @@ bool CloseSignalVolumeByExecutionPriority(SignalParams &signal_params,
 
   double remaining_to_close = requested_volume;
   int total_candidates = ArraySize(candidates);
-  for(int idx = 0; idx < total_candidates && remaining_to_close > GRID_VOLUME_EPSILON; idx++)
+  for(int idx = 0; idx < total_candidates && remaining_to_close > EXECUTION_VOLUME_EPSILON; idx++)
   {
     int leg_index = candidates[idx].leg_index;
     if(leg_index < 0 || leg_index >= ArraySize(signal_params.execution_legs))

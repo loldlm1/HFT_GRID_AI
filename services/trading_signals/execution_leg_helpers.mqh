@@ -201,7 +201,7 @@ string ExecutionComposeLegComment(const SignalParams &signal_params,
     tf = Strategy_Timeframe;
   string tf_label = EnumToString(tf);
   int display_level = ExecutionDisplayLegNumber(leg_state.level_index);
-  return StringFormat("GRID_%s_%s_%s_L%d",
+  return StringFormat("EXEC_%s_%s_%s_L%d",
                       direction_label,
                       tf_label,
                       time_label,
@@ -1070,7 +1070,7 @@ bool ResolveFibonacciExecutionLevelPrice(const SignalParams &signal_params,
                                          price_out);
 }
 
-bool ResolveFibonacciGridBaseDistance(const SignalParams &signal_params,
+bool ResolveFibonacciExecutionBaseDistance(const SignalParams &signal_params,
                                       const double entry_reference_price,
                                       int &steps_out,
                                       double &distance_points_out)

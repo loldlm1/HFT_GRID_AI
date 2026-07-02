@@ -4,7 +4,7 @@
 **Entrypoint:** `HFT_Grid_AI.mq5`
 **Current focus:** refounded EA foundation for future strategy integration
 
-HFT Grid AI is being refounded into a smaller, broker-aware MT5 Expert Advisor foundation. The active work removes legacy strategy features and grid-specific public domain naming before new strategies are integrated.
+HFT Grid AI is being refounded into a smaller, broker-aware MT5 Expert Advisor foundation. The active work removes legacy strategy features and retired public domain naming before new strategies are integrated.
 
 ## Current Docs
 

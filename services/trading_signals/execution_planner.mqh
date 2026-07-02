@@ -1,10 +1,10 @@
 //+------------------------------------------------------------------+
-//|                                       trading_signals/grid_planner.mqh |
+//|                                       trading_signals/execution_planner.mqh |
 //+------------------------------------------------------------------+
-#ifndef _SERVICES_TRADING_SIGNALS_GRID_PLANNER_MQH_
-#define _SERVICES_TRADING_SIGNALS_GRID_PLANNER_MQH_
+#ifndef _SERVICES_TRADING_SIGNALS_EXECUTION_PLANNER_MQH_
+#define _SERVICES_TRADING_SIGNALS_EXECUTION_PLANNER_MQH_
 
-const int GRID_MAX_LEVELS = 10;
+const int EXECUTION_MAX_LEGS = 10;
 
 double ExecutionResolvePointSizeSafe()
 {
@@ -62,7 +62,7 @@ bool ResolveAtrRangeDistancePoints(const ENUM_TIMEFRAMES tf,
   return (distance_points > 0.0);
 }
 
-bool CalculateBaseGridContext(const SignalParams &signal_params,
+bool CalculateBaseExecutionContext(const SignalParams &signal_params,
                               const ENUM_TIMEFRAMES tf,
                               double &distance_points,
                               double &entry_reference_price,
@@ -84,7 +84,7 @@ bool CalculateBaseGridContext(const SignalParams &signal_params,
   {
     int fibo_steps = 1;
     double fibo_distance = 0.0;
-    if(!ResolveFibonacciGridBaseDistance(signal_params,
+    if(!ResolveFibonacciExecutionBaseDistance(signal_params,
                                          entry_reference_price,
                                          fibo_steps,
                                          fibo_distance))
@@ -115,9 +115,9 @@ bool CalculateBaseGridContext(const SignalParams &signal_params,
   return (distance_points > 0.0);
 }
 
-double ResolveBaseGridLot(const double base_distance_points)
+double ResolveBaseExecutionLot(const double base_distance_points)
 {
-  ExecutionLotTypes effective_lot_type = ResolveEffectiveGridLotType(Lot_Type);
+  ExecutionLotTypes effective_lot_type = ResolveEffectiveExecutionLotType(Lot_Type);
   double base_lot = MathAbs(Lot_Strategy_Size);
 
   if(effective_lot_type == EXECUTION_LOT_FIXED_SIZE)
@@ -150,7 +150,7 @@ double ResolveBaseGridLot(const double base_distance_points)
   return NormalizeVolumeUpForSymbol(_Symbol, resolved_lot);
 }
 
-double ApplyGridLotMultiplier(const double lot_size,
+double ApplyExecutionLotMultiplier(const double lot_size,
                               const int multiplier_step)
 {
   if(multiplier_step <= 0)
@@ -314,7 +314,7 @@ double ResolveExecutionLegLotSize(SignalParams &signal_params,
 
   double resolved_lot = fallback_lot;
 
-  ExecutionLotTypes effective_lot_type = ResolveEffectiveGridLotType(Lot_Type);
+  ExecutionLotTypes effective_lot_type = ResolveEffectiveExecutionLotType(Lot_Type);
   if(IsExecutionTargetProfitLotType(effective_lot_type))
   {
     double target_amount = ResolveExecutionRuntimeTargetProfitAmount(effective_lot_type);
@@ -341,13 +341,13 @@ double ResolveExecutionLegLotSize(SignalParams &signal_params,
     if(signal_sequence_step < 0)
       signal_sequence_step = 0;
     int multiplier_step = signal_sequence_step + executed_index;
-    resolved_lot = ApplyGridLotMultiplier(resolved_lot, multiplier_step);
+    resolved_lot = ApplyExecutionLotMultiplier(resolved_lot, multiplier_step);
   }
 
   return NormalizeVolumeForSymbol(_Symbol, resolved_lot);
 }
 
-void LogGridPlanDiagnostics(const SignalParams &signal_params,
+void LogExecutionPlanDiagnostics(const SignalParams &signal_params,
                             const double base_distance_points)
 {
   string direction = (signal_params.signal_type == BULLISH) ? "BULLISH" : "BEARISH";
@@ -409,7 +409,7 @@ void LogGridPlanDiagnostics(const SignalParams &signal_params,
                                    resolved_entry_ok ? "SIGNAL" : "RAW");
   }
 
-  ExecutionAppendQueryDebugChangedLog("GRID_PLAN_BASE",
+  ExecutionAppendQueryDebugChangedLog("EXECUTION_PLAN_BASE",
                                  ExecutionQueryDebugSignalKey(signal_params),
                                  header);
 }
@@ -427,7 +427,7 @@ void LogExecutionPlanLegDetail(const SignalParams &signal_params,
                                state.take_profit_price,
                                state.lot_size,
                                EnumToString(state.status));
-  ExecutionAppendQueryDebugLog("GRID_PLAN_LEVEL", detail);
+  ExecutionAppendQueryDebugLog("EXECUTION_PLAN_LEG", detail);
 }
 
 bool BuildExecutionSignalPoints(SignalParams &signal_params)
@@ -441,7 +441,7 @@ bool BuildExecutionSignalPoints(SignalParams &signal_params)
   if(execution_tf == PERIOD_CURRENT)
     execution_tf = Strategy_Timeframe;
 
-  if(!CalculateBaseGridContext(signal_params,
+  if(!CalculateBaseExecutionContext(signal_params,
                                execution_tf,
                                base_distance_points,
                                entry_reference_price,
@@ -466,7 +466,7 @@ bool BuildExecutionSignalPoints(SignalParams &signal_params)
 
   double base_lot = signal_params.lot_size;
   if(base_lot <= 0.0)
-    base_lot = ResolveBaseGridLot(base_distance_points);
+    base_lot = ResolveBaseExecutionLot(base_distance_points);
   // Hedge reset sequences can mark previous levels as non-opening; ensure we retain the
   // configured base lot as the starting point for multiplier calculations.
   if(base_lot <= 0.0)
@@ -506,7 +506,7 @@ bool BuildExecutionSignalPoints(SignalParams &signal_params)
 
   signal_params.execution_initialized = true;
 
-  LogGridPlanDiagnostics(signal_params, base_distance_points);
+  LogExecutionPlanDiagnostics(signal_params, base_distance_points);
 
   return true;
 }
@@ -597,4 +597,4 @@ bool UpdateExecutionLegForSignal(SignalParams &signal_params)
   return true;
 }
 
-#endif // _SERVICES_TRADING_SIGNALS_GRID_PLANNER_MQH_
+#endif // _SERVICES_TRADING_SIGNALS_EXECUTION_PLANNER_MQH_

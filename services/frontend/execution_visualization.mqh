@@ -1,11 +1,11 @@
-#ifndef _SERVICES_FRONTEND_GRID_VISUALIZATION_MQH_
-#define _SERVICES_FRONTEND_GRID_VISUALIZATION_MQH_
+#ifndef _SERVICES_FRONTEND_EXECUTION_VISUALIZATION_MQH_
+#define _SERVICES_FRONTEND_EXECUTION_VISUALIZATION_MQH_
 
-string g_grid_visual_previous_objects[];
+string g_execution_visual_previous_objects[];
 
-void ResetGridVisualizationCache()
+void ResetExecutionVisualizationCache()
 {
-  ArrayResize(g_grid_visual_previous_objects, 0);
+  ArrayResize(g_execution_visual_previous_objects, 0);
 }
 
 string FormatTimeframeLabel(const ENUM_TIMEFRAMES tf_value)
@@ -17,7 +17,7 @@ string FormatTimeframeLabel(const ENUM_TIMEFRAMES tf_value)
   return label;
 }
 
-bool ResolveGridNextLevelLotPreview(const SignalParams &signal_params,
+bool ResolveExecutionNextLevelLotPreview(const SignalParams &signal_params,
                                     const ExecutionLegState &current_level_state,
                                     int &next_level_index_out,
                                     double &next_lot_out)
@@ -50,17 +50,17 @@ bool ResolveGridNextLevelLotPreview(const SignalParams &signal_params,
   return true;
 }
 
-void DrawGridLevels(const long chart_id,
+void DrawExecutionLevels(const long chart_id,
                     const SignalParams &signal_params,
                     string &tracked_objects[])
 {
   if(!signal_params.execution_initialized)
     return;
 
-  string stop_name  = GridSignalObjectName(signal_params, "STOP");
-  string tp_name    = GridSignalObjectName(signal_params, "TP");
-  string entry_name = GridSignalObjectName(signal_params, "ENTRY");
-  string next_name  = GridSignalObjectName(signal_params, "NEXT");
+  string stop_name  = ExecutionSignalObjectName(signal_params, "STOP");
+  string tp_name    = ExecutionSignalObjectName(signal_params, "TP");
+  string entry_name = ExecutionSignalObjectName(signal_params, "ENTRY");
+  string next_name  = ExecutionSignalObjectName(signal_params, "NEXT");
 
   int execution_leg_index = ArraySize(signal_params.execution_legs)-1;
   if(execution_leg_index < 0)
@@ -78,15 +78,15 @@ void DrawGridLevels(const long chart_id,
   double tp_price         = level_state.take_profit_price;
   double next_level_price = level_state.next_level_price;
 
-  string stop_label     = GridSignalLineLabel(signal_params, "STOP");
-  string entry_label    = GridSignalLineLabel(signal_params, "ENTRY");
-  string tp_label       = GridSignalLineLabel(signal_params, "TP");
-  string next_label     = GridSignalLineLabel(signal_params, "NEXT");
+  string stop_label     = ExecutionSignalLineLabel(signal_params, "STOP");
+  string entry_label    = ExecutionSignalLineLabel(signal_params, "ENTRY");
+  string tp_label       = ExecutionSignalLineLabel(signal_params, "TP");
+  string next_label     = ExecutionSignalLineLabel(signal_params, "NEXT");
 
   int level_index = level_state.level_index;
   int next_level_index = level_index + 1;
   double next_level_lot_size = level_state.lot_size;
-  ResolveGridNextLevelLotPreview(signal_params,
+  ResolveExecutionNextLevelLotPreview(signal_params,
                                  level_state,
                                  next_level_index,
                                  next_level_lot_size);
@@ -149,7 +149,7 @@ void DrawGridLevels(const long chart_id,
   }
   else
   {
-    int display_level = ResolveGridNextDisplayLevel(level_index);
+    int display_level = ResolveExecutionNextDisplayLevel(level_index);
     next_label = StringFormat("%s L%d lot=%.2f",
                               next_label,
                               display_level,
@@ -199,11 +199,11 @@ void BuildSignalSummary(const SignalParams &signal_params,
                                               total_levels);
 }
 
-void RefreshGridVisualization()
+void RefreshExecutionVisualization()
 {
   if(FrontendSkippingChartWork())
   {
-    ArrayResize(g_grid_visual_previous_objects, 0);
+    ArrayResize(g_execution_visual_previous_objects, 0);
     return;
   }
 
@@ -217,18 +217,18 @@ void RefreshGridVisualization()
   {
     int bullish_total = ArraySize(running_bullish_signals);
     for(int i = 0; i < bullish_total; i++)
-      DrawGridLevels(chart_id, running_bullish_signals[i], current_objects);
+      DrawExecutionLevels(chart_id, running_bullish_signals[i], current_objects);
 
     int bearish_total = ArraySize(running_bearish_signals);
     for(int j = 0; j < bearish_total; j++)
-      DrawGridLevels(chart_id, running_bearish_signals[j], current_objects);
+      DrawExecutionLevels(chart_id, running_bearish_signals[j], current_objects);
   }
   else
   {
-    int prev_total = ArraySize(g_grid_visual_previous_objects);
+    int prev_total = ArraySize(g_execution_visual_previous_objects);
     for(int k = 0; k < prev_total; k++)
-      ObjectDelete(chart_id, g_grid_visual_previous_objects[k]);
-    ArrayResize(g_grid_visual_previous_objects, 0);
+      ObjectDelete(chart_id, g_execution_visual_previous_objects[k]);
+    ArrayResize(g_execution_visual_previous_objects, 0);
   }
 
   if(Enable_Chart_Summary)
@@ -244,14 +244,14 @@ void RefreshGridVisualization()
 
   RenderLightweightStatusTable(g_ea_running, g_magic_number, summary_lines);
 
-  int previous_total = ArraySize(g_grid_visual_previous_objects);
+  int previous_total = ArraySize(g_execution_visual_previous_objects);
   for(int p = 0; p < previous_total; p++)
   {
-    if(!ContainsObjectName(current_objects, g_grid_visual_previous_objects[p]))
-      ObjectDelete(chart_id, g_grid_visual_previous_objects[p]);
+    if(!ContainsObjectName(current_objects, g_execution_visual_previous_objects[p]))
+      ObjectDelete(chart_id, g_execution_visual_previous_objects[p]);
   }
 
-  ArrayCopy(g_grid_visual_previous_objects, current_objects);
+  ArrayCopy(g_execution_visual_previous_objects, current_objects);
 }
 
-#endif // _SERVICES_FRONTEND_GRID_VISUALIZATION_MQH_
+#endif // _SERVICES_FRONTEND_EXECUTION_VISUALIZATION_MQH_

@@ -103,7 +103,7 @@ void UpdateExecutionLifecycle(SignalParams &signal_params)
       if(level_limit_hit)
       {
         CloseAllExecutionLegs(signal_params, point_size);
-        ExecutionLogEvent("GRID_STOP_LEVEL_LIMIT", signal_params, execution_leg);
+        ExecutionLogEvent("EXECUTION_STOP_LEVEL_LIMIT", signal_params, execution_leg);
       }
       else
       {

@@ -4,7 +4,7 @@
 #ifndef _SERVICES_TRADING_SIGNALS_EXECUTION_LOGGING_MQH_
 #define _SERVICES_TRADING_SIGNALS_EXECUTION_LOGGING_MQH_
 
-#include "grid_order_helpers.mqh"
+#include "execution_leg_helpers.mqh"
 
 const string QUERY_DEBUG_FILENAME = "query_debug.txt";
 bool g_query_debug_session_header_logged = false;
@@ -240,7 +240,7 @@ bool ExecutionShouldPrintTerminalEvent(const string label)
   return (label == "SIGNAL_INIT" ||
           label == "LEVEL_REACHED" ||
           label == "LEVEL_TP_HIT" ||
-          label == "GRID_STOP_LEVEL_LIMIT" ||
+          label == "EXECUTION_STOP_LEVEL_LIMIT" ||
           label == "LEVEL_ACTIVATION_FAILED_TARGET_LOT" ||
           label == "LEVEL_ACTIVATION_FAILED_SEND" ||
           label == "LIMIT_EXPIRED_STRUCTURE");

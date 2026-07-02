@@ -23,7 +23,7 @@ This guide describes the foundation baseline only. Final production strategy rul
 - Protection/risk controls, to be simplified around strategy range foundations.
 - Session time filters.
 - Strategy timeframe, Stoch Structure period, direction mode, and concurrency mode unless a later phase changes them explicitly.
-- Lot sizing controls under the future non-grid lot type names.
+- Lot sizing controls under the execution lot type names.
 - Daily signal limits where they remain strategy-neutral.
 - Developer debug controls.
 

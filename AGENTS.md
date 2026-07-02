@@ -33,7 +33,7 @@ Rules:
 
 ## 3) Refoundation Scope
 
-The project is being refounded away from legacy grid-specific strategy behavior. Removed feature groups and inputs must not be preserved through deprecated shims or compatibility aliases.
+The project is being refounded away from legacy strategy-specific behavior. Removed feature groups and inputs must not be preserved through deprecated shims or compatibility aliases.
 
 Do not reintroduce removed strategy feature groups or their former public inputs as active code, docs, compatibility aliases, or entitlement mappings.
 
@@ -48,11 +48,11 @@ Preserved foundation controls:
 
 ## 4) Naming And Domain Rules
 
-- Do not introduce new public `GRID_` enum values, inputs, or strategy concepts.
-- Phase 4 owns the full domain rename away from grid terms.
+- Do not introduce removed public enum prefixes, inputs, or strategy concepts.
+- Phase 4 owns the full domain rename to execution foundation terms.
 - Preserve enum numeric semantics where user configuration compatibility depends on ordinal values.
 - Preferred foundation vocabulary: `strategy`, `execution`, `range`, `leg`, `broker snapshot`, `execution planner`, and `execution lifecycle`.
-- Use `grid` only for historical artifacts scheduled for deletion or rename by an active phase plan.
+- Use removed legacy domain vocabulary only inside historical planning artifacts.
 
 ## 5) Execution Source Of Truth
 

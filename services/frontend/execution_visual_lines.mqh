@@ -1,5 +1,5 @@
-#ifndef _MICROSERVICES_FRONTEND_GRID_VISUAL_LINES_MQH_
-#define _MICROSERVICES_FRONTEND_GRID_VISUAL_LINES_MQH_
+#ifndef _SERVICES_FRONTEND_EXECUTION_VISUAL_LINES_MQH_
+#define _SERVICES_FRONTEND_EXECUTION_VISUAL_LINES_MQH_
 
 void UpdateHorizontalLine(const long chart_id,
                           const string name,
@@ -51,4 +51,4 @@ void UpdateTrackedLine(const long chart_id,
     PushObjectName(tracked_objects, name);
 }
 
-#endif // _MICROSERVICES_FRONTEND_GRID_VISUAL_LINES_MQH_
+#endif // _SERVICES_FRONTEND_EXECUTION_VISUAL_LINES_MQH_

@@ -1,41 +1,19 @@
-#ifndef _MICROSERVICES_FRONTEND_GRID_VISUAL_UTILS_MQH_
-#define _MICROSERVICES_FRONTEND_GRID_VISUAL_UTILS_MQH_
+#ifndef _SERVICES_FRONTEND_EXECUTION_VISUAL_UTILS_MQH_
+#define _SERVICES_FRONTEND_EXECUTION_VISUAL_UTILS_MQH_
 
-const string EA_CHART_OBJECT_PREFIX = "HFT_GRID_AI_";
-const string EA_CHART_UI_PANEL = "HFT_GRID_AI_UI_PANEL";
-const string EA_CHART_UI_STATUS = "HFT_GRID_AI_UI_STATUS";
-const string EA_CHART_UI_TOGGLE = "HFT_GRID_AI_UI_TOGGLE";
-const string EA_CHART_UI_DETAILS = "HFT_GRID_AI_UI_DETAILS";
-const string EA_CHART_UI_ROW_PREFIX = "HFT_GRID_AI_UI_ROW_";
-const string EA_CHART_ERROR_OBJECT = "HFT_GRID_AI_ERROR_MESSAGE";
-string EA_CHART_LEGACY_GRID_OBJECTS[] =
-{
-  "STOP_BULLISH",
-  "TP_BULLISH",
-  "ENTRY_BULLISH",
-  "NEXT_BULLISH",
-  "STOP_BEARISH",
-  "TP_BEARISH",
-  "ENTRY_BEARISH",
-  "NEXT_BEARISH"
-};
-
-bool IsLegacyGridObjectName(const string name)
-{
-  int total = ArraySize(EA_CHART_LEGACY_GRID_OBJECTS);
-  for(int i = 0; i < total; i++)
-  {
-    if(EA_CHART_LEGACY_GRID_OBJECTS[i] == name)
-      return true;
-  }
-  return false;
-}
+const string EA_CHART_OBJECT_PREFIX = "HFT_EXEC_AI_";
+const string EA_CHART_UI_PANEL = "HFT_EXEC_AI_UI_PANEL";
+const string EA_CHART_UI_STATUS = "HFT_EXEC_AI_UI_STATUS";
+const string EA_CHART_UI_TOGGLE = "HFT_EXEC_AI_UI_TOGGLE";
+const string EA_CHART_UI_DETAILS = "HFT_EXEC_AI_UI_DETAILS";
+const string EA_CHART_UI_ROW_PREFIX = "HFT_EXEC_AI_UI_ROW_";
+const string EA_CHART_ERROR_OBJECT = "HFT_EXEC_AI_ERROR_MESSAGE";
 
 bool IsEAOwnedObjectName(const string name)
 {
   if(StringFind(name, EA_CHART_OBJECT_PREFIX) == 0)
     return true;
-  return IsLegacyGridObjectName(name);
+  return false;
 }
 
 void DeleteEAChartObjects(const long chart_id,
@@ -94,7 +72,7 @@ string CompactTimeIdentifier(const datetime time_value)
                       ts.sec);
 }
 
-string GridSignalIdentifier(const SignalParams &signal_params)
+string ExecutionSignalIdentifier(const SignalParams &signal_params)
 {
   if(signal_params.execution_sequence_id != "")
     return signal_params.execution_sequence_id;
@@ -120,22 +98,22 @@ string GridSignalIdentifier(const SignalParams &signal_params)
       return anchor_token;
   }
 
-  return StringFormat("GRID_%d", signal_params.signal_type);
+  return StringFormat("EXEC_%d", signal_params.signal_type);
 }
 
-string GridSignalObjectName(const SignalParams &signal_params,
-                            const string suffix)
+string ExecutionSignalObjectName(const SignalParams &signal_params,
+                                 const string suffix)
 {
   string direction = (signal_params.signal_type == BULLISH) ? "BULLISH" : "BEARISH";
-  string identifier = GridSignalIdentifier(signal_params);
+  string identifier = ExecutionSignalIdentifier(signal_params);
   if(identifier == "")
     return EA_CHART_OBJECT_PREFIX + suffix + "_" + direction;
 
   return EA_CHART_OBJECT_PREFIX + suffix + "_" + direction + "_" + identifier;
 }
 
-string GridSignalLineLabel(const SignalParams &signal_params,
-                           const string suffix)
+string ExecutionSignalLineLabel(const SignalParams &signal_params,
+                                const string suffix)
 {
   string direction = (signal_params.signal_type == BULLISH) ? "BULLISH" : "BEARISH";
   if(suffix == "")
@@ -159,16 +137,16 @@ string FormatFibEntryLabel(const string base_label,
                       entry_level_percent);
 }
 
-int ResolveGridDisplayLevel(const int level_index)
+int ResolveExecutionDisplayLevel(const int level_index)
 {
   if(level_index < 0)
     return 1;
   return level_index + 1;
 }
 
-int ResolveGridNextDisplayLevel(const int level_index)
+int ResolveExecutionNextDisplayLevel(const int level_index)
 {
-  return ResolveGridDisplayLevel(level_index + 1);
+  return ResolveExecutionDisplayLevel(level_index + 1);
 }
 
 string FormatFibNextLabel(const string base_label,
@@ -176,7 +154,7 @@ string FormatFibNextLabel(const string base_label,
                           const int level_index,
                           const double lot_size)
 {
-  int display_level = ResolveGridDisplayLevel(level_index);
+  int display_level = ResolveExecutionDisplayLevel(level_index);
   return StringFormat("%s %.1f%% L%d lot=%.2f",
                       base_label,
                       next_level_percent,
@@ -184,4 +162,4 @@ string FormatFibNextLabel(const string base_label,
                       lot_size);
 }
 
-#endif // _MICROSERVICES_FRONTEND_GRID_VISUAL_UTILS_MQH_
+#endif // _SERVICES_FRONTEND_EXECUTION_VISUAL_UTILS_MQH_

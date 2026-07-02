@@ -4,7 +4,7 @@
 
 This document defines the target execution foundation for the HFT Grid AI refoundation. It is implementation-guiding documentation, not the final strategy specification.
 
-The goal is to provide a stable base where future strategies can be integrated without carrying legacy grid, Fibonacci entry, or removed add-on assumptions.
+The goal is to provide a stable base where future strategies can be integrated without carrying legacy sequencing, Fibonacci entry, or removed add-on assumptions.
 
 ## Target Flow
 
@@ -66,7 +66,7 @@ The foundation should use strategy-neutral naming:
 - `broker snapshot`: the current broker position/order facts used for reconciliation.
 - `execution lifecycle`: activation, send, reconciliation, completion, and cleanup.
 
-Legacy grid-specific names should be removed or isolated to historical artifacts scheduled for deletion.
+Legacy strategy-specific names should be removed or isolated to historical artifacts scheduled for deletion.
 
 ## Risk And Safety Controls
 
@@ -106,7 +106,7 @@ Phase ownership:
 
 - Phase 2 removes legacy custom tests and harnesses from the active repository.
 - Phase 3 removes legacy feature inputs and code paths.
-- Phase 4 renames the domain away from grid-specific public/internal naming.
+- Phase 4 renames the domain to execution foundation public/internal naming.
 - Phase 5 simplifies strategy range and risk foundations.
 - Phase 6 implements broker-aware local execution state and reconciliation.
 - Phase 7 performs the real-tick performance pass.

@@ -90,7 +90,7 @@ int OnInit()
 
   // CHART SETUP
   RefreshCustomSymbolRates();
-  ResetGridVisualizationCache();
+  ResetExecutionVisualizationCache();
   ResetLightweightUiCache();
   InvalidateLightweightUiLayout();
   if(FrontendChartWorkEnabled())
@@ -113,7 +113,7 @@ int OnInit()
 
   if(FrontendChartWorkEnabled())
   {
-    RefreshGridVisualization();
+    RefreshExecutionVisualization();
     ChartRedraw(ChartID());
   }
 
@@ -134,7 +134,7 @@ void OnDeinit(const int reason)
   if(FrontendChartWorkEnabled())
   {
     DeleteEAChartObjects(ChartID(), false);
-    ResetGridVisualizationCache();
+    ResetExecutionVisualizationCache();
     ResetLightweightUiCache();
 
     if(preserve_error_object && removal_message != "")
@@ -204,7 +204,7 @@ void OnTick()
   {
     g_ea_running = false;
     if(FrontendChartWorkEnabled())
-      RefreshGridVisualization();
+      RefreshExecutionVisualization();
     return;
   }
 
@@ -226,7 +226,7 @@ void OnTick()
   if(!broker_disabled)
     Main_Tick();
   if(FrontendChartWorkEnabled())
-    RefreshGridVisualization();
+    RefreshExecutionVisualization();
 }
 
 void OnChartEvent(const int id,
@@ -239,7 +239,7 @@ void OnChartEvent(const int id,
 
   if(HandleLightweightChartUiEvent(id, lparam, dparam, sparam))
   {
-    RefreshGridVisualization();
+    RefreshExecutionVisualization();
     ChartRedraw(ChartID());
   }
 }

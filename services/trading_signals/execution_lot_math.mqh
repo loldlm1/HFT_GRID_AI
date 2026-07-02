@@ -3,9 +3,9 @@
 //+------------------------------------------------------------------+
 #ifndef _SERVICES_TRADING_SIGNALS_EXECUTION_LOT_MATH_MQH_
 #define _SERVICES_TRADING_SIGNALS_EXECUTION_LOT_MATH_MQH_
-// grid_order_helpers is provided earlier in the trading_signals cascade
+// execution_leg_helpers is provided earlier in the trading_signals cascade
 
-ExecutionLotTypes ResolveEffectiveGridLotType(const ExecutionLotTypes lot_type)
+ExecutionLotTypes ResolveEffectiveExecutionLotType(const ExecutionLotTypes lot_type)
 {
   if(lot_type == EXECUTION_LOT_ACCOUNT_PERCENTAGE ||
      lot_type == EXECUTION_LOT_TARGET_CURRENCY ||
@@ -19,19 +19,19 @@ ExecutionLotTypes ResolveEffectiveGridLotType(const ExecutionLotTypes lot_type)
 
 bool IsExecutionTargetProfitLotType(const ExecutionLotTypes lot_type)
 {
-  ExecutionLotTypes effective_lot_type = ResolveEffectiveGridLotType(lot_type);
+  ExecutionLotTypes effective_lot_type = ResolveEffectiveExecutionLotType(lot_type);
   return (effective_lot_type == EXECUTION_LOT_ACCOUNT_PERCENTAGE ||
           effective_lot_type == EXECUTION_LOT_TARGET_CURRENCY);
 }
 
 bool ExecutionUsesTargetProfitLotMode()
 {
-  return IsExecutionTargetProfitLotType(ResolveEffectiveGridLotType(Lot_Type));
+  return IsExecutionTargetProfitLotType(ResolveEffectiveExecutionLotType(Lot_Type));
 }
 
 bool ExecutionShouldApplyLotMultiplier(const ExecutionLotTypes lot_type)
 {
-  ExecutionLotTypes effective_lot_type = ResolveEffectiveGridLotType(lot_type);
+  ExecutionLotTypes effective_lot_type = ResolveEffectiveExecutionLotType(lot_type);
   return (effective_lot_type == EXECUTION_LOT_FIXED_SIZE);
 }
 
@@ -49,7 +49,7 @@ double ResolveTargetProfitAmountFromInputs(const ExecutionLotTypes lot_type,
                                            const double account_balance,
                                            const double account_size_fallback)
 {
-  ExecutionLotTypes effective_lot_type = ResolveEffectiveGridLotType(lot_type);
+  ExecutionLotTypes effective_lot_type = ResolveEffectiveExecutionLotType(lot_type);
   double factor = ResolveTargetProfitFactorFromPercent(tp_percent);
   double strategy_size = MathAbs(lot_strategy_size);
 
