@@ -20,6 +20,7 @@
 #include "trading_signals/execution_broker_context.mqh"
 #include "trading_signals/execution_price_resolver.mqh"
 #include "trading_signals/execution_leg_helpers.mqh"
+#include "trading_signals/execution_broker_reconciliation.mqh"
 #include "trading_signals/execution_lot_math.mqh"
 #include "trading_signals/execution_logging.mqh"
 #include "trading_signals/execution_lifecycle.mqh"

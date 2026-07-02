@@ -8,6 +8,9 @@ void UpdateExecutionLifecycle(SignalParams &signal_params)
   if(signal_params.signal_state == CLOSED)
     return;
 
+  ReconcileSignalBrokerPositions(signal_params);
+  RefreshSignalExposureState(signal_params);
+
   double         point_size        = ExecutionResolvePointSize();
   SignalTypes    direction         = signal_params.signal_type;
   int            execution_leg_index  = ArraySize(signal_params.execution_legs)-1;

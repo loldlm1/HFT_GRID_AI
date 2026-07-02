@@ -25,6 +25,9 @@ double ResolveExecutionLegTrackedVolume(const ExecutionLegState &leg_state)
 {
   if(leg_state.position_ticket > 0 && PositionSelectByTicket(leg_state.position_ticket))
   {
+    if(!SelectedBrokerPositionMatchesExecutionScope(NO_SIGNAL))
+      return leg_state.lot_size;
+
     double broker_volume = PositionGetDouble(POSITION_VOLUME);
     if(broker_volume > 0.0)
       return broker_volume;
@@ -90,38 +93,6 @@ ulong ResolvePositionTicketFromDeal(const ulong deal_ticket)
     return 0;
 
   return (ulong)HistoryDealGetInteger(deal_ticket, DEAL_POSITION_ID);
-}
-
-ulong FindOpenPositionForSignal(const SignalTypes direction,
-                                const string comment)
-{
-  int total_positions = PositionsTotal();
-  for(int i = 0; i < total_positions; i++)
-  {
-    ulong position_ticket = PositionGetTicket(i);
-    if(position_ticket == 0)
-      continue;
-    if(!PositionSelectByTicket(position_ticket))
-      continue;
-    if(PositionGetString(POSITION_SYMBOL) != _Symbol)
-      continue;
-
-    ENUM_POSITION_TYPE pos_type = (ENUM_POSITION_TYPE)PositionGetInteger(POSITION_TYPE);
-    if(direction == BULLISH && pos_type != POSITION_TYPE_BUY)
-      continue;
-    if(direction == BEARISH && pos_type != POSITION_TYPE_SELL)
-      continue;
-
-    if(comment != "")
-    {
-      string pos_comment = PositionGetString(POSITION_COMMENT);
-      if(pos_comment != comment)
-        continue;
-    }
-
-    return position_ticket;
-  }
-  return 0;
 }
 
 bool ExecutionShouldActivateStopLeg(const SignalParams &signal_params,
@@ -297,12 +268,23 @@ bool ExecuteExecutionLegTrade(SignalParams &signal_params,
   leg_state.entry_price = fill_price;
   ulong deal_ticket = (ulong)g_position.ResultDeal();
   leg_state.position_ticket = ResolvePositionTicketFromDeal(deal_ticket);
-  if(leg_state.position_ticket == 0)
-    leg_state.position_ticket = FindOpenPositionForSignal(direction, comment);
   leg_state.position_comment = comment;
   leg_state.last_action_time = TimeCurrent();
 
   signal_params.execution_legs[leg_state.level_index] = leg_state;
+  BrokerPositionSnapshot sent_snapshot;
+  if(FindBrokerPositionForExecutionLeg(signal_params, leg_state, sent_snapshot))
+  {
+    ApplyBrokerPositionSnapshotToExecutionLeg(leg_state, sent_snapshot);
+    signal_params.execution_legs[leg_state.level_index] = leg_state;
+  }
+  else
+  {
+    ExecutionLogGuardrailBlock("BROKER_RECONCILE_AMBIGUOUS",
+                               signal_params,
+                               leg_state,
+                               "sent_order_position_not_found");
+  }
   return sent;
 }
 
@@ -316,7 +298,19 @@ bool CloseExecutionLegBrokerPosition(ExecutionLegState &leg_state,
     return true;
 
   if(!PositionSelectByTicket(leg_state.position_ticket))
+  {
+    leg_state.position_ticket = 0;
+    leg_state.lot_size = 0.0;
     return true;
+  }
+
+  if(!SelectedBrokerPositionMatchesExecutionScope(direction))
+  {
+    if(Enable_Logs)
+      PrintFormat("CloseExecutionLegBrokerPosition scope mismatch | ticket=%I64u",
+                  leg_state.position_ticket);
+    return false;
+  }
 
   if(!g_position.PositionClose(leg_state.position_ticket))
   {
@@ -357,6 +351,14 @@ bool CloseExecutionLegBrokerPositionVolume(ExecutionLegState &leg_state,
     return true;
   }
 
+  if(!SelectedBrokerPositionMatchesExecutionScope(direction))
+  {
+    if(Enable_Logs)
+      PrintFormat("CloseExecutionLegBrokerPositionVolume scope mismatch | ticket=%I64u",
+                  leg_state.position_ticket);
+    return false;
+  }
+
   double current_volume = PositionGetDouble(POSITION_VOLUME);
   if(current_volume <= 0.0)
   {
@@ -395,7 +397,8 @@ bool CloseExecutionLegBrokerPositionVolume(ExecutionLegState &leg_state,
     close_price = ExecutionCurrentPriceForDirection(direction, false);
 
   closed_volume_out = target_volume;
-  if(PositionSelectByTicket(leg_state.position_ticket))
+  if(PositionSelectByTicket(leg_state.position_ticket) &&
+     SelectedBrokerPositionMatchesExecutionScope(direction))
   {
     double remaining_volume = PositionGetDouble(POSITION_VOLUME);
     if(remaining_volume <= EXECUTION_VOLUME_EPSILON)
@@ -576,9 +579,12 @@ int GetActivePositionsCount(const SignalTypes direction)
     if(!PositionSelectByTicket(position_ticket))
       continue;
 
-    // Validar magic number
     long position_magic = PositionGetInteger(POSITION_MAGIC);
     if(position_magic != g_magic_number)
+      continue;
+
+    string position_symbol = PositionGetString(POSITION_SYMBOL);
+    if(position_symbol != _Symbol)
       continue;
 
     ENUM_POSITION_TYPE pos_type = (ENUM_POSITION_TYPE)PositionGetInteger(POSITION_TYPE);
@@ -613,9 +619,7 @@ bool IsExecutionSignalComplete(const SignalParams &signal_params)
     ExecutionLegState state = signal_params.execution_legs[i];
     if(state.position_ticket > 0 && PositionSelectByTicket(state.position_ticket))
     {
-      long position_magic = PositionGetInteger(POSITION_MAGIC);
-      string position_symbol = PositionGetString(POSITION_SYMBOL);
-      if(position_magic == g_magic_number && position_symbol == _Symbol)
+      if(SelectedBrokerPositionMatchesExecutionScope(signal_params.signal_type))
         attached_positions++;
     }
   }
