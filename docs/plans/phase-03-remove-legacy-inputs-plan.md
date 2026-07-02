@@ -5,12 +5,14 @@
 **Roadmap Phase**: Phase 3  
 **Primary Output**: Legacy feature input groups and dependent code paths removed from the EA  
 **Validation Policy**: One MT5 compile gate at phase end, portable/headless first and normal MetaEditor fallback only if needed
+**Status**: Completed
+**Compile Result**: Passed on 2026-07-02 with portable/headless MetaEditor; process exit code `0`; result line in `C:\Program Files\MetaTrader 5-1\logs\metaeditor.log`: `HFT_Grid_AI.mq5 - 0 errors, 0 warnings, 11110 ms elapsed, cpu='X64 Regular'`. The requested `/log:` target `logs\compile\phase-03-build.log` was not emitted by MetaEditor.
 
 ## Overview
 
 Phase 3 removes the legacy feature input surface and the code paths that exist only to support those inputs. This is the first implementation phase after the documentation and test-infrastructure cleanup, so it must be careful about include order, license add-on mapping, logging, frontend references, and production compile health.
 
-This phase removes the five legacy input groups and three individual strategy-context inputs named in `ROADMAP.md`. It must not rename the whole grid domain; Phase 4 owns the broader domain rename away from `GRID_`. It also must not redesign risk/range semantics; Phase 5 owns that.
+This phase removes the five legacy input groups and three individual strategy-context inputs captured below. It must not rename the whole grid domain; Phase 4 owns the broader domain rename away from `GRID_`. It also must not redesign risk/range semantics; Phase 5 owns that.
 
 ## Prerequisites
 
@@ -364,6 +366,15 @@ git status --short
 
 Run the MT5 compile gate once after all code and docs edits are complete.
 
+## Execution Result
+
+- Sprint 1 commit: `dda0a23 refactor: remove legacy strategy inputs`.
+- Sprint 2 commit: `16f62d2 refactor: remove legacy strategy runtime paths`.
+- Sprint 3 commit: `bd9a1b9 chore: remove legacy strategy artifacts`.
+- Sprint 4 compile: portable/headless MetaEditor, process exit code `0`.
+- Compile evidence: `C:\Program Files\MetaTrader 5-1\logs\metaeditor.log`, result line `2026.07.02 11:36:44.339 Compile ... HFT_Grid_AI.mq5 - 0 errors, 0 warnings, 11110 ms elapsed, cpu='X64 Regular'`.
+- Note: `/log:C:\Program Files\MetaTrader 5-1\MQL5\Experts\HFT_Grid_AI\logs\compile\phase-03-build.log` did not create a project-local log file even though the compile process returned `0`.
+
 ## Historical Docs Policy
 
 Roadmap and phase plans may mention removed inputs as deletion history. `docs/plans/archive/` remains historical and is not part of Phase 3 cleanup unless the user explicitly requests archive purging.
@@ -383,4 +394,3 @@ Roadmap and phase plans may mention removed inputs as deletion history. `docs/pl
 - To revert the phase, revert Phase 3 commits in reverse order.
 - If internal Stoch Structure utilities are accidentally deleted, restore only the required utility file and remove the public input dependency instead.
 - If compile cannot pass without a product decision, document the blocker and do not create compatibility inputs.
-

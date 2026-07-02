@@ -145,7 +145,7 @@ Acceptance criteria:
 
 ### Phase 2: Remove Test Infrastructure
 
-**Status**: Active
+**Status**: Completed
 **Goal**: Delete legacy custom tests and harnesses so the repository validates by MT5 compile only.  
 **Planner output**: `docs/plans/phase-02-remove-tests-plan.md`  
 **Compile**: Required once at phase end.  
@@ -167,9 +167,10 @@ Acceptance criteria:
 
 ### Phase 3: Remove Legacy Feature Inputs
 
+**Status**: Completed
 **Goal**: Remove legacy feature groups and strategy-context policy inputs from the EA input surface.
 **Planner output**: `docs/plans/phase-03-remove-legacy-inputs-plan.md`  
-**Compile**: Required once at phase end.  
+**Compile**: Passed on 2026-07-02 via portable/headless MetaEditor (`0 errors, 0 warnings`; process exit code `0`). `/log:` did not emit the requested project log, so the result line was read from `C:\Program Files\MetaTrader 5-1\logs\metaeditor.log`.
 **Suggested commit**: `refactor: remove legacy strategy input groups`
 
 Deliverables:
