@@ -143,7 +143,7 @@ void EnsureQueryDebugSessionHeaderLogged()
                                                FOUNDATION_STRUCTURE_FIBONACCI_LEVELS,
                                                EnumToString(FOUNDATION_STRUCTURE_TRIGGER_MODE)));
 
-  ExecutionAppendTimestampedQueryDebug("INPUTS_GRID",
+  ExecutionAppendTimestampedQueryDebug("INPUTS_EXECUTION",
                                   StringFormat("base=%s|points_range=%.1f|execution_mult=%.2f|level_start=%d|stop_limit=%d|lot_type=%s|lot_size=%.2f|lot_mult=%.2f|tp_percent=%.1f",
                                                EnumToString(Base_Strategy_Type),
                                                Points_Range_Setup,

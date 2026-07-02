@@ -43,7 +43,7 @@ double ResolveEffectiveTickSize(const double tick_size_candidate,
   return 0.0001;
 }
 
-// Derives the resolved activation price for the next grid level while tracking
+// Derives the resolved activation price for the next execution level while tracking
 // any clamp reasons applied during the calculation.
 NextPriceResolution ResolveNextPrice(const double anchor,
                                      const int    level_idx,

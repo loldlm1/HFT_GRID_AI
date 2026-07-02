@@ -108,7 +108,7 @@ void EvaluateContextSignals(const StrategyContextTypes context)
     if(!BuildExecutionLegForSignal(signal))
     {
       if(Enable_Logs)
-        PrintFormat("Grid planning failed for %s context %s signal.",
+        PrintFormat("Execution planning failed for %s context %s signal.",
                     EnumToString(direction),
                     signal.strategy_context_label);
       continue;

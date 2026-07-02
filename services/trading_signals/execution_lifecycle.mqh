@@ -33,6 +33,26 @@ double ResolveExecutionLegTrackedVolume(const ExecutionLegState &leg_state)
   return leg_state.lot_size;
 }
 
+void RefreshSignalExposureState(SignalParams &signal_params)
+{
+  double remaining_volume = 0.0;
+  int total_legs = ArraySize(signal_params.execution_legs);
+  for(int i = 0; i < total_legs; i++)
+  {
+    ExecutionLegState leg_state = signal_params.execution_legs[i];
+    if(!leg_state.opens_position)
+      continue;
+    if(leg_state.status != EXECUTION_LEG_ACTIVE)
+      continue;
+
+    double tracked_volume = ResolveExecutionLegTrackedVolume(leg_state);
+    if(tracked_volume > 0.0)
+      remaining_volume += tracked_volume;
+  }
+
+  signal_params.remaining_open_volume = remaining_volume;
+}
+
 void RegisterSignalRealizedClose(SignalParams &signal_params,
                                  const ExecutionLegState &leg_state,
                                  const double closed_volume,

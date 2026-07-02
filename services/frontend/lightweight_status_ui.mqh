@@ -1363,7 +1363,7 @@ string NormalizeRemovalReason(const string removal_message)
   string lower = normalized;
   StringToLower(lower);
 
-  string hft_prefix = "hft grid ai removed:";
+  string hft_prefix = "hft exec ai removed:";
   if(StringFind(lower, hft_prefix) == 0)
   {
     normalized = StringSubstr(normalized, StringLen(hft_prefix));

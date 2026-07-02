@@ -447,7 +447,7 @@ bool BuildExecutionSignalPoints(SignalParams &signal_params)
                                entry_reference_price,
                                fibo_steps))
   {
-    Print("Grid plan aborted: base distance not available.");
+    Print("Execution plan aborted: base distance not available.");
     return false;
   }
 
@@ -511,7 +511,7 @@ bool BuildExecutionSignalPoints(SignalParams &signal_params)
   return true;
 }
 
-// Unified entry point to build (init) or refresh (tick) grid geometry and pending levels
+// Unified entry point to build (init) or refresh (tick) execution geometry and pending legs
 bool BuildExecutionLegForSignal(SignalParams &signal_params)
 {
   if(!BuildExecutionSignalPoints(signal_params)) return false;
@@ -523,7 +523,7 @@ bool BuildExecutionLegForSignal(SignalParams &signal_params)
 
   if(execution_leg_index < 0)
   {
-    Print("ERROR CREATING NEW GRID ORDER LEVEL");
+    Print("ERROR CREATING NEW EXECUTION LEG");
     TesterStop();
     return false;
   }
