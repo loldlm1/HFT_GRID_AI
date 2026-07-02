@@ -19,6 +19,16 @@ struct StrategyStructureLayerContext
 
 inline int ResolveStochStructurePeriod();
 
+inline bool StrategyRangeModeUsesStructure(const StrategyRangeTypes range_mode)
+{
+  return (range_mode == STRATEGY_RANGE_STRUCTURE);
+}
+
+inline bool StrategyRangeUsesStructure()
+{
+  return StrategyRangeModeUsesStructure(Strategy_Range_Mode);
+}
+
 inline StrategyStructureLayerContext BuildDisabledStructureLayerContext()
 {
   StrategyStructureLayerContext ctx;
@@ -75,7 +85,7 @@ inline int ResolveRetestRequirement(const StrategyStructureLayerContext &,
 
 inline bool AnyStructureGuardEnabled()
 {
-  return (ResolveStochStructurePeriod() >= 3 && Strategy_Range_Mode == STRATEGY_RANGE_STRUCTURE);
+  return (ResolveStochStructurePeriod() >= 3 && StrategyRangeUsesStructure());
 }
 
 inline bool TrendContextEnabled()
@@ -120,7 +130,7 @@ inline bool ContextRequiresStructure(const StrategyContextTypes context,
   if(!ctx.enabled)
     return false;
 
-  return (context == CONTEXT_SLOT_BASE && Strategy_Range_Mode == STRATEGY_RANGE_STRUCTURE);
+  return (context == CONTEXT_SLOT_BASE && StrategyRangeUsesStructure());
 }
 
 inline int ResolveStochStructurePeriod()

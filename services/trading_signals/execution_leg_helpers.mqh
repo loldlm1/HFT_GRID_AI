@@ -366,7 +366,7 @@ double GetExecutionNextLevelPrice(SignalTypes direction, SignalParams &signal_pa
                                                                   execution_leg_state);
   double execution_next_level_price   = execution_leg_state.next_level_price;
 
-  if(Strategy_Range_Mode == STRATEGY_RANGE_STRUCTURE)
+  if(StrategyRangeUsesStructure())
   {
     double structure_level_price = 0.0;
     if(ResolveStructureExecutionLevelPrice(signal_params, execution_leg_state.level_index, structure_level_price))
@@ -485,7 +485,7 @@ double ComputeLevelDistancePoints(const SignalParams &signal_params,
 double ResolveExecutionLegDistancePoints(const SignalParams &signal_params,
                                       const ExecutionLegState &state)
 {
-  if(Strategy_Range_Mode == STRATEGY_RANGE_STRUCTURE)
+  if(StrategyRangeUsesStructure())
   {
     double structure_level_price = 0.0;
     if(!ResolveStructureExecutionLevelPrice(signal_params, state.level_index, structure_level_price))

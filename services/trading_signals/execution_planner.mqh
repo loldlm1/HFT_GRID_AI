@@ -373,7 +373,7 @@ void LogExecutionPlanDiagnostics(const SignalParams &signal_params,
                                base_distance_points,
                                signal_params.execution_entry_reference_price);
 
-  if(Strategy_Range_Mode == STRATEGY_RANGE_STRUCTURE)
+  if(StrategyRangeUsesStructure())
   {
     bool resolved_entry_ok = SignalHasResolvedStructureEntryAnchor(signal_params);
     double resolved_entry_percent = signal_params.resolved_structure_entry.percent;
@@ -503,7 +503,7 @@ bool BuildExecutionSignalPoints(SignalParams &signal_params)
   signal_params.execution_entry_reference_price     = entry_reference_price;
   signal_params.execution_entry_gap_points          = base_distance_points;
   signal_params.execution_entry_offset_points       = entry_offset_points;
-  if(Strategy_Range_Mode == STRATEGY_RANGE_STRUCTURE)
+  if(StrategyRangeUsesStructure())
   {
     if(structure_steps <= 0)
       structure_steps = 1;

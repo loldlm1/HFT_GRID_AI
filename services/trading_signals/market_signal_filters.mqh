@@ -215,7 +215,7 @@ bool StructureLimitTerminalBandGuardEnabled(const StructureTriggerEntryModes tri
   if(g_structure_limit_terminal_band_guard_runtime_override)
     return g_structure_limit_terminal_band_guard_runtime_enabled;
 
-  return (Strategy_Range_Mode == STRATEGY_RANGE_STRUCTURE &&
+  return (StrategyRangeUsesStructure() &&
           ResolveFoundationLevelStopLimit() == 1 &&
           ResolveFoundationLevelPositionStart() == 0);
 }

@@ -249,7 +249,7 @@ bool ExecutionShouldPrintTerminalEvent(const string label)
 string ExecutionBuildLegResolutionSummary(const SignalParams &signal_params,
                                        const ExecutionLegState &leg_state)
 {
-  if(Strategy_Range_Mode != STRATEGY_RANGE_STRUCTURE)
+  if(!StrategyRangeUsesStructure())
   {
     double distance_points = ResolveExecutionLegDistancePoints(signal_params, leg_state);
     return StringFormat("source=%s|next=%.5f|entry_ref=%.5f|distance_pts=%.2f",
