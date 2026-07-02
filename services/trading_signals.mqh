@@ -17,6 +17,7 @@
 #include "trading_signals/market_signal_cleanup.mqh"
 #include "trading_signals/market_signal_detection.mqh"
 #include "trading_signals/market_status_controller.mqh"
+#include "trading_signals/execution_broker_context.mqh"
 #include "trading_signals/execution_price_resolver.mqh"
 #include "trading_signals/execution_leg_helpers.mqh"
 #include "trading_signals/execution_lot_math.mqh"
