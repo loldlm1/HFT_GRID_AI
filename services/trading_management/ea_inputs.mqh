@@ -8,9 +8,27 @@
 // across services. Any module relying on these inputs should include this file
 // (directly or through the trading_management aggregator).
 
-// DEFAULT VALUES (can be inputs)
+// Deterministic strategy constants. Keep these internal unless a future plan
+// explicitly expands the optimization surface.
+const ENUM_TIMEFRAMES DETERMINISTIC_BASE_TIMEFRAME = PERIOD_M1;
+const int             DETERMINISTIC_MA_PERIOD      = 21;
+const int             DETERMINISTIC_STOCH_K        = 5;
+const int             DETERMINISTIC_STOCH_D        = 3;
+const int             DETERMINISTIC_STOCH_SLOWING  = 3;
+const int             DETERMINISTIC_S1_BASE_DELAY  = 3;
+const int             DETERMINISTIC_S2_BASE_DELAY  = 5;
+const int             DETERMINISTIC_S3_BASE_DELAY  = 10;
+const int             DETERMINISTIC_MACRO_DELAY    = 1;
+
+// Internal compatibility defaults retained until the deterministic execution
+// lifecycle fully replaces the old range/grid helpers.
 ExecutionEntryStyles      Execution_Initial_Entry_Style = EXECUTION_ENTRY_STYLE_STOP;
 ExecutionEntryStyles      Execution_Deep_Entry_Style    = EXECUTION_ENTRY_STYLE_STOP;
+const ENUM_TIMEFRAMES     Strategy_Timeframe            = PERIOD_M1;
+const int                 Stoch_Structure_Period_Type   = DETERMINISTIC_STOCH_K;
+const StrategyRangeTypes  Strategy_Range_Mode           = STRATEGY_RANGE_STRUCTURE;
+const double              Strategy_Range_Points         = 100.0;
+const double              Min_Range_Points              = 200.0;
 
 input group  "+= Execution Foundation EA =+";
 input string EA_License_Key = "";
@@ -18,7 +36,6 @@ input string EA_License_Key = "";
 input group  "+= Account Settings EA =+";
 input int    Custom_Magic     = 0;
 input double Max_Spread       = 200.0;
-input double Min_Range_Points = 200.0;
 
 input group  "+= Protection Risk Management =+";
 input ProtectionRiskModes      Protection_Risk_Mode           = ENABLED_OFF;
@@ -37,15 +54,14 @@ input string                 Session_NewYork_Filter_Time_Range = "12:00-20:00";
 input DstOffsetModes         Session_Time_Dst_Mode         = DST_MODE_OFF;
 input int                    Session_Time_Dst_Manual_Offset_Minutes = 0;
 
-input group  "+= Strategy Context =+";
-input ENUM_TIMEFRAMES           Strategy_Timeframe          = PERIOD_M1;
-input int                       Stoch_Structure_Period_Type = 5;
-input StrategyDirectionTypes    Strategy_Direction_Mode     = BOTH_DIRECTION;
-input SignalConcurrencyModes    Signal_Concurrency_Mode     = MULTIPLE_RUNNING_SIGNALS;
+input group  "+= Deterministic Strategies =+";
+input bool Enable_Strategy_1 = true;
+input bool Enable_Strategy_2 = true;
+input bool Enable_Strategy_3 = true;
+input StrategyDirectionTypes Strategy_Direction_Mode = BOTH_DIRECTION;
+input SignalConcurrencyModes Signal_Concurrency_Mode = MULTIPLE_RUNNING_SIGNALS;
 
-input group  "+= Strategy Range And Risk Settings =+";
-input StrategyRangeTypes    Strategy_Range_Mode   = STRATEGY_RANGE_STRUCTURE;
-input double                Strategy_Range_Points = 100.0;
+input group  "+= Strategy Risk Settings =+";
 input ExecutionLotTypes     Lot_Type              = EXECUTION_LOT_FIXED_SIZE;
 input double                Lot_Strategy_Size     = 0.01;
 input double                Lot_Multiplier        = 2.0;

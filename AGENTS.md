@@ -8,7 +8,7 @@ Short, current notes for Codex agents and contributors. Keep this file brief; ac
 
 - **Purpose**: MT5 Expert Advisor foundation for future strategy integration, broker-aware execution planning, and strict risk controls.
 - **Entrypoint**: `HFT_Grid_AI.mq5`.
-- **Active plan**: none currently open.
+- **Active plan**: `docs/plans/deterministic-ma-stoch-strategies-plan.md`.
 - **Archived plans**: completed refoundation and skill-stack alignment plans live under `docs/plans/archive/`.
 - **Planning model**: create a new `$planner` plan under `docs/plans/` for any substantial future strategy, architecture, or repository-wide change.
 
@@ -91,6 +91,8 @@ Any phase touching these controls must call out risk level in its phase plan.
 ## 8) Validation Policy
 
 - No custom MQL5 tests, test harnesses, or agentic CI are part of this refoundation.
+- Do not add custom MQL5 test files or CI for strategy work unless a future human explicitly reverses this policy.
+- Validate implementation phases with MetaEditor compile plus human-in-the-loop Strategy Tester/chart verification.
 - Legacy custom tests and the old test runner have been removed.
 - Documentation-only phases do not run MT5 compile.
 - Implementation phases compile once at phase end, not after every atomic task.

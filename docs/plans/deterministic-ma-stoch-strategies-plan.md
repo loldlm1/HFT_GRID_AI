@@ -1,0 +1,676 @@
+# Plan: Deterministic MA Stoch Strategies
+
+**Generated**: 2026-07-03
+**Estimated Complexity**: High
+**Risk Level**: High for execution lifecycle and broker reconciliation; Critical where license, protection, margin, magic-number scope, or broker position ownership is touched.
+
+## Overview
+
+Implement three deterministic, independently activatable strategies on top of the current execution foundation.
+
+The new strategy model replaces the current single strategy-context foundation with three fixed strategy variants:
+
+| Strategy | Input | Base TF | Base MA Logic Delay | Macro TF | Macro MA Logic Delay |
+| --- | --- | --- | --- | --- | --- |
+| S1 | `Enable_Strategy_1` | `PERIOD_M1` | 3 bars | `PERIOD_M3` | 1 closed bar |
+| S2 | `Enable_Strategy_2` | `PERIOD_M1` | 5 bars | `PERIOD_M5` | 1 closed bar |
+| S3 | `Enable_Strategy_3` | `PERIOD_M1` | 10 bars | `PERIOD_M10` | 1 closed bar |
+
+All strategies use:
+
+- SMA 21 on close price for logic.
+- Stoch Structure `k=5`, `d=3`, `slow=3`, `close_close` on `PERIOD_M1`.
+- One confirmed Stoch Structure extremum as the setup source of truth.
+- Live `close_0` on every tick for entry and strategy SL checks.
+- Broker-side bid/ask for TP and real close execution parity.
+- Global risk/lot/protection/session/license settings.
+- Independent candidate and lifecycle identity by `strategy_id + direction + extremum_time`.
+
+The implementation should be completed one sprint at a time. Each sprint must be validated before moving to the next sprint.
+
+## Locked Product Decisions
+
+- Only hedging accounts are supported for this strategy stack. Netting support is out of scope.
+- Strategy inputs are limited to strategy enable toggles. Lot sizing, TP percent, protection, session, direction, daily limits, and debug settings remain global.
+- Entry and SL use live `close_0` on every tick.
+- Faithful backtests should use "Every tick based on real ticks" or equivalent tick modeling.
+- TP is evaluated using broker-side bid/ask, not raw `close_0`.
+- Macro confirmation is rechecked immediately before entry activation.
+- Pending candidates expire when any new confirmed M1 Stoch Structure extremum appears.
+- S1, S2, and S3 may all open independent signals from the same extremum when enabled and broker gates pass.
+- Aggressive cleanup is allowed for inputs and code paths not aligned with the deterministic strategy model.
+- Shifted MA visualization is required in this implementation plan.
+- Strategy-specific magic number derivation is preferred if the license contract allows it; otherwise, strategy identity must be preserved through broker comments and local lifecycle state.
+
+## Strategy Contract
+
+### Logic MA Policy
+
+Trading logic must use unshifted MA handles:
+
+```text
+iMA(_Symbol, timeframe, 21, 0, MODE_SMA, PRICE_CLOSE)
+```
+
+The strategy delay is applied explicitly through buffer indexes.
+
+Visual-only chart overlays may use shifted MA handles:
+
+```text
+iMA(_Symbol, timeframe, 21, visual_shift, MODE_SMA, PRICE_CLOSE)
+```
+
+Trading logic must not depend on `CopyBuffer` negative offsets or shifted-indicator buffer alignment.
+
+### M1 Setup Rules
+
+Use the latest confirmed M1 Stoch Structure extremum.
+
+For a peak:
+
+```text
+ext_shift = iBarShift(_Symbol, PERIOD_M1, current_peak_time, false)
+ma_now    = MA_M1[ext_shift + strategy_delay]
+ma_prev   = MA_M1[ext_shift + strategy_delay + 1]
+
+sell_setup = current_peak.high > ma_now && ma_now < ma_prev
+```
+
+For a bottom:
+
+```text
+ext_shift = iBarShift(_Symbol, PERIOD_M1, current_bottom_time, false)
+ma_now    = MA_M1[ext_shift + strategy_delay]
+ma_prev   = MA_M1[ext_shift + strategy_delay + 1]
+
+buy_setup = current_bottom.low < ma_now && ma_now > ma_prev
+```
+
+The M1 setup is the structural source of truth. Do not add a second M1 confirmation such as `MA_M1[delay]` versus `MA_M1[delay + 1]` unless it is the same calculation produced by the current extremum shift.
+
+### Macro Confirmation Rules
+
+Macro confirmation is independent from the M1 extremum shift.
+
+For S1:
+
+```text
+buy_macro  = MA_M3[1] > MA_M3[2]
+sell_macro = MA_M3[1] < MA_M3[2]
+```
+
+For S2:
+
+```text
+buy_macro  = MA_M5[1] > MA_M5[2]
+sell_macro = MA_M5[1] < MA_M5[2]
+```
+
+For S3:
+
+```text
+buy_macro  = MA_M10[1] > MA_M10[2]
+sell_macro = MA_M10[1] < MA_M10[2]
+```
+
+Macro confirmation must be rechecked before activating entry. If it no longer matches the candidate direction, the candidate should close/expire without sending a trade.
+
+### Entry Rules
+
+Entry is based on live M1 `close_0`:
+
+```text
+buy_entry  = close_0 > high_1
+sell_entry = close_0 < low_1
+```
+
+Entry activation still passes through broker-aware local execution gates before any broker trade is sent.
+
+### Strategy SL Rules
+
+SL is a local strategy exit, not necessarily a native broker stop.
+
+```text
+buy_sl  = close_0 < current_bottom.low
+sell_sl = close_0 > current_peak.high
+```
+
+The source extremum price used for SL must be captured when the candidate is created and must not drift to a later structure.
+
+### TP Rules
+
+TP uses the current broker-side exit price and the configured global `TP_Percent`:
+
+```text
+risk_distance = abs(real_or_estimated_entry_price - source_extremum_price)
+tp_distance   = risk_distance * (TP_Percent / 100.0)
+```
+
+For buys, TP is above entry and evaluated against the bid side. For sells, TP is below entry and evaluated against the ask side.
+
+After broker fill, TP geometry should reconcile to broker-confirmed entry price where possible while preserving the configured `TP_Percent` risk multiple.
+
+## Prerequisites
+
+- MetaTrader 5 root remains `C:\Program Files\MetaTrader 5-1`.
+- Main entrypoint remains `HFT_Grid_AI.mq5`.
+- Include pipeline remains ordered through:
+
+```text
+services/license_service_setup.mqh
+services/trading_tools.mqh
+services/trading_management.mqh
+services/trading_management_strategies.mqh
+services/trading_signals.mqh
+services/frontend.mqh
+```
+
+- No custom MQL5 test harness is reintroduced.
+- Implementation sprints compile at sprint end using MetaEditor portable/headless first.
+- Warnings and errors are sprint failures unless a temporary exception is explicitly documented.
+
+## Sprint 1: Strategy Contract And Input Surface
+
+**Goal**: Replace the foundation input surface with the deterministic strategy contract and remove incompatible legacy strategy settings.
+**Commit**: `refactor: define deterministic strategy inputs`
+**Demo/Validation**:
+- Inspect MT5 EA inputs and confirm only aligned strategy/risk controls remain.
+- Compile at sprint end with 0 errors and 0 warnings.
+
+### Task 1.1: Add Strategy Identity Enums And Constants
+
+- **Location**:
+  - `services/core/enums.mqh`
+  - New or existing strategy config include under `services/trading_management/` or `services/trading_signals/`
+- **Description**: Define deterministic strategy identifiers and fixed descriptors for S1, S2, S3.
+- **Dependencies**: None.
+- **Acceptance Criteria**:
+  - Strategy IDs are explicit and stable.
+  - S1/S2/S3 map to M1 delay 3/5/10 and macro M3/M5/M10.
+  - No removed legacy public enum prefixes are reintroduced.
+- **Validation**:
+  - Static grep for strategy IDs and descriptor usage.
+
+### Task 1.2: Replace Strategy Inputs
+
+- **Location**:
+  - `services/trading_management/ea_inputs.mqh`
+- **Description**: Add `Enable_Strategy_1`, `Enable_Strategy_2`, and `Enable_Strategy_3`. Remove inputs that are no longer aligned with the deterministic strategy model.
+- **Dependencies**: Task 1.1.
+- **Acceptance Criteria**:
+  - Strategy toggles exist and default to the desired operational default.
+  - `Strategy_Timeframe`, `Stoch_Structure_Period_Type`, `Strategy_Range_Mode`, `Strategy_Range_Points`, and obsolete Strategy Context inputs are removed or replaced.
+  - Risk, license, session, spread, protection, direction, lot, `TP_Percent`, daily limit, and debug settings remain where still applicable.
+- **Validation**:
+  - Static grep confirms removed public inputs are not active.
+  - MetaEditor compile at sprint end.
+
+### Task 1.3: Remove Or Isolate Range/Fibonacci Strategy Surface
+
+- **Location**:
+  - `services/trading_management/structure_fibonacci_levels.mqh`
+  - `services/trading_management/strategy_structure_context.mqh`
+  - `services/trading_signals/market_signal_filters.mqh`
+  - `services/trading_signals/execution_leg_helpers.mqh`
+  - `services/trading_signals/execution_planner.mqh`
+- **Description**: Delete or isolate code paths that only exist for the old range/Fibonacci strategy behavior and are not required by the new strategy.
+- **Dependencies**: Task 1.2.
+- **Acceptance Criteria**:
+  - The execution foundation no longer plans entries from Fibonacci structure bands.
+  - No deprecated compatibility aliases are kept.
+  - Broker guardrails remain intact.
+- **Validation**:
+  - Static grep for removed input names and old range-only functions.
+  - Compile at sprint end.
+
+### Task 1.4: Add Hedging-Only Runtime Guard
+
+- **Location**:
+  - `HFT_Grid_AI.mq5`
+  - Existing runtime guard or trading management module
+- **Description**: Block initialization or signal activation when the account is not hedging.
+- **Dependencies**: Task 1.1.
+- **Acceptance Criteria**:
+  - Netting accounts fail closed before strategy signals can open broker positions.
+  - The block reason is visible in logs/frontend status when practical.
+- **Validation**:
+  - Compile.
+  - Manual review of fail-closed path.
+
+## Sprint 2: Strategy State, Identity, And Broker Scope
+
+**Goal**: Make S1/S2/S3 independent through signal identity, lifecycle state, dedupe, broker comments, and magic scope.
+**Commit**: `feat: add deterministic strategy lifecycle identity`
+**Demo/Validation**:
+- With all strategies enabled, static review confirms candidates can coexist by strategy ID.
+- Compile at sprint end with 0 errors and 0 warnings.
+
+### Task 2.1: Extend SignalParams With Strategy Identity
+
+- **Location**:
+  - `services/trading_signals/signal_params_struct.mqh`
+- **Description**: Add fields for `strategy_id`, `strategy_label`, base timeframe, macro timeframe, base delay, macro delay, source extremum time, source extremum type, source extremum price, raw entry trigger, raw stop anchor, and TP/risk geometry.
+- **Dependencies**: Sprint 1.
+- **Acceptance Criteria**:
+  - Constructors and copy constructors preserve all new fields.
+  - No aggregate initialization is used for structs with constructors.
+  - Existing arrays can still copy/assign `SignalParams`.
+- **Validation**:
+  - Compile.
+  - Static review of constructors.
+
+### Task 2.2: Dedupe By Strategy And Extremum
+
+- **Location**:
+  - `services/trading_signals/market_signal_state.mqh`
+  - `services/trading_signals/market_signal_detection.mqh`
+- **Description**: Replace context-only dedupe with `strategy_id + direction + source_extremum_time`.
+- **Dependencies**: Task 2.1.
+- **Acceptance Criteria**:
+  - S1/S2/S3 can each create a signal from the same extremum.
+  - Duplicate signals for the same strategy/direction/extremum are blocked.
+  - `Signal_Concurrency_Mode` still applies globally when configured.
+- **Validation**:
+  - Static review of dedupe paths.
+  - Compile.
+
+### Task 2.3: Strategy-Aware Broker Comments
+
+- **Location**:
+  - `services/trading_signals/execution_leg_helpers.mqh`
+  - `services/trading_signals/execution_broker_reconciliation.mqh`
+- **Description**: Include strategy label or ID in execution comments and reconciliation fallback.
+- **Dependencies**: Task 2.1.
+- **Acceptance Criteria**:
+  - Comments cannot collide between S1/S2/S3 on the same direction/time/level.
+  - Reconciliation remains scoped by symbol, direction, magic number, and comment where required.
+- **Validation**:
+  - Static review of comment format.
+  - Compile.
+
+### Task 2.4: Derive Strategy Magic Numbers When License Allows
+
+- **Location**:
+  - `HFT_Grid_AI.mq5`
+  - `services/license_service_setup.mqh`
+  - `services/trading_signals/execution_lifecycle.mqh`
+  - `services/trading_signals/execution_broker_reconciliation.mqh`
+- **Description**: Investigate the license magic-number contract. If allowed, derive per-strategy magic numbers from the verified base magic. If not allowed, retain base magic and rely on strategy comments plus local identity.
+- **Dependencies**: Task 2.3.
+- **Acceptance Criteria**:
+  - The plan implementation documents the chosen magic strategy in code comments or docs.
+  - License guard behavior remains fail-closed.
+  - Reconciliation remains deterministic.
+- **Validation**:
+  - Static review of license and magic paths.
+  - Compile.
+
+## Sprint 3: Indicator Cache And Shifted Visualization
+
+**Goal**: Add efficient persistent indicator handles for strategy logic and chart visualization.
+**Commit**: `feat: cache deterministic strategy indicators`
+**Demo/Validation**:
+- All required handles load once at init and release on deinit.
+- Visual shifted MA lines are available without affecting trading logic.
+- Compile at sprint end with 0 errors and 0 warnings.
+
+### Task 3.1: Load Shared Stoch Structure M1
+
+- **Location**:
+  - `services/trading_management/indicator_definitions_loader.mqh`
+  - `services/trading_signals/market_signal_indicators.mqh`
+- **Description**: Replace configurable Stoch Structure loading with fixed M1 `k=5`, `d=3`, `slow=3`, `STO_CLOSECLOSE`.
+- **Dependencies**: Sprint 1.
+- **Acceptance Criteria**:
+  - Stoch Structure M1 is loaded once.
+  - The structure snapshot is shared by all strategies.
+  - Indicator release is deterministic.
+- **Validation**:
+  - Compile.
+  - Static review for per-tick handle creation.
+
+### Task 3.2: Add Raw MA Logic Handles
+
+- **Location**:
+  - `services/trading_management/indicator_definitions_loader.mqh`
+  - New strategy indicator cache helper if useful
+- **Description**: Add persistent unshifted SMA 21 handles for M1, M3, M5, and M10.
+- **Dependencies**: Task 3.1.
+- **Acceptance Criteria**:
+  - Handles use `ma_shift=0`.
+  - Copy depth is bounded to the maximum needed for setup and macro confirmation.
+  - No raw MA handle is created on tick paths.
+- **Validation**:
+  - Static grep for `iMA`.
+  - Compile.
+
+### Task 3.3: Add Shifted Visual MA Handles Or Chart Objects
+
+- **Location**:
+  - `services/frontend/execution_visualization.mqh`
+  - `services/frontend/execution_visual_lines.mqh`
+  - `services/trading_management/indicator_definitions_loader.mqh`
+- **Description**: Show the shifted MA view for S1/S2/S3 without using shifted buffers for trading logic.
+- **Dependencies**: Task 3.2.
+- **Acceptance Criteria**:
+  - S1 visual MA reflects delay 3 on M1.
+  - S2 visual MA reflects delay 5 on M1.
+  - S3 visual MA reflects delay 10 on M1.
+  - Macro visual MA lines may show shift 1 when practical.
+  - Visual failures do not block trading logic unless handle creation for required logic indicators fails.
+- **Validation**:
+  - Compile.
+  - Visual smoke check in MT5 after implementation.
+
+### Task 3.4: Add Efficient Buffer Access Helpers
+
+- **Location**:
+  - `services/trading_signals/market_signal_indicators.mqh`
+  - New strategy indicator helper if useful
+- **Description**: Add helpers to fetch only the required MA buffer windows and M1 rates.
+- **Dependencies**: Task 3.2.
+- **Acceptance Criteria**:
+  - M1 setup helper can resolve `MA_M1[ext_shift + delay]` and `[ext_shift + delay + 1]`.
+  - Macro helper can resolve `[1]` and `[2]`.
+  - `CopyRates`/`CopyBuffer` calls are bounded and checked.
+  - No full-history scans exist on tick paths.
+- **Validation**:
+  - Static review of copy depths and array bounds.
+  - Compile.
+
+## Sprint 4: Deterministic Candidate Detection
+
+**Goal**: Produce deterministic candidates from confirmed M1 structure, base MA delayed slope, and macro confirmation.
+**Commit**: `feat: detect deterministic ma stoch candidates`
+**Demo/Validation**:
+- In logs/debug mode, candidates identify strategy, direction, extremum, delayed MA values, macro confirmation, and entry trigger.
+- Compile at sprint end with 0 errors and 0 warnings.
+
+### Task 4.1: Extract Latest Confirmed M1 Extremum
+
+- **Location**:
+  - `services/indicators/extrema_detector.mqh`
+  - `services/indicators/stochastic_market_indicator.mqh`
+  - `services/trading_signals/market_signal_indicators.mqh`
+- **Description**: Provide a cheap, explicit helper for latest confirmed peak/bottom data from the M1 Stoch Structure snapshot.
+- **Dependencies**: Sprint 3.
+- **Acceptance Criteria**:
+  - The helper returns extremum type, time, high/low anchor price, and validity.
+  - Provisional/live unconfirmed extrema are not used.
+  - The result is stable across all strategies for the same M1 bar.
+- **Validation**:
+  - Static review of structure slots used.
+  - Compile.
+
+### Task 4.2: Implement Base M1 Setup Evaluation
+
+- **Location**:
+  - `services/trading_signals/market_signal_filters.mqh`
+  - New deterministic strategy filter helper if useful
+- **Description**: Evaluate peak/bottom relationship against delayed M1 SMA slope for each enabled strategy.
+- **Dependencies**: Task 4.1.
+- **Acceptance Criteria**:
+  - Sell setup: `peak.high > MA_M1[ext_shift + delay]` and delayed slope down.
+  - Buy setup: `bottom.low < MA_M1[ext_shift + delay]` and delayed slope up.
+  - Invalid shifts, missing MA data, or insufficient bars fail closed.
+- **Validation**:
+  - Compile.
+  - Debug log sample in tester or visual run after implementation.
+
+### Task 4.3: Implement Macro Confirmation
+
+- **Location**:
+  - `services/trading_signals/market_signal_filters.mqh`
+  - Strategy indicator helper
+- **Description**: Evaluate macro SMA 21 `[1]` versus `[2]` for each strategy.
+- **Dependencies**: Task 3.4.
+- **Acceptance Criteria**:
+  - S1 uses M3, S2 uses M5, S3 uses M10.
+  - Macro confirmation uses closed bars only.
+  - The confirmation can be reused at candidate creation and rechecked before entry activation.
+- **Validation**:
+  - Compile.
+  - Static review of buffer indexes.
+
+### Task 4.4: Create Strategy Candidates On New M1 Structure State
+
+- **Location**:
+  - `services/trading_signals/market_signal_detection.mqh`
+  - `services/trading_signals/market_signal_state.mqh`
+- **Description**: Replace context evaluation with deterministic strategy iteration over enabled S1/S2/S3.
+- **Dependencies**: Tasks 4.1, 4.2, 4.3.
+- **Acceptance Criteria**:
+  - Candidate creation runs on new relevant M1 bar/structure state, not every tick.
+  - Candidate stores source extremum and raw entry trigger (`high_1` for buy, `low_1` for sell).
+  - Candidate stores stop anchor from source extremum.
+  - Candidate is deduped by strategy/direction/extremum.
+  - Daily signal limits and direction mode are applied before activation or at candidate creation consistently.
+- **Validation**:
+  - Compile.
+  - Debug log confirms no candidate churn on every tick.
+
+### Task 4.5: Expire Candidates On Any New Confirmed Extremum
+
+- **Location**:
+  - `services/trading_signals/execution_controller.mqh`
+  - `services/trading_signals/market_signal_state.mqh`
+- **Description**: Close pending non-filled candidates when a newer confirmed M1 Stoch Structure extremum appears.
+- **Dependencies**: Task 4.4.
+- **Acceptance Criteria**:
+  - Pending candidates expire without broker action.
+  - Active broker positions are not closed only because a new extremum appears.
+  - Expiration is logged behind debug settings.
+- **Validation**:
+  - Compile.
+  - Static review of pending versus active status checks.
+
+## Sprint 5: Entry, SL, TP, And Broker-Aware Lifecycle
+
+**Goal**: Activate candidates and manage exits with the new deterministic rules while preserving broker-aware gates and reconciliation.
+**Commit**: `feat: execute deterministic strategy lifecycle`
+**Demo/Validation**:
+- Tester visual or log run shows setup, pending candidate, broker-aware activation, active position, TP or SL close, and cleanup.
+- Compile at sprint end with 0 errors and 0 warnings.
+
+### Task 5.1: Add Raw Close Entry Trigger
+
+- **Location**:
+  - `services/trading_signals/execution_lifecycle.mqh`
+  - `services/trading_signals/execution_controller.mqh`
+  - `services/trading_signals/execution_leg_helpers.mqh`
+- **Description**: Activate first entry when live M1 `close_0` crosses the stored trigger.
+- **Dependencies**: Sprint 4.
+- **Acceptance Criteria**:
+  - Buy activates on `close_0 > stored_high_1`.
+  - Sell activates on `close_0 < stored_low_1`.
+  - Macro confirmation is rechecked immediately before activation.
+  - If macro confirmation fails, the candidate expires without broker send.
+  - Broker eligibility still runs before broker send.
+- **Validation**:
+  - Compile.
+  - Static review of broker guardrail call order.
+
+### Task 5.2: Add Strategy SL By Source Extremum
+
+- **Location**:
+  - `services/trading_signals/execution_controller.mqh`
+  - `services/trading_signals/execution_lifecycle.mqh`
+- **Description**: Close active positions when live `close_0` invalidates the source extremum.
+- **Dependencies**: Task 5.1.
+- **Acceptance Criteria**:
+  - Buy SL: `close_0 < source_bottom.low`.
+  - Sell SL: `close_0 > source_peak.high`.
+  - Close uses scoped broker position closure and does not overwrite broker facts.
+  - Failed close attempts do not mark the signal complete until reconciliation confirms closure.
+- **Validation**:
+  - Compile.
+  - Static review of position-close retcode handling.
+
+### Task 5.3: Add TP Percent Risk Geometry
+
+- **Location**:
+  - `services/trading_signals/execution_planner.mqh`
+  - `services/trading_signals/execution_leg_helpers.mqh`
+  - `services/trading_signals/execution_controller.mqh`
+- **Description**: Compute TP from source risk distance and global `TP_Percent`, then evaluate TP by broker-side bid/ask.
+- **Dependencies**: Task 5.1.
+- **Acceptance Criteria**:
+  - TP respects `TP_Percent / 100.0` risk multiple.
+  - TP recalculates from broker-confirmed entry price after fill when available.
+  - Broker stops/freeze/spread constraints are checked before activation.
+  - If required broker-safe geometry cannot be maintained, activation is blocked.
+- **Validation**:
+  - Compile.
+  - Static review of bid/ask side selection.
+
+### Task 5.4: Preserve Existing Risk And Protection Gates
+
+- **Location**:
+  - `services/trading_signals/execution_broker_context.mqh`
+  - `services/trading_signals/protection_risk_filter.mqh`
+  - `services/trading_signals/session_time_filter_manager.mqh`
+  - `services/trading_signals/market_status_controller.mqh`
+- **Description**: Confirm the new lifecycle still passes through license, spread, market status, session, protection, volume, and margin checks.
+- **Dependencies**: Tasks 5.1, 5.2, 5.3.
+- **Acceptance Criteria**:
+  - No strategy detector can open/close broker positions directly.
+  - Local broker-aware eligibility remains the final gate before send.
+  - Symbol and magic/comment scope are preserved for close and reconciliation.
+- **Validation**:
+  - Static guardrail audit.
+  - Compile.
+
+### Task 5.5: Remove Grid/Deep-Level Behavior If Obsolete
+
+- **Location**:
+  - `services/trading_signals/execution_controller.mqh`
+  - `services/trading_signals/execution_leg_helpers.mqh`
+  - `services/trading_signals/execution_planner.mqh`
+  - `services/frontend/execution_visualization.mqh`
+- **Description**: Delete remaining multi-level grid/range behavior if it no longer matches the single deterministic entry lifecycle.
+- **Dependencies**: Tasks 5.1, 5.2, 5.3.
+- **Acceptance Criteria**:
+  - Execution legs represent the needed lifecycle only.
+  - No unused deep-entry/grid inputs or paths remain.
+  - Frontend does not display obsolete levels.
+- **Validation**:
+  - Static grep for removed concepts.
+  - Compile.
+
+## Sprint 6: Tester Performance And Telemetry
+
+**Goal**: Keep "Every tick based on real ticks" backtests efficient while preserving deterministic tick-level entry/SL behavior.
+**Commit**: `perf: optimize deterministic strategy tester path`
+**Demo/Validation**:
+- Backtest logs show bounded strategy evaluation and no per-tick indicator handle churn.
+- Compile at sprint end with 0 errors and 0 warnings.
+
+### Task 6.1: Gate Expensive Work To New Bars And Structure Changes
+
+- **Location**:
+  - `HFT_Grid_AI.mq5`
+  - `services/trading_signals/market_signal_detection.mqh`
+  - `services/trading_signals/market_signal_state.mqh`
+- **Description**: Evaluate Stoch Structure and setup creation only when the relevant M1 state changes.
+- **Dependencies**: Sprint 5.
+- **Acceptance Criteria**:
+  - Stoch Structure snapshots are not copied on every tick when no new M1 bar/structure state exists.
+  - Tick path only checks live entry/SL/TP for existing pending/active candidates.
+  - Macro buffers are refreshed only when their closed-bar state may have changed.
+- **Validation**:
+  - Static review of `CopyBuffer` placement.
+  - Debug log sample with `Enable_Logs=true`.
+
+### Task 6.2: Cache M1 Rates Per Tick
+
+- **Location**:
+  - `services/trading_signals/market_signal_indicators.mqh`
+  - `services/trading_signals/execution_controller.mqh`
+- **Description**: Fetch `close_0`, `high_1`, and `low_1` once per tick when needed.
+- **Dependencies**: Task 6.1.
+- **Acceptance Criteria**:
+  - Pending/active strategy lifecycle reuses one M1 rates snapshot per tick.
+  - Missing rates fail closed without repeated logs.
+  - Array bounds are checked.
+- **Validation**:
+  - Compile.
+  - Static review of tick-path market data calls.
+
+### Task 6.3: Compact Strategy Diagnostics
+
+- **Location**:
+  - `services/trading_signals/execution_logging.mqh`
+  - Frontend lightweight UI if useful
+- **Description**: Add low-noise debug events for candidate creation, macro invalidation, entry activation, SL, TP, broker block, and expiration.
+- **Dependencies**: Sprint 5.
+- **Acceptance Criteria**:
+  - Logs are gated by debug/log inputs.
+  - Repeated per-tick rejections do not spam logs.
+  - Diagnostic records include strategy ID and source extremum time.
+- **Validation**:
+  - Compile.
+  - Debug log smoke run.
+
+### Task 6.4: Final Compile And Tester Smoke Procedure
+
+- **Location**:
+  - `logs/compile/`
+  - `README.md` or plan notes if procedure documentation is needed
+- **Description**: Run the project compile command and define a short Strategy Tester smoke procedure.
+- **Dependencies**: Tasks 6.1, 6.2, 6.3.
+- **Acceptance Criteria**:
+  - Portable/headless compile returns 0 errors and 0 warnings.
+  - Tester smoke run verifies all three strategies can initialize.
+  - Any tester limitations are documented.
+- **Validation**:
+  - Preferred command:
+
+```powershell
+$mt5Root = "C:\Program Files\MetaTrader 5-1"
+$metaeditor = Join-Path $mt5Root "MetaEditor64.exe"
+$entrypoint = Join-Path $mt5Root "MQL5\Experts\HFT_Grid_AI\HFT_Grid_AI.mq5"
+$log = Join-Path $mt5Root "MQL5\Experts\HFT_Grid_AI\logs\compile\deterministic-strategies.log"
+& $metaeditor /portable /s /compile:$entrypoint /log:$log
+```
+
+## Testing Strategy
+
+- Use static sweeps after cleanup tasks:
+  - Removed input names.
+  - Obsolete range/Fibonacci/grid concepts.
+  - Per-tick `iMA` or `iCustom` creation.
+  - Unchecked `CopyBuffer` or array access.
+- Use MetaEditor compile at the end of each implementation sprint.
+- Treat warnings as failures.
+- Use debug-gated tester logs to verify:
+  - S1/S2/S3 descriptors load.
+  - M1 source extremum is captured.
+  - Delayed M1 MA setup is calculated from `ext_shift + delay`.
+  - Macro confirmation uses `[1]` and `[2]`.
+  - Pending candidate expires on new confirmed extremum.
+  - Entry uses live `close_0`.
+  - SL uses live `close_0`.
+  - TP uses broker-side bid/ask and `TP_Percent`.
+  - Broker reconciliation owns ticket, volume, entry, and close facts after fill.
+
+## Potential Risks And Gotchas
+
+- **Shifted MA confusion**: Logic must not use shifted MA buffers. Mitigation: raw `ma_shift=0` logic handles plus separate visual shifted handles.
+- **Extremum confirmation ambiguity**: If the latest structure slot is provisional, the strategy may repaint. Mitigation: explicitly define and use the latest confirmed extremum helper.
+- **Tick-model dependency**: Live `close_0` makes "open prices only" backtests unreliable. Mitigation: document real-tick testing as the faithful mode.
+- **Broker close failure**: Freeze levels or broker retcodes can block closes. Mitigation: do not mark signals closed until broker reconciliation confirms closure.
+- **Magic-number licensing**: Per-strategy magic derivation may conflict with license expectations. Mitigation: investigate before implementation and fall back to comment-scoped identity.
+- **Aggressive cleanup blast radius**: Removing old range/grid paths may break frontend assumptions. Mitigation: cleanup in its own sprint and compile before strategy logic work continues.
+- **Performance regression**: Three strategies can multiply buffer copies. Mitigation: shared M1 Stoch snapshot, shared M1 MA buffer, macro caches by timeframe, and tick-rate work only for pending/active candidates.
+- **Hedging-only assumption**: Users on netting accounts will be blocked. Mitigation: fail closed with an explicit message.
+
+No additional product questions are blocking this plan. The remaining unknowns are implementation discoveries, especially the exact magic-number license contract and whether all old range/grid code can be deleted in one sprint without forcing a larger frontend rewrite.
+
+## Rollback Plan
+
+- Revert sprint commits in reverse order.
+- If Sprint 1 cleanup is too broad, restore the last compile-clean foundation baseline and reapply only the new strategy toggles.
+- If per-strategy magic numbers are unsafe, keep base magic and revert only the magic derivation task while retaining strategy comments.
+- If visual MA overlays introduce frontend instability, disable visual overlays without changing the strategy logic handles.
+- Keep broker guardrails and license checks fail-closed throughout rollback.
+

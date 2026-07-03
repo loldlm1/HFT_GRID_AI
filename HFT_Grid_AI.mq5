@@ -51,9 +51,23 @@ bool ProcessPendingRemovalRequest()
   return true;
 }
 
+bool DeterministicStrategiesRequireHedgingAccount()
+{
+  long margin_mode = AccountInfoInteger(ACCOUNT_MARGIN_MODE);
+  if(margin_mode == ACCOUNT_MARGIN_MODE_RETAIL_HEDGING)
+    return true;
+
+  PrintFormat("Unsupported account margin mode for deterministic strategy stack: %d. Hedging account required.",
+              (int)margin_mode);
+  return false;
+}
+
 int OnInit()
 {
   if(!LicenseServiceInit())
+    return(INIT_FAILED);
+
+  if(!DeterministicStrategiesRequireHedgingAccount())
     return(INIT_FAILED);
 
   // INITIALIZE GLOBAL VARIABLES
