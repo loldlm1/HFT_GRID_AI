@@ -1,6 +1,6 @@
 # AGENTS Brief - HFT Grid AI Foundation
 
-Short, current notes for Codex agents and contributors. Keep this file brief; active implementation plans live in `docs/plans/`, and completed refoundation plans live in `docs/plans/archive/`.
+Short, current notes for Codex agents and contributors. Keep this file brief; active implementation plans live in `docs/plans/` when present, and completed plans live in `docs/plans/archive/`.
 
 ---
 
@@ -8,7 +8,8 @@ Short, current notes for Codex agents and contributors. Keep this file brief; ac
 
 - **Purpose**: MT5 Expert Advisor foundation for future strategy integration, broker-aware execution planning, and strict risk controls.
 - **Entrypoint**: `HFT_Grid_AI.mq5`.
-- **Active plan**: `docs/plans/codex-agent-skill-stack-alignment-plan.md`.
+- **Active plan**: none currently open.
+- **Archived plans**: completed refoundation and skill-stack alignment plans live under `docs/plans/archive/`.
 - **Planning model**: create a new `$planner` plan under `docs/plans/` for any substantial future strategy, architecture, or repository-wide change.
 
 ## 2) Codex Skill Stack

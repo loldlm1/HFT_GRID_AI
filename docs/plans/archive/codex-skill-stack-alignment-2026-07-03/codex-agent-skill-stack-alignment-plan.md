@@ -5,6 +5,7 @@
 **Primary Output**: `AGENTS.md` and active docs aligned with the local Codex skill stack under `C:\Users\loldlm\.codex\skills`
 **Validation Policy**: Documentation/static review only; no MT5 compile unless production `.mq5` or `.mqh` files change
 **Status**: Completed
+**Archived**: 2026-07-03
 
 ## Completion Evidence
 
