@@ -30,6 +30,10 @@ Phase 6 is implemented as of 2026-07-02. Active execution now has a broker execu
 
 Phase 7 is implemented as of 2026-07-03. Active execution now reuses execution-owned indicator handles, releases indicator handles deterministically, bounds Stoch Structure buffer reads, keeps broker reconciliation ticket-first, reserves hot-path logging/frontend arrays, and throttles chart refresh in visual/live tick paths.
 
+### Phase 8 Final Baseline Status
+
+Phase 8 is implemented as of 2026-07-03. The active repository baseline now has tracked generated/local config artifacts removed, active docs aligned to current inputs, production source swept for removed-feature residue, and a final portable/headless compile result of `0 errors, 0 warnings`.
+
 ### Before Real Execution
 
 Before a real broker position exists, local execution simulation owns candidate and planned execution state.
@@ -126,3 +130,4 @@ Phase ownership:
 - Phase 5 simplifies strategy range and risk foundations.
 - Phase 6 implements broker-aware local execution state and reconciliation. Completed on 2026-07-02.
 - Phase 7 performs the real-tick performance pass. Completed on 2026-07-03.
+- Phase 8 finalizes the refounded EA baseline. Completed on 2026-07-03.

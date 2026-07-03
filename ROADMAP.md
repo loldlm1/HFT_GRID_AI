@@ -1,7 +1,7 @@
 # HFT Grid AI Refoundation Roadmap
 
 **Generated**: 2026-07-02  
-**Status**: Active refoundation roadmap
+**Status**: Completed refoundation baseline
 **Estimated complexity**: High  
 **Validation policy**: MT5 compile gate only, once at the end of each implementation phase
 
@@ -14,6 +14,7 @@
 - Phase 2 completed: legacy tests and runner removed; portable compile log reports 0 errors and 0 warnings.
 - Phase 7 completed: real-tick performance pass compile log reports 0 errors and 0 warnings.
 - Phase 8 plan created: `docs/plans/phase-08-final-compile-hardening-plan.md`.
+- Phase 8 completed: final baseline compile log reports 0 errors and 0 warnings.
 
 ## Purpose
 
@@ -290,9 +291,10 @@ Acceptance criteria:
 
 ### Phase 8: Final Compile Hardening And Cleanup
 
+**Status**: Completed
 **Goal**: Make the refounded project clean, coherent, and ready for future strategy plans.  
 **Planner output**: `docs/plans/phase-08-final-compile-hardening-plan.md`  
-**Compile**: Required once at phase end.  
+**Compile**: Passed on 2026-07-03 via portable/headless MetaEditor (`result 0 errors, 0 warnings, 271 ms elapsed`; process exit code `1`; evidence log `logs/compile/phase-08-build.log`).
 **Suggested commit**: `chore: finalize refounded ea baseline`
 
 Deliverables:
@@ -355,6 +357,8 @@ Phase plans may adjust paths if the local MT5 root changes.
 - **Safety regression**: removing legacy behavior must not weaken license, spread, margin, drawdown, session, or market-status guards. Mitigate by keeping safety controls in scope for review in each phase.
 
 ## Completion Definition
+
+**Status**: Satisfied as of 2026-07-03 by Phase 8 final baseline compile.
 
 The refoundation is complete when:
 

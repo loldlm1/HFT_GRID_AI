@@ -5,7 +5,20 @@
 **Roadmap Phase**: Phase 8
 **Primary Output**: Refounded EA baseline with stale artifacts/docs cleaned, active docs aligned, production source swept for removed feature drift, and one final MT5 compile gate
 **Validation Policy**: Static validation per sprint; one MT5 compile gate at phase end, portable/headless first and normal MetaEditor fallback only if needed
-**Status**: Planned
+**Status**: Completed
+
+## Completion Evidence
+
+- **Completed**: 2026-07-03.
+- **Sprint commits**:
+  - Sprint 1: `82128b9 chore: clean generated artifact policy`
+  - Sprint 2: `b0bce91 docs: align active docs with refounded baseline`
+  - Sprint 3: `f668a29 chore: harden refounded source baseline`
+  - Sprint 4: `chore: finalize refounded ea baseline`
+- **Static validation**: final sweeps confirmed the include pipeline, ignored generated artifacts, no active removed-feature references in production source, no tracked generated/local config artifacts, and no whitespace errors.
+- **Compile evidence**: portable/headless MetaEditor compile wrote `logs/compile/phase-08-build.log` with `result 0 errors, 0 warnings, 271 ms elapsed, cpu='X64 Regular'`. The MetaEditor process returned exit code `1`, so the explicit log result is the pass/fail source of truth for this phase.
+- **Fallback compile**: not run because portable/headless compile produced valid evidence.
+- **Custom tests/CI**: not run and not added.
 
 ## Overview
 

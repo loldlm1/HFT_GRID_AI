@@ -71,6 +71,7 @@ Before a real broker position exists, local simulation owns candidate state and 
 
 ## Final Baseline Notes
 
+- Phase 8 final compile passed on 2026-07-03 with `0 errors, 0 warnings`; evidence log: `logs/compile/phase-08-build.log`.
 - Future strategies should plug into the strategy candidate and execution plan boundary, not bypass broker-aware execution.
 - Local simulated state remains the pre-trade decision source; broker position state remains the post-trade source of truth.
 - Real-tick performance boundaries from Phase 7 are part of the baseline: cached indicator handles, bounded structure reads, gated logging, and throttled chart refresh.
