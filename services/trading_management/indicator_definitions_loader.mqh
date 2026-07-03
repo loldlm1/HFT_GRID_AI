@@ -7,6 +7,8 @@
 // GLOBAL SETTINGS
 ENUM_TIMEFRAMES Strategy_TF_List[];
 IndicatorsHandleInfo ExtStructStochIndicatorsHandle[];
+IndicatorsHandleInfo ExtDeterministicMaLogicHandles[];
+IndicatorsHandleInfo ExtDeterministicMaVisualHandles[];
 int total_tf_list_load = 0;
 const string FOUNDATION_STRUCTURE_FIBONACCI_LEVELS = "0.0,61.8,100.0";
 
@@ -40,15 +42,8 @@ void PrepareStrategyTimeframes()
 {
   ArrayResize(Strategy_TF_List, 0);
 
-  ENUM_TIMEFRAMES configured_tf = Strategy_Timeframe;
-  if(!IsStrategyTimeframeSupported(configured_tf))
-  {
-    PrintFormat("Strategy timeframe %d not supported. Falling back to PERIOD_M1.", (int)configured_tf);
-    configured_tf = PERIOD_M1;
-  }
-
   ArrayResize(Strategy_TF_List, 1);
-  Strategy_TF_List[0] = configured_tf;
+  Strategy_TF_List[0] = DETERMINISTIC_BASE_TIMEFRAME;
   total_tf_list_load = ArraySize(Strategy_TF_List);
 }
 
@@ -63,13 +58,13 @@ void LoadAllStructStochIndicators()
     ENUM_TIMEFRAMES trend_timeframe = Strategy_TF_List[i];
 
     IndicatorsHandleInfo struct_stoch_indicator_handle_loaded;
-    struct_stoch_indicator_handle_loaded.indicator_period = ResolveStochStructurePeriod();
+    struct_stoch_indicator_handle_loaded.indicator_period = DETERMINISTIC_STOCH_K;
     struct_stoch_indicator_handle_loaded.indicator_handle = iCustom(_Symbol,
                                                                      trend_timeframe,
                                                                      "Examples\\Stochastic_Structure.ex5",
                                                                      struct_stoch_indicator_handle_loaded.indicator_period,
-                                                                     3,
-                                                                     3,
+                                                                     DETERMINISTIC_STOCH_D,
+                                                                     DETERMINISTIC_STOCH_SLOWING,
                                                                      STO_CLOSECLOSE);
     struct_stoch_indicator_handle_loaded.indicator_timeframe = trend_timeframe;
 
@@ -112,6 +107,111 @@ void ReleaseAllStructStochIndicators()
   ArrayResize(ExtStructStochIndicatorsHandle, 0);
 }
 
+bool LoadDeterministicMaHandle(const ENUM_TIMEFRAMES timeframe,
+                               const int ma_shift,
+                               IndicatorsHandleInfo &handle_info)
+{
+  handle_info = IndicatorsHandleInfo();
+  handle_info.indicator_period        = DETERMINISTIC_MA_PERIOD;
+  handle_info.indicator_shift         = ma_shift;
+  handle_info.indicator_ma_method     = MODE_SMA;
+  handle_info.indicator_applied_price = PRICE_CLOSE;
+  handle_info.indicator_timeframe     = timeframe;
+  handle_info.indicator_handle        = iMA(_Symbol,
+                                            timeframe,
+                                            DETERMINISTIC_MA_PERIOD,
+                                            ma_shift,
+                                            MODE_SMA,
+                                            PRICE_CLOSE);
+
+  if(handle_info.indicator_handle == INVALID_HANDLE)
+  {
+    PrintFormat("ERROR LOADING DETERMINISTIC MA: tf=%s | period=%d | shift=%d",
+                EnumToString(timeframe),
+                DETERMINISTIC_MA_PERIOD,
+                ma_shift);
+    TesterStop();
+    return false;
+  }
+
+  return true;
+}
+
+void AddDeterministicMaHandle(IndicatorsHandleInfo &handles[],
+                              const ENUM_TIMEFRAMES timeframe,
+                              const int ma_shift)
+{
+  IndicatorsHandleInfo handle_info;
+  if(!LoadDeterministicMaHandle(timeframe, ma_shift, handle_info))
+    return;
+
+  AddElementToArray(handles, handle_info);
+}
+
+void LoadDeterministicMaLogicIndicators()
+{
+  ArrayResize(ExtDeterministicMaLogicHandles, 0);
+  AddDeterministicMaHandle(ExtDeterministicMaLogicHandles, PERIOD_M1, 0);
+  AddDeterministicMaHandle(ExtDeterministicMaLogicHandles, PERIOD_M3, 0);
+  AddDeterministicMaHandle(ExtDeterministicMaLogicHandles, PERIOD_M5, 0);
+  AddDeterministicMaHandle(ExtDeterministicMaLogicHandles, PERIOD_M10, 0);
+}
+
+void LoadDeterministicMaVisualIndicators()
+{
+  ArrayResize(ExtDeterministicMaVisualHandles, 0);
+  AddDeterministicMaHandle(ExtDeterministicMaVisualHandles,
+                           PERIOD_M1,
+                           DETERMINISTIC_S1_BASE_DELAY);
+  AddDeterministicMaHandle(ExtDeterministicMaVisualHandles,
+                           PERIOD_M1,
+                           DETERMINISTIC_S2_BASE_DELAY);
+  AddDeterministicMaHandle(ExtDeterministicMaVisualHandles,
+                           PERIOD_M1,
+                           DETERMINISTIC_S3_BASE_DELAY);
+
+  if(!Enable_Show_Indicators)
+    return;
+
+  long chart_id = ChartID();
+  int total = ArraySize(ExtDeterministicMaVisualHandles);
+  for(int i = 0; i < total; i++)
+  {
+    if(ExtDeterministicMaVisualHandles[i].indicator_handle == INVALID_HANDLE)
+      continue;
+    ChartIndicatorAdd(chart_id,
+                      0,
+                      ExtDeterministicMaVisualHandles[i].indicator_handle);
+  }
+}
+
+void ReleaseIndicatorHandleArray(IndicatorsHandleInfo &handles[])
+{
+  int total = ArraySize(handles);
+  for(int i = 0; i < total; i++)
+  {
+    if(handles[i].indicator_handle != INVALID_HANDLE)
+    {
+      IndicatorRelease(handles[i].indicator_handle);
+      handles[i].indicator_handle = INVALID_HANDLE;
+    }
+
+    if(handles[i].overlay_indicator_handle != INVALID_HANDLE)
+    {
+      IndicatorRelease(handles[i].overlay_indicator_handle);
+      handles[i].overlay_indicator_handle = INVALID_HANDLE;
+    }
+  }
+
+  ArrayResize(handles, 0);
+}
+
+void ReleaseAllDeterministicMaIndicators()
+{
+  ReleaseIndicatorHandleArray(ExtDeterministicMaLogicHandles);
+  ReleaseIndicatorHandleArray(ExtDeterministicMaVisualHandles);
+}
+
 void LoadAllIndicatorDefinitions()
 {
   PrepareStrategyTimeframes();
@@ -119,13 +219,18 @@ void LoadAllIndicatorDefinitions()
                                "23.6,38.2,50.0,61.8,78.6,100.0");
 
   ReleaseAllStructStochIndicators();
+  ReleaseAllDeterministicMaIndicators();
   LoadAllStructStochIndicators();
+  LoadDeterministicMaLogicIndicators();
+  LoadDeterministicMaVisualIndicators();
 
   if(Enable_Logs)
   {
-    PrintFormat("Strategy context | TF=%s | StructurePeriod=%d | Direction=%s",
-                EnumToString(Strategy_Timeframe),
-                ResolveStochStructurePeriod(),
+    PrintFormat("Deterministic strategy context | BaseTF=%s | Stoch=%d,%d,%d | Direction=%s",
+                EnumToString(DETERMINISTIC_BASE_TIMEFRAME),
+                DETERMINISTIC_STOCH_K,
+                DETERMINISTIC_STOCH_D,
+                DETERMINISTIC_STOCH_SLOWING,
                 EnumToString(Strategy_Direction_Mode));
   }
 }
@@ -133,6 +238,7 @@ void LoadAllIndicatorDefinitions()
 void ReleaseAllIndicatorDefinitions()
 {
   ReleaseAllStructStochIndicators();
+  ReleaseAllDeterministicMaIndicators();
   ArrayResize(Strategy_TF_List, 0);
   total_tf_list_load = 0;
 }
