@@ -26,6 +26,10 @@ inputs
 
 Phase 6 is implemented as of 2026-07-02. Active execution now has a broker execution snapshot/eligibility contract for local decisions and a broker position reconciliation layer for real-position source of truth.
 
+### Phase 7 Performance Status
+
+Phase 7 is implemented as of 2026-07-03. Active execution now reuses execution-owned indicator handles, releases indicator handles deterministically, bounds Stoch Structure buffer reads, keeps broker reconciliation ticket-first, reserves hot-path logging/frontend arrays, and throttles chart refresh in visual/live tick paths.
+
 ### Before Real Execution
 
 Before a real broker position exists, local execution simulation owns candidate and planned execution state.
@@ -115,6 +119,4 @@ Phase ownership:
 - Phase 4 renames the domain to execution foundation public/internal naming.
 - Phase 5 simplifies strategy range and risk foundations.
 - Phase 6 implements broker-aware local execution state and reconciliation. Completed on 2026-07-02.
-- Phase 7 performs the real-tick performance pass.
-
-Phase 7 remains pending, so the performance principles above are still directional until the real-tick performance pass is complete.
+- Phase 7 performs the real-tick performance pass. Completed on 2026-07-03.

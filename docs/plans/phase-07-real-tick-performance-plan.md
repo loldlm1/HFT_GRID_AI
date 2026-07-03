@@ -5,7 +5,20 @@
 **Roadmap Phase**: Phase 7
 **Primary Output**: Real-tick Strategy Tester performance pass with bounded tick work, reused indicator handles, scoped broker reads, quieter logging, and tester-safe frontend throttling
 **Validation Policy**: Static validation per sprint; one MT5 compile gate at phase end, portable/headless first and normal MetaEditor fallback only if needed
-**Status**: Planned
+**Status**: Completed
+
+## Completion Evidence
+
+- **Completed**: 2026-07-03.
+- **Sprint commits**:
+  - Sprint 1: `5f2ec9a perf: reuse execution indicator handles`
+  - Sprint 2: `937878b perf: bound structure buffer reads`
+  - Sprint 3: `cd9c8f3 perf: reduce execution tick overhead`
+  - Sprint 4: `f3055d4 perf: throttle frontend refresh`
+- **Static validation**: final sweeps confirmed cached ATR handle usage, deterministic indicator release, bounded Stoch Structure buffer depth, ticket-first broker reconciliation, gated logging, frontend refresh throttling, and no production `4320` structure copy depth.
+- **Compile evidence**: portable/headless MetaEditor compile wrote `logs/compile/phase-07-build.log` with `result 0 errors, 0 warnings, 329 ms elapsed, cpu='X64 Regular'`. The MetaEditor process returned exit code `1`, so the explicit log result is the pass/fail source of truth for this phase.
+- **Fallback compile**: not run because portable/headless compile produced valid evidence.
+- **Custom tests/CI**: not run and not added.
 
 ## Overview
 
@@ -265,7 +278,8 @@ Use these principles throughout Phase 7:
 ## Sprint 4: Frontend Throttle, Final Sweep, Compile Gate, And Documentation
 
 **Goal**: Keep chart/frontend work from dominating tester/live ticks, run final static sweeps, compile once, and document Phase 7 completion.
-**Commit**: `docs: record phase 7 compile result`
+**Commit**: `perf: throttle frontend refresh`
+**Documentation Commit**: `docs: record phase 7 compile result`
 **Demo/Validation**:
 - Chart work remains disabled in non-visual tester mode and throttled in visual/live mode.
 - Static sweeps show bounded indicator, broker, logging, and frontend hot paths.
