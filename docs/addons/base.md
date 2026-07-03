@@ -13,14 +13,14 @@ This guide describes the foundation baseline only. Final production strategy rul
 - `Protection Risk Management`
 - `Time Filter Session Manager`
 - `Strategy Context`
-- `Risk Managment Settings`
+- `Strategy Range And Risk Settings`
 - `Developer Debug Settings`
 
 ## Preserved Foundation Controls
 
 - License validation and account identity controls.
 - Spread and minimum range guards.
-- Protection/risk controls, to be simplified around strategy range foundations.
+- Protection/risk controls simplified around strategy range foundations.
 - Session time filters.
 - Strategy timeframe, Stoch Structure period, direction mode, and concurrency mode unless a later phase changes them explicitly.
 - Lot sizing controls under the execution lot type names.

@@ -2,16 +2,15 @@
 
 **Platform:** MetaTrader 5 (MQL5)
 **Entrypoint:** `HFT_Grid_AI.mq5`
-**Current focus:** refounded EA foundation for future strategy integration
+**Current focus:** final refounded EA foundation baseline for future strategy integration
 
-HFT Grid AI is being refounded into a smaller, broker-aware MT5 Expert Advisor foundation. The active work removes legacy strategy features and retired public domain naming before new strategies are integrated.
+HFT Grid AI has been refounded into a smaller, broker-aware MT5 Expert Advisor foundation. Legacy strategy features, retired public domain naming, and custom test infrastructure have been removed before new strategies are integrated.
 
 ## Current Docs
 
 - `ROADMAP.md`: master refoundation roadmap.
-- `docs/plans/phase-00-foundation-contract-plan.md`: completed foundation contract plan.
-- `docs/plans/phase-01-docs-reset-plan.md`: active docs reset plan.
-- `docs/architecture/execution-foundation.md`: target local/broker execution foundation.
+- `docs/plans/phase-08-final-compile-hardening-plan.md`: final baseline cleanup and compile plan.
+- `docs/architecture/execution-foundation.md`: local/broker execution foundation.
 - `AGENTS.md`: contributor rules for the current refoundation.
 
 ## Validation Model
@@ -48,6 +47,7 @@ Preserved foundation areas:
 - Protection/risk controls.
 - Session time filters.
 - Strategy timeframe, Stoch Structure period, direction mode, and concurrency mode unless a later phase changes them explicitly.
+- Strategy range and risk settings.
 - Developer debug controls.
 - Stoch Structure as the structural context source.
 
@@ -68,6 +68,12 @@ inputs
 ```
 
 Before a real broker position exists, local simulation owns candidate state and applies broker conditions. After a real position exists, broker state owns ticket, volume, entry price, close state, and profit.
+
+## Final Baseline Notes
+
+- Future strategies should plug into the strategy candidate and execution plan boundary, not bypass broker-aware execution.
+- Local simulated state remains the pre-trade decision source; broker position state remains the post-trade source of truth.
+- Real-tick performance boundaries from Phase 7 are part of the baseline: cached indicator handles, bounded structure reads, gated logging, and throttled chart refresh.
 
 ## Repository Layout
 

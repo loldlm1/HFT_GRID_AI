@@ -42,10 +42,11 @@
 
 ### Risk and range foundation
 
-- `Base_Strategy_Type`: range model placeholder during refoundation.
-- `Points_Range_Setup`: fixed point range used by range-based foundations.
-- `Lot_Type`: lot sizing method, to be renamed away from legacy grid terms.
+- `Strategy_Range_Mode`: range source used by the execution foundation.
+- `Strategy_Range_Points`: fixed point range used when point-based range mode is selected.
+- `Lot_Type`: lot sizing mode using execution lot type values.
 - `Lot_Strategy_Size`: base lot size or risk budget depending on lot mode.
+- `Lot_Multiplier`: level-to-level lot scaling multiplier for execution legs.
 - `Signal_Lot_Strategy`: future-compatible signal lot adjustment mode.
 - `TP_Percent`: target-profit scale while risk/range semantics are simplified.
 - `Daily_Signal_Limit`: maximum daily signal count.

@@ -42,10 +42,11 @@
 
 ### Fundacion de riesgo y rango
 
-- `Base_Strategy_Type`: placeholder de modelo de rango durante la refundacion.
-- `Points_Range_Setup`: rango fijo en puntos para fundaciones basadas en rango.
-- `Lot_Type`: metodo de tamano de lote, pendiente de renombrar fuera de terminos legacy de grid.
+- `Strategy_Range_Mode`: fuente de rango usada por la fundacion de ejecucion.
+- `Strategy_Range_Points`: rango fijo en puntos cuando se usa modo basado en puntos.
+- `Lot_Type`: modo de tamano de lote usando valores de lote de ejecucion.
 - `Lot_Strategy_Size`: lote base o presupuesto de riesgo segun el modo.
+- `Lot_Multiplier`: multiplicador de lote entre niveles de ejecucion.
 - `Signal_Lot_Strategy`: modo futuro-compatible de ajuste de lote por senal.
 - `TP_Percent`: escala de objetivo mientras se simplifica riesgo/rango.
 - `Daily_Signal_Limit`: maximo de senales diarias.

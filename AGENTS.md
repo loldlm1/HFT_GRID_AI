@@ -40,7 +40,7 @@ Do not reintroduce removed strategy feature groups or their former public inputs
 Preserved foundation controls:
 
 - License and account settings.
-- Protection/risk controls, to be simplified around strategy-range foundations.
+- Protection/risk controls simplified around strategy-range foundations.
 - Session time filters.
 - Strategy timeframe, Stoch Structure period, direction mode, and concurrency mode unless a later phase changes them explicitly.
 - Developer debug controls.
@@ -49,7 +49,7 @@ Preserved foundation controls:
 ## 4) Naming And Domain Rules
 
 - Do not introduce removed public enum prefixes, inputs, or strategy concepts.
-- Phase 4 owns the full domain rename to execution foundation terms.
+- Phase 4 completed the domain rename to execution foundation terms.
 - Preserve enum numeric semantics where user configuration compatibility depends on ordinal values.
 - Preferred foundation vocabulary: `strategy`, `execution`, `range`, `leg`, `broker snapshot`, `execution planner`, and `execution lifecycle`.
 - Use removed legacy domain vocabulary only inside historical planning artifacts.

@@ -4,7 +4,7 @@
 
 This document defines the target execution foundation for the HFT Grid AI refoundation. It is implementation-guiding documentation, not the final strategy specification.
 
-The goal is to provide a stable base where future strategies can be integrated without carrying legacy sequencing, Fibonacci entry, or removed add-on assumptions.
+The goal is to provide a stable base where future strategies can be integrated without carrying legacy sequencing, removed entry-policy inputs, or removed add-on assumptions.
 
 ## Target Flow
 
@@ -77,6 +77,12 @@ The foundation should use strategy-neutral naming:
 - `broker position snapshot`: scoped real position facts selected by ticket first, then by symbol, magic number, direction, and execution comment fallback.
 
 Legacy strategy-specific names should be removed or isolated to historical artifacts scheduled for deletion.
+
+## Future Strategy Integration Baseline
+
+Future strategies should enter the foundation as strategy candidates and let the execution planner apply range, broker, session, protection, and license gates. They should not open, close, or resize broker positions directly.
+
+Strategy-specific statistics should distinguish local simulated decisions from broker-confirmed outcomes so future optimization work can audit decision quality without conflating it with broker execution facts.
 
 ## Risk And Safety Controls
 
