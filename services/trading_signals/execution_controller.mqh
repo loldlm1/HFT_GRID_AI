@@ -501,7 +501,17 @@ void UpdateDeterministicExecutionLifecycle(SignalParams &signal_params)
   if(DeterministicTakeProfitTriggered(signal_params, leg_state))
   {
     CloseAllExecutionLegs(signal_params, ExecutionResolvePointSize());
+    int source_attempt_count = 0;
+    bool newly_consumed = RegisterDeterministicSourceConsumedTp(signal_params,
+                                                               source_attempt_count);
     ExecutionLogEvent("DETERMINISTIC_TP", signal_params, leg_state);
+    if(newly_consumed)
+    {
+      ExecutionLogDeterministicSourceConsumed(signal_params,
+                                              leg_state,
+                                              source_attempt_count,
+                                              "TP");
+    }
     return;
   }
 

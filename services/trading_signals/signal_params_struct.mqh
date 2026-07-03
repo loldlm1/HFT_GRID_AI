@@ -72,6 +72,8 @@ struct SignalParams
   int                        strategy_macro_delay;
   bool                       deterministic_strategy;
   string                     execution_sequence_id;
+  string                     deterministic_source_key;
+  int                        deterministic_source_attempt_index;
   StrategyContextTypes       strategy_context;
   ENUM_TIMEFRAMES            strategy_timeframe;
   string                     strategy_context_label;
@@ -139,6 +141,8 @@ struct SignalParams
     strategy_macro_delay       = 0;
     deterministic_strategy     = false;
     execution_sequence_id       = "";
+    deterministic_source_key    = "";
+    deterministic_source_attempt_index = 0;
     strategy_context           = CONTEXT_SLOT_BASE;
     strategy_timeframe         = PERIOD_CURRENT;
     strategy_context_label     = "BASE";
@@ -196,6 +200,8 @@ struct SignalParams
     strategy_macro_delay       = signal_params.strategy_macro_delay;
     deterministic_strategy     = signal_params.deterministic_strategy;
     execution_sequence_id       = signal_params.execution_sequence_id;
+    deterministic_source_key    = signal_params.deterministic_source_key;
+    deterministic_source_attempt_index = signal_params.deterministic_source_attempt_index;
     strategy_context           = signal_params.strategy_context;
     strategy_timeframe         = signal_params.strategy_timeframe;
     strategy_context_label     = signal_params.strategy_context_label;
@@ -251,9 +257,9 @@ struct SignalParams
 };
 
 string BuildDeterministicSignalSequenceId(const int strategy_id,
-                                          const SignalTypes direction,
-                                          const datetime entry_time,
-                                          const datetime structure_time)
+                                           const SignalTypes direction,
+                                           const datetime entry_time,
+                                           const datetime structure_time)
 {
   string direction_token = (direction == BULLISH) ? "B" : "S";
   return StringFormat("%s_%s_%d_%d",
@@ -261,6 +267,46 @@ string BuildDeterministicSignalSequenceId(const int strategy_id,
                       direction_token,
                       (int)entry_time,
                       (int)structure_time);
+}
+
+string BuildDeterministicSourceKey(const int strategy_id,
+                                   const SignalTypes direction,
+                                   const int source_slot,
+                                   const datetime extremum_time,
+                                   const bool source_is_peak,
+                                   const double source_price)
+{
+  if(strategy_id <= DETERMINISTIC_STRATEGY_NONE)
+    return "";
+  if(direction != BULLISH && direction != BEARISH)
+    return "";
+  if(source_slot < 0 || extremum_time <= 0 || source_price <= 0.0)
+    return "";
+
+  int digits = Digits();
+  if(digits <= 0)
+    digits = 5;
+
+  string direction_token = (direction == BULLISH) ? "BULLISH" : "BEARISH";
+  string type_token = source_is_peak ? "PEAK" : "BOTTOM";
+  double normalized_price = NormalizeDouble(source_price, digits);
+  return StringFormat("%s|%s|slot=%d|%s|time=%d|price=%s",
+                      DeterministicStrategyLabel(strategy_id),
+                      direction_token,
+                      source_slot,
+                      type_token,
+                      (int)extremum_time,
+                      DoubleToString(normalized_price, digits));
+}
+
+string BuildDeterministicSignalSourceKey(const SignalParams &signal_params)
+{
+  return BuildDeterministicSourceKey(signal_params.strategy_id,
+                                     signal_params.signal_type,
+                                     signal_params.source_extremum_slot,
+                                     signal_params.source_extremum_time,
+                                     signal_params.source_extremum_is_peak,
+                                     signal_params.source_extremum_price);
 }
 
 string BuildSignalSequenceId(const SignalTypes direction,

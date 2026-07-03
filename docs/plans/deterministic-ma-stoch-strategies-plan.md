@@ -1030,6 +1030,65 @@ $log = Join-Path $mt5Root "MQL5\Experts\HFT_Grid_AI\logs\compile\deterministic-s
   - Compile.
   - Human-in-the-loop query debug check with `Enable_File_Logs=true`.
 
+## Sprint 14: Deterministic Source Consumption And Reentry Telemetry
+
+**Goal**: Treat a deterministic source extremum that has already produced TP as consumed, block same-source reentries, and make source-level identity explicit in `query_debug.txt`.
+**Commit**: `fix: consume deterministic tp source`
+**Status**: Completed on 2026-07-03. Portable compile passed with 0 errors and 0 warnings; runtime confirmation remains human-in-the-loop through `query_debug.txt`.
+**Demo/Validation**:
+- A source that logs `DETERMINISTIC_TP` also logs `DETERMINISTIC_SOURCE_CONSUMED`.
+- Later attempts from the same `strategy_id + direction + source slot/type/time/price` log `DETERMINISTIC_SOURCE_REENTRY_BLOCKED` instead of creating another candidate.
+- Candidate and lifecycle logs include stable `source_key` and `source_attempt_index` fields for future statistics.
+- Compile at sprint end with 0 errors and 0 warnings.
+
+### Task 14.1: Add Source Identity And Attempt State
+
+- **Location**:
+  - `services/trading_signals/signal_params_struct.mqh`
+  - `services/trading_signals/market_signal_state.mqh`
+  - `HFT_Grid_AI.mq5`
+- **Description**: Add a stable deterministic source key, store the attempt index on `SignalParams`, and keep an in-session source outcome registry reset on EA initialization.
+- **Dependencies**: Sprint 13.
+- **Acceptance Criteria**:
+  - Source key is derived from strategy, direction, source slot, source type, source datetime, and source price.
+  - Attempt count increments only when a deterministic candidate is actually created.
+  - Source outcome state resets on EA initialization and does not persist stale tester runs.
+- **Validation**:
+  - Static review of constructors, copy constructors, and init reset path.
+  - Compile.
+
+### Task 14.2: Consume Source On Deterministic TP
+
+- **Location**:
+  - `services/trading_signals/execution_controller.mqh`
+  - `services/trading_signals/market_signal_state.mqh`
+  - `services/trading_signals/execution_logging.mqh`
+- **Description**: Mark a deterministic source as consumed when the existing TP lifecycle emits a TP outcome.
+- **Dependencies**: Task 14.1.
+- **Acceptance Criteria**:
+  - `DETERMINISTIC_SOURCE_CONSUMED` includes source key, attempt index/count, terminal outcome, strategy, direction, source identity, entry reference, raw stop, and TP.
+  - Expired or canceled pending signals do not consume the source.
+  - Existing TP close and broker reconciliation behavior is unchanged.
+- **Validation**:
+  - Static review of TP branch only.
+  - Compile.
+
+### Task 14.3: Block Same-Source Reentries After TP
+
+- **Location**:
+  - `services/trading_signals/market_signal_detection.mqh`
+  - `services/trading_signals/execution_logging.mqh`
+- **Description**: Before creating a deterministic candidate, reject sources already consumed by TP and emit changed-state telemetry.
+- **Dependencies**: Task 14.2.
+- **Acceptance Criteria**:
+  - Block is keyed by exact deterministic source identity.
+  - `DETERMINISTIC_SOURCE_REENTRY_BLOCKED` includes source key, blocked next-attempt index, previous terminal outcome, consumed time, and source identity.
+  - The blocked path runs before candidate creation and chart line creation.
+- **Validation**:
+  - Static review.
+  - Compile.
+  - Human-in-the-loop query debug check with `Enable_File_Logs=true`.
+
 ## Testing Strategy
 
 - Use static sweeps after cleanup tasks:
@@ -1075,6 +1134,10 @@ $log = Join-Path $mt5Root "MQL5\Experts\HFT_Grid_AI\logs\compile\deterministic-s
   - `DETERMINISTIC_ENTRY_CONFIRM` appears before valid entries and includes current delayed M1 slope values.
   - `DETERMINISTIC_BASE_EXPIRED` appears when current delayed M1 slope changes against a pending signal before entry.
   - Entry is sent only after current base and macro confirmation both pass.
+- Use human-in-the-loop query debug checks after Sprint 14:
+  - `DETERMINISTIC_SOURCE_CONSUMED` appears after a deterministic TP.
+  - Reentries from the same consumed source emit `DETERMINISTIC_SOURCE_REENTRY_BLOCKED`.
+  - No new `DETERMINISTIC_CANDIDATE` or `DETERMINISTIC_SIGNAL_INIT` appears for that exact consumed source key.
 
 ## Potential Risks And Gotchas
 
@@ -1094,6 +1157,7 @@ $log = Join-Path $mt5Root "MQL5\Experts\HFT_Grid_AI\logs\compile\deterministic-s
 - **Same-tick refresh and entry**: A tick may both improve the pending trigger and satisfy the breakout. Mitigation: refresh first, then evaluate entry against the refreshed trigger.
 - **Visual cleanup blind spots**: Chart objects not tracked by the visualization cache can survive signal removal. Mitigation: route level drawing through tracked updates and directly clean expired pending signals.
 - **Entry confirmation drift**: A signal can be valid at the source extremum but invalid by current delayed M1 slope at entry time. Mitigation: add a current-base confirmation gate immediately before broker execution.
+- **Source-level sample inflation**: A TP can be followed by another trade from the same source extremum. Mitigation: consume TP-positive deterministic sources and block same-source reentries.
 
 No additional product questions are blocking this plan. The remaining unknowns are implementation discoveries, especially the exact magic-number license contract, whether all old range/grid code can be deleted in one sprint without forcing a larger frontend rewrite, and the exact lifecycle policy for EA-opened macro charts after manual user interaction.
 

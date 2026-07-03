@@ -230,12 +230,18 @@ void LogDeterministicCandidateTelemetry(const SignalParams &signal,
                                         const double macro_ma_prev)
 {
   string direction = (signal.signal_type == BULLISH) ? "BULLISH" : "BEARISH";
-  string message = StringFormat("strategy=%s|dir=%s|source_slot=%d|source_confirmed=%s|source_type=%s|source_time=%s|source_price=%.5f|source_high=%.5f|source_low=%.5f|base_ma_now=%.5f|base_ma_prev=%.5f|macro_ma_now=%.5f|macro_ma_prev=%.5f|trigger=%.5f|stop=%.5f",
-                                signal.strategy_label,
-                                direction,
-                                extremum.source_slot,
-                                DeterministicBoolToken(extremum.confirmed),
-                                DeterministicExtremumTypeToken(extremum),
+  string source_key = signal.deterministic_source_key;
+  if(source_key == "")
+    source_key = BuildDeterministicSignalSourceKey(signal);
+
+  string message = StringFormat("strategy=%s|dir=%s|source_key=%s|source_attempt_index=%d|source_slot=%d|source_confirmed=%s|source_type=%s|source_time=%s|source_price=%.5f|source_high=%.5f|source_low=%.5f|base_ma_now=%.5f|base_ma_prev=%.5f|macro_ma_now=%.5f|macro_ma_prev=%.5f|trigger=%.5f|stop=%.5f",
+                                 signal.strategy_label,
+                                 direction,
+                                 source_key,
+                                 signal.deterministic_source_attempt_index,
+                                 extremum.source_slot,
+                                 DeterministicBoolToken(extremum.confirmed),
+                                 DeterministicExtremumTypeToken(extremum),
                                 DeterministicTimeToken(extremum.extremum_time),
                                 extremum.extremum_price,
                                 extremum.extremum_high,
@@ -260,6 +266,34 @@ void TryCreateDeterministicSignal(const int strategy_id,
 
   if(!DirectionAllowed(direction))
     return;
+
+  int consumed_attempt_count = 0;
+  string consumed_terminal_outcome = "";
+  datetime consumed_time = 0;
+  if(ResolveDeterministicSourceConsumedAfterTp(strategy_id,
+                                               direction,
+                                               extremum.source_slot,
+                                               extremum.extremum_time,
+                                               extremum.is_peak,
+                                               extremum.extremum_price,
+                                               consumed_attempt_count,
+                                               consumed_terminal_outcome,
+                                               consumed_time))
+  {
+    ExecutionLogDeterministicSourceReentryBlocked(strategy_id,
+                                                  direction,
+                                                  extremum.source_slot,
+                                                  extremum.confirmed,
+                                                  extremum.is_peak,
+                                                  extremum.extremum_time,
+                                                  extremum.extremum_price,
+                                                  extremum.extremum_high,
+                                                  extremum.extremum_low,
+                                                  consumed_attempt_count,
+                                                  consumed_terminal_outcome,
+                                                  consumed_time);
+    return;
+  }
 
   double base_ma_now = 0.0;
   double base_ma_prev = 0.0;
@@ -294,7 +328,11 @@ void TryCreateDeterministicSignal(const int strategy_id,
                                   direction,
                                   extremum,
                                   structure,
-                                  signal))
+                                   signal))
+    return;
+
+  signal.deterministic_source_key = BuildDeterministicSignalSourceKey(signal);
+  if(RegisterDeterministicSourceAttempt(signal) <= 0)
     return;
 
   if(direction == BULLISH)

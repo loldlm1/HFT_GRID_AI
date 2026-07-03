@@ -424,6 +424,96 @@ string ExecutionSourceExtremumTimeToken(const SignalParams &signal_params)
   return TimeToString(signal_params.source_extremum_time, TIME_DATE|TIME_SECONDS);
 }
 
+string ExecutionDeterministicSourceKey(const SignalParams &signal_params)
+{
+  if(signal_params.deterministic_source_key != "")
+    return signal_params.deterministic_source_key;
+
+  return BuildDeterministicSignalSourceKey(signal_params);
+}
+
+string ExecutionTimeToken(const datetime value)
+{
+  if(value <= 0)
+    return "n/a";
+
+  return TimeToString(value, TIME_DATE|TIME_SECONDS);
+}
+
+void ExecutionLogDeterministicSourceConsumed(const SignalParams &signal_params,
+                                             const ExecutionLegState &leg_state,
+                                             const int source_attempt_count,
+                                             const string terminal_outcome)
+{
+  string direction = (signal_params.signal_type == BULLISH) ? "BULLISH" : "BEARISH";
+  int display_level = ExecutionDisplayLegNumber(leg_state.level_index);
+  string message = StringFormat("strategy=%s|dir=%s|L%d|source_key=%s|source_attempt_index=%d|source_attempt_count=%d|terminal_outcome=%s|source_slot=%d|source_confirmed=%s|source_type=%s|source_time=%s|source_price=%.5f|source_high=%.5f|source_low=%.5f|signal_ts=%s|entry_ref=%.5f|entry=%.5f|tp=%.5f|raw_trigger=%.5f|raw_stop=%.5f",
+                                signal_params.strategy_label,
+                                direction,
+                                display_level,
+                                ExecutionDeterministicSourceKey(signal_params),
+                                signal_params.deterministic_source_attempt_index,
+                                source_attempt_count,
+                                terminal_outcome,
+                                signal_params.source_extremum_slot,
+                                ExecutionBoolToken(signal_params.source_extremum_confirmed),
+                                ExecutionSourceExtremumTypeToken(signal_params),
+                                ExecutionSourceExtremumTimeToken(signal_params),
+                                signal_params.source_extremum_price,
+                                signal_params.source_extremum_high,
+                                signal_params.source_extremum_low,
+                                ExecutionTimeToken(signal_params.entry_time),
+                                leg_state.entry_reference_price,
+                                leg_state.entry_price,
+                                leg_state.take_profit_price,
+                                signal_params.raw_entry_trigger_price,
+                                signal_params.raw_stop_anchor_price);
+
+  ExecutionAppendQueryDebugLog("DETERMINISTIC_SOURCE_CONSUMED", message);
+}
+
+void ExecutionLogDeterministicSourceReentryBlocked(const int strategy_id,
+                                                   const SignalTypes direction,
+                                                   const int source_slot,
+                                                   const bool source_confirmed,
+                                                   const bool source_is_peak,
+                                                   const datetime source_time,
+                                                   const double source_price,
+                                                   const double source_high,
+                                                   const double source_low,
+                                                   const int source_attempt_count,
+                                                   const string terminal_outcome,
+                                                   const datetime consumed_time)
+{
+  string direction_label = (direction == BULLISH) ? "BULLISH" : "BEARISH";
+  string source_type = source_is_peak ? "PEAK" : "BOTTOM";
+  string source_key = BuildDeterministicSourceKey(strategy_id,
+                                                  direction,
+                                                  source_slot,
+                                                  source_time,
+                                                  source_is_peak,
+                                                  source_price);
+  string message = StringFormat("strategy=%s|dir=%s|source_key=%s|blocked_next_attempt_index=%d|previous_attempt_count=%d|terminal_outcome=%s|consumed_time=%s|source_slot=%d|source_confirmed=%s|source_type=%s|source_time=%s|source_price=%.5f|source_high=%.5f|source_low=%.5f|reason=source_consumed_after_tp",
+                                DeterministicStrategyLabel(strategy_id),
+                                direction_label,
+                                source_key,
+                                source_attempt_count + 1,
+                                source_attempt_count,
+                                terminal_outcome,
+                                ExecutionTimeToken(consumed_time),
+                                source_slot,
+                                ExecutionBoolToken(source_confirmed),
+                                source_type,
+                                ExecutionTimeToken(source_time),
+                                source_price,
+                                source_high,
+                                source_low);
+
+  ExecutionAppendQueryDebugChangedLog("DETERMINISTIC_SOURCE_REENTRY_BLOCKED",
+                                      source_key,
+                                      message);
+}
+
 void ExecutionLogDeterministicEntryRefresh(const SignalParams &signal_params,
                                            const ExecutionLegState &leg_state,
                                            const double old_trigger,
@@ -442,10 +532,12 @@ void ExecutionLogDeterministicEntryRefresh(const SignalParams &signal_params,
 {
   string direction = (signal_params.signal_type == BULLISH) ? "BULLISH" : "BEARISH";
   int display_level = ExecutionDisplayLegNumber(leg_state.level_index);
-  string message = StringFormat("strategy=%s|dir=%s|L%d|source_slot=%d|source_confirmed=%s|source_type=%s|source_time=%s|source_price=%.5f|source_high=%.5f|source_low=%.5f|old_trigger=%.5f|candidate_trigger=%.5f|new_trigger=%.5f|stop=%.5f|close_0=%.5f|high_1=%.5f|low_1=%.5f|risk_before_pts=%.2f|risk_after_pts=%.2f|tp_before=%.5f|tp_after=%.5f|lot_before=%.2f|lot_after=%.2f|reason=%s",
+  string message = StringFormat("strategy=%s|dir=%s|L%d|source_key=%s|source_attempt_index=%d|source_slot=%d|source_confirmed=%s|source_type=%s|source_time=%s|source_price=%.5f|source_high=%.5f|source_low=%.5f|old_trigger=%.5f|candidate_trigger=%.5f|new_trigger=%.5f|stop=%.5f|close_0=%.5f|high_1=%.5f|low_1=%.5f|risk_before_pts=%.2f|risk_after_pts=%.2f|tp_before=%.5f|tp_after=%.5f|lot_before=%.2f|lot_after=%.2f|reason=%s",
                                 signal_params.strategy_label,
                                 direction,
                                 display_level,
+                                ExecutionDeterministicSourceKey(signal_params),
+                                signal_params.deterministic_source_attempt_index,
                                 signal_params.source_extremum_slot,
                                 ExecutionBoolToken(signal_params.source_extremum_confirmed),
                                 ExecutionSourceExtremumTypeToken(signal_params),
@@ -489,11 +581,13 @@ void ExecutionLogDeterministicSignalExpired(const SignalParams &signal_params,
   if(total_legs > 0)
     leg_status = EnumToString(signal_params.execution_legs[0].status);
 
-  string message = StringFormat("strategy=%s|dir=%s|status=%s|sequence=%s|old_source_slot=%d|old_source_confirmed=%s|old_source_type=%s|old_source_time=%s|old_source_price=%.5f|old_source_high=%.5f|old_source_low=%.5f|new_source_slot=%d|new_source_type=%s|new_source_time=%s|new_source_price=%.5f|raw_trigger=%.5f|raw_stop=%.5f|reason=%s",
+  string message = StringFormat("strategy=%s|dir=%s|status=%s|sequence=%s|source_key=%s|source_attempt_index=%d|old_source_slot=%d|old_source_confirmed=%s|old_source_type=%s|old_source_time=%s|old_source_price=%.5f|old_source_high=%.5f|old_source_low=%.5f|new_source_slot=%d|new_source_type=%s|new_source_time=%s|new_source_price=%.5f|raw_trigger=%.5f|raw_stop=%.5f|reason=%s",
                                 signal_params.strategy_label,
                                 direction,
                                 leg_status,
                                 ExecutionQueryDebugSignalKey(signal_params),
+                                ExecutionDeterministicSourceKey(signal_params),
+                                signal_params.deterministic_source_attempt_index,
                                 signal_params.source_extremum_slot,
                                 ExecutionBoolToken(signal_params.source_extremum_confirmed),
                                 ExecutionSourceExtremumTypeToken(signal_params),
@@ -529,11 +623,13 @@ void ExecutionLogDeterministicEntryConfirmation(const string label,
 {
   string direction = (signal_params.signal_type == BULLISH) ? "BULLISH" : "BEARISH";
   int display_level = ExecutionDisplayLegNumber(leg_state.level_index);
-  string message = StringFormat("strategy=%s|dir=%s|L%d|status=%s|source_slot=%d|source_confirmed=%s|source_type=%s|source_time=%s|source_price=%.5f|base_live_shift=%d|base_live_ok=%s|base_live_ma_now=%.5f|base_live_ma_prev=%.5f|macro_shift=%d|macro_ok=%s|macro_ma_now=%.5f|macro_ma_prev=%.5f|raw_trigger=%.5f|raw_stop=%.5f|entry_ref=%.5f|close_0=%.5f|high_1=%.5f|low_1=%.5f",
+  string message = StringFormat("strategy=%s|dir=%s|L%d|status=%s|source_key=%s|source_attempt_index=%d|source_slot=%d|source_confirmed=%s|source_type=%s|source_time=%s|source_price=%.5f|base_live_shift=%d|base_live_ok=%s|base_live_ma_now=%.5f|base_live_ma_prev=%.5f|macro_shift=%d|macro_ok=%s|macro_ma_now=%.5f|macro_ma_prev=%.5f|raw_trigger=%.5f|raw_stop=%.5f|entry_ref=%.5f|close_0=%.5f|high_1=%.5f|low_1=%.5f",
                                 signal_params.strategy_label,
                                 direction,
                                 display_level,
                                 EnumToString(leg_state.status),
+                                ExecutionDeterministicSourceKey(signal_params),
+                                signal_params.deterministic_source_attempt_index,
                                 signal_params.source_extremum_slot,
                                 ExecutionBoolToken(signal_params.source_extremum_confirmed),
                                 ExecutionSourceExtremumTypeToken(signal_params),
@@ -588,10 +684,12 @@ void ExecutionLogEvent(const string label,
   }
   string structure_audit = ExecutionResolveStructureAuditSummary(signal_params);
 
-  string message = StringFormat("dir=%s|L%d|status=%s|entry_ref=%.5f|next=%.5f|entry=%.5f|tp=%.5f|lot=%.2f|event_ts=%s|signal_ts=%s|structure_ts=%s|source_slot=%d|source_confirmed=%s|source_type=%s|source_time=%s|source_price=%.5f|source_high=%.5f|source_low=%.5f|raw_trigger=%.5f|raw_stop=%.5f|structure=%s",
+  string message = StringFormat("dir=%s|L%d|status=%s|source_key=%s|source_attempt_index=%d|entry_ref=%.5f|next=%.5f|entry=%.5f|tp=%.5f|lot=%.2f|event_ts=%s|signal_ts=%s|structure_ts=%s|source_slot=%d|source_confirmed=%s|source_type=%s|source_time=%s|source_price=%.5f|source_high=%.5f|source_low=%.5f|raw_trigger=%.5f|raw_stop=%.5f|structure=%s",
                                 direction,
                                 display_level,
                                 EnumToString(leg_state.status),
+                                ExecutionDeterministicSourceKey(signal_params),
+                                signal_params.deterministic_source_attempt_index,
                                 leg_state.entry_reference_price,
                                 leg_state.next_level_price,
                                 leg_state.entry_price,

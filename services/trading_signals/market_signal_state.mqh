@@ -72,6 +72,40 @@ struct DailySignalStats
 
 DailySignalStats g_daily_signal_stats[2];
 
+const int DETERMINISTIC_SOURCE_STATE_RESERVE = 128;
+
+struct DeterministicSourceOutcomeState
+{
+  string   source_key;
+  int      attempt_count;
+  bool     consumed_after_tp;
+  datetime first_signal_time;
+  datetime consumed_time;
+  string   terminal_outcome;
+
+  DeterministicSourceOutcomeState()
+  {
+    source_key        = "";
+    attempt_count     = 0;
+    consumed_after_tp = false;
+    first_signal_time = 0;
+    consumed_time     = 0;
+    terminal_outcome  = "";
+  }
+
+  DeterministicSourceOutcomeState(const DeterministicSourceOutcomeState &state)
+  {
+    source_key        = state.source_key;
+    attempt_count     = state.attempt_count;
+    consumed_after_tp = state.consumed_after_tp;
+    first_signal_time = state.first_signal_time;
+    consumed_time     = state.consumed_time;
+    terminal_outcome  = state.terminal_outcome;
+  }
+};
+
+DeterministicSourceOutcomeState g_deterministic_source_outcomes[];
+
 
 int DirectionIndex(const SignalTypes direction)
 {
@@ -87,6 +121,152 @@ bool DirectionAllowed(const SignalTypes direction)
   if(Strategy_Direction_Mode == BEARISH_DIRECTION)
     return (direction == BEARISH);
   return true;
+}
+
+void ResetDeterministicSourceOutcomeState()
+{
+  ArrayResize(g_deterministic_source_outcomes, 0, DETERMINISTIC_SOURCE_STATE_RESERVE);
+}
+
+int FindDeterministicSourceOutcomeIndex(const string source_key)
+{
+  if(source_key == "")
+    return -1;
+
+  int total = ArraySize(g_deterministic_source_outcomes);
+  for(int i = 0; i < total; i++)
+  {
+    if(g_deterministic_source_outcomes[i].source_key == source_key)
+      return i;
+  }
+
+  return -1;
+}
+
+int EnsureDeterministicSourceOutcomeIndex(const string source_key,
+                                          const datetime signal_time)
+{
+  if(source_key == "")
+    return -1;
+
+  int existing_index = FindDeterministicSourceOutcomeIndex(source_key);
+  if(existing_index >= 0)
+    return existing_index;
+
+  int total = ArraySize(g_deterministic_source_outcomes);
+  ArrayResize(g_deterministic_source_outcomes,
+              total + 1,
+              DETERMINISTIC_SOURCE_STATE_RESERVE);
+  g_deterministic_source_outcomes[total].source_key = source_key;
+  g_deterministic_source_outcomes[total].first_signal_time = signal_time;
+  return total;
+}
+
+bool ResolveDeterministicSourceConsumedAfterTp(const string source_key,
+                                               int &attempt_count_out,
+                                               string &terminal_outcome_out,
+                                               datetime &consumed_time_out)
+{
+  attempt_count_out = 0;
+  terminal_outcome_out = "";
+  consumed_time_out = 0;
+
+  int index = FindDeterministicSourceOutcomeIndex(source_key);
+  if(index < 0)
+    return false;
+
+  attempt_count_out = g_deterministic_source_outcomes[index].attempt_count;
+  terminal_outcome_out = g_deterministic_source_outcomes[index].terminal_outcome;
+  consumed_time_out = g_deterministic_source_outcomes[index].consumed_time;
+  return g_deterministic_source_outcomes[index].consumed_after_tp;
+}
+
+bool ResolveDeterministicSourceConsumedAfterTp(const int strategy_id,
+                                               const SignalTypes direction,
+                                               const int source_slot,
+                                               const datetime extremum_time,
+                                               const bool source_is_peak,
+                                               const double source_price,
+                                               int &attempt_count_out,
+                                               string &terminal_outcome_out,
+                                               datetime &consumed_time_out)
+{
+  string source_key = BuildDeterministicSourceKey(strategy_id,
+                                                 direction,
+                                                 source_slot,
+                                                 extremum_time,
+                                                 source_is_peak,
+                                                 source_price);
+  return ResolveDeterministicSourceConsumedAfterTp(source_key,
+                                                  attempt_count_out,
+                                                  terminal_outcome_out,
+                                                  consumed_time_out);
+}
+
+int RegisterDeterministicSourceAttempt(SignalParams &signal_params)
+{
+  if(!signal_params.deterministic_strategy)
+    return 0;
+
+  string source_key = signal_params.deterministic_source_key;
+  if(source_key == "")
+  {
+    source_key = BuildDeterministicSignalSourceKey(signal_params);
+    signal_params.deterministic_source_key = source_key;
+  }
+
+  if(source_key == "")
+    return 0;
+
+  int index = EnsureDeterministicSourceOutcomeIndex(source_key, signal_params.entry_time);
+  if(index < 0)
+    return 0;
+
+  g_deterministic_source_outcomes[index].attempt_count++;
+  if(g_deterministic_source_outcomes[index].first_signal_time <= 0)
+    g_deterministic_source_outcomes[index].first_signal_time = signal_params.entry_time;
+
+  signal_params.deterministic_source_attempt_index =
+    g_deterministic_source_outcomes[index].attempt_count;
+
+  return signal_params.deterministic_source_attempt_index;
+}
+
+bool RegisterDeterministicSourceConsumedTp(const SignalParams &signal_params,
+                                           int &attempt_count_out)
+{
+  attempt_count_out = 0;
+  if(!signal_params.deterministic_strategy)
+    return false;
+
+  string source_key = signal_params.deterministic_source_key;
+  if(source_key == "")
+    source_key = BuildDeterministicSignalSourceKey(signal_params);
+  if(source_key == "")
+    return false;
+
+  int index = EnsureDeterministicSourceOutcomeIndex(source_key, signal_params.entry_time);
+  if(index < 0)
+    return false;
+
+  if(g_deterministic_source_outcomes[index].attempt_count <
+     signal_params.deterministic_source_attempt_index)
+  {
+    g_deterministic_source_outcomes[index].attempt_count =
+      signal_params.deterministic_source_attempt_index;
+  }
+
+  if(g_deterministic_source_outcomes[index].attempt_count <= 0)
+    g_deterministic_source_outcomes[index].attempt_count = 1;
+
+  attempt_count_out = g_deterministic_source_outcomes[index].attempt_count;
+  bool newly_consumed = !g_deterministic_source_outcomes[index].consumed_after_tp;
+
+  g_deterministic_source_outcomes[index].consumed_after_tp = true;
+  g_deterministic_source_outcomes[index].terminal_outcome = "TP";
+  g_deterministic_source_outcomes[index].consumed_time = TimeCurrent();
+
+  return newly_consumed;
 }
 
 int StrategyContextIndex(const StrategyContextTypes context)
