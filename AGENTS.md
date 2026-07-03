@@ -93,6 +93,8 @@ Any phase touching these controls must call out risk level in its phase plan.
 - No custom MQL5 tests, test harnesses, or agentic CI are part of this refoundation.
 - Do not add custom MQL5 test files or CI for strategy work unless a future human explicitly reverses this policy.
 - Validate implementation phases with MetaEditor compile plus human-in-the-loop Strategy Tester/chart verification.
+- Visual strategy validation is human-in-the-loop: only enabled deterministic strategies should show their shifted M1 MA and their linked macro chart MA.
+- Macro MA charts are validation aids only. They must not drive signal detection, risk management, broker reconciliation, or lifecycle decisions.
 - Legacy custom tests and the old test runner have been removed.
 - Documentation-only phases do not run MT5 compile.
 - Implementation phases compile once at phase end, not after every atomic task.

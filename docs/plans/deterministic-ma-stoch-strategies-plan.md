@@ -633,6 +633,106 @@ $log = Join-Path $mt5Root "MQL5\Experts\HFT_Grid_AI\logs\compile\deterministic-s
 & $metaeditor /portable /s /compile:$entrypoint /log:$log
 ```
 
+## Sprint 7: Strategy-Scoped Visual Charts
+
+**Goal**: Make human-in-the-loop validation deterministic by showing only the visual indicators that belong to enabled strategies, and by opening/reusing macro timeframe charts for each enabled strategy's macro confirmation.
+**Commit**: `feat: scope deterministic strategy visuals`
+**Demo/Validation**:
+- With only `Enable_Strategy_1=true`, the active M1 chart shows only the S1 shifted M1 MA, and a macro M3 chart shows only the S1 macro MA shifted by 1.
+- With S1 and S2 enabled, the M1 chart shows only S1/S2 shifted M1 MAs, and M3/M5 macro charts are opened/reused with their shifted macro MAs.
+- With all strategies enabled, the M1 chart shows S1/S2/S3 shifted M1 MAs, and M3/M5/M10 macro charts are opened/reused.
+- Disabled strategy visuals are absent.
+- Compile at sprint end with 0 errors and 0 warnings.
+
+### Research Notes
+
+- `ChartIndicatorAdd` requires the indicator handle and destination chart to have the same symbol and timeframe; otherwise visual macro indicators should not be attached to the M1 chart.
+- `ChartOpen` can open a chart for a symbol/timeframe and returns the chart ID or 0 on failure.
+- `ChartSetSymbolPeriod` is asynchronous; if reused charts are retargeted, indicator attachment should account for queued chart changes.
+
+### Task 7.1: Scope M1 Shifted MA Visual Handles By Enabled Strategy
+
+- **Location**:
+  - `services/trading_management/indicator_definitions_loader.mqh`
+  - Strategy visual helper module if useful
+- **Description**: Load/add M1 shifted visual MA handles only for enabled strategies.
+- **Dependencies**: Sprint 3.
+- **Acceptance Criteria**:
+  - S1 visual M1 MA shift 3 is loaded only when `Enable_Strategy_1` is true.
+  - S2 visual M1 MA shift 5 is loaded only when `Enable_Strategy_2` is true.
+  - S3 visual M1 MA shift 10 is loaded only when `Enable_Strategy_3` is true.
+  - Logic MA handles remain unaffected and still load for all required timeframes.
+  - Disabled strategy visual handles are not added to the current chart.
+- **Validation**:
+  - Static review of handle loading conditions.
+  - Compile.
+  - Human chart check with one, two, and three enabled strategies.
+
+### Task 7.2: Add Macro Chart Visual Runtime State
+
+- **Location**:
+  - New visual state helper under `services/frontend/` or `services/trading_management/`
+  - `services/trading_management/indicator_definitions_loader.mqh`
+- **Description**: Track EA-opened macro chart IDs and strategy-specific macro visual handles.
+- **Dependencies**: Task 7.1.
+- **Acceptance Criteria**:
+  - Macro chart state tracks strategy ID, macro timeframe, chart ID, indicator handle, and ownership.
+  - EA only closes charts it opened itself, not arbitrary user charts.
+  - State resets safely on `OnDeinit`.
+  - Missing or closed charts fail gracefully without affecting trading logic.
+- **Validation**:
+  - Compile.
+  - Manual chart close/reload smoke check.
+
+### Task 7.3: Open Or Reuse Macro Timeframe Charts For Enabled Strategies
+
+- **Location**:
+  - `services/trading_management/indicator_definitions_loader.mqh`
+  - Optional chart helper under `services/frontend/`
+- **Description**: For each enabled strategy, open or reuse the correct macro timeframe chart and attach its shifted macro MA.
+- **Dependencies**: Task 7.2.
+- **Acceptance Criteria**:
+  - S1 opens/reuses M3 and attaches SMA 21 shift 1 on M3.
+  - S2 opens/reuses M5 and attaches SMA 21 shift 1 on M5.
+  - S3 opens/reuses M10 and attaches SMA 21 shift 1 on M10.
+  - Chart/indicator symbol and timeframe match before `ChartIndicatorAdd`.
+  - Repeated init/deinit cycles do not create duplicate macro charts beyond one chart per enabled macro timeframe owned by this EA session.
+  - Failures log behind existing debug/log settings and do not block strategy execution unless a required logic handle fails.
+- **Validation**:
+  - Compile.
+  - Manual MT5 check for S1-only, S2-only, S3-only, S1+S2, and all enabled.
+
+### Task 7.4: Remove Visual Noise From Disabled Strategies
+
+- **Location**:
+  - `services/trading_management/indicator_definitions_loader.mqh`
+  - `services/frontend/execution_visualization.mqh` if chart objects are also affected
+- **Description**: Ensure inactive strategies do not leave stale MA visual handles, chart objects, or macro charts after reinitialization.
+- **Dependencies**: Tasks 7.1, 7.2, 7.3.
+- **Acceptance Criteria**:
+  - Changing enabled strategy inputs and reinitializing removes old EA-owned visual artifacts.
+  - M1 chart does not show inactive strategy shifted MAs.
+  - Macro charts for inactive strategies are closed only if the EA opened them; user charts are not closed.
+  - Trading logic remains independent from visual cleanup.
+- **Validation**:
+  - Compile.
+  - Human-in-the-loop input toggle check.
+
+### Task 7.5: Add Visual Validation Notes
+
+- **Location**:
+  - `AGENTS.md`
+  - `docs/plans/deterministic-ma-stoch-strategies-plan.md`
+  - Optional README section if product-facing docs need it
+- **Description**: Document the expected visual validation setup without adding MQL5 tests or CI.
+- **Dependencies**: Tasks 7.1-7.4.
+- **Acceptance Criteria**:
+  - Documentation says visual validation is human-in-the-loop.
+  - Documentation states that only enabled strategy visuals should be visible.
+  - Documentation states that macro MA visual charts are validation aids and must not affect trading decisions.
+- **Validation**:
+  - Static doc review.
+
 ## Testing Strategy
 
 - Use static sweeps after cleanup tasks:
@@ -652,6 +752,11 @@ $log = Join-Path $mt5Root "MQL5\Experts\HFT_Grid_AI\logs\compile\deterministic-s
   - SL uses live `close_0`.
   - TP uses broker-side bid/ask and `TP_Percent`.
   - Broker reconciliation owns ticket, volume, entry, and close facts after fill.
+- Use human-in-the-loop visual checks after Sprint 7:
+  - S1-only: M1 shift 3 MA on base chart, M3 shift 1 MA on macro chart.
+  - S2-only: M1 shift 5 MA on base chart, M5 shift 1 MA on macro chart.
+  - S3-only: M1 shift 10 MA on base chart, M10 shift 1 MA on macro chart.
+  - Multiple strategies: only enabled shifted MAs and their macro charts are visible.
 
 ## Potential Risks And Gotchas
 
@@ -663,8 +768,10 @@ $log = Join-Path $mt5Root "MQL5\Experts\HFT_Grid_AI\logs\compile\deterministic-s
 - **Aggressive cleanup blast radius**: Removing old range/grid paths may break frontend assumptions. Mitigation: cleanup in its own sprint and compile before strategy logic work continues.
 - **Performance regression**: Three strategies can multiply buffer copies. Mitigation: shared M1 Stoch snapshot, shared M1 MA buffer, macro caches by timeframe, and tick-rate work only for pending/active candidates.
 - **Hedging-only assumption**: Users on netting accounts will be blocked. Mitigation: fail closed with an explicit message.
+- **Visual chart ownership**: Closing macro charts automatically could close a user's chart. Mitigation: track EA-opened chart IDs and close only those charts.
+- **Asynchronous chart changes**: Retargeting or opening charts can complete after the call returns. Mitigation: verify `ChartSymbol` and `ChartPeriod` before adding indicators and retry later if needed.
 
-No additional product questions are blocking this plan. The remaining unknowns are implementation discoveries, especially the exact magic-number license contract and whether all old range/grid code can be deleted in one sprint without forcing a larger frontend rewrite.
+No additional product questions are blocking this plan. The remaining unknowns are implementation discoveries, especially the exact magic-number license contract, whether all old range/grid code can be deleted in one sprint without forcing a larger frontend rewrite, and the exact lifecycle policy for EA-opened macro charts after manual user interaction.
 
 ## Rollback Plan
 
@@ -673,4 +780,3 @@ No additional product questions are blocking this plan. The remaining unknowns a
 - If per-strategy magic numbers are unsafe, keep base magic and revert only the magic derivation task while retaining strategy comments.
 - If visual MA overlays introduce frontend instability, disable visual overlays without changing the strategy logic handles.
 - Keep broker guardrails and license checks fail-closed throughout rollback.
-
