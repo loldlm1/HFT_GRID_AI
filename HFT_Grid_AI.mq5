@@ -205,7 +205,7 @@ void OnTick()
   static bool     runtime_blocked_last_tick = false;
   datetime        current_time            = TimeCurrent();
   datetime        current_daily_time      = iTime(_Symbol, PERIOD_D1, 0);
-  int             defined_tick_seconds    = PeriodSeconds(_Period);
+  int             defined_tick_seconds    = PeriodSeconds(DETERMINISTIC_BASE_TIMEFRAME);
   int             defined_tick_M1_seconds = PeriodSeconds(PERIOD_M1);
 
   // SESSION TIME FILTER CHECKS - PER MINUTE INSTEAD OF PER TICK

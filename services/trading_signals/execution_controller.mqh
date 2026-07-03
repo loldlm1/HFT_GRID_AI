@@ -5,9 +5,32 @@ bool ResolveDeterministicM1Rates(double &close_0_out,
                                  double &high_1_out,
                                  double &low_1_out)
 {
+  static long   cached_tick_msc = -1;
+  static double cached_close_0 = 0.0;
+  static double cached_high_1 = 0.0;
+  static double cached_low_1 = 0.0;
+
+  MqlTick latest_tick;
+  long tick_msc = 0;
+  if(SymbolInfoTick(_Symbol, latest_tick))
+    tick_msc = (long)latest_tick.time_msc;
+
+  if(tick_msc > 0 && tick_msc == cached_tick_msc)
+  {
+    close_0_out = cached_close_0;
+    high_1_out  = cached_high_1;
+    low_1_out   = cached_low_1;
+    return (close_0_out > 0.0 && high_1_out > 0.0 && low_1_out > 0.0);
+  }
+
   close_0_out = iClose(_Symbol, DETERMINISTIC_BASE_TIMEFRAME, 0);
   high_1_out  = iHigh(_Symbol, DETERMINISTIC_BASE_TIMEFRAME, 1);
   low_1_out   = iLow(_Symbol, DETERMINISTIC_BASE_TIMEFRAME, 1);
+
+  cached_tick_msc = tick_msc;
+  cached_close_0  = close_0_out;
+  cached_high_1   = high_1_out;
+  cached_low_1    = low_1_out;
 
   return (close_0_out > 0.0 && high_1_out > 0.0 && low_1_out > 0.0);
 }
