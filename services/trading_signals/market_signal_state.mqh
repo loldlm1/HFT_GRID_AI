@@ -231,6 +231,52 @@ bool HasRunningDeterministicSignal(const int strategy_id,
   return false;
 }
 
+bool DeterministicSignalHasBrokerExposure(const SignalParams &signal_params)
+{
+  int total = ArraySize(signal_params.execution_legs);
+  for(int i = 0; i < total; i++)
+  {
+    if(signal_params.execution_legs[i].position_ticket > 0)
+      return true;
+    if(signal_params.execution_legs[i].status == EXECUTION_LEG_ACTIVE)
+      return true;
+  }
+
+  return false;
+}
+
+void ExpirePendingDeterministicSignalsForNewExtremum(const datetime latest_extremum_time)
+{
+  if(latest_extremum_time <= 0)
+    return;
+
+  for(int i = ArraySize(running_bullish_signals) - 1; i >= 0; i--)
+  {
+    if(!running_bullish_signals[i].deterministic_strategy)
+      continue;
+    if(running_bullish_signals[i].source_extremum_time >= latest_extremum_time)
+      continue;
+    if(DeterministicSignalHasBrokerExposure(running_bullish_signals[i]))
+      continue;
+
+    running_bullish_signals[i].signal_state = CLOSED;
+    RemoveElementFromArray(running_bullish_signals, i);
+  }
+
+  for(int j = ArraySize(running_bearish_signals) - 1; j >= 0; j--)
+  {
+    if(!running_bearish_signals[j].deterministic_strategy)
+      continue;
+    if(running_bearish_signals[j].source_extremum_time >= latest_extremum_time)
+      continue;
+    if(DeterministicSignalHasBrokerExposure(running_bearish_signals[j]))
+      continue;
+
+    running_bearish_signals[j].signal_state = CLOSED;
+    RemoveElementFromArray(running_bearish_signals, j);
+  }
+}
+
 bool SignalConcurrencyAllowsAttempt(const SignalTypes direction)
 {
   if(Signal_Concurrency_Mode == MULTIPLE_RUNNING_SIGNALS)

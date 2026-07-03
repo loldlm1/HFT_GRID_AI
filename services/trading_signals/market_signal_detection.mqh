@@ -124,11 +124,146 @@ void EvaluateContextSignals(const StrategyContextTypes context)
   }
 }
 
+bool PopulateDeterministicSignal(const int strategy_id,
+                                 const SignalTypes direction,
+                                 const DeterministicExtremumSnapshot &extremum,
+                                 const StochasticMarketStructure &structure,
+                                 SignalParams &signal)
+{
+  signal = SignalParams();
+  signal.signal_type                = direction;
+  signal.signal_state               = WAITING;
+  signal.strategy_id                = strategy_id;
+  signal.strategy_label             = DeterministicStrategyLabel(strategy_id);
+  signal.strategy_base_timeframe    = DETERMINISTIC_BASE_TIMEFRAME;
+  signal.strategy_macro_timeframe   = DeterministicStrategyMacroTimeframe(strategy_id);
+  signal.strategy_base_delay        = DeterministicStrategyBaseDelay(strategy_id);
+  signal.strategy_macro_delay       = DETERMINISTIC_MACRO_DELAY;
+  signal.deterministic_strategy     = true;
+  signal.entry_time                 = TimeCurrent();
+  signal.strategy_context           = CONTEXT_SLOT_BASE;
+  signal.strategy_timeframe         = DETERMINISTIC_BASE_TIMEFRAME;
+  signal.strategy_context_label     = signal.strategy_label;
+  signal.entry_trigger_mode         = LEVELS_AS_LIMITS;
+  signal.entry_is_limit             = false;
+  signal.signal_lot_sequence_step   = ResolveSignalLotSequenceStepForNewSignal();
+  signal.context_structure_snapshot_time = extremum.extremum_time;
+  signal.source_extremum_time       = extremum.extremum_time;
+  signal.source_extremum_is_peak    = extremum.is_peak;
+  signal.source_extremum_price      = extremum.extremum_price;
+  signal.source_extremum_high       = extremum.extremum_high;
+  signal.source_extremum_low        = extremum.extremum_low;
+  signal.raw_stop_anchor_price      = extremum.extremum_price;
+  signal.base_structure_valid       = true;
+  signal.base_structure_data        = structure;
+
+  double high_1 = iHigh(_Symbol, DETERMINISTIC_BASE_TIMEFRAME, 1);
+  double low_1  = iLow(_Symbol, DETERMINISTIC_BASE_TIMEFRAME, 1);
+  if(high_1 <= 0.0 || low_1 <= 0.0)
+    return false;
+
+  signal.raw_entry_trigger_price = (direction == BULLISH) ? high_1 : low_1;
+  signal.entry_price             = signal.raw_entry_trigger_price;
+  signal.stop_loss               = signal.raw_stop_anchor_price;
+  signal.execution_sequence_id   = BuildDeterministicSignalSequenceId(strategy_id,
+                                                                       direction,
+                                                                       signal.entry_time,
+                                                                       extremum.extremum_time);
+  return true;
+}
+
+void TryCreateDeterministicSignal(const int strategy_id,
+                                  const SignalTypes direction,
+                                  const DeterministicExtremumSnapshot &extremum,
+                                  const StochasticMarketStructure &structure)
+{
+  if(!DeterministicStrategyEnabled(strategy_id))
+    return;
+
+  if(!DirectionAllowed(direction))
+    return;
+
+  double base_ma_now = 0.0;
+  double base_ma_prev = 0.0;
+  if(!EvaluateDeterministicBaseSetup(strategy_id,
+                                     extremum,
+                                     direction,
+                                     base_ma_now,
+                                     base_ma_prev))
+    return;
+
+  double macro_ma_now = 0.0;
+  double macro_ma_prev = 0.0;
+  if(!EvaluateDeterministicMacroConfirmation(strategy_id,
+                                             direction,
+                                             macro_ma_now,
+                                             macro_ma_prev))
+    return;
+
+  if(HasRunningDeterministicSignal(strategy_id,
+                                   direction,
+                                   extremum.extremum_time))
+    return;
+
+  if(!CanAttemptSignal(direction))
+    return;
+
+  SignalParams signal;
+  if(!PopulateDeterministicSignal(strategy_id,
+                                  direction,
+                                  extremum,
+                                  structure,
+                                  signal))
+    return;
+
+  if(direction == BULLISH)
+    AddElementToArray(running_bullish_signals, signal);
+  else
+    AddElementToArray(running_bearish_signals, signal);
+
+  RegisterDailySignalStart(signal);
+
+  if(Enable_Logs)
+  {
+    PrintFormat("DETERMINISTIC_CANDIDATE | strategy=%s | direction=%s | extremum=%s | base_ma=%.5f/%.5f | macro_ma=%.5f/%.5f | trigger=%.5f",
+                signal.strategy_label,
+                EnumToString(direction),
+                TimeToString(extremum.extremum_time, TIME_DATE|TIME_MINUTES),
+                base_ma_now,
+                base_ma_prev,
+                macro_ma_now,
+                macro_ma_prev,
+                signal.raw_entry_trigger_price);
+  }
+}
+
+void DetectDeterministicStrategySignals()
+{
+  StochasticMarketStructure structure;
+  if(!LoadStructureSnapshotForTimeframe(DETERMINISTIC_BASE_TIMEFRAME, structure))
+    return;
+
+  DeterministicExtremumSnapshot extremum;
+  if(!ResolveLatestConfirmedDeterministicExtremum(structure, extremum))
+    return;
+
+  ExpirePendingDeterministicSignalsForNewExtremum(extremum.extremum_time);
+
+  SignalTypes directions[2] = {BULLISH, BEARISH};
+  for(int strategy_index = 0; strategy_index < DETERMINISTIC_STRATEGY_TOTAL; strategy_index++)
+  {
+    int strategy_id = DETERMINISTIC_STRATEGY_NONE;
+    if(!DeterministicStrategyIdByIndex(strategy_index, strategy_id))
+      continue;
+
+    for(int dir = 0; dir < 2; dir++)
+      TryCreateDeterministicSignal(strategy_id, directions[dir], extremum, structure);
+  }
+}
+
 void DetectStrategySignals()
 {
-  int total = ArraySize(STRATEGY_CONTEXT_EVALUATION_ORDER);
-  for(int i = 0; i < total; i++)
-    EvaluateContextSignals(STRATEGY_CONTEXT_EVALUATION_ORDER[i]);
+  DetectDeterministicStrategySignals();
 }
 
 #endif // _SERVICES_TRADING_SIGNALS_MARKET_SIGNAL_DETECTION_MQH_

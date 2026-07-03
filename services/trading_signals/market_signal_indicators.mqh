@@ -81,6 +81,73 @@ bool CopyDeterministicMaSlopeValues(const ENUM_TIMEFRAMES timeframe,
   return true;
 }
 
+struct DeterministicExtremumSnapshot
+{
+  bool     valid;
+  bool     is_peak;
+  datetime extremum_time;
+  double   extremum_price;
+  double   extremum_high;
+  double   extremum_low;
+
+  DeterministicExtremumSnapshot()
+  {
+    valid          = false;
+    is_peak        = false;
+    extremum_time  = 0;
+    extremum_price = 0.0;
+    extremum_high  = 0.0;
+    extremum_low   = 0.0;
+  }
+
+  DeterministicExtremumSnapshot(const DeterministicExtremumSnapshot &other)
+  {
+    valid          = other.valid;
+    is_peak        = other.is_peak;
+    extremum_time  = other.extremum_time;
+    extremum_price = other.extremum_price;
+    extremum_high  = other.extremum_high;
+    extremum_low   = other.extremum_low;
+  }
+};
+
+bool ResolveLatestConfirmedDeterministicExtremum(const StochasticMarketStructure &structure,
+                                                 DeterministicExtremumSnapshot &extremum_out)
+{
+  extremum_out = DeterministicExtremumSnapshot();
+
+  int total = ArraySize(structure.os_market_structures);
+  if(total < 2)
+    return false;
+
+  OscillatorMarketStructure latest = structure.os_market_structures[1];
+  if(latest.extremum_time <= 0)
+    return false;
+
+  extremum_out.is_peak       = latest.is_peak;
+  extremum_out.extremum_time = latest.extremum_time;
+
+  if(latest.is_peak)
+  {
+    if(latest.extremum_high <= 0.0 || latest.extremum_high == -DBL_MAX)
+      return false;
+
+    extremum_out.extremum_high  = latest.extremum_high;
+    extremum_out.extremum_price = latest.extremum_high;
+  }
+  else
+  {
+    if(latest.extremum_low <= 0.0 || latest.extremum_low == DBL_MAX)
+      return false;
+
+    extremum_out.extremum_low   = latest.extremum_low;
+    extremum_out.extremum_price = latest.extremum_low;
+  }
+
+  extremum_out.valid = true;
+  return true;
+}
+
 bool LoadContextStructureSnapshot(const StrategyContextTypes context,
                                   StochasticMarketStructure &snapshot)
 {

@@ -4,7 +4,11 @@
 void UpdateExecutionLifecycle(SignalParams &signal_params)
 {
   if(!signal_params.execution_initialized)
+  {
+    if(signal_params.deterministic_strategy)
+      return;
     return;
+  }
   if(signal_params.signal_state == CLOSED)
     return;
 
