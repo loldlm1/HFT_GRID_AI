@@ -11,6 +11,8 @@
 *.sublime-project
 *_@!!@*
 .vscode/
+.plan.md
+config/*.ini
 # Lead magnet outputs
 /docs/plans/archive/*
 /docs/lead_magnet/output/*
