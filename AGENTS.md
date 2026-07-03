@@ -95,6 +95,7 @@ Any phase touching these controls must call out risk level in its phase plan.
 - Validate implementation phases with MetaEditor compile plus human-in-the-loop Strategy Tester/chart verification.
 - Visual strategy validation is human-in-the-loop: only enabled deterministic strategies should show their shifted M1 MA and their linked macro chart MA.
 - Macro MA charts are validation aids only. They must not drive signal detection, risk management, broker reconciliation, or lifecycle decisions.
+- In Strategy Tester visual mode, deterministic logic MA handles use `shift=0` and should be hidden with `TesterHideIndicators`; shifted MA handles are visual-only.
 - Legacy custom tests and the old test runner have been removed.
 - Documentation-only phases do not run MT5 compile.
 - Implementation phases compile once at phase end, not after every atomic task.

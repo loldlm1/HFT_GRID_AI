@@ -733,6 +733,51 @@ $log = Join-Path $mt5Root "MQL5\Experts\HFT_Grid_AI\logs\compile\deterministic-s
 - **Validation**:
   - Static doc review.
 
+## Sprint 8: Hide Logical MA Tester Noise
+
+**Goal**: Keep the Strategy Tester chart deterministic by hiding logic-only `shift=0` MA handles while leaving strategy-scoped shifted visual MAs visible.
+**Commit**: `fix: hide deterministic logic ma tester visuals`
+**Demo/Validation**:
+- With only `Enable_Strategy_1=true`, the visual tester M1 chart shows only the S1 shifted M1 MA, not the logic `shift=0` MA.
+- With S1/S2/S3 combinations, only enabled shifted visual MAs and their linked macro charts remain visible.
+- Signal calculations continue to use `shift=0` logic handles.
+- Compile at sprint end with 0 errors and 0 warnings.
+
+### Research Notes
+
+- `TesterHideIndicators()` controls whether indicators created by an EA are displayed during Strategy Tester runs.
+- The visibility mode applies to indicators created after the call, so logic handles must be created while the tester hide mode is enabled and visual handles must be created after visibility is restored.
+- This does not replace logic handles with shifted visual handles; the chart remains validation-only.
+
+### Task 8.1: Hide Logic MA Handles During Tester Creation
+
+- **Location**:
+  - `services/trading_management/indicator_definitions_loader.mqh`
+- **Description**: Wrap `LoadDeterministicMaLogicIndicators()` handle creation with tester-only hidden indicator mode.
+- **Dependencies**: Sprint 7.
+- **Acceptance Criteria**:
+  - `ExtDeterministicMaLogicHandles` still loads M1/M3/M5/M10 with `shift=0`.
+  - Logic MA handles are hidden in Strategy Tester visual charts.
+  - Hide mode is restored before visual shifted handles are created.
+  - Live/non-tester behavior remains unaffected.
+- **Validation**:
+  - Static review of handle creation order.
+  - Compile.
+  - Human-in-the-loop visual tester check.
+
+### Task 8.2: Document Tester Visual Source Boundaries
+
+- **Location**:
+  - `AGENTS.md`
+  - `docs/plans/deterministic-ma-stoch-strategies-plan.md`
+- **Description**: Document that hidden logic handles remain the signal source and shifted handles remain visual-only.
+- **Dependencies**: Task 8.1.
+- **Acceptance Criteria**:
+  - Documentation states logic `shift=0` MAs are hidden in tester visual mode.
+  - Documentation states shifted MA handles must not become the signal source.
+- **Validation**:
+  - Static doc review.
+
 ## Testing Strategy
 
 - Use static sweeps after cleanup tasks:
@@ -757,6 +802,9 @@ $log = Join-Path $mt5Root "MQL5\Experts\HFT_Grid_AI\logs\compile\deterministic-s
   - S2-only: M1 shift 5 MA on base chart, M5 shift 1 MA on macro chart.
   - S3-only: M1 shift 10 MA on base chart, M10 shift 1 MA on macro chart.
   - Multiple strategies: only enabled shifted MAs and their macro charts are visible.
+- Use human-in-the-loop visual checks after Sprint 8:
+  - Logic `shift=0` MAs are absent from visual tester charts.
+  - Shifted strategy MAs remain visible when their strategy input is enabled.
 
 ## Potential Risks And Gotchas
 

@@ -183,13 +183,23 @@ void AddDeterministicMaHandle(IndicatorsHandleInfo &handles[],
   AddElementToArray(handles, handle_info);
 }
 
+void SetTesterIndicatorHideMode(const bool hide)
+{
+  if(MQLInfoInteger(MQL_TESTER) <= 0)
+    return;
+
+  TesterHideIndicators(hide);
+}
+
 void LoadDeterministicMaLogicIndicators()
 {
   ArrayResize(ExtDeterministicMaLogicHandles, 0);
+  SetTesterIndicatorHideMode(true);
   AddDeterministicMaHandle(ExtDeterministicMaLogicHandles, PERIOD_M1, 0);
   AddDeterministicMaHandle(ExtDeterministicMaLogicHandles, PERIOD_M3, 0);
   AddDeterministicMaHandle(ExtDeterministicMaLogicHandles, PERIOD_M5, 0);
   AddDeterministicMaHandle(ExtDeterministicMaLogicHandles, PERIOD_M10, 0);
+  SetTesterIndicatorHideMode(false);
 }
 
 void CollectOpenChartIds(long &chart_ids[])
