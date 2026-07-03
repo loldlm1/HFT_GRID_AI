@@ -5,6 +5,7 @@
 **Roadmap Phase**: Phase 2  
 **Primary Output**: Legacy custom MQL5 test infrastructure removed; project validates by MT5 compile only  
 **Validation Policy**: One MT5 compile gate at phase end, portable/headless first and normal MetaEditor fallback
+**Status**: Completed
 
 ## Overview
 

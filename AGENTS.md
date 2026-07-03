@@ -1,6 +1,6 @@
-# AGENTS Brief - HFT Grid AI Refoundation
+# AGENTS Brief - HFT Grid AI Foundation
 
-Short, current notes for contributors. Keep this file brief; deeper implementation plans live in `ROADMAP.md` and `docs/plans/`.
+Short, current notes for Codex agents and contributors. Keep this file brief; active implementation plans live in `docs/plans/`, and completed refoundation plans live in `docs/plans/archive/`.
 
 ---
 
@@ -8,10 +8,22 @@ Short, current notes for contributors. Keep this file brief; deeper implementati
 
 - **Purpose**: MT5 Expert Advisor foundation for future strategy integration, broker-aware execution planning, and strict risk controls.
 - **Entrypoint**: `HFT_Grid_AI.mq5`.
-- **Current roadmap**: `ROADMAP.md`.
-- **Current planning model**: each roadmap phase gets its own `$planner` plan under `docs/plans/`.
+- **Active plan**: `docs/plans/codex-agent-skill-stack-alignment-plan.md`.
+- **Planning model**: create a new `$planner` plan under `docs/plans/` for any substantial future strategy, architecture, or repository-wide change.
 
-## 2) Functional Include Pipeline
+## 2) Codex Skill Stack
+
+Use the local Codex skills deliberately:
+
+- **Primary MQL5 skill**: `mql5-production-engineering` for `.mq5`/`.mqh`, MetaEditor compile, trading lifecycle, broker/risk controls, indicator handles, Strategy Tester performance, and behavior-preserving refactors.
+- **Primary shell/context skill**: `token-saver-orchestrator` for RTK-first shell output, concise search/build summaries, and token-efficient repo inspection.
+- **Planning skill**: `planner` for sprint-based plans with acceptance criteria, validation, commit discipline, and explicit non-goals.
+- **Audit skill**: `semantic-audit` for broad naming, documentation, contract, or meaning-drift reviews.
+- **Situational production skills**: use framework-specific skills only when matching files/tasks appear, such as TypeScript, Python/Django, Rails, Phoenix, Flutter, PostgreSQL, DevOps, or premium UI.
+
+Do not force unrelated skills into normal MQL5 work. Prefer the repo rules in this file when a generic skill conflicts with project-specific safety constraints.
+
+## 3) Functional Include Pipeline
 
 The EA follows one ordered include chain from setup to frontend. Keep this order and avoid sibling include drift.
 
@@ -31,9 +43,9 @@ Rules:
 - Do not introduce circular includes or sibling service includes.
 - Keep the flow explicit: inputs -> indicators/context -> strategy candidate -> execution planning -> broker-aware simulation -> broker reconciliation -> protection/risk -> frontend/telemetry.
 
-## 3) Refoundation Scope
+## 4) Foundation Scope
 
-The project is being refounded away from legacy strategy-specific behavior. Removed feature groups and inputs must not be preserved through deprecated shims or compatibility aliases.
+The project has been refounded away from legacy strategy-specific behavior. Removed feature groups and inputs must not be preserved through deprecated shims or compatibility aliases.
 
 Do not reintroduce removed strategy feature groups or their former public inputs as active code, docs, compatibility aliases, or entitlement mappings.
 
@@ -46,7 +58,7 @@ Preserved foundation controls:
 - Developer debug controls.
 - Stoch Structure remains the structural context source.
 
-## 4) Naming And Domain Rules
+## 5) Naming And Domain Rules
 
 - Do not introduce removed public enum prefixes, inputs, or strategy concepts.
 - Phase 4 completed the domain rename to execution foundation terms.
@@ -54,7 +66,7 @@ Preserved foundation controls:
 - Preferred foundation vocabulary: `strategy`, `execution`, `range`, `leg`, `broker snapshot`, `execution planner`, and `execution lifecycle`.
 - Use removed legacy domain vocabulary only inside historical planning artifacts.
 
-## 5) Execution Source Of Truth
+## 6) Execution Source Of Truth
 
 - Before a real broker position exists, local execution simulation owns candidate state.
 - Local simulation must apply broker conditions before activation decisions: spread, stops level, freeze level, volume min/max/step, margin, market status, sessions, license, and protection gates.
@@ -62,7 +74,7 @@ Preserved foundation controls:
 - Local state may reconcile against broker facts, but must not overwrite broker facts.
 - Future statistics must distinguish simulated decisions from broker-confirmed outcomes.
 
-## 6) Trading Safety Rules
+## 7) Trading Safety Rules
 
 Never weaken these controls to make a refactor compile:
 
@@ -75,7 +87,7 @@ Never weaken these controls to make a refactor compile:
 
 Any phase touching these controls must call out risk level in its phase plan.
 
-## 7) Validation Policy
+## 8) Validation Policy
 
 - No custom MQL5 tests, test harnesses, or agentic CI are part of this refoundation.
 - Legacy custom tests and the old test runner have been removed.
@@ -100,7 +112,7 @@ Fallback:
 & $metaeditor /s /compile:$entrypoint /log:$log
 ```
 
-## 8) Style
+## 9) Style
 
 - 2-space indentation.
 - `snake_case` variables.
@@ -111,7 +123,7 @@ Fallback:
 - Do not use aggregate initialization for structs that define constructors.
 - Keep hot paths cheap: no per-tick handle creation, full-history scans, unbounded logging, or repeated market-data calls without a clear reason.
 
-## 9) Canonical Repo Placement
+## 10) Canonical Repo Placement
 
 - Preferred layout: `<MT5_ROOT>/MQL5/Experts/HFT_Grid_AI`.
 - Keep `terminal64.exe` and `MetaEditor64.exe` in `<MT5_ROOT>`, not inside the EA repo.

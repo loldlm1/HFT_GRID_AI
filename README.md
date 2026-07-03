@@ -1,4 +1,4 @@
-# HFT Grid AI Refoundation
+# HFT Grid AI Foundation
 
 **Platform:** MetaTrader 5 (MQL5)
 **Entrypoint:** `HFT_Grid_AI.mq5`
@@ -8,10 +8,10 @@ HFT Grid AI has been refounded into a smaller, broker-aware MT5 Expert Advisor f
 
 ## Current Docs
 
-- `ROADMAP.md`: master refoundation roadmap.
-- `docs/plans/phase-08-final-compile-hardening-plan.md`: final baseline cleanup and compile plan.
+- `AGENTS.md`: contributor and Codex-agent rules for the current foundation.
+- `docs/plans/codex-agent-skill-stack-alignment-plan.md`: active plan for aligning docs with the local Codex skill stack.
+- `docs/plans/archive/refoundation-baseline-2026-07-03/`: completed Phase 0-8 refoundation plans.
 - `docs/architecture/execution-foundation.md`: local/broker execution foundation.
-- `AGENTS.md`: contributor rules for the current refoundation.
 
 ## Validation Model
 
@@ -81,6 +81,6 @@ Before a real broker position exists, local simulation owns candidate state and 
 - `HFT_Grid_AI.mq5`: EA entrypoint.
 - `services/`: ordered include pipeline and EA services.
 - `indicators/`: indicator sources used by the EA.
-- `docs/`: active roadmap, plans, architecture, and product docs.
+- `docs/`: active plans, archived plans, architecture, and product docs.
 
 Legacy custom tests and the old test runner were removed in Phase 2. The active validation path is MT5 compile at implementation phase end.

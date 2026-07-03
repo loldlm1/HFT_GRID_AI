@@ -5,6 +5,7 @@
 **Roadmap Phase**: Phase 1  
 **Primary Output**: Active contributor, product, and architecture docs aligned with the refoundation  
 **Validation Policy**: Documentation review only; no MT5 compile unless this phase is expanded to code changes
+**Status**: Completed
 
 ## Overview
 
@@ -347,4 +348,3 @@ If Sprint commits are kept separate, use the commit messages listed under each S
 - Revert only Phase 1 documentation commits if the docs reset direction is rejected.
 - If code or script files are touched accidentally, revert those files immediately and continue docs-only work.
 - If product-copy maintenance remains undecided, pause Sprint 2 before deleting or rewriting `docs/product_copy/`.
-
