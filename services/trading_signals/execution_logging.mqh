@@ -408,6 +408,22 @@ void ExecutionLogStopLimitDecision(const SignalParams &signal_params,
   ExecutionAppendQueryDebugLog("STOP_LIMIT_DECISION", message);
 }
 
+string ExecutionSourceExtremumTypeToken(const SignalParams &signal_params)
+{
+  if(signal_params.source_extremum_time <= 0)
+    return "n/a";
+
+  return signal_params.source_extremum_is_peak ? "PEAK" : "BOTTOM";
+}
+
+string ExecutionSourceExtremumTimeToken(const SignalParams &signal_params)
+{
+  if(signal_params.source_extremum_time <= 0)
+    return "n/a";
+
+  return TimeToString(signal_params.source_extremum_time, TIME_DATE|TIME_SECONDS);
+}
+
 void ExecutionLogEvent(const string label,
                   const SignalParams &signal_params,
                   const ExecutionLegState &leg_state)
@@ -439,7 +455,7 @@ void ExecutionLogEvent(const string label,
   }
   string structure_audit = ExecutionResolveStructureAuditSummary(signal_params);
 
-  string message = StringFormat("dir=%s|L%d|status=%s|entry_ref=%.5f|next=%.5f|entry=%.5f|tp=%.5f|lot=%.2f|event_ts=%s|signal_ts=%s|structure_ts=%s|structure=%s",
+  string message = StringFormat("dir=%s|L%d|status=%s|entry_ref=%.5f|next=%.5f|entry=%.5f|tp=%.5f|lot=%.2f|event_ts=%s|signal_ts=%s|structure_ts=%s|source_slot=%d|source_confirmed=%s|source_type=%s|source_time=%s|source_price=%.5f|source_high=%.5f|source_low=%.5f|raw_trigger=%.5f|raw_stop=%.5f|structure=%s",
                                 direction,
                                 display_level,
                                 EnumToString(leg_state.status),
@@ -451,6 +467,15 @@ void ExecutionLogEvent(const string label,
                                 event_timestamp,
                                 signal_timestamp,
                                 structure_timestamp,
+                                signal_params.source_extremum_slot,
+                                ExecutionBoolToken(signal_params.source_extremum_confirmed),
+                                ExecutionSourceExtremumTypeToken(signal_params),
+                                ExecutionSourceExtremumTimeToken(signal_params),
+                                signal_params.source_extremum_price,
+                                signal_params.source_extremum_high,
+                                signal_params.source_extremum_low,
+                                signal_params.raw_entry_trigger_price,
+                                signal_params.raw_stop_anchor_price,
                                 structure_audit);
 
   ExecutionAppendQueryDebugLog(label, message);

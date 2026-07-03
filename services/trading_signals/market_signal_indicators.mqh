@@ -84,6 +84,8 @@ bool CopyDeterministicMaSlopeValues(const ENUM_TIMEFRAMES timeframe,
 struct DeterministicExtremumSnapshot
 {
   bool     valid;
+  int      source_slot;
+  bool     confirmed;
   bool     is_peak;
   datetime extremum_time;
   double   extremum_price;
@@ -93,6 +95,8 @@ struct DeterministicExtremumSnapshot
   DeterministicExtremumSnapshot()
   {
     valid          = false;
+    source_slot    = -1;
+    confirmed      = false;
     is_peak        = false;
     extremum_time  = 0;
     extremum_price = 0.0;
@@ -103,6 +107,8 @@ struct DeterministicExtremumSnapshot
   DeterministicExtremumSnapshot(const DeterministicExtremumSnapshot &other)
   {
     valid          = other.valid;
+    source_slot    = other.source_slot;
+    confirmed      = other.confirmed;
     is_peak        = other.is_peak;
     extremum_time  = other.extremum_time;
     extremum_price = other.extremum_price;
@@ -111,19 +117,36 @@ struct DeterministicExtremumSnapshot
   }
 };
 
-bool ResolveLatestConfirmedDeterministicExtremum(const StochasticMarketStructure &structure,
-                                                 DeterministicExtremumSnapshot &extremum_out)
+string DeterministicExtremumTypeToken(const DeterministicExtremumSnapshot &extremum)
+{
+  if(!extremum.valid)
+    return "INVALID";
+
+  return extremum.is_peak ? "PEAK" : "BOTTOM";
+}
+
+string DeterministicBoolToken(const bool value)
+{
+  return value ? "true" : "false";
+}
+
+bool ResolveDeterministicExtremumBySlot(const StochasticMarketStructure &structure,
+                                        const int source_slot,
+                                        const bool confirmed,
+                                        DeterministicExtremumSnapshot &extremum_out)
 {
   extremum_out = DeterministicExtremumSnapshot();
 
   int total = ArraySize(structure.os_market_structures);
-  if(total < 2)
+  if(source_slot < 0 || source_slot >= total)
     return false;
 
-  OscillatorMarketStructure latest = structure.os_market_structures[1];
+  OscillatorMarketStructure latest = structure.os_market_structures[source_slot];
   if(latest.extremum_time <= 0)
     return false;
 
+  extremum_out.source_slot    = source_slot;
+  extremum_out.confirmed      = confirmed;
   extremum_out.is_peak       = latest.is_peak;
   extremum_out.extremum_time = latest.extremum_time;
 
@@ -146,6 +169,24 @@ bool ResolveLatestConfirmedDeterministicExtremum(const StochasticMarketStructure
 
   extremum_out.valid = true;
   return true;
+}
+
+bool ResolveLatestConfirmedDeterministicExtremum(const StochasticMarketStructure &structure,
+                                                 DeterministicExtremumSnapshot &extremum_out)
+{
+  return ResolveDeterministicExtremumBySlot(structure,
+                                            1,
+                                            true,
+                                            extremum_out);
+}
+
+bool ResolveCurrentDeterministicExtremum(const StochasticMarketStructure &structure,
+                                         DeterministicExtremumSnapshot &extremum_out)
+{
+  return ResolveDeterministicExtremumBySlot(structure,
+                                            0,
+                                            false,
+                                            extremum_out);
 }
 
 bool LoadContextStructureSnapshot(const StrategyContextTypes context,

@@ -88,6 +88,8 @@ struct SignalParams
   datetime                   entry_time;
   datetime                   close_time;
   datetime                   source_extremum_time;
+  int                        source_extremum_slot;
+  bool                       source_extremum_confirmed;
   bool                       source_extremum_is_peak;
   double                     source_extremum_price;
   double                     source_extremum_high;
@@ -153,6 +155,8 @@ struct SignalParams
     entry_time                 = 0;
     close_time                 = 0;
     source_extremum_time       = 0;
+    source_extremum_slot       = -1;
+    source_extremum_confirmed  = false;
     source_extremum_is_peak    = false;
     source_extremum_price      = 0.0;
     source_extremum_high       = 0.0;
@@ -208,6 +212,8 @@ struct SignalParams
     entry_time                 = signal_params.entry_time;
     close_time                 = signal_params.close_time;
     source_extremum_time       = signal_params.source_extremum_time;
+    source_extremum_slot       = signal_params.source_extremum_slot;
+    source_extremum_confirmed  = signal_params.source_extremum_confirmed;
     source_extremum_is_peak    = signal_params.source_extremum_is_peak;
     source_extremum_price      = signal_params.source_extremum_price;
     source_extremum_high       = signal_params.source_extremum_high;

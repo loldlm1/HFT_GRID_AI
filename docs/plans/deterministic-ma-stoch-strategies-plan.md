@@ -778,6 +778,89 @@ $log = Join-Path $mt5Root "MQL5\Experts\HFT_Grid_AI\logs\compile\deterministic-s
 - **Validation**:
   - Static doc review.
 
+## Sprint 9: Deterministic Extremum Telemetry
+
+**Goal**: Confirm the source-extremum mismatch with low-noise `query_debug.txt` telemetry before changing signal behavior.
+**Commit**: `chore: add deterministic extremum telemetry`
+**Demo/Validation**:
+- `query_debug.txt` records the selected deterministic source slot, type, time, price, high, and low for every deterministic candidate/event.
+- `query_debug.txt` records a changed-state audit comparing current/provisional slot `0` with confirmed slot `1`.
+- No signal selection behavior changes in this sprint.
+- Compile at sprint end with 0 errors and 0 warnings.
+
+### Task 9.1: Add Source Slot Metadata To Deterministic Snapshots
+
+- **Location**:
+  - `services/trading_signals/market_signal_indicators.mqh`
+  - `services/trading_signals/signal_params_struct.mqh`
+- **Description**: Carry deterministic source slot metadata from structure snapshot selection into signal params.
+- **Dependencies**: Sprint 8.
+- **Acceptance Criteria**:
+  - Deterministic snapshots include `source_slot` and confirmation metadata.
+  - Signal params persist source slot metadata for lifecycle/event logging.
+  - Existing confirmed-slot behavior remains unchanged.
+- **Validation**:
+  - Static review.
+  - Compile.
+
+### Task 9.2: Emit Source Audit And Candidate Telemetry
+
+- **Location**:
+  - `services/trading_signals/market_signal_detection.mqh`
+  - `services/trading_signals/execution_logging.mqh`
+- **Description**: Log selected/current/confirmed extrema and candidate MA context into the existing query debug file.
+- **Dependencies**: Task 9.1.
+- **Acceptance Criteria**:
+  - `DETERMINISTIC_SOURCE_AUDIT` shows selected slot, current slot, and confirmed slot.
+  - `DETERMINISTIC_CANDIDATE` shows direction, strategy, source slot/type/time/price, base MA pair, macro MA pair, trigger, and stop.
+  - Lifecycle events include source slot/type/time/price and raw trigger/stop.
+- **Validation**:
+  - Static review.
+  - Compile.
+  - Human-in-the-loop tester run with `Enable_File_Logs=true`.
+
+## Sprint 10: Current Extremum Source Of Truth
+
+**Goal**: Make the deterministic strategy use the current/provisional Stoch Structure extremum as the signal source of truth instead of the latest confirmed historical extremum.
+**Commit**: `fix: use current deterministic extremum source`
+**Demo/Validation**:
+- Sales are only created from current PEAK slot `0` over the delayed M1 MA with bearish base and macro slopes.
+- Buys are only created from current BOTTOM slot `0` under the delayed M1 MA with bullish base and macro slopes.
+- Pending deterministic signals expire when the current source extremum changes by slot/type/time/price before entry.
+- Compile at sprint end with 0 errors and 0 warnings.
+
+### Task 10.1: Switch Deterministic Selection To Current Slot
+
+- **Location**:
+  - `services/trading_signals/market_signal_indicators.mqh`
+  - `services/trading_signals/market_signal_detection.mqh`
+- **Description**: Replace confirmed-slot selection with current/provisional slot `0` selection for deterministic strategies.
+- **Dependencies**: Sprint 9.
+- **Acceptance Criteria**:
+  - Deterministic signal creation selects `os_market_structures[0]`.
+  - Logs show `source_slot=0` for new deterministic candidates and lifecycle events.
+  - MA evaluation still uses `iBarShift()` on the source extremum time plus strategy delay.
+- **Validation**:
+  - Static review.
+  - Compile.
+  - Human-in-the-loop chart/log comparison.
+
+### Task 10.2: Expire Pending Signals On Current Extremum Change
+
+- **Location**:
+  - `services/trading_signals/market_signal_state.mqh`
+  - `services/trading_signals/market_signal_detection.mqh`
+- **Description**: Close/remove pending deterministic signals without broker exposure when the current source extremum no longer matches their source identity.
+- **Dependencies**: Task 10.1.
+- **Acceptance Criteria**:
+  - Pending signals from stale current extrema are removed before entry.
+  - Broker-exposed deterministic signals are not removed by source changes.
+  - Source identity compares type, time, and price with symbol-point tolerance.
+- **Validation**:
+  - Static review.
+  - Compile.
+  - Human-in-the-loop tester run with current/confirmed source audit logs.
+
 ## Testing Strategy
 
 - Use static sweeps after cleanup tasks:
@@ -805,6 +888,12 @@ $log = Join-Path $mt5Root "MQL5\Experts\HFT_Grid_AI\logs\compile\deterministic-s
 - Use human-in-the-loop visual checks after Sprint 8:
   - Logic `shift=0` MAs are absent from visual tester charts.
   - Shifted strategy MAs remain visible when their strategy input is enabled.
+- Use human-in-the-loop query debug checks after Sprint 9:
+  - `DETERMINISTIC_SOURCE_AUDIT` distinguishes selected/current/confirmed extrema.
+  - `DETERMINISTIC_CANDIDATE` includes source slot/type/time/price and MA pairs.
+- Use human-in-the-loop query debug checks after Sprint 10:
+  - New deterministic candidates use `source_slot=0`.
+  - Pending signals tied to stale current extrema disappear before entry.
 
 ## Potential Risks And Gotchas
 
@@ -818,6 +907,8 @@ $log = Join-Path $mt5Root "MQL5\Experts\HFT_Grid_AI\logs\compile\deterministic-s
 - **Hedging-only assumption**: Users on netting accounts will be blocked. Mitigation: fail closed with an explicit message.
 - **Visual chart ownership**: Closing macro charts automatically could close a user's chart. Mitigation: track EA-opened chart IDs and close only those charts.
 - **Asynchronous chart changes**: Retargeting or opening charts can complete after the call returns. Mitigation: verify `ChartSymbol` and `ChartPeriod` before adding indicators and retry later if needed.
+- **Current extremum repaint**: Slot `0` can move while the structure is forming. Mitigation: treat slot/type/time/price as source identity and expire pending signals when it changes.
+- **Telemetry noise**: Per-tick source logs can become large. Mitigation: use changed-state query debug logs for source audits and full logs only for actual candidates/lifecycle events.
 
 No additional product questions are blocking this plan. The remaining unknowns are implementation discoveries, especially the exact magic-number license contract, whether all old range/grid code can be deleted in one sprint without forcing a larger frontend rewrite, and the exact lifecycle policy for EA-opened macro charts after manual user interaction.
 

@@ -16,6 +16,54 @@ void RefreshUpstreamTrendsOnBaseBar()
   return;
 }
 
+string DeterministicTimeToken(const datetime value)
+{
+  if(value <= 0)
+    return "n/a";
+
+  return TimeToString(value, TIME_DATE|TIME_SECONDS);
+}
+
+string DeterministicExtremumSummary(const string prefix,
+                                    const DeterministicExtremumSnapshot &extremum)
+{
+  return StringFormat("%s_valid=%s|%s_slot=%d|%s_confirmed=%s|%s_type=%s|%s_time=%s|%s_price=%.5f|%s_high=%.5f|%s_low=%.5f",
+                      prefix,
+                      DeterministicBoolToken(extremum.valid),
+                      prefix,
+                      extremum.source_slot,
+                      prefix,
+                      DeterministicBoolToken(extremum.confirmed),
+                      prefix,
+                      DeterministicExtremumTypeToken(extremum),
+                      prefix,
+                      DeterministicTimeToken(extremum.extremum_time),
+                      prefix,
+                      extremum.extremum_price,
+                      prefix,
+                      extremum.extremum_high,
+                      prefix,
+                      extremum.extremum_low);
+}
+
+void LogDeterministicSourceAudit(const StochasticMarketStructure &structure,
+                                 const DeterministicExtremumSnapshot &selected)
+{
+  DeterministicExtremumSnapshot current;
+  ResolveCurrentDeterministicExtremum(structure, current);
+
+  DeterministicExtremumSnapshot confirmed;
+  ResolveLatestConfirmedDeterministicExtremum(structure, confirmed);
+
+  string message = DeterministicExtremumSummary("selected", selected) + "|" +
+                   DeterministicExtremumSummary("current", current) + "|" +
+                   DeterministicExtremumSummary("confirmed", confirmed);
+
+  ExecutionAppendQueryDebugChangedLog("DETERMINISTIC_SOURCE_AUDIT",
+                                      "BASE",
+                                      message);
+}
+
 void EvaluateContextSignals(const StrategyContextTypes context)
 {
   if(context != CONTEXT_SLOT_BASE && !StrategyContextEnabled(context))
@@ -149,6 +197,8 @@ bool PopulateDeterministicSignal(const int strategy_id,
   signal.signal_lot_sequence_step   = ResolveSignalLotSequenceStepForNewSignal();
   signal.context_structure_snapshot_time = extremum.extremum_time;
   signal.source_extremum_time       = extremum.extremum_time;
+  signal.source_extremum_slot       = extremum.source_slot;
+  signal.source_extremum_confirmed  = extremum.confirmed;
   signal.source_extremum_is_peak    = extremum.is_peak;
   signal.source_extremum_price      = extremum.extremum_price;
   signal.source_extremum_high       = extremum.extremum_high;
@@ -170,6 +220,34 @@ bool PopulateDeterministicSignal(const int strategy_id,
                                                                        signal.entry_time,
                                                                        extremum.extremum_time);
   return true;
+}
+
+void LogDeterministicCandidateTelemetry(const SignalParams &signal,
+                                        const DeterministicExtremumSnapshot &extremum,
+                                        const double base_ma_now,
+                                        const double base_ma_prev,
+                                        const double macro_ma_now,
+                                        const double macro_ma_prev)
+{
+  string direction = (signal.signal_type == BULLISH) ? "BULLISH" : "BEARISH";
+  string message = StringFormat("strategy=%s|dir=%s|source_slot=%d|source_confirmed=%s|source_type=%s|source_time=%s|source_price=%.5f|source_high=%.5f|source_low=%.5f|base_ma_now=%.5f|base_ma_prev=%.5f|macro_ma_now=%.5f|macro_ma_prev=%.5f|trigger=%.5f|stop=%.5f",
+                                signal.strategy_label,
+                                direction,
+                                extremum.source_slot,
+                                DeterministicBoolToken(extremum.confirmed),
+                                DeterministicExtremumTypeToken(extremum),
+                                DeterministicTimeToken(extremum.extremum_time),
+                                extremum.extremum_price,
+                                extremum.extremum_high,
+                                extremum.extremum_low,
+                                base_ma_now,
+                                base_ma_prev,
+                                macro_ma_now,
+                                macro_ma_prev,
+                                signal.raw_entry_trigger_price,
+                                signal.raw_stop_anchor_price);
+
+  ExecutionAppendQueryDebugLog("DETERMINISTIC_CANDIDATE", message);
 }
 
 void TryCreateDeterministicSignal(const int strategy_id,
@@ -222,12 +300,20 @@ void TryCreateDeterministicSignal(const int strategy_id,
     AddElementToArray(running_bearish_signals, signal);
 
   RegisterDailySignalStart(signal);
+  LogDeterministicCandidateTelemetry(signal,
+                                     extremum,
+                                     base_ma_now,
+                                     base_ma_prev,
+                                     macro_ma_now,
+                                     macro_ma_prev);
 
   if(Enable_Logs)
   {
-    PrintFormat("DETERMINISTIC_CANDIDATE | strategy=%s | direction=%s | extremum=%s | base_ma=%.5f/%.5f | macro_ma=%.5f/%.5f | trigger=%.5f",
+    PrintFormat("DETERMINISTIC_CANDIDATE | strategy=%s | direction=%s | source_slot=%d | source_type=%s | extremum=%s | base_ma=%.5f/%.5f | macro_ma=%.5f/%.5f | trigger=%.5f",
                 signal.strategy_label,
                 EnumToString(direction),
+                extremum.source_slot,
+                DeterministicExtremumTypeToken(extremum),
                 TimeToString(extremum.extremum_time, TIME_DATE|TIME_MINUTES),
                 base_ma_now,
                 base_ma_prev,
@@ -247,6 +333,7 @@ void DetectDeterministicStrategySignals()
   if(!ResolveLatestConfirmedDeterministicExtremum(structure, extremum))
     return;
 
+  LogDeterministicSourceAudit(structure, extremum);
   ExpirePendingDeterministicSignalsForNewExtremum(extremum.extremum_time);
 
   SignalTypes directions[2] = {BULLISH, BEARISH};
