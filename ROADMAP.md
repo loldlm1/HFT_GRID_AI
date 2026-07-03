@@ -13,6 +13,7 @@
 - Phase 2 plan created: `docs/plans/phase-02-remove-tests-plan.md`.
 - Phase 2 completed: legacy tests and runner removed; portable compile log reports 0 errors and 0 warnings.
 - Phase 7 completed: real-tick performance pass compile log reports 0 errors and 0 warnings.
+- Phase 8 plan created: `docs/plans/phase-08-final-compile-hardening-plan.md`.
 
 ## Purpose
 
