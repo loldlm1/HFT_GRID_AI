@@ -20,11 +20,11 @@ All strategies use:
 
 - SMA 21 on close price for logic.
 - Stoch Structure `k=5`, `d=3`, `slow=3`, `close_close` on `PERIOD_M1`.
-- One confirmed Stoch Structure extremum as the setup source of truth.
+- Current/provisional Stoch Structure extremum slot `0` as the setup source of truth.
 - Live `close_0` on every tick for entry and strategy SL checks.
 - Broker-side bid/ask for TP and real close execution parity.
 - Global risk/lot/protection/session/license settings.
-- Independent candidate and lifecycle identity by `strategy_id + direction + extremum_time`.
+- Independent candidate and lifecycle identity by `strategy_id + direction + source_slot + extremum_time + extremum_type + extremum_price`.
 
 The implementation should be completed one sprint at a time. Each sprint must be validated before moving to the next sprint.
 
@@ -36,7 +36,7 @@ The implementation should be completed one sprint at a time. Each sprint must be
 - Faithful backtests should use "Every tick based on real ticks" or equivalent tick modeling.
 - TP is evaluated using broker-side bid/ask, not raw `close_0`.
 - Macro confirmation is rechecked immediately before entry activation.
-- Pending candidates expire when any new confirmed M1 Stoch Structure extremum appears.
+- Pending candidates expire when the current/provisional M1 Stoch Structure source identity changes before entry.
 - S1, S2, and S3 may all open independent signals from the same extremum when enabled and broker gates pass.
 - Aggressive cleanup is allowed for inputs and code paths not aligned with the deterministic strategy model.
 - Shifted MA visualization is required in this implementation plan.
@@ -64,7 +64,7 @@ Trading logic must not depend on `CopyBuffer` negative offsets or shifted-indica
 
 ### M1 Setup Rules
 
-Use the latest confirmed M1 Stoch Structure extremum.
+Use the current/provisional M1 Stoch Structure extremum from slot `0`.
 
 For a peak:
 
@@ -898,7 +898,7 @@ $log = Join-Path $mt5Root "MQL5\Experts\HFT_Grid_AI\logs\compile\deterministic-s
 ## Potential Risks And Gotchas
 
 - **Shifted MA confusion**: Logic must not use shifted MA buffers. Mitigation: raw `ma_shift=0` logic handles plus separate visual shifted handles.
-- **Extremum confirmation ambiguity**: If the latest structure slot is provisional, the strategy may repaint. Mitigation: explicitly define and use the latest confirmed extremum helper.
+- **Extremum confirmation ambiguity**: The latest structure slot is provisional and may repaint. Mitigation: treat slot/type/time/price as source identity and expire pending signals when it changes.
 - **Tick-model dependency**: Live `close_0` makes "open prices only" backtests unreliable. Mitigation: document real-tick testing as the faithful mode.
 - **Broker close failure**: Freeze levels or broker retcodes can block closes. Mitigation: do not mark signals closed until broker reconciliation confirms closure.
 - **Magic-number licensing**: Per-strategy magic derivation may conflict with license expectations. Mitigation: investigate before implementation and fall back to comment-scoped identity.

@@ -141,7 +141,10 @@ bool SignalMatchesStructureIdentity(const SignalParams &signal_params,
 bool SignalMatchesDeterministicIdentity(const SignalParams &signal_params,
                                         const int strategy_id,
                                         const SignalTypes direction,
-                                        const datetime extremum_time)
+                                        const int source_slot,
+                                        const datetime extremum_time,
+                                        const bool source_is_peak,
+                                        const double source_price)
 {
   if(extremum_time <= 0)
     return false;
@@ -158,7 +161,20 @@ bool SignalMatchesDeterministicIdentity(const SignalParams &signal_params,
   if(signal_params.source_extremum_time <= 0)
     return false;
 
-  return (signal_params.source_extremum_time == extremum_time);
+  if(signal_params.source_extremum_slot != source_slot)
+    return false;
+
+  if(signal_params.source_extremum_time != extremum_time)
+    return false;
+
+  if(signal_params.source_extremum_is_peak != source_is_peak)
+    return false;
+
+  double point_size = SymbolInfoDouble(_Symbol, SYMBOL_POINT);
+  if(point_size <= 0.0)
+    point_size = 0.0001;
+
+  return (MathAbs(signal_params.source_extremum_price - source_price) <= point_size);
 }
 
 bool HasRunningSignalForStructure(const StrategyContextTypes context,
@@ -195,7 +211,10 @@ bool HasRunningSignalForStructure(const StrategyContextTypes context,
 
 bool HasRunningDeterministicSignal(const int strategy_id,
                                    const SignalTypes direction,
-                                   const datetime extremum_time)
+                                   const int source_slot,
+                                   const datetime extremum_time,
+                                   const bool source_is_peak,
+                                   const double source_price)
 {
   if(extremum_time <= 0)
     return false;
@@ -208,7 +227,10 @@ bool HasRunningDeterministicSignal(const int strategy_id,
       if(SignalMatchesDeterministicIdentity(running_bullish_signals[i],
                                             strategy_id,
                                             direction,
-                                            extremum_time))
+                                            source_slot,
+                                            extremum_time,
+                                            source_is_peak,
+                                            source_price))
         return true;
     }
     return false;
@@ -222,13 +244,44 @@ bool HasRunningDeterministicSignal(const int strategy_id,
       if(SignalMatchesDeterministicIdentity(running_bearish_signals[i],
                                             strategy_id,
                                             direction,
-                                            extremum_time))
+                                            source_slot,
+                                            extremum_time,
+                                            source_is_peak,
+                                            source_price))
         return true;
     }
     return false;
   }
 
   return false;
+}
+
+bool DeterministicSignalMatchesSourceExtremum(const SignalParams &signal_params,
+                                              const int source_slot,
+                                              const datetime source_time,
+                                              const bool source_is_peak,
+                                              const double source_price)
+{
+  if(source_time <= 0 || source_price <= 0.0)
+    return false;
+
+  if(signal_params.source_extremum_time <= 0)
+    return false;
+
+  if(signal_params.source_extremum_slot != source_slot)
+    return false;
+
+  if(signal_params.source_extremum_time != source_time)
+    return false;
+
+  if(signal_params.source_extremum_is_peak != source_is_peak)
+    return false;
+
+  double point_size = SymbolInfoDouble(_Symbol, SYMBOL_POINT);
+  if(point_size <= 0.0)
+    point_size = 0.0001;
+
+  return (MathAbs(signal_params.source_extremum_price - source_price) <= point_size);
 }
 
 bool DeterministicSignalHasBrokerExposure(const SignalParams &signal_params)
@@ -245,16 +298,23 @@ bool DeterministicSignalHasBrokerExposure(const SignalParams &signal_params)
   return false;
 }
 
-void ExpirePendingDeterministicSignalsForNewExtremum(const datetime latest_extremum_time)
+void ExpirePendingDeterministicSignalsForSourceExtremum(const int source_slot,
+                                                        const datetime source_time,
+                                                        const bool source_is_peak,
+                                                        const double source_price)
 {
-  if(latest_extremum_time <= 0)
+  if(source_time <= 0 || source_price <= 0.0)
     return;
 
   for(int i = ArraySize(running_bullish_signals) - 1; i >= 0; i--)
   {
     if(!running_bullish_signals[i].deterministic_strategy)
       continue;
-    if(running_bullish_signals[i].source_extremum_time >= latest_extremum_time)
+    if(DeterministicSignalMatchesSourceExtremum(running_bullish_signals[i],
+                                                source_slot,
+                                                source_time,
+                                                source_is_peak,
+                                                source_price))
       continue;
     if(DeterministicSignalHasBrokerExposure(running_bullish_signals[i]))
       continue;
@@ -267,7 +327,11 @@ void ExpirePendingDeterministicSignalsForNewExtremum(const datetime latest_extre
   {
     if(!running_bearish_signals[j].deterministic_strategy)
       continue;
-    if(running_bearish_signals[j].source_extremum_time >= latest_extremum_time)
+    if(DeterministicSignalMatchesSourceExtremum(running_bearish_signals[j],
+                                                source_slot,
+                                                source_time,
+                                                source_is_peak,
+                                                source_price))
       continue;
     if(DeterministicSignalHasBrokerExposure(running_bearish_signals[j]))
       continue;

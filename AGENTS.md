@@ -70,6 +70,7 @@ Preserved foundation controls:
 ## 6) Execution Source Of Truth
 
 - Before a real broker position exists, local execution simulation owns candidate state.
+- Deterministic MA/Stoch strategies use the current Stoch Structure extremum slot `0` as the source extremum; confirmed slot `1` is telemetry/context only unless a future plan explicitly changes it.
 - Local simulation must apply broker conditions before activation decisions: spread, stops level, freeze level, volume min/max/step, margin, market status, sessions, license, and protection gates.
 - After a real broker position exists, broker state owns ticket, volume, entry price, close state, and realized profit.
 - Local state may reconcile against broker facts, but must not overwrite broker facts.

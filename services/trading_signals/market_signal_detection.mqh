@@ -280,7 +280,10 @@ void TryCreateDeterministicSignal(const int strategy_id,
 
   if(HasRunningDeterministicSignal(strategy_id,
                                    direction,
-                                   extremum.extremum_time))
+                                   extremum.source_slot,
+                                   extremum.extremum_time,
+                                   extremum.is_peak,
+                                   extremum.extremum_price))
     return;
 
   if(!CanAttemptSignal(direction))
@@ -330,11 +333,14 @@ void DetectDeterministicStrategySignals()
     return;
 
   DeterministicExtremumSnapshot extremum;
-  if(!ResolveLatestConfirmedDeterministicExtremum(structure, extremum))
+  if(!ResolveCurrentDeterministicExtremum(structure, extremum))
     return;
 
   LogDeterministicSourceAudit(structure, extremum);
-  ExpirePendingDeterministicSignalsForNewExtremum(extremum.extremum_time);
+  ExpirePendingDeterministicSignalsForSourceExtremum(extremum.source_slot,
+                                                     extremum.extremum_time,
+                                                     extremum.is_peak,
+                                                     extremum.extremum_price);
 
   SignalTypes directions[2] = {BULLISH, BEARISH};
   for(int strategy_index = 0; strategy_index < DETERMINISTIC_STRATEGY_TOTAL; strategy_index++)
