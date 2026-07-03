@@ -166,7 +166,12 @@ bool FindBrokerPositionForExecutionLeg(const SignalParams &signal_params,
 
   string expected_comment = leg_state.position_comment;
   if(expected_comment == "")
+  {
+    if(leg_state.status != EXECUTION_LEG_ACTIVE)
+      return false;
+
     expected_comment = ExecutionComposeLegComment(signal_params, leg_state);
+  }
 
   return FindBrokerPositionSnapshotByComment(signal_params.signal_type,
                                              expected_comment,

@@ -7,6 +7,7 @@
 #include "execution_leg_helpers.mqh"
 
 const string QUERY_DEBUG_FILENAME = "query_debug.txt";
+const int QUERY_DEBUG_STATE_RESERVE = 64;
 bool g_query_debug_session_header_logged = false;
 string g_query_debug_state_keys[];
 string g_query_debug_state_messages[];
@@ -31,8 +32,8 @@ string ExecutionSessionModeToken(const SessionTimeFilterModes mode)
 void ResetQueryDebugLogSession()
 {
   g_query_debug_session_header_logged = false;
-  ArrayResize(g_query_debug_state_keys, 0);
-  ArrayResize(g_query_debug_state_messages, 0);
+  ArrayResize(g_query_debug_state_keys, 0, QUERY_DEBUG_STATE_RESERVE);
+  ArrayResize(g_query_debug_state_messages, 0, QUERY_DEBUG_STATE_RESERVE);
 }
 
 void ExecutionAppendRawQueryDebugLine(const string line)
@@ -74,8 +75,8 @@ bool ExecutionShouldLogChangedState(const string state_key,
   if(index < 0)
   {
     int total = ArraySize(g_query_debug_state_keys);
-    ArrayResize(g_query_debug_state_keys, total + 1);
-    ArrayResize(g_query_debug_state_messages, total + 1);
+    ArrayResize(g_query_debug_state_keys, total + 1, QUERY_DEBUG_STATE_RESERVE);
+    ArrayResize(g_query_debug_state_messages, total + 1, QUERY_DEBUG_STATE_RESERVE);
     g_query_debug_state_keys[total] = state_key;
     g_query_debug_state_messages[total] = message;
     return true;
@@ -96,7 +97,9 @@ void EnsureQueryDebugSessionHeaderLogged()
   g_query_debug_session_header_logged = true;
   ExecutionAppendRawQueryDebugLine("");
 
-  double point_size = SymbolInfoDouble(_Symbol, SYMBOL_POINT);
+  double point_size = g_symbol_constraints.point_size;
+  if(point_size <= 0.0)
+    point_size = SymbolInfoDouble(_Symbol, SYMBOL_POINT);
   if(point_size <= 0.0)
     point_size = 0.0001;
 

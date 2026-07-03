@@ -1,6 +1,7 @@
 #ifndef _SERVICES_FRONTEND_EXECUTION_VISUALIZATION_MQH_
 #define _SERVICES_FRONTEND_EXECUTION_VISUALIZATION_MQH_
 
+const int EXECUTION_VISUAL_SUMMARY_RESERVE = 16;
 string g_execution_visual_previous_objects[];
 
 void ResetExecutionVisualizationCache()
@@ -31,7 +32,7 @@ bool ResolveExecutionNextLevelLotPreview(const SignalParams &signal_params,
   SignalParams preview_signal = signal_params;
   int total_levels = ArraySize(preview_signal.execution_legs);
   if(total_levels <= next_level_index_out)
-    ArrayResize(preview_signal.execution_legs, next_level_index_out + 1);
+    ArrayResize(preview_signal.execution_legs, next_level_index_out + 1, EXECUTION_MAX_LEGS);
 
   ExecutionLegState preview_state;
   preview_state.level_index = next_level_index_out;
@@ -188,7 +189,7 @@ void BuildSignalSummary(const SignalParams &signal_params,
   string timeframe_label = FormatTimeframeLabel(tf);
 
   int summary_index = ArraySize(summary_lines);
-  ArrayResize(summary_lines, summary_index + 1);
+  ArrayResize(summary_lines, summary_index + 1, EXECUTION_VISUAL_SUMMARY_RESERVE);
 
   summary_lines[summary_index] = StringFormat("%s %s@%s | act=%d pend=%d tot=%d",
                                               direction_label,

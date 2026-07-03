@@ -146,13 +146,48 @@ bool BrokerExecutionConstraintsNeedRefresh()
   return ((now - g_symbol_constraints.last_refresh) >= BROKER_EXECUTION_CONSTRAINT_REFRESH_SECONDS);
 }
 
+double BrokerExecutionNormalizeVolume(const double volume)
+{
+  if(volume <= 0.0)
+    return 0.0;
+
+  if(g_symbol_constraints.symbol != _Symbol ||
+     g_symbol_constraints.min_volume <= 0.0 ||
+     g_symbol_constraints.max_volume <= 0.0 ||
+     g_symbol_constraints.volume_step <= 0.0)
+    return NormalizeVolumeForSymbol(_Symbol, volume);
+
+  double normalized = volume;
+
+  if(normalized < g_symbol_constraints.min_volume)
+    normalized = g_symbol_constraints.min_volume;
+  if(normalized > g_symbol_constraints.max_volume)
+    normalized = g_symbol_constraints.max_volume;
+
+  double steps = MathFloor((normalized + 1e-12) / g_symbol_constraints.volume_step);
+  normalized   = steps * g_symbol_constraints.volume_step;
+
+  int vol_digits = 0;
+  if(g_symbol_constraints.volume_step < 1.0)
+  {
+    vol_digits = (int)MathRound(-MathLog10(g_symbol_constraints.volume_step));
+    if(vol_digits < 0)
+      vol_digits = 0;
+  }
+
+  return NormalizeDouble(normalized, vol_digits);
+}
+
 double BrokerExecutionEstimateMarginPerLot(const SignalTypes direction)
 {
   double margin_per_lot = SymbolInfoDouble(_Symbol, SYMBOL_MARGIN_INITIAL);
   if(margin_per_lot > 0.0)
     return margin_per_lot;
 
-  double contract_size = SymbolInfoDouble(_Symbol, SYMBOL_TRADE_CONTRACT_SIZE);
+  double contract_size = g_symbol_constraints.contract_size;
+  if(contract_size <= 0.0)
+    contract_size = SymbolInfoDouble(_Symbol, SYMBOL_TRADE_CONTRACT_SIZE);
+
   double price = g_ask;
   if(direction == BEARISH)
     price = g_bid;
@@ -241,7 +276,7 @@ bool CaptureBrokerExecutionSnapshot(const SignalTypes direction,
 
   if(requested_volume > 0.0)
   {
-    snapshot.normalized_volume = NormalizeVolumeForSymbol(snapshot.symbol, requested_volume);
+    snapshot.normalized_volume = BrokerExecutionNormalizeVolume(requested_volume);
     snapshot.volume_valid = (snapshot.normalized_volume > 0.0);
   }
 

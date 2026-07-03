@@ -8,6 +8,7 @@ const string EA_CHART_UI_TOGGLE = "HFT_EXEC_AI_UI_TOGGLE";
 const string EA_CHART_UI_DETAILS = "HFT_EXEC_AI_UI_DETAILS";
 const string EA_CHART_UI_ROW_PREFIX = "HFT_EXEC_AI_UI_ROW_";
 const string EA_CHART_ERROR_OBJECT = "HFT_EXEC_AI_ERROR_MESSAGE";
+const int EXECUTION_VISUAL_OBJECT_RESERVE = 32;
 
 bool IsEAOwnedObjectName(const string name)
 {
@@ -50,7 +51,7 @@ bool ContainsObjectName(string &names[], const string name)
 void PushObjectName(string &names[], const string name)
 {
   int total = ArraySize(names);
-  ArrayResize(names, total + 1);
+  ArrayResize(names, total + 1, EXECUTION_VISUAL_OBJECT_RESERVE);
   names[total] = name;
 }
 

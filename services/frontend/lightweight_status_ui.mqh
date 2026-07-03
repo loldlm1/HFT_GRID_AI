@@ -5,6 +5,7 @@
 
 const uchar LIGHTWEIGHT_UI_PANEL_FILL_ALPHA = 36;
 const int LIGHTWEIGHT_UI_FIT_RAW_ROW_MAX_CHARS = 512;
+const int LIGHTWEIGHT_UI_ROW_RESERVE = 32;
 
 string g_chart_ui_last_button_text = "";
 string g_chart_ui_last_details_button_text = "";
@@ -313,7 +314,7 @@ void AddLightweightUiRow(string &rows[],
                          const int max_row_chars)
 {
   int total = ArraySize(rows);
-  ArrayResize(rows, total + 1);
+  ArrayResize(rows, total + 1, LIGHTWEIGHT_UI_ROW_RESERVE);
   rows[total] = BuildLightweightUiRowText(label, value, max_row_chars);
 }
 
@@ -321,7 +322,7 @@ void AppendUiRowText(string &rows[],
                      const string row_value)
 {
   int total = ArraySize(rows);
-  ArrayResize(rows, total + 1);
+  ArrayResize(rows, total + 1, LIGHTWEIGHT_UI_ROW_RESERVE);
   rows[total] = row_value;
 }
 
