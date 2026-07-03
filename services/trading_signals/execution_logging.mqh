@@ -474,6 +474,44 @@ void ExecutionLogDeterministicEntryRefresh(const SignalParams &signal_params,
                                       message);
 }
 
+void ExecutionLogDeterministicSignalExpired(const SignalParams &signal_params,
+                                            const int new_source_slot,
+                                            const datetime new_source_time,
+                                            const bool new_source_is_peak,
+                                            const double new_source_price,
+                                            const string reason)
+{
+  string direction = (signal_params.signal_type == BULLISH) ? "BULLISH" : "BEARISH";
+  string new_source_type = (new_source_time > 0) ? (new_source_is_peak ? "PEAK" : "BOTTOM") : "n/a";
+  string new_source_time_token = (new_source_time > 0) ? TimeToString(new_source_time, TIME_DATE|TIME_SECONDS) : "n/a";
+  string leg_status = "n/a";
+  int total_legs = ArraySize(signal_params.execution_legs);
+  if(total_legs > 0)
+    leg_status = EnumToString(signal_params.execution_legs[0].status);
+
+  string message = StringFormat("strategy=%s|dir=%s|status=%s|sequence=%s|old_source_slot=%d|old_source_confirmed=%s|old_source_type=%s|old_source_time=%s|old_source_price=%.5f|old_source_high=%.5f|old_source_low=%.5f|new_source_slot=%d|new_source_type=%s|new_source_time=%s|new_source_price=%.5f|raw_trigger=%.5f|raw_stop=%.5f|reason=%s",
+                                signal_params.strategy_label,
+                                direction,
+                                leg_status,
+                                ExecutionQueryDebugSignalKey(signal_params),
+                                signal_params.source_extremum_slot,
+                                ExecutionBoolToken(signal_params.source_extremum_confirmed),
+                                ExecutionSourceExtremumTypeToken(signal_params),
+                                ExecutionSourceExtremumTimeToken(signal_params),
+                                signal_params.source_extremum_price,
+                                signal_params.source_extremum_high,
+                                signal_params.source_extremum_low,
+                                new_source_slot,
+                                new_source_type,
+                                new_source_time_token,
+                                new_source_price,
+                                signal_params.raw_entry_trigger_price,
+                                signal_params.raw_stop_anchor_price,
+                                reason);
+
+  ExecutionAppendQueryDebugLog("DETERMINISTIC_SIGNAL_EXPIRED", message);
+}
+
 void ExecutionLogEvent(const string label,
                   const SignalParams &signal_params,
                   const ExecutionLegState &leg_state)

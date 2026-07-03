@@ -9,6 +9,15 @@ SignalParams running_bearish_signals[];
 bool        g_forced_stop_triggered = false;
 bool        g_manual_signal_entry_enabled = true;
 
+void RemoveExecutionLevels(const long chart_id,
+                           const SignalParams &signal_params);
+void ExecutionLogDeterministicSignalExpired(const SignalParams &signal_params,
+                                            const int new_source_slot,
+                                            const datetime new_source_time,
+                                            const bool new_source_is_peak,
+                                            const double new_source_price,
+                                            const string reason);
+
 struct StrategyContextRuntime
 {
   datetime last_bar_time;
@@ -319,6 +328,13 @@ void ExpirePendingDeterministicSignalsForSourceExtremum(const int source_slot,
     if(DeterministicSignalHasBrokerExposure(running_bullish_signals[i]))
       continue;
 
+    ExecutionLogDeterministicSignalExpired(running_bullish_signals[i],
+                                           source_slot,
+                                           source_time,
+                                           source_is_peak,
+                                           source_price,
+                                           "source_extremum_changed");
+    RemoveExecutionLevels(ChartID(), running_bullish_signals[i]);
     running_bullish_signals[i].signal_state = CLOSED;
     RemoveElementFromArray(running_bullish_signals, i);
   }
@@ -336,6 +352,13 @@ void ExpirePendingDeterministicSignalsForSourceExtremum(const int source_slot,
     if(DeterministicSignalHasBrokerExposure(running_bearish_signals[j]))
       continue;
 
+    ExecutionLogDeterministicSignalExpired(running_bearish_signals[j],
+                                           source_slot,
+                                           source_time,
+                                           source_is_peak,
+                                           source_price,
+                                           "source_extremum_changed");
+    RemoveExecutionLevels(ChartID(), running_bearish_signals[j]);
     running_bearish_signals[j].signal_state = CLOSED;
     RemoveElementFromArray(running_bearish_signals, j);
   }

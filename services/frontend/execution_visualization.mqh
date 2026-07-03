@@ -78,11 +78,20 @@ void DrawExecutionLevels(const long chart_id,
   double stop_price       = 0.0;
   double tp_price         = level_state.take_profit_price;
   double next_level_price = level_state.next_level_price;
+  if(signal_params.deterministic_strategy)
+  {
+    stop_price = signal_params.raw_stop_anchor_price;
+    if(stop_price <= 0.0)
+      stop_price = level_state.next_level_price;
+    next_level_price = 0.0;
+  }
 
   string stop_label     = ExecutionSignalLineLabel(signal_params, "STOP");
   string entry_label    = ExecutionSignalLineLabel(signal_params, "ENTRY");
   string tp_label       = ExecutionSignalLineLabel(signal_params, "TP");
   string next_label     = ExecutionSignalLineLabel(signal_params, "NEXT");
+  if(signal_params.deterministic_strategy)
+    stop_label = ExecutionSignalLineLabel(signal_params, "SL");
 
   int level_index = level_state.level_index;
   int next_level_index = level_index + 1;
@@ -157,10 +166,10 @@ void DrawExecutionLevels(const long chart_id,
                               next_level_lot_size);
   }
 
-  UpdateHorizontalLine(chart_id, stop_name, COLOR_PROFIT_NEGATIVE, stop_price, stop_label);
-  UpdateHorizontalLine(chart_id, entry_name, COLOR_PROFIT_NEUTRAL, entry_price_line, entry_label);
-  UpdateHorizontalLine(chart_id, tp_name, COLOR_PROFIT_POSITIVE, tp_price, tp_label);
-  UpdateHorizontalLine(chart_id, next_name, COLOR_PROFIT_POSITIVE, next_level_price, next_label);
+  UpdateTrackedLine(chart_id, stop_name, COLOR_PROFIT_NEGATIVE, stop_price, tracked_objects, stop_label);
+  UpdateTrackedLine(chart_id, entry_name, COLOR_PROFIT_NEUTRAL, entry_price_line, tracked_objects, entry_label);
+  UpdateTrackedLine(chart_id, tp_name, COLOR_PROFIT_POSITIVE, tp_price, tracked_objects, tp_label);
+  UpdateTrackedLine(chart_id, next_name, COLOR_PROFIT_POSITIVE, next_level_price, tracked_objects, next_label);
 }
 
 void BuildSignalSummary(const SignalParams &signal_params,

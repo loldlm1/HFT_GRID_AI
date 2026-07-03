@@ -918,6 +918,118 @@ $log = Join-Path $mt5Root "MQL5\Experts\HFT_Grid_AI\logs\compile\deterministic-s
   - Compile.
   - Human-in-the-loop tester run with `Enable_File_Logs=true`.
 
+## Sprint 12: Deterministic Chart Line Cleanup And Telemetry
+
+**Goal**: Remove stale deterministic signal lines from the chart and make pending-signal expiration visible in `query_debug.txt`.
+**Commit**: `fix: clean deterministic chart lines`
+**Status**: Completed on 2026-07-03. Compile passed with 0 errors and 0 warnings; runtime confirmation remains human-in-the-loop through chart visual review and `query_debug.txt`.
+**Demo/Validation**:
+- Expired pending deterministic signals emit `DETERMINISTIC_SIGNAL_EXPIRED` with old and new source-extremum identity.
+- Chart level lines are tracked in the visualization cache and deleted when their signal no longer exists.
+- Deterministic SL is labeled as the stop/SL anchor instead of being shown as a generic `NEXT` level.
+- Compile at sprint end with 0 errors and 0 warnings.
+
+### Task 12.1: Track Execution Level Objects
+
+- **Location**:
+  - `services/frontend/execution_visualization.mqh`
+  - `services/frontend/execution_visual_lines.mqh`
+- **Description**: Use tracked line updates for execution-level chart objects so stale signal objects can be removed by the existing visualization cache.
+- **Dependencies**: Sprint 11.
+- **Acceptance Criteria**:
+  - Entry, TP, SL/stop, and next-level chart object names are pushed into the current visualization object list when visible.
+  - Objects absent from the current running signal set are deleted on refresh.
+  - Existing `Enable_Chart_Levels=false` cleanup remains intact.
+- **Validation**:
+  - Static review.
+  - Compile.
+
+### Task 12.2: Render Deterministic Stop As SL
+
+- **Location**:
+  - `services/frontend/execution_visualization.mqh`
+- **Description**: For deterministic signals, draw `raw_stop_anchor_price` as the `STOP`/SL line and suppress the unused `NEXT` line.
+- **Dependencies**: Task 12.1.
+- **Acceptance Criteria**:
+  - Deterministic chart visualization shows entry, SL, and TP without a misleading `NEXT` line.
+  - Non-deterministic execution visualization behavior is unchanged.
+- **Validation**:
+  - Static review.
+  - Compile.
+  - Human-in-the-loop visual tester check.
+
+### Task 12.3: Log Pending Source Expiration
+
+- **Location**:
+  - `services/trading_signals/market_signal_state.mqh`
+  - `services/trading_signals/execution_logging.mqh`
+- **Description**: Log and visually clean pending deterministic signals that are removed when the current source extremum changes before entry.
+- **Dependencies**: Task 12.2.
+- **Acceptance Criteria**:
+  - `DETERMINISTIC_SIGNAL_EXPIRED` includes strategy, direction, old source slot/type/time/price, new source slot/type/time/price, raw trigger, raw stop, and reason.
+  - Expired pending signals call chart-level cleanup before removal.
+  - Broker-exposed deterministic signals are never removed by this path.
+- **Validation**:
+  - Static review.
+  - Compile.
+  - Human-in-the-loop query debug check with `Enable_File_Logs=true`.
+
+## Sprint 13: Current Delayed Base Slope Confirmation
+
+**Goal**: Require the current M1 MA slope delayed by strategy offset to still confirm direction when a pending deterministic signal is about to execute.
+**Commit**: `fix: confirm current delayed base slope`
+**Status**: Pending.
+**Demo/Validation**:
+- S1 entry requires current `M1_MA[3] > M1_MA[4]` for buys and `M1_MA[3] < M1_MA[4]` for sells.
+- S2 entry requires current `M1_MA[5] > M1_MA[6]` for buys and `M1_MA[5] < M1_MA[6]` for sells.
+- S3 entry requires current `M1_MA[10] > M1_MA[11]` for buys and `M1_MA[10] < M1_MA[11]` for sells.
+- `query_debug.txt` records current base and macro confirmation values before entry, and records `DETERMINISTIC_BASE_EXPIRED` when M1 delayed slope no longer confirms.
+- Compile at sprint end with 0 errors and 0 warnings.
+
+### Task 13.1: Add Current Base Slope Helper
+
+- **Location**:
+  - `services/trading_signals/market_signal_filters.mqh`
+- **Description**: Add a deterministic current-base confirmation helper that uses the strategy delay directly rather than `extremum_shift + delay`.
+- **Dependencies**: Sprint 12.
+- **Acceptance Criteria**:
+  - Helper uses `CopyDeterministicMaSlopeValues(DETERMINISTIC_BASE_TIMEFRAME, base_delay, ...)`.
+  - Helper returns bullish confirmation only for `ma_now > ma_prev`.
+  - Helper returns bearish confirmation only for `ma_now < ma_prev`.
+- **Validation**:
+  - Static review.
+  - Compile.
+
+### Task 13.2: Gate Pending Entry With Current Base Slope
+
+- **Location**:
+  - `services/trading_signals/execution_controller.mqh`
+- **Description**: Revalidate current delayed M1 base slope after entry trigger and before broker execution.
+- **Dependencies**: Task 13.1.
+- **Acceptance Criteria**:
+  - Pending entry expires with `DETERMINISTIC_BASE_EXPIRED` when current delayed M1 slope no longer confirms.
+  - Macro confirmation remains required before broker execution.
+  - Broker-aware execution gates remain unchanged and still run after confirmations pass.
+- **Validation**:
+  - Static review.
+  - Compile.
+
+### Task 13.3: Add Entry Confirmation Telemetry
+
+- **Location**:
+  - `services/trading_signals/execution_logging.mqh`
+  - `services/trading_signals/execution_controller.mqh`
+- **Description**: Log current base and macro slope values for successful and failed pending-entry confirmations.
+- **Dependencies**: Task 13.2.
+- **Acceptance Criteria**:
+  - `DETERMINISTIC_ENTRY_CONFIRM` includes base shift, base MA pair, macro shift, macro MA pair, trigger, stop, `close_0`, `high_1`, and `low_1`.
+  - `DETERMINISTIC_BASE_EXPIRED` includes the same confirmation context and closes the pending signal.
+  - `DETERMINISTIC_MACRO_EXPIRED` includes the same confirmation context when macro confirmation fails.
+- **Validation**:
+  - Static review.
+  - Compile.
+  - Human-in-the-loop query debug check with `Enable_File_Logs=true`.
+
 ## Testing Strategy
 
 - Use static sweeps after cleanup tasks:
@@ -955,6 +1067,14 @@ $log = Join-Path $mt5Root "MQL5\Experts\HFT_Grid_AI\logs\compile\deterministic-s
   - `DETERMINISTIC_ENTRY_REFRESH` appears between `DETERMINISTIC_SIGNAL_INIT` and `DETERMINISTIC_ENTRY` when newer M1 anchors improve the pending trigger.
   - `DETERMINISTIC_ENTRY` uses the latest refreshed `raw_trigger`.
   - `raw_stop` remains the source extremum price through refresh, entry, TP, or SL.
+- Use human-in-the-loop visual and query debug checks after Sprint 12:
+  - Expired pending signals emit `DETERMINISTIC_SIGNAL_EXPIRED`.
+  - Closed or expired deterministic signals leave no stale chart-level lines.
+  - Deterministic stop anchors appear as SL/stop lines, not as misleading `NEXT` lines.
+- Use human-in-the-loop query debug checks after Sprint 13:
+  - `DETERMINISTIC_ENTRY_CONFIRM` appears before valid entries and includes current delayed M1 slope values.
+  - `DETERMINISTIC_BASE_EXPIRED` appears when current delayed M1 slope changes against a pending signal before entry.
+  - Entry is sent only after current base and macro confirmation both pass.
 
 ## Potential Risks And Gotchas
 
@@ -972,6 +1092,8 @@ $log = Join-Path $mt5Root "MQL5\Experts\HFT_Grid_AI\logs\compile\deterministic-s
 - **Telemetry noise**: Per-tick source logs can become large. Mitigation: use changed-state query debug logs for source audits and full logs only for actual candidates/lifecycle events.
 - **Pending trigger drift**: Moving the trigger after signal creation can desynchronize risk, TP, lot sizing, and chart lines. Mitigation: refresh all pending geometry fields atomically and skip refresh when any recalculation fails.
 - **Same-tick refresh and entry**: A tick may both improve the pending trigger and satisfy the breakout. Mitigation: refresh first, then evaluate entry against the refreshed trigger.
+- **Visual cleanup blind spots**: Chart objects not tracked by the visualization cache can survive signal removal. Mitigation: route level drawing through tracked updates and directly clean expired pending signals.
+- **Entry confirmation drift**: A signal can be valid at the source extremum but invalid by current delayed M1 slope at entry time. Mitigation: add a current-base confirmation gate immediately before broker execution.
 
 No additional product questions are blocking this plan. The remaining unknowns are implementation discoveries, especially the exact magic-number license contract, whether all old range/grid code can be deleted in one sprint without forcing a larger frontend rewrite, and the exact lifecycle policy for EA-opened macro charts after manual user interaction.
 
