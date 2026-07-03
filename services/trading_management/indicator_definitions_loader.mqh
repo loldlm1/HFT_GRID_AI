@@ -81,11 +81,35 @@ void LoadAllStructStochIndicators()
       continue;
     }
 
-    Print("LOADED STRUCTURE INDICATOR SUCCESSFULLY: ", EnumToString(trend_timeframe),
-          " | PERIOD: ", struct_stoch_indicator_handle_loaded.indicator_period);
+    if(Enable_Logs)
+    {
+      Print("LOADED STRUCTURE INDICATOR SUCCESSFULLY: ", EnumToString(trend_timeframe),
+            " | PERIOD: ", struct_stoch_indicator_handle_loaded.indicator_period);
+    }
 
     AddElementToArray(ExtStructStochIndicatorsHandle, struct_stoch_indicator_handle_loaded);
   }
+}
+
+void ReleaseAllStructStochIndicators()
+{
+  int total = ArraySize(ExtStructStochIndicatorsHandle);
+  for(int i = 0; i < total; i++)
+  {
+    if(ExtStructStochIndicatorsHandle[i].indicator_handle != INVALID_HANDLE)
+    {
+      IndicatorRelease(ExtStructStochIndicatorsHandle[i].indicator_handle);
+      ExtStructStochIndicatorsHandle[i].indicator_handle = INVALID_HANDLE;
+    }
+
+    if(ExtStructStochIndicatorsHandle[i].overlay_indicator_handle != INVALID_HANDLE)
+    {
+      IndicatorRelease(ExtStructStochIndicatorsHandle[i].overlay_indicator_handle);
+      ExtStructStochIndicatorsHandle[i].overlay_indicator_handle = INVALID_HANDLE;
+    }
+  }
+
+  ArrayResize(ExtStructStochIndicatorsHandle, 0);
 }
 
 void LoadAllIndicatorDefinitions()
@@ -94,13 +118,23 @@ void LoadAllIndicatorDefinitions()
   LoadStructureFibonacciLevels(FOUNDATION_STRUCTURE_FIBONACCI_LEVELS,
                                "23.6,38.2,50.0,61.8,78.6,100.0");
 
-  ArrayResize(ExtStructStochIndicatorsHandle, 0);
+  ReleaseAllStructStochIndicators();
   LoadAllStructStochIndicators();
 
-  PrintFormat("Strategy context | TF=%s | StructurePeriod=%d | Direction=%s",
-              EnumToString(Strategy_Timeframe),
-              ResolveStochStructurePeriod(),
-              EnumToString(Strategy_Direction_Mode));
+  if(Enable_Logs)
+  {
+    PrintFormat("Strategy context | TF=%s | StructurePeriod=%d | Direction=%s",
+                EnumToString(Strategy_Timeframe),
+                ResolveStochStructurePeriod(),
+                EnumToString(Strategy_Direction_Mode));
+  }
+}
+
+void ReleaseAllIndicatorDefinitions()
+{
+  ReleaseAllStructStochIndicators();
+  ArrayResize(Strategy_TF_List, 0);
+  total_tf_list_load = 0;
 }
 
 #endif // _SERVICES_TRADING_MANAGEMENT_INDICATOR_DEFINITIONS_LOADER_MQH_

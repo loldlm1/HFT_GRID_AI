@@ -34,14 +34,13 @@ bool ResolveAtrRangeDistancePoints(const ENUM_TIMEFRAMES tf,
   if(atr_tf == PERIOD_CURRENT)
     atr_tf = PERIOD_M1;
 
-  int atr_handle = iATR(_Symbol, atr_tf, 5);
+  int atr_handle = ResolveExecutionAtrHandle(atr_tf, 5);
   if(atr_handle == INVALID_HANDLE)
     return false;
 
   double atr_values[];
   ArraySetAsSeries(atr_values, true);
   int copied = CopyBuffer(atr_handle, 0, 1, 1, atr_values); // closed candle: shift=1
-  IndicatorRelease(atr_handle);
 
   if(copied < 1)
     return false;

@@ -24,6 +24,7 @@
 #include "trading_signals/execution_lot_math.mqh"
 #include "trading_signals/execution_logging.mqh"
 #include "trading_signals/execution_lifecycle.mqh"
+#include "trading_signals/execution_indicator_cache.mqh"
 #include "trading_signals/execution_planner.mqh"
 #include "trading_signals/execution_controller.mqh"
 #include "trading_signals/tick_signals_manager.mqh"

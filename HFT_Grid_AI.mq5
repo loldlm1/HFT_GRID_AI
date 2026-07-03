@@ -127,6 +127,8 @@ void OnDeinit(const int reason)
 {
   LicenseServiceOnDeinit();
   EventKillTimer();
+  ReleaseAllIndicatorDefinitions();
+  ReleaseExecutionIndicatorCache();
 
   string removal_message = EALifecycleRemovalMessage();
   bool preserve_error_object = EALifecyclePreserveErrorObject();
