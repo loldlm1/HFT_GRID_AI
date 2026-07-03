@@ -4,7 +4,16 @@
 **Estimated Complexity**: Medium
 **Primary Output**: `AGENTS.md` and active docs aligned with the local Codex skill stack under `C:\Users\loldlm\.codex\skills`
 **Validation Policy**: Documentation/static review only; no MT5 compile unless production `.mq5` or `.mqh` files change
-**Status**: Planned
+**Status**: Completed
+
+## Completion Evidence
+
+- **Completed**: 2026-07-03.
+- **Sprint 1**: AGENTS skill-selection contract validated against the local skill stack and MQL5 safety/compile rules.
+- **Sprint 2**: README, architecture, addon, and product-copy docs validated for active/archived planning boundaries without leaking contributor-only workflow.
+- **Sprint 3**: the completed multi-phase planning file is absent, only this plan remains active under `docs/plans/`, and Phase 0-8 plans remain archived under `docs/plans/archive/refoundation-baseline-2026-07-03/`.
+- **Commit evidence**: structural archive/alignment changes are in commit `7aeca51`; this plan records final execution evidence.
+- **MT5 compile**: not run because this sprint batch is docs-only and no `.mq5` or `.mqh` files changed.
 
 ## Overview
 
@@ -193,7 +202,7 @@ Completed refoundation plans should remain archived. The completed roadmap file 
   - Removed feature claims remain absent.
 - **Validation**:
   ```powershell
-  rg "run_mql5_tests|TEST_PASS|TEST_FAIL|Candle Structure|Support Resistance|Grid Strategy|GRID_" AGENTS.md README.md docs --glob "!docs/plans/archive/**"
+  rg "run_mql5_tests|TEST_PASS|TEST_FAIL|Candle Structure|Support Resistance|Grid Strategy|GRID_" AGENTS.md README.md docs/architecture docs/addons docs/product_copy
   git diff --check
   git status --short
   ```

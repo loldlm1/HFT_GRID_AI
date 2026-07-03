@@ -4,7 +4,7 @@
 
 HFT Grid AI is being refounded as an MT5 Expert Advisor foundation for future strategy integration. The base product owns licensing, account controls, strategy context, risk controls, execution planning boundaries, and broker-aware safety checks.
 
-This guide describes the foundation baseline only. Final production strategy rules are out of scope until later roadmap phases.
+This guide describes the foundation baseline only. Final production strategy rules are out of scope until future strategy planning phases.
 
 ## Included Control Groups
 
