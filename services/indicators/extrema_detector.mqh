@@ -4,6 +4,30 @@
 #ifndef _MICROSERVICES_INDICATORS_EXTREMA_DETECTOR_MQH_
 #define _MICROSERVICES_INDICATORS_EXTREMA_DETECTOR_MQH_
 
+const int STRUCTURE_EXTREMA_COPY_DEPTH_MIN = 512;
+const int STRUCTURE_EXTREMA_COPY_DEPTH_MAX = 2048;
+const int STRUCTURE_EXTREMA_COPY_DEPTH_PERIOD_MULTIPLIER = 24;
+
+int ResolveStructureExtremaCopyDepth(const int max_depth,
+                                     const int indicator_period)
+{
+  int safe_depth = max_depth;
+  if(safe_depth < 13)
+    safe_depth = 13;
+
+  int safe_period = indicator_period;
+  if(safe_period < 3)
+    safe_period = 3;
+
+  int copy_depth = safe_depth * safe_period * STRUCTURE_EXTREMA_COPY_DEPTH_PERIOD_MULTIPLIER;
+  if(copy_depth < STRUCTURE_EXTREMA_COPY_DEPTH_MIN)
+    copy_depth = STRUCTURE_EXTREMA_COPY_DEPTH_MIN;
+  if(copy_depth > STRUCTURE_EXTREMA_COPY_DEPTH_MAX)
+    copy_depth = STRUCTURE_EXTREMA_COPY_DEPTH_MAX;
+
+  return copy_depth;
+}
+
 // Estructura de un extremo (pico/fondo) del oscilador
 struct OscillatorMarketStructure
 {
@@ -80,11 +104,13 @@ bool DetectMarketExtrema(
   initial_is_bottom   = false;
 
   // --- copiar buffers ---
-  int n_ext  = CopyBuffer(indicator_handle.indicator_handle, 0, 0, 4320, indicator_extremum_values);
-  int n_peak = CopyBuffer(indicator_handle.indicator_handle, 1, 0, 4320, indicator_peak_values);
-  int n_bot  = CopyBuffer(indicator_handle.indicator_handle, 2, 0, 4320, indicator_bottom_values);
-  int n_sext = CopyBuffer(indicator_handle.indicator_handle, 3, 0, 4320, indicator_stoch_extremum_values);
-  int n_main = CopyBuffer(indicator_handle.indicator_handle, 4, 0, 4320, indicator_main_values);
+  int copy_depth = ResolveStructureExtremaCopyDepth(max_depth,
+                                                    indicator_handle.indicator_period);
+  int n_ext  = CopyBuffer(indicator_handle.indicator_handle, 0, 0, copy_depth, indicator_extremum_values);
+  int n_peak = CopyBuffer(indicator_handle.indicator_handle, 1, 0, copy_depth, indicator_peak_values);
+  int n_bot  = CopyBuffer(indicator_handle.indicator_handle, 2, 0, copy_depth, indicator_bottom_values);
+  int n_sext = CopyBuffer(indicator_handle.indicator_handle, 3, 0, copy_depth, indicator_stoch_extremum_values);
+  int n_main = CopyBuffer(indicator_handle.indicator_handle, 4, 0, copy_depth, indicator_main_values);
 
   if(n_ext <= 0 || n_peak <= 0 || n_bot <= 0 || n_sext <= 0 || n_main <= 0)
   {
@@ -108,17 +134,25 @@ bool DetectMarketExtrema(
     OscillatorMarketStructure local_os_market_structure;
     OscillatorMarketStructure initial_os_market_structure;
 
+    // maximo estructuras configurables
+    if(total_signal_structures >= max_depth) break;
+
+    bool has_peak = (indicator_peak_values[i] != EMPTY_VALUE);
+    bool has_bottom = (indicator_bottom_values[i] != EMPTY_VALUE);
+    bool has_extremum = (indicator_extremum_values[i] != EMPTY_VALUE &&
+                         (has_peak || has_bottom));
+    bool initial_scan_active = (total_signal_structures == 0);
+    if(!initial_scan_active && !has_extremum)
+      continue;
+
     high_1  = iHigh(_Symbol, timeframe, i);
     low_1   = iLow(_Symbol, timeframe, i);
     time_1  = iTime(_Symbol, timeframe, i);
     stoch_1 = NormalizeDouble(indicator_main_values[i], 2);
 
-    // máximo estructuras configurables
-    if(total_signal_structures >= max_depth) break;
-
     // extremos actuales si es el primer ciclo
-    if(total_signal_structures == 0 && indicator_bottom_values[i] != EMPTY_VALUE) current_extremum_bottom = indicator_bottom_values[i];
-    if(total_signal_structures == 0 && indicator_peak_values[i]   != EMPTY_VALUE) current_extremum_peak   = indicator_peak_values[i];
+    if(total_signal_structures == 0 && has_bottom) current_extremum_bottom = indicator_bottom_values[i];
+    if(total_signal_structures == 0 && has_peak) current_extremum_peak = indicator_peak_values[i];
 
     // iniciales para bottom
     if(total_signal_structures == 0 && low_1 < signal_low_price)
@@ -140,7 +174,7 @@ bool DetectMarketExtrema(
     if(
       total_signal_structures      == 0           &&
       indicator_extremum_values[i] != EMPTY_VALUE &&
-      (indicator_peak_values[i] != EMPTY_VALUE || indicator_bottom_values[i] != EMPTY_VALUE)
+      (has_peak || has_bottom)
     ) {
       if(indicator_extremum_values[i] == indicator_peak_values[i])
       {
@@ -189,7 +223,7 @@ bool DetectMarketExtrema(
     if(
       total_signal_structures      >= 2           &&
       indicator_extremum_values[i] != EMPTY_VALUE &&
-      indicator_bottom_values[i]   != EMPTY_VALUE &&
+      has_bottom &&
       indicator_extremum_values[i] == indicator_bottom_values[i]
     ) {
       local_os_market_structure.extremum_low   = indicator_extremum_values[i];
@@ -205,7 +239,7 @@ bool DetectMarketExtrema(
     if(
       total_signal_structures      >= 2           &&
       indicator_extremum_values[i] != EMPTY_VALUE &&
-      indicator_peak_values[i]     != EMPTY_VALUE &&
+      has_peak &&
       indicator_extremum_values[i] == indicator_peak_values[i]
     ) {
       local_os_market_structure.extremum_high  = indicator_extremum_values[i];
