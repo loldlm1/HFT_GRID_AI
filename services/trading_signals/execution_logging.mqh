@@ -512,6 +512,51 @@ void ExecutionLogDeterministicSignalExpired(const SignalParams &signal_params,
   ExecutionAppendQueryDebugLog("DETERMINISTIC_SIGNAL_EXPIRED", message);
 }
 
+void ExecutionLogDeterministicEntryConfirmation(const string label,
+                                                const SignalParams &signal_params,
+                                                const ExecutionLegState &leg_state,
+                                                const int base_shift,
+                                                const bool base_ok,
+                                                const double base_ma_now,
+                                                const double base_ma_prev,
+                                                const int macro_shift,
+                                                const bool macro_ok,
+                                                const double macro_ma_now,
+                                                const double macro_ma_prev,
+                                                const double close_0,
+                                                const double high_1,
+                                                const double low_1)
+{
+  string direction = (signal_params.signal_type == BULLISH) ? "BULLISH" : "BEARISH";
+  int display_level = ExecutionDisplayLegNumber(leg_state.level_index);
+  string message = StringFormat("strategy=%s|dir=%s|L%d|status=%s|source_slot=%d|source_confirmed=%s|source_type=%s|source_time=%s|source_price=%.5f|base_live_shift=%d|base_live_ok=%s|base_live_ma_now=%.5f|base_live_ma_prev=%.5f|macro_shift=%d|macro_ok=%s|macro_ma_now=%.5f|macro_ma_prev=%.5f|raw_trigger=%.5f|raw_stop=%.5f|entry_ref=%.5f|close_0=%.5f|high_1=%.5f|low_1=%.5f",
+                                signal_params.strategy_label,
+                                direction,
+                                display_level,
+                                EnumToString(leg_state.status),
+                                signal_params.source_extremum_slot,
+                                ExecutionBoolToken(signal_params.source_extremum_confirmed),
+                                ExecutionSourceExtremumTypeToken(signal_params),
+                                ExecutionSourceExtremumTimeToken(signal_params),
+                                signal_params.source_extremum_price,
+                                base_shift,
+                                ExecutionBoolToken(base_ok),
+                                base_ma_now,
+                                base_ma_prev,
+                                macro_shift,
+                                ExecutionBoolToken(macro_ok),
+                                macro_ma_now,
+                                macro_ma_prev,
+                                signal_params.raw_entry_trigger_price,
+                                signal_params.raw_stop_anchor_price,
+                                leg_state.entry_reference_price,
+                                close_0,
+                                high_1,
+                                low_1);
+
+  ExecutionAppendQueryDebugLog(label, message);
+}
+
 void ExecutionLogEvent(const string label,
                   const SignalParams &signal_params,
                   const ExecutionLegState &leg_state)

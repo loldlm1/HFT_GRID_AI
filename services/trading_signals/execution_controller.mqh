@@ -171,6 +171,14 @@ bool DeterministicMacroStillConfirms(const SignalParams &signal_params)
                                                 macro_prev);
 }
 
+int ResolveDeterministicEntryBaseShift(const SignalParams &signal_params)
+{
+  int base_shift = signal_params.strategy_base_delay;
+  if(base_shift <= 0)
+    base_shift = DeterministicStrategyBaseDelay(signal_params.strategy_id);
+  return base_shift;
+}
+
 double ResolveDeterministicPendingEntryCandidate(const SignalTypes direction,
                                                  const double high_1,
                                                  const double low_1)
@@ -394,14 +402,78 @@ void UpdateDeterministicExecutionLifecycle(SignalParams &signal_params)
                                     signal_params.raw_entry_trigger_price))
       return;
 
-    if(!DeterministicMacroStillConfirms(signal_params))
+    double base_ma_now = 0.0;
+    double base_ma_prev = 0.0;
+    double macro_ma_now = 0.0;
+    double macro_ma_prev = 0.0;
+    int base_shift = ResolveDeterministicEntryBaseShift(signal_params);
+    bool base_confirms = EvaluateDeterministicCurrentBaseConfirmation(signal_params.strategy_id,
+                                                                      signal_params.signal_type,
+                                                                      base_ma_now,
+                                                                      base_ma_prev);
+    bool macro_confirms = EvaluateDeterministicMacroConfirmation(signal_params.strategy_id,
+                                                                 signal_params.signal_type,
+                                                                 macro_ma_now,
+                                                                 macro_ma_prev);
+
+    if(!base_confirms)
     {
       leg_state.status = EXECUTION_LEG_COMPLETED;
       signal_params.execution_legs[leg_index] = leg_state;
       signal_params.signal_state = CLOSED;
-      ExecutionLogEvent("DETERMINISTIC_MACRO_EXPIRED", signal_params, leg_state);
+      ExecutionLogDeterministicEntryConfirmation("DETERMINISTIC_BASE_EXPIRED",
+                                                 signal_params,
+                                                 leg_state,
+                                                 base_shift,
+                                                 base_confirms,
+                                                 base_ma_now,
+                                                 base_ma_prev,
+                                                 DETERMINISTIC_MACRO_DELAY,
+                                                 macro_confirms,
+                                                 macro_ma_now,
+                                                 macro_ma_prev,
+                                                 close_0,
+                                                 high_1,
+                                                 low_1);
       return;
     }
+
+    if(!macro_confirms)
+    {
+      leg_state.status = EXECUTION_LEG_COMPLETED;
+      signal_params.execution_legs[leg_index] = leg_state;
+      signal_params.signal_state = CLOSED;
+      ExecutionLogDeterministicEntryConfirmation("DETERMINISTIC_MACRO_EXPIRED",
+                                                 signal_params,
+                                                 leg_state,
+                                                 base_shift,
+                                                 base_confirms,
+                                                 base_ma_now,
+                                                 base_ma_prev,
+                                                 DETERMINISTIC_MACRO_DELAY,
+                                                 macro_confirms,
+                                                 macro_ma_now,
+                                                 macro_ma_prev,
+                                                 close_0,
+                                                 high_1,
+                                                 low_1);
+      return;
+    }
+
+    ExecutionLogDeterministicEntryConfirmation("DETERMINISTIC_ENTRY_CONFIRM",
+                                               signal_params,
+                                               leg_state,
+                                               base_shift,
+                                               base_confirms,
+                                               base_ma_now,
+                                               base_ma_prev,
+                                               DETERMINISTIC_MACRO_DELAY,
+                                               macro_confirms,
+                                               macro_ma_now,
+                                               macro_ma_prev,
+                                               close_0,
+                                               high_1,
+                                               low_1);
 
     double requested_lot = leg_state.lot_size;
     double normalized_volume = NormalizeVolumeForSymbol(_Symbol, requested_lot);

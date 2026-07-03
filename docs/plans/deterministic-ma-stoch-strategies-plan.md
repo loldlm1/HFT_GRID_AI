@@ -978,7 +978,7 @@ $log = Join-Path $mt5Root "MQL5\Experts\HFT_Grid_AI\logs\compile\deterministic-s
 
 **Goal**: Require the current M1 MA slope delayed by strategy offset to still confirm direction when a pending deterministic signal is about to execute.
 **Commit**: `fix: confirm current delayed base slope`
-**Status**: Pending.
+**Status**: Completed on 2026-07-03. Compile passed with 0 errors and 0 warnings; runtime confirmation remains human-in-the-loop through `query_debug.txt`.
 **Demo/Validation**:
 - S1 entry requires current `M1_MA[3] > M1_MA[4]` for buys and `M1_MA[3] < M1_MA[4]` for sells.
 - S2 entry requires current `M1_MA[5] > M1_MA[6]` for buys and `M1_MA[5] < M1_MA[6]` for sells.

@@ -791,6 +791,33 @@ bool EvaluateDeterministicBaseSetup(const int strategy_id,
   return false;
 }
 
+bool EvaluateDeterministicCurrentBaseConfirmation(const int strategy_id,
+                                                  const SignalTypes direction,
+                                                  double &ma_now_out,
+                                                  double &ma_prev_out)
+{
+  ma_now_out = 0.0;
+  ma_prev_out = 0.0;
+
+  int base_delay = DeterministicStrategyBaseDelay(strategy_id);
+  if(base_delay <= 0)
+    return false;
+
+  if(!CopyDeterministicMaSlopeValues(DETERMINISTIC_BASE_TIMEFRAME,
+                                     base_delay,
+                                     ma_now_out,
+                                     ma_prev_out))
+    return false;
+
+  if(direction == BULLISH)
+    return (ma_now_out > ma_prev_out);
+
+  if(direction == BEARISH)
+    return (ma_now_out < ma_prev_out);
+
+  return false;
+}
+
 bool EvaluateDeterministicMacroConfirmation(const int strategy_id,
                                             const SignalTypes direction,
                                             double &ma_now_out,
