@@ -144,18 +144,28 @@ string ExecutionComposeLegComment(const SignalParams &signal_params,
                                const ExecutionLegState &leg_state)
 {
   string direction_label = (signal_params.signal_type == BULLISH) ? "B" : "S";
-  datetime entry_time    = signal_params.entry_time;
-  string time_label      = TimeToString(entry_time, TIME_MINUTES);
-  ENUM_TIMEFRAMES tf = signal_params.strategy_timeframe;
-  if(tf == PERIOD_CURRENT)
-    tf = Strategy_Timeframe;
-  string tf_label = EnumToString(tf);
+  long entry_token = (long)signal_params.entry_time;
+  if(entry_token < 0)
+    entry_token = 0;
+  entry_token = entry_token % 1000000;
+  string strategy_token = signal_params.strategy_label;
+  if(strategy_token == "")
+    strategy_token = DeterministicStrategyLabel(signal_params.strategy_id);
+  if(strategy_token == "")
+    strategy_token = "BASE";
   int display_level = ExecutionDisplayLegNumber(leg_state.level_index);
-  return StringFormat("EXEC_%s_%s_%s_L%d",
+  return StringFormat("EX_%s_%s_%d_L%d",
+                      strategy_token,
                       direction_label,
-                      tf_label,
-                      time_label,
+                      (int)entry_token,
                       display_level);
+}
+
+int ResolveExecutionMagicNumberForSignal(const SignalParams &signal_params)
+{
+  // Keep the license-verified base magic as the broker scope until the license
+  // contract explicitly allows strategy-derived magic numbers.
+  return g_magic_number;
 }
 
 int CountPositionOpeningExecutionLegs(const SignalParams &signal_params)

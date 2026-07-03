@@ -138,6 +138,29 @@ bool SignalMatchesStructureIdentity(const SignalParams &signal_params,
   return (signal_params.context_structure_snapshot_time == structure_time);
 }
 
+bool SignalMatchesDeterministicIdentity(const SignalParams &signal_params,
+                                        const int strategy_id,
+                                        const SignalTypes direction,
+                                        const datetime extremum_time)
+{
+  if(extremum_time <= 0)
+    return false;
+
+  if(signal_params.signal_state == CLOSED)
+    return false;
+
+  if(signal_params.strategy_id != strategy_id)
+    return false;
+
+  if(signal_params.signal_type != direction)
+    return false;
+
+  if(signal_params.source_extremum_time <= 0)
+    return false;
+
+  return (signal_params.source_extremum_time == extremum_time);
+}
+
 bool HasRunningSignalForStructure(const StrategyContextTypes context,
                                   const SignalTypes direction,
                                   const datetime structure_time)
@@ -162,6 +185,44 @@ bool HasRunningSignalForStructure(const StrategyContextTypes context,
     for(int i = 0; i < total; i++)
     {
       if(SignalMatchesStructureIdentity(running_bearish_signals[i], context, structure_time))
+        return true;
+    }
+    return false;
+  }
+
+  return false;
+}
+
+bool HasRunningDeterministicSignal(const int strategy_id,
+                                   const SignalTypes direction,
+                                   const datetime extremum_time)
+{
+  if(extremum_time <= 0)
+    return false;
+
+  if(direction == BULLISH)
+  {
+    int total = ArraySize(running_bullish_signals);
+    for(int i = 0; i < total; i++)
+    {
+      if(SignalMatchesDeterministicIdentity(running_bullish_signals[i],
+                                            strategy_id,
+                                            direction,
+                                            extremum_time))
+        return true;
+    }
+    return false;
+  }
+
+  if(direction == BEARISH)
+  {
+    int total = ArraySize(running_bearish_signals);
+    for(int i = 0; i < total; i++)
+    {
+      if(SignalMatchesDeterministicIdentity(running_bearish_signals[i],
+                                            strategy_id,
+                                            direction,
+                                            extremum_time))
         return true;
     }
     return false;

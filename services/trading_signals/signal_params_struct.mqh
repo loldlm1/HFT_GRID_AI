@@ -64,6 +64,13 @@ struct SignalParams
 {
   SignalTypes                signal_type;
   SignalStates               signal_state;
+  int                        strategy_id;
+  string                     strategy_label;
+  ENUM_TIMEFRAMES            strategy_base_timeframe;
+  ENUM_TIMEFRAMES            strategy_macro_timeframe;
+  int                        strategy_base_delay;
+  int                        strategy_macro_delay;
+  bool                       deterministic_strategy;
   string                     execution_sequence_id;
   StrategyContextTypes       strategy_context;
   ENUM_TIMEFRAMES            strategy_timeframe;
@@ -80,6 +87,15 @@ struct SignalParams
   int                        signal_lot_sequence_step;
   datetime                   entry_time;
   datetime                   close_time;
+  datetime                   source_extremum_time;
+  bool                       source_extremum_is_peak;
+  double                     source_extremum_price;
+  double                     source_extremum_high;
+  double                     source_extremum_low;
+  double                     raw_entry_trigger_price;
+  double                     raw_stop_anchor_price;
+  double                     raw_take_profit_price;
+  double                     raw_risk_distance;
   double                     realized_profit;
   double                     realized_closed_volume;
   double                     remaining_open_volume;
@@ -113,6 +129,13 @@ struct SignalParams
   {
     signal_type                = NO_SIGNAL;
     signal_state               = WAITING;
+    strategy_id                = DETERMINISTIC_STRATEGY_NONE;
+    strategy_label             = "BASE";
+    strategy_base_timeframe    = PERIOD_CURRENT;
+    strategy_macro_timeframe   = PERIOD_CURRENT;
+    strategy_base_delay        = 0;
+    strategy_macro_delay       = 0;
+    deterministic_strategy     = false;
     execution_sequence_id       = "";
     strategy_context           = CONTEXT_SLOT_BASE;
     strategy_timeframe         = PERIOD_CURRENT;
@@ -129,6 +152,15 @@ struct SignalParams
     signal_lot_sequence_step   = 0;
     entry_time                 = 0;
     close_time                 = 0;
+    source_extremum_time       = 0;
+    source_extremum_is_peak    = false;
+    source_extremum_price      = 0.0;
+    source_extremum_high       = 0.0;
+    source_extremum_low        = 0.0;
+    raw_entry_trigger_price    = 0.0;
+    raw_stop_anchor_price      = 0.0;
+    raw_take_profit_price      = 0.0;
+    raw_risk_distance          = 0.0;
     realized_profit            = 0.0;
     realized_closed_volume     = 0.0;
     remaining_open_volume      = 0.0;
@@ -152,6 +184,13 @@ struct SignalParams
   {
     signal_type                = signal_params.signal_type;
     signal_state               = signal_params.signal_state;
+    strategy_id                = signal_params.strategy_id;
+    strategy_label             = signal_params.strategy_label;
+    strategy_base_timeframe    = signal_params.strategy_base_timeframe;
+    strategy_macro_timeframe   = signal_params.strategy_macro_timeframe;
+    strategy_base_delay        = signal_params.strategy_base_delay;
+    strategy_macro_delay       = signal_params.strategy_macro_delay;
+    deterministic_strategy     = signal_params.deterministic_strategy;
     execution_sequence_id       = signal_params.execution_sequence_id;
     strategy_context           = signal_params.strategy_context;
     strategy_timeframe         = signal_params.strategy_timeframe;
@@ -168,6 +207,15 @@ struct SignalParams
     signal_lot_sequence_step   = signal_params.signal_lot_sequence_step;
     entry_time                 = signal_params.entry_time;
     close_time                 = signal_params.close_time;
+    source_extremum_time       = signal_params.source_extremum_time;
+    source_extremum_is_peak    = signal_params.source_extremum_is_peak;
+    source_extremum_price      = signal_params.source_extremum_price;
+    source_extremum_high       = signal_params.source_extremum_high;
+    source_extremum_low        = signal_params.source_extremum_low;
+    raw_entry_trigger_price    = signal_params.raw_entry_trigger_price;
+    raw_stop_anchor_price      = signal_params.raw_stop_anchor_price;
+    raw_take_profit_price      = signal_params.raw_take_profit_price;
+    raw_risk_distance          = signal_params.raw_risk_distance;
     realized_profit            = signal_params.realized_profit;
     realized_closed_volume     = signal_params.realized_closed_volume;
     remaining_open_volume      = signal_params.remaining_open_volume;
@@ -195,6 +243,19 @@ struct SignalParams
       execution_legs[n] = signal_params.execution_legs[n];
   }
 };
+
+string BuildDeterministicSignalSequenceId(const int strategy_id,
+                                          const SignalTypes direction,
+                                          const datetime entry_time,
+                                          const datetime structure_time)
+{
+  string direction_token = (direction == BULLISH) ? "B" : "S";
+  return StringFormat("%s_%s_%d_%d",
+                      DeterministicStrategyLabel(strategy_id),
+                      direction_token,
+                      (int)entry_time,
+                      (int)structure_time);
+}
 
 string BuildSignalSequenceId(const SignalTypes direction,
                              const datetime entry_time,
