@@ -14,7 +14,6 @@ struct StochasticStructure;
 struct StochasticMarketStructure;
 struct BodyMAStructure;
 struct ExtremumStatistics;
-struct RetestZoneStatistics;
 struct OscillatorMarketStructure;
 
 // External globals that will be defined in the main EA or service layer

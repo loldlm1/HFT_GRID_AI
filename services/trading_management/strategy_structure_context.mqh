@@ -76,13 +76,6 @@ inline bool StructureTypeFiltersRequested(const StrategyStructureLayerContext &)
   return false;
 }
 
-inline int ResolveRetestRequirement(const StrategyStructureLayerContext &,
-                                    const SignalTypes,
-                                    const int)
-{
-  return 0;
-}
-
 inline bool AnyStructureGuardEnabled()
 {
   return (ResolveStochStructurePeriod() >= 3 && StrategyRangeUsesStructure());

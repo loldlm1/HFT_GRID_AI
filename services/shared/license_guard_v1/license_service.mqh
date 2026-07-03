@@ -288,11 +288,6 @@ bool LicenseHasAddon(const string)
   return true;
 }
 
-bool LicenseHasAnyCompoundFamilyAddon()
-{
-  return true;
-}
-
 int LicenseGrantedAddonCount()
 {
   return 0;
