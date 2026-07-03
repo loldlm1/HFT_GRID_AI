@@ -424,6 +424,56 @@ string ExecutionSourceExtremumTimeToken(const SignalParams &signal_params)
   return TimeToString(signal_params.source_extremum_time, TIME_DATE|TIME_SECONDS);
 }
 
+void ExecutionLogDeterministicEntryRefresh(const SignalParams &signal_params,
+                                           const ExecutionLegState &leg_state,
+                                           const double old_trigger,
+                                           const double candidate_trigger,
+                                           const double new_trigger,
+                                           const double close_0,
+                                           const double high_1,
+                                           const double low_1,
+                                           const double risk_before_points,
+                                           const double risk_after_points,
+                                           const double tp_before,
+                                           const double tp_after,
+                                           const double lot_before,
+                                           const double lot_after,
+                                           const string reason)
+{
+  string direction = (signal_params.signal_type == BULLISH) ? "BULLISH" : "BEARISH";
+  int display_level = ExecutionDisplayLegNumber(leg_state.level_index);
+  string message = StringFormat("strategy=%s|dir=%s|L%d|source_slot=%d|source_confirmed=%s|source_type=%s|source_time=%s|source_price=%.5f|source_high=%.5f|source_low=%.5f|old_trigger=%.5f|candidate_trigger=%.5f|new_trigger=%.5f|stop=%.5f|close_0=%.5f|high_1=%.5f|low_1=%.5f|risk_before_pts=%.2f|risk_after_pts=%.2f|tp_before=%.5f|tp_after=%.5f|lot_before=%.2f|lot_after=%.2f|reason=%s",
+                                signal_params.strategy_label,
+                                direction,
+                                display_level,
+                                signal_params.source_extremum_slot,
+                                ExecutionBoolToken(signal_params.source_extremum_confirmed),
+                                ExecutionSourceExtremumTypeToken(signal_params),
+                                ExecutionSourceExtremumTimeToken(signal_params),
+                                signal_params.source_extremum_price,
+                                signal_params.source_extremum_high,
+                                signal_params.source_extremum_low,
+                                old_trigger,
+                                candidate_trigger,
+                                new_trigger,
+                                signal_params.raw_stop_anchor_price,
+                                close_0,
+                                high_1,
+                                low_1,
+                                risk_before_points,
+                                risk_after_points,
+                                tp_before,
+                                tp_after,
+                                lot_before,
+                                lot_after,
+                                reason);
+
+  string state_key = ExecutionQueryDebugSignalKey(signal_params) + "|L" + IntegerToString(display_level);
+  ExecutionAppendQueryDebugChangedLog("DETERMINISTIC_ENTRY_REFRESH",
+                                      state_key,
+                                      message);
+}
+
 void ExecutionLogEvent(const string label,
                   const SignalParams &signal_params,
                   const ExecutionLegState &leg_state)

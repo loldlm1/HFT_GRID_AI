@@ -861,6 +861,63 @@ $log = Join-Path $mt5Root "MQL5\Experts\HFT_Grid_AI\logs\compile\deterministic-s
   - Compile.
   - Human-in-the-loop tester run with current/confirmed source audit logs.
 
+## Sprint 11: Dynamic Pending Entry Anchor
+
+**Goal**: Keep deterministic SL anchored to the selected Stoch Structure extremum while allowing the pending entry trigger to move to the latest favorable M1 breakout anchor before broker exposure exists.
+**Commit**: `fix: refresh deterministic pending entry anchor`
+**Status**: Completed on 2026-07-03. Compile passed with 0 errors and 0 warnings; runtime confirmation remains human-in-the-loop through `query_debug.txt`.
+**Demo/Validation**:
+- Pending deterministic sells keep the PEAK-derived SL immutable and can refresh `raw_trigger` upward from newer M1 `low_1` values that remain below the stop anchor.
+- Pending deterministic buys keep the BOTTOM-derived SL immutable and can refresh `raw_trigger` downward from newer M1 `high_1` values that remain above the stop anchor.
+- `query_debug.txt` records `DETERMINISTIC_ENTRY_REFRESH` only when the pending trigger changes, including old/new trigger, stop anchor, M1 rates, risk before/after, lot before/after, TP before/after, and refresh reason.
+- Broker-exposed legs never refresh their entry trigger.
+- Compile at sprint end with 0 errors and 0 warnings.
+
+### Task 11.1: Refresh Pending Entry Trigger Before Activation
+
+- **Location**:
+  - `services/trading_signals/execution_controller.mqh`
+- **Description**: Add a deterministic pending-entry refresh helper that evaluates the latest M1 `high_1`/`low_1` before the live `close_0` breakout check.
+- **Dependencies**: Sprint 10.
+- **Acceptance Criteria**:
+  - Refresh runs only for deterministic `EXECUTION_LEG_PENDING` legs without broker exposure.
+  - BEARISH refresh accepts only `low_1 > current_trigger && low_1 < stop_anchor`.
+  - BULLISH refresh accepts only `high_1 < current_trigger && high_1 > stop_anchor`.
+  - `raw_stop_anchor_price` and source extremum metadata remain unchanged.
+- **Validation**:
+  - Static review of pending versus active lifecycle checks.
+  - Compile.
+
+### Task 11.2: Recompute Pending Risk Geometry On Refresh
+
+- **Location**:
+  - `services/trading_signals/execution_controller.mqh`
+- **Description**: When the trigger refreshes, recompute the pending leg's entry reference, TP, risk distance, broker-distance-adjusted risk points, base lot, and signal-level execution reference fields.
+- **Dependencies**: Task 11.1.
+- **Acceptance Criteria**:
+  - `signal.raw_entry_trigger_price`, `signal.entry_price`, `signal.execution_entry_reference_price`, `leg.entry_reference_price`, `leg.take_profit_price`, `leg.initial_take_profit_price`, `leg.lot_size`, `leg.initial_lot_size`, `signal.raw_take_profit_price`, and risk-distance fields stay aligned.
+  - Existing broker spread/stops/freeze/margin gates remain the final authority before order send.
+  - Refresh aborts without mutation if the refreshed trigger cannot produce valid risk, TP, or lot values.
+- **Validation**:
+  - Static review of all updated fields.
+  - Compile.
+
+### Task 11.3: Add Entry Refresh Telemetry
+
+- **Location**:
+  - `services/trading_signals/execution_controller.mqh`
+  - `services/trading_signals/execution_logging.mqh`
+- **Description**: Emit changed-state query debug telemetry for each accepted pending-entry refresh.
+- **Dependencies**: Task 11.2.
+- **Acceptance Criteria**:
+  - Log label is `DETERMINISTIC_ENTRY_REFRESH`.
+  - Log includes strategy, direction, source slot/type/time/price, old trigger, candidate trigger, new trigger, stop, `close_0`, `high_1`, `low_1`, risk before/after, TP before/after, lot before/after, and reason.
+  - Repeated ticks with the same refreshed state do not spam the file.
+- **Validation**:
+  - Static review.
+  - Compile.
+  - Human-in-the-loop tester run with `Enable_File_Logs=true`.
+
 ## Testing Strategy
 
 - Use static sweeps after cleanup tasks:
@@ -894,6 +951,10 @@ $log = Join-Path $mt5Root "MQL5\Experts\HFT_Grid_AI\logs\compile\deterministic-s
 - Use human-in-the-loop query debug checks after Sprint 10:
   - New deterministic candidates use `source_slot=0`.
   - Pending signals tied to stale current extrema disappear before entry.
+- Use human-in-the-loop query debug checks after Sprint 11:
+  - `DETERMINISTIC_ENTRY_REFRESH` appears between `DETERMINISTIC_SIGNAL_INIT` and `DETERMINISTIC_ENTRY` when newer M1 anchors improve the pending trigger.
+  - `DETERMINISTIC_ENTRY` uses the latest refreshed `raw_trigger`.
+  - `raw_stop` remains the source extremum price through refresh, entry, TP, or SL.
 
 ## Potential Risks And Gotchas
 
@@ -909,6 +970,8 @@ $log = Join-Path $mt5Root "MQL5\Experts\HFT_Grid_AI\logs\compile\deterministic-s
 - **Asynchronous chart changes**: Retargeting or opening charts can complete after the call returns. Mitigation: verify `ChartSymbol` and `ChartPeriod` before adding indicators and retry later if needed.
 - **Current extremum repaint**: Slot `0` can move while the structure is forming. Mitigation: treat slot/type/time/price as source identity and expire pending signals when it changes.
 - **Telemetry noise**: Per-tick source logs can become large. Mitigation: use changed-state query debug logs for source audits and full logs only for actual candidates/lifecycle events.
+- **Pending trigger drift**: Moving the trigger after signal creation can desynchronize risk, TP, lot sizing, and chart lines. Mitigation: refresh all pending geometry fields atomically and skip refresh when any recalculation fails.
+- **Same-tick refresh and entry**: A tick may both improve the pending trigger and satisfy the breakout. Mitigation: refresh first, then evaluate entry against the refreshed trigger.
 
 No additional product questions are blocking this plan. The remaining unknowns are implementation discoveries, especially the exact magic-number license contract, whether all old range/grid code can be deleted in one sprint without forcing a larger frontend rewrite, and the exact lifecycle policy for EA-opened macro charts after manual user interaction.
 

@@ -171,6 +171,167 @@ bool DeterministicMacroStillConfirms(const SignalParams &signal_params)
                                                 macro_prev);
 }
 
+double ResolveDeterministicPendingEntryCandidate(const SignalTypes direction,
+                                                 const double high_1,
+                                                 const double low_1)
+{
+  if(direction == BULLISH)
+    return high_1;
+  if(direction == BEARISH)
+    return low_1;
+
+  return 0.0;
+}
+
+bool DeterministicPendingEntryAnchorImproves(const SignalTypes direction,
+                                            const double current_trigger,
+                                            const double candidate_trigger,
+                                            const double stop_anchor,
+                                            const double point_size)
+{
+  if(current_trigger <= 0.0 || candidate_trigger <= 0.0 || stop_anchor <= 0.0)
+    return false;
+
+  double tolerance = point_size;
+  if(tolerance <= 0.0)
+    tolerance = 0.0000001;
+
+  if(direction == BULLISH)
+  {
+    if(candidate_trigger <= stop_anchor + tolerance)
+      return false;
+    return (candidate_trigger < current_trigger - tolerance);
+  }
+
+  if(direction == BEARISH)
+  {
+    if(candidate_trigger >= stop_anchor - tolerance)
+      return false;
+    return (candidate_trigger > current_trigger + tolerance);
+  }
+
+  return false;
+}
+
+bool DeterministicPendingEntryRiskBrokerSafe(const double entry_trigger,
+                                            const double stop_anchor,
+                                            const double point_size,
+                                            double &risk_points_out)
+{
+  risk_points_out = 0.0;
+
+  if(entry_trigger <= 0.0 || stop_anchor <= 0.0 || point_size <= 0.0)
+    return false;
+
+  double raw_risk_points = MathAbs(entry_trigger - stop_anchor) / point_size;
+  if(raw_risk_points <= 0.0)
+    return false;
+
+  double broker_safe_points = EnforceBrokerDistance(g_symbol_constraints,
+                                                    raw_risk_points);
+  if(broker_safe_points > raw_risk_points + 0.0000001)
+    return false;
+
+  risk_points_out = broker_safe_points;
+  return (risk_points_out > 0.0);
+}
+
+bool RefreshDeterministicPendingEntryAnchor(SignalParams &signal_params,
+                                            const int leg_index,
+                                            const double close_0,
+                                            const double high_1,
+                                            const double low_1)
+{
+  if(!signal_params.deterministic_strategy)
+    return false;
+  if(leg_index < 0 || leg_index >= ArraySize(signal_params.execution_legs))
+    return false;
+  if(DeterministicSignalHasBrokerExposure(signal_params))
+    return false;
+
+  ExecutionLegState leg_state = signal_params.execution_legs[leg_index];
+  if(leg_state.status != EXECUTION_LEG_PENDING)
+    return false;
+  if(leg_state.position_ticket > 0 || leg_state.entry_price > 0.0)
+    return false;
+
+  double point_size = ExecutionResolvePointSize();
+  if(point_size <= 0.0)
+    return false;
+
+  double current_trigger = signal_params.raw_entry_trigger_price;
+  if(current_trigger <= 0.0)
+    current_trigger = leg_state.entry_reference_price;
+
+  double stop_anchor = signal_params.raw_stop_anchor_price;
+  double candidate_trigger = ResolveDeterministicPendingEntryCandidate(signal_params.signal_type,
+                                                                      high_1,
+                                                                      low_1);
+  if(!DeterministicPendingEntryAnchorImproves(signal_params.signal_type,
+                                             current_trigger,
+                                             candidate_trigger,
+                                             stop_anchor,
+                                             point_size))
+    return false;
+
+  double risk_before_points = MathAbs(current_trigger - stop_anchor) / point_size;
+  double risk_after_points = 0.0;
+  if(!DeterministicPendingEntryRiskBrokerSafe(candidate_trigger,
+                                             stop_anchor,
+                                             point_size,
+                                             risk_after_points))
+    return false;
+
+  double tp_price = ResolveDeterministicTpPrice(signal_params.signal_type,
+                                               candidate_trigger,
+                                               stop_anchor);
+  if(tp_price <= 0.0)
+    return false;
+
+  double lot_size = ResolveBaseExecutionLot(risk_after_points);
+  if(lot_size <= 0.0)
+    return false;
+
+  double tp_before = leg_state.take_profit_price;
+  double lot_before = leg_state.lot_size;
+
+  signal_params.raw_entry_trigger_price = candidate_trigger;
+  signal_params.entry_price = candidate_trigger;
+  signal_params.stop_loss = stop_anchor;
+  signal_params.execution_entry_reference_price = candidate_trigger;
+  signal_params.execution_base_distance_points = risk_after_points;
+  signal_params.execution_initial_indicator_distance_points = risk_after_points;
+  signal_params.execution_resolved_distance_points = risk_after_points;
+  signal_params.execution_base_lot_size = lot_size;
+  signal_params.raw_risk_distance = MathAbs(candidate_trigger - stop_anchor);
+  signal_params.raw_take_profit_price = tp_price;
+
+  leg_state.entry_reference_price = candidate_trigger;
+  leg_state.next_level_price = stop_anchor;
+  leg_state.take_profit_price = tp_price;
+  leg_state.initial_take_profit_price = tp_price;
+  leg_state.lot_size = lot_size;
+  leg_state.initial_lot_size = lot_size;
+  signal_params.execution_legs[leg_index] = leg_state;
+
+  ExecutionLogDeterministicEntryRefresh(signal_params,
+                                        leg_state,
+                                        current_trigger,
+                                        candidate_trigger,
+                                        candidate_trigger,
+                                        close_0,
+                                        high_1,
+                                        low_1,
+                                        risk_before_points,
+                                        risk_after_points,
+                                        tp_before,
+                                        tp_price,
+                                        lot_before,
+                                        lot_size,
+                                        "closer_to_stop");
+  return true;
+}
+
 void RefreshDeterministicTpFromBrokerEntry(SignalParams &signal_params,
                                            const int leg_index)
 {
@@ -221,6 +382,13 @@ void UpdateDeterministicExecutionLifecycle(SignalParams &signal_params)
 
   if(leg_state.status == EXECUTION_LEG_PENDING)
   {
+    RefreshDeterministicPendingEntryAnchor(signal_params,
+                                           leg_index,
+                                           close_0,
+                                           high_1,
+                                           low_1);
+    leg_state = signal_params.execution_legs[leg_index];
+
     if(!DeterministicEntryTriggered(signal_params.signal_type,
                                     close_0,
                                     signal_params.raw_entry_trigger_price))
