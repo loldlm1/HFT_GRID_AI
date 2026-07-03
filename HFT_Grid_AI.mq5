@@ -92,6 +92,7 @@ int OnInit()
   RefreshCustomSymbolRates();
   ResetExecutionVisualizationCache();
   ResetLightweightUiCache();
+  FrontendResetRefreshThrottle();
   InvalidateLightweightUiLayout();
   if(FrontendChartWorkEnabled())
   {
@@ -129,6 +130,7 @@ void OnDeinit(const int reason)
   EventKillTimer();
   ReleaseAllIndicatorDefinitions();
   ReleaseExecutionIndicatorCache();
+  FrontendResetRefreshThrottle();
 
   string removal_message = EALifecycleRemovalMessage();
   bool preserve_error_object = EALifecyclePreserveErrorObject();
@@ -186,6 +188,7 @@ void OnTick()
   g_ea_running                            = true;
   static datetime next_bar_open           = 0;
   static datetime next_minute_bar_open    = 0;
+  static bool     runtime_blocked_last_tick = false;
   datetime        current_time            = TimeCurrent();
   datetime        current_daily_time      = iTime(_Symbol, PERIOD_D1, 0);
   int             defined_tick_seconds    = PeriodSeconds(_Period);
@@ -205,10 +208,17 @@ void OnTick()
   if(g_points_spread > Max_Spread || !IsMarketOpen())
   {
     g_ea_running = false;
-    if(FrontendChartWorkEnabled())
+    if(!runtime_blocked_last_tick)
+      FrontendForceNextRefresh();
+    runtime_blocked_last_tick = true;
+    if(FrontendRefreshDue(current_time))
       RefreshExecutionVisualization();
     return;
   }
+
+  if(runtime_blocked_last_tick)
+    FrontendForceNextRefresh();
+  runtime_blocked_last_tick = false;
 
   bool broker_disabled = (MarketStatusGet() == MARKET_STATUS_BROKER_DISABLED);
 
@@ -227,7 +237,7 @@ void OnTick()
   // MANAGES THE BULLISH AND BEARISH SIGNALS
   if(!broker_disabled)
     Main_Tick();
-  if(FrontendChartWorkEnabled())
+  if(FrontendRefreshDue(current_time))
     RefreshExecutionVisualization();
 }
 
@@ -241,6 +251,7 @@ void OnChartEvent(const int id,
 
   if(HandleLightweightChartUiEvent(id, lparam, dparam, sparam))
   {
+    FrontendForceNextRefresh();
     RefreshExecutionVisualization();
     ChartRedraw(ChartID());
   }
