@@ -214,4 +214,10 @@ enum MarketStatusTypes
   MARKET_STATUS_BROKER_DISABLED  = 3
 };
 
+enum MLInferenceModes
+{
+  ML_INFERENCE_DISABLED = 0,
+  ML_INFERENCE_SHADOW   = 1
+};
+
 #endif // _MICROSERVICES_CORE_ENUMS_MQH_

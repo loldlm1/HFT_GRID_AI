@@ -186,6 +186,48 @@ early stopping. For `xgb_test_1`, that is 84 classifier trees and 47 regressor
 trees. Phase 4 still does not load models in MT5, add EA inputs, run Strategy
 Tester inference, or filter trades.
 
+## Phase 5 Runtime Copy
+
+MQL5 shadow inference reads from MT5 `Common\Files`, not from the repository
+`artifacts/model_exports` folder. Validate the export before copying:
+
+```powershell
+.\.venv\Scripts\python.exe tools\deterministic_signal_ml\model_artifact_validator.py `
+  --export-id xgb_test_1_export_v1
+```
+
+Ubuntu:
+
+```bash
+.venv/bin/python tools/deterministic_signal_ml/model_artifact_validator.py \
+  --export-id xgb_test_1_export_v1
+
+export MT5_COMMON_FILES="$HOME/.wine/drive_c/users/loldlm/AppData/Roaming/MetaQuotes/Terminal/Common/Files"
+mkdir -p "$MT5_COMMON_FILES/DeterministicSignalML/model_exports"
+cp -a artifacts/model_exports/xgb_test_1_export_v1 \
+  "$MT5_COMMON_FILES/DeterministicSignalML/model_exports/"
+```
+
+Windows PowerShell:
+
+```powershell
+$MT5_COMMON_FILES = Join-Path $env:APPDATA "MetaQuotes\Terminal\Common\Files"
+$dest = Join-Path $MT5_COMMON_FILES "DeterministicSignalML\model_exports"
+New-Item -ItemType Directory -Force -Path $dest | Out-Null
+Copy-Item -Recurse -Force artifacts\model_exports\xgb_test_1_export_v1 $dest
+```
+
+The EA input surface is intentionally small:
+
+```text
+ML_Inference_Mode = ML_INFERENCE_DISABLED
+ML_Model_Export_Id = xgb_test_1_export_v1
+```
+
+`ML_INFERENCE_SHADOW` is observational. It records scores and diagnostics only;
+it must not filter trades, change Strategy Tester broker admission, or alter
+entry/exit behavior.
+
 ## Agentic Evidence Policy
 
 Do not paste full TSV, Parquet, model JSON, or tree TSV files into chat.

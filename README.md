@@ -196,6 +196,51 @@ Start from `docs/environment/mt5-agentic-workflows.md` and keep compact evidence
 in `docs/research/deterministic-signal-phase-4-5-environment-acceptance.md`.
 Do not commit generated datasets, models, exports, `.ex5`, or full logs.
 
+## Phase 5 MQL5 Shadow Inference
+
+Phase 5 adds an optional MT5 runtime shadow scorer. It is disabled by default:
+
+```text
+ML_Inference_Mode = ML_INFERENCE_DISABLED
+ML_Model_Export_Id = xgb_test_1_export_v1
+```
+
+When `ML_Inference_Mode` is set to `ML_INFERENCE_SHADOW`, the EA must read the
+model export from MT5 `Common\Files`, not from the repository artifact folder:
+
+```text
+Common\Files\DeterministicSignalML\model_exports\xgb_test_1_export_v1\
+```
+
+Validate the repository export before copying it:
+
+```powershell
+.\.venv\Scripts\python.exe tools\deterministic_signal_ml\model_artifact_validator.py `
+  --export-id xgb_test_1_export_v1
+```
+
+Ubuntu/Wine copy shape:
+
+```bash
+export MT5_COMMON_FILES="$HOME/.wine/drive_c/users/loldlm/AppData/Roaming/MetaQuotes/Terminal/Common/Files"
+mkdir -p "$MT5_COMMON_FILES/DeterministicSignalML/model_exports"
+cp -a artifacts/model_exports/xgb_test_1_export_v1 \
+  "$MT5_COMMON_FILES/DeterministicSignalML/model_exports/"
+```
+
+Windows PowerShell copy shape:
+
+```powershell
+$MT5_COMMON_FILES = Join-Path $env:APPDATA "MetaQuotes\Terminal\Common\Files"
+$dest = Join-Path $MT5_COMMON_FILES "DeterministicSignalML\model_exports"
+New-Item -ItemType Directory -Force -Path $dest | Out-Null
+Copy-Item -Recurse -Force artifacts\model_exports\xgb_test_1_export_v1 $dest
+```
+
+Shadow mode is observational. Missing or invalid artifacts must produce visible
+diagnostics and fail open for trading; they must not block or alter entries,
+exits, lots, SL/TP, broker admission, or risk controls.
+
 ## Final Baseline Notes
 
 - Phase 8 final compile passed on 2026-07-03 with `0 errors, 0 warnings`; evidence log: `logs/compile/phase-08-build.log`.

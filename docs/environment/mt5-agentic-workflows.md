@@ -251,3 +251,47 @@ Do not start MQL5 Shadow Inference unless the readiness gate in
 
 Phase 5 must load exported artifacts from files and must not call Python,
 DuckDB, XGBoost, or external services from the EA hot path.
+
+## Phase 5 Artifact Install Boundary
+
+The repository export under `artifacts/model_exports/<export_id>` is a generated
+research artifact. MQL5 runtime code must read the copied export from
+`FILE_COMMON`:
+
+```text
+Common\Files\DeterministicSignalML\model_exports\<export_id>
+```
+
+Validate before copying:
+
+```bash
+.venv/bin/python tools/deterministic_signal_ml/model_artifact_validator.py \
+  --export-id xgb_test_1_export_v1
+```
+
+Ubuntu/Wine copy shape:
+
+```bash
+export MT5_COMMON_FILES="$HOME/.wine/drive_c/users/loldlm/AppData/Roaming/MetaQuotes/Terminal/Common/Files"
+mkdir -p "$MT5_COMMON_FILES/DeterministicSignalML/model_exports"
+cp -a artifacts/model_exports/xgb_test_1_export_v1 \
+  "$MT5_COMMON_FILES/DeterministicSignalML/model_exports/"
+find "$MT5_COMMON_FILES/DeterministicSignalML/model_exports/xgb_test_1_export_v1" \
+  -maxdepth 1 -type f -printf '%f %s bytes\n' | sort
+```
+
+Windows PowerShell copy shape:
+
+```powershell
+$MT5_COMMON_FILES = Join-Path $env:APPDATA "MetaQuotes\Terminal\Common\Files"
+$dest = Join-Path $MT5_COMMON_FILES "DeterministicSignalML\model_exports"
+New-Item -ItemType Directory -Force -Path $dest | Out-Null
+Copy-Item -Recurse -Force artifacts\model_exports\xgb_test_1_export_v1 $dest
+Get-ChildItem (Join-Path $dest "xgb_test_1_export_v1") | Select-Object Name,Length
+```
+
+Use `ML_Inference_Mode = ML_INFERENCE_SHADOW` only after the export is present
+under `Common\Files`. Shadow mode is fail-open for trading: missing or invalid
+artifacts must produce compact diagnostics and must not alter broker admission,
+entries, exits, lot sizing, SL/TP, license checks, session gates, spread checks,
+margin checks, protection controls, or broker reconciliation.

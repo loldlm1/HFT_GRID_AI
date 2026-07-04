@@ -74,6 +74,10 @@ input group  "+= Signal Statistics Export =+";
 input bool   Enable_Signal_Feature_Export = false;
 input string Signal_Feature_Run_Id        = "";
 
+input group  "+= ML Shadow Inference =+";
+input MLInferenceModes ML_Inference_Mode = ML_INFERENCE_DISABLED;
+input string           ML_Model_Export_Id = "xgb_test_1_export_v1";
+
 input group  "+= Developer Debug Settings =+";
 input bool Enable_Logs              = false;
 input bool Enable_File_Logs         = false;

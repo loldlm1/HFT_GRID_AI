@@ -36,6 +36,16 @@ string ExecutionSessionModeToken(const SessionTimeFilterModes mode)
   return "OFF";
 }
 
+string ExecutionMLInferenceModeToken(const MLInferenceModes mode)
+{
+  switch(mode)
+  {
+    case ML_INFERENCE_SHADOW:
+      return "SHADOW";
+  }
+  return "DISABLED";
+}
+
 void ResetQueryDebugLogSession()
 {
   g_query_debug_session_header_logged = false;
@@ -255,6 +265,12 @@ void EnsureQueryDebugSessionHeaderLogged()
                                                Lot_Strategy_Size,
                                                Lot_Multiplier,
                                                TP_Percent));
+
+  ExecutionAppendTimestampedQueryDebug("INPUTS_ML",
+                                  StringFormat("mode=%s|export_id=%s|artifact_root=%s|policy=shadow_fail_open",
+                                               ExecutionMLInferenceModeToken(ML_Inference_Mode),
+                                               ML_Model_Export_Id,
+                                               "DeterministicSignalML\\model_exports"));
 }
 
 void ExecutionAppendQueryDebugLog(const string label,
