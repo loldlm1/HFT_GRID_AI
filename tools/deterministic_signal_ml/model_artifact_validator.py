@@ -15,6 +15,7 @@ from model_artifact_contract import (
     FEATURE_MAP_TSV,
     MANIFEST_TSV_COLUMNS,
     MODEL_MANIFEST_TSV,
+    REGRESSOR_TREES_TSV,
     TREE_COLUMNS,
 )
 
@@ -95,6 +96,17 @@ def score_classifier(export_path: Path, matrix: np.ndarray) -> np.ndarray:
         model_role="classifier",
     )
     return 1.0 / (1.0 + np.exp(-margins))
+
+
+def score_regressor(export_path: Path, matrix: np.ndarray) -> np.ndarray:
+    manifest = read_manifest(export_path)
+    tree_rows = read_tree_rows(export_path / REGRESSOR_TREES_TSV)
+    return score_margin(
+        matrix,
+        tree_rows,
+        base_score=float(manifest["regressor_base_score"]),
+        model_role="regressor",
+    )
 
 
 def score_margin(

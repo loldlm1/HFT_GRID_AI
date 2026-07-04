@@ -13,7 +13,7 @@ from typing import Any
 import numpy as np
 import xgboost as xgb
 
-from model_artifact_validator import encode_rows, read_feature_map, score_classifier
+from model_artifact_validator import encode_rows, read_feature_map, score_classifier, score_regressor
 from model_artifact_contract import (
     ARTIFACT_SCHEMA_VERSION,
     CLASSIFIER_TREES_TSV,
@@ -26,8 +26,11 @@ from model_artifact_contract import (
     MODEL_MANIFEST_TSV,
     PARITY_REPORT_JSON,
     PARITY_REPORT_MD,
+    REGRESSOR_TREES_TSV,
     REQUIRED_MANIFEST_KEYS,
     REQUIRED_PHASE3_FILES,
+    THRESHOLD_POLICY_COLUMNS,
+    THRESHOLD_POLICY_TSV,
     TREE_COLUMNS,
 )
 from model_config import DEFAULT_DATASET_ROOT, DEFAULT_MODEL_ROOT
@@ -60,6 +63,17 @@ def build_parser() -> argparse.ArgumentParser:
         type=float,
         default=1e-6,
         help="Maximum allowed classifier probability error during parity validation.",
+    )
+    parser.add_argument(
+        "--regressor-parity-tolerance",
+        type=float,
+        default=1e-6,
+        help="Maximum allowed regressor prediction error during parity validation.",
+    )
+    parser.add_argument(
+        "--allow-missing-threshold",
+        action="store_true",
+        help="Allow export when Phase 3 did not select a research threshold.",
     )
     return parser
 
@@ -203,12 +217,16 @@ def build_runtime_manifest(
         "regressor_tree_count": 0,
         "regressor_objective": "reg:squarederror" if regressor_available else "",
         "regressor_base_score": "",
+        "regressor_parity_status": "",
+        "regressor_parity_max_abs_error": "",
         "threshold_probability": "" if recommendation is None else recommendation.get("threshold", ""),
         "threshold_research_source": "phase3_holdout_research" if recommendation else "",
         "research_only": True,
         "mt5_runtime_ready": False,
         "feature_map_file": FEATURE_MAP_TSV,
         "classifier_trees_file": "",
+        "regressor_trees_file": "",
+        "threshold_policy_file": "",
         "parity_report_file": "",
     }
     missing_keys = [key for key in REQUIRED_MANIFEST_KEYS if key not in manifest]
@@ -253,6 +271,12 @@ def base_probability(booster: xgb.Booster) -> float:
     return float(raw)
 
 
+def base_score_value(booster: xgb.Booster) -> float:
+    config = booster_config(booster)
+    raw = str(config["learner"]["learner_model_param"]["base_score"]).strip("[]")
+    return float(raw)
+
+
 def binary_logit(probability: float) -> float:
     if not 0.0 < probability < 1.0:
         raise ModelExportError(f"Classifier base probability must be between 0 and 1: {probability}")
@@ -292,6 +316,31 @@ def export_classifier_trees(output_dir: Path, model_path: Path) -> dict[str, Any
         "objective": objective,
         "base_probability": probability,
         "base_score": binary_logit(probability),
+    }
+
+
+def export_regressor_trees(output_dir: Path, model_path: Path) -> dict[str, Any]:
+    regressor_path = model_path / "regressor_xgboost.json"
+    if not regressor_path.exists():
+        raise ModelExportError(f"Phase 4 requires regressor export, missing: {regressor_path}")
+    booster = load_booster(regressor_path)
+    objective = objective_name(booster)
+    if objective != "reg:squarederror":
+        raise ModelExportError(f"Unsupported regressor objective: {objective}")
+
+    tree_count = effective_tree_count(booster)
+    dump_json = booster.get_dump(dump_format="json", with_stats=False)[:tree_count]
+    rows: list[dict[str, Any]] = []
+    for tree_index, tree_payload in enumerate(dump_json):
+        root = json.loads(tree_payload)
+        flatten_tree("regressor", tree_index, root, rows)
+    write_tsv(output_dir / REGRESSOR_TREES_TSV, TREE_COLUMNS, rows)
+
+    return {
+        "tree_count": tree_count,
+        "node_count": len(rows),
+        "objective": objective,
+        "base_score": base_score_value(booster),
     }
 
 
@@ -392,7 +441,6 @@ def run_classifier_parity(
         "threshold_probability": threshold_value,
         "threshold_decision_agreement": decision_agreement,
     }
-    write_parity_report(output_dir, report)
     if status != "OK":
         raise ModelExportError(
             f"Classifier parity failed: max_abs_error={max_abs_error} tolerance={tolerance}"
@@ -400,11 +448,108 @@ def run_classifier_parity(
     return report
 
 
+def run_regressor_parity(
+    output_dir: Path,
+    model_path: Path,
+    dataset_path: Path,
+    model_manifest: dict[str, Any],
+    runtime_manifest: dict[str, Any],
+    tolerance: float,
+) -> dict[str, Any]:
+    rows = load_training_rows(dataset_path)
+    holdout = model_manifest.get("split_policy", {}).get("holdout", {})
+    start_index = int(holdout.get("start_index", 0))
+    end_index = int(holdout.get("end_index", len(rows) - 1))
+    if start_index < 0 or end_index >= len(rows) or start_index > end_index:
+        raise ModelExportError(f"Invalid holdout range in model manifest: {holdout}")
+
+    selected_rows = [rows[index] for index in range(start_index, end_index + 1)]
+    feature_map_rows = read_feature_map(output_dir)
+    matrix = encode_rows(selected_rows, feature_map_rows)
+    artifact_prediction = score_regressor(output_dir, matrix)
+
+    booster = load_booster(model_path / "regressor_xgboost.json")
+    dmatrix = xgb.DMatrix(matrix)
+    tree_count = int(runtime_manifest["regressor_tree_count"])
+    xgboost_prediction = booster.predict(dmatrix, iteration_range=(0, tree_count))
+    errors = np.abs(artifact_prediction - xgboost_prediction)
+    max_abs_error = float(np.max(errors))
+    mean_abs_error = float(np.mean(errors))
+    status = "OK" if max_abs_error <= tolerance else "FAIL"
+    report = {
+        "status": status,
+        "model_role": "regressor",
+        "rows": len(selected_rows),
+        "start_index": start_index,
+        "end_index": end_index,
+        "tree_count": tree_count,
+        "tolerance": tolerance,
+        "max_abs_error": max_abs_error,
+        "mean_abs_error": mean_abs_error,
+    }
+    if status != "OK":
+        raise ModelExportError(
+            f"Regressor parity failed: max_abs_error={max_abs_error} tolerance={tolerance}"
+        )
+    return report
+
+
+def write_threshold_policy(
+    output_dir: Path,
+    model_manifest: dict[str, Any],
+    allow_missing_threshold: bool,
+) -> dict[str, Any] | None:
+    recommendation = threshold_recommendation(model_manifest)
+    if recommendation is None:
+        if allow_missing_threshold:
+            return None
+        raise ModelExportError("Phase 3 threshold recommendation is missing")
+
+    row = {
+        "threshold": recommendation.get("threshold", ""),
+        "selected_rows": recommendation.get("selected_rows", ""),
+        "win_rate": recommendation.get("win_rate", ""),
+        "mean_profit_r": recommendation.get("mean_profit_r", ""),
+        "net_profit_r": recommendation.get("net_profit_r", ""),
+        "max_drawdown_r": recommendation.get("max_drawdown_r", ""),
+        "source": "phase3_holdout_research",
+        "research_only": True,
+    }
+    write_tsv(output_dir / THRESHOLD_POLICY_TSV, THRESHOLD_POLICY_COLUMNS, [row])
+    return row
+
+
 def write_parity_report(output_dir: Path, report: dict[str, Any]) -> None:
     (output_dir / PARITY_REPORT_JSON).write_text(
         json.dumps(report, indent=2, sort_keys=True),
         encoding="utf-8",
     )
+    if "classifier" in report:
+        classifier = report["classifier"]
+        regressor = report.get("regressor")
+        lines = [
+            "# Model Artifact Parity Report",
+            "",
+            f"- Status: `{report['status']}`",
+            f"- Classifier rows: {classifier['rows']}",
+            f"- Classifier tree count: {classifier['tree_count']}",
+            f"- Classifier max absolute error: {classifier['max_abs_error']:.12g}",
+            f"- Classifier mean absolute error: {classifier['mean_abs_error']:.12g}",
+            f"- Classifier threshold decision agreement: {classifier['threshold_decision_agreement']:.12g}",
+        ]
+        if regressor is not None:
+            lines.extend(
+                [
+                    f"- Regressor rows: {regressor['rows']}",
+                    f"- Regressor tree count: {regressor['tree_count']}",
+                    f"- Regressor max absolute error: {regressor['max_abs_error']:.12g}",
+                    f"- Regressor mean absolute error: {regressor['mean_abs_error']:.12g}",
+                ]
+            )
+        lines.append("")
+        (output_dir / PARITY_REPORT_MD).write_text("\n".join(lines), encoding="utf-8")
+        return
+
     lines = [
         "# Model Artifact Parity Report",
         "",
@@ -442,9 +587,20 @@ def main() -> int:
         runtime_manifest["classifier_base_score"] = classifier_info["base_score"]
         runtime_manifest["classifier_base_probability"] = classifier_info["base_probability"]
         runtime_manifest["classifier_trees_file"] = CLASSIFIER_TREES_TSV
+        regressor_info = export_regressor_trees(output_dir, model_path)
+        runtime_manifest["regressor_tree_count"] = regressor_info["tree_count"]
+        runtime_manifest["regressor_objective"] = regressor_info["objective"]
+        runtime_manifest["regressor_base_score"] = regressor_info["base_score"]
+        runtime_manifest["regressor_trees_file"] = REGRESSOR_TREES_TSV
+        threshold_policy = write_threshold_policy(
+            output_dir,
+            model_manifest,
+            args.allow_missing_threshold,
+        )
+        runtime_manifest["threshold_policy_file"] = "" if threshold_policy is None else THRESHOLD_POLICY_TSV
         write_manifest(output_dir, runtime_manifest)
         if dataset_path is not None:
-            parity_report = run_classifier_parity(
+            classifier_report = run_classifier_parity(
                 output_dir,
                 model_path,
                 dataset_path,
@@ -452,9 +608,30 @@ def main() -> int:
                 runtime_manifest,
                 args.parity_tolerance,
             )
-            runtime_manifest["classifier_parity_status"] = parity_report["status"]
-            runtime_manifest["classifier_parity_max_abs_error"] = parity_report["max_abs_error"]
+            regressor_report = run_regressor_parity(
+                output_dir,
+                model_path,
+                dataset_path,
+                model_manifest,
+                runtime_manifest,
+                args.regressor_parity_tolerance,
+            )
+            runtime_manifest["classifier_parity_status"] = classifier_report["status"]
+            runtime_manifest["classifier_parity_max_abs_error"] = classifier_report["max_abs_error"]
+            runtime_manifest["regressor_parity_status"] = regressor_report["status"]
+            runtime_manifest["regressor_parity_max_abs_error"] = regressor_report["max_abs_error"]
+            runtime_manifest["mt5_runtime_ready"] = (
+                classifier_report["status"] == "OK" and regressor_report["status"] == "OK"
+            )
             runtime_manifest["parity_report_file"] = PARITY_REPORT_JSON
+            parity_report = {
+                "status": "OK"
+                if classifier_report["status"] == "OK" and regressor_report["status"] == "OK"
+                else "FAIL",
+                "classifier": classifier_report,
+                "regressor": regressor_report,
+            }
+            write_parity_report(output_dir, parity_report)
         write_manifest(output_dir, runtime_manifest)
     except ModelExportError as exc:
         parser.exit(1, f"model export failed: {exc}\n")
