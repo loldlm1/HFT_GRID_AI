@@ -1051,12 +1051,12 @@ bool MLShadowSnapshotNumericValue(const DeterministicSignalFeatureSnapshot &snap
     value_out = (double)snapshot.macro_d1_live_dir;
   else if(source_column == "sl_fib_raw")
   {
-    value_out = snapshot.sl_fib_raw;
+    value_out = StringToDouble(DoubleToString(snapshot.sl_fib_raw, 1));
     valid_out = snapshot.sl_fib_valid;
   }
   else if(source_column == "entry_fib_raw")
   {
-    value_out = snapshot.entry_fib_raw;
+    value_out = StringToDouble(DoubleToString(snapshot.entry_fib_raw, 1));
     valid_out = snapshot.entry_fib_valid;
   }
   else if(source_column == "low_chain_score_3")
