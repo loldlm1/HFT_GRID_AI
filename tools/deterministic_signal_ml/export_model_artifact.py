@@ -10,8 +10,13 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+import numpy as np
+import xgboost as xgb
+
+from model_artifact_validator import encode_rows, read_feature_map, score_classifier
 from model_artifact_contract import (
     ARTIFACT_SCHEMA_VERSION,
+    CLASSIFIER_TREES_TSV,
     DEFAULT_EXPORT_ROOT,
     EXPORTER_VERSION,
     FEATURE_MAP_COLUMNS,
@@ -19,10 +24,14 @@ from model_artifact_contract import (
     MANIFEST_TSV_COLUMNS,
     MODEL_MANIFEST_JSON,
     MODEL_MANIFEST_TSV,
+    PARITY_REPORT_JSON,
+    PARITY_REPORT_MD,
     REQUIRED_MANIFEST_KEYS,
     REQUIRED_PHASE3_FILES,
+    TREE_COLUMNS,
 )
-from model_config import DEFAULT_MODEL_ROOT
+from model_config import DEFAULT_DATASET_ROOT, DEFAULT_MODEL_ROOT
+from train_model import load_training_rows
 
 
 class ModelExportError(RuntimeError):
@@ -34,7 +43,11 @@ def build_parser() -> argparse.ArgumentParser:
     model_group = parser.add_mutually_exclusive_group(required=True)
     model_group.add_argument("--model-id", help="Phase 3 model ID under the model root.")
     model_group.add_argument("--model-path", help="Explicit Phase 3 model folder.")
+    dataset_group = parser.add_mutually_exclusive_group()
+    dataset_group.add_argument("--dataset-id", help="Phase 2 dataset ID for parity validation.")
+    dataset_group.add_argument("--dataset-path", help="Explicit Phase 2 dataset folder for parity validation.")
     parser.add_argument("--model-root", default=DEFAULT_MODEL_ROOT, help="Root for --model-id.")
+    parser.add_argument("--dataset-root", default=DEFAULT_DATASET_ROOT, help="Root for --dataset-id.")
     parser.add_argument("--export-id", required=True, help="Model export output ID.")
     parser.add_argument(
         "--output-root",
@@ -42,6 +55,12 @@ def build_parser() -> argparse.ArgumentParser:
         help="Root folder for generated MT5-readable exports.",
     )
     parser.add_argument("--overwrite", action="store_true", help="Overwrite an existing export folder.")
+    parser.add_argument(
+        "--parity-tolerance",
+        type=float,
+        default=1e-6,
+        help="Maximum allowed classifier probability error during parity validation.",
+    )
     return parser
 
 
@@ -52,6 +71,19 @@ def resolve_model_path(args: argparse.Namespace) -> Path:
     if not model_path.is_dir():
         raise ModelExportError(f"Model path is not a folder: {model_path}")
     return model_path
+
+
+def resolve_dataset_path(args: argparse.Namespace) -> Path | None:
+    if not args.dataset_path and not args.dataset_id:
+        return None
+    dataset_path = Path(args.dataset_path) if args.dataset_path else Path(args.dataset_root) / args.dataset_id
+    if not dataset_path.exists():
+        raise ModelExportError(f"Dataset folder does not exist: {dataset_path}")
+    if not dataset_path.is_dir():
+        raise ModelExportError(f"Dataset path is not a folder: {dataset_path}")
+    if not (dataset_path / "training_matrix.parquet").exists():
+        raise ModelExportError(f"Dataset missing training_matrix.parquet: {dataset_path}")
+    return dataset_path
 
 
 def prepare_output_dir(output_root: Path, export_id: str, overwrite: bool) -> Path:
@@ -164,6 +196,9 @@ def build_runtime_manifest(
         "classifier_tree_count": 0,
         "classifier_objective": "binary:logistic",
         "classifier_base_score": "",
+        "classifier_base_probability": "",
+        "classifier_parity_status": "",
+        "classifier_parity_max_abs_error": "",
         "regressor_available": regressor_available,
         "regressor_tree_count": 0,
         "regressor_objective": "reg:squarederror" if regressor_available else "",
@@ -173,6 +208,8 @@ def build_runtime_manifest(
         "research_only": True,
         "mt5_runtime_ready": False,
         "feature_map_file": FEATURE_MAP_TSV,
+        "classifier_trees_file": "",
+        "parity_report_file": "",
     }
     missing_keys = [key for key in REQUIRED_MANIFEST_KEYS if key not in manifest]
     if missing_keys:
@@ -195,11 +232,201 @@ def write_feature_map(output_dir: Path, feature_encoder: dict[str, Any]) -> list
     return rows
 
 
+def load_booster(path: Path) -> xgb.Booster:
+    booster = xgb.Booster()
+    booster.load_model(str(path))
+    return booster
+
+
+def booster_config(booster: xgb.Booster) -> dict[str, Any]:
+    return json.loads(booster.save_config())
+
+
+def objective_name(booster: xgb.Booster) -> str:
+    config = booster_config(booster)
+    return str(config["learner"]["objective"]["name"])
+
+
+def base_probability(booster: xgb.Booster) -> float:
+    config = booster_config(booster)
+    raw = str(config["learner"]["learner_model_param"]["base_score"]).strip("[]")
+    return float(raw)
+
+
+def binary_logit(probability: float) -> float:
+    if not 0.0 < probability < 1.0:
+        raise ModelExportError(f"Classifier base probability must be between 0 and 1: {probability}")
+    return float(np.log(probability / (1.0 - probability)))
+
+
+def effective_tree_count(booster: xgb.Booster) -> int:
+    dumps = booster.get_dump(dump_format="json", with_stats=False)
+    attributes = booster.attributes()
+    if "best_iteration" in attributes:
+        tree_count = int(attributes["best_iteration"]) + 1
+    else:
+        tree_count = len(dumps)
+    if tree_count <= 0 or tree_count > len(dumps):
+        raise ModelExportError(f"Invalid effective tree count: {tree_count} of {len(dumps)}")
+    return tree_count
+
+
+def export_classifier_trees(output_dir: Path, model_path: Path) -> dict[str, Any]:
+    booster = load_booster(model_path / "classifier_xgboost.json")
+    objective = objective_name(booster)
+    if objective != "binary:logistic":
+        raise ModelExportError(f"Unsupported classifier objective: {objective}")
+
+    tree_count = effective_tree_count(booster)
+    dump_json = booster.get_dump(dump_format="json", with_stats=False)[:tree_count]
+    rows: list[dict[str, Any]] = []
+    for tree_index, tree_payload in enumerate(dump_json):
+        root = json.loads(tree_payload)
+        flatten_tree("classifier", tree_index, root, rows)
+    write_tsv(output_dir / CLASSIFIER_TREES_TSV, TREE_COLUMNS, rows)
+
+    probability = base_probability(booster)
+    return {
+        "tree_count": tree_count,
+        "node_count": len(rows),
+        "objective": objective,
+        "base_probability": probability,
+        "base_score": binary_logit(probability),
+    }
+
+
+def flatten_tree(
+    model_role: str,
+    tree_index: int,
+    node: dict[str, Any],
+    rows: list[dict[str, Any]],
+) -> None:
+    node_index = int(node["nodeid"])
+    if "leaf" in node:
+        rows.append(
+            {
+                "model_role": model_role,
+                "tree_index": tree_index,
+                "node_index": node_index,
+                "node_type": "leaf",
+                "feature_index": "",
+                "threshold": "",
+                "left_child": "",
+                "right_child": "",
+                "default_left": "",
+                "leaf_value": float(node["leaf"]),
+            }
+        )
+        return
+
+    split = str(node.get("split", ""))
+    if not split.startswith("f"):
+        raise ModelExportError(f"Unsupported split feature format: {split}")
+    if "categories" in node:
+        raise ModelExportError("Categorical XGBoost split export is not supported")
+
+    yes = int(node["yes"])
+    no = int(node["no"])
+    missing = int(node["missing"])
+    rows.append(
+        {
+            "model_role": model_role,
+            "tree_index": tree_index,
+            "node_index": node_index,
+            "node_type": "split",
+            "feature_index": int(split[1:]),
+            "threshold": float(node["split_condition"]),
+            "left_child": yes,
+            "right_child": no,
+            "default_left": 1 if missing == yes else 0,
+            "leaf_value": "",
+        }
+    )
+    for child in node.get("children", []):
+        flatten_tree(model_role, tree_index, child, rows)
+
+
+def run_classifier_parity(
+    output_dir: Path,
+    model_path: Path,
+    dataset_path: Path,
+    model_manifest: dict[str, Any],
+    runtime_manifest: dict[str, Any],
+    tolerance: float,
+) -> dict[str, Any]:
+    rows = load_training_rows(dataset_path)
+    holdout = model_manifest.get("split_policy", {}).get("holdout", {})
+    start_index = int(holdout.get("start_index", 0))
+    end_index = int(holdout.get("end_index", len(rows) - 1))
+    if start_index < 0 or end_index >= len(rows) or start_index > end_index:
+        raise ModelExportError(f"Invalid holdout range in model manifest: {holdout}")
+
+    selected_rows = [rows[index] for index in range(start_index, end_index + 1)]
+    feature_map_rows = read_feature_map(output_dir)
+    matrix = encode_rows(selected_rows, feature_map_rows)
+    artifact_probability = score_classifier(output_dir, matrix)
+
+    booster = load_booster(model_path / "classifier_xgboost.json")
+    dmatrix = xgb.DMatrix(matrix)
+    tree_count = int(runtime_manifest["classifier_tree_count"])
+    xgboost_probability = booster.predict(dmatrix, iteration_range=(0, tree_count))
+    errors = np.abs(artifact_probability - xgboost_probability)
+    max_abs_error = float(np.max(errors))
+    mean_abs_error = float(np.mean(errors))
+    threshold = runtime_manifest.get("threshold_probability", "")
+    threshold_value = 0.5 if threshold == "" else float(threshold)
+    artifact_decisions = artifact_probability >= threshold_value
+    xgboost_decisions = xgboost_probability >= threshold_value
+    decision_agreement = float(np.mean(artifact_decisions == xgboost_decisions))
+    status = "OK" if max_abs_error <= tolerance else "FAIL"
+    report = {
+        "status": status,
+        "model_role": "classifier",
+        "rows": len(selected_rows),
+        "start_index": start_index,
+        "end_index": end_index,
+        "tree_count": tree_count,
+        "tolerance": tolerance,
+        "max_abs_error": max_abs_error,
+        "mean_abs_error": mean_abs_error,
+        "threshold_probability": threshold_value,
+        "threshold_decision_agreement": decision_agreement,
+    }
+    write_parity_report(output_dir, report)
+    if status != "OK":
+        raise ModelExportError(
+            f"Classifier parity failed: max_abs_error={max_abs_error} tolerance={tolerance}"
+        )
+    return report
+
+
+def write_parity_report(output_dir: Path, report: dict[str, Any]) -> None:
+    (output_dir / PARITY_REPORT_JSON).write_text(
+        json.dumps(report, indent=2, sort_keys=True),
+        encoding="utf-8",
+    )
+    lines = [
+        "# Model Artifact Parity Report",
+        "",
+        f"- Status: `{report['status']}`",
+        f"- Model role: `{report['model_role']}`",
+        f"- Rows: {report['rows']}",
+        f"- Tree count: {report['tree_count']}",
+        f"- Max absolute error: {report['max_abs_error']:.12g}",
+        f"- Mean absolute error: {report['mean_abs_error']:.12g}",
+        f"- Tolerance: {report['tolerance']:.12g}",
+        f"- Threshold decision agreement: {report['threshold_decision_agreement']:.12g}",
+        "",
+    ]
+    (output_dir / PARITY_REPORT_MD).write_text("\n".join(lines), encoding="utf-8")
+
+
 def main() -> int:
     parser = build_parser()
     args = parser.parse_args()
     try:
         model_path = resolve_model_path(args)
+        dataset_path = resolve_dataset_path(args)
         model_manifest, feature_encoder = load_phase3_inputs(model_path)
         output_dir = prepare_output_dir(Path(args.output_root), args.export_id, args.overwrite)
         feature_rows = write_feature_map(output_dir, feature_encoder)
@@ -209,6 +436,25 @@ def main() -> int:
             model_manifest,
             feature_encoder,
         )
+        classifier_info = export_classifier_trees(output_dir, model_path)
+        runtime_manifest["classifier_tree_count"] = classifier_info["tree_count"]
+        runtime_manifest["classifier_objective"] = classifier_info["objective"]
+        runtime_manifest["classifier_base_score"] = classifier_info["base_score"]
+        runtime_manifest["classifier_base_probability"] = classifier_info["base_probability"]
+        runtime_manifest["classifier_trees_file"] = CLASSIFIER_TREES_TSV
+        write_manifest(output_dir, runtime_manifest)
+        if dataset_path is not None:
+            parity_report = run_classifier_parity(
+                output_dir,
+                model_path,
+                dataset_path,
+                model_manifest,
+                runtime_manifest,
+                args.parity_tolerance,
+            )
+            runtime_manifest["classifier_parity_status"] = parity_report["status"]
+            runtime_manifest["classifier_parity_max_abs_error"] = parity_report["max_abs_error"]
+            runtime_manifest["parity_report_file"] = PARITY_REPORT_JSON
         write_manifest(output_dir, runtime_manifest)
     except ModelExportError as exc:
         parser.exit(1, f"model export failed: {exc}\n")
