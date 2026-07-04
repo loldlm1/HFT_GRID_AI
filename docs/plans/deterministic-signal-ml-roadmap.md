@@ -58,6 +58,8 @@ Non-goals:
 
 ## Phase 2: Local Dataset Builder
 
+**Planner plan**: `docs/plans/deterministic-signal-local-dataset-builder-plan.md`
+
 Create a Python-side local dataset pipeline:
 
 - read Phase 1 TSV files

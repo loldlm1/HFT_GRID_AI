@@ -2,6 +2,8 @@
 *.ex4
 *.log
 *.tmp
+*.pyc
+__pycache__/
 *.bak
 *.old
 *.swp
@@ -26,3 +28,5 @@ MetaEditor64.exe
 logs/test-runner/*
 logs/*
 .envrc
+.venv/
+artifacts/datasets/
