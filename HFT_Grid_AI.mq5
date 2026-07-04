@@ -79,6 +79,7 @@ int OnInit()
   ResetQueryDebugLogSession();
   ResetDeterministicSourceOutcomeState();
   DeterministicSignalStatsInit();
+  DeterministicSignalMLShadowInit();
 
   if(!RefreshSymbolTradingConstraints(_Symbol, g_symbol_constraints))
   {
@@ -142,6 +143,7 @@ int OnInit()
 //+------------------------------------------------------------------+
 void OnDeinit(const int reason)
 {
+  DeterministicSignalMLShadowDeinit();
   DeterministicSignalStatsDeinit();
   LicenseServiceOnDeinit();
   EventKillTimer();
