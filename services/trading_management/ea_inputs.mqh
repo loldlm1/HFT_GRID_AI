@@ -70,6 +70,10 @@ input double                TP_Percent               = 100.0;
 input int                   Daily_Signal_Limit       = 0;
 input DailySignalLimitModes Daily_Signal_Limit_Mode  = STOP_DAILY_SIGNALS;
 
+input group  "+= Signal Statistics Export =+";
+input bool   Enable_Signal_Feature_Export = false;
+input string Signal_Feature_Run_Id        = "";
+
 input group  "+= Developer Debug Settings =+";
 input bool Enable_Logs              = false;
 input bool Enable_File_Logs         = false;
