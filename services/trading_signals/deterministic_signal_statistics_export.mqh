@@ -677,4 +677,188 @@ bool DeterministicSignalStatsRecordFeature(SignalParams &signal_params,
   return true;
 }
 
+bool DeterministicSignalStatsOutcomeEntryPrice(const SignalParams &signal_params,
+                                               double &entry_price_out)
+{
+  entry_price_out = 0.0;
+
+  int total = ArraySize(signal_params.execution_legs);
+  for(int i = 0; i < total; i++)
+  {
+    if(signal_params.execution_legs[i].entry_price > 0.0)
+    {
+      entry_price_out = signal_params.execution_legs[i].entry_price;
+      return true;
+    }
+  }
+
+  if(signal_params.entry_price > 0.0)
+    entry_price_out = signal_params.entry_price;
+  else if(signal_params.execution_entry_reference_price > 0.0)
+    entry_price_out = signal_params.execution_entry_reference_price;
+  else if(signal_params.raw_entry_trigger_price > 0.0)
+    entry_price_out = signal_params.raw_entry_trigger_price;
+
+  return (entry_price_out > 0.0 && MathIsValidNumber(entry_price_out));
+}
+
+datetime DeterministicSignalStatsOutcomeEntryTime(const SignalParams &signal_params)
+{
+  datetime entry_time = 0;
+  int total = ArraySize(signal_params.execution_legs);
+  for(int i = 0; i < total; i++)
+  {
+    if(signal_params.execution_legs[i].entry_price > 0.0 &&
+       signal_params.execution_legs[i].last_action_time > 0)
+    {
+      if(entry_time <= 0 || signal_params.execution_legs[i].last_action_time < entry_time)
+        entry_time = signal_params.execution_legs[i].last_action_time;
+    }
+  }
+
+  if(entry_time <= 0)
+    entry_time = signal_params.entry_time;
+  return entry_time;
+}
+
+bool DeterministicSignalStatsProfitR(const SignalParams &signal_params,
+                                     const double entry_price,
+                                     const double close_price,
+                                     double &profit_r_out)
+{
+  profit_r_out = 0.0;
+  if(entry_price <= 0.0 || close_price <= 0.0)
+    return false;
+
+  double risk_distance = MathAbs(entry_price - signal_params.raw_stop_anchor_price);
+  if(risk_distance <= 0.0)
+    risk_distance = MathAbs(signal_params.raw_risk_distance);
+  if(risk_distance <= 0.0 || !MathIsValidNumber(risk_distance))
+    return false;
+
+  if(signal_params.signal_type == BULLISH)
+    profit_r_out = (close_price - entry_price) / risk_distance;
+  else if(signal_params.signal_type == BEARISH)
+    profit_r_out = (entry_price - close_price) / risk_distance;
+  else
+    return false;
+
+  return MathIsValidNumber(profit_r_out);
+}
+
+string DeterministicSignalStatsTerminalReason(const SignalParams &signal_params)
+{
+  if(signal_params.deterministic_stats_terminal_reason != "")
+    return signal_params.deterministic_stats_terminal_reason;
+
+  if(signal_params.raw_profit > 0.0)
+    return "BROKER_PROFIT";
+  if(signal_params.raw_profit < 0.0)
+    return "BROKER_LOSS";
+  return "CLOSED";
+}
+
+bool DeterministicSignalStatsBuildOutcomeRow(SignalParams &signal_params,
+                                             string &row_out,
+                                             bool &valid_out)
+{
+  row_out = "";
+  valid_out = true;
+
+  if(!DeterministicSignalStatsReady() ||
+     !signal_params.deterministic_strategy)
+    return false;
+
+  string signal_id = DeterministicSignalStatsEnsureSignalId(signal_params);
+  if(signal_id == "")
+    return false;
+
+  string source_key = signal_params.deterministic_source_key;
+  if(source_key == "")
+    source_key = BuildDeterministicSignalSourceKey(signal_params);
+
+  double entry_price = 0.0;
+  bool entry_price_valid = DeterministicSignalStatsOutcomeEntryPrice(signal_params,
+                                                                     entry_price);
+  bool close_price_valid = (signal_params.close_price > 0.0 &&
+                            MathIsValidNumber(signal_params.close_price));
+
+  double profit_r = 0.0;
+  bool profit_r_valid = entry_price_valid && close_price_valid &&
+                        DeterministicSignalStatsProfitR(signal_params,
+                                                        entry_price,
+                                                        signal_params.close_price,
+                                                        profit_r);
+
+  datetime entry_time = DeterministicSignalStatsOutcomeEntryTime(signal_params);
+  bool duration_valid = (entry_time > 0 &&
+                         signal_params.close_time > 0 &&
+                         signal_params.close_time >= entry_time);
+  int duration_seconds = 0;
+  int duration_m1_bars = 0;
+  if(duration_valid)
+  {
+    duration_seconds = (int)(signal_params.close_time - entry_time);
+    int m1_seconds = PeriodSeconds(PERIOD_M1);
+    if(m1_seconds > 0)
+      duration_m1_bars = (int)MathFloor((double)duration_seconds / (double)m1_seconds);
+    else
+      duration_valid = false;
+  }
+
+  bool net_profit_valid = MathIsValidNumber(signal_params.raw_profit);
+  valid_out = entry_price_valid && close_price_valid && profit_r_valid &&
+              duration_valid && net_profit_valid;
+
+  row_out = IntegerToString(DETERMINISTIC_SIGNAL_STATS_SCHEMA_VERSION) + "\t" +
+            DeterministicSignalStatsCell(g_deterministic_signal_stats_run_id) + "\t" +
+            DeterministicSignalStatsCell(g_deterministic_signal_stats_config_id) + "\t" +
+            DeterministicSignalStatsCell(signal_id) + "\t" +
+            DeterministicSignalStatsCell(source_key) + "\t" +
+            IntegerToString(signal_params.deterministic_source_attempt_index) + "\t" +
+            DeterministicSignalStatsTimeToken(signal_params.close_time) + "\t" +
+            DeterministicSignalStatsCell(DeterministicSignalStatsTerminalReason(signal_params)) + "\t" +
+            DeterministicSignalStatsDoubleToken(profit_r_valid, profit_r, 4) + "\t" +
+            DeterministicSignalStatsIntToken(duration_valid, duration_seconds) + "\t" +
+            DeterministicSignalStatsIntToken(duration_valid, duration_m1_bars) + "\t" +
+            DeterministicSignalStatsDoubleToken(entry_price_valid, entry_price, Digits()) + "\t" +
+            DeterministicSignalStatsDoubleToken(close_price_valid, signal_params.close_price, Digits()) + "\t" +
+            DeterministicSignalStatsDoubleToken(net_profit_valid, signal_params.raw_profit, 2);
+
+  return true;
+}
+
+bool DeterministicSignalStatsRecordOutcome(SignalParams &signal_params)
+{
+  if(!DeterministicSignalStatsReady())
+    return false;
+  if(!signal_params.deterministic_strategy)
+    return false;
+  if(!signal_params.deterministic_stats_feature_exported)
+    return false;
+  if(signal_params.deterministic_stats_outcome_exported)
+    return false;
+  if(!SignalHasBrokerConfirmedOutcome(signal_params))
+    return false;
+
+  string row = "";
+  bool valid = false;
+  if(!DeterministicSignalStatsBuildOutcomeRow(signal_params,
+                                              row,
+                                              valid))
+    return false;
+
+  string filename = DeterministicSignalStatsPath(DETERMINISTIC_SIGNAL_STATS_OUTCOMES_FILE);
+  if(!DeterministicSignalStatsAppendRow(filename,
+                                        DETERMINISTIC_SIGNAL_STATS_OUTCOMES_HEADER,
+                                        row))
+    return false;
+
+  signal_params.deterministic_stats_outcome_exported = true;
+  g_deterministic_signal_stats_outcome_rows++;
+  if(!valid)
+    g_deterministic_signal_stats_outcome_invalid_rows++;
+  return true;
+}
+
 #endif // _TS_DETERMINISTIC_STATS_EXPORT_MQH_

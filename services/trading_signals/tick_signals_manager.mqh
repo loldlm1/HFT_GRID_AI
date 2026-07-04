@@ -28,6 +28,7 @@ void RegisterClosedSignalOutcomeIfBrokerConfirmed(SignalParams &signal_params,
 
   RegisterDailySignalOutcome(direction, signal_params.raw_profit);
   RegisterSignalLotSequenceOutcome(signal_params.raw_profit);
+  DeterministicSignalStatsRecordOutcome(signal_params);
 }
 
 void CheckTickOpenBullishSignals()

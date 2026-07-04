@@ -106,6 +106,7 @@ struct SignalParams
   string                     deterministic_stats_signal_id;
   bool                       deterministic_stats_feature_exported;
   bool                       deterministic_stats_outcome_exported;
+  string                     deterministic_stats_terminal_reason;
 
   bool   execution_initialized;
   double execution_base_distance_points;
@@ -178,6 +179,7 @@ struct SignalParams
     deterministic_stats_signal_id = "";
     deterministic_stats_feature_exported = false;
     deterministic_stats_outcome_exported = false;
+    deterministic_stats_terminal_reason = "";
     execution_initialized       = false;
     execution_base_distance_points = 0.0;
     execution_initial_indicator_distance_points = 0.0;
@@ -240,6 +242,7 @@ struct SignalParams
     deterministic_stats_signal_id = signal_params.deterministic_stats_signal_id;
     deterministic_stats_feature_exported = signal_params.deterministic_stats_feature_exported;
     deterministic_stats_outcome_exported = signal_params.deterministic_stats_outcome_exported;
+    deterministic_stats_terminal_reason = signal_params.deterministic_stats_terminal_reason;
     execution_initialized       = signal_params.execution_initialized;
     execution_base_distance_points = signal_params.execution_base_distance_points;
     execution_initial_indicator_distance_points = signal_params.execution_initial_indicator_distance_points;

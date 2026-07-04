@@ -513,6 +513,7 @@ void UpdateDeterministicExecutionLifecycle(SignalParams &signal_params)
   if(DeterministicStopTriggered(signal_params, close_0))
   {
     CloseAllExecutionLegs(signal_params, ExecutionResolvePointSize());
+    signal_params.deterministic_stats_terminal_reason = "SL";
     ExecutionLogEvent("DETERMINISTIC_SL", signal_params, leg_state);
     return;
   }
@@ -520,6 +521,7 @@ void UpdateDeterministicExecutionLifecycle(SignalParams &signal_params)
   if(DeterministicTakeProfitTriggered(signal_params, leg_state))
   {
     CloseAllExecutionLegs(signal_params, ExecutionResolvePointSize());
+    signal_params.deterministic_stats_terminal_reason = "TP";
     int source_attempt_count = 0;
     bool newly_consumed = RegisterDeterministicSourceConsumedTp(signal_params,
                                                                source_attempt_count);
