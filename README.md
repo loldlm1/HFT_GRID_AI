@@ -269,6 +269,17 @@ artifacts, unavailable model state, invalid features, failed encoding, failed
 classifier scoring, and non-tester usage are blocking conditions for model
 admission. `SHADOW` remains observational and fail-open.
 
+Validate a Strategy Tester filter run with compact tooling:
+
+```bash
+.venv/bin/python tools/deterministic_signal_ml/summarize_filter_run.py \
+  --shadow-run-path "$MT5_COMMON_FILES/DeterministicSignalML/shadow_runs/<shadow_run_id>"
+
+.venv/bin/python tools/deterministic_signal_ml/compare_shadow_predictions.py \
+  --export-id xgb_test_1_export_v1 \
+  --shadow-run-path "$MT5_COMMON_FILES/DeterministicSignalML/shadow_runs/<shadow_run_id>"
+```
+
 ## Final Baseline Notes
 
 - Phase 8 final compile passed on 2026-07-03 with `0 errors, 0 warnings`; evidence log: `logs/compile/phase-08-build.log`.

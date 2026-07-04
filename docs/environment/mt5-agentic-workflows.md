@@ -308,6 +308,30 @@ MQL5 scores against the Python artifact scorer:
 Record only row counts, max/mean errors, decision agreement, selected failure
 lines, and the shadow run path. Do not paste full shadow TSVs into chat.
 
-Phase 6 `FILTER` mode remains blocked until Phase 5 has clean compile evidence,
-successful artifact load, nonzero shadow prediction rows, parity validator
-`PASS`, enough closed outcomes for human review, and explicit human approval.
+## Phase 6 Filter Validation
+
+Phase 6 `FILTER` mode is approved for Strategy Tester implementation only. It is
+not live-deployment approval.
+
+Use `ML_Inference_Mode = ML_INFERENCE_FILTER` only after the export is present
+under `Common\Files`. Filter mode is fail-closed for model admission: missing
+artifacts, unavailable model state, invalid features, failed encoding, failed
+classifier scoring, and non-tester usage block deterministic model admission.
+Existing license, session, spread, broker constraints, margin, protection,
+magic-number scope, and broker reconciliation remain the source of truth.
+
+After a human-in-the-loop Strategy Tester run creates filter output, summarize
+the run and compare scored predictions:
+
+```bash
+.venv/bin/python tools/deterministic_signal_ml/summarize_filter_run.py \
+  --shadow-run-path "$MT5_COMMON_FILES/DeterministicSignalML/shadow_runs/<shadow_run_id>"
+
+.venv/bin/python tools/deterministic_signal_ml/compare_shadow_predictions.py \
+  --export-id xgb_test_1_export_v1 \
+  --shadow-run-path "$MT5_COMMON_FILES/DeterministicSignalML/shadow_runs/<shadow_run_id>"
+```
+
+Record only compact row counts, allow/block counts, unavailable/invalid counts,
+parity status, selected failure lines, and the run path. Do not paste full
+shadow/filter TSVs into chat.

@@ -240,6 +240,32 @@ Tester run produces a shadow run folder:
 The comparison prints only row counts, max/mean errors, threshold-decision
 agreement, and a few failure examples. It does not dump full prediction files.
 
+## Phase 6 Filter Validation
+
+`ML_INFERENCE_FILTER` is Strategy Tester only. It may block deterministic broker
+admission after existing broker/risk eligibility passes and before broker send.
+It is not approved for live deployment.
+
+After a Strategy Tester run with `ML_INFERENCE_FILTER`, summarize the run before
+inspecting any larger artifact:
+
+```bash
+.venv/bin/python tools/deterministic_signal_ml/summarize_filter_run.py \
+  --shadow-run-path "$MT5_COMMON_FILES/DeterministicSignalML/shadow_runs/<shadow_run_id>"
+```
+
+Then compare scored prediction rows against the Python artifact scorer:
+
+```bash
+.venv/bin/python tools/deterministic_signal_ml/compare_shadow_predictions.py \
+  --export-id xgb_test_1_export_v1 \
+  --shadow-run-path "$MT5_COMMON_FILES/DeterministicSignalML/shadow_runs/<shadow_run_id>"
+```
+
+The summarizer checks required TSV files, duplicate headers, row-count
+consistency, filter allow/block counters, unavailable blocks, invalid-feature
+blocks, and export status. It prints compact counts only.
+
 ## Agentic Evidence Policy
 
 Do not paste full TSV, Parquet, model JSON, or tree TSV files into chat.

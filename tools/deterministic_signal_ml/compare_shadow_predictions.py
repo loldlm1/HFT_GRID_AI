@@ -1,4 +1,4 @@
-"""Compare MQL5 shadow predictions against the exported Python artifact scorer."""
+"""Compare MQL5 shadow/filter predictions against the Python artifact scorer."""
 
 from __future__ import annotations
 
