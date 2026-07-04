@@ -158,6 +158,60 @@ struct MLShadowTreeNode
   }
 };
 
+struct MLShadowDecisionResult
+{
+  bool     signal_id_valid;
+  bool     snapshot_valid;
+  bool     model_available;
+  bool     feature_valid;
+  bool     classifier_scored;
+  bool     regressor_scored;
+  bool     model_admits_entry;
+  string   signal_id;
+  string   recommendation;
+  string   reason;
+  double   classifier_score;
+  double   regressor_score;
+  double   threshold_probability;
+  DeterministicSignalFeatureSnapshot snapshot;
+
+  MLShadowDecisionResult()
+  {
+    signal_id_valid      = false;
+    snapshot_valid       = false;
+    model_available      = false;
+    feature_valid        = false;
+    classifier_scored    = false;
+    regressor_scored     = false;
+    model_admits_entry   = false;
+    signal_id            = "";
+    recommendation       = "NO_SCORE";
+    reason               = "not_scored";
+    classifier_score     = 0.0;
+    regressor_score      = 0.0;
+    threshold_probability = 0.0;
+    snapshot             = DeterministicSignalFeatureSnapshot();
+  }
+
+  MLShadowDecisionResult(const MLShadowDecisionResult &result)
+  {
+    signal_id_valid      = result.signal_id_valid;
+    snapshot_valid       = result.snapshot_valid;
+    model_available      = result.model_available;
+    feature_valid        = result.feature_valid;
+    classifier_scored    = result.classifier_scored;
+    regressor_scored     = result.regressor_scored;
+    model_admits_entry   = result.model_admits_entry;
+    signal_id            = result.signal_id;
+    recommendation       = result.recommendation;
+    reason               = result.reason;
+    classifier_score     = result.classifier_score;
+    regressor_score      = result.regressor_score;
+    threshold_probability = result.threshold_probability;
+    snapshot             = result.snapshot;
+  }
+};
+
 MLShadowRuntimeState g_ml_shadow_state;
 string               g_ml_shadow_manifest_keys[];
 string               g_ml_shadow_manifest_values[];
@@ -1329,6 +1383,111 @@ string MLShadowRecommendationToken(const bool scored,
   return "BLOCK";
 }
 
+bool DeterministicSignalMLShadowEvaluateDecision(SignalParams &signal_params,
+                                                 const ExecutionLegState &leg_state,
+                                                 MLShadowDecisionResult &decision_out)
+{
+  decision_out = MLShadowDecisionResult();
+  decision_out.model_available = g_ml_shadow_state.available;
+  decision_out.threshold_probability = g_ml_shadow_state.threshold_probability;
+
+  if(!g_ml_shadow_state.enabled)
+  {
+    decision_out.reason = "ml_disabled";
+    return false;
+  }
+  if(!signal_params.deterministic_strategy)
+  {
+    decision_out.reason = "not_deterministic_strategy";
+    return false;
+  }
+
+  string signal_id = DeterministicSignalMLShadowEnsureSignalId(signal_params);
+  decision_out.signal_id = signal_id;
+  decision_out.signal_id_valid = (signal_id != "");
+  if(!decision_out.signal_id_valid)
+  {
+    decision_out.reason = "missing_signal_id";
+    return false;
+  }
+
+  DeterministicSignalFeatureSnapshot snapshot;
+  if(!DeterministicSignalBuildFeatureSnapshot(signal_params,
+                                              leg_state,
+                                              snapshot))
+  {
+    decision_out.reason = "feature_snapshot_failed";
+    return false;
+  }
+
+  decision_out.snapshot = snapshot;
+  decision_out.snapshot_valid = true;
+  decision_out.feature_valid = snapshot.valid;
+
+  if(!g_ml_shadow_state.available)
+  {
+    decision_out.reason = "ML_UNAVAILABLE:" + g_ml_shadow_state.unavailable_reason;
+  }
+  else
+  {
+    double features[];
+    bool missing_features[];
+    string invalid_reason = "";
+    bool encoding_ok = DeterministicSignalMLShadowEncodeSnapshot(snapshot,
+                                                                 features,
+                                                                 missing_features,
+                                                                 decision_out.feature_valid,
+                                                                 invalid_reason);
+    if(!encoding_ok)
+    {
+      decision_out.reason = "encoding_failed:" + invalid_reason;
+      decision_out.feature_valid = false;
+    }
+    else if(!decision_out.feature_valid)
+    {
+      decision_out.reason = "invalid_features:" + invalid_reason;
+      g_ml_shadow_state.invalid_feature_rows++;
+    }
+    else if(!MLShadowScoreClassifier(features,
+                                     missing_features,
+                                     decision_out.classifier_score))
+    {
+      decision_out.reason = "classifier_score_failed";
+    }
+    else
+    {
+      decision_out.classifier_scored = true;
+      decision_out.model_admits_entry = (decision_out.classifier_score >=
+                                         g_ml_shadow_state.threshold_probability);
+      decision_out.reason = decision_out.model_admits_entry ?
+                            "classifier_score_gte_threshold" :
+                            "classifier_score_lt_threshold";
+      if(MLShadowScoreRegressor(features,
+                                missing_features,
+                                decision_out.regressor_score))
+        decision_out.regressor_scored = true;
+    }
+  }
+
+  decision_out.recommendation = MLShadowRecommendationToken(decision_out.classifier_scored,
+                                                           decision_out.classifier_score);
+  return decision_out.classifier_scored;
+}
+
+void MLShadowApplyDecisionToSignal(SignalParams &signal_params,
+                                   const MLShadowDecisionResult &decision)
+{
+  signal_params.ml_shadow_model_id = g_ml_shadow_state.model_id;
+  signal_params.ml_shadow_export_id = g_ml_shadow_state.export_id;
+  signal_params.ml_shadow_threshold = g_ml_shadow_state.threshold_probability;
+  signal_params.ml_shadow_available = decision.model_available;
+  signal_params.ml_shadow_feature_valid = decision.feature_valid;
+  signal_params.ml_shadow_classifier_score = decision.classifier_score;
+  signal_params.ml_shadow_regressor_score = decision.regressor_score;
+  signal_params.ml_shadow_recommendation = decision.recommendation;
+  signal_params.ml_shadow_reason = decision.reason;
+}
+
 string MLShadowPredictionRow(const SignalParams &signal_params,
                              const DeterministicSignalFeatureSnapshot &snapshot,
                              const bool classifier_scored,
@@ -1388,91 +1547,25 @@ bool DeterministicSignalMLShadowRecordPrediction(SignalParams &signal_params,
     return false;
 
   signal_params.ml_shadow_evaluated = true;
-  signal_params.ml_shadow_model_id = g_ml_shadow_state.model_id;
-  signal_params.ml_shadow_export_id = g_ml_shadow_state.export_id;
-  signal_params.ml_shadow_threshold = g_ml_shadow_state.threshold_probability;
-  signal_params.ml_shadow_available = g_ml_shadow_state.available;
 
-  string signal_id = DeterministicSignalMLShadowEnsureSignalId(signal_params);
-  if(signal_id == "")
-  {
-    signal_params.ml_shadow_reason = "missing_signal_id";
-    return false;
-  }
-
-  DeterministicSignalFeatureSnapshot snapshot;
-  if(!DeterministicSignalBuildFeatureSnapshot(signal_params,
+  MLShadowDecisionResult decision;
+  DeterministicSignalMLShadowEvaluateDecision(signal_params,
                                               leg_state,
-                                              snapshot))
-  {
-    signal_params.ml_shadow_reason = "feature_snapshot_failed";
+                                              decision);
+  MLShadowApplyDecisionToSignal(signal_params, decision);
+  if(!decision.signal_id_valid || !decision.snapshot_valid)
     return false;
-  }
-
-  double classifier_score = 0.0;
-  double regressor_score = 0.0;
-  bool classifier_scored = false;
-  bool regressor_scored = false;
-  bool feature_valid = snapshot.valid;
-  string reason = "not_scored";
-
-  if(!g_ml_shadow_state.available)
-  {
-    reason = "ML_UNAVAILABLE:" + g_ml_shadow_state.unavailable_reason;
-  }
-  else
-  {
-    double features[];
-    bool missing_features[];
-    string invalid_reason = "";
-    bool encoding_ok = DeterministicSignalMLShadowEncodeSnapshot(snapshot,
-                                                                 features,
-                                                                 missing_features,
-                                                                 feature_valid,
-                                                                 invalid_reason);
-    if(!encoding_ok)
-    {
-      reason = "encoding_failed:" + invalid_reason;
-      feature_valid = false;
-    }
-    else if(!feature_valid)
-    {
-      reason = "invalid_features:" + invalid_reason;
-      g_ml_shadow_state.invalid_feature_rows++;
-    }
-    else if(!MLShadowScoreClassifier(features, missing_features, classifier_score))
-    {
-      reason = "classifier_score_failed";
-    }
-    else
-    {
-      classifier_scored = true;
-      reason = (classifier_score >= g_ml_shadow_state.threshold_probability) ?
-               "classifier_score_gte_threshold" :
-               "classifier_score_lt_threshold";
-      if(MLShadowScoreRegressor(features, missing_features, regressor_score))
-        regressor_scored = true;
-    }
-  }
-
-  string recommendation = MLShadowRecommendationToken(classifier_scored, classifier_score);
-  signal_params.ml_shadow_available = g_ml_shadow_state.available;
-  signal_params.ml_shadow_feature_valid = feature_valid;
-  signal_params.ml_shadow_classifier_score = classifier_score;
-  signal_params.ml_shadow_regressor_score = regressor_score;
-  signal_params.ml_shadow_recommendation = recommendation;
-  signal_params.ml_shadow_reason = reason;
 
   string row = MLShadowPredictionRow(signal_params,
-                                     snapshot,
-                                     classifier_scored,
-                                     classifier_score,
-                                     regressor_scored,
-                                     regressor_score,
-                                     recommendation,
-                                     reason,
-                                     feature_valid,
-                                     g_ml_shadow_state.available);
+                                     decision.snapshot,
+                                     decision.classifier_scored,
+                                     decision.classifier_score,
+                                     decision.regressor_scored,
+                                     decision.regressor_score,
+                                     decision.recommendation,
+                                     decision.reason,
+                                     decision.feature_valid,
+                                     decision.model_available);
   if(MLShadowQueueRow(MLShadowOutputPath(ML_SHADOW_PREDICTIONS_FILE),
                       ML_SHADOW_PREDICTIONS_HEADER,
                       row,
@@ -1481,15 +1574,15 @@ bool DeterministicSignalMLShadowRecordPrediction(SignalParams &signal_params,
 
   ExecutionAppendQueryDebugLog("ML_SHADOW_SCORE",
                                StringFormat("signal_id=%s|source_key=%s|score=%s|threshold=%s|recommendation=%s|reason=%s|feature_valid=%s|model_available=%s",
-                                            signal_params.ml_shadow_signal_id,
-                                            snapshot.source_key,
-                                            MLShadowDoubleToken(classifier_scored, classifier_score, 8),
-                                            MLShadowDoubleToken(g_ml_shadow_state.available, g_ml_shadow_state.threshold_probability, 8),
-                                            recommendation,
-                                            reason,
-                                            MLShadowBoolToken(feature_valid),
-                                            MLShadowBoolToken(g_ml_shadow_state.available)));
-  return classifier_scored;
+	                                            signal_params.ml_shadow_signal_id,
+	                                            decision.snapshot.source_key,
+	                                            MLShadowDoubleToken(decision.classifier_scored, decision.classifier_score, 8),
+	                                            MLShadowDoubleToken(decision.model_available, decision.threshold_probability, 8),
+	                                            decision.recommendation,
+	                                            decision.reason,
+	                                            MLShadowBoolToken(decision.feature_valid),
+	                                            MLShadowBoolToken(decision.model_available)));
+  return decision.classifier_scored;
 }
 
 string MLShadowOutcomeRow(SignalParams &signal_params,
