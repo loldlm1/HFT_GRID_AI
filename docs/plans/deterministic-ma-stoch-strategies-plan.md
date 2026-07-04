@@ -1177,6 +1177,47 @@ $log = Join-Path $mt5Root "MQL5\Experts\HFT_Grid_AI\logs\compile\deterministic-s
   - Compile.
   - Human-in-the-loop query debug check: no pending-only cancellation advances trade outcome counters.
 
+## Sprint 17: Query Debug Throttling And Block Context
+
+**Goal**: Keep long Strategy Tester runs auditable by preventing repeated per-tick entry confirmations and local execution blocks from inflating `query_debug.txt` into multi-GB logs.
+**Commit**: `fix: throttle repetitive query debug logs`
+**Status**: Completed on 2026-07-04. Portable compile passed with 0 errors and 0 warnings; runtime confirmation remains human-in-the-loop through a short all-strategies `query_debug.txt` run.
+**Demo/Validation**:
+- `DETERMINISTIC_ENTRY_CONFIRM` logs the first confirmation for a signal/leg, then emits periodic summaries with `suppressed_since_last` instead of every tick.
+- `LOCAL_EXECUTION_BLOCK` includes strategy/source identity and emits periodic summaries per signal/leg/block type instead of every tick.
+- TP/SL/source-consumed lifecycle logs remain unthrottled.
+- Compile at sprint end with 0 errors and 0 warnings.
+
+### Task 17.1: Add Query Debug Throttle State
+
+- **Location**:
+  - `services/trading_signals/execution_logging.mqh`
+- **Description**: Add a lightweight in-memory throttle state keyed by label, signal sequence, leg, and reason category.
+- **Dependencies**: Sprint 16.
+- **Acceptance Criteria**:
+  - Throttle state resets with query debug session state.
+  - First event logs immediately.
+  - Repeated events inside the throttle window are counted, not written.
+  - The next emitted event includes `suppressed_since_last`.
+- **Validation**:
+  - Static review.
+  - Compile.
+
+### Task 17.2: Apply Throttling To High-Volume Labels
+
+- **Location**:
+  - `services/trading_signals/execution_logging.mqh`
+- **Description**: Throttle `DETERMINISTIC_ENTRY_CONFIRM` and `LOCAL_EXECUTION_BLOCK` while preserving full lifecycle logs for candidates, entries, TP, SL, source consumption, expiration, and pending cancellation.
+- **Dependencies**: Task 17.1.
+- **Acceptance Criteria**:
+  - `DETERMINISTIC_ENTRY_CONFIRM` remains available for signal validation without per-tick spam.
+  - `LOCAL_EXECUTION_BLOCK` includes `strategy`, `sequence`, `source_key`, `source_attempt_index`, and normalized reason context.
+  - Repeated margin blocks do not dominate `query_debug.txt`.
+- **Validation**:
+  - Static review.
+  - Compile.
+  - Short human-in-the-loop tester run with all three strategies: confirm log size grows materially slower and repeated margin blocks include `suppressed_since_last`.
+
 ## Testing Strategy
 
 - Use static sweeps after cleanup tasks:
@@ -1234,6 +1275,10 @@ $log = Join-Path $mt5Root "MQL5\Experts\HFT_Grid_AI\logs\compile\deterministic-s
   - `DETERMINISTIC_PENDING_CANCELED` classifies pending-only closures.
   - TP/SL counts still match broker entries.
   - Pending cancellations do not affect trade outcome or lot-sequence accounting.
+- Use human-in-the-loop query debug checks after Sprint 17:
+  - Long no-margin windows do not emit one `DETERMINISTIC_ENTRY_CONFIRM` plus one `LOCAL_EXECUTION_BLOCK` per tick.
+  - Throttled lines include `suppressed_since_last` when repeats were skipped.
+  - `LOCAL_EXECUTION_BLOCK` can be traced to a specific strategy/source key.
 
 ## Potential Risks And Gotchas
 
@@ -1256,6 +1301,7 @@ $log = Join-Path $mt5Root "MQL5\Experts\HFT_Grid_AI\logs\compile\deterministic-s
 - **Source-level sample inflation**: A TP can be followed by another trade from the same source extremum. Mitigation: consume TP-positive deterministic sources and block same-source reentries.
 - **Retained-entry anchor ambiguity**: A retained trigger can be crossed while the current `high_1`/`low_1` is not. Mitigation: require both retained trigger and current anchor to break before entry.
 - **Pending cancellation outcome pollution**: Pending expirations can look like trade outcomes to daily/lot state. Mitigation: classify no-exposure cancellations separately and skip broker outcome accounting.
+- **Query debug explosion after broker blocks**: Once margin is exhausted, pending signals can retry on every tick and emit millions of duplicate logs. Mitigation: throttle high-frequency validation/block labels while preserving first event, periodic summaries, and terminal lifecycle events.
 
 No additional product questions are blocking this plan. The remaining unknowns are implementation discoveries, especially the exact magic-number license contract, whether all old range/grid code can be deleted in one sprint without forcing a larger frontend rewrite, and the exact lifecycle policy for EA-opened macro charts after manual user interaction.
 

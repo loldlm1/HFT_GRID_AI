@@ -8,9 +8,15 @@
 
 const string QUERY_DEBUG_FILENAME = "query_debug.txt";
 const int QUERY_DEBUG_STATE_RESERVE = 64;
+const int QUERY_DEBUG_THROTTLE_RESERVE = 64;
+const int QUERY_DEBUG_ENTRY_CONFIRM_THROTTLE_SECONDS = 60;
+const int QUERY_DEBUG_GUARDRAIL_THROTTLE_SECONDS = 60;
 bool g_query_debug_session_header_logged = false;
 string g_query_debug_state_keys[];
 string g_query_debug_state_messages[];
+string g_query_debug_throttle_keys[];
+datetime g_query_debug_throttle_times[];
+int g_query_debug_throttle_suppressed[];
 
 string ExecutionBoolToken(const bool value)
 {
@@ -34,6 +40,9 @@ void ResetQueryDebugLogSession()
   g_query_debug_session_header_logged = false;
   ArrayResize(g_query_debug_state_keys, 0, QUERY_DEBUG_STATE_RESERVE);
   ArrayResize(g_query_debug_state_messages, 0, QUERY_DEBUG_STATE_RESERVE);
+  ArrayResize(g_query_debug_throttle_keys, 0, QUERY_DEBUG_THROTTLE_RESERVE);
+  ArrayResize(g_query_debug_throttle_times, 0, QUERY_DEBUG_THROTTLE_RESERVE);
+  ArrayResize(g_query_debug_throttle_suppressed, 0, QUERY_DEBUG_THROTTLE_RESERVE);
 }
 
 void ExecutionAppendRawQueryDebugLine(const string line)
@@ -87,6 +96,58 @@ bool ExecutionShouldLogChangedState(const string state_key,
 
   g_query_debug_state_messages[index] = message;
   return true;
+}
+
+int ExecutionFindQueryDebugThrottleIndex(const string state_key)
+{
+  int total = ArraySize(g_query_debug_throttle_keys);
+  for(int i = 0; i < total; i++)
+  {
+    if(g_query_debug_throttle_keys[i] == state_key)
+      return i;
+  }
+  return -1;
+}
+
+bool ExecutionShouldLogThrottledState(const string state_key,
+                                      const int throttle_seconds,
+                                      int &suppressed_since_last)
+{
+  suppressed_since_last = 0;
+  if(throttle_seconds <= 0)
+    return true;
+
+  datetime now = TimeCurrent();
+  int index = ExecutionFindQueryDebugThrottleIndex(state_key);
+  if(index < 0)
+  {
+    int total = ArraySize(g_query_debug_throttle_keys);
+    ArrayResize(g_query_debug_throttle_keys,
+                total + 1,
+                QUERY_DEBUG_THROTTLE_RESERVE);
+    ArrayResize(g_query_debug_throttle_times,
+                total + 1,
+                QUERY_DEBUG_THROTTLE_RESERVE);
+    ArrayResize(g_query_debug_throttle_suppressed,
+                total + 1,
+                QUERY_DEBUG_THROTTLE_RESERVE);
+    g_query_debug_throttle_keys[total] = state_key;
+    g_query_debug_throttle_times[total] = now;
+    g_query_debug_throttle_suppressed[total] = 0;
+    return true;
+  }
+
+  int elapsed_seconds = (int)(now - g_query_debug_throttle_times[index]);
+  if(elapsed_seconds >= throttle_seconds)
+  {
+    suppressed_since_last = g_query_debug_throttle_suppressed[index];
+    g_query_debug_throttle_times[index] = now;
+    g_query_debug_throttle_suppressed[index] = 0;
+    return true;
+  }
+
+  g_query_debug_throttle_suppressed[index]++;
+  return false;
 }
 
 void EnsureQueryDebugSessionHeaderLogged()
@@ -181,6 +242,33 @@ void ExecutionAppendQueryDebugChangedLog(const string label,
     return;
 
   ExecutionAppendTimestampedQueryDebug(label, message);
+}
+
+void ExecutionAppendQueryDebugThrottledLog(const string label,
+                                           const string state_key,
+                                           const string message,
+                                           const int throttle_seconds)
+{
+  if(!Enable_File_Logs)
+    return;
+
+  EnsureQueryDebugSessionHeaderLogged();
+
+  int suppressed_since_last = 0;
+  if(!ExecutionShouldLogThrottledState(label + "|" + state_key,
+                                       throttle_seconds,
+                                       suppressed_since_last))
+    return;
+
+  string throttled_message = message;
+  if(suppressed_since_last > 0)
+  {
+    throttled_message = throttled_message +
+                        StringFormat("|suppressed_since_last=%d",
+                                     suppressed_since_last);
+  }
+
+  ExecutionAppendTimestampedQueryDebug(label, throttled_message);
 }
 
 string ExecutionFormatDoubleOrToken(const bool valid,
@@ -746,6 +834,17 @@ void ExecutionLogDeterministicEntryConfirmation(const string label,
                                 high_1,
                                 low_1);
 
+  if(label == "DETERMINISTIC_ENTRY_CONFIRM")
+  {
+    string state_key = ExecutionQueryDebugSignalKey(signal_params) + "|L" +
+                       IntegerToString(display_level) + "|ENTRY_CONFIRM";
+    ExecutionAppendQueryDebugThrottledLog(label,
+                                          state_key,
+                                          message,
+                                          QUERY_DEBUG_ENTRY_CONFIRM_THROTTLE_SECONDS);
+    return;
+  }
+
   ExecutionAppendQueryDebugLog(label, message);
 }
 
@@ -830,11 +929,39 @@ void ExecutionLogGuardrailBlock(const string label,
 {
   string direction = (signal_params.signal_type == BULLISH) ? "BULLISH" : "BEARISH";
   int display_level = ExecutionDisplayLegNumber(leg_state.level_index);
-  string message = StringFormat("dir=%s|L%d|status=%s|reason=%s",
+  string message = StringFormat("strategy=%s|dir=%s|L%d|status=%s|sequence=%s|source_key=%s|source_attempt_index=%d|source_slot=%d|source_confirmed=%s|source_type=%s|source_time=%s|source_price=%.5f|raw_trigger=%.5f|raw_stop=%.5f|reason=%s",
+                                signal_params.strategy_label,
                                 direction,
                                 display_level,
                                 EnumToString(leg_state.status),
+                                ExecutionQueryDebugSignalKey(signal_params),
+                                ExecutionDeterministicSourceKey(signal_params),
+                                signal_params.deterministic_source_attempt_index,
+                                signal_params.source_extremum_slot,
+                                ExecutionBoolToken(signal_params.source_extremum_confirmed),
+                                ExecutionSourceExtremumTypeToken(signal_params),
+                                ExecutionSourceExtremumTimeToken(signal_params),
+                                signal_params.source_extremum_price,
+                                signal_params.raw_entry_trigger_price,
+                                signal_params.raw_stop_anchor_price,
                                 reason);
+
+  if(label == "LOCAL_EXECUTION_BLOCK")
+  {
+    string reason_key = reason;
+    int separator = StringFind(reason_key, ":");
+    if(separator > 0)
+      reason_key = StringSubstr(reason_key, 0, separator);
+
+    string state_key = ExecutionQueryDebugSignalKey(signal_params) + "|L" +
+                       IntegerToString(display_level) + "|" + reason_key;
+    ExecutionAppendQueryDebugThrottledLog(label,
+                                          state_key,
+                                          message,
+                                          QUERY_DEBUG_GUARDRAIL_THROTTLE_SECONDS);
+    return;
+  }
+
   ExecutionAppendQueryDebugLog(label, message);
 }
 
