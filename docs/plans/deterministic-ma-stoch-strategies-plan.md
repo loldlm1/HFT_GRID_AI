@@ -1218,6 +1218,48 @@ $log = Join-Path $mt5Root "MQL5\Experts\HFT_Grid_AI\logs\compile\deterministic-s
   - Compile.
   - Short human-in-the-loop tester run with all three strategies: confirm log size grows materially slower and repeated margin blocks include `suppressed_since_last`.
 
+## Sprint 18: Strategy Header Telemetry And Anchor Block Throttle
+
+**Goal**: Make single-strategy tester runs self-identifying in `query_debug.txt` and prevent `DETERMINISTIC_ENTRY_ANCHOR_BLOCKED` from becoming the new dominant high-frequency log.
+**Commit**: `fix: throttle anchor block telemetry`
+**Status**: Completed on 2026-07-04. Portable compile passed with 0 errors and 0 warnings; runtime confirmation remains human-in-the-loop through a short single-strategy `query_debug.txt` run.
+**Demo/Validation**:
+- `INPUTS_STRATEGY` includes `enable_s1`, `enable_s2`, `enable_s3`, active descriptors, and inactive descriptors.
+- `DETERMINISTIC_ENTRY_ANCHOR_BLOCKED` logs first occurrence per signal/leg, then periodic summaries with `suppressed_since_last`.
+- Candidate, entry, TP, SL, source-consumed, source-expired, and pending-canceled logs remain unthrottled.
+- Compile at sprint end with 0 errors and 0 warnings.
+
+### Task 18.1: Add Strategy Toggle And Descriptor Header
+
+- **Location**:
+  - `services/trading_signals/execution_logging.mqh`
+- **Description**: Add a compact strategy descriptor string to the query-debug session header so each log file proves which deterministic strategies were enabled and what delays/macro timeframes they used.
+- **Dependencies**: Sprint 17.
+- **Acceptance Criteria**:
+  - Header records raw enable flags for S1/S2/S3.
+  - Header records active descriptors such as `S2(base_shift=5,macro=PERIOD_M5,macro_shift=1)`.
+  - Header records disabled strategies in a compact `inactive=` field.
+- **Validation**:
+  - Static review.
+  - Compile.
+  - Human-in-the-loop query debug check: S2-only run shows `enable_s1=false|enable_s2=true|enable_s3=false`.
+
+### Task 18.2: Throttle Entry Anchor Block Telemetry
+
+- **Location**:
+  - `services/trading_signals/execution_logging.mqh`
+- **Description**: Route `DETERMINISTIC_ENTRY_ANCHOR_BLOCKED` through the existing query-debug throttled logger instead of changed-state logging that still emits on every tick because `close_0` changes.
+- **Dependencies**: Task 18.1.
+- **Acceptance Criteria**:
+  - First anchor block per signal/leg logs immediately.
+  - Repeated blocks within the throttle window are suppressed.
+  - Next emitted block includes `suppressed_since_last`.
+  - Message still includes raw trigger, current anchor, close, high, low, and reason.
+- **Validation**:
+  - Static review.
+  - Compile.
+  - Human-in-the-loop query debug check: `DETERMINISTIC_ENTRY_ANCHOR_BLOCKED` no longer dominates short runs.
+
 ## Testing Strategy
 
 - Use static sweeps after cleanup tasks:
@@ -1279,6 +1321,10 @@ $log = Join-Path $mt5Root "MQL5\Experts\HFT_Grid_AI\logs\compile\deterministic-s
   - Long no-margin windows do not emit one `DETERMINISTIC_ENTRY_CONFIRM` plus one `LOCAL_EXECUTION_BLOCK` per tick.
   - Throttled lines include `suppressed_since_last` when repeats were skipped.
   - `LOCAL_EXECUTION_BLOCK` can be traced to a specific strategy/source key.
+- Use human-in-the-loop query debug checks after Sprint 18:
+  - `INPUTS_STRATEGY` proves the active strategy flags and deterministic descriptors.
+  - `DETERMINISTIC_ENTRY_ANCHOR_BLOCKED` emits periodic summaries instead of per-tick rows.
+  - TP/SL/source-consumed counts remain unchanged relative to entries.
 
 ## Potential Risks And Gotchas
 
@@ -1302,6 +1348,7 @@ $log = Join-Path $mt5Root "MQL5\Experts\HFT_Grid_AI\logs\compile\deterministic-s
 - **Retained-entry anchor ambiguity**: A retained trigger can be crossed while the current `high_1`/`low_1` is not. Mitigation: require both retained trigger and current anchor to break before entry.
 - **Pending cancellation outcome pollution**: Pending expirations can look like trade outcomes to daily/lot state. Mitigation: classify no-exposure cancellations separately and skip broker outcome accounting.
 - **Query debug explosion after broker blocks**: Once margin is exhausted, pending signals can retry on every tick and emit millions of duplicate logs. Mitigation: throttle high-frequency validation/block labels while preserving first event, periodic summaries, and terminal lifecycle events.
+- **Anchor-block telemetry still too noisy**: `DETERMINISTIC_ENTRY_ANCHOR_BLOCKED` includes live `close_0`, so changed-state logging can still emit on nearly every tick. Mitigation: use time-based throttling for this label while retaining first and periodic summary events.
 
 No additional product questions are blocking this plan. The remaining unknowns are implementation discoveries, especially the exact magic-number license contract, whether all old range/grid code can be deleted in one sprint without forcing a larger frontend rewrite, and the exact lifecycle policy for EA-opened macro charts after manual user interaction.
 

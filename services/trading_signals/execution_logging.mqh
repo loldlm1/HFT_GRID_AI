@@ -10,6 +10,7 @@ const string QUERY_DEBUG_FILENAME = "query_debug.txt";
 const int QUERY_DEBUG_STATE_RESERVE = 64;
 const int QUERY_DEBUG_THROTTLE_RESERVE = 64;
 const int QUERY_DEBUG_ENTRY_CONFIRM_THROTTLE_SECONDS = 60;
+const int QUERY_DEBUG_ENTRY_ANCHOR_BLOCKED_THROTTLE_SECONDS = 60;
 const int QUERY_DEBUG_GUARDRAIL_THROTTLE_SECONDS = 60;
 bool g_query_debug_session_header_logged = false;
 string g_query_debug_state_keys[];
@@ -150,6 +151,37 @@ bool ExecutionShouldLogThrottledState(const string state_key,
   return false;
 }
 
+string ExecutionDeterministicStrategyDescriptor(const int strategy_id)
+{
+  return StringFormat("%s(base_shift=%d,macro=%s,macro_shift=%d)",
+                      DeterministicStrategyLabel(strategy_id),
+                      DeterministicStrategyBaseDelay(strategy_id),
+                      EnumToString(DeterministicStrategyMacroTimeframe(strategy_id)),
+                      DETERMINISTIC_MACRO_DELAY);
+}
+
+string ExecutionDeterministicStrategyDescriptorList(const bool enabled)
+{
+  string descriptors = "";
+  for(int strategy_index = 0; strategy_index < DETERMINISTIC_STRATEGY_TOTAL; strategy_index++)
+  {
+    int strategy_id = DETERMINISTIC_STRATEGY_NONE;
+    if(!DeterministicStrategyIdByIndex(strategy_index, strategy_id))
+      continue;
+    if(DeterministicStrategyEnabled(strategy_id) != enabled)
+      continue;
+
+    if(descriptors != "")
+      descriptors = descriptors + ",";
+    descriptors = descriptors + ExecutionDeterministicStrategyDescriptor(strategy_id);
+  }
+
+  if(descriptors == "")
+    return "none";
+
+  return descriptors;
+}
+
 void EnsureQueryDebugSessionHeaderLogged()
 {
   if(!Enable_File_Logs || g_query_debug_session_header_logged)
@@ -196,11 +228,16 @@ void EnsureQueryDebugSessionHeaderLogged()
                                                Session_Time_Dst_Manual_Offset_Minutes));
 
   ExecutionAppendTimestampedQueryDebug("INPUTS_STRATEGY",
-                                  StringFormat("tf=%s|stoch_period=%d|direction=%s|concurrency=%s",
+                                  StringFormat("tf=%s|stoch_period=%d|direction=%s|concurrency=%s|enable_s1=%s|enable_s2=%s|enable_s3=%s|active=%s|inactive=%s",
                                                EnumToString(Strategy_Timeframe),
                                                Stoch_Structure_Period_Type,
                                                EnumToString(Strategy_Direction_Mode),
-                                               EnumToString(Signal_Concurrency_Mode)));
+                                               EnumToString(Signal_Concurrency_Mode),
+                                               ExecutionBoolToken(Enable_Strategy_1),
+                                               ExecutionBoolToken(Enable_Strategy_2),
+                                               ExecutionBoolToken(Enable_Strategy_3),
+                                               ExecutionDeterministicStrategyDescriptorList(true),
+                                               ExecutionDeterministicStrategyDescriptorList(false)));
 
   ExecutionAppendTimestampedQueryDebug("FOUNDATION_STRUCTURE",
                                   StringFormat("levels=%s|trigger=%s",
@@ -659,9 +696,10 @@ void ExecutionLogDeterministicEntryAnchorBlocked(const SignalParams &signal_para
 
   string state_key = ExecutionQueryDebugSignalKey(signal_params) + "|L" +
                      IntegerToString(display_level) + "|ENTRY_ANCHOR_BLOCKED";
-  ExecutionAppendQueryDebugChangedLog("DETERMINISTIC_ENTRY_ANCHOR_BLOCKED",
-                                      state_key,
-                                      message);
+  ExecutionAppendQueryDebugThrottledLog("DETERMINISTIC_ENTRY_ANCHOR_BLOCKED",
+                                        state_key,
+                                        message,
+                                        QUERY_DEBUG_ENTRY_ANCHOR_BLOCKED_THROTTLE_SECONDS);
 }
 
 void ExecutionLogDeterministicEntryRefresh(const SignalParams &signal_params,
