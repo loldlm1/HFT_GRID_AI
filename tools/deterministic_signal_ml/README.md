@@ -45,6 +45,39 @@ Each run must contain:
 Generated datasets are written under `artifacts/datasets/<dataset_id>/` and are
 ignored by git.
 
+## Validate Only
+
+Use `--validate-only` before building larger datasets:
+
+```powershell
+.\.venv\Scripts\python.exe tools\deterministic_signal_ml\build_dataset.py `
+  --runs-root "C:\Users\loldlm\AppData\Roaming\MetaQuotes\Terminal\Common\Files\DeterministicSignalML\runs" `
+  --run-id test_run_1 `
+  --dataset-id test_dataset_1 `
+  --validate-only
+```
+
+The command exits nonzero when a run is missing required files, has a bad
+header, mismatched row counts, duplicate `signal_id` values, missing
+feature/outcome joins, non-OK export status, or inconsistent TP/SL signs.
+
+## Outputs
+
+Each dataset folder contains:
+
+- `features.parquet`: typed Phase 1 feature rows.
+- `outcomes.parquet`: typed terminal outcome rows.
+- `training_matrix.parquet`: joined table with `target_is_win`,
+  `target_profit_r`, and `target_terminal_reason`.
+- `dataset_manifest.json`: column groups, source runs, config IDs, and output
+  paths.
+- `dataset_quality.json`: machine-readable quality summary.
+- `dataset_report.md`: compact human-readable report.
+
+Existing dataset folders are not overwritten unless `--overwrite` is passed.
+Multiple `--run-id` values are supported, but mixed `config_id` values fail by
+default unless `--allow-mixed-config` is passed.
+
 ## DuckDB References
 
 - DuckDB Python package: https://github.com/duckdb/duckdb-python

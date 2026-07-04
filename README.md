@@ -92,6 +92,40 @@ The run folder contains:
 The export is passive. It does not train models, call Python, query PostgreSQL,
 run inference, change entries, change exits, or bypass broker/risk controls.
 
+## Local Dataset Builder
+
+Phase 2 adds local Python tooling under `tools/deterministic_signal_ml/` to
+validate Phase 1 TSV exports and build local Parquet datasets.
+
+Setup:
+
+```powershell
+py -3.12 -m venv .venv
+.\.venv\Scripts\python.exe -m pip install -r tools\deterministic_signal_ml\requirements.txt
+```
+
+Validate a Phase 1 run without writing outputs:
+
+```powershell
+.\.venv\Scripts\python.exe tools\deterministic_signal_ml\build_dataset.py `
+  --runs-root "C:\Users\loldlm\AppData\Roaming\MetaQuotes\Terminal\Common\Files\DeterministicSignalML\runs" `
+  --run-id test_run_1 `
+  --dataset-id test_dataset_1 `
+  --validate-only
+```
+
+Build a local dataset:
+
+```powershell
+.\.venv\Scripts\python.exe tools\deterministic_signal_ml\build_dataset.py `
+  --runs-root "C:\Users\loldlm\AppData\Roaming\MetaQuotes\Terminal\Common\Files\DeterministicSignalML\runs" `
+  --run-id test_run_1 `
+  --dataset-id test_dataset_1
+```
+
+Generated files are written under `artifacts/datasets/<dataset_id>/` and are
+ignored by git. Phase 2 does not train models or run EA inference.
+
 ## Final Baseline Notes
 
 - Phase 8 final compile passed on 2026-07-03 with `0 errors, 0 warnings`; evidence log: `logs/compile/phase-08-build.log`.
