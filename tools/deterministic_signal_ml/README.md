@@ -1,10 +1,11 @@
-# Deterministic Signal ML Dataset Builder
+# Deterministic Signal ML Tooling
 
-Local Python tooling for Phase 2 of the deterministic signal ML roadmap.
+Local Python tooling for the deterministic signal ML roadmap.
 
-This tool consumes Phase 1 TSV exports produced by the EA and builds local,
-validated Parquet datasets for later model training. It does not call MT5,
-modify the EA, train XGBoost, run inference, or connect to PostgreSQL.
+The Phase 2 builder consumes Phase 1 TSV exports produced by the EA and builds
+validated Parquet datasets. The Phase 3 trainer consumes those datasets and
+trains local research XGBoost models. These tools do not call MT5, modify the
+EA, run EA inference, filter trades, or connect to PostgreSQL.
 
 ## Setup
 
@@ -77,6 +78,40 @@ Each dataset folder contains:
 Existing dataset folders are not overwritten unless `--overwrite` is passed.
 Multiple `--run-id` values are supported, but mixed `config_id` values fail by
 default unless `--allow-mixed-config` is passed.
+
+## Phase 3 Training
+
+Train local research models from a Phase 2 dataset:
+
+```powershell
+.\.venv\Scripts\python.exe tools\deterministic_signal_ml\train_model.py `
+  --dataset-id test_dataset_1 `
+  --model-id xgb_test_1 `
+  --overwrite
+```
+
+Generated model outputs are written under `artifacts/models/<model_id>/` and
+are ignored by git. The trainer uses deterministic one-hot encoding, a final
+chronological holdout, and walk-forward folds over the earlier data. Random
+train/test splits are intentionally not used because they can leak future market
+regime information into the validation result.
+
+Model outputs include:
+
+- `model_manifest.json`: dataset/model IDs, feature contract, split policy,
+  validation summary, and research-only artifact links.
+- `feature_encoder.json`: deterministic encoded feature order.
+- `classifier_xgboost.json` and `regressor_xgboost.json`: Python XGBoost
+  booster JSON artifacts, not MT5-readable model files yet.
+- `validation_metrics.json` and `validation_report.md`: baseline, XGBoost,
+  fold, holdout, and feature diagnostics.
+- `threshold_report.tsv`: research-only probability thresholds with selected
+  rows, win rate, mean/net R, and drawdown-like R proxy.
+- `holdout_predictions.parquet` and `fold_predictions.parquet`: analysis
+  predictions readable by DuckDB.
+
+Phase 3 is research-only. It does not add EA inputs, does not run Python from
+MQL5, and does not change strategy entry/exit behavior.
 
 ## DuckDB References
 

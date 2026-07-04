@@ -26,6 +26,10 @@ from sklearn.tree import DecisionTreeClassifier, DecisionTreeRegressor
 from validation_splits import SplitBundle
 
 
+DEFAULT_THRESHOLDS = (0.50, 0.55, 0.60, 0.65, 0.70, 0.75, 0.80, 0.85, 0.90, 0.95)
+MIN_THRESHOLD_RECOMMENDATION_ROWS = 30
+
+
 def classification_metrics(
     y_true: np.ndarray,
     y_pred: np.ndarray,
@@ -165,6 +169,95 @@ def feature_diagnostics(
         "regressor_importance": regressor_importance,
         "warnings": warnings,
     }
+
+
+def build_threshold_report_rows(
+    prediction_rows: list[dict[str, Any]],
+    thresholds: tuple[float, ...] = DEFAULT_THRESHOLDS,
+    min_selected_rows: int = MIN_THRESHOLD_RECOMMENDATION_ROWS,
+) -> tuple[list[dict[str, Any]], dict[str, Any] | None]:
+    total_rows = len(prediction_rows)
+    report_rows: list[dict[str, Any]] = []
+    for threshold in thresholds:
+        selected = [
+            row for row in prediction_rows if float(row["xgb_win_probability"]) >= threshold
+        ]
+        selected_rows = len(selected)
+        if selected_rows:
+            wins = sum(1 for row in selected if int(row["target_is_win"]) == 1)
+            profits = [float(row["target_profit_r"]) for row in selected]
+            mean_profit = float(np.mean(profits))
+            net_profit = float(np.sum(profits))
+            max_drawdown = _max_drawdown(profits)
+            win_rate = wins / selected_rows
+        else:
+            mean_profit = None
+            net_profit = 0.0
+            max_drawdown = 0.0
+            win_rate = None
+
+        eligible = (
+            selected_rows >= min_selected_rows
+            and mean_profit is not None
+            and mean_profit > 0.0
+            and net_profit > 0.0
+        )
+        report_rows.append(
+            {
+                "threshold": threshold,
+                "selected_rows": selected_rows,
+                "selected_percent": 0.0 if total_rows == 0 else selected_rows / total_rows,
+                "win_rate": win_rate,
+                "mean_profit_r": mean_profit,
+                "net_profit_r": net_profit,
+                "max_drawdown_r": max_drawdown,
+                "min_selected_rows": min_selected_rows,
+                "eligible": eligible,
+                "recommendation": "",
+                "note": "research_only",
+            }
+        )
+
+    eligible_rows = [row for row in report_rows if row["eligible"]]
+    recommendation = None
+    if eligible_rows:
+        recommendation = max(
+            eligible_rows,
+            key=lambda row: (float(row["mean_profit_r"]), float(row["net_profit_r"])),
+        )
+        recommendation["recommendation"] = "research_only_candidate"
+    return report_rows, recommendation
+
+
+def threshold_report_tsv(rows: list[dict[str, Any]]) -> str:
+    columns = (
+        "threshold",
+        "selected_rows",
+        "selected_percent",
+        "win_rate",
+        "mean_profit_r",
+        "net_profit_r",
+        "max_drawdown_r",
+        "min_selected_rows",
+        "eligible",
+        "recommendation",
+        "note",
+    )
+    lines = ["\t".join(columns)]
+    for row in rows:
+        lines.append("\t".join(_tsv_value(row[column]) for column in columns))
+    return "\n".join(lines) + "\n"
+
+
+def _max_drawdown(profits: list[float]) -> float:
+    equity = 0.0
+    peak = 0.0
+    max_drawdown = 0.0
+    for profit in profits:
+        equity += profit
+        peak = max(peak, equity)
+        max_drawdown = max(max_drawdown, peak - equity)
+    return float(max_drawdown)
 
 
 def _evaluate_split(
@@ -326,6 +419,7 @@ def render_validation_report(
     baseline_metrics: dict[str, Any],
     xgboost_metrics: dict[str, Any] | None = None,
     diagnostics: dict[str, Any] | None = None,
+    threshold_recommendation: dict[str, Any] | None = None,
 ) -> str:
     holdout = baseline_metrics["holdout"]
     majority = holdout["classification"]["majority_class"]
@@ -401,6 +495,21 @@ def render_validation_report(
                 lines.append("- Additional no-variation features omitted from report.")
         lines.append("")
 
+    lines.extend(["## Threshold Recommendation", ""])
+    if threshold_recommendation is None:
+        lines.append(
+            "- No threshold met the research-only recommendation guards on this holdout."
+        )
+    else:
+        lines.append(
+            "- Research-only candidate: probability >= "
+            f"{_format_metric(threshold_recommendation['threshold'])}, "
+            f"selected rows {threshold_recommendation['selected_rows']}, "
+            f"mean R {_format_metric(threshold_recommendation['mean_profit_r'])}, "
+            f"net R {_format_metric(threshold_recommendation['net_profit_r'])}."
+        )
+    lines.append("")
+
     lines.extend(
         [
         "## Fold Ranges",
@@ -436,6 +545,16 @@ def _format_metric(value: Any) -> str:
     if value is None:
         return "n/a"
     return f"{float(value):.6f}"
+
+
+def _tsv_value(value: Any) -> str:
+    if value is None:
+        return ""
+    if isinstance(value, bool):
+        return "true" if value else "false"
+    if isinstance(value, float):
+        return f"{value:.10g}"
+    return str(value)
 
 
 def _classification_row(name: str, metrics: dict[str, Any]) -> str:

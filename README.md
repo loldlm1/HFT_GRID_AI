@@ -126,6 +126,31 @@ Build a local dataset:
 Generated files are written under `artifacts/datasets/<dataset_id>/` and are
 ignored by git. Phase 2 does not train models or run EA inference.
 
+## Local XGBoost Training
+
+Phase 3 adds local Python research training under
+`tools/deterministic_signal_ml/`. It trains a classifier for `target_is_win` and
+a secondary regressor for `target_profit_r` from Phase 2 Parquet datasets.
+
+Train the current local dataset:
+
+```powershell
+.\.venv\Scripts\python.exe tools\deterministic_signal_ml\train_model.py `
+  --dataset-id test_dataset_1 `
+  --model-id xgb_test_1 `
+  --overwrite
+```
+
+Generated files are written under `artifacts/models/<model_id>/` and are ignored
+by git. The trainer uses deterministic one-hot encoding, a chronological final
+holdout, and walk-forward folds. Random split metrics are not used because they
+can leak future market conditions into validation.
+
+Phase 3 is research-only: no EA inputs, no Strategy Tester inference, no
+PostgreSQL, no Python execution from MQL5, and no trading filter is active yet.
+The XGBoost JSON files are Python booster artifacts, not MT5-readable inference
+artifacts.
+
 ## Final Baseline Notes
 
 - Phase 8 final compile passed on 2026-07-03 with `0 errors, 0 warnings`; evidence log: `logs/compile/phase-08-build.log`.

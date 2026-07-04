@@ -3,9 +3,12 @@
 from __future__ import annotations
 
 import argparse
+import csv
 import json
 import shutil
+import tempfile
 from dataclasses import asdict
+from datetime import datetime, timezone
 from pathlib import Path
 
 import duckdb
@@ -15,12 +18,14 @@ from xgboost import XGBClassifier, XGBRegressor
 from feature_encoder import FeatureEncoder
 from model_config import DEFAULT_DATASET_ROOT, DEFAULT_MODEL_ROOT, TRAINER_VERSION, TrainingConfig
 from training_report import (
+    build_threshold_report_rows,
     classification_metrics,
     evaluate_baselines,
     feature_diagnostics,
     feature_importance,
     regression_metrics,
     render_validation_report,
+    threshold_report_tsv,
 )
 from validation_splits import SplitBundle, build_time_splits
 
@@ -176,6 +181,7 @@ def write_validation_outputs(
     baseline_metrics: dict,
     xgboost_metrics: dict | None = None,
     diagnostics: dict | None = None,
+    threshold_recommendation: dict | None = None,
 ) -> None:
     dataset_id = str(manifest.get("dataset_id", ""))
     metrics = {
@@ -188,6 +194,7 @@ def write_validation_outputs(
         "baseline_metrics": baseline_metrics,
         "xgboost_metrics": xgboost_metrics,
         "feature_diagnostics": diagnostics,
+        "threshold_recommendation": threshold_recommendation,
     }
     metrics_path = output_dir / "validation_metrics.json"
     report_path = output_dir / "validation_report.md"
@@ -199,8 +206,110 @@ def write_validation_outputs(
         baseline_metrics,
         xgboost_metrics=xgboost_metrics,
         diagnostics=diagnostics,
+        threshold_recommendation=threshold_recommendation,
     )
     report_path.write_text(report, encoding="utf-8")
+
+
+def write_prediction_parquet(rows: list[dict], output_path: Path) -> None:
+    if not rows:
+        raise TrainingInputError(f"No prediction rows to write: {output_path}")
+
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    fieldnames = list(rows[0].keys())
+    temp_file = tempfile.NamedTemporaryFile(
+        mode="w",
+        newline="",
+        encoding="utf-8",
+        suffix=".csv",
+        delete=False,
+    )
+    try:
+        with temp_file:
+            writer = csv.DictWriter(temp_file, fieldnames=fieldnames)
+            writer.writeheader()
+            writer.writerows(rows)
+
+        csv_path = Path(temp_file.name).resolve().as_posix().replace("'", "''")
+        parquet_path = output_path.resolve().as_posix().replace("'", "''")
+        connection = duckdb.connect(":memory:")
+        try:
+            connection.execute(
+                "COPY ("
+                f"SELECT * FROM read_csv_auto('{csv_path}', HEADER=TRUE)"
+                f") TO '{parquet_path}' (FORMAT PARQUET)"
+            )
+        finally:
+            connection.close()
+    finally:
+        temp_path = Path(temp_file.name)
+        if temp_path.exists():
+            temp_path.unlink()
+
+
+def write_threshold_report(
+    output_dir: Path,
+    holdout_prediction_rows: list[dict],
+) -> dict | None:
+    threshold_rows, recommendation = build_threshold_report_rows(holdout_prediction_rows)
+    threshold_path = output_dir / "threshold_report.tsv"
+    threshold_path.write_text(threshold_report_tsv(threshold_rows), encoding="utf-8")
+    return recommendation
+
+
+def write_model_manifest(
+    output_dir: Path,
+    model_id: str,
+    manifest: dict,
+    encoder: FeatureEncoder,
+    split_metadata: dict,
+    xgboost_metrics: dict,
+    threshold_recommendation: dict | None,
+) -> None:
+    classifier_metrics = xgboost_metrics["holdout"]["classifier"]["metrics"]
+    regressor_metrics = xgboost_metrics["holdout"]["regressor"]["metrics"]
+    model_manifest = {
+        "created_at": datetime.now(timezone.utc).isoformat(),
+        "research_only": True,
+        "mt5_readable_model": False,
+        "model_id": model_id,
+        "dataset_id": manifest.get("dataset_id"),
+        "source_run_ids": manifest.get("source_run_ids", []),
+        "config_ids": manifest.get("config_ids", []),
+        "phase1_schema_version": manifest.get("phase1_schema_version"),
+        "phase2_builder_version": manifest.get("builder_version"),
+        "phase3_trainer_version": TRAINER_VERSION,
+        "row_counts": manifest.get("row_counts", {}),
+        "feature_columns": list(manifest.get("feature_columns", [])),
+        "target_columns": list(manifest.get("target_columns", [])),
+        "encoded_feature_count": len(encoder.encoded_feature_names),
+        "encoded_feature_names": encoder.encoded_feature_names,
+        "split_policy": split_metadata,
+        "model_params": xgboost_metrics["params"],
+        "validation_summary": {
+            "holdout_classifier_roc_auc": classifier_metrics.get("roc_auc"),
+            "holdout_classifier_f1": classifier_metrics.get("f1"),
+            "holdout_classifier_log_loss": classifier_metrics.get("log_loss"),
+            "holdout_regressor_rmse": regressor_metrics.get("rmse"),
+            "holdout_regressor_correlation": regressor_metrics.get("correlation"),
+            "holdout_regressor_directional_accuracy": regressor_metrics.get(
+                "directional_accuracy"
+            ),
+        },
+        "threshold_recommendation": threshold_recommendation,
+        "artifacts": {
+            "feature_encoder": "feature_encoder.json",
+            "classifier_model": xgboost_metrics["model_files"]["classifier"],
+            "regressor_model": xgboost_metrics["model_files"]["regressor"],
+            "validation_metrics": "validation_metrics.json",
+            "validation_report": "validation_report.md",
+            "threshold_report": "threshold_report.tsv",
+            "holdout_predictions": "holdout_predictions.parquet",
+            "fold_predictions": "fold_predictions.parquet",
+        },
+    }
+    manifest_path = output_dir / "model_manifest.json"
+    manifest_path.write_text(json.dumps(model_manifest, indent=2, sort_keys=True), encoding="utf-8")
 
 
 def train_xgboost_models(
@@ -210,7 +319,7 @@ def train_xgboost_models(
     encoded_feature_names: list[str],
     split_bundle: SplitBundle,
     config: TrainingConfig,
-) -> tuple[dict, dict]:
+) -> tuple[dict, dict, list[dict], list[dict]]:
     y_win = np.asarray([int(row["target_is_win"]) for row in rows], dtype=np.int64)
     y_profit = np.asarray([float(row["target_profit_r"]) for row in rows], dtype=np.float64)
 
@@ -236,6 +345,24 @@ def train_xgboost_models(
     classifier.get_booster().save_model(str(classifier_path))
     regressor.get_booster().save_model(str(regressor_path))
 
+    holdout_prediction_rows = _prediction_rows(
+        rows,
+        split_bundle.holdout_indices,
+        classifier,
+        regressor,
+        encoded_matrix,
+        split_name="holdout",
+        fold_index=None,
+    )
+    fold_metrics, fold_prediction_rows = _xgboost_fold_metrics(
+        rows,
+        encoded_matrix,
+        y_win,
+        y_profit,
+        split_bundle,
+        config,
+    )
+
     xgb_metrics = {
         "holdout": {
             "classifier": _classifier_result(
@@ -249,7 +376,7 @@ def train_xgboost_models(
                 y_profit[holdout_indices],
             ),
         },
-        "folds": _xgboost_fold_metrics(rows, encoded_matrix, y_win, y_profit, split_bundle, config),
+        "folds": fold_metrics,
         "model_files": {
             "classifier": classifier_path.name,
             "regressor": regressor_path.name,
@@ -274,7 +401,7 @@ def train_xgboost_models(
         classifier_importance,
         regressor_importance,
     )
-    return xgb_metrics, diagnostics
+    return xgb_metrics, diagnostics, holdout_prediction_rows, fold_prediction_rows
 
 
 def _fit_classifier(
@@ -335,9 +462,9 @@ def _xgboost_fold_metrics(
     y_profit: np.ndarray,
     split_bundle: SplitBundle,
     config: TrainingConfig,
-) -> list[dict]:
-    del rows
+) -> tuple[list[dict], list[dict]]:
     fold_metrics: list[dict] = []
+    prediction_rows: list[dict] = []
     for fold in split_bundle.folds:
         train_indices = np.asarray(fold.train_indices, dtype=np.int64)
         test_indices = np.asarray(fold.test_indices, dtype=np.int64)
@@ -372,7 +499,58 @@ def _xgboost_fold_metrics(
                 ),
             }
         )
-    return fold_metrics
+        prediction_rows.extend(
+            _prediction_rows(
+                rows,
+                fold.test_indices,
+                classifier,
+                regressor,
+                encoded_matrix,
+                split_name="fold",
+                fold_index=fold.fold_index,
+            )
+        )
+    return fold_metrics, prediction_rows
+
+
+def _prediction_rows(
+    rows: list[dict],
+    indices: list[int],
+    classifier: XGBClassifier,
+    regressor: XGBRegressor,
+    encoded_matrix: np.ndarray,
+    split_name: str,
+    fold_index: int | None,
+) -> list[dict]:
+    index_array = np.asarray(indices, dtype=np.int64)
+    probabilities = classifier.predict_proba(encoded_matrix[index_array])[:, 1]
+    predicted_profit = regressor.predict(encoded_matrix[index_array])
+    output_rows: list[dict] = []
+    for position, row_index in enumerate(indices):
+        source = rows[row_index]
+        probability = float(probabilities[position])
+        output_rows.append(
+            {
+                "split": split_name,
+                "fold_index": "" if fold_index is None else fold_index,
+                "row_index": row_index,
+                "run_id": str(source.get("run_id", "")),
+                "config_id": str(source.get("config_id", "")),
+                "signal_id": str(source.get("signal_id", "")),
+                "source_key": str(source.get("source_key", "")),
+                "entry_time": str(source.get("entry_time", "")),
+                "strategy_label": str(source.get("strategy_label", "")),
+                "direction": str(source.get("direction", "")),
+                "source_type": str(source.get("source_type", "")),
+                "target_is_win": int(source["target_is_win"]),
+                "target_profit_r": float(source["target_profit_r"]),
+                "target_terminal_reason": str(source.get("target_terminal_reason", "")),
+                "xgb_win_probability": probability,
+                "xgb_predicted_is_win": int(probability >= 0.5),
+                "xgb_predicted_profit_r": float(predicted_profit[position]),
+            }
+        )
+    return output_rows
 
 
 def _optional_int(value: object) -> int | None:
@@ -403,13 +581,36 @@ def main() -> int:
             gap=config.walk_forward_gap,
         )
         baseline_metrics = evaluate_baselines(rows, encoded.matrix, split_bundle)
-        xgboost_metrics, diagnostics = train_xgboost_models(
+        (
+            xgboost_metrics,
+            diagnostics,
+            holdout_prediction_rows,
+            fold_prediction_rows,
+        ) = train_xgboost_models(
             output_dir,
             rows,
             encoded.matrix,
             encoded.encoded_feature_names,
             split_bundle,
             config,
+        )
+        write_prediction_parquet(
+            holdout_prediction_rows,
+            output_dir / "holdout_predictions.parquet",
+        )
+        write_prediction_parquet(
+            fold_prediction_rows,
+            output_dir / "fold_predictions.parquet",
+        )
+        threshold_recommendation = write_threshold_report(output_dir, holdout_prediction_rows)
+        write_model_manifest(
+            output_dir,
+            args.model_id,
+            manifest,
+            encoder,
+            split_bundle.metadata,
+            xgboost_metrics,
+            threshold_recommendation,
         )
         write_validation_outputs(
             output_dir,
@@ -419,6 +620,7 @@ def main() -> int:
             baseline_metrics,
             xgboost_metrics=xgboost_metrics,
             diagnostics=diagnostics,
+            threshold_recommendation=threshold_recommendation,
         )
     except (TrainingInputError, ValueError) as exc:
         parser.exit(1, f"training input failed: {exc}\n")
@@ -432,7 +634,8 @@ def main() -> int:
         f"encoded_features={encoded.matrix.shape[1]} | "
         f"holdout_rows={len(split_bundle.holdout_indices)} | "
         f"folds={len(split_bundle.folds)} | "
-        "xgboost=trained"
+        f"xgboost=trained | "
+        f"threshold_candidate={threshold_recommendation is not None}"
     )
     return 0
 
