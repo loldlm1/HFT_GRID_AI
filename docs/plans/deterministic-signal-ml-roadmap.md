@@ -161,6 +161,9 @@ and must not alter broker admission.
 
 ## Phase 6: MQL5 Filter Inference
 
+**Status**: Approved for implementation on 2026-07-04. Scope is Strategy Tester
+broker admission filtering only; live deployment remains out of scope.
+
 After shadow inference proves useful, allow the model to affect Strategy Tester
 broker admission.
 

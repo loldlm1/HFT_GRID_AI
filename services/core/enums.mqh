@@ -217,7 +217,8 @@ enum MarketStatusTypes
 enum MLInferenceModes
 {
   ML_INFERENCE_DISABLED = 0,
-  ML_INFERENCE_SHADOW   = 1
+  ML_INFERENCE_SHADOW   = 1,
+  ML_INFERENCE_FILTER   = 2
 };
 
 #endif // _MICROSERVICES_CORE_ENUMS_MQH_

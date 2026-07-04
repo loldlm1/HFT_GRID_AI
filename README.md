@@ -250,6 +250,25 @@ against the Python artifact scorer:
   --shadow-run-path "$MT5_COMMON_FILES/DeterministicSignalML/shadow_runs/<shadow_run_id>"
 ```
 
+## Phase 6 MQL5 Filter Inference
+
+Phase 6 adds `ML_INFERENCE_FILTER` for Strategy Tester admission filtering only.
+It is not a live-deployment approval. The EA default remains:
+
+```text
+ML_Inference_Mode = ML_INFERENCE_DISABLED
+```
+
+In `FILTER`, the model may deny an otherwise admissible deterministic entry only
+after existing broker/risk eligibility passes and before broker send. It must not
+create trades, resize lots, alter SL/TP, bypass license, sessions, spread,
+margin, protection controls, magic-number scope, or broker reconciliation.
+
+`FILTER` uses the artifact threshold from `threshold_policy.tsv`. Missing
+artifacts, unavailable model state, invalid features, failed encoding, failed
+classifier scoring, and non-tester usage are blocking conditions for model
+admission. `SHADOW` remains observational and fail-open.
+
 ## Final Baseline Notes
 
 - Phase 8 final compile passed on 2026-07-03 with `0 errors, 0 warnings`; evidence log: `logs/compile/phase-08-build.log`.
@@ -266,10 +285,7 @@ against the Python artifact scorer:
 
 Legacy custom tests and the old test runner were removed in Phase 2. The active validation path is MT5 compile at implementation phase end.
 
-## Phase 5 Handoff
+## Phase 6 Handoff
 
-Phase 5 is shadow-only. Do not implement Phase 6 `FILTER` mode until shadow
-runtime evidence includes clean compile, successful artifact load, nonzero
-shadow prediction rows, parity validator `PASS`, enough closed outcomes for
-human review, and explicit human approval that model recommendations may affect
-broker admission in Strategy Tester.
+Phase 6 implementation is Strategy Tester only. Do not treat `FILTER` evidence
+as live approval without a future explicit plan and human approval.

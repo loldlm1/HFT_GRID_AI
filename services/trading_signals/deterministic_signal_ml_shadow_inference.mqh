@@ -169,7 +169,20 @@ string                g_ml_shadow_outcome_buffer[];
 
 bool DeterministicSignalMLShadowEnabled()
 {
-  return (ML_Inference_Mode == ML_INFERENCE_SHADOW);
+  return (ML_Inference_Mode == ML_INFERENCE_SHADOW ||
+          ML_Inference_Mode == ML_INFERENCE_FILTER);
+}
+
+bool DeterministicSignalMLFilterMode()
+{
+  return (ML_Inference_Mode == ML_INFERENCE_FILTER);
+}
+
+bool DeterministicSignalMLFilterTesterAllowed()
+{
+  if(!DeterministicSignalMLFilterMode())
+    return true;
+  return (MQLInfoInteger(MQL_TESTER) > 0);
 }
 
 bool DeterministicSignalMLShadowAvailable()
@@ -1607,7 +1620,10 @@ bool DeterministicSignalMLShadowInit()
   bool folder_ok = MLShadowEnsureFolder();
   bool load_ok = false;
 
-  if(!folder_ok)
+  if(DeterministicSignalMLFilterMode() &&
+     !DeterministicSignalMLFilterTesterAllowed())
+    MLShadowMarkUnavailable("filter_not_allowed_outside_tester");
+  else if(!folder_ok)
     MLShadowMarkUnavailable("shadow_folder_unavailable");
   else if(g_ml_shadow_state.export_id == "")
     MLShadowMarkUnavailable("empty_export_id");

@@ -42,6 +42,8 @@ string ExecutionMLInferenceModeToken(const MLInferenceModes mode)
   {
     case ML_INFERENCE_SHADOW:
       return "SHADOW";
+    case ML_INFERENCE_FILTER:
+      return "FILTER";
   }
   return "DISABLED";
 }

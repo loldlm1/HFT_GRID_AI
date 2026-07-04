@@ -110,7 +110,7 @@ Any phase touching these controls must call out risk level in its phase plan.
 - MetaEditor `/s` is syntax check only. Do not treat `/s /compile` as evidence that `.ex5` was regenerated.
 - Do not paste full compile logs, `query_debug.txt`, Parquet contents, model JSON, or tree TSV files into chat. Summarize paths, sizes, counts, final status lines, and selected failure lines.
 - Phase 5 MQL5 Shadow Inference is shadow-only: `ML_INFERENCE_SHADOW` may load artifacts and record scores, but it must not affect broker admission, entries, exits, lot sizing, SL/TP, license checks, session gates, spread checks, margin checks, protection controls, magic-number scope, or broker reconciliation.
-- Do not implement Phase 6 `FILTER` mode until Phase 5 has clean compile evidence, successful artifact load, shadow prediction rows, parity validator `PASS`, enough closed outcomes for human review, and explicit human approval.
+- Phase 6 `FILTER` mode is approved for Strategy Tester implementation only. It may deny otherwise admissible deterministic entries after existing broker/risk eligibility passes and before broker send. It must not affect live deployment, create trades, resize lots, alter SL/TP, bypass license/session/spread/margin/protection controls, magic-number scope, or broker reconciliation.
 - Do not paste full shadow TSVs, compile logs, `query_debug.txt`, Parquet contents, model JSON, or tree TSV files into chat. Summarize paths, sizes, counts, final status lines, and selected failure lines.
 
 Preferred real compile command shape for implementation phases:
