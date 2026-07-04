@@ -26,7 +26,7 @@ const int    ML_SHADOW_MAX_TREE_NODES          = 20000;
 const int    ML_SHADOW_FLUSH_ROWS              = 32;
 const string ML_SHADOW_RUN_MANIFEST_HEADER     = "schema_version\tkey\tvalue";
 const string ML_SHADOW_PREDICTIONS_HEADER =
-  "schema_version\tshadow_run_id\texport_id\tmodel_id\tdataset_id\tfeature_schema_version\tsignal_id\tsource_key\tsource_attempt_index\tsymbol\tstrategy_id\tstrategy_label\tdirection\tentry_time\tclassifier_score\tregressor_score\tthreshold_probability\trecommendation\treason\tfeature_valid\tmodel_available\tmacro_h1_live_dir\tmacro_h4_live_dir\tmacro_d1_live_dir\tsl_fib_raw\tsl_fib_band\tentry_fib_raw\tentry_fib_band\tlow_chain_score_3\tlow_chain_score_5\tlow_chain_score_10\thigh_chain_score_3\thigh_chain_score_5\thigh_chain_score_10";
+  "schema_version\tshadow_run_id\texport_id\tmodel_id\tdataset_id\tfeature_schema_version\tsignal_id\tsource_key\tsource_attempt_index\tsymbol\tstrategy_id\tstrategy_label\tdirection\tsource_type\tentry_time\tclassifier_score\tregressor_score\tthreshold_probability\trecommendation\treason\tfeature_valid\tmodel_available\tmacro_h1_live_dir\tmacro_h4_live_dir\tmacro_d1_live_dir\tsl_fib_raw\tsl_fib_band\tentry_fib_raw\tentry_fib_band\tlow_chain_score_3\tlow_chain_score_5\tlow_chain_score_10\thigh_chain_score_3\thigh_chain_score_5\thigh_chain_score_10";
 const string ML_SHADOW_OUTCOMES_HEADER =
   "schema_version\tshadow_run_id\texport_id\tmodel_id\tsignal_id\tsource_key\tsource_attempt_index\tterminal_time\tterminal_reason\trecommendation\tclassifier_score\tthreshold_probability\tprofit_r\tnet_profit\tduration_seconds";
 const string ML_SHADOW_SUMMARY_HEADER =
@@ -1340,6 +1340,7 @@ string MLShadowPredictionRow(const SignalParams &signal_params,
          IntegerToString(snapshot.strategy_id) + "\t" +
          MLShadowOutputCell(snapshot.strategy_label) + "\t" +
          MLShadowOutputCell(snapshot.direction) + "\t" +
+         MLShadowOutputCell(snapshot.source_type) + "\t" +
          MLShadowTimeToken(snapshot.entry_time) + "\t" +
          MLShadowDoubleToken(classifier_scored, classifier_score, 8) + "\t" +
          MLShadowDoubleToken(regressor_scored, regressor_score, 8) + "\t" +

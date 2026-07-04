@@ -228,6 +228,18 @@ ML_Model_Export_Id = xgb_test_1_export_v1
 it must not filter trades, change Strategy Tester broker admission, or alter
 entry/exit behavior.
 
+Compare MQL5 shadow scores against the Python artifact scorer after a Strategy
+Tester run produces a shadow run folder:
+
+```bash
+.venv/bin/python tools/deterministic_signal_ml/compare_shadow_predictions.py \
+  --export-id xgb_test_1_export_v1 \
+  --shadow-run-path "$MT5_COMMON_FILES/DeterministicSignalML/shadow_runs/<shadow_run_id>"
+```
+
+The comparison prints only row counts, max/mean errors, threshold-decision
+agreement, and a few failure examples. It does not dump full prediction files.
+
 ## Agentic Evidence Policy
 
 Do not paste full TSV, Parquet, model JSON, or tree TSV files into chat.
