@@ -402,6 +402,23 @@ void UpdateDeterministicExecutionLifecycle(SignalParams &signal_params)
                                     signal_params.raw_entry_trigger_price))
       return;
 
+    double current_entry_anchor = ResolveDeterministicPendingEntryCandidate(signal_params.signal_type,
+                                                                           high_1,
+                                                                           low_1);
+    if(!DeterministicEntryTriggered(signal_params.signal_type,
+                                    close_0,
+                                    current_entry_anchor))
+    {
+      ExecutionLogDeterministicEntryAnchorBlocked(signal_params,
+                                                  leg_state,
+                                                  close_0,
+                                                  high_1,
+                                                  low_1,
+                                                  current_entry_anchor,
+                                                  "current_anchor_not_broken");
+      return;
+    }
+
     double base_ma_now = 0.0;
     double base_ma_prev = 0.0;
     double macro_ma_now = 0.0;

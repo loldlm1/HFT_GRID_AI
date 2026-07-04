@@ -181,6 +181,15 @@ bool ResolveDeterministicSourceConsumedAfterTp(const string source_key,
   return g_deterministic_source_outcomes[index].consumed_after_tp;
 }
 
+int ResolveDeterministicSourceAttemptCount(const string source_key)
+{
+  int index = FindDeterministicSourceOutcomeIndex(source_key);
+  if(index < 0)
+    return 0;
+
+  return g_deterministic_source_outcomes[index].attempt_count;
+}
+
 bool ResolveDeterministicSourceConsumedAfterTp(const int strategy_id,
                                                const SignalTypes direction,
                                                const int source_slot,

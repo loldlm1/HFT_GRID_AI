@@ -16,6 +16,21 @@ void RefreshUpstreamTrendsOnBaseBar()
   return;
 }
 
+bool DeterministicRawEntryGeometryValid(const SignalTypes direction,
+                                        const double trigger_price,
+                                        const double stop_anchor_price)
+{
+  if(trigger_price <= 0.0 || stop_anchor_price <= 0.0)
+    return false;
+
+  if(direction == BULLISH)
+    return (trigger_price > stop_anchor_price);
+  if(direction == BEARISH)
+    return (trigger_price < stop_anchor_price);
+
+  return false;
+}
+
 string DeterministicTimeToken(const datetime value)
 {
   if(value <= 0)
@@ -239,9 +254,9 @@ void LogDeterministicCandidateTelemetry(const SignalParams &signal,
                                  direction,
                                  source_key,
                                  signal.deterministic_source_attempt_index,
-                                 extremum.source_slot,
-                                 DeterministicBoolToken(extremum.confirmed),
-                                 DeterministicExtremumTypeToken(extremum),
+                                extremum.source_slot,
+                                DeterministicBoolToken(extremum.confirmed),
+                                DeterministicExtremumTypeToken(extremum),
                                 DeterministicTimeToken(extremum.extremum_time),
                                 extremum.extremum_price,
                                 extremum.extremum_high,
@@ -328,10 +343,22 @@ void TryCreateDeterministicSignal(const int strategy_id,
                                   direction,
                                   extremum,
                                   structure,
-                                   signal))
+                                  signal))
     return;
 
   signal.deterministic_source_key = BuildDeterministicSignalSourceKey(signal);
+  if(!DeterministicRawEntryGeometryValid(direction,
+                                         signal.raw_entry_trigger_price,
+                                         signal.raw_stop_anchor_price))
+  {
+    int next_attempt_index =
+      ResolveDeterministicSourceAttemptCount(signal.deterministic_source_key) + 1;
+    ExecutionLogDeterministicInvalidCandidate(signal,
+                                              next_attempt_index,
+                                              "invalid_raw_entry_geometry");
+    return;
+  }
+
   if(RegisterDeterministicSourceAttempt(signal) <= 0)
     return;
 

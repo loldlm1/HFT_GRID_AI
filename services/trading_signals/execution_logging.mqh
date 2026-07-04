@@ -514,6 +514,68 @@ void ExecutionLogDeterministicSourceReentryBlocked(const int strategy_id,
                                       message);
 }
 
+void ExecutionLogDeterministicInvalidCandidate(const SignalParams &signal_params,
+                                               const int blocked_next_attempt_index,
+                                               const string reason)
+{
+  string direction = (signal_params.signal_type == BULLISH) ? "BULLISH" : "BEARISH";
+  string message = StringFormat("strategy=%s|dir=%s|source_key=%s|blocked_next_attempt_index=%d|source_slot=%d|source_confirmed=%s|source_type=%s|source_time=%s|source_price=%.5f|source_high=%.5f|source_low=%.5f|trigger=%.5f|stop=%.5f|reason=%s",
+                                signal_params.strategy_label,
+                                direction,
+                                ExecutionDeterministicSourceKey(signal_params),
+                                blocked_next_attempt_index,
+                                signal_params.source_extremum_slot,
+                                ExecutionBoolToken(signal_params.source_extremum_confirmed),
+                                ExecutionSourceExtremumTypeToken(signal_params),
+                                ExecutionSourceExtremumTimeToken(signal_params),
+                                signal_params.source_extremum_price,
+                                signal_params.source_extremum_high,
+                                signal_params.source_extremum_low,
+                                signal_params.raw_entry_trigger_price,
+                                signal_params.raw_stop_anchor_price,
+                                reason);
+
+  ExecutionAppendQueryDebugLog("DETERMINISTIC_INVALID_CANDIDATE", message);
+}
+
+void ExecutionLogDeterministicEntryAnchorBlocked(const SignalParams &signal_params,
+                                                 const ExecutionLegState &leg_state,
+                                                 const double close_0,
+                                                 const double high_1,
+                                                 const double low_1,
+                                                 const double current_anchor,
+                                                 const string reason)
+{
+  string direction = (signal_params.signal_type == BULLISH) ? "BULLISH" : "BEARISH";
+  int display_level = ExecutionDisplayLegNumber(leg_state.level_index);
+  string message = StringFormat("strategy=%s|dir=%s|L%d|status=%s|source_key=%s|source_attempt_index=%d|source_slot=%d|source_confirmed=%s|source_type=%s|source_time=%s|source_price=%.5f|raw_trigger=%.5f|current_anchor=%.5f|raw_stop=%.5f|entry_ref=%.5f|close_0=%.5f|high_1=%.5f|low_1=%.5f|reason=%s",
+                                signal_params.strategy_label,
+                                direction,
+                                display_level,
+                                EnumToString(leg_state.status),
+                                ExecutionDeterministicSourceKey(signal_params),
+                                signal_params.deterministic_source_attempt_index,
+                                signal_params.source_extremum_slot,
+                                ExecutionBoolToken(signal_params.source_extremum_confirmed),
+                                ExecutionSourceExtremumTypeToken(signal_params),
+                                ExecutionSourceExtremumTimeToken(signal_params),
+                                signal_params.source_extremum_price,
+                                signal_params.raw_entry_trigger_price,
+                                current_anchor,
+                                signal_params.raw_stop_anchor_price,
+                                leg_state.entry_reference_price,
+                                close_0,
+                                high_1,
+                                low_1,
+                                reason);
+
+  string state_key = ExecutionQueryDebugSignalKey(signal_params) + "|L" +
+                     IntegerToString(display_level) + "|ENTRY_ANCHOR_BLOCKED";
+  ExecutionAppendQueryDebugChangedLog("DETERMINISTIC_ENTRY_ANCHOR_BLOCKED",
+                                      state_key,
+                                      message);
+}
+
 void ExecutionLogDeterministicEntryRefresh(const SignalParams &signal_params,
                                            const ExecutionLegState &leg_state,
                                            const double old_trigger,

@@ -1089,6 +1089,94 @@ $log = Join-Path $mt5Root "MQL5\Experts\HFT_Grid_AI\logs\compile\deterministic-s
   - Compile.
   - Human-in-the-loop query debug check with `Enable_File_Logs=true`.
 
+## Sprint 15: Strict Current Entry Anchor And Invalid Candidate Telemetry
+
+**Goal**: Remove pre-entry ambiguity by rejecting zero-risk deterministic candidates before registration and requiring live `close_0` to break the current M1 anchor as well as the retained pending trigger.
+**Commit**: `fix: enforce deterministic current entry anchor`
+**Status**: Completed on 2026-07-03. Portable compile passed with 0 errors and 0 warnings; runtime confirmation remains human-in-the-loop through `query_debug.txt`.
+**Demo/Validation**:
+- Zero-risk setup attempts emit `DETERMINISTIC_INVALID_CANDIDATE` and do not emit `DETERMINISTIC_CANDIDATE` or `DETERMINISTIC_SIGNAL_INIT`.
+- A retained trigger can still improve closer to SL, but entry activation requires the current tick to break the current `high_1`/`low_1` anchor.
+- `DETERMINISTIC_ENTRY_ANCHOR_BLOCKED` explains raw-trigger crosses that are rejected because the current anchor is not broken.
+- Compile at sprint end with 0 errors and 0 warnings.
+
+### Task 15.1: Reject Invalid Raw Entry Geometry Before Candidate Registration
+
+- **Location**:
+  - `services/trading_signals/market_signal_detection.mqh`
+  - `services/trading_signals/market_signal_state.mqh`
+  - `services/trading_signals/execution_logging.mqh`
+- **Description**: Detect raw trigger/stop geometry that cannot produce a valid deterministic risk distance before source attempt registration and before candidate logging.
+- **Dependencies**: Sprint 14.
+- **Acceptance Criteria**:
+  - Buy candidates require `trigger > stop`.
+  - Sell candidates require `trigger < stop`.
+  - Invalid geometry logs `DETERMINISTIC_INVALID_CANDIDATE` with source key, blocked next-attempt index, trigger, stop, source identity, and reason.
+  - Invalid geometry does not increment source attempt count, daily start count, or running signal arrays.
+- **Validation**:
+  - Static review.
+  - Compile.
+  - Human-in-the-loop query debug check: zero `DETERMINISTIC_CANDIDATE` rows with `trigger == stop`.
+
+### Task 15.2: Gate Entry With Current M1 Breakout Anchor
+
+- **Location**:
+  - `services/trading_signals/execution_controller.mqh`
+  - `services/trading_signals/execution_logging.mqh`
+- **Description**: Require pending deterministic entries to break both the retained raw trigger and the current M1 `high_1`/`low_1` anchor on the entry tick.
+- **Dependencies**: Task 15.1.
+- **Acceptance Criteria**:
+  - Buy entry requires `close_0 > raw_trigger` and `close_0 > high_1`.
+  - Sell entry requires `close_0 < raw_trigger` and `close_0 < low_1`.
+  - If raw trigger is broken but the current anchor is not, the signal remains pending and logs `DETERMINISTIC_ENTRY_ANCHOR_BLOCKED`.
+  - Existing current base and macro confirmation gates still run after the current anchor gate.
+- **Validation**:
+  - Static review.
+  - Compile.
+  - Human-in-the-loop query debug check: every `DETERMINISTIC_ENTRY_CONFIRM` satisfies the current anchor breakout.
+
+## Sprint 16: Broker Outcome Accounting And Pending Cancellation Telemetry
+
+**Goal**: Prevent pending deterministic cancellations from being counted as broker trade outcomes and make no-exposure closures explicit for future statistics.
+**Commit**: `fix: separate pending cancellations from trade outcomes`
+**Status**: Planned.
+**Demo/Validation**:
+- Pending deterministic cancellations without broker exposure emit explicit no-outcome telemetry.
+- Daily loss accounting and lot-sequence outcome progression only update after broker-confirmed exposure/outcome.
+- TP/SL trade outcomes remain counted exactly once.
+- Compile at sprint end with 0 errors and 0 warnings.
+
+### Task 16.1: Add Broker Outcome Predicate For Signal Closure
+
+- **Location**:
+  - `services/trading_signals/market_signal_state.mqh`
+  - `services/trading_signals/tick_signals_manager.mqh`
+- **Description**: Add a helper that distinguishes broker-confirmed outcomes from pending cancellations using realized close volume, realized profit, active/completed broker legs, and entry price/ticket state.
+- **Dependencies**: Sprint 15.
+- **Acceptance Criteria**:
+  - Signals with no broker position, no realized closed volume, and no broker entry are treated as pending cancellations.
+  - Broker-exposed TP/SL closures remain treated as trade outcomes.
+  - The helper is used before calling daily outcome and signal lot sequence outcome registration.
+- **Validation**:
+  - Static review.
+  - Compile.
+
+### Task 16.2: Log Pending Cancellation Outcome Skips
+
+- **Location**:
+  - `services/trading_signals/execution_logging.mqh`
+  - `services/trading_signals/tick_signals_manager.mqh`
+- **Description**: Emit query debug telemetry when a deterministic signal closes without broker exposure so future stats can classify it separately from TP/SL outcomes.
+- **Dependencies**: Task 16.1.
+- **Acceptance Criteria**:
+  - Log label is `DETERMINISTIC_PENDING_CANCELED`.
+  - Log includes source key, attempt index, strategy, direction, source identity, signal state, first leg status, raw trigger, raw stop, realized volume, realized profit, and reason.
+  - Pending cancellations do not call `RegisterDailySignalOutcome` or `RegisterSignalLotSequenceOutcome`.
+- **Validation**:
+  - Static review.
+  - Compile.
+  - Human-in-the-loop query debug check: no pending-only cancellation advances trade outcome counters.
+
 ## Testing Strategy
 
 - Use static sweeps after cleanup tasks:
@@ -1138,6 +1226,14 @@ $log = Join-Path $mt5Root "MQL5\Experts\HFT_Grid_AI\logs\compile\deterministic-s
   - `DETERMINISTIC_SOURCE_CONSUMED` appears after a deterministic TP.
   - Reentries from the same consumed source emit `DETERMINISTIC_SOURCE_REENTRY_BLOCKED`.
   - No new `DETERMINISTIC_CANDIDATE` or `DETERMINISTIC_SIGNAL_INIT` appears for that exact consumed source key.
+- Use human-in-the-loop query debug checks after Sprint 15:
+  - `DETERMINISTIC_INVALID_CANDIDATE` appears instead of candidate/init for raw zero-risk setups.
+  - `DETERMINISTIC_ENTRY_ANCHOR_BLOCKED` appears when a retained raw trigger is crossed but current `high_1`/`low_1` is not.
+  - Every `DETERMINISTIC_ENTRY_CONFIRM` satisfies the current `high_1`/`low_1` breakout.
+- Use human-in-the-loop query debug checks after Sprint 16:
+  - `DETERMINISTIC_PENDING_CANCELED` classifies pending-only closures.
+  - TP/SL counts still match broker entries.
+  - Pending cancellations do not affect trade outcome or lot-sequence accounting.
 
 ## Potential Risks And Gotchas
 
@@ -1158,6 +1254,8 @@ $log = Join-Path $mt5Root "MQL5\Experts\HFT_Grid_AI\logs\compile\deterministic-s
 - **Visual cleanup blind spots**: Chart objects not tracked by the visualization cache can survive signal removal. Mitigation: route level drawing through tracked updates and directly clean expired pending signals.
 - **Entry confirmation drift**: A signal can be valid at the source extremum but invalid by current delayed M1 slope at entry time. Mitigation: add a current-base confirmation gate immediately before broker execution.
 - **Source-level sample inflation**: A TP can be followed by another trade from the same source extremum. Mitigation: consume TP-positive deterministic sources and block same-source reentries.
+- **Retained-entry anchor ambiguity**: A retained trigger can be crossed while the current `high_1`/`low_1` is not. Mitigation: require both retained trigger and current anchor to break before entry.
+- **Pending cancellation outcome pollution**: Pending expirations can look like trade outcomes to daily/lot state. Mitigation: classify no-exposure cancellations separately and skip broker outcome accounting.
 
 No additional product questions are blocking this plan. The remaining unknowns are implementation discoveries, especially the exact magic-number license contract, whether all old range/grid code can be deleted in one sprint without forcing a larger frontend rewrite, and the exact lifecycle policy for EA-opened macro charts after manual user interaction.
 
