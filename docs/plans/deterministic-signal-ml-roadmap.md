@@ -78,6 +78,8 @@ Recommended outputs:
 
 ## Phase 3: XGBoost Training And Validation
 
+**Planner plan**: `docs/plans/deterministic-signal-xgboost-training-validation-plan.md`
+
 Train local Python models from the Parquet dataset:
 
 - baseline rules and simple decision tree

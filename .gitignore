@@ -30,3 +30,4 @@ logs/*
 .envrc
 .venv/
 artifacts/datasets/
+artifacts/models/
