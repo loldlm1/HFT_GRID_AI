@@ -131,6 +131,8 @@ Non-goals:
 
 ## Phase 5: MQL5 Shadow Inference
 
+**Status**: PASS on 2026-07-04 for Ubuntu/Wine shadow runtime and Python
+parity; Windows compile remains pending human-in-the-loop validation.
 **Prerequisite**: Phase 4.5 readiness gate is `PASS`, or a human explicitly
 accepts a partial gate.
 **Implementation plan**: `docs/plans/deterministic-signal-mql5-shadow-inference-plan.md`

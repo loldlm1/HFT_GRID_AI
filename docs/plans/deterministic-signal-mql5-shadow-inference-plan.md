@@ -1,7 +1,7 @@
 # Plan: Deterministic Signal MQL5 Shadow Inference
 
 **Generated**: 2026-07-04
-**Status**: Draft
+**Status**: Completed on 2026-07-04
 **Estimated Complexity**: High
 **Risk Level**: Low for trading behavior when implemented as specified; Medium for runtime correctness and telemetry because model loading, feature parity, and tree scoring must match the Python artifact exactly.
 
@@ -24,6 +24,9 @@ Execution is ordered. Complete, validate, and commit one sprint before starting 
 - Classifier is the primary shadow recommendation source.
 - Regressor may be loaded and recorded as secondary telemetry when the artifact is valid and runtime cost stays bounded.
 - Acceptance platform: Ubuntu/Wine first. Windows compile remains human-in-the-loop before claiming cross-platform parity.
+- Acceptance result: `PASS` for Ubuntu/Wine runtime and Python parity using
+  `shadow_test_run_1`; Windows compile remains pending human-in-the-loop
+  validation.
 
 ## Documentation Basis
 

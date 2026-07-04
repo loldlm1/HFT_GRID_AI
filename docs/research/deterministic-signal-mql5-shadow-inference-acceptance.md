@@ -2,6 +2,8 @@
 
 **Date**: 2026-07-04
 **Phase**: 5 - MQL5 Shadow Inference
+**Status**: PASS for Ubuntu/Wine Phase 5 runtime and parity; Windows compile
+remains pending human-in-the-loop validation.
 
 ## Validation Summary
 
@@ -62,14 +64,15 @@ Pending human-in-the-loop validation on Windows.
 
 - Path: `/home/loldlm/.wine/drive_c/users/loldlm/AppData/Roaming/MetaQuotes/Terminal/Common/Files/DeterministicSignalML/shadow_runs/shadow_test_run_1`
 - Files present:
-  - `shadow_manifest.tsv`: 413 bytes
-  - `shadow_predictions.tsv`: 940171 bytes
-  - `shadow_outcomes.tsv`: 572464 bytes
-  - `shadow_summary.tsv`: 265 bytes
+  - `shadow_manifest.tsv`: 413 bytes, updated `2026-07-04 18:31:43 -0400`
+  - `shadow_predictions.tsv`: 940171 bytes, updated `2026-07-04 18:34:29 -0400`
+  - `shadow_outcomes.tsv`: 572464 bytes, updated `2026-07-04 18:34:29 -0400`
+  - `shadow_summary.tsv`: 265 bytes, updated `2026-07-04 18:34:29 -0400`
 - Row counts:
   - predictions: 2834
   - outcomes: 2834
   - summary rows: 1
+  - header rows per file: 1
 - Summary:
   - `prediction_rows=2834`
   - `outcome_rows=2834`
@@ -86,11 +89,16 @@ Pending human-in-the-loop validation on Windows.
   - `classifier_tree_count=31`
   - `regressor_tree_count=30`
   - `threshold_probability=0.55000000`
+- Prediction distribution:
+  - `ALLOW=268`
+  - `BLOCK=2566`
+  - `classifier_score_gte_threshold=268`
+  - `classifier_score_lt_threshold=2566`
 
-This run was generated before the MQL5 parity fix that rounds `sl_fib_raw` and
-`entry_fib_raw` to the same one-decimal feature contract used by Phase 1 TSVs
-and Python training. Regenerate a fresh shadow run before declaring Phase 5
-runtime parity `PASS`.
+This shadow run ID was reused for a fresh Strategy Tester execution after the
+MQL5 parity fix. The row files are initialized with header-only writes before
+rows are appended, and this rerun has exactly one header per TSV, so there is no
+observed duplicate or stale-row ambiguity.
 
 Expected files:
 
@@ -106,18 +114,17 @@ Common\Files\DeterministicSignalML\shadow_runs\<shadow_run_id>\shadow_summary.ts
 ### `shadow_test_run_1`
 
 - Command: `.venv/bin/python tools/deterministic_signal_ml/compare_shadow_predictions.py --export-id xgb_test_1_export_v1 --shadow-run-path "$MT5_COMMON_FILES/DeterministicSignalML/shadow_runs/shadow_test_run_1"`
-- Result: `FAIL`
+- Result: `PASS`
 - Rows compared: 2834
-- Classifier max absolute error: `0.121349416736`
-- Classifier mean absolute error: `0.000834777201806`
-- Threshold decision agreement: `0.99647141849`
-- Regressor max absolute error: `0.2599792984193`
+- Classifier max absolute error: `4.99940822074e-09`
+- Classifier mean absolute error: `2.42345073069e-09`
+- Threshold decision agreement: `1`
+- Regressor max absolute error: `4.998299996117339e-09`
 
-Conclusion: runtime file generation and artifact loading worked, but parity did
-not pass for this run. The mismatch exposed a feature-contract bug: MQL5 scored
-raw Fibonacci percentages at full precision while the model was trained from
-Phase 1 TSV values rounded to one decimal. The MQL5 encoder has been corrected;
-a new Strategy Tester shadow run is required for final PASS.
+Conclusion: runtime file generation, artifact loading, feature encoding, tree
+scoring, classifier threshold decisions, and regressor telemetry match the
+Python artifact scorer within the accepted tolerance. Phase 5 runtime parity is
+`PASS` for the Ubuntu/Wine validation scope.
 
 Validator command shape:
 
@@ -135,8 +142,12 @@ Acceptance tolerances:
 
 ## Phase 6 Readiness
 
-Phase 6 `FILTER` mode is not approved by this file. Before planning or
-implementing filter behavior, require:
+Phase 6 `FILTER` mode is not approved by this file. Phase 5 runtime/parity gates
+are now satisfied for Ubuntu/Wine, but filter behavior still requires explicit
+human approval that model recommendations may affect broker admission in
+Strategy Tester.
+
+Before planning or implementing filter behavior, require:
 
 - clean final Phase 5 compile,
 - successful artifact load in `SHADOW`,
