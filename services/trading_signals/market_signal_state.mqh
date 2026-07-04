@@ -17,6 +17,8 @@ void ExecutionLogDeterministicSignalExpired(const SignalParams &signal_params,
                                             const bool new_source_is_peak,
                                             const double new_source_price,
                                             const string reason);
+void ExecutionLogDeterministicPendingCanceled(const SignalParams &signal_params,
+                                              const string reason);
 
 struct StrategyContextRuntime
 {
@@ -496,6 +498,28 @@ bool DeterministicSignalHasBrokerExposure(const SignalParams &signal_params)
   return false;
 }
 
+bool SignalHasBrokerConfirmedOutcome(const SignalParams &signal_params)
+{
+  if(signal_params.realized_closed_volume > 0.0)
+    return true;
+
+  if(MathAbs(signal_params.realized_profit) > 0.0000001)
+    return true;
+
+  int total = ArraySize(signal_params.execution_legs);
+  for(int i = 0; i < total; i++)
+  {
+    if(signal_params.execution_legs[i].position_ticket > 0)
+      return true;
+    if(signal_params.execution_legs[i].status == EXECUTION_LEG_ACTIVE)
+      return true;
+    if(signal_params.execution_legs[i].entry_price > 0.0)
+      return true;
+  }
+
+  return false;
+}
+
 void ExpirePendingDeterministicSignalsForSourceExtremum(const int source_slot,
                                                         const datetime source_time,
                                                         const bool source_is_peak,
@@ -523,8 +547,10 @@ void ExpirePendingDeterministicSignalsForSourceExtremum(const int source_slot,
                                            source_is_peak,
                                            source_price,
                                            "source_extremum_changed");
-    RemoveExecutionLevels(ChartID(), running_bullish_signals[i]);
     running_bullish_signals[i].signal_state = CLOSED;
+    ExecutionLogDeterministicPendingCanceled(running_bullish_signals[i],
+                                             "source_extremum_changed_no_broker_outcome");
+    RemoveExecutionLevels(ChartID(), running_bullish_signals[i]);
     RemoveElementFromArray(running_bullish_signals, i);
   }
 
@@ -547,8 +573,10 @@ void ExpirePendingDeterministicSignalsForSourceExtremum(const int source_slot,
                                            source_is_peak,
                                            source_price,
                                            "source_extremum_changed");
-    RemoveExecutionLevels(ChartID(), running_bearish_signals[j]);
     running_bearish_signals[j].signal_state = CLOSED;
+    ExecutionLogDeterministicPendingCanceled(running_bearish_signals[j],
+                                             "source_extremum_changed_no_broker_outcome");
+    RemoveExecutionLevels(ChartID(), running_bearish_signals[j]);
     RemoveElementFromArray(running_bearish_signals, j);
   }
 }

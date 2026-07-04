@@ -668,6 +668,40 @@ void ExecutionLogDeterministicSignalExpired(const SignalParams &signal_params,
   ExecutionAppendQueryDebugLog("DETERMINISTIC_SIGNAL_EXPIRED", message);
 }
 
+void ExecutionLogDeterministicPendingCanceled(const SignalParams &signal_params,
+                                              const string reason)
+{
+  string direction = (signal_params.signal_type == BULLISH) ? "BULLISH" : "BEARISH";
+  string first_leg_status = "n/a";
+  int total_legs = ArraySize(signal_params.execution_legs);
+  if(total_legs > 0)
+    first_leg_status = EnumToString(signal_params.execution_legs[0].status);
+
+  string message = StringFormat("strategy=%s|dir=%s|signal_state=%s|first_leg_status=%s|sequence=%s|source_key=%s|source_attempt_index=%d|source_slot=%d|source_confirmed=%s|source_type=%s|source_time=%s|source_price=%.5f|source_high=%.5f|source_low=%.5f|raw_trigger=%.5f|raw_stop=%.5f|realized_volume=%.2f|realized_profit=%.2f|close_price=%.5f|reason=%s",
+                                signal_params.strategy_label,
+                                direction,
+                                EnumToString(signal_params.signal_state),
+                                first_leg_status,
+                                ExecutionQueryDebugSignalKey(signal_params),
+                                ExecutionDeterministicSourceKey(signal_params),
+                                signal_params.deterministic_source_attempt_index,
+                                signal_params.source_extremum_slot,
+                                ExecutionBoolToken(signal_params.source_extremum_confirmed),
+                                ExecutionSourceExtremumTypeToken(signal_params),
+                                ExecutionSourceExtremumTimeToken(signal_params),
+                                signal_params.source_extremum_price,
+                                signal_params.source_extremum_high,
+                                signal_params.source_extremum_low,
+                                signal_params.raw_entry_trigger_price,
+                                signal_params.raw_stop_anchor_price,
+                                signal_params.realized_closed_volume,
+                                signal_params.realized_profit,
+                                signal_params.close_price,
+                                reason);
+
+  ExecutionAppendQueryDebugLog("DETERMINISTIC_PENDING_CANCELED", message);
+}
+
 void ExecutionLogDeterministicEntryConfirmation(const string label,
                                                 const SignalParams &signal_params,
                                                 const ExecutionLegState &leg_state,

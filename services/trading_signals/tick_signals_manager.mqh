@@ -5,6 +5,31 @@
 #ifndef _SERVICES_TRADING_SIGNALS_TICK_SIGNALS_MANAGER_MQH_
 #define _SERVICES_TRADING_SIGNALS_TICK_SIGNALS_MANAGER_MQH_
 
+void RegisterClosedSignalOutcomeIfBrokerConfirmed(SignalParams &signal_params,
+                                                  const SignalTypes direction)
+{
+  bool broker_outcome = SignalHasBrokerConfirmedOutcome(signal_params);
+  signal_params.raw_profit = signal_params.realized_profit;
+
+  if(!broker_outcome && signal_params.deterministic_strategy)
+  {
+    signal_params.raw_profit = 0.0;
+    ExecutionLogDeterministicPendingCanceled(signal_params, "no_broker_outcome");
+    return;
+  }
+
+  if(MathAbs(signal_params.raw_profit) < 0.0000001 &&
+     signal_params.realized_closed_volume <= 0.0)
+  {
+    signal_params.raw_profit = RawProfitUsd(direction,
+                                           signal_params.entry_price,
+                                           signal_params.close_price);
+  }
+
+  RegisterDailySignalOutcome(direction, signal_params.raw_profit);
+  RegisterSignalLotSequenceOutcome(signal_params.raw_profit);
+}
+
 void CheckTickOpenBullishSignals()
 {
   int running_signals_total = ArraySize(running_bullish_signals);
@@ -18,18 +43,10 @@ void CheckTickOpenBullishSignals()
     {
       running_bullish_signals[i].close_time  = TimeCurrent();
       running_bullish_signals[i].close_price = g_bid;
-      running_bullish_signals[i].raw_profit  = running_bullish_signals[i].realized_profit;
-      if(MathAbs(running_bullish_signals[i].raw_profit) < 0.0000001 &&
-         running_bullish_signals[i].realized_closed_volume <= 0.0)
-      {
-        running_bullish_signals[i].raw_profit = RawProfitUsd(BULLISH,
-                                                             running_bullish_signals[i].entry_price,
-                                                             running_bullish_signals[i].close_price);
-      }
       running_bullish_signals[i].signal_state = CLOSED;
 
-      RegisterDailySignalOutcome(BULLISH, running_bullish_signals[i].raw_profit);
-      RegisterSignalLotSequenceOutcome(running_bullish_signals[i].raw_profit);
+      RegisterClosedSignalOutcomeIfBrokerConfirmed(running_bullish_signals[i],
+                                                   BULLISH);
       CloseBullishSignal(running_bullish_signals[i]);
       RemoveElementFromArray(running_bullish_signals, i);
     }
@@ -49,18 +66,10 @@ void CheckTickOpenBearishSignals()
     {
       running_bearish_signals[i].close_time  = TimeCurrent();
       running_bearish_signals[i].close_price = g_ask;
-      running_bearish_signals[i].raw_profit  = running_bearish_signals[i].realized_profit;
-      if(MathAbs(running_bearish_signals[i].raw_profit) < 0.0000001 &&
-         running_bearish_signals[i].realized_closed_volume <= 0.0)
-      {
-        running_bearish_signals[i].raw_profit = RawProfitUsd(BEARISH,
-                                                             running_bearish_signals[i].entry_price,
-                                                             running_bearish_signals[i].close_price);
-      }
       running_bearish_signals[i].signal_state = CLOSED;
 
-      RegisterDailySignalOutcome(BEARISH, running_bearish_signals[i].raw_profit);
-      RegisterSignalLotSequenceOutcome(running_bearish_signals[i].raw_profit);
+      RegisterClosedSignalOutcomeIfBrokerConfirmed(running_bearish_signals[i],
+                                                   BEARISH);
       CloseBearishSignal(running_bearish_signals[i]);
       RemoveElementFromArray(running_bearish_signals, i);
     }

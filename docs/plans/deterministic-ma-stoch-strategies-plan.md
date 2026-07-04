@@ -1139,7 +1139,7 @@ $log = Join-Path $mt5Root "MQL5\Experts\HFT_Grid_AI\logs\compile\deterministic-s
 
 **Goal**: Prevent pending deterministic cancellations from being counted as broker trade outcomes and make no-exposure closures explicit for future statistics.
 **Commit**: `fix: separate pending cancellations from trade outcomes`
-**Status**: Planned.
+**Status**: Completed on 2026-07-03. Portable compile passed with 0 errors and 0 warnings; runtime confirmation remains human-in-the-loop through `query_debug.txt`.
 **Demo/Validation**:
 - Pending deterministic cancellations without broker exposure emit explicit no-outcome telemetry.
 - Daily loss accounting and lot-sequence outcome progression only update after broker-confirmed exposure/outcome.
