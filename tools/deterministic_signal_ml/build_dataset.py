@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import shutil
 from pathlib import Path
 
 import duckdb
@@ -12,6 +13,12 @@ from schema_contract import (
     OUTCOME_COLUMNS,
     SIGNAL_FEATURES_FILE,
     SIGNAL_OUTCOMES_FILE,
+)
+from report_writer import (
+    build_quality_payload,
+    write_dataset_manifest,
+    write_dataset_report,
+    write_quality_json,
 )
 from validate_phase1_run import Phase1ValidationError, validate_phase1_runs
 
@@ -216,6 +223,46 @@ ORDER BY f.entry_time, f.signal_id
     }
 
 
+def prepare_output_dir(output_root: Path, dataset_id: str, overwrite: bool) -> Path:
+    output_dir = output_root / dataset_id
+    resolved_root = output_root.resolve()
+    resolved_output = output_dir.resolve()
+    if resolved_root != resolved_output and resolved_root not in resolved_output.parents:
+        raise RuntimeError(f"Refusing output outside output root: {output_dir}")
+
+    if output_dir.exists():
+        if not overwrite:
+            raise RuntimeError(f"Dataset output already exists. Use --overwrite: {output_dir}")
+        shutil.rmtree(output_dir)
+
+    output_dir.mkdir(parents=True, exist_ok=False)
+    return output_dir
+
+
+def write_parquet_outputs(
+    connection: duckdb.DuckDBPyConnection,
+    output_dir: Path,
+) -> dict[str, str]:
+    output_files = {
+        "features": str(output_dir / "features.parquet"),
+        "outcomes": str(output_dir / "outcomes.parquet"),
+        "training_matrix": str(output_dir / "training_matrix.parquet"),
+    }
+    for table_name, output_file in output_files.items():
+        connection.execute(
+            f"COPY {table_name} TO {_sql_literal(output_file)} (FORMAT parquet)"
+        )
+        read_back_count = connection.execute(
+            f"SELECT COUNT(*) FROM read_parquet({_sql_literal(output_file)})"
+        ).fetchone()[0]
+        table_count = connection.execute(f"SELECT COUNT(*) FROM {table_name}").fetchone()[0]
+        if read_back_count != table_count:
+            raise RuntimeError(
+                f"Parquet readback mismatch for {table_name}: wrote={table_count}, read={read_back_count}"
+            )
+    return output_files
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--runs-root", required=True, help="Folder containing Phase 1 run folders.")
@@ -270,6 +317,17 @@ def main() -> int:
         f"outcomes={counts['outcomes']} | "
         f"training_matrix={counts['training_matrix']}"
     )
+    try:
+        output_dir = prepare_output_dir(Path(args.output_root), args.dataset_id, args.overwrite)
+        output_files = write_parquet_outputs(connection, output_dir)
+        quality_payload = build_quality_payload(connection, validations, counts)
+        write_dataset_manifest(output_dir, args.dataset_id, validations, counts, output_files)
+        write_quality_json(output_dir, quality_payload)
+        write_dataset_report(output_dir, args.dataset_id, quality_payload)
+    except RuntimeError as exc:
+        parser.exit(1, f"build failed: {exc}\n")
+
+    print(f"dataset written | path={output_dir}")
     return 0
 
 
