@@ -151,6 +151,32 @@ PostgreSQL, no Python execution from MQL5, and no trading filter is active yet.
 The XGBoost JSON files are Python booster artifacts, not MT5-readable inference
 artifacts.
 
+## Local Model Artifact Export
+
+Phase 4 exports a Phase 3 model into MT5-readable TSV artifacts while keeping
+the EA unchanged.
+
+```powershell
+.\.venv\Scripts\python.exe tools\deterministic_signal_ml\export_model_artifact.py `
+  --model-id xgb_test_1 `
+  --dataset-id test_dataset_1 `
+  --export-id xgb_test_1_export_v1 `
+  --overwrite
+```
+
+Validate the exported artifact:
+
+```powershell
+.\.venv\Scripts\python.exe tools\deterministic_signal_ml\model_artifact_validator.py `
+  --export-id xgb_test_1_export_v1
+```
+
+Generated files are written under `artifacts/model_exports/<export_id>/` and are
+ignored by git. Phase 4 produces `model_manifest.tsv`, `feature_map.tsv`,
+flattened classifier/regressor tree TSVs, threshold metadata, and parity
+reports. It does not add EA inputs, load artifacts in `OnInit`, run Strategy
+Tester inference, or affect broker admission.
+
 ## Final Baseline Notes
 
 - Phase 8 final compile passed on 2026-07-03 with `0 errors, 0 warnings`; evidence log: `logs/compile/phase-08-build.log`.

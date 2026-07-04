@@ -113,6 +113,42 @@ Model outputs include:
 Phase 3 is research-only. It does not add EA inputs, does not run Python from
 MQL5, and does not change strategy entry/exit behavior.
 
+## Phase 4 Model Export
+
+Export a Phase 3 model folder into MT5-readable TSV artifacts:
+
+```powershell
+.\.venv\Scripts\python.exe tools\deterministic_signal_ml\export_model_artifact.py `
+  --model-id xgb_test_1 `
+  --dataset-id test_dataset_1 `
+  --export-id xgb_test_1_export_v1 `
+  --overwrite
+```
+
+Validate the generated export without calling XGBoost:
+
+```powershell
+.\.venv\Scripts\python.exe tools\deterministic_signal_ml\model_artifact_validator.py `
+  --export-id xgb_test_1_export_v1
+```
+
+Generated exports are written under `artifacts/model_exports/<export_id>/` and
+are ignored by git. The export includes:
+
+- `model_manifest.tsv`: simple key/value runtime manifest for future MQL5
+  loading.
+- `model_manifest.json`: Python audit sidecar.
+- `feature_map.tsv`: encoded feature index and one-hot mapping.
+- `classifier_trees.tsv`: flattened classifier tree nodes.
+- `regressor_trees.tsv`: flattened regressor tree nodes.
+- `threshold_policy.tsv`: research-only threshold metadata.
+- `parity_report.json` and `parity_report.md`: Python parity evidence.
+
+The exporter writes only the effective XGBoost trees used by prediction after
+early stopping. For `xgb_test_1`, that is 84 classifier trees and 47 regressor
+trees. Phase 4 still does not load models in MT5, add EA inputs, run Strategy
+Tester inference, or filter trades.
+
 ## DuckDB References
 
 - DuckDB Python package: https://github.com/duckdb/duckdb-python

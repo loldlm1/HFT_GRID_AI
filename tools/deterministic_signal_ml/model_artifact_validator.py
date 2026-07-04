@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import argparse
 import csv
+import json
 import math
 from dataclasses import dataclass
 from pathlib import Path
@@ -12,10 +14,16 @@ import numpy as np
 
 from model_artifact_contract import (
     CLASSIFIER_TREES_TSV,
+    DEFAULT_EXPORT_ROOT,
     FEATURE_MAP_TSV,
     MANIFEST_TSV_COLUMNS,
+    MODEL_MANIFEST_JSON,
     MODEL_MANIFEST_TSV,
+    PARITY_REPORT_JSON,
     REGRESSOR_TREES_TSV,
+    REQUIRED_MANIFEST_KEYS,
+    THRESHOLD_POLICY_COLUMNS,
+    THRESHOLD_POLICY_TSV,
     TREE_COLUMNS,
 )
 
@@ -34,6 +42,24 @@ class TreeNode:
     right_child: int | None
     default_left: bool
     leaf_value: float | None
+
+
+def build_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(description=__doc__)
+    export_group = parser.add_mutually_exclusive_group(required=True)
+    export_group.add_argument("--export-id", help="Export ID under the export root.")
+    export_group.add_argument("--export-path", help="Explicit export folder.")
+    parser.add_argument("--export-root", default=DEFAULT_EXPORT_ROOT, help="Root for --export-id.")
+    return parser
+
+
+def resolve_export_path(args: argparse.Namespace) -> Path:
+    export_path = Path(args.export_path) if args.export_path else Path(args.export_root) / args.export_id
+    if not export_path.exists():
+        raise ModelArtifactValidationError(f"Export folder does not exist: {export_path}")
+    if not export_path.is_dir():
+        raise ModelArtifactValidationError(f"Export path is not a folder: {export_path}")
+    return export_path
 
 
 def read_tsv(path: Path) -> list[dict[str, str]]:
@@ -61,6 +87,98 @@ def read_tree_rows(path: Path) -> list[dict[str, str]]:
     if rows and tuple(rows[0].keys()) != TREE_COLUMNS:
         raise ModelArtifactValidationError(f"Bad tree TSV header: {path}")
     return rows
+
+
+def validate_export_artifact(export_path: Path) -> dict[str, object]:
+    required_files = (
+        MODEL_MANIFEST_TSV,
+        MODEL_MANIFEST_JSON,
+        FEATURE_MAP_TSV,
+        CLASSIFIER_TREES_TSV,
+        REGRESSOR_TREES_TSV,
+        THRESHOLD_POLICY_TSV,
+        PARITY_REPORT_JSON,
+    )
+    missing = [filename for filename in required_files if not (export_path / filename).exists()]
+    if missing:
+        raise ModelArtifactValidationError("Export is missing required files: " + ", ".join(missing))
+
+    manifest = read_manifest(export_path)
+    missing_keys = [key for key in REQUIRED_MANIFEST_KEYS if key not in manifest]
+    if missing_keys:
+        raise ModelArtifactValidationError("Manifest missing required keys: " + ", ".join(missing_keys))
+
+    feature_map_rows = read_feature_map(export_path)
+    encoded_feature_count = int(manifest["encoded_feature_count"])
+    if len(feature_map_rows) != encoded_feature_count:
+        raise ModelArtifactValidationError(
+            f"Feature count mismatch: manifest={encoded_feature_count} map={len(feature_map_rows)}"
+        )
+
+    classifier_rows = read_tree_rows(export_path / CLASSIFIER_TREES_TSV)
+    regressor_rows = read_tree_rows(export_path / REGRESSOR_TREES_TSV)
+    classifier_tree_count = _validate_tree_references(
+        classifier_rows,
+        "classifier",
+        encoded_feature_count,
+    )
+    regressor_tree_count = _validate_tree_references(
+        regressor_rows,
+        "regressor",
+        encoded_feature_count,
+    )
+    if classifier_tree_count != int(manifest["classifier_tree_count"]):
+        raise ModelArtifactValidationError("Classifier tree count does not match manifest")
+    if regressor_tree_count != int(manifest["regressor_tree_count"]):
+        raise ModelArtifactValidationError("Regressor tree count does not match manifest")
+
+    threshold_rows = read_tsv(export_path / THRESHOLD_POLICY_TSV)
+    if threshold_rows and tuple(threshold_rows[0].keys()) != THRESHOLD_POLICY_COLUMNS:
+        raise ModelArtifactValidationError(f"Bad threshold policy header: {THRESHOLD_POLICY_TSV}")
+    if not threshold_rows:
+        raise ModelArtifactValidationError("Threshold policy has no rows")
+    if threshold_rows[0]["research_only"] != "true":
+        raise ModelArtifactValidationError("Threshold policy must be research_only=true")
+
+    parity_report = json.loads((export_path / PARITY_REPORT_JSON).read_text(encoding="utf-8"))
+    if parity_report.get("status") != "OK":
+        raise ModelArtifactValidationError("Parity report status is not OK")
+
+    return {
+        "status": "OK",
+        "export_id": manifest.get("export_id", export_path.name),
+        "model_id": manifest.get("model_id", ""),
+        "dataset_id": manifest.get("dataset_id", ""),
+        "encoded_feature_count": encoded_feature_count,
+        "classifier_tree_count": classifier_tree_count,
+        "regressor_tree_count": regressor_tree_count,
+        "parity_status": parity_report.get("status"),
+        "mt5_runtime_ready": manifest.get("mt5_runtime_ready"),
+        "research_only": manifest.get("research_only"),
+    }
+
+
+def _validate_tree_references(
+    rows: list[dict[str, str]],
+    model_role: str,
+    feature_count: int,
+) -> int:
+    trees = _build_trees(rows, model_role)
+    for tree_index, tree in enumerate(trees):
+        if 0 not in tree:
+            raise ModelArtifactValidationError(f"{model_role} tree {tree_index} is missing root")
+        for node in tree.values():
+            if node.node_type == "leaf":
+                if node.leaf_value is None:
+                    raise ModelArtifactValidationError(f"{model_role} leaf missing value")
+                continue
+            if node.feature_index is None or node.feature_index < 0 or node.feature_index >= feature_count:
+                raise ModelArtifactValidationError(f"{model_role} split feature index is invalid")
+            if node.threshold is None:
+                raise ModelArtifactValidationError(f"{model_role} split threshold is missing")
+            if node.left_child not in tree or node.right_child not in tree:
+                raise ModelArtifactValidationError(f"{model_role} split child reference is invalid")
+    return len(trees)
 
 
 def encode_rows(rows: list[dict[str, Any]], feature_map_rows: list[dict[str, str]]) -> np.ndarray:
@@ -182,3 +300,30 @@ def _optional_float(value: str) -> float | None:
     if value == "":
         return None
     return float(value)
+
+
+def main() -> int:
+    parser = build_parser()
+    args = parser.parse_args()
+    try:
+        export_path = resolve_export_path(args)
+        report = validate_export_artifact(export_path)
+    except ModelArtifactValidationError as exc:
+        parser.exit(1, f"model artifact validation failed: {exc}\n")
+
+    print(
+        "model artifact validation ok | "
+        f"export_id={report['export_id']} | "
+        f"model_id={report['model_id']} | "
+        f"dataset_id={report['dataset_id']} | "
+        f"encoded_features={report['encoded_feature_count']} | "
+        f"classifier_trees={report['classifier_tree_count']} | "
+        f"regressor_trees={report['regressor_tree_count']} | "
+        f"mt5_runtime_ready={report['mt5_runtime_ready']} | "
+        f"research_only={report['research_only']}"
+    )
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
