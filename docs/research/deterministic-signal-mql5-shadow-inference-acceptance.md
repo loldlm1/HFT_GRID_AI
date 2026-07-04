@@ -142,17 +142,16 @@ Acceptance tolerances:
 
 ## Phase 6 Readiness
 
-Phase 6 `FILTER` mode is not approved by this file. Phase 5 runtime/parity gates
-are now satisfied for Ubuntu/Wine, but filter behavior still requires explicit
-human approval that model recommendations may affect broker admission in
-Strategy Tester.
+Phase 6 `FILTER` mode was approved after this Phase 5 evidence passed and is
+tracked separately in
+`docs/research/deterministic-signal-mql5-filter-inference-acceptance.md`.
+This file remains the Phase 5 shadow/runtime parity evidence only.
 
-Before planning or implementing filter behavior, require:
+Before accepting filter behavior, require:
 
-- clean final Phase 5 compile,
-- successful artifact load in `SHADOW`,
-- nonzero shadow prediction rows,
+- clean final Phase 6 compile,
+- successful artifact load in `FILTER`,
+- nonzero filter prediction rows,
 - parity validator `PASS`,
-- enough closed outcomes for human review,
-- explicit human approval that model recommendations may affect broker
-  admission in Strategy Tester.
+- compact filter run summary `PASS`,
+- human review of Strategy Tester behavioral delta.
