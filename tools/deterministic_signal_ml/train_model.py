@@ -11,6 +11,8 @@ import duckdb
 
 from feature_encoder import FeatureEncoder
 from model_config import DEFAULT_DATASET_ROOT, DEFAULT_MODEL_ROOT, TRAINER_VERSION, TrainingConfig
+from training_report import evaluate_baselines, render_validation_report
+from validation_splits import build_time_splits
 
 
 class TrainingInputError(RuntimeError):
@@ -156,6 +158,30 @@ def write_training_input_summary(
     summary_path.write_text(json.dumps(summary, indent=2, sort_keys=True), encoding="utf-8")
 
 
+def write_validation_outputs(
+    output_dir: Path,
+    model_id: str,
+    manifest: dict,
+    split_metadata: dict,
+    baseline_metrics: dict,
+) -> None:
+    dataset_id = str(manifest.get("dataset_id", ""))
+    metrics = {
+        "trainer_version": TRAINER_VERSION,
+        "model_id": model_id,
+        "dataset_id": dataset_id,
+        "source_run_ids": manifest.get("source_run_ids", []),
+        "config_ids": manifest.get("config_ids", []),
+        "split_metadata": split_metadata,
+        "baseline_metrics": baseline_metrics,
+    }
+    metrics_path = output_dir / "validation_metrics.json"
+    report_path = output_dir / "validation_report.md"
+    metrics_path.write_text(json.dumps(metrics, indent=2, sort_keys=True), encoding="utf-8")
+    report = render_validation_report(model_id, dataset_id, split_metadata, baseline_metrics)
+    report_path.write_text(report, encoding="utf-8")
+
+
 def main() -> int:
     parser = build_parser()
     args = parser.parse_args()
@@ -171,7 +197,21 @@ def main() -> int:
         output_dir = prepare_output_dir(Path(args.output_root), args.model_id, args.overwrite)
         encoder.write_json(output_dir / "feature_encoder.json")
         write_training_input_summary(output_dir, args.model_id, manifest, rows, encoder)
-    except TrainingInputError as exc:
+        split_bundle = build_time_splits(
+            rows,
+            holdout_fraction=config.holdout_fraction,
+            n_splits=config.walk_forward_splits,
+            gap=config.walk_forward_gap,
+        )
+        baseline_metrics = evaluate_baselines(rows, encoded.matrix, split_bundle)
+        write_validation_outputs(
+            output_dir,
+            args.model_id,
+            manifest,
+            split_bundle.metadata,
+            baseline_metrics,
+        )
+    except (TrainingInputError, ValueError) as exc:
         parser.exit(1, f"training input failed: {exc}\n")
 
     print(
@@ -180,7 +220,9 @@ def main() -> int:
         f"dataset={manifest.get('dataset_id', dataset_path.name)} | "
         f"model_id={args.model_id} | "
         f"rows={len(rows)} | "
-        f"encoded_features={encoded.matrix.shape[1]}"
+        f"encoded_features={encoded.matrix.shape[1]} | "
+        f"holdout_rows={len(split_bundle.holdout_indices)} | "
+        f"folds={len(split_bundle.folds)}"
     )
     return 0
 
