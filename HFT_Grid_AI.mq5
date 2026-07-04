@@ -78,6 +78,7 @@ int OnInit()
   g_initial_ea_date = TimeCurrent();
   ResetQueryDebugLogSession();
   ResetDeterministicSourceOutcomeState();
+  DeterministicSignalStatsInit();
 
   if(!RefreshSymbolTradingConstraints(_Symbol, g_symbol_constraints))
   {

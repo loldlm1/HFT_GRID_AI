@@ -103,6 +103,9 @@ struct SignalParams
   double                     realized_profit;
   double                     realized_closed_volume;
   double                     remaining_open_volume;
+  string                     deterministic_stats_signal_id;
+  bool                       deterministic_stats_feature_exported;
+  bool                       deterministic_stats_outcome_exported;
 
   bool   execution_initialized;
   double execution_base_distance_points;
@@ -172,6 +175,9 @@ struct SignalParams
     realized_profit            = 0.0;
     realized_closed_volume     = 0.0;
     remaining_open_volume      = 0.0;
+    deterministic_stats_signal_id = "";
+    deterministic_stats_feature_exported = false;
+    deterministic_stats_outcome_exported = false;
     execution_initialized       = false;
     execution_base_distance_points = 0.0;
     execution_initial_indicator_distance_points = 0.0;
@@ -231,6 +237,9 @@ struct SignalParams
     realized_profit            = signal_params.realized_profit;
     realized_closed_volume     = signal_params.realized_closed_volume;
     remaining_open_volume      = signal_params.remaining_open_volume;
+    deterministic_stats_signal_id = signal_params.deterministic_stats_signal_id;
+    deterministic_stats_feature_exported = signal_params.deterministic_stats_feature_exported;
+    deterministic_stats_outcome_exported = signal_params.deterministic_stats_outcome_exported;
     execution_initialized       = signal_params.execution_initialized;
     execution_base_distance_points = signal_params.execution_base_distance_points;
     execution_initial_indicator_distance_points = signal_params.execution_initial_indicator_distance_points;
