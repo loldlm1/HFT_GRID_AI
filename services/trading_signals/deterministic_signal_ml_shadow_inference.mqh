@@ -26,11 +26,11 @@ const int    ML_SHADOW_MAX_TREE_NODES          = 20000;
 const int    ML_SHADOW_FLUSH_ROWS              = 32;
 const string ML_SHADOW_RUN_MANIFEST_HEADER     = "schema_version\tkey\tvalue";
 const string ML_SHADOW_PREDICTIONS_HEADER =
-  "schema_version\tshadow_run_id\texport_id\tmodel_id\tdataset_id\tfeature_schema_version\tsignal_id\tsource_key\tsource_attempt_index\tsymbol\tstrategy_id\tstrategy_label\tdirection\tsource_type\tentry_time\tclassifier_score\tregressor_score\tthreshold_probability\trecommendation\treason\tfeature_valid\tmodel_available\tmacro_h1_live_dir\tmacro_h4_live_dir\tmacro_d1_live_dir\tsl_fib_raw\tsl_fib_band\tentry_fib_raw\tentry_fib_band\tlow_chain_score_3\tlow_chain_score_5\tlow_chain_score_10\thigh_chain_score_3\thigh_chain_score_5\thigh_chain_score_10";
+  "schema_version\tshadow_run_id\texport_id\tmodel_id\tdataset_id\tfeature_schema_version\tsignal_id\tsource_key\tsource_attempt_index\tsymbol\tstrategy_id\tstrategy_label\tdirection\tsource_type\tentry_time\tclassifier_score\tregressor_score\tthreshold_probability\trecommendation\treason\tfeature_valid\tmodel_available\tmacro_h1_live_dir\tmacro_h4_live_dir\tmacro_d1_live_dir\tsl_fib_raw\tsl_fib_band\tentry_fib_raw\tentry_fib_band\tlow_chain_score_3\tlow_chain_score_5\tlow_chain_score_10\thigh_chain_score_3\thigh_chain_score_5\thigh_chain_score_10\tinference_mode\tadmission_action\tfilter_reason";
 const string ML_SHADOW_OUTCOMES_HEADER =
   "schema_version\tshadow_run_id\texport_id\tmodel_id\tsignal_id\tsource_key\tsource_attempt_index\tterminal_time\tterminal_reason\trecommendation\tclassifier_score\tthreshold_probability\tprofit_r\tnet_profit\tduration_seconds";
 const string ML_SHADOW_SUMMARY_HEADER =
-  "schema_version\tshadow_run_id\texport_id\tmodel_id\tstarted_at\tfinished_at\tprediction_rows\toutcome_rows\tinvalid_feature_rows\tunavailable_events\texport_status";
+  "schema_version\tshadow_run_id\texport_id\tmodel_id\tstarted_at\tfinished_at\tprediction_rows\toutcome_rows\tinvalid_feature_rows\tunavailable_events\tfilter_allow_rows\tfilter_block_rows\tfilter_invalid_feature_blocks\tfilter_unavailable_blocks\texport_status";
 
 struct MLShadowRuntimeState
 {
@@ -59,6 +59,10 @@ struct MLShadowRuntimeState
   int      outcome_rows;
   int      invalid_feature_rows;
   int      unavailable_events;
+  int      filter_allow_rows;
+  int      filter_block_rows;
+  int      filter_invalid_feature_blocks;
+  int      filter_unavailable_blocks;
   bool     export_failed;
 
   MLShadowRuntimeState()
@@ -88,6 +92,10 @@ struct MLShadowRuntimeState
     outcome_rows            = 0;
     invalid_feature_rows    = 0;
     unavailable_events      = 0;
+    filter_allow_rows       = 0;
+    filter_block_rows       = 0;
+    filter_invalid_feature_blocks = 0;
+    filter_unavailable_blocks = 0;
     export_failed           = false;
   }
 };
@@ -1497,7 +1505,9 @@ string MLShadowPredictionRow(const SignalParams &signal_params,
                              const string recommendation,
                              const string reason,
                              const bool feature_valid,
-                             const bool model_available)
+                             const bool model_available,
+                             const string admission_action,
+                             const string filter_reason)
 {
   return IntegerToString(ML_SHADOW_ARTIFACT_SCHEMA_VERSION) + "\t" +
          MLShadowOutputCell(g_ml_shadow_state.shadow_run_id) + "\t" +
@@ -1530,10 +1540,55 @@ string MLShadowPredictionRow(const SignalParams &signal_params,
          MLShadowOutputCell(snapshot.entry_fib_band) + "\t" +
          MLShadowIntToken(snapshot.low_chain_score_3_valid, snapshot.low_chain_score_3) + "\t" +
          MLShadowIntToken(snapshot.low_chain_score_5_valid, snapshot.low_chain_score_5) + "\t" +
-         MLShadowIntToken(snapshot.low_chain_score_10_valid, snapshot.low_chain_score_10) + "\t" +
-         MLShadowIntToken(snapshot.high_chain_score_3_valid, snapshot.high_chain_score_3) + "\t" +
-         MLShadowIntToken(snapshot.high_chain_score_5_valid, snapshot.high_chain_score_5) + "\t" +
-         MLShadowIntToken(snapshot.high_chain_score_10_valid, snapshot.high_chain_score_10);
+	         MLShadowIntToken(snapshot.low_chain_score_10_valid, snapshot.low_chain_score_10) + "\t" +
+	         MLShadowIntToken(snapshot.high_chain_score_3_valid, snapshot.high_chain_score_3) + "\t" +
+	         MLShadowIntToken(snapshot.high_chain_score_5_valid, snapshot.high_chain_score_5) + "\t" +
+	         MLShadowIntToken(snapshot.high_chain_score_10_valid, snapshot.high_chain_score_10) + "\t" +
+	         MLShadowOutputCell(ExecutionMLInferenceModeToken(ML_Inference_Mode)) + "\t" +
+	         MLShadowOutputCell(admission_action) + "\t" +
+	         MLShadowOutputCell(filter_reason);
+}
+
+bool DeterministicSignalMLShadowRecordDecisionPrediction(SignalParams &signal_params,
+                                                         const MLShadowDecisionResult &decision,
+                                                         const string log_label,
+                                                         const string admission_action,
+                                                         const string filter_reason)
+{
+  if(!decision.signal_id_valid || !decision.snapshot_valid)
+    return false;
+
+  string row = MLShadowPredictionRow(signal_params,
+                                     decision.snapshot,
+                                     decision.classifier_scored,
+                                     decision.classifier_score,
+                                     decision.regressor_scored,
+                                     decision.regressor_score,
+                                     decision.recommendation,
+                                     decision.reason,
+                                     decision.feature_valid,
+                                     decision.model_available,
+                                     admission_action,
+                                     filter_reason);
+  if(MLShadowQueueRow(MLShadowOutputPath(ML_SHADOW_PREDICTIONS_FILE),
+                      ML_SHADOW_PREDICTIONS_HEADER,
+                      row,
+                      g_ml_shadow_prediction_buffer))
+    g_ml_shadow_state.prediction_rows++;
+
+  ExecutionAppendQueryDebugLog(log_label,
+                               StringFormat("signal_id=%s|source_key=%s|score=%s|threshold=%s|recommendation=%s|reason=%s|feature_valid=%s|model_available=%s|admission_action=%s|filter_reason=%s",
+                                            signal_params.ml_shadow_signal_id,
+                                            decision.snapshot.source_key,
+                                            MLShadowDoubleToken(decision.classifier_scored, decision.classifier_score, 8),
+                                            MLShadowDoubleToken(decision.model_available, decision.threshold_probability, 8),
+                                            decision.recommendation,
+                                            decision.reason,
+                                            MLShadowBoolToken(decision.feature_valid),
+                                            MLShadowBoolToken(decision.model_available),
+                                            admission_action,
+                                            filter_reason));
+  return true;
 }
 
 bool DeterministicSignalMLShadowRecordPrediction(SignalParams &signal_params,
@@ -1556,33 +1611,110 @@ bool DeterministicSignalMLShadowRecordPrediction(SignalParams &signal_params,
   if(!decision.signal_id_valid || !decision.snapshot_valid)
     return false;
 
-  string row = MLShadowPredictionRow(signal_params,
-                                     decision.snapshot,
-                                     decision.classifier_scored,
-                                     decision.classifier_score,
-                                     decision.regressor_scored,
-                                     decision.regressor_score,
-                                     decision.recommendation,
-                                     decision.reason,
-                                     decision.feature_valid,
-                                     decision.model_available);
-  if(MLShadowQueueRow(MLShadowOutputPath(ML_SHADOW_PREDICTIONS_FILE),
-                      ML_SHADOW_PREDICTIONS_HEADER,
-                      row,
-                      g_ml_shadow_prediction_buffer))
-    g_ml_shadow_state.prediction_rows++;
-
-  ExecutionAppendQueryDebugLog("ML_SHADOW_SCORE",
-                               StringFormat("signal_id=%s|source_key=%s|score=%s|threshold=%s|recommendation=%s|reason=%s|feature_valid=%s|model_available=%s",
-	                                            signal_params.ml_shadow_signal_id,
-	                                            decision.snapshot.source_key,
-	                                            MLShadowDoubleToken(decision.classifier_scored, decision.classifier_score, 8),
-	                                            MLShadowDoubleToken(decision.model_available, decision.threshold_probability, 8),
-	                                            decision.recommendation,
-	                                            decision.reason,
-	                                            MLShadowBoolToken(decision.feature_valid),
-	                                            MLShadowBoolToken(decision.model_available)));
+  DeterministicSignalMLShadowRecordDecisionPrediction(signal_params,
+                                                      decision,
+                                                      "ML_SHADOW_SCORE",
+                                                      "OBSERVE",
+                                                      "");
   return decision.classifier_scored;
+}
+
+string MLFilterBlockReason(const MLShadowDecisionResult &decision)
+{
+  if(!DeterministicSignalMLFilterTesterAllowed())
+    return "filter_not_allowed_outside_tester";
+  if(!decision.signal_id_valid)
+    return "missing_signal_id";
+  if(!decision.snapshot_valid)
+    return "feature_snapshot_failed";
+  if(!decision.model_available)
+    return "model_unavailable:" + g_ml_shadow_state.unavailable_reason;
+  if(!decision.feature_valid)
+    return decision.reason;
+  if(!decision.classifier_scored)
+    return decision.reason;
+  if(!decision.model_admits_entry)
+    return decision.reason;
+  return "";
+}
+
+void MLFilterRegisterDecisionCounters(const bool allowed,
+                                      const MLShadowDecisionResult &decision,
+                                      const string filter_reason)
+{
+  if(allowed)
+  {
+    g_ml_shadow_state.filter_allow_rows++;
+    return;
+  }
+
+  g_ml_shadow_state.filter_block_rows++;
+
+  if(filter_reason == "filter_not_allowed_outside_tester" ||
+     !decision.model_available)
+    g_ml_shadow_state.filter_unavailable_blocks++;
+
+  if(!decision.signal_id_valid ||
+     !decision.snapshot_valid ||
+     !decision.feature_valid)
+    g_ml_shadow_state.filter_invalid_feature_blocks++;
+}
+
+bool DeterministicSignalMLFilterAllowsEntry(SignalParams &signal_params,
+                                            const ExecutionLegState &leg_state,
+                                            string &block_reason_out)
+{
+  block_reason_out = "";
+
+  if(!DeterministicSignalMLFilterMode())
+    return true;
+
+  if(signal_params.ml_shadow_evaluated)
+  {
+    bool previously_allowed = (signal_params.ml_shadow_recommendation == "ALLOW" &&
+                               signal_params.ml_shadow_available &&
+                               signal_params.ml_shadow_feature_valid);
+    if(!previously_allowed)
+      block_reason_out = signal_params.ml_shadow_reason;
+    return previously_allowed;
+  }
+
+  signal_params.ml_shadow_evaluated = true;
+
+  MLShadowDecisionResult decision;
+  DeterministicSignalMLShadowEvaluateDecision(signal_params,
+                                              leg_state,
+                                              decision);
+  MLShadowApplyDecisionToSignal(signal_params, decision);
+
+  string filter_reason = MLFilterBlockReason(decision);
+  bool allowed = (filter_reason == "");
+  string admission_action = allowed ? "ALLOW" : "BLOCK";
+  string log_label = allowed ? "ML_FILTER_ALLOW" : "ML_FILTER_BLOCK";
+  MLFilterRegisterDecisionCounters(allowed, decision, filter_reason);
+
+  if(decision.signal_id_valid && decision.snapshot_valid)
+  {
+    DeterministicSignalMLShadowRecordDecisionPrediction(signal_params,
+                                                       decision,
+                                                       log_label,
+                                                       admission_action,
+                                                       filter_reason);
+  }
+  else
+  {
+    ExecutionAppendQueryDebugLog(log_label,
+                                 StringFormat("signal_id=%s|recommendation=%s|reason=%s|admission_action=%s|row_recorded=false",
+                                              signal_params.ml_shadow_signal_id,
+                                              decision.recommendation,
+                                              filter_reason,
+                                              admission_action));
+  }
+
+  if(!allowed)
+    block_reason_out = filter_reason;
+
+  return allowed;
 }
 
 string MLShadowOutcomeRow(SignalParams &signal_params,
@@ -1678,6 +1810,10 @@ string MLShadowSummaryRow(const datetime finished_at,
          IntegerToString(g_ml_shadow_state.outcome_rows) + "\t" +
          IntegerToString(g_ml_shadow_state.invalid_feature_rows) + "\t" +
          IntegerToString(g_ml_shadow_state.unavailable_events) + "\t" +
+         IntegerToString(g_ml_shadow_state.filter_allow_rows) + "\t" +
+         IntegerToString(g_ml_shadow_state.filter_block_rows) + "\t" +
+         IntegerToString(g_ml_shadow_state.filter_invalid_feature_blocks) + "\t" +
+         IntegerToString(g_ml_shadow_state.filter_unavailable_blocks) + "\t" +
          MLShadowOutputCell(export_status);
 }
 

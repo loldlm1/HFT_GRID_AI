@@ -492,20 +492,45 @@ void UpdateDeterministicExecutionLifecycle(SignalParams &signal_params)
                                                high_1,
                                                low_1);
 
-    double requested_lot = leg_state.lot_size;
-    double normalized_volume = NormalizeVolumeForSymbol(_Symbol, requested_lot);
-    if(ExecuteExecutionLegTrade(signal_params,
-                                leg_state,
-                                ExecutionResolvePointSize(),
-                                normalized_volume))
-    {
-      RefreshDeterministicTpFromBrokerEntry(signal_params, leg_index);
-      DeterministicSignalStatsRecordFeature(signal_params,
-                                            signal_params.execution_legs[leg_index]);
-      DeterministicSignalMLShadowRecordPrediction(signal_params,
-                                                  signal_params.execution_legs[leg_index]);
-      ExecutionLogEvent("DETERMINISTIC_ENTRY", signal_params, signal_params.execution_legs[leg_index]);
-    }
+	    double requested_lot = leg_state.lot_size;
+	    double normalized_volume = NormalizeVolumeForSymbol(_Symbol, requested_lot);
+	    double point_size = ExecutionResolvePointSize();
+	    ExecutionLegTradeAdmissionContext admission_context;
+	    if(!PrepareExecutionLegTradeAdmission(signal_params,
+	                                          leg_state,
+	                                          point_size,
+	                                          normalized_volume,
+	                                          admission_context))
+	      return;
+
+	    string ml_filter_block_reason = "";
+	    if(!DeterministicSignalMLFilterAllowsEntry(signal_params,
+	                                               leg_state,
+	                                               ml_filter_block_reason))
+	    {
+	      leg_state.status = EXECUTION_LEG_COMPLETED;
+	      leg_state.last_action_time = TimeCurrent();
+	      signal_params.execution_legs[leg_index] = leg_state;
+	      signal_params.signal_state = CLOSED;
+	      signal_params.deterministic_stats_terminal_reason = "ML_FILTER_BLOCKED";
+	      ExecutionLogGuardrailBlock("ML_FILTER_BLOCKED",
+	                                 signal_params,
+	                                 leg_state,
+	                                 ml_filter_block_reason);
+	      return;
+	    }
+
+	    if(ApplyExecutionLegTradeAdmission(signal_params,
+	                                       leg_state,
+	                                       admission_context))
+	    {
+	      RefreshDeterministicTpFromBrokerEntry(signal_params, leg_index);
+	      DeterministicSignalStatsRecordFeature(signal_params,
+	                                            signal_params.execution_legs[leg_index]);
+	      DeterministicSignalMLShadowRecordPrediction(signal_params,
+	                                                  signal_params.execution_legs[leg_index]);
+	      ExecutionLogEvent("DETERMINISTIC_ENTRY", signal_params, signal_params.execution_legs[leg_index]);
+	    }
     return;
   }
 
