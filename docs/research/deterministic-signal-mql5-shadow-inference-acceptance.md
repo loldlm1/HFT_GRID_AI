@@ -25,7 +25,12 @@ number scope, or broker reconciliation.
 
 ### Ubuntu/Wine
 
-Pending final Sprint 6 compile evidence.
+- Command: `python3 tools/mt5/compile_mt5.py --wine --mt5-root /home/loldlm/mql5_projects/metatrader_5_market_data_framework --entrypoint /home/loldlm/mql5_projects/metatrader_5_market_data_framework/MQL5/Experts/HFT_Grid_AI/HFT_Grid_AI.mq5 --log /home/loldlm/mql5_projects/metatrader_5_market_data_framework/MQL5/Experts/HFT_Grid_AI/logs/compile/phase-05-shadow-inference-final.log --mode compile --timeout 180`
+- Helper result: `PASS`
+- MetaEditor log status: `Result: 0 errors, 0 warnings, 38077 ms elapsed, cpu='X64 Regular'`
+- Wine process return code reported by helper: `1`
+- `.ex5` timestamp after real compile: `2026-07-04 17:26:36 -0400`
+- Compile log: `logs/compile/phase-05-shadow-inference-final.log`
 
 ### Windows
 

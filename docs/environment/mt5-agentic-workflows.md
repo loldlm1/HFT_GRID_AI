@@ -295,3 +295,19 @@ under `Common\Files`. Shadow mode is fail-open for trading: missing or invalid
 artifacts must produce compact diagnostics and must not alter broker admission,
 entries, exits, lot sizing, SL/TP, license checks, session gates, spread checks,
 margin checks, protection controls, or broker reconciliation.
+
+After a human-in-the-loop Strategy Tester run creates shadow output, compare
+MQL5 scores against the Python artifact scorer:
+
+```bash
+.venv/bin/python tools/deterministic_signal_ml/compare_shadow_predictions.py \
+  --export-id xgb_test_1_export_v1 \
+  --shadow-run-path "$MT5_COMMON_FILES/DeterministicSignalML/shadow_runs/<shadow_run_id>"
+```
+
+Record only row counts, max/mean errors, decision agreement, selected failure
+lines, and the shadow run path. Do not paste full shadow TSVs into chat.
+
+Phase 6 `FILTER` mode remains blocked until Phase 5 has clean compile evidence,
+successful artifact load, nonzero shadow prediction rows, parity validator
+`PASS`, enough closed outcomes for human review, and explicit human approval.

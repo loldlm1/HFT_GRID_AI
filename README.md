@@ -241,6 +241,15 @@ Shadow mode is observational. Missing or invalid artifacts must produce visible
 diagnostics and fail open for trading; they must not block or alter entries,
 exits, lots, SL/TP, broker admission, or risk controls.
 
+After a Strategy Tester run creates a shadow run folder, validate score parity
+against the Python artifact scorer:
+
+```bash
+.venv/bin/python tools/deterministic_signal_ml/compare_shadow_predictions.py \
+  --export-id xgb_test_1_export_v1 \
+  --shadow-run-path "$MT5_COMMON_FILES/DeterministicSignalML/shadow_runs/<shadow_run_id>"
+```
+
 ## Final Baseline Notes
 
 - Phase 8 final compile passed on 2026-07-03 with `0 errors, 0 warnings`; evidence log: `logs/compile/phase-08-build.log`.
@@ -259,6 +268,8 @@ Legacy custom tests and the old test runner were removed in Phase 2. The active 
 
 ## Phase 5 Handoff
 
-Do not implement Phase 5 MQL5 Shadow Inference until the Phase 4.5 readiness
-gate is `PASS`, or a human explicitly accepts a partial gate. When available,
-the first export ID for Phase 5 is `xgb_test_1_export_v1`.
+Phase 5 is shadow-only. Do not implement Phase 6 `FILTER` mode until shadow
+runtime evidence includes clean compile, successful artifact load, nonzero
+shadow prediction rows, parity validator `PASS`, enough closed outcomes for
+human review, and explicit human approval that model recommendations may affect
+broker admission in Strategy Tester.

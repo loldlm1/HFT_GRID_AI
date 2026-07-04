@@ -133,6 +133,8 @@ Non-goals:
 
 **Prerequisite**: Phase 4.5 readiness gate is `PASS`, or a human explicitly
 accepts a partial gate.
+**Implementation plan**: `docs/plans/deterministic-signal-mql5-shadow-inference-plan.md`
+**Acceptance evidence**: `docs/research/deterministic-signal-mql5-shadow-inference-acceptance.md`
 
 Load the exported model in MT5 and evaluate it without changing broker behavior.
 
@@ -152,10 +154,18 @@ Shadow inference should record:
 - decision reason
 - realized result after the signal closes
 
+Phase 5 remains shadow-only. Missing or invalid artifacts fail open for trading
+and must not alter broker admission.
+
 ## Phase 6: MQL5 Filter Inference
 
 After shadow inference proves useful, allow the model to affect Strategy Tester
 broker admission.
+
+Do not plan or implement `FILTER` mode until Phase 5 has clean compile evidence,
+successful artifact load, nonzero shadow prediction rows, parity validator
+`PASS`, enough closed outcomes for human review, and explicit human approval
+that model recommendations may affect broker admission in Strategy Tester.
 
 Recommended modes:
 
