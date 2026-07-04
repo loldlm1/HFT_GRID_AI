@@ -31,3 +31,4 @@ logs/*
 .venv/
 artifacts/datasets/
 artifacts/models/
+artifacts/model_exports/

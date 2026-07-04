@@ -96,6 +96,8 @@ Recommended targets:
 
 ## Phase 4: Model Artifact Export
 
+**Planner plan**: `docs/plans/deterministic-signal-model-artifact-export-plan.md`
+
 Export trained models into an MT5-readable artifact:
 
 - `model_manifest.tsv` or `model_manifest.json`
