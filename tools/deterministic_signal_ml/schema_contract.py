@@ -12,6 +12,12 @@ RUN_MANIFEST_FILE = "run_manifest.tsv"
 SIGNAL_FEATURES_FILE = "signal_features.tsv"
 SIGNAL_OUTCOMES_FILE = "signal_outcomes.tsv"
 RUN_SUMMARY_FILE = "run_summary.tsv"
+PHASE1_FILES = (
+    RUN_MANIFEST_FILE,
+    SIGNAL_FEATURES_FILE,
+    SIGNAL_OUTCOMES_FILE,
+    RUN_SUMMARY_FILE,
+)
 
 MANIFEST_COLUMNS = ("schema_version", "key", "value")
 
