@@ -5,14 +5,24 @@ from __future__ import annotations
 import argparse
 import json
 import shutil
+from dataclasses import asdict
 from pathlib import Path
 
 import duckdb
+import numpy as np
+from xgboost import XGBClassifier, XGBRegressor
 
 from feature_encoder import FeatureEncoder
 from model_config import DEFAULT_DATASET_ROOT, DEFAULT_MODEL_ROOT, TRAINER_VERSION, TrainingConfig
-from training_report import evaluate_baselines, render_validation_report
-from validation_splits import build_time_splits
+from training_report import (
+    classification_metrics,
+    evaluate_baselines,
+    feature_diagnostics,
+    feature_importance,
+    regression_metrics,
+    render_validation_report,
+)
+from validation_splits import SplitBundle, build_time_splits
 
 
 class TrainingInputError(RuntimeError):
@@ -164,6 +174,8 @@ def write_validation_outputs(
     manifest: dict,
     split_metadata: dict,
     baseline_metrics: dict,
+    xgboost_metrics: dict | None = None,
+    diagnostics: dict | None = None,
 ) -> None:
     dataset_id = str(manifest.get("dataset_id", ""))
     metrics = {
@@ -174,12 +186,199 @@ def write_validation_outputs(
         "config_ids": manifest.get("config_ids", []),
         "split_metadata": split_metadata,
         "baseline_metrics": baseline_metrics,
+        "xgboost_metrics": xgboost_metrics,
+        "feature_diagnostics": diagnostics,
     }
     metrics_path = output_dir / "validation_metrics.json"
     report_path = output_dir / "validation_report.md"
     metrics_path.write_text(json.dumps(metrics, indent=2, sort_keys=True), encoding="utf-8")
-    report = render_validation_report(model_id, dataset_id, split_metadata, baseline_metrics)
+    report = render_validation_report(
+        model_id,
+        dataset_id,
+        split_metadata,
+        baseline_metrics,
+        xgboost_metrics=xgboost_metrics,
+        diagnostics=diagnostics,
+    )
     report_path.write_text(report, encoding="utf-8")
+
+
+def train_xgboost_models(
+    output_dir: Path,
+    rows: list[dict],
+    encoded_matrix: np.ndarray,
+    encoded_feature_names: list[str],
+    split_bundle: SplitBundle,
+    config: TrainingConfig,
+) -> tuple[dict, dict]:
+    y_win = np.asarray([int(row["target_is_win"]) for row in rows], dtype=np.int64)
+    y_profit = np.asarray([float(row["target_profit_r"]) for row in rows], dtype=np.float64)
+
+    train_indices = np.asarray(split_bundle.train_indices, dtype=np.int64)
+    holdout_indices = np.asarray(split_bundle.holdout_indices, dtype=np.int64)
+    classifier = _fit_classifier(
+        encoded_matrix[train_indices],
+        y_win[train_indices],
+        encoded_matrix[holdout_indices],
+        y_win[holdout_indices],
+        config,
+    )
+    regressor = _fit_regressor(
+        encoded_matrix[train_indices],
+        y_profit[train_indices],
+        encoded_matrix[holdout_indices],
+        y_profit[holdout_indices],
+        config,
+    )
+
+    classifier_path = output_dir / "classifier_xgboost.json"
+    regressor_path = output_dir / "regressor_xgboost.json"
+    classifier.get_booster().save_model(str(classifier_path))
+    regressor.get_booster().save_model(str(regressor_path))
+
+    xgb_metrics = {
+        "holdout": {
+            "classifier": _classifier_result(
+                classifier,
+                encoded_matrix[holdout_indices],
+                y_win[holdout_indices],
+            ),
+            "regressor": _regressor_result(
+                regressor,
+                encoded_matrix[holdout_indices],
+                y_profit[holdout_indices],
+            ),
+        },
+        "folds": _xgboost_fold_metrics(rows, encoded_matrix, y_win, y_profit, split_bundle, config),
+        "model_files": {
+            "classifier": classifier_path.name,
+            "regressor": regressor_path.name,
+        },
+        "params": {
+            "classifier": asdict(config.classifier),
+            "regressor": asdict(config.regressor),
+        },
+    }
+
+    classifier_importance = feature_importance(
+        classifier.feature_importances_,
+        encoded_feature_names,
+    )
+    regressor_importance = feature_importance(
+        regressor.feature_importances_,
+        encoded_feature_names,
+    )
+    diagnostics = feature_diagnostics(
+        encoded_matrix,
+        encoded_feature_names,
+        classifier_importance,
+        regressor_importance,
+    )
+    return xgb_metrics, diagnostics
+
+
+def _fit_classifier(
+    x_train: np.ndarray,
+    y_train: np.ndarray,
+    x_eval: np.ndarray,
+    y_eval: np.ndarray,
+    config: TrainingConfig,
+) -> XGBClassifier:
+    model = XGBClassifier(**asdict(config.classifier))
+    model.fit(x_train, y_train, eval_set=[(x_eval, y_eval)], verbose=False)
+    return model
+
+
+def _fit_regressor(
+    x_train: np.ndarray,
+    y_train: np.ndarray,
+    x_eval: np.ndarray,
+    y_eval: np.ndarray,
+    config: TrainingConfig,
+) -> XGBRegressor:
+    model = XGBRegressor(**asdict(config.regressor))
+    model.fit(x_train, y_train, eval_set=[(x_eval, y_eval)], verbose=False)
+    return model
+
+
+def _classifier_result(
+    model: XGBClassifier,
+    x_test: np.ndarray,
+    y_test: np.ndarray,
+) -> dict:
+    probabilities = model.predict_proba(x_test)[:, 1]
+    predictions = (probabilities >= 0.5).astype(np.int64)
+    return {
+        "metrics": classification_metrics(y_test, predictions, probabilities),
+        "best_iteration": _optional_int(getattr(model, "best_iteration", None)),
+        "evals_result": model.evals_result(),
+    }
+
+
+def _regressor_result(
+    model: XGBRegressor,
+    x_test: np.ndarray,
+    y_test: np.ndarray,
+) -> dict:
+    predictions = model.predict(x_test)
+    return {
+        "metrics": regression_metrics(y_test, predictions),
+        "best_iteration": _optional_int(getattr(model, "best_iteration", None)),
+        "evals_result": model.evals_result(),
+    }
+
+
+def _xgboost_fold_metrics(
+    rows: list[dict],
+    encoded_matrix: np.ndarray,
+    y_win: np.ndarray,
+    y_profit: np.ndarray,
+    split_bundle: SplitBundle,
+    config: TrainingConfig,
+) -> list[dict]:
+    del rows
+    fold_metrics: list[dict] = []
+    for fold in split_bundle.folds:
+        train_indices = np.asarray(fold.train_indices, dtype=np.int64)
+        test_indices = np.asarray(fold.test_indices, dtype=np.int64)
+        classifier = _fit_classifier(
+            encoded_matrix[train_indices],
+            y_win[train_indices],
+            encoded_matrix[test_indices],
+            y_win[test_indices],
+            config,
+        )
+        regressor = _fit_regressor(
+            encoded_matrix[train_indices],
+            y_profit[train_indices],
+            encoded_matrix[test_indices],
+            y_profit[test_indices],
+            config,
+        )
+        fold_metrics.append(
+            {
+                "fold_index": fold.fold_index,
+                "train_rows": len(fold.train_indices),
+                "test_rows": len(fold.test_indices),
+                "classifier": _classifier_result(
+                    classifier,
+                    encoded_matrix[test_indices],
+                    y_win[test_indices],
+                ),
+                "regressor": _regressor_result(
+                    regressor,
+                    encoded_matrix[test_indices],
+                    y_profit[test_indices],
+                ),
+            }
+        )
+    return fold_metrics
+
+
+def _optional_int(value: object) -> int | None:
+    if value is None:
+        return None
+    return int(value)
 
 
 def main() -> int:
@@ -204,12 +403,22 @@ def main() -> int:
             gap=config.walk_forward_gap,
         )
         baseline_metrics = evaluate_baselines(rows, encoded.matrix, split_bundle)
+        xgboost_metrics, diagnostics = train_xgboost_models(
+            output_dir,
+            rows,
+            encoded.matrix,
+            encoded.encoded_feature_names,
+            split_bundle,
+            config,
+        )
         write_validation_outputs(
             output_dir,
             args.model_id,
             manifest,
             split_bundle.metadata,
             baseline_metrics,
+            xgboost_metrics=xgboost_metrics,
+            diagnostics=diagnostics,
         )
     except (TrainingInputError, ValueError) as exc:
         parser.exit(1, f"training input failed: {exc}\n")
@@ -222,7 +431,8 @@ def main() -> int:
         f"rows={len(rows)} | "
         f"encoded_features={encoded.matrix.shape[1]} | "
         f"holdout_rows={len(split_bundle.holdout_indices)} | "
-        f"folds={len(split_bundle.folds)}"
+        f"folds={len(split_bundle.folds)} | "
+        "xgboost=trained"
     )
     return 0
 

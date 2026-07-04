@@ -26,6 +26,9 @@ class XGBoostClassifierConfig:
     random_state: int = 42
     tree_method: str = "hist"
     eval_metric: str = "logloss"
+    early_stopping_rounds: int = 25
+    n_jobs: int = 1
+    verbosity: int = 0
 
 
 @dataclass(frozen=True)
@@ -39,6 +42,9 @@ class XGBoostRegressorConfig:
     random_state: int = 42
     tree_method: str = "hist"
     eval_metric: str = "rmse"
+    early_stopping_rounds: int = 25
+    n_jobs: int = 1
+    verbosity: int = 0
 
 
 @dataclass(frozen=True)

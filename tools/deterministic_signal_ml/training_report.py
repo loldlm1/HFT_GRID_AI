@@ -58,10 +58,16 @@ def classification_metrics(
 def regression_metrics(y_true: np.ndarray, y_pred: np.ndarray) -> dict[str, Any]:
     realized_mean = float(np.mean(y_true))
     predicted_mean = float(np.mean(y_pred))
+    realized_positive = y_true > 0.0
+    predicted_positive = y_pred > 0.0
     if len(y_true) > 1 and float(np.std(y_true)) > 0.0 and float(np.std(y_pred)) > 0.0:
         correlation = float(np.corrcoef(y_true, y_pred)[0, 1])
     else:
         correlation = None
+    if np.any(predicted_positive):
+        realized_when_predicted_positive = float(np.mean(y_true[predicted_positive]))
+    else:
+        realized_when_predicted_positive = None
     return {
         "rows": int(len(y_true)),
         "mae": float(mean_absolute_error(y_true, y_pred)),
@@ -69,6 +75,10 @@ def regression_metrics(y_true: np.ndarray, y_pred: np.ndarray) -> dict[str, Any]
         "mean_realized_r": realized_mean,
         "mean_predicted_r": predicted_mean,
         "correlation": correlation,
+        "directional_accuracy": float(np.mean(realized_positive == predicted_positive)),
+        "predicted_positive_rows": int(np.sum(predicted_positive)),
+        "realized_positive_rows": int(np.sum(realized_positive)),
+        "mean_realized_r_when_predicted_positive": realized_when_predicted_positive,
     }
 
 
@@ -102,6 +112,59 @@ def evaluate_baselines(
         for fold in split_bundle.folds
     ]
     return {"holdout": holdout_metrics, "folds": fold_metrics}
+
+
+def feature_importance(
+    importances: np.ndarray,
+    encoded_feature_names: list[str],
+    top_n: int = 30,
+) -> list[dict[str, Any]]:
+    ranked = sorted(
+        [
+            {"feature": name, "importance": float(importance)}
+            for name, importance in zip(encoded_feature_names, importances)
+        ],
+        key=lambda item: item["importance"],
+        reverse=True,
+    )
+    return ranked[:top_n]
+
+
+def feature_diagnostics(
+    feature_matrix: np.ndarray,
+    encoded_feature_names: list[str],
+    classifier_importance: list[dict[str, Any]],
+    regressor_importance: list[dict[str, Any]],
+) -> dict[str, Any]:
+    no_variation: list[dict[str, Any]] = []
+    for index, name in enumerate(encoded_feature_names):
+        column = feature_matrix[:, index]
+        unique_values = np.unique(column[~np.isnan(column)])
+        if len(unique_values) <= 1:
+            no_variation.append(
+                {
+                    "feature": name,
+                    "unique_values": int(len(unique_values)),
+                    "value": None if len(unique_values) == 0 else float(unique_values[0]),
+                }
+            )
+
+    warnings: list[str] = []
+    for label, importance in (
+        ("classifier", classifier_importance),
+        ("regressor", regressor_importance),
+    ):
+        if importance and importance[0]["importance"] >= 0.50 and "=" in importance[0]["feature"]:
+            warnings.append(
+                f"{label} importance is dominated by categorical bucket {importance[0]['feature']}"
+            )
+
+    return {
+        "no_variation_features": no_variation,
+        "classifier_importance": classifier_importance,
+        "regressor_importance": regressor_importance,
+        "warnings": warnings,
+    }
 
 
 def _evaluate_split(
@@ -261,6 +324,8 @@ def render_validation_report(
     dataset_id: str,
     split_metadata: dict[str, Any],
     baseline_metrics: dict[str, Any],
+    xgboost_metrics: dict[str, Any] | None = None,
+    diagnostics: dict[str, Any] | None = None,
 ) -> str:
     holdout = baseline_metrics["holdout"]
     majority = holdout["classification"]["majority_class"]
@@ -295,11 +360,55 @@ def render_validation_report(
         _regression_row("Strategy/Direction Mean", bucket_mean),
         _regression_row("Decision Tree depth 3", tree_reg),
         "",
+    ]
+    if xgboost_metrics is not None:
+        xgb_holdout = xgboost_metrics["holdout"]
+        lines.extend(
+            [
+                "## Holdout XGBoost",
+                "",
+                "| Model | Accuracy | Balanced Accuracy | Precision | Recall | F1 | ROC AUC | Log Loss |",
+                "| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |",
+                _classification_row("XGBoost Classifier", xgb_holdout["classifier"]["metrics"]),
+                "",
+                "| Model | MAE | RMSE | Mean Realized R | Mean Predicted R | Correlation |",
+                "| --- | ---: | ---: | ---: | ---: | ---: |",
+                _regression_row("XGBoost Regressor", xgb_holdout["regressor"]["metrics"]),
+                "",
+            ]
+        )
+    if diagnostics is not None:
+        lines.extend(
+            [
+                "## Feature Diagnostics",
+                "",
+                f"- No-variation encoded features: {len(diagnostics['no_variation_features'])}",
+            ]
+        )
+        for warning in diagnostics["warnings"]:
+            lines.append(f"- Warning: {warning}")
+        lines.extend(["", "### Top Classifier Features", ""])
+        for item in diagnostics["classifier_importance"][:10]:
+            lines.append(f"- `{item['feature']}`: {_format_metric(item['importance'])}")
+        lines.extend(["", "### Top Regressor Features", ""])
+        for item in diagnostics["regressor_importance"][:10]:
+            lines.append(f"- `{item['feature']}`: {_format_metric(item['importance'])}")
+        if diagnostics["no_variation_features"]:
+            lines.extend(["", "### No-Variation Features", ""])
+            for item in diagnostics["no_variation_features"][:20]:
+                lines.append(f"- `{item['feature']}`")
+            if len(diagnostics["no_variation_features"]) > 20:
+                lines.append("- Additional no-variation features omitted from report.")
+        lines.append("")
+
+    lines.extend(
+        [
         "## Fold Ranges",
         "",
         "| Fold | Train Rows | Test Rows | Train End | Test Start | Test End |",
         "| ---: | ---: | ---: | --- | --- | --- |",
-    ]
+        ]
+    )
     for fold in split_metadata["folds"]:
         lines.append(
             "| {fold_index} | {train_rows} | {test_rows} | {train_end} | {test_start} | {test_end} |".format(
