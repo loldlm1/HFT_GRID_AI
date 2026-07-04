@@ -9,6 +9,9 @@ Short, current notes for Codex agents and contributors. Keep this file brief; ac
 - **Purpose**: MT5 Expert Advisor foundation for future strategy integration, broker-aware execution planning, and strict risk controls.
 - **Entrypoint**: `HFT_Grid_AI.mq5`.
 - **Active plan**: `docs/plans/deterministic-ma-stoch-strategies-plan.md`.
+- **Environment runbook**: `docs/environment/mt5-agentic-workflows.md`.
+- **Phase 4.5 bridge plan**: `docs/plans/deterministic-signal-phase-4-5-agentic-environment-portability-plan.md`.
+- **Phase 4.5 acceptance**: `docs/research/deterministic-signal-phase-4-5-environment-acceptance.md`.
 - **Archived plans**: completed refoundation and skill-stack alignment plans live under `docs/plans/archive/`.
 - **Planning model**: create a new `$planner` plan under `docs/plans/` for any substantial future strategy, architecture, or repository-wide change.
 
@@ -102,21 +105,26 @@ Any phase touching these controls must call out risk level in its phase plan.
 - Implementation phases compile once at phase end, not after every atomic task.
 - Compile portable/headless first whenever possible, then fallback to normal MetaEditor compile if needed.
 - Treat compiler warnings and errors as phase failures unless a temporary exception is explicitly documented.
+- Use `docs/environment/mt5-agentic-workflows.md` as the source of truth for Windows and Ubuntu/Wine paths, Common Files, generated artifacts, and agentic compile commands.
+- Prefer `python3 tools/mt5/compile_mt5.py` or `py -3.12 tools\mt5\compile_mt5.py` for agentic compile validation. The helper parses the MetaEditor log and keeps output compact.
+- MetaEditor `/s` is syntax check only. Do not treat `/s /compile` as evidence that `.ex5` was regenerated.
+- Do not paste full compile logs, `query_debug.txt`, Parquet contents, model JSON, or tree TSV files into chat. Summarize paths, sizes, counts, final status lines, and selected failure lines.
+- Do not implement Phase 5 MQL5 Shadow Inference until the Phase 4.5 readiness gate is `PASS`, or a human explicitly accepts a partial gate.
 
-Preferred compile command shape for implementation phases:
+Preferred real compile command shape for implementation phases:
 
 ```powershell
 $mt5Root = "C:\Program Files\MetaTrader 5-1"
 $metaeditor = Join-Path $mt5Root "MetaEditor64.exe"
 $entrypoint = Join-Path $mt5Root "MQL5\Experts\HFT_Grid_AI\HFT_Grid_AI.mq5"
 $log = Join-Path $mt5Root "MQL5\Experts\HFT_Grid_AI\logs\compile\phase-build.log"
-& $metaeditor /portable /s /compile:$entrypoint /log:$log
+& $metaeditor /portable /compile:$entrypoint /log:$log
 ```
 
-Fallback:
+Syntax-check only:
 
 ```powershell
-& $metaeditor /s /compile:$entrypoint /log:$log
+& $metaeditor /portable /s /compile:$entrypoint /log:$log
 ```
 
 ## 9) Style
@@ -135,3 +143,4 @@ Fallback:
 - Preferred layout: `<MT5_ROOT>/MQL5/Experts/HFT_Grid_AI`.
 - Keep `terminal64.exe` and `MetaEditor64.exe` in `<MT5_ROOT>`, not inside the EA repo.
 - This workstation currently uses `C:\Program Files\MetaTrader 5-1`.
+- Ubuntu/Wine observed root: `/home/loldlm/mql5_projects/metatrader_5_market_data_framework`.

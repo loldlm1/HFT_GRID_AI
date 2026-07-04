@@ -108,7 +108,31 @@ Export trained models into an MT5-readable artifact:
 The first artifact format should be file-based and loaded during `OnInit`.
 Generated `.mqh` models can be considered later if file loading is too slow.
 
+## Phase 4.5: Agentic Environment Portability
+
+**Planner plan**: `docs/plans/deterministic-signal-phase-4-5-agentic-environment-portability-plan.md`
+
+Validate the Windows and Ubuntu/Wine workflows required before MQL5 Shadow
+Inference:
+
+- real MetaEditor compile versus syntax check
+- MT5 `Common\Files` discovery
+- Python ML environment setup
+- local artifact inventory or regeneration
+- compact readiness evidence for Phase 5
+
+Non-goals:
+
+- no MQL5 model loader
+- no shadow inference
+- no filter mode
+- no trading behavior changes
+- no committed generated artifacts
+
 ## Phase 5: MQL5 Shadow Inference
+
+**Prerequisite**: Phase 4.5 readiness gate is `PASS`, or a human explicitly
+accepts a partial gate.
 
 Load the exported model in MT5 and evaluate it without changing broker behavior.
 

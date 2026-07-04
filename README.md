@@ -11,6 +11,8 @@ HFT Grid AI has been refounded into a smaller, broker-aware MT5 Expert Advisor f
 - `AGENTS.md`: contributor and Codex-agent rules for the current foundation.
 - `docs/plans/archive/refoundation-baseline-2026-07-03/`: completed Phase 0-8 refoundation plans.
 - `docs/plans/archive/codex-skill-stack-alignment-2026-07-03/`: completed Codex skill-stack alignment plan.
+- `docs/environment/mt5-agentic-workflows.md`: Windows and Ubuntu/Wine compile, Common Files, and artifact workflow runbook.
+- `docs/research/deterministic-signal-phase-4-5-environment-acceptance.md`: compact Phase 4.5 environment and artifact readiness evidence.
 - `docs/architecture/execution-foundation.md`: local/broker execution foundation.
 
 ## Validation Model
@@ -20,21 +22,27 @@ HFT Grid AI has been refounded into a smaller, broker-aware MT5 Expert Advisor f
 - Portable/headless MetaEditor compile is preferred.
 - Normal MetaEditor compile is the fallback.
 - Legacy custom MQL5 tests, test harnesses, and agentic CI are not part of the active validation model.
+- OS-specific paths and Common Files discovery are documented in `docs/environment/mt5-agentic-workflows.md`.
+- MetaEditor `/s` is syntax check only; real compile validation must omit `/s` and parse the MetaEditor log for `0 errors, 0 warnings`.
 
-Preferred compile command shape for implementation phases:
+Preferred real compile command shape for implementation phases:
 
 ```powershell
 $mt5Root = "C:\Program Files\MetaTrader 5-1"
 $metaeditor = Join-Path $mt5Root "MetaEditor64.exe"
 $entrypoint = Join-Path $mt5Root "MQL5\Experts\HFT_Grid_AI\HFT_Grid_AI.mq5"
 $log = Join-Path $mt5Root "MQL5\Experts\HFT_Grid_AI\logs\compile\phase-build.log"
-& $metaeditor /portable /s /compile:$entrypoint /log:$log
+& $metaeditor /portable /compile:$entrypoint /log:$log
 ```
 
-Fallback:
+Agentic helper:
 
-```powershell
-& $metaeditor /s /compile:$entrypoint /log:$log
+```bash
+python3 tools/mt5/compile_mt5.py --wine \
+  --mt5-root "/home/loldlm/mql5_projects/metatrader_5_market_data_framework" \
+  --entrypoint "/home/loldlm/mql5_projects/metatrader_5_market_data_framework/MQL5/Experts/HFT_Grid_AI/HFT_Grid_AI.mq5" \
+  --log "/home/loldlm/mql5_projects/metatrader_5_market_data_framework/MQL5/Experts/HFT_Grid_AI/logs/compile/agentic-build.log" \
+  --mode compile
 ```
 
 ## Refoundation Scope
@@ -177,6 +185,17 @@ flattened classifier/regressor tree TSVs, threshold metadata, and parity
 reports. It does not add EA inputs, load artifacts in `OnInit`, run Strategy
 Tester inference, or affect broker admission.
 
+## Phase 4.5 Environment Portability
+
+Phase 4.5 documents and validates the Windows and Ubuntu/Wine workflows needed
+before MQL5 Shadow Inference. It covers real compile, syntax check, Common Files
+discovery, Python ML environment setup, artifact inventory, and Phase 5
+readiness. It does not add inference or change trading behavior.
+
+Start from `docs/environment/mt5-agentic-workflows.md` and keep compact evidence
+in `docs/research/deterministic-signal-phase-4-5-environment-acceptance.md`.
+Do not commit generated datasets, models, exports, `.ex5`, or full logs.
+
 ## Final Baseline Notes
 
 - Phase 8 final compile passed on 2026-07-03 with `0 errors, 0 warnings`; evidence log: `logs/compile/phase-08-build.log`.
@@ -192,3 +211,9 @@ Tester inference, or affect broker admission.
 - `docs/`: active plans when present, archived plans, architecture, and product docs.
 
 Legacy custom tests and the old test runner were removed in Phase 2. The active validation path is MT5 compile at implementation phase end.
+
+## Phase 5 Handoff
+
+Do not implement Phase 5 MQL5 Shadow Inference until the Phase 4.5 readiness
+gate is `PASS`, or a human explicitly accepts a partial gate. When available,
+the first export ID for Phase 5 is `xgb_test_1_export_v1`.

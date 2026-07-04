@@ -16,8 +16,20 @@ py -3.12 -m venv .venv
 .\.venv\Scripts\python.exe -m pip install -r tools\deterministic_signal_ml\requirements.txt
 ```
 
-If `py -3.12` is unavailable, use the Python executable you normally use for
-local research.
+On Ubuntu:
+
+```bash
+python3 -m venv .venv
+.venv/bin/python -m pip install -r tools/deterministic_signal_ml/requirements.txt
+```
+
+If `py -3.12` or `python3` is unavailable, use the Python 3.12 executable you
+normally use for local research. The OS-specific Common Files and artifact
+workflow is documented in `docs/environment/mt5-agentic-workflows.md`.
+
+Dependency versions are pinned in `requirements.txt` for reproducibility across
+the current Ubuntu/Wine workstation and Windows. Do not loosen the pins without
+rerunning imports, dataset build, training, export, and artifact validation.
 
 ## Phase 1 Input
 
@@ -25,6 +37,12 @@ Expected source folder:
 
 ```text
 C:\Users\loldlm\AppData\Roaming\MetaQuotes\Terminal\Common\Files\DeterministicSignalML\runs\<run_id>
+```
+
+Ubuntu/Wine observed source root on this workstation:
+
+```text
+/home/loldlm/.wine/drive_c/users/loldlm/AppData/Roaming/MetaQuotes/Terminal/Common/Files/DeterministicSignalML/runs/<run_id>
 ```
 
 Each run must contain:
@@ -43,6 +61,15 @@ Each run must contain:
   --dataset-id test_dataset_1
 ```
 
+Ubuntu:
+
+```bash
+.venv/bin/python tools/deterministic_signal_ml/build_dataset.py \
+  --runs-root "$HOME/.wine/drive_c/users/loldlm/AppData/Roaming/MetaQuotes/Terminal/Common/Files/DeterministicSignalML/runs" \
+  --run-id test_run_1 \
+  --dataset-id test_dataset_1
+```
+
 Generated datasets are written under `artifacts/datasets/<dataset_id>/` and are
 ignored by git.
 
@@ -55,6 +82,16 @@ Use `--validate-only` before building larger datasets:
   --runs-root "C:\Users\loldlm\AppData\Roaming\MetaQuotes\Terminal\Common\Files\DeterministicSignalML\runs" `
   --run-id test_run_1 `
   --dataset-id test_dataset_1 `
+  --validate-only
+```
+
+Ubuntu:
+
+```bash
+.venv/bin/python tools/deterministic_signal_ml/build_dataset.py \
+  --runs-root "$HOME/.wine/drive_c/users/loldlm/AppData/Roaming/MetaQuotes/Terminal/Common/Files/DeterministicSignalML/runs" \
+  --run-id test_run_1 \
+  --dataset-id test_dataset_1 \
   --validate-only
 ```
 
@@ -148,6 +185,13 @@ The exporter writes only the effective XGBoost trees used by prediction after
 early stopping. For `xgb_test_1`, that is 84 classifier trees and 47 regressor
 trees. Phase 4 still does not load models in MT5, add EA inputs, run Strategy
 Tester inference, or filter trades.
+
+## Agentic Evidence Policy
+
+Do not paste full TSV, Parquet, model JSON, or tree TSV files into chat.
+For Codex handoff, record only paths, sizes, row counts, model/export IDs,
+threshold metadata, parity status, and final validator status in
+`docs/research/deterministic-signal-phase-4-5-environment-acceptance.md`.
 
 ## DuckDB References
 
