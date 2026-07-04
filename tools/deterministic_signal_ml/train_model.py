@@ -4,9 +4,13 @@ from __future__ import annotations
 
 import argparse
 import json
+import shutil
 from pathlib import Path
 
-from model_config import DEFAULT_DATASET_ROOT, DEFAULT_MODEL_ROOT, TRAINER_VERSION
+import duckdb
+
+from feature_encoder import FeatureEncoder
+from model_config import DEFAULT_DATASET_ROOT, DEFAULT_MODEL_ROOT, TRAINER_VERSION, TrainingConfig
 
 
 class TrainingInputError(RuntimeError):
@@ -53,22 +57,131 @@ def load_dataset_manifest(dataset_path: Path) -> dict:
     return manifest
 
 
+def prepare_output_dir(output_root: Path, model_id: str, overwrite: bool) -> Path:
+    output_dir = output_root / model_id
+    resolved_root = output_root.resolve()
+    resolved_output = output_dir.resolve()
+    if resolved_output == resolved_root or resolved_root not in resolved_output.parents:
+        raise TrainingInputError(f"Refusing model output outside output root: {output_dir}")
+    if output_dir.exists():
+        if not overwrite:
+            raise TrainingInputError(f"Model output already exists. Use --overwrite: {output_dir}")
+        shutil.rmtree(output_dir)
+    output_dir.mkdir(parents=True, exist_ok=False)
+    return output_dir
+
+
+def load_training_rows(dataset_path: Path) -> list[dict]:
+    matrix_path = dataset_path / "training_matrix.parquet"
+    parquet_path = matrix_path.resolve().as_posix().replace("'", "''")
+    connection = duckdb.connect(":memory:")
+    try:
+        relation = connection.execute(
+            f"SELECT * FROM read_parquet('{parquet_path}') ORDER BY entry_time, signal_id"
+        )
+        columns = [column[0] for column in relation.description]
+        return [dict(zip(columns, row)) for row in relation.fetchall()]
+    finally:
+        connection.close()
+
+
+def validate_training_rows(rows: list[dict], manifest: dict, config: TrainingConfig) -> None:
+    if len(rows) < config.min_training_rows:
+        raise TrainingInputError(
+            f"Dataset has {len(rows)} rows; minimum required is {config.min_training_rows}"
+        )
+
+    feature_columns = list(manifest.get("feature_columns", []))
+    target_columns = list(manifest.get("target_columns", []))
+    if not feature_columns:
+        raise TrainingInputError("Dataset manifest does not define feature_columns")
+
+    required_targets = ("target_is_win", "target_profit_r", "target_terminal_reason")
+    missing_manifest_targets = [column for column in required_targets if column not in target_columns]
+    if missing_manifest_targets:
+        raise TrainingInputError(
+            "Dataset manifest is missing target columns: " + ", ".join(missing_manifest_targets)
+        )
+
+    first_row = rows[0]
+    missing_matrix_columns = [
+        column for column in feature_columns + list(required_targets) if column not in first_row
+    ]
+    if missing_matrix_columns:
+        raise TrainingInputError(
+            "Training matrix is missing columns: " + ", ".join(missing_matrix_columns)
+        )
+
+    class_counts: dict[int, int] = {}
+    for row in rows:
+        target = int(row["target_is_win"])
+        class_counts[target] = class_counts.get(target, 0) + 1
+    if sorted(class_counts) != [0, 1]:
+        raise TrainingInputError(f"target_is_win must contain both classes 0 and 1: {class_counts}")
+    small_classes = {
+        target: count for target, count in class_counts.items() if count < config.min_class_count
+    }
+    if small_classes:
+        raise TrainingInputError(
+            f"target_is_win class counts below {config.min_class_count}: {small_classes}"
+        )
+
+
+def write_training_input_summary(
+    output_dir: Path,
+    model_id: str,
+    manifest: dict,
+    rows: list[dict],
+    encoder: FeatureEncoder,
+) -> None:
+    class_counts: dict[str, int] = {}
+    for row in rows:
+        target = str(int(row["target_is_win"]))
+        class_counts[target] = class_counts.get(target, 0) + 1
+
+    summary = {
+        "trainer_version": TRAINER_VERSION,
+        "model_id": model_id,
+        "dataset_id": manifest.get("dataset_id"),
+        "source_run_ids": manifest.get("source_run_ids", []),
+        "config_ids": manifest.get("config_ids", []),
+        "row_count": len(rows),
+        "target_is_win_counts": class_counts,
+        "feature_columns": list(manifest.get("feature_columns", [])),
+        "target_columns": list(manifest.get("target_columns", [])),
+        "encoded_feature_count": len(encoder.encoded_feature_names),
+        "encoded_feature_names": encoder.encoded_feature_names,
+    }
+    summary_path = output_dir / "training_input_summary.json"
+    summary_path.write_text(json.dumps(summary, indent=2, sort_keys=True), encoding="utf-8")
+
+
 def main() -> int:
     parser = build_parser()
     args = parser.parse_args()
     try:
         dataset_path = resolve_dataset_path(args)
         manifest = load_dataset_manifest(dataset_path)
+        config = TrainingConfig()
+        rows = load_training_rows(dataset_path)
+        validate_training_rows(rows, manifest, config)
+        feature_columns = list(manifest["feature_columns"])
+        encoder = FeatureEncoder.fit(rows, feature_columns)
+        encoded = encoder.transform(rows)
+        output_dir = prepare_output_dir(Path(args.output_root), args.model_id, args.overwrite)
+        encoder.write_json(output_dir / "feature_encoder.json")
+        write_training_input_summary(output_dir, args.model_id, manifest, rows, encoder)
     except TrainingInputError as exc:
         parser.exit(1, f"training input failed: {exc}\n")
 
     print(
-        "training input ok | "
+        "encoding ok | "
         f"trainer={TRAINER_VERSION} | "
         f"dataset={manifest.get('dataset_id', dataset_path.name)} | "
-        f"model_id={args.model_id}"
+        f"model_id={args.model_id} | "
+        f"rows={len(rows)} | "
+        f"encoded_features={encoded.matrix.shape[1]}"
     )
-    print("training implementation starts in Sprint 2.")
     return 0
 
 
