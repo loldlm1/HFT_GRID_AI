@@ -27,6 +27,7 @@ struct MLShadowRuntimeState
   bool     regressor_available;
   string   unavailable_reason;
   string   export_id;
+  string   shadow_run_id;
   string   artifact_folder;
   string   model_id;
   string   dataset_id;
@@ -48,6 +49,7 @@ struct MLShadowRuntimeState
     regressor_available     = false;
     unavailable_reason      = "";
     export_id               = "";
+    shadow_run_id           = "";
     artifact_folder         = "";
     model_id                = "";
     dataset_id              = "";
@@ -178,6 +180,20 @@ string MLShadowBuildArtifactFolder()
   return ML_SHADOW_STORAGE_ROOT + "\\" +
          ML_SHADOW_MODEL_EXPORTS_FOLDER + "\\" +
          export_id;
+}
+
+string MLShadowBuildShadowRunId()
+{
+  if(g_deterministic_signal_stats_run_id != "")
+    return "shadow_" + g_deterministic_signal_stats_run_id;
+
+  string time_token = TimeToString(TimeCurrent(), TIME_DATE|TIME_SECONDS);
+  return "shadow_" +
+         DeterministicSignalStatsSanitizePart(StringFormat("%s_%s_%d_%s",
+                                                           time_token,
+                                                           _Symbol,
+                                                           (int)_Period,
+                                                           g_ml_shadow_state.export_id));
 }
 
 string MLShadowArtifactPath(const string filename)
@@ -721,6 +737,202 @@ bool MLShadowLoadTrees()
   return true;
 }
 
+string DeterministicSignalMLShadowEnsureSignalId(SignalParams &signal_params)
+{
+  if(signal_params.deterministic_stats_signal_id != "")
+  {
+    signal_params.ml_shadow_signal_id = signal_params.deterministic_stats_signal_id;
+    return signal_params.ml_shadow_signal_id;
+  }
+
+  if(signal_params.ml_shadow_signal_id != "")
+    return signal_params.ml_shadow_signal_id;
+
+  if(!signal_params.deterministic_strategy ||
+     g_ml_shadow_state.shadow_run_id == "")
+    return "";
+
+  string source_key = signal_params.deterministic_source_key;
+  if(source_key == "")
+    source_key = BuildDeterministicSignalSourceKey(signal_params);
+
+  string payload = g_ml_shadow_state.shadow_run_id + "|" +
+                   source_key + "|" +
+                   IntegerToString(signal_params.deterministic_source_attempt_index);
+  signal_params.ml_shadow_signal_id = "sig_" + DeterministicSignalStatsHashToken(payload);
+  return signal_params.ml_shadow_signal_id;
+}
+
+bool MLShadowSnapshotNumericValue(const DeterministicSignalFeatureSnapshot &snapshot,
+                                  const string source_column,
+                                  double &value_out,
+                                  bool &valid_out)
+{
+  value_out = 0.0;
+  valid_out = true;
+
+  if(source_column == "strategy_id")
+    value_out = (double)snapshot.strategy_id;
+  else if(source_column == "macro_h1_live_dir")
+    value_out = (double)snapshot.macro_h1_live_dir;
+  else if(source_column == "macro_h4_live_dir")
+    value_out = (double)snapshot.macro_h4_live_dir;
+  else if(source_column == "macro_d1_live_dir")
+    value_out = (double)snapshot.macro_d1_live_dir;
+  else if(source_column == "sl_fib_raw")
+  {
+    value_out = snapshot.sl_fib_raw;
+    valid_out = snapshot.sl_fib_valid;
+  }
+  else if(source_column == "entry_fib_raw")
+  {
+    value_out = snapshot.entry_fib_raw;
+    valid_out = snapshot.entry_fib_valid;
+  }
+  else if(source_column == "low_chain_score_3")
+  {
+    value_out = (double)snapshot.low_chain_score_3;
+    valid_out = snapshot.low_chain_score_3_valid;
+  }
+  else if(source_column == "low_chain_score_5")
+  {
+    value_out = (double)snapshot.low_chain_score_5;
+    valid_out = snapshot.low_chain_score_5_valid;
+  }
+  else if(source_column == "low_chain_score_10")
+  {
+    value_out = (double)snapshot.low_chain_score_10;
+    valid_out = snapshot.low_chain_score_10_valid;
+  }
+  else if(source_column == "high_chain_score_3")
+  {
+    value_out = (double)snapshot.high_chain_score_3;
+    valid_out = snapshot.high_chain_score_3_valid;
+  }
+  else if(source_column == "high_chain_score_5")
+  {
+    value_out = (double)snapshot.high_chain_score_5;
+    valid_out = snapshot.high_chain_score_5_valid;
+  }
+  else if(source_column == "high_chain_score_10")
+  {
+    value_out = (double)snapshot.high_chain_score_10;
+    valid_out = snapshot.high_chain_score_10_valid;
+  }
+  else
+  {
+    valid_out = false;
+    return false;
+  }
+
+  if(!MathIsValidNumber(value_out))
+    valid_out = false;
+  return true;
+}
+
+bool MLShadowSnapshotCategoryValue(const DeterministicSignalFeatureSnapshot &snapshot,
+                                   const string source_column,
+                                   string &value_out)
+{
+  value_out = "";
+  if(source_column == "strategy_label")
+    value_out = snapshot.strategy_label;
+  else if(source_column == "direction")
+    value_out = snapshot.direction;
+  else if(source_column == "source_type")
+    value_out = snapshot.source_type;
+  else if(source_column == "sl_fib_band")
+    value_out = snapshot.sl_fib_band_valid ? snapshot.sl_fib_band : "";
+  else if(source_column == "entry_fib_band")
+    value_out = snapshot.entry_fib_band_valid ? snapshot.entry_fib_band : "";
+  else
+    return false;
+
+  return true;
+}
+
+bool DeterministicSignalMLShadowEncodeSnapshot(const DeterministicSignalFeatureSnapshot &snapshot,
+                                               double &features[],
+                                               bool &missing_features[],
+                                               bool &feature_valid_out,
+                                               string &invalid_reason_out)
+{
+  feature_valid_out = snapshot.valid;
+  invalid_reason_out = snapshot.invalid_reasons;
+
+  int feature_count = ArraySize(g_ml_shadow_feature_map);
+  if(feature_count <= 0 ||
+     feature_count != g_ml_shadow_state.encoded_feature_count)
+  {
+    feature_valid_out = false;
+    invalid_reason_out = "feature_map_unavailable";
+    return false;
+  }
+
+  ArrayResize(features, feature_count);
+  ArrayResize(missing_features, feature_count);
+  for(int i = 0; i < feature_count; i++)
+  {
+    features[i] = 0.0;
+    missing_features[i] = false;
+  }
+
+  for(int i = 0; i < feature_count; i++)
+  {
+    MLShadowFeatureMapRow map_row = g_ml_shadow_feature_map[i];
+    if(map_row.encoded_index < 0 ||
+       map_row.encoded_index >= feature_count)
+      return false;
+
+    if(map_row.encoding_type == "numeric")
+    {
+      double numeric_value = 0.0;
+      bool numeric_valid = false;
+      if(!MLShadowSnapshotNumericValue(snapshot,
+                                       map_row.source_column,
+                                       numeric_value,
+                                       numeric_valid))
+      {
+        feature_valid_out = false;
+        invalid_reason_out = "unknown_numeric_feature:" + map_row.source_column;
+        return false;
+      }
+
+      if(numeric_valid)
+        features[map_row.encoded_index] = numeric_value;
+      else
+      {
+        missing_features[map_row.encoded_index] = true;
+        feature_valid_out = false;
+        if(invalid_reason_out != "")
+          invalid_reason_out = invalid_reason_out + ",";
+        invalid_reason_out = invalid_reason_out + map_row.source_column;
+      }
+    }
+    else if(map_row.encoding_type == "one_hot")
+    {
+      string category_value = "";
+      if(!MLShadowSnapshotCategoryValue(snapshot,
+                                        map_row.source_column,
+                                        category_value))
+      {
+        feature_valid_out = false;
+        invalid_reason_out = "unknown_category_feature:" + map_row.source_column;
+        return false;
+      }
+
+      if(category_value == "")
+        features[map_row.encoded_index] = (map_row.category == "__MISSING__") ? 1.0 : 0.0;
+      else
+        features[map_row.encoded_index] = (category_value == map_row.category) ? 1.0 : 0.0;
+    }
+    else
+      return false;
+  }
+
+  return true;
+}
+
 bool DeterministicSignalMLShadowInit()
 {
   DeterministicSignalMLShadowReset();
@@ -728,6 +940,7 @@ bool DeterministicSignalMLShadowInit()
   g_ml_shadow_state.enabled = DeterministicSignalMLShadowEnabled();
   g_ml_shadow_state.export_id = DeterministicSignalStatsSanitizePart(ML_Model_Export_Id);
   g_ml_shadow_state.artifact_folder = MLShadowBuildArtifactFolder();
+  g_ml_shadow_state.shadow_run_id = MLShadowBuildShadowRunId();
 
   if(!g_ml_shadow_state.enabled)
     return true;

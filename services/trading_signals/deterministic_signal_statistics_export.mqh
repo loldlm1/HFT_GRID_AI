@@ -680,6 +680,185 @@ bool DeterministicSignalStatsChainScore(const MqlRates &rates[],
   return true;
 }
 
+struct DeterministicSignalFeatureSnapshot
+{
+  bool     valid;
+  string   invalid_reasons;
+  string   source_key;
+  int      source_attempt_index;
+  string   symbol;
+  int      strategy_id;
+  string   strategy_label;
+  string   direction;
+  datetime entry_time;
+  datetime source_time;
+  string   source_type;
+  int      macro_h1_live_dir;
+  int      macro_h4_live_dir;
+  int      macro_d1_live_dir;
+  double   sl_fib_raw;
+  bool     sl_fib_valid;
+  string   sl_fib_band;
+  bool     sl_fib_band_valid;
+  double   entry_fib_raw;
+  bool     entry_fib_valid;
+  string   entry_fib_band;
+  bool     entry_fib_band_valid;
+  int      low_chain_score_3;
+  bool     low_chain_score_3_valid;
+  int      low_chain_score_5;
+  bool     low_chain_score_5_valid;
+  int      low_chain_score_10;
+  bool     low_chain_score_10_valid;
+  int      high_chain_score_3;
+  bool     high_chain_score_3_valid;
+  int      high_chain_score_5;
+  bool     high_chain_score_5_valid;
+  int      high_chain_score_10;
+  bool     high_chain_score_10_valid;
+
+  DeterministicSignalFeatureSnapshot()
+  {
+    valid = false;
+    invalid_reasons = "";
+    source_key = "";
+    source_attempt_index = 0;
+    symbol = "";
+    strategy_id = DETERMINISTIC_STRATEGY_NONE;
+    strategy_label = "";
+    direction = "";
+    entry_time = 0;
+    source_time = 0;
+    source_type = "";
+    macro_h1_live_dir = 0;
+    macro_h4_live_dir = 0;
+    macro_d1_live_dir = 0;
+    sl_fib_raw = 0.0;
+    sl_fib_valid = false;
+    sl_fib_band = DETERMINISTIC_SIGNAL_STATS_NULL;
+    sl_fib_band_valid = false;
+    entry_fib_raw = 0.0;
+    entry_fib_valid = false;
+    entry_fib_band = DETERMINISTIC_SIGNAL_STATS_NULL;
+    entry_fib_band_valid = false;
+    low_chain_score_3 = 0;
+    low_chain_score_3_valid = false;
+    low_chain_score_5 = 0;
+    low_chain_score_5_valid = false;
+    low_chain_score_10 = 0;
+    low_chain_score_10_valid = false;
+    high_chain_score_3 = 0;
+    high_chain_score_3_valid = false;
+    high_chain_score_5 = 0;
+    high_chain_score_5_valid = false;
+    high_chain_score_10 = 0;
+    high_chain_score_10_valid = false;
+  }
+};
+
+void DeterministicSignalFeatureSnapshotAddInvalid(DeterministicSignalFeatureSnapshot &snapshot,
+                                                  const string reason)
+{
+  snapshot.valid = false;
+  if(snapshot.invalid_reasons != "")
+    snapshot.invalid_reasons = snapshot.invalid_reasons + ",";
+  snapshot.invalid_reasons = snapshot.invalid_reasons + reason;
+}
+
+bool DeterministicSignalBuildFeatureSnapshot(SignalParams &signal_params,
+                                             const ExecutionLegState &leg_state,
+                                             DeterministicSignalFeatureSnapshot &snapshot)
+{
+  snapshot = DeterministicSignalFeatureSnapshot();
+
+  if(!signal_params.deterministic_strategy)
+    return false;
+
+  snapshot.valid = true;
+  snapshot.source_key = signal_params.deterministic_source_key;
+  if(snapshot.source_key == "")
+    snapshot.source_key = BuildDeterministicSignalSourceKey(signal_params);
+  snapshot.source_attempt_index = signal_params.deterministic_source_attempt_index;
+  snapshot.symbol = _Symbol;
+  snapshot.strategy_id = signal_params.strategy_id;
+  snapshot.strategy_label = signal_params.strategy_label;
+  snapshot.direction = DeterministicSignalStatsDirectionToken(signal_params.signal_type);
+  snapshot.source_time = signal_params.source_extremum_time;
+  snapshot.source_type = DeterministicSignalStatsSourceTypeToken(signal_params);
+
+  snapshot.macro_h1_live_dir = DeterministicSignalStatsMacroDir(PERIOD_H1);
+  snapshot.macro_h4_live_dir = DeterministicSignalStatsMacroDir(PERIOD_H4);
+  snapshot.macro_d1_live_dir = DeterministicSignalStatsMacroDir(PERIOD_D1);
+
+  double peak_price = 0.0;
+  double bottom_price = 0.0;
+  bool source_is_peak = false;
+  bool fib_range_valid = DeterministicSignalStatsResolveFibonacciRange(signal_params,
+                                                                       peak_price,
+                                                                       bottom_price,
+                                                                       source_is_peak);
+
+  snapshot.sl_fib_valid = fib_range_valid &&
+                          DeterministicSignalStatsFibonacciPercent(peak_price,
+                                                                   bottom_price,
+                                                                   source_is_peak,
+                                                                   signal_params.raw_stop_anchor_price,
+                                                                   snapshot.sl_fib_raw);
+
+  double entry_reference = signal_params.raw_entry_trigger_price;
+  if(entry_reference <= 0.0)
+    entry_reference = leg_state.entry_reference_price;
+  snapshot.entry_fib_valid = fib_range_valid &&
+                             DeterministicSignalStatsFibonacciPercent(peak_price,
+                                                                      bottom_price,
+                                                                      source_is_peak,
+                                                                      entry_reference,
+                                                                      snapshot.entry_fib_raw);
+
+  snapshot.sl_fib_band_valid = snapshot.sl_fib_valid &&
+                               DeterministicSignalStatsFibonacciBand(snapshot.sl_fib_raw,
+                                                                     snapshot.sl_fib_band);
+  snapshot.entry_fib_band_valid = snapshot.entry_fib_valid &&
+                                  DeterministicSignalStatsFibonacciBand(snapshot.entry_fib_raw,
+                                                                        snapshot.entry_fib_band);
+  if(!snapshot.sl_fib_valid)
+    DeterministicSignalFeatureSnapshotAddInvalid(snapshot, "sl_fib_raw");
+  if(!snapshot.entry_fib_valid)
+    DeterministicSignalFeatureSnapshotAddInvalid(snapshot, "entry_fib_raw");
+  if(!snapshot.sl_fib_band_valid)
+    DeterministicSignalFeatureSnapshotAddInvalid(snapshot, "sl_fib_band");
+  if(!snapshot.entry_fib_band_valid)
+    DeterministicSignalFeatureSnapshotAddInvalid(snapshot, "entry_fib_band");
+
+  MqlRates rates[];
+  ArraySetAsSeries(rates, true);
+  int copied = CopyRates(_Symbol, DETERMINISTIC_BASE_TIMEFRAME, 1, 11, rates);
+  snapshot.low_chain_score_3_valid = DeterministicSignalStatsChainScore(rates, copied, 3, false, snapshot.low_chain_score_3);
+  snapshot.low_chain_score_5_valid = DeterministicSignalStatsChainScore(rates, copied, 5, false, snapshot.low_chain_score_5);
+  snapshot.low_chain_score_10_valid = DeterministicSignalStatsChainScore(rates, copied, 10, false, snapshot.low_chain_score_10);
+  snapshot.high_chain_score_3_valid = DeterministicSignalStatsChainScore(rates, copied, 3, true, snapshot.high_chain_score_3);
+  snapshot.high_chain_score_5_valid = DeterministicSignalStatsChainScore(rates, copied, 5, true, snapshot.high_chain_score_5);
+  snapshot.high_chain_score_10_valid = DeterministicSignalStatsChainScore(rates, copied, 10, true, snapshot.high_chain_score_10);
+  if(!snapshot.low_chain_score_3_valid)
+    DeterministicSignalFeatureSnapshotAddInvalid(snapshot, "low_chain_score_3");
+  if(!snapshot.low_chain_score_5_valid)
+    DeterministicSignalFeatureSnapshotAddInvalid(snapshot, "low_chain_score_5");
+  if(!snapshot.low_chain_score_10_valid)
+    DeterministicSignalFeatureSnapshotAddInvalid(snapshot, "low_chain_score_10");
+  if(!snapshot.high_chain_score_3_valid)
+    DeterministicSignalFeatureSnapshotAddInvalid(snapshot, "high_chain_score_3");
+  if(!snapshot.high_chain_score_5_valid)
+    DeterministicSignalFeatureSnapshotAddInvalid(snapshot, "high_chain_score_5");
+  if(!snapshot.high_chain_score_10_valid)
+    DeterministicSignalFeatureSnapshotAddInvalid(snapshot, "high_chain_score_10");
+
+  snapshot.entry_time = leg_state.last_action_time;
+  if(snapshot.entry_time <= 0)
+    snapshot.entry_time = TimeCurrent();
+
+  return true;
+}
+
 bool DeterministicSignalStatsBuildFeatureRow(SignalParams &signal_params,
                                              const ExecutionLegState &leg_state,
                                              string &row_out,
@@ -696,97 +875,39 @@ bool DeterministicSignalStatsBuildFeatureRow(SignalParams &signal_params,
   if(signal_id == "")
     return false;
 
-  string source_key = signal_params.deterministic_source_key;
-  if(source_key == "")
-    source_key = BuildDeterministicSignalSourceKey(signal_params);
-
-  int macro_h1 = DeterministicSignalStatsMacroDir(PERIOD_H1);
-  int macro_h4 = DeterministicSignalStatsMacroDir(PERIOD_H4);
-  int macro_d1 = DeterministicSignalStatsMacroDir(PERIOD_D1);
-
-  double peak_price = 0.0;
-  double bottom_price = 0.0;
-  bool source_is_peak = false;
-  bool fib_range_valid = DeterministicSignalStatsResolveFibonacciRange(signal_params,
-                                                                       peak_price,
-                                                                       bottom_price,
-                                                                       source_is_peak);
-
-  double sl_fib_raw = 0.0;
-  double entry_fib_raw = 0.0;
-  bool sl_fib_valid = fib_range_valid &&
-                      DeterministicSignalStatsFibonacciPercent(peak_price,
-                                                               bottom_price,
-                                                               source_is_peak,
-                                                               signal_params.raw_stop_anchor_price,
-                                                               sl_fib_raw);
-
-  double entry_reference = signal_params.raw_entry_trigger_price;
-  if(entry_reference <= 0.0)
-    entry_reference = leg_state.entry_reference_price;
-  bool entry_fib_valid = fib_range_valid &&
-                         DeterministicSignalStatsFibonacciPercent(peak_price,
-                                                                  bottom_price,
-                                                                  source_is_peak,
-                                                                  entry_reference,
-                                                                  entry_fib_raw);
-
-  string sl_fib_band = DETERMINISTIC_SIGNAL_STATS_NULL;
-  string entry_fib_band = DETERMINISTIC_SIGNAL_STATS_NULL;
-  bool sl_band_valid = sl_fib_valid &&
-                       DeterministicSignalStatsFibonacciBand(sl_fib_raw, sl_fib_band);
-  bool entry_band_valid = entry_fib_valid &&
-                          DeterministicSignalStatsFibonacciBand(entry_fib_raw, entry_fib_band);
-  valid_out = valid_out && sl_fib_valid && entry_fib_valid && sl_band_valid && entry_band_valid;
-
-  MqlRates rates[];
-  ArraySetAsSeries(rates, true);
-  int copied = CopyRates(_Symbol, DETERMINISTIC_BASE_TIMEFRAME, 1, 11, rates);
-  int low_score_3 = 0;
-  int low_score_5 = 0;
-  int low_score_10 = 0;
-  int high_score_3 = 0;
-  int high_score_5 = 0;
-  int high_score_10 = 0;
-  bool low_3_valid = DeterministicSignalStatsChainScore(rates, copied, 3, false, low_score_3);
-  bool low_5_valid = DeterministicSignalStatsChainScore(rates, copied, 5, false, low_score_5);
-  bool low_10_valid = DeterministicSignalStatsChainScore(rates, copied, 10, false, low_score_10);
-  bool high_3_valid = DeterministicSignalStatsChainScore(rates, copied, 3, true, high_score_3);
-  bool high_5_valid = DeterministicSignalStatsChainScore(rates, copied, 5, true, high_score_5);
-  bool high_10_valid = DeterministicSignalStatsChainScore(rates, copied, 10, true, high_score_10);
-  valid_out = valid_out && low_3_valid && low_5_valid && low_10_valid &&
-              high_3_valid && high_5_valid && high_10_valid;
-
-  datetime entry_time = leg_state.last_action_time;
-  if(entry_time <= 0)
-    entry_time = TimeCurrent();
+  DeterministicSignalFeatureSnapshot snapshot;
+  if(!DeterministicSignalBuildFeatureSnapshot(signal_params,
+                                              leg_state,
+                                              snapshot))
+    return false;
+  valid_out = snapshot.valid;
 
   row_out = IntegerToString(DETERMINISTIC_SIGNAL_STATS_SCHEMA_VERSION) + "\t" +
             DeterministicSignalStatsCell(g_deterministic_signal_stats_run_id) + "\t" +
             DeterministicSignalStatsCell(g_deterministic_signal_stats_config_id) + "\t" +
             DeterministicSignalStatsCell(signal_id) + "\t" +
-            DeterministicSignalStatsCell(source_key) + "\t" +
-            IntegerToString(signal_params.deterministic_source_attempt_index) + "\t" +
-            DeterministicSignalStatsCell(_Symbol) + "\t" +
-            IntegerToString(signal_params.strategy_id) + "\t" +
-            DeterministicSignalStatsCell(signal_params.strategy_label) + "\t" +
-            DeterministicSignalStatsDirectionToken(signal_params.signal_type) + "\t" +
-            DeterministicSignalStatsTimeToken(entry_time) + "\t" +
-            DeterministicSignalStatsTimeToken(signal_params.source_extremum_time) + "\t" +
-            DeterministicSignalStatsSourceTypeToken(signal_params) + "\t" +
-            IntegerToString(macro_h1) + "\t" +
-            IntegerToString(macro_h4) + "\t" +
-            IntegerToString(macro_d1) + "\t" +
-            DeterministicSignalStatsDoubleToken(sl_fib_valid, sl_fib_raw, 1) + "\t" +
-            DeterministicSignalStatsCell(sl_fib_band) + "\t" +
-            DeterministicSignalStatsDoubleToken(entry_fib_valid, entry_fib_raw, 1) + "\t" +
-            DeterministicSignalStatsCell(entry_fib_band) + "\t" +
-            DeterministicSignalStatsIntToken(low_3_valid, low_score_3) + "\t" +
-            DeterministicSignalStatsIntToken(low_5_valid, low_score_5) + "\t" +
-            DeterministicSignalStatsIntToken(low_10_valid, low_score_10) + "\t" +
-            DeterministicSignalStatsIntToken(high_3_valid, high_score_3) + "\t" +
-            DeterministicSignalStatsIntToken(high_5_valid, high_score_5) + "\t" +
-            DeterministicSignalStatsIntToken(high_10_valid, high_score_10);
+            DeterministicSignalStatsCell(snapshot.source_key) + "\t" +
+            IntegerToString(snapshot.source_attempt_index) + "\t" +
+            DeterministicSignalStatsCell(snapshot.symbol) + "\t" +
+            IntegerToString(snapshot.strategy_id) + "\t" +
+            DeterministicSignalStatsCell(snapshot.strategy_label) + "\t" +
+            DeterministicSignalStatsCell(snapshot.direction) + "\t" +
+            DeterministicSignalStatsTimeToken(snapshot.entry_time) + "\t" +
+            DeterministicSignalStatsTimeToken(snapshot.source_time) + "\t" +
+            DeterministicSignalStatsCell(snapshot.source_type) + "\t" +
+            IntegerToString(snapshot.macro_h1_live_dir) + "\t" +
+            IntegerToString(snapshot.macro_h4_live_dir) + "\t" +
+            IntegerToString(snapshot.macro_d1_live_dir) + "\t" +
+            DeterministicSignalStatsDoubleToken(snapshot.sl_fib_valid, snapshot.sl_fib_raw, 1) + "\t" +
+            DeterministicSignalStatsCell(snapshot.sl_fib_band) + "\t" +
+            DeterministicSignalStatsDoubleToken(snapshot.entry_fib_valid, snapshot.entry_fib_raw, 1) + "\t" +
+            DeterministicSignalStatsCell(snapshot.entry_fib_band) + "\t" +
+            DeterministicSignalStatsIntToken(snapshot.low_chain_score_3_valid, snapshot.low_chain_score_3) + "\t" +
+            DeterministicSignalStatsIntToken(snapshot.low_chain_score_5_valid, snapshot.low_chain_score_5) + "\t" +
+            DeterministicSignalStatsIntToken(snapshot.low_chain_score_10_valid, snapshot.low_chain_score_10) + "\t" +
+            DeterministicSignalStatsIntToken(snapshot.high_chain_score_3_valid, snapshot.high_chain_score_3) + "\t" +
+            DeterministicSignalStatsIntToken(snapshot.high_chain_score_5_valid, snapshot.high_chain_score_5) + "\t" +
+            DeterministicSignalStatsIntToken(snapshot.high_chain_score_10_valid, snapshot.high_chain_score_10);
 
   return true;
 }
