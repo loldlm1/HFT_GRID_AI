@@ -502,6 +502,8 @@ void UpdateDeterministicExecutionLifecycle(SignalParams &signal_params)
       RefreshDeterministicTpFromBrokerEntry(signal_params, leg_index);
       DeterministicSignalStatsRecordFeature(signal_params,
                                             signal_params.execution_legs[leg_index]);
+      DeterministicSignalMLShadowRecordPrediction(signal_params,
+                                                  signal_params.execution_legs[leg_index]);
       ExecutionLogEvent("DETERMINISTIC_ENTRY", signal_params, signal_params.execution_legs[leg_index]);
     }
     return;

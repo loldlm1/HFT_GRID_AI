@@ -139,6 +139,7 @@ void ProtectionRiskForceCloseSignalArray(SignalParams &signals[],
     RegisterDailySignalOutcome(direction, signals[i].raw_profit);
     RegisterSignalLotSequenceOutcome(signals[i].raw_profit);
     DeterministicSignalStatsRecordOutcome(signals[i]);
+    DeterministicSignalMLShadowRecordOutcome(signals[i]);
 
     if(direction == BULLISH)
       CloseBullishSignal(signals[i]);

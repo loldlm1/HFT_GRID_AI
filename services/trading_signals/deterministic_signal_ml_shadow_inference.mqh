@@ -8,16 +8,29 @@ const int    ML_SHADOW_ARTIFACT_SCHEMA_VERSION = 1;
 const int    ML_SHADOW_PHASE1_SCHEMA_VERSION   = 1;
 const string ML_SHADOW_STORAGE_ROOT            = "DeterministicSignalML";
 const string ML_SHADOW_MODEL_EXPORTS_FOLDER    = "model_exports";
+const string ML_SHADOW_RUNS_FOLDER             = "shadow_runs";
 const string ML_SHADOW_MANIFEST_FILE           = "model_manifest.tsv";
 const string ML_SHADOW_FEATURE_MAP_FILE        = "feature_map.tsv";
 const string ML_SHADOW_CLASSIFIER_TREES_FILE   = "classifier_trees.tsv";
 const string ML_SHADOW_REGRESSOR_TREES_FILE    = "regressor_trees.tsv";
 const string ML_SHADOW_THRESHOLD_POLICY_FILE   = "threshold_policy.tsv";
+const string ML_SHADOW_RUN_MANIFEST_FILE       = "shadow_manifest.tsv";
+const string ML_SHADOW_PREDICTIONS_FILE        = "shadow_predictions.tsv";
+const string ML_SHADOW_OUTCOMES_FILE           = "shadow_outcomes.tsv";
+const string ML_SHADOW_SUMMARY_FILE            = "shadow_summary.tsv";
 const int    ML_SHADOW_FEATURE_RESERVE         = 64;
 const int    ML_SHADOW_TREE_NODE_RESERVE       = 512;
 const int    ML_SHADOW_MANIFEST_RESERVE        = 48;
 const int    ML_SHADOW_MAX_FEATURES            = 512;
 const int    ML_SHADOW_MAX_TREE_NODES          = 20000;
+const int    ML_SHADOW_FLUSH_ROWS              = 32;
+const string ML_SHADOW_RUN_MANIFEST_HEADER     = "schema_version\tkey\tvalue";
+const string ML_SHADOW_PREDICTIONS_HEADER =
+  "schema_version\tshadow_run_id\texport_id\tmodel_id\tdataset_id\tfeature_schema_version\tsignal_id\tsource_key\tsource_attempt_index\tsymbol\tstrategy_id\tstrategy_label\tdirection\tentry_time\tclassifier_score\tregressor_score\tthreshold_probability\trecommendation\treason\tfeature_valid\tmodel_available\tmacro_h1_live_dir\tmacro_h4_live_dir\tmacro_d1_live_dir\tsl_fib_raw\tsl_fib_band\tentry_fib_raw\tentry_fib_band\tlow_chain_score_3\tlow_chain_score_5\tlow_chain_score_10\thigh_chain_score_3\thigh_chain_score_5\thigh_chain_score_10";
+const string ML_SHADOW_OUTCOMES_HEADER =
+  "schema_version\tshadow_run_id\texport_id\tmodel_id\tsignal_id\tsource_key\tsource_attempt_index\tterminal_time\tterminal_reason\trecommendation\tclassifier_score\tthreshold_probability\tprofit_r\tnet_profit\tduration_seconds";
+const string ML_SHADOW_SUMMARY_HEADER =
+  "schema_version\tshadow_run_id\texport_id\tmodel_id\tstarted_at\tfinished_at\tprediction_rows\toutcome_rows\tinvalid_feature_rows\tunavailable_events\texport_status";
 
 struct MLShadowRuntimeState
 {
@@ -28,6 +41,7 @@ struct MLShadowRuntimeState
   string   unavailable_reason;
   string   export_id;
   string   shadow_run_id;
+  string   shadow_folder;
   string   artifact_folder;
   string   model_id;
   string   dataset_id;
@@ -40,6 +54,12 @@ struct MLShadowRuntimeState
   double   regressor_base_score;
   double   threshold_probability;
   datetime loaded_at;
+  datetime started_at;
+  int      prediction_rows;
+  int      outcome_rows;
+  int      invalid_feature_rows;
+  int      unavailable_events;
+  bool     export_failed;
 
   MLShadowRuntimeState()
   {
@@ -50,6 +70,7 @@ struct MLShadowRuntimeState
     unavailable_reason      = "";
     export_id               = "";
     shadow_run_id           = "";
+    shadow_folder           = "";
     artifact_folder         = "";
     model_id                = "";
     dataset_id              = "";
@@ -62,6 +83,12 @@ struct MLShadowRuntimeState
     regressor_base_score    = 0.0;
     threshold_probability   = 0.0;
     loaded_at               = 0;
+    started_at              = 0;
+    prediction_rows         = 0;
+    outcome_rows            = 0;
+    invalid_feature_rows    = 0;
+    unavailable_events      = 0;
+    export_failed           = false;
   }
 };
 
@@ -137,6 +164,8 @@ string               g_ml_shadow_manifest_values[];
 MLShadowFeatureMapRow g_ml_shadow_feature_map[];
 MLShadowTreeNode      g_ml_shadow_classifier_nodes[];
 MLShadowTreeNode      g_ml_shadow_regressor_nodes[];
+string                g_ml_shadow_prediction_buffer[];
+string                g_ml_shadow_outcome_buffer[];
 
 bool DeterministicSignalMLShadowEnabled()
 {
@@ -196,9 +225,21 @@ string MLShadowBuildShadowRunId()
                                                            g_ml_shadow_state.export_id));
 }
 
+string MLShadowBuildShadowFolder()
+{
+  return ML_SHADOW_STORAGE_ROOT + "\\" +
+         ML_SHADOW_RUNS_FOLDER + "\\" +
+         g_ml_shadow_state.shadow_run_id;
+}
+
 string MLShadowArtifactPath(const string filename)
 {
   return g_ml_shadow_state.artifact_folder + "\\" + filename;
+}
+
+string MLShadowOutputPath(const string filename)
+{
+  return g_ml_shadow_state.shadow_folder + "\\" + filename;
 }
 
 void MLShadowClearArrays()
@@ -208,6 +249,8 @@ void MLShadowClearArrays()
   ArrayResize(g_ml_shadow_feature_map, 0, ML_SHADOW_FEATURE_RESERVE);
   ArrayResize(g_ml_shadow_classifier_nodes, 0, ML_SHADOW_TREE_NODE_RESERVE);
   ArrayResize(g_ml_shadow_regressor_nodes, 0, ML_SHADOW_TREE_NODE_RESERVE);
+  ArrayResize(g_ml_shadow_prediction_buffer, 0, ML_SHADOW_FLUSH_ROWS);
+  ArrayResize(g_ml_shadow_outcome_buffer, 0, ML_SHADOW_FLUSH_ROWS);
 }
 
 void DeterministicSignalMLShadowReset()
@@ -242,8 +285,235 @@ bool MLShadowMarkUnavailable(const string reason)
 {
   g_ml_shadow_state.available = false;
   g_ml_shadow_state.unavailable_reason = reason;
+  g_ml_shadow_state.unavailable_events++;
   MLShadowLogUnavailable(reason);
   return false;
+}
+
+bool MLShadowEnsureFolder()
+{
+  string parts[];
+  ushort delimiter = StringGetCharacter("\\", 0);
+  int total = StringSplit(g_ml_shadow_state.shadow_folder, delimiter, parts);
+  if(total <= 0)
+    return false;
+
+  string current_folder = "";
+  for(int i = 0; i < total; i++)
+  {
+    if(parts[i] == "")
+      continue;
+    if(current_folder == "")
+      current_folder = parts[i];
+    else
+      current_folder = current_folder + "\\" + parts[i];
+
+    ResetLastError();
+    FolderCreate(current_folder, FILE_COMMON);
+    int folder_error = GetLastError();
+    if(folder_error != 0 && folder_error != 5019)
+    {
+      if(Enable_Logs || Enable_File_Logs)
+      {
+        PrintFormat("ML_SHADOW_FOLDER_CREATE failed | folder=%s | err=%d",
+                    current_folder,
+                    folder_error);
+      }
+    }
+  }
+
+  return true;
+}
+
+string MLShadowOutputCell(const string raw_value)
+{
+  string value = raw_value;
+  StringReplace(value, "\r", " ");
+  StringReplace(value, "\n", " ");
+  StringReplace(value, "\t", " ");
+  if(value == "")
+    return DETERMINISTIC_SIGNAL_STATS_NULL;
+  return value;
+}
+
+string MLShadowTimeToken(const datetime value)
+{
+  if(value <= 0)
+    return DETERMINISTIC_SIGNAL_STATS_NULL;
+  return TimeToString(value, TIME_DATE|TIME_SECONDS);
+}
+
+string MLShadowDoubleToken(const bool valid,
+                           const double value,
+                           const int digits)
+{
+  if(!valid || !MathIsValidNumber(value))
+    return DETERMINISTIC_SIGNAL_STATS_NULL;
+  return DoubleToString(value, digits);
+}
+
+string MLShadowIntToken(const bool valid,
+                        const int value)
+{
+  if(!valid)
+    return DETERMINISTIC_SIGNAL_STATS_NULL;
+  return IntegerToString(value);
+}
+
+bool MLShadowWriteLine(const string filename,
+                       const string line,
+                       const bool append)
+{
+  if(filename == "" || line == "")
+    return false;
+
+  int flags = FILE_WRITE | FILE_TXT | FILE_ANSI | FILE_COMMON;
+  if(append)
+    flags |= FILE_READ;
+
+  ResetLastError();
+  int handle = FileOpen(filename, flags);
+  if(handle == INVALID_HANDLE)
+  {
+    g_ml_shadow_state.export_failed = true;
+    if(Enable_Logs || Enable_File_Logs)
+    {
+      PrintFormat("ML_SHADOW_WRITE_FAIL | file=%s | err=%d",
+                  filename,
+                  GetLastError());
+    }
+    return false;
+  }
+
+  if(append)
+    FileSeek(handle, 0, SEEK_END);
+
+  FileWrite(handle, line);
+  FileClose(handle);
+  return true;
+}
+
+bool MLShadowAppendRow(const string filename,
+                       const string header,
+                       const string row)
+{
+  if(!g_ml_shadow_state.enabled || g_ml_shadow_state.shadow_folder == "")
+    return false;
+
+  bool needs_header = !FileIsExist(filename, FILE_COMMON);
+  if(needs_header)
+  {
+    if(!MLShadowWriteLine(filename, header, false))
+      return false;
+  }
+
+  return MLShadowWriteLine(filename, row, true);
+}
+
+bool MLShadowFlushBuffer(const string filename,
+                         const string header,
+                         string &buffer[])
+{
+  if(!g_ml_shadow_state.enabled)
+    return false;
+
+  int total = ArraySize(buffer);
+  if(total <= 0)
+    return true;
+
+  for(int i = 0; i < total; i++)
+  {
+    if(!MLShadowAppendRow(filename, header, buffer[i]))
+      return false;
+  }
+
+  ArrayResize(buffer, 0, ML_SHADOW_FLUSH_ROWS);
+  return true;
+}
+
+bool MLShadowQueueRow(const string filename,
+                      const string header,
+                      const string row,
+                      string &buffer[])
+{
+  if(!g_ml_shadow_state.enabled || row == "")
+    return false;
+
+  int total = ArraySize(buffer);
+  int resized = ArrayResize(buffer, total + 1, ML_SHADOW_FLUSH_ROWS);
+  if(resized != total + 1)
+  {
+    g_ml_shadow_state.export_failed = true;
+    return false;
+  }
+
+  buffer[total] = row;
+  if(ArraySize(buffer) >= ML_SHADOW_FLUSH_ROWS)
+    return MLShadowFlushBuffer(filename, header, buffer);
+
+  return true;
+}
+
+bool MLShadowFlushAll()
+{
+  if(!g_ml_shadow_state.enabled)
+    return false;
+
+  bool predictions_ok = MLShadowFlushBuffer(MLShadowOutputPath(ML_SHADOW_PREDICTIONS_FILE),
+                                            ML_SHADOW_PREDICTIONS_HEADER,
+                                            g_ml_shadow_prediction_buffer);
+  bool outcomes_ok = MLShadowFlushBuffer(MLShadowOutputPath(ML_SHADOW_OUTCOMES_FILE),
+                                         ML_SHADOW_OUTCOMES_HEADER,
+                                         g_ml_shadow_outcome_buffer);
+  return predictions_ok && outcomes_ok;
+}
+
+string MLShadowManifestRow(const string key,
+                           const string value)
+{
+  return IntegerToString(ML_SHADOW_ARTIFACT_SCHEMA_VERSION) + "\t" +
+         MLShadowOutputCell(key) + "\t" +
+         MLShadowOutputCell(value);
+}
+
+bool MLShadowWriteRunManifest()
+{
+  if(!g_ml_shadow_state.enabled || g_ml_shadow_state.shadow_folder == "")
+    return false;
+
+  string filename = MLShadowOutputPath(ML_SHADOW_RUN_MANIFEST_FILE);
+  if(!MLShadowWriteLine(filename, ML_SHADOW_RUN_MANIFEST_HEADER, false))
+    return false;
+
+  MLShadowWriteLine(filename, MLShadowManifestRow("shadow_run_id", g_ml_shadow_state.shadow_run_id), true);
+  MLShadowWriteLine(filename, MLShadowManifestRow("export_id", g_ml_shadow_state.export_id), true);
+  MLShadowWriteLine(filename, MLShadowManifestRow("model_id", g_ml_shadow_state.model_id), true);
+  MLShadowWriteLine(filename, MLShadowManifestRow("dataset_id", g_ml_shadow_state.dataset_id), true);
+  MLShadowWriteLine(filename, MLShadowManifestRow("started_at", MLShadowTimeToken(g_ml_shadow_state.started_at)), true);
+  MLShadowWriteLine(filename, MLShadowManifestRow("mode", ExecutionMLInferenceModeToken(ML_Inference_Mode)), true);
+  MLShadowWriteLine(filename, MLShadowManifestRow("available", MLShadowBoolToken(g_ml_shadow_state.available)), true);
+  MLShadowWriteLine(filename, MLShadowManifestRow("unavailable_reason", g_ml_shadow_state.unavailable_reason), true);
+  MLShadowWriteLine(filename, MLShadowManifestRow("feature_schema_version", IntegerToString(g_ml_shadow_state.phase1_schema_version)), true);
+  MLShadowWriteLine(filename, MLShadowManifestRow("encoded_feature_count", IntegerToString(g_ml_shadow_state.encoded_feature_count)), true);
+  MLShadowWriteLine(filename, MLShadowManifestRow("classifier_tree_count", IntegerToString(g_ml_shadow_state.classifier_tree_count)), true);
+  MLShadowWriteLine(filename, MLShadowManifestRow("regressor_tree_count", IntegerToString(g_ml_shadow_state.regressor_tree_count)), true);
+  MLShadowWriteLine(filename, MLShadowManifestRow("threshold_probability", DoubleToString(g_ml_shadow_state.threshold_probability, 8)), true);
+  MLShadowWriteLine(filename, MLShadowManifestRow("policy", "shadow_fail_open"), true);
+  return true;
+}
+
+bool MLShadowPrepareRowFiles()
+{
+  if(!g_ml_shadow_state.enabled || g_ml_shadow_state.shadow_folder == "")
+    return false;
+
+  bool predictions_ok = MLShadowWriteLine(MLShadowOutputPath(ML_SHADOW_PREDICTIONS_FILE),
+                                          ML_SHADOW_PREDICTIONS_HEADER,
+                                          false);
+  bool outcomes_ok = MLShadowWriteLine(MLShadowOutputPath(ML_SHADOW_OUTCOMES_FILE),
+                                       ML_SHADOW_OUTCOMES_HEADER,
+                                       false);
+  return predictions_ok && outcomes_ok;
 }
 
 void MLShadowLogLoadStatus()
@@ -933,6 +1203,392 @@ bool DeterministicSignalMLShadowEncodeSnapshot(const DeterministicSignalFeatureS
   return true;
 }
 
+bool MLShadowScoreTree(const MLShadowTreeNode &nodes[],
+                       const int tree_index,
+                       const double &features[],
+                       const bool &missing_features[],
+                       double &score_out)
+{
+  score_out = 0.0;
+  int node_position = MLShadowFindTreeNode(nodes, tree_index, 0);
+  if(node_position < 0)
+    return false;
+
+  int guard = 0;
+  while(!nodes[node_position].leaf)
+  {
+    int feature_index = nodes[node_position].feature_index;
+    if(feature_index < 0 || feature_index >= ArraySize(features))
+      return false;
+
+    bool go_left = false;
+    if(missing_features[feature_index])
+      go_left = nodes[node_position].default_left;
+    else
+    {
+      float feature_value = (float)features[feature_index];
+      float threshold = (float)nodes[node_position].threshold;
+      go_left = (feature_value < threshold);
+    }
+
+    int next_node = go_left ? nodes[node_position].left_child : nodes[node_position].right_child;
+    node_position = MLShadowFindTreeNode(nodes, tree_index, next_node);
+    if(node_position < 0)
+      return false;
+
+    guard++;
+    if(guard > ML_SHADOW_MAX_TREE_NODES)
+      return false;
+  }
+
+  score_out = nodes[node_position].leaf_value;
+  return MathIsValidNumber(score_out);
+}
+
+bool MLShadowScoreForest(const MLShadowTreeNode &nodes[],
+                         const int tree_count,
+                         const double base_score,
+                         const double &features[],
+                         const bool &missing_features[],
+                         double &margin_out)
+{
+  margin_out = base_score;
+  if(tree_count <= 0)
+    return false;
+
+  for(int tree_index = 0; tree_index < tree_count; tree_index++)
+  {
+    double tree_score = 0.0;
+    if(!MLShadowScoreTree(nodes,
+                          tree_index,
+                          features,
+                          missing_features,
+                          tree_score))
+      return false;
+    margin_out += tree_score;
+  }
+
+  return MathIsValidNumber(margin_out);
+}
+
+bool MLShadowScoreClassifier(const double &features[],
+                             const bool &missing_features[],
+                             double &score_out)
+{
+  score_out = 0.0;
+  double margin = 0.0;
+  if(!MLShadowScoreForest(g_ml_shadow_classifier_nodes,
+                          g_ml_shadow_state.classifier_tree_count,
+                          g_ml_shadow_state.classifier_base_score,
+                          features,
+                          missing_features,
+                          margin))
+    return false;
+
+  score_out = 1.0 / (1.0 + MathExp(-margin));
+  return MathIsValidNumber(score_out);
+}
+
+bool MLShadowScoreRegressor(const double &features[],
+                            const bool &missing_features[],
+                            double &score_out)
+{
+  score_out = 0.0;
+  if(!g_ml_shadow_state.regressor_available ||
+     g_ml_shadow_state.regressor_tree_count <= 0)
+    return false;
+
+  return MLShadowScoreForest(g_ml_shadow_regressor_nodes,
+                             g_ml_shadow_state.regressor_tree_count,
+                             g_ml_shadow_state.regressor_base_score,
+                             features,
+                             missing_features,
+                             score_out);
+}
+
+string MLShadowRecommendationToken(const bool scored,
+                                   const double classifier_score)
+{
+  if(!scored)
+    return "NO_SCORE";
+  if(classifier_score >= g_ml_shadow_state.threshold_probability)
+    return "ALLOW";
+  return "BLOCK";
+}
+
+string MLShadowPredictionRow(const SignalParams &signal_params,
+                             const DeterministicSignalFeatureSnapshot &snapshot,
+                             const bool classifier_scored,
+                             const double classifier_score,
+                             const bool regressor_scored,
+                             const double regressor_score,
+                             const string recommendation,
+                             const string reason,
+                             const bool feature_valid,
+                             const bool model_available)
+{
+  return IntegerToString(ML_SHADOW_ARTIFACT_SCHEMA_VERSION) + "\t" +
+         MLShadowOutputCell(g_ml_shadow_state.shadow_run_id) + "\t" +
+         MLShadowOutputCell(g_ml_shadow_state.export_id) + "\t" +
+         MLShadowOutputCell(g_ml_shadow_state.model_id) + "\t" +
+         MLShadowOutputCell(g_ml_shadow_state.dataset_id) + "\t" +
+         IntegerToString(g_ml_shadow_state.phase1_schema_version) + "\t" +
+         MLShadowOutputCell(signal_params.ml_shadow_signal_id) + "\t" +
+         MLShadowOutputCell(snapshot.source_key) + "\t" +
+         IntegerToString(snapshot.source_attempt_index) + "\t" +
+         MLShadowOutputCell(snapshot.symbol) + "\t" +
+         IntegerToString(snapshot.strategy_id) + "\t" +
+         MLShadowOutputCell(snapshot.strategy_label) + "\t" +
+         MLShadowOutputCell(snapshot.direction) + "\t" +
+         MLShadowTimeToken(snapshot.entry_time) + "\t" +
+         MLShadowDoubleToken(classifier_scored, classifier_score, 8) + "\t" +
+         MLShadowDoubleToken(regressor_scored, regressor_score, 8) + "\t" +
+         MLShadowDoubleToken(g_ml_shadow_state.available, g_ml_shadow_state.threshold_probability, 8) + "\t" +
+         MLShadowOutputCell(recommendation) + "\t" +
+         MLShadowOutputCell(reason) + "\t" +
+         MLShadowBoolToken(feature_valid) + "\t" +
+         MLShadowBoolToken(model_available) + "\t" +
+         IntegerToString(snapshot.macro_h1_live_dir) + "\t" +
+         IntegerToString(snapshot.macro_h4_live_dir) + "\t" +
+         IntegerToString(snapshot.macro_d1_live_dir) + "\t" +
+         MLShadowDoubleToken(snapshot.sl_fib_valid, snapshot.sl_fib_raw, 1) + "\t" +
+         MLShadowOutputCell(snapshot.sl_fib_band) + "\t" +
+         MLShadowDoubleToken(snapshot.entry_fib_valid, snapshot.entry_fib_raw, 1) + "\t" +
+         MLShadowOutputCell(snapshot.entry_fib_band) + "\t" +
+         MLShadowIntToken(snapshot.low_chain_score_3_valid, snapshot.low_chain_score_3) + "\t" +
+         MLShadowIntToken(snapshot.low_chain_score_5_valid, snapshot.low_chain_score_5) + "\t" +
+         MLShadowIntToken(snapshot.low_chain_score_10_valid, snapshot.low_chain_score_10) + "\t" +
+         MLShadowIntToken(snapshot.high_chain_score_3_valid, snapshot.high_chain_score_3) + "\t" +
+         MLShadowIntToken(snapshot.high_chain_score_5_valid, snapshot.high_chain_score_5) + "\t" +
+         MLShadowIntToken(snapshot.high_chain_score_10_valid, snapshot.high_chain_score_10);
+}
+
+bool DeterministicSignalMLShadowRecordPrediction(SignalParams &signal_params,
+                                                 const ExecutionLegState &leg_state)
+{
+  if(!g_ml_shadow_state.enabled)
+    return false;
+  if(!signal_params.deterministic_strategy)
+    return false;
+  if(signal_params.ml_shadow_evaluated)
+    return false;
+
+  signal_params.ml_shadow_evaluated = true;
+  signal_params.ml_shadow_model_id = g_ml_shadow_state.model_id;
+  signal_params.ml_shadow_export_id = g_ml_shadow_state.export_id;
+  signal_params.ml_shadow_threshold = g_ml_shadow_state.threshold_probability;
+  signal_params.ml_shadow_available = g_ml_shadow_state.available;
+
+  string signal_id = DeterministicSignalMLShadowEnsureSignalId(signal_params);
+  if(signal_id == "")
+  {
+    signal_params.ml_shadow_reason = "missing_signal_id";
+    return false;
+  }
+
+  DeterministicSignalFeatureSnapshot snapshot;
+  if(!DeterministicSignalBuildFeatureSnapshot(signal_params,
+                                              leg_state,
+                                              snapshot))
+  {
+    signal_params.ml_shadow_reason = "feature_snapshot_failed";
+    return false;
+  }
+
+  double classifier_score = 0.0;
+  double regressor_score = 0.0;
+  bool classifier_scored = false;
+  bool regressor_scored = false;
+  bool feature_valid = snapshot.valid;
+  string reason = "not_scored";
+
+  if(!g_ml_shadow_state.available)
+  {
+    reason = "ML_UNAVAILABLE:" + g_ml_shadow_state.unavailable_reason;
+  }
+  else
+  {
+    double features[];
+    bool missing_features[];
+    string invalid_reason = "";
+    bool encoding_ok = DeterministicSignalMLShadowEncodeSnapshot(snapshot,
+                                                                 features,
+                                                                 missing_features,
+                                                                 feature_valid,
+                                                                 invalid_reason);
+    if(!encoding_ok)
+    {
+      reason = "encoding_failed:" + invalid_reason;
+      feature_valid = false;
+    }
+    else if(!feature_valid)
+    {
+      reason = "invalid_features:" + invalid_reason;
+      g_ml_shadow_state.invalid_feature_rows++;
+    }
+    else if(!MLShadowScoreClassifier(features, missing_features, classifier_score))
+    {
+      reason = "classifier_score_failed";
+    }
+    else
+    {
+      classifier_scored = true;
+      reason = (classifier_score >= g_ml_shadow_state.threshold_probability) ?
+               "classifier_score_gte_threshold" :
+               "classifier_score_lt_threshold";
+      if(MLShadowScoreRegressor(features, missing_features, regressor_score))
+        regressor_scored = true;
+    }
+  }
+
+  string recommendation = MLShadowRecommendationToken(classifier_scored, classifier_score);
+  signal_params.ml_shadow_available = g_ml_shadow_state.available;
+  signal_params.ml_shadow_feature_valid = feature_valid;
+  signal_params.ml_shadow_classifier_score = classifier_score;
+  signal_params.ml_shadow_regressor_score = regressor_score;
+  signal_params.ml_shadow_recommendation = recommendation;
+  signal_params.ml_shadow_reason = reason;
+
+  string row = MLShadowPredictionRow(signal_params,
+                                     snapshot,
+                                     classifier_scored,
+                                     classifier_score,
+                                     regressor_scored,
+                                     regressor_score,
+                                     recommendation,
+                                     reason,
+                                     feature_valid,
+                                     g_ml_shadow_state.available);
+  if(MLShadowQueueRow(MLShadowOutputPath(ML_SHADOW_PREDICTIONS_FILE),
+                      ML_SHADOW_PREDICTIONS_HEADER,
+                      row,
+                      g_ml_shadow_prediction_buffer))
+    g_ml_shadow_state.prediction_rows++;
+
+  ExecutionAppendQueryDebugLog("ML_SHADOW_SCORE",
+                               StringFormat("signal_id=%s|source_key=%s|score=%s|threshold=%s|recommendation=%s|reason=%s|feature_valid=%s|model_available=%s",
+                                            signal_params.ml_shadow_signal_id,
+                                            snapshot.source_key,
+                                            MLShadowDoubleToken(classifier_scored, classifier_score, 8),
+                                            MLShadowDoubleToken(g_ml_shadow_state.available, g_ml_shadow_state.threshold_probability, 8),
+                                            recommendation,
+                                            reason,
+                                            MLShadowBoolToken(feature_valid),
+                                            MLShadowBoolToken(g_ml_shadow_state.available)));
+  return classifier_scored;
+}
+
+string MLShadowOutcomeRow(SignalParams &signal_params,
+                          const double profit_r,
+                          const bool profit_r_valid,
+                          const int duration_seconds,
+                          const bool duration_valid)
+{
+  string source_key = signal_params.deterministic_source_key;
+  if(source_key == "")
+    source_key = BuildDeterministicSignalSourceKey(signal_params);
+
+  return IntegerToString(ML_SHADOW_ARTIFACT_SCHEMA_VERSION) + "\t" +
+         MLShadowOutputCell(g_ml_shadow_state.shadow_run_id) + "\t" +
+         MLShadowOutputCell(g_ml_shadow_state.export_id) + "\t" +
+         MLShadowOutputCell(g_ml_shadow_state.model_id) + "\t" +
+         MLShadowOutputCell(signal_params.ml_shadow_signal_id) + "\t" +
+         MLShadowOutputCell(source_key) + "\t" +
+         IntegerToString(signal_params.deterministic_source_attempt_index) + "\t" +
+         MLShadowTimeToken(signal_params.close_time) + "\t" +
+         MLShadowOutputCell(DeterministicSignalStatsTerminalReason(signal_params)) + "\t" +
+         MLShadowOutputCell(signal_params.ml_shadow_recommendation) + "\t" +
+         MLShadowDoubleToken(signal_params.ml_shadow_evaluated, signal_params.ml_shadow_classifier_score, 8) + "\t" +
+         MLShadowDoubleToken(g_ml_shadow_state.available, signal_params.ml_shadow_threshold, 8) + "\t" +
+         MLShadowDoubleToken(profit_r_valid, profit_r, 4) + "\t" +
+         MLShadowDoubleToken(MathIsValidNumber(signal_params.raw_profit), signal_params.raw_profit, 2) + "\t" +
+         MLShadowIntToken(duration_valid, duration_seconds);
+}
+
+bool DeterministicSignalMLShadowRecordOutcome(SignalParams &signal_params)
+{
+  if(!g_ml_shadow_state.enabled)
+    return false;
+  if(!signal_params.deterministic_strategy ||
+     !signal_params.ml_shadow_evaluated ||
+     signal_params.ml_shadow_outcome_exported)
+    return false;
+  if(!SignalHasBrokerConfirmedOutcome(signal_params))
+    return false;
+
+  if(signal_params.ml_shadow_signal_id == "")
+    DeterministicSignalMLShadowEnsureSignalId(signal_params);
+  if(signal_params.ml_shadow_signal_id == "")
+    return false;
+
+  double entry_price = 0.0;
+  bool entry_price_valid = DeterministicSignalStatsOutcomeEntryPrice(signal_params,
+                                                                     entry_price);
+  bool close_price_valid = (signal_params.close_price > 0.0 &&
+                            MathIsValidNumber(signal_params.close_price));
+
+  double profit_r = 0.0;
+  bool profit_r_valid = entry_price_valid && close_price_valid &&
+                        DeterministicSignalStatsProfitR(signal_params,
+                                                        entry_price,
+                                                        signal_params.close_price,
+                                                        profit_r);
+
+  datetime entry_time = DeterministicSignalStatsOutcomeEntryTime(signal_params);
+  bool duration_valid = (entry_time > 0 &&
+                         signal_params.close_time > 0 &&
+                         signal_params.close_time >= entry_time);
+  int duration_seconds = 0;
+  if(duration_valid)
+    duration_seconds = (int)(signal_params.close_time - entry_time);
+
+  string row = MLShadowOutcomeRow(signal_params,
+                                  profit_r,
+                                  profit_r_valid,
+                                  duration_seconds,
+                                  duration_valid);
+  if(!MLShadowQueueRow(MLShadowOutputPath(ML_SHADOW_OUTCOMES_FILE),
+                       ML_SHADOW_OUTCOMES_HEADER,
+                       row,
+                       g_ml_shadow_outcome_buffer))
+    return false;
+
+  signal_params.ml_shadow_outcome_exported = true;
+  g_ml_shadow_state.outcome_rows++;
+  return true;
+}
+
+string MLShadowSummaryRow(const datetime finished_at,
+                          const string export_status)
+{
+  return IntegerToString(ML_SHADOW_ARTIFACT_SCHEMA_VERSION) + "\t" +
+         MLShadowOutputCell(g_ml_shadow_state.shadow_run_id) + "\t" +
+         MLShadowOutputCell(g_ml_shadow_state.export_id) + "\t" +
+         MLShadowOutputCell(g_ml_shadow_state.model_id) + "\t" +
+         MLShadowTimeToken(g_ml_shadow_state.started_at) + "\t" +
+         MLShadowTimeToken(finished_at) + "\t" +
+         IntegerToString(g_ml_shadow_state.prediction_rows) + "\t" +
+         IntegerToString(g_ml_shadow_state.outcome_rows) + "\t" +
+         IntegerToString(g_ml_shadow_state.invalid_feature_rows) + "\t" +
+         IntegerToString(g_ml_shadow_state.unavailable_events) + "\t" +
+         MLShadowOutputCell(export_status);
+}
+
+bool MLShadowWriteSummary()
+{
+  if(!g_ml_shadow_state.enabled || g_ml_shadow_state.shadow_folder == "")
+    return false;
+
+  string filename = MLShadowOutputPath(ML_SHADOW_SUMMARY_FILE);
+  if(!MLShadowWriteLine(filename, ML_SHADOW_SUMMARY_HEADER, false))
+    return false;
+
+  string status = g_ml_shadow_state.export_failed ? "FAILED" : "OK";
+  return MLShadowWriteLine(filename,
+                           MLShadowSummaryRow(TimeCurrent(), status),
+                           true);
+}
+
 bool DeterministicSignalMLShadowInit()
 {
   DeterministicSignalMLShadowReset();
@@ -941,31 +1597,50 @@ bool DeterministicSignalMLShadowInit()
   g_ml_shadow_state.export_id = DeterministicSignalStatsSanitizePart(ML_Model_Export_Id);
   g_ml_shadow_state.artifact_folder = MLShadowBuildArtifactFolder();
   g_ml_shadow_state.shadow_run_id = MLShadowBuildShadowRunId();
+  g_ml_shadow_state.shadow_folder = MLShadowBuildShadowFolder();
+  g_ml_shadow_state.started_at = TimeCurrent();
 
   if(!g_ml_shadow_state.enabled)
     return true;
 
-  if(g_ml_shadow_state.export_id == "")
-    return MLShadowMarkUnavailable("empty_export_id");
+  bool folder_ok = MLShadowEnsureFolder();
+  bool load_ok = false;
 
-  if(!MLShadowLoadManifest())
-    return true;
-  if(!MLShadowLoadThresholdPolicy())
-    return true;
-  if(!MLShadowLoadFeatureMap())
-    return true;
-  if(!MLShadowLoadTrees())
-    return true;
+  if(!folder_ok)
+    MLShadowMarkUnavailable("shadow_folder_unavailable");
+  else if(g_ml_shadow_state.export_id == "")
+    MLShadowMarkUnavailable("empty_export_id");
+  else if(MLShadowLoadManifest() &&
+          MLShadowLoadThresholdPolicy() &&
+          MLShadowLoadFeatureMap() &&
+          MLShadowLoadTrees())
+    load_ok = true;
 
-  g_ml_shadow_state.available = true;
-  g_ml_shadow_state.unavailable_reason = "";
-  g_ml_shadow_state.loaded_at = TimeCurrent();
+  if(load_ok)
+  {
+    g_ml_shadow_state.available = true;
+    g_ml_shadow_state.unavailable_reason = "";
+    g_ml_shadow_state.loaded_at = TimeCurrent();
+  }
+
+  if(folder_ok)
+  {
+    MLShadowWriteRunManifest();
+    MLShadowPrepareRowFiles();
+  }
+
   MLShadowLogLoadStatus();
   return true;
 }
 
 void DeterministicSignalMLShadowDeinit()
 {
+  if(g_ml_shadow_state.enabled)
+  {
+    if(!MLShadowFlushAll())
+      g_ml_shadow_state.export_failed = true;
+    MLShadowWriteSummary();
+  }
   DeterministicSignalMLShadowReset();
 }
 
