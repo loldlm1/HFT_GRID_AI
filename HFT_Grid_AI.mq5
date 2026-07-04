@@ -142,6 +142,7 @@ int OnInit()
 //+------------------------------------------------------------------+
 void OnDeinit(const int reason)
 {
+  DeterministicSignalStatsDeinit();
   LicenseServiceOnDeinit();
   EventKillTimer();
   ReleaseAllIndicatorDefinitions();

@@ -69,6 +69,29 @@ inputs
 
 Before a real broker position exists, local simulation owns candidate state and applies broker conditions. After a real position exists, broker state owns ticket, volume, entry price, close state, and profit.
 
+## Deterministic Signal Statistics Export
+
+Phase 1 adds an optional TSV export for deterministic, broker-entered signals.
+It is disabled by default through `Enable_Signal_Feature_Export = false`.
+`Signal_Feature_Run_Id` may be left empty; the EA then creates a sanitized run
+ID from symbol, timeframe, and start time.
+
+When enabled, files are written under MT5 `Common\Files`:
+
+```text
+DeterministicSignalML\runs\<run_id>\
+```
+
+The run folder contains:
+
+- `run_manifest.tsv`: schema, run/config IDs, and non-sensitive strategy config.
+- `signal_features.tsv`: compact feature rows captured after real broker entry.
+- `signal_outcomes.tsv`: broker-confirmed terminal outcomes joined by `signal_id`.
+- `run_summary.tsv`: row counts, invalid-row counts, and final export status.
+
+The export is passive. It does not train models, call Python, query PostgreSQL,
+run inference, change entries, change exits, or bypass broker/risk controls.
+
 ## Final Baseline Notes
 
 - Phase 8 final compile passed on 2026-07-03 with `0 errors, 0 warnings`; evidence log: `logs/compile/phase-08-build.log`.

@@ -13,6 +13,7 @@ const string DETERMINISTIC_SIGNAL_STATS_OUTCOMES_FILE  = "signal_outcomes.tsv";
 const string DETERMINISTIC_SIGNAL_STATS_SUMMARY_FILE   = "run_summary.tsv";
 const string DETERMINISTIC_SIGNAL_STATS_NULL           = "\\N";
 const ushort DETERMINISTIC_SIGNAL_STATS_DELIMITER      = '\t';
+const int    DETERMINISTIC_SIGNAL_STATS_FLUSH_ROWS     = 32;
 
 const string DETERMINISTIC_SIGNAL_STATS_MANIFEST_HEADER =
   "schema_version\tkey\tvalue";
@@ -33,6 +34,8 @@ int      g_deterministic_signal_stats_feature_rows = 0;
 int      g_deterministic_signal_stats_outcome_rows = 0;
 int      g_deterministic_signal_stats_feature_invalid_rows = 0;
 int      g_deterministic_signal_stats_outcome_invalid_rows = 0;
+string   g_deterministic_signal_stats_feature_buffer[];
+string   g_deterministic_signal_stats_outcome_buffer[];
 
 bool DeterministicSignalStatsEnabled()
 {
@@ -253,6 +256,78 @@ bool DeterministicSignalStatsAppendRow(const string filename,
   return DeterministicSignalStatsWriteLine(filename, row, true);
 }
 
+bool DeterministicSignalStatsFlushBuffer(const string filename,
+                                         const string header,
+                                         string &buffer[])
+{
+  if(!DeterministicSignalStatsReady())
+    return false;
+
+  int total = ArraySize(buffer);
+  if(total <= 0)
+    return true;
+
+  for(int i = 0; i < total; i++)
+  {
+    if(!DeterministicSignalStatsAppendRow(filename, header, buffer[i]))
+      return false;
+  }
+
+  ArrayResize(buffer, 0);
+  return true;
+}
+
+bool DeterministicSignalStatsQueueRow(const string filename,
+                                      const string header,
+                                      const string row,
+                                      string &buffer[])
+{
+  if(!DeterministicSignalStatsReady())
+    return false;
+  if(filename == "" || header == "" || row == "")
+    return false;
+
+  int total = ArraySize(buffer);
+  int resized = ArrayResize(buffer,
+                            total + 1,
+                            DETERMINISTIC_SIGNAL_STATS_FLUSH_ROWS);
+  if(resized != total + 1)
+  {
+    g_deterministic_signal_stats_failed = true;
+    return false;
+  }
+
+  buffer[total] = row;
+  if(ArraySize(buffer) >= DETERMINISTIC_SIGNAL_STATS_FLUSH_ROWS)
+    return DeterministicSignalStatsFlushBuffer(filename, header, buffer);
+
+  return true;
+}
+
+bool DeterministicSignalStatsFlushFeatures()
+{
+  return DeterministicSignalStatsFlushBuffer(DeterministicSignalStatsPath(DETERMINISTIC_SIGNAL_STATS_FEATURES_FILE),
+                                            DETERMINISTIC_SIGNAL_STATS_FEATURES_HEADER,
+                                            g_deterministic_signal_stats_feature_buffer);
+}
+
+bool DeterministicSignalStatsFlushOutcomes()
+{
+  return DeterministicSignalStatsFlushBuffer(DeterministicSignalStatsPath(DETERMINISTIC_SIGNAL_STATS_OUTCOMES_FILE),
+                                            DETERMINISTIC_SIGNAL_STATS_OUTCOMES_HEADER,
+                                            g_deterministic_signal_stats_outcome_buffer);
+}
+
+bool DeterministicSignalStatsFlushAll()
+{
+  if(!DeterministicSignalStatsReady())
+    return false;
+
+  bool features_ok = DeterministicSignalStatsFlushFeatures();
+  bool outcomes_ok = DeterministicSignalStatsFlushOutcomes();
+  return features_ok && outcomes_ok;
+}
+
 string DeterministicSignalStatsManifestRow(const string key,
                                            const string value)
 {
@@ -288,6 +363,58 @@ bool DeterministicSignalStatsWriteManifest()
   return true;
 }
 
+bool DeterministicSignalStatsPrepareRowFiles()
+{
+  string features_filename = DeterministicSignalStatsPath(DETERMINISTIC_SIGNAL_STATS_FEATURES_FILE);
+  string outcomes_filename = DeterministicSignalStatsPath(DETERMINISTIC_SIGNAL_STATS_OUTCOMES_FILE);
+
+  if(!DeterministicSignalStatsWriteLine(features_filename,
+                                        DETERMINISTIC_SIGNAL_STATS_FEATURES_HEADER,
+                                        false))
+    return false;
+
+  if(!DeterministicSignalStatsWriteLine(outcomes_filename,
+                                        DETERMINISTIC_SIGNAL_STATS_OUTCOMES_HEADER,
+                                        false))
+    return false;
+
+  return true;
+}
+
+string DeterministicSignalStatsSummaryRow(const datetime finished_at,
+                                          const string export_status)
+{
+  return IntegerToString(DETERMINISTIC_SIGNAL_STATS_SCHEMA_VERSION) + "\t" +
+         DeterministicSignalStatsCell(g_deterministic_signal_stats_run_id) + "\t" +
+         DeterministicSignalStatsCell(g_deterministic_signal_stats_config_id) + "\t" +
+         DeterministicSignalStatsTimeToken(g_deterministic_signal_stats_started_at) + "\t" +
+         DeterministicSignalStatsTimeToken(finished_at) + "\t" +
+         IntegerToString(g_deterministic_signal_stats_feature_rows) + "\t" +
+         IntegerToString(g_deterministic_signal_stats_outcome_rows) + "\t" +
+         IntegerToString(g_deterministic_signal_stats_feature_invalid_rows) + "\t" +
+         IntegerToString(g_deterministic_signal_stats_outcome_invalid_rows) + "\t" +
+         DeterministicSignalStatsCell(export_status);
+}
+
+bool DeterministicSignalStatsWriteSummary()
+{
+  if(!DeterministicSignalStatsEnabled() ||
+     !g_deterministic_signal_stats_initialized)
+    return false;
+
+  string filename = DeterministicSignalStatsPath(DETERMINISTIC_SIGNAL_STATS_SUMMARY_FILE);
+  if(!DeterministicSignalStatsWriteLine(filename,
+                                        DETERMINISTIC_SIGNAL_STATS_SUMMARY_HEADER,
+                                        false))
+    return false;
+
+  string status = g_deterministic_signal_stats_failed ? "FAILED" : "OK";
+  return DeterministicSignalStatsWriteLine(filename,
+                                          DeterministicSignalStatsSummaryRow(TimeCurrent(),
+                                                                            status),
+                                          true);
+}
+
 void DeterministicSignalStatsReset()
 {
   g_deterministic_signal_stats_run_id = "";
@@ -300,6 +427,8 @@ void DeterministicSignalStatsReset()
   g_deterministic_signal_stats_outcome_rows = 0;
   g_deterministic_signal_stats_feature_invalid_rows = 0;
   g_deterministic_signal_stats_outcome_invalid_rows = 0;
+  ArrayResize(g_deterministic_signal_stats_feature_buffer, 0);
+  ArrayResize(g_deterministic_signal_stats_outcome_buffer, 0);
 }
 
 bool DeterministicSignalStatsInit()
@@ -320,6 +449,8 @@ bool DeterministicSignalStatsInit()
   }
 
   g_deterministic_signal_stats_initialized = DeterministicSignalStatsWriteManifest();
+  if(g_deterministic_signal_stats_initialized)
+    g_deterministic_signal_stats_initialized = DeterministicSignalStatsPrepareRowFiles();
   return g_deterministic_signal_stats_initialized;
 }
 
@@ -328,6 +459,20 @@ bool DeterministicSignalStatsReady()
   return DeterministicSignalStatsEnabled() &&
          g_deterministic_signal_stats_initialized &&
          !g_deterministic_signal_stats_failed;
+}
+
+void DeterministicSignalStatsDeinit()
+{
+  if(!DeterministicSignalStatsEnabled() ||
+     !g_deterministic_signal_stats_initialized)
+    return;
+
+  if(!DeterministicSignalStatsFlushAll())
+    g_deterministic_signal_stats_failed = true;
+
+  DeterministicSignalStatsWriteSummary();
+  ArrayResize(g_deterministic_signal_stats_feature_buffer, 0);
+  ArrayResize(g_deterministic_signal_stats_outcome_buffer, 0);
 }
 
 string DeterministicSignalStatsBuildSignalId(const SignalParams &signal_params)
@@ -665,9 +810,10 @@ bool DeterministicSignalStatsRecordFeature(SignalParams &signal_params,
     return false;
 
   string filename = DeterministicSignalStatsPath(DETERMINISTIC_SIGNAL_STATS_FEATURES_FILE);
-  if(!DeterministicSignalStatsAppendRow(filename,
-                                        DETERMINISTIC_SIGNAL_STATS_FEATURES_HEADER,
-                                        row))
+  if(!DeterministicSignalStatsQueueRow(filename,
+                                       DETERMINISTIC_SIGNAL_STATS_FEATURES_HEADER,
+                                       row,
+                                       g_deterministic_signal_stats_feature_buffer))
     return false;
 
   signal_params.deterministic_stats_feature_exported = true;
@@ -849,9 +995,10 @@ bool DeterministicSignalStatsRecordOutcome(SignalParams &signal_params)
     return false;
 
   string filename = DeterministicSignalStatsPath(DETERMINISTIC_SIGNAL_STATS_OUTCOMES_FILE);
-  if(!DeterministicSignalStatsAppendRow(filename,
-                                        DETERMINISTIC_SIGNAL_STATS_OUTCOMES_HEADER,
-                                        row))
+  if(!DeterministicSignalStatsQueueRow(filename,
+                                       DETERMINISTIC_SIGNAL_STATS_OUTCOMES_HEADER,
+                                       row,
+                                       g_deterministic_signal_stats_outcome_buffer))
     return false;
 
   signal_params.deterministic_stats_outcome_exported = true;
