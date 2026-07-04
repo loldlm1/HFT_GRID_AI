@@ -21,6 +21,36 @@ struct SignalOrderCloseCandidate
   }
 };
 
+struct ExecutionLegTradeAdmissionContext
+{
+  bool                       allowed;
+  string                     comment;
+  double                     point_size;
+  double                     normalized_volume;
+  BrokerExecutionSnapshot    broker_snapshot;
+  BrokerExecutionEligibility eligibility;
+
+  ExecutionLegTradeAdmissionContext()
+  {
+    allowed           = false;
+    comment           = "";
+    point_size        = 0.0;
+    normalized_volume = 0.0;
+    broker_snapshot   = BrokerExecutionSnapshot();
+    eligibility       = BrokerExecutionEligibility();
+  }
+
+  ExecutionLegTradeAdmissionContext(const ExecutionLegTradeAdmissionContext &context)
+  {
+    allowed           = context.allowed;
+    comment           = context.comment;
+    point_size        = context.point_size;
+    normalized_volume = context.normalized_volume;
+    broker_snapshot   = context.broker_snapshot;
+    eligibility       = context.eligibility;
+  }
+};
+
 double ResolveExecutionLegTrackedVolume(const ExecutionLegState &leg_state)
 {
   if(leg_state.position_ticket > 0 && PositionSelectByTicket(leg_state.position_ticket))
@@ -194,29 +224,44 @@ bool LimitSignalExpiredOnStructureChange(const SignalParams &signal_params)
   return (current_time > entry_time);
 }
 
-bool ExecuteExecutionLegTrade(SignalParams &signal_params,
-                           ExecutionLegState &leg_state,
-                           const double point_size,
-                           const double normalized_volume)
+bool PrepareExecutionLegTradeAdmission(SignalParams &signal_params,
+                                       ExecutionLegState &leg_state,
+                                       const double point_size,
+                                       const double normalized_volume,
+                                       ExecutionLegTradeAdmissionContext &context_out)
 {
-  SignalTypes direction = signal_params.signal_type;
-  string comment = ExecutionComposeLegComment(signal_params, leg_state);
-  BrokerExecutionSnapshot broker_snapshot;
-  BrokerExecutionEligibility eligibility;
+  context_out = ExecutionLegTradeAdmissionContext();
+  context_out.comment = ExecutionComposeLegComment(signal_params, leg_state);
+  context_out.point_size = point_size;
+  context_out.normalized_volume = normalized_volume;
+
   if(!EvaluateLocalExecutionLegEligibility(signal_params,
                                            leg_state,
                                            normalized_volume,
-                                           broker_snapshot,
-                                           eligibility))
+                                           context_out.broker_snapshot,
+                                           context_out.eligibility))
   {
-    string block_reason = eligibility.block_source;
-    if(eligibility.block_reason != "")
-      block_reason = block_reason + ":" + eligibility.block_reason;
+    string block_reason = context_out.eligibility.block_source;
+    if(context_out.eligibility.block_reason != "")
+      block_reason = block_reason + ":" + context_out.eligibility.block_reason;
     ExecutionLogGuardrailBlock("LOCAL_EXECUTION_BLOCK", signal_params, leg_state, block_reason);
-    if(Debug_Stop_On_Negative_Equity && eligibility.block_source == "margin")
+    if(Debug_Stop_On_Negative_Equity && context_out.eligibility.block_source == "margin")
       g_debug_no_money_abort_pending = true;
     return false;
   }
+
+  context_out.allowed = true;
+  return true;
+}
+
+bool ApplyExecutionLegTradeAdmission(SignalParams &signal_params,
+                                     ExecutionLegState &leg_state,
+                                     const ExecutionLegTradeAdmissionContext &context)
+{
+  if(!context.allowed)
+    return false;
+
+  SignalTypes direction = signal_params.signal_type;
 
   if(!leg_state.opens_position)
   {
@@ -229,19 +274,19 @@ bool ExecuteExecutionLegTrade(SignalParams &signal_params,
     leg_state.status            = EXECUTION_LEG_ACTIVE;
     leg_state.entry_price       = fill_price;
     leg_state.position_ticket   = 0;
-    leg_state.position_comment  = comment;
+    leg_state.position_comment  = context.comment;
     leg_state.last_action_time  = TimeCurrent();
     signal_params.execution_legs[leg_state.level_index] = leg_state;
     return true;
   }
 
-  double order_volume = broker_snapshot.normalized_volume;
+  double order_volume = context.broker_snapshot.normalized_volume;
 
   bool sent = false;
   if(direction == BULLISH)
-    sent = g_position.Buy(order_volume, _Symbol, 0.0, 0.0, 0.0, comment);
+    sent = g_position.Buy(order_volume, _Symbol, 0.0, 0.0, 0.0, context.comment);
   else
-    sent = g_position.Sell(order_volume, _Symbol, 0.0, 0.0, 0.0, comment);
+    sent = g_position.Sell(order_volume, _Symbol, 0.0, 0.0, 0.0, context.comment);
 
   if(!sent)
   {
@@ -268,7 +313,7 @@ bool ExecuteExecutionLegTrade(SignalParams &signal_params,
   leg_state.entry_price = fill_price;
   ulong deal_ticket = (ulong)g_position.ResultDeal();
   leg_state.position_ticket = ResolvePositionTicketFromDeal(deal_ticket);
-  leg_state.position_comment = comment;
+  leg_state.position_comment = context.comment;
   leg_state.last_action_time = TimeCurrent();
 
   signal_params.execution_legs[leg_state.level_index] = leg_state;
@@ -286,6 +331,24 @@ bool ExecuteExecutionLegTrade(SignalParams &signal_params,
                                "sent_order_position_not_found");
   }
   return sent;
+}
+
+bool ExecuteExecutionLegTrade(SignalParams &signal_params,
+                              ExecutionLegState &leg_state,
+                              const double point_size,
+                              const double normalized_volume)
+{
+  ExecutionLegTradeAdmissionContext context;
+  if(!PrepareExecutionLegTradeAdmission(signal_params,
+                                        leg_state,
+                                        point_size,
+                                        normalized_volume,
+                                        context))
+    return false;
+
+  return ApplyExecutionLegTradeAdmission(signal_params,
+                                         leg_state,
+                                         context);
 }
 
 bool CloseExecutionLegBrokerPosition(ExecutionLegState &leg_state,
