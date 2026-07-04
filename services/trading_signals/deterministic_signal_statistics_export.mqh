@@ -234,6 +234,25 @@ bool DeterministicSignalStatsWriteLine(const string filename,
   return true;
 }
 
+bool DeterministicSignalStatsAppendRow(const string filename,
+                                       const string header,
+                                       const string row)
+{
+  if(!DeterministicSignalStatsReady())
+    return false;
+  if(filename == "" || header == "" || row == "")
+    return false;
+
+  bool needs_header = !FileIsExist(filename, FILE_COMMON);
+  if(needs_header)
+  {
+    if(!DeterministicSignalStatsWriteLine(filename, header, false))
+      return false;
+  }
+
+  return DeterministicSignalStatsWriteLine(filename, row, true);
+}
+
 string DeterministicSignalStatsManifestRow(const string key,
                                            const string value)
 {
@@ -333,6 +352,329 @@ string DeterministicSignalStatsEnsureSignalId(SignalParams &signal_params)
   }
 
   return signal_params.deterministic_stats_signal_id;
+}
+
+string DeterministicSignalStatsDirectionToken(const SignalTypes direction)
+{
+  if(direction == BULLISH)
+    return "BULLISH";
+  if(direction == BEARISH)
+    return "BEARISH";
+  return "NONE";
+}
+
+string DeterministicSignalStatsSourceTypeToken(const SignalParams &signal_params)
+{
+  return signal_params.source_extremum_is_peak ? "PEAK" : "BOTTOM";
+}
+
+string DeterministicSignalStatsIntToken(const bool valid,
+                                        const int value)
+{
+  if(!valid)
+    return DETERMINISTIC_SIGNAL_STATS_NULL;
+  return IntegerToString(value);
+}
+
+string DeterministicSignalStatsDoubleToken(const bool valid,
+                                           const double value,
+                                           const int digits)
+{
+  if(!valid || !MathIsValidNumber(value))
+    return DETERMINISTIC_SIGNAL_STATS_NULL;
+  return DoubleToString(value, digits);
+}
+
+int DeterministicSignalStatsMacroDir(const ENUM_TIMEFRAMES timeframe)
+{
+  double ma_now = 0.0;
+  double ma_prev = 0.0;
+  if(!CopyDeterministicMaSlopeValues(timeframe, 0, ma_now, ma_prev))
+    return 0;
+
+  double eps = 0.0000000001;
+  if(ma_now > ma_prev + eps)
+    return 1;
+  if(ma_now < ma_prev - eps)
+    return -1;
+  return 0;
+}
+
+bool DeterministicSignalStatsStructurePrice(const OscillatorMarketStructure &structure,
+                                            const bool peak_price,
+                                            double &price_out)
+{
+  price_out = peak_price ? structure.extremum_high : structure.extremum_low;
+  return (price_out > 0.0 &&
+          price_out != DBL_MAX &&
+          price_out != -DBL_MAX &&
+          MathIsValidNumber(price_out));
+}
+
+bool DeterministicSignalStatsResolveFibonacciRange(const SignalParams &signal_params,
+                                                   double &peak_price_out,
+                                                   double &bottom_price_out,
+                                                   bool &source_is_peak_out)
+{
+  peak_price_out = 0.0;
+  bottom_price_out = 0.0;
+  source_is_peak_out = signal_params.source_extremum_is_peak;
+
+  if(!signal_params.base_structure_valid)
+    return false;
+
+  int total = ArraySize(signal_params.base_structure_data.os_market_structures);
+  if(total < 3)
+    return false;
+
+  OscillatorMarketStructure source = signal_params.base_structure_data.os_market_structures[0];
+  OscillatorMarketStructure opposite = signal_params.base_structure_data.os_market_structures[1];
+  OscillatorMarketStructure same_previous = signal_params.base_structure_data.os_market_structures[2];
+
+  if(source.is_peak != source_is_peak_out)
+    return false;
+  if(opposite.is_peak == source.is_peak)
+    return false;
+  if(same_previous.is_peak != source.is_peak)
+    return false;
+
+  if(source_is_peak_out)
+  {
+    if(!DeterministicSignalStatsStructurePrice(same_previous, true, peak_price_out))
+      return false;
+    if(!DeterministicSignalStatsStructurePrice(opposite, false, bottom_price_out))
+      return false;
+  }
+  else
+  {
+    if(!DeterministicSignalStatsStructurePrice(opposite, true, peak_price_out))
+      return false;
+    if(!DeterministicSignalStatsStructurePrice(same_previous, false, bottom_price_out))
+      return false;
+  }
+
+  return (peak_price_out > bottom_price_out);
+}
+
+bool DeterministicSignalStatsFibonacciPercent(const double peak_price,
+                                              const double bottom_price,
+                                              const bool source_is_peak,
+                                              const double price,
+                                              double &percent_out)
+{
+  percent_out = 0.0;
+  if(peak_price <= bottom_price || price <= 0.0)
+    return false;
+
+  if(source_is_peak)
+    percent_out = ((price - bottom_price) / (peak_price - bottom_price)) * 100.0;
+  else
+    percent_out = ((peak_price - price) / (peak_price - bottom_price)) * 100.0;
+
+  return MathIsValidNumber(percent_out);
+}
+
+string DeterministicSignalStatsFibonacciLevelToken(const double value)
+{
+  double normalized = NormalizeDouble(value, 1);
+  if(MathAbs(normalized) < 0.00001)
+    normalized = 0.0;
+  return DoubleToString(normalized, 1);
+}
+
+bool DeterministicSignalStatsFibonacciBand(const double percent,
+                                           string &band_out)
+{
+  band_out = DETERMINISTIC_SIGNAL_STATS_NULL;
+  if(!MathIsValidNumber(percent))
+    return false;
+
+  double cycle = 100.0;
+  double base = MathFloor(percent / cycle) * cycle;
+  double cursor = percent - base;
+  double eps = 0.000001;
+  double levels[4] = {0.0, 38.2, 61.8, 100.0};
+
+  for(int i = 0; i < 3; i++)
+  {
+    double lower = levels[i];
+    double upper = levels[i + 1];
+    if(cursor >= lower - eps && cursor <= upper + eps)
+    {
+      band_out = DeterministicSignalStatsFibonacciLevelToken(base + lower) + "_" +
+                 DeterministicSignalStatsFibonacciLevelToken(base + upper);
+      return true;
+    }
+  }
+
+  return false;
+}
+
+bool DeterministicSignalStatsChainScore(const MqlRates &rates[],
+                                        const int copied,
+                                        const int window,
+                                        const bool use_high,
+                                        int &score_out)
+{
+  score_out = 0;
+  if(window <= 0 || copied < window + 1)
+    return false;
+
+  for(int i = 0; i < window; i++)
+  {
+    double current_value = use_high ? rates[i].high : rates[i].low;
+    double previous_value = use_high ? rates[i + 1].high : rates[i + 1].low;
+    if(current_value <= 0.0 || previous_value <= 0.0)
+      continue;
+    if(current_value > previous_value)
+      score_out++;
+    else if(current_value < previous_value)
+      score_out--;
+  }
+
+  return true;
+}
+
+bool DeterministicSignalStatsBuildFeatureRow(SignalParams &signal_params,
+                                             const ExecutionLegState &leg_state,
+                                             string &row_out,
+                                             bool &valid_out)
+{
+  row_out = "";
+  valid_out = true;
+
+  if(!DeterministicSignalStatsReady() ||
+     !signal_params.deterministic_strategy)
+    return false;
+
+  string signal_id = DeterministicSignalStatsEnsureSignalId(signal_params);
+  if(signal_id == "")
+    return false;
+
+  string source_key = signal_params.deterministic_source_key;
+  if(source_key == "")
+    source_key = BuildDeterministicSignalSourceKey(signal_params);
+
+  int macro_h1 = DeterministicSignalStatsMacroDir(PERIOD_H1);
+  int macro_h4 = DeterministicSignalStatsMacroDir(PERIOD_H4);
+  int macro_d1 = DeterministicSignalStatsMacroDir(PERIOD_D1);
+
+  double peak_price = 0.0;
+  double bottom_price = 0.0;
+  bool source_is_peak = false;
+  bool fib_range_valid = DeterministicSignalStatsResolveFibonacciRange(signal_params,
+                                                                       peak_price,
+                                                                       bottom_price,
+                                                                       source_is_peak);
+
+  double sl_fib_raw = 0.0;
+  double entry_fib_raw = 0.0;
+  bool sl_fib_valid = fib_range_valid &&
+                      DeterministicSignalStatsFibonacciPercent(peak_price,
+                                                               bottom_price,
+                                                               source_is_peak,
+                                                               signal_params.raw_stop_anchor_price,
+                                                               sl_fib_raw);
+
+  double entry_reference = signal_params.raw_entry_trigger_price;
+  if(entry_reference <= 0.0)
+    entry_reference = leg_state.entry_reference_price;
+  bool entry_fib_valid = fib_range_valid &&
+                         DeterministicSignalStatsFibonacciPercent(peak_price,
+                                                                  bottom_price,
+                                                                  source_is_peak,
+                                                                  entry_reference,
+                                                                  entry_fib_raw);
+
+  string sl_fib_band = DETERMINISTIC_SIGNAL_STATS_NULL;
+  string entry_fib_band = DETERMINISTIC_SIGNAL_STATS_NULL;
+  bool sl_band_valid = sl_fib_valid &&
+                       DeterministicSignalStatsFibonacciBand(sl_fib_raw, sl_fib_band);
+  bool entry_band_valid = entry_fib_valid &&
+                          DeterministicSignalStatsFibonacciBand(entry_fib_raw, entry_fib_band);
+  valid_out = valid_out && sl_fib_valid && entry_fib_valid && sl_band_valid && entry_band_valid;
+
+  MqlRates rates[];
+  ArraySetAsSeries(rates, true);
+  int copied = CopyRates(_Symbol, DETERMINISTIC_BASE_TIMEFRAME, 1, 11, rates);
+  int low_score_3 = 0;
+  int low_score_5 = 0;
+  int low_score_10 = 0;
+  int high_score_3 = 0;
+  int high_score_5 = 0;
+  int high_score_10 = 0;
+  bool low_3_valid = DeterministicSignalStatsChainScore(rates, copied, 3, false, low_score_3);
+  bool low_5_valid = DeterministicSignalStatsChainScore(rates, copied, 5, false, low_score_5);
+  bool low_10_valid = DeterministicSignalStatsChainScore(rates, copied, 10, false, low_score_10);
+  bool high_3_valid = DeterministicSignalStatsChainScore(rates, copied, 3, true, high_score_3);
+  bool high_5_valid = DeterministicSignalStatsChainScore(rates, copied, 5, true, high_score_5);
+  bool high_10_valid = DeterministicSignalStatsChainScore(rates, copied, 10, true, high_score_10);
+  valid_out = valid_out && low_3_valid && low_5_valid && low_10_valid &&
+              high_3_valid && high_5_valid && high_10_valid;
+
+  datetime entry_time = leg_state.last_action_time;
+  if(entry_time <= 0)
+    entry_time = TimeCurrent();
+
+  row_out = IntegerToString(DETERMINISTIC_SIGNAL_STATS_SCHEMA_VERSION) + "\t" +
+            DeterministicSignalStatsCell(g_deterministic_signal_stats_run_id) + "\t" +
+            DeterministicSignalStatsCell(g_deterministic_signal_stats_config_id) + "\t" +
+            DeterministicSignalStatsCell(signal_id) + "\t" +
+            DeterministicSignalStatsCell(source_key) + "\t" +
+            IntegerToString(signal_params.deterministic_source_attempt_index) + "\t" +
+            DeterministicSignalStatsCell(_Symbol) + "\t" +
+            IntegerToString(signal_params.strategy_id) + "\t" +
+            DeterministicSignalStatsCell(signal_params.strategy_label) + "\t" +
+            DeterministicSignalStatsDirectionToken(signal_params.signal_type) + "\t" +
+            DeterministicSignalStatsTimeToken(entry_time) + "\t" +
+            DeterministicSignalStatsTimeToken(signal_params.source_extremum_time) + "\t" +
+            DeterministicSignalStatsSourceTypeToken(signal_params) + "\t" +
+            IntegerToString(macro_h1) + "\t" +
+            IntegerToString(macro_h4) + "\t" +
+            IntegerToString(macro_d1) + "\t" +
+            DeterministicSignalStatsDoubleToken(sl_fib_valid, sl_fib_raw, 1) + "\t" +
+            DeterministicSignalStatsCell(sl_fib_band) + "\t" +
+            DeterministicSignalStatsDoubleToken(entry_fib_valid, entry_fib_raw, 1) + "\t" +
+            DeterministicSignalStatsCell(entry_fib_band) + "\t" +
+            DeterministicSignalStatsIntToken(low_3_valid, low_score_3) + "\t" +
+            DeterministicSignalStatsIntToken(low_5_valid, low_score_5) + "\t" +
+            DeterministicSignalStatsIntToken(low_10_valid, low_score_10) + "\t" +
+            DeterministicSignalStatsIntToken(high_3_valid, high_score_3) + "\t" +
+            DeterministicSignalStatsIntToken(high_5_valid, high_score_5) + "\t" +
+            DeterministicSignalStatsIntToken(high_10_valid, high_score_10);
+
+  return true;
+}
+
+bool DeterministicSignalStatsRecordFeature(SignalParams &signal_params,
+                                           const ExecutionLegState &leg_state)
+{
+  if(!DeterministicSignalStatsReady())
+    return false;
+  if(!signal_params.deterministic_strategy)
+    return false;
+  if(signal_params.deterministic_stats_feature_exported)
+    return false;
+
+  string row = "";
+  bool valid = false;
+  if(!DeterministicSignalStatsBuildFeatureRow(signal_params,
+                                              leg_state,
+                                              row,
+                                              valid))
+    return false;
+
+  string filename = DeterministicSignalStatsPath(DETERMINISTIC_SIGNAL_STATS_FEATURES_FILE);
+  if(!DeterministicSignalStatsAppendRow(filename,
+                                        DETERMINISTIC_SIGNAL_STATS_FEATURES_HEADER,
+                                        row))
+    return false;
+
+  signal_params.deterministic_stats_feature_exported = true;
+  g_deterministic_signal_stats_feature_rows++;
+  if(!valid)
+    g_deterministic_signal_stats_feature_invalid_rows++;
+  return true;
 }
 
 #endif // _TS_DETERMINISTIC_STATS_EXPORT_MQH_

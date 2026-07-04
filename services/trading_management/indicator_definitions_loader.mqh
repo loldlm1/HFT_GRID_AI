@@ -199,6 +199,12 @@ void LoadDeterministicMaLogicIndicators()
   AddDeterministicMaHandle(ExtDeterministicMaLogicHandles, PERIOD_M3, 0);
   AddDeterministicMaHandle(ExtDeterministicMaLogicHandles, PERIOD_M5, 0);
   AddDeterministicMaHandle(ExtDeterministicMaLogicHandles, PERIOD_M10, 0);
+  if(Enable_Signal_Feature_Export)
+  {
+    AddDeterministicMaHandle(ExtDeterministicMaLogicHandles, PERIOD_H1, 0);
+    AddDeterministicMaHandle(ExtDeterministicMaLogicHandles, PERIOD_H4, 0);
+    AddDeterministicMaHandle(ExtDeterministicMaLogicHandles, PERIOD_D1, 0);
+  }
   SetTesterIndicatorHideMode(false);
 }
 
