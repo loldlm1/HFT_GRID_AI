@@ -16,6 +16,26 @@ SMOKE_BASELINE_DATASET_ID = "test_dataset_1"
 SMOKE_BASELINE_MODEL_ID = "xgb_test_1"
 SMOKE_BASELINE_EXPORT_ID = "xgb_test_1_export_v1"
 SMOKE_DATASET_MAX_ROWS = 10000
+CANDIDATE_MANIFEST_VERSION = "phase1.candidate_manifest.v1"
+DEFAULT_BASELINE_FEATURE_SET_ID = "schema_v1_baseline"
+DEFAULT_BASELINE_SCHEMA_VERSION = "phase1_schema_v1"
+DEFAULT_ROBUST_SPLIT_POLICY = "robust_chronological_train_early_threshold_holdout"
+DEFAULT_THRESHOLD_POLICY = "threshold_selection_not_final_holdout"
+
+REQUIRED_CANDIDATE_MANIFEST_FIELDS = (
+    "manifest_version",
+    "candidate_id",
+    "dataset_id",
+    "model_id",
+    "export_id",
+    "feature_set_id",
+    "schema_version",
+    "dataset_grade",
+    "split_policy",
+    "threshold_policy",
+    "robustness_report_path",
+    "notes",
+)
 
 
 class ModelValidationConfigError(RuntimeError):
@@ -51,6 +71,25 @@ class BaselineInventory:
         return asdict(self)
 
 
+@dataclass(frozen=True)
+class CandidateManifest:
+    manifest_version: str
+    candidate_id: str
+    dataset_id: str
+    model_id: str
+    export_id: str
+    feature_set_id: str
+    schema_version: str
+    dataset_grade: str
+    split_policy: str
+    threshold_policy: str
+    robustness_report_path: str
+    notes: str
+
+    def to_dict(self) -> dict[str, Any]:
+        return asdict(self)
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--dataset-id", default=SMOKE_BASELINE_DATASET_ID)
@@ -64,6 +103,18 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Print the full inventory as JSON instead of a compact text summary.",
     )
+    parser.add_argument(
+        "--write-candidate-manifest",
+        default="",
+        help="Optional path for a lightweight model-candidate manifest JSON.",
+    )
+    parser.add_argument("--candidate-id", default="")
+    parser.add_argument("--feature-set-id", default=DEFAULT_BASELINE_FEATURE_SET_ID)
+    parser.add_argument("--schema-version", default=DEFAULT_BASELINE_SCHEMA_VERSION)
+    parser.add_argument("--split-policy", default=DEFAULT_ROBUST_SPLIT_POLICY)
+    parser.add_argument("--threshold-policy", default=DEFAULT_THRESHOLD_POLICY)
+    parser.add_argument("--robustness-report-path", default="")
+    parser.add_argument("--notes", default="")
     return parser
 
 
@@ -183,6 +234,79 @@ def build_baseline_inventory(
     )
 
 
+def build_candidate_manifest(
+    inventory: BaselineInventory,
+    candidate_id: str = "",
+    feature_set_id: str = DEFAULT_BASELINE_FEATURE_SET_ID,
+    schema_version: str = DEFAULT_BASELINE_SCHEMA_VERSION,
+    split_policy: str = DEFAULT_ROBUST_SPLIT_POLICY,
+    threshold_policy: str = DEFAULT_THRESHOLD_POLICY,
+    robustness_report_path: str = "",
+    notes: str = "",
+) -> CandidateManifest:
+    resolved_candidate_id = candidate_id or f"{inventory.model_id}:{feature_set_id}"
+    resolved_report_path = (
+        robustness_report_path
+        or str(Path(inventory.paths.model_path) / "robustness" / "robustness_metrics.json")
+    )
+    return CandidateManifest(
+        manifest_version=CANDIDATE_MANIFEST_VERSION,
+        candidate_id=resolved_candidate_id,
+        dataset_id=inventory.dataset_id,
+        model_id=inventory.model_id,
+        export_id=inventory.export_id,
+        feature_set_id=feature_set_id,
+        schema_version=schema_version,
+        dataset_grade=inventory.dataset_grade,
+        split_policy=split_policy,
+        threshold_policy=threshold_policy,
+        robustness_report_path=resolved_report_path,
+        notes=notes,
+    )
+
+
+def validate_candidate_manifest_payload(payload: dict[str, Any]) -> None:
+    missing = [
+        field
+        for field in REQUIRED_CANDIDATE_MANIFEST_FIELDS
+        if field not in payload or payload[field] is None or (field != "notes" and payload[field] == "")
+    ]
+    if missing:
+        raise ModelValidationConfigError(
+            "Candidate manifest is missing required fields: " + ", ".join(missing)
+        )
+    if str(payload.get("manifest_version")) != CANDIDATE_MANIFEST_VERSION:
+        raise ModelValidationConfigError(
+            "Unsupported candidate manifest version: "
+            f"{payload.get('manifest_version')!r}"
+        )
+
+
+def load_candidate_manifest(path: Path) -> CandidateManifest:
+    payload = load_json_file(path)
+    validate_candidate_manifest_payload(payload)
+    return CandidateManifest(
+        manifest_version=str(payload["manifest_version"]),
+        candidate_id=str(payload["candidate_id"]),
+        dataset_id=str(payload["dataset_id"]),
+        model_id=str(payload["model_id"]),
+        export_id=str(payload["export_id"]),
+        feature_set_id=str(payload["feature_set_id"]),
+        schema_version=str(payload["schema_version"]),
+        dataset_grade=str(payload["dataset_grade"]),
+        split_policy=str(payload["split_policy"]),
+        threshold_policy=str(payload["threshold_policy"]),
+        robustness_report_path=str(payload["robustness_report_path"]),
+        notes=str(payload["notes"]),
+    )
+
+
+def write_candidate_manifest(path: Path, manifest: CandidateManifest) -> Path:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(manifest.to_dict(), indent=2, sort_keys=True), encoding="utf-8")
+    return path
+
+
 def compact_inventory_summary(inventory: BaselineInventory) -> str:
     rows = inventory.row_counts.get("training_matrix", 0)
     warning_token = "none" if not inventory.warnings else ",".join(inventory.warnings)
@@ -214,10 +338,30 @@ def main() -> int:
     except (ModelValidationConfigError, ValueError, json.JSONDecodeError) as exc:
         parser.exit(1, f"validation config failed: {exc}\n")
 
+    candidate_manifest_path = ""
+    if args.write_candidate_manifest:
+        manifest = build_candidate_manifest(
+            inventory,
+            candidate_id=args.candidate_id,
+            feature_set_id=args.feature_set_id,
+            schema_version=args.schema_version,
+            split_policy=args.split_policy,
+            threshold_policy=args.threshold_policy,
+            robustness_report_path=args.robustness_report_path,
+            notes=args.notes,
+        )
+        path = write_candidate_manifest(Path(args.write_candidate_manifest), manifest)
+        candidate_manifest_path = str(path)
+
     if args.json:
-        print(json.dumps(inventory.to_dict(), indent=2, sort_keys=True))
+        payload = inventory.to_dict()
+        if candidate_manifest_path:
+            payload["candidate_manifest_path"] = candidate_manifest_path
+        print(json.dumps(payload, indent=2, sort_keys=True))
     else:
         print(compact_inventory_summary(inventory))
+        if candidate_manifest_path:
+            print(f"candidate manifest written: {candidate_manifest_path}")
     return 0
 
 

@@ -282,6 +282,30 @@ The hardened validation flow must separate threshold selection from final
 holdout approval, report segment diagnostics, flag overfit risks, and compare
 future candidate models against a frozen baseline.
 
+```bash
+.venv/bin/python tools/deterministic_signal_ml/validate_model_robustness.py \
+  --dataset-id test_dataset_1 \
+  --model-id xgb_test_1 \
+  --export-id xgb_test_1_export_v1 \
+  --output-path artifacts/models/xgb_test_1/robustness
+```
+
+Candidate comparison uses lightweight manifests that point to robustness
+reports:
+
+```bash
+.venv/bin/python tools/deterministic_signal_ml/model_validation_config.py \
+  --dataset-id test_dataset_1 \
+  --model-id xgb_test_1 \
+  --export-id xgb_test_1_export_v1 \
+  --write-candidate-manifest artifacts/models/xgb_test_1/robustness/baseline_candidate_manifest.json
+
+.venv/bin/python tools/deterministic_signal_ml/compare_model_candidates.py \
+  --baseline-manifest artifacts/models/xgb_test_1/robustness/baseline_candidate_manifest.json \
+  --candidate-manifest artifacts/models/xgb_test_1/robustness/baseline_candidate_manifest.json \
+  --output-path artifacts/models/xgb_test_1/robustness/comparison
+```
+
 A fresh one-to-two-year Strategy Tester run is required before accepting new
 feature sets, production-like thresholds, cross-symbol claims, dynamic `1:n`
 target behavior, or any future live rollout evidence.

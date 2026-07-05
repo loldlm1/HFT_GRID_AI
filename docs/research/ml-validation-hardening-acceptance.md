@@ -63,6 +63,26 @@ Pending implementation:
 - Candidate comparison smoke result.
 - Real one-to-two-year run checklist.
 
+## Future Feature Acceptance Gate
+
+Future feature sets, including Feature Schema V2 candidates, must satisfy this
+gate before they can be treated as accepted research evidence:
+
+- Threshold selection must come from threshold-selection rows or pre-final
+  holdout out-of-fold rows, never from final holdout rows.
+- Final holdout must remain approval evidence only.
+- Candidate comparison must show material improvement versus the frozen
+  baseline, not merely equal smoke performance.
+- No critical segment regression may remain unresolved across strategy,
+  direction, source type, symbol, strategy-direction, or score-bucket views.
+- Overall selected rows and important segment selected rows must clear minimum
+  support guards.
+- Leakage, final-holdout reuse, no-gap-when-required, rare-bucket dominance,
+  and no-variation feature warnings must be resolved or explicitly accepted as
+  non-blocking before feature approval.
+- One-month smoke datasets cannot approve feature additions, production-like
+  thresholds, cross-symbol claims, or dynamic target work.
+
 ## Real Run Requirement
 
 A fresh one-to-two-year Strategy Tester run is required after this phase passes
