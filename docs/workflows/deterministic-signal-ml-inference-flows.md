@@ -14,6 +14,13 @@ acceptance evidence are archived under:
 requires a future explicit plan, human approval, monitoring rules, and rollback
 criteria.
 
+Future model, threshold, feature-set, multi-symbol, or dynamic target approval
+must use the hardened validation flow in
+`docs/research/ml-validation-hardening-acceptance.md`. The current short
+`test_dataset_1` / `xgb_test_1` baseline is smoke evidence only; threshold
+selection for accepted research must remain separate from final holdout
+approval.
+
 ## Use The Model For Backtesting Or Future Live Approval
 
 ```mermaid

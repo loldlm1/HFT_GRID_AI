@@ -310,6 +310,21 @@ A fresh one-to-two-year Strategy Tester run is required before accepting new
 feature sets, production-like thresholds, cross-symbol claims, dynamic `1:n`
 target behavior, or any future live rollout evidence.
 
+Real-run checklist:
+
+- Use `docs/environment/mt5-agentic-workflows.md` for MT5/Wine paths, Common
+  Files, and generated artifact handling.
+- Generate raw deterministic signal features and closed outcomes with ML mode
+  disabled unless a future plan intentionally studies `ML_INFERENCE_FILTER`
+  behavior.
+- Record the one-to-two-year date range, symbol, broker environment,
+  spread/cost assumptions, strategy inputs, run ID, and config ID.
+- Keep strategy configuration stable through the data-generation run.
+- Export enough closed signals for train core, early-stopping validation,
+  threshold selection, final holdout, walk-forward folds, and per-segment
+  diagnostics.
+- Do not tune features or thresholds on final holdout evidence.
+
 ## Agentic Evidence Policy
 
 Do not paste full TSV, Parquet, model JSON, or tree TSV files into chat.
