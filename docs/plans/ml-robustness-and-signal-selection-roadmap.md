@@ -25,11 +25,18 @@ validate, and commit one phase before starting the next phase.
   Tester validation.
 - Current model export flow uses Python XGBoost artifacts converted into
   MT5-readable TSV trees and feature maps.
-- Current model contract has Phase 1 schema version `1` and 49 encoded features.
+- The accepted short smoke export `xgb_test_1_export_v1` uses Phase 1 schema
+  version `1` and validated Python/MQL5 parity in Strategy Tester.
+- The fresh long XAUUSD 2025 baseline dataset/model is:
+  `xauusd_2025_dataset_1` / `xauusd_2025_xgb_1`.
+- That long baseline is intentionally a rejection baseline for FILTER: it
+  trained successfully, but produced `threshold_candidate=false`, holdout ROC
+  AUC near `0.495`, no selected rows at thresholds `>= 0.50`, and no valid
+  runtime export.
 - Current local dataset evidence is XAUUSD-only and should not be treated as
   cross-symbol proof.
-- Current FILTER runtime evidence validates Python/MQL5 parity and broker
-  admission filtering, but it does not solve simultaneous strategy arbitration.
+- Current FILTER runtime evidence validates Python/MQL5 parity, broker
+  admission filtering, and Phase 2 arbitration on a short XAUUSD smoke run.
 
 ## Non-Goals
 
@@ -125,16 +132,69 @@ Acceptance gate:
 **Risk level**: High, EA/Python/model artifact contract
 
 Expand features in a controlled schema version after validation hardening and
-arbitration are in place.
+arbitration are in place. Phase 3 is not only a schema-addition phase; it must
+start by explaining why the schema v1 long XAUUSD baseline failed to produce an
+approved FILTER threshold, then prove whether schema v2 features improve that
+baseline out-of-sample.
+
+Phase 3 should remain one roadmap phase for now. The `$planner` plan can split
+it into diagnostic, implementation, export/parity, and ablation sprints. Create
+a separate roadmap phase only if the diagnostic work grows into a long
+Python-only research program that does not require a schema change.
+
+Strategy framing:
+
+- S1, S2, and S3 are the same signal archetype at different pullback depths and
+  confirmation windows, not unrelated strategies.
+- S1 uses the shallowest context, with delay `3` and M3 MA confirmation.
+- S2 uses delay `5` and M5 MA confirmation.
+- S3 uses delay `10` and M10 MA confirmation.
+- Phase 3 must evaluate whether one global model, per-strategy models, or
+  per-strategy thresholds are more robust. Aggregate improvement alone is not
+  enough if one strategy carries the result while another degrades.
+- Strategy identity should be represented both as categorical identity and, if
+  useful, as ordered depth/context features such as delay period and
+  confirmation timeframe.
+
+Direction and trend framing:
+
+- Bullish and bearish samples must be evaluated separately because entries are
+  driven by short-window MA slope context and macro H1/H4/D1 trend direction.
+- A global model may still be acceptable, but only if segment reports show it
+  does not hide weak or inverted behavior by direction.
+- Candidate directional features should express alignment between entry
+  direction and macro trend context, not only raw macro direction values.
+
+Session framing:
+
+- Session features are allowed as secondary diagnostic features, but they are
+  not the primary Phase 3 objective.
+- Session buckets must be treated as overfit-prone unless they have enough
+  support across chronological folds and do not merely memorize a short market
+  regime.
 
 Recommended scope:
 
+- freeze and document the current long XAUUSD 2025 schema v1 rejection baseline:
+  dataset, model, holdout metrics, probability range, missing threshold, and
+  export rejection reason
+- add a baseline diagnostic report by `strategy_label`, direction, source type,
+  and strategy-depth family before changing the schema
+- compare global, per-strategy, and direction-aware validation summaries before
+  deciding whether Phase 3 should promote a global artifact or only segment
+  candidates
 - create Phase 1 feature schema version `2`
 - add prior structure type features for the source, opposite, and previous
   same-type extrema used by the Fibonacci range
 - add previous closed candle ratio features from `shift=1`
 - keep candle pattern labels derived from numeric ratios, not as the only
   representation
+- add strategy-depth/context features when they are not redundant with existing
+  categorical strategy labels
+- add direction and macro-trend alignment features derived only from information
+  available at entry time
+- optionally add coarse session features only after the primary structure,
+  candle, strategy-depth, and direction diagnostics are in place
 - update dataset builder, trainer, exporter, MQL5 scorer, parity validator, and
   comparison tooling for schema v2
 - keep schema v1 artifact loading and validation intact unless explicitly
@@ -157,11 +217,28 @@ Candidate candle features:
 - `prev_candle_dir`
 - optional derived `prev_candle_shape`
 
+Candidate strategy-depth and directional features:
+
+- `strategy_delay_period`
+- `confirmation_timeframe_minutes`
+- `entry_direction_macro_alignment`
+- `macro_alignment_score`
+- optional `session_bucket` only as a secondary ablation candidate
+
 Acceptance gate:
 
 - schema v2 dataset builds from a fresh Strategy Tester export
 - baseline versus v2 ablation is available
-- feature additions improve validation across folds or are explicitly rejected
+- feature additions improve validation across folds, by strategy-depth segment,
+  and by bullish/bearish direction, or are explicitly rejected
+- a FILTER export is allowed only if threshold selection is positive on the
+  threshold-selection split and remains acceptable on untouched final holdout or
+  a future out-of-sample Strategy Tester range
+- per-strategy or per-direction artifacts/thresholds are allowed only when row
+  counts are large enough and the segment result is more robust than a global
+  model
+- session features are accepted only if they improve out-of-sample evidence
+  without rare-bucket or regime-memorization warnings
 - no feature uses future bars, terminal outcome, blocked-result information, or
   post-entry data
 - Python/MQL5 scoring parity remains within accepted tolerance
