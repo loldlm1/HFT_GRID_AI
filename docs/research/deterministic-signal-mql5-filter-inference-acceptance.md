@@ -2,8 +2,8 @@
 
 **Date**: 2026-07-04
 **Phase**: 6 - MQL5 Filter Inference
-**Status**: IMPLEMENTATION PASS for Ubuntu/Wine compile and static validation;
-Strategy Tester `FILTER` runtime validation is pending a human-in-the-loop run.
+**Status**: PASS for Ubuntu/Wine compile, static validation, and Strategy Tester
+`FILTER` runtime validation.
 
 ## Validation Summary
 
@@ -58,7 +58,8 @@ Pending human-in-the-loop validation on Windows.
 ## Tooling Evidence
 
 - `python3 -m py_compile tools/deterministic_signal_ml/*.py`: `PASS`
-- Existing Phase 5 shadow run summary:
+- Historical Phase 5 shadow run summary before the `FILTER` rerun reused
+  `shadow_test_run_1`:
   - Command: `.venv/bin/python tools/deterministic_signal_ml/summarize_filter_run.py --shadow-run-path /home/loldlm/.wine/drive_c/users/loldlm/AppData/Roaming/MetaQuotes/Terminal/Common/Files/DeterministicSignalML/shadow_runs/shadow_test_run_1`
   - Result: `PASS`
   - predictions: 2834
@@ -80,27 +81,65 @@ Pending human-in-the-loop validation on Windows.
 
 ## Runtime Filter Evidence
 
-Pending. A human must run Strategy Tester with:
+Human-in-the-loop Strategy Tester was run with:
 
 ```text
 ML_Inference_Mode = ML_INFERENCE_FILTER
 ML_Model_Export_Id = xgb_test_1_export_v1
 ```
 
-Expected validation commands after the run:
+Updated run files:
+
+- Run path: `/home/loldlm/.wine/drive_c/users/loldlm/AppData/Roaming/MetaQuotes/Terminal/Common/Files/DeterministicSignalML/shadow_runs/shadow_test_run_1`
+- `shadow_manifest.tsv`: updated `2026-07-04 20:17:26 -0400`
+- `shadow_predictions.tsv`: updated `2026-07-04 20:20:10 -0400`
+- `shadow_outcomes.tsv`: updated `2026-07-04 20:20:10 -0400`
+- `shadow_summary.tsv`: updated `2026-07-04 20:20:10 -0400`
+
+Summary validation:
 
 ```bash
 .venv/bin/python tools/deterministic_signal_ml/summarize_filter_run.py \
-  --shadow-run-path "$MT5_COMMON_FILES/DeterministicSignalML/shadow_runs/<shadow_run_id>"
+  --shadow-run-path /home/loldlm/.wine/drive_c/users/loldlm/AppData/Roaming/MetaQuotes/Terminal/Common/Files/DeterministicSignalML/shadow_runs/shadow_test_run_1
+```
 
+Result:
+
+```text
+filter run summary PASS | run_id=shadow_test_run_1 | mode=FILTER | export_id=xgb_test_1_export_v1 | predictions=4846 | outcomes=301 | scored=4846 | unavailable_rows=0 | recommendation_ALLOW=301 | recommendation_BLOCK=4545 | admission_ALLOW=301 | admission_BLOCK=4545 | export_status=OK
+```
+
+Prediction parity validation:
+
+```bash
 .venv/bin/python tools/deterministic_signal_ml/compare_shadow_predictions.py \
   --export-id xgb_test_1_export_v1 \
-  --shadow-run-path "$MT5_COMMON_FILES/DeterministicSignalML/shadow_runs/<shadow_run_id>"
+  --shadow-run-path /home/loldlm/.wine/drive_c/users/loldlm/AppData/Roaming/MetaQuotes/Terminal/Common/Files/DeterministicSignalML/shadow_runs/shadow_test_run_1
 ```
+
+Result:
+
+```text
+shadow prediction comparison PASS | rows=4846 | classifier_max_abs_error=4.99940822074e-09 | classifier_mean_abs_error=2.37132761166e-09 | decision_agreement=1 | regressor_max_abs_error=4.998499999325778e-09
+```
+
+Direct TSV consistency checks:
+
+- `inference_mode`: `FILTER=4846`
+- recommendations: `ALLOW=301`, `BLOCK=4545`
+- admission actions: `ALLOW=301`, `BLOCK=4545`
+- filter block reason: `classifier_score_lt_threshold=4545`
+- invalid feature rows: `0`
+- unavailable events: `0`
+- outcomes: `301`
+- outcome admissions: `ALLOW=301`
+- blocked signals with outcome: `0`
+- allowed signals without outcome: `0`
+- terminal outcomes: `TP=224`, `SL=77`
 
 ## Acceptance Gate
 
-Phase 6 runtime acceptance remains pending until all are true:
+Phase 6 runtime acceptance is `PASS`:
 
 - Strategy Tester `FILTER` run produces nonzero scored prediction rows.
 - Filter run summary is `PASS`.
@@ -108,4 +147,5 @@ Phase 6 runtime acceptance remains pending until all are true:
 - `BLOCK` decisions do not create broker positions.
 - `ALLOW` decisions still respect broker/risk gates and normal broker-send
   failure handling.
-- Human reviews the Strategy Tester behavioral delta.
+- Human reviewed the Strategy Tester behavioral delta by providing the runtime
+  run for validation.

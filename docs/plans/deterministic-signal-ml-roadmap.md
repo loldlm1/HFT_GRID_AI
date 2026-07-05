@@ -161,19 +161,18 @@ and must not alter broker admission.
 
 ## Phase 6: MQL5 Filter Inference
 
-**Status**: Implemented on 2026-07-04 with clean Ubuntu/Wine compile. Strategy
-Tester `FILTER` runtime validation remains pending a human-in-the-loop run.
-Scope is Strategy Tester broker admission filtering only; live deployment
-remains out of scope.
+**Status**: PASS on 2026-07-04 for Ubuntu/Wine compile, static validation, and
+Strategy Tester `FILTER` runtime validation. Scope is Strategy Tester broker
+admission filtering only; live deployment remains out of scope.
 
 After shadow inference proves useful, allow the model to affect Strategy Tester
 broker admission.
 
 Phase 6 implementation was approved after Phase 5 met the required clean compile,
 artifact load, nonzero shadow prediction rows, parity validator `PASS`, closed
-outcome evidence, and explicit human approval. Do not treat Phase 6 as accepted
-runtime behavior until a Strategy Tester `FILTER` run is summarized and compared
-against the Python scorer.
+outcome evidence, and explicit human approval. Phase 6 runtime acceptance passed
+after a Strategy Tester `FILTER` run was summarized and compared against the
+Python scorer.
 
 Recommended modes:
 
