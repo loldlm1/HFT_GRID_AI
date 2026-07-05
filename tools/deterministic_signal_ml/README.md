@@ -265,6 +265,27 @@ The summarizer checks required TSV files, duplicate headers, row-count
 consistency, filter allow/block counters, unavailable blocks, invalid-feature
 blocks, and export status. It prints compact counts only.
 
+## Validation Hardening
+
+Phase 1 of the ML robustness roadmap adds Python-only validation hardening
+before new features or runtime behavior changes. The current short baseline is
+usable for tooling smoke checks only:
+
+```bash
+.venv/bin/python tools/deterministic_signal_ml/model_validation_config.py \
+  --dataset-id test_dataset_1 \
+  --model-id xgb_test_1 \
+  --export-id xgb_test_1_export_v1
+```
+
+The hardened validation flow must separate threshold selection from final
+holdout approval, report segment diagnostics, flag overfit risks, and compare
+future candidate models against a frozen baseline.
+
+A fresh one-to-two-year Strategy Tester run is required before accepting new
+feature sets, production-like thresholds, cross-symbol claims, dynamic `1:n`
+target behavior, or any future live rollout evidence.
+
 ## Agentic Evidence Policy
 
 Do not paste full TSV, Parquet, model JSON, or tree TSV files into chat.
