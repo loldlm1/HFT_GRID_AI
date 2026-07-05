@@ -265,6 +265,39 @@ The summarizer checks required TSV files, duplicate headers, row-count
 consistency, filter allow/block counters, unavailable blocks, invalid-feature
 blocks, and export status. It prints compact counts only.
 
+## Signal Arbitration
+
+Phase 2 of the ML robustness roadmap adds deterministic arbitration for
+Strategy Tester `ML_INFERENCE_FILTER` runs. Arbitration is applied only after
+existing broker/risk admission preparation and after ML FILTER allows a
+candidate. It chooses one candidate per group and closes non-selected candidates
+locally with `ML_ARBITRATION_BLOCKED`.
+
+The accepted rank policy is:
+
+1. highest classifier score
+2. highest regressor score
+3. stable strategy priority `S1 > S2 > S3`
+
+Arbitration decisions are recorded in a separate run artifact:
+
+```text
+DeterministicSignalML/shadow_runs/<shadow_run_id>/arbitration_decisions.tsv
+```
+
+Use strict summary validation after a Phase 2 FILTER smoke run:
+
+```bash
+.venv/bin/python tools/deterministic_signal_ml/summarize_filter_run.py \
+  --shadow-run-path "$MT5_COMMON_FILES/DeterministicSignalML/shadow_runs/<shadow_run_id>" \
+  --require-arbitration
+```
+
+Old filter run folders do not contain arbitration evidence and must not be used
+as Phase 2 acceptance evidence. A fresh XAUUSD smoke run is required after the
+implementation; the long XAUUSD run should be generated only after smoke
+validation passes.
+
 ## Validation Hardening
 
 Phase 1 of the ML robustness roadmap adds Python-only validation hardening
