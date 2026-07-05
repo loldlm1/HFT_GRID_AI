@@ -18,6 +18,7 @@ const string ML_SHADOW_RUN_MANIFEST_FILE       = "shadow_manifest.tsv";
 const string ML_SHADOW_PREDICTIONS_FILE        = "shadow_predictions.tsv";
 const string ML_SHADOW_OUTCOMES_FILE           = "shadow_outcomes.tsv";
 const string ML_SHADOW_SUMMARY_FILE            = "shadow_summary.tsv";
+const string ML_SHADOW_ARBITRATION_DECISIONS_FILE = "arbitration_decisions.tsv";
 const int    ML_SHADOW_FEATURE_RESERVE         = 64;
 const int    ML_SHADOW_TREE_NODE_RESERVE       = 512;
 const int    ML_SHADOW_MANIFEST_RESERVE        = 48;
@@ -29,8 +30,10 @@ const string ML_SHADOW_PREDICTIONS_HEADER =
   "schema_version\tshadow_run_id\texport_id\tmodel_id\tdataset_id\tfeature_schema_version\tsignal_id\tsource_key\tsource_attempt_index\tsymbol\tstrategy_id\tstrategy_label\tdirection\tsource_type\tentry_time\tclassifier_score\tregressor_score\tthreshold_probability\trecommendation\treason\tfeature_valid\tmodel_available\tmacro_h1_live_dir\tmacro_h4_live_dir\tmacro_d1_live_dir\tsl_fib_raw\tsl_fib_band\tentry_fib_raw\tentry_fib_band\tlow_chain_score_3\tlow_chain_score_5\tlow_chain_score_10\thigh_chain_score_3\thigh_chain_score_5\thigh_chain_score_10\tinference_mode\tadmission_action\tfilter_reason";
 const string ML_SHADOW_OUTCOMES_HEADER =
   "schema_version\tshadow_run_id\texport_id\tmodel_id\tsignal_id\tsource_key\tsource_attempt_index\tterminal_time\tterminal_reason\trecommendation\tclassifier_score\tthreshold_probability\tprofit_r\tnet_profit\tduration_seconds";
+const string ML_SHADOW_ARBITRATION_DECISIONS_HEADER =
+  "schema_version\tshadow_run_id\texport_id\tmodel_id\tarbitration_group_id\tselected_signal_id\tsignal_id\tsource_key\tsource_attempt_index\tsymbol\tstrategy_id\tstrategy_label\tdirection\tsource_type\tsource_extremum_slot\tsource_extremum_time\tsource_extremum_is_peak\tsource_extremum_price\tactivation_time\tclassifier_score\tregressor_score\tthreshold_probability\trank_position\trank_reason\tarbitration_action\tarbitration_reason";
 const string ML_SHADOW_SUMMARY_HEADER =
-  "schema_version\tshadow_run_id\texport_id\tmodel_id\tstarted_at\tfinished_at\tprediction_rows\toutcome_rows\tinvalid_feature_rows\tunavailable_events\tfilter_allow_rows\tfilter_block_rows\tfilter_invalid_feature_blocks\tfilter_unavailable_blocks\texport_status";
+  "schema_version\tshadow_run_id\texport_id\tmodel_id\tstarted_at\tfinished_at\tprediction_rows\toutcome_rows\tinvalid_feature_rows\tunavailable_events\tfilter_allow_rows\tfilter_block_rows\tfilter_invalid_feature_blocks\tfilter_unavailable_blocks\tarbitration_group_rows\tarbitration_single_candidate_groups\tarbitration_multi_candidate_groups\tarbitration_selected_rows\tarbitration_blocked_rows\tarbitration_classifier_tie_rows\tarbitration_regressor_tie_rows\tarbitration_strategy_tie_break_rows\texport_status";
 
 struct MLShadowRuntimeState
 {
@@ -63,6 +66,14 @@ struct MLShadowRuntimeState
   int      filter_block_rows;
   int      filter_invalid_feature_blocks;
   int      filter_unavailable_blocks;
+  int      arbitration_group_rows;
+  int      arbitration_single_candidate_groups;
+  int      arbitration_multi_candidate_groups;
+  int      arbitration_selected_rows;
+  int      arbitration_blocked_rows;
+  int      arbitration_classifier_tie_rows;
+  int      arbitration_regressor_tie_rows;
+  int      arbitration_strategy_tie_break_rows;
   bool     export_failed;
 
   MLShadowRuntimeState()
@@ -96,6 +107,14 @@ struct MLShadowRuntimeState
     filter_block_rows       = 0;
     filter_invalid_feature_blocks = 0;
     filter_unavailable_blocks = 0;
+    arbitration_group_rows = 0;
+    arbitration_single_candidate_groups = 0;
+    arbitration_multi_candidate_groups = 0;
+    arbitration_selected_rows = 0;
+    arbitration_blocked_rows = 0;
+    arbitration_classifier_tie_rows = 0;
+    arbitration_regressor_tie_rows = 0;
+    arbitration_strategy_tie_break_rows = 0;
     export_failed           = false;
   }
 };
@@ -228,6 +247,7 @@ MLShadowTreeNode      g_ml_shadow_classifier_nodes[];
 MLShadowTreeNode      g_ml_shadow_regressor_nodes[];
 string                g_ml_shadow_prediction_buffer[];
 string                g_ml_shadow_outcome_buffer[];
+string                g_ml_shadow_arbitration_buffer[];
 
 bool DeterministicSignalMLShadowEnabled()
 {
@@ -326,6 +346,7 @@ void MLShadowClearArrays()
   ArrayResize(g_ml_shadow_regressor_nodes, 0, ML_SHADOW_TREE_NODE_RESERVE);
   ArrayResize(g_ml_shadow_prediction_buffer, 0, ML_SHADOW_FLUSH_ROWS);
   ArrayResize(g_ml_shadow_outcome_buffer, 0, ML_SHADOW_FLUSH_ROWS);
+  ArrayResize(g_ml_shadow_arbitration_buffer, 0, ML_SHADOW_FLUSH_ROWS);
 }
 
 void DeterministicSignalMLShadowReset()
@@ -540,7 +561,10 @@ bool MLShadowFlushAll()
   bool outcomes_ok = MLShadowFlushBuffer(MLShadowOutputPath(ML_SHADOW_OUTCOMES_FILE),
                                          ML_SHADOW_OUTCOMES_HEADER,
                                          g_ml_shadow_outcome_buffer);
-  return predictions_ok && outcomes_ok;
+  bool arbitration_ok = MLShadowFlushBuffer(MLShadowOutputPath(ML_SHADOW_ARBITRATION_DECISIONS_FILE),
+                                            ML_SHADOW_ARBITRATION_DECISIONS_HEADER,
+                                            g_ml_shadow_arbitration_buffer);
+  return predictions_ok && outcomes_ok && arbitration_ok;
 }
 
 string MLShadowManifestRow(const string key,
@@ -588,7 +612,10 @@ bool MLShadowPrepareRowFiles()
   bool outcomes_ok = MLShadowWriteLine(MLShadowOutputPath(ML_SHADOW_OUTCOMES_FILE),
                                        ML_SHADOW_OUTCOMES_HEADER,
                                        false);
-  return predictions_ok && outcomes_ok;
+  bool arbitration_ok = MLShadowWriteLine(MLShadowOutputPath(ML_SHADOW_ARBITRATION_DECISIONS_FILE),
+                                          ML_SHADOW_ARBITRATION_DECISIONS_HEADER,
+                                          false);
+  return predictions_ok && outcomes_ok && arbitration_ok;
 }
 
 void MLShadowLogLoadStatus()
@@ -1816,6 +1843,14 @@ string MLShadowSummaryRow(const datetime finished_at,
          IntegerToString(g_ml_shadow_state.filter_block_rows) + "\t" +
          IntegerToString(g_ml_shadow_state.filter_invalid_feature_blocks) + "\t" +
          IntegerToString(g_ml_shadow_state.filter_unavailable_blocks) + "\t" +
+         IntegerToString(g_ml_shadow_state.arbitration_group_rows) + "\t" +
+         IntegerToString(g_ml_shadow_state.arbitration_single_candidate_groups) + "\t" +
+         IntegerToString(g_ml_shadow_state.arbitration_multi_candidate_groups) + "\t" +
+         IntegerToString(g_ml_shadow_state.arbitration_selected_rows) + "\t" +
+         IntegerToString(g_ml_shadow_state.arbitration_blocked_rows) + "\t" +
+         IntegerToString(g_ml_shadow_state.arbitration_classifier_tie_rows) + "\t" +
+         IntegerToString(g_ml_shadow_state.arbitration_regressor_tie_rows) + "\t" +
+         IntegerToString(g_ml_shadow_state.arbitration_strategy_tie_break_rows) + "\t" +
          MLShadowOutputCell(export_status);
 }
 

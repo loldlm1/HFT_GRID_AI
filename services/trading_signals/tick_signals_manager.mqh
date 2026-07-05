@@ -229,38 +229,58 @@ bool BlockMLArbitrationCandidate(const MLArbitrationCandidate &candidate,
   return false;
 }
 
-int MLArbitrationFindBestIndexedCandidate(MLArbitrationCandidate &candidates[],
+void MLArbitrationBuildRankedGroupIndices(MLArbitrationCandidate &candidates[],
                                           int &group_indices[],
-                                          bool &skipped[])
+                                          int &ranked_indices[])
 {
   int group_total = ArraySize(group_indices);
-  int best_local_index = -1;
+  ArrayResize(ranked_indices, group_total);
   for(int i = 0; i < group_total; i++)
+    ranked_indices[i] = group_indices[i];
+
+  for(int i = 0; i < group_total - 1; i++)
   {
-    if(skipped[i])
-      continue;
-
-    int candidate_index = group_indices[i];
-    if(candidate_index < 0 || candidate_index >= ArraySize(candidates))
-      continue;
-    if(!candidates[candidate_index].valid)
-      continue;
-
-    if(best_local_index < 0)
+    for(int j = 0; j < group_total - i - 1; j++)
     {
-      best_local_index = i;
-      continue;
+      int left_index = ranked_indices[j];
+      int right_index = ranked_indices[j + 1];
+      if(left_index < 0 || left_index >= ArraySize(candidates) ||
+         right_index < 0 || right_index >= ArraySize(candidates))
+        continue;
+
+      string rank_reason = "";
+      if(MLArbitrationCompareCandidates(candidates[right_index],
+                                        candidates[left_index],
+                                        rank_reason) > 0)
+      {
+        int tmp = ranked_indices[j];
+        ranked_indices[j] = ranked_indices[j + 1];
+        ranked_indices[j + 1] = tmp;
+      }
     }
-
-    int best_candidate_index = group_indices[best_local_index];
-    string rank_reason = "";
-    if(MLArbitrationCompareCandidates(candidates[candidate_index],
-                                      candidates[best_candidate_index],
-                                      rank_reason) > 0)
-      best_local_index = i;
   }
+}
 
-  return best_local_index;
+string MLArbitrationResolveGroupRankReason(MLArbitrationCandidate &candidates[],
+                                           int &ranked_indices[])
+{
+  int group_total = ArraySize(ranked_indices);
+  if(group_total <= 1)
+    return ML_ARBITRATION_REASON_SINGLE;
+
+  int best_index = ranked_indices[0];
+  int second_index = ranked_indices[1];
+  if(best_index < 0 || best_index >= ArraySize(candidates) ||
+     second_index < 0 || second_index >= ArraySize(candidates))
+    return ML_ARBITRATION_REASON_FALLBACK;
+
+  string rank_reason = "";
+  MLArbitrationCompareCandidates(candidates[best_index],
+                                 candidates[second_index],
+                                 rank_reason);
+  if(rank_reason == "")
+    return ML_ARBITRATION_REASON_FALLBACK;
+  return rank_reason;
 }
 
 void ProcessMLArbitrationGroup(MLArbitrationCandidate &candidates[],
@@ -270,33 +290,41 @@ void ProcessMLArbitrationGroup(MLArbitrationCandidate &candidates[],
   if(group_total <= 0)
     return;
 
-  bool skipped[];
-  ArrayResize(skipped, group_total);
-  for(int i = 0; i < group_total; i++)
-    skipped[i] = false;
+  int ranked_indices[];
+  MLArbitrationBuildRankedGroupIndices(candidates,
+                                       group_indices,
+                                       ranked_indices);
+  string rank_reason = MLArbitrationResolveGroupRankReason(candidates,
+                                                           ranked_indices);
+  MLArbitrationRegisterGroupCounters(group_total,
+                                     rank_reason);
 
   int selected_index = -1;
+  int selected_rank_position = 0;
   string selected_signal_id = "";
-  while(true)
+  for(int i = 0; i < group_total; i++)
   {
-    int best_local_index = MLArbitrationFindBestIndexedCandidate(candidates,
-                                                                 group_indices,
-                                                                 skipped);
-    if(best_local_index < 0)
-      break;
-
-    int candidate_index = group_indices[best_local_index];
+    int candidate_index = ranked_indices[i];
     if(!MLArbitrationCandidateStillValid(candidates[candidate_index]))
     {
       ExecutionAppendQueryDebugLog("ML_ARBITRATION_INVALID",
                                    MLArbitrationCandidateDebugToken(candidates[candidate_index]));
-      skipped[best_local_index] = true;
       continue;
     }
 
     selected_index = candidate_index;
+    selected_rank_position = i + 1;
     selected_signal_id = candidates[selected_index].signal_id;
-    if(!ApplyMLArbitrationSelectedCandidate(candidates[selected_index]))
+    bool selected_applied = ApplyMLArbitrationSelectedCandidate(candidates[selected_index]);
+    string selected_reason = selected_applied ? rank_reason : ML_ARBITRATION_REASON_SELECTED_APPLY_FAILED;
+    MLArbitrationRecordDecision(candidates[selected_index],
+                                selected_signal_id,
+                                selected_rank_position,
+                                rank_reason,
+                                ML_ARBITRATION_ACTION_SELECTED,
+                                selected_reason);
+
+    if(!selected_applied)
     {
       ExecutionAppendQueryDebugLog("ML_ARBITRATION_SELECTED_APPLY_FAILED",
                                    MLArbitrationCandidateDebugToken(candidates[selected_index]));
@@ -309,14 +337,22 @@ void ProcessMLArbitrationGroup(MLArbitrationCandidate &candidates[],
 
   for(int i = 0; i < group_total; i++)
   {
-    int candidate_index = group_indices[i];
+    int candidate_index = ranked_indices[i];
     if(candidate_index == selected_index)
       continue;
     if(candidate_index < 0 || candidate_index >= ArraySize(candidates))
       continue;
 
-    BlockMLArbitrationCandidate(candidates[candidate_index],
-                                selected_signal_id);
+    if(BlockMLArbitrationCandidate(candidates[candidate_index],
+                                   selected_signal_id))
+    {
+      MLArbitrationRecordDecision(candidates[candidate_index],
+                                  selected_signal_id,
+                                  i + 1,
+                                  rank_reason,
+                                  ML_ARBITRATION_ACTION_BLOCKED,
+                                  rank_reason);
+    }
   }
 }
 

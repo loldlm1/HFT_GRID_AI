@@ -15,6 +15,7 @@ const string ML_ARBITRATION_REASON_CLASSIFIER = "highest_classifier_score";
 const string ML_ARBITRATION_REASON_REGRESSOR  = "classifier_tie_regressor_score";
 const string ML_ARBITRATION_REASON_STRATEGY   = "score_tie_strategy_priority";
 const string ML_ARBITRATION_REASON_FALLBACK   = "deterministic_fallback";
+const string ML_ARBITRATION_REASON_SELECTED_APPLY_FAILED = "selected_apply_failed";
 
 struct MLArbitrationCandidate
 {
@@ -465,6 +466,108 @@ bool MLArbitrationBuildCandidate(SignalParams &signal_params,
   candidate_out.admission_context      = admission_context;
 
   return (candidate_out.group_id != "" && candidate_out.signal_id != "");
+}
+
+void MLArbitrationRegisterGroupCounters(const int candidate_count,
+                                        const string rank_reason)
+{
+  if(!g_ml_shadow_state.enabled || !DeterministicSignalMLFilterMode())
+    return;
+
+  g_ml_shadow_state.arbitration_group_rows++;
+  if(candidate_count <= 1)
+    g_ml_shadow_state.arbitration_single_candidate_groups++;
+  else
+    g_ml_shadow_state.arbitration_multi_candidate_groups++;
+
+  if(rank_reason == ML_ARBITRATION_REASON_REGRESSOR)
+    g_ml_shadow_state.arbitration_classifier_tie_rows++;
+  else if(rank_reason == ML_ARBITRATION_REASON_STRATEGY)
+  {
+    g_ml_shadow_state.arbitration_classifier_tie_rows++;
+    g_ml_shadow_state.arbitration_regressor_tie_rows++;
+    g_ml_shadow_state.arbitration_strategy_tie_break_rows++;
+  }
+  else if(rank_reason == ML_ARBITRATION_REASON_FALLBACK)
+  {
+    g_ml_shadow_state.arbitration_classifier_tie_rows++;
+    g_ml_shadow_state.arbitration_regressor_tie_rows++;
+  }
+}
+
+string MLArbitrationDecisionOutputRow(const MLArbitrationCandidate &candidate,
+                                      const string selected_signal_id,
+                                      const int rank_position,
+                                      const string rank_reason,
+                                      const string action,
+                                      const string arbitration_reason)
+{
+  return IntegerToString(ML_ARBITRATION_SCHEMA_VERSION) + "\t" +
+         MLShadowOutputCell(g_ml_shadow_state.shadow_run_id) + "\t" +
+         MLShadowOutputCell(g_ml_shadow_state.export_id) + "\t" +
+         MLShadowOutputCell(g_ml_shadow_state.model_id) + "\t" +
+         MLShadowOutputCell(candidate.group_id) + "\t" +
+         MLShadowOutputCell(selected_signal_id) + "\t" +
+         MLShadowOutputCell(candidate.signal_id) + "\t" +
+         MLShadowOutputCell(candidate.source_key) + "\t" +
+         IntegerToString(candidate.source_attempt_index) + "\t" +
+         MLShadowOutputCell(candidate.symbol) + "\t" +
+         IntegerToString(candidate.strategy_id) + "\t" +
+         MLShadowOutputCell(candidate.strategy_label) + "\t" +
+         MLShadowOutputCell(MLArbitrationDirectionToken(candidate.direction)) + "\t" +
+         MLShadowOutputCell(candidate.source_type) + "\t" +
+         IntegerToString(candidate.source_extremum_slot) + "\t" +
+         MLShadowTimeToken(candidate.source_extremum_time) + "\t" +
+         MLShadowBoolToken(candidate.source_extremum_is_peak) + "\t" +
+         MLShadowDoubleToken(candidate.source_extremum_price > 0.0,
+                             candidate.source_extremum_price,
+                             8) + "\t" +
+         MLShadowTimeToken(candidate.activation_time) + "\t" +
+         MLShadowDoubleToken(candidate.classifier_score_valid,
+                             candidate.classifier_score,
+                             8) + "\t" +
+         MLShadowDoubleToken(candidate.regressor_score_valid,
+                             candidate.regressor_score,
+                             8) + "\t" +
+         MLShadowDoubleToken(candidate.threshold_probability > 0.0,
+                             candidate.threshold_probability,
+                             8) + "\t" +
+         IntegerToString(rank_position) + "\t" +
+         MLShadowOutputCell(rank_reason) + "\t" +
+         MLShadowOutputCell(action) + "\t" +
+         MLShadowOutputCell(arbitration_reason);
+}
+
+bool MLArbitrationRecordDecision(const MLArbitrationCandidate &candidate,
+                                 const string selected_signal_id,
+                                 const int rank_position,
+                                 const string rank_reason,
+                                 const string action,
+                                 const string arbitration_reason)
+{
+  if(!g_ml_shadow_state.enabled || !DeterministicSignalMLFilterMode())
+    return false;
+  if(!candidate.valid)
+    return false;
+
+  string row = MLArbitrationDecisionOutputRow(candidate,
+                                             selected_signal_id,
+                                             rank_position,
+                                             rank_reason,
+                                             action,
+                                             arbitration_reason);
+  if(!MLShadowQueueRow(MLShadowOutputPath(ML_SHADOW_ARBITRATION_DECISIONS_FILE),
+                       ML_SHADOW_ARBITRATION_DECISIONS_HEADER,
+                       row,
+                       g_ml_shadow_arbitration_buffer))
+    return false;
+
+  if(action == ML_ARBITRATION_ACTION_SELECTED)
+    g_ml_shadow_state.arbitration_selected_rows++;
+  else if(action == ML_ARBITRATION_ACTION_BLOCKED)
+    g_ml_shadow_state.arbitration_blocked_rows++;
+
+  return true;
 }
 
 string MLArbitrationCandidateDebugToken(const MLArbitrationCandidate &candidate)

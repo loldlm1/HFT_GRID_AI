@@ -15,6 +15,7 @@ REQUIRED_FILES = (
     "shadow_outcomes.tsv",
     "shadow_summary.tsv",
 )
+ARBITRATION_FILE = "arbitration_decisions.tsv"
 
 
 class FilterRunSummaryError(RuntimeError):
@@ -24,6 +25,11 @@ class FilterRunSummaryError(RuntimeError):
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--shadow-run-path", required=True, help="Folder containing shadow/filter TSV files.")
+    parser.add_argument(
+        "--require-arbitration",
+        action="store_true",
+        help="Require and validate arbitration_decisions.tsv plus arbitration summary counters.",
+    )
     return parser
 
 
@@ -76,10 +82,13 @@ def is_true(value: str) -> bool:
     return value.lower() == "true"
 
 
-def validate_required_files(run_path: Path) -> dict[str, Path]:
+def validate_required_files(run_path: Path, *, require_arbitration: bool) -> dict[str, Path]:
     if not run_path.is_dir():
         raise FilterRunSummaryError(f"Run folder does not exist: {run_path}")
     paths = {name: run_path / name for name in REQUIRED_FILES}
+    arbitration_path = run_path / ARBITRATION_FILE
+    if require_arbitration or arbitration_path.exists():
+        paths[ARBITRATION_FILE] = arbitration_path
     missing = [str(path) for path in paths.values() if not path.exists()]
     if missing:
         raise FilterRunSummaryError("Missing run files: " + ", ".join(missing))
@@ -90,8 +99,86 @@ def validate_required_files(run_path: Path) -> dict[str, Path]:
     return paths
 
 
-def summarize(run_path: Path) -> dict[str, object]:
-    paths = validate_required_files(run_path)
+def validate_arbitration_rows(
+    rows: list[dict[str, str]],
+    summary: dict[str, str],
+    *,
+    require_arbitration: bool,
+) -> dict[str, object]:
+    actions = Counter(row.get("arbitration_action", "") or NULL_TOKEN for row in rows)
+    group_counts = Counter(row.get("arbitration_group_id", "") for row in rows if row.get("arbitration_group_id", ""))
+    selected_rows = [row for row in rows if row.get("arbitration_action") == "SELECTED"]
+
+    selected_by_group = Counter(row.get("arbitration_group_id", "") for row in selected_rows)
+    bad_selected_groups = [group_id for group_id in group_counts if selected_by_group[group_id] != 1]
+    if bad_selected_groups:
+        raise FilterRunSummaryError("Arbitration groups without exactly one selected row: " + ", ".join(bad_selected_groups))
+
+    if require_arbitration and rows and not selected_rows:
+        raise FilterRunSummaryError("Arbitration rows exist but no SELECTED rows were found")
+
+    group_rows = optional_int(summary, "arbitration_group_rows")
+    single_groups = optional_int(summary, "arbitration_single_candidate_groups")
+    multi_groups = optional_int(summary, "arbitration_multi_candidate_groups")
+    selected_count = optional_int(summary, "arbitration_selected_rows")
+    blocked_count = optional_int(summary, "arbitration_blocked_rows")
+    classifier_ties = optional_int(summary, "arbitration_classifier_tie_rows")
+    regressor_ties = optional_int(summary, "arbitration_regressor_tie_rows")
+    strategy_ties = optional_int(summary, "arbitration_strategy_tie_break_rows")
+
+    if require_arbitration:
+        required_fields = {
+            "arbitration_group_rows": group_rows,
+            "arbitration_single_candidate_groups": single_groups,
+            "arbitration_multi_candidate_groups": multi_groups,
+            "arbitration_selected_rows": selected_count,
+            "arbitration_blocked_rows": blocked_count,
+        }
+        missing_fields = [name for name, value in required_fields.items() if value is None]
+        if missing_fields:
+            raise FilterRunSummaryError("Missing arbitration summary fields: " + ", ".join(missing_fields))
+
+    row_group_rows = len(group_counts)
+    row_single_groups = sum(1 for count in group_counts.values() if count == 1)
+    row_multi_groups = sum(1 for count in group_counts.values() if count > 1)
+
+    if group_rows is not None and group_rows != row_group_rows:
+        raise FilterRunSummaryError("Summary arbitration_group_rows does not match arbitration TSV")
+    if single_groups is not None and single_groups != row_single_groups:
+        raise FilterRunSummaryError("Summary arbitration_single_candidate_groups does not match arbitration TSV")
+    if multi_groups is not None and multi_groups != row_multi_groups:
+        raise FilterRunSummaryError("Summary arbitration_multi_candidate_groups does not match arbitration TSV")
+    if selected_count is not None and selected_count != actions["SELECTED"]:
+        raise FilterRunSummaryError("Summary arbitration_selected_rows does not match arbitration TSV")
+    if blocked_count is not None and blocked_count != actions["BLOCKED"]:
+        raise FilterRunSummaryError("Summary arbitration_blocked_rows does not match arbitration TSV")
+
+    selected_rank_reasons = Counter(row.get("rank_reason", "") for row in selected_rows)
+    row_classifier_ties = (
+        selected_rank_reasons["classifier_tie_regressor_score"]
+        + selected_rank_reasons["score_tie_strategy_priority"]
+        + selected_rank_reasons["deterministic_fallback"]
+    )
+    row_regressor_ties = selected_rank_reasons["score_tie_strategy_priority"] + selected_rank_reasons["deterministic_fallback"]
+    row_strategy_ties = selected_rank_reasons["score_tie_strategy_priority"]
+    if classifier_ties is not None and classifier_ties != row_classifier_ties:
+        raise FilterRunSummaryError("Summary arbitration_classifier_tie_rows does not match arbitration TSV")
+    if regressor_ties is not None and regressor_ties != row_regressor_ties:
+        raise FilterRunSummaryError("Summary arbitration_regressor_tie_rows does not match arbitration TSV")
+    if strategy_ties is not None and strategy_ties != row_strategy_ties:
+        raise FilterRunSummaryError("Summary arbitration_strategy_tie_break_rows does not match arbitration TSV")
+
+    return {
+        "arbitration_rows": len(rows),
+        "arbitration_groups": row_group_rows,
+        "arbitration_single_groups": row_single_groups,
+        "arbitration_multi_groups": row_multi_groups,
+        "arbitration_actions": actions,
+    }
+
+
+def summarize(run_path: Path, *, require_arbitration: bool = False) -> dict[str, object]:
+    paths = validate_required_files(run_path, require_arbitration=require_arbitration)
     manifest = read_manifest(paths["shadow_manifest.tsv"])
     predictions = read_tsv(paths["shadow_predictions.tsv"])
     outcomes = read_tsv(paths["shadow_outcomes.tsv"])
@@ -144,6 +231,13 @@ def summarize(run_path: Path) -> dict[str, object]:
         if filter_unavailable_blocks != row_unavailable_blocks:
             raise FilterRunSummaryError("Summary filter_unavailable_blocks does not match prediction actions")
 
+    arbitration_rows = read_tsv(paths[ARBITRATION_FILE]) if ARBITRATION_FILE in paths else []
+    arbitration_report = validate_arbitration_rows(
+        arbitration_rows,
+        summary,
+        require_arbitration=require_arbitration,
+    )
+
     return {
         "shadow_run_id": manifest.get("shadow_run_id", ""),
         "export_id": manifest.get("export_id", ""),
@@ -157,6 +251,7 @@ def summarize(run_path: Path) -> dict[str, object]:
         "admission_actions": admission_actions,
         "filter_reasons": filter_reasons,
         "export_status": summary.get("export_status", ""),
+        **arbitration_report,
     }
 
 
@@ -164,12 +259,13 @@ def main() -> int:
     parser = build_parser()
     args = parser.parse_args()
     try:
-        report = summarize(Path(args.shadow_run_path))
+        report = summarize(Path(args.shadow_run_path), require_arbitration=args.require_arbitration)
     except FilterRunSummaryError as exc:
         parser.exit(1, f"filter run summary FAIL | {exc}\n")
 
     recommendations = report["recommendations"]
     admission_actions = report["admission_actions"]
+    arbitration_actions = report["arbitration_actions"]
     print(
         "filter run summary PASS | "
         f"run_id={report['shadow_run_id']} | "
@@ -183,6 +279,10 @@ def main() -> int:
         f"recommendation_BLOCK={recommendations['BLOCK']} | "
         f"admission_ALLOW={admission_actions['ALLOW']} | "
         f"admission_BLOCK={admission_actions['BLOCK']} | "
+        f"arbitration_groups={report['arbitration_groups']} | "
+        f"arbitration_multi_groups={report['arbitration_multi_groups']} | "
+        f"arbitration_SELECTED={arbitration_actions['SELECTED']} | "
+        f"arbitration_BLOCKED={arbitration_actions['BLOCKED']} | "
         f"export_status={report['export_status']}"
     )
     return 0

@@ -263,7 +263,8 @@ Then compare scored prediction rows against the Python artifact scorer:
 
 The summarizer checks required TSV files, duplicate headers, row-count
 consistency, filter allow/block counters, unavailable blocks, invalid-feature
-blocks, and export status. It prints compact counts only.
+blocks, optional arbitration counters, and export status. It prints compact
+counts only.
 
 ## Signal Arbitration
 
