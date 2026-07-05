@@ -1,6 +1,6 @@
 # Deterministic Signal ML Tooling
 
-Local Python tooling for the deterministic signal ML roadmap.
+Local Python tooling for the deterministic signal ML workflow.
 
 The Phase 2 builder consumes Phase 1 TSV exports produced by the EA and builds
 validated Parquet datasets. The Phase 3 trainer consumes those datasets and
@@ -172,8 +172,7 @@ Validate the generated export without calling XGBoost:
 Generated exports are written under `artifacts/model_exports/<export_id>/` and
 are ignored by git. The export includes:
 
-- `model_manifest.tsv`: simple key/value runtime manifest for future MQL5
-  loading.
+- `model_manifest.tsv`: simple key/value runtime manifest for MQL5 loading.
 - `model_manifest.json`: Python audit sidecar.
 - `feature_map.tsv`: encoded feature index and one-hot mapping.
 - `classifier_trees.tsv`: flattened classifier tree nodes.
@@ -183,8 +182,8 @@ are ignored by git. The export includes:
 
 The exporter writes only the effective XGBoost trees used by prediction after
 early stopping. For `xgb_test_1`, that is 84 classifier trees and 47 regressor
-trees. Phase 4 still does not load models in MT5, add EA inputs, run Strategy
-Tester inference, or filter trades.
+trees. Export remains an offline Python step; MT5 runtime loading and
+Strategy Tester inference use the copied artifact under Common Files.
 
 ## Phase 5 Runtime Copy
 
@@ -270,8 +269,11 @@ blocks, and export status. It prints compact counts only.
 
 Do not paste full TSV, Parquet, model JSON, or tree TSV files into chat.
 For Codex handoff, record only paths, sizes, row counts, model/export IDs,
-threshold metadata, parity status, and final validator status in
-`docs/research/deterministic-signal-phase-4-5-environment-acceptance.md`.
+threshold metadata, parity status, and final validator status. The compact
+active workflow reference is
+`docs/workflows/deterministic-signal-ml-inference-flows.md`; completed detailed
+evidence is archived under
+`docs/research/archive/deterministic-signal-ml-2026-07-05/`.
 
 ## DuckDB References
 

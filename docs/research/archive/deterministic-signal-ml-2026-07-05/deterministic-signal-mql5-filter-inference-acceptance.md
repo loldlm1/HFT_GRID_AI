@@ -2,8 +2,7 @@
 
 **Date**: 2026-07-04
 **Phase**: 6 - MQL5 Filter Inference
-**Status**: PASS for Ubuntu/Wine compile, static validation, and Strategy Tester
-`FILTER` runtime validation.
+**Status**: PASS for Ubuntu/Wine compile, static validation, and Strategy Tester `FILTER` runtime validation; archived on 2026-07-05.
 
 ## Validation Summary
 

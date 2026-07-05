@@ -8,10 +8,11 @@ Short, current notes for Codex agents and contributors. Keep this file brief; ac
 
 - **Purpose**: MT5 Expert Advisor foundation for future strategy integration, broker-aware execution planning, and strict risk controls.
 - **Entrypoint**: `HFT_Grid_AI.mq5`.
-- **Active plan**: `docs/plans/deterministic-ma-stoch-strategies-plan.md`.
+- **Active plan**: none. Create a new `$planner` plan under `docs/plans/` for substantial future work.
 - **Environment runbook**: `docs/environment/mt5-agentic-workflows.md`.
-- **Phase 4.5 bridge plan**: `docs/plans/deterministic-signal-phase-4-5-agentic-environment-portability-plan.md`.
-- **Phase 4.5 acceptance**: `docs/research/deterministic-signal-phase-4-5-environment-acceptance.md`.
+- **Deterministic ML workflow**: `docs/workflows/deterministic-signal-ml-inference-flows.md`.
+- **Archived deterministic ML plans**: `docs/plans/archive/deterministic-signal-ml-2026-07-05/`.
+- **Archived deterministic ML evidence**: `docs/research/archive/deterministic-signal-ml-2026-07-05/`.
 - **Archived plans**: completed refoundation and skill-stack alignment plans live under `docs/plans/archive/`.
 - **Planning model**: create a new `$planner` plan under `docs/plans/` for any substantial future strategy, architecture, or repository-wide change.
 
@@ -106,11 +107,12 @@ Any phase touching these controls must call out risk level in its phase plan.
 - Compile portable/headless first whenever possible, then fallback to normal MetaEditor compile if needed.
 - Treat compiler warnings and errors as phase failures unless a temporary exception is explicitly documented.
 - Use `docs/environment/mt5-agentic-workflows.md` as the source of truth for Windows and Ubuntu/Wine paths, Common Files, generated artifacts, and agentic compile commands.
+- Use `docs/workflows/deterministic-signal-ml-inference-flows.md` as the compact source of truth for completed deterministic ML backtesting inference flow.
 - Prefer `python3 tools/mt5/compile_mt5.py` or `py -3.12 tools\mt5\compile_mt5.py` for agentic compile validation. The helper parses the MetaEditor log and keeps output compact.
 - MetaEditor `/s` is syntax check only. Do not treat `/s /compile` as evidence that `.ex5` was regenerated.
 - Do not paste full compile logs, `query_debug.txt`, Parquet contents, model JSON, or tree TSV files into chat. Summarize paths, sizes, counts, final status lines, and selected failure lines.
-- Phase 5 MQL5 Shadow Inference is shadow-only: `ML_INFERENCE_SHADOW` may load artifacts and record scores, but it must not affect broker admission, entries, exits, lot sizing, SL/TP, license checks, session gates, spread checks, margin checks, protection controls, magic-number scope, or broker reconciliation.
-- Phase 6 `FILTER` mode is approved for Strategy Tester implementation only. It may deny otherwise admissible deterministic entries after existing broker/risk eligibility passes and before broker send. It must not affect live deployment, create trades, resize lots, alter SL/TP, bypass license/session/spread/margin/protection controls, magic-number scope, or broker reconciliation.
+- `ML_INFERENCE_SHADOW` is shadow-only: it may load artifacts and record scores, but it must not affect broker admission, entries, exits, lot sizing, SL/TP, license checks, session gates, spread checks, margin checks, protection controls, magic-number scope, or broker reconciliation.
+- `ML_INFERENCE_FILTER` is approved for Strategy Tester only. It may deny otherwise admissible deterministic entries after existing broker/risk eligibility passes and before broker send. It must not affect live deployment, create trades, resize lots, alter SL/TP, bypass license/session/spread/margin/protection controls, magic-number scope, or broker reconciliation.
 - Do not paste full shadow TSVs, compile logs, `query_debug.txt`, Parquet contents, model JSON, or tree TSV files into chat. Summarize paths, sizes, counts, final status lines, and selected failure lines.
 
 Preferred real compile command shape for implementation phases:

@@ -1,6 +1,7 @@
 # Plan: Deterministic MA Stoch Strategies
 
 **Generated**: 2026-07-03
+**Status**: Completed and archived on 2026-07-05
 **Estimated Complexity**: High
 **Risk Level**: High for execution lifecycle and broker reconciliation; Critical where license, protection, margin, magic-number scope, or broker position ownership is touched.
 

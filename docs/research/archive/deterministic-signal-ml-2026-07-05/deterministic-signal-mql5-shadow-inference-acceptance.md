@@ -2,8 +2,7 @@
 
 **Date**: 2026-07-04
 **Phase**: 5 - MQL5 Shadow Inference
-**Status**: PASS for Ubuntu/Wine Phase 5 runtime and parity; Windows compile
-remains pending human-in-the-loop validation.
+**Status**: PASS for Ubuntu/Wine Phase 5 runtime and parity; archived on 2026-07-05. Windows compile remained human-in-the-loop validation.
 
 ## Validation Summary
 

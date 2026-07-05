@@ -3,7 +3,7 @@
 This runbook is the source of truth for Codex-agent MT5 compile, Common Files,
 and deterministic signal artifact workflows across Windows and Ubuntu/Wine.
 
-Use it before Phase 5 work. Do not load full compile logs, `query_debug.txt`,
+Use it for deterministic signal ML artifact and inference workflows. Do not load full compile logs, `query_debug.txt`,
 Parquet files, XGBoost JSON, or tree TSV files into chat. Record paths, sizes,
 row counts, final status lines, and selected failure lines only.
 
@@ -243,16 +243,25 @@ Record only:
 - parity status,
 - final validator status.
 
-## Phase 5 Readiness
+## Runtime Inference Readiness
 
-Do not start MQL5 Shadow Inference unless the readiness gate in
-`docs/research/deterministic-signal-phase-4-5-environment-acceptance.md` is
-`PASS`, or a human explicitly accepts a partial gate.
+The completed deterministic ML plan and acceptance evidence is archived under:
 
-Phase 5 must load exported artifacts from files and must not call Python,
+```text
+docs/plans/archive/deterministic-signal-ml-2026-07-05/
+docs/research/archive/deterministic-signal-ml-2026-07-05/
+```
+
+Use the compact current flow reference before new inference work:
+
+```text
+docs/workflows/deterministic-signal-ml-inference-flows.md
+```
+
+MQL5 inference must load exported artifacts from files and must not call Python,
 DuckDB, XGBoost, or external services from the EA hot path.
 
-## Phase 5 Artifact Install Boundary
+## Artifact Install Boundary
 
 The repository export under `artifacts/model_exports/<export_id>` is a generated
 research artifact. MQL5 runtime code must read the copied export from
@@ -308,10 +317,10 @@ MQL5 scores against the Python artifact scorer:
 Record only row counts, max/mean errors, decision agreement, selected failure
 lines, and the shadow run path. Do not paste full shadow TSVs into chat.
 
-## Phase 6 Filter Validation
+## Filter Validation
 
-Phase 6 `FILTER` mode is approved for Strategy Tester implementation only. It is
-not live-deployment approval.
+`ML_INFERENCE_FILTER` mode is approved for Strategy Tester validation only. It
+is not live-deployment approval.
 
 Use `ML_Inference_Mode = ML_INFERENCE_FILTER` only after the export is present
 under `Common\Files`. Filter mode is fail-closed for model admission: missing

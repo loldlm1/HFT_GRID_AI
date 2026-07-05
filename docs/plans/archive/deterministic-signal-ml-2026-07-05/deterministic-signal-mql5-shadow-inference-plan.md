@@ -1,7 +1,7 @@
 # Plan: Deterministic Signal MQL5 Shadow Inference
 
 **Generated**: 2026-07-04
-**Status**: Completed on 2026-07-04
+**Status**: Completed and archived on 2026-07-05
 **Estimated Complexity**: High
 **Risk Level**: Low for trading behavior when implemented as specified; Medium for runtime correctness and telemetry because model loading, feature parity, and tree scoring must match the Python artifact exactly.
 

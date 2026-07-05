@@ -1,8 +1,7 @@
 # Plan: Deterministic Signal MQL5 Filter Inference
 
 **Generated**: 2026-07-04
-**Status**: PASS on 2026-07-04; Strategy Tester `FILTER` runtime validation
-completed against `shadow_test_run_1`
+**Status**: Completed and archived on 2026-07-05. Final runtime result: PASS against `shadow_test_run_1`.
 **Estimated Complexity**: High
 **Risk Level**: High for Strategy Tester admission behavior; low for default/live
 behavior if `ML_INFERENCE_DISABLED` remains the default and `FILTER` is gated to

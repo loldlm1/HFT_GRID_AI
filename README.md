@@ -9,10 +9,14 @@ HFT Grid AI has been refounded into a smaller, broker-aware MT5 Expert Advisor f
 ## Current Docs
 
 - `AGENTS.md`: contributor and Codex-agent rules for the current foundation.
+- `docs/workflows/deterministic-signal-ml-inference-flows.md`: compact human and agentic deterministic ML inference flows.
+- `docs/plans/README.md`: current planning status.
+- `docs/research/README.md`: current research evidence status.
 - `docs/plans/archive/refoundation-baseline-2026-07-03/`: completed Phase 0-8 refoundation plans.
 - `docs/plans/archive/codex-skill-stack-alignment-2026-07-03/`: completed Codex skill-stack alignment plan.
+- `docs/plans/archive/deterministic-signal-ml-2026-07-05/`: completed deterministic signal strategy/ML plans and roadmap.
+- `docs/research/archive/deterministic-signal-ml-2026-07-05/`: completed deterministic signal ML acceptance evidence.
 - `docs/environment/mt5-agentic-workflows.md`: Windows and Ubuntu/Wine compile, Common Files, and artifact workflow runbook.
-- `docs/research/deterministic-signal-phase-4-5-environment-acceptance.md`: compact Phase 4.5 environment and artifact readiness evidence.
 - `docs/architecture/execution-foundation.md`: local/broker execution foundation.
 
 ## Validation Model
@@ -192,8 +196,9 @@ before MQL5 Shadow Inference. It covers real compile, syntax check, Common Files
 discovery, Python ML environment setup, artifact inventory, and Phase 5
 readiness. It does not add inference or change trading behavior.
 
-Start from `docs/environment/mt5-agentic-workflows.md` and keep compact evidence
-in `docs/research/deterministic-signal-phase-4-5-environment-acceptance.md`.
+Start from `docs/environment/mt5-agentic-workflows.md`. Historical environment
+evidence is archived under
+`docs/research/archive/deterministic-signal-ml-2026-07-05/`.
 Do not commit generated datasets, models, exports, `.ex5`, or full logs.
 
 ## Phase 5 MQL5 Shadow Inference
@@ -298,5 +303,6 @@ Legacy custom tests and the old test runner were removed in Phase 2. The active 
 
 ## Phase 6 Handoff
 
-Phase 6 implementation is Strategy Tester only. Do not treat `FILTER` evidence
-as live approval without a future explicit plan and human approval.
+Phase 6 Strategy Tester `FILTER` validation passed for `xgb_test_1_export_v1`
+and `shadow_test_run_1`. Do not treat this as live approval without a future
+explicit plan, human approval, monitoring, and rollback criteria.

@@ -1,7 +1,7 @@
 # Roadmap: Deterministic Signal ML Pipeline
 
 **Generated**: 2026-07-04
-**Status**: Draft
+**Status**: Completed and archived on 2026-07-05
 **Scope**: Deterministic signal statistics, local ML training, and MT5 Strategy Tester inference.
 
 ## Purpose
