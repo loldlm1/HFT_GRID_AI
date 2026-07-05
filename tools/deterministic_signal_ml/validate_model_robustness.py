@@ -33,6 +33,7 @@ from robustness_report import (
     write_markdown_report,
     write_tsv_report,
 )
+from segment_metrics import build_segment_metrics
 from training_report import (
     MIN_THRESHOLD_RECOMMENDATION_ROWS,
     build_threshold_report_rows,
@@ -101,6 +102,37 @@ def _read_parquet_rows(path: Path, order_by: str) -> list[dict[str, Any]]:
 def _read_split_rows(dataset_path: Path) -> list[dict[str, Any]]:
     rows = _read_parquet_rows(dataset_path / "training_matrix.parquet", "entry_time, source_key")
     return [{"entry_time": str(row["entry_time"])} for row in rows]
+
+
+def _read_symbol_maps(dataset_path: Path) -> tuple[dict[str, str], list[str]]:
+    rows = _read_parquet_rows(dataset_path / "training_matrix.parquet", "entry_time, signal_id")
+    symbol_by_source_key: dict[str, str] = {}
+    symbols_by_row_index: list[str] = []
+    for row in rows:
+        symbol = str(row.get("symbol", ""))
+        source_key = str(row.get("source_key", ""))
+        if source_key:
+            symbol_by_source_key[source_key] = symbol
+        symbols_by_row_index.append(symbol)
+    return symbol_by_source_key, symbols_by_row_index
+
+
+def _with_symbols(
+    prediction_rows: list[dict[str, Any]],
+    symbol_by_source_key: dict[str, str],
+    symbols_by_row_index: list[str],
+) -> list[dict[str, Any]]:
+    enriched: list[dict[str, Any]] = []
+    for row in prediction_rows:
+        output = dict(row)
+        source_key = str(row.get("source_key", ""))
+        row_index = int(row.get("row_index", -1))
+        symbol = symbol_by_source_key.get(source_key, "")
+        if not symbol and 0 <= row_index < len(symbols_by_row_index):
+            symbol = symbols_by_row_index[row_index]
+        output["symbol"] = symbol
+        enriched.append(output)
+    return enriched
 
 
 def _profit_metrics(
@@ -192,6 +224,164 @@ def _load_threshold_source(model_path: Path) -> tuple[str, list[dict[str, Any]],
     raise RobustnessValidationError(
         f"Neither fold_predictions.parquet nor holdout_predictions.parquet exists in {model_path}"
     )
+
+
+def _read_json(path: Path) -> dict[str, Any]:
+    if not path.exists():
+        raise RobustnessValidationError(f"Required JSON file does not exist: {path}")
+    return json.loads(path.read_text(encoding="utf-8"))
+
+
+def _categorical_frequencies(
+    dataset_path: Path,
+    categorical_columns: list[str],
+) -> dict[str, dict[str, Any]]:
+    matrix_path = dataset_path / "training_matrix.parquet"
+    if not matrix_path.exists():
+        raise RobustnessValidationError(f"Required training matrix does not exist: {matrix_path}")
+    connection = duckdb.connect(":memory:")
+    try:
+        escaped_path = _sql_path(matrix_path)
+        total_rows = int(
+            connection.execute(f"SELECT COUNT(*) FROM read_parquet('{escaped_path}')").fetchone()[0]
+        )
+        frequencies: dict[str, dict[str, Any]] = {}
+        for column in categorical_columns:
+            relation = connection.execute(
+                "SELECT CAST({column} AS VARCHAR) AS value, COUNT(*) AS rows "
+                "FROM read_parquet('{path}') GROUP BY 1 ORDER BY 1".format(
+                    column=column,
+                    path=escaped_path,
+                )
+            )
+            for value, rows in relation.fetchall():
+                feature = f"{column}={value}"
+                count = int(rows)
+                frequencies[feature] = {
+                    "rows": count,
+                    "frequency": 0.0 if total_rows == 0 else count / total_rows,
+                }
+        return frequencies
+    finally:
+        connection.close()
+
+
+def _feature_importance_diagnostics(
+    dataset_path: Path,
+    model_path: Path,
+) -> tuple[dict[str, Any], list[RobustnessWarning]]:
+    validation_metrics = _read_json(model_path / "validation_metrics.json")
+    feature_encoder = _read_json(model_path / "feature_encoder.json")
+    raw_diagnostics = dict(validation_metrics.get("feature_diagnostics", {}))
+    classifier_importance = list(raw_diagnostics.get("classifier_importance", []))
+    regressor_importance = list(raw_diagnostics.get("regressor_importance", []))
+    no_variation_features = list(raw_diagnostics.get("no_variation_features", []))
+    existing_warnings = list(raw_diagnostics.get("warnings", []))
+    categorical_columns = list(feature_encoder.get("categorical_columns", []))
+    frequencies = _categorical_frequencies(dataset_path, categorical_columns)
+
+    warnings: list[RobustnessWarning] = []
+    if no_variation_features:
+        warnings.append(
+            _warning(
+                "WARN",
+                "no_variation_features_present",
+                "One or more encoded features have no variation in this dataset.",
+                f"count={len(no_variation_features)}",
+            )
+        )
+    for warning in existing_warnings:
+        warnings.append(
+            _warning(
+                "WARN",
+                "feature_diagnostic_warning",
+                str(warning),
+            )
+        )
+
+    rare_bucket_warnings: list[dict[str, Any]] = []
+    concentration_warnings: list[dict[str, Any]] = []
+    for role, importances in (
+        ("classifier", classifier_importance),
+        ("regressor", regressor_importance),
+    ):
+        top_share = float(importances[0]["importance"]) if importances else 0.0
+        top_n_share = sum(float(item["importance"]) for item in importances[:10])
+        if top_share >= 0.25:
+            concentration_warnings.append(
+                {
+                    "role": role,
+                    "feature": importances[0]["feature"],
+                    "importance_share": top_share,
+                    "type": "top_feature_concentration",
+                }
+            )
+        if top_n_share >= 0.70:
+            concentration_warnings.append(
+                {
+                    "role": role,
+                    "feature": "top_10",
+                    "importance_share": top_n_share,
+                    "type": "top_n_concentration",
+                }
+            )
+        for item in importances[:30]:
+            feature = str(item.get("feature", ""))
+            importance = float(item.get("importance", 0.0))
+            frequency = frequencies.get(feature)
+            if frequency is None:
+                continue
+            if importance >= 0.03 and float(frequency["frequency"]) < 0.02:
+                rare_bucket_warnings.append(
+                    {
+                        "role": role,
+                        "feature": feature,
+                        "importance_share": importance,
+                        "bucket_rows": frequency["rows"],
+                        "bucket_frequency": frequency["frequency"],
+                    }
+                )
+
+    if concentration_warnings:
+        warnings.append(
+            _warning(
+                "WARN",
+                "feature_importance_concentration",
+                "Feature importance is concentrated enough to require review.",
+                f"count={len(concentration_warnings)}",
+            )
+        )
+    if rare_bucket_warnings:
+        warnings.append(
+            _warning(
+                "WARN",
+                "rare_bucket_importance",
+                "Categorical bucket importance depends on rare encoded buckets.",
+                f"count={len(rare_bucket_warnings)}",
+            )
+        )
+
+    top_classifier = classifier_importance[0] if classifier_importance else {}
+    top_regressor = regressor_importance[0] if regressor_importance else {}
+    payload = {
+        "no_variation_feature_count": len(no_variation_features),
+        "no_variation_features": no_variation_features[:20],
+        "top_classifier_feature": top_classifier.get("feature"),
+        "top_classifier_importance_share": top_classifier.get("importance"),
+        "top_regressor_feature": top_regressor.get("feature"),
+        "top_regressor_importance_share": top_regressor.get("importance"),
+        "top_10_classifier_importance_share": sum(
+            float(item["importance"]) for item in classifier_importance[:10]
+        ),
+        "top_10_regressor_importance_share": sum(
+            float(item["importance"]) for item in regressor_importance[:10]
+        ),
+        "rare_bucket_warning_count": len(rare_bucket_warnings),
+        "rare_bucket_warnings": rare_bucket_warnings[:20],
+        "concentration_warnings": concentration_warnings,
+        "existing_warnings": existing_warnings,
+    }
+    return payload, warnings
 
 
 def _warning(
@@ -308,6 +498,12 @@ def build_payload(args: argparse.Namespace) -> tuple[RobustnessReportPayload, li
     threshold_source, threshold_prediction_rows, final_used_for_selection = _load_threshold_source(
         model_path
     )
+    symbol_by_source_key, symbols_by_row_index = _read_symbol_maps(dataset_path)
+    threshold_prediction_rows = _with_symbols(
+        threshold_prediction_rows,
+        symbol_by_source_key,
+        symbols_by_row_index,
+    )
     threshold_rows, recommendation = build_threshold_report_rows(threshold_prediction_rows)
     source_row_count = len(threshold_prediction_rows)
     selected_threshold = (
@@ -330,7 +526,17 @@ def build_payload(args: argparse.Namespace) -> tuple[RobustnessReportPayload, li
         model_path / "holdout_predictions.parquet",
         "entry_time, row_index",
     )
+    final_holdout_rows = _with_symbols(
+        final_holdout_rows,
+        symbol_by_source_key,
+        symbols_by_row_index,
+    )
     final_holdout = _profit_metrics(final_holdout_rows, selected_threshold)
+    segment_rows = build_segment_metrics(final_holdout_rows, selected_threshold)
+    feature_diagnostics, feature_warnings = _feature_importance_diagnostics(
+        dataset_path,
+        model_path,
+    )
 
     warnings = _build_warnings(
         inventory=inventory,
@@ -340,6 +546,17 @@ def build_payload(args: argparse.Namespace) -> tuple[RobustnessReportPayload, li
         final_holdout_used_for_selection=final_used_for_selection,
         require_gap=bool(args.require_gap),
     )
+    warnings.extend(feature_warnings)
+    segment_warning_count = sum(1 for row in segment_rows if row.get("status") == "WARN")
+    if segment_warning_count:
+        warnings.append(
+            _warning(
+                "WARN",
+                "segment_support_warnings",
+                "One or more segment diagnostics have low support.",
+                f"count={segment_warning_count}",
+            )
+        )
     status = "PASS" if not warnings else "WARN"
     payload = RobustnessReportPayload(
         status=status,
@@ -349,6 +566,8 @@ def build_payload(args: argparse.Namespace) -> tuple[RobustnessReportPayload, li
         split_policy=robust_splits.metadata,
         threshold_selection=threshold_selection,
         final_holdout=final_holdout,
+        segment_metrics=segment_rows,
+        feature_diagnostics=feature_diagnostics,
         warnings=[asdict(warning) for warning in warnings],
     )
     threshold_output_rows = _threshold_rows_with_source(
@@ -368,7 +587,7 @@ def write_outputs(
     markdown_path = write_markdown_report(output_dir, payload)
     threshold_path = write_tsv_report(output_dir, THRESHOLD_SELECTION_TSV, threshold_rows)
     warnings_path = write_tsv_report(output_dir, OVERFIT_WARNINGS_TSV, warning_rows(payload.warnings))
-    segment_path = write_tsv_report(output_dir, SEGMENT_METRICS_TSV, [])
+    segment_path = write_tsv_report(output_dir, SEGMENT_METRICS_TSV, payload.segment_metrics)
     return {
         "metrics": str(json_path),
         "report": str(markdown_path),

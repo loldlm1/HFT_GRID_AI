@@ -116,12 +116,20 @@ def warning_rows(warnings: list[dict[str, Any]]) -> list[dict[str, Any]]:
     ]
 
 
+def markdown_cell(value: Any) -> str:
+    return tsv_value(value).replace("|", "\\|")
+
+
 def render_markdown_report(payload: RobustnessReportPayload) -> str:
     baseline = payload.baseline
     row_counts = baseline.get("row_counts", {})
     split_policy = payload.split_policy
     threshold_selection = payload.threshold_selection
     final_holdout = payload.final_holdout
+    feature_diagnostics = payload.feature_diagnostics
+    segment_warning_count = sum(
+        1 for row in payload.segment_metrics if row.get("status") == "WARN"
+    )
     lines = [
         f"# Robustness Report: {baseline.get('model_id', '')}",
         "",
@@ -169,9 +177,43 @@ def render_markdown_report(payload: RobustnessReportPayload) -> str:
         f"- Net R: `{final_holdout.get('net_profit_r', '')}`",
         f"- Max drawdown-like R: `{final_holdout.get('max_drawdown_r', '')}`",
         "",
-        "## Warnings",
+        "## Segment Diagnostics",
         "",
+        f"- Segment rows: `{len(payload.segment_metrics)}`",
+        f"- Segment warnings: `{segment_warning_count}`",
+        "",
+        "| Segment Type | Value | Rows | Selected | Win Rate | Mean R | Net R | Status |",
+        "| --- | --- | ---: | ---: | ---: | ---: | ---: | --- |",
     ]
+    for row in payload.segment_metrics[:20]:
+        lines.append(
+            "| {segment_type} | {segment_value} | {rows} | {selected_rows} | {win_rate} | {mean_profit_r} | {net_profit_r} | {status} |".format(
+                segment_type=markdown_cell(row.get("segment_type", "")),
+                segment_value=markdown_cell(row.get("segment_value", "")),
+                rows=row.get("rows", ""),
+                selected_rows=row.get("selected_rows", ""),
+                win_rate=tsv_value(row.get("win_rate")),
+                mean_profit_r=tsv_value(row.get("mean_profit_r")),
+                net_profit_r=tsv_value(row.get("net_profit_r")),
+                status=row.get("status", ""),
+            )
+        )
+    if len(payload.segment_metrics) > 20:
+        lines.append("| ... | additional rows omitted from markdown |  |  |  |  |  |  |")
+    lines.extend(
+        [
+            "",
+            "## Feature Diagnostics",
+            "",
+            f"- No-variation encoded features: `{feature_diagnostics.get('no_variation_feature_count', '')}`",
+            f"- Top classifier importance share: `{feature_diagnostics.get('top_classifier_importance_share', '')}`",
+            f"- Top regressor importance share: `{feature_diagnostics.get('top_regressor_importance_share', '')}`",
+            f"- Rare bucket warnings: `{feature_diagnostics.get('rare_bucket_warning_count', '')}`",
+            "",
+            "## Warnings",
+            "",
+        ]
+    )
     if payload.warnings:
         for warning in payload.warnings:
             lines.append(
