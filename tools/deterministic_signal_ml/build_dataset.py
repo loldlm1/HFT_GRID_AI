@@ -10,6 +10,7 @@ import duckdb
 
 from schema_contract import (
     FEATURE_COLUMNS,
+    MODEL_FEATURE_COLUMNS,
     OUTCOME_COLUMNS,
     SIGNAL_FEATURES_FILE,
     SIGNAL_OUTCOMES_FILE,
@@ -42,7 +43,7 @@ def _read_tsv_sql(path: Path, columns: tuple[str, ...]) -> str:
         "delim='\\t', "
         "header=true, "
         f"columns={_varchar_columns_sql(columns)}, "
-        "nullstr='\\\\N'"
+        "nullstr='\\N'"
         ")"
     )
 
@@ -109,6 +110,9 @@ def create_dataset_tables(
     connection: duckdb.DuckDBPyConnection,
     validations,
 ) -> dict[str, int]:
+    required_feature_clause = " AND\n  ".join(
+        f"f.{column} IS NOT NULL" for column in MODEL_FEATURE_COLUMNS
+    )
     connection.execute(
         """
 CREATE TABLE features (
@@ -167,7 +171,7 @@ CREATE TABLE outcomes (
         connection.execute(_insert_outcomes_sql(validation.run_path / SIGNAL_OUTCOMES_FILE))
 
     connection.execute(
-        """
+        f"""
 CREATE TABLE training_matrix AS
 SELECT
   f.schema_version,
@@ -209,6 +213,8 @@ SELECT
   o.terminal_reason AS target_terminal_reason
 FROM features f
 INNER JOIN outcomes o ON o.signal_id = f.signal_id
+WHERE
+  {required_feature_clause}
 ORDER BY f.entry_time, f.signal_id
 """
     )

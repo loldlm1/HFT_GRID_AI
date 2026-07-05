@@ -54,10 +54,12 @@ UNION ALL SELECT 'high_chain_score_10', MIN(high_chain_score_10), MAX(high_chain
     warnings: list[str] = []
     for validation in validations:
         warnings.extend([f"{validation.run_id}: {warning}" for warning in validation.warnings])
+    blocking_null_feature_rows = sum(int(row["null_rows"] or 0) for row in null_counts)
 
     return {
-        "status": "OK" if not warnings else "OK_WITH_WARNINGS",
+        "status": "OK" if blocking_null_feature_rows == 0 else "OK_WITH_WARNINGS",
         "warnings": warnings,
+        "blocking_null_feature_rows": blocking_null_feature_rows,
         "row_counts": counts,
         "source_runs": [validation.run_id for validation in validations],
         "config_ids": sorted({validation.config_id for validation in validations}),

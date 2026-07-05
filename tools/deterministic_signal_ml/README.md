@@ -112,6 +112,12 @@ Each dataset folder contains:
 - `dataset_quality.json`: machine-readable quality summary.
 - `dataset_report.md`: compact human-readable report.
 
+`training_matrix.parquet` is the model-training surface. Rows with required
+model features exported as `\N` are excluded from that matrix, while the raw
+typed `features.parquet` and `outcomes.parquet` files remain complete for
+auditability. The dataset report keeps the Phase 1 invalid-row warning and
+shows the final trainable row count.
+
 Existing dataset folders are not overwritten unless `--overwrite` is passed.
 Multiple `--run-id` values are supported, but mixed `config_id` values fail by
 default unless `--allow-mixed-config` is passed.
