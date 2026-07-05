@@ -54,6 +54,17 @@ Ranking policy:
 2. Highest regressor score.
 3. Stable strategy priority `S1 > S2 > S3`.
 
+Hand-worked ranking examples:
+
+- `S2 classifier=0.81` beats `S1 classifier=0.79` even though `S1` has higher
+  strategy priority.
+- If `S1 classifier=0.80 regressor=1.4` and `S3 classifier=0.80 regressor=1.1`,
+  `S1` wins by regressor score.
+- If classifier and regressor scores tie, `S1` wins over `S2`, and `S2` wins
+  over `S3`.
+- A missing regressor score never outranks a valid higher regressor score when
+  classifier scores tie.
+
 Non-selected candidates:
 
 - are locally closed without broker send,

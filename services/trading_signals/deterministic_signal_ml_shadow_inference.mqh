@@ -1490,6 +1490,8 @@ void MLShadowApplyDecisionToSignal(SignalParams &signal_params,
   signal_params.ml_shadow_threshold = g_ml_shadow_state.threshold_probability;
   signal_params.ml_shadow_available = decision.model_available;
   signal_params.ml_shadow_feature_valid = decision.feature_valid;
+  signal_params.ml_shadow_classifier_scored = decision.classifier_scored;
+  signal_params.ml_shadow_regressor_scored = decision.regressor_scored;
   signal_params.ml_shadow_classifier_score = decision.classifier_score;
   signal_params.ml_shadow_regressor_score = decision.regressor_score;
   signal_params.ml_shadow_recommendation = decision.recommendation;

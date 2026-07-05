@@ -111,6 +111,8 @@ struct SignalParams
   bool                       ml_shadow_evaluated;
   bool                       ml_shadow_available;
   bool                       ml_shadow_feature_valid;
+  bool                       ml_shadow_classifier_scored;
+  bool                       ml_shadow_regressor_scored;
   string                     ml_shadow_model_id;
   string                     ml_shadow_export_id;
   double                     ml_shadow_classifier_score;
@@ -196,6 +198,8 @@ struct SignalParams
     ml_shadow_evaluated = false;
     ml_shadow_available = false;
     ml_shadow_feature_valid = false;
+    ml_shadow_classifier_scored = false;
+    ml_shadow_regressor_scored = false;
     ml_shadow_model_id = "";
     ml_shadow_export_id = "";
     ml_shadow_classifier_score = 0.0;
@@ -271,6 +275,8 @@ struct SignalParams
     ml_shadow_evaluated = signal_params.ml_shadow_evaluated;
     ml_shadow_available = signal_params.ml_shadow_available;
     ml_shadow_feature_valid = signal_params.ml_shadow_feature_valid;
+    ml_shadow_classifier_scored = signal_params.ml_shadow_classifier_scored;
+    ml_shadow_regressor_scored = signal_params.ml_shadow_regressor_scored;
     ml_shadow_model_id = signal_params.ml_shadow_model_id;
     ml_shadow_export_id = signal_params.ml_shadow_export_id;
     ml_shadow_classifier_score = signal_params.ml_shadow_classifier_score;
