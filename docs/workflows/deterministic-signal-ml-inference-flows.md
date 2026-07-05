@@ -113,6 +113,16 @@ FILTER smoke evidence:
 DeterministicSignalML/shadow_runs/<shadow_run_id>/arbitration_decisions.tsv
 ```
 
+Before running Strategy Tester, deploy the current export to the same Common
+Files root used by MT5:
+
+```bash
+export MT5_COMMON_FILES="$HOME/.wine/drive_c/users/loldlm/AppData/Roaming/MetaQuotes/Terminal/Common/Files"
+.venv/bin/python tools/deterministic_signal_ml/deploy_model_export.py \
+  --export-id xgb_test_1_export_v1 \
+  --overwrite
+```
+
 After a fresh Phase 2 Strategy Tester FILTER run, use strict summary validation:
 
 ```bash
@@ -124,4 +134,7 @@ After a fresh Phase 2 Strategy Tester FILTER run, use strict summary validation:
 Phase 2 runtime acceptance remains pending until a fresh XAUUSD smoke run
 generates a `shadow_run` and validates arbitration groups, selected rows,
 blocked rows, and separate `ML_FILTER_BLOCKED` versus `ML_ARBITRATION_BLOCKED`
-counts.
+counts. If `shadow_manifest.tsv` records `available=false` with
+`file_open_failed:DeterministicSignalML\model_exports\...`, the model export is
+not deployed in the Common Files root used by MT5; deploy the export and rerun
+Strategy Tester before interpreting FILTER or arbitration behavior.

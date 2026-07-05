@@ -436,12 +436,90 @@ Execution must complete and validate this sprint before Phase 2 is accepted.
 - **Validation**:
   - Manual doc review.
 
+## Sprint 6: Runtime Export Deploy Recovery
+
+**Goal**: Correct the failed human-in-the-loop smoke attempt where
+`ML_INFERENCE_FILTER` ran but the model artifact was missing from MT5 Common
+Files, causing all candidates to be blocked as unavailable before scoring or
+arbitration.
+
+**Commit**: `chore: add validated ml export deploy helper`
+
+**Demo/Validation**:
+
+- Validate the local export.
+- Deploy the export to the exact MT5 Common Files root read by the EA.
+- Validate the deployed copy.
+- Record that the failed smoke run is not Phase 2 acceptance evidence and that
+  a fresh human-in-the-loop Strategy Tester run is required.
+
+Execution must complete and validate this sprint before the Sprint 5 smoke gate
+is retried.
+
+### Task 6.1: Add Validated Export Deploy Helper
+
+- **Location**:
+  - `tools/deterministic_signal_ml/deploy_model_export.py`
+  - `tools/deterministic_signal_ml/README.md`
+- **Description**: Add a small Python helper that validates a local
+  `artifacts/model_exports/<export_id>` folder, copies it to
+  `MT5 Common Files/DeterministicSignalML/model_exports/<export_id>`, and
+  validates the deployed copy.
+- **Dependencies**: Existing model artifact validator.
+- **Acceptance Criteria**:
+  - Tool fails closed when `MT5_COMMON_FILES` or `--mt5-common-files` is not
+    provided.
+  - Tool refuses to overwrite an existing deployed export unless
+    `--overwrite` is passed.
+  - Tool requires `mt5_runtime_ready=true` and preserves `research_only=true`.
+  - README uses the deploy helper as the preferred runtime copy command.
+- **Validation**:
+  - `python3 -m py_compile tools/deterministic_signal_ml/deploy_model_export.py`
+
+### Task 6.2: Deploy Current Export To Common Files
+
+- **Location**:
+  - MT5 Common Files generated artifact folder
+- **Description**: Deploy `xgb_test_1_export_v1` to the Wine Common Files root
+  used by this workstation.
+- **Dependencies**: Task 6.1.
+- **Acceptance Criteria**:
+  - Deployed folder contains the required runtime files:
+    `model_manifest.tsv`, `feature_map.tsv`, `classifier_trees.tsv`,
+    `regressor_trees.tsv`, and `threshold_policy.tsv`.
+  - Deployed copy validates with the same artifact validator contract.
+- **Validation**:
+  - `MT5_COMMON_FILES=<common-files> python3 tools/deterministic_signal_ml/deploy_model_export.py --export-id xgb_test_1_export_v1 --overwrite`
+  - `python3 tools/deterministic_signal_ml/model_artifact_validator.py --export-path <common-files>/DeterministicSignalML/model_exports/xgb_test_1_export_v1`
+
+### Task 6.3: Record Failed Smoke Attempt And Rerun Gate
+
+- **Location**:
+  - `docs/research/ml-signal-arbitration-acceptance.md`
+  - `docs/workflows/deterministic-signal-ml-inference-flows.md`
+- **Description**: Record the manual smoke run as a prerequisite failure, not
+  a Phase 2 behavior failure, because `model_available=false` prevented all
+  scoring and arbitration decisions.
+- **Dependencies**: Task 6.2.
+- **Acceptance Criteria**:
+  - Evidence records `shadow_test_run_1`, `prediction_rows=5483`,
+    `scored_rows=0`, `unavailable_rows=5483`, and `arbitration_group_rows=0`.
+  - Evidence states a fresh Strategy Tester run is required after deploy.
+  - Workflow notes that `file_open_failed` for a model export means the deploy
+    step or Common Files root is wrong.
+- **Validation**:
+  - `python3 tools/deterministic_signal_ml/summarize_filter_run.py --shadow-run-path <failed-run> --require-arbitration`
+  - Manual doc review.
+
 ## Testing Strategy
 
 - Documentation-only sprint validation for Sprint 1.
 - Manual MQL5 lifecycle and include-order review for Sprints 2 and 3.
 - Python syntax validation for touched Python files in Sprint 4:
   - `python3 -m py_compile tools/deterministic_signal_ml/*.py`
+- Python syntax and deploy validation for Sprint 6:
+  - `python3 -m py_compile tools/deterministic_signal_ml/deploy_model_export.py`
+  - `python3 tools/deterministic_signal_ml/deploy_model_export.py --export-id xgb_test_1_export_v1 --overwrite`
 - Final MetaEditor compile in Sprint 5, following
   `docs/environment/mt5-agentic-workflows.md`.
 - Human-in-the-loop Strategy Tester smoke validation in Sprint 5.
@@ -457,6 +535,8 @@ Phase 2 is accepted only when:
 - Non-selected candidates are locally closed with
   `ML_ARBITRATION_BLOCKED` and no broker order.
 - Selected candidates still pass all existing broker/risk gates.
+- The runtime model artifact is available from MT5 Common Files and the smoke
+  run has scored rows, not only unavailable rows.
 - `ML_FILTER_BLOCKED` and `ML_ARBITRATION_BLOCKED` are distinct in artifacts
   and summary tooling.
 - Strategy Tester smoke evidence demonstrates the behavioral delta or clearly

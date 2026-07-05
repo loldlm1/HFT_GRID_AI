@@ -2,7 +2,7 @@
 
 **Date**: 2026-07-05
 **Roadmap Phase**: Phase 2 - ML Signal Arbitration
-**Status**: Implementation compile-clean; Strategy Tester smoke pending human-in-loop run
+**Status**: Implementation compile-clean; smoke prerequisite failure recovered; fresh human-in-loop rerun required
 
 ## Scope
 
@@ -227,6 +227,11 @@ Strategy Tester smoke status:
 Required human-in-the-loop smoke gate:
 
 ```bash
+export MT5_COMMON_FILES="$HOME/.wine/drive_c/users/loldlm/AppData/Roaming/MetaQuotes/Terminal/Common/Files"
+.venv/bin/python tools/deterministic_signal_ml/deploy_model_export.py \
+  --export-id xgb_test_1_export_v1 \
+  --overwrite
+
 .venv/bin/python tools/deterministic_signal_ml/summarize_filter_run.py \
   --shadow-run-path "$MT5_COMMON_FILES/DeterministicSignalML/shadow_runs/<shadow_run_id>" \
   --require-arbitration
@@ -235,6 +240,56 @@ Required human-in-the-loop smoke gate:
 Acceptance after that run requires either at least one multi-candidate group
 with one `SELECTED` row and one or more `BLOCKED` rows, or an explicit note that
 the selected smoke date range produced no multi-candidate convergence.
+
+## Manual Smoke Attempt - 2026-07-05
+
+User executed a short human-in-the-loop Strategy Tester run with
+`ML_INFERENCE_FILTER`, `ML_Model_Export_Id=xgb_test_1_export_v1`, and
+`Signal_Feature_Run_Id=test_run_1`.
+
+Generated artifacts:
+
+- Feature run: `DeterministicSignalML/runs/test_run_1`
+- Shadow/filter run: `DeterministicSignalML/shadow_runs/shadow_test_run_1`
+- Artifact date range from `shadow_summary.tsv`:
+  `2026.06.04 00:00:00` to `2026.07.03 16:59:59`
+
+Python strict summary:
+
+```text
+filter run summary PASS | run_id=shadow_test_run_1 | mode=FILTER | export_id=xgb_test_1_export_v1 | predictions=5483 | outcomes=0 | scored=0 | unavailable_rows=5483 | admission_ALLOW=0 | admission_BLOCK=5483 | arbitration_groups=0 | arbitration_SELECTED=0 | arbitration_BLOCKED=0 | export_status=OK
+```
+
+Diagnosis:
+
+- `shadow_manifest.tsv` recorded `available=false`.
+- `unavailable_reason` was
+  `file_open_failed:DeterministicSignalML\model_exports\xgb_test_1_export_v1\model_manifest.tsv:5004`.
+- `compare_shadow_predictions.py` correctly failed with
+  `No scored shadow prediction rows found`.
+- `arbitration_decisions.tsv` existed but contained only the header because no
+  candidate reached scored FILTER-allowed arbitration.
+
+Result:
+
+- This run validates that files were written, but it is not Phase 2 behavioral
+  acceptance evidence.
+- The failure was a runtime export deployment prerequisite issue, not an
+  arbitration scorer parity result.
+
+Corrective action completed:
+
+- Local export `xgb_test_1_export_v1` validates as `mt5_runtime_ready=true`.
+- `deploy_model_export.py` was added to validate and copy the export to MT5
+  Common Files.
+- The export was deployed to:
+  `DeterministicSignalML/model_exports/xgb_test_1_export_v1`.
+
+Required next step:
+
+- Rerun the same short XAUUSD Strategy Tester smoke after deploy.
+- A valid rerun should show `scored > 0`, `unavailable_rows = 0`, and then the
+  arbitration counters can be interpreted.
 
 ## Long Run Policy
 

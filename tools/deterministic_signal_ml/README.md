@@ -188,7 +188,8 @@ Strategy Tester inference use the copied artifact under Common Files.
 ## Phase 5 Runtime Copy
 
 MQL5 shadow inference reads from MT5 `Common\Files`, not from the repository
-`artifacts/model_exports` folder. Validate the export before copying:
+`artifacts/model_exports` folder. Validate and deploy the export before running
+Strategy Tester with `ML_INFERENCE_SHADOW` or `ML_INFERENCE_FILTER`:
 
 ```powershell
 .\.venv\Scripts\python.exe tools\deterministic_signal_ml\model_artifact_validator.py `
@@ -202,19 +203,26 @@ Ubuntu:
   --export-id xgb_test_1_export_v1
 
 export MT5_COMMON_FILES="$HOME/.wine/drive_c/users/loldlm/AppData/Roaming/MetaQuotes/Terminal/Common/Files"
-mkdir -p "$MT5_COMMON_FILES/DeterministicSignalML/model_exports"
-cp -a artifacts/model_exports/xgb_test_1_export_v1 \
-  "$MT5_COMMON_FILES/DeterministicSignalML/model_exports/"
+.venv/bin/python tools/deterministic_signal_ml/deploy_model_export.py \
+  --export-id xgb_test_1_export_v1 \
+  --overwrite
 ```
 
 Windows PowerShell:
 
 ```powershell
 $MT5_COMMON_FILES = Join-Path $env:APPDATA "MetaQuotes\Terminal\Common\Files"
-$dest = Join-Path $MT5_COMMON_FILES "DeterministicSignalML\model_exports"
-New-Item -ItemType Directory -Force -Path $dest | Out-Null
-Copy-Item -Recurse -Force artifacts\model_exports\xgb_test_1_export_v1 $dest
+.\.venv\Scripts\python.exe tools\deterministic_signal_ml\deploy_model_export.py `
+  --export-id xgb_test_1_export_v1 `
+  --mt5-common-files "$MT5_COMMON_FILES" `
+  --overwrite
 ```
+
+The deploy tool validates the source artifact, copies it under
+`DeterministicSignalML/model_exports/<export_id>`, and validates the deployed
+copy. A FILTER run with `model_available=false` and
+`file_open_failed:DeterministicSignalML\model_exports\...` means this deploy
+step was skipped or pointed at a different MT5 Common Files root.
 
 The EA input surface is intentionally small:
 
