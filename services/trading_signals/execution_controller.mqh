@@ -363,121 +363,72 @@ void RefreshDeterministicTpFromBrokerEntry(SignalParams &signal_params,
   signal_params.execution_legs[leg_index] = leg_state;
 }
 
-void UpdateDeterministicExecutionLifecycle(SignalParams &signal_params)
+bool PrepareDeterministicPendingEntryAdmission(SignalParams &signal_params,
+                                               const int leg_index,
+                                               const double close_0,
+                                               const double high_1,
+                                               const double low_1,
+                                               ExecutionLegState &leg_state_out,
+                                               ExecutionLegTradeAdmissionContext &admission_context_out)
 {
-  if(signal_params.signal_state == CLOSED)
-    return;
+  leg_state_out = ExecutionLegState();
+  admission_context_out = ExecutionLegTradeAdmissionContext();
 
-  if(!EnsureDeterministicExecutionLeg(signal_params))
-  {
-    signal_params.signal_state = CLOSED;
-    return;
-  }
+  if(leg_index < 0 || leg_index >= ArraySize(signal_params.execution_legs))
+    return false;
 
-  ReconcileSignalBrokerPositions(signal_params);
-  RefreshSignalExposureState(signal_params);
-
-  int leg_index = 0;
-  if(ArraySize(signal_params.execution_legs) <= leg_index)
-    return;
+  RefreshDeterministicPendingEntryAnchor(signal_params,
+                                         leg_index,
+                                         close_0,
+                                         high_1,
+                                         low_1);
 
   ExecutionLegState leg_state = signal_params.execution_legs[leg_index];
-  double close_0 = 0.0;
-  double high_1 = 0.0;
-  double low_1 = 0.0;
-  if(!ResolveDeterministicM1Rates(close_0, high_1, low_1))
-    return;
+  if(leg_state.status != EXECUTION_LEG_PENDING)
+    return false;
 
-  if(leg_state.status == EXECUTION_LEG_PENDING)
+  if(!DeterministicEntryTriggered(signal_params.signal_type,
+                                  close_0,
+                                  signal_params.raw_entry_trigger_price))
+    return false;
+
+  double current_entry_anchor = ResolveDeterministicPendingEntryCandidate(signal_params.signal_type,
+                                                                         high_1,
+                                                                         low_1);
+  if(!DeterministicEntryTriggered(signal_params.signal_type,
+                                  close_0,
+                                  current_entry_anchor))
   {
-    RefreshDeterministicPendingEntryAnchor(signal_params,
-                                           leg_index,
-                                           close_0,
-                                           high_1,
-                                           low_1);
-    leg_state = signal_params.execution_legs[leg_index];
+    ExecutionLogDeterministicEntryAnchorBlocked(signal_params,
+                                                leg_state,
+                                                close_0,
+                                                high_1,
+                                                low_1,
+                                                current_entry_anchor,
+                                                "current_anchor_not_broken");
+    return false;
+  }
 
-    if(!DeterministicEntryTriggered(signal_params.signal_type,
-                                    close_0,
-                                    signal_params.raw_entry_trigger_price))
-      return;
+  double base_ma_now = 0.0;
+  double base_ma_prev = 0.0;
+  double macro_ma_now = 0.0;
+  double macro_ma_prev = 0.0;
+  int base_shift = ResolveDeterministicEntryBaseShift(signal_params);
+  bool base_confirms = EvaluateDeterministicCurrentBaseConfirmation(signal_params.strategy_id,
+                                                                    signal_params.signal_type,
+                                                                    base_ma_now,
+                                                                    base_ma_prev);
+  bool macro_confirms = EvaluateDeterministicMacroConfirmation(signal_params.strategy_id,
+                                                               signal_params.signal_type,
+                                                               macro_ma_now,
+                                                               macro_ma_prev);
 
-    double current_entry_anchor = ResolveDeterministicPendingEntryCandidate(signal_params.signal_type,
-                                                                           high_1,
-                                                                           low_1);
-    if(!DeterministicEntryTriggered(signal_params.signal_type,
-                                    close_0,
-                                    current_entry_anchor))
-    {
-      ExecutionLogDeterministicEntryAnchorBlocked(signal_params,
-                                                  leg_state,
-                                                  close_0,
-                                                  high_1,
-                                                  low_1,
-                                                  current_entry_anchor,
-                                                  "current_anchor_not_broken");
-      return;
-    }
-
-    double base_ma_now = 0.0;
-    double base_ma_prev = 0.0;
-    double macro_ma_now = 0.0;
-    double macro_ma_prev = 0.0;
-    int base_shift = ResolveDeterministicEntryBaseShift(signal_params);
-    bool base_confirms = EvaluateDeterministicCurrentBaseConfirmation(signal_params.strategy_id,
-                                                                      signal_params.signal_type,
-                                                                      base_ma_now,
-                                                                      base_ma_prev);
-    bool macro_confirms = EvaluateDeterministicMacroConfirmation(signal_params.strategy_id,
-                                                                 signal_params.signal_type,
-                                                                 macro_ma_now,
-                                                                 macro_ma_prev);
-
-    if(!base_confirms)
-    {
-      leg_state.status = EXECUTION_LEG_COMPLETED;
-      signal_params.execution_legs[leg_index] = leg_state;
-      signal_params.signal_state = CLOSED;
-      ExecutionLogDeterministicEntryConfirmation("DETERMINISTIC_BASE_EXPIRED",
-                                                 signal_params,
-                                                 leg_state,
-                                                 base_shift,
-                                                 base_confirms,
-                                                 base_ma_now,
-                                                 base_ma_prev,
-                                                 DETERMINISTIC_MACRO_DELAY,
-                                                 macro_confirms,
-                                                 macro_ma_now,
-                                                 macro_ma_prev,
-                                                 close_0,
-                                                 high_1,
-                                                 low_1);
-      return;
-    }
-
-    if(!macro_confirms)
-    {
-      leg_state.status = EXECUTION_LEG_COMPLETED;
-      signal_params.execution_legs[leg_index] = leg_state;
-      signal_params.signal_state = CLOSED;
-      ExecutionLogDeterministicEntryConfirmation("DETERMINISTIC_MACRO_EXPIRED",
-                                                 signal_params,
-                                                 leg_state,
-                                                 base_shift,
-                                                 base_confirms,
-                                                 base_ma_now,
-                                                 base_ma_prev,
-                                                 DETERMINISTIC_MACRO_DELAY,
-                                                 macro_confirms,
-                                                 macro_ma_now,
-                                                 macro_ma_prev,
-                                                 close_0,
-                                                 high_1,
-                                                 low_1);
-      return;
-    }
-
-    ExecutionLogDeterministicEntryConfirmation("DETERMINISTIC_ENTRY_CONFIRM",
+  if(!base_confirms)
+  {
+    leg_state.status = EXECUTION_LEG_COMPLETED;
+    signal_params.execution_legs[leg_index] = leg_state;
+    signal_params.signal_state = CLOSED;
+    ExecutionLogDeterministicEntryConfirmation("DETERMINISTIC_BASE_EXPIRED",
                                                signal_params,
                                                leg_state,
                                                base_shift,
@@ -491,49 +442,104 @@ void UpdateDeterministicExecutionLifecycle(SignalParams &signal_params)
                                                close_0,
                                                high_1,
                                                low_1);
-
-	    double requested_lot = leg_state.lot_size;
-	    double normalized_volume = NormalizeVolumeForSymbol(_Symbol, requested_lot);
-	    double point_size = ExecutionResolvePointSize();
-	    ExecutionLegTradeAdmissionContext admission_context;
-	    if(!PrepareExecutionLegTradeAdmission(signal_params,
-	                                          leg_state,
-	                                          point_size,
-	                                          normalized_volume,
-	                                          admission_context))
-	      return;
-
-	    string ml_filter_block_reason = "";
-	    if(!DeterministicSignalMLFilterAllowsEntry(signal_params,
-	                                               leg_state,
-	                                               ml_filter_block_reason))
-	    {
-	      leg_state.status = EXECUTION_LEG_COMPLETED;
-	      leg_state.last_action_time = TimeCurrent();
-	      signal_params.execution_legs[leg_index] = leg_state;
-	      signal_params.signal_state = CLOSED;
-	      signal_params.deterministic_stats_terminal_reason = "ML_FILTER_BLOCKED";
-	      ExecutionLogGuardrailBlock("ML_FILTER_BLOCKED",
-	                                 signal_params,
-	                                 leg_state,
-	                                 ml_filter_block_reason);
-	      return;
-	    }
-
-	    if(ApplyExecutionLegTradeAdmission(signal_params,
-	                                       leg_state,
-	                                       admission_context))
-	    {
-	      RefreshDeterministicTpFromBrokerEntry(signal_params, leg_index);
-	      DeterministicSignalStatsRecordFeature(signal_params,
-	                                            signal_params.execution_legs[leg_index]);
-	      DeterministicSignalMLShadowRecordPrediction(signal_params,
-	                                                  signal_params.execution_legs[leg_index]);
-	      ExecutionLogEvent("DETERMINISTIC_ENTRY", signal_params, signal_params.execution_legs[leg_index]);
-	    }
-    return;
+    return false;
   }
 
+  if(!macro_confirms)
+  {
+    leg_state.status = EXECUTION_LEG_COMPLETED;
+    signal_params.execution_legs[leg_index] = leg_state;
+    signal_params.signal_state = CLOSED;
+    ExecutionLogDeterministicEntryConfirmation("DETERMINISTIC_MACRO_EXPIRED",
+                                               signal_params,
+                                               leg_state,
+                                               base_shift,
+                                               base_confirms,
+                                               base_ma_now,
+                                               base_ma_prev,
+                                               DETERMINISTIC_MACRO_DELAY,
+                                               macro_confirms,
+                                               macro_ma_now,
+                                               macro_ma_prev,
+                                               close_0,
+                                               high_1,
+                                               low_1);
+    return false;
+  }
+
+  ExecutionLogDeterministicEntryConfirmation("DETERMINISTIC_ENTRY_CONFIRM",
+                                             signal_params,
+                                             leg_state,
+                                             base_shift,
+                                             base_confirms,
+                                             base_ma_now,
+                                             base_ma_prev,
+                                             DETERMINISTIC_MACRO_DELAY,
+                                             macro_confirms,
+                                             macro_ma_now,
+                                             macro_ma_prev,
+                                             close_0,
+                                             high_1,
+                                             low_1);
+
+  double requested_lot = leg_state.lot_size;
+  double normalized_volume = NormalizeVolumeForSymbol(_Symbol, requested_lot);
+  double point_size = ExecutionResolvePointSize();
+  if(!PrepareExecutionLegTradeAdmission(signal_params,
+                                        leg_state,
+                                        point_size,
+                                        normalized_volume,
+                                        admission_context_out))
+    return false;
+
+  string ml_filter_block_reason = "";
+  if(!DeterministicSignalMLFilterAllowsEntry(signal_params,
+                                             leg_state,
+                                             ml_filter_block_reason))
+  {
+    leg_state.status = EXECUTION_LEG_COMPLETED;
+    leg_state.last_action_time = TimeCurrent();
+    signal_params.execution_legs[leg_index] = leg_state;
+    signal_params.signal_state = CLOSED;
+    signal_params.deterministic_stats_terminal_reason = "ML_FILTER_BLOCKED";
+    ExecutionLogGuardrailBlock("ML_FILTER_BLOCKED",
+                               signal_params,
+                               leg_state,
+                               ml_filter_block_reason);
+    return false;
+  }
+
+  leg_state_out = signal_params.execution_legs[leg_index];
+  return true;
+}
+
+bool ApplyDeterministicPreparedEntryAdmission(SignalParams &signal_params,
+                                              const int leg_index,
+                                              ExecutionLegState &leg_state,
+                                              const ExecutionLegTradeAdmissionContext &admission_context)
+{
+  if(!ApplyExecutionLegTradeAdmission(signal_params,
+                                      leg_state,
+                                      admission_context))
+    return false;
+
+  RefreshDeterministicTpFromBrokerEntry(signal_params, leg_index);
+  DeterministicSignalStatsRecordFeature(signal_params,
+                                        signal_params.execution_legs[leg_index]);
+  DeterministicSignalMLShadowRecordPrediction(signal_params,
+                                              signal_params.execution_legs[leg_index]);
+  ExecutionLogEvent("DETERMINISTIC_ENTRY", signal_params, signal_params.execution_legs[leg_index]);
+  return true;
+}
+
+void UpdateDeterministicActiveExecutionLifecycle(SignalParams &signal_params,
+                                                 const int leg_index,
+                                                 const double close_0)
+{
+  if(leg_index < 0 || leg_index >= ArraySize(signal_params.execution_legs))
+    return;
+
+  ExecutionLegState leg_state = signal_params.execution_legs[leg_index];
   if(leg_state.status != EXECUTION_LEG_ACTIVE)
     return;
 
@@ -565,6 +571,116 @@ void UpdateDeterministicExecutionLifecycle(SignalParams &signal_params)
 
   if(IsExecutionSignalComplete(signal_params))
     signal_params.signal_state = CLOSED;
+}
+
+void UpdateDeterministicExecutionLifecycle(SignalParams &signal_params)
+{
+  if(signal_params.signal_state == CLOSED)
+    return;
+
+  if(!EnsureDeterministicExecutionLeg(signal_params))
+  {
+    signal_params.signal_state = CLOSED;
+    return;
+  }
+
+  ReconcileSignalBrokerPositions(signal_params);
+  RefreshSignalExposureState(signal_params);
+
+  int leg_index = 0;
+  if(ArraySize(signal_params.execution_legs) <= leg_index)
+    return;
+
+  ExecutionLegState leg_state = signal_params.execution_legs[leg_index];
+  double close_0 = 0.0;
+  double high_1 = 0.0;
+  double low_1 = 0.0;
+  if(!ResolveDeterministicM1Rates(close_0, high_1, low_1))
+    return;
+
+  if(leg_state.status == EXECUTION_LEG_PENDING)
+  {
+    ExecutionLegTradeAdmissionContext admission_context;
+    if(!PrepareDeterministicPendingEntryAdmission(signal_params,
+                                                  leg_index,
+                                                  close_0,
+                                                  high_1,
+                                                  low_1,
+                                                  leg_state,
+                                                  admission_context))
+      return;
+
+    ApplyDeterministicPreparedEntryAdmission(signal_params,
+                                             leg_index,
+                                             leg_state,
+                                             admission_context);
+    return;
+  }
+
+  UpdateDeterministicActiveExecutionLifecycle(signal_params, leg_index, close_0);
+}
+
+bool UpdateDeterministicExecutionLifecycleForMLArbitration(SignalParams &signal_params,
+                                                           const int direction_array,
+                                                           const int signal_index,
+                                                           const datetime activation_time,
+                                                           MLArbitrationCandidate &candidate_out)
+{
+  candidate_out = MLArbitrationCandidate();
+
+  if(signal_params.signal_state == CLOSED)
+    return false;
+
+  if(!signal_params.deterministic_strategy)
+  {
+    UpdateExecutionLifecycle(signal_params);
+    return false;
+  }
+
+  if(!EnsureDeterministicExecutionLeg(signal_params))
+  {
+    signal_params.signal_state = CLOSED;
+    return false;
+  }
+
+  ReconcileSignalBrokerPositions(signal_params);
+  RefreshSignalExposureState(signal_params);
+
+  int leg_index = 0;
+  if(ArraySize(signal_params.execution_legs) <= leg_index)
+    return false;
+
+  ExecutionLegState leg_state = signal_params.execution_legs[leg_index];
+  double close_0 = 0.0;
+  double high_1 = 0.0;
+  double low_1 = 0.0;
+  if(!ResolveDeterministicM1Rates(close_0, high_1, low_1))
+    return false;
+
+  if(leg_state.status == EXECUTION_LEG_PENDING)
+  {
+    ExecutionLegTradeAdmissionContext admission_context;
+    if(!PrepareDeterministicPendingEntryAdmission(signal_params,
+                                                  leg_index,
+                                                  close_0,
+                                                  high_1,
+                                                  low_1,
+                                                  leg_state,
+                                                  admission_context))
+      return false;
+
+    return MLArbitrationBuildCandidate(signal_params,
+                                       leg_state,
+                                       admission_context,
+                                       direction_array,
+                                       signal_index,
+                                       leg_index,
+                                       activation_time,
+                                       candidate_out);
+  }
+
+  UpdateDeterministicActiveExecutionLifecycle(signal_params, leg_index, close_0);
+  return false;
 }
 
 void UpdateExecutionLifecycle(SignalParams &signal_params)

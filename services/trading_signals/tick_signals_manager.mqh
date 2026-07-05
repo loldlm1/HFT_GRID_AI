@@ -32,6 +32,357 @@ void RegisterClosedSignalOutcomeIfBrokerConfirmed(SignalParams &signal_params,
   DeterministicSignalMLShadowRecordOutcome(signal_params);
 }
 
+void CleanupClosedBullishSignals()
+{
+  int running_signals_total = ArraySize(running_bullish_signals);
+
+  for(int i = running_signals_total-1; i >= 0; i--)
+  {
+    bool lifecycle_closed = (running_bullish_signals[i].signal_state == CLOSED);
+    if(lifecycle_closed || IsExecutionSignalComplete(running_bullish_signals[i]))
+    {
+      running_bullish_signals[i].close_time  = TimeCurrent();
+      running_bullish_signals[i].close_price = g_bid;
+      running_bullish_signals[i].signal_state = CLOSED;
+
+      RegisterClosedSignalOutcomeIfBrokerConfirmed(running_bullish_signals[i],
+                                                   BULLISH);
+      CloseBullishSignal(running_bullish_signals[i]);
+      RemoveElementFromArray(running_bullish_signals, i);
+    }
+  }
+}
+
+void CleanupClosedBearishSignals()
+{
+  int running_signals_total = ArraySize(running_bearish_signals);
+
+  for(int i = running_signals_total-1; i >= 0; i--)
+  {
+    bool lifecycle_closed = (running_bearish_signals[i].signal_state == CLOSED);
+    if(lifecycle_closed || IsExecutionSignalComplete(running_bearish_signals[i]))
+    {
+      running_bearish_signals[i].close_time  = TimeCurrent();
+      running_bearish_signals[i].close_price = g_ask;
+      running_bearish_signals[i].signal_state = CLOSED;
+
+      RegisterClosedSignalOutcomeIfBrokerConfirmed(running_bearish_signals[i],
+                                                   BEARISH);
+      CloseBearishSignal(running_bearish_signals[i]);
+      RemoveElementFromArray(running_bearish_signals, i);
+    }
+  }
+}
+
+bool MLArbitrationSignalCandidateStillValid(SignalParams &signal_params,
+                                            const MLArbitrationCandidate &candidate)
+{
+  if(!candidate.valid)
+    return false;
+  if(signal_params.signal_state == CLOSED)
+    return false;
+  if(!signal_params.deterministic_strategy)
+    return false;
+  if(signal_params.strategy_id != candidate.strategy_id)
+    return false;
+  if(signal_params.deterministic_source_attempt_index != candidate.source_attempt_index)
+    return false;
+  if(MLArbitrationResolveSignalId(signal_params) != candidate.signal_id)
+    return false;
+  if(!MLArbitrationSourceIdentityMatches(candidate,
+                                         signal_params,
+                                         candidate.activation_time))
+    return false;
+  if(candidate.leg_index < 0 ||
+     candidate.leg_index >= ArraySize(signal_params.execution_legs))
+    return false;
+
+  ExecutionLegState leg_state = signal_params.execution_legs[candidate.leg_index];
+  if(leg_state.status != EXECUTION_LEG_PENDING)
+    return false;
+  if(leg_state.position_ticket > 0 || leg_state.entry_price > 0.0)
+    return false;
+
+  return (signal_params.ml_shadow_evaluated &&
+          signal_params.ml_shadow_available &&
+          signal_params.ml_shadow_feature_valid &&
+          signal_params.ml_shadow_classifier_scored &&
+          signal_params.ml_shadow_recommendation == "ALLOW");
+}
+
+bool MLArbitrationCandidateStillValid(const MLArbitrationCandidate &candidate)
+{
+  if(candidate.direction_array == ML_ARBITRATION_ARRAY_BULLISH)
+  {
+    if(candidate.signal_index < 0 ||
+       candidate.signal_index >= ArraySize(running_bullish_signals))
+      return false;
+    return MLArbitrationSignalCandidateStillValid(running_bullish_signals[candidate.signal_index],
+                                                 candidate);
+  }
+
+  if(candidate.direction_array == ML_ARBITRATION_ARRAY_BEARISH)
+  {
+    if(candidate.signal_index < 0 ||
+       candidate.signal_index >= ArraySize(running_bearish_signals))
+      return false;
+    return MLArbitrationSignalCandidateStillValid(running_bearish_signals[candidate.signal_index],
+                                                 candidate);
+  }
+
+  return false;
+}
+
+bool ApplyMLArbitrationSelectedSignal(SignalParams &signal_params,
+                                      MLArbitrationCandidate &candidate)
+{
+  if(!MLArbitrationSignalCandidateStillValid(signal_params, candidate))
+    return false;
+
+  ExecutionLegState leg_state = signal_params.execution_legs[candidate.leg_index];
+  double requested_lot = leg_state.lot_size;
+  double normalized_volume = NormalizeVolumeForSymbol(_Symbol, requested_lot);
+  double point_size = ExecutionResolvePointSize();
+  ExecutionLegTradeAdmissionContext admission_context;
+  if(!PrepareExecutionLegTradeAdmission(signal_params,
+                                        leg_state,
+                                        point_size,
+                                        normalized_volume,
+                                        admission_context))
+    return false;
+
+  return ApplyDeterministicPreparedEntryAdmission(signal_params,
+                                                 candidate.leg_index,
+                                                 leg_state,
+                                                 admission_context);
+}
+
+bool ApplyMLArbitrationSelectedCandidate(MLArbitrationCandidate &candidate)
+{
+  if(candidate.direction_array == ML_ARBITRATION_ARRAY_BULLISH)
+  {
+    if(candidate.signal_index < 0 ||
+       candidate.signal_index >= ArraySize(running_bullish_signals))
+      return false;
+    return ApplyMLArbitrationSelectedSignal(running_bullish_signals[candidate.signal_index],
+                                            candidate);
+  }
+
+  if(candidate.direction_array == ML_ARBITRATION_ARRAY_BEARISH)
+  {
+    if(candidate.signal_index < 0 ||
+       candidate.signal_index >= ArraySize(running_bearish_signals))
+      return false;
+    return ApplyMLArbitrationSelectedSignal(running_bearish_signals[candidate.signal_index],
+                                            candidate);
+  }
+
+  return false;
+}
+
+bool BlockMLArbitrationSignal(SignalParams &signal_params,
+                              const MLArbitrationCandidate &candidate,
+                              const string selected_signal_id)
+{
+  if(!MLArbitrationSignalCandidateStillValid(signal_params, candidate))
+    return false;
+
+  ExecutionLegState leg_state = signal_params.execution_legs[candidate.leg_index];
+  leg_state.status = EXECUTION_LEG_COMPLETED;
+  leg_state.last_action_time = TimeCurrent();
+  signal_params.execution_legs[candidate.leg_index] = leg_state;
+  signal_params.signal_state = CLOSED;
+  signal_params.deterministic_stats_terminal_reason = "ML_ARBITRATION_BLOCKED";
+
+  ExecutionLogGuardrailBlock("ML_ARBITRATION_BLOCKED",
+                             signal_params,
+                             leg_state,
+                             StringFormat("group=%s|selected_signal_id=%s",
+                                          candidate.group_id,
+                                          selected_signal_id));
+  return true;
+}
+
+bool BlockMLArbitrationCandidate(const MLArbitrationCandidate &candidate,
+                                 const string selected_signal_id)
+{
+  if(candidate.direction_array == ML_ARBITRATION_ARRAY_BULLISH)
+  {
+    if(candidate.signal_index < 0 ||
+       candidate.signal_index >= ArraySize(running_bullish_signals))
+      return false;
+    return BlockMLArbitrationSignal(running_bullish_signals[candidate.signal_index],
+                                    candidate,
+                                    selected_signal_id);
+  }
+
+  if(candidate.direction_array == ML_ARBITRATION_ARRAY_BEARISH)
+  {
+    if(candidate.signal_index < 0 ||
+       candidate.signal_index >= ArraySize(running_bearish_signals))
+      return false;
+    return BlockMLArbitrationSignal(running_bearish_signals[candidate.signal_index],
+                                    candidate,
+                                    selected_signal_id);
+  }
+
+  return false;
+}
+
+int MLArbitrationFindBestIndexedCandidate(MLArbitrationCandidate &candidates[],
+                                          int &group_indices[],
+                                          bool &skipped[])
+{
+  int group_total = ArraySize(group_indices);
+  int best_local_index = -1;
+  for(int i = 0; i < group_total; i++)
+  {
+    if(skipped[i])
+      continue;
+
+    int candidate_index = group_indices[i];
+    if(candidate_index < 0 || candidate_index >= ArraySize(candidates))
+      continue;
+    if(!candidates[candidate_index].valid)
+      continue;
+
+    if(best_local_index < 0)
+    {
+      best_local_index = i;
+      continue;
+    }
+
+    int best_candidate_index = group_indices[best_local_index];
+    string rank_reason = "";
+    if(MLArbitrationCompareCandidates(candidates[candidate_index],
+                                      candidates[best_candidate_index],
+                                      rank_reason) > 0)
+      best_local_index = i;
+  }
+
+  return best_local_index;
+}
+
+void ProcessMLArbitrationGroup(MLArbitrationCandidate &candidates[],
+                               int &group_indices[])
+{
+  int group_total = ArraySize(group_indices);
+  if(group_total <= 0)
+    return;
+
+  bool skipped[];
+  ArrayResize(skipped, group_total);
+  for(int i = 0; i < group_total; i++)
+    skipped[i] = false;
+
+  int selected_index = -1;
+  string selected_signal_id = "";
+  while(true)
+  {
+    int best_local_index = MLArbitrationFindBestIndexedCandidate(candidates,
+                                                                 group_indices,
+                                                                 skipped);
+    if(best_local_index < 0)
+      break;
+
+    int candidate_index = group_indices[best_local_index];
+    if(!MLArbitrationCandidateStillValid(candidates[candidate_index]))
+    {
+      ExecutionAppendQueryDebugLog("ML_ARBITRATION_INVALID",
+                                   MLArbitrationCandidateDebugToken(candidates[candidate_index]));
+      skipped[best_local_index] = true;
+      continue;
+    }
+
+    selected_index = candidate_index;
+    selected_signal_id = candidates[selected_index].signal_id;
+    if(!ApplyMLArbitrationSelectedCandidate(candidates[selected_index]))
+    {
+      ExecutionAppendQueryDebugLog("ML_ARBITRATION_SELECTED_APPLY_FAILED",
+                                   MLArbitrationCandidateDebugToken(candidates[selected_index]));
+    }
+    break;
+  }
+
+  if(selected_index < 0)
+    return;
+
+  for(int i = 0; i < group_total; i++)
+  {
+    int candidate_index = group_indices[i];
+    if(candidate_index == selected_index)
+      continue;
+    if(candidate_index < 0 || candidate_index >= ArraySize(candidates))
+      continue;
+
+    BlockMLArbitrationCandidate(candidates[candidate_index],
+                                selected_signal_id);
+  }
+}
+
+void ProcessMLArbitrationCandidates(MLArbitrationCandidate &candidates[])
+{
+  int total = ArraySize(candidates);
+  if(total <= 0)
+    return;
+
+  bool processed[];
+  ArrayResize(processed, total);
+  for(int i = 0; i < total; i++)
+    processed[i] = false;
+
+  for(int i = 0; i < total; i++)
+  {
+    if(processed[i] || !candidates[i].valid)
+      continue;
+
+    int group_indices[];
+    for(int j = i; j < total; j++)
+    {
+      if(processed[j] || !MLArbitrationSameGroup(candidates[i], candidates[j]))
+        continue;
+      AddElementToArray(group_indices, j);
+      processed[j] = true;
+    }
+
+    ProcessMLArbitrationGroup(candidates, group_indices);
+  }
+}
+
+void CheckTickOpenSignalsWithMLArbitration()
+{
+  MLArbitrationCandidate candidates[];
+  datetime activation_time = TimeCurrent();
+
+  int bullish_total = ArraySize(running_bullish_signals);
+  for(int i = bullish_total-1; i >= 0; i--)
+  {
+    MLArbitrationCandidate candidate;
+    if(UpdateDeterministicExecutionLifecycleForMLArbitration(running_bullish_signals[i],
+                                                             ML_ARBITRATION_ARRAY_BULLISH,
+                                                             i,
+                                                             activation_time,
+                                                             candidate))
+      AddElementToArray(candidates, candidate);
+  }
+
+  int bearish_total = ArraySize(running_bearish_signals);
+  for(int i = bearish_total-1; i >= 0; i--)
+  {
+    MLArbitrationCandidate candidate;
+    if(UpdateDeterministicExecutionLifecycleForMLArbitration(running_bearish_signals[i],
+                                                             ML_ARBITRATION_ARRAY_BEARISH,
+                                                             i,
+                                                             activation_time,
+                                                             candidate))
+      AddElementToArray(candidates, candidate);
+  }
+
+  ProcessMLArbitrationCandidates(candidates);
+  CleanupClosedBullishSignals();
+  CleanupClosedBearishSignals();
+}
+
 void CheckTickOpenBullishSignals()
 {
   int running_signals_total = ArraySize(running_bullish_signals);
@@ -76,6 +427,18 @@ void CheckTickOpenBearishSignals()
       RemoveElementFromArray(running_bearish_signals, i);
     }
   }
+}
+
+void CheckTickOpenSignals()
+{
+  if(DeterministicSignalMLFilterMode())
+  {
+    CheckTickOpenSignalsWithMLArbitration();
+    return;
+  }
+
+  CheckTickOpenBullishSignals();
+  CheckTickOpenBearishSignals();
 }
 
 #endif // _SERVICES_TRADING_SIGNALS_TICK_SIGNALS_MANAGER_MQH_

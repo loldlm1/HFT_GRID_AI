@@ -285,8 +285,7 @@ void Main()
 // MANAGE BULLISH AND BEARISH SIGNALS
 void Main_Tick()
 {
-  CheckTickOpenBullishSignals();
-  CheckTickOpenBearishSignals();
+  CheckTickOpenSignals();
 }
 
 void RefreshCustomSymbolRates()
