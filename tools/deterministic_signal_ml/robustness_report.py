@@ -76,9 +76,52 @@ def write_json_report(output_dir: Path, payload: RobustnessReportPayload) -> Pat
     return path
 
 
+def tsv_value(value: Any) -> str:
+    if value is None:
+        return ""
+    if isinstance(value, bool):
+        return "true" if value else "false"
+    if isinstance(value, float):
+        return f"{value:.10g}"
+    return str(value)
+
+
+def write_tsv_report(output_dir: Path, filename: str, rows: list[dict[str, Any]]) -> Path:
+    output_dir.mkdir(parents=True, exist_ok=True)
+    path = output_dir / filename
+    if not rows:
+        path.write_text("", encoding="utf-8")
+        return path
+    columns: list[str] = []
+    for row in rows:
+        for key in row:
+            if key not in columns:
+                columns.append(key)
+    lines = ["\t".join(columns)]
+    for row in rows:
+        lines.append("\t".join(tsv_value(row.get(column)) for column in columns))
+    path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    return path
+
+
+def warning_rows(warnings: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    return [
+        {
+            "severity": warning.get("severity", ""),
+            "code": warning.get("code", ""),
+            "message": warning.get("message", ""),
+            "detail": warning.get("detail", ""),
+        }
+        for warning in warnings
+    ]
+
+
 def render_markdown_report(payload: RobustnessReportPayload) -> str:
     baseline = payload.baseline
     row_counts = baseline.get("row_counts", {})
+    split_policy = payload.split_policy
+    threshold_selection = payload.threshold_selection
+    final_holdout = payload.final_holdout
     lines = [
         f"# Robustness Report: {baseline.get('model_id', '')}",
         "",
@@ -97,10 +140,34 @@ def render_markdown_report(payload: RobustnessReportPayload) -> str:
         f"- Threshold probability: `{baseline.get('threshold_probability', '')}`",
         f"- Threshold source: `{baseline.get('threshold_source', '')}`",
         "",
+        "## Split Policy",
+        "",
+        f"- Policy: `{split_policy.get('policy', '')}`",
+        f"- Gap entry-time groups: `{split_policy.get('gap_entry_time_groups', '')}`",
+        f"- Train core rows: `{split_policy.get('train_core', {}).get('row_count', '')}`",
+        f"- Early-stopping validation rows: `{split_policy.get('early_stopping_validation', {}).get('row_count', '')}`",
+        f"- Threshold-selection rows: `{split_policy.get('threshold_selection', {}).get('row_count', '')}`",
+        f"- Final holdout rows: `{split_policy.get('final_holdout', {}).get('row_count', '')}`",
+        "",
         "## Threshold Selection",
         "",
-        f"- Source: `{payload.threshold_selection.get('source', '')}`",
-        f"- Final holdout used for selection: `{payload.threshold_selection.get('final_holdout_used_for_selection', '')}`",
+        f"- Source: `{threshold_selection.get('source', '')}`",
+        f"- Source rows: `{threshold_selection.get('source_rows', '')}`",
+        f"- Selected threshold: `{threshold_selection.get('selected_threshold', '')}`",
+        f"- Selected rows: `{threshold_selection.get('selected_rows', '')}`",
+        f"- Mean R: `{threshold_selection.get('mean_profit_r', '')}`",
+        f"- Net R: `{threshold_selection.get('net_profit_r', '')}`",
+        f"- Final holdout used for selection: `{threshold_selection.get('final_holdout_used_for_selection', '')}`",
+        "",
+        "## Final Holdout",
+        "",
+        f"- Rows: `{final_holdout.get('rows', '')}`",
+        f"- Evaluation threshold: `{final_holdout.get('threshold', '')}`",
+        f"- Selected rows: `{final_holdout.get('selected_rows', '')}`",
+        f"- Win rate: `{final_holdout.get('win_rate', '')}`",
+        f"- Mean R: `{final_holdout.get('mean_profit_r', '')}`",
+        f"- Net R: `{final_holdout.get('net_profit_r', '')}`",
+        f"- Max drawdown-like R: `{final_holdout.get('max_drawdown_r', '')}`",
         "",
         "## Warnings",
         "",
