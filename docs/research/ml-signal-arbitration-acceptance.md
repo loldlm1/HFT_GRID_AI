@@ -2,7 +2,7 @@
 
 **Date**: 2026-07-05
 **Roadmap Phase**: Phase 2 - ML Signal Arbitration
-**Status**: Draft, implementation in progress
+**Status**: Implementation compile-clean; Strategy Tester smoke pending human-in-loop run
 
 ## Scope
 
@@ -178,6 +178,63 @@ Expected evidence:
 If the first smoke range has no multi-candidate group, the run can validate file
 shape and counters but cannot complete behavioral acceptance. A second smoke
 range should then be selected before Phase 2 is accepted.
+
+## Implementation Evidence - 2026-07-05
+
+Completed commits:
+
+- `28f64ff docs: plan ml signal arbitration`
+- `483b56b docs: define ml signal arbitration contract`
+- `f527080 feat: add ml arbitration candidate grouping`
+- `ff4de4d feat: arbitrate ml filter signal admissions`
+- `7ba86b9 feat: record ml arbitration decisions`
+
+Validation completed:
+
+- MetaEditor real compile via `tools/mt5/compile_mt5.py --mode compile`.
+- Compile log:
+  `logs/compile/ml-arbitration-phase2-build.log`.
+- Compile result: `0 errors, 0 warnings`.
+- Generated EX5:
+  `HFT_Grid_AI.ex5`, 507642 bytes, timestamp `2026-07-05 12:31:48 -0400`.
+- Python validation:
+  `python3 -m py_compile tools/deterministic_signal_ml/summarize_filter_run.py`.
+- Fixture validation:
+  `summarize_filter_run.py --require-arbitration` passed on a minimal
+  temporary run folder with one `ALLOW` prediction and one `SELECTED`
+  arbitration row.
+- Model export validation:
+  `xgb_test_1_export_v1`, model `xgb_test_1`, dataset `test_dataset_1`,
+  49 encoded features, 31 classifier trees, 30 regressor trees,
+  `mt5_runtime_ready=true`.
+- The validated export was copied to Wine Common Files under
+  `DeterministicSignalML/model_exports/xgb_test_1_export_v1`.
+
+Strategy Tester smoke status:
+
+- Attempted an agentic non-visual XAUUSD M1 FILTER smoke using the existing
+  tester preset
+  `MQL5/Profiles/Tester/HFT_Grid_AI.XAUUSD.M1.20260604_20260704.400.ini`.
+- The preset has all three deterministic strategies enabled,
+  `ML_Inference_Mode=2`, and `ML_Model_Export_Id=xgb_test_1_export_v1`.
+- `terminal64.exe /portable /config:<temp config>` opened the terminal under
+  Wine but did not create a tester report or a
+  `DeterministicSignalML/shadow_runs/<shadow_run_id>` folder.
+- The orphaned terminal process from the CLI attempt was closed.
+- Because no `shadow_run` was generated, Phase 2 runtime acceptance remains
+  pending human-in-the-loop Strategy Tester execution.
+
+Required human-in-the-loop smoke gate:
+
+```bash
+.venv/bin/python tools/deterministic_signal_ml/summarize_filter_run.py \
+  --shadow-run-path "$MT5_COMMON_FILES/DeterministicSignalML/shadow_runs/<shadow_run_id>" \
+  --require-arbitration
+```
+
+Acceptance after that run requires either at least one multi-candidate group
+with one `SELECTED` row and one or more `BLOCKED` rows, or an explicit note that
+the selected smoke date range produced no multi-candidate convergence.
 
 ## Long Run Policy
 

@@ -103,3 +103,25 @@ flowchart TD
 - Unavailable rows: `0`
 - Python/MQL5 decision agreement: `1`
 - Result: Phase 6 Strategy Tester `FILTER` validation `PASS`
+
+## Phase 2 Arbitration Validation
+
+ML signal arbitration adds one more required artifact for post-implementation
+FILTER smoke evidence:
+
+```text
+DeterministicSignalML/shadow_runs/<shadow_run_id>/arbitration_decisions.tsv
+```
+
+After a fresh Phase 2 Strategy Tester FILTER run, use strict summary validation:
+
+```bash
+.venv/bin/python tools/deterministic_signal_ml/summarize_filter_run.py \
+  --shadow-run-path "$MT5_COMMON_FILES/DeterministicSignalML/shadow_runs/<shadow_run_id>" \
+  --require-arbitration
+```
+
+Phase 2 runtime acceptance remains pending until a fresh XAUUSD smoke run
+generates a `shadow_run` and validates arbitration groups, selected rows,
+blocked rows, and separate `ML_FILTER_BLOCKED` versus `ML_ARBITRATION_BLOCKED`
+counts.
