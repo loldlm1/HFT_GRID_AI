@@ -2,7 +2,7 @@
 
 **Date**: 2026-07-05
 **Roadmap Phase**: Phase 2 - ML Signal Arbitration
-**Status**: Implementation compile-clean; smoke prerequisite failure recovered; fresh human-in-loop rerun required
+**Status**: Short XAUUSD FILTER smoke PASS; long XAUUSD run pending only if required by later research
 
 ## Scope
 
@@ -224,7 +224,7 @@ Strategy Tester smoke status:
 - Because no `shadow_run` was generated, Phase 2 runtime acceptance remains
   pending human-in-the-loop Strategy Tester execution.
 
-Required human-in-the-loop smoke gate:
+Human-in-the-loop smoke gate command for future reruns:
 
 ```bash
 export MT5_COMMON_FILES="$HOME/.wine/drive_c/users/loldlm/AppData/Roaming/MetaQuotes/Terminal/Common/Files"
@@ -285,11 +285,71 @@ Corrective action completed:
 - The export was deployed to:
   `DeterministicSignalML/model_exports/xgb_test_1_export_v1`.
 
-Required next step:
+Follow-up from this failed attempt:
 
-- Rerun the same short XAUUSD Strategy Tester smoke after deploy.
-- A valid rerun should show `scored > 0`, `unavailable_rows = 0`, and then the
-  arbitration counters can be interpreted.
+- The same short XAUUSD Strategy Tester smoke was rerun after deploying the
+  export.
+- The validated rerun is recorded below.
+
+## Validated Smoke Rerun - 2026-07-05
+
+User reran the short human-in-the-loop Strategy Tester smoke with the deployed
+`xgb_test_1_export_v1` export available from MT5 Common Files.
+
+Generated artifacts:
+
+- Feature run: `DeterministicSignalML/runs/test_run_1`
+- Shadow/filter run: `DeterministicSignalML/shadow_runs/shadow_test_run_1`
+- Artifact date range from `shadow_summary.tsv`:
+  `2026.06.04 00:00:00` to `2026.07.03 16:59:59`
+
+Runtime manifest:
+
+- `mode=FILTER`
+- `available=true`
+- `model_id=xgb_test_1`
+- `dataset_id=test_dataset_1`
+- `feature_schema_version=1`
+- `encoded_feature_count=49`
+- `classifier_tree_count=31`
+- `regressor_tree_count=30`
+- `threshold_probability=0.55000000`
+
+Strict summary:
+
+```text
+filter run summary PASS | run_id=shadow_test_run_1 | mode=FILTER | export_id=xgb_test_1_export_v1 | predictions=5329 | outcomes=208 | scored=5329 | unavailable_rows=0 | recommendation_ALLOW=355 | recommendation_BLOCK=4974 | admission_ALLOW=355 | admission_BLOCK=4974 | arbitration_groups=208 | arbitration_multi_groups=112 | arbitration_SELECTED=208 | arbitration_BLOCKED=147 | export_status=OK
+```
+
+Python/MQL5 scorer comparison:
+
+```text
+shadow prediction comparison PASS | rows=5329 | classifier_max_abs_error=4.99940822074e-09 | classifier_mean_abs_error=2.37523134669e-09 | decision_agreement=1 | regressor_max_abs_error=4.998499999325778e-09
+```
+
+Arbitration integrity checks:
+
+- Arbitration groups: `208`
+- Single-candidate groups: `96`
+- Multi-candidate groups: `112`
+- `SELECTED` rows: `208`
+- `BLOCKED` rows: `147`
+- Groups with more than one selected row: `0`
+- Groups without a selected row: `0`
+- Candidate-count distribution: `96` groups with one candidate, `77` with two,
+  and `35` with three.
+- Selected strategy counts: `S1=95`, `S2=71`, `S3=42`
+- Feature/outcome export rows: `208` features and `208` outcomes.
+- Terminal outcomes from selected rows: `TP=148`, `SL=60`
+
+Result:
+
+- Phase 2 short XAUUSD FILTER smoke acceptance is `PASS`.
+- This validates runtime model loading, MQL5/Python scorer parity, FILTER
+  scored rows, arbitration artifact generation, one selected candidate per
+  group, and separate classifier filter versus arbitration block counters.
+- A long XAUUSD run should be generated only if the next phase needs robust
+  post-arbitration evidence.
 
 ## Long Run Policy
 

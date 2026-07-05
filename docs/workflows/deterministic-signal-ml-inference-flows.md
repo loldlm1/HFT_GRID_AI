@@ -131,10 +131,24 @@ After a fresh Phase 2 Strategy Tester FILTER run, use strict summary validation:
   --require-arbitration
 ```
 
-Phase 2 runtime acceptance remains pending until a fresh XAUUSD smoke run
-generates a `shadow_run` and validates arbitration groups, selected rows,
-blocked rows, and separate `ML_FILTER_BLOCKED` versus `ML_ARBITRATION_BLOCKED`
-counts. If `shadow_manifest.tsv` records `available=false` with
+Current Phase 2 short XAUUSD smoke evidence:
+
+- Shadow/filter run ID: `shadow_test_run_1`
+- Runtime mode: `ML_INFERENCE_FILTER`
+- Export ID: `xgb_test_1_export_v1`
+- Prediction rows: `5329`
+- Scored rows: `5329`
+- Unavailable rows: `0`
+- Admission `ALLOW`: `355`
+- Admission `BLOCK`: `4974`
+- Arbitration groups: `208`
+- Multi-candidate groups: `112`
+- Arbitration `SELECTED`: `208`
+- Arbitration `BLOCKED`: `147`
+- Python/MQL5 decision agreement: `1`
+- Result: Phase 2 short Strategy Tester `FILTER` smoke `PASS`
+
+If `shadow_manifest.tsv` records `available=false` with
 `file_open_failed:DeterministicSignalML\model_exports\...`, the model export is
 not deployed in the Common Files root used by MT5; deploy the export and rerun
 Strategy Tester before interpreting FILTER or arbitration behavior.
