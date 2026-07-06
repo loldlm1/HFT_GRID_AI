@@ -876,6 +876,100 @@ Validation:
 - MetaEditor real compile:
   `python3 tools/mt5/compile_mt5.py --wine --mt5-root /home/loldlm/mql5_projects/metatrader_5_market_data_framework --entrypoint /home/loldlm/mql5_projects/metatrader_5_market_data_framework/MQL5/Experts/HFT_Grid_AI/HFT_Grid_AI.mq5 --log /home/loldlm/mql5_projects/metatrader_5_market_data_framework/MQL5/Experts/HFT_Grid_AI/logs/compile/pattern-audit-strategy-sprint4-compile.log --mode compile --timeout 240`
 - Compile result: `0 errors, 0 warnings`.
+
+## Strategy-Scoped Pattern Filter Sprint 5 Validation
+
+Strategy-Scoped Pattern Filter Sprint 5 records the fresh-run handoff before
+the next long Strategy Tester validation.
+
+Current code state:
+
+- `Enable_Pattern_Audit_Overlay=true` is the only Strategy Tester pattern
+  filter switch.
+- `Pattern_Audit_Admit_Selected_Only` has been removed from code.
+- Pattern audit chart text labels have been removed; pattern state is panel-only.
+- Offline pattern mining is strategy-scoped through `strategy_label`.
+- Pattern-filtered combined tester runs block later selected entries from an
+  already admitted `source_family_key`.
+
+Recommended fresh-data cleanup before the next human Strategy Tester run:
+
+```bash
+export MT5_COMMON_FILES="$HOME/.wine/drive_c/users/loldlm/AppData/Roaming/MetaQuotes/Terminal/Common/Files"
+
+# Close MetaTrader before deleting generated Common Files outputs.
+rm -rf "$MT5_COMMON_FILES/DeterministicSignalML/runs/xauusd_2025_strategy_s1_fresh_1"
+rm -rf "$MT5_COMMON_FILES/DeterministicSignalML/runs/xauusd_2025_strategy_s2_fresh_1"
+rm -rf "$MT5_COMMON_FILES/DeterministicSignalML/runs/xauusd_2025_strategy_s3_fresh_1"
+rm -rf "$MT5_COMMON_FILES/DeterministicSignalML/pattern_audits/xauusd_2025_strategy_s1_audit_1"
+rm -rf "$MT5_COMMON_FILES/DeterministicSignalML/pattern_audits/xauusd_2025_strategy_s2_audit_1"
+rm -rf "$MT5_COMMON_FILES/DeterministicSignalML/pattern_audits/xauusd_2025_strategy_s3_audit_1"
+rm -rf "$MT5_COMMON_FILES/DeterministicSignalML/pattern_audits/xauusd_2025_strategy_combined_audit_1"
+
+rm -rf artifacts/datasets/xauusd_2025_strategy_s1_dataset_1
+rm -rf artifacts/datasets/xauusd_2025_strategy_s2_dataset_1
+rm -rf artifacts/datasets/xauusd_2025_strategy_s3_dataset_1
+rm -rf artifacts/pattern_audits/xauusd_2025_strategy_s1_audit_1
+rm -rf artifacts/pattern_audits/xauusd_2025_strategy_s2_audit_1
+rm -rf artifacts/pattern_audits/xauusd_2025_strategy_s3_audit_1
+rm -rf artifacts/pattern_audits/xauusd_2025_strategy_combined_audit_1
+```
+
+Fresh Strategy Tester order:
+
+1. **S1 data export only**
+   - `Enable_Strategy_1 = true`
+   - `Enable_Strategy_2 = false`
+   - `Enable_Strategy_3 = false`
+   - `Enable_Signal_Feature_Export = true`
+   - `Signal_Feature_Run_Id = xauusd_2025_strategy_s1_fresh_1`
+   - `Enable_Pattern_Audit_Overlay = false`
+   - `ML_Inference_Mode = ML_INFERENCE_DISABLED`
+   - XAUUSD M1, `2025-01-01` through `2026-01-01`.
+2. Build S1 dataset from the fresh run, then audit with:
+   `.venv/bin/python tools/deterministic_signal_ml/pattern_audit.py --dataset-id xauusd_2025_strategy_s1_dataset_1 --audit-id xauusd_2025_strategy_s1_audit_1 --overwrite --strategy-label S1 --top-n-visual 3`
+3. **S1 pattern-filter validation**
+   - `Enable_Strategy_1 = true`
+   - `Enable_Strategy_2 = false`
+   - `Enable_Strategy_3 = false`
+   - `Enable_Signal_Feature_Export = false`
+   - `Enable_Pattern_Audit_Overlay = true`
+   - `Pattern_Audit_Set_Id = xauusd_2025_strategy_s1_audit_1`
+4. Repeat the same export, build, audit, and pattern-filter validation for S2
+   and S3 using:
+   - `xauusd_2025_strategy_s2_fresh_1`
+   - `xauusd_2025_strategy_s2_dataset_1`
+   - `xauusd_2025_strategy_s2_audit_1`
+   - `xauusd_2025_strategy_s3_fresh_1`
+   - `xauusd_2025_strategy_s3_dataset_1`
+   - `xauusd_2025_strategy_s3_audit_1`
+5. Only after S1/S2/S3 are clear, run a combined S1+S2+S3 tester validation
+   with a combined strategy-scoped audit package. The duplicate source-family
+   guard will prevent multiple selected entries from the same structural source.
+
+After each pattern-filter run, compare parity:
+
+```bash
+MT5_COMMON_FILES="$HOME/.wine/drive_c/users/loldlm/AppData/Roaming/MetaQuotes/Terminal/Common/Files" \
+.venv/bin/python tools/deterministic_signal_ml/pattern_playback_compare.py \
+  --audit-id <strategy_audit_id>
+```
+
+Validation:
+
+- Code search: no `Pattern_Audit_Admit_Selected_Only` references remain in
+  `services/`, `tools/`, or `HFT_Grid_AI.mq5`.
+- `.venv/bin/python -m py_compile tools/deterministic_signal_ml/pattern_audit.py tools/deterministic_signal_ml/pattern_playback_compare.py`:
+  PASS.
+- MetaEditor real compile:
+  `python3 tools/mt5/compile_mt5.py --wine --mt5-root /home/loldlm/mql5_projects/metatrader_5_market_data_framework --entrypoint /home/loldlm/mql5_projects/metatrader_5_market_data_framework/MQL5/Experts/HFT_Grid_AI/HFT_Grid_AI.mq5 --log /home/loldlm/mql5_projects/metatrader_5_market_data_framework/MQL5/Experts/HFT_Grid_AI/logs/compile/pattern-audit-strategy-sprint5-final-compile.log --mode compile --timeout 240`
+- Compile result: `0 errors, 0 warnings`.
+
+Decision:
+
+- `READY_FOR_FRESH_STRATEGY_TESTER_DATA_RUNS`
+- Start with S1-only, then S2-only, then S3-only before any combined long run.
+- No live deployment or runtime ML FILTER approval is implied.
 - `git diff --check`: PASS.
 
 ## Pattern Audit Sprint 2 Validation
