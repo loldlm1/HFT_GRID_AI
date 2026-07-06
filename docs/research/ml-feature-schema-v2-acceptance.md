@@ -972,6 +972,82 @@ Decision:
 - No live deployment or runtime ML FILTER approval is implied.
 - `git diff --check`: PASS.
 
+## Strategy-Scoped Pattern Filter Fresh S1/S2/S3 Handoff
+
+The human Strategy Tester export runs were generated separately for S1, S2,
+and S3, then converted into per-strategy datasets and pattern audit packages.
+
+Source Strategy Tester runs:
+
+| Strategy | Run ID | Feature rows | Outcome rows | Invalid feature rows |
+| --- | --- | ---: | ---: | ---: |
+| S1 | `xauusd_2025_schema_v3_run_S1` | 11906 | 11906 | 8 |
+| S2 | `xauusd_2025_schema_v3_run_S2` | 12896 | 12896 | 10 |
+| S3 | `xauusd_2025_schema_v3_run_S3` | 12232 | 12232 | 4 |
+
+Dataset build results:
+
+| Strategy | Dataset ID | Training rows | Notes |
+| --- | --- | ---: | --- |
+| S1 | `xauusd_2025_strategy_s1_dataset_1` | 11898 | 1 SL row had zero `net_profit` with negative `profit_r`; accepted as a loss and warned. |
+| S2 | `xauusd_2025_strategy_s2_dataset_1` | 12886 | 1 SL row had zero `net_profit` with negative `profit_r`; accepted as a loss and warned. |
+| S3 | `xauusd_2025_strategy_s3_dataset_1` | 12228 | No SL zero-net anomaly. |
+
+The Phase 1 validator now treats SL rows as invalid only when `profit_r >= 0`
+or `net_profit > 0`. An SL row with `profit_r < 0` and rounded/zero
+`net_profit` is still a losing outcome for the R-multiple target, so it is
+accepted with a warning instead of blocking dataset generation.
+
+Pattern audit packages:
+
+| Strategy | Audit ID | Catalog patterns | Selected patterns | Expected selected matches |
+| --- | --- | ---: | ---: | ---: |
+| S1 | `xauusd_2025_strategy_s1_audit_1` | 253 | 3 | 900 |
+| S2 | `xauusd_2025_strategy_s2_audit_1` | 271 | 3 | 1091 |
+| S3 | `xauusd_2025_strategy_s3_audit_1` | 280 | 3 | 1095 |
+
+Selected pattern labels:
+
+| Strategy | Pattern ID | Human label | Pre-final net R | Final holdout net R |
+| --- | --- | --- | ---: | ---: |
+| S1 | `pat_793b226cf9f9` | `S1 \| Bearish \| Session ASIA \| Spread/range SPREAD_LOW` | 22.2113 | 6.8675 |
+| S1 | `pat_471ae11c2899` | `S1 \| Bullish \| 3-bar lows score -3 \| 5-bar lows score -1 \| 10-bar lows score -2` | 18.2165 | 0.0741 |
+| S1 | `pat_e0a59345d1bb` | `S1 \| Bullish \| H1 slope bullish \| H4 slope bearish \| D1 slope bullish` | 15.7928 | -18.1266 |
+| S2 | `pat_0ccbb9c6bffe` | `S2 \| Bullish \| H1 slope bullish \| H4 slope bearish \| D1 slope bullish` | 33.8496 | -23.4202 |
+| S2 | `pat_b57b3091233a` | `S2 \| Bearish \| HH[0] \| LL[1] \| H1 slope bearish \| Entry Fib 61.8-100` | 21.0734 | 0.7927 |
+| S2 | `pat_4675830fd294` | `S2 \| Bearish \| LH[0] \| HL[1] \| H1 slope bearish \| Entry Fib 38.2-61.8` | 17.4783 | -7.0983 |
+| S3 | `pat_eac857571edd` | `S3 \| Bearish \| LH[0] \| HL[1] \| LH[2]` | 19.1974 | -9.0292 |
+| S3 | `pat_9e7cd1652914` | `S3 \| Bearish \| 3-bar lows score -1` | 16.7737 | 5.7709 |
+| S3 | `pat_8b3163964183` | `S3 \| Bullish \| LL[0] \| H1 slope bullish \| 3-bar lows score 1` | 12.7105 | -14.0901 |
+
+The three audit packages were copied to Strategy Tester Common Files under:
+
+```text
+DeterministicSignalML/pattern_audits/xauusd_2025_strategy_s1_audit_1/
+DeterministicSignalML/pattern_audits/xauusd_2025_strategy_s2_audit_1/
+DeterministicSignalML/pattern_audits/xauusd_2025_strategy_s3_audit_1/
+```
+
+Initial parity checks before Strategy Tester playback are pending by design:
+
+| Audit ID | Expected | Observed | Status |
+| --- | ---: | ---: | --- |
+| `xauusd_2025_strategy_s1_audit_1` | 900 | 0 | `PENDING` |
+| `xauusd_2025_strategy_s2_audit_1` | 1091 | 0 | `PENDING` |
+| `xauusd_2025_strategy_s3_audit_1` | 1095 | 0 | `PENDING` |
+
+Next human Strategy Tester order:
+
+1. S1 pattern-filter validation with
+   `Pattern_Audit_Set_Id = xauusd_2025_strategy_s1_audit_1`.
+2. S2 pattern-filter validation with
+   `Pattern_Audit_Set_Id = xauusd_2025_strategy_s2_audit_1`.
+3. S3 pattern-filter validation with
+   `Pattern_Audit_Set_Id = xauusd_2025_strategy_s3_audit_1`.
+4. Run `pattern_playback_compare.py` for each audit after its tester
+   observation file exists.
+5. Prepare a combined S1/S2/S3 audit only after per-strategy parity is clear.
+
 ## Pattern Audit Sprint 2 Validation
 
 Pattern Audit Sprint 2 added deterministic DuckDB tooling for controlled
