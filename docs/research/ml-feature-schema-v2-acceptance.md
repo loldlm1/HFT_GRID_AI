@@ -2,7 +2,7 @@
 
 **Date**: 2026-07-06
 **Roadmap Phase**: Phase 3 - Feature Schema V2
-**Status**: SCHEMA_V3_EXPORT_HANDOFF
+**Status**: REJECT_WITH_FOLLOW_UP
 
 ## Scope
 
@@ -656,10 +656,10 @@ Validation:
     `python3 tools/mt5/compile_mt5.py --wine --mt5-root /home/loldlm/mql5_projects/metatrader_5_market_data_framework --entrypoint /home/loldlm/mql5_projects/metatrader_5_market_data_framework/MQL5/Experts/HFT_Grid_AI/HFT_Grid_AI.mq5 --log /home/loldlm/mql5_projects/metatrader_5_market_data_framework/MQL5/Experts/HFT_Grid_AI/logs/compile/phase3-schema-v3-followup-sprint3-compile.log --mode compile --timeout 240`
   - Result: `0 errors, 0 warnings`.
 
-Current handoff:
+Sprint 3 handoff:
 
-- Follow-up Sprint 4 is blocked until the schema v3 raw export and dataset
-  exist.
+- Follow-up Sprint 4 was blocked until the schema v3 raw export and dataset
+  existed.
 - Recommended run ID: `xauusd_2025_schema_v3_run_1`
 - Recommended dataset ID: `xauusd_2025_schema_v3_dataset_1`
 - Recommended model IDs:
@@ -668,3 +668,67 @@ Current handoff:
 - Strategy Tester configuration remains unchanged except for the active schema:
   XAUUSD full calendar year 2025, ML disabled, feature export enabled, S1/S2/S3
   enabled.
+
+## Follow-Up Sprint 4 Validation
+
+Follow-up Sprint 4 validated the schema v3 raw export, built the schema v3
+dataset, trained the minimum candidate set, and ran the robustness gate.
+
+Raw export:
+
+- Run ID: `xauusd_2025_schema_v3_run_1`
+- Source folder:
+  `/home/loldlm/.wine/drive_c/users/loldlm/AppData/Roaming/MetaQuotes/Terminal/Common/Files/DeterministicSignalML/runs/xauusd_2025_schema_v3_run_1/`
+- Validation command:
+  `.venv/bin/python tools/deterministic_signal_ml/build_dataset.py --runs-root /home/loldlm/.wine/drive_c/users/loldlm/AppData/Roaming/MetaQuotes/Terminal/Common/Files/DeterministicSignalML/runs --run-id xauusd_2025_schema_v3_run_1 --dataset-id xauusd_2025_schema_v3_dataset_1 --validate-only`
+- Result:
+  - `features=36878`
+  - `outcomes=36878`
+  - `joined=36878`
+  - Warning: `22` feature rows were marked invalid by Phase 1.
+
+Dataset:
+
+- Dataset ID: `xauusd_2025_schema_v3_dataset_1`
+- Builder: `phase3.schema_v3_dataset_builder.v1`
+- Feature schema version: `3`
+- Row counts:
+  - `features=36878`
+  - `outcomes=36878`
+  - `training_matrix=36856`
+- Dataset quality: `OK`
+- Blocking null feature rows: `0`
+
+Trained candidates:
+
+| Candidate | Feature set | Encoded features | Holdout ROC AUC | Holdout F1 | Regressor corr | Threshold | Pre-final selected | Pre-final net R | Final selected | Final net R | Warnings |
+| --- | --- | ---: | ---: | ---: | ---: | --- | ---: | ---: | ---: | ---: | ---: |
+| `xauusd_2025_schema_v3_xgb_1` | `schema_v3_full` | 104 | 0.5055827209483965 | 0.0 | 0.02349312001336015 | 0.50 | 93 | 8.7797 | 0 | 0.0 | 4 |
+| `xauusd_2025_schema_v3_no_context_xgb_1` | `schema_v3_no_context` | 95 | 0.49794951891323064 | 0.0 | 0.014481507475988191 | none | 0 | 0.0 | 0 | 0.0 | 5 |
+
+Diagnostics:
+
+- `xauusd_2025_schema_v3_xgb_1`
+  - OOF threshold `0.50` selected `93` rows with `net_profit_r=8.7797`.
+  - Final holdout max score was `0.4903321266`; final selected rows were `0`.
+  - Best pre-final policy was `top_0.500%_prefinal_cutoff`, selecting `133`
+    pre-final rows with `net_profit_r=4.3974`, but `0` final rows.
+  - Final pass policies: `0`.
+- `xauusd_2025_schema_v3_no_context_xgb_1`
+  - OOF threshold `0.50` selected `315` rows, but final holdout max score was
+    `0.4674401581`; final selected rows were `0`.
+  - Best pre-final policy was `top_2.000%_prefinal_cutoff`, selecting `473`
+    pre-final rows with `net_profit_r=7.3214`, but `0` final rows.
+  - Final pass policies: `0`.
+
+Decision:
+
+- `REJECT_WITH_FOLLOW_UP`
+- Schema v3 context features improved neither the final-holdout support nor the
+  runtime eligibility gate.
+- The failure remains a temporal generalization problem: pre-final selected
+  evidence does not survive the final holdout.
+- No runtime export, SHADOW parity, FILTER validation, ONNX work, or live
+  deployment is approved from these candidates.
+- Next follow-up plan:
+  `docs/plans/ml-target-path-labels-follow-up-plan.md`
