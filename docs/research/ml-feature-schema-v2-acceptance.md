@@ -2,7 +2,7 @@
 
 **Date**: 2026-07-06
 **Roadmap Phase**: Phase 3 - Feature Schema V2
-**Status**: Sprint 3 accepted; MetaEditor compile and Strategy Tester export pending
+**Status**: Sprint 4 handoff; waiting for human-in-the-loop Strategy Tester export
 
 ## Scope
 
@@ -293,3 +293,74 @@ Validation:
 Compile status:
 
 - MetaEditor compile remains deferred to Sprint 4.
+
+## Sprint 4 Handoff
+
+Task 4.1 compile validation is complete.
+
+Compile evidence:
+
+- Command shape:
+  `python3 tools/mt5/compile_mt5.py --wine --mt5-root /home/loldlm/mql5_projects/metatrader_5_market_data_framework --entrypoint /home/loldlm/mql5_projects/metatrader_5_market_data_framework/MQL5/Experts/HFT_Grid_AI/HFT_Grid_AI.mq5 --log /home/loldlm/mql5_projects/metatrader_5_market_data_framework/MQL5/Experts/HFT_Grid_AI/logs/compile/phase3-schema-v2-sprint4-compile.log --mode compile --timeout 240`
+- Log:
+  `logs/compile/phase3-schema-v2-sprint4-compile.log`
+- Result:
+  `Result: 0 errors, 0 warnings, 45896 ms elapsed, cpu='X64 Regular'`
+- Generated EX5:
+  `HFT_Grid_AI.ex5`
+- EX5 size:
+  `518950` bytes
+- EX5 timestamp:
+  `2026-07-05 21:27:24.413641770 -0400`
+
+Human-in-the-loop Strategy Tester configuration for Task 4.2/4.3:
+
+- Expert: `HFT_Grid_AI.ex5`
+- Symbol: `XAUUSD`
+- Period: `M1`
+- Date range:
+  - Start: `2025-01-01 00:00:00`
+  - End: exclusive `2026-01-01 00:00:00` where supported, or inclusive
+    `2025-12-31 23:59:59` when Strategy Tester requires an inclusive end.
+- `ML_Inference_Mode = ML_INFERENCE_DISABLED`
+- `Enable_Signal_Feature_Export = true`
+- `Signal_Feature_Run_Id = xauusd_2025_schema_v2_run_1`
+- `Enable_Strategy_1 = true`
+- `Enable_Strategy_2 = true`
+- `Enable_Strategy_3 = true`
+- `Strategy_Direction_Mode = BOTH_DIRECTION`
+- `Signal_Concurrency_Mode = MULTIPLE_RUNNING_SIGNALS`
+
+Expected raw export folder after the Strategy Tester run:
+
+```text
+/home/loldlm/.wine/drive_c/users/loldlm/AppData/Roaming/MetaQuotes/Terminal/Common/Files/DeterministicSignalML/runs/xauusd_2025_schema_v2_run_1/
+```
+
+Expected files:
+
+- `run_manifest.tsv`
+- `signal_features.tsv`
+- `signal_outcomes.tsv`
+- `run_summary.tsv`
+
+Post-run validation/build commands:
+
+```bash
+export DETERMINISTIC_RUNS_ROOT="$HOME/.wine/drive_c/users/loldlm/AppData/Roaming/MetaQuotes/Terminal/Common/Files/DeterministicSignalML/runs"
+
+.venv/bin/python tools/deterministic_signal_ml/build_dataset.py \
+  --runs-root "$DETERMINISTIC_RUNS_ROOT" \
+  --run-id xauusd_2025_schema_v2_run_1 \
+  --dataset-id xauusd_2025_schema_v2_dataset_1 \
+  --validate-only
+
+.venv/bin/python tools/deterministic_signal_ml/build_dataset.py \
+  --runs-root "$DETERMINISTIC_RUNS_ROOT" \
+  --run-id xauusd_2025_schema_v2_run_1 \
+  --dataset-id xauusd_2025_schema_v2_dataset_1 \
+  --overwrite
+```
+
+Sprint 4 remains incomplete until the human-in-the-loop raw export exists and
+the dataset build succeeds.
