@@ -912,8 +912,24 @@ void BuildLightweightUiRowSets(const bool compact_mode,
     if(recent_pattern != "")
     {
       AddLightweightUiRow(detail_rows,
-                          "Last Pattern",
+                          "Pattern Last",
                           recent_pattern,
+                          row_max_chars);
+    }
+    string recent_setup = PatternAuditPlaybackPanelRecentSetup();
+    if(recent_setup != "")
+    {
+      AddLightweightUiRow(detail_rows,
+                          "Pattern Setup",
+                          recent_setup,
+                          row_max_chars);
+    }
+    string recent_extra = PatternAuditPlaybackPanelRecentExtra();
+    if(recent_extra != "")
+    {
+      AddLightweightUiRow(detail_rows,
+                          "Pattern Extra",
+                          recent_extra,
                           row_max_chars);
     }
   }

@@ -228,7 +228,6 @@ next long run.
 
 ## Rollback Plan
 
-- Disable `Pattern_Audit_Admit_Selected_Only` to return to overlay-only
-  behavior.
-- Disable `Enable_Pattern_Audit_Overlay` to remove all pattern playback.
+- Disable `Enable_Pattern_Audit_Overlay` to remove all focused pattern
+  playback/filter behavior.
 - Revert the focused playback commits if compile or tester behavior is wrong.

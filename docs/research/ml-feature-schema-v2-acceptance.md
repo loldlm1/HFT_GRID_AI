@@ -806,6 +806,37 @@ Validation:
   - Patterns: `80`
   - Selected: `3`
   - Matches: `560`
+
+## Strategy-Scoped Pattern Filter Sprint 3 Validation
+
+Strategy-Scoped Pattern Filter Sprint 3 simplified the Strategy Tester pattern
+filter UI and removed chart text labels.
+
+Changed files:
+
+- `services/trading_management/ea_inputs.mqh`
+- `services/trading_signals/deterministic_signal_pattern_audit_playback.mqh`
+- `services/frontend/lightweight_status_ui.mqh`
+- `docs/plans/ml-pattern-audit-focused-playback-plan.md`
+
+Implemented:
+
+- Removed the redundant `Pattern_Audit_Admit_Selected_Only` input.
+- `Enable_Pattern_Audit_Overlay=true` is now the single Strategy Tester
+  selected-pattern filter and panel switch.
+- Outside Strategy Tester, pattern audit filtering has no live trading effect.
+- Removed pattern audit `OBJ_TEXT` chart labels.
+- Panel rows now split the last observed pattern into:
+  - `Pattern Last`
+  - `Pattern Setup`
+  - `Pattern Extra`
+
+Validation:
+
+- `git diff --check`: PASS.
+- MetaEditor real compile:
+  `python3 tools/mt5/compile_mt5.py --wine --mt5-root /home/loldlm/mql5_projects/metatrader_5_market_data_framework --entrypoint /home/loldlm/mql5_projects/metatrader_5_market_data_framework/MQL5/Experts/HFT_Grid_AI/HFT_Grid_AI.mq5 --log /home/loldlm/mql5_projects/metatrader_5_market_data_framework/MQL5/Experts/HFT_Grid_AI/logs/compile/pattern-audit-strategy-sprint3-compile.log --mode compile --timeout 240`
+- Compile result: `0 errors, 0 warnings`.
 - `git diff --check`: PASS.
 
 ## Pattern Audit Sprint 2 Validation
@@ -1128,16 +1159,18 @@ Implemented:
 
 - New disabled-by-default input:
   - `Pattern_Audit_Admit_Selected_Only`
-- `Enable_Pattern_Audit_Overlay` remains overlay/parity mode.
-- When `Pattern_Audit_Admit_Selected_Only=true`, the EA loads the selected
-  pattern package even if visual overlay is not needed.
+- Superseded by Strategy-Scoped Pattern Filter Sprint 3: this input has been
+  removed, and `Enable_Pattern_Audit_Overlay=true` is now the single
+  Strategy Tester selected-pattern filter switch.
+- At the time of this sprint, `Pattern_Audit_Admit_Selected_Only=true` loaded
+  the selected pattern package even if visual overlay was not needed.
 - Selected-pattern admission is checked after existing prepared broker/risk
   admission passes and before `ApplyExecutionLegTradeAdmission`.
 - Non-matching entries are locally closed with:
   - terminal reason `PATTERN_AUDIT_FILTER_BLOCKED`
   - guardrail source `PATTERN_AUDIT_FILTER_BLOCKED`
-- Non-tester usage fails closed for selected-pattern admission with
-  `pattern_audit_filter_not_allowed_outside_tester`.
+- Superseded non-tester behavior: the current filter has no live trading effect
+  outside Strategy Tester.
 
 Safety:
 
@@ -1174,7 +1207,6 @@ Recommended Strategy Tester inputs:
 - `Enable_Logs = false`
 - `Enable_File_Logs = false`
 - `Enable_Pattern_Audit_Overlay = true`
-- `Pattern_Audit_Admit_Selected_Only = true`
 - `Pattern_Audit_Set_Id = xauusd_2025_pattern_audit_focus_1`
 
 Expected behavior:
@@ -1185,7 +1217,8 @@ Expected behavior:
   `PATTERN_AUDIT_FILTER_BLOCKED`.
 - The panel shows pattern mode, audit ID, hit count, and last observed human
   label.
-- Visual markers are bounded to avoid chart-object growth.
+- Superseded by Strategy-Scoped Pattern Filter Sprint 3: pattern text is shown
+  in the panel only; no pattern text labels are drawn on the chart.
 
 Post-run parity command:
 

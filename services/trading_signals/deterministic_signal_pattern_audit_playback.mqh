@@ -10,7 +10,6 @@ const string PATTERN_AUDIT_MATCHES_FILE            = "pattern_matches.tsv";
 const string PATTERN_AUDIT_OBSERVATIONS_FILE       = "pattern_tester_observations.tsv";
 const int    PATTERN_AUDIT_MATCH_RESERVE           = 256;
 const int    PATTERN_AUDIT_INDEX_RESERVE           = 256;
-const int    PATTERN_AUDIT_MAX_VISUAL_MARKERS      = 150;
 const string PATTERN_AUDIT_OBSERVATIONS_HEADER =
   "schema_version\taudit_id\tpattern_id\tsignal_id\tsource_key\tsource_attempt_index\tentry_time\texpected_match\tobservation_status\tpattern_label\tconditions_text";
 
@@ -78,9 +77,9 @@ struct PatternAuditPlaybackState
   int      loaded_matches;
   int      indexed_keys;
   int      observed_matches;
-  int      created_markers;
   string   last_pattern_id;
   string   last_pattern_label;
+  string   last_strategy_label;
 
   PatternAuditPlaybackState()
   {
@@ -92,9 +91,9 @@ struct PatternAuditPlaybackState
     loaded_matches = 0;
     indexed_keys = 0;
     observed_matches = 0;
-    created_markers = 0;
     last_pattern_id = "";
     last_pattern_label = "";
+    last_strategy_label = "";
   }
 };
 
@@ -104,8 +103,7 @@ PatternAuditPlaybackIndexEntry g_pattern_audit_index[];
 
 bool PatternAuditPlaybackEnabled()
 {
-  return (Enable_Pattern_Audit_Overlay || Pattern_Audit_Admit_Selected_Only) &&
-         MQLInfoInteger(MQL_TESTER) > 0;
+  return Enable_Pattern_Audit_Overlay && MQLInfoInteger(MQL_TESTER) > 0;
 }
 
 string PatternAuditPlaybackFolder()
@@ -475,9 +473,7 @@ string PatternAuditPlaybackPanelMode()
     return "LOAD FAILED";
   if(!g_pattern_audit_state.initialized)
     return "PENDING";
-  if(Pattern_Audit_Admit_Selected_Only)
-    return "TESTER FILTER";
-  return "OVERLAY";
+  return "TESTER FILTER";
 }
 
 string PatternAuditPlaybackPanelCounts()
@@ -494,8 +490,73 @@ string PatternAuditPlaybackPanelAuditId()
 string PatternAuditPlaybackPanelRecentPattern()
 {
   if(g_pattern_audit_state.last_pattern_label != "")
+  {
+    string parts[];
+    ushort delimiter = StringGetCharacter("|", 0);
+    int total = StringSplit(g_pattern_audit_state.last_pattern_label, delimiter, parts);
+    if(total >= 2)
+    {
+      string strategy = parts[0];
+      string direction = parts[1];
+      StringTrimLeft(strategy);
+      StringTrimRight(strategy);
+      StringTrimLeft(direction);
+      StringTrimRight(direction);
+      return strategy + " " + direction;
+    }
     return g_pattern_audit_state.last_pattern_label;
+  }
   return g_pattern_audit_state.last_pattern_id;
+}
+
+string PatternAuditPlaybackPanelRecentSetup()
+{
+  if(g_pattern_audit_state.last_pattern_label == "")
+    return "";
+
+  string parts[];
+  ushort delimiter = StringGetCharacter("|", 0);
+  int total = StringSplit(g_pattern_audit_state.last_pattern_label, delimiter, parts);
+  if(total <= 2)
+    return "";
+
+  string setup = "";
+  for(int i = 2; i < total && i < 5; i++)
+  {
+    string part = parts[i];
+    StringTrimLeft(part);
+    StringTrimRight(part);
+    if(setup == "")
+      setup = part;
+    else
+      setup = setup + " | " + part;
+  }
+  return setup;
+}
+
+string PatternAuditPlaybackPanelRecentExtra()
+{
+  if(g_pattern_audit_state.last_pattern_label == "")
+    return "";
+
+  string parts[];
+  ushort delimiter = StringGetCharacter("|", 0);
+  int total = StringSplit(g_pattern_audit_state.last_pattern_label, delimiter, parts);
+  if(total <= 5)
+    return "";
+
+  string extra = "";
+  for(int i = 5; i < total && i < 8; i++)
+  {
+    string part = parts[i];
+    StringTrimLeft(part);
+    StringTrimRight(part);
+    if(extra == "")
+      extra = part;
+    else
+      extra = extra + " | " + part;
+  }
+  return extra;
 }
 
 bool PatternAuditPlaybackResolveSignalKey(SignalParams &signal_params,
@@ -532,14 +593,11 @@ bool PatternAuditSelectedAdmissionAllowsEntry(SignalParams &signal_params,
                                               string &block_reason_out)
 {
   block_reason_out = "";
-  if(!Pattern_Audit_Admit_Selected_Only)
+  if(!Enable_Pattern_Audit_Overlay)
     return true;
 
   if(MQLInfoInteger(MQL_TESTER) <= 0)
-  {
-    block_reason_out = "pattern_audit_filter_not_allowed_outside_tester";
-    return false;
-  }
+    return true;
 
   if(Pattern_Audit_Set_Id == "")
   {
@@ -563,47 +621,6 @@ bool PatternAuditSelectedAdmissionAllowsEntry(SignalParams &signal_params,
                                   attempt_index,
                                   leg_state.entry_reference_price);
   return false;
-}
-
-void PatternAuditPlaybackDrawMarker(const PatternAuditPlaybackMatch &match,
-                                    const SignalParams &signal_params,
-                                    const ExecutionLegState &leg_state)
-{
-  if(!Enable_Pattern_Audit_Overlay ||
-     MQLInfoInteger(MQL_VISUAL_MODE) <= 0)
-    return;
-  if(g_pattern_audit_state.created_markers >= PATTERN_AUDIT_MAX_VISUAL_MARKERS)
-    return;
-
-  datetime marker_time = leg_state.last_action_time;
-  if(marker_time <= 0)
-    marker_time = TimeCurrent();
-
-  double marker_price = leg_state.entry_price;
-  if(marker_price <= 0.0)
-    marker_price = leg_state.entry_reference_price;
-  if(marker_price <= 0.0)
-    marker_price = signal_params.entry_price;
-  if(marker_price <= 0.0)
-    marker_price = SymbolInfoDouble(_Symbol, SYMBOL_BID);
-  if(marker_price <= 0.0)
-    return;
-
-  string object_name = "HFT_EXEC_AI_PATTERN_AUDIT_" +
-                       match.pattern_id + "_" +
-                       IntegerToString((int)marker_time);
-  long chart_id = ChartID();
-  if(ObjectFind(chart_id, object_name) < 0)
-  {
-    ObjectCreate(chart_id, object_name, OBJ_TEXT, 0, marker_time, marker_price);
-    ObjectSetInteger(chart_id, object_name, OBJPROP_SELECTABLE, false);
-    ObjectSetInteger(chart_id, object_name, OBJPROP_BACK, false);
-    g_pattern_audit_state.created_markers++;
-  }
-  ObjectSetInteger(chart_id, object_name, OBJPROP_COLOR, clrDeepSkyBlue);
-  ObjectSetString(chart_id, object_name, OBJPROP_TEXT, match.pattern_id);
-  ObjectSetString(chart_id, object_name, OBJPROP_TOOLTIP,
-                  match.pattern_label + " | " + match.conditions_text);
 }
 
 void PatternAuditPlaybackRecordSignal(SignalParams &signal_params,
@@ -637,6 +654,7 @@ void PatternAuditPlaybackRecordSignal(SignalParams &signal_params,
     g_pattern_audit_state.observed_matches++;
     g_pattern_audit_state.last_pattern_id = g_pattern_audit_matches[i].pattern_id;
     g_pattern_audit_state.last_pattern_label = g_pattern_audit_matches[i].pattern_label;
+    g_pattern_audit_state.last_strategy_label = signal_params.strategy_label;
 
     string row = IntegerToString(PATTERN_AUDIT_PLAYBACK_SCHEMA_VERSION) + "\t" +
                  PatternAuditPlaybackCell(g_pattern_audit_state.audit_id) + "\t" +
@@ -649,9 +667,6 @@ void PatternAuditPlaybackRecordSignal(SignalParams &signal_params,
                  PatternAuditPlaybackCell(g_pattern_audit_matches[i].pattern_label) + "\t" +
                  PatternAuditPlaybackCell(g_pattern_audit_matches[i].conditions_text);
     PatternAuditPlaybackAppendObservation(row);
-    PatternAuditPlaybackDrawMarker(g_pattern_audit_matches[i],
-                                   signal_params,
-                                   leg_state);
   }
 }
 

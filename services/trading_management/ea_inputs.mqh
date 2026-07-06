@@ -80,7 +80,6 @@ input string           ML_Model_Export_Id = "xgb_test_1_export_v1";
 
 input group  "+= Pattern Audit Playback =+";
 input bool   Enable_Pattern_Audit_Overlay = false;
-input bool   Pattern_Audit_Admit_Selected_Only = false;
 input string Pattern_Audit_Set_Id         = "";
 
 input group  "+= Developer Debug Settings =+";
