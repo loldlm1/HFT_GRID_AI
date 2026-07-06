@@ -18,12 +18,37 @@ def build_segment_metrics(
 ) -> list[dict[str, Any]]:
     specs: tuple[tuple[str, Callable[[dict[str, Any]], str]], ...] = (
         ("strategy_label", lambda row: str(row.get("strategy_label", ""))),
+        ("strategy_depth", lambda row: str(row.get("strategy_delay_period", ""))),
+        (
+            "strategy_depth_context",
+            lambda row: f"{row.get('strategy_delay_period', '')}|{row.get('confirmation_timeframe_minutes', '')}",
+        ),
         ("direction", lambda row: str(row.get("direction", ""))),
         ("source_type", lambda row: str(row.get("source_type", ""))),
+        (
+            "structure_type_context",
+            lambda row: (
+                f"{row.get('source_structure_type', '')}|"
+                f"{row.get('opposite_structure_type', '')}|"
+                f"{row.get('same_previous_structure_type', '')}"
+            ),
+        ),
+        ("prev_candle_dir", lambda row: str(row.get("prev_candle_dir", ""))),
+        (
+            "macro_alignment",
+            lambda row: (
+                f"{row.get('entry_direction_macro_alignment', '')}|"
+                f"{row.get('macro_alignment_score', '')}"
+            ),
+        ),
         ("symbol", lambda row: str(row.get("symbol", ""))),
         (
             "strategy_label_direction",
             lambda row: f"{row.get('strategy_label', '')}|{row.get('direction', '')}",
+        ),
+        (
+            "strategy_depth_direction",
+            lambda row: f"{row.get('strategy_delay_period', '')}|{row.get('direction', '')}",
         ),
         ("score_bucket", lambda row: score_bucket(float(row["xgb_win_probability"]))),
     )

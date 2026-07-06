@@ -17,6 +17,7 @@ from xgboost import XGBClassifier, XGBRegressor
 
 from feature_encoder import FeatureEncoder
 from model_config import DEFAULT_DATASET_ROOT, DEFAULT_MODEL_ROOT, TRAINER_VERSION, TrainingConfig
+from schema_contract import MODEL_FEATURE_COLUMNS, SUPPORTED_SCHEMA_VERSION
 from training_report import (
     build_threshold_report_rows,
     classification_metrics,
@@ -108,10 +109,20 @@ def validate_training_rows(rows: list[dict], manifest: dict, config: TrainingCon
             f"Dataset has {len(rows)} rows; minimum required is {config.min_training_rows}"
         )
 
+    schema_version = manifest.get("feature_schema_version", manifest.get("phase1_schema_version"))
+    if schema_version is None:
+        raise TrainingInputError("Dataset manifest does not define feature_schema_version")
+    if int(schema_version) != SUPPORTED_SCHEMA_VERSION:
+        raise TrainingInputError(
+            f"Unsupported dataset schema version: {schema_version}; expected {SUPPORTED_SCHEMA_VERSION}"
+        )
+
     feature_columns = list(manifest.get("feature_columns", []))
     target_columns = list(manifest.get("target_columns", []))
     if not feature_columns:
         raise TrainingInputError("Dataset manifest does not define feature_columns")
+    if feature_columns != list(MODEL_FEATURE_COLUMNS):
+        raise TrainingInputError("Dataset feature_columns do not match active schema v2 contract")
 
     required_targets = ("target_is_win", "target_profit_r", "target_terminal_reason")
     missing_manifest_targets = [column for column in required_targets if column not in target_columns]
@@ -538,10 +549,26 @@ def _prediction_rows(
                 "config_id": str(source.get("config_id", "")),
                 "signal_id": str(source.get("signal_id", "")),
                 "source_key": str(source.get("source_key", "")),
+                "symbol": str(source.get("symbol", "")),
                 "entry_time": str(source.get("entry_time", "")),
+                "strategy_id": int(source.get("strategy_id", 0)),
                 "strategy_label": str(source.get("strategy_label", "")),
+                "strategy_delay_period": source.get("strategy_delay_period", ""),
+                "confirmation_timeframe_minutes": source.get(
+                    "confirmation_timeframe_minutes", ""
+                ),
                 "direction": str(source.get("direction", "")),
                 "source_type": str(source.get("source_type", "")),
+                "source_structure_type": str(source.get("source_structure_type", "")),
+                "opposite_structure_type": str(source.get("opposite_structure_type", "")),
+                "same_previous_structure_type": str(
+                    source.get("same_previous_structure_type", "")
+                ),
+                "prev_candle_dir": str(source.get("prev_candle_dir", "")),
+                "entry_direction_macro_alignment": source.get(
+                    "entry_direction_macro_alignment", ""
+                ),
+                "macro_alignment_score": source.get("macro_alignment_score", ""),
                 "target_is_win": int(source["target_is_win"]),
                 "target_profit_r": float(source["target_profit_r"]),
                 "target_terminal_reason": str(source.get("target_terminal_reason", "")),

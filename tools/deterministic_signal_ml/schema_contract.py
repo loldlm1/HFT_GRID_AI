@@ -1,11 +1,11 @@
-"""Schema contract for deterministic signal Phase 1 exports."""
+"""Schema contract for deterministic signal feature exports."""
 
 from __future__ import annotations
 
 from dataclasses import dataclass
 
 
-SUPPORTED_SCHEMA_VERSION = 1
+SUPPORTED_SCHEMA_VERSION = 2
 NULL_TOKEN = r"\N"
 
 RUN_MANIFEST_FILE = "run_manifest.tsv"
@@ -48,9 +48,21 @@ FEATURE_COLUMNS = (
     "entry_time",
     "source_time",
     "source_type",
+    "source_structure_type",
+    "opposite_structure_type",
+    "same_previous_structure_type",
     "macro_h1_live_dir",
     "macro_h4_live_dir",
     "macro_d1_live_dir",
+    "strategy_delay_period",
+    "confirmation_timeframe_minutes",
+    "entry_direction_macro_alignment",
+    "macro_alignment_score",
+    "prev_body_ratio",
+    "prev_upper_wick_ratio",
+    "prev_lower_wick_ratio",
+    "prev_close_location",
+    "prev_candle_dir",
     "sl_fib_raw",
     "sl_fib_band",
     "entry_fib_raw",
@@ -94,9 +106,21 @@ MODEL_FEATURE_COLUMNS = (
     "strategy_label",
     "direction",
     "source_type",
+    "source_structure_type",
+    "opposite_structure_type",
+    "same_previous_structure_type",
     "macro_h1_live_dir",
     "macro_h4_live_dir",
     "macro_d1_live_dir",
+    "strategy_delay_period",
+    "confirmation_timeframe_minutes",
+    "entry_direction_macro_alignment",
+    "macro_alignment_score",
+    "prev_body_ratio",
+    "prev_upper_wick_ratio",
+    "prev_lower_wick_ratio",
+    "prev_close_location",
+    "prev_candle_dir",
     "sl_fib_raw",
     "sl_fib_band",
     "entry_fib_raw",
@@ -134,6 +158,14 @@ NUMERIC_COLUMNS = (
     "macro_h1_live_dir",
     "macro_h4_live_dir",
     "macro_d1_live_dir",
+    "strategy_delay_period",
+    "confirmation_timeframe_minutes",
+    "entry_direction_macro_alignment",
+    "macro_alignment_score",
+    "prev_body_ratio",
+    "prev_upper_wick_ratio",
+    "prev_lower_wick_ratio",
+    "prev_close_location",
     "sl_fib_raw",
     "entry_fib_raw",
     "low_chain_score_3",
@@ -154,6 +186,10 @@ CATEGORICAL_COLUMNS = (
     "strategy_label",
     "direction",
     "source_type",
+    "source_structure_type",
+    "opposite_structure_type",
+    "same_previous_structure_type",
+    "prev_candle_dir",
     "sl_fib_band",
     "entry_fib_band",
     "terminal_reason",

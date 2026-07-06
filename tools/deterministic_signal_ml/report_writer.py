@@ -9,10 +9,15 @@ from typing import Any
 
 import duckdb
 
-from schema_contract import DatasetColumnGroups, MODEL_FEATURE_COLUMNS, SUPPORTED_SCHEMA_VERSION
+from schema_contract import (
+    CATEGORICAL_COLUMNS,
+    DatasetColumnGroups,
+    MODEL_FEATURE_COLUMNS,
+    SUPPORTED_SCHEMA_VERSION,
+)
 
 
-BUILDER_VERSION = "phase2.dataset_builder.v1"
+BUILDER_VERSION = "phase3.schema_v2_dataset_builder.v1"
 
 
 def _fetch_dicts(connection: duckdb.DuckDBPyConnection, sql: str) -> list[dict[str, Any]]:
@@ -38,18 +43,16 @@ def build_quality_payload(
             ]
         ),
     )
+    categorical_set = set(CATEGORICAL_COLUMNS)
+    range_columns = [column for column in MODEL_FEATURE_COLUMNS if column not in categorical_set]
     feature_ranges = _fetch_dicts(
         connection,
-        """
-SELECT 'sl_fib_raw' AS column_name, MIN(sl_fib_raw) AS min_value, MAX(sl_fib_raw) AS max_value, AVG(sl_fib_raw) AS avg_value FROM training_matrix
-UNION ALL SELECT 'entry_fib_raw', MIN(entry_fib_raw), MAX(entry_fib_raw), AVG(entry_fib_raw) FROM training_matrix
-UNION ALL SELECT 'low_chain_score_3', MIN(low_chain_score_3), MAX(low_chain_score_3), AVG(low_chain_score_3) FROM training_matrix
-UNION ALL SELECT 'low_chain_score_5', MIN(low_chain_score_5), MAX(low_chain_score_5), AVG(low_chain_score_5) FROM training_matrix
-UNION ALL SELECT 'low_chain_score_10', MIN(low_chain_score_10), MAX(low_chain_score_10), AVG(low_chain_score_10) FROM training_matrix
-UNION ALL SELECT 'high_chain_score_3', MIN(high_chain_score_3), MAX(high_chain_score_3), AVG(high_chain_score_3) FROM training_matrix
-UNION ALL SELECT 'high_chain_score_5', MIN(high_chain_score_5), MAX(high_chain_score_5), AVG(high_chain_score_5) FROM training_matrix
-UNION ALL SELECT 'high_chain_score_10', MIN(high_chain_score_10), MAX(high_chain_score_10), AVG(high_chain_score_10) FROM training_matrix
-""",
+        " UNION ALL ".join(
+            [
+                f"SELECT '{column}' AS column_name, MIN({column}) AS min_value, MAX({column}) AS max_value, AVG({column}) AS avg_value FROM training_matrix"
+                for column in range_columns
+            ]
+        ),
     )
     warnings: list[str] = []
     for validation in validations:
@@ -81,6 +84,20 @@ UNION ALL SELECT 'high_chain_score_10', MIN(high_chain_score_10), MAX(high_chain
             connection,
             "SELECT strategy_label, COUNT(*) AS rows, AVG(target_profit_r) AS avg_profit_r FROM training_matrix GROUP BY 1 ORDER BY 1",
         ),
+        "strategy_depth_distribution": _fetch_dicts(
+            connection,
+            """
+SELECT
+  strategy_label,
+  strategy_delay_period,
+  confirmation_timeframe_minutes,
+  COUNT(*) AS rows,
+  AVG(target_profit_r) AS avg_profit_r
+FROM training_matrix
+GROUP BY 1, 2, 3
+ORDER BY 1, 2, 3
+""",
+        ),
         "direction_distribution": _fetch_dicts(
             connection,
             "SELECT direction, COUNT(*) AS rows, AVG(target_profit_r) AS avg_profit_r FROM training_matrix GROUP BY 1 ORDER BY 1",
@@ -88,6 +105,37 @@ UNION ALL SELECT 'high_chain_score_10', MIN(high_chain_score_10), MAX(high_chain
         "source_type_distribution": _fetch_dicts(
             connection,
             "SELECT source_type, COUNT(*) AS rows, AVG(target_profit_r) AS avg_profit_r FROM training_matrix GROUP BY 1 ORDER BY 1",
+        ),
+        "source_structure_distribution": _fetch_dicts(
+            connection,
+            """
+SELECT
+  source_structure_type,
+  opposite_structure_type,
+  same_previous_structure_type,
+  COUNT(*) AS rows,
+  AVG(target_profit_r) AS avg_profit_r
+FROM training_matrix
+GROUP BY 1, 2, 3
+ORDER BY 4 DESC, 1, 2, 3
+""",
+        ),
+        "previous_candle_distribution": _fetch_dicts(
+            connection,
+            "SELECT prev_candle_dir, COUNT(*) AS rows, AVG(target_profit_r) AS avg_profit_r FROM training_matrix GROUP BY 1 ORDER BY 1",
+        ),
+        "macro_alignment_distribution": _fetch_dicts(
+            connection,
+            """
+SELECT
+  entry_direction_macro_alignment,
+  macro_alignment_score,
+  COUNT(*) AS rows,
+  AVG(target_profit_r) AS avg_profit_r
+FROM training_matrix
+GROUP BY 1, 2
+ORDER BY 1, 2
+""",
         ),
         "feature_null_counts": null_counts,
         "feature_ranges": feature_ranges,
@@ -107,6 +155,7 @@ def write_dataset_manifest(
         "builder_version": BUILDER_VERSION,
         "created_at": datetime.now(UTC).isoformat(),
         "phase1_schema_version": SUPPORTED_SCHEMA_VERSION,
+        "feature_schema_version": SUPPORTED_SCHEMA_VERSION,
         "source_run_ids": [validation.run_id for validation in validations],
         "source_run_folders": [str(validation.run_path) for validation in validations],
         "config_ids": sorted({validation.config_id for validation in validations}),
@@ -183,10 +232,39 @@ def write_dataset_report(
     lines.extend(_markdown_table(quality_payload["win_distribution"], ("target_is_win", "rows")))
     lines.extend(["", "## Strategy Summary", ""])
     lines.extend(_markdown_table(quality_payload["strategy_distribution"], ("strategy_label", "rows", "avg_profit_r")))
+    lines.extend(["", "## Strategy Depth Summary", ""])
+    lines.extend(
+        _markdown_table(
+            quality_payload["strategy_depth_distribution"],
+            ("strategy_label", "strategy_delay_period", "confirmation_timeframe_minutes", "rows", "avg_profit_r"),
+        )
+    )
     lines.extend(["", "## Direction Summary", ""])
     lines.extend(_markdown_table(quality_payload["direction_distribution"], ("direction", "rows", "avg_profit_r")))
     lines.extend(["", "## Source Type Summary", ""])
     lines.extend(_markdown_table(quality_payload["source_type_distribution"], ("source_type", "rows", "avg_profit_r")))
+    lines.extend(["", "## Structure Type Summary", ""])
+    lines.extend(
+        _markdown_table(
+            quality_payload["source_structure_distribution"],
+            (
+                "source_structure_type",
+                "opposite_structure_type",
+                "same_previous_structure_type",
+                "rows",
+                "avg_profit_r",
+            ),
+        )
+    )
+    lines.extend(["", "## Previous Candle Summary", ""])
+    lines.extend(_markdown_table(quality_payload["previous_candle_distribution"], ("prev_candle_dir", "rows", "avg_profit_r")))
+    lines.extend(["", "## Macro Alignment Summary", ""])
+    lines.extend(
+        _markdown_table(
+            quality_payload["macro_alignment_distribution"],
+            ("entry_direction_macro_alignment", "macro_alignment_score", "rows", "avg_profit_r"),
+        )
+    )
     lines.extend(["", "## Feature Null Counts", ""])
     lines.extend(_markdown_table(quality_payload["feature_null_counts"], ("column_name", "null_rows")))
     lines.extend(["", "## Feature Ranges", ""])

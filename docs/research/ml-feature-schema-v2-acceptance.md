@@ -2,7 +2,7 @@
 
 **Date**: 2026-07-06
 **Roadmap Phase**: Phase 3 - Feature Schema V2
-**Status**: Sprint 1 contract accepted; implementation pending
+**Status**: Sprint 3 accepted; MetaEditor compile and Strategy Tester export pending
 
 ## Scope
 
@@ -237,3 +237,59 @@ Compile status:
 
 - MetaEditor compile is deferred to Sprint 4 after Python schema/tooling edits,
   per the phase plan.
+
+## Sprint 3 Validation
+
+Sprint 3 updates the active Python dataset, reporting, training, robustness
+segment, comparison, export-map, and shadow-normalization tooling for schema v2.
+
+Changed files:
+
+- `tools/deterministic_signal_ml/schema_contract.py`
+- `tools/deterministic_signal_ml/build_dataset.py`
+- `tools/deterministic_signal_ml/report_writer.py`
+- `tools/deterministic_signal_ml/segment_metrics.py`
+- `tools/deterministic_signal_ml/train_model.py`
+- `tools/deterministic_signal_ml/compare_model_candidates.py`
+
+Implemented:
+
+- `SUPPORTED_SCHEMA_VERSION = 2`
+- Active feature/model feature columns include all required schema v2 fields.
+- Numeric/categorical classifications include structure, depth, macro
+  alignment, and previous-candle fields.
+- Dataset builder writes schema v2 fields into `features`, `outcomes`, and
+  `training_matrix`.
+- Dataset manifest records both `phase1_schema_version=2` and
+  `feature_schema_version=2`.
+- Dataset report includes strategy-depth, structure-type, previous-candle, and
+  macro-alignment summaries.
+- Training rejects datasets whose manifest schema version or feature columns do
+  not match the active schema v2 contract.
+- Candidate comparison marks differing `schema_version` values as
+  `NOT_COMPARABLE`.
+- Export feature-map generation and shadow prediction normalization continue to
+  derive source columns from the schema v2 contract.
+
+Validation:
+
+- `.venv/bin/python -m py_compile tools/deterministic_signal_ml/*.py`: PASS.
+- Temporary schema v2 fixture run built successfully:
+  - Features: `4`
+  - Outcomes: `4`
+  - Training matrix rows: `4`
+  - Encoded features / feature-map rows: `37`
+  - Fixture root: `/tmp/tmp.MVpNVtpvon`
+- Fixture dataset report contains:
+  - `Strategy Depth Summary`
+  - `Structure Type Summary`
+  - `Previous Candle Summary`
+  - `Macro Alignment Summary`
+- Fixture manifest records `feature_schema_version=2`.
+- Matching schema v1 fixture was rejected by default:
+  `Unsupported schema_version in run_manifest.tsv row 1: 1`.
+- `git diff --check`: PASS.
+
+Compile status:
+
+- MetaEditor compile remains deferred to Sprint 4.

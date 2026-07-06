@@ -153,7 +153,13 @@ def _comparability_warnings(
     candidate: CandidateManifest,
 ) -> list[dict[str, str]]:
     warnings: list[dict[str, str]] = []
-    for field in ("dataset_id", "dataset_grade", "split_policy", "threshold_policy"):
+    for field in (
+        "dataset_id",
+        "schema_version",
+        "dataset_grade",
+        "split_policy",
+        "threshold_policy",
+    ):
         baseline_value = getattr(baseline, field)
         candidate_value = getattr(candidate, field)
         if baseline_value != candidate_value:
