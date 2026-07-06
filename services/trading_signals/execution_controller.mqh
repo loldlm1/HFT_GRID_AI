@@ -518,6 +518,23 @@ bool ApplyDeterministicPreparedEntryAdmission(SignalParams &signal_params,
                                               ExecutionLegState &leg_state,
                                               const ExecutionLegTradeAdmissionContext &admission_context)
 {
+  string pattern_filter_block_reason = "";
+  if(!PatternAuditSelectedAdmissionAllowsEntry(signal_params,
+                                               leg_state,
+                                               pattern_filter_block_reason))
+  {
+    leg_state.status = EXECUTION_LEG_COMPLETED;
+    leg_state.last_action_time = TimeCurrent();
+    signal_params.execution_legs[leg_index] = leg_state;
+    signal_params.signal_state = CLOSED;
+    signal_params.deterministic_stats_terminal_reason = "PATTERN_AUDIT_FILTER_BLOCKED";
+    ExecutionLogGuardrailBlock("PATTERN_AUDIT_FILTER_BLOCKED",
+                               signal_params,
+                               leg_state,
+                               pattern_filter_block_reason);
+    return false;
+  }
+
   if(!ApplyExecutionLegTradeAdmission(signal_params,
                                       leg_state,
                                       admission_context))

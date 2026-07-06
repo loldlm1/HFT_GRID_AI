@@ -104,7 +104,8 @@ PatternAuditPlaybackIndexEntry g_pattern_audit_index[];
 
 bool PatternAuditPlaybackEnabled()
 {
-  return Enable_Pattern_Audit_Overlay && MQLInfoInteger(MQL_TESTER) > 0;
+  return (Enable_Pattern_Audit_Overlay || Pattern_Audit_Admit_Selected_Only) &&
+         MQLInfoInteger(MQL_TESTER) > 0;
 }
 
 string PatternAuditPlaybackFolder()
@@ -474,6 +475,8 @@ string PatternAuditPlaybackPanelMode()
     return "LOAD FAILED";
   if(!g_pattern_audit_state.initialized)
     return "PENDING";
+  if(Pattern_Audit_Admit_Selected_Only)
+    return "TESTER FILTER";
   return "OVERLAY";
 }
 
@@ -493,6 +496,73 @@ string PatternAuditPlaybackPanelRecentPattern()
   if(g_pattern_audit_state.last_pattern_label != "")
     return g_pattern_audit_state.last_pattern_label;
   return g_pattern_audit_state.last_pattern_id;
+}
+
+bool PatternAuditPlaybackResolveSignalKey(SignalParams &signal_params,
+                                          string &source_key_out,
+                                          int &attempt_index_out)
+{
+  source_key_out = signal_params.deterministic_source_key;
+  if(source_key_out == "")
+  {
+    source_key_out = BuildDeterministicSignalSourceKey(signal_params);
+    signal_params.deterministic_source_key = source_key_out;
+  }
+  attempt_index_out = signal_params.deterministic_source_attempt_index;
+  return source_key_out != "";
+}
+
+bool PatternAuditPlaybackHasSelectedMatch(SignalParams &signal_params)
+{
+  if(!PatternAuditPlaybackReady())
+    return false;
+  if(!signal_params.deterministic_strategy)
+    return false;
+
+  string source_key = "";
+  int attempt_index = 0;
+  if(!PatternAuditPlaybackResolveSignalKey(signal_params, source_key, attempt_index))
+    return false;
+
+  return PatternAuditPlaybackFindIndex(source_key, attempt_index) >= 0;
+}
+
+bool PatternAuditSelectedAdmissionAllowsEntry(SignalParams &signal_params,
+                                              const ExecutionLegState &leg_state,
+                                              string &block_reason_out)
+{
+  block_reason_out = "";
+  if(!Pattern_Audit_Admit_Selected_Only)
+    return true;
+
+  if(MQLInfoInteger(MQL_TESTER) <= 0)
+  {
+    block_reason_out = "pattern_audit_filter_not_allowed_outside_tester";
+    return false;
+  }
+
+  if(Pattern_Audit_Set_Id == "")
+  {
+    block_reason_out = "pattern_audit_set_id_missing";
+    return false;
+  }
+
+  if(!PatternAuditPlaybackReady())
+  {
+    block_reason_out = "pattern_audit_not_ready";
+    return false;
+  }
+
+  if(PatternAuditPlaybackHasSelectedMatch(signal_params))
+    return true;
+
+  string source_key = signal_params.deterministic_source_key;
+  int attempt_index = signal_params.deterministic_source_attempt_index;
+  block_reason_out = StringFormat("selected_pattern_not_matched|source_key=%s|attempt=%d|entry=%.5f",
+                                  source_key,
+                                  attempt_index,
+                                  leg_state.entry_reference_price);
+  return false;
 }
 
 void PatternAuditPlaybackDrawMarker(const PatternAuditPlaybackMatch &match,
@@ -544,16 +614,11 @@ void PatternAuditPlaybackRecordSignal(SignalParams &signal_params,
   if(!signal_params.deterministic_strategy)
     return;
 
-  string source_key = signal_params.deterministic_source_key;
-  if(source_key == "")
-  {
-    source_key = BuildDeterministicSignalSourceKey(signal_params);
-    signal_params.deterministic_source_key = source_key;
-  }
-  if(source_key == "")
+  string source_key = "";
+  int attempt_index = 0;
+  if(!PatternAuditPlaybackResolveSignalKey(signal_params, source_key, attempt_index))
     return;
 
-  int attempt_index = signal_params.deterministic_source_attempt_index;
   string signal_id = PatternAuditPlaybackSignalId(signal_params);
   string entry_time = DeterministicSignalStatsTimeToken(leg_state.last_action_time);
 

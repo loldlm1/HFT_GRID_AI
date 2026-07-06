@@ -1076,3 +1076,44 @@ Validation:
 - MetaEditor real compile:
   `python3 tools/mt5/compile_mt5.py --wine --mt5-root /home/loldlm/mql5_projects/metatrader_5_market_data_framework --entrypoint /home/loldlm/mql5_projects/metatrader_5_market_data_framework/MQL5/Experts/HFT_Grid_AI/HFT_Grid_AI.mq5 --log /home/loldlm/mql5_projects/metatrader_5_market_data_framework/MQL5/Experts/HFT_Grid_AI/logs/compile/pattern-audit-focused-sprint3-compile.log --mode compile --timeout 240`
 - Compile result: `0 errors, 0 warnings`.
+
+## Focused Pattern Playback Sprint 4 Validation
+
+Focused Pattern Playback Sprint 4 added explicit Strategy Tester-only admission
+by selected pattern matches.
+
+Changed files:
+
+- `services/trading_management/ea_inputs.mqh`
+- `services/trading_signals/deterministic_signal_pattern_audit_playback.mqh`
+- `services/trading_signals/execution_controller.mqh`
+
+Implemented:
+
+- New disabled-by-default input:
+  - `Pattern_Audit_Admit_Selected_Only`
+- `Enable_Pattern_Audit_Overlay` remains overlay/parity mode.
+- When `Pattern_Audit_Admit_Selected_Only=true`, the EA loads the selected
+  pattern package even if visual overlay is not needed.
+- Selected-pattern admission is checked after existing prepared broker/risk
+  admission passes and before `ApplyExecutionLegTradeAdmission`.
+- Non-matching entries are locally closed with:
+  - terminal reason `PATTERN_AUDIT_FILTER_BLOCKED`
+  - guardrail source `PATTERN_AUDIT_FILTER_BLOCKED`
+- Non-tester usage fails closed for selected-pattern admission with
+  `pattern_audit_filter_not_allowed_outside_tester`.
+
+Safety:
+
+- The filter cannot create trades.
+- It cannot resize lots, alter SL/TP, alter exits, bypass license/session/spread
+  or broker checks, change magic-number scope, or affect broker reconciliation.
+- It only denies otherwise prepared deterministic entries when explicitly
+  enabled.
+
+Validation:
+
+- `git diff --check`: PASS.
+- MetaEditor real compile:
+  `python3 tools/mt5/compile_mt5.py --wine --mt5-root /home/loldlm/mql5_projects/metatrader_5_market_data_framework --entrypoint /home/loldlm/mql5_projects/metatrader_5_market_data_framework/MQL5/Experts/HFT_Grid_AI/HFT_Grid_AI.mq5 --log /home/loldlm/mql5_projects/metatrader_5_market_data_framework/MQL5/Experts/HFT_Grid_AI/logs/compile/pattern-audit-focused-sprint4-compile.log --mode compile --timeout 240`
+- Compile result: `0 errors, 0 warnings`.
