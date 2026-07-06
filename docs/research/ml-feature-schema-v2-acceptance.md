@@ -731,4 +731,43 @@ Decision:
 - No runtime export, SHADOW parity, FILTER validation, ONNX work, or live
   deployment is approved from these candidates.
 - Next follow-up plan:
+  `docs/plans/ml-pattern-audit-follow-up-plan.md`
+- Target path-label research remains planned after pattern semantics are
+  audited:
   `docs/plans/ml-target-path-labels-follow-up-plan.md`
+
+## Pattern Audit Sprint 1 Validation
+
+Pattern Audit Sprint 1 defined the research-only pattern audit contract before
+adding tooling or Strategy Tester playback.
+
+Changed files:
+
+- `docs/plans/ml-pattern-audit-follow-up-plan.md`
+- `docs/research/ml-pattern-audit.md`
+
+Defined:
+
+- Controlled pattern lanes for direction, structure, Fibonacci, macro
+  slope/alignment, chain scores, previous candle, and context/session.
+- Required audit artifacts:
+  - `pattern_catalog.tsv`
+  - `pattern_summary.tsv`
+  - `pattern_matches.tsv`
+  - `pattern_audit_report.md`
+  - `pattern_audit.json`
+- `pattern_matches.tsv` must include readable `conditions_text` and identifiers
+  needed for Strategy Tester playback.
+- Guardrail statuses:
+  - `AUDIT_PASS`
+  - `REVIEW`
+  - `RARE_BUCKET_IGNORE`
+  - `FINAL_HOLDOUT_FAIL`
+  - `DATA_AMBIGUITY`
+- Strategy Tester playback is research-only and must not alter trading
+  behavior.
+
+Validation:
+
+- Manual contract review: PASS.
+- `git diff --check`: PASS.
