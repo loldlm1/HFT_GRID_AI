@@ -7,17 +7,18 @@ validated Parquet datasets. The Phase 3 trainer consumes those datasets and
 trains local research XGBoost models. These tools do not call MT5, modify the
 EA, run EA inference, filter trades, or connect to PostgreSQL.
 
-## Feature Schema V2 Status
+## Feature Schema Status
 
-The first schema v2 Phase 3 attempt is rejected with a follow-up Phase 3 plan.
-The current long XAUUSD schema v1 baseline remains frozen as a rejection
-baseline:
+The first schema v2 Phase 3 attempt is rejected. The active follow-up has moved
+the research/export contract to schema v3 with a small pre-entry context
+feature set. The current long XAUUSD schema v1 baseline remains frozen as a
+rejection baseline:
 
 - Dataset: `xauusd_2025_dataset_1`
 - Model: `xauusd_2025_xgb_1`
 - Result: no accepted FILTER threshold and no promoted runtime export.
 
-Schema v2 first-attempt evidence and follow-up planning are tracked in:
+Schema v2 first-attempt evidence and the schema v3 follow-up are tracked in:
 
 - `docs/plans/ml-feature-schema-v2-plan.md`
 - `docs/plans/ml-feature-schema-v2-follow-up-plan.md`
@@ -26,7 +27,7 @@ Schema v2 first-attempt evidence and follow-up planning are tracked in:
 The first schema v2 XAUUSD 2025 dataset built successfully, but the trained
 candidates failed the final-holdout selected-row and segment-support gates.
 Runtime export, deployment, SHADOW parity, and FILTER validation remain blocked
-until a follow-up Phase 3 candidate passes the research gate.
+until a schema v3 follow-up candidate passes the research gate.
 
 ## Setup
 

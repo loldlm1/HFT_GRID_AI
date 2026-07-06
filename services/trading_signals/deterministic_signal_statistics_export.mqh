@@ -4,7 +4,7 @@
 #ifndef _TS_DETERMINISTIC_STATS_EXPORT_MQH_
 #define _TS_DETERMINISTIC_STATS_EXPORT_MQH_
 
-const int    DETERMINISTIC_SIGNAL_STATS_SCHEMA_VERSION = 2;
+const int    DETERMINISTIC_SIGNAL_STATS_SCHEMA_VERSION = 3;
 const string DETERMINISTIC_SIGNAL_STATS_STORAGE_ROOT   = "DeterministicSignalML";
 const string DETERMINISTIC_SIGNAL_STATS_RUNS_FOLDER    = "runs";
 const string DETERMINISTIC_SIGNAL_STATS_MANIFEST_FILE  = "run_manifest.tsv";
@@ -14,11 +14,12 @@ const string DETERMINISTIC_SIGNAL_STATS_SUMMARY_FILE   = "run_summary.tsv";
 const string DETERMINISTIC_SIGNAL_STATS_NULL           = "\\N";
 const ushort DETERMINISTIC_SIGNAL_STATS_DELIMITER      = '\t';
 const int    DETERMINISTIC_SIGNAL_STATS_FLUSH_ROWS     = 32;
+const int    DETERMINISTIC_SIGNAL_STATS_CONTEXT_BARS   = 10;
 
 const string DETERMINISTIC_SIGNAL_STATS_MANIFEST_HEADER =
   "schema_version\tkey\tvalue";
 const string DETERMINISTIC_SIGNAL_STATS_FEATURES_HEADER =
-  "schema_version\trun_id\tconfig_id\tsignal_id\tsource_key\tsource_attempt_index\tsymbol\tstrategy_id\tstrategy_label\tdirection\tentry_time\tsource_time\tsource_type\tsource_structure_type\topposite_structure_type\tsame_previous_structure_type\tmacro_h1_live_dir\tmacro_h4_live_dir\tmacro_d1_live_dir\tstrategy_delay_period\tconfirmation_timeframe_minutes\tentry_direction_macro_alignment\tmacro_alignment_score\tprev_body_ratio\tprev_upper_wick_ratio\tprev_lower_wick_ratio\tprev_close_location\tprev_candle_dir\tsl_fib_raw\tsl_fib_band\tentry_fib_raw\tentry_fib_band\tlow_chain_score_3\tlow_chain_score_5\tlow_chain_score_10\thigh_chain_score_3\thigh_chain_score_5\thigh_chain_score_10";
+  "schema_version\trun_id\tconfig_id\tsignal_id\tsource_key\tsource_attempt_index\tsymbol\tstrategy_id\tstrategy_label\tdirection\tentry_time\tsource_time\tsource_type\tsource_structure_type\topposite_structure_type\tsame_previous_structure_type\tmacro_h1_live_dir\tmacro_h4_live_dir\tmacro_d1_live_dir\tstrategy_delay_period\tconfirmation_timeframe_minutes\tentry_direction_macro_alignment\tmacro_alignment_score\tprev_body_ratio\tprev_upper_wick_ratio\tprev_lower_wick_ratio\tprev_close_location\tprev_candle_dir\tsl_fib_raw\tsl_fib_band\tentry_fib_raw\tentry_fib_band\tlow_chain_score_3\tlow_chain_score_5\tlow_chain_score_10\thigh_chain_score_3\thigh_chain_score_5\thigh_chain_score_10\trecent_m1_range_points\trecent_m1_body_ratio_avg\trecent_m1_directional_balance\tentry_spread_points\tspread_to_recent_range_ratio\tentry_session_bucket";
 const string DETERMINISTIC_SIGNAL_STATS_OUTCOMES_HEADER =
   "schema_version\trun_id\tconfig_id\tsignal_id\tsource_key\tsource_attempt_index\tterminal_time\tterminal_reason\tprofit_r\tduration_seconds\tduration_m1_bars\tentry_price\tclose_price\tnet_profit";
 const string DETERMINISTIC_SIGNAL_STATS_SUMMARY_HEADER =
@@ -813,6 +814,101 @@ bool DeterministicSignalStatsPreviousCandleFeatures(const MqlRates &rate,
   return true;
 }
 
+bool DeterministicSignalStatsRecentContextFeatures(const MqlRates &rates[],
+                                                   const int copied,
+                                                   double &range_points_out,
+                                                   double &body_ratio_avg_out,
+                                                   double &directional_balance_out)
+{
+  range_points_out = 0.0;
+  body_ratio_avg_out = 0.0;
+  directional_balance_out = 0.0;
+
+  if(copied < DETERMINISTIC_SIGNAL_STATS_CONTEXT_BARS || _Point <= 0.0)
+    return false;
+
+  double range_points_sum = 0.0;
+  double body_ratio_sum = 0.0;
+  double direction_sum = 0.0;
+  int valid_count = 0;
+
+  for(int i = 0; i < DETERMINISTIC_SIGNAL_STATS_CONTEXT_BARS; i++)
+  {
+    if(rates[i].high <= 0.0 ||
+       rates[i].low <= 0.0 ||
+       rates[i].open <= 0.0 ||
+       rates[i].close <= 0.0 ||
+       rates[i].high < rates[i].low)
+      return false;
+
+    double range = rates[i].high - rates[i].low;
+    if(range <= 0.0 || !MathIsValidNumber(range))
+      return false;
+
+    range_points_sum += range / _Point;
+    body_ratio_sum += MathAbs(rates[i].close - rates[i].open) / range;
+
+    double eps = 0.0000000001;
+    if(rates[i].close > rates[i].open + eps)
+      direction_sum += 1.0;
+    else if(rates[i].close < rates[i].open - eps)
+      direction_sum -= 1.0;
+
+    valid_count++;
+  }
+
+  if(valid_count != DETERMINISTIC_SIGNAL_STATS_CONTEXT_BARS)
+    return false;
+
+  range_points_out = range_points_sum / (double)valid_count;
+  body_ratio_avg_out = body_ratio_sum / (double)valid_count;
+  directional_balance_out = direction_sum / (double)valid_count;
+
+  return MathIsValidNumber(range_points_out) &&
+         MathIsValidNumber(body_ratio_avg_out) &&
+         MathIsValidNumber(directional_balance_out);
+}
+
+bool DeterministicSignalStatsEntrySpreadFeatures(const double recent_range_points,
+                                                 const bool recent_range_valid,
+                                                 int &entry_spread_points_out,
+                                                 double &spread_ratio_out,
+                                                 bool &spread_ratio_valid_out)
+{
+  entry_spread_points_out = 0;
+  spread_ratio_out = 0.0;
+  spread_ratio_valid_out = false;
+
+  long spread_points = 0;
+  if(!SymbolInfoInteger(_Symbol, SYMBOL_SPREAD, spread_points) || spread_points < 0)
+    return false;
+
+  entry_spread_points_out = (int)spread_points;
+  if(recent_range_valid && recent_range_points > 0.0)
+  {
+    spread_ratio_out = (double)entry_spread_points_out / recent_range_points;
+    spread_ratio_valid_out = MathIsValidNumber(spread_ratio_out);
+  }
+
+  return true;
+}
+
+string DeterministicSignalStatsSessionBucket(const datetime entry_time)
+{
+  if(entry_time <= 0)
+    return "";
+
+  MqlDateTime parts;
+  TimeToStruct(entry_time, parts);
+  if(parts.hour >= 0 && parts.hour < 7)
+    return "ASIA";
+  if(parts.hour >= 7 && parts.hour < 12)
+    return "LONDON";
+  if(parts.hour >= 12 && parts.hour < 21)
+    return "NEWYORK";
+  return "OFFHOURS";
+}
+
 struct DeterministicSignalFeatureSnapshot
 {
   bool     valid;
@@ -873,6 +969,18 @@ struct DeterministicSignalFeatureSnapshot
   bool     high_chain_score_5_valid;
   int      high_chain_score_10;
   bool     high_chain_score_10_valid;
+  double   recent_m1_range_points;
+  bool     recent_m1_range_points_valid;
+  double   recent_m1_body_ratio_avg;
+  bool     recent_m1_body_ratio_avg_valid;
+  double   recent_m1_directional_balance;
+  bool     recent_m1_directional_balance_valid;
+  int      entry_spread_points;
+  bool     entry_spread_points_valid;
+  double   spread_to_recent_range_ratio;
+  bool     spread_to_recent_range_ratio_valid;
+  string   entry_session_bucket;
+  bool     entry_session_bucket_valid;
 
   DeterministicSignalFeatureSnapshot()
   {
@@ -934,6 +1042,18 @@ struct DeterministicSignalFeatureSnapshot
     high_chain_score_5_valid = false;
     high_chain_score_10 = 0;
     high_chain_score_10_valid = false;
+    recent_m1_range_points = 0.0;
+    recent_m1_range_points_valid = false;
+    recent_m1_body_ratio_avg = 0.0;
+    recent_m1_body_ratio_avg_valid = false;
+    recent_m1_directional_balance = 0.0;
+    recent_m1_directional_balance_valid = false;
+    entry_spread_points = 0;
+    entry_spread_points_valid = false;
+    spread_to_recent_range_ratio = 0.0;
+    spread_to_recent_range_ratio_valid = false;
+    entry_session_bucket = DETERMINISTIC_SIGNAL_STATS_NULL;
+    entry_session_bucket_valid = false;
   }
 };
 
@@ -964,6 +1084,9 @@ bool DeterministicSignalBuildFeatureSnapshot(SignalParams &signal_params,
   snapshot.strategy_id = signal_params.strategy_id;
   snapshot.strategy_label = signal_params.strategy_label;
   snapshot.direction = DeterministicSignalStatsDirectionToken(signal_params.signal_type);
+  snapshot.entry_time = leg_state.last_action_time;
+  if(snapshot.entry_time <= 0)
+    snapshot.entry_time = TimeCurrent();
   snapshot.source_time = signal_params.source_extremum_time;
   snapshot.source_type = DeterministicSignalStatsSourceTypeToken(signal_params);
   snapshot.source_structure_type_valid =
@@ -1099,9 +1222,37 @@ bool DeterministicSignalBuildFeatureSnapshot(SignalParams &signal_params,
   if(!snapshot.high_chain_score_10_valid)
     DeterministicSignalFeatureSnapshotAddInvalid(snapshot, "high_chain_score_10");
 
-  snapshot.entry_time = leg_state.last_action_time;
-  if(snapshot.entry_time <= 0)
-    snapshot.entry_time = TimeCurrent();
+  bool recent_context_valid =
+    DeterministicSignalStatsRecentContextFeatures(rates,
+                                                  copied,
+                                                  snapshot.recent_m1_range_points,
+                                                  snapshot.recent_m1_body_ratio_avg,
+                                                  snapshot.recent_m1_directional_balance);
+  snapshot.recent_m1_range_points_valid = recent_context_valid;
+  snapshot.recent_m1_body_ratio_avg_valid = recent_context_valid;
+  snapshot.recent_m1_directional_balance_valid = recent_context_valid;
+  if(!snapshot.recent_m1_range_points_valid)
+    DeterministicSignalFeatureSnapshotAddInvalid(snapshot, "recent_m1_range_points");
+  if(!snapshot.recent_m1_body_ratio_avg_valid)
+    DeterministicSignalFeatureSnapshotAddInvalid(snapshot, "recent_m1_body_ratio_avg");
+  if(!snapshot.recent_m1_directional_balance_valid)
+    DeterministicSignalFeatureSnapshotAddInvalid(snapshot, "recent_m1_directional_balance");
+
+  snapshot.entry_spread_points_valid =
+    DeterministicSignalStatsEntrySpreadFeatures(snapshot.recent_m1_range_points,
+                                                snapshot.recent_m1_range_points_valid,
+                                                snapshot.entry_spread_points,
+                                                snapshot.spread_to_recent_range_ratio,
+                                                snapshot.spread_to_recent_range_ratio_valid);
+  if(!snapshot.entry_spread_points_valid)
+    DeterministicSignalFeatureSnapshotAddInvalid(snapshot, "entry_spread_points");
+  if(!snapshot.spread_to_recent_range_ratio_valid)
+    DeterministicSignalFeatureSnapshotAddInvalid(snapshot, "spread_to_recent_range_ratio");
+
+  snapshot.entry_session_bucket = DeterministicSignalStatsSessionBucket(snapshot.entry_time);
+  snapshot.entry_session_bucket_valid = (snapshot.entry_session_bucket != "");
+  if(!snapshot.entry_session_bucket_valid)
+    DeterministicSignalFeatureSnapshotAddInvalid(snapshot, "entry_session_bucket");
 
   return true;
 }
@@ -1166,7 +1317,13 @@ bool DeterministicSignalStatsBuildFeatureRow(SignalParams &signal_params,
             DeterministicSignalStatsIntToken(snapshot.low_chain_score_10_valid, snapshot.low_chain_score_10) + "\t" +
             DeterministicSignalStatsIntToken(snapshot.high_chain_score_3_valid, snapshot.high_chain_score_3) + "\t" +
             DeterministicSignalStatsIntToken(snapshot.high_chain_score_5_valid, snapshot.high_chain_score_5) + "\t" +
-            DeterministicSignalStatsIntToken(snapshot.high_chain_score_10_valid, snapshot.high_chain_score_10);
+            DeterministicSignalStatsIntToken(snapshot.high_chain_score_10_valid, snapshot.high_chain_score_10) + "\t" +
+            DeterministicSignalStatsDoubleToken(snapshot.recent_m1_range_points_valid, snapshot.recent_m1_range_points, 2) + "\t" +
+            DeterministicSignalStatsDoubleToken(snapshot.recent_m1_body_ratio_avg_valid, snapshot.recent_m1_body_ratio_avg, 8) + "\t" +
+            DeterministicSignalStatsDoubleToken(snapshot.recent_m1_directional_balance_valid, snapshot.recent_m1_directional_balance, 8) + "\t" +
+            DeterministicSignalStatsIntToken(snapshot.entry_spread_points_valid, snapshot.entry_spread_points) + "\t" +
+            DeterministicSignalStatsDoubleToken(snapshot.spread_to_recent_range_ratio_valid, snapshot.spread_to_recent_range_ratio, 8) + "\t" +
+            DeterministicSignalStatsCell(snapshot.entry_session_bucket_valid ? snapshot.entry_session_bucket : "");
 
   return true;
 }

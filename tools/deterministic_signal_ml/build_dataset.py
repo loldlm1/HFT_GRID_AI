@@ -90,7 +90,13 @@ SELECT
   CAST(low_chain_score_10 AS INTEGER) AS low_chain_score_10,
   CAST(high_chain_score_3 AS INTEGER) AS high_chain_score_3,
   CAST(high_chain_score_5 AS INTEGER) AS high_chain_score_5,
-  CAST(high_chain_score_10 AS INTEGER) AS high_chain_score_10
+  CAST(high_chain_score_10 AS INTEGER) AS high_chain_score_10,
+  CAST(recent_m1_range_points AS DOUBLE) AS recent_m1_range_points,
+  CAST(recent_m1_body_ratio_avg AS DOUBLE) AS recent_m1_body_ratio_avg,
+  CAST(recent_m1_directional_balance AS DOUBLE) AS recent_m1_directional_balance,
+  CAST(entry_spread_points AS INTEGER) AS entry_spread_points,
+  CAST(spread_to_recent_range_ratio AS DOUBLE) AS spread_to_recent_range_ratio,
+  entry_session_bucket
 FROM {source}
 """
 
@@ -165,7 +171,13 @@ CREATE TABLE features (
   low_chain_score_10 INTEGER,
   high_chain_score_3 INTEGER,
   high_chain_score_5 INTEGER,
-  high_chain_score_10 INTEGER
+  high_chain_score_10 INTEGER,
+  recent_m1_range_points DOUBLE,
+  recent_m1_body_ratio_avg DOUBLE,
+  recent_m1_directional_balance DOUBLE,
+  entry_spread_points INTEGER,
+  spread_to_recent_range_ratio DOUBLE,
+  entry_session_bucket VARCHAR
 )
 """
     )
@@ -236,6 +248,12 @@ SELECT
   f.high_chain_score_3,
   f.high_chain_score_5,
   f.high_chain_score_10,
+  f.recent_m1_range_points,
+  f.recent_m1_body_ratio_avg,
+  f.recent_m1_directional_balance,
+  f.entry_spread_points,
+  f.spread_to_recent_range_ratio,
+  f.entry_session_bucket,
   o.terminal_time,
   o.terminal_reason,
   o.profit_r,

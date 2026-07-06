@@ -17,7 +17,7 @@ from schema_contract import (
 )
 
 
-BUILDER_VERSION = "phase3.schema_v2_dataset_builder.v1"
+BUILDER_VERSION = "phase3.schema_v3_dataset_builder.v1"
 
 
 def _fetch_dicts(connection: duckdb.DuckDBPyConnection, sql: str) -> list[dict[str, Any]]:
@@ -135,6 +135,18 @@ SELECT
 FROM training_matrix
 GROUP BY 1, 2
 ORDER BY 1, 2
+""",
+        ),
+        "entry_session_distribution": _fetch_dicts(
+            connection,
+            """
+SELECT
+  entry_session_bucket,
+  COUNT(*) AS rows,
+  AVG(target_profit_r) AS avg_profit_r
+FROM training_matrix
+GROUP BY 1
+ORDER BY 1
 """,
         ),
         "feature_null_counts": null_counts,
@@ -265,6 +277,8 @@ def write_dataset_report(
             ("entry_direction_macro_alignment", "macro_alignment_score", "rows", "avg_profit_r"),
         )
     )
+    lines.extend(["", "## Entry Session Summary", ""])
+    lines.extend(_markdown_table(quality_payload["entry_session_distribution"], ("entry_session_bucket", "rows", "avg_profit_r")))
     lines.extend(["", "## Feature Null Counts", ""])
     lines.extend(_markdown_table(quality_payload["feature_null_counts"], ("column_name", "null_rows")))
     lines.extend(["", "## Feature Ranges", ""])

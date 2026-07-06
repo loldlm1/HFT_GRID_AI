@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 
-SUPPORTED_SCHEMA_VERSION = 2
+SUPPORTED_SCHEMA_VERSION = 3
 NULL_TOKEN = r"\N"
 
 RUN_MANIFEST_FILE = "run_manifest.tsv"
@@ -73,6 +73,12 @@ FEATURE_COLUMNS = (
     "high_chain_score_3",
     "high_chain_score_5",
     "high_chain_score_10",
+    "recent_m1_range_points",
+    "recent_m1_body_ratio_avg",
+    "recent_m1_directional_balance",
+    "entry_spread_points",
+    "spread_to_recent_range_ratio",
+    "entry_session_bucket",
 )
 
 OUTCOME_COLUMNS = (
@@ -131,6 +137,12 @@ MODEL_FEATURE_COLUMNS = (
     "high_chain_score_3",
     "high_chain_score_5",
     "high_chain_score_10",
+    "recent_m1_range_points",
+    "recent_m1_body_ratio_avg",
+    "recent_m1_directional_balance",
+    "entry_spread_points",
+    "spread_to_recent_range_ratio",
+    "entry_session_bucket",
 )
 
 TARGET_COLUMNS = (
@@ -174,6 +186,11 @@ NUMERIC_COLUMNS = (
     "high_chain_score_3",
     "high_chain_score_5",
     "high_chain_score_10",
+    "recent_m1_range_points",
+    "recent_m1_body_ratio_avg",
+    "recent_m1_directional_balance",
+    "entry_spread_points",
+    "spread_to_recent_range_ratio",
     "profit_r",
     "duration_seconds",
     "duration_m1_bars",
@@ -192,6 +209,7 @@ CATEGORICAL_COLUMNS = (
     "prev_candle_dir",
     "sl_fib_band",
     "entry_fib_band",
+    "entry_session_bucket",
     "terminal_reason",
 )
 

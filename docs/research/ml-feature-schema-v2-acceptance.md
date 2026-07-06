@@ -2,7 +2,7 @@
 
 **Date**: 2026-07-06
 **Roadmap Phase**: Phase 3 - Feature Schema V2
-**Status**: REJECT_WITH_FOLLOW_UP
+**Status**: SCHEMA_V3_EXPORT_HANDOFF
 
 ## Scope
 
@@ -163,9 +163,9 @@ research, dynamic targets, or live rollout.
 
 Runtime export is conditional on research acceptance.
 
-If a schema v2 runtime export is produced:
+If a runtime export is produced for a promoted follow-up schema:
 
-- Artifact validation must record schema version `2`.
+- Artifact validation must record the promoted feature schema version.
 - The export must include a positive threshold policy.
 - The deployed Common Files copy must validate.
 - SHADOW mode must produce scored rows and Python/MQL5 parity within accepted
@@ -591,3 +591,80 @@ Decision:
 - Calibration and rank/quantile policies do not fix the final-holdout collapse.
 - The next sprint should define a minimal schema iteration focused on
   pre-entry regime/context features, not on threshold tuning.
+
+## Follow-Up Sprint 3 Validation
+
+Follow-up Sprint 3 implemented the minimal schema v3 feature iteration and
+compiled the EA. The sprint cannot fully complete dataset regeneration until a
+human-in-the-loop Strategy Tester run creates the new raw export.
+
+Changed files:
+
+- `services/trading_signals/deterministic_signal_statistics_export.mqh`
+- `services/trading_signals/deterministic_signal_ml_shadow_inference.mqh`
+- `tools/deterministic_signal_ml/schema_contract.py`
+- `tools/deterministic_signal_ml/build_dataset.py`
+- `tools/deterministic_signal_ml/report_writer.py`
+- `tools/deterministic_signal_ml/train_model.py`
+- `tools/deterministic_signal_ml/README.md`
+
+Implemented:
+
+- `DETERMINISTIC_SIGNAL_STATS_SCHEMA_VERSION = 3`
+- `ML_SHADOW_PHASE1_SCHEMA_VERSION = 3`
+- `SUPPORTED_SCHEMA_VERSION = 3`
+- New pre-entry context features:
+  - `recent_m1_range_points`
+  - `recent_m1_body_ratio_avg`
+  - `recent_m1_directional_balance`
+  - `entry_spread_points`
+  - `spread_to_recent_range_ratio`
+  - `entry_session_bucket`
+- New training feature-set IDs:
+  - `schema_v3_full`
+  - `schema_v3_no_context`
+  - `schema_v3_structure`
+  - `schema_v3_structure_candle`
+
+Leakage boundary:
+
+- Recent M1 features use only closed `DETERMINISTIC_BASE_TIMEFRAME` bars from
+  shift `1`.
+- Spread features use the current pre-entry symbol spread and its ratio to the
+  recent closed-bar range.
+- Session bucket is derived from the pre-entry server-time hour.
+- No terminal outcome, post-entry bar, blocked-result status, future macro bar,
+  or final-holdout information is used.
+
+Validation:
+
+- `.venv/bin/python -m py_compile tools/deterministic_signal_ml/*.py`: PASS.
+- Static contract check:
+  - `signal_features.tsv` header: `44` columns.
+  - Python `FEATURE_COLUMNS`: `44` columns.
+  - `shadow_predictions.tsv` header: `56` columns.
+  - Python `MODEL_FEATURE_COLUMNS`: `35` columns, all present in SHADOW output.
+- Dataset SQL smoke:
+  - `features=0`
+  - `outcomes=0`
+  - `training_matrix=0`
+  - `training_matrix_columns=55`
+  - Required schema v3 columns present.
+- `git diff --check`: PASS.
+- MetaEditor compile:
+  - Command:
+    `python3 tools/mt5/compile_mt5.py --wine --mt5-root /home/loldlm/mql5_projects/metatrader_5_market_data_framework --entrypoint /home/loldlm/mql5_projects/metatrader_5_market_data_framework/MQL5/Experts/HFT_Grid_AI/HFT_Grid_AI.mq5 --log /home/loldlm/mql5_projects/metatrader_5_market_data_framework/MQL5/Experts/HFT_Grid_AI/logs/compile/phase3-schema-v3-followup-sprint3-compile.log --mode compile --timeout 240`
+  - Result: `0 errors, 0 warnings`.
+
+Current handoff:
+
+- Follow-up Sprint 4 is blocked until the schema v3 raw export and dataset
+  exist.
+- Recommended run ID: `xauusd_2025_schema_v3_run_1`
+- Recommended dataset ID: `xauusd_2025_schema_v3_dataset_1`
+- Recommended model IDs:
+  - `xauusd_2025_schema_v3_xgb_1`
+  - `xauusd_2025_schema_v3_no_context_xgb_1`
+- Strategy Tester configuration remains unchanged except for the active schema:
+  XAUUSD full calendar year 2025, ML disabled, feature export enabled, S1/S2/S3
+  enabled.

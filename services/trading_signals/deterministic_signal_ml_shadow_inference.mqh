@@ -5,7 +5,7 @@
 #define _TS_DETERMINISTIC_SIGNAL_ML_SHADOW_INFERENCE_MQH_
 
 const int    ML_SHADOW_ARTIFACT_SCHEMA_VERSION = 1;
-const int    ML_SHADOW_PHASE1_SCHEMA_VERSION   = 2;
+const int    ML_SHADOW_PHASE1_SCHEMA_VERSION   = 3;
 const string ML_SHADOW_STORAGE_ROOT            = "DeterministicSignalML";
 const string ML_SHADOW_MODEL_EXPORTS_FOLDER    = "model_exports";
 const string ML_SHADOW_RUNS_FOLDER             = "shadow_runs";
@@ -27,7 +27,7 @@ const int    ML_SHADOW_MAX_TREE_NODES          = 20000;
 const int    ML_SHADOW_FLUSH_ROWS              = 32;
 const string ML_SHADOW_RUN_MANIFEST_HEADER     = "schema_version\tkey\tvalue";
 const string ML_SHADOW_PREDICTIONS_HEADER =
-  "schema_version\tshadow_run_id\texport_id\tmodel_id\tdataset_id\tfeature_schema_version\tsignal_id\tsource_key\tsource_attempt_index\tsymbol\tstrategy_id\tstrategy_label\tdirection\tsource_type\tentry_time\tclassifier_score\tregressor_score\tthreshold_probability\trecommendation\treason\tfeature_valid\tmodel_available\tsource_structure_type\topposite_structure_type\tsame_previous_structure_type\tmacro_h1_live_dir\tmacro_h4_live_dir\tmacro_d1_live_dir\tstrategy_delay_period\tconfirmation_timeframe_minutes\tentry_direction_macro_alignment\tmacro_alignment_score\tprev_body_ratio\tprev_upper_wick_ratio\tprev_lower_wick_ratio\tprev_close_location\tprev_candle_dir\tsl_fib_raw\tsl_fib_band\tentry_fib_raw\tentry_fib_band\tlow_chain_score_3\tlow_chain_score_5\tlow_chain_score_10\thigh_chain_score_3\thigh_chain_score_5\thigh_chain_score_10\tinference_mode\tadmission_action\tfilter_reason";
+  "schema_version\tshadow_run_id\texport_id\tmodel_id\tdataset_id\tfeature_schema_version\tsignal_id\tsource_key\tsource_attempt_index\tsymbol\tstrategy_id\tstrategy_label\tdirection\tsource_type\tentry_time\tclassifier_score\tregressor_score\tthreshold_probability\trecommendation\treason\tfeature_valid\tmodel_available\tsource_structure_type\topposite_structure_type\tsame_previous_structure_type\tmacro_h1_live_dir\tmacro_h4_live_dir\tmacro_d1_live_dir\tstrategy_delay_period\tconfirmation_timeframe_minutes\tentry_direction_macro_alignment\tmacro_alignment_score\tprev_body_ratio\tprev_upper_wick_ratio\tprev_lower_wick_ratio\tprev_close_location\tprev_candle_dir\tsl_fib_raw\tsl_fib_band\tentry_fib_raw\tentry_fib_band\tlow_chain_score_3\tlow_chain_score_5\tlow_chain_score_10\thigh_chain_score_3\thigh_chain_score_5\thigh_chain_score_10\trecent_m1_range_points\trecent_m1_body_ratio_avg\trecent_m1_directional_balance\tentry_spread_points\tspread_to_recent_range_ratio\tentry_session_bucket\tinference_mode\tadmission_action\tfilter_reason";
 const string ML_SHADOW_OUTCOMES_HEADER =
   "schema_version\tshadow_run_id\texport_id\tmodel_id\tsignal_id\tsource_key\tsource_attempt_index\tterminal_time\tterminal_reason\trecommendation\tclassifier_score\tthreshold_probability\tprofit_r\tnet_profit\tduration_seconds";
 const string ML_SHADOW_ARBITRATION_DECISIONS_HEADER =
@@ -1231,6 +1231,31 @@ bool MLShadowSnapshotNumericValue(const DeterministicSignalFeatureSnapshot &snap
     value_out = (double)snapshot.high_chain_score_10;
     valid_out = snapshot.high_chain_score_10_valid;
   }
+  else if(source_column == "recent_m1_range_points")
+  {
+    value_out = StringToDouble(DoubleToString(snapshot.recent_m1_range_points, 2));
+    valid_out = snapshot.recent_m1_range_points_valid;
+  }
+  else if(source_column == "recent_m1_body_ratio_avg")
+  {
+    value_out = StringToDouble(DoubleToString(snapshot.recent_m1_body_ratio_avg, 8));
+    valid_out = snapshot.recent_m1_body_ratio_avg_valid;
+  }
+  else if(source_column == "recent_m1_directional_balance")
+  {
+    value_out = StringToDouble(DoubleToString(snapshot.recent_m1_directional_balance, 8));
+    valid_out = snapshot.recent_m1_directional_balance_valid;
+  }
+  else if(source_column == "entry_spread_points")
+  {
+    value_out = (double)snapshot.entry_spread_points;
+    valid_out = snapshot.entry_spread_points_valid;
+  }
+  else if(source_column == "spread_to_recent_range_ratio")
+  {
+    value_out = StringToDouble(DoubleToString(snapshot.spread_to_recent_range_ratio, 8));
+    valid_out = snapshot.spread_to_recent_range_ratio_valid;
+  }
   else
   {
     valid_out = false;
@@ -1265,6 +1290,8 @@ bool MLShadowSnapshotCategoryValue(const DeterministicSignalFeatureSnapshot &sna
     value_out = snapshot.sl_fib_band_valid ? snapshot.sl_fib_band : "";
   else if(source_column == "entry_fib_band")
     value_out = snapshot.entry_fib_band_valid ? snapshot.entry_fib_band : "";
+  else if(source_column == "entry_session_bucket")
+    value_out = snapshot.entry_session_bucket_valid ? snapshot.entry_session_bucket : "";
   else
     return false;
 
@@ -1629,13 +1656,19 @@ string MLShadowPredictionRow(const SignalParams &signal_params,
          MLShadowOutputCell(snapshot.entry_fib_band) + "\t" +
          MLShadowIntToken(snapshot.low_chain_score_3_valid, snapshot.low_chain_score_3) + "\t" +
          MLShadowIntToken(snapshot.low_chain_score_5_valid, snapshot.low_chain_score_5) + "\t" +
-	         MLShadowIntToken(snapshot.low_chain_score_10_valid, snapshot.low_chain_score_10) + "\t" +
-	         MLShadowIntToken(snapshot.high_chain_score_3_valid, snapshot.high_chain_score_3) + "\t" +
-	         MLShadowIntToken(snapshot.high_chain_score_5_valid, snapshot.high_chain_score_5) + "\t" +
-	         MLShadowIntToken(snapshot.high_chain_score_10_valid, snapshot.high_chain_score_10) + "\t" +
-	         MLShadowOutputCell(ExecutionMLInferenceModeToken(ML_Inference_Mode)) + "\t" +
-	         MLShadowOutputCell(admission_action) + "\t" +
-	         MLShadowOutputCell(filter_reason);
+         MLShadowIntToken(snapshot.low_chain_score_10_valid, snapshot.low_chain_score_10) + "\t" +
+         MLShadowIntToken(snapshot.high_chain_score_3_valid, snapshot.high_chain_score_3) + "\t" +
+         MLShadowIntToken(snapshot.high_chain_score_5_valid, snapshot.high_chain_score_5) + "\t" +
+         MLShadowIntToken(snapshot.high_chain_score_10_valid, snapshot.high_chain_score_10) + "\t" +
+         MLShadowDoubleToken(snapshot.recent_m1_range_points_valid, snapshot.recent_m1_range_points, 2) + "\t" +
+         MLShadowDoubleToken(snapshot.recent_m1_body_ratio_avg_valid, snapshot.recent_m1_body_ratio_avg, 8) + "\t" +
+         MLShadowDoubleToken(snapshot.recent_m1_directional_balance_valid, snapshot.recent_m1_directional_balance, 8) + "\t" +
+         MLShadowIntToken(snapshot.entry_spread_points_valid, snapshot.entry_spread_points) + "\t" +
+         MLShadowDoubleToken(snapshot.spread_to_recent_range_ratio_valid, snapshot.spread_to_recent_range_ratio, 8) + "\t" +
+         MLShadowOutputCell(snapshot.entry_session_bucket_valid ? snapshot.entry_session_bucket : "") + "\t" +
+         MLShadowOutputCell(ExecutionMLInferenceModeToken(ML_Inference_Mode)) + "\t" +
+         MLShadowOutputCell(admission_action) + "\t" +
+         MLShadowOutputCell(filter_reason);
 }
 
 bool DeterministicSignalMLShadowRecordDecisionPrediction(SignalParams &signal_params,

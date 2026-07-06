@@ -35,7 +35,7 @@ class TrainingInputError(RuntimeError):
     """Raised when training cannot proceed because an input is invalid."""
 
 
-DEFAULT_FEATURE_SET_ID = "schema_v2_full"
+DEFAULT_FEATURE_SET_ID = "schema_v3_full"
 STRUCTURE_FEATURES = (
     "source_structure_type",
     "opposite_structure_type",
@@ -54,6 +54,14 @@ DEPTH_MACRO_FEATURES = (
     "entry_direction_macro_alignment",
     "macro_alignment_score",
 )
+CONTEXT_FEATURES = (
+    "recent_m1_range_points",
+    "recent_m1_body_ratio_avg",
+    "recent_m1_directional_balance",
+    "entry_spread_points",
+    "spread_to_recent_range_ratio",
+    "entry_session_bucket",
+)
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -69,11 +77,12 @@ def build_parser() -> argparse.ArgumentParser:
         "--feature-set-id",
         default=DEFAULT_FEATURE_SET_ID,
         choices=(
-            "schema_v2_structure",
-            "schema_v2_structure_candle",
-            "schema_v2_full",
+            "schema_v3_structure",
+            "schema_v3_structure_candle",
+            "schema_v3_no_context",
+            "schema_v3_full",
         ),
-        help="Schema v2 feature subset used for ablation training.",
+        help="Schema v3 feature subset used for ablation training.",
     )
     return parser
 
@@ -153,7 +162,7 @@ def validate_training_rows(rows: list[dict], manifest: dict, config: TrainingCon
     if not feature_columns:
         raise TrainingInputError("Dataset manifest does not define feature_columns")
     if feature_columns != list(MODEL_FEATURE_COLUMNS):
-        raise TrainingInputError("Dataset feature_columns do not match active schema v2 contract")
+        raise TrainingInputError("Dataset feature_columns do not match active schema v3 contract")
 
     required_targets = ("target_is_win", "target_profit_r", "target_terminal_reason")
     missing_manifest_targets = [column for column in required_targets if column not in target_columns]
@@ -188,15 +197,19 @@ def validate_training_rows(rows: list[dict], manifest: dict, config: TrainingCon
 
 def resolve_feature_columns(manifest: dict, feature_set_id: str) -> list[str]:
     feature_columns = list(manifest.get("feature_columns", []))
-    if feature_set_id == "schema_v2_full":
+    if feature_set_id == "schema_v3_full":
         return feature_columns
 
     excluded: set[str] = set()
-    if feature_set_id == "schema_v2_structure":
+    if feature_set_id == "schema_v3_structure":
         excluded.update(CANDLE_FEATURES)
         excluded.update(DEPTH_MACRO_FEATURES)
-    elif feature_set_id == "schema_v2_structure_candle":
+        excluded.update(CONTEXT_FEATURES)
+    elif feature_set_id == "schema_v3_structure_candle":
         excluded.update(DEPTH_MACRO_FEATURES)
+        excluded.update(CONTEXT_FEATURES)
+    elif feature_set_id == "schema_v3_no_context":
+        excluded.update(CONTEXT_FEATURES)
     else:
         raise TrainingInputError(f"Unsupported feature_set_id: {feature_set_id}")
 
