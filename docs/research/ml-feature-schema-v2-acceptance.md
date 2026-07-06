@@ -999,3 +999,50 @@ Contract:
 Validation:
 
 - Manual contract review: PASS.
+
+## Focused Pattern Playback Sprint 2 Validation
+
+Focused Pattern Playback Sprint 2 added human-readable pattern labels and
+created a smaller focused playback package.
+
+Changed files:
+
+- `tools/deterministic_signal_ml/pattern_audit.py`
+
+Implemented:
+
+- `pattern_label` now uses human-readable tokens such as:
+  - `Bearish | LH[0] | HL[1] | H1 slope bearish | Entry Fib 38.2-61.8`
+  - `Bullish | H1 slope bullish | H4 slope bearish | D1 slope bullish`
+- `conditions_text` remains unchanged as the exact machine-readable pattern
+  contract.
+- `pattern_id` remains derived from `conditions_text`, so existing pattern keys
+  stay stable.
+
+Generated focus audit:
+
+- Audit ID: `xauusd_2025_pattern_audit_focus_1`
+- Dataset ID: `xauusd_2025_schema_v3_dataset_1`
+- Command:
+  `.venv/bin/python tools/deterministic_signal_ml/pattern_audit.py --dataset-id xauusd_2025_schema_v3_dataset_1 --audit-id xauusd_2025_pattern_audit_focus_1 --overwrite --top-n-visual 3`
+- Result:
+  - Catalog patterns: `300`
+  - Selected visual patterns: `3`
+  - Selected match rows: `2611`
+
+Selected focus patterns:
+
+- `pat_95208b4d6ffb`: `Bullish | H1 slope bullish | H4 slope bearish | D1 slope bullish`
+- `pat_9d114d94d418`: `Bearish | LH[0] | HL[1] | H1 slope bearish | Entry Fib 38.2-61.8`
+- `pat_b01ef3517449`: `Bearish | 3-bar lows score 1 | 5-bar lows score -1 | 10-bar lows score -2`
+
+Common Files package:
+
+- `/home/loldlm/.wine/drive_c/users/loldlm/AppData/Roaming/MetaQuotes/Terminal/Common/Files/DeterministicSignalML/pattern_audits/xauusd_2025_pattern_audit_focus_1/`
+
+Validation:
+
+- `.venv/bin/python -m py_compile tools/deterministic_signal_ml/pattern_audit.py`:
+  PASS.
+- Focus smoke with `--top-n-visual 3 --max-catalog-patterns 80`:
+  `patterns=80`, `selected=3`, `matches=2611`, PASS.

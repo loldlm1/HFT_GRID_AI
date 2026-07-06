@@ -217,6 +217,80 @@ def _display_value(value: Any) -> str:
     return str(value)
 
 
+def _human_direction(value: Any) -> str:
+    token = str(value).upper()
+    if token == "BULLISH":
+        return "Bullish"
+    if token == "BEARISH":
+        return "Bearish"
+    return str(value)
+
+
+def _human_slope(value: Any) -> str:
+    try:
+        slope = int(value)
+    except (TypeError, ValueError):
+        return str(value)
+    if slope > 0:
+        return "bullish"
+    if slope < 0:
+        return "bearish"
+    return "flat"
+
+
+def _human_fib_band(value: Any) -> str:
+    return str(value).replace(".0", "").replace("_", "-")
+
+
+def _human_condition(condition: Condition) -> str:
+    column = condition.column
+    value = condition.value
+
+    if column == "direction":
+        return _human_direction(value)
+    if column == "source_structure_type":
+        return f"{value}[0]"
+    if column == "opposite_structure_type":
+        return f"{value}[1]"
+    if column == "same_previous_structure_type":
+        return f"{value}[2]"
+    if column == "macro_h1_live_dir":
+        return f"H1 slope {_human_slope(value)}"
+    if column == "macro_h4_live_dir":
+        return f"H4 slope {_human_slope(value)}"
+    if column == "macro_d1_live_dir":
+        return f"D1 slope {_human_slope(value)}"
+    if column == "entry_direction_macro_alignment":
+        return f"Entry macro alignment {value}"
+    if column == "macro_alignment_score":
+        return f"Macro score {value}"
+    if column == "sl_fib_band":
+        return f"SL Fib {_human_fib_band(value)}"
+    if column == "entry_fib_band":
+        return f"Entry Fib {_human_fib_band(value)}"
+    if column.startswith("high_chain_score_"):
+        period = column.replace("high_chain_score_", "")
+        return f"{period}-bar highs score {value}"
+    if column.startswith("low_chain_score_"):
+        period = column.replace("low_chain_score_", "")
+        return f"{period}-bar lows score {value}"
+    if column == "prev_candle_dir":
+        return f"Previous candle {_human_direction(value)}"
+    if column == "prev_body_ratio_bucket":
+        return f"Previous body {value}"
+    if column == "prev_close_location_bucket":
+        return f"Previous close {value}"
+    if column == "entry_session_bucket":
+        return f"Session {value}"
+    if column == "spread_to_recent_range_bucket":
+        return f"Spread/range {value}"
+    return f"{column} {value}"
+
+
+def human_pattern_label(conditions: tuple[Condition, ...]) -> str:
+    return " | ".join(_human_condition(condition) for condition in conditions)
+
+
 def _tsv_value(value: Any) -> str:
     if value is None:
         return ""
@@ -354,7 +428,7 @@ LIMIT {int(args.max_groups_per_template)}
                 continue
             definitions_by_id[pattern_id] = PatternDefinition(
                 pattern_id=pattern_id,
-                pattern_label=" | ".join(_display_value(row[column]) for column in columns),
+                pattern_label=human_pattern_label(conditions),
                 pattern_source="auto_template",
                 conditions=conditions,
                 template_id=template_id,
