@@ -814,3 +814,60 @@ Validation:
   - Status counts: `AUDIT_PASS=9`, `FINAL_HOLDOUT_FAIL=17`, `REVIEW=54`
 - Re-running the same command produced stable hashes for catalog, summary, and
   matches TSV files.
+
+## Pattern Audit Sprint 3 Validation
+
+Pattern Audit Sprint 3 ran the default bounded audit on the schema v3 dataset
+and prepared the Strategy Tester playback package.
+
+Audit:
+
+- Audit ID: `xauusd_2025_pattern_audit_1`
+- Dataset ID: `xauusd_2025_schema_v3_dataset_1`
+- Command:
+  `.venv/bin/python tools/deterministic_signal_ml/pattern_audit.py --dataset-id xauusd_2025_schema_v3_dataset_1 --audit-id xauusd_2025_pattern_audit_1 --overwrite`
+- Result:
+  - Catalog patterns: `300`
+  - Selected visual patterns: `12`
+  - Match rows: `6008`
+  - `pattern_catalog.tsv`: `11` columns, `300` rows
+  - `pattern_summary.tsv`: `23` columns, `300` rows
+  - `pattern_matches.tsv`: `20` columns, `6008` rows
+  - `pattern_selection.tsv`: `2` columns, `12` rows
+- Status counts:
+  - `AUDIT_PASS=9`
+  - `FINAL_HOLDOUT_FAIL=17`
+  - `REVIEW=274`
+
+Selected pattern IDs:
+
+- `pat_5340e3393fcd`
+- `pat_5599d37ee5d7`
+- `pat_6781e1971c65`
+- `pat_797497dad1b7`
+- `pat_7cef9225abbd`
+- `pat_91f96dc6eb50`
+- `pat_95208b4d6ffb`
+- `pat_9d114d94d418`
+- `pat_b01ef3517449`
+- `pat_b4bb7659ae98`
+- `pat_c3230ed8f77c`
+- `pat_df3ca3961b09`
+
+Playback package:
+
+- Common Files folder:
+  `/home/loldlm/.wine/drive_c/users/loldlm/AppData/Roaming/MetaQuotes/Terminal/Common/Files/DeterministicSignalML/pattern_audits/xauusd_2025_pattern_audit_1/`
+- Copied files:
+  - `pattern_catalog.tsv`
+  - `pattern_summary.tsv`
+  - `pattern_matches.tsv`
+  - `pattern_selection.tsv`
+  - `pattern_audit.json`
+
+Notes:
+
+- Selected patterns are for Strategy Tester playback only.
+- No pattern is approved as runtime FILTER.
+- Selection includes both `AUDIT_PASS` and final-holdout-failing patterns so
+  visual review can compare stable and unstable pattern families.
