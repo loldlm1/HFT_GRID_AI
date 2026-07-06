@@ -20,7 +20,11 @@ from model_validation_config import (
     SMOKE_DATASET_MAX_ROWS,
     BaselineInventory,
     ModelValidationConfigError,
+    ValidationArtifactPaths,
     build_baseline_inventory,
+    dataset_grade_for_rows,
+    load_json_file,
+    require_folder,
 )
 from robustness_report import (
     OVERFIT_WARNINGS_TSV,
@@ -76,6 +80,11 @@ def build_parser() -> argparse.ArgumentParser:
         "--json",
         action="store_true",
         help="Print compact JSON summary instead of text.",
+    )
+    parser.add_argument(
+        "--allow-missing-export",
+        action="store_true",
+        help="Validate a research-only model before a runtime export exists.",
     )
     return parser
 
@@ -230,6 +239,109 @@ def _read_json(path: Path) -> dict[str, Any]:
     if not path.exists():
         raise RobustnessValidationError(f"Required JSON file does not exist: {path}")
     return json.loads(path.read_text(encoding="utf-8"))
+
+
+def _optional_int(value: Any) -> int | None:
+    if value is None or value == "":
+        return None
+    return int(value)
+
+
+def _threshold_from_model_manifest(model_manifest: dict[str, Any]) -> tuple[float | None, str]:
+    recommendation = model_manifest.get("threshold_recommendation")
+    if isinstance(recommendation, dict):
+        threshold = recommendation.get("threshold")
+        if threshold not in (None, ""):
+            return float(threshold), "model_manifest_threshold_recommendation"
+    return None, "none"
+
+
+def _build_research_model_inventory(
+    dataset_id: str,
+    model_id: str,
+    export_id: str,
+    dataset_root: Path,
+    model_root: Path,
+    export_root: Path,
+) -> BaselineInventory:
+    dataset_path = require_folder(dataset_root / dataset_id, "Dataset")
+    model_path = require_folder(model_root / model_id, "Model")
+    dataset_manifest = load_json_file(dataset_path / "dataset_manifest.json")
+    model_manifest = load_json_file(model_path / "model_manifest.json")
+
+    if str(model_manifest.get("dataset_id", "")) != dataset_id:
+        raise ModelValidationConfigError(
+            f"Model {model_id} does not reference dataset {dataset_id}: "
+            f"{model_manifest.get('dataset_id')}"
+        )
+
+    row_counts = {
+        str(key): int(value)
+        for key, value in dict(dataset_manifest.get("row_counts", {})).items()
+    }
+    dataset_grade = dataset_grade_for_rows(row_counts)
+    warnings: list[str] = []
+    if dataset_grade == "smoke_only":
+        warnings.append(
+            "dataset_has_smoke_only_row_count: use a fresh one-to-two-year Strategy Tester run before approving new features or thresholds"
+        )
+    warnings.append("runtime_export_missing: robustness evaluated before runtime export")
+    threshold_probability, threshold_source = _threshold_from_model_manifest(model_manifest)
+
+    return BaselineInventory(
+        dataset_id=dataset_id,
+        model_id=model_id,
+        export_id=export_id,
+        dataset_grade=dataset_grade,
+        source_run_ids=[str(value) for value in dataset_manifest.get("source_run_ids", [])],
+        config_ids=[str(value) for value in dataset_manifest.get("config_ids", [])],
+        row_counts=row_counts,
+        phase1_schema_version=_optional_int(dataset_manifest.get("phase1_schema_version")),
+        encoded_feature_count=_optional_int(model_manifest.get("encoded_feature_count")),
+        threshold_probability=threshold_probability,
+        threshold_source=threshold_source,
+        mt5_runtime_ready=None,
+        research_only=True,
+        paths=ValidationArtifactPaths(
+            dataset_path=str(dataset_path),
+            model_path=str(model_path),
+            export_path=str(export_root / export_id),
+        ),
+        warnings=warnings,
+    )
+
+
+def _build_inventory(args: argparse.Namespace) -> BaselineInventory:
+    dataset_root = Path(args.dataset_root)
+    model_root = Path(args.model_root)
+    export_root = Path(args.export_root)
+    if not args.allow_missing_export:
+        return build_baseline_inventory(
+            dataset_id=args.dataset_id,
+            model_id=args.model_id,
+            export_id=args.export_id,
+            dataset_root=dataset_root,
+            model_root=model_root,
+            export_root=export_root,
+        )
+    export_path = export_root / args.export_id
+    if export_path.exists():
+        return build_baseline_inventory(
+            dataset_id=args.dataset_id,
+            model_id=args.model_id,
+            export_id=args.export_id,
+            dataset_root=dataset_root,
+            model_root=model_root,
+            export_root=export_root,
+        )
+    return _build_research_model_inventory(
+        dataset_id=args.dataset_id,
+        model_id=args.model_id,
+        export_id=args.export_id,
+        dataset_root=dataset_root,
+        model_root=model_root,
+        export_root=export_root,
+    )
 
 
 def _categorical_frequencies(
@@ -472,15 +584,7 @@ def _build_warnings(
 def build_payload(args: argparse.Namespace) -> tuple[RobustnessReportPayload, list[dict[str, Any]], Path]:
     dataset_root = Path(args.dataset_root)
     model_root = Path(args.model_root)
-    export_root = Path(args.export_root)
-    inventory = build_baseline_inventory(
-        dataset_id=args.dataset_id,
-        model_id=args.model_id,
-        export_id=args.export_id,
-        dataset_root=dataset_root,
-        model_root=model_root,
-        export_root=export_root,
-    )
+    inventory = _build_inventory(args)
     dataset_path = dataset_root / args.dataset_id
     model_path = model_root / args.model_id
     output_dir = Path(args.output_path) if args.output_path else model_path / "robustness"

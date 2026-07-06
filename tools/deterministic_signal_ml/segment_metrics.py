@@ -12,7 +12,7 @@ MIN_SEGMENT_SELECTED_ROWS = 10
 
 def build_segment_metrics(
     prediction_rows: list[dict[str, Any]],
-    threshold: float,
+    threshold: float | None,
     min_rows: int = MIN_SEGMENT_ROWS,
     min_selected_rows: int = MIN_SEGMENT_SELECTED_ROWS,
 ) -> list[dict[str, Any]]:
@@ -90,11 +90,15 @@ def _metrics_for_segment(
     segment_type: str,
     segment_value: str,
     rows: list[dict[str, Any]],
-    threshold: float,
+    threshold: float | None,
     min_rows: int,
     min_selected_rows: int,
 ) -> dict[str, Any]:
-    selected = [row for row in rows if float(row["xgb_win_probability"]) >= threshold]
+    selected = (
+        []
+        if threshold is None
+        else [row for row in rows if float(row["xgb_win_probability"]) >= threshold]
+    )
     profits = [float(row["target_profit_r"]) for row in selected]
     wins = sum(1 for row in selected if int(row["target_is_win"]) == 1)
     positives = sum(1 for row in rows if int(row["target_is_win"]) == 1)

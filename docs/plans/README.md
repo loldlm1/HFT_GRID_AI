@@ -3,8 +3,10 @@
 Active planning status:
 
 - Parent roadmap: `docs/plans/ml-robustness-and-signal-selection-roadmap.md`
-- Current implementation phase:
+- Rejected first schema v2 attempt:
   `docs/plans/ml-feature-schema-v2-plan.md`
+- Current implementation phase:
+  `docs/plans/ml-feature-schema-v2-follow-up-plan.md`
 
 Complete, validate, and commit one sprint before moving to the next sprint.
 Create a new `$planner` plan in this directory for any substantial future

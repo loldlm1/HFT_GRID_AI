@@ -2,7 +2,7 @@
 
 **Date**: 2026-07-06
 **Roadmap Phase**: Phase 3 - Feature Schema V2
-**Status**: Sprint 4 accepted; Sprint 5 training pending
+**Status**: REJECT_WITH_FOLLOW_UP
 
 ## Scope
 
@@ -424,3 +424,64 @@ Sprint 4 result:
 
 - PASS. Fresh XAUUSD 2025 schema v2 raw export exists, validates, and builds
   `xauusd_2025_schema_v2_dataset_1`.
+
+## Sprint 5 Validation
+
+Sprint 5 trained schema v2 candidates, ran hardened robustness validation, and
+applied the Phase 3 research gate.
+
+Tooling updates made during Sprint 5:
+
+- `tools/deterministic_signal_ml/train_model.py`
+  - Added `--feature-set-id` support for schema v2 ablation:
+    `schema_v2_structure`, `schema_v2_structure_candle`, and
+    `schema_v2_full`.
+  - Model manifests now record `feature_set_id`.
+- `tools/deterministic_signal_ml/validate_model_robustness.py`
+  - Added `--allow-missing-export` for research-only models before runtime
+    export exists.
+- `tools/deterministic_signal_ml/segment_metrics.py`
+  - Allows absent thresholds so rejected models can still produce segment
+    support diagnostics instead of failing.
+
+Python validation:
+
+- `.venv/bin/python -m py_compile tools/deterministic_signal_ml/train_model.py`
+  PASS.
+- `.venv/bin/python -m py_compile tools/deterministic_signal_ml/segment_metrics.py tools/deterministic_signal_ml/validate_model_robustness.py`
+  PASS.
+
+Trained schema v2 candidates:
+
+| Candidate | Feature set | Encoded features | Holdout ROC AUC | Holdout F1 | Regressor corr | Threshold | OOF selected | OOF net R | Final selected | Final net R | Warnings |
+| --- | --- | ---: | ---: | ---: | ---: | --- | ---: | ---: | ---: | ---: | ---: |
+| `xauusd_2025_schema_v2_structure_xgb_1` | `schema_v2_structure` | 84 | 0.5017751585928488 | 0.0 | 0.00811156548088697 | none | 0 | 0.0 | 0 | 0.0 | 5 |
+| `xauusd_2025_schema_v2_structure_candle_xgb_1` | `schema_v2_structure_candle` | 91 | 0.4999128817691493 | 0.0 | -0.000014364471757778179 | none | 0 | 0.0 | 0 | 0.0 | 5 |
+| `xauusd_2025_schema_v2_xgb_1` | `schema_v2_full` | 95 | 0.4999128817691493 | 0.0 | 0.0010643570853138577 | 0.50 | 414 | 9.2688 | 0 | 0.0 | 3 |
+
+Frozen v1 rejection baseline under the same robustness validator:
+
+| Candidate | Encoded features | Holdout ROC AUC | Holdout F1 | Regressor corr | Threshold | OOF selected | OOF net R | Final selected | Final net R | Warnings |
+| --- | ---: | ---: | ---: | ---: | --- | ---: | ---: | ---: | ---: | ---: |
+| `xauusd_2025_xgb_1` | 69 | 0.4951344154163595 | 0.0 | 0.006745125078834843 | none | 0 | 0.0 | 0 | 0.0 | 6 |
+
+Gate decision:
+
+- `xauusd_2025_schema_v2_xgb_1` shows a small positive
+  walk-forward out-of-fold threshold-selection result at `0.50`, but that
+  threshold selects `0` rows in final holdout.
+- Structure-only and structure+candle ablations produce no eligible threshold.
+- S1/S2/S3, bullish/bearish, source type, and strategy-depth-direction final
+  holdout segments all have `0` selected rows under the candidate policies.
+- The required final-holdout selected-row, profitability, and segment-support
+  gates fail.
+- No runtime export, deployment, SHADOW parity, or FILTER validation is
+  approved from these candidates.
+
+Result:
+
+- `REJECT_WITH_FOLLOW_UP`
+- Follow-up Phase 3 plan:
+  `docs/plans/ml-feature-schema-v2-follow-up-plan.md`
+- Sprint 6 and Sprint 7 of the first-attempt plan are skipped because runtime
+  export is conditional on Sprint 5 acceptance.

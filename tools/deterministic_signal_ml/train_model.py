@@ -35,6 +35,27 @@ class TrainingInputError(RuntimeError):
     """Raised when training cannot proceed because an input is invalid."""
 
 
+DEFAULT_FEATURE_SET_ID = "schema_v2_full"
+STRUCTURE_FEATURES = (
+    "source_structure_type",
+    "opposite_structure_type",
+    "same_previous_structure_type",
+)
+CANDLE_FEATURES = (
+    "prev_body_ratio",
+    "prev_upper_wick_ratio",
+    "prev_lower_wick_ratio",
+    "prev_close_location",
+    "prev_candle_dir",
+)
+DEPTH_MACRO_FEATURES = (
+    "strategy_delay_period",
+    "confirmation_timeframe_minutes",
+    "entry_direction_macro_alignment",
+    "macro_alignment_score",
+)
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
     dataset_group = parser.add_mutually_exclusive_group(required=True)
@@ -44,6 +65,16 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--model-id", required=True, help="Model output ID.")
     parser.add_argument("--output-root", default=DEFAULT_MODEL_ROOT, help="Model artifact output root.")
     parser.add_argument("--overwrite", action="store_true", help="Overwrite an existing model folder.")
+    parser.add_argument(
+        "--feature-set-id",
+        default=DEFAULT_FEATURE_SET_ID,
+        choices=(
+            "schema_v2_structure",
+            "schema_v2_structure_candle",
+            "schema_v2_full",
+        ),
+        help="Schema v2 feature subset used for ablation training.",
+    )
     return parser
 
 
@@ -155,9 +186,36 @@ def validate_training_rows(rows: list[dict], manifest: dict, config: TrainingCon
         )
 
 
+def resolve_feature_columns(manifest: dict, feature_set_id: str) -> list[str]:
+    feature_columns = list(manifest.get("feature_columns", []))
+    if feature_set_id == "schema_v2_full":
+        return feature_columns
+
+    excluded: set[str] = set()
+    if feature_set_id == "schema_v2_structure":
+        excluded.update(CANDLE_FEATURES)
+        excluded.update(DEPTH_MACRO_FEATURES)
+    elif feature_set_id == "schema_v2_structure_candle":
+        excluded.update(DEPTH_MACRO_FEATURES)
+    else:
+        raise TrainingInputError(f"Unsupported feature_set_id: {feature_set_id}")
+
+    selected = [column for column in feature_columns if column not in excluded]
+    missing_required = [
+        column for column in STRUCTURE_FEATURES if column not in selected
+    ]
+    if missing_required:
+        raise TrainingInputError(
+            "Feature set is missing required structure columns: "
+            + ", ".join(missing_required)
+        )
+    return selected
+
+
 def write_training_input_summary(
     output_dir: Path,
     model_id: str,
+    feature_set_id: str,
     manifest: dict,
     rows: list[dict],
     encoder: FeatureEncoder,
@@ -170,6 +228,7 @@ def write_training_input_summary(
     summary = {
         "trainer_version": TRAINER_VERSION,
         "model_id": model_id,
+        "feature_set_id": feature_set_id,
         "dataset_id": manifest.get("dataset_id"),
         "source_run_ids": manifest.get("source_run_ids", []),
         "config_ids": manifest.get("config_ids", []),
@@ -271,6 +330,7 @@ def write_threshold_report(
 def write_model_manifest(
     output_dir: Path,
     model_id: str,
+    feature_set_id: str,
     manifest: dict,
     encoder: FeatureEncoder,
     split_metadata: dict,
@@ -284,6 +344,7 @@ def write_model_manifest(
         "research_only": True,
         "mt5_readable_model": False,
         "model_id": model_id,
+        "feature_set_id": feature_set_id,
         "dataset_id": manifest.get("dataset_id"),
         "source_run_ids": manifest.get("source_run_ids", []),
         "config_ids": manifest.get("config_ids", []),
@@ -595,12 +656,19 @@ def main() -> int:
         config = TrainingConfig()
         rows = load_training_rows(dataset_path)
         validate_training_rows(rows, manifest, config)
-        feature_columns = list(manifest["feature_columns"])
+        feature_columns = resolve_feature_columns(manifest, args.feature_set_id)
         encoder = FeatureEncoder.fit(rows, feature_columns)
         encoded = encoder.transform(rows)
         output_dir = prepare_output_dir(Path(args.output_root), args.model_id, args.overwrite)
         encoder.write_json(output_dir / "feature_encoder.json")
-        write_training_input_summary(output_dir, args.model_id, manifest, rows, encoder)
+        write_training_input_summary(
+            output_dir,
+            args.model_id,
+            args.feature_set_id,
+            manifest,
+            rows,
+            encoder,
+        )
         split_bundle = build_time_splits(
             rows,
             holdout_fraction=config.holdout_fraction,
@@ -633,6 +701,7 @@ def main() -> int:
         write_model_manifest(
             output_dir,
             args.model_id,
+            args.feature_set_id,
             manifest,
             encoder,
             split_bundle.metadata,
