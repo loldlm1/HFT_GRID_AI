@@ -191,3 +191,49 @@ Result:
 - V1 rejection baseline is frozen for comparison.
 - Schema v2 contract and gates are defined.
 - MQL5 and Python implementation remains pending.
+
+## Sprint 2 Validation
+
+Sprint 2 updates the active MQL5 feature export and shadow-scorer feature
+contract to schema v2.
+
+Changed files:
+
+- `services/trading_management/deterministic_strategy_config.mqh`
+- `services/trading_signals/deterministic_signal_statistics_export.mqh`
+- `services/trading_signals/deterministic_signal_ml_shadow_inference.mqh`
+
+Implemented:
+
+- `DETERMINISTIC_SIGNAL_STATS_SCHEMA_VERSION = 2`
+- `ML_SHADOW_PHASE1_SCHEMA_VERSION = 2`
+- Schema v2 `signal_features.tsv` columns:
+  - `source_structure_type`
+  - `opposite_structure_type`
+  - `same_previous_structure_type`
+  - `strategy_delay_period`
+  - `confirmation_timeframe_minutes`
+  - `entry_direction_macro_alignment`
+  - `macro_alignment_score`
+  - `prev_body_ratio`
+  - `prev_upper_wick_ratio`
+  - `prev_lower_wick_ratio`
+  - `prev_close_location`
+  - `prev_candle_dir`
+- Matching schema v2 `shadow_predictions.tsv` columns for runtime parity
+  evidence.
+- SHADOW numeric/category source-column mapping for schema v2 feature maps.
+
+Static validation:
+
+- `signal_features.tsv` header: `38` columns.
+- `shadow_predictions.tsv` header: `50` columns.
+- V2 feature columns are present in both headers.
+- No broker admission, order-send, lot sizing, SL/TP, license, session,
+  spread, margin, protection, magic-number, or broker reconciliation behavior
+  was intentionally changed.
+
+Compile status:
+
+- MetaEditor compile is deferred to Sprint 4 after Python schema/tooling edits,
+  per the phase plan.

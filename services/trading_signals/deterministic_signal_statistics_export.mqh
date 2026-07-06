@@ -4,7 +4,7 @@
 #ifndef _TS_DETERMINISTIC_STATS_EXPORT_MQH_
 #define _TS_DETERMINISTIC_STATS_EXPORT_MQH_
 
-const int    DETERMINISTIC_SIGNAL_STATS_SCHEMA_VERSION = 1;
+const int    DETERMINISTIC_SIGNAL_STATS_SCHEMA_VERSION = 2;
 const string DETERMINISTIC_SIGNAL_STATS_STORAGE_ROOT   = "DeterministicSignalML";
 const string DETERMINISTIC_SIGNAL_STATS_RUNS_FOLDER    = "runs";
 const string DETERMINISTIC_SIGNAL_STATS_MANIFEST_FILE  = "run_manifest.tsv";
@@ -18,7 +18,7 @@ const int    DETERMINISTIC_SIGNAL_STATS_FLUSH_ROWS     = 32;
 const string DETERMINISTIC_SIGNAL_STATS_MANIFEST_HEADER =
   "schema_version\tkey\tvalue";
 const string DETERMINISTIC_SIGNAL_STATS_FEATURES_HEADER =
-  "schema_version\trun_id\tconfig_id\tsignal_id\tsource_key\tsource_attempt_index\tsymbol\tstrategy_id\tstrategy_label\tdirection\tentry_time\tsource_time\tsource_type\tmacro_h1_live_dir\tmacro_h4_live_dir\tmacro_d1_live_dir\tsl_fib_raw\tsl_fib_band\tentry_fib_raw\tentry_fib_band\tlow_chain_score_3\tlow_chain_score_5\tlow_chain_score_10\thigh_chain_score_3\thigh_chain_score_5\thigh_chain_score_10";
+  "schema_version\trun_id\tconfig_id\tsignal_id\tsource_key\tsource_attempt_index\tsymbol\tstrategy_id\tstrategy_label\tdirection\tentry_time\tsource_time\tsource_type\tsource_structure_type\topposite_structure_type\tsame_previous_structure_type\tmacro_h1_live_dir\tmacro_h4_live_dir\tmacro_d1_live_dir\tstrategy_delay_period\tconfirmation_timeframe_minutes\tentry_direction_macro_alignment\tmacro_alignment_score\tprev_body_ratio\tprev_upper_wick_ratio\tprev_lower_wick_ratio\tprev_close_location\tprev_candle_dir\tsl_fib_raw\tsl_fib_band\tentry_fib_raw\tentry_fib_band\tlow_chain_score_3\tlow_chain_score_5\tlow_chain_score_10\thigh_chain_score_3\thigh_chain_score_5\thigh_chain_score_10";
 const string DETERMINISTIC_SIGNAL_STATS_OUTCOMES_HEADER =
   "schema_version\trun_id\tconfig_id\tsignal_id\tsource_key\tsource_attempt_index\tterminal_time\tterminal_reason\tprofit_r\tduration_seconds\tduration_m1_bars\tentry_price\tclose_price\tnet_profit";
 const string DETERMINISTIC_SIGNAL_STATS_SUMMARY_HEADER =
@@ -601,6 +601,55 @@ bool DeterministicSignalStatsResolveFibonacciRange(const SignalParams &signal_pa
   return (peak_price_out > bottom_price_out);
 }
 
+string DeterministicSignalStatsStructureTypeToken(const OscillatorStructureTypes structure_type)
+{
+  switch(structure_type)
+  {
+    case OSCILLATOR_STRUCTURE_HH: return "HH";
+    case OSCILLATOR_STRUCTURE_HL: return "HL";
+    case OSCILLATOR_STRUCTURE_LH: return "LH";
+    case OSCILLATOR_STRUCTURE_LL: return "LL";
+    case OSCILLATOR_STRUCTURE_EQ: return "EQ";
+  }
+  return "EQ";
+}
+
+bool DeterministicSignalStatsResolveStructureTypes(const SignalParams &signal_params,
+                                                   string &source_type_out,
+                                                   string &opposite_type_out,
+                                                   string &same_previous_type_out)
+{
+  source_type_out = "";
+  opposite_type_out = "";
+  same_previous_type_out = "";
+
+  if(!signal_params.base_structure_valid)
+    return false;
+
+  int extrema_total = ArraySize(signal_params.base_structure_data.os_market_structures);
+  int stats_total = ArraySize(signal_params.base_structure_data.extremum_stats);
+  if(extrema_total < 3 || stats_total < 3)
+    return false;
+
+  OscillatorMarketStructure source = signal_params.base_structure_data.os_market_structures[0];
+  OscillatorMarketStructure opposite = signal_params.base_structure_data.os_market_structures[1];
+  OscillatorMarketStructure same_previous = signal_params.base_structure_data.os_market_structures[2];
+
+  if(source.is_peak != signal_params.source_extremum_is_peak)
+    return false;
+  if(opposite.is_peak == source.is_peak)
+    return false;
+  if(same_previous.is_peak != source.is_peak)
+    return false;
+  if(source.extremum_time != signal_params.source_extremum_time)
+    return false;
+
+  source_type_out = DeterministicSignalStatsStructureTypeToken(signal_params.base_structure_data.extremum_stats[0].structure_type);
+  opposite_type_out = DeterministicSignalStatsStructureTypeToken(signal_params.base_structure_data.extremum_stats[1].structure_type);
+  same_previous_type_out = DeterministicSignalStatsStructureTypeToken(signal_params.base_structure_data.extremum_stats[2].structure_type);
+  return true;
+}
+
 bool DeterministicSignalStatsFibonacciPercent(const double peak_price,
                                               const double bottom_price,
                                               const bool source_is_peak,
@@ -680,6 +729,90 @@ bool DeterministicSignalStatsChainScore(const MqlRates &rates[],
   return true;
 }
 
+int DeterministicSignalStatsDirectionSign(const SignalTypes direction)
+{
+  if(direction == BULLISH)
+    return 1;
+  if(direction == BEARISH)
+    return -1;
+  return 0;
+}
+
+int DeterministicSignalStatsDirectionAlignment(const SignalTypes direction,
+                                               const int market_direction)
+{
+  int direction_sign = DeterministicSignalStatsDirectionSign(direction);
+  if(direction_sign == 0 || market_direction == 0)
+    return 0;
+
+  return (direction_sign == market_direction) ? 1 : -1;
+}
+
+int DeterministicSignalStatsMacroAlignmentScore(const SignalTypes direction,
+                                                const int h1_direction,
+                                                const int h4_direction,
+                                                const int d1_direction)
+{
+  return DeterministicSignalStatsDirectionAlignment(direction, h1_direction) +
+         DeterministicSignalStatsDirectionAlignment(direction, h4_direction) +
+         DeterministicSignalStatsDirectionAlignment(direction, d1_direction);
+}
+
+bool DeterministicSignalStatsPreviousCandleFeatures(const MqlRates &rate,
+                                                    double &body_ratio_out,
+                                                    double &upper_wick_ratio_out,
+                                                    double &lower_wick_ratio_out,
+                                                    double &close_location_out,
+                                                    string &candle_dir_out)
+{
+  body_ratio_out = 0.0;
+  upper_wick_ratio_out = 0.0;
+  lower_wick_ratio_out = 0.0;
+  close_location_out = 0.0;
+  candle_dir_out = "";
+
+  if(rate.high <= 0.0 || rate.low <= 0.0 || rate.high < rate.low)
+    return false;
+
+  double range = rate.high - rate.low;
+  if(range <= 0.0 || !MathIsValidNumber(range))
+    return false;
+
+  double open_price = rate.open;
+  double close_price = rate.close;
+  if(open_price <= 0.0 || close_price <= 0.0)
+    return false;
+
+  double body = MathAbs(close_price - open_price);
+  double upper_wick = rate.high - MathMax(open_price, close_price);
+  double lower_wick = MathMin(open_price, close_price) - rate.low;
+  if(upper_wick < 0.0)
+    upper_wick = 0.0;
+  if(lower_wick < 0.0)
+    lower_wick = 0.0;
+
+  body_ratio_out = body / range;
+  upper_wick_ratio_out = upper_wick / range;
+  lower_wick_ratio_out = lower_wick / range;
+  close_location_out = (close_price - rate.low) / range;
+
+  if(!MathIsValidNumber(body_ratio_out) ||
+     !MathIsValidNumber(upper_wick_ratio_out) ||
+     !MathIsValidNumber(lower_wick_ratio_out) ||
+     !MathIsValidNumber(close_location_out))
+    return false;
+
+  double eps = 0.0000000001;
+  if(close_price > open_price + eps)
+    candle_dir_out = "BULL";
+  else if(close_price < open_price - eps)
+    candle_dir_out = "BEAR";
+  else
+    candle_dir_out = "DOJI";
+
+  return true;
+}
+
 struct DeterministicSignalFeatureSnapshot
 {
   bool     valid;
@@ -693,9 +826,33 @@ struct DeterministicSignalFeatureSnapshot
   datetime entry_time;
   datetime source_time;
   string   source_type;
+  string   source_structure_type;
+  bool     source_structure_type_valid;
+  string   opposite_structure_type;
+  bool     opposite_structure_type_valid;
+  string   same_previous_structure_type;
+  bool     same_previous_structure_type_valid;
   int      macro_h1_live_dir;
   int      macro_h4_live_dir;
   int      macro_d1_live_dir;
+  int      strategy_delay_period;
+  bool     strategy_delay_period_valid;
+  int      confirmation_timeframe_minutes;
+  bool     confirmation_timeframe_minutes_valid;
+  int      entry_direction_macro_alignment;
+  bool     entry_direction_macro_alignment_valid;
+  int      macro_alignment_score;
+  bool     macro_alignment_score_valid;
+  double   prev_body_ratio;
+  bool     prev_body_ratio_valid;
+  double   prev_upper_wick_ratio;
+  bool     prev_upper_wick_ratio_valid;
+  double   prev_lower_wick_ratio;
+  bool     prev_lower_wick_ratio_valid;
+  double   prev_close_location;
+  bool     prev_close_location_valid;
+  string   prev_candle_dir;
+  bool     prev_candle_dir_valid;
   double   sl_fib_raw;
   bool     sl_fib_valid;
   string   sl_fib_band;
@@ -730,9 +887,33 @@ struct DeterministicSignalFeatureSnapshot
     entry_time = 0;
     source_time = 0;
     source_type = "";
+    source_structure_type = DETERMINISTIC_SIGNAL_STATS_NULL;
+    source_structure_type_valid = false;
+    opposite_structure_type = DETERMINISTIC_SIGNAL_STATS_NULL;
+    opposite_structure_type_valid = false;
+    same_previous_structure_type = DETERMINISTIC_SIGNAL_STATS_NULL;
+    same_previous_structure_type_valid = false;
     macro_h1_live_dir = 0;
     macro_h4_live_dir = 0;
     macro_d1_live_dir = 0;
+    strategy_delay_period = 0;
+    strategy_delay_period_valid = false;
+    confirmation_timeframe_minutes = 0;
+    confirmation_timeframe_minutes_valid = false;
+    entry_direction_macro_alignment = 0;
+    entry_direction_macro_alignment_valid = false;
+    macro_alignment_score = 0;
+    macro_alignment_score_valid = false;
+    prev_body_ratio = 0.0;
+    prev_body_ratio_valid = false;
+    prev_upper_wick_ratio = 0.0;
+    prev_upper_wick_ratio_valid = false;
+    prev_lower_wick_ratio = 0.0;
+    prev_lower_wick_ratio_valid = false;
+    prev_close_location = 0.0;
+    prev_close_location_valid = false;
+    prev_candle_dir = DETERMINISTIC_SIGNAL_STATS_NULL;
+    prev_candle_dir_valid = false;
     sl_fib_raw = 0.0;
     sl_fib_valid = false;
     sl_fib_band = DETERMINISTIC_SIGNAL_STATS_NULL;
@@ -785,10 +966,53 @@ bool DeterministicSignalBuildFeatureSnapshot(SignalParams &signal_params,
   snapshot.direction = DeterministicSignalStatsDirectionToken(signal_params.signal_type);
   snapshot.source_time = signal_params.source_extremum_time;
   snapshot.source_type = DeterministicSignalStatsSourceTypeToken(signal_params);
+  snapshot.source_structure_type_valid =
+    DeterministicSignalStatsResolveStructureTypes(signal_params,
+                                                 snapshot.source_structure_type,
+                                                 snapshot.opposite_structure_type,
+                                                 snapshot.same_previous_structure_type);
+  snapshot.opposite_structure_type_valid = snapshot.source_structure_type_valid;
+  snapshot.same_previous_structure_type_valid = snapshot.source_structure_type_valid;
 
   snapshot.macro_h1_live_dir = DeterministicSignalStatsMacroDir(PERIOD_H1);
   snapshot.macro_h4_live_dir = DeterministicSignalStatsMacroDir(PERIOD_H4);
   snapshot.macro_d1_live_dir = DeterministicSignalStatsMacroDir(PERIOD_D1);
+  snapshot.strategy_delay_period = signal_params.strategy_base_delay;
+  if(snapshot.strategy_delay_period <= 0)
+    snapshot.strategy_delay_period = DeterministicStrategyBaseDelay(signal_params.strategy_id);
+  snapshot.strategy_delay_period_valid = (snapshot.strategy_delay_period > 0);
+  snapshot.confirmation_timeframe_minutes = DeterministicStrategyTimeframeMinutes(signal_params.strategy_macro_timeframe);
+  snapshot.confirmation_timeframe_minutes_valid = (snapshot.confirmation_timeframe_minutes > 0);
+
+  int strategy_macro_dir = DeterministicSignalStatsMacroDir(signal_params.strategy_macro_timeframe);
+  snapshot.entry_direction_macro_alignment =
+    DeterministicSignalStatsDirectionAlignment(signal_params.signal_type,
+                                               strategy_macro_dir);
+  snapshot.entry_direction_macro_alignment_valid =
+    (DeterministicSignalStatsDirectionSign(signal_params.signal_type) != 0 &&
+     snapshot.confirmation_timeframe_minutes_valid);
+  snapshot.macro_alignment_score =
+    DeterministicSignalStatsMacroAlignmentScore(signal_params.signal_type,
+                                                snapshot.macro_h1_live_dir,
+                                                snapshot.macro_h4_live_dir,
+                                                snapshot.macro_d1_live_dir);
+  snapshot.macro_alignment_score_valid =
+    (DeterministicSignalStatsDirectionSign(signal_params.signal_type) != 0);
+
+  if(!snapshot.source_structure_type_valid)
+  {
+    DeterministicSignalFeatureSnapshotAddInvalid(snapshot, "source_structure_type");
+    DeterministicSignalFeatureSnapshotAddInvalid(snapshot, "opposite_structure_type");
+    DeterministicSignalFeatureSnapshotAddInvalid(snapshot, "same_previous_structure_type");
+  }
+  if(!snapshot.strategy_delay_period_valid)
+    DeterministicSignalFeatureSnapshotAddInvalid(snapshot, "strategy_delay_period");
+  if(!snapshot.confirmation_timeframe_minutes_valid)
+    DeterministicSignalFeatureSnapshotAddInvalid(snapshot, "confirmation_timeframe_minutes");
+  if(!snapshot.entry_direction_macro_alignment_valid)
+    DeterministicSignalFeatureSnapshotAddInvalid(snapshot, "entry_direction_macro_alignment");
+  if(!snapshot.macro_alignment_score_valid)
+    DeterministicSignalFeatureSnapshotAddInvalid(snapshot, "macro_alignment_score");
 
   double peak_price = 0.0;
   double bottom_price = 0.0;
@@ -833,6 +1057,29 @@ bool DeterministicSignalBuildFeatureSnapshot(SignalParams &signal_params,
   MqlRates rates[];
   ArraySetAsSeries(rates, true);
   int copied = CopyRates(_Symbol, DETERMINISTIC_BASE_TIMEFRAME, 1, 11, rates);
+  if(copied > 0)
+  {
+    snapshot.prev_body_ratio_valid =
+      DeterministicSignalStatsPreviousCandleFeatures(rates[0],
+                                                     snapshot.prev_body_ratio,
+                                                     snapshot.prev_upper_wick_ratio,
+                                                     snapshot.prev_lower_wick_ratio,
+                                                     snapshot.prev_close_location,
+                                                     snapshot.prev_candle_dir);
+    snapshot.prev_upper_wick_ratio_valid = snapshot.prev_body_ratio_valid;
+    snapshot.prev_lower_wick_ratio_valid = snapshot.prev_body_ratio_valid;
+    snapshot.prev_close_location_valid = snapshot.prev_body_ratio_valid;
+    snapshot.prev_candle_dir_valid = snapshot.prev_body_ratio_valid;
+  }
+  if(!snapshot.prev_body_ratio_valid)
+  {
+    DeterministicSignalFeatureSnapshotAddInvalid(snapshot, "prev_body_ratio");
+    DeterministicSignalFeatureSnapshotAddInvalid(snapshot, "prev_upper_wick_ratio");
+    DeterministicSignalFeatureSnapshotAddInvalid(snapshot, "prev_lower_wick_ratio");
+    DeterministicSignalFeatureSnapshotAddInvalid(snapshot, "prev_close_location");
+    DeterministicSignalFeatureSnapshotAddInvalid(snapshot, "prev_candle_dir");
+  }
+
   snapshot.low_chain_score_3_valid = DeterministicSignalStatsChainScore(rates, copied, 3, false, snapshot.low_chain_score_3);
   snapshot.low_chain_score_5_valid = DeterministicSignalStatsChainScore(rates, copied, 5, false, snapshot.low_chain_score_5);
   snapshot.low_chain_score_10_valid = DeterministicSignalStatsChainScore(rates, copied, 10, false, snapshot.low_chain_score_10);
@@ -895,9 +1142,21 @@ bool DeterministicSignalStatsBuildFeatureRow(SignalParams &signal_params,
             DeterministicSignalStatsTimeToken(snapshot.entry_time) + "\t" +
             DeterministicSignalStatsTimeToken(snapshot.source_time) + "\t" +
             DeterministicSignalStatsCell(snapshot.source_type) + "\t" +
+            DeterministicSignalStatsCell(snapshot.source_structure_type_valid ? snapshot.source_structure_type : "") + "\t" +
+            DeterministicSignalStatsCell(snapshot.opposite_structure_type_valid ? snapshot.opposite_structure_type : "") + "\t" +
+            DeterministicSignalStatsCell(snapshot.same_previous_structure_type_valid ? snapshot.same_previous_structure_type : "") + "\t" +
             IntegerToString(snapshot.macro_h1_live_dir) + "\t" +
             IntegerToString(snapshot.macro_h4_live_dir) + "\t" +
             IntegerToString(snapshot.macro_d1_live_dir) + "\t" +
+            DeterministicSignalStatsIntToken(snapshot.strategy_delay_period_valid, snapshot.strategy_delay_period) + "\t" +
+            DeterministicSignalStatsIntToken(snapshot.confirmation_timeframe_minutes_valid, snapshot.confirmation_timeframe_minutes) + "\t" +
+            DeterministicSignalStatsIntToken(snapshot.entry_direction_macro_alignment_valid, snapshot.entry_direction_macro_alignment) + "\t" +
+            DeterministicSignalStatsIntToken(snapshot.macro_alignment_score_valid, snapshot.macro_alignment_score) + "\t" +
+            DeterministicSignalStatsDoubleToken(snapshot.prev_body_ratio_valid, snapshot.prev_body_ratio, 8) + "\t" +
+            DeterministicSignalStatsDoubleToken(snapshot.prev_upper_wick_ratio_valid, snapshot.prev_upper_wick_ratio, 8) + "\t" +
+            DeterministicSignalStatsDoubleToken(snapshot.prev_lower_wick_ratio_valid, snapshot.prev_lower_wick_ratio, 8) + "\t" +
+            DeterministicSignalStatsDoubleToken(snapshot.prev_close_location_valid, snapshot.prev_close_location, 8) + "\t" +
+            DeterministicSignalStatsCell(snapshot.prev_candle_dir_valid ? snapshot.prev_candle_dir : "") + "\t" +
             DeterministicSignalStatsDoubleToken(snapshot.sl_fib_valid, snapshot.sl_fib_raw, 1) + "\t" +
             DeterministicSignalStatsCell(snapshot.sl_fib_band) + "\t" +
             DeterministicSignalStatsDoubleToken(snapshot.entry_fib_valid, snapshot.entry_fib_raw, 1) + "\t" +

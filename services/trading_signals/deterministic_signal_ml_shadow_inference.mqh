@@ -5,7 +5,7 @@
 #define _TS_DETERMINISTIC_SIGNAL_ML_SHADOW_INFERENCE_MQH_
 
 const int    ML_SHADOW_ARTIFACT_SCHEMA_VERSION = 1;
-const int    ML_SHADOW_PHASE1_SCHEMA_VERSION   = 1;
+const int    ML_SHADOW_PHASE1_SCHEMA_VERSION   = 2;
 const string ML_SHADOW_STORAGE_ROOT            = "DeterministicSignalML";
 const string ML_SHADOW_MODEL_EXPORTS_FOLDER    = "model_exports";
 const string ML_SHADOW_RUNS_FOLDER             = "shadow_runs";
@@ -27,7 +27,7 @@ const int    ML_SHADOW_MAX_TREE_NODES          = 20000;
 const int    ML_SHADOW_FLUSH_ROWS              = 32;
 const string ML_SHADOW_RUN_MANIFEST_HEADER     = "schema_version\tkey\tvalue";
 const string ML_SHADOW_PREDICTIONS_HEADER =
-  "schema_version\tshadow_run_id\texport_id\tmodel_id\tdataset_id\tfeature_schema_version\tsignal_id\tsource_key\tsource_attempt_index\tsymbol\tstrategy_id\tstrategy_label\tdirection\tsource_type\tentry_time\tclassifier_score\tregressor_score\tthreshold_probability\trecommendation\treason\tfeature_valid\tmodel_available\tmacro_h1_live_dir\tmacro_h4_live_dir\tmacro_d1_live_dir\tsl_fib_raw\tsl_fib_band\tentry_fib_raw\tentry_fib_band\tlow_chain_score_3\tlow_chain_score_5\tlow_chain_score_10\thigh_chain_score_3\thigh_chain_score_5\thigh_chain_score_10\tinference_mode\tadmission_action\tfilter_reason";
+  "schema_version\tshadow_run_id\texport_id\tmodel_id\tdataset_id\tfeature_schema_version\tsignal_id\tsource_key\tsource_attempt_index\tsymbol\tstrategy_id\tstrategy_label\tdirection\tsource_type\tentry_time\tclassifier_score\tregressor_score\tthreshold_probability\trecommendation\treason\tfeature_valid\tmodel_available\tsource_structure_type\topposite_structure_type\tsame_previous_structure_type\tmacro_h1_live_dir\tmacro_h4_live_dir\tmacro_d1_live_dir\tstrategy_delay_period\tconfirmation_timeframe_minutes\tentry_direction_macro_alignment\tmacro_alignment_score\tprev_body_ratio\tprev_upper_wick_ratio\tprev_lower_wick_ratio\tprev_close_location\tprev_candle_dir\tsl_fib_raw\tsl_fib_band\tentry_fib_raw\tentry_fib_band\tlow_chain_score_3\tlow_chain_score_5\tlow_chain_score_10\thigh_chain_score_3\thigh_chain_score_5\thigh_chain_score_10\tinference_mode\tadmission_action\tfilter_reason";
 const string ML_SHADOW_OUTCOMES_HEADER =
   "schema_version\tshadow_run_id\texport_id\tmodel_id\tsignal_id\tsource_key\tsource_attempt_index\tterminal_time\tterminal_reason\trecommendation\tclassifier_score\tthreshold_probability\tprofit_r\tnet_profit\tduration_seconds";
 const string ML_SHADOW_ARBITRATION_DECISIONS_HEADER =
@@ -1151,6 +1151,46 @@ bool MLShadowSnapshotNumericValue(const DeterministicSignalFeatureSnapshot &snap
     value_out = (double)snapshot.macro_h4_live_dir;
   else if(source_column == "macro_d1_live_dir")
     value_out = (double)snapshot.macro_d1_live_dir;
+  else if(source_column == "strategy_delay_period")
+  {
+    value_out = (double)snapshot.strategy_delay_period;
+    valid_out = snapshot.strategy_delay_period_valid;
+  }
+  else if(source_column == "confirmation_timeframe_minutes")
+  {
+    value_out = (double)snapshot.confirmation_timeframe_minutes;
+    valid_out = snapshot.confirmation_timeframe_minutes_valid;
+  }
+  else if(source_column == "entry_direction_macro_alignment")
+  {
+    value_out = (double)snapshot.entry_direction_macro_alignment;
+    valid_out = snapshot.entry_direction_macro_alignment_valid;
+  }
+  else if(source_column == "macro_alignment_score")
+  {
+    value_out = (double)snapshot.macro_alignment_score;
+    valid_out = snapshot.macro_alignment_score_valid;
+  }
+  else if(source_column == "prev_body_ratio")
+  {
+    value_out = StringToDouble(DoubleToString(snapshot.prev_body_ratio, 8));
+    valid_out = snapshot.prev_body_ratio_valid;
+  }
+  else if(source_column == "prev_upper_wick_ratio")
+  {
+    value_out = StringToDouble(DoubleToString(snapshot.prev_upper_wick_ratio, 8));
+    valid_out = snapshot.prev_upper_wick_ratio_valid;
+  }
+  else if(source_column == "prev_lower_wick_ratio")
+  {
+    value_out = StringToDouble(DoubleToString(snapshot.prev_lower_wick_ratio, 8));
+    valid_out = snapshot.prev_lower_wick_ratio_valid;
+  }
+  else if(source_column == "prev_close_location")
+  {
+    value_out = StringToDouble(DoubleToString(snapshot.prev_close_location, 8));
+    valid_out = snapshot.prev_close_location_valid;
+  }
   else if(source_column == "sl_fib_raw")
   {
     value_out = StringToDouble(DoubleToString(snapshot.sl_fib_raw, 1));
@@ -1213,6 +1253,14 @@ bool MLShadowSnapshotCategoryValue(const DeterministicSignalFeatureSnapshot &sna
     value_out = snapshot.direction;
   else if(source_column == "source_type")
     value_out = snapshot.source_type;
+  else if(source_column == "source_structure_type")
+    value_out = snapshot.source_structure_type_valid ? snapshot.source_structure_type : "";
+  else if(source_column == "opposite_structure_type")
+    value_out = snapshot.opposite_structure_type_valid ? snapshot.opposite_structure_type : "";
+  else if(source_column == "same_previous_structure_type")
+    value_out = snapshot.same_previous_structure_type_valid ? snapshot.same_previous_structure_type : "";
+  else if(source_column == "prev_candle_dir")
+    value_out = snapshot.prev_candle_dir_valid ? snapshot.prev_candle_dir : "";
   else if(source_column == "sl_fib_band")
     value_out = snapshot.sl_fib_band_valid ? snapshot.sl_fib_band : "";
   else if(source_column == "entry_fib_band")
@@ -1560,9 +1608,21 @@ string MLShadowPredictionRow(const SignalParams &signal_params,
          MLShadowOutputCell(reason) + "\t" +
          MLShadowBoolToken(feature_valid) + "\t" +
          MLShadowBoolToken(model_available) + "\t" +
+         MLShadowOutputCell(snapshot.source_structure_type_valid ? snapshot.source_structure_type : "") + "\t" +
+         MLShadowOutputCell(snapshot.opposite_structure_type_valid ? snapshot.opposite_structure_type : "") + "\t" +
+         MLShadowOutputCell(snapshot.same_previous_structure_type_valid ? snapshot.same_previous_structure_type : "") + "\t" +
          IntegerToString(snapshot.macro_h1_live_dir) + "\t" +
          IntegerToString(snapshot.macro_h4_live_dir) + "\t" +
          IntegerToString(snapshot.macro_d1_live_dir) + "\t" +
+         MLShadowIntToken(snapshot.strategy_delay_period_valid, snapshot.strategy_delay_period) + "\t" +
+         MLShadowIntToken(snapshot.confirmation_timeframe_minutes_valid, snapshot.confirmation_timeframe_minutes) + "\t" +
+         MLShadowIntToken(snapshot.entry_direction_macro_alignment_valid, snapshot.entry_direction_macro_alignment) + "\t" +
+         MLShadowIntToken(snapshot.macro_alignment_score_valid, snapshot.macro_alignment_score) + "\t" +
+         MLShadowDoubleToken(snapshot.prev_body_ratio_valid, snapshot.prev_body_ratio, 8) + "\t" +
+         MLShadowDoubleToken(snapshot.prev_upper_wick_ratio_valid, snapshot.prev_upper_wick_ratio, 8) + "\t" +
+         MLShadowDoubleToken(snapshot.prev_lower_wick_ratio_valid, snapshot.prev_lower_wick_ratio, 8) + "\t" +
+         MLShadowDoubleToken(snapshot.prev_close_location_valid, snapshot.prev_close_location, 8) + "\t" +
+         MLShadowOutputCell(snapshot.prev_candle_dir_valid ? snapshot.prev_candle_dir : "") + "\t" +
          MLShadowDoubleToken(snapshot.sl_fib_valid, snapshot.sl_fib_raw, 1) + "\t" +
          MLShadowOutputCell(snapshot.sl_fib_band) + "\t" +
          MLShadowDoubleToken(snapshot.entry_fib_valid, snapshot.entry_fib_raw, 1) + "\t" +
