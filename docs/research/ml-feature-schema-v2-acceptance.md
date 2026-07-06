@@ -539,3 +539,55 @@ Root-cause summary:
   the selected/default threshold, so runtime FILTER would have no eligible
   rows.
 - No first-attempt candidate is runtime-ready.
+
+## Follow-Up Sprint 2 Validation
+
+Follow-up Sprint 2 added research-only threshold, calibration, and rank-policy
+diagnostics.
+
+Changed files:
+
+- `tools/deterministic_signal_ml/threshold_policy_diagnostics.py`
+
+Generated local diagnostics:
+
+- `artifacts/models/xauusd_2025_schema_v2_structure_xgb_1/diagnostics/threshold_policy_diagnostics.*`
+- `artifacts/models/xauusd_2025_schema_v2_structure_candle_xgb_1/diagnostics/threshold_policy_diagnostics.*`
+- `artifacts/models/xauusd_2025_schema_v2_xgb_1/diagnostics/threshold_policy_diagnostics.*`
+
+Validation:
+
+- `.venv/bin/python -m py_compile tools/deterministic_signal_ml/threshold_policy_diagnostics.py`:
+  PASS.
+- Threshold policy diagnostics ran for all three schema v2 first-attempt
+  candidates.
+- Calibration was fitted only on pre-final OOF rows and then evaluated on final
+  holdout.
+- Rank/quantile score cutoffs were chosen only from pre-final OOF rows and then
+  evaluated on final holdout.
+
+Best pre-final policies:
+
+| Candidate | Best pre-final policy | Pre-final selected | Pre-final net R | Final selected | Final mean R | Final net R | Final pass |
+| --- | --- | ---: | ---: | ---: | ---: | ---: | --- |
+| `xauusd_2025_schema_v2_structure_xgb_1` | none | 0 | 0.0 | 0 | n/a | 0.0 | false |
+| `xauusd_2025_schema_v2_structure_candle_xgb_1` | `raw_ge_0.51` | 173 | 1.2068 | 0 | n/a | 0.0 | false |
+| `xauusd_2025_schema_v2_xgb_1` | `calibrated_ge_0.49` | 124 | 27.9714 | 0 | n/a | 0.0 | false |
+
+Lower raw thresholds are not a solution:
+
+- For the v2 full candidate, `raw_ge_0.45` selects `7372` final-holdout rows
+  but has `final_net_r=-567.485`.
+- For the v2 full candidate, `raw_ge_0.47` selects `27` final-holdout rows but
+  has `final_net_r=-2.0894`.
+- Similar lower-threshold behavior appears in the structure and
+  structure+candle variants.
+
+Decision:
+
+- `REQUIRE_SCHEMA_V3_FEATURE_ITERATION`
+- The existing schema v2 dataset is useful evidence, but it is not sufficient
+  to continue toward runtime export.
+- Calibration and rank/quantile policies do not fix the final-holdout collapse.
+- The next sprint should define a minimal schema iteration focused on
+  pre-entry regime/context features, not on threshold tuning.
