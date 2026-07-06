@@ -1180,3 +1180,36 @@ Decision:
 
 - `READY_FOR_HUMAN_STRATEGY_TESTER_FOCUSED_RUN`
 - No live deployment or runtime ML FILTER approval is implied.
+
+## Strategy-Scoped Pattern Filter Sprint 1 Validation
+
+Strategy-Scoped Pattern Filter Sprint 1 defined the corrected workflow before
+long Strategy Tester runs.
+
+Plan:
+
+- `docs/plans/ml-pattern-audit-strategy-scoped-filter-plan.md`
+
+Contract:
+
+- `Enable_Pattern_Audit_Overlay=true` becomes the single Strategy Tester
+  selected-pattern filter and panel switch.
+- The redundant `Pattern_Audit_Admit_Selected_Only` input will be removed.
+- Pattern audit statistics must be scoped by `strategy_label` so S1, S2, and S3
+  are not mixed as one statistical sample.
+- Pattern-filtered combined tester runs must admit at most one selected entry
+  from the same structural source family.
+- Pattern audit remains Strategy Tester research only and gives no live
+  deployment approval.
+
+Fresh-run policy:
+
+- Start from fresh generated tester data before trusting a long run.
+- Generate and validate S1-only, S2-only, and S3-only data first.
+- Build per-strategy pattern audits from those fresh runs.
+- Run combined S1+S2+S3 only after per-strategy patterns and duplicate-source
+  behavior are clear.
+
+Validation:
+
+- Manual contract review: PASS.
