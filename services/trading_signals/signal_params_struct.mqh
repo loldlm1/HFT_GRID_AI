@@ -363,6 +363,30 @@ string BuildDeterministicSignalSourceKey(const SignalParams &signal_params)
                                      signal_params.source_extremum_price);
 }
 
+string BuildDeterministicSignalSourceFamilyKey(const SignalParams &signal_params)
+{
+  if(signal_params.signal_type != BULLISH && signal_params.signal_type != BEARISH)
+    return "";
+  if(signal_params.source_extremum_slot < 0 ||
+     signal_params.source_extremum_time <= 0 ||
+     signal_params.source_extremum_price <= 0.0)
+    return "";
+
+  int digits = Digits();
+  if(digits <= 0)
+    digits = 5;
+
+  string direction_token = (signal_params.signal_type == BULLISH) ? "BULLISH" : "BEARISH";
+  string type_token = signal_params.source_extremum_is_peak ? "PEAK" : "BOTTOM";
+  double normalized_price = NormalizeDouble(signal_params.source_extremum_price, digits);
+  return StringFormat("%s|slot=%d|%s|time=%d|price=%s",
+                      direction_token,
+                      signal_params.source_extremum_slot,
+                      type_token,
+                      (int)signal_params.source_extremum_time,
+                      DoubleToString(normalized_price, digits));
+}
+
 string BuildSignalSequenceId(const SignalTypes direction,
                              const datetime entry_time,
                              const datetime structure_time)

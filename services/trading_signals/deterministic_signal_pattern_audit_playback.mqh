@@ -100,6 +100,7 @@ struct PatternAuditPlaybackState
 PatternAuditPlaybackState g_pattern_audit_state;
 PatternAuditPlaybackMatch g_pattern_audit_matches[];
 PatternAuditPlaybackIndexEntry g_pattern_audit_index[];
+string g_pattern_audit_admitted_family_keys[];
 
 bool PatternAuditPlaybackEnabled()
 {
@@ -414,6 +415,8 @@ void PatternAuditPlaybackInit()
 {
   g_pattern_audit_state = PatternAuditPlaybackState();
   ArrayResize(g_pattern_audit_matches, 0);
+  ArrayResize(g_pattern_audit_index, 0);
+  ArrayResize(g_pattern_audit_admitted_family_keys, 0);
 
   if(!PatternAuditPlaybackEnabled())
     return;
@@ -446,6 +449,7 @@ void PatternAuditPlaybackDeinit()
   ArrayResize(g_pattern_audit_matches, 0);
   g_pattern_audit_state.initialized = false;
   ArrayResize(g_pattern_audit_index, 0);
+  ArrayResize(g_pattern_audit_admitted_family_keys, 0);
 }
 
 bool PatternAuditPlaybackReady()
@@ -573,6 +577,36 @@ bool PatternAuditPlaybackResolveSignalKey(SignalParams &signal_params,
   return source_key_out != "";
 }
 
+string PatternAuditPlaybackSourceFamilyKey(const SignalParams &signal_params)
+{
+  return BuildDeterministicSignalSourceFamilyKey(signal_params);
+}
+
+bool PatternAuditPlaybackFamilyAlreadyAdmitted(const string source_family_key)
+{
+  if(source_family_key == "")
+    return false;
+
+  int total = ArraySize(g_pattern_audit_admitted_family_keys);
+  for(int i = 0; i < total; i++)
+  {
+    if(g_pattern_audit_admitted_family_keys[i] == source_family_key)
+      return true;
+  }
+  return false;
+}
+
+void PatternAuditPlaybackRegisterAdmittedFamily(const string source_family_key)
+{
+  if(source_family_key == "" ||
+     PatternAuditPlaybackFamilyAlreadyAdmitted(source_family_key))
+    return;
+
+  int index = ArraySize(g_pattern_audit_admitted_family_keys);
+  ArrayResize(g_pattern_audit_admitted_family_keys, index + 1, PATTERN_AUDIT_INDEX_RESERVE);
+  g_pattern_audit_admitted_family_keys[index] = source_family_key;
+}
+
 bool PatternAuditPlaybackHasSelectedMatch(SignalParams &signal_params)
 {
   if(!PatternAuditPlaybackReady())
@@ -612,7 +646,15 @@ bool PatternAuditSelectedAdmissionAllowsEntry(SignalParams &signal_params,
   }
 
   if(PatternAuditPlaybackHasSelectedMatch(signal_params))
+  {
+    string source_family_key = PatternAuditPlaybackSourceFamilyKey(signal_params);
+    if(PatternAuditPlaybackFamilyAlreadyAdmitted(source_family_key))
+    {
+      block_reason_out = "duplicate_source_family|source_family_key=" + source_family_key;
+      return false;
+    }
     return true;
+  }
 
   string source_key = signal_params.deterministic_source_key;
   int attempt_index = signal_params.deterministic_source_attempt_index;
@@ -642,6 +684,8 @@ void PatternAuditPlaybackRecordSignal(SignalParams &signal_params,
   int index_entry = PatternAuditPlaybackFindIndex(source_key, attempt_index);
   if(index_entry < 0)
     return;
+
+  PatternAuditPlaybackRegisterAdmittedFamily(PatternAuditPlaybackSourceFamilyKey(signal_params));
 
   int first_index = g_pattern_audit_index[index_entry].first_index;
   int last_index = first_index + g_pattern_audit_index[index_entry].match_count;

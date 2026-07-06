@@ -837,6 +837,45 @@ Validation:
 - MetaEditor real compile:
   `python3 tools/mt5/compile_mt5.py --wine --mt5-root /home/loldlm/mql5_projects/metatrader_5_market_data_framework --entrypoint /home/loldlm/mql5_projects/metatrader_5_market_data_framework/MQL5/Experts/HFT_Grid_AI/HFT_Grid_AI.mq5 --log /home/loldlm/mql5_projects/metatrader_5_market_data_framework/MQL5/Experts/HFT_Grid_AI/logs/compile/pattern-audit-strategy-sprint3-compile.log --mode compile --timeout 240`
 - Compile result: `0 errors, 0 warnings`.
+
+## Strategy-Scoped Pattern Filter Sprint 4 Validation
+
+Strategy-Scoped Pattern Filter Sprint 4 added source-family identity and
+duplicate selected-entry blocking.
+
+Changed files:
+
+- `services/trading_signals/signal_params_struct.mqh`
+- `services/trading_signals/deterministic_signal_pattern_audit_playback.mqh`
+- `tools/deterministic_signal_ml/pattern_audit.py`
+
+Implemented:
+
+- Added MQL5 `BuildDeterministicSignalSourceFamilyKey`, which excludes
+  `strategy_label` but preserves direction, source slot, source type, source
+  time, and source price.
+- Added `source_family_key` to `pattern_matches.tsv`.
+- Pattern-filtered tester admission now blocks later selected entries from an
+  already admitted source family with reason:
+  `duplicate_source_family|source_family_key=<key>`.
+- The first admitted selected entry from a source family wins. Explicit S1/S2/S3
+  priority selection is intentionally left for a later sprint if the separate
+  strategy runs show it is needed.
+
+Validation:
+
+- `.venv/bin/python -m py_compile tools/deterministic_signal_ml/pattern_audit.py`:
+  PASS.
+- Source-family smoke:
+  `.venv/bin/python tools/deterministic_signal_ml/pattern_audit.py --dataset-id xauusd_2025_schema_v3_dataset_1 --audit-id xauusd_2025_strategy_family_smoke --overwrite --strategy-label S1 --top-n-visual 2 --max-catalog-patterns 40`
+  - Patterns: `40`
+  - Selected: `2`
+  - Matches: `362`
+  - `pattern_matches.tsv` includes `source_family_key`.
+- `git diff --check`: PASS.
+- MetaEditor real compile:
+  `python3 tools/mt5/compile_mt5.py --wine --mt5-root /home/loldlm/mql5_projects/metatrader_5_market_data_framework --entrypoint /home/loldlm/mql5_projects/metatrader_5_market_data_framework/MQL5/Experts/HFT_Grid_AI/HFT_Grid_AI.mq5 --log /home/loldlm/mql5_projects/metatrader_5_market_data_framework/MQL5/Experts/HFT_Grid_AI/logs/compile/pattern-audit-strategy-sprint4-compile.log --mode compile --timeout 240`
+- Compile result: `0 errors, 0 warnings`.
 - `git diff --check`: PASS.
 
 ## Pattern Audit Sprint 2 Validation

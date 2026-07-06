@@ -84,6 +84,7 @@ PATTERN_MATCH_COLUMNS = (
     "conditions_text",
     "signal_id",
     "source_key",
+    "source_family_key",
     "source_attempt_index",
     "symbol",
     "strategy_label",
@@ -731,6 +732,7 @@ def match_rows(
 SELECT
   signal_id,
   source_key,
+  regexp_replace(source_key, '^[^|]+\\|', '') AS source_family_key,
   source_attempt_index,
   symbol,
   strategy_label,
