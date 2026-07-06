@@ -2,7 +2,7 @@
 
 **Date**: 2026-07-06
 **Roadmap Phase**: Phase 3 - Feature Schema V2
-**Status**: Sprint 4 handoff; waiting for human-in-the-loop Strategy Tester export
+**Status**: Sprint 4 accepted; Sprint 5 training pending
 
 ## Scope
 
@@ -294,7 +294,7 @@ Compile status:
 
 - MetaEditor compile remains deferred to Sprint 4.
 
-## Sprint 4 Handoff
+## Sprint 4 Validation
 
 Task 4.1 compile validation is complete.
 
@@ -362,5 +362,65 @@ export DETERMINISTIC_RUNS_ROOT="$HOME/.wine/drive_c/users/loldlm/AppData/Roaming
   --overwrite
 ```
 
-Sprint 4 remains incomplete until the human-in-the-loop raw export exists and
-the dataset build succeeds.
+Human-in-the-loop Strategy Tester raw export validation:
+
+- Run ID:
+  `xauusd_2025_schema_v2_run_1`
+- Config ID:
+  `cfg_17016375182198205791`
+- Raw folder:
+  `/home/loldlm/.wine/drive_c/users/loldlm/AppData/Roaming/MetaQuotes/Terminal/Common/Files/DeterministicSignalML/runs/xauusd_2025_schema_v2_run_1/`
+- `run_manifest.tsv`:
+  `466` bytes, `16` rows, header OK.
+- `signal_features.tsv`:
+  `11959086` bytes, `36878` rows, `38` columns, header OK.
+- `signal_outcomes.tsv`:
+  `7311358` bytes, `36878` rows, `14` columns, header OK.
+- `run_summary.tsv`:
+  `254` bytes, `1` row, header OK.
+- Raw run summary:
+  - `schema_version=2`
+  - `started_at=2025.01.01 00:00:00`
+  - `finished_at=2025.12.31 21:57:59`
+  - `feature_rows=36878`
+  - `outcome_rows=36878`
+  - `feature_invalid_rows=16`
+  - `outcome_invalid_rows=0`
+  - `export_status=OK`
+
+Dataset validation/build:
+
+- Validate-only command:
+  `.venv/bin/python tools/deterministic_signal_ml/build_dataset.py --runs-root "$DETERMINISTIC_RUNS_ROOT" --run-id xauusd_2025_schema_v2_run_1 --dataset-id xauusd_2025_schema_v2_dataset_1 --validate-only`
+- Validate-only result:
+  `validation ok | runs=1 | features=36878 | outcomes=36878 | joined=36878`
+- Dataset build result:
+  `assembly ok | features=36878 | outcomes=36878 | training_matrix=36862`
+- Dataset path:
+  `artifacts/datasets/xauusd_2025_schema_v2_dataset_1/`
+- Dataset files:
+  - `features.parquet`: `2688008` bytes
+  - `outcomes.parquet`: `1933740` bytes
+  - `training_matrix.parquet`: `3647615` bytes
+  - `dataset_manifest.json`: `2346` bytes
+  - `dataset_quality.json`: `14493` bytes
+  - `dataset_report.md`: `5513` bytes
+- Dataset manifest:
+  - `feature_schema_version=2`
+  - `builder_version=phase3.schema_v2_dataset_builder.v1`
+  - `source_run_ids=xauusd_2025_schema_v2_run_1`
+  - `config_ids=cfg_17016375182198205791`
+- Dataset quality:
+  - `status=OK`
+  - `blocking_null_feature_rows=0`
+  - `duplicate_feature_ids=0`
+  - `duplicate_outcome_ids=0`
+  - `missing_features=0`
+  - `missing_outcomes=0`
+  - warnings: `1` expected warning for `16` feature rows marked invalid by
+    Phase 1.
+
+Sprint 4 result:
+
+- PASS. Fresh XAUUSD 2025 schema v2 raw export exists, validates, and builds
+  `xauusd_2025_schema_v2_dataset_1`.
