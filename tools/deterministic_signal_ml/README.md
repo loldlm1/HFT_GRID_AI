@@ -7,6 +7,26 @@ validated Parquet datasets. The Phase 3 trainer consumes those datasets and
 trains local research XGBoost models. These tools do not call MT5, modify the
 EA, run EA inference, filter trades, or connect to PostgreSQL.
 
+## Active Feature Schema V2 Work
+
+The active ML robustness roadmap is moving the deterministic feature contract
+from schema v1 to schema v2. The current long XAUUSD schema v1 baseline is
+frozen as a rejection baseline:
+
+- Dataset: `xauusd_2025_dataset_1`
+- Model: `xauusd_2025_xgb_1`
+- Result: no accepted FILTER threshold and no promoted runtime export.
+
+Schema v2 implementation and acceptance are tracked in:
+
+- `docs/plans/ml-feature-schema-v2-plan.md`
+- `docs/research/ml-feature-schema-v2-acceptance.md`
+
+Schema v2 requires a fresh human-in-the-loop Strategy Tester raw export for
+XAUUSD calendar year 2025 with `ML_INFERENCE_DISABLED` and feature export
+enabled. Runtime export, deployment, SHADOW parity, and FILTER validation are
+conditional on the schema v2 research gate passing first.
+
 ## Setup
 
 Use a local virtual environment:
