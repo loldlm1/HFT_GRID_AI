@@ -894,6 +894,29 @@ void BuildLightweightUiRowSets(const bool compact_mode,
                                                    pressured_mode),
                       SessionTimeFilterDstStatusSummary(),
                       row_max_chars);
+  if(PatternAuditPlaybackUiVisible())
+  {
+    AddLightweightUiRow(core_rows,
+                        "Pattern",
+                        PatternAuditPlaybackPanelMode(),
+                        row_max_chars);
+    AddLightweightUiRow(core_rows,
+                        "Pattern ID",
+                        PatternAuditPlaybackPanelAuditId(),
+                        row_max_chars);
+    AddLightweightUiRow(core_rows,
+                        "Pattern Hits",
+                        PatternAuditPlaybackPanelCounts(),
+                        row_max_chars);
+    string recent_pattern = PatternAuditPlaybackPanelRecentPattern();
+    if(recent_pattern != "")
+    {
+      AddLightweightUiRow(detail_rows,
+                          "Last Pattern",
+                          recent_pattern,
+                          row_max_chars);
+    }
+  }
 
   if(effective_source != "")
   {

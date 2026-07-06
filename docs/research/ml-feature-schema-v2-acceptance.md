@@ -1046,3 +1046,33 @@ Validation:
   PASS.
 - Focus smoke with `--top-n-visual 3 --max-catalog-patterns 80`:
   `patterns=80`, `selected=3`, `matches=2611`, PASS.
+
+## Focused Pattern Playback Sprint 3 Validation
+
+Focused Pattern Playback Sprint 3 optimized Strategy Tester playback lookup and
+made focused pattern state visible in the chart panel.
+
+Changed files:
+
+- `services/trading_signals/deterministic_signal_pattern_audit_playback.mqh`
+- `services/frontend/lightweight_status_ui.mqh`
+
+Implemented:
+
+- Selected matches are sorted once at load time.
+- Runtime lookup uses a binary-search index by `source_key` plus
+  `source_attempt_index`.
+- Per-signal full-array scan was removed from playback matching.
+- Visual markers are capped at `150` objects per run.
+- Lightweight panel can show:
+  - pattern mode
+  - audit ID
+  - observed/loaded hit counts
+  - last observed human-readable pattern label
+
+Validation:
+
+- `git diff --check`: PASS.
+- MetaEditor real compile:
+  `python3 tools/mt5/compile_mt5.py --wine --mt5-root /home/loldlm/mql5_projects/metatrader_5_market_data_framework --entrypoint /home/loldlm/mql5_projects/metatrader_5_market_data_framework/MQL5/Experts/HFT_Grid_AI/HFT_Grid_AI.mq5 --log /home/loldlm/mql5_projects/metatrader_5_market_data_framework/MQL5/Experts/HFT_Grid_AI/logs/compile/pattern-audit-focused-sprint3-compile.log --mode compile --timeout 240`
+- Compile result: `0 errors, 0 warnings`.

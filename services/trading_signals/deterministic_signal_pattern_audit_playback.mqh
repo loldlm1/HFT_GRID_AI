@@ -9,6 +9,8 @@ const string PATTERN_AUDIT_FOLDER                  = "pattern_audits";
 const string PATTERN_AUDIT_MATCHES_FILE            = "pattern_matches.tsv";
 const string PATTERN_AUDIT_OBSERVATIONS_FILE       = "pattern_tester_observations.tsv";
 const int    PATTERN_AUDIT_MATCH_RESERVE           = 256;
+const int    PATTERN_AUDIT_INDEX_RESERVE           = 256;
+const int    PATTERN_AUDIT_MAX_VISUAL_MARKERS      = 150;
 const string PATTERN_AUDIT_OBSERVATIONS_HEADER =
   "schema_version\taudit_id\tpattern_id\tsignal_id\tsource_key\tsource_attempt_index\tentry_time\texpected_match\tobservation_status\tpattern_label\tconditions_text";
 
@@ -45,6 +47,27 @@ struct PatternAuditPlaybackMatch
   }
 };
 
+struct PatternAuditPlaybackIndexEntry
+{
+  string key;
+  int    first_index;
+  int    match_count;
+
+  PatternAuditPlaybackIndexEntry()
+  {
+    key = "";
+    first_index = -1;
+    match_count = 0;
+  }
+
+  PatternAuditPlaybackIndexEntry(const PatternAuditPlaybackIndexEntry &other)
+  {
+    key = other.key;
+    first_index = other.first_index;
+    match_count = other.match_count;
+  }
+};
+
 struct PatternAuditPlaybackState
 {
   bool     enabled;
@@ -53,7 +76,11 @@ struct PatternAuditPlaybackState
   string   audit_id;
   string   folder;
   int      loaded_matches;
+  int      indexed_keys;
   int      observed_matches;
+  int      created_markers;
+  string   last_pattern_id;
+  string   last_pattern_label;
 
   PatternAuditPlaybackState()
   {
@@ -63,12 +90,17 @@ struct PatternAuditPlaybackState
     audit_id = "";
     folder = "";
     loaded_matches = 0;
+    indexed_keys = 0;
     observed_matches = 0;
+    created_markers = 0;
+    last_pattern_id = "";
+    last_pattern_label = "";
   }
 };
 
 PatternAuditPlaybackState g_pattern_audit_state;
 PatternAuditPlaybackMatch g_pattern_audit_matches[];
+PatternAuditPlaybackIndexEntry g_pattern_audit_index[];
 
 bool PatternAuditPlaybackEnabled()
 {
@@ -85,6 +117,12 @@ string PatternAuditPlaybackFolder()
 string PatternAuditPlaybackPath(const string filename)
 {
   return g_pattern_audit_state.folder + "\\" + filename;
+}
+
+string PatternAuditPlaybackCompositeKey(const string source_key,
+                                        const int source_attempt_index)
+{
+  return source_key + "|" + IntegerToString(source_attempt_index);
 }
 
 bool PatternAuditPlaybackEnsureFolder()
@@ -203,6 +241,87 @@ int PatternAuditPlaybackSplitLine(const string line,
   return StringSplit(line, delimiter, cells);
 }
 
+int PatternAuditPlaybackCompareMatches(const PatternAuditPlaybackMatch &left,
+                                       const PatternAuditPlaybackMatch &right)
+{
+  string left_key = PatternAuditPlaybackCompositeKey(left.source_key,
+                                                    left.source_attempt_index);
+  string right_key = PatternAuditPlaybackCompositeKey(right.source_key,
+                                                     right.source_attempt_index);
+  int key_compare = StringCompare(left_key, right_key);
+  if(key_compare != 0)
+    return key_compare;
+  return StringCompare(left.pattern_id, right.pattern_id);
+}
+
+void PatternAuditPlaybackSortMatches()
+{
+  int total = ArraySize(g_pattern_audit_matches);
+  for(int i = 1; i < total; i++)
+  {
+    PatternAuditPlaybackMatch current = g_pattern_audit_matches[i];
+    int j = i - 1;
+    while(j >= 0 && PatternAuditPlaybackCompareMatches(g_pattern_audit_matches[j], current) > 0)
+    {
+      g_pattern_audit_matches[j + 1] = g_pattern_audit_matches[j];
+      j--;
+    }
+    g_pattern_audit_matches[j + 1] = current;
+  }
+}
+
+void PatternAuditPlaybackBuildIndex()
+{
+  ArrayResize(g_pattern_audit_index, 0);
+
+  int total = ArraySize(g_pattern_audit_matches);
+  if(total <= 0)
+    return;
+
+  string current_key = "";
+  int index_count = 0;
+  for(int i = 0; i < total; i++)
+  {
+    string key = PatternAuditPlaybackCompositeKey(g_pattern_audit_matches[i].source_key,
+                                                 g_pattern_audit_matches[i].source_attempt_index);
+    if(i == 0 || key != current_key)
+    {
+      current_key = key;
+      ArrayResize(g_pattern_audit_index, index_count + 1, PATTERN_AUDIT_INDEX_RESERVE);
+      g_pattern_audit_index[index_count].key = key;
+      g_pattern_audit_index[index_count].first_index = i;
+      g_pattern_audit_index[index_count].match_count = 1;
+      index_count++;
+    }
+    else
+    {
+      g_pattern_audit_index[index_count - 1].match_count++;
+    }
+  }
+
+  g_pattern_audit_state.indexed_keys = ArraySize(g_pattern_audit_index);
+}
+
+int PatternAuditPlaybackFindIndex(const string source_key,
+                                  const int source_attempt_index)
+{
+  string key = PatternAuditPlaybackCompositeKey(source_key, source_attempt_index);
+  int left = 0;
+  int right = ArraySize(g_pattern_audit_index) - 1;
+  while(left <= right)
+  {
+    int middle = (left + right) / 2;
+    int compare = StringCompare(g_pattern_audit_index[middle].key, key);
+    if(compare == 0)
+      return middle;
+    if(compare < 0)
+      left = middle + 1;
+    else
+      right = middle - 1;
+  }
+  return -1;
+}
+
 bool PatternAuditPlaybackLoadMatches()
 {
   ArrayResize(g_pattern_audit_matches, 0);
@@ -286,6 +405,8 @@ bool PatternAuditPlaybackLoadMatches()
   }
 
   FileClose(handle);
+  PatternAuditPlaybackSortMatches();
+  PatternAuditPlaybackBuildIndex();
   g_pattern_audit_state.loaded_matches = ArraySize(g_pattern_audit_matches);
   return true;
 }
@@ -325,6 +446,7 @@ void PatternAuditPlaybackDeinit()
 {
   ArrayResize(g_pattern_audit_matches, 0);
   g_pattern_audit_state.initialized = false;
+  ArrayResize(g_pattern_audit_index, 0);
 }
 
 bool PatternAuditPlaybackReady()
@@ -339,12 +461,48 @@ string PatternAuditPlaybackSignalId(const SignalParams &signal_params)
   return signal_params.deterministic_stats_signal_id;
 }
 
+bool PatternAuditPlaybackUiVisible()
+{
+  return g_pattern_audit_state.enabled;
+}
+
+string PatternAuditPlaybackPanelMode()
+{
+  if(!g_pattern_audit_state.enabled)
+    return "OFF";
+  if(g_pattern_audit_state.failed)
+    return "LOAD FAILED";
+  if(!g_pattern_audit_state.initialized)
+    return "PENDING";
+  return "OVERLAY";
+}
+
+string PatternAuditPlaybackPanelCounts()
+{
+  return IntegerToString(g_pattern_audit_state.observed_matches) + "/" +
+         IntegerToString(g_pattern_audit_state.loaded_matches) + " hits";
+}
+
+string PatternAuditPlaybackPanelAuditId()
+{
+  return g_pattern_audit_state.audit_id;
+}
+
+string PatternAuditPlaybackPanelRecentPattern()
+{
+  if(g_pattern_audit_state.last_pattern_label != "")
+    return g_pattern_audit_state.last_pattern_label;
+  return g_pattern_audit_state.last_pattern_id;
+}
+
 void PatternAuditPlaybackDrawMarker(const PatternAuditPlaybackMatch &match,
                                     const SignalParams &signal_params,
                                     const ExecutionLegState &leg_state)
 {
   if(!Enable_Pattern_Audit_Overlay ||
      MQLInfoInteger(MQL_VISUAL_MODE) <= 0)
+    return;
+  if(g_pattern_audit_state.created_markers >= PATTERN_AUDIT_MAX_VISUAL_MARKERS)
     return;
 
   datetime marker_time = leg_state.last_action_time;
@@ -370,6 +528,7 @@ void PatternAuditPlaybackDrawMarker(const PatternAuditPlaybackMatch &match,
     ObjectCreate(chart_id, object_name, OBJ_TEXT, 0, marker_time, marker_price);
     ObjectSetInteger(chart_id, object_name, OBJPROP_SELECTABLE, false);
     ObjectSetInteger(chart_id, object_name, OBJPROP_BACK, false);
+    g_pattern_audit_state.created_markers++;
   }
   ObjectSetInteger(chart_id, object_name, OBJPROP_COLOR, clrDeepSkyBlue);
   ObjectSetString(chart_id, object_name, OBJPROP_TEXT, match.pattern_id);
@@ -398,18 +557,21 @@ void PatternAuditPlaybackRecordSignal(SignalParams &signal_params,
   string signal_id = PatternAuditPlaybackSignalId(signal_params);
   string entry_time = DeterministicSignalStatsTimeToken(leg_state.last_action_time);
 
-  int total = ArraySize(g_pattern_audit_matches);
-  for(int i = 0; i < total; i++)
+  int index_entry = PatternAuditPlaybackFindIndex(source_key, attempt_index);
+  if(index_entry < 0)
+    return;
+
+  int first_index = g_pattern_audit_index[index_entry].first_index;
+  int last_index = first_index + g_pattern_audit_index[index_entry].match_count;
+  for(int i = first_index; i < last_index; i++)
   {
     if(g_pattern_audit_matches[i].observed)
-      continue;
-    if(g_pattern_audit_matches[i].source_key != source_key)
-      continue;
-    if(g_pattern_audit_matches[i].source_attempt_index != attempt_index)
       continue;
 
     g_pattern_audit_matches[i].observed = true;
     g_pattern_audit_state.observed_matches++;
+    g_pattern_audit_state.last_pattern_id = g_pattern_audit_matches[i].pattern_id;
+    g_pattern_audit_state.last_pattern_label = g_pattern_audit_matches[i].pattern_label;
 
     string row = IntegerToString(PATTERN_AUDIT_PLAYBACK_SCHEMA_VERSION) + "\t" +
                  PatternAuditPlaybackCell(g_pattern_audit_state.audit_id) + "\t" +
