@@ -78,6 +78,10 @@ input group  "+= ML Shadow Inference =+";
 input MLInferenceModes ML_Inference_Mode = ML_INFERENCE_DISABLED;
 input string           ML_Model_Export_Id = "xgb_test_1_export_v1";
 
+input group  "+= Pattern Audit Playback =+";
+input bool   Enable_Pattern_Audit_Overlay = false;
+input string Pattern_Audit_Set_Id         = "";
+
 input group  "+= Developer Debug Settings =+";
 input bool Enable_Logs              = false;
 input bool Enable_File_Logs         = false;

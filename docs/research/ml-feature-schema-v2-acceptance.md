@@ -871,3 +871,47 @@ Notes:
 - No pattern is approved as runtime FILTER.
 - Selection includes both `AUDIT_PASS` and final-holdout-failing patterns so
   visual review can compare stable and unstable pattern families.
+
+## Pattern Audit Sprint 4 Validation
+
+Pattern Audit Sprint 4 added Strategy Tester-only playback for selected offline
+pattern matches.
+
+Changed files:
+
+- `HFT_Grid_AI.mq5`
+- `services/trading_management/ea_inputs.mqh`
+- `services/trading_signals.mqh`
+- `services/trading_signals/execution_controller.mqh`
+- `services/trading_signals/deterministic_signal_pattern_audit_playback.mqh`
+
+Implemented:
+
+- Disabled-by-default inputs:
+  - `Enable_Pattern_Audit_Overlay`
+  - `Pattern_Audit_Set_Id`
+- Loader for
+  `Common\Files\DeterministicSignalML\pattern_audits\<audit_id>\pattern_matches.tsv`.
+- Selected-match playback keyed by `source_key` plus
+  `source_attempt_index`, because `signal_id` can change with run IDs.
+- Compact tester output:
+  `pattern_tester_observations.tsv`.
+- Optional visual `OBJ_TEXT` markers in Strategy Tester visual mode.
+
+Safety:
+
+- Playback is gated by `MQL_TESTER` and the disabled-by-default overlay input.
+- It only records observed selected matches and optional chart markers.
+- It does not block entries, create trades, resize lots, alter SL/TP, change
+  exits, bypass license/session/spread/margin/protection controls, change
+  magic-number scope, or affect broker reconciliation.
+
+Validation:
+
+- `git diff --check`: PASS.
+- MetaEditor real compile:
+  `python3 tools/mt5/compile_mt5.py --wine --mt5-root /home/loldlm/mql5_projects/metatrader_5_market_data_framework --entrypoint /home/loldlm/mql5_projects/metatrader_5_market_data_framework/MQL5/Experts/HFT_Grid_AI/HFT_Grid_AI.mq5 --log /home/loldlm/mql5_projects/metatrader_5_market_data_framework/MQL5/Experts/HFT_Grid_AI/logs/compile/pattern-audit-sprint4-compile.log --mode compile --timeout 240`
+- Compile result: `0 errors, 0 warnings`.
+- Human-in-the-loop Strategy Tester visual/parity smoke is pending until a run
+  creates
+  `Common\Files\DeterministicSignalML\pattern_audits\xauusd_2025_pattern_audit_1\pattern_tester_observations.tsv`.
