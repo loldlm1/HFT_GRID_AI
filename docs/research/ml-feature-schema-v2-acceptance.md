@@ -976,3 +976,26 @@ Decision:
   Tester playback run creates `pattern_tester_observations.tsv` and the
   comparator passes against that real file.
 - No pattern is approved as runtime FILTER.
+
+## Focused Pattern Playback Sprint 1 Validation
+
+Focused Pattern Playback Sprint 1 defined the follow-up contract before adding
+tester-admission behavior.
+
+Plan:
+
+- `docs/plans/ml-pattern-audit-focused-playback-plan.md`
+
+Contract:
+
+- `Enable_Pattern_Audit_Overlay` remains overlay/parity only.
+- Selected-pattern admission must be a separate disabled-by-default input.
+- Selected-pattern admission is Strategy Tester-only.
+- Existing license, session, spread, broker-distance, volume, margin,
+  protection, magic-number, and broker reconciliation gates must stay earlier
+  in the pipeline.
+- No selected pattern is approved for live deployment or runtime ML FILTER.
+
+Validation:
+
+- Manual contract review: PASS.
