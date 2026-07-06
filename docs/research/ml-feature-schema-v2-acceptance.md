@@ -485,3 +485,57 @@ Result:
   `docs/plans/ml-feature-schema-v2-follow-up-plan.md`
 - Sprint 6 and Sprint 7 of the first-attempt plan are skipped because runtime
   export is conditional on Sprint 5 acceptance.
+
+## Follow-Up Sprint 1 Validation
+
+Follow-up Sprint 1 added offline score-distribution and time-bucket diagnostics
+for the rejected first-attempt models.
+
+Changed files:
+
+- `tools/deterministic_signal_ml/score_diagnostics.py`
+
+Generated local diagnostics:
+
+- `artifacts/models/xauusd_2025_xgb_1/diagnostics/`
+- `artifacts/models/xauusd_2025_schema_v2_structure_xgb_1/diagnostics/`
+- `artifacts/models/xauusd_2025_schema_v2_structure_candle_xgb_1/diagnostics/`
+- `artifacts/models/xauusd_2025_schema_v2_xgb_1/diagnostics/`
+
+Validation:
+
+- `.venv/bin/python -m py_compile tools/deterministic_signal_ml/score_diagnostics.py`:
+  PASS.
+- Score diagnostics ran for v1 baseline and all three schema v2 first-attempt
+  candidates.
+
+Score distribution summary:
+
+| Candidate | Threshold | OOF q99 | OOF max | OOF selected | OOF net R | Final q99 | Final max | Final selected | Final all below threshold |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | --- |
+| `xauusd_2025_xgb_1` | 0.50 | 0.492369 | 0.526814 | 46 | -7.767 | 0.467343 | 0.469584 | 0 | true |
+| `xauusd_2025_schema_v2_structure_xgb_1` | 0.50 | 0.487206 | 0.508536 | 14 | -9.2315 | 0.467541 | 0.480867 | 0 | true |
+| `xauusd_2025_schema_v2_structure_candle_xgb_1` | 0.50 | 0.507467 | 0.544856 | 447 | -19.5991 | 0.467402 | 0.470788 | 0 | true |
+| `xauusd_2025_schema_v2_xgb_1` | 0.50 | 0.506522 | 0.559462 | 414 | 9.2688 | 0.467402 | 0.470788 | 0 | true |
+
+Time-bucket summary for the v2 full candidate:
+
+- OOF selected rows occur only in:
+  - `2025-04`: `17` selected, `net_r=-9.6178`
+  - `2025-05`: `234` selected, `net_r=27.3839`
+  - `2025-06`: `163` selected, `net_r=-8.4973`
+- Final holdout months have zero selected rows:
+  - `2025-10`: max score `0.4707875848`
+  - `2025-11`: max score `0.4707875848`
+  - `2025-12`: max score `0.4707875848`
+
+Root-cause summary:
+
+- The first-attempt schema v2 failure is primarily probability compression plus
+  temporal instability.
+- The only positive OOF result is concentrated in May 2025 and does not
+  generalize to the final holdout period.
+- The final holdout scores for every first-attempt candidate are entirely below
+  the selected/default threshold, so runtime FILTER would have no eligible
+  rows.
+- No first-attempt candidate is runtime-ready.
