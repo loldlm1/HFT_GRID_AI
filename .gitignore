@@ -32,3 +32,4 @@ logs/*
 artifacts/datasets/
 artifacts/models/
 artifacts/model_exports/
+artifacts/pattern_audits/

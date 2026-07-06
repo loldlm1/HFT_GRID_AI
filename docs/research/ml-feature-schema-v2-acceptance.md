@@ -771,3 +771,46 @@ Validation:
 
 - Manual contract review: PASS.
 - `git diff --check`: PASS.
+
+## Pattern Audit Sprint 2 Validation
+
+Pattern Audit Sprint 2 added deterministic DuckDB tooling for controlled
+pattern scans.
+
+Changed files:
+
+- `.gitignore`
+- `tools/deterministic_signal_ml/pattern_audit.py`
+
+Implemented:
+
+- Bounded pattern templates from schema v3 lanes.
+- Pre-final and final-holdout split-aware metrics.
+- Generated audit artifacts:
+  - `pattern_catalog.tsv`
+  - `pattern_summary.tsv`
+  - `pattern_matches.tsv`
+  - `pattern_selection.tsv`
+  - `pattern_audit_report.md`
+  - `pattern_audit.json`
+- Manual pattern selection via `--pattern-id` or `--selection-file`.
+- Generated artifacts are ignored under `artifacts/pattern_audits/`.
+
+Validation:
+
+- `.venv/bin/python -m py_compile tools/deterministic_signal_ml/pattern_audit.py`:
+  PASS.
+- `.venv/bin/python tools/deterministic_signal_ml/pattern_audit.py --help`:
+  PASS.
+- Smoke command:
+  `.venv/bin/python tools/deterministic_signal_ml/pattern_audit.py --dataset-id xauusd_2025_schema_v3_dataset_1 --audit-id xauusd_2025_pattern_audit_sprint2_smoke --overwrite --top-n-visual 5 --max-catalog-patterns 80`
+- Smoke result:
+  - Patterns: `80`
+  - Selected for visual review: `5`
+  - Matches: `2973`
+  - Catalog columns/rows: `11` / `80`
+  - Summary columns/rows: `23` / `80`
+  - Matches columns/rows: `20` / `2973`
+  - Status counts: `AUDIT_PASS=9`, `FINAL_HOLDOUT_FAIL=17`, `REVIEW=54`
+- Re-running the same command produced stable hashes for catalog, summary, and
+  matches TSV files.
