@@ -1117,3 +1117,66 @@ Validation:
 - MetaEditor real compile:
   `python3 tools/mt5/compile_mt5.py --wine --mt5-root /home/loldlm/mql5_projects/metatrader_5_market_data_framework --entrypoint /home/loldlm/mql5_projects/metatrader_5_market_data_framework/MQL5/Experts/HFT_Grid_AI/HFT_Grid_AI.mq5 --log /home/loldlm/mql5_projects/metatrader_5_market_data_framework/MQL5/Experts/HFT_Grid_AI/logs/compile/pattern-audit-focused-sprint4-compile.log --mode compile --timeout 240`
 - Compile result: `0 errors, 0 warnings`.
+
+## Focused Pattern Playback Sprint 5 Validation
+
+Focused Pattern Playback Sprint 5 recorded the final validation and the exact
+Strategy Tester handoff for a shorter selected-pattern run.
+
+Focused audit package:
+
+- Use audit ID: `xauusd_2025_pattern_audit_focus_1`
+- Common Files path:
+  `/home/loldlm/.wine/drive_c/users/loldlm/AppData/Roaming/MetaQuotes/Terminal/Common/Files/DeterministicSignalML/pattern_audits/xauusd_2025_pattern_audit_focus_1/`
+- Selected patterns: `3`
+- Selected match rows: `2611`
+
+Recommended Strategy Tester inputs:
+
+- `Enable_Signal_Feature_Export = false`
+- `ML_Inference_Mode = ML_INFERENCE_DISABLED`
+- `Enable_Logs = false`
+- `Enable_File_Logs = false`
+- `Enable_Pattern_Audit_Overlay = true`
+- `Pattern_Audit_Admit_Selected_Only = true`
+- `Pattern_Audit_Set_Id = xauusd_2025_pattern_audit_focus_1`
+
+Expected behavior:
+
+- Only deterministic entries matching selected pattern rows from the focus
+  audit are admitted.
+- Non-matching deterministic entries are closed locally with
+  `PATTERN_AUDIT_FILTER_BLOCKED`.
+- The panel shows pattern mode, audit ID, hit count, and last observed human
+  label.
+- Visual markers are bounded to avoid chart-object growth.
+
+Post-run parity command:
+
+```bash
+MT5_COMMON_FILES=/home/loldlm/.wine/drive_c/users/loldlm/AppData/Roaming/MetaQuotes/Terminal/Common/Files \
+.venv/bin/python tools/deterministic_signal_ml/pattern_playback_compare.py \
+  --audit-id xauusd_2025_pattern_audit_focus_1
+```
+
+Current parity status before the human Strategy Tester run:
+
+- Status: `PENDING`
+- Decision: `RESEARCH_ONLY_WARN`
+- Expected rows: `2611`
+- Observed rows: `0`
+- Missing rows: `2611`
+
+Validation:
+
+- `.venv/bin/python -m py_compile tools/deterministic_signal_ml/pattern_audit.py tools/deterministic_signal_ml/pattern_playback_compare.py`:
+  PASS.
+- Pending parity report command with `--allow-missing-observations`: PASS.
+- MetaEditor real compile:
+  `python3 tools/mt5/compile_mt5.py --wine --mt5-root /home/loldlm/mql5_projects/metatrader_5_market_data_framework --entrypoint /home/loldlm/mql5_projects/metatrader_5_market_data_framework/MQL5/Experts/HFT_Grid_AI/HFT_Grid_AI.mq5 --log /home/loldlm/mql5_projects/metatrader_5_market_data_framework/MQL5/Experts/HFT_Grid_AI/logs/compile/pattern-audit-focused-sprint5-final-compile.log --mode compile --timeout 240`
+- Compile result: `0 errors, 0 warnings`.
+
+Decision:
+
+- `READY_FOR_HUMAN_STRATEGY_TESTER_FOCUSED_RUN`
+- No live deployment or runtime ML FILTER approval is implied.
