@@ -168,6 +168,12 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--top-n-visual", type=int, default=DEFAULT_TOP_N_VISUAL)
     parser.add_argument("--pattern-id", action="append", default=[], help="Pattern ID to force into visual selection.")
     parser.add_argument("--selection-file", default="", help="Optional TSV with a pattern_id column.")
+    parser.add_argument(
+        "--strategy-label",
+        action="append",
+        default=[],
+        help="Optional strategy_label filter. Repeat for S1/S2/S3 scoped audits.",
+    )
     return parser
 
 
@@ -217,6 +223,14 @@ def _display_value(value: Any) -> str:
     return str(value)
 
 
+def _strategy_filter_clause(strategy_labels: list[str]) -> str:
+    labels = sorted({label.strip() for label in strategy_labels if label.strip()})
+    if not labels:
+        return ""
+    values = ", ".join(_sql_literal(label) for label in labels)
+    return f"WHERE strategy_label IN ({values})"
+
+
 def _human_direction(value: Any) -> str:
     token = str(value).upper()
     if token == "BULLISH":
@@ -246,6 +260,8 @@ def _human_condition(condition: Condition) -> str:
     column = condition.column
     value = condition.value
 
+    if column == "strategy_label":
+        return str(value)
     if column == "direction":
         return _human_direction(value)
     if column == "source_structure_type":
@@ -311,13 +327,19 @@ def create_audit_table(
     connection: duckdb.DuckDBPyConnection,
     dataset_path: Path,
     final_holdout_fraction: float,
+    strategy_labels: list[str],
 ) -> int:
     if not (0.0 < final_holdout_fraction < 1.0):
         raise PatternAuditError("--final-holdout-fraction must be between 0 and 1")
     matrix_path = dataset_path / "training_matrix.parquet"
+    strategy_filter_clause = _strategy_filter_clause(strategy_labels)
     total_rows = int(
         connection.execute(
-            f"SELECT COUNT(*) FROM read_parquet('{_sql_path(matrix_path)}')"
+            f"""
+SELECT COUNT(*)
+FROM read_parquet('{_sql_path(matrix_path)}')
+{strategy_filter_clause}
+"""
         ).fetchone()[0]
     )
     if total_rows <= 0:
@@ -354,6 +376,7 @@ FROM (
     row_number() OVER (ORDER BY entry_time, signal_id) AS row_index,
     *
   FROM read_parquet('{_sql_path(matrix_path)}')
+  {strategy_filter_clause}
 )
 ORDER BY entry_time, signal_id
 """
@@ -382,11 +405,11 @@ def pattern_templates(max_condition_count: int) -> list[tuple[str, tuple[str, ..
         ("direction_session", ("direction", "entry_session_bucket")),
         ("direction_context_spread", ("direction", "entry_session_bucket", "spread_to_recent_range_bucket")),
     ]
-    return [
-        (template_id, columns)
-        for template_id, columns in templates
-        if len(columns) <= max_condition_count
-    ]
+    scoped_templates: list[tuple[str, tuple[str, ...]]] = []
+    for template_id, columns in templates:
+        if len(columns) <= max_condition_count:
+            scoped_templates.append((f"strategy_{template_id}", ("strategy_label", *columns)))
+    return scoped_templates
 
 
 def _pattern_id(conditions_text: str) -> str:
@@ -852,7 +875,12 @@ def main() -> int:
 
     connection = duckdb.connect(":memory:")
     try:
-        total_rows = create_audit_table(connection, dataset_path, args.final_holdout_fraction)
+        total_rows = create_audit_table(
+            connection,
+            dataset_path,
+            args.final_holdout_fraction,
+            args.strategy_label,
+        )
         definitions = build_catalog(connection, args)
         if not definitions:
             raise PatternAuditError("No patterns met the catalog support guard")

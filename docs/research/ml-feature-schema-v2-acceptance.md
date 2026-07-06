@@ -770,6 +770,42 @@ Defined:
 Validation:
 
 - Manual contract review: PASS.
+
+## Strategy-Scoped Pattern Filter Sprint 2 Validation
+
+Strategy-Scoped Pattern Filter Sprint 2 changed offline pattern mining so
+patterns are strategy-scoped.
+
+Changed files:
+
+- `tools/deterministic_signal_ml/pattern_audit.py`
+
+Implemented:
+
+- Automatic pattern templates are prefixed with `strategy_label`.
+- `strategy_label` does not count against feature-depth filtering.
+- `pattern_label` starts with the strategy, for example:
+  `S2 | Bullish | H1 slope bullish | H4 slope bearish | D1 slope bullish`.
+- `conditions_text` includes the exact scope, for example:
+  `strategy_label=S2; direction=BULLISH; macro_h1_live_dir=1; macro_h4_live_dir=-1; macro_d1_live_dir=1`.
+- Added optional repeated `--strategy-label` for S1-only, S2-only, or S3-only
+  audits.
+- Chronological pre-final/final split is computed after any strategy filter.
+
+Validation:
+
+- `.venv/bin/python -m py_compile tools/deterministic_signal_ml/pattern_audit.py`:
+  PASS.
+- Strategy-scoped smoke:
+  `.venv/bin/python tools/deterministic_signal_ml/pattern_audit.py --dataset-id xauusd_2025_schema_v3_dataset_1 --audit-id xauusd_2025_strategy_scoped_smoke --overwrite --top-n-visual 3 --max-catalog-patterns 80`
+  - Patterns: `80`
+  - Selected: `3`
+  - Matches: `1088`
+- S1-only smoke:
+  `.venv/bin/python tools/deterministic_signal_ml/pattern_audit.py --dataset-id xauusd_2025_schema_v3_dataset_1 --audit-id xauusd_2025_strategy_s1_smoke --overwrite --strategy-label S1 --top-n-visual 3 --max-catalog-patterns 80`
+  - Patterns: `80`
+  - Selected: `3`
+  - Matches: `560`
 - `git diff --check`: PASS.
 
 ## Pattern Audit Sprint 2 Validation
