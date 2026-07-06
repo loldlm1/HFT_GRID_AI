@@ -915,3 +915,64 @@ Validation:
 - Human-in-the-loop Strategy Tester visual/parity smoke is pending until a run
   creates
   `Common\Files\DeterministicSignalML\pattern_audits\xauusd_2025_pattern_audit_1\pattern_tester_observations.tsv`.
+
+## Pattern Audit Sprint 5 Validation
+
+Pattern Audit Sprint 5 added offline parity comparison between DuckDB pattern
+matches and Strategy Tester playback observations.
+
+Changed files:
+
+- `tools/deterministic_signal_ml/pattern_playback_compare.py`
+
+Implemented:
+
+- Compares expected selected rows from `pattern_matches.tsv` against observed
+  rows from `pattern_tester_observations.tsv`.
+- Uses `pattern_id`, `source_key`, and `source_attempt_index` as the stable
+  parity key.
+- Reports expected, observed, matched, missing, extra, duplicate-key,
+  `entry_time`, `signal_id`, and observation-status mismatch counts.
+- Writes compact ignored outputs:
+  - `pattern_playback_parity.json`
+  - `pattern_playback_parity.md`
+  - `pattern_playback_mismatches.tsv`
+- Keeps `signal_id` mismatch diagnostic by default because `signal_id` includes
+  the deterministic stats run ID.
+
+Validation:
+
+- `.venv/bin/python -m py_compile tools/deterministic_signal_ml/pattern_playback_compare.py`:
+  PASS.
+- `.venv/bin/python tools/deterministic_signal_ml/pattern_playback_compare.py --help`:
+  PASS.
+- Synthetic fixture smoke:
+  - Expected rows: `20`
+  - Observed rows: `20`
+  - Matched rows: `20`
+  - Missing rows: `0`
+  - Extra rows: `0`
+  - Entry-time mismatches: `0`
+  - Result: `PASS`
+
+Current real playback status:
+
+- Command:
+  `MT5_COMMON_FILES=/home/loldlm/.wine/drive_c/users/loldlm/AppData/Roaming/MetaQuotes/Terminal/Common/Files .venv/bin/python tools/deterministic_signal_ml/pattern_playback_compare.py --audit-id xauusd_2025_pattern_audit_1 --allow-missing-observations`
+- Result:
+  - Status: `PENDING`
+  - Decision: `RESEARCH_ONLY_WARN`
+  - Expected selected match rows: `6008`
+  - Observed tester rows: `0`
+  - Missing rows: `6008`
+- Pending file:
+  `/home/loldlm/.wine/drive_c/users/loldlm/AppData/Roaming/MetaQuotes/Terminal/Common/Files/DeterministicSignalML/pattern_audits/xauusd_2025_pattern_audit_1/pattern_tester_observations.tsv`
+
+Decision:
+
+- `RESEARCH_ONLY_WARN`
+- The comparator is ready, but data semantics cannot be declared
+  `DATA_CLEAR_CONTINUE_TO_PATH_LABELS` until a human-in-the-loop Strategy
+  Tester playback run creates `pattern_tester_observations.tsv` and the
+  comparator passes against that real file.
+- No pattern is approved as runtime FILTER.
