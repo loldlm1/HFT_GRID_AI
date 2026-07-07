@@ -1294,6 +1294,76 @@ Decision:
   not schema v4 model/audit approval.
 - No live deployment or runtime FILTER approval is implied.
 
+## ML Feature Schema V4 Sprint 5 Handoff
+
+Schema V4 Sprint 5 reached the human-in-the-loop Strategy Tester boundary.
+Fresh schema v4 Strategy Tester export folders are not present yet under:
+
+```text
+/home/loldlm/.wine/drive_c/users/loldlm/AppData/Roaming/MetaQuotes/Terminal/Common/Files/DeterministicSignalML/runs
+```
+
+Required fresh run IDs:
+
+- `xauusd_2025_schema_v4_run_S1`
+- `xauusd_2025_schema_v4_run_S2`
+- `xauusd_2025_schema_v4_run_S3`
+
+Strategy Tester setup:
+
+- Window: XAUUSD `2025-01-01` through `2026-01-01`.
+- Keep the same symbol, timeframe, risk, session, direction, and execution
+  settings used for the accepted schema v3 collection.
+- `Enable_Signal_Feature_Export = true`
+- `Signal_Feature_Run_Id = <fresh run ID>`
+- `ML_Inference_Mode = ML_INFERENCE_DISABLED`
+- `Enable_Pattern_Audit_Overlay = false`
+- `Pattern_Audit_Set_Id = ""`
+- `Enable_Logs = false`
+- `Enable_File_Logs = false`
+- Enable exactly one strategy per run:
+  - S1 run: `Enable_Strategy_1=true`, `Enable_Strategy_2=false`,
+    `Enable_Strategy_3=false`.
+  - S2 run: `Enable_Strategy_1=false`, `Enable_Strategy_2=true`,
+    `Enable_Strategy_3=false`.
+  - S3 run: `Enable_Strategy_1=false`, `Enable_Strategy_2=false`,
+    `Enable_Strategy_3=true`.
+
+Validation completed before handoff:
+
+- No schema v4 run folders were found in Common Files.
+- MetaEditor real compile:
+  `python3 tools/mt5/compile_mt5.py --wine --mt5-root /home/loldlm/mql5_projects/metatrader_5_market_data_framework --entrypoint /home/loldlm/mql5_projects/metatrader_5_market_data_framework/MQL5/Experts/HFT_Grid_AI/HFT_Grid_AI.mq5 --mode compile --timeout 240 --log /home/loldlm/mql5_projects/metatrader_5_market_data_framework/MQL5/Experts/HFT_Grid_AI/logs/compile/schema-v4-sprint5-handoff-compile.log`
+- Compile result: `0 errors, 0 warnings`.
+
+Commands to run after fresh exports exist:
+
+```bash
+MT5_COMMON_FILES="$HOME/.wine/drive_c/users/loldlm/AppData/Roaming/MetaQuotes/Terminal/Common/Files"
+RUNS_ROOT="$MT5_COMMON_FILES/DeterministicSignalML/runs"
+
+.venv/bin/python tools/deterministic_signal_ml/build_dataset.py \
+  --runs-root "$RUNS_ROOT" \
+  --run-id xauusd_2025_schema_v4_run_S1 \
+  --dataset-id xauusd_2025_schema_v4_dataset_S1 \
+  --overwrite
+
+.venv/bin/python tools/deterministic_signal_ml/pattern_audit.py \
+  --dataset-id xauusd_2025_schema_v4_dataset_S1 \
+  --audit-id xauusd_2025_schema_v4_audit_S1 \
+  --strategy-label S1 \
+  --overwrite
+```
+
+Repeat the dataset and audit commands for `S2` and `S3`.
+
+Decision:
+
+- `BLOCKED_BY_HUMAN_STRATEGY_TESTER_EXPORTS`
+- Sprint 6 cannot train real schema v4 XGBoost candidates until the three
+  fresh export runs exist.
+- No live deployment or runtime FILTER approval is implied.
+
 ## Pattern Audit Sprint 2 Validation
 
 Pattern Audit Sprint 2 added deterministic DuckDB tooling for controlled

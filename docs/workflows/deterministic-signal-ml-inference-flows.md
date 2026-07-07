@@ -195,5 +195,45 @@ xauusd_2025_schema_v4_run_S2
 xauusd_2025_schema_v4_run_S3
 ```
 
+Use the deterministic XAUUSD window `2025-01-01` through `2026-01-01`. Keep the
+same symbol, timeframe, risk, session, direction, and execution settings used
+for the accepted schema v3 data collection unless a later plan explicitly
+changes them. Only change the strategy booleans and run ID per run:
+
+| Run ID | S1 | S2 | S3 |
+| --- | --- | --- | --- |
+| `xauusd_2025_schema_v4_run_S1` | `true` | `false` | `false` |
+| `xauusd_2025_schema_v4_run_S2` | `false` | `true` | `false` |
+| `xauusd_2025_schema_v4_run_S3` | `false` | `false` | `true` |
+
+Required Strategy Tester inputs for all three fresh export runs:
+
+- `Enable_Signal_Feature_Export = true`
+- `Signal_Feature_Run_Id = <run ID from the table>`
+- `ML_Inference_Mode = ML_INFERENCE_DISABLED`
+- `Enable_Pattern_Audit_Overlay = false`
+- `Pattern_Audit_Set_Id = ""`
+- `Enable_Logs = false`
+- `Enable_File_Logs = false`
+
 After each run, build a schema v4 dataset and a strategy-scoped pattern audit
-before running selected-pattern playback.
+before running selected-pattern playback:
+
+```bash
+MT5_COMMON_FILES="$HOME/.wine/drive_c/users/loldlm/AppData/Roaming/MetaQuotes/Terminal/Common/Files"
+RUNS_ROOT="$MT5_COMMON_FILES/DeterministicSignalML/runs"
+
+.venv/bin/python tools/deterministic_signal_ml/build_dataset.py \
+  --runs-root "$RUNS_ROOT" \
+  --run-id xauusd_2025_schema_v4_run_S1 \
+  --dataset-id xauusd_2025_schema_v4_dataset_S1 \
+  --overwrite
+
+.venv/bin/python tools/deterministic_signal_ml/pattern_audit.py \
+  --dataset-id xauusd_2025_schema_v4_dataset_S1 \
+  --audit-id xauusd_2025_schema_v4_audit_S1 \
+  --strategy-label S1 \
+  --overwrite
+```
+
+Repeat the dataset and audit commands for `S2` and `S3`.
