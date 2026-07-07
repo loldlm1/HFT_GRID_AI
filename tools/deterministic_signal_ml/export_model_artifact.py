@@ -621,7 +621,9 @@ def main() -> int:
             runtime_manifest["regressor_parity_status"] = regressor_report["status"]
             runtime_manifest["regressor_parity_max_abs_error"] = regressor_report["max_abs_error"]
             runtime_manifest["mt5_runtime_ready"] = (
-                classifier_report["status"] == "OK" and regressor_report["status"] == "OK"
+                threshold_policy is not None
+                and classifier_report["status"] == "OK"
+                and regressor_report["status"] == "OK"
             )
             runtime_manifest["parity_report_file"] = PARITY_REPORT_JSON
             parity_report = {

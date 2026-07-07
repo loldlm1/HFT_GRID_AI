@@ -202,7 +202,7 @@ SELECT
   o.entry_price,
   o.close_price,
   o.net_profit,
-  CASE WHEN o.net_profit > 0 THEN 1 ELSE 0 END AS target_is_win,
+  CASE WHEN o.profit_r > 0 THEN 1 ELSE 0 END AS target_is_win,
   o.profit_r AS target_profit_r,
   o.terminal_reason AS target_terminal_reason
 FROM features f

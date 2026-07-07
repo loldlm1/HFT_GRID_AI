@@ -1364,6 +1364,113 @@ Decision:
   fresh export runs exist.
 - No live deployment or runtime FILTER approval is implied.
 
+## ML Feature Schema V4 Sprint 6 Depth-5 Research Gate
+
+The human Strategy Tester schema v4 exports were found under Common Files and
+validated as Phase 1 sources.
+
+Source Strategy Tester runs:
+
+| Strategy | Run ID | Feature rows | Outcome rows | Joined rows | Warnings |
+| --- | --- | ---: | ---: | ---: | --- |
+| S1 | `xauusd_2025_schema_v4_run_S1` | 11919 | 11919 | 11919 | 8 invalid feature rows; 2 SL rows had non-negative `net_profit` but negative `profit_r`. |
+| S2 | `xauusd_2025_schema_v4_run_S2` | 12903 | 12903 | 12903 | 7 invalid feature rows; 3 SL rows had non-negative `net_profit` but negative `profit_r`. |
+| S3 | `xauusd_2025_schema_v4_run_S3` | 12237 | 12237 | 12237 | 1 invalid feature row; 1 SL row had non-negative `net_profit` but negative `profit_r`. |
+
+The training target now uses `profit_r > 0`, not `net_profit > 0`. This keeps
+the model target aligned with the deterministic R-multiple outcome and avoids
+mislabeling SL rows whose account-currency `net_profit` can be zero or slightly
+positive while the signal outcome is still a negative R loss.
+
+Dataset build results:
+
+| Dataset | Sources | Training rows | Join status | Builder |
+| --- | --- | ---: | --- | --- |
+| `xauusd_2025_schema_v4_dataset_S1` | S1 | 11911 | 0 duplicate IDs, 0 missing joins | `phase3.schema_v4_dataset_builder.v2` |
+| `xauusd_2025_schema_v4_dataset_S2` | S2 | 12896 | 0 duplicate IDs, 0 missing joins | `phase3.schema_v4_dataset_builder.v2` |
+| `xauusd_2025_schema_v4_dataset_S3` | S3 | 12236 | 0 duplicate IDs, 0 missing joins | `phase3.schema_v4_dataset_builder.v2` |
+| `xauusd_2025_schema_v4_dataset_all` | S1+S2+S3 | 37043 | 0 duplicate IDs, 0 missing joins | `phase3.schema_v4_dataset_builder.v2` |
+
+All four datasets use only the schema v4 semantic feature lanes:
+
+```text
+strategy_label, direction, structure_0, structure_1, structure_2,
+macro_h1_slope, macro_h4_slope, macro_d1_slope, fib_sl_band,
+fib_entry_band, high_chain_profile, low_chain_profile,
+previous_candle_profile, entry_session_bucket, entry_weekday
+```
+
+Pattern audit results with `--max-condition-count 5`:
+
+| Strategy | Audit ID | Catalog patterns | Selected patterns | Expected selected matches | Max conditions | Status mix |
+| --- | --- | ---: | ---: | ---: | ---: | --- |
+| S1 | `xauusd_2025_schema_v4_audit_S1` | 246 | 12 | 3563 | 5 | 243 `REVIEW`, 3 `FINAL_HOLDOUT_FAIL` |
+| S2 | `xauusd_2025_schema_v4_audit_S2` | 267 | 12 | 4157 | 5 | 262 `REVIEW`, 5 `FINAL_HOLDOUT_FAIL` |
+| S3 | `xauusd_2025_schema_v4_audit_S3` | 282 | 12 | 3121 | 5 | 273 `REVIEW`, 8 `FINAL_HOLDOUT_FAIL` |
+
+The three audit packages were copied to Strategy Tester Common Files under:
+
+```text
+DeterministicSignalML/pattern_audits/xauusd_2025_schema_v4_audit_S1/
+DeterministicSignalML/pattern_audits/xauusd_2025_schema_v4_audit_S2/
+DeterministicSignalML/pattern_audits/xauusd_2025_schema_v4_audit_S3/
+```
+
+Pending playback parity before human Strategy Tester pattern-filter runs:
+
+| Audit ID | Expected | Observed | Decision |
+| --- | ---: | ---: | --- |
+| `xauusd_2025_schema_v4_audit_S1` | 3563 | 0 | `RESEARCH_ONLY_WARN` |
+| `xauusd_2025_schema_v4_audit_S2` | 4157 | 0 | `RESEARCH_ONLY_WARN` |
+| `xauusd_2025_schema_v4_audit_S3` | 3121 | 0 | `RESEARCH_ONLY_WARN` |
+
+XGBoost depth-5 research candidates:
+
+| Model | Dataset | Encoded features | Feature set | Holdout ROC AUC | Holdout regressor correlation | Threshold gate |
+| --- | --- | ---: | --- | ---: | ---: | --- |
+| `xauusd_2025_schema_v4_xgb_S1` | S1 | 82 | `schema_v4_no_strategy_label` | 0.515333 | 0.001589 | No threshold selected. |
+| `xauusd_2025_schema_v4_xgb_S2` | S2 | 91 | `schema_v4_no_strategy_label` | 0.498685 | 0.025175 | No threshold selected. |
+| `xauusd_2025_schema_v4_xgb_S3` | S3 | 103 | `schema_v4_no_strategy_label` | 0.507898 | 0.008532 | Pre-final selected threshold 0.5, but final holdout selected only 2 rows and net R was -0.0076. |
+| `xauusd_2025_schema_v4_xgb_all` | S1+S2+S3 | 108 | `schema_v4_full` | 0.505221 | -0.014503 | No threshold selected. |
+
+Depth 5 is technically supported for both XGBoost and DuckDB pattern mining,
+but it is not automatically safer than depth 3. It increases the model's
+capacity to combine more conditions, so overfit risk also increases. The
+chronological split, pre-final threshold selection, final holdout gate, segment
+support checks, and selected-row minimum are the controls that prevent a deeper
+candidate from being approved just because it fits historical coincidences.
+
+Model export parity artifacts were regenerated with
+`phase4.model_exporter.v2`:
+
+| Export ID | Classifier parity | Regressor parity | Runtime validator |
+| --- | --- | --- | --- |
+| `xauusd_2025_schema_v4_xgb_S1_export_v1` | OK, max abs error `6.50158403781e-08` | OK, max abs error `3.079477634e-08` | Fails as expected: missing `threshold_policy.tsv`. |
+| `xauusd_2025_schema_v4_xgb_S2_export_v1` | OK, max abs error `3.9375630867e-08` | OK, max abs error `7.26925410421e-08` | Fails as expected: missing `threshold_policy.tsv`. |
+| `xauusd_2025_schema_v4_xgb_S3_export_v1` | OK, max abs error `6.48037225548e-08` | OK, max abs error `7.8749755883e-09` | Fails as expected: missing `threshold_policy.tsv`. |
+| `xauusd_2025_schema_v4_xgb_all_export_v1` | OK, max abs error `7.25326188e-08` | OK, max abs error `8.12839964781e-09` | Fails as expected: missing `threshold_policy.tsv`. |
+
+The exports are valid for scorer parity research, but `mt5_runtime_ready=false`
+because no robust threshold policy exists. They must not be deployed as runtime
+ML FILTER candidates.
+
+Validation:
+
+- Phase 1 source run validation: PASS with warnings listed above.
+- `.venv/bin/python -m py_compile tools/deterministic_signal_ml/*.py`: PASS.
+- `git diff --check`: PASS.
+- Pattern playback comparisons before Strategy Tester observations: pending by
+  design, with expected counts listed above.
+
+Decision:
+
+- `NEEDS_SCHEMA_V4_FOLLOW_UP`
+- DuckDB pattern audits are ready for human Strategy Tester selected-pattern
+  parity runs.
+- XGBoost depth-5 candidates are technically generated and parity-checked, but
+  no model has a robust positive threshold approval.
+- No live deployment or runtime ML FILTER approval is implied.
+
 ## Pattern Audit Sprint 2 Validation
 
 Pattern Audit Sprint 2 added deterministic DuckDB tooling for controlled

@@ -237,3 +237,55 @@ RUNS_ROOT="$MT5_COMMON_FILES/DeterministicSignalML/runs"
 ```
 
 Repeat the dataset and audit commands for `S2` and `S3`.
+
+## Schema V4 Depth-5 Research Gate
+
+Current schema v4 research artifacts were built from the fresh XAUUSD
+`2025-01-01` through `2026-01-01` S1/S2/S3 Strategy Tester exports:
+
+| Strategy | Dataset ID | Training rows | Audit ID | Selected matches |
+| --- | --- | ---: | --- | ---: |
+| S1 | `xauusd_2025_schema_v4_dataset_S1` | 11911 | `xauusd_2025_schema_v4_audit_S1` | 3563 |
+| S2 | `xauusd_2025_schema_v4_dataset_S2` | 12896 | `xauusd_2025_schema_v4_audit_S2` | 4157 |
+| S3 | `xauusd_2025_schema_v4_dataset_S3` | 12236 | `xauusd_2025_schema_v4_audit_S3` | 3121 |
+
+The schema v4 DuckDB pattern audits use semantic lanes only and allow up to
+five conditions per pattern. The packages are already copied to Common Files:
+
+```text
+DeterministicSignalML/pattern_audits/xauusd_2025_schema_v4_audit_S1/
+DeterministicSignalML/pattern_audits/xauusd_2025_schema_v4_audit_S2/
+DeterministicSignalML/pattern_audits/xauusd_2025_schema_v4_audit_S3/
+```
+
+For the next human Strategy Tester parity pass, run one strategy at a time:
+
+| Run | Strategy inputs | Pattern audit set |
+| --- | --- | --- |
+| S1 parity | `Enable_Strategy_1=true`, `Enable_Strategy_2=false`, `Enable_Strategy_3=false` | `xauusd_2025_schema_v4_audit_S1` |
+| S2 parity | `Enable_Strategy_1=false`, `Enable_Strategy_2=true`, `Enable_Strategy_3=false` | `xauusd_2025_schema_v4_audit_S2` |
+| S3 parity | `Enable_Strategy_1=false`, `Enable_Strategy_2=false`, `Enable_Strategy_3=true` | `xauusd_2025_schema_v4_audit_S3` |
+
+Use these shared Strategy Tester inputs for each parity run:
+
+- `Enable_Signal_Feature_Export = false`
+- `ML_Inference_Mode = ML_INFERENCE_DISABLED`
+- `Enable_Pattern_Audit_Overlay = true`
+- `Pattern_Audit_Set_Id = <audit ID from the table>`
+- `Enable_Logs = false`
+- `Enable_File_Logs = true`
+
+After each run, compare observed tester rows against the offline DuckDB matches:
+
+```bash
+MT5_COMMON_FILES="$HOME/.wine/drive_c/users/loldlm/AppData/Roaming/MetaQuotes/Terminal/Common/Files" \
+.venv/bin/python tools/deterministic_signal_ml/pattern_playback_compare.py \
+  --audit-id xauusd_2025_schema_v4_audit_S1
+```
+
+Repeat for `S2` and `S3`.
+
+Depth-5 XGBoost candidates were also trained for S1, S2, S3, and combined
+S1+S2+S3. Scorer export parity is OK, but no model has a robust final-holdout
+threshold policy. The generated exports therefore remain research-only with
+`mt5_runtime_ready=false` and must not be deployed for `ML_INFERENCE_FILTER`.

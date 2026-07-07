@@ -4,7 +4,7 @@ from __future__ import annotations
 
 
 ARTIFACT_SCHEMA_VERSION = 1
-EXPORTER_VERSION = "phase4.model_exporter.v1"
+EXPORTER_VERSION = "phase4.model_exporter.v2"
 DEFAULT_EXPORT_ROOT = "artifacts/model_exports"
 
 MODEL_MANIFEST_TSV = "model_manifest.tsv"

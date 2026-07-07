@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 
-TRAINER_VERSION = "phase3.xgboost_trainer.schema_v4.v1"
+TRAINER_VERSION = "phase3.xgboost_trainer.schema_v4.v2"
 DEFAULT_DATASET_ROOT = "artifacts/datasets"
 DEFAULT_MODEL_ROOT = "artifacts/models"
 DEFAULT_HOLDOUT_FRACTION = 0.20
@@ -18,7 +18,7 @@ MIN_CLASS_COUNT = 20
 @dataclass(frozen=True)
 class XGBoostClassifierConfig:
     n_estimators: int = 300
-    max_depth: int = 3
+    max_depth: int = 5
     learning_rate: float = 0.05
     subsample: float = 0.90
     colsample_bytree: float = 0.90
@@ -34,7 +34,7 @@ class XGBoostClassifierConfig:
 @dataclass(frozen=True)
 class XGBoostRegressorConfig:
     n_estimators: int = 300
-    max_depth: int = 3
+    max_depth: int = 5
     learning_rate: float = 0.05
     subsample: float = 0.90
     colsample_bytree: float = 0.90

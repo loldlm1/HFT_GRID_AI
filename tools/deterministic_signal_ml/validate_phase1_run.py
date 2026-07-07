@@ -190,18 +190,22 @@ def validate_phase1_run(runs_root: Path, run_id: str) -> Phase1RunValidation:
             f"outcomes_without_feature={missing_features}"
         )
 
-    sl_zero_net_profit_rows = 0
+    tp_non_positive_net_profit_rows = 0
+    sl_non_negative_net_profit_rows = 0
     for index, row in enumerate(outcome_rows, start=1):
         terminal_reason = row["terminal_reason"]
         profit_r = _required_float(row["profit_r"], "profit_r", SIGNAL_OUTCOMES_FILE)
         net_profit = _required_float(row["net_profit"], "net_profit", SIGNAL_OUTCOMES_FILE)
-        if terminal_reason == "TP" and (profit_r <= 0.0 or net_profit <= 0.0):
-            raise Phase1ValidationError(f"TP outcome has non-positive result in row {index}")
+        if terminal_reason == "TP":
+            if profit_r <= 0.0:
+                raise Phase1ValidationError(f"TP outcome has non-positive profit_r in row {index}")
+            if net_profit <= 0.0:
+                tp_non_positive_net_profit_rows += 1
         if terminal_reason == "SL":
-            if profit_r >= 0.0 or net_profit > 0.0:
-                raise Phase1ValidationError(f"SL outcome has non-loss result in row {index}")
-            if net_profit == 0.0:
-                sl_zero_net_profit_rows += 1
+            if profit_r >= 0.0:
+                raise Phase1ValidationError(f"SL outcome has non-loss profit_r in row {index}")
+            if net_profit >= 0.0:
+                sl_non_negative_net_profit_rows += 1
 
     warnings: list[str] = []
     feature_invalid_rows = _required_int(summary["feature_invalid_rows"], "feature_invalid_rows", RUN_SUMMARY_FILE)
@@ -210,9 +214,13 @@ def validate_phase1_run(runs_root: Path, run_id: str) -> Phase1RunValidation:
         warnings.append(f"{feature_invalid_rows} feature rows were marked invalid by Phase 1")
     if outcome_invalid_rows > 0:
         warnings.append(f"{outcome_invalid_rows} outcome rows were marked invalid by Phase 1")
-    if sl_zero_net_profit_rows > 0:
+    if tp_non_positive_net_profit_rows > 0:
         warnings.append(
-            f"{sl_zero_net_profit_rows} SL outcome rows have zero net_profit but negative profit_r"
+            f"{tp_non_positive_net_profit_rows} TP outcome rows have non-positive net_profit but positive profit_r"
+        )
+    if sl_non_negative_net_profit_rows > 0:
+        warnings.append(
+            f"{sl_non_negative_net_profit_rows} SL outcome rows have non-negative net_profit but negative profit_r"
         )
 
     return Phase1RunValidation(
