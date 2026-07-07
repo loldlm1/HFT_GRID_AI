@@ -1471,6 +1471,80 @@ Decision:
   no model has a robust positive threshold approval.
 - No live deployment or runtime ML FILTER approval is implied.
 
+## ML Feature Schema V4 Pattern Playback Parity
+
+The human Strategy Tester selected-pattern playback runs were completed for the
+three schema v4 strategy-scoped audit packages.
+
+Playback parity results:
+
+| Audit ID | Expected rows | Observed rows | Matched rows | Missing | Extra | Decision |
+| --- | ---: | ---: | ---: | ---: | ---: | --- |
+| `xauusd_2025_schema_v4_audit_S1` | 3563 | 3563 | 3563 | 0 | 0 | `DATA_CLEAR_CONTINUE_TO_PATH_LABELS` |
+| `xauusd_2025_schema_v4_audit_S2` | 4157 | 4157 | 4157 | 0 | 0 | `DATA_CLEAR_CONTINUE_TO_PATH_LABELS` |
+| `xauusd_2025_schema_v4_audit_S3` | 3121 | 3121 | 3121 | 0 | 0 | `DATA_CLEAR_CONTINUE_TO_PATH_LABELS` |
+
+Per-pattern count validation also passed. Each selected pattern had identical
+offline and Strategy Tester observation counts:
+
+| Audit ID | Selected patterns | Observation status | Per-pattern mismatches |
+| --- | ---: | --- | --- |
+| `xauusd_2025_schema_v4_audit_S1` | 12 | 3563 `OBSERVED` | 0 |
+| `xauusd_2025_schema_v4_audit_S2` | 12 | 4157 `OBSERVED` | 0 |
+| `xauusd_2025_schema_v4_audit_S3` | 12 | 3121 `OBSERVED` | 0 |
+
+Diagnostic mismatches:
+
+- S1 had 384 `entry_time` metadata mismatches.
+- S2 had 440 `entry_time` metadata mismatches.
+- S3 had 308 `entry_time` metadata mismatches.
+- All observed `signal_id` values are `\N`, so signal ID mismatches are
+  expected and non-blocking.
+
+These diagnostics do not indicate pattern ambiguity because hard parity uses
+`pattern_id + source_key + source_attempt_index`, and that identity matched
+exactly for all rows.
+
+Selected-pattern examples verified in Strategy Tester include:
+
+- S1:
+  - `S1 | Bearish | Session ASIA | Weekday THU`
+  - `S1 | Bullish | H1 slope bullish | H4 slope bearish | D1 slope bullish`
+  - `S1 | Bearish | LH[0] | H1 slope bearish | High chain high up 5`
+- S2:
+  - `S2 | Bearish | Session ASIA | Weekday THU`
+  - `S2 | Bearish | HH[0] | H1 slope bearish | Entry Fib 61.8-100`
+  - `S2 | Bullish | Session NEWYORK | Weekday FRI`
+- S3:
+  - `S3 | Bearish | LH[0] | HL[1] | LH[2]`
+  - `S3 | Bearish | LH[0] | H1 slope bearish | Low chain low up 3`
+  - `S3 | Bullish | LL[0] | H1 slope bullish | Entry Fib 138.2-161.8`
+
+Validation commands:
+
+```bash
+MT5_COMMON_FILES=/home/loldlm/.wine/drive_c/users/loldlm/AppData/Roaming/MetaQuotes/Terminal/Common/Files \
+.venv/bin/python tools/deterministic_signal_ml/pattern_playback_compare.py \
+  --audit-id xauusd_2025_schema_v4_audit_S1
+
+MT5_COMMON_FILES=/home/loldlm/.wine/drive_c/users/loldlm/AppData/Roaming/MetaQuotes/Terminal/Common/Files \
+.venv/bin/python tools/deterministic_signal_ml/pattern_playback_compare.py \
+  --audit-id xauusd_2025_schema_v4_audit_S2
+
+MT5_COMMON_FILES=/home/loldlm/.wine/drive_c/users/loldlm/AppData/Roaming/MetaQuotes/Terminal/Common/Files \
+.venv/bin/python tools/deterministic_signal_ml/pattern_playback_compare.py \
+  --audit-id xauusd_2025_schema_v4_audit_S3
+```
+
+Decision:
+
+- `DATA_CLEAR_CONTINUE_TO_PATH_LABELS`
+- Schema v4 DuckDB pattern matching and Strategy Tester selected-pattern
+  playback are now equivalent for the selected audit packages.
+- The next Phase 3 follow-up should refresh the target path-label plan around
+  the schema v4 baseline before implementing new MQL5 path-label exports.
+- No live deployment or runtime ML FILTER approval is implied.
+
 ## Pattern Audit Sprint 2 Validation
 
 Pattern Audit Sprint 2 added deterministic DuckDB tooling for controlled

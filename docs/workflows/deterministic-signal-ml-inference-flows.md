@@ -289,3 +289,20 @@ Depth-5 XGBoost candidates were also trained for S1, S2, S3, and combined
 S1+S2+S3. Scorer export parity is OK, but no model has a robust final-holdout
 threshold policy. The generated exports therefore remain research-only with
 `mt5_runtime_ready=false` and must not be deployed for `ML_INFERENCE_FILTER`.
+
+Current selected-pattern playback status:
+
+| Audit ID | Expected | Observed | Matched | Missing | Extra | Decision |
+| --- | ---: | ---: | ---: | ---: | ---: | --- |
+| `xauusd_2025_schema_v4_audit_S1` | 3563 | 3563 | 3563 | 0 | 0 | `DATA_CLEAR_CONTINUE_TO_PATH_LABELS` |
+| `xauusd_2025_schema_v4_audit_S2` | 4157 | 4157 | 4157 | 0 | 0 | `DATA_CLEAR_CONTINUE_TO_PATH_LABELS` |
+| `xauusd_2025_schema_v4_audit_S3` | 3121 | 3121 | 3121 | 0 | 0 | `DATA_CLEAR_CONTINUE_TO_PATH_LABELS` |
+
+Per-pattern counts also match exactly for all 12 selected patterns in each
+audit package. `entry_time` and `signal_id` mismatches in the playback parity
+reports are metadata diagnostics only; hard identity is
+`pattern_id + source_key + source_attempt_index`.
+
+Do not start target path-label implementation from the older schema v3 wording
+in `docs/plans/ml-target-path-labels-follow-up-plan.md` without refreshing that
+plan around the schema v4 baseline first.
