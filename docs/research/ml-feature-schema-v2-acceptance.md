@@ -2258,3 +2258,43 @@ Decision:
 - Status: `PENDING_HUMAN_STRATEGY_TESTER_RUN`
 - No dynamic TP/path-ratio model is accepted or rejected yet.
 - Runtime TP behavior remains unchanged.
+
+## Dynamic TP Path-Ratio Sprint 5 Export Speed Gate
+
+Sprint 5 audited the deterministic statistics export hot path before a long
+path-aware Strategy Tester run.
+
+Changed files:
+
+- `services/trading_signals/deterministic_signal_statistics_export.mqh`
+
+Implemented:
+
+- Feature/outcome buffers now flush one batch with one `FileOpen`/`FileSeek`/
+  `FileClose` cycle instead of reopening the TSV once per buffered row.
+- TSV headers, row order, row contents, buffer size, and generated filenames
+  remain unchanged.
+- Path tracking remains bounded by `DETERMINISTIC_SIGNAL_STATS_PATH_HORIZON_BARS`
+  and does not scan market history per tick.
+- No chart labels or pattern overlays were added to the export flow.
+
+Safety:
+
+- No runtime TP, SL, lot size, order send, close policy, broker/risk gate,
+  license/session/spread/margin/protection, magic-number, or broker
+  reconciliation behavior was changed.
+- The optimization only affects research export file I/O when
+  `Enable_Signal_Feature_Export=true`.
+
+Validation:
+
+- `git diff --check`: PASS.
+- MetaEditor real compile:
+  `python3 tools/mt5/compile_mt5.py --wine --mt5-root /home/loldlm/mql5_projects/metatrader_5_market_data_framework --entrypoint /home/loldlm/mql5_projects/metatrader_5_market_data_framework/MQL5/Experts/HFT_Grid_AI/HFT_Grid_AI.mq5 --mode compile --timeout 240 --log /home/loldlm/mql5_projects/metatrader_5_market_data_framework/MQL5/Experts/HFT_Grid_AI/logs/compile/dynamic-tp-sprint5.log`
+- Compile result: `0 errors, 0 warnings`.
+
+Decision:
+
+- Status: `READY_FOR_HUMAN_STRATEGY_TESTER_TIMING_SMOKE`.
+- A real timing comparison still requires a short path-aware Strategy Tester
+  run, then the full XAUUSD 2025 run if the smoke remains practical.

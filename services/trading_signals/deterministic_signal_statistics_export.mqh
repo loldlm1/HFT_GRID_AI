@@ -387,23 +387,57 @@ bool DeterministicSignalStatsWriteLine(const string filename,
   return true;
 }
 
-bool DeterministicSignalStatsAppendRow(const string filename,
-                                       const string header,
-                                       const string row)
+bool DeterministicSignalStatsAppendRows(const string filename,
+                                        const string header,
+                                        string &buffer[])
 {
   if(!DeterministicSignalStatsReady())
     return false;
-  if(filename == "" || header == "" || row == "")
+  if(filename == "" || header == "")
     return false;
 
+  int total = ArraySize(buffer);
+  if(total <= 0)
+    return true;
+
   bool needs_header = !FileIsExist(filename, FILE_COMMON);
-  if(needs_header)
+  int flags = FILE_WRITE | FILE_TXT | FILE_ANSI | FILE_COMMON;
+  if(!needs_header)
+    flags |= FILE_READ;
+
+  ResetLastError();
+  int handle = FileOpen(filename, flags);
+  if(handle == INVALID_HANDLE)
   {
-    if(!DeterministicSignalStatsWriteLine(filename, header, false))
-      return false;
+    int open_error = GetLastError();
+    g_deterministic_signal_stats_failed = true;
+    if(Enable_Logs || Enable_File_Logs)
+    {
+      PrintFormat("DETERMINISTIC_STATS_BATCH_WRITE_FAIL | file=%s | err=%d",
+                  filename,
+                  open_error);
+    }
+    return false;
   }
 
-  return DeterministicSignalStatsWriteLine(filename, row, true);
+  if(needs_header)
+    FileWrite(handle, header);
+  else
+    FileSeek(handle, 0, SEEK_END);
+
+  for(int i = 0; i < total; i++)
+  {
+    if(buffer[i] == "")
+    {
+      FileClose(handle);
+      g_deterministic_signal_stats_failed = true;
+      return false;
+    }
+    FileWrite(handle, buffer[i]);
+  }
+
+  FileClose(handle);
+  return true;
 }
 
 bool DeterministicSignalStatsFlushBuffer(const string filename,
@@ -417,11 +451,8 @@ bool DeterministicSignalStatsFlushBuffer(const string filename,
   if(total <= 0)
     return true;
 
-  for(int i = 0; i < total; i++)
-  {
-    if(!DeterministicSignalStatsAppendRow(filename, header, buffer[i]))
-      return false;
-  }
+  if(!DeterministicSignalStatsAppendRows(filename, header, buffer))
+    return false;
 
   ArrayResize(buffer, 0);
   return true;
