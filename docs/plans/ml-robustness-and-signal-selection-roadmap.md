@@ -1,7 +1,7 @@
 # Roadmap: ML Robustness And Signal Selection
 
 **Generated**: 2026-07-05
-**Status**: Draft active roadmap
+**Status**: Phase 3 complete; Phase 4 planned
 **Estimated Complexity**: High
 
 ## Purpose
@@ -37,6 +37,13 @@ validate, and commit one phase before starting the next phase.
   cross-symbol proof.
 - Current FILTER runtime evidence validates Python/MQL5 parity, broker
   admission filtering, and Phase 2 arbitration on a short XAUUSD smoke run.
+- Phase 3 is complete for schema v4 research handoff:
+  - schema v4 semantic lanes replaced the noisy schema v2/v3 candidates
+  - S1/S2/S3 selected-pattern DuckDB audits match Strategy Tester playback
+  - S3 pattern rows `3121` correspond to `2351` unique MT5 trade entries,
+    matching the human Strategy Tester report
+  - no schema v4 XGBoost candidate has runtime ML FILTER approval because no
+    robust positive threshold policy passed
 
 ## Non-Goals
 
@@ -47,8 +54,8 @@ validate, and commit one phase before starting the next phase.
   eligibility.
 - No ONNX replacement of the current TSV scorer until a separate parity and
   runtime spike passes.
-- No dynamic `1:n` target behavior until counterfactual path labels are exported
-  and validated.
+- No runtime dynamic TP behavior until counterfactual path labels are exported,
+  validated, and approved by a later execution plan.
 - No broad feature expansion without ablation evidence and out-of-sample gates.
 
 ## Guiding Principles
@@ -68,7 +75,8 @@ validate, and commit one phase before starting the next phase.
 
 ## Phase 1: ML Validation Hardening
 
-**Planner plan**: `docs/plans/ml-validation-hardening-plan.md`
+**Planner plan**:
+`docs/plans/archive/phase3-ml-2026-07-07/ml-validation-hardening-plan.md`
 **Risk level**: Medium, statistical and tooling behavior
 
 Strengthen the Python research pipeline before adding new features.
@@ -94,7 +102,8 @@ Acceptance gate:
 
 ## Phase 2: ML Signal Arbitration
 
-**Planner plan**: `docs/plans/ml-signal-arbitration-plan.md`
+**Planner plan**:
+`docs/plans/archive/phase3-ml-2026-07-07/ml-signal-arbitration-plan.md`
 **Risk level**: High, Strategy Tester execution behavior
 
 Add a deterministic policy for choosing one candidate when enabled strategies
@@ -126,9 +135,14 @@ Acceptance gate:
   `ML_ARBITRATION_BLOCKED`
 - Strategy Tester summary demonstrates the behavioral delta
 
-## Phase 3: Feature Schema V2
+## Phase 3: Feature Schema V2-V4
 
-**Planner plan**: `docs/plans/ml-feature-schema-v2-plan.md`
+**Status**: Completed on 2026-07-07.
+**Archived implementation plans**:
+`docs/plans/archive/phase3-ml-2026-07-07/`
+
+**Planner plan**: archived under
+`docs/plans/archive/phase3-ml-2026-07-07/ml-feature-schema-v2-plan.md`
 **Risk level**: High, EA/Python/model artifact contract
 
 Expand features in a controlled schema version after validation hardening and
@@ -243,8 +257,56 @@ Acceptance gate:
   post-entry data
 - Python/MQL5 scoring parity remains within accepted tolerance
 
-## Phase 4: ONNX Shadow Spike
+Completion summary:
 
+- Schema v2/v3 did not produce a robust runtime FILTER threshold.
+- Schema v4 semantic lanes were implemented and became the accepted research
+  feature contract for the next phase.
+- Strategy-scoped DuckDB pattern audits and Strategy Tester selected-pattern
+  playback matched exactly for S1, S2, and S3.
+- Pattern observation rows and unique trade entries are now reported
+  separately, resolving the S3 `3121` pattern-row versus `2351` MT5-trade
+  discrepancy.
+- Runtime ML FILTER remains unapproved for schema v4 models.
+
+## Phase 4: Dynamic TP Path-Ratio Research
+
+**Status**: Planned next.
+**Planner plan**: `docs/plans/ml-dynamic-tp-path-ratio-plan.md`
+**Risk level**: High, research labels, Strategy Tester performance, and future
+execution-policy implications
+
+Measure promising reward ratios from one bounded path-aware export instead of
+running a separate slow Strategy Tester pass for each fixed TP.
+
+Recommended scope:
+
+- export post-entry path statistics for admitted deterministic entries
+- label counterfactual target hits before SL, such as `hit_1r_before_sl`,
+  `hit_1_5r_before_sl`, `hit_2r_before_sl`, and `hit_3r_before_sl`
+- export `max_favorable_r`, `max_adverse_r`, bars-to-target fields,
+  path horizon, and path status
+- derive multiple target families from one path-aware run in Python
+- train research models for target reachability and expected R with schema v4
+  pre-entry features only
+- optimize Strategy Tester research performance if path tracking, logging, or
+  file writes make full-year runs too slow
+- keep runtime TP changes out of scope until a later explicit execution plan
+
+Acceptance gate:
+
+- path labels are produced without using future information as input features
+- path labels are reproducible from Strategy Tester history
+- path label columns are excluded from model features
+- model target choice improves out-of-sample expected R after costs
+- selected target counts are large enough to avoid bucket overfit
+- Strategy Tester full-year runs remain practical, or a documented performance
+  optimization passes without changing label counts
+- no EA runtime changes TP dynamically in this phase
+
+## Phase 5: ONNX Shadow Spike
+
+**Status**: Deferred until after dynamic TP/path-ratio research.
 **Planner plan**: `docs/plans/ml-onnx-shadow-spike-plan.md`
 **Risk level**: Medium, runtime compatibility and parity
 
@@ -253,7 +315,7 @@ TSV tree scorer.
 
 Recommended scope:
 
-- export the accepted XGBoost classifier and regressor to ONNX
+- export an accepted XGBoost classifier/regressor to ONNX
 - document converter versions and operator compatibility
 - load ONNX in MQL5 using the native ONNX runtime APIs
 - run ONNX side-by-side with the current TSV scorer in SHADOW mode
@@ -266,14 +328,15 @@ Acceptance gate:
 - ONNX outputs are shape-stable and type-stable
 - ONNX classifier probabilities match Python within accepted tolerance
 - ONNX and TSV threshold decisions agree on the same prediction rows
-- runtime diagnostics clearly fail visible without affecting trading behavior
+- runtime diagnostics fail visibly without affecting trading behavior
 
-## Phase 5: Multi-Symbol Research
+## Phase 6: Multi-Symbol Research
 
 **Planner plan**: `docs/plans/ml-multi-symbol-research-plan.md`
 **Risk level**: Medium, statistical generalization
 
-Research whether symbol-specific or multi-symbol models generalize better.
+Research whether symbol-specific or multi-symbol models generalize better after
+XAUUSD target-family evidence is clearer.
 
 Recommended scope:
 
@@ -294,32 +357,6 @@ Acceptance gate:
 - documentation states which symbols each artifact is valid for
 - Strategy Tester validation remains symbol-scoped
 
-## Phase 6: Dynamic R Target Modeling
-
-**Planner plan**: `docs/plans/ml-dynamic-r-targets-plan.md`
-**Risk level**: High, labeling and future execution behavior
-
-Prepare the model to estimate whether a signal is more likely to reach `1:n`
-targets without introducing target leakage.
-
-Recommended scope:
-
-- export post-entry path statistics for broker-entered signals
-- label counterfactual target hits before SL, such as `hit_1r_before_sl`,
-  `hit_1_5r_before_sl`, `hit_2r_before_sl`, and `hit_3r_before_sl`
-- export `max_favorable_r`, `max_adverse_r`, and bars-to-target fields
-- train research models for target reachability and expected R
-- compare fixed TP policy against model-selected target policy in research only
-- keep runtime TP changes out of scope until a later explicit execution plan
-
-Acceptance gate:
-
-- labels are produced without using future information as input features
-- path labels are reproducible from Strategy Tester history
-- model target choice improves out-of-sample expected R after costs
-- selected target counts are large enough to avoid bucket overfit
-- no EA runtime changes TP dynamically in this phase
-
 ## Roadmap Exit Criteria
 
 This roadmap can be considered complete when:
@@ -327,13 +364,13 @@ This roadmap can be considered complete when:
 - validation hardening is the default way to approve models
 - simultaneous deterministic strategy candidates can be reduced to one selected
   broker candidate in Strategy Tester
-- schema v2 feature additions are either accepted with evidence or rejected with
-  documented reasons
+- schema v4 semantic lanes are the accepted research feature contract after
+  schema v2/v3 rejection evidence
+- dynamic TP/path-ratio modeling has research-grade labels and a clear decision
+  on whether runtime execution changes are justified
 - ONNX is either accepted as a shadow-compatible runtime path or explicitly
   deferred
 - symbol scope is explicit for every trained model artifact
-- dynamic R target modeling has research-grade labels and a clear decision on
-  whether runtime execution changes are justified
 
 ## Documentation And Evidence Policy
 

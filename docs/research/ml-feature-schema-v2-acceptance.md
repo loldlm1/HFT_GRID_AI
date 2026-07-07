@@ -1,14 +1,15 @@
 # ML Feature Schema V2 Acceptance
 
 **Date**: 2026-07-06
-**Roadmap Phase**: Phase 3 - Feature Schema V2
-**Status**: REJECT_WITH_FOLLOW_UP
+**Roadmap Phase**: Phase 3 - Feature Schema V2-V4 Research
+**Status**: COMPLETE_FOR_DYNAMIC_TP_HANDOFF
 
 ## Scope
 
-This phase replaces the active deterministic signal ML feature contract with
-schema version 2, then validates whether the new feature set can produce a
-robust positive XAUUSD threshold without overfitting.
+This phase replaced the active deterministic signal ML feature contract through
+schema v4 semantic lanes, then validated whether the new feature set and
+selected-pattern audit flow could produce robust XAUUSD evidence without
+overfitting.
 
 Accepted implementation scope:
 
@@ -18,13 +19,15 @@ Accepted implementation scope:
 - Fresh human-in-the-loop Strategy Tester raw export for XAUUSD calendar year
   2025.
 - Runtime export/parity validation only if the research acceptance gate passes.
+- Strategy-scoped DuckDB pattern audit and Strategy Tester selected-pattern
+  playback parity.
 
 Out of scope:
 
 - Live deployment approval.
 - ONNX work.
 - Multi-symbol research.
-- Dynamic `1:n` target modeling.
+- Runtime dynamic TP changes. Path-ratio research moves to Phase 4.
 - Any weakening of license, session, spread, stops/freeze, margin, protection,
   magic-number, market-status, or broker reconciliation guards.
 
@@ -482,7 +485,7 @@ Result:
 
 - `REJECT_WITH_FOLLOW_UP`
 - Follow-up Phase 3 plan:
-  `docs/plans/ml-feature-schema-v2-follow-up-plan.md`
+  `docs/plans/archive/phase3-ml-2026-07-07/ml-feature-schema-v2-follow-up-plan.md`
 - Sprint 6 and Sprint 7 of the first-attempt plan are skipped because runtime
   export is conditional on Sprint 5 acceptance.
 
@@ -731,10 +734,10 @@ Decision:
 - No runtime export, SHADOW parity, FILTER validation, ONNX work, or live
   deployment is approved from these candidates.
 - Next follow-up plan:
-  `docs/plans/ml-pattern-audit-follow-up-plan.md`
+  `docs/plans/archive/phase3-ml-2026-07-07/ml-pattern-audit-follow-up-plan.md`
 - Target path-label research remains planned after pattern semantics are
   audited:
-  `docs/plans/ml-target-path-labels-follow-up-plan.md`
+  `docs/plans/archive/phase3-ml-2026-07-07/ml-target-path-labels-follow-up-plan.md`
 
 ## Pattern Audit Sprint 1 Validation
 
@@ -743,7 +746,7 @@ adding tooling or Strategy Tester playback.
 
 Changed files:
 
-- `docs/plans/ml-pattern-audit-follow-up-plan.md`
+- `docs/plans/archive/phase3-ml-2026-07-07/ml-pattern-audit-follow-up-plan.md`
 - `docs/research/ml-pattern-audit.md`
 
 Defined:
@@ -817,7 +820,7 @@ Changed files:
 - `services/trading_management/ea_inputs.mqh`
 - `services/trading_signals/deterministic_signal_pattern_audit_playback.mqh`
 - `services/frontend/lightweight_status_ui.mqh`
-- `docs/plans/ml-pattern-audit-focused-playback-plan.md`
+- `docs/plans/archive/phase3-ml-2026-07-07/ml-pattern-audit-focused-playback-plan.md`
 
 Implemented:
 
@@ -1476,13 +1479,32 @@ Decision:
 The human Strategy Tester selected-pattern playback runs were completed for the
 three schema v4 strategy-scoped audit packages.
 
-Playback parity results:
+Playback parity results now distinguish selected pattern observation rows from
+unique MT5-admissible trade entries. Pattern rows use hard identity
+`pattern_id + source_key + source_attempt_index`; unique trade entries use
+`source_key + source_attempt_index`.
 
-| Audit ID | Expected rows | Observed rows | Matched rows | Missing | Extra | Decision |
+| Audit ID | Pattern rows expected/observed/matched | Unique trades expected/observed/matched | Duplicate pattern hits | Missing | Extra | Decision |
 | --- | ---: | ---: | ---: | ---: | ---: | --- |
-| `xauusd_2025_schema_v4_audit_S1` | 3563 | 3563 | 3563 | 0 | 0 | `DATA_CLEAR_CONTINUE_TO_PATH_LABELS` |
-| `xauusd_2025_schema_v4_audit_S2` | 4157 | 4157 | 4157 | 0 | 0 | `DATA_CLEAR_CONTINUE_TO_PATH_LABELS` |
-| `xauusd_2025_schema_v4_audit_S3` | 3121 | 3121 | 3121 | 0 | 0 | `DATA_CLEAR_CONTINUE_TO_PATH_LABELS` |
+| `xauusd_2025_schema_v4_audit_S1` | 3563 / 3563 / 3563 | 3078 / 3078 / 3078 | 485 | 0 | 0 | `DATA_CLEAR_CONTINUE_TO_PATH_LABELS` |
+| `xauusd_2025_schema_v4_audit_S2` | 4157 / 4157 / 4157 | 3419 / 3419 / 3419 | 738 | 0 | 0 | `DATA_CLEAR_CONTINUE_TO_PATH_LABELS` |
+| `xauusd_2025_schema_v4_audit_S3` | 3121 / 3121 / 3121 | 2351 / 2351 / 2351 | 770 | 0 | 0 | `DATA_CLEAR_CONTINUE_TO_PATH_LABELS` |
+
+Unique observed trade entries by direction:
+
+| Audit ID | Bearish | Bullish |
+| --- | ---: | ---: |
+| `xauusd_2025_schema_v4_audit_S1` | 2097 | 981 |
+| `xauusd_2025_schema_v4_audit_S2` | 2205 | 1214 |
+| `xauusd_2025_schema_v4_audit_S3` | 1797 | 554 |
+
+Observed entries by selected-pattern count:
+
+| Audit ID | 1 pattern | 2 patterns | 3 patterns | 4 patterns | 5 patterns |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| `xauusd_2025_schema_v4_audit_S1` | 2641 | 392 | 42 | 3 | 0 |
+| `xauusd_2025_schema_v4_audit_S2` | 2873 | 384 | 135 | 24 | 3 |
+| `xauusd_2025_schema_v4_audit_S3` | 1668 | 605 | 69 | 9 | 0 |
 
 Per-pattern count validation also passed. Each selected pattern had identical
 offline and Strategy Tester observation counts:
@@ -1493,13 +1515,17 @@ offline and Strategy Tester observation counts:
 | `xauusd_2025_schema_v4_audit_S2` | 12 | 4157 `OBSERVED` | 0 |
 | `xauusd_2025_schema_v4_audit_S3` | 12 | 3121 `OBSERVED` | 0 |
 
-Diagnostic mismatches:
+Diagnostic metadata mismatches:
 
 - S1 had 384 `entry_time` metadata mismatches.
 - S2 had 440 `entry_time` metadata mismatches.
 - S3 had 308 `entry_time` metadata mismatches.
 - All observed `signal_id` values are `\N`, so signal ID mismatches are
   expected and non-blocking.
+- Future playback observation rows use schema version `2` and write
+  `expected_signal_id`, `observed_signal_id`, `expected_entry_time`, and
+  `observed_entry_time` separately. The Python comparator remains compatible
+  with older schema version `1` observation files.
 
 These diagnostics do not indicate pattern ambiguity because hard parity uses
 `pattern_id + source_key + source_attempt_index`, and that identity matched
@@ -1541,8 +1567,10 @@ Decision:
 - `DATA_CLEAR_CONTINUE_TO_PATH_LABELS`
 - Schema v4 DuckDB pattern matching and Strategy Tester selected-pattern
   playback are now equivalent for the selected audit packages.
-- The next Phase 3 follow-up should refresh the target path-label plan around
-  the schema v4 baseline before implementing new MQL5 path-label exports.
+- Phase 3 is complete for research handoff. No schema v4 XGBoost candidate has
+  runtime ML FILTER approval because no robust positive threshold policy passed.
+- The next roadmap phase is dynamic TP/path-ratio research plus Strategy Tester
+  speed optimization, starting from the schema v4 baseline.
 - No live deployment or runtime ML FILTER approval is implied.
 
 ## Pattern Audit Sprint 2 Validation
@@ -1757,7 +1785,7 @@ tester-admission behavior.
 
 Plan:
 
-- `docs/plans/ml-pattern-audit-focused-playback-plan.md`
+- `docs/plans/archive/phase3-ml-2026-07-07/ml-pattern-audit-focused-playback-plan.md`
 
 Contract:
 
@@ -1963,7 +1991,7 @@ long Strategy Tester runs.
 
 Plan:
 
-- `docs/plans/ml-pattern-audit-strategy-scoped-filter-plan.md`
+- `docs/plans/archive/phase3-ml-2026-07-07/ml-pattern-audit-strategy-scoped-filter-plan.md`
 
 Contract:
 

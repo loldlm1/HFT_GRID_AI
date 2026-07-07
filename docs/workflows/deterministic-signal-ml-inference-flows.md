@@ -292,17 +292,23 @@ threshold policy. The generated exports therefore remain research-only with
 
 Current selected-pattern playback status:
 
-| Audit ID | Expected | Observed | Matched | Missing | Extra | Decision |
-| --- | ---: | ---: | ---: | ---: | ---: | --- |
-| `xauusd_2025_schema_v4_audit_S1` | 3563 | 3563 | 3563 | 0 | 0 | `DATA_CLEAR_CONTINUE_TO_PATH_LABELS` |
-| `xauusd_2025_schema_v4_audit_S2` | 4157 | 4157 | 4157 | 0 | 0 | `DATA_CLEAR_CONTINUE_TO_PATH_LABELS` |
-| `xauusd_2025_schema_v4_audit_S3` | 3121 | 3121 | 3121 | 0 | 0 | `DATA_CLEAR_CONTINUE_TO_PATH_LABELS` |
+| Audit ID | Pattern rows expected/observed/matched | Unique trades expected/observed/matched | Duplicate pattern hits | Decision |
+| --- | ---: | ---: | ---: | --- |
+| `xauusd_2025_schema_v4_audit_S1` | 3563 / 3563 / 3563 | 3078 / 3078 / 3078 | 485 | `DATA_CLEAR_CONTINUE_TO_PATH_LABELS` |
+| `xauusd_2025_schema_v4_audit_S2` | 4157 / 4157 / 4157 | 3419 / 3419 / 3419 | 738 | `DATA_CLEAR_CONTINUE_TO_PATH_LABELS` |
+| `xauusd_2025_schema_v4_audit_S3` | 3121 / 3121 / 3121 | 2351 / 2351 / 2351 | 770 | `DATA_CLEAR_CONTINUE_TO_PATH_LABELS` |
 
 Per-pattern counts also match exactly for all 12 selected patterns in each
-audit package. `entry_time` and `signal_id` mismatches in the playback parity
-reports are metadata diagnostics only; hard identity is
+audit package. MT5 report totals should be compared with unique observed trade
+entries, not pattern rows. `entry_time` and runtime `signal_id` differences in
+older playback files are metadata diagnostics only; hard identity is
 `pattern_id + source_key + source_attempt_index`.
 
-Do not start target path-label implementation from the older schema v3 wording
-in `docs/plans/ml-target-path-labels-follow-up-plan.md` without refreshing that
-plan around the schema v4 baseline first.
+Future playback observation files use schema version `2` and write expected and
+observed signal/time metadata separately. The Python comparator remains
+compatible with old schema version `1` observation files.
+
+Phase 3 is complete for schema v4 research handoff. No schema v4 XGBoost model
+has runtime ML FILTER approval. The next active plan is
+`docs/plans/ml-dynamic-tp-path-ratio-plan.md`, which replaces the older schema
+v3 path-label follow-up wording.

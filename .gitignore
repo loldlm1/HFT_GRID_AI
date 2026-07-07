@@ -21,6 +21,8 @@ config/*.ini
 !/docs/plans/archive/refoundation-baseline-2026-07-03/*.md
 !/docs/plans/archive/codex-skill-stack-alignment-2026-07-03/
 !/docs/plans/archive/codex-skill-stack-alignment-2026-07-03/*.md
+!/docs/plans/archive/phase3-ml-2026-07-07/
+!/docs/plans/archive/phase3-ml-2026-07-07/*.md
 /docs/lead_magnet/output/*
 !/docs/lead_magnet/output/.gitkeep
 /docs/lead_magnet/dist/*.zip
