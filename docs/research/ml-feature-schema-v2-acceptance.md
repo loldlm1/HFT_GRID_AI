@@ -1200,6 +1200,52 @@ Decision:
 - `READY_FOR_SCHEMA_V4_PYTHON_TOOLING`
 - No live deployment or runtime FILTER approval is implied.
 
+## ML Feature Schema V4 Sprint 3 Validation
+
+Schema V4 Sprint 3 updated the Python dataset, encoding, trainer, and
+robustness/report metadata paths to use the semantic-lane feature contract.
+
+Implemented:
+
+- `SUPPORTED_SCHEMA_VERSION = 4`.
+- Dataset builder expects the schema v4 `signal_features.tsv` header.
+- Dataset `training_matrix` contains only schema v4 active model lanes plus
+  identity, audit, outcome, and target columns.
+- Dataset reports summarize strategy, direction, structure, macro slope, Fib,
+  chain, previous candle, session, and weekday lanes.
+- Trainer default feature set is `schema_v4_full`.
+- Trainer supports explicit `schema_v4_no_strategy_label` for single-strategy
+  datasets where `strategy_label` is constant.
+- Robustness segment metrics use schema v4 lane names.
+- Runtime export feature maps inherit schema v4 source columns from the trainer
+  encoder.
+
+Validation:
+
+- `.venv/bin/python -m py_compile tools/deterministic_signal_ml/*.py`: PASS.
+- Schema v3 rejection smoke:
+  `.venv/bin/python tools/deterministic_signal_ml/build_dataset.py --runs-root /home/loldlm/.wine/drive_c/users/loldlm/AppData/Roaming/MetaQuotes/Terminal/Common/Files/DeterministicSignalML/runs --run-id xauusd_2025_schema_v3_run_S1 --dataset-id schema_v4_reject_v3_smoke --validate-only`
+- Rejection result: PASS, failed with an explicit `Unexpected header in
+  signal_features.tsv` mismatch showing V4 expected columns and V3 actual
+  columns.
+- Temporary schema v4 fixture dataset:
+  `/tmp/hft_schema_v4_sprint3_fixture/datasets/schema_v4_fixture_dataset`
+- Fixture build result: `features=600`, `outcomes=600`, `training_matrix=600`.
+- Fixture trainer command:
+  `.venv/bin/python tools/deterministic_signal_ml/train_model.py --dataset-path /tmp/hft_schema_v4_sprint3_fixture/datasets/schema_v4_fixture_dataset --model-id schema_v4_fixture_model --output-root /tmp/hft_schema_v4_sprint3_fixture/models --feature-set-id schema_v4_no_strategy_label`
+- Fixture trainer result: `encoded_features=37`, `holdout_rows=120`,
+  `folds=4`, `xgboost=trained`, `threshold_candidate=True`.
+- Encoder inspection: numeric columns were `macro_h1_slope`,
+  `macro_h4_slope`, `macro_d1_slope`; categorical columns were the schema v4
+  lanes excluding constant `strategy_label`; retired V3 feature hits: `[]`.
+
+Decision:
+
+- `READY_FOR_SCHEMA_V4_PATTERN_AUDIT_TOOLING`
+- Fresh S1/S2/S3 Strategy Tester exports are still required before trusting
+  real XAUUSD datasets or thresholds.
+- No live deployment or runtime FILTER approval is implied.
+
 ## Pattern Audit Sprint 2 Validation
 
 Pattern Audit Sprint 2 added deterministic DuckDB tooling for controlled

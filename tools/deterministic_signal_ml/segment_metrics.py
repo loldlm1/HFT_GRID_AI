@@ -18,37 +18,38 @@ def build_segment_metrics(
 ) -> list[dict[str, Any]]:
     specs: tuple[tuple[str, Callable[[dict[str, Any]], str]], ...] = (
         ("strategy_label", lambda row: str(row.get("strategy_label", ""))),
-        ("strategy_depth", lambda row: str(row.get("strategy_delay_period", ""))),
-        (
-            "strategy_depth_context",
-            lambda row: f"{row.get('strategy_delay_period', '')}|{row.get('confirmation_timeframe_minutes', '')}",
-        ),
         ("direction", lambda row: str(row.get("direction", ""))),
-        ("source_type", lambda row: str(row.get("source_type", ""))),
         (
-            "structure_type_context",
+            "structure_context",
             lambda row: (
-                f"{row.get('source_structure_type', '')}|"
-                f"{row.get('opposite_structure_type', '')}|"
-                f"{row.get('same_previous_structure_type', '')}"
+                f"{row.get('structure_0', '')}|"
+                f"{row.get('structure_1', '')}|"
+                f"{row.get('structure_2', '')}"
             ),
         ),
-        ("prev_candle_dir", lambda row: str(row.get("prev_candle_dir", ""))),
         (
-            "macro_alignment",
+            "macro_slope_context",
             lambda row: (
-                f"{row.get('entry_direction_macro_alignment', '')}|"
-                f"{row.get('macro_alignment_score', '')}"
+                f"{row.get('macro_h1_slope', '')}|"
+                f"{row.get('macro_h4_slope', '')}|"
+                f"{row.get('macro_d1_slope', '')}"
             ),
         ),
+        (
+            "fib_context",
+            lambda row: f"{row.get('fib_sl_band', '')}|{row.get('fib_entry_band', '')}",
+        ),
+        (
+            "chain_context",
+            lambda row: f"{row.get('high_chain_profile', '')}|{row.get('low_chain_profile', '')}",
+        ),
+        ("previous_candle_profile", lambda row: str(row.get("previous_candle_profile", ""))),
+        ("entry_session_bucket", lambda row: str(row.get("entry_session_bucket", ""))),
+        ("entry_weekday", lambda row: str(row.get("entry_weekday", ""))),
         ("symbol", lambda row: str(row.get("symbol", ""))),
         (
             "strategy_label_direction",
             lambda row: f"{row.get('strategy_label', '')}|{row.get('direction', '')}",
-        ),
-        (
-            "strategy_depth_direction",
-            lambda row: f"{row.get('strategy_delay_period', '')}|{row.get('direction', '')}",
         ),
         ("score_bucket", lambda row: score_bucket(float(row["xgb_win_probability"]))),
     )

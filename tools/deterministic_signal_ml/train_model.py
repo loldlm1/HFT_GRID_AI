@@ -35,32 +35,22 @@ class TrainingInputError(RuntimeError):
     """Raised when training cannot proceed because an input is invalid."""
 
 
-DEFAULT_FEATURE_SET_ID = "schema_v3_full"
-STRUCTURE_FEATURES = (
-    "source_structure_type",
-    "opposite_structure_type",
-    "same_previous_structure_type",
-)
-CANDLE_FEATURES = (
-    "prev_body_ratio",
-    "prev_upper_wick_ratio",
-    "prev_lower_wick_ratio",
-    "prev_close_location",
-    "prev_candle_dir",
-)
-DEPTH_MACRO_FEATURES = (
-    "strategy_delay_period",
-    "confirmation_timeframe_minutes",
-    "entry_direction_macro_alignment",
-    "macro_alignment_score",
-)
-CONTEXT_FEATURES = (
-    "recent_m1_range_points",
-    "recent_m1_body_ratio_avg",
-    "recent_m1_directional_balance",
-    "entry_spread_points",
-    "spread_to_recent_range_ratio",
+DEFAULT_FEATURE_SET_ID = "schema_v4_full"
+SCHEMA_V4_REQUIRED_FEATURES = (
+    "direction",
+    "structure_0",
+    "structure_1",
+    "structure_2",
+    "macro_h1_slope",
+    "macro_h4_slope",
+    "macro_d1_slope",
+    "fib_sl_band",
+    "fib_entry_band",
+    "high_chain_profile",
+    "low_chain_profile",
+    "previous_candle_profile",
     "entry_session_bucket",
+    "entry_weekday",
 )
 
 
@@ -77,12 +67,10 @@ def build_parser() -> argparse.ArgumentParser:
         "--feature-set-id",
         default=DEFAULT_FEATURE_SET_ID,
         choices=(
-            "schema_v3_structure",
-            "schema_v3_structure_candle",
-            "schema_v3_no_context",
-            "schema_v3_full",
+            "schema_v4_full",
+            "schema_v4_no_strategy_label",
         ),
-        help="Schema v3 feature subset used for ablation training.",
+        help="Schema v4 feature subset used for research training.",
     )
     return parser
 
@@ -162,7 +150,7 @@ def validate_training_rows(rows: list[dict], manifest: dict, config: TrainingCon
     if not feature_columns:
         raise TrainingInputError("Dataset manifest does not define feature_columns")
     if feature_columns != list(MODEL_FEATURE_COLUMNS):
-        raise TrainingInputError("Dataset feature_columns do not match active schema v3 contract")
+        raise TrainingInputError("Dataset feature_columns do not match active schema v4 contract")
 
     required_targets = ("target_is_win", "target_profit_r", "target_terminal_reason")
     missing_manifest_targets = [column for column in required_targets if column not in target_columns]
@@ -197,29 +185,17 @@ def validate_training_rows(rows: list[dict], manifest: dict, config: TrainingCon
 
 def resolve_feature_columns(manifest: dict, feature_set_id: str) -> list[str]:
     feature_columns = list(manifest.get("feature_columns", []))
-    if feature_set_id == "schema_v3_full":
+    if feature_set_id == "schema_v4_full":
         return feature_columns
 
-    excluded: set[str] = set()
-    if feature_set_id == "schema_v3_structure":
-        excluded.update(CANDLE_FEATURES)
-        excluded.update(DEPTH_MACRO_FEATURES)
-        excluded.update(CONTEXT_FEATURES)
-    elif feature_set_id == "schema_v3_structure_candle":
-        excluded.update(DEPTH_MACRO_FEATURES)
-        excluded.update(CONTEXT_FEATURES)
-    elif feature_set_id == "schema_v3_no_context":
-        excluded.update(CONTEXT_FEATURES)
-    else:
+    if feature_set_id != "schema_v4_no_strategy_label":
         raise TrainingInputError(f"Unsupported feature_set_id: {feature_set_id}")
 
-    selected = [column for column in feature_columns if column not in excluded]
-    missing_required = [
-        column for column in STRUCTURE_FEATURES if column not in selected
-    ]
+    selected = [column for column in feature_columns if column != "strategy_label"]
+    missing_required = [column for column in SCHEMA_V4_REQUIRED_FEATURES if column not in selected]
     if missing_required:
         raise TrainingInputError(
-            "Feature set is missing required structure columns: "
+            "Feature set is missing required schema v4 columns: "
             + ", ".join(missing_required)
         )
     return selected
@@ -625,24 +601,21 @@ def _prediction_rows(
                 "source_key": str(source.get("source_key", "")),
                 "symbol": str(source.get("symbol", "")),
                 "entry_time": str(source.get("entry_time", "")),
-                "strategy_id": int(source.get("strategy_id", 0)),
                 "strategy_label": str(source.get("strategy_label", "")),
-                "strategy_delay_period": source.get("strategy_delay_period", ""),
-                "confirmation_timeframe_minutes": source.get(
-                    "confirmation_timeframe_minutes", ""
-                ),
                 "direction": str(source.get("direction", "")),
-                "source_type": str(source.get("source_type", "")),
-                "source_structure_type": str(source.get("source_structure_type", "")),
-                "opposite_structure_type": str(source.get("opposite_structure_type", "")),
-                "same_previous_structure_type": str(
-                    source.get("same_previous_structure_type", "")
-                ),
-                "prev_candle_dir": str(source.get("prev_candle_dir", "")),
-                "entry_direction_macro_alignment": source.get(
-                    "entry_direction_macro_alignment", ""
-                ),
-                "macro_alignment_score": source.get("macro_alignment_score", ""),
+                "structure_0": str(source.get("structure_0", "")),
+                "structure_1": str(source.get("structure_1", "")),
+                "structure_2": str(source.get("structure_2", "")),
+                "macro_h1_slope": source.get("macro_h1_slope", ""),
+                "macro_h4_slope": source.get("macro_h4_slope", ""),
+                "macro_d1_slope": source.get("macro_d1_slope", ""),
+                "fib_sl_band": str(source.get("fib_sl_band", "")),
+                "fib_entry_band": str(source.get("fib_entry_band", "")),
+                "high_chain_profile": str(source.get("high_chain_profile", "")),
+                "low_chain_profile": str(source.get("low_chain_profile", "")),
+                "previous_candle_profile": str(source.get("previous_candle_profile", "")),
+                "entry_session_bucket": str(source.get("entry_session_bucket", "")),
+                "entry_weekday": str(source.get("entry_weekday", "")),
                 "target_is_win": int(source["target_is_win"]),
                 "target_profit_r": float(source["target_profit_r"]),
                 "target_terminal_reason": str(source.get("target_terminal_reason", "")),

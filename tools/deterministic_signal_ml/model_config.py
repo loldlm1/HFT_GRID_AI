@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 
-TRAINER_VERSION = "phase3.xgboost_trainer.v1"
+TRAINER_VERSION = "phase3.xgboost_trainer.schema_v4.v1"
 DEFAULT_DATASET_ROOT = "artifacts/datasets"
 DEFAULT_MODEL_ROOT = "artifacts/models"
 DEFAULT_HOLDOUT_FRACTION = 0.20

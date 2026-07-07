@@ -17,7 +17,7 @@ from schema_contract import (
 )
 
 
-BUILDER_VERSION = "phase3.schema_v3_dataset_builder.v1"
+BUILDER_VERSION = "phase3.schema_v4_dataset_builder.v1"
 
 
 def _fetch_dicts(connection: duckdb.DuckDBPyConnection, sql: str) -> list[dict[str, Any]]:
@@ -84,35 +84,17 @@ def build_quality_payload(
             connection,
             "SELECT strategy_label, COUNT(*) AS rows, AVG(target_profit_r) AS avg_profit_r FROM training_matrix GROUP BY 1 ORDER BY 1",
         ),
-        "strategy_depth_distribution": _fetch_dicts(
-            connection,
-            """
-SELECT
-  strategy_label,
-  strategy_delay_period,
-  confirmation_timeframe_minutes,
-  COUNT(*) AS rows,
-  AVG(target_profit_r) AS avg_profit_r
-FROM training_matrix
-GROUP BY 1, 2, 3
-ORDER BY 1, 2, 3
-""",
-        ),
         "direction_distribution": _fetch_dicts(
             connection,
             "SELECT direction, COUNT(*) AS rows, AVG(target_profit_r) AS avg_profit_r FROM training_matrix GROUP BY 1 ORDER BY 1",
         ),
-        "source_type_distribution": _fetch_dicts(
-            connection,
-            "SELECT source_type, COUNT(*) AS rows, AVG(target_profit_r) AS avg_profit_r FROM training_matrix GROUP BY 1 ORDER BY 1",
-        ),
-        "source_structure_distribution": _fetch_dicts(
+        "structure_distribution": _fetch_dicts(
             connection,
             """
 SELECT
-  source_structure_type,
-  opposite_structure_type,
-  same_previous_structure_type,
+  structure_0,
+  structure_1,
+  structure_2,
   COUNT(*) AS rows,
   AVG(target_profit_r) AS avg_profit_r
 FROM training_matrix
@@ -120,16 +102,26 @@ GROUP BY 1, 2, 3
 ORDER BY 4 DESC, 1, 2, 3
 """,
         ),
-        "previous_candle_distribution": _fetch_dicts(
-            connection,
-            "SELECT prev_candle_dir, COUNT(*) AS rows, AVG(target_profit_r) AS avg_profit_r FROM training_matrix GROUP BY 1 ORDER BY 1",
-        ),
-        "macro_alignment_distribution": _fetch_dicts(
+        "macro_slope_distribution": _fetch_dicts(
             connection,
             """
 SELECT
-  entry_direction_macro_alignment,
-  macro_alignment_score,
+  macro_h1_slope,
+  macro_h4_slope,
+  macro_d1_slope,
+  COUNT(*) AS rows,
+  AVG(target_profit_r) AS avg_profit_r
+FROM training_matrix
+GROUP BY 1, 2, 3
+ORDER BY 4 DESC, 1, 2, 3
+""",
+        ),
+        "fib_distribution": _fetch_dicts(
+            connection,
+            """
+SELECT
+  fib_sl_band,
+  fib_entry_band,
   COUNT(*) AS rows,
   AVG(target_profit_r) AS avg_profit_r
 FROM training_matrix
@@ -137,11 +129,40 @@ GROUP BY 1, 2
 ORDER BY 1, 2
 """,
         ),
+        "chain_distribution": _fetch_dicts(
+            connection,
+            """
+SELECT
+  high_chain_profile,
+  low_chain_profile,
+  COUNT(*) AS rows,
+  AVG(target_profit_r) AS avg_profit_r
+FROM training_matrix
+GROUP BY 1, 2
+ORDER BY 3 DESC, 1, 2
+""",
+        ),
+        "previous_candle_distribution": _fetch_dicts(
+            connection,
+            "SELECT previous_candle_profile, COUNT(*) AS rows, AVG(target_profit_r) AS avg_profit_r FROM training_matrix GROUP BY 1 ORDER BY 1",
+        ),
         "entry_session_distribution": _fetch_dicts(
             connection,
             """
 SELECT
   entry_session_bucket,
+  COUNT(*) AS rows,
+  AVG(target_profit_r) AS avg_profit_r
+FROM training_matrix
+GROUP BY 1
+ORDER BY 1
+""",
+        ),
+        "entry_weekday_distribution": _fetch_dicts(
+            connection,
+            """
+SELECT
+  entry_weekday,
   COUNT(*) AS rows,
   AVG(target_profit_r) AS avg_profit_r
 FROM training_matrix
@@ -244,41 +265,38 @@ def write_dataset_report(
     lines.extend(_markdown_table(quality_payload["win_distribution"], ("target_is_win", "rows")))
     lines.extend(["", "## Strategy Summary", ""])
     lines.extend(_markdown_table(quality_payload["strategy_distribution"], ("strategy_label", "rows", "avg_profit_r")))
-    lines.extend(["", "## Strategy Depth Summary", ""])
-    lines.extend(
-        _markdown_table(
-            quality_payload["strategy_depth_distribution"],
-            ("strategy_label", "strategy_delay_period", "confirmation_timeframe_minutes", "rows", "avg_profit_r"),
-        )
-    )
     lines.extend(["", "## Direction Summary", ""])
     lines.extend(_markdown_table(quality_payload["direction_distribution"], ("direction", "rows", "avg_profit_r")))
-    lines.extend(["", "## Source Type Summary", ""])
-    lines.extend(_markdown_table(quality_payload["source_type_distribution"], ("source_type", "rows", "avg_profit_r")))
-    lines.extend(["", "## Structure Type Summary", ""])
+    lines.extend(["", "## Structure Summary", ""])
     lines.extend(
         _markdown_table(
-            quality_payload["source_structure_distribution"],
+            quality_payload["structure_distribution"],
             (
-                "source_structure_type",
-                "opposite_structure_type",
-                "same_previous_structure_type",
+                "structure_0",
+                "structure_1",
+                "structure_2",
                 "rows",
                 "avg_profit_r",
             ),
         )
     )
-    lines.extend(["", "## Previous Candle Summary", ""])
-    lines.extend(_markdown_table(quality_payload["previous_candle_distribution"], ("prev_candle_dir", "rows", "avg_profit_r")))
-    lines.extend(["", "## Macro Alignment Summary", ""])
+    lines.extend(["", "## Macro Slope Summary", ""])
     lines.extend(
         _markdown_table(
-            quality_payload["macro_alignment_distribution"],
-            ("entry_direction_macro_alignment", "macro_alignment_score", "rows", "avg_profit_r"),
+            quality_payload["macro_slope_distribution"],
+            ("macro_h1_slope", "macro_h4_slope", "macro_d1_slope", "rows", "avg_profit_r"),
         )
     )
+    lines.extend(["", "## Fibonacci Summary", ""])
+    lines.extend(_markdown_table(quality_payload["fib_distribution"], ("fib_sl_band", "fib_entry_band", "rows", "avg_profit_r")))
+    lines.extend(["", "## Chain Summary", ""])
+    lines.extend(_markdown_table(quality_payload["chain_distribution"], ("high_chain_profile", "low_chain_profile", "rows", "avg_profit_r")))
+    lines.extend(["", "## Previous Candle Summary", ""])
+    lines.extend(_markdown_table(quality_payload["previous_candle_distribution"], ("previous_candle_profile", "rows", "avg_profit_r")))
     lines.extend(["", "## Entry Session Summary", ""])
     lines.extend(_markdown_table(quality_payload["entry_session_distribution"], ("entry_session_bucket", "rows", "avg_profit_r")))
+    lines.extend(["", "## Entry Weekday Summary", ""])
+    lines.extend(_markdown_table(quality_payload["entry_weekday_distribution"], ("entry_weekday", "rows", "avg_profit_r")))
     lines.extend(["", "## Feature Null Counts", ""])
     lines.extend(_markdown_table(quality_payload["feature_null_counts"], ("column_name", "null_rows")))
     lines.extend(["", "## Feature Ranges", ""])
