@@ -1154,6 +1154,52 @@ Decision:
 - Fresh S1/S2/S3 Strategy Tester exports are required after the code compiles.
 - No live deployment or runtime FILTER approval is implied.
 
+## ML Feature Schema V4 Sprint 2 Validation
+
+Schema V4 Sprint 2 updated the MQL5 feature snapshot, statistics exporter, and
+ML shadow scorer to use the semantic-lane contract.
+
+Implemented:
+
+- `DETERMINISTIC_SIGNAL_STATS_SCHEMA_VERSION = 4`.
+- `ML_SHADOW_PHASE1_SCHEMA_VERSION = 4`.
+- Active exported feature lanes:
+  `strategy_label`, `direction`, `structure_0`, `structure_1`,
+  `structure_2`, `macro_h1_slope`, `macro_h4_slope`, `macro_d1_slope`,
+  `fib_sl_band`, `fib_entry_band`, `high_chain_profile`,
+  `low_chain_profile`, `previous_candle_profile`, `entry_session_bucket`,
+  and `entry_weekday`.
+- `structure_0/1/2` are emitted from the same source/opposite/previous
+  structure resolution used by the prior schema.
+- Chain scores were replaced by longest-match high and low chain profiles.
+- Candle ratios were collapsed into one `previous_candle_profile`.
+- Raw Fibonacci percentages remain internal calculation inputs only; exported
+  model/audit lanes contain categorical Fib bands.
+- Shadow inference feature lookup accepts only schema v4 active lanes and fails
+  closed for retired schema v3 feature-map source columns.
+
+Retired from active MQL5 model/audit output:
+
+- Spread/context lanes.
+- Raw Fibonacci columns.
+- Chain score stacks.
+- Macro alignment derivative columns.
+- Separate previous-candle ratio/direction columns.
+
+Validation:
+
+- `git diff --check`: PASS.
+- MetaEditor real compile:
+  `python3 tools/mt5/compile_mt5.py --wine --mt5-root /home/loldlm/mql5_projects/metatrader_5_market_data_framework --entrypoint /home/loldlm/mql5_projects/metatrader_5_market_data_framework/MQL5/Experts/HFT_Grid_AI/HFT_Grid_AI.mq5 --mode compile --timeout 240 --log /home/loldlm/mql5_projects/metatrader_5_market_data_framework/MQL5/Experts/HFT_Grid_AI/logs/compile/schema-v4-sprint2-compile.log`
+- Compile result: `0 errors, 0 warnings`.
+- Strategy Tester export smoke remains human-in-the-loop and should be covered
+  by the fresh S1/S2/S3 schema v4 runs before trusting datasets or audits.
+
+Decision:
+
+- `READY_FOR_SCHEMA_V4_PYTHON_TOOLING`
+- No live deployment or runtime FILTER approval is implied.
+
 ## Pattern Audit Sprint 2 Validation
 
 Pattern Audit Sprint 2 added deterministic DuckDB tooling for controlled

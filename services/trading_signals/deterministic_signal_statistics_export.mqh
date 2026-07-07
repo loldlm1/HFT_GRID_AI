@@ -4,7 +4,7 @@
 #ifndef _TS_DETERMINISTIC_STATS_EXPORT_MQH_
 #define _TS_DETERMINISTIC_STATS_EXPORT_MQH_
 
-const int    DETERMINISTIC_SIGNAL_STATS_SCHEMA_VERSION = 3;
+const int    DETERMINISTIC_SIGNAL_STATS_SCHEMA_VERSION = 4;
 const string DETERMINISTIC_SIGNAL_STATS_STORAGE_ROOT   = "DeterministicSignalML";
 const string DETERMINISTIC_SIGNAL_STATS_RUNS_FOLDER    = "runs";
 const string DETERMINISTIC_SIGNAL_STATS_MANIFEST_FILE  = "run_manifest.tsv";
@@ -14,12 +14,11 @@ const string DETERMINISTIC_SIGNAL_STATS_SUMMARY_FILE   = "run_summary.tsv";
 const string DETERMINISTIC_SIGNAL_STATS_NULL           = "\\N";
 const ushort DETERMINISTIC_SIGNAL_STATS_DELIMITER      = '\t';
 const int    DETERMINISTIC_SIGNAL_STATS_FLUSH_ROWS     = 32;
-const int    DETERMINISTIC_SIGNAL_STATS_CONTEXT_BARS   = 10;
 
 const string DETERMINISTIC_SIGNAL_STATS_MANIFEST_HEADER =
   "schema_version\tkey\tvalue";
 const string DETERMINISTIC_SIGNAL_STATS_FEATURES_HEADER =
-  "schema_version\trun_id\tconfig_id\tsignal_id\tsource_key\tsource_attempt_index\tsymbol\tstrategy_id\tstrategy_label\tdirection\tentry_time\tsource_time\tsource_type\tsource_structure_type\topposite_structure_type\tsame_previous_structure_type\tmacro_h1_live_dir\tmacro_h4_live_dir\tmacro_d1_live_dir\tstrategy_delay_period\tconfirmation_timeframe_minutes\tentry_direction_macro_alignment\tmacro_alignment_score\tprev_body_ratio\tprev_upper_wick_ratio\tprev_lower_wick_ratio\tprev_close_location\tprev_candle_dir\tsl_fib_raw\tsl_fib_band\tentry_fib_raw\tentry_fib_band\tlow_chain_score_3\tlow_chain_score_5\tlow_chain_score_10\thigh_chain_score_3\thigh_chain_score_5\thigh_chain_score_10\trecent_m1_range_points\trecent_m1_body_ratio_avg\trecent_m1_directional_balance\tentry_spread_points\tspread_to_recent_range_ratio\tentry_session_bucket";
+  "schema_version\trun_id\tconfig_id\tsignal_id\tsource_key\tsource_attempt_index\tsymbol\tstrategy_label\tdirection\tentry_time\tsource_time\tstructure_0\tstructure_1\tstructure_2\tmacro_h1_slope\tmacro_h4_slope\tmacro_d1_slope\tfib_sl_band\tfib_entry_band\thigh_chain_profile\tlow_chain_profile\tprevious_candle_profile\tentry_session_bucket\tentry_weekday";
 const string DETERMINISTIC_SIGNAL_STATS_OUTCOMES_HEADER =
   "schema_version\trun_id\tconfig_id\tsignal_id\tsource_key\tsource_attempt_index\tterminal_time\tterminal_reason\tprofit_r\tduration_seconds\tduration_m1_bars\tentry_price\tclose_price\tnet_profit";
 const string DETERMINISTIC_SIGNAL_STATS_SUMMARY_HEADER =
@@ -705,13 +704,12 @@ bool DeterministicSignalStatsFibonacciBand(const double percent,
   return false;
 }
 
-bool DeterministicSignalStatsChainScore(const MqlRates &rates[],
-                                        const int copied,
-                                        const int window,
-                                        const bool use_high,
-                                        int &score_out)
+bool DeterministicSignalStatsStrictChainMatch(const MqlRates &rates[],
+                                              const int copied,
+                                              const int window,
+                                              const bool use_high,
+                                              const bool rising)
 {
-  score_out = 0;
   if(window <= 0 || copied < window + 1)
     return false;
 
@@ -720,43 +718,50 @@ bool DeterministicSignalStatsChainScore(const MqlRates &rates[],
     double current_value = use_high ? rates[i].high : rates[i].low;
     double previous_value = use_high ? rates[i + 1].high : rates[i + 1].low;
     if(current_value <= 0.0 || previous_value <= 0.0)
-      continue;
-    if(current_value > previous_value)
-      score_out++;
-    else if(current_value < previous_value)
-      score_out--;
+      return false;
+
+    if(rising)
+    {
+      if(current_value <= previous_value)
+        return false;
+    }
+    else
+    {
+      if(current_value >= previous_value)
+        return false;
+    }
   }
 
   return true;
 }
 
-int DeterministicSignalStatsDirectionSign(const SignalTypes direction)
+bool DeterministicSignalStatsChainProfile(const MqlRates &rates[],
+                                          const int copied,
+                                          const bool use_high,
+                                          string &profile_out)
 {
-  if(direction == BULLISH)
-    return 1;
-  if(direction == BEARISH)
-    return -1;
-  return 0;
-}
+  string prefix = use_high ? "HIGH" : "LOW";
+  profile_out = prefix + "_MIXED";
+  if(copied < 4)
+    return false;
 
-int DeterministicSignalStatsDirectionAlignment(const SignalTypes direction,
-                                               const int market_direction)
-{
-  int direction_sign = DeterministicSignalStatsDirectionSign(direction);
-  if(direction_sign == 0 || market_direction == 0)
-    return 0;
+  int windows[3] = {10, 5, 3};
+  for(int i = 0; i < 3; i++)
+  {
+    int window = windows[i];
+    if(DeterministicSignalStatsStrictChainMatch(rates, copied, window, use_high, true))
+    {
+      profile_out = prefix + "_UP_" + IntegerToString(window);
+      return true;
+    }
+    if(DeterministicSignalStatsStrictChainMatch(rates, copied, window, use_high, false))
+    {
+      profile_out = prefix + "_DOWN_" + IntegerToString(window);
+      return true;
+    }
+  }
 
-  return (direction_sign == market_direction) ? 1 : -1;
-}
-
-int DeterministicSignalStatsMacroAlignmentScore(const SignalTypes direction,
-                                                const int h1_direction,
-                                                const int h4_direction,
-                                                const int d1_direction)
-{
-  return DeterministicSignalStatsDirectionAlignment(direction, h1_direction) +
-         DeterministicSignalStatsDirectionAlignment(direction, h4_direction) +
-         DeterministicSignalStatsDirectionAlignment(direction, d1_direction);
+  return true;
 }
 
 bool DeterministicSignalStatsPreviousCandleFeatures(const MqlRates &rate,
@@ -814,81 +819,56 @@ bool DeterministicSignalStatsPreviousCandleFeatures(const MqlRates &rate,
   return true;
 }
 
-bool DeterministicSignalStatsRecentContextFeatures(const MqlRates &rates[],
-                                                   const int copied,
-                                                   double &range_points_out,
-                                                   double &body_ratio_avg_out,
-                                                   double &directional_balance_out)
+bool DeterministicSignalStatsPreviousCandleProfile(const MqlRates &rate,
+                                                   string &profile_out)
 {
-  range_points_out = 0.0;
-  body_ratio_avg_out = 0.0;
-  directional_balance_out = 0.0;
+  profile_out = DETERMINISTIC_SIGNAL_STATS_NULL;
 
-  if(copied < DETERMINISTIC_SIGNAL_STATS_CONTEXT_BARS || _Point <= 0.0)
+  double body_ratio = 0.0;
+  double upper_wick_ratio = 0.0;
+  double lower_wick_ratio = 0.0;
+  double close_location = 0.0;
+  string candle_dir = "";
+  if(!DeterministicSignalStatsPreviousCandleFeatures(rate,
+                                                     body_ratio,
+                                                     upper_wick_ratio,
+                                                     lower_wick_ratio,
+                                                     close_location,
+                                                     candle_dir))
     return false;
 
-  double range_points_sum = 0.0;
-  double body_ratio_sum = 0.0;
-  double direction_sum = 0.0;
-  int valid_count = 0;
-
-  for(int i = 0; i < DETERMINISTIC_SIGNAL_STATS_CONTEXT_BARS; i++)
+  if(body_ratio < 0.10)
   {
-    if(rates[i].high <= 0.0 ||
-       rates[i].low <= 0.0 ||
-       rates[i].open <= 0.0 ||
-       rates[i].close <= 0.0 ||
-       rates[i].high < rates[i].low)
-      return false;
-
-    double range = rates[i].high - rates[i].low;
-    if(range <= 0.0 || !MathIsValidNumber(range))
-      return false;
-
-    range_points_sum += range / _Point;
-    body_ratio_sum += MathAbs(rates[i].close - rates[i].open) / range;
-
-    double eps = 0.0000000001;
-    if(rates[i].close > rates[i].open + eps)
-      direction_sum += 1.0;
-    else if(rates[i].close < rates[i].open - eps)
-      direction_sum -= 1.0;
-
-    valid_count++;
+    profile_out = "DOJI";
+    return true;
   }
 
-  if(valid_count != DETERMINISTIC_SIGNAL_STATS_CONTEXT_BARS)
-    return false;
-
-  range_points_out = range_points_sum / (double)valid_count;
-  body_ratio_avg_out = body_ratio_sum / (double)valid_count;
-  directional_balance_out = direction_sum / (double)valid_count;
-
-  return MathIsValidNumber(range_points_out) &&
-         MathIsValidNumber(body_ratio_avg_out) &&
-         MathIsValidNumber(directional_balance_out);
-}
-
-bool DeterministicSignalStatsEntrySpreadFeatures(const double recent_range_points,
-                                                 const bool recent_range_valid,
-                                                 int &entry_spread_points_out,
-                                                 double &spread_ratio_out,
-                                                 bool &spread_ratio_valid_out)
-{
-  entry_spread_points_out = 0;
-  spread_ratio_out = 0.0;
-  spread_ratio_valid_out = false;
-
-  long spread_points = 0;
-  if(!SymbolInfoInteger(_Symbol, SYMBOL_SPREAD, spread_points) || spread_points < 0)
-    return false;
-
-  entry_spread_points_out = (int)spread_points;
-  if(recent_range_valid && recent_range_points > 0.0)
+  if(candle_dir != "BULL" && candle_dir != "BEAR")
   {
-    spread_ratio_out = (double)entry_spread_points_out / recent_range_points;
-    spread_ratio_valid_out = MathIsValidNumber(spread_ratio_out);
+    profile_out = "DOJI";
+    return true;
   }
+
+  if(upper_wick_ratio >= 0.50 &&
+     upper_wick_ratio >= lower_wick_ratio * 1.50)
+  {
+    profile_out = candle_dir + "_UPPER_WICK";
+    return true;
+  }
+
+  if(lower_wick_ratio >= 0.50 &&
+     lower_wick_ratio >= upper_wick_ratio * 1.50)
+  {
+    profile_out = candle_dir + "_LOWER_WICK";
+    return true;
+  }
+
+  if(body_ratio >= 0.60)
+    profile_out = candle_dir + "_BODY_HIGH";
+  else if(body_ratio >= 0.25)
+    profile_out = candle_dir + "_BODY_MID";
+  else
+    profile_out = candle_dir + "_BODY_LOW";
 
   return true;
 }
@@ -909,6 +889,27 @@ string DeterministicSignalStatsSessionBucket(const datetime entry_time)
   return "OFFHOURS";
 }
 
+string DeterministicSignalStatsWeekdayToken(const datetime entry_time)
+{
+  if(entry_time <= 0)
+    return "";
+
+  MqlDateTime parts;
+  TimeToStruct(entry_time, parts);
+  switch(parts.day_of_week)
+  {
+    case 1: return "MON";
+    case 2: return "TUE";
+    case 3: return "WED";
+    case 4: return "THU";
+    case 5: return "FRI";
+    case 6: return "SAT";
+    case 0: return "SUN";
+  }
+
+  return "";
+}
+
 struct DeterministicSignalFeatureSnapshot
 {
   bool     valid;
@@ -922,65 +923,29 @@ struct DeterministicSignalFeatureSnapshot
   datetime entry_time;
   datetime source_time;
   string   source_type;
-  string   source_structure_type;
-  bool     source_structure_type_valid;
-  string   opposite_structure_type;
-  bool     opposite_structure_type_valid;
-  string   same_previous_structure_type;
-  bool     same_previous_structure_type_valid;
-  int      macro_h1_live_dir;
-  int      macro_h4_live_dir;
-  int      macro_d1_live_dir;
-  int      strategy_delay_period;
-  bool     strategy_delay_period_valid;
-  int      confirmation_timeframe_minutes;
-  bool     confirmation_timeframe_minutes_valid;
-  int      entry_direction_macro_alignment;
-  bool     entry_direction_macro_alignment_valid;
-  int      macro_alignment_score;
-  bool     macro_alignment_score_valid;
-  double   prev_body_ratio;
-  bool     prev_body_ratio_valid;
-  double   prev_upper_wick_ratio;
-  bool     prev_upper_wick_ratio_valid;
-  double   prev_lower_wick_ratio;
-  bool     prev_lower_wick_ratio_valid;
-  double   prev_close_location;
-  bool     prev_close_location_valid;
-  string   prev_candle_dir;
-  bool     prev_candle_dir_valid;
-  double   sl_fib_raw;
-  bool     sl_fib_valid;
-  string   sl_fib_band;
-  bool     sl_fib_band_valid;
-  double   entry_fib_raw;
-  bool     entry_fib_valid;
-  string   entry_fib_band;
-  bool     entry_fib_band_valid;
-  int      low_chain_score_3;
-  bool     low_chain_score_3_valid;
-  int      low_chain_score_5;
-  bool     low_chain_score_5_valid;
-  int      low_chain_score_10;
-  bool     low_chain_score_10_valid;
-  int      high_chain_score_3;
-  bool     high_chain_score_3_valid;
-  int      high_chain_score_5;
-  bool     high_chain_score_5_valid;
-  int      high_chain_score_10;
-  bool     high_chain_score_10_valid;
-  double   recent_m1_range_points;
-  bool     recent_m1_range_points_valid;
-  double   recent_m1_body_ratio_avg;
-  bool     recent_m1_body_ratio_avg_valid;
-  double   recent_m1_directional_balance;
-  bool     recent_m1_directional_balance_valid;
-  int      entry_spread_points;
-  bool     entry_spread_points_valid;
-  double   spread_to_recent_range_ratio;
-  bool     spread_to_recent_range_ratio_valid;
+  string   structure_0;
+  bool     structure_0_valid;
+  string   structure_1;
+  bool     structure_1_valid;
+  string   structure_2;
+  bool     structure_2_valid;
+  int      macro_h1_slope;
+  int      macro_h4_slope;
+  int      macro_d1_slope;
+  string   fib_sl_band;
+  bool     fib_sl_band_valid;
+  string   fib_entry_band;
+  bool     fib_entry_band_valid;
+  string   high_chain_profile;
+  bool     high_chain_profile_valid;
+  string   low_chain_profile;
+  bool     low_chain_profile_valid;
+  string   previous_candle_profile;
+  bool     previous_candle_profile_valid;
   string   entry_session_bucket;
   bool     entry_session_bucket_valid;
+  string   entry_weekday;
+  bool     entry_weekday_valid;
 
   DeterministicSignalFeatureSnapshot()
   {
@@ -995,65 +960,29 @@ struct DeterministicSignalFeatureSnapshot
     entry_time = 0;
     source_time = 0;
     source_type = "";
-    source_structure_type = DETERMINISTIC_SIGNAL_STATS_NULL;
-    source_structure_type_valid = false;
-    opposite_structure_type = DETERMINISTIC_SIGNAL_STATS_NULL;
-    opposite_structure_type_valid = false;
-    same_previous_structure_type = DETERMINISTIC_SIGNAL_STATS_NULL;
-    same_previous_structure_type_valid = false;
-    macro_h1_live_dir = 0;
-    macro_h4_live_dir = 0;
-    macro_d1_live_dir = 0;
-    strategy_delay_period = 0;
-    strategy_delay_period_valid = false;
-    confirmation_timeframe_minutes = 0;
-    confirmation_timeframe_minutes_valid = false;
-    entry_direction_macro_alignment = 0;
-    entry_direction_macro_alignment_valid = false;
-    macro_alignment_score = 0;
-    macro_alignment_score_valid = false;
-    prev_body_ratio = 0.0;
-    prev_body_ratio_valid = false;
-    prev_upper_wick_ratio = 0.0;
-    prev_upper_wick_ratio_valid = false;
-    prev_lower_wick_ratio = 0.0;
-    prev_lower_wick_ratio_valid = false;
-    prev_close_location = 0.0;
-    prev_close_location_valid = false;
-    prev_candle_dir = DETERMINISTIC_SIGNAL_STATS_NULL;
-    prev_candle_dir_valid = false;
-    sl_fib_raw = 0.0;
-    sl_fib_valid = false;
-    sl_fib_band = DETERMINISTIC_SIGNAL_STATS_NULL;
-    sl_fib_band_valid = false;
-    entry_fib_raw = 0.0;
-    entry_fib_valid = false;
-    entry_fib_band = DETERMINISTIC_SIGNAL_STATS_NULL;
-    entry_fib_band_valid = false;
-    low_chain_score_3 = 0;
-    low_chain_score_3_valid = false;
-    low_chain_score_5 = 0;
-    low_chain_score_5_valid = false;
-    low_chain_score_10 = 0;
-    low_chain_score_10_valid = false;
-    high_chain_score_3 = 0;
-    high_chain_score_3_valid = false;
-    high_chain_score_5 = 0;
-    high_chain_score_5_valid = false;
-    high_chain_score_10 = 0;
-    high_chain_score_10_valid = false;
-    recent_m1_range_points = 0.0;
-    recent_m1_range_points_valid = false;
-    recent_m1_body_ratio_avg = 0.0;
-    recent_m1_body_ratio_avg_valid = false;
-    recent_m1_directional_balance = 0.0;
-    recent_m1_directional_balance_valid = false;
-    entry_spread_points = 0;
-    entry_spread_points_valid = false;
-    spread_to_recent_range_ratio = 0.0;
-    spread_to_recent_range_ratio_valid = false;
+    structure_0 = DETERMINISTIC_SIGNAL_STATS_NULL;
+    structure_0_valid = false;
+    structure_1 = DETERMINISTIC_SIGNAL_STATS_NULL;
+    structure_1_valid = false;
+    structure_2 = DETERMINISTIC_SIGNAL_STATS_NULL;
+    structure_2_valid = false;
+    macro_h1_slope = 0;
+    macro_h4_slope = 0;
+    macro_d1_slope = 0;
+    fib_sl_band = DETERMINISTIC_SIGNAL_STATS_NULL;
+    fib_sl_band_valid = false;
+    fib_entry_band = DETERMINISTIC_SIGNAL_STATS_NULL;
+    fib_entry_band_valid = false;
+    high_chain_profile = DETERMINISTIC_SIGNAL_STATS_NULL;
+    high_chain_profile_valid = false;
+    low_chain_profile = DETERMINISTIC_SIGNAL_STATS_NULL;
+    low_chain_profile_valid = false;
+    previous_candle_profile = DETERMINISTIC_SIGNAL_STATS_NULL;
+    previous_candle_profile_valid = false;
     entry_session_bucket = DETERMINISTIC_SIGNAL_STATS_NULL;
     entry_session_bucket_valid = false;
+    entry_weekday = DETERMINISTIC_SIGNAL_STATS_NULL;
+    entry_weekday_valid = false;
   }
 };
 
@@ -1089,53 +1018,24 @@ bool DeterministicSignalBuildFeatureSnapshot(SignalParams &signal_params,
     snapshot.entry_time = TimeCurrent();
   snapshot.source_time = signal_params.source_extremum_time;
   snapshot.source_type = DeterministicSignalStatsSourceTypeToken(signal_params);
-  snapshot.source_structure_type_valid =
+  snapshot.structure_0_valid =
     DeterministicSignalStatsResolveStructureTypes(signal_params,
-                                                 snapshot.source_structure_type,
-                                                 snapshot.opposite_structure_type,
-                                                 snapshot.same_previous_structure_type);
-  snapshot.opposite_structure_type_valid = snapshot.source_structure_type_valid;
-  snapshot.same_previous_structure_type_valid = snapshot.source_structure_type_valid;
+                                                 snapshot.structure_0,
+                                                 snapshot.structure_1,
+                                                 snapshot.structure_2);
+  snapshot.structure_1_valid = snapshot.structure_0_valid;
+  snapshot.structure_2_valid = snapshot.structure_0_valid;
 
-  snapshot.macro_h1_live_dir = DeterministicSignalStatsMacroDir(PERIOD_H1);
-  snapshot.macro_h4_live_dir = DeterministicSignalStatsMacroDir(PERIOD_H4);
-  snapshot.macro_d1_live_dir = DeterministicSignalStatsMacroDir(PERIOD_D1);
-  snapshot.strategy_delay_period = signal_params.strategy_base_delay;
-  if(snapshot.strategy_delay_period <= 0)
-    snapshot.strategy_delay_period = DeterministicStrategyBaseDelay(signal_params.strategy_id);
-  snapshot.strategy_delay_period_valid = (snapshot.strategy_delay_period > 0);
-  snapshot.confirmation_timeframe_minutes = DeterministicStrategyTimeframeMinutes(signal_params.strategy_macro_timeframe);
-  snapshot.confirmation_timeframe_minutes_valid = (snapshot.confirmation_timeframe_minutes > 0);
+  snapshot.macro_h1_slope = DeterministicSignalStatsMacroDir(PERIOD_H1);
+  snapshot.macro_h4_slope = DeterministicSignalStatsMacroDir(PERIOD_H4);
+  snapshot.macro_d1_slope = DeterministicSignalStatsMacroDir(PERIOD_D1);
 
-  int strategy_macro_dir = DeterministicSignalStatsMacroDir(signal_params.strategy_macro_timeframe);
-  snapshot.entry_direction_macro_alignment =
-    DeterministicSignalStatsDirectionAlignment(signal_params.signal_type,
-                                               strategy_macro_dir);
-  snapshot.entry_direction_macro_alignment_valid =
-    (DeterministicSignalStatsDirectionSign(signal_params.signal_type) != 0 &&
-     snapshot.confirmation_timeframe_minutes_valid);
-  snapshot.macro_alignment_score =
-    DeterministicSignalStatsMacroAlignmentScore(signal_params.signal_type,
-                                                snapshot.macro_h1_live_dir,
-                                                snapshot.macro_h4_live_dir,
-                                                snapshot.macro_d1_live_dir);
-  snapshot.macro_alignment_score_valid =
-    (DeterministicSignalStatsDirectionSign(signal_params.signal_type) != 0);
-
-  if(!snapshot.source_structure_type_valid)
+  if(!snapshot.structure_0_valid)
   {
-    DeterministicSignalFeatureSnapshotAddInvalid(snapshot, "source_structure_type");
-    DeterministicSignalFeatureSnapshotAddInvalid(snapshot, "opposite_structure_type");
-    DeterministicSignalFeatureSnapshotAddInvalid(snapshot, "same_previous_structure_type");
+    DeterministicSignalFeatureSnapshotAddInvalid(snapshot, "structure_0");
+    DeterministicSignalFeatureSnapshotAddInvalid(snapshot, "structure_1");
+    DeterministicSignalFeatureSnapshotAddInvalid(snapshot, "structure_2");
   }
-  if(!snapshot.strategy_delay_period_valid)
-    DeterministicSignalFeatureSnapshotAddInvalid(snapshot, "strategy_delay_period");
-  if(!snapshot.confirmation_timeframe_minutes_valid)
-    DeterministicSignalFeatureSnapshotAddInvalid(snapshot, "confirmation_timeframe_minutes");
-  if(!snapshot.entry_direction_macro_alignment_valid)
-    DeterministicSignalFeatureSnapshotAddInvalid(snapshot, "entry_direction_macro_alignment");
-  if(!snapshot.macro_alignment_score_valid)
-    DeterministicSignalFeatureSnapshotAddInvalid(snapshot, "macro_alignment_score");
 
   double peak_price = 0.0;
   double bottom_price = 0.0;
@@ -1145,114 +1045,66 @@ bool DeterministicSignalBuildFeatureSnapshot(SignalParams &signal_params,
                                                                        bottom_price,
                                                                        source_is_peak);
 
-  snapshot.sl_fib_valid = fib_range_valid &&
-                          DeterministicSignalStatsFibonacciPercent(peak_price,
-                                                                   bottom_price,
-                                                                   source_is_peak,
-                                                                   signal_params.raw_stop_anchor_price,
-                                                                   snapshot.sl_fib_raw);
+  double sl_fib_raw = 0.0;
+  bool sl_fib_valid = fib_range_valid &&
+                      DeterministicSignalStatsFibonacciPercent(peak_price,
+                                                               bottom_price,
+                                                               source_is_peak,
+                                                               signal_params.raw_stop_anchor_price,
+                                                               sl_fib_raw);
 
   double entry_reference = signal_params.raw_entry_trigger_price;
   if(entry_reference <= 0.0)
     entry_reference = leg_state.entry_reference_price;
-  snapshot.entry_fib_valid = fib_range_valid &&
-                             DeterministicSignalStatsFibonacciPercent(peak_price,
-                                                                      bottom_price,
-                                                                      source_is_peak,
-                                                                      entry_reference,
-                                                                      snapshot.entry_fib_raw);
+  double entry_fib_raw = 0.0;
+  bool entry_fib_valid = fib_range_valid &&
+                         DeterministicSignalStatsFibonacciPercent(peak_price,
+                                                                  bottom_price,
+                                                                  source_is_peak,
+                                                                  entry_reference,
+                                                                  entry_fib_raw);
 
-  snapshot.sl_fib_band_valid = snapshot.sl_fib_valid &&
-                               DeterministicSignalStatsFibonacciBand(snapshot.sl_fib_raw,
-                                                                     snapshot.sl_fib_band);
-  snapshot.entry_fib_band_valid = snapshot.entry_fib_valid &&
-                                  DeterministicSignalStatsFibonacciBand(snapshot.entry_fib_raw,
-                                                                        snapshot.entry_fib_band);
-  if(!snapshot.sl_fib_valid)
-    DeterministicSignalFeatureSnapshotAddInvalid(snapshot, "sl_fib_raw");
-  if(!snapshot.entry_fib_valid)
-    DeterministicSignalFeatureSnapshotAddInvalid(snapshot, "entry_fib_raw");
-  if(!snapshot.sl_fib_band_valid)
-    DeterministicSignalFeatureSnapshotAddInvalid(snapshot, "sl_fib_band");
-  if(!snapshot.entry_fib_band_valid)
-    DeterministicSignalFeatureSnapshotAddInvalid(snapshot, "entry_fib_band");
+  snapshot.fib_sl_band_valid = sl_fib_valid &&
+                               DeterministicSignalStatsFibonacciBand(sl_fib_raw,
+                                                                     snapshot.fib_sl_band);
+  snapshot.fib_entry_band_valid = entry_fib_valid &&
+                                  DeterministicSignalStatsFibonacciBand(entry_fib_raw,
+                                                                        snapshot.fib_entry_band);
+  if(!snapshot.fib_sl_band_valid)
+    DeterministicSignalFeatureSnapshotAddInvalid(snapshot, "fib_sl_band");
+  if(!snapshot.fib_entry_band_valid)
+    DeterministicSignalFeatureSnapshotAddInvalid(snapshot, "fib_entry_band");
 
   MqlRates rates[];
   ArraySetAsSeries(rates, true);
   int copied = CopyRates(_Symbol, DETERMINISTIC_BASE_TIMEFRAME, 1, 11, rates);
   if(copied > 0)
   {
-    snapshot.prev_body_ratio_valid =
-      DeterministicSignalStatsPreviousCandleFeatures(rates[0],
-                                                     snapshot.prev_body_ratio,
-                                                     snapshot.prev_upper_wick_ratio,
-                                                     snapshot.prev_lower_wick_ratio,
-                                                     snapshot.prev_close_location,
-                                                     snapshot.prev_candle_dir);
-    snapshot.prev_upper_wick_ratio_valid = snapshot.prev_body_ratio_valid;
-    snapshot.prev_lower_wick_ratio_valid = snapshot.prev_body_ratio_valid;
-    snapshot.prev_close_location_valid = snapshot.prev_body_ratio_valid;
-    snapshot.prev_candle_dir_valid = snapshot.prev_body_ratio_valid;
+    snapshot.previous_candle_profile_valid =
+      DeterministicSignalStatsPreviousCandleProfile(rates[0],
+                                                    snapshot.previous_candle_profile);
   }
-  if(!snapshot.prev_body_ratio_valid)
-  {
-    DeterministicSignalFeatureSnapshotAddInvalid(snapshot, "prev_body_ratio");
-    DeterministicSignalFeatureSnapshotAddInvalid(snapshot, "prev_upper_wick_ratio");
-    DeterministicSignalFeatureSnapshotAddInvalid(snapshot, "prev_lower_wick_ratio");
-    DeterministicSignalFeatureSnapshotAddInvalid(snapshot, "prev_close_location");
-    DeterministicSignalFeatureSnapshotAddInvalid(snapshot, "prev_candle_dir");
-  }
+  if(!snapshot.previous_candle_profile_valid)
+    DeterministicSignalFeatureSnapshotAddInvalid(snapshot, "previous_candle_profile");
 
-  snapshot.low_chain_score_3_valid = DeterministicSignalStatsChainScore(rates, copied, 3, false, snapshot.low_chain_score_3);
-  snapshot.low_chain_score_5_valid = DeterministicSignalStatsChainScore(rates, copied, 5, false, snapshot.low_chain_score_5);
-  snapshot.low_chain_score_10_valid = DeterministicSignalStatsChainScore(rates, copied, 10, false, snapshot.low_chain_score_10);
-  snapshot.high_chain_score_3_valid = DeterministicSignalStatsChainScore(rates, copied, 3, true, snapshot.high_chain_score_3);
-  snapshot.high_chain_score_5_valid = DeterministicSignalStatsChainScore(rates, copied, 5, true, snapshot.high_chain_score_5);
-  snapshot.high_chain_score_10_valid = DeterministicSignalStatsChainScore(rates, copied, 10, true, snapshot.high_chain_score_10);
-  if(!snapshot.low_chain_score_3_valid)
-    DeterministicSignalFeatureSnapshotAddInvalid(snapshot, "low_chain_score_3");
-  if(!snapshot.low_chain_score_5_valid)
-    DeterministicSignalFeatureSnapshotAddInvalid(snapshot, "low_chain_score_5");
-  if(!snapshot.low_chain_score_10_valid)
-    DeterministicSignalFeatureSnapshotAddInvalid(snapshot, "low_chain_score_10");
-  if(!snapshot.high_chain_score_3_valid)
-    DeterministicSignalFeatureSnapshotAddInvalid(snapshot, "high_chain_score_3");
-  if(!snapshot.high_chain_score_5_valid)
-    DeterministicSignalFeatureSnapshotAddInvalid(snapshot, "high_chain_score_5");
-  if(!snapshot.high_chain_score_10_valid)
-    DeterministicSignalFeatureSnapshotAddInvalid(snapshot, "high_chain_score_10");
-
-  bool recent_context_valid =
-    DeterministicSignalStatsRecentContextFeatures(rates,
-                                                  copied,
-                                                  snapshot.recent_m1_range_points,
-                                                  snapshot.recent_m1_body_ratio_avg,
-                                                  snapshot.recent_m1_directional_balance);
-  snapshot.recent_m1_range_points_valid = recent_context_valid;
-  snapshot.recent_m1_body_ratio_avg_valid = recent_context_valid;
-  snapshot.recent_m1_directional_balance_valid = recent_context_valid;
-  if(!snapshot.recent_m1_range_points_valid)
-    DeterministicSignalFeatureSnapshotAddInvalid(snapshot, "recent_m1_range_points");
-  if(!snapshot.recent_m1_body_ratio_avg_valid)
-    DeterministicSignalFeatureSnapshotAddInvalid(snapshot, "recent_m1_body_ratio_avg");
-  if(!snapshot.recent_m1_directional_balance_valid)
-    DeterministicSignalFeatureSnapshotAddInvalid(snapshot, "recent_m1_directional_balance");
-
-  snapshot.entry_spread_points_valid =
-    DeterministicSignalStatsEntrySpreadFeatures(snapshot.recent_m1_range_points,
-                                                snapshot.recent_m1_range_points_valid,
-                                                snapshot.entry_spread_points,
-                                                snapshot.spread_to_recent_range_ratio,
-                                                snapshot.spread_to_recent_range_ratio_valid);
-  if(!snapshot.entry_spread_points_valid)
-    DeterministicSignalFeatureSnapshotAddInvalid(snapshot, "entry_spread_points");
-  if(!snapshot.spread_to_recent_range_ratio_valid)
-    DeterministicSignalFeatureSnapshotAddInvalid(snapshot, "spread_to_recent_range_ratio");
+  snapshot.high_chain_profile_valid =
+    DeterministicSignalStatsChainProfile(rates, copied, true, snapshot.high_chain_profile);
+  snapshot.low_chain_profile_valid =
+    DeterministicSignalStatsChainProfile(rates, copied, false, snapshot.low_chain_profile);
+  if(!snapshot.high_chain_profile_valid)
+    DeterministicSignalFeatureSnapshotAddInvalid(snapshot, "high_chain_profile");
+  if(!snapshot.low_chain_profile_valid)
+    DeterministicSignalFeatureSnapshotAddInvalid(snapshot, "low_chain_profile");
 
   snapshot.entry_session_bucket = DeterministicSignalStatsSessionBucket(snapshot.entry_time);
   snapshot.entry_session_bucket_valid = (snapshot.entry_session_bucket != "");
   if(!snapshot.entry_session_bucket_valid)
     DeterministicSignalFeatureSnapshotAddInvalid(snapshot, "entry_session_bucket");
+
+  snapshot.entry_weekday = DeterministicSignalStatsWeekdayToken(snapshot.entry_time);
+  snapshot.entry_weekday_valid = (snapshot.entry_weekday != "");
+  if(!snapshot.entry_weekday_valid)
+    DeterministicSignalFeatureSnapshotAddInvalid(snapshot, "entry_weekday");
 
   return true;
 }
@@ -1287,43 +1139,23 @@ bool DeterministicSignalStatsBuildFeatureRow(SignalParams &signal_params,
             DeterministicSignalStatsCell(snapshot.source_key) + "\t" +
             IntegerToString(snapshot.source_attempt_index) + "\t" +
             DeterministicSignalStatsCell(snapshot.symbol) + "\t" +
-            IntegerToString(snapshot.strategy_id) + "\t" +
             DeterministicSignalStatsCell(snapshot.strategy_label) + "\t" +
             DeterministicSignalStatsCell(snapshot.direction) + "\t" +
             DeterministicSignalStatsTimeToken(snapshot.entry_time) + "\t" +
             DeterministicSignalStatsTimeToken(snapshot.source_time) + "\t" +
-            DeterministicSignalStatsCell(snapshot.source_type) + "\t" +
-            DeterministicSignalStatsCell(snapshot.source_structure_type_valid ? snapshot.source_structure_type : "") + "\t" +
-            DeterministicSignalStatsCell(snapshot.opposite_structure_type_valid ? snapshot.opposite_structure_type : "") + "\t" +
-            DeterministicSignalStatsCell(snapshot.same_previous_structure_type_valid ? snapshot.same_previous_structure_type : "") + "\t" +
-            IntegerToString(snapshot.macro_h1_live_dir) + "\t" +
-            IntegerToString(snapshot.macro_h4_live_dir) + "\t" +
-            IntegerToString(snapshot.macro_d1_live_dir) + "\t" +
-            DeterministicSignalStatsIntToken(snapshot.strategy_delay_period_valid, snapshot.strategy_delay_period) + "\t" +
-            DeterministicSignalStatsIntToken(snapshot.confirmation_timeframe_minutes_valid, snapshot.confirmation_timeframe_minutes) + "\t" +
-            DeterministicSignalStatsIntToken(snapshot.entry_direction_macro_alignment_valid, snapshot.entry_direction_macro_alignment) + "\t" +
-            DeterministicSignalStatsIntToken(snapshot.macro_alignment_score_valid, snapshot.macro_alignment_score) + "\t" +
-            DeterministicSignalStatsDoubleToken(snapshot.prev_body_ratio_valid, snapshot.prev_body_ratio, 8) + "\t" +
-            DeterministicSignalStatsDoubleToken(snapshot.prev_upper_wick_ratio_valid, snapshot.prev_upper_wick_ratio, 8) + "\t" +
-            DeterministicSignalStatsDoubleToken(snapshot.prev_lower_wick_ratio_valid, snapshot.prev_lower_wick_ratio, 8) + "\t" +
-            DeterministicSignalStatsDoubleToken(snapshot.prev_close_location_valid, snapshot.prev_close_location, 8) + "\t" +
-            DeterministicSignalStatsCell(snapshot.prev_candle_dir_valid ? snapshot.prev_candle_dir : "") + "\t" +
-            DeterministicSignalStatsDoubleToken(snapshot.sl_fib_valid, snapshot.sl_fib_raw, 1) + "\t" +
-            DeterministicSignalStatsCell(snapshot.sl_fib_band) + "\t" +
-            DeterministicSignalStatsDoubleToken(snapshot.entry_fib_valid, snapshot.entry_fib_raw, 1) + "\t" +
-            DeterministicSignalStatsCell(snapshot.entry_fib_band) + "\t" +
-            DeterministicSignalStatsIntToken(snapshot.low_chain_score_3_valid, snapshot.low_chain_score_3) + "\t" +
-            DeterministicSignalStatsIntToken(snapshot.low_chain_score_5_valid, snapshot.low_chain_score_5) + "\t" +
-            DeterministicSignalStatsIntToken(snapshot.low_chain_score_10_valid, snapshot.low_chain_score_10) + "\t" +
-            DeterministicSignalStatsIntToken(snapshot.high_chain_score_3_valid, snapshot.high_chain_score_3) + "\t" +
-            DeterministicSignalStatsIntToken(snapshot.high_chain_score_5_valid, snapshot.high_chain_score_5) + "\t" +
-            DeterministicSignalStatsIntToken(snapshot.high_chain_score_10_valid, snapshot.high_chain_score_10) + "\t" +
-            DeterministicSignalStatsDoubleToken(snapshot.recent_m1_range_points_valid, snapshot.recent_m1_range_points, 2) + "\t" +
-            DeterministicSignalStatsDoubleToken(snapshot.recent_m1_body_ratio_avg_valid, snapshot.recent_m1_body_ratio_avg, 8) + "\t" +
-            DeterministicSignalStatsDoubleToken(snapshot.recent_m1_directional_balance_valid, snapshot.recent_m1_directional_balance, 8) + "\t" +
-            DeterministicSignalStatsIntToken(snapshot.entry_spread_points_valid, snapshot.entry_spread_points) + "\t" +
-            DeterministicSignalStatsDoubleToken(snapshot.spread_to_recent_range_ratio_valid, snapshot.spread_to_recent_range_ratio, 8) + "\t" +
-            DeterministicSignalStatsCell(snapshot.entry_session_bucket_valid ? snapshot.entry_session_bucket : "");
+            DeterministicSignalStatsCell(snapshot.structure_0_valid ? snapshot.structure_0 : "") + "\t" +
+            DeterministicSignalStatsCell(snapshot.structure_1_valid ? snapshot.structure_1 : "") + "\t" +
+            DeterministicSignalStatsCell(snapshot.structure_2_valid ? snapshot.structure_2 : "") + "\t" +
+            IntegerToString(snapshot.macro_h1_slope) + "\t" +
+            IntegerToString(snapshot.macro_h4_slope) + "\t" +
+            IntegerToString(snapshot.macro_d1_slope) + "\t" +
+            DeterministicSignalStatsCell(snapshot.fib_sl_band_valid ? snapshot.fib_sl_band : "") + "\t" +
+            DeterministicSignalStatsCell(snapshot.fib_entry_band_valid ? snapshot.fib_entry_band : "") + "\t" +
+            DeterministicSignalStatsCell(snapshot.high_chain_profile_valid ? snapshot.high_chain_profile : "") + "\t" +
+            DeterministicSignalStatsCell(snapshot.low_chain_profile_valid ? snapshot.low_chain_profile : "") + "\t" +
+            DeterministicSignalStatsCell(snapshot.previous_candle_profile_valid ? snapshot.previous_candle_profile : "") + "\t" +
+            DeterministicSignalStatsCell(snapshot.entry_session_bucket_valid ? snapshot.entry_session_bucket : "") + "\t" +
+            DeterministicSignalStatsCell(snapshot.entry_weekday_valid ? snapshot.entry_weekday : "");
 
   return true;
 }
