@@ -254,7 +254,26 @@ def _human_slope(value: Any) -> str:
 
 
 def _human_fib_band(value: Any) -> str:
-    return str(value).replace(".0", "").replace("_", "-")
+    parts = str(value).split("_")
+    levels: list[str] = []
+    index = 0
+    while index < len(parts):
+        part = parts[index].replace(".0", "")
+        if (
+            index + 1 < len(parts)
+            and "." not in part
+            and parts[index + 1] in {"2", "8"}
+        ):
+            levels.append(f"{part}.{parts[index + 1]}")
+            index += 2
+        else:
+            levels.append(part)
+            index += 1
+    return "-".join(levels)
+
+
+def _human_profile(value: Any) -> str:
+    return str(value).replace("_", " ").lower()
 
 
 def _human_condition(condition: Condition) -> str:
@@ -265,42 +284,32 @@ def _human_condition(condition: Condition) -> str:
         return str(value)
     if column == "direction":
         return _human_direction(value)
-    if column == "source_structure_type":
+    if column == "structure_0":
         return f"{value}[0]"
-    if column == "opposite_structure_type":
+    if column == "structure_1":
         return f"{value}[1]"
-    if column == "same_previous_structure_type":
+    if column == "structure_2":
         return f"{value}[2]"
-    if column == "macro_h1_live_dir":
+    if column == "macro_h1_slope":
         return f"H1 slope {_human_slope(value)}"
-    if column == "macro_h4_live_dir":
+    if column == "macro_h4_slope":
         return f"H4 slope {_human_slope(value)}"
-    if column == "macro_d1_live_dir":
+    if column == "macro_d1_slope":
         return f"D1 slope {_human_slope(value)}"
-    if column == "entry_direction_macro_alignment":
-        return f"Entry macro alignment {value}"
-    if column == "macro_alignment_score":
-        return f"Macro score {value}"
-    if column == "sl_fib_band":
+    if column == "fib_sl_band":
         return f"SL Fib {_human_fib_band(value)}"
-    if column == "entry_fib_band":
+    if column == "fib_entry_band":
         return f"Entry Fib {_human_fib_band(value)}"
-    if column.startswith("high_chain_score_"):
-        period = column.replace("high_chain_score_", "")
-        return f"{period}-bar highs score {value}"
-    if column.startswith("low_chain_score_"):
-        period = column.replace("low_chain_score_", "")
-        return f"{period}-bar lows score {value}"
-    if column == "prev_candle_dir":
-        return f"Previous candle {_human_direction(value)}"
-    if column == "prev_body_ratio_bucket":
-        return f"Previous body {value}"
-    if column == "prev_close_location_bucket":
-        return f"Previous close {value}"
+    if column == "high_chain_profile":
+        return f"High chain {_human_profile(value)}"
+    if column == "low_chain_profile":
+        return f"Low chain {_human_profile(value)}"
+    if column == "previous_candle_profile":
+        return f"Previous candle {_human_profile(value)}"
     if column == "entry_session_bucket":
         return f"Session {value}"
-    if column == "spread_to_recent_range_bucket":
-        return f"Spread/range {value}"
+    if column == "entry_weekday":
+        return f"Weekday {value}"
     return f"{column} {value}"
 
 
@@ -356,22 +365,7 @@ CREATE OR REPLACE TEMP TABLE audit_rows AS
 SELECT
   *,
   CASE WHEN row_index > {pre_final_rows} THEN 'final_holdout' ELSE 'pre_final' END AS split_name,
-  strftime(entry_time, '%Y-%m') AS entry_month,
-  CASE
-    WHEN prev_body_ratio < 0.25 THEN 'BODY_LOW'
-    WHEN prev_body_ratio < 0.60 THEN 'BODY_MID'
-    ELSE 'BODY_HIGH'
-  END AS prev_body_ratio_bucket,
-  CASE
-    WHEN prev_close_location < 0.33 THEN 'CLOSE_LOW'
-    WHEN prev_close_location < 0.67 THEN 'CLOSE_MID'
-    ELSE 'CLOSE_HIGH'
-  END AS prev_close_location_bucket,
-  CASE
-    WHEN spread_to_recent_range_ratio < 0.05 THEN 'SPREAD_LOW'
-    WHEN spread_to_recent_range_ratio < 0.15 THEN 'SPREAD_MID'
-    ELSE 'SPREAD_HIGH'
-  END AS spread_to_recent_range_bucket
+  strftime(entry_time, '%Y-%m') AS entry_month
 FROM (
   SELECT
     row_number() OVER (ORDER BY entry_time, signal_id) AS row_index,
@@ -387,29 +381,30 @@ ORDER BY entry_time, signal_id
 
 def pattern_templates(max_condition_count: int) -> list[tuple[str, tuple[str, ...]]]:
     templates = [
-        ("direction_structure_2", ("direction", "source_structure_type")),
-        ("direction_structure_3", ("direction", "source_structure_type", "opposite_structure_type")),
-        ("direction_structure_4", ("direction", "source_structure_type", "opposite_structure_type", "same_previous_structure_type")),
-        ("direction_macro_h1_h4", ("direction", "macro_h1_live_dir", "macro_h4_live_dir")),
-        ("direction_macro_stack", ("direction", "macro_h1_live_dir", "macro_h4_live_dir", "macro_d1_live_dir")),
-        ("direction_macro_alignment", ("direction", "entry_direction_macro_alignment", "macro_alignment_score")),
-        ("direction_fib", ("direction", "sl_fib_band", "entry_fib_band")),
-        ("direction_structure_fib", ("direction", "source_structure_type", "sl_fib_band", "entry_fib_band")),
-        ("direction_high_chain_3", ("direction", "high_chain_score_3")),
-        ("direction_low_chain_3", ("direction", "low_chain_score_3")),
-        ("direction_high_chain_stack", ("direction", "high_chain_score_3", "high_chain_score_5", "high_chain_score_10")),
-        ("direction_low_chain_stack", ("direction", "low_chain_score_3", "low_chain_score_5", "low_chain_score_10")),
-        ("direction_candle", ("direction", "prev_candle_dir", "prev_body_ratio_bucket")),
-        ("direction_structure_macro_high_chain", ("direction", "source_structure_type", "macro_h1_live_dir", "high_chain_score_3")),
-        ("direction_structure_macro_low_chain", ("direction", "source_structure_type", "macro_h1_live_dir", "low_chain_score_3")),
-        ("direction_structure_macro_fib", ("direction", "source_structure_type", "opposite_structure_type", "macro_h1_live_dir", "entry_fib_band")),
+        ("direction_structure_2", ("direction", "structure_0")),
+        ("direction_structure_3", ("direction", "structure_0", "structure_1")),
+        ("direction_structure_stack", ("direction", "structure_0", "structure_1", "structure_2")),
+        ("direction_macro_h1_h4", ("direction", "macro_h1_slope", "macro_h4_slope")),
+        ("direction_macro_stack", ("direction", "macro_h1_slope", "macro_h4_slope", "macro_d1_slope")),
+        ("direction_fib", ("direction", "fib_sl_band", "fib_entry_band")),
+        ("direction_structure_fib", ("direction", "structure_0", "fib_sl_band", "fib_entry_band")),
+        ("direction_high_chain", ("direction", "high_chain_profile")),
+        ("direction_low_chain", ("direction", "low_chain_profile")),
+        ("direction_chain_stack", ("direction", "high_chain_profile", "low_chain_profile")),
+        ("direction_chain_fib_entry", ("direction", "high_chain_profile", "low_chain_profile", "fib_entry_band")),
+        ("direction_candle", ("direction", "previous_candle_profile")),
+        ("direction_structure_macro_high_chain", ("direction", "structure_0", "macro_h1_slope", "high_chain_profile")),
+        ("direction_structure_macro_low_chain", ("direction", "structure_0", "macro_h1_slope", "low_chain_profile")),
+        ("direction_structure_macro_fib", ("direction", "structure_0", "macro_h1_slope", "fib_entry_band")),
         ("direction_session", ("direction", "entry_session_bucket")),
-        ("direction_context_spread", ("direction", "entry_session_bucket", "spread_to_recent_range_bucket")),
+        ("direction_weekday", ("direction", "entry_weekday")),
+        ("direction_session_weekday", ("direction", "entry_session_bucket", "entry_weekday")),
     ]
     scoped_templates: list[tuple[str, tuple[str, ...]]] = []
     for template_id, columns in templates:
-        if len(columns) <= max_condition_count:
-            scoped_templates.append((f"strategy_{template_id}", ("strategy_label", *columns)))
+        scoped_columns = ("strategy_label", *columns)
+        if len(scoped_columns) <= max_condition_count:
+            scoped_templates.append((f"strategy_{template_id}", scoped_columns))
     return scoped_templates
 
 

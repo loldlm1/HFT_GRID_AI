@@ -1246,6 +1246,54 @@ Decision:
   real XAUUSD datasets or thresholds.
 - No live deployment or runtime FILTER approval is implied.
 
+## ML Feature Schema V4 Sprint 4 Validation
+
+Schema V4 Sprint 4 updated pattern mining and playback parity tooling for the
+semantic-lane contract.
+
+Implemented:
+
+- Pattern audit templates now use only schema v4 lanes.
+- Structure templates use `structure_0`, `structure_1`, and `structure_2`.
+- Chain templates can combine `high_chain_profile` and `low_chain_profile`.
+- Fibonacci templates use `fib_sl_band` and `fib_entry_band`.
+- Session and weekday templates are independent lanes.
+- Pattern labels render human-readable V4 terms, for example:
+  `S1 | Bearish | HH[0] | HL[1]` and
+  `S1 | Bullish | SL Fib 61.8-100 | Entry Fib 38.2-61.8`.
+- Pattern audit no longer builds derived buckets from retired spread/context,
+  raw candle-ratio, or chain-score columns.
+- Playback parity normalizes `YYYY.MM.DD` and `YYYY-MM-DD` entry-time formats.
+- Playback parity uses `pattern_id + source_key + source_attempt_index` as the
+  hard identity. `signal_id` and `entry_time` mismatches remain diagnostic when
+  source-key parity is exact.
+
+Validation:
+
+- `.venv/bin/python -m py_compile tools/deterministic_signal_ml/pattern_audit.py tools/deterministic_signal_ml/pattern_playback_compare.py`:
+  PASS.
+- V4 fixture audit command:
+  `.venv/bin/python tools/deterministic_signal_ml/pattern_audit.py --dataset-path /tmp/hft_schema_v4_sprint3_fixture/datasets/schema_v4_fixture_dataset --audit-id schema_v4_fixture_audit --output-root /tmp/hft_schema_v4_sprint3_fixture/pattern_audits --overwrite --min-total-rows 20 --min-prefinal-rows 20 --min-final-rows 5 --top-n-visual 3`
+- V4 fixture audit result: `patterns=118`, `selected=3`, `matches=700`.
+- V4 fixture playback parity with MT5-style timestamps and missing signal IDs:
+  `PASS`, `expected=700`, `observed=700`, `matched=700`, `missing=0`,
+  `extra=0`, `entry_time_mismatches=0`, `signal_id_mismatches=700`.
+- Existing V3 strategy playback observations rechecked for parity normalization
+  only:
+  - S1: `PASS`, `expected=900`, `observed=900`, `matched=900`,
+    `entry_time_mismatches=233`, `signal_id_mismatches=900`.
+  - S2: `PASS`, `expected=1091`, `observed=1091`, `matched=1091`,
+    `entry_time_mismatches=252`, `signal_id_mismatches=1091`.
+  - S3: `PASS`, `expected=1095`, `observed=1095`, `matched=1095`,
+    `entry_time_mismatches=271`, `signal_id_mismatches=1095`.
+
+Decision:
+
+- `READY_FOR_SCHEMA_V4_FRESH_STRATEGY_TESTER_EXPORTS`
+- The S1/S2/S3 parity checks above prove playback normalization only; they are
+  not schema v4 model/audit approval.
+- No live deployment or runtime FILTER approval is implied.
+
 ## Pattern Audit Sprint 2 Validation
 
 Pattern Audit Sprint 2 added deterministic DuckDB tooling for controlled

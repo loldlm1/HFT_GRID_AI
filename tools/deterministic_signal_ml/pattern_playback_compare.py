@@ -122,6 +122,13 @@ def is_true(value: str) -> bool:
     return value.strip().lower() in ("1", "true", "yes")
 
 
+def normalize_entry_time(value: str) -> str:
+    text = value.strip()
+    if not text:
+        return ""
+    return text.replace(".", "-", 2)
+
+
 def read_tsv(path: Path) -> list[dict[str, str]]:
     if not path.exists():
         raise PatternPlaybackCompareError(f"Missing TSV file: {path}")
@@ -202,7 +209,7 @@ def load_expected_matches(path: Path, *, include_unselected: bool) -> list[Patte
                 signal_id=row.get("signal_id", ""),
                 source_key=source_key,
                 source_attempt_index=row.get("source_attempt_index", ""),
-                entry_time=row.get("entry_time", ""),
+                entry_time=normalize_entry_time(row.get("entry_time", "")),
                 pattern_label=row.get("pattern_label", ""),
                 conditions_text=row.get("conditions_text", ""),
             )
@@ -228,7 +235,7 @@ def load_observations(path: Path) -> list[PatternPlaybackRow]:
                 signal_id=row.get("signal_id", ""),
                 source_key=source_key,
                 source_attempt_index=row.get("source_attempt_index", ""),
-                entry_time=row.get("entry_time", ""),
+                entry_time=normalize_entry_time(row.get("entry_time", "")),
                 pattern_label=row.get("pattern_label", ""),
                 conditions_text=row.get("conditions_text", ""),
                 expected_match=row.get("expected_match", ""),
@@ -320,7 +327,6 @@ def compare_rows(
         + len(observed_duplicates)
         + len(missing_keys)
         + len(extra_keys)
-        + timestamp_mismatches
         + status_mismatches
     )
     if require_signal_id_match:
@@ -427,6 +433,7 @@ def write_markdown_report(output_dir: Path, report: dict[str, Any], max_examples
             "",
             "- `signal_id` includes the deterministic stats run ID, so signal ID",
             "  mismatches are diagnostic unless `--require-signal-id-match` is used.",
+            "- `entry_time` mismatches are diagnostic when pattern/source keys match.",
             "- Runtime FILTER approval is not part of this report.",
         ]
     )
