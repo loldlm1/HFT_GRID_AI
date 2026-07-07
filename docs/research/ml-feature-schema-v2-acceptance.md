@@ -2016,3 +2016,63 @@ Fresh-run policy:
 Validation:
 
 - Manual contract review: PASS.
+
+## Dynamic TP Path-Ratio Sprint 1 Contract
+
+Phase 4 starts from the completed schema v4 baseline. The next research
+question is whether the same admitted deterministic entry would have reached
+larger reward ratios before the original stop, without running one long
+Strategy Tester pass per fixed TP.
+
+Path-ratio labels are outcome-only columns. They must never be included in
+`MODEL_FEATURE_COLUMNS`, XGBoost encoders, DuckDB pattern conditions, or
+runtime inference feature maps.
+
+Path-ratio outcome extension:
+
+| Column | Meaning |
+| --- | --- |
+| `hit_1r_before_sl` | `1` if price touched `+1R` before original SL, else `0`. |
+| `hit_1_5r_before_sl` | `1` if price touched `+1.5R` before original SL, else `0`. |
+| `hit_2r_before_sl` | `1` if price touched `+2R` before original SL, else `0`. |
+| `hit_3r_before_sl` | `1` if price touched `+3R` before original SL, else `0`. |
+| `max_favorable_r` | Best favorable excursion reached by the path in R units. |
+| `max_adverse_r` | Worst adverse excursion reached by the path in R units. |
+| `bars_to_1r` | M1 bars from entry to first `+1R` touch, or `\N`. |
+| `bars_to_1_5r` | M1 bars from entry to first `+1.5R` touch, or `\N`. |
+| `bars_to_2r` | M1 bars from entry to first `+2R` touch, or `\N`. |
+| `bars_to_3r` | M1 bars from entry to first `+3R` touch, or `\N`. |
+| `bars_to_sl` | M1 bars from entry to first original SL touch, or `\N`. |
+| `path_horizon_bars` | Maximum M1 bars allowed for virtual path tracking. |
+| `path_status` | `SL_FIRST`, `TARGET_3R`, `HORIZON_EXPIRED`, or `INVALID`. |
+
+Target-family policy:
+
+- `1r`, `1_5r`, `2r`, and `3r` are classification families derived from the
+  corresponding `hit_*_before_sl` label.
+- `expected_r` is a research family derived from bounded path excursions and
+  terminal path status.
+- The original `target_is_win`, `target_profit_r`, and
+  `target_terminal_reason` remain available for direct comparison with the
+  current broker-confirmed 1:1 outcome.
+
+Strategy Tester performance budget:
+
+- Path tracking must be keyed by deterministic `signal_id`/source identity and
+  must not depend on a broker position staying open after the normal TP close.
+- Path state must be bounded by a fixed M1 horizon and pruned when SL, `3R`, or
+  horizon expiry is reached.
+- The tracker must update from current tick bid/ask values and avoid per-tick
+  full-history scans.
+- File writes must continue to use the existing buffered statistics exporter.
+- Chart labels and Pattern Audit overlay are not required for bulk path export.
+- The feature remains research-only: it cannot open, close, resize, or modify
+  positions and cannot alter license/session/spread/stops/freeze/margin,
+  protection, market-status, magic-number, or broker reconciliation guards.
+
+Sprint 1 validation:
+
+- `PATH_RATIO_OUTCOME_COLUMNS` and `PATH_RATIO_TARGET_FAMILIES` are defined in
+  `tools/deterministic_signal_ml/schema_contract.py`.
+- Path-ratio columns are not part of `MODEL_FEATURE_COLUMNS`.
+- No MQL5 behavior changed in this sprint.

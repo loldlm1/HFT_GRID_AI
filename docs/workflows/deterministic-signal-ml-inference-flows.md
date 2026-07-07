@@ -312,3 +312,40 @@ Phase 3 is complete for schema v4 research handoff. No schema v4 XGBoost model
 has runtime ML FILTER approval. The next active plan is
 `docs/plans/ml-dynamic-tp-path-ratio-plan.md`, which replaces the older schema
 v3 path-label follow-up wording.
+
+## Dynamic TP Path-Ratio Runbook
+
+Phase 4 measures reward-ratio reachability from one path-aware export instead
+of running a separate full-year Strategy Tester pass for each fixed TP.
+
+Path-ratio labels are outcome-only. They must remain excluded from
+`MODEL_FEATURE_COLUMNS`, pattern conditions, and MQL5 inference feature maps.
+
+Outcome extension columns:
+
+```text
+hit_1r_before_sl
+hit_1_5r_before_sl
+hit_2r_before_sl
+hit_3r_before_sl
+max_favorable_r
+max_adverse_r
+bars_to_1r
+bars_to_1_5r
+bars_to_2r
+bars_to_3r
+bars_to_sl
+path_horizon_bars
+path_status
+```
+
+Performance rules for path-aware Strategy Tester runs:
+
+- keep `Enable_Logs=false` and `Enable_File_Logs=false` for full-year exports
+  unless debugging a specific failure
+- keep Pattern Audit overlay disabled during bulk path export
+- track virtual paths with bounded in-memory state and prune completed paths
+- update path state from current tick prices; do not run full-history scans per
+  tick
+- use a short smoke run before any full-year path-aware export
+- treat runtime TP changes as out of scope until a later execution plan

@@ -78,6 +78,24 @@ OUTCOME_COLUMNS = (
     "net_profit",
 )
 
+PATH_RATIO_OUTCOME_COLUMNS = (
+    "hit_1r_before_sl",
+    "hit_1_5r_before_sl",
+    "hit_2r_before_sl",
+    "hit_3r_before_sl",
+    "max_favorable_r",
+    "max_adverse_r",
+    "bars_to_1r",
+    "bars_to_1_5r",
+    "bars_to_2r",
+    "bars_to_3r",
+    "bars_to_sl",
+    "path_horizon_bars",
+    "path_status",
+)
+
+OUTCOME_COLUMNS_WITH_PATH = OUTCOME_COLUMNS + PATH_RATIO_OUTCOME_COLUMNS
+
 IDENTITY_COLUMNS = (
     "schema_version",
     "run_id",
@@ -111,6 +129,14 @@ TARGET_COLUMNS = (
     "target_terminal_reason",
 )
 
+PATH_RATIO_TARGET_FAMILIES = (
+    "1r",
+    "1_5r",
+    "2r",
+    "3r",
+    "expected_r",
+)
+
 AUDIT_COLUMNS = (
     "symbol",
     "entry_time",
@@ -135,6 +161,7 @@ NUMERIC_COLUMNS = (
     "entry_price",
     "close_price",
     "net_profit",
+    *PATH_RATIO_OUTCOME_COLUMNS,
 )
 
 CATEGORICAL_COLUMNS = (
