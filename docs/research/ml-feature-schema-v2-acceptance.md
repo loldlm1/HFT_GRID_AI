@@ -2166,3 +2166,95 @@ Decision:
 - Dataset tooling is ready for a fresh path-aware Strategy Tester run.
 - Real XAUUSD 2025 path-family datasets cannot be built until the human
   Strategy Tester run produces extended outcome TSV rows.
+
+## Dynamic TP Path-Ratio Sprint 4 Training Gate
+
+Sprint 4 made the target-family identity explicit in training and robustness
+artifacts so a `2r`, `3r`, or `expected_r` candidate cannot be confused with
+the backward-compatible broker `1r` baseline.
+
+Changed files:
+
+- `tools/deterministic_signal_ml/train_model.py`
+- `tools/deterministic_signal_ml/model_validation_config.py`
+- `tools/deterministic_signal_ml/validate_model_robustness.py`
+- `tools/deterministic_signal_ml/robustness_report.py`
+
+Implemented:
+
+- Training input summaries now include `target_family`.
+- Model manifests now include `target_family`.
+- Validation metrics now include `target_family`.
+- Robustness inventory and markdown reports now show `target_family`.
+- Robustness validation checks dataset/model/export target-family consistency
+  when all artifacts are present.
+
+Current Common Files scan:
+
+- Runs root:
+  `/home/loldlm/.wine/drive_c/users/loldlm/AppData/Roaming/MetaQuotes/Terminal/Common/Files/DeterministicSignalML/runs`
+- Path-aware runs found: `NONE`
+
+Required Strategy Tester run before accepting/rejecting ratio models:
+
+- Symbol/window: XAUUSD, `2025-01-01` through `2026-01-01`.
+- `Enable_Signal_Feature_Export=true`
+- `Signal_Feature_Run_Id=xauusd_2025_dynamic_tp_path_run_1`
+- `ML_Inference_Mode=ML_INFERENCE_DISABLED`
+- `Enable_Pattern_Audit_Overlay=false`
+- `Enable_File_Logs=false` unless debugging a tester failure.
+
+Post-run dataset/training commands:
+
+```bash
+MT5_COMMON_FILES=/home/loldlm/.wine/drive_c/users/loldlm/AppData/Roaming/MetaQuotes/Terminal/Common/Files
+RUNS_ROOT="$MT5_COMMON_FILES/DeterministicSignalML/runs"
+RUN_ID=xauusd_2025_dynamic_tp_path_run_1
+
+for family in 1r 1_5r 2r 3r expected_r; do
+  dataset_id="xauusd_2025_dynamic_tp_${family}_dataset_1"
+  model_id="xauusd_2025_dynamic_tp_${family}_xgb_1"
+
+  .venv/bin/python tools/deterministic_signal_ml/build_dataset.py \
+    --runs-root "$RUNS_ROOT" \
+    --run-id "$RUN_ID" \
+    --dataset-id "$dataset_id" \
+    --target-family "$family" \
+    --overwrite
+
+  .venv/bin/python tools/deterministic_signal_ml/train_model.py \
+    --dataset-id "$dataset_id" \
+    --model-id "$model_id" \
+    --overwrite
+
+  .venv/bin/python tools/deterministic_signal_ml/validate_model_robustness.py \
+    --dataset-id "$dataset_id" \
+    --model-id "$model_id" \
+    --export-id "${model_id}_export_placeholder" \
+    --allow-missing-export \
+    --json
+done
+```
+
+Validation:
+
+- Python syntax:
+  `.venv/bin/python -m py_compile tools/deterministic_signal_ml/train_model.py tools/deterministic_signal_ml/model_validation_config.py tools/deterministic_signal_ml/validate_model_robustness.py tools/deterministic_signal_ml/robustness_report.py`
+  PASS.
+- Legacy compatibility training smoke:
+  `dynamic_tp_backcompat_smoke_xgb_sprint4`, dataset
+  `dynamic_tp_backcompat_smoke`, target family `broker_1r`, rows `11911`,
+  encoded features `83`, PASS.
+- Robustness smoke with missing export allowed:
+  status `WARN`, target family `broker_1r`, threshold source
+  `walk_forward_oof_pre_final_holdout`, warning count `4`, PASS for
+  research-only tooling validation.
+- Generated training artifacts confirmed `target_family=broker_1r` in
+  `training_input_summary.json`, `model_manifest.json`,
+  `validation_metrics.json`, and `robustness/robustness_metrics.json`.
+
+Decision:
+
+- Status: `PENDING_HUMAN_STRATEGY_TESTER_RUN`
+- No dynamic TP/path-ratio model is accepted or rejected yet.
+- Runtime TP behavior remains unchanged.

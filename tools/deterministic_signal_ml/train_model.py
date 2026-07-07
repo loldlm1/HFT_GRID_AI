@@ -219,6 +219,7 @@ def write_training_input_summary(
         "model_id": model_id,
         "feature_set_id": feature_set_id,
         "dataset_id": manifest.get("dataset_id"),
+        "target_family": manifest.get("target_family", "broker_1r"),
         "source_run_ids": manifest.get("source_run_ids", []),
         "config_ids": manifest.get("config_ids", []),
         "row_count": len(rows),
@@ -247,6 +248,7 @@ def write_validation_outputs(
         "trainer_version": TRAINER_VERSION,
         "model_id": model_id,
         "dataset_id": dataset_id,
+        "target_family": manifest.get("target_family", "broker_1r"),
         "source_run_ids": manifest.get("source_run_ids", []),
         "config_ids": manifest.get("config_ids", []),
         "split_metadata": split_metadata,
@@ -335,6 +337,7 @@ def write_model_manifest(
         "model_id": model_id,
         "feature_set_id": feature_set_id,
         "dataset_id": manifest.get("dataset_id"),
+        "target_family": manifest.get("target_family", "broker_1r"),
         "source_run_ids": manifest.get("source_run_ids", []),
         "config_ids": manifest.get("config_ids", []),
         "phase1_schema_version": manifest.get("phase1_schema_version"),
@@ -711,6 +714,7 @@ def main() -> int:
         "encoding ok | "
         f"trainer={TRAINER_VERSION} | "
         f"dataset={manifest.get('dataset_id', dataset_path.name)} | "
+        f"target_family={manifest.get('target_family', 'broker_1r')} | "
         f"model_id={args.model_id} | "
         f"rows={len(rows)} | "
         f"encoded_features={encoded.matrix.shape[1]} | "

@@ -25,6 +25,7 @@ from model_validation_config import (
     dataset_grade_for_rows,
     load_json_file,
     require_folder,
+    resolve_target_family,
 )
 from robustness_report import (
     OVERFIT_WARNINGS_TSV,
@@ -268,6 +269,7 @@ def _build_research_model_inventory(
     model_path = require_folder(model_root / model_id, "Model")
     dataset_manifest = load_json_file(dataset_path / "dataset_manifest.json")
     model_manifest = load_json_file(model_path / "model_manifest.json")
+    target_family = resolve_target_family(dataset_manifest, model_manifest)
 
     if str(model_manifest.get("dataset_id", "")) != dataset_id:
         raise ModelValidationConfigError(
@@ -292,6 +294,7 @@ def _build_research_model_inventory(
         dataset_id=dataset_id,
         model_id=model_id,
         export_id=export_id,
+        target_family=target_family,
         dataset_grade=dataset_grade,
         source_run_ids=[str(value) for value in dataset_manifest.get("source_run_ids", [])],
         config_ids=[str(value) for value in dataset_manifest.get("config_ids", [])],
@@ -719,6 +722,7 @@ def main() -> int:
     summary = {
         "status": payload.status,
         "dataset_id": args.dataset_id,
+        "target_family": payload.baseline.get("target_family"),
         "model_id": args.model_id,
         "export_id": args.export_id,
         "dataset_grade": payload.baseline.get("dataset_grade"),
@@ -733,7 +737,8 @@ def main() -> int:
     else:
         print(
             "robustness validation {status} | dataset={dataset_id} | model={model_id} | "
-            "export={export_id} | grade={dataset_grade} | threshold_source={threshold_source} | "
+            "target_family={target_family} | export={export_id} | grade={dataset_grade} | "
+            "threshold_source={threshold_source} | "
             "threshold={selected_threshold} | final_selected={final_holdout_selected_rows} | "
             "warnings={warning_count} | output={output_path}".format(**summary)
         )

@@ -54,6 +54,7 @@ class BaselineInventory:
     dataset_id: str
     model_id: str
     export_id: str
+    target_family: str
     dataset_grade: str
     source_run_ids: list[str]
     config_ids: list[str]
@@ -159,6 +160,22 @@ def _optional_bool(value: Any) -> bool | None:
     return None
 
 
+def resolve_target_family(*manifests: dict[str, Any]) -> str:
+    values = [
+        str(manifest.get("target_family", ""))
+        for manifest in manifests
+        if manifest.get("target_family", "") not in (None, "")
+    ]
+    if not values:
+        return "broker_1r"
+    unique_values = sorted(set(values))
+    if len(unique_values) != 1:
+        raise ModelValidationConfigError(
+            "Target family mismatch across artifacts: " + ", ".join(unique_values)
+        )
+    return unique_values[0]
+
+
 def dataset_grade_for_rows(row_counts: dict[str, int]) -> str:
     matrix_rows = int(row_counts.get("training_matrix", 0))
     if matrix_rows <= 0:
@@ -194,6 +211,7 @@ def build_baseline_inventory(
             f"Export {export_id} does not reference model {model_id}: "
             f"{export_manifest.get('model_id')}"
         )
+    target_family = resolve_target_family(dataset_manifest, model_manifest, export_manifest)
 
     row_counts = {
         str(key): int(value)
@@ -215,6 +233,7 @@ def build_baseline_inventory(
         dataset_id=dataset_id,
         model_id=model_id,
         export_id=export_id,
+        target_family=target_family,
         dataset_grade=dataset_grade,
         source_run_ids=[str(value) for value in dataset_manifest.get("source_run_ids", [])],
         config_ids=[str(value) for value in dataset_manifest.get("config_ids", [])],
@@ -313,6 +332,7 @@ def compact_inventory_summary(inventory: BaselineInventory) -> str:
     return (
         "baseline inventory ok | "
         f"dataset={inventory.dataset_id} | "
+        f"target_family={inventory.target_family} | "
         f"model={inventory.model_id} | "
         f"export={inventory.export_id} | "
         f"grade={inventory.dataset_grade} | "

@@ -140,6 +140,7 @@ def render_markdown_report(payload: RobustnessReportPayload) -> str:
         "## Baseline",
         "",
         f"- Dataset: `{baseline.get('dataset_id', '')}`",
+        f"- Target family: `{baseline.get('target_family', 'broker_1r')}`",
         f"- Model: `{baseline.get('model_id', '')}`",
         f"- Export: `{baseline.get('export_id', '')}`",
         f"- Dataset grade: `{baseline.get('dataset_grade', '')}`",
