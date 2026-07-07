@@ -6,7 +6,15 @@ Active planning status:
 - Rejected first schema v2 attempt:
   `docs/plans/ml-feature-schema-v2-plan.md`
 - Current implementation phase:
+  `docs/plans/ml-feature-schema-v4-semantic-lanes-plan.md`
+
+Recent Phase 3 follow-ups:
+
+- Schema v2/v3 feature iteration and diagnostics:
   `docs/plans/ml-feature-schema-v2-follow-up-plan.md`
+- Pattern audit and strategy-scoped tester playback:
+  `docs/plans/ml-pattern-audit-follow-up-plan.md`
+  `docs/plans/ml-pattern-audit-strategy-scoped-filter-plan.md`
 
 Complete, validate, and commit one sprint before moving to the next sprint.
 Create a new `$planner` plan in this directory for any substantial future
