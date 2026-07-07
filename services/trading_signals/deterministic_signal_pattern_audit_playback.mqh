@@ -4,14 +4,14 @@
 #ifndef _TS_DETERMINISTIC_SIGNAL_PATTERN_AUDIT_PLAYBACK_MQH_
 #define _TS_DETERMINISTIC_SIGNAL_PATTERN_AUDIT_PLAYBACK_MQH_
 
-const int    PATTERN_AUDIT_PLAYBACK_SCHEMA_VERSION = 1;
+const int    PATTERN_AUDIT_PLAYBACK_SCHEMA_VERSION = 2;
 const string PATTERN_AUDIT_FOLDER                  = "pattern_audits";
 const string PATTERN_AUDIT_MATCHES_FILE            = "pattern_matches.tsv";
 const string PATTERN_AUDIT_OBSERVATIONS_FILE       = "pattern_tester_observations.tsv";
 const int    PATTERN_AUDIT_MATCH_RESERVE           = 256;
 const int    PATTERN_AUDIT_INDEX_RESERVE           = 256;
 const string PATTERN_AUDIT_OBSERVATIONS_HEADER =
-  "schema_version\taudit_id\tpattern_id\tsignal_id\tsource_key\tsource_attempt_index\tentry_time\texpected_match\tobservation_status\tpattern_label\tconditions_text";
+  "schema_version\taudit_id\tpattern_id\tsignal_id\tsource_key\tsource_attempt_index\tentry_time\texpected_signal_id\tobserved_signal_id\texpected_entry_time\tobserved_entry_time\texpected_match\tobservation_status\tpattern_label\tconditions_text";
 
 struct PatternAuditPlaybackMatch
 {
@@ -20,6 +20,7 @@ struct PatternAuditPlaybackMatch
   string source_key;
   int    source_attempt_index;
   string signal_id;
+  string entry_time;
   string conditions_text;
   bool   observed;
 
@@ -30,6 +31,7 @@ struct PatternAuditPlaybackMatch
     source_key = "";
     source_attempt_index = 0;
     signal_id = "";
+    entry_time = "";
     conditions_text = "";
     observed = false;
   }
@@ -41,6 +43,7 @@ struct PatternAuditPlaybackMatch
     source_key = other.source_key;
     source_attempt_index = other.source_attempt_index;
     signal_id = other.signal_id;
+    entry_time = other.entry_time;
     conditions_text = other.conditions_text;
     observed = other.observed;
   }
@@ -211,6 +214,25 @@ bool PatternAuditPlaybackAppendObservation(const string row)
   return PatternAuditPlaybackWriteLine(filename, row, true);
 }
 
+void PatternAuditPlaybackResetObservations()
+{
+  string filename = PatternAuditPlaybackPath(PATTERN_AUDIT_OBSERVATIONS_FILE);
+  if(filename == "")
+    return;
+
+  if(!FileIsExist(filename, FILE_COMMON))
+    return;
+
+  ResetLastError();
+  if(!FileDelete(filename, FILE_COMMON) &&
+     (Enable_Logs || Enable_File_Logs))
+  {
+    PrintFormat("PATTERN_AUDIT_RESET_OBSERVATIONS_FAIL | file=%s | err=%d",
+                filename,
+                GetLastError());
+  }
+}
+
 int PatternAuditPlaybackHeaderIndex(string &header_cells[],
                                     const int header_total,
                                     const string column_name)
@@ -355,6 +377,7 @@ bool PatternAuditPlaybackLoadMatches()
   int signal_id_index = PatternAuditPlaybackHeaderIndex(header_cells, header_total, "signal_id");
   int source_key_index = PatternAuditPlaybackHeaderIndex(header_cells, header_total, "source_key");
   int source_attempt_index = PatternAuditPlaybackHeaderIndex(header_cells, header_total, "source_attempt_index");
+  int entry_time_index = PatternAuditPlaybackHeaderIndex(header_cells, header_total, "entry_time");
   int selected_index = PatternAuditPlaybackHeaderIndex(header_cells, header_total, "selected_for_visual");
   int conditions_index = PatternAuditPlaybackHeaderIndex(header_cells, header_total, "conditions_text");
   if(pattern_id_index < 0 ||
@@ -362,6 +385,7 @@ bool PatternAuditPlaybackLoadMatches()
      signal_id_index < 0 ||
      source_key_index < 0 ||
      source_attempt_index < 0 ||
+     entry_time_index < 0 ||
      selected_index < 0 ||
      conditions_index < 0)
   {
@@ -380,6 +404,7 @@ bool PatternAuditPlaybackLoadMatches()
     int total = PatternAuditPlaybackSplitLine(line, cells);
     if(total <= conditions_index ||
        total <= source_attempt_index ||
+       total <= entry_time_index ||
        total <= source_key_index)
       continue;
 
@@ -395,6 +420,7 @@ bool PatternAuditPlaybackLoadMatches()
     match.pattern_id = cells[pattern_id_index];
     match.pattern_label = cells[pattern_label_index];
     match.signal_id = cells[signal_id_index];
+    match.entry_time = cells[entry_time_index];
     match.source_key = source_key;
     match.source_attempt_index = (int)StringToInteger(cells[source_attempt_index]);
     match.conditions_text = cells[conditions_index];
@@ -432,6 +458,7 @@ void PatternAuditPlaybackInit()
   g_pattern_audit_state.audit_id = DeterministicSignalStatsSanitizePart(Pattern_Audit_Set_Id);
   g_pattern_audit_state.folder = PatternAuditPlaybackFolder();
   PatternAuditPlaybackEnsureFolder();
+  PatternAuditPlaybackResetObservations();
   if(PatternAuditPlaybackLoadMatches())
     g_pattern_audit_state.initialized = true;
 
@@ -678,8 +705,8 @@ void PatternAuditPlaybackRecordSignal(SignalParams &signal_params,
   if(!PatternAuditPlaybackResolveSignalKey(signal_params, source_key, attempt_index))
     return;
 
-  string signal_id = PatternAuditPlaybackSignalId(signal_params);
-  string entry_time = DeterministicSignalStatsTimeToken(leg_state.last_action_time);
+  string observed_signal_id = PatternAuditPlaybackSignalId(signal_params);
+  string observed_entry_time = DeterministicSignalStatsTimeToken(leg_state.last_action_time);
 
   int index_entry = PatternAuditPlaybackFindIndex(source_key, attempt_index);
   if(index_entry < 0)
@@ -700,13 +727,19 @@ void PatternAuditPlaybackRecordSignal(SignalParams &signal_params,
     g_pattern_audit_state.last_pattern_label = g_pattern_audit_matches[i].pattern_label;
     g_pattern_audit_state.last_strategy_label = signal_params.strategy_label;
 
+    string expected_signal_id = g_pattern_audit_matches[i].signal_id;
+    string expected_entry_time = g_pattern_audit_matches[i].entry_time;
     string row = IntegerToString(PATTERN_AUDIT_PLAYBACK_SCHEMA_VERSION) + "\t" +
                  PatternAuditPlaybackCell(g_pattern_audit_state.audit_id) + "\t" +
                  PatternAuditPlaybackCell(g_pattern_audit_matches[i].pattern_id) + "\t" +
-                 PatternAuditPlaybackCell(signal_id) + "\t" +
+                 PatternAuditPlaybackCell(expected_signal_id) + "\t" +
                  PatternAuditPlaybackCell(source_key) + "\t" +
                  IntegerToString(attempt_index) + "\t" +
-                 PatternAuditPlaybackCell(entry_time) + "\t" +
+                 PatternAuditPlaybackCell(expected_entry_time) + "\t" +
+                 PatternAuditPlaybackCell(expected_signal_id) + "\t" +
+                 PatternAuditPlaybackCell(observed_signal_id) + "\t" +
+                 PatternAuditPlaybackCell(expected_entry_time) + "\t" +
+                 PatternAuditPlaybackCell(observed_entry_time) + "\t" +
                  "true\tOBSERVED\t" +
                  PatternAuditPlaybackCell(g_pattern_audit_matches[i].pattern_label) + "\t" +
                  PatternAuditPlaybackCell(g_pattern_audit_matches[i].conditions_text);
