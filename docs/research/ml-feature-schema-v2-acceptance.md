@@ -1048,6 +1048,112 @@ Next human Strategy Tester order:
    observation file exists.
 5. Prepare a combined S1/S2/S3 audit only after per-strategy parity is clear.
 
+## Schema V4 Semantic Lanes Contract
+
+The schema v3 pattern audit proved selected-pattern admission can match offline
+expectations, but several v3 features are too ambiguous for the next robust
+research pass. Schema v4 therefore replaces the active research feature set
+with a smaller semantic-lane contract.
+
+Active schema v4 model and pattern-audit lanes:
+
+| Lane | Column | Values / source |
+| --- | --- | --- |
+| Strategy | `strategy_label` | `S1`, `S2`, `S3`; keep for combined datasets, exclude if constant in single-strategy training. |
+| Direction | `direction` | `BULLISH`, `BEARISH`. |
+| Structure | `structure_0` | Current source extremum structure. |
+| Structure | `structure_1` | Most recent opposite extremum structure. |
+| Structure | `structure_2` | Previous same-side extremum structure. |
+| Macro slope | `macro_h1_slope` | H1 MA slope direction at entry. |
+| Macro slope | `macro_h4_slope` | H4 MA slope direction at entry. |
+| Macro slope | `macro_d1_slope` | D1 MA slope direction at entry. |
+| Fibonacci | `fib_sl_band` | Categorical stop-anchor Fibonacci band. |
+| Fibonacci | `fib_entry_band` | Categorical entry-reference Fibonacci band. |
+| Chain | `high_chain_profile` | Longest strict high-continuity profile. |
+| Chain | `low_chain_profile` | Longest strict low-continuity profile. |
+| Candle | `previous_candle_profile` | One profile for closed `candle_1`. |
+| Session | `entry_session_bucket` | Existing broker-time session bucket. |
+| Calendar | `entry_weekday` | Broker-time weekday at entry. |
+
+The current broker-time session buckets remain unchanged:
+
+- `ASIA`: hour `00:00` through `06:59`.
+- `LONDON`: hour `07:00` through `11:59`.
+- `NEWYORK`: hour `12:00` through `20:59`.
+- `OFFHOURS`: hour `21:00` through `23:59`.
+
+Structure lane semantics:
+
+- `structure_0` replaces `source_structure_type`.
+- `structure_1` replaces `opposite_structure_type`.
+- `structure_2` replaces `same_previous_structure_type`.
+- Human labels may render this as `LH[0] | HL[1] | LH[2]`.
+
+Chain lane semantics:
+
+- `high_chain_profile` and `low_chain_profile` are independent lanes.
+- A pattern may validly combine both lanes, for example
+  `high_chain_profile=HIGH_UP_10 && low_chain_profile=LOW_UP_5`.
+- One lane cannot carry two values for the same signal.
+- Longest strict match wins inside each lane: `10`, then `5`, then `3`.
+- `UP` means the most recent closed values are rising relative to older closed
+  values, for example `high_1 > high_2 > ...`.
+- `DOWN` means the most recent closed values are falling relative to older
+  closed values, for example `high_1 < high_2 < ...`.
+- High lane values:
+  `HIGH_UP_10`, `HIGH_UP_5`, `HIGH_UP_3`, `HIGH_DOWN_10`,
+  `HIGH_DOWN_5`, `HIGH_DOWN_3`, `HIGH_MIXED`.
+- Low lane values:
+  `LOW_UP_10`, `LOW_UP_5`, `LOW_UP_3`, `LOW_DOWN_10`,
+  `LOW_DOWN_5`, `LOW_DOWN_3`, `LOW_MIXED`.
+
+Previous candle profile semantics:
+
+- The profile uses only closed `candle_1` from `DETERMINISTIC_BASE_TIMEFRAME`.
+- Compute body, upper wick, lower wick, and close location from the same candle.
+- `DOJI` is selected when `body_ratio < 0.10`.
+- For non-doji candles, direction is `BULL` when close is above open and `BEAR`
+  when close is below open.
+- Dominant upper wick profile is selected when
+  `upper_wick_ratio >= 0.50` and `upper_wick_ratio >= lower_wick_ratio * 1.50`.
+- Dominant lower wick profile is selected when
+  `lower_wick_ratio >= 0.50` and `lower_wick_ratio >= upper_wick_ratio * 1.50`.
+- Otherwise body tiers are:
+  - `BODY_HIGH` when `body_ratio >= 0.60`.
+  - `BODY_MID` when `body_ratio >= 0.25`.
+  - `BODY_LOW` otherwise.
+- Output tokens are `BULL_UPPER_WICK`, `BULL_LOWER_WICK`,
+  `BULL_BODY_HIGH`, `BULL_BODY_MID`, `BULL_BODY_LOW`,
+  `BEAR_UPPER_WICK`, `BEAR_LOWER_WICK`, `BEAR_BODY_HIGH`,
+  `BEAR_BODY_MID`, `BEAR_BODY_LOW`, or `DOJI`.
+
+Retired active ML/pattern features:
+
+- `source_type`, because it is redundant with `direction`.
+- `strategy_id`, `strategy_delay_period`, and
+  `confirmation_timeframe_minutes` as active model features; these may remain
+  operational metadata.
+- `entry_direction_macro_alignment` and `macro_alignment_score`, because they
+  duplicate `direction + macro_h1/h4/d1`.
+- Separate candle ratios and direction:
+  `prev_body_ratio`, `prev_upper_wick_ratio`, `prev_lower_wick_ratio`,
+  `prev_close_location`, `prev_candle_dir`.
+- Raw Fibonacci values: `sl_fib_raw`, `entry_fib_raw`.
+- Chain score stacks:
+  `low_chain_score_3`, `low_chain_score_5`, `low_chain_score_10`,
+  `high_chain_score_3`, `high_chain_score_5`, `high_chain_score_10`.
+- Context and spread features:
+  `recent_m1_range_points`, `recent_m1_body_ratio_avg`,
+  `recent_m1_directional_balance`, `entry_spread_points`,
+  `spread_to_recent_range_ratio`.
+
+Decision:
+
+- `READY_FOR_SCHEMA_V4_IMPLEMENTATION`
+- Schema v4 supersedes schema v3 for new Phase 3 research.
+- Fresh S1/S2/S3 Strategy Tester exports are required after the code compiles.
+- No live deployment or runtime FILTER approval is implied.
+
 ## Pattern Audit Sprint 2 Validation
 
 Pattern Audit Sprint 2 added deterministic DuckDB tooling for controlled

@@ -152,3 +152,48 @@ If `shadow_manifest.tsv` records `available=false` with
 `file_open_failed:DeterministicSignalML\model_exports\...`, the model export is
 not deployed in the Common Files root used by MT5; deploy the export and rerun
 Strategy Tester before interpreting FILTER or arbitration behavior.
+
+## Active Feature Research Contract
+
+Current Phase 3 follow-up work uses schema v4 semantic lanes. Do not reuse
+schema v3 Strategy Tester exports, datasets, pattern audits, or model artifacts
+as evidence for schema v4 approval.
+
+Schema v4 active model/audit lanes:
+
+```text
+strategy_label
+direction
+structure_0
+structure_1
+structure_2
+macro_h1_slope
+macro_h4_slope
+macro_d1_slope
+fib_sl_band
+fib_entry_band
+high_chain_profile
+low_chain_profile
+previous_candle_profile
+entry_session_bucket
+entry_weekday
+```
+
+The existing broker-time session buckets remain active:
+
+- `ASIA`: `00:00` through `06:59`
+- `LONDON`: `07:00` through `11:59`
+- `NEWYORK`: `12:00` through `20:59`
+- `OFFHOURS`: `21:00` through `23:59`
+
+For schema v4 data collection, run Strategy Tester with ML disabled and feature
+export enabled. Generate S1, S2, and S3 separately before any combined run:
+
+```text
+xauusd_2025_schema_v4_run_S1
+xauusd_2025_schema_v4_run_S2
+xauusd_2025_schema_v4_run_S3
+```
+
+After each run, build a schema v4 dataset and a strategy-scoped pattern audit
+before running selected-pattern playback.
