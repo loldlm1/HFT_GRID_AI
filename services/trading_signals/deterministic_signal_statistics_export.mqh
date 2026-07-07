@@ -14,15 +14,164 @@ const string DETERMINISTIC_SIGNAL_STATS_SUMMARY_FILE   = "run_summary.tsv";
 const string DETERMINISTIC_SIGNAL_STATS_NULL           = "\\N";
 const ushort DETERMINISTIC_SIGNAL_STATS_DELIMITER      = '\t';
 const int    DETERMINISTIC_SIGNAL_STATS_FLUSH_ROWS     = 32;
+const int    DETERMINISTIC_SIGNAL_STATS_PATH_HORIZON_BARS = 2880;
+const int    DETERMINISTIC_SIGNAL_STATS_PATH_RESERVE = 128;
 
 const string DETERMINISTIC_SIGNAL_STATS_MANIFEST_HEADER =
   "schema_version\tkey\tvalue";
 const string DETERMINISTIC_SIGNAL_STATS_FEATURES_HEADER =
   "schema_version\trun_id\tconfig_id\tsignal_id\tsource_key\tsource_attempt_index\tsymbol\tstrategy_label\tdirection\tentry_time\tsource_time\tstructure_0\tstructure_1\tstructure_2\tmacro_h1_slope\tmacro_h4_slope\tmacro_d1_slope\tfib_sl_band\tfib_entry_band\thigh_chain_profile\tlow_chain_profile\tprevious_candle_profile\tentry_session_bucket\tentry_weekday";
 const string DETERMINISTIC_SIGNAL_STATS_OUTCOMES_HEADER =
-  "schema_version\trun_id\tconfig_id\tsignal_id\tsource_key\tsource_attempt_index\tterminal_time\tterminal_reason\tprofit_r\tduration_seconds\tduration_m1_bars\tentry_price\tclose_price\tnet_profit";
+  "schema_version\trun_id\tconfig_id\tsignal_id\tsource_key\tsource_attempt_index\tterminal_time\tterminal_reason\tprofit_r\tduration_seconds\tduration_m1_bars\tentry_price\tclose_price\tnet_profit\thit_1r_before_sl\thit_1_5r_before_sl\thit_2r_before_sl\thit_3r_before_sl\tmax_favorable_r\tmax_adverse_r\tbars_to_1r\tbars_to_1_5r\tbars_to_2r\tbars_to_3r\tbars_to_sl\tpath_horizon_bars\tpath_status";
 const string DETERMINISTIC_SIGNAL_STATS_SUMMARY_HEADER =
   "schema_version\trun_id\tconfig_id\tstarted_at\tfinished_at\tfeature_rows\toutcome_rows\tfeature_invalid_rows\toutcome_invalid_rows\texport_status";
+
+struct DeterministicSignalStatsOutcomePayload
+{
+  bool     valid;
+  datetime terminal_time;
+  string   terminal_reason;
+  double   profit_r;
+  bool     profit_r_valid;
+  int      duration_seconds;
+  int      duration_m1_bars;
+  bool     duration_valid;
+  double   entry_price;
+  bool     entry_price_valid;
+  double   close_price;
+  bool     close_price_valid;
+  double   net_profit;
+  bool     net_profit_valid;
+
+  DeterministicSignalStatsOutcomePayload()
+  {
+    valid = false;
+    terminal_time = 0;
+    terminal_reason = "";
+    profit_r = 0.0;
+    profit_r_valid = false;
+    duration_seconds = 0;
+    duration_m1_bars = 0;
+    duration_valid = false;
+    entry_price = 0.0;
+    entry_price_valid = false;
+    close_price = 0.0;
+    close_price_valid = false;
+    net_profit = 0.0;
+    net_profit_valid = false;
+  }
+
+  DeterministicSignalStatsOutcomePayload(const DeterministicSignalStatsOutcomePayload &other)
+  {
+    valid = other.valid;
+    terminal_time = other.terminal_time;
+    terminal_reason = other.terminal_reason;
+    profit_r = other.profit_r;
+    profit_r_valid = other.profit_r_valid;
+    duration_seconds = other.duration_seconds;
+    duration_m1_bars = other.duration_m1_bars;
+    duration_valid = other.duration_valid;
+    entry_price = other.entry_price;
+    entry_price_valid = other.entry_price_valid;
+    close_price = other.close_price;
+    close_price_valid = other.close_price_valid;
+    net_profit = other.net_profit;
+    net_profit_valid = other.net_profit_valid;
+  }
+};
+
+struct DeterministicSignalStatsPathState
+{
+  bool     active;
+  bool     finalized;
+  bool     broker_outcome_ready;
+  bool     outcome_written;
+  string   signal_id;
+  string   source_key;
+  int      source_attempt_index;
+  SignalTypes direction;
+  datetime entry_time;
+  double   entry_price;
+  double   stop_price;
+  double   risk_distance;
+  double   max_favorable_r;
+  double   max_adverse_r;
+  bool     hit_1r;
+  bool     hit_1_5r;
+  bool     hit_2r;
+  bool     hit_3r;
+  bool     hit_sl;
+  int      bars_to_1r;
+  int      bars_to_1_5r;
+  int      bars_to_2r;
+  int      bars_to_3r;
+  int      bars_to_sl;
+  int      path_horizon_bars;
+  string   path_status;
+  DeterministicSignalStatsOutcomePayload outcome;
+
+  DeterministicSignalStatsPathState()
+  {
+    active = false;
+    finalized = false;
+    broker_outcome_ready = false;
+    outcome_written = false;
+    signal_id = "";
+    source_key = "";
+    source_attempt_index = 0;
+    direction = NO_SIGNAL;
+    entry_time = 0;
+    entry_price = 0.0;
+    stop_price = 0.0;
+    risk_distance = 0.0;
+    max_favorable_r = 0.0;
+    max_adverse_r = 0.0;
+    hit_1r = false;
+    hit_1_5r = false;
+    hit_2r = false;
+    hit_3r = false;
+    hit_sl = false;
+    bars_to_1r = -1;
+    bars_to_1_5r = -1;
+    bars_to_2r = -1;
+    bars_to_3r = -1;
+    bars_to_sl = -1;
+    path_horizon_bars = DETERMINISTIC_SIGNAL_STATS_PATH_HORIZON_BARS;
+    path_status = "";
+    outcome = DeterministicSignalStatsOutcomePayload();
+  }
+
+  DeterministicSignalStatsPathState(const DeterministicSignalStatsPathState &other)
+  {
+    active = other.active;
+    finalized = other.finalized;
+    broker_outcome_ready = other.broker_outcome_ready;
+    outcome_written = other.outcome_written;
+    signal_id = other.signal_id;
+    source_key = other.source_key;
+    source_attempt_index = other.source_attempt_index;
+    direction = other.direction;
+    entry_time = other.entry_time;
+    entry_price = other.entry_price;
+    stop_price = other.stop_price;
+    risk_distance = other.risk_distance;
+    max_favorable_r = other.max_favorable_r;
+    max_adverse_r = other.max_adverse_r;
+    hit_1r = other.hit_1r;
+    hit_1_5r = other.hit_1_5r;
+    hit_2r = other.hit_2r;
+    hit_3r = other.hit_3r;
+    hit_sl = other.hit_sl;
+    bars_to_1r = other.bars_to_1r;
+    bars_to_1_5r = other.bars_to_1_5r;
+    bars_to_2r = other.bars_to_2r;
+    bars_to_3r = other.bars_to_3r;
+    bars_to_sl = other.bars_to_sl;
+    path_horizon_bars = other.path_horizon_bars;
+    path_status = other.path_status;
+    outcome = other.outcome;
+  }
+};
 
 string   g_deterministic_signal_stats_run_id = "";
 string   g_deterministic_signal_stats_config_id = "";
@@ -36,6 +185,7 @@ int      g_deterministic_signal_stats_feature_invalid_rows = 0;
 int      g_deterministic_signal_stats_outcome_invalid_rows = 0;
 string   g_deterministic_signal_stats_feature_buffer[];
 string   g_deterministic_signal_stats_outcome_buffer[];
+DeterministicSignalStatsPathState g_deterministic_signal_stats_path_states[];
 
 bool DeterministicSignalStatsEnabled()
 {
@@ -359,6 +509,8 @@ bool DeterministicSignalStatsWriteManifest()
   DeterministicSignalStatsWriteLine(filename, DeterministicSignalStatsManifestRow("concurrency_mode", EnumToString(Signal_Concurrency_Mode)), true);
   DeterministicSignalStatsWriteLine(filename, DeterministicSignalStatsManifestRow("tp_percent", DoubleToString(TP_Percent, 2)), true);
   DeterministicSignalStatsWriteLine(filename, DeterministicSignalStatsManifestRow("feature_policy", "broker_entered_only"), true);
+  DeterministicSignalStatsWriteLine(filename, DeterministicSignalStatsManifestRow("path_ratio_policy", "bounded_tick_path_outcome_only"), true);
+  DeterministicSignalStatsWriteLine(filename, DeterministicSignalStatsManifestRow("path_horizon_m1_bars", IntegerToString(DETERMINISTIC_SIGNAL_STATS_PATH_HORIZON_BARS)), true);
   DeterministicSignalStatsWriteLine(filename, DeterministicSignalStatsManifestRow("invalid_numeric_token", DETERMINISTIC_SIGNAL_STATS_NULL), true);
   return true;
 }
@@ -429,6 +581,7 @@ void DeterministicSignalStatsReset()
   g_deterministic_signal_stats_outcome_invalid_rows = 0;
   ArrayResize(g_deterministic_signal_stats_feature_buffer, 0);
   ArrayResize(g_deterministic_signal_stats_outcome_buffer, 0);
+  ArrayResize(g_deterministic_signal_stats_path_states, 0);
 }
 
 bool DeterministicSignalStatsInit()
@@ -467,12 +620,14 @@ void DeterministicSignalStatsDeinit()
      !g_deterministic_signal_stats_initialized)
     return;
 
+  DeterministicSignalStatsFinalizePendingPaths("RUN_ENDED");
   if(!DeterministicSignalStatsFlushAll())
     g_deterministic_signal_stats_failed = true;
 
   DeterministicSignalStatsWriteSummary();
   ArrayResize(g_deterministic_signal_stats_feature_buffer, 0);
   ArrayResize(g_deterministic_signal_stats_outcome_buffer, 0);
+  ArrayResize(g_deterministic_signal_stats_path_states, 0);
 }
 
 string DeterministicSignalStatsBuildSignalId(const SignalParams &signal_params)
@@ -528,6 +683,222 @@ string DeterministicSignalStatsDoubleToken(const bool valid,
   if(!valid || !MathIsValidNumber(value))
     return DETERMINISTIC_SIGNAL_STATS_NULL;
   return DoubleToString(value, digits);
+}
+
+bool DeterministicSignalStatsPathStatusHasFinalLabels(const string path_status)
+{
+  return (path_status == "SL_FIRST" ||
+          path_status == "TARGET_3R" ||
+          path_status == "HORIZON_EXPIRED");
+}
+
+int DeterministicSignalStatsFindPathState(const string signal_id)
+{
+  if(signal_id == "")
+    return -1;
+
+  int total = ArraySize(g_deterministic_signal_stats_path_states);
+  for(int i = 0; i < total; i++)
+  {
+    if(g_deterministic_signal_stats_path_states[i].signal_id == signal_id)
+      return i;
+  }
+  return -1;
+}
+
+void DeterministicSignalStatsRemovePathState(const int index)
+{
+  int total = ArraySize(g_deterministic_signal_stats_path_states);
+  if(index < 0 || index >= total)
+    return;
+
+  for(int i = index; i < total - 1; i++)
+    g_deterministic_signal_stats_path_states[i] = g_deterministic_signal_stats_path_states[i + 1];
+
+  ArrayResize(g_deterministic_signal_stats_path_states, total - 1);
+}
+
+int DeterministicSignalStatsPathBarsElapsed(const datetime entry_time,
+                                            const datetime current_time)
+{
+  if(entry_time <= 0 || current_time <= entry_time)
+    return 0;
+
+  int m1_seconds = PeriodSeconds(PERIOD_M1);
+  if(m1_seconds <= 0)
+    return 0;
+
+  return (int)MathFloor((double)(current_time - entry_time) / (double)m1_seconds);
+}
+
+void DeterministicSignalStatsFinalizePathState(const int index,
+                                               const string path_status)
+{
+  int total = ArraySize(g_deterministic_signal_stats_path_states);
+  if(index < 0 || index >= total)
+    return;
+
+  g_deterministic_signal_stats_path_states[index].active = false;
+  g_deterministic_signal_stats_path_states[index].finalized = true;
+  g_deterministic_signal_stats_path_states[index].path_status = path_status;
+}
+
+bool DeterministicSignalStatsPathCurrentR(DeterministicSignalStatsPathState &state,
+                                          const double price,
+                                          double &current_r_out)
+{
+  current_r_out = 0.0;
+  if(price <= 0.0 ||
+     state.entry_price <= 0.0 ||
+     state.risk_distance <= 0.0 ||
+     !MathIsValidNumber(price) ||
+     !MathIsValidNumber(state.entry_price) ||
+     !MathIsValidNumber(state.risk_distance))
+    return false;
+
+  if(state.direction == BULLISH)
+    current_r_out = (price - state.entry_price) / state.risk_distance;
+  else if(state.direction == BEARISH)
+    current_r_out = (state.entry_price - price) / state.risk_distance;
+  else
+    return false;
+
+  return MathIsValidNumber(current_r_out);
+}
+
+void DeterministicSignalStatsRecordPathTargets(DeterministicSignalStatsPathState &state,
+                                               const double current_r,
+                                               const int bars_elapsed)
+{
+  if(!state.hit_1r && current_r >= 1.0)
+  {
+    state.hit_1r = true;
+    state.bars_to_1r = bars_elapsed;
+  }
+  if(!state.hit_1_5r && current_r >= 1.5)
+  {
+    state.hit_1_5r = true;
+    state.bars_to_1_5r = bars_elapsed;
+  }
+  if(!state.hit_2r && current_r >= 2.0)
+  {
+    state.hit_2r = true;
+    state.bars_to_2r = bars_elapsed;
+  }
+  if(!state.hit_3r && current_r >= 3.0)
+  {
+    state.hit_3r = true;
+    state.bars_to_3r = bars_elapsed;
+  }
+}
+
+void DeterministicSignalStatsUpdatePathState(const int index,
+                                             const datetime current_time)
+{
+  int total = ArraySize(g_deterministic_signal_stats_path_states);
+  if(index < 0 || index >= total)
+    return;
+
+  DeterministicSignalStatsPathState state = g_deterministic_signal_stats_path_states[index];
+  if(!state.active || state.finalized)
+    return;
+
+  if(state.risk_distance <= 0.0 || state.entry_time <= 0)
+  {
+    DeterministicSignalStatsFinalizePathState(index, "INVALID");
+    return;
+  }
+
+  double price = 0.0;
+  if(state.direction == BULLISH)
+    price = g_bid;
+  else if(state.direction == BEARISH)
+    price = g_ask;
+  else
+  {
+    DeterministicSignalStatsFinalizePathState(index, "INVALID");
+    return;
+  }
+
+  double current_r = 0.0;
+  if(!DeterministicSignalStatsPathCurrentR(state, price, current_r))
+    return;
+
+  int bars_elapsed = DeterministicSignalStatsPathBarsElapsed(state.entry_time,
+                                                            current_time);
+  if(current_r > state.max_favorable_r)
+    state.max_favorable_r = current_r;
+  if(current_r < state.max_adverse_r)
+    state.max_adverse_r = current_r;
+
+  DeterministicSignalStatsRecordPathTargets(state, current_r, bars_elapsed);
+
+  if(!state.hit_sl && current_r <= -1.0)
+  {
+    state.hit_sl = true;
+    state.bars_to_sl = bars_elapsed;
+    g_deterministic_signal_stats_path_states[index] = state;
+    DeterministicSignalStatsFinalizePathState(index, "SL_FIRST");
+    return;
+  }
+
+  if(state.hit_3r)
+  {
+    g_deterministic_signal_stats_path_states[index] = state;
+    DeterministicSignalStatsFinalizePathState(index, "TARGET_3R");
+    return;
+  }
+
+  if(bars_elapsed >= state.path_horizon_bars)
+  {
+    g_deterministic_signal_stats_path_states[index] = state;
+    DeterministicSignalStatsFinalizePathState(index, "HORIZON_EXPIRED");
+    return;
+  }
+
+  g_deterministic_signal_stats_path_states[index] = state;
+}
+
+string DeterministicSignalStatsPathBoolToken(const bool labels_valid,
+                                             const bool value)
+{
+  if(!labels_valid)
+    return DETERMINISTIC_SIGNAL_STATS_NULL;
+  return value ? "1" : "0";
+}
+
+string DeterministicSignalStatsPathBarsToken(const bool labels_valid,
+                                             const int bars_value)
+{
+  if(!labels_valid || bars_value < 0)
+    return DETERMINISTIC_SIGNAL_STATS_NULL;
+  return IntegerToString(bars_value);
+}
+
+string DeterministicSignalStatsPathColumns(const DeterministicSignalStatsPathState &state)
+{
+  bool labels_valid = DeterministicSignalStatsPathStatusHasFinalLabels(state.path_status);
+  return DeterministicSignalStatsPathBoolToken(labels_valid, state.hit_1r) + "\t" +
+         DeterministicSignalStatsPathBoolToken(labels_valid, state.hit_1_5r) + "\t" +
+         DeterministicSignalStatsPathBoolToken(labels_valid, state.hit_2r) + "\t" +
+         DeterministicSignalStatsPathBoolToken(labels_valid, state.hit_3r) + "\t" +
+         DeterministicSignalStatsDoubleToken(labels_valid, state.max_favorable_r, 4) + "\t" +
+         DeterministicSignalStatsDoubleToken(labels_valid, state.max_adverse_r, 4) + "\t" +
+         DeterministicSignalStatsPathBarsToken(labels_valid, state.bars_to_1r) + "\t" +
+         DeterministicSignalStatsPathBarsToken(labels_valid, state.bars_to_1_5r) + "\t" +
+         DeterministicSignalStatsPathBarsToken(labels_valid, state.bars_to_2r) + "\t" +
+         DeterministicSignalStatsPathBarsToken(labels_valid, state.bars_to_3r) + "\t" +
+         DeterministicSignalStatsPathBarsToken(labels_valid, state.bars_to_sl) + "\t" +
+         IntegerToString(state.path_horizon_bars) + "\t" +
+         DeterministicSignalStatsCell(state.path_status);
+}
+
+string DeterministicSignalStatsInvalidPathColumns()
+{
+  DeterministicSignalStatsPathState state;
+  state.path_status = "INVALID";
+  state.path_horizon_bars = DETERMINISTIC_SIGNAL_STATS_PATH_HORIZON_BARS;
+  return DeterministicSignalStatsPathColumns(state);
 }
 
 int DeterministicSignalStatsMacroDir(const ENUM_TIMEFRAMES timeframe)
@@ -1160,6 +1531,66 @@ bool DeterministicSignalStatsBuildFeatureRow(SignalParams &signal_params,
   return true;
 }
 
+bool DeterministicSignalStatsTrackPath(SignalParams &signal_params,
+                                       const ExecutionLegState &leg_state,
+                                       const string signal_id)
+{
+  if(signal_id == "" || DeterministicSignalStatsFindPathState(signal_id) >= 0)
+    return true;
+
+  DeterministicSignalStatsPathState state;
+  state.signal_id = signal_id;
+  state.source_key = signal_params.deterministic_source_key;
+  if(state.source_key == "")
+    state.source_key = BuildDeterministicSignalSourceKey(signal_params);
+  state.source_attempt_index = signal_params.deterministic_source_attempt_index;
+  state.direction = signal_params.signal_type;
+  state.entry_time = leg_state.last_action_time;
+  if(state.entry_time <= 0)
+    state.entry_time = TimeCurrent();
+  state.entry_price = leg_state.entry_price;
+  if(state.entry_price <= 0.0)
+    state.entry_price = signal_params.entry_price;
+  if(state.entry_price <= 0.0)
+    state.entry_price = signal_params.execution_entry_reference_price;
+  if(state.entry_price <= 0.0)
+    state.entry_price = signal_params.raw_entry_trigger_price;
+  state.stop_price = signal_params.raw_stop_anchor_price;
+  state.risk_distance = MathAbs(state.entry_price - state.stop_price);
+  if(state.risk_distance <= 0.0)
+    state.risk_distance = MathAbs(signal_params.raw_risk_distance);
+  state.path_horizon_bars = DETERMINISTIC_SIGNAL_STATS_PATH_HORIZON_BARS;
+
+  if(state.entry_price <= 0.0 ||
+     state.risk_distance <= 0.0 ||
+     (state.direction != BULLISH && state.direction != BEARISH))
+  {
+    state.active = false;
+    state.finalized = true;
+    state.path_status = "INVALID";
+  }
+  else
+  {
+    state.active = true;
+    state.finalized = false;
+    state.path_status = "TRACKING";
+  }
+
+  int index = ArraySize(g_deterministic_signal_stats_path_states);
+  int resized = ArrayResize(g_deterministic_signal_stats_path_states,
+                            index + 1,
+                            DETERMINISTIC_SIGNAL_STATS_PATH_RESERVE);
+  if(resized != index + 1)
+  {
+    g_deterministic_signal_stats_failed = true;
+    return false;
+  }
+
+  g_deterministic_signal_stats_path_states[index] = state;
+  DeterministicSignalStatsUpdatePathState(index, TimeCurrent());
+  return true;
+}
+
 bool DeterministicSignalStatsRecordFeature(SignalParams &signal_params,
                                            const ExecutionLegState &leg_state)
 {
@@ -1189,6 +1620,7 @@ bool DeterministicSignalStatsRecordFeature(SignalParams &signal_params,
   g_deterministic_signal_stats_feature_rows++;
   if(!valid)
     g_deterministic_signal_stats_feature_invalid_rows++;
+  DeterministicSignalStatsTrackPath(signal_params, leg_state, signal_params.deterministic_stats_signal_id);
   return true;
 }
 
@@ -1273,24 +1705,16 @@ string DeterministicSignalStatsTerminalReason(const SignalParams &signal_params)
   return "CLOSED";
 }
 
-bool DeterministicSignalStatsBuildOutcomeRow(SignalParams &signal_params,
-                                             string &row_out,
-                                             bool &valid_out)
+bool DeterministicSignalStatsBuildOutcomePayload(SignalParams &signal_params,
+                                                 DeterministicSignalStatsOutcomePayload &payload_out,
+                                                 bool &valid_out)
 {
-  row_out = "";
+  payload_out = DeterministicSignalStatsOutcomePayload();
   valid_out = true;
 
   if(!DeterministicSignalStatsReady() ||
      !signal_params.deterministic_strategy)
     return false;
-
-  string signal_id = DeterministicSignalStatsEnsureSignalId(signal_params);
-  if(signal_id == "")
-    return false;
-
-  string source_key = signal_params.deterministic_source_key;
-  if(source_key == "")
-    source_key = BuildDeterministicSignalSourceKey(signal_params);
 
   double entry_price = 0.0;
   bool entry_price_valid = DeterministicSignalStatsOutcomeEntryPrice(signal_params,
@@ -1324,6 +1748,115 @@ bool DeterministicSignalStatsBuildOutcomeRow(SignalParams &signal_params,
   bool net_profit_valid = MathIsValidNumber(signal_params.raw_profit);
   valid_out = entry_price_valid && close_price_valid && profit_r_valid &&
               duration_valid && net_profit_valid;
+  payload_out.valid = valid_out;
+  payload_out.terminal_time = signal_params.close_time;
+  payload_out.terminal_reason = DeterministicSignalStatsTerminalReason(signal_params);
+  payload_out.profit_r = profit_r;
+  payload_out.profit_r_valid = profit_r_valid;
+  payload_out.duration_seconds = duration_seconds;
+  payload_out.duration_m1_bars = duration_m1_bars;
+  payload_out.duration_valid = duration_valid;
+  payload_out.entry_price = entry_price;
+  payload_out.entry_price_valid = entry_price_valid;
+  payload_out.close_price = signal_params.close_price;
+  payload_out.close_price_valid = close_price_valid;
+  payload_out.net_profit = signal_params.raw_profit;
+  payload_out.net_profit_valid = net_profit_valid;
+  return true;
+}
+
+string DeterministicSignalStatsOutcomeRowFromPayload(const string signal_id,
+                                                     const string source_key,
+                                                     const int source_attempt_index,
+                                                     const DeterministicSignalStatsOutcomePayload &payload,
+                                                     const string path_columns)
+{
+  return IntegerToString(DETERMINISTIC_SIGNAL_STATS_SCHEMA_VERSION) + "\t" +
+         DeterministicSignalStatsCell(g_deterministic_signal_stats_run_id) + "\t" +
+         DeterministicSignalStatsCell(g_deterministic_signal_stats_config_id) + "\t" +
+         DeterministicSignalStatsCell(signal_id) + "\t" +
+         DeterministicSignalStatsCell(source_key) + "\t" +
+         IntegerToString(source_attempt_index) + "\t" +
+         DeterministicSignalStatsTimeToken(payload.terminal_time) + "\t" +
+         DeterministicSignalStatsCell(payload.terminal_reason) + "\t" +
+         DeterministicSignalStatsDoubleToken(payload.profit_r_valid, payload.profit_r, 4) + "\t" +
+         DeterministicSignalStatsIntToken(payload.duration_valid, payload.duration_seconds) + "\t" +
+         DeterministicSignalStatsIntToken(payload.duration_valid, payload.duration_m1_bars) + "\t" +
+         DeterministicSignalStatsDoubleToken(payload.entry_price_valid, payload.entry_price, Digits()) + "\t" +
+         DeterministicSignalStatsDoubleToken(payload.close_price_valid, payload.close_price, Digits()) + "\t" +
+         DeterministicSignalStatsDoubleToken(payload.net_profit_valid, payload.net_profit, 2) + "\t" +
+         path_columns;
+}
+
+bool DeterministicSignalStatsWriteOutcomeRow(const string row,
+                                             const bool valid)
+{
+  if(row == "")
+    return false;
+
+  string filename = DeterministicSignalStatsPath(DETERMINISTIC_SIGNAL_STATS_OUTCOMES_FILE);
+  if(!DeterministicSignalStatsQueueRow(filename,
+                                       DETERMINISTIC_SIGNAL_STATS_OUTCOMES_HEADER,
+                                       row,
+                                       g_deterministic_signal_stats_outcome_buffer))
+    return false;
+
+  g_deterministic_signal_stats_outcome_rows++;
+  if(!valid)
+    g_deterministic_signal_stats_outcome_invalid_rows++;
+  return true;
+}
+
+bool DeterministicSignalStatsMaybeWritePathOutcome(const int index)
+{
+  int total = ArraySize(g_deterministic_signal_stats_path_states);
+  if(index < 0 || index >= total)
+    return false;
+
+  DeterministicSignalStatsPathState state = g_deterministic_signal_stats_path_states[index];
+  if(state.outcome_written)
+    return true;
+  if(!state.broker_outcome_ready || !state.finalized)
+    return false;
+
+  bool path_labels_valid = DeterministicSignalStatsPathStatusHasFinalLabels(state.path_status);
+  bool row_valid = state.outcome.valid && path_labels_valid;
+  string row = DeterministicSignalStatsOutcomeRowFromPayload(state.signal_id,
+                                                             state.source_key,
+                                                             state.source_attempt_index,
+                                                             state.outcome,
+                                                             DeterministicSignalStatsPathColumns(state));
+  if(!DeterministicSignalStatsWriteOutcomeRow(row, row_valid))
+    return false;
+
+  g_deterministic_signal_stats_path_states[index].outcome_written = true;
+  return true;
+}
+
+bool DeterministicSignalStatsBuildOutcomeRow(SignalParams &signal_params,
+                                             string &row_out,
+                                             bool &valid_out)
+{
+  row_out = "";
+  valid_out = true;
+
+  if(!DeterministicSignalStatsReady() ||
+     !signal_params.deterministic_strategy)
+    return false;
+
+  string signal_id = DeterministicSignalStatsEnsureSignalId(signal_params);
+  if(signal_id == "")
+    return false;
+
+  string source_key = signal_params.deterministic_source_key;
+  if(source_key == "")
+    source_key = BuildDeterministicSignalSourceKey(signal_params);
+
+  DeterministicSignalStatsOutcomePayload payload;
+  if(!DeterministicSignalStatsBuildOutcomePayload(signal_params,
+                                                  payload,
+                                                  valid_out))
+    return false;
 
   row_out = IntegerToString(DETERMINISTIC_SIGNAL_STATS_SCHEMA_VERSION) + "\t" +
             DeterministicSignalStatsCell(g_deterministic_signal_stats_run_id) + "\t" +
@@ -1331,16 +1864,66 @@ bool DeterministicSignalStatsBuildOutcomeRow(SignalParams &signal_params,
             DeterministicSignalStatsCell(signal_id) + "\t" +
             DeterministicSignalStatsCell(source_key) + "\t" +
             IntegerToString(signal_params.deterministic_source_attempt_index) + "\t" +
-            DeterministicSignalStatsTimeToken(signal_params.close_time) + "\t" +
-            DeterministicSignalStatsCell(DeterministicSignalStatsTerminalReason(signal_params)) + "\t" +
-            DeterministicSignalStatsDoubleToken(profit_r_valid, profit_r, 4) + "\t" +
-            DeterministicSignalStatsIntToken(duration_valid, duration_seconds) + "\t" +
-            DeterministicSignalStatsIntToken(duration_valid, duration_m1_bars) + "\t" +
-            DeterministicSignalStatsDoubleToken(entry_price_valid, entry_price, Digits()) + "\t" +
-            DeterministicSignalStatsDoubleToken(close_price_valid, signal_params.close_price, Digits()) + "\t" +
-            DeterministicSignalStatsDoubleToken(net_profit_valid, signal_params.raw_profit, 2);
+            DeterministicSignalStatsTimeToken(payload.terminal_time) + "\t" +
+            DeterministicSignalStatsCell(payload.terminal_reason) + "\t" +
+            DeterministicSignalStatsDoubleToken(payload.profit_r_valid, payload.profit_r, 4) + "\t" +
+            DeterministicSignalStatsIntToken(payload.duration_valid, payload.duration_seconds) + "\t" +
+            DeterministicSignalStatsIntToken(payload.duration_valid, payload.duration_m1_bars) + "\t" +
+            DeterministicSignalStatsDoubleToken(payload.entry_price_valid, payload.entry_price, Digits()) + "\t" +
+            DeterministicSignalStatsDoubleToken(payload.close_price_valid, payload.close_price, Digits()) + "\t" +
+            DeterministicSignalStatsDoubleToken(payload.net_profit_valid, payload.net_profit, 2) + "\t" +
+            DeterministicSignalStatsInvalidPathColumns();
 
   return true;
+}
+
+void DeterministicSignalStatsUpdatePathTracker()
+{
+  if(!DeterministicSignalStatsReady())
+    return;
+
+  datetime current_time = TimeCurrent();
+  for(int i = ArraySize(g_deterministic_signal_stats_path_states) - 1; i >= 0; i--)
+  {
+    if(g_deterministic_signal_stats_path_states[i].outcome_written)
+    {
+      DeterministicSignalStatsRemovePathState(i);
+      continue;
+    }
+
+    if(g_deterministic_signal_stats_path_states[i].active &&
+       !g_deterministic_signal_stats_path_states[i].finalized)
+    {
+      DeterministicSignalStatsUpdatePathState(i, current_time);
+    }
+
+    if(i >= ArraySize(g_deterministic_signal_stats_path_states))
+      continue;
+
+    if(g_deterministic_signal_stats_path_states[i].finalized)
+      DeterministicSignalStatsMaybeWritePathOutcome(i);
+
+    if(i < ArraySize(g_deterministic_signal_stats_path_states) &&
+       g_deterministic_signal_stats_path_states[i].outcome_written)
+      DeterministicSignalStatsRemovePathState(i);
+  }
+}
+
+void DeterministicSignalStatsFinalizePendingPaths(const string path_status)
+{
+  if(!DeterministicSignalStatsReady())
+    return;
+
+  for(int i = ArraySize(g_deterministic_signal_stats_path_states) - 1; i >= 0; i--)
+  {
+    if(!g_deterministic_signal_stats_path_states[i].finalized)
+      DeterministicSignalStatsFinalizePathState(i, path_status);
+
+    DeterministicSignalStatsMaybeWritePathOutcome(i);
+    if(i < ArraySize(g_deterministic_signal_stats_path_states) &&
+       g_deterministic_signal_stats_path_states[i].outcome_written)
+      DeterministicSignalStatsRemovePathState(i);
+  }
 }
 
 bool DeterministicSignalStatsRecordOutcome(SignalParams &signal_params)
@@ -1356,24 +1939,46 @@ bool DeterministicSignalStatsRecordOutcome(SignalParams &signal_params)
   if(!SignalHasBrokerConfirmedOutcome(signal_params))
     return false;
 
-  string row = "";
-  bool valid = false;
-  if(!DeterministicSignalStatsBuildOutcomeRow(signal_params,
-                                              row,
-                                              valid))
+  string signal_id = DeterministicSignalStatsEnsureSignalId(signal_params);
+  if(signal_id == "")
     return false;
 
-  string filename = DeterministicSignalStatsPath(DETERMINISTIC_SIGNAL_STATS_OUTCOMES_FILE);
-  if(!DeterministicSignalStatsQueueRow(filename,
-                                       DETERMINISTIC_SIGNAL_STATS_OUTCOMES_HEADER,
-                                       row,
-                                       g_deterministic_signal_stats_outcome_buffer))
+  DeterministicSignalStatsOutcomePayload payload;
+  bool valid = false;
+  if(!DeterministicSignalStatsBuildOutcomePayload(signal_params,
+                                                  payload,
+                                                  valid))
+    return false;
+
+  int path_index = DeterministicSignalStatsFindPathState(signal_id);
+  if(path_index >= 0)
+  {
+    g_deterministic_signal_stats_path_states[path_index].outcome = payload;
+    g_deterministic_signal_stats_path_states[path_index].broker_outcome_ready = true;
+    if(!valid &&
+       !g_deterministic_signal_stats_path_states[path_index].finalized)
+    {
+      DeterministicSignalStatsFinalizePathState(path_index, "INVALID");
+    }
+
+    signal_params.deterministic_stats_outcome_exported = true;
+    if(g_deterministic_signal_stats_path_states[path_index].finalized)
+      return DeterministicSignalStatsMaybeWritePathOutcome(path_index);
+
+    return true;
+  }
+
+  string row = "";
+  bool row_valid = false;
+  if(!DeterministicSignalStatsBuildOutcomeRow(signal_params,
+                                              row,
+                                              row_valid))
+    return false;
+
+  if(!DeterministicSignalStatsWriteOutcomeRow(row, false))
     return false;
 
   signal_params.deterministic_stats_outcome_exported = true;
-  g_deterministic_signal_stats_outcome_rows++;
-  if(!valid)
-    g_deterministic_signal_stats_outcome_invalid_rows++;
   return true;
 }
 

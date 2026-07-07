@@ -2076,3 +2076,46 @@ Sprint 1 validation:
   `tools/deterministic_signal_ml/schema_contract.py`.
 - Path-ratio columns are not part of `MODEL_FEATURE_COLUMNS`.
 - No MQL5 behavior changed in this sprint.
+
+## Dynamic TP Path-Ratio Sprint 2 Validation
+
+Sprint 2 added the research-only bounded path tracker to the deterministic
+statistics exporter.
+
+Changed files:
+
+- `HFT_Grid_AI.mq5`
+- `services/trading_signals/deterministic_signal_statistics_export.mqh`
+
+Implemented:
+
+- Path tracker state is created when a broker-entered deterministic signal
+  feature row is exported.
+- The tracker updates from current tick bid/ask values and does not scan market
+  history per tick.
+- Path state is bounded by `2880` M1 bars and finalizes on original SL, `3R`,
+  horizon expiry, invalid input, or EA deinit.
+- Broker outcomes are attached to the path state and outcome rows are written
+  only when both broker outcome and path status are available.
+- The outcome TSV header now appends:
+  `hit_1r_before_sl`, `hit_1_5r_before_sl`, `hit_2r_before_sl`,
+  `hit_3r_before_sl`, `max_favorable_r`, `max_adverse_r`, bars-to-target
+  fields, `path_horizon_bars`, and `path_status`.
+- Manifest rows include `path_ratio_policy` and `path_horizon_m1_bars`.
+
+Safety:
+
+- No runtime TP, SL, lot size, order send, close policy, broker/risk gate,
+  license/session/spread/margin/protection, magic-number, or broker
+  reconciliation behavior was changed.
+- The feature is active only through the existing
+  `Enable_Signal_Feature_Export` research export path.
+
+Validation:
+
+- `git diff --check`: PASS.
+- MetaEditor real compile:
+  `python3 tools/mt5/compile_mt5.py --wine --mt5-root /home/loldlm/mql5_projects/metatrader_5_market_data_framework --entrypoint /home/loldlm/mql5_projects/metatrader_5_market_data_framework/MQL5/Experts/HFT_Grid_AI/HFT_Grid_AI.mq5 --mode compile --timeout 240 --log /home/loldlm/mql5_projects/metatrader_5_market_data_framework/MQL5/Experts/HFT_Grid_AI/logs/compile/dynamic-tp-sprint2.log`
+- Compile result: `0 errors, 0 warnings`.
+- A fresh human-in-the-loop Strategy Tester smoke run is still required to
+  produce real path-aware TSV rows.

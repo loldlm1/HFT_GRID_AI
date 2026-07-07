@@ -203,6 +203,7 @@ void OnTimer()
 void OnTick()
 {
   RefreshCustomSymbolRates();
+  DeterministicSignalStatsUpdatePathTracker();
   DebugEquityGuardAllowsProcessing();
   ProtectionRiskMonitorTradeMode();
   ProtectionRiskFilterTick();
