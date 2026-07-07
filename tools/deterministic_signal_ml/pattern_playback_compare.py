@@ -6,6 +6,7 @@ import argparse
 import csv
 import json
 import os
+from collections import Counter
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
@@ -34,10 +35,8 @@ MATCH_REQUIRED_COLUMNS = (
 
 OBSERVATION_REQUIRED_COLUMNS = (
     "pattern_id",
-    "signal_id",
     "source_key",
     "source_attempt_index",
-    "entry_time",
     "expected_match",
     "observation_status",
     "pattern_label",
@@ -53,6 +52,8 @@ MISMATCH_COLUMNS = (
     "observed_signal_id",
     "expected_entry_time",
     "observed_entry_time",
+    "observed_runtime_signal_id",
+    "observed_runtime_entry_time",
     "expected_status",
     "observed_status",
     "pattern_label",
@@ -75,10 +76,23 @@ class PatternPlaybackRow:
     conditions_text: str
     expected_match: str = "true"
     observation_status: str = "EXPECTED"
+    runtime_signal_id: str = ""
+    runtime_entry_time: str = ""
 
     @property
     def key(self) -> tuple[str, str, str]:
         return (self.pattern_id, self.source_key, self.source_attempt_index)
+
+    @property
+    def entry_key(self) -> tuple[str, str]:
+        return (self.source_key, self.source_attempt_index)
+
+    @property
+    def direction(self) -> str:
+        parts = self.source_key.split("|")
+        if len(parts) >= 2 and parts[1]:
+            return parts[1].upper()
+        return "UNKNOWN"
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -229,17 +243,25 @@ def load_observations(path: Path) -> list[PatternPlaybackRow]:
         pattern_id = row.get("pattern_id", "")
         if not source_key or not pattern_id:
             continue
+        legacy_signal_id = row.get("signal_id", "")
+        legacy_entry_time = row.get("entry_time", "")
+        expected_signal_id = row.get("expected_signal_id", legacy_signal_id)
+        observed_signal_id = row.get("observed_signal_id", legacy_signal_id)
+        expected_entry_time = row.get("expected_entry_time", legacy_entry_time)
+        observed_entry_time = row.get("observed_entry_time", legacy_entry_time)
         observations.append(
             PatternPlaybackRow(
                 pattern_id=pattern_id,
-                signal_id=row.get("signal_id", ""),
+                signal_id=expected_signal_id,
                 source_key=source_key,
                 source_attempt_index=row.get("source_attempt_index", ""),
-                entry_time=normalize_entry_time(row.get("entry_time", "")),
+                entry_time=normalize_entry_time(expected_entry_time),
                 pattern_label=row.get("pattern_label", ""),
                 conditions_text=row.get("conditions_text", ""),
                 expected_match=row.get("expected_match", ""),
                 observation_status=row.get("observation_status", ""),
+                runtime_signal_id=observed_signal_id,
+                runtime_entry_time=normalize_entry_time(observed_entry_time),
             )
         )
     return observations
@@ -254,6 +276,53 @@ def index_rows(rows: list[PatternPlaybackRow]) -> tuple[dict[tuple[str, str, str
             continue
         indexed[row.key] = row
     return indexed, duplicates
+
+
+def index_entries(rows: list[PatternPlaybackRow]) -> dict[tuple[str, str], PatternPlaybackRow]:
+    indexed: dict[tuple[str, str], PatternPlaybackRow] = {}
+    for row in rows:
+        indexed.setdefault(row.entry_key, row)
+    return indexed
+
+
+def entry_pattern_count_histogram(rows: list[PatternPlaybackRow]) -> dict[str, int]:
+    entry_counts = Counter(row.entry_key for row in rows)
+    histogram = Counter(entry_counts.values())
+    return {str(key): histogram[key] for key in sorted(histogram)}
+
+
+def unique_entries_by_direction(rows: list[PatternPlaybackRow]) -> dict[str, int]:
+    entries = index_entries(rows)
+    counts = Counter(row.direction for row in entries.values())
+    return {key: counts[key] for key in sorted(counts)}
+
+
+def entry_metrics(
+    expected_rows: list[PatternPlaybackRow],
+    observed_rows: list[PatternPlaybackRow],
+) -> dict[str, Any]:
+    expected_entries = index_entries(expected_rows)
+    observed_entries = index_entries(observed_rows)
+
+    expected_keys = set(expected_entries)
+    observed_keys = set(observed_entries)
+    matched_keys = expected_keys & observed_keys
+    missing_keys = expected_keys - observed_keys
+    extra_keys = observed_keys - expected_keys
+
+    return {
+        "unique_expected_trade_entries": len(expected_keys),
+        "unique_observed_trade_entries": len(observed_keys),
+        "unique_matched_trade_entries": len(matched_keys),
+        "unique_missing_trade_entries": len(missing_keys),
+        "unique_extra_trade_entries": len(extra_keys),
+        "duplicate_expected_pattern_hits": len(expected_rows) - len(expected_keys),
+        "duplicate_observed_pattern_hits": len(observed_rows) - len(observed_keys),
+        "expected_entries_by_pattern_count": entry_pattern_count_histogram(expected_rows),
+        "observed_entries_by_pattern_count": entry_pattern_count_histogram(observed_rows),
+        "expected_unique_entries_by_direction": unique_entries_by_direction(expected_rows),
+        "observed_unique_entries_by_direction": unique_entries_by_direction(observed_rows),
+    }
 
 
 def mismatch_row(
@@ -272,6 +341,8 @@ def mismatch_row(
         "observed_signal_id": observed.signal_id if observed is not None else "",
         "expected_entry_time": expected.entry_time if expected is not None else "",
         "observed_entry_time": observed.entry_time if observed is not None else "",
+        "observed_runtime_signal_id": observed.runtime_signal_id if observed is not None else "",
+        "observed_runtime_entry_time": observed.runtime_entry_time if observed is not None else "",
         "expected_status": expected.observation_status if expected is not None else "",
         "observed_status": observed.observation_status if observed is not None else "",
         "pattern_label": source.pattern_label,
@@ -297,6 +368,8 @@ def compare_rows(
     mismatches: list[dict[str, str]] = []
     signal_id_mismatches = 0
     timestamp_mismatches = 0
+    runtime_timestamp_mismatches = 0
+    runtime_signal_id_nulls = 0
     status_mismatches = 0
 
     for row in expected_duplicates:
@@ -318,6 +391,10 @@ def compare_rows(
             signal_id_mismatches += 1
             if require_signal_id_match:
                 mismatches.append(mismatch_row("signal_id_mismatch", expected, observed))
+        if observed.runtime_entry_time and expected.entry_time != observed.runtime_entry_time:
+            runtime_timestamp_mismatches += 1
+        if not observed.runtime_signal_id or observed.runtime_signal_id == r"\N":
+            runtime_signal_id_nulls += 1
         if not is_true(observed.expected_match) or observed.observation_status != "OBSERVED":
             status_mismatches += 1
             mismatches.append(mismatch_row("observation_status_mismatch", expected, observed))
@@ -335,7 +412,7 @@ def compare_rows(
     status = "PASS" if hard_failure_count == 0 else "FAIL"
     decision = "DATA_CLEAR_CONTINUE_TO_PATH_LABELS" if status == "PASS" else "DATA_AMBIGUITY_FIX_REQUIRED"
 
-    return {
+    report = {
         "status": status,
         "decision": decision,
         "expected_rows": len(expected_rows),
@@ -346,34 +423,47 @@ def compare_rows(
         "entry_time_mismatch_rows": timestamp_mismatches,
         "signal_id_mismatch_rows": signal_id_mismatches,
         "signal_id_match_required": require_signal_id_match,
+        "runtime_entry_time_mismatch_rows": runtime_timestamp_mismatches,
+        "runtime_signal_id_null_rows": runtime_signal_id_nulls,
         "observation_status_mismatch_rows": status_mismatches,
         "duplicate_expected_key_rows": len(expected_duplicates),
         "duplicate_observed_key_rows": len(observed_duplicates),
         "mismatches": mismatches,
     }
+    report.update(entry_metrics(expected_rows, observed_rows))
+    return report
 
 
-def build_pending_report(audit_id: str, matches_path: Path, observations_path: Path, expected_rows: int) -> dict[str, Any]:
-    return {
+def build_pending_report(
+    audit_id: str,
+    matches_path: Path,
+    observations_path: Path,
+    expected_rows: list[PatternPlaybackRow],
+) -> dict[str, Any]:
+    report = {
         "status": "PENDING",
         "decision": "RESEARCH_ONLY_WARN",
         "audit_id": audit_id,
         "matches_path": str(matches_path),
         "observations_path": str(observations_path),
-        "expected_rows": expected_rows,
+        "expected_rows": len(expected_rows),
         "observed_rows": 0,
         "matched_rows": 0,
-        "missing_rows": expected_rows,
+        "missing_rows": len(expected_rows),
         "extra_rows": 0,
         "entry_time_mismatch_rows": 0,
         "signal_id_mismatch_rows": 0,
         "signal_id_match_required": False,
+        "runtime_entry_time_mismatch_rows": 0,
+        "runtime_signal_id_null_rows": 0,
         "observation_status_mismatch_rows": 0,
         "duplicate_expected_key_rows": 0,
         "duplicate_observed_key_rows": 0,
         "mismatches": [],
         "warning": "Strategy Tester observations file is missing.",
     }
+    report.update(entry_metrics(expected_rows, []))
+    return report
 
 
 def write_mismatch_tsv(output_dir: Path, mismatches: list[dict[str, str]], max_rows: int) -> int:
@@ -408,10 +498,16 @@ def write_markdown_report(output_dir: Path, report: dict[str, Any], max_examples
         "",
         "## Counts",
         "",
+        "Pattern rows are selected-pattern observations. Unique trade entries",
+        "are MT5-admissible source entries keyed by",
+        "`source_key + source_attempt_index`.",
+        "",
+        "### Pattern Row Parity",
+        "",
         "| Metric | Value |",
         "| --- | ---: |",
     ]
-    count_fields = (
+    pattern_count_fields = (
         "expected_rows",
         "observed_rows",
         "matched_rows",
@@ -419,21 +515,80 @@ def write_markdown_report(output_dir: Path, report: dict[str, Any], max_examples
         "extra_rows",
         "entry_time_mismatch_rows",
         "signal_id_mismatch_rows",
+        "runtime_entry_time_mismatch_rows",
+        "runtime_signal_id_null_rows",
         "observation_status_mismatch_rows",
         "duplicate_expected_key_rows",
         "duplicate_observed_key_rows",
         "mismatch_rows_written",
     )
-    for field in count_fields:
+    for field in pattern_count_fields:
         lines.append(f"| `{field}` | {report.get(field, 0)} |")
+
+    lines.extend(
+        [
+            "",
+            "### Unique Trade Entries",
+            "",
+            "| Metric | Value |",
+            "| --- | ---: |",
+        ]
+    )
+    entry_count_fields = (
+        "unique_expected_trade_entries",
+        "unique_observed_trade_entries",
+        "unique_matched_trade_entries",
+        "unique_missing_trade_entries",
+        "unique_extra_trade_entries",
+        "duplicate_expected_pattern_hits",
+        "duplicate_observed_pattern_hits",
+    )
+    for field in entry_count_fields:
+        lines.append(f"| `{field}` | {report.get(field, 0)} |")
+
+    lines.extend(
+        [
+            "",
+            "### Entry Pattern Count Histogram",
+            "",
+            "| Patterns per entry | Expected entries | Observed entries |",
+            "| ---: | ---: | ---: |",
+        ]
+    )
+    expected_hist = report.get("expected_entries_by_pattern_count", {})
+    observed_hist = report.get("observed_entries_by_pattern_count", {})
+    histogram_keys = sorted(set(expected_hist) | set(observed_hist), key=int)
+    for key in histogram_keys:
+        lines.append(f"| {key} | {expected_hist.get(key, 0)} | {observed_hist.get(key, 0)} |")
+
+    lines.extend(
+        [
+            "",
+            "### Unique Entries By Direction",
+            "",
+            "| Direction | Expected entries | Observed entries |",
+            "| --- | ---: | ---: |",
+        ]
+    )
+    expected_direction = report.get("expected_unique_entries_by_direction", {})
+    observed_direction = report.get("observed_unique_entries_by_direction", {})
+    direction_keys = sorted(set(expected_direction) | set(observed_direction))
+    for key in direction_keys:
+        lines.append(f"| `{key}` | {expected_direction.get(key, 0)} | {observed_direction.get(key, 0)} |")
+
     lines.extend(
         [
             "",
             "## Notes",
             "",
-            "- `signal_id` includes the deterministic stats run ID, so signal ID",
-            "  mismatches are diagnostic unless `--require-signal-id-match` is used.",
-            "- `entry_time` mismatches are diagnostic when pattern/source keys match.",
+            "- Hard pattern parity uses `pattern_id + source_key + source_attempt_index`.",
+            "- MT5 trade totals should be compared with `unique_observed_trade_entries`,",
+            "  not with selected pattern observation rows.",
+            "- Multiple selected patterns can match one trade entry; those extra",
+            "  pattern hits are counted as duplicate pattern hits, not extra trades.",
+            "- `signal_id` can include a stats run ID, and may be `\\N` when feature",
+            "  export is disabled. It is diagnostic unless `--require-signal-id-match` is used.",
+            "- Entry-time fields are metadata diagnostics when hard identity matches.",
             "- Runtime FILTER approval is not part of this report.",
         ]
     )
@@ -483,7 +638,7 @@ def main() -> int:
                 require_signal_id_match=args.require_signal_id_match,
             )
         elif args.allow_missing_observations:
-            report = build_pending_report(audit_id, matches_path, observations_path, len(expected_rows))
+            report = build_pending_report(audit_id, matches_path, observations_path, expected_rows)
         else:
             raise PatternPlaybackCompareError(f"Missing tester observations: {observations_path}")
 
@@ -510,7 +665,9 @@ def main() -> int:
         f"{report['status']} | decision={report['decision']} | "
         f"expected={report['expected_rows']} | observed={report['observed_rows']} | "
         f"matched={report['matched_rows']} | missing={report['missing_rows']} | "
-        f"extra={report['extra_rows']} | entry_time_mismatches={report['entry_time_mismatch_rows']} | "
+        f"extra={report['extra_rows']} | unique_trades={report['unique_observed_trade_entries']} | "
+        f"duplicate_pattern_hits={report['duplicate_observed_pattern_hits']} | "
+        f"entry_time_mismatches={report['entry_time_mismatch_rows']} | "
         f"signal_id_mismatches={report['signal_id_mismatch_rows']} | output={output_dir}"
     )
     return 0 if report["status"] in ("PASS", "PENDING") else 1
