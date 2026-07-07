@@ -15,7 +15,7 @@ from schema_contract import (
     SIGNAL_FEATURES_FILE,
     SIGNAL_OUTCOMES_FILE,
     SUPPORTED_SCHEMA_VERSION,
-    expected_columns_for,
+    expected_column_variants_for,
 )
 
 
@@ -35,10 +35,11 @@ class Phase1RunValidation:
     duplicate_outcome_ids: int
     missing_outcomes: int
     missing_features: int
+    path_label_columns_present: bool
     warnings: tuple[str, ...]
 
 
-def _read_tsv(path: Path, expected_columns: tuple[str, ...]) -> list[dict[str, str]]:
+def _read_tsv(path: Path, expected_columns: tuple[tuple[str, ...], ...]) -> list[dict[str, str]]:
     if not path.exists():
         raise Phase1ValidationError(f"Missing required file: {path}")
 
@@ -50,9 +51,10 @@ def _read_tsv(path: Path, expected_columns: tuple[str, ...]) -> list[dict[str, s
         except StopIteration as exc:
             raise Phase1ValidationError(f"Empty TSV file: {path}") from exc
 
-        if tuple(header) != expected_columns:
+        header_tuple = tuple(header)
+        if header_tuple not in expected_columns:
             raise Phase1ValidationError(
-                f"Unexpected header in {path.name}: expected {expected_columns}, got {tuple(header)}"
+                f"Unexpected header in {path.name}: expected one of {expected_columns}, got {header_tuple}"
             )
 
         for line_number, values in enumerate(reader, start=2):
@@ -124,10 +126,10 @@ def validate_phase1_run(runs_root: Path, run_id: str) -> Phase1RunValidation:
         if not (run_path / filename).exists():
             raise Phase1ValidationError(f"Missing required Phase 1 file: {run_path / filename}")
 
-    manifest_rows = _read_tsv(run_path / RUN_MANIFEST_FILE, expected_columns_for(RUN_MANIFEST_FILE))
-    summary_rows = _read_tsv(run_path / RUN_SUMMARY_FILE, expected_columns_for(RUN_SUMMARY_FILE))
-    feature_rows = _read_tsv(run_path / SIGNAL_FEATURES_FILE, expected_columns_for(SIGNAL_FEATURES_FILE))
-    outcome_rows = _read_tsv(run_path / SIGNAL_OUTCOMES_FILE, expected_columns_for(SIGNAL_OUTCOMES_FILE))
+    manifest_rows = _read_tsv(run_path / RUN_MANIFEST_FILE, expected_column_variants_for(RUN_MANIFEST_FILE))
+    summary_rows = _read_tsv(run_path / RUN_SUMMARY_FILE, expected_column_variants_for(RUN_SUMMARY_FILE))
+    feature_rows = _read_tsv(run_path / SIGNAL_FEATURES_FILE, expected_column_variants_for(SIGNAL_FEATURES_FILE))
+    outcome_rows = _read_tsv(run_path / SIGNAL_OUTCOMES_FILE, expected_column_variants_for(SIGNAL_OUTCOMES_FILE))
 
     _require_schema_version(manifest_rows, RUN_MANIFEST_FILE)
     _require_schema_version(summary_rows, RUN_SUMMARY_FILE)
@@ -223,6 +225,10 @@ def validate_phase1_run(runs_root: Path, run_id: str) -> Phase1RunValidation:
             f"{sl_non_negative_net_profit_rows} SL outcome rows have non-negative net_profit but negative profit_r"
         )
 
+    path_label_columns_present = bool(outcome_rows and "path_status" in outcome_rows[0])
+    if not path_label_columns_present:
+        warnings.append("path-ratio outcome columns are not present; only broker_1r targets can be built")
+
     return Phase1RunValidation(
         run_id=run_id,
         run_path=run_path,
@@ -234,6 +240,7 @@ def validate_phase1_run(runs_root: Path, run_id: str) -> Phase1RunValidation:
         duplicate_outcome_ids=duplicate_outcome_ids,
         missing_outcomes=missing_outcomes,
         missing_features=missing_features,
+        path_label_columns_present=path_label_columns_present,
         warnings=tuple(warnings),
     )
 

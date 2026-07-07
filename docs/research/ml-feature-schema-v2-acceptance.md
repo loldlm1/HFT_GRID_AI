@@ -2119,3 +2119,50 @@ Validation:
 - Compile result: `0 errors, 0 warnings`.
 - A fresh human-in-the-loop Strategy Tester smoke run is still required to
   produce real path-aware TSV rows.
+
+## Dynamic TP Path-Ratio Sprint 3 Validation
+
+Sprint 3 updated Python dataset tooling so one path-aware run can produce
+multiple target-family datasets.
+
+Changed files:
+
+- `tools/deterministic_signal_ml/schema_contract.py`
+- `tools/deterministic_signal_ml/validate_phase1_run.py`
+- `tools/deterministic_signal_ml/build_dataset.py`
+- `tools/deterministic_signal_ml/report_writer.py`
+
+Implemented:
+
+- Outcome validation accepts both legacy schema v4 outcomes and the new
+  path-ratio outcome extension.
+- `build_dataset.py` now supports:
+  - `--target-family broker_1r` as the backward-compatible default
+  - `--target-family 1r`
+  - `--target-family 1_5r`
+  - `--target-family 2r`
+  - `--target-family 3r`
+  - `--target-family expected_r`
+- Path-ratio labels remain excluded from `MODEL_FEATURE_COLUMNS` and are listed
+  as excluded training columns in dataset manifests.
+- Dataset quality/report output now records target family, path label
+  availability, path status distribution, and target support counts.
+
+Validation:
+
+- Python syntax:
+  `.venv/bin/python -m py_compile tools/deterministic_signal_ml/schema_contract.py tools/deterministic_signal_ml/validate_phase1_run.py tools/deterministic_signal_ml/build_dataset.py tools/deterministic_signal_ml/report_writer.py`
+  PASS.
+- Backward-compatible schema v4 S1 build:
+  `dynamic_tp_backcompat_smoke`, target family `broker_1r`, training rows
+  `11911`, PASS.
+- Path-target request on an old non-path run fails clearly with:
+  `no valid rows for target_family=2r`, PASS.
+- Temporary path-aware fixture build:
+  `dynamic_tp_path_fixture`, target family `2r`, training rows `2`, PASS.
+
+Decision:
+
+- Dataset tooling is ready for a fresh path-aware Strategy Tester run.
+- Real XAUUSD 2025 path-family datasets cannot be built until the human
+  Strategy Tester run produces extended outcome TSV rows.

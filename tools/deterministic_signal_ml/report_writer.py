@@ -13,6 +13,7 @@ from schema_contract import (
     CATEGORICAL_COLUMNS,
     DatasetColumnGroups,
     MODEL_FEATURE_COLUMNS,
+    PATH_RATIO_OUTCOME_COLUMNS,
     SUPPORTED_SCHEMA_VERSION,
 )
 
@@ -33,6 +34,7 @@ def build_quality_payload(
     connection: duckdb.DuckDBPyConnection,
     validations,
     counts: dict[str, int],
+    target_family: str,
 ) -> dict[str, Any]:
     null_counts = _fetch_dicts(
         connection,
@@ -61,11 +63,13 @@ def build_quality_payload(
 
     return {
         "status": "OK" if blocking_null_feature_rows == 0 else "OK_WITH_WARNINGS",
+        "target_family": target_family,
         "warnings": warnings,
         "blocking_null_feature_rows": blocking_null_feature_rows,
         "row_counts": counts,
         "source_runs": [validation.run_id for validation in validations],
         "config_ids": sorted({validation.config_id for validation in validations}),
+        "path_label_columns_present": all(validation.path_label_columns_present for validation in validations),
         "join_integrity": {
             "duplicate_feature_ids": sum(validation.duplicate_feature_ids for validation in validations),
             "duplicate_outcome_ids": sum(validation.duplicate_outcome_ids for validation in validations),
@@ -79,6 +83,22 @@ def build_quality_payload(
         "win_distribution": _fetch_dicts(
             connection,
             "SELECT target_is_win, COUNT(*) AS rows FROM training_matrix GROUP BY 1 ORDER BY 1",
+        ),
+        "path_status_distribution": _fetch_dicts(
+            connection,
+            "SELECT path_status, COUNT(*) AS rows FROM training_matrix GROUP BY 1 ORDER BY 1",
+        ),
+        "path_target_support": _fetch_dicts(
+            connection,
+            """
+SELECT
+  SUM(CASE WHEN hit_1r_before_sl = 1 THEN 1 ELSE 0 END) AS hit_1r_rows,
+  SUM(CASE WHEN hit_1_5r_before_sl = 1 THEN 1 ELSE 0 END) AS hit_1_5r_rows,
+  SUM(CASE WHEN hit_2r_before_sl = 1 THEN 1 ELSE 0 END) AS hit_2r_rows,
+  SUM(CASE WHEN hit_3r_before_sl = 1 THEN 1 ELSE 0 END) AS hit_3r_rows,
+  SUM(CASE WHEN path_status IN ('INVALID', 'RUN_ENDED') OR path_status IS NULL THEN 1 ELSE 0 END) AS invalid_path_rows
+FROM training_matrix
+""",
         ),
         "strategy_distribution": _fetch_dicts(
             connection,
@@ -181,11 +201,13 @@ def write_dataset_manifest(
     validations,
     counts: dict[str, int],
     output_files: dict[str, str],
+    target_family: str,
 ) -> None:
     column_groups = DatasetColumnGroups()
     payload = {
         "dataset_id": dataset_id,
         "builder_version": BUILDER_VERSION,
+        "target_family": target_family,
         "created_at": datetime.now(UTC).isoformat(),
         "phase1_schema_version": SUPPORTED_SCHEMA_VERSION,
         "feature_schema_version": SUPPORTED_SCHEMA_VERSION,
@@ -198,6 +220,7 @@ def write_dataset_manifest(
         "target_columns": list(column_groups.target_columns),
         "identity_columns": list(column_groups.identity_columns),
         "audit_columns": list(column_groups.audit_columns),
+        "path_ratio_outcome_columns": list(PATH_RATIO_OUTCOME_COLUMNS),
         "excluded_from_training_columns": [
             "terminal_time",
             "terminal_reason",
@@ -207,6 +230,7 @@ def write_dataset_manifest(
             "entry_price",
             "close_price",
             "net_profit",
+            *PATH_RATIO_OUTCOME_COLUMNS,
         ],
     }
     (output_dir / "dataset_manifest.json").write_text(
@@ -243,6 +267,8 @@ def write_dataset_report(
         f"# Dataset Report: {dataset_id}",
         "",
         f"Status: `{quality_payload['status']}`",
+        f"Target family: `{quality_payload.get('target_family', '')}`",
+        f"Path labels present: `{quality_payload.get('path_label_columns_present', False)}`",
         "",
         "## Row Counts",
         "",
@@ -263,6 +289,21 @@ def write_dataset_report(
     lines.extend(_markdown_table(quality_payload["target_distribution"], ("terminal_reason", "rows")))
     lines.extend(["", "## Win Distribution", ""])
     lines.extend(_markdown_table(quality_payload["win_distribution"], ("target_is_win", "rows")))
+    lines.extend(["", "## Path Status Distribution", ""])
+    lines.extend(_markdown_table(quality_payload["path_status_distribution"], ("path_status", "rows")))
+    lines.extend(["", "## Path Target Support", ""])
+    lines.extend(
+        _markdown_table(
+            quality_payload["path_target_support"],
+            (
+                "hit_1r_rows",
+                "hit_1_5r_rows",
+                "hit_2r_rows",
+                "hit_3r_rows",
+                "invalid_path_rows",
+            ),
+        )
+    )
     lines.extend(["", "## Strategy Summary", ""])
     lines.extend(_markdown_table(quality_payload["strategy_distribution"], ("strategy_label", "rows", "avg_profit_r")))
     lines.extend(["", "## Direction Summary", ""])

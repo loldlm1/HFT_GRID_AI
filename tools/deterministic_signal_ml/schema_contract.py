@@ -137,6 +137,9 @@ PATH_RATIO_TARGET_FAMILIES = (
     "expected_r",
 )
 
+BROKER_TARGET_FAMILY = "broker_1r"
+DATASET_TARGET_FAMILIES = (BROKER_TARGET_FAMILY,) + PATH_RATIO_TARGET_FAMILIES
+
 AUDIT_COLUMNS = (
     "symbol",
     "entry_time",
@@ -178,6 +181,22 @@ CATEGORICAL_COLUMNS = (
     "entry_session_bucket",
     "entry_weekday",
     "terminal_reason",
+    "path_status",
+)
+
+NUMERIC_PATH_RATIO_COLUMNS = (
+    "hit_1r_before_sl",
+    "hit_1_5r_before_sl",
+    "hit_2r_before_sl",
+    "hit_3r_before_sl",
+    "max_favorable_r",
+    "max_adverse_r",
+    "bars_to_1r",
+    "bars_to_1_5r",
+    "bars_to_2r",
+    "bars_to_3r",
+    "bars_to_sl",
+    "path_horizon_bars",
 )
 
 
@@ -200,3 +219,10 @@ def expected_columns_for(filename: str) -> tuple[str, ...]:
     if filename == RUN_SUMMARY_FILE:
         return SUMMARY_COLUMNS
     raise ValueError(f"Unknown Phase 1 file: {filename}")
+
+
+def expected_column_variants_for(filename: str) -> tuple[tuple[str, ...], ...]:
+    """Return acceptable TSV headers for an export file."""
+    if filename == SIGNAL_OUTCOMES_FILE:
+        return (OUTCOME_COLUMNS, OUTCOME_COLUMNS_WITH_PATH)
+    return (expected_columns_for(filename),)

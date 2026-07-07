@@ -9,9 +9,12 @@ from pathlib import Path
 import duckdb
 
 from schema_contract import (
+    BROKER_TARGET_FAMILY,
+    DATASET_TARGET_FAMILIES,
     FEATURE_COLUMNS,
     MODEL_FEATURE_COLUMNS,
     OUTCOME_COLUMNS,
+    OUTCOME_COLUMNS_WITH_PATH,
     SIGNAL_FEATURES_FILE,
     SIGNAL_OUTCOMES_FILE,
 )
@@ -48,6 +51,11 @@ def _read_tsv_sql(path: Path, columns: tuple[str, ...]) -> str:
     )
 
 
+def _tsv_header(path: Path) -> tuple[str, ...]:
+    with path.open("r", encoding="utf-8", newline="") as handle:
+        return tuple(handle.readline().rstrip("\r\n").split("\t"))
+
+
 def _insert_features_sql(path: Path) -> str:
     source = _read_tsv_sql(path, FEATURE_COLUMNS)
     return f"""
@@ -82,7 +90,9 @@ FROM {source}
 
 
 def _insert_outcomes_sql(path: Path) -> str:
-    source = _read_tsv_sql(path, OUTCOME_COLUMNS)
+    header = _tsv_header(path)
+    has_path_labels = header == OUTCOME_COLUMNS_WITH_PATH
+    source_columns = OUTCOME_COLUMNS_WITH_PATH if has_path_labels else OUTCOME_COLUMNS
     return f"""
 INSERT INTO outcomes
 SELECT
@@ -99,15 +109,73 @@ SELECT
   CAST(duration_m1_bars AS INTEGER) AS duration_m1_bars,
   CAST(entry_price AS DOUBLE) AS entry_price,
   CAST(close_price AS DOUBLE) AS close_price,
-  CAST(net_profit AS DOUBLE) AS net_profit
-FROM {source}
+  CAST(net_profit AS DOUBLE) AS net_profit,
+  {("CAST(hit_1r_before_sl AS INTEGER)" if has_path_labels else "NULL::INTEGER")} AS hit_1r_before_sl,
+  {("CAST(hit_1_5r_before_sl AS INTEGER)" if has_path_labels else "NULL::INTEGER")} AS hit_1_5r_before_sl,
+  {("CAST(hit_2r_before_sl AS INTEGER)" if has_path_labels else "NULL::INTEGER")} AS hit_2r_before_sl,
+  {("CAST(hit_3r_before_sl AS INTEGER)" if has_path_labels else "NULL::INTEGER")} AS hit_3r_before_sl,
+  {("CAST(max_favorable_r AS DOUBLE)" if has_path_labels else "NULL::DOUBLE")} AS max_favorable_r,
+  {("CAST(max_adverse_r AS DOUBLE)" if has_path_labels else "NULL::DOUBLE")} AS max_adverse_r,
+  {("CAST(bars_to_1r AS INTEGER)" if has_path_labels else "NULL::INTEGER")} AS bars_to_1r,
+  {("CAST(bars_to_1_5r AS INTEGER)" if has_path_labels else "NULL::INTEGER")} AS bars_to_1_5r,
+  {("CAST(bars_to_2r AS INTEGER)" if has_path_labels else "NULL::INTEGER")} AS bars_to_2r,
+  {("CAST(bars_to_3r AS INTEGER)" if has_path_labels else "NULL::INTEGER")} AS bars_to_3r,
+  {("CAST(bars_to_sl AS INTEGER)" if has_path_labels else "NULL::INTEGER")} AS bars_to_sl,
+  {("CAST(path_horizon_bars AS INTEGER)" if has_path_labels else "NULL::INTEGER")} AS path_horizon_bars,
+  {("path_status" if has_path_labels else "NULL::VARCHAR")} AS path_status
+FROM {_read_tsv_sql(path, source_columns)}
 """
+
+
+def _path_target_sql(target_family: str) -> tuple[str, str, str, str]:
+    if target_family == BROKER_TARGET_FAMILY:
+        return (
+            "CASE WHEN o.profit_r > 0 THEN 1 ELSE 0 END",
+            "o.profit_r",
+            "o.terminal_reason",
+            "TRUE",
+        )
+
+    valid_path = "o.path_status IN ('SL_FIRST', 'TARGET_3R', 'HORIZON_EXPIRED')"
+    if target_family in ("1r", "1_5r", "2r", "3r"):
+        ratio_by_family = {
+            "1r": ("hit_1r_before_sl", 1.0),
+            "1_5r": ("hit_1_5r_before_sl", 1.5),
+            "2r": ("hit_2r_before_sl", 2.0),
+            "3r": ("hit_3r_before_sl", 3.0),
+        }
+        hit_column, target_r = ratio_by_family[target_family]
+        return (
+            f"CAST(o.{hit_column} AS INTEGER)",
+            f"CASE WHEN o.{hit_column} = 1 THEN {target_r:.1f} WHEN o.path_status = 'SL_FIRST' THEN -1.0 ELSE 0.0 END",
+            f"'PATH_{target_family}_' || o.path_status",
+            f"{valid_path} AND o.{hit_column} IS NOT NULL",
+        )
+
+    if target_family == "expected_r":
+        target_profit = (
+            "CASE "
+            "WHEN o.path_status = 'TARGET_3R' THEN 3.0 "
+            "WHEN o.path_status = 'SL_FIRST' THEN -1.0 "
+            "WHEN o.path_status = 'HORIZON_EXPIRED' THEN COALESCE(o.max_favorable_r, 0.0) "
+            "ELSE NULL END"
+        )
+        return (
+            f"CASE WHEN {target_profit} > 0 THEN 1 ELSE 0 END",
+            target_profit,
+            "'PATH_EXPECTED_R_' || o.path_status",
+            f"{valid_path} AND ({target_profit}) IS NOT NULL",
+        )
+
+    raise RuntimeError(f"Unsupported target_family: {target_family}")
 
 
 def create_dataset_tables(
     connection: duckdb.DuckDBPyConnection,
     validations,
+    target_family: str,
 ) -> dict[str, int]:
+    target_is_win_sql, target_profit_r_sql, target_reason_sql, target_valid_clause = _path_target_sql(target_family)
     required_feature_clause = " AND\n  ".join(
         f"f.{column} IS NOT NULL" for column in MODEL_FEATURE_COLUMNS
     )
@@ -157,7 +225,20 @@ CREATE TABLE outcomes (
   duration_m1_bars INTEGER,
   entry_price DOUBLE,
   close_price DOUBLE,
-  net_profit DOUBLE
+  net_profit DOUBLE,
+  hit_1r_before_sl INTEGER,
+  hit_1_5r_before_sl INTEGER,
+  hit_2r_before_sl INTEGER,
+  hit_3r_before_sl INTEGER,
+  max_favorable_r DOUBLE,
+  max_adverse_r DOUBLE,
+  bars_to_1r INTEGER,
+  bars_to_1_5r INTEGER,
+  bars_to_2r INTEGER,
+  bars_to_3r INTEGER,
+  bars_to_sl INTEGER,
+  path_horizon_bars INTEGER,
+  path_status VARCHAR
 )
 """
     )
@@ -202,13 +283,27 @@ SELECT
   o.entry_price,
   o.close_price,
   o.net_profit,
-  CASE WHEN o.profit_r > 0 THEN 1 ELSE 0 END AS target_is_win,
-  o.profit_r AS target_profit_r,
-  o.terminal_reason AS target_terminal_reason
+  o.hit_1r_before_sl,
+  o.hit_1_5r_before_sl,
+  o.hit_2r_before_sl,
+  o.hit_3r_before_sl,
+  o.max_favorable_r,
+  o.max_adverse_r,
+  o.bars_to_1r,
+  o.bars_to_1_5r,
+  o.bars_to_2r,
+  o.bars_to_3r,
+  o.bars_to_sl,
+  o.path_horizon_bars,
+  o.path_status,
+  {target_is_win_sql} AS target_is_win,
+  {target_profit_r_sql} AS target_profit_r,
+  {target_reason_sql} AS target_terminal_reason
 FROM features f
 INNER JOIN outcomes o ON o.signal_id = f.signal_id
 WHERE
   {required_feature_clause}
+  AND {target_valid_clause}
 ORDER BY f.entry_time, f.signal_id
 """
     )
@@ -269,6 +364,12 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--run-id", action="append", required=True, help="Run ID to include. Repeat for multiple runs.")
     parser.add_argument("--dataset-id", required=True, help="Dataset output ID.")
     parser.add_argument("--output-root", default="artifacts/datasets", help="Dataset output root.")
+    parser.add_argument(
+        "--target-family",
+        default=BROKER_TARGET_FAMILY,
+        choices=DATASET_TARGET_FAMILIES,
+        help="Target family to derive from broker outcomes or path-ratio labels.",
+    )
     parser.add_argument("--overwrite", action="store_true", help="Overwrite an existing dataset folder.")
     parser.add_argument("--validate-only", action="store_true", help="Validate inputs without writing Parquet files.")
     parser.add_argument(
@@ -310,7 +411,9 @@ def main() -> int:
         return 0
 
     connection = duckdb.connect(":memory:")
-    counts = create_dataset_tables(connection, validations)
+    counts = create_dataset_tables(connection, validations, args.target_family)
+    if args.target_family != BROKER_TARGET_FAMILY and counts["training_matrix"] <= 0:
+        parser.exit(1, f"build failed: no valid rows for target_family={args.target_family}\n")
     print(
         "assembly ok | "
         f"features={counts['features']} | "
@@ -320,8 +423,8 @@ def main() -> int:
     try:
         output_dir = prepare_output_dir(Path(args.output_root), args.dataset_id, args.overwrite)
         output_files = write_parquet_outputs(connection, output_dir)
-        quality_payload = build_quality_payload(connection, validations, counts)
-        write_dataset_manifest(output_dir, args.dataset_id, validations, counts, output_files)
+        quality_payload = build_quality_payload(connection, validations, counts, args.target_family)
+        write_dataset_manifest(output_dir, args.dataset_id, validations, counts, output_files, args.target_family)
         write_quality_json(output_dir, quality_payload)
         write_dataset_report(output_dir, args.dataset_id, quality_payload)
     except RuntimeError as exc:
