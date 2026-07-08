@@ -7,7 +7,7 @@
 #property link      "https://t.me/loldlm"
 #include <MovingAverages.mqh>
 //---
-#property indicator_buffers 13
+#property indicator_buffers 5
 #property indicator_plots   2
 #property indicator_separate_window
 #property indicator_type1   DRAW_LINE
@@ -18,12 +18,10 @@
 #property indicator_level1 0.0
 #property indicator_level2 50.0
 #property indicator_level3 100.0
-int BULLISH = 1;
-int BEARISH = 2;
 
 //--- input parametrs
 input int     InpBandsPeriod             = 21;           // Bands Period
-input int     InpCandleShift             = 0;            // MA Shift
+input int     InpCandleShift             = 0;            // Bands Shift
 input double  InpDeviation               = 2.0;          // Deviation
 input int     InpPercentMAPeriod         = 5;            // B Percent Period
 input ENUM_MA_METHOD InpMAMethod         = MODE_EMA;     // MA Method
@@ -31,23 +29,16 @@ input ENUM_APPLIED_PRICE InpAppliedPrice = PRICE_TYPICAL;// Applied price
 
 //--- global variables
 int           ExtBandsPeriod,ExtBandsShift;
+int           ExtPercentMAPeriod;
 double        ExtBandsDeviations;
 int           ExtPlotBegin=0;
+int           ExtSignalPlotBegin=0;
 //--- indicator buffer
 double        BLGBuffer[];
 double        BBPMABuffer[];
 double        ExtAppliedPriceBuffer[];
 double        ExtMLBuffer[];
-double        ExtTLBuffer[];
-double        ExtBLBuffer[];
 double        ExtStdDevBuffer[];
-double        ExtBBCloseBuffer[];
-double        ExtBBOpenBuffer[];
-double        ExtBBHighBuffer[];
-double        ExtBBLowBuffer[];
-double        ExtPercentRangeHigh[];
-double        ExtPercentRangeLow[];
-int           ExtPercentRangeWindow;
 
 //+------------------------------------------------------------------+
 //| Custom indicator initialization function                         |
@@ -69,7 +60,7 @@ void OnInit()
      }
    else
       ExtBandsShift=InpCandleShift;
-   if(InpDeviation==0.0)
+   if(InpDeviation<=0.0)
      {
       ExtBandsDeviations=2.0;
       PrintFormat("Incorrect value for input variable Candles_MaxMin_Calculation=%f. Indicator will use value=%f for calculations.",InpDeviation,ExtBandsDeviations);
@@ -78,39 +69,32 @@ void OnInit()
       ExtBandsDeviations=InpDeviation;
    if(InpPercentMAPeriod<=0)
      {
-      ExtPercentRangeWindow=5;
-      PrintFormat("Incorrect value for Percent Range Window=%d. Indicator will use value=%d for calculations.", InpPercentMAPeriod, ExtPercentRangeWindow);
+      ExtPercentMAPeriod=5;
+      PrintFormat("Incorrect value for B Percent Period=%d. Indicator will use value=%d for calculations.", InpPercentMAPeriod, ExtPercentMAPeriod);
      }
    else
-      ExtPercentRangeWindow=InpPercentMAPeriod;
+      ExtPercentMAPeriod=InpPercentMAPeriod;
 
-   //--- STANDARD BB Buffers
+   //--- B Percent buffers
    SetIndexBuffer(0,BLGBuffer, INDICATOR_DATA);
    SetIndexBuffer(1,BBPMABuffer, INDICATOR_DATA);
    SetIndexBuffer(2,ExtAppliedPriceBuffer, INDICATOR_CALCULATIONS);
-   SetIndexBuffer(3,ExtBLBuffer, INDICATOR_CALCULATIONS);
+   SetIndexBuffer(3,ExtMLBuffer, INDICATOR_CALCULATIONS);
    SetIndexBuffer(4,ExtStdDevBuffer,INDICATOR_CALCULATIONS);
-   SetIndexBuffer(5,ExtMLBuffer, INDICATOR_CALCULATIONS);
-   SetIndexBuffer(6,ExtTLBuffer, INDICATOR_CALCULATIONS);
-   SetIndexBuffer(7,ExtBBCloseBuffer, INDICATOR_CALCULATIONS);
-   SetIndexBuffer(8,ExtBBOpenBuffer, INDICATOR_CALCULATIONS);
-   SetIndexBuffer(9,ExtBBHighBuffer, INDICATOR_CALCULATIONS);
-   SetIndexBuffer(10,ExtBBLowBuffer, INDICATOR_CALCULATIONS);
-   SetIndexBuffer(11,ExtPercentRangeHigh, INDICATOR_CALCULATIONS);
-   SetIndexBuffer(12,ExtPercentRangeLow, INDICATOR_CALCULATIONS);
 
 //--- set index labels
    PlotIndexSetString(0,PLOT_LABEL,"Main");
    PlotIndexSetString(1,PLOT_LABEL,"Signal");
 //--- indicator name
-   IndicatorSetString(INDICATOR_SHORTNAME,"BB Percent " + "(" +string(InpBandsPeriod)+"/"+string(InpPercentMAPeriod)+ ")");
+   IndicatorSetString(INDICATOR_SHORTNAME,"BB Percent " + "(" +string(ExtBandsPeriod)+"/"+string(ExtPercentMAPeriod)+ ")");
 //--- indexes draw begin settings
-   ExtPlotBegin=ExtBandsPeriod-1;
-   PlotIndexSetInteger(0,PLOT_DRAW_BEGIN,ExtBandsPeriod);
-   PlotIndexSetInteger(1,PLOT_DRAW_BEGIN,ExtBandsPeriod);
-//--- indexes shift settings
-   PlotIndexSetInteger(0,PLOT_SHIFT,ExtBandsShift);
-   PlotIndexSetInteger(1,PLOT_SHIFT,ExtBandsShift);
+   ExtPlotBegin=ExtBandsPeriod+ExtBandsShift;
+   ExtSignalPlotBegin=ExtPlotBegin+ExtPercentMAPeriod-1;
+   PlotIndexSetInteger(0,PLOT_DRAW_BEGIN,ExtPlotBegin);
+   PlotIndexSetInteger(1,PLOT_DRAW_BEGIN,ExtSignalPlotBegin);
+//--- the input shift selects the bands used by %B; it does not move the plot
+   PlotIndexSetInteger(0,PLOT_SHIFT,0);
+   PlotIndexSetInteger(1,PLOT_SHIFT,0);
 //--- number of digits of indicator value
    IndicatorSetInteger(INDICATOR_DIGITS,2);
   }
@@ -128,30 +112,11 @@ int OnCalculate(const int rates_total,
                 const long &volume[],
                 const int &spread[])
   {
-   if(rates_total<ExtPlotBegin)
+   if(rates_total<=ExtPlotBegin)
       return(0);
-//--- indexes draw begin settings, when we've recieved previous begin
-   if(ExtPlotBegin!=ExtBandsPeriod+1)
-     {
-      ExtPlotBegin=ExtBandsPeriod+1;
-      PlotIndexSetInteger(0,PLOT_DRAW_BEGIN,ExtPlotBegin);
-      PlotIndexSetInteger(1,PLOT_DRAW_BEGIN,ExtPlotBegin);
-      PlotIndexSetInteger(2,PLOT_DRAW_BEGIN,ExtPlotBegin);
-     }
 //--- starting calculation
-   double middle_fast = 0;
-   double upper_fast  = 0;
-   double lower_fast  = 0;
-   double middle_slow = 0;
-   double upper_slow  = 0;
-   double lower_slow  = 0;
-
-   double middle_both = 0;
-   double upper_both  = 0;
-   double lower_both  = 0;
-
    int pos;
-   if(prev_calculated>1)
+   if(prev_calculated>1 && prev_calculated<=rates_total)
       pos=prev_calculated-1;
    else
       pos=1;
@@ -160,45 +125,30 @@ int OnCalculate(const int rates_total,
      {
       ExtAppliedPriceBuffer[i] = GetAppliedPrice(i, open, close, high, low);
 
-      //--- FAST middle line ---
+      //--- middle line
       ExtMLBuffer[i]=MATypeCalc(i,ExtAppliedPriceBuffer);
       //--- calculate and write down StdDev
-      ExtStdDevBuffer[i]=StdDev_Func(i,ExtAppliedPriceBuffer,ExtMLBuffer,InpBandsPeriod);
-      //--- upper line
-      ExtTLBuffer[i]=ExtMLBuffer[i]+ExtBandsDeviations*ExtStdDevBuffer[i];
-      //--- lower line
-      ExtBLBuffer[i]=ExtMLBuffer[i]-ExtBandsDeviations*ExtStdDevBuffer[i];
+      ExtStdDevBuffer[i]=StdDev_Func(i,ExtAppliedPriceBuffer,ExtMLBuffer,ExtBandsPeriod);
 
-      //--- Percent B
-      BLGBuffer[i]=NormalizeDouble((close[i]-ExtBLBuffer[i])/(ExtTLBuffer[i]-ExtBLBuffer[i]) * 100, 2);
-      BBPMABuffer[i]=SimpleMA(i,InpPercentMAPeriod,BLGBuffer);
+      BLGBuffer[i]=EMPTY_VALUE;
+      BBPMABuffer[i]=EMPTY_VALUE;
 
-      //--- BB Percent Prices
-      ExtBBCloseBuffer[i] = NormalizeDouble((close[i]-ExtBLBuffer[i])/(ExtTLBuffer[i]-ExtBLBuffer[i]) * 100, 2);
-      ExtBBOpenBuffer[i]  = NormalizeDouble((open[i]-ExtBLBuffer[i])/(ExtTLBuffer[i]-ExtBLBuffer[i]) * 100, 2);
-      ExtBBHighBuffer[i]  = NormalizeDouble((high[i]-ExtBLBuffer[i])/(ExtTLBuffer[i]-ExtBLBuffer[i]) * 100, 2);
-      ExtBBLowBuffer[i]   = NormalizeDouble((low[i]-ExtBLBuffer[i])/(ExtTLBuffer[i]-ExtBLBuffer[i]) * 100, 2);
+      const int band_position=i-ExtBandsShift;
+      if(band_position<ExtBandsPeriod)
+         continue;
 
-      int range_from = i - ExtPercentRangeWindow + 1;
-      if(range_from < 0)
-        {
-         ExtPercentRangeHigh[i] = EMPTY_VALUE;
-         ExtPercentRangeLow[i]  = EMPTY_VALUE;
-        }
-      else
-        {
-         double range_high = BLGBuffer[range_from];
-         double range_low  = BLGBuffer[range_from];
-         for(int j = range_from + 1; j <= i; j++)
-           {
-            if(BLGBuffer[j] > range_high)
-               range_high = BLGBuffer[j];
-            if(BLGBuffer[j] < range_low)
-               range_low = BLGBuffer[j];
-           }
-         ExtPercentRangeHigh[i] = NormalizeDouble(range_high, 2);
-         ExtPercentRangeLow[i]  = NormalizeDouble(range_low, 2);
-        }
+      const double std_dev=ExtStdDevBuffer[band_position];
+      const double deviation=ExtBandsDeviations*std_dev;
+      const double lower_band=ExtMLBuffer[band_position]-deviation;
+      const double upper_band=ExtMLBuffer[band_position]+deviation;
+      const double band_range=upper_band-lower_band;
+      if(band_range==0.0)
+         continue;
+
+      //--- %B: current close relative to the selected Bollinger Bands window
+      BLGBuffer[i]=(close[i]-lower_band)/band_range*100.0;
+      if(i>=ExtSignalPlotBegin)
+         BBPMABuffer[i]=SimpleMAValid(i,ExtPercentMAPeriod,BLGBuffer);
      }
 //--- OnCalculate done. Return new prev_calculated.
    return(rates_total);
@@ -213,7 +163,10 @@ double StdDev_Func(const int position,const double &price[],const double &ma_pri
    if(position>=period)
      {
       for(int i=0; i<period; i++)
-         std_dev+=MathPow(price[position-i]-ma_price[position],2.0);
+        {
+         double delta=price[position-i]-ma_price[position];
+         std_dev+=delta*delta;
+        }
       std_dev=MathSqrt(std_dev/period);
      }
 //--- return calculated value
@@ -221,19 +174,41 @@ double StdDev_Func(const int position,const double &price[],const double &ma_pri
   }
 //+------------------------------------------------------------------+
 double MATypeCalc(const int position,const double &price[])
-{
-   if(InpMAMethod == MODE_SMA) { return SimpleMA(position,InpBandsPeriod,price); }
-   if(InpMAMethod == MODE_EMA) { return ExponentialMA(position,InpBandsPeriod,ExtMLBuffer[position-1], price); }
-   if(InpMAMethod == MODE_SMMA) { return SmoothedMA(position,InpBandsPeriod,ExtMLBuffer[position-1], price); }
-   if(InpMAMethod == MODE_LWMA) { return LinearWeightedMA(position,InpBandsPeriod, price); }
+  {
+   if(InpMAMethod==MODE_SMA)
+      return SimpleMA(position,ExtBandsPeriod,price);
+   if(InpMAMethod==MODE_EMA)
+      return ExponentialMA(position,ExtBandsPeriod,ExtMLBuffer[position-1],price);
+   if(InpMAMethod==MODE_SMMA)
+      return SmoothedMA(position,ExtBandsPeriod,ExtMLBuffer[position-1],price);
+   if(InpMAMethod==MODE_LWMA)
+      return LinearWeightedMA(position,ExtBandsPeriod,price);
 
-   return 0;
-}
+   return(0);
+  }
+//+------------------------------------------------------------------+
+double SimpleMAValid(const int position,const int period,const double &price[])
+  {
+   if(position<period-1)
+      return(EMPTY_VALUE);
+
+   double sum=0.0;
+   for(int i=0; i<period; i++)
+     {
+      const double value=price[position-i];
+      if(value==EMPTY_VALUE)
+         return(EMPTY_VALUE);
+      sum+=value;
+     }
+
+   return(sum/period);
+  }
+//+------------------------------------------------------------------+
 
 double GetAppliedPrice(int i,const double &open[],const double &close[],const double &high[],const double &low[])
-{
-  switch(InpAppliedPrice)
   {
+   switch(InpAppliedPrice)
+    {
     case PRICE_CLOSE:     return(close[i]);
     case PRICE_OPEN:      return(open[i]);
     case PRICE_HIGH:      return(high[i]);
@@ -241,7 +216,7 @@ double GetAppliedPrice(int i,const double &open[],const double &close[],const do
     case PRICE_MEDIAN:    return((high[i]+low[i])/2.0);
     case PRICE_TYPICAL:   return((high[i]+low[i]+close[i])/3.0);
     case PRICE_WEIGHTED:  return((high[i]+low[i]+close[i]+close[i])/4.0);
-  }
+    }
 
-  return(0);
-}
+   return(0);
+  }
