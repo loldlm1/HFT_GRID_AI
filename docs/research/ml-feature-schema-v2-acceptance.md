@@ -2298,3 +2298,86 @@ Decision:
 - Status: `READY_FOR_HUMAN_STRATEGY_TESTER_TIMING_SMOKE`.
 - A real timing comparison still requires a short path-aware Strategy Tester
   run, then the full XAUUSD 2025 run if the smoke remains practical.
+
+## Dynamic TP Path-Ratio S1 Human Run Audit
+
+The first human-in-the-loop path-aware run was generated for S1 only.
+
+Run:
+
+- Run ID: `xauusd_2025_dynamic_tp_path_run_S1`
+- Common Files root:
+  `/home/loldlm/.wine/drive_c/users/loldlm/AppData/Roaming/MetaQuotes/Terminal/Common/Files/DeterministicSignalML/runs`
+- Strategies: `S1=1`, `S2=0`, `S3=0`
+- `tp_percent=100.00`
+- `path_ratio_policy=bounded_tick_path_outcome_only`
+- `path_horizon_m1_bars=2880`
+
+Raw export audit:
+
+- Feature rows: `11924`
+- Outcome rows: `11924`
+- Joined rows: `11924`
+- Unique feature `signal_id` values: `11924`
+- Unique outcome `signal_id` values: `11924`
+- Missing outcomes: `0`
+- Extra outcomes: `0`
+- Duplicate source attempt rows: `0`
+- Newline/tab cell issues: `0`
+- Strategy distribution: `S1=11924`
+- Direction distribution: `BULLISH=6333`, `BEARISH=5591`
+- Path statuses: `SL_FIRST=9250`, `TARGET_3R=2671`,
+  `HORIZON_EXPIRED=3`
+- Broker terminal reasons: `SL=6508`, `TP=5416`
+- Path consistency violations: `0`
+
+Warnings reviewed:
+
+- `8` feature rows had null structure/Fib fields and were excluded from the
+  training matrix.
+- `4` SL outcome rows had non-negative `net_profit` but negative `profit_r`;
+  these remain SL/path-loss rows and do not block target-family labels.
+
+Target-family datasets:
+
+| Family | Rows | Wins | Losses | Win Rate | Mean R | Net R |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| `broker_1r` | 11916 | 5412 | 6504 | 45.42% | -0.1249 | -1488.9 |
+| `1r` | 11916 | 5254 | 6662 | 44.09% | -0.1182 | -1408.0 |
+| `1_5r` | 11916 | 4214 | 7702 | 35.36% | -0.1158 | -1380.0 |
+| `2r` | 11916 | 3518 | 8398 | 29.52% | -0.1142 | -1361.0 |
+| `3r` | 11916 | 2669 | 9247 | 22.40% | -0.1038 | -1237.0 |
+| `expected_r` | 11916 | 2672 | 9244 | 22.42% | -0.1033 | -1230.9 |
+
+XGBoost results:
+
+- Models trained for `broker_1r`, `1r`, `1_5r`, `2r`, `3r`, and
+  `expected_r`.
+- All models used schema v4 features only, `83` encoded features, `2383`
+  holdout rows, and `4` walk-forward folds.
+- All families produced `threshold_candidate=False`.
+- Robustness reports for all families produced:
+  `selected_threshold=null`, `final_holdout_selected_rows=0`, status `WARN`.
+
+DuckDB pattern audit:
+
+- Pattern audits were generated for all six target families.
+- Each audit built `246` catalog patterns and selected `12` review patterns.
+- Positive review-only examples:
+  - `2r`: `S1 | Bullish | LL[0] | H1 slope bullish | Low chain low down 3`,
+    final holdout rows `52`, final net `14.0R`.
+  - `3r`: `S1 | Bearish | High chain high up 3 | Low chain low mixed |
+    Entry Fib 38.2-61.8`, final holdout rows `47`, final net `9.0R`.
+  - `3r`: `S1 | Bearish | Session ASIA | Weekday THU`, final holdout
+    rows `63`, final net `5.0R`.
+- All positive pattern examples carry `narrow_segment_support`, so they are
+  observation candidates only, not approved runtime filters.
+
+Decision:
+
+- S1 path-aware export quality: `PASS`.
+- S1 dynamic TP model approval: `REJECT_FOR_NOW`.
+- Reason: no XGBoost threshold candidate and only narrow-support DuckDB
+  pattern candidates.
+- Next evidence step: generate S2 and S3 path-aware runs, then compare
+  per-strategy and combined behavior before making any runtime TP/filter plan.
