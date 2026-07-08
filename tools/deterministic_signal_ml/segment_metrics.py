@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import math
 from collections import defaultdict
 from typing import Any, Callable
 
@@ -16,7 +17,7 @@ def build_segment_metrics(
     min_rows: int = MIN_SEGMENT_ROWS,
     min_selected_rows: int = MIN_SEGMENT_SELECTED_ROWS,
 ) -> list[dict[str, Any]]:
-    specs: tuple[tuple[str, Callable[[dict[str, Any]], str]], ...] = (
+    specs: list[tuple[str, Callable[[dict[str, Any]], str]]] = [
         ("strategy_label", lambda row: str(row.get("strategy_label", ""))),
         ("direction", lambda row: str(row.get("direction", ""))),
         (
@@ -46,12 +47,56 @@ def build_segment_metrics(
         ("previous_candle_profile", lambda row: str(row.get("previous_candle_profile", ""))),
         ("entry_session_bucket", lambda row: str(row.get("entry_session_bucket", ""))),
         ("entry_weekday", lambda row: str(row.get("entry_weekday", ""))),
+        ("entry_month", lambda row: entry_month(row)),
+        ("entry_hour", lambda row: entry_hour(row)),
         ("symbol", lambda row: str(row.get("symbol", ""))),
         (
             "strategy_label_direction",
             lambda row: f"{row.get('strategy_label', '')}|{row.get('direction', '')}",
         ),
         ("score_bucket", lambda row: score_bucket(float(row["xgb_win_probability"]))),
+    ]
+    append_optional_segment(
+        specs,
+        prediction_rows,
+        "session_id",
+        lambda row: str(row.get("session_id", "")),
+        "session_id",
+    )
+    append_optional_segment(
+        specs,
+        prediction_rows,
+        "stoch_structure_raw_percent_bucket",
+        lambda row: numeric_bucket(row, "stoch_structure_raw_percent", 10.0),
+        "stoch_structure_raw_percent",
+    )
+    append_optional_segment(
+        specs,
+        prediction_rows,
+        "b_percent_main_base_bucket",
+        lambda row: numeric_bucket(row, "b_percent_main_base", 10.0),
+        "b_percent_main_base",
+    )
+    append_optional_segment(
+        specs,
+        prediction_rows,
+        "b_percent_main_base_slope_bucket",
+        lambda row: numeric_bucket(row, "b_percent_main_base_slope", 1.0),
+        "b_percent_main_base_slope",
+    )
+    append_optional_segment(
+        specs,
+        prediction_rows,
+        "b_percent_main_macro_bucket",
+        lambda row: numeric_bucket(row, "b_percent_main_macro", 10.0),
+        "b_percent_main_macro",
+    )
+    append_optional_segment(
+        specs,
+        prediction_rows,
+        "b_percent_main_macro_slope_bucket",
+        lambda row: numeric_bucket(row, "b_percent_main_macro_slope", 1.0),
+        "b_percent_main_macro_slope",
     )
     output_rows: list[dict[str, Any]] = []
     for segment_type, key_func in specs:
@@ -71,6 +116,51 @@ def build_segment_metrics(
                 )
             )
     return output_rows
+
+
+def append_optional_segment(
+    specs: list[tuple[str, Callable[[dict[str, Any]], str]]],
+    rows: list[dict[str, Any]],
+    segment_type: str,
+    key_func: Callable[[dict[str, Any]], str],
+    required_column: str,
+) -> None:
+    if any(row.get(required_column) not in (None, "") for row in rows):
+        specs.append((segment_type, key_func))
+
+
+def entry_month(row: dict[str, Any]) -> str:
+    value = str(row.get("entry_time", ""))
+    if len(value) >= 7:
+        return value[:7]
+    return ""
+
+
+def entry_hour(row: dict[str, Any]) -> str:
+    value = str(row.get("entry_time", ""))
+    if len(value) >= 13:
+        return value[11:13]
+    return ""
+
+
+def numeric_bucket(row: dict[str, Any], column: str, width: float) -> str:
+    value = row.get(column)
+    if value in (None, ""):
+        return ""
+    try:
+        numeric_value = float(value)
+    except (TypeError, ValueError):
+        return ""
+
+    lower = math.floor(numeric_value / width) * width
+    upper = lower + width
+    return f"{format_bucket_edge(lower)}_{format_bucket_edge(upper)}"
+
+
+def format_bucket_edge(value: float) -> str:
+    if value.is_integer():
+        return str(int(value))
+    return f"{value:.6g}"
 
 
 def score_bucket(score: float) -> str:

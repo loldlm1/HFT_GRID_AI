@@ -138,7 +138,8 @@ Required generated reports per candidate:
 - validation metrics
 - threshold-selection report
 - robustness report
-- segment metrics by direction, session, time bucket, and strategy
+- segment metrics by direction, session, time bucket, strategy, `%B`
+  value/slope buckets, and raw structure percent buckets
 - score diagnostics
 - feature importance
 - model manifest
@@ -198,8 +199,8 @@ For an accepted candidate:
 | 2. MQL5 Numeric Feature Export | Implementation complete | MetaEditor compile PASS with 0 errors and 0 warnings. Short Strategy Tester export smoke remains pending human run. |
 | 3. Visual Bands QA | Implementation complete | Visual `iBands` handles compile. Human Strategy Tester screenshot and visual/data row-count comparison remain pending. |
 | 4. Python Schema And Trainer | Complete | `py_compile`, schema v5 dataset fixture, and numeric XGBoost smoke training PASS. |
-| 5. Fresh Data And Robustness Gate | Pending | Requires human Strategy Tester full-year exports. |
-| 6. Runtime Artifact Gate | Pending | Requires accepted candidate and SHADOW parity. |
+| 5. Fresh Data And Robustness Gate | Tooling complete, data gate blocked | Segment diagnostics and research-only manifests validate on the schema v5 fixture. Full acceptance requires human Strategy Tester full-year exports. |
+| 6. Runtime Artifact Gate | Blocked | No accepted numeric candidate exists yet, so runtime export and SHADOW parity are not executed. |
 
 ## Sprint 2 Validation
 
@@ -303,3 +304,58 @@ Repeat for `S2` and `S3` by replacing the run, dataset, and model IDs. If Phase
 4 path-ratio labels are present, repeat dataset/training with
 `--target-family 1r`, `1_5r`, `2r`, `3r`, or `expected_r` and include the
 target family in the model ID.
+
+## Sprint 5 Validation
+
+Implemented:
+
+- robustness segment diagnostics now include schema v5-specific cuts when the
+  source columns exist:
+  - `session_id`
+  - `entry_month`
+  - `entry_hour`
+  - `stoch_structure_raw_percent_bucket`
+  - `b_percent_main_base_bucket`
+  - `b_percent_main_base_slope_bucket`
+  - `b_percent_main_macro_bucket`
+  - `b_percent_main_macro_slope_bucket`
+- schema v5 segment cuts are omitted for rows without those columns, so legacy
+  schema v4 reports do not get empty v5 bucket segments
+- candidate manifest generation now supports explicit
+  `--allow-missing-export` for research-only candidates before Sprint 6 runtime
+  artifact export
+
+Validation:
+
+- `.venv/bin/python -m py_compile tools/deterministic_signal_ml/*.py`: PASS
+- schema v5 fixture segment smoke: PASS, `332` prediction rows and `50`
+  segment rows
+- schema-v4-compatible segment smoke: PASS, v5-only segment types are omitted
+  when v5 columns are absent
+- research-only candidate manifest smoke with `--allow-missing-export`: PASS
+- missing export without `--allow-missing-export`: fails as expected, preserving
+  the runtime artifact gate
+- full robustness validation on the small fixture: fails as expected with
+  `Not enough rows for robust train_core partition: 260 < 500`
+
+Pending human gate:
+
+- generate full-year XAUUSD 2025 schema v5 Strategy Tester exports for S1, S2,
+  and S3
+- build strategy-scoped datasets from those exports
+- train broker-1R and any selected path-ratio candidates
+- run robustness validation and candidate comparison against schema v4
+  baselines
+- accept or reject each numeric candidate based on final-holdout, support, and
+  concentration evidence
+
+## Sprint 6 Gate
+
+Sprint 6 is intentionally blocked. There is no accepted schema v5 numeric
+candidate, so no TSV runtime artifact was exported, no Common Files deployment
+was performed, and no SHADOW/FILTER Strategy Tester validation was run.
+
+Runtime export can resume only after Sprint 5 accepts an exact dataset/model
+candidate and records its threshold source. Until then, `ML_INFERENCE_FILTER`
+remains Strategy Tester-only, live deployment remains blocked, and ONNX remains
+deferred.

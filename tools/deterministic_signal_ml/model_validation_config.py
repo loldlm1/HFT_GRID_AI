@@ -116,6 +116,11 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--threshold-policy", default=DEFAULT_THRESHOLD_POLICY)
     parser.add_argument("--robustness-report-path", default="")
     parser.add_argument("--notes", default="")
+    parser.add_argument(
+        "--allow-missing-export",
+        action="store_true",
+        help="Allow research-only candidate manifests before a runtime export exists.",
+    )
     return parser
 
 
@@ -253,6 +258,102 @@ def build_baseline_inventory(
     )
 
 
+def build_research_model_inventory(
+    dataset_id: str,
+    model_id: str,
+    export_id: str,
+    dataset_root: Path = Path(DEFAULT_DATASET_ROOT),
+    model_root: Path = Path(DEFAULT_MODEL_ROOT),
+    export_root: Path = Path(DEFAULT_EXPORT_ROOT),
+) -> BaselineInventory:
+    dataset_path = require_folder(dataset_root / dataset_id, "Dataset")
+    model_path = require_folder(model_root / model_id, "Model")
+    dataset_manifest = load_json_file(dataset_path / "dataset_manifest.json")
+    model_manifest = load_json_file(model_path / "model_manifest.json")
+
+    if str(model_manifest.get("dataset_id", "")) != dataset_id:
+        raise ModelValidationConfigError(
+            f"Model {model_id} does not reference dataset {dataset_id}: "
+            f"{model_manifest.get('dataset_id')}"
+        )
+    target_family = resolve_target_family(dataset_manifest, model_manifest)
+
+    row_counts = {
+        str(key): int(value)
+        for key, value in dict(dataset_manifest.get("row_counts", {})).items()
+    }
+    dataset_grade = dataset_grade_for_rows(row_counts)
+    warnings: list[str] = []
+    if dataset_grade == "smoke_only":
+        warnings.append(
+            "dataset_has_smoke_only_row_count: use a fresh one-to-two-year Strategy Tester run before approving new features or thresholds"
+        )
+    warnings.append("runtime_export_missing: robustness evaluated before runtime export")
+
+    threshold_probability, threshold_source = threshold_from_model_manifest(model_manifest)
+
+    return BaselineInventory(
+        dataset_id=dataset_id,
+        model_id=model_id,
+        export_id=export_id,
+        target_family=target_family,
+        dataset_grade=dataset_grade,
+        source_run_ids=[str(value) for value in dataset_manifest.get("source_run_ids", [])],
+        config_ids=[str(value) for value in dataset_manifest.get("config_ids", [])],
+        row_counts=row_counts,
+        phase1_schema_version=_optional_int(dataset_manifest.get("phase1_schema_version")),
+        encoded_feature_count=_optional_int(model_manifest.get("encoded_feature_count")),
+        threshold_probability=threshold_probability,
+        threshold_source=threshold_source,
+        mt5_runtime_ready=None,
+        research_only=True,
+        paths=ValidationArtifactPaths(
+            dataset_path=str(dataset_path),
+            model_path=str(model_path),
+            export_path=str(export_root / export_id),
+        ),
+        warnings=warnings,
+    )
+
+
+def build_inventory(
+    dataset_id: str,
+    model_id: str,
+    export_id: str,
+    dataset_root: Path = Path(DEFAULT_DATASET_ROOT),
+    model_root: Path = Path(DEFAULT_MODEL_ROOT),
+    export_root: Path = Path(DEFAULT_EXPORT_ROOT),
+    allow_missing_export: bool = False,
+) -> BaselineInventory:
+    export_path = export_root / export_id
+    if allow_missing_export and not export_path.exists():
+        return build_research_model_inventory(
+            dataset_id=dataset_id,
+            model_id=model_id,
+            export_id=export_id,
+            dataset_root=dataset_root,
+            model_root=model_root,
+            export_root=export_root,
+        )
+    return build_baseline_inventory(
+        dataset_id=dataset_id,
+        model_id=model_id,
+        export_id=export_id,
+        dataset_root=dataset_root,
+        model_root=model_root,
+        export_root=export_root,
+    )
+
+
+def threshold_from_model_manifest(model_manifest: dict[str, Any]) -> tuple[float | None, str]:
+    recommendation = model_manifest.get("threshold_recommendation")
+    if isinstance(recommendation, dict):
+        threshold = recommendation.get("threshold")
+        if threshold not in (None, ""):
+            return float(threshold), "model_manifest_threshold_recommendation"
+    return None, "none"
+
+
 def build_candidate_manifest(
     inventory: BaselineInventory,
     candidate_id: str = "",
@@ -347,13 +448,14 @@ def main() -> int:
     parser = build_parser()
     args = parser.parse_args()
     try:
-        inventory = build_baseline_inventory(
+        inventory = build_inventory(
             dataset_id=args.dataset_id,
             model_id=args.model_id,
             export_id=args.export_id,
             dataset_root=Path(args.dataset_root),
             model_root=Path(args.model_root),
             export_root=Path(args.export_root),
+            allow_missing_export=args.allow_missing_export,
         )
     except (ModelValidationConfigError, ValueError, json.JSONDecodeError) as exc:
         parser.exit(1, f"validation config failed: {exc}\n")

@@ -221,6 +221,39 @@ Model outputs include:
 Schema v5 numeric training is research-only. It does not add EA inputs, does
 not run Python from MQL5, and does not change strategy entry/exit behavior.
 
+## Numeric Robustness Gate
+
+Run robustness validation before exporting any schema v5 numeric model to the
+runtime TSV scorer path:
+
+```bash
+.venv/bin/python tools/deterministic_signal_ml/validate_model_robustness.py \
+  --dataset-id xauusd_2025_schema_v5_numeric_dataset_S1 \
+  --model-id xauusd_2025_schema_v5_numeric_S1_broker_1r_xgb \
+  --export-id xauusd_2025_schema_v5_numeric_S1_broker_1r_export \
+  --allow-missing-export \
+  --output-path artifacts/models/xauusd_2025_schema_v5_numeric_S1_broker_1r_xgb/robustness
+```
+
+Schema v5 segment diagnostics are added when their source columns exist:
+`session_id`, month/hour, raw structure percent buckets, `%B` value buckets, and
+`%B` slope buckets. Small fixtures should fail the robust partition guard; only
+fresh Strategy Tester datasets with enough rows can approve a candidate.
+
+Research-only candidate manifests can be written before Sprint 6 runtime export
+by using `--allow-missing-export`:
+
+```bash
+.venv/bin/python tools/deterministic_signal_ml/model_validation_config.py \
+  --dataset-id xauusd_2025_schema_v5_numeric_dataset_S1 \
+  --model-id xauusd_2025_schema_v5_numeric_S1_broker_1r_xgb \
+  --export-id xauusd_2025_schema_v5_numeric_S1_broker_1r_export \
+  --feature-set-id schema_v5_numeric_xgb \
+  --schema-version feature_schema_v5 \
+  --allow-missing-export \
+  --write-candidate-manifest artifacts/models/xauusd_2025_schema_v5_numeric_S1_broker_1r_xgb/robustness/candidate_manifest.json
+```
+
 Legacy schema v4 baseline training remains available with explicit flags:
 
 ```bash
