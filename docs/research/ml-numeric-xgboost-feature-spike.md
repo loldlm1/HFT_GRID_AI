@@ -196,7 +196,7 @@ For an accepted candidate:
 | --- | --- | --- |
 | 1. Numeric Feature Contract | Complete | Contract, evidence layout, and workflow references defined. |
 | 2. MQL5 Numeric Feature Export | Implementation complete | MetaEditor compile PASS with 0 errors and 0 warnings. Short Strategy Tester export smoke remains pending human run. |
-| 3. Visual Bands QA | Pending | Requires compile and human visual screenshot review. |
+| 3. Visual Bands QA | Implementation complete | Visual `iBands` handles compile. Human Strategy Tester screenshot and visual/data row-count comparison remain pending. |
 | 4. Python Schema And Trainer | Pending | Requires py_compile and fixture/smoke validation. |
 | 5. Fresh Data And Robustness Gate | Pending | Requires human Strategy Tester full-year exports. |
 | 6. Runtime Artifact Gate | Pending | Requires accepted candidate and SHADOW parity. |
@@ -231,3 +231,24 @@ Pending human gate:
 - short Strategy Tester schema v5 export smoke with one active strategy
 - verify generated `signal_features.tsv` has zero unexpected invalid numeric
   rows
+
+## Sprint 3 Validation
+
+Implemented:
+
+- base visual handles now use `iBands` on M1 with strategy shifts `3`, `5`,
+  or `10` when `Enable_Show_Indicators` is enabled
+- macro visual chart handles now use `iBands` on M3/M5/M10 with shift `1`
+- visual handles remain separate from `BB_Percent_Standard` logic handles
+- trading and feature extraction do not read from visual `iBands`
+
+Validation:
+
+- `git diff --check`: PASS
+- `python3 tools/mt5/compile_mt5.py --mt5-root /home/loldlm/mql5_projects/metatrader_5_market_data_framework --wine --timeout 120`: PASS, `0 errors`, `0 warnings`
+
+Pending human gate:
+
+- visual Strategy Tester screenshot review
+- compare a short run with visuals enabled and disabled for matching feature
+  row counts and candidate counts

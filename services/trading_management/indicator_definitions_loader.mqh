@@ -236,6 +236,52 @@ void AddDeterministicBPercentHandle(IndicatorsHandleInfo &handles[],
   AddElementToArray(handles, handle_info);
 }
 
+bool LoadDeterministicBandsVisualHandle(const ENUM_TIMEFRAMES timeframe,
+                                        const int bands_shift,
+                                        IndicatorsHandleInfo &handle_info)
+{
+  handle_info = IndicatorsHandleInfo();
+  handle_info.indicator_period        = DETERMINISTIC_MA_PERIOD;
+  handle_info.indicator_shift         = bands_shift;
+  handle_info.indicator_ma_method     = MODE_SMA;
+  handle_info.indicator_applied_price = PRICE_CLOSE;
+  handle_info.indicator_timeframe     = timeframe;
+
+  ResetLastError();
+  handle_info.indicator_handle        = iBands(_Symbol,
+                                               timeframe,
+                                               DETERMINISTIC_MA_PERIOD,
+                                               bands_shift,
+                                               DETERMINISTIC_B_PERCENT_DEVIATION,
+                                               PRICE_CLOSE);
+
+  if(handle_info.indicator_handle == INVALID_HANDLE)
+  {
+    if(Enable_Logs)
+    {
+      PrintFormat("ERROR LOADING DETERMINISTIC VISUAL BANDS: tf=%s | period=%d | shift=%d | err=%d",
+                  EnumToString(timeframe),
+                  DETERMINISTIC_MA_PERIOD,
+                  bands_shift,
+                  GetLastError());
+    }
+    return false;
+  }
+
+  return true;
+}
+
+void AddDeterministicBandsVisualHandle(IndicatorsHandleInfo &handles[],
+                                       const ENUM_TIMEFRAMES timeframe,
+                                       const int bands_shift)
+{
+  IndicatorsHandleInfo handle_info;
+  if(!LoadDeterministicBandsVisualHandle(timeframe, bands_shift, handle_info))
+    return;
+
+  AddElementToArray(handles, handle_info);
+}
+
 void SetTesterIndicatorHideMode(const bool hide)
 {
   if(MQLInfoInteger(MQL_TESTER) <= 0)
@@ -431,10 +477,9 @@ void LoadDeterministicBaseVisualIndicators()
     if(!DeterministicStrategyEnabled(strategy_id))
       continue;
 
-    AddDeterministicMaHandle(ExtDeterministicMaVisualHandles,
-                             DETERMINISTIC_BASE_TIMEFRAME,
-                             DeterministicStrategyBaseDelay(strategy_id),
-                             false);
+    AddDeterministicBandsVisualHandle(ExtDeterministicMaVisualHandles,
+                                      DETERMINISTIC_BASE_TIMEFRAME,
+                                      DeterministicStrategyBaseDelay(strategy_id));
   }
 }
 
@@ -444,7 +489,7 @@ void AddDeterministicBaseVisualIndicatorsToChart()
   int total = ArraySize(ExtDeterministicMaVisualHandles);
   for(int i = 0; i < total; i++)
   {
-    string context_label = "Base MA shift " + IntegerToString(ExtDeterministicMaVisualHandles[i].indicator_shift);
+    string context_label = "Base iBands shift " + IntegerToString(ExtDeterministicMaVisualHandles[i].indicator_shift);
     AddIndicatorToChart(chart_id,
                         ExtDeterministicMaVisualHandles[i].indicator_handle,
                         DETERMINISTIC_BASE_TIMEFRAME,
@@ -459,10 +504,9 @@ void LoadDeterministicMacroVisualChart(const int strategy_id)
     return;
 
   IndicatorsHandleInfo handle_info;
-  if(!LoadDeterministicMaHandle(macro_timeframe,
-                                DETERMINISTIC_MACRO_DELAY,
-                                handle_info,
-                                false))
+  if(!LoadDeterministicBandsVisualHandle(macro_timeframe,
+                                         DETERMINISTIC_MACRO_DELAY,
+                                         handle_info))
     return;
 
   long previous_chart_ids[];
@@ -494,7 +538,7 @@ void LoadDeterministicMacroVisualChart(const int strategy_id)
   int state_index = ArraySize(ExtDeterministicMacroVisualCharts);
   AddElementToArray(ExtDeterministicMacroVisualCharts, state);
 
-  string context_label = "Macro " + DeterministicStrategyLabel(strategy_id);
+  string context_label = "Macro iBands " + DeterministicStrategyLabel(strategy_id);
   if(AddIndicatorToChart(chart_id,
                          handle_info.indicator_handle,
                          macro_timeframe,
@@ -558,7 +602,7 @@ void ReleaseDeterministicBaseVisualIndicators()
   int total = ArraySize(ExtDeterministicMaVisualHandles);
   for(int i = 0; i < total; i++)
   {
-    string context_label = "Base MA shift " + IntegerToString(ExtDeterministicMaVisualHandles[i].indicator_shift);
+    string context_label = "Base iBands shift " + IntegerToString(ExtDeterministicMaVisualHandles[i].indicator_shift);
     DeleteIndicatorFromChartByHandle(chart_id,
                                      ExtDeterministicMaVisualHandles[i].indicator_handle,
                                      context_label);
@@ -572,7 +616,7 @@ void ReleaseAllDeterministicMaIndicators()
   int macro_total = ArraySize(ExtDeterministicMacroVisualCharts);
   for(int i = 0; i < macro_total; i++)
   {
-    string context_label = "Macro " + DeterministicStrategyLabel(ExtDeterministicMacroVisualCharts[i].strategy_id);
+    string context_label = "Macro iBands " + DeterministicStrategyLabel(ExtDeterministicMacroVisualCharts[i].strategy_id);
     if(ExtDeterministicMacroVisualCharts[i].indicator_added)
     {
       DeleteIndicatorFromChartByHandle(ExtDeterministicMacroVisualCharts[i].chart_id,
