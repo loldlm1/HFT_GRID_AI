@@ -33,6 +33,7 @@ PATTERN_MATCHES_FILE = "pattern_matches.tsv"
 PATTERN_REPORT_FILE = "pattern_audit_report.md"
 PATTERN_JSON_FILE = "pattern_audit.json"
 PATTERN_SELECTION_FILE = "pattern_selection.tsv"
+PATTERN_PERIOD_METRICS_FILE = "pattern_period_metrics.tsv"
 
 PATTERN_CATALOG_COLUMNS = (
     "audit_id",
@@ -96,6 +97,21 @@ PATTERN_MATCH_COLUMNS = (
     "target_profit_r",
     "net_profit",
     "split_name",
+)
+
+PATTERN_PERIOD_METRIC_COLUMNS = (
+    "audit_id",
+    "pattern_id",
+    "pattern_label",
+    "selected_for_visual",
+    "period_type",
+    "period_id",
+    "rows",
+    "win_rate",
+    "mean_r",
+    "net_r",
+    "max_drawdown_r",
+    "positive_net",
 )
 
 
@@ -365,7 +381,10 @@ CREATE OR REPLACE TEMP TABLE audit_rows AS
 SELECT
   *,
   CASE WHEN row_index > {pre_final_rows} THEN 'final_holdout' ELSE 'pre_final' END AS split_name,
-  strftime(entry_time, '%Y-%m') AS entry_month
+  strftime(entry_time, '%Y-%m') AS entry_month,
+  strftime(entry_time, '%Y') || '-Q' ||
+    CAST(FLOOR((CAST(strftime(entry_time, '%m') AS INTEGER) - 1) / 3) + 1 AS VARCHAR)
+    AS entry_quarter
 FROM (
   SELECT
     row_number() OVER (ORDER BY entry_time, signal_id) AS row_index,
@@ -480,6 +499,21 @@ def _max_drawdown(profits: list[float]) -> float:
     return float(max_drawdown)
 
 
+def _metrics_from_rows(rows: list[dict[str, Any]]) -> tuple[int, float | None, float | None, float, float]:
+    count = len(rows)
+    if count == 0:
+        return 0, None, None, 0.0, 0.0
+    profits = [float(row["target_profit_r"]) for row in rows]
+    wins = sum(1 for row in rows if int(row["target_is_win"]) == 1)
+    return (
+        count,
+        wins / count,
+        sum(profits) / count,
+        sum(profits),
+        _max_drawdown(profits),
+    )
+
+
 def _split_metrics(
     connection: duckdb.DuckDBPyConnection,
     definition: PatternDefinition,
@@ -495,18 +529,7 @@ WHERE {where_clause(definition)}
 ORDER BY entry_time, signal_id
 """,
     )
-    count = len(rows)
-    if count == 0:
-        return 0, None, None, 0.0, 0.0
-    profits = [float(row["target_profit_r"]) for row in rows]
-    wins = sum(1 for row in rows if int(row["target_is_win"]) == 1)
-    return (
-        count,
-        wins / count,
-        sum(profits) / count,
-        sum(profits),
-        _max_drawdown(profits),
-    )
+    return _metrics_from_rows(rows)
 
 
 def _distinct_count(
@@ -759,6 +782,70 @@ ORDER BY entry_time, signal_id
     return rows
 
 
+def _period_metrics(
+    connection: duckdb.DuckDBPyConnection,
+    definition: PatternDefinition,
+    period_column: str,
+) -> list[dict[str, Any]]:
+    rows = _fetch_dicts(
+        connection,
+        f"""
+SELECT
+  {period_column} AS period_id,
+  target_is_win,
+  target_profit_r
+FROM audit_rows
+WHERE {where_clause(definition)}
+ORDER BY {period_column}, entry_time, signal_id
+""",
+    )
+    grouped: dict[str, list[dict[str, Any]]] = {}
+    for row in rows:
+        period_id = str(row["period_id"])
+        grouped.setdefault(period_id, []).append(row)
+
+    output: list[dict[str, Any]] = []
+    for period_id in sorted(grouped):
+        count, win_rate, mean_r, net_r, max_drawdown_r = _metrics_from_rows(grouped[period_id])
+        output.append(
+            {
+                "period_id": period_id,
+                "rows": count,
+                "win_rate": win_rate,
+                "mean_r": mean_r,
+                "net_r": net_r,
+                "max_drawdown_r": max_drawdown_r,
+                "positive_net": net_r > 0.0,
+            }
+        )
+    return output
+
+
+def period_metric_rows(
+    connection: duckdb.DuckDBPyConnection,
+    audit_id: str,
+    definitions: list[PatternDefinition],
+    selected: dict[str, str],
+) -> list[dict[str, Any]]:
+    rows: list[dict[str, Any]] = []
+    for definition in definitions:
+        for period_type, period_column in (
+            ("month", "entry_month"),
+            ("quarter", "entry_quarter"),
+        ):
+            for metrics in _period_metrics(connection, definition, period_column):
+                row = {
+                    "audit_id": audit_id,
+                    "pattern_id": definition.pattern_id,
+                    "pattern_label": definition.pattern_label,
+                    "selected_for_visual": definition.pattern_id in selected,
+                    "period_type": period_type,
+                }
+                row.update(metrics)
+                rows.append(row)
+    return rows
+
+
 def render_report(
     audit_id: str,
     dataset_id: str,
@@ -912,6 +999,12 @@ def main() -> int:
         )
         matches = match_rows(connection, args.audit_id, definitions, selected)
         write_tsv(output_dir / PATTERN_MATCHES_FILE, PATTERN_MATCH_COLUMNS, matches)
+        period_rows = period_metric_rows(connection, args.audit_id, definitions, selected)
+        write_tsv(
+            output_dir / PATTERN_PERIOD_METRICS_FILE,
+            PATTERN_PERIOD_METRIC_COLUMNS,
+            period_rows,
+        )
         write_selection_file(output_dir, selected)
         report = render_report(args.audit_id, dataset_id, total_rows, definitions, metrics_by_id, selected)
         (output_dir / PATTERN_REPORT_FILE).write_text(report, encoding="utf-8")
@@ -928,7 +1021,8 @@ def main() -> int:
     print(
         "pattern audit ok | "
         f"audit={args.audit_id} | dataset={dataset_id} | patterns={len(definitions)} | "
-        f"selected={len(selected)} | matches={len(matches)} | output={output_dir}"
+        f"selected={len(selected)} | matches={len(matches)} | periods={len(period_rows)} | "
+        f"output={output_dir}"
     )
     return 0
 
