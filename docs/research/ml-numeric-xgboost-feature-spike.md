@@ -1,0 +1,202 @@
+# ML Numeric XGBoost Feature Spike
+
+**Date**: 2026-07-08
+**Roadmap Phase**: Phase 5 - Numeric XGBoost Feature Spike
+**Status**: IN_PROGRESS
+**Planner plan**: `docs/plans/ml-numeric-xgboost-feature-spike-plan.md`
+
+## Scope
+
+This phase tests whether a compact numeric XGBoost lane can improve robust
+signal selection before ONNX work resumes. Schema v4 semantic lanes remain
+available for DuckDB pattern audit. Schema v5 is a separate XGBoost feature
+contract and must not remove or weaken the pattern-audit workflow.
+
+The first pass trains one active strategy at a time and includes `direction` as
+a model feature. Direction is also a mandatory validation segment because it can
+consume depth in `max_depth=3` trees and hide asymmetric behavior if only global
+metrics are reviewed.
+
+Out of scope:
+
+- live deployment approval
+- ONNX work
+- runtime TP changes
+- use of path-label columns as features
+- replacement of DuckDB semantic pattern lanes
+- custom MQL5 tests or CI
+- weakening license, session, spread, stops/freeze, margin, protection,
+  market-status, magic-number, or broker-reconciliation gates
+
+## Schema V5 Feature Contract
+
+Model feature columns:
+
+```text
+direction
+stoch_structure_raw_percent
+b_percent_main_base
+b_percent_main_base_slope
+b_percent_main_macro
+b_percent_main_macro_slope
+session_id
+time_sin
+time_cos
+```
+
+Categorical model inputs:
+
+- `direction`: `BULLISH` or `BEARISH`.
+- `session_id`: broker-time session bucket.
+
+Numeric model inputs:
+
+- `stoch_structure_raw_percent`: raw structure percent of the source extremum
+  used as the SL anchor. It is the raw percent behind the existing
+  `fib_sl_band` path, not live close percent and not a raw oscillator value.
+- `b_percent_main_base`: `BB_Percent_Standard` buffer `0` (`Main`) on M1.
+  Parameters are `InpBandsPeriod=21`, `InpDeviation=2.0`,
+  `InpCandleShift=3/5/10` for S1/S2/S3, `MODE_SMA`, and `PRICE_CLOSE`.
+- `b_percent_main_base_slope`: confirmed absolute delta
+  `base_main[1] - base_main[2]` from the same base `%B` handle.
+- `b_percent_main_macro`: `BB_Percent_Standard` buffer `0` (`Main`) on the
+  strategy macro timeframe: M3 for S1, M5 for S2, M10 for S3. Parameters are
+  `InpBandsPeriod=21`, `InpDeviation=2.0`, `InpCandleShift=1`, `MODE_SMA`, and
+  `PRICE_CLOSE`.
+- `b_percent_main_macro_slope`: confirmed absolute delta
+  `macro_main[1] - macro_main[2]` from the same macro `%B` handle.
+- `time_sin` and `time_cos`: broker minute-of-day cyclical encoding.
+
+All `%B` reads must be confirmed non-forming values. Runtime/data extraction
+uses `BB_Percent_Standard`, not visual chart handles.
+
+## Precision Policy
+
+Raw exports should keep stable decimal precision instead of aggressive
+bucketization:
+
+- `%B` values and slopes: 6 decimal places.
+- `stoch_structure_raw_percent`: 6 decimal places.
+- `time_sin` and `time_cos`: 9 decimal places.
+
+The trainer may keep the raw numeric values and let XGBoost histogram binning
+with `max_bin=256` choose splits. If evidence shows precision noise or
+overfit, add an explicit rounding ablation instead of silently changing the
+schema.
+
+## Visual QA Rule
+
+Visual `iBands` may be attached with `bands_shift` to inspect delayed base and
+macro clocks:
+
+- base M1 visual bands use shifts `3`, `5`, or `10`
+- macro visual bands use shift `1`
+
+Those handles are QA-only. They must not drive trading, feature extraction,
+risk controls, runtime scoring, or model parity.
+
+## Evidence Layout
+
+Generated raw exports, datasets, models, reports, screenshots, and Common
+Files packages remain out of git.
+
+Recommended XAUUSD 2025 run IDs:
+
+| Strategy | Run ID |
+| --- | --- |
+| S1 | `xauusd_2025_schema_v5_numeric_run_S1` |
+| S2 | `xauusd_2025_schema_v5_numeric_run_S2` |
+| S3 | `xauusd_2025_schema_v5_numeric_run_S3` |
+
+Recommended dataset IDs:
+
+| Strategy | Dataset ID |
+| --- | --- |
+| S1 | `xauusd_2025_schema_v5_numeric_dataset_S1` |
+| S2 | `xauusd_2025_schema_v5_numeric_dataset_S2` |
+| S3 | `xauusd_2025_schema_v5_numeric_dataset_S3` |
+
+Recommended model IDs:
+
+```text
+xauusd_2025_schema_v5_numeric_S1_broker_1r_xgb
+xauusd_2025_schema_v5_numeric_S2_broker_1r_xgb
+xauusd_2025_schema_v5_numeric_S3_broker_1r_xgb
+```
+
+If Phase 4 path-ratio labels are available, append the target family:
+
+```text
+xauusd_2025_schema_v5_numeric_S1_path_1_5r_xgb
+xauusd_2025_schema_v5_numeric_S2_path_2r_xgb
+xauusd_2025_schema_v5_numeric_S3_path_3r_xgb
+```
+
+Required generated reports per candidate:
+
+- dataset manifest and dataset report
+- validation metrics
+- threshold-selection report
+- robustness report
+- segment metrics by direction, session, time bucket, and strategy
+- score diagnostics
+- feature importance
+- model manifest
+- runtime artifact validation report only for accepted candidates
+- SHADOW parity report only after artifact export
+
+## Strategy Tester Export Contract
+
+Run one strategy at a time with these shared controls:
+
+- `Enable_Signal_Feature_Export = true`
+- `Signal_Feature_Run_Id = <schema v5 run ID>`
+- `ML_Inference_Mode = ML_INFERENCE_DISABLED`
+- `Enable_Pattern_Audit_Overlay = false`
+- `Pattern_Audit_Set_Id = ""`
+- `Enable_Logs = false`
+- `Enable_File_Logs = false`
+
+Keep symbol, date range, spread/cost, session, risk, and execution settings the
+same across S1/S2/S3 except strategy booleans and run IDs.
+
+## Research Gate
+
+A numeric candidate can advance to runtime artifact export only when:
+
+- schema v5 exports contain no unexplained invalid feature rows
+- dataset validation passes with no stale schema v4 raw files
+- path-label columns remain outcome-only and absent from model feature maps
+- threshold selection excludes the final holdout
+- final holdout remains positive after costs at the selected threshold
+- selected rows have enough support overall, by direction, and by important
+  session segments
+- evidence is not concentrated in one month, one session, or one direction
+- schema v5 candidates compare favorably against schema v4 baselines and simple
+  baselines
+
+## Runtime Gate
+
+Runtime export is blocked until the research gate accepts a candidate.
+
+For an accepted candidate:
+
+- export the existing TSV tree scorer artifact with schema v5 feature map
+- keep `mt5_runtime_ready=false` until Python artifact validation and SHADOW
+  parity pass
+- require nonzero scored rows
+- require zero invalid feature rows or a bounded, explained exception
+- require Python/MQL5 classifier and regressor parity within accepted tolerance
+- keep `ML_INFERENCE_FILTER` Strategy Tester-only
+- keep live deployment blocked pending a future explicit rollout plan
+
+## Sprint Status
+
+| Sprint | Status | Notes |
+| --- | --- | --- |
+| 1. Numeric Feature Contract | Complete | Contract, evidence layout, and workflow references defined. |
+| 2. MQL5 Numeric Feature Export | Pending | Requires compile and short tester smoke. |
+| 3. Visual Bands QA | Pending | Requires compile and human visual screenshot review. |
+| 4. Python Schema And Trainer | Pending | Requires py_compile and fixture/smoke validation. |
+| 5. Fresh Data And Robustness Gate | Pending | Requires human Strategy Tester full-year exports. |
+| 6. Runtime Artifact Gate | Pending | Requires accepted candidate and SHADOW parity. |

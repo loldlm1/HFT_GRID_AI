@@ -1,6 +1,12 @@
 # Research Evidence
 
-There is no active research acceptance gate at this time.
+Active research gate:
+
+- `docs/research/ml-numeric-xgboost-feature-spike.md`
+
+This gate researches schema v5 numeric XGBoost features before ONNX work
+resumes. Generated exports, datasets, models, reports, screenshots, and Common
+Files packages remain outside git.
 
 Completed deterministic signal ML evidence was archived on 2026-07-05:
 

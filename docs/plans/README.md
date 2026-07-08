@@ -4,9 +4,10 @@ Active planning status:
 
 - Parent roadmap: `docs/plans/ml-robustness-and-signal-selection-roadmap.md`
 - Current next implementation phase:
-  `docs/plans/ml-dynamic-tp-path-ratio-plan.md`
+  `docs/plans/ml-numeric-xgboost-feature-spike-plan.md`
 
-Phase 3 schema v4 research is complete for handoff. The completed or
+Phase 3 schema v4 research is complete for handoff. Phase 5 numeric XGBoost
+research is active before ONNX work resumes. The completed or
 superseded ML robustness plans are archived under:
 
 - `docs/plans/archive/phase3-ml-2026-07-07/`

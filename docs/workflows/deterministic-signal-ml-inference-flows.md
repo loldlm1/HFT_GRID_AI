@@ -153,7 +153,52 @@ If `shadow_manifest.tsv` records `available=false` with
 not deployed in the Common Files root used by MT5; deploy the export and rerun
 Strategy Tester before interpreting FILTER or arbitration behavior.
 
-## Active Feature Research Contract
+## Active Numeric XGBoost Research Contract
+
+Phase 5 adds schema v5 numeric XGBoost research before ONNX work resumes.
+Schema v4 semantic lanes remain the DuckDB pattern-audit layer; schema v5 is a
+separate compact numeric model lane.
+
+Schema v5 numeric XGBoost model inputs:
+
+```text
+direction
+stoch_structure_raw_percent
+b_percent_main_base
+b_percent_main_base_slope
+b_percent_main_macro
+b_percent_main_macro_slope
+session_id
+time_sin
+time_cos
+```
+
+Feature rules:
+
+- `direction` and `session_id` are categorical model inputs.
+- `stoch_structure_raw_percent` is the source-extremum/SL-anchor raw percent
+  behind `fib_sl_band`, not live close percent and not a raw oscillator value.
+- `%B` features read `BB_Percent_Standard` buffer `0` with `MODE_SMA`,
+  `PRICE_CLOSE`, confirmed non-forming values, and strategy-aligned shifts.
+- Base `%B` is M1 with shift `3`, `5`, or `10` for S1/S2/S3.
+- Macro `%B` is M3/M5/M10 with shift `1` for S1/S2/S3.
+- Visual `iBands` with `bands_shift` is QA-only and must not drive trading,
+  feature extraction, risk gates, or runtime scoring.
+- Path-ratio labels remain outcome-only and are excluded from model features.
+
+Recommended one-strategy-at-a-time run IDs:
+
+```text
+xauusd_2025_schema_v5_numeric_run_S1
+xauusd_2025_schema_v5_numeric_run_S2
+xauusd_2025_schema_v5_numeric_run_S3
+```
+
+The detailed contract, evidence layout, and gates live in
+`docs/research/ml-numeric-xgboost-feature-spike.md`. ONNX remains deferred
+until this research either accepts a robust candidate or records a rejection.
+
+## Schema V4 Semantic Pattern Contract
 
 Current Phase 3 follow-up work uses schema v4 semantic lanes. Do not reuse
 schema v3 Strategy Tester exports, datasets, pattern audits, or model artifacts
@@ -309,9 +354,8 @@ observed signal/time metadata separately. The Python comparator remains
 compatible with old schema version `1` observation files.
 
 Phase 3 is complete for schema v4 research handoff. No schema v4 XGBoost model
-has runtime ML FILTER approval. The next active plan is
-`docs/plans/ml-dynamic-tp-path-ratio-plan.md`, which replaces the older schema
-v3 path-label follow-up wording.
+has runtime ML FILTER approval. Schema v5 numeric XGBoost research is the next
+active pre-ONNX feature-selection phase.
 
 ## Dynamic TP Path-Ratio Runbook
 

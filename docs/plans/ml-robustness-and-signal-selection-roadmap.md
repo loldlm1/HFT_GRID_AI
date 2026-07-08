@@ -304,9 +304,64 @@ Acceptance gate:
   optimization passes without changing label counts
 - no EA runtime changes TP dynamically in this phase
 
-## Phase 5: ONNX Shadow Spike
+## Phase 5: Numeric XGBoost Feature Spike
 
-**Status**: Deferred until after dynamic TP/path-ratio research.
+**Status**: Planned before ONNX.
+**Planner plan**: `docs/plans/ml-numeric-xgboost-feature-spike-plan.md`
+**Risk level**: High, EA/Python/model artifact contract, Strategy Tester data
+collection, statistical validation, and visual indicator parity
+
+Research whether a compact strategy-clock-aligned numeric feature set can
+produce a more robust XGBoost candidate than the schema v4 semantic-lane
+models. Schema v4 semantic lanes remain the DuckDB pattern-audit layer; this
+phase separates that audit role from XGBoost feature learning.
+
+Recommended scope:
+
+- add a schema v5 numeric XGBoost feature lane while preserving schema v4-style
+  semantic lanes for DuckDB analysis
+- export `stoch_structure_raw_percent` as the raw Stoch Structure percent of
+  the source extremum/SL anchor, not the live close percent and not a raw
+  oscillator value
+- export `b_percent_main_base` and `b_percent_main_base_slope` from
+  `BB_Percent_Standard` buffer `0` on M1, with `MODE_SMA`, `PRICE_CLOSE`, and
+  strategy base shift `3`, `5`, or `10`
+- export `b_percent_main_macro` and `b_percent_main_macro_slope` from
+  `BB_Percent_Standard` buffer `0` on M3/M5/M10, with `MODE_SMA`,
+  `PRICE_CLOSE`, and macro shift `1`
+- include `direction`, `session_id`, `time_sin`, and `time_cos` in the first
+  strategy-scoped XGBoost pass
+- train one active strategy at a time first, with direction as a feature, and
+  keep per-direction artifacts as a follow-up ablation if needed
+- use conservative XGBoost candidates with `tree_method=hist`, `max_bin=256`,
+  and `max_depth=3`
+- add visual-only `iBands` QA for delayed base and macro bands without letting
+  chart indicators drive trading, feature extraction, risk controls, or
+  runtime inference
+- compare numeric candidates against schema v4 research baselines using the
+  hardened validation flow
+
+Acceptance gate:
+
+- numeric features use only pre-entry deterministic information and confirmed
+  non-forming reads
+- path-label columns remain outcome-only and excluded from model features
+- threshold selection excludes the final holdout
+- final holdout remains positive after costs at the selected threshold
+- selected rows clear support guards overall, by direction, and by important
+  session segments
+- no accepted candidate relies on one month, one direction, or one session
+  bucket without enough support
+- visual `iBands` handles are proven QA-only and do not change feature rows or
+  trading decisions
+- Python/MQL5 TSV scorer parity passes before any runtime SHADOW or FILTER
+  claim
+- no live deployment or ONNX replacement is implied
+
+## Phase 6: ONNX Shadow Spike
+
+**Status**: Deferred until after dynamic TP/path-ratio research and the numeric
+XGBoost feature spike.
 **Planner plan**: `docs/plans/ml-onnx-shadow-spike-plan.md`
 **Risk level**: Medium, runtime compatibility and parity
 
@@ -330,13 +385,13 @@ Acceptance gate:
 - ONNX and TSV threshold decisions agree on the same prediction rows
 - runtime diagnostics fail visibly without affecting trading behavior
 
-## Phase 6: Multi-Symbol Research
+## Phase 7: Multi-Symbol Research
 
 **Planner plan**: `docs/plans/ml-multi-symbol-research-plan.md`
 **Risk level**: Medium, statistical generalization
 
 Research whether symbol-specific or multi-symbol models generalize better after
-XAUUSD target-family evidence is clearer.
+XAUUSD target-family and numeric-feature evidence is clearer.
 
 Recommended scope:
 
@@ -368,6 +423,8 @@ This roadmap can be considered complete when:
   schema v2/v3 rejection evidence
 - dynamic TP/path-ratio modeling has research-grade labels and a clear decision
   on whether runtime execution changes are justified
+- numeric XGBoost feature research either produces a robust accepted candidate
+  or is explicitly rejected before ONNX work resumes
 - ONNX is either accepted as a shadow-compatible runtime path or explicitly
   deferred
 - symbol scope is explicit for every trained model artifact
@@ -408,5 +465,7 @@ This roadmap can be considered complete when:
   symbol.
 - Dynamic target labels are not available from the current closed-trade outcome
   contract; they require path-aware export.
+- Numeric `%B` features can look precise while still overfitting a short market
+  regime; final-holdout and direction/session support gates remain mandatory.
 - ONNX may be operationally simpler later, but it must prove parity and
   Strategy Tester stability before replacing the current scorer.
