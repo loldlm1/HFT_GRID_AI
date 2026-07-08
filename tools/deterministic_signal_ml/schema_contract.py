@@ -5,7 +5,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 
-SUPPORTED_SCHEMA_VERSION = 4
+SUPPORTED_SCHEMA_VERSION = 5
+SUPPORTED_SCHEMA_VERSIONS = (4, 5)
 NULL_TOKEN = r"\N"
 
 RUN_MANIFEST_FILE = "run_manifest.tsv"
@@ -34,7 +35,7 @@ SUMMARY_COLUMNS = (
     "export_status",
 )
 
-FEATURE_COLUMNS = (
+SCHEMA_V4_FEATURE_COLUMNS = (
     "schema_version",
     "run_id",
     "config_id",
@@ -60,6 +61,20 @@ FEATURE_COLUMNS = (
     "entry_session_bucket",
     "entry_weekday",
 )
+
+SCHEMA_V5_NUMERIC_COLUMNS = (
+    "stoch_structure_raw_percent",
+    "b_percent_main_base",
+    "b_percent_main_base_slope",
+    "b_percent_main_macro",
+    "b_percent_main_macro_slope",
+    "session_id",
+    "time_sin",
+    "time_cos",
+)
+
+SCHEMA_V5_FEATURE_COLUMNS = SCHEMA_V4_FEATURE_COLUMNS + SCHEMA_V5_NUMERIC_COLUMNS
+FEATURE_COLUMNS = SCHEMA_V5_FEATURE_COLUMNS
 
 OUTCOME_COLUMNS = (
     "schema_version",
@@ -105,7 +120,7 @@ IDENTITY_COLUMNS = (
     "source_attempt_index",
 )
 
-MODEL_FEATURE_COLUMNS = (
+SCHEMA_V4_MODEL_FEATURE_COLUMNS = (
     "strategy_label",
     "direction",
     "structure_0",
@@ -122,6 +137,36 @@ MODEL_FEATURE_COLUMNS = (
     "entry_session_bucket",
     "entry_weekday",
 )
+
+SCHEMA_V4_NO_STRATEGY_LABEL_FEATURE_COLUMNS = tuple(
+    column for column in SCHEMA_V4_MODEL_FEATURE_COLUMNS if column != "strategy_label"
+)
+
+SCHEMA_V5_NUMERIC_MODEL_FEATURE_COLUMNS = (
+    "direction",
+    "stoch_structure_raw_percent",
+    "b_percent_main_base",
+    "b_percent_main_base_slope",
+    "b_percent_main_macro",
+    "b_percent_main_macro_slope",
+    "session_id",
+    "time_sin",
+    "time_cos",
+)
+
+MODEL_FEATURE_COLUMNS = SCHEMA_V5_NUMERIC_MODEL_FEATURE_COLUMNS
+
+FEATURE_SET_COLUMNS = {
+    "schema_v4_full": SCHEMA_V4_MODEL_FEATURE_COLUMNS,
+    "schema_v4_no_strategy_label": SCHEMA_V4_NO_STRATEGY_LABEL_FEATURE_COLUMNS,
+    "schema_v5_numeric_xgb": SCHEMA_V5_NUMERIC_MODEL_FEATURE_COLUMNS,
+}
+
+FEATURE_SET_SCHEMA_VERSION = {
+    "schema_v4_full": 4,
+    "schema_v4_no_strategy_label": 4,
+    "schema_v5_numeric_xgb": 5,
+}
 
 TARGET_COLUMNS = (
     "target_is_win",
@@ -164,6 +209,13 @@ NUMERIC_COLUMNS = (
     "entry_price",
     "close_price",
     "net_profit",
+    "stoch_structure_raw_percent",
+    "b_percent_main_base",
+    "b_percent_main_base_slope",
+    "b_percent_main_macro",
+    "b_percent_main_macro_slope",
+    "time_sin",
+    "time_cos",
     *PATH_RATIO_OUTCOME_COLUMNS,
 )
 
@@ -179,6 +231,7 @@ CATEGORICAL_COLUMNS = (
     "low_chain_profile",
     "previous_candle_profile",
     "entry_session_bucket",
+    "session_id",
     "entry_weekday",
     "terminal_reason",
     "path_status",
@@ -208,12 +261,42 @@ class DatasetColumnGroups:
     audit_columns: tuple[str, ...] = AUDIT_COLUMNS
 
 
-def expected_columns_for(filename: str) -> tuple[str, ...]:
+def feature_columns_for_schema(schema_version: int) -> tuple[str, ...]:
+    if schema_version == 4:
+        return SCHEMA_V4_FEATURE_COLUMNS
+    if schema_version == 5:
+        return SCHEMA_V5_FEATURE_COLUMNS
+    raise ValueError(f"Unsupported feature schema version: {schema_version}")
+
+
+def feature_columns_for_set(feature_set_id: str) -> tuple[str, ...]:
+    try:
+        return FEATURE_SET_COLUMNS[feature_set_id]
+    except KeyError as exc:
+        raise ValueError(f"Unsupported feature_set_id: {feature_set_id}") from exc
+
+
+def schema_version_for_feature_set(feature_set_id: str) -> int:
+    try:
+        return FEATURE_SET_SCHEMA_VERSION[feature_set_id]
+    except KeyError as exc:
+        raise ValueError(f"Unsupported feature_set_id: {feature_set_id}") from exc
+
+
+def default_feature_set_for_schema(schema_version: int) -> str:
+    if schema_version == 4:
+        return "schema_v4_full"
+    if schema_version == 5:
+        return "schema_v5_numeric_xgb"
+    raise ValueError(f"Unsupported feature schema version: {schema_version}")
+
+
+def expected_columns_for(filename: str, schema_version: int = SUPPORTED_SCHEMA_VERSION) -> tuple[str, ...]:
     """Return the expected TSV header for a Phase 1 export file."""
     if filename == RUN_MANIFEST_FILE:
         return MANIFEST_COLUMNS
     if filename == SIGNAL_FEATURES_FILE:
-        return FEATURE_COLUMNS
+        return feature_columns_for_schema(schema_version)
     if filename == SIGNAL_OUTCOMES_FILE:
         return OUTCOME_COLUMNS
     if filename == RUN_SUMMARY_FILE:
@@ -221,8 +304,11 @@ def expected_columns_for(filename: str) -> tuple[str, ...]:
     raise ValueError(f"Unknown Phase 1 file: {filename}")
 
 
-def expected_column_variants_for(filename: str) -> tuple[tuple[str, ...], ...]:
+def expected_column_variants_for(
+    filename: str,
+    schema_version: int = SUPPORTED_SCHEMA_VERSION,
+) -> tuple[tuple[str, ...], ...]:
     """Return acceptable TSV headers for an export file."""
     if filename == SIGNAL_OUTCOMES_FILE:
         return (OUTCOME_COLUMNS, OUTCOME_COLUMNS_WITH_PATH)
-    return (expected_columns_for(filename),)
+    return (expected_columns_for(filename, schema_version),)

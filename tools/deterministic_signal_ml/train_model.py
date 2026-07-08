@@ -16,8 +16,18 @@ import numpy as np
 from xgboost import XGBClassifier, XGBRegressor
 
 from feature_encoder import FeatureEncoder
-from model_config import DEFAULT_DATASET_ROOT, DEFAULT_MODEL_ROOT, TRAINER_VERSION, TrainingConfig
-from schema_contract import MODEL_FEATURE_COLUMNS, SUPPORTED_SCHEMA_VERSION
+from model_config import (
+    DEFAULT_DATASET_ROOT,
+    DEFAULT_MODEL_ROOT,
+    TRAINER_VERSION,
+    TrainingConfig,
+    training_config_for_feature_set,
+)
+from schema_contract import (
+    FEATURE_SET_COLUMNS,
+    feature_columns_for_set,
+    schema_version_for_feature_set,
+)
 from training_report import (
     build_threshold_report_rows,
     classification_metrics,
@@ -35,23 +45,7 @@ class TrainingInputError(RuntimeError):
     """Raised when training cannot proceed because an input is invalid."""
 
 
-DEFAULT_FEATURE_SET_ID = "schema_v4_full"
-SCHEMA_V4_REQUIRED_FEATURES = (
-    "direction",
-    "structure_0",
-    "structure_1",
-    "structure_2",
-    "macro_h1_slope",
-    "macro_h4_slope",
-    "macro_d1_slope",
-    "fib_sl_band",
-    "fib_entry_band",
-    "high_chain_profile",
-    "low_chain_profile",
-    "previous_candle_profile",
-    "entry_session_bucket",
-    "entry_weekday",
-)
+DEFAULT_FEATURE_SET_ID = "schema_v5_numeric_xgb"
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -66,11 +60,8 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--feature-set-id",
         default=DEFAULT_FEATURE_SET_ID,
-        choices=(
-            "schema_v4_full",
-            "schema_v4_no_strategy_label",
-        ),
-        help="Schema v4 feature subset used for research training.",
+        choices=tuple(FEATURE_SET_COLUMNS),
+        help="Feature subset used for research training.",
     )
     return parser
 
@@ -131,7 +122,12 @@ def load_training_rows(dataset_path: Path) -> list[dict]:
         connection.close()
 
 
-def validate_training_rows(rows: list[dict], manifest: dict, config: TrainingConfig) -> None:
+def validate_training_rows(
+    rows: list[dict],
+    manifest: dict,
+    config: TrainingConfig,
+    feature_set_id: str,
+) -> None:
     if len(rows) < config.min_training_rows:
         raise TrainingInputError(
             f"Dataset has {len(rows)} rows; minimum required is {config.min_training_rows}"
@@ -140,17 +136,26 @@ def validate_training_rows(rows: list[dict], manifest: dict, config: TrainingCon
     schema_version = manifest.get("feature_schema_version", manifest.get("phase1_schema_version"))
     if schema_version is None:
         raise TrainingInputError("Dataset manifest does not define feature_schema_version")
-    if int(schema_version) != SUPPORTED_SCHEMA_VERSION:
+    expected_schema_version = schema_version_for_feature_set(feature_set_id)
+    if int(schema_version) != expected_schema_version:
         raise TrainingInputError(
-            f"Unsupported dataset schema version: {schema_version}; expected {SUPPORTED_SCHEMA_VERSION}"
+            f"Unsupported dataset schema version for {feature_set_id}: "
+            f"{schema_version}; expected {expected_schema_version}"
         )
 
     feature_columns = list(manifest.get("feature_columns", []))
+    expected_feature_columns = list(feature_columns_for_set(feature_set_id))
     target_columns = list(manifest.get("target_columns", []))
     if not feature_columns:
         raise TrainingInputError("Dataset manifest does not define feature_columns")
-    if feature_columns != list(MODEL_FEATURE_COLUMNS):
-        raise TrainingInputError("Dataset feature_columns do not match active schema v4 contract")
+    missing_manifest_features = [
+        column for column in expected_feature_columns if column not in feature_columns
+    ]
+    if missing_manifest_features:
+        raise TrainingInputError(
+            "Dataset manifest is missing feature columns for "
+            f"{feature_set_id}: " + ", ".join(missing_manifest_features)
+        )
 
     required_targets = ("target_is_win", "target_profit_r", "target_terminal_reason")
     missing_manifest_targets = [column for column in required_targets if column not in target_columns]
@@ -161,7 +166,7 @@ def validate_training_rows(rows: list[dict], manifest: dict, config: TrainingCon
 
     first_row = rows[0]
     missing_matrix_columns = [
-        column for column in feature_columns + list(required_targets) if column not in first_row
+        column for column in expected_feature_columns + list(required_targets) if column not in first_row
     ]
     if missing_matrix_columns:
         raise TrainingInputError(
@@ -184,18 +189,12 @@ def validate_training_rows(rows: list[dict], manifest: dict, config: TrainingCon
 
 
 def resolve_feature_columns(manifest: dict, feature_set_id: str) -> list[str]:
-    feature_columns = list(manifest.get("feature_columns", []))
-    if feature_set_id == "schema_v4_full":
-        return feature_columns
-
-    if feature_set_id != "schema_v4_no_strategy_label":
-        raise TrainingInputError(f"Unsupported feature_set_id: {feature_set_id}")
-
-    selected = [column for column in feature_columns if column != "strategy_label"]
-    missing_required = [column for column in SCHEMA_V4_REQUIRED_FEATURES if column not in selected]
+    manifest_columns = list(manifest.get("feature_columns", []))
+    selected = list(feature_columns_for_set(feature_set_id))
+    missing_required = [column for column in selected if column not in manifest_columns]
     if missing_required:
         raise TrainingInputError(
-            "Feature set is missing required schema v4 columns: "
+            "Dataset manifest is missing required feature columns: "
             + ", ".join(missing_required)
         )
     return selected
@@ -208,6 +207,7 @@ def write_training_input_summary(
     manifest: dict,
     rows: list[dict],
     encoder: FeatureEncoder,
+    feature_columns: list[str],
 ) -> None:
     class_counts: dict[str, int] = {}
     for row in rows:
@@ -225,6 +225,7 @@ def write_training_input_summary(
         "row_count": len(rows),
         "target_is_win_counts": class_counts,
         "feature_columns": list(manifest.get("feature_columns", [])),
+        "selected_feature_columns": feature_columns,
         "target_columns": list(manifest.get("target_columns", [])),
         "encoded_feature_count": len(encoder.encoded_feature_names),
         "encoded_feature_names": encoder.encoded_feature_names,
@@ -324,6 +325,7 @@ def write_model_manifest(
     feature_set_id: str,
     manifest: dict,
     encoder: FeatureEncoder,
+    feature_columns: list[str],
     split_metadata: dict,
     xgboost_metrics: dict,
     threshold_recommendation: dict | None,
@@ -345,6 +347,7 @@ def write_model_manifest(
         "phase3_trainer_version": TRAINER_VERSION,
         "row_counts": manifest.get("row_counts", {}),
         "feature_columns": list(manifest.get("feature_columns", [])),
+        "selected_feature_columns": feature_columns,
         "target_columns": list(manifest.get("target_columns", [])),
         "encoded_feature_count": len(encoder.encoded_feature_names),
         "encoded_feature_names": encoder.encoded_feature_names,
@@ -475,7 +478,7 @@ def _fit_classifier(
     y_eval: np.ndarray,
     config: TrainingConfig,
 ) -> XGBClassifier:
-    model = XGBClassifier(**asdict(config.classifier))
+    model = XGBClassifier(**_xgboost_params(asdict(config.classifier)))
     model.fit(x_train, y_train, eval_set=[(x_eval, y_eval)], verbose=False)
     return model
 
@@ -487,9 +490,13 @@ def _fit_regressor(
     y_eval: np.ndarray,
     config: TrainingConfig,
 ) -> XGBRegressor:
-    model = XGBRegressor(**asdict(config.regressor))
+    model = XGBRegressor(**_xgboost_params(asdict(config.regressor)))
     model.fit(x_train, y_train, eval_set=[(x_eval, y_eval)], verbose=False)
     return model
+
+
+def _xgboost_params(params: dict) -> dict:
+    return {key: value for key, value in params.items() if value is not None}
 
 
 def _classifier_result(
@@ -619,6 +626,14 @@ def _prediction_rows(
                 "previous_candle_profile": str(source.get("previous_candle_profile", "")),
                 "entry_session_bucket": str(source.get("entry_session_bucket", "")),
                 "entry_weekday": str(source.get("entry_weekday", "")),
+                "stoch_structure_raw_percent": source.get("stoch_structure_raw_percent", ""),
+                "b_percent_main_base": source.get("b_percent_main_base", ""),
+                "b_percent_main_base_slope": source.get("b_percent_main_base_slope", ""),
+                "b_percent_main_macro": source.get("b_percent_main_macro", ""),
+                "b_percent_main_macro_slope": source.get("b_percent_main_macro_slope", ""),
+                "session_id": str(source.get("session_id", "")),
+                "time_sin": source.get("time_sin", ""),
+                "time_cos": source.get("time_cos", ""),
                 "target_is_win": int(source["target_is_win"]),
                 "target_profit_r": float(source["target_profit_r"]),
                 "target_terminal_reason": str(source.get("target_terminal_reason", "")),
@@ -642,9 +657,9 @@ def main() -> int:
     try:
         dataset_path = resolve_dataset_path(args)
         manifest = load_dataset_manifest(dataset_path)
-        config = TrainingConfig()
+        config = training_config_for_feature_set(args.feature_set_id)
         rows = load_training_rows(dataset_path)
-        validate_training_rows(rows, manifest, config)
+        validate_training_rows(rows, manifest, config, args.feature_set_id)
         feature_columns = resolve_feature_columns(manifest, args.feature_set_id)
         encoder = FeatureEncoder.fit(rows, feature_columns)
         encoded = encoder.transform(rows)
@@ -657,6 +672,7 @@ def main() -> int:
             manifest,
             rows,
             encoder,
+            feature_columns,
         )
         split_bundle = build_time_splits(
             rows,
@@ -693,6 +709,7 @@ def main() -> int:
             args.feature_set_id,
             manifest,
             encoder,
+            feature_columns,
             split_bundle.metadata,
             xgboost_metrics,
             threshold_recommendation,

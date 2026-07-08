@@ -11,12 +11,17 @@ import duckdb
 from schema_contract import (
     BROKER_TARGET_FAMILY,
     DATASET_TARGET_FAMILIES,
-    FEATURE_COLUMNS,
-    MODEL_FEATURE_COLUMNS,
+    FEATURE_SET_COLUMNS,
     OUTCOME_COLUMNS,
     OUTCOME_COLUMNS_WITH_PATH,
     SIGNAL_FEATURES_FILE,
     SIGNAL_OUTCOMES_FILE,
+    SUPPORTED_SCHEMA_VERSION,
+    SUPPORTED_SCHEMA_VERSIONS,
+    default_feature_set_for_schema,
+    feature_columns_for_schema,
+    feature_columns_for_set,
+    schema_version_for_feature_set,
 )
 from report_writer import (
     build_quality_payload,
@@ -56,8 +61,30 @@ def _tsv_header(path: Path) -> tuple[str, ...]:
         return tuple(handle.readline().rstrip("\r\n").split("\t"))
 
 
-def _insert_features_sql(path: Path) -> str:
-    source = _read_tsv_sql(path, FEATURE_COLUMNS)
+def _insert_features_sql(path: Path, schema_version: int) -> str:
+    source = _read_tsv_sql(path, feature_columns_for_schema(schema_version))
+    if schema_version == 5:
+        numeric_select = """
+  CAST(stoch_structure_raw_percent AS DOUBLE) AS stoch_structure_raw_percent,
+  CAST(b_percent_main_base AS DOUBLE) AS b_percent_main_base,
+  CAST(b_percent_main_base_slope AS DOUBLE) AS b_percent_main_base_slope,
+  CAST(b_percent_main_macro AS DOUBLE) AS b_percent_main_macro,
+  CAST(b_percent_main_macro_slope AS DOUBLE) AS b_percent_main_macro_slope,
+  session_id,
+  CAST(time_sin AS DOUBLE) AS time_sin,
+  CAST(time_cos AS DOUBLE) AS time_cos
+"""
+    else:
+        numeric_select = """
+  NULL::DOUBLE AS stoch_structure_raw_percent,
+  NULL::DOUBLE AS b_percent_main_base,
+  NULL::DOUBLE AS b_percent_main_base_slope,
+  NULL::DOUBLE AS b_percent_main_macro,
+  NULL::DOUBLE AS b_percent_main_macro_slope,
+  NULL::VARCHAR AS session_id,
+  NULL::DOUBLE AS time_sin,
+  NULL::DOUBLE AS time_cos
+"""
     return f"""
 INSERT INTO features
 SELECT
@@ -84,7 +111,8 @@ SELECT
   low_chain_profile,
   previous_candle_profile,
   entry_session_bucket,
-  entry_weekday
+  entry_weekday,
+{numeric_select}
 FROM {source}
 """
 
@@ -174,10 +202,12 @@ def create_dataset_tables(
     connection: duckdb.DuckDBPyConnection,
     validations,
     target_family: str,
+    schema_version: int,
+    feature_columns: tuple[str, ...],
 ) -> dict[str, int]:
     target_is_win_sql, target_profit_r_sql, target_reason_sql, target_valid_clause = _path_target_sql(target_family)
     required_feature_clause = " AND\n  ".join(
-        f"f.{column} IS NOT NULL" for column in MODEL_FEATURE_COLUMNS
+        f"f.{column} IS NOT NULL" for column in feature_columns
     )
     connection.execute(
         """
@@ -205,7 +235,15 @@ CREATE TABLE features (
   low_chain_profile VARCHAR,
   previous_candle_profile VARCHAR,
   entry_session_bucket VARCHAR,
-  entry_weekday VARCHAR
+  entry_weekday VARCHAR,
+  stoch_structure_raw_percent DOUBLE,
+  b_percent_main_base DOUBLE,
+  b_percent_main_base_slope DOUBLE,
+  b_percent_main_macro DOUBLE,
+  b_percent_main_macro_slope DOUBLE,
+  session_id VARCHAR,
+  time_sin DOUBLE,
+  time_cos DOUBLE
 )
 """
     )
@@ -244,7 +282,7 @@ CREATE TABLE outcomes (
     )
 
     for validation in validations:
-        connection.execute(_insert_features_sql(validation.run_path / SIGNAL_FEATURES_FILE))
+        connection.execute(_insert_features_sql(validation.run_path / SIGNAL_FEATURES_FILE, schema_version))
         connection.execute(_insert_outcomes_sql(validation.run_path / SIGNAL_OUTCOMES_FILE))
 
     connection.execute(
@@ -275,6 +313,14 @@ SELECT
   f.previous_candle_profile,
   f.entry_session_bucket,
   f.entry_weekday,
+  f.stoch_structure_raw_percent,
+  f.b_percent_main_base,
+  f.b_percent_main_base_slope,
+  f.b_percent_main_macro,
+  f.b_percent_main_macro_slope,
+  f.session_id,
+  f.time_sin,
+  f.time_cos,
   o.terminal_time,
   o.terminal_reason,
   o.profit_r,
@@ -365,6 +411,19 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--dataset-id", required=True, help="Dataset output ID.")
     parser.add_argument("--output-root", default="artifacts/datasets", help="Dataset output root.")
     parser.add_argument(
+        "--schema-version",
+        type=int,
+        default=SUPPORTED_SCHEMA_VERSION,
+        choices=SUPPORTED_SCHEMA_VERSIONS,
+        help="Phase 1 feature export schema version. Defaults to active schema v5.",
+    )
+    parser.add_argument(
+        "--feature-set-id",
+        choices=tuple(FEATURE_SET_COLUMNS),
+        default="",
+        help="Model feature set stored in the dataset manifest. Defaults from --schema-version.",
+    )
+    parser.add_argument(
         "--target-family",
         default=BROKER_TARGET_FAMILY,
         choices=DATASET_TARGET_FAMILIES,
@@ -383,11 +442,22 @@ def build_parser() -> argparse.ArgumentParser:
 def main() -> int:
     parser = build_parser()
     args = parser.parse_args()
+    feature_set_id = args.feature_set_id or default_feature_set_for_schema(args.schema_version)
+    expected_feature_schema = schema_version_for_feature_set(feature_set_id)
+    if expected_feature_schema != args.schema_version:
+        parser.exit(
+            1,
+            "validation failed: feature_set_id "
+            f"{feature_set_id!r} requires schema version {expected_feature_schema}, "
+            f"got {args.schema_version}\n",
+        )
+    feature_columns = feature_columns_for_set(feature_set_id)
 
     try:
         validations = validate_phase1_runs(
             Path(args.runs_root),
             args.run_id,
+            schema_version=args.schema_version,
             allow_mixed_config=args.allow_mixed_config,
         )
     except Phase1ValidationError as exc:
@@ -411,7 +481,13 @@ def main() -> int:
         return 0
 
     connection = duckdb.connect(":memory:")
-    counts = create_dataset_tables(connection, validations, args.target_family)
+    counts = create_dataset_tables(
+        connection,
+        validations,
+        args.target_family,
+        args.schema_version,
+        feature_columns,
+    )
     if args.target_family != BROKER_TARGET_FAMILY and counts["training_matrix"] <= 0:
         parser.exit(1, f"build failed: no valid rows for target_family={args.target_family}\n")
     print(
@@ -423,8 +499,24 @@ def main() -> int:
     try:
         output_dir = prepare_output_dir(Path(args.output_root), args.dataset_id, args.overwrite)
         output_files = write_parquet_outputs(connection, output_dir)
-        quality_payload = build_quality_payload(connection, validations, counts, args.target_family)
-        write_dataset_manifest(output_dir, args.dataset_id, validations, counts, output_files, args.target_family)
+        quality_payload = build_quality_payload(
+            connection,
+            validations,
+            counts,
+            args.target_family,
+            feature_columns,
+        )
+        write_dataset_manifest(
+            output_dir,
+            args.dataset_id,
+            validations,
+            counts,
+            output_files,
+            args.target_family,
+            args.schema_version,
+            feature_set_id,
+            feature_columns,
+        )
         write_quality_json(output_dir, quality_payload)
         write_dataset_report(output_dir, args.dataset_id, quality_payload)
     except RuntimeError as exc:

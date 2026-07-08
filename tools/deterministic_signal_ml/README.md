@@ -9,25 +9,59 @@ EA, run EA inference, filter trades, or connect to PostgreSQL.
 
 ## Feature Schema Status
 
-The first schema v2 Phase 3 attempt is rejected. The active follow-up has moved
-the research/export contract to schema v4 semantic lanes. The current long
-XAUUSD schema v1 baseline remains frozen as a rejection baseline:
+The active model-building default is schema v5 numeric XGBoost research:
+
+```text
+schema_v5_numeric_xgb
+```
+
+Schema v5 keeps schema v4 semantic lanes available for DuckDB pattern audit,
+but the model feature set is compact and numeric:
+
+```text
+direction
+stoch_structure_raw_percent
+b_percent_main_base
+b_percent_main_base_slope
+b_percent_main_macro
+b_percent_main_macro_slope
+session_id
+time_sin
+time_cos
+```
+
+The trainer encodes `direction` and `session_id` with the existing deterministic
+one-hot encoder. Numeric candidates use conservative XGBoost params including
+`tree_method=hist`, `max_depth=3`, and `max_bin=256`.
+
+Schema v4 semantic XGBoost training remains available for baseline comparison
+with explicit flags:
+
+```bash
+--schema-version 4 --feature-set-id schema_v4_full
+```
+
+The first schema v2 Phase 3 attempt is rejected. The current long XAUUSD schema
+v1 baseline remains frozen as a rejection baseline:
 
 - Dataset: `xauusd_2025_dataset_1`
 - Model: `xauusd_2025_xgb_1`
 - Result: no accepted FILTER threshold and no promoted runtime export.
 
-Schema v2 first-attempt evidence and schema v4 follow-up evidence are tracked in:
+Schema v2 first-attempt evidence, schema v4 follow-up evidence, and schema v5
+numeric research are tracked in:
 
 - `docs/plans/ml-feature-schema-v2-plan.md`
 - `docs/plans/ml-feature-schema-v2-follow-up-plan.md`
 - `docs/plans/ml-feature-schema-v4-semantic-lanes-plan.md`
+- `docs/plans/ml-numeric-xgboost-feature-spike-plan.md`
 - `docs/research/ml-feature-schema-v2-acceptance.md`
+- `docs/research/ml-numeric-xgboost-feature-spike.md`
 
 The first schema v2 XAUUSD 2025 dataset built successfully, but the trained
 candidates failed the final-holdout selected-row and segment-support gates.
 Runtime export, deployment, SHADOW parity, and FILTER validation remain blocked
-until a schema v4 follow-up candidate passes the research gate.
+until a schema v5 numeric candidate passes the research gate.
 
 ## Setup
 
@@ -79,8 +113,10 @@ Each run must contain:
 ```powershell
 .\.venv\Scripts\python.exe tools\deterministic_signal_ml\build_dataset.py `
   --runs-root "C:\Users\loldlm\AppData\Roaming\MetaQuotes\Terminal\Common\Files\DeterministicSignalML\runs" `
-  --run-id test_run_1 `
-  --dataset-id test_dataset_1
+  --run-id xauusd_2025_schema_v5_numeric_run_S1 `
+  --dataset-id xauusd_2025_schema_v5_numeric_dataset_S1 `
+  --schema-version 5 `
+  --feature-set-id schema_v5_numeric_xgb
 ```
 
 Ubuntu:
@@ -88,8 +124,10 @@ Ubuntu:
 ```bash
 .venv/bin/python tools/deterministic_signal_ml/build_dataset.py \
   --runs-root "$HOME/.wine/drive_c/users/loldlm/AppData/Roaming/MetaQuotes/Terminal/Common/Files/DeterministicSignalML/runs" \
-  --run-id test_run_1 \
-  --dataset-id test_dataset_1
+  --run-id xauusd_2025_schema_v5_numeric_run_S1 \
+  --dataset-id xauusd_2025_schema_v5_numeric_dataset_S1 \
+  --schema-version 5 \
+  --feature-set-id schema_v5_numeric_xgb
 ```
 
 Generated datasets are written under `artifacts/datasets/<dataset_id>/` and are
@@ -102,8 +140,10 @@ Use `--validate-only` before building larger datasets:
 ```powershell
 .\.venv\Scripts\python.exe tools\deterministic_signal_ml\build_dataset.py `
   --runs-root "C:\Users\loldlm\AppData\Roaming\MetaQuotes\Terminal\Common\Files\DeterministicSignalML\runs" `
-  --run-id test_run_1 `
-  --dataset-id test_dataset_1 `
+  --run-id xauusd_2025_schema_v5_numeric_run_S1 `
+  --dataset-id xauusd_2025_schema_v5_numeric_dataset_S1 `
+  --schema-version 5 `
+  --feature-set-id schema_v5_numeric_xgb `
   --validate-only
 ```
 
@@ -112,8 +152,10 @@ Ubuntu:
 ```bash
 .venv/bin/python tools/deterministic_signal_ml/build_dataset.py \
   --runs-root "$HOME/.wine/drive_c/users/loldlm/AppData/Roaming/MetaQuotes/Terminal/Common/Files/DeterministicSignalML/runs" \
-  --run-id test_run_1 \
-  --dataset-id test_dataset_1 \
+  --run-id xauusd_2025_schema_v5_numeric_run_S1 \
+  --dataset-id xauusd_2025_schema_v5_numeric_dataset_S1 \
+  --schema-version 5 \
+  --feature-set-id schema_v5_numeric_xgb \
   --validate-only
 ```
 
@@ -144,14 +186,15 @@ Existing dataset folders are not overwritten unless `--overwrite` is passed.
 Multiple `--run-id` values are supported, but mixed `config_id` values fail by
 default unless `--allow-mixed-config` is passed.
 
-## Phase 3 Training
+## Training
 
-Train local research models from a Phase 2 dataset:
+Train local schema v5 numeric research models from a dataset:
 
 ```powershell
 .\.venv\Scripts\python.exe tools\deterministic_signal_ml\train_model.py `
-  --dataset-id test_dataset_1 `
-  --model-id xgb_test_1 `
+  --dataset-id xauusd_2025_schema_v5_numeric_dataset_S1 `
+  --model-id xauusd_2025_schema_v5_numeric_S1_broker_1r_xgb `
+  --feature-set-id schema_v5_numeric_xgb `
   --overwrite
 ```
 
@@ -175,8 +218,26 @@ Model outputs include:
 - `holdout_predictions.parquet` and `fold_predictions.parquet`: analysis
   predictions readable by DuckDB.
 
-Phase 3 is research-only. It does not add EA inputs, does not run Python from
-MQL5, and does not change strategy entry/exit behavior.
+Schema v5 numeric training is research-only. It does not add EA inputs, does
+not run Python from MQL5, and does not change strategy entry/exit behavior.
+
+Legacy schema v4 baseline training remains available with explicit flags:
+
+```bash
+.venv/bin/python tools/deterministic_signal_ml/build_dataset.py \
+  --runs-root "$MT5_COMMON_FILES/DeterministicSignalML/runs" \
+  --run-id xauusd_2025_schema_v4_run_S1 \
+  --dataset-id xauusd_2025_schema_v4_dataset_S1 \
+  --schema-version 4 \
+  --feature-set-id schema_v4_full \
+  --overwrite
+
+.venv/bin/python tools/deterministic_signal_ml/train_model.py \
+  --dataset-id xauusd_2025_schema_v4_dataset_S1 \
+  --model-id xauusd_2025_schema_v4_xgb_S1 \
+  --feature-set-id schema_v4_full \
+  --overwrite
+```
 
 ## Phase 4 Model Export
 

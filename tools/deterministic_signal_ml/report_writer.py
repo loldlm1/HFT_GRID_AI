@@ -12,13 +12,11 @@ import duckdb
 from schema_contract import (
     CATEGORICAL_COLUMNS,
     DatasetColumnGroups,
-    MODEL_FEATURE_COLUMNS,
     PATH_RATIO_OUTCOME_COLUMNS,
-    SUPPORTED_SCHEMA_VERSION,
 )
 
 
-BUILDER_VERSION = "phase3.schema_v4_dataset_builder.v2"
+BUILDER_VERSION = "phase5.schema_v5_numeric_dataset_builder.v1"
 
 
 def _fetch_dicts(connection: duckdb.DuckDBPyConnection, sql: str) -> list[dict[str, Any]]:
@@ -35,18 +33,19 @@ def build_quality_payload(
     validations,
     counts: dict[str, int],
     target_family: str,
+    feature_columns: tuple[str, ...],
 ) -> dict[str, Any]:
     null_counts = _fetch_dicts(
         connection,
         " UNION ALL ".join(
             [
                 f"SELECT '{column}' AS column_name, COUNT(*) - COUNT({column}) AS null_rows FROM training_matrix"
-                for column in MODEL_FEATURE_COLUMNS
+                for column in feature_columns
             ]
         ),
     )
     categorical_set = set(CATEGORICAL_COLUMNS)
-    range_columns = [column for column in MODEL_FEATURE_COLUMNS if column not in categorical_set]
+    range_columns = [column for column in feature_columns if column not in categorical_set]
     feature_ranges = _fetch_dicts(
         connection,
         " UNION ALL ".join(
@@ -178,6 +177,18 @@ GROUP BY 1
 ORDER BY 1
 """,
         ),
+        "session_id_distribution": _fetch_dicts(
+            connection,
+            """
+SELECT
+  session_id,
+  COUNT(*) AS rows,
+  AVG(target_profit_r) AS avg_profit_r
+FROM training_matrix
+GROUP BY 1
+ORDER BY 1
+""",
+        ),
         "entry_weekday_distribution": _fetch_dicts(
             connection,
             """
@@ -202,15 +213,19 @@ def write_dataset_manifest(
     counts: dict[str, int],
     output_files: dict[str, str],
     target_family: str,
+    schema_version: int,
+    feature_set_id: str,
+    feature_columns: tuple[str, ...],
 ) -> None:
-    column_groups = DatasetColumnGroups()
+    column_groups = DatasetColumnGroups(feature_columns=feature_columns)
     payload = {
         "dataset_id": dataset_id,
         "builder_version": BUILDER_VERSION,
         "target_family": target_family,
+        "feature_set_id": feature_set_id,
         "created_at": datetime.now(UTC).isoformat(),
-        "phase1_schema_version": SUPPORTED_SCHEMA_VERSION,
-        "feature_schema_version": SUPPORTED_SCHEMA_VERSION,
+        "phase1_schema_version": schema_version,
+        "feature_schema_version": schema_version,
         "source_run_ids": [validation.run_id for validation in validations],
         "source_run_folders": [str(validation.run_path) for validation in validations],
         "config_ids": sorted({validation.config_id for validation in validations}),
@@ -336,6 +351,8 @@ def write_dataset_report(
     lines.extend(_markdown_table(quality_payload["previous_candle_distribution"], ("previous_candle_profile", "rows", "avg_profit_r")))
     lines.extend(["", "## Entry Session Summary", ""])
     lines.extend(_markdown_table(quality_payload["entry_session_distribution"], ("entry_session_bucket", "rows", "avg_profit_r")))
+    lines.extend(["", "## Session ID Summary", ""])
+    lines.extend(_markdown_table(quality_payload["session_id_distribution"], ("session_id", "rows", "avg_profit_r")))
     lines.extend(["", "## Entry Weekday Summary", ""])
     lines.extend(_markdown_table(quality_payload["entry_weekday_distribution"], ("entry_weekday", "rows", "avg_profit_r")))
     lines.extend(["", "## Feature Null Counts", ""])

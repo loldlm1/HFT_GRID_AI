@@ -197,7 +197,7 @@ For an accepted candidate:
 | 1. Numeric Feature Contract | Complete | Contract, evidence layout, and workflow references defined. |
 | 2. MQL5 Numeric Feature Export | Implementation complete | MetaEditor compile PASS with 0 errors and 0 warnings. Short Strategy Tester export smoke remains pending human run. |
 | 3. Visual Bands QA | Implementation complete | Visual `iBands` handles compile. Human Strategy Tester screenshot and visual/data row-count comparison remain pending. |
-| 4. Python Schema And Trainer | Pending | Requires py_compile and fixture/smoke validation. |
+| 4. Python Schema And Trainer | Complete | `py_compile`, schema v5 dataset fixture, and numeric XGBoost smoke training PASS. |
 | 5. Fresh Data And Robustness Gate | Pending | Requires human Strategy Tester full-year exports. |
 | 6. Runtime Artifact Gate | Pending | Requires accepted candidate and SHADOW parity. |
 
@@ -252,3 +252,54 @@ Pending human gate:
 - visual Strategy Tester screenshot review
 - compare a short run with visuals enabled and disabled for matching feature
   row counts and candidate counts
+
+## Sprint 4 Validation
+
+Implemented:
+
+- Python schema contract defaults to schema v5 and keeps schema v4 available
+  through explicit `--schema-version 4 --feature-set-id schema_v4_full`
+- dataset builder accepts schema v5 feature exports and stores
+  `schema_v5_numeric_xgb` in the dataset manifest
+- model feature columns are explicit and exclude path-ratio outcome columns
+- trainer supports `schema_v5_numeric_xgb`
+- classifier and regressor numeric configs use `tree_method=hist`,
+  `max_depth=3`, and `max_bin=256`
+- model manifests record selected feature columns, encoded feature count,
+  params, target family, and feature set
+
+Validation:
+
+- `.venv/bin/python -m py_compile tools/deterministic_signal_ml/*.py`: PASS
+- schema v5 fixture dataset build: PASS, `520` feature rows, `520` outcome
+  rows, `520` training rows
+- schema v5 numeric smoke training: PASS, `13` encoded features, `104`
+  holdout rows, `4` folds
+- smoke manifest confirmed classifier/regressor `max_depth=3` and
+  `max_bin=256`
+
+Strategy-scoped command pattern:
+
+```bash
+MT5_COMMON_FILES="$HOME/.wine/drive_c/users/loldlm/AppData/Roaming/MetaQuotes/Terminal/Common/Files"
+
+.venv/bin/python tools/deterministic_signal_ml/build_dataset.py \
+  --runs-root "$MT5_COMMON_FILES/DeterministicSignalML/runs" \
+  --run-id xauusd_2025_schema_v5_numeric_run_S1 \
+  --dataset-id xauusd_2025_schema_v5_numeric_dataset_S1 \
+  --schema-version 5 \
+  --feature-set-id schema_v5_numeric_xgb \
+  --target-family broker_1r \
+  --overwrite
+
+.venv/bin/python tools/deterministic_signal_ml/train_model.py \
+  --dataset-id xauusd_2025_schema_v5_numeric_dataset_S1 \
+  --model-id xauusd_2025_schema_v5_numeric_S1_broker_1r_xgb \
+  --feature-set-id schema_v5_numeric_xgb \
+  --overwrite
+```
+
+Repeat for `S2` and `S3` by replacing the run, dataset, and model IDs. If Phase
+4 path-ratio labels are present, repeat dataset/training with
+`--target-family 1r`, `1_5r`, `2r`, `3r`, or `expected_r` and include the
+target family in the model ID.

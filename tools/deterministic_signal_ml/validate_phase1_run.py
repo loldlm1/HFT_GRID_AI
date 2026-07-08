@@ -15,6 +15,7 @@ from schema_contract import (
     SIGNAL_FEATURES_FILE,
     SIGNAL_OUTCOMES_FILE,
     SUPPORTED_SCHEMA_VERSION,
+    SUPPORTED_SCHEMA_VERSIONS,
     expected_column_variants_for,
 )
 
@@ -84,12 +85,17 @@ def _required_float(value: str, field: str, filename: str) -> float:
         raise Phase1ValidationError(f"Invalid float in {filename}.{field}: {value!r}") from exc
 
 
-def _require_schema_version(rows: Iterable[dict[str, str]], filename: str) -> None:
+def _require_schema_version(
+    rows: Iterable[dict[str, str]],
+    filename: str,
+    expected_schema_version: int,
+) -> None:
     for index, row in enumerate(rows, start=1):
         schema_version = _required_int(row["schema_version"], "schema_version", filename)
-        if schema_version != SUPPORTED_SCHEMA_VERSION:
+        if schema_version != expected_schema_version:
             raise Phase1ValidationError(
-                f"Unsupported schema_version in {filename} row {index}: {schema_version}"
+                f"Unsupported schema_version in {filename} row {index}: "
+                f"{schema_version}; expected {expected_schema_version}"
             )
 
 
@@ -114,8 +120,16 @@ def _manifest_dict(rows: list[dict[str, str]]) -> dict[str, str]:
     return result
 
 
-def validate_phase1_run(runs_root: Path, run_id: str) -> Phase1RunValidation:
+def validate_phase1_run(
+    runs_root: Path,
+    run_id: str,
+    *,
+    schema_version: int = SUPPORTED_SCHEMA_VERSION,
+) -> Phase1RunValidation:
     """Validate a single Phase 1 run folder."""
+    if schema_version not in SUPPORTED_SCHEMA_VERSIONS:
+        raise Phase1ValidationError(f"Unsupported schema_version: {schema_version}")
+
     run_path = runs_root / run_id
     if not run_path.exists():
         raise Phase1ValidationError(f"Run folder does not exist: {run_path}")
@@ -126,15 +140,27 @@ def validate_phase1_run(runs_root: Path, run_id: str) -> Phase1RunValidation:
         if not (run_path / filename).exists():
             raise Phase1ValidationError(f"Missing required Phase 1 file: {run_path / filename}")
 
-    manifest_rows = _read_tsv(run_path / RUN_MANIFEST_FILE, expected_column_variants_for(RUN_MANIFEST_FILE))
-    summary_rows = _read_tsv(run_path / RUN_SUMMARY_FILE, expected_column_variants_for(RUN_SUMMARY_FILE))
-    feature_rows = _read_tsv(run_path / SIGNAL_FEATURES_FILE, expected_column_variants_for(SIGNAL_FEATURES_FILE))
-    outcome_rows = _read_tsv(run_path / SIGNAL_OUTCOMES_FILE, expected_column_variants_for(SIGNAL_OUTCOMES_FILE))
+    manifest_rows = _read_tsv(
+        run_path / RUN_MANIFEST_FILE,
+        expected_column_variants_for(RUN_MANIFEST_FILE, schema_version),
+    )
+    summary_rows = _read_tsv(
+        run_path / RUN_SUMMARY_FILE,
+        expected_column_variants_for(RUN_SUMMARY_FILE, schema_version),
+    )
+    feature_rows = _read_tsv(
+        run_path / SIGNAL_FEATURES_FILE,
+        expected_column_variants_for(SIGNAL_FEATURES_FILE, schema_version),
+    )
+    outcome_rows = _read_tsv(
+        run_path / SIGNAL_OUTCOMES_FILE,
+        expected_column_variants_for(SIGNAL_OUTCOMES_FILE, schema_version),
+    )
 
-    _require_schema_version(manifest_rows, RUN_MANIFEST_FILE)
-    _require_schema_version(summary_rows, RUN_SUMMARY_FILE)
-    _require_schema_version(feature_rows, SIGNAL_FEATURES_FILE)
-    _require_schema_version(outcome_rows, SIGNAL_OUTCOMES_FILE)
+    _require_schema_version(manifest_rows, RUN_MANIFEST_FILE, schema_version)
+    _require_schema_version(summary_rows, RUN_SUMMARY_FILE, schema_version)
+    _require_schema_version(feature_rows, SIGNAL_FEATURES_FILE, schema_version)
+    _require_schema_version(outcome_rows, SIGNAL_OUTCOMES_FILE, schema_version)
 
     manifest = _manifest_dict(manifest_rows)
     if manifest.get("run_id") != run_id:
@@ -249,10 +275,14 @@ def validate_phase1_runs(
     runs_root: Path,
     run_ids: Iterable[str],
     *,
+    schema_version: int = SUPPORTED_SCHEMA_VERSION,
     allow_mixed_config: bool = False,
 ) -> list[Phase1RunValidation]:
     """Validate multiple Phase 1 run folders."""
-    validations = [validate_phase1_run(runs_root, run_id) for run_id in run_ids]
+    validations = [
+        validate_phase1_run(runs_root, run_id, schema_version=schema_version)
+        for run_id in run_ids
+    ]
     config_ids = {validation.config_id for validation in validations}
     if len(config_ids) > 1 and not allow_mixed_config:
         raise Phase1ValidationError(
