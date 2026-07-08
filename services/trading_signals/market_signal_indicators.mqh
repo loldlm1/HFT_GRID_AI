@@ -64,6 +64,47 @@ bool CopyDeterministicBandsBaseValue(const ENUM_TIMEFRAMES timeframe,
   return MathIsValidNumber(value_out) && value_out != EMPTY_VALUE;
 }
 
+bool CopyDeterministicBandsBufferValue(const ENUM_TIMEFRAMES timeframe,
+                                       const int buffer_index,
+                                       const int shift,
+                                       double &value_out)
+{
+  value_out = 0.0;
+
+  if(buffer_index < 0 || shift < 0)
+    return false;
+
+  int handle = FindDeterministicBandsLogicHandle(timeframe);
+  if(handle == INVALID_HANDLE)
+    return false;
+
+  double value_buffer[];
+  int copied = CopyBuffer(handle, buffer_index, shift, 1, value_buffer);
+  if(copied != 1)
+    return false;
+
+  value_out = value_buffer[0];
+  return MathIsValidNumber(value_out) && value_out != EMPTY_VALUE;
+}
+
+bool CopyDeterministicCloseValue(const ENUM_TIMEFRAMES timeframe,
+                                 const int shift,
+                                 double &value_out)
+{
+  value_out = 0.0;
+
+  if(shift < 0)
+    return false;
+
+  double close_buffer[];
+  int copied = CopyClose(_Symbol, timeframe, shift, 1, close_buffer);
+  if(copied != 1)
+    return false;
+
+  value_out = close_buffer[0];
+  return MathIsValidNumber(value_out) && value_out > 0.0;
+}
+
 bool CopyDeterministicBandsBaseSlopeValues(const ENUM_TIMEFRAMES timeframe,
                                            const int current_shift,
                                            double &current_value_out,
@@ -81,22 +122,6 @@ bool CopyDeterministicBandsBaseSlopeValues(const ENUM_TIMEFRAMES timeframe,
   return true;
 }
 
-int FindDeterministicBPercentLogicHandle(const ENUM_TIMEFRAMES timeframe,
-                                         const int candle_shift)
-{
-  int total = ArraySize(ExtDeterministicBPercentLogicHandles);
-  for(int i = 0; i < total; i++)
-  {
-    if(ExtDeterministicBPercentLogicHandles[i].indicator_timeframe != timeframe)
-      continue;
-    if(ExtDeterministicBPercentLogicHandles[i].indicator_shift != candle_shift)
-      continue;
-    return ExtDeterministicBPercentLogicHandles[i].indicator_handle;
-  }
-
-  return INVALID_HANDLE;
-}
-
 bool CopyDeterministicBPercentMainValue(const ENUM_TIMEFRAMES timeframe,
                                         const int candle_shift,
                                         const int read_shift,
@@ -107,16 +132,25 @@ bool CopyDeterministicBPercentMainValue(const ENUM_TIMEFRAMES timeframe,
   if(candle_shift < 0 || read_shift < 0)
     return false;
 
-  int handle = FindDeterministicBPercentLogicHandle(timeframe, candle_shift);
-  if(handle == INVALID_HANDLE)
+  int band_shift = read_shift + candle_shift;
+
+  double close_value = 0.0;
+  if(!CopyDeterministicCloseValue(timeframe, read_shift, close_value))
     return false;
 
-  double value_buffer[];
-  int copied = CopyBuffer(handle, 0, read_shift, 1, value_buffer);
-  if(copied != 1)
+  double upper_band = 0.0;
+  if(!CopyDeterministicBandsBufferValue(timeframe, 1, band_shift, upper_band))
     return false;
 
-  value_out = value_buffer[0];
+  double lower_band = 0.0;
+  if(!CopyDeterministicBandsBufferValue(timeframe, 2, band_shift, lower_band))
+    return false;
+
+  double band_range = upper_band - lower_band;
+  if(band_range == 0.0)
+    return false;
+
+  value_out = (close_value - lower_band) / band_range * 100.0;
   return MathIsValidNumber(value_out) && value_out != EMPTY_VALUE;
 }
 

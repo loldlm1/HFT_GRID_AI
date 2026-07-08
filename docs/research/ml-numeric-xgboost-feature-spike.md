@@ -412,3 +412,62 @@ Required human-in-the-loop checks before the long XAUUSD 2025 export:
 - keep pattern audit overlay and heavy logs disabled for bulk export
 - do not proceed to Sprint 6 until Sprint 5 full-year research accepts an exact
   dataset/model/threshold candidate
+
+## S1 2024-2025 Export Audit
+
+Audited run:
+
+- Run ID: `xauusd_2025_dynamic_tp_path_run_S1`
+- Date range in manifest/summary: `2024.01.01 00:00:00` through
+  `2025.12.31 21:57:58`
+- Strategy scope: S1 enabled, S2/S3 disabled
+- Schema: `5`
+- Feature rows: `23735`
+- Outcome rows: `23735`
+- Joined rows: `23735`
+- Export status: `OK`
+
+Validation results:
+
+- `build_dataset.py --validate-only`: PASS with warnings
+- Warnings:
+  - `23735` feature rows were marked invalid by Phase 1
+  - `4` SL outcome rows had non-negative `net_profit` while `profit_r` was
+    negative
+- Required schema v5 numeric feature audit:
+  - `direction`: `0` missing
+  - `stoch_structure_raw_percent`: `11` missing
+  - `b_percent_main_base`: `0` missing
+  - `b_percent_main_base_slope`: `0` missing
+  - `b_percent_main_macro`: `23735` missing
+  - `b_percent_main_macro_slope`: `23735` missing
+  - `session_id`: `0` missing
+  - `time_sin`: `0` missing
+  - `time_cos`: `0` missing
+- Temporary dataset build for broker-1R produced `training_matrix=0`.
+
+Decision:
+
+- No XGBoost model was trained from this run because the active
+  `schema_v5_numeric_xgb` contract requires macro `%B` features.
+- The run is useful as failure evidence only. It must not be used to accept,
+  export, or compare numeric candidates.
+
+Remediation:
+
+- Data `%B` extraction was changed to derive base and macro `%B` directly from
+  standard `iBands` logic handles:
+  - close value at `read_shift`
+  - upper/lower bands at `read_shift + candle_shift`
+  - `(close - lower) / (upper - lower) * 100`
+- `BB_Percent_Standard` remains visual-only QA for M1 and macro chart
+  inspection.
+- MetaEditor compile after remediation: PASS, `0 errors`, `0 warnings`.
+
+Required next human-in-the-loop action:
+
+- Re-run the S1 export after this fix.
+- Confirm that `b_percent_main_macro` and `b_percent_main_macro_slope` have
+  non-null values except for bounded warmup rows.
+- Rebuild broker-1R/path-ratio datasets only after the macro `%B` null count is
+  bounded and explained.

@@ -9,7 +9,6 @@ ENUM_TIMEFRAMES Strategy_TF_List[];
 IndicatorsHandleInfo ExtStructStochIndicatorsHandle[];
 IndicatorsHandleInfo ExtDeterministicBandsLogicHandles[];
 IndicatorsHandleInfo ExtDeterministicBandsVisualHandles[];
-IndicatorsHandleInfo ExtDeterministicBPercentLogicHandles[];
 IndicatorsHandleInfo ExtDeterministicBPercentVisualHandles[];
 int total_tf_list_load = 0;
 const string FOUNDATION_STRUCTURE_FIBONACCI_LEVELS = "0.0,61.8,100.0";
@@ -208,11 +207,6 @@ void AddDeterministicBandsBaseLogicHandle(IndicatorsHandleInfo &handles[],
   AddElementToArray(handles, handle_info);
 }
 
-bool DeterministicBPercentFeaturesRequired()
-{
-  return Enable_Signal_Feature_Export || ML_Inference_Mode != ML_INFERENCE_DISABLED;
-}
-
 bool LoadDeterministicBPercentHandle(const ENUM_TIMEFRAMES timeframe,
                                      const int candle_shift,
                                      IndicatorsHandleInfo &handle_info,
@@ -341,34 +335,6 @@ void LoadDeterministicBandsLogicIndicators()
     AddDeterministicBandsBaseLogicHandle(ExtDeterministicBandsLogicHandles, PERIOD_H1);
     AddDeterministicBandsBaseLogicHandle(ExtDeterministicBandsLogicHandles, PERIOD_H4);
     AddDeterministicBandsBaseLogicHandle(ExtDeterministicBandsLogicHandles, PERIOD_D1);
-  }
-  SetTesterIndicatorHideMode(false);
-}
-
-void LoadDeterministicBPercentLogicIndicators()
-{
-  ArrayResize(ExtDeterministicBPercentLogicHandles, 0);
-  if(!DeterministicBPercentFeaturesRequired())
-    return;
-
-  bool required = (Enable_Signal_Feature_Export && MQLInfoInteger(MQL_TESTER) > 0);
-  SetTesterIndicatorHideMode(true);
-  for(int strategy_index = 0; strategy_index < DETERMINISTIC_STRATEGY_TOTAL; strategy_index++)
-  {
-    int strategy_id = DETERMINISTIC_STRATEGY_NONE;
-    if(!DeterministicStrategyIdByIndex(strategy_index, strategy_id))
-      continue;
-    if(!DeterministicStrategyEnabled(strategy_id))
-      continue;
-
-    AddDeterministicBPercentHandle(ExtDeterministicBPercentLogicHandles,
-                                   DETERMINISTIC_BASE_TIMEFRAME,
-                                   DeterministicStrategyBaseDelay(strategy_id),
-                                   required);
-    AddDeterministicBPercentHandle(ExtDeterministicBPercentLogicHandles,
-                                   DeterministicStrategyMacroTimeframe(strategy_id),
-                                   DETERMINISTIC_MACRO_DELAY,
-                                   required);
   }
   SetTesterIndicatorHideMode(false);
 }
@@ -771,7 +737,6 @@ void ReleaseAllDeterministicBandsIndicators()
 
   ArrayResize(ExtDeterministicMacroVisualCharts, 0);
   ReleaseIndicatorHandleArray(ExtDeterministicBandsLogicHandles);
-  ReleaseIndicatorHandleArray(ExtDeterministicBPercentLogicHandles);
   ReleaseDeterministicBaseVisualIndicators();
 }
 
@@ -785,7 +750,6 @@ void LoadAllIndicatorDefinitions()
   ReleaseAllDeterministicBandsIndicators();
   LoadAllStructStochIndicators();
   LoadDeterministicBandsLogicIndicators();
-  LoadDeterministicBPercentLogicIndicators();
   LoadDeterministicBandsVisualIndicators();
 
   if(Enable_Logs)
