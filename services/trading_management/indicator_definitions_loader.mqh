@@ -9,6 +9,7 @@ ENUM_TIMEFRAMES Strategy_TF_List[];
 IndicatorsHandleInfo ExtStructStochIndicatorsHandle[];
 IndicatorsHandleInfo ExtDeterministicMaLogicHandles[];
 IndicatorsHandleInfo ExtDeterministicMaVisualHandles[];
+IndicatorsHandleInfo ExtDeterministicBPercentLogicHandles[];
 int total_tf_list_load = 0;
 const string FOUNDATION_STRUCTURE_FIBONACCI_LEVELS = "0.0,61.8,100.0";
 
@@ -183,6 +184,58 @@ void AddDeterministicMaHandle(IndicatorsHandleInfo &handles[],
   AddElementToArray(handles, handle_info);
 }
 
+bool DeterministicBPercentFeaturesRequired()
+{
+  return Enable_Signal_Feature_Export || ML_Inference_Mode != ML_INFERENCE_DISABLED;
+}
+
+bool LoadDeterministicBPercentHandle(const ENUM_TIMEFRAMES timeframe,
+                                     const int candle_shift,
+                                     IndicatorsHandleInfo &handle_info,
+                                     const bool required = false)
+{
+  handle_info = IndicatorsHandleInfo();
+  handle_info.indicator_period        = DETERMINISTIC_MA_PERIOD;
+  handle_info.indicator_shift         = candle_shift;
+  handle_info.indicator_ma_method     = MODE_SMA;
+  handle_info.indicator_applied_price = PRICE_CLOSE;
+  handle_info.indicator_timeframe     = timeframe;
+  handle_info.indicator_handle        = iCustom(_Symbol,
+                                                timeframe,
+                                                "Examples\\BB_Percent_Standard.ex5",
+                                                DETERMINISTIC_MA_PERIOD,
+                                                candle_shift,
+                                                DETERMINISTIC_B_PERCENT_DEVIATION,
+                                                DETERMINISTIC_B_PERCENT_SIGNAL_PERIOD,
+                                                MODE_SMA,
+                                                PRICE_CLOSE);
+
+  if(handle_info.indicator_handle == INVALID_HANDLE)
+  {
+    PrintFormat("ERROR LOADING DETERMINISTIC B_PERCENT: tf=%s | period=%d | shift=%d",
+                EnumToString(timeframe),
+                DETERMINISTIC_MA_PERIOD,
+                candle_shift);
+    if(required)
+      TesterStop();
+    return false;
+  }
+
+  return true;
+}
+
+void AddDeterministicBPercentHandle(IndicatorsHandleInfo &handles[],
+                                    const ENUM_TIMEFRAMES timeframe,
+                                    const int candle_shift,
+                                    const bool required = false)
+{
+  IndicatorsHandleInfo handle_info;
+  if(!LoadDeterministicBPercentHandle(timeframe, candle_shift, handle_info, required))
+    return;
+
+  AddElementToArray(handles, handle_info);
+}
+
 void SetTesterIndicatorHideMode(const bool hide)
 {
   if(MQLInfoInteger(MQL_TESTER) <= 0)
@@ -205,6 +258,41 @@ void LoadDeterministicMaLogicIndicators()
     AddDeterministicMaHandle(ExtDeterministicMaLogicHandles, PERIOD_H4, 0);
     AddDeterministicMaHandle(ExtDeterministicMaLogicHandles, PERIOD_D1, 0);
   }
+  SetTesterIndicatorHideMode(false);
+}
+
+void LoadDeterministicBPercentLogicIndicators()
+{
+  ArrayResize(ExtDeterministicBPercentLogicHandles, 0);
+  if(!DeterministicBPercentFeaturesRequired())
+    return;
+
+  bool required = (Enable_Signal_Feature_Export && MQLInfoInteger(MQL_TESTER) > 0);
+  SetTesterIndicatorHideMode(true);
+  AddDeterministicBPercentHandle(ExtDeterministicBPercentLogicHandles,
+                                 PERIOD_M1,
+                                 DETERMINISTIC_S1_BASE_DELAY,
+                                 required);
+  AddDeterministicBPercentHandle(ExtDeterministicBPercentLogicHandles,
+                                 PERIOD_M1,
+                                 DETERMINISTIC_S2_BASE_DELAY,
+                                 required);
+  AddDeterministicBPercentHandle(ExtDeterministicBPercentLogicHandles,
+                                 PERIOD_M1,
+                                 DETERMINISTIC_S3_BASE_DELAY,
+                                 required);
+  AddDeterministicBPercentHandle(ExtDeterministicBPercentLogicHandles,
+                                 PERIOD_M3,
+                                 DETERMINISTIC_MACRO_DELAY,
+                                 required);
+  AddDeterministicBPercentHandle(ExtDeterministicBPercentLogicHandles,
+                                 PERIOD_M5,
+                                 DETERMINISTIC_MACRO_DELAY,
+                                 required);
+  AddDeterministicBPercentHandle(ExtDeterministicBPercentLogicHandles,
+                                 PERIOD_M10,
+                                 DETERMINISTIC_MACRO_DELAY,
+                                 required);
   SetTesterIndicatorHideMode(false);
 }
 
@@ -518,6 +606,7 @@ void ReleaseAllDeterministicMaIndicators()
 
   ArrayResize(ExtDeterministicMacroVisualCharts, 0);
   ReleaseIndicatorHandleArray(ExtDeterministicMaLogicHandles);
+  ReleaseIndicatorHandleArray(ExtDeterministicBPercentLogicHandles);
   ReleaseDeterministicBaseVisualIndicators();
 }
 
@@ -531,6 +620,7 @@ void LoadAllIndicatorDefinitions()
   ReleaseAllDeterministicMaIndicators();
   LoadAllStructStochIndicators();
   LoadDeterministicMaLogicIndicators();
+  LoadDeterministicBPercentLogicIndicators();
   LoadDeterministicMaVisualIndicators();
 
   if(Enable_Logs)

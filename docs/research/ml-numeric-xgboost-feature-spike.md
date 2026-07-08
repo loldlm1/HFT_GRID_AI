@@ -195,8 +195,39 @@ For an accepted candidate:
 | Sprint | Status | Notes |
 | --- | --- | --- |
 | 1. Numeric Feature Contract | Complete | Contract, evidence layout, and workflow references defined. |
-| 2. MQL5 Numeric Feature Export | Pending | Requires compile and short tester smoke. |
+| 2. MQL5 Numeric Feature Export | Implementation complete | MetaEditor compile PASS with 0 errors and 0 warnings. Short Strategy Tester export smoke remains pending human run. |
 | 3. Visual Bands QA | Pending | Requires compile and human visual screenshot review. |
 | 4. Python Schema And Trainer | Pending | Requires py_compile and fixture/smoke validation. |
 | 5. Fresh Data And Robustness Gate | Pending | Requires human Strategy Tester full-year exports. |
 | 6. Runtime Artifact Gate | Pending | Requires accepted candidate and SHADOW parity. |
+
+## Sprint 2 Validation
+
+Implemented:
+
+- schema version bumped to `5` for signal feature export and shadow feature
+  extraction
+- cached `BB_Percent_Standard` logic handles for M1 base shifts `3`, `5`, `10`
+  and macro M3/M5/M10 shift `1`
+- confirmed `%B` buffer `0` reads with `main[1] - main[2]` slopes
+- exported schema v5 numeric columns:
+  - `stoch_structure_raw_percent`
+  - `b_percent_main_base`
+  - `b_percent_main_base_slope`
+  - `b_percent_main_macro`
+  - `b_percent_main_macro_slope`
+  - `session_id`
+  - `time_sin`
+  - `time_cos`
+- shadow feature lookup for the same numeric/categorical columns
+
+Validation:
+
+- `git diff --check`: PASS
+- `python3 tools/mt5/compile_mt5.py --mt5-root /home/loldlm/mql5_projects/metatrader_5_market_data_framework --wine --timeout 120`: PASS, `0 errors`, `0 warnings`
+
+Pending human gate:
+
+- short Strategy Tester schema v5 export smoke with one active strategy
+- verify generated `signal_features.tsv` has zero unexpected invalid numeric
+  rows

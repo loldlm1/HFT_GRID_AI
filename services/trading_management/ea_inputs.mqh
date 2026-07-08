@@ -19,6 +19,8 @@ const int             DETERMINISTIC_S1_BASE_DELAY  = 3;
 const int             DETERMINISTIC_S2_BASE_DELAY  = 5;
 const int             DETERMINISTIC_S3_BASE_DELAY  = 10;
 const int             DETERMINISTIC_MACRO_DELAY    = 1;
+const double          DETERMINISTIC_B_PERCENT_DEVIATION = 2.0;
+const int             DETERMINISTIC_B_PERCENT_SIGNAL_PERIOD = 5;
 
 // Internal compatibility defaults retained until the deterministic execution
 // lifecycle fully replaces the old range/grid helpers.

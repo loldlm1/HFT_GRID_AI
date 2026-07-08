@@ -4,7 +4,7 @@
 #ifndef _TS_DETERMINISTIC_STATS_EXPORT_MQH_
 #define _TS_DETERMINISTIC_STATS_EXPORT_MQH_
 
-const int    DETERMINISTIC_SIGNAL_STATS_SCHEMA_VERSION = 4;
+const int    DETERMINISTIC_SIGNAL_STATS_SCHEMA_VERSION = 5;
 const string DETERMINISTIC_SIGNAL_STATS_STORAGE_ROOT   = "DeterministicSignalML";
 const string DETERMINISTIC_SIGNAL_STATS_RUNS_FOLDER    = "runs";
 const string DETERMINISTIC_SIGNAL_STATS_MANIFEST_FILE  = "run_manifest.tsv";
@@ -20,7 +20,7 @@ const int    DETERMINISTIC_SIGNAL_STATS_PATH_RESERVE = 128;
 const string DETERMINISTIC_SIGNAL_STATS_MANIFEST_HEADER =
   "schema_version\tkey\tvalue";
 const string DETERMINISTIC_SIGNAL_STATS_FEATURES_HEADER =
-  "schema_version\trun_id\tconfig_id\tsignal_id\tsource_key\tsource_attempt_index\tsymbol\tstrategy_label\tdirection\tentry_time\tsource_time\tstructure_0\tstructure_1\tstructure_2\tmacro_h1_slope\tmacro_h4_slope\tmacro_d1_slope\tfib_sl_band\tfib_entry_band\thigh_chain_profile\tlow_chain_profile\tprevious_candle_profile\tentry_session_bucket\tentry_weekday";
+  "schema_version\trun_id\tconfig_id\tsignal_id\tsource_key\tsource_attempt_index\tsymbol\tstrategy_label\tdirection\tentry_time\tsource_time\tstructure_0\tstructure_1\tstructure_2\tmacro_h1_slope\tmacro_h4_slope\tmacro_d1_slope\tfib_sl_band\tfib_entry_band\thigh_chain_profile\tlow_chain_profile\tprevious_candle_profile\tentry_session_bucket\tentry_weekday\tstoch_structure_raw_percent\tb_percent_main_base\tb_percent_main_base_slope\tb_percent_main_macro\tb_percent_main_macro_slope\tsession_id\ttime_sin\ttime_cos";
 const string DETERMINISTIC_SIGNAL_STATS_OUTCOMES_HEADER =
   "schema_version\trun_id\tconfig_id\tsignal_id\tsource_key\tsource_attempt_index\tterminal_time\tterminal_reason\tprofit_r\tduration_seconds\tduration_m1_bars\tentry_price\tclose_price\tnet_profit\thit_1r_before_sl\thit_1_5r_before_sl\thit_2r_before_sl\thit_3r_before_sl\tmax_favorable_r\tmax_adverse_r\tbars_to_1r\tbars_to_1_5r\tbars_to_2r\tbars_to_3r\tbars_to_sl\tpath_horizon_bars\tpath_status";
 const string DETERMINISTIC_SIGNAL_STATS_SUMMARY_HEADER =
@@ -540,6 +540,8 @@ bool DeterministicSignalStatsWriteManifest()
   DeterministicSignalStatsWriteLine(filename, DeterministicSignalStatsManifestRow("concurrency_mode", EnumToString(Signal_Concurrency_Mode)), true);
   DeterministicSignalStatsWriteLine(filename, DeterministicSignalStatsManifestRow("tp_percent", DoubleToString(TP_Percent, 2)), true);
   DeterministicSignalStatsWriteLine(filename, DeterministicSignalStatsManifestRow("feature_policy", "broker_entered_only"), true);
+  DeterministicSignalStatsWriteLine(filename, DeterministicSignalStatsManifestRow("numeric_feature_set", "schema_v5_numeric_xgb"), true);
+  DeterministicSignalStatsWriteLine(filename, DeterministicSignalStatsManifestRow("b_percent_indicator", "BB_Percent_Standard:buffer_0:MODE_SMA:PRICE_CLOSE"), true);
   DeterministicSignalStatsWriteLine(filename, DeterministicSignalStatsManifestRow("path_ratio_policy", "bounded_tick_path_outcome_only"), true);
   DeterministicSignalStatsWriteLine(filename, DeterministicSignalStatsManifestRow("path_horizon_m1_bars", IntegerToString(DETERMINISTIC_SIGNAL_STATS_PATH_HORIZON_BARS)), true);
   DeterministicSignalStatsWriteLine(filename, DeterministicSignalStatsManifestRow("invalid_numeric_token", DETERMINISTIC_SIGNAL_STATS_NULL), true);
@@ -1312,6 +1314,25 @@ string DeterministicSignalStatsWeekdayToken(const datetime entry_time)
   return "";
 }
 
+bool DeterministicSignalStatsTimeCycle(const datetime entry_time,
+                                       double &time_sin_out,
+                                       double &time_cos_out)
+{
+  time_sin_out = 0.0;
+  time_cos_out = 0.0;
+
+  if(entry_time <= 0)
+    return false;
+
+  MqlDateTime parts;
+  TimeToStruct(entry_time, parts);
+  int minute_of_day = parts.hour * 60 + parts.min;
+  double angle = 2.0 * 3.14159265358979323846 * (double)minute_of_day / 1440.0;
+  time_sin_out = MathSin(angle);
+  time_cos_out = MathCos(angle);
+  return MathIsValidNumber(time_sin_out) && MathIsValidNumber(time_cos_out);
+}
+
 struct DeterministicSignalFeatureSnapshot
 {
   bool     valid;
@@ -1336,8 +1357,18 @@ struct DeterministicSignalFeatureSnapshot
   int      macro_d1_slope;
   string   fib_sl_band;
   bool     fib_sl_band_valid;
+  double   stoch_structure_raw_percent;
+  bool     stoch_structure_raw_percent_valid;
   string   fib_entry_band;
   bool     fib_entry_band_valid;
+  double   b_percent_main_base;
+  bool     b_percent_main_base_valid;
+  double   b_percent_main_base_slope;
+  bool     b_percent_main_base_slope_valid;
+  double   b_percent_main_macro;
+  bool     b_percent_main_macro_valid;
+  double   b_percent_main_macro_slope;
+  bool     b_percent_main_macro_slope_valid;
   string   high_chain_profile;
   bool     high_chain_profile_valid;
   string   low_chain_profile;
@@ -1348,6 +1379,12 @@ struct DeterministicSignalFeatureSnapshot
   bool     entry_session_bucket_valid;
   string   entry_weekday;
   bool     entry_weekday_valid;
+  string   session_id;
+  bool     session_id_valid;
+  double   time_sin;
+  bool     time_sin_valid;
+  double   time_cos;
+  bool     time_cos_valid;
 
   DeterministicSignalFeatureSnapshot()
   {
@@ -1373,8 +1410,18 @@ struct DeterministicSignalFeatureSnapshot
     macro_d1_slope = 0;
     fib_sl_band = DETERMINISTIC_SIGNAL_STATS_NULL;
     fib_sl_band_valid = false;
+    stoch_structure_raw_percent = 0.0;
+    stoch_structure_raw_percent_valid = false;
     fib_entry_band = DETERMINISTIC_SIGNAL_STATS_NULL;
     fib_entry_band_valid = false;
+    b_percent_main_base = 0.0;
+    b_percent_main_base_valid = false;
+    b_percent_main_base_slope = 0.0;
+    b_percent_main_base_slope_valid = false;
+    b_percent_main_macro = 0.0;
+    b_percent_main_macro_valid = false;
+    b_percent_main_macro_slope = 0.0;
+    b_percent_main_macro_slope_valid = false;
     high_chain_profile = DETERMINISTIC_SIGNAL_STATS_NULL;
     high_chain_profile_valid = false;
     low_chain_profile = DETERMINISTIC_SIGNAL_STATS_NULL;
@@ -1385,6 +1432,12 @@ struct DeterministicSignalFeatureSnapshot
     entry_session_bucket_valid = false;
     entry_weekday = DETERMINISTIC_SIGNAL_STATS_NULL;
     entry_weekday_valid = false;
+    session_id = DETERMINISTIC_SIGNAL_STATS_NULL;
+    session_id_valid = false;
+    time_sin = 0.0;
+    time_sin_valid = false;
+    time_cos = 0.0;
+    time_cos_valid = false;
   }
 };
 
@@ -1469,13 +1522,47 @@ bool DeterministicSignalBuildFeatureSnapshot(SignalParams &signal_params,
   snapshot.fib_sl_band_valid = sl_fib_valid &&
                                DeterministicSignalStatsFibonacciBand(sl_fib_raw,
                                                                      snapshot.fib_sl_band);
+  snapshot.stoch_structure_raw_percent = sl_fib_raw;
+  snapshot.stoch_structure_raw_percent_valid = sl_fib_valid;
   snapshot.fib_entry_band_valid = entry_fib_valid &&
                                   DeterministicSignalStatsFibonacciBand(entry_fib_raw,
                                                                         snapshot.fib_entry_band);
   if(!snapshot.fib_sl_band_valid)
     DeterministicSignalFeatureSnapshotAddInvalid(snapshot, "fib_sl_band");
+  if(!snapshot.stoch_structure_raw_percent_valid)
+    DeterministicSignalFeatureSnapshotAddInvalid(snapshot, "stoch_structure_raw_percent");
   if(!snapshot.fib_entry_band_valid)
     DeterministicSignalFeatureSnapshotAddInvalid(snapshot, "fib_entry_band");
+
+  double b_percent_previous = 0.0;
+  int base_delay = DeterministicStrategyBaseDelay(signal_params.strategy_id);
+  snapshot.b_percent_main_base_valid =
+    CopyDeterministicBPercentMainSlopeValues(DETERMINISTIC_BASE_TIMEFRAME,
+                                             base_delay,
+                                             snapshot.b_percent_main_base,
+                                             b_percent_previous,
+                                             snapshot.b_percent_main_base_slope);
+  snapshot.b_percent_main_base_slope_valid = snapshot.b_percent_main_base_valid;
+  if(!snapshot.b_percent_main_base_valid)
+  {
+    DeterministicSignalFeatureSnapshotAddInvalid(snapshot, "b_percent_main_base");
+    DeterministicSignalFeatureSnapshotAddInvalid(snapshot, "b_percent_main_base_slope");
+  }
+
+  ENUM_TIMEFRAMES macro_timeframe = DeterministicStrategyMacroTimeframe(signal_params.strategy_id);
+  b_percent_previous = 0.0;
+  snapshot.b_percent_main_macro_valid =
+    CopyDeterministicBPercentMainSlopeValues(macro_timeframe,
+                                             DETERMINISTIC_MACRO_DELAY,
+                                             snapshot.b_percent_main_macro,
+                                             b_percent_previous,
+                                             snapshot.b_percent_main_macro_slope);
+  snapshot.b_percent_main_macro_slope_valid = snapshot.b_percent_main_macro_valid;
+  if(!snapshot.b_percent_main_macro_valid)
+  {
+    DeterministicSignalFeatureSnapshotAddInvalid(snapshot, "b_percent_main_macro");
+    DeterministicSignalFeatureSnapshotAddInvalid(snapshot, "b_percent_main_macro_slope");
+  }
 
   MqlRates rates[];
   ArraySetAsSeries(rates, true);
@@ -1500,13 +1587,28 @@ bool DeterministicSignalBuildFeatureSnapshot(SignalParams &signal_params,
 
   snapshot.entry_session_bucket = DeterministicSignalStatsSessionBucket(snapshot.entry_time);
   snapshot.entry_session_bucket_valid = (snapshot.entry_session_bucket != "");
+  snapshot.session_id = snapshot.entry_session_bucket;
+  snapshot.session_id_valid = snapshot.entry_session_bucket_valid;
   if(!snapshot.entry_session_bucket_valid)
+  {
     DeterministicSignalFeatureSnapshotAddInvalid(snapshot, "entry_session_bucket");
+    DeterministicSignalFeatureSnapshotAddInvalid(snapshot, "session_id");
+  }
 
   snapshot.entry_weekday = DeterministicSignalStatsWeekdayToken(snapshot.entry_time);
   snapshot.entry_weekday_valid = (snapshot.entry_weekday != "");
   if(!snapshot.entry_weekday_valid)
     DeterministicSignalFeatureSnapshotAddInvalid(snapshot, "entry_weekday");
+
+  snapshot.time_sin_valid = DeterministicSignalStatsTimeCycle(snapshot.entry_time,
+                                                             snapshot.time_sin,
+                                                             snapshot.time_cos);
+  snapshot.time_cos_valid = snapshot.time_sin_valid;
+  if(!snapshot.time_sin_valid)
+  {
+    DeterministicSignalFeatureSnapshotAddInvalid(snapshot, "time_sin");
+    DeterministicSignalFeatureSnapshotAddInvalid(snapshot, "time_cos");
+  }
 
   return true;
 }
@@ -1557,7 +1659,15 @@ bool DeterministicSignalStatsBuildFeatureRow(SignalParams &signal_params,
             DeterministicSignalStatsCell(snapshot.low_chain_profile_valid ? snapshot.low_chain_profile : "") + "\t" +
             DeterministicSignalStatsCell(snapshot.previous_candle_profile_valid ? snapshot.previous_candle_profile : "") + "\t" +
             DeterministicSignalStatsCell(snapshot.entry_session_bucket_valid ? snapshot.entry_session_bucket : "") + "\t" +
-            DeterministicSignalStatsCell(snapshot.entry_weekday_valid ? snapshot.entry_weekday : "");
+            DeterministicSignalStatsCell(snapshot.entry_weekday_valid ? snapshot.entry_weekday : "") + "\t" +
+            DeterministicSignalStatsDoubleToken(snapshot.stoch_structure_raw_percent_valid, snapshot.stoch_structure_raw_percent, 6) + "\t" +
+            DeterministicSignalStatsDoubleToken(snapshot.b_percent_main_base_valid, snapshot.b_percent_main_base, 6) + "\t" +
+            DeterministicSignalStatsDoubleToken(snapshot.b_percent_main_base_slope_valid, snapshot.b_percent_main_base_slope, 6) + "\t" +
+            DeterministicSignalStatsDoubleToken(snapshot.b_percent_main_macro_valid, snapshot.b_percent_main_macro, 6) + "\t" +
+            DeterministicSignalStatsDoubleToken(snapshot.b_percent_main_macro_slope_valid, snapshot.b_percent_main_macro_slope, 6) + "\t" +
+            DeterministicSignalStatsCell(snapshot.session_id_valid ? snapshot.session_id : "") + "\t" +
+            DeterministicSignalStatsDoubleToken(snapshot.time_sin_valid, snapshot.time_sin, 9) + "\t" +
+            DeterministicSignalStatsDoubleToken(snapshot.time_cos_valid, snapshot.time_cos, 9);
 
   return true;
 }

@@ -5,7 +5,7 @@
 #define _TS_DETERMINISTIC_SIGNAL_ML_SHADOW_INFERENCE_MQH_
 
 const int    ML_SHADOW_ARTIFACT_SCHEMA_VERSION = 1;
-const int    ML_SHADOW_PHASE1_SCHEMA_VERSION   = 4;
+const int    ML_SHADOW_PHASE1_SCHEMA_VERSION   = 5;
 const string ML_SHADOW_STORAGE_ROOT            = "DeterministicSignalML";
 const string ML_SHADOW_MODEL_EXPORTS_FOLDER    = "model_exports";
 const string ML_SHADOW_RUNS_FOLDER             = "shadow_runs";
@@ -27,7 +27,7 @@ const int    ML_SHADOW_MAX_TREE_NODES          = 20000;
 const int    ML_SHADOW_FLUSH_ROWS              = 32;
 const string ML_SHADOW_RUN_MANIFEST_HEADER     = "schema_version\tkey\tvalue";
 const string ML_SHADOW_PREDICTIONS_HEADER =
-  "schema_version\tshadow_run_id\texport_id\tmodel_id\tdataset_id\tfeature_schema_version\tsignal_id\tsource_key\tsource_attempt_index\tsymbol\tstrategy_id\tstrategy_label\tdirection\tsource_type\tentry_time\tclassifier_score\tregressor_score\tthreshold_probability\trecommendation\treason\tfeature_valid\tmodel_available\tstructure_0\tstructure_1\tstructure_2\tmacro_h1_slope\tmacro_h4_slope\tmacro_d1_slope\tfib_sl_band\tfib_entry_band\thigh_chain_profile\tlow_chain_profile\tprevious_candle_profile\tentry_session_bucket\tentry_weekday\tinference_mode\tadmission_action\tfilter_reason";
+  "schema_version\tshadow_run_id\texport_id\tmodel_id\tdataset_id\tfeature_schema_version\tsignal_id\tsource_key\tsource_attempt_index\tsymbol\tstrategy_id\tstrategy_label\tdirection\tsource_type\tentry_time\tclassifier_score\tregressor_score\tthreshold_probability\trecommendation\treason\tfeature_valid\tmodel_available\tstructure_0\tstructure_1\tstructure_2\tmacro_h1_slope\tmacro_h4_slope\tmacro_d1_slope\tfib_sl_band\tfib_entry_band\thigh_chain_profile\tlow_chain_profile\tprevious_candle_profile\tentry_session_bucket\tentry_weekday\tstoch_structure_raw_percent\tb_percent_main_base\tb_percent_main_base_slope\tb_percent_main_macro\tb_percent_main_macro_slope\tsession_id\ttime_sin\ttime_cos\tinference_mode\tadmission_action\tfilter_reason";
 const string ML_SHADOW_OUTCOMES_HEADER =
   "schema_version\tshadow_run_id\texport_id\tmodel_id\tsignal_id\tsource_key\tsource_attempt_index\tterminal_time\tterminal_reason\trecommendation\tclassifier_score\tthreshold_probability\tprofit_r\tnet_profit\tduration_seconds";
 const string ML_SHADOW_ARBITRATION_DECISIONS_HEADER =
@@ -1149,6 +1149,41 @@ bool MLShadowSnapshotNumericValue(const DeterministicSignalFeatureSnapshot &snap
     value_out = (double)snapshot.macro_h4_slope;
   else if(source_column == "macro_d1_slope")
     value_out = (double)snapshot.macro_d1_slope;
+  else if(source_column == "stoch_structure_raw_percent")
+  {
+    value_out = snapshot.stoch_structure_raw_percent;
+    valid_out = snapshot.stoch_structure_raw_percent_valid;
+  }
+  else if(source_column == "b_percent_main_base")
+  {
+    value_out = snapshot.b_percent_main_base;
+    valid_out = snapshot.b_percent_main_base_valid;
+  }
+  else if(source_column == "b_percent_main_base_slope")
+  {
+    value_out = snapshot.b_percent_main_base_slope;
+    valid_out = snapshot.b_percent_main_base_slope_valid;
+  }
+  else if(source_column == "b_percent_main_macro")
+  {
+    value_out = snapshot.b_percent_main_macro;
+    valid_out = snapshot.b_percent_main_macro_valid;
+  }
+  else if(source_column == "b_percent_main_macro_slope")
+  {
+    value_out = snapshot.b_percent_main_macro_slope;
+    valid_out = snapshot.b_percent_main_macro_slope_valid;
+  }
+  else if(source_column == "time_sin")
+  {
+    value_out = snapshot.time_sin;
+    valid_out = snapshot.time_sin_valid;
+  }
+  else if(source_column == "time_cos")
+  {
+    value_out = snapshot.time_cos;
+    valid_out = snapshot.time_cos_valid;
+  }
   else
   {
     valid_out = false;
@@ -1187,6 +1222,8 @@ bool MLShadowSnapshotCategoryValue(const DeterministicSignalFeatureSnapshot &sna
     value_out = snapshot.previous_candle_profile_valid ? snapshot.previous_candle_profile : "";
   else if(source_column == "entry_session_bucket")
     value_out = snapshot.entry_session_bucket_valid ? snapshot.entry_session_bucket : "";
+  else if(source_column == "session_id")
+    value_out = snapshot.session_id_valid ? snapshot.session_id : "";
   else if(source_column == "entry_weekday")
     value_out = snapshot.entry_weekday_valid ? snapshot.entry_weekday : "";
   else
@@ -1545,6 +1582,14 @@ string MLShadowPredictionRow(const SignalParams &signal_params,
          MLShadowOutputCell(snapshot.previous_candle_profile_valid ? snapshot.previous_candle_profile : "") + "\t" +
          MLShadowOutputCell(snapshot.entry_session_bucket_valid ? snapshot.entry_session_bucket : "") + "\t" +
          MLShadowOutputCell(snapshot.entry_weekday_valid ? snapshot.entry_weekday : "") + "\t" +
+         MLShadowDoubleToken(snapshot.stoch_structure_raw_percent_valid, snapshot.stoch_structure_raw_percent, 6) + "\t" +
+         MLShadowDoubleToken(snapshot.b_percent_main_base_valid, snapshot.b_percent_main_base, 6) + "\t" +
+         MLShadowDoubleToken(snapshot.b_percent_main_base_slope_valid, snapshot.b_percent_main_base_slope, 6) + "\t" +
+         MLShadowDoubleToken(snapshot.b_percent_main_macro_valid, snapshot.b_percent_main_macro, 6) + "\t" +
+         MLShadowDoubleToken(snapshot.b_percent_main_macro_slope_valid, snapshot.b_percent_main_macro_slope, 6) + "\t" +
+         MLShadowOutputCell(snapshot.session_id_valid ? snapshot.session_id : "") + "\t" +
+         MLShadowDoubleToken(snapshot.time_sin_valid, snapshot.time_sin, 9) + "\t" +
+         MLShadowDoubleToken(snapshot.time_cos_valid, snapshot.time_cos, 9) + "\t" +
          MLShadowOutputCell(ExecutionMLInferenceModeToken(ML_Inference_Mode)) + "\t" +
          MLShadowOutputCell(admission_action) + "\t" +
          MLShadowOutputCell(filter_reason);

@@ -81,6 +81,71 @@ bool CopyDeterministicMaSlopeValues(const ENUM_TIMEFRAMES timeframe,
   return true;
 }
 
+int FindDeterministicBPercentLogicHandle(const ENUM_TIMEFRAMES timeframe,
+                                         const int candle_shift)
+{
+  int total = ArraySize(ExtDeterministicBPercentLogicHandles);
+  for(int i = 0; i < total; i++)
+  {
+    if(ExtDeterministicBPercentLogicHandles[i].indicator_timeframe != timeframe)
+      continue;
+    if(ExtDeterministicBPercentLogicHandles[i].indicator_shift != candle_shift)
+      continue;
+    return ExtDeterministicBPercentLogicHandles[i].indicator_handle;
+  }
+
+  return INVALID_HANDLE;
+}
+
+bool CopyDeterministicBPercentMainValue(const ENUM_TIMEFRAMES timeframe,
+                                        const int candle_shift,
+                                        const int read_shift,
+                                        double &value_out)
+{
+  value_out = 0.0;
+
+  if(candle_shift < 0 || read_shift < 0)
+    return false;
+
+  int handle = FindDeterministicBPercentLogicHandle(timeframe, candle_shift);
+  if(handle == INVALID_HANDLE)
+    return false;
+
+  double value_buffer[];
+  int copied = CopyBuffer(handle, 0, read_shift, 1, value_buffer);
+  if(copied != 1)
+    return false;
+
+  value_out = value_buffer[0];
+  return MathIsValidNumber(value_out) && value_out != EMPTY_VALUE;
+}
+
+bool CopyDeterministicBPercentMainSlopeValues(const ENUM_TIMEFRAMES timeframe,
+                                              const int candle_shift,
+                                              double &current_value_out,
+                                              double &previous_value_out,
+                                              double &slope_out)
+{
+  current_value_out = 0.0;
+  previous_value_out = 0.0;
+  slope_out = 0.0;
+
+  if(!CopyDeterministicBPercentMainValue(timeframe,
+                                         candle_shift,
+                                         1,
+                                         current_value_out))
+    return false;
+
+  if(!CopyDeterministicBPercentMainValue(timeframe,
+                                         candle_shift,
+                                         2,
+                                         previous_value_out))
+    return false;
+
+  slope_out = current_value_out - previous_value_out;
+  return MathIsValidNumber(slope_out);
+}
+
 struct DeterministicExtremumSnapshot
 {
   bool     valid;
