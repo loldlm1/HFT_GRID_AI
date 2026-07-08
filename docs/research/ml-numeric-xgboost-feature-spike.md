@@ -205,7 +205,7 @@ For an accepted candidate:
 | 2. MQL5 Numeric Feature Export | Implementation complete | MetaEditor compile PASS with 0 errors and 0 warnings. S1 one-month Strategy Tester export smoke validates schema v5 after the `iBands` `%B` remediation; S2/S3 fresh exports remain pending. |
 | 3. Visual Bands QA | Implementation complete | Visual `iBands` handles compile. Human Strategy Tester screenshot and visual/data row-count comparison remain pending. |
 | 4. Python Schema And Trainer | Complete | `py_compile`, schema v5 dataset fixture, and numeric XGBoost smoke training PASS. |
-| 5. Fresh Data And Robustness Gate | Tooling complete, smoke data validated | S1 one-month smoke validates schema v5 and trains models, but robust gate remains blocked by short row count. Full acceptance requires human Strategy Tester full-year exports. |
+| 5. Fresh Data And Robustness Gate | Tooling complete, S1 long candidate rejected | S1 one-month smoke validates schema v5, and S1 2024-2025 re-export trains end-to-end, but no target family produces an accepted threshold. Full acceptance still requires accepted S1/S2/S3 evidence. |
 | 5A. Pre-Run Indicator Cleanup | Complete, human visual gate pending | Deterministic `iMA` logic handles replaced by `iBands` base-line handles; visual `%B` handles added for base and macro QA. |
 | 6. Runtime Artifact Gate | Blocked | No accepted numeric candidate exists yet, so runtime export and SHADOW parity are not executed. |
 
@@ -422,7 +422,11 @@ Required human-in-the-loop checks before the long XAUUSD 2025 export:
 - do not proceed to Sprint 6 until Sprint 5 full-year research accepts an exact
   dataset/model/threshold candidate
 
-## S1 2024-2025 Export Audit
+## S1 2024-2025 Pre-Remediation Export Audit
+
+This section records the rejected export before direct `iBands` `%B`
+remediation. The same run ID was later regenerated and audited in the next
+section.
 
 Audited run:
 
@@ -473,13 +477,11 @@ Remediation:
   inspection.
 - MetaEditor compile after remediation: PASS, `0 errors`, `0 warnings`.
 
-Required next human-in-the-loop action:
+Follow-up status:
 
-- Re-run the S1 export after this fix.
-- Confirm that `b_percent_main_macro` and `b_percent_main_macro_slope` have
-  non-null values except for bounded warmup rows.
-- Rebuild broker-1R/path-ratio datasets only after the macro `%B` null count is
-  bounded and explained.
+- Completed by the S1 2024-2025 re-export audit below.
+- The regenerated run confirms that `b_percent_main_macro` and
+  `b_percent_main_macro_slope` are no longer all-null.
 
 ## S1 2026 One-Month Smoke Audit
 
@@ -573,3 +575,137 @@ Decision:
   model.
 - Sprint 6 remains blocked until full-year S1/S2/S3 exports produce a candidate
   that passes the default robustness gate and segment support requirements.
+
+## S1 2024-2025 Re-Export Candidate Audit
+
+Audited run:
+
+- Run ID: `xauusd_2025_dynamic_tp_path_run_S1`
+- Date range in manifest/summary: `2024.01.01 00:00:00` through
+  `2025.12.31 21:57:58`
+- Strategy scope: S1 enabled, S2/S3 disabled
+- Schema: `5`
+- Feature rows: `23746`
+- Outcome rows: `23746`
+- Joined rows: `23746`
+- Export status: `OK`
+- Phase 1 invalid rows: `11` feature rows, `0` outcome rows
+
+Validation results:
+
+- `build_dataset.py --validate-only`: PASS with warnings
+- Warnings:
+  - `11` feature rows were marked invalid by Phase 1
+  - `2` TP outcome rows had non-positive `net_profit` while `profit_r` was
+    positive
+  - `4` SL outcome rows had non-negative `net_profit` while `profit_r` was
+    negative
+
+Required schema v5 numeric feature audit:
+
+| Feature | Missing Rows | Observed Range |
+| --- | ---: | --- |
+| `stoch_structure_raw_percent` | 11 | `13.357809` to `908.547009` |
+| `b_percent_main_base` | 0 | `-253.273649` to `361.257059` |
+| `b_percent_main_base_slope` | 0 | `-355.154179` to `219.728507` |
+| `b_percent_main_macro` | 0 | `-29.492783` to `186.111471` |
+| `b_percent_main_macro_slope` | 0 | `-147.671555` to `218.167410` |
+| `time_sin` | 0 | `-1.000000` to `1.000000` |
+| `time_cos` | 0 | `-1.000000` to `0.999990` |
+
+Categorical support:
+
+- Direction rows: `BULLISH=12573`, `BEARISH=11173`
+- Session rows: `NEWYORK=9383`, `ASIA=7380`, `LONDON=5368`,
+  `OFFHOURS=1615`
+
+Outcome support:
+
+- Broker/tester terminal outcomes: `SL=13329`, `TP=10417`
+- Path targets: `1r=9940`, `1_5r=8083`, `2r=6802`, `3r=5124`
+- Path statuses: `SL_FIRST=18609`, `TARGET_3R=5124`,
+  `HORIZON_EXPIRED=13`
+- Mean broker `profit_r`: `-0.173713`
+
+Datasets built:
+
+| Target Family | Dataset ID | Training Rows |
+| --- | --- | ---: |
+| `broker_1r` | `xauusd_s1_2024_2025_schema_v5_numeric_broker_1r` | 23735 |
+| `1r` | `xauusd_s1_2024_2025_schema_v5_numeric_1r` | 23735 |
+| `1_5r` | `xauusd_s1_2024_2025_schema_v5_numeric_1_5r` | 23735 |
+| `2r` | `xauusd_s1_2024_2025_schema_v5_numeric_2r` | 23735 |
+| `3r` | `xauusd_s1_2024_2025_schema_v5_numeric_3r` | 23735 |
+| `expected_r` | `xauusd_s1_2024_2025_schema_v5_numeric_expected_r` | 23735 |
+
+Model results:
+
+| Target Family | Holdout AUC | Holdout F1 | Holdout Max Score | Threshold Candidate |
+| --- | ---: | ---: | ---: | --- |
+| `broker_1r` | 0.5088 | 0.0000 | 0.452669 | no |
+| `1r` | 0.5060 | 0.0000 | 0.414091 | no |
+| `1_5r` | 0.4992 | 0.0000 | 0.348207 | no |
+| `2r` | 0.4977 | 0.0000 | 0.297827 | no |
+| `3r` | 0.4920 | 0.0000 | 0.219700 | no |
+| `expected_r` | 0.4924 | 0.0000 | 0.220213 | no |
+
+Feature diagnostics:
+
+- All models encoded `13` features after deterministic one-hot encoding.
+- No encoded feature had zero variation.
+- No rare categorical bucket warning was emitted.
+- Top classifier features remain plausible schema v5 signals, but they do not
+  generalize into useful selection:
+  - `broker_1r`: `b_percent_main_macro_slope`,
+    `stoch_structure_raw_percent`, `b_percent_main_macro`
+  - `1r`: `b_percent_main_base`, `b_percent_main_base_slope`,
+    `direction=BEARISH`
+  - higher path targets: mostly `session_id=ASIA`, time features, direction,
+    and `%B` macro/base fields
+- Robustness diagnostics warn about feature-importance concentration in all
+  targets. This is not the primary failure; the primary failure is that no
+  threshold selects rows.
+
+Robustness validation:
+
+- Default robustness validation ran for all target families and produced
+  `research_candidate` grade datasets.
+- All target families returned `WARN`, `selected_threshold=null`, and
+  `final_holdout_selected_rows=0`.
+- Warning codes were consistent across all targets:
+  - `runtime_export_missing`
+  - `threshold_selection_small_selected_count`
+  - `final_holdout_small_selected_count`
+  - `feature_importance_concentration`
+  - `segment_support_warnings`
+- Score diagnostics confirm that final-holdout probabilities are below `0.50`
+  for every target. Example final max scores:
+  - `broker_1r`: `0.452669`
+  - `1r`: `0.414091`
+  - `3r`: `0.219700`
+
+Implementation note:
+
+- The exporter manifest label was corrected from the old
+  `BB_Percent_Standard` data-source text to the current direct `iBands`
+  `%B` source:
+  `iBands:upper_lower_close:period_21:deviation_2.0:bands_shift_0:PRICE_CLOSE`
+- Validation after the manifest-label fix:
+  - `git diff --check`: PASS
+  - `.venv/bin/python -m py_compile tools/deterministic_signal_ml/*.py`: PASS
+  - `python3 tools/mt5/compile_mt5.py --mt5-root /home/loldlm/mql5_projects/metatrader_5_market_data_framework --wine --timeout 120`:
+    PASS, `0 errors`, `0 warnings`
+
+Decision:
+
+- The S1 2024-2025 re-export validates that the schema v5 data path is now
+  technically healthy: macro `%B` is non-null and datasets train end-to-end.
+- No S1 target family is accepted because the model does not produce an
+  admissible threshold candidate and the final holdout selects zero rows.
+- Sprint 6 runtime artifact export, SHADOW parity, and FILTER smoke remain
+  blocked.
+- Next evidence needed before revisiting runtime export:
+  - full S2 and S3 schema v5 exports
+  - optional S1 ablation outside this phase gate, such as per-direction models
+    or threshold-policy research, if the product decision is to keep exploring
+    S1 despite this rejection

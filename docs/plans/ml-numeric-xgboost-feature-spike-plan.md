@@ -390,6 +390,15 @@ decide whether the feature set improves robust out-of-sample selection.
 
 Execution must complete and validate this sprint before moving to Sprint 6.
 
+Current status:
+
+- S1 2024-2025 re-export builds schema v5 datasets and trains all target
+  families, but every model is rejected: no target produces a selected
+  threshold and final holdout selected rows are zero.
+- Sprint 6 remains blocked for S1.
+- S2 and S3 full exports are still required before deciding whether the phase
+  is fully rejected or whether a non-S1 strategy has an acceptable candidate.
+
 ### Task 5.1: Generate Fresh Strategy Exports
 
 - **Location**:
