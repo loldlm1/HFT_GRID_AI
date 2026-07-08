@@ -46,16 +46,20 @@ Feature semantics:
   extremum/SL anchor within the Stoch Structure range. It is conceptually the
   raw value currently used before `fib_sl_band`, not the live close percent and
   not the raw oscillator value.
-- `b_percent_main_base` uses `BB_Percent_Standard` buffer `0` (`Main`) on M1,
-  with `InpBandsPeriod=21`, `InpDeviation=2.0`, `InpCandleShift` equal to the
-  strategy base delay (`3`, `5`, or `10`), `MODE_SMA`, and `PRICE_CLOSE`.
-- `b_percent_main_base_slope` is the confirmed absolute delta
-  `main[1] - main[2]` from the same base `%B` handle.
-- `b_percent_main_macro` uses `BB_Percent_Standard` buffer `0` (`Main`) on the
-  strategy macro timeframe (`M3`, `M5`, or `M10`), with
-  `InpCandleShift=1`, `MODE_SMA`, and `PRICE_CLOSE`.
-- `b_percent_main_macro_slope` is the confirmed absolute delta
-  `main[1] - main[2]` from the same macro `%B` handle.
+- `b_percent_main_base` derives `%B` from the standard `iBands` logic handle
+  on M1, with `period=21`, `deviation=2.0`, `bands_shift=0`, SMA base line,
+  and `PRICE_CLOSE`. It reads close at `read_shift` and upper/lower bands at
+  `read_shift + candle_shift`, where `candle_shift` is the strategy base delay
+  (`3`, `5`, or `10`).
+- `b_percent_main_base_slope` is the confirmed absolute delta between derived
+  `%B` values at `read_shift=1` and `read_shift=2` from the same base
+  timeframe and strategy candle shift.
+- `b_percent_main_macro` derives `%B` from the standard `iBands` logic handle
+  on the strategy macro timeframe (`M3`, `M5`, or `M10`), with
+  `candle_shift=1`, SMA base line, and `PRICE_CLOSE`.
+- `b_percent_main_macro_slope` is the confirmed absolute delta between derived
+  `%B` values at `read_shift=1` and `read_shift=2` from the same macro
+  timeframe.
 - `session_id` is the broker-time session bucket, treated as categorical for
   model encoding and as a diagnostic segment.
 - `time_sin` and `time_cos` encode broker minute-of-day cyclically.
@@ -74,7 +78,8 @@ on chart drawing.
 - Current evidence reference:
   `docs/research/ml-feature-schema-v2-acceptance.md`.
 - `BB_Percent_Standard.ex5` is available in the same MT5 `Examples` indicator
-  path used for `Stochastic_Structure.ex5`.
+  path used for `Stochastic_Structure.ex5` only for visual QA subwindows; data
+  features derive `%B` directly from `iBands`.
 - MetaEditor compile workflow from
   `docs/environment/mt5-agentic-workflows.md`.
 - Human-in-the-loop Strategy Tester remains required for fresh XAUUSD 2025
@@ -130,8 +135,8 @@ Execution must complete and validate this sprint before moving to Sprint 2.
 - **Acceptance Criteria**:
   - `stoch_structure_raw_percent` is documented as source-extremum/SL-anchor
     raw percent, not live close percent.
-  - `%B` features state `BB_Percent_Standard` buffer `0`, `MODE_SMA`,
-    `PRICE_CLOSE`, confirmed reads, and strategy-aligned shifts.
+  - `%B` features state the direct `iBands` formula, `PRICE_CLOSE`,
+    confirmed reads, and strategy-aligned candle shifts.
   - `direction` and `session_id` are documented as categorical model inputs.
   - Visual `iBands` behavior is documented as QA-only.
 - **Validation**:
@@ -168,19 +173,21 @@ extraction aligned with the new schema.
 
 Execution must complete and validate this sprint before moving to Sprint 3.
 
-### Task 2.1: Add `%B` Indicator Handles
+### Task 2.1: Add `%B` Indicator Inputs
 
 - **Location**:
   - `services/trading_management/indicator_definitions_loader.mqh`
   - `services/trading_signals/market_signal_indicators.mqh`
   - `services/core/base_structures.mqh` only if handle metadata needs extension
-- **Description**: Load and release cached `BB_Percent_Standard` handles for
-  M1 base shifts `3/5/10` and macro timeframes `M3/M5/M10` with shift `1`.
+- **Description**: Load and release cached standard `iBands` logic handles for
+  enabled strategy base/macro timeframes. The `%B` value is computed from
+  close, upper band, and lower band reads instead of a runtime `iCustom`
+  `%B` handle.
 - **Dependencies**: Sprint 1.
 - **Acceptance Criteria**:
   - Handles are created once during indicator loading and released on deinit.
-  - Parameters are explicit: period `21`, deviation `2.0`, percent MA period
-    default retained but unused for model features, `MODE_SMA`, `PRICE_CLOSE`.
+  - Parameters are explicit: period `21`, deviation `2.0`, `bands_shift=0`,
+    SMA base line, and `PRICE_CLOSE`.
   - Logic handles are hidden in Strategy Tester where appropriate.
   - No per-tick or per-signal `iCustom` handle creation is introduced.
 - **Validation**:
@@ -190,15 +197,16 @@ Execution must complete and validate this sprint before moving to Sprint 3.
 
 - **Location**:
   - `services/trading_signals/market_signal_indicators.mqh`
-- **Description**: Add helpers that read `BB_Percent_Standard` buffer `0`
-  with confirmed shifts and compute absolute slopes.
+- **Description**: Add helpers that compute `%B` from standard `iBands` upper
+  and lower buffers plus confirmed close reads, then compute absolute slopes.
 - **Dependencies**: Task 2.1.
 - **Acceptance Criteria**:
-  - Base value reads `shift=1` from the M1 handle whose `InpCandleShift`
-    matches the strategy delay.
-  - Base slope is `main[1] - main[2]`.
-  - Macro value reads `shift=1` from the strategy macro timeframe handle.
-  - Macro slope is `main[1] - main[2]`.
+  - Base value uses close at `read_shift=1` and M1 bands at
+    `read_shift + strategy_delay`.
+  - Base slope is derived `%B(read_shift=1) - %B(read_shift=2)`.
+  - Macro value uses close at `read_shift=1` and macro bands at
+    `read_shift + 1`.
+  - Macro slope is derived `%B(read_shift=1) - %B(read_shift=2)`.
   - Missing or `EMPTY_VALUE` data marks features invalid without stopping live
     trading outside tester validation paths.
 - **Validation**:
@@ -289,8 +297,8 @@ Execution must complete and validate this sprint before moving to Sprint 4.
 - **Acceptance Criteria**:
   - One short run with visuals disabled and one with visuals enabled produce
     matching feature row counts and candidate counts.
-  - Evidence states that `%B` features come from `BB_Percent_Standard`, not
-    visual `iBands`.
+  - Evidence states that `%B` features come from direct `iBands` data reads,
+    not chart-shifted visual handles.
 - **Validation**:
   - Short Strategy Tester comparison.
 
@@ -495,18 +503,18 @@ This sprint is a pre-run cleanup and must not promote any runtime model.
   - MetaEditor compile.
   - Short Strategy Tester parity run.
 
-### Task 5A.2: Scope `%B` Logic Handles To Active Strategies
+### Task 5A.2: Keep `%B` Data Reads Strategy-Scoped
 
 - **Location**:
   - `services/trading_management/indicator_definitions_loader.mqh`
-- **Description**: Load `BB_Percent_Standard` logic handles only for enabled
-  strategy base delays and macro timeframes when feature export or ML inference
-  requires them.
+- **Description**: Keep standard `iBands` data handles scoped to enabled
+  strategy base and macro timeframes when feature export or ML inference
+  requires `%B`.
 - **Dependencies**: Task 5A.1.
 - **Acceptance Criteria**:
-  - S1 loads M1 shift `3` and M3 shift `1`.
-  - S2 loads M1 shift `5` and M5 shift `1`.
-  - S3 loads M1 shift `10` and M10 shift `1`.
+  - S1 computes M1 candle shift `3` and M3 candle shift `1`.
+  - S2 computes M1 candle shift `5` and M5 candle shift `1`.
+  - S3 computes M1 candle shift `10` and M10 candle shift `1`.
   - Duplicate handles are avoided when strategies share a timeframe/shift.
 - **Validation**:
   - MetaEditor compile.
@@ -645,7 +653,8 @@ Execution must complete and validate this sprint before phase closeout.
   ablation if the first pass is weak or asymmetric.
 - `iBands` visual `bands_shift` can align chart drawing differently from
   runtime feature reads. Mitigation: visual handles are QA-only and `%B`
-  features come only from `BB_Percent_Standard`.
+  features come only from standard `iBands` logic handles with
+  `bands_shift=0`.
 - `stoch_structure_raw_percent` can be confused with live close percent or raw
   oscillator value. Mitigation: derive it from the SL-anchor/source-extremum
   raw percent path and test fixture values explicitly.

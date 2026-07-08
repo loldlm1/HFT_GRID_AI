@@ -54,21 +54,27 @@ Numeric model inputs:
 - `stoch_structure_raw_percent`: raw structure percent of the source extremum
   used as the SL anchor. It is the raw percent behind the existing
   `fib_sl_band` path, not live close percent and not a raw oscillator value.
-- `b_percent_main_base`: `BB_Percent_Standard` buffer `0` (`Main`) on M1.
-  Parameters are `InpBandsPeriod=21`, `InpDeviation=2.0`,
-  `InpCandleShift=3/5/10` for S1/S2/S3, `MODE_SMA`, and `PRICE_CLOSE`.
-- `b_percent_main_base_slope`: confirmed absolute delta
-  `base_main[1] - base_main[2]` from the same base `%B` handle.
-- `b_percent_main_macro`: `BB_Percent_Standard` buffer `0` (`Main`) on the
-  strategy macro timeframe: M3 for S1, M5 for S2, M10 for S3. Parameters are
-  `InpBandsPeriod=21`, `InpDeviation=2.0`, `InpCandleShift=1`, `MODE_SMA`, and
-  `PRICE_CLOSE`.
-- `b_percent_main_macro_slope`: confirmed absolute delta
-  `macro_main[1] - macro_main[2]` from the same macro `%B` handle.
+- `b_percent_main_base`: `%B` derived from the standard `iBands` logic handle
+  on M1, with `period=21`, `deviation=2.0`, `bands_shift=0`, SMA base line,
+  and `PRICE_CLOSE`. The feature reads close at `read_shift` and upper/lower
+  bands at `read_shift + candle_shift`, where `candle_shift` is `3`, `5`, or
+  `10` for S1/S2/S3. Formula:
+  `(close - lower_band) / (upper_band - lower_band) * 100`.
+- `b_percent_main_base_slope`: confirmed absolute delta between derived `%B`
+  values at `read_shift=1` and `read_shift=2` from the same base timeframe and
+  strategy candle shift.
+- `b_percent_main_macro`: `%B` derived from the standard `iBands` logic handle
+  on the strategy macro timeframe: M3 for S1, M5 for S2, M10 for S3. It uses
+  `period=21`, `deviation=2.0`, `bands_shift=0`, SMA base line,
+  `PRICE_CLOSE`, and `candle_shift=1`.
+- `b_percent_main_macro_slope`: confirmed absolute delta between derived `%B`
+  values at `read_shift=1` and `read_shift=2` from the same macro timeframe.
 - `time_sin` and `time_cos`: broker minute-of-day cyclical encoding.
 
 All `%B` reads must be confirmed non-forming values. Runtime/data extraction
-uses `BB_Percent_Standard`, not visual chart handles.
+uses standard `iBands` logic handles with `bands_shift=0`, not chart-shifted
+visual handles. `BB_Percent_Standard` remains visual-only QA for base and macro
+subwindows.
 
 ## Precision Policy
 
@@ -196,10 +202,10 @@ For an accepted candidate:
 | Sprint | Status | Notes |
 | --- | --- | --- |
 | 1. Numeric Feature Contract | Complete | Contract, evidence layout, and workflow references defined. |
-| 2. MQL5 Numeric Feature Export | Implementation complete | MetaEditor compile PASS with 0 errors and 0 warnings. Short Strategy Tester export smoke remains pending human run. |
+| 2. MQL5 Numeric Feature Export | Implementation complete | MetaEditor compile PASS with 0 errors and 0 warnings. S1 one-month Strategy Tester export smoke validates schema v5 after the `iBands` `%B` remediation; S2/S3 fresh exports remain pending. |
 | 3. Visual Bands QA | Implementation complete | Visual `iBands` handles compile. Human Strategy Tester screenshot and visual/data row-count comparison remain pending. |
 | 4. Python Schema And Trainer | Complete | `py_compile`, schema v5 dataset fixture, and numeric XGBoost smoke training PASS. |
-| 5. Fresh Data And Robustness Gate | Tooling complete, data gate blocked | Segment diagnostics and research-only manifests validate on the schema v5 fixture. Full acceptance requires human Strategy Tester full-year exports. |
+| 5. Fresh Data And Robustness Gate | Tooling complete, smoke data validated | S1 one-month smoke validates schema v5 and trains models, but robust gate remains blocked by short row count. Full acceptance requires human Strategy Tester full-year exports. |
 | 5A. Pre-Run Indicator Cleanup | Complete, human visual gate pending | Deterministic `iMA` logic handles replaced by `iBands` base-line handles; visual `%B` handles added for base and macro QA. |
 | 6. Runtime Artifact Gate | Blocked | No accepted numeric candidate exists yet, so runtime export and SHADOW parity are not executed. |
 
@@ -209,9 +215,12 @@ Implemented:
 
 - schema version bumped to `5` for signal feature export and shadow feature
   extraction
-- cached `BB_Percent_Standard` logic handles for M1 base shifts `3`, `5`, `10`
-  and macro M3/M5/M10 shift `1`
-- confirmed `%B` buffer `0` reads with `main[1] - main[2]` slopes
+- initially cached `BB_Percent_Standard` logic handles for M1 base shifts
+  `3`, `5`, `10` and macro M3/M5/M10 shift `1`; this data path was later
+  superseded by direct standard `iBands` `%B` derivation after the macro `%B`
+  null audit
+- confirmed `%B` reads with `read_shift=1` and slopes from
+  `read_shift=1` minus `read_shift=2`
 - exported schema v5 numeric columns:
   - `stoch_structure_raw_percent`
   - `b_percent_main_base`
@@ -230,9 +239,9 @@ Validation:
 
 Pending human gate:
 
-- short Strategy Tester schema v5 export smoke with one active strategy
+- repeat schema v5 export smoke for S2 and S3 with one active strategy
 - verify generated `signal_features.tsv` has zero unexpected invalid numeric
-  rows
+  rows for S2/S3
 
 ## Sprint 3 Validation
 
@@ -241,8 +250,8 @@ Implemented:
 - base visual handles now use `iBands` on M1 with strategy shifts `3`, `5`,
   or `10` when `Enable_Show_Indicators` is enabled
 - macro visual chart handles now use `iBands` on M3/M5/M10 with shift `1`
-- visual handles remain separate from `BB_Percent_Standard` logic handles
-- trading and feature extraction do not read from visual `iBands`
+- visual handles remain separate from logic/data handles
+- trading and feature extraction do not read from chart-shifted visual `iBands`
 
 Validation:
 
@@ -370,8 +379,8 @@ Implemented:
   (`BASE_LINE`) using `bands_shift=0`
 - scoped deterministic bands logic handles to enabled strategy base/macro
   contexts, plus H1/H4/D1 export diagnostics while feature export is active
-- scoped `BB_Percent_Standard` logic handles to enabled strategy base/macro
-  contexts when feature export or ML inference requires them
+- removed runtime/data dependence on `BB_Percent_Standard`; data `%B` is
+  derived from standard `iBands` logic handles
 - added visual-only `BB_Percent_Standard` handles for active strategy M1 and
   macro contexts
 - attached visual `%B` handles to chart subwindows while keeping data/logic
@@ -471,3 +480,96 @@ Required next human-in-the-loop action:
   non-null values except for bounded warmup rows.
 - Rebuild broker-1R/path-ratio datasets only after the macro `%B` null count is
   bounded and explained.
+
+## S1 2026 One-Month Smoke Audit
+
+Audited run:
+
+- Run ID: `xauusd_2025_dataset_1`
+- Date range in manifest/summary: `2026.06.07 00:00:00` through
+  `2026.07.06 23:59:58`
+- Strategy scope: S1 enabled, S2/S3 disabled
+- Schema: `5`
+- Feature rows: `946`
+- Outcome rows: `946`
+- Joined rows: `946`
+- Export status: `OK`
+- Phase 1 invalid rows: `0` feature rows, `1` outcome row
+
+Required schema v5 numeric feature audit:
+
+| Feature | Missing Rows | Observed Range |
+| --- | ---: | --- |
+| `stoch_structure_raw_percent` | 0 | `14.893430` to `271.773221` |
+| `b_percent_main_base` | 0 | `-81.920914` to `183.155623` |
+| `b_percent_main_base_slope` | 0 | `-67.281241` to `93.013396` |
+| `b_percent_main_macro` | 0 | `-4.121871` to `108.127109` |
+| `b_percent_main_macro_slope` | 0 | `-60.460228` to `83.102736` |
+| `time_sin` | 0 | `-0.999962` to `1.000000` |
+| `time_cos` | 0 | `-0.999990` to `0.999962` |
+
+Categorical support:
+
+- Direction rows: `BEARISH=498`, `BULLISH=448`
+- Session rows: `NEWYORK=346`, `ASIA=307`, `LONDON=222`, `OFFHOURS=71`
+
+Outcome support:
+
+- Broker/tester terminal outcomes: `SL=491`, `TP=455`
+- Path targets: `1r=444`, `1_5r=343`, `2r=291`, `3r=224`
+- Path labels include one non-trainable row from run end/horizon handling.
+
+Datasets built:
+
+| Target Family | Dataset ID | Training Rows |
+| --- | --- | ---: |
+| `broker_1r` | `xauusd_s1_20260607_20260706_schema_v5_numeric_broker_1r_smoke` | 946 |
+| `1r` | `xauusd_s1_20260607_20260706_schema_v5_numeric_1r_smoke` | 945 |
+| `1_5r` | `xauusd_s1_20260607_20260706_schema_v5_numeric_1_5r_smoke` | 945 |
+| `2r` | `xauusd_s1_20260607_20260706_schema_v5_numeric_2r_smoke` | 945 |
+| `3r` | `xauusd_s1_20260607_20260706_schema_v5_numeric_3r_smoke` | 945 |
+| `expected_r` | `xauusd_s1_20260607_20260706_schema_v5_numeric_expected_r_smoke` | 945 |
+
+Model smoke results:
+
+| Target Family | Model ID Suffix | Holdout AUC | Holdout F1 | Threshold Candidate |
+| --- | --- | ---: | ---: | --- |
+| `broker_1r` | `broker_1r_xgb_smoke` | 0.6032 | 0.5587 | yes, threshold `0.55`, 35 selected rows |
+| `1r` | `1r_xgb_smoke` | 0.5800 | 0.4940 | yes, threshold `0.50`, 74 selected rows |
+| `1_5r` | `1_5r_xgb_smoke` | 0.5724 | 0.0000 | no |
+| `2r` | `2r_xgb_smoke` | 0.5509 | 0.0294 | no |
+| `3r` | `3r_xgb_smoke` | 0.5341 | 0.0000 | no |
+| `expected_r` | `expected_r_xgb_smoke` | 0.5171 | 0.0000 | no |
+
+Feature diagnostics:
+
+- All models encoded `13` features after deterministic one-hot encoding.
+- No encoded feature had zero variation.
+- The leading classifier features are aligned with the intended contract:
+  `stoch_structure_raw_percent`, `%B` base, `%B` base slope, `%B` macro,
+  session, and time features.
+- `direction` appears as a meaningful feature in `expected_r`, but the model is
+  not accepted because the holdout target quality is weak.
+
+Robustness validation:
+
+- Default robustness validation failed for all target families with
+  `Not enough rows for robust train_core partition: 473 < 500`.
+- A relaxed smoke-only robustness pass was generated only for `broker_1r` and
+  `1r`:
+  - `broker_1r`: `WARN`, threshold `0.60`, final-holdout selected rows `13`,
+    warnings include short dataset, missing runtime export, small selected
+    final-holdout count, feature-importance concentration, and segment support.
+  - `1r`: `WARN`, threshold `0.50`, final-holdout selected rows `74`,
+    warnings include short dataset, missing runtime export,
+    feature-importance concentration, and segment support.
+
+Decision:
+
+- The short S1 smoke validates the schema v5 data path after the direct
+  `iBands` `%B` remediation: macro `%B` is no longer all-null.
+- XGBoost training works end-to-end for broker and path target families.
+- The run is smoke-only and must not be used to accept, export, or deploy a
+  model.
+- Sprint 6 remains blocked until full-year S1/S2/S3 exports produce a candidate
+  that passes the default robustness gate and segment support requirements.

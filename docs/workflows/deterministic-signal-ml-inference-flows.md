@@ -178,12 +178,15 @@ Feature rules:
 - `direction` and `session_id` are categorical model inputs.
 - `stoch_structure_raw_percent` is the source-extremum/SL-anchor raw percent
   behind `fib_sl_band`, not live close percent and not a raw oscillator value.
-- `%B` features read `BB_Percent_Standard` buffer `0` with `MODE_SMA`,
-  `PRICE_CLOSE`, confirmed non-forming values, and strategy-aligned shifts.
-- Base `%B` is M1 with shift `3`, `5`, or `10` for S1/S2/S3.
-- Macro `%B` is M3/M5/M10 with shift `1` for S1/S2/S3.
-- Visual `iBands` with `bands_shift` is QA-only and must not drive trading,
-  feature extraction, risk gates, or runtime scoring.
+- `%B` features are derived from standard `iBands` logic handles with
+  `period=21`, `deviation=2.0`, `bands_shift=0`, SMA base line,
+  `PRICE_CLOSE`, confirmed non-forming values, and strategy-aligned candle
+  shifts.
+- Base `%B` is M1 with candle shift `3`, `5`, or `10` for S1/S2/S3.
+- Macro `%B` is M3/M5/M10 with candle shift `1` for S1/S2/S3.
+- Visual `iBands` with `bands_shift` and visual `BB_Percent_Standard`
+  subwindows are QA-only and must not drive trading, feature extraction, risk
+  gates, or runtime scoring.
 - Path-ratio labels remain outcome-only and are excluded from model features.
 
 Recommended one-strategy-at-a-time run IDs:
