@@ -26,6 +26,11 @@ DEFAULT_MAX_CONDITION_COUNT = 5
 DEFAULT_MAX_CATALOG_PATTERNS = 300
 DEFAULT_MAX_GROUPS_PER_TEMPLATE = 250
 DEFAULT_TOP_N_VISUAL = 12
+DEFAULT_MIN_ROBUST_MONTHS = 6
+DEFAULT_MIN_POSITIVE_MONTHS = 4
+DEFAULT_MIN_ROBUST_QUARTERS = 3
+DEFAULT_MIN_POSITIVE_QUARTERS = 2
+DEFAULT_MAX_NEGATIVE_QUARTERS = 1
 
 PATTERN_CATALOG_FILE = "pattern_catalog.tsv"
 PATTERN_SUMMARY_FILE = "pattern_summary.tsv"
@@ -70,9 +75,18 @@ PATTERN_SUMMARY_COLUMNS = (
     "final_holdout_net_r",
     "final_holdout_max_drawdown_r",
     "month_count",
+    "positive_month_count",
+    "negative_month_count",
+    "worst_month_net_r",
+    "quarter_count",
+    "positive_quarter_count",
+    "negative_quarter_count",
+    "worst_quarter_net_r",
+    "robustness_status",
     "strategy_count",
     "direction_count",
     "warning_codes",
+    "robust_warning_codes",
 )
 
 PATTERN_MATCH_COLUMNS = (
@@ -160,10 +174,19 @@ class PatternMetrics:
     final_holdout_net_r: float
     final_holdout_max_drawdown_r: float
     month_count: int
+    positive_month_count: int
+    negative_month_count: int
+    worst_month_net_r: float | None
+    quarter_count: int
+    positive_quarter_count: int
+    negative_quarter_count: int
+    worst_quarter_net_r: float | None
+    robustness_status: str
     strategy_count: int
     direction_count: int
     status: str
     warning_codes: tuple[str, ...]
+    robust_warning_codes: tuple[str, ...]
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -183,6 +206,11 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--max-catalog-patterns", type=int, default=DEFAULT_MAX_CATALOG_PATTERNS)
     parser.add_argument("--max-groups-per-template", type=int, default=DEFAULT_MAX_GROUPS_PER_TEMPLATE)
     parser.add_argument("--top-n-visual", type=int, default=DEFAULT_TOP_N_VISUAL)
+    parser.add_argument("--min-robust-months", type=int, default=DEFAULT_MIN_ROBUST_MONTHS)
+    parser.add_argument("--min-positive-months", type=int, default=DEFAULT_MIN_POSITIVE_MONTHS)
+    parser.add_argument("--min-robust-quarters", type=int, default=DEFAULT_MIN_ROBUST_QUARTERS)
+    parser.add_argument("--min-positive-quarters", type=int, default=DEFAULT_MIN_POSITIVE_QUARTERS)
+    parser.add_argument("--max-negative-quarters", type=int, default=DEFAULT_MAX_NEGATIVE_QUARTERS)
     parser.add_argument("--pattern-id", action="append", default=[], help="Pattern ID to force into visual selection.")
     parser.add_argument("--selection-file", default="", help="Optional TSV with a pattern_id column.")
     parser.add_argument(
@@ -544,6 +572,56 @@ def _distinct_count(
     )
 
 
+def _period_diagnostics(
+    connection: duckdb.DuckDBPyConnection,
+    definition: PatternDefinition,
+    period_column: str,
+) -> tuple[int, int, int, float | None]:
+    periods = _period_metrics(connection, definition, period_column)
+    if not periods:
+        return 0, 0, 0, None
+    positive_count = sum(1 for period in periods if float(period["net_r"]) > 0.0)
+    negative_count = len(periods) - positive_count
+    worst_net = min(float(period["net_r"]) for period in periods)
+    return len(periods), positive_count, negative_count, worst_net
+
+
+def _robustness_decision(
+    metrics: PatternMetrics,
+    args: argparse.Namespace,
+) -> tuple[str, tuple[str, ...]]:
+    warnings: list[str] = []
+    fail_codes = {
+        "low_prefinal_support",
+        "non_positive_prefinal",
+        "low_final_support",
+        "non_positive_final",
+    }
+    if any(code in fail_codes for code in metrics.warning_codes):
+        warnings.append("base_status_not_robust")
+    if metrics.pre_final_net_r <= 0.0 or metrics.pre_final_mean_r is None or metrics.pre_final_mean_r <= 0.0:
+        warnings.append("robust_non_positive_prefinal")
+    if metrics.final_holdout_net_r <= 0.0 or metrics.final_holdout_mean_r is None or metrics.final_holdout_mean_r <= 0.0:
+        warnings.append("robust_non_positive_final")
+    if metrics.month_count < args.min_robust_months:
+        warnings.append("robust_low_month_coverage")
+    if metrics.positive_month_count < args.min_positive_months:
+        warnings.append("robust_low_positive_month_count")
+    if metrics.quarter_count < args.min_robust_quarters:
+        warnings.append("robust_low_quarter_coverage")
+    if metrics.positive_quarter_count < args.min_positive_quarters:
+        warnings.append("robust_low_positive_quarter_count")
+    if metrics.negative_quarter_count > args.max_negative_quarters:
+        warnings.append("robust_too_many_negative_quarters")
+
+    unique_warnings = tuple(dict.fromkeys(warnings))
+    if not unique_warnings:
+        return "ROBUST_PASS", unique_warnings
+    if any(code in fail_codes for code in metrics.warning_codes):
+        return "ROBUST_FAIL", unique_warnings
+    return "ROBUST_REVIEW", unique_warnings
+
+
 def evaluate_pattern(
     connection: duckdb.DuckDBPyConnection,
     definition: PatternDefinition,
@@ -557,6 +635,16 @@ def evaluate_pattern(
     pre_rows, pre_win, pre_mean, pre_net, pre_dd = _split_metrics(connection, definition, "pre_final")
     final_rows, final_win, final_mean, final_net, final_dd = _split_metrics(connection, definition, "final_holdout")
     month_count = _distinct_count(connection, definition, "entry_month")
+    month_count, positive_month_count, negative_month_count, worst_month_net_r = _period_diagnostics(
+        connection,
+        definition,
+        "entry_month",
+    )
+    quarter_count, positive_quarter_count, negative_quarter_count, worst_quarter_net_r = _period_diagnostics(
+        connection,
+        definition,
+        "entry_quarter",
+    )
     strategy_count = _distinct_count(connection, definition, "strategy_label")
     direction_count = _distinct_count(connection, definition, "direction")
 
@@ -582,7 +670,7 @@ def evaluate_pattern(
     if month_count < 3:
         warnings.append("low_month_coverage")
 
-    return PatternMetrics(
+    base_metrics = PatternMetrics(
         rows=rows,
         pre_final_rows=pre_rows,
         pre_final_win_rate=pre_win,
@@ -595,10 +683,47 @@ def evaluate_pattern(
         final_holdout_net_r=final_net,
         final_holdout_max_drawdown_r=final_dd,
         month_count=month_count,
+        positive_month_count=positive_month_count,
+        negative_month_count=negative_month_count,
+        worst_month_net_r=worst_month_net_r,
+        quarter_count=quarter_count,
+        positive_quarter_count=positive_quarter_count,
+        negative_quarter_count=negative_quarter_count,
+        worst_quarter_net_r=worst_quarter_net_r,
+        robustness_status="",
         strategy_count=strategy_count,
         direction_count=direction_count,
         status=status,
         warning_codes=tuple(warnings),
+        robust_warning_codes=(),
+    )
+    robustness_status, robust_warnings = _robustness_decision(base_metrics, args)
+    return PatternMetrics(
+        rows=base_metrics.rows,
+        pre_final_rows=base_metrics.pre_final_rows,
+        pre_final_win_rate=base_metrics.pre_final_win_rate,
+        pre_final_mean_r=base_metrics.pre_final_mean_r,
+        pre_final_net_r=base_metrics.pre_final_net_r,
+        pre_final_max_drawdown_r=base_metrics.pre_final_max_drawdown_r,
+        final_holdout_rows=base_metrics.final_holdout_rows,
+        final_holdout_win_rate=base_metrics.final_holdout_win_rate,
+        final_holdout_mean_r=base_metrics.final_holdout_mean_r,
+        final_holdout_net_r=base_metrics.final_holdout_net_r,
+        final_holdout_max_drawdown_r=base_metrics.final_holdout_max_drawdown_r,
+        month_count=base_metrics.month_count,
+        positive_month_count=base_metrics.positive_month_count,
+        negative_month_count=base_metrics.negative_month_count,
+        worst_month_net_r=base_metrics.worst_month_net_r,
+        quarter_count=base_metrics.quarter_count,
+        positive_quarter_count=base_metrics.positive_quarter_count,
+        negative_quarter_count=base_metrics.negative_quarter_count,
+        worst_quarter_net_r=base_metrics.worst_quarter_net_r,
+        robustness_status=robustness_status,
+        strategy_count=base_metrics.strategy_count,
+        direction_count=base_metrics.direction_count,
+        status=base_metrics.status,
+        warning_codes=base_metrics.warning_codes,
+        robust_warning_codes=robust_warnings,
     )
 
 
@@ -715,9 +840,18 @@ def summary_rows(
                 "final_holdout_net_r": metrics.final_holdout_net_r,
                 "final_holdout_max_drawdown_r": metrics.final_holdout_max_drawdown_r,
                 "month_count": metrics.month_count,
+                "positive_month_count": metrics.positive_month_count,
+                "negative_month_count": metrics.negative_month_count,
+                "worst_month_net_r": metrics.worst_month_net_r,
+                "quarter_count": metrics.quarter_count,
+                "positive_quarter_count": metrics.positive_quarter_count,
+                "negative_quarter_count": metrics.negative_quarter_count,
+                "worst_quarter_net_r": metrics.worst_quarter_net_r,
+                "robustness_status": metrics.robustness_status,
                 "strategy_count": metrics.strategy_count,
                 "direction_count": metrics.direction_count,
                 "warning_codes": ",".join(metrics.warning_codes),
+                "robust_warning_codes": ",".join(metrics.robust_warning_codes),
             }
         )
     rows.sort(
@@ -855,8 +989,12 @@ def render_report(
     selected: dict[str, str],
 ) -> str:
     status_counts: dict[str, int] = {}
+    robustness_counts: dict[str, int] = {}
     for metrics in metrics_by_id.values():
         status_counts[metrics.status] = status_counts.get(metrics.status, 0) + 1
+        robustness_counts[metrics.robustness_status] = (
+            robustness_counts.get(metrics.robustness_status, 0) + 1
+        )
     selected_rows = [
         (definition, metrics_by_id[definition.pattern_id], selected[definition.pattern_id])
         for definition in definitions
@@ -879,28 +1017,34 @@ def render_report(
     ]
     for status in sorted(status_counts):
         lines.append(f"- `{status}`: {status_counts[status]}")
+    lines.extend(["", "## Robustness Counts", ""])
+    for status in sorted(robustness_counts):
+        lines.append(f"- `{status}`: {robustness_counts[status]}")
     lines.extend(["", "## Selected Patterns", ""])
     if not selected_rows:
         lines.append("No selected patterns.")
     else:
         lines.extend(
             [
-                "| Pattern | Reason | Status | Conditions | Pre-Final Rows | Pre-Final Net R | Final Rows | Final Net R |",
-                "| --- | --- | --- | --- | ---: | ---: | ---: | ---: |",
+                "| Pattern | Reason | Status | Robustness | Conditions | Pre-Final Rows | Pre-Final Net R | Final Rows | Final Net R | Months + | Quarters + |",
+                "| --- | --- | --- | --- | --- | ---: | ---: | ---: | ---: | ---: | ---: |",
             ]
         )
         for definition, metrics, reason in selected_rows[:30]:
             conditions = definition.conditions_text.replace("|", "\\|")
             lines.append(
-                "| `{}` | `{}` | `{}` | {} | {} | {:.4f} | {} | {:.4f} |".format(
+                "| `{}` | `{}` | `{}` | `{}` | {} | {} | {:.4f} | {} | {:.4f} | {} | {} |".format(
                     definition.pattern_id,
                     reason,
                     metrics.status,
+                    metrics.robustness_status,
                     conditions,
                     metrics.pre_final_rows,
                     metrics.pre_final_net_r,
                     metrics.final_holdout_rows,
                     metrics.final_holdout_net_r,
+                    metrics.positive_month_count,
+                    metrics.positive_quarter_count,
                 )
             )
     lines.extend(
@@ -933,8 +1077,12 @@ def build_payload(
     selected: dict[str, str],
 ) -> dict[str, Any]:
     status_counts: dict[str, int] = {}
+    robustness_status_counts: dict[str, int] = {}
     for metrics in metrics_by_id.values():
         status_counts[metrics.status] = status_counts.get(metrics.status, 0) + 1
+        robustness_status_counts[metrics.robustness_status] = (
+            robustness_status_counts.get(metrics.robustness_status, 0) + 1
+        )
     selected_ids = sorted(selected)
     return {
         "audit_id": audit_id,
@@ -945,6 +1093,7 @@ def build_payload(
         "selected_pattern_count": len(selected),
         "selected_pattern_ids": selected_ids,
         "status_counts": status_counts,
+        "robustness_status_counts": robustness_status_counts,
         "selection_reasons": selected,
         "runtime_filter_approved": False,
     }
