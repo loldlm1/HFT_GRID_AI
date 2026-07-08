@@ -53,6 +53,7 @@ Required files:
 - `pattern_catalog.tsv`
 - `pattern_summary.tsv`
 - `pattern_matches.tsv`
+- `pattern_period_metrics.tsv`
 - `pattern_audit_report.md`
 - `pattern_audit.json`
 
@@ -94,6 +95,54 @@ Example `conditions_text`:
 ```text
 direction=BEARISH; source_structure_type=HL; opposite_structure_type=LL; macro_h1_live_dir=-1; high_chain_score_3=-3; sl_fib_band=61.8_100; entry_fib_band=61.8_100
 ```
+
+## `pattern_period_metrics.tsv`
+
+Pattern robustness adds monthly and quarterly diagnostics for every catalog
+pattern. These metrics are offline evidence only and do not change Strategy
+Tester playback.
+
+Required columns:
+
+```text
+audit_id
+pattern_id
+pattern_label
+selected_for_visual
+period_type
+period_id
+rows
+win_rate
+mean_r
+net_r
+max_drawdown_r
+positive_net
+```
+
+`period_type` is either `month` or `quarter`. `period_id` is formatted as
+`YYYY-MM` or `YYYY-Qn`.
+
+`pattern_summary.tsv` also includes robustness fields:
+
+```text
+positive_month_count
+negative_month_count
+worst_month_net_r
+quarter_count
+positive_quarter_count
+negative_quarter_count
+worst_quarter_net_r
+robustness_status
+robust_warning_codes
+```
+
+Robustness statuses:
+
+| Status | Meaning |
+| --- | --- |
+| `ROBUST_PASS` | Pre-final and final holdout are positive and calendar coverage meets the configured month/quarter guards. |
+| `ROBUST_REVIEW` | Core evidence is positive, but one or more calendar guards require human review. |
+| `ROBUST_FAIL` | Core support, pre-final, final holdout, or stability requirements fail. |
 
 ## Guardrail Statuses
 

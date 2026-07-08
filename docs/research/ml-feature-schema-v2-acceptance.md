@@ -2381,3 +2381,81 @@ Decision:
   pattern candidates.
 - Next evidence step: generate S2 and S3 path-aware runs, then compare
   per-strategy and combined behavior before making any runtime TP/filter plan.
+
+## Dynamic TP Pattern Robustness Follow-Up
+
+The Pattern Audit follow-up added calendar robustness diagnostics so positive
+DuckDB patterns can be checked across months and quarters before Strategy
+Tester playback.
+
+Plan:
+
+- `docs/plans/dynamic-tp-pattern-robustness-audit-plan.md`
+
+Implemented:
+
+- `pattern_period_metrics.tsv` with monthly and quarterly rows for every
+  catalog pattern.
+- `pattern_summary.tsv` robustness fields:
+  `positive_month_count`, `negative_month_count`, `worst_month_net_r`,
+  `quarter_count`, `positive_quarter_count`, `negative_quarter_count`,
+  `worst_quarter_net_r`, `robustness_status`, and `robust_warning_codes`.
+- `pattern_audit_report.md` selected-pattern tables now include robustness
+  status and positive month/quarter counts.
+- `pattern_audit.json` now includes `robustness_status_counts`.
+- `pattern_matches.tsv` was left compatible with existing EA playback.
+
+Validation:
+
+- Python syntax:
+  `.venv/bin/python -m py_compile tools/deterministic_signal_ml/pattern_audit.py`
+  PASS.
+- Smoke audit:
+  `xauusd_2025_dynamic_tp_S1_2r_robustness_smoke`, dataset
+  `xauusd_2025_dynamic_tp_S1_2r_dataset_1`, patterns `246`, selected `12`,
+  matches `4642`, period rows `3908`, PASS.
+- Regenerated audits:
+  - `xauusd_2025_dynamic_tp_S1_2r_pattern_audit_1`
+  - `xauusd_2025_dynamic_tp_S1_3r_pattern_audit_1`
+  - `xauusd_2025_dynamic_tp_S1_expected_r_pattern_audit_1`
+
+S1 robustness results:
+
+| Family | Robust Counts | Selected `ROBUST_PASS` | Period Rows |
+| --- | --- | ---: | ---: |
+| `2r` | `ROBUST_PASS=3`, `ROBUST_FAIL=243` | 3 | 3908 |
+| `3r` | `ROBUST_PASS=6`, `ROBUST_REVIEW=3`, `ROBUST_FAIL=237` | 3 | 3908 |
+| `expected_r` | `ROBUST_PASS=6`, `ROBUST_REVIEW=3`, `ROBUST_FAIL=237` | 3 | 3908 |
+
+Selected robust S1 `2r` patterns:
+
+- `S1 | Bearish | Session ASIA | Weekday THU`: rows `362`, pre-final net
+  `55R`, final net `3R`, positive months `8/12`, positive quarters `3/4`,
+  worst month `-5R`, worst quarter `-1R`.
+- `S1 | Bearish | High chain high up 3 | Low chain low mixed |
+  Entry Fib 38.2-61.8`: rows `244`, pre-final net `22R`, final net `4R`,
+  positive months `7/12`, positive quarters `3/4`, worst month `-10R`,
+  worst quarter `-7R`.
+- `S1 | Bullish | LL[0] | H1 slope bullish | Low chain low down 3`: rows
+  `235`, pre-final net `6R`, final net `14R`, positive months `5/12`,
+  positive quarters `4/4`, worst month `-8R`, worst quarter `4R`.
+
+Selected robust S1 `3r` and `expected_r` patterns:
+
+- `S1 | Bearish | High chain high up 3 | Low chain low mixed |
+  Entry Fib 38.2-61.8`: rows `244`, pre-final net `31R`, final net `9R`,
+  positive months `7/12`, positive quarters `3/4`.
+- `S1 | Bearish | LH[0] | H1 slope bearish | High chain high up 5`: rows
+  `314`, pre-final net `23R`, final net `3R`, positive months `6/12`,
+  positive quarters `3/4`.
+- `S1 | Bearish | Session ASIA | Weekday THU`: rows `362`, pre-final net
+  `21R`, final net `5R`, positive months `6/12`, positive quarters `3/4`.
+
+Decision:
+
+- Pattern robustness tooling: `PASS`.
+- S1 robust pattern promotion: `REVIEW_ONLY`.
+- Reason: selected patterns now pass the calendar robustness guard, but XGBoost
+  still rejects all S1 thresholds and the evidence is one strategy/year only.
+- Next step remains S2/S3 path-aware generation before any runtime or focused
+  Strategy Tester playback approval.
