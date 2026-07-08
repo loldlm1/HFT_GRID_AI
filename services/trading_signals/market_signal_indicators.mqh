@@ -27,31 +27,31 @@ bool LoadStructureSnapshotForTimeframe(const ENUM_TIMEFRAMES tf,
   return false;
 }
 
-int FindDeterministicMaLogicHandle(const ENUM_TIMEFRAMES timeframe)
+int FindDeterministicBandsLogicHandle(const ENUM_TIMEFRAMES timeframe)
 {
-  int total = ArraySize(ExtDeterministicMaLogicHandles);
+  int total = ArraySize(ExtDeterministicBandsLogicHandles);
   for(int i = 0; i < total; i++)
   {
-    if(ExtDeterministicMaLogicHandles[i].indicator_timeframe != timeframe)
+    if(ExtDeterministicBandsLogicHandles[i].indicator_timeframe != timeframe)
       continue;
-    if(ExtDeterministicMaLogicHandles[i].indicator_shift != 0)
+    if(ExtDeterministicBandsLogicHandles[i].indicator_shift != 0)
       continue;
-    return ExtDeterministicMaLogicHandles[i].indicator_handle;
+    return ExtDeterministicBandsLogicHandles[i].indicator_handle;
   }
 
   return INVALID_HANDLE;
 }
 
-bool CopyDeterministicMaValue(const ENUM_TIMEFRAMES timeframe,
-                              const int shift,
-                              double &value_out)
+bool CopyDeterministicBandsBaseValue(const ENUM_TIMEFRAMES timeframe,
+                                     const int shift,
+                                     double &value_out)
 {
   value_out = 0.0;
 
   if(shift < 0)
     return false;
 
-  int handle = FindDeterministicMaLogicHandle(timeframe);
+  int handle = FindDeterministicBandsLogicHandle(timeframe);
   if(handle == INVALID_HANDLE)
     return false;
 
@@ -64,18 +64,18 @@ bool CopyDeterministicMaValue(const ENUM_TIMEFRAMES timeframe,
   return MathIsValidNumber(value_out) && value_out != EMPTY_VALUE;
 }
 
-bool CopyDeterministicMaSlopeValues(const ENUM_TIMEFRAMES timeframe,
-                                    const int current_shift,
-                                    double &current_value_out,
-                                    double &previous_value_out)
+bool CopyDeterministicBandsBaseSlopeValues(const ENUM_TIMEFRAMES timeframe,
+                                           const int current_shift,
+                                           double &current_value_out,
+                                           double &previous_value_out)
 {
   current_value_out = 0.0;
   previous_value_out = 0.0;
 
-  if(!CopyDeterministicMaValue(timeframe, current_shift, current_value_out))
+  if(!CopyDeterministicBandsBaseValue(timeframe, current_shift, current_value_out))
     return false;
 
-  if(!CopyDeterministicMaValue(timeframe, current_shift + 1, previous_value_out))
+  if(!CopyDeterministicBandsBaseValue(timeframe, current_shift + 1, previous_value_out))
     return false;
 
   return true;

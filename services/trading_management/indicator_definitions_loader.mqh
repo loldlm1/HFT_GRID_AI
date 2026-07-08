@@ -7,9 +7,10 @@
 // GLOBAL SETTINGS
 ENUM_TIMEFRAMES Strategy_TF_List[];
 IndicatorsHandleInfo ExtStructStochIndicatorsHandle[];
-IndicatorsHandleInfo ExtDeterministicMaLogicHandles[];
-IndicatorsHandleInfo ExtDeterministicMaVisualHandles[];
+IndicatorsHandleInfo ExtDeterministicBandsLogicHandles[];
+IndicatorsHandleInfo ExtDeterministicBandsVisualHandles[];
 IndicatorsHandleInfo ExtDeterministicBPercentLogicHandles[];
+IndicatorsHandleInfo ExtDeterministicBPercentVisualHandles[];
 int total_tf_list_load = 0;
 const string FOUNDATION_STRUCTURE_FIBONACCI_LEVELS = "0.0,61.8,100.0";
 
@@ -18,28 +19,34 @@ struct DeterministicMacroVisualChartState
   int             strategy_id;
   ENUM_TIMEFRAMES timeframe;
   long            chart_id;
-  int             indicator_handle;
+  int             bands_indicator_handle;
+  int             b_percent_indicator_handle;
   bool            chart_owned;
-  bool            indicator_added;
+  bool            bands_indicator_added;
+  bool            b_percent_indicator_added;
 
   DeterministicMacroVisualChartState()
   {
-    strategy_id      = DETERMINISTIC_STRATEGY_NONE;
-    timeframe        = PERIOD_CURRENT;
-    chart_id         = 0;
-    indicator_handle = INVALID_HANDLE;
-    chart_owned      = false;
-    indicator_added  = false;
+    strategy_id                = DETERMINISTIC_STRATEGY_NONE;
+    timeframe                  = PERIOD_CURRENT;
+    chart_id                   = 0;
+    bands_indicator_handle     = INVALID_HANDLE;
+    b_percent_indicator_handle = INVALID_HANDLE;
+    chart_owned                = false;
+    bands_indicator_added      = false;
+    b_percent_indicator_added  = false;
   }
 
   DeterministicMacroVisualChartState(const DeterministicMacroVisualChartState &source)
   {
-    strategy_id      = source.strategy_id;
-    timeframe        = source.timeframe;
-    chart_id         = source.chart_id;
-    indicator_handle = source.indicator_handle;
-    chart_owned      = source.chart_owned;
-    indicator_added  = source.indicator_added;
+    strategy_id                = source.strategy_id;
+    timeframe                  = source.timeframe;
+    chart_id                   = source.chart_id;
+    bands_indicator_handle     = source.bands_indicator_handle;
+    b_percent_indicator_handle = source.b_percent_indicator_handle;
+    chart_owned                = source.chart_owned;
+    bands_indicator_added      = source.bands_indicator_added;
+    b_percent_indicator_added  = source.b_percent_indicator_added;
   }
 };
 
@@ -140,30 +147,45 @@ void ReleaseAllStructStochIndicators()
   ArrayResize(ExtStructStochIndicatorsHandle, 0);
 }
 
-bool LoadDeterministicMaHandle(const ENUM_TIMEFRAMES timeframe,
-                               const int ma_shift,
-                               IndicatorsHandleInfo &handle_info,
-                               const bool required = true)
+bool DeterministicHandleExists(IndicatorsHandleInfo &handles[],
+                               const ENUM_TIMEFRAMES timeframe,
+                               const int indicator_shift)
+{
+  int total = ArraySize(handles);
+  for(int i = 0; i < total; i++)
+  {
+    if(handles[i].indicator_timeframe != timeframe)
+      continue;
+    if(handles[i].indicator_shift != indicator_shift)
+      continue;
+    return true;
+  }
+
+  return false;
+}
+
+bool LoadDeterministicBandsBaseLogicHandle(const ENUM_TIMEFRAMES timeframe,
+                                           IndicatorsHandleInfo &handle_info,
+                                           const bool required = true)
 {
   handle_info = IndicatorsHandleInfo();
   handle_info.indicator_period        = DETERMINISTIC_MA_PERIOD;
-  handle_info.indicator_shift         = ma_shift;
+  handle_info.indicator_shift         = 0;
   handle_info.indicator_ma_method     = MODE_SMA;
   handle_info.indicator_applied_price = PRICE_CLOSE;
   handle_info.indicator_timeframe     = timeframe;
-  handle_info.indicator_handle        = iMA(_Symbol,
-                                            timeframe,
-                                            DETERMINISTIC_MA_PERIOD,
-                                            ma_shift,
-                                            MODE_SMA,
-                                            PRICE_CLOSE);
+  handle_info.indicator_handle        = iBands(_Symbol,
+                                               timeframe,
+                                               DETERMINISTIC_MA_PERIOD,
+                                               0,
+                                               DETERMINISTIC_B_PERCENT_DEVIATION,
+                                               PRICE_CLOSE);
 
   if(handle_info.indicator_handle == INVALID_HANDLE)
   {
-    PrintFormat("ERROR LOADING DETERMINISTIC MA: tf=%s | period=%d | shift=%d",
+    PrintFormat("ERROR LOADING DETERMINISTIC BANDS BASE: tf=%s | period=%d",
                 EnumToString(timeframe),
-                DETERMINISTIC_MA_PERIOD,
-                ma_shift);
+                DETERMINISTIC_MA_PERIOD);
     if(required)
       TesterStop();
     return false;
@@ -172,13 +194,15 @@ bool LoadDeterministicMaHandle(const ENUM_TIMEFRAMES timeframe,
   return true;
 }
 
-void AddDeterministicMaHandle(IndicatorsHandleInfo &handles[],
-                              const ENUM_TIMEFRAMES timeframe,
-                              const int ma_shift,
-                              const bool required = true)
+void AddDeterministicBandsBaseLogicHandle(IndicatorsHandleInfo &handles[],
+                                          const ENUM_TIMEFRAMES timeframe,
+                                          const bool required = true)
 {
+  if(DeterministicHandleExists(handles, timeframe, 0))
+    return;
+
   IndicatorsHandleInfo handle_info;
-  if(!LoadDeterministicMaHandle(timeframe, ma_shift, handle_info, required))
+  if(!LoadDeterministicBandsBaseLogicHandle(timeframe, handle_info, required))
     return;
 
   AddElementToArray(handles, handle_info);
@@ -229,6 +253,9 @@ void AddDeterministicBPercentHandle(IndicatorsHandleInfo &handles[],
                                     const int candle_shift,
                                     const bool required = false)
 {
+  if(DeterministicHandleExists(handles, timeframe, candle_shift))
+    return;
+
   IndicatorsHandleInfo handle_info;
   if(!LoadDeterministicBPercentHandle(timeframe, candle_shift, handle_info, required))
     return;
@@ -290,19 +317,30 @@ void SetTesterIndicatorHideMode(const bool hide)
   TesterHideIndicators(hide);
 }
 
-void LoadDeterministicMaLogicIndicators()
+void LoadDeterministicBandsLogicIndicators()
 {
-  ArrayResize(ExtDeterministicMaLogicHandles, 0);
+  ArrayResize(ExtDeterministicBandsLogicHandles, 0);
   SetTesterIndicatorHideMode(true);
-  AddDeterministicMaHandle(ExtDeterministicMaLogicHandles, PERIOD_M1, 0);
-  AddDeterministicMaHandle(ExtDeterministicMaLogicHandles, PERIOD_M3, 0);
-  AddDeterministicMaHandle(ExtDeterministicMaLogicHandles, PERIOD_M5, 0);
-  AddDeterministicMaHandle(ExtDeterministicMaLogicHandles, PERIOD_M10, 0);
+
+  for(int strategy_index = 0; strategy_index < DETERMINISTIC_STRATEGY_TOTAL; strategy_index++)
+  {
+    int strategy_id = DETERMINISTIC_STRATEGY_NONE;
+    if(!DeterministicStrategyIdByIndex(strategy_index, strategy_id))
+      continue;
+    if(!DeterministicStrategyEnabled(strategy_id))
+      continue;
+
+    AddDeterministicBandsBaseLogicHandle(ExtDeterministicBandsLogicHandles,
+                                         DETERMINISTIC_BASE_TIMEFRAME);
+    AddDeterministicBandsBaseLogicHandle(ExtDeterministicBandsLogicHandles,
+                                         DeterministicStrategyMacroTimeframe(strategy_id));
+  }
+
   if(Enable_Signal_Feature_Export)
   {
-    AddDeterministicMaHandle(ExtDeterministicMaLogicHandles, PERIOD_H1, 0);
-    AddDeterministicMaHandle(ExtDeterministicMaLogicHandles, PERIOD_H4, 0);
-    AddDeterministicMaHandle(ExtDeterministicMaLogicHandles, PERIOD_D1, 0);
+    AddDeterministicBandsBaseLogicHandle(ExtDeterministicBandsLogicHandles, PERIOD_H1);
+    AddDeterministicBandsBaseLogicHandle(ExtDeterministicBandsLogicHandles, PERIOD_H4);
+    AddDeterministicBandsBaseLogicHandle(ExtDeterministicBandsLogicHandles, PERIOD_D1);
   }
   SetTesterIndicatorHideMode(false);
 }
@@ -315,30 +353,23 @@ void LoadDeterministicBPercentLogicIndicators()
 
   bool required = (Enable_Signal_Feature_Export && MQLInfoInteger(MQL_TESTER) > 0);
   SetTesterIndicatorHideMode(true);
-  AddDeterministicBPercentHandle(ExtDeterministicBPercentLogicHandles,
-                                 PERIOD_M1,
-                                 DETERMINISTIC_S1_BASE_DELAY,
-                                 required);
-  AddDeterministicBPercentHandle(ExtDeterministicBPercentLogicHandles,
-                                 PERIOD_M1,
-                                 DETERMINISTIC_S2_BASE_DELAY,
-                                 required);
-  AddDeterministicBPercentHandle(ExtDeterministicBPercentLogicHandles,
-                                 PERIOD_M1,
-                                 DETERMINISTIC_S3_BASE_DELAY,
-                                 required);
-  AddDeterministicBPercentHandle(ExtDeterministicBPercentLogicHandles,
-                                 PERIOD_M3,
-                                 DETERMINISTIC_MACRO_DELAY,
-                                 required);
-  AddDeterministicBPercentHandle(ExtDeterministicBPercentLogicHandles,
-                                 PERIOD_M5,
-                                 DETERMINISTIC_MACRO_DELAY,
-                                 required);
-  AddDeterministicBPercentHandle(ExtDeterministicBPercentLogicHandles,
-                                 PERIOD_M10,
-                                 DETERMINISTIC_MACRO_DELAY,
-                                 required);
+  for(int strategy_index = 0; strategy_index < DETERMINISTIC_STRATEGY_TOTAL; strategy_index++)
+  {
+    int strategy_id = DETERMINISTIC_STRATEGY_NONE;
+    if(!DeterministicStrategyIdByIndex(strategy_index, strategy_id))
+      continue;
+    if(!DeterministicStrategyEnabled(strategy_id))
+      continue;
+
+    AddDeterministicBPercentHandle(ExtDeterministicBPercentLogicHandles,
+                                   DETERMINISTIC_BASE_TIMEFRAME,
+                                   DeterministicStrategyBaseDelay(strategy_id),
+                                   required);
+    AddDeterministicBPercentHandle(ExtDeterministicBPercentLogicHandles,
+                                   DeterministicStrategyMacroTimeframe(strategy_id),
+                                   DETERMINISTIC_MACRO_DELAY,
+                                   required);
+  }
   SetTesterIndicatorHideMode(false);
 }
 
@@ -379,10 +410,11 @@ bool ChartMatchesIndicatorContext(const long chart_id,
   return (chart_symbol == _Symbol && chart_timeframe == timeframe);
 }
 
-bool AddIndicatorToChart(const long chart_id,
-                         const int indicator_handle,
-                         const ENUM_TIMEFRAMES timeframe,
-                         const string context_label)
+bool AddIndicatorToChartWindow(const long chart_id,
+                               const int sub_window,
+                               const int indicator_handle,
+                               const ENUM_TIMEFRAMES timeframe,
+                               const string context_label)
 {
   if(indicator_handle == INVALID_HANDLE)
     return false;
@@ -401,14 +433,15 @@ bool AddIndicatorToChart(const long chart_id,
   }
 
   ResetLastError();
-  if(!ChartIndicatorAdd(chart_id, 0, indicator_handle))
+  if(!ChartIndicatorAdd(chart_id, sub_window, indicator_handle))
   {
     if(Enable_Logs)
     {
-      PrintFormat("ChartIndicatorAdd failed | context=%s | chart=%I64d | tf=%s | err=%d",
+      PrintFormat("ChartIndicatorAdd failed | context=%s | chart=%I64d | tf=%s | window=%d | err=%d",
                   context_label,
                   chart_id,
                   EnumToString(timeframe),
+                  sub_window,
                   GetLastError());
     }
     return false;
@@ -416,6 +449,34 @@ bool AddIndicatorToChart(const long chart_id,
 
   ChartRedraw(chart_id);
   return true;
+}
+
+bool AddIndicatorToMainChart(const long chart_id,
+                             const int indicator_handle,
+                             const ENUM_TIMEFRAMES timeframe,
+                             const string context_label)
+{
+  return AddIndicatorToChartWindow(chart_id,
+                                   0,
+                                   indicator_handle,
+                                   timeframe,
+                                   context_label);
+}
+
+bool AddIndicatorToNewSubwindow(const long chart_id,
+                                const int indicator_handle,
+                                const ENUM_TIMEFRAMES timeframe,
+                                const string context_label)
+{
+  int sub_window = (int)ChartGetInteger(chart_id, CHART_WINDOWS_TOTAL);
+  if(sub_window < 1)
+    sub_window = 1;
+
+  return AddIndicatorToChartWindow(chart_id,
+                                   sub_window,
+                                   indicator_handle,
+                                   timeframe,
+                                   context_label);
 }
 
 bool DeleteIndicatorFromChartByHandle(const long chart_id,
@@ -477,23 +538,36 @@ void LoadDeterministicBaseVisualIndicators()
     if(!DeterministicStrategyEnabled(strategy_id))
       continue;
 
-    AddDeterministicBandsVisualHandle(ExtDeterministicMaVisualHandles,
+    AddDeterministicBandsVisualHandle(ExtDeterministicBandsVisualHandles,
                                       DETERMINISTIC_BASE_TIMEFRAME,
                                       DeterministicStrategyBaseDelay(strategy_id));
+    AddDeterministicBPercentHandle(ExtDeterministicBPercentVisualHandles,
+                                   DETERMINISTIC_BASE_TIMEFRAME,
+                                   DeterministicStrategyBaseDelay(strategy_id));
   }
 }
 
 void AddDeterministicBaseVisualIndicatorsToChart()
 {
   long chart_id = ChartID();
-  int total = ArraySize(ExtDeterministicMaVisualHandles);
+  int total = ArraySize(ExtDeterministicBandsVisualHandles);
   for(int i = 0; i < total; i++)
   {
-    string context_label = "Base iBands shift " + IntegerToString(ExtDeterministicMaVisualHandles[i].indicator_shift);
-    AddIndicatorToChart(chart_id,
-                        ExtDeterministicMaVisualHandles[i].indicator_handle,
-                        DETERMINISTIC_BASE_TIMEFRAME,
-                        context_label);
+    string context_label = "Base iBands shift " + IntegerToString(ExtDeterministicBandsVisualHandles[i].indicator_shift);
+    AddIndicatorToMainChart(chart_id,
+                            ExtDeterministicBandsVisualHandles[i].indicator_handle,
+                            DETERMINISTIC_BASE_TIMEFRAME,
+                            context_label);
+  }
+
+  total = ArraySize(ExtDeterministicBPercentVisualHandles);
+  for(int j = 0; j < total; j++)
+  {
+    string context_label = "Base BB Percent shift " + IntegerToString(ExtDeterministicBPercentVisualHandles[j].indicator_shift);
+    AddIndicatorToNewSubwindow(chart_id,
+                               ExtDeterministicBPercentVisualHandles[j].indicator_handle,
+                               DETERMINISTIC_BASE_TIMEFRAME,
+                               context_label);
   }
 }
 
@@ -503,11 +577,20 @@ void LoadDeterministicMacroVisualChart(const int strategy_id)
   if(macro_timeframe == PERIOD_CURRENT)
     return;
 
-  IndicatorsHandleInfo handle_info;
+  IndicatorsHandleInfo bands_handle_info;
   if(!LoadDeterministicBandsVisualHandle(macro_timeframe,
                                          DETERMINISTIC_MACRO_DELAY,
-                                         handle_info))
+                                         bands_handle_info))
     return;
+
+  IndicatorsHandleInfo b_percent_handle_info;
+  if(!LoadDeterministicBPercentHandle(macro_timeframe,
+                                      DETERMINISTIC_MACRO_DELAY,
+                                      b_percent_handle_info))
+  {
+    IndicatorRelease(bands_handle_info.indicator_handle);
+    return;
+  }
 
   long previous_chart_ids[];
   CollectOpenChartIds(previous_chart_ids);
@@ -523,28 +606,40 @@ void LoadDeterministicMacroVisualChart(const int strategy_id)
                   EnumToString(macro_timeframe),
                   GetLastError());
     }
-    IndicatorRelease(handle_info.indicator_handle);
+    IndicatorRelease(bands_handle_info.indicator_handle);
+    IndicatorRelease(b_percent_handle_info.indicator_handle);
     return;
   }
 
   DeterministicMacroVisualChartState state;
-  state.strategy_id      = strategy_id;
-  state.timeframe        = macro_timeframe;
-  state.chart_id         = chart_id;
-  state.indicator_handle = handle_info.indicator_handle;
-  state.chart_owned      = !ChartIdWasOpenBefore(previous_chart_ids, chart_id);
-  state.indicator_added  = false;
+  state.strategy_id                = strategy_id;
+  state.timeframe                  = macro_timeframe;
+  state.chart_id                   = chart_id;
+  state.bands_indicator_handle     = bands_handle_info.indicator_handle;
+  state.b_percent_indicator_handle = b_percent_handle_info.indicator_handle;
+  state.chart_owned                = !ChartIdWasOpenBefore(previous_chart_ids, chart_id);
+  state.bands_indicator_added      = false;
+  state.b_percent_indicator_added  = false;
 
   int state_index = ArraySize(ExtDeterministicMacroVisualCharts);
   AddElementToArray(ExtDeterministicMacroVisualCharts, state);
 
   string context_label = "Macro iBands " + DeterministicStrategyLabel(strategy_id);
-  if(AddIndicatorToChart(chart_id,
-                         handle_info.indicator_handle,
-                         macro_timeframe,
-                         context_label))
+  if(AddIndicatorToMainChart(chart_id,
+                             bands_handle_info.indicator_handle,
+                             macro_timeframe,
+                             context_label))
   {
-    ExtDeterministicMacroVisualCharts[state_index].indicator_added = true;
+    ExtDeterministicMacroVisualCharts[state_index].bands_indicator_added = true;
+  }
+
+  context_label = "Macro BB Percent " + DeterministicStrategyLabel(strategy_id);
+  if(AddIndicatorToNewSubwindow(chart_id,
+                                b_percent_handle_info.indicator_handle,
+                                macro_timeframe,
+                                context_label))
+  {
+    ExtDeterministicMacroVisualCharts[state_index].b_percent_indicator_added = true;
   }
 }
 
@@ -562,9 +657,10 @@ void LoadDeterministicMacroVisualCharts()
   }
 }
 
-void LoadDeterministicMaVisualIndicators()
+void LoadDeterministicBandsVisualIndicators()
 {
-  ArrayResize(ExtDeterministicMaVisualHandles, 0);
+  ArrayResize(ExtDeterministicBandsVisualHandles, 0);
+  ArrayResize(ExtDeterministicBPercentVisualHandles, 0);
   ArrayResize(ExtDeterministicMacroVisualCharts, 0);
 
   if(!Enable_Show_Indicators)
@@ -599,35 +695,59 @@ void ReleaseIndicatorHandleArray(IndicatorsHandleInfo &handles[])
 void ReleaseDeterministicBaseVisualIndicators()
 {
   long chart_id = ChartID();
-  int total = ArraySize(ExtDeterministicMaVisualHandles);
+  int total = ArraySize(ExtDeterministicBandsVisualHandles);
   for(int i = 0; i < total; i++)
   {
-    string context_label = "Base iBands shift " + IntegerToString(ExtDeterministicMaVisualHandles[i].indicator_shift);
+    string context_label = "Base iBands shift " + IntegerToString(ExtDeterministicBandsVisualHandles[i].indicator_shift);
     DeleteIndicatorFromChartByHandle(chart_id,
-                                     ExtDeterministicMaVisualHandles[i].indicator_handle,
+                                     ExtDeterministicBandsVisualHandles[i].indicator_handle,
                                      context_label);
   }
 
-  ReleaseIndicatorHandleArray(ExtDeterministicMaVisualHandles);
+  total = ArraySize(ExtDeterministicBPercentVisualHandles);
+  for(int j = 0; j < total; j++)
+  {
+    string context_label = "Base BB Percent shift " + IntegerToString(ExtDeterministicBPercentVisualHandles[j].indicator_shift);
+    DeleteIndicatorFromChartByHandle(chart_id,
+                                     ExtDeterministicBPercentVisualHandles[j].indicator_handle,
+                                     context_label);
+  }
+
+  ReleaseIndicatorHandleArray(ExtDeterministicBandsVisualHandles);
+  ReleaseIndicatorHandleArray(ExtDeterministicBPercentVisualHandles);
 }
 
-void ReleaseAllDeterministicMaIndicators()
+void ReleaseAllDeterministicBandsIndicators()
 {
   int macro_total = ArraySize(ExtDeterministicMacroVisualCharts);
   for(int i = 0; i < macro_total; i++)
   {
     string context_label = "Macro iBands " + DeterministicStrategyLabel(ExtDeterministicMacroVisualCharts[i].strategy_id);
-    if(ExtDeterministicMacroVisualCharts[i].indicator_added)
+    if(ExtDeterministicMacroVisualCharts[i].bands_indicator_added)
     {
       DeleteIndicatorFromChartByHandle(ExtDeterministicMacroVisualCharts[i].chart_id,
-                                       ExtDeterministicMacroVisualCharts[i].indicator_handle,
+                                       ExtDeterministicMacroVisualCharts[i].bands_indicator_handle,
                                        context_label);
     }
 
-    if(ExtDeterministicMacroVisualCharts[i].indicator_handle != INVALID_HANDLE)
+    context_label = "Macro BB Percent " + DeterministicStrategyLabel(ExtDeterministicMacroVisualCharts[i].strategy_id);
+    if(ExtDeterministicMacroVisualCharts[i].b_percent_indicator_added)
     {
-      IndicatorRelease(ExtDeterministicMacroVisualCharts[i].indicator_handle);
-      ExtDeterministicMacroVisualCharts[i].indicator_handle = INVALID_HANDLE;
+      DeleteIndicatorFromChartByHandle(ExtDeterministicMacroVisualCharts[i].chart_id,
+                                       ExtDeterministicMacroVisualCharts[i].b_percent_indicator_handle,
+                                       context_label);
+    }
+
+    if(ExtDeterministicMacroVisualCharts[i].bands_indicator_handle != INVALID_HANDLE)
+    {
+      IndicatorRelease(ExtDeterministicMacroVisualCharts[i].bands_indicator_handle);
+      ExtDeterministicMacroVisualCharts[i].bands_indicator_handle = INVALID_HANDLE;
+    }
+
+    if(ExtDeterministicMacroVisualCharts[i].b_percent_indicator_handle != INVALID_HANDLE)
+    {
+      IndicatorRelease(ExtDeterministicMacroVisualCharts[i].b_percent_indicator_handle);
+      ExtDeterministicMacroVisualCharts[i].b_percent_indicator_handle = INVALID_HANDLE;
     }
 
     if(ExtDeterministicMacroVisualCharts[i].chart_owned &&
@@ -643,13 +763,14 @@ void ReleaseAllDeterministicMaIndicators()
       }
     }
 
-    ExtDeterministicMacroVisualCharts[i].chart_id        = 0;
-    ExtDeterministicMacroVisualCharts[i].chart_owned     = false;
-    ExtDeterministicMacroVisualCharts[i].indicator_added = false;
+    ExtDeterministicMacroVisualCharts[i].chart_id                  = 0;
+    ExtDeterministicMacroVisualCharts[i].chart_owned               = false;
+    ExtDeterministicMacroVisualCharts[i].bands_indicator_added     = false;
+    ExtDeterministicMacroVisualCharts[i].b_percent_indicator_added = false;
   }
 
   ArrayResize(ExtDeterministicMacroVisualCharts, 0);
-  ReleaseIndicatorHandleArray(ExtDeterministicMaLogicHandles);
+  ReleaseIndicatorHandleArray(ExtDeterministicBandsLogicHandles);
   ReleaseIndicatorHandleArray(ExtDeterministicBPercentLogicHandles);
   ReleaseDeterministicBaseVisualIndicators();
 }
@@ -661,11 +782,11 @@ void LoadAllIndicatorDefinitions()
                                "23.6,38.2,50.0,61.8,78.6,100.0");
 
   ReleaseAllStructStochIndicators();
-  ReleaseAllDeterministicMaIndicators();
+  ReleaseAllDeterministicBandsIndicators();
   LoadAllStructStochIndicators();
-  LoadDeterministicMaLogicIndicators();
+  LoadDeterministicBandsLogicIndicators();
   LoadDeterministicBPercentLogicIndicators();
-  LoadDeterministicMaVisualIndicators();
+  LoadDeterministicBandsVisualIndicators();
 
   if(Enable_Logs)
   {
@@ -681,7 +802,7 @@ void LoadAllIndicatorDefinitions()
 void ReleaseAllIndicatorDefinitions()
 {
   ReleaseAllStructStochIndicators();
-  ReleaseAllDeterministicMaIndicators();
+  ReleaseAllDeterministicBandsIndicators();
   ArrayResize(Strategy_TF_List, 0);
   total_tf_list_load = 0;
 }

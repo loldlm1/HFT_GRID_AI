@@ -776,10 +776,10 @@ bool EvaluateDeterministicBaseSetup(const int strategy_id,
     return false;
 
   int ma_shift = extremum_shift + base_delay;
-  if(!CopyDeterministicMaSlopeValues(DETERMINISTIC_BASE_TIMEFRAME,
-                                     ma_shift,
-                                     ma_now_out,
-                                     ma_prev_out))
+  if(!CopyDeterministicBandsBaseSlopeValues(DETERMINISTIC_BASE_TIMEFRAME,
+                                            ma_shift,
+                                            ma_now_out,
+                                            ma_prev_out))
     return false;
 
   if(direction == BULLISH)
@@ -803,10 +803,10 @@ bool EvaluateDeterministicCurrentBaseConfirmation(const int strategy_id,
   if(base_delay <= 0)
     return false;
 
-  if(!CopyDeterministicMaSlopeValues(DETERMINISTIC_BASE_TIMEFRAME,
-                                     base_delay,
-                                     ma_now_out,
-                                     ma_prev_out))
+  if(!CopyDeterministicBandsBaseSlopeValues(DETERMINISTIC_BASE_TIMEFRAME,
+                                            base_delay,
+                                            ma_now_out,
+                                            ma_prev_out))
     return false;
 
   if(direction == BULLISH)
@@ -830,10 +830,10 @@ bool EvaluateDeterministicMacroConfirmation(const int strategy_id,
   if(macro_tf == PERIOD_CURRENT)
     return false;
 
-  if(!CopyDeterministicMaSlopeValues(macro_tf,
-                                     DETERMINISTIC_MACRO_DELAY,
-                                     ma_now_out,
-                                     ma_prev_out))
+  if(!CopyDeterministicBandsBaseSlopeValues(macro_tf,
+                                            DETERMINISTIC_MACRO_DELAY,
+                                            ma_now_out,
+                                            ma_prev_out))
     return false;
 
   if(direction == BULLISH)

@@ -938,7 +938,7 @@ int DeterministicSignalStatsMacroDir(const ENUM_TIMEFRAMES timeframe)
 {
   double ma_now = 0.0;
   double ma_prev = 0.0;
-  if(!CopyDeterministicMaSlopeValues(timeframe, 0, ma_now, ma_prev))
+  if(!CopyDeterministicBandsBaseSlopeValues(timeframe, 0, ma_now, ma_prev))
     return 0;
 
   double eps = 0.0000000001;

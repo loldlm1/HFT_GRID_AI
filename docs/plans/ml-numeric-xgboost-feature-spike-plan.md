@@ -456,6 +456,93 @@ Execution must complete and validate this sprint before moving to Sprint 6.
 - **Validation**:
   - Manual gate review.
 
+## Sprint 5A: Pre-Run Indicator Cleanup
+
+**Goal**: Remove redundant deterministic `iMA` logic handles before the long
+Strategy Tester export and add visual `%B` QA for the active strategy base and
+macro clocks.
+**Commit**: `refactor: align deterministic bands indicators`
+**Demo/Validation**:
+
+- MetaEditor compile passes with no errors or warnings.
+- A short visual Strategy Tester run for one active strategy shows:
+  - delayed `iBands` on M1
+  - delayed `iBands` on the strategy macro chart
+  - `BB_Percent_Standard` on M1 in a separate window
+  - `BB_Percent_Standard` on the macro chart in a separate window
+- Visual-enabled and visual-disabled short runs produce matching feature row
+  counts and candidate counts.
+- Broker/risk/order lifecycle behavior remains unchanged.
+
+This sprint is a pre-run cleanup and must not promote any runtime model.
+
+### Task 5A.1: Replace Logic `iMA` Handles With Bands Base-Line
+
+- **Location**:
+  - `services/trading_management/indicator_definitions_loader.mqh`
+  - `services/trading_signals/market_signal_indicators.mqh`
+  - `services/trading_signals/market_signal_filters.mqh`
+- **Description**: Replace deterministic logic `iMA` handles with `iBands`
+  handles using `bands_shift=0` and read buffer `0` (`BASE_LINE`) as the SMA
+  source.
+- **Dependencies**: Sprint 5 tooling.
+- **Acceptance Criteria**:
+  - No `LoadDeterministicMaLogicIndicators()` path remains active.
+  - Base and macro confirmation still read the same logical shifts as before.
+  - Only active strategy base/macro timeframes are loaded, plus explicitly
+    required export diagnostics.
+- **Validation**:
+  - MetaEditor compile.
+  - Short Strategy Tester parity run.
+
+### Task 5A.2: Scope `%B` Logic Handles To Active Strategies
+
+- **Location**:
+  - `services/trading_management/indicator_definitions_loader.mqh`
+- **Description**: Load `BB_Percent_Standard` logic handles only for enabled
+  strategy base delays and macro timeframes when feature export or ML inference
+  requires them.
+- **Dependencies**: Task 5A.1.
+- **Acceptance Criteria**:
+  - S1 loads M1 shift `3` and M3 shift `1`.
+  - S2 loads M1 shift `5` and M5 shift `1`.
+  - S3 loads M1 shift `10` and M10 shift `1`.
+  - Duplicate handles are avoided when strategies share a timeframe/shift.
+- **Validation**:
+  - MetaEditor compile.
+  - Short schema v5 export smoke.
+
+### Task 5A.3: Add Visual `%B` QA Handles
+
+- **Location**:
+  - `services/trading_management/indicator_definitions_loader.mqh`
+- **Description**: Add visual-only `BB_Percent_Standard` handles for the active
+  strategy base and macro contexts and attach them to chart subwindows.
+- **Dependencies**: Task 5A.2.
+- **Acceptance Criteria**:
+  - Visual `%B` handles are not hidden with `TesterHideIndicators`.
+  - Base `%B` attaches to the current M1 chart in a separate window.
+  - Macro `%B` attaches to the opened macro chart in a separate window.
+  - Logic/data extraction handles remain separate from visual handles.
+  - Deinit removes visual indicators and releases all handles.
+- **Validation**:
+  - MetaEditor compile.
+  - Human visual Strategy Tester screenshot review.
+
+### Task 5A.4: Record Manual Run Gates
+
+- **Location**:
+  - `docs/research/ml-numeric-xgboost-feature-spike.md`
+- **Description**: Record the manual visual/parity checklist required before
+  the long XAUUSD 2025 export run and before Sprint 6 can resume.
+- **Dependencies**: Tasks 5A.1 through 5A.3.
+- **Acceptance Criteria**:
+  - Human-in-the-loop visual checks are listed by strategy.
+  - Visual-on/off row-count parity is required.
+  - Runtime FILTER, live deployment, and ONNX remain blocked.
+- **Validation**:
+  - Manual documentation review.
+
 ## Sprint 6: Runtime Artifact Gate
 
 **Goal**: Export only accepted numeric candidates to the existing TSV scorer

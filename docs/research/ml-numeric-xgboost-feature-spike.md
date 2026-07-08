@@ -200,6 +200,7 @@ For an accepted candidate:
 | 3. Visual Bands QA | Implementation complete | Visual `iBands` handles compile. Human Strategy Tester screenshot and visual/data row-count comparison remain pending. |
 | 4. Python Schema And Trainer | Complete | `py_compile`, schema v5 dataset fixture, and numeric XGBoost smoke training PASS. |
 | 5. Fresh Data And Robustness Gate | Tooling complete, data gate blocked | Segment diagnostics and research-only manifests validate on the schema v5 fixture. Full acceptance requires human Strategy Tester full-year exports. |
+| 5A. Pre-Run Indicator Cleanup | Complete, human visual gate pending | Deterministic `iMA` logic handles replaced by `iBands` base-line handles; visual `%B` handles added for base and macro QA. |
 | 6. Runtime Artifact Gate | Blocked | No accepted numeric candidate exists yet, so runtime export and SHADOW parity are not executed. |
 
 ## Sprint 2 Validation
@@ -359,3 +360,55 @@ Runtime export can resume only after Sprint 5 accepts an exact dataset/model
 candidate and records its threshold source. Until then, `ML_INFERENCE_FILTER`
 remains Strategy Tester-only, live deployment remains blocked, and ONNX remains
 deferred.
+
+## Sprint 5A Validation
+
+Implemented:
+
+- removed the active deterministic `iMA` logic load path
+- replaced deterministic base/macro confirmation reads with `iBands` buffer `0`
+  (`BASE_LINE`) using `bands_shift=0`
+- scoped deterministic bands logic handles to enabled strategy base/macro
+  contexts, plus H1/H4/D1 export diagnostics while feature export is active
+- scoped `BB_Percent_Standard` logic handles to enabled strategy base/macro
+  contexts when feature export or ML inference requires them
+- added visual-only `BB_Percent_Standard` handles for active strategy M1 and
+  macro contexts
+- attached visual `%B` handles to chart subwindows while keeping data/logic
+  handles hidden and separate
+- kept visual `iBands` handles for price-chart delayed band QA
+
+Validation:
+
+- `rg` check for active `iMA`, `LoadDeterministicMaLogicIndicators`,
+  `CopyDeterministicMaSlopeValues`, and `ExtDeterministicMaLogicHandles`: PASS,
+  no active matches
+- `python3 tools/mt5/compile_mt5.py --mt5-root /home/loldlm/mql5_projects/metatrader_5_market_data_framework --wine --timeout 120`:
+  PASS, `0 errors`, `0 warnings`
+
+Required human-in-the-loop checks before the long XAUUSD 2025 export:
+
+- run one active strategy at a time on M1 with `Enable_Show_Indicators=true`
+- S1 visual check:
+  - M1 chart shows delayed `iBands` shift `3`
+  - M1 chart has `BB_Percent_Standard` shift `3` in a separate window
+  - M3 chart shows delayed `iBands` shift `1`
+  - M3 chart has `BB_Percent_Standard` shift `1` in a separate window
+- S2 visual check:
+  - M1 chart shows delayed `iBands` shift `5`
+  - M1 chart has `BB_Percent_Standard` shift `5` in a separate window
+  - M5 chart shows delayed `iBands` shift `1`
+  - M5 chart has `BB_Percent_Standard` shift `1` in a separate window
+- S3 visual check:
+  - M1 chart shows delayed `iBands` shift `10`
+  - M1 chart has `BB_Percent_Standard` shift `10` in a separate window
+  - M10 chart shows delayed `iBands` shift `1`
+  - M10 chart has `BB_Percent_Standard` shift `1` in a separate window
+- run a short visual-on/off parity smoke for the same strategy and settings:
+  - feature row counts match
+  - candidate counts match
+  - no unexpected invalid `%B` feature rows
+- keep `ML_Inference_Mode = ML_INFERENCE_DISABLED` for the long export
+- keep pattern audit overlay and heavy logs disabled for bulk export
+- do not proceed to Sprint 6 until Sprint 5 full-year research accepts an exact
+  dataset/model/threshold candidate
