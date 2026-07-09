@@ -223,6 +223,12 @@ Blocked, filtered, or canceled candidates may appear in admissions, but they
 must not be interpreted as broker outcomes unless a matching broker-confirmed
 outcome row exists.
 
+For the `broker_1r` dataset target, schema v6 uses broker realized
+`net_profit` normalized by the broker-planned `expected_sl_loss` from
+`signal_admissions.tsv`. This keeps partial TP outcomes broker-first: a trade
+that hits TP1/TP2 and later closes the remaining volume at SL can still be a
+positive target when realized broker PnL is positive.
+
 Use
 `docs/research/broker-first-strategy-tester-verification-matrix-2026-07-09.md`
 for the human Strategy Tester checklist covering spread blocks, target-currency
@@ -242,7 +248,11 @@ build the local dataset with the v6 feature contract:
 ```
 
 The builder validates `signal_admissions.tsv` and fails instead of writing a
-training dataset when the run has zero joined feature/outcome rows.
+training dataset when the run has zero joined feature/outcome rows. Schema v6
+may report broker-entered feature rows without outcomes when a position is still
+open at Strategy Tester end; those rows remain in `features.parquet` but are
+excluded from the supervised training matrix unless a broker-close outcome
+exists.
 
 ## Schema V4 Semantic Pattern Contract
 

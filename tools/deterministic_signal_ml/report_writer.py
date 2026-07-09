@@ -60,8 +60,10 @@ def build_quality_payload(
         warnings.extend([f"{validation.run_id}: {warning}" for warning in validation.warnings])
     blocking_null_feature_rows = sum(int(row["null_rows"] or 0) for row in null_counts)
 
+    status = "OK" if blocking_null_feature_rows == 0 and not warnings else "OK_WITH_WARNINGS"
+
     return {
-        "status": "OK" if blocking_null_feature_rows == 0 else "OK_WITH_WARNINGS",
+        "status": status,
         "target_family": target_family,
         "warnings": warnings,
         "blocking_null_feature_rows": blocking_null_feature_rows,
@@ -97,6 +99,19 @@ SELECT
   SUM(CASE WHEN hit_3r_before_sl = 1 THEN 1 ELSE 0 END) AS hit_3r_rows,
   SUM(CASE WHEN path_status IN ('INVALID', 'RUN_ENDED') OR path_status IS NULL THEN 1 ELSE 0 END) AS invalid_path_rows
 FROM training_matrix
+""",
+        ),
+        "broker_risk_support": _fetch_dicts(
+            connection,
+            """
+SELECT
+  COUNT(*) AS rows,
+  SUM(CASE WHEN a.expected_sl_loss IS NOT NULL AND ABS(a.expected_sl_loss) > 0.0 THEN 1 ELSE 0 END) AS usable_sl_risk_rows,
+  MIN(a.expected_sl_loss) AS min_expected_sl_loss,
+  MAX(a.expected_sl_loss) AS max_expected_sl_loss,
+  AVG(a.expected_sl_loss) AS avg_expected_sl_loss
+FROM features f
+LEFT JOIN admission_risk a ON a.signal_id = f.signal_id
 """,
         ),
         "strategy_distribution": _fetch_dicts(
@@ -316,6 +331,19 @@ def write_dataset_report(
                 "hit_2r_rows",
                 "hit_3r_rows",
                 "invalid_path_rows",
+            ),
+        )
+    )
+    lines.extend(["", "## Broker Risk Support", ""])
+    lines.extend(
+        _markdown_table(
+            quality_payload["broker_risk_support"],
+            (
+                "rows",
+                "usable_sl_risk_rows",
+                "min_expected_sl_loss",
+                "max_expected_sl_loss",
+                "avg_expected_sl_loss",
             ),
         )
     )

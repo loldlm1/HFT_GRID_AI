@@ -14,7 +14,9 @@ from schema_contract import (
     FEATURE_SET_COLUMNS,
     OUTCOME_COLUMNS,
     OUTCOME_COLUMNS_WITH_PATH,
+    SCHEMA_V6_ADMISSION_COLUMNS,
     SCHEMA_V6_OUTCOME_COLUMNS_WITH_PATH,
+    SIGNAL_ADMISSIONS_FILE,
     SIGNAL_FEATURES_FILE,
     SIGNAL_OUTCOMES_FILE,
     SUPPORTED_SCHEMA_VERSION,
@@ -159,8 +161,36 @@ FROM {_read_tsv_sql(path, source_columns)}
 """
 
 
-def _path_target_sql(target_family: str) -> tuple[str, str, str, str]:
+def _insert_admissions_sql(path: Path) -> str:
+    return f"""
+INSERT INTO admissions
+SELECT
+  CAST(schema_version AS INTEGER) AS schema_version,
+  run_id,
+  config_id,
+  signal_id,
+  strptime(event_time, '{TIMESTAMP_FORMAT}') AS event_time,
+  event_type,
+  admission_status,
+  CAST(risk_target_amount AS DOUBLE) AS risk_target_amount,
+  CAST(expected_sl_loss AS DOUBLE) AS expected_sl_loss,
+  CAST(expected_tp_profit AS DOUBLE) AS expected_tp_profit,
+  CAST(normalized_lot AS DOUBLE) AS normalized_lot
+FROM {_read_tsv_sql(path, SCHEMA_V6_ADMISSION_COLUMNS)}
+"""
+
+
+def _path_target_sql(target_family: str, schema_version: int) -> tuple[str, str, str, str]:
     if target_family == BROKER_TARGET_FAMILY:
+        if schema_version >= 6:
+            realized_r = "o.net_profit / ABS(a.expected_sl_loss)"
+            return (
+                "CASE WHEN o.net_profit > 0 THEN 1 ELSE 0 END",
+                realized_r,
+                "CASE WHEN o.net_profit > 0 THEN 'BROKER_PROFIT' "
+                "WHEN o.net_profit < 0 THEN 'BROKER_LOSS' ELSE 'BROKER_FLAT' END",
+                "o.net_profit IS NOT NULL AND a.expected_sl_loss IS NOT NULL AND ABS(a.expected_sl_loss) > 0.0",
+            )
         return (
             "CASE WHEN o.profit_r > 0 THEN 1 ELSE 0 END",
             "o.profit_r",
@@ -209,7 +239,10 @@ def create_dataset_tables(
     schema_version: int,
     feature_columns: tuple[str, ...],
 ) -> dict[str, int]:
-    target_is_win_sql, target_profit_r_sql, target_reason_sql, target_valid_clause = _path_target_sql(target_family)
+    target_is_win_sql, target_profit_r_sql, target_reason_sql, target_valid_clause = _path_target_sql(
+        target_family,
+        schema_version,
+    )
     required_feature_clause = " AND\n  ".join(
         f"f.{column} IS NOT NULL" for column in feature_columns
     )
@@ -253,6 +286,23 @@ CREATE TABLE features (
     )
     connection.execute(
         """
+CREATE TABLE admissions (
+  schema_version INTEGER,
+  run_id VARCHAR,
+  config_id VARCHAR,
+  signal_id VARCHAR,
+  event_time TIMESTAMP,
+  event_type VARCHAR,
+  admission_status VARCHAR,
+  risk_target_amount DOUBLE,
+  expected_sl_loss DOUBLE,
+  expected_tp_profit DOUBLE,
+  normalized_lot DOUBLE
+)
+"""
+    )
+    connection.execute(
+        """
 CREATE TABLE outcomes (
   schema_version INTEGER,
   run_id VARCHAR,
@@ -287,7 +337,35 @@ CREATE TABLE outcomes (
 
     for validation in validations:
         connection.execute(_insert_features_sql(validation.run_path / SIGNAL_FEATURES_FILE, schema_version))
+        if schema_version >= 6:
+            connection.execute(_insert_admissions_sql(validation.run_path / SIGNAL_ADMISSIONS_FILE))
         connection.execute(_insert_outcomes_sql(validation.run_path / SIGNAL_OUTCOMES_FILE))
+
+    connection.execute(
+        """
+CREATE TABLE admission_risk AS
+SELECT
+  signal_id,
+  COALESCE(
+    MAX(CASE WHEN event_type = 'broker_entry' THEN risk_target_amount ELSE NULL END),
+    MAX(risk_target_amount)
+  ) AS risk_target_amount,
+  COALESCE(
+    MAX(CASE WHEN event_type = 'broker_entry' THEN expected_sl_loss ELSE NULL END),
+    MAX(expected_sl_loss)
+  ) AS expected_sl_loss,
+  COALESCE(
+    MAX(CASE WHEN event_type = 'broker_entry' THEN expected_tp_profit ELSE NULL END),
+    MAX(expected_tp_profit)
+  ) AS expected_tp_profit,
+  COALESCE(
+    MAX(CASE WHEN event_type = 'broker_entry' THEN normalized_lot ELSE NULL END),
+    MAX(normalized_lot)
+  ) AS normalized_lot
+FROM admissions
+GROUP BY signal_id
+"""
+    )
 
     connection.execute(
         f"""
@@ -351,6 +429,7 @@ SELECT
   {target_reason_sql} AS target_terminal_reason
 FROM features f
 INNER JOIN outcomes o ON o.signal_id = f.signal_id
+LEFT JOIN admission_risk a ON a.signal_id = f.signal_id
 WHERE
   {required_feature_clause}
   AND {target_valid_clause}
@@ -359,10 +438,12 @@ ORDER BY f.entry_time, f.signal_id
     )
 
     feature_count = connection.execute("SELECT COUNT(*) FROM features").fetchone()[0]
+    admission_risk_count = connection.execute("SELECT COUNT(*) FROM admission_risk").fetchone()[0]
     outcome_count = connection.execute("SELECT COUNT(*) FROM outcomes").fetchone()[0]
     matrix_count = connection.execute("SELECT COUNT(*) FROM training_matrix").fetchone()[0]
     return {
         "features": int(feature_count),
+        "admission_risk": int(admission_risk_count),
         "outcomes": int(outcome_count),
         "training_matrix": int(matrix_count),
     }
@@ -390,6 +471,7 @@ def write_parquet_outputs(
 ) -> dict[str, str]:
     output_files = {
         "features": str(output_dir / "features.parquet"),
+        "admission_risk": str(output_dir / "admission_risk.parquet"),
         "outcomes": str(output_dir / "outcomes.parquet"),
         "training_matrix": str(output_dir / "training_matrix.parquet"),
     }

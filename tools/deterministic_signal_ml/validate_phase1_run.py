@@ -117,6 +117,13 @@ def _count_duplicates(values: Iterable[str]) -> int:
     return duplicate_count
 
 
+def _admission_events_by_signal(rows: Iterable[dict[str, str]]) -> dict[str, set[str]]:
+    events_by_signal: dict[str, set[str]] = {}
+    for row in rows:
+        events_by_signal.setdefault(row["signal_id"], set()).add(row["event_type"])
+    return events_by_signal
+
+
 def _manifest_dict(rows: list[dict[str, str]]) -> dict[str, str]:
     result: dict[str, str] = {}
     for row in rows:
@@ -238,14 +245,41 @@ def validate_phase1_run(
     if duplicate_outcome_ids > 0:
         raise Phase1ValidationError(f"Duplicate outcome signal_id rows in {run_id}: {duplicate_outcome_ids}")
 
+    warnings: list[str] = []
     feature_id_set = set(feature_ids)
     outcome_id_set = set(outcome_ids)
-    missing_outcomes = len(feature_id_set - outcome_id_set)
-    missing_features = len(outcome_id_set - feature_id_set)
-    if missing_outcomes > 0 or missing_features > 0:
+    missing_outcome_ids = feature_id_set - outcome_id_set
+    missing_feature_ids = outcome_id_set - feature_id_set
+    missing_outcomes = len(missing_outcome_ids)
+    missing_features = len(missing_feature_ids)
+    if missing_features > 0:
         raise Phase1ValidationError(
             f"Join mismatch for {run_id}: features_without_outcome={missing_outcomes}, "
             f"outcomes_without_feature={missing_features}"
+        )
+    if missing_outcomes > 0:
+        if schema_version < 6:
+            raise Phase1ValidationError(
+                f"Join mismatch for {run_id}: features_without_outcome={missing_outcomes}, "
+                f"outcomes_without_feature={missing_features}"
+            )
+        admission_events = _admission_events_by_signal(admission_rows)
+        still_open_ids = [
+            signal_id
+            for signal_id in missing_outcome_ids
+            if "broker_entry" in admission_events.get(signal_id, set())
+            and "broker_close" not in admission_events.get(signal_id, set())
+        ]
+        closed_or_ambiguous = missing_outcomes - len(still_open_ids)
+        if closed_or_ambiguous > 0:
+            raise Phase1ValidationError(
+                f"Join mismatch for {run_id}: features_without_outcome={missing_outcomes}, "
+                f"outcomes_without_feature={missing_features}, "
+                f"features_without_outcome_with_close_or_missing_entry={closed_or_ambiguous}"
+            )
+        warnings.append(
+            f"{missing_outcomes} broker-entered feature rows have no broker-close/outcome and "
+            "will be excluded from supervised training"
         )
 
     tp_non_positive_net_profit_rows = 0
@@ -265,7 +299,6 @@ def validate_phase1_run(
             if net_profit >= 0.0:
                 sl_non_negative_net_profit_rows += 1
 
-    warnings: list[str] = []
     feature_invalid_rows = _required_int(summary["feature_invalid_rows"], "feature_invalid_rows", RUN_SUMMARY_FILE)
     outcome_invalid_rows = _required_int(summary["outcome_invalid_rows"], "outcome_invalid_rows", RUN_SUMMARY_FILE)
     if feature_invalid_rows > 0:
@@ -278,7 +311,8 @@ def validate_phase1_run(
         )
     if sl_non_negative_net_profit_rows > 0:
         warnings.append(
-            f"{sl_non_negative_net_profit_rows} SL outcome rows have non-negative net_profit but negative profit_r"
+            f"{sl_non_negative_net_profit_rows} SL terminal rows have non-negative broker net_profit; "
+            "schema v6 broker_1r targets use net_profit-normalized R"
         )
 
     path_label_columns_present = "path_status" in _tsv_header(run_path / SIGNAL_OUTCOMES_FILE)
