@@ -210,7 +210,7 @@ void OnTick()
   g_ea_running                            = true;
   static datetime next_bar_open           = 0;
   static datetime next_minute_bar_open    = 0;
-  static bool     runtime_blocked_last_tick = false;
+  static bool     admission_blocked_last_tick = false;
   datetime        current_time            = TimeCurrent();
   datetime        current_daily_time      = iTime(_Symbol, PERIOD_D1, 0);
   int             defined_tick_seconds    = PeriodSeconds(DETERMINISTIC_BASE_TIMEFRAME);
@@ -226,21 +226,9 @@ void OnTick()
     next_minute_bar_open+=defined_tick_M1_seconds;
   }
 
-  // AVOID TICK SEQUENCE WHEN CRAZY TICKS AND MARKET IS CLOSED
-  if(g_points_spread > Max_Spread || !IsMarketOpen())
-  {
-    g_ea_running = false;
-    if(!runtime_blocked_last_tick)
-      FrontendForceNextRefresh();
-    runtime_blocked_last_tick = true;
-    if(FrontendRefreshDue(current_time))
-      RefreshExecutionVisualization();
-    return;
-  }
-
-  if(runtime_blocked_last_tick)
+  bool admission_blocked = (g_points_spread > Max_Spread || !IsMarketOpen());
+  if(admission_blocked != admission_blocked_last_tick)
     FrontendForceNextRefresh();
-  runtime_blocked_last_tick = false;
 
   bool broker_disabled = (MarketStatusGet() == MARKET_STATUS_BROKER_DISABLED);
 
@@ -257,8 +245,8 @@ void OnTick()
   }
 
   // MANAGES THE BULLISH AND BEARISH SIGNALS
-  if(!broker_disabled)
-    Main_Tick();
+  Main_Tick();
+  admission_blocked_last_tick = admission_blocked;
   if(FrontendRefreshDue(current_time))
     RefreshExecutionVisualization();
 }

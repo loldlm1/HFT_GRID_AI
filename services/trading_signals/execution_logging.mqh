@@ -985,7 +985,7 @@ void ExecutionLogGuardrailBlock(const string label,
 {
   string direction = (signal_params.signal_type == BULLISH) ? "BULLISH" : "BEARISH";
   int display_level = ExecutionDisplayLegNumber(leg_state.level_index);
-  string message = StringFormat("strategy=%s|dir=%s|L%d|status=%s|sequence=%s|source_key=%s|source_attempt_index=%d|source_slot=%d|source_confirmed=%s|source_type=%s|source_time=%s|source_price=%.5f|raw_trigger=%.5f|raw_stop=%.5f|reason=%s",
+  string message = StringFormat("strategy=%s|dir=%s|L%d|status=%s|sequence=%s|source_key=%s|source_attempt_index=%d|source_slot=%d|source_confirmed=%s|source_type=%s|source_time=%s|source_price=%.5f|raw_trigger=%.5f|raw_stop=%.5f|admission=%s|admission_source=%s|admission_reason=%s|admission_spread=%.1f|max_spread=%.1f|market_status=%s|reason=%s",
                                 signal_params.strategy_label,
                                 direction,
                                 display_level,
@@ -1000,6 +1000,12 @@ void ExecutionLogGuardrailBlock(const string label,
                                 signal_params.source_extremum_price,
                                 signal_params.raw_entry_trigger_price,
                                 signal_params.raw_stop_anchor_price,
+                                EnumToString(signal_params.admission_status),
+                                signal_params.admission_block_source,
+                                signal_params.admission_block_reason,
+                                signal_params.admission_spread_points,
+                                signal_params.admission_max_spread,
+                                MarketStatusToString(signal_params.admission_market_status),
                                 reason);
 
   if(label == "LOCAL_EXECUTION_BLOCK")

@@ -241,6 +241,14 @@ bool PrepareExecutionLegTradeAdmission(SignalParams &signal_params,
                                            context_out.broker_snapshot,
                                            context_out.eligibility))
   {
+    signal_params.admission_status        = EXECUTION_ADMISSION_BLOCKED;
+    signal_params.admission_block_source  = context_out.eligibility.block_source;
+    signal_params.admission_block_reason  = context_out.eligibility.block_reason;
+    signal_params.admission_updated_time  = TimeCurrent();
+    signal_params.admission_spread_points = context_out.broker_snapshot.spread_points;
+    signal_params.admission_max_spread    = Max_Spread;
+    signal_params.admission_market_status = context_out.broker_snapshot.market_status;
+
     string block_reason = context_out.eligibility.block_source;
     if(context_out.eligibility.block_reason != "")
       block_reason = block_reason + ":" + context_out.eligibility.block_reason;
@@ -251,6 +259,13 @@ bool PrepareExecutionLegTradeAdmission(SignalParams &signal_params,
   }
 
   context_out.allowed = true;
+  signal_params.admission_status        = EXECUTION_ADMISSION_ALLOWED;
+  signal_params.admission_block_source  = "";
+  signal_params.admission_block_reason  = "";
+  signal_params.admission_updated_time  = TimeCurrent();
+  signal_params.admission_spread_points = context_out.broker_snapshot.spread_points;
+  signal_params.admission_max_spread    = Max_Spread;
+  signal_params.admission_market_status = context_out.broker_snapshot.market_status;
   return true;
 }
 
@@ -265,6 +280,8 @@ bool ApplyExecutionLegTradeAdmission(SignalParams &signal_params,
 
   if(!leg_state.opens_position)
   {
+    signal_params.admission_status = EXECUTION_ADMISSION_FILLED;
+    signal_params.admission_updated_time = TimeCurrent();
     double fill_price = ExecutionCurrentPriceForDirection(direction, true);
     if(fill_price <= 0.0)
       fill_price = leg_state.entry_reference_price;
@@ -281,6 +298,8 @@ bool ApplyExecutionLegTradeAdmission(SignalParams &signal_params,
   }
 
   double order_volume = context.broker_snapshot.normalized_volume;
+  signal_params.admission_status = EXECUTION_ADMISSION_SENT;
+  signal_params.admission_updated_time = TimeCurrent();
 
   bool sent = false;
   if(direction == BULLISH)
@@ -295,6 +314,10 @@ bool ApplyExecutionLegTradeAdmission(SignalParams &signal_params,
     string send_reason = StringFormat("retcode=%I64u|error=%d",
                                       retcode,
                                       last_error);
+    signal_params.admission_status       = EXECUTION_ADMISSION_SEND_FAILED;
+    signal_params.admission_block_source = "broker_send";
+    signal_params.admission_block_reason = send_reason;
+    signal_params.admission_updated_time = TimeCurrent();
     ExecutionLogGuardrailBlock("BROKER_SEND_FAILED", signal_params, leg_state, send_reason);
     if(Debug_Stop_On_Negative_Equity)
     {
@@ -317,6 +340,10 @@ bool ApplyExecutionLegTradeAdmission(SignalParams &signal_params,
   leg_state.last_action_time = TimeCurrent();
 
   signal_params.execution_legs[leg_state.level_index] = leg_state;
+  signal_params.admission_status = EXECUTION_ADMISSION_FILLED;
+  signal_params.admission_block_source = "";
+  signal_params.admission_block_reason = "";
+  signal_params.admission_updated_time = TimeCurrent();
   BrokerPositionSnapshot sent_snapshot;
   if(FindBrokerPositionForExecutionLeg(signal_params, leg_state, sent_snapshot))
   {

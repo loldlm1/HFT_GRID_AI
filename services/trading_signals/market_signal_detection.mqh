@@ -347,6 +347,8 @@ void TryCreateDeterministicSignal(const int strategy_id,
     return;
 
   signal.deterministic_source_key = BuildDeterministicSignalSourceKey(signal);
+  signal.admission_status = EXECUTION_ADMISSION_CANDIDATE;
+  signal.admission_updated_time = TimeCurrent();
   if(!DeterministicRawEntryGeometryValid(direction,
                                          signal.raw_entry_trigger_price,
                                          signal.raw_stop_anchor_price))

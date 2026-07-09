@@ -43,6 +43,7 @@ struct BrokerExecutionSnapshot
   datetime constraints_last_refresh;
 
   bool terminal_algo_allowed;
+  bool market_session_open;
   bool market_allows_signal;
   bool market_allows_broker_actions;
   bool protection_allows_signal;
@@ -77,6 +78,7 @@ struct BrokerExecutionSnapshot
     stops_level_points           = 0.0;
     constraints_last_refresh     = 0;
     terminal_algo_allowed        = false;
+    market_session_open          = false;
     market_allows_signal         = false;
     market_allows_broker_actions = false;
     protection_allows_signal     = false;
@@ -109,6 +111,7 @@ struct BrokerExecutionSnapshot
     stops_level_points           = other.stops_level_points;
     constraints_last_refresh     = other.constraints_last_refresh;
     terminal_algo_allowed        = other.terminal_algo_allowed;
+    market_session_open          = other.market_session_open;
     market_allows_signal         = other.market_allows_signal;
     market_allows_broker_actions = other.market_allows_broker_actions;
     protection_allows_signal     = other.protection_allows_signal;
@@ -266,6 +269,7 @@ bool CaptureBrokerExecutionSnapshot(const SignalTypes direction,
   }
 
   snapshot.terminal_algo_allowed        = TerminalAlgoTradingEnabled();
+  snapshot.market_session_open          = IsMarketOpen();
   snapshot.market_allows_signal         = MarketStatusAllowsSignalAttempts();
   snapshot.market_allows_broker_actions = MarketStatusAllowsBrokerActions();
   snapshot.protection_allows_signal     = ProtectionRiskAllowsSignalAttempt();
@@ -375,6 +379,14 @@ bool EvaluateLocalExecutionLegEligibility(const SignalParams &signal_params,
     BrokerExecutionBlock(eligibility,
                          "market_status",
                          MarketStatusToString(snapshot.market_status));
+    return false;
+  }
+
+  if(!snapshot.market_session_open)
+  {
+    BrokerExecutionBlock(eligibility,
+                         "market_session",
+                         "market_closed");
     return false;
   }
 
