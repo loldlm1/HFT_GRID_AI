@@ -760,6 +760,9 @@ bool DeterministicSignalStatsRecordAdmissionEvent(SignalParams &signal_params,
                      signal_params.admission_block_reason;
   if(signal_params.deterministic_stats_last_admission_key == event_key)
     return true;
+  string event_token = "\n" + event_key + "\n";
+  if(StringFind(signal_params.deterministic_stats_admission_seen_keys, event_token) >= 0)
+    return true;
 
   string signal_id = DeterministicSignalStatsEnsureSignalId(signal_params);
   if(signal_id == "")
@@ -814,6 +817,7 @@ bool DeterministicSignalStatsRecordAdmissionEvent(SignalParams &signal_params,
     return false;
 
   signal_params.deterministic_stats_last_admission_key = event_key;
+  signal_params.deterministic_stats_admission_seen_keys += event_token;
   g_deterministic_signal_stats_admission_rows++;
   return true;
 }

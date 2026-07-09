@@ -351,6 +351,21 @@ ENUM_ORDER_TYPE_FILLING BrokerExecutionResolveFillingMode()
   return ORDER_FILLING_RETURN;
 }
 
+bool BrokerExecutionOrderCheckRetcodeAllowed(const ulong retcode,
+                                             const string comment)
+{
+  if(retcode == TRADE_RETCODE_DONE ||
+     retcode == TRADE_RETCODE_PLACED)
+    return true;
+
+  if(MQLInfoInteger(MQL_TESTER) > 0 &&
+     retcode == 0 &&
+     comment == "")
+    return true;
+
+  return false;
+}
+
 bool BrokerExecutionRunOrderCheck(BrokerExecutionSnapshot &snapshot,
                                   BrokerExecutionEligibility &eligibility)
 {
@@ -393,8 +408,8 @@ bool BrokerExecutionRunOrderCheck(BrokerExecutionSnapshot &snapshot,
   snapshot.order_check_retcode = check.retcode;
   snapshot.order_check_comment = check.comment;
 
-  if(check.retcode != TRADE_RETCODE_DONE &&
-     check.retcode != TRADE_RETCODE_PLACED)
+  if(!BrokerExecutionOrderCheckRetcodeAllowed(check.retcode,
+                                              check.comment))
   {
     BrokerExecutionBlock(eligibility,
                          "order_check",
