@@ -543,20 +543,26 @@ void LoadDeterministicMacroVisualChart(const int strategy_id)
   if(macro_timeframe == PERIOD_CURRENT)
     return;
 
+  SetTesterIndicatorHideMode(true);
   IndicatorsHandleInfo bands_handle_info;
   if(!LoadDeterministicBandsVisualHandle(macro_timeframe,
                                          DETERMINISTIC_MACRO_DELAY,
                                          bands_handle_info))
+  {
+    SetTesterIndicatorHideMode(false);
     return;
+  }
 
   IndicatorsHandleInfo b_percent_handle_info;
   if(!LoadDeterministicBPercentHandle(macro_timeframe,
                                       DETERMINISTIC_MACRO_DELAY,
                                       b_percent_handle_info))
   {
+    SetTesterIndicatorHideMode(false);
     IndicatorRelease(bands_handle_info.indicator_handle);
     return;
   }
+  SetTesterIndicatorHideMode(false);
 
   long previous_chart_ids[];
   CollectOpenChartIds(previous_chart_ids);
@@ -632,7 +638,9 @@ void LoadDeterministicBandsVisualIndicators()
   if(!Enable_Show_Indicators)
     return;
 
+  SetTesterIndicatorHideMode(true);
   LoadDeterministicBaseVisualIndicators();
+  SetTesterIndicatorHideMode(false);
   AddDeterministicBaseVisualIndicatorsToChart();
   LoadDeterministicMacroVisualCharts();
 }
