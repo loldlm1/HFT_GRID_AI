@@ -223,6 +223,12 @@ Blocked, filtered, or canceled candidates may appear in admissions, but they
 must not be interpreted as broker outcomes unless a matching broker-confirmed
 outcome row exists.
 
+Use
+`docs/research/broker-first-strategy-tester-verification-matrix-2026-07-09.md`
+for the human Strategy Tester checklist covering spread blocks, target-currency
+risk caps, broker partial closes, forced closes, margin denials, and path-label
+interpretation.
+
 ## Schema V4 Semantic Pattern Contract
 
 Current Phase 3 follow-up work uses schema v4 semantic lanes. Do not reuse

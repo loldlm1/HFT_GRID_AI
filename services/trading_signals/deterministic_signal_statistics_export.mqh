@@ -754,6 +754,13 @@ bool DeterministicSignalStatsRecordAdmissionEvent(SignalParams &signal_params,
   if(!signal_params.deterministic_strategy)
     return false;
 
+  string event_key = event_type + "|" +
+                     EnumToString(signal_params.admission_status) + "|" +
+                     signal_params.admission_block_source + "|" +
+                     signal_params.admission_block_reason;
+  if(signal_params.deterministic_stats_last_admission_key == event_key)
+    return true;
+
   string signal_id = DeterministicSignalStatsEnsureSignalId(signal_params);
   if(signal_id == "")
     return false;
@@ -761,13 +768,6 @@ bool DeterministicSignalStatsRecordAdmissionEvent(SignalParams &signal_params,
   string source_key = signal_params.deterministic_source_key;
   if(source_key == "")
     source_key = BuildDeterministicSignalSourceKey(signal_params);
-
-  string event_key = event_type + "|" +
-                     EnumToString(signal_params.admission_status) + "|" +
-                     signal_params.admission_block_source + "|" +
-                     signal_params.admission_block_reason;
-  if(signal_params.deterministic_stats_last_admission_key == event_key)
-    return true;
 
   string row = IntegerToString(DETERMINISTIC_SIGNAL_STATS_SCHEMA_VERSION) + "\t" +
                DeterministicSignalStatsCell(g_deterministic_signal_stats_run_id) + "\t" +

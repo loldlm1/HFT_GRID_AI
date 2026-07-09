@@ -3,6 +3,7 @@
 Active research gate:
 
 - `docs/research/trade-execution-flow-audit-2026-07-09.md`
+- `docs/research/broker-first-strategy-tester-verification-matrix-2026-07-09.md`
 
 The latest ML robustness and numeric XGBoost research closeout is archived
 under:

@@ -293,13 +293,15 @@ bool ReconcileExecutionLegWithBrokerPosition(SignalParams &signal_params,
     return true;
 
   bool had_broker_ticket = (leg_state.position_ticket > 0);
+  bool entry_was_confirmed = signal_params.broker_entry_confirmed;
   BrokerPositionSnapshot snapshot;
   if(FindBrokerPositionForExecutionLeg(signal_params, leg_state, snapshot))
   {
     ApplyBrokerPositionSnapshotToExecutionLeg(leg_state, snapshot);
     signal_params.broker_entry_confirmed = true;
     signal_params.execution_legs[leg_index] = leg_state;
-    DeterministicSignalStatsRecordAdmissionEvent(signal_params, "broker_entry");
+    if(!entry_was_confirmed)
+      DeterministicSignalStatsRecordAdmissionEvent(signal_params, "broker_entry");
     return true;
   }
 
