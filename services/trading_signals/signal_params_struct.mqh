@@ -122,6 +122,7 @@ struct SignalParams
   bool                       deterministic_stats_feature_exported;
   bool                       deterministic_stats_outcome_exported;
   string                     deterministic_stats_terminal_reason;
+  string                     deterministic_stats_last_admission_key;
   ExecutionAdmissionStatuses admission_status;
   string                     admission_block_source;
   string                     admission_block_reason;
@@ -239,6 +240,7 @@ struct SignalParams
     deterministic_stats_feature_exported = false;
     deterministic_stats_outcome_exported = false;
     deterministic_stats_terminal_reason = "";
+    deterministic_stats_last_admission_key = "";
     admission_status          = EXECUTION_ADMISSION_NOT_EVALUATED;
     admission_block_source    = "";
     admission_block_reason    = "";
@@ -346,6 +348,7 @@ struct SignalParams
     deterministic_stats_feature_exported = signal_params.deterministic_stats_feature_exported;
     deterministic_stats_outcome_exported = signal_params.deterministic_stats_outcome_exported;
     deterministic_stats_terminal_reason = signal_params.deterministic_stats_terminal_reason;
+    deterministic_stats_last_admission_key = signal_params.deterministic_stats_last_admission_key;
     admission_status          = signal_params.admission_status;
     admission_block_source    = signal_params.admission_block_source;
     admission_block_reason    = signal_params.admission_block_reason;

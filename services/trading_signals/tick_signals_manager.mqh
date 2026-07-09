@@ -14,6 +14,7 @@ void RegisterClosedSignalOutcomeIfBrokerConfirmed(SignalParams &signal_params,
   if(!broker_outcome && signal_params.deterministic_strategy)
   {
     signal_params.raw_profit = 0.0;
+    DeterministicSignalStatsRecordAdmissionEvent(signal_params, "lifecycle_cancel");
     ExecutionLogDeterministicPendingCanceled(signal_params, "no_broker_outcome");
     return;
   }
@@ -28,6 +29,7 @@ void RegisterClosedSignalOutcomeIfBrokerConfirmed(SignalParams &signal_params,
 
   RegisterDailySignalOutcome(direction, signal_params.raw_profit);
   RegisterSignalLotSequenceOutcome(signal_params.raw_profit);
+  DeterministicSignalStatsRecordAdmissionEvent(signal_params, "broker_close");
   DeterministicSignalStatsRecordOutcome(signal_params);
   DeterministicSignalMLShadowRecordOutcome(signal_params);
 }

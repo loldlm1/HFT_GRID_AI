@@ -98,8 +98,13 @@ The run folder contains:
 
 - `run_manifest.tsv`: schema, run/config IDs, and non-sensitive strategy config.
 - `signal_features.tsv`: compact feature rows captured after real broker entry.
+- `signal_admissions.tsv`: candidate, broker-admission, broker-send, and lifecycle status events.
 - `signal_outcomes.tsv`: broker-confirmed terminal outcomes joined by `signal_id`.
 - `run_summary.tsv`: row counts, invalid-row counts, and final export status.
+
+Current schema v6 keeps candidate/admission events separate from outcomes.
+Outcome rows require broker-confirmed close evidence and include broker/partial
+TP fields plus path-label source columns for downstream validation.
 
 The export is passive. It does not train models, call Python, query PostgreSQL,
 run inference, change entries, change exits, or bypass broker/risk controls.

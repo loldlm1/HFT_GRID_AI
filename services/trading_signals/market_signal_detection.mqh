@@ -364,6 +364,8 @@ void TryCreateDeterministicSignal(const int strategy_id,
   if(RegisterDeterministicSourceAttempt(signal) <= 0)
     return;
 
+  DeterministicSignalStatsRecordAdmissionEvent(signal, "candidate");
+
   if(direction == BULLISH)
     AddElementToArray(running_bullish_signals, signal);
   else

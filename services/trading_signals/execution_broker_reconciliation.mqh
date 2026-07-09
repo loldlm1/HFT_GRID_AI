@@ -299,6 +299,7 @@ bool ReconcileExecutionLegWithBrokerPosition(SignalParams &signal_params,
     ApplyBrokerPositionSnapshotToExecutionLeg(leg_state, snapshot);
     signal_params.broker_entry_confirmed = true;
     signal_params.execution_legs[leg_index] = leg_state;
+    DeterministicSignalStatsRecordAdmissionEvent(signal_params, "broker_entry");
     return true;
   }
 

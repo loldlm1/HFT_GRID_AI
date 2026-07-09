@@ -422,6 +422,7 @@ bool PrepareExecutionLegTradeAdmission(SignalParams &signal_params,
     if(context_out.eligibility.block_reason != "")
       block_reason = block_reason + ":" + context_out.eligibility.block_reason;
     ExecutionLogGuardrailBlock("LOCAL_EXECUTION_BLOCK", signal_params, leg_state, block_reason);
+    DeterministicSignalStatsRecordAdmissionEvent(signal_params, "admission_blocked");
     if(Debug_Stop_On_Negative_Equity && context_out.eligibility.block_source == "margin")
       g_debug_no_money_abort_pending = true;
     return false;
@@ -435,6 +436,7 @@ bool PrepareExecutionLegTradeAdmission(SignalParams &signal_params,
   signal_params.admission_spread_points = context_out.broker_snapshot.spread_points;
   signal_params.admission_max_spread    = Max_Spread;
   signal_params.admission_market_status = context_out.broker_snapshot.market_status;
+  DeterministicSignalStatsRecordAdmissionEvent(signal_params, "admission_allowed");
   return true;
 }
 
@@ -463,12 +465,14 @@ bool ApplyExecutionLegTradeAdmission(SignalParams &signal_params,
     leg_state.position_comment  = context.comment;
     leg_state.last_action_time  = TimeCurrent();
     signal_params.execution_legs[leg_state.level_index] = leg_state;
+    DeterministicSignalStatsRecordAdmissionEvent(signal_params, "local_fill");
     return true;
   }
 
   double order_volume = context.broker_snapshot.normalized_volume;
   signal_params.admission_status = EXECUTION_ADMISSION_SENT;
   signal_params.admission_updated_time = TimeCurrent();
+  DeterministicSignalStatsRecordAdmissionEvent(signal_params, "broker_send");
 
   bool sent = false;
   if(direction == BULLISH)
@@ -488,6 +492,7 @@ bool ApplyExecutionLegTradeAdmission(SignalParams &signal_params,
     signal_params.admission_block_reason = send_reason;
     signal_params.admission_updated_time = TimeCurrent();
     ExecutionLogGuardrailBlock("BROKER_SEND_FAILED", signal_params, leg_state, send_reason);
+    DeterministicSignalStatsRecordAdmissionEvent(signal_params, "broker_send_failed");
     if(Debug_Stop_On_Negative_Equity)
     {
       if(retcode == TRADE_RETCODE_NO_MONEY)
@@ -519,6 +524,7 @@ bool ApplyExecutionLegTradeAdmission(SignalParams &signal_params,
     ApplyBrokerPositionSnapshotToExecutionLeg(leg_state, sent_snapshot);
     signal_params.broker_entry_confirmed = true;
     signal_params.execution_legs[leg_state.level_index] = leg_state;
+    DeterministicSignalStatsRecordAdmissionEvent(signal_params, "broker_entry");
   }
   else
   {
@@ -526,6 +532,7 @@ bool ApplyExecutionLegTradeAdmission(SignalParams &signal_params,
                                signal_params,
                                leg_state,
                                "sent_order_position_not_found");
+    DeterministicSignalStatsRecordAdmissionEvent(signal_params, "broker_entry_unconfirmed");
   }
   return sent;
 }

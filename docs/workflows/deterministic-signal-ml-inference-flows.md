@@ -203,6 +203,26 @@ The detailed contract, evidence layout, and rejection evidence live in
 `docs/research/archive/ml-robustness-closeout-2026-07-09/ml-numeric-xgboost-feature-spike.md`.
 ONNX is not active; resume it only through a new `$planner` plan.
 
+## Broker-First Schema V6 Export Contract
+
+Schema v6 separates deterministic signal admission facts from broker-confirmed
+outcomes:
+
+- `signal_admissions.tsv` records candidate, admission-blocked,
+  admission-allowed, broker-send, broker-entry, broker-close, and lifecycle
+  cancel events with spread, market status, risk-plan, and broker evidence
+  fields.
+- `signal_features.tsv` remains the feature file for broker-entered signals.
+- `signal_outcomes.tsv` requires broker-confirmed close evidence and includes
+  broker entry/close flags, close source, partial TP confirmations/volumes, and
+  `path_label_source`.
+- `run_summary.tsv` includes `admission_rows` in addition to feature/outcome
+  counts.
+
+Blocked, filtered, or canceled candidates may appear in admissions, but they
+must not be interpreted as broker outcomes unless a matching broker-confirmed
+outcome row exists.
+
 ## Schema V4 Semantic Pattern Contract
 
 Current Phase 3 follow-up work uses schema v4 semantic lanes. Do not reuse
