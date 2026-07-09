@@ -103,6 +103,9 @@ struct SignalParams
   double                     realized_profit;
   double                     realized_closed_volume;
   double                     remaining_open_volume;
+  bool                       broker_entry_confirmed;
+  bool                       broker_close_confirmed;
+  string                     broker_close_source;
   string                     deterministic_stats_signal_id;
   bool                       deterministic_stats_feature_exported;
   bool                       deterministic_stats_outcome_exported;
@@ -197,6 +200,9 @@ struct SignalParams
     realized_profit            = 0.0;
     realized_closed_volume     = 0.0;
     remaining_open_volume      = 0.0;
+    broker_entry_confirmed     = false;
+    broker_close_confirmed     = false;
+    broker_close_source        = "";
     deterministic_stats_signal_id = "";
     deterministic_stats_feature_exported = false;
     deterministic_stats_outcome_exported = false;
@@ -281,6 +287,9 @@ struct SignalParams
     realized_profit            = signal_params.realized_profit;
     realized_closed_volume     = signal_params.realized_closed_volume;
     remaining_open_volume      = signal_params.remaining_open_volume;
+    broker_entry_confirmed     = signal_params.broker_entry_confirmed;
+    broker_close_confirmed     = signal_params.broker_close_confirmed;
+    broker_close_source        = signal_params.broker_close_source;
     deterministic_stats_signal_id = signal_params.deterministic_stats_signal_id;
     deterministic_stats_feature_exported = signal_params.deterministic_stats_feature_exported;
     deterministic_stats_outcome_exported = signal_params.deterministic_stats_outcome_exported;

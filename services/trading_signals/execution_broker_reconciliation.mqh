@@ -46,6 +46,24 @@ struct BrokerPositionSnapshot
   }
 };
 
+struct BrokerDealCloseSummary
+{
+  bool     found;
+  double   closed_volume;
+  double   profit;
+  double   close_price;
+  datetime close_time;
+
+  BrokerDealCloseSummary()
+  {
+    found         = false;
+    closed_volume = 0.0;
+    profit        = 0.0;
+    close_price   = 0.0;
+    close_time    = 0;
+  }
+};
+
 bool BrokerPositionTypeMatchesDirection(const ENUM_POSITION_TYPE position_type,
                                         const SignalTypes direction)
 {
@@ -199,6 +217,70 @@ bool ApplyBrokerPositionSnapshotToExecutionLeg(ExecutionLegState &leg_state,
   return true;
 }
 
+bool ResolveBrokerCloseSummaryForPosition(const ulong position_ticket,
+                                          const datetime entry_time,
+                                          BrokerDealCloseSummary &summary)
+{
+  summary = BrokerDealCloseSummary();
+  if(position_ticket <= 0)
+    return false;
+
+  datetime to_time = TimeCurrent() + 86400;
+  datetime from_time = to_time - 86400 * 30;
+  if(entry_time > 0)
+    from_time = entry_time - 86400;
+  if(from_time < 0)
+    from_time = 0;
+
+  if(!HistorySelect(from_time, to_time))
+    return false;
+
+  double weighted_close_price = 0.0;
+  int total_deals = HistoryDealsTotal();
+  for(int i = 0; i < total_deals; i++)
+  {
+    ulong deal_ticket = HistoryDealGetTicket(i);
+    if(deal_ticket <= 0)
+      continue;
+
+    ulong deal_position_id = (ulong)HistoryDealGetInteger(deal_ticket, DEAL_POSITION_ID);
+    if(deal_position_id != position_ticket)
+      continue;
+
+    string deal_symbol = HistoryDealGetString(deal_ticket, DEAL_SYMBOL);
+    if(deal_symbol != _Symbol)
+      continue;
+
+    ENUM_DEAL_ENTRY deal_entry =
+      (ENUM_DEAL_ENTRY)HistoryDealGetInteger(deal_ticket, DEAL_ENTRY);
+    if(deal_entry != DEAL_ENTRY_OUT &&
+       deal_entry != DEAL_ENTRY_OUT_BY &&
+       deal_entry != DEAL_ENTRY_INOUT)
+      continue;
+
+    double deal_volume = HistoryDealGetDouble(deal_ticket, DEAL_VOLUME);
+    double deal_price = HistoryDealGetDouble(deal_ticket, DEAL_PRICE);
+    if(deal_volume <= 0.0 || deal_price <= 0.0)
+      continue;
+
+    summary.found = true;
+    summary.closed_volume += deal_volume;
+    summary.profit += HistoryDealGetDouble(deal_ticket, DEAL_PROFIT);
+    summary.profit += HistoryDealGetDouble(deal_ticket, DEAL_COMMISSION);
+    summary.profit += HistoryDealGetDouble(deal_ticket, DEAL_SWAP);
+    weighted_close_price += deal_price * deal_volume;
+
+    datetime deal_time = (datetime)HistoryDealGetInteger(deal_ticket, DEAL_TIME);
+    if(deal_time > summary.close_time)
+      summary.close_time = deal_time;
+  }
+
+  if(summary.closed_volume > 0.0)
+    summary.close_price = weighted_close_price / summary.closed_volume;
+
+  return summary.found;
+}
+
 bool ReconcileExecutionLegWithBrokerPosition(SignalParams &signal_params,
                                              const int leg_index)
 {
@@ -215,12 +297,28 @@ bool ReconcileExecutionLegWithBrokerPosition(SignalParams &signal_params,
   if(FindBrokerPositionForExecutionLeg(signal_params, leg_state, snapshot))
   {
     ApplyBrokerPositionSnapshotToExecutionLeg(leg_state, snapshot);
+    signal_params.broker_entry_confirmed = true;
     signal_params.execution_legs[leg_index] = leg_state;
     return true;
   }
 
   if(had_broker_ticket)
   {
+    BrokerDealCloseSummary close_summary;
+    if(ResolveBrokerCloseSummaryForPosition(leg_state.position_ticket,
+                                            signal_params.entry_time,
+                                            close_summary))
+    {
+      signal_params.realized_profit += close_summary.profit;
+      signal_params.realized_closed_volume += close_summary.closed_volume;
+      signal_params.broker_close_confirmed = true;
+      signal_params.broker_close_source = "history_deal";
+      if(close_summary.close_price > 0.0)
+        signal_params.close_price = close_summary.close_price;
+      if(close_summary.close_time > 0)
+        signal_params.close_time = close_summary.close_time;
+    }
+
     leg_state.position_ticket  = 0;
     leg_state.position_comment = "";
     leg_state.lot_size         = 0.0;

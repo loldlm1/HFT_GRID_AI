@@ -500,24 +500,17 @@ bool DeterministicSignalHasBrokerExposure(const SignalParams &signal_params)
 
 bool SignalHasBrokerConfirmedOutcome(const SignalParams &signal_params)
 {
+  if(!signal_params.broker_close_confirmed)
+    return false;
+
   if(signal_params.realized_closed_volume > 0.0)
     return true;
 
   if(MathAbs(signal_params.realized_profit) > 0.0000001)
     return true;
 
-  int total = ArraySize(signal_params.execution_legs);
-  for(int i = 0; i < total; i++)
-  {
-    if(signal_params.execution_legs[i].position_ticket > 0)
-      return true;
-    if(signal_params.execution_legs[i].status == EXECUTION_LEG_ACTIVE)
-      return true;
-    if(signal_params.execution_legs[i].entry_price > 0.0)
-      return true;
-  }
-
-  return false;
+  return (signal_params.broker_entry_confirmed &&
+          signal_params.signal_state == CLOSED);
 }
 
 void ExpirePendingDeterministicSignalsForSourceExtremum(const int source_slot,

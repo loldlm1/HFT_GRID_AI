@@ -93,6 +93,8 @@ void RegisterSignalRealizedClose(SignalParams &signal_params,
 {
   if(closed_volume <= 0.0 || close_price <= 0.0)
     return;
+  if(!leg_state.opens_position || leg_state.position_ticket <= 0)
+    return;
 
   double entry_price = leg_state.entry_price;
   if(entry_price <= 0.0)
@@ -105,6 +107,8 @@ void RegisterSignalRealizedClose(SignalParams &signal_params,
                                                                           close_price,
                                                                           closed_volume);
   signal_params.realized_closed_volume += closed_volume;
+  signal_params.broker_close_confirmed = true;
+  signal_params.broker_close_source = "ea_close";
 }
 
 ulong ResolvePositionTicketFromDeal(const ulong deal_ticket)
@@ -348,6 +352,7 @@ bool ApplyExecutionLegTradeAdmission(SignalParams &signal_params,
   if(FindBrokerPositionForExecutionLeg(signal_params, leg_state, sent_snapshot))
   {
     ApplyBrokerPositionSnapshotToExecutionLeg(leg_state, sent_snapshot);
+    signal_params.broker_entry_confirmed = true;
     signal_params.execution_legs[leg_state.level_index] = leg_state;
   }
   else
@@ -590,6 +595,7 @@ bool CloseSignalVolumeByExecutionPriority(SignalParams &signal_params,
       continue;
 
     ExecutionLegState state = signal_params.execution_legs[leg_index];
+    ExecutionLegState state_before_close = state;
     double tracked_volume = ResolveExecutionLegTrackedVolume(state);
     if(tracked_volume <= 0.0)
       continue;
@@ -614,7 +620,7 @@ bool CloseSignalVolumeByExecutionPriority(SignalParams &signal_params,
     if(closed_volume <= 0.0)
       continue;
 
-    RegisterSignalRealizedClose(signal_params, state, closed_volume, close_price);
+    RegisterSignalRealizedClose(signal_params, state_before_close, closed_volume, close_price);
     if(fully_closed)
       state.status = EXECUTION_LEG_COMPLETED;
     else
@@ -638,12 +644,13 @@ void CloseAllExecutionLegs(SignalParams &signal_params,
   for(int i = 0; i < total_levels; i++)
   {
     ExecutionLegState state = signal_params.execution_legs[i];
+    ExecutionLegState state_before_close = state;
     double tracked_volume = ResolveExecutionLegTrackedVolume(state);
     double close_price = 0.0;
     result = CloseExecutionLegBrokerPosition(state, direction, close_price);
     if(result)
     {
-      RegisterSignalRealizedClose(signal_params, state, tracked_volume, close_price);
+      RegisterSignalRealizedClose(signal_params, state_before_close, tracked_volume, close_price);
       state.status = EXECUTION_LEG_COMPLETED;
     }
     ExecutionLogEvent("LEVEL_CLOSE_ALL", signal_params, state);
