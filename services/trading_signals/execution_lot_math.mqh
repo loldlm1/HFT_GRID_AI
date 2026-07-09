@@ -200,6 +200,239 @@ bool ResolveRequiredLotForTarget(const double target_profit_amount,
                                  const double projected_profit_per_lot,
                                  double &required_lot_out);
 
+ENUM_ORDER_TYPE ExecutionOrderTypeForDirection(const SignalTypes direction)
+{
+  if(direction == BULLISH)
+    return ORDER_TYPE_BUY;
+  return ORDER_TYPE_SELL;
+}
+
+bool ResolveBrokerProfitForExecution(const SignalTypes direction,
+                                     const double volume,
+                                     const double entry_price,
+                                     const double close_price,
+                                     double &profit_out)
+{
+  profit_out = 0.0;
+  if(volume <= 0.0 || entry_price <= 0.0 || close_price <= 0.0)
+    return false;
+
+  ENUM_ORDER_TYPE order_type = ExecutionOrderTypeForDirection(direction);
+  return OrderCalcProfit(order_type,
+                         _Symbol,
+                         volume,
+                         entry_price,
+                         close_price,
+                         profit_out);
+}
+
+double NormalizeVolumeDownForSymbol(const string symbol,
+                                    const double volume)
+{
+  if(volume <= 0.0)
+    return 0.0;
+
+  double min_vol  = SymbolInfoDouble(symbol, SYMBOL_VOLUME_MIN);
+  double max_vol  = SymbolInfoDouble(symbol, SYMBOL_VOLUME_MAX);
+  double step_vol = SymbolInfoDouble(symbol, SYMBOL_VOLUME_STEP);
+
+  double normalized = volume;
+  if(max_vol > 0.0 && normalized > max_vol)
+    normalized = max_vol;
+
+  if(step_vol > 0.0)
+  {
+    double steps = MathFloor((normalized + 1e-12) / step_vol);
+    normalized = steps * step_vol;
+
+    int vol_digits = 0;
+    if(step_vol < 1.0)
+    {
+      vol_digits = (int)MathRound(-MathLog10(step_vol));
+      if(vol_digits < 0)
+        vol_digits = 0;
+    }
+    normalized = NormalizeDouble(normalized, vol_digits);
+  }
+
+  if(min_vol > 0.0 && normalized < min_vol)
+    return 0.0;
+
+  return normalized;
+}
+
+double ResolveExecutionRuntimeTargetRiskAmount(const ExecutionLotTypes lot_type)
+{
+  ExecutionLotTypes effective_lot_type = ResolveEffectiveExecutionLotType(lot_type);
+  double strategy_size = MathAbs(Lot_Strategy_Size);
+
+  if(effective_lot_type == EXECUTION_LOT_TARGET_CURRENCY)
+    return strategy_size;
+
+  if(effective_lot_type == EXECUTION_LOT_ACCOUNT_PERCENTAGE)
+  {
+    double account_reference = MathAbs(AccountInfoDouble(ACCOUNT_BALANCE));
+    if(account_reference <= 0.0)
+      account_reference = MathAbs(Account_Size);
+    if(account_reference <= 0.0)
+      return 0.0;
+    return account_reference * (strategy_size / 100.0);
+  }
+
+  return strategy_size;
+}
+
+void ResetExecutionRiskPlan(SignalParams &signal_params,
+                            const string reason)
+{
+  signal_params.execution_risk_plan_valid = false;
+  signal_params.execution_risk_plan_reason = reason;
+  signal_params.execution_risk_target_amount = 0.0;
+  signal_params.execution_expected_sl_loss = 0.0;
+  signal_params.execution_expected_tp_profit = 0.0;
+  signal_params.execution_raw_lot_size = 0.0;
+  signal_params.execution_normalized_lot_size = 0.0;
+  signal_params.execution_target_error_amount = 0.0;
+}
+
+bool ResolveRiskCappedTargetCurrencyLot(SignalParams &signal_params,
+                                        const double entry_price,
+                                        const double stop_price,
+                                        const double take_profit_price,
+                                        double &lot_out)
+{
+  lot_out = 0.0;
+  ResetExecutionRiskPlan(signal_params, "");
+
+  double risk_cap = ResolveExecutionRuntimeTargetRiskAmount(EXECUTION_LOT_TARGET_CURRENCY);
+  signal_params.execution_risk_target_amount = risk_cap;
+  if(risk_cap <= 0.0)
+  {
+    signal_params.execution_risk_plan_reason = "target_risk_invalid";
+    return false;
+  }
+
+  if(entry_price <= 0.0 || stop_price <= 0.0)
+  {
+    signal_params.execution_risk_plan_reason = "entry_or_stop_invalid";
+    return false;
+  }
+
+  double basis_volume = CommonVolume(_Symbol);
+  if(basis_volume <= 0.0)
+    basis_volume = SymbolInfoDouble(_Symbol, SYMBOL_VOLUME_MIN);
+  if(basis_volume <= 0.0)
+  {
+    signal_params.execution_risk_plan_reason = "basis_volume_invalid";
+    return false;
+  }
+
+  double basis_sl_profit = 0.0;
+  if(!ResolveBrokerProfitForExecution(signal_params.signal_type,
+                                      basis_volume,
+                                      entry_price,
+                                      stop_price,
+                                      basis_sl_profit))
+  {
+    signal_params.execution_risk_plan_reason = "order_calc_profit_sl_failed";
+    return false;
+  }
+
+  double loss_per_lot = MathAbs(basis_sl_profit) / basis_volume;
+  if(!MathIsValidNumber(loss_per_lot) || loss_per_lot <= 0.0)
+  {
+    signal_params.execution_risk_plan_reason = "loss_per_lot_invalid";
+    return false;
+  }
+
+  double raw_lot = risk_cap / loss_per_lot;
+  if(!MathIsValidNumber(raw_lot) || raw_lot <= 0.0)
+  {
+    signal_params.execution_risk_plan_reason = "raw_lot_invalid";
+    return false;
+  }
+
+  double normalized_lot = NormalizeVolumeDownForSymbol(_Symbol, raw_lot);
+  if(normalized_lot <= 0.0)
+  {
+    double min_vol = SymbolInfoDouble(_Symbol, SYMBOL_VOLUME_MIN);
+    double min_loss_profit = 0.0;
+    if(min_vol <= 0.0 ||
+       !ResolveBrokerProfitForExecution(signal_params.signal_type,
+                                        min_vol,
+                                        entry_price,
+                                        stop_price,
+                                        min_loss_profit) ||
+       MathAbs(min_loss_profit) > risk_cap + 0.0000001)
+    {
+      signal_params.execution_risk_plan_reason = "min_volume_exceeds_risk_cap";
+      signal_params.execution_raw_lot_size = raw_lot;
+      return false;
+    }
+    normalized_lot = min_vol;
+  }
+
+  double expected_sl_profit = 0.0;
+  if(!ResolveBrokerProfitForExecution(signal_params.signal_type,
+                                      normalized_lot,
+                                      entry_price,
+                                      stop_price,
+                                      expected_sl_profit))
+  {
+    signal_params.execution_risk_plan_reason = "normalized_sl_calc_failed";
+    return false;
+  }
+
+  double expected_sl_loss = MathAbs(expected_sl_profit);
+  double step_vol = SymbolInfoDouble(_Symbol, SYMBOL_VOLUME_STEP);
+  for(int guard = 0;
+      guard < 8 && expected_sl_loss > risk_cap + 0.0000001 && step_vol > 0.0;
+      guard++)
+  {
+    normalized_lot = NormalizeVolumeDownForSymbol(_Symbol, normalized_lot - step_vol);
+    if(normalized_lot <= 0.0)
+      break;
+    if(!ResolveBrokerProfitForExecution(signal_params.signal_type,
+                                        normalized_lot,
+                                        entry_price,
+                                        stop_price,
+                                        expected_sl_profit))
+      break;
+    expected_sl_loss = MathAbs(expected_sl_profit);
+  }
+
+  if(normalized_lot <= 0.0 || expected_sl_loss > risk_cap + 0.0000001)
+  {
+    signal_params.execution_risk_plan_reason = "risk_cap_exceeded_after_normalization";
+    signal_params.execution_raw_lot_size = raw_lot;
+    signal_params.execution_normalized_lot_size = normalized_lot;
+    signal_params.execution_expected_sl_loss = expected_sl_loss;
+    return false;
+  }
+
+  double expected_tp_profit = 0.0;
+  if(take_profit_price > 0.0)
+  {
+    double tp_profit = 0.0;
+    if(ResolveBrokerProfitForExecution(signal_params.signal_type,
+                                       normalized_lot,
+                                       entry_price,
+                                       take_profit_price,
+                                       tp_profit))
+      expected_tp_profit = tp_profit;
+  }
+
+  signal_params.execution_risk_plan_valid = true;
+  signal_params.execution_risk_plan_reason = "risk_cap_ok";
+  signal_params.execution_expected_sl_loss = expected_sl_loss;
+  signal_params.execution_expected_tp_profit = expected_tp_profit;
+  signal_params.execution_raw_lot_size = raw_lot;
+  signal_params.execution_normalized_lot_size = normalized_lot;
+  signal_params.execution_target_error_amount = risk_cap - expected_sl_loss;
+  lot_out = normalized_lot;
+  return true;
+}
+
 bool ResolveRequiredLotForTargetAtPrice(const SignalParams &signal_params,
                                         const int candidate_level_index,
                                         const double candidate_entry_price,

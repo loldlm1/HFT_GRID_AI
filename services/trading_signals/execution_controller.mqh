@@ -93,6 +93,17 @@ bool EnsureDeterministicExecutionLeg(SignalParams &signal_params)
                                                                     stop_anchor);
   leg_state.initial_take_profit_price = leg_state.take_profit_price;
   leg_state.lot_size                  = ResolveBaseExecutionLot(risk_points);
+  if(ResolveEffectiveExecutionLotType(Lot_Type) == EXECUTION_LOT_TARGET_CURRENCY)
+  {
+    double risk_capped_lot = 0.0;
+    if(!ResolveRiskCappedTargetCurrencyLot(signal_params,
+                                           entry_reference,
+                                           stop_anchor,
+                                           leg_state.take_profit_price,
+                                           risk_capped_lot))
+      return false;
+    leg_state.lot_size = risk_capped_lot;
+  }
   leg_state.initial_lot_size          = leg_state.lot_size;
   leg_state.opens_position            = true;
   leg_state.limit_activation_armed    = true;
@@ -297,6 +308,15 @@ bool RefreshDeterministicPendingEntryAnchor(SignalParams &signal_params,
     return false;
 
   double lot_size = ResolveBaseExecutionLot(risk_after_points);
+  if(ResolveEffectiveExecutionLotType(Lot_Type) == EXECUTION_LOT_TARGET_CURRENCY)
+  {
+    if(!ResolveRiskCappedTargetCurrencyLot(signal_params,
+                                           candidate_trigger,
+                                           stop_anchor,
+                                           tp_price,
+                                           lot_size))
+      return false;
+  }
   if(lot_size <= 0.0)
     return false;
 

@@ -140,6 +140,14 @@ struct SignalParams
   double execution_entry_reference_price;
   double execution_entry_gap_points;
   double execution_entry_offset_points;
+  bool   execution_risk_plan_valid;
+  string execution_risk_plan_reason;
+  double execution_risk_target_amount;
+  double execution_expected_sl_loss;
+  double execution_expected_tp_profit;
+  double execution_raw_lot_size;
+  double execution_normalized_lot_size;
+  double execution_target_error_amount;
   int    structure_range_step_offset;
   datetime context_structure_snapshot_time;
 
@@ -236,6 +244,14 @@ struct SignalParams
     execution_entry_reference_price = 0.0;
     execution_entry_gap_points      = 0.0;
     execution_entry_offset_points   = 0.0;
+    execution_risk_plan_valid       = false;
+    execution_risk_plan_reason      = "";
+    execution_risk_target_amount    = 0.0;
+    execution_expected_sl_loss      = 0.0;
+    execution_expected_tp_profit    = 0.0;
+    execution_raw_lot_size          = 0.0;
+    execution_normalized_lot_size   = 0.0;
+    execution_target_error_amount   = 0.0;
     structure_range_step_offset     = 1;
     context_structure_snapshot_time = 0;
     base_structure_valid       = false;
@@ -323,6 +339,14 @@ struct SignalParams
     execution_entry_reference_price = signal_params.execution_entry_reference_price;
     execution_entry_gap_points      = signal_params.execution_entry_gap_points;
     execution_entry_offset_points   = signal_params.execution_entry_offset_points;
+    execution_risk_plan_valid       = signal_params.execution_risk_plan_valid;
+    execution_risk_plan_reason      = signal_params.execution_risk_plan_reason;
+    execution_risk_target_amount    = signal_params.execution_risk_target_amount;
+    execution_expected_sl_loss      = signal_params.execution_expected_sl_loss;
+    execution_expected_tp_profit    = signal_params.execution_expected_tp_profit;
+    execution_raw_lot_size          = signal_params.execution_raw_lot_size;
+    execution_normalized_lot_size   = signal_params.execution_normalized_lot_size;
+    execution_target_error_amount   = signal_params.execution_target_error_amount;
     structure_range_step_offset     = signal_params.structure_range_step_offset;
     context_structure_snapshot_time = signal_params.context_structure_snapshot_time;
     base_structure_valid       = signal_params.base_structure_valid;

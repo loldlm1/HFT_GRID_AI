@@ -270,6 +270,32 @@ bool ResolveTargetModeLotForExecutionLeg(SignalParams &signal_params,
     return false;
   }
 
+  if(ResolveEffectiveExecutionLotType(Lot_Type) == EXECUTION_LOT_TARGET_CURRENCY)
+  {
+    double stop_price = level_state.next_level_price;
+    if(stop_price <= 0.0)
+    {
+      stop_price = ComputeNextLevelPrice(signal_params,
+                                         candidate_entry_price,
+                                         ResolveExecutionLegDistancePoints(signal_params,
+                                                                           level_state));
+    }
+
+    if(!ResolveRiskCappedTargetCurrencyLot(signal_params,
+                                           candidate_entry_price,
+                                           stop_price,
+                                           tp_price,
+                                           lot_out))
+    {
+      signal_params.execution_legs[level_index].opens_position = true;
+      lot_out = -1.0;
+      return false;
+    }
+
+    signal_params.execution_legs[level_index].opens_position = true;
+    return true;
+  }
+
   double required_raw_lot = 0.0;
   if(!ResolveRequiredLotForTargetAtPrice(signal_params,
                                          level_index,
@@ -442,6 +468,17 @@ void LogExecutionPlanLegDetail(const SignalParams &signal_params,
                                state.take_profit_price,
                                state.lot_size,
                                EnumToString(state.status));
+  if(signal_params.execution_risk_plan_reason != "")
+  {
+    detail = detail + StringFormat("|risk_plan=%s|risk_target=%.2f|sl_loss=%.2f|tp_profit=%.2f|raw_lot=%.4f|norm_lot=%.4f|target_error=%.2f",
+                                   signal_params.execution_risk_plan_reason,
+                                   signal_params.execution_risk_target_amount,
+                                   signal_params.execution_expected_sl_loss,
+                                   signal_params.execution_expected_tp_profit,
+                                   signal_params.execution_raw_lot_size,
+                                   signal_params.execution_normalized_lot_size,
+                                   signal_params.execution_target_error_amount);
+  }
   ExecutionAppendQueryDebugLog("EXECUTION_PLAN_LEG", detail);
 }
 

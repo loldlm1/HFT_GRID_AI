@@ -60,6 +60,9 @@ struct BrokerExecutionSnapshot
   double margin_per_lot;
   double required_margin;
   bool   margin_available;
+  bool   order_check_available;
+  ulong  order_check_retcode;
+  string order_check_comment;
 
   bool   valid;
   string invalid_reason;
@@ -93,6 +96,9 @@ struct BrokerExecutionSnapshot
     margin_per_lot               = 0.0;
     required_margin              = 0.0;
     margin_available             = false;
+    order_check_available        = false;
+    order_check_retcode          = 0;
+    order_check_comment          = "";
     valid                        = false;
     invalid_reason               = "";
   }
@@ -126,6 +132,9 @@ struct BrokerExecutionSnapshot
     margin_per_lot               = other.margin_per_lot;
     required_margin              = other.required_margin;
     margin_available             = other.margin_available;
+    order_check_available        = other.order_check_available;
+    order_check_retcode          = other.order_check_retcode;
+    order_check_comment          = other.order_check_comment;
     valid                        = other.valid;
     invalid_reason               = other.invalid_reason;
   }
@@ -206,6 +215,9 @@ double BrokerExecutionEstimateMarginPerLot(const SignalTypes direction)
   return (contract_size * price) / leverage;
 }
 
+double BrokerExecutionEntrySidePrice(const BrokerExecutionSnapshot &snapshot);
+ENUM_ORDER_TYPE BrokerExecutionOrderTypeForDirection(const SignalTypes direction);
+
 void BrokerExecutionBlock(BrokerExecutionEligibility &eligibility,
                           const string source,
                           const string reason)
@@ -285,9 +297,26 @@ bool CaptureBrokerExecutionSnapshot(const SignalTypes direction,
   }
 
   snapshot.free_margin = AccountInfoDouble(ACCOUNT_MARGIN_FREE);
-  snapshot.margin_per_lot = BrokerExecutionEstimateMarginPerLot(direction);
-  if(snapshot.normalized_volume > 0.0 && snapshot.margin_per_lot > 0.0)
-    snapshot.required_margin = snapshot.margin_per_lot * snapshot.normalized_volume;
+  double broker_margin = 0.0;
+  double entry_side_price = BrokerExecutionEntrySidePrice(snapshot);
+  ENUM_ORDER_TYPE order_type = BrokerExecutionOrderTypeForDirection(direction);
+  if(snapshot.normalized_volume > 0.0 &&
+     entry_side_price > 0.0 &&
+     OrderCalcMargin(order_type,
+                     snapshot.symbol,
+                     snapshot.normalized_volume,
+                     entry_side_price,
+                     broker_margin))
+  {
+    snapshot.required_margin = broker_margin;
+    snapshot.margin_per_lot = broker_margin / snapshot.normalized_volume;
+  }
+  else
+  {
+    snapshot.margin_per_lot = BrokerExecutionEstimateMarginPerLot(direction);
+    if(snapshot.normalized_volume > 0.0 && snapshot.margin_per_lot > 0.0)
+      snapshot.required_margin = snapshot.margin_per_lot * snapshot.normalized_volume;
+  }
   snapshot.margin_available = (snapshot.required_margin <= 0.0 ||
                                snapshot.free_margin <= 0.0 ||
                                snapshot.free_margin >= snapshot.required_margin);
@@ -303,6 +332,79 @@ double BrokerExecutionEntrySidePrice(const BrokerExecutionSnapshot &snapshot)
   if(snapshot.direction == BEARISH)
     return snapshot.bid;
   return 0.0;
+}
+
+ENUM_ORDER_TYPE BrokerExecutionOrderTypeForDirection(const SignalTypes direction)
+{
+  if(direction == BULLISH)
+    return ORDER_TYPE_BUY;
+  return ORDER_TYPE_SELL;
+}
+
+ENUM_ORDER_TYPE_FILLING BrokerExecutionResolveFillingMode()
+{
+  long filling_mode = SymbolInfoInteger(_Symbol, SYMBOL_FILLING_MODE);
+  if((filling_mode & SYMBOL_FILLING_FOK) == SYMBOL_FILLING_FOK)
+    return ORDER_FILLING_FOK;
+  if((filling_mode & SYMBOL_FILLING_IOC) == SYMBOL_FILLING_IOC)
+    return ORDER_FILLING_IOC;
+  return ORDER_FILLING_RETURN;
+}
+
+bool BrokerExecutionRunOrderCheck(BrokerExecutionSnapshot &snapshot,
+                                  BrokerExecutionEligibility &eligibility)
+{
+  if(snapshot.normalized_volume <= 0.0)
+    return true;
+
+  double entry_price = BrokerExecutionEntrySidePrice(snapshot);
+  if(entry_price <= 0.0)
+    return true;
+
+  MqlTradeRequest request;
+  MqlTradeCheckResult check;
+  ZeroMemory(request);
+  ZeroMemory(check);
+
+  request.action = TRADE_ACTION_DEAL;
+  request.symbol = snapshot.symbol;
+  request.magic = g_magic_number;
+  request.volume = snapshot.normalized_volume;
+  request.price = entry_price;
+  request.type = BrokerExecutionOrderTypeForDirection(snapshot.direction);
+  request.type_filling = BrokerExecutionResolveFillingMode();
+  request.type_time = ORDER_TIME_GTC;
+
+  if(!OrderCheck(request, check))
+  {
+    snapshot.order_check_available = false;
+    snapshot.order_check_retcode = check.retcode;
+    snapshot.order_check_comment = check.comment;
+    BrokerExecutionBlock(eligibility,
+                         "order_check",
+                         StringFormat("api_failed|retcode=%I64u|comment=%s|error=%d",
+                                      check.retcode,
+                                      check.comment,
+                                      GetLastError()));
+    return false;
+  }
+
+  snapshot.order_check_available = true;
+  snapshot.order_check_retcode = check.retcode;
+  snapshot.order_check_comment = check.comment;
+
+  if(check.retcode != TRADE_RETCODE_DONE &&
+     check.retcode != TRADE_RETCODE_PLACED)
+  {
+    BrokerExecutionBlock(eligibility,
+                         "order_check",
+                         StringFormat("retcode=%I64u|comment=%s",
+                                      check.retcode,
+                                      check.comment));
+    return false;
+  }
+
+  return true;
 }
 
 double BrokerExecutionPriceDistancePoints(const BrokerExecutionSnapshot &snapshot,
@@ -482,6 +584,9 @@ bool EvaluateLocalExecutionLegEligibility(const SignalParams &signal_params,
                                         snapshot.required_margin));
       return false;
     }
+
+    if(!BrokerExecutionRunOrderCheck(snapshot, eligibility))
+      return false;
   }
 
   BrokerExecutionAllow(eligibility);
