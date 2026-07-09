@@ -2,7 +2,7 @@
 
 **Date**: 2026-07-05
 **Roadmap Phase**: Phase 2 - ML Signal Arbitration
-**Status**: Short XAUUSD FILTER smoke PASS; long XAUUSD run pending only if required by later research
+**Status**: COMPLETED_AND_ARCHIVED on 2026-07-09
 
 ## Scope
 

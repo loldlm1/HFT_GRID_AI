@@ -16,10 +16,10 @@ criteria.
 
 Future model, threshold, feature-set, multi-symbol, or dynamic target approval
 must use the hardened validation flow in
-`docs/research/ml-validation-hardening-acceptance.md`. The current short
-`test_dataset_1` / `xgb_test_1` baseline is smoke evidence only; threshold
-selection for accepted research must remain separate from final holdout
-approval.
+`docs/research/archive/ml-robustness-closeout-2026-07-09/ml-validation-hardening-acceptance.md`
+or a newer active plan. The current short `test_dataset_1` / `xgb_test_1`
+baseline is smoke evidence only; threshold selection for accepted research must
+remain separate from final holdout approval.
 
 ## Use The Model For Backtesting Or Future Live Approval
 
@@ -153,11 +153,13 @@ If `shadow_manifest.tsv` records `available=false` with
 not deployed in the Common Files root used by MT5; deploy the export and rerun
 Strategy Tester before interpreting FILTER or arbitration behavior.
 
-## Active Numeric XGBoost Research Contract
+## Archived Numeric XGBoost Research Contract
 
-Phase 5 adds schema v5 numeric XGBoost research before ONNX work resumes.
-Schema v4 semantic lanes remain the DuckDB pattern-audit layer; schema v5 is a
-separate compact numeric model lane.
+Phase 5 added schema v5 numeric XGBoost research and was archived on
+2026-07-09. S1 schema v5 data export and training were technically validated,
+but the S1 candidates were rejected for runtime promotion because no target
+family produced an accepted threshold. Schema v4 semantic lanes remain
+available for DuckDB pattern-audit research if a future plan resumes them.
 
 Schema v5 numeric XGBoost model inputs:
 
@@ -197,9 +199,9 @@ xauusd_2025_schema_v5_numeric_run_S2
 xauusd_2025_schema_v5_numeric_run_S3
 ```
 
-The detailed contract, evidence layout, and gates live in
-`docs/research/ml-numeric-xgboost-feature-spike.md`. ONNX remains deferred
-until this research either accepts a robust candidate or records a rejection.
+The detailed contract, evidence layout, and rejection evidence live in
+`docs/research/archive/ml-robustness-closeout-2026-07-09/ml-numeric-xgboost-feature-spike.md`.
+ONNX is not active; resume it only through a new `$planner` plan.
 
 ## Schema V4 Semantic Pattern Contract
 

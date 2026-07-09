@@ -2,7 +2,7 @@
 
 **Date**: 2026-07-05
 **Roadmap Phase**: Phase 1 - ML Validation Hardening
-**Status**: Accepted for tooling smoke validation; real research run pending
+**Status**: COMPLETED_AND_ARCHIVED on 2026-07-09
 
 ## Scope
 

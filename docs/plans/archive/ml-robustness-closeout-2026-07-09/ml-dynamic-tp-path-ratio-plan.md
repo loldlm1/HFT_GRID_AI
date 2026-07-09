@@ -1,6 +1,7 @@
 # Plan: ML Dynamic TP Path Ratio
 
 **Generated**: 2026-07-07
+**Status**: COMPLETED_AND_ARCHIVED on 2026-07-09
 **Estimated Complexity**: High
 **Roadmap Phase**: Phase 4 of
 `docs/plans/ml-robustness-and-signal-selection-roadmap.md`

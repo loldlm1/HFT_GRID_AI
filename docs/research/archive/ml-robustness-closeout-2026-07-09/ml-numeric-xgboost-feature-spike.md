@@ -2,7 +2,8 @@
 
 **Date**: 2026-07-08
 **Roadmap Phase**: Phase 5 - Numeric XGBoost Feature Spike
-**Status**: IN_PROGRESS
+**Status**: COMPLETED_AND_ARCHIVED on 2026-07-09. S1 schema v5 data path
+validated; S1 numeric candidates rejected for runtime promotion.
 **Planner plan**: `docs/plans/ml-numeric-xgboost-feature-spike-plan.md`
 
 ## Scope

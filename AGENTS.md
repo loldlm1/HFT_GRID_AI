@@ -8,12 +8,16 @@ Short, current notes for Codex agents and contributors. Keep this file brief; ac
 
 - **Purpose**: MT5 Expert Advisor foundation for future strategy integration, broker-aware execution planning, and strict risk controls.
 - **Entrypoint**: `HFT_Grid_AI.mq5`.
-- **Active plan**: `docs/plans/ml-dynamic-tp-path-ratio-plan.md`.
+- **Active plan**: none. Start a new `$planner` plan under `docs/plans/` for
+  the next substantial change.
 - **Environment runbook**: `docs/environment/mt5-agentic-workflows.md`.
 - **Deterministic ML workflow**: `docs/workflows/deterministic-signal-ml-inference-flows.md`.
 - **Archived deterministic ML plans**:
   `docs/plans/archive/deterministic-signal-ml-2026-07-05/` and
   `docs/plans/archive/phase3-ml-2026-07-07/`.
+- **Archived ML robustness closeout**:
+  `docs/plans/archive/ml-robustness-closeout-2026-07-09/` and
+  `docs/research/archive/ml-robustness-closeout-2026-07-09/`.
 - **Archived deterministic ML evidence**: `docs/research/archive/deterministic-signal-ml-2026-07-05/`.
 - **Archived plans**: completed refoundation and skill-stack alignment plans live under `docs/plans/archive/`.
 - **Planning model**: create a new `$planner` plan under `docs/plans/` for any substantial future strategy, architecture, or repository-wide change.

@@ -2,11 +2,15 @@
 
 Active research gate:
 
-- `docs/research/ml-numeric-xgboost-feature-spike.md`
+- none
 
-This gate researches schema v5 numeric XGBoost features before ONNX work
-resumes. Generated exports, datasets, models, reports, screenshots, and Common
-Files packages remain outside git.
+The latest ML robustness and numeric XGBoost research closeout is archived
+under:
+
+- `docs/research/archive/ml-robustness-closeout-2026-07-09/`
+
+Generated exports, datasets, models, reports, screenshots, and Common Files
+packages remain outside git.
 
 Completed deterministic signal ML evidence was archived on 2026-07-05:
 

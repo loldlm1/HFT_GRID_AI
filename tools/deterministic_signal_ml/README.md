@@ -9,7 +9,7 @@ EA, run EA inference, filter trades, or connect to PostgreSQL.
 
 ## Feature Schema Status
 
-The active model-building default is schema v5 numeric XGBoost research:
+The model-building default remains schema v5 numeric XGBoost research tooling:
 
 ```text
 schema_v5_numeric_xgb
@@ -49,19 +49,16 @@ v1 baseline remains frozen as a rejection baseline:
 - Result: no accepted FILTER threshold and no promoted runtime export.
 
 Schema v2 first-attempt evidence, schema v4 follow-up evidence, and schema v5
-numeric research are tracked in:
+numeric research are archived in:
 
-- `docs/plans/ml-feature-schema-v2-plan.md`
-- `docs/plans/ml-feature-schema-v2-follow-up-plan.md`
-- `docs/plans/ml-feature-schema-v4-semantic-lanes-plan.md`
-- `docs/plans/ml-numeric-xgboost-feature-spike-plan.md`
-- `docs/research/ml-feature-schema-v2-acceptance.md`
-- `docs/research/ml-numeric-xgboost-feature-spike.md`
+- `docs/plans/archive/phase3-ml-2026-07-07/`
+- `docs/plans/archive/ml-robustness-closeout-2026-07-09/`
+- `docs/research/archive/ml-robustness-closeout-2026-07-09/`
 
-The first schema v2 XAUUSD 2025 dataset built successfully, but the trained
-candidates failed the final-holdout selected-row and segment-support gates.
-Runtime export, deployment, SHADOW parity, and FILTER validation remain blocked
-until a schema v5 numeric candidate passes the research gate.
+The schema v5 S1 2024-2025 data path built and trained successfully, but all
+target families were rejected because no accepted threshold selected final
+holdout rows. Runtime export, deployment, SHADOW parity, and FILTER validation
+remain blocked until a future plan accepts a new candidate.
 
 ## Setup
 

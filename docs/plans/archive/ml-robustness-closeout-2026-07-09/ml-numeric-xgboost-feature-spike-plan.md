@@ -1,6 +1,9 @@
 # Plan: ML Numeric XGBoost Feature Spike
 
 **Generated**: 2026-07-08
+**Status**: COMPLETED_AND_ARCHIVED on 2026-07-09. Schema v5 numeric XGBoost
+S1 was technically validated and rejected for runtime promotion; S2/S3 are
+deferred to future work only if a new plan explicitly resumes them.
 **Estimated Complexity**: High
 **Roadmap Phase**: Phase 5 of
 `docs/plans/ml-robustness-and-signal-selection-roadmap.md`

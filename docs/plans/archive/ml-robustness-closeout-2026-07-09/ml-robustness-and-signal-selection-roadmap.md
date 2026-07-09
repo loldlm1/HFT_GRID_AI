@@ -1,7 +1,8 @@
 # Roadmap: ML Robustness And Signal Selection
 
 **Generated**: 2026-07-05
-**Status**: Phase 3 complete; Phase 4 planned
+**Status**: COMPLETED_AND_ARCHIVED on 2026-07-09. No active roadmap phase
+remains open in this document.
 **Estimated Complexity**: High
 
 ## Purpose
