@@ -8,6 +8,13 @@
 
 bool g_debug_no_money_abort_pending = false;
 const double EXECUTION_VOLUME_EPSILON = 0.0000001;
+const int    PARTIAL_TP_LEVELS_TOTAL = 3;
+const double PARTIAL_TP_LEVEL_1_R = 1.0;
+const double PARTIAL_TP_LEVEL_2_R = 2.0;
+const double PARTIAL_TP_LEVEL_3_R = 3.0;
+const double PARTIAL_TP_VOLUME_1 = 0.33;
+const double PARTIAL_TP_VOLUME_2 = 0.33;
+const double PARTIAL_TP_VOLUME_3 = 0.34;
 
 struct SignalOrderCloseCandidate
 {
@@ -20,6 +27,164 @@ struct SignalOrderCloseCandidate
     projected_profit  = 0.0;
   }
 };
+
+bool PartialTPEnabled()
+{
+  return (Partial_TP_Mode == PARTIAL_TP_R_MULTIPLES);
+}
+
+double PartialTPLevelR(const int level_index)
+{
+  if(level_index == 0)
+    return PARTIAL_TP_LEVEL_1_R;
+  if(level_index == 1)
+    return PARTIAL_TP_LEVEL_2_R;
+  return PARTIAL_TP_LEVEL_3_R;
+}
+
+double PartialTPVolumeFraction(const int level_index)
+{
+  if(level_index == 0)
+    return PARTIAL_TP_VOLUME_1;
+  if(level_index == 1)
+    return PARTIAL_TP_VOLUME_2;
+  return PARTIAL_TP_VOLUME_3;
+}
+
+bool PartialTPLevelConfirmed(const SignalParams &signal_params,
+                             const int level_index)
+{
+  if(level_index == 0)
+    return signal_params.partial_tp1_confirmed;
+  if(level_index == 1)
+    return signal_params.partial_tp2_confirmed;
+  return signal_params.partial_tp3_confirmed;
+}
+
+void MarkPartialTPLevelConfirmed(SignalParams &signal_params,
+                                 const int level_index,
+                                 const double closed_volume,
+                                 const double close_price)
+{
+  datetime close_time = TimeCurrent();
+  if(level_index == 0)
+  {
+    signal_params.partial_tp1_confirmed = true;
+    signal_params.partial_tp1_closed_volume += closed_volume;
+    signal_params.partial_tp1_close_price = close_price;
+    signal_params.partial_tp1_close_time = close_time;
+    return;
+  }
+  if(level_index == 1)
+  {
+    signal_params.partial_tp2_confirmed = true;
+    signal_params.partial_tp2_closed_volume += closed_volume;
+    signal_params.partial_tp2_close_price = close_price;
+    signal_params.partial_tp2_close_time = close_time;
+    return;
+  }
+
+  signal_params.partial_tp3_confirmed = true;
+  signal_params.partial_tp3_closed_volume += closed_volume;
+  signal_params.partial_tp3_close_price = close_price;
+  signal_params.partial_tp3_close_time = close_time;
+}
+
+double ResolvePartialTPPrice(const SignalParams &signal_params,
+                             const ExecutionLegState &leg_state,
+                             const int level_index)
+{
+  double entry_price = leg_state.entry_price;
+  if(entry_price <= 0.0)
+    entry_price = leg_state.entry_reference_price;
+  if(entry_price <= 0.0 || signal_params.raw_stop_anchor_price <= 0.0)
+    return 0.0;
+
+  double risk_distance = MathAbs(entry_price - signal_params.raw_stop_anchor_price);
+  if(risk_distance <= 0.0)
+    return 0.0;
+
+  double level_r = PartialTPLevelR(level_index);
+  if(signal_params.signal_type == BULLISH)
+    return entry_price + risk_distance * level_r;
+  if(signal_params.signal_type == BEARISH)
+    return entry_price - risk_distance * level_r;
+  return 0.0;
+}
+
+bool PartialTPPriceTriggered(const SignalParams &signal_params,
+                             const double target_price)
+{
+  if(target_price <= 0.0)
+    return false;
+
+  double exit_side_price = ExecutionCurrentPriceForDirection(signal_params.signal_type, false);
+  if(exit_side_price <= 0.0)
+    return false;
+
+  if(signal_params.signal_type == BULLISH)
+    return exit_side_price >= target_price;
+  if(signal_params.signal_type == BEARISH)
+    return exit_side_price <= target_price;
+  return false;
+}
+
+bool ResolvePartialTPCloseVolume(const double current_volume,
+                                 const double initial_volume,
+                                 const int level_index,
+                                 double &close_volume_out,
+                                 string &reason_out)
+{
+  close_volume_out = 0.0;
+  reason_out = "";
+  if(current_volume <= 0.0)
+  {
+    reason_out = "current_volume_invalid";
+    return false;
+  }
+
+  bool final_level = (level_index == PARTIAL_TP_LEVELS_TOTAL - 1);
+  if(final_level)
+  {
+    close_volume_out = current_volume;
+    return true;
+  }
+
+  double base_volume = initial_volume;
+  if(base_volume <= 0.0)
+    base_volume = current_volume;
+
+  double requested_volume = base_volume * PartialTPVolumeFraction(level_index);
+  double normalized_volume = NormalizeVolumeDownForSymbol(_Symbol, requested_volume);
+  if(normalized_volume <= 0.0)
+  {
+    reason_out = "partial_volume_below_min";
+    return false;
+  }
+
+  double min_vol = SymbolInfoDouble(_Symbol, SYMBOL_VOLUME_MIN);
+  double remaining_volume = current_volume - normalized_volume;
+  if(min_vol > 0.0 && remaining_volume > EXECUTION_VOLUME_EPSILON && remaining_volume < min_vol)
+  {
+    double adjusted_volume = NormalizeVolumeDownForSymbol(_Symbol, current_volume - min_vol);
+    if(adjusted_volume <= 0.0)
+    {
+      reason_out = "partial_residual_below_min";
+      return false;
+    }
+    normalized_volume = adjusted_volume;
+    remaining_volume = current_volume - normalized_volume;
+  }
+
+  if(normalized_volume <= 0.0 || normalized_volume >= current_volume - EXECUTION_VOLUME_EPSILON)
+  {
+    reason_out = "partial_would_close_all";
+    return false;
+  }
+
+  close_volume_out = normalized_volume;
+  return true;
+}
 
 struct ExecutionLegTradeAdmissionContext
 {
@@ -516,6 +681,126 @@ bool CloseExecutionLegBrokerPositionVolume(ExecutionLegState &leg_state,
   }
 
   return true;
+}
+
+bool UpdateDeterministicPartialTPLifecycle(SignalParams &signal_params,
+                                           const int leg_index)
+{
+  if(!PartialTPEnabled())
+    return false;
+  if(leg_index < 0 || leg_index >= ArraySize(signal_params.execution_legs))
+    return false;
+
+  ExecutionLegState state = signal_params.execution_legs[leg_index];
+  if(!state.opens_position ||
+     state.status != EXECUTION_LEG_ACTIVE ||
+     state.position_ticket <= 0)
+    return false;
+
+  if(!PositionSelectByTicket(state.position_ticket) ||
+     !SelectedBrokerPositionMatchesExecutionScope(signal_params.signal_type))
+    return false;
+
+  double current_volume = PositionGetDouble(POSITION_VOLUME);
+  if(current_volume <= 0.0)
+    return false;
+
+  double initial_volume = state.initial_lot_size;
+  if(initial_volume <= 0.0)
+    initial_volume = current_volume;
+
+  for(int level_index = 0; level_index < PARTIAL_TP_LEVELS_TOTAL; level_index++)
+  {
+    if(PartialTPLevelConfirmed(signal_params, level_index))
+      continue;
+
+    double target_price = ResolvePartialTPPrice(signal_params, state, level_index);
+    if(!PartialTPPriceTriggered(signal_params, target_price))
+      return false;
+
+    double close_volume = 0.0;
+    string volume_reason = "";
+    if(!ResolvePartialTPCloseVolume(current_volume,
+                                    initial_volume,
+                                    level_index,
+                                    close_volume,
+                                    volume_reason))
+    {
+      ExecutionLogGuardrailBlock("PARTIAL_TP_SKIPPED",
+                                 signal_params,
+                                 state,
+                                 StringFormat("level=%d|reason=%s|current_volume=%.4f|initial_volume=%.4f",
+                                              level_index + 1,
+                                              volume_reason,
+                                              current_volume,
+                                              initial_volume));
+      return false;
+    }
+
+    ExecutionLegState state_before_close = state;
+    double close_price = 0.0;
+    double closed_volume = 0.0;
+    bool fully_closed = false;
+    if(!CloseExecutionLegBrokerPositionVolume(state,
+                                              signal_params.signal_type,
+                                              close_volume,
+                                              close_price,
+                                              closed_volume,
+                                              fully_closed))
+    {
+      ExecutionLogGuardrailBlock("PARTIAL_TP_CLOSE_FAILED",
+                                 signal_params,
+                                 state_before_close,
+                                 StringFormat("level=%d|requested_volume=%.4f",
+                                              level_index + 1,
+                                              close_volume));
+      return false;
+    }
+
+    if(closed_volume <= 0.0)
+      return false;
+
+    RegisterSignalRealizedClose(signal_params,
+                                state_before_close,
+                                closed_volume,
+                                close_price);
+    MarkPartialTPLevelConfirmed(signal_params,
+                                level_index,
+                                closed_volume,
+                                close_price);
+
+    if(fully_closed)
+      state.status = EXECUTION_LEG_COMPLETED;
+    else
+      state.status = EXECUTION_LEG_ACTIVE;
+
+    signal_params.execution_legs[leg_index] = state;
+    RefreshSignalExposureState(signal_params);
+
+    string event_label = StringFormat("PARTIAL_TP%d", level_index + 1);
+    ExecutionLogEvent(event_label, signal_params, signal_params.execution_legs[leg_index]);
+
+    if(fully_closed || level_index == PARTIAL_TP_LEVELS_TOTAL - 1)
+    {
+      signal_params.deterministic_stats_terminal_reason = "TP";
+      int source_attempt_count = 0;
+      bool newly_consumed = RegisterDeterministicSourceConsumedTp(signal_params,
+                                                                 source_attempt_count);
+      if(newly_consumed)
+      {
+        ExecutionLogDeterministicSourceConsumed(signal_params,
+                                                signal_params.execution_legs[leg_index],
+                                                source_attempt_count,
+                                                event_label);
+      }
+      signal_params.signal_state = CLOSED;
+      return true;
+    }
+
+    return false;
+  }
+
+  return false;
 }
 
 bool ResolveSignalTrailingPartialCloseCandidates(const SignalParams &signal_params,

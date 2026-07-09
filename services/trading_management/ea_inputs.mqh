@@ -69,6 +69,7 @@ input double                Lot_Strategy_Size     = 0.01;
 input double                Lot_Multiplier        = 2.0;
 input SignalLotStrategyTypes Signal_Lot_Strategy     = RISK_STRATEGY_OFF;
 input double                TP_Percent               = 100.0;
+input PartialTPModes        Partial_TP_Mode          = PARTIAL_TP_OFF;
 input int                   Daily_Signal_Limit       = 0;
 input DailySignalLimitModes Daily_Signal_Limit_Mode  = STOP_DAILY_SIGNALS;
 

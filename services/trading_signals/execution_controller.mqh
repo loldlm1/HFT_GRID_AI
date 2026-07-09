@@ -590,6 +590,15 @@ void UpdateDeterministicActiveExecutionLifecycle(SignalParams &signal_params,
     return;
   }
 
+  if(PartialTPEnabled())
+  {
+    if(UpdateDeterministicPartialTPLifecycle(signal_params, leg_index))
+      return;
+    if(IsExecutionSignalComplete(signal_params))
+      signal_params.signal_state = CLOSED;
+    return;
+  }
+
   if(DeterministicTakeProfitTriggered(signal_params, leg_state))
   {
     CloseAllExecutionLegs(signal_params, ExecutionResolvePointSize());

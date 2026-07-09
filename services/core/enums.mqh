@@ -143,6 +143,12 @@ enum ExecutionAdmissionStatuses
   EXECUTION_ADMISSION_SEND_FAILED   = 6
 };
 
+enum PartialTPModes
+{
+  PARTIAL_TP_OFF         = 0,
+  PARTIAL_TP_R_MULTIPLES = 1
+};
+
 enum SignalLotStrategyTypes
 {
   RISK_STRATEGY_OFF     = 0,
