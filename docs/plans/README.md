@@ -2,7 +2,8 @@
 
 Active planning status:
 
-- No active implementation plan is currently open.
+- Active implementation plan:
+  `docs/plans/broker-first-execution-statistics-alignment-plan.md`
 
 Completed or superseded ML robustness plans are archived under:
 
