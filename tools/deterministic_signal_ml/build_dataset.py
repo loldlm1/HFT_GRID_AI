@@ -14,6 +14,7 @@ from schema_contract import (
     FEATURE_SET_COLUMNS,
     OUTCOME_COLUMNS,
     OUTCOME_COLUMNS_WITH_PATH,
+    SCHEMA_V6_OUTCOME_COLUMNS_WITH_PATH,
     SIGNAL_FEATURES_FILE,
     SIGNAL_OUTCOMES_FILE,
     SUPPORTED_SCHEMA_VERSION,
@@ -63,7 +64,7 @@ def _tsv_header(path: Path) -> tuple[str, ...]:
 
 def _insert_features_sql(path: Path, schema_version: int) -> str:
     source = _read_tsv_sql(path, feature_columns_for_schema(schema_version))
-    if schema_version == 5:
+    if schema_version in (5, 6):
         numeric_select = """
   CAST(stoch_structure_raw_percent AS DOUBLE) AS stoch_structure_raw_percent,
   CAST(b_percent_main_base AS DOUBLE) AS b_percent_main_base,
@@ -119,8 +120,11 @@ FROM {source}
 
 def _insert_outcomes_sql(path: Path) -> str:
     header = _tsv_header(path)
-    has_path_labels = header == OUTCOME_COLUMNS_WITH_PATH
-    source_columns = OUTCOME_COLUMNS_WITH_PATH if has_path_labels else OUTCOME_COLUMNS
+    has_path_labels = header in (OUTCOME_COLUMNS_WITH_PATH, SCHEMA_V6_OUTCOME_COLUMNS_WITH_PATH)
+    if header == SCHEMA_V6_OUTCOME_COLUMNS_WITH_PATH:
+        source_columns = SCHEMA_V6_OUTCOME_COLUMNS_WITH_PATH
+    else:
+        source_columns = OUTCOME_COLUMNS_WITH_PATH if has_path_labels else OUTCOME_COLUMNS
     return f"""
 INSERT INTO outcomes
 SELECT
@@ -415,7 +419,7 @@ def build_parser() -> argparse.ArgumentParser:
         type=int,
         default=SUPPORTED_SCHEMA_VERSION,
         choices=SUPPORTED_SCHEMA_VERSIONS,
-        help="Phase 1 feature export schema version. Defaults to active schema v5.",
+        help="Phase 1 feature export schema version. Defaults to active schema v6.",
     )
     parser.add_argument(
         "--feature-set-id",
@@ -488,7 +492,7 @@ def main() -> int:
         args.schema_version,
         feature_columns,
     )
-    if args.target_family != BROKER_TARGET_FAMILY and counts["training_matrix"] <= 0:
+    if counts["training_matrix"] <= 0:
         parser.exit(1, f"build failed: no valid rows for target_family={args.target_family}\n")
     print(
         "assembly ok | "

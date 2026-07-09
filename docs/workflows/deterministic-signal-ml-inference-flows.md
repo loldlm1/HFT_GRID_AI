@@ -229,6 +229,21 @@ for the human Strategy Tester checklist covering spread blocks, target-currency
 risk caps, broker partial closes, forced closes, margin denials, and path-label
 interpretation.
 
+After a schema v6 Strategy Tester run with broker-entered signals, validate or
+build the local dataset with the v6 feature contract:
+
+```bash
+.venv/bin/python tools/deterministic_signal_ml/build_dataset.py \
+  --runs-root "$MT5_COMMON_FILES/DeterministicSignalML/runs" \
+  --run-id <schema_v6_run_id> \
+  --dataset-id <schema_v6_dataset_id> \
+  --schema-version 6 \
+  --feature-set-id schema_v6_numeric_xgb
+```
+
+The builder validates `signal_admissions.tsv` and fails instead of writing a
+training dataset when the run has zero joined feature/outcome rows.
+
 ## Schema V4 Semantic Pattern Contract
 
 Current Phase 3 follow-up work uses schema v4 semantic lanes. Do not reuse

@@ -16,7 +16,7 @@ from schema_contract import (
 )
 
 
-BUILDER_VERSION = "phase5.schema_v5_numeric_dataset_builder.v1"
+BUILDER_VERSION = "phase6.schema_v6_numeric_dataset_builder.v1"
 
 
 def _fetch_dicts(connection: duckdb.DuckDBPyConnection, sql: str) -> list[dict[str, Any]]:

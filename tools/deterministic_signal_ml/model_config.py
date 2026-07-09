@@ -67,7 +67,7 @@ class TrainingConfig:
 
 
 def training_config_for_feature_set(feature_set_id: str) -> TrainingConfig:
-    if feature_set_id != "schema_v5_numeric_xgb":
+    if feature_set_id not in ("schema_v5_numeric_xgb", "schema_v6_numeric_xgb"):
         return TrainingConfig()
 
     classifier = XGBoostClassifierConfig(

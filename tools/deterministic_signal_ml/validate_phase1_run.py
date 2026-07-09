@@ -11,6 +11,7 @@ from schema_contract import (
     NULL_TOKEN,
     PHASE1_FILES,
     RUN_MANIFEST_FILE,
+    SIGNAL_ADMISSIONS_FILE,
     RUN_SUMMARY_FILE,
     SIGNAL_FEATURES_FILE,
     SIGNAL_OUTCOMES_FILE,
@@ -30,6 +31,7 @@ class Phase1RunValidation:
     run_path: Path
     config_id: str
     feature_rows: int
+    admission_rows: int
     outcome_rows: int
     joined_rows: int
     duplicate_feature_ids: int
@@ -67,6 +69,11 @@ def _read_tsv(path: Path, expected_columns: tuple[tuple[str, ...], ...]) -> list
             rows.append(dict(zip(header, values)))
 
     return rows
+
+
+def _tsv_header(path: Path) -> tuple[str, ...]:
+    with path.open("r", encoding="utf-8", newline="") as handle:
+        return tuple(handle.readline().rstrip("\r\n").split("\t"))
 
 
 def _required_int(value: str, field: str, filename: str) -> int:
@@ -136,7 +143,11 @@ def validate_phase1_run(
     if not run_path.is_dir():
         raise Phase1ValidationError(f"Run path is not a folder: {run_path}")
 
-    for filename in PHASE1_FILES:
+    required_files = list(PHASE1_FILES)
+    if schema_version >= 6:
+        required_files.append(SIGNAL_ADMISSIONS_FILE)
+
+    for filename in required_files:
         if not (run_path / filename).exists():
             raise Phase1ValidationError(f"Missing required Phase 1 file: {run_path / filename}")
 
@@ -152,6 +163,12 @@ def validate_phase1_run(
         run_path / SIGNAL_FEATURES_FILE,
         expected_column_variants_for(SIGNAL_FEATURES_FILE, schema_version),
     )
+    admission_rows: list[dict[str, str]] = []
+    if schema_version >= 6:
+        admission_rows = _read_tsv(
+            run_path / SIGNAL_ADMISSIONS_FILE,
+            expected_column_variants_for(SIGNAL_ADMISSIONS_FILE, schema_version),
+        )
     outcome_rows = _read_tsv(
         run_path / SIGNAL_OUTCOMES_FILE,
         expected_column_variants_for(SIGNAL_OUTCOMES_FILE, schema_version),
@@ -160,6 +177,7 @@ def validate_phase1_run(
     _require_schema_version(manifest_rows, RUN_MANIFEST_FILE, schema_version)
     _require_schema_version(summary_rows, RUN_SUMMARY_FILE, schema_version)
     _require_schema_version(feature_rows, SIGNAL_FEATURES_FILE, schema_version)
+    _require_schema_version(admission_rows, SIGNAL_ADMISSIONS_FILE, schema_version)
     _require_schema_version(outcome_rows, SIGNAL_OUTCOMES_FILE, schema_version)
 
     manifest = _manifest_dict(manifest_rows)
@@ -182,9 +200,16 @@ def validate_phase1_run(
 
     expected_feature_rows = _required_int(summary["feature_rows"], "feature_rows", RUN_SUMMARY_FILE)
     expected_outcome_rows = _required_int(summary["outcome_rows"], "outcome_rows", RUN_SUMMARY_FILE)
+    expected_admission_rows = 0
+    if schema_version >= 6:
+        expected_admission_rows = _required_int(summary["admission_rows"], "admission_rows", RUN_SUMMARY_FILE)
     if expected_feature_rows != len(feature_rows):
         raise Phase1ValidationError(
             f"Feature row count mismatch for {run_id}: summary={expected_feature_rows}, actual={len(feature_rows)}"
+        )
+    if schema_version >= 6 and expected_admission_rows != len(admission_rows):
+        raise Phase1ValidationError(
+            f"Admission row count mismatch for {run_id}: summary={expected_admission_rows}, actual={len(admission_rows)}"
         )
     if expected_outcome_rows != len(outcome_rows):
         raise Phase1ValidationError(
@@ -198,6 +223,11 @@ def validate_phase1_run(
                 raise Phase1ValidationError(f"{filename} row {index} has wrong run_id: {row['run_id']!r}")
             if row["config_id"] != config_id:
                 raise Phase1ValidationError(f"{filename} row {index} has wrong config_id: {row['config_id']!r}")
+    for index, row in enumerate(admission_rows, start=1):
+        if row["run_id"] != run_id:
+            raise Phase1ValidationError(f"{SIGNAL_ADMISSIONS_FILE} row {index} has wrong run_id: {row['run_id']!r}")
+        if row["config_id"] != config_id:
+            raise Phase1ValidationError(f"{SIGNAL_ADMISSIONS_FILE} row {index} has wrong config_id: {row['config_id']!r}")
 
     feature_ids = [row["signal_id"] for row in feature_rows]
     outcome_ids = [row["signal_id"] for row in outcome_rows]
@@ -251,7 +281,7 @@ def validate_phase1_run(
             f"{sl_non_negative_net_profit_rows} SL outcome rows have non-negative net_profit but negative profit_r"
         )
 
-    path_label_columns_present = bool(outcome_rows and "path_status" in outcome_rows[0])
+    path_label_columns_present = "path_status" in _tsv_header(run_path / SIGNAL_OUTCOMES_FILE)
     if not path_label_columns_present:
         warnings.append("path-ratio outcome columns are not present; only broker_1r targets can be built")
 
@@ -260,6 +290,7 @@ def validate_phase1_run(
         run_path=run_path,
         config_id=config_id,
         feature_rows=len(feature_rows),
+        admission_rows=len(admission_rows),
         outcome_rows=len(outcome_rows),
         joined_rows=len(feature_id_set & outcome_id_set),
         duplicate_feature_ids=duplicate_feature_ids,
