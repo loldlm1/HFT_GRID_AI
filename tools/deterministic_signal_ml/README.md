@@ -105,6 +105,11 @@ Each run must contain:
 - `signal_outcomes.tsv`
 - `run_summary.tsv`
 
+Runs may also contain `signal_leg_outcomes.tsv`. That file is additive and is
+used to audit broker-confirmed per-ticket outcomes for partial TP modes; the
+current schema v6 dataset builder still uses the signal-level feature/outcome
+contract above.
+
 ## Planned Build Command
 
 ```powershell

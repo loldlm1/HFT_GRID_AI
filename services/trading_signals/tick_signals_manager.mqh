@@ -28,11 +28,12 @@ void RegisterClosedSignalOutcomeIfBrokerConfirmed(SignalParams &signal_params,
   }
 
   RegisterDailySignalOutcome(direction, signal_params.raw_profit);
-  RegisterSignalLotSequenceOutcome(signal_params.raw_profit);
-  DeterministicSignalStatsRecordAdmissionEvent(signal_params, "broker_close");
-  DeterministicSignalStatsRecordOutcome(signal_params);
-  DeterministicSignalMLShadowRecordOutcome(signal_params);
-}
+	  RegisterSignalLotSequenceOutcome(signal_params.raw_profit);
+	  DeterministicSignalStatsRecordAdmissionEvent(signal_params, "broker_close");
+	  DeterministicSignalStatsRecordLegOutcomes(signal_params);
+	  DeterministicSignalStatsRecordOutcome(signal_params);
+	  DeterministicSignalMLShadowRecordOutcome(signal_params);
+	}
 
 void CleanupClosedBullishSignals()
 {

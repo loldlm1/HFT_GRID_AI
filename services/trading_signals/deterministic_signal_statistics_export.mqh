@@ -11,6 +11,7 @@ const string DETERMINISTIC_SIGNAL_STATS_MANIFEST_FILE  = "run_manifest.tsv";
 const string DETERMINISTIC_SIGNAL_STATS_FEATURES_FILE  = "signal_features.tsv";
 const string DETERMINISTIC_SIGNAL_STATS_ADMISSIONS_FILE = "signal_admissions.tsv";
 const string DETERMINISTIC_SIGNAL_STATS_OUTCOMES_FILE  = "signal_outcomes.tsv";
+const string DETERMINISTIC_SIGNAL_STATS_LEG_OUTCOMES_FILE = "signal_leg_outcomes.tsv";
 const string DETERMINISTIC_SIGNAL_STATS_SUMMARY_FILE   = "run_summary.tsv";
 const string DETERMINISTIC_SIGNAL_STATS_NULL           = "\\N";
 const ushort DETERMINISTIC_SIGNAL_STATS_DELIMITER      = '\t';
@@ -26,6 +27,8 @@ const string DETERMINISTIC_SIGNAL_STATS_ADMISSIONS_HEADER =
   "schema_version\trun_id\tconfig_id\tsignal_id\tsource_key\tsource_attempt_index\tevent_time\tevent_type\tadmission_status\tadmission_source\tadmission_reason\tspread_points\tmax_spread\tmarket_status\tbroker_entry_confirmed\tbroker_close_confirmed\trisk_plan_status\trisk_target_amount\texpected_sl_loss\texpected_tp_profit\traw_lot\tnormalized_lot";
 const string DETERMINISTIC_SIGNAL_STATS_OUTCOMES_HEADER =
   "schema_version\trun_id\tconfig_id\tsignal_id\tsource_key\tsource_attempt_index\tterminal_time\tterminal_reason\tprofit_r\tduration_seconds\tduration_m1_bars\tentry_price\tclose_price\tnet_profit\tbroker_entry_confirmed\tbroker_close_confirmed\tbroker_close_source\tpartial_tp_mode\tpartial_tp1_confirmed\tpartial_tp2_confirmed\tpartial_tp3_confirmed\tpartial_tp1_closed_volume\tpartial_tp2_closed_volume\tpartial_tp3_closed_volume\thit_1r_before_sl\thit_1_5r_before_sl\thit_2r_before_sl\thit_3r_before_sl\tmax_favorable_r\tmax_adverse_r\tbars_to_1r\tbars_to_1_5r\tbars_to_2r\tbars_to_3r\tbars_to_sl\tpath_horizon_bars\tpath_status\tpath_label_source";
+const string DETERMINISTIC_SIGNAL_STATS_LEG_OUTCOMES_HEADER =
+  "schema_version\trun_id\tconfig_id\tsignal_id\tsource_key\tsource_attempt_index\tleg_index\ttarget_r\tentry_time\tclose_time\tentry_price\tclose_price\tstop_price\ttake_profit_price\tinitial_lot\tclosed_volume\tnet_profit\texpected_sl_loss\tprofit_r\tterminal_reason\tbroker_close_confirmed\tclose_source\tposition_ticket\tposition_comment";
 const string DETERMINISTIC_SIGNAL_STATS_SUMMARY_HEADER =
   "schema_version\trun_id\tconfig_id\tstarted_at\tfinished_at\tfeature_rows\tadmission_rows\toutcome_rows\tfeature_invalid_rows\toutcome_invalid_rows\texport_status";
 
@@ -188,11 +191,13 @@ bool     g_deterministic_signal_stats_failed = false;
 int      g_deterministic_signal_stats_feature_rows = 0;
 int      g_deterministic_signal_stats_admission_rows = 0;
 int      g_deterministic_signal_stats_outcome_rows = 0;
+int      g_deterministic_signal_stats_leg_outcome_rows = 0;
 int      g_deterministic_signal_stats_feature_invalid_rows = 0;
 int      g_deterministic_signal_stats_outcome_invalid_rows = 0;
 string   g_deterministic_signal_stats_feature_buffer[];
 string   g_deterministic_signal_stats_admission_buffer[];
 string   g_deterministic_signal_stats_outcome_buffer[];
+string   g_deterministic_signal_stats_leg_outcome_buffer[];
 DeterministicSignalStatsPathState g_deterministic_signal_stats_path_states[];
 
 bool DeterministicSignalStatsEnabled()
@@ -514,6 +519,13 @@ bool DeterministicSignalStatsFlushOutcomes()
                                             g_deterministic_signal_stats_outcome_buffer);
 }
 
+bool DeterministicSignalStatsFlushLegOutcomes()
+{
+  return DeterministicSignalStatsFlushBuffer(DeterministicSignalStatsPath(DETERMINISTIC_SIGNAL_STATS_LEG_OUTCOMES_FILE),
+                                            DETERMINISTIC_SIGNAL_STATS_LEG_OUTCOMES_HEADER,
+                                            g_deterministic_signal_stats_leg_outcome_buffer);
+}
+
 bool DeterministicSignalStatsFlushAll()
 {
   if(!DeterministicSignalStatsReady())
@@ -522,7 +534,8 @@ bool DeterministicSignalStatsFlushAll()
   bool features_ok = DeterministicSignalStatsFlushFeatures();
   bool admissions_ok = DeterministicSignalStatsFlushAdmissions();
   bool outcomes_ok = DeterministicSignalStatsFlushOutcomes();
-  return features_ok && admissions_ok && outcomes_ok;
+  bool leg_outcomes_ok = DeterministicSignalStatsFlushLegOutcomes();
+  return features_ok && admissions_ok && outcomes_ok && leg_outcomes_ok;
 }
 
 string DeterministicSignalStatsManifestRow(const string key,
@@ -558,6 +571,7 @@ bool DeterministicSignalStatsWriteManifest()
   DeterministicSignalStatsWriteLine(filename, DeterministicSignalStatsManifestRow("feature_policy", "broker_entered_only"), true);
   DeterministicSignalStatsWriteLine(filename, DeterministicSignalStatsManifestRow("admission_policy", "candidate_and_broker_admission_events"), true);
   DeterministicSignalStatsWriteLine(filename, DeterministicSignalStatsManifestRow("outcome_policy", "broker_confirmed_only"), true);
+  DeterministicSignalStatsWriteLine(filename, DeterministicSignalStatsManifestRow("leg_outcome_policy", "optional_broker_confirmed_ticket_outcomes"), true);
   DeterministicSignalStatsWriteLine(filename, DeterministicSignalStatsManifestRow("numeric_feature_set", "schema_v6_numeric_xgb"), true);
   DeterministicSignalStatsWriteLine(filename, DeterministicSignalStatsManifestRow("b_percent_indicator", "iBands:upper_lower_close:period_21:deviation_2.0:bands_shift_0:PRICE_CLOSE"), true);
   DeterministicSignalStatsWriteLine(filename, DeterministicSignalStatsManifestRow("path_ratio_policy", "bounded_tick_path_outcome_only"), true);
@@ -571,6 +585,7 @@ bool DeterministicSignalStatsPrepareRowFiles()
   string features_filename = DeterministicSignalStatsPath(DETERMINISTIC_SIGNAL_STATS_FEATURES_FILE);
   string admissions_filename = DeterministicSignalStatsPath(DETERMINISTIC_SIGNAL_STATS_ADMISSIONS_FILE);
   string outcomes_filename = DeterministicSignalStatsPath(DETERMINISTIC_SIGNAL_STATS_OUTCOMES_FILE);
+  string leg_outcomes_filename = DeterministicSignalStatsPath(DETERMINISTIC_SIGNAL_STATS_LEG_OUTCOMES_FILE);
 
   if(!DeterministicSignalStatsWriteLine(features_filename,
                                         DETERMINISTIC_SIGNAL_STATS_FEATURES_HEADER,
@@ -584,6 +599,11 @@ bool DeterministicSignalStatsPrepareRowFiles()
 
   if(!DeterministicSignalStatsWriteLine(outcomes_filename,
                                         DETERMINISTIC_SIGNAL_STATS_OUTCOMES_HEADER,
+                                        false))
+    return false;
+
+  if(!DeterministicSignalStatsWriteLine(leg_outcomes_filename,
+                                        DETERMINISTIC_SIGNAL_STATS_LEG_OUTCOMES_HEADER,
                                         false))
     return false;
 
@@ -636,11 +656,13 @@ void DeterministicSignalStatsReset()
   g_deterministic_signal_stats_feature_rows = 0;
   g_deterministic_signal_stats_admission_rows = 0;
   g_deterministic_signal_stats_outcome_rows = 0;
+  g_deterministic_signal_stats_leg_outcome_rows = 0;
   g_deterministic_signal_stats_feature_invalid_rows = 0;
   g_deterministic_signal_stats_outcome_invalid_rows = 0;
   ArrayResize(g_deterministic_signal_stats_feature_buffer, 0);
   ArrayResize(g_deterministic_signal_stats_admission_buffer, 0);
   ArrayResize(g_deterministic_signal_stats_outcome_buffer, 0);
+  ArrayResize(g_deterministic_signal_stats_leg_outcome_buffer, 0);
   ArrayResize(g_deterministic_signal_stats_path_states, 0);
 }
 
@@ -688,6 +710,7 @@ void DeterministicSignalStatsDeinit()
   ArrayResize(g_deterministic_signal_stats_feature_buffer, 0);
   ArrayResize(g_deterministic_signal_stats_admission_buffer, 0);
   ArrayResize(g_deterministic_signal_stats_outcome_buffer, 0);
+  ArrayResize(g_deterministic_signal_stats_leg_outcome_buffer, 0);
   ArrayResize(g_deterministic_signal_stats_path_states, 0);
 }
 
@@ -2053,7 +2076,170 @@ string DeterministicSignalStatsBrokerOutcomeColumns(const SignalParams &signal_p
                                              4) + "\t" +
          DeterministicSignalStatsDoubleToken(signal_params.partial_tp3_closed_volume > 0.0,
                                              signal_params.partial_tp3_closed_volume,
-                                             4);
+	                                             4);
+}
+
+bool DeterministicSignalStatsLegExpectedSLLoss(const SignalParams &signal_params,
+                                               const ExecutionLegState &leg_state,
+                                               const double entry_price,
+                                               double &expected_sl_loss_out)
+{
+  expected_sl_loss_out = 0.0;
+  if(entry_price <= 0.0 || leg_state.next_level_price <= 0.0)
+    return false;
+
+  double volume = leg_state.initial_lot_size;
+  if(volume <= 0.0)
+    volume = leg_state.closed_volume;
+  if(volume <= 0.0)
+    return false;
+
+  double sl_profit = 0.0;
+  if(!ResolveBrokerProfitForExecution(signal_params.signal_type,
+                                      volume,
+                                      entry_price,
+                                      leg_state.next_level_price,
+                                      sl_profit))
+    return false;
+
+  expected_sl_loss_out = MathAbs(sl_profit);
+  return (expected_sl_loss_out > 0.0 && MathIsValidNumber(expected_sl_loss_out));
+}
+
+string DeterministicSignalStatsLegTerminalReason(const SignalParams &signal_params,
+                                                 const ExecutionLegState &leg_state)
+{
+  if(!leg_state.broker_close_confirmed)
+    return "UNKNOWN";
+  if(ExecutionLegClosedOnTakeProfitSide(signal_params,
+                                        leg_state,
+                                        leg_state.close_price,
+                                        leg_state.realized_profit))
+    return "TP";
+  if(leg_state.realized_profit < 0.0)
+    return "SL";
+  return "BREAKEVEN";
+}
+
+bool DeterministicSignalStatsQueueLegOutcomeRow(SignalParams &signal_params,
+                                                const int leg_index,
+                                                const ExecutionLegState &leg_state)
+{
+  if(!DeterministicSignalStatsReady())
+    return false;
+  if(!signal_params.deterministic_strategy)
+    return false;
+  if(!leg_state.opens_position || !leg_state.broker_close_confirmed)
+    return false;
+
+  string signal_id = DeterministicSignalStatsEnsureSignalId(signal_params);
+  if(signal_id == "")
+    return false;
+
+  string source_key = signal_params.deterministic_source_key;
+  if(source_key == "")
+    source_key = BuildDeterministicSignalSourceKey(signal_params);
+
+  double entry_price = leg_state.entry_price;
+  if(entry_price <= 0.0)
+    entry_price = leg_state.entry_reference_price;
+  bool entry_price_valid = (entry_price > 0.0 && MathIsValidNumber(entry_price));
+  bool close_price_valid = (leg_state.close_price > 0.0 &&
+                            MathIsValidNumber(leg_state.close_price));
+  bool net_profit_valid = MathIsValidNumber(leg_state.realized_profit);
+  double expected_sl_loss = 0.0;
+  bool expected_sl_loss_valid = DeterministicSignalStatsLegExpectedSLLoss(signal_params,
+                                                                         leg_state,
+                                                                         entry_price,
+                                                                         expected_sl_loss);
+  double profit_r = 0.0;
+  bool profit_r_valid = expected_sl_loss_valid &&
+                        net_profit_valid &&
+                        expected_sl_loss > 0.0;
+  if(profit_r_valid)
+    profit_r = leg_state.realized_profit / expected_sl_loss;
+
+  double target_r = PartialTPEnabled()
+                    ? PartialTPLevelR(leg_index)
+                    : ResolveTargetProfitFactorFromPercent(TP_Percent);
+  ulong position_ticket = leg_state.closed_position_ticket;
+  if(position_ticket <= 0)
+    position_ticket = leg_state.position_ticket;
+
+  datetime entry_time = leg_state.last_action_time;
+  if(entry_time <= 0)
+    entry_time = signal_params.entry_time;
+
+  string row = IntegerToString(DETERMINISTIC_SIGNAL_STATS_SCHEMA_VERSION) + "\t" +
+               DeterministicSignalStatsCell(g_deterministic_signal_stats_run_id) + "\t" +
+               DeterministicSignalStatsCell(g_deterministic_signal_stats_config_id) + "\t" +
+               DeterministicSignalStatsCell(signal_id) + "\t" +
+               DeterministicSignalStatsCell(source_key) + "\t" +
+               IntegerToString(signal_params.deterministic_source_attempt_index) + "\t" +
+               IntegerToString(leg_index + 1) + "\t" +
+               DeterministicSignalStatsDoubleToken(target_r > 0.0, target_r, 2) + "\t" +
+               DeterministicSignalStatsTimeToken(entry_time) + "\t" +
+               DeterministicSignalStatsTimeToken(leg_state.close_time) + "\t" +
+               DeterministicSignalStatsDoubleToken(entry_price_valid, entry_price, Digits()) + "\t" +
+               DeterministicSignalStatsDoubleToken(close_price_valid, leg_state.close_price, Digits()) + "\t" +
+               DeterministicSignalStatsDoubleToken(leg_state.next_level_price > 0.0,
+                                                   leg_state.next_level_price,
+                                                   Digits()) + "\t" +
+               DeterministicSignalStatsDoubleToken(leg_state.take_profit_price > 0.0,
+                                                   leg_state.take_profit_price,
+                                                   Digits()) + "\t" +
+               DeterministicSignalStatsDoubleToken(leg_state.initial_lot_size > 0.0,
+                                                   leg_state.initial_lot_size,
+                                                   4) + "\t" +
+               DeterministicSignalStatsDoubleToken(leg_state.closed_volume > 0.0,
+                                                   leg_state.closed_volume,
+                                                   4) + "\t" +
+               DeterministicSignalStatsDoubleToken(net_profit_valid,
+                                                   leg_state.realized_profit,
+                                                   2) + "\t" +
+               DeterministicSignalStatsDoubleToken(expected_sl_loss_valid,
+                                                   expected_sl_loss,
+                                                   2) + "\t" +
+               DeterministicSignalStatsDoubleToken(profit_r_valid,
+                                                   profit_r,
+                                                   4) + "\t" +
+               DeterministicSignalStatsCell(DeterministicSignalStatsLegTerminalReason(signal_params,
+                                                                                      leg_state)) + "\t" +
+               DeterministicSignalStatsBoolToken(leg_state.broker_close_confirmed) + "\t" +
+               DeterministicSignalStatsCell(leg_state.close_source) + "\t" +
+               (position_ticket > 0 ? IntegerToString((long)position_ticket) : DETERMINISTIC_SIGNAL_STATS_NULL) + "\t" +
+               DeterministicSignalStatsCell(leg_state.position_comment);
+
+  string filename = DeterministicSignalStatsPath(DETERMINISTIC_SIGNAL_STATS_LEG_OUTCOMES_FILE);
+  if(!DeterministicSignalStatsQueueRow(filename,
+                                       DETERMINISTIC_SIGNAL_STATS_LEG_OUTCOMES_HEADER,
+                                       row,
+                                       g_deterministic_signal_stats_leg_outcome_buffer))
+    return false;
+
+  g_deterministic_signal_stats_leg_outcome_rows++;
+  return true;
+}
+
+bool DeterministicSignalStatsRecordLegOutcomes(SignalParams &signal_params)
+{
+  if(!DeterministicSignalStatsReady())
+    return false;
+  if(!signal_params.deterministic_strategy)
+    return false;
+  if(!SignalHasBrokerConfirmedOutcome(signal_params))
+    return false;
+
+  bool wrote_any = false;
+  int total_legs = ArraySize(signal_params.execution_legs);
+  for(int i = 0; i < total_legs; i++)
+  {
+    ExecutionLegState leg_state = signal_params.execution_legs[i];
+    if(DeterministicSignalStatsQueueLegOutcomeRow(signal_params, i, leg_state))
+      wrote_any = true;
+  }
+
+  return wrote_any;
 }
 
 bool DeterministicSignalStatsWriteOutcomeRow(const string row,
