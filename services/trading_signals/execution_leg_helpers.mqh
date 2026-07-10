@@ -217,14 +217,14 @@ string ExecutionComposeLegComment(const SignalParams &signal_params,
   if(entry_token < 0)
     entry_token = 0;
   entry_token = entry_token % 1000000;
-  string strategy_token = signal_params.strategy_label;
-  if(strategy_token == "")
-    strategy_token = DeterministicStrategyLabel(signal_params.strategy_id);
-  if(strategy_token == "")
-    strategy_token = "BASE";
+  string engine_token = signal_params.engine_label;
+  if(engine_token == "")
+    engine_token = ExtremumEngineLabel(signal_params.engine_id);
+  if(engine_token == "")
+    engine_token = "ENGINE";
   int display_level = ExecutionDisplayLegNumber(leg_state.level_index);
   return StringFormat("EX_%s_%s_%d_L%d",
-                      strategy_token,
+                      engine_token,
                       direction_label,
                       (int)entry_token,
                       display_level);

@@ -2,7 +2,8 @@
 
 Active planning status:
 
-- Active implementation plan: none.
+- Active implementation plan:
+  `docs/plans/extremum-engine-cycle-statistics-plan.md`.
 
 Completed broker-first execution/statistics alignment plans are archived under:
 

@@ -8,17 +8,12 @@
 // across services. Any module relying on these inputs should include this file
 // (directly or through the trading_management aggregator).
 
-// Deterministic strategy constants. Keep these internal unless a future plan
-// explicitly expands the optimization surface.
-const ENUM_TIMEFRAMES DETERMINISTIC_BASE_TIMEFRAME = PERIOD_M1;
+// The intrinsic extremum engine is intentionally fixed to M1 for this phase.
+const ENUM_TIMEFRAMES EXTREMUM_ENGINE_TIMEFRAME    = PERIOD_M1;
 const int             DETERMINISTIC_MA_PERIOD      = 21;
 const int             DETERMINISTIC_STOCH_K        = 5;
 const int             DETERMINISTIC_STOCH_D        = 3;
 const int             DETERMINISTIC_STOCH_SLOWING  = 3;
-const int             DETERMINISTIC_S1_BASE_DELAY  = 3;
-const int             DETERMINISTIC_S2_BASE_DELAY  = 5;
-const int             DETERMINISTIC_S3_BASE_DELAY  = 10;
-const int             DETERMINISTIC_MACRO_DELAY    = 1;
 const double          DETERMINISTIC_B_PERCENT_DEVIATION = 2.0;
 const int             DETERMINISTIC_B_PERCENT_SIGNAL_PERIOD = 5;
 
@@ -56,10 +51,7 @@ input string                 Session_NewYork_Filter_Time_Range = "12:00-20:00";
 input DstOffsetModes         Session_Time_Dst_Mode         = DST_MODE_OFF;
 input int                    Session_Time_Dst_Manual_Offset_Minutes = 0;
 
-input group  "+= Deterministic Strategies =+";
-input bool Enable_Strategy_1 = true;
-input bool Enable_Strategy_2 = true;
-input bool Enable_Strategy_3 = true;
+input group  "+= Extremum Engine =+";
 input StrategyDirectionTypes Strategy_Direction_Mode = BOTH_DIRECTION;
 input SignalConcurrencyModes Signal_Concurrency_Mode = MULTIPLE_RUNNING_SIGNALS;
 

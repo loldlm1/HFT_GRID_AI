@@ -15,7 +15,7 @@ const string FOUNDATION_STRUCTURE_FIBONACCI_LEVELS = "0.0,61.8,100.0";
 
 struct DeterministicMacroVisualChartState
 {
-  int             strategy_id;
+  int             engine_id;
   ENUM_TIMEFRAMES timeframe;
   long            chart_id;
   int             bands_indicator_handle;
@@ -26,7 +26,7 @@ struct DeterministicMacroVisualChartState
 
   DeterministicMacroVisualChartState()
   {
-    strategy_id                = DETERMINISTIC_STRATEGY_NONE;
+    engine_id                  = EXTREMUM_ENGINE_NONE;
     timeframe                  = PERIOD_CURRENT;
     chart_id                   = 0;
     bands_indicator_handle     = INVALID_HANDLE;
@@ -38,7 +38,7 @@ struct DeterministicMacroVisualChartState
 
   DeterministicMacroVisualChartState(const DeterministicMacroVisualChartState &source)
   {
-    strategy_id                = source.strategy_id;
+    engine_id                  = source.engine_id;
     timeframe                  = source.timeframe;
     chart_id                   = source.chart_id;
     bands_indicator_handle     = source.bands_indicator_handle;
@@ -82,7 +82,7 @@ void PrepareStrategyTimeframes()
   ArrayResize(Strategy_TF_List, 0);
 
   ArrayResize(Strategy_TF_List, 1);
-  Strategy_TF_List[0] = DETERMINISTIC_BASE_TIMEFRAME;
+  Strategy_TF_List[0] = EXTREMUM_ENGINE_TIMEFRAME;
   total_tf_list_load = ArraySize(Strategy_TF_List);
 }
 
@@ -316,22 +316,10 @@ void LoadDeterministicBandsLogicIndicators()
   ArrayResize(ExtDeterministicBandsLogicHandles, 0);
   SetTesterIndicatorHideMode(true);
 
-  for(int strategy_index = 0; strategy_index < DETERMINISTIC_STRATEGY_TOTAL; strategy_index++)
+  if(Enable_Signal_Feature_Export || ML_Inference_Mode != ML_INFERENCE_DISABLED)
   {
-    int strategy_id = DETERMINISTIC_STRATEGY_NONE;
-    if(!DeterministicStrategyIdByIndex(strategy_index, strategy_id))
-      continue;
-    if(!DeterministicStrategyEnabled(strategy_id))
-      continue;
-
     AddDeterministicBandsBaseLogicHandle(ExtDeterministicBandsLogicHandles,
-                                         DETERMINISTIC_BASE_TIMEFRAME);
-    AddDeterministicBandsBaseLogicHandle(ExtDeterministicBandsLogicHandles,
-                                         DeterministicStrategyMacroTimeframe(strategy_id));
-  }
-
-  if(Enable_Signal_Feature_Export)
-  {
+                                         EXTREMUM_ENGINE_TIMEFRAME);
     AddDeterministicBandsBaseLogicHandle(ExtDeterministicBandsLogicHandles, PERIOD_H1);
     AddDeterministicBandsBaseLogicHandle(ExtDeterministicBandsLogicHandles, PERIOD_H4);
     AddDeterministicBandsBaseLogicHandle(ExtDeterministicBandsLogicHandles, PERIOD_D1);
@@ -496,21 +484,7 @@ bool DeleteIndicatorFromChartByHandle(const long chart_id,
 
 void LoadDeterministicBaseVisualIndicators()
 {
-  for(int strategy_index = 0; strategy_index < DETERMINISTIC_STRATEGY_TOTAL; strategy_index++)
-  {
-    int strategy_id = DETERMINISTIC_STRATEGY_NONE;
-    if(!DeterministicStrategyIdByIndex(strategy_index, strategy_id))
-      continue;
-    if(!DeterministicStrategyEnabled(strategy_id))
-      continue;
-
-    AddDeterministicBandsVisualHandle(ExtDeterministicBandsVisualHandles,
-                                      DETERMINISTIC_BASE_TIMEFRAME,
-                                      DeterministicStrategyBaseDelay(strategy_id));
-    AddDeterministicBPercentHandle(ExtDeterministicBPercentVisualHandles,
-                                   DETERMINISTIC_BASE_TIMEFRAME,
-                                   DeterministicStrategyBaseDelay(strategy_id));
-  }
+  return;
 }
 
 void AddDeterministicBaseVisualIndicatorsToChart()
@@ -522,7 +496,7 @@ void AddDeterministicBaseVisualIndicatorsToChart()
     string context_label = "Base iBands shift " + IntegerToString(ExtDeterministicBandsVisualHandles[i].indicator_shift);
     AddIndicatorToMainChart(chart_id,
                             ExtDeterministicBandsVisualHandles[i].indicator_handle,
-                            DETERMINISTIC_BASE_TIMEFRAME,
+                            EXTREMUM_ENGINE_TIMEFRAME,
                             context_label);
   }
 
@@ -532,101 +506,19 @@ void AddDeterministicBaseVisualIndicatorsToChart()
     string context_label = "Base BB Percent shift " + IntegerToString(ExtDeterministicBPercentVisualHandles[j].indicator_shift);
     AddIndicatorToNewSubwindow(chart_id,
                                ExtDeterministicBPercentVisualHandles[j].indicator_handle,
-                               DETERMINISTIC_BASE_TIMEFRAME,
+                               EXTREMUM_ENGINE_TIMEFRAME,
                                context_label);
   }
 }
 
-void LoadDeterministicMacroVisualChart(const int strategy_id)
+void LoadDeterministicMacroVisualChart(const int engine_id)
 {
-  ENUM_TIMEFRAMES macro_timeframe = DeterministicStrategyMacroTimeframe(strategy_id);
-  if(macro_timeframe == PERIOD_CURRENT)
-    return;
-
-  SetTesterIndicatorHideMode(true);
-  IndicatorsHandleInfo bands_handle_info;
-  if(!LoadDeterministicBandsVisualHandle(macro_timeframe,
-                                         DETERMINISTIC_MACRO_DELAY,
-                                         bands_handle_info))
-  {
-    SetTesterIndicatorHideMode(false);
-    return;
-  }
-
-  IndicatorsHandleInfo b_percent_handle_info;
-  if(!LoadDeterministicBPercentHandle(macro_timeframe,
-                                      DETERMINISTIC_MACRO_DELAY,
-                                      b_percent_handle_info))
-  {
-    SetTesterIndicatorHideMode(false);
-    IndicatorRelease(bands_handle_info.indicator_handle);
-    return;
-  }
-  SetTesterIndicatorHideMode(false);
-
-  long previous_chart_ids[];
-  CollectOpenChartIds(previous_chart_ids);
-
-  ResetLastError();
-  long chart_id = ChartOpen(_Symbol, macro_timeframe);
-  if(chart_id <= 0)
-  {
-    if(Enable_Logs)
-    {
-      PrintFormat("ChartOpen failed for deterministic macro visual | strategy=%s | tf=%s | err=%d",
-                  DeterministicStrategyLabel(strategy_id),
-                  EnumToString(macro_timeframe),
-                  GetLastError());
-    }
-    IndicatorRelease(bands_handle_info.indicator_handle);
-    IndicatorRelease(b_percent_handle_info.indicator_handle);
-    return;
-  }
-
-  DeterministicMacroVisualChartState state;
-  state.strategy_id                = strategy_id;
-  state.timeframe                  = macro_timeframe;
-  state.chart_id                   = chart_id;
-  state.bands_indicator_handle     = bands_handle_info.indicator_handle;
-  state.b_percent_indicator_handle = b_percent_handle_info.indicator_handle;
-  state.chart_owned                = !ChartIdWasOpenBefore(previous_chart_ids, chart_id);
-  state.bands_indicator_added      = false;
-  state.b_percent_indicator_added  = false;
-
-  int state_index = ArraySize(ExtDeterministicMacroVisualCharts);
-  AddElementToArray(ExtDeterministicMacroVisualCharts, state);
-
-  string context_label = "Macro iBands " + DeterministicStrategyLabel(strategy_id);
-  if(AddIndicatorToMainChart(chart_id,
-                             bands_handle_info.indicator_handle,
-                             macro_timeframe,
-                             context_label))
-  {
-    ExtDeterministicMacroVisualCharts[state_index].bands_indicator_added = true;
-  }
-
-  context_label = "Macro BB Percent " + DeterministicStrategyLabel(strategy_id);
-  if(AddIndicatorToNewSubwindow(chart_id,
-                                b_percent_handle_info.indicator_handle,
-                                macro_timeframe,
-                                context_label))
-  {
-    ExtDeterministicMacroVisualCharts[state_index].b_percent_indicator_added = true;
-  }
+  return;
 }
 
 void LoadDeterministicMacroVisualCharts()
 {
-  for(int strategy_index = 0; strategy_index < DETERMINISTIC_STRATEGY_TOTAL; strategy_index++)
-  {
-    int strategy_id = DETERMINISTIC_STRATEGY_NONE;
-    if(!DeterministicStrategyIdByIndex(strategy_index, strategy_id))
-      continue;
-    if(!DeterministicStrategyEnabled(strategy_id))
-      continue;
-
-    LoadDeterministicMacroVisualChart(strategy_id);
-  }
+  return;
 }
 
 void LoadDeterministicBandsVisualIndicators()
@@ -635,14 +527,7 @@ void LoadDeterministicBandsVisualIndicators()
   ArrayResize(ExtDeterministicBPercentVisualHandles, 0);
   ArrayResize(ExtDeterministicMacroVisualCharts, 0);
 
-  if(!Enable_Show_Indicators)
-    return;
-
-  SetTesterIndicatorHideMode(true);
-  LoadDeterministicBaseVisualIndicators();
-  SetTesterIndicatorHideMode(false);
-  AddDeterministicBaseVisualIndicatorsToChart();
-  LoadDeterministicMacroVisualCharts();
+  return;
 }
 
 void ReleaseIndicatorHandleArray(IndicatorsHandleInfo &handles[])
@@ -696,7 +581,7 @@ void ReleaseAllDeterministicBandsIndicators()
   int macro_total = ArraySize(ExtDeterministicMacroVisualCharts);
   for(int i = 0; i < macro_total; i++)
   {
-    string context_label = "Macro iBands " + DeterministicStrategyLabel(ExtDeterministicMacroVisualCharts[i].strategy_id);
+    string context_label = "Macro iBands " + ExtremumEngineLabel(ExtDeterministicMacroVisualCharts[i].engine_id);
     if(ExtDeterministicMacroVisualCharts[i].bands_indicator_added)
     {
       DeleteIndicatorFromChartByHandle(ExtDeterministicMacroVisualCharts[i].chart_id,
@@ -704,7 +589,7 @@ void ReleaseAllDeterministicBandsIndicators()
                                        context_label);
     }
 
-    context_label = "Macro BB Percent " + DeterministicStrategyLabel(ExtDeterministicMacroVisualCharts[i].strategy_id);
+    context_label = "Macro BB Percent " + ExtremumEngineLabel(ExtDeterministicMacroVisualCharts[i].engine_id);
     if(ExtDeterministicMacroVisualCharts[i].b_percent_indicator_added)
     {
       DeleteIndicatorFromChartByHandle(ExtDeterministicMacroVisualCharts[i].chart_id,
@@ -732,7 +617,7 @@ void ReleaseAllDeterministicBandsIndicators()
       {
         PrintFormat("ChartClose failed for deterministic macro visual | chart=%I64d | strategy=%s | err=%d",
                     ExtDeterministicMacroVisualCharts[i].chart_id,
-                    DeterministicStrategyLabel(ExtDeterministicMacroVisualCharts[i].strategy_id),
+                    ExtremumEngineLabel(ExtDeterministicMacroVisualCharts[i].engine_id),
                     GetLastError());
       }
     }
@@ -762,8 +647,9 @@ void LoadAllIndicatorDefinitions()
 
   if(Enable_Logs)
   {
-    PrintFormat("Deterministic strategy context | BaseTF=%s | Stoch=%d,%d,%d | Direction=%s",
-                EnumToString(DETERMINISTIC_BASE_TIMEFRAME),
+    PrintFormat("Extremum engine context | Engine=%s | TF=%s | Stoch=%d,%d,%d | Direction=%s",
+                ExtremumEngineLabel(EXTREMUM_ENGINE_V1),
+                EnumToString(EXTREMUM_ENGINE_TIMEFRAME),
                 DETERMINISTIC_STOCH_K,
                 DETERMINISTIC_STOCH_D,
                 DETERMINISTIC_STOCH_SLOWING,

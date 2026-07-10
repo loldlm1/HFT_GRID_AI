@@ -23,9 +23,9 @@ bool ResolveDeterministicM1Rates(double &close_0_out,
     return (close_0_out > 0.0 && high_1_out > 0.0 && low_1_out > 0.0);
   }
 
-  close_0_out = iClose(_Symbol, DETERMINISTIC_BASE_TIMEFRAME, 0);
-  high_1_out  = iHigh(_Symbol, DETERMINISTIC_BASE_TIMEFRAME, 1);
-  low_1_out   = iLow(_Symbol, DETERMINISTIC_BASE_TIMEFRAME, 1);
+  close_0_out = iClose(_Symbol, EXTREMUM_ENGINE_TIMEFRAME, 0);
+  high_1_out  = iHigh(_Symbol, EXTREMUM_ENGINE_TIMEFRAME, 1);
+  low_1_out   = iLow(_Symbol, EXTREMUM_ENGINE_TIMEFRAME, 1);
 
   cached_tick_msc = tick_msc;
   cached_close_0  = close_0_out;
@@ -614,24 +614,6 @@ bool DeterministicTakeProfitTriggered(const SignalParams &signal_params,
   return false;
 }
 
-bool DeterministicMacroStillConfirms(const SignalParams &signal_params)
-{
-  double macro_now = 0.0;
-  double macro_prev = 0.0;
-  return EvaluateDeterministicMacroConfirmation(signal_params.strategy_id,
-                                                signal_params.signal_type,
-                                                macro_now,
-                                                macro_prev);
-}
-
-int ResolveDeterministicEntryBaseShift(const SignalParams &signal_params)
-{
-  int base_shift = signal_params.strategy_base_delay;
-  if(base_shift <= 0)
-    base_shift = DeterministicStrategyBaseDelay(signal_params.strategy_id);
-  return base_shift;
-}
-
 double ResolveDeterministicPendingEntryCandidate(const SignalTypes direction,
                                                  const double high_1,
                                                  const double low_1)
@@ -879,78 +861,11 @@ bool PrepareDeterministicPendingEntryAdmission(SignalParams &signal_params,
     return false;
   }
 
-  double base_ma_now = 0.0;
-  double base_ma_prev = 0.0;
-  double macro_ma_now = 0.0;
-  double macro_ma_prev = 0.0;
-  int base_shift = ResolveDeterministicEntryBaseShift(signal_params);
-  bool base_confirms = EvaluateDeterministicCurrentBaseConfirmation(signal_params.strategy_id,
-                                                                    signal_params.signal_type,
-                                                                    base_ma_now,
-                                                                    base_ma_prev);
-  bool macro_confirms = EvaluateDeterministicMacroConfirmation(signal_params.strategy_id,
-                                                               signal_params.signal_type,
-                                                               macro_ma_now,
-                                                               macro_ma_prev);
-
-  if(!base_confirms)
-  {
-    leg_state.status = EXECUTION_LEG_COMPLETED;
-    signal_params.execution_legs[leg_index] = leg_state;
-    signal_params.signal_state = CLOSED;
-    ExecutionLogDeterministicEntryConfirmation("DETERMINISTIC_BASE_EXPIRED",
-                                               signal_params,
-                                               leg_state,
-                                               base_shift,
-                                               base_confirms,
-                                               base_ma_now,
-                                               base_ma_prev,
-                                               DETERMINISTIC_MACRO_DELAY,
-                                               macro_confirms,
-                                               macro_ma_now,
-                                               macro_ma_prev,
-                                               close_0,
-                                               high_1,
-                                               low_1);
-    return false;
-  }
-
-  if(!macro_confirms)
-  {
-    leg_state.status = EXECUTION_LEG_COMPLETED;
-    signal_params.execution_legs[leg_index] = leg_state;
-    signal_params.signal_state = CLOSED;
-    ExecutionLogDeterministicEntryConfirmation("DETERMINISTIC_MACRO_EXPIRED",
-                                               signal_params,
-                                               leg_state,
-                                               base_shift,
-                                               base_confirms,
-                                               base_ma_now,
-                                               base_ma_prev,
-                                               DETERMINISTIC_MACRO_DELAY,
-                                               macro_confirms,
-                                               macro_ma_now,
-                                               macro_ma_prev,
-                                               close_0,
-                                               high_1,
-                                               low_1);
-    return false;
-  }
-
-  ExecutionLogDeterministicEntryConfirmation("DETERMINISTIC_ENTRY_CONFIRM",
-                                             signal_params,
-                                             leg_state,
-                                             base_shift,
-                                             base_confirms,
-                                             base_ma_now,
-                                             base_ma_prev,
-                                             DETERMINISTIC_MACRO_DELAY,
-                                             macro_confirms,
-                                             macro_ma_now,
-                                             macro_ma_prev,
-                                             close_0,
-                                             high_1,
-                                             low_1);
+  ExecutionLogExtremumEngineEntryConfirmation(signal_params,
+                                              leg_state,
+                                              close_0,
+                                              high_1,
+                                              low_1);
 
   double requested_lot = leg_state.lot_size;
   double normalized_volume = NormalizeVolumeForSymbol(_Symbol, requested_lot);
@@ -1251,77 +1166,6 @@ void UpdateDeterministicExecutionLifecycle(SignalParams &signal_params)
   }
 
   UpdateDeterministicActiveExecutionLifecycle(signal_params, leg_index, close_0);
-}
-
-bool UpdateDeterministicExecutionLifecycleForMLArbitration(SignalParams &signal_params,
-                                                           const int direction_array,
-                                                           const int signal_index,
-                                                           const datetime activation_time,
-                                                           MLArbitrationCandidate &candidate_out)
-{
-  candidate_out = MLArbitrationCandidate();
-
-  if(signal_params.signal_state == CLOSED)
-    return false;
-
-  if(!signal_params.deterministic_strategy)
-  {
-    UpdateExecutionLifecycle(signal_params);
-    return false;
-  }
-
-  if(!EnsureDeterministicExecutionLeg(signal_params))
-  {
-    signal_params.signal_state = CLOSED;
-    return false;
-  }
-
-  ReconcileSignalBrokerPositions(signal_params);
-  RefreshSignalExposureState(signal_params);
-  FinalizeDeterministicEntryStatisticsIfReady(signal_params);
-  if(FailUnconfirmedPartialTPAsyncEntry(signal_params))
-    return false;
-
-  int leg_index = 0;
-  if(ArraySize(signal_params.execution_legs) <= leg_index)
-    return false;
-
-  ExecutionLegState leg_state = signal_params.execution_legs[leg_index];
-  double close_0 = 0.0;
-  double high_1 = 0.0;
-  double low_1 = 0.0;
-  if(!ResolveDeterministicM1Rates(close_0, high_1, low_1))
-    return false;
-
-  if(leg_state.status == EXECUTION_LEG_PENDING)
-  {
-    if(CancelDeterministicPendingSignalAtStop(signal_params,
-                                             leg_index,
-                                             close_0))
-      return false;
-
-    ExecutionLegTradeAdmissionContext admission_context;
-    if(!PrepareDeterministicPendingEntryAdmission(signal_params,
-                                                  leg_index,
-                                                  close_0,
-                                                  high_1,
-                                                  low_1,
-                                                  leg_state,
-                                                  admission_context))
-      return false;
-
-    return MLArbitrationBuildCandidate(signal_params,
-                                       leg_state,
-                                       admission_context,
-                                       direction_array,
-                                       signal_index,
-                                       leg_index,
-                                       activation_time,
-                                       candidate_out);
-  }
-
-  UpdateDeterministicActiveExecutionLifecycle(signal_params, leg_index, close_0);
-  return false;
 }
 
 void UpdateExecutionLifecycle(SignalParams &signal_params)

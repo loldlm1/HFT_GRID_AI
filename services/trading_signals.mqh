@@ -28,7 +28,6 @@
 #include "trading_signals/deterministic_signal_statistics_export.mqh"
 #include "trading_signals/deterministic_signal_pattern_audit_playback.mqh"
 #include "trading_signals/deterministic_signal_ml_shadow_inference.mqh"
-#include "trading_signals/deterministic_signal_ml_arbitration.mqh"
 #include "trading_signals/execution_planner.mqh"
 #include "trading_signals/execution_controller.mqh"
 #include "trading_signals/tick_signals_manager.mqh"

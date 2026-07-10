@@ -192,7 +192,7 @@ int ResolveDeterministicSourceAttemptCount(const string source_key)
   return g_deterministic_source_outcomes[index].attempt_count;
 }
 
-bool ResolveDeterministicSourceConsumedAfterTp(const int strategy_id,
+bool ResolveDeterministicSourceConsumedAfterTp(const int engine_id,
                                                const SignalTypes direction,
                                                const int source_slot,
                                                const datetime extremum_time,
@@ -202,7 +202,7 @@ bool ResolveDeterministicSourceConsumedAfterTp(const int strategy_id,
                                                string &terminal_outcome_out,
                                                datetime &consumed_time_out)
 {
-  string source_key = BuildDeterministicSourceKey(strategy_id,
+  string source_key = BuildExtremumEngineSourceKey(engine_id,
                                                  direction,
                                                  source_slot,
                                                  extremum_time,
@@ -222,7 +222,7 @@ int RegisterDeterministicSourceAttempt(SignalParams &signal_params)
   string source_key = signal_params.deterministic_source_key;
   if(source_key == "")
   {
-    source_key = BuildDeterministicSignalSourceKey(signal_params);
+    source_key = BuildExtremumEngineSignalSourceKey(signal_params);
     signal_params.deterministic_source_key = source_key;
   }
 
@@ -252,7 +252,7 @@ bool RegisterDeterministicSourceConsumedTp(const SignalParams &signal_params,
 
   string source_key = signal_params.deterministic_source_key;
   if(source_key == "")
-    source_key = BuildDeterministicSignalSourceKey(signal_params);
+    source_key = BuildExtremumEngineSignalSourceKey(signal_params);
   if(source_key == "")
     return false;
 
@@ -339,7 +339,7 @@ bool SignalMatchesStructureIdentity(const SignalParams &signal_params,
 }
 
 bool SignalMatchesDeterministicIdentity(const SignalParams &signal_params,
-                                        const int strategy_id,
+                                        const int engine_id,
                                         const SignalTypes direction,
                                         const int source_slot,
                                         const datetime extremum_time,
@@ -352,7 +352,7 @@ bool SignalMatchesDeterministicIdentity(const SignalParams &signal_params,
   if(signal_params.signal_state == CLOSED)
     return false;
 
-  if(signal_params.strategy_id != strategy_id)
+  if(signal_params.engine_id != engine_id)
     return false;
 
   if(signal_params.signal_type != direction)
@@ -409,7 +409,7 @@ bool HasRunningSignalForStructure(const StrategyContextTypes context,
   return false;
 }
 
-bool HasRunningDeterministicSignal(const int strategy_id,
+bool HasRunningDeterministicSignal(const int engine_id,
                                    const SignalTypes direction,
                                    const int source_slot,
                                    const datetime extremum_time,
@@ -425,7 +425,7 @@ bool HasRunningDeterministicSignal(const int strategy_id,
     for(int i = 0; i < total; i++)
     {
       if(SignalMatchesDeterministicIdentity(running_bullish_signals[i],
-                                            strategy_id,
+                                            engine_id,
                                             direction,
                                             source_slot,
                                             extremum_time,
@@ -442,7 +442,7 @@ bool HasRunningDeterministicSignal(const int strategy_id,
     for(int i = 0; i < total; i++)
     {
       if(SignalMatchesDeterministicIdentity(running_bearish_signals[i],
-                                            strategy_id,
+                                            engine_id,
                                             direction,
                                             source_slot,
                                             extremum_time,

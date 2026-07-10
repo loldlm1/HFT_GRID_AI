@@ -5,7 +5,7 @@
 #define _TS_DETERMINISTIC_SIGNAL_ML_SHADOW_INFERENCE_MQH_
 
 const int    ML_SHADOW_ARTIFACT_SCHEMA_VERSION = 1;
-const int    ML_SHADOW_PHASE1_SCHEMA_VERSION   = 5;
+const int    ML_SHADOW_PHASE1_SCHEMA_VERSION   = 7;
 const string ML_SHADOW_STORAGE_ROOT            = "DeterministicSignalML";
 const string ML_SHADOW_MODEL_EXPORTS_FOLDER    = "model_exports";
 const string ML_SHADOW_RUNS_FOLDER             = "shadow_runs";
@@ -1126,7 +1126,7 @@ string DeterministicSignalMLShadowEnsureSignalId(SignalParams &signal_params)
 
   string source_key = signal_params.deterministic_source_key;
   if(source_key == "")
-    source_key = BuildDeterministicSignalSourceKey(signal_params);
+    source_key = BuildExtremumEngineSignalSourceKey(signal_params);
 
   string payload = g_ml_shadow_state.shadow_run_id + "|" +
                    source_key + "|" +
@@ -1771,7 +1771,7 @@ string MLShadowOutcomeRow(SignalParams &signal_params,
 {
   string source_key = signal_params.deterministic_source_key;
   if(source_key == "")
-    source_key = BuildDeterministicSignalSourceKey(signal_params);
+    source_key = BuildExtremumEngineSignalSourceKey(signal_params);
 
   return IntegerToString(ML_SHADOW_ARTIFACT_SCHEMA_VERSION) + "\t" +
          MLShadowOutputCell(g_ml_shadow_state.shadow_run_id) + "\t" +

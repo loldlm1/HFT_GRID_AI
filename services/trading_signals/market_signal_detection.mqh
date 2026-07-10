@@ -187,7 +187,7 @@ void EvaluateContextSignals(const StrategyContextTypes context)
   }
 }
 
-bool PopulateDeterministicSignal(const int strategy_id,
+bool PopulateExtremumEngineSignal(const int engine_id,
                                  const SignalTypes direction,
                                  const DeterministicExtremumSnapshot &extremum,
                                  const StochasticMarketStructure &structure,
@@ -196,17 +196,14 @@ bool PopulateDeterministicSignal(const int strategy_id,
   signal = SignalParams();
   signal.signal_type                = direction;
   signal.signal_state               = WAITING;
-  signal.strategy_id                = strategy_id;
-  signal.strategy_label             = DeterministicStrategyLabel(strategy_id);
-  signal.strategy_base_timeframe    = DETERMINISTIC_BASE_TIMEFRAME;
-  signal.strategy_macro_timeframe   = DeterministicStrategyMacroTimeframe(strategy_id);
-  signal.strategy_base_delay        = DeterministicStrategyBaseDelay(strategy_id);
-  signal.strategy_macro_delay       = DETERMINISTIC_MACRO_DELAY;
+  signal.engine_id                  = engine_id;
+  signal.engine_label               = ExtremumEngineLabel(engine_id);
+  signal.engine_timeframe           = ExtremumEngineTimeframe(engine_id);
   signal.deterministic_strategy     = true;
   signal.entry_time                 = TimeCurrent();
   signal.strategy_context           = CONTEXT_SLOT_BASE;
-  signal.strategy_timeframe         = DETERMINISTIC_BASE_TIMEFRAME;
-  signal.strategy_context_label     = signal.strategy_label;
+  signal.strategy_timeframe         = signal.engine_timeframe;
+  signal.strategy_context_label     = signal.engine_label;
   signal.entry_trigger_mode         = LEVELS_AS_LIMITS;
   signal.entry_is_limit             = false;
   signal.signal_lot_sequence_step   = ResolveSignalLotSequenceStepForNewSignal();
@@ -222,35 +219,31 @@ bool PopulateDeterministicSignal(const int strategy_id,
   signal.base_structure_valid       = true;
   signal.base_structure_data        = structure;
 
-  double high_1 = iHigh(_Symbol, DETERMINISTIC_BASE_TIMEFRAME, 1);
-  double low_1  = iLow(_Symbol, DETERMINISTIC_BASE_TIMEFRAME, 1);
+  double high_1 = iHigh(_Symbol, signal.engine_timeframe, 1);
+  double low_1  = iLow(_Symbol, signal.engine_timeframe, 1);
   if(high_1 <= 0.0 || low_1 <= 0.0)
     return false;
 
   signal.raw_entry_trigger_price = (direction == BULLISH) ? high_1 : low_1;
   signal.entry_price             = signal.raw_entry_trigger_price;
   signal.stop_loss               = signal.raw_stop_anchor_price;
-  signal.execution_sequence_id   = BuildDeterministicSignalSequenceId(strategy_id,
-                                                                       direction,
-                                                                       signal.entry_time,
-                                                                       extremum.extremum_time);
+  signal.execution_sequence_id   = BuildExtremumEngineSignalSequenceId(engine_id,
+                                                                        direction,
+                                                                        signal.entry_time,
+                                                                        extremum.extremum_time);
   return true;
 }
 
 void LogDeterministicCandidateTelemetry(const SignalParams &signal,
-                                        const DeterministicExtremumSnapshot &extremum,
-                                        const double base_ma_now,
-                                        const double base_ma_prev,
-                                        const double macro_ma_now,
-                                        const double macro_ma_prev)
+                                        const DeterministicExtremumSnapshot &extremum)
 {
   string direction = (signal.signal_type == BULLISH) ? "BULLISH" : "BEARISH";
   string source_key = signal.deterministic_source_key;
   if(source_key == "")
-    source_key = BuildDeterministicSignalSourceKey(signal);
+    source_key = BuildExtremumEngineSignalSourceKey(signal);
 
-  string message = StringFormat("strategy=%s|dir=%s|source_key=%s|source_attempt_index=%d|source_slot=%d|source_confirmed=%s|source_type=%s|source_time=%s|source_price=%.5f|source_high=%.5f|source_low=%.5f|base_ma_now=%.5f|base_ma_prev=%.5f|macro_ma_now=%.5f|macro_ma_prev=%.5f|trigger=%.5f|stop=%.5f",
-                                 signal.strategy_label,
+  string message = StringFormat("engine=%s|dir=%s|source_key=%s|source_attempt_index=%d|source_slot=%d|source_confirmed=%s|source_type=%s|source_time=%s|source_price=%.5f|source_high=%.5f|source_low=%.5f|trigger=%.5f|stop=%.5f",
+                                 signal.engine_label,
                                  direction,
                                  source_key,
                                  signal.deterministic_source_attempt_index,
@@ -261,23 +254,17 @@ void LogDeterministicCandidateTelemetry(const SignalParams &signal,
                                 extremum.extremum_price,
                                 extremum.extremum_high,
                                 extremum.extremum_low,
-                                base_ma_now,
-                                base_ma_prev,
-                                macro_ma_now,
-                                macro_ma_prev,
                                 signal.raw_entry_trigger_price,
                                 signal.raw_stop_anchor_price);
 
   ExecutionAppendQueryDebugLog("DETERMINISTIC_CANDIDATE", message);
 }
 
-void TryCreateDeterministicSignal(const int strategy_id,
-                                  const SignalTypes direction,
+void TryCreateExtremumEngineSignal(const SignalTypes direction,
                                   const DeterministicExtremumSnapshot &extremum,
                                   const StochasticMarketStructure &structure)
 {
-  if(!DeterministicStrategyEnabled(strategy_id))
-    return;
+  const int engine_id = EXTREMUM_ENGINE_V1;
 
   if(!DirectionAllowed(direction))
     return;
@@ -285,7 +272,7 @@ void TryCreateDeterministicSignal(const int strategy_id,
   int consumed_attempt_count = 0;
   string consumed_terminal_outcome = "";
   datetime consumed_time = 0;
-  if(ResolveDeterministicSourceConsumedAfterTp(strategy_id,
+  if(ResolveDeterministicSourceConsumedAfterTp(engine_id,
                                                direction,
                                                extremum.source_slot,
                                                extremum.extremum_time,
@@ -295,7 +282,7 @@ void TryCreateDeterministicSignal(const int strategy_id,
                                                consumed_terminal_outcome,
                                                consumed_time))
   {
-    ExecutionLogDeterministicSourceReentryBlocked(strategy_id,
+    ExecutionLogDeterministicSourceReentryBlocked(engine_id,
                                                   direction,
                                                   extremum.source_slot,
                                                   extremum.confirmed,
@@ -310,24 +297,7 @@ void TryCreateDeterministicSignal(const int strategy_id,
     return;
   }
 
-  double base_ma_now = 0.0;
-  double base_ma_prev = 0.0;
-  if(!EvaluateDeterministicBaseSetup(strategy_id,
-                                     extremum,
-                                     direction,
-                                     base_ma_now,
-                                     base_ma_prev))
-    return;
-
-  double macro_ma_now = 0.0;
-  double macro_ma_prev = 0.0;
-  if(!EvaluateDeterministicMacroConfirmation(strategy_id,
-                                             direction,
-                                             macro_ma_now,
-                                             macro_ma_prev))
-    return;
-
-  if(HasRunningDeterministicSignal(strategy_id,
+  if(HasRunningDeterministicSignal(engine_id,
                                    direction,
                                    extremum.source_slot,
                                    extremum.extremum_time,
@@ -339,14 +309,14 @@ void TryCreateDeterministicSignal(const int strategy_id,
     return;
 
   SignalParams signal;
-  if(!PopulateDeterministicSignal(strategy_id,
-                                  direction,
-                                  extremum,
-                                  structure,
-                                  signal))
+  if(!PopulateExtremumEngineSignal(engine_id,
+                                   direction,
+                                   extremum,
+                                   structure,
+                                   signal))
     return;
 
-  signal.deterministic_source_key = BuildDeterministicSignalSourceKey(signal);
+  signal.deterministic_source_key = BuildExtremumEngineSignalSourceKey(signal);
   signal.admission_status = EXECUTION_ADMISSION_CANDIDATE;
   signal.admission_updated_time = TimeCurrent();
   if(!DeterministicRawEntryGeometryValid(direction,
@@ -372,33 +342,24 @@ void TryCreateDeterministicSignal(const int strategy_id,
     AddElementToArray(running_bearish_signals, signal);
 
   RegisterDailySignalStart(signal);
-  LogDeterministicCandidateTelemetry(signal,
-                                     extremum,
-                                     base_ma_now,
-                                     base_ma_prev,
-                                     macro_ma_now,
-                                     macro_ma_prev);
+  LogDeterministicCandidateTelemetry(signal, extremum);
 
   if(Enable_Logs)
   {
-    PrintFormat("DETERMINISTIC_CANDIDATE | strategy=%s | direction=%s | source_slot=%d | source_type=%s | extremum=%s | base_ma=%.5f/%.5f | macro_ma=%.5f/%.5f | trigger=%.5f",
-                signal.strategy_label,
+    PrintFormat("EXTREMUM_ENGINE_CANDIDATE | engine=%s | direction=%s | source_slot=%d | source_type=%s | extremum=%s | trigger=%.5f",
+                signal.engine_label,
                 EnumToString(direction),
                 extremum.source_slot,
                 DeterministicExtremumTypeToken(extremum),
                 TimeToString(extremum.extremum_time, TIME_DATE|TIME_MINUTES),
-                base_ma_now,
-                base_ma_prev,
-                macro_ma_now,
-                macro_ma_prev,
                 signal.raw_entry_trigger_price);
   }
 }
 
-void DetectDeterministicStrategySignals()
+void DetectExtremumEngineSignals()
 {
   StochasticMarketStructure structure;
-  if(!LoadStructureSnapshotForTimeframe(DETERMINISTIC_BASE_TIMEFRAME, structure))
+  if(!LoadStructureSnapshotForTimeframe(EXTREMUM_ENGINE_TIMEFRAME, structure))
     return;
 
   DeterministicExtremumSnapshot extremum;
@@ -411,21 +372,13 @@ void DetectDeterministicStrategySignals()
                                                      extremum.is_peak,
                                                      extremum.extremum_price);
 
-  SignalTypes directions[2] = {BULLISH, BEARISH};
-  for(int strategy_index = 0; strategy_index < DETERMINISTIC_STRATEGY_TOTAL; strategy_index++)
-  {
-    int strategy_id = DETERMINISTIC_STRATEGY_NONE;
-    if(!DeterministicStrategyIdByIndex(strategy_index, strategy_id))
-      continue;
-
-    for(int dir = 0; dir < 2; dir++)
-      TryCreateDeterministicSignal(strategy_id, directions[dir], extremum, structure);
-  }
+  SignalTypes direction = extremum.is_peak ? BEARISH : BULLISH;
+  TryCreateExtremumEngineSignal(direction, extremum, structure);
 }
 
 void DetectStrategySignals()
 {
-  DetectDeterministicStrategySignals();
+  DetectExtremumEngineSignals();
 }
 
 #endif // _SERVICES_TRADING_SIGNALS_MARKET_SIGNAL_DETECTION_MQH_

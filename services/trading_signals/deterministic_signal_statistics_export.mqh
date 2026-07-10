@@ -275,18 +275,15 @@ string DeterministicSignalStatsHashToken(const string input_value)
 
 string DeterministicSignalStatsBuildConfigPayload()
 {
-  return StringFormat("schema=%d|symbol=%s|period=%d|base_tf=%d|ma=%d|stoch=%d,%d,%d|s1=%s|s2=%s|s3=%s|direction=%d|concurrency=%d|lot_type=%d|lot_size=%.8f|lot_mult=%.8f|lot_strategy=%d|tp=%.8f|daily_limit=%d|daily_mode=%d|asia=%d|london=%d|newyork=%d|dst=%d",
+  return StringFormat("schema=%d|symbol=%s|period=%d|engine=%d|engine_tf=%d|stoch=%d,%d,%d|direction=%d|concurrency=%d|lot_type=%d|lot_size=%.8f|lot_mult=%.8f|lot_strategy=%d|tp=%.8f|daily_limit=%d|daily_mode=%d|asia=%d|london=%d|newyork=%d|dst=%d",
                       DETERMINISTIC_SIGNAL_STATS_SCHEMA_VERSION,
                       _Symbol,
                       (int)_Period,
-                      (int)DETERMINISTIC_BASE_TIMEFRAME,
-                      DETERMINISTIC_MA_PERIOD,
+                      EXTREMUM_ENGINE_V1,
+                      (int)EXTREMUM_ENGINE_TIMEFRAME,
                       DETERMINISTIC_STOCH_K,
                       DETERMINISTIC_STOCH_D,
                       DETERMINISTIC_STOCH_SLOWING,
-                      DeterministicSignalStatsBoolToken(Enable_Strategy_1),
-                      DeterministicSignalStatsBoolToken(Enable_Strategy_2),
-                      DeterministicSignalStatsBoolToken(Enable_Strategy_3),
                       (int)Strategy_Direction_Mode,
                       (int)Signal_Concurrency_Mode,
                       (int)Lot_Type,
@@ -559,12 +556,10 @@ bool DeterministicSignalStatsWriteManifest()
   DeterministicSignalStatsWriteLine(filename, DeterministicSignalStatsManifestRow("started_at", DeterministicSignalStatsTimeToken(g_deterministic_signal_stats_started_at)), true);
   DeterministicSignalStatsWriteLine(filename, DeterministicSignalStatsManifestRow("symbol", _Symbol), true);
   DeterministicSignalStatsWriteLine(filename, DeterministicSignalStatsManifestRow("period", EnumToString(_Period)), true);
-  DeterministicSignalStatsWriteLine(filename, DeterministicSignalStatsManifestRow("base_timeframe", EnumToString(DETERMINISTIC_BASE_TIMEFRAME)), true);
-  DeterministicSignalStatsWriteLine(filename, DeterministicSignalStatsManifestRow("ma_period", IntegerToString(DETERMINISTIC_MA_PERIOD)), true);
+  DeterministicSignalStatsWriteLine(filename, DeterministicSignalStatsManifestRow("engine_id", IntegerToString(EXTREMUM_ENGINE_V1)), true);
+  DeterministicSignalStatsWriteLine(filename, DeterministicSignalStatsManifestRow("engine_label", ExtremumEngineLabel(EXTREMUM_ENGINE_V1)), true);
+  DeterministicSignalStatsWriteLine(filename, DeterministicSignalStatsManifestRow("engine_timeframe", EnumToString(EXTREMUM_ENGINE_TIMEFRAME)), true);
   DeterministicSignalStatsWriteLine(filename, DeterministicSignalStatsManifestRow("stoch", StringFormat("%d,%d,%d", DETERMINISTIC_STOCH_K, DETERMINISTIC_STOCH_D, DETERMINISTIC_STOCH_SLOWING)), true);
-  DeterministicSignalStatsWriteLine(filename, DeterministicSignalStatsManifestRow("enable_strategy_1", DeterministicSignalStatsBoolToken(Enable_Strategy_1)), true);
-  DeterministicSignalStatsWriteLine(filename, DeterministicSignalStatsManifestRow("enable_strategy_2", DeterministicSignalStatsBoolToken(Enable_Strategy_2)), true);
-  DeterministicSignalStatsWriteLine(filename, DeterministicSignalStatsManifestRow("enable_strategy_3", DeterministicSignalStatsBoolToken(Enable_Strategy_3)), true);
   DeterministicSignalStatsWriteLine(filename, DeterministicSignalStatsManifestRow("direction_mode", EnumToString(Strategy_Direction_Mode)), true);
   DeterministicSignalStatsWriteLine(filename, DeterministicSignalStatsManifestRow("concurrency_mode", EnumToString(Signal_Concurrency_Mode)), true);
   DeterministicSignalStatsWriteLine(filename, DeterministicSignalStatsManifestRow("tp_percent", DoubleToString(TP_Percent, 2)), true);
@@ -718,7 +713,7 @@ string DeterministicSignalStatsBuildSignalId(const SignalParams &signal_params)
 {
   string source_key = signal_params.deterministic_source_key;
   if(source_key == "")
-    source_key = BuildDeterministicSignalSourceKey(signal_params);
+    source_key = BuildExtremumEngineSignalSourceKey(signal_params);
 
   string payload = g_deterministic_signal_stats_run_id + "|" +
                    source_key + "|" +
@@ -793,7 +788,7 @@ bool DeterministicSignalStatsRecordAdmissionEvent(SignalParams &signal_params,
 
   string source_key = signal_params.deterministic_source_key;
   if(source_key == "")
-    source_key = BuildDeterministicSignalSourceKey(signal_params);
+    source_key = BuildExtremumEngineSignalSourceKey(signal_params);
 
   string row = IntegerToString(DETERMINISTIC_SIGNAL_STATS_SCHEMA_VERSION) + "\t" +
                DeterministicSignalStatsCell(g_deterministic_signal_stats_run_id) + "\t" +
@@ -1521,7 +1516,7 @@ struct DeterministicSignalFeatureSnapshot
     source_key = "";
     source_attempt_index = 0;
     symbol = "";
-    strategy_id = DETERMINISTIC_STRATEGY_NONE;
+    strategy_id = EXTREMUM_ENGINE_NONE;
     strategy_label = "";
     direction = "";
     entry_time = 0;
@@ -1590,11 +1585,11 @@ bool DeterministicSignalBuildFeatureSnapshot(SignalParams &signal_params,
   snapshot.valid = true;
   snapshot.source_key = signal_params.deterministic_source_key;
   if(snapshot.source_key == "")
-    snapshot.source_key = BuildDeterministicSignalSourceKey(signal_params);
+    snapshot.source_key = BuildExtremumEngineSignalSourceKey(signal_params);
   snapshot.source_attempt_index = signal_params.deterministic_source_attempt_index;
   snapshot.symbol = _Symbol;
-  snapshot.strategy_id = signal_params.strategy_id;
-  snapshot.strategy_label = signal_params.strategy_label;
+  snapshot.strategy_id = signal_params.engine_id;
+  snapshot.strategy_label = signal_params.engine_label;
   snapshot.direction = DeterministicSignalStatsDirectionToken(signal_params.signal_type);
   snapshot.entry_time = leg_state.last_action_time;
   if(snapshot.entry_time <= 0)
@@ -1663,10 +1658,9 @@ bool DeterministicSignalBuildFeatureSnapshot(SignalParams &signal_params,
     DeterministicSignalFeatureSnapshotAddInvalid(snapshot, "fib_entry_band");
 
   double b_percent_previous = 0.0;
-  int base_delay = DeterministicStrategyBaseDelay(signal_params.strategy_id);
   snapshot.b_percent_main_base_valid =
-    CopyDeterministicBPercentMainSlopeValues(DETERMINISTIC_BASE_TIMEFRAME,
-                                             base_delay,
+    CopyDeterministicBPercentMainSlopeValues(EXTREMUM_ENGINE_TIMEFRAME,
+                                             1,
                                              snapshot.b_percent_main_base,
                                              b_percent_previous,
                                              snapshot.b_percent_main_base_slope);
@@ -1677,11 +1671,10 @@ bool DeterministicSignalBuildFeatureSnapshot(SignalParams &signal_params,
     DeterministicSignalFeatureSnapshotAddInvalid(snapshot, "b_percent_main_base_slope");
   }
 
-  ENUM_TIMEFRAMES macro_timeframe = DeterministicStrategyMacroTimeframe(signal_params.strategy_id);
   b_percent_previous = 0.0;
   snapshot.b_percent_main_macro_valid =
-    CopyDeterministicBPercentMainSlopeValues(macro_timeframe,
-                                             DETERMINISTIC_MACRO_DELAY,
+    CopyDeterministicBPercentMainSlopeValues(PERIOD_H1,
+                                             1,
                                              snapshot.b_percent_main_macro,
                                              b_percent_previous,
                                              snapshot.b_percent_main_macro_slope);
@@ -1694,7 +1687,7 @@ bool DeterministicSignalBuildFeatureSnapshot(SignalParams &signal_params,
 
   MqlRates rates[];
   ArraySetAsSeries(rates, true);
-  int copied = CopyRates(_Symbol, DETERMINISTIC_BASE_TIMEFRAME, 1, 11, rates);
+  int copied = CopyRates(_Symbol, EXTREMUM_ENGINE_TIMEFRAME, 1, 11, rates);
   if(copied > 0)
   {
     snapshot.previous_candle_profile_valid =
@@ -1811,7 +1804,7 @@ bool DeterministicSignalStatsTrackPath(SignalParams &signal_params,
   state.signal_id = signal_id;
   state.source_key = signal_params.deterministic_source_key;
   if(state.source_key == "")
-    state.source_key = BuildDeterministicSignalSourceKey(signal_params);
+    state.source_key = BuildExtremumEngineSignalSourceKey(signal_params);
   state.source_attempt_index = signal_params.deterministic_source_attempt_index;
   state.direction = signal_params.signal_type;
   state.entry_time = leg_state.last_action_time;
@@ -2209,7 +2202,7 @@ bool DeterministicSignalStatsQueueLegOutcomeRow(SignalParams &signal_params,
 
   string source_key = signal_params.deterministic_source_key;
   if(source_key == "")
-    source_key = BuildDeterministicSignalSourceKey(signal_params);
+    source_key = BuildExtremumEngineSignalSourceKey(signal_params);
 
   double entry_price = leg_state.entry_price;
   if(entry_price <= 0.0)
@@ -2376,7 +2369,7 @@ bool DeterministicSignalStatsBuildOutcomeRow(SignalParams &signal_params,
 
   string source_key = signal_params.deterministic_source_key;
   if(source_key == "")
-    source_key = BuildDeterministicSignalSourceKey(signal_params);
+    source_key = BuildExtremumEngineSignalSourceKey(signal_params);
 
   DeterministicSignalStatsOutcomePayload payload;
   if(!DeterministicSignalStatsBuildOutcomePayload(signal_params,

@@ -13,12 +13,10 @@ enum SignalTypes
 	BEARISH   = 2
 };
 
-enum DeterministicStrategyIds
+enum ExtremumEngineIds
 {
-  DETERMINISTIC_STRATEGY_NONE = 0,
-  DETERMINISTIC_STRATEGY_1    = 1,
-  DETERMINISTIC_STRATEGY_2    = 2,
-  DETERMINISTIC_STRATEGY_3    = 3
+	EXTREMUM_ENGINE_NONE = 0,
+	EXTREMUM_ENGINE_V1   = 1
 };
 
 enum SignalStates

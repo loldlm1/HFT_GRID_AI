@@ -597,7 +597,7 @@ bool PatternAuditPlaybackResolveSignalKey(SignalParams &signal_params,
   source_key_out = signal_params.deterministic_source_key;
   if(source_key_out == "")
   {
-    source_key_out = BuildDeterministicSignalSourceKey(signal_params);
+    source_key_out = BuildExtremumEngineSignalSourceKey(signal_params);
     signal_params.deterministic_source_key = source_key_out;
   }
   attempt_index_out = signal_params.deterministic_source_attempt_index;
@@ -606,7 +606,7 @@ bool PatternAuditPlaybackResolveSignalKey(SignalParams &signal_params,
 
 string PatternAuditPlaybackSourceFamilyKey(const SignalParams &signal_params)
 {
-  return BuildDeterministicSignalSourceFamilyKey(signal_params);
+  return BuildExtremumEngineSignalSourceFamilyKey(signal_params);
 }
 
 bool PatternAuditPlaybackFamilyAlreadyAdmitted(const string source_family_key)
@@ -725,7 +725,7 @@ void PatternAuditPlaybackRecordSignal(SignalParams &signal_params,
     g_pattern_audit_state.observed_matches++;
     g_pattern_audit_state.last_pattern_id = g_pattern_audit_matches[i].pattern_id;
     g_pattern_audit_state.last_pattern_label = g_pattern_audit_matches[i].pattern_label;
-    g_pattern_audit_state.last_strategy_label = signal_params.strategy_label;
+    g_pattern_audit_state.last_strategy_label = signal_params.engine_label;
 
     string expected_signal_id = g_pattern_audit_matches[i].signal_id;
     string expected_entry_time = g_pattern_audit_matches[i].entry_time;

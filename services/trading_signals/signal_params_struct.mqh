@@ -78,12 +78,9 @@ struct SignalParams
 {
   SignalTypes                signal_type;
   SignalStates               signal_state;
-  int                        strategy_id;
-  string                     strategy_label;
-  ENUM_TIMEFRAMES            strategy_base_timeframe;
-  ENUM_TIMEFRAMES            strategy_macro_timeframe;
-  int                        strategy_base_delay;
-  int                        strategy_macro_delay;
+  int                        engine_id;
+  string                     engine_label;
+  ENUM_TIMEFRAMES            engine_timeframe;
   bool                       deterministic_strategy;
   string                     execution_sequence_id;
   string                     deterministic_source_key;
@@ -197,12 +194,9 @@ struct SignalParams
   {
     signal_type                = NO_SIGNAL;
     signal_state               = WAITING;
-    strategy_id                = DETERMINISTIC_STRATEGY_NONE;
-    strategy_label             = "BASE";
-    strategy_base_timeframe    = PERIOD_CURRENT;
-    strategy_macro_timeframe   = PERIOD_CURRENT;
-    strategy_base_delay        = 0;
-    strategy_macro_delay       = 0;
+    engine_id                  = EXTREMUM_ENGINE_NONE;
+    engine_label               = "NONE";
+    engine_timeframe           = PERIOD_CURRENT;
     deterministic_strategy     = false;
     execution_sequence_id       = "";
     deterministic_source_key    = "";
@@ -306,12 +300,9 @@ struct SignalParams
   {
     signal_type                = signal_params.signal_type;
     signal_state               = signal_params.signal_state;
-    strategy_id                = signal_params.strategy_id;
-    strategy_label             = signal_params.strategy_label;
-    strategy_base_timeframe    = signal_params.strategy_base_timeframe;
-    strategy_macro_timeframe   = signal_params.strategy_macro_timeframe;
-    strategy_base_delay        = signal_params.strategy_base_delay;
-    strategy_macro_delay       = signal_params.strategy_macro_delay;
+    engine_id                  = signal_params.engine_id;
+    engine_label               = signal_params.engine_label;
+    engine_timeframe           = signal_params.engine_timeframe;
     deterministic_strategy     = signal_params.deterministic_strategy;
     execution_sequence_id       = signal_params.execution_sequence_id;
     deterministic_source_key    = signal_params.deterministic_source_key;
@@ -420,27 +411,27 @@ struct SignalParams
   }
 };
 
-string BuildDeterministicSignalSequenceId(const int strategy_id,
+string BuildExtremumEngineSignalSequenceId(const int engine_id,
                                            const SignalTypes direction,
                                            const datetime entry_time,
                                            const datetime structure_time)
 {
   string direction_token = (direction == BULLISH) ? "B" : "S";
   return StringFormat("%s_%s_%d_%d",
-                      DeterministicStrategyLabel(strategy_id),
+                      ExtremumEngineLabel(engine_id),
                       direction_token,
                       (int)entry_time,
                       (int)structure_time);
 }
 
-string BuildDeterministicSourceKey(const int strategy_id,
+string BuildExtremumEngineSourceKey(const int engine_id,
                                    const SignalTypes direction,
                                    const int source_slot,
                                    const datetime extremum_time,
                                    const bool source_is_peak,
                                    const double source_price)
 {
-  if(strategy_id <= DETERMINISTIC_STRATEGY_NONE)
+  if(engine_id <= EXTREMUM_ENGINE_NONE)
     return "";
   if(direction != BULLISH && direction != BEARISH)
     return "";
@@ -455,7 +446,7 @@ string BuildDeterministicSourceKey(const int strategy_id,
   string type_token = source_is_peak ? "PEAK" : "BOTTOM";
   double normalized_price = NormalizeDouble(source_price, digits);
   return StringFormat("%s|%s|slot=%d|%s|time=%d|price=%s",
-                      DeterministicStrategyLabel(strategy_id),
+                      ExtremumEngineLabel(engine_id),
                       direction_token,
                       source_slot,
                       type_token,
@@ -463,9 +454,9 @@ string BuildDeterministicSourceKey(const int strategy_id,
                       DoubleToString(normalized_price, digits));
 }
 
-string BuildDeterministicSignalSourceKey(const SignalParams &signal_params)
+string BuildExtremumEngineSignalSourceKey(const SignalParams &signal_params)
 {
-  return BuildDeterministicSourceKey(signal_params.strategy_id,
+  return BuildExtremumEngineSourceKey(signal_params.engine_id,
                                      signal_params.signal_type,
                                      signal_params.source_extremum_slot,
                                      signal_params.source_extremum_time,
@@ -473,7 +464,7 @@ string BuildDeterministicSignalSourceKey(const SignalParams &signal_params)
                                      signal_params.source_extremum_price);
 }
 
-string BuildDeterministicSignalSourceFamilyKey(const SignalParams &signal_params)
+string BuildExtremumEngineSignalSourceFamilyKey(const SignalParams &signal_params)
 {
   if(signal_params.signal_type != BULLISH && signal_params.signal_type != BEARISH)
     return "";

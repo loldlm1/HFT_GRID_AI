@@ -163,35 +163,11 @@ bool ExecutionShouldLogThrottledState(const string state_key,
   return false;
 }
 
-string ExecutionDeterministicStrategyDescriptor(const int strategy_id)
+string ExecutionExtremumEngineDescriptor()
 {
-  return StringFormat("%s(base_shift=%d,macro=%s,macro_shift=%d)",
-                      DeterministicStrategyLabel(strategy_id),
-                      DeterministicStrategyBaseDelay(strategy_id),
-                      EnumToString(DeterministicStrategyMacroTimeframe(strategy_id)),
-                      DETERMINISTIC_MACRO_DELAY);
-}
-
-string ExecutionDeterministicStrategyDescriptorList(const bool enabled)
-{
-  string descriptors = "";
-  for(int strategy_index = 0; strategy_index < DETERMINISTIC_STRATEGY_TOTAL; strategy_index++)
-  {
-    int strategy_id = DETERMINISTIC_STRATEGY_NONE;
-    if(!DeterministicStrategyIdByIndex(strategy_index, strategy_id))
-      continue;
-    if(DeterministicStrategyEnabled(strategy_id) != enabled)
-      continue;
-
-    if(descriptors != "")
-      descriptors = descriptors + ",";
-    descriptors = descriptors + ExecutionDeterministicStrategyDescriptor(strategy_id);
-  }
-
-  if(descriptors == "")
-    return "none";
-
-  return descriptors;
+  return StringFormat("%s(timeframe=%s,source=slot_0)",
+                      ExtremumEngineLabel(EXTREMUM_ENGINE_V1),
+                      EnumToString(EXTREMUM_ENGINE_TIMEFRAME));
 }
 
 void EnsureQueryDebugSessionHeaderLogged()
@@ -239,17 +215,13 @@ void EnsureQueryDebugSessionHeaderLogged()
                                                SessionTimeFilterDstStatusSummary(),
                                                Session_Time_Dst_Manual_Offset_Minutes));
 
-  ExecutionAppendTimestampedQueryDebug("INPUTS_STRATEGY",
-                                  StringFormat("tf=%s|stoch_period=%d|direction=%s|concurrency=%s|enable_s1=%s|enable_s2=%s|enable_s3=%s|active=%s|inactive=%s",
-                                               EnumToString(Strategy_Timeframe),
+  ExecutionAppendTimestampedQueryDebug("INPUTS_ENGINE",
+                                  StringFormat("engine=%s|tf=%s|stoch_period=%d|direction=%s|concurrency=%s",
+                                               ExecutionExtremumEngineDescriptor(),
+                                               EnumToString(EXTREMUM_ENGINE_TIMEFRAME),
                                                Stoch_Structure_Period_Type,
                                                EnumToString(Strategy_Direction_Mode),
-                                               EnumToString(Signal_Concurrency_Mode),
-                                               ExecutionBoolToken(Enable_Strategy_1),
-                                               ExecutionBoolToken(Enable_Strategy_2),
-                                               ExecutionBoolToken(Enable_Strategy_3),
-                                               ExecutionDeterministicStrategyDescriptorList(true),
-                                               ExecutionDeterministicStrategyDescriptorList(false)));
+                                               EnumToString(Signal_Concurrency_Mode)));
 
   ExecutionAppendTimestampedQueryDebug("FOUNDATION_STRUCTURE",
                                   StringFormat("levels=%s|trigger=%s",
@@ -572,7 +544,7 @@ string ExecutionDeterministicSourceKey(const SignalParams &signal_params)
   if(signal_params.deterministic_source_key != "")
     return signal_params.deterministic_source_key;
 
-  return BuildDeterministicSignalSourceKey(signal_params);
+  return BuildExtremumEngineSignalSourceKey(signal_params);
 }
 
 string ExecutionTimeToken(const datetime value)
@@ -591,7 +563,7 @@ void ExecutionLogDeterministicSourceConsumed(const SignalParams &signal_params,
   string direction = (signal_params.signal_type == BULLISH) ? "BULLISH" : "BEARISH";
   int display_level = ExecutionDisplayLegNumber(leg_state.level_index);
   string message = StringFormat("strategy=%s|dir=%s|L%d|source_key=%s|source_attempt_index=%d|source_attempt_count=%d|terminal_outcome=%s|source_slot=%d|source_confirmed=%s|source_type=%s|source_time=%s|source_price=%.5f|source_high=%.5f|source_low=%.5f|signal_ts=%s|entry_ref=%.5f|entry=%.5f|tp=%.5f|raw_trigger=%.5f|raw_stop=%.5f",
-                                signal_params.strategy_label,
+                                signal_params.engine_label,
                                 direction,
                                 display_level,
                                 ExecutionDeterministicSourceKey(signal_params),
@@ -615,7 +587,7 @@ void ExecutionLogDeterministicSourceConsumed(const SignalParams &signal_params,
   ExecutionAppendQueryDebugLog("DETERMINISTIC_SOURCE_CONSUMED", message);
 }
 
-void ExecutionLogDeterministicSourceReentryBlocked(const int strategy_id,
+void ExecutionLogDeterministicSourceReentryBlocked(const int engine_id,
                                                    const SignalTypes direction,
                                                    const int source_slot,
                                                    const bool source_confirmed,
@@ -630,14 +602,14 @@ void ExecutionLogDeterministicSourceReentryBlocked(const int strategy_id,
 {
   string direction_label = (direction == BULLISH) ? "BULLISH" : "BEARISH";
   string source_type = source_is_peak ? "PEAK" : "BOTTOM";
-  string source_key = BuildDeterministicSourceKey(strategy_id,
+  string source_key = BuildExtremumEngineSourceKey(engine_id,
                                                   direction,
                                                   source_slot,
                                                   source_time,
                                                   source_is_peak,
                                                   source_price);
   string message = StringFormat("strategy=%s|dir=%s|source_key=%s|blocked_next_attempt_index=%d|previous_attempt_count=%d|terminal_outcome=%s|consumed_time=%s|source_slot=%d|source_confirmed=%s|source_type=%s|source_time=%s|source_price=%.5f|source_high=%.5f|source_low=%.5f|reason=source_consumed_after_tp",
-                                DeterministicStrategyLabel(strategy_id),
+                                ExtremumEngineLabel(engine_id),
                                 direction_label,
                                 source_key,
                                 source_attempt_count + 1,
@@ -663,7 +635,7 @@ void ExecutionLogDeterministicInvalidCandidate(const SignalParams &signal_params
 {
   string direction = (signal_params.signal_type == BULLISH) ? "BULLISH" : "BEARISH";
   string message = StringFormat("strategy=%s|dir=%s|source_key=%s|blocked_next_attempt_index=%d|source_slot=%d|source_confirmed=%s|source_type=%s|source_time=%s|source_price=%.5f|source_high=%.5f|source_low=%.5f|trigger=%.5f|stop=%.5f|reason=%s",
-                                signal_params.strategy_label,
+                                signal_params.engine_label,
                                 direction,
                                 ExecutionDeterministicSourceKey(signal_params),
                                 blocked_next_attempt_index,
@@ -692,7 +664,7 @@ void ExecutionLogDeterministicEntryAnchorBlocked(const SignalParams &signal_para
   string direction = (signal_params.signal_type == BULLISH) ? "BULLISH" : "BEARISH";
   int display_level = ExecutionDisplayLegNumber(leg_state.level_index);
   string message = StringFormat("strategy=%s|dir=%s|L%d|status=%s|source_key=%s|source_attempt_index=%d|source_slot=%d|source_confirmed=%s|source_type=%s|source_time=%s|source_price=%.5f|raw_trigger=%.5f|current_anchor=%.5f|raw_stop=%.5f|entry_ref=%.5f|close_0=%.5f|high_1=%.5f|low_1=%.5f|reason=%s",
-                                signal_params.strategy_label,
+                                signal_params.engine_label,
                                 direction,
                                 display_level,
                                 EnumToString(leg_state.status),
@@ -739,7 +711,7 @@ void ExecutionLogDeterministicEntryRefresh(const SignalParams &signal_params,
   string direction = (signal_params.signal_type == BULLISH) ? "BULLISH" : "BEARISH";
   int display_level = ExecutionDisplayLegNumber(leg_state.level_index);
   string message = StringFormat("strategy=%s|dir=%s|L%d|source_key=%s|source_attempt_index=%d|source_slot=%d|source_confirmed=%s|source_type=%s|source_time=%s|source_price=%.5f|source_high=%.5f|source_low=%.5f|old_trigger=%.5f|candidate_trigger=%.5f|new_trigger=%.5f|stop=%.5f|close_0=%.5f|high_1=%.5f|low_1=%.5f|risk_before_pts=%.2f|risk_after_pts=%.2f|tp_before=%.5f|tp_after=%.5f|lot_before=%.2f|lot_after=%.2f|reason=%s",
-                                signal_params.strategy_label,
+                                signal_params.engine_label,
                                 direction,
                                 display_level,
                                 ExecutionDeterministicSourceKey(signal_params),
@@ -788,7 +760,7 @@ void ExecutionLogDeterministicSignalExpired(const SignalParams &signal_params,
     leg_status = EnumToString(signal_params.execution_legs[0].status);
 
   string message = StringFormat("strategy=%s|dir=%s|status=%s|sequence=%s|source_key=%s|source_attempt_index=%d|old_source_slot=%d|old_source_confirmed=%s|old_source_type=%s|old_source_time=%s|old_source_price=%.5f|old_source_high=%.5f|old_source_low=%.5f|new_source_slot=%d|new_source_type=%s|new_source_time=%s|new_source_price=%.5f|raw_trigger=%.5f|raw_stop=%.5f|reason=%s",
-                                signal_params.strategy_label,
+                                signal_params.engine_label,
                                 direction,
                                 leg_status,
                                 ExecutionQueryDebugSignalKey(signal_params),
@@ -822,7 +794,7 @@ void ExecutionLogDeterministicPendingCanceled(const SignalParams &signal_params,
     first_leg_status = EnumToString(signal_params.execution_legs[0].status);
 
   string message = StringFormat("strategy=%s|dir=%s|signal_state=%s|first_leg_status=%s|sequence=%s|source_key=%s|source_attempt_index=%d|source_slot=%d|source_confirmed=%s|source_type=%s|source_time=%s|source_price=%.5f|source_high=%.5f|source_low=%.5f|raw_trigger=%.5f|raw_stop=%.5f|realized_volume=%.2f|realized_profit=%.2f|close_price=%.5f|reason=%s",
-                                signal_params.strategy_label,
+                                signal_params.engine_label,
                                 direction,
                                 EnumToString(signal_params.signal_state),
                                 first_leg_status,
@@ -846,25 +818,16 @@ void ExecutionLogDeterministicPendingCanceled(const SignalParams &signal_params,
   ExecutionAppendQueryDebugLog("DETERMINISTIC_PENDING_CANCELED", message);
 }
 
-void ExecutionLogDeterministicEntryConfirmation(const string label,
-                                                const SignalParams &signal_params,
-                                                const ExecutionLegState &leg_state,
-                                                const int base_shift,
-                                                const bool base_ok,
-                                                const double base_ma_now,
-                                                const double base_ma_prev,
-                                                const int macro_shift,
-                                                const bool macro_ok,
-                                                const double macro_ma_now,
-                                                const double macro_ma_prev,
-                                                const double close_0,
-                                                const double high_1,
-                                                const double low_1)
+void ExecutionLogExtremumEngineEntryConfirmation(const SignalParams &signal_params,
+                                                 const ExecutionLegState &leg_state,
+                                                 const double close_0,
+                                                 const double high_1,
+                                                 const double low_1)
 {
   string direction = (signal_params.signal_type == BULLISH) ? "BULLISH" : "BEARISH";
   int display_level = ExecutionDisplayLegNumber(leg_state.level_index);
-  string message = StringFormat("strategy=%s|dir=%s|L%d|status=%s|source_key=%s|source_attempt_index=%d|source_slot=%d|source_confirmed=%s|source_type=%s|source_time=%s|source_price=%.5f|base_live_shift=%d|base_live_ok=%s|base_live_ma_now=%.5f|base_live_ma_prev=%.5f|macro_shift=%d|macro_ok=%s|macro_ma_now=%.5f|macro_ma_prev=%.5f|raw_trigger=%.5f|raw_stop=%.5f|entry_ref=%.5f|close_0=%.5f|high_1=%.5f|low_1=%.5f",
-                                signal_params.strategy_label,
+  string message = StringFormat("engine=%s|dir=%s|L%d|status=%s|source_key=%s|source_attempt_index=%d|source_slot=%d|source_confirmed=%s|source_type=%s|source_time=%s|source_price=%.5f|raw_trigger=%.5f|raw_stop=%.5f|entry_ref=%.5f|close_0=%.5f|high_1=%.5f|low_1=%.5f",
+                                signal_params.engine_label,
                                 direction,
                                 display_level,
                                 EnumToString(leg_state.status),
@@ -875,14 +838,6 @@ void ExecutionLogDeterministicEntryConfirmation(const string label,
                                 ExecutionSourceExtremumTypeToken(signal_params),
                                 ExecutionSourceExtremumTimeToken(signal_params),
                                 signal_params.source_extremum_price,
-                                base_shift,
-                                ExecutionBoolToken(base_ok),
-                                base_ma_now,
-                                base_ma_prev,
-                                macro_shift,
-                                ExecutionBoolToken(macro_ok),
-                                macro_ma_now,
-                                macro_ma_prev,
                                 signal_params.raw_entry_trigger_price,
                                 signal_params.raw_stop_anchor_price,
                                 leg_state.entry_reference_price,
@@ -890,18 +845,12 @@ void ExecutionLogDeterministicEntryConfirmation(const string label,
                                 high_1,
                                 low_1);
 
-  if(label == "DETERMINISTIC_ENTRY_CONFIRM")
-  {
-    string state_key = ExecutionQueryDebugSignalKey(signal_params) + "|L" +
-                       IntegerToString(display_level) + "|ENTRY_CONFIRM";
-    ExecutionAppendQueryDebugThrottledLog(label,
-                                          state_key,
-                                          message,
-                                          QUERY_DEBUG_ENTRY_CONFIRM_THROTTLE_SECONDS);
-    return;
-  }
-
-  ExecutionAppendQueryDebugLog(label, message);
+  string state_key = ExecutionQueryDebugSignalKey(signal_params) + "|L" +
+                     IntegerToString(display_level) + "|ENTRY_CONFIRM";
+  ExecutionAppendQueryDebugThrottledLog("EXTREMUM_ENGINE_ENTRY_CONFIRM",
+                                        state_key,
+                                        message,
+                                        QUERY_DEBUG_ENTRY_CONFIRM_THROTTLE_SECONDS);
 }
 
 void ExecutionLogEvent(const string label,
@@ -986,7 +935,7 @@ void ExecutionLogGuardrailBlock(const string label,
   string direction = (signal_params.signal_type == BULLISH) ? "BULLISH" : "BEARISH";
   int display_level = ExecutionDisplayLegNumber(leg_state.level_index);
   string message = StringFormat("strategy=%s|dir=%s|L%d|status=%s|sequence=%s|source_key=%s|source_attempt_index=%d|source_slot=%d|source_confirmed=%s|source_type=%s|source_time=%s|source_price=%.5f|raw_trigger=%.5f|raw_stop=%.5f|admission=%s|admission_source=%s|admission_reason=%s|admission_spread=%.1f|max_spread=%.1f|market_status=%s|reason=%s",
-                                signal_params.strategy_label,
+                                signal_params.engine_label,
                                 direction,
                                 display_level,
                                 EnumToString(leg_state.status),

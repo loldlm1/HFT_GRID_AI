@@ -291,14 +291,14 @@ bool ResolveCurrentDeterministicExtremum(const StochasticMarketStructure &struct
 bool LoadContextStructureSnapshot(const StrategyContextTypes context,
                                   StochasticMarketStructure &snapshot)
 {
-  return LoadStructureSnapshotForTimeframe(DETERMINISTIC_BASE_TIMEFRAME, snapshot);
+  return LoadStructureSnapshotForTimeframe(EXTREMUM_ENGINE_TIMEFRAME, snapshot);
 }
 
 bool CaptureContextIndicators(const StrategyContextTypes context,
                               StrategyContextIndicators &snapshot)
 {
   snapshot.context   = CONTEXT_SLOT_BASE;
-  snapshot.timeframe = DETERMINISTIC_BASE_TIMEFRAME;
+  snapshot.timeframe = EXTREMUM_ENGINE_TIMEFRAME;
 
   StrategyStructureLayerContext structure_ctx = BuildBaseStructureLayerContext();
   bool require_structure = ContextRequiresStructure(CONTEXT_SLOT_BASE, structure_ctx);
