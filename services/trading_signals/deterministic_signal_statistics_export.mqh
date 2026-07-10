@@ -1962,6 +1962,71 @@ bool DeterministicSignalStatsProfitR(const SignalParams &signal_params,
   return MathIsValidNumber(profit_r_out);
 }
 
+bool DeterministicSignalStatsBrokerExpectedSLLoss(const SignalParams &signal_params,
+                                                  double &expected_sl_loss_out)
+{
+  expected_sl_loss_out = 0.0;
+  if(signal_params.execution_expected_sl_loss > 0.0 &&
+     MathIsValidNumber(signal_params.execution_expected_sl_loss))
+  {
+    expected_sl_loss_out = signal_params.execution_expected_sl_loss;
+    return true;
+  }
+
+  int total_legs = ArraySize(signal_params.execution_legs);
+  for(int i = 0; i < total_legs; i++)
+  {
+    ExecutionLegState state = signal_params.execution_legs[i];
+    if(!state.opens_position)
+      continue;
+
+    double entry_price = state.entry_price;
+    if(entry_price <= 0.0)
+      entry_price = state.entry_reference_price;
+    double stop_price = state.next_level_price;
+    double volume = state.initial_lot_size;
+    if(volume <= 0.0)
+      volume = state.lot_size;
+    if(volume <= 0.0)
+      volume = state.closed_volume;
+    if(entry_price <= 0.0 || stop_price <= 0.0 || volume <= 0.0)
+      continue;
+
+    double sl_profit = 0.0;
+    if(!ResolveBrokerProfitForExecution(signal_params.signal_type,
+                                        volume,
+                                        entry_price,
+                                        stop_price,
+                                        sl_profit))
+      continue;
+
+    expected_sl_loss_out += MathAbs(sl_profit);
+  }
+
+  return (expected_sl_loss_out > 0.0 &&
+          MathIsValidNumber(expected_sl_loss_out));
+}
+
+bool DeterministicSignalStatsBrokerProfitR(const SignalParams &signal_params,
+                                           double &profit_r_out)
+{
+  profit_r_out = 0.0;
+  if(!signal_params.broker_close_confirmed)
+    return false;
+  if(!MathIsValidNumber(signal_params.raw_profit))
+    return false;
+
+  double expected_sl_loss = 0.0;
+  if(!DeterministicSignalStatsBrokerExpectedSLLoss(signal_params,
+                                                   expected_sl_loss))
+    return false;
+  if(expected_sl_loss <= 0.0)
+    return false;
+
+  profit_r_out = signal_params.raw_profit / expected_sl_loss;
+  return MathIsValidNumber(profit_r_out);
+}
+
 string DeterministicSignalStatsTerminalReason(const SignalParams &signal_params)
 {
   if(signal_params.deterministic_stats_terminal_reason != "")
@@ -1997,6 +2062,12 @@ bool DeterministicSignalStatsBuildOutcomePayload(SignalParams &signal_params,
                                                         entry_price,
                                                         signal_params.close_price,
                                                         profit_r);
+  double broker_profit_r = 0.0;
+  if(DeterministicSignalStatsBrokerProfitR(signal_params, broker_profit_r))
+  {
+    profit_r = broker_profit_r;
+    profit_r_valid = true;
+  }
 
   datetime entry_time = DeterministicSignalStatsOutcomeEntryTime(signal_params);
   bool duration_valid = (entry_time > 0 &&

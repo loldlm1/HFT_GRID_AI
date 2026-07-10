@@ -284,6 +284,8 @@ def validate_phase1_run(
 
     tp_non_positive_net_profit_rows = 0
     sl_non_negative_net_profit_rows = 0
+    broker_profit_non_positive_profit_r_rows = 0
+    broker_loss_non_negative_profit_r_rows = 0
     for index, row in enumerate(outcome_rows, start=1):
         terminal_reason = row["terminal_reason"]
         profit_r = _required_float(row["profit_r"], "profit_r", SIGNAL_OUTCOMES_FILE)
@@ -298,6 +300,10 @@ def validate_phase1_run(
                 raise Phase1ValidationError(f"SL outcome has non-loss profit_r in row {index}")
             if net_profit >= 0.0:
                 sl_non_negative_net_profit_rows += 1
+        if terminal_reason == "BROKER_PROFIT" and profit_r <= 0.0:
+            broker_profit_non_positive_profit_r_rows += 1
+        if terminal_reason == "BROKER_LOSS" and profit_r >= 0.0:
+            broker_loss_non_negative_profit_r_rows += 1
 
     feature_invalid_rows = _required_int(summary["feature_invalid_rows"], "feature_invalid_rows", RUN_SUMMARY_FILE)
     outcome_invalid_rows = _required_int(summary["outcome_invalid_rows"], "outcome_invalid_rows", RUN_SUMMARY_FILE)
@@ -313,6 +319,16 @@ def validate_phase1_run(
         warnings.append(
             f"{sl_non_negative_net_profit_rows} SL terminal rows have non-negative broker net_profit; "
             "schema v6 broker_1r targets use net_profit-normalized R"
+        )
+    if broker_profit_non_positive_profit_r_rows > 0:
+        warnings.append(
+            f"{broker_profit_non_positive_profit_r_rows} BROKER_PROFIT rows have non-positive exported profit_r; "
+            "regenerate the run with broker net R exporter alignment"
+        )
+    if broker_loss_non_negative_profit_r_rows > 0:
+        warnings.append(
+            f"{broker_loss_non_negative_profit_r_rows} BROKER_LOSS rows have non-negative exported profit_r; "
+            "regenerate the run with broker net R exporter alignment"
         )
 
     path_label_columns_present = "path_status" in _tsv_header(run_path / SIGNAL_OUTCOMES_FILE)
