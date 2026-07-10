@@ -31,7 +31,7 @@ FIXTURE = Path(__file__).parent / "fixtures" / "schema_v7_extremum_engine"
 class ExtremumEngineSchemaTests(unittest.TestCase):
     def test_schema_v7_is_active_and_v6_contract_is_preserved(self) -> None:
         self.assertEqual(SUPPORTED_SCHEMA_VERSION, 7)
-        self.assertEqual(default_feature_set_for_schema(7), "schema_v7_extremum_engine")
+        self.assertEqual(default_feature_set_for_schema(7), "schema_v7_extremum_engine_xgb")
         self.assertIn("admission_source", SCHEMA_V6_ADMISSION_COLUMNS)
         self.assertIn("simulated_outcome_source", SCHEMA_V7_ATTEMPT_COLUMNS)
 
@@ -59,6 +59,20 @@ class ExtremumEngineSchemaTests(unittest.TestCase):
             output_dir.mkdir()
             outputs = write_parquet_outputs(connection, output_dir, counts)
             self.assertEqual(set(outputs), set(counts))
+
+            simulated_connection = duckdb.connect(":memory:")
+            simulated_counts = create_dataset_tables(
+                simulated_connection,
+                [validation],
+                "engine_simulated_1r",
+                7,
+                feature_columns_for_set("schema_v7_extremum_engine_xgb"),
+            )
+            self.assertEqual(simulated_counts["training_matrix"], 2)
+            sources = simulated_connection.execute(
+                "SELECT DISTINCT target_source FROM training_matrix"
+            ).fetchall()
+            self.assertEqual(sources, [("ENGINE_SIMULATION",)])
 
     def test_changed_frozen_anchor_is_rejected(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

@@ -773,6 +773,15 @@ bool MLShadowLoadManifest()
   if(g_ml_shadow_state.phase1_schema_version != ML_SHADOW_PHASE1_SCHEMA_VERSION)
     return MLShadowMarkUnavailable("unsupported_phase1_schema_version");
 
+  if(MLShadowManifestValue("feature_set_id") != "schema_v7_extremum_engine_xgb")
+    return MLShadowMarkUnavailable("unsupported_extremum_engine_feature_set");
+  if(MLShadowManifestValue("engine_id") != IntegerToString(EXTREMUM_ENGINE_V1) ||
+     MLShadowManifestValue("engine_label") != ExtremumEngineLabel(EXTREMUM_ENGINE_V1) ||
+     MLShadowManifestValue("engine_timeframe") != EnumToString(EXTREMUM_ENGINE_TIMEFRAME))
+    return MLShadowMarkUnavailable("extremum_engine_identity_mismatch");
+  if(MLShadowManifestValue("runtime_approval") != "APPROVED_FOR_MT5_RUNTIME")
+    return MLShadowMarkUnavailable("extremum_engine_research_artifact_not_runtime_approved");
+
   if(!MLShadowParseIntValue(MLShadowManifestValue("encoded_feature_count"),
                             g_ml_shadow_state.encoded_feature_count))
     return MLShadowMarkUnavailable("manifest_missing_encoded_feature_count");

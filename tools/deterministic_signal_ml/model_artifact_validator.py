@@ -32,6 +32,29 @@ class ModelArtifactValidationError(RuntimeError):
     """Raised when exported model artifacts cannot be read or scored."""
 
 
+def validate_engine_manifest_compatibility(manifest: dict[str, str]) -> None:
+    expected = {
+        "phase1_schema_version": "7",
+        "feature_set_id": "schema_v7_extremum_engine_xgb",
+        "engine_id": "1",
+        "engine_label": "EXTREMUM_V1",
+        "engine_timeframe": "PERIOD_M1",
+    }
+    mismatches = [
+        f"{key}={manifest.get(key)!r} expected {value!r}"
+        for key, value in expected.items()
+        if manifest.get(key) != value
+    ]
+    if mismatches:
+        raise ModelArtifactValidationError(
+            "Artifact is incompatible with the extremum engine: " + "; ".join(mismatches)
+        )
+    if manifest.get("runtime_approval") != "APPROVED_FOR_MT5_RUNTIME":
+        raise ModelArtifactValidationError(
+            "Schema v7 research artifact is not approved for MT5 runtime"
+        )
+
+
 @dataclass(frozen=True)
 class TreeNode:
     node_index: int
@@ -107,6 +130,8 @@ def validate_export_artifact(export_path: Path) -> dict[str, object]:
     missing_keys = [key for key in REQUIRED_MANIFEST_KEYS if key not in manifest]
     if missing_keys:
         raise ModelArtifactValidationError("Manifest missing required keys: " + ", ".join(missing_keys))
+
+    validate_engine_manifest_compatibility(manifest)
 
     feature_map_rows = read_feature_map(export_path)
     encoded_feature_count = int(manifest["encoded_feature_count"])

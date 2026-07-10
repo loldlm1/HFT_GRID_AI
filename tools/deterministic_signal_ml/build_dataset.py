@@ -14,6 +14,7 @@ from schema_contract import (
     ENGINE_ATTEMPTS_FILE,
     ENGINE_CYCLES_FILE,
     ENGINE_REVISIONS_FILE,
+    ENGINE_SIMULATED_TARGET_FAMILY,
     FEATURE_SET_COLUMNS,
     OUTCOME_COLUMNS,
     OUTCOME_COLUMNS_WITH_PATH,
@@ -262,8 +263,10 @@ def _create_v7_dataset_tables(
     target_family: str,
     feature_columns: tuple[str, ...],
 ) -> dict[str, int]:
-    if target_family != BROKER_TARGET_FAMILY:
-        raise RuntimeError("Schema v7 census assembly currently requires target_family=broker_1r")
+    if target_family not in (BROKER_TARGET_FAMILY, ENGINE_SIMULATED_TARGET_FAMILY):
+        raise RuntimeError(
+            "Schema v7 assembly requires target_family=broker_1r or engine_simulated_1r"
+        )
 
     run_paths = [validation.run_path for validation in validations]
     _load_raw_table(connection, "raw_engine_cycles", [path / ENGINE_CYCLES_FILE for path in run_paths], SCHEMA_V7_CYCLE_COLUMNS)
@@ -430,8 +433,8 @@ FROM admissions GROUP BY signal_id
         f"{'r' if column in revision_features else 'a'}.{column} IS NOT NULL"
         for column in feature_columns
     )
-    connection.execute(
-        f"""
+    if target_family == BROKER_TARGET_FAMILY:
+        training_sql = f"""
 CREATE TABLE training_matrix AS SELECT
   a.schema_version, a.run_id, a.config_id, a.symbol, a.engine_id, a.engine_label,
   a.engine_timeframe, a.extremum_cycle_id, a.revision_id AS extremum_revision_id,
@@ -458,7 +461,32 @@ WHERE a.broker_entry_confirmed = 1 AND a.broker_close_confirmed = 1
   AND {required_feature_clause}
 ORDER BY a.attempt_created_time, a.attempt_id
 """
-    )
+    else:
+        training_sql = f"""
+CREATE TABLE training_matrix AS SELECT
+  a.schema_version, a.run_id, a.config_id, a.symbol, a.engine_id, a.engine_label,
+  a.engine_timeframe, a.extremum_cycle_id, a.revision_id AS extremum_revision_id,
+  a.attempt_id AS extremum_attempt_id, a.broker_signal_id AS signal_id,
+  a.attempt_created_time AS entry_time, a.direction, a.cycle_attempt_index,
+  a.revision_attempt_index, a.candidate_depth_percent, a.reference_range_points,
+  a.distance_from_first_revision_points, a.distance_from_previous_revision_points,
+  a.depth_delta_from_previous_percent, a.bars_since_cycle_start,
+  r.structure_0, r.structure_1, r.structure_2, r.session_id, r.time_sin, r.time_cos,
+  NULL::TIMESTAMP AS terminal_time, a.simulated_terminal_reason AS terminal_reason,
+  NULL::DOUBLE AS net_profit, a.simulated_profit_r AS target_profit_r,
+  CASE WHEN a.simulated_profit_r > 0 THEN 1 ELSE 0 END AS target_is_win,
+  'ENGINE_' || a.simulated_terminal_reason AS target_terminal_reason,
+  'ENGINE_SIMULATION' AS target_source,
+  a.simulated_profit_r, a.simulated_path_status
+FROM engine_attempts a
+JOIN engine_revisions r ON r.revision_id = a.revision_id
+WHERE a.trigger_reached = 1
+  AND a.simulated_path_status IN ('SL_FIRST', 'TARGET', 'HORIZON_EXPIRED')
+  AND a.simulated_profit_r IS NOT NULL
+  AND {required_feature_clause}
+ORDER BY a.attempt_created_time, a.attempt_id
+"""
+    connection.execute(training_sql)
     tables = (
         "engine_cycles", "engine_revisions", "engine_attempts", "features",
         "admissions", "outcomes", "signal_leg_outcomes", "admission_risk",

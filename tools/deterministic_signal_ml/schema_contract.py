@@ -363,6 +363,7 @@ FEATURE_SET_COLUMNS = {
     "schema_v5_numeric_xgb": SCHEMA_V5_NUMERIC_MODEL_FEATURE_COLUMNS,
     "schema_v6_numeric_xgb": SCHEMA_V5_NUMERIC_MODEL_FEATURE_COLUMNS,
     "schema_v7_extremum_engine": SCHEMA_V7_ENGINE_MODEL_FEATURE_COLUMNS,
+    "schema_v7_extremum_engine_xgb": SCHEMA_V7_ENGINE_MODEL_FEATURE_COLUMNS,
 }
 
 FEATURE_SET_SCHEMA_VERSION = {
@@ -371,6 +372,7 @@ FEATURE_SET_SCHEMA_VERSION = {
     "schema_v5_numeric_xgb": 5,
     "schema_v6_numeric_xgb": 6,
     "schema_v7_extremum_engine": 7,
+    "schema_v7_extremum_engine_xgb": 7,
 }
 
 TARGET_COLUMNS = (
@@ -388,7 +390,8 @@ PATH_RATIO_TARGET_FAMILIES = (
 )
 
 BROKER_TARGET_FAMILY = "broker_1r"
-DATASET_TARGET_FAMILIES = (BROKER_TARGET_FAMILY,) + PATH_RATIO_TARGET_FAMILIES
+ENGINE_SIMULATED_TARGET_FAMILY = "engine_simulated_1r"
+DATASET_TARGET_FAMILIES = (BROKER_TARGET_FAMILY, ENGINE_SIMULATED_TARGET_FAMILY) + PATH_RATIO_TARGET_FAMILIES
 
 AUDIT_COLUMNS = (
     "symbol",
@@ -500,7 +503,7 @@ def default_feature_set_for_schema(schema_version: int) -> str:
     if schema_version == 6:
         return "schema_v6_numeric_xgb"
     if schema_version == 7:
-        return "schema_v7_extremum_engine"
+        return "schema_v7_extremum_engine_xgb"
     raise ValueError(f"Unsupported feature schema version: {schema_version}")
 
 

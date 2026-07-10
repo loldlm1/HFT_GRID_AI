@@ -327,6 +327,14 @@ def write_dataset_manifest(
         "path_ratio_outcome_columns": list(PATH_RATIO_OUTCOME_COLUMNS),
         "excluded_from_training_columns": excluded_columns,
     }
+    if schema_version == 7:
+        payload["engine_contract"] = {
+            "engine_id": 1,
+            "engine_label": "EXTREMUM_V1",
+            "engine_timeframe": "PERIOD_M1",
+            "cycle_group_columns": ["symbol", "engine_timeframe", "extremum_cycle_id"],
+            "point_in_time_only": True,
+        }
     (output_dir / "dataset_manifest.json").write_text(
         json.dumps(payload, indent=2, sort_keys=True),
         encoding="utf-8",

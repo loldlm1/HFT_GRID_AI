@@ -45,7 +45,7 @@ class TrainingInputError(RuntimeError):
     """Raised when training cannot proceed because an input is invalid."""
 
 
-DEFAULT_FEATURE_SET_ID = "schema_v5_numeric_xgb"
+DEFAULT_FEATURE_SET_ID = "schema_v7_extremum_engine_xgb"
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -258,6 +258,9 @@ def write_validation_outputs(
         "feature_diagnostics": diagnostics,
         "threshold_recommendation": threshold_recommendation,
     }
+    if int(manifest.get("phase1_schema_version", 0)) == 7:
+        model_manifest["engine_contract"] = manifest.get("engine_contract", {})
+        model_manifest["runtime_approval"] = "RESEARCH_ONLY_NOT_APPROVED"
     metrics_path = output_dir / "validation_metrics.json"
     report_path = output_dir / "validation_report.md"
     metrics_path.write_text(json.dumps(metrics, indent=2, sort_keys=True), encoding="utf-8")
@@ -611,6 +614,16 @@ def _prediction_rows(
                 "source_key": str(source.get("source_key", "")),
                 "symbol": str(source.get("symbol", "")),
                 "entry_time": str(source.get("entry_time", "")),
+                "engine_id": source.get("engine_id", ""),
+                "engine_label": str(source.get("engine_label", "")),
+                "engine_timeframe": str(source.get("engine_timeframe", "")),
+                "extremum_cycle_id": str(source.get("extremum_cycle_id", "")),
+                "extremum_revision_id": str(source.get("extremum_revision_id", "")),
+                "extremum_attempt_id": str(source.get("extremum_attempt_id", "")),
+                "cycle_attempt_index": source.get("cycle_attempt_index", ""),
+                "revision_attempt_index": source.get("revision_attempt_index", ""),
+                "candidate_depth_percent": source.get("candidate_depth_percent", ""),
+                "reference_range_points": source.get("reference_range_points", ""),
                 "strategy_label": str(source.get("strategy_label", "")),
                 "direction": str(source.get("direction", "")),
                 "structure_0": str(source.get("structure_0", "")),

@@ -90,6 +90,33 @@ def _entry_time_groups(rows: list[dict[str, Any]]) -> list[tuple[str, list[int]]
     return groups
 
 
+def _cycle_group_key(row: dict[str, Any]) -> str:
+    cycle_id = str(row.get("extremum_cycle_id", ""))
+    if not cycle_id:
+        return ""
+    return "|".join(
+        (
+            str(row.get("symbol", "")),
+            str(row.get("engine_timeframe", "")),
+            cycle_id,
+        )
+    )
+
+
+def _chronological_groups(rows: list[dict[str, Any]]) -> tuple[list[tuple[str, list[int]]], str]:
+    if not rows or any(not _cycle_group_key(row) for row in rows):
+        return _entry_time_groups(rows), "entry_time"
+
+    grouped: dict[str, list[int]] = {}
+    first_time: dict[str, str] = {}
+    for index, row in enumerate(rows):
+        key = _cycle_group_key(row)
+        grouped.setdefault(key, []).append(index)
+        first_time.setdefault(key, _entry_time(row))
+    ordered_keys = sorted(grouped, key=lambda key: (first_time[key], key))
+    return [(first_time[key], grouped[key]) for key in ordered_keys], "extremum_cycle"
+
+
 def _expand_group_indices(groups: list[tuple[str, list[int]]], positions: list[int]) -> list[int]:
     indices: list[int] = []
     for position in positions:
@@ -161,7 +188,7 @@ def build_time_splits(
     _assert_chronological(rows)
     row_count = len(rows)
     holdout_count = max(1, int(round(row_count * holdout_fraction)))
-    entry_groups = _entry_time_groups(rows)
+    entry_groups, grouping_policy = _chronological_groups(rows)
     train_groups, holdout_groups = _split_holdout_groups(entry_groups, holdout_count)
     if len(train_groups) <= n_splits + gap:
         raise ValueError(
@@ -200,6 +227,8 @@ def build_time_splits(
         "walk_forward_gap": gap,
         "row_count": row_count,
         "unique_entry_times": len(entry_groups),
+        "grouping_policy": grouping_policy,
+        "group_count": len(entry_groups),
         "train": _range_metadata(rows, train_indices),
         "holdout": _range_metadata(rows, holdout_indices),
         "folds": [fold.metadata for fold in folds],
@@ -241,7 +270,7 @@ def build_robust_time_splits(
 
     _assert_chronological(rows)
     row_count = len(rows)
-    groups = _entry_time_groups(rows)
+    groups, grouping_policy = _chronological_groups(rows)
     final_target = _partition_target(row_count, final_holdout_fraction, min_partition_rows)
     threshold_target = _partition_target(row_count, threshold_fraction, min_partition_rows)
     early_target = _partition_target(row_count, early_stopping_fraction, min_partition_rows)
@@ -317,6 +346,8 @@ def build_robust_time_splits(
         "policy": "robust_chronological_train_early_threshold_holdout",
         "row_count": row_count,
         "unique_entry_times": len(groups),
+        "grouping_policy": grouping_policy,
+        "group_count": len(groups),
         "gap_entry_time_groups": gap,
         "final_holdout_fraction": final_holdout_fraction,
         "threshold_fraction": threshold_fraction,

@@ -193,6 +193,7 @@ def build_runtime_manifest(
 ) -> dict[str, Any]:
     recommendation = threshold_recommendation(model_manifest)
     regressor_available = (model_path / "regressor_xgboost.json").exists()
+    engine_contract = model_manifest.get("engine_contract", {})
     manifest = {
         "artifact_schema_version": ARTIFACT_SCHEMA_VERSION,
         "exporter_version": EXPORTER_VERSION,
@@ -205,6 +206,11 @@ def build_runtime_manifest(
         "phase1_schema_version": model_manifest.get("phase1_schema_version", ""),
         "phase2_builder_version": model_manifest.get("phase2_builder_version", ""),
         "phase3_trainer_version": model_manifest.get("phase3_trainer_version", ""),
+        "feature_set_id": model_manifest.get("feature_set_id", ""),
+        "engine_id": engine_contract.get("engine_id", ""),
+        "engine_label": engine_contract.get("engine_label", ""),
+        "engine_timeframe": engine_contract.get("engine_timeframe", ""),
+        "runtime_approval": model_manifest.get("runtime_approval", "LEGACY_INCOMPATIBLE"),
         "encoded_feature_count": len(feature_encoder.get("encoded_feature_names", [])),
         "classifier_available": True,
         "classifier_tree_count": 0,
@@ -624,6 +630,7 @@ def main() -> int:
                 threshold_policy is not None
                 and classifier_report["status"] == "OK"
                 and regressor_report["status"] == "OK"
+                and runtime_manifest["runtime_approval"] == "APPROVED_FOR_MT5_RUNTIME"
             )
             runtime_manifest["parity_report_file"] = PARITY_REPORT_JSON
             parity_report = {

@@ -380,6 +380,10 @@ bool PatternAuditPlaybackLoadMatches()
   int entry_time_index = PatternAuditPlaybackHeaderIndex(header_cells, header_total, "entry_time");
   int selected_index = PatternAuditPlaybackHeaderIndex(header_cells, header_total, "selected_for_visual");
   int conditions_index = PatternAuditPlaybackHeaderIndex(header_cells, header_total, "conditions_text");
+  int schema_version_index = PatternAuditPlaybackHeaderIndex(header_cells, header_total, "phase1_schema_version");
+  int engine_id_index = PatternAuditPlaybackHeaderIndex(header_cells, header_total, "engine_id");
+  int engine_timeframe_index = PatternAuditPlaybackHeaderIndex(header_cells, header_total, "engine_timeframe");
+  int attempt_id_index = PatternAuditPlaybackHeaderIndex(header_cells, header_total, "extremum_attempt_id");
   if(pattern_id_index < 0 ||
      pattern_label_index < 0 ||
      signal_id_index < 0 ||
@@ -387,7 +391,11 @@ bool PatternAuditPlaybackLoadMatches()
      source_attempt_index < 0 ||
      entry_time_index < 0 ||
      selected_index < 0 ||
-     conditions_index < 0)
+     conditions_index < 0 ||
+     schema_version_index < 0 ||
+     engine_id_index < 0 ||
+     engine_timeframe_index < 0 ||
+     attempt_id_index < 0)
   {
     FileClose(handle);
     g_pattern_audit_state.failed = true;
@@ -405,11 +413,22 @@ bool PatternAuditPlaybackLoadMatches()
     if(total <= conditions_index ||
        total <= source_attempt_index ||
        total <= entry_time_index ||
-       total <= source_key_index)
+       total <= source_key_index ||
+       total <= schema_version_index ||
+       total <= engine_id_index ||
+       total <= engine_timeframe_index ||
+       total <= attempt_id_index)
       continue;
 
     string selected_value = cells[selected_index];
     if(selected_value != "true" && selected_value != "1")
+      continue;
+
+    if((int)StringToInteger(cells[schema_version_index]) != DETERMINISTIC_SIGNAL_STATS_SCHEMA_VERSION ||
+       (int)StringToInteger(cells[engine_id_index]) != EXTREMUM_ENGINE_V1 ||
+       cells[engine_timeframe_index] != EnumToString(EXTREMUM_ENGINE_TIMEFRAME) ||
+       cells[attempt_id_index] == "" ||
+       cells[attempt_id_index] == DETERMINISTIC_SIGNAL_STATS_NULL)
       continue;
 
     string source_key = cells[source_key_index];
