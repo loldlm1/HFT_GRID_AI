@@ -18,6 +18,9 @@ Short, current notes for Codex agents and contributors. Keep this file brief; ac
 - **Archived ML robustness closeout**:
   `docs/plans/archive/ml-robustness-closeout-2026-07-09/` and
   `docs/research/archive/ml-robustness-closeout-2026-07-09/`.
+- **Archived broker-first execution/statistics closeout**:
+  `docs/plans/archive/broker-first-execution-statistics-2026-07-10/` and
+  `docs/research/archive/broker-first-execution-statistics-2026-07-10/`.
 - **Archived deterministic ML evidence**: `docs/research/archive/deterministic-signal-ml-2026-07-05/`.
 - **Archived plans**: completed refoundation and skill-stack alignment plans live under `docs/plans/archive/`.
 - **Planning model**: create a new `$planner` plan under `docs/plans/` for any substantial future strategy, architecture, or repository-wide change.
