@@ -273,48 +273,6 @@ void TryCreateExtremumEngineSignal(const SignalTypes direction,
 {
   const int engine_id = EXTREMUM_ENGINE_V1;
 
-  if(!DirectionAllowed(direction))
-    return;
-
-  int consumed_attempt_count = 0;
-  string consumed_terminal_outcome = "";
-  datetime consumed_time = 0;
-  if(ResolveDeterministicSourceConsumedAfterTp(engine_id,
-                                               direction,
-                                               extremum.source_slot,
-                                               extremum.extremum_time,
-                                               extremum.is_peak,
-                                               extremum.extremum_price,
-                                               consumed_attempt_count,
-                                               consumed_terminal_outcome,
-                                               consumed_time))
-  {
-    ExecutionLogDeterministicSourceReentryBlocked(engine_id,
-                                                  direction,
-                                                  extremum.source_slot,
-                                                  extremum.confirmed,
-                                                  extremum.is_peak,
-                                                  extremum.extremum_time,
-                                                  extremum.extremum_price,
-                                                  extremum.extremum_high,
-                                                  extremum.extremum_low,
-                                                  consumed_attempt_count,
-                                                  consumed_terminal_outcome,
-                                                  consumed_time);
-    return;
-  }
-
-  if(HasRunningDeterministicSignal(engine_id,
-                                   direction,
-                                   extremum.source_slot,
-                                   extremum.extremum_time,
-                                   extremum.is_peak,
-                                   extremum.extremum_price))
-    return;
-
-  if(!CanAttemptSignal(direction))
-    return;
-
   SignalParams signal;
   if(!PopulateExtremumEngineSignal(engine_id,
                                    direction,
@@ -338,10 +296,94 @@ void TryCreateExtremumEngineSignal(const SignalTypes direction,
     return;
   }
 
-  if(RegisterDeterministicSourceAttempt(signal) <= 0)
-    return;
   if(!ExtremumEngineAssignAttemptIdentity(signal))
     return;
+  DeterministicSignalStatsRecordIntrinsicAttempt(signal);
+
+  string operational_block_source = "";
+  string operational_block_reason = "";
+  if(!ResolveSignalAttemptPermission(direction,
+                                     true,
+                                     operational_block_source,
+                                     operational_block_reason))
+  {
+    signal.admission_status = EXECUTION_ADMISSION_BLOCKED;
+    signal.admission_block_source = operational_block_source;
+    signal.admission_block_reason = operational_block_reason;
+    signal.admission_updated_time = TimeCurrent();
+    DeterministicSignalStatsSetAttemptOperationalBlock(signal,
+                                                       operational_block_source,
+                                                       operational_block_reason);
+    DeterministicSignalStatsRecordAdmissionEvent(signal, "operational_blocked");
+    return;
+  }
+
+  int consumed_attempt_count = 0;
+  string consumed_terminal_outcome = "";
+  datetime consumed_time = 0;
+  if(ResolveDeterministicSourceConsumedAfterTp(engine_id,
+                                               direction,
+                                               extremum.source_slot,
+                                               extremum.extremum_time,
+                                               extremum.is_peak,
+                                               extremum.extremum_price,
+                                               consumed_attempt_count,
+                                               consumed_terminal_outcome,
+                                               consumed_time))
+  {
+    signal.admission_status = EXECUTION_ADMISSION_BLOCKED;
+    signal.admission_block_source = "source_consumed_after_tp";
+    signal.admission_block_reason = consumed_terminal_outcome;
+    signal.admission_updated_time = TimeCurrent();
+    DeterministicSignalStatsSetAttemptOperationalBlock(signal,
+                                                       signal.admission_block_source,
+                                                       signal.admission_block_reason);
+    DeterministicSignalStatsRecordAdmissionEvent(signal, "operational_blocked");
+    ExecutionLogDeterministicSourceReentryBlocked(engine_id,
+                                                  direction,
+                                                  extremum.source_slot,
+                                                  extremum.confirmed,
+                                                  extremum.is_peak,
+                                                  extremum.extremum_time,
+                                                  extremum.extremum_price,
+                                                  extremum.extremum_high,
+                                                  extremum.extremum_low,
+                                                  consumed_attempt_count,
+                                                  consumed_terminal_outcome,
+                                                  consumed_time);
+    return;
+  }
+
+  if(HasRunningDeterministicSignal(engine_id,
+                                   direction,
+                                   extremum.source_slot,
+                                   extremum.extremum_time,
+                                   extremum.is_peak,
+                                   extremum.extremum_price))
+  {
+    signal.admission_status = EXECUTION_ADMISSION_BLOCKED;
+    signal.admission_block_source = "running_source";
+    signal.admission_block_reason = "A no-exposure or broker-active execution already owns this revision";
+    signal.admission_updated_time = TimeCurrent();
+    DeterministicSignalStatsSetAttemptOperationalBlock(signal,
+                                                       signal.admission_block_source,
+                                                       signal.admission_block_reason);
+    DeterministicSignalStatsRecordAdmissionEvent(signal, "operational_blocked");
+    return;
+  }
+
+  if(RegisterDeterministicSourceAttempt(signal) <= 0)
+  {
+    signal.admission_status = EXECUTION_ADMISSION_BLOCKED;
+    signal.admission_block_source = "source_registry";
+    signal.admission_block_reason = "Unable to register execution source attempt";
+    signal.admission_updated_time = TimeCurrent();
+    DeterministicSignalStatsSetAttemptOperationalBlock(signal,
+                                                       signal.admission_block_source,
+                                                       signal.admission_block_reason);
+    DeterministicSignalStatsRecordAdmissionEvent(signal, "operational_blocked");
+    return;
+  }
 
   DeterministicSignalStatsRecordAdmissionEvent(signal, "candidate");
 
@@ -387,6 +429,9 @@ void DetectExtremumEngineSignals()
 
   if(revision_created)
   {
+    DeterministicSignalStatsRecordPendingFinalizedCycle();
+    DeterministicSignalStatsExpirePriorRevisionAttempts(g_extremum_engine_cycle.current_revision.revision_id);
+    DeterministicSignalStatsRecordRevision(g_extremum_engine_cycle, structure);
     ExtremumEngineRevisionState revision = g_extremum_engine_cycle.current_revision;
     string cycle_message = StringFormat("cycle_id=%s|revision_id=%s|revision_index=%d|type=%s|depth=%.4f|range_points=%.2f|from_first_points=%.2f|from_previous_points=%.2f|depth_delta=%.4f|bars_since_start=%d|cycle_started=%s|prior_cycle_finalized=%s",
                                         g_extremum_engine_cycle.cycle_id,
