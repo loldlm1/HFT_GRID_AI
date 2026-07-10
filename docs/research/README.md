@@ -2,7 +2,9 @@
 
 Active research gate:
 
-- none.
+- `docs/research/extremum-engine-statistics-implementation-evidence.md` records
+  automated Sprint 1-7 evidence and the remaining human Strategy Tester and
+  performance acceptance gates.
 
 Completed broker-first execution/statistics research is archived under:
 
@@ -23,4 +25,4 @@ Completed deterministic signal ML evidence was archived on 2026-07-05:
 Use archived evidence only for historical audit. For current human and agentic
 workflow context, use:
 
-- `docs/workflows/deterministic-signal-ml-inference-flows.md`
+- `docs/workflows/extremum-engine-statistics-flow.md`

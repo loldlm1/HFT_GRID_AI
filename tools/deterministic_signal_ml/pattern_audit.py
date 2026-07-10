@@ -217,7 +217,7 @@ def build_parser() -> argparse.ArgumentParser:
         "--strategy-label",
         action="append",
         default=[],
-        help="Optional strategy_label filter. Repeat for S1/S2/S3 scoped audits.",
+        help="Optional historical strategy_label filter. Repeat for multiple labels.",
     )
     return parser
 

@@ -1,535 +1,108 @@
-# Deterministic Signal ML Tooling
+# Extremum Engine Research Tooling
 
-Local Python tooling for the deterministic signal ML workflow.
-
-The Phase 2 builder consumes Phase 1 TSV exports produced by the EA and builds
-validated Parquet datasets. The Phase 3 trainer consumes those datasets and
-trains local research XGBoost models. These tools do not call MT5, modify the
-EA, run EA inference, filter trades, or connect to PostgreSQL.
-
-## Feature Schema Status
-
-Schema v7 is the active extremum-engine census contract. It adds immutable
-cycle anchors, point-in-time revisions, intrinsic attempts, and separate
-`ENGINE_SIMULATION` and `BROKER_CONFIRMED` outcome lanes. Historical v4/v5/v6
-readers remain available only when their schema is selected explicitly.
-
-Build a schema v7 dataset and its human depth audit:
-
-```bash
-.venv/bin/python tools/deterministic_signal_ml/build_dataset.py \
-  --runs-root "$HOME/.wine/drive_c/users/loldlm/AppData/Roaming/MetaQuotes/Terminal/Common/Files/DeterministicSignalML/runs" \
-  --run-id <schema_v7_run_id> \
-  --dataset-id <schema_v7_dataset_id> \
-  --schema-version 7 \
-  --feature-set-id schema_v7_extremum_engine \
-  --target-family broker_1r
-
-.venv/bin/python tools/deterministic_signal_ml/extremum_engine_audit.py \
-  --dataset-id <schema_v7_dataset_id> \
-  --audit-id <schema_v7_audit_id> \
-  --overwrite
-```
-
-The audit derives Fibonacci proximity and point-range buckets in DuckDB. It
-never clamps raw depth, never calls point range volume, reports attempts and
-distinct cycles separately, and never combines simulated R with realized
-broker R.
-
-The historical schema v5 numeric XGBoost research tooling remains selectable:
-
-```text
-schema_v5_numeric_xgb
-```
-
-Schema v5 keeps schema v4 semantic lanes available for DuckDB pattern audit,
-but the model feature set is compact and numeric:
-
-```text
-direction
-stoch_structure_raw_percent
-b_percent_main_base
-b_percent_main_base_slope
-b_percent_main_macro
-b_percent_main_macro_slope
-session_id
-time_sin
-time_cos
-```
-
-The trainer encodes `direction` and `session_id` with the existing deterministic
-one-hot encoder. Numeric candidates use conservative XGBoost params including
-`tree_method=hist`, `max_depth=3`, and `max_bin=256`.
-
-Schema v4 semantic XGBoost training remains available for baseline comparison
-with explicit flags:
-
-```bash
---schema-version 4 --feature-set-id schema_v4_full
-```
-
-The first schema v2 Phase 3 attempt is rejected. The current long XAUUSD schema
-v1 baseline remains frozen as a rejection baseline:
-
-- Dataset: `xauusd_2025_dataset_1`
-- Model: `xauusd_2025_xgb_1`
-- Result: no accepted FILTER threshold and no promoted runtime export.
-
-Schema v2 first-attempt evidence, schema v4 follow-up evidence, and schema v5
-numeric research are archived in:
-
-- `docs/plans/archive/phase3-ml-2026-07-07/`
-- `docs/plans/archive/ml-robustness-closeout-2026-07-09/`
-- `docs/research/archive/ml-robustness-closeout-2026-07-09/`
-
-The schema v5 S1 2024-2025 data path built and trained successfully, but all
-target families were rejected because no accepted threshold selected final
-holdout rows. Runtime export, deployment, SHADOW parity, and FILTER validation
-remain blocked until a future plan accepts a new candidate.
+This directory validates schema v7 MQL5 exports, builds typed Parquet tables,
+produces DuckDB depth/profitability audits, and prepares leak-safe XGBoost
+research. It does not call MT5, place trades, or approve a runtime model.
 
 ## Setup
-
-Use a local virtual environment:
-
-```powershell
-py -3.12 -m venv .venv
-.\.venv\Scripts\python.exe -m pip install -r tools\deterministic_signal_ml\requirements.txt
-```
-
-On Ubuntu:
 
 ```bash
 python3 -m venv .venv
 .venv/bin/python -m pip install -r tools/deterministic_signal_ml/requirements.txt
 ```
 
-If `py -3.12` or `python3` is unavailable, use the Python 3.12 executable you
-normally use for local research. The OS-specific Common Files and artifact
-workflow is documented in `docs/environment/mt5-agentic-workflows.md`.
+The dependency versions are pinned. Generated datasets, audits, models, and
+exports live under `artifacts/` and remain ignored by git.
 
-Dependency versions are pinned in `requirements.txt` for reproducibility across
-the current Ubuntu/Wine workstation and Windows. Do not loosen the pins without
-rerunning imports, dataset build, training, export, and artifact validation.
+## Schema V7 Inputs
 
-## Phase 1 Input
+Each run contains manifest/summary files plus:
 
-Expected source folder:
-
-```text
-C:\Users\loldlm\AppData\Roaming\MetaQuotes\Terminal\Common\Files\DeterministicSignalML\runs\<run_id>
-```
-
-Ubuntu/Wine observed source root on this workstation:
-
-```text
-/home/loldlm/.wine/drive_c/users/loldlm/AppData/Roaming/MetaQuotes/Terminal/Common/Files/DeterministicSignalML/runs/<run_id>
-```
-
-Each run must contain:
-
-- `run_manifest.tsv`
+- `engine_cycles.tsv`
+- `engine_revisions.tsv`
+- `engine_attempts.tsv`
+- `signal_admissions.tsv`
 - `signal_features.tsv`
 - `signal_outcomes.tsv`
-- `run_summary.tsv`
+- `signal_leg_outcomes.tsv`
 
-Runs may also contain `signal_leg_outcomes.tsv`. That file is additive and is
-used to audit broker-confirmed per-ticket outcomes for partial TP modes; the
-current schema v6 dataset builder still uses the signal-level feature/outcome
-contract above.
+The validator checks row counts, unique IDs, parent joins, monotonic revision
+indexes, immutable Fibonacci anchors, raw numeric depth, simulated provenance,
+and broker outcome evidence. Historical v4/v5/v6 contracts remain selectable
+explicitly but cannot be mixed with v7 in one dataset.
 
-## Planned Build Command
-
-```powershell
-.\.venv\Scripts\python.exe tools\deterministic_signal_ml\build_dataset.py `
-  --runs-root "C:\Users\loldlm\AppData\Roaming\MetaQuotes\Terminal\Common\Files\DeterministicSignalML\runs" `
-  --run-id xauusd_2025_schema_v5_numeric_run_S1 `
-  --dataset-id xauusd_2025_schema_v5_numeric_dataset_S1 `
-  --schema-version 5 `
-  --feature-set-id schema_v5_numeric_xgb
-```
-
-Ubuntu:
+## Build
 
 ```bash
 .venv/bin/python tools/deterministic_signal_ml/build_dataset.py \
-  --runs-root "$HOME/.wine/drive_c/users/loldlm/AppData/Roaming/MetaQuotes/Terminal/Common/Files/DeterministicSignalML/runs" \
-  --run-id xauusd_2025_schema_v5_numeric_run_S1 \
-  --dataset-id xauusd_2025_schema_v5_numeric_dataset_S1 \
-  --schema-version 5 \
-  --feature-set-id schema_v5_numeric_xgb
-```
-
-Generated datasets are written under `artifacts/datasets/<dataset_id>/` and are
-ignored by git.
-
-## Validate Only
-
-Use `--validate-only` before building larger datasets:
-
-```powershell
-.\.venv\Scripts\python.exe tools\deterministic_signal_ml\build_dataset.py `
-  --runs-root "C:\Users\loldlm\AppData\Roaming\MetaQuotes\Terminal\Common\Files\DeterministicSignalML\runs" `
-  --run-id xauusd_2025_schema_v5_numeric_run_S1 `
-  --dataset-id xauusd_2025_schema_v5_numeric_dataset_S1 `
-  --schema-version 5 `
-  --feature-set-id schema_v5_numeric_xgb `
-  --validate-only
-```
-
-Ubuntu:
-
-```bash
-.venv/bin/python tools/deterministic_signal_ml/build_dataset.py \
-  --runs-root "$HOME/.wine/drive_c/users/loldlm/AppData/Roaming/MetaQuotes/Terminal/Common/Files/DeterministicSignalML/runs" \
-  --run-id xauusd_2025_schema_v5_numeric_run_S1 \
-  --dataset-id xauusd_2025_schema_v5_numeric_dataset_S1 \
-  --schema-version 5 \
-  --feature-set-id schema_v5_numeric_xgb \
-  --validate-only
-```
-
-The command exits nonzero when a run is missing required files, has a bad
-header, mismatched row counts, duplicate `signal_id` values, missing
-feature/outcome joins, non-OK export status, or inconsistent TP/SL signs.
-
-## Outputs
-
-Each dataset folder contains:
-
-- `features.parquet`: typed Phase 1 feature rows.
-- `outcomes.parquet`: typed terminal outcome rows.
-- `training_matrix.parquet`: joined table with `target_is_win`,
-  `target_profit_r`, and `target_terminal_reason`.
-- `dataset_manifest.json`: column groups, source runs, config IDs, and output
-  paths.
-- `dataset_quality.json`: machine-readable quality summary.
-- `dataset_report.md`: compact human-readable report.
-
-`training_matrix.parquet` is the model-training surface. Rows with required
-model features exported as `\N` are excluded from that matrix, while the raw
-typed `features.parquet` and `outcomes.parquet` files remain complete for
-auditability. The dataset report keeps the Phase 1 invalid-row warning and
-shows the final trainable row count.
-
-Existing dataset folders are not overwritten unless `--overwrite` is passed.
-Multiple `--run-id` values are supported, but mixed `config_id` values fail by
-default unless `--allow-mixed-config` is passed.
-
-## Training
-
-Train local schema v5 numeric research models from a dataset:
-
-```powershell
-.\.venv\Scripts\python.exe tools\deterministic_signal_ml\train_model.py `
-  --dataset-id xauusd_2025_schema_v5_numeric_dataset_S1 `
-  --model-id xauusd_2025_schema_v5_numeric_S1_broker_1r_xgb `
-  --feature-set-id schema_v5_numeric_xgb `
+  --runs-root <runs_root> \
+  --run-id <schema_v7_run_id> \
+  --dataset-id <schema_v7_dataset_id> \
+  --schema-version 7 \
+  --feature-set-id schema_v7_extremum_engine_xgb \
+  --target-family broker_1r \
   --overwrite
 ```
 
-Generated model outputs are written under `artifacts/models/<model_id>/` and
-are ignored by git. The trainer uses deterministic one-hot encoding, a final
-chronological holdout, and walk-forward folds over the earlier data. Random
-train/test splits are intentionally not used because they can leak future market
-regime information into the validation result.
+Use `--validate-only` before large builds. Use
+`--target-family engine_simulated_1r` for a separate simulation target lane.
+Never combine simulated and broker targets.
 
-Model outputs include:
+Schema v7 outputs include typed `engine_cycles.parquet`,
+`engine_revisions.parquet`, `engine_attempts.parquet`, broker tables,
+`training_matrix.parquet`, and compact JSON/Markdown quality reports.
 
-- `model_manifest.json`: dataset/model IDs, feature contract, split policy,
-  validation summary, and research-only artifact links.
-- `feature_encoder.json`: deterministic encoded feature order.
-- `classifier_xgboost.json` and `regressor_xgboost.json`: Python XGBoost
-  booster JSON artifacts, not MT5-readable model files yet.
-- `validation_metrics.json` and `validation_report.md`: baseline, XGBoost,
-  fold, holdout, and feature diagnostics.
-- `threshold_report.tsv`: research-only probability thresholds with selected
-  rows, win rate, mean/net R, and drawdown-like R proxy.
-- `holdout_predictions.parquet` and `fold_predictions.parquet`: analysis
-  predictions readable by DuckDB.
-
-Schema v5 numeric training is research-only. It does not add EA inputs, does
-not run Python from MQL5, and does not change strategy entry/exit behavior.
-
-## Numeric Robustness Gate
-
-Run robustness validation before exporting any schema v5 numeric model to the
-runtime TSV scorer path:
+## Human Audit
 
 ```bash
-.venv/bin/python tools/deterministic_signal_ml/validate_model_robustness.py \
-  --dataset-id xauusd_2025_schema_v5_numeric_dataset_S1 \
-  --model-id xauusd_2025_schema_v5_numeric_S1_broker_1r_xgb \
-  --export-id xauusd_2025_schema_v5_numeric_S1_broker_1r_export \
-  --allow-missing-export \
-  --output-path artifacts/models/xauusd_2025_schema_v5_numeric_S1_broker_1r_xgb/robustness
-```
-
-Schema v5 segment diagnostics are added when their source columns exist:
-`session_id`, month/hour, raw structure percent buckets, `%B` value buckets, and
-`%B` slope buckets. Small fixtures should fail the robust partition guard; only
-fresh Strategy Tester datasets with enough rows can approve a candidate.
-
-Research-only candidate manifests can be written before Sprint 6 runtime export
-by using `--allow-missing-export`:
-
-```bash
-.venv/bin/python tools/deterministic_signal_ml/model_validation_config.py \
-  --dataset-id xauusd_2025_schema_v5_numeric_dataset_S1 \
-  --model-id xauusd_2025_schema_v5_numeric_S1_broker_1r_xgb \
-  --export-id xauusd_2025_schema_v5_numeric_S1_broker_1r_export \
-  --feature-set-id schema_v5_numeric_xgb \
-  --schema-version feature_schema_v5 \
-  --allow-missing-export \
-  --write-candidate-manifest artifacts/models/xauusd_2025_schema_v5_numeric_S1_broker_1r_xgb/robustness/candidate_manifest.json
-```
-
-Legacy schema v4 baseline training remains available with explicit flags:
-
-```bash
-.venv/bin/python tools/deterministic_signal_ml/build_dataset.py \
-  --runs-root "$MT5_COMMON_FILES/DeterministicSignalML/runs" \
-  --run-id xauusd_2025_schema_v4_run_S1 \
-  --dataset-id xauusd_2025_schema_v4_dataset_S1 \
-  --schema-version 4 \
-  --feature-set-id schema_v4_full \
+.venv/bin/python tools/deterministic_signal_ml/extremum_engine_audit.py \
+  --dataset-id <schema_v7_dataset_id> \
+  --audit-id <schema_v7_audit_id> \
   --overwrite
+```
 
+Outputs:
+
+- `fibonacci_proximity.tsv`
+- `attempt_profitability.tsv`
+- `cycle_sequences.tsv`
+- `stability.tsv`
+- `audit_metadata.json`
+- `audit_report.md`
+
+The default analytics levels are `0, 23.6, 38.2, 50, 61.8, 78.6, 100,
+123.6, 138.2, 161.8, 178.6, 200`. Raw depth is retained and extensions are not
+clamped. Range fields are price distance in points, not volume.
+
+## XGBoost Research
+
+```bash
 .venv/bin/python tools/deterministic_signal_ml/train_model.py \
-  --dataset-id xauusd_2025_schema_v4_dataset_S1 \
-  --model-id xauusd_2025_schema_v4_xgb_S1 \
-  --feature-set-id schema_v4_full \
+  --dataset-id <schema_v7_dataset_id> \
+  --model-id <schema_v7_model_id> \
+  --feature-set-id schema_v7_extremum_engine_xgb \
   --overwrite
 ```
 
-## Phase 4 Model Export
+The feature set contains only attempt-time facts. Chronological splits group
+all attempts from `symbol + engine_timeframe + extremum_cycle_id` together.
+Training fails with an actionable error when row or class support is too small.
 
-Export a Phase 3 model folder into MT5-readable TSV artifacts:
+Model export remains research-only. Schema v7 exports use
+`runtime_approval=RESEARCH_ONLY_NOT_APPROVED`; the MQL5 runtime rejects them.
+Old multi-strategy artifacts are incompatible with `EXTREMUM_V1`.
 
-```powershell
-.\.venv\Scripts\python.exe tools\deterministic_signal_ml\export_model_artifact.py `
-  --model-id xgb_test_1 `
-  --dataset-id test_dataset_1 `
-  --export-id xgb_test_1_export_v1 `
-  --overwrite
-```
-
-Validate the generated export without calling XGBoost:
-
-```powershell
-.\.venv\Scripts\python.exe tools\deterministic_signal_ml\model_artifact_validator.py `
-  --export-id xgb_test_1_export_v1
-```
-
-Generated exports are written under `artifacts/model_exports/<export_id>/` and
-are ignored by git. The export includes:
-
-- `model_manifest.tsv`: simple key/value runtime manifest for MQL5 loading.
-- `model_manifest.json`: Python audit sidecar.
-- `feature_map.tsv`: encoded feature index and one-hot mapping.
-- `classifier_trees.tsv`: flattened classifier tree nodes.
-- `regressor_trees.tsv`: flattened regressor tree nodes.
-- `threshold_policy.tsv`: research-only threshold metadata.
-- `parity_report.json` and `parity_report.md`: Python parity evidence.
-
-The exporter writes only the effective XGBoost trees used by prediction after
-early stopping. For `xgb_test_1`, that is 84 classifier trees and 47 regressor
-trees. Export remains an offline Python step; MT5 runtime loading and
-Strategy Tester inference use the copied artifact under Common Files.
-
-## Phase 5 Runtime Copy
-
-MQL5 shadow inference reads from MT5 `Common\Files`, not from the repository
-`artifacts/model_exports` folder. Validate and deploy the export before running
-Strategy Tester with `ML_INFERENCE_SHADOW` or `ML_INFERENCE_FILTER`:
-
-```powershell
-.\.venv\Scripts\python.exe tools\deterministic_signal_ml\model_artifact_validator.py `
-  --export-id xgb_test_1_export_v1
-```
-
-Ubuntu:
+## Validation
 
 ```bash
-.venv/bin/python tools/deterministic_signal_ml/model_artifact_validator.py \
-  --export-id xgb_test_1_export_v1
-
-export MT5_COMMON_FILES="$HOME/.wine/drive_c/users/loldlm/AppData/Roaming/MetaQuotes/Terminal/Common/Files"
-.venv/bin/python tools/deterministic_signal_ml/deploy_model_export.py \
-  --export-id xgb_test_1_export_v1 \
-  --overwrite
+.venv/bin/python -m compileall tools/deterministic_signal_ml
+.venv/bin/python -m unittest discover \
+  -s tools/deterministic_signal_ml/tests -p 'test_*.py'
 ```
 
-Windows PowerShell:
+The compact fixtures cover 39% near 38.2, 63% near 61.8, frozen-anchor and
+orphan failures, separate outcome lanes, cycle sequences, cycle-group splits,
+and fail-closed artifact compatibility.
 
-```powershell
-$MT5_COMMON_FILES = Join-Path $env:APPDATA "MetaQuotes\Terminal\Common\Files"
-.\.venv\Scripts\python.exe tools\deterministic_signal_ml\deploy_model_export.py `
-  --export-id xgb_test_1_export_v1 `
-  --mt5-common-files "$MT5_COMMON_FILES" `
-  --overwrite
-```
-
-The deploy tool validates the source artifact, copies it under
-`DeterministicSignalML/model_exports/<export_id>`, and validates the deployed
-copy. A FILTER run with `model_available=false` and
-`file_open_failed:DeterministicSignalML\model_exports\...` means this deploy
-step was skipped or pointed at a different MT5 Common Files root.
-
-The EA input surface is intentionally small:
-
-```text
-ML_Inference_Mode = ML_INFERENCE_DISABLED
-ML_Model_Export_Id = xgb_test_1_export_v1
-```
-
-`ML_INFERENCE_SHADOW` is observational. It records scores and diagnostics only;
-it must not filter trades, change Strategy Tester broker admission, or alter
-entry/exit behavior.
-
-Compare MQL5 shadow scores against the Python artifact scorer after a Strategy
-Tester run produces a shadow run folder:
-
-```bash
-.venv/bin/python tools/deterministic_signal_ml/compare_shadow_predictions.py \
-  --export-id xgb_test_1_export_v1 \
-  --shadow-run-path "$MT5_COMMON_FILES/DeterministicSignalML/shadow_runs/<shadow_run_id>"
-```
-
-The comparison prints only row counts, max/mean errors, threshold-decision
-agreement, and a few failure examples. It does not dump full prediction files.
-
-## Phase 6 Filter Validation
-
-`ML_INFERENCE_FILTER` is Strategy Tester only. It may block deterministic broker
-admission after existing broker/risk eligibility passes and before broker send.
-It is not approved for live deployment.
-
-After a Strategy Tester run with `ML_INFERENCE_FILTER`, summarize the run before
-inspecting any larger artifact:
-
-```bash
-.venv/bin/python tools/deterministic_signal_ml/summarize_filter_run.py \
-  --shadow-run-path "$MT5_COMMON_FILES/DeterministicSignalML/shadow_runs/<shadow_run_id>"
-```
-
-Then compare scored prediction rows against the Python artifact scorer:
-
-```bash
-.venv/bin/python tools/deterministic_signal_ml/compare_shadow_predictions.py \
-  --export-id xgb_test_1_export_v1 \
-  --shadow-run-path "$MT5_COMMON_FILES/DeterministicSignalML/shadow_runs/<shadow_run_id>"
-```
-
-The summarizer checks required TSV files, duplicate headers, row-count
-consistency, filter allow/block counters, unavailable blocks, invalid-feature
-blocks, optional arbitration counters, and export status. It prints compact
-counts only.
-
-## Signal Arbitration
-
-Phase 2 of the ML robustness roadmap adds deterministic arbitration for
-Strategy Tester `ML_INFERENCE_FILTER` runs. Arbitration is applied only after
-existing broker/risk admission preparation and after ML FILTER allows a
-candidate. It chooses one candidate per group and closes non-selected candidates
-locally with `ML_ARBITRATION_BLOCKED`.
-
-The accepted rank policy is:
-
-1. highest classifier score
-2. highest regressor score
-3. stable strategy priority `S1 > S2 > S3`
-
-Arbitration decisions are recorded in a separate run artifact:
-
-```text
-DeterministicSignalML/shadow_runs/<shadow_run_id>/arbitration_decisions.tsv
-```
-
-Use strict summary validation after a Phase 2 FILTER smoke run:
-
-```bash
-.venv/bin/python tools/deterministic_signal_ml/summarize_filter_run.py \
-  --shadow-run-path "$MT5_COMMON_FILES/DeterministicSignalML/shadow_runs/<shadow_run_id>" \
-  --require-arbitration
-```
-
-Old filter run folders do not contain arbitration evidence and must not be used
-as Phase 2 acceptance evidence. A fresh XAUUSD smoke run is required after the
-implementation; the long XAUUSD run should be generated only after smoke
-validation passes.
-
-## Validation Hardening
-
-Phase 1 of the ML robustness roadmap adds Python-only validation hardening
-before new features or runtime behavior changes. The current short baseline is
-usable for tooling smoke checks only:
-
-```bash
-.venv/bin/python tools/deterministic_signal_ml/model_validation_config.py \
-  --dataset-id test_dataset_1 \
-  --model-id xgb_test_1 \
-  --export-id xgb_test_1_export_v1
-```
-
-The hardened validation flow must separate threshold selection from final
-holdout approval, report segment diagnostics, flag overfit risks, and compare
-future candidate models against a frozen baseline.
-
-```bash
-.venv/bin/python tools/deterministic_signal_ml/validate_model_robustness.py \
-  --dataset-id test_dataset_1 \
-  --model-id xgb_test_1 \
-  --export-id xgb_test_1_export_v1 \
-  --output-path artifacts/models/xgb_test_1/robustness
-```
-
-Candidate comparison uses lightweight manifests that point to robustness
-reports:
-
-```bash
-.venv/bin/python tools/deterministic_signal_ml/model_validation_config.py \
-  --dataset-id test_dataset_1 \
-  --model-id xgb_test_1 \
-  --export-id xgb_test_1_export_v1 \
-  --write-candidate-manifest artifacts/models/xgb_test_1/robustness/baseline_candidate_manifest.json
-
-.venv/bin/python tools/deterministic_signal_ml/compare_model_candidates.py \
-  --baseline-manifest artifacts/models/xgb_test_1/robustness/baseline_candidate_manifest.json \
-  --candidate-manifest artifacts/models/xgb_test_1/robustness/baseline_candidate_manifest.json \
-  --output-path artifacts/models/xgb_test_1/robustness/comparison
-```
-
-A fresh one-to-two-year Strategy Tester run is required before accepting new
-feature sets, production-like thresholds, cross-symbol claims, dynamic `1:n`
-target behavior, or any future live rollout evidence.
-
-Real-run checklist:
-
-- Use `docs/environment/mt5-agentic-workflows.md` for MT5/Wine paths, Common
-  Files, and generated artifact handling.
-- Generate raw deterministic signal features and closed outcomes with ML mode
-  disabled unless a future plan intentionally studies `ML_INFERENCE_FILTER`
-  behavior.
-- Record the one-to-two-year date range, symbol, broker environment,
-  spread/cost assumptions, strategy inputs, run ID, and config ID.
-- Keep strategy configuration stable through the data-generation run.
-- Export enough closed signals for train core, early-stopping validation,
-  threshold selection, final holdout, walk-forward folds, and per-segment
-  diagnostics.
-- Do not tune features or thresholds on final holdout evidence.
-
-## Agentic Evidence Policy
-
-Do not paste full TSV, Parquet, model JSON, or tree TSV files into chat.
-For Codex handoff, record only paths, sizes, row counts, model/export IDs,
-threshold metadata, parity status, and final validator status. The compact
-active workflow reference is
-`docs/workflows/deterministic-signal-ml-inference-flows.md`; completed detailed
-evidence is archived under
-`docs/research/archive/deterministic-signal-ml-2026-07-05/`.
-
-## DuckDB References
-
-- DuckDB Python package: https://github.com/duckdb/duckdb-python
-- DuckDB CSV import options: https://duckdb.org/docs/current/data/csv/overview.html
-- DuckDB COPY statement and Parquet export: https://duckdb.org/docs/current/sql/statements/copy.html
+The complete operator flow and human Strategy Tester matrix are in
+`docs/workflows/extremum-engine-statistics-flow.md`.

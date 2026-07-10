@@ -4,6 +4,9 @@ Active planning status:
 
 - Active implementation plan:
   `docs/plans/extremum-engine-cycle-statistics-plan.md`.
+- Sprints 1-7 are implemented in order. The plan remains active until the human
+  Strategy Tester matrix and real export-disabled versus schema-v7 performance
+  comparison are recorded and accepted.
 
 Completed broker-first execution/statistics alignment plans are archived under:
 
@@ -27,6 +30,6 @@ archived under:
 
 - `docs/plans/archive/deterministic-signal-ml-2026-07-05/`
 
-Use the compact active workflow reference instead of archived phase plans:
+Use the active extremum engine workflow instead of archived phase plans:
 
-- `docs/workflows/deterministic-signal-ml-inference-flows.md`
+- `docs/workflows/extremum-engine-statistics-flow.md`

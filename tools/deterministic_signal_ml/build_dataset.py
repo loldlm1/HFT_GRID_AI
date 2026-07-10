@@ -771,7 +771,7 @@ def build_parser() -> argparse.ArgumentParser:
         type=int,
         default=SUPPORTED_SCHEMA_VERSION,
         choices=SUPPORTED_SCHEMA_VERSIONS,
-        help="Phase 1 feature export schema version. Defaults to active schema v6.",
+        help="Feature export schema version. Defaults to active schema v7.",
     )
     parser.add_argument(
         "--feature-set-id",

@@ -6,12 +6,14 @@ Short, current notes for Codex agents and contributors. Keep this file brief; ac
 
 ## 1) Purpose And Entrypoint
 
-- **Purpose**: MT5 Expert Advisor foundation for future strategy integration, broker-aware execution planning, and strict risk controls.
+- **Purpose**: MT5 Expert Advisor foundation with one M1 extremum engine, broker-aware execution planning, schema v7 statistics, and strict risk controls.
 - **Entrypoint**: `HFT_Grid_AI.mq5`.
-- **Active plan**: none. Start a new `$planner` plan under `docs/plans/` for
-  the next substantial change.
+- **Active plan**: `docs/plans/extremum-engine-cycle-statistics-plan.md`.
+  Implementation is complete; human Strategy Tester and performance acceptance
+  remain pending.
 - **Environment runbook**: `docs/environment/mt5-agentic-workflows.md`.
-- **Deterministic ML workflow**: `docs/workflows/deterministic-signal-ml-inference-flows.md`.
+- **Extremum engine workflow**: `docs/workflows/extremum-engine-statistics-flow.md`.
+- **ML runtime boundaries**: `docs/workflows/deterministic-signal-ml-inference-flows.md`.
 - **Archived deterministic ML plans**:
   `docs/plans/archive/deterministic-signal-ml-2026-07-05/` and
   `docs/plans/archive/phase3-ml-2026-07-07/`.
@@ -55,7 +57,7 @@ Rules:
 - Aggregators are the single source of truth for include order.
 - Include lower layers only, or shared core/utils/indicators helpers.
 - Do not introduce circular includes or sibling service includes.
-- Keep the flow explicit: inputs -> indicators/context -> strategy candidate -> execution planning -> broker-aware simulation -> broker reconciliation -> protection/risk -> frontend/telemetry.
+- Keep the flow explicit: inputs -> Stoch Structure/extremum cycle -> intrinsic attempt -> operational admission -> execution planning -> broker-aware simulation -> broker reconciliation -> protection/risk -> frontend/telemetry.
 
 ## 4) Foundation Scope
 
@@ -83,7 +85,7 @@ Preserved foundation controls:
 ## 6) Execution Source Of Truth
 
 - Before a real broker position exists, local execution simulation owns candidate state.
-- Deterministic MA/Stoch strategies use the current Stoch Structure extremum slot `0` as the source extremum; confirmed slot `1` is telemetry/context only unless a future plan explicitly changes it.
+- `EXTREMUM_V1` uses the current Stoch Structure extremum slot `0` as the source; completed slots `1` and `2` freeze the cycle Fibonacci range. No M1 or macro MA confirmation is active.
 - Local simulation must apply broker conditions before activation decisions: spread, stops level, freeze level, volume min/max/step, margin, market status, sessions, license, and protection gates.
 - After a real broker position exists, broker state owns ticket, volume, entry price, close state, and realized profit.
 - Local state may reconcile against broker facts, but must not overwrite broker facts.
@@ -107,16 +109,15 @@ Any phase touching these controls must call out risk level in its phase plan.
 - No custom MQL5 tests, test harnesses, or agentic CI are part of this refoundation.
 - Do not add custom MQL5 test files or CI for strategy work unless a future human explicitly reverses this policy.
 - Validate implementation phases with MetaEditor compile plus human-in-the-loop Strategy Tester/chart verification.
-- Visual strategy validation is human-in-the-loop: only enabled deterministic strategies should show their shifted M1 MA and their linked macro chart MA.
-- Macro MA charts are validation aids only. They must not drive signal detection, risk management, broker reconciliation, or lifecycle decisions.
-- In Strategy Tester visual mode, deterministic logic MA handles use `shift=0` and should be hidden with `TesterHideIndicators`; shifted MA handles are visual-only.
+- Visual validation is human-in-the-loop: verify PEAK/BOTTOM cycles, deeper revisions, attempt depths, operational blocks, broker linkage, and run-end censoring.
+- Moving-average chart overlays are not part of the active engine validation contract.
 - Legacy custom tests and the old test runner have been removed.
 - Documentation-only phases do not run MT5 compile.
 - Implementation phases compile once at phase end, not after every atomic task.
 - Compile portable/headless first whenever possible, then fallback to normal MetaEditor compile if needed.
 - Treat compiler warnings and errors as phase failures unless a temporary exception is explicitly documented.
 - Use `docs/environment/mt5-agentic-workflows.md` as the source of truth for Windows and Ubuntu/Wine paths, Common Files, generated artifacts, and agentic compile commands.
-- Use `docs/workflows/deterministic-signal-ml-inference-flows.md` as the compact source of truth for completed deterministic ML backtesting inference flow.
+- Use `docs/workflows/extremum-engine-statistics-flow.md` as the active export, dataset, audit, and research workflow.
 - Prefer `python3 tools/mt5/compile_mt5.py` or `py -3.12 tools\mt5\compile_mt5.py` for agentic compile validation. The helper parses the MetaEditor log and keeps output compact.
 - MetaEditor `/s` is syntax check only. Do not treat `/s /compile` as evidence that `.ex5` was regenerated.
 - Do not paste full compile logs, `query_debug.txt`, Parquet contents, model JSON, or tree TSV files into chat. Summarize paths, sizes, counts, final status lines, and selected failure lines.

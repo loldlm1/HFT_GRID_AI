@@ -19,6 +19,7 @@ $COMPILE_LOG = Join-Path $MT5_ROOT "MQL5\Experts\HFT_Grid_AI\logs\compile\agenti
 $MT5_COMMON_FILES = Join-Path $env:APPDATA "MetaQuotes\Terminal\Common\Files"
 $DETERMINISTIC_RUNS_ROOT = Join-Path $MT5_COMMON_FILES "DeterministicSignalML\runs"
 $DATASET_ROOT = "artifacts\datasets"
+$AUDIT_ROOT = "artifacts\audits"
 $MODEL_ROOT = "artifacts\models"
 $MODEL_EXPORT_ROOT = "artifacts\model_exports"
 ```
@@ -35,6 +36,7 @@ export COMPILE_LOG="$MT5_ROOT/MQL5/Experts/HFT_Grid_AI/logs/compile/agentic-buil
 export MT5_COMMON_FILES="$HOME/.wine/drive_c/users/loldlm/AppData/Roaming/MetaQuotes/Terminal/Common/Files"
 export DETERMINISTIC_RUNS_ROOT="$MT5_COMMON_FILES/DeterministicSignalML/runs"
 export DATASET_ROOT="artifacts/datasets"
+export AUDIT_ROOT="artifacts/audits"
 export MODEL_ROOT="artifacts/models"
 export MODEL_EXPORT_ROOT="artifacts/model_exports"
 ```
@@ -165,182 +167,133 @@ The versions in `tools/deterministic_signal_ml/requirements.txt` are pinned to
 the accepted local stack. Do not loosen them without rechecking imports and
 training on this Ubuntu CPU and on Windows.
 
-## Artifact Inventory
+## Schema V7 Artifact Inventory
 
-Check generated artifact presence without dumping data:
+Set the evidence IDs from the human Strategy Tester run, then inspect names,
+sizes, and counts without dumping TSV or Parquet contents:
 
 ```bash
-test -d "$DETERMINISTIC_RUNS_ROOT/test_run_1" && \
-  find "$DETERMINISTIC_RUNS_ROOT/test_run_1" -maxdepth 1 -type f -printf '%f %s bytes\n' | sort
+export SCHEMA_V7_RUN_ID="<schema_v7_run_id>"
+export SCHEMA_V7_DATASET_ID="<schema_v7_dataset_id>"
+export SCHEMA_V7_AUDIT_ID="<schema_v7_audit_id>"
 
-find artifacts/datasets/test_dataset_1 artifacts/models/xgb_test_1 \
-  artifacts/model_exports/xgb_test_1_export_v1 -maxdepth 1 -type f \
+find "$DETERMINISTIC_RUNS_ROOT/$SCHEMA_V7_RUN_ID" -maxdepth 1 -type f \
+  -printf '%f %s bytes\n' 2>/dev/null | sort
+
+find "artifacts/datasets/$SCHEMA_V7_DATASET_ID" \
+  "artifacts/audits/$SCHEMA_V7_AUDIT_ID" -maxdepth 1 -type f \
   -printf '%p %s bytes\n' 2>/dev/null | sort
 ```
 
-If Parquet artifacts exist, use row counts only:
+Use DuckDB only for compact Parquet row counts:
 
 ```bash
 .venv/bin/python - <<'PY'
+import os
+from pathlib import Path
 import duckdb
-for path in [
-    "artifacts/datasets/test_dataset_1/features.parquet",
-    "artifacts/datasets/test_dataset_1/outcomes.parquet",
-    "artifacts/datasets/test_dataset_1/training_matrix.parquet",
-]:
-    try:
-        count = duckdb.sql(f"select count(*) from read_parquet('{path}')").fetchone()[0]
-        print(path, count)
-    except Exception as exc:
-        print(path, "missing_or_invalid", exc.__class__.__name__)
+
+dataset = Path("artifacts/datasets") / os.environ["SCHEMA_V7_DATASET_ID"]
+for name in (
+    "engine_cycles.parquet",
+    "engine_revisions.parquet",
+    "engine_attempts.parquet",
+    "signal_admissions.parquet",
+    "signal_outcomes.parquet",
+    "training_matrix.parquet",
+):
+    path = dataset / name
+    if path.exists():
+        count = duckdb.sql(
+            f"select count(*) from read_parquet('{path.as_posix()}')"
+        ).fetchone()[0]
+        print(name, count)
 PY
 ```
 
-## Phase 2-4 Regeneration
+## Schema V7 Dataset And Audit
 
-Run these only when `test_run_1` exists under `DETERMINISTIC_RUNS_ROOT`.
+Run these after a human Strategy Tester export exists under
+`DETERMINISTIC_RUNS_ROOT`.
 
 Ubuntu:
 
 ```bash
 .venv/bin/python tools/deterministic_signal_ml/build_dataset.py \
   --runs-root "$DETERMINISTIC_RUNS_ROOT" \
-  --run-id test_run_1 \
-  --dataset-id test_dataset_1 \
+  --run-id "$SCHEMA_V7_RUN_ID" \
+  --dataset-id "$SCHEMA_V7_DATASET_ID" \
+  --schema-version 7 \
+  --feature-set-id schema_v7_extremum_engine_xgb \
+  --target-family broker_1r \
   --validate-only
 
 .venv/bin/python tools/deterministic_signal_ml/build_dataset.py \
   --runs-root "$DETERMINISTIC_RUNS_ROOT" \
-  --run-id test_run_1 \
-  --dataset-id test_dataset_1 \
+  --run-id "$SCHEMA_V7_RUN_ID" \
+  --dataset-id "$SCHEMA_V7_DATASET_ID" \
+  --schema-version 7 \
+  --feature-set-id schema_v7_extremum_engine_xgb \
+  --target-family broker_1r \
+  --overwrite
+
+.venv/bin/python tools/deterministic_signal_ml/extremum_engine_audit.py \
+  --dataset-id "$SCHEMA_V7_DATASET_ID" \
+  --audit-id "$SCHEMA_V7_AUDIT_ID" \
   --overwrite
 
 .venv/bin/python tools/deterministic_signal_ml/train_model.py \
-  --dataset-id test_dataset_1 \
-  --model-id xgb_test_1 \
+  --dataset-id "$SCHEMA_V7_DATASET_ID" \
+  --model-id <schema_v7_research_model_id> \
+  --feature-set-id schema_v7_extremum_engine_xgb \
   --overwrite
-
-.venv/bin/python tools/deterministic_signal_ml/export_model_artifact.py \
-  --model-id xgb_test_1 \
-  --dataset-id test_dataset_1 \
-  --export-id xgb_test_1_export_v1 \
-  --overwrite
-
-.venv/bin/python tools/deterministic_signal_ml/model_artifact_validator.py \
-  --export-id xgb_test_1_export_v1
 ```
 
 Windows PowerShell uses the same arguments with `.\.venv\Scripts\python.exe`
-and `$DETERMINISTIC_RUNS_ROOT`.
+  and `$DETERMINISTIC_RUNS_ROOT`.
 
 Record only:
 
-- row counts,
-- config ID,
-- model ID,
-- export ID,
-- threshold probability,
-- parity status,
-- final validator status.
+- schema/run/config/engine identity;
+- cycle, revision, attempt, admission, and broker outcome counts;
+- output sizes and final validator/audit status;
+- research model ID and the first useful training failure when support is
+  insufficient.
+
+Training is optional research validation. It does not approve or install a
+runtime artifact.
+
+## Strategy Tester Performance Evidence
+
+The implementation closeout requires two comparable human-run tests with ML
+disabled: one with export disabled and one with schema v7 export enabled. Use
+the same symbol, date range, tick model, deposit, broker settings, and EA inputs.
+
+Record elapsed tester time, cycle/revision/attempt counts, peak active simulated
+paths, total run-folder bytes, and final status. Do not claim acceptance until
+the owner reviews the measured delta. A compile or synthetic fixture cannot
+substitute for this comparison.
 
 ## Runtime Inference Readiness
 
-The completed deterministic ML plan and acceptance evidence is archived under:
+There is no schema v7 artifact approved for MT5 runtime. Do not copy a v7
+research export into Common Files or run SHADOW/FILTER acceptance as if a model
+were approved. Research exports must carry
+`runtime_approval=RESEARCH_ONLY_NOT_APPROVED` and fail closed.
+
+The runtime boundary and future compatibility requirements are documented in
+`docs/workflows/deterministic-signal-ml-inference-flows.md`. A later explicit
+plan must select a model, produce parity evidence, set approval metadata, define
+monitoring/rollback, and authorize any runtime installation.
+
+Historical multi-strategy inference instructions and evidence remain immutable
+under:
 
 ```text
 docs/plans/archive/deterministic-signal-ml-2026-07-05/
 docs/research/archive/deterministic-signal-ml-2026-07-05/
 ```
 
-Use the compact current flow reference before new inference work:
-
-```text
-docs/workflows/deterministic-signal-ml-inference-flows.md
-```
-
-MQL5 inference must load exported artifacts from files and must not call Python,
-DuckDB, XGBoost, or external services from the EA hot path.
-
-## Artifact Install Boundary
-
-The repository export under `artifacts/model_exports/<export_id>` is a generated
-research artifact. MQL5 runtime code must read the copied export from
-`FILE_COMMON`:
-
-```text
-Common\Files\DeterministicSignalML\model_exports\<export_id>
-```
-
-Validate before copying:
-
-```bash
-.venv/bin/python tools/deterministic_signal_ml/model_artifact_validator.py \
-  --export-id xgb_test_1_export_v1
-```
-
-Ubuntu/Wine copy shape:
-
-```bash
-export MT5_COMMON_FILES="$HOME/.wine/drive_c/users/loldlm/AppData/Roaming/MetaQuotes/Terminal/Common/Files"
-mkdir -p "$MT5_COMMON_FILES/DeterministicSignalML/model_exports"
-cp -a artifacts/model_exports/xgb_test_1_export_v1 \
-  "$MT5_COMMON_FILES/DeterministicSignalML/model_exports/"
-find "$MT5_COMMON_FILES/DeterministicSignalML/model_exports/xgb_test_1_export_v1" \
-  -maxdepth 1 -type f -printf '%f %s bytes\n' | sort
-```
-
-Windows PowerShell copy shape:
-
-```powershell
-$MT5_COMMON_FILES = Join-Path $env:APPDATA "MetaQuotes\Terminal\Common\Files"
-$dest = Join-Path $MT5_COMMON_FILES "DeterministicSignalML\model_exports"
-New-Item -ItemType Directory -Force -Path $dest | Out-Null
-Copy-Item -Recurse -Force artifacts\model_exports\xgb_test_1_export_v1 $dest
-Get-ChildItem (Join-Path $dest "xgb_test_1_export_v1") | Select-Object Name,Length
-```
-
-Use `ML_Inference_Mode = ML_INFERENCE_SHADOW` only after the export is present
-under `Common\Files`. Shadow mode is fail-open for trading: missing or invalid
-artifacts must produce compact diagnostics and must not alter broker admission,
-entries, exits, lot sizing, SL/TP, license checks, session gates, spread checks,
-margin checks, protection controls, or broker reconciliation.
-
-After a human-in-the-loop Strategy Tester run creates shadow output, compare
-MQL5 scores against the Python artifact scorer:
-
-```bash
-.venv/bin/python tools/deterministic_signal_ml/compare_shadow_predictions.py \
-  --export-id xgb_test_1_export_v1 \
-  --shadow-run-path "$MT5_COMMON_FILES/DeterministicSignalML/shadow_runs/<shadow_run_id>"
-```
-
-Record only row counts, max/mean errors, decision agreement, selected failure
-lines, and the shadow run path. Do not paste full shadow TSVs into chat.
-
-## Filter Validation
-
-`ML_INFERENCE_FILTER` mode is approved for Strategy Tester validation only. It
-is not live-deployment approval.
-
-Use `ML_Inference_Mode = ML_INFERENCE_FILTER` only after the export is present
-under `Common\Files`. Filter mode is fail-closed for model admission: missing
-artifacts, unavailable model state, invalid features, failed encoding, failed
-classifier scoring, and non-tester usage block deterministic model admission.
-Existing license, session, spread, broker constraints, margin, protection,
-magic-number scope, and broker reconciliation remain the source of truth.
-
-After a human-in-the-loop Strategy Tester run creates filter output, summarize
-the run and compare scored predictions:
-
-```bash
-.venv/bin/python tools/deterministic_signal_ml/summarize_filter_run.py \
-  --shadow-run-path "$MT5_COMMON_FILES/DeterministicSignalML/shadow_runs/<shadow_run_id>"
-
-.venv/bin/python tools/deterministic_signal_ml/compare_shadow_predictions.py \
-  --export-id xgb_test_1_export_v1 \
-  --shadow-run-path "$MT5_COMMON_FILES/DeterministicSignalML/shadow_runs/<shadow_run_id>"
-```
-
-Record only compact row counts, allow/block counts, unavailable/invalid counts,
-parity status, selected failure lines, and the run path. Do not paste full
-shadow/filter TSVs into chat.
+They are historical audit material, not active engine commands. MQL5 inference
+must always load files locally and must never call Python, DuckDB, XGBoost, or
+external services from the EA hot path.

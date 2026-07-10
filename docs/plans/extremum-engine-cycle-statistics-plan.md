@@ -1,7 +1,8 @@
 # Plan: Single Extremum Engine And Cycle Statistics
 
 **Generated**: 2026-07-10
-**Status**: Implementation active; Sprint 1 in progress
+**Status**: Sprints 1-7 implementation complete; human Strategy Tester and
+performance acceptance pending
 **Estimated Complexity**: Critical
 **Risk Class**: Critical, because removing the M1 and macro MA gates changes which candidates can reach broker admission and can materially increase trade frequency even though broker, license, session, margin, spread, protection, and reconciliation controls remain mandatory.
 
@@ -56,6 +57,27 @@ engine on M3/M5/M10 without redesigning identity or storage.
   validation, DuckDB dataset assembly, human audit reports, chronological and
   cycle-group leakage checks, and a bounded Strategy Tester performance
   comparison.
+
+## Implementation Record
+
+The ordered implementation batch completed on 2026-07-10. Automated evidence
+is recorded in `docs/research/extremum-engine-statistics-implementation-evidence.md`.
+The plan remains active because the required human Strategy Tester matrix and a
+real export-disabled versus schema-v7 performance/storage comparison have not
+yet been executed or accepted.
+
+| Sprint | Commit | Automated status |
+| --- | --- | --- |
+| 1 | `c50aa57` | Implemented; MetaEditor PASS |
+| 2 | `b6ffd3c` | Implemented; MetaEditor PASS |
+| 3 | `9797151` | Implemented; MetaEditor PASS |
+| 4 | `203478a` | Implemented; Python/schema fixtures PASS |
+| 5 | `2b23cd4` | Implemented; DuckDB audit fixture PASS |
+| 6 | `521e038` | Implemented; MetaEditor and Python PASS |
+| 7 | `docs: close extremum engine statistics workflow` | Documentation and final automated validation complete |
+
+Human acceptance is deliberately not inferred from compilation or synthetic
+fixtures. The unchecked human/performance gates in this plan remain binding.
 
 ## Scope
 

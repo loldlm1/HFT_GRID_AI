@@ -2,7 +2,7 @@
 
 ## Purpose
 
-This document defines the target execution foundation for the HFT Grid AI refoundation. It is implementation-guiding documentation, not the final strategy specification.
+This document defines the execution foundation used by the active M1 extremum engine.
 
 The goal is to provide a stable base where future strategies can be integrated without carrying legacy sequencing, removed entry-policy inputs, or removed add-on assumptions.
 
@@ -11,7 +11,9 @@ The goal is to provide a stable base where future strategies can be integrated w
 ```text
 inputs
 -> indicator/context hydration
--> strategy candidate detection
+-> extremum cycle/revision observation
+-> intrinsic attempt detection
+-> operational admission
 -> local broker-aware execution simulation
 -> execution plan
 -> optional real broker execution
@@ -82,11 +84,19 @@ The foundation should use strategy-neutral naming:
 
 Legacy strategy-specific names should be removed or isolated to historical artifacts scheduled for deletion.
 
-## Future Strategy Integration Baseline
+## Extremum Engine Integration
 
-Future strategies should enter the foundation as strategy candidates and let the execution planner apply range, broker, session, protection, and license gates. They should not open, close, or resize broker positions directly.
+`EXTREMUM_V1` observes provisional Stoch Structure slot `0`, maps BOTTOM to
+bullish and PEAK to bearish, and preserves the M1 breakout trigger. It does not
+use M1 or macro moving-average confirmation.
 
-Strategy-specific statistics should distinguish local simulated decisions from broker-confirmed outcomes so future optimization work can audit decision quality without conflating it with broker execution facts.
+Intrinsic attempts are captured after structural/geometry validation and before
+operational gates. The execution planner still applies direction, session,
+daily-limit, concurrency, broker, protection, and license gates. The engine
+never opens, closes, or resizes broker positions directly.
+
+Statistics distinguish `ENGINE_SIMULATION` path results from broker-confirmed
+outcomes. Simulated facts cannot satisfy broker outcome predicates.
 
 ## Risk And Safety Controls
 
@@ -103,7 +113,7 @@ These controls are foundation-owned and must not be weakened by future strategy 
 - symbol and magic-number scoping
 - real broker position reconciliation
 
-Future strategies can request execution, but they do not bypass these controls.
+The engine can request execution, but it does not bypass these controls.
 
 ## Performance Principles
 
@@ -120,7 +130,8 @@ Implementation phases should preserve these rules:
 
 ## Documentation Boundaries
 
-This document does not define final production strategy rules.
+The active signal semantics and data genealogy are documented in
+`docs/workflows/extremum-engine-statistics-flow.md`.
 
 Phase ownership:
 

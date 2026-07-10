@@ -1,313 +1,111 @@
-# HFT Grid AI Foundation
+# HFT Grid AI
 
-**Platform:** MetaTrader 5 (MQL5)
-**Entrypoint:** `HFT_Grid_AI.mq5`
-**Current focus:** final refounded EA foundation baseline for future strategy integration
+MetaTrader 5 Expert Advisor foundation with one always-on M1 extremum engine,
+broker-aware execution planning, strict risk controls, and schema v7 research
+telemetry.
 
-HFT Grid AI has been refounded into a smaller, broker-aware MT5 Expert Advisor foundation. Legacy strategy features, retired public domain naming, and custom test infrastructure have been removed before new strategies are integrated.
+Entrypoint: `HFT_Grid_AI.mq5`.
 
-## Current Docs
+## Active Engine
 
-- `AGENTS.md`: contributor and Codex-agent rules for the current foundation.
-- `docs/workflows/deterministic-signal-ml-inference-flows.md`: compact human and agentic deterministic ML inference flows.
-- `docs/plans/README.md`: current planning status.
-- `docs/research/README.md`: current research evidence status.
-- `docs/plans/archive/refoundation-baseline-2026-07-03/`: completed Phase 0-8 refoundation plans.
-- `docs/plans/archive/codex-skill-stack-alignment-2026-07-03/`: completed Codex skill-stack alignment plan.
-- `docs/plans/archive/deterministic-signal-ml-2026-07-05/`: completed deterministic signal strategy/ML plans and roadmap.
-- `docs/research/archive/deterministic-signal-ml-2026-07-05/`: completed deterministic signal ML acceptance evidence.
-- `docs/environment/mt5-agentic-workflows.md`: Windows and Ubuntu/Wine compile, Common Files, and artifact workflow runbook.
-- `docs/architecture/execution-foundation.md`: local/broker execution foundation.
+- Engine identity: `EXTREMUM_V1`.
+- Timeframe: fixed `PERIOD_M1`.
+- Source: provisional Stoch Structure extremum slot `0`.
+- Direction: `BOTTOM -> BULLISH`, `PEAK -> BEARISH`.
+- Entry: existing M1 `high_1`/`low_1` breakout.
+- Moving averages: no M1 or macro confirmation and no shifted visual ownership.
+- Engine enable inputs: none; the retired `Enable_Strategy_*` inputs are not
+  compatibility aliases and must not be restored.
 
-## Validation Model
+A same-type deeper extremum creates a revision inside the same cycle. A type
+transition finalizes the cycle. Fibonacci anchors are frozen at cycle start
+from completed structural slots `1` and `2`.
 
-- Documentation-only phases do not run MT5 compile.
-- Implementation phases compile once at phase end.
-- Portable/headless MetaEditor compile is preferred.
-- Normal MetaEditor compile is the fallback.
-- Legacy custom MQL5 tests, test harnesses, and agentic CI are not part of the active validation model.
-- OS-specific paths and Common Files discovery are documented in `docs/environment/mt5-agentic-workflows.md`.
-- MetaEditor `/s` is syntax check only; real compile validation must omit `/s` and parse the MetaEditor log for `0 errors, 0 warnings`.
+## Safety Boundary
 
-Preferred real compile command shape for implementation phases:
+The engine proposes intrinsic attempts. It does not bypass:
 
-```powershell
-$mt5Root = "C:\Program Files\MetaTrader 5-1"
-$metaeditor = Join-Path $mt5Root "MetaEditor64.exe"
-$entrypoint = Join-Path $mt5Root "MQL5\Experts\HFT_Grid_AI\HFT_Grid_AI.mq5"
-$log = Join-Path $mt5Root "MQL5\Experts\HFT_Grid_AI\logs\compile\phase-build.log"
-& $metaeditor /portable /compile:$entrypoint /log:$log
+- license and entitlement checks;
+- direction, session, daily-limit, and concurrency gates;
+- spread, market status, stops/freeze, volume, and margin checks;
+- drawdown/protection controls;
+- symbol/magic scoping and broker reconciliation.
+
+Before a broker position exists, local execution state owns the candidate. Once
+a real position exists, broker facts own ticket, volume, entry, close state,
+and realized profit.
+
+## Schema V7 Statistics
+
+With `Enable_Signal_Feature_Export=true`, MT5 writes to:
+
+```text
+Common\Files\DeterministicSignalML\runs\<run_id>\
 ```
 
-Agentic helper:
+The export records cycles, revisions, intrinsic attempts, admissions,
+broker-entered features, broker-confirmed signal outcomes, and broker-confirmed
+leg outcomes. Attempts are captured after valid geometry and before operational
+gates, so denied opportunities remain in the census.
+
+`ENGINE_SIMULATION` results are stored only as simulated attempt facts. They do
+not create broker outcomes or overwrite tickets, volume, prices, close flags,
+or realized profit.
+
+## Research Flow
+
+Use `docs/workflows/extremum-engine-statistics-flow.md` for the complete flow.
 
 ```bash
-python3 tools/mt5/compile_mt5.py --wine \
+.venv/bin/python tools/deterministic_signal_ml/build_dataset.py \
+  --runs-root <runs_root> \
+  --run-id <schema_v7_run_id> \
+  --dataset-id <schema_v7_dataset_id> \
+  --schema-version 7 \
+  --feature-set-id schema_v7_extremum_engine_xgb \
+  --target-family broker_1r \
+  --overwrite
+
+.venv/bin/python tools/deterministic_signal_ml/extremum_engine_audit.py \
+  --dataset-id <schema_v7_dataset_id> \
+  --audit-id <schema_v7_audit_id> \
+  --overwrite
+```
+
+The audit maps raw depths to human Fibonacci proximity, compares point-range
+buckets, preserves attempt order within cycles, and keeps simulated and broker
+profitability in separate lanes. XGBoost splits keep each cycle in one
+chronological partition and exclude final-cycle facts from features.
+
+No schema v7 model is approved for MT5 runtime. Historical multi-strategy
+artifacts and unapproved v7 research artifacts fail closed.
+
+## Validation
+
+- MQL5 implementation phases require one real MetaEditor compile with
+  `0 errors, 0 warnings`.
+- Python contracts use compact `unittest` fixtures and DuckDB readback.
+- Custom MQL5 tests and agentic CI are not part of the repository policy.
+- Strategy Tester/chart validation is human-in-the-loop.
+- MetaEditor `/s` is syntax-only and does not prove `.ex5` regeneration.
+
+Agentic compile:
+
+```bash
+python3 tools/mt5/compile_mt5.py \
+  --wine \
   --mt5-root "/home/loldlm/mql5_projects/metatrader_5_market_data_framework" \
   --entrypoint "/home/loldlm/mql5_projects/metatrader_5_market_data_framework/MQL5/Experts/HFT_Grid_AI/HFT_Grid_AI.mq5" \
-  --log "/home/loldlm/mql5_projects/metatrader_5_market_data_framework/MQL5/Experts/HFT_Grid_AI/logs/compile/agentic-build.log" \
+  --log "logs/compile/agentic-build.log" \
   --mode compile
 ```
 
-## Refoundation Scope
-
-Legacy strategy feature groups and their public inputs have been removed from the active foundation. Do not preserve them through deprecated shims, aliases, docs, or compatibility layers.
-
-Preserved foundation areas:
-
-- License and account settings.
-- Protection/risk controls.
-- Session time filters.
-- Strategy timeframe, Stoch Structure period, direction mode, and concurrency mode unless a later phase changes them explicitly.
-- Strategy range and risk settings.
-- Developer debug controls.
-- Stoch Structure as the structural context source.
-
-## Execution Direction
-
-The target lifecycle is:
-
-```text
-inputs
--> indicator/context hydration
--> strategy candidate detection
--> local broker-aware execution simulation
--> execution plan
--> optional real broker execution
--> broker position reconciliation
--> protection/risk controls
--> telemetry/frontend
-```
-
-Before a real broker position exists, local simulation owns candidate state and applies broker conditions. After a real position exists, broker state owns ticket, volume, entry price, close state, and profit.
-
-## Deterministic Signal Statistics Export
-
-Phase 1 adds an optional TSV export for deterministic, broker-entered signals.
-It is disabled by default through `Enable_Signal_Feature_Export = false`.
-`Signal_Feature_Run_Id` may be left empty; the EA then creates a sanitized run
-ID from symbol, timeframe, and start time.
-
-When enabled, files are written under MT5 `Common\Files`:
-
-```text
-DeterministicSignalML\runs\<run_id>\
-```
-
-The run folder contains:
-
-- `run_manifest.tsv`: schema, run/config IDs, and non-sensitive strategy config.
-- `signal_features.tsv`: compact feature rows captured after real broker entry.
-- `signal_admissions.tsv`: candidate, broker-admission, broker-send, and lifecycle status events.
-- `signal_outcomes.tsv`: broker-confirmed terminal outcomes joined by `signal_id`.
-- `run_summary.tsv`: row counts, invalid-row counts, and final export status.
-
-Current schema v6 keeps candidate/admission events separate from outcomes.
-Outcome rows require broker-confirmed close evidence and include broker/partial
-TP fields plus path-label source columns for downstream validation.
-
-The export is passive. It does not train models, call Python, query PostgreSQL,
-run inference, change entries, change exits, or bypass broker/risk controls.
-
-## Local Dataset Builder
-
-Phase 2 adds local Python tooling under `tools/deterministic_signal_ml/` to
-validate Phase 1 TSV exports and build local Parquet datasets.
-
-Setup:
-
-```powershell
-py -3.12 -m venv .venv
-.\.venv\Scripts\python.exe -m pip install -r tools\deterministic_signal_ml\requirements.txt
-```
-
-Validate a Phase 1 run without writing outputs:
-
-```powershell
-.\.venv\Scripts\python.exe tools\deterministic_signal_ml\build_dataset.py `
-  --runs-root "C:\Users\loldlm\AppData\Roaming\MetaQuotes\Terminal\Common\Files\DeterministicSignalML\runs" `
-  --run-id test_run_1 `
-  --dataset-id test_dataset_1 `
-  --validate-only
-```
-
-Build a local dataset:
-
-```powershell
-.\.venv\Scripts\python.exe tools\deterministic_signal_ml\build_dataset.py `
-  --runs-root "C:\Users\loldlm\AppData\Roaming\MetaQuotes\Terminal\Common\Files\DeterministicSignalML\runs" `
-  --run-id test_run_1 `
-  --dataset-id test_dataset_1
-```
-
-Generated files are written under `artifacts/datasets/<dataset_id>/` and are
-ignored by git. Phase 2 does not train models or run EA inference.
-
-## Local XGBoost Training
-
-Phase 3 adds local Python research training under
-`tools/deterministic_signal_ml/`. It trains a classifier for `target_is_win` and
-a secondary regressor for `target_profit_r` from Phase 2 Parquet datasets.
-
-Train the current local dataset:
-
-```powershell
-.\.venv\Scripts\python.exe tools\deterministic_signal_ml\train_model.py `
-  --dataset-id test_dataset_1 `
-  --model-id xgb_test_1 `
-  --overwrite
-```
-
-Generated files are written under `artifacts/models/<model_id>/` and are ignored
-by git. The trainer uses deterministic one-hot encoding, a chronological final
-holdout, and walk-forward folds. Random split metrics are not used because they
-can leak future market conditions into validation.
-
-Phase 3 is research-only: no EA inputs, no Strategy Tester inference, no
-PostgreSQL, no Python execution from MQL5, and no trading filter is active yet.
-The XGBoost JSON files are Python booster artifacts, not MT5-readable inference
-artifacts.
-
-## Local Model Artifact Export
-
-Phase 4 exports a Phase 3 model into MT5-readable TSV artifacts while keeping
-the EA unchanged.
-
-```powershell
-.\.venv\Scripts\python.exe tools\deterministic_signal_ml\export_model_artifact.py `
-  --model-id xgb_test_1 `
-  --dataset-id test_dataset_1 `
-  --export-id xgb_test_1_export_v1 `
-  --overwrite
-```
-
-Validate the exported artifact:
-
-```powershell
-.\.venv\Scripts\python.exe tools\deterministic_signal_ml\model_artifact_validator.py `
-  --export-id xgb_test_1_export_v1
-```
-
-Generated files are written under `artifacts/model_exports/<export_id>/` and are
-ignored by git. Phase 4 produces `model_manifest.tsv`, `feature_map.tsv`,
-flattened classifier/regressor tree TSVs, threshold metadata, and parity
-reports. It does not add EA inputs, load artifacts in `OnInit`, run Strategy
-Tester inference, or affect broker admission.
-
-## Phase 4.5 Environment Portability
-
-Phase 4.5 documents and validates the Windows and Ubuntu/Wine workflows needed
-before MQL5 Shadow Inference. It covers real compile, syntax check, Common Files
-discovery, Python ML environment setup, artifact inventory, and Phase 5
-readiness. It does not add inference or change trading behavior.
-
-Start from `docs/environment/mt5-agentic-workflows.md`. Historical environment
-evidence is archived under
-`docs/research/archive/deterministic-signal-ml-2026-07-05/`.
-Do not commit generated datasets, models, exports, `.ex5`, or full logs.
-
-## Phase 5 MQL5 Shadow Inference
-
-Phase 5 adds an optional MT5 runtime shadow scorer. It is disabled by default:
-
-```text
-ML_Inference_Mode = ML_INFERENCE_DISABLED
-ML_Model_Export_Id = xgb_test_1_export_v1
-```
-
-When `ML_Inference_Mode` is set to `ML_INFERENCE_SHADOW`, the EA must read the
-model export from MT5 `Common\Files`, not from the repository artifact folder:
-
-```text
-Common\Files\DeterministicSignalML\model_exports\xgb_test_1_export_v1\
-```
-
-Validate the repository export before copying it:
-
-```powershell
-.\.venv\Scripts\python.exe tools\deterministic_signal_ml\model_artifact_validator.py `
-  --export-id xgb_test_1_export_v1
-```
-
-Ubuntu/Wine copy shape:
-
-```bash
-export MT5_COMMON_FILES="$HOME/.wine/drive_c/users/loldlm/AppData/Roaming/MetaQuotes/Terminal/Common/Files"
-mkdir -p "$MT5_COMMON_FILES/DeterministicSignalML/model_exports"
-cp -a artifacts/model_exports/xgb_test_1_export_v1 \
-  "$MT5_COMMON_FILES/DeterministicSignalML/model_exports/"
-```
-
-Windows PowerShell copy shape:
-
-```powershell
-$MT5_COMMON_FILES = Join-Path $env:APPDATA "MetaQuotes\Terminal\Common\Files"
-$dest = Join-Path $MT5_COMMON_FILES "DeterministicSignalML\model_exports"
-New-Item -ItemType Directory -Force -Path $dest | Out-Null
-Copy-Item -Recurse -Force artifacts\model_exports\xgb_test_1_export_v1 $dest
-```
-
-Shadow mode is observational. Missing or invalid artifacts must produce visible
-diagnostics and fail open for trading; they must not block or alter entries,
-exits, lots, SL/TP, broker admission, or risk controls.
-
-After a Strategy Tester run creates a shadow run folder, validate score parity
-against the Python artifact scorer:
-
-```bash
-.venv/bin/python tools/deterministic_signal_ml/compare_shadow_predictions.py \
-  --export-id xgb_test_1_export_v1 \
-  --shadow-run-path "$MT5_COMMON_FILES/DeterministicSignalML/shadow_runs/<shadow_run_id>"
-```
-
-## Phase 6 MQL5 Filter Inference
-
-Phase 6 adds `ML_INFERENCE_FILTER` for Strategy Tester admission filtering only.
-It is not a live-deployment approval. The EA default remains:
-
-```text
-ML_Inference_Mode = ML_INFERENCE_DISABLED
-```
-
-In `FILTER`, the model may deny an otherwise admissible deterministic entry only
-after existing broker/risk eligibility passes and before broker send. It must not
-create trades, resize lots, alter SL/TP, bypass license, sessions, spread,
-margin, protection controls, magic-number scope, or broker reconciliation.
-
-`FILTER` uses the artifact threshold from `threshold_policy.tsv`. Missing
-artifacts, unavailable model state, invalid features, failed encoding, failed
-classifier scoring, and non-tester usage are blocking conditions for model
-admission. `SHADOW` remains observational and fail-open.
-
-Validate a Strategy Tester filter run with compact tooling:
-
-```bash
-.venv/bin/python tools/deterministic_signal_ml/summarize_filter_run.py \
-  --shadow-run-path "$MT5_COMMON_FILES/DeterministicSignalML/shadow_runs/<shadow_run_id>"
-
-.venv/bin/python tools/deterministic_signal_ml/compare_shadow_predictions.py \
-  --export-id xgb_test_1_export_v1 \
-  --shadow-run-path "$MT5_COMMON_FILES/DeterministicSignalML/shadow_runs/<shadow_run_id>"
-```
-
-## Final Baseline Notes
-
-- Phase 8 final compile passed on 2026-07-03 with `0 errors, 0 warnings`; evidence log: `logs/compile/phase-08-build.log`.
-- Future strategies should plug into the strategy candidate and execution plan boundary, not bypass broker-aware execution.
-- Local simulated state remains the pre-trade decision source; broker position state remains the post-trade source of truth.
-- Real-tick performance boundaries from Phase 7 are part of the baseline: cached indicator handles, bounded structure reads, gated logging, and throttled chart refresh.
-
-## Repository Layout
-
-- `HFT_Grid_AI.mq5`: EA entrypoint.
-- `services/`: ordered include pipeline and EA services.
-- `indicators/`: indicator sources used by the EA.
-- `docs/`: active plans when present, archived plans, architecture, and product docs.
-
-Legacy custom tests and the old test runner were removed in Phase 2. The active validation path is MT5 compile at implementation phase end.
-
-## Phase 6 Handoff
-
-Phase 6 Strategy Tester `FILTER` validation passed for `xgb_test_1_export_v1`
-and `shadow_test_run_1`. Do not treat this as live approval without a future
-explicit plan, human approval, monitoring, and rollback criteria.
+## Documentation
+
+- `AGENTS.md`: repository safety and implementation rules.
+- `docs/architecture/execution-foundation.md`: lifecycle ownership.
+- `docs/workflows/extremum-engine-statistics-flow.md`: active engine workflow.
+- `docs/workflows/deterministic-signal-ml-inference-flows.md`: ML runtime boundaries.
+- `docs/environment/mt5-agentic-workflows.md`: paths, compile, and artifacts.
+- `docs/plans/extremum-engine-cycle-statistics-plan.md`: active acceptance plan.
+- `docs/plans/archive/` and `docs/research/archive/`: immutable historical work.
