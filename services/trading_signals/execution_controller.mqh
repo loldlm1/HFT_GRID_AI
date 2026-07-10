@@ -222,15 +222,14 @@ bool UpdateDeterministicPartialRiskTelemetry(SignalParams &signal_params,
      ResolveEffectiveExecutionLotType(Lot_Type) == EXECUTION_LOT_TARGET_CURRENCY)
   {
     signal_params.execution_risk_plan_valid = true;
-    signal_params.execution_risk_plan_reason = "partial_tp_legs_ok";
-    signal_params.execution_expected_sl_loss = expected_sl_loss;
-    signal_params.execution_expected_tp_profit = expected_tp_profit;
-    signal_params.execution_normalized_lot_size = assigned_volume;
-    if(signal_params.execution_target_error_amount == 0.0 &&
-       signal_params.execution_risk_target_amount > 0.0)
-      signal_params.execution_target_error_amount =
-        signal_params.execution_risk_target_amount - expected_sl_loss;
-  }
+	    signal_params.execution_risk_plan_reason = "partial_tp_legs_ok";
+	    signal_params.execution_expected_sl_loss = expected_sl_loss;
+	    signal_params.execution_expected_tp_profit = expected_tp_profit;
+	    signal_params.execution_normalized_lot_size = assigned_volume;
+	    if(signal_params.execution_risk_target_amount > 0.0)
+	      signal_params.execution_target_error_amount =
+	        signal_params.execution_risk_target_amount - expected_sl_loss;
+	  }
 
   return true;
 }
@@ -378,7 +377,14 @@ bool EnsureDeterministicExecutionLeg(SignalParams &signal_params)
 	                                         risk_points,
 	                                         planned_lot,
 	                                         configure_reason))
+	  {
+	    signal_params.admission_status = EXECUTION_ADMISSION_BLOCKED;
+	    signal_params.admission_block_source = "execution_leg_config";
+	    signal_params.admission_block_reason = configure_reason;
+	    signal_params.admission_updated_time = TimeCurrent();
+	    DeterministicSignalStatsRecordAdmissionEvent(signal_params, "admission_blocked");
 	    return false;
+	  }
 
 	  signal_params.execution_initialized = true;
 	  signal_params.execution_base_distance_points = risk_points;
