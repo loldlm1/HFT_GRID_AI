@@ -9,7 +9,34 @@ EA, run EA inference, filter trades, or connect to PostgreSQL.
 
 ## Feature Schema Status
 
-The model-building default remains schema v5 numeric XGBoost research tooling:
+Schema v7 is the active extremum-engine census contract. It adds immutable
+cycle anchors, point-in-time revisions, intrinsic attempts, and separate
+`ENGINE_SIMULATION` and `BROKER_CONFIRMED` outcome lanes. Historical v4/v5/v6
+readers remain available only when their schema is selected explicitly.
+
+Build a schema v7 dataset and its human depth audit:
+
+```bash
+.venv/bin/python tools/deterministic_signal_ml/build_dataset.py \
+  --runs-root "$HOME/.wine/drive_c/users/loldlm/AppData/Roaming/MetaQuotes/Terminal/Common/Files/DeterministicSignalML/runs" \
+  --run-id <schema_v7_run_id> \
+  --dataset-id <schema_v7_dataset_id> \
+  --schema-version 7 \
+  --feature-set-id schema_v7_extremum_engine \
+  --target-family broker_1r
+
+.venv/bin/python tools/deterministic_signal_ml/extremum_engine_audit.py \
+  --dataset-id <schema_v7_dataset_id> \
+  --audit-id <schema_v7_audit_id> \
+  --overwrite
+```
+
+The audit derives Fibonacci proximity and point-range buckets in DuckDB. It
+never clamps raw depth, never calls point range volume, reports attempts and
+distinct cycles separately, and never combines simulated R with realized
+broker R.
+
+The historical schema v5 numeric XGBoost research tooling remains selectable:
 
 ```text
 schema_v5_numeric_xgb
