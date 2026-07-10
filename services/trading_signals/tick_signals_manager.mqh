@@ -5,6 +5,27 @@
 #ifndef _SERVICES_TRADING_SIGNALS_TICK_SIGNALS_MANAGER_MQH_
 #define _SERVICES_TRADING_SIGNALS_TICK_SIGNALS_MANAGER_MQH_
 
+void ReconcileRunningSignalsAfterTradeTransaction()
+{
+  for(int i = 0; i < ArraySize(running_bullish_signals); i++)
+  {
+    if(running_bullish_signals[i].signal_state == CLOSED)
+      continue;
+    ReconcileSignalBrokerPositions(running_bullish_signals[i]);
+    RefreshSignalExposureState(running_bullish_signals[i]);
+    FinalizeDeterministicEntryStatisticsIfReady(running_bullish_signals[i]);
+  }
+
+  for(int j = 0; j < ArraySize(running_bearish_signals); j++)
+  {
+    if(running_bearish_signals[j].signal_state == CLOSED)
+      continue;
+    ReconcileSignalBrokerPositions(running_bearish_signals[j]);
+    RefreshSignalExposureState(running_bearish_signals[j]);
+    FinalizeDeterministicEntryStatisticsIfReady(running_bearish_signals[j]);
+  }
+}
+
 void RegisterClosedSignalOutcomeIfBrokerConfirmed(SignalParams &signal_params,
                                                   const SignalTypes direction)
 {

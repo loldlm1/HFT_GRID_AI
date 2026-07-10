@@ -345,6 +345,10 @@ bool ReconcileExecutionLegWithBrokerPosition(SignalParams &signal_params,
   {
     ApplyBrokerPositionSnapshotToExecutionLeg(leg_state, snapshot);
     signal_params.broker_entry_confirmed = true;
+    signal_params.admission_status = EXECUTION_ADMISSION_FILLED;
+    signal_params.admission_block_source = "";
+    signal_params.admission_block_reason = "";
+    signal_params.admission_updated_time = TimeCurrent();
     signal_params.execution_legs[leg_index] = leg_state;
     if(!entry_was_confirmed)
       DeterministicSignalStatsRecordAdmissionEvent(signal_params, "broker_entry");
@@ -354,45 +358,44 @@ bool ReconcileExecutionLegWithBrokerPosition(SignalParams &signal_params,
   if(had_broker_ticket)
   {
     BrokerDealCloseSummary close_summary;
-	    if(ResolveBrokerCloseSummaryForPosition(leg_state.position_ticket,
-	                                            signal_params.entry_time,
-	                                            close_summary))
-	    {
-	      ulong closed_ticket = leg_state.position_ticket;
-	      signal_params.realized_profit += close_summary.profit;
-	      signal_params.realized_closed_volume += close_summary.closed_volume;
-	      signal_params.broker_close_confirmed = true;
-	      signal_params.broker_close_source = "history_deal";
-	      MarkExecutionLegCloseFacts(leg_state,
-	                                 closed_ticket,
-	                                 close_summary.closed_volume,
-	                                 close_summary.profit,
-	                                 close_summary.close_price,
-	                                 close_summary.close_time,
-	                                 "history_deal");
-	      if(Partial_TP_Mode == PARTIAL_TP_R_MULTIPLES &&
-	         leg_index >= 0 &&
-	         leg_index < PARTIAL_TP_LEVELS_TOTAL &&
-	         ExecutionLegClosedOnTakeProfitSide(signal_params,
-	                                            leg_state,
-	                                            close_summary.close_price,
-	                                            close_summary.profit))
-	      {
-	        MarkPartialTPLevelConfirmed(signal_params,
-	                                    leg_index,
-	                                    close_summary.closed_volume,
-	                                    close_summary.close_price);
-	      }
-	      if(close_summary.close_price > 0.0)
-	        signal_params.close_price = close_summary.close_price;
-	      if(close_summary.close_time > 0)
+    if(ResolveBrokerCloseSummaryForPosition(leg_state.position_ticket,
+                                            signal_params.entry_time,
+                                            close_summary))
+    {
+      ulong closed_ticket = leg_state.position_ticket;
+      signal_params.realized_profit += close_summary.profit;
+      signal_params.realized_closed_volume += close_summary.closed_volume;
+      signal_params.broker_close_confirmed = true;
+      signal_params.broker_close_source = "history_deal";
+      MarkExecutionLegCloseFacts(leg_state,
+                                 closed_ticket,
+                                 close_summary.closed_volume,
+                                 close_summary.profit,
+                                 close_summary.close_price,
+                                 close_summary.close_time,
+                                 "history_deal");
+      if(Partial_TP_Mode == PARTIAL_TP_R_MULTIPLES &&
+         leg_index >= 0 &&
+         leg_index < PARTIAL_TP_LEVELS_TOTAL &&
+         ExecutionLegClosedOnTakeProfitSide(signal_params,
+                                            leg_state,
+                                            close_summary.close_price,
+                                            close_summary.profit))
+      {
+        MarkPartialTPLevelConfirmed(signal_params,
+                                    leg_index,
+                                    close_summary.closed_volume,
+                                    close_summary.close_price);
+      }
+      if(close_summary.close_price > 0.0)
+        signal_params.close_price = close_summary.close_price;
+      if(close_summary.close_time > 0)
         signal_params.close_time = close_summary.close_time;
     }
 
-    leg_state.position_ticket  = 0;
-    leg_state.position_comment = "";
-    leg_state.lot_size         = 0.0;
-    leg_state.status           = EXECUTION_LEG_COMPLETED;
+    leg_state.position_ticket = 0;
+    leg_state.lot_size = 0.0;
+    leg_state.status = EXECUTION_LEG_COMPLETED;
     signal_params.execution_legs[leg_index] = leg_state;
   }
 

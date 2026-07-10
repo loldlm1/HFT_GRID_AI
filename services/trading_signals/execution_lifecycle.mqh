@@ -405,13 +405,13 @@ bool ApplyExecutionLegTradeAdmission(SignalParams &signal_params,
   signal_params.admission_updated_time = TimeCurrent();
   DeterministicSignalStatsRecordAdmissionEvent(signal_params, "broker_send");
 
-	  bool sent = false;
-	  double order_sl = ExecutionLegBrokerStopLossPrice(signal_params, leg_state);
-	  double order_tp = ExecutionLegBrokerTakeProfitPrice(signal_params, leg_state);
-	  if(direction == BULLISH)
-	    sent = g_position.Buy(order_volume, _Symbol, 0.0, order_sl, order_tp, context.comment);
-	  else
-	    sent = g_position.Sell(order_volume, _Symbol, 0.0, order_sl, order_tp, context.comment);
+  bool sent = false;
+  double order_sl = ExecutionLegBrokerStopLossPrice(signal_params, leg_state);
+  double order_tp = ExecutionLegBrokerTakeProfitPrice(signal_params, leg_state);
+  if(direction == BULLISH)
+    sent = g_position.Buy(order_volume, _Symbol, 0.0, order_sl, order_tp, context.comment);
+  else
+    sent = g_position.Sell(order_volume, _Symbol, 0.0, order_sl, order_tp, context.comment);
 
   if(!sent)
   {
@@ -439,12 +439,12 @@ bool ApplyExecutionLegTradeAdmission(SignalParams &signal_params,
   if(fill_price <= 0.0)
     fill_price = ExecutionCurrentPriceForDirection(direction, true);
 
-	  leg_state.status = EXECUTION_LEG_ACTIVE;
-	  leg_state.entry_price = fill_price;
-	  leg_state.lot_size = order_volume;
-	  if(leg_state.initial_lot_size <= 0.0)
-	    leg_state.initial_lot_size = order_volume;
-	  ulong deal_ticket = (ulong)g_position.ResultDeal();
+  leg_state.status = EXECUTION_LEG_ACTIVE;
+  leg_state.entry_price = fill_price;
+  leg_state.lot_size = order_volume;
+  if(leg_state.initial_lot_size <= 0.0)
+    leg_state.initial_lot_size = order_volume;
+  ulong deal_ticket = (ulong)g_position.ResultDeal();
   leg_state.position_ticket = ResolvePositionTicketFromDeal(deal_ticket);
   leg_state.position_comment = context.comment;
   leg_state.last_action_time = TimeCurrent();
@@ -471,6 +471,65 @@ bool ApplyExecutionLegTradeAdmission(SignalParams &signal_params,
     DeterministicSignalStatsRecordAdmissionEvent(signal_params, "broker_entry_unconfirmed");
   }
   return sent;
+}
+
+bool ApplyExecutionLegTradeAdmissionAsync(SignalParams &signal_params,
+                                          ExecutionLegState &leg_state,
+                                          const ExecutionLegTradeAdmissionContext &context,
+                                          const datetime batch_time)
+{
+  if(!context.allowed)
+    return false;
+  if(!leg_state.opens_position)
+    return ApplyExecutionLegTradeAdmission(signal_params, leg_state, context);
+
+  SignalTypes direction = signal_params.signal_type;
+  double order_volume = context.broker_snapshot.normalized_volume;
+  signal_params.admission_status = EXECUTION_ADMISSION_SENT;
+  signal_params.admission_updated_time = batch_time;
+  DeterministicSignalStatsRecordAdmissionEvent(signal_params, "broker_send");
+
+  bool sent = false;
+  double order_sl = ExecutionLegBrokerStopLossPrice(signal_params, leg_state);
+  double order_tp = ExecutionLegBrokerTakeProfitPrice(signal_params, leg_state);
+  g_position.SetAsyncMode(true);
+  if(direction == BULLISH)
+    sent = g_position.Buy(order_volume, _Symbol, 0.0, order_sl, order_tp, context.comment);
+  else
+    sent = g_position.Sell(order_volume, _Symbol, 0.0, order_sl, order_tp, context.comment);
+  g_position.SetAsyncMode(false);
+
+  if(!sent)
+  {
+    ulong retcode = g_position.ResultRetcode();
+    int last_error = GetLastError();
+    string send_reason = StringFormat("async_retcode=%I64u|error=%d",
+                                      retcode,
+                                      last_error);
+    signal_params.admission_status       = EXECUTION_ADMISSION_SEND_FAILED;
+    signal_params.admission_block_source = "broker_send_async";
+    signal_params.admission_block_reason = send_reason;
+    signal_params.admission_updated_time = TimeCurrent();
+    ExecutionLogGuardrailBlock("BROKER_SEND_ASYNC_FAILED", signal_params, leg_state, send_reason);
+    DeterministicSignalStatsRecordAdmissionEvent(signal_params, "broker_send_failed");
+    MarketStatusRegisterBrokerFailure("BROKER_SEND_ASYNC_FAILED", retcode, last_error, false);
+    return false;
+  }
+
+  double provisional_entry = BrokerExecutionEntrySidePrice(context.broker_snapshot);
+  if(provisional_entry <= 0.0)
+    provisional_entry = leg_state.entry_reference_price;
+
+  leg_state.status = EXECUTION_LEG_ACTIVE;
+  leg_state.entry_price = provisional_entry;
+  leg_state.lot_size = order_volume;
+  if(leg_state.initial_lot_size <= 0.0)
+    leg_state.initial_lot_size = order_volume;
+  leg_state.position_ticket = 0;
+  leg_state.position_comment = context.comment;
+  leg_state.last_action_time = batch_time;
+  signal_params.execution_legs[leg_state.level_index] = leg_state;
+  return true;
 }
 
 bool ExecuteExecutionLegTrade(SignalParams &signal_params,

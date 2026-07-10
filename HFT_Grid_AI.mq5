@@ -184,6 +184,7 @@ void OnTradeTransaction(const MqlTradeTransaction& trans,
                         const MqlTradeResult& result)
 {
   RefreshCustomSymbolRates();
+  ReconcileRunningSignalsAfterTradeTransaction();
 }
 
 //+------------------------------------------------------------------+

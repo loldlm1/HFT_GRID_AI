@@ -98,6 +98,112 @@ bool AccountSupportsPartialTPHedging()
   return (margin_mode == ACCOUNT_MARGIN_MODE_RETAIL_HEDGING);
 }
 
+bool PartialTPTesterAsyncBatchEnabled()
+{
+  return (PartialTPEnabled() && MQLInfoInteger(MQL_TESTER) > 0);
+}
+
+bool ExecutionLegHasBrokerEntryEvidence(const ExecutionLegState &leg_state)
+{
+  if(!leg_state.opens_position)
+    return true;
+  if(leg_state.position_ticket > 0)
+    return true;
+  if(leg_state.closed_position_ticket > 0)
+    return true;
+  return leg_state.broker_close_confirmed;
+}
+
+bool AllExecutionLegBrokerEntriesConfirmed(const SignalParams &signal_params)
+{
+  int total_legs = ArraySize(signal_params.execution_legs);
+  if(total_legs <= 0)
+    return false;
+
+  bool has_opening_leg = false;
+  for(int i = 0; i < total_legs; i++)
+  {
+    ExecutionLegState state = signal_params.execution_legs[i];
+    if(!state.opens_position)
+      continue;
+    has_opening_leg = true;
+    if(!ExecutionLegHasBrokerEntryEvidence(state))
+      return false;
+  }
+
+  return has_opening_leg;
+}
+
+bool PartialTPAsyncEntryConfirmationTimedOut(const SignalParams &signal_params)
+{
+  if(!PartialTPTesterAsyncBatchEnabled())
+    return false;
+  if(signal_params.signal_state == CLOSED)
+    return false;
+  if(AllExecutionLegBrokerEntriesConfirmed(signal_params))
+    return false;
+
+  datetime oldest_send_time = 0;
+  int total_legs = ArraySize(signal_params.execution_legs);
+  for(int i = 0; i < total_legs; i++)
+  {
+    ExecutionLegState state = signal_params.execution_legs[i];
+    if(!state.opens_position)
+      continue;
+    if(state.status != EXECUTION_LEG_ACTIVE)
+      continue;
+    if(ExecutionLegHasBrokerEntryEvidence(state))
+      continue;
+    if(state.last_action_time <= 0)
+      continue;
+    if(oldest_send_time <= 0 || state.last_action_time < oldest_send_time)
+      oldest_send_time = state.last_action_time;
+  }
+
+  if(oldest_send_time <= 0)
+    return false;
+
+  datetime now = TimeCurrent();
+  if(now <= oldest_send_time)
+    return false;
+
+  return ((now - oldest_send_time) >= 10);
+}
+
+bool FailUnconfirmedPartialTPAsyncEntry(SignalParams &signal_params)
+{
+  if(!PartialTPAsyncEntryConfirmationTimedOut(signal_params))
+    return false;
+
+  signal_params.deterministic_stats_terminal_reason = "PARTIAL_TP_ASYNC_ENTRY_UNCONFIRMED";
+  signal_params.admission_status = EXECUTION_ADMISSION_SEND_FAILED;
+  signal_params.admission_block_source = "broker_send_async";
+  signal_params.admission_block_reason = "entry_confirmation_timeout";
+  signal_params.admission_updated_time = TimeCurrent();
+
+  CloseAllExecutionLegs(signal_params, ExecutionResolvePointSize());
+  int total_legs = ArraySize(signal_params.execution_legs);
+  for(int i = 0; i < total_legs; i++)
+  {
+    ExecutionLegState state = signal_params.execution_legs[i];
+    if(!ExecutionLegHasBrokerEntryEvidence(state))
+    {
+      state.status = EXECUTION_LEG_COMPLETED;
+      state.last_action_time = TimeCurrent();
+      signal_params.execution_legs[i] = state;
+    }
+  }
+
+  signal_params.signal_state = CLOSED;
+  DeterministicSignalStatsRecordAdmissionEvent(signal_params, "broker_send_failed");
+  if(total_legs > 0)
+    ExecutionLogGuardrailBlock("PARTIAL_TP_ASYNC_ENTRY_UNCONFIRMED",
+                               signal_params,
+                               signal_params.execution_legs[0],
+                               "entry_confirmation_timeout");
+  return true;
+}
+
 bool ResolveDeterministicPartialLegVolumes(const double total_volume,
                                            double &volumes[],
                                            string &reason_out)
@@ -873,9 +979,11 @@ bool PrepareDeterministicPendingEntryAdmission(SignalParams &signal_params,
     return false;
   }
 
-	  leg_state_out = signal_params.execution_legs[leg_index];
-	  return true;
-	}
+  leg_state_out = signal_params.execution_legs[leg_index];
+  return true;
+}
+
+bool FinalizeDeterministicEntryStatisticsIfReady(SignalParams &signal_params);
 
 bool ApplyDeterministicPartialPreparedEntryAdmission(SignalParams &signal_params)
 {
@@ -918,17 +1026,29 @@ bool ApplyDeterministicPartialPreparedEntryAdmission(SignalParams &signal_params
       return false;
   }
 
+  bool async_batch = PartialTPTesterAsyncBatchEnabled();
+  datetime batch_time = TimeCurrent();
   for(int i = 0; i < total_legs; i++)
   {
     ExecutionLegState state = signal_params.execution_legs[i];
-    if(ApplyExecutionLegTradeAdmission(signal_params,
-                                       state,
-                                       contexts[i]))
+    bool sent = false;
+    if(async_batch)
+      sent = ApplyExecutionLegTradeAdmissionAsync(signal_params,
+                                                 state,
+                                                 contexts[i],
+                                                 batch_time);
+    else
+      sent = ApplyExecutionLegTradeAdmission(signal_params,
+                                            state,
+                                            contexts[i]);
+    if(sent)
       continue;
 
-    signal_params.deterministic_stats_terminal_reason = "PARTIAL_TP_ENTRY_FAILED";
+    signal_params.deterministic_stats_terminal_reason =
+      async_batch ? "PARTIAL_TP_ASYNC_ENTRY_FAILED" : "PARTIAL_TP_ENTRY_FAILED";
     CloseAllExecutionLegs(signal_params, point_size);
-    signal_params.signal_state = CLOSED;
+    if(!DeterministicSignalHasBrokerExposure(signal_params))
+      signal_params.signal_state = CLOSED;
     ExecutionLogGuardrailBlock("PARTIAL_TP_ENTRY_FAILED",
                                signal_params,
                                state,
@@ -938,7 +1058,42 @@ bool ApplyDeterministicPartialPreparedEntryAdmission(SignalParams &signal_params
 
   ReconcileSignalBrokerPositions(signal_params);
   RefreshSignalExposureState(signal_params);
+  FinalizeDeterministicEntryStatisticsIfReady(signal_params);
   return true;
+}
+
+bool FinalizeDeterministicEntryStatisticsIfReady(SignalParams &signal_params)
+{
+  if(!signal_params.deterministic_strategy)
+    return false;
+  if(signal_params.deterministic_stats_feature_exported)
+    return true;
+  if(!signal_params.execution_initialized)
+    return false;
+  if(!AllExecutionLegBrokerEntriesConfirmed(signal_params))
+    return false;
+
+  int feature_leg_index = -1;
+  int total_legs = ArraySize(signal_params.execution_legs);
+  for(int i = 0; i < total_legs; i++)
+  {
+    if(signal_params.execution_legs[i].opens_position)
+    {
+      feature_leg_index = i;
+      break;
+    }
+  }
+  if(feature_leg_index < 0)
+    return false;
+
+  DeterministicSignalStatsRecordFeature(signal_params,
+                                        signal_params.execution_legs[feature_leg_index]);
+  PatternAuditPlaybackRecordSignal(signal_params,
+                                   signal_params.execution_legs[feature_leg_index]);
+  DeterministicSignalMLShadowRecordPrediction(signal_params,
+                                              signal_params.execution_legs[feature_leg_index]);
+  ExecutionLogEvent("DETERMINISTIC_ENTRY", signal_params, signal_params.execution_legs[feature_leg_index]);
+  return signal_params.deterministic_stats_feature_exported;
 }
 
 bool ApplyDeterministicPreparedEntryAdmission(SignalParams &signal_params,
@@ -960,37 +1115,40 @@ bool ApplyDeterministicPreparedEntryAdmission(SignalParams &signal_params,
                                signal_params,
                                leg_state,
                                pattern_filter_block_reason);
-	    return false;
-	  }
+    return false;
+  }
 
-	  bool entry_applied = false;
-	  int feature_leg_index = leg_index;
-	  if(PartialTPEnabled())
-	  {
-	    entry_applied = ApplyDeterministicPartialPreparedEntryAdmission(signal_params);
-	    feature_leg_index = 0;
-	  }
-	  else
-	  {
-	    entry_applied = ApplyExecutionLegTradeAdmission(signal_params,
-	                                                   leg_state,
-	                                                   admission_context);
-	    if(entry_applied)
-	      RefreshDeterministicTpFromBrokerEntry(signal_params, leg_index);
-	  }
+  bool entry_applied = false;
+  if(PartialTPEnabled())
+  {
+    entry_applied = ApplyDeterministicPartialPreparedEntryAdmission(signal_params);
+  }
+  else
+  {
+    entry_applied = ApplyExecutionLegTradeAdmission(signal_params,
+                                                   leg_state,
+                                                   admission_context);
+    if(entry_applied)
+      RefreshDeterministicTpFromBrokerEntry(signal_params, leg_index);
+  }
 
-	  if(!entry_applied)
-	    return false;
+  if(!entry_applied)
+    return false;
 
-	  DeterministicSignalStatsRecordFeature(signal_params,
-	                                        signal_params.execution_legs[feature_leg_index]);
-	  PatternAuditPlaybackRecordSignal(signal_params,
-	                                   signal_params.execution_legs[feature_leg_index]);
-	  DeterministicSignalMLShadowRecordPrediction(signal_params,
-	                                              signal_params.execution_legs[feature_leg_index]);
-	  ExecutionLogEvent("DETERMINISTIC_ENTRY", signal_params, signal_params.execution_legs[feature_leg_index]);
-	  return true;
-	}
+  if(PartialTPEnabled())
+    FinalizeDeterministicEntryStatisticsIfReady(signal_params);
+  else
+  {
+    DeterministicSignalStatsRecordFeature(signal_params,
+                                          signal_params.execution_legs[leg_index]);
+    PatternAuditPlaybackRecordSignal(signal_params,
+                                     signal_params.execution_legs[leg_index]);
+    DeterministicSignalMLShadowRecordPrediction(signal_params,
+                                                signal_params.execution_legs[leg_index]);
+    ExecutionLogEvent("DETERMINISTIC_ENTRY", signal_params, signal_params.execution_legs[leg_index]);
+  }
+  return true;
+}
 
 void UpdateDeterministicActiveExecutionLifecycle(SignalParams &signal_params,
                                                  const int leg_index,
@@ -1011,12 +1169,12 @@ void UpdateDeterministicActiveExecutionLifecycle(SignalParams &signal_params,
     return;
   }
 
-	  if(PartialTPEnabled())
-	  {
-	    if(IsExecutionSignalComplete(signal_params))
-	      signal_params.signal_state = CLOSED;
-	    return;
-	  }
+  if(PartialTPEnabled())
+  {
+    if(IsExecutionSignalComplete(signal_params))
+      signal_params.signal_state = CLOSED;
+    return;
+  }
 
   if(DeterministicTakeProfitTriggered(signal_params, leg_state))
   {
@@ -1053,6 +1211,9 @@ void UpdateDeterministicExecutionLifecycle(SignalParams &signal_params)
 
   ReconcileSignalBrokerPositions(signal_params);
   RefreshSignalExposureState(signal_params);
+  FinalizeDeterministicEntryStatisticsIfReady(signal_params);
+  if(FailUnconfirmedPartialTPAsyncEntry(signal_params))
+    return;
 
   int leg_index = 0;
   if(ArraySize(signal_params.execution_legs) <= leg_index)
@@ -1065,16 +1226,16 @@ void UpdateDeterministicExecutionLifecycle(SignalParams &signal_params)
   if(!ResolveDeterministicM1Rates(close_0, high_1, low_1))
     return;
 
-	  if(leg_state.status == EXECUTION_LEG_PENDING)
-	  {
-	    if(CancelDeterministicPendingSignalAtStop(signal_params,
-	                                             leg_index,
-	                                             close_0))
-	      return;
+  if(leg_state.status == EXECUTION_LEG_PENDING)
+  {
+    if(CancelDeterministicPendingSignalAtStop(signal_params,
+                                             leg_index,
+                                             close_0))
+      return;
 
-	    ExecutionLegTradeAdmissionContext admission_context;
-	    if(!PrepareDeterministicPendingEntryAdmission(signal_params,
-	                                                  leg_index,
+    ExecutionLegTradeAdmissionContext admission_context;
+    if(!PrepareDeterministicPendingEntryAdmission(signal_params,
+                                                  leg_index,
                                                   close_0,
                                                   high_1,
                                                   low_1,
@@ -1117,6 +1278,9 @@ bool UpdateDeterministicExecutionLifecycleForMLArbitration(SignalParams &signal_
 
   ReconcileSignalBrokerPositions(signal_params);
   RefreshSignalExposureState(signal_params);
+  FinalizeDeterministicEntryStatisticsIfReady(signal_params);
+  if(FailUnconfirmedPartialTPAsyncEntry(signal_params))
+    return false;
 
   int leg_index = 0;
   if(ArraySize(signal_params.execution_legs) <= leg_index)
@@ -1129,16 +1293,16 @@ bool UpdateDeterministicExecutionLifecycleForMLArbitration(SignalParams &signal_
   if(!ResolveDeterministicM1Rates(close_0, high_1, low_1))
     return false;
 
-	  if(leg_state.status == EXECUTION_LEG_PENDING)
-	  {
-	    if(CancelDeterministicPendingSignalAtStop(signal_params,
-	                                             leg_index,
-	                                             close_0))
-	      return false;
+  if(leg_state.status == EXECUTION_LEG_PENDING)
+  {
+    if(CancelDeterministicPendingSignalAtStop(signal_params,
+                                             leg_index,
+                                             close_0))
+      return false;
 
-	    ExecutionLegTradeAdmissionContext admission_context;
-	    if(!PrepareDeterministicPendingEntryAdmission(signal_params,
-	                                                  leg_index,
+    ExecutionLegTradeAdmissionContext admission_context;
+    if(!PrepareDeterministicPendingEntryAdmission(signal_params,
+                                                  leg_index,
                                                   close_0,
                                                   high_1,
                                                   low_1,
