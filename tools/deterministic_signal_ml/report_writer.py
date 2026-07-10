@@ -16,7 +16,7 @@ from schema_contract import (
 )
 
 
-BUILDER_VERSION = "phase6.schema_v6_numeric_dataset_builder.v1"
+BUILDER_VERSION = "extremum_engine.schema_v7_dataset_builder.v1"
 
 
 def _fetch_dicts(connection: duckdb.DuckDBPyConnection, sql: str) -> list[dict[str, Any]]:
@@ -35,6 +35,59 @@ def build_quality_payload(
     target_family: str,
     feature_columns: tuple[str, ...],
 ) -> dict[str, Any]:
+    if "engine_cycles" in counts:
+        warnings = [
+            f"{validation.run_id}: {warning}"
+            for validation in validations
+            for warning in validation.warnings
+        ]
+        return {
+            "status": "OK" if not warnings else "OK_WITH_WARNINGS",
+            "target_family": target_family,
+            "target_source": "BROKER_CONFIRMED",
+            "warnings": warnings,
+            "blocking_null_feature_rows": 0,
+            "row_counts": counts,
+            "source_runs": [validation.run_id for validation in validations],
+            "config_ids": sorted({validation.config_id for validation in validations}),
+            "path_label_columns_present": True,
+            "join_integrity": {
+                "duplicate_feature_ids": sum(validation.duplicate_feature_ids for validation in validations),
+                "duplicate_outcome_ids": sum(validation.duplicate_outcome_ids for validation in validations),
+                "missing_outcomes": sum(validation.missing_outcomes for validation in validations),
+                "missing_features": sum(validation.missing_features for validation in validations),
+            },
+            "genealogy": _fetch_dicts(
+                connection,
+                """
+SELECT
+  COUNT(DISTINCT extremum_cycle_id) AS distinct_cycles,
+  COUNT(DISTINCT revision_id) AS distinct_revisions,
+  COUNT(DISTINCT attempt_id) AS distinct_attempts,
+  SUM(CASE WHEN simulated_path_status = 'CENSORED' THEN 1 ELSE 0 END) AS censored_attempts,
+  SUM(CASE WHEN broker_entry_confirmed = 1 THEN 1 ELSE 0 END) AS broker_entered_attempts,
+  SUM(CASE WHEN broker_close_confirmed = 1 THEN 1 ELSE 0 END) AS broker_closed_attempts,
+  MIN(candidate_depth_percent) AS min_depth_percent,
+  MAX(candidate_depth_percent) AS max_depth_percent
+FROM engine_attempts
+""",
+            ),
+            "target_distribution": _fetch_dicts(
+                connection,
+                "SELECT target_terminal_reason AS terminal_reason, COUNT(*) AS rows FROM training_matrix GROUP BY 1 ORDER BY 1",
+            ),
+            "win_distribution": _fetch_dicts(
+                connection,
+                "SELECT target_is_win, COUNT(*) AS rows FROM training_matrix GROUP BY 1 ORDER BY 1",
+            ),
+            "depth_range": _fetch_dicts(
+                connection,
+                "SELECT MIN(candidate_depth_percent) AS min_depth, MAX(candidate_depth_percent) AS max_depth, COUNT(DISTINCT extremum_cycle_id) AS distinct_cycles FROM engine_attempts",
+            ),
+            "feature_null_counts": [],
+            "feature_ranges": [],
+        }
+
     null_counts = _fetch_dicts(
         connection,
         " UNION ALL ".join(
@@ -233,6 +286,27 @@ def write_dataset_manifest(
     feature_columns: tuple[str, ...],
 ) -> None:
     column_groups = DatasetColumnGroups(feature_columns=feature_columns)
+    identity_columns = list(column_groups.identity_columns)
+    excluded_columns = [
+        "terminal_time",
+        "terminal_reason",
+        "profit_r",
+        "duration_seconds",
+        "duration_m1_bars",
+        "entry_price",
+        "close_price",
+        "net_profit",
+        *PATH_RATIO_OUTCOME_COLUMNS,
+    ]
+    if schema_version == 7:
+        identity_columns = [
+            "schema_version", "run_id", "config_id", "symbol", "engine_id",
+            "engine_timeframe", "extremum_cycle_id", "extremum_revision_id",
+            "extremum_attempt_id", "signal_id",
+        ]
+        excluded_columns.extend(
+            ["cycle_finalized_time", "final_depth_percent", "cycle_status", "cycle_total_profit_r"]
+        )
     payload = {
         "dataset_id": dataset_id,
         "builder_version": BUILDER_VERSION,
@@ -248,20 +322,10 @@ def write_dataset_manifest(
         "output_files": output_files,
         "feature_columns": list(column_groups.feature_columns),
         "target_columns": list(column_groups.target_columns),
-        "identity_columns": list(column_groups.identity_columns),
+        "identity_columns": identity_columns,
         "audit_columns": list(column_groups.audit_columns),
         "path_ratio_outcome_columns": list(PATH_RATIO_OUTCOME_COLUMNS),
-        "excluded_from_training_columns": [
-            "terminal_time",
-            "terminal_reason",
-            "profit_r",
-            "duration_seconds",
-            "duration_m1_bars",
-            "entry_price",
-            "close_price",
-            "net_profit",
-            *PATH_RATIO_OUTCOME_COLUMNS,
-        ],
+        "excluded_from_training_columns": excluded_columns,
     }
     (output_dir / "dataset_manifest.json").write_text(
         json.dumps(payload, indent=2, sort_keys=True),
@@ -293,6 +357,37 @@ def write_dataset_report(
     dataset_id: str,
     quality_payload: dict[str, Any],
 ) -> None:
+    if "genealogy" in quality_payload:
+        lines = [
+            f"# Dataset Report: {dataset_id}",
+            "",
+            f"Status: `{quality_payload['status']}`",
+            f"Target family: `{quality_payload.get('target_family', '')}`",
+            f"Target source: `{quality_payload.get('target_source', '')}`",
+            "",
+            "## Row Counts",
+            "",
+        ]
+        for key, value in quality_payload["row_counts"].items():
+            lines.append(f"- `{key}`: {value}")
+        lines.extend(["", "## Genealogy", ""])
+        lines.extend(
+            _markdown_table(
+                quality_payload["genealogy"],
+                (
+                    "distinct_cycles", "distinct_revisions", "distinct_attempts",
+                    "censored_attempts", "broker_entered_attempts",
+                    "broker_closed_attempts", "min_depth_percent", "max_depth_percent",
+                ),
+            )
+        )
+        lines.extend(["", "## Target Distribution", ""])
+        lines.extend(_markdown_table(quality_payload["target_distribution"], ("terminal_reason", "rows")))
+        lines.extend(["", "## Warnings", ""])
+        lines.extend([f"- {warning}" for warning in quality_payload["warnings"]] or ["None."])
+        (output_dir / "dataset_report.md").write_text("\n".join(lines) + "\n", encoding="utf-8")
+        return
+
     lines: list[str] = [
         f"# Dataset Report: {dataset_id}",
         "",

@@ -8,12 +8,16 @@ from pathlib import Path
 from typing import Iterable
 
 from schema_contract import (
+    ENGINE_ATTEMPTS_FILE,
+    ENGINE_CYCLES_FILE,
+    ENGINE_REVISIONS_FILE,
     NULL_TOKEN,
     PHASE1_FILES,
     RUN_MANIFEST_FILE,
     SIGNAL_ADMISSIONS_FILE,
     RUN_SUMMARY_FILE,
     SIGNAL_FEATURES_FILE,
+    SIGNAL_LEG_OUTCOMES_FILE,
     SIGNAL_OUTCOMES_FILE,
     SUPPORTED_SCHEMA_VERSION,
     SUPPORTED_SCHEMA_VERSIONS,
@@ -33,6 +37,10 @@ class Phase1RunValidation:
     feature_rows: int
     admission_rows: int
     outcome_rows: int
+    cycle_rows: int
+    revision_rows: int
+    attempt_rows: int
+    leg_outcome_rows: int
     joined_rows: int
     duplicate_feature_ids: int
     duplicate_outcome_ids: int
@@ -153,6 +161,10 @@ def validate_phase1_run(
     required_files = list(PHASE1_FILES)
     if schema_version >= 6:
         required_files.append(SIGNAL_ADMISSIONS_FILE)
+    if schema_version == 7:
+        required_files.extend(
+            (ENGINE_CYCLES_FILE, ENGINE_REVISIONS_FILE, ENGINE_ATTEMPTS_FILE, SIGNAL_LEG_OUTCOMES_FILE)
+        )
 
     for filename in required_files:
         if not (run_path / filename).exists():
@@ -180,12 +192,37 @@ def validate_phase1_run(
         run_path / SIGNAL_OUTCOMES_FILE,
         expected_column_variants_for(SIGNAL_OUTCOMES_FILE, schema_version),
     )
+    cycle_rows: list[dict[str, str]] = []
+    revision_rows: list[dict[str, str]] = []
+    attempt_rows: list[dict[str, str]] = []
+    leg_outcome_rows: list[dict[str, str]] = []
+    if schema_version == 7:
+        cycle_rows = _read_tsv(
+            run_path / ENGINE_CYCLES_FILE,
+            expected_column_variants_for(ENGINE_CYCLES_FILE, schema_version),
+        )
+        revision_rows = _read_tsv(
+            run_path / ENGINE_REVISIONS_FILE,
+            expected_column_variants_for(ENGINE_REVISIONS_FILE, schema_version),
+        )
+        attempt_rows = _read_tsv(
+            run_path / ENGINE_ATTEMPTS_FILE,
+            expected_column_variants_for(ENGINE_ATTEMPTS_FILE, schema_version),
+        )
+        leg_outcome_rows = _read_tsv(
+            run_path / SIGNAL_LEG_OUTCOMES_FILE,
+            expected_column_variants_for(SIGNAL_LEG_OUTCOMES_FILE, schema_version),
+        )
 
     _require_schema_version(manifest_rows, RUN_MANIFEST_FILE, schema_version)
     _require_schema_version(summary_rows, RUN_SUMMARY_FILE, schema_version)
     _require_schema_version(feature_rows, SIGNAL_FEATURES_FILE, schema_version)
     _require_schema_version(admission_rows, SIGNAL_ADMISSIONS_FILE, schema_version)
     _require_schema_version(outcome_rows, SIGNAL_OUTCOMES_FILE, schema_version)
+    _require_schema_version(cycle_rows, ENGINE_CYCLES_FILE, schema_version)
+    _require_schema_version(revision_rows, ENGINE_REVISIONS_FILE, schema_version)
+    _require_schema_version(attempt_rows, ENGINE_ATTEMPTS_FILE, schema_version)
+    _require_schema_version(leg_outcome_rows, SIGNAL_LEG_OUTCOMES_FILE, schema_version)
 
     manifest = _manifest_dict(manifest_rows)
     if manifest.get("run_id") != run_id:
@@ -222,6 +259,18 @@ def validate_phase1_run(
         raise Phase1ValidationError(
             f"Outcome row count mismatch for {run_id}: summary={expected_outcome_rows}, actual={len(outcome_rows)}"
         )
+    if schema_version == 7:
+        for field, rows in (
+            ("cycle_rows", cycle_rows),
+            ("revision_rows", revision_rows),
+            ("attempt_rows", attempt_rows),
+            ("leg_outcome_rows", leg_outcome_rows),
+        ):
+            expected_rows = _required_int(summary[field], field, RUN_SUMMARY_FILE)
+            if expected_rows != len(rows):
+                raise Phase1ValidationError(
+                    f"{field} mismatch for {run_id}: summary={expected_rows}, actual={len(rows)}"
+                )
 
     config_id = summary["config_id"]
     for filename, rows in ((SIGNAL_FEATURES_FILE, feature_rows), (SIGNAL_OUTCOMES_FILE, outcome_rows)):
@@ -235,6 +284,91 @@ def validate_phase1_run(
             raise Phase1ValidationError(f"{SIGNAL_ADMISSIONS_FILE} row {index} has wrong run_id: {row['run_id']!r}")
         if row["config_id"] != config_id:
             raise Phase1ValidationError(f"{SIGNAL_ADMISSIONS_FILE} row {index} has wrong config_id: {row['config_id']!r}")
+
+    if schema_version == 7:
+        for filename, rows in (
+            (ENGINE_CYCLES_FILE, cycle_rows),
+            (ENGINE_REVISIONS_FILE, revision_rows),
+            (ENGINE_ATTEMPTS_FILE, attempt_rows),
+            (SIGNAL_LEG_OUTCOMES_FILE, leg_outcome_rows),
+        ):
+            for index, row in enumerate(rows, start=1):
+                if row["run_id"] != run_id or row["config_id"] != config_id:
+                    raise Phase1ValidationError(
+                        f"{filename} row {index} has mismatched run/config identity"
+                    )
+
+        cycle_ids = [row["extremum_cycle_id"] for row in cycle_rows]
+        revision_ids = [row["revision_id"] for row in revision_rows]
+        attempt_ids = [row["attempt_id"] for row in attempt_rows]
+        if _count_duplicates(cycle_ids):
+            raise Phase1ValidationError("Duplicate extremum_cycle_id rows")
+        if _count_duplicates(revision_ids):
+            raise Phase1ValidationError("Duplicate revision_id rows")
+        if _count_duplicates(attempt_ids):
+            raise Phase1ValidationError("Duplicate attempt_id rows")
+
+        cycles_by_id = {row["extremum_cycle_id"]: row for row in cycle_rows}
+        revisions_by_id = {row["revision_id"]: row for row in revision_rows}
+        attempts_by_id = {row["attempt_id"]: row for row in attempt_rows}
+        for cycle_id, cycle in cycles_by_id.items():
+            if _required_float(cycle["reference_range_points"], "reference_range_points", ENGINE_CYCLES_FILE) <= 0:
+                raise Phase1ValidationError(f"Non-positive reference range for cycle {cycle_id}")
+            cycle_revisions = [row for row in revision_rows if row["extremum_cycle_id"] == cycle_id]
+            cycle_attempts = [row for row in attempt_rows if row["extremum_cycle_id"] == cycle_id]
+            if _required_int(cycle["revision_count"], "revision_count", ENGINE_CYCLES_FILE) != len(cycle_revisions):
+                raise Phase1ValidationError(f"Revision count mismatch for cycle {cycle_id}")
+            if _required_int(cycle["attempt_count"], "attempt_count", ENGINE_CYCLES_FILE) != len(cycle_attempts):
+                raise Phase1ValidationError(f"Attempt count mismatch for cycle {cycle_id}")
+
+            expected_indexes = list(range(1, len(cycle_revisions) + 1))
+            actual_indexes = sorted(
+                _required_int(row["revision_index"], "revision_index", ENGINE_REVISIONS_FILE)
+                for row in cycle_revisions
+            )
+            if actual_indexes != expected_indexes:
+                raise Phase1ValidationError(f"Non-monotonic revision indexes for cycle {cycle_id}")
+            for revision in cycle_revisions:
+                if any(
+                    revision[field] != cycle[field]
+                    for field in (
+                        "reference_peak_time", "reference_peak_price",
+                        "reference_bottom_time", "reference_bottom_price",
+                        "reference_range_points",
+                    )
+                ):
+                    raise Phase1ValidationError(f"Frozen anchors changed in cycle {cycle_id}")
+
+        for revision in revision_rows:
+            if revision["extremum_cycle_id"] not in cycles_by_id:
+                raise Phase1ValidationError(f"Orphan revision {revision['revision_id']}")
+            _required_float(revision["depth_percent_raw"], "depth_percent_raw", ENGINE_REVISIONS_FILE)
+
+        for attempt in attempt_rows:
+            if attempt["extremum_cycle_id"] not in cycles_by_id:
+                raise Phase1ValidationError(f"Orphan attempt cycle for {attempt['attempt_id']}")
+            revision = revisions_by_id.get(attempt["revision_id"])
+            if revision is None or revision["extremum_cycle_id"] != attempt["extremum_cycle_id"]:
+                raise Phase1ValidationError(f"Orphan attempt revision for {attempt['attempt_id']}")
+            _required_float(attempt["candidate_depth_percent"], "candidate_depth_percent", ENGINE_ATTEMPTS_FILE)
+            if attempt["simulated_outcome_source"] != "ENGINE_SIMULATION":
+                raise Phase1ValidationError(f"Invalid simulated provenance for {attempt['attempt_id']}")
+            if attempt["broker_entry_confirmed"] == "0" and attempt["broker_close_confirmed"] == "1":
+                raise Phase1ValidationError(f"Broker close without entry for {attempt['attempt_id']}")
+
+        broker_attempt_by_signal = {
+            row["broker_signal_id"]: row
+            for row in attempt_rows
+            if row["broker_signal_id"] not in ("", NULL_TOKEN)
+        }
+        for outcome in outcome_rows:
+            attempt = attempts_by_id.get(outcome["extremum_attempt_id"])
+            if attempt is None or broker_attempt_by_signal.get(outcome["signal_id"]) is not attempt:
+                raise Phase1ValidationError(
+                    f"Broker outcome {outcome['signal_id']} has no matching intrinsic attempt"
+                )
+            if outcome["broker_entry_confirmed"] != "1" or outcome["broker_close_confirmed"] != "1":
+                raise Phase1ValidationError(f"Broker outcome lacks confirmed evidence: {outcome['signal_id']}")
 
     feature_ids = [row["signal_id"] for row in feature_rows]
     outcome_ids = [row["signal_id"] for row in outcome_rows]
@@ -342,6 +476,10 @@ def validate_phase1_run(
         feature_rows=len(feature_rows),
         admission_rows=len(admission_rows),
         outcome_rows=len(outcome_rows),
+        cycle_rows=len(cycle_rows),
+        revision_rows=len(revision_rows),
+        attempt_rows=len(attempt_rows),
+        leg_outcome_rows=len(leg_outcome_rows),
         joined_rows=len(feature_id_set & outcome_id_set),
         duplicate_feature_ids=duplicate_feature_ids,
         duplicate_outcome_ids=duplicate_outcome_ids,

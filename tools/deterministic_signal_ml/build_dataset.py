@@ -11,13 +11,24 @@ import duckdb
 from schema_contract import (
     BROKER_TARGET_FAMILY,
     DATASET_TARGET_FAMILIES,
+    ENGINE_ATTEMPTS_FILE,
+    ENGINE_CYCLES_FILE,
+    ENGINE_REVISIONS_FILE,
     FEATURE_SET_COLUMNS,
     OUTCOME_COLUMNS,
     OUTCOME_COLUMNS_WITH_PATH,
     SCHEMA_V6_ADMISSION_COLUMNS,
     SCHEMA_V6_OUTCOME_COLUMNS_WITH_PATH,
+    SCHEMA_V7_ADMISSION_COLUMNS,
+    SCHEMA_V7_ATTEMPT_COLUMNS,
+    SCHEMA_V7_CYCLE_COLUMNS,
+    SCHEMA_V7_FEATURE_COLUMNS,
+    SCHEMA_V7_LEG_OUTCOME_COLUMNS,
+    SCHEMA_V7_OUTCOME_COLUMNS_WITH_PATH,
+    SCHEMA_V7_REVISION_COLUMNS,
     SIGNAL_ADMISSIONS_FILE,
     SIGNAL_FEATURES_FILE,
+    SIGNAL_LEG_OUTCOMES_FILE,
     SIGNAL_OUTCOMES_FILE,
     SUPPORTED_SCHEMA_VERSION,
     SUPPORTED_SCHEMA_VERSIONS,
@@ -57,6 +68,19 @@ def _read_tsv_sql(path: Path, columns: tuple[str, ...]) -> str:
         "nullstr='\\N'"
         ")"
     )
+
+
+def _load_raw_table(
+    connection: duckdb.DuckDBPyConnection,
+    table_name: str,
+    paths: list[Path],
+    columns: tuple[str, ...],
+) -> None:
+    if not paths:
+        raise RuntimeError(f"No source paths for {table_name}")
+    connection.execute(f"CREATE TABLE {table_name} AS SELECT * FROM {_read_tsv_sql(paths[0], columns)}")
+    for path in paths[1:]:
+        connection.execute(f"INSERT INTO {table_name} SELECT * FROM {_read_tsv_sql(path, columns)}")
 
 
 def _tsv_header(path: Path) -> tuple[str, ...]:
@@ -232,6 +256,217 @@ def _path_target_sql(target_family: str, schema_version: int) -> tuple[str, str,
     raise RuntimeError(f"Unsupported target_family: {target_family}")
 
 
+def _create_v7_dataset_tables(
+    connection: duckdb.DuckDBPyConnection,
+    validations,
+    target_family: str,
+    feature_columns: tuple[str, ...],
+) -> dict[str, int]:
+    if target_family != BROKER_TARGET_FAMILY:
+        raise RuntimeError("Schema v7 census assembly currently requires target_family=broker_1r")
+
+    run_paths = [validation.run_path for validation in validations]
+    _load_raw_table(connection, "raw_engine_cycles", [path / ENGINE_CYCLES_FILE for path in run_paths], SCHEMA_V7_CYCLE_COLUMNS)
+    _load_raw_table(connection, "raw_engine_revisions", [path / ENGINE_REVISIONS_FILE for path in run_paths], SCHEMA_V7_REVISION_COLUMNS)
+    _load_raw_table(connection, "raw_engine_attempts", [path / ENGINE_ATTEMPTS_FILE for path in run_paths], SCHEMA_V7_ATTEMPT_COLUMNS)
+    _load_raw_table(connection, "raw_features", [path / SIGNAL_FEATURES_FILE for path in run_paths], SCHEMA_V7_FEATURE_COLUMNS)
+    _load_raw_table(connection, "raw_admissions", [path / SIGNAL_ADMISSIONS_FILE for path in run_paths], SCHEMA_V7_ADMISSION_COLUMNS)
+    _load_raw_table(connection, "raw_outcomes", [path / SIGNAL_OUTCOMES_FILE for path in run_paths], SCHEMA_V7_OUTCOME_COLUMNS_WITH_PATH)
+    _load_raw_table(connection, "raw_leg_outcomes", [path / SIGNAL_LEG_OUTCOMES_FILE for path in run_paths], SCHEMA_V7_LEG_OUTCOME_COLUMNS)
+
+    connection.execute(
+        """
+CREATE TABLE engine_cycles AS SELECT
+  CAST(schema_version AS INTEGER) AS schema_version, run_id, config_id, symbol,
+  CAST(engine_id AS INTEGER) AS engine_id, engine_label, engine_timeframe,
+  extremum_cycle_id, extremum_type,
+  strptime(cycle_first_seen_time, '%Y.%m.%d %H:%M:%S') AS cycle_first_seen_time,
+  strptime(cycle_finalized_time, '%Y.%m.%d %H:%M:%S') AS cycle_finalized_time,
+  cycle_status, reference_peak_time, CAST(reference_peak_price AS DOUBLE) AS reference_peak_price,
+  reference_bottom_time, CAST(reference_bottom_price AS DOUBLE) AS reference_bottom_price,
+  CAST(reference_range_points AS DOUBLE) AS reference_range_points,
+  first_extremum_time, CAST(first_extremum_price AS DOUBLE) AS first_extremum_price,
+  final_extremum_time, CAST(final_extremum_price AS DOUBLE) AS final_extremum_price,
+  CAST(final_depth_percent AS DOUBLE) AS final_depth_percent,
+  CAST(revision_count AS INTEGER) AS revision_count,
+  CAST(attempt_count AS INTEGER) AS attempt_count
+FROM raw_engine_cycles
+"""
+    )
+    connection.execute(
+        """
+CREATE TABLE engine_revisions AS SELECT
+  CAST(schema_version AS INTEGER) AS schema_version, run_id, config_id, symbol,
+  CAST(engine_id AS INTEGER) AS engine_id, engine_label, engine_timeframe,
+  extremum_cycle_id, revision_id, CAST(revision_index AS INTEGER) AS revision_index,
+  strptime(snapshot_time, '%Y.%m.%d %H:%M:%S') AS snapshot_time,
+  extremum_time, CAST(extremum_price AS DOUBLE) AS extremum_price, extremum_type,
+  CAST(depth_percent_raw AS DOUBLE) AS depth_percent_raw,
+  CAST(distance_from_first_revision_points AS DOUBLE) AS distance_from_first_revision_points,
+  CAST(distance_from_previous_revision_points AS DOUBLE) AS distance_from_previous_revision_points,
+  CAST(depth_delta_from_previous_percent AS DOUBLE) AS depth_delta_from_previous_percent,
+  CAST(bars_since_cycle_start AS INTEGER) AS bars_since_cycle_start,
+  reference_peak_time, CAST(reference_peak_price AS DOUBLE) AS reference_peak_price,
+  reference_bottom_time, CAST(reference_bottom_price AS DOUBLE) AS reference_bottom_price,
+  CAST(reference_range_points AS DOUBLE) AS reference_range_points,
+  structure_0, structure_1, structure_2, session_id,
+  CAST(time_sin AS DOUBLE) AS time_sin, CAST(time_cos AS DOUBLE) AS time_cos
+FROM raw_engine_revisions
+"""
+    )
+    connection.execute(
+        """
+CREATE TABLE engine_attempts AS SELECT
+  CAST(schema_version AS INTEGER) AS schema_version, run_id, config_id, symbol,
+  CAST(engine_id AS INTEGER) AS engine_id, engine_label, engine_timeframe,
+  extremum_cycle_id, revision_id, attempt_id,
+  CAST(cycle_attempt_index AS INTEGER) AS cycle_attempt_index,
+  CAST(revision_attempt_index AS INTEGER) AS revision_attempt_index,
+  strptime(attempt_created_time, '%Y.%m.%d %H:%M:%S') AS attempt_created_time,
+  direction, CAST(candidate_depth_percent AS DOUBLE) AS candidate_depth_percent,
+  CAST(reference_range_points AS DOUBLE) AS reference_range_points,
+  CAST(distance_from_first_revision_points AS DOUBLE) AS distance_from_first_revision_points,
+  CAST(distance_from_previous_revision_points AS DOUBLE) AS distance_from_previous_revision_points,
+  CAST(depth_delta_from_previous_percent AS DOUBLE) AS depth_delta_from_previous_percent,
+  CAST(bars_since_cycle_start AS INTEGER) AS bars_since_cycle_start,
+  CAST(trigger_price AS DOUBLE) AS trigger_price,
+  CAST(stop_anchor_price AS DOUBLE) AS stop_anchor_price,
+  CAST(take_profit_price AS DOUBLE) AS take_profit_price,
+  CAST(trigger_reached AS INTEGER) AS trigger_reached, trigger_time, attempt_status,
+  operational_block_source, operational_block_reason, simulated_terminal_reason,
+  CAST(simulated_profit_r AS DOUBLE) AS simulated_profit_r,
+  CAST(simulated_max_favorable_r AS DOUBLE) AS simulated_max_favorable_r,
+  CAST(simulated_max_adverse_r AS DOUBLE) AS simulated_max_adverse_r,
+  simulated_path_status, simulated_outcome_source, broker_signal_id,
+  CAST(broker_entry_confirmed AS INTEGER) AS broker_entry_confirmed,
+  CAST(broker_close_confirmed AS INTEGER) AS broker_close_confirmed
+FROM raw_engine_attempts
+"""
+    )
+    connection.execute(
+        """
+CREATE TABLE features AS SELECT
+  CAST(schema_version AS INTEGER) AS schema_version, run_id, config_id, signal_id,
+  source_key, CAST(source_attempt_index AS INTEGER) AS source_attempt_index,
+  CAST(engine_id AS INTEGER) AS engine_id, engine_label, engine_timeframe,
+  extremum_cycle_id, extremum_revision_id, extremum_attempt_id, symbol, direction,
+  strptime(entry_time, '%Y.%m.%d %H:%M:%S') AS entry_time,
+  strptime(source_time, '%Y.%m.%d %H:%M:%S') AS source_time,
+  structure_0, structure_1, structure_2, fib_sl_band, fib_entry_band,
+  high_chain_profile, low_chain_profile, previous_candle_profile,
+  entry_session_bucket, entry_weekday,
+  CAST(stoch_structure_raw_percent AS DOUBLE) AS stoch_structure_raw_percent,
+  CAST(b_percent_main_base AS DOUBLE) AS b_percent_main_base,
+  CAST(b_percent_main_base_slope AS DOUBLE) AS b_percent_main_base_slope,
+  CAST(b_percent_main_macro AS DOUBLE) AS b_percent_main_macro,
+  CAST(b_percent_main_macro_slope AS DOUBLE) AS b_percent_main_macro_slope,
+  session_id, CAST(time_sin AS DOUBLE) AS time_sin, CAST(time_cos AS DOUBLE) AS time_cos
+FROM raw_features
+"""
+    )
+    connection.execute(
+        """
+CREATE TABLE admissions AS SELECT
+  CAST(schema_version AS INTEGER) AS schema_version, run_id, config_id, signal_id,
+  extremum_attempt_id,
+  strptime(event_time, '%Y.%m.%d %H:%M:%S') AS event_time,
+  event_type, admission_status, admission_source, admission_reason,
+  CAST(risk_target_amount AS DOUBLE) AS risk_target_amount,
+  CAST(expected_sl_loss AS DOUBLE) AS expected_sl_loss,
+  CAST(expected_tp_profit AS DOUBLE) AS expected_tp_profit,
+  CAST(normalized_lot AS DOUBLE) AS normalized_lot
+FROM raw_admissions
+"""
+    )
+    connection.execute(
+        """
+CREATE TABLE outcomes AS SELECT
+  CAST(schema_version AS INTEGER) AS schema_version, run_id, config_id, signal_id,
+  extremum_cycle_id, extremum_revision_id, extremum_attempt_id,
+  strptime(terminal_time, '%Y.%m.%d %H:%M:%S') AS terminal_time,
+  terminal_reason, CAST(profit_r AS DOUBLE) AS profit_r,
+  CAST(duration_seconds AS INTEGER) AS duration_seconds,
+  CAST(duration_m1_bars AS INTEGER) AS duration_m1_bars,
+  CAST(entry_price AS DOUBLE) AS entry_price, CAST(close_price AS DOUBLE) AS close_price,
+  CAST(net_profit AS DOUBLE) AS net_profit,
+  CAST(broker_entry_confirmed AS INTEGER) AS broker_entry_confirmed,
+  CAST(broker_close_confirmed AS INTEGER) AS broker_close_confirmed,
+  path_status
+FROM raw_outcomes
+"""
+    )
+    connection.execute(
+        """
+CREATE TABLE signal_leg_outcomes AS SELECT
+  CAST(schema_version AS INTEGER) AS schema_version, run_id, config_id, signal_id,
+  source_key, CAST(source_attempt_index AS INTEGER) AS source_attempt_index,
+  CAST(engine_id AS INTEGER) AS engine_id, engine_label, engine_timeframe,
+  extremum_cycle_id, extremum_revision_id, extremum_attempt_id,
+  CAST(leg_index AS INTEGER) AS leg_index, CAST(target_r AS DOUBLE) AS target_r,
+  entry_time, close_time, CAST(entry_price AS DOUBLE) AS entry_price,
+  CAST(close_price AS DOUBLE) AS close_price, CAST(stop_price AS DOUBLE) AS stop_price,
+  CAST(take_profit_price AS DOUBLE) AS take_profit_price,
+  CAST(initial_lot AS DOUBLE) AS initial_lot, CAST(closed_volume AS DOUBLE) AS closed_volume,
+  CAST(net_profit AS DOUBLE) AS net_profit, CAST(expected_sl_loss AS DOUBLE) AS expected_sl_loss,
+  CAST(profit_r AS DOUBLE) AS profit_r, terminal_reason,
+  CAST(broker_close_confirmed AS INTEGER) AS broker_close_confirmed,
+  close_source, position_ticket, position_comment
+FROM raw_leg_outcomes
+"""
+    )
+    connection.execute(
+        """
+CREATE TABLE admission_risk AS SELECT
+  signal_id,
+  MAX(expected_sl_loss) AS expected_sl_loss,
+  MAX(risk_target_amount) AS risk_target_amount,
+  MAX(expected_tp_profit) AS expected_tp_profit,
+  MAX(normalized_lot) AS normalized_lot
+FROM admissions GROUP BY signal_id
+"""
+    )
+    revision_features = {"structure_0", "structure_1", "structure_2", "session_id", "time_sin", "time_cos"}
+    required_feature_clause = " AND ".join(
+        f"{'r' if column in revision_features else 'a'}.{column} IS NOT NULL"
+        for column in feature_columns
+    )
+    connection.execute(
+        f"""
+CREATE TABLE training_matrix AS SELECT
+  a.schema_version, a.run_id, a.config_id, a.symbol, a.engine_id, a.engine_label,
+  a.engine_timeframe, a.extremum_cycle_id, a.revision_id AS extremum_revision_id,
+  a.attempt_id AS extremum_attempt_id, a.broker_signal_id AS signal_id,
+  a.attempt_created_time AS entry_time, a.direction, a.cycle_attempt_index,
+  a.revision_attempt_index, a.candidate_depth_percent, a.reference_range_points,
+  a.distance_from_first_revision_points, a.distance_from_previous_revision_points,
+  a.depth_delta_from_previous_percent, a.bars_since_cycle_start,
+  r.structure_0, r.structure_1, r.structure_2, r.session_id, r.time_sin, r.time_cos,
+  o.terminal_time, o.terminal_reason, o.net_profit,
+  o.net_profit / ABS(ar.expected_sl_loss) AS target_profit_r,
+  CASE WHEN o.net_profit > 0 THEN 1 ELSE 0 END AS target_is_win,
+  CASE WHEN o.net_profit > 0 THEN 'BROKER_PROFIT'
+       WHEN o.net_profit < 0 THEN 'BROKER_LOSS' ELSE 'BROKER_FLAT' END AS target_terminal_reason,
+  'BROKER_CONFIRMED' AS target_source,
+  a.simulated_profit_r, a.simulated_path_status
+FROM engine_attempts a
+JOIN engine_revisions r ON r.revision_id = a.revision_id
+JOIN outcomes o ON o.extremum_attempt_id = a.attempt_id
+JOIN admission_risk ar ON ar.signal_id = a.broker_signal_id
+WHERE a.broker_entry_confirmed = 1 AND a.broker_close_confirmed = 1
+  AND o.broker_entry_confirmed = 1 AND o.broker_close_confirmed = 1
+  AND ar.expected_sl_loss IS NOT NULL AND ABS(ar.expected_sl_loss) > 0
+  AND {required_feature_clause}
+ORDER BY a.attempt_created_time, a.attempt_id
+"""
+    )
+    tables = (
+        "engine_cycles", "engine_revisions", "engine_attempts", "features",
+        "admissions", "outcomes", "signal_leg_outcomes", "admission_risk",
+        "training_matrix",
+    )
+    return {table: int(connection.execute(f"SELECT COUNT(*) FROM {table}").fetchone()[0]) for table in tables}
+
+
 def create_dataset_tables(
     connection: duckdb.DuckDBPyConnection,
     validations,
@@ -239,6 +474,14 @@ def create_dataset_tables(
     schema_version: int,
     feature_columns: tuple[str, ...],
 ) -> dict[str, int]:
+    if schema_version == 7:
+        return _create_v7_dataset_tables(
+            connection,
+            validations,
+            target_family,
+            feature_columns,
+        )
+
     target_is_win_sql, target_profit_r_sql, target_reason_sql, target_valid_clause = _path_target_sql(
         target_family,
         schema_version,
@@ -468,12 +711,11 @@ def prepare_output_dir(output_root: Path, dataset_id: str, overwrite: bool) -> P
 def write_parquet_outputs(
     connection: duckdb.DuckDBPyConnection,
     output_dir: Path,
+    counts: dict[str, int],
 ) -> dict[str, str]:
     output_files = {
-        "features": str(output_dir / "features.parquet"),
-        "admission_risk": str(output_dir / "admission_risk.parquet"),
-        "outcomes": str(output_dir / "outcomes.parquet"),
-        "training_matrix": str(output_dir / "training_matrix.parquet"),
+        table_name: str(output_dir / f"{table_name}.parquet")
+        for table_name in counts
     }
     for table_name, output_file in output_files.items():
         connection.execute(
@@ -578,13 +820,15 @@ def main() -> int:
         parser.exit(1, f"build failed: no valid rows for target_family={args.target_family}\n")
     print(
         "assembly ok | "
-        f"features={counts['features']} | "
+        f"features={counts.get('features', 0)} | "
+        f"cycles={counts.get('engine_cycles', 0)} | "
+        f"attempts={counts.get('engine_attempts', 0)} | "
         f"outcomes={counts['outcomes']} | "
         f"training_matrix={counts['training_matrix']}"
     )
     try:
         output_dir = prepare_output_dir(Path(args.output_root), args.dataset_id, args.overwrite)
-        output_files = write_parquet_outputs(connection, output_dir)
+        output_files = write_parquet_outputs(connection, output_dir, counts)
         quality_payload = build_quality_payload(
             connection,
             validations,
