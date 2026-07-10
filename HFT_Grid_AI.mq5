@@ -51,13 +51,13 @@ bool ProcessPendingRemovalRequest()
   return true;
 }
 
-bool DeterministicStrategiesRequireHedgingAccount()
+bool ExtremumEngineRequiresHedgingAccount()
 {
   long margin_mode = AccountInfoInteger(ACCOUNT_MARGIN_MODE);
   if(margin_mode == ACCOUNT_MARGIN_MODE_RETAIL_HEDGING)
     return true;
 
-  PrintFormat("Unsupported account margin mode for deterministic strategy stack: %d. Hedging account required.",
+  PrintFormat("Unsupported account margin mode for extremum engine: %d. Hedging account required.",
               (int)margin_mode);
   return false;
 }
@@ -67,7 +67,7 @@ int OnInit()
   if(!LicenseServiceInit())
     return(INIT_FAILED);
 
-  if(!DeterministicStrategiesRequireHedgingAccount())
+  if(!ExtremumEngineRequiresHedgingAccount())
     return(INIT_FAILED);
 
   // INITIALIZE GLOBAL VARIABLES
@@ -78,6 +78,7 @@ int OnInit()
   g_initial_ea_date = TimeCurrent();
   ResetQueryDebugLogSession();
   ResetDeterministicSourceOutcomeState();
+  ResetExtremumEngineState();
   DeterministicSignalStatsInit();
   PatternAuditPlaybackInit();
   DeterministicSignalMLShadowInit();
@@ -144,6 +145,8 @@ int OnInit()
 //+------------------------------------------------------------------+
 void OnDeinit(const int reason)
 {
+  if(g_extremum_engine_cycle.active)
+    ExtremumEngineFinalizeCycle("CENSORED", TimeCurrent());
   DeterministicSignalMLShadowDeinit();
   PatternAuditPlaybackDeinit();
   DeterministicSignalStatsDeinit();

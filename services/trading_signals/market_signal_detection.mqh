@@ -242,9 +242,16 @@ void LogDeterministicCandidateTelemetry(const SignalParams &signal,
   if(source_key == "")
     source_key = BuildExtremumEngineSignalSourceKey(signal);
 
-  string message = StringFormat("engine=%s|dir=%s|source_key=%s|source_attempt_index=%d|source_slot=%d|source_confirmed=%s|source_type=%s|source_time=%s|source_price=%.5f|source_high=%.5f|source_low=%.5f|trigger=%.5f|stop=%.5f",
+  string message = StringFormat("engine=%s|dir=%s|cycle_id=%s|revision_id=%s|attempt_id=%s|cycle_attempt_index=%d|revision_attempt_index=%d|depth=%.4f|range_points=%.2f|source_key=%s|source_attempt_index=%d|source_slot=%d|source_confirmed=%s|source_type=%s|source_time=%s|source_price=%.5f|source_high=%.5f|source_low=%.5f|trigger=%.5f|stop=%.5f",
                                  signal.engine_label,
                                  direction,
+                                 signal.extremum_cycle_id,
+                                 signal.extremum_revision_id,
+                                 signal.extremum_attempt_id,
+                                 signal.cycle_attempt_index,
+                                 signal.revision_attempt_index,
+                                 signal.candidate_depth_percent,
+                                 signal.reference_range_points,
                                  source_key,
                                  signal.deterministic_source_attempt_index,
                                 extremum.source_slot,
@@ -333,6 +340,8 @@ void TryCreateExtremumEngineSignal(const SignalTypes direction,
 
   if(RegisterDeterministicSourceAttempt(signal) <= 0)
     return;
+  if(!ExtremumEngineAssignAttemptIdentity(signal))
+    return;
 
   DeterministicSignalStatsRecordAdmissionEvent(signal, "candidate");
 
@@ -365,6 +374,37 @@ void DetectExtremumEngineSignals()
   DeterministicExtremumSnapshot extremum;
   if(!ResolveCurrentDeterministicExtremum(structure, extremum))
     return;
+
+  bool cycle_started = false;
+  bool revision_created = false;
+  bool cycle_finalized = false;
+  if(!ExtremumEngineObserve(structure,
+                            extremum,
+                            cycle_started,
+                            revision_created,
+                            cycle_finalized))
+    return;
+
+  if(revision_created)
+  {
+    ExtremumEngineRevisionState revision = g_extremum_engine_cycle.current_revision;
+    string cycle_message = StringFormat("cycle_id=%s|revision_id=%s|revision_index=%d|type=%s|depth=%.4f|range_points=%.2f|from_first_points=%.2f|from_previous_points=%.2f|depth_delta=%.4f|bars_since_start=%d|cycle_started=%s|prior_cycle_finalized=%s",
+                                        g_extremum_engine_cycle.cycle_id,
+                                        revision.revision_id,
+                                        revision.revision_index,
+                                        extremum.is_peak ? "PEAK" : "BOTTOM",
+                                        revision.depth_percent_raw,
+                                        g_extremum_engine_cycle.reference_range_points,
+                                        revision.distance_from_first_points,
+                                        revision.distance_from_previous_points,
+                                        revision.depth_delta_from_previous_percent,
+                                        revision.bars_since_cycle_start,
+                                        cycle_started ? "true" : "false",
+                                        cycle_finalized ? "true" : "false");
+    ExecutionAppendQueryDebugChangedLog("EXTREMUM_ENGINE_REVISION",
+                                        revision.revision_id,
+                                        cycle_message);
+  }
 
   LogDeterministicSourceAudit(structure, extremum);
   ExpirePendingDeterministicSignalsForSourceExtremum(extremum.source_slot,
