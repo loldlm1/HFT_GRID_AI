@@ -417,7 +417,71 @@ bool DeterministicStopTriggered(const SignalParams &signal_params,
   if(signal_params.signal_type == BEARISH)
     return close_0 > signal_params.raw_stop_anchor_price;
 
+	  return false;
+	}
+
+bool DeterministicPendingStopInvalidated(const SignalParams &signal_params,
+                                         const double close_0)
+{
+  if(signal_params.raw_stop_anchor_price <= 0.0)
+    return false;
+
+  double stop_side_price = ExecutionCurrentPriceForDirection(signal_params.signal_type, false);
+  if(stop_side_price <= 0.0)
+    stop_side_price = close_0;
+  if(stop_side_price <= 0.0)
+    return false;
+
+  if(signal_params.signal_type == BULLISH)
+    return (stop_side_price <= signal_params.raw_stop_anchor_price);
+  if(signal_params.signal_type == BEARISH)
+    return (stop_side_price >= signal_params.raw_stop_anchor_price);
+
   return false;
+}
+
+bool CancelDeterministicPendingSignalAtStop(SignalParams &signal_params,
+                                            const int leg_index,
+                                            const double close_0)
+{
+  if(!signal_params.deterministic_strategy)
+    return false;
+  if(signal_params.signal_state == CLOSED)
+    return false;
+  if(DeterministicSignalHasBrokerExposure(signal_params))
+    return false;
+  if(leg_index < 0 || leg_index >= ArraySize(signal_params.execution_legs))
+    return false;
+
+  ExecutionLegState leg_state = signal_params.execution_legs[leg_index];
+  if(leg_state.status != EXECUTION_LEG_PENDING)
+    return false;
+  if(!DeterministicPendingStopInvalidated(signal_params, close_0))
+    return false;
+
+  int total_legs = ArraySize(signal_params.execution_legs);
+  for(int i = 0; i < total_legs; i++)
+  {
+    ExecutionLegState state = signal_params.execution_legs[i];
+    if(state.status == EXECUTION_LEG_PENDING ||
+       state.status == EXECUTION_LEG_WAITING)
+    {
+      state.status = EXECUTION_LEG_COMPLETED;
+      state.last_action_time = TimeCurrent();
+      signal_params.execution_legs[i] = state;
+    }
+  }
+
+  signal_params.signal_state = CLOSED;
+  signal_params.deterministic_stats_terminal_reason = "PENDING_SL_INVALIDATED";
+  signal_params.admission_status = EXECUTION_ADMISSION_BLOCKED;
+  signal_params.admission_block_source = "pending_signal";
+  signal_params.admission_block_reason = "stop_reached_before_entry";
+  signal_params.admission_updated_time = TimeCurrent();
+  ExecutionLogEvent("DETERMINISTIC_PENDING_SL_INVALIDATED",
+                    signal_params,
+                    leg_state);
+  return true;
 }
 
 bool DeterministicTakeProfitTriggered(const SignalParams &signal_params,
@@ -995,11 +1059,16 @@ void UpdateDeterministicExecutionLifecycle(SignalParams &signal_params)
   if(!ResolveDeterministicM1Rates(close_0, high_1, low_1))
     return;
 
-  if(leg_state.status == EXECUTION_LEG_PENDING)
-  {
-    ExecutionLegTradeAdmissionContext admission_context;
-    if(!PrepareDeterministicPendingEntryAdmission(signal_params,
-                                                  leg_index,
+	  if(leg_state.status == EXECUTION_LEG_PENDING)
+	  {
+	    if(CancelDeterministicPendingSignalAtStop(signal_params,
+	                                             leg_index,
+	                                             close_0))
+	      return;
+
+	    ExecutionLegTradeAdmissionContext admission_context;
+	    if(!PrepareDeterministicPendingEntryAdmission(signal_params,
+	                                                  leg_index,
                                                   close_0,
                                                   high_1,
                                                   low_1,
@@ -1054,11 +1123,16 @@ bool UpdateDeterministicExecutionLifecycleForMLArbitration(SignalParams &signal_
   if(!ResolveDeterministicM1Rates(close_0, high_1, low_1))
     return false;
 
-  if(leg_state.status == EXECUTION_LEG_PENDING)
-  {
-    ExecutionLegTradeAdmissionContext admission_context;
-    if(!PrepareDeterministicPendingEntryAdmission(signal_params,
-                                                  leg_index,
+	  if(leg_state.status == EXECUTION_LEG_PENDING)
+	  {
+	    if(CancelDeterministicPendingSignalAtStop(signal_params,
+	                                             leg_index,
+	                                             close_0))
+	      return false;
+
+	    ExecutionLegTradeAdmissionContext admission_context;
+	    if(!PrepareDeterministicPendingEntryAdmission(signal_params,
+	                                                  leg_index,
                                                   close_0,
                                                   high_1,
                                                   low_1,
