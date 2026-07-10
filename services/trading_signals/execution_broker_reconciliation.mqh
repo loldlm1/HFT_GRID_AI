@@ -214,7 +214,53 @@ bool ApplyBrokerPositionSnapshotToExecutionLeg(ExecutionLegState &leg_state,
      leg_state.status == EXECUTION_LEG_WAITING)
     leg_state.status = EXECUTION_LEG_ACTIVE;
 
-  return true;
+	  return true;
+	}
+
+void MarkExecutionLegCloseFacts(ExecutionLegState &leg_state,
+                                const ulong position_ticket,
+                                const double closed_volume,
+                                const double realized_profit,
+                                const double close_price,
+                                const datetime close_time,
+                                const string close_source)
+{
+  if(position_ticket > 0)
+    leg_state.closed_position_ticket = position_ticket;
+  if(closed_volume > 0.0)
+    leg_state.closed_volume += closed_volume;
+  if(MathIsValidNumber(realized_profit))
+    leg_state.realized_profit += realized_profit;
+  if(close_price > 0.0)
+    leg_state.close_price = close_price;
+  if(close_time > 0)
+    leg_state.close_time = close_time;
+  else
+    leg_state.close_time = TimeCurrent();
+
+  leg_state.broker_close_confirmed = true;
+  leg_state.close_source = close_source;
+}
+
+bool ExecutionLegClosedOnTakeProfitSide(const SignalParams &signal_params,
+                                        const ExecutionLegState &leg_state,
+                                        const double close_price,
+                                        const double realized_profit)
+{
+  if(close_price <= 0.0 || leg_state.take_profit_price <= 0.0)
+    return (realized_profit > 0.0);
+
+  double point_size = SymbolInfoDouble(_Symbol, SYMBOL_POINT);
+  if(point_size <= 0.0)
+    point_size = 0.0000001;
+
+  double tolerance = point_size * 2.0;
+  if(signal_params.signal_type == BULLISH)
+    return (close_price + tolerance >= leg_state.take_profit_price);
+  if(signal_params.signal_type == BEARISH)
+    return (close_price - tolerance <= leg_state.take_profit_price);
+
+  return (realized_profit > 0.0);
 }
 
 bool ResolveBrokerCloseSummaryForPosition(const ulong position_ticket,
@@ -308,17 +354,38 @@ bool ReconcileExecutionLegWithBrokerPosition(SignalParams &signal_params,
   if(had_broker_ticket)
   {
     BrokerDealCloseSummary close_summary;
-    if(ResolveBrokerCloseSummaryForPosition(leg_state.position_ticket,
-                                            signal_params.entry_time,
-                                            close_summary))
-    {
-      signal_params.realized_profit += close_summary.profit;
-      signal_params.realized_closed_volume += close_summary.closed_volume;
-      signal_params.broker_close_confirmed = true;
-      signal_params.broker_close_source = "history_deal";
-      if(close_summary.close_price > 0.0)
-        signal_params.close_price = close_summary.close_price;
-      if(close_summary.close_time > 0)
+	    if(ResolveBrokerCloseSummaryForPosition(leg_state.position_ticket,
+	                                            signal_params.entry_time,
+	                                            close_summary))
+	    {
+	      ulong closed_ticket = leg_state.position_ticket;
+	      signal_params.realized_profit += close_summary.profit;
+	      signal_params.realized_closed_volume += close_summary.closed_volume;
+	      signal_params.broker_close_confirmed = true;
+	      signal_params.broker_close_source = "history_deal";
+	      MarkExecutionLegCloseFacts(leg_state,
+	                                 closed_ticket,
+	                                 close_summary.closed_volume,
+	                                 close_summary.profit,
+	                                 close_summary.close_price,
+	                                 close_summary.close_time,
+	                                 "history_deal");
+	      if(Partial_TP_Mode == PARTIAL_TP_R_MULTIPLES &&
+	         leg_index >= 0 &&
+	         leg_index < PARTIAL_TP_LEVELS_TOTAL &&
+	         ExecutionLegClosedOnTakeProfitSide(signal_params,
+	                                            leg_state,
+	                                            close_summary.close_price,
+	                                            close_summary.profit))
+	      {
+	        MarkPartialTPLevelConfirmed(signal_params,
+	                                    leg_index,
+	                                    close_summary.closed_volume,
+	                                    close_summary.close_price);
+	      }
+	      if(close_summary.close_price > 0.0)
+	        signal_params.close_price = close_summary.close_price;
+	      if(close_summary.close_time > 0)
         signal_params.close_time = close_summary.close_time;
     }
 

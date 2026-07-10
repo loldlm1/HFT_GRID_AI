@@ -218,6 +218,36 @@ double BrokerExecutionEstimateMarginPerLot(const SignalTypes direction)
 double BrokerExecutionEntrySidePrice(const BrokerExecutionSnapshot &snapshot);
 ENUM_ORDER_TYPE BrokerExecutionOrderTypeForDirection(const SignalTypes direction);
 
+bool ExecutionLegUsesBrokerSideStops(const SignalParams &signal_params,
+                                     const ExecutionLegState &leg_state)
+{
+  return (signal_params.deterministic_strategy &&
+          Partial_TP_Mode == PARTIAL_TP_R_MULTIPLES &&
+          leg_state.opens_position);
+}
+
+double ExecutionLegBrokerStopLossPrice(const SignalParams &signal_params,
+                                       const ExecutionLegState &leg_state)
+{
+  if(!ExecutionLegUsesBrokerSideStops(signal_params, leg_state))
+    return 0.0;
+  if(leg_state.next_level_price <= 0.0)
+    return 0.0;
+
+  return NormalizeDouble(leg_state.next_level_price, Digits());
+}
+
+double ExecutionLegBrokerTakeProfitPrice(const SignalParams &signal_params,
+                                         const ExecutionLegState &leg_state)
+{
+  if(!ExecutionLegUsesBrokerSideStops(signal_params, leg_state))
+    return 0.0;
+  if(leg_state.take_profit_price <= 0.0)
+    return 0.0;
+
+  return NormalizeDouble(leg_state.take_profit_price, Digits());
+}
+
 void BrokerExecutionBlock(BrokerExecutionEligibility &eligibility,
                           const string source,
                           const string reason)
@@ -367,7 +397,9 @@ bool BrokerExecutionOrderCheckRetcodeAllowed(const ulong retcode,
 }
 
 bool BrokerExecutionRunOrderCheck(BrokerExecutionSnapshot &snapshot,
-                                  BrokerExecutionEligibility &eligibility)
+                                  BrokerExecutionEligibility &eligibility,
+                                  const double stop_loss_price,
+                                  const double take_profit_price)
 {
   if(snapshot.normalized_volume <= 0.0)
     return true;
@@ -385,10 +417,14 @@ bool BrokerExecutionRunOrderCheck(BrokerExecutionSnapshot &snapshot,
   request.symbol = snapshot.symbol;
   request.magic = g_magic_number;
   request.volume = snapshot.normalized_volume;
-  request.price = entry_price;
-  request.type = BrokerExecutionOrderTypeForDirection(snapshot.direction);
-  request.type_filling = BrokerExecutionResolveFillingMode();
-  request.type_time = ORDER_TIME_GTC;
+	  request.price = entry_price;
+	  request.type = BrokerExecutionOrderTypeForDirection(snapshot.direction);
+	  request.type_filling = BrokerExecutionResolveFillingMode();
+	  request.type_time = ORDER_TIME_GTC;
+	  if(stop_loss_price > 0.0)
+	    request.sl = stop_loss_price;
+	  if(take_profit_price > 0.0)
+	    request.tp = take_profit_price;
 
   if(!OrderCheck(request, check))
   {
@@ -550,19 +586,32 @@ bool EvaluateLocalExecutionLegEligibility(const SignalParams &signal_params,
     return false;
   }
 
-  if(!BrokerExecutionValidateLegDistance(snapshot,
-                                         leg_state.entry_reference_price,
-                                         leg_state.take_profit_price,
-                                         "tp_distance",
-                                         eligibility))
-    return false;
+	  bool use_broker_side_stops = ExecutionLegUsesBrokerSideStops(signal_params, leg_state);
+	  double stop_loss_price = ExecutionLegBrokerStopLossPrice(signal_params, leg_state);
+	  double take_profit_price = ExecutionLegBrokerTakeProfitPrice(signal_params, leg_state);
+	  double distance_reference_price = use_broker_side_stops ? entry_side_price : leg_state.entry_reference_price;
 
-  if(!BrokerExecutionValidateLegDistance(snapshot,
-                                         leg_state.entry_reference_price,
-                                         leg_state.next_level_price,
-                                         "next_distance",
-                                         eligibility))
-    return false;
+	  if(use_broker_side_stops && (stop_loss_price <= 0.0 || take_profit_price <= 0.0))
+	  {
+	    BrokerExecutionBlock(eligibility,
+	                         "broker_stops",
+	                         "sl_or_tp_invalid");
+	    return false;
+	  }
+
+	  if(!BrokerExecutionValidateLegDistance(snapshot,
+	                                         distance_reference_price,
+	                                         leg_state.take_profit_price,
+	                                         "tp_distance",
+	                                         eligibility))
+	    return false;
+
+	  if(!BrokerExecutionValidateLegDistance(snapshot,
+	                                         distance_reference_price,
+	                                         leg_state.next_level_price,
+	                                         use_broker_side_stops ? "sl_distance" : "next_distance",
+	                                         eligibility))
+	    return false;
 
   if(leg_state.opens_position)
   {
@@ -600,9 +649,12 @@ bool EvaluateLocalExecutionLegEligibility(const SignalParams &signal_params,
       return false;
     }
 
-    if(!BrokerExecutionRunOrderCheck(snapshot, eligibility))
-      return false;
-  }
+	    if(!BrokerExecutionRunOrderCheck(snapshot,
+	                                     eligibility,
+	                                     stop_loss_price,
+	                                     take_profit_price))
+	      return false;
+	  }
 
   BrokerExecutionAllow(eligibility);
   return true;

@@ -20,11 +20,18 @@ struct ExecutionLegState
   double initial_take_profit_price;
   double entry_reference_price;
 
-  datetime last_action_time;
-  ulong    position_ticket;
-  string   position_comment;
-  bool     opens_position;
-  bool     limit_activation_armed;
+	  datetime last_action_time;
+	  ulong    position_ticket;
+	  ulong    closed_position_ticket;
+	  string   position_comment;
+	  bool     opens_position;
+	  bool     limit_activation_armed;
+	  bool     broker_close_confirmed;
+	  string   close_source;
+	  double   closed_volume;
+	  double   realized_profit;
+	  double   close_price;
+	  datetime close_time;
 
   ExecutionLegState()
   {
@@ -38,13 +45,20 @@ struct ExecutionLegState
     take_profit_price           = 0.0;
     initial_take_profit_price   = 0.0;
     entry_reference_price       = 0.0;
-    last_action_time            = 0;
-    position_ticket             = 0;
-    position_comment            = "";
-    opens_position              = true;
-    limit_activation_armed      = true;
-  }
-};
+	    last_action_time            = 0;
+	    position_ticket             = 0;
+	    closed_position_ticket      = 0;
+	    position_comment            = "";
+	    opens_position              = true;
+	    limit_activation_armed      = true;
+	    broker_close_confirmed      = false;
+	    close_source                = "";
+	    closed_volume               = 0.0;
+	    realized_profit             = 0.0;
+	    close_price                 = 0.0;
+	    close_time                  = 0;
+	  }
+	};
 
 struct ResolvedStructureEntryAnchor
 {

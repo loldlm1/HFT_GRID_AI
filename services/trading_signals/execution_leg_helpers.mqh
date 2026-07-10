@@ -7,6 +7,75 @@
 const double FOUNDATION_LEVEL_EXPONENTIAL_MULTIPLIER = 1.0;
 const int FOUNDATION_LEVEL_POSITION_START = 0;
 const int FOUNDATION_LEVEL_STOP_LIMIT = 1;
+const int    PARTIAL_TP_LEVELS_TOTAL = 3;
+const double PARTIAL_TP_LEVEL_1_R = 1.0;
+const double PARTIAL_TP_LEVEL_2_R = 2.0;
+const double PARTIAL_TP_LEVEL_3_R = 3.0;
+const double PARTIAL_TP_VOLUME_1 = 0.33;
+const double PARTIAL_TP_VOLUME_2 = 0.33;
+const double PARTIAL_TP_VOLUME_3 = 0.34;
+
+bool PartialTPEnabled()
+{
+  return (Partial_TP_Mode == PARTIAL_TP_R_MULTIPLES);
+}
+
+double PartialTPLevelR(const int level_index)
+{
+  if(level_index == 0)
+    return PARTIAL_TP_LEVEL_1_R;
+  if(level_index == 1)
+    return PARTIAL_TP_LEVEL_2_R;
+  return PARTIAL_TP_LEVEL_3_R;
+}
+
+double PartialTPVolumeFraction(const int level_index)
+{
+  if(level_index == 0)
+    return PARTIAL_TP_VOLUME_1;
+  if(level_index == 1)
+    return PARTIAL_TP_VOLUME_2;
+  return PARTIAL_TP_VOLUME_3;
+}
+
+bool PartialTPLevelConfirmed(const SignalParams &signal_params,
+                             const int level_index)
+{
+  if(level_index == 0)
+    return signal_params.partial_tp1_confirmed;
+  if(level_index == 1)
+    return signal_params.partial_tp2_confirmed;
+  return signal_params.partial_tp3_confirmed;
+}
+
+void MarkPartialTPLevelConfirmed(SignalParams &signal_params,
+                                 const int level_index,
+                                 const double closed_volume,
+                                 const double close_price)
+{
+  datetime close_time = TimeCurrent();
+  if(level_index == 0)
+  {
+    signal_params.partial_tp1_confirmed = true;
+    signal_params.partial_tp1_closed_volume += closed_volume;
+    signal_params.partial_tp1_close_price = close_price;
+    signal_params.partial_tp1_close_time = close_time;
+    return;
+  }
+  if(level_index == 1)
+  {
+    signal_params.partial_tp2_confirmed = true;
+    signal_params.partial_tp2_closed_volume += closed_volume;
+    signal_params.partial_tp2_close_price = close_price;
+    signal_params.partial_tp2_close_time = close_time;
+    return;
+  }
+
+  signal_params.partial_tp3_confirmed = true;
+  signal_params.partial_tp3_closed_volume += closed_volume;
+  signal_params.partial_tp3_close_price = close_price;
+  signal_params.partial_tp3_close_time = close_time;
+}
 
 int ResolveFoundationLevelPositionStart()
 {
@@ -196,10 +265,17 @@ void ResetExecutionLegStateForWaiting(ExecutionLegState &state,
   state.entry_price        = 0.0;
   state.take_profit_price  = 0.0;
   state.next_level_price   = template_state.next_level_price;
-  state.last_action_time   = 0;
-  state.position_ticket    = 0;
-  state.position_comment   = "";
-}
+	  state.last_action_time   = 0;
+	  state.position_ticket    = 0;
+	  state.closed_position_ticket = 0;
+	  state.position_comment   = "";
+	  state.broker_close_confirmed = false;
+	  state.close_source       = "";
+	  state.closed_volume      = 0.0;
+	  state.realized_profit    = 0.0;
+	  state.close_price        = 0.0;
+	  state.close_time         = 0;
+	}
 
 double ExecutionPointsBetween(const SignalTypes direction,
                          const double reference_price,

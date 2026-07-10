@@ -57,6 +57,280 @@ double ResolveDeterministicTpPrice(const SignalTypes direction,
   return 0.0;
 }
 
+double ResolveDeterministicRMultipleTpPrice(const SignalTypes direction,
+                                            const double entry_price,
+                                            const double stop_anchor_price,
+                                            const double r_multiple)
+{
+  if(entry_price <= 0.0 || stop_anchor_price <= 0.0 || r_multiple <= 0.0)
+    return 0.0;
+
+  double risk_distance = MathAbs(entry_price - stop_anchor_price);
+  if(risk_distance <= 0.0)
+    return 0.0;
+
+  if(direction == BULLISH)
+    return entry_price + risk_distance * r_multiple;
+  if(direction == BEARISH)
+    return entry_price - risk_distance * r_multiple;
+
+  return 0.0;
+}
+
+double ResolveExecutionLegSetTotalVolume(const SignalParams &signal_params)
+{
+  double total_volume = 0.0;
+  int total_legs = ArraySize(signal_params.execution_legs);
+  for(int i = 0; i < total_legs; i++)
+  {
+    ExecutionLegState state = signal_params.execution_legs[i];
+    if(!state.opens_position)
+      continue;
+    if(state.lot_size > 0.0)
+      total_volume += state.lot_size;
+  }
+  return total_volume;
+}
+
+bool AccountSupportsPartialTPHedging()
+{
+  long margin_mode = AccountInfoInteger(ACCOUNT_MARGIN_MODE);
+  return (margin_mode == ACCOUNT_MARGIN_MODE_RETAIL_HEDGING);
+}
+
+bool ResolveDeterministicPartialLegVolumes(const double total_volume,
+                                           double &volumes[],
+                                           string &reason_out)
+{
+  reason_out = "";
+  ArrayResize(volumes, PARTIAL_TP_LEVELS_TOTAL);
+  for(int i = 0; i < PARTIAL_TP_LEVELS_TOTAL; i++)
+    volumes[i] = 0.0;
+
+  double normalized_total = NormalizeVolumeDownForSymbol(_Symbol, total_volume);
+  if(normalized_total <= 0.0)
+  {
+    reason_out = "total_volume_invalid";
+    return false;
+  }
+
+  double min_vol = SymbolInfoDouble(_Symbol, SYMBOL_VOLUME_MIN);
+  if(min_vol <= 0.0)
+  {
+    reason_out = "min_volume_invalid";
+    return false;
+  }
+
+  double minimum_required = min_vol * PARTIAL_TP_LEVELS_TOTAL;
+  if(normalized_total + EXECUTION_VOLUME_EPSILON < minimum_required)
+  {
+    reason_out = StringFormat("total_volume=%.4f<min_required=%.4f",
+                              normalized_total,
+                              minimum_required);
+    return false;
+  }
+
+  double remaining = normalized_total;
+  for(int level_index = 0; level_index < PARTIAL_TP_LEVELS_TOTAL - 1; level_index++)
+  {
+    int remaining_levels = PARTIAL_TP_LEVELS_TOTAL - level_index - 1;
+    double min_remaining = min_vol * remaining_levels;
+    double max_for_leg = remaining - min_remaining;
+    if(max_for_leg + EXECUTION_VOLUME_EPSILON < min_vol)
+    {
+      reason_out = "remaining_volume_below_min";
+      return false;
+    }
+
+    double requested = normalized_total * PartialTPVolumeFraction(level_index);
+    double slice = NormalizeVolumeDownForSymbol(_Symbol, requested);
+    if(slice + EXECUTION_VOLUME_EPSILON < min_vol)
+      slice = min_vol;
+    if(slice > max_for_leg + EXECUTION_VOLUME_EPSILON)
+      slice = NormalizeVolumeDownForSymbol(_Symbol, max_for_leg);
+
+    if(slice + EXECUTION_VOLUME_EPSILON < min_vol)
+    {
+      reason_out = "slice_volume_below_min";
+      return false;
+    }
+
+    volumes[level_index] = slice;
+    remaining -= slice;
+  }
+
+  double final_slice = NormalizeVolumeDownForSymbol(_Symbol, remaining);
+  if(final_slice + EXECUTION_VOLUME_EPSILON < min_vol)
+  {
+    reason_out = "final_slice_below_min";
+    return false;
+  }
+  volumes[PARTIAL_TP_LEVELS_TOTAL - 1] = final_slice;
+
+  double assigned_total = 0.0;
+  for(int i = 0; i < PARTIAL_TP_LEVELS_TOTAL; i++)
+    assigned_total += volumes[i];
+
+  if(assigned_total <= 0.0 ||
+     assigned_total > normalized_total + EXECUTION_VOLUME_EPSILON)
+  {
+    reason_out = "assigned_volume_invalid";
+    return false;
+  }
+
+  return true;
+}
+
+bool UpdateDeterministicPartialRiskTelemetry(SignalParams &signal_params,
+                                             const double entry_reference,
+                                             const double stop_anchor)
+{
+  double expected_sl_loss = 0.0;
+  double expected_tp_profit = 0.0;
+  double assigned_volume = 0.0;
+
+  int total_legs = ArraySize(signal_params.execution_legs);
+  for(int i = 0; i < total_legs; i++)
+  {
+    ExecutionLegState state = signal_params.execution_legs[i];
+    if(!state.opens_position || state.lot_size <= 0.0)
+      continue;
+
+    double sl_profit = 0.0;
+    if(ResolveBrokerProfitForExecution(signal_params.signal_type,
+                                       state.lot_size,
+                                       entry_reference,
+                                       stop_anchor,
+                                       sl_profit))
+      expected_sl_loss += MathAbs(sl_profit);
+
+    double tp_profit = 0.0;
+    if(ResolveBrokerProfitForExecution(signal_params.signal_type,
+                                       state.lot_size,
+                                       entry_reference,
+                                       state.take_profit_price,
+                                       tp_profit))
+      expected_tp_profit += tp_profit;
+
+    assigned_volume += state.lot_size;
+  }
+
+  if(assigned_volume <= 0.0)
+    return false;
+
+  if(signal_params.execution_risk_target_amount > 0.0 ||
+     ResolveEffectiveExecutionLotType(Lot_Type) == EXECUTION_LOT_TARGET_CURRENCY)
+  {
+    signal_params.execution_risk_plan_valid = true;
+    signal_params.execution_risk_plan_reason = "partial_tp_legs_ok";
+    signal_params.execution_expected_sl_loss = expected_sl_loss;
+    signal_params.execution_expected_tp_profit = expected_tp_profit;
+    signal_params.execution_normalized_lot_size = assigned_volume;
+    if(signal_params.execution_target_error_amount == 0.0 &&
+       signal_params.execution_risk_target_amount > 0.0)
+      signal_params.execution_target_error_amount =
+        signal_params.execution_risk_target_amount - expected_sl_loss;
+  }
+
+  return true;
+}
+
+bool ConfigureDeterministicExecutionLegs(SignalParams &signal_params,
+                                         const double entry_reference,
+                                         const double stop_anchor,
+                                         const double risk_points,
+                                         const double planned_lot,
+                                         string &reason_out)
+{
+  reason_out = "";
+  if(entry_reference <= 0.0 || stop_anchor <= 0.0 || risk_points <= 0.0)
+  {
+    reason_out = "entry_stop_or_risk_invalid";
+    return false;
+  }
+
+  if(!PartialTPEnabled())
+  {
+    double tp_price = ResolveDeterministicTpPrice(signal_params.signal_type,
+                                                 entry_reference,
+                                                 stop_anchor);
+    if(planned_lot <= 0.0 || tp_price <= 0.0)
+    {
+      reason_out = "single_leg_lot_or_tp_invalid";
+      return false;
+    }
+
+    ArrayResize(signal_params.execution_legs, 0);
+    ExecutionLegState leg_state;
+    leg_state.level_index               = 0;
+    leg_state.status                    = EXECUTION_LEG_PENDING;
+    leg_state.entry_style               = EXECUTION_ENTRY_STYLE_STOP;
+    leg_state.entry_reference_price     = entry_reference;
+    leg_state.next_level_price          = stop_anchor;
+    leg_state.take_profit_price         = tp_price;
+    leg_state.initial_take_profit_price = tp_price;
+    leg_state.lot_size                  = planned_lot;
+    leg_state.initial_lot_size          = planned_lot;
+    leg_state.opens_position            = true;
+    leg_state.limit_activation_armed    = true;
+    AddElementToArray(signal_params.execution_legs, leg_state);
+
+    signal_params.execution_base_lot_size = planned_lot;
+    signal_params.raw_take_profit_price = tp_price;
+    return true;
+  }
+
+  if(!AccountSupportsPartialTPHedging())
+  {
+    reason_out = "account_not_hedging";
+    return false;
+  }
+
+  double volumes[];
+  if(!ResolveDeterministicPartialLegVolumes(planned_lot,
+                                            volumes,
+                                            reason_out))
+    return false;
+
+  ArrayResize(signal_params.execution_legs, 0);
+  double assigned_total = 0.0;
+  for(int level_index = 0; level_index < PARTIAL_TP_LEVELS_TOTAL; level_index++)
+  {
+    double tp_price = ResolveDeterministicRMultipleTpPrice(signal_params.signal_type,
+                                                          entry_reference,
+                                                          stop_anchor,
+                                                          PartialTPLevelR(level_index));
+    if(tp_price <= 0.0 || volumes[level_index] <= 0.0)
+    {
+      reason_out = "partial_leg_tp_or_volume_invalid";
+      return false;
+    }
+
+    ExecutionLegState leg_state;
+    leg_state.level_index               = level_index;
+    leg_state.status                    = EXECUTION_LEG_PENDING;
+    leg_state.entry_style               = EXECUTION_ENTRY_STYLE_STOP;
+    leg_state.entry_reference_price     = entry_reference;
+    leg_state.next_level_price          = stop_anchor;
+    leg_state.take_profit_price         = tp_price;
+    leg_state.initial_take_profit_price = tp_price;
+    leg_state.lot_size                  = volumes[level_index];
+    leg_state.initial_lot_size          = volumes[level_index];
+    leg_state.opens_position            = true;
+    leg_state.limit_activation_armed    = true;
+    AddElementToArray(signal_params.execution_legs, leg_state);
+    assigned_total += volumes[level_index];
+  }
+
+  signal_params.execution_base_lot_size = assigned_total;
+  signal_params.raw_take_profit_price =
+    signal_params.execution_legs[PARTIAL_TP_LEVELS_TOTAL - 1].take_profit_price;
+  UpdateDeterministicPartialRiskTelemetry(signal_params,
+                                          entry_reference,
+                                          stop_anchor);
+  return true;
+}
+
 bool EnsureDeterministicExecutionLeg(SignalParams &signal_params)
 {
   if(!signal_params.deterministic_strategy)
@@ -82,48 +356,40 @@ bool EnsureDeterministicExecutionLeg(SignalParams &signal_params)
   if(risk_points <= 0.0)
     return false;
 
-  ExecutionLegState leg_state;
-  leg_state.level_index               = 0;
-  leg_state.status                    = EXECUTION_LEG_PENDING;
-  leg_state.entry_style               = EXECUTION_ENTRY_STYLE_STOP;
-  leg_state.entry_reference_price     = entry_reference;
-  leg_state.next_level_price          = stop_anchor;
-  leg_state.take_profit_price         = ResolveDeterministicTpPrice(signal_params.signal_type,
-                                                                    entry_reference,
-                                                                    stop_anchor);
-  leg_state.initial_take_profit_price = leg_state.take_profit_price;
-  leg_state.lot_size                  = ResolveBaseExecutionLot(risk_points);
-  if(ResolveEffectiveExecutionLotType(Lot_Type) == EXECUTION_LOT_TARGET_CURRENCY)
-  {
-    double risk_capped_lot = 0.0;
-    if(!ResolveRiskCappedTargetCurrencyLot(signal_params,
-                                           entry_reference,
-                                           stop_anchor,
-                                           leg_state.take_profit_price,
-                                           risk_capped_lot))
-      return false;
-    leg_state.lot_size = risk_capped_lot;
-  }
-  leg_state.initial_lot_size          = leg_state.lot_size;
-  leg_state.opens_position            = true;
-  leg_state.limit_activation_armed    = true;
+	  double planned_lot = ResolveBaseExecutionLot(risk_points);
+	  if(ResolveEffectiveExecutionLotType(Lot_Type) == EXECUTION_LOT_TARGET_CURRENCY)
+	  {
+	    double risk_capped_lot = 0.0;
+	    if(!ResolveRiskCappedTargetCurrencyLot(signal_params,
+	                                           entry_reference,
+	                                           stop_anchor,
+	                                           ResolveDeterministicTpPrice(signal_params.signal_type,
+	                                                                       entry_reference,
+	                                                                       stop_anchor),
+	                                           risk_capped_lot))
+	      return false;
+	    planned_lot = risk_capped_lot;
+	  }
 
-  if(leg_state.lot_size <= 0.0 || leg_state.take_profit_price <= 0.0)
-    return false;
+	  string configure_reason = "";
+	  if(!ConfigureDeterministicExecutionLegs(signal_params,
+	                                         entry_reference,
+	                                         stop_anchor,
+	                                         risk_points,
+	                                         planned_lot,
+	                                         configure_reason))
+	    return false;
 
-  AddElementToArray(signal_params.execution_legs, leg_state);
-  signal_params.execution_initialized = true;
-  signal_params.execution_base_distance_points = risk_points;
-  signal_params.execution_initial_indicator_distance_points = risk_points;
-  signal_params.execution_resolved_distance_points = risk_points;
-  signal_params.execution_base_lot_size = leg_state.lot_size;
-  signal_params.execution_entry_reference_price = entry_reference;
-  signal_params.raw_risk_distance = MathAbs(entry_reference - stop_anchor);
-  signal_params.raw_take_profit_price = leg_state.take_profit_price;
+	  signal_params.execution_initialized = true;
+	  signal_params.execution_base_distance_points = risk_points;
+	  signal_params.execution_initial_indicator_distance_points = risk_points;
+	  signal_params.execution_resolved_distance_points = risk_points;
+	  signal_params.execution_entry_reference_price = entry_reference;
+	  signal_params.raw_risk_distance = MathAbs(entry_reference - stop_anchor);
 
-  ExecutionLogEvent("DETERMINISTIC_SIGNAL_INIT", signal_params, leg_state);
-  return true;
-}
+	  ExecutionLogEvent("DETERMINISTIC_SIGNAL_INIT", signal_params, signal_params.execution_legs[0]);
+	  return true;
+	}
 
 bool DeterministicEntryTriggered(const SignalTypes direction,
                                  const double close_0,
@@ -301,13 +567,13 @@ bool RefreshDeterministicPendingEntryAnchor(SignalParams &signal_params,
                                              risk_after_points))
     return false;
 
-  double tp_price = ResolveDeterministicTpPrice(signal_params.signal_type,
-                                               candidate_trigger,
-                                               stop_anchor);
-  if(tp_price <= 0.0)
-    return false;
+	  double tp_price = ResolveDeterministicTpPrice(signal_params.signal_type,
+	                                               candidate_trigger,
+	                                               stop_anchor);
+	  if(tp_price <= 0.0)
+	    return false;
 
-  double lot_size = ResolveBaseExecutionLot(risk_after_points);
+	  double lot_size = ResolveBaseExecutionLot(risk_after_points);
   if(ResolveEffectiveExecutionLotType(Lot_Type) == EXECUTION_LOT_TARGET_CURRENCY)
   {
     if(!ResolveRiskCappedTargetCurrencyLot(signal_params,
@@ -317,52 +583,60 @@ bool RefreshDeterministicPendingEntryAnchor(SignalParams &signal_params,
                                            lot_size))
       return false;
   }
-  if(lot_size <= 0.0)
-    return false;
+	  if(lot_size <= 0.0)
+	    return false;
 
-  double tp_before = leg_state.take_profit_price;
-  double lot_before = leg_state.lot_size;
+	  double tp_before = leg_state.take_profit_price;
+	  double lot_before = PartialTPEnabled()
+	                      ? ResolveExecutionLegSetTotalVolume(signal_params)
+	                      : leg_state.lot_size;
 
-  signal_params.raw_entry_trigger_price = candidate_trigger;
-  signal_params.entry_price = candidate_trigger;
-  signal_params.stop_loss = stop_anchor;
-  signal_params.execution_entry_reference_price = candidate_trigger;
+	  signal_params.raw_entry_trigger_price = candidate_trigger;
+	  signal_params.entry_price = candidate_trigger;
+	  signal_params.stop_loss = stop_anchor;
+	  signal_params.execution_entry_reference_price = candidate_trigger;
   signal_params.execution_base_distance_points = risk_after_points;
   signal_params.execution_initial_indicator_distance_points = risk_after_points;
   signal_params.execution_resolved_distance_points = risk_after_points;
-  signal_params.execution_base_lot_size = lot_size;
-  signal_params.raw_risk_distance = MathAbs(candidate_trigger - stop_anchor);
-  signal_params.raw_take_profit_price = tp_price;
+	  signal_params.execution_base_lot_size = lot_size;
+	  signal_params.raw_risk_distance = MathAbs(candidate_trigger - stop_anchor);
+	  signal_params.raw_take_profit_price = tp_price;
 
-  leg_state.entry_reference_price = candidate_trigger;
-  leg_state.next_level_price = stop_anchor;
-  leg_state.take_profit_price = tp_price;
-  leg_state.initial_take_profit_price = tp_price;
-  leg_state.lot_size = lot_size;
-  leg_state.initial_lot_size = lot_size;
-  signal_params.execution_legs[leg_index] = leg_state;
+	  string configure_reason = "";
+	  if(!ConfigureDeterministicExecutionLegs(signal_params,
+	                                         candidate_trigger,
+	                                         stop_anchor,
+	                                         risk_after_points,
+	                                         lot_size,
+	                                         configure_reason))
+	    return false;
 
-  ExecutionLogDeterministicEntryRefresh(signal_params,
-                                        leg_state,
-                                        current_trigger,
-                                        candidate_trigger,
-                                        candidate_trigger,
+	  ExecutionLegState refreshed_leg_state = signal_params.execution_legs[leg_index];
+
+	  ExecutionLogDeterministicEntryRefresh(signal_params,
+	                                        refreshed_leg_state,
+	                                        current_trigger,
+	                                        candidate_trigger,
+	                                        candidate_trigger,
                                         close_0,
                                         high_1,
                                         low_1,
-                                        risk_before_points,
-                                        risk_after_points,
-                                        tp_before,
-                                        tp_price,
-                                        lot_before,
-                                        lot_size,
-                                        "closer_to_stop");
-  return true;
-}
+	                                        risk_before_points,
+	                                        risk_after_points,
+	                                        tp_before,
+	                                        refreshed_leg_state.take_profit_price,
+	                                        lot_before,
+	                                        signal_params.execution_base_lot_size,
+	                                        "closer_to_stop");
+	  return true;
+	}
 
 void RefreshDeterministicTpFromBrokerEntry(SignalParams &signal_params,
                                            const int leg_index)
 {
+  if(PartialTPEnabled())
+    return;
+
   if(leg_index < 0 || leg_index >= ArraySize(signal_params.execution_legs))
     return;
 
@@ -529,7 +803,71 @@ bool PrepareDeterministicPendingEntryAdmission(SignalParams &signal_params,
     return false;
   }
 
-  leg_state_out = signal_params.execution_legs[leg_index];
+	  leg_state_out = signal_params.execution_legs[leg_index];
+	  return true;
+	}
+
+bool ApplyDeterministicPartialPreparedEntryAdmission(SignalParams &signal_params)
+{
+  int total_legs = ArraySize(signal_params.execution_legs);
+  if(total_legs != PARTIAL_TP_LEVELS_TOTAL)
+  {
+    signal_params.admission_status = EXECUTION_ADMISSION_BLOCKED;
+    signal_params.admission_block_source = "partial_tp_legs";
+    signal_params.admission_block_reason = "leg_count_invalid";
+    signal_params.admission_updated_time = TimeCurrent();
+    DeterministicSignalStatsRecordAdmissionEvent(signal_params, "admission_blocked");
+    return false;
+  }
+
+  ExecutionLegTradeAdmissionContext contexts[];
+  ArrayResize(contexts, total_legs);
+  double point_size = ExecutionResolvePointSize();
+  for(int i = 0; i < total_legs; i++)
+  {
+    ExecutionLegState state = signal_params.execution_legs[i];
+    if(state.status != EXECUTION_LEG_PENDING ||
+       !state.opens_position ||
+       state.lot_size <= 0.0)
+    {
+      signal_params.admission_status = EXECUTION_ADMISSION_BLOCKED;
+      signal_params.admission_block_source = "partial_tp_legs";
+      signal_params.admission_block_reason =
+        StringFormat("leg_%d_not_ready", i + 1);
+      signal_params.admission_updated_time = TimeCurrent();
+      DeterministicSignalStatsRecordAdmissionEvent(signal_params, "admission_blocked");
+      return false;
+    }
+
+    double normalized_volume = state.lot_size;
+    if(!PrepareExecutionLegTradeAdmission(signal_params,
+                                          state,
+                                          point_size,
+                                          normalized_volume,
+                                          contexts[i]))
+      return false;
+  }
+
+  for(int i = 0; i < total_legs; i++)
+  {
+    ExecutionLegState state = signal_params.execution_legs[i];
+    if(ApplyExecutionLegTradeAdmission(signal_params,
+                                       state,
+                                       contexts[i]))
+      continue;
+
+    signal_params.deterministic_stats_terminal_reason = "PARTIAL_TP_ENTRY_FAILED";
+    CloseAllExecutionLegs(signal_params, point_size);
+    signal_params.signal_state = CLOSED;
+    ExecutionLogGuardrailBlock("PARTIAL_TP_ENTRY_FAILED",
+                               signal_params,
+                               state,
+                               StringFormat("failed_leg=%d", i + 1));
+    return false;
+  }
+
+  ReconcileSignalBrokerPositions(signal_params);
+  RefreshSignalExposureState(signal_params);
   return true;
 }
 
@@ -552,24 +890,37 @@ bool ApplyDeterministicPreparedEntryAdmission(SignalParams &signal_params,
                                signal_params,
                                leg_state,
                                pattern_filter_block_reason);
-    return false;
-  }
+	    return false;
+	  }
 
-  if(!ApplyExecutionLegTradeAdmission(signal_params,
-                                      leg_state,
-                                      admission_context))
-    return false;
+	  bool entry_applied = false;
+	  int feature_leg_index = leg_index;
+	  if(PartialTPEnabled())
+	  {
+	    entry_applied = ApplyDeterministicPartialPreparedEntryAdmission(signal_params);
+	    feature_leg_index = 0;
+	  }
+	  else
+	  {
+	    entry_applied = ApplyExecutionLegTradeAdmission(signal_params,
+	                                                   leg_state,
+	                                                   admission_context);
+	    if(entry_applied)
+	      RefreshDeterministicTpFromBrokerEntry(signal_params, leg_index);
+	  }
 
-  RefreshDeterministicTpFromBrokerEntry(signal_params, leg_index);
-  DeterministicSignalStatsRecordFeature(signal_params,
-                                        signal_params.execution_legs[leg_index]);
-  PatternAuditPlaybackRecordSignal(signal_params,
-                                   signal_params.execution_legs[leg_index]);
-  DeterministicSignalMLShadowRecordPrediction(signal_params,
-                                              signal_params.execution_legs[leg_index]);
-  ExecutionLogEvent("DETERMINISTIC_ENTRY", signal_params, signal_params.execution_legs[leg_index]);
-  return true;
-}
+	  if(!entry_applied)
+	    return false;
+
+	  DeterministicSignalStatsRecordFeature(signal_params,
+	                                        signal_params.execution_legs[feature_leg_index]);
+	  PatternAuditPlaybackRecordSignal(signal_params,
+	                                   signal_params.execution_legs[feature_leg_index]);
+	  DeterministicSignalMLShadowRecordPrediction(signal_params,
+	                                              signal_params.execution_legs[feature_leg_index]);
+	  ExecutionLogEvent("DETERMINISTIC_ENTRY", signal_params, signal_params.execution_legs[feature_leg_index]);
+	  return true;
+	}
 
 void UpdateDeterministicActiveExecutionLifecycle(SignalParams &signal_params,
                                                  const int leg_index,
@@ -590,14 +941,12 @@ void UpdateDeterministicActiveExecutionLifecycle(SignalParams &signal_params,
     return;
   }
 
-  if(PartialTPEnabled())
-  {
-    if(UpdateDeterministicPartialTPLifecycle(signal_params, leg_index))
-      return;
-    if(IsExecutionSignalComplete(signal_params))
-      signal_params.signal_state = CLOSED;
-    return;
-  }
+	  if(PartialTPEnabled())
+	  {
+	    if(IsExecutionSignalComplete(signal_params))
+	      signal_params.signal_state = CLOSED;
+	    return;
+	  }
 
   if(DeterministicTakeProfitTriggered(signal_params, leg_state))
   {

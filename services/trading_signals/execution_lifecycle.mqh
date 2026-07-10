@@ -8,13 +8,6 @@
 
 bool g_debug_no_money_abort_pending = false;
 const double EXECUTION_VOLUME_EPSILON = 0.0000001;
-const int    PARTIAL_TP_LEVELS_TOTAL = 3;
-const double PARTIAL_TP_LEVEL_1_R = 1.0;
-const double PARTIAL_TP_LEVEL_2_R = 2.0;
-const double PARTIAL_TP_LEVEL_3_R = 3.0;
-const double PARTIAL_TP_VOLUME_1 = 0.33;
-const double PARTIAL_TP_VOLUME_2 = 0.33;
-const double PARTIAL_TP_VOLUME_3 = 0.34;
 
 struct SignalOrderCloseCandidate
 {
@@ -27,68 +20,6 @@ struct SignalOrderCloseCandidate
     projected_profit  = 0.0;
   }
 };
-
-bool PartialTPEnabled()
-{
-  return (Partial_TP_Mode == PARTIAL_TP_R_MULTIPLES);
-}
-
-double PartialTPLevelR(const int level_index)
-{
-  if(level_index == 0)
-    return PARTIAL_TP_LEVEL_1_R;
-  if(level_index == 1)
-    return PARTIAL_TP_LEVEL_2_R;
-  return PARTIAL_TP_LEVEL_3_R;
-}
-
-double PartialTPVolumeFraction(const int level_index)
-{
-  if(level_index == 0)
-    return PARTIAL_TP_VOLUME_1;
-  if(level_index == 1)
-    return PARTIAL_TP_VOLUME_2;
-  return PARTIAL_TP_VOLUME_3;
-}
-
-bool PartialTPLevelConfirmed(const SignalParams &signal_params,
-                             const int level_index)
-{
-  if(level_index == 0)
-    return signal_params.partial_tp1_confirmed;
-  if(level_index == 1)
-    return signal_params.partial_tp2_confirmed;
-  return signal_params.partial_tp3_confirmed;
-}
-
-void MarkPartialTPLevelConfirmed(SignalParams &signal_params,
-                                 const int level_index,
-                                 const double closed_volume,
-                                 const double close_price)
-{
-  datetime close_time = TimeCurrent();
-  if(level_index == 0)
-  {
-    signal_params.partial_tp1_confirmed = true;
-    signal_params.partial_tp1_closed_volume += closed_volume;
-    signal_params.partial_tp1_close_price = close_price;
-    signal_params.partial_tp1_close_time = close_time;
-    return;
-  }
-  if(level_index == 1)
-  {
-    signal_params.partial_tp2_confirmed = true;
-    signal_params.partial_tp2_closed_volume += closed_volume;
-    signal_params.partial_tp2_close_price = close_price;
-    signal_params.partial_tp2_close_time = close_time;
-    return;
-  }
-
-  signal_params.partial_tp3_confirmed = true;
-  signal_params.partial_tp3_closed_volume += closed_volume;
-  signal_params.partial_tp3_close_price = close_price;
-  signal_params.partial_tp3_close_time = close_time;
-}
 
 double ResolvePartialTPPrice(const SignalParams &signal_params,
                              const ExecutionLegState &leg_state,
@@ -474,11 +405,13 @@ bool ApplyExecutionLegTradeAdmission(SignalParams &signal_params,
   signal_params.admission_updated_time = TimeCurrent();
   DeterministicSignalStatsRecordAdmissionEvent(signal_params, "broker_send");
 
-  bool sent = false;
-  if(direction == BULLISH)
-    sent = g_position.Buy(order_volume, _Symbol, 0.0, 0.0, 0.0, context.comment);
-  else
-    sent = g_position.Sell(order_volume, _Symbol, 0.0, 0.0, 0.0, context.comment);
+	  bool sent = false;
+	  double order_sl = ExecutionLegBrokerStopLossPrice(signal_params, leg_state);
+	  double order_tp = ExecutionLegBrokerTakeProfitPrice(signal_params, leg_state);
+	  if(direction == BULLISH)
+	    sent = g_position.Buy(order_volume, _Symbol, 0.0, order_sl, order_tp, context.comment);
+	  else
+	    sent = g_position.Sell(order_volume, _Symbol, 0.0, order_sl, order_tp, context.comment);
 
   if(!sent)
   {
@@ -506,9 +439,12 @@ bool ApplyExecutionLegTradeAdmission(SignalParams &signal_params,
   if(fill_price <= 0.0)
     fill_price = ExecutionCurrentPriceForDirection(direction, true);
 
-  leg_state.status = EXECUTION_LEG_ACTIVE;
-  leg_state.entry_price = fill_price;
-  ulong deal_ticket = (ulong)g_position.ResultDeal();
+	  leg_state.status = EXECUTION_LEG_ACTIVE;
+	  leg_state.entry_price = fill_price;
+	  leg_state.lot_size = order_volume;
+	  if(leg_state.initial_lot_size <= 0.0)
+	    leg_state.initial_lot_size = order_volume;
+	  ulong deal_ticket = (ulong)g_position.ResultDeal();
   leg_state.position_ticket = ResolvePositionTicketFromDeal(deal_ticket);
   leg_state.position_comment = context.comment;
   leg_state.last_action_time = TimeCurrent();
@@ -767,13 +703,24 @@ bool UpdateDeterministicPartialTPLifecycle(SignalParams &signal_params,
     if(closed_volume <= 0.0)
       return false;
 
-    RegisterSignalRealizedClose(signal_params,
-                                state_before_close,
-                                closed_volume,
-                                close_price);
-    MarkPartialTPLevelConfirmed(signal_params,
-                                level_index,
-                                closed_volume,
+	    RegisterSignalRealizedClose(signal_params,
+	                                state_before_close,
+	                                closed_volume,
+	                                close_price);
+	    double close_profit = ResolveProjectedExecutionLegProfitAtPrice(signal_params.signal_type,
+	                                                                    state_before_close.entry_price,
+	                                                                    close_price,
+	                                                                    closed_volume);
+	    MarkExecutionLegCloseFacts(state,
+	                               state_before_close.position_ticket,
+	                               closed_volume,
+	                               close_profit,
+	                               close_price,
+	                               TimeCurrent(),
+	                               "ea_close");
+	    MarkPartialTPLevelConfirmed(signal_params,
+	                                level_index,
+	                                closed_volume,
                                 close_price);
 
     if(fully_closed)
@@ -912,9 +859,20 @@ bool CloseSignalVolumeByExecutionPriority(SignalParams &signal_params,
     if(closed_volume <= 0.0)
       continue;
 
-    RegisterSignalRealizedClose(signal_params, state_before_close, closed_volume, close_price);
-    if(fully_closed)
-      state.status = EXECUTION_LEG_COMPLETED;
+	    RegisterSignalRealizedClose(signal_params, state_before_close, closed_volume, close_price);
+	    double close_profit = ResolveProjectedExecutionLegProfitAtPrice(signal_params.signal_type,
+	                                                                    state_before_close.entry_price,
+	                                                                    close_price,
+	                                                                    closed_volume);
+	    MarkExecutionLegCloseFacts(state,
+	                               state_before_close.position_ticket,
+	                               closed_volume,
+	                               close_profit,
+	                               close_price,
+	                               TimeCurrent(),
+	                               "ea_close");
+	    if(fully_closed)
+	      state.status = EXECUTION_LEG_COMPLETED;
     else
       state.status = EXECUTION_LEG_ACTIVE;
 
@@ -940,11 +898,25 @@ void CloseAllExecutionLegs(SignalParams &signal_params,
     double tracked_volume = ResolveExecutionLegTrackedVolume(state);
     double close_price = 0.0;
     result = CloseExecutionLegBrokerPosition(state, direction, close_price);
-    if(result)
-    {
-      RegisterSignalRealizedClose(signal_params, state_before_close, tracked_volume, close_price);
-      state.status = EXECUTION_LEG_COMPLETED;
-    }
+	    if(result)
+	    {
+	      RegisterSignalRealizedClose(signal_params, state_before_close, tracked_volume, close_price);
+	      double close_profit = ResolveProjectedExecutionLegProfitAtPrice(signal_params.signal_type,
+	                                                                      state_before_close.entry_price,
+	                                                                      close_price,
+	                                                                      tracked_volume);
+	      if(tracked_volume > 0.0 && close_price > 0.0)
+	      {
+	        MarkExecutionLegCloseFacts(state,
+	                                   state_before_close.position_ticket,
+	                                   tracked_volume,
+	                                   close_profit,
+	                                   close_price,
+	                                   TimeCurrent(),
+	                                   "ea_close");
+	      }
+	      state.status = EXECUTION_LEG_COMPLETED;
+	    }
     ExecutionLogEvent("LEVEL_CLOSE_ALL", signal_params, state);
     signal_params.execution_legs[i] = state;
   }
