@@ -244,6 +244,7 @@ struct ExtremumEngineAttemptStatsState
   string   broker_signal_id;
   bool     broker_entry_confirmed;
   bool     broker_close_confirmed;
+  bool     broker_lifecycle_terminal;
 
   ExtremumEngineAttemptStatsState()
   {
@@ -280,6 +281,7 @@ struct ExtremumEngineAttemptStatsState
     broker_signal_id = "";
     broker_entry_confirmed = false;
     broker_close_confirmed = false;
+    broker_lifecycle_terminal = false;
   }
 
   ExtremumEngineAttemptStatsState(const ExtremumEngineAttemptStatsState &other)
@@ -317,6 +319,7 @@ struct ExtremumEngineAttemptStatsState
     broker_signal_id = other.broker_signal_id;
     broker_entry_confirmed = other.broker_entry_confirmed;
     broker_close_confirmed = other.broker_close_confirmed;
+    broker_lifecycle_terminal = other.broker_lifecycle_terminal;
   }
 };
 
@@ -1137,6 +1140,8 @@ bool DeterministicSignalStatsQueueAttemptRow(const int index)
   ExtremumEngineAttemptStatsState state = g_extremum_engine_attempt_stats_states[index];
   if(state.row_written || !state.finalized)
     return state.row_written;
+  if(!state.broker_lifecycle_terminal && !state.broker_close_confirmed)
+    return false;
 
   string row = IntegerToString(DETERMINISTIC_SIGNAL_STATS_SCHEMA_VERSION) + "\t" +
                DeterministicSignalStatsCell(g_deterministic_signal_stats_run_id) + "\t" +
@@ -1232,6 +1237,27 @@ bool DeterministicSignalStatsRecordIntrinsicAttempt(SignalParams &signal_params)
   state.stop_price = signal_params.raw_stop_anchor_price;
   state.target_price = signal_params.raw_take_profit_price;
   state.risk_distance = MathAbs(state.trigger_price - state.stop_price);
+  bool geometry_valid = state.trigger_price > 0.0 &&
+                        state.stop_price > 0.0 &&
+                        state.target_price > 0.0 &&
+                        state.risk_distance > 0.0 &&
+                        ((state.direction == BULLISH &&
+                          state.stop_price < state.trigger_price &&
+                          state.trigger_price < state.target_price) ||
+                         (state.direction == BEARISH &&
+                          state.target_price < state.trigger_price &&
+                          state.trigger_price < state.stop_price));
+  if(!geometry_valid)
+  {
+    g_deterministic_signal_stats_failed = true;
+    PrintFormat("Invalid intrinsic attempt geometry: attempt=%s direction=%s trigger=%.5f stop=%.5f target=%.5f",
+                state.attempt_id,
+                DeterministicSignalStatsDirectionToken(state.direction),
+                state.trigger_price,
+                state.stop_price,
+                state.target_price);
+    return false;
+  }
 
   int index = ArraySize(g_extremum_engine_attempt_stats_states);
   if(ArrayResize(g_extremum_engine_attempt_stats_states,
@@ -1357,8 +1383,14 @@ bool DeterministicSignalStatsRecordAdmissionEvent(SignalParams &signal_params,
     g_extremum_engine_attempt_stats_states[attempt_index].broker_signal_id = signal_id;
     g_extremum_engine_attempt_stats_states[attempt_index].broker_entry_confirmed = signal_params.broker_entry_confirmed;
     g_extremum_engine_attempt_stats_states[attempt_index].broker_close_confirmed = signal_params.broker_close_confirmed;
+    if(event_type == "operational_blocked" ||
+       event_type == "lifecycle_cancel" ||
+       event_type == "broker_close")
+    {
+      g_extremum_engine_attempt_stats_states[attempt_index].broker_lifecycle_terminal = true;
+    }
     if(g_extremum_engine_attempt_stats_states[attempt_index].finalized &&
-       (signal_params.broker_close_confirmed || !signal_params.broker_entry_confirmed))
+       g_extremum_engine_attempt_stats_states[attempt_index].broker_lifecycle_terminal)
       DeterministicSignalStatsQueueAttemptRow(attempt_index);
   }
   return true;
@@ -3046,6 +3078,7 @@ void DeterministicSignalStatsFinalizeAttemptPaths(const string terminal_reason)
     return;
   for(int i = 0; i < ArraySize(g_extremum_engine_attempt_stats_states); i++)
   {
+    g_extremum_engine_attempt_stats_states[i].broker_lifecycle_terminal = true;
     if(!g_extremum_engine_attempt_stats_states[i].finalized)
     {
       string path_status = g_extremum_engine_attempt_stats_states[i].trigger_reached
@@ -3134,6 +3167,7 @@ bool DeterministicSignalStatsRecordOutcome(SignalParams &signal_params)
     g_extremum_engine_attempt_stats_states[attempt_stats_index].broker_signal_id = signal_id;
     g_extremum_engine_attempt_stats_states[attempt_stats_index].broker_entry_confirmed = signal_params.broker_entry_confirmed;
     g_extremum_engine_attempt_stats_states[attempt_stats_index].broker_close_confirmed = signal_params.broker_close_confirmed;
+    g_extremum_engine_attempt_stats_states[attempt_stats_index].broker_lifecycle_terminal = true;
     if(g_extremum_engine_attempt_stats_states[attempt_stats_index].finalized)
       DeterministicSignalStatsQueueAttemptRow(attempt_stats_index);
   }

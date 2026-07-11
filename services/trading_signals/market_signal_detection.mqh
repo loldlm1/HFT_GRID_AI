@@ -225,6 +225,11 @@ bool PopulateExtremumEngineSignal(const int engine_id,
     return false;
 
   signal.raw_entry_trigger_price = (direction == BULLISH) ? high_1 : low_1;
+  signal.raw_risk_distance       = MathAbs(signal.raw_entry_trigger_price -
+                                           signal.raw_stop_anchor_price);
+  signal.raw_take_profit_price   = ResolveDeterministicTpPrice(direction,
+                                                               signal.raw_entry_trigger_price,
+                                                               signal.raw_stop_anchor_price);
   signal.entry_price             = signal.raw_entry_trigger_price;
   signal.stop_loss               = signal.raw_stop_anchor_price;
   signal.execution_sequence_id   = BuildExtremumEngineSignalSequenceId(engine_id,

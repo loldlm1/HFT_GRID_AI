@@ -1,8 +1,8 @@
 # Plan: Single Extremum Engine And Cycle Statistics
 
 **Generated**: 2026-07-10
-**Status**: Sprints 1-7 implementation complete; human Strategy Tester and
-performance acceptance pending
+**Status**: Sprints 1-7 implementation complete; Sprints 8-11 corrective batch
+in progress; human Strategy Tester and performance acceptance pending
 **Estimated Complexity**: Critical
 **Risk Class**: Critical, because removing the M1 and macro MA gates changes which candidates can reach broker admission and can materially increase trade frequency even though broker, license, session, margin, spread, protection, and reconciliation controls remain mandatory.
 
@@ -75,9 +75,21 @@ yet been executed or accepted.
 | 5 | `2b23cd4` | Implemented; DuckDB audit fixture PASS |
 | 6 | `521e038` | Implemented; MetaEditor and Python PASS |
 | 7 | `docs: close extremum engine statistics workflow` | Documentation and final automated validation complete |
+| 8 | `fix: preserve valid extremum attempt geometry and genealogy` | Implemented; MetaEditor PASS |
+| 9 | `test: reject inconsistent extremum attempt exports` | Planned |
+| 10 | `perf: bound extremum tester telemetry overhead` | Planned |
+| 11 | `docs: record extremum telemetry corrective validation` | Planned |
 
 Human acceptance is deliberately not inferred from compilation or synthetic
 fixtures. The unchecked human/performance gates in this plan remain binding.
+
+The first schema v7 diagnostic run was intentionally stopped by the human owner
+because its projected one-month duration was approximately one hour. Its
+missing `run_summary.tsv`, open cycles, and partial joins are expected evidence
+of an interrupted run and are not accepted as a completed dataset. Corrective
+acceptance first requires a naturally completed short run; a naturally
+completed one-month run follows only after the short-run integrity and
+performance gates pass.
 
 ## Scope
 
@@ -1340,6 +1352,192 @@ immutable evidence and are not converted backward.
 - [ ] The Sprint 6 commit and all earlier rollback points are recorded.
 - [ ] The plan is archived only after active-plan completion is recorded.
 
+## Sprint 8: Repair Attempt Geometry And Append-Only Genealogy
+
+**Goal**: Make every intrinsic simulation start with valid frozen
+trigger/stop/target geometry and prevent an attempt row from being written
+before its broker lifecycle facts are terminal.
+
+**Risk class**: High. This sprint touches pre-broker telemetry and lifecycle
+observation, but it must not change broker admission, order sends, lots, SL/TP,
+partial TP, protection, license, session, margin, magic, symbol, or broker
+reconciliation behavior.
+
+**Dependencies**: Sprint 7 implementation and the diagnostic schema v7 audit.
+
+**Tracked scope**:
+`services/trading_signals/market_signal_detection.mqh`,
+`services/trading_signals/deterministic_signal_statistics_export.mqh`, and this
+plan.
+
+**Commit**: `fix: preserve valid extremum attempt geometry and genealogy`
+
+### Task 8.1: Freeze A Valid Intrinsic Target Before Census Capture
+
+- Compute the configured deterministic target from the attempt's raw breakout
+  trigger and captured extremum stop before `RecordIntrinsicAttempt()`.
+- Reject or fail the export state for non-positive risk or non-directional
+  target geometry instead of allowing target zero to become an immediate win.
+- Keep the target frozen for the simulated path even if later execution planning
+  refreshes broker-facing legs.
+
+### Task 8.2: Delay Attempt Rows Until Broker Facts Are Terminal
+
+- Distinguish a pending broker lifecycle from a terminal no-entry lifecycle.
+- Write a finalized simulated attempt only after broker close, definitive
+  no-entry cancellation/block, or run-end censoring.
+- Preserve one append-only attempt row per `attempt_id`; never rewrite an
+  already-exported row with later broker flags.
+
+### Sprint 8 Gate
+
+- [x] Every in-memory attempt has positive risk and a directionally valid target.
+- [x] A later broker entry/close cannot leave a written attempt row with stale
+  confirmation flags.
+- [x] Broker-facing execution behavior is unchanged by review.
+- [x] One real MetaEditor compile reports 0 errors and 0 warnings.
+- [ ] Exactly one Sprint 8 commit is created with the proposed message.
+
+## Sprint 9: Enforce Schema V7 Geometry And Genealogy Invariants
+
+**Goal**: Make corrupted TP geometry and stale attempt/outcome confirmation
+facts fail validation before DuckDB assembly or model training.
+
+**Risk class**: Medium. Python validation becomes stricter for schema v7; older
+schema contracts remain unchanged.
+
+**Dependencies**: Sprint 8 gate complete.
+
+**Tracked scope**: `tools/deterministic_signal_ml/validate_phase1_run.py`,
+`tools/deterministic_signal_ml/tests/test_extremum_engine_schema.py`, compact
+schema v7 fixtures, and this plan.
+
+**Commit**: `test: reject inconsistent extremum attempt exports`
+
+### Task 9.1: Validate Frozen Directional Geometry
+
+- Require positive trigger, stop, target, and risk distance for every v7
+  attempt.
+- Require `BULLISH: stop < trigger < target` and
+  `BEARISH: target < trigger < stop`.
+- Require `SIMULATED_TARGET` profit R to match target distance divided by risk
+  distance within a small numeric tolerance.
+
+### Task 9.2: Validate Broker Genealogy Consistency
+
+- If a broker outcome joins to an attempt, require the attempt's broker signal
+  ID and entry/close flags to match that outcome.
+- Reject broker-confirmed attempt flags without the corresponding feature and
+  outcome evidence.
+- Add focused mutation tests for zero TP, wrong-side TP, and stale broker flags.
+
+### Sprint 9 Gate
+
+- [ ] Python `compileall` passes.
+- [ ] All deterministic ML unit tests pass.
+- [ ] Each new broken fixture fails for its intended invariant.
+- [ ] The valid schema v7 fixture still validates and assembles.
+- [ ] Exactly one Sprint 9 commit is created with the proposed message.
+
+## Sprint 10: Bound Strategy Tester Telemetry Cost
+
+**Goal**: Remove the demonstrated progressive slowdown while retaining the
+full intrinsic census and optional diagnostic logging.
+
+**Risk class**: High for tester performance, low for trading semantics. Changes
+must remain isolated to telemetry storage, debug state, and simulated-path
+iteration.
+
+**Dependencies**: Sprint 9 gate complete.
+
+**Tracked scope**: `services/utils/file_logger.mqh`,
+`services/trading_signals/execution_logging.mqh`,
+`services/trading_signals/deterministic_signal_statistics_export.mqh`,
+`HFT_Grid_AI.mq5`, active workflow/environment documentation, and this plan.
+
+**Commit**: `perf: bound extremum tester telemetry overhead`
+
+### Task 10.1: Iterate Only Active Simulated Attempts Per Tick
+
+- Maintain a compact active-attempt index instead of scanning all historical
+  attempts on every real tick.
+- Remove finalized attempts from the hot index while retaining their pending
+  append-only broker state outside the per-tick loop.
+- Report peak active path count from the active set rather than total historical
+  attempts.
+
+### Task 10.2: Bound Optional Query Debug State And File I/O
+
+- Keep the query debug file open for batched appends during one EA session and
+  flush/close it deterministically on reset/deinit.
+- Bound changed-state and throttle key caches so unique signal IDs cannot create
+  month-long linear growth.
+- Preserve `Enable_File_Logs=false` as the recommended statistics-run setting.
+
+### Task 10.3: Reduce Export Flush Frequency Without Unbounded Buffers
+
+- Increase the small row batch to a documented bounded value.
+- Preserve final deinit flush and fail the run summary on write failure.
+- Treat intentionally interrupted runs as partial diagnostic artifacts; never
+  relax the requirement for `run_summary.tsv` in accepted datasets.
+
+### Sprint 10 Gate
+
+- [ ] Per-tick attempt work is bounded by active simulated paths.
+- [ ] Optional debug caches and open file handles are bounded and cleaned up.
+- [ ] No new per-tick indicator handles, history scans, or broker calls appear.
+- [ ] One real MetaEditor compile reports 0 errors and 0 warnings.
+- [ ] Exactly one Sprint 10 commit is created with the proposed message.
+
+## Sprint 11: Corrective Validation And Performance Acceptance
+
+**Goal**: Record automated evidence, define the comparable A/B/C tester matrix,
+and obtain a clean short-run gate before asking the owner to run a full month.
+
+**Risk class**: Medium. Documentation and evidence only; no trading behavior
+change is permitted.
+
+**Dependencies**: Sprint 10 gate complete.
+
+**Tracked scope**: `docs/research/`,
+`docs/workflows/extremum-engine-statistics-flow.md`,
+`docs/environment/mt5-agentic-workflows.md`, this plan, and compact generated
+summaries outside git.
+
+**Commit**: `docs: record extremum telemetry corrective validation`
+
+### Task 11.1: Record Automated Corrective Evidence
+
+- Record commit/rollback points, MetaEditor results, Python test counts, and the
+  exact invariants added.
+- Do not claim Strategy Tester acceptance from compile or fixtures.
+
+### Task 11.2: Run Or Hand Off Comparable Tester Benchmarks
+
+- Use the same symbol, dates, real-tick model, deposit, broker settings, and EA
+  inputs for:
+  - A: export OFF, file logs OFF;
+  - B: export ON, file logs OFF;
+  - C: export ON, file logs ON, diagnostic only.
+- First complete a short 1-3 market-day run naturally and require
+  `run_summary.tsv`, validator PASS, directional TP invariants, consistent
+  joins, elapsed time, row counts, peak active paths, and output bytes.
+- Run one month naturally only after A/B short-run performance and B data
+  integrity are accepted. The month run is the research evidence run; it is not
+  required to prove each atomic code edit.
+
+### Sprint 11 Gate
+
+- [ ] Automated compile/test evidence is PASS.
+- [ ] Short-run A/B results are recorded and acceptable, or remain explicitly
+  marked as human-run pending without archiving this plan.
+- [ ] A completed export run validates without TP or genealogy contradictions.
+- [ ] The full-month run instruction explicitly requires natural completion and
+  a unique semantically correct 2026 run ID.
+- [ ] Exactly one Sprint 11 commit is created with the proposed message.
+- [ ] The plan remains active until the human benchmark and one-month acceptance
+  are complete.
+
 ## Testing Strategy
 
 ### MQL5 Compile
@@ -1423,25 +1621,37 @@ immutable evidence and are not converted backward.
 | Intrinsic census increments operational limits | Research changes trading behavior | Record census before gates without registering daily/concurrency execution | Denied census rows do not alter counters |
 | Simulated path tracking slows tester | Long-run regression and memory growth | Bounded active states, fixed horizon, batched writes, new-bar cycle updates | Performance comparison and peak state count |
 | Cycle finalization is lost at deinit | Missing/corrupt cycle counts | Idempotent deinit censor/finalize and flush before summary | Counts reconcile after short run termination |
+| Attempt TP is captured before it exists | Immediate false simulated targets and absurd profit R | Freeze directional target before census capture and validate geometry | Validator rejects zero/wrong-side target and inconsistent target R |
+| Append-only attempt row precedes broker terminal facts | Stale broker flags despite a joined outcome | Delay row until broker terminal/no-entry/run end | Attempt and outcome confirmation flags agree |
+| Historical attempt/debug arrays grow through the month | Progressive tester slowdown approaching quadratic behavior | Compact active path index, bounded debug caches, persistent batched file handle | A/B/C elapsed-time and peak-active-state comparison |
 | Point range is misinterpreted as volume | Incorrect research conclusions | Use `range_points` terminology; volume remains out of scope | Docs/audit labels contain no false volume claim |
 | Historical schema support is broken | Existing evidence/tooling unusable | Preserve exact v4/v5/v6 column variants and regression validation | Known v6 run still validates/builds |
 
 ## Rollback Plan
 
-1. **Sprint 7 rollback**: Revert documentation/closeout commit; keep validated
+1. **Sprint 11 rollback**: Revert corrective evidence/documentation only; keep
+   validated product fixes intact.
+2. **Sprint 10 rollback**: Revert telemetry performance changes and run with
+   export/file logs disabled until a bounded replacement is available.
+3. **Sprint 9 rollback**: Revert only the stricter Python invariants if they are
+   proven incompatible with the documented v7 contract; never accept known-zero
+   TP data as valid.
+4. **Sprint 8 rollback**: Revert geometry/genealogy repair to Sprint 7, disable
+   `engine_simulated_1r`, and do not create new research datasets.
+5. **Sprint 7 rollback**: Revert documentation/closeout commit; keep validated
    product/data commits intact.
-2. **Sprint 6 rollback**: Revert v7 model/leakage contract. Schema v7 raw data
+6. **Sprint 6 rollback**: Revert v7 model/leakage contract. Schema v7 raw data
    and DuckDB audits remain usable, but v7 training/runtime compatibility is
    disabled.
-3. **Sprint 5 rollback**: Revert human audit tooling. Raw schema v7 and Parquet
+7. **Sprint 5 rollback**: Revert human audit tooling. Raw schema v7 and Parquet
    assembly remain valid.
-4. **Sprint 4 rollback**: Revert Python schema v7 support. Preserve raw v7 run
+8. **Sprint 4 rollback**: Revert Python schema v7 support. Preserve raw v7 run
    folders as immutable artifacts; do not feed them to v6 tooling.
-5. **Sprint 3 rollback**: Revert schema v7 MQL exporter to schema v6. Preserve or
+9. **Sprint 3 rollback**: Revert schema v7 MQL exporter to schema v6. Preserve or
    move v7 run folders out of active input roots; never rewrite headers in place.
-6. **Sprint 2 rollback**: Revert cycle/revision state while retaining the one
+10. **Sprint 2 rollback**: Revert cycle/revision state while retaining the one
    engine behavior from Sprint 1.
-7. **Sprint 1 rollback**: Revert to the baseline S1/S2/S3 behavior, input surface,
+11. **Sprint 1 rollback**: Revert to the baseline S1/S2/S3 behavior, input surface,
    indicator visuals, and historical artifact compatibility.
 
 Rollback constraints:
@@ -1464,7 +1674,7 @@ Rollback constraints:
 4. Create exactly one Sprint 1 commit and record its rollback point.
 5. Start Sprint 2 only after the Sprint 1 gate passes.
 6. Repeat the complete/validate/one-commit/rollback-point gate for Sprints 2
-   through 7.
+   through 11.
 7. Do not combine sprint commits, amend them, or start a later sprint early.
 8. If a sprint fails, fix within that sprint and rerun its gate; if product/risk
    direction changes, update this plan before continuing.
@@ -1483,12 +1693,15 @@ Rollback constraints:
 - [ ] Schema v7 exports cycles, revisions, attempts, admissions, and broker facts
   with consistent counts.
 - [ ] Simulated and broker outcomes are never conflated.
+- [ ] Every intrinsic attempt has valid frozen directional TP/SL geometry.
+- [ ] Attempt broker flags agree with joined broker outcomes.
 - [ ] Python validation and backward compatibility tests pass.
 - [ ] DuckDB audit reports human depth/range/attempt/cycle profitability with
   distinct-cycle support.
 - [ ] XGBoost splits are chronological and cycle-group safe.
 - [ ] Old artifacts fail closed against the new engine.
 - [ ] Performance/storage regression is measured and acceptable.
+- [ ] Per-tick statistics work scales with active paths, not historical attempts.
 - [ ] Every sprint has exactly one sprint-specific commit and recorded rollback
   point.
 - [ ] Active documentation matches implemented behavior.
