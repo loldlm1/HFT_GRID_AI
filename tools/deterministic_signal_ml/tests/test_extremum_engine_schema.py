@@ -28,6 +28,22 @@ from validate_phase1_run import Phase1ValidationError, validate_phase1_run
 FIXTURE = Path(__file__).parent / "fixtures" / "schema_v7_extremum_engine"
 
 
+def mutate_attempt(run_path: Path, attempt_id: str, field: str, value: str) -> None:
+    attempts_path = run_path / "engine_attempts.tsv"
+    with attempts_path.open("r", encoding="utf-8", newline="") as handle:
+        rows = list(csv.DictReader(handle, delimiter="\t"))
+    for row in rows:
+        if row["attempt_id"] == attempt_id:
+            row[field] = value
+            break
+    else:
+        raise AssertionError(f"Missing fixture attempt: {attempt_id}")
+    with attempts_path.open("w", encoding="utf-8", newline="") as handle:
+        writer = csv.DictWriter(handle, fieldnames=rows[0].keys(), delimiter="\t")
+        writer.writeheader()
+        writer.writerows(rows)
+
+
 class ExtremumEngineSchemaTests(unittest.TestCase):
     def test_schema_v7_is_active_and_v6_contract_is_preserved(self) -> None:
         self.assertEqual(SUPPORTED_SCHEMA_VERSION, 7)
@@ -112,6 +128,43 @@ class ExtremumEngineSchemaTests(unittest.TestCase):
             text = attempts_path.read_text(encoding="utf-8").replace("C_1_R2", "C_1_RX", 1)
             attempts_path.write_text(text, encoding="utf-8")
             with self.assertRaisesRegex(Phase1ValidationError, "Orphan attempt revision"):
+                validate_phase1_run(runs_root, "fixture_v7", schema_version=7)
+
+    def test_zero_attempt_target_is_rejected(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            runs_root = Path(temp_dir) / "runs"
+            run_path = runs_root / "fixture_v7"
+            shutil.copytree(FIXTURE, run_path)
+            mutate_attempt(run_path, "C_1_A1", "take_profit_price", "0")
+            with self.assertRaisesRegex(Phase1ValidationError, "Invalid attempt geometry"):
+                validate_phase1_run(runs_root, "fixture_v7", schema_version=7)
+
+    def test_wrong_side_attempt_target_is_rejected(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            runs_root = Path(temp_dir) / "runs"
+            run_path = runs_root / "fixture_v7"
+            shutil.copytree(FIXTURE, run_path)
+            mutate_attempt(run_path, "C_1_A2", "take_profit_price", "1.10300")
+            with self.assertRaisesRegex(Phase1ValidationError, "Wrong-side attempt target"):
+                validate_phase1_run(runs_root, "fixture_v7", schema_version=7)
+
+    def test_simulated_target_r_mismatch_is_rejected(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            runs_root = Path(temp_dir) / "runs"
+            run_path = runs_root / "fixture_v7"
+            shutil.copytree(FIXTURE, run_path)
+            mutate_attempt(run_path, "C_1_A2", "simulated_profit_r", "99")
+            with self.assertRaisesRegex(Phase1ValidationError, "Simulated target R mismatch"):
+                validate_phase1_run(runs_root, "fixture_v7", schema_version=7)
+
+    def test_stale_attempt_broker_flags_are_rejected(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            runs_root = Path(temp_dir) / "runs"
+            run_path = runs_root / "fixture_v7"
+            shutil.copytree(FIXTURE, run_path)
+            mutate_attempt(run_path, "C_1_A2", "broker_entry_confirmed", "0")
+            mutate_attempt(run_path, "C_1_A2", "broker_close_confirmed", "0")
+            with self.assertRaisesRegex(Phase1ValidationError, "Attempt broker flags disagree"):
                 validate_phase1_run(runs_root, "fixture_v7", schema_version=7)
 
 

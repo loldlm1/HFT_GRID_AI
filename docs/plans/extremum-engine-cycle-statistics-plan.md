@@ -76,7 +76,7 @@ yet been executed or accepted.
 | 6 | `521e038` | Implemented; MetaEditor and Python PASS |
 | 7 | `docs: close extremum engine statistics workflow` | Documentation and final automated validation complete |
 | 8 | `fix: preserve valid extremum attempt geometry and genealogy` | Implemented; MetaEditor PASS |
-| 9 | `test: reject inconsistent extremum attempt exports` | Planned |
+| 9 | `test: reject inconsistent extremum attempt exports` | Implemented; 14 tests PASS |
 | 10 | `perf: bound extremum tester telemetry overhead` | Planned |
 | 11 | `docs: record extremum telemetry corrective validation` | Planned |
 
@@ -1433,10 +1433,10 @@ schema v7 fixtures, and this plan.
 
 ### Sprint 9 Gate
 
-- [ ] Python `compileall` passes.
-- [ ] All deterministic ML unit tests pass.
-- [ ] Each new broken fixture fails for its intended invariant.
-- [ ] The valid schema v7 fixture still validates and assembles.
+- [x] Python `compileall` passes.
+- [x] All deterministic ML unit tests pass.
+- [x] Each new broken fixture fails for its intended invariant.
+- [x] The valid schema v7 fixture still validates and assembles.
 - [ ] Exactly one Sprint 9 commit is created with the proposed message.
 
 ## Sprint 10: Bound Strategy Tester Telemetry Cost

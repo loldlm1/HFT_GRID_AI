@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import csv
+import math
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Iterable
@@ -351,10 +352,33 @@ def validate_phase1_run(
             if revision is None or revision["extremum_cycle_id"] != attempt["extremum_cycle_id"]:
                 raise Phase1ValidationError(f"Orphan attempt revision for {attempt['attempt_id']}")
             _required_float(attempt["candidate_depth_percent"], "candidate_depth_percent", ENGINE_ATTEMPTS_FILE)
+            trigger_price = _required_float(attempt["trigger_price"], "trigger_price", ENGINE_ATTEMPTS_FILE)
+            stop_price = _required_float(attempt["stop_anchor_price"], "stop_anchor_price", ENGINE_ATTEMPTS_FILE)
+            target_price = _required_float(attempt["take_profit_price"], "take_profit_price", ENGINE_ATTEMPTS_FILE)
+            risk_distance = abs(trigger_price - stop_price)
+            if trigger_price <= 0.0 or stop_price <= 0.0 or target_price <= 0.0 or risk_distance <= 0.0:
+                raise Phase1ValidationError(f"Invalid attempt geometry for {attempt['attempt_id']}")
+            direction = attempt["direction"]
+            directional_geometry_valid = (
+                direction == "BULLISH" and stop_price < trigger_price < target_price
+            ) or (
+                direction == "BEARISH" and target_price < trigger_price < stop_price
+            )
+            if not directional_geometry_valid:
+                raise Phase1ValidationError(f"Wrong-side attempt target for {attempt['attempt_id']}")
             if attempt["simulated_outcome_source"] != "ENGINE_SIMULATION":
                 raise Phase1ValidationError(f"Invalid simulated provenance for {attempt['attempt_id']}")
             if attempt["broker_entry_confirmed"] == "0" and attempt["broker_close_confirmed"] == "1":
                 raise Phase1ValidationError(f"Broker close without entry for {attempt['attempt_id']}")
+            if attempt["simulated_terminal_reason"] == "SIMULATED_TARGET":
+                simulated_profit_r = _required_float(
+                    attempt["simulated_profit_r"], "simulated_profit_r", ENGINE_ATTEMPTS_FILE
+                )
+                expected_target_r = abs(target_price - trigger_price) / risk_distance
+                if not math.isclose(simulated_profit_r, expected_target_r, rel_tol=1e-5, abs_tol=1e-5):
+                    raise Phase1ValidationError(
+                        f"Simulated target R mismatch for {attempt['attempt_id']}"
+                    )
 
         broker_attempt_by_signal = {
             row["broker_signal_id"]: row
@@ -369,6 +393,34 @@ def validate_phase1_run(
                 )
             if outcome["broker_entry_confirmed"] != "1" or outcome["broker_close_confirmed"] != "1":
                 raise Phase1ValidationError(f"Broker outcome lacks confirmed evidence: {outcome['signal_id']}")
+            if attempt["broker_entry_confirmed"] != "1" or attempt["broker_close_confirmed"] != "1":
+                raise Phase1ValidationError(
+                    f"Attempt broker flags disagree with outcome {outcome['signal_id']}"
+                )
+
+        for feature in feature_rows:
+            attempt = attempts_by_id.get(feature["extremum_attempt_id"])
+            if attempt is None or broker_attempt_by_signal.get(feature["signal_id"]) is not attempt:
+                raise Phase1ValidationError(
+                    f"Broker feature {feature['signal_id']} has no matching intrinsic attempt"
+                )
+            if attempt["broker_entry_confirmed"] != "1":
+                raise Phase1ValidationError(
+                    f"Attempt broker entry flag disagrees with feature {feature['signal_id']}"
+                )
+
+        feature_id_set_v7 = {row["signal_id"] for row in feature_rows}
+        outcome_id_set_v7 = {row["signal_id"] for row in outcome_rows}
+        for attempt in attempt_rows:
+            signal_id = attempt["broker_signal_id"]
+            if attempt["broker_entry_confirmed"] == "1" and signal_id not in feature_id_set_v7:
+                raise Phase1ValidationError(
+                    f"Broker-confirmed attempt lacks feature evidence: {attempt['attempt_id']}"
+                )
+            if attempt["broker_close_confirmed"] == "1" and signal_id not in outcome_id_set_v7:
+                raise Phase1ValidationError(
+                    f"Broker-closed attempt lacks outcome evidence: {attempt['attempt_id']}"
+                )
 
     feature_ids = [row["signal_id"] for row in feature_rows]
     outcome_ids = [row["signal_id"] for row in outcome_rows]
