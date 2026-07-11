@@ -1,8 +1,8 @@
 # Plan: Single Extremum Engine And Cycle Statistics
 
 **Generated**: 2026-07-10
-**Status**: Sprints 1-7 implementation complete; Sprints 8-11 corrective batch
-in progress; human Strategy Tester and performance acceptance pending
+**Status**: Sprints 1-11 implementation complete; human short-run Strategy
+Tester benchmark and one-month performance/data acceptance pending
 **Estimated Complexity**: Critical
 **Risk Class**: Critical, because removing the M1 and macro MA gates changes which candidates can reach broker admission and can materially increase trade frequency even though broker, license, session, margin, spread, protection, and reconciliation controls remain mandatory.
 
@@ -75,10 +75,10 @@ yet been executed or accepted.
 | 5 | `2b23cd4` | Implemented; DuckDB audit fixture PASS |
 | 6 | `521e038` | Implemented; MetaEditor and Python PASS |
 | 7 | `docs: close extremum engine statistics workflow` | Documentation and final automated validation complete |
-| 8 | `fix: preserve valid extremum attempt geometry and genealogy` | Implemented; MetaEditor PASS |
-| 9 | `test: reject inconsistent extremum attempt exports` | Implemented; 14 tests PASS |
-| 10 | `perf: bound extremum tester telemetry overhead` | Implemented; MetaEditor PASS |
-| 11 | `docs: record extremum telemetry corrective validation` | Planned |
+| 8 | `68428eb` | Implemented; MetaEditor PASS |
+| 9 | `60b58b8` | Implemented; 14 tests PASS |
+| 10 | `097b8ba` | Implemented; MetaEditor PASS |
+| 11 | `docs: record extremum telemetry corrective validation` | Automated evidence PASS; human A/B pending |
 
 Human acceptance is deliberately not inferred from compilation or synthetic
 fixtures. The unchecked human/performance gates in this plan remain binding.
@@ -1396,7 +1396,7 @@ plan.
   confirmation flags.
 - [x] Broker-facing execution behavior is unchanged by review.
 - [x] One real MetaEditor compile reports 0 errors and 0 warnings.
-- [ ] Exactly one Sprint 8 commit is created with the proposed message.
+- [x] Exactly one Sprint 8 commit is created with the proposed message.
 
 ## Sprint 9: Enforce Schema V7 Geometry And Genealogy Invariants
 
@@ -1437,7 +1437,7 @@ schema v7 fixtures, and this plan.
 - [x] All deterministic ML unit tests pass.
 - [x] Each new broken fixture fails for its intended invariant.
 - [x] The valid schema v7 fixture still validates and assembles.
-- [ ] Exactly one Sprint 9 commit is created with the proposed message.
+- [x] Exactly one Sprint 9 commit is created with the proposed message.
 
 ## Sprint 10: Bound Strategy Tester Telemetry Cost
 
@@ -1487,7 +1487,7 @@ iteration.
 - [x] Optional debug caches and open file handles are bounded and cleaned up.
 - [x] No new per-tick indicator handles, history scans, or broker calls appear.
 - [x] One real MetaEditor compile reports 0 errors and 0 warnings.
-- [ ] Exactly one Sprint 10 commit is created with the proposed message.
+- [x] Exactly one Sprint 10 commit is created with the proposed message.
 
 ## Sprint 11: Corrective Validation And Performance Acceptance
 
@@ -1528,13 +1528,13 @@ summaries outside git.
 
 ### Sprint 11 Gate
 
-- [ ] Automated compile/test evidence is PASS.
-- [ ] Short-run A/B results are recorded and acceptable, or remain explicitly
+- [x] Automated compile/test evidence is PASS.
+- [x] Short-run A/B results are recorded and acceptable, or remain explicitly
   marked as human-run pending without archiving this plan.
 - [ ] A completed export run validates without TP or genealogy contradictions.
-- [ ] The full-month run instruction explicitly requires natural completion and
+- [x] The full-month run instruction explicitly requires natural completion and
   a unique semantically correct 2026 run ID.
-- [ ] Exactly one Sprint 11 commit is created with the proposed message.
+- [x] Exactly one Sprint 11 commit is created with the proposed message.
 - [ ] The plan remains active until the human benchmark and one-month acceptance
   are complete.
 
