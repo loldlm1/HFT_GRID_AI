@@ -35,6 +35,12 @@ Enable `Enable_Signal_Feature_Export` and use a unique
 Common\Files\DeterministicSignalML\runs\<run_id>\
 ```
 
+Keep `Enable_Logs=false` and `Enable_File_Logs=false` for normal statistics
+runs. File logs are diagnostic-only; enabling them intentionally adds query
+debug I/O and should be measured as a separate benchmark lane. The exporter
+buffers bounded row batches and flushes all remaining rows during normal EA
+deinitialization.
+
 Schema v7 files:
 
 - `engine_cycles.tsv`: one finalized/censored row per cycle.
@@ -45,6 +51,10 @@ Schema v7 files:
 - `signal_outcomes.tsv`: broker-confirmed signal outcomes only.
 - `signal_leg_outcomes.tsv`: broker-confirmed leg/ticket outcomes.
 - `run_manifest.tsv` and `run_summary.tsv`: contract and counts.
+
+An intentionally stopped tester run is useful for inspecting partial logs but
+is not a dataset. Accept only a naturally completed run containing
+`run_summary.tsv` with `export_status=OK` and passing strict validation.
 
 ## Validate And Build
 

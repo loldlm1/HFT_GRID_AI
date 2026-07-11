@@ -265,9 +265,18 @@ runtime artifact.
 
 ## Strategy Tester Performance Evidence
 
-The implementation closeout requires two comparable human-run tests with ML
-disabled: one with export disabled and one with schema v7 export enabled. Use
-the same symbol, date range, tick model, deposit, broker settings, and EA inputs.
+The implementation closeout requires comparable human-run tests with ML
+disabled. Use the same symbol, date range, tick model, deposit, broker settings,
+and EA inputs:
+
+- A: export disabled and file logs disabled;
+- B: schema v7 export enabled and file logs disabled;
+- C: schema v7 export enabled and file logs enabled, diagnostic-only.
+
+Complete A and B first over 1-3 market days. Run the full month naturally only
+after short-run integrity and performance are accepted. An intentionally
+stopped run may be audited as partial diagnostic evidence, but it cannot replace
+`run_summary.tsv` or pass dataset validation.
 
 Record elapsed tester time, cycle/revision/attempt counts, peak active simulated
 paths, total run-folder bytes, and final status. Do not claim acceptance until

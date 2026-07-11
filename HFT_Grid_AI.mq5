@@ -150,6 +150,7 @@ void OnDeinit(const int reason)
   DeterministicSignalMLShadowDeinit();
   PatternAuditPlaybackDeinit();
   DeterministicSignalStatsDeinit();
+  CloseAppendFileLog();
   LicenseServiceOnDeinit();
   EventKillTimer();
   ReleaseAllIndicatorDefinitions();

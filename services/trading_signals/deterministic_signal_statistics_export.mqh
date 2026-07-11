@@ -18,7 +18,7 @@ const string DETERMINISTIC_SIGNAL_STATS_ATTEMPTS_FILE  = "engine_attempts.tsv";
 const string DETERMINISTIC_SIGNAL_STATS_SUMMARY_FILE   = "run_summary.tsv";
 const string DETERMINISTIC_SIGNAL_STATS_NULL           = "\\N";
 const ushort DETERMINISTIC_SIGNAL_STATS_DELIMITER      = '\t';
-const int    DETERMINISTIC_SIGNAL_STATS_FLUSH_ROWS     = 32;
+const int    DETERMINISTIC_SIGNAL_STATS_FLUSH_ROWS     = 256;
 const int    DETERMINISTIC_SIGNAL_STATS_PATH_HORIZON_BARS = 2880;
 const int    DETERMINISTIC_SIGNAL_STATS_PATH_RESERVE = 128;
 
@@ -348,6 +348,7 @@ string   g_deterministic_signal_stats_revision_buffer[];
 string   g_deterministic_signal_stats_attempt_buffer[];
 DeterministicSignalStatsPathState g_deterministic_signal_stats_path_states[];
 ExtremumEngineAttemptStatsState g_extremum_engine_attempt_stats_states[];
+int g_extremum_engine_active_attempt_indexes[];
 
 bool DeterministicSignalStatsEnabled()
 {
@@ -868,6 +869,7 @@ void DeterministicSignalStatsReset()
   ArrayResize(g_deterministic_signal_stats_attempt_buffer, 0);
   ArrayResize(g_deterministic_signal_stats_path_states, 0);
   ArrayResize(g_extremum_engine_attempt_stats_states, 0);
+  ArrayResize(g_extremum_engine_active_attempt_indexes, 0);
 }
 
 bool DeterministicSignalStatsInit()
@@ -922,6 +924,7 @@ void DeterministicSignalStatsDeinit()
   ArrayResize(g_deterministic_signal_stats_attempt_buffer, 0);
   ArrayResize(g_deterministic_signal_stats_path_states, 0);
   ArrayResize(g_extremum_engine_attempt_stats_states, 0);
+  ArrayResize(g_extremum_engine_active_attempt_indexes, 0);
 }
 
 string DeterministicSignalStatsBuildSignalId(const SignalParams &signal_params)
@@ -1124,12 +1127,27 @@ bool DeterministicSignalStatsRecordRevision(const ExtremumEngineCycleState &cycl
 
 int DeterministicSignalStatsFindAttemptState(const string attempt_id)
 {
-  for(int i = 0; i < ArraySize(g_extremum_engine_attempt_stats_states); i++)
+  for(int i = ArraySize(g_extremum_engine_attempt_stats_states) - 1; i >= 0; i--)
   {
     if(g_extremum_engine_attempt_stats_states[i].attempt_id == attempt_id)
       return i;
   }
   return -1;
+}
+
+void DeterministicSignalStatsRemoveActiveAttemptIndex(const int state_index)
+{
+  int total = ArraySize(g_extremum_engine_active_attempt_indexes);
+  for(int i = 0; i < total; i++)
+  {
+    if(g_extremum_engine_active_attempt_indexes[i] != state_index)
+      continue;
+    for(int j = i; j < total - 1; j++)
+      g_extremum_engine_active_attempt_indexes[j] =
+        g_extremum_engine_active_attempt_indexes[j + 1];
+    ArrayResize(g_extremum_engine_active_attempt_indexes, total - 1);
+    return;
+  }
 }
 
 bool DeterministicSignalStatsQueueAttemptRow(const int index)
@@ -1204,6 +1222,7 @@ void DeterministicSignalStatsFinalizeAttemptState(const int index,
 
   g_extremum_engine_attempt_stats_states[index].active = false;
   g_extremum_engine_attempt_stats_states[index].finalized = true;
+  DeterministicSignalStatsRemoveActiveAttemptIndex(index);
   g_extremum_engine_attempt_stats_states[index].simulated_terminal_reason = terminal_reason;
   g_extremum_engine_attempt_stats_states[index].simulated_path_status = path_status;
   g_extremum_engine_attempt_stats_states[index].simulated_profit_r = profit_r;
@@ -1268,7 +1287,17 @@ bool DeterministicSignalStatsRecordIntrinsicAttempt(SignalParams &signal_params)
     return false;
   }
   g_extremum_engine_attempt_stats_states[index] = state;
-  int active_total = ArraySize(g_extremum_engine_attempt_stats_states);
+  int active_total = ArraySize(g_extremum_engine_active_attempt_indexes);
+  if(ArrayResize(g_extremum_engine_active_attempt_indexes,
+                 active_total + 1,
+                 DETERMINISTIC_SIGNAL_STATS_PATH_RESERVE) != active_total + 1)
+  {
+    ArrayResize(g_extremum_engine_attempt_stats_states, index);
+    g_deterministic_signal_stats_failed = true;
+    return false;
+  }
+  g_extremum_engine_active_attempt_indexes[active_total] = index;
+  active_total++;
   if(active_total > g_deterministic_signal_stats_max_active_attempt_paths)
     g_deterministic_signal_stats_max_active_attempt_paths = active_total;
   return true;
@@ -1288,8 +1317,11 @@ void DeterministicSignalStatsSetAttemptOperationalBlock(SignalParams &signal_par
 
 void DeterministicSignalStatsExpirePriorRevisionAttempts(const string current_revision_id)
 {
-  for(int i = 0; i < ArraySize(g_extremum_engine_attempt_stats_states); i++)
+  for(int active_index = ArraySize(g_extremum_engine_active_attempt_indexes) - 1;
+      active_index >= 0;
+      active_index--)
   {
+    int i = g_extremum_engine_active_attempt_indexes[active_index];
     if(!g_extremum_engine_attempt_stats_states[i].active ||
        g_extremum_engine_attempt_stats_states[i].trigger_reached ||
        g_extremum_engine_attempt_stats_states[i].revision_id == current_revision_id)
@@ -2966,16 +2998,6 @@ bool DeterministicSignalStatsBuildOutcomeRow(SignalParams &signal_params,
   return true;
 }
 
-void DeterministicSignalStatsRemoveAttemptState(const int index)
-{
-  int total = ArraySize(g_extremum_engine_attempt_stats_states);
-  if(index < 0 || index >= total)
-    return;
-  for(int i = index; i < total - 1; i++)
-    g_extremum_engine_attempt_stats_states[i] = g_extremum_engine_attempt_stats_states[i + 1];
-  ArrayResize(g_extremum_engine_attempt_stats_states, total - 1);
-}
-
 void DeterministicSignalStatsUpdateAttemptPaths()
 {
   if(!DeterministicSignalStatsReady())
@@ -2984,14 +3006,14 @@ void DeterministicSignalStatsUpdateAttemptPaths()
   MqlTick tick;
   bool tick_valid = SymbolInfoTick(_Symbol, tick);
   datetime current_time = TimeCurrent();
-  for(int i = ArraySize(g_extremum_engine_attempt_stats_states) - 1; i >= 0; i--)
+  for(int active_index = ArraySize(g_extremum_engine_active_attempt_indexes) - 1;
+      active_index >= 0;
+      active_index--)
   {
-    ExtremumEngineAttemptStatsState state = g_extremum_engine_attempt_stats_states[i];
-    if(state.row_written)
-    {
-      DeterministicSignalStatsRemoveAttemptState(i);
+    int i = g_extremum_engine_active_attempt_indexes[active_index];
+    if(i < 0 || i >= ArraySize(g_extremum_engine_attempt_stats_states))
       continue;
-    }
+    ExtremumEngineAttemptStatsState state = g_extremum_engine_attempt_stats_states[i];
     if(!state.active || state.finalized || !tick_valid)
       continue;
 

@@ -12,12 +12,15 @@ const int QUERY_DEBUG_THROTTLE_RESERVE = 64;
 const int QUERY_DEBUG_ENTRY_CONFIRM_THROTTLE_SECONDS = 60;
 const int QUERY_DEBUG_ENTRY_ANCHOR_BLOCKED_THROTTLE_SECONDS = 60;
 const int QUERY_DEBUG_GUARDRAIL_THROTTLE_SECONDS = 60;
+const int QUERY_DEBUG_STATE_MAX = 512;
 bool g_query_debug_session_header_logged = false;
 string g_query_debug_state_keys[];
 string g_query_debug_state_messages[];
 string g_query_debug_throttle_keys[];
 datetime g_query_debug_throttle_times[];
 int g_query_debug_throttle_suppressed[];
+int g_query_debug_state_replace_index = 0;
+int g_query_debug_throttle_replace_index = 0;
 
 string ExecutionBoolToken(const bool value)
 {
@@ -50,12 +53,15 @@ string ExecutionMLInferenceModeToken(const MLInferenceModes mode)
 
 void ResetQueryDebugLogSession()
 {
+  CloseAppendFileLog();
   g_query_debug_session_header_logged = false;
   ArrayResize(g_query_debug_state_keys, 0, QUERY_DEBUG_STATE_RESERVE);
   ArrayResize(g_query_debug_state_messages, 0, QUERY_DEBUG_STATE_RESERVE);
   ArrayResize(g_query_debug_throttle_keys, 0, QUERY_DEBUG_THROTTLE_RESERVE);
   ArrayResize(g_query_debug_throttle_times, 0, QUERY_DEBUG_THROTTLE_RESERVE);
   ArrayResize(g_query_debug_throttle_suppressed, 0, QUERY_DEBUG_THROTTLE_RESERVE);
+  g_query_debug_state_replace_index = 0;
+  g_query_debug_throttle_replace_index = 0;
 }
 
 void ExecutionAppendRawQueryDebugLine(const string line)
@@ -97,10 +103,20 @@ bool ExecutionShouldLogChangedState(const string state_key,
   if(index < 0)
   {
     int total = ArraySize(g_query_debug_state_keys);
-    ArrayResize(g_query_debug_state_keys, total + 1, QUERY_DEBUG_STATE_RESERVE);
-    ArrayResize(g_query_debug_state_messages, total + 1, QUERY_DEBUG_STATE_RESERVE);
-    g_query_debug_state_keys[total] = state_key;
-    g_query_debug_state_messages[total] = message;
+    if(total < QUERY_DEBUG_STATE_MAX)
+    {
+      ArrayResize(g_query_debug_state_keys, total + 1, QUERY_DEBUG_STATE_RESERVE);
+      ArrayResize(g_query_debug_state_messages, total + 1, QUERY_DEBUG_STATE_RESERVE);
+      index = total;
+    }
+    else
+    {
+      index = g_query_debug_state_replace_index;
+      g_query_debug_state_replace_index =
+        (g_query_debug_state_replace_index + 1) % QUERY_DEBUG_STATE_MAX;
+    }
+    g_query_debug_state_keys[index] = state_key;
+    g_query_debug_state_messages[index] = message;
     return true;
   }
 
@@ -135,18 +151,28 @@ bool ExecutionShouldLogThrottledState(const string state_key,
   if(index < 0)
   {
     int total = ArraySize(g_query_debug_throttle_keys);
-    ArrayResize(g_query_debug_throttle_keys,
-                total + 1,
-                QUERY_DEBUG_THROTTLE_RESERVE);
-    ArrayResize(g_query_debug_throttle_times,
-                total + 1,
-                QUERY_DEBUG_THROTTLE_RESERVE);
-    ArrayResize(g_query_debug_throttle_suppressed,
-                total + 1,
-                QUERY_DEBUG_THROTTLE_RESERVE);
-    g_query_debug_throttle_keys[total] = state_key;
-    g_query_debug_throttle_times[total] = now;
-    g_query_debug_throttle_suppressed[total] = 0;
+    if(total < QUERY_DEBUG_STATE_MAX)
+    {
+      ArrayResize(g_query_debug_throttle_keys,
+                  total + 1,
+                  QUERY_DEBUG_THROTTLE_RESERVE);
+      ArrayResize(g_query_debug_throttle_times,
+                  total + 1,
+                  QUERY_DEBUG_THROTTLE_RESERVE);
+      ArrayResize(g_query_debug_throttle_suppressed,
+                  total + 1,
+                  QUERY_DEBUG_THROTTLE_RESERVE);
+      index = total;
+    }
+    else
+    {
+      index = g_query_debug_throttle_replace_index;
+      g_query_debug_throttle_replace_index =
+        (g_query_debug_throttle_replace_index + 1) % QUERY_DEBUG_STATE_MAX;
+    }
+    g_query_debug_throttle_keys[index] = state_key;
+    g_query_debug_throttle_times[index] = now;
+    g_query_debug_throttle_suppressed[index] = 0;
     return true;
   }
 

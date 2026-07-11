@@ -77,7 +77,7 @@ yet been executed or accepted.
 | 7 | `docs: close extremum engine statistics workflow` | Documentation and final automated validation complete |
 | 8 | `fix: preserve valid extremum attempt geometry and genealogy` | Implemented; MetaEditor PASS |
 | 9 | `test: reject inconsistent extremum attempt exports` | Implemented; 14 tests PASS |
-| 10 | `perf: bound extremum tester telemetry overhead` | Planned |
+| 10 | `perf: bound extremum tester telemetry overhead` | Implemented; MetaEditor PASS |
 | 11 | `docs: record extremum telemetry corrective validation` | Planned |
 
 Human acceptance is deliberately not inferred from compilation or synthetic
@@ -1483,10 +1483,10 @@ iteration.
 
 ### Sprint 10 Gate
 
-- [ ] Per-tick attempt work is bounded by active simulated paths.
-- [ ] Optional debug caches and open file handles are bounded and cleaned up.
-- [ ] No new per-tick indicator handles, history scans, or broker calls appear.
-- [ ] One real MetaEditor compile reports 0 errors and 0 warnings.
+- [x] Per-tick attempt work is bounded by active simulated paths.
+- [x] Optional debug caches and open file handles are bounded and cleaned up.
+- [x] No new per-tick indicator handles, history scans, or broker calls appear.
+- [x] One real MetaEditor compile reports 0 errors and 0 warnings.
 - [ ] Exactly one Sprint 10 commit is created with the proposed message.
 
 ## Sprint 11: Corrective Validation And Performance Acceptance
