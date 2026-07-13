@@ -3,8 +3,8 @@ This is a MetaTrader 5 MQL5 Expert Advisor.
 # HFT Grid AI Agent Rules
 
 Use this file for local project invariants. Keep reusable MQL5 engineering rules
-in the `mql5-functional` skill, and keep detailed strategy guides or phase plans
-in `docs/`.
+in the `mql5-production-engineering` skill, and keep detailed strategy guides or
+phase plans in `docs/`.
 
 ## Instruction Precedence
 
@@ -13,7 +13,7 @@ When instructions conflict, use this order:
 1. Explicit user instruction for the current task.
 2. This `AGENTS.md` file.
 3. Project documentation in `docs/` and `services/shared/**`.
-4. The `mql5-functional` skill and any narrower applicable skill.
+4. The `mql5-production-engineering` skill and any narrower applicable skill.
 5. Existing local code conventions.
 6. Official/current MQL5 and MetaTrader platform documentation.
 
@@ -27,12 +27,13 @@ MCP usage order:
 
 1. Local first: inspect code, inputs, includes, docs, plans, logs, and nearby
    conventions before networked tools.
-2. `context7`: use for version-specific MQL5/API behavior when it has an exact
-   documentation match.
-3. `tavily`: use for current MetaTrader, broker, platform, or security research
-   that local files and `context7` cannot answer. Prefer official sources.
-4. `fetch`: use only when a specific URL is already known or a search result
-   needs exact page details.
+2. `context7`: use when available for version-specific API behavior if it has
+   an exact documentation match.
+3. Web research or `tavily`: use only when enabled and when current MetaTrader,
+   broker, platform, or security research cannot be answered locally. Prefer
+   official MetaQuotes or broker sources.
+4. `fetch`: use only when enabled and when a specific official URL is already
+   known or a search result needs exact page details.
 5. Stop early: capture only API names, constraints, source URLs, and the short
    reason they affect the change.
 
@@ -59,6 +60,27 @@ Default execution policy:
 
 If the plan becomes stale, unsafe, ambiguous, or incomplete, stop and update or
 request revision before continuing.
+
+## Codex Hooks And Compaction
+
+This desktop may run global Codex hooks from
+`C:\Users\loldlm\.codex\skills\codex-hooks`. Treat hooks as continuity helpers,
+not as replacements for project rules.
+
+- `PostToolUse` may clean safe local artifacts after tools run and may add
+  context for risky commands that already executed. It must not be used as proof
+  that a trading change is safe.
+- `Stop` may ask Codex to continue an active Sprint plan when local hook state
+  says validation or a Sprint commit is still pending. It must not bypass the
+  Sprint Completion Gate below.
+- `PreCompact`, `PostCompact`, and `SessionStart` may preserve a compact,
+  redacted active-plan reminder across compaction.
+- If an agent maintains `.codex-hook-state/active-plan-state.json`, keep it
+  small, session-local, redacted, and untracked. Never store account numbers,
+  broker credentials, license tokens, private logs, optimization sets, or source
+  dumps in hook state.
+- After any compaction, re-check `git status --short`, the current Sprint,
+  validation status, and latest commit before editing.
 
 ## Project Map
 
@@ -150,8 +172,14 @@ request revision before continuing.
 & "C:\Program Files\MetaTrader 5-1\MetaEditor64.exe" /compile:"C:\Program Files\MetaTrader 5-1\MQL5\Experts\HFT_Grid_AI\HFT_Grid_AI.mq5" /log:"C:\Program Files\MetaTrader 5-1\MQL5\Experts\HFT_Grid_AI\BUILD.log"
 ```
 
+- After reading `BUILD.log` and confirming the compile result, remove
+  `BUILD.log`. This EA is compiled from a portable MT5 install, and stale build
+  logs must not be reused as current validation evidence.
 - If a future local test runner exists, prefer it for script harnesses and parse
   pass/fail markers plus MetaEditor warnings/errors.
+- Do not build or require headless Strategy Tester matrix tests for MT5. Use
+  compile gates plus manual/visual Strategy Tester or demo-chart validation when
+  runtime broker behavior must be inspected.
 - For Strategy Tester validation, prefer "Every tick based on real ticks" when
   tick-by-tick behavior, order lifecycle, session windows, or grid timing matters.
 - Keep development logs compact. `query_debug.txt` may capture grid geometry,

@@ -70,17 +70,23 @@ Sigue estos pasos detallados para instalar y configurar **Pandora Box** en MetaT
 - Después de cerrar la ventana, calcula precios de ruptura con `Pandora_Box_Offset_Points`.
 - `Pandora_Box_Entry_Type = ENTRY_WICK_TYPE` conserva la ruptura actual por tick/precio. `ENTRY_BODY_TYPE` espera que la última vela cerrada del timeframe seleccionado cierre fuera del nivel de ruptura con offset.
 - Las entradas por cuerpo usan validaciones inclusivas (`close_1 >= breakout_high_price` alcista, `close_1 <= breakout_low_price` bajista) y consumen cada vela cerrada válida una sola vez por dirección, aunque una validación posterior bloquee la orden.
-- Si el disparador seleccionado rompe por arriba/abajo y todas las validaciones se cumplen (dirección, sesión, límites diarios, concurrencia), se abre una señal Pandora.
+- Si el disparador seleccionado rompe por arriba/abajo y todas las validaciones locales se cumplen (direccion, sesion, limites diarios, concurrencia), Pandora reserva el presupuesto de entrada. La entrada local activa se ancla a ejecucion broker-realistic: fill real del broker primero, o Bid/Ask ejecutable cuando el spread vuelve a rango.
 - La reentrada por cada lado se rearma solo cuando `close_1` vuelve dentro del box sin offset. En modo wick usa el timeframe del box Pandora; en modo body usa `Pandora_Box_Entry_Body_Timeframe`.
-- `Pandora_Box_Max_Entries` controla el presupuesto de entradas abiertas (`0` significa ilimitado).
-- Si el presupuesto se alcanza con operaciones aún abiertas, el estado muestra `PANDORA WAIT_CLOSE`; al cerrarse, pasa a `PANDORA DONE`.
+- `Pandora_Box_Max_Entries` controla el presupuesto de entradas Pandora (`0` significa ilimitado). Una ruptura con spread alto puede reservar el presupuesto mientras espera que el spread vuelva a rango.
+- Si el presupuesto se alcanza con entradas locales aun abiertas, el estado muestra `PANDORA WAIT_CLOSE`; al cerrarse localmente, pasa a `PANDORA DONE`.
 - `Pandora_Box_Entry_Count_Mode` solo controla el contador analítico `counted`; no reemplaza el presupuesto de entradas abiertas.
+- `Pandora_Box_Set_Broker_SLTP` es una capa extra de proteccion del lado del broker despues del fill. El SL/TP exacto de Pandora sigue siendo local y se calcula desde la entrada broker-realistic activa.
+- El SL/TP del broker inicia pendiente/ausente despues del fill, y luego puede quedar exacto, mas amplio o fallido mientras apliquen las reglas de stops/freeze del broker.
+- Si el spread esta fuera de rango en la ruptura, Pandora espera antes de crear la entrada local activa. Las aperturas broker se envian sin SL/TP inicial para que invalid stops no bloquee la entrada al mercado. El volumen se repara una vez; fallos de `OrderSend` se reintentan en ticks elegibles hasta agotar el presupuesto.
+- Un retry exitoso reemplaza cualquier anchor local simulado por el fill real del broker, recalcula SL/TP/trailing local y redibuja el marker desde la entrada real.
+- Los marcadores del grafico dibujan entradas broker-realistic activas. Entradas ejecutadas por broker usan etiquetas como `20$ (Posicion ejecutada)`; entradas bloqueadas/rechazadas usan etiquetas como `10$ (Posicion local - ERR_Stops)`, `ERR_Volumen` o `ERR_Margen`.
 
 ### **Identidad de Ejecución, Comentarios y Panel de Estado**
 - En modo live, Pandora Box usa el magic de operación aprobado por el backend para esa instancia del EA después de validar la licencia. `Custom_Magic` sigue siendo útil para Strategy Tester, pero el live no depende de magic aleatorio.
 - `EA_Instance_Id` puede dejarse vacío para que el EA persista localmente un id de instancia del gráfico. Defínelo manualmente solo si necesitas conservar la misma identidad tras reinstalar o migrar.
 - Cada gráfico de producción debe operar como su propia instancia del EA. Dos gráficos en el mismo terminal deben mostrar magic runtime distintos y no deben gestionar posiciones del otro.
 - Los nuevos comentarios del broker usan el formato en minúsculas `pandora_box_pos_n`, por ejemplo `pandora_box_pos_1`.
+- Las entradas `local_rejected` son estado local del EA, no posiciones del broker. Conserva el motivo de rechazo en reportes locales y no infieras ejecucion broker desde un marcador local.
 - Si MT5 Algo Trading, el permiso de trading del EA o el permiso experto de la cuenta están desactivados, el EA muestra estado disabled/platform y omite acciones de broker hasta que el permiso vuelva. El SL/TP del broker queda como única protección activa mientras está desactivado.
 - El panel y el comentario del Strategy Tester muestran `Error: OK`, `Error: ACTIVE ...` o `Last error: ...`. Esta etiqueta es solo informativa y no cambia las decisiones de trading.
 
@@ -95,10 +101,10 @@ Sigue estos pasos detallados para instalar y configurar **Pandora Box** en MetaT
 | `Pandora_Box_Direction_Mode` | `BOTH_DIRECTION` | Lado(s) permitidos de ruptura: ambos, solo alcista o solo bajista. | Restringe a un lado solo con sesgo direccional claro. |
 | `Pandora_Box_Use_Session_Filter` | `true` | Aplica filtros horarios de sesión a intentos Pandora. | Mantén `true` cuando la política de sesión sea parte del riesgo. |
 | `Pandora_Box_Enable_Visualization` | `true` | Dibuja el frontend visual de Pandora: box actual, guías de ruptura y hasta 8 zonas diarias (día actual + 7 días previos de trading). Los días históricos inválidos conservan el relleno DimGray y muestran una etiqueta simple. | Mantén activo durante configuración/ajuste. |
-| `Pandora_Box_Set_Broker_SLTP` | `true` | Envía SL/TP al bróker en la ejecución; en `false`, el EA valida localmente. | Mantén `true` para protección del lado del bróker. |
+| `Pandora_Box_Set_Broker_SLTP` | `true` | Agrega proteccion SL/TP del lado del broker despues del fill y durante modificaciones posteriores. Las aperturas market se envian sin SL/TP inicial; el SL/TP exacto de Pandora sigue validandose localmente desde la entrada broker-realistic activa. | Manten `true` para proteccion extra del servidor, pero valida el SL/TP source-of-truth en tester. |
 | `Pandora_Box_Entry_Type` | `ENTRY_WICK_TYPE` | Estilo de disparo de entrada. `ENTRY_WICK_TYPE` usa ruptura por tick/precio actual; `ENTRY_BODY_TYPE` exige una vela cerrada fuera del nivel de ruptura con offset. | Mantén `WICK` para comportamiento legacy; usa `BODY` para reducir rupturas solo por mecha. |
 | `Pandora_Box_Entry_Body_Timeframe` | `PERIOD_M5` | Timeframe estándar de MT5 usado por `ENTRY_BODY_TYPE` para ruptura por vela cerrada y rearme. `PERIOD_CURRENT` se resuelve con el fallback Pandora/estrategia. | Empieza con `PERIOD_M5` para confirmación determinística por cuerpo. |
-| `Enable_Chart_Levels` | `true` | Habilita el frontend visual fijo. Cuando `Enable_Chart_Summary` también está activo, el gráfico en vivo usa el panel compacto en la esquina superior izquierda en lugar del `Comment()` en vivo; el Strategy Tester mantiene el fallback por comentario. | Mantén activo para monitoreo manual. |
+| `Enable_Chart_Levels` | `true` | Habilita el frontend visual fijo. Cuando `Enable_Chart_Summary` tambien esta activo, el grafico en vivo usa el panel compacto en la esquina superior izquierda en lugar del `Comment()` en vivo; el Strategy Tester mantiene el fallback por comentario. Los marcadores Pandora dibujan entradas locales y ejecutadas por broker. | Manten activo para monitoreo manual. |
 | `Pandora_Risk_Trailing_Mode` | `PANDORA_RISK_TRAILING_OFF` | Comportamiento de trailing: `OFF` o `PANDORA_RISK_TRAILING_STEP_TP`. | Comienza con `OFF`; usa `STEP_TP` tras validar en tester. |
 | `Pandora_Lot_Type` | `PANDORA_LOT_SIZE` | Modo de lote: fijo, basado en porcentaje o basado en moneda. | Usa lote fijo al inicio; los modos por presupuesto requieren calibración. |
 | `Pandora_Lot_Strategy_Size` | `0.01` | Tamaño usado por el modo de lote seleccionado. | Empieza pequeño y aumenta gradualmente. |
@@ -108,7 +114,7 @@ Sigue estos pasos detallados para instalar y configurar **Pandora Box** en MetaT
 | `Pandora_Points_SL` | `100.0` | Distancia de stop para entradas Pandora. | Debe ser `> 0`; ajusta por símbolo. |
 | `Pandora_Points_TP` | `100.0` | Distancia de take profit para entradas Pandora. | Mantén positivo salvo que quieras salida solo por trailing. |
 | `Pandora_Box_Entry_Count_Mode` | `COUNT_BOX_ENTRY_OFF` | Controla la analítica `counted`: todo (`SL/TP/BE`), `SL+BE` o `TP+BE`. | Usa `OFF` para diagnóstico completo. |
-| `Pandora_Box_Max_Entries` | `2` | Presupuesto de entradas abiertas por día/ventana (`0` = ilimitado). | Mantén bajo (`1-2`) salvo que tus protecciones globales sean estrictas. |
+| `Pandora_Box_Max_Entries` | `2` | Presupuesto de entradas Pandora broker-realistic por dia/ventana (`0` = ilimitado). Entradas pending por spread y bloqueadas/rechazadas por broker tambien cuentan. | Manten bajo (`1-2`) salvo que tus protecciones globales sean estrictas. |
 
 ---
 
@@ -149,7 +155,9 @@ Antes de ejecutar **Pandora Box** en una cuenta real, verifica:
 - `Pandora_Points_SL > 0`.
 - Si usas modo `%`, que offset/SL/TP sean porcentajes realistas para el símbolo.
 - Que el modo de dirección coincida con tu sesgo de mercado.
-- Que `Pandora_Box_Max_Entries` coincida con tu presupuesto de entradas abiertas.
+- Que `Pandora_Box_Max_Entries` coincida con tu presupuesto de entradas Pandora.
+- Que los escenarios `local_rejected` esten claros: rechazo por stops/volumen/margen puede dejar una entrada broker-realistic local viva hasta cierre local por SL/TP/BE/trailing.
+- Que el SL/TP broker se valide como proteccion extra despues del fill; el SL/TP local exacto se basa en el fill real o anchor simulado activo aunque los stops broker esten temporalmente mas amplios, pendientes, fallidos o ausentes tras una apertura valida sin SL/TP inicial.
 - Que los filtros de sesión estén configurados si `Pandora_Box_Use_Session_Filter = true`.
 - Que `Permitir WebRequest para la URL indicada` esté activo con `https://tradingsniperpanel.com`.
 - Que cada gráfico de producción muestre su propio magic runtime aprobado por backend y no gestione posiciones de otros gráficos/símbolos.

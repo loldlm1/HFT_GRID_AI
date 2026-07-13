@@ -20,11 +20,16 @@ double PandoraResolveInitialStopPrice(const SignalParams &signal_params,
   if(point_size <= 0.0)
     return 0.0;
 
+  double local_stop_price = PandoraResolveLocalStopTargetPrice(signal_params,
+                                                               grid_order);
+  if(local_stop_price > 0.0)
+    return local_stop_price;
+
   double entry_anchor = PandoraResolveEntryAnchorPrice(grid_order, direction);
   if(entry_anchor <= 0.0)
     return 0.0;
 
-  double sl_points = PandoraResolveSignalSLPoints(signal_params, true);
+  double sl_points = PandoraResolveSignalSLPoints(signal_params, false);
   if(sl_points <= 0.0)
     return 0.0;
 
@@ -62,7 +67,8 @@ int PandoraResolveTrailingStepIndex(const SignalParams &signal_params,
 {
   if(!PandoraRiskStepTrailingEnabled())
     return 0;
-  if(grid_order.entry_price <= 0.0 || current_price <= 0.0 || point_size <= 0.0)
+  double entry_anchor = PandoraResolveLocalEntryPrice(signal_params, grid_order);
+  if(entry_anchor <= 0.0 || current_price <= 0.0 || point_size <= 0.0)
     return 0;
 
   double step_points = PandoraResolveSignalTrailingStepPoints(signal_params);
@@ -70,8 +76,8 @@ int PandoraResolveTrailingStepIndex(const SignalParams &signal_params,
     return 0;
 
   double move_points = (direction == BULLISH)
-                       ? (current_price - grid_order.entry_price) / point_size
-                       : (grid_order.entry_price - current_price) / point_size;
+                       ? (current_price - entry_anchor) / point_size
+                       : (entry_anchor - current_price) / point_size;
   if(move_points <= 0.0)
     return 0;
 
@@ -84,7 +90,8 @@ double PandoraResolveStepStopPrice(const SignalParams &signal_params,
                                    const int step_index,
                                    const double point_size)
 {
-  if(step_index <= 0 || grid_order.entry_price <= 0.0 || point_size <= 0.0)
+  double entry_anchor = PandoraResolveLocalEntryPrice(signal_params, grid_order);
+  if(step_index <= 0 || entry_anchor <= 0.0 || point_size <= 0.0)
     return 0.0;
 
   double step_points = PandoraResolveSignalTrailingStepPoints(signal_params);
@@ -93,8 +100,8 @@ double PandoraResolveStepStopPrice(const SignalParams &signal_params,
 
   double moved_points = (double)(step_index - 1) * step_points;
   if(direction == BULLISH)
-    return grid_order.entry_price + moved_points * point_size;
-  return grid_order.entry_price - moved_points * point_size;
+    return entry_anchor + moved_points * point_size;
+  return entry_anchor - moved_points * point_size;
 }
 
 bool PandoraTrailingStopImproves(const SignalTypes direction,
@@ -168,23 +175,6 @@ bool PandoraApplyStepTrailing(SignalParams &signal_params,
   if(!PandoraTrailingStopImproves(direction, candidate_stop, current_stop, tolerance))
     return false;
 
-  if(Pandora_Box_Set_Broker_SLTP)
-  {
-    if(grid_order.position_ticket <= 0 || !PositionSelectByTicket(grid_order.position_ticket))
-      return false;
-    if(!PandoraBrokerStopDistanceSatisfied(direction, current_price, candidate_stop, point_size))
-      return false;
-
-    if(!g_position.PositionModify(grid_order.position_ticket, candidate_stop, 0.0))
-    {
-      ulong retcode = g_position.ResultRetcode();
-      int last_error = GetLastError();
-      MarketStatusRegisterBrokerFailure("PANDORA_STEP_TRAIL_MODIFY_FAILED", retcode, last_error, true);
-      return false;
-    }
-    MarketStatusClearExecutionError("PANDORA_STEP_TRAIL_MODIFY_OK");
-  }
-
   signal_params.pandora_trailing_step_index = target_step_index;
   signal_params.pandora_trailing_stop_price = candidate_stop;
   signal_params.grid_orders[grid_order_level].status = GRID_ORDER_TP_TRAILING_ACTIVE;
@@ -217,7 +207,9 @@ void UpdateGridLifecycle(SignalParams &signal_params)
     if(grid_order.status == GRID_ORDER_STOP_TRAILING_ACTIVE)
     {
       double normalized_volume = NormalizeVolumeForSymbol(_Symbol, grid_order.lot_size);
-      if(GridShouldActivateStopOrder(signal_params, grid_order, direction, point_size) &&
+      bool pending_admission = PandoraLocalEntryPendingAdmission(signal_params);
+      if((pending_admission ||
+          GridShouldActivateStopOrder(signal_params, grid_order, direction, point_size)) &&
          GridExecuteLevelTrade(signal_params, grid_order, GridResolvePointSize(), normalized_volume))
       {
         signal_params.grid_orders[grid_order_level] = grid_order;
@@ -225,10 +217,45 @@ void UpdateGridLifecycle(SignalParams &signal_params)
     }
     else if(grid_order.status == GRID_ORDER_ACTIVE || grid_order.status == GRID_ORDER_TP_TRAILING_ACTIVE)
     {
+      if(grid_order.position_ticket <= 0 &&
+         PandoraBrokerRetryPending(signal_params))
+      {
+        double normalized_volume = NormalizeVolumeForSymbol(_Symbol, grid_order.lot_size);
+        if(GridHandlePandoraBrokerRetry(signal_params,
+                                        grid_order,
+                                        point_size,
+                                        normalized_volume))
+          grid_order = signal_params.grid_orders[grid_order_level];
+
+        if(PandoraBrokerRetryPending(signal_params))
+        {
+          signal_params.grid_orders[grid_order_level] = grid_order;
+          return;
+        }
+      }
+
+      if(grid_order.position_ticket <= 0 &&
+         signal_params.pandora_broker_execution_status == PANDORA_BROKER_EXECUTED &&
+         grid_order.position_comment != "")
+      {
+        ulong accepted_ticket = FindOpenPositionForSignal(direction,
+                                                          grid_order.position_comment);
+        if(accepted_ticket > 0)
+        {
+          grid_order.position_ticket = accepted_ticket;
+          PandoraMarkBrokerExecuted(signal_params,
+                                    grid_order,
+                                    signal_params.pandora_broker_retcode,
+                                    signal_params.pandora_broker_last_error,
+                                    grid_order.position_comment);
+        }
+      }
+
       double current_price = GridCurrentPriceForDirection(direction, false);
       bool step_trailing = PandoraRiskStepTrailingEnabled();
       if(step_trailing && grid_order.entry_price > 0.0 && point_size > 0.0)
       {
+        PandoraEnsureLocalTargetPrices(signal_params, grid_order);
         PandoraApplyStepTrailing(signal_params,
                                  grid_order_level,
                                  grid_order,
@@ -238,13 +265,15 @@ void UpdateGridLifecycle(SignalParams &signal_params)
         grid_order = signal_params.grid_orders[grid_order_level];
       }
 
-      if(!Pandora_Box_Set_Broker_SLTP && grid_order.entry_price > 0.0 && point_size > 0.0)
+      if(grid_order.entry_price > 0.0 && point_size > 0.0)
       {
+        PandoraEnsureLocalTargetPrices(signal_params, grid_order);
         double sl_price = PandoraResolveActiveStopPrice(signal_params,
                                                         grid_order,
                                                         direction,
                                                         point_size);
-        double tp_price = step_trailing ? 0.0 : grid_order.take_profit_price;
+        double tp_price = PandoraResolveLocalTakeProfitTargetPrice(signal_params,
+                                                                   grid_order);
 
         bool hit_sl = PandoraStopHit(direction, current_price, sl_price);
         bool hit_tp = false;
@@ -273,8 +302,15 @@ void UpdateGridLifecycle(SignalParams &signal_params)
             signal_params.pandora_close_epsilon_points = epsilon_points;
           }
           GridCloseAllLevels(signal_params, point_size);
-          signal_params.grid_orders[grid_order_level].status = GRID_ORDER_COMPLETED;
           grid_order = signal_params.grid_orders[grid_order_level];
+          if(grid_order.status == GRID_ORDER_COMPLETED && IsGridSignalComplete(signal_params))
+          {
+            PandoraMarkLocalClose(signal_params,
+                                  grid_order,
+                                  current_price,
+                                  signal_params.pandora_close_outcome,
+                                  signal_params.pandora_close_epsilon_points);
+          }
         }
       }
 
@@ -286,7 +322,14 @@ void UpdateGridLifecycle(SignalParams &signal_params)
         ulong rebound_ticket = FindOpenPositionForSignal(direction,
                                                          grid_order.position_comment);
         if(rebound_ticket > 0)
+        {
           grid_order.position_ticket = rebound_ticket;
+          PandoraMarkBrokerExecuted(signal_params,
+                                    grid_order,
+                                    signal_params.pandora_broker_retcode,
+                                    signal_params.pandora_broker_last_error,
+                                    grid_order.position_comment);
+        }
         else
         {
           PandoraCloseOutcomes history_outcome = PandoraResolveHistoryOutcomeByComment(grid_order.position_comment);
@@ -304,6 +347,16 @@ void UpdateGridLifecycle(SignalParams &signal_params)
         if(history_outcome != PANDORA_CLOSE_NONE)
           signal_params.pandora_close_outcome = history_outcome;
         grid_order.status = GRID_ORDER_COMPLETED;
+      }
+
+      if(Pandora_Box_Set_Broker_SLTP &&
+         grid_order.status != GRID_ORDER_COMPLETED &&
+         grid_order.position_ticket > 0)
+      {
+        GridSyncPandoraBrokerStops(signal_params,
+                                   grid_order,
+                                   "PANDORA_BROKER_SLTP_SYNC",
+                                   true);
       }
       signal_params.grid_orders[grid_order_level] = grid_order;
     }

@@ -154,7 +154,7 @@ int OnInit()
   g_decimal_digits  = pow(10.0, Digits());
   g_initial_ea_date = TimeCurrent();
 
-  if(!RefreshSymbolTradingConstraints(_Symbol, g_symbol_constraints))
+  if(!RefreshBrokerConstraintsForAction(_Symbol, g_symbol_constraints, "EA_INIT"))
   {
     Print("ERROR LOADING BROKER CONSTRAINTS FOR SYMBOL: ", _Symbol);
     return INIT_FAILED;
@@ -256,9 +256,24 @@ void OnTick()
     next_minute_bar_open+=defined_tick_M1_seconds;
   }
 
-  // AVOID TICK SEQUENCE WHEN CRAZY TICKS AND MARKET IS CLOSED
-  if(g_points_spread > Max_Spread || !IsMarketOpen())
+  bool market_open = IsMarketOpen();
+  bool pandora_observed_this_tick = false;
+  if(signal_attempts_allowed && market_open && PandoraStrategyEnabled())
   {
+    PandoraDetectSignals();
+    pandora_observed_this_tick = true;
+  }
+
+  // AVOID BROKER/LIFECYCLE SEQUENCE WHEN CRAZY TICKS OR MARKET IS CLOSED
+  if(g_points_spread > Max_Spread || !market_open)
+  {
+    if(g_points_spread > Max_Spread)
+    {
+      string spread_reason = StringFormat("spread=%.1f>%.1f",
+                                          g_points_spread,
+                                          Max_Spread);
+      MarketStatusRegisterExecutionError("PANDORA_BROKER_SPREAD_BLOCK", spread_reason, 0, 0);
+    }
     g_ea_running = false;
     RefreshGridVisualization();
     return;
@@ -271,7 +286,7 @@ void OnTick()
   if(current_time>=next_bar_open)
   {
     if(signal_attempts_allowed)
-      Main();
+      Main(pandora_observed_this_tick);
 
     //--- set the new bar opening time
     next_bar_open=current_time;
@@ -281,21 +296,27 @@ void OnTick()
 
   // MANAGES THE BULLISH AND BEARISH SIGNALS
   if(broker_actions_allowed)
-    Main_Tick();
+    Main_Tick(signal_attempts_allowed && market_open,
+              pandora_observed_this_tick);
   RefreshGridVisualization();
 }
 
 // DETECT BULLISH AND BEARISH SIGNALS
-void Main()
+void Main(const bool pandora_already_observed = false)
 {
+  if(pandora_already_observed && PandoraStrategyEnabled())
+    return;
   DetectStrategySignals();
 }
 
 // MANAGE BULLISH AND BEARISH SIGNALS
-void Main_Tick()
+void Main_Tick(const bool pandora_detection_allowed = true,
+               const bool pandora_already_observed = false)
 {
   // Pandora strategy needs tick-based detection so breakout triggers arm immediately after the box window closes.
-  if(PandoraStrategyEnabled())
+  if(pandora_detection_allowed &&
+     !pandora_already_observed &&
+     PandoraStrategyEnabled())
     PandoraDetectSignals();
 
   CheckTickOpenBullishSignals();

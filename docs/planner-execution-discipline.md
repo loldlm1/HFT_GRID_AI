@@ -8,6 +8,11 @@ The plan is the execution contract. Do not treat it as background context only.
 Execute Sprints in the order written unless the user explicitly changes the
 order or the plan itself identifies safe independent dependencies.
 
+Global Codex hooks may assist with active-plan continuity on this desktop, but
+they do not change this file's gates. A hook reminder is a prompt to verify the
+current state, not permission to skip validation, commit review, or trading-risk
+checks.
+
 ## Instruction Relationship
 
 When instructions conflict, follow the project `AGENTS.md` precedence rules. In
@@ -153,6 +158,26 @@ A Sprint is not complete until all of these are true:
   and git is available.
 
 Do not proceed to the next Sprint until the current Sprint passes this gate.
+
+## Hook-Assisted Continuation
+
+When global hooks are enabled, agents may maintain
+`.codex-hook-state/active-plan-state.json` while executing a Sprint-based plan.
+Use that state only for local continuity:
+
+- Update it when starting a Sprint, after validation passes/fails, after the
+  Sprint commit is created, and when a blocker or user question appears.
+- Keep it small and redacted. Store only plan path, Sprint number/title, status,
+  validation status, commit status, blocker status, and next action.
+- Never store source code, full logs, account identifiers, broker credentials,
+  license tokens, private traces, optimization sets, or `.env` values.
+- If `Stop` asks Codex to continue, first verify the state against the real
+  plan file, `git status --short`, and recent commits.
+- If the hook state conflicts with the plan, git history, user instruction, or
+  project safety rules, ignore the hook state and repair or delete it.
+
+Hook state is never committed and must not be treated as audit evidence. The
+commits, validation output, and handoff remain the durable record.
 
 ## Commit Discipline
 

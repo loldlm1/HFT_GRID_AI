@@ -18,8 +18,22 @@ void CheckTickOpenBullishSignals()
     {
       running_bullish_signals[i].close_time  = TimeCurrent();
       running_bullish_signals[i].close_price = g_bid;
+      if(IsPandoraSignal(running_bullish_signals[i]))
+      {
+        if(running_bullish_signals[i].pandora_local_close_time > 0)
+          running_bullish_signals[i].close_time = running_bullish_signals[i].pandora_local_close_time;
+        if(running_bullish_signals[i].pandora_local_close_price > 0.0)
+          running_bullish_signals[i].close_price = running_bullish_signals[i].pandora_local_close_price;
+      }
+      double entry_price = running_bullish_signals[i].entry_price;
+      if(IsPandoraSignal(running_bullish_signals[i]) &&
+         running_bullish_signals[i].pandora_source_entry_price > 0.0)
+        entry_price = running_bullish_signals[i].pandora_source_entry_price;
+      else if(IsPandoraSignal(running_bullish_signals[i]) &&
+         running_bullish_signals[i].pandora_local_entry_price > 0.0)
+        entry_price = running_bullish_signals[i].pandora_local_entry_price;
       running_bullish_signals[i].raw_profit  = RawProfitUsd(BULLISH,
-                                                            running_bullish_signals[i].entry_price,
+                                                            entry_price,
                                                             running_bullish_signals[i].close_price);
       running_bullish_signals[i].signal_state = CLOSED;
 
@@ -47,8 +61,22 @@ void CheckTickOpenBearishSignals()
     {
       running_bearish_signals[i].close_time  = TimeCurrent();
       running_bearish_signals[i].close_price = g_ask;
+      if(IsPandoraSignal(running_bearish_signals[i]))
+      {
+        if(running_bearish_signals[i].pandora_local_close_time > 0)
+          running_bearish_signals[i].close_time = running_bearish_signals[i].pandora_local_close_time;
+        if(running_bearish_signals[i].pandora_local_close_price > 0.0)
+          running_bearish_signals[i].close_price = running_bearish_signals[i].pandora_local_close_price;
+      }
+      double entry_price = running_bearish_signals[i].entry_price;
+      if(IsPandoraSignal(running_bearish_signals[i]) &&
+         running_bearish_signals[i].pandora_source_entry_price > 0.0)
+        entry_price = running_bearish_signals[i].pandora_source_entry_price;
+      else if(IsPandoraSignal(running_bearish_signals[i]) &&
+         running_bearish_signals[i].pandora_local_entry_price > 0.0)
+        entry_price = running_bearish_signals[i].pandora_local_entry_price;
       running_bearish_signals[i].raw_profit  = RawProfitUsd(BEARISH,
-                                                            running_bearish_signals[i].entry_price,
+                                                            entry_price,
                                                             running_bearish_signals[i].close_price);
       running_bearish_signals[i].signal_state = CLOSED;
 

@@ -15,6 +15,132 @@ string PandoraHistoryObjectName(const datetime day_anchor,
   return PandoraObjectName("DAY_" + CompactTimeIdentifier(day_anchor) + "_" + suffix);
 }
 
+string PandoraTradeMarkerObjectName(const PandoraTradeMarkerSnapshot &snapshot,
+                                    const string suffix)
+{
+  if(snapshot.marker_id == "")
+    return "";
+  return PandoraObjectName("TRADE_" + snapshot.marker_id + "_" + suffix);
+}
+
+string PandoraFormatMarkerMoney(const double value)
+{
+  double rounded_cents = MathRound(value * 100.0) / 100.0;
+  double rounded_units = MathRound(rounded_cents);
+  if(MathAbs(rounded_cents - rounded_units) < 0.005)
+    return IntegerToString((int)rounded_units) + "$";
+  return DoubleToString(rounded_cents, 2) + "$";
+}
+
+string PandoraTradeMarkerLabel(const PandoraTradeMarkerSnapshot &snapshot)
+{
+  string execution_label = PandoraPositionExecutionLabel(snapshot.broker_status,
+                                                        snapshot.reject_reason);
+  return PandoraFormatMarkerMoney(snapshot.raw_profit) + " (" + execution_label + ")";
+}
+
+color PandoraTradeMarkerEntryColor(const PandoraTradeMarkerSnapshot &snapshot)
+{
+  if(snapshot.direction == BULLISH)
+    return COLOR_CHART_BULL;
+  if(snapshot.direction == BEARISH)
+    return COLOR_CHART_BEAR;
+  return COLOR_PROFIT_NEUTRAL;
+}
+
+color PandoraTradeMarkerCloseColor(const PandoraTradeMarkerSnapshot &snapshot)
+{
+  if(snapshot.raw_profit > 0.0)
+    return COLOR_PROFIT_POSITIVE;
+  if(snapshot.raw_profit < 0.0)
+    return COLOR_PROFIT_NEGATIVE;
+  return COLOR_PROFIT_NEUTRAL;
+}
+
+int PandoraTradeMarkerEntryArrow(const PandoraTradeMarkerSnapshot &snapshot)
+{
+  if(snapshot.direction == BEARISH)
+    return 234;
+  return 233;
+}
+
+int PandoraTradeMarkerCloseArrow(const PandoraTradeMarkerSnapshot &snapshot)
+{
+  if(snapshot.direction == BEARISH)
+    return 233;
+  return 234;
+}
+
+void PandoraDrawTradeMarkerSnapshot(const long chart_id,
+                                    const PandoraTradeMarkerSnapshot &snapshot,
+                                    string &tracked_objects[])
+{
+  if(snapshot.marker_id == "" ||
+     snapshot.entry_time <= 0 ||
+     snapshot.entry_price <= 0.0)
+    return;
+
+  string entry_name = PandoraTradeMarkerObjectName(snapshot, "ENTRY");
+  UpdateTrackedTimePriceArrow(chart_id,
+                              entry_name,
+                              snapshot.entry_time,
+                              snapshot.entry_price,
+                              PandoraTradeMarkerEntryArrow(snapshot),
+                              PandoraTradeMarkerEntryColor(snapshot),
+                              tracked_objects,
+                              1);
+
+  if(!snapshot.completed ||
+     snapshot.close_time <= 0 ||
+     snapshot.close_price <= 0.0)
+    return;
+
+  color close_color = PandoraTradeMarkerCloseColor(snapshot);
+  string segment_name = PandoraTradeMarkerObjectName(snapshot, "SEGMENT");
+  UpdateTrackedTimePriceSegment(chart_id,
+                                segment_name,
+                                snapshot.entry_time,
+                                snapshot.entry_price,
+                                snapshot.close_time,
+                                snapshot.close_price,
+                                close_color,
+                                tracked_objects,
+                                STYLE_DOT,
+                                1);
+
+  string close_name = PandoraTradeMarkerObjectName(snapshot, "CLOSE");
+  UpdateTrackedTimePriceArrow(chart_id,
+                              close_name,
+                              snapshot.close_time,
+                              snapshot.close_price,
+                              PandoraTradeMarkerCloseArrow(snapshot),
+                              close_color,
+                              tracked_objects,
+                              1);
+
+  string label_name = PandoraTradeMarkerObjectName(snapshot, "LABEL");
+  UpdateTrackedTimePriceText(chart_id,
+                             label_name,
+                             snapshot.close_time,
+                             snapshot.close_price,
+                             PandoraTradeMarkerLabel(snapshot),
+                             FRONTEND_PANEL_FONT,
+                             8,
+                             close_color,
+                             tracked_objects);
+}
+
+void PandoraDrawTradeMarkers(const long chart_id,
+                             string &tracked_objects[])
+{
+  int total = PandoraTradeMarkerSnapshotCount();
+  for(int i = 0; i < total; i++)
+  {
+    PandoraTradeMarkerSnapshot snapshot = PandoraTradeMarkerSnapshotAt(i);
+    PandoraDrawTradeMarkerSnapshot(chart_id, snapshot, tracked_objects);
+  }
+}
+
 void PandoraDrawHistorySnapshot(const long chart_id,
                                 const PandoraHistorySnapshot &snapshot,
                                 string &tracked_objects[])
@@ -74,6 +200,7 @@ void PandoraDrawVisualization(const long chart_id,
     return;
 
   PandoraDrawHistory(chart_id, tracked_objects);
+  PandoraDrawTradeMarkers(chart_id, tracked_objects);
 
   color box_color = Pandora_Box_Color;
   bool  invalid_box = (g_pandora_box_state.box_computed && !g_pandora_box_state.box_valid);

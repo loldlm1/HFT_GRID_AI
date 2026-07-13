@@ -77,6 +77,27 @@ bool RefreshSymbolTradingConstraints(const string symbol, SymbolTradingConstrain
   return spec_loaded;
 }
 
+bool RefreshBrokerConstraintsForAction(const string symbol,
+                                       SymbolTradingConstraints &constraints,
+                                       const string context_label)
+{
+  ResetLastError();
+  bool refreshed = RefreshSymbolTradingConstraints(symbol, constraints);
+  if(refreshed)
+    return true;
+
+  int last_error = GetLastError();
+  PrintFormat("[%s] Broker constraint refresh failed for %s | err=%d | point=%.5f | tick=%.5f | stops=%.1f | freeze=%.1f",
+              context_label,
+              symbol,
+              last_error,
+              constraints.point_size,
+              constraints.tick_size,
+              constraints.stops_level_points,
+              constraints.freeze_level_points);
+  return false;
+}
+
 // Calculates the strictest distance required by the broker in points.
 double MinBrokerDistancePoints(const SymbolTradingConstraints &constraints)
 {
@@ -115,6 +136,43 @@ double EnforceBrokerDistance(const SymbolTradingConstraints &constraints,
   if(requested_distance_points < effective_min)
     return effective_min;
   return requested_distance_points;
+}
+
+double EffectiveBrokerDistancePoints(const SymbolTradingConstraints &constraints,
+                                     const double requested_distance_points = 0.0,
+                                     const double safety_ticks = 1.0)
+{
+  double enforced_points = EnforceBrokerDistance(constraints,
+                                                requested_distance_points);
+  double min_points = EnforceBrokerDistance(constraints, 0.0);
+
+  double tick_points = 0.0;
+  if(constraints.point_size > 0.0 && constraints.tick_size > 0.0)
+    tick_points = constraints.tick_size / constraints.point_size;
+  if(tick_points <= 0.0)
+    tick_points = 1.0;
+
+  double safety_points = MathMax(safety_ticks, 0.0) * tick_points;
+  double buffered_min_points = min_points + safety_points;
+  if(enforced_points < buffered_min_points)
+    enforced_points = buffered_min_points;
+
+  return enforced_points;
+}
+
+double EffectiveBrokerDistancePrice(const SymbolTradingConstraints &constraints,
+                                    const double requested_distance_points = 0.0,
+                                    const double safety_ticks = 1.0)
+{
+  double point_size = constraints.point_size;
+  if(point_size <= 0.0)
+    point_size = SymbolInfoDouble(constraints.symbol, SYMBOL_POINT);
+  if(point_size <= 0.0)
+    return 0.0;
+
+  return EffectiveBrokerDistancePoints(constraints,
+                                       requested_distance_points,
+                                       safety_ticks) * point_size;
 }
 
 // Simple validation helper. Prints a warning when the requested distance

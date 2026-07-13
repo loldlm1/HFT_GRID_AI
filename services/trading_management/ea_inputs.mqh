@@ -46,6 +46,7 @@ input StrategyDirectionTypes Pandora_Box_Direction_Mode       = BOTH_DIRECTION;
 input bool                   Pandora_Box_Use_Session_Filter   = true;
 input bool                   Pandora_Box_Enable_Visualization = true;
 input bool                   Pandora_Box_Set_Broker_SLTP      = true;
+int    Pandora_Box_Broker_Retry_Attempts = 8;
 input PandoraEntryTypes      Pandora_Box_Entry_Type           = ENTRY_WICK_TYPE;
 input ENUM_TIMEFRAMES        Pandora_Box_Entry_Body_Timeframe = PERIOD_M5;
 input bool                   Enable_Chart_Levels              = true;
@@ -205,7 +206,7 @@ DailySignalLimitModes Daily_Signal_Limit_Mode      = STOP_DAILY_SIGNALS;
 
 //input group  "+= Developer Debug Settings =+";
  bool Enable_Logs              = false;
- bool Enable_File_Logs         = false;
+ bool Enable_File_Logs         = true;
  bool Enable_Show_Indicators   = true;
  bool Enable_Chart_Summary     = true;
  bool Enable_Trend_Filter_Sanity_Stop = false;
