@@ -114,5 +114,18 @@ Runtime rules:
 ## Migration Requirement
 When adopting this module in an EA, remove or bypass legacy local license logic to prevent dual-auth flows.
 
+## Versioned Token Compatibility
+
+- Existing version 1 tokens decrypt as `email,ea_id,expires_at`.
+- Version 2 and later tokens decrypt as `email,ea_id,expires_at,token_version`.
+- The client accepts exactly those three- or four-field formats and requires a
+  positive integer version in the fourth field.
+- API JSON contracts remain unchanged; `license_key` is still the only token
+  sent to the backend.
+- A client build with version 2 parsing support must be compiled, released, and
+  confirmed as the supported customer build before Rails issues or rotates any
+  version 2+ token.
+- Token contents and decrypted payloads must never be written to diagnostics.
+
 Reference migration plan:
 - `services/shared/license_guard_v1/license-shared-service-migration-plan.md`

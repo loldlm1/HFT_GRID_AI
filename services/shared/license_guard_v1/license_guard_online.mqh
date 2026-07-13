@@ -134,6 +134,7 @@ enum LicenseSharedErrorCode
 string license_email = "";
 string license_ea_id = "";
 datetime license_expire = 0;
+long license_token_version = 1;
 datetime last_validation_time = 0;
 datetime license_last_heartbeat_time = 0;
 bool license_payload_ok = false;
@@ -1726,6 +1727,34 @@ bool ValidateLicensePayload()
   return true;
 }
 
+bool LicenseParsePositiveTokenVersion(const string value, long &token_version)
+{
+  string normalized = Trim(value);
+  int length = StringLen(normalized);
+  if(length == 0)
+    return false;
+
+  long parsed_version = 0;
+  for(int i = 0; i < length; i++)
+  {
+    int character = StringGetCharacter(normalized, i);
+    if(character < '0' || character > '9')
+      return false;
+
+    int digit = character - '0';
+    if(parsed_version > (2147483647 - digit) / 10)
+      return false;
+
+    parsed_version = (parsed_version * 10) + digit;
+  }
+
+  if(parsed_version <= 0)
+    return false;
+
+  token_version = parsed_version;
+  return true;
+}
+
 string EncryptEA(string email = "", string ea_id = "", int days = 30)
 {
   if(email == "")
@@ -1737,7 +1766,6 @@ string EncryptEA(string email = "", string ea_id = "", int days = 30)
   BCrypt.Init(primary_ci_key, base_secret_key, payload);
   string encrypted_payload = BCrypt.Encrypt();
 
-  Print("NEW LICENSE KEY= ", encrypted_payload);
   return encrypted_payload;
 }
 
@@ -1758,7 +1786,7 @@ bool DecryptEA()
   string decrypted_payload = BCrypt.Decrypt(EA_License_Key);
 
   int license_ok = StringSplit(decrypted_payload, u_sep, license_privileges);
-  if(license_ok != 3)
+  if(license_ok != 3 && license_ok != 4)
   {
     Print("Could not decrypt the current license.");
     return false;
@@ -1767,6 +1795,14 @@ bool DecryptEA()
   license_email = Trim(license_privileges[0]);
   license_ea_id = Trim(license_privileges[1]);
   license_expire = (datetime)StringToInteger(Trim(license_privileges[2]));
+  license_token_version = 1;
+
+  if(license_ok == 4 &&
+     !LicenseParsePositiveTokenVersion(license_privileges[3], license_token_version))
+  {
+    Print("LICENSE PAYLOAD INVALID.");
+    return false;
+  }
 
   if(!ValidateLicensePayload())
   {
