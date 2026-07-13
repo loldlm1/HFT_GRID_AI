@@ -1,8 +1,7 @@
 # Extremum Engine Telemetry Corrective Evidence
 
 **Date**: 2026-07-10
-**Status**: Automated corrective evidence PASS; human short-run A/B and
-one-month acceptance pending
+**Status**: Complete; owner accepted and archived on 2026-07-11
 
 ## Scope
 
@@ -23,7 +22,7 @@ are reproduced here.
 | 8 | `68428eb` | Valid frozen attempt TP and terminal append-only broker flags | `cdcc0f9` |
 | 9 | `60b58b8` | Strict geometry and genealogy validation | `68428eb` |
 | 10 | `097b8ba` | Bounded tester telemetry hot path and file logging | `60b58b8` |
-| 11 | `docs: record extremum telemetry corrective validation` | Evidence and human handoff | `097b8ba` |
+| 11 | `bc8823f` | Evidence and human handoff | `097b8ba` |
 
 ## Correctness Repairs
 
@@ -117,5 +116,34 @@ and their elapsed-time delta is acceptable. Use:
 - a new semantically correct 2026 `Signal_Feature_Run_Id`.
 
 The one-month folder becomes eligible for DuckDB and XGBoost research only
-after the same validator and count reconciliation pass. The active plan remains
-open until the human owner records and accepts those results.
+after the same validator and count reconciliation pass.
+
+## Final Accepted Runtime Evidence
+
+On 2026-07-11 the owner completed a one-week C lane using XAUUSD M1 real ticks
+from 2026-06-07 through 2026-06-13. Export and diagnostic file logs were both
+enabled. The run completed naturally in `0:02:03.624` with 2,322,421 ticks and
+6,889 bars.
+
+Strict schema v7 validation passed:
+
+- `export_status=OK`;
+- 699 cycles, 2,859 revisions, 6,889 attempts, and 14,012 admissions;
+- 1,366 features, 1,365 outcomes, and 1,365 joined supervised rows;
+- 4,095 leg outcomes, all with broker-confirmed closure;
+- maximum 22 active paths;
+- zero TP-zero, wrong-side TP, target-R mismatch, duplicate-ID, orphan, frozen
+  anchor, or genealogy contradictions.
+
+Two expected run-end limitations remain non-blocking: one broker-entered
+feature had no close/outcome inside the test range, and one broker-valid profit
+outcome ended with `RUN_ENDED` and no path-ratio label. Both are handled safely
+by the dataset validator.
+
+Lane A used identical trading inputs with export and file logs disabled. It was
+stopped manually after progressing more slowly under external host contention.
+Matching checkpoints produced identical orders, prices, volumes, SL, and TP,
+so no telemetry-driven trading divergence was observed. The owner accepted the
+correctness and bounded-performance evidence, waived lane B and the one-month
+run for this closeout, and authorized archival. This acceptance does not claim
+profitability, an approved runtime model, or a controlled A/B overhead ratio.

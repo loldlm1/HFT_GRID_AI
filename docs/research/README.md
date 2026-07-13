@@ -2,9 +2,12 @@
 
 Active research gate:
 
-- `docs/research/extremum-engine-statistics-implementation-evidence.md` records
-  automated Sprint 1-7 evidence and the remaining human Strategy Tester and
-  performance acceptance gates.
+- None. Start a new plan and evidence set for the next substantial research
+  change.
+
+Completed extremum engine and schema v7 statistics evidence is archived under:
+
+- `docs/research/archive/extremum-engine-cycle-statistics-2026-07-11/`
 
 Completed broker-first execution/statistics research is archived under:
 

@@ -1,8 +1,7 @@
 # Extremum Engine Statistics Implementation Evidence
 
 **Date**: 2026-07-10
-**Status**: Automated implementation evidence PASS; human Strategy Tester and
-performance acceptance pending
+**Status**: Complete; archived after owner acceptance on 2026-07-11
 
 ## Scope
 
@@ -21,7 +20,7 @@ Tester acceptance, profitability evidence, or runtime-model approval.
 | 4 | `203478a` | Revert to Sprint 3 |
 | 5 | `2b23cd4` | Revert to Sprint 4 |
 | 6 | `521e038` | Revert to Sprint 5 |
-| 7 | `docs: close extremum engine statistics workflow` | Revert documentation/final cleanup only |
+| 7 | `cdcc0f9` | Revert documentation/final cleanup only |
 
 ## MetaEditor Compile Evidence
 
@@ -82,21 +81,15 @@ real-run replay.
 - PASS: cycle/revision observation is new-bar scoped; simulated paths use a
   bounded horizon and reserved state; exporter writes remain buffered.
 
-## Required Human Evidence
+## Final Human Acceptance
 
-These gates are pending and prevent plan archival:
+The owner accepted plan closure on 2026-07-11 after the completed one-week C
+lane passed strict schema v7 validation. The final runtime evidence is recorded
+in `extremum-engine-telemetry-corrective-evidence.md`.
 
-- PEAK and BOTTOM visual scenarios with correct direction and breakout timing.
-- A same-cycle deeper revision with stable cycle ID and increasing attempt
-  depth/index.
-- No-trigger or revision-expired attempt.
-- Session or spread block retained in the intrinsic census.
-- Broker entry and broker-confirmed close linked to cycle/revision/attempt IDs.
-- Open cycle and attempt censored at run end.
-- Old and unapproved artifacts visibly fail closed in Strategy Tester.
-- Comparable export-disabled and schema-v7 tester runs measuring elapsed time,
-  output bytes, row counts, and peak active simulated paths.
-
-Until those results are recorded and accepted by the owner, the active plan
-status remains "implementation complete; human acceptance pending" and no
-schema v7 runtime model is approved.
+The run confirmed PEAK/BOTTOM coverage, stable genealogy, frozen Fibonacci
+anchors, bounded active paths, separate simulated/broker outcomes, and
+broker-confirmed leg closure. Lane A preserved deterministic trading parity at
+matching checkpoints but was affected by external host contention. Lane B and
+the one-month run were waived for archival rather than represented as executed.
+No schema v7 runtime model is approved by this closeout.

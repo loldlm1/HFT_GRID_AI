@@ -8,9 +8,8 @@ Short, current notes for Codex agents and contributors. Keep this file brief; ac
 
 - **Purpose**: MT5 Expert Advisor foundation with one M1 extremum engine, broker-aware execution planning, schema v7 statistics, and strict risk controls.
 - **Entrypoint**: `HFT_Grid_AI.mq5`.
-- **Active plan**: `docs/plans/extremum-engine-cycle-statistics-plan.md`.
-  Implementation is complete; human Strategy Tester and performance acceptance
-  remain pending.
+- **Active plan**: none. Start a new `$planner` plan under `docs/plans/` for
+  the next substantial change.
 - **Environment runbook**: `docs/environment/mt5-agentic-workflows.md`.
 - **Extremum engine workflow**: `docs/workflows/extremum-engine-statistics-flow.md`.
 - **ML runtime boundaries**: `docs/workflows/deterministic-signal-ml-inference-flows.md`.
@@ -23,6 +22,9 @@ Short, current notes for Codex agents and contributors. Keep this file brief; ac
 - **Archived broker-first execution/statistics closeout**:
   `docs/plans/archive/broker-first-execution-statistics-2026-07-10/` and
   `docs/research/archive/broker-first-execution-statistics-2026-07-10/`.
+- **Archived extremum engine/statistics closeout**:
+  `docs/plans/archive/extremum-engine-cycle-statistics-2026-07-11/` and
+  `docs/research/archive/extremum-engine-cycle-statistics-2026-07-11/`.
 - **Archived deterministic ML evidence**: `docs/research/archive/deterministic-signal-ml-2026-07-05/`.
 - **Archived plans**: completed refoundation and skill-stack alignment plans live under `docs/plans/archive/`.
 - **Planning model**: create a new `$planner` plan under `docs/plans/` for any substantial future strategy, architecture, or repository-wide change.

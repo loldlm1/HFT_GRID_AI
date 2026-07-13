@@ -2,11 +2,12 @@
 
 Active planning status:
 
-- Active implementation plan:
-  `docs/plans/extremum-engine-cycle-statistics-plan.md`.
-- Sprints 1-7 are implemented in order. The plan remains active until the human
-  Strategy Tester matrix and real export-disabled versus schema-v7 performance
-  comparison are recorded and accepted.
+- No active implementation plan. Create a new `$planner` plan here before the
+  next substantial strategy, architecture, or repository-wide change.
+
+Completed extremum engine and schema v7 statistics work is archived under:
+
+- `docs/plans/archive/extremum-engine-cycle-statistics-2026-07-11/`
 
 Completed broker-first execution/statistics alignment plans are archived under:
 

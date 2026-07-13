@@ -107,5 +107,6 @@ python3 tools/mt5/compile_mt5.py \
 - `docs/workflows/extremum-engine-statistics-flow.md`: active engine workflow.
 - `docs/workflows/deterministic-signal-ml-inference-flows.md`: ML runtime boundaries.
 - `docs/environment/mt5-agentic-workflows.md`: paths, compile, and artifacts.
-- `docs/plans/extremum-engine-cycle-statistics-plan.md`: active acceptance plan.
+- `docs/plans/archive/extremum-engine-cycle-statistics-2026-07-11/`: completed
+  extremum engine and schema v7 statistics plan.
 - `docs/plans/archive/` and `docs/research/archive/`: immutable historical work.

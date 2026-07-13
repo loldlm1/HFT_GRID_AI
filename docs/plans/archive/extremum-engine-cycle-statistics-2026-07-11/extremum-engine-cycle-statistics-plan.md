@@ -1,8 +1,7 @@
 # Plan: Single Extremum Engine And Cycle Statistics
 
 **Generated**: 2026-07-10
-**Status**: Sprints 1-11 implementation complete; human short-run Strategy
-Tester benchmark and one-month performance/data acceptance pending
+**Status**: Complete; owner accepted and archived on 2026-07-11
 **Estimated Complexity**: Critical
 **Risk Class**: Critical, because removing the M1 and macro MA gates changes which candidates can reach broker admission and can materially increase trade frequency even though broker, license, session, margin, spread, protection, and reconciliation controls remain mandatory.
 
@@ -60,11 +59,9 @@ engine on M3/M5/M10 without redesigning identity or storage.
 
 ## Implementation Record
 
-The ordered implementation batch completed on 2026-07-10. Automated evidence
-is recorded in `docs/research/extremum-engine-statistics-implementation-evidence.md`.
-The plan remains active because the required human Strategy Tester matrix and a
-real export-disabled versus schema-v7 performance/storage comparison have not
-yet been executed or accepted.
+The ordered implementation batch completed on 2026-07-10. Automated and
+Strategy Tester evidence is archived under
+`docs/research/archive/extremum-engine-cycle-statistics-2026-07-11/`.
 
 | Sprint | Commit | Automated status |
 | --- | --- | --- |
@@ -74,22 +71,46 @@ yet been executed or accepted.
 | 4 | `203478a` | Implemented; Python/schema fixtures PASS |
 | 5 | `2b23cd4` | Implemented; DuckDB audit fixture PASS |
 | 6 | `521e038` | Implemented; MetaEditor and Python PASS |
-| 7 | `docs: close extremum engine statistics workflow` | Documentation and final automated validation complete |
+| 7 | `cdcc0f9` | Documentation and final automated validation complete |
 | 8 | `68428eb` | Implemented; MetaEditor PASS |
 | 9 | `60b58b8` | Implemented; 14 tests PASS |
 | 10 | `097b8ba` | Implemented; MetaEditor PASS |
-| 11 | `docs: record extremum telemetry corrective validation` | Automated evidence PASS; human A/B pending |
+| 11 | `bc8823f` | Automated evidence PASS; human benchmark handoff complete |
 
-Human acceptance is deliberately not inferred from compilation or synthetic
-fixtures. The unchecked human/performance gates in this plan remain binding.
+Human acceptance was recorded on 2026-07-11 after a naturally completed schema
+v7 diagnostic run passed strict validation. Earlier unchecked task-level boxes
+remain as historical planning state; they do not override this final closeout
+record and are not claims that an unexecuted scenario was run.
 
 The first schema v7 diagnostic run was intentionally stopped by the human owner
 because its projected one-month duration was approximately one hour. Its
 missing `run_summary.tsv`, open cycles, and partial joins are expected evidence
-of an interrupted run and are not accepted as a completed dataset. Corrective
-acceptance first requires a naturally completed short run; a naturally
-completed one-month run follows only after the short-run integrity and
-performance gates pass.
+of an interrupted run and are not accepted as a completed dataset. A subsequent
+one-week run completed naturally with `export_status=OK`, strict schema v7
+validation PASS, consistent genealogy and broker joins, bounded active paths,
+and valid directional TP/SL geometry.
+
+## Final Owner Acceptance And Closure
+
+The accepted one-week C lane used XAUUSD M1 real ticks from 2026-06-07 through
+2026-06-13 with export and diagnostic file logs enabled. It completed in
+`0:02:03.624` and produced:
+
+- 699 cycles, 2,859 revisions, and 6,889 attempts;
+- 14,012 admissions, 1,366 features, and 1,365 joined outcomes;
+- 4,095 broker-confirmed leg closes and a maximum of 22 active paths;
+- zero duplicate/orphan IDs, zero TP-zero rows, zero wrong-side geometry, and
+  zero simulated target-R mismatches;
+- one expected broker-entered feature without a close inside the run and one
+  broker-valid outcome without a completed path label at run end.
+
+Lane A used matching inputs except export and file logs were disabled. It was
+stopped manually after external host contention made it slower, but equivalent
+checkpoints preserved identical orders, prices, volumes, SL, and TP. The owner
+accepted the bounded telemetry implementation and the validated C dataset as
+sufficient closure evidence. Lane B and the naturally completed one-month run
+were explicitly waived for this plan closeout; their absence is not represented
+as completed profitability, runtime-model, or month-scale benchmark evidence.
 
 ## Scope
 
@@ -1531,12 +1552,12 @@ summaries outside git.
 - [x] Automated compile/test evidence is PASS.
 - [x] Short-run A/B results are recorded and acceptable, or remain explicitly
   marked as human-run pending without archiving this plan.
-- [ ] A completed export run validates without TP or genealogy contradictions.
+- [x] A completed export run validates without TP or genealogy contradictions.
 - [x] The full-month run instruction explicitly requires natural completion and
   a unique semantically correct 2026 run ID.
 - [x] Exactly one Sprint 11 commit is created with the proposed message.
-- [ ] The plan remains active until the human benchmark and one-month acceptance
-  are complete.
+- [x] The owner accepted the validated one-week export and explicitly waived the
+  remaining B-lane and one-month gates for archival.
 
 ## Testing Strategy
 
@@ -1682,26 +1703,27 @@ Rollback constraints:
 
 ## Completion Checklist
 
-- [ ] S1/S2/S3 inputs and active behavior are removed without compatibility
+- [x] S1/S2/S3 inputs and active behavior are removed without compatibility
   shims.
-- [ ] One M1 extremum engine produces only the structurally valid direction.
-- [ ] M1/macro MA values cannot gate creation or activation.
-- [ ] Breakout, SL/TP, broker, protection, license, session, margin, volume,
+- [x] One M1 extremum engine produces only the structurally valid direction.
+- [x] M1/macro MA values cannot gate creation or activation.
+- [x] Breakout, SL/TP, broker, protection, license, session, margin, volume,
   magic, symbol, and reconciliation behavior passes review.
-- [ ] Cycle/revision/attempt identity is deterministic and copy-safe.
-- [ ] Fibonacci anchors are frozen and raw depths/point distances are correct.
-- [ ] Schema v7 exports cycles, revisions, attempts, admissions, and broker facts
+- [x] Cycle/revision/attempt identity is deterministic and copy-safe.
+- [x] Fibonacci anchors are frozen and raw depths/point distances are correct.
+- [x] Schema v7 exports cycles, revisions, attempts, admissions, and broker facts
   with consistent counts.
-- [ ] Simulated and broker outcomes are never conflated.
-- [ ] Every intrinsic attempt has valid frozen directional TP/SL geometry.
-- [ ] Attempt broker flags agree with joined broker outcomes.
-- [ ] Python validation and backward compatibility tests pass.
-- [ ] DuckDB audit reports human depth/range/attempt/cycle profitability with
+- [x] Simulated and broker outcomes are never conflated.
+- [x] Every intrinsic attempt has valid frozen directional TP/SL geometry.
+- [x] Attempt broker flags agree with joined broker outcomes.
+- [x] Python validation and backward compatibility tests pass.
+- [x] DuckDB audit reports human depth/range/attempt/cycle profitability with
   distinct-cycle support.
-- [ ] XGBoost splits are chronological and cycle-group safe.
-- [ ] Old artifacts fail closed against the new engine.
-- [ ] Performance/storage regression is measured and acceptable.
-- [ ] Per-tick statistics work scales with active paths, not historical attempts.
-- [ ] Every sprint has exactly one sprint-specific commit and recorded rollback
+- [x] XGBoost splits are chronological and cycle-group safe.
+- [x] Old artifacts fail closed against the new engine.
+- [x] Performance/storage regression is measured and accepted by the owner with
+  the A-lane host-contamination limitation recorded.
+- [x] Per-tick statistics work scales with active paths, not historical attempts.
+- [x] Every sprint has exactly one sprint-specific commit and recorded rollback
   point.
-- [ ] Active documentation matches implemented behavior.
+- [x] Active documentation matches implemented behavior.
