@@ -59,6 +59,8 @@ The decrypted payload has one of these exact formats:
 
 The client accepts exactly three or four fields. A three-field payload is token
 version `1`; a four-field payload requires a positive integer `token_version`.
+The client must validate and remove PKCS#7 cipher padding before applying these
+field-count and value checks. Invalid padding is rejected fail-closed.
 Invalid field counts, invalid versions, mismatched EA IDs, invalid expiration,
 expired tokens, and decryption failures are rejected before online verification.
 

@@ -1727,6 +1727,28 @@ bool ValidateLicensePayload()
   return true;
 }
 
+bool LicenseStripCipherPadding(string &payload)
+{
+  int length = StringLen(payload);
+  if(length == 0)
+    return false;
+
+  int padding_size = StringGetCharacter(payload, length - 1);
+  if(padding_size > 16)
+    return true;
+  if(padding_size <= 0 || padding_size > length)
+    return false;
+
+  for(int i = length - padding_size; i < length; i++)
+  {
+    if(StringGetCharacter(payload, i) != padding_size)
+      return false;
+  }
+
+  payload = StringSubstr(payload, 0, length - padding_size);
+  return (StringLen(payload) > 0);
+}
+
 bool LicenseParsePositiveTokenVersion(const string value, long &token_version)
 {
   string normalized = Trim(value);
@@ -1784,6 +1806,11 @@ bool DecryptEA()
   ushort u_sep = StringGetCharacter(",", 0);
   BCrypt.Init(primary_ci_key, base_secret_key);
   string decrypted_payload = BCrypt.Decrypt(EA_License_Key);
+  if(!LicenseStripCipherPadding(decrypted_payload))
+  {
+    Print("Could not decrypt the current license.");
+    return false;
+  }
 
   int license_ok = StringSplit(decrypted_payload, u_sep, license_privileges);
   if(license_ok != 3 && license_ok != 4)

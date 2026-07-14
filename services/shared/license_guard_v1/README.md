@@ -118,6 +118,8 @@ When adopting this module in an EA, remove or bypass legacy local license logic 
 
 - Existing version 1 tokens decrypt as `email,ea_id,expires_at`.
 - Version 2 and later tokens decrypt as `email,ea_id,expires_at,token_version`.
+- The client validates and removes PKCS#7 cipher padding before parsing either
+  payload format.
 - The client accepts exactly those three- or four-field formats and requires a
   positive integer version in the fourth field.
 - API JSON contracts remain unchanged; `license_key` is still the only token
