@@ -5,7 +5,7 @@
 //+------------------------------------------------------------------+
 #property copyright     "https://tradingsniperpanel.com"
 #property description   "Copyright BULLISH LIFE Team."
-#property version       "1.10"
+#property version       "1.11"
 #property description   "Support Telegram Contact @chu4xtrade"
 #property description   "All Rights Reserved for the BULLISH LIFE Team."
 #property description   "PANDORA BOX EA"

@@ -1,6 +1,6 @@
 # HFT Grid AI EA
 
-**Version:** 1.10
+**Version:** 1.11
 **Platform:** MetaTrader 5 (MQL5)
 **Contact:** @loldlm · https://t.me/TradingAlgoritmicoFx
 
