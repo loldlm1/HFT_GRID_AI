@@ -16,16 +16,18 @@ void DrawExecutionState(const long chart_id,
                         const PivotSignal &signal,
                         string &tracked_objects[])
 {
-  if(signal.signal_id == "")
+  if(signal.signal_id == "" ||
+     !signal.execution.broker_entry_confirmed ||
+     signal.execution.broker_close_confirmed ||
+     signal.execution.state != EXECUTION_ORDER_BROKER_ACTIVE)
     return;
 
   double entry_price = signal.route.intended_entry_price;
-  double stop_loss = signal.execution.broker_stop_loss > 0.0
-                     ? signal.execution.broker_stop_loss
-                     : signal.route.initial_stop_loss;
+  double stop_loss = signal.execution.broker_stop_loss;
   double take_profit = signal.route.terminal_take_profit;
   string identity_label = EnumToString(signal.pivot_timeframe) + " " +
-                          PivotLevelLabel(signal.level_id);
+                          PivotLevelLabel(signal.level_id) + " " +
+                          (signal.direction == BULLISH ? "BUY" : "SELL");
 
   UpdateTrackedLine(chart_id,
                     ExecutionSignalObjectName(signal, "ENTRY"),

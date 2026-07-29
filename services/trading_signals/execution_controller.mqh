@@ -264,7 +264,7 @@ bool SendPivotMarketOrder(PivotSignal &signal)
 
   signal.execution.send_result_check.CopyFrom(send_check);
   signal.execution.order_ticket = result.order;
-  signal.execution.deal_ticket = result.deal;
+  signal.execution.entry_deal_ticket = result.deal;
   signal.execution.position_ticket = result.order;
   if(!accepted)
   {

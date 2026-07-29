@@ -83,6 +83,7 @@ int OnInit()
   PivotV9StatsInit();
   LoadAllIndicatorDefinitions();
   InitializePivotFractalRuntime();
+  InitializePivotBrokerOwnershipBoundary();
   RefreshCustomSymbolRates();
 
   ResetExecutionVisualizationCache();
@@ -97,6 +98,7 @@ int OnInit()
 
 void OnDeinit(const int reason)
 {
+  ReconcileAndFinalizePivotSignals();
   string completion_status = PivotRunCompletionStatus(reason);
   FinalizeActivePivotWindowsForExport(completion_status);
   PivotV9StatsDeinit(completion_status);
@@ -120,7 +122,7 @@ void OnTradeTransaction(const MqlTradeTransaction &trans,
                         const MqlTradeResult &result)
 {
   RefreshCustomSymbolRates();
-  ReconcilePivotSignalsAfterTradeTransaction();
+  ReconcileAndFinalizePivotSignals();
 }
 
 void OnTick()
@@ -130,8 +132,8 @@ void OnTick()
   if(!DebugEquityGuardAllowsProcessing())
     return;
 
+  ProcessPivotSignalLifecycle(tick);
   ProcessPivotFractalTick(tick);
-  ReconcilePivotSignalsAfterTradeTransaction();
   datetime current_time = TimeCurrent();
   if(FrontendRefreshDue(current_time))
     RefreshExecutionVisualization();

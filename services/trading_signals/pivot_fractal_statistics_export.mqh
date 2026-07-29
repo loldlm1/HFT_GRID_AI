@@ -37,7 +37,7 @@ const string PIVOT_V9_CHECKS_HEADER =
 const string PIVOT_V9_TRAILING_HEADER =
   "schema_version\trun_id\tconfig_id\tsignal_id\twindow_id\tevent_sequence\tevent_broker_time\tevent_analysis_time\tevent_offset_minutes\tsymbol\tdirection\tposition_ticket\tposition_identifier\tmilestone_level\tmilestone_price\tprevious_confirmed_stop\tdesired_stop\trequested_stop\tconfirmed_stop\ttake_profit\trequest_performed\trequest_succeeded\tretcode\tcomment\tretry_pending\tevent_status";
 const string PIVOT_V9_OUTCOMES_HEADER =
-  "schema_version\trun_id\tconfig_id\tsignal_id\twindow_id\tsymbol\tpivot_timeframe\tactive_bar_open_broker_time\tlevel_id\tdirection\tentry_broker_time\tentry_analysis_time\tentry_offset_minutes\tclose_broker_time\tclose_analysis_time\tclose_offset_minutes\torder_ticket\tdeal_ticket\tposition_ticket\tposition_identifier\tbroker_entry_price\tbroker_volume\tinitial_stop_loss\tterminal_take_profit\tfinal_broker_stop_loss\tfinal_broker_take_profit\tclose_price\tclosed_volume\trealized_profit\thighest_milestone_level\tterminal_reason\tduration_seconds\tbroker_entry_confirmed\tbroker_close_confirmed";
+  "schema_version\trun_id\tconfig_id\tsignal_id\twindow_id\tsymbol\tpivot_timeframe\tactive_bar_open_broker_time\tlevel_id\tdirection\tentry_broker_time\tentry_analysis_time\tentry_offset_minutes\tclose_broker_time\tclose_analysis_time\tclose_offset_minutes\torder_ticket\tentry_deal_ticket\tclose_deal_ticket\tposition_ticket\tposition_identifier\tbroker_entry_price\tbroker_volume\tinitial_stop_loss\tterminal_take_profit\tfinal_broker_stop_loss\tfinal_broker_take_profit\tclose_price\tclosed_volume\trealized_profit\thighest_milestone_level\tterminal_reason\tduration_seconds\tbroker_entry_confirmed\tbroker_close_confirmed";
 const string PIVOT_V9_SUMMARY_HEADER =
   "schema_version\trun_id\tconfig_id\tstarted_broker_time\tstarted_analysis_time\tstarted_offset_minutes\tfinished_broker_time\tfinished_analysis_time\tfinished_offset_minutes\tpivot_window_rows\tpivot_level_rows\tsignal_attempt_rows\tsignal_feature_rows\texecution_check_rows\ttrailing_event_rows\tsignal_outcome_rows\tfeature_incomplete_rows\tduplicate_identity_count\treferential_integrity_error_count\trow_integrity_error_count\texport_status\tcompletion_status";
 
@@ -189,7 +189,8 @@ struct PivotV9OutcomePayload
   datetime entry_time;
   datetime close_time;
   ulong order_ticket;
-  ulong deal_ticket;
+  ulong entry_deal_ticket;
+  ulong close_deal_ticket;
   ulong position_ticket;
   ulong position_identifier;
   double broker_entry_price;
@@ -217,7 +218,8 @@ struct PivotV9OutcomePayload
     entry_time                 = 0;
     close_time                 = 0;
     order_ticket               = 0;
-    deal_ticket                = 0;
+    entry_deal_ticket          = 0;
+    close_deal_ticket          = 0;
     position_ticket            = 0;
     position_identifier        = 0;
     broker_entry_price         = 0.0;
@@ -1031,6 +1033,9 @@ bool PivotV9RecordOutcome(const PivotV9OutcomePayload &payload)
      payload.window_id == "" ||
      payload.entry_time <= 0 ||
      payload.close_time < payload.entry_time ||
+     payload.order_ticket == 0 ||
+     payload.entry_deal_ticket == 0 ||
+     payload.close_deal_ticket == 0 ||
      payload.position_ticket == 0 ||
      payload.position_identifier == 0 ||
      payload.broker_entry_price <= 0.0 ||
@@ -1056,7 +1061,8 @@ bool PivotV9RecordOutcome(const PivotV9OutcomePayload &payload)
                PivotV9TimestampColumns(payload.entry_time) + "\t" +
                PivotV9TimestampColumns(payload.close_time) + "\t" +
                PivotV9UlongToken(payload.order_ticket) + "\t" +
-               PivotV9UlongToken(payload.deal_ticket) + "\t" +
+               PivotV9UlongToken(payload.entry_deal_ticket) + "\t" +
+               PivotV9UlongToken(payload.close_deal_ticket) + "\t" +
                PivotV9UlongToken(payload.position_ticket) + "\t" +
                PivotV9UlongToken(payload.position_identifier) + "\t" +
                PivotV9DoubleToken(payload.broker_entry_price, false) + "\t" +
