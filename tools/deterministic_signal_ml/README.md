@@ -1,6 +1,6 @@
 # Extremum Engine Research Tooling
 
-This directory validates schema v7 MQL5 exports, builds typed Parquet tables,
+This directory validates schema v8 MQL5 exports, builds typed Parquet tables,
 produces DuckDB depth/profitability audits, and prepares leak-safe XGBoost
 research. It does not call MT5, place trades, or approve a runtime model.
 
@@ -14,32 +14,34 @@ python3 -m venv .venv
 The dependency versions are pinned. Generated datasets, audits, models, and
 exports live under `artifacts/` and remain ignored by git.
 
-## Schema V7 Inputs
+## Schema V8 Inputs
 
 Each run contains manifest/summary files plus:
 
+- `run_manifest.tsv`
 - `engine_cycles.tsv`
 - `engine_revisions.tsv`
 - `engine_attempts.tsv`
-- `signal_admissions.tsv`
+- `execution_checks.tsv`
 - `signal_features.tsv`
 - `signal_outcomes.tsv`
-- `signal_leg_outcomes.tsv`
+- `run_summary.tsv`
 
 The validator checks row counts, unique IDs, parent joins, monotonic revision
 indexes, immutable Fibonacci anchors, raw numeric depth, simulated provenance,
-and broker outcome evidence. Historical v4/v5/v6 contracts remain selectable
-explicitly but cannot be mixed with v7 in one dataset.
+broker/analysis timestamp conversion, mandatory attempt observations, send-check
+ordering, and broker outcome evidence. Historical schemas require their matching
+historical code revision; current tooling does not adapt or migrate them.
 
 ## Build
 
 ```bash
 .venv/bin/python tools/deterministic_signal_ml/build_dataset.py \
   --runs-root <runs_root> \
-  --run-id <schema_v7_run_id> \
-  --dataset-id <schema_v7_dataset_id> \
-  --schema-version 7 \
-  --feature-set-id schema_v7_extremum_engine_xgb \
+  --run-id <schema_v8_run_id> \
+  --dataset-id <schema_v8_dataset_id> \
+  --schema-version 8 \
+  --feature-set-id schema_v8_extremum_engine_xgb \
   --target-family broker_1r \
   --overwrite
 ```
@@ -48,16 +50,17 @@ Use `--validate-only` before large builds. Use
 `--target-family engine_simulated_1r` for a separate simulation target lane.
 Never combine simulated and broker targets.
 
-Schema v7 outputs include typed `engine_cycles.parquet`,
-`engine_revisions.parquet`, `engine_attempts.parquet`, broker tables,
-`training_matrix.parquet`, and compact JSON/Markdown quality reports.
+Schema v8 outputs mirror the eight run tables as typed Parquet, add
+`training_matrix.parquet`, and include compact JSON/Markdown quality reports.
+Broker time owns causal ordering and duration; analysis time owns normalized
+calendar features and pattern matching.
 
 ## Human Audit
 
 ```bash
 .venv/bin/python tools/deterministic_signal_ml/extremum_engine_audit.py \
-  --dataset-id <schema_v7_dataset_id> \
-  --audit-id <schema_v7_audit_id> \
+  --dataset-id <schema_v8_dataset_id> \
+  --audit-id <schema_v8_audit_id> \
   --overwrite
 ```
 
@@ -78,9 +81,9 @@ clamped. Range fields are price distance in points, not volume.
 
 ```bash
 .venv/bin/python tools/deterministic_signal_ml/train_model.py \
-  --dataset-id <schema_v7_dataset_id> \
-  --model-id <schema_v7_model_id> \
-  --feature-set-id schema_v7_extremum_engine_xgb \
+  --dataset-id <schema_v8_dataset_id> \
+  --model-id <schema_v8_model_id> \
+  --feature-set-id schema_v8_extremum_engine_xgb \
   --overwrite
 ```
 
@@ -88,7 +91,7 @@ The feature set contains only attempt-time facts. Chronological splits group
 all attempts from `symbol + engine_timeframe + extremum_cycle_id` together.
 Training fails with an actionable error when row or class support is too small.
 
-Model export remains research-only. Schema v7 exports use
+Model export remains research-only. Schema v8 exports use
 `runtime_approval=RESEARCH_ONLY_NOT_APPROVED`; the MQL5 runtime rejects them.
 Old multi-strategy artifacts are incompatible with `EXTREMUM_V1`.
 

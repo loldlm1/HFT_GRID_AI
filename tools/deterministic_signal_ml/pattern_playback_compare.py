@@ -28,15 +28,26 @@ MATCH_REQUIRED_COLUMNS = (
     "signal_id",
     "source_key",
     "source_attempt_index",
-    "entry_time",
+    "entry_broker_time",
+    "entry_analysis_time",
+    "entry_offset_minutes",
     "pattern_label",
     "conditions_text",
 )
 
 OBSERVATION_REQUIRED_COLUMNS = (
+    "schema_version",
     "pattern_id",
     "source_key",
     "source_attempt_index",
+    "expected_entry_broker_time",
+    "expected_entry_analysis_time",
+    "expected_entry_offset_minutes",
+    "observed_entry_broker_time",
+    "observed_entry_analysis_time",
+    "observed_entry_offset_minutes",
+    "expected_signal_id",
+    "observed_signal_id",
     "expected_match",
     "observation_status",
     "pattern_label",
@@ -50,10 +61,13 @@ MISMATCH_COLUMNS = (
     "source_attempt_index",
     "expected_signal_id",
     "observed_signal_id",
-    "expected_entry_time",
-    "observed_entry_time",
+    "expected_entry_broker_time",
+    "expected_entry_analysis_time",
+    "expected_entry_offset_minutes",
+    "observed_entry_broker_time",
+    "observed_entry_analysis_time",
+    "observed_entry_offset_minutes",
     "observed_runtime_signal_id",
-    "observed_runtime_entry_time",
     "expected_status",
     "observed_status",
     "pattern_label",
@@ -71,13 +85,17 @@ class PatternPlaybackRow:
     signal_id: str
     source_key: str
     source_attempt_index: str
-    entry_time: str
+    entry_broker_time: str
+    entry_analysis_time: str
+    entry_offset_minutes: str
     pattern_label: str
     conditions_text: str
     expected_match: str = "true"
     observation_status: str = "EXPECTED"
     runtime_signal_id: str = ""
-    runtime_entry_time: str = ""
+    runtime_entry_broker_time: str = ""
+    runtime_entry_analysis_time: str = ""
+    runtime_entry_offset_minutes: str = ""
 
     @property
     def key(self) -> tuple[str, str, str]:
@@ -223,7 +241,9 @@ def load_expected_matches(path: Path, *, include_unselected: bool) -> list[Patte
                 signal_id=row.get("signal_id", ""),
                 source_key=source_key,
                 source_attempt_index=row.get("source_attempt_index", ""),
-                entry_time=normalize_entry_time(row.get("entry_time", "")),
+                entry_broker_time=normalize_entry_time(row.get("entry_broker_time", "")),
+                entry_analysis_time=normalize_entry_time(row.get("entry_analysis_time", "")),
+                entry_offset_minutes=row.get("entry_offset_minutes", ""),
                 pattern_label=row.get("pattern_label", ""),
                 conditions_text=row.get("conditions_text", ""),
             )
@@ -239,29 +259,29 @@ def load_observations(path: Path) -> list[PatternPlaybackRow]:
 
     observations: list[PatternPlaybackRow] = []
     for row in rows:
+        if row.get("schema_version") != "3":
+            raise PatternPlaybackCompareError("Pattern observation schema must be version 3")
         source_key = row.get("source_key", "")
         pattern_id = row.get("pattern_id", "")
         if not source_key or not pattern_id:
             continue
-        legacy_signal_id = row.get("signal_id", "")
-        legacy_entry_time = row.get("entry_time", "")
-        expected_signal_id = row.get("expected_signal_id", legacy_signal_id)
-        observed_signal_id = row.get("observed_signal_id", legacy_signal_id)
-        expected_entry_time = row.get("expected_entry_time", legacy_entry_time)
-        observed_entry_time = row.get("observed_entry_time", legacy_entry_time)
         observations.append(
             PatternPlaybackRow(
                 pattern_id=pattern_id,
-                signal_id=expected_signal_id,
+                signal_id=row.get("expected_signal_id", ""),
                 source_key=source_key,
                 source_attempt_index=row.get("source_attempt_index", ""),
-                entry_time=normalize_entry_time(expected_entry_time),
+                entry_broker_time=normalize_entry_time(row.get("expected_entry_broker_time", "")),
+                entry_analysis_time=normalize_entry_time(row.get("expected_entry_analysis_time", "")),
+                entry_offset_minutes=row.get("expected_entry_offset_minutes", ""),
                 pattern_label=row.get("pattern_label", ""),
                 conditions_text=row.get("conditions_text", ""),
                 expected_match=row.get("expected_match", ""),
                 observation_status=row.get("observation_status", ""),
-                runtime_signal_id=observed_signal_id,
-                runtime_entry_time=normalize_entry_time(observed_entry_time),
+                runtime_signal_id=row.get("observed_signal_id", ""),
+                runtime_entry_broker_time=normalize_entry_time(row.get("observed_entry_broker_time", "")),
+                runtime_entry_analysis_time=normalize_entry_time(row.get("observed_entry_analysis_time", "")),
+                runtime_entry_offset_minutes=row.get("observed_entry_offset_minutes", ""),
             )
         )
     return observations
@@ -339,10 +359,13 @@ def mismatch_row(
         "source_attempt_index": source.source_attempt_index,
         "expected_signal_id": expected.signal_id if expected is not None else "",
         "observed_signal_id": observed.signal_id if observed is not None else "",
-        "expected_entry_time": expected.entry_time if expected is not None else "",
-        "observed_entry_time": observed.entry_time if observed is not None else "",
+        "expected_entry_broker_time": expected.entry_broker_time if expected is not None else "",
+        "expected_entry_analysis_time": expected.entry_analysis_time if expected is not None else "",
+        "expected_entry_offset_minutes": expected.entry_offset_minutes if expected is not None else "",
+        "observed_entry_broker_time": observed.runtime_entry_broker_time if observed is not None else "",
+        "observed_entry_analysis_time": observed.runtime_entry_analysis_time if observed is not None else "",
+        "observed_entry_offset_minutes": observed.runtime_entry_offset_minutes if observed is not None else "",
         "observed_runtime_signal_id": observed.runtime_signal_id if observed is not None else "",
-        "observed_runtime_entry_time": observed.runtime_entry_time if observed is not None else "",
         "expected_status": expected.observation_status if expected is not None else "",
         "observed_status": observed.observation_status if observed is not None else "",
         "pattern_label": source.pattern_label,
@@ -367,8 +390,9 @@ def compare_rows(
 
     mismatches: list[dict[str, str]] = []
     signal_id_mismatches = 0
-    timestamp_mismatches = 0
-    runtime_timestamp_mismatches = 0
+    broker_time_mismatches = 0
+    analysis_time_mismatches = 0
+    offset_mismatches = 0
     runtime_signal_id_nulls = 0
     status_mismatches = 0
 
@@ -384,15 +408,40 @@ def compare_rows(
     for key in matched_keys:
         expected = expected_index[key]
         observed = observed_index[key]
-        if expected.entry_time != observed.entry_time:
-            timestamp_mismatches += 1
-            mismatches.append(mismatch_row("entry_time_mismatch", expected, observed))
+        analysis_time_mismatch = (
+            expected.entry_analysis_time != observed.entry_analysis_time
+            or (
+                bool(observed.runtime_entry_analysis_time)
+                and expected.entry_analysis_time != observed.runtime_entry_analysis_time
+            )
+        )
+        broker_time_mismatch = (
+            expected.entry_broker_time != observed.entry_broker_time
+            or (
+                bool(observed.runtime_entry_broker_time)
+                and expected.entry_broker_time != observed.runtime_entry_broker_time
+            )
+        )
+        offset_mismatch = (
+            expected.entry_offset_minutes != observed.entry_offset_minutes
+            or (
+                bool(observed.runtime_entry_offset_minutes)
+                and expected.entry_offset_minutes != observed.runtime_entry_offset_minutes
+            )
+        )
+        if analysis_time_mismatch:
+            analysis_time_mismatches += 1
+            mismatches.append(mismatch_row("entry_analysis_time_mismatch", expected, observed))
+        if broker_time_mismatch:
+            broker_time_mismatches += 1
+            mismatches.append(mismatch_row("entry_broker_time_mismatch", expected, observed))
+        if offset_mismatch:
+            offset_mismatches += 1
+            mismatches.append(mismatch_row("entry_offset_mismatch", expected, observed))
         if expected.signal_id != observed.signal_id:
             signal_id_mismatches += 1
             if require_signal_id_match:
                 mismatches.append(mismatch_row("signal_id_mismatch", expected, observed))
-        if observed.runtime_entry_time and expected.entry_time != observed.runtime_entry_time:
-            runtime_timestamp_mismatches += 1
         if not observed.runtime_signal_id or observed.runtime_signal_id == r"\N":
             runtime_signal_id_nulls += 1
         if not is_true(observed.expected_match) or observed.observation_status != "OBSERVED":
@@ -404,6 +453,9 @@ def compare_rows(
         + len(observed_duplicates)
         + len(missing_keys)
         + len(extra_keys)
+        + broker_time_mismatches
+        + analysis_time_mismatches
+        + offset_mismatches
         + status_mismatches
     )
     if require_signal_id_match:
@@ -420,10 +472,11 @@ def compare_rows(
         "matched_rows": len(matched_keys),
         "missing_rows": len(missing_keys),
         "extra_rows": len(extra_keys),
-        "entry_time_mismatch_rows": timestamp_mismatches,
+        "entry_broker_time_mismatch_rows": broker_time_mismatches,
+        "entry_analysis_time_mismatch_rows": analysis_time_mismatches,
+        "entry_offset_mismatch_rows": offset_mismatches,
         "signal_id_mismatch_rows": signal_id_mismatches,
         "signal_id_match_required": require_signal_id_match,
-        "runtime_entry_time_mismatch_rows": runtime_timestamp_mismatches,
         "runtime_signal_id_null_rows": runtime_signal_id_nulls,
         "observation_status_mismatch_rows": status_mismatches,
         "duplicate_expected_key_rows": len(expected_duplicates),
@@ -451,10 +504,11 @@ def build_pending_report(
         "matched_rows": 0,
         "missing_rows": len(expected_rows),
         "extra_rows": 0,
-        "entry_time_mismatch_rows": 0,
+        "entry_broker_time_mismatch_rows": 0,
+        "entry_analysis_time_mismatch_rows": 0,
+        "entry_offset_mismatch_rows": 0,
         "signal_id_mismatch_rows": 0,
         "signal_id_match_required": False,
-        "runtime_entry_time_mismatch_rows": 0,
         "runtime_signal_id_null_rows": 0,
         "observation_status_mismatch_rows": 0,
         "duplicate_expected_key_rows": 0,
@@ -513,9 +567,10 @@ def write_markdown_report(output_dir: Path, report: dict[str, Any], max_examples
         "matched_rows",
         "missing_rows",
         "extra_rows",
-        "entry_time_mismatch_rows",
+        "entry_broker_time_mismatch_rows",
+        "entry_analysis_time_mismatch_rows",
+        "entry_offset_mismatch_rows",
         "signal_id_mismatch_rows",
-        "runtime_entry_time_mismatch_rows",
         "runtime_signal_id_null_rows",
         "observation_status_mismatch_rows",
         "duplicate_expected_key_rows",
@@ -667,7 +722,9 @@ def main() -> int:
         f"matched={report['matched_rows']} | missing={report['missing_rows']} | "
         f"extra={report['extra_rows']} | unique_trades={report['unique_observed_trade_entries']} | "
         f"duplicate_pattern_hits={report['duplicate_observed_pattern_hits']} | "
-        f"entry_time_mismatches={report['entry_time_mismatch_rows']} | "
+        f"broker_time_mismatches={report['entry_broker_time_mismatch_rows']} | "
+        f"analysis_time_mismatches={report['entry_analysis_time_mismatch_rows']} | "
+        f"offset_mismatches={report['entry_offset_mismatch_rows']} | "
         f"signal_id_mismatches={report['signal_id_mismatch_rows']} | output={output_dir}"
     )
     return 0 if report["status"] in ("PASS", "PENDING") else 1

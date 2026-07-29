@@ -17,8 +17,8 @@ SMOKE_BASELINE_MODEL_ID = "xgb_test_1"
 SMOKE_BASELINE_EXPORT_ID = "xgb_test_1_export_v1"
 SMOKE_DATASET_MAX_ROWS = 10000
 CANDIDATE_MANIFEST_VERSION = "phase1.candidate_manifest.v1"
-DEFAULT_BASELINE_FEATURE_SET_ID = "schema_v4_full"
-DEFAULT_BASELINE_SCHEMA_VERSION = "feature_schema_v4"
+DEFAULT_BASELINE_FEATURE_SET_ID = "schema_v8_extremum_engine_xgb"
+DEFAULT_BASELINE_SCHEMA_VERSION = "feature_schema_v8"
 DEFAULT_ROBUST_SPLIT_POLICY = "robust_chronological_train_early_threshold_holdout"
 DEFAULT_THRESHOLD_POLICY = "threshold_selection_not_final_holdout"
 

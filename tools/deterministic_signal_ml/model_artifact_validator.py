@@ -34,8 +34,8 @@ class ModelArtifactValidationError(RuntimeError):
 
 def validate_engine_manifest_compatibility(manifest: dict[str, str]) -> None:
     expected = {
-        "phase1_schema_version": "7",
-        "feature_set_id": "schema_v7_extremum_engine_xgb",
+        "phase1_schema_version": "8",
+        "feature_set_id": "schema_v8_extremum_engine_xgb",
         "engine_id": "1",
         "engine_label": "EXTREMUM_V1",
         "engine_timeframe": "PERIOD_M1",
@@ -51,7 +51,7 @@ def validate_engine_manifest_compatibility(manifest: dict[str, str]) -> None:
         )
     if manifest.get("runtime_approval") != "APPROVED_FOR_MT5_RUNTIME":
         raise ModelArtifactValidationError(
-            "Schema v7 research artifact is not approved for MT5 runtime"
+            "Schema v8 research artifact is not approved for MT5 runtime"
         )
 
 

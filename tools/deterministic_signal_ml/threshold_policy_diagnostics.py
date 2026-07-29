@@ -56,7 +56,7 @@ def read_rows(path: Path) -> list[dict[str, Any]]:
     connection = duckdb.connect(":memory:")
     try:
         result = connection.execute(
-            f"SELECT * FROM read_parquet('{escaped}') ORDER BY entry_time, row_index"
+            f"SELECT * FROM read_parquet('{escaped}') ORDER BY entry_broker_time, row_index"
         )
         columns = [column[0] for column in result.description]
         return [dict(zip(columns, row)) for row in result.fetchall()]

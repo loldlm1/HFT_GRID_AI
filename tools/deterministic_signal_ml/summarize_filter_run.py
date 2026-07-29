@@ -30,6 +30,10 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Require and validate arbitration_decisions.tsv plus arbitration summary counters.",
     )
+    parser.add_argument(
+        "--execution-checks-path",
+        help="Optional schema v8 execution_checks.tsv used to report broker blocks separately.",
+    )
     return parser
 
 
@@ -177,7 +181,12 @@ def validate_arbitration_rows(
     }
 
 
-def summarize(run_path: Path, *, require_arbitration: bool = False) -> dict[str, object]:
+def summarize(
+    run_path: Path,
+    *,
+    require_arbitration: bool = False,
+    execution_checks_path: Path | None = None,
+) -> dict[str, object]:
     paths = validate_required_files(run_path, require_arbitration=require_arbitration)
     manifest = read_manifest(paths["shadow_manifest.tsv"])
     predictions = read_tsv(paths["shadow_predictions.tsv"])
@@ -237,6 +246,21 @@ def summarize(run_path: Path, *, require_arbitration: bool = False) -> dict[str,
         summary,
         require_arbitration=require_arbitration,
     )
+    broker_block_reasons: Counter[str] = Counter()
+    tester_policy_block_reasons: Counter[str] = Counter()
+    if execution_checks_path is not None:
+        if not execution_checks_path.is_file():
+            raise FilterRunSummaryError(f"Execution checks file does not exist: {execution_checks_path}")
+        for row in read_tsv(execution_checks_path):
+            if row.get("allowed") == "0":
+                reason = row.get("block_source", "") or row.get("block_reason", "") or NULL_TOKEN
+                if row.get("check_phase") == "FILTER_RESULT" or row.get("block_source") in {
+                    "ml_filter",
+                    "pattern_audit",
+                }:
+                    tester_policy_block_reasons[reason] += 1
+                else:
+                    broker_block_reasons[reason] += 1
 
     return {
         "shadow_run_id": manifest.get("shadow_run_id", ""),
@@ -250,6 +274,8 @@ def summarize(run_path: Path, *, require_arbitration: bool = False) -> dict[str,
         "recommendations": recommendations,
         "admission_actions": admission_actions,
         "filter_reasons": filter_reasons,
+        "broker_block_reasons": broker_block_reasons,
+        "tester_policy_block_reasons": tester_policy_block_reasons,
         "export_status": summary.get("export_status", ""),
         **arbitration_report,
     }
@@ -259,13 +285,19 @@ def main() -> int:
     parser = build_parser()
     args = parser.parse_args()
     try:
-        report = summarize(Path(args.shadow_run_path), require_arbitration=args.require_arbitration)
+        report = summarize(
+            Path(args.shadow_run_path),
+            require_arbitration=args.require_arbitration,
+            execution_checks_path=(Path(args.execution_checks_path) if args.execution_checks_path else None),
+        )
     except FilterRunSummaryError as exc:
         parser.exit(1, f"filter run summary FAIL | {exc}\n")
 
     recommendations = report["recommendations"]
     admission_actions = report["admission_actions"]
     arbitration_actions = report["arbitration_actions"]
+    broker_blocks = report["broker_block_reasons"]
+    tester_policy_blocks = report["tester_policy_block_reasons"]
     print(
         "filter run summary PASS | "
         f"run_id={report['shadow_run_id']} | "
@@ -283,6 +315,9 @@ def main() -> int:
         f"arbitration_multi_groups={report['arbitration_multi_groups']} | "
         f"arbitration_SELECTED={arbitration_actions['SELECTED']} | "
         f"arbitration_BLOCKED={arbitration_actions['BLOCKED']} | "
+        f"broker_check_blocks={sum(broker_blocks.values())} | "
+        f"tester_policy_blocks={sum(tester_policy_blocks.values())} | "
+        f"tester_filter_blocks={admission_actions['BLOCK']} | "
         f"export_status={report['export_status']}"
     )
     return 0

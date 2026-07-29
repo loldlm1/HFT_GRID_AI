@@ -110,12 +110,12 @@ def _read_parquet_rows(path: Path, order_by: str) -> list[dict[str, Any]]:
 
 
 def _read_split_rows(dataset_path: Path) -> list[dict[str, Any]]:
-    rows = _read_parquet_rows(dataset_path / "training_matrix.parquet", "entry_time, source_key")
-    return [{"entry_time": str(row["entry_time"])} for row in rows]
+    rows = _read_parquet_rows(dataset_path / "training_matrix.parquet", "entry_broker_time, source_key")
+    return [{"entry_broker_time": str(row["entry_broker_time"])} for row in rows]
 
 
 def _read_symbol_maps(dataset_path: Path) -> tuple[dict[str, str], list[str]]:
-    rows = _read_parquet_rows(dataset_path / "training_matrix.parquet", "entry_time, signal_id")
+    rows = _read_parquet_rows(dataset_path / "training_matrix.parquet", "entry_broker_time, signal_id")
     symbol_by_source_key: dict[str, str] = {}
     symbols_by_row_index: list[str] = []
     for row in rows:
@@ -220,7 +220,7 @@ def _load_threshold_source(model_path: Path) -> tuple[str, list[dict[str, Any]],
     if fold_path.exists():
         return (
             "walk_forward_oof_pre_final_holdout",
-            _read_parquet_rows(fold_path, "entry_time, row_index"),
+            _read_parquet_rows(fold_path, "entry_broker_time, row_index"),
             False,
         )
 
@@ -228,7 +228,7 @@ def _load_threshold_source(model_path: Path) -> tuple[str, list[dict[str, Any]],
     if holdout_path.exists():
         return (
             "legacy_final_holdout_predictions",
-            _read_parquet_rows(holdout_path, "entry_time, row_index"),
+            _read_parquet_rows(holdout_path, "entry_broker_time, row_index"),
             True,
         )
     raise RobustnessValidationError(
@@ -631,7 +631,7 @@ def build_payload(args: argparse.Namespace) -> tuple[RobustnessReportPayload, li
 
     final_holdout_rows = _read_parquet_rows(
         model_path / "holdout_predictions.parquet",
-        "entry_time, row_index",
+        "entry_broker_time, row_index",
     )
     final_holdout_rows = _with_symbols(
         final_holdout_rows,

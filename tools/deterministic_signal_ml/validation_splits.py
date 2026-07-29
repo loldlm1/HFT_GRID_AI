@@ -36,7 +36,7 @@ class RobustSplitBundle:
 
 
 def _entry_time(row: dict[str, Any]) -> str:
-    return str(row.get("entry_time", ""))
+    return str(row.get("entry_broker_time") or row.get("entry_time", ""))
 
 
 def _range_metadata(rows: list[dict[str, Any]], indices: list[int]) -> dict[str, Any]:
@@ -65,7 +65,7 @@ def _assert_chronological(rows: list[dict[str, Any]]) -> None:
     for index, row in enumerate(rows):
         current = _entry_time(row)
         if current < previous:
-            raise ValueError(f"Rows are not sorted by entry_time at row index {index}")
+            raise ValueError(f"Rows are not sorted by broker entry time at row index {index}")
         previous = current
 
 

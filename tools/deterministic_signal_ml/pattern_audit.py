@@ -98,12 +98,20 @@ PATTERN_MATCH_COLUMNS = (
     "condition_count",
     "conditions_text",
     "signal_id",
+    "phase1_schema_version",
+    "feature_set_id",
     "source_key",
     "source_family_key",
     "source_attempt_index",
     "symbol",
     "strategy_label",
     "direction",
+    "engine_id",
+    "engine_timeframe",
+    "extremum_attempt_id",
+    "entry_broker_time",
+    "entry_analysis_time",
+    "entry_offset_minutes",
     "entry_time",
     "source_time",
     "terminal_time",
@@ -285,18 +293,6 @@ def _human_direction(value: Any) -> str:
     return str(value)
 
 
-def _human_slope(value: Any) -> str:
-    try:
-        slope = int(value)
-    except (TypeError, ValueError):
-        return str(value)
-    if slope > 0:
-        return "bullish"
-    if slope < 0:
-        return "bearish"
-    return "flat"
-
-
 def _human_fib_band(value: Any) -> str:
     parts = str(value).split("_")
     levels: list[str] = []
@@ -334,12 +330,6 @@ def _human_condition(condition: Condition) -> str:
         return f"{value}[1]"
     if column == "structure_2":
         return f"{value}[2]"
-    if column == "macro_h1_slope":
-        return f"H1 slope {_human_slope(value)}"
-    if column == "macro_h4_slope":
-        return f"H4 slope {_human_slope(value)}"
-    if column == "macro_d1_slope":
-        return f"D1 slope {_human_slope(value)}"
     if column == "fib_sl_band":
         return f"SL Fib {_human_fib_band(value)}"
     if column == "fib_entry_band":
@@ -408,6 +398,8 @@ FROM read_parquet('{_sql_path(matrix_path)}')
 CREATE OR REPLACE TEMP TABLE audit_rows AS
 SELECT
   *,
+  8 AS phase1_schema_version,
+  'schema_v8_extremum_engine_xgb' AS feature_set_id,
   CASE WHEN row_index > {pre_final_rows} THEN 'final_holdout' ELSE 'pre_final' END AS split_name,
   strftime(entry_time, '%Y-%m') AS entry_month,
   strftime(entry_time, '%Y') || '-Q' ||
@@ -415,12 +407,12 @@ SELECT
     AS entry_quarter
 FROM (
   SELECT
-    row_number() OVER (ORDER BY entry_time, signal_id) AS row_index,
+    row_number() OVER (ORDER BY entry_broker_time, signal_id) AS row_index,
     *
   FROM read_parquet('{_sql_path(matrix_path)}')
   {strategy_filter_clause}
 )
-ORDER BY entry_time, signal_id
+ORDER BY entry_broker_time, signal_id
 """
     )
     return total_rows
@@ -431,8 +423,6 @@ def pattern_templates(max_condition_count: int) -> list[tuple[str, tuple[str, ..
         ("direction_structure_2", ("direction", "structure_0")),
         ("direction_structure_3", ("direction", "structure_0", "structure_1")),
         ("direction_structure_stack", ("direction", "structure_0", "structure_1", "structure_2")),
-        ("direction_macro_h1_h4", ("direction", "macro_h1_slope", "macro_h4_slope")),
-        ("direction_macro_stack", ("direction", "macro_h1_slope", "macro_h4_slope", "macro_d1_slope")),
         ("direction_fib", ("direction", "fib_sl_band", "fib_entry_band")),
         ("direction_structure_fib", ("direction", "structure_0", "fib_sl_band", "fib_entry_band")),
         ("direction_high_chain", ("direction", "high_chain_profile")),
@@ -440,9 +430,6 @@ def pattern_templates(max_condition_count: int) -> list[tuple[str, tuple[str, ..
         ("direction_chain_stack", ("direction", "high_chain_profile", "low_chain_profile")),
         ("direction_chain_fib_entry", ("direction", "high_chain_profile", "low_chain_profile", "fib_entry_band")),
         ("direction_candle", ("direction", "previous_candle_profile")),
-        ("direction_structure_macro_high_chain", ("direction", "structure_0", "macro_h1_slope", "high_chain_profile")),
-        ("direction_structure_macro_low_chain", ("direction", "structure_0", "macro_h1_slope", "low_chain_profile")),
-        ("direction_structure_macro_fib", ("direction", "structure_0", "macro_h1_slope", "fib_entry_band")),
         ("direction_session", ("direction", "entry_session_bucket")),
         ("direction_weekday", ("direction", "entry_weekday")),
         ("direction_session_weekday", ("direction", "entry_session_bucket", "entry_weekday")),
@@ -554,7 +541,7 @@ SELECT target_is_win, target_profit_r
 FROM audit_rows
 WHERE {where_clause(definition)}
   AND split_name = {_sql_literal(split_name)}
-ORDER BY entry_time, signal_id
+ORDER BY entry_broker_time, signal_id
 """,
     )
     return _metrics_from_rows(rows)
@@ -883,12 +870,20 @@ def match_rows(
             f"""
 SELECT
   signal_id,
+  phase1_schema_version,
+  feature_set_id,
   source_key,
   regexp_replace(source_key, '^[^|]+\\|', '') AS source_family_key,
   source_attempt_index,
   symbol,
   strategy_label,
   direction,
+  engine_id,
+  engine_timeframe,
+  extremum_attempt_id,
+  entry_broker_time,
+  entry_analysis_time,
+  entry_offset_minutes,
   entry_time,
   source_time,
   terminal_time,
@@ -898,7 +893,7 @@ SELECT
   split_name
 FROM audit_rows
 WHERE {where_clause(definition)}
-ORDER BY entry_time, signal_id
+ORDER BY entry_broker_time, signal_id
 """,
         )
         for match in matches:
@@ -930,7 +925,7 @@ SELECT
   target_profit_r
 FROM audit_rows
 WHERE {where_clause(definition)}
-ORDER BY {period_column}, entry_time, signal_id
+ORDER BY {period_column}, entry_broker_time, signal_id
 """,
     )
     grouped: dict[str, list[dict[str, Any]]] = {}

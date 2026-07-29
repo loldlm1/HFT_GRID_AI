@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 
-TRAINER_VERSION = "extremum_engine.xgboost_trainer.schema_v7.v1"
+TRAINER_VERSION = "extremum_engine.xgboost_trainer.schema_v8.v1"
 DEFAULT_DATASET_ROOT = "artifacts/datasets"
 DEFAULT_MODEL_ROOT = "artifacts/models"
 DEFAULT_HOLDOUT_FRACTION = 0.20
@@ -67,11 +67,7 @@ class TrainingConfig:
 
 
 def training_config_for_feature_set(feature_set_id: str) -> TrainingConfig:
-    if feature_set_id not in (
-        "schema_v5_numeric_xgb",
-        "schema_v6_numeric_xgb",
-        "schema_v7_extremum_engine_xgb",
-    ):
+    if feature_set_id != "schema_v8_extremum_engine_xgb":
         return TrainingConfig()
 
     classifier = XGBoostClassifierConfig(

@@ -1,4 +1,4 @@
-"""Build compact human-readable Fibonacci depth audits for schema v7 datasets."""
+"""Build compact human-readable Fibonacci depth audits for schema v8 datasets."""
 
 from __future__ import annotations
 
@@ -78,7 +78,7 @@ def build_audit(
     required = ("engine_cycles.parquet", "engine_revisions.parquet", "engine_attempts.parquet", "training_matrix.parquet")
     missing = [filename for filename in required if not (dataset_dir / filename).exists()]
     if missing:
-        raise RuntimeError("Missing schema v7 dataset files: " + ", ".join(missing))
+        raise RuntimeError("Missing schema v8 dataset files: " + ", ".join(missing))
 
     connection = duckdb.connect(":memory:")
     for table in ("engine_cycles", "engine_revisions", "engine_attempts", "training_matrix"):
@@ -118,7 +118,8 @@ SELECT * EXCLUDE (fib_rank) FROM (
 CREATE TABLE audit_lanes AS
 SELECT
   run_id, symbol, engine_timeframe, extremum_cycle_id, revision_id, attempt_id,
-  attempt_created_time, direction, extremum_type, cycle_attempt_index,
+  attempt_created_broker_time, attempt_created_analysis_time,
+  direction, extremum_type, cycle_attempt_index,
   revision_attempt_index, candidate_depth_percent, nearest_fib_level,
   fib_distance_percent, reference_range_points, range_bucket,
   trigger_reached, broker_entry_confirmed, broker_close_confirmed,
@@ -130,7 +131,8 @@ FROM enriched_attempts
 UNION ALL
 SELECT
   a.run_id, a.symbol, a.engine_timeframe, a.extremum_cycle_id, a.revision_id,
-  a.attempt_id, a.attempt_created_time, a.direction, a.extremum_type,
+  a.attempt_id, a.attempt_created_broker_time, a.attempt_created_analysis_time,
+  a.direction, a.extremum_type,
   a.cycle_attempt_index, a.revision_attempt_index, a.candidate_depth_percent,
   a.nearest_fib_level, a.fib_distance_percent, a.reference_range_points,
   a.range_bucket, a.trigger_reached, a.broker_entry_confirmed,
@@ -195,7 +197,7 @@ ORDER BY l.run_id, l.extremum_cycle_id, l.outcome_source
         connection,
         """
 SELECT
-  STRFTIME(attempt_created_time, '%Y-%m') AS period,
+  STRFTIME(attempt_created_analysis_time, '%Y-%m') AS period,
   outcome_source, cycle_attempt_index, nearest_fib_level, range_bucket,
   COUNT(*) AS attempt_count,
   COUNT(DISTINCT extremum_cycle_id) AS distinct_cycle_count,
@@ -225,7 +227,7 @@ ORDER BY run_id, cycle_attempt_index
     metadata = {
         "audit_id": audit_id,
         "dataset_id": dataset_dir.name,
-        "schema_version": 7,
+        "schema_version": 8,
         "created_at": datetime.now(UTC).isoformat(),
         "outcome_lanes": ["ENGINE_SIMULATION", "BROKER_CONFIRMED"],
         "fibonacci_levels": list(fib_levels),

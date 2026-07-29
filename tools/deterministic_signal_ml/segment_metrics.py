@@ -29,14 +29,6 @@ def build_segment_metrics(
             ),
         ),
         (
-            "macro_slope_context",
-            lambda row: (
-                f"{row.get('macro_h1_slope', '')}|"
-                f"{row.get('macro_h4_slope', '')}|"
-                f"{row.get('macro_d1_slope', '')}"
-            ),
-        ),
-        (
             "fib_context",
             lambda row: f"{row.get('fib_sl_band', '')}|{row.get('fib_entry_band', '')}",
         ),

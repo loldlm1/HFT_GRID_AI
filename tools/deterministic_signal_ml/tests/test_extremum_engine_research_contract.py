@@ -13,18 +13,19 @@ from model_artifact_validator import (
     ModelArtifactValidationError,
     validate_engine_manifest_compatibility,
 )
+from pattern_playback_compare import PatternPlaybackRow, compare_rows
 from schema_contract import feature_columns_for_set
 from validation_splits import build_time_splits
 
 
 class ExtremumEngineResearchContractTests(unittest.TestCase):
     def test_point_in_time_features_exclude_final_cycle_facts(self) -> None:
-        features = set(feature_columns_for_set("schema_v7_extremum_engine_xgb"))
+        features = set(feature_columns_for_set("schema_v8_extremum_engine_xgb"))
         self.assertIn("candidate_depth_percent", features)
         self.assertIn("cycle_attempt_index", features)
         for forbidden in (
             "final_depth_percent",
-            "cycle_finalized_time",
+            "cycle_finalized_broker_time",
             "cycle_status",
             "cycle_total_profit_r",
             "simulated_profit_r",
@@ -38,7 +39,8 @@ class ExtremumEngineResearchContractTests(unittest.TestCase):
             for attempt_index in (1, 2):
                 rows.append(
                     {
-                        "entry_time": f"2026-01-{cycle_index + 1:02d} 10:0{attempt_index}:00",
+                        "entry_broker_time": f"2026-01-{cycle_index + 1:02d} 10:0{attempt_index}:00",
+                        "entry_analysis_time": f"2026-01-{cycle_index + 1:02d} 09:0{attempt_index}:00",
                         "symbol": "EURUSD",
                         "engine_timeframe": "PERIOD_M1",
                         "extremum_cycle_id": f"C_{cycle_index + 1}",
@@ -56,8 +58,8 @@ class ExtremumEngineResearchContractTests(unittest.TestCase):
 
     def test_old_and_unapproved_artifacts_fail_closed(self) -> None:
         old_manifest = {
-            "phase1_schema_version": "6",
-            "feature_set_id": "schema_v6_numeric_xgb",
+            "phase1_schema_version": "7",
+            "feature_set_id": "historical_extremum_engine_xgb",
             "engine_id": "",
             "engine_label": "",
             "engine_timeframe": "",
@@ -67,8 +69,8 @@ class ExtremumEngineResearchContractTests(unittest.TestCase):
             validate_engine_manifest_compatibility(old_manifest)
 
         research_manifest = {
-            "phase1_schema_version": "7",
-            "feature_set_id": "schema_v7_extremum_engine_xgb",
+            "phase1_schema_version": "8",
+            "feature_set_id": "schema_v8_extremum_engine_xgb",
             "engine_id": "1",
             "engine_label": "EXTREMUM_V1",
             "engine_timeframe": "PERIOD_M1",
@@ -79,6 +81,45 @@ class ExtremumEngineResearchContractTests(unittest.TestCase):
 
         approved_manifest = dict(research_manifest, runtime_approval="APPROVED_FOR_MT5_RUNTIME")
         validate_engine_manifest_compatibility(approved_manifest)
+
+    def test_playback_rejects_raw_broker_time_and_offset_mismatches(self) -> None:
+        expected = PatternPlaybackRow(
+            pattern_id="pat_1",
+            signal_id="sig_1",
+            source_key="US30|EXTREMUM_V1|C_1",
+            source_attempt_index="1",
+            entry_broker_time="2026-01-12 14:32:00",
+            entry_analysis_time="2026-01-12 13:32:00",
+            entry_offset_minutes="-60",
+            pattern_label="pattern",
+            conditions_text="condition",
+        )
+        observed = PatternPlaybackRow(
+            pattern_id="pat_1",
+            signal_id="sig_1",
+            source_key="US30|EXTREMUM_V1|C_1",
+            source_attempt_index="1",
+            entry_broker_time="2026-01-12 14:31:00",
+            entry_analysis_time="2026-01-12 13:32:00",
+            entry_offset_minutes="-60",
+            pattern_label="pattern",
+            conditions_text="condition",
+            observation_status="OBSERVED",
+            runtime_signal_id="runtime_sig_1",
+            runtime_entry_broker_time="2026-01-12 14:31:00",
+            runtime_entry_analysis_time="2026-01-12 13:32:00",
+            runtime_entry_offset_minutes="-59",
+        )
+
+        report = compare_rows([expected], [observed], require_signal_id_match=False)
+
+        self.assertEqual(report["status"], "FAIL")
+        self.assertEqual(report["entry_broker_time_mismatch_rows"], 1)
+        self.assertEqual(report["entry_offset_mismatch_rows"], 1)
+        self.assertEqual(
+            {row["mismatch_type"] for row in report["mismatches"]},
+            {"entry_broker_time_mismatch", "entry_offset_mismatch"},
+        )
 
 
 if __name__ == "__main__":

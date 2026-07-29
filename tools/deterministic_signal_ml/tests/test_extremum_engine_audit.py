@@ -20,7 +20,7 @@ from schema_contract import feature_columns_for_set
 from validate_phase1_run import validate_phase1_run
 
 
-FIXTURE = Path(__file__).parent / "fixtures" / "schema_v7_extremum_engine"
+FIXTURE = Path(__file__).parent / "fixtures" / "schema_v8_extremum_engine"
 
 
 class ExtremumEngineAuditTests(unittest.TestCase):
@@ -37,16 +37,16 @@ class ExtremumEngineAuditTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
             runs_root = root / "runs"
-            run_path = runs_root / "fixture_v7"
+            run_path = runs_root / "schema_v8_extremum_engine"
             shutil.copytree(FIXTURE, run_path)
-            validation = validate_phase1_run(runs_root, "fixture_v7", schema_version=7)
+            validation = validate_phase1_run(runs_root, "schema_v8_extremum_engine", schema_version=8)
             connection = duckdb.connect(":memory:")
             counts = create_dataset_tables(
                 connection,
                 [validation],
                 "broker_1r",
-                7,
-                feature_columns_for_set("schema_v7_extremum_engine"),
+                8,
+                feature_columns_for_set("schema_v8_extremum_engine"),
             )
             dataset_dir = root / "datasets" / "fixture_dataset"
             dataset_dir.mkdir(parents=True)
@@ -58,17 +58,22 @@ class ExtremumEngineAuditTests(unittest.TestCase):
 
             with (audit_dir / "fibonacci_proximity.tsv").open(encoding="utf-8", newline="") as handle:
                 proximity = list(csv.DictReader(handle, delimiter="\t"))
-            self.assertEqual([float(row["nearest_fib_level"]) for row in proximity], [38.2, 61.8])
+            self.assertEqual(
+                sorted(float(row["nearest_fib_level"]) for row in proximity),
+                [38.2, 61.8],
+            )
 
             with (audit_dir / "cycle_sequences.tsv").open(encoding="utf-8", newline="") as handle:
                 sequences = list(csv.DictReader(handle, delimiter="\t"))
-            simulated = next(row for row in sequences if row["outcome_source"] == "ENGINE_SIMULATION")
-            broker = next(row for row in sequences if row["outcome_source"] == "BROKER_CONFIRMED")
-            self.assertIn("attempt=1", simulated["attempt_sequence"])
-            self.assertIn("attempt=2", simulated["attempt_sequence"])
-            self.assertNotIn("attempt=1", broker["attempt_sequence"])
-            self.assertAlmostEqual(float(simulated["cycle_total_profit_r"]), 1.0)
-            self.assertAlmostEqual(float(broker["cycle_total_profit_r"]), 2.0)
+            simulated = [row for row in sequences if row["outcome_source"] == "ENGINE_SIMULATION"]
+            broker = [row for row in sequences if row["outcome_source"] == "BROKER_CONFIRMED"]
+            self.assertEqual(len(simulated), 2)
+            self.assertEqual(len(broker), 1)
+            self.assertEqual(
+                sorted(float(row["cycle_total_profit_r"]) for row in simulated),
+                [-1.0, 2.0],
+            )
+            self.assertAlmostEqual(float(broker[0]["cycle_total_profit_r"]), 2.0)
 
 
 if __name__ == "__main__":

@@ -210,7 +210,7 @@ def build_runtime_manifest(
         "engine_id": engine_contract.get("engine_id", ""),
         "engine_label": engine_contract.get("engine_label", ""),
         "engine_timeframe": engine_contract.get("engine_timeframe", ""),
-        "runtime_approval": model_manifest.get("runtime_approval", "LEGACY_INCOMPATIBLE"),
+        "runtime_approval": model_manifest.get("runtime_approval", "RESEARCH_ONLY_NOT_APPROVED"),
         "encoded_feature_count": len(feature_encoder.get("encoded_feature_names", [])),
         "classifier_available": True,
         "classifier_tree_count": 0,

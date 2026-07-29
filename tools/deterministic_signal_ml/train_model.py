@@ -45,7 +45,7 @@ class TrainingInputError(RuntimeError):
     """Raised when training cannot proceed because an input is invalid."""
 
 
-DEFAULT_FEATURE_SET_ID = "schema_v7_extremum_engine_xgb"
+DEFAULT_FEATURE_SET_ID = "schema_v8_extremum_engine_xgb"
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -114,7 +114,7 @@ def load_training_rows(dataset_path: Path) -> list[dict]:
     connection = duckdb.connect(":memory:")
     try:
         relation = connection.execute(
-            f"SELECT * FROM read_parquet('{parquet_path}') ORDER BY entry_time, signal_id"
+            f"SELECT * FROM read_parquet('{parquet_path}') ORDER BY entry_broker_time, signal_id"
         )
         columns = [column[0] for column in relation.description]
         return [dict(zip(columns, row)) for row in relation.fetchall()]
@@ -258,9 +258,6 @@ def write_validation_outputs(
         "feature_diagnostics": diagnostics,
         "threshold_recommendation": threshold_recommendation,
     }
-    if int(manifest.get("phase1_schema_version", 0)) == 7:
-        model_manifest["engine_contract"] = manifest.get("engine_contract", {})
-        model_manifest["runtime_approval"] = "RESEARCH_ONLY_NOT_APPROVED"
     metrics_path = output_dir / "validation_metrics.json"
     report_path = output_dir / "validation_report.md"
     metrics_path.write_text(json.dumps(metrics, indent=2, sort_keys=True), encoding="utf-8")
@@ -367,6 +364,8 @@ def write_model_manifest(
             ),
         },
         "threshold_recommendation": threshold_recommendation,
+        "engine_contract": manifest.get("engine_contract", {}),
+        "runtime_approval": "RESEARCH_ONLY_NOT_APPROVED",
         "artifacts": {
             "feature_encoder": "feature_encoder.json",
             "classifier_model": xgboost_metrics["model_files"]["classifier"],
@@ -613,7 +612,9 @@ def _prediction_rows(
                 "signal_id": str(source.get("signal_id", "")),
                 "source_key": str(source.get("source_key", "")),
                 "symbol": str(source.get("symbol", "")),
-                "entry_time": str(source.get("entry_time", "")),
+                "entry_broker_time": str(source.get("entry_broker_time", "")),
+                "entry_analysis_time": str(source.get("entry_analysis_time", source.get("entry_time", ""))),
+                "entry_time": str(source.get("entry_analysis_time", source.get("entry_time", ""))),
                 "engine_id": source.get("engine_id", ""),
                 "engine_label": str(source.get("engine_label", "")),
                 "engine_timeframe": str(source.get("engine_timeframe", "")),
@@ -629,9 +630,6 @@ def _prediction_rows(
                 "structure_0": str(source.get("structure_0", "")),
                 "structure_1": str(source.get("structure_1", "")),
                 "structure_2": str(source.get("structure_2", "")),
-                "macro_h1_slope": source.get("macro_h1_slope", ""),
-                "macro_h4_slope": source.get("macro_h4_slope", ""),
-                "macro_d1_slope": source.get("macro_d1_slope", ""),
                 "fib_sl_band": str(source.get("fib_sl_band", "")),
                 "fib_entry_band": str(source.get("fib_entry_band", "")),
                 "high_chain_profile": str(source.get("high_chain_profile", "")),

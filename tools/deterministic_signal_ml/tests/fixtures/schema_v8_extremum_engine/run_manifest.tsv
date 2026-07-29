@@ -1,0 +1,19 @@
+schema_version	key	value
+8	run_id	schema_v8_extremum_engine
+8	config_id	cfg_schema_v8_extremum_engine
+8	started_broker_time	2026.01.12 14:25:00
+8	started_analysis_time	2026.01.12 13:25:00
+8	started_offset_minutes	-60
+8	symbol	US30
+8	period	PERIOD_M1
+8	engine_id	1
+8	engine_label	EXTREMUM_V1
+8	engine_timeframe	PERIOD_M1
+8	broker_session	EXNESS_SESSION
+8	time_policy	broker_time_is_causal;analysis_time=broker_time+offset_minutes
+8	lot_mode	EXECUTION_LOT_FIXED_SIZE
+8	lot_size	0.10
+8	numeric_feature_set	schema_v8_extremum_engine
+8	execution_check_policy	attempt_observation_pre_send_send_result_and_reconciliation
+8	simulated_outcome_policy	ENGINE_SIMULATION_in_engine_attempts_only
+8	outcome_policy	broker_confirmed_only_in_signal_outcomes

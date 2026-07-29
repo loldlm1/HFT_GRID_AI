@@ -1,8 +1,0 @@
-schema_version	key	value
-7	run_id	fixture_v7
-7	config_id	cfg_fixture_v7
-7	engine_id	1
-7	engine_label	EXTREMUM_V1
-7	engine_timeframe	PERIOD_M1
-7	fibonacci_anchor_policy	immutable_slot_1_slot_2_completed_range
-7	simulated_outcome_policy	ENGINE_SIMULATION_in_engine_attempts_only
