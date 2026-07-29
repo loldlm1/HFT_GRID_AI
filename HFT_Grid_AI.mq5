@@ -10,27 +10,15 @@
 #property description   "All Rights Reserved for the Trading Sniper Team."
 #property description   "Market Data Collector And Broker Executor"
 
-// STANDARD MQL5 LIBRARIES
-#include <Trade/Trade.mqh>
-#include <Trade/AccountInfo.mqh>
-#include <Trade/SymbolInfo.mqh>
-
 // CUSTOM SERVICES - AGGREGATORS
 #include "services/trading_tools.mqh"
 #include "services/trading_management.mqh"
-#include "services/trading_management_strategies.mqh"
 #include "services/trading_signals.mqh"
 #include "services/frontend.mqh"
 
 // GLOBAL VARIABLES
-CTrade       g_position;
-CAccountInfo g_account;
-CSymbolInfo  g_symbol;
-double       g_bid, g_ask, g_decimal_digits, g_points_spread, g_local_spread;
+double       g_bid, g_ask;
 ulong        g_execution_magic;
-string       g_dataset_id = "";
-bool         g_ea_running;
-datetime     g_initial_ea_date;
 SymbolTradingConstraints g_symbol_constraints;
 
 ulong ResolveStableExecutionMagic()
@@ -52,11 +40,6 @@ ulong ResolveStableExecutionMagic()
 
 int OnInit()
 {
-  // INITIALIZE GLOBAL VARIABLES
-  g_ea_running = false;
-  g_symbol.Name(_Symbol);
-  g_decimal_digits  = pow(10.0, Digits());
-  g_initial_ea_date = TimeCurrent();
   ResetQueryDebugLogSession();
   ResetDeterministicSourceOutcomeState();
   ResetExtremumEngineState();
@@ -75,20 +58,15 @@ int OnInit()
   }
 
   g_execution_magic = ResolveStableExecutionMagic();
-  g_position.SetExpertMagicNumber(g_execution_magic);
 
   DeterministicSignalStatsInit();
   PatternAuditPlaybackInit();
   DeterministicSignalMLShadowInit();
 
-  // CHART SETUP
   RefreshCustomSymbolRates();
   ResetExecutionVisualizationCache();
   FrontendResetRefreshThrottle();
-  if(FrontendChartWorkEnabled())
-    ApplyDefaultChartStyle(ChartID());
 
-  // INITIALIZE THE EA
   LoadAllIndicatorDefinitions();
 
   if(FrontendChartWorkEnabled())
@@ -148,7 +126,6 @@ void OnTick()
   DeterministicSignalStatsUpdatePathTracker();
   if(!DebugEquityGuardAllowsProcessing())
     return;
-  g_ea_running                            = true;
   static datetime next_bar_open           = 0;
   datetime        current_time            = TimeCurrent();
   int             defined_tick_seconds    = PeriodSeconds(EXTREMUM_ENGINE_TIMEFRAME);
@@ -184,12 +161,17 @@ void Main_Tick()
 
 void RefreshCustomSymbolRates()
 {
-  g_symbol.Refresh();
-  g_symbol.RefreshRates();
-  g_ask           = g_symbol.Ask();
-  g_bid           = g_symbol.Bid();
-  g_local_spread  = MathAbs(g_ask-g_bid);
-  g_points_spread = g_local_spread*g_decimal_digits;
+  MqlTick tick;
+  ZeroMemory(tick);
+  if(!SymbolInfoTick(_Symbol, tick))
+  {
+    g_bid = 0.0;
+    g_ask = 0.0;
+    return;
+  }
+
+  g_bid = tick.bid;
+  g_ask = tick.ask;
 }
 
 double OnTester()

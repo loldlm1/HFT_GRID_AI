@@ -2,61 +2,41 @@
 
 ## Product
 
-- Name: `HFT Grid AI - Foundation EA`
-- Type: `Core product`
+- Name: `HFT Grid AI - Market Data Executor`
+- Type: `MT5 market-data collector and broker executor`
 - SKU: `base_ea`
 
-## Short Copy Block
+## Short Copy
 
-`HFT Grid AI Foundation gives you the core MT5 Expert Advisor baseline: licensing, account controls, risk protections, Stoch Structure context, broker-aware execution boundaries, and a clean base for future strategies.`
+`HFT Grid AI turns a fixed M1 Stoch Structure extremum stream into deterministic schema v8 market data, broker-safety evidence, and an optional one-position execution path with broker-side protection.`
 
-## Medium Copy Block
+## Medium Copy
 
-`The Foundation EA is the refounded baseline for HFT Grid AI. It focuses on a smaller, cleaner execution core before new strategies are added. The product keeps essential controls such as license validation, account scoping, spread guards, session filters, risk protection, and strategy context.`
+`The EA runs continuously, observes each M1 PEAK and BOTTOM revision, and records the broker facts needed to understand whether an attempt could execute. It keeps raw broker time alongside a normalized analysis clock for comparable research across DST-changing Exness sessions.`
 
-`For non-traders: this is the main application layer. It prepares the EA to evaluate market context and broker conditions before any strategy attempts real execution. Future strategies can be added on top of this foundation without carrying old legacy feature assumptions.`
+`When execution is eligible, the EA can send one hedging-account position with a structural stop and fixed 1R take profit. Actual market session, permissions, stops and freeze levels, volume rules, margin, OrderCheck, send results, and broker ticket reconciliation remain mandatory.`
 
 ## Inputs Explained
 
-### License and account
+- `Broker_Session`: keep broker timestamps unchanged or add Exness-normalized
+  analysis time without changing live order timing.
+- `Lot_Type`: fixed lot size or account-balance percentage risk.
+- `Lot_Strategy_Size`: requested lots in fixed mode; risk percent in balance
+  mode.
+- Statistics fields: enable schema v8 persistence and identify the run.
+- ML fields: disabled, passive shadow scoring, or Strategy Tester-only denial.
+- Pattern fields: Strategy Tester-only playback of a selected local audit set.
+- Debug fields: optional terminal and file diagnostics.
 
-- `EA_License_Key`: activation key. If invalid or expired, the EA does not start.
-- `Custom_Magic`: unique ID used to separate this EA's broker positions from others.
-- `Max_Spread`: blocks execution when trading cost is too high.
-- `Min_Range_Points`: minimum market movement threshold for strategy foundations.
+## Safety Boundary
 
-### Protection
-
-- `Protection_Risk_Mode`: controls account protection behavior.
-- `Protection_Risk_Drawdown_Type`: defines how drawdown is measured.
-- `Protection_Risk_Drawdown_Value`: maximum allowed drawdown value.
-- `Account_Size`: fallback account-size reference for risk math.
-- `Market_Close_Guard_Timeframe`: timeframe used by market-close guard logic.
-
-### Strategy context
-
-- `Strategy_Timeframe`: timeframe used by strategy context.
-- `Stoch_Structure_Period_Type`: Stoch Structure sensitivity.
-- `Strategy_Direction_Mode`: allows buys, sells, or both.
-- `Signal_Concurrency_Mode`: controls whether one or multiple signals may run.
-
-### Risk and range foundation
-
-- `Strategy_Range_Mode`: range source used by the execution foundation.
-- `Strategy_Range_Points`: fixed point range used when point-based range mode is selected.
-- `Lot_Type`: lot sizing mode using execution lot type values.
-- `Lot_Strategy_Size`: base lot size or risk budget depending on lot mode.
-- `Lot_Multiplier`: level-to-level lot scaling multiplier for execution legs.
-- `Signal_Lot_Strategy`: future-compatible signal lot adjustment mode.
-- `TP_Percent`: target-profit scale while risk/range semantics are simplified.
-- `Daily_Signal_Limit`: maximum daily signal count.
-- `Daily_Signal_Limit_Mode`: daily limit enforcement mode.
-
-## Access Rule
-
-- Base foundation controls do not require a removed legacy feature add-on.
-- A valid key with a future expiry timestamp is always required.
+Non-hedging accounts remain data-collection only. Spread is recorded rather
+than compared with a user threshold. No licensing, user session schedule,
+drawdown panel, multi-leg grid, partial TP, or public magic-number setting is
+part of this product contract.
 
 ## Validation Model
 
-This refoundation uses phase-level MT5 compile validation for implementation phases. Custom MQL5 test harnesses are not part of the active validation model.
+The project uses static logic review throughout a multi-sprint change, one
+final real MetaEditor compile, and human Strategy Tester/chart acceptance. It
+does not maintain custom MQL5 test harnesses or MQL5 CI.

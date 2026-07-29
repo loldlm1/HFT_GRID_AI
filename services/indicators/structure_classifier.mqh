@@ -4,8 +4,6 @@
 #ifndef _MICROSERVICES_INDICATORS_STRUCTURE_CLASSIFIER_MQH_
 #define _MICROSERVICES_INDICATORS_STRUCTURE_CLASSIFIER_MQH_
 
-#include "extrema_detector.mqh"
-
 // Helper structure to hold time/price pairs for structures
 struct StructureTimePrice
 {

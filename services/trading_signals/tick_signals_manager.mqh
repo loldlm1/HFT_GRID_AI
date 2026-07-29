@@ -62,10 +62,7 @@ void CheckRunningSignalArray(SignalParams &signals[],
       signals[i].signal_state = CLOSED;
     }
     RegisterFinishedSignal(signals[i]);
-    if(bullish)
-      CloseBullishSignal(signals[i]);
-    else
-      CloseBearishSignal(signals[i]);
+    signals[i].signal_state = CLOSED;
     RemoveElementFromArray(signals, i);
   }
 }

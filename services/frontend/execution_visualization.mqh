@@ -2,6 +2,10 @@
 #define _SERVICES_FRONTEND_EXECUTION_VISUALIZATION_MQH_
 
 string g_execution_visual_previous_objects[];
+const int EXECUTION_VISUAL_MAX_PER_DIRECTION = 8;
+const color EXECUTION_VISUAL_ENTRY_COLOR = clrBlue;
+const color EXECUTION_VISUAL_STOP_COLOR = clrTomato;
+const color EXECUTION_VISUAL_TARGET_COLOR = clrGreen;
 
 void ResetExecutionVisualizationCache()
 {
@@ -27,27 +31,40 @@ void DrawExecutionState(const long chart_id,
 
   UpdateTrackedLine(chart_id,
                     ExecutionSignalObjectName(signal_params, "ENTRY"),
-                    COLOR_PROFIT_NEUTRAL,
+                    EXECUTION_VISUAL_ENTRY_COLOR,
                     entry_price,
                     tracked_objects,
                     "ENTRY");
   UpdateTrackedLine(chart_id,
                     ExecutionSignalObjectName(signal_params, "SL"),
-                    COLOR_PROFIT_NEGATIVE,
+                    EXECUTION_VISUAL_STOP_COLOR,
                     stop_loss,
                     tracked_objects,
                     "SL");
   UpdateTrackedLine(chart_id,
                     ExecutionSignalObjectName(signal_params, "TP"),
-                    COLOR_PROFIT_POSITIVE,
+                    EXECUTION_VISUAL_TARGET_COLOR,
                     take_profit,
                     tracked_objects,
                     "TP 1R");
 }
 
+void DrawRecentExecutionStates(const long chart_id,
+                               SignalParams &signals[],
+                               string &tracked_objects[])
+{
+  int total = ArraySize(signals);
+  int start = total - EXECUTION_VISUAL_MAX_PER_DIRECTION;
+  if(start < 0)
+    start = 0;
+
+  for(int i = start; i < total; i++)
+    DrawExecutionState(chart_id, signals[i], tracked_objects);
+}
+
 void RefreshExecutionVisualization()
 {
-  if(FrontendSkippingChartWork())
+  if(!FrontendChartWorkEnabled())
   {
     ArrayResize(g_execution_visual_previous_objects, 0);
     return;
@@ -55,13 +72,8 @@ void RefreshExecutionVisualization()
 
   long chart_id = ChartID();
   string current_objects[];
-  if(Enable_Chart_Levels)
-  {
-    for(int i = 0; i < ArraySize(running_bullish_signals); i++)
-      DrawExecutionState(chart_id, running_bullish_signals[i], current_objects);
-    for(int j = 0; j < ArraySize(running_bearish_signals); j++)
-      DrawExecutionState(chart_id, running_bearish_signals[j], current_objects);
-  }
+  DrawRecentExecutionStates(chart_id, running_bullish_signals, current_objects);
+  DrawRecentExecutionStates(chart_id, running_bearish_signals, current_objects);
 
   for(int p = 0; p < ArraySize(g_execution_visual_previous_objects); p++)
   {

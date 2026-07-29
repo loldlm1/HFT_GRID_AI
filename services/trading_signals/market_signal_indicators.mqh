@@ -288,33 +288,4 @@ bool ResolveCurrentDeterministicExtremum(const StochasticMarketStructure &struct
                                             extremum_out);
 }
 
-bool LoadContextStructureSnapshot(const StrategyContextTypes context,
-                                  StochasticMarketStructure &snapshot)
-{
-  return LoadStructureSnapshotForTimeframe(EXTREMUM_ENGINE_TIMEFRAME, snapshot);
-}
-
-bool CaptureContextIndicators(const StrategyContextTypes context,
-                              StrategyContextIndicators &snapshot)
-{
-  snapshot.context   = CONTEXT_SLOT_BASE;
-  snapshot.timeframe = EXTREMUM_ENGINE_TIMEFRAME;
-
-  StrategyStructureLayerContext structure_ctx = BuildBaseStructureLayerContext();
-  bool require_structure = ContextRequiresStructure(CONTEXT_SLOT_BASE, structure_ctx);
-
-  if(require_structure)
-  {
-    snapshot.structure_valid = LoadContextStructureSnapshot(CONTEXT_SLOT_BASE, snapshot.structure_data);
-    if(!snapshot.structure_valid)
-      return false;
-  }
-  else
-  {
-    snapshot.structure_valid = false;
-  }
-
-  return true;
-}
-
 #endif // _SERVICES_TRADING_SIGNALS_MARKET_SIGNAL_INDICATORS_MQH_

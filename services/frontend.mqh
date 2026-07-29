@@ -6,7 +6,6 @@
 
 // FRONTEND SERVICE FILES
 #include "frontend/runtime_guard.mqh"
-#include "frontend/chart_style_guide.mqh"
 #include "frontend/execution_visual_utils.mqh"
 #include "frontend/execution_visual_lines.mqh"
 #include "frontend/execution_visualization.mqh"

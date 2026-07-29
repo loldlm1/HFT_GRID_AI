@@ -8,8 +8,6 @@ SignalParams running_bullish_signals[];
 SignalParams running_bearish_signals[];
 bool        g_forced_stop_triggered = false;
 
-void RemoveExecutionLevels(const long chart_id,
-                           const SignalParams &signal_params);
 void ExecutionLogDeterministicSignalExpired(const SignalParams &signal_params,
                                             const int new_source_slot,
                                             const datetime new_source_time,
@@ -24,44 +22,6 @@ bool DeterministicSignalStatsRecordDecisionCheck(SignalParams &signal_params,
                                                  const bool allowed,
                                                  const string block_source,
                                                  const string block_reason);
-
-struct StrategyContextRuntime
-{
-  datetime last_bar_time;
-  datetime last_structure_time[2];
-
-  StrategyContextRuntime()
-  {
-    last_bar_time = 0;
-    last_structure_time[0] = 0;
-    last_structure_time[1] = 0;
-  }
-};
-
-StrategyContextRuntime g_context_runtime[4];
-
-const StrategyContextTypes STRATEGY_CONTEXT_EVALUATION_ORDER[] =
-{
-  CONTEXT_SLOT_BASE
-};
-
-struct StrategyContextIndicators
-{
-  StrategyContextTypes     context;
-  ENUM_TIMEFRAMES          timeframe;
-  datetime                 bar_time;
-
-  bool                     structure_valid;
-  StochasticMarketStructure structure_data;
-
-  StrategyContextIndicators()
-  {
-    context           = CONTEXT_SLOT_BASE;
-    timeframe         = PERIOD_CURRENT;
-    bar_time          = 0;
-    structure_valid   = false;
-  }
-};
 
 const int DETERMINISTIC_SOURCE_STATE_RESERVE = 128;
 
@@ -253,64 +213,6 @@ bool RegisterDeterministicSourceConsumedTp(const SignalParams &signal_params,
   return newly_consumed;
 }
 
-int StrategyContextIndex(const StrategyContextTypes context)
-{
-  return (int)context;
-}
-
-int StrategyContextOrderIndex(const StrategyContextTypes context)
-{
-  int total = ArraySize(STRATEGY_CONTEXT_EVALUATION_ORDER);
-  for(int i = 0; i < total; i++)
-  {
-    if(STRATEGY_CONTEXT_EVALUATION_ORDER[i] == context)
-      return i;
-  }
-  return total - 1;
-}
-
-datetime GetLastContextStructureTime(const StrategyContextTypes context,
-                                     const SignalTypes direction)
-{
-  int slot = StrategyContextIndex(context);
-  int dir_idx = DirectionIndex(direction);
-  return g_context_runtime[slot].last_structure_time[dir_idx];
-}
-
-void SetLastContextStructureTime(const StrategyContextTypes context,
-                                 const SignalTypes direction,
-                                 const datetime value)
-{
-  int slot = StrategyContextIndex(context);
-  int dir_idx = DirectionIndex(direction);
-  g_context_runtime[slot].last_structure_time[dir_idx] = value;
-}
-
-bool StrategyCascadeAllowsSignal(const StrategyContextTypes context,
-                                 const SignalTypes direction)
-{
-  return true;
-}
-
-bool SignalMatchesStructureIdentity(const SignalParams &signal_params,
-                                    const StrategyContextTypes context,
-                                    const datetime structure_time)
-{
-  if(structure_time <= 0)
-    return false;
-
-  if(signal_params.signal_state == CLOSED)
-    return false;
-
-  if(signal_params.strategy_context != context)
-    return false;
-
-  if(signal_params.context_structure_snapshot_time <= 0)
-    return false;
-
-  return (signal_params.context_structure_snapshot_time == structure_time);
-}
-
 bool SignalMatchesDeterministicIdentity(const SignalParams &signal_params,
                                         const int engine_id,
                                         const SignalTypes direction,
@@ -348,38 +250,6 @@ bool SignalMatchesDeterministicIdentity(const SignalParams &signal_params,
     point_size = 0.0001;
 
   return (MathAbs(signal_params.source_extremum_price - source_price) <= point_size);
-}
-
-bool HasRunningSignalForStructure(const StrategyContextTypes context,
-                                  const SignalTypes direction,
-                                  const datetime structure_time)
-{
-  if(structure_time <= 0)
-    return false;
-
-  if(direction == BULLISH)
-  {
-    int total = ArraySize(running_bullish_signals);
-    for(int i = 0; i < total; i++)
-    {
-      if(SignalMatchesStructureIdentity(running_bullish_signals[i], context, structure_time))
-        return true;
-    }
-    return false;
-  }
-
-  if(direction == BEARISH)
-  {
-    int total = ArraySize(running_bearish_signals);
-    for(int i = 0; i < total; i++)
-    {
-      if(SignalMatchesStructureIdentity(running_bearish_signals[i], context, structure_time))
-        return true;
-    }
-    return false;
-  }
-
-  return false;
 }
 
 bool HasRunningDeterministicSignal(const int engine_id,
@@ -499,7 +369,6 @@ void ExpirePendingDeterministicSignalsForSourceExtremum(const int source_slot,
                                                 false,
                                                 "source_extremum",
                                                 "source_extremum_changed");
-    RemoveExecutionLevels(ChartID(), running_bullish_signals[i]);
     RemoveElementFromArray(running_bullish_signals, i);
   }
 
@@ -532,7 +401,6 @@ void ExpirePendingDeterministicSignalsForSourceExtremum(const int source_slot,
                                                 false,
                                                 "source_extremum",
                                                 "source_extremum_changed");
-    RemoveExecutionLevels(ChartID(), running_bearish_signals[j]);
     RemoveElementFromArray(running_bearish_signals, j);
   }
 }
@@ -563,98 +431,6 @@ bool DebugEquityGuardAllowsProcessing()
   return true;
 }
 
-bool TrendStructureFiltersRequested()
-{
-  StrategyStructureLayerContext trend_ctx = BuildTrendStructureLayerContext();
-  return StructureFiltersRequested(trend_ctx);
-}
-
-bool TrendStructureTypeFiltersRequested()
-{
-  StrategyStructureLayerContext trend_ctx = BuildTrendStructureLayerContext();
-  return StructureTypeFiltersRequested(trend_ctx);
-}
-
-bool TrendStructureDataRequired()
-{
-  StrategyStructureLayerContext trend_ctx = BuildTrendStructureLayerContext();
-  if(!trend_ctx.enabled)
-    return false;
-  bool needs_data = StructureFiltersRequested(trend_ctx) ||
-                    StructureTypeFiltersRequested(trend_ctx);
-  if(!needs_data)
-    return false;
-  return trend_ctx.uses_trend_dataset;
-}
-
-bool MacroStructureFiltersRequested()
-{
-  StrategyStructureLayerContext macro_ctx = BuildMacroStructureLayerContext();
-  return StructureFiltersRequested(macro_ctx);
-}
-
-bool MacroStructureTypeFiltersRequested()
-{
-  StrategyStructureLayerContext macro_ctx = BuildMacroStructureLayerContext();
-  return StructureTypeFiltersRequested(macro_ctx);
-}
-
-bool MacroStructureDataRequired()
-{
-  StrategyStructureLayerContext macro_ctx = BuildMacroStructureLayerContext();
-  if(!macro_ctx.enabled)
-    return false;
-  bool needs_data = StructureFiltersRequested(macro_ctx) ||
-                    StructureTypeFiltersRequested(macro_ctx);
-  if(!needs_data)
-    return false;
-  return true;
-}
-
-bool SessionStructureFiltersRequested()
-{
-  StrategyStructureLayerContext session_ctx = BuildSessionStructureLayerContext();
-  return StructureFiltersRequested(session_ctx);
-}
-
-bool SessionStructureTypeFiltersRequested()
-{
-  StrategyStructureLayerContext session_ctx = BuildSessionStructureLayerContext();
-  return StructureTypeFiltersRequested(session_ctx);
-}
-
-bool SessionStructureDataRequired()
-{
-  StrategyStructureLayerContext session_ctx = BuildSessionStructureLayerContext();
-  if(!session_ctx.enabled)
-    return false;
-  bool needs_data = StructureFiltersRequested(session_ctx) ||
-                    StructureTypeFiltersRequested(session_ctx);
-  if(!needs_data)
-    return false;
-  return true;
-}
-
-bool TrendSanityCheck(const string reason)
-{
-  if(!Enable_Trend_Filter_Sanity_Stop)
-    return true;
-
-  if(MQLInfoInteger(MQL_TESTER) <= 0)
-    return true;
-
-  Print("Trend sanity check triggered: ", reason);
-  TesterStop();
-  return false;
-}
-
-bool TerminalAlgoTradingEnabled()
-{
-  bool terminal_allowed = (TerminalInfoInteger(TERMINAL_TRADE_ALLOWED) > 0);
-  bool mql_allowed = (MQLInfoInteger(MQL_TRADE_ALLOWED) > 0);
-  return (terminal_allowed && mql_allowed);
-}
-
 bool ResolveSignalAttemptPermission(const SignalTypes signal_type,
                                     const bool run_debug_side_effects,
                                     string &block_source_out,
@@ -678,29 +454,6 @@ bool ResolveSignalAttemptPermission(const SignalTypes signal_type,
   }
 
   return true;
-}
-
-bool CanAttemptSignal(const SignalTypes signal_type)
-{
-  string block_source = "";
-  string block_reason = "";
-  return ResolveSignalAttemptPermission(signal_type,
-                                        true,
-                                        block_source,
-                                        block_reason);
-}
-
-void RegisterFreshStructureUsage(const SignalParams &signal_params)
-{
-  if(signal_params.context_structure_snapshot_time <= 0)
-    return;
-
-  if(!StrategyContextFreshStructureEnabled(signal_params.strategy_context))
-    return;
-
-  SetLastContextStructureTime(signal_params.strategy_context,
-                              signal_params.signal_type,
-                              signal_params.context_structure_snapshot_time);
 }
 
 #endif // _SERVICES_TRADING_SIGNALS_MARKET_SIGNAL_STATE_MQH_

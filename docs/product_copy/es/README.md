@@ -1,8 +1,7 @@
 # Product Copy Pack - ES
 
-Archivos activos:
+Archivo activo:
 
 - `base-ea.md`
-- `addon-session-time-filter.md`
 
-El copy de add-ons legacy de estrategia removidos ya no se mantiene como documentacion activa.
+No existe copy activo para filtros de sesion ni add-ons legacy de estrategia.

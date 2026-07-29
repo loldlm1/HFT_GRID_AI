@@ -1,15 +1,9 @@
 # Product Copy Pack
 
-This folder contains active product-page copy for the refounded EA baseline.
+Active market-data collector and broker-executor copy is available in:
 
-## Languages
+- `en/base-ea.md`
+- `es/base-ea.md`
 
-- `en/`: English copy.
-- `es/`: Spanish copy.
-
-## Active Files
-
-- `base-ea.md`
-- `addon-session-time-filter.md`
-
-Legacy add-on copy for removed strategy features has been removed from active documentation.
+Removed session-filter, licensing, protection, and strategy add-on copy is not
+maintained as active product documentation.

@@ -1,54 +1,42 @@
-# Base Foundation Guide
+# Market Data Collector And Broker Executor Guide
 
 ## Purpose
 
-HFT Grid AI is being refounded as an MT5 Expert Advisor foundation for future strategy integration. The base product owns licensing, account controls, strategy context, risk controls, execution planning boundaries, and broker-aware safety checks.
+HFT Grid AI observes the fixed M1 Stoch Structure extremum, records schema v8
+market and broker facts, and may execute one broker position per admissible
+attempt. It runs continuously; there is no user trading-hours filter.
 
-This guide describes the foundation baseline only. Final production strategy rules are out of scope until future strategy planning phases.
+## Inputs
 
-## Included Control Groups
+- `Broker_Session`: selects unchanged broker timestamps or Exness-normalized
+  analysis timestamps.
+- `Lot_Type`: fixed lots or account-balance percentage risk.
+- `Lot_Strategy_Size`: lots in fixed mode; balance-risk percent in percentage
+  mode.
+- Statistics, ML, pattern-audit, and debug fields control their named outputs
+  without bypassing broker safety.
 
-- `EA_License_Key`
-- `Account Settings EA`
-- `Protection Risk Management`
-- `Time Filter Session Manager`
-- `Strategy Context`
-- `Strategy Range And Risk Settings`
-- `Developer Debug Settings`
+## Execution
 
-## Preserved Foundation Controls
+The EA derives direction from the provisional extremum, waits for the M1
+breakout, refreshes actual broker eligibility, and sends one market order with
+a structural broker-side stop and fixed 1R take profit. Hedging mode, market
+session, permissions, stops/freeze, volume, margin, `OrderCheck`, send retcode,
+symbol, magic, and ticket reconciliation must all pass.
 
-- License validation and account identity controls.
-- Spread and minimum range guards.
-- Protection/risk controls simplified around strategy range foundations.
-- Session time filters.
-- Strategy timeframe, Stoch Structure period, direction mode, and concurrency mode unless a later phase changes them explicitly.
-- Lot sizing controls under the execution lot type names.
-- Daily signal limits where they remain strategy-neutral.
-- Developer debug controls.
+Non-hedging accounts continue collecting market facts but do not send orders.
+Spread is recorded and not compared with a configurable threshold.
 
-## Removed Legacy Feature Controls
+## Deterministic Analysis Time
 
-Legacy strategy feature groups and Fibonacci entry policy inputs are not part of the refounded active baseline. Do not document removed features as active behavior or migration-compatible settings.
-
-## Execution Foundation
-
-The intended lifecycle is:
-
-```text
-inputs
--> indicator/context hydration
--> strategy candidate detection
--> local broker-aware execution simulation
--> execution plan
--> optional real broker execution
--> broker position reconciliation
--> protection/risk controls
--> telemetry/frontend
-```
-
-Before a real broker position exists, local simulation owns candidate state and must apply broker constraints. Once a real position exists, broker state owns ticket, volume, price, close state, and realized profit.
+`FIXED_TIME_SESSIONS` leaves time unchanged. `EXNESS_SESSION` preserves broker
+time and shifts winter analysis timestamps by `-60` minutes under the
+instrument calendar. This keeps sessions comparable for research and never
+changes live scheduling or order timing.
 
 ## Validation
 
-Documentation-only changes do not run MT5 compile. Implementation phases compile once at phase end using MetaEditor, portable/headless first and normal MetaEditor fallback if needed.
+Substantial multi-sprint MQL5 work uses static review during intermediate
+sprints, one real MetaEditor compile at final integration, and human Strategy
+Tester/chart verification. Custom MQL5 harnesses and CI are not part of the
+project.

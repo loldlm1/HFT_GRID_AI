@@ -1,95 +1,107 @@
 # HFT Grid AI
 
-MetaTrader 5 Expert Advisor foundation with one always-on M1 extremum engine,
-broker-aware execution planning, strict risk controls, and schema v7 research
-telemetry.
+MetaTrader 5 Expert Advisor focused on deterministic M1 market-data collection
+and one broker execution path. The entrypoint is `HFT_Grid_AI.mq5`.
 
-Entrypoint: `HFT_Grid_AI.mq5`.
+## Active Flow
 
-## Active Engine
+```text
+M1 Stoch Structure slot 0
+-> extremum cycle/revision/attempt
+-> observation broker checks
+-> schema v8 market-data facts
+-> M1 high/low breakout
+-> fresh pre-send broker checks
+-> optional tester-only research filter
+-> one hedging-account position with broker SL and fixed 1R TP
+-> ticket-first reconciliation and broker-confirmed outcome
+```
 
-- Engine identity: `EXTREMUM_V1`.
-- Timeframe: fixed `PERIOD_M1`.
-- Source: provisional Stoch Structure extremum slot `0`.
-- Direction: `BOTTOM -> BULLISH`, `PEAK -> BEARISH`.
-- Entry: existing M1 `high_1`/`low_1` breakout.
-- Moving averages: no M1 or macro confirmation and no shifted visual ownership.
-- Engine enable inputs: none; the retired `Enable_Strategy_*` inputs are not
-  compatibility aliases and must not be restored.
+`BOTTOM` creates bullish attempts and `PEAK` creates bearish attempts. A deeper
+same-type provisional extremum creates a revision in the current cycle; a type
+change finalizes the cycle. Completed slots `1` and `2` freeze the cycle range.
 
-A same-type deeper extremum creates a revision inside the same cycle. A type
-transition finalizes the cycle. Fibonacci anchors are frozen at cycle start
-from completed structural slots `1` and `2`.
+## Inputs
 
-## Safety Boundary
+The public surface is intentionally small:
 
-The engine proposes intrinsic attempts. It does not bypass:
+- `Broker_Session`
+- `Lot_Type`, `Lot_Strategy_Size`
+- `Enable_Signal_Feature_Export`, `Signal_Feature_Run_Id`
+- `ML_Inference_Mode`, `ML_Model_Export_Id`
+- `Enable_Pattern_Audit_Overlay`, `Pattern_Audit_Set_Id`
+- `Enable_Logs`, `Enable_File_Logs`
 
-- license and entitlement checks;
-- direction, session, daily-limit, and concurrency gates;
-- spread, market status, stops/freeze, volume, and margin checks;
-- drawdown/protection controls;
-- symbol/magic scoping and broker reconciliation.
+Removed license, account, protection, user-session, spread-threshold,
+direction/concurrency, multi-leg, and legacy risk settings are not supported as
+aliases.
 
-Before a broker position exists, local execution state owns the candidate. Once
-a real position exists, broker facts own ticket, volume, entry, close state,
-and realized profit.
+## Broker Safety
 
-## Schema V7 Statistics
+Every observed attempt records current broker eligibility. The EA refreshes
+the same facts immediately before sending and requires:
 
-With `Enable_Signal_Feature_Export=true`, MT5 writes to:
+- hedging account mode and an open actual broker session;
+- allowed symbol trade mode and account/terminal/MQL trade permissions;
+- valid bid/ask, stops/freeze geometry, broker-side SL/TP, and fixed 1R target;
+- valid volume min/max/step, margin, and `OrderCheck`;
+- accepted send retcode plus symbol/magic/ticket reconciliation.
+
+Spread is recorded as a fact but is not compared with a user threshold.
+Non-hedging accounts remain collection-only.
+
+## Broker Time And Analysis Time
+
+`FIXED_TIME_SESSIONS` leaves timestamps unchanged. `EXNESS_SESSION` keeps raw
+broker time and additionally normalizes winter analysis time by `-60` minutes
+on the applicable US or UK DST calendar. For example, US30 broker time `14:30`
+in winter is stored with analysis time `13:30`; summer `13:30` remains
+`13:30`.
+
+Normalization affects exports, calendar features, research grouping, and
+pattern matching only. Bar scheduling, actual-session checks, durations, and
+orders always use broker time.
+
+## Schema V8 Research
+
+When export is enabled, MT5 writes eight schema v8 TSV files under:
 
 ```text
 Common\Files\DeterministicSignalML\runs\<run_id>\
 ```
 
-The export records cycles, revisions, intrinsic attempts, admissions,
-broker-entered features, broker-confirmed signal outcomes, and broker-confirmed
-leg outcomes. Attempts are captured after valid geometry and before operational
-gates, so denied opportunities remain in the census.
-
-`ENGINE_SIMULATION` results are stored only as simulated attempt facts. They do
-not create broker outcomes or overwrite tickets, volume, prices, close flags,
-or realized profit.
-
-## Research Flow
-
-Use `docs/workflows/extremum-engine-statistics-flow.md` for the complete flow.
+The contract includes cycle, revision, attempt, broker-check, feature, outcome,
+manifest, and summary facts. Broker and simulated targets stay separate.
 
 ```bash
 .venv/bin/python tools/deterministic_signal_ml/build_dataset.py \
   --runs-root <runs_root> \
-  --run-id <schema_v7_run_id> \
-  --dataset-id <schema_v7_dataset_id> \
-  --schema-version 7 \
-  --feature-set-id schema_v7_extremum_engine_xgb \
+  --run-id <schema_v8_run_id> \
+  --dataset-id <schema_v8_dataset_id> \
+  --schema-version 8 \
+  --feature-set-id schema_v8_extremum_engine_xgb \
   --target-family broker_1r \
   --overwrite
 
 .venv/bin/python tools/deterministic_signal_ml/extremum_engine_audit.py \
-  --dataset-id <schema_v7_dataset_id> \
-  --audit-id <schema_v7_audit_id> \
+  --dataset-id <schema_v8_dataset_id> \
+  --audit-id <schema_v8_audit_id> \
   --overwrite
 ```
 
-The audit maps raw depths to human Fibonacci proximity, compares point-range
-buckets, preserves attempt order within cycles, and keeps simulated and broker
-profitability in separate lanes. XGBoost splits keep each cycle in one
-chronological partition and exclude final-cycle facts from features.
+No schema v8 model is approved for MT5 runtime. Shadow mode is passive;
+filter mode and pattern playback are Strategy Tester-only denials after broker
+eligibility passes.
 
-No schema v7 model is approved for MT5 runtime. Historical multi-strategy
-artifacts and unapproved v7 research artifacts fail closed.
+## Validation Policy
 
-## Validation
+- No custom MQL5 harnesses, test modules, test EAs/scripts, or MQL5 CI.
+- Multi-sprint MQL5 changes use static review per sprint and one final real
+  MetaEditor compile with `0 errors, 0 warnings`.
+- Human Strategy Tester/chart validation is required at final integration.
+- Existing Python schema tests validate research tooling, not MQL5 runtime.
 
-- MQL5 implementation phases require one real MetaEditor compile with
-  `0 errors, 0 warnings`.
-- Python contracts use compact `unittest` fixtures and DuckDB readback.
-- Custom MQL5 tests and agentic CI are not part of the repository policy.
-- Strategy Tester/chart validation is human-in-the-loop.
-- MetaEditor `/s` is syntax-only and does not prove `.ex5` regeneration.
-
-Agentic compile:
+Agentic compile at the final gate:
 
 ```bash
 python3 tools/mt5/compile_mt5.py \
@@ -102,11 +114,9 @@ python3 tools/mt5/compile_mt5.py \
 
 ## Documentation
 
-- `AGENTS.md`: repository safety and implementation rules.
-- `docs/architecture/execution-foundation.md`: lifecycle ownership.
-- `docs/workflows/extremum-engine-statistics-flow.md`: active engine workflow.
-- `docs/workflows/deterministic-signal-ml-inference-flows.md`: ML runtime boundaries.
+- `AGENTS.md`: implementation, safety, and validation rules.
+- `docs/architecture/market-data-broker-executor.md`: active ownership model.
+- `docs/workflows/extremum-engine-statistics-flow.md`: export and research flow.
+- `docs/workflows/deterministic-signal-ml-inference-flows.md`: runtime ML limits.
 - `docs/environment/mt5-agentic-workflows.md`: paths, compile, and artifacts.
-- `docs/plans/archive/extremum-engine-cycle-statistics-2026-07-11/`: completed
-  extremum engine and schema v7 statistics plan.
-- `docs/plans/archive/` and `docs/research/archive/`: immutable historical work.
+- `docs/plans/archive/` and `docs/research/archive/`: immutable history.

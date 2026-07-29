@@ -15,10 +15,6 @@ const int             DETERMINISTIC_STOCH_K        = 5;
 const int             DETERMINISTIC_STOCH_D        = 3;
 const int             DETERMINISTIC_STOCH_SLOWING  = 3;
 const double          DETERMINISTIC_B_PERCENT_DEVIATION = 2.0;
-const int             DETERMINISTIC_B_PERCENT_SIGNAL_PERIOD = 5;
-
-const ENUM_TIMEFRAMES Strategy_Timeframe          = PERIOD_M1;
-const int             Stoch_Structure_Period_Type = DETERMINISTIC_STOCH_K;
 
 input group  "+= Market Data Time =+";
 input BrokerSessionTimeModes Broker_Session = FIXED_TIME_SESSIONS;
@@ -42,10 +38,6 @@ input string Pattern_Audit_Set_Id         = "";
 input group  "+= Developer Debug Settings =+";
 input bool Enable_Logs              = false;
 input bool Enable_File_Logs         = false;
-bool Enable_Show_Indicators   = true;
-bool Enable_Chart_Summary     = true;
-bool Enable_Chart_Levels      = true;
-bool Enable_Trend_Filter_Sanity_Stop = false;
 bool Debug_Stop_On_Negative_Equity   = false;
 
 #endif // _SERVICES_TRADING_MANAGEMENT_EA_INPUTS_MQH_

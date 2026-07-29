@@ -2,61 +2,42 @@
 
 ## Producto
 
-- Nombre: `HFT Grid AI - Foundation EA`
-- Tipo: `Producto base`
+- Nombre: `HFT Grid AI - Market Data Executor`
+- Tipo: `Recolector de datos de mercado y ejecutor para MT5`
 - SKU: `base_ea`
 
-## Bloque Corto
+## Copy Corto
 
-`HFT Grid AI Foundation incluye la base principal del Expert Advisor para MT5: licencia, controles de cuenta, proteccion de riesgo, contexto Stoch Structure, limites de ejecucion con condiciones del broker y una base limpia para futuras estrategias.`
+`HFT Grid AI convierte el flujo fijo de extremos Stoch Structure en M1 en datos deterministas schema v8, evidencia de seguridad del broker y una ruta opcional de una posicion con proteccion del broker.`
 
-## Bloque Medio
+## Copy Medio
 
-`Foundation EA es la base refundada de HFT Grid AI. Su enfoque es un nucleo de ejecucion mas pequeno y limpio antes de agregar nuevas estrategias. El producto conserva controles esenciales como validacion de licencia, separacion por cuenta, guardas de spread, filtros de sesion, proteccion de riesgo y contexto de estrategia.`
+`El EA funciona de forma continua, observa cada revision PEAK y BOTTOM en M1 y registra las condiciones del broker necesarias para saber si un intento podia ejecutarse. Conserva la hora cruda del broker junto con una hora de analisis normalizada para comparar sesiones Exness que cambian por DST.`
 
-`Para usuarios no traders: esta es la capa principal de la aplicacion. Prepara al EA para evaluar contexto de mercado y condiciones del broker antes de que una estrategia intente una ejecucion real. Las futuras estrategias se podran integrar sobre esta base sin cargar supuestos legacy.`
+`Cuando la ejecucion es elegible, el EA puede enviar una posicion en una cuenta hedging con stop estructural y take profit fijo de 1R. La sesion real del mercado, permisos, stops y freeze, volumen, margen, OrderCheck, resultado de envio y reconciliacion del ticket siguen siendo obligatorios.`
 
 ## Inputs Explicados
 
-### Licencia y cuenta
+- `Broker_Session`: conserva la hora del broker o agrega una hora de analisis
+  normalizada para Exness sin cambiar el momento de ejecucion.
+- `Lot_Type`: lote fijo o riesgo porcentual sobre el balance.
+- `Lot_Strategy_Size`: lotes solicitados en modo fijo; porcentaje de riesgo en
+  modo balance.
+- Campos de estadistica: habilitan persistencia schema v8 e identifican el run.
+- Campos ML: deshabilitado, scoring shadow pasivo o filtro solo en Strategy
+  Tester.
+- Campos de pattern audit: playback local solo en Strategy Tester.
+- Campos debug: diagnostico opcional en terminal y archivo.
 
-- `EA_License_Key`: clave de activacion. Si es invalida o expirada, el EA no inicia.
-- `Custom_Magic`: identificador unico para separar posiciones del broker de este EA.
-- `Max_Spread`: bloquea ejecucion cuando el costo de trading es alto.
-- `Min_Range_Points`: umbral minimo de movimiento para fundaciones de estrategia.
+## Limite De Seguridad
 
-### Proteccion
+Las cuentas que no son hedging solo recolectan datos. El spread se registra
+como dato y no se compara con un limite configurable. El contrato no incluye
+licencia, horario de usuario, panel de drawdown, grid multi-leg, TP parcial ni
+magic number publico.
 
-- `Protection_Risk_Mode`: controla la proteccion de cuenta.
-- `Protection_Risk_Drawdown_Type`: define como se mide el drawdown.
-- `Protection_Risk_Drawdown_Value`: valor maximo permitido de drawdown.
-- `Account_Size`: referencia de cuenta para calculos de riesgo.
-- `Market_Close_Guard_Timeframe`: timeframe usado por la guarda de cierre de mercado.
+## Modelo De Validacion
 
-### Contexto de estrategia
-
-- `Strategy_Timeframe`: timeframe usado por el contexto de estrategia.
-- `Stoch_Structure_Period_Type`: sensibilidad de Stoch Structure.
-- `Strategy_Direction_Mode`: permite compras, ventas o ambas.
-- `Signal_Concurrency_Mode`: controla si puede correr una o varias senales.
-
-### Fundacion de riesgo y rango
-
-- `Strategy_Range_Mode`: fuente de rango usada por la fundacion de ejecucion.
-- `Strategy_Range_Points`: rango fijo en puntos cuando se usa modo basado en puntos.
-- `Lot_Type`: modo de tamano de lote usando valores de lote de ejecucion.
-- `Lot_Strategy_Size`: lote base o presupuesto de riesgo segun el modo.
-- `Lot_Multiplier`: multiplicador de lote entre niveles de ejecucion.
-- `Signal_Lot_Strategy`: modo futuro-compatible de ajuste de lote por senal.
-- `TP_Percent`: escala de objetivo mientras se simplifica riesgo/rango.
-- `Daily_Signal_Limit`: maximo de senales diarias.
-- `Daily_Signal_Limit_Mode`: modo de aplicar el limite diario.
-
-## Regla de Acceso
-
-- Los controles base no requieren add-ons legacy removidos.
-- Siempre se requiere una clave valida con expiracion futura.
-
-## Modelo de Validacion
-
-Esta refundacion usa compilacion MT5 al cierre de fases de implementacion. Los harnesses custom de tests MQL5 no son parte del modelo activo.
+El proyecto usa revision estatica durante los sprints, una compilacion real de
+MetaEditor al final y aceptacion humana en Strategy Tester/grafico. No mantiene
+harnesses custom de tests MQL5 ni CI de MQL5.

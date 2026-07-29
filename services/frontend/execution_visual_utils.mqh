@@ -2,7 +2,7 @@
 #define _SERVICES_FRONTEND_EXECUTION_VISUAL_UTILS_MQH_
 
 const string EA_CHART_OBJECT_PREFIX = "HFT_EXEC_AI_";
-const int EXECUTION_VISUAL_OBJECT_RESERVE = 16;
+const int EXECUTION_VISUAL_OBJECT_RESERVE = 48;
 
 bool IsEAOwnedObjectName(const string name)
 {
@@ -11,7 +11,7 @@ bool IsEAOwnedObjectName(const string name)
 
 void DeleteEAChartObjects(const long chart_id)
 {
-  if(FrontendSkippingChartWork())
+  if(!FrontendChartWorkEnabled())
     return;
   for(int i = ObjectsTotal(chart_id, -1, -1) - 1; i >= 0; i--)
   {

@@ -1,11 +1,16 @@
 # Plan: Market Data Scraper And Broker Executor Simplification
 
 **Generated**: 2026-07-28
-**Status**: Active implementation; Sprint 1 static gate passed
+**Status**: Active implementation; Sprint 5 static/Python gate passed
 **Planning Review**: Complete; no blocking clarification remains
 **Estimated Complexity**: High
 **Risk Class**: Critical - this removes licensing, configurable protection, spread/session gates, and the multi-leg execution lifecycle while preserving real broker execution
 **Execution Baseline**: `a502e28460dba295bdc0194b7a0eaf72364285e0`, 81 tracked MQL5 files and 30,882 lines
+
+**Sprint 5 Evidence**: The Sprint 5 starting commit `641e326` contained 59
+tracked MQL5 files and 17,533 lines. The validated working tree contains 41
+tracked MQL5 files and 13,557 lines (18 files and 3,976 lines removed during
+Sprint 5; 40 files and 17,325 lines below the execution baseline).
 
 ## Overview
 

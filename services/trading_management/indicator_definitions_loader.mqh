@@ -4,85 +4,41 @@
 #ifndef _SERVICES_TRADING_MANAGEMENT_INDICATOR_DEFINITIONS_LOADER_MQH_
 #define _SERVICES_TRADING_MANAGEMENT_INDICATOR_DEFINITIONS_LOADER_MQH_
 
-// GLOBAL SETTINGS
-ENUM_TIMEFRAMES Strategy_TF_List[];
 IndicatorsHandleInfo ExtStructStochIndicatorsHandle[];
 IndicatorsHandleInfo ExtDeterministicBandsLogicHandles[];
-int total_tf_list_load = 0;
-const string FOUNDATION_STRUCTURE_FIBONACCI_LEVELS = "0.0,61.8,100.0";
-
-// ── Helpers ─────────────────────────────────────────────────────────────
-
-bool IsStrategyTimeframeSupported(const ENUM_TIMEFRAMES tf)
-{
-  switch(tf)
-  {
-    case PERIOD_M1:
-    case PERIOD_M2:
-    case PERIOD_M3:
-    case PERIOD_M4:
-    case PERIOD_M5:
-    case PERIOD_M6:
-    case PERIOD_M10:
-    case PERIOD_M12:
-    case PERIOD_M15:
-    case PERIOD_M20:
-    case PERIOD_M30:
-    case PERIOD_H1:
-    case PERIOD_H2:
-    case PERIOD_H3:
-    case PERIOD_H4:
-      return true;
-  }
-  return false;
-}
-
-void PrepareStrategyTimeframes()
-{
-  ArrayResize(Strategy_TF_List, 0);
-
-  ArrayResize(Strategy_TF_List, 1);
-  Strategy_TF_List[0] = EXTREMUM_ENGINE_TIMEFRAME;
-  total_tf_list_load = ArraySize(Strategy_TF_List);
-}
 
 void LoadAllStructStochIndicators()
 {
-  if(ArraySize(Strategy_TF_List) <= 0)
-    return;
+  IndicatorsHandleInfo handle_info;
+  handle_info.indicator_period = DETERMINISTIC_STOCH_K;
+  handle_info.indicator_handle = iCustom(_Symbol,
+                                         EXTREMUM_ENGINE_TIMEFRAME,
+                                         "Examples\\Stochastic_Structure.ex5",
+                                         DETERMINISTIC_STOCH_K,
+                                         DETERMINISTIC_STOCH_D,
+                                         DETERMINISTIC_STOCH_SLOWING,
+                                         STO_CLOSECLOSE);
+  handle_info.indicator_timeframe = EXTREMUM_ENGINE_TIMEFRAME;
 
-  int total = ArraySize(Strategy_TF_List);
-  for(int i = 0; i < total; i++)
+  if(handle_info.indicator_handle == INVALID_HANDLE)
   {
-    ENUM_TIMEFRAMES trend_timeframe = Strategy_TF_List[i];
-
-    IndicatorsHandleInfo struct_stoch_indicator_handle_loaded;
-    struct_stoch_indicator_handle_loaded.indicator_period = DETERMINISTIC_STOCH_K;
-    struct_stoch_indicator_handle_loaded.indicator_handle = iCustom(_Symbol,
-                                                                     trend_timeframe,
-                                                                     "Examples\\Stochastic_Structure.ex5",
-                                                                     struct_stoch_indicator_handle_loaded.indicator_period,
-                                                                     DETERMINISTIC_STOCH_D,
-                                                                     DETERMINISTIC_STOCH_SLOWING,
-                                                                     STO_CLOSECLOSE);
-    struct_stoch_indicator_handle_loaded.indicator_timeframe = trend_timeframe;
-
-    if(struct_stoch_indicator_handle_loaded.indicator_handle == INVALID_HANDLE)
-    {
-      Print("ERROR LOADING STRUCTURE INDICATOR: ", EnumToString(trend_timeframe),
-            " | PERIOD: ", struct_stoch_indicator_handle_loaded.indicator_period);
-      TesterStop();
-      continue;
-    }
-
-    if(Enable_Logs)
-    {
-      Print("LOADED STRUCTURE INDICATOR SUCCESSFULLY: ", EnumToString(trend_timeframe),
-            " | PERIOD: ", struct_stoch_indicator_handle_loaded.indicator_period);
-    }
-
-    AddElementToArray(ExtStructStochIndicatorsHandle, struct_stoch_indicator_handle_loaded);
+    Print("ERROR LOADING STRUCTURE INDICATOR: ",
+          EnumToString(EXTREMUM_ENGINE_TIMEFRAME),
+          " | PERIOD: ",
+          DETERMINISTIC_STOCH_K);
+    TesterStop();
+    return;
   }
+
+  if(Enable_Logs)
+  {
+    Print("LOADED STRUCTURE INDICATOR SUCCESSFULLY: ",
+          EnumToString(EXTREMUM_ENGINE_TIMEFRAME),
+          " | PERIOD: ",
+          DETERMINISTIC_STOCH_K);
+  }
+
+  AddElementToArray(ExtStructStochIndicatorsHandle, handle_info);
 }
 
 void ReleaseAllStructStochIndicators()
@@ -167,102 +123,6 @@ void AddDeterministicBandsBaseLogicHandle(IndicatorsHandleInfo &handles[],
   AddElementToArray(handles, handle_info);
 }
 
-bool LoadDeterministicBPercentHandle(const ENUM_TIMEFRAMES timeframe,
-                                     const int candle_shift,
-                                     IndicatorsHandleInfo &handle_info,
-                                     const bool required = false)
-{
-  handle_info = IndicatorsHandleInfo();
-  handle_info.indicator_period        = DETERMINISTIC_MA_PERIOD;
-  handle_info.indicator_shift         = candle_shift;
-  handle_info.indicator_ma_method     = MODE_SMA;
-  handle_info.indicator_applied_price = PRICE_CLOSE;
-  handle_info.indicator_timeframe     = timeframe;
-  handle_info.indicator_handle        = iCustom(_Symbol,
-                                                timeframe,
-                                                "Examples\\BB_Percent_Standard.ex5",
-                                                DETERMINISTIC_MA_PERIOD,
-                                                candle_shift,
-                                                DETERMINISTIC_B_PERCENT_DEVIATION,
-                                                DETERMINISTIC_B_PERCENT_SIGNAL_PERIOD,
-                                                MODE_SMA,
-                                                PRICE_CLOSE);
-
-  if(handle_info.indicator_handle == INVALID_HANDLE)
-  {
-    PrintFormat("ERROR LOADING DETERMINISTIC B_PERCENT: tf=%s | period=%d | shift=%d",
-                EnumToString(timeframe),
-                DETERMINISTIC_MA_PERIOD,
-                candle_shift);
-    if(required)
-      TesterStop();
-    return false;
-  }
-
-  return true;
-}
-
-void AddDeterministicBPercentHandle(IndicatorsHandleInfo &handles[],
-                                    const ENUM_TIMEFRAMES timeframe,
-                                    const int candle_shift,
-                                    const bool required = false)
-{
-  if(DeterministicHandleExists(handles, timeframe, candle_shift))
-    return;
-
-  IndicatorsHandleInfo handle_info;
-  if(!LoadDeterministicBPercentHandle(timeframe, candle_shift, handle_info, required))
-    return;
-
-  AddElementToArray(handles, handle_info);
-}
-
-bool LoadDeterministicBandsVisualHandle(const ENUM_TIMEFRAMES timeframe,
-                                        const int bands_shift,
-                                        IndicatorsHandleInfo &handle_info)
-{
-  handle_info = IndicatorsHandleInfo();
-  handle_info.indicator_period        = DETERMINISTIC_MA_PERIOD;
-  handle_info.indicator_shift         = bands_shift;
-  handle_info.indicator_ma_method     = MODE_SMA;
-  handle_info.indicator_applied_price = PRICE_CLOSE;
-  handle_info.indicator_timeframe     = timeframe;
-
-  ResetLastError();
-  handle_info.indicator_handle        = iBands(_Symbol,
-                                               timeframe,
-                                               DETERMINISTIC_MA_PERIOD,
-                                               bands_shift,
-                                               DETERMINISTIC_B_PERCENT_DEVIATION,
-                                               PRICE_CLOSE);
-
-  if(handle_info.indicator_handle == INVALID_HANDLE)
-  {
-    if(Enable_Logs)
-    {
-      PrintFormat("ERROR LOADING DETERMINISTIC VISUAL BANDS: tf=%s | period=%d | shift=%d | err=%d",
-                  EnumToString(timeframe),
-                  DETERMINISTIC_MA_PERIOD,
-                  bands_shift,
-                  GetLastError());
-    }
-    return false;
-  }
-
-  return true;
-}
-
-void AddDeterministicBandsVisualHandle(IndicatorsHandleInfo &handles[],
-                                       const ENUM_TIMEFRAMES timeframe,
-                                       const int bands_shift)
-{
-  IndicatorsHandleInfo handle_info;
-  if(!LoadDeterministicBandsVisualHandle(timeframe, bands_shift, handle_info))
-    return;
-
-  AddElementToArray(handles, handle_info);
-}
-
 void SetTesterIndicatorHideMode(const bool hide)
 {
   if(MQLInfoInteger(MQL_TESTER) <= 0)
@@ -315,10 +175,6 @@ void ReleaseAllDeterministicBandsIndicators()
 
 void LoadAllIndicatorDefinitions()
 {
-  PrepareStrategyTimeframes();
-  LoadStructureFibonacciLevels(FOUNDATION_STRUCTURE_FIBONACCI_LEVELS,
-                               "23.6,38.2,50.0,61.8,78.6,100.0");
-
   ReleaseAllStructStochIndicators();
   ReleaseAllDeterministicBandsIndicators();
   LoadAllStructStochIndicators();
@@ -339,8 +195,6 @@ void ReleaseAllIndicatorDefinitions()
 {
   ReleaseAllStructStochIndicators();
   ReleaseAllDeterministicBandsIndicators();
-  ArrayResize(Strategy_TF_List, 0);
-  total_tf_list_load = 0;
 }
 
 #endif // _SERVICES_TRADING_MANAGEMENT_INDICATOR_DEFINITIONS_LOADER_MQH_

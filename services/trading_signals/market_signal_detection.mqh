@@ -81,12 +81,6 @@ bool PopulateExtremumEngineSignal(const int engine_id,
   signal.engine_timeframe           = ExtremumEngineTimeframe(engine_id);
   signal.deterministic_strategy     = true;
   signal.entry_time                 = TimeCurrent();
-  signal.strategy_context           = CONTEXT_SLOT_BASE;
-  signal.strategy_timeframe         = signal.engine_timeframe;
-  signal.strategy_context_label     = signal.engine_label;
-  signal.entry_trigger_mode         = LEVELS_AS_LIMITS;
-  signal.entry_is_limit             = false;
-  signal.context_structure_snapshot_time = extremum.extremum_time;
   signal.source_extremum_time       = extremum.extremum_time;
   signal.source_extremum_slot       = extremum.source_slot;
   signal.source_extremum_confirmed  = extremum.confirmed;

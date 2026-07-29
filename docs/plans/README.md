@@ -1,37 +1,27 @@
 # Plans
 
-Active planning status:
+## Active
 
 - `docs/plans/market-data-broker-executor-simplification-plan.md` is the active
-  ordered implementation plan. Complete and commit one sprint before starting
-  the next.
+  ordered plan. Complete validation and one commit for each sprint before
+  advancing.
 
-Completed extremum engine and schema v7 statistics work is archived under:
+Create a new explicitly invoked `$planner` plan for any future substantial
+strategy, architecture, live-rollout, schema, or repository-wide change.
 
-- `docs/plans/archive/extremum-engine-cycle-statistics-2026-07-11/`
+## Archived
 
-Completed broker-first execution/statistics alignment plans are archived under:
+Completed and superseded plans live under `docs/plans/archive/`. They document
+their historical code and schema revisions only. Pre-v8 execution, ML,
+protection, session, licensing, and multi-leg plans are not active
+implementation guidance.
 
-- `docs/plans/archive/broker-first-execution-statistics-2026-07-10/`
+Use these current documents instead:
 
-Completed or superseded ML robustness plans are archived under:
-
-- `docs/plans/archive/phase3-ml-2026-07-07/`
-- `docs/plans/archive/ml-robustness-closeout-2026-07-09/`
-
-Those archives include validation-hardening, signal-arbitration, schema
-v2/v3/v4, pattern-audit, dynamic TP/path-ratio, numeric XGBoost, and ML
-robustness roadmap plans.
-
-Complete, validate, and commit one sprint before moving to the next sprint.
-Create a new `$planner` plan in this directory for any substantial future
-strategy, architecture, live rollout, or repository-wide change.
-
-Completed deterministic signal ML plans from the earlier roadmap remain
-archived under:
-
-- `docs/plans/archive/deterministic-signal-ml-2026-07-05/`
-
-Use the active extremum engine workflow instead of archived phase plans:
-
+- `docs/architecture/market-data-broker-executor.md`
 - `docs/workflows/extremum-engine-statistics-flow.md`
+- `docs/workflows/deterministic-signal-ml-inference-flows.md`
+- `docs/environment/mt5-agentic-workflows.md`
+
+Do not edit archived plans during normal implementation work. Add an archive
+index link only when an active plan is formally closed.

@@ -12,7 +12,6 @@
 #include "trading_signals/market_signal_state.mqh"
 #include "trading_signals/market_signal_indicators.mqh"
 #include "trading_signals/extremum_engine_state.mqh"
-#include "trading_signals/market_signal_cleanup.mqh"
 #include "trading_signals/market_signal_detection.mqh"
 #include "trading_signals/market_status_controller.mqh"
 #include "trading_signals/execution_broker_context.mqh"

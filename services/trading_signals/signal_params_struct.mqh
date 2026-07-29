@@ -273,20 +273,6 @@ struct ExecutionState
   }
 };
 
-struct ResolvedStructureEntryAnchor
-{
-  bool valid;
-  double percent;
-  double price;
-
-  ResolvedStructureEntryAnchor()
-  {
-    valid = false;
-    percent = 0.0;
-    price = 0.0;
-  }
-};
-
 struct SignalParams
 {
   SignalTypes signal_type;
@@ -310,13 +296,7 @@ struct SignalParams
   double distance_from_previous_revision_points;
   double depth_delta_from_previous_percent;
   int bars_since_cycle_start;
-  StrategyContextTypes strategy_context;
-  ENUM_TIMEFRAMES strategy_timeframe;
-  string strategy_context_label;
-  StructureTriggerEntryModes entry_trigger_mode;
   double entry_price;
-  ResolvedStructureEntryAnchor resolved_structure_entry;
-  bool entry_is_limit;
   double close_price;
   double stop_loss;
   double take_profit;
@@ -374,15 +354,8 @@ struct SignalParams
   double execution_expected_tp_profit;
   double execution_raw_lot_size;
   double execution_normalized_lot_size;
-  datetime context_structure_snapshot_time;
   bool base_structure_valid;
   StochasticMarketStructure base_structure_data;
-  bool trend_structure_valid;
-  StochasticMarketStructure trend_structure_data;
-  bool macro_structure_valid;
-  StochasticMarketStructure macro_structure_data;
-  bool session_structure_valid;
-  StochasticMarketStructure session_structure_data;
   ExecutionState execution;
 
   SignalParams()
@@ -408,12 +381,7 @@ struct SignalParams
     distance_from_previous_revision_points = 0.0;
     depth_delta_from_previous_percent = 0.0;
     bars_since_cycle_start = 0;
-    strategy_context = CONTEXT_SLOT_BASE;
-    strategy_timeframe = PERIOD_CURRENT;
-    strategy_context_label = "BASE";
-    entry_trigger_mode = LEVELS_AS_LIMITS;
     entry_price = 0.0;
-    entry_is_limit = false;
     close_price = 0.0;
     stop_loss = 0.0;
     take_profit = 0.0;
@@ -471,11 +439,7 @@ struct SignalParams
     execution_expected_tp_profit = 0.0;
     execution_raw_lot_size = 0.0;
     execution_normalized_lot_size = 0.0;
-    context_structure_snapshot_time = 0;
     base_structure_valid = false;
-    trend_structure_valid = false;
-    macro_structure_valid = false;
-    session_structure_valid = false;
   }
 
   SignalParams(const SignalParams &other)
@@ -501,13 +465,7 @@ struct SignalParams
     distance_from_previous_revision_points = other.distance_from_previous_revision_points;
     depth_delta_from_previous_percent = other.depth_delta_from_previous_percent;
     bars_since_cycle_start = other.bars_since_cycle_start;
-    strategy_context = other.strategy_context;
-    strategy_timeframe = other.strategy_timeframe;
-    strategy_context_label = other.strategy_context_label;
-    entry_trigger_mode = other.entry_trigger_mode;
     entry_price = other.entry_price;
-    resolved_structure_entry = other.resolved_structure_entry;
-    entry_is_limit = other.entry_is_limit;
     close_price = other.close_price;
     stop_loss = other.stop_loss;
     take_profit = other.take_profit;
@@ -565,15 +523,8 @@ struct SignalParams
     execution_expected_tp_profit = other.execution_expected_tp_profit;
     execution_raw_lot_size = other.execution_raw_lot_size;
     execution_normalized_lot_size = other.execution_normalized_lot_size;
-    context_structure_snapshot_time = other.context_structure_snapshot_time;
     base_structure_valid = other.base_structure_valid;
     base_structure_data = other.base_structure_data;
-    trend_structure_valid = other.trend_structure_valid;
-    trend_structure_data = other.trend_structure_data;
-    macro_structure_valid = other.macro_structure_valid;
-    macro_structure_data = other.macro_structure_data;
-    session_structure_valid = other.session_structure_valid;
-    session_structure_data = other.session_structure_data;
     execution = other.execution;
   }
 };

@@ -7,36 +7,14 @@
 const int FRONTEND_REFRESH_INTERVAL_SECONDS = 1;
 datetime g_frontend_next_refresh_time = 0;
 
-inline bool FrontendChartWorkEnabledForRuntime(const bool runtime_is_testing,
-                                               const bool runtime_is_visual_mode)
-{
-  return !(runtime_is_testing && !runtime_is_visual_mode);
-}
-
 inline bool FrontendChartWorkEnabled()
 {
   bool runtime_is_testing = (MQLInfoInteger(MQL_TESTER) > 0);
   bool runtime_is_visual_mode = (MQLInfoInteger(MQL_VISUAL_MODE) > 0);
-  return FrontendChartWorkEnabledForRuntime(runtime_is_testing, runtime_is_visual_mode);
-}
-
-inline bool FrontendSkippingChartWorkForRuntime(const bool runtime_is_testing,
-                                                const bool runtime_is_visual_mode)
-{
-  return !FrontendChartWorkEnabledForRuntime(runtime_is_testing, runtime_is_visual_mode);
-}
-
-inline bool FrontendSkippingChartWork()
-{
-  return !FrontendChartWorkEnabled();
+  return !(runtime_is_testing && !runtime_is_visual_mode);
 }
 
 void FrontendResetRefreshThrottle()
-{
-  g_frontend_next_refresh_time = 0;
-}
-
-void FrontendForceNextRefresh()
 {
   g_frontend_next_refresh_time = 0;
 }

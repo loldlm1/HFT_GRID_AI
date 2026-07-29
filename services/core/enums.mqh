@@ -27,37 +27,6 @@ enum SignalStates
 	CLOSED  = 3
 };
 
-enum StructureTriggerEntryModes
-{
-  LEVELS_AS_LIMITS = 0,
-  LEVEL_AS_ZONE    = 1
-};
-
-enum SlopeTypes
-{
-	NO_SLOPE   = 0,
-	UP_SLOPE   = 1,
-	DOWN_SLOPE = 2
-};
-
-enum PercentilTypes
-{
-	PERCENTIL_NULL = -99,
-	PERCENTIL_MIN  = -10,
-	PERCENTIL_MAX  = 110,
-	PERCENTIL_0    = 0,
-	PERCENTIL_10   = 10,
-	PERCENTIL_20   = 20,
-	PERCENTIL_30   = 30,
-	PERCENTIL_40   = 40,
-	PERCENTIL_50   = 50,
-	PERCENTIL_60   = 60,
-	PERCENTIL_70   = 70,
-	PERCENTIL_80   = 80,
-	PERCENTIL_90   = 90,
-	PERCENTIL_100  = 100
-};
-
 enum OscillatorPricesTypes
 {
 	OSCILLATOR_HIGH_PRICES = 0,
@@ -71,20 +40,6 @@ enum OscillatorStructureTypes
 	OSCILLATOR_STRUCTURE_HL = 2, // Higher Low
 	OSCILLATOR_STRUCTURE_LH = 3, // Lower High
 	OSCILLATOR_STRUCTURE_LL = 4  // Lower Low
-};
-
-enum BodyTrendTypes
-{
-	BODY_UNDEFINED = 0,
-	STRONG_BODY_TREND = 1,
-	WEAK_BODY_TREND = 2
-};
-
-enum BodyMATypes
-{
-	BODY_UNDEFINED_MA = 0,
-	BODY_BULLISH_MA = 1,
-	BODY_BEARISH_MA = 2
 };
 
 enum ExecutionLotTypes
@@ -119,16 +74,6 @@ enum BrokerSessionTimeModes
   FIXED_TIME_SESSIONS = 0,
   EXNESS_SESSION       = 1
 };
-
-enum StrategyContextTypes
-{
-  CONTEXT_SLOT_BASE    = 0,
-  CONTEXT_SLOT_TREND   = 1,
-  CONTEXT_SLOT_MACRO   = 2,
-  CONTEXT_SLOT_SESSION = 3
-};
-
-const int STRATEGY_CONTEXT_TOTAL = 4;
 
 enum MarketStatusTypes
 {

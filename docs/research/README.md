@@ -1,31 +1,23 @@
 # Research Evidence
 
-Active research gate:
+## Active State
 
-- None. Start a new plan and evidence set for the next substantial research
-  change.
+The active schema v8 implementation plan is
+`docs/plans/market-data-broker-executor-simplification-plan.md`. No human
+Strategy Tester research evidence is accepted until its final integration gate
+is completed.
 
-Completed extremum engine and schema v7 statistics evidence is archived under:
-
-- `docs/research/archive/extremum-engine-cycle-statistics-2026-07-11/`
-
-Completed broker-first execution/statistics research is archived under:
-
-- `docs/research/archive/broker-first-execution-statistics-2026-07-10/`
-
-The latest ML robustness and numeric XGBoost research closeout is archived
-under:
-
-- `docs/research/archive/ml-robustness-closeout-2026-07-09/`
-
-Generated exports, datasets, models, reports, screenshots, and Common Files
-packages remain outside git.
-
-Completed deterministic signal ML evidence was archived on 2026-07-05:
-
-- `docs/research/archive/deterministic-signal-ml-2026-07-05/`
-
-Use archived evidence only for historical audit. For current human and agentic
-workflow context, use:
+Use these active runbooks:
 
 - `docs/workflows/extremum-engine-statistics-flow.md`
+- `docs/workflows/deterministic-signal-ml-inference-flows.md`
+- `docs/environment/mt5-agentic-workflows.md`
+
+## Archives
+
+Completed pre-v8 broker, extremum, deterministic ML, and robustness evidence
+remains under `docs/research/archive/`. It is immutable historical audit
+material and must not be presented as schema v8 acceptance.
+
+Generated Common Files exports, datasets, audits, pattern audits, models,
+reports, screenshots, and binaries remain outside tracked documentation.

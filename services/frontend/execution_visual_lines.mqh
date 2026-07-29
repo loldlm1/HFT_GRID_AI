@@ -9,7 +9,10 @@ void UpdateHorizontalLine(const long chart_id,
                           const int line_style = STYLE_DASH,
                           const int line_width = 1)
 {
-  if(price <= 0.0 || !Enable_Chart_Levels)
+  if(!FrontendChartWorkEnabled())
+    return;
+
+  if(price <= 0.0)
   {
     if(ObjectFind(chart_id, name) >= 0)
       ObjectDelete(chart_id, name);
@@ -43,8 +46,6 @@ void UpdateTrackedLine(const long chart_id,
                        const int line_width = 1)
 {
   UpdateHorizontalLine(chart_id, name, line_color, price, label_text, line_style, line_width);
-  if(!Enable_Chart_Levels)
-    return;
   if(price <= 0.0)
     return;
   if(!ContainsObjectName(tracked_objects, name))
