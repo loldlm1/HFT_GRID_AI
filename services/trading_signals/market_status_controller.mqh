@@ -4,8 +4,6 @@
 MarketStatusTypes g_market_status = MARKET_STATUS_ACTIVE;
 string            g_market_status_reason = "";
 datetime          g_market_status_updated = 0;
-bool              g_market_force_close_pending = false;
-string            g_market_force_close_reason = "";
 
 string MarketStatusToString(const MarketStatusTypes status)
 {
@@ -66,35 +64,7 @@ bool MarketStatusAllowsSignalAttempts()
 
 bool MarketStatusAllowsBrokerActions()
 {
-  return (g_market_status == MARKET_STATUS_ACTIVE) ||
-         (g_market_status == MARKET_STATUS_CLOSE_GUARD) ||
-         (g_market_status == MARKET_STATUS_BROKER_CLOSEONLY);
-}
-
-void MarketStatusRequestForceClose(const string reason)
-{
-  if(g_market_force_close_pending && g_market_force_close_reason == reason)
-    return;
-
-  g_market_force_close_pending = true;
-  g_market_force_close_reason  = reason;
-  //PrintFormat("Force close scheduled | reason=%s", reason);
-}
-
-bool MarketStatusHasPendingForceClose()
-{
-  return g_market_force_close_pending;
-}
-
-string MarketStatusPendingReason()
-{
-  return g_market_force_close_reason;
-}
-
-void MarketStatusClearForceCloseRequest()
-{
-  g_market_force_close_pending = false;
-  g_market_force_close_reason  = "";
+  return (g_market_status == MARKET_STATUS_ACTIVE);
 }
 
 bool MarketStatusRetcodeImpliesClosure(const ulong retcode,
@@ -112,15 +82,12 @@ bool MarketStatusRetcodeImpliesClosure(const ulong retcode,
 
 void MarketStatusRegisterBrokerFailure(const string context,
                                        const ulong retcode,
-                                       const int last_error,
-                                       const bool requires_force_close)
+                                       const int last_error)
 {
   if(!MarketStatusRetcodeImpliesClosure(retcode, last_error))
     return;
 
   MarketStatusUpdate(MARKET_STATUS_BROKER_DISABLED, context);
-  if(requires_force_close)
-    MarketStatusRequestForceClose(context);
 }
 
 #endif // _SERVICES_TRADING_SIGNALS_MARKET_STATUS_CONTROLLER_MQH_

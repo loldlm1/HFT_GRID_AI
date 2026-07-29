@@ -8,15 +8,12 @@
 #property version       "1.10"
 #property description   "Support Contact @chu4xtrade"
 #property description   "All Rights Reserved for the Trading Sniper Team."
-#property description   "Execution Foundation EA"
+#property description   "Market Data Collector And Broker Executor"
 
 // STANDARD MQL5 LIBRARIES
 #include <Trade/Trade.mqh>
 #include <Trade/AccountInfo.mqh>
 #include <Trade/SymbolInfo.mqh>
-
-// CUSTOM SERVICES - UTILITIES
-#include "services/license_service_setup.mqh"
 
 // CUSTOM SERVICES - AGGREGATORS
 #include "services/trading_tools.mqh"
@@ -30,59 +27,39 @@ CTrade       g_position;
 CAccountInfo g_account;
 CSymbolInfo  g_symbol;
 double       g_bid, g_ask, g_decimal_digits, g_points_spread, g_local_spread;
-int          g_magic_number;
+ulong        g_execution_magic;
 string       g_dataset_id = "";
 bool         g_ea_running;
 datetime     g_initial_ea_date;
 SymbolTradingConstraints g_symbol_constraints;
 
-bool ProcessPendingRemovalRequest()
+ulong ResolveStableExecutionMagic()
 {
-  if(!EALifecycleHasPendingRemoval())
-    return false;
+  string source = "HFT_GRID_AI_MARKET_DATA_V1|" + _Symbol;
+  ulong hash = 1469598103934665603;
+  int total = StringLen(source);
+  for(int i = 0; i < total; i++)
+  {
+    hash ^= (ulong)StringGetCharacter(source, i);
+    hash *= 1099511628211;
+  }
 
-  string removal_message = EALifecycleRemovalMessage();
-  if(removal_message != "")
-    Print("[EA] ", removal_message);
-  else
-    Print("[EA] Removal requested.");
-
-  ExpertRemove();
-  return true;
-}
-
-bool ExtremumEngineRequiresHedgingAccount()
-{
-  long margin_mode = AccountInfoInteger(ACCOUNT_MARGIN_MODE);
-  if(margin_mode == ACCOUNT_MARGIN_MODE_RETAIL_HEDGING)
-    return true;
-
-  PrintFormat("Unsupported account margin mode for extremum engine: %d. Hedging account required.",
-              (int)margin_mode);
-  return false;
+  hash &= 0x7FFFFFFF;
+  if(hash == 0)
+    hash = 1;
+  return hash;
 }
 
 int OnInit()
 {
-  if(!LicenseServiceInit())
-    return(INIT_FAILED);
-
-  if(!ExtremumEngineRequiresHedgingAccount())
-    return(INIT_FAILED);
-
   // INITIALIZE GLOBAL VARIABLES
   g_ea_running = false;
-  SetManualSignalEntryEnabled(true);
   g_symbol.Name(_Symbol);
   g_decimal_digits  = pow(10.0, Digits());
   g_initial_ea_date = TimeCurrent();
   ResetQueryDebugLogSession();
   ResetDeterministicSourceOutcomeState();
   ResetExtremumEngineState();
-  DeterministicSignalStatsInit();
-  PatternAuditPlaybackInit();
-  DeterministicSignalMLShadowInit();
-
   if(!RefreshSymbolTradingConstraints(_Symbol, g_symbol_constraints))
   {
     Print("ERROR LOADING BROKER CONSTRAINTS FOR SYMBOL: ", _Symbol);
@@ -97,39 +74,22 @@ int OnInit()
                 g_symbol_constraints.volume_step);
   }
 
-  // SET THE MAGIC NUMBER (strictly from successful license verify cache)
-  long verified_magic_number = LicenseGetCachedMagicNumber();
-  if(verified_magic_number <= 0 && is_testing == false)
-  {
-    EALifecycleRequestRemoval(LicenseServiceBuildRemovalMessage(""));
-    return INIT_FAILED;
-  }
-  g_magic_number = (int)verified_magic_number;
-  g_position.SetExpertMagicNumber(g_magic_number);
+  g_execution_magic = ResolveStableExecutionMagic();
+  g_position.SetExpertMagicNumber(g_execution_magic);
+
+  DeterministicSignalStatsInit();
+  PatternAuditPlaybackInit();
+  DeterministicSignalMLShadowInit();
 
   // CHART SETUP
   RefreshCustomSymbolRates();
   ResetExecutionVisualizationCache();
-  ResetLightweightUiCache();
   FrontendResetRefreshThrottle();
-  InvalidateLightweightUiLayout();
   if(FrontendChartWorkEnabled())
-  {
-    ClearPersistentChartError();
     ApplyDefaultChartStyle(ChartID());
-  }
 
   // INITIALIZE THE EA
-  if(FrontendChartWorkEnabled())
-    CreateLicensePanelLive();
   LoadAllIndicatorDefinitions();
-
-  if(!EventSetTimer(LicenseServiceTimerSeconds()))
-  {
-    PrintFormat("[EA] Failed to set timer (%d seconds).",
-                LicenseServiceTimerSeconds());
-    return(INIT_FAILED);
-  }
 
   if(FrontendChartWorkEnabled())
   {
@@ -151,26 +111,15 @@ void OnDeinit(const int reason)
   PatternAuditPlaybackDeinit();
   DeterministicSignalStatsDeinit();
   CloseAppendFileLog();
-  LicenseServiceOnDeinit();
-  EventKillTimer();
   ReleaseAllIndicatorDefinitions();
   ReleaseExecutionIndicatorCache();
   FrontendResetRefreshThrottle();
 
-  string removal_message = EALifecycleRemovalMessage();
-  bool preserve_error_object = EALifecyclePreserveErrorObject();
-
   if(FrontendChartWorkEnabled())
   {
-    DeleteEAChartObjects(ChartID(), false);
+    DeleteEAChartObjects(ChartID());
     ResetExecutionVisualizationCache();
-    ResetLightweightUiCache();
-
-    if(preserve_error_object && removal_message != "")
-      RenderPersistentChartError(removal_message);
   }
-
-  EALifecycleClearRemovalRequest();
 }
 
 //+------------------------------------------------------------------+
@@ -192,56 +141,23 @@ void OnTradeTransaction(const MqlTradeTransaction& trans,
 }
 
 //+------------------------------------------------------------------+
-//| Timer function                                                   |
-//+------------------------------------------------------------------+
-void OnTimer()
-{
-  LicenseServiceOnTimer();
-
-  if(ProcessPendingRemovalRequest())
-    return;
-}
-
-//+------------------------------------------------------------------+
 //| Expert tick function                                             |
 //+------------------------------------------------------------------+
 void OnTick()
 {
   RefreshCustomSymbolRates();
   DeterministicSignalStatsUpdatePathTracker();
-  DebugEquityGuardAllowsProcessing();
-  ProtectionRiskMonitorTradeMode();
-  ProtectionRiskFilterTick();
+  if(!DebugEquityGuardAllowsProcessing())
+    return;
   g_ea_running                            = true;
   static datetime next_bar_open           = 0;
-  static datetime next_minute_bar_open    = 0;
-  static bool     admission_blocked_last_tick = false;
   datetime        current_time            = TimeCurrent();
-  datetime        current_daily_time      = iTime(_Symbol, PERIOD_D1, 0);
   int             defined_tick_seconds    = PeriodSeconds(EXTREMUM_ENGINE_TIMEFRAME);
-  int             defined_tick_M1_seconds = PeriodSeconds(PERIOD_M1);
-
-  // SESSION TIME FILTER CHECKS - PER MINUTE INSTEAD OF PER TICK
-  if(current_time>=next_minute_bar_open)
-  {
-    SessionTimeFilterMonitorRuntime();
-    SessionTimeFilterProcessPendingForceCloses();
-    next_minute_bar_open=current_time;
-    next_minute_bar_open-=next_minute_bar_open%defined_tick_M1_seconds;
-    next_minute_bar_open+=defined_tick_M1_seconds;
-  }
-
-  bool admission_blocked = (g_points_spread > Max_Spread || !IsMarketOpen());
-  if(admission_blocked != admission_blocked_last_tick)
-    FrontendForceNextRefresh();
-
-  bool broker_disabled = (MarketStatusGet() == MARKET_STATUS_BROKER_DISABLED);
 
   //--- Phase 1 - check the emergence of a new bar and update the status
   if(current_time>=next_bar_open)
   {
-    if(!broker_disabled)
-      Main();
+    Main();
 
     //--- set the new bar opening time
     next_bar_open=current_time;
@@ -251,25 +167,8 @@ void OnTick()
 
   // MANAGES THE BULLISH AND BEARISH SIGNALS
   Main_Tick();
-  admission_blocked_last_tick = admission_blocked;
   if(FrontendRefreshDue(current_time))
     RefreshExecutionVisualization();
-}
-
-void OnChartEvent(const int id,
-                  const long &lparam,
-                  const double &dparam,
-                  const string &sparam)
-{
-  if(!FrontendChartWorkEnabled())
-    return;
-
-  if(HandleLightweightChartUiEvent(id, lparam, dparam, sparam))
-  {
-    FrontendForceNextRefresh();
-    RefreshExecutionVisualization();
-    ChartRedraw(ChartID());
-  }
 }
 
 // DETECT BULLISH AND BEARISH SIGNALS

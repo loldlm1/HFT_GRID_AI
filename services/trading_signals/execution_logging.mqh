@@ -27,18 +27,6 @@ string ExecutionBoolToken(const bool value)
   return value ? "true" : "false";
 }
 
-string ExecutionSessionModeToken(const SessionTimeFilterModes mode)
-{
-  switch(mode)
-  {
-    case SESSION_FILTER_ALLOW_RUN:
-      return "ALLOW_RUN";
-    case SESSION_FILTER_FORCE_CLOSE:
-      return "FORCE_CLOSE";
-  }
-  return "OFF";
-}
-
 string ExecutionMLInferenceModeToken(const MLInferenceModes mode)
 {
   switch(mode)
@@ -211,43 +199,20 @@ void EnsureQueryDebugSessionHeaderLogged()
     point_size = 0.0001;
 
   ExecutionAppendTimestampedQueryDebug("QUERY_DEBUG_SESSION",
-                                  StringFormat("symbol=%s|period=%s|point=%.5f|digits=%d|spread_pts=%.1f|spread_raw=%.5f|max_spread=%.1f",
+                                  StringFormat("symbol=%s|period=%s|point=%.5f|digits=%d|spread_pts=%.1f|spread_raw=%.5f|broker_session=%s",
                                                _Symbol,
                                                EnumToString(_Period),
                                                point_size,
                                                Digits(),
                                                g_points_spread,
                                                g_local_spread,
-                                               Max_Spread));
-
-  ExecutionAppendTimestampedQueryDebug("INPUTS_ACCOUNT",
-                                  StringFormat("magic=%d|min_range=%.1f|account_size=%.1f|protection=%s|drawdown_type=%s|drawdown=%.1f|close_guard_tf=%s",
-                                               Custom_Magic,
-                                               Min_Range_Points,
-                                               Account_Size,
-                                               EnumToString(Protection_Risk_Mode),
-                                               EnumToString(Protection_Risk_Drawdown_Type),
-                                               Protection_Risk_Drawdown_Value,
-                                               EnumToString(Market_Close_Guard_Timeframe)));
-
-  ExecutionAppendTimestampedQueryDebug("INPUTS_SESSION",
-                                  StringFormat("asia=%s@%s|london=%s@%s|newyork=%s@%s|dst=%s|dst_manual=%d",
-                                               ExecutionSessionModeToken(Session_Asia_Filter_Mode),
-                                               Session_Asia_Filter_Time_Range,
-                                               ExecutionSessionModeToken(Session_London_Filter_Mode),
-                                               Session_London_Filter_Time_Range,
-                                               ExecutionSessionModeToken(Session_NewYork_Filter_Mode),
-                                               Session_NewYork_Filter_Time_Range,
-                                               SessionTimeFilterDstStatusSummary(),
-                                               Session_Time_Dst_Manual_Offset_Minutes));
+                                               MarketDataTimePolicyToken(Broker_Session)));
 
   ExecutionAppendTimestampedQueryDebug("INPUTS_ENGINE",
-                                  StringFormat("engine=%s|tf=%s|stoch_period=%d|direction=%s|concurrency=%s",
+                                  StringFormat("engine=%s|tf=%s|stoch_period=%d|direction=STRUCTURAL|concurrency=UNRESTRICTED",
                                                ExecutionExtremumEngineDescriptor(),
                                                EnumToString(EXTREMUM_ENGINE_TIMEFRAME),
-                                               Stoch_Structure_Period_Type,
-                                               EnumToString(Strategy_Direction_Mode),
-                                               EnumToString(Signal_Concurrency_Mode)));
+                                               Stoch_Structure_Period_Type));
 
   ExecutionAppendTimestampedQueryDebug("FOUNDATION_STRUCTURE",
                                   StringFormat("levels=%s|trigger=%s",
@@ -255,16 +220,14 @@ void EnsureQueryDebugSessionHeaderLogged()
                                                EnumToString(FOUNDATION_STRUCTURE_TRIGGER_MODE)));
 
   ExecutionAppendTimestampedQueryDebug("INPUTS_EXECUTION",
-                                  StringFormat("base=%s|points_range=%.1f|execution_mult=%.2f|level_start=%d|stop_limit=%d|lot_type=%s|lot_size=%.2f|lot_mult=%.2f|tp_percent=%.1f",
+                                  StringFormat("base=%s|points_range=%.1f|execution_mult=%.2f|level_start=%d|stop_limit=%d|lot_type=%s|lot_size=%.2f",
                                                EnumToString(Strategy_Range_Mode),
                                                Strategy_Range_Points,
                                                ResolveFoundationLevelExponentialMultiplier(),
                                                ResolveFoundationLevelPositionStart(),
                                                ResolveFoundationLevelStopLimit(),
                                                EnumToString(Lot_Type),
-                                               Lot_Strategy_Size,
-                                               Lot_Multiplier,
-                                               TP_Percent));
+                                               Lot_Strategy_Size));
 
   ExecutionAppendTimestampedQueryDebug("INPUTS_ML",
                                   StringFormat("mode=%s|export_id=%s|artifact_root=%s|policy=shadow_fail_open",

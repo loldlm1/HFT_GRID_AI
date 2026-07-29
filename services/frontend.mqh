@@ -6,12 +6,9 @@
 
 // FRONTEND SERVICE FILES
 #include "frontend/runtime_guard.mqh"
-#include "frontend/ea_license_light_version.mqh"
 #include "frontend/chart_style_guide.mqh"
 #include "frontend/execution_visual_utils.mqh"
 #include "frontend/execution_visual_lines.mqh"
-#include "frontend/lightweight_status_layout.mqh"
-#include "frontend/lightweight_status_ui.mqh"
 #include "frontend/execution_visualization.mqh"
 
 #endif // _SERVICES_FRONTEND_MQH_

@@ -1,162 +1,98 @@
-# AGENTS Brief - HFT Grid AI Foundation
+# HFT Grid AI - Agent Brief
 
-Short, current notes for Codex agents and contributors. Keep this file brief; active implementation plans live in `docs/plans/` when present, and completed plans live in `docs/plans/archive/`.
+This repository is being simplified into an always-on M1 market-data collector
+with a minimal broker executor. Keep this file short; the active implementation
+plan is the source of sprint scope and lives under `docs/plans/`.
 
----
+## Entrypoint And Active Plan
 
-## 1) Purpose And Entrypoint
+- Entrypoint: `HFT_Grid_AI.mq5`.
+- Active plan: `docs/plans/market-data-broker-executor-simplification-plan.md`.
+- Environment runbook: `docs/environment/mt5-agentic-workflows.md`.
+- Statistics workflow: `docs/workflows/extremum-engine-statistics-flow.md`.
+- ML boundaries: `docs/workflows/deterministic-signal-ml-inference-flows.md`.
 
-- **Purpose**: MT5 Expert Advisor foundation with one M1 extremum engine, broker-aware execution planning, schema v7 statistics, and strict risk controls.
-- **Entrypoint**: `HFT_Grid_AI.mq5`.
-- **Active plan**: none. Start a new `$planner` plan under `docs/plans/` for
-  the next substantial change.
-- **Environment runbook**: `docs/environment/mt5-agentic-workflows.md`.
-- **Extremum engine workflow**: `docs/workflows/extremum-engine-statistics-flow.md`.
-- **ML runtime boundaries**: `docs/workflows/deterministic-signal-ml-inference-flows.md`.
-- **Archived deterministic ML plans**:
-  `docs/plans/archive/deterministic-signal-ml-2026-07-05/` and
-  `docs/plans/archive/phase3-ml-2026-07-07/`.
-- **Archived ML robustness closeout**:
-  `docs/plans/archive/ml-robustness-closeout-2026-07-09/` and
-  `docs/research/archive/ml-robustness-closeout-2026-07-09/`.
-- **Archived broker-first execution/statistics closeout**:
-  `docs/plans/archive/broker-first-execution-statistics-2026-07-10/` and
-  `docs/research/archive/broker-first-execution-statistics-2026-07-10/`.
-- **Archived extremum engine/statistics closeout**:
-  `docs/plans/archive/extremum-engine-cycle-statistics-2026-07-11/` and
-  `docs/research/archive/extremum-engine-cycle-statistics-2026-07-11/`.
-- **Archived deterministic ML evidence**: `docs/research/archive/deterministic-signal-ml-2026-07-05/`.
-- **Archived plans**: completed refoundation and skill-stack alignment plans live under `docs/plans/archive/`.
-- **Planning model**: create a new `$planner` plan under `docs/plans/` for any substantial future strategy, architecture, or repository-wide change.
+## Current Skill Stack
 
-## 2) Codex Skill Stack
+- `mql5-production-engineering` for MQL5 lifecycle, broker constraints, and
+  Strategy Tester work.
+- `token-saver-orchestrator` for compact RTK-first repository inspection.
+- `planner` for ordered saved plans and sprint gates.
+- `semantic-audit` for broad active-document and meaning-drift reviews when
+  installed at `/home/loldlm/.codex/skills/semantic-audit`.
 
-Use the local Codex skills deliberately:
+## Target Contract
 
-- **Primary MQL5 skill**: `mql5-production-engineering` for `.mq5`/`.mqh`, MetaEditor compile, trading lifecycle, broker/risk controls, indicator handles, Strategy Tester performance, and behavior-preserving refactors.
-- **Primary shell/context skill**: `token-saver-orchestrator` for RTK-first shell output, concise search/build summaries, and token-efficient repo inspection.
-- **Planning skill**: `planner` for sprint-based plans with acceptance criteria, validation, commit discipline, and explicit non-goals.
-- **Audit skill**: `semantic-audit` for broad naming, documentation, contract, or meaning-drift reviews.
-- **Situational production skills**: use framework-specific skills only when matching files/tasks appear, such as TypeScript, Python/Django, Rails, Phoenix, Flutter, PostgreSQL, DevOps, or premium UI.
+- `EXTREMUM_V1` is the only signal source and runs on M1 without user session,
+  direction, or concurrency selectors.
+- The public inputs are only deterministic broker-session time basis, the two
+  lot fields, statistics export, ML, pattern audit, and debug controls.
+- Market observation and broker eligibility checks run even when export output
+  is disabled; export controls persistence, not safety evaluation.
+- A distinct attempt can own at most one broker position. Execution requires a
+  hedging account; non-hedging accounts remain collection-only and fail sends
+  closed.
+- Broker state owns ticket, volume, entry, protection prices, close state, and
+  realized profit after a fill. Local state never overwrites those facts.
 
-Do not force unrelated skills into normal MQL5 work. Prefer the repo rules in this file when a generic skill conflicts with project-specific safety constraints.
+## Broker Safety Kernel
 
-## 3) Functional Include Pipeline
+Every attempt records broker facts at observation and refreshes them immediately
+before any send. The pre-send result is the only authority allowed to send.
+Checks include account margin mode, symbol trade mode, actual broker session,
+terminal/MQL trade permission, bid/ask/spread, stops/freeze distances, volume
+min/max/step, margin, `OrderCheck`, SL/TP validity, retcodes, symbol scope, and
+stable internal magic scope. A high spread is observed, not a configurable
+threshold denial.
 
-The EA follows one ordered include chain from setup to frontend. Keep this order and avoid sibling include drift.
+## Deterministic Time
 
-```text
-services/license_service_setup.mqh
-services/trading_tools.mqh
-services/trading_management.mqh
-services/trading_management_strategies.mqh
-services/trading_signals.mqh
-services/frontend.mqh
-```
+`FIXED_TIME_SESSIONS` stores broker timestamps unchanged. `EXNESS_SESSION` uses
+the documented instrument DST calendar to normalize analysis timestamps (for
+example US30 winter `14:30` broker time maps to `13:30` analysis time). Raw
+broker time remains authoritative for scheduling, actual session checks,
+durations, and causal ordering. Normalized time is for export, features,
+research grouping, and pattern matching only; every normalized row records its
+offset or equivalent manifest policy.
 
-Rules:
+## ML And Audit Boundaries
 
-- Aggregators are the single source of truth for include order.
-- Include lower layers only, or shared core/utils/indicators helpers.
-- Do not introduce circular includes or sibling service includes.
-- Keep the flow explicit: inputs -> Stoch Structure/extremum cycle -> intrinsic attempt -> operational admission -> execution planning -> broker-aware simulation -> broker reconciliation -> protection/risk -> frontend/telemetry.
+- `ML_INFERENCE_SHADOW` is passive and cannot affect execution or risk.
+- `ML_INFERENCE_FILTER` is Strategy Tester-only, runs after broker eligibility,
+  and may only deny an otherwise admissible send.
+- Pattern playback is research/tester scoped and cannot alter broker facts,
+  lot sizing, SL/TP, or broker reconciliation.
+- Historical schema/model artifacts remain immutable and are never relabeled.
 
-## 4) Foundation Scope
+## Validation And Commit Policy
 
-The project has been refounded away from legacy strategy-specific behavior. Removed feature groups and inputs must not be preserved through deprecated shims or compatibility aliases.
+- Do not add MQL5 harnesses, custom MQL5 test modules, test EAs/scripts, CI, or
+  new test infrastructure.
+- Sprints 1-5 use static call tracing, exact identifier checks, Python contract
+  checks where already present, compact artifact review, and `git diff --check`.
+- Do not run MetaEditor syntax checks or compiles in Sprints 1-5. Sprint 6 is
+  the only real MetaEditor compile sprint and must finish with `0 errors, 0
+  warnings`, followed by human Strategy Tester/chart verification.
+- Complete and validate one sprint, create exactly one sprint-specific commit,
+  record its rollback point, then advance one sprint.
+- Preserve archived plans, research evidence, old datasets, and generated
+  binaries; use new schema/run IDs for new artifacts.
 
-Do not reintroduce removed strategy feature groups or their former public inputs as active code, docs, compatibility aliases, or entitlement mappings.
+## Include And Style Rules
 
-Preserved foundation controls:
+- Keep the explicit include flow: tools -> management -> signals -> optional
+  human-inspection frontend. Aggregators own order; avoid sibling includes and
+  circular dependencies.
+- Use 2-space indentation, `snake_case` variables, `CamelCase` functions, and
+  `ALL_CAPS` enum values/constants.
+- Avoid `auto`, lambdas, range-for, per-tick handle creation, unbounded logs,
+  and repeated full-history scans.
+- Check all indicator, market-data, file, array, and trade operations; release
+  handles, timers, files, and chart resources in `OnDeinit`.
 
-- License and account settings.
-- Protection/risk controls simplified around strategy-range foundations.
-- Session time filters.
-- Strategy timeframe, Stoch Structure period, direction mode, and concurrency mode unless a later phase changes them explicitly.
-- Developer debug controls.
-- Stoch Structure remains the structural context source.
+## Rollout Restriction
 
-## 5) Naming And Domain Rules
-
-- Do not introduce removed public enum prefixes, inputs, or strategy concepts.
-- Phase 4 completed the domain rename to execution foundation terms.
-- Preserve enum numeric semantics where user configuration compatibility depends on ordinal values.
-- Preferred foundation vocabulary: `strategy`, `execution`, `range`, `leg`, `broker snapshot`, `execution planner`, and `execution lifecycle`.
-- Use removed legacy domain vocabulary only inside historical planning artifacts.
-
-## 6) Execution Source Of Truth
-
-- Before a real broker position exists, local execution simulation owns candidate state.
-- `EXTREMUM_V1` uses the current Stoch Structure extremum slot `0` as the source; completed slots `1` and `2` freeze the cycle Fibonacci range. No M1 or macro MA confirmation is active.
-- Local simulation must apply broker conditions before activation decisions: spread, stops level, freeze level, volume min/max/step, margin, market status, sessions, license, and protection gates.
-- After a real broker position exists, broker state owns ticket, volume, entry price, close state, and realized profit.
-- Local state may reconcile against broker facts, but must not overwrite broker facts.
-- Future statistics must distinguish simulated decisions from broker-confirmed outcomes.
-
-## 7) Trading Safety Rules
-
-Never weaken these controls to make a refactor compile:
-
-- License guard and entitlement checks.
-- Spread, broker stops/freeze, volume min/max/step, and margin guards.
-- Drawdown/protection controls.
-- Session and market-status gates.
-- Magic-number and symbol scoping.
-- Real broker position reconciliation.
-
-Any phase touching these controls must call out risk level in its phase plan.
-
-## 8) Validation Policy
-
-- No custom MQL5 tests, test harnesses, or agentic CI are part of this refoundation.
-- Do not add custom MQL5 test files or CI for strategy work unless a future human explicitly reverses this policy.
-- Validate implementation phases with MetaEditor compile plus human-in-the-loop Strategy Tester/chart verification.
-- Visual validation is human-in-the-loop: verify PEAK/BOTTOM cycles, deeper revisions, attempt depths, operational blocks, broker linkage, and run-end censoring.
-- Moving-average chart overlays are not part of the active engine validation contract.
-- Legacy custom tests and the old test runner have been removed.
-- Documentation-only phases do not run MT5 compile.
-- Implementation phases compile once at phase end, not after every atomic task.
-- Compile portable/headless first whenever possible, then fallback to normal MetaEditor compile if needed.
-- Treat compiler warnings and errors as phase failures unless a temporary exception is explicitly documented.
-- Use `docs/environment/mt5-agentic-workflows.md` as the source of truth for Windows and Ubuntu/Wine paths, Common Files, generated artifacts, and agentic compile commands.
-- Use `docs/workflows/extremum-engine-statistics-flow.md` as the active export, dataset, audit, and research workflow.
-- Prefer `python3 tools/mt5/compile_mt5.py` or `py -3.12 tools\mt5\compile_mt5.py` for agentic compile validation. The helper parses the MetaEditor log and keeps output compact.
-- MetaEditor `/s` is syntax check only. Do not treat `/s /compile` as evidence that `.ex5` was regenerated.
-- Do not paste full compile logs, `query_debug.txt`, Parquet contents, model JSON, or tree TSV files into chat. Summarize paths, sizes, counts, final status lines, and selected failure lines.
-- `ML_INFERENCE_SHADOW` is shadow-only: it may load artifacts and record scores, but it must not affect broker admission, entries, exits, lot sizing, SL/TP, license checks, session gates, spread checks, margin checks, protection controls, magic-number scope, or broker reconciliation.
-- `ML_INFERENCE_FILTER` is approved for Strategy Tester only. It may deny otherwise admissible deterministic entries after existing broker/risk eligibility passes and before broker send. It must not affect live deployment, create trades, resize lots, alter SL/TP, bypass license/session/spread/margin/protection controls, magic-number scope, or broker reconciliation.
-- Do not paste full shadow TSVs, compile logs, `query_debug.txt`, Parquet contents, model JSON, or tree TSV files into chat. Summarize paths, sizes, counts, final status lines, and selected failure lines.
-
-Preferred real compile command shape for implementation phases:
-
-```powershell
-$mt5Root = "C:\Program Files\MetaTrader 5-1"
-$metaeditor = Join-Path $mt5Root "MetaEditor64.exe"
-$entrypoint = Join-Path $mt5Root "MQL5\Experts\HFT_Grid_AI\HFT_Grid_AI.mq5"
-$log = Join-Path $mt5Root "MQL5\Experts\HFT_Grid_AI\logs\compile\phase-build.log"
-& $metaeditor /portable /compile:$entrypoint /log:$log
-```
-
-Syntax-check only:
-
-```powershell
-& $metaeditor /portable /s /compile:$entrypoint /log:$log
-```
-
-## 9) Style
-
-- 2-space indentation.
-- `snake_case` variables.
-- `CamelCase` functions.
-- `ALL_CAPS` enum values and constants.
-- Avoid C++11 habits that MQL5 agents overuse: no `auto`, lambdas, or range-for.
-- Prefer explicit constructors with initializer lists; add default/copy constructors when structs are used in arrays or assigned.
-- Do not use aggregate initialization for structs that define constructors.
-- Keep hot paths cheap: no per-tick handle creation, full-history scans, unbounded logging, or repeated market-data calls without a clear reason.
-
-## 10) Canonical Repo Placement
-
-- Preferred layout: `<MT5_ROOT>/MQL5/Experts/HFT_Grid_AI`.
-- Keep `terminal64.exe` and `MetaEditor64.exe` in `<MT5_ROOT>`, not inside the EA repo.
-- This workstation currently uses `C:\Program Files\MetaTrader 5-1`.
-- Ubuntu/Wine observed root: `/home/loldlm/mql5_projects/metatrader_5_market_data_framework`.
+This plan does not authorize live rollout. Before any future deployment, the
+target symbol must be flat under the previous internal identity, the account
+must support hedging execution, and only one EA instance may run per account and
+symbol.

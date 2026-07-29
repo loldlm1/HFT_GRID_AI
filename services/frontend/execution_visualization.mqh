@@ -252,7 +252,7 @@ void RefreshExecutionVisualization()
       BuildSignalSummary(running_bearish_signals[j], summary_lines, now_time);
   }
 
-  RenderLightweightStatusTable(g_ea_running, g_magic_number, summary_lines);
+  // Execution lines are inspection-only; no chart control can affect trading.
 
   int previous_total = ArraySize(g_execution_visual_previous_objects);
   for(int p = 0; p < previous_total; p++)

@@ -47,7 +47,6 @@ void RegisterClosedSignalOutcomeIfBrokerConfirmed(SignalParams &signal_params,
                                            signal_params.close_price);
   }
 
-  RegisterDailySignalOutcome(direction, signal_params.raw_profit);
   RegisterSignalLotSequenceOutcome(signal_params.raw_profit);
   DeterministicSignalStatsRecordAdmissionEvent(signal_params, "broker_close");
   DeterministicSignalStatsRecordLegOutcomes(signal_params);

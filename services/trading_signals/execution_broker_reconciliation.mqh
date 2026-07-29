@@ -105,7 +105,7 @@ bool BrokerPositionSnapshotMatchesScope(const BrokerPositionSnapshot &snapshot,
     return false;
   if(snapshot.symbol != _Symbol)
     return false;
-  if(snapshot.magic != g_magic_number)
+  if(snapshot.magic != g_execution_magic)
     return false;
   if(!BrokerPositionTypeMatchesDirection(snapshot.position_type, direction))
     return false;

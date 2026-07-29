@@ -46,11 +46,10 @@ struct BrokerExecutionSnapshot
   bool market_session_open;
   bool market_allows_signal;
   bool market_allows_broker_actions;
-  bool protection_allows_signal;
-  bool session_allows_signal;
-  bool daily_signal_allows;
-  bool direction_allowed;
-  bool concurrency_allows;
+  long account_margin_mode;
+  long symbol_trade_mode;
+  bool account_margin_mode_supported;
+  bool symbol_trade_mode_allows_direction;
 
   double requested_volume;
   double normalized_volume;
@@ -84,11 +83,10 @@ struct BrokerExecutionSnapshot
     market_session_open          = false;
     market_allows_signal         = false;
     market_allows_broker_actions = false;
-    protection_allows_signal     = false;
-    session_allows_signal        = false;
-    daily_signal_allows          = false;
-    direction_allowed            = false;
-    concurrency_allows           = false;
+    account_margin_mode          = 0;
+    symbol_trade_mode            = 0;
+    account_margin_mode_supported = false;
+    symbol_trade_mode_allows_direction = false;
     requested_volume             = 0.0;
     normalized_volume            = 0.0;
     volume_valid                 = false;
@@ -120,11 +118,10 @@ struct BrokerExecutionSnapshot
     market_session_open          = other.market_session_open;
     market_allows_signal         = other.market_allows_signal;
     market_allows_broker_actions = other.market_allows_broker_actions;
-    protection_allows_signal     = other.protection_allows_signal;
-    session_allows_signal        = other.session_allows_signal;
-    daily_signal_allows          = other.daily_signal_allows;
-    direction_allowed            = other.direction_allowed;
-    concurrency_allows           = other.concurrency_allows;
+    account_margin_mode          = other.account_margin_mode;
+    symbol_trade_mode            = other.symbol_trade_mode;
+    account_margin_mode_supported = other.account_margin_mode_supported;
+    symbol_trade_mode_allows_direction = other.symbol_trade_mode_allows_direction;
     requested_volume             = other.requested_volume;
     normalized_volume            = other.normalized_volume;
     volume_valid                 = other.volume_valid;
@@ -264,6 +261,28 @@ void BrokerExecutionAllow(BrokerExecutionEligibility &eligibility)
   eligibility.block_reason = "";
 }
 
+MarketStatusTypes ResolveMarketStatusFromTradeMode(const long trade_mode)
+{
+  if(trade_mode == SYMBOL_TRADE_MODE_DISABLED)
+    return MARKET_STATUS_BROKER_DISABLED;
+  if(trade_mode == SYMBOL_TRADE_MODE_CLOSEONLY)
+    return MARKET_STATUS_BROKER_CLOSEONLY;
+  return MARKET_STATUS_ACTIVE;
+}
+
+bool SymbolTradeModeAllowsDirection(const long trade_mode,
+                                    const SignalTypes direction)
+{
+  if(trade_mode == SYMBOL_TRADE_MODE_DISABLED ||
+     trade_mode == SYMBOL_TRADE_MODE_CLOSEONLY)
+    return false;
+  if(trade_mode == SYMBOL_TRADE_MODE_LONGONLY)
+    return (direction == BULLISH);
+  if(trade_mode == SYMBOL_TRADE_MODE_SHORTONLY)
+    return (direction == BEARISH);
+  return (trade_mode == SYMBOL_TRADE_MODE_FULL);
+}
+
 bool CaptureBrokerExecutionSnapshot(const SignalTypes direction,
                                     const double requested_volume,
                                     BrokerExecutionSnapshot &snapshot)
@@ -271,7 +290,8 @@ bool CaptureBrokerExecutionSnapshot(const SignalTypes direction,
   snapshot = BrokerExecutionSnapshot();
   snapshot.symbol           = _Symbol;
   snapshot.direction        = direction;
-  snapshot.market_status    = MarketStatusGet();
+  snapshot.symbol_trade_mode = SymbolInfoInteger(snapshot.symbol, SYMBOL_TRADE_MODE);
+  snapshot.market_status    = ResolveMarketStatusFromTradeMode(snapshot.symbol_trade_mode);
   snapshot.bid              = g_bid;
   snapshot.ask              = g_ask;
   snapshot.spread_points    = g_points_spread;
@@ -310,15 +330,20 @@ bool CaptureBrokerExecutionSnapshot(const SignalTypes direction,
     return false;
   }
 
-  snapshot.terminal_algo_allowed        = TerminalAlgoTradingEnabled();
-  snapshot.market_session_open          = IsMarketOpen();
-  snapshot.market_allows_signal         = MarketStatusAllowsSignalAttempts();
-  snapshot.market_allows_broker_actions = MarketStatusAllowsBrokerActions();
-  snapshot.protection_allows_signal     = ProtectionRiskAllowsSignalAttempt();
-  snapshot.session_allows_signal        = SessionTimeFilterAllowsSignalAttempt();
-  snapshot.daily_signal_allows          = DailySignalLimitAllowsAttempt(direction);
-  snapshot.direction_allowed            = DirectionAllowed(direction);
-  snapshot.concurrency_allows           = SignalConcurrencyAllowsAttempt(direction);
+  snapshot.terminal_algo_allowed          = TerminalAlgoTradingEnabled();
+  snapshot.market_session_open            = IsMarketOpen();
+  snapshot.symbol_trade_mode_allows_direction =
+    SymbolTradeModeAllowsDirection(snapshot.symbol_trade_mode, direction);
+  snapshot.market_allows_signal           = snapshot.symbol_trade_mode_allows_direction;
+  snapshot.market_allows_broker_actions   =
+    (snapshot.market_status == MARKET_STATUS_ACTIVE ||
+     snapshot.market_status == MARKET_STATUS_BROKER_CLOSEONLY);
+  snapshot.account_margin_mode            = AccountInfoInteger(ACCOUNT_MARGIN_MODE);
+  snapshot.account_margin_mode_supported  =
+    (snapshot.account_margin_mode == ACCOUNT_MARGIN_MODE_RETAIL_HEDGING);
+
+  MarketStatusUpdate(snapshot.market_status,
+                     StringFormat("symbol_trade_mode=%d", snapshot.symbol_trade_mode));
 
   if(requested_volume > 0.0)
   {
@@ -415,7 +440,7 @@ bool BrokerExecutionRunOrderCheck(BrokerExecutionSnapshot &snapshot,
 
   request.action = TRADE_ACTION_DEAL;
   request.symbol = snapshot.symbol;
-  request.magic = g_magic_number;
+  request.magic = g_execution_magic;
   request.volume = snapshot.normalized_volume;
 	  request.price = entry_price;
 	  request.type = BrokerExecutionOrderTypeForDirection(snapshot.direction);
@@ -530,8 +555,10 @@ bool EvaluateLocalExecutionLegEligibility(const SignalParams &signal_params,
   if(!snapshot.market_allows_signal)
   {
     BrokerExecutionBlock(eligibility,
-                         "market_status",
-                         MarketStatusToString(snapshot.market_status));
+                         "symbol_trade_mode",
+                         StringFormat("mode=%d|direction=%s",
+                                      snapshot.symbol_trade_mode,
+                                      EnumToString(signal_params.signal_type)));
     return false;
   }
 
@@ -543,29 +570,13 @@ bool EvaluateLocalExecutionLegEligibility(const SignalParams &signal_params,
     return false;
   }
 
-  if(!snapshot.protection_allows_signal)
+  if(!snapshot.account_margin_mode_supported)
   {
     BrokerExecutionBlock(eligibility,
-                         "protection_risk",
-                         "protection_filter_blocked");
-    return false;
-  }
-
-  if(!snapshot.session_allows_signal)
-  {
-    BrokerExecutionBlock(eligibility,
-                         "session_time_filter",
-                         "outside_configured_session");
-    return false;
-  }
-
-  if(snapshot.spread_points > Max_Spread)
-  {
-    BrokerExecutionBlock(eligibility,
-                         "spread_guard",
-                         StringFormat("spread=%.1f>%.1f",
-                                      snapshot.spread_points,
-                                      Max_Spread));
+                         "account_margin_mode",
+                         StringFormat("unsupported=%d|required=%d",
+                                      snapshot.account_margin_mode,
+                                      ACCOUNT_MARGIN_MODE_RETAIL_HEDGING));
     return false;
   }
 

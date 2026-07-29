@@ -2,12 +2,6 @@
 #define _SERVICES_FRONTEND_EXECUTION_VISUAL_UTILS_MQH_
 
 const string EA_CHART_OBJECT_PREFIX = "HFT_EXEC_AI_";
-const string EA_CHART_UI_PANEL = "HFT_EXEC_AI_UI_PANEL";
-const string EA_CHART_UI_STATUS = "HFT_EXEC_AI_UI_STATUS";
-const string EA_CHART_UI_TOGGLE = "HFT_EXEC_AI_UI_TOGGLE";
-const string EA_CHART_UI_DETAILS = "HFT_EXEC_AI_UI_DETAILS";
-const string EA_CHART_UI_ROW_PREFIX = "HFT_EXEC_AI_UI_ROW_";
-const string EA_CHART_ERROR_OBJECT = "HFT_EXEC_AI_ERROR_MESSAGE";
 const int EXECUTION_VISUAL_OBJECT_RESERVE = 32;
 
 bool IsEAOwnedObjectName(const string name)
@@ -17,8 +11,7 @@ bool IsEAOwnedObjectName(const string name)
   return false;
 }
 
-void DeleteEAChartObjects(const long chart_id,
-                          const bool preserve_error_object = false)
+void DeleteEAChartObjects(const long chart_id)
 {
   if(FrontendSkippingChartWork())
     return;
@@ -30,8 +23,6 @@ void DeleteEAChartObjects(const long chart_id,
     if(object_name == "")
       continue;
     if(!IsEAOwnedObjectName(object_name))
-      continue;
-    if(preserve_error_object && object_name == EA_CHART_ERROR_OBJECT)
       continue;
     ObjectDelete(chart_id, object_name);
   }

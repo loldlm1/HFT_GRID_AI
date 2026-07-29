@@ -346,7 +346,7 @@ bool PrepareExecutionLegTradeAdmission(SignalParams &signal_params,
     signal_params.admission_block_reason  = context_out.eligibility.block_reason;
     signal_params.admission_updated_time  = TimeCurrent();
     signal_params.admission_spread_points = context_out.broker_snapshot.spread_points;
-    signal_params.admission_max_spread    = Max_Spread;
+    signal_params.admission_max_spread    = 0.0;
     signal_params.admission_market_status = context_out.broker_snapshot.market_status;
 
     string block_reason = context_out.eligibility.block_source;
@@ -365,7 +365,7 @@ bool PrepareExecutionLegTradeAdmission(SignalParams &signal_params,
   signal_params.admission_block_reason  = "";
   signal_params.admission_updated_time  = TimeCurrent();
   signal_params.admission_spread_points = context_out.broker_snapshot.spread_points;
-  signal_params.admission_max_spread    = Max_Spread;
+  signal_params.admission_max_spread    = 0.0;
   signal_params.admission_market_status = context_out.broker_snapshot.market_status;
   DeterministicSignalStatsRecordAdmissionEvent(signal_params, "admission_allowed");
   return true;
@@ -431,7 +431,7 @@ bool ApplyExecutionLegTradeAdmission(SignalParams &signal_params,
       if(retcode == TRADE_RETCODE_NO_MONEY)
         g_debug_no_money_abort_pending = true;
     }
-    MarketStatusRegisterBrokerFailure("BROKER_SEND_FAILED", retcode, last_error, false);
+    MarketStatusRegisterBrokerFailure("BROKER_SEND_FAILED", retcode, last_error);
     return false;
   }
 
@@ -512,7 +512,7 @@ bool ApplyExecutionLegTradeAdmissionAsync(SignalParams &signal_params,
     signal_params.admission_updated_time = TimeCurrent();
     ExecutionLogGuardrailBlock("BROKER_SEND_ASYNC_FAILED", signal_params, leg_state, send_reason);
     DeterministicSignalStatsRecordAdmissionEvent(signal_params, "broker_send_failed");
-    MarketStatusRegisterBrokerFailure("BROKER_SEND_ASYNC_FAILED", retcode, last_error, false);
+    MarketStatusRegisterBrokerFailure("BROKER_SEND_ASYNC_FAILED", retcode, last_error);
     return false;
   }
 
@@ -578,7 +578,7 @@ bool CloseExecutionLegBrokerPosition(ExecutionLegState &leg_state,
   {
     ulong retcode = g_position.ResultRetcode();
     int last_error = GetLastError();
-    MarketStatusRegisterBrokerFailure("POSITION_CLOSE_FAILED", retcode, last_error, true);
+    MarketStatusRegisterBrokerFailure("POSITION_CLOSE_FAILED", retcode, last_error);
     return false;
   }
 
@@ -650,7 +650,7 @@ bool CloseExecutionLegBrokerPositionVolume(ExecutionLegState &leg_state,
   {
     ulong retcode = g_position.ResultRetcode();
     int last_error = GetLastError();
-    MarketStatusRegisterBrokerFailure("POSITION_CLOSE_PARTIAL_FAILED", retcode, last_error, true);
+    MarketStatusRegisterBrokerFailure("POSITION_CLOSE_PARTIAL_FAILED", retcode, last_error);
     return false;
   }
 
@@ -1000,7 +1000,7 @@ int GetActivePositionsCount(const SignalTypes direction)
       continue;
 
     long position_magic = PositionGetInteger(POSITION_MAGIC);
-    if(position_magic != g_magic_number)
+    if(position_magic != g_execution_magic)
       continue;
 
     string position_symbol = PositionGetString(POSITION_SYMBOL);

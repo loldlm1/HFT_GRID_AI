@@ -326,13 +326,12 @@ void LoadAllIndicatorDefinitions()
 
   if(Enable_Logs)
   {
-    PrintFormat("Extremum engine context | Engine=%s | TF=%s | Stoch=%d,%d,%d | Direction=%s",
+    PrintFormat("Extremum engine context | Engine=%s | TF=%s | Stoch=%d,%d,%d",
                 ExtremumEngineLabel(EXTREMUM_ENGINE_V1),
                 EnumToString(EXTREMUM_ENGINE_TIMEFRAME),
                 DETERMINISTIC_STOCH_K,
                 DETERMINISTIC_STOCH_D,
-                DETERMINISTIC_STOCH_SLOWING,
-                EnumToString(Strategy_Direction_Mode));
+                DETERMINISTIC_STOCH_SLOWING);
   }
 }
 

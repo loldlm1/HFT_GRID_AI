@@ -17,8 +17,8 @@ const int             DETERMINISTIC_STOCH_SLOWING  = 3;
 const double          DETERMINISTIC_B_PERCENT_DEVIATION = 2.0;
 const int             DETERMINISTIC_B_PERCENT_SIGNAL_PERIOD = 5;
 
-// Internal compatibility defaults retained until the deterministic execution
-// lifecycle fully replaces the old range/grid helpers.
+// Internal engine constants remain non-configurable so data collection stays
+// deterministic while the execution lifecycle is simplified.
 ExecutionEntryStyles      Execution_Initial_Entry_Style = EXECUTION_ENTRY_STYLE_STOP;
 ExecutionEntryStyles      Execution_Deep_Entry_Style    = EXECUTION_ENTRY_STYLE_STOP;
 const ENUM_TIMEFRAMES     Strategy_Timeframe            = PERIOD_M1;
@@ -27,33 +27,8 @@ const StrategyRangeTypes  Strategy_Range_Mode           = STRATEGY_RANGE_STRUCTU
 const double              Strategy_Range_Points         = 100.0;
 const double              Min_Range_Points              = 200.0;
 
-input group  "+= Execution Foundation EA =+";
-input string EA_License_Key = "";
-
-input group  "+= Account Settings EA =+";
-input int    Custom_Magic     = 0;
-input double Max_Spread       = 200.0;
-
-input group  "+= Protection Risk Management =+";
-input ProtectionRiskModes      Protection_Risk_Mode           = ENABLED_OFF;
-input ProtectionRiskValueTypes Protection_Risk_Drawdown_Type  = PROTECTION_RISK_ACCOUNT_SIZE_PERCENT;
-input double                   Protection_Risk_Drawdown_Value = 10.0;
-input double                   Account_Size                   = 500.0;
-input ENUM_TIMEFRAMES          Market_Close_Guard_Timeframe   = PERIOD_M10;
-
-input group  "+= Time Filter Session Manager =+";
-input SessionTimeFilterModes Session_Asia_Filter_Mode      = SESSION_FILTER_OFF;
-input string                 Session_Asia_Filter_Time_Range = "00:00-08:00";
-input SessionTimeFilterModes Session_London_Filter_Mode    = SESSION_FILTER_OFF;
-input string                 Session_London_Filter_Time_Range = "07:00-12:00";
-input SessionTimeFilterModes Session_NewYork_Filter_Mode   = SESSION_FILTER_OFF;
-input string                 Session_NewYork_Filter_Time_Range = "12:00-20:00";
-input DstOffsetModes         Session_Time_Dst_Mode         = DST_MODE_OFF;
-input int                    Session_Time_Dst_Manual_Offset_Minutes = 0;
-
-input group  "+= Extremum Engine =+";
-input StrategyDirectionTypes Strategy_Direction_Mode = BOTH_DIRECTION;
-input SignalConcurrencyModes Signal_Concurrency_Mode = MULTIPLE_RUNNING_SIGNALS;
+input group  "+= Market Data Time =+";
+input BrokerSessionTimeModes Broker_Session = FIXED_TIME_SESSIONS;
 
 input group  "+= Strategy Risk Settings =+";
 input ExecutionLotTypes     Lot_Type              = EXECUTION_LOT_FIXED_SIZE;
@@ -83,8 +58,6 @@ input bool Enable_File_Logs         = false;
 bool Enable_Show_Indicators   = true;
 bool Enable_Chart_Summary     = true;
 bool Enable_Chart_Levels      = true;
-bool Enable_Chart_Lightweight_UI = true;
-bool Enable_Chart_Ui_Debug_Logs = false;
 bool Enable_Trend_Filter_Sanity_Stop = false;
 bool Debug_Stop_On_Negative_Equity   = false;
 

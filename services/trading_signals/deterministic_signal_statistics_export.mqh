@@ -425,7 +425,7 @@ string DeterministicSignalStatsHashToken(const string input_value)
 
 string DeterministicSignalStatsBuildConfigPayload()
 {
-  return StringFormat("schema=%d|symbol=%s|period=%d|engine=%d|engine_tf=%d|stoch=%d,%d,%d|direction=%d|concurrency=%d|lot_type=%d|lot_size=%.8f|lot_mult=%.8f|lot_strategy=%d|tp=%.8f|daily_limit=%d|daily_mode=%d|asia=%d|london=%d|newyork=%d|dst=%d",
+  return StringFormat("schema=%d|symbol=%s|period=%d|engine=%d|engine_tf=%d|stoch=%d,%d,%d|broker_session=%d|lot_type=%d|lot_size=%.8f",
                       DETERMINISTIC_SIGNAL_STATS_SCHEMA_VERSION,
                       _Symbol,
                       (int)_Period,
@@ -434,19 +434,9 @@ string DeterministicSignalStatsBuildConfigPayload()
                       DETERMINISTIC_STOCH_K,
                       DETERMINISTIC_STOCH_D,
                       DETERMINISTIC_STOCH_SLOWING,
-                      (int)Strategy_Direction_Mode,
-                      (int)Signal_Concurrency_Mode,
+                      (int)Broker_Session,
                       (int)Lot_Type,
-                      Lot_Strategy_Size,
-                      Lot_Multiplier,
-                      (int)Signal_Lot_Strategy,
-                      TP_Percent,
-                      Daily_Signal_Limit,
-                      (int)Daily_Signal_Limit_Mode,
-                      (int)Session_Asia_Filter_Mode,
-                      (int)Session_London_Filter_Mode,
-                      (int)Session_NewYork_Filter_Mode,
-                      (int)Session_Time_Dst_Mode);
+                      Lot_Strategy_Size);
 }
 
 string DeterministicSignalStatsBuildConfigId()
@@ -735,9 +725,9 @@ bool DeterministicSignalStatsWriteManifest()
   DeterministicSignalStatsWriteLine(filename, DeterministicSignalStatsManifestRow("engine_label", ExtremumEngineLabel(EXTREMUM_ENGINE_V1)), true);
   DeterministicSignalStatsWriteLine(filename, DeterministicSignalStatsManifestRow("engine_timeframe", EnumToString(EXTREMUM_ENGINE_TIMEFRAME)), true);
   DeterministicSignalStatsWriteLine(filename, DeterministicSignalStatsManifestRow("stoch", StringFormat("%d,%d,%d", DETERMINISTIC_STOCH_K, DETERMINISTIC_STOCH_D, DETERMINISTIC_STOCH_SLOWING)), true);
-  DeterministicSignalStatsWriteLine(filename, DeterministicSignalStatsManifestRow("direction_mode", EnumToString(Strategy_Direction_Mode)), true);
-  DeterministicSignalStatsWriteLine(filename, DeterministicSignalStatsManifestRow("concurrency_mode", EnumToString(Signal_Concurrency_Mode)), true);
-  DeterministicSignalStatsWriteLine(filename, DeterministicSignalStatsManifestRow("tp_percent", DoubleToString(TP_Percent, 2)), true);
+  DeterministicSignalStatsWriteLine(filename, DeterministicSignalStatsManifestRow("direction_policy", "STRUCTURAL_PEAK_BOTTOM"), true);
+  DeterministicSignalStatsWriteLine(filename, DeterministicSignalStatsManifestRow("concurrency_policy", "DISTINCT_ATTEMPTS"), true);
+  DeterministicSignalStatsWriteLine(filename, DeterministicSignalStatsManifestRow("broker_session", MarketDataTimePolicyToken(Broker_Session)), true);
   DeterministicSignalStatsWriteLine(filename, DeterministicSignalStatsManifestRow("feature_policy", "broker_entered_only"), true);
   DeterministicSignalStatsWriteLine(filename, DeterministicSignalStatsManifestRow("admission_policy", "candidate_and_broker_admission_events"), true);
   DeterministicSignalStatsWriteLine(filename, DeterministicSignalStatsManifestRow("cycle_identity_policy", "same_provisional_extremum_type_until_type_transition"), true);

@@ -47,7 +47,7 @@ double ResolveTargetProfitAmountFromInputs(const ExecutionLotTypes lot_type,
                                            const double lot_strategy_size,
                                            const double tp_percent,
                                            const double account_balance,
-                                           const double account_size_fallback)
+                                           const double account_balance_fallback)
 {
   ExecutionLotTypes effective_lot_type = ResolveEffectiveExecutionLotType(lot_type);
   double factor = ResolveTargetProfitFactorFromPercent(tp_percent);
@@ -60,7 +60,7 @@ double ResolveTargetProfitAmountFromInputs(const ExecutionLotTypes lot_type,
   {
     double account_reference = MathAbs(account_balance);
     if(account_reference <= 0.0)
-      account_reference = MathAbs(account_size_fallback);
+      account_reference = MathAbs(account_balance_fallback);
     if(account_reference <= 0.0)
       return 0.0;
 
@@ -78,7 +78,7 @@ double ResolveExecutionRuntimeTargetProfitAmount(const ExecutionLotTypes lot_typ
                                              Lot_Strategy_Size,
                                              TP_Percent,
                                              account_balance,
-                                             Account_Size);
+                                             0.0);
 }
 
 double ResolveSymbolPointValuePerLot(const string symbol)
@@ -272,8 +272,6 @@ double ResolveExecutionRuntimeTargetRiskAmount(const ExecutionLotTypes lot_type)
   if(effective_lot_type == EXECUTION_LOT_ACCOUNT_PERCENTAGE)
   {
     double account_reference = MathAbs(AccountInfoDouble(ACCOUNT_BALANCE));
-    if(account_reference <= 0.0)
-      account_reference = MathAbs(Account_Size);
     if(account_reference <= 0.0)
       return 0.0;
     return account_reference * (strategy_size / 100.0);

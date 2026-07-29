@@ -7,7 +7,6 @@
 SignalParams running_bullish_signals[];
 SignalParams running_bearish_signals[];
 bool        g_forced_stop_triggered = false;
-bool        g_manual_signal_entry_enabled = true;
 
 void RemoveExecutionLevels(const long chart_id,
                            const SignalParams &signal_params);
@@ -58,22 +57,6 @@ struct StrategyContextIndicators
   }
 };
 
-struct DailySignalStats
-{
-  datetime day_start;
-  int total_signals;
-  int losing_signals;
-
-  DailySignalStats()
-  {
-    day_start      = 0;
-    total_signals  = 0;
-    losing_signals = 0;
-  }
-};
-
-DailySignalStats g_daily_signal_stats[2];
-
 const int DETERMINISTIC_SOURCE_STATE_RESERVE = 128;
 
 struct DeterministicSourceOutcomeState
@@ -108,22 +91,6 @@ struct DeterministicSourceOutcomeState
 
 DeterministicSourceOutcomeState g_deterministic_source_outcomes[];
 
-
-int DirectionIndex(const SignalTypes direction)
-{
-  return (direction == BEARISH) ? 1 : 0;
-}
-
-bool DirectionAllowed(const SignalTypes direction)
-{
-  if(Strategy_Direction_Mode == BOTH_DIRECTION)
-    return true;
-  if(Strategy_Direction_Mode == BULLISH_DIRECTION)
-    return (direction == BULLISH);
-  if(Strategy_Direction_Mode == BEARISH_DIRECTION)
-    return (direction == BEARISH);
-  return true;
-}
 
 void ResetDeterministicSourceOutcomeState()
 {
@@ -574,19 +541,6 @@ void ExpirePendingDeterministicSignalsForSourceExtremum(const int source_slot,
   }
 }
 
-bool SignalConcurrencyAllowsAttempt(const SignalTypes direction)
-{
-  if(Signal_Concurrency_Mode == MULTIPLE_RUNNING_SIGNALS)
-    return true;
-
-  if(direction == BULLISH && ArraySize(running_bullish_signals) >= 1)
-    return false;
-  if(direction == BEARISH && ArraySize(running_bearish_signals) >= 1)
-    return false;
-
-  return true;
-}
-
 void DebugForceCloseAllExecutionLegs()
 {
   double point_size = ExecutionResolvePointSize();
@@ -598,68 +552,6 @@ void DebugForceCloseAllExecutionLegs()
   int bearish_total = ArraySize(running_bearish_signals);
   for(int j = 0; j < bearish_total; j++)
     CloseAllExecutionLegs(running_bearish_signals[j], point_size);
-}
-
-datetime ResolveCurrentDayStart()
-{
-  datetime day = iTime(_Symbol, PERIOD_D1, 0);
-  if(day <= 0)
-  {
-    datetime now = TimeCurrent();
-    day = (datetime)((long)now - ((long)now % 86400));
-  }
-  return day;
-}
-
-void DailySignalStatsEnsureDay(const SignalTypes direction)
-{
-  int idx = DirectionIndex(direction);
-  datetime day = ResolveCurrentDayStart();
-  if(g_daily_signal_stats[idx].day_start != day)
-  {
-    g_daily_signal_stats[idx].day_start      = day;
-    g_daily_signal_stats[idx].total_signals  = 0;
-    g_daily_signal_stats[idx].losing_signals = 0;
-  }
-}
-
-bool DailySignalLimitAllowsAttempt(const SignalTypes direction)
-{
-  if(Daily_Signal_Limit <= 0)
-    return true;
-
-  DailySignalStatsEnsureDay(direction);
-  DailySignalStats stats = g_daily_signal_stats[DirectionIndex(direction)];
-
-  if(Daily_Signal_Limit_Mode == STOP_DAILY_SIGNALS_ON_LOSS)
-    return stats.losing_signals < Daily_Signal_Limit;
-
-  return stats.total_signals < Daily_Signal_Limit;
-}
-
-void RegisterDailySignalStart(const SignalParams &signal_params)
-{
-  if(Daily_Signal_Limit <= 0)
-    return;
-
-  DailySignalStatsEnsureDay(signal_params.signal_type);
-
-  if(Daily_Signal_Limit_Mode == STOP_DAILY_SIGNALS)
-    g_daily_signal_stats[DirectionIndex(signal_params.signal_type)].total_signals++;
-}
-
-void RegisterDailySignalOutcome(const SignalTypes direction,
-                                const double raw_profit)
-{
-  if(Daily_Signal_Limit <= 0)
-    return;
-
-  if(Daily_Signal_Limit_Mode != STOP_DAILY_SIGNALS_ON_LOSS)
-    return;
-
-  DailySignalStatsEnsureDay(direction);
-  if(raw_profit < 0.0)
-    g_daily_signal_stats[DirectionIndex(direction)].losing_signals++;
 }
 
 bool DebugEquityGuardAllowsProcessing()
@@ -775,16 +667,6 @@ bool TrendSanityCheck(const string reason)
   return false;
 }
 
-void SetManualSignalEntryEnabled(const bool enabled)
-{
-  g_manual_signal_entry_enabled = enabled;
-}
-
-bool ManualSignalEntryEnabled()
-{
-  return g_manual_signal_entry_enabled;
-}
-
 bool TerminalAlgoTradingEnabled()
 {
   bool terminal_allowed = (TerminalInfoInteger(TERMINAL_TRADE_ALLOWED) > 0);
@@ -800,36 +682,6 @@ bool ResolveSignalAttemptPermission(const SignalTypes signal_type,
   block_source_out = "";
   block_reason_out = "";
 
-  if(!ManualSignalEntryEnabled())
-  {
-    block_source_out = "manual_toggle";
-    block_reason_out = "Manual toggle is OFF";
-    return false;
-  }
-
-  if(!TerminalAlgoTradingEnabled())
-  {
-    block_source_out = "algo_trading";
-    block_reason_out = "MT5 Algo Trading is OFF";
-    return false;
-  }
-
-  if(!ProtectionRiskAllowsSignalAttempt())
-  {
-    block_source_out = "protection_risk";
-
-    if(!MarketStatusAllowsSignalAttempts())
-      block_reason_out = "Market status blocked: " + MarketStatusToString(MarketStatusGet());
-    else if((Protection_Risk_Mode == ENABLED_EXECUTION_PROTECTION_DAILY ||
-             Protection_Risk_Mode == ENABLED_EXECUTION_PROTECTION_WEEKLY) &&
-            ProtectionRiskDailyLockActive())
-      block_reason_out = "Risk protection lock is active";
-    else
-      block_reason_out = "Protection risk filter blocked entries";
-
-    return false;
-  }
-
   if(run_debug_side_effects && !DebugEquityGuardAllowsProcessing())
   {
     block_source_out = "debug_equity_guard";
@@ -837,75 +689,14 @@ bool ResolveSignalAttemptPermission(const SignalTypes signal_type,
     return false;
   }
 
-  if(!SessionTimeFilterAllowsSignalAttempt())
+  if(signal_type != BULLISH && signal_type != BEARISH)
   {
-    block_source_out = "session_time_filter";
-    block_reason_out = "Outside configured session windows";
-    return false;
-  }
-
-  if(!DailySignalLimitAllowsAttempt(signal_type))
-  {
-    block_source_out = "daily_signal_limit";
-    block_reason_out = "Daily signal limit reached";
-    if(Enable_Logs && run_debug_side_effects)
-      Print("Daily signal limit reached for direction: ", EnumToString(signal_type));
-    return false;
-  }
-
-  if(!DirectionAllowed(signal_type))
-  {
-    block_source_out = "direction_mode";
-    block_reason_out = "Direction mode disabled this side";
-    return false;
-  }
-
-  if(!SignalConcurrencyAllowsAttempt(signal_type))
-  {
-    block_source_out = "signal_concurrency";
-    block_reason_out = "Signal concurrency limit reached";
+    block_source_out = "direction";
+    block_reason_out = "Invalid structural direction";
     return false;
   }
 
   return true;
-}
-
-bool ResolveAnyDirectionAttemptPermission(string &block_source_out,
-                                          string &block_reason_out)
-{
-  block_source_out = "";
-  block_reason_out = "";
-
-  bool direction_considered = false;
-  SignalTypes directions[2] = {BULLISH, BEARISH};
-  for(int i = 0; i < 2; i++)
-  {
-    SignalTypes direction = directions[i];
-    if(!DirectionAllowed(direction))
-      continue;
-
-    direction_considered = true;
-
-    string source = "";
-    string reason = "";
-    if(ResolveSignalAttemptPermission(direction, false, source, reason))
-      return true;
-
-    if(block_source_out == "")
-    {
-      block_source_out = source;
-      block_reason_out = reason;
-    }
-  }
-
-  if(!direction_considered)
-  {
-    block_source_out = "direction_mode";
-    block_reason_out = "All directions disabled by configuration";
-    return false;
-  }
-
-  return false;
 }
 
 bool CanAttemptSignal(const SignalTypes signal_type)

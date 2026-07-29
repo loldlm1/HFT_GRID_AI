@@ -2,8 +2,9 @@
 
 Active planning status:
 
-- No active implementation plan. Create a new `$planner` plan here before the
-  next substantial strategy, architecture, or repository-wide change.
+- `docs/plans/market-data-broker-executor-simplification-plan.md` is the active
+  ordered implementation plan. Complete and commit one sprint before starting
+  the next.
 
 Completed extremum engine and schema v7 statistics work is archived under:
 

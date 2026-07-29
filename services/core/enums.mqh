@@ -27,24 +27,10 @@ enum SignalStates
 	CLOSED  = 3
 };
 
-// STRATEGY DIRECTION MODES
-enum StrategyDirectionTypes
-{
-  BOTH_DIRECTION    = 0,
-  BULLISH_DIRECTION = 1,
-  BEARISH_DIRECTION = 2
-};
-
 enum StructureTriggerEntryModes
 {
   LEVELS_AS_LIMITS = 0,
   LEVEL_AS_ZONE    = 1
-};
-
-enum SignalConcurrencyModes
-{
-  SINGLE_RUNNING_SIGNAL   = 0,
-  MULTIPLE_RUNNING_SIGNALS = 1
 };
 
 enum StrategyRangeTypes
@@ -161,54 +147,23 @@ enum SignalOutcomeTypes
   SIGNAL_OUTCOME_LOSS    = 2
 };
 
+// Kept until Sprint 2 removes the legacy daily-limit input and state.
 enum DailySignalLimitModes
 {
-  STOP_DAILY_SIGNALS       = 0,
+  STOP_DAILY_SIGNALS         = 0,
   STOP_DAILY_SIGNALS_ON_LOSS = 1
 };
 
-enum SessionTimeFilterModes
+enum BrokerSessionTimeModes
 {
-  SESSION_FILTER_OFF         = 0,
-  SESSION_FILTER_ALLOW_RUN   = 1,
-  SESSION_FILTER_FORCE_CLOSE = 2
-};
-
-#define SESSION_TIME_FILTER_SLOT_TOTAL 3
-
-enum SessionTimeFilterSlots
-{
-  SESSION_TIME_FILTER_ASIA   = 0,
-  SESSION_TIME_FILTER_LONDON = 1,
-  SESSION_TIME_FILTER_NEWYORK = 2
-};
-
-enum DstOffsetModes
-{
-  DST_MODE_OFF         = 0,
-  DST_MODE_AUTO_EXNESS = 1,
-  DST_MODE_MANUAL      = 2
+  FIXED_TIME_SESSIONS = 0,
+  EXNESS_SESSION       = 1
 };
 
 enum ExecutionTPReferenceModes
 {
   EXECUTION_TP_REF_CURRENT = 0,
   EXECUTION_TP_REF_NEXT    = 1
-};
-
-enum ProtectionRiskModes
-{
-  ENABLED_OFF                         = 0,
-  ENABLED_EXECUTION_PROTECTION        = 1,
-  ENABLED_EXECUTION_PROTECTION_DAILY  = 2,
-  ENABLED_EXECUTION_PROTECTION_WEEKLY = 3
-};
-
-enum ProtectionRiskValueTypes
-{
-  PROTECTION_RISK_ACCOUNT_SIZE_PERCENT   = 0,
-  PROTECTION_RISK_ACCOUNT_BALANCE_PERCENT = 1,
-  PROTECTION_RISK_FIXED_CURRENCY         = 2
 };
 
 enum StrategyContextTypes

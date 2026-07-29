@@ -105,8 +105,6 @@ void EvaluateContextSignals(const StrategyContextTypes context)
   for(int dir = 0; dir < 2; dir++)
   {
     SignalTypes direction = directions[dir];
-    if(!DirectionAllowed(direction))
-      continue;
 
     datetime structure_time = 0;
     bool entry_allows = false;
@@ -183,7 +181,6 @@ void EvaluateContextSignals(const StrategyContextTypes context)
       AddElementToArray(running_bearish_signals, signal);
 
     RegisterFreshStructureUsage(signal);
-    RegisterDailySignalStart(signal);
   }
 }
 
@@ -397,7 +394,6 @@ void TryCreateExtremumEngineSignal(const SignalTypes direction,
   else
     AddElementToArray(running_bearish_signals, signal);
 
-  RegisterDailySignalStart(signal);
   LogDeterministicCandidateTelemetry(signal, extremum);
 
   if(Enable_Logs)

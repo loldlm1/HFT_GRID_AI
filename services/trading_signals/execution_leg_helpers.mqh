@@ -230,11 +230,10 @@ string ExecutionComposeLegComment(const SignalParams &signal_params,
                       display_level);
 }
 
-int ResolveExecutionMagicNumberForSignal(const SignalParams &signal_params)
+ulong ResolveExecutionMagicNumberForSignal(const SignalParams &signal_params)
 {
-  // Keep the license-verified base magic as the broker scope until the license
-  // contract explicitly allows strategy-derived magic numbers.
-  return g_magic_number;
+  // One stable namespace owns all broker positions for this symbol.
+  return g_execution_magic;
 }
 
 int CountPositionOpeningExecutionLegs(const SignalParams &signal_params)
