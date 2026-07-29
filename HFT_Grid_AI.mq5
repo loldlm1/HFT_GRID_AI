@@ -1,32 +1,29 @@
 //+------------------------------------------------------------------+
-//|                                               HFT_Grid_AI_EA.mq5 |
+//|                                               HFT_Grid_AI_EA    |
 //|                                                          loldlm1 |
-//|                                                                  |
 //+------------------------------------------------------------------+
 #property copyright     "https://tradingsniperpanel.com/"
 #property description   "Copyright Trading Sniper Team."
-#property version       "1.10"
+#property version       "1.20"
 #property description   "Support Contact @chu4xtrade"
 #property description   "All Rights Reserved for the Trading Sniper Team."
-#property description   "Market Data Collector And Broker Executor"
+#property description   "Pivot Fractal Market Data Collector And Broker Executor"
 
-// CUSTOM SERVICES - AGGREGATORS
 #include "services/trading_tools.mqh"
 #include "services/trading_management.mqh"
 #include "services/trading_signals.mqh"
 #include "services/frontend.mqh"
 
-// GLOBAL VARIABLES
-double       g_bid, g_ask;
-ulong        g_execution_magic;
+double g_bid = 0.0;
+double g_ask = 0.0;
+ulong g_execution_magic = 0;
 SymbolTradingConstraints g_symbol_constraints;
 
 ulong ResolveStableExecutionMagic()
 {
-  string source = "HFT_GRID_AI_MARKET_DATA_V1|" + _Symbol;
+  string source = "HFT_GRID_AI_PIVOT_FRACTAL_V1|" + _Symbol;
   ulong hash = 1469598103934665603;
-  int total = StringLen(source);
-  for(int i = 0; i < total; i++)
+  for(int i = 0; i < StringLen(source); i++)
   {
     hash ^= (ulong)StringGetCharacter(source, i);
     hash *= 1099511628211;
@@ -38,19 +35,44 @@ ulong ResolveStableExecutionMagic()
   return hash;
 }
 
+bool RefreshCustomSymbolRates(MqlTick &tick_out)
+{
+  ZeroMemory(tick_out);
+  if(!SymbolInfoTick(_Symbol, tick_out))
+  {
+    g_bid = 0.0;
+    g_ask = 0.0;
+    return false;
+  }
+  g_bid = tick_out.bid;
+  g_ask = tick_out.ask;
+  return true;
+}
+
+void RefreshCustomSymbolRates()
+{
+  MqlTick tick;
+  RefreshCustomSymbolRates(tick);
+}
+
+string PivotRunCompletionStatus(const int deinit_reason)
+{
+  if(MQLInfoInteger(MQL_TESTER) > 0 && deinit_reason == REASON_CLOSE)
+    return "NATURAL";
+  return "CENSORED";
+}
+
 int OnInit()
 {
   ResetQueryDebugLogSession();
-  ResetDeterministicSourceOutcomeState();
-  ResetExtremumEngineState();
   if(!RefreshSymbolTradingConstraints(_Symbol, g_symbol_constraints))
   {
-    Print("Broker constraints unavailable at initialization; market-data collection remains active and execution will fail closed: ",
+    Print("Broker constraints unavailable at initialization; collection remains active and execution fails closed: ",
           _Symbol);
   }
   else if(Enable_Logs)
   {
-    PrintFormat("Broker constraints loaded for %s | freeze=%.1f pts | stops=%.1f pts | step=%.2f",
+    PrintFormat("Broker constraints loaded for %s | freeze=%.1f pts | stops=%.1f pts | step=%.8f",
                 _Symbol,
                 g_symbol_constraints.freeze_level_points,
                 g_symbol_constraints.stops_level_points,
@@ -58,36 +80,26 @@ int OnInit()
   }
 
   g_execution_magic = ResolveStableExecutionMagic();
-
-  DeterministicSignalStatsInit();
-  PatternAuditPlaybackInit();
-  DeterministicSignalMLShadowInit();
-
+  PivotV9StatsInit();
+  LoadAllIndicatorDefinitions();
+  InitializePivotFractalRuntime();
   RefreshCustomSymbolRates();
+
   ResetExecutionVisualizationCache();
   FrontendResetRefreshThrottle();
-
-  LoadAllIndicatorDefinitions();
-
   if(FrontendChartWorkEnabled())
   {
     RefreshExecutionVisualization();
     ChartRedraw(ChartID());
   }
-
-  return(INIT_SUCCEEDED);
+  return INIT_SUCCEEDED;
 }
 
-//+------------------------------------------------------------------+
-//| Expert deinitialization function                                 |
-//+------------------------------------------------------------------+
 void OnDeinit(const int reason)
 {
-  if(g_extremum_engine_cycle.active)
-    ExtremumEngineFinalizeCycle("CENSORED", TimeCurrent());
-  DeterministicSignalMLShadowDeinit();
-  PatternAuditPlaybackDeinit();
-  DeterministicSignalStatsDeinit();
+  string completion_status = PivotRunCompletionStatus(reason);
+  FinalizeActivePivotWindowsForExport(completion_status);
+  PivotV9StatsDeinit(completion_status);
   CloseAppendFileLog();
   ReleaseAllIndicatorDefinitions();
   FrontendResetRefreshThrottle();
@@ -99,102 +111,48 @@ void OnDeinit(const int reason)
   }
 }
 
-//+------------------------------------------------------------------+
-//| Trade function                                                   |
-//+------------------------------------------------------------------+
 void OnTrade()
 {
 }
 
-//+------------------------------------------------------------------+
-//| TradeTransaction function                                        |
-//+------------------------------------------------------------------+
-void OnTradeTransaction(const MqlTradeTransaction& trans,
-                        const MqlTradeRequest& request,
-                        const MqlTradeResult& result)
+void OnTradeTransaction(const MqlTradeTransaction &trans,
+                        const MqlTradeRequest &request,
+                        const MqlTradeResult &result)
 {
   RefreshCustomSymbolRates();
-  ReconcileRunningSignalsAfterTradeTransaction();
+  ReconcilePivotSignalsAfterTradeTransaction();
 }
 
-//+------------------------------------------------------------------+
-//| Expert tick function                                             |
-//+------------------------------------------------------------------+
 void OnTick()
 {
-  RefreshCustomSymbolRates();
-  DeterministicSignalStatsUpdatePathTracker();
+  MqlTick tick;
+  RefreshCustomSymbolRates(tick);
   if(!DebugEquityGuardAllowsProcessing())
     return;
-  static datetime next_bar_open           = 0;
-  datetime        current_time            = TimeCurrent();
-  int             defined_tick_seconds    = PeriodSeconds(EXTREMUM_ENGINE_TIMEFRAME);
 
-  //--- Phase 1 - check the emergence of a new bar and update the status
-  if(current_time>=next_bar_open)
-  {
-    Main();
-
-    //--- set the new bar opening time
-    next_bar_open=current_time;
-    next_bar_open-=next_bar_open%defined_tick_seconds;
-    next_bar_open+=defined_tick_seconds;
-  }
-
-  // MANAGES THE BULLISH AND BEARISH SIGNALS
-  Main_Tick();
+  ProcessPivotFractalTick(tick);
+  ReconcilePivotSignalsAfterTradeTransaction();
+  datetime current_time = TimeCurrent();
   if(FrontendRefreshDue(current_time))
     RefreshExecutionVisualization();
 }
 
-// DETECT BULLISH AND BEARISH SIGNALS
-void Main()
-{
-  DetectStrategySignals();
-}
-
-// MANAGE BULLISH AND BEARISH SIGNALS
-void Main_Tick()
-{
-  CheckTickOpenSignals();
-}
-
-void RefreshCustomSymbolRates()
-{
-  MqlTick tick;
-  ZeroMemory(tick);
-  if(!SymbolInfoTick(_Symbol, tick))
-  {
-    g_bid = 0.0;
-    g_ask = 0.0;
-    return;
-  }
-
-  g_bid = tick.bid;
-  g_ask = tick.ask;
-}
-
 double OnTester()
 {
-  // Return a zero score when the run was forcibly stopped (no money or debug aborts).
   if(g_forced_stop_triggered || g_debug_no_money_abort_pending)
     return 0.0;
 
   double initial_deposit = TesterStatistics(STAT_INITIAL_DEPOSIT);
-  double final_balance   = TesterStatistics(STAT_PROFIT);
-  double sharpe_ratio    = TesterStatistics(STAT_SHARPE_RATIO);
-  double trades_total    = TesterStatistics(STAT_TRADES);
-
+  double total_profit = TesterStatistics(STAT_PROFIT);
+  double sharpe_ratio = TesterStatistics(STAT_SHARPE_RATIO);
+  double trades_total = TesterStatistics(STAT_TRADES);
   if(initial_deposit <= 0.0 || trades_total <= 0.0)
     return 0.0;
 
-  double growth = (final_balance - initial_deposit) / initial_deposit; // normalized growth
+  double growth = total_profit / initial_deposit;
   if(growth < 0.0)
     growth = 0.0;
-
   double sharpe_component = MathMax(0.0, sharpe_ratio);
-  double volume_component = MathLog(1.0 + trades_total); // more trades => more confidence
-
-  double score = growth * volume_component * sharpe_component;
-  return score;
+  double volume_component = MathLog(1.0 + trades_total);
+  return growth * volume_component * sharpe_component;
 }

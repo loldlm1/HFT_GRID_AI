@@ -1,17 +1,12 @@
 //+------------------------------------------------------------------+
-//|                                      execution_controller.mqh    |
+//|                                      execution_controller       |
 //+------------------------------------------------------------------+
 #ifndef _SERVICES_TRADING_SIGNALS_EXECUTION_CONTROLLER_MQH_
 #define _SERVICES_TRADING_SIGNALS_EXECUTION_CONTROLLER_MQH_
 
-const int EXECUTION_PRE_SEND_RETRY_SECONDS = 1;
-
-double CurrentExecutionEntryPrice(const SignalTypes direction)
+double ExecutionEntryPriceFromTick(const SignalTypes direction,
+                                   const MqlTick &tick)
 {
-  MqlTick tick;
-  ZeroMemory(tick);
-  if(!SymbolInfoTick(_Symbol, tick))
-    return 0.0;
   if(direction == BULLISH)
     return tick.ask;
   if(direction == BEARISH)
@@ -19,177 +14,105 @@ double CurrentExecutionEntryPrice(const SignalTypes direction)
   return 0.0;
 }
 
-bool ExecutionBreakoutReached(const SignalParams &signal_params)
+void PivotSignalTriggerTick(const PivotSignal &signal,
+                            MqlTick &tick_out)
 {
-  double trigger_price = signal_params.execution.planned_entry_price;
-  if(trigger_price <= 0.0)
-    return false;
-
-  MqlTick tick;
-  ZeroMemory(tick);
-  if(!SymbolInfoTick(_Symbol, tick))
-    return false;
-  if(signal_params.signal_type == BULLISH)
-    return (tick.ask >= trigger_price);
-  if(signal_params.signal_type == BEARISH)
-    return (tick.bid <= trigger_price);
-  return false;
+  ZeroMemory(tick_out);
+  tick_out.time = signal.trigger_time;
+  tick_out.bid = signal.trigger_bid;
+  tick_out.ask = signal.trigger_ask;
 }
 
-void ApplyExecutionCheckToAdmission(SignalParams &signal_params,
-                                    const BrokerExecutionCheck &check,
-                                    const bool final_decision)
+bool LoadFreshExecutionTick(MqlTick &tick_out)
 {
-  signal_params.admission_spread_points = check.spread_points;
-  signal_params.admission_market_status =
-    MarketStatusFromSymbolTradeMode(check.symbol_trade_mode);
-  signal_params.admission_updated_time = check.broker_time;
-  if(!final_decision)
+  ZeroMemory(tick_out);
+  ResetLastError();
+  return SymbolInfoTick(_Symbol, tick_out);
+}
+
+void AppendExecutionBlockReason(BrokerExecutionCheck &check,
+                                const string source,
+                                const string reason)
+{
+  if(reason == "")
     return;
-
-  signal_params.admission_status = check.allowed
-    ? EXECUTION_ADMISSION_ALLOWED
-    : EXECUTION_ADMISSION_BLOCKED;
-  signal_params.admission_block_source = check.block_source;
-  signal_params.admission_block_reason = check.block_reason;
+  if(check.block_source == "")
+  {
+    ExecutionCheckBlock(check, source, reason);
+    return;
+  }
+  check.block_reason += "|" + source + "=" + reason;
+  check.allowed = false;
 }
 
-bool BuildExecutionOrderForSignal(SignalParams &signal_params)
+void BuildPivotV9AttemptPayload(const PivotSignal &signal,
+                                PivotV9AttemptPayload &payload)
 {
-  double planned_entry = signal_params.raw_entry_trigger_price;
-  double stop_loss = signal_params.raw_stop_anchor_price;
-  double take_profit = ResolveExecutionOneRTarget(signal_params.signal_type,
-                                                  planned_entry,
-                                                  stop_loss);
-
-  signal_params.execution = ExecutionState();
-  signal_params.execution.state = EXECUTION_ORDER_WAITING;
-  signal_params.execution.planned_entry_price = planned_entry;
-  signal_params.execution.stop_loss_price = stop_loss;
-  signal_params.execution.take_profit_price = take_profit;
-  signal_params.execution.risk_distance = MathAbs(planned_entry - stop_loss);
-  signal_params.execution.last_action_time = TimeCurrent();
-  signal_params.execution_initialized = true;
-  signal_params.stop_loss = stop_loss;
-  signal_params.take_profit = take_profit;
-  signal_params.raw_take_profit_price = take_profit;
-  signal_params.raw_risk_distance = signal_params.execution.risk_distance;
-
-  double observation_entry = CurrentExecutionEntryPrice(signal_params.signal_type);
-  double observation_target = ResolveExecutionOneRTarget(signal_params.signal_type,
-                                                          observation_entry,
-                                                          stop_loss);
-  double requested_volume = 0.0;
-  double normalized_volume = 0.0;
-  string volume_reason = "";
-  ResolveExecutionVolumePlan(signal_params,
-                             observation_entry,
-                             stop_loss,
-                             requested_volume,
-                             normalized_volume,
-                             volume_reason);
-  signal_params.execution.requested_volume = requested_volume;
-  signal_params.execution.normalized_volume = normalized_volume;
-
-  CaptureBrokerExecutionCheck(signal_params,
-                              "ATTEMPT_OBSERVED",
-                              NextBrokerExecutionCheckSequence(signal_params),
-                              observation_entry,
-                              stop_loss,
-                              observation_target,
-                              requested_volume,
-                              normalized_volume,
-                              false,
-                              signal_params.execution.observation_check);
-  if(take_profit <= 0.0)
-  {
-    signal_params.execution_risk_plan_reason = "invalid_structural_geometry";
-    ExecutionCheckBlock(signal_params.execution.observation_check,
-                        "execution_geometry",
-                        signal_params.execution_risk_plan_reason);
-  }
-  if(volume_reason != "" &&
-     signal_params.execution.observation_check.block_source == "")
-  {
-    ExecutionCheckBlock(signal_params.execution.observation_check,
-                        "lot_plan",
-                        volume_reason);
-  }
-  else if(volume_reason != "")
-  {
-    signal_params.execution.observation_check.block_reason +=
-      "|lot_plan=" + volume_reason;
-  }
-  ApplyExecutionCheckToAdmission(signal_params,
-                                 signal_params.execution.observation_check,
-                                 false);
-  DeterministicSignalStatsRecordExecutionCheck(
-    signal_params,
-    signal_params.execution.observation_check);
-  return (take_profit > 0.0);
+  payload.signal_id = signal.signal_id;
+  payload.window_id = signal.window_id;
+  payload.pivot_timeframe = signal.pivot_timeframe;
+  payload.active_bar_open = signal.active_bar_open;
+  payload.level_id = signal.level_id;
+  payload.direction = signal.direction;
+  payload.trigger_time = signal.trigger_time;
+  payload.previous_m1_bar_open = signal.previous_m1_bar_open;
+  payload.previous_m1_close_boundary = signal.previous_m1_close_boundary;
+  payload.previous_m1_bid_close = signal.previous_m1_bid_close;
+  payload.trigger_bid = signal.trigger_bid;
+  payload.trigger_ask = signal.trigger_ask;
+  payload.spread_points = signal.trigger_spread_points;
+  payload.intended_entry_price = signal.route.intended_entry_price;
+  payload.initial_stop_loss = signal.route.initial_stop_loss;
+  payload.terminal_take_profit = signal.route.terminal_take_profit;
+  payload.route_status = signal.route.status;
+  payload.attempt_status = signal.attempt_status;
+  payload.block_source = signal.block_source;
+  payload.block_reason = signal.block_reason;
+  payload.feature_snapshot_complete = signal.features.complete;
+  payload.send_attempted = signal.execution.send_attempted;
 }
 
-bool ExecutionFilterAllowsSend(SignalParams &signal_params,
-                               string &block_source_out,
-                               string &block_reason_out)
+void ExportPivotExecutionCheck(const PivotSignal &signal,
+                               const BrokerExecutionCheck &check)
 {
-  block_source_out = "";
-  block_reason_out = "";
-
-  DeterministicSignalMLShadowRecordPrediction(signal_params, signal_params.execution);
-
-  if(!PatternAuditSelectedAdmissionAllowsEntry(signal_params,
-                                               signal_params.execution,
-                                               block_reason_out))
-  {
-    block_source_out = "pattern_audit";
-    return false;
-  }
-
-  if(!DeterministicSignalMLFilterAllowsEntry(signal_params,
-                                             signal_params.execution,
-                                             block_reason_out))
-  {
-    block_source_out = "ml_filter";
-    return false;
-  }
-  return true;
+  if(!PivotV9Enabled())
+    return;
+  PivotV9ExecutionPayload payload;
+  payload.signal_id = signal.signal_id;
+  payload.window_id = signal.window_id;
+  payload.check.CopyFrom(check);
+  payload.position_ticket = signal.execution.position_ticket;
+  payload.position_identifier = signal.execution.position_identifier;
+  payload.broker_entry_confirmed = signal.execution.broker_entry_confirmed;
+  payload.broker_close_confirmed = signal.execution.broker_close_confirmed;
+  payload.broker_entry_price = signal.execution.broker_entry_price;
+  payload.broker_volume = signal.execution.broker_volume;
+  payload.broker_stop_loss = signal.execution.broker_stop_loss;
+  payload.broker_take_profit = signal.execution.broker_take_profit;
+  payload.close_price = signal.execution.close_price;
+  payload.closed_volume = signal.execution.closed_volume;
+  payload.realized_profit = signal.execution.realized_profit;
+  payload.terminal_reason = signal.execution.terminal_reason;
+  PivotV9RecordExecutionCheck(payload);
 }
 
-bool CaptureCurrentSendEligibility(SignalParams &signal_params,
-                                   const string phase,
-                                   BrokerExecutionCheck &check_out)
+void ExportPivotAttempt(PivotSignal &signal)
 {
-  double entry_price = CurrentExecutionEntryPrice(signal_params.signal_type);
-  double stop_loss = signal_params.execution.stop_loss_price;
-  double take_profit = ResolveExecutionOneRTarget(signal_params.signal_type,
-                                                  entry_price,
-                                                  stop_loss);
-  double requested_volume = 0.0;
-  double normalized_volume = 0.0;
-  string volume_reason = "";
-  bool volume_ok = ResolveExecutionVolumePlan(signal_params,
-                                              entry_price,
-                                              stop_loss,
-                                              requested_volume,
-                                              normalized_volume,
-                                              volume_reason);
+  if(signal.attempt_exported || !PivotV9Enabled())
+    return;
+  PivotV9AttemptPayload payload;
+  BuildPivotV9AttemptPayload(signal, payload);
+  PivotV9RecordAttempt(payload);
+  signal.attempt_exported = true;
+}
 
-  CaptureBrokerExecutionCheck(signal_params,
-                              phase,
-                              NextBrokerExecutionCheckSequence(signal_params),
-                              entry_price,
-                              stop_loss,
-                              take_profit,
-                              requested_volume,
-                              normalized_volume,
-                              true,
-                              check_out);
-  if(!volume_ok && check_out.block_source == "")
-    ExecutionCheckBlock(check_out, "lot_plan", volume_reason);
-  else if(!volume_ok && volume_reason != "")
-    check_out.block_reason += "|lot_plan=" + volume_reason;
-  return check_out.allowed;
+void ExportPivotFeatures(const PivotSignal &signal)
+{
+  if(!PivotV9Enabled())
+    return;
+  PivotV9AttemptPayload payload;
+  BuildPivotV9AttemptPayload(signal, payload);
+  PivotV9RecordFeatures(payload, signal.features);
 }
 
 void ApplyFailedEligibilityDebugSideEffect(const BrokerExecutionCheck &check)
@@ -198,63 +121,99 @@ void ApplyFailedEligibilityDebugSideEffect(const BrokerExecutionCheck &check)
     g_debug_no_money_abort_pending = true;
 }
 
-bool SendExecutionOrderAfterPrecheck(SignalParams &signal_params)
+bool CapturePivotEligibility(PivotSignal &signal,
+                             const string phase,
+                             const MqlTick &tick,
+                             const datetime broker_time,
+                             const bool require_order_check,
+                             BrokerExecutionCheck &check_out)
 {
-  CaptureCurrentSendEligibility(signal_params,
-                                "PRE_FILTER",
-                                signal_params.execution.filter_gate_check);
-  ApplyExecutionCheckToAdmission(signal_params,
-                                 signal_params.execution.filter_gate_check,
-                                 true);
-  signal_params.execution.last_action_time = TimeCurrent();
-  DeterministicSignalStatsRecordExecutionCheck(
-    signal_params,
-    signal_params.execution.filter_gate_check);
-  if(!signal_params.execution.filter_gate_check.allowed)
+  double entry_price = ExecutionEntryPriceFromTick(signal.direction, tick);
+  double requested_volume = 0.0;
+  double normalized_volume = 0.0;
+  double risk_target_amount = 0.0;
+  double expected_stop_loss = 0.0;
+  string volume_reason = "";
+  bool volume_ok = ResolveExecutionVolumePlan(signal.direction,
+                                              entry_price,
+                                              signal.route.initial_stop_loss,
+                                              requested_volume,
+                                              normalized_volume,
+                                              risk_target_amount,
+                                              expected_stop_loss,
+                                              volume_reason);
+
+  CaptureBrokerExecutionCheck(signal.direction,
+                              phase,
+                              NextBrokerExecutionCheckSequence(signal),
+                              broker_time,
+                              tick,
+                              entry_price,
+                              signal.route.initial_stop_loss,
+                              signal.route.terminal_take_profit,
+                              requested_volume,
+                              normalized_volume,
+                              require_order_check,
+                              check_out);
+  if(!volume_ok)
+    AppendExecutionBlockReason(check_out, "lot_plan", volume_reason);
+
+  signal.execution.planned_entry_price = entry_price;
+  signal.execution.stop_loss_price = signal.route.initial_stop_loss;
+  signal.execution.take_profit_price = signal.route.terminal_take_profit;
+  signal.execution.risk_distance = MathAbs(entry_price - signal.route.initial_stop_loss);
+  signal.execution.requested_volume = requested_volume;
+  signal.execution.normalized_volume = normalized_volume;
+  signal.execution.risk_target_amount = risk_target_amount;
+  signal.execution.expected_stop_loss = expected_stop_loss;
+  signal.execution.last_action_time = broker_time;
+  return check_out.allowed;
+}
+
+void ApplyPivotAttemptBlock(PivotSignal &signal,
+                            const string source,
+                            const string reason)
+{
+  signal.admission_status = EXECUTION_ADMISSION_BLOCKED;
+  signal.attempt_status = "DENIED";
+  signal.block_source = source;
+  signal.block_reason = reason;
+  signal.execution.state = EXECUTION_ORDER_CANCELED;
+  signal.execution.terminal_reason = source + ":" + reason;
+}
+
+bool PivotSendRetcodeAccepted(const ulong retcode)
+{
+  return retcode == TRADE_RETCODE_DONE ||
+         retcode == TRADE_RETCODE_PLACED ||
+         retcode == TRADE_RETCODE_DONE_PARTIAL;
+}
+
+bool SendPivotMarketOrder(PivotSignal &signal)
+{
+  MqlTick pre_send_tick;
+  bool tick_loaded = LoadFreshExecutionTick(pre_send_tick);
+  datetime broker_time = tick_loaded && pre_send_tick.time > 0
+                         ? pre_send_tick.time
+                         : TimeCurrent();
+  if(!tick_loaded)
+    ZeroMemory(pre_send_tick);
+
+  CapturePivotEligibility(signal,
+                          "PRE_SEND",
+                          pre_send_tick,
+                          broker_time,
+                          true,
+                          signal.execution.pre_send_check);
+  ExportPivotExecutionCheck(signal, signal.execution.pre_send_check);
+  if(!signal.execution.pre_send_check.allowed)
   {
-    ApplyFailedEligibilityDebugSideEffect(signal_params.execution.filter_gate_check);
+    ApplyFailedEligibilityDebugSideEffect(signal.execution.pre_send_check);
+    ApplyPivotAttemptBlock(signal,
+                           signal.execution.pre_send_check.block_source,
+                           signal.execution.pre_send_check.block_reason);
     return false;
   }
-
-  string filter_source = "";
-  string filter_reason = "";
-  if(!ExecutionFilterAllowsSend(signal_params, filter_source, filter_reason))
-  {
-    signal_params.admission_status = EXECUTION_ADMISSION_BLOCKED;
-    signal_params.admission_block_source = filter_source;
-    signal_params.admission_block_reason = filter_reason;
-    signal_params.admission_updated_time = TimeCurrent();
-    signal_params.execution.state = EXECUTION_ORDER_CANCELED;
-    signal_params.execution.terminal_reason = filter_source + ":" + filter_reason;
-    DeterministicSignalStatsRecordDecisionCheck(signal_params,
-                                                "FILTER_RESULT",
-                                                false,
-                                                filter_source,
-                                                filter_reason);
-    return false;
-  }
-
-  CaptureCurrentSendEligibility(signal_params,
-                                "PRE_SEND",
-                                signal_params.execution.pre_send_check);
-  ApplyExecutionCheckToAdmission(signal_params,
-                                 signal_params.execution.pre_send_check,
-                                 true);
-  signal_params.execution.last_action_time = TimeCurrent();
-  DeterministicSignalStatsRecordExecutionCheck(
-    signal_params,
-    signal_params.execution.pre_send_check);
-  if(!signal_params.execution.pre_send_check.allowed)
-  {
-    ApplyFailedEligibilityDebugSideEffect(signal_params.execution.pre_send_check);
-    return false;
-  }
-
-  double entry_price = signal_params.execution.pre_send_check.planned_entry_price;
-  double stop_loss = signal_params.execution.pre_send_check.stop_loss_price;
-  double take_profit = signal_params.execution.pre_send_check.take_profit_price;
-  double requested_volume = signal_params.execution.pre_send_check.requested_volume;
-  double normalized_volume = signal_params.execution.pre_send_check.normalized_volume;
 
   MqlTradeRequest request;
   MqlTradeResult result;
@@ -263,136 +222,168 @@ bool SendExecutionOrderAfterPrecheck(SignalParams &signal_params)
   request.action = TRADE_ACTION_DEAL;
   request.symbol = _Symbol;
   request.magic = g_execution_magic;
-  request.volume = normalized_volume;
-  request.price = entry_price;
-  request.sl = stop_loss;
-  request.tp = take_profit;
-  request.type = ExecutionOrderType(signal_params.signal_type);
+  request.volume = signal.execution.pre_send_check.normalized_volume;
+  request.price = signal.execution.pre_send_check.planned_entry_price;
+  request.sl = signal.route.initial_stop_loss;
+  request.tp = signal.route.terminal_take_profit;
+  request.type = ExecutionOrderType(signal.direction);
   request.type_filling = ResolveExecutionFillingMode(_Symbol);
   request.type_time = ORDER_TIME_GTC;
-  request.comment = ExecutionPositionComment(signal_params);
+  request.comment = PivotPositionComment(signal);
 
-  signal_params.execution.send_attempted = true;
-  signal_params.execution.state = EXECUTION_ORDER_SEND_ATTEMPTED;
-  signal_params.execution.requested_volume = requested_volume;
-  signal_params.execution.normalized_volume = normalized_volume;
-  signal_params.execution.take_profit_price = take_profit;
-  signal_params.execution.last_action_time = TimeCurrent();
+  signal.execution.send_attempted = true;
+  signal.execution.state = EXECUTION_ORDER_SEND_ATTEMPTED;
+  signal.execution.position_comment = request.comment;
+  signal.execution.last_action_time = broker_time;
 
+  ResetLastError();
   bool api_result = OrderSend(request, result);
-  BrokerExecutionCheck send_check = signal_params.execution.pre_send_check;
+  int send_error = GetLastError();
+  BrokerExecutionCheck send_check(signal.execution.pre_send_check);
   send_check.phase = "SEND_RESULT";
-  send_check.sequence = NextBrokerExecutionCheckSequence(signal_params);
+  send_check.sequence = NextBrokerExecutionCheckSequence(signal);
   send_check.broker_time = TimeCurrent();
   send_check.send_retcode = result.retcode;
   send_check.send_comment = result.comment;
   send_check.order_ticket = result.order;
   send_check.deal_ticket = result.deal;
-  bool accepted = api_result &&
-                  (result.retcode == TRADE_RETCODE_DONE ||
-                   result.retcode == TRADE_RETCODE_PLACED ||
-                   result.retcode == TRADE_RETCODE_DONE_PARTIAL);
+  bool accepted = api_result && PivotSendRetcodeAccepted(result.retcode);
   send_check.allowed = accepted;
   if(!accepted)
   {
+    send_check.block_source = "";
+    send_check.block_reason = "";
     ExecutionCheckBlock(send_check,
                         "order_send",
                         StringFormat("api=%s|retcode=%I64u|error=%d|comment=%s",
                                      api_result ? "true" : "false",
                                      result.retcode,
-                                     GetLastError(),
+                                     send_error,
                                      result.comment));
   }
-  signal_params.execution.send_result_check = send_check;
-  signal_params.execution.order_ticket = result.order;
-  signal_params.execution.deal_ticket = result.deal;
-  signal_params.admission_updated_time = send_check.broker_time;
 
+  signal.execution.send_result_check.CopyFrom(send_check);
+  signal.execution.order_ticket = result.order;
+  signal.execution.deal_ticket = result.deal;
+  signal.execution.position_ticket = result.order;
   if(!accepted)
   {
-    signal_params.execution.state = EXECUTION_ORDER_FAILED;
-    signal_params.execution.terminal_reason = send_check.block_reason;
-    signal_params.admission_status = EXECUTION_ADMISSION_SEND_FAILED;
-    signal_params.admission_block_source = send_check.block_source;
-    signal_params.admission_block_reason = send_check.block_reason;
-    DeterministicSignalStatsRecordExecutionCheck(signal_params, send_check);
-    MarketStatusRegisterBrokerFailure("BROKER_SEND_FAILED",
+    signal.execution.state = EXECUTION_ORDER_FAILED;
+    signal.execution.terminal_reason = send_check.block_reason;
+    signal.admission_status = EXECUTION_ADMISSION_SEND_FAILED;
+    signal.attempt_status = "SEND_FAILED";
+    signal.block_source = send_check.block_source;
+    signal.block_reason = send_check.block_reason;
+    ExportPivotExecutionCheck(signal, send_check);
+    ExecutionLogPivotSendResult(signal, send_check);
+    MarketStatusRegisterBrokerFailure("PIVOT_SEND_FAILED",
                                       result.retcode,
-                                      GetLastError());
+                                      send_error);
     return false;
   }
 
-  signal_params.admission_status = EXECUTION_ADMISSION_SENT;
-  signal_params.admission_block_source = "";
-  signal_params.admission_block_reason = "";
-  DeterministicSignalStatsRecordExecutionCheck(signal_params, send_check);
-  PatternAuditPlaybackRecordSignal(signal_params, signal_params.execution);
-  ReconcileSignalBrokerPosition(signal_params);
+  signal.admission_status = EXECUTION_ADMISSION_SENT;
+  signal.attempt_status = "SENT";
+  signal.block_source = "";
+  signal.block_reason = "";
+  ReconcilePivotSignalBrokerPosition(signal);
+  ExportPivotExecutionCheck(signal, send_check);
+  ExecutionLogPivotSendResult(signal, send_check);
   return true;
 }
 
-void UpdateExecutionLifecycle(SignalParams &signal_params)
+bool ProcessPivotSignalAttempt(PivotSignal &signal)
 {
-  ReconcileSignalBrokerPosition(signal_params);
-  if(signal_params.execution.state == EXECUTION_ORDER_BROKER_ACTIVE &&
-     !signal_params.execution.broker_active_check_exported)
+  if(PivotV9Enabled())
   {
-    DeterministicSignalStatsRecordDecisionCheck(signal_params,
-                                                "BROKER_ACTIVE",
-                                                true,
-                                                "",
-                                                "");
-    signal_params.execution.broker_active_check_exported = true;
+    CapturePivotContextFeatureSnapshot(signal.trigger_bid,
+                                       signal.trigger_time,
+                                       signal.features);
+    ExportPivotFeatures(signal);
   }
-  if(signal_params.execution.state == EXECUTION_ORDER_BROKER_CLOSED &&
-     !signal_params.execution.broker_closed_check_exported)
-  {
-    DeterministicSignalStatsRecordDecisionCheck(signal_params,
-                                                "BROKER_CLOSED",
-                                                true,
-                                                "",
-                                                "");
-    signal_params.execution.broker_closed_check_exported = true;
-  }
-  if((signal_params.execution.state == EXECUTION_ORDER_CANCELED ||
-      signal_params.execution.state == EXECUTION_ORDER_FAILED) &&
-     !signal_params.execution.broker_terminal_check_exported)
-  {
-    DeterministicSignalStatsRecordDecisionCheck(signal_params,
-                                                "BROKER_TERMINAL",
-                                                false,
-                                                signal_params.admission_block_source,
-                                                signal_params.execution.terminal_reason);
-    signal_params.execution.broker_terminal_check_exported = true;
-  }
-  if(signal_params.execution.state == EXECUTION_ORDER_BROKER_ACTIVE &&
-     !signal_params.deterministic_stats_feature_exported)
-  {
-    DeterministicSignalStatsRecordFeature(signal_params,
-                                          signal_params.execution);
-  }
-  if(signal_params.execution.state == EXECUTION_ORDER_BROKER_ACTIVE ||
-     signal_params.execution.state == EXECUTION_ORDER_BROKER_CLOSED ||
-     signal_params.execution.state == EXECUTION_ORDER_CANCELED ||
-     signal_params.execution.state == EXECUTION_ORDER_FAILED)
-    return;
 
-  if(signal_params.execution.state == EXECUTION_ORDER_SEND_ATTEMPTED)
-    return;
-  if(!ExecutionBreakoutReached(signal_params))
-    return;
-  if(TimeCurrent() - signal_params.execution.last_action_time <
-     EXECUTION_PRE_SEND_RETRY_SECONDS)
-    return;
+  BuildPivotSignalRoute(_Symbol,
+                        signal.direction,
+                        signal.level_id,
+                        signal.levels,
+                        signal.route);
 
-  SendExecutionOrderAfterPrecheck(signal_params);
-}
+  string permission_source = "";
+  string permission_reason = "";
+  bool permission_allowed = ResolvePivotSignalPermission(signal.direction,
+                                                         permission_source,
+                                                         permission_reason);
 
-bool IsExecutionSignalComplete(const SignalParams &signal_params)
-{
-  return (signal_params.execution.state == EXECUTION_ORDER_BROKER_CLOSED ||
-          signal_params.execution.state == EXECUTION_ORDER_CANCELED ||
-          signal_params.execution.state == EXECUTION_ORDER_FAILED);
+  MqlTick observation_tick;
+  PivotSignalTriggerTick(signal, observation_tick);
+  CapturePivotEligibility(signal,
+                          "ATTEMPT_OBSERVED",
+                          observation_tick,
+                          signal.trigger_time,
+                          false,
+                          signal.execution.observation_check);
+
+  if(signal.route.status != PIVOT_ROUTE_ALLOWED)
+  {
+    AppendExecutionBlockReason(signal.execution.observation_check,
+                               "route",
+                               signal.route.denial_reason);
+    ApplyPivotAttemptBlock(signal, "route", signal.route.denial_reason);
+  }
+  else if(!permission_allowed)
+  {
+    AppendExecutionBlockReason(signal.execution.observation_check,
+                               permission_source,
+                               permission_reason);
+    ApplyPivotAttemptBlock(signal, permission_source, permission_reason);
+  }
+  else if(!signal.execution.observation_check.allowed)
+  {
+    ApplyFailedEligibilityDebugSideEffect(signal.execution.observation_check);
+    ApplyPivotAttemptBlock(signal,
+                           signal.execution.observation_check.block_source,
+                           signal.execution.observation_check.block_reason);
+  }
+  else
+  {
+    signal.admission_status = EXECUTION_ADMISSION_CANDIDATE;
+  }
+
+  ExportPivotExecutionCheck(signal, signal.execution.observation_check);
+  if(signal.admission_status == EXECUTION_ADMISSION_BLOCKED)
+  {
+    ExportPivotAttempt(signal);
+    ExecutionLogPivotAttempt(signal);
+    return false;
+  }
+
+  if(!PivotSignalStore(signal))
+  {
+    ApplyPivotAttemptBlock(signal,
+                           "signal_state",
+                           "ACTIVE_SIGNAL_STORAGE_FAILED");
+    ExportPivotAttempt(signal);
+    ExecutionLogPivotAttempt(signal);
+    return false;
+  }
+
+  int signal_index = FindPivotSignalIndex(signal.signal_id);
+  if(signal_index < 0)
+  {
+    ApplyPivotAttemptBlock(signal,
+                           "signal_state",
+                           "ACTIVE_SIGNAL_LOOKUP_FAILED");
+    ExportPivotAttempt(signal);
+    ExecutionLogPivotAttempt(signal);
+    return false;
+  }
+
+  bool sent = SendPivotMarketOrder(g_pivot_signals[signal_index]);
+  ExportPivotAttempt(g_pivot_signals[signal_index]);
+  ExecutionLogPivotAttempt(g_pivot_signals[signal_index]);
+  if(!sent)
+    PivotSignalRemoveAt(signal_index);
+  return sent;
 }
 
 #endif // _SERVICES_TRADING_SIGNALS_EXECUTION_CONTROLLER_MQH_

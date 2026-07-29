@@ -38,22 +38,20 @@ void PushObjectName(string &names[], const string name)
   names[total] = name;
 }
 
-string ExecutionSignalIdentifier(const SignalParams &signal_params)
+string ExecutionSignalIdentifier(const PivotSignal &signal)
 {
-  string identity = signal_params.extremum_attempt_id;
+  string identity = signal.signal_id;
   if(identity == "")
-    identity = signal_params.execution_sequence_id;
-  if(identity == "")
-    identity = IntegerToString((int)signal_params.entry_time);
+    identity = IntegerToString((int)signal.trigger_time);
   return identity;
 }
 
-string ExecutionSignalObjectName(const SignalParams &signal_params,
+string ExecutionSignalObjectName(const PivotSignal &signal,
                                  const string suffix)
 {
-  string direction = (signal_params.signal_type == BULLISH) ? "B" : "S";
+  string direction = signal.direction == BULLISH ? "B" : "S";
   return EA_CHART_OBJECT_PREFIX + suffix + "_" + direction + "_" +
-         ExecutionSignalIdentifier(signal_params);
+         ExecutionSignalIdentifier(signal);
 }
 
 #endif // _SERVICES_FRONTEND_EXECUTION_VISUAL_UTILS_MQH_

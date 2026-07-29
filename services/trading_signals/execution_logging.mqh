@@ -1,13 +1,11 @@
 //+------------------------------------------------------------------+
-//|                  trading_signals/execution_logging.mqh          |
+//|                  trading_signals/execution_logging              |
 //+------------------------------------------------------------------+
 #ifndef _SERVICES_TRADING_SIGNALS_EXECUTION_LOGGING_MQH_
 #define _SERVICES_TRADING_SIGNALS_EXECUTION_LOGGING_MQH_
 
 const string QUERY_DEBUG_FILENAME = "query_debug.txt";
 const int QUERY_DEBUG_STATE_RESERVE = 64;
-const int QUERY_DEBUG_THROTTLE_RESERVE = 64;
-const int QUERY_DEBUG_GUARDRAIL_THROTTLE_SECONDS = 60;
 const int QUERY_DEBUG_STATE_MAX = 512;
 
 bool g_query_debug_session_header_logged = false;
@@ -24,16 +22,11 @@ string ExecutionBoolToken(const bool value)
   return value ? "true" : "false";
 }
 
-string ExecutionMLInferenceModeToken(const MLInferenceModes mode)
+string ExecutionTimeToken(const datetime value)
 {
-  switch(mode)
-  {
-    case ML_INFERENCE_SHADOW:
-      return "SHADOW";
-    case ML_INFERENCE_FILTER:
-      return "FILTER";
-  }
-  return "DISABLED";
+  return value > 0
+         ? TimeToString(value, TIME_DATE | TIME_SECONDS)
+         : "n/a";
 }
 
 void ResetQueryDebugLogSession()
@@ -42,38 +35,19 @@ void ResetQueryDebugLogSession()
   g_query_debug_session_header_logged = false;
   ArrayResize(g_query_debug_state_keys, 0, QUERY_DEBUG_STATE_RESERVE);
   ArrayResize(g_query_debug_state_messages, 0, QUERY_DEBUG_STATE_RESERVE);
-  ArrayResize(g_query_debug_throttle_keys, 0, QUERY_DEBUG_THROTTLE_RESERVE);
-  ArrayResize(g_query_debug_throttle_times, 0, QUERY_DEBUG_THROTTLE_RESERVE);
-  ArrayResize(g_query_debug_throttle_suppressed, 0, QUERY_DEBUG_THROTTLE_RESERVE);
+  ArrayResize(g_query_debug_throttle_keys, 0, QUERY_DEBUG_STATE_RESERVE);
+  ArrayResize(g_query_debug_throttle_times, 0, QUERY_DEBUG_STATE_RESERVE);
+  ArrayResize(g_query_debug_throttle_suppressed, 0, QUERY_DEBUG_STATE_RESERVE);
   g_query_debug_state_replace_index = 0;
   g_query_debug_throttle_replace_index = 0;
 }
 
-void ExecutionAppendRawQueryDebugLine(const string line)
+int ExecutionFindStateIndex(string &keys[],
+                            const string state_key)
 {
-  AppendFileLog(QUERY_DEBUG_FILENAME, line);
-}
-
-void ExecutionAppendTimestampedQueryDebug(const string label,
-                                          const string message)
-{
-  AppendTimestampedLog(QUERY_DEBUG_FILENAME, label, message);
-}
-
-string ExecutionQueryDebugSignalKey(const SignalParams &signal_params)
-{
-  if(signal_params.execution_sequence_id != "")
-    return signal_params.execution_sequence_id;
-
-  string direction = (signal_params.signal_type == BULLISH) ? "BULLISH" : "BEARISH";
-  return direction + "|" + TimeToString(signal_params.entry_time, TIME_DATE|TIME_SECONDS);
-}
-
-int ExecutionFindQueryDebugStateIndex(const string state_key)
-{
-  for(int i = 0; i < ArraySize(g_query_debug_state_keys); i++)
+  for(int i = 0; i < ArraySize(keys); i++)
   {
-    if(g_query_debug_state_keys[i] == state_key)
+    if(keys[i] == state_key)
       return i;
   }
   return -1;
@@ -82,14 +56,18 @@ int ExecutionFindQueryDebugStateIndex(const string state_key)
 bool ExecutionShouldLogChangedState(const string state_key,
                                     const string message)
 {
-  int index = ExecutionFindQueryDebugStateIndex(state_key);
+  int index = ExecutionFindStateIndex(g_query_debug_state_keys, state_key);
   if(index < 0)
   {
     int total = ArraySize(g_query_debug_state_keys);
     if(total < QUERY_DEBUG_STATE_MAX)
     {
-      ArrayResize(g_query_debug_state_keys, total + 1, QUERY_DEBUG_STATE_RESERVE);
-      ArrayResize(g_query_debug_state_messages, total + 1, QUERY_DEBUG_STATE_RESERVE);
+      ArrayResize(g_query_debug_state_keys,
+                  total + 1,
+                  QUERY_DEBUG_STATE_RESERVE);
+      ArrayResize(g_query_debug_state_messages,
+                  total + 1,
+                  QUERY_DEBUG_STATE_RESERVE);
       index = total;
     }
     else
@@ -109,16 +87,6 @@ bool ExecutionShouldLogChangedState(const string state_key,
   return true;
 }
 
-int ExecutionFindQueryDebugThrottleIndex(const string state_key)
-{
-  for(int i = 0; i < ArraySize(g_query_debug_throttle_keys); i++)
-  {
-    if(g_query_debug_throttle_keys[i] == state_key)
-      return i;
-  }
-  return -1;
-}
-
 bool ExecutionShouldLogThrottledState(const string state_key,
                                       const int throttle_seconds,
                                       int &suppressed_since_last)
@@ -128,15 +96,21 @@ bool ExecutionShouldLogThrottledState(const string state_key,
     return true;
 
   datetime now = TimeCurrent();
-  int index = ExecutionFindQueryDebugThrottleIndex(state_key);
+  int index = ExecutionFindStateIndex(g_query_debug_throttle_keys, state_key);
   if(index < 0)
   {
     int total = ArraySize(g_query_debug_throttle_keys);
     if(total < QUERY_DEBUG_STATE_MAX)
     {
-      ArrayResize(g_query_debug_throttle_keys, total + 1, QUERY_DEBUG_THROTTLE_RESERVE);
-      ArrayResize(g_query_debug_throttle_times, total + 1, QUERY_DEBUG_THROTTLE_RESERVE);
-      ArrayResize(g_query_debug_throttle_suppressed, total + 1, QUERY_DEBUG_THROTTLE_RESERVE);
+      ArrayResize(g_query_debug_throttle_keys,
+                  total + 1,
+                  QUERY_DEBUG_STATE_RESERVE);
+      ArrayResize(g_query_debug_throttle_times,
+                  total + 1,
+                  QUERY_DEBUG_STATE_RESERVE);
+      ArrayResize(g_query_debug_throttle_suppressed,
+                  total + 1,
+                  QUERY_DEBUG_STATE_RESERVE);
       index = total;
     }
     else
@@ -151,8 +125,7 @@ bool ExecutionShouldLogThrottledState(const string state_key,
     return true;
   }
 
-  int elapsed_seconds = (int)(now - g_query_debug_throttle_times[index]);
-  if(elapsed_seconds >= throttle_seconds)
+  if((int)(now - g_query_debug_throttle_times[index]) >= throttle_seconds)
   {
     suppressed_since_last = g_query_debug_throttle_suppressed[index];
     g_query_debug_throttle_times[index] = now;
@@ -168,18 +141,16 @@ void EnsureQueryDebugSessionHeaderLogged()
 {
   if(!Enable_File_Logs || g_query_debug_session_header_logged)
     return;
-
   g_query_debug_session_header_logged = true;
-  ExecutionAppendRawQueryDebugLine("");
-  ExecutionAppendTimestampedQueryDebug(
+  AppendTimestampedLog(
+    QUERY_DEBUG_FILENAME,
     "QUERY_DEBUG_SESSION",
-    StringFormat("symbol=%s|period=%s|broker_session=%s|lot_type=%s|lot_size=%.8f|ml_mode=%s",
+    StringFormat("symbol=%s|engine=%s|pivot_tfs=M15,M30,H1,H4,D1|broker_session=%s|lot_type=%s|lot_size=%.8f",
                  _Symbol,
-                 EnumToString(EXTREMUM_ENGINE_TIMEFRAME),
+                 PivotFractalEngineLabel(PIVOT_FRACTAL_V1),
                  EnumToString(Broker_Session),
                  EnumToString(Lot_Type),
-                 Lot_Strategy_Size,
-                 ExecutionMLInferenceModeToken(ML_Inference_Mode)));
+                 Lot_Strategy_Size));
 }
 
 void ExecutionAppendQueryDebugLog(const string label,
@@ -188,7 +159,7 @@ void ExecutionAppendQueryDebugLog(const string label,
   if(!Enable_File_Logs)
     return;
   EnsureQueryDebugSessionHeaderLogged();
-  ExecutionAppendTimestampedQueryDebug(label, message);
+  AppendTimestampedLog(QUERY_DEBUG_FILENAME, label, message);
 }
 
 void ExecutionAppendQueryDebugChangedLog(const string label,
@@ -199,7 +170,7 @@ void ExecutionAppendQueryDebugChangedLog(const string label,
     return;
   EnsureQueryDebugSessionHeaderLogged();
   if(ExecutionShouldLogChangedState(label + "|" + state_key, message))
-    ExecutionAppendTimestampedQueryDebug(label, message);
+    AppendTimestampedLog(QUERY_DEBUG_FILENAME, label, message);
 }
 
 void ExecutionAppendQueryDebugThrottledLog(const string label,
@@ -210,164 +181,55 @@ void ExecutionAppendQueryDebugThrottledLog(const string label,
   if(!Enable_File_Logs)
     return;
   EnsureQueryDebugSessionHeaderLogged();
-
-  int suppressed_since_last = 0;
+  int suppressed = 0;
   if(!ExecutionShouldLogThrottledState(label + "|" + state_key,
                                        throttle_seconds,
-                                       suppressed_since_last))
+                                       suppressed))
     return;
-
   string output = message;
-  if(suppressed_since_last > 0)
-    output += StringFormat("|suppressed_since_last=%d", suppressed_since_last);
-  ExecutionAppendTimestampedQueryDebug(label, output);
+  if(suppressed > 0)
+    output += StringFormat("|suppressed_since_last=%d", suppressed);
+  AppendTimestampedLog(QUERY_DEBUG_FILENAME, label, output);
 }
 
-string ExecutionSourceExtremumTypeToken(const SignalParams &signal_params)
+void ExecutionLogPivotAttempt(const PivotSignal &signal)
 {
-  return signal_params.source_extremum_is_peak ? "PEAK" : "BOTTOM";
+  string message = StringFormat("signal_id=%s|window_id=%s|tf=%s|level=%s|direction=%s|previous_m1_close=%.10f|trigger_bid=%.10f|trigger_ask=%.10f|route=%s|attempt=%s|block_source=%s|block_reason=%s",
+                                signal.signal_id,
+                                signal.window_id,
+                                EnumToString(signal.pivot_timeframe),
+                                PivotLevelLabel(signal.level_id),
+                                signal.direction == BULLISH ? "BUY" : "SELL",
+                                signal.previous_m1_bid_close,
+                                signal.trigger_bid,
+                                signal.trigger_ask,
+                                EnumToString(signal.route.status),
+                                signal.attempt_status,
+                                signal.block_source,
+                                signal.block_reason);
+  ExecutionAppendQueryDebugLog("PIVOT_ATTEMPT", message);
+  if(Enable_Logs)
+    Print("PIVOT_ATTEMPT | ", message);
 }
 
-string ExecutionSourceExtremumTimeToken(const SignalParams &signal_params)
+void ExecutionLogPivotSendResult(const PivotSignal &signal,
+                                 const BrokerExecutionCheck &check)
 {
-  if(signal_params.source_extremum_time <= 0)
-    return "n/a";
-  return TimeToString(signal_params.source_extremum_time, TIME_DATE|TIME_SECONDS);
-}
-
-string ExecutionDeterministicSourceKey(const SignalParams &signal_params)
-{
-  if(signal_params.deterministic_source_key != "")
-    return signal_params.deterministic_source_key;
-  return BuildExtremumEngineSignalSourceKey(signal_params);
-}
-
-string ExecutionTimeToken(const datetime value)
-{
-  if(value <= 0)
-    return "n/a";
-  return TimeToString(value, TIME_DATE|TIME_SECONDS);
-}
-
-void ExecutionLogDeterministicSourceConsumed(const SignalParams &signal_params,
-                                             const ExecutionState &execution_state,
-                                             const int source_attempt_count,
-                                             const string terminal_outcome)
-{
-  string message = StringFormat("strategy=%s|dir=%s|source_key=%s|source_attempt_index=%d|source_attempt_count=%d|terminal_outcome=%s|entry=%.5f|tp=%.5f|signal_ts=%s",
-                                signal_params.engine_label,
-                                signal_params.signal_type == BULLISH ? "BULLISH" : "BEARISH",
-                                ExecutionDeterministicSourceKey(signal_params),
-                                signal_params.deterministic_source_attempt_index,
-                                source_attempt_count,
-                                terminal_outcome,
-                                execution_state.broker_entry_price > 0.0
-                                  ? execution_state.broker_entry_price
-                                  : execution_state.planned_entry_price,
-                                execution_state.take_profit_price,
-                                ExecutionTimeToken(signal_params.entry_time));
-  ExecutionAppendQueryDebugLog("DETERMINISTIC_SOURCE_CONSUMED", message);
-}
-
-void ExecutionLogDeterministicSourceReentryBlocked(const int engine_id,
-                                                   const SignalTypes direction,
-                                                   const int source_slot,
-                                                   const bool source_confirmed,
-                                                   const bool source_is_peak,
-                                                   const datetime source_time,
-                                                   const double source_price,
-                                                   const double source_high,
-                                                   const double source_low,
-                                                   const int source_attempt_count,
-                                                   const string terminal_outcome,
-                                                   const datetime consumed_time)
-{
-  string source_key = BuildExtremumEngineSourceKey(engine_id,
-                                                    direction,
-                                                    source_slot,
-                                                    source_time,
-                                                    source_is_peak,
-                                                    source_price);
-  string message = StringFormat("strategy=%s|dir=%s|source_key=%s|blocked_next_attempt_index=%d|previous_attempt_count=%d|terminal_outcome=%s|consumed_time=%s|source_confirmed=%s|source_high=%.5f|source_low=%.5f|reason=source_consumed_after_tp",
-                                ExtremumEngineLabel(engine_id),
-                                direction == BULLISH ? "BULLISH" : "BEARISH",
-                                source_key,
-                                source_attempt_count + 1,
-                                source_attempt_count,
-                                terminal_outcome,
-                                ExecutionTimeToken(consumed_time),
-                                ExecutionBoolToken(source_confirmed),
-                                source_high,
-                                source_low);
-  ExecutionAppendQueryDebugChangedLog("DETERMINISTIC_SOURCE_REENTRY_BLOCKED",
-                                      source_key,
-                                      message);
-}
-
-void ExecutionLogDeterministicInvalidCandidate(const SignalParams &signal_params,
-                                               const int blocked_next_attempt_index,
-                                               const string reason)
-{
-  string message = StringFormat("strategy=%s|dir=%s|source_key=%s|blocked_next_attempt_index=%d|source_slot=%d|source_confirmed=%s|source_type=%s|source_time=%s|source_price=%.5f|trigger=%.5f|stop=%.5f|reason=%s",
-                                signal_params.engine_label,
-                                signal_params.signal_type == BULLISH ? "BULLISH" : "BEARISH",
-                                ExecutionDeterministicSourceKey(signal_params),
-                                blocked_next_attempt_index,
-                                signal_params.source_extremum_slot,
-                                ExecutionBoolToken(signal_params.source_extremum_confirmed),
-                                ExecutionSourceExtremumTypeToken(signal_params),
-                                ExecutionSourceExtremumTimeToken(signal_params),
-                                signal_params.source_extremum_price,
-                                signal_params.raw_entry_trigger_price,
-                                signal_params.raw_stop_anchor_price,
-                                reason);
-  ExecutionAppendQueryDebugLog("DETERMINISTIC_INVALID_CANDIDATE", message);
-}
-
-void ExecutionLogDeterministicSignalExpired(const SignalParams &signal_params,
-                                            const int new_source_slot,
-                                            const datetime new_source_time,
-                                            const bool new_source_is_peak,
-                                            const double new_source_price,
-                                            const string reason)
-{
-  string new_time = new_source_time > 0
-                    ? TimeToString(new_source_time, TIME_DATE|TIME_SECONDS)
-                    : "n/a";
-  string message = StringFormat("strategy=%s|dir=%s|state=%s|sequence=%s|source_key=%s|old_source_slot=%d|old_source_time=%s|new_source_slot=%d|new_source_type=%s|new_source_time=%s|new_source_price=%.5f|reason=%s",
-                                signal_params.engine_label,
-                                signal_params.signal_type == BULLISH ? "BULLISH" : "BEARISH",
-                                EnumToString(signal_params.execution.state),
-                                ExecutionQueryDebugSignalKey(signal_params),
-                                ExecutionDeterministicSourceKey(signal_params),
-                                signal_params.source_extremum_slot,
-                                ExecutionSourceExtremumTimeToken(signal_params),
-                                new_source_slot,
-                                new_source_is_peak ? "PEAK" : "BOTTOM",
-                                new_time,
-                                new_source_price,
-                                reason);
-  ExecutionAppendQueryDebugLog("DETERMINISTIC_SIGNAL_EXPIRED", message);
-}
-
-void ExecutionLogDeterministicPendingCanceled(const SignalParams &signal_params,
-                                              const string reason)
-{
-  string message = StringFormat("strategy=%s|dir=%s|signal_state=%s|execution_state=%s|sequence=%s|source_key=%s|source_attempt_index=%d|raw_trigger=%.5f|raw_stop=%.5f|realized_volume=%.8f|realized_profit=%.2f|close_price=%.5f|reason=%s",
-                                signal_params.engine_label,
-                                signal_params.signal_type == BULLISH ? "BULLISH" : "BEARISH",
-                                EnumToString(signal_params.signal_state),
-                                EnumToString(signal_params.execution.state),
-                                ExecutionQueryDebugSignalKey(signal_params),
-                                ExecutionDeterministicSourceKey(signal_params),
-                                signal_params.deterministic_source_attempt_index,
-                                signal_params.raw_entry_trigger_price,
-                                signal_params.raw_stop_anchor_price,
-                                signal_params.realized_closed_volume,
-                                signal_params.realized_profit,
-                                signal_params.close_price,
-                                reason);
-  ExecutionAppendQueryDebugLog("DETERMINISTIC_PENDING_CANCELED", message);
+  string message = StringFormat("signal_id=%s|tf=%s|level=%s|direction=%s|allowed=%s|retcode=%I64u|order=%I64u|deal=%I64u|comment=%s|block=%s:%s",
+                                signal.signal_id,
+                                EnumToString(signal.pivot_timeframe),
+                                PivotLevelLabel(signal.level_id),
+                                signal.direction == BULLISH ? "BUY" : "SELL",
+                                ExecutionBoolToken(check.allowed),
+                                check.send_retcode,
+                                check.order_ticket,
+                                check.deal_ticket,
+                                check.send_comment,
+                                check.block_source,
+                                check.block_reason);
+  ExecutionAppendQueryDebugLog("PIVOT_SEND_RESULT", message);
+  if(Enable_Logs)
+    Print("PIVOT_SEND_RESULT | ", message);
 }
 
 #endif // _SERVICES_TRADING_SIGNALS_EXECUTION_LOGGING_MQH_

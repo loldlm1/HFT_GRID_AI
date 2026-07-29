@@ -444,11 +444,11 @@ string PivotV9BuildConfigPayload()
                       PIVOT_V9_ENGINE_LABEL,
                       _Symbol,
                       (int)_Period,
-                      DETERMINISTIC_STOCH_K,
-                      DETERMINISTIC_STOCH_D,
-                      DETERMINISTIC_STOCH_SLOWING,
-                      DETERMINISTIC_MA_PERIOD,
-                      DETERMINISTIC_B_PERCENT_DEVIATION,
+                      PIVOT_CONTEXT_STOCH_K,
+                      PIVOT_CONTEXT_STOCH_D,
+                      PIVOT_CONTEXT_STOCH_SLOWING,
+                      PIVOT_CONTEXT_BANDS_PERIOD,
+                      PIVOT_CONTEXT_B_PERCENT_DEVIATION,
                       (int)Broker_Session,
                       (int)Lot_Type,
                       Lot_Strategy_Size);
@@ -693,8 +693,8 @@ bool PivotV9WriteManifest()
   rows[15] = PivotV9ManifestRow("broker_session", MarketDataTimePolicyToken(Broker_Session));
   rows[16] = PivotV9ManifestRow("lot_mode", EnumToString(Lot_Type));
   rows[17] = PivotV9ManifestRow("lot_size", DoubleToString(Lot_Strategy_Size, 8));
-  rows[18] = PivotV9ManifestRow("stoch_structure", StringFormat("%d,%d,%d;slots=0,1,2", DETERMINISTIC_STOCH_K, DETERMINISTIC_STOCH_D, DETERMINISTIC_STOCH_SLOWING));
-  rows[19] = PivotV9ManifestRow("b_percent", StringFormat("iBands;period=%d;deviation=%.4f;PRICE_CLOSE;shifts=0..5;shift0=trigger_bid;raw", DETERMINISTIC_MA_PERIOD, DETERMINISTIC_B_PERCENT_DEVIATION));
+  rows[18] = PivotV9ManifestRow("stoch_structure", StringFormat("%d,%d,%d;slots=0,1,2", PIVOT_CONTEXT_STOCH_K, PIVOT_CONTEXT_STOCH_D, PIVOT_CONTEXT_STOCH_SLOWING));
+  rows[19] = PivotV9ManifestRow("b_percent", StringFormat("iBands;period=%d;deviation=%.4f;PRICE_CLOSE;shifts=0..5;shift0=trigger_bid;raw", PIVOT_CONTEXT_BANDS_PERIOD, PIVOT_CONTEXT_B_PERCENT_DEVIATION));
   rows[20] = PivotV9ManifestRow("feature_set_id", PIVOT_V9_FEATURE_SET_ID);
   rows[21] = PivotV9ManifestRow("outcome_policy", "broker_confirmed_only");
   rows[22] = PivotV9ManifestRow("research_approval_state", "OFFLINE_RESEARCH_ONLY");
@@ -906,7 +906,7 @@ bool PivotV9RecordExecutionCheck(const PivotV9ExecutionPayload &payload)
     return false;
   if(payload.signal_id == "" || payload.window_id == "")
     return PivotV9RejectReference("RECORD_EXECUTION_CHECK");
-  BrokerExecutionCheck check = payload.check;
+  BrokerExecutionCheck check(payload.check);
   string row = IntegerToString(PIVOT_V9_SCHEMA_VERSION) + "\t" +
                PivotV9Cell(g_pivot_v9_run_id) + "\t" +
                PivotV9Cell(g_pivot_v9_config_id) + "\t" +

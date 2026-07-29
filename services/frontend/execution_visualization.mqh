@@ -2,7 +2,7 @@
 #define _SERVICES_FRONTEND_EXECUTION_VISUALIZATION_MQH_
 
 string g_execution_visual_previous_objects[];
-const int EXECUTION_VISUAL_MAX_PER_DIRECTION = 8;
+const int EXECUTION_VISUAL_MAX_SIGNALS = 16;
 const color EXECUTION_VISUAL_ENTRY_COLOR = clrBlue;
 const color EXECUTION_VISUAL_STOP_COLOR = clrTomato;
 const color EXECUTION_VISUAL_TARGET_COLOR = clrGreen;
@@ -13,48 +13,46 @@ void ResetExecutionVisualizationCache()
 }
 
 void DrawExecutionState(const long chart_id,
-                        const SignalParams &signal_params,
+                        const PivotSignal &signal,
                         string &tracked_objects[])
 {
-  if(!signal_params.execution_initialized)
+  if(signal.signal_id == "")
     return;
 
-  double entry_price = signal_params.execution.broker_entry_confirmed
-    ? signal_params.execution.broker_entry_price
-    : signal_params.execution.planned_entry_price;
-  double stop_loss = signal_params.execution.broker_entry_confirmed
-    ? signal_params.execution.broker_stop_loss
-    : signal_params.execution.stop_loss_price;
-  double take_profit = signal_params.execution.broker_entry_confirmed
-    ? signal_params.execution.broker_take_profit
-    : signal_params.execution.take_profit_price;
+  double entry_price = signal.route.intended_entry_price;
+  double stop_loss = signal.execution.broker_stop_loss > 0.0
+                     ? signal.execution.broker_stop_loss
+                     : signal.route.initial_stop_loss;
+  double take_profit = signal.route.terminal_take_profit;
+  string identity_label = EnumToString(signal.pivot_timeframe) + " " +
+                          PivotLevelLabel(signal.level_id);
 
   UpdateTrackedLine(chart_id,
-                    ExecutionSignalObjectName(signal_params, "ENTRY"),
+                    ExecutionSignalObjectName(signal, "ENTRY"),
                     EXECUTION_VISUAL_ENTRY_COLOR,
                     entry_price,
                     tracked_objects,
-                    "ENTRY");
+                    identity_label + " ENTRY");
   UpdateTrackedLine(chart_id,
-                    ExecutionSignalObjectName(signal_params, "SL"),
+                    ExecutionSignalObjectName(signal, "SL"),
                     EXECUTION_VISUAL_STOP_COLOR,
                     stop_loss,
                     tracked_objects,
-                    "SL");
+                    identity_label + " SL");
   UpdateTrackedLine(chart_id,
-                    ExecutionSignalObjectName(signal_params, "TP"),
+                    ExecutionSignalObjectName(signal, "TP"),
                     EXECUTION_VISUAL_TARGET_COLOR,
                     take_profit,
                     tracked_objects,
-                    "TP 1R");
+                    identity_label + " TP");
 }
 
 void DrawRecentExecutionStates(const long chart_id,
-                               SignalParams &signals[],
+                               PivotSignal &signals[],
                                string &tracked_objects[])
 {
   int total = ArraySize(signals);
-  int start = total - EXECUTION_VISUAL_MAX_PER_DIRECTION;
+  int start = total - EXECUTION_VISUAL_MAX_SIGNALS;
   if(start < 0)
     start = 0;
 
@@ -72,8 +70,7 @@ void RefreshExecutionVisualization()
 
   long chart_id = ChartID();
   string current_objects[];
-  DrawRecentExecutionStates(chart_id, running_bullish_signals, current_objects);
-  DrawRecentExecutionStates(chart_id, running_bearish_signals, current_objects);
+  DrawRecentExecutionStates(chart_id, g_pivot_signals, current_objects);
 
   for(int p = 0; p < ArraySize(g_execution_visual_previous_objects); p++)
   {

@@ -13,12 +13,6 @@ enum SignalTypes
 	BEARISH   = 2
 };
 
-enum ExtremumEngineIds
-{
-	EXTREMUM_ENGINE_NONE = 0,
-	EXTREMUM_ENGINE_V1   = 1
-};
-
 enum PivotFractalEngineIds
 {
   PIVOT_FRACTAL_NONE = 0,
@@ -65,14 +59,6 @@ enum PivotRouteStatuses
   PIVOT_ROUTE_ALLOWED         = 1,
   PIVOT_ROUTE_NO_FORWARD_LEVEL = 2,
   PIVOT_ROUTE_INVALID_GEOMETRY = 3
-};
-
-enum SignalStates
-{
-	WAITING = 0,
-	OPENED  = 1,
-	TRALING = 2,
-	CLOSED  = 3
 };
 
 enum OscillatorPricesTypes
@@ -129,13 +115,6 @@ enum MarketStatusTypes
   MARKET_STATUS_CLOSE_GUARD      = 1,
   MARKET_STATUS_BROKER_CLOSEONLY = 2,
   MARKET_STATUS_BROKER_DISABLED  = 3
-};
-
-enum MLInferenceModes
-{
-  ML_INFERENCE_DISABLED = 0,
-  ML_INFERENCE_SHADOW   = 1,
-  ML_INFERENCE_FILTER   = 2
 };
 
 #endif // _MICROSERVICES_CORE_ENUMS_MQH_

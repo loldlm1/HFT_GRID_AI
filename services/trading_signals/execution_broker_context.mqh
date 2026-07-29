@@ -6,10 +6,10 @@
 
 const int BROKER_CONSTRAINT_REFRESH_SECONDS = 60;
 
-int NextBrokerExecutionCheckSequence(SignalParams &signal_params)
+int NextBrokerExecutionCheckSequence(PivotSignal &signal)
 {
-  signal_params.execution.last_check_sequence++;
-  return signal_params.execution.last_check_sequence;
+  signal.execution.last_check_sequence++;
+  return signal.execution.last_check_sequence;
 }
 
 void ExecutionCheckBlock(BrokerExecutionCheck &check,
@@ -106,6 +106,22 @@ bool ExecutionGeometryValid(const SignalTypes direction,
   return false;
 }
 
+bool ExecutionProtectionGeometryValid(const SignalTypes direction,
+                                      const double bid,
+                                      const double ask,
+                                      const double stop_loss_price,
+                                      const double take_profit_price)
+{
+  if(bid <= 0.0 || ask <= 0.0 || ask < bid ||
+     stop_loss_price <= 0.0 || take_profit_price <= 0.0)
+    return false;
+  if(direction == BULLISH)
+    return stop_loss_price < bid && take_profit_price > ask;
+  if(direction == BEARISH)
+    return stop_loss_price > ask && take_profit_price < bid;
+  return false;
+}
+
 bool ExecutionVolumeMatchesBroker(const BrokerExecutionCheck &check)
 {
   if(check.requested_volume <= 0.0 || check.normalized_volume <= 0.0 ||
@@ -169,9 +185,11 @@ bool RunExecutionOrderCheck(BrokerExecutionCheck &check)
   return true;
 }
 
-bool CaptureBrokerExecutionCheck(const SignalParams &signal_params,
+bool CaptureBrokerExecutionCheck(const SignalTypes direction,
                                  const string phase,
                                  const int sequence,
+                                 const datetime broker_time,
+                                 const MqlTick &observed_tick,
                                  const double entry_price,
                                  const double stop_loss_price,
                                  const double take_profit_price,
@@ -180,12 +198,12 @@ bool CaptureBrokerExecutionCheck(const SignalParams &signal_params,
                                  const bool require_order_check,
                                  BrokerExecutionCheck &check)
 {
-  check = BrokerExecutionCheck();
+  check.Reset();
   check.phase = phase;
   check.sequence = sequence;
-  check.broker_time = TimeCurrent();
+  check.broker_time = broker_time > 0 ? broker_time : TimeCurrent();
   check.symbol = _Symbol;
-  check.direction = signal_params.signal_type;
+  check.direction = direction;
   check.planned_entry_price = entry_price;
   check.stop_loss_price = stop_loss_price;
   check.take_profit_price = take_profit_price;
@@ -194,19 +212,21 @@ bool CaptureBrokerExecutionCheck(const SignalParams &signal_params,
   check.normalized_volume = normalized_volume;
   check.allowed = true;
 
-  MqlTick tick;
-  ZeroMemory(tick);
-  if(!SymbolInfoTick(check.symbol, tick))
+  if(observed_tick.bid <= 0.0 ||
+     observed_tick.ask <= 0.0 ||
+     observed_tick.ask < observed_tick.bid)
   {
-    ExecutionCheckBlock(check, "market_tick", "symbol_info_tick_failed");
+    ExecutionCheckBlock(check, "market_tick", "bid_or_ask_invalid");
   }
   else
   {
-    check.bid = tick.bid;
-    check.ask = tick.ask;
+    check.bid = observed_tick.bid;
+    check.ask = observed_tick.ask;
   }
 
-  if(BrokerConstraintsNeedRefresh() &&
+  bool refresh_constraints = require_order_check ||
+                             BrokerConstraintsNeedRefresh();
+  if(refresh_constraints &&
      !RefreshSymbolTradingConstraints(check.symbol, g_symbol_constraints))
   {
     ExecutionCheckBlock(check, "broker_constraints", "refresh_failed");
@@ -267,10 +287,16 @@ bool CaptureBrokerExecutionCheck(const SignalParams &signal_params,
                         "algo_trading",
                         "account_terminal_or_mql_trade_permission_disabled");
 
-  check.geometry_valid = ExecutionGeometryValid(check.direction,
-                                                entry_price,
-                                                stop_loss_price,
-                                                take_profit_price);
+  check.geometry_valid =
+    ExecutionGeometryValid(check.direction,
+                           entry_price,
+                           stop_loss_price,
+                           take_profit_price) &&
+    ExecutionProtectionGeometryValid(check.direction,
+                                     check.bid,
+                                     check.ask,
+                                     stop_loss_price,
+                                     take_profit_price);
   if(!check.geometry_valid)
     ExecutionCheckBlock(check, "sl_tp_geometry", "directional_geometry_invalid");
 
@@ -284,7 +310,8 @@ bool CaptureBrokerExecutionCheck(const SignalParams &signal_params,
                                                       take_profit_price,
                                                       check.point_size);
   check.stop_distance_valid =
-    (stop_points + 1e-9 >= check.stops_distance_points &&
+    (check.geometry_valid && check.point_size > 0.0 &&
+     stop_points + 1e-9 >= check.stops_distance_points &&
      target_points + 1e-9 >= check.stops_distance_points);
   if(!check.stop_distance_valid)
     ExecutionCheckBlock(check,
@@ -295,7 +322,8 @@ bool CaptureBrokerExecutionCheck(const SignalParams &signal_params,
                                      check.stops_distance_points));
 
   check.freeze_distance_valid =
-    (stop_points + 1e-9 >= check.freeze_distance_points &&
+    (check.geometry_valid && check.point_size > 0.0 &&
+     stop_points + 1e-9 >= check.freeze_distance_points &&
      target_points + 1e-9 >= check.freeze_distance_points);
   if(!check.freeze_distance_valid)
     ExecutionCheckBlock(check,

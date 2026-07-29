@@ -254,13 +254,13 @@ int FindPivotStructureHandleIndex(const ENUM_TIMEFRAMES timeframe)
 
 int FindPivotBandsHandle(const ENUM_TIMEFRAMES timeframe)
 {
-  for(int i = 0; i < ArraySize(ExtDeterministicBandsLogicHandles); i++)
+  for(int i = 0; i < ArraySize(ExtPivotBandsHandles); i++)
   {
-    if(ExtDeterministicBandsLogicHandles[i].indicator_timeframe != timeframe)
+    if(ExtPivotBandsHandles[i].indicator_timeframe != timeframe)
       continue;
-    if(ExtDeterministicBandsLogicHandles[i].indicator_shift != 0)
+    if(ExtPivotBandsHandles[i].indicator_shift != 0)
       continue;
-    return ExtDeterministicBandsLogicHandles[i].indicator_handle;
+    return ExtPivotBandsHandles[i].indicator_handle;
   }
   return INVALID_HANDLE;
 }
