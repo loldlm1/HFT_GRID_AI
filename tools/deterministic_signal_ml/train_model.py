@@ -1,120 +1,109 @@
-"""Train deterministic signal local ML models from Phase 2 datasets."""
+"""Train research-only XGBoost candidates from a leakage-safe V9 matrix."""
 
 from __future__ import annotations
 
 import argparse
 import csv
 import json
+import math
 import shutil
-import tempfile
 from dataclasses import asdict
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
+from typing import Any
 
 import duckdb
 import numpy as np
-from xgboost import XGBClassifier, XGBRegressor
+import xgboost as xgb
+from sklearn.metrics import (
+    accuracy_score,
+    average_precision_score,
+    balanced_accuracy_score,
+    log_loss,
+    mean_absolute_error,
+    mean_squared_error,
+    precision_score,
+    recall_score,
+    roc_auc_score,
+)
 
 from feature_encoder import FeatureEncoder
 from model_config import (
     DEFAULT_DATASET_ROOT,
     DEFAULT_MODEL_ROOT,
     TRAINER_VERSION,
-    TrainingConfig,
     training_config_for_feature_set,
 )
 from schema_contract import (
-    FEATURE_SET_COLUMNS,
-    feature_columns_for_set,
-    schema_version_for_feature_set,
-)
-from training_report import (
-    build_threshold_report_rows,
-    classification_metrics,
-    evaluate_baselines,
-    feature_diagnostics,
-    feature_importance,
-    regression_metrics,
-    render_validation_report,
-    threshold_report_tsv,
+    DATASET_TARGET_FAMILIES,
+    MODEL_FEATURE_COLUMNS,
+    SUPPORTED_FEATURE_SET_ID,
+    SUPPORTED_SCHEMA_VERSION,
 )
 from validation_splits import SplitBundle, build_time_splits
 
 
-class TrainingInputError(RuntimeError):
-    """Raised when training cannot proceed because an input is invalid."""
-
-
-DEFAULT_FEATURE_SET_ID = "schema_v8_extremum_engine_xgb"
+class TrainingError(RuntimeError):
+    """Raised when an offline candidate cannot be trained safely."""
 
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
     dataset_group = parser.add_mutually_exclusive_group(required=True)
-    dataset_group.add_argument("--dataset-id", help="Dataset ID under the dataset root.")
-    dataset_group.add_argument("--dataset-path", help="Explicit Phase 2 dataset folder.")
-    parser.add_argument("--dataset-root", default=DEFAULT_DATASET_ROOT, help="Dataset root for --dataset-id.")
-    parser.add_argument("--model-id", required=True, help="Model output ID.")
-    parser.add_argument("--output-root", default=DEFAULT_MODEL_ROOT, help="Model artifact output root.")
-    parser.add_argument("--overwrite", action="store_true", help="Overwrite an existing model folder.")
-    parser.add_argument(
-        "--feature-set-id",
-        default=DEFAULT_FEATURE_SET_ID,
-        choices=tuple(FEATURE_SET_COLUMNS),
-        help="Feature subset used for research training.",
-    )
+    dataset_group.add_argument("--dataset-id", help="Dataset ID under --dataset-root.")
+    dataset_group.add_argument("--dataset-path", help="Explicit dataset folder.")
+    parser.add_argument("--dataset-root", default=DEFAULT_DATASET_ROOT)
+    parser.add_argument("--model-id", required=True)
+    parser.add_argument("--model-root", default=DEFAULT_MODEL_ROOT)
+    parser.add_argument("--feature-set-id", default=SUPPORTED_FEATURE_SET_ID)
+    parser.add_argument("--target-family", choices=DATASET_TARGET_FAMILIES, default="")
+    parser.add_argument("--overwrite", action="store_true")
     return parser
 
 
-def resolve_dataset_path(args: argparse.Namespace) -> Path:
-    if args.dataset_path:
-        dataset_path = Path(args.dataset_path)
-    else:
-        dataset_path = Path(args.dataset_root) / args.dataset_id
-    if not dataset_path.exists():
-        raise TrainingInputError(f"Dataset folder does not exist: {dataset_path}")
-    if not dataset_path.is_dir():
-        raise TrainingInputError(f"Dataset path is not a folder: {dataset_path}")
-    return dataset_path
+def _resolve_dataset_path(args: argparse.Namespace) -> Path:
+    path = (
+        Path(args.dataset_path)
+        if args.dataset_path
+        else Path(args.dataset_root) / str(args.dataset_id)
+    ).resolve()
+    if not path.is_dir():
+        raise TrainingError(f"Dataset folder does not exist: {path}")
+    return path
 
 
-def load_dataset_manifest(dataset_path: Path) -> dict:
-    manifest_path = dataset_path / "dataset_manifest.json"
-    quality_path = dataset_path / "dataset_quality.json"
-    matrix_path = dataset_path / "training_matrix.parquet"
-    missing = [path for path in (manifest_path, quality_path, matrix_path) if not path.exists()]
-    if missing:
-        missing_names = ", ".join(str(path) for path in missing)
-        raise TrainingInputError(f"Dataset is missing required files: {missing_names}")
-
-    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
-    quality = json.loads(quality_path.read_text(encoding="utf-8"))
-    if quality.get("status") != "OK":
-        raise TrainingInputError(f"Dataset quality status is not OK: {quality.get('status')!r}")
-    return manifest
-
-
-def prepare_output_dir(output_root: Path, model_id: str, overwrite: bool) -> Path:
-    output_dir = output_root / model_id
-    resolved_root = output_root.resolve()
-    resolved_output = output_dir.resolve()
-    if resolved_output == resolved_root or resolved_root not in resolved_output.parents:
-        raise TrainingInputError(f"Refusing model output outside output root: {output_dir}")
+def _prepare_model_dir(root: Path, model_id: str, overwrite: bool) -> Path:
+    if not model_id or Path(model_id).name != model_id or model_id in (".", ".."):
+        raise TrainingError(f"Invalid model ID: {model_id}")
+    root = root.resolve()
+    root.mkdir(parents=True, exist_ok=True)
+    output_dir = (root / model_id).resolve()
+    if output_dir.parent != root:
+        raise TrainingError(f"Refusing model output outside model root: {output_dir}")
     if output_dir.exists():
         if not overwrite:
-            raise TrainingInputError(f"Model output already exists. Use --overwrite: {output_dir}")
+            raise TrainingError(f"Model output already exists. Use --overwrite: {output_dir}")
         shutil.rmtree(output_dir)
-    output_dir.mkdir(parents=True, exist_ok=False)
+    output_dir.mkdir(parents=True)
     return output_dir
 
 
-def load_training_rows(dataset_path: Path) -> list[dict]:
+def _read_json(path: Path) -> dict[str, Any]:
+    if not path.is_file():
+        raise TrainingError(f"Missing dataset manifest: {path}")
+    return json.loads(path.read_text(encoding="utf-8"))
+
+
+def load_training_rows(dataset_path: Path) -> list[dict[str, Any]]:
     matrix_path = dataset_path / "training_matrix.parquet"
-    parquet_path = matrix_path.resolve().as_posix().replace("'", "''")
+    if not matrix_path.is_file():
+        raise TrainingError(f"Missing training matrix: {matrix_path}")
     connection = duckdb.connect(":memory:")
     try:
+        escaped = matrix_path.resolve().as_posix().replace("'", "''")
         relation = connection.execute(
-            f"SELECT * FROM read_parquet('{parquet_path}') ORDER BY entry_broker_time, signal_id"
+            f"SELECT * FROM read_parquet('{escaped}') "
+            "ORDER BY trigger_broker_time, run_id, signal_id"
         )
         columns = [column[0] for column in relation.description]
         return [dict(zip(columns, row)) for row in relation.fetchall()]
@@ -122,634 +111,327 @@ def load_training_rows(dataset_path: Path) -> list[dict]:
         connection.close()
 
 
-def validate_training_rows(
-    rows: list[dict],
-    manifest: dict,
-    config: TrainingConfig,
-    feature_set_id: str,
-) -> None:
-    if len(rows) < config.min_training_rows:
-        raise TrainingInputError(
-            f"Dataset has {len(rows)} rows; minimum required is {config.min_training_rows}"
-        )
-
-    schema_version = manifest.get("feature_schema_version", manifest.get("phase1_schema_version"))
-    if schema_version is None:
-        raise TrainingInputError("Dataset manifest does not define feature_schema_version")
-    expected_schema_version = schema_version_for_feature_set(feature_set_id)
-    if int(schema_version) != expected_schema_version:
-        raise TrainingInputError(
-            f"Unsupported dataset schema version for {feature_set_id}: "
-            f"{schema_version}; expected {expected_schema_version}"
-        )
-
-    feature_columns = list(manifest.get("feature_columns", []))
-    expected_feature_columns = list(feature_columns_for_set(feature_set_id))
-    target_columns = list(manifest.get("target_columns", []))
-    if not feature_columns:
-        raise TrainingInputError("Dataset manifest does not define feature_columns")
-    missing_manifest_features = [
-        column for column in expected_feature_columns if column not in feature_columns
-    ]
-    if missing_manifest_features:
-        raise TrainingInputError(
-            "Dataset manifest is missing feature columns for "
-            f"{feature_set_id}: " + ", ".join(missing_manifest_features)
-        )
-
-    required_targets = ("target_is_win", "target_profit_r", "target_terminal_reason")
-    missing_manifest_targets = [column for column in required_targets if column not in target_columns]
-    if missing_manifest_targets:
-        raise TrainingInputError(
-            "Dataset manifest is missing target columns: " + ", ".join(missing_manifest_targets)
-        )
-
-    first_row = rows[0]
-    missing_matrix_columns = [
-        column for column in expected_feature_columns + list(required_targets) if column not in first_row
-    ]
-    if missing_matrix_columns:
-        raise TrainingInputError(
-            "Training matrix is missing columns: " + ", ".join(missing_matrix_columns)
-        )
-
-    class_counts: dict[int, int] = {}
-    for row in rows:
-        target = int(row["target_is_win"])
-        class_counts[target] = class_counts.get(target, 0) + 1
-    if sorted(class_counts) != [0, 1]:
-        raise TrainingInputError(f"target_is_win must contain both classes 0 and 1: {class_counts}")
-    small_classes = {
-        target: count for target, count in class_counts.items() if count < config.min_class_count
+def _classification_metrics(
+    actual: np.ndarray,
+    probability: np.ndarray,
+) -> dict[str, Any]:
+    predicted = (probability >= 0.5).astype(np.int64)
+    metrics: dict[str, Any] = {
+        "rows": int(actual.size),
+        "positive_rows": int(np.sum(actual == 1)),
+        "negative_rows": int(np.sum(actual == 0)),
+        "accuracy": float(accuracy_score(actual, predicted)),
+        "balanced_accuracy": float(balanced_accuracy_score(actual, predicted)),
+        "precision": float(precision_score(actual, predicted, zero_division=0)),
+        "recall": float(recall_score(actual, predicted, zero_division=0)),
     }
-    if small_classes:
-        raise TrainingInputError(
-            f"target_is_win class counts below {config.min_class_count}: {small_classes}"
+    if len(np.unique(actual)) == 2:
+        metrics.update(
+            {
+                "roc_auc": float(roc_auc_score(actual, probability)),
+                "average_precision": float(average_precision_score(actual, probability)),
+                "log_loss": float(log_loss(actual, probability, labels=[0, 1])),
+            }
         )
+    else:
+        metrics.update({"roc_auc": None, "average_precision": None, "log_loss": None})
+    return metrics
 
 
-def resolve_feature_columns(manifest: dict, feature_set_id: str) -> list[str]:
-    manifest_columns = list(manifest.get("feature_columns", []))
-    selected = list(feature_columns_for_set(feature_set_id))
-    missing_required = [column for column in selected if column not in manifest_columns]
-    if missing_required:
-        raise TrainingInputError(
-            "Dataset manifest is missing required feature columns: "
-            + ", ".join(missing_required)
-        )
-    return selected
-
-
-def write_training_input_summary(
-    output_dir: Path,
-    model_id: str,
-    feature_set_id: str,
-    manifest: dict,
-    rows: list[dict],
-    encoder: FeatureEncoder,
-    feature_columns: list[str],
-) -> None:
-    class_counts: dict[str, int] = {}
-    for row in rows:
-        target = str(int(row["target_is_win"]))
-        class_counts[target] = class_counts.get(target, 0) + 1
-
-    summary = {
-        "trainer_version": TRAINER_VERSION,
-        "model_id": model_id,
-        "feature_set_id": feature_set_id,
-        "dataset_id": manifest.get("dataset_id"),
-        "target_family": manifest.get("target_family", "broker_1r"),
-        "source_run_ids": manifest.get("source_run_ids", []),
-        "config_ids": manifest.get("config_ids", []),
-        "row_count": len(rows),
-        "target_is_win_counts": class_counts,
-        "feature_columns": list(manifest.get("feature_columns", [])),
-        "selected_feature_columns": feature_columns,
-        "target_columns": list(manifest.get("target_columns", [])),
-        "encoded_feature_count": len(encoder.encoded_feature_names),
-        "encoded_feature_names": encoder.encoded_feature_names,
+def _regression_metrics(actual: np.ndarray, predicted: np.ndarray) -> dict[str, Any]:
+    correlation = None
+    if actual.size > 1 and float(np.std(actual)) > 0.0 and float(np.std(predicted)) > 0.0:
+        with np.errstate(divide="ignore", invalid="ignore"):
+            candidate = float(np.corrcoef(actual, predicted)[0, 1])
+        correlation = candidate if math.isfinite(candidate) else None
+    return {
+        "rows": int(actual.size),
+        "mae": float(mean_absolute_error(actual, predicted)),
+        "rmse": float(math.sqrt(mean_squared_error(actual, predicted))),
+        "actual_mean_profit": float(np.mean(actual)),
+        "predicted_mean_profit": float(np.mean(predicted)),
+        "correlation": correlation,
     }
-    summary_path = output_dir / "training_input_summary.json"
-    summary_path.write_text(json.dumps(summary, indent=2, sort_keys=True), encoding="utf-8")
 
 
-def write_validation_outputs(
-    output_dir: Path,
-    model_id: str,
-    manifest: dict,
-    split_metadata: dict,
-    baseline_metrics: dict,
-    xgboost_metrics: dict | None = None,
-    diagnostics: dict | None = None,
-    threshold_recommendation: dict | None = None,
-) -> None:
-    dataset_id = str(manifest.get("dataset_id", ""))
-    metrics = {
-        "trainer_version": TRAINER_VERSION,
-        "model_id": model_id,
-        "dataset_id": dataset_id,
-        "target_family": manifest.get("target_family", "broker_1r"),
-        "source_run_ids": manifest.get("source_run_ids", []),
-        "config_ids": manifest.get("config_ids", []),
-        "split_metadata": split_metadata,
-        "baseline_metrics": baseline_metrics,
-        "xgboost_metrics": xgboost_metrics,
-        "feature_diagnostics": diagnostics,
-        "threshold_recommendation": threshold_recommendation,
-    }
-    metrics_path = output_dir / "validation_metrics.json"
-    report_path = output_dir / "validation_report.md"
-    metrics_path.write_text(json.dumps(metrics, indent=2, sort_keys=True), encoding="utf-8")
-    report = render_validation_report(
-        model_id,
-        dataset_id,
-        split_metadata,
-        baseline_metrics,
-        xgboost_metrics=xgboost_metrics,
-        diagnostics=diagnostics,
-        threshold_recommendation=threshold_recommendation,
+def _label_column(target_family: str) -> str:
+    return "target_is_profit" if target_family == "broker_outcome" else "target_admitted"
+
+
+def _label_array(rows: list[dict[str, Any]], target_family: str) -> np.ndarray:
+    column = _label_column(target_family)
+    if any(row.get(column) is None for row in rows):
+        raise TrainingError(f"Training target contains null values: {column}")
+    return np.asarray([int(bool(row[column])) for row in rows], dtype=np.int64)
+
+
+def _profit_array(rows: list[dict[str, Any]]) -> np.ndarray:
+    if any(row.get("target_realized_profit") is None for row in rows):
+        raise TrainingError("Broker-outcome target contains null realized profit")
+    return np.asarray(
+        [float(row["target_realized_profit"]) for row in rows],
+        dtype=np.float64,
     )
-    report_path.write_text(report, encoding="utf-8")
 
 
-def write_prediction_parquet(rows: list[dict], output_path: Path) -> None:
+def _require_support(
+    rows: list[dict[str, Any]],
+    target_family: str,
+    min_rows: int,
+    min_class_count: int,
+) -> None:
+    if len(rows) < min_rows:
+        raise TrainingError(f"Not enough rows: {len(rows)} < {min_rows}")
+    labels = _label_array(rows, target_family)
+    counts = {int(label): int(np.sum(labels == label)) for label in np.unique(labels)}
+    if set(counts) != {0, 1}:
+        raise TrainingError(f"Classifier target requires both classes: {counts}")
+    if min(counts.values()) < min_class_count:
+        raise TrainingError(
+            f"Insufficient minority-class support: {min(counts.values())} < {min_class_count}"
+        )
+
+
+def _classifier(config) -> xgb.XGBClassifier:
+    return xgb.XGBClassifier(**asdict(config))
+
+
+def _regressor(config) -> xgb.XGBRegressor:
+    return xgb.XGBRegressor(**asdict(config))
+
+
+def _select(rows: list[dict[str, Any]], indices: list[int]) -> list[dict[str, Any]]:
+    return [rows[index] for index in indices]
+
+
+def _fit_and_score(
+    rows: list[dict[str, Any]],
+    train_indices: list[int],
+    test_indices: list[int],
+    target_family: str,
+    classifier_config,
+    regressor_config,
+) -> tuple[dict[str, Any], list[dict[str, Any]]]:
+    train_rows = _select(rows, train_indices)
+    test_rows = _select(rows, test_indices)
+    train_labels = _label_array(train_rows, target_family)
+    test_labels = _label_array(test_rows, target_family)
+    if len(np.unique(train_labels)) != 2:
+        raise TrainingError("A chronological training fold contains only one class")
+
+    encoder = FeatureEncoder.fit(train_rows, MODEL_FEATURE_COLUMNS)
+    train_matrix = encoder.transform(train_rows).matrix
+    test_matrix = encoder.transform(test_rows).matrix
+    classifier = _classifier(classifier_config)
+    classifier.fit(train_matrix, train_labels)
+    probabilities = classifier.predict_proba(test_matrix)[:, 1]
+    metrics: dict[str, Any] = {
+        "classification": _classification_metrics(test_labels, probabilities)
+    }
+    predicted_profit: np.ndarray | None = None
+    if target_family == "broker_outcome":
+        regressor = _regressor(regressor_config)
+        regressor.fit(train_matrix, _profit_array(train_rows))
+        predicted_profit = regressor.predict(test_matrix)
+        metrics["regression"] = _regression_metrics(
+            _profit_array(test_rows),
+            predicted_profit,
+        )
+
+    predictions: list[dict[str, Any]] = []
+    for row, probability, label, index in zip(
+        test_rows,
+        probabilities,
+        test_labels,
+        test_indices,
+    ):
+        prediction = {
+            "row_index": index,
+            "run_id": row["run_id"],
+            "signal_id": row["signal_id"],
+            "window_id": row["window_id"],
+            "trigger_broker_time": row["trigger_broker_time"],
+            "actual_label": int(label),
+            "predicted_probability": float(probability),
+        }
+        if predicted_profit is not None:
+            local_index = len(predictions)
+            prediction["actual_realized_profit"] = float(row["target_realized_profit"])
+            prediction["predicted_realized_profit"] = float(predicted_profit[local_index])
+        predictions.append(prediction)
+    return metrics, predictions
+
+
+def _write_tsv(path: Path, rows: list[dict[str, Any]]) -> None:
     if not rows:
-        raise TrainingInputError(f"No prediction rows to write: {output_path}")
-
-    output_path.parent.mkdir(parents=True, exist_ok=True)
-    fieldnames = list(rows[0].keys())
-    temp_file = tempfile.NamedTemporaryFile(
-        mode="w",
-        newline="",
-        encoding="utf-8",
-        suffix=".csv",
-        delete=False,
-    )
-    try:
-        with temp_file:
-            writer = csv.DictWriter(temp_file, fieldnames=fieldnames)
-            writer.writeheader()
-            writer.writerows(rows)
-
-        csv_path = Path(temp_file.name).resolve().as_posix().replace("'", "''")
-        parquet_path = output_path.resolve().as_posix().replace("'", "''")
-        connection = duckdb.connect(":memory:")
-        try:
-            connection.execute(
-                "COPY ("
-                f"SELECT * FROM read_csv_auto('{csv_path}', HEADER=TRUE)"
-                f") TO '{parquet_path}' (FORMAT PARQUET)"
-            )
-        finally:
-            connection.close()
-    finally:
-        temp_path = Path(temp_file.name)
-        if temp_path.exists():
-            temp_path.unlink()
+        path.write_text("", encoding="utf-8")
+        return
+    columns = list(rows[0])
+    with path.open("w", encoding="utf-8", newline="") as handle:
+        writer = csv.DictWriter(handle, fieldnames=columns, delimiter="\t", lineterminator="\n")
+        writer.writeheader()
+        writer.writerows(rows)
 
 
-def write_threshold_report(
-    output_dir: Path,
-    holdout_prediction_rows: list[dict],
-) -> dict | None:
-    threshold_rows, recommendation = build_threshold_report_rows(holdout_prediction_rows)
-    threshold_path = output_dir / "threshold_report.tsv"
-    threshold_path.write_text(threshold_report_tsv(threshold_rows), encoding="utf-8")
-    return recommendation
+def _render_report(manifest: dict[str, Any], metrics: dict[str, Any]) -> str:
+    holdout = metrics["holdout"]["classification"]
+    lines = [
+        f"# Offline Pivot Model: {manifest['model_id']}",
+        "",
+        "Approval: `OFFLINE_RESEARCH_ONLY`",
+        f"Dataset: `{manifest['dataset_id']}`",
+        f"Target family: `{manifest['target_family']}`",
+        f"Rows: `{manifest['training_rows']}`",
+        "",
+        "## Final Holdout",
+        "",
+        f"- Rows: `{holdout['rows']}`",
+        f"- ROC AUC: `{holdout['roc_auc']}`",
+        f"- Average precision: `{holdout['average_precision']}`",
+        f"- Balanced accuracy: `{holdout['balanced_accuracy']}`",
+        "",
+        "This command does not emit or approve an MT5 runtime artifact.",
+    ]
+    return "\n".join(lines) + "\n"
 
 
-def write_model_manifest(
+def train_candidate(
+    dataset_path: Path,
     output_dir: Path,
     model_id: str,
     feature_set_id: str,
-    manifest: dict,
-    encoder: FeatureEncoder,
-    feature_columns: list[str],
-    split_metadata: dict,
-    xgboost_metrics: dict,
-    threshold_recommendation: dict | None,
-) -> None:
-    classifier_metrics = xgboost_metrics["holdout"]["classifier"]["metrics"]
-    regressor_metrics = xgboost_metrics["holdout"]["regressor"]["metrics"]
-    model_manifest = {
-        "created_at": datetime.now(timezone.utc).isoformat(),
-        "research_only": True,
-        "mt5_readable_model": False,
-        "model_id": model_id,
-        "feature_set_id": feature_set_id,
-        "dataset_id": manifest.get("dataset_id"),
-        "target_family": manifest.get("target_family", "broker_1r"),
-        "source_run_ids": manifest.get("source_run_ids", []),
-        "config_ids": manifest.get("config_ids", []),
-        "phase1_schema_version": manifest.get("phase1_schema_version"),
-        "phase2_builder_version": manifest.get("builder_version"),
-        "phase3_trainer_version": TRAINER_VERSION,
-        "row_counts": manifest.get("row_counts", {}),
-        "feature_columns": list(manifest.get("feature_columns", [])),
-        "selected_feature_columns": feature_columns,
-        "target_columns": list(manifest.get("target_columns", [])),
-        "encoded_feature_count": len(encoder.encoded_feature_names),
-        "encoded_feature_names": encoder.encoded_feature_names,
-        "split_policy": split_metadata,
-        "model_params": xgboost_metrics["params"],
-        "validation_summary": {
-            "holdout_classifier_roc_auc": classifier_metrics.get("roc_auc"),
-            "holdout_classifier_f1": classifier_metrics.get("f1"),
-            "holdout_classifier_log_loss": classifier_metrics.get("log_loss"),
-            "holdout_regressor_rmse": regressor_metrics.get("rmse"),
-            "holdout_regressor_correlation": regressor_metrics.get("correlation"),
-            "holdout_regressor_directional_accuracy": regressor_metrics.get(
-                "directional_accuracy"
-            ),
-        },
-        "threshold_recommendation": threshold_recommendation,
-        "engine_contract": manifest.get("engine_contract", {}),
-        "runtime_approval": "RESEARCH_ONLY_NOT_APPROVED",
-        "artifacts": {
-            "feature_encoder": "feature_encoder.json",
-            "classifier_model": xgboost_metrics["model_files"]["classifier"],
-            "regressor_model": xgboost_metrics["model_files"]["regressor"],
-            "validation_metrics": "validation_metrics.json",
-            "validation_report": "validation_report.md",
-            "threshold_report": "threshold_report.tsv",
-            "holdout_predictions": "holdout_predictions.parquet",
-            "fold_predictions": "fold_predictions.parquet",
-        },
-    }
-    manifest_path = output_dir / "model_manifest.json"
-    manifest_path.write_text(json.dumps(model_manifest, indent=2, sort_keys=True), encoding="utf-8")
+    target_family: str,
+) -> dict[str, Any]:
+    dataset_manifest = _read_json(dataset_path / "dataset_manifest.json")
+    if int(dataset_manifest.get("schema_version", 0)) != SUPPORTED_SCHEMA_VERSION:
+        raise TrainingError("Dataset schema version is incompatible with active tooling")
+    if dataset_manifest.get("feature_set_id") != feature_set_id:
+        raise TrainingError("Dataset feature set differs from requested feature set")
+    if dataset_manifest.get("approval_state") != "OFFLINE_RESEARCH_ONLY":
+        raise TrainingError("Dataset is missing the offline-only research boundary")
+    manifest_target = str(dataset_manifest.get("target_family", ""))
+    if target_family and target_family != manifest_target:
+        raise TrainingError(
+            f"Dataset target family is {manifest_target}, requested {target_family}"
+        )
+    target_family = manifest_target
+    if target_family not in DATASET_TARGET_FAMILIES:
+        raise TrainingError(f"Unsupported dataset target family: {target_family}")
 
-
-def train_xgboost_models(
-    output_dir: Path,
-    rows: list[dict],
-    encoded_matrix: np.ndarray,
-    encoded_feature_names: list[str],
-    split_bundle: SplitBundle,
-    config: TrainingConfig,
-) -> tuple[dict, dict, list[dict], list[dict]]:
-    y_win = np.asarray([int(row["target_is_win"]) for row in rows], dtype=np.int64)
-    y_profit = np.asarray([float(row["target_profit_r"]) for row in rows], dtype=np.float64)
-
-    train_indices = np.asarray(split_bundle.train_indices, dtype=np.int64)
-    holdout_indices = np.asarray(split_bundle.holdout_indices, dtype=np.int64)
-    classifier = _fit_classifier(
-        encoded_matrix[train_indices],
-        y_win[train_indices],
-        encoded_matrix[holdout_indices],
-        y_win[holdout_indices],
-        config,
-    )
-    regressor = _fit_regressor(
-        encoded_matrix[train_indices],
-        y_profit[train_indices],
-        encoded_matrix[holdout_indices],
-        y_profit[holdout_indices],
-        config,
-    )
-
-    classifier_path = output_dir / "classifier_xgboost.json"
-    regressor_path = output_dir / "regressor_xgboost.json"
-    classifier.get_booster().save_model(str(classifier_path))
-    regressor.get_booster().save_model(str(regressor_path))
-
-    holdout_prediction_rows = _prediction_rows(
+    config = training_config_for_feature_set(feature_set_id)
+    rows = load_training_rows(dataset_path)
+    _require_support(rows, target_family, config.min_training_rows, config.min_class_count)
+    splits = build_time_splits(
         rows,
-        split_bundle.holdout_indices,
-        classifier,
-        regressor,
-        encoded_matrix,
-        split_name="holdout",
-        fold_index=None,
-    )
-    fold_metrics, fold_prediction_rows = _xgboost_fold_metrics(
-        rows,
-        encoded_matrix,
-        y_win,
-        y_profit,
-        split_bundle,
-        config,
+        holdout_fraction=config.holdout_fraction,
+        n_splits=config.walk_forward_splits,
+        gap=config.walk_forward_gap,
     )
 
-    xgb_metrics = {
-        "holdout": {
-            "classifier": _classifier_result(
-                classifier,
-                encoded_matrix[holdout_indices],
-                y_win[holdout_indices],
-            ),
-            "regressor": _regressor_result(
-                regressor,
-                encoded_matrix[holdout_indices],
-                y_profit[holdout_indices],
-            ),
-        },
+    fold_metrics: list[dict[str, Any]] = []
+    fold_predictions: list[dict[str, Any]] = []
+    for fold in splits.folds:
+        metrics, predictions = _fit_and_score(
+            rows,
+            fold.train_indices,
+            fold.test_indices,
+            target_family,
+            config.classifier,
+            config.regressor,
+        )
+        fold_metrics.append({"fold_index": fold.fold_index, **metrics})
+        fold_predictions.extend(
+            {"split": f"fold_{fold.fold_index}", **row} for row in predictions
+        )
+
+    holdout_metrics, holdout_predictions = _fit_and_score(
+        rows,
+        splits.train_indices,
+        splits.holdout_indices,
+        target_family,
+        config.classifier,
+        config.regressor,
+    )
+
+    final_train_rows = _select(rows, splits.train_indices)
+    final_encoder = FeatureEncoder.fit(final_train_rows, MODEL_FEATURE_COLUMNS)
+    final_matrix = final_encoder.transform(final_train_rows).matrix
+    classifier = _classifier(config.classifier)
+    classifier.fit(final_matrix, _label_array(final_train_rows, target_family))
+    classifier.get_booster().save_model(str(output_dir / "classifier.json"))
+    regressor_written = False
+    if target_family == "broker_outcome":
+        regressor = _regressor(config.regressor)
+        regressor.fit(final_matrix, _profit_array(final_train_rows))
+        regressor.get_booster().save_model(str(output_dir / "regressor.json"))
+        regressor_written = True
+    final_encoder.write_json(output_dir / "feature_encoder.json")
+
+    metrics_payload = {
+        "split_policy": splits.metadata,
         "folds": fold_metrics,
-        "model_files": {
-            "classifier": classifier_path.name,
-            "regressor": regressor_path.name,
-        },
-        "params": {
-            "classifier": asdict(config.classifier),
-            "regressor": asdict(config.regressor),
-        },
+        "holdout": holdout_metrics,
     }
-
-    classifier_importance = feature_importance(
-        classifier.feature_importances_,
-        encoded_feature_names,
+    (output_dir / "metrics.json").write_text(
+        json.dumps(metrics_payload, indent=2, sort_keys=True, default=str),
+        encoding="utf-8",
     )
-    regressor_importance = feature_importance(
-        regressor.feature_importances_,
-        encoded_feature_names,
+    _write_tsv(output_dir / "fold_predictions.tsv", fold_predictions)
+    _write_tsv(
+        output_dir / "holdout_predictions.tsv",
+        [{"split": "final_holdout", **row} for row in holdout_predictions],
     )
-    diagnostics = feature_diagnostics(
-        encoded_matrix,
-        encoded_feature_names,
-        classifier_importance,
-        regressor_importance,
-    )
-    return xgb_metrics, diagnostics, holdout_prediction_rows, fold_prediction_rows
 
-
-def _fit_classifier(
-    x_train: np.ndarray,
-    y_train: np.ndarray,
-    x_eval: np.ndarray,
-    y_eval: np.ndarray,
-    config: TrainingConfig,
-) -> XGBClassifier:
-    model = XGBClassifier(**_xgboost_params(asdict(config.classifier)))
-    model.fit(x_train, y_train, eval_set=[(x_eval, y_eval)], verbose=False)
-    return model
-
-
-def _fit_regressor(
-    x_train: np.ndarray,
-    y_train: np.ndarray,
-    x_eval: np.ndarray,
-    y_eval: np.ndarray,
-    config: TrainingConfig,
-) -> XGBRegressor:
-    model = XGBRegressor(**_xgboost_params(asdict(config.regressor)))
-    model.fit(x_train, y_train, eval_set=[(x_eval, y_eval)], verbose=False)
-    return model
-
-
-def _xgboost_params(params: dict) -> dict:
-    return {key: value for key, value in params.items() if value is not None}
-
-
-def _classifier_result(
-    model: XGBClassifier,
-    x_test: np.ndarray,
-    y_test: np.ndarray,
-) -> dict:
-    probabilities = model.predict_proba(x_test)[:, 1]
-    predictions = (probabilities >= 0.5).astype(np.int64)
-    return {
-        "metrics": classification_metrics(y_test, predictions, probabilities),
-        "best_iteration": _optional_int(getattr(model, "best_iteration", None)),
-        "evals_result": model.evals_result(),
+    model_manifest = {
+        "model_id": model_id,
+        "trainer_version": TRAINER_VERSION,
+        "created_at": datetime.now(UTC).isoformat(),
+        "dataset_id": dataset_manifest["dataset_id"],
+        "dataset_path": str(dataset_path),
+        "schema_version": SUPPORTED_SCHEMA_VERSION,
+        "feature_set_id": feature_set_id,
+        "feature_columns": list(MODEL_FEATURE_COLUMNS),
+        "target_family": target_family,
+        "training_rows": len(rows),
+        "train_partition_rows": len(splits.train_indices),
+        "holdout_rows": len(splits.holdout_indices),
+        "encoded_feature_count": len(final_encoder.encoded_feature_names),
+        "classifier_config": asdict(config.classifier),
+        "regressor_config": asdict(config.regressor) if regressor_written else None,
+        "approval_state": "OFFLINE_RESEARCH_ONLY",
+        "runtime_artifact_emitted": False,
     }
-
-
-def _regressor_result(
-    model: XGBRegressor,
-    x_test: np.ndarray,
-    y_test: np.ndarray,
-) -> dict:
-    predictions = model.predict(x_test)
-    return {
-        "metrics": regression_metrics(y_test, predictions),
-        "best_iteration": _optional_int(getattr(model, "best_iteration", None)),
-        "evals_result": model.evals_result(),
-    }
-
-
-def _xgboost_fold_metrics(
-    rows: list[dict],
-    encoded_matrix: np.ndarray,
-    y_win: np.ndarray,
-    y_profit: np.ndarray,
-    split_bundle: SplitBundle,
-    config: TrainingConfig,
-) -> tuple[list[dict], list[dict]]:
-    fold_metrics: list[dict] = []
-    prediction_rows: list[dict] = []
-    for fold in split_bundle.folds:
-        train_indices = np.asarray(fold.train_indices, dtype=np.int64)
-        test_indices = np.asarray(fold.test_indices, dtype=np.int64)
-        classifier = _fit_classifier(
-            encoded_matrix[train_indices],
-            y_win[train_indices],
-            encoded_matrix[test_indices],
-            y_win[test_indices],
-            config,
-        )
-        regressor = _fit_regressor(
-            encoded_matrix[train_indices],
-            y_profit[train_indices],
-            encoded_matrix[test_indices],
-            y_profit[test_indices],
-            config,
-        )
-        fold_metrics.append(
-            {
-                "fold_index": fold.fold_index,
-                "train_rows": len(fold.train_indices),
-                "test_rows": len(fold.test_indices),
-                "classifier": _classifier_result(
-                    classifier,
-                    encoded_matrix[test_indices],
-                    y_win[test_indices],
-                ),
-                "regressor": _regressor_result(
-                    regressor,
-                    encoded_matrix[test_indices],
-                    y_profit[test_indices],
-                ),
-            }
-        )
-        prediction_rows.extend(
-            _prediction_rows(
-                rows,
-                fold.test_indices,
-                classifier,
-                regressor,
-                encoded_matrix,
-                split_name="fold",
-                fold_index=fold.fold_index,
-            )
-        )
-    return fold_metrics, prediction_rows
-
-
-def _prediction_rows(
-    rows: list[dict],
-    indices: list[int],
-    classifier: XGBClassifier,
-    regressor: XGBRegressor,
-    encoded_matrix: np.ndarray,
-    split_name: str,
-    fold_index: int | None,
-) -> list[dict]:
-    index_array = np.asarray(indices, dtype=np.int64)
-    probabilities = classifier.predict_proba(encoded_matrix[index_array])[:, 1]
-    predicted_profit = regressor.predict(encoded_matrix[index_array])
-    output_rows: list[dict] = []
-    for position, row_index in enumerate(indices):
-        source = rows[row_index]
-        probability = float(probabilities[position])
-        output_rows.append(
-            {
-                "split": split_name,
-                "fold_index": "" if fold_index is None else fold_index,
-                "row_index": row_index,
-                "run_id": str(source.get("run_id", "")),
-                "config_id": str(source.get("config_id", "")),
-                "signal_id": str(source.get("signal_id", "")),
-                "source_key": str(source.get("source_key", "")),
-                "symbol": str(source.get("symbol", "")),
-                "entry_broker_time": str(source.get("entry_broker_time", "")),
-                "entry_analysis_time": str(source.get("entry_analysis_time", source.get("entry_time", ""))),
-                "entry_time": str(source.get("entry_analysis_time", source.get("entry_time", ""))),
-                "engine_id": source.get("engine_id", ""),
-                "engine_label": str(source.get("engine_label", "")),
-                "engine_timeframe": str(source.get("engine_timeframe", "")),
-                "extremum_cycle_id": str(source.get("extremum_cycle_id", "")),
-                "extremum_revision_id": str(source.get("extremum_revision_id", "")),
-                "extremum_attempt_id": str(source.get("extremum_attempt_id", "")),
-                "cycle_attempt_index": source.get("cycle_attempt_index", ""),
-                "revision_attempt_index": source.get("revision_attempt_index", ""),
-                "candidate_depth_percent": source.get("candidate_depth_percent", ""),
-                "reference_range_points": source.get("reference_range_points", ""),
-                "strategy_label": str(source.get("strategy_label", "")),
-                "direction": str(source.get("direction", "")),
-                "structure_0": str(source.get("structure_0", "")),
-                "structure_1": str(source.get("structure_1", "")),
-                "structure_2": str(source.get("structure_2", "")),
-                "fib_sl_band": str(source.get("fib_sl_band", "")),
-                "fib_entry_band": str(source.get("fib_entry_band", "")),
-                "high_chain_profile": str(source.get("high_chain_profile", "")),
-                "low_chain_profile": str(source.get("low_chain_profile", "")),
-                "previous_candle_profile": str(source.get("previous_candle_profile", "")),
-                "entry_session_bucket": str(source.get("entry_session_bucket", "")),
-                "entry_weekday": str(source.get("entry_weekday", "")),
-                "stoch_structure_raw_percent": source.get("stoch_structure_raw_percent", ""),
-                "b_percent_main_base": source.get("b_percent_main_base", ""),
-                "b_percent_main_base_slope": source.get("b_percent_main_base_slope", ""),
-                "b_percent_main_macro": source.get("b_percent_main_macro", ""),
-                "b_percent_main_macro_slope": source.get("b_percent_main_macro_slope", ""),
-                "session_id": str(source.get("session_id", "")),
-                "time_sin": source.get("time_sin", ""),
-                "time_cos": source.get("time_cos", ""),
-                "target_is_win": int(source["target_is_win"]),
-                "target_profit_r": float(source["target_profit_r"]),
-                "target_terminal_reason": str(source.get("target_terminal_reason", "")),
-                "xgb_win_probability": probability,
-                "xgb_predicted_is_win": int(probability >= 0.5),
-                "xgb_predicted_profit_r": float(predicted_profit[position]),
-            }
-        )
-    return output_rows
-
-
-def _optional_int(value: object) -> int | None:
-    if value is None:
-        return None
-    return int(value)
+    (output_dir / "model_manifest.json").write_text(
+        json.dumps(model_manifest, indent=2, sort_keys=True),
+        encoding="utf-8",
+    )
+    (output_dir / "model_report.md").write_text(
+        _render_report(model_manifest, metrics_payload),
+        encoding="utf-8",
+    )
+    return model_manifest
 
 
 def main() -> int:
     parser = build_parser()
     args = parser.parse_args()
     try:
-        dataset_path = resolve_dataset_path(args)
-        manifest = load_dataset_manifest(dataset_path)
-        config = training_config_for_feature_set(args.feature_set_id)
-        rows = load_training_rows(dataset_path)
-        validate_training_rows(rows, manifest, config, args.feature_set_id)
-        feature_columns = resolve_feature_columns(manifest, args.feature_set_id)
-        encoder = FeatureEncoder.fit(rows, feature_columns)
-        encoded = encoder.transform(rows)
-        output_dir = prepare_output_dir(Path(args.output_root), args.model_id, args.overwrite)
-        encoder.write_json(output_dir / "feature_encoder.json")
-        write_training_input_summary(
+        dataset_path = _resolve_dataset_path(args)
+        output_dir = _prepare_model_dir(Path(args.model_root), args.model_id, args.overwrite)
+        manifest = train_candidate(
+            dataset_path,
             output_dir,
             args.model_id,
             args.feature_set_id,
-            manifest,
-            rows,
-            encoder,
-            feature_columns,
+            args.target_family,
         )
-        split_bundle = build_time_splits(
-            rows,
-            holdout_fraction=config.holdout_fraction,
-            n_splits=config.walk_forward_splits,
-            gap=config.walk_forward_gap,
-        )
-        baseline_metrics = evaluate_baselines(rows, encoded.matrix, split_bundle)
-        (
-            xgboost_metrics,
-            diagnostics,
-            holdout_prediction_rows,
-            fold_prediction_rows,
-        ) = train_xgboost_models(
-            output_dir,
-            rows,
-            encoded.matrix,
-            encoded.encoded_feature_names,
-            split_bundle,
-            config,
-        )
-        write_prediction_parquet(
-            holdout_prediction_rows,
-            output_dir / "holdout_predictions.parquet",
-        )
-        write_prediction_parquet(
-            fold_prediction_rows,
-            output_dir / "fold_predictions.parquet",
-        )
-        threshold_recommendation = write_threshold_report(output_dir, holdout_prediction_rows)
-        write_model_manifest(
-            output_dir,
-            args.model_id,
-            args.feature_set_id,
-            manifest,
-            encoder,
-            feature_columns,
-            split_bundle.metadata,
-            xgboost_metrics,
-            threshold_recommendation,
-        )
-        write_validation_outputs(
-            output_dir,
-            args.model_id,
-            manifest,
-            split_bundle.metadata,
-            baseline_metrics,
-            xgboost_metrics=xgboost_metrics,
-            diagnostics=diagnostics,
-            threshold_recommendation=threshold_recommendation,
-        )
-    except (TrainingInputError, ValueError) as exc:
-        parser.exit(1, f"training input failed: {exc}\n")
+    except (TrainingError, ValueError, json.JSONDecodeError, duckdb.Error, xgb.core.XGBoostError) as exc:
+        parser.exit(1, f"offline pivot model training failed: {exc}\n")
 
     print(
-        "encoding ok | "
-        f"trainer={TRAINER_VERSION} | "
-        f"dataset={manifest.get('dataset_id', dataset_path.name)} | "
-        f"target_family={manifest.get('target_family', 'broker_1r')} | "
-        f"model_id={args.model_id} | "
-        f"rows={len(rows)} | "
-        f"encoded_features={encoded.matrix.shape[1]} | "
-        f"holdout_rows={len(split_bundle.holdout_indices)} | "
-        f"folds={len(split_bundle.folds)} | "
-        f"xgboost=trained | "
-        f"threshold_candidate={threshold_recommendation is not None}"
+        "offline pivot model training ok | "
+        f"model={manifest['model_id']} | target={manifest['target_family']} | "
+        f"rows={manifest['training_rows']} | output={output_dir}"
     )
     return 0
 

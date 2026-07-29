@@ -1,0 +1,8 @@
+schema_version	run_id	config_id	window_id	symbol	pivot_timeframe	active_bar_open_broker_time	level_id	raw_price	trade_price	level_order
+9	schema_v9_pivot_fractal	cfg_fixture	win_m15_202601121000	EURUSD	PERIOD_M15	2026.01.12 10:00:00	S3	1.0856666667	1.0856700000	0
+9	schema_v9_pivot_fractal	cfg_fixture	win_m15_202601121000	EURUSD	PERIOD_M15	2026.01.12 10:00:00	S2	1.0903333333	1.0903300000	1
+9	schema_v9_pivot_fractal	cfg_fixture	win_m15_202601121000	EURUSD	PERIOD_M15	2026.01.12 10:00:00	S1	1.0956666667	1.0956700000	2
+9	schema_v9_pivot_fractal	cfg_fixture	win_m15_202601121000	EURUSD	PERIOD_M15	2026.01.12 10:00:00	PP	1.1003333333	1.1003300000	3
+9	schema_v9_pivot_fractal	cfg_fixture	win_m15_202601121000	EURUSD	PERIOD_M15	2026.01.12 10:00:00	R1	1.1056666667	1.1056700000	4
+9	schema_v9_pivot_fractal	cfg_fixture	win_m15_202601121000	EURUSD	PERIOD_M15	2026.01.12 10:00:00	R2	1.1103333333	1.1103300000	5
+9	schema_v9_pivot_fractal	cfg_fixture	win_m15_202601121000	EURUSD	PERIOD_M15	2026.01.12 10:00:00	R3	1.1156666667	1.1156700000	6

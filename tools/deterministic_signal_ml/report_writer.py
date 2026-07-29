@@ -1,4 +1,4 @@
-"""Compact report helpers for schema v8 research datasets."""
+"""Compact quality and manifest writers for pivot-fractal V9 datasets."""
 
 from __future__ import annotations
 
@@ -9,13 +9,22 @@ from typing import Any
 
 import duckdb
 
-from schema_contract import CATEGORICAL_COLUMNS, DatasetColumnGroups, PATH_RATIO_OUTCOME_COLUMNS
+from schema_contract import (
+    CATEGORICAL_COLUMNS,
+    DatasetColumnGroups,
+    FUTURE_ONLY_COLUMNS,
+    NUMERIC_FEATURE_COLUMNS,
+    SUPPORTED_ENGINE_LABEL,
+)
 
 
-BUILDER_VERSION = "extremum_engine.schema_v8_dataset_builder.v1"
+BUILDER_VERSION = "pivot_fractal.schema_v9_dataset_builder.v1"
 
 
-def _fetch_dicts(connection: duckdb.DuckDBPyConnection, sql: str) -> list[dict[str, Any]]:
+def _fetch_dicts(
+    connection: duckdb.DuckDBPyConnection,
+    sql: str,
+) -> list[dict[str, Any]]:
     relation = connection.execute(sql)
     columns = [column[0] for column in relation.description]
     return [dict(zip(columns, row)) for row in relation.fetchall()]
@@ -31,16 +40,18 @@ def build_quality_payload(
     null_counts = _fetch_dicts(
         connection,
         " UNION ALL ".join(
-            f"SELECT '{column}' AS column_name, COUNT(*) - COUNT({column}) AS null_rows FROM training_matrix"
+            f"SELECT '{column}' AS column_name, COUNT(*) - COUNT(\"{column}\") AS null_rows "
+            "FROM training_matrix"
             for column in feature_columns
         ),
     )
-    categorical = set(CATEGORICAL_COLUMNS)
-    numeric_features = [column for column in feature_columns if column not in categorical]
+    numeric_features = [column for column in NUMERIC_FEATURE_COLUMNS if column in feature_columns]
     feature_ranges = _fetch_dicts(
         connection,
         " UNION ALL ".join(
-            f"SELECT '{column}' AS column_name, MIN({column}) AS min_value, MAX({column}) AS max_value, AVG({column}) AS avg_value FROM training_matrix"
+            f"SELECT '{column}' AS column_name, MIN(\"{column}\") AS min_value, "
+            f"MAX(\"{column}\") AS max_value, AVG(\"{column}\") AS avg_value "
+            "FROM training_matrix"
             for column in numeric_features
         ),
     )
@@ -50,6 +61,9 @@ def build_quality_payload(
         for warning in validation.warnings
     ]
     blocking_nulls = sum(int(row["null_rows"] or 0) for row in null_counts)
+    target_distribution_column = (
+        "target_is_profit" if target_family == "broker_outcome" else "target_admitted"
+    )
     return {
         "status": "OK" if not warnings and blocking_nulls == 0 else "OK_WITH_WARNINGS",
         "target_family": target_family,
@@ -58,47 +72,47 @@ def build_quality_payload(
         "row_counts": counts,
         "source_runs": [validation.run_id for validation in validations],
         "config_ids": sorted({validation.config_id for validation in validations}),
-        "path_label_columns_present": True,
         "join_integrity": {
-            "duplicate_feature_ids": sum(validation.duplicate_feature_ids for validation in validations),
-            "duplicate_outcome_ids": sum(validation.duplicate_outcome_ids for validation in validations),
-            "missing_outcomes": sum(validation.missing_outcomes for validation in validations),
-            "missing_features": sum(validation.missing_features for validation in validations),
+            "duplicate_signal_ids": 0,
+            "missing_feature_contexts": 0,
+            "orphan_outcomes": 0,
+            "outcomes_without_fill": 0,
         },
-        "genealogy": _fetch_dicts(
+        "pivot_frequency": _fetch_dicts(
             connection,
             """
-SELECT
-  COUNT(DISTINCT extremum_cycle_id) AS distinct_cycles,
-  COUNT(DISTINCT revision_id) AS distinct_revisions,
-  COUNT(DISTINCT attempt_id) AS distinct_attempts,
-  SUM(CASE WHEN simulated_path_status = 'CENSORED' THEN 1 ELSE 0 END) AS censored_attempts,
-  SUM(CASE WHEN broker_entry_confirmed = 1 THEN 1 ELSE 0 END) AS broker_entered_attempts,
-  SUM(CASE WHEN broker_close_confirmed = 1 THEN 1 ELSE 0 END) AS broker_closed_attempts,
-  MIN(candidate_depth_percent) AS min_depth_percent,
-  MAX(candidate_depth_percent) AS max_depth_percent
-FROM engine_attempts
+SELECT pivot_timeframe, level_id, direction, COUNT(*) AS attempts
+FROM signal_attempts
+GROUP BY 1, 2, 3
+ORDER BY 1, 2, 3
+""",
+        ),
+        "admission_denials": _fetch_dicts(
+            connection,
+            """
+SELECT block_source, block_reason, COUNT(*) AS attempts
+FROM signal_attempts
+WHERE attempt_status <> 'SENT'
+GROUP BY 1, 2
+ORDER BY attempts DESC, block_source, block_reason
+""",
+        ),
+        "broker_outcomes": _fetch_dicts(
+            connection,
+            """
+SELECT terminal_reason, COUNT(*) AS outcomes,
+       AVG(realized_profit) AS mean_realized_profit,
+       SUM(realized_profit) AS total_realized_profit,
+       AVG(duration_seconds) AS mean_duration_seconds
+FROM signal_outcomes
+GROUP BY 1
+ORDER BY 1
 """,
         ),
         "target_distribution": _fetch_dicts(
             connection,
-            "SELECT target_terminal_reason AS terminal_reason, COUNT(*) AS rows FROM training_matrix GROUP BY 1 ORDER BY 1",
-        ),
-        "win_distribution": _fetch_dicts(
-            connection,
-            "SELECT target_is_win, COUNT(*) AS rows FROM training_matrix GROUP BY 1 ORDER BY 1",
-        ),
-        "broker_check_support": _fetch_dicts(
-            connection,
-            """
-SELECT
-  COUNT(*) AS rows,
-  COUNT(DISTINCT extremum_attempt_id) AS checked_attempts,
-  SUM(CASE WHEN account_margin_mode_supported = 1 THEN 1 ELSE 0 END) AS hedging_rows,
-  SUM(CASE WHEN order_check_performed = 1 AND order_check_allowed = 1 THEN 1 ELSE 0 END) AS order_check_allowed_rows,
-  SUM(CASE WHEN allowed = 0 THEN 1 ELSE 0 END) AS blocked_rows
-FROM execution_checks
-""",
+            f"SELECT {target_distribution_column} AS target_value, COUNT(*) AS rows "
+            f"FROM training_matrix GROUP BY 1 ORDER BY 1",
         ),
         "feature_null_counts": null_counts,
         "feature_ranges": feature_ranges,
@@ -120,60 +134,33 @@ def write_dataset_manifest(
     payload = {
         "dataset_id": dataset_id,
         "builder_version": BUILDER_VERSION,
-        "target_family": target_family,
-        "feature_set_id": feature_set_id,
         "created_at": datetime.now(UTC).isoformat(),
-        "phase1_schema_version": schema_version,
-        "feature_schema_version": schema_version,
+        "schema_version": schema_version,
+        "engine_label": SUPPORTED_ENGINE_LABEL,
+        "feature_set_id": feature_set_id,
+        "target_family": target_family,
         "source_run_ids": [validation.run_id for validation in validations],
         "source_run_folders": [str(validation.run_path) for validation in validations],
         "config_ids": sorted({validation.config_id for validation in validations}),
         "row_counts": counts,
         "output_files": output_files,
         "feature_columns": list(groups.feature_columns),
+        "categorical_columns": [
+            column for column in groups.feature_columns if column in CATEGORICAL_COLUMNS
+        ],
         "target_columns": list(groups.target_columns),
-        "identity_columns": [
-            "schema_version",
-            "run_id",
-            "config_id",
-            "symbol",
-            "engine_id",
-            "engine_timeframe",
-            "extremum_cycle_id",
-            "extremum_revision_id",
-            "extremum_attempt_id",
-            "signal_id",
-        ],
+        "identity_columns": list(groups.identity_columns),
         "audit_columns": list(groups.audit_columns),
-        "path_ratio_outcome_columns": list(PATH_RATIO_OUTCOME_COLUMNS),
-        "excluded_from_training_columns": [
-            "terminal_broker_time",
-            "terminal_analysis_time",
-            "terminal_reason",
-            "profit_r",
-            "duration_seconds",
-            "duration_m1_bars",
-            "entry_price",
-            "close_price",
-            "net_profit",
-            "cycle_finalized_broker_time",
-            "final_depth_percent",
-            "cycle_status",
-            *PATH_RATIO_OUTCOME_COLUMNS,
-        ],
-        "engine_contract": {
-            "engine_id": 1,
-            "engine_label": "EXTREMUM_V1",
-            "engine_timeframe": "PERIOD_M1",
-            "cycle_group_columns": ["symbol", "engine_timeframe", "extremum_cycle_id"],
-            "point_in_time_only": True,
-        },
+        "excluded_future_columns": list(FUTURE_ONLY_COLUMNS),
+        "identity_group_columns": ["run_id", "symbol", "window_id"],
         "time_contract": {
-            "causal_order_column": "entry_broker_time",
-            "calendar_feature_column": "entry_analysis_time",
+            "causal_order_column": "trigger_broker_time",
+            "calendar_feature_column": "trigger_analysis_time",
             "conversion": "analysis_time=broker_time+offset_minutes",
         },
-        "runtime_approval": "RESEARCH_ONLY_NOT_APPROVED",
+        "outcome_contract": "broker-confirmed fill and close only",
+        "approval_state": "OFFLINE_RESEARCH_ONLY",
+        "runtime_artifact_emitted": False,
     }
     (output_dir / "dataset_manifest.json").write_text(
         json.dumps(payload, indent=2, sort_keys=True),
@@ -183,7 +170,7 @@ def write_dataset_manifest(
 
 def write_quality_json(output_dir: Path, quality_payload: dict[str, Any]) -> None:
     (output_dir / "dataset_quality.json").write_text(
-        json.dumps(quality_payload, indent=2, sort_keys=True),
+        json.dumps(quality_payload, indent=2, sort_keys=True, default=str),
         encoding="utf-8",
     )
 
@@ -198,17 +185,25 @@ def write_dataset_report(
         "",
         f"Status: `{quality_payload['status']}`",
         f"Target family: `{quality_payload['target_family']}`",
+        "Approval: `OFFLINE_RESEARCH_ONLY`",
         "",
         "## Row Counts",
         "",
     ]
     lines.extend(
-        f"- `{table}`: {count}"
-        for table, count in quality_payload["row_counts"].items()
+        f"- `{table}`: {count}" for table, count in quality_payload["row_counts"].items()
     )
     lines.extend(["", "## Warnings", ""])
     lines.extend(
-        [f"- {warning}" for warning in quality_payload["warnings"]]
-        or ["None."]
+        [f"- {warning}" for warning in quality_payload["warnings"]] or ["None."]
     )
-    (output_dir / "dataset_report.md").write_text("\n".join(lines) + "\n", encoding="utf-8")
+    lines.extend(
+        [
+            "",
+            "Trailing and close facts are retained for labels and audits only; they are not model features.",
+        ]
+    )
+    (output_dir / "dataset_report.md").write_text(
+        "\n".join(lines) + "\n",
+        encoding="utf-8",
+    )

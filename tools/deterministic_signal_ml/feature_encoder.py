@@ -1,4 +1,4 @@
-"""Deterministic feature encoding for Phase 3 model training."""
+"""Deterministic numeric and one-hot encoding for offline pivot research."""
 
 from __future__ import annotations
 
@@ -30,32 +30,32 @@ class FeatureEncoder:
     missing_category: str = MISSING_CATEGORY
 
     @classmethod
-    def fit(cls, rows: list[dict[str, Any]], feature_columns: list[str]) -> "FeatureEncoder":
+    def fit(
+        cls,
+        rows: list[dict[str, Any]],
+        feature_columns: tuple[str, ...],
+    ) -> "FeatureEncoder":
+        if not rows:
+            raise ValueError("Cannot fit feature encoder without rows")
         categorical_set = set(CATEGORICAL_COLUMNS)
         categorical_columns = [column for column in feature_columns if column in categorical_set]
         numeric_columns = [column for column in feature_columns if column not in categorical_set]
-
         categories: dict[str, list[str]] = {}
         for column in categorical_columns:
-            values: set[str] = set()
-            has_missing = False
-            for row in rows:
-                value = row.get(column)
-                if value is None or value == "":
-                    has_missing = True
-                else:
-                    values.add(str(value))
-            ordered_values = sorted(values)
-            if has_missing:
-                ordered_values = [MISSING_CATEGORY] + ordered_values
-            categories[column] = ordered_values
+            values = {
+                MISSING_CATEGORY
+                if row.get(column) in (None, "")
+                else str(row[column])
+                for row in rows
+            }
+            values.add(MISSING_CATEGORY)
+            categories[column] = sorted(values)
 
-        encoded_feature_names: list[str] = []
-        encoded_feature_names.extend(numeric_columns)
+        encoded_feature_names = list(numeric_columns)
         for column in categorical_columns:
-            for category in categories[column]:
-                encoded_feature_names.append(f"{column}={category}")
-
+            encoded_feature_names.extend(
+                f"{column}={category}" for category in categories[column]
+            )
         return cls(
             numeric_columns=numeric_columns,
             categorical_columns=categorical_columns,
@@ -69,16 +69,23 @@ class FeatureEncoder:
             output_index = 0
             for column in self.numeric_columns:
                 value = row.get(column)
-                matrix[row_index, output_index] = np.nan if value is None else float(value)
+                matrix[row_index, output_index] = (
+                    np.nan if value in (None, "") else float(value)
+                )
                 output_index += 1
-
             for column in self.categorical_columns:
                 raw_value = row.get(column)
-                category = self.missing_category if raw_value is None or raw_value == "" else str(raw_value)
-                for expected_category in self.categories[column]:
-                    matrix[row_index, output_index] = 1.0 if category == expected_category else 0.0
+                category = (
+                    self.missing_category
+                    if raw_value in (None, "")
+                    else str(raw_value)
+                )
+                known_categories = self.categories[column]
+                if category not in known_categories:
+                    category = self.missing_category
+                for expected in known_categories:
+                    matrix[row_index, output_index] = 1.0 if category == expected else 0.0
                     output_index += 1
-
         return EncodedFeatures(matrix=matrix, encoded_feature_names=self.encoded_feature_names)
 
     def to_dict(self) -> dict[str, Any]:
@@ -91,4 +98,7 @@ class FeatureEncoder:
         }
 
     def write_json(self, path: Path) -> None:
-        path.write_text(json.dumps(self.to_dict(), indent=2, sort_keys=True), encoding="utf-8")
+        path.write_text(
+            json.dumps(self.to_dict(), indent=2, sort_keys=True),
+            encoding="utf-8",
+        )

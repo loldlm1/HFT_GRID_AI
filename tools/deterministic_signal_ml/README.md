@@ -1,8 +1,9 @@
-# Extremum Engine Research Tooling
+# Pivot Fractal V9 Research Tooling
 
-This directory validates schema v8 MQL5 exports, builds typed Parquet tables,
-produces DuckDB depth/profitability audits, and prepares leak-safe XGBoost
-research. It does not call MT5, place trades, or approve a runtime model.
+This directory validates strict `PIVOT_FRACTAL_V1` exports, builds typed
+Parquet tables with DuckDB, produces deterministic pivot lifecycle audits, and
+prepares offline XGBoost research. It does not call MT5, place trades, export a
+runtime model, or approve live inference.
 
 ## Setup
 
@@ -11,101 +12,101 @@ python3 -m venv .venv
 .venv/bin/python -m pip install -r tools/deterministic_signal_ml/requirements.txt
 ```
 
-The dependency versions are pinned. Generated datasets, audits, models, and
-exports live under `artifacts/` and remain ignored by git.
+The existing dependency versions remain pinned. Generated datasets, audits,
+and models belong under `artifacts/` and remain ignored by git.
 
-## Schema V8 Inputs
+## Strict V9 Inputs
 
-Each run contains manifest/summary files plus:
+Each run must contain exactly these nine tables with the frozen exporter
+headers:
 
 - `run_manifest.tsv`
-- `engine_cycles.tsv`
-- `engine_revisions.tsv`
-- `engine_attempts.tsv`
-- `execution_checks.tsv`
+- `pivot_windows.tsv`
+- `pivot_levels.tsv`
+- `signal_attempts.tsv`
 - `signal_features.tsv`
+- `execution_checks.tsv`
+- `trailing_events.tsv`
 - `signal_outcomes.tsv`
 - `run_summary.tsv`
 
-The validator checks row counts, unique IDs, parent joins, monotonic revision
-indexes, immutable Fibonacci anchors, raw numeric depth, simulated provenance,
-broker/analysis timestamp conversion, mandatory attempt observations, send-check
-ordering, and broker outcome evidence. Historical schemas require their matching
-historical code revision; current tooling does not adapt or migrate them.
+The validator requires schema `9`, engine `PIVOT_FRACTAL_V1`, feature set
+`schema_v9_pivot_fractal_xgb`, unique window/level/signal identities, seven
+ordered levels per valid window, exactly six feature contexts per attempt,
+causal broker/analysis timestamp conversion, send-chain integrity, ticket-first
+trailing ownership, and broker-confirmed fill plus close evidence for every
+outcome. Older schema versions fail closed and require their historical code
+revision.
 
-## Build
+Validate a run without writing artifacts:
 
 ```bash
 .venv/bin/python tools/deterministic_signal_ml/build_dataset.py \
-  --runs-root <runs_root> \
-  --run-id <schema_v8_run_id> \
-  --dataset-id <schema_v8_dataset_id> \
-  --schema-version 8 \
-  --feature-set-id schema_v8_extremum_engine_xgb \
-  --target-family broker_1r \
-  --overwrite
+  --runs-root <PivotFractalV9/runs> \
+  --run-id <v9_run_id> \
+  --validate-only
 ```
 
-Use `--validate-only` before large builds. Use
-`--target-family engine_simulated_1r` for a separate simulation target lane.
-Never combine simulated and broker targets.
+## Dataset Build
 
-Schema v8 outputs mirror the eight run tables as typed Parquet, add
-`training_matrix.parquet`, and include compact JSON/Markdown quality reports.
-Broker time owns causal ordering and duration; analysis time owns normalized
-calendar features and pattern matching.
-
-## Human Audit
+Build the broker-outcome matrix used for profitability research:
 
 ```bash
-.venv/bin/python tools/deterministic_signal_ml/extremum_engine_audit.py \
-  --dataset-id <schema_v8_dataset_id> \
-  --audit-id <schema_v8_audit_id> \
+.venv/bin/python tools/deterministic_signal_ml/build_dataset.py \
+  --runs-root <PivotFractalV9/runs> \
+  --run-id <v9_run_id> \
+  --dataset-id <v9_dataset_id> \
+  --target-family broker_outcome \
   --overwrite
 ```
 
-Outputs:
+Use `--target-family admission` to include denied and unfilled attempts for a
+separate admission analysis. Broker-outcome training excludes those attempts.
+Repeat `--run-id` to assemble multiple validated runs.
 
-- `fibonacci_proximity.tsv`
-- `attempt_profitability.tsv`
-- `cycle_sequences.tsv`
-- `stability.tsv`
-- `audit_metadata.json`
-- `audit_report.md`
+Outputs contain normalized Parquet copies of all nine tables plus
+`training_matrix.parquet`, `dataset_manifest.json`, `dataset_quality.json`, and
+`dataset_report.md`. Model features are trigger-time facts only. Window terminal
+state, execution results, trailing, fills, closes, duration, and realized profit
+remain labels or audit facts.
 
-The default analytics levels are `0, 23.6, 38.2, 50, 61.8, 78.6, 100,
-123.6, 138.2, 161.8, 178.6, 200`. Raw depth is retained and extensions are not
-clamped. Range fields are price distance in points, not volume.
+## Pivot Audit
 
-## XGBoost Research
+```bash
+.venv/bin/python tools/deterministic_signal_ml/pivot_fractal_audit.py \
+  --dataset-id <v9_dataset_id> \
+  --audit-id <v9_audit_id> \
+  --overwrite
+```
+
+The audit reports window validity, the complete level/direction matrix,
+same-tick confluence, admission denials, milestone progression, structural
+break-even separately from realized profit, broker TP/SL/other outcomes,
+duration, spread, and adverse entry slippage. It never manufactures a simulated
+path label.
+
+## Offline XGBoost
 
 ```bash
 .venv/bin/python tools/deterministic_signal_ml/train_model.py \
-  --dataset-id <schema_v8_dataset_id> \
-  --model-id <schema_v8_model_id> \
-  --feature-set-id schema_v8_extremum_engine_xgb \
+  --dataset-id <v9_dataset_id> \
+  --model-id <v9_model_id> \
   --overwrite
 ```
 
-The feature set contains only attempt-time facts. Chronological splits group
-all attempts from `symbol + engine_timeframe + extremum_cycle_id` together.
-Training fails with an actionable error when row or class support is too small.
-
-Model export remains research-only. Schema v8 exports use
-`runtime_approval=RESEARCH_ONLY_NOT_APPROVED`; the MQL5 runtime rejects them.
-Old multi-strategy artifacts are incompatible with `EXTREMUM_V1`.
+Chronological holdout and walk-forward folds keep every
+`(run_id, symbol, window_id)` group in one partition. Model folders are marked
+`OFFLINE_RESEARCH_ONLY`; no MT5 runtime artifact or deployment command exists.
 
 ## Validation
 
 ```bash
-.venv/bin/python -m compileall tools/deterministic_signal_ml
+.venv/bin/python -m compileall -q tools/deterministic_signal_ml
 .venv/bin/python -m unittest discover \
   -s tools/deterministic_signal_ml/tests -p 'test_*.py'
 ```
 
-The compact fixtures cover 39% near 38.2, 63% near 61.8, frozen-anchor and
-orphan failures, separate outcome lanes, cycle sequences, cycle-group splits,
-and fail-closed artifact compatibility.
-
-The complete operator flow and human Strategy Tester matrix are in
-`docs/workflows/extremum-engine-statistics-flow.md`.
+The three test modules cover exact headers and keys, six-context completeness,
+duplicate and orphan rejection, future-feature exclusion, chronological window
+grouping, compact dataset assembly, broker-only outcomes, trailing semantics,
+and deterministic audit output.

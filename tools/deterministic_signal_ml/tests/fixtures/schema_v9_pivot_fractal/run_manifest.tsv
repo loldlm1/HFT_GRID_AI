@@ -1,0 +1,24 @@
+schema_version	key	value
+9	run_id	schema_v9_pivot_fractal
+9	config_id	cfg_fixture
+9	started_broker_time	2026.01.12 09:59:50
+9	symbol	EURUSD
+9	chart_period	PERIOD_M1
+9	engine_id	1
+9	engine_label	PIVOT_FRACTAL_V1
+9	pivot_timeframes	M15,M30,H1,H4,D1
+9	feature_context_timeframes	M1,M15,M30,H1,H4,D1
+9	pivot_formula	CLASSIC_PP_S1_S3_R1_R3
+9	source_policy	immediately_previous_completed_broker_candle_shift_1
+9	identity_policy	symbol,timeframe,active_bar_open,level_first_touch_once
+9	trigger_policy	previous_completed_m1_bid_close_side_live_bid_touch
+9	execution_price_policy	buy_ask_sell_bid_market_deal
+9	time_policy	broker_time_causal_analysis_time_export_only
+9	broker_session	FIXED_TIME_SESSIONS
+9	lot_mode	EXECUTION_LOT_FIXED_SIZE
+9	lot_size	0.10000000
+9	stoch_structure	5,3,3;slots=0,1,2
+9	b_percent	iBands;period=21;deviation=2.0000;PRICE_CLOSE;shifts=0..5;shift0=trigger_bid;raw
+9	feature_set_id	schema_v9_pivot_fractal_xgb
+9	outcome_policy	broker_confirmed_only
+9	research_approval_state	OFFLINE_RESEARCH_ONLY
