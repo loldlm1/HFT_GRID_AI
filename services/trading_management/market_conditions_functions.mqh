@@ -23,8 +23,8 @@ bool BrokerSessionContainsTime(const datetime day_anchor,
 {
   long from_seconds = (long)from_time % 86400;
   long to_seconds = (long)to_time % 86400;
-  datetime session_from = day_anchor + from_seconds;
-  datetime session_to = day_anchor + to_seconds;
+  datetime session_from = (datetime)(day_anchor + from_seconds);
+  datetime session_to = (datetime)(day_anchor + to_seconds);
   if(to_seconds <= from_seconds)
     session_to += 86400;
   return (broker_time >= session_from && broker_time < session_to);

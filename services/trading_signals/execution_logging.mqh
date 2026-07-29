@@ -7,6 +7,7 @@
 const string QUERY_DEBUG_FILENAME = "query_debug.txt";
 const int QUERY_DEBUG_STATE_RESERVE = 64;
 const int QUERY_DEBUG_THROTTLE_RESERVE = 64;
+const int QUERY_DEBUG_GUARDRAIL_THROTTLE_SECONDS = 60;
 const int QUERY_DEBUG_STATE_MAX = 512;
 
 bool g_query_debug_session_header_logged = false;

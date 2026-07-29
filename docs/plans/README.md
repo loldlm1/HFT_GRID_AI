@@ -2,9 +2,7 @@
 
 ## Active
 
-- `docs/plans/market-data-broker-executor-simplification-plan.md` is the active
-  ordered plan. Complete validation and one commit for each sprint before
-  advancing.
+- None.
 
 Create a new explicitly invoked `$planner` plan for any future substantial
 strategy, architecture, live-rollout, schema, or repository-wide change.
@@ -15,6 +13,10 @@ Completed and superseded plans live under `docs/plans/archive/`. They document
 their historical code and schema revisions only. Pre-v8 execution, ML,
 protection, session, licensing, and multi-leg plans are not active
 implementation guidance.
+
+- `docs/plans/archive/market-data-broker-executor-simplification-2026-07-28/`
+  records the completed schema v8 market-data collector and broker-executor
+  refoundation.
 
 Use these current documents instead:
 

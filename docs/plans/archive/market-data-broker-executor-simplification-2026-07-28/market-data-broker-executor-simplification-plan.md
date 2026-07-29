@@ -1,7 +1,8 @@
 # Plan: Market Data Scraper And Broker Executor Simplification
 
 **Generated**: 2026-07-28
-**Status**: Active implementation; Sprint 5 static/Python gate passed
+**Archived**: 2026-07-29
+**Status**: Complete; all six sprint gates passed
 **Planning Review**: Complete; no blocking clarification remains
 **Estimated Complexity**: High
 **Risk Class**: Critical - this removes licensing, configurable protection, spread/session gates, and the multi-leg execution lifecycle while preserving real broker execution
@@ -11,6 +12,27 @@
 tracked MQL5 files and 17,533 lines. The validated working tree contains 41
 tracked MQL5 files and 13,557 lines (18 files and 3,976 lines removed during
 Sprint 5; 40 files and 17,325 lines below the execution baseline).
+
+**Sprint 6 Closeout Evidence**: Final static inspection confirmed the exact six
+input groups and eleven fields, no active removed-identifier/schema residue,
+and a whitespace-clean diff. Python compile and all 17 existing contract tests
+passed. The real MetaEditor compile reported `0 errors, 0 warnings` in 50,490
+ms; `logs/compile/agentic-build.log` remains ignored and the regenerated
+`HFT_Grid_AI.ex5` inspected on 2026-07-29 is 442,517 bytes. Human
+Strategy Tester/chart acceptance passed on 2026-07-29.
+
+The accepted winter US30 run contained 143 cycles, 1,380 attempts, 4,400
+execution checks, and 313 broker outcomes with `14:30 -> 13:30` and offset
+`-60`. The summer run contained 137 cycles, 1,380 attempts, 4,080 checks, and
+329 outcomes with `13:30 -> 13:30` and offset `0`. Fixed-time equality, spring
+US/UK DST boundaries, fail-closed volume/margin/stops behavior, unique
+ticket-first reconciliation, broker-side SL/TP, fixed 1R geometry, and compact
+schema/Parquet validation passed. Generated run evidence remains outside Git.
+
+The final footprint is 41 tracked MQL5 files and 13,559 lines, a reduction of
+40 files and 17,323 lines from the execution baseline. Sprint rollback commits
+are `6a8e978`, `c9d39dd`, `377181e`, `641e326`, and `322db7d`; the Sprint 6
+archive commit named below is the final rollback point.
 
 ## Overview
 
@@ -330,13 +352,13 @@ Rules:
 
 ### Sprint 1 Gate
 
-- [ ] All Sprint 1 tasks complete.
-- [ ] Static Sprint 1 validation passes and evidence records only relevant matches/counts.
-- [ ] No MetaEditor compile or syntax check was run.
-- [ ] Residual risks, especially internal magic ownership and live-position incompatibility, are documented.
-- [ ] Exactly one Sprint 1 commit is created with the proposed sprint message.
-- [ ] The Sprint 1 commit hash is recorded as the rollback point.
-- [ ] Sprint 2 has not started before this gate completes.
+- [x] All Sprint 1 tasks complete.
+- [x] Static Sprint 1 validation passes and evidence records only relevant matches/counts.
+- [x] No MetaEditor compile or syntax check was run.
+- [x] Residual risks, especially internal magic ownership and live-position incompatibility, are documented.
+- [x] Exactly one Sprint 1 commit is created with the proposed sprint message.
+- [x] The Sprint 1 commit hash is recorded as the rollback point.
+- [x] Sprint 2 has not started before this gate completes.
 
 ## Sprint 2: Replace Multi-Leg Risk Logic With One Broker Position
 
@@ -428,13 +450,13 @@ Rules:
 
 ### Sprint 2 Gate
 
-- [ ] All Sprint 2 tasks complete.
-- [ ] Static execution and lot truth-table reviews pass.
-- [ ] No removed multi-leg/risk identifier remains in active source.
-- [ ] No MetaEditor compile or syntax check was run.
-- [ ] Exactly one Sprint 2 commit is created with the proposed sprint message.
-- [ ] The Sprint 2 commit hash is recorded as the rollback point.
-- [ ] Sprint 3 has not started before this gate completes.
+- [x] All Sprint 2 tasks complete.
+- [x] Static execution and lot truth-table reviews pass.
+- [x] No removed multi-leg/risk identifier remains in active source.
+- [x] No MetaEditor compile or syntax check was run.
+- [x] Exactly one Sprint 2 commit is created with the proposed sprint message.
+- [x] The Sprint 2 commit hash is recorded as the rollback point.
+- [x] Sprint 3 has not started before this gate completes.
 
 ## Sprint 3: Introduce Schema V8 Broker And Analysis Facts
 
@@ -517,13 +539,13 @@ Rules:
 
 ### Sprint 3 Gate
 
-- [ ] All Sprint 3 tasks complete.
-- [ ] Schema header/row/counter review is complete.
-- [ ] Time normalization is isolated from execution timing and actual market-session checks.
-- [ ] No MetaEditor compile or syntax check was run.
-- [ ] Exactly one Sprint 3 commit is created with the proposed sprint message.
-- [ ] The Sprint 3 commit hash is recorded as the rollback point.
-- [ ] Sprint 4 has not started before this gate completes.
+- [x] All Sprint 3 tasks complete.
+- [x] Schema header/row/counter review is complete.
+- [x] Time normalization is isolated from execution timing and actual market-session checks.
+- [x] No MetaEditor compile or syntax check was run.
+- [x] Exactly one Sprint 3 commit is created with the proposed sprint message.
+- [x] The Sprint 3 commit hash is recorded as the rollback point.
+- [x] Sprint 4 has not started before this gate completes.
 
 ## Sprint 4: Cut Python Research Tooling To Schema V8
 
@@ -597,13 +619,13 @@ Rules:
 
 ### Sprint 4 Gate
 
-- [ ] All Sprint 4 tasks complete.
-- [ ] Existing Python compile, unittest, fixture validation, and compact Parquet readback pass.
-- [ ] No new test module, MQL5 harness, CI workflow, or dependency was added.
-- [ ] No MetaEditor compile or syntax check was run.
-- [ ] Exactly one Sprint 4 commit is created with the proposed sprint message.
-- [ ] The Sprint 4 commit hash is recorded as the rollback point.
-- [ ] Sprint 5 has not started before this gate completes.
+- [x] All Sprint 4 tasks complete.
+- [x] Existing Python compile, unittest, fixture validation, and compact Parquet readback pass.
+- [x] No new test module, MQL5 harness, CI workflow, or dependency was added.
+- [x] No MetaEditor compile or syntax check was run.
+- [x] Exactly one Sprint 4 commit is created with the proposed sprint message.
+- [x] The Sprint 4 commit hash is recorded as the rollback point.
+- [x] Sprint 5 has not started before this gate completes.
 
 ## Sprint 5: Delete Dead Context And Align Active Documentation
 
@@ -682,13 +704,13 @@ Rules:
 
 ### Sprint 5 Gate
 
-- [ ] All Sprint 5 tasks complete.
-- [ ] Active include/reference and documentation sweeps pass.
-- [ ] Before/after source count demonstrates net deletion and is recorded compactly.
-- [ ] No MetaEditor compile or syntax check was run.
-- [ ] Exactly one Sprint 5 commit is created with the proposed sprint message.
-- [ ] The Sprint 5 commit hash is recorded as the rollback point.
-- [ ] Sprint 6 has not started before this gate completes.
+- [x] All Sprint 5 tasks complete.
+- [x] Active include/reference and documentation sweeps pass.
+- [x] Before/after source count demonstrates net deletion and is recorded compactly.
+- [x] No MetaEditor compile or syntax check was run.
+- [x] Exactly one Sprint 5 commit is created with the proposed sprint message.
+- [x] The Sprint 5 commit hash is recorded as the rollback point.
+- [x] Sprint 6 has not started before this gate completes.
 
 ## Sprint 6: Final Compile, Strategy Tester Acceptance, And Closeout
 
@@ -787,14 +809,14 @@ Rules:
 
 ### Sprint 6 Gate
 
-- [ ] All Sprint 6 tasks complete.
-- [ ] Final static and existing Python checks pass.
-- [ ] Final real MetaEditor compile passes with `0 errors, 0 warnings` and regenerated `.ex5` evidence.
-- [ ] Human Strategy Tester and chart acceptance passes.
-- [ ] Residual risks and deployment restrictions are recorded.
-- [ ] Exactly one Sprint 6 commit is created with the proposed sprint message.
-- [ ] The Sprint 6 commit hash is recorded as the final rollback point.
-- [ ] The plan is archived only after every final gate passes.
+- [x] All Sprint 6 tasks complete.
+- [x] Final static and existing Python checks pass.
+- [x] Final real MetaEditor compile passes with `0 errors, 0 warnings` and regenerated `.ex5` evidence.
+- [x] Human Strategy Tester and chart acceptance passes.
+- [x] Residual risks and deployment restrictions are recorded.
+- [x] Exactly one Sprint 6 commit is created with the proposed sprint message.
+- [x] The Sprint 6 commit hash is recorded as the final rollback point.
+- [x] The plan is archived only after every final gate passes.
 
 ## Testing Strategy
 
@@ -853,22 +875,22 @@ Rules:
 
 ## Completion Checklist
 
-- [ ] Final public input surface contains only the six groups and eleven fields listed in Scope.
-- [ ] `EXTREMUM_V1` remains always-on M1 with structurally derived directions and no configurable concurrency gate.
-- [ ] License, entitlement, network results, user session filters, protection, spread threshold, daily limits, lot sequence, multiplier, variable TP, partial TP, and multi-leg code are deleted.
-- [ ] Stable internal magic, one-instance restriction, symbol scope, and ticket-first reconciliation are documented and verified.
-- [ ] Hedging-only broker execution is enforced; non-hedging accounts remain collection-only and fail sends closed.
-- [ ] Every attempt has observation broker checks; every send has pre-send and send-result checks.
-- [ ] One accepted attempt can create at most one broker position with broker-side SL and fixed 1R TP.
-- [ ] Fixed and account-balance-percentage lot modes fail closed at broker constraints.
-- [ ] Schema v8 stores raw broker and normalized analysis time with auditable offset.
-- [ ] Exness US30 summer/winter normalization is verified without changing actual execution time.
-- [ ] Current Python/ML/audit tooling supports schema v8 only; historical artifacts remain immutable.
-- [ ] No new MQL5 test/harness/CI or test module was added.
-- [ ] Sprints 1-5 ran no MetaEditor command.
-- [ ] Sprint 6 real compile passes with `0 errors, 0 warnings` and regenerated `.ex5`.
-- [ ] Human Strategy Tester acceptance and compact schema v8 validation pass.
-- [ ] Active docs and skill-stack guidance match the implemented project.
-- [ ] Net MQL5 source/file reduction is recorded.
-- [ ] Every sprint has exactly one sprint-specific commit and recorded rollback point.
-- [ ] Final plan/evidence is archived and the working tree is clean.
+- [x] Final public input surface contains only the six groups and eleven fields listed in Scope.
+- [x] `EXTREMUM_V1` remains always-on M1 with structurally derived directions and no configurable concurrency gate.
+- [x] License, entitlement, network results, user session filters, protection, spread threshold, daily limits, lot sequence, multiplier, variable TP, partial TP, and multi-leg code are deleted.
+- [x] Stable internal magic, one-instance restriction, symbol scope, and ticket-first reconciliation are documented and verified.
+- [x] Hedging-only broker execution is enforced; non-hedging accounts remain collection-only and fail sends closed.
+- [x] Every attempt has observation broker checks; every send has pre-send and send-result checks.
+- [x] One accepted attempt can create at most one broker position with broker-side SL and fixed 1R TP.
+- [x] Fixed and account-balance-percentage lot modes fail closed at broker constraints.
+- [x] Schema v8 stores raw broker and normalized analysis time with auditable offset.
+- [x] Exness US30 summer/winter normalization is verified without changing actual execution time.
+- [x] Current Python/ML/audit tooling supports schema v8 only; historical artifacts remain immutable.
+- [x] No new MQL5 test/harness/CI or test module was added.
+- [x] Sprints 1-5 ran no MetaEditor command.
+- [x] Sprint 6 real compile passes with `0 errors, 0 warnings` and regenerated `.ex5`.
+- [x] Human Strategy Tester acceptance and compact schema v8 validation pass.
+- [x] Active docs and skill-stack guidance match the implemented project.
+- [x] Net MQL5 source/file reduction is recorded.
+- [x] Every sprint has exactly one sprint-specific commit and recorded rollback point.
+- [x] Final plan/evidence is archived and the working tree is clean.

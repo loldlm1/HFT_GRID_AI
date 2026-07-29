@@ -2,10 +2,11 @@
 
 ## Active State
 
-The active schema v8 implementation plan is
-`docs/plans/market-data-broker-executor-simplification-plan.md`. No human
-Strategy Tester research evidence is accepted until its final integration gate
-is completed.
+The schema v8 market-data and broker-executor integration was accepted by human
+Strategy Tester/chart review on 2026-07-29. Its implementation plan and compact
+closeout evidence are archived under
+`docs/plans/archive/market-data-broker-executor-simplification-2026-07-28/`.
+No schema v8 model is approved for MT5 runtime by this acceptance.
 
 Use these active runbooks:
 

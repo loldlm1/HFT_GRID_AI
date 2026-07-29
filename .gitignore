@@ -17,6 +17,8 @@ __pycache__/
 config/*.ini
 # Lead magnet outputs
 /docs/plans/archive/*
+!/docs/plans/archive/market-data-broker-executor-simplification-2026-07-28/
+!/docs/plans/archive/market-data-broker-executor-simplification-2026-07-28/*.md
 !/docs/plans/archive/refoundation-baseline-2026-07-03/
 !/docs/plans/archive/refoundation-baseline-2026-07-03/*.md
 !/docs/plans/archive/codex-skill-stack-alignment-2026-07-03/
@@ -37,3 +39,4 @@ artifacts/datasets/
 artifacts/models/
 artifacts/model_exports/
 artifacts/pattern_audits/
+.codex-hook-state/

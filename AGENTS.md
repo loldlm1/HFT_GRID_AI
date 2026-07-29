@@ -7,7 +7,8 @@ historical plans and evidence remain under their archive directories.
 ## Entrypoint And Active Work
 
 - Entrypoint: `HFT_Grid_AI.mq5`.
-- Active plan: `docs/plans/market-data-broker-executor-simplification-plan.md`.
+- Active plan: none. Start a new explicitly invoked `$planner` plan under
+  `docs/plans/` for the next substantial change.
 - Architecture: `docs/architecture/market-data-broker-executor.md`.
 - Environment runbook: `docs/environment/mt5-agentic-workflows.md`.
 - Statistics workflow: `docs/workflows/extremum-engine-statistics-flow.md`.
@@ -167,7 +168,6 @@ services/frontend.mqh
 
 ## Rollout Restriction
 
-The active simplification plan does not authorize live rollout. Before any
-future deployment, old-version positions for the symbol must be flat, the
-account must support hedging, and only one EA instance may run per account and
-symbol.
+The completed simplification does not authorize live rollout. Before any future
+deployment, old-version positions for the symbol must be flat, the account must
+support hedging, and only one EA instance may run per account and symbol.

@@ -7,6 +7,7 @@
 SignalParams running_bullish_signals[];
 SignalParams running_bearish_signals[];
 bool        g_forced_stop_triggered = false;
+bool        g_debug_no_money_abort_pending = false;
 
 void ExecutionLogDeterministicSignalExpired(const SignalParams &signal_params,
                                             const int new_source_slot,
