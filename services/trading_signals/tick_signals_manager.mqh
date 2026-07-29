@@ -31,14 +31,17 @@ void RegisterFinishedSignal(SignalParams &signal_params)
                                                 "TP");
       }
     }
-    DeterministicSignalStatsRecordAdmissionEvent(signal_params, "broker_close");
     DeterministicSignalStatsRecordOutcome(signal_params);
     DeterministicSignalMLShadowRecordOutcome(signal_params);
     return;
   }
 
   signal_params.raw_profit = 0.0;
-  DeterministicSignalStatsRecordAdmissionEvent(signal_params, "lifecycle_cancel");
+  DeterministicSignalStatsRecordDecisionCheck(signal_params,
+                                              "LIFECYCLE_CANCELED",
+                                              false,
+                                              signal_params.admission_block_source,
+                                              signal_params.execution.terminal_reason);
   ExecutionLogDeterministicPendingCanceled(signal_params,
                                            signal_params.execution.terminal_reason);
 }

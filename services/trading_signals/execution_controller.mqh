@@ -61,11 +61,6 @@ bool BuildExecutionOrderForSignal(SignalParams &signal_params)
   double take_profit = ResolveExecutionOneRTarget(signal_params.signal_type,
                                                   planned_entry,
                                                   stop_loss);
-  if(take_profit <= 0.0)
-  {
-    signal_params.execution_risk_plan_reason = "invalid_structural_geometry";
-    return false;
-  }
 
   signal_params.execution = ExecutionState();
   signal_params.execution.state = EXECUTION_ORDER_WAITING;
@@ -98,7 +93,7 @@ bool BuildExecutionOrderForSignal(SignalParams &signal_params)
 
   CaptureBrokerExecutionCheck(signal_params,
                               "ATTEMPT_OBSERVED",
-                              1,
+                              NextBrokerExecutionCheckSequence(signal_params),
                               observation_entry,
                               stop_loss,
                               observation_target,
@@ -106,6 +101,13 @@ bool BuildExecutionOrderForSignal(SignalParams &signal_params)
                               normalized_volume,
                               false,
                               signal_params.execution.observation_check);
+  if(take_profit <= 0.0)
+  {
+    signal_params.execution_risk_plan_reason = "invalid_structural_geometry";
+    ExecutionCheckBlock(signal_params.execution.observation_check,
+                        "execution_geometry",
+                        signal_params.execution_risk_plan_reason);
+  }
   if(volume_reason != "" &&
      signal_params.execution.observation_check.block_source == "")
   {
@@ -121,7 +123,10 @@ bool BuildExecutionOrderForSignal(SignalParams &signal_params)
   ApplyExecutionCheckToAdmission(signal_params,
                                  signal_params.execution.observation_check,
                                  false);
-  return true;
+  DeterministicSignalStatsRecordExecutionCheck(
+    signal_params,
+    signal_params.execution.observation_check);
+  return (take_profit > 0.0);
 }
 
 bool ExecutionFilterAllowsSend(SignalParams &signal_params,
@@ -153,7 +158,6 @@ bool ExecutionFilterAllowsSend(SignalParams &signal_params,
 
 bool CaptureCurrentSendEligibility(SignalParams &signal_params,
                                    const string phase,
-                                   const int sequence,
                                    BrokerExecutionCheck &check_out)
 {
   double entry_price = CurrentExecutionEntryPrice(signal_params.signal_type);
@@ -173,7 +177,7 @@ bool CaptureCurrentSendEligibility(SignalParams &signal_params,
 
   CaptureBrokerExecutionCheck(signal_params,
                               phase,
-                              sequence,
+                              NextBrokerExecutionCheckSequence(signal_params),
                               entry_price,
                               stop_loss,
                               take_profit,
@@ -198,12 +202,14 @@ bool SendExecutionOrderAfterPrecheck(SignalParams &signal_params)
 {
   CaptureCurrentSendEligibility(signal_params,
                                 "PRE_FILTER",
-                                2,
                                 signal_params.execution.filter_gate_check);
   ApplyExecutionCheckToAdmission(signal_params,
                                  signal_params.execution.filter_gate_check,
                                  true);
   signal_params.execution.last_action_time = TimeCurrent();
+  DeterministicSignalStatsRecordExecutionCheck(
+    signal_params,
+    signal_params.execution.filter_gate_check);
   if(!signal_params.execution.filter_gate_check.allowed)
   {
     ApplyFailedEligibilityDebugSideEffect(signal_params.execution.filter_gate_check);
@@ -220,18 +226,24 @@ bool SendExecutionOrderAfterPrecheck(SignalParams &signal_params)
     signal_params.admission_updated_time = TimeCurrent();
     signal_params.execution.state = EXECUTION_ORDER_CANCELED;
     signal_params.execution.terminal_reason = filter_source + ":" + filter_reason;
-    DeterministicSignalStatsRecordAdmissionEvent(signal_params, "filter_blocked");
+    DeterministicSignalStatsRecordDecisionCheck(signal_params,
+                                                "FILTER_RESULT",
+                                                false,
+                                                filter_source,
+                                                filter_reason);
     return false;
   }
 
   CaptureCurrentSendEligibility(signal_params,
                                 "PRE_SEND",
-                                3,
                                 signal_params.execution.pre_send_check);
   ApplyExecutionCheckToAdmission(signal_params,
                                  signal_params.execution.pre_send_check,
                                  true);
   signal_params.execution.last_action_time = TimeCurrent();
+  DeterministicSignalStatsRecordExecutionCheck(
+    signal_params,
+    signal_params.execution.pre_send_check);
   if(!signal_params.execution.pre_send_check.allowed)
   {
     ApplyFailedEligibilityDebugSideEffect(signal_params.execution.pre_send_check);
@@ -270,7 +282,7 @@ bool SendExecutionOrderAfterPrecheck(SignalParams &signal_params)
   bool api_result = OrderSend(request, result);
   BrokerExecutionCheck send_check = signal_params.execution.pre_send_check;
   send_check.phase = "SEND_RESULT";
-  send_check.sequence = 4;
+  send_check.sequence = NextBrokerExecutionCheckSequence(signal_params);
   send_check.broker_time = TimeCurrent();
   send_check.send_retcode = result.retcode;
   send_check.send_comment = result.comment;
@@ -303,7 +315,7 @@ bool SendExecutionOrderAfterPrecheck(SignalParams &signal_params)
     signal_params.admission_status = EXECUTION_ADMISSION_SEND_FAILED;
     signal_params.admission_block_source = send_check.block_source;
     signal_params.admission_block_reason = send_check.block_reason;
-    DeterministicSignalStatsRecordAdmissionEvent(signal_params, "broker_send_failed");
+    DeterministicSignalStatsRecordExecutionCheck(signal_params, send_check);
     MarketStatusRegisterBrokerFailure("BROKER_SEND_FAILED",
                                       result.retcode,
                                       GetLastError());
@@ -313,8 +325,8 @@ bool SendExecutionOrderAfterPrecheck(SignalParams &signal_params)
   signal_params.admission_status = EXECUTION_ADMISSION_SENT;
   signal_params.admission_block_source = "";
   signal_params.admission_block_reason = "";
+  DeterministicSignalStatsRecordExecutionCheck(signal_params, send_check);
   PatternAuditPlaybackRecordSignal(signal_params, signal_params.execution);
-  DeterministicSignalStatsRecordAdmissionEvent(signal_params, "broker_send_accepted");
   ReconcileSignalBrokerPosition(signal_params);
   return true;
 }
@@ -322,6 +334,37 @@ bool SendExecutionOrderAfterPrecheck(SignalParams &signal_params)
 void UpdateExecutionLifecycle(SignalParams &signal_params)
 {
   ReconcileSignalBrokerPosition(signal_params);
+  if(signal_params.execution.state == EXECUTION_ORDER_BROKER_ACTIVE &&
+     !signal_params.execution.broker_active_check_exported)
+  {
+    DeterministicSignalStatsRecordDecisionCheck(signal_params,
+                                                "BROKER_ACTIVE",
+                                                true,
+                                                "",
+                                                "");
+    signal_params.execution.broker_active_check_exported = true;
+  }
+  if(signal_params.execution.state == EXECUTION_ORDER_BROKER_CLOSED &&
+     !signal_params.execution.broker_closed_check_exported)
+  {
+    DeterministicSignalStatsRecordDecisionCheck(signal_params,
+                                                "BROKER_CLOSED",
+                                                true,
+                                                "",
+                                                "");
+    signal_params.execution.broker_closed_check_exported = true;
+  }
+  if((signal_params.execution.state == EXECUTION_ORDER_CANCELED ||
+      signal_params.execution.state == EXECUTION_ORDER_FAILED) &&
+     !signal_params.execution.broker_terminal_check_exported)
+  {
+    DeterministicSignalStatsRecordDecisionCheck(signal_params,
+                                                "BROKER_TERMINAL",
+                                                false,
+                                                signal_params.admission_block_source,
+                                                signal_params.execution.terminal_reason);
+    signal_params.execution.broker_terminal_check_exported = true;
+  }
   if(signal_params.execution.state == EXECUTION_ORDER_BROKER_ACTIVE &&
      !signal_params.deterministic_stats_feature_exported)
   {

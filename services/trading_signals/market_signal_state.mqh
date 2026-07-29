@@ -19,6 +19,11 @@ void ExecutionLogDeterministicSignalExpired(const SignalParams &signal_params,
 void ExecutionLogDeterministicPendingCanceled(const SignalParams &signal_params,
                                               const string reason);
 bool SignalHasBrokerExposure(const SignalParams &signal_params);
+bool DeterministicSignalStatsRecordDecisionCheck(SignalParams &signal_params,
+                                                 const string phase,
+                                                 const bool allowed,
+                                                 const string block_source,
+                                                 const string block_reason);
 
 struct StrategyContextRuntime
 {
@@ -489,6 +494,11 @@ void ExpirePendingDeterministicSignalsForSourceExtremum(const int source_slot,
                                              "source_extremum_changed_no_broker_outcome");
     running_bullish_signals[i].execution.state = EXECUTION_ORDER_CANCELED;
     running_bullish_signals[i].execution.terminal_reason = "source_extremum_changed";
+    DeterministicSignalStatsRecordDecisionCheck(running_bullish_signals[i],
+                                                "LIFECYCLE_CANCELED",
+                                                false,
+                                                "source_extremum",
+                                                "source_extremum_changed");
     RemoveExecutionLevels(ChartID(), running_bullish_signals[i]);
     RemoveElementFromArray(running_bullish_signals, i);
   }
@@ -517,6 +527,11 @@ void ExpirePendingDeterministicSignalsForSourceExtremum(const int source_slot,
                                              "source_extremum_changed_no_broker_outcome");
     running_bearish_signals[j].execution.state = EXECUTION_ORDER_CANCELED;
     running_bearish_signals[j].execution.terminal_reason = "source_extremum_changed";
+    DeterministicSignalStatsRecordDecisionCheck(running_bearish_signals[j],
+                                                "LIFECYCLE_CANCELED",
+                                                false,
+                                                "source_extremum",
+                                                "source_extremum_changed");
     RemoveExecutionLevels(ChartID(), running_bearish_signals[j]);
     RemoveElementFromArray(running_bearish_signals, j);
   }

@@ -182,6 +182,25 @@ void TryCreateExtremumEngineSignal(const SignalTypes direction,
 
   if(!ExtremumEngineAssignAttemptIdentity(signal))
     return;
+
+  if(RegisterDeterministicSourceAttempt(signal) <= 0)
+  {
+    DeterministicSignalStatsRecordIntrinsicAttempt(signal);
+    BuildExecutionOrderForSignal(signal);
+    signal.admission_status = EXECUTION_ADMISSION_BLOCKED;
+    signal.admission_block_source = "source_registry";
+    signal.admission_block_reason = "Unable to register execution source attempt";
+    signal.admission_updated_time = TimeCurrent();
+    DeterministicSignalStatsSetAttemptOperationalBlock(signal,
+                                                       signal.admission_block_source,
+                                                       signal.admission_block_reason);
+    DeterministicSignalStatsRecordDecisionCheck(signal,
+                                                "OPERATIONAL_BLOCK",
+                                                false,
+                                                signal.admission_block_source,
+                                                signal.admission_block_reason);
+    return;
+  }
   DeterministicSignalStatsRecordIntrinsicAttempt(signal);
 
   if(!BuildExecutionOrderForSignal(signal))
@@ -189,7 +208,11 @@ void TryCreateExtremumEngineSignal(const SignalTypes direction,
     DeterministicSignalStatsSetAttemptOperationalBlock(signal,
                                                        "execution_geometry",
                                                        signal.execution_risk_plan_reason);
-    DeterministicSignalStatsRecordAdmissionEvent(signal, "operational_blocked");
+    DeterministicSignalStatsRecordDecisionCheck(signal,
+                                                "OPERATIONAL_BLOCK",
+                                                false,
+                                                "execution_geometry",
+                                                signal.execution_risk_plan_reason);
     return;
   }
 
@@ -207,7 +230,11 @@ void TryCreateExtremumEngineSignal(const SignalTypes direction,
     DeterministicSignalStatsSetAttemptOperationalBlock(signal,
                                                        operational_block_source,
                                                        operational_block_reason);
-    DeterministicSignalStatsRecordAdmissionEvent(signal, "operational_blocked");
+    DeterministicSignalStatsRecordDecisionCheck(signal,
+                                                "OPERATIONAL_BLOCK",
+                                                false,
+                                                operational_block_source,
+                                                operational_block_reason);
     return;
   }
 
@@ -231,7 +258,11 @@ void TryCreateExtremumEngineSignal(const SignalTypes direction,
     DeterministicSignalStatsSetAttemptOperationalBlock(signal,
                                                        signal.admission_block_source,
                                                        signal.admission_block_reason);
-    DeterministicSignalStatsRecordAdmissionEvent(signal, "operational_blocked");
+    DeterministicSignalStatsRecordDecisionCheck(signal,
+                                                "OPERATIONAL_BLOCK",
+                                                false,
+                                                signal.admission_block_source,
+                                                signal.admission_block_reason);
     ExecutionLogDeterministicSourceReentryBlocked(engine_id,
                                                   direction,
                                                   extremum.source_slot,
@@ -261,24 +292,13 @@ void TryCreateExtremumEngineSignal(const SignalTypes direction,
     DeterministicSignalStatsSetAttemptOperationalBlock(signal,
                                                        signal.admission_block_source,
                                                        signal.admission_block_reason);
-    DeterministicSignalStatsRecordAdmissionEvent(signal, "operational_blocked");
+    DeterministicSignalStatsRecordDecisionCheck(signal,
+                                                "OPERATIONAL_BLOCK",
+                                                false,
+                                                signal.admission_block_source,
+                                                signal.admission_block_reason);
     return;
   }
-
-  if(RegisterDeterministicSourceAttempt(signal) <= 0)
-  {
-    signal.admission_status = EXECUTION_ADMISSION_BLOCKED;
-    signal.admission_block_source = "source_registry";
-    signal.admission_block_reason = "Unable to register execution source attempt";
-    signal.admission_updated_time = TimeCurrent();
-    DeterministicSignalStatsSetAttemptOperationalBlock(signal,
-                                                       signal.admission_block_source,
-                                                       signal.admission_block_reason);
-    DeterministicSignalStatsRecordAdmissionEvent(signal, "operational_blocked");
-    return;
-  }
-
-  DeterministicSignalStatsRecordAdmissionEvent(signal, "candidate");
 
   if(direction == BULLISH)
     AddElementToArray(running_bullish_signals, signal);

@@ -32,6 +32,36 @@ int MarketDataNthWeekday(const int year,
   return 1 + offset + (occurrence - 1) * 7;
 }
 
+int MarketDataLastWeekday(const int year,
+                          const int month,
+                          const int weekday)
+{
+  MqlDateTime next_month;
+  ZeroMemory(next_month);
+  next_month.year = year;
+  next_month.mon = month + 1;
+  if(next_month.mon > 12)
+  {
+    next_month.year++;
+    next_month.mon = 1;
+  }
+  next_month.day = 1;
+
+  datetime next_month_time = StructToTime(next_month);
+  if(next_month_time <= 86400)
+    return -1;
+
+  MqlDateTime last_day;
+  ZeroMemory(last_day);
+  if(!TimeToStruct(next_month_time - 86400, last_day))
+    return -1;
+
+  int offset = last_day.day_of_week - weekday;
+  if(offset < 0)
+    offset += 7;
+  return last_day.day - offset;
+}
+
 datetime MarketDataDateAt(const int year,
                           const int month,
                           const int day,
@@ -91,13 +121,13 @@ datetime MarketDataUsDstEnd(const int year)
 
 datetime MarketDataUkDstStart(const int year)
 {
-  int day = MarketDataNthWeekday(year, 3, 0, 5);
+  int day = MarketDataLastWeekday(year, 3, 0);
   return (day > 0) ? MarketDataDateAt(year, 3, day, 1, 0, 0) : 0;
 }
 
 datetime MarketDataUkDstEnd(const int year)
 {
-  int day = MarketDataNthWeekday(year, 10, 0, 5);
+  int day = MarketDataLastWeekday(year, 10, 0);
   return (day > 0) ? MarketDataDateAt(year, 10, day, 1, 0, 0) : 0;
 }
 

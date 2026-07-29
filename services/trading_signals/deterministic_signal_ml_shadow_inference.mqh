@@ -5,7 +5,7 @@
 #define _TS_DETERMINISTIC_SIGNAL_ML_SHADOW_INFERENCE_MQH_
 
 const int    ML_SHADOW_ARTIFACT_SCHEMA_VERSION = 1;
-const int    ML_SHADOW_PHASE1_SCHEMA_VERSION   = 7;
+const int    ML_SHADOW_PHASE1_SCHEMA_VERSION   = 8;
 const string ML_SHADOW_STORAGE_ROOT            = "DeterministicSignalML";
 const string ML_SHADOW_MODEL_EXPORTS_FOLDER    = "model_exports";
 const string ML_SHADOW_RUNS_FOLDER             = "shadow_runs";
@@ -27,13 +27,13 @@ const int    ML_SHADOW_MAX_TREE_NODES          = 20000;
 const int    ML_SHADOW_FLUSH_ROWS              = 32;
 const string ML_SHADOW_RUN_MANIFEST_HEADER     = "schema_version\tkey\tvalue";
 const string ML_SHADOW_PREDICTIONS_HEADER =
-  "schema_version\tshadow_run_id\texport_id\tmodel_id\tdataset_id\tfeature_schema_version\tsignal_id\tsource_key\tsource_attempt_index\tsymbol\tstrategy_id\tstrategy_label\tdirection\tsource_type\tentry_time\tclassifier_score\tregressor_score\tthreshold_probability\trecommendation\treason\tfeature_valid\tmodel_available\tstructure_0\tstructure_1\tstructure_2\tmacro_h1_slope\tmacro_h4_slope\tmacro_d1_slope\tfib_sl_band\tfib_entry_band\thigh_chain_profile\tlow_chain_profile\tprevious_candle_profile\tentry_session_bucket\tentry_weekday\tstoch_structure_raw_percent\tb_percent_main_base\tb_percent_main_base_slope\tb_percent_main_macro\tb_percent_main_macro_slope\tsession_id\ttime_sin\ttime_cos\tinference_mode\tadmission_action\tfilter_reason";
+  "schema_version\tshadow_run_id\texport_id\tmodel_id\tdataset_id\tfeature_schema_version\tsignal_id\tsource_key\tsource_attempt_index\tsymbol\tstrategy_id\tstrategy_label\tdirection\tsource_type\tentry_broker_time\tentry_analysis_time\tentry_offset_minutes\tclassifier_score\tregressor_score\tthreshold_probability\trecommendation\treason\tfeature_valid\tmodel_available\tstructure_0\tstructure_1\tstructure_2\tmacro_h1_slope\tmacro_h4_slope\tmacro_d1_slope\tfib_sl_band\tfib_entry_band\thigh_chain_profile\tlow_chain_profile\tprevious_candle_profile\tentry_session_bucket\tentry_weekday\tstoch_structure_raw_percent\tb_percent_main_base\tb_percent_main_base_slope\tb_percent_main_macro\tb_percent_main_macro_slope\tsession_id\ttime_sin\ttime_cos\tinference_mode\tadmission_action\tfilter_reason";
 const string ML_SHADOW_OUTCOMES_HEADER =
-  "schema_version\tshadow_run_id\texport_id\tmodel_id\tsignal_id\tsource_key\tsource_attempt_index\tterminal_time\tterminal_reason\trecommendation\tclassifier_score\tthreshold_probability\tprofit_r\tnet_profit\tduration_seconds";
+  "schema_version\tshadow_run_id\texport_id\tmodel_id\tsignal_id\tsource_key\tsource_attempt_index\tentry_broker_time\tentry_analysis_time\tentry_offset_minutes\tterminal_broker_time\tterminal_analysis_time\tterminal_offset_minutes\tterminal_reason\trecommendation\tclassifier_score\tthreshold_probability\tprofit_r\tnet_profit\tduration_seconds";
 const string ML_SHADOW_ARBITRATION_DECISIONS_HEADER =
   "schema_version\tshadow_run_id\texport_id\tmodel_id\tarbitration_group_id\tselected_signal_id\tsignal_id\tsource_key\tsource_attempt_index\tsymbol\tstrategy_id\tstrategy_label\tdirection\tsource_type\tsource_extremum_slot\tsource_extremum_time\tsource_extremum_is_peak\tsource_extremum_price\tactivation_time\tclassifier_score\tregressor_score\tthreshold_probability\trank_position\trank_reason\tarbitration_action\tarbitration_reason";
 const string ML_SHADOW_SUMMARY_HEADER =
-  "schema_version\tshadow_run_id\texport_id\tmodel_id\tstarted_at\tfinished_at\tprediction_rows\toutcome_rows\tinvalid_feature_rows\tunavailable_events\tfilter_allow_rows\tfilter_block_rows\tfilter_invalid_feature_blocks\tfilter_unavailable_blocks\tarbitration_group_rows\tarbitration_single_candidate_groups\tarbitration_multi_candidate_groups\tarbitration_selected_rows\tarbitration_blocked_rows\tarbitration_classifier_tie_rows\tarbitration_regressor_tie_rows\tarbitration_strategy_tie_break_rows\texport_status";
+  "schema_version\tshadow_run_id\texport_id\tmodel_id\tstarted_broker_time\tstarted_analysis_time\tstarted_offset_minutes\tfinished_broker_time\tfinished_analysis_time\tfinished_offset_minutes\tprediction_rows\toutcome_rows\tinvalid_feature_rows\tunavailable_events\tfilter_allow_rows\tfilter_block_rows\tfilter_invalid_feature_blocks\tfilter_unavailable_blocks\tarbitration_group_rows\tarbitration_single_candidate_groups\tarbitration_multi_candidate_groups\tarbitration_selected_rows\tarbitration_blocked_rows\tarbitration_classifier_tie_rows\tarbitration_regressor_tie_rows\tarbitration_strategy_tie_break_rows\texport_status";
 
 struct MLShadowRuntimeState
 {
@@ -588,11 +588,19 @@ bool MLShadowWriteRunManifest()
   MLShadowWriteLine(filename, MLShadowManifestRow("export_id", g_ml_shadow_state.export_id), true);
   MLShadowWriteLine(filename, MLShadowManifestRow("model_id", g_ml_shadow_state.model_id), true);
   MLShadowWriteLine(filename, MLShadowManifestRow("dataset_id", g_ml_shadow_state.dataset_id), true);
-  MLShadowWriteLine(filename, MLShadowManifestRow("started_at", MLShadowTimeToken(g_ml_shadow_state.started_at)), true);
+  int started_offset_minutes = 0;
+  datetime started_analysis_time =
+    DeterministicSignalStatsAnalysisTime(g_ml_shadow_state.started_at,
+                                         _Symbol,
+                                         started_offset_minutes);
+  MLShadowWriteLine(filename, MLShadowManifestRow("started_broker_time", MLShadowTimeToken(g_ml_shadow_state.started_at)), true);
+  MLShadowWriteLine(filename, MLShadowManifestRow("started_analysis_time", MLShadowTimeToken(started_analysis_time)), true);
+  MLShadowWriteLine(filename, MLShadowManifestRow("started_offset_minutes", IntegerToString(started_offset_minutes)), true);
   MLShadowWriteLine(filename, MLShadowManifestRow("mode", ExecutionMLInferenceModeToken(ML_Inference_Mode)), true);
   MLShadowWriteLine(filename, MLShadowManifestRow("available", MLShadowBoolToken(g_ml_shadow_state.available)), true);
   MLShadowWriteLine(filename, MLShadowManifestRow("unavailable_reason", g_ml_shadow_state.unavailable_reason), true);
   MLShadowWriteLine(filename, MLShadowManifestRow("feature_schema_version", IntegerToString(g_ml_shadow_state.phase1_schema_version)), true);
+  MLShadowWriteLine(filename, MLShadowManifestRow("broker_session", MarketDataTimePolicyToken(Broker_Session)), true);
   MLShadowWriteLine(filename, MLShadowManifestRow("encoded_feature_count", IntegerToString(g_ml_shadow_state.encoded_feature_count)), true);
   MLShadowWriteLine(filename, MLShadowManifestRow("classifier_tree_count", IntegerToString(g_ml_shadow_state.classifier_tree_count)), true);
   MLShadowWriteLine(filename, MLShadowManifestRow("regressor_tree_count", IntegerToString(g_ml_shadow_state.regressor_tree_count)), true);
@@ -765,22 +773,22 @@ bool MLShadowLoadManifest()
                             g_ml_shadow_state.artifact_schema_version))
     return MLShadowMarkUnavailable("manifest_missing_artifact_schema_version");
   if(g_ml_shadow_state.artifact_schema_version != ML_SHADOW_ARTIFACT_SCHEMA_VERSION)
-    return MLShadowMarkUnavailable("unsupported_artifact_schema_version");
+    return MLShadowMarkUnavailable("incompatible_or_not_approved_artifact");
 
   if(!MLShadowParseIntValue(MLShadowManifestValue("phase1_schema_version"),
                             g_ml_shadow_state.phase1_schema_version))
     return MLShadowMarkUnavailable("manifest_missing_phase1_schema_version");
   if(g_ml_shadow_state.phase1_schema_version != ML_SHADOW_PHASE1_SCHEMA_VERSION)
-    return MLShadowMarkUnavailable("unsupported_phase1_schema_version");
+    return MLShadowMarkUnavailable("incompatible_or_not_approved_artifact");
 
-  if(MLShadowManifestValue("feature_set_id") != "schema_v7_extremum_engine_xgb")
-    return MLShadowMarkUnavailable("unsupported_extremum_engine_feature_set");
+  if(MLShadowManifestValue("feature_set_id") != "schema_v8_extremum_engine_xgb")
+    return MLShadowMarkUnavailable("incompatible_or_not_approved_artifact");
   if(MLShadowManifestValue("engine_id") != IntegerToString(EXTREMUM_ENGINE_V1) ||
      MLShadowManifestValue("engine_label") != ExtremumEngineLabel(EXTREMUM_ENGINE_V1) ||
      MLShadowManifestValue("engine_timeframe") != EnumToString(EXTREMUM_ENGINE_TIMEFRAME))
-    return MLShadowMarkUnavailable("extremum_engine_identity_mismatch");
+    return MLShadowMarkUnavailable("incompatible_or_not_approved_artifact");
   if(MLShadowManifestValue("runtime_approval") != "APPROVED_FOR_MT5_RUNTIME")
-    return MLShadowMarkUnavailable("extremum_engine_research_artifact_not_runtime_approved");
+    return MLShadowMarkUnavailable("incompatible_or_not_approved_artifact");
 
   if(!MLShadowParseIntValue(MLShadowManifestValue("encoded_feature_count"),
                             g_ml_shadow_state.encoded_feature_count))
@@ -1570,7 +1578,11 @@ string MLShadowPredictionRow(const SignalParams &signal_params,
          MLShadowOutputCell(snapshot.strategy_label) + "\t" +
          MLShadowOutputCell(snapshot.direction) + "\t" +
          MLShadowOutputCell(snapshot.source_type) + "\t" +
-         MLShadowTimeToken(snapshot.entry_time) + "\t" +
+         MLShadowTimeToken(snapshot.entry_broker_time) + "\t" +
+         MLShadowTimeToken(snapshot.entry_analysis_time) + "\t" +
+         DeterministicSignalStatsOffsetToken(snapshot.entry_broker_time,
+                                             snapshot.entry_analysis_time,
+                                             snapshot.entry_offset_minutes) + "\t" +
          MLShadowDoubleToken(classifier_scored, classifier_score, 8) + "\t" +
          MLShadowDoubleToken(regressor_scored, regressor_score, 8) + "\t" +
          MLShadowDoubleToken(g_ml_shadow_state.available, g_ml_shadow_state.threshold_probability, 8) + "\t" +
@@ -1790,6 +1802,16 @@ string MLShadowOutcomeRow(SignalParams &signal_params,
   if(source_key == "")
     source_key = BuildExtremumEngineSignalSourceKey(signal_params);
 
+  datetime entry_time = DeterministicSignalStatsOutcomeEntryTime(signal_params);
+  int entry_offset_minutes = 0;
+  datetime entry_analysis_time = DeterministicSignalStatsAnalysisTime(entry_time,
+                                                                       _Symbol,
+                                                                       entry_offset_minutes);
+  int terminal_offset_minutes = 0;
+  datetime terminal_analysis_time = DeterministicSignalStatsAnalysisTime(signal_params.close_time,
+                                                                           _Symbol,
+                                                                           terminal_offset_minutes);
+
   return IntegerToString(ML_SHADOW_ARTIFACT_SCHEMA_VERSION) + "\t" +
          MLShadowOutputCell(g_ml_shadow_state.shadow_run_id) + "\t" +
          MLShadowOutputCell(g_ml_shadow_state.export_id) + "\t" +
@@ -1797,7 +1819,16 @@ string MLShadowOutcomeRow(SignalParams &signal_params,
          MLShadowOutputCell(signal_params.ml_shadow_signal_id) + "\t" +
          MLShadowOutputCell(source_key) + "\t" +
          IntegerToString(signal_params.deterministic_source_attempt_index) + "\t" +
+         MLShadowTimeToken(entry_time) + "\t" +
+         MLShadowTimeToken(entry_analysis_time) + "\t" +
+         DeterministicSignalStatsOffsetToken(entry_time,
+                                             entry_analysis_time,
+                                             entry_offset_minutes) + "\t" +
          MLShadowTimeToken(signal_params.close_time) + "\t" +
+         MLShadowTimeToken(terminal_analysis_time) + "\t" +
+         DeterministicSignalStatsOffsetToken(signal_params.close_time,
+                                             terminal_analysis_time,
+                                             terminal_offset_minutes) + "\t" +
          MLShadowOutputCell(DeterministicSignalStatsTerminalReason(signal_params)) + "\t" +
          MLShadowOutputCell(signal_params.ml_shadow_recommendation) + "\t" +
          MLShadowDoubleToken(signal_params.ml_shadow_evaluated, signal_params.ml_shadow_classifier_score, 8) + "\t" +
@@ -1863,12 +1894,26 @@ bool DeterministicSignalMLShadowRecordOutcome(SignalParams &signal_params)
 string MLShadowSummaryRow(const datetime finished_at,
                           const string export_status)
 {
+  int started_offset_minutes = 0;
+  int finished_offset_minutes = 0;
+  datetime started_analysis_time =
+    DeterministicSignalStatsAnalysisTime(g_ml_shadow_state.started_at,
+                                         _Symbol,
+                                         started_offset_minutes);
+  datetime finished_analysis_time =
+    DeterministicSignalStatsAnalysisTime(finished_at,
+                                         _Symbol,
+                                         finished_offset_minutes);
   return IntegerToString(ML_SHADOW_ARTIFACT_SCHEMA_VERSION) + "\t" +
          MLShadowOutputCell(g_ml_shadow_state.shadow_run_id) + "\t" +
          MLShadowOutputCell(g_ml_shadow_state.export_id) + "\t" +
          MLShadowOutputCell(g_ml_shadow_state.model_id) + "\t" +
          MLShadowTimeToken(g_ml_shadow_state.started_at) + "\t" +
+         MLShadowTimeToken(started_analysis_time) + "\t" +
+         IntegerToString(started_offset_minutes) + "\t" +
          MLShadowTimeToken(finished_at) + "\t" +
+         MLShadowTimeToken(finished_analysis_time) + "\t" +
+         IntegerToString(finished_offset_minutes) + "\t" +
          IntegerToString(g_ml_shadow_state.prediction_rows) + "\t" +
          IntegerToString(g_ml_shadow_state.outcome_rows) + "\t" +
          IntegerToString(g_ml_shadow_state.invalid_feature_rows) + "\t" +

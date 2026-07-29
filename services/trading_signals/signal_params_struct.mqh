@@ -185,9 +185,13 @@ struct ExecutionState
   datetime last_action_time;
   datetime broker_entry_time;
   datetime close_time;
+  int last_check_sequence;
   bool send_attempted;
   bool broker_entry_confirmed;
   bool broker_close_confirmed;
+  bool broker_active_check_exported;
+  bool broker_closed_check_exported;
+  bool broker_terminal_check_exported;
   string terminal_reason;
   BrokerExecutionCheck observation_check;
   BrokerExecutionCheck filter_gate_check;
@@ -219,9 +223,13 @@ struct ExecutionState
     last_action_time = 0;
     broker_entry_time = 0;
     close_time = 0;
+    last_check_sequence = 0;
     send_attempted = false;
     broker_entry_confirmed = false;
     broker_close_confirmed = false;
+    broker_active_check_exported = false;
+    broker_closed_check_exported = false;
+    broker_terminal_check_exported = false;
     terminal_reason = "";
   }
 
@@ -250,9 +258,13 @@ struct ExecutionState
     last_action_time = other.last_action_time;
     broker_entry_time = other.broker_entry_time;
     close_time = other.close_time;
+    last_check_sequence = other.last_check_sequence;
     send_attempted = other.send_attempted;
     broker_entry_confirmed = other.broker_entry_confirmed;
     broker_close_confirmed = other.broker_close_confirmed;
+    broker_active_check_exported = other.broker_active_check_exported;
+    broker_closed_check_exported = other.broker_closed_check_exported;
+    broker_terminal_check_exported = other.broker_terminal_check_exported;
     terminal_reason = other.terminal_reason;
     observation_check = other.observation_check;
     filter_gate_check = other.filter_gate_check;
@@ -333,8 +345,7 @@ struct SignalParams
   bool deterministic_stats_feature_exported;
   bool deterministic_stats_outcome_exported;
   string deterministic_stats_terminal_reason;
-  string deterministic_stats_last_admission_key;
-  string deterministic_stats_admission_seen_keys;
+  string deterministic_stats_last_execution_check_key;
   ExecutionAdmissionStatuses admission_status;
   string admission_block_source;
   string admission_block_reason;
@@ -431,8 +442,7 @@ struct SignalParams
     deterministic_stats_feature_exported = false;
     deterministic_stats_outcome_exported = false;
     deterministic_stats_terminal_reason = "";
-    deterministic_stats_last_admission_key = "";
-    deterministic_stats_admission_seen_keys = "";
+    deterministic_stats_last_execution_check_key = "";
     admission_status = EXECUTION_ADMISSION_NOT_EVALUATED;
     admission_block_source = "";
     admission_block_reason = "";
@@ -526,8 +536,7 @@ struct SignalParams
     deterministic_stats_feature_exported = other.deterministic_stats_feature_exported;
     deterministic_stats_outcome_exported = other.deterministic_stats_outcome_exported;
     deterministic_stats_terminal_reason = other.deterministic_stats_terminal_reason;
-    deterministic_stats_last_admission_key = other.deterministic_stats_last_admission_key;
-    deterministic_stats_admission_seen_keys = other.deterministic_stats_admission_seen_keys;
+    deterministic_stats_last_execution_check_key = other.deterministic_stats_last_execution_check_key;
     admission_status = other.admission_status;
     admission_block_source = other.admission_block_source;
     admission_block_reason = other.admission_block_reason;

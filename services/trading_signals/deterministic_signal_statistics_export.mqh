@@ -4,12 +4,12 @@
 #ifndef _TS_DETERMINISTIC_STATS_EXPORT_MQH_
 #define _TS_DETERMINISTIC_STATS_EXPORT_MQH_
 
-const int    DETERMINISTIC_SIGNAL_STATS_SCHEMA_VERSION = 7;
+const int    DETERMINISTIC_SIGNAL_STATS_SCHEMA_VERSION = 8;
 const string DETERMINISTIC_SIGNAL_STATS_STORAGE_ROOT   = "DeterministicSignalML";
 const string DETERMINISTIC_SIGNAL_STATS_RUNS_FOLDER    = "runs";
 const string DETERMINISTIC_SIGNAL_STATS_MANIFEST_FILE  = "run_manifest.tsv";
 const string DETERMINISTIC_SIGNAL_STATS_FEATURES_FILE  = "signal_features.tsv";
-const string DETERMINISTIC_SIGNAL_STATS_ADMISSIONS_FILE = "signal_admissions.tsv";
+const string DETERMINISTIC_SIGNAL_STATS_CHECKS_FILE    = "execution_checks.tsv";
 const string DETERMINISTIC_SIGNAL_STATS_OUTCOMES_FILE  = "signal_outcomes.tsv";
 const string DETERMINISTIC_SIGNAL_STATS_CYCLES_FILE    = "engine_cycles.tsv";
 const string DETERMINISTIC_SIGNAL_STATS_REVISIONS_FILE = "engine_revisions.tsv";
@@ -24,23 +24,24 @@ const int    DETERMINISTIC_SIGNAL_STATS_PATH_RESERVE = 128;
 const string DETERMINISTIC_SIGNAL_STATS_MANIFEST_HEADER =
   "schema_version\tkey\tvalue";
 const string DETERMINISTIC_SIGNAL_STATS_FEATURES_HEADER =
-  "schema_version\trun_id\tconfig_id\tsignal_id\tsource_key\tsource_attempt_index\tengine_id\tengine_label\tengine_timeframe\textremum_cycle_id\textremum_revision_id\textremum_attempt_id\tsymbol\tdirection\tentry_time\tsource_time\tstructure_0\tstructure_1\tstructure_2\tfib_sl_band\tfib_entry_band\thigh_chain_profile\tlow_chain_profile\tprevious_candle_profile\tentry_session_bucket\tentry_weekday\tstoch_structure_raw_percent\tb_percent_main_base\tb_percent_main_base_slope\tb_percent_main_macro\tb_percent_main_macro_slope\tsession_id\ttime_sin\ttime_cos";
-const string DETERMINISTIC_SIGNAL_STATS_ADMISSIONS_HEADER =
-  "schema_version\trun_id\tconfig_id\tsignal_id\tsource_key\tsource_attempt_index\tengine_id\tengine_label\tengine_timeframe\textremum_cycle_id\textremum_revision_id\textremum_attempt_id\tevent_time\tevent_type\tadmission_status\tadmission_source\tadmission_reason\tspread_points\tmarket_status\tbroker_entry_confirmed\tbroker_close_confirmed\trisk_plan_status\trisk_target_amount\texpected_sl_loss\texpected_tp_profit\traw_lot\tnormalized_lot";
+  "schema_version\trun_id\tconfig_id\tsignal_id\tsource_key\tsource_attempt_index\tengine_id\tengine_label\tengine_timeframe\textremum_cycle_id\textremum_revision_id\textremum_attempt_id\tsymbol\tdirection\tentry_broker_time\tentry_analysis_time\tentry_offset_minutes\tsource_broker_time\tsource_analysis_time\tsource_offset_minutes\tstructure_0\tstructure_1\tstructure_2\tfib_sl_band\tfib_entry_band\thigh_chain_profile\tlow_chain_profile\tprevious_candle_profile\tentry_session_bucket\tentry_weekday\tstoch_structure_raw_percent\tb_percent_main_base\tb_percent_main_base_slope\tb_percent_main_macro\tb_percent_main_macro_slope\tsession_id\ttime_sin\ttime_cos";
+const string DETERMINISTIC_SIGNAL_STATS_CHECKS_HEADER =
+  "schema_version\trun_id\tconfig_id\tsignal_id\tsource_key\tsource_attempt_index\tengine_id\tengine_label\tengine_timeframe\textremum_cycle_id\textremum_revision_id\textremum_attempt_id\tcheck_sequence\tcheck_phase\tbroker_time\tanalysis_time\toffset_minutes\tsymbol\tdirection\taccount_margin_mode\taccount_margin_mode_supported\tsymbol_trade_mode\tsymbol_trade_mode_allowed\tmarket_session_open\taccount_trade_allowed\taccount_expert_trade_allowed\tterminal_trade_allowed\tmql_trade_allowed\tbid\task\tspread_points\tpoint_size\tstops_distance_points\tfreeze_distance_points\tplanned_entry_price\tstop_loss_price\ttake_profit_price\trisk_distance\trequested_volume\tnormalized_volume\tvolume_min\tvolume_max\tvolume_step\tvolume_valid\taccount_balance\tfree_margin\trequired_margin\tmargin_valid\tgeometry_valid\tstop_distance_valid\tfreeze_distance_valid\torder_check_performed\torder_check_allowed\torder_check_retcode\torder_check_comment\tallowed\tblock_source\tblock_reason\tsend_retcode\tsend_comment\torder_ticket\tdeal_ticket\tposition_ticket\tposition_identifier\tbroker_entry_confirmed\tbroker_close_confirmed\tbroker_entry_price\tbroker_volume\tbroker_stop_loss\tbroker_take_profit\tclose_price\tclosed_volume\trealized_profit\tterminal_reason";
 const string DETERMINISTIC_SIGNAL_STATS_OUTCOMES_HEADER =
-  "schema_version\trun_id\tconfig_id\tsignal_id\tsource_key\tsource_attempt_index\tengine_id\tengine_label\tengine_timeframe\textremum_cycle_id\textremum_revision_id\textremum_attempt_id\tterminal_time\tterminal_reason\tprofit_r\tduration_seconds\tduration_m1_bars\tentry_price\tclose_price\tnet_profit\tbroker_entry_confirmed\tbroker_close_confirmed\tbroker_close_source\thit_1r_before_sl\thit_1_5r_before_sl\thit_2r_before_sl\thit_3r_before_sl\tmax_favorable_r\tmax_adverse_r\tbars_to_1r\tbars_to_1_5r\tbars_to_2r\tbars_to_3r\tbars_to_sl\tpath_horizon_bars\tpath_status\tpath_label_source";
+  "schema_version\trun_id\tconfig_id\tsignal_id\tsource_key\tsource_attempt_index\tengine_id\tengine_label\tengine_timeframe\textremum_cycle_id\textremum_revision_id\textremum_attempt_id\tentry_broker_time\tentry_analysis_time\tentry_offset_minutes\tterminal_broker_time\tterminal_analysis_time\tterminal_offset_minutes\tterminal_reason\tprofit_r\tduration_seconds\tduration_m1_bars\tentry_price\tclose_price\tnet_profit\tbroker_entry_confirmed\tbroker_close_confirmed\tbroker_close_source\thit_1r_before_sl\thit_1_5r_before_sl\thit_2r_before_sl\thit_3r_before_sl\tmax_favorable_r\tmax_adverse_r\tbars_to_1r\tbars_to_1_5r\tbars_to_2r\tbars_to_3r\tbars_to_sl\tpath_horizon_bars\tpath_status\tpath_label_source";
 const string DETERMINISTIC_SIGNAL_STATS_CYCLES_HEADER =
-  "schema_version\trun_id\tconfig_id\tsymbol\tengine_id\tengine_label\tengine_timeframe\textremum_cycle_id\textremum_type\tcycle_first_seen_time\tcycle_finalized_time\tcycle_status\treference_peak_time\treference_peak_price\treference_bottom_time\treference_bottom_price\treference_range_points\tfirst_extremum_time\tfirst_extremum_price\tfinal_extremum_time\tfinal_extremum_price\tfinal_depth_percent\trevision_count\tattempt_count";
+  "schema_version\trun_id\tconfig_id\tsymbol\tengine_id\tengine_label\tengine_timeframe\textremum_cycle_id\textremum_type\tcycle_first_seen_broker_time\tcycle_first_seen_analysis_time\tcycle_first_seen_offset_minutes\tcycle_finalized_broker_time\tcycle_finalized_analysis_time\tcycle_finalized_offset_minutes\tcycle_status\treference_peak_broker_time\treference_peak_analysis_time\treference_peak_offset_minutes\treference_peak_price\treference_bottom_broker_time\treference_bottom_analysis_time\treference_bottom_offset_minutes\treference_bottom_price\treference_range_points\tfirst_extremum_broker_time\tfirst_extremum_analysis_time\tfirst_extremum_offset_minutes\tfirst_extremum_price\tfinal_extremum_broker_time\tfinal_extremum_analysis_time\tfinal_extremum_offset_minutes\tfinal_extremum_price\tfinal_depth_percent\trevision_count\tattempt_count";
 const string DETERMINISTIC_SIGNAL_STATS_REVISIONS_HEADER =
-  "schema_version\trun_id\tconfig_id\tsymbol\tengine_id\tengine_label\tengine_timeframe\textremum_cycle_id\trevision_id\trevision_index\tsnapshot_time\textremum_time\textremum_price\textremum_type\tdepth_percent_raw\tdistance_from_first_revision_points\tdistance_from_previous_revision_points\tdepth_delta_from_previous_percent\tbars_since_cycle_start\treference_peak_time\treference_peak_price\treference_bottom_time\treference_bottom_price\treference_range_points\tstructure_0\tstructure_1\tstructure_2\tsession_id\ttime_sin\ttime_cos";
+  "schema_version\trun_id\tconfig_id\tsymbol\tengine_id\tengine_label\tengine_timeframe\textremum_cycle_id\trevision_id\trevision_index\tsnapshot_broker_time\tsnapshot_analysis_time\tsnapshot_offset_minutes\textremum_broker_time\textremum_analysis_time\textremum_offset_minutes\textremum_price\textremum_type\tdepth_percent_raw\tdistance_from_first_revision_points\tdistance_from_previous_revision_points\tdepth_delta_from_previous_percent\tbars_since_cycle_start\treference_peak_broker_time\treference_peak_analysis_time\treference_peak_offset_minutes\treference_peak_price\treference_bottom_broker_time\treference_bottom_analysis_time\treference_bottom_offset_minutes\treference_bottom_price\treference_range_points\tstructure_0\tstructure_1\tstructure_2\tsession_id\ttime_sin\ttime_cos";
 const string DETERMINISTIC_SIGNAL_STATS_ATTEMPTS_HEADER =
-  "schema_version\trun_id\tconfig_id\tsymbol\tengine_id\tengine_label\tengine_timeframe\textremum_cycle_id\trevision_id\tattempt_id\tcycle_attempt_index\trevision_attempt_index\tattempt_created_time\tdirection\tcandidate_depth_percent\treference_range_points\tdistance_from_first_revision_points\tdistance_from_previous_revision_points\tdepth_delta_from_previous_percent\tbars_since_cycle_start\ttrigger_price\tstop_anchor_price\ttake_profit_price\ttrigger_reached\ttrigger_time\tattempt_status\toperational_block_source\toperational_block_reason\tsimulated_terminal_reason\tsimulated_profit_r\tsimulated_max_favorable_r\tsimulated_max_adverse_r\tsimulated_path_status\tsimulated_outcome_source\tbroker_signal_id\tbroker_entry_confirmed\tbroker_close_confirmed";
+  "schema_version\trun_id\tconfig_id\tsymbol\tengine_id\tengine_label\tengine_timeframe\textremum_cycle_id\trevision_id\tattempt_id\tcycle_attempt_index\trevision_attempt_index\tattempt_created_broker_time\tattempt_created_analysis_time\tattempt_created_offset_minutes\tdirection\tcandidate_depth_percent\treference_range_points\tdistance_from_first_revision_points\tdistance_from_previous_revision_points\tdepth_delta_from_previous_percent\tbars_since_cycle_start\ttrigger_price\tstop_anchor_price\ttake_profit_price\ttrigger_reached\ttrigger_broker_time\ttrigger_analysis_time\ttrigger_offset_minutes\tattempt_status\toperational_block_source\toperational_block_reason\tsimulated_terminal_reason\tsimulated_profit_r\tsimulated_max_favorable_r\tsimulated_max_adverse_r\tsimulated_path_status\tsimulated_outcome_source\tbroker_signal_id\tbroker_entry_confirmed\tbroker_close_confirmed";
 const string DETERMINISTIC_SIGNAL_STATS_SUMMARY_HEADER =
-  "schema_version\trun_id\tconfig_id\tstarted_at\tfinished_at\tcycle_rows\trevision_rows\tattempt_rows\tfeature_rows\tadmission_rows\toutcome_rows\tfeature_invalid_rows\toutcome_invalid_rows\tmax_active_attempt_paths\texport_status";
+  "schema_version\trun_id\tconfig_id\tstarted_broker_time\tstarted_analysis_time\tstarted_offset_minutes\tfinished_broker_time\tfinished_analysis_time\tfinished_offset_minutes\tcycle_rows\trevision_rows\tattempt_rows\texecution_check_rows\tfeature_rows\toutcome_rows\tfeature_invalid_rows\toutcome_invalid_rows\tmax_active_attempt_paths\texport_status";
 
 struct DeterministicSignalStatsOutcomePayload
 {
   bool     valid;
+  datetime entry_time;
   datetime terminal_time;
   string   terminal_reason;
   double   profit_r;
@@ -58,6 +59,7 @@ struct DeterministicSignalStatsOutcomePayload
   DeterministicSignalStatsOutcomePayload()
   {
     valid = false;
+    entry_time = 0;
     terminal_time = 0;
     terminal_reason = "";
     profit_r = 0.0;
@@ -76,6 +78,7 @@ struct DeterministicSignalStatsOutcomePayload
   DeterministicSignalStatsOutcomePayload(const DeterministicSignalStatsOutcomePayload &other)
   {
     valid = other.valid;
+    entry_time = other.entry_time;
     terminal_time = other.terminal_time;
     terminal_reason = other.terminal_reason;
     profit_r = other.profit_r;
@@ -327,7 +330,7 @@ datetime g_deterministic_signal_stats_started_at = 0;
 bool     g_deterministic_signal_stats_initialized = false;
 bool     g_deterministic_signal_stats_failed = false;
 int      g_deterministic_signal_stats_feature_rows = 0;
-int      g_deterministic_signal_stats_admission_rows = 0;
+int      g_deterministic_signal_stats_execution_check_rows = 0;
 int      g_deterministic_signal_stats_outcome_rows = 0;
 int      g_deterministic_signal_stats_cycle_rows = 0;
 int      g_deterministic_signal_stats_revision_rows = 0;
@@ -336,7 +339,7 @@ int      g_deterministic_signal_stats_max_active_attempt_paths = 0;
 int      g_deterministic_signal_stats_feature_invalid_rows = 0;
 int      g_deterministic_signal_stats_outcome_invalid_rows = 0;
 string   g_deterministic_signal_stats_feature_buffer[];
-string   g_deterministic_signal_stats_admission_buffer[];
+string   g_deterministic_signal_stats_execution_check_buffer[];
 string   g_deterministic_signal_stats_outcome_buffer[];
 string   g_deterministic_signal_stats_cycle_buffer[];
 string   g_deterministic_signal_stats_revision_buffer[];
@@ -361,6 +364,43 @@ string DeterministicSignalStatsTimeToken(const datetime value)
     return DETERMINISTIC_SIGNAL_STATS_NULL;
 
   return TimeToString(value, TIME_DATE|TIME_SECONDS);
+}
+
+datetime DeterministicSignalStatsAnalysisTime(const datetime broker_time,
+                                              const string symbol,
+                                              int &offset_minutes_out)
+{
+  return MarketDataNormalizeAnalysisTime(broker_time,
+                                         Broker_Session,
+                                         symbol,
+                                         offset_minutes_out);
+}
+
+string DeterministicSignalStatsTimestampColumns(const datetime broker_time,
+                                                const string symbol)
+{
+  int offset_minutes = 0;
+  datetime analysis_time = DeterministicSignalStatsAnalysisTime(broker_time,
+                                                                 symbol,
+                                                                 offset_minutes);
+  bool valid = (broker_time > 0 && analysis_time > 0);
+  return DeterministicSignalStatsTimeToken(broker_time) + "\t" +
+         DeterministicSignalStatsTimeToken(analysis_time) + "\t" +
+         (valid ? IntegerToString(offset_minutes) : DETERMINISTIC_SIGNAL_STATS_NULL);
+}
+
+string DeterministicSignalStatsTimestampColumns(const datetime broker_time)
+{
+  return DeterministicSignalStatsTimestampColumns(broker_time, _Symbol);
+}
+
+string DeterministicSignalStatsOffsetToken(const datetime broker_time,
+                                           const datetime analysis_time,
+                                           const int offset_minutes)
+{
+  if(broker_time <= 0 || analysis_time <= 0)
+    return DETERMINISTIC_SIGNAL_STATS_NULL;
+  return IntegerToString(offset_minutes);
 }
 
 string DeterministicSignalStatsSanitizePart(const string raw_value)
@@ -637,11 +677,11 @@ bool DeterministicSignalStatsFlushFeatures()
                                             g_deterministic_signal_stats_feature_buffer);
 }
 
-bool DeterministicSignalStatsFlushAdmissions()
+bool DeterministicSignalStatsFlushExecutionChecks()
 {
-  return DeterministicSignalStatsFlushBuffer(DeterministicSignalStatsPath(DETERMINISTIC_SIGNAL_STATS_ADMISSIONS_FILE),
-                                            DETERMINISTIC_SIGNAL_STATS_ADMISSIONS_HEADER,
-                                            g_deterministic_signal_stats_admission_buffer);
+  return DeterministicSignalStatsFlushBuffer(DeterministicSignalStatsPath(DETERMINISTIC_SIGNAL_STATS_CHECKS_FILE),
+                                            DETERMINISTIC_SIGNAL_STATS_CHECKS_HEADER,
+                                            g_deterministic_signal_stats_execution_check_buffer);
 }
 
 bool DeterministicSignalStatsFlushOutcomes()
@@ -678,12 +718,12 @@ bool DeterministicSignalStatsFlushAll()
     return false;
 
   bool features_ok = DeterministicSignalStatsFlushFeatures();
-  bool admissions_ok = DeterministicSignalStatsFlushAdmissions();
+  bool execution_checks_ok = DeterministicSignalStatsFlushExecutionChecks();
   bool outcomes_ok = DeterministicSignalStatsFlushOutcomes();
   bool cycles_ok = DeterministicSignalStatsFlushCycles();
   bool revisions_ok = DeterministicSignalStatsFlushRevisions();
   bool attempts_ok = DeterministicSignalStatsFlushAttempts();
-  return features_ok && admissions_ok && outcomes_ok &&
+  return features_ok && execution_checks_ok && outcomes_ok &&
          cycles_ok && revisions_ok && attempts_ok;
 }
 
@@ -705,7 +745,14 @@ bool DeterministicSignalStatsWriteManifest()
 
   DeterministicSignalStatsWriteLine(filename, DeterministicSignalStatsManifestRow("run_id", g_deterministic_signal_stats_run_id), true);
   DeterministicSignalStatsWriteLine(filename, DeterministicSignalStatsManifestRow("config_id", g_deterministic_signal_stats_config_id), true);
-  DeterministicSignalStatsWriteLine(filename, DeterministicSignalStatsManifestRow("started_at", DeterministicSignalStatsTimeToken(g_deterministic_signal_stats_started_at)), true);
+  int started_offset_minutes = 0;
+  datetime started_analysis_time =
+    DeterministicSignalStatsAnalysisTime(g_deterministic_signal_stats_started_at,
+                                         _Symbol,
+                                         started_offset_minutes);
+  DeterministicSignalStatsWriteLine(filename, DeterministicSignalStatsManifestRow("started_broker_time", DeterministicSignalStatsTimeToken(g_deterministic_signal_stats_started_at)), true);
+  DeterministicSignalStatsWriteLine(filename, DeterministicSignalStatsManifestRow("started_analysis_time", DeterministicSignalStatsTimeToken(started_analysis_time)), true);
+  DeterministicSignalStatsWriteLine(filename, DeterministicSignalStatsManifestRow("started_offset_minutes", IntegerToString(started_offset_minutes)), true);
   DeterministicSignalStatsWriteLine(filename, DeterministicSignalStatsManifestRow("symbol", _Symbol), true);
   DeterministicSignalStatsWriteLine(filename, DeterministicSignalStatsManifestRow("period", EnumToString(_Period)), true);
   DeterministicSignalStatsWriteLine(filename, DeterministicSignalStatsManifestRow("engine_id", IntegerToString(EXTREMUM_ENGINE_V1)), true);
@@ -715,14 +762,17 @@ bool DeterministicSignalStatsWriteManifest()
   DeterministicSignalStatsWriteLine(filename, DeterministicSignalStatsManifestRow("direction_policy", "STRUCTURAL_PEAK_BOTTOM"), true);
   DeterministicSignalStatsWriteLine(filename, DeterministicSignalStatsManifestRow("concurrency_policy", "DISTINCT_ATTEMPTS"), true);
   DeterministicSignalStatsWriteLine(filename, DeterministicSignalStatsManifestRow("broker_session", MarketDataTimePolicyToken(Broker_Session)), true);
+  DeterministicSignalStatsWriteLine(filename, DeterministicSignalStatsManifestRow("time_policy", "broker_time_is_causal;analysis_time=broker_time+offset_minutes"), true);
+  DeterministicSignalStatsWriteLine(filename, DeterministicSignalStatsManifestRow("lot_mode", EnumToString(Lot_Type)), true);
+  DeterministicSignalStatsWriteLine(filename, DeterministicSignalStatsManifestRow("lot_size", DoubleToString(Lot_Strategy_Size, 8)), true);
   DeterministicSignalStatsWriteLine(filename, DeterministicSignalStatsManifestRow("feature_policy", "broker_entered_only"), true);
-  DeterministicSignalStatsWriteLine(filename, DeterministicSignalStatsManifestRow("admission_policy", "candidate_and_broker_admission_events"), true);
+  DeterministicSignalStatsWriteLine(filename, DeterministicSignalStatsManifestRow("execution_check_policy", "attempt_observation_pre_send_send_result_and_reconciliation"), true);
   DeterministicSignalStatsWriteLine(filename, DeterministicSignalStatsManifestRow("cycle_identity_policy", "same_provisional_extremum_type_until_type_transition"), true);
   DeterministicSignalStatsWriteLine(filename, DeterministicSignalStatsManifestRow("fibonacci_anchor_policy", "immutable_slot_1_slot_2_completed_range"), true);
   DeterministicSignalStatsWriteLine(filename, DeterministicSignalStatsManifestRow("attempt_policy", "intrinsic_after_geometry_before_operational_gates"), true);
   DeterministicSignalStatsWriteLine(filename, DeterministicSignalStatsManifestRow("outcome_policy", "broker_confirmed_only_in_signal_outcomes"), true);
   DeterministicSignalStatsWriteLine(filename, DeterministicSignalStatsManifestRow("simulated_outcome_policy", "ENGINE_SIMULATION_in_engine_attempts_only"), true);
-  DeterministicSignalStatsWriteLine(filename, DeterministicSignalStatsManifestRow("numeric_feature_set", "schema_v7_extremum_engine"), true);
+  DeterministicSignalStatsWriteLine(filename, DeterministicSignalStatsManifestRow("numeric_feature_set", "schema_v8_extremum_engine"), true);
   DeterministicSignalStatsWriteLine(filename, DeterministicSignalStatsManifestRow("b_percent_indicator", "iBands:upper_lower_close:period_21:deviation_2.0:bands_shift_0:PRICE_CLOSE"), true);
   DeterministicSignalStatsWriteLine(filename, DeterministicSignalStatsManifestRow("path_ratio_policy", "bounded_tick_path_outcome_only"), true);
   DeterministicSignalStatsWriteLine(filename, DeterministicSignalStatsManifestRow("path_horizon_m1_bars", IntegerToString(DETERMINISTIC_SIGNAL_STATS_PATH_HORIZON_BARS)), true);
@@ -733,7 +783,7 @@ bool DeterministicSignalStatsWriteManifest()
 bool DeterministicSignalStatsPrepareRowFiles()
 {
   string features_filename = DeterministicSignalStatsPath(DETERMINISTIC_SIGNAL_STATS_FEATURES_FILE);
-  string admissions_filename = DeterministicSignalStatsPath(DETERMINISTIC_SIGNAL_STATS_ADMISSIONS_FILE);
+  string checks_filename = DeterministicSignalStatsPath(DETERMINISTIC_SIGNAL_STATS_CHECKS_FILE);
   string outcomes_filename = DeterministicSignalStatsPath(DETERMINISTIC_SIGNAL_STATS_OUTCOMES_FILE);
   string cycles_filename = DeterministicSignalStatsPath(DETERMINISTIC_SIGNAL_STATS_CYCLES_FILE);
   string revisions_filename = DeterministicSignalStatsPath(DETERMINISTIC_SIGNAL_STATS_REVISIONS_FILE);
@@ -744,8 +794,8 @@ bool DeterministicSignalStatsPrepareRowFiles()
                                         false))
       return false;
 
-  if(!DeterministicSignalStatsWriteLine(admissions_filename,
-                                        DETERMINISTIC_SIGNAL_STATS_ADMISSIONS_HEADER,
+  if(!DeterministicSignalStatsWriteLine(checks_filename,
+                                        DETERMINISTIC_SIGNAL_STATS_CHECKS_HEADER,
                                         false))
     return false;
 
@@ -778,13 +828,13 @@ string DeterministicSignalStatsSummaryRow(const datetime finished_at,
   return IntegerToString(DETERMINISTIC_SIGNAL_STATS_SCHEMA_VERSION) + "\t" +
          DeterministicSignalStatsCell(g_deterministic_signal_stats_run_id) + "\t" +
          DeterministicSignalStatsCell(g_deterministic_signal_stats_config_id) + "\t" +
-         DeterministicSignalStatsTimeToken(g_deterministic_signal_stats_started_at) + "\t" +
-         DeterministicSignalStatsTimeToken(finished_at) + "\t" +
+         DeterministicSignalStatsTimestampColumns(g_deterministic_signal_stats_started_at) + "\t" +
+         DeterministicSignalStatsTimestampColumns(finished_at) + "\t" +
          IntegerToString(g_deterministic_signal_stats_cycle_rows) + "\t" +
          IntegerToString(g_deterministic_signal_stats_revision_rows) + "\t" +
          IntegerToString(g_deterministic_signal_stats_attempt_rows) + "\t" +
+         IntegerToString(g_deterministic_signal_stats_execution_check_rows) + "\t" +
          IntegerToString(g_deterministic_signal_stats_feature_rows) + "\t" +
-         IntegerToString(g_deterministic_signal_stats_admission_rows) + "\t" +
          IntegerToString(g_deterministic_signal_stats_outcome_rows) + "\t" +
          IntegerToString(g_deterministic_signal_stats_feature_invalid_rows) + "\t" +
          IntegerToString(g_deterministic_signal_stats_outcome_invalid_rows) + "\t" +
@@ -820,7 +870,7 @@ void DeterministicSignalStatsReset()
   g_deterministic_signal_stats_initialized = false;
   g_deterministic_signal_stats_failed = false;
   g_deterministic_signal_stats_feature_rows = 0;
-  g_deterministic_signal_stats_admission_rows = 0;
+  g_deterministic_signal_stats_execution_check_rows = 0;
   g_deterministic_signal_stats_outcome_rows = 0;
   g_deterministic_signal_stats_cycle_rows = 0;
   g_deterministic_signal_stats_revision_rows = 0;
@@ -829,7 +879,7 @@ void DeterministicSignalStatsReset()
   g_deterministic_signal_stats_feature_invalid_rows = 0;
   g_deterministic_signal_stats_outcome_invalid_rows = 0;
   ArrayResize(g_deterministic_signal_stats_feature_buffer, 0);
-  ArrayResize(g_deterministic_signal_stats_admission_buffer, 0);
+  ArrayResize(g_deterministic_signal_stats_execution_check_buffer, 0);
   ArrayResize(g_deterministic_signal_stats_outcome_buffer, 0);
   ArrayResize(g_deterministic_signal_stats_cycle_buffer, 0);
   ArrayResize(g_deterministic_signal_stats_revision_buffer, 0);
@@ -883,7 +933,7 @@ void DeterministicSignalStatsDeinit()
 
   DeterministicSignalStatsWriteSummary();
   ArrayResize(g_deterministic_signal_stats_feature_buffer, 0);
-  ArrayResize(g_deterministic_signal_stats_admission_buffer, 0);
+  ArrayResize(g_deterministic_signal_stats_execution_check_buffer, 0);
   ArrayResize(g_deterministic_signal_stats_outcome_buffer, 0);
   ArrayResize(g_deterministic_signal_stats_cycle_buffer, 0);
   ArrayResize(g_deterministic_signal_stats_revision_buffer, 0);
@@ -991,17 +1041,17 @@ bool DeterministicSignalStatsRecordCycle(const ExtremumEngineCycleState &cycle)
                DeterministicSignalStatsCell(EnumToString(cycle.engine_timeframe)) + "\t" +
                DeterministicSignalStatsCell(cycle.cycle_id) + "\t" +
                (cycle.is_peak ? "PEAK" : "BOTTOM") + "\t" +
-               DeterministicSignalStatsTimeToken(cycle.first_seen_time) + "\t" +
-               DeterministicSignalStatsTimeToken(cycle.finalized_time) + "\t" +
+               DeterministicSignalStatsTimestampColumns(cycle.first_seen_time) + "\t" +
+               DeterministicSignalStatsTimestampColumns(cycle.finalized_time) + "\t" +
                DeterministicSignalStatsCell(cycle.cycle_status) + "\t" +
-               DeterministicSignalStatsTimeToken(cycle.reference_peak_time) + "\t" +
+               DeterministicSignalStatsTimestampColumns(cycle.reference_peak_time) + "\t" +
                DeterministicSignalStatsDoubleToken(cycle.reference_peak_price > 0.0, cycle.reference_peak_price, Digits()) + "\t" +
-               DeterministicSignalStatsTimeToken(cycle.reference_bottom_time) + "\t" +
+               DeterministicSignalStatsTimestampColumns(cycle.reference_bottom_time) + "\t" +
                DeterministicSignalStatsDoubleToken(cycle.reference_bottom_price > 0.0, cycle.reference_bottom_price, Digits()) + "\t" +
                DeterministicSignalStatsDoubleToken(cycle.reference_range_points > 0.0, cycle.reference_range_points, 2) + "\t" +
-               DeterministicSignalStatsTimeToken(cycle.first_extremum_time) + "\t" +
+               DeterministicSignalStatsTimestampColumns(cycle.first_extremum_time) + "\t" +
                DeterministicSignalStatsDoubleToken(cycle.first_extremum_price > 0.0, cycle.first_extremum_price, Digits()) + "\t" +
-               DeterministicSignalStatsTimeToken(cycle.final_extremum_time) + "\t" +
+               DeterministicSignalStatsTimestampColumns(cycle.final_extremum_time) + "\t" +
                DeterministicSignalStatsDoubleToken(cycle.final_extremum_price > 0.0, cycle.final_extremum_price, Digits()) + "\t" +
                DeterministicSignalStatsDoubleToken(MathIsValidNumber(cycle.final_depth_percent), cycle.final_depth_percent, 6) + "\t" +
                IntegerToString(cycle.revision_count) + "\t" +
@@ -1046,9 +1096,16 @@ bool DeterministicSignalStatsRecordRevision(const ExtremumEngineCycleState &cycl
     structure_1 = DeterministicSignalStatsStructureTypeToken(structure.extremum_stats[1].structure_type);
     structure_2 = DeterministicSignalStatsStructureTypeToken(structure.extremum_stats[2].structure_type);
   }
+  int snapshot_offset_minutes = 0;
+  datetime snapshot_analysis_time =
+    DeterministicSignalStatsAnalysisTime(revision.snapshot_time,
+                                         _Symbol,
+                                         snapshot_offset_minutes);
   double time_sin = 0.0;
   double time_cos = 0.0;
-  bool time_valid = DeterministicSignalStatsTimeCycle(revision.snapshot_time, time_sin, time_cos);
+  bool time_valid = DeterministicSignalStatsTimeCycle(snapshot_analysis_time,
+                                                      time_sin,
+                                                      time_cos);
 
   string row = IntegerToString(DETERMINISTIC_SIGNAL_STATS_SCHEMA_VERSION) + "\t" +
                DeterministicSignalStatsCell(g_deterministic_signal_stats_run_id) + "\t" +
@@ -1060,8 +1117,8 @@ bool DeterministicSignalStatsRecordRevision(const ExtremumEngineCycleState &cycl
                DeterministicSignalStatsCell(cycle.cycle_id) + "\t" +
                DeterministicSignalStatsCell(revision.revision_id) + "\t" +
                IntegerToString(revision.revision_index) + "\t" +
-               DeterministicSignalStatsTimeToken(revision.snapshot_time) + "\t" +
-               DeterministicSignalStatsTimeToken(revision.extremum_time) + "\t" +
+               DeterministicSignalStatsTimestampColumns(revision.snapshot_time) + "\t" +
+               DeterministicSignalStatsTimestampColumns(revision.extremum_time) + "\t" +
                DeterministicSignalStatsDoubleToken(revision.extremum_price > 0.0, revision.extremum_price, Digits()) + "\t" +
                (cycle.is_peak ? "PEAK" : "BOTTOM") + "\t" +
                DeterministicSignalStatsDoubleToken(true, revision.depth_percent_raw, 6) + "\t" +
@@ -1069,15 +1126,15 @@ bool DeterministicSignalStatsRecordRevision(const ExtremumEngineCycleState &cycl
                DeterministicSignalStatsDoubleToken(true, revision.distance_from_previous_points, 2) + "\t" +
                DeterministicSignalStatsDoubleToken(true, revision.depth_delta_from_previous_percent, 6) + "\t" +
                IntegerToString(revision.bars_since_cycle_start) + "\t" +
-               DeterministicSignalStatsTimeToken(cycle.reference_peak_time) + "\t" +
+               DeterministicSignalStatsTimestampColumns(cycle.reference_peak_time) + "\t" +
                DeterministicSignalStatsDoubleToken(true, cycle.reference_peak_price, Digits()) + "\t" +
-               DeterministicSignalStatsTimeToken(cycle.reference_bottom_time) + "\t" +
+               DeterministicSignalStatsTimestampColumns(cycle.reference_bottom_time) + "\t" +
                DeterministicSignalStatsDoubleToken(true, cycle.reference_bottom_price, Digits()) + "\t" +
                DeterministicSignalStatsDoubleToken(true, cycle.reference_range_points, 2) + "\t" +
                DeterministicSignalStatsCell(structure_0) + "\t" +
                DeterministicSignalStatsCell(structure_1) + "\t" +
                DeterministicSignalStatsCell(structure_2) + "\t" +
-               DeterministicSignalStatsCell(DeterministicSignalStatsSessionBucket(revision.snapshot_time)) + "\t" +
+               DeterministicSignalStatsCell(DeterministicSignalStatsSessionBucket(snapshot_analysis_time)) + "\t" +
                DeterministicSignalStatsDoubleToken(time_valid, time_sin, 9) + "\t" +
                DeterministicSignalStatsDoubleToken(time_valid, time_cos, 9);
 
@@ -1139,7 +1196,7 @@ bool DeterministicSignalStatsQueueAttemptRow(const int index)
                DeterministicSignalStatsCell(state.attempt_id) + "\t" +
                IntegerToString(state.cycle_attempt_index) + "\t" +
                IntegerToString(state.revision_attempt_index) + "\t" +
-               DeterministicSignalStatsTimeToken(state.created_time) + "\t" +
+               DeterministicSignalStatsTimestampColumns(state.created_time) + "\t" +
                DeterministicSignalStatsDirectionToken(state.direction) + "\t" +
                DeterministicSignalStatsDoubleToken(true, state.candidate_depth_percent, 6) + "\t" +
                DeterministicSignalStatsDoubleToken(true, state.reference_range_points, 2) + "\t" +
@@ -1151,7 +1208,7 @@ bool DeterministicSignalStatsQueueAttemptRow(const int index)
                DeterministicSignalStatsDoubleToken(true, state.stop_price, Digits()) + "\t" +
                DeterministicSignalStatsDoubleToken(true, state.target_price, Digits()) + "\t" +
                DeterministicSignalStatsBoolToken(state.trigger_reached) + "\t" +
-               DeterministicSignalStatsTimeToken(state.trigger_time) + "\t" +
+               DeterministicSignalStatsTimestampColumns(state.trigger_time) + "\t" +
                DeterministicSignalStatsCell(state.attempt_status) + "\t" +
                DeterministicSignalStatsCell(state.operational_block_source) + "\t" +
                DeterministicSignalStatsCell(state.operational_block_reason) + "\t" +
@@ -1300,23 +1357,115 @@ void DeterministicSignalStatsExpirePriorRevisionAttempts(const string current_re
   }
 }
 
-bool DeterministicSignalStatsRecordAdmissionEvent(SignalParams &signal_params,
-                                                  const string event_type)
+string DeterministicSignalStatsExecutionCheckKey(const BrokerExecutionCheck &check,
+                                                 const ExecutionState &state)
 {
-  if(!DeterministicSignalStatsReady())
-    return false;
+  return check.phase + "|" +
+         check.symbol + "|" +
+         EnumToString(check.direction) + "|" +
+         IntegerToString((int)check.account_margin_mode) + "|" +
+         DeterministicSignalStatsBoolToken(check.account_margin_mode_supported) + "|" +
+         IntegerToString((int)check.symbol_trade_mode) + "|" +
+         DeterministicSignalStatsBoolToken(check.symbol_trade_mode_allowed) + "|" +
+         DeterministicSignalStatsBoolToken(check.market_session_open) + "|" +
+         DeterministicSignalStatsBoolToken(check.account_trade_allowed) + "|" +
+         DeterministicSignalStatsBoolToken(check.account_expert_trade_allowed) + "|" +
+         DeterministicSignalStatsBoolToken(check.terminal_trade_allowed) + "|" +
+         DeterministicSignalStatsBoolToken(check.mql_trade_allowed) + "|" +
+         DoubleToString(check.bid, Digits()) + "|" +
+         DoubleToString(check.ask, Digits()) + "|" +
+         DoubleToString(check.spread_points, 2) + "|" +
+         DoubleToString(check.point_size, 10) + "|" +
+         DoubleToString(check.stops_distance_points, 2) + "|" +
+         DoubleToString(check.freeze_distance_points, 2) + "|" +
+         DoubleToString(check.planned_entry_price, Digits()) + "|" +
+         DoubleToString(check.stop_loss_price, Digits()) + "|" +
+         DoubleToString(check.take_profit_price, Digits()) + "|" +
+         DoubleToString(check.risk_distance, Digits()) + "|" +
+         DoubleToString(check.requested_volume, 8) + "|" +
+         DoubleToString(check.normalized_volume, 8) + "|" +
+         DoubleToString(check.volume_min, 8) + "|" +
+         DoubleToString(check.volume_max, 8) + "|" +
+         DoubleToString(check.volume_step, 8) + "|" +
+         DeterministicSignalStatsBoolToken(check.volume_valid) + "|" +
+         DoubleToString(check.account_balance, 2) + "|" +
+         DoubleToString(check.free_margin, 2) + "|" +
+         DoubleToString(check.required_margin, 2) + "|" +
+         DeterministicSignalStatsBoolToken(check.margin_valid) + "|" +
+         DeterministicSignalStatsBoolToken(check.geometry_valid) + "|" +
+         DeterministicSignalStatsBoolToken(check.stop_distance_valid) + "|" +
+         DeterministicSignalStatsBoolToken(check.freeze_distance_valid) + "|" +
+         DeterministicSignalStatsBoolToken(check.order_check_performed) + "|" +
+         DeterministicSignalStatsBoolToken(check.order_check_allowed) + "|" +
+         StringFormat("%I64u", check.order_check_retcode) + "|" +
+         check.order_check_comment + "|" +
+         DeterministicSignalStatsBoolToken(check.allowed) + "|" +
+         check.block_source + "|" + check.block_reason + "|" +
+         StringFormat("%I64u", check.send_retcode) + "|" +
+         check.send_comment + "|" +
+         StringFormat("%I64u", check.order_ticket) + "|" +
+         StringFormat("%I64u", check.deal_ticket) + "|" +
+         StringFormat("%I64u", state.position_ticket) + "|" +
+         StringFormat("%I64u", state.position_identifier) + "|" +
+         DeterministicSignalStatsBoolToken(state.broker_entry_confirmed) + "|" +
+         DeterministicSignalStatsBoolToken(state.broker_close_confirmed) + "|" +
+         DoubleToString(state.broker_entry_price, Digits()) + "|" +
+         DoubleToString(state.broker_volume, 8) + "|" +
+         DoubleToString(state.broker_stop_loss, Digits()) + "|" +
+         DoubleToString(state.broker_take_profit, Digits()) + "|" +
+         DoubleToString(state.close_price, Digits()) + "|" +
+         DoubleToString(state.closed_volume, 8) + "|" +
+         DoubleToString(state.realized_profit, 2) + "|" +
+         state.terminal_reason;
+}
+
+bool DeterministicSignalStatsExecutionCheckTerminal(const BrokerExecutionCheck &check)
+{
+  if(check.phase == "OPERATIONAL_BLOCK" ||
+     check.phase == "LIFECYCLE_CANCELED" ||
+     check.phase == "BROKER_CLOSED" ||
+     check.phase == "BROKER_TERMINAL")
+    return true;
+  if((check.phase == "FILTER_RESULT" || check.phase == "SEND_RESULT") &&
+     !check.allowed)
+    return true;
+  return false;
+}
+
+bool DeterministicSignalStatsRecordExecutionCheck(SignalParams &signal_params,
+                                                  const BrokerExecutionCheck &source_check)
+{
   if(!signal_params.deterministic_strategy)
     return false;
 
-  string event_key = event_type + "|" +
-                     EnumToString(signal_params.admission_status) + "|" +
-                     signal_params.admission_block_source + "|" +
-                     signal_params.admission_block_reason;
-  if(signal_params.deterministic_stats_last_admission_key == event_key)
+  BrokerExecutionCheck check = source_check;
+  if(check.broker_time <= 0)
+    check.broker_time = TimeCurrent();
+  if(check.symbol == "")
+    check.symbol = _Symbol;
+  if(check.direction == NO_SIGNAL)
+    check.direction = signal_params.signal_type;
+  if(check.sequence <= 0)
+  {
+    signal_params.execution.last_check_sequence++;
+    check.sequence = signal_params.execution.last_check_sequence;
+  }
+  else if(check.sequence > signal_params.execution.last_check_sequence)
+  {
+    signal_params.execution.last_check_sequence = check.sequence;
+  }
+  else if(check.sequence < signal_params.execution.last_check_sequence)
+  {
+    signal_params.execution.last_check_sequence++;
+    check.sequence = signal_params.execution.last_check_sequence;
+  }
+
+  string event_key = DeterministicSignalStatsExecutionCheckKey(check,
+                                                               signal_params.execution);
+  if(signal_params.deterministic_stats_last_execution_check_key == event_key)
     return true;
-  string event_token = "\n" + event_key + "\n";
-  if(StringFind(signal_params.deterministic_stats_admission_seen_keys, event_token) >= 0)
-    return true;
+  if(!DeterministicSignalStatsReady())
+    return false;
 
   string signal_id = DeterministicSignalStatsEnsureSignalId(signal_params);
   if(signal_id == "")
@@ -1326,6 +1475,7 @@ bool DeterministicSignalStatsRecordAdmissionEvent(SignalParams &signal_params,
   if(source_key == "")
     source_key = BuildExtremumEngineSignalSourceKey(signal_params);
 
+  ExecutionState state = signal_params.execution;
   string row = IntegerToString(DETERMINISTIC_SIGNAL_STATS_SCHEMA_VERSION) + "\t" +
                DeterministicSignalStatsCell(g_deterministic_signal_stats_run_id) + "\t" +
                DeterministicSignalStatsCell(g_deterministic_signal_stats_config_id) + "\t" +
@@ -1333,62 +1483,120 @@ bool DeterministicSignalStatsRecordAdmissionEvent(SignalParams &signal_params,
                DeterministicSignalStatsCell(source_key) + "\t" +
                IntegerToString(signal_params.deterministic_source_attempt_index) + "\t" +
                DeterministicSignalStatsGenealogyColumns(signal_params) + "\t" +
-               DeterministicSignalStatsTimeToken(TimeCurrent()) + "\t" +
-               DeterministicSignalStatsCell(event_type) + "\t" +
-               DeterministicSignalStatsCell(EnumToString(signal_params.admission_status)) + "\t" +
-               DeterministicSignalStatsCell(signal_params.admission_block_source) + "\t" +
-               DeterministicSignalStatsCell(signal_params.admission_block_reason) + "\t" +
-               DeterministicSignalStatsDoubleToken(signal_params.admission_spread_points > 0.0,
-                                                   signal_params.admission_spread_points,
-                                                   1) + "\t" +
-               DeterministicSignalStatsCell(MarketStatusToString(signal_params.admission_market_status)) + "\t" +
-               DeterministicSignalStatsBoolToken(signal_params.broker_entry_confirmed) + "\t" +
-               DeterministicSignalStatsBoolToken(signal_params.broker_close_confirmed) + "\t" +
-               DeterministicSignalStatsCell(signal_params.execution_risk_plan_reason) + "\t" +
-               DeterministicSignalStatsDoubleToken(signal_params.execution_risk_target_amount > 0.0,
-                                                   signal_params.execution_risk_target_amount,
-                                                   2) + "\t" +
-               DeterministicSignalStatsDoubleToken(signal_params.execution_expected_sl_loss > 0.0,
-                                                   signal_params.execution_expected_sl_loss,
-                                                   2) + "\t" +
-               DeterministicSignalStatsDoubleToken(MathAbs(signal_params.execution_expected_tp_profit) > 0.0,
-                                                   signal_params.execution_expected_tp_profit,
-                                                   2) + "\t" +
-               DeterministicSignalStatsDoubleToken(signal_params.execution_raw_lot_size > 0.0,
-                                                   signal_params.execution_raw_lot_size,
-                                                   4) + "\t" +
-               DeterministicSignalStatsDoubleToken(signal_params.execution_normalized_lot_size > 0.0,
-                                                   signal_params.execution_normalized_lot_size,
-                                                   4);
+               IntegerToString(check.sequence) + "\t" +
+               DeterministicSignalStatsCell(check.phase) + "\t" +
+               DeterministicSignalStatsTimestampColumns(check.broker_time,
+                                                        check.symbol) + "\t" +
+               DeterministicSignalStatsCell(check.symbol) + "\t" +
+               DeterministicSignalStatsDirectionToken(check.direction) + "\t" +
+               IntegerToString((int)check.account_margin_mode) + "\t" +
+               DeterministicSignalStatsBoolToken(check.account_margin_mode_supported) + "\t" +
+               IntegerToString((int)check.symbol_trade_mode) + "\t" +
+               DeterministicSignalStatsBoolToken(check.symbol_trade_mode_allowed) + "\t" +
+               DeterministicSignalStatsBoolToken(check.market_session_open) + "\t" +
+               DeterministicSignalStatsBoolToken(check.account_trade_allowed) + "\t" +
+               DeterministicSignalStatsBoolToken(check.account_expert_trade_allowed) + "\t" +
+               DeterministicSignalStatsBoolToken(check.terminal_trade_allowed) + "\t" +
+               DeterministicSignalStatsBoolToken(check.mql_trade_allowed) + "\t" +
+               DeterministicSignalStatsDoubleToken(check.bid > 0.0, check.bid, Digits()) + "\t" +
+               DeterministicSignalStatsDoubleToken(check.ask > 0.0, check.ask, Digits()) + "\t" +
+               DeterministicSignalStatsDoubleToken(check.point_size > 0.0, check.spread_points, 2) + "\t" +
+               DeterministicSignalStatsDoubleToken(check.point_size > 0.0, check.point_size, 10) + "\t" +
+               DeterministicSignalStatsDoubleToken(check.point_size > 0.0, check.stops_distance_points, 2) + "\t" +
+               DeterministicSignalStatsDoubleToken(check.point_size > 0.0, check.freeze_distance_points, 2) + "\t" +
+               DeterministicSignalStatsDoubleToken(check.planned_entry_price > 0.0, check.planned_entry_price, Digits()) + "\t" +
+               DeterministicSignalStatsDoubleToken(check.stop_loss_price > 0.0, check.stop_loss_price, Digits()) + "\t" +
+               DeterministicSignalStatsDoubleToken(check.take_profit_price > 0.0, check.take_profit_price, Digits()) + "\t" +
+               DeterministicSignalStatsDoubleToken(check.risk_distance > 0.0, check.risk_distance, Digits()) + "\t" +
+               DeterministicSignalStatsDoubleToken(check.requested_volume > 0.0, check.requested_volume, 8) + "\t" +
+               DeterministicSignalStatsDoubleToken(check.normalized_volume > 0.0, check.normalized_volume, 8) + "\t" +
+               DeterministicSignalStatsDoubleToken(check.volume_min > 0.0, check.volume_min, 8) + "\t" +
+               DeterministicSignalStatsDoubleToken(check.volume_max > 0.0, check.volume_max, 8) + "\t" +
+               DeterministicSignalStatsDoubleToken(check.volume_step > 0.0, check.volume_step, 8) + "\t" +
+               DeterministicSignalStatsBoolToken(check.volume_valid) + "\t" +
+               DeterministicSignalStatsDoubleToken(MathIsValidNumber(check.account_balance), check.account_balance, 2) + "\t" +
+               DeterministicSignalStatsDoubleToken(MathIsValidNumber(check.free_margin), check.free_margin, 2) + "\t" +
+               DeterministicSignalStatsDoubleToken(check.required_margin > 0.0, check.required_margin, 2) + "\t" +
+               DeterministicSignalStatsBoolToken(check.margin_valid) + "\t" +
+               DeterministicSignalStatsBoolToken(check.geometry_valid) + "\t" +
+               DeterministicSignalStatsBoolToken(check.stop_distance_valid) + "\t" +
+               DeterministicSignalStatsBoolToken(check.freeze_distance_valid) + "\t" +
+               DeterministicSignalStatsBoolToken(check.order_check_performed) + "\t" +
+               DeterministicSignalStatsBoolToken(check.order_check_allowed) + "\t" +
+               (check.order_check_performed ? StringFormat("%I64u", check.order_check_retcode) : DETERMINISTIC_SIGNAL_STATS_NULL) + "\t" +
+               DeterministicSignalStatsCell(check.order_check_comment) + "\t" +
+               DeterministicSignalStatsBoolToken(check.allowed) + "\t" +
+               DeterministicSignalStatsCell(check.block_source) + "\t" +
+               DeterministicSignalStatsCell(check.block_reason) + "\t" +
+               (check.phase == "SEND_RESULT" ? StringFormat("%I64u", check.send_retcode) : DETERMINISTIC_SIGNAL_STATS_NULL) + "\t" +
+               DeterministicSignalStatsCell(check.send_comment) + "\t" +
+               (check.order_ticket > 0 ? StringFormat("%I64u", check.order_ticket) : DETERMINISTIC_SIGNAL_STATS_NULL) + "\t" +
+               (check.deal_ticket > 0 ? StringFormat("%I64u", check.deal_ticket) : DETERMINISTIC_SIGNAL_STATS_NULL) + "\t" +
+               (state.position_ticket > 0 ? StringFormat("%I64u", state.position_ticket) : DETERMINISTIC_SIGNAL_STATS_NULL) + "\t" +
+               (state.position_identifier > 0 ? StringFormat("%I64u", state.position_identifier) : DETERMINISTIC_SIGNAL_STATS_NULL) + "\t" +
+               DeterministicSignalStatsBoolToken(state.broker_entry_confirmed) + "\t" +
+               DeterministicSignalStatsBoolToken(state.broker_close_confirmed) + "\t" +
+               DeterministicSignalStatsDoubleToken(state.broker_entry_price > 0.0, state.broker_entry_price, Digits()) + "\t" +
+               DeterministicSignalStatsDoubleToken(state.broker_volume > 0.0, state.broker_volume, 8) + "\t" +
+               DeterministicSignalStatsDoubleToken(state.broker_stop_loss > 0.0, state.broker_stop_loss, Digits()) + "\t" +
+               DeterministicSignalStatsDoubleToken(state.broker_take_profit > 0.0, state.broker_take_profit, Digits()) + "\t" +
+               DeterministicSignalStatsDoubleToken(state.close_price > 0.0, state.close_price, Digits()) + "\t" +
+               DeterministicSignalStatsDoubleToken(state.closed_volume > 0.0, state.closed_volume, 8) + "\t" +
+               DeterministicSignalStatsDoubleToken(state.broker_close_confirmed, state.realized_profit, 2) + "\t" +
+               DeterministicSignalStatsCell(state.terminal_reason);
 
-  string filename = DeterministicSignalStatsPath(DETERMINISTIC_SIGNAL_STATS_ADMISSIONS_FILE);
-  if(!DeterministicSignalStatsQueueRow(filename,
-                                       DETERMINISTIC_SIGNAL_STATS_ADMISSIONS_HEADER,
+  if(!DeterministicSignalStatsQueueRow(DeterministicSignalStatsPath(DETERMINISTIC_SIGNAL_STATS_CHECKS_FILE),
+                                       DETERMINISTIC_SIGNAL_STATS_CHECKS_HEADER,
                                        row,
-                                       g_deterministic_signal_stats_admission_buffer))
+                                       g_deterministic_signal_stats_execution_check_buffer))
     return false;
 
-  signal_params.deterministic_stats_last_admission_key = event_key;
-  signal_params.deterministic_stats_admission_seen_keys += event_token;
-  g_deterministic_signal_stats_admission_rows++;
+  signal_params.deterministic_stats_last_execution_check_key = event_key;
+  g_deterministic_signal_stats_execution_check_rows++;
 
   int attempt_index = DeterministicSignalStatsFindAttemptState(signal_params.extremum_attempt_id);
   if(attempt_index >= 0)
   {
     g_extremum_engine_attempt_stats_states[attempt_index].broker_signal_id = signal_id;
-    g_extremum_engine_attempt_stats_states[attempt_index].broker_entry_confirmed = signal_params.broker_entry_confirmed;
-    g_extremum_engine_attempt_stats_states[attempt_index].broker_close_confirmed = signal_params.broker_close_confirmed;
-    if(event_type == "operational_blocked" ||
-       event_type == "lifecycle_cancel" ||
-       event_type == "broker_close")
-    {
+    g_extremum_engine_attempt_stats_states[attempt_index].broker_entry_confirmed = state.broker_entry_confirmed;
+    g_extremum_engine_attempt_stats_states[attempt_index].broker_close_confirmed = state.broker_close_confirmed;
+    if(DeterministicSignalStatsExecutionCheckTerminal(check))
       g_extremum_engine_attempt_stats_states[attempt_index].broker_lifecycle_terminal = true;
-    }
     if(g_extremum_engine_attempt_stats_states[attempt_index].finalized &&
        g_extremum_engine_attempt_stats_states[attempt_index].broker_lifecycle_terminal)
       DeterministicSignalStatsQueueAttemptRow(attempt_index);
   }
   return true;
+}
+
+void DeterministicSignalStatsLatestExecutionCheck(const SignalParams &signal_params,
+                                                  BrokerExecutionCheck &check_out)
+{
+  if(signal_params.execution.send_result_check.phase != "")
+    check_out = signal_params.execution.send_result_check;
+  else if(signal_params.execution.pre_send_check.phase != "")
+    check_out = signal_params.execution.pre_send_check;
+  else if(signal_params.execution.filter_gate_check.phase != "")
+    check_out = signal_params.execution.filter_gate_check;
+  else
+    check_out = signal_params.execution.observation_check;
+}
+
+bool DeterministicSignalStatsRecordDecisionCheck(SignalParams &signal_params,
+                                                 const string phase,
+                                                 const bool allowed,
+                                                 const string block_source,
+                                                 const string block_reason)
+{
+  BrokerExecutionCheck check;
+  DeterministicSignalStatsLatestExecutionCheck(signal_params, check);
+  check.phase = phase;
+  check.sequence = 0;
+  check.broker_time = TimeCurrent();
+  check.allowed = allowed;
+  check.block_source = block_source;
+  check.block_reason = block_reason;
+  return DeterministicSignalStatsRecordExecutionCheck(signal_params, check);
 }
 
 bool DeterministicSignalStatsPathStatusHasFinalLabels(const string path_status)
@@ -2017,8 +2225,12 @@ struct DeterministicSignalFeatureSnapshot
   int      strategy_id;
   string   strategy_label;
   string   direction;
-  datetime entry_time;
-  datetime source_time;
+  datetime entry_broker_time;
+  datetime entry_analysis_time;
+  int      entry_offset_minutes;
+  datetime source_broker_time;
+  datetime source_analysis_time;
+  int      source_offset_minutes;
   string   source_type;
   string   structure_0;
   bool     structure_0_valid;
@@ -2070,8 +2282,12 @@ struct DeterministicSignalFeatureSnapshot
     strategy_id = EXTREMUM_ENGINE_NONE;
     strategy_label = "";
     direction = "";
-    entry_time = 0;
-    source_time = 0;
+    entry_broker_time = 0;
+    entry_analysis_time = 0;
+    entry_offset_minutes = 0;
+    source_broker_time = 0;
+    source_analysis_time = 0;
+    source_offset_minutes = 0;
     source_type = "";
     structure_0 = DETERMINISTIC_SIGNAL_STATS_NULL;
     structure_0_valid = false;
@@ -2142,10 +2358,22 @@ bool DeterministicSignalBuildFeatureSnapshot(SignalParams &signal_params,
   snapshot.strategy_id = signal_params.engine_id;
   snapshot.strategy_label = signal_params.engine_label;
   snapshot.direction = DeterministicSignalStatsDirectionToken(signal_params.signal_type);
-  snapshot.entry_time = execution_state.last_action_time;
-  if(snapshot.entry_time <= 0)
-    snapshot.entry_time = TimeCurrent();
-  snapshot.source_time = signal_params.source_extremum_time;
+  snapshot.entry_broker_time = execution_state.broker_entry_time;
+  if(snapshot.entry_broker_time <= 0)
+    snapshot.entry_broker_time = execution_state.last_action_time;
+  if(snapshot.entry_broker_time <= 0)
+    snapshot.entry_broker_time = signal_params.entry_time;
+  if(snapshot.entry_broker_time <= 0)
+    snapshot.entry_broker_time = TimeCurrent();
+  snapshot.entry_analysis_time =
+    DeterministicSignalStatsAnalysisTime(snapshot.entry_broker_time,
+                                         snapshot.symbol,
+                                         snapshot.entry_offset_minutes);
+  snapshot.source_broker_time = signal_params.source_extremum_time;
+  snapshot.source_analysis_time =
+    DeterministicSignalStatsAnalysisTime(snapshot.source_broker_time,
+                                         snapshot.symbol,
+                                         snapshot.source_offset_minutes);
   snapshot.source_type = DeterministicSignalStatsSourceTypeToken(signal_params);
   snapshot.structure_0_valid =
     DeterministicSignalStatsResolveStructureTypes(signal_params,
@@ -2257,7 +2485,8 @@ bool DeterministicSignalBuildFeatureSnapshot(SignalParams &signal_params,
   if(!snapshot.low_chain_profile_valid)
     DeterministicSignalFeatureSnapshotAddInvalid(snapshot, "low_chain_profile");
 
-  snapshot.entry_session_bucket = DeterministicSignalStatsSessionBucket(snapshot.entry_time);
+  snapshot.entry_session_bucket =
+    DeterministicSignalStatsSessionBucket(snapshot.entry_analysis_time);
   snapshot.entry_session_bucket_valid = (snapshot.entry_session_bucket != "");
   snapshot.session_id = snapshot.entry_session_bucket;
   snapshot.session_id_valid = snapshot.entry_session_bucket_valid;
@@ -2267,12 +2496,13 @@ bool DeterministicSignalBuildFeatureSnapshot(SignalParams &signal_params,
     DeterministicSignalFeatureSnapshotAddInvalid(snapshot, "session_id");
   }
 
-  snapshot.entry_weekday = DeterministicSignalStatsWeekdayToken(snapshot.entry_time);
+  snapshot.entry_weekday =
+    DeterministicSignalStatsWeekdayToken(snapshot.entry_analysis_time);
   snapshot.entry_weekday_valid = (snapshot.entry_weekday != "");
   if(!snapshot.entry_weekday_valid)
     DeterministicSignalFeatureSnapshotAddInvalid(snapshot, "entry_weekday");
 
-  snapshot.time_sin_valid = DeterministicSignalStatsTimeCycle(snapshot.entry_time,
+  snapshot.time_sin_valid = DeterministicSignalStatsTimeCycle(snapshot.entry_analysis_time,
                                                              snapshot.time_sin,
                                                              snapshot.time_cos);
   snapshot.time_cos_valid = snapshot.time_sin_valid;
@@ -2317,8 +2547,16 @@ bool DeterministicSignalStatsBuildFeatureRow(SignalParams &signal_params,
             DeterministicSignalStatsGenealogyColumns(signal_params) + "\t" +
             DeterministicSignalStatsCell(snapshot.symbol) + "\t" +
             DeterministicSignalStatsCell(snapshot.direction) + "\t" +
-            DeterministicSignalStatsTimeToken(snapshot.entry_time) + "\t" +
-            DeterministicSignalStatsTimeToken(snapshot.source_time) + "\t" +
+            DeterministicSignalStatsTimeToken(snapshot.entry_broker_time) + "\t" +
+            DeterministicSignalStatsTimeToken(snapshot.entry_analysis_time) + "\t" +
+            DeterministicSignalStatsOffsetToken(snapshot.entry_broker_time,
+                                                snapshot.entry_analysis_time,
+                                                snapshot.entry_offset_minutes) + "\t" +
+            DeterministicSignalStatsTimeToken(snapshot.source_broker_time) + "\t" +
+            DeterministicSignalStatsTimeToken(snapshot.source_analysis_time) + "\t" +
+            DeterministicSignalStatsOffsetToken(snapshot.source_broker_time,
+                                                snapshot.source_analysis_time,
+                                                snapshot.source_offset_minutes) + "\t" +
             DeterministicSignalStatsCell(snapshot.structure_0_valid ? snapshot.structure_0 : "") + "\t" +
             DeterministicSignalStatsCell(snapshot.structure_1_valid ? snapshot.structure_1 : "") + "\t" +
             DeterministicSignalStatsCell(snapshot.structure_2_valid ? snapshot.structure_2 : "") + "\t" +
@@ -2618,6 +2856,7 @@ bool DeterministicSignalStatsBuildOutcomePayload(SignalParams &signal_params,
   valid_out = entry_price_valid && close_price_valid && profit_r_valid &&
               duration_valid && net_profit_valid;
   payload_out.valid = valid_out;
+  payload_out.entry_time = entry_time;
   payload_out.terminal_time = signal_params.close_time;
   payload_out.terminal_reason = DeterministicSignalStatsTerminalReason(signal_params);
   payload_out.profit_r = profit_r;
@@ -2649,7 +2888,8 @@ string DeterministicSignalStatsOutcomeRowFromPayload(const string signal_id,
          DeterministicSignalStatsCell(source_key) + "\t" +
          IntegerToString(source_attempt_index) + "\t" +
          genealogy_columns + "\t" +
-         DeterministicSignalStatsTimeToken(payload.terminal_time) + "\t" +
+         DeterministicSignalStatsTimestampColumns(payload.entry_time) + "\t" +
+         DeterministicSignalStatsTimestampColumns(payload.terminal_time) + "\t" +
          DeterministicSignalStatsCell(payload.terminal_reason) + "\t" +
          DeterministicSignalStatsDoubleToken(payload.profit_r_valid, payload.profit_r, 4) + "\t" +
          DeterministicSignalStatsIntToken(payload.duration_valid, payload.duration_seconds) + "\t" +
@@ -2745,23 +2985,14 @@ bool DeterministicSignalStatsBuildOutcomeRow(SignalParams &signal_params,
                                                   valid_out))
     return false;
 
-  row_out = IntegerToString(DETERMINISTIC_SIGNAL_STATS_SCHEMA_VERSION) + "\t" +
-            DeterministicSignalStatsCell(g_deterministic_signal_stats_run_id) + "\t" +
-            DeterministicSignalStatsCell(g_deterministic_signal_stats_config_id) + "\t" +
-            DeterministicSignalStatsCell(signal_id) + "\t" +
-            DeterministicSignalStatsCell(source_key) + "\t" +
-            IntegerToString(signal_params.deterministic_source_attempt_index) + "\t" +
-            DeterministicSignalStatsGenealogyColumns(signal_params) + "\t" +
-            DeterministicSignalStatsTimeToken(payload.terminal_time) + "\t" +
-            DeterministicSignalStatsCell(payload.terminal_reason) + "\t" +
-            DeterministicSignalStatsDoubleToken(payload.profit_r_valid, payload.profit_r, 4) + "\t" +
-            DeterministicSignalStatsIntToken(payload.duration_valid, payload.duration_seconds) + "\t" +
-            DeterministicSignalStatsIntToken(payload.duration_valid, payload.duration_m1_bars) + "\t" +
-            DeterministicSignalStatsDoubleToken(payload.entry_price_valid, payload.entry_price, Digits()) + "\t" +
-            DeterministicSignalStatsDoubleToken(payload.close_price_valid, payload.close_price, Digits()) + "\t" +
-            DeterministicSignalStatsDoubleToken(payload.net_profit_valid, payload.net_profit, 2) + "\t" +
-            DeterministicSignalStatsBrokerOutcomeColumns(signal_params) + "\t" +
-            DeterministicSignalStatsInvalidPathColumns();
+  row_out = DeterministicSignalStatsOutcomeRowFromPayload(
+    signal_id,
+    source_key,
+    signal_params.deterministic_source_attempt_index,
+    DeterministicSignalStatsGenealogyColumns(signal_params),
+    DeterministicSignalStatsBrokerOutcomeColumns(signal_params),
+    payload,
+    DeterministicSignalStatsInvalidPathColumns());
 
   return true;
 }

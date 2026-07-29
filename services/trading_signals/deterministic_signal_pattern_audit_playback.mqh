@@ -4,14 +4,14 @@
 #ifndef _TS_DETERMINISTIC_SIGNAL_PATTERN_AUDIT_PLAYBACK_MQH_
 #define _TS_DETERMINISTIC_SIGNAL_PATTERN_AUDIT_PLAYBACK_MQH_
 
-const int    PATTERN_AUDIT_PLAYBACK_SCHEMA_VERSION = 2;
+const int    PATTERN_AUDIT_PLAYBACK_SCHEMA_VERSION = 3;
 const string PATTERN_AUDIT_FOLDER                  = "pattern_audits";
 const string PATTERN_AUDIT_MATCHES_FILE            = "pattern_matches.tsv";
 const string PATTERN_AUDIT_OBSERVATIONS_FILE       = "pattern_tester_observations.tsv";
 const int    PATTERN_AUDIT_MATCH_RESERVE           = 256;
 const int    PATTERN_AUDIT_INDEX_RESERVE           = 256;
 const string PATTERN_AUDIT_OBSERVATIONS_HEADER =
-  "schema_version\taudit_id\tpattern_id\tsignal_id\tsource_key\tsource_attempt_index\tentry_time\texpected_signal_id\tobserved_signal_id\texpected_entry_time\tobserved_entry_time\texpected_match\tobservation_status\tpattern_label\tconditions_text";
+  "schema_version\taudit_id\tpattern_id\tsignal_id\tsource_key\tsource_attempt_index\texpected_entry_broker_time\texpected_entry_analysis_time\texpected_entry_offset_minutes\tobserved_entry_broker_time\tobserved_entry_analysis_time\tobserved_entry_offset_minutes\texpected_signal_id\tobserved_signal_id\texpected_match\tobservation_status\tpattern_label\tconditions_text";
 
 struct PatternAuditPlaybackMatch
 {
@@ -20,7 +20,9 @@ struct PatternAuditPlaybackMatch
   string source_key;
   int    source_attempt_index;
   string signal_id;
-  string entry_time;
+  string entry_broker_time;
+  string entry_analysis_time;
+  string entry_offset_minutes;
   string conditions_text;
   bool   observed;
 
@@ -31,7 +33,9 @@ struct PatternAuditPlaybackMatch
     source_key = "";
     source_attempt_index = 0;
     signal_id = "";
-    entry_time = "";
+    entry_broker_time = "";
+    entry_analysis_time = "";
+    entry_offset_minutes = "";
     conditions_text = "";
     observed = false;
   }
@@ -43,7 +47,9 @@ struct PatternAuditPlaybackMatch
     source_key = other.source_key;
     source_attempt_index = other.source_attempt_index;
     signal_id = other.signal_id;
-    entry_time = other.entry_time;
+    entry_broker_time = other.entry_broker_time;
+    entry_analysis_time = other.entry_analysis_time;
+    entry_offset_minutes = other.entry_offset_minutes;
     conditions_text = other.conditions_text;
     observed = other.observed;
   }
@@ -377,10 +383,13 @@ bool PatternAuditPlaybackLoadMatches()
   int signal_id_index = PatternAuditPlaybackHeaderIndex(header_cells, header_total, "signal_id");
   int source_key_index = PatternAuditPlaybackHeaderIndex(header_cells, header_total, "source_key");
   int source_attempt_index = PatternAuditPlaybackHeaderIndex(header_cells, header_total, "source_attempt_index");
-  int entry_time_index = PatternAuditPlaybackHeaderIndex(header_cells, header_total, "entry_time");
+  int entry_broker_time_index = PatternAuditPlaybackHeaderIndex(header_cells, header_total, "entry_broker_time");
+  int entry_analysis_time_index = PatternAuditPlaybackHeaderIndex(header_cells, header_total, "entry_analysis_time");
+  int entry_offset_index = PatternAuditPlaybackHeaderIndex(header_cells, header_total, "entry_offset_minutes");
   int selected_index = PatternAuditPlaybackHeaderIndex(header_cells, header_total, "selected_for_visual");
   int conditions_index = PatternAuditPlaybackHeaderIndex(header_cells, header_total, "conditions_text");
   int schema_version_index = PatternAuditPlaybackHeaderIndex(header_cells, header_total, "phase1_schema_version");
+  int feature_set_index = PatternAuditPlaybackHeaderIndex(header_cells, header_total, "feature_set_id");
   int engine_id_index = PatternAuditPlaybackHeaderIndex(header_cells, header_total, "engine_id");
   int engine_timeframe_index = PatternAuditPlaybackHeaderIndex(header_cells, header_total, "engine_timeframe");
   int attempt_id_index = PatternAuditPlaybackHeaderIndex(header_cells, header_total, "extremum_attempt_id");
@@ -389,10 +398,13 @@ bool PatternAuditPlaybackLoadMatches()
      signal_id_index < 0 ||
      source_key_index < 0 ||
      source_attempt_index < 0 ||
-     entry_time_index < 0 ||
+     entry_broker_time_index < 0 ||
+     entry_analysis_time_index < 0 ||
+     entry_offset_index < 0 ||
      selected_index < 0 ||
      conditions_index < 0 ||
      schema_version_index < 0 ||
+     feature_set_index < 0 ||
      engine_id_index < 0 ||
      engine_timeframe_index < 0 ||
      attempt_id_index < 0)
@@ -412,9 +424,12 @@ bool PatternAuditPlaybackLoadMatches()
     int total = PatternAuditPlaybackSplitLine(line, cells);
     if(total <= conditions_index ||
        total <= source_attempt_index ||
-       total <= entry_time_index ||
+       total <= entry_broker_time_index ||
+       total <= entry_analysis_time_index ||
+       total <= entry_offset_index ||
        total <= source_key_index ||
        total <= schema_version_index ||
+       total <= feature_set_index ||
        total <= engine_id_index ||
        total <= engine_timeframe_index ||
        total <= attempt_id_index)
@@ -425,6 +440,7 @@ bool PatternAuditPlaybackLoadMatches()
       continue;
 
     if((int)StringToInteger(cells[schema_version_index]) != DETERMINISTIC_SIGNAL_STATS_SCHEMA_VERSION ||
+       cells[feature_set_index] != "schema_v8_extremum_engine_xgb" ||
        (int)StringToInteger(cells[engine_id_index]) != EXTREMUM_ENGINE_V1 ||
        cells[engine_timeframe_index] != EnumToString(EXTREMUM_ENGINE_TIMEFRAME) ||
        cells[attempt_id_index] == "" ||
@@ -439,7 +455,9 @@ bool PatternAuditPlaybackLoadMatches()
     match.pattern_id = cells[pattern_id_index];
     match.pattern_label = cells[pattern_label_index];
     match.signal_id = cells[signal_id_index];
-    match.entry_time = cells[entry_time_index];
+    match.entry_broker_time = cells[entry_broker_time_index];
+    match.entry_analysis_time = cells[entry_analysis_time_index];
+    match.entry_offset_minutes = cells[entry_offset_index];
     match.source_key = source_key;
     match.source_attempt_index = (int)StringToInteger(cells[source_attempt_index]);
     match.conditions_text = cells[conditions_index];
@@ -725,7 +743,14 @@ void PatternAuditPlaybackRecordSignal(SignalParams &signal_params,
     return;
 
   string observed_signal_id = PatternAuditPlaybackSignalId(signal_params);
-  string observed_entry_time = DeterministicSignalStatsTimeToken(execution_state.last_action_time);
+  datetime observed_entry_broker_time = execution_state.broker_entry_time;
+  if(observed_entry_broker_time <= 0)
+    observed_entry_broker_time = execution_state.last_action_time;
+  int observed_offset_minutes = 0;
+  datetime observed_entry_analysis_time =
+    DeterministicSignalStatsAnalysisTime(observed_entry_broker_time,
+                                         _Symbol,
+                                         observed_offset_minutes);
 
   int index_entry = PatternAuditPlaybackFindIndex(source_key, attempt_index);
   if(index_entry < 0)
@@ -747,19 +772,33 @@ void PatternAuditPlaybackRecordSignal(SignalParams &signal_params,
     g_pattern_audit_state.last_strategy_label = signal_params.engine_label;
 
     string expected_signal_id = g_pattern_audit_matches[i].signal_id;
-    string expected_entry_time = g_pattern_audit_matches[i].entry_time;
+    string expected_entry_broker_time = g_pattern_audit_matches[i].entry_broker_time;
+    string expected_entry_analysis_time = g_pattern_audit_matches[i].entry_analysis_time;
+    string expected_entry_offset_minutes = g_pattern_audit_matches[i].entry_offset_minutes;
+    string observed_entry_broker_token =
+      DeterministicSignalStatsTimeToken(observed_entry_broker_time);
+    string observed_entry_analysis_token =
+      DeterministicSignalStatsTimeToken(observed_entry_analysis_time);
+    bool analysis_time_match =
+      expected_entry_analysis_time == observed_entry_analysis_token;
     string row = IntegerToString(PATTERN_AUDIT_PLAYBACK_SCHEMA_VERSION) + "\t" +
                  PatternAuditPlaybackCell(g_pattern_audit_state.audit_id) + "\t" +
                  PatternAuditPlaybackCell(g_pattern_audit_matches[i].pattern_id) + "\t" +
                  PatternAuditPlaybackCell(expected_signal_id) + "\t" +
                  PatternAuditPlaybackCell(source_key) + "\t" +
                  IntegerToString(attempt_index) + "\t" +
-                 PatternAuditPlaybackCell(expected_entry_time) + "\t" +
+                 PatternAuditPlaybackCell(expected_entry_broker_time) + "\t" +
+                 PatternAuditPlaybackCell(expected_entry_analysis_time) + "\t" +
+                 PatternAuditPlaybackCell(expected_entry_offset_minutes) + "\t" +
+                 PatternAuditPlaybackCell(observed_entry_broker_token) + "\t" +
+                 PatternAuditPlaybackCell(observed_entry_analysis_token) + "\t" +
+                 DeterministicSignalStatsOffsetToken(observed_entry_broker_time,
+                                                     observed_entry_analysis_time,
+                                                     observed_offset_minutes) + "\t" +
                  PatternAuditPlaybackCell(expected_signal_id) + "\t" +
                  PatternAuditPlaybackCell(observed_signal_id) + "\t" +
-                 PatternAuditPlaybackCell(expected_entry_time) + "\t" +
-                 PatternAuditPlaybackCell(observed_entry_time) + "\t" +
-                 "true\tOBSERVED\t" +
+                 (analysis_time_match ? "1" : "0") + "\t" +
+                 (analysis_time_match ? "OBSERVED" : "ANALYSIS_TIME_MISMATCH") + "\t" +
                  PatternAuditPlaybackCell(g_pattern_audit_matches[i].pattern_label) + "\t" +
                  PatternAuditPlaybackCell(g_pattern_audit_matches[i].conditions_text);
     PatternAuditPlaybackAppendObservation(row);

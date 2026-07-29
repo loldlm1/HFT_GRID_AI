@@ -6,6 +6,12 @@
 
 const int BROKER_CONSTRAINT_REFRESH_SECONDS = 60;
 
+int NextBrokerExecutionCheckSequence(SignalParams &signal_params)
+{
+  signal_params.execution.last_check_sequence++;
+  return signal_params.execution.last_check_sequence;
+}
+
 void ExecutionCheckBlock(BrokerExecutionCheck &check,
                          const string source,
                          const string reason)
