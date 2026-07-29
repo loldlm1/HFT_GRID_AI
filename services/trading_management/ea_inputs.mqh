@@ -17,28 +17,15 @@ const int             DETERMINISTIC_STOCH_SLOWING  = 3;
 const double          DETERMINISTIC_B_PERCENT_DEVIATION = 2.0;
 const int             DETERMINISTIC_B_PERCENT_SIGNAL_PERIOD = 5;
 
-// Internal engine constants remain non-configurable so data collection stays
-// deterministic while the execution lifecycle is simplified.
-ExecutionEntryStyles      Execution_Initial_Entry_Style = EXECUTION_ENTRY_STYLE_STOP;
-ExecutionEntryStyles      Execution_Deep_Entry_Style    = EXECUTION_ENTRY_STYLE_STOP;
-const ENUM_TIMEFRAMES     Strategy_Timeframe            = PERIOD_M1;
-const int                 Stoch_Structure_Period_Type   = DETERMINISTIC_STOCH_K;
-const StrategyRangeTypes  Strategy_Range_Mode           = STRATEGY_RANGE_STRUCTURE;
-const double              Strategy_Range_Points         = 100.0;
-const double              Min_Range_Points              = 200.0;
+const ENUM_TIMEFRAMES Strategy_Timeframe          = PERIOD_M1;
+const int             Stoch_Structure_Period_Type = DETERMINISTIC_STOCH_K;
 
 input group  "+= Market Data Time =+";
 input BrokerSessionTimeModes Broker_Session = FIXED_TIME_SESSIONS;
 
-input group  "+= Strategy Risk Settings =+";
-input ExecutionLotTypes     Lot_Type              = EXECUTION_LOT_FIXED_SIZE;
-input double                Lot_Strategy_Size     = 0.01;
-input double                Lot_Multiplier        = 2.0;
-input SignalLotStrategyTypes Signal_Lot_Strategy     = RISK_STRATEGY_OFF;
-input double                TP_Percent               = 100.0;
-input PartialTPModes        Partial_TP_Mode          = PARTIAL_TP_OFF;
-input int                   Daily_Signal_Limit       = 0;
-input DailySignalLimitModes Daily_Signal_Limit_Mode  = STOP_DAILY_SIGNALS;
+input group  "+= Broker Execution =+";
+input ExecutionLotTypes Lot_Type          = EXECUTION_LOT_FIXED_SIZE;
+input double            Lot_Strategy_Size = 0.01;
 
 input group  "+= Signal Statistics Export =+";
 input bool   Enable_Signal_Feature_Export = false;

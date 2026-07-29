@@ -4,94 +4,90 @@
 #ifndef _SERVICES_TRADING_MANAGEMENT_MARKET_CONDITIONS_FUNCTIONS_MQH_
 #define _SERVICES_TRADING_MANAGEMENT_MARKET_CONDITIONS_FUNCTIONS_MQH_
 
-bool ResolveCurrentSessionWindow(datetime &session_from,
-                                 datetime &session_to)
+datetime BrokerDayAnchor(const datetime broker_time)
 {
-  string symbol = _Symbol;
-  datetime current_time = TimeCurrent();
-  MqlDateTime now_struct;
-  TimeToStruct(current_time, now_struct);
-  ENUM_DAY_OF_WEEK day_of_week = (ENUM_DAY_OF_WEEK)now_struct.day_of_week;
-  datetime day_anchor = StructToTime(now_struct)
-                        - now_struct.hour * 3600
-                        - now_struct.min * 60
-                        - now_struct.sec;
+  MqlDateTime parts;
+  ZeroMemory(parts);
+  if(!TimeToStruct(broker_time, parts))
+    return 0;
+  parts.hour = 0;
+  parts.min = 0;
+  parts.sec = 0;
+  return StructToTime(parts);
+}
 
-  datetime from_time, to_time;
-  for(int session = 0; session < 3; session++)
+bool BrokerSessionContainsTime(const datetime day_anchor,
+                               const datetime from_time,
+                               const datetime to_time,
+                               const datetime broker_time)
+{
+  long from_seconds = (long)from_time % 86400;
+  long to_seconds = (long)to_time % 86400;
+  datetime session_from = day_anchor + from_seconds;
+  datetime session_to = day_anchor + to_seconds;
+  if(to_seconds <= from_seconds)
+    session_to += 86400;
+  return (broker_time >= session_from && broker_time < session_to);
+}
+
+bool IsSymbolTradeSessionOpen(const string symbol,
+                              const datetime broker_time)
+{
+  if(symbol == "" || broker_time <= 0)
+    return false;
+
+  datetime day_anchor = BrokerDayAnchor(broker_time);
+  if(day_anchor <= 0)
+    return false;
+
+  MqlDateTime current_parts;
+  ZeroMemory(current_parts);
+  if(!TimeToStruct(broker_time, current_parts))
+    return false;
+
+  datetime from_time = 0;
+  datetime to_time = 0;
+  ENUM_DAY_OF_WEEK current_day = (ENUM_DAY_OF_WEEK)current_parts.day_of_week;
+  for(int session = 0; session < 32; session++)
   {
-    if(!SymbolInfoSessionTrade(symbol, day_of_week, session, from_time, to_time))
+    if(!SymbolInfoSessionTrade(symbol, current_day, session, from_time, to_time))
       continue;
-
-    datetime today_from = day_anchor + from_time;
-    datetime today_to   = day_anchor + to_time;
-
-    if(today_to < today_from)
-      today_to += 24 * 3600;
-
-    if(current_time >= today_from && current_time <= today_to)
-    {
-      session_from = today_from;
-      session_to   = today_to;
+    if(BrokerSessionContainsTime(day_anchor, from_time, to_time, broker_time))
       return true;
-    }
+  }
+
+  datetime previous_time = broker_time - 86400;
+  MqlDateTime previous_parts;
+  ZeroMemory(previous_parts);
+  if(!TimeToStruct(previous_time, previous_parts))
+    return false;
+
+  ENUM_DAY_OF_WEEK previous_day = (ENUM_DAY_OF_WEEK)previous_parts.day_of_week;
+  for(int previous_session = 0; previous_session < 32; previous_session++)
+  {
+    if(!SymbolInfoSessionTrade(symbol,
+                               previous_day,
+                               previous_session,
+                               from_time,
+                               to_time))
+      continue;
+    long from_seconds = (long)from_time % 86400;
+    long to_seconds = (long)to_time % 86400;
+    if(to_seconds > from_seconds)
+      continue;
+    if(BrokerSessionContainsTime(day_anchor - 86400,
+                                 from_time,
+                                 to_time,
+                                 broker_time))
+      return true;
   }
 
   return false;
 }
 
-bool ResolveSessionPreCloseTrigger(const datetime session_end,
-                                   const ENUM_TIMEFRAMES guard_timeframe,
-                                   datetime &trigger_time)
+bool IsMarketOpen()
 {
-  ENUM_TIMEFRAMES resolved_timeframe = guard_timeframe;
-  if(resolved_timeframe == PERIOD_CURRENT)
-    resolved_timeframe = (ENUM_TIMEFRAMES)_Period;
-
-  int guard_seconds = PeriodSeconds(resolved_timeframe);
-  if(guard_seconds <= 0)
-    return false;
-
-  long session_end_ts = (long)session_end;
-  long anchor_ts = session_end_ts - 1;
-  if(anchor_ts < 0)
-    anchor_ts = 0;
-
-  long guard_span = (long)guard_seconds;
-  long aligned_ts = (anchor_ts / guard_span) * guard_span;
-
-  trigger_time = (datetime)aligned_ts;
-  return true;
-}
-
-bool IsMarketOpen(bool last_check_execution = true)
-{
-  static datetime last_check_time = 0;
-  static bool last_result = false;
-
-  datetime current_time = TimeCurrent();
-
-  if(last_check_execution && current_time - last_check_time < 60)
-    return last_result;
-
-  last_check_time = current_time;
-
-  datetime session_from = 0;
-  datetime session_to = 0;
-  if(!ResolveCurrentSessionWindow(session_from, session_to))
-  {
-    last_result = false;
-    return false;
-  }
-
-  if(current_time > (session_from + 60) && current_time < (session_to - 60))
-  {
-    last_result = true;
-    return true;
-  }
-
-  last_result = false;
-  return false;
+  return IsSymbolTradeSessionOpen(_Symbol, TimeCurrent());
 }
 
 #endif // _SERVICES_TRADING_MANAGEMENT_MARKET_CONDITIONS_FUNCTIONS_MQH_

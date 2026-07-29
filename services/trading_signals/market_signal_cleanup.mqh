@@ -22,14 +22,14 @@ void RemoveExecutionLevels(const long chart_id,
                       const SignalParams &signal_params)
 {
   string stop_name  = ExecutionSignalObjectName(signal_params, "STOP");
+  string sl_name    = ExecutionSignalObjectName(signal_params, "SL");
   string tp_name    = ExecutionSignalObjectName(signal_params, "TP");
   string entry_name = ExecutionSignalObjectName(signal_params, "ENTRY");
-  string next_name  = ExecutionSignalObjectName(signal_params, "NEXT");
 
   ObjectDelete(chart_id, stop_name);
+  ObjectDelete(chart_id, sl_name);
   ObjectDelete(chart_id, tp_name);
   ObjectDelete(chart_id, entry_name);
-  ObjectDelete(chart_id, next_name);
 }
 
 #endif // _SERVICES_TRADING_SIGNALS_MARKET_SIGNAL_CLEANUP_MQH_

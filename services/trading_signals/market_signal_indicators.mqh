@@ -303,9 +303,6 @@ bool CaptureContextIndicators(const StrategyContextTypes context,
   StrategyStructureLayerContext structure_ctx = BuildBaseStructureLayerContext();
   bool require_structure = ContextRequiresStructure(CONTEXT_SLOT_BASE, structure_ctx);
 
-  if(StrategyRangeUsesStructure())
-    require_structure = true;
-
   if(require_structure)
   {
     snapshot.structure_valid = LoadContextStructureSnapshot(CONTEXT_SLOT_BASE, snapshot.structure_data);

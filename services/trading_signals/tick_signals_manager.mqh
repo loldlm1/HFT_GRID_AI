@@ -7,103 +7,70 @@
 void ReconcileRunningSignalsAfterTradeTransaction()
 {
   for(int i = 0; i < ArraySize(running_bullish_signals); i++)
-  {
-    if(running_bullish_signals[i].signal_state == CLOSED)
-      continue;
-    ReconcileSignalBrokerPositions(running_bullish_signals[i]);
-    RefreshSignalExposureState(running_bullish_signals[i]);
-    FinalizeDeterministicEntryStatisticsIfReady(running_bullish_signals[i]);
-  }
-
+    ReconcileSignalBrokerPosition(running_bullish_signals[i]);
   for(int j = 0; j < ArraySize(running_bearish_signals); j++)
-  {
-    if(running_bearish_signals[j].signal_state == CLOSED)
-      continue;
-    ReconcileSignalBrokerPositions(running_bearish_signals[j]);
-    RefreshSignalExposureState(running_bearish_signals[j]);
-    FinalizeDeterministicEntryStatisticsIfReady(running_bearish_signals[j]);
-  }
+    ReconcileSignalBrokerPosition(running_bearish_signals[j]);
 }
 
-void RegisterClosedSignalOutcomeIfBrokerConfirmed(SignalParams &signal_params,
-                                                  const SignalTypes direction)
+void RegisterFinishedSignal(SignalParams &signal_params)
 {
-  bool broker_outcome = SignalHasBrokerConfirmedOutcome(signal_params);
-  signal_params.raw_profit = signal_params.realized_profit;
-
-  if(!broker_outcome && signal_params.deterministic_strategy)
+  if(SignalHasBrokerConfirmedOutcome(signal_params))
   {
-    signal_params.raw_profit = 0.0;
-    DeterministicSignalStatsRecordAdmissionEvent(signal_params, "lifecycle_cancel");
-    ExecutionLogDeterministicPendingCanceled(signal_params, "no_broker_outcome");
+    signal_params.raw_profit = signal_params.execution.realized_profit;
+    if(!signal_params.deterministic_stats_feature_exported)
+      DeterministicSignalStatsRecordFeature(signal_params, signal_params.execution);
+    if(signal_params.execution.terminal_reason == "broker_tp")
+    {
+      int source_attempt_count = 0;
+      if(RegisterDeterministicSourceConsumedTp(signal_params,
+                                               source_attempt_count))
+      {
+        ExecutionLogDeterministicSourceConsumed(signal_params,
+                                                signal_params.execution,
+                                                source_attempt_count,
+                                                "TP");
+      }
+    }
+    DeterministicSignalStatsRecordAdmissionEvent(signal_params, "broker_close");
+    DeterministicSignalStatsRecordOutcome(signal_params);
+    DeterministicSignalMLShadowRecordOutcome(signal_params);
     return;
   }
 
-  if(MathAbs(signal_params.raw_profit) < 0.0000001 &&
-     signal_params.realized_closed_volume <= 0.0)
-  {
-    signal_params.raw_profit = RawProfitUsd(direction,
-                                           signal_params.entry_price,
-                                           signal_params.close_price);
-  }
-
-  RegisterSignalLotSequenceOutcome(signal_params.raw_profit);
-  DeterministicSignalStatsRecordAdmissionEvent(signal_params, "broker_close");
-  DeterministicSignalStatsRecordLegOutcomes(signal_params);
-  DeterministicSignalStatsRecordOutcome(signal_params);
-  DeterministicSignalMLShadowRecordOutcome(signal_params);
+  signal_params.raw_profit = 0.0;
+  DeterministicSignalStatsRecordAdmissionEvent(signal_params, "lifecycle_cancel");
+  ExecutionLogDeterministicPendingCanceled(signal_params,
+                                           signal_params.execution.terminal_reason);
 }
 
-void CheckTickOpenBullishSignals()
+void CheckRunningSignalArray(SignalParams &signals[],
+                             const bool bullish)
 {
-  int running_signals_total = ArraySize(running_bullish_signals);
-
-  for(int i = running_signals_total - 1; i >= 0; i--)
+  for(int i = ArraySize(signals) - 1; i >= 0; i--)
   {
-    UpdateExecutionLifecycle(running_bullish_signals[i]);
+    UpdateExecutionLifecycle(signals[i]);
+    if(!IsExecutionSignalComplete(signals[i]))
+      continue;
 
-    bool lifecycle_closed = (running_bullish_signals[i].signal_state == CLOSED);
-    if(lifecycle_closed || IsExecutionSignalComplete(running_bullish_signals[i]))
+    if(!signals[i].broker_close_confirmed)
     {
-      running_bullish_signals[i].close_time = TimeCurrent();
-      running_bullish_signals[i].close_price = g_bid;
-      running_bullish_signals[i].signal_state = CLOSED;
-
-      RegisterClosedSignalOutcomeIfBrokerConfirmed(running_bullish_signals[i],
-                                                   BULLISH);
-      CloseBullishSignal(running_bullish_signals[i]);
-      RemoveElementFromArray(running_bullish_signals, i);
+      signals[i].close_time = TimeCurrent();
+      signals[i].close_price = bullish ? g_bid : g_ask;
+      signals[i].signal_state = CLOSED;
     }
-  }
-}
-
-void CheckTickOpenBearishSignals()
-{
-  int running_signals_total = ArraySize(running_bearish_signals);
-
-  for(int i = running_signals_total - 1; i >= 0; i--)
-  {
-    UpdateExecutionLifecycle(running_bearish_signals[i]);
-
-    bool lifecycle_closed = (running_bearish_signals[i].signal_state == CLOSED);
-    if(lifecycle_closed || IsExecutionSignalComplete(running_bearish_signals[i]))
-    {
-      running_bearish_signals[i].close_time = TimeCurrent();
-      running_bearish_signals[i].close_price = g_ask;
-      running_bearish_signals[i].signal_state = CLOSED;
-
-      RegisterClosedSignalOutcomeIfBrokerConfirmed(running_bearish_signals[i],
-                                                   BEARISH);
-      CloseBearishSignal(running_bearish_signals[i]);
-      RemoveElementFromArray(running_bearish_signals, i);
-    }
+    RegisterFinishedSignal(signals[i]);
+    if(bullish)
+      CloseBullishSignal(signals[i]);
+    else
+      CloseBearishSignal(signals[i]);
+    RemoveElementFromArray(signals, i);
   }
 }
 
 void CheckTickOpenSignals()
 {
-  CheckTickOpenBullishSignals();
-  CheckTickOpenBearishSignals();
+  CheckRunningSignalArray(running_bullish_signals, true);
+  CheckRunningSignalArray(running_bearish_signals, false);
 }
 
 #endif // _SERVICES_TRADING_SIGNALS_TICK_SIGNALS_MANAGER_MQH_

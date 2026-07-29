@@ -18,6 +18,7 @@ void ExecutionLogDeterministicSignalExpired(const SignalParams &signal_params,
                                             const string reason);
 void ExecutionLogDeterministicPendingCanceled(const SignalParams &signal_params,
                                               const string reason);
+bool SignalHasBrokerExposure(const SignalParams &signal_params);
 
 struct StrategyContextRuntime
 {
@@ -453,31 +454,7 @@ bool DeterministicSignalMatchesSourceExtremum(const SignalParams &signal_params,
 
 bool DeterministicSignalHasBrokerExposure(const SignalParams &signal_params)
 {
-  int total = ArraySize(signal_params.execution_legs);
-  for(int i = 0; i < total; i++)
-  {
-    if(signal_params.execution_legs[i].position_ticket > 0)
-      return true;
-    if(signal_params.execution_legs[i].status == EXECUTION_LEG_ACTIVE)
-      return true;
-  }
-
-  return false;
-}
-
-bool SignalHasBrokerConfirmedOutcome(const SignalParams &signal_params)
-{
-  if(!signal_params.broker_close_confirmed)
-    return false;
-
-  if(signal_params.realized_closed_volume > 0.0)
-    return true;
-
-  if(MathAbs(signal_params.realized_profit) > 0.0000001)
-    return true;
-
-  return (signal_params.broker_entry_confirmed &&
-          signal_params.signal_state == CLOSED);
+  return SignalHasBrokerExposure(signal_params);
 }
 
 void ExpirePendingDeterministicSignalsForSourceExtremum(const int source_slot,
@@ -510,6 +487,8 @@ void ExpirePendingDeterministicSignalsForSourceExtremum(const int source_slot,
     running_bullish_signals[i].signal_state = CLOSED;
     ExecutionLogDeterministicPendingCanceled(running_bullish_signals[i],
                                              "source_extremum_changed_no_broker_outcome");
+    running_bullish_signals[i].execution.state = EXECUTION_ORDER_CANCELED;
+    running_bullish_signals[i].execution.terminal_reason = "source_extremum_changed";
     RemoveExecutionLevels(ChartID(), running_bullish_signals[i]);
     RemoveElementFromArray(running_bullish_signals, i);
   }
@@ -536,22 +515,11 @@ void ExpirePendingDeterministicSignalsForSourceExtremum(const int source_slot,
     running_bearish_signals[j].signal_state = CLOSED;
     ExecutionLogDeterministicPendingCanceled(running_bearish_signals[j],
                                              "source_extremum_changed_no_broker_outcome");
+    running_bearish_signals[j].execution.state = EXECUTION_ORDER_CANCELED;
+    running_bearish_signals[j].execution.terminal_reason = "source_extremum_changed";
     RemoveExecutionLevels(ChartID(), running_bearish_signals[j]);
     RemoveElementFromArray(running_bearish_signals, j);
   }
-}
-
-void DebugForceCloseAllExecutionLegs()
-{
-  double point_size = ExecutionResolvePointSize();
-
-  int bullish_total = ArraySize(running_bullish_signals);
-  for(int i = 0; i < bullish_total; i++)
-    CloseAllExecutionLegs(running_bullish_signals[i], point_size);
-
-  int bearish_total = ArraySize(running_bearish_signals);
-  for(int j = 0; j < bearish_total; j++)
-    CloseAllExecutionLegs(running_bearish_signals[j], point_size);
 }
 
 bool DebugEquityGuardAllowsProcessing()
@@ -564,7 +532,6 @@ bool DebugEquityGuardAllowsProcessing()
     g_forced_stop_triggered = true;
     g_debug_no_money_abort_pending = false;
     Print("TesterStop triggered: order send rejected due to insufficient funds while Debug_Stop_On_Negative_Equity is enabled.");
-    DebugForceCloseAllExecutionLegs();
     TesterStop();
     return false;
   }
@@ -574,7 +541,6 @@ bool DebugEquityGuardAllowsProcessing()
   {
     g_forced_stop_triggered = true;
     Print("TesterStop triggered: equity <= 0 and Debug_Stop_On_Negative_Equity is enabled.");
-    DebugForceCloseAllExecutionLegs();
     TesterStop();
     return false;
   }

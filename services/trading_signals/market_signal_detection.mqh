@@ -4,18 +4,6 @@
 #ifndef _SERVICES_TRADING_SIGNALS_MARKET_SIGNAL_DETECTION_MQH_
 #define _SERVICES_TRADING_SIGNALS_MARKET_SIGNAL_DETECTION_MQH_
 
-void AssignContextSnapshotToSignal(const StrategyContextIndicators &snapshot,
-                                   SignalParams &signal)
-{
-  signal.base_structure_valid  = snapshot.structure_valid;
-  signal.base_structure_data   = snapshot.structure_data;
-}
-
-void RefreshUpstreamTrendsOnBaseBar()
-{
-  return;
-}
-
 bool DeterministicRawEntryGeometryValid(const SignalTypes direction,
                                         const double trigger_price,
                                         const double stop_anchor_price)
@@ -79,111 +67,6 @@ void LogDeterministicSourceAudit(const StochasticMarketStructure &structure,
                                       message);
 }
 
-void EvaluateContextSignals(const StrategyContextTypes context)
-{
-  if(context != CONTEXT_SLOT_BASE && !StrategyContextEnabled(context))
-    return;
-
-  int runtime_slot = StrategyContextIndex(context);
-
-  StrategyContextIndicators snapshot;
-  snapshot.context   = context;
-  snapshot.timeframe = StrategyContextTimeframe(context);
-  snapshot.bar_time  = iTime(_Symbol, snapshot.timeframe, 0);
-  if(snapshot.bar_time <= 0)
-    return;
-
-  if(g_context_runtime[runtime_slot].last_bar_time == snapshot.bar_time)
-    return;
-
-  if(!CaptureContextIndicators(context, snapshot))
-    return;
-
-  g_context_runtime[runtime_slot].last_bar_time = snapshot.bar_time;
-
-  SignalTypes directions[2] = {BULLISH, BEARISH};
-  for(int dir = 0; dir < 2; dir++)
-  {
-    SignalTypes direction = directions[dir];
-
-    datetime structure_time = 0;
-    bool entry_allows = false;
-    bool filters_pass = false;
-    double entry_price = 0.0;
-    bool entry_is_limit = false;
-    ResolvedStructureEntryAnchor resolved_entry;
-    if(!StrategyContextEvaluateEntryDetailed(snapshot,
-                                            direction,
-                                            structure_time,
-                                            entry_allows,
-                                            filters_pass,
-                                            entry_price,
-                                            entry_is_limit,
-                                            resolved_entry))
-      return;
-
-    bool cascade_pass = filters_pass;
-
-    if(!cascade_pass)
-      continue;
-
-    if(!StrategyCascadeAllowsSignal(context, direction))
-      continue;
-
-    if(!entry_allows)
-      continue;
-
-    if(!CanAttemptSignal(direction))
-      continue;
-
-    datetime resolved_structure_time = structure_time;
-    if(resolved_structure_time <= 0 && snapshot.structure_valid)
-    {
-      StrategyStructureLayerContext structure_ctx = BuildStructureLayerForContext(context);
-      resolved_structure_time = ResolveStructureSnapshotTimestamp(snapshot.structure_data,
-                                                                  structure_ctx);
-    }
-
-    if(HasRunningSignalForStructure(context, direction, resolved_structure_time))
-      continue;
-
-    SignalParams signal;
-    StructureTriggerEntryModes effective_trigger_mode = ResolveEffectiveStructureTriggerMode(context,
-                                                                                              FOUNDATION_STRUCTURE_TRIGGER_MODE);
-    signal.signal_type            = direction;
-    signal.entry_time             = snapshot.bar_time;
-    signal.entry_price            = entry_price;
-    signal.strategy_context       = context;
-    signal.strategy_timeframe     = snapshot.timeframe;
-    signal.strategy_context_label = StrategyContextLabel(context);
-    signal.entry_trigger_mode     = effective_trigger_mode;
-    signal.entry_is_limit         = entry_is_limit;
-    signal.resolved_structure_entry = resolved_entry;
-    signal.signal_lot_sequence_step = ResolveSignalLotSequenceStepForNewSignal();
-    signal.context_structure_snapshot_time = resolved_structure_time;
-    signal.execution_sequence_id       = BuildSignalSequenceId(direction,
-                                                          signal.entry_time,
-                                                          resolved_structure_time);
-    AssignContextSnapshotToSignal(snapshot, signal);
-
-    if(!BuildExecutionLegForSignal(signal))
-    {
-      if(Enable_Logs)
-        PrintFormat("Execution planning failed for %s context %s signal.",
-                    EnumToString(direction),
-                    signal.strategy_context_label);
-      continue;
-    }
-
-    if(direction == BULLISH)
-      AddElementToArray(running_bullish_signals, signal);
-    else
-      AddElementToArray(running_bearish_signals, signal);
-
-    RegisterFreshStructureUsage(signal);
-  }
-}
-
 bool PopulateExtremumEngineSignal(const int engine_id,
                                  const SignalTypes direction,
                                  const DeterministicExtremumSnapshot &extremum,
@@ -203,7 +86,6 @@ bool PopulateExtremumEngineSignal(const int engine_id,
   signal.strategy_context_label     = signal.engine_label;
   signal.entry_trigger_mode         = LEVELS_AS_LIMITS;
   signal.entry_is_limit             = false;
-  signal.signal_lot_sequence_step   = ResolveSignalLotSequenceStepForNewSignal();
   signal.context_structure_snapshot_time = extremum.extremum_time;
   signal.source_extremum_time       = extremum.extremum_time;
   signal.source_extremum_slot       = extremum.source_slot;
@@ -224,9 +106,9 @@ bool PopulateExtremumEngineSignal(const int engine_id,
   signal.raw_entry_trigger_price = (direction == BULLISH) ? high_1 : low_1;
   signal.raw_risk_distance       = MathAbs(signal.raw_entry_trigger_price -
                                            signal.raw_stop_anchor_price);
-  signal.raw_take_profit_price   = ResolveDeterministicTpPrice(direction,
-                                                               signal.raw_entry_trigger_price,
-                                                               signal.raw_stop_anchor_price);
+  signal.raw_take_profit_price   = ResolveExecutionOneRTarget(direction,
+                                                              signal.raw_entry_trigger_price,
+                                                              signal.raw_stop_anchor_price);
   signal.entry_price             = signal.raw_entry_trigger_price;
   signal.stop_loss               = signal.raw_stop_anchor_price;
   signal.execution_sequence_id   = BuildExtremumEngineSignalSequenceId(engine_id,
@@ -301,6 +183,15 @@ void TryCreateExtremumEngineSignal(const SignalTypes direction,
   if(!ExtremumEngineAssignAttemptIdentity(signal))
     return;
   DeterministicSignalStatsRecordIntrinsicAttempt(signal);
+
+  if(!BuildExecutionOrderForSignal(signal))
+  {
+    DeterministicSignalStatsSetAttemptOperationalBlock(signal,
+                                                       "execution_geometry",
+                                                       signal.execution_risk_plan_reason);
+    DeterministicSignalStatsRecordAdmissionEvent(signal, "operational_blocked");
+    return;
+  }
 
   string operational_block_source = "";
   string operational_block_reason = "";

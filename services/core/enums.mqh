@@ -33,13 +33,6 @@ enum StructureTriggerEntryModes
   LEVEL_AS_ZONE    = 1
 };
 
-enum StrategyRangeTypes
-{
-  STRATEGY_RANGE_ATR       = 0,
-  STRATEGY_RANGE_POINTS    = 1,
-  STRATEGY_RANGE_STRUCTURE = 2
-};
-
 enum SlopeTypes
 {
 	NO_SLOPE   = 0,
@@ -94,26 +87,20 @@ enum BodyMATypes
 	BODY_BEARISH_MA = 2
 };
 
-enum ExecutionLegStatuses
-{
-  EXECUTION_LEG_INACTIVE             = 0,
-  EXECUTION_LEG_WAITING              = 1,
-  EXECUTION_LEG_PENDING              = 2,
-  EXECUTION_LEG_ACTIVE               = 3,
-  EXECUTION_LEG_COMPLETED            = 4
-};
-
-enum ExecutionEntryStyles
-{
-  EXECUTION_ENTRY_STYLE_STOP  = 0,
-  EXECUTION_ENTRY_STYLE_LIMIT = 1
-};
-
 enum ExecutionLotTypes
 {
-  EXECUTION_LOT_FIXED_SIZE         = 0,
-  EXECUTION_LOT_ACCOUNT_PERCENTAGE = 1,
-  EXECUTION_LOT_TARGET_CURRENCY    = 2
+  EXECUTION_LOT_FIXED_SIZE              = 0,
+  EXECUTION_LOT_ACCOUNT_BALANCE_PERCENT = 1
+};
+
+enum ExecutionOrderStates
+{
+  EXECUTION_ORDER_WAITING        = 0,
+  EXECUTION_ORDER_SEND_ATTEMPTED = 1,
+  EXECUTION_ORDER_BROKER_ACTIVE  = 2,
+  EXECUTION_ORDER_BROKER_CLOSED  = 3,
+  EXECUTION_ORDER_CANCELED       = 4,
+  EXECUTION_ORDER_FAILED         = 5
 };
 
 enum ExecutionAdmissionStatuses
@@ -127,43 +114,10 @@ enum ExecutionAdmissionStatuses
   EXECUTION_ADMISSION_SEND_FAILED   = 6
 };
 
-enum PartialTPModes
-{
-  PARTIAL_TP_OFF         = 0,
-  PARTIAL_TP_R_MULTIPLES = 1
-};
-
-enum SignalLotStrategyTypes
-{
-  RISK_STRATEGY_OFF     = 0,
-  RISK_APPLIED_ON_LOSS  = 1,
-  RISK_APPLIED_ON_WIN   = 2
-};
-
-enum SignalOutcomeTypes
-{
-  SIGNAL_OUTCOME_NEUTRAL = 0,
-  SIGNAL_OUTCOME_WIN     = 1,
-  SIGNAL_OUTCOME_LOSS    = 2
-};
-
-// Kept until Sprint 2 removes the legacy daily-limit input and state.
-enum DailySignalLimitModes
-{
-  STOP_DAILY_SIGNALS         = 0,
-  STOP_DAILY_SIGNALS_ON_LOSS = 1
-};
-
 enum BrokerSessionTimeModes
 {
   FIXED_TIME_SESSIONS = 0,
   EXNESS_SESSION       = 1
-};
-
-enum ExecutionTPReferenceModes
-{
-  EXECUTION_TP_REF_CURRENT = 0,
-  EXECUTION_TP_REF_NEXT    = 1
 };
 
 enum StrategyContextTypes

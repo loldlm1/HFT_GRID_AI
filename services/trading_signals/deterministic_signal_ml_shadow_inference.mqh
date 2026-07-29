@@ -1437,7 +1437,7 @@ string MLShadowRecommendationToken(const bool scored,
 }
 
 bool DeterministicSignalMLShadowEvaluateDecision(SignalParams &signal_params,
-                                                 const ExecutionLegState &leg_state,
+                                                 const ExecutionState &execution_state,
                                                  MLShadowDecisionResult &decision_out)
 {
   decision_out = MLShadowDecisionResult();
@@ -1466,7 +1466,7 @@ bool DeterministicSignalMLShadowEvaluateDecision(SignalParams &signal_params,
 
   DeterministicSignalFeatureSnapshot snapshot;
   if(!DeterministicSignalBuildFeatureSnapshot(signal_params,
-                                              leg_state,
+                                              execution_state,
                                               snapshot))
   {
     decision_out.reason = "feature_snapshot_failed";
@@ -1647,7 +1647,7 @@ bool DeterministicSignalMLShadowRecordDecisionPrediction(SignalParams &signal_pa
 }
 
 bool DeterministicSignalMLShadowRecordPrediction(SignalParams &signal_params,
-                                                 const ExecutionLegState &leg_state)
+                                                 const ExecutionState &execution_state)
 {
   if(!g_ml_shadow_state.enabled)
     return false;
@@ -1660,7 +1660,7 @@ bool DeterministicSignalMLShadowRecordPrediction(SignalParams &signal_params,
 
   MLShadowDecisionResult decision;
   DeterministicSignalMLShadowEvaluateDecision(signal_params,
-                                              leg_state,
+                                              execution_state,
                                               decision);
   MLShadowApplyDecisionToSignal(signal_params, decision);
   if(!decision.signal_id_valid || !decision.snapshot_valid)
@@ -1716,13 +1716,21 @@ void MLFilterRegisterDecisionCounters(const bool allowed,
 }
 
 bool DeterministicSignalMLFilterAllowsEntry(SignalParams &signal_params,
-                                            const ExecutionLegState &leg_state,
+                                            const ExecutionState &execution_state,
                                             string &block_reason_out)
 {
   block_reason_out = "";
 
   if(!DeterministicSignalMLFilterMode())
     return true;
+
+  // FILTER is a tester-only research control. Outside the tester it records
+  // its unavailable state but never changes broker admission.
+  if(!DeterministicSignalMLFilterTesterAllowed())
+  {
+    block_reason_out = "filter_not_allowed_outside_tester";
+    return true;
+  }
 
   if(signal_params.ml_shadow_evaluated)
   {
@@ -1738,7 +1746,7 @@ bool DeterministicSignalMLFilterAllowsEntry(SignalParams &signal_params,
 
   MLShadowDecisionResult decision;
   DeterministicSignalMLShadowEvaluateDecision(signal_params,
-                                              leg_state,
+                                              execution_state,
                                               decision);
   MLShadowApplyDecisionToSignal(signal_params, decision);
 

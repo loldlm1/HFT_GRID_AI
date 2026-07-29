@@ -62,10 +62,10 @@ int OnInit()
   ResetExtremumEngineState();
   if(!RefreshSymbolTradingConstraints(_Symbol, g_symbol_constraints))
   {
-    Print("ERROR LOADING BROKER CONSTRAINTS FOR SYMBOL: ", _Symbol);
-    return INIT_FAILED;
+    Print("Broker constraints unavailable at initialization; market-data collection remains active and execution will fail closed: ",
+          _Symbol);
   }
-  if(Enable_Logs)
+  else if(Enable_Logs)
   {
     PrintFormat("Broker constraints loaded for %s | freeze=%.1f pts | stops=%.1f pts | step=%.2f",
                 _Symbol,
@@ -112,7 +112,6 @@ void OnDeinit(const int reason)
   DeterministicSignalStatsDeinit();
   CloseAppendFileLog();
   ReleaseAllIndicatorDefinitions();
-  ReleaseExecutionIndicatorCache();
   FrontendResetRefreshThrottle();
 
   if(FrontendChartWorkEnabled())

@@ -4,264 +4,44 @@
 #ifndef _SERVICES_TRADING_SIGNALS_EXECUTION_BROKER_CONTEXT_MQH_
 #define _SERVICES_TRADING_SIGNALS_EXECUTION_BROKER_CONTEXT_MQH_
 
-const int BROKER_EXECUTION_CONSTRAINT_REFRESH_SECONDS = 60;
+const int BROKER_CONSTRAINT_REFRESH_SECONDS = 60;
 
-struct BrokerExecutionEligibility
+void ExecutionCheckBlock(BrokerExecutionCheck &check,
+                         const string source,
+                         const string reason)
 {
-  bool   allowed;
-  string block_source;
-  string block_reason;
-
-  BrokerExecutionEligibility()
+  if(check.block_source == "")
   {
-    allowed      = false;
-    block_source = "";
-    block_reason = "";
+    check.block_source = source;
+    check.block_reason = reason;
   }
-
-  BrokerExecutionEligibility(const BrokerExecutionEligibility &other)
-  {
-    allowed      = other.allowed;
-    block_source = other.block_source;
-    block_reason = other.block_reason;
-  }
-};
-
-struct BrokerExecutionSnapshot
-{
-  string            symbol;
-  SignalTypes       direction;
-  MarketStatusTypes market_status;
-
-  double bid;
-  double ask;
-  double point_size;
-  double spread_points;
-  double min_stop_distance_points;
-  double freeze_level_points;
-  double stops_level_points;
-  datetime constraints_last_refresh;
-
-  bool terminal_algo_allowed;
-  bool market_session_open;
-  bool market_allows_signal;
-  bool market_allows_broker_actions;
-  long account_margin_mode;
-  long symbol_trade_mode;
-  bool account_margin_mode_supported;
-  bool symbol_trade_mode_allows_direction;
-
-  double requested_volume;
-  double normalized_volume;
-  bool   volume_valid;
-
-  double free_margin;
-  double margin_per_lot;
-  double required_margin;
-  bool   margin_available;
-  bool   order_check_available;
-  ulong  order_check_retcode;
-  string order_check_comment;
-
-  bool   valid;
-  string invalid_reason;
-
-  BrokerExecutionSnapshot()
-  {
-    symbol                       = "";
-    direction                    = NO_SIGNAL;
-    market_status                = MARKET_STATUS_ACTIVE;
-    bid                          = 0.0;
-    ask                          = 0.0;
-    point_size                   = 0.0;
-    spread_points                = 0.0;
-    min_stop_distance_points     = 0.0;
-    freeze_level_points          = 0.0;
-    stops_level_points           = 0.0;
-    constraints_last_refresh     = 0;
-    terminal_algo_allowed        = false;
-    market_session_open          = false;
-    market_allows_signal         = false;
-    market_allows_broker_actions = false;
-    account_margin_mode          = 0;
-    symbol_trade_mode            = 0;
-    account_margin_mode_supported = false;
-    symbol_trade_mode_allows_direction = false;
-    requested_volume             = 0.0;
-    normalized_volume            = 0.0;
-    volume_valid                 = false;
-    free_margin                  = 0.0;
-    margin_per_lot               = 0.0;
-    required_margin              = 0.0;
-    margin_available             = false;
-    order_check_available        = false;
-    order_check_retcode          = 0;
-    order_check_comment          = "";
-    valid                        = false;
-    invalid_reason               = "";
-  }
-
-  BrokerExecutionSnapshot(const BrokerExecutionSnapshot &other)
-  {
-    symbol                       = other.symbol;
-    direction                    = other.direction;
-    market_status                = other.market_status;
-    bid                          = other.bid;
-    ask                          = other.ask;
-    point_size                   = other.point_size;
-    spread_points                = other.spread_points;
-    min_stop_distance_points     = other.min_stop_distance_points;
-    freeze_level_points          = other.freeze_level_points;
-    stops_level_points           = other.stops_level_points;
-    constraints_last_refresh     = other.constraints_last_refresh;
-    terminal_algo_allowed        = other.terminal_algo_allowed;
-    market_session_open          = other.market_session_open;
-    market_allows_signal         = other.market_allows_signal;
-    market_allows_broker_actions = other.market_allows_broker_actions;
-    account_margin_mode          = other.account_margin_mode;
-    symbol_trade_mode            = other.symbol_trade_mode;
-    account_margin_mode_supported = other.account_margin_mode_supported;
-    symbol_trade_mode_allows_direction = other.symbol_trade_mode_allows_direction;
-    requested_volume             = other.requested_volume;
-    normalized_volume            = other.normalized_volume;
-    volume_valid                 = other.volume_valid;
-    free_margin                  = other.free_margin;
-    margin_per_lot               = other.margin_per_lot;
-    required_margin              = other.required_margin;
-    margin_available             = other.margin_available;
-    order_check_available        = other.order_check_available;
-    order_check_retcode          = other.order_check_retcode;
-    order_check_comment          = other.order_check_comment;
-    valid                        = other.valid;
-    invalid_reason               = other.invalid_reason;
-  }
-};
-
-bool BrokerExecutionConstraintsNeedRefresh()
-{
-  if(g_symbol_constraints.symbol != _Symbol)
-    return true;
-  if(g_symbol_constraints.point_size <= 0.0 ||
-     g_symbol_constraints.tick_size <= 0.0 ||
-     g_symbol_constraints.tick_value <= 0.0)
-    return true;
-  if(g_symbol_constraints.last_refresh <= 0)
-    return true;
-
-  datetime now = TimeCurrent();
-  if(now <= 0)
-    return false;
-
-  return ((now - g_symbol_constraints.last_refresh) >= BROKER_EXECUTION_CONSTRAINT_REFRESH_SECONDS);
+  check.allowed = false;
 }
 
-double BrokerExecutionNormalizeVolume(const double volume)
+bool BrokerConstraintsNeedRefresh()
 {
-  if(volume <= 0.0)
-    return 0.0;
-
   if(g_symbol_constraints.symbol != _Symbol ||
-     g_symbol_constraints.min_volume <= 0.0 ||
-     g_symbol_constraints.max_volume <= 0.0 ||
-     g_symbol_constraints.volume_step <= 0.0)
-    return NormalizeVolumeForSymbol(_Symbol, volume);
-
-  double normalized = volume;
-
-  if(normalized < g_symbol_constraints.min_volume)
-    normalized = g_symbol_constraints.min_volume;
-  if(normalized > g_symbol_constraints.max_volume)
-    normalized = g_symbol_constraints.max_volume;
-
-  double steps = MathFloor((normalized + 1e-12) / g_symbol_constraints.volume_step);
-  normalized   = steps * g_symbol_constraints.volume_step;
-
-  int vol_digits = 0;
-  if(g_symbol_constraints.volume_step < 1.0)
-  {
-    vol_digits = (int)MathRound(-MathLog10(g_symbol_constraints.volume_step));
-    if(vol_digits < 0)
-      vol_digits = 0;
-  }
-
-  return NormalizeDouble(normalized, vol_digits);
+     g_symbol_constraints.point_size <= 0.0 ||
+     g_symbol_constraints.volume_step <= 0.0 ||
+     g_symbol_constraints.last_refresh <= 0)
+    return true;
+  return ((TimeCurrent() - g_symbol_constraints.last_refresh) >=
+          BROKER_CONSTRAINT_REFRESH_SECONDS);
 }
 
-double BrokerExecutionEstimateMarginPerLot(const SignalTypes direction)
+bool SymbolTradeModeAllowsExecution(const long trade_mode,
+                                    const SignalTypes direction)
 {
-  double margin_per_lot = SymbolInfoDouble(_Symbol, SYMBOL_MARGIN_INITIAL);
-  if(margin_per_lot > 0.0)
-    return margin_per_lot;
-
-  double contract_size = g_symbol_constraints.contract_size;
-  if(contract_size <= 0.0)
-    contract_size = SymbolInfoDouble(_Symbol, SYMBOL_TRADE_CONTRACT_SIZE);
-
-  double price = g_ask;
-  if(direction == BEARISH)
-    price = g_bid;
-  if(price <= 0.0)
-    price = SymbolInfoDouble(_Symbol, SYMBOL_ASK);
-  if(price <= 0.0)
-    price = SymbolInfoDouble(_Symbol, SYMBOL_BID);
-
-  double leverage = (double)AccountInfoInteger(ACCOUNT_LEVERAGE);
-  if(contract_size <= 0.0 || price <= 0.0 || leverage <= 0.0)
-    return 0.0;
-
-  return (contract_size * price) / leverage;
+  if(trade_mode == SYMBOL_TRADE_MODE_FULL)
+    return true;
+  if(trade_mode == SYMBOL_TRADE_MODE_LONGONLY)
+    return (direction == BULLISH);
+  if(trade_mode == SYMBOL_TRADE_MODE_SHORTONLY)
+    return (direction == BEARISH);
+  return false;
 }
 
-double BrokerExecutionEntrySidePrice(const BrokerExecutionSnapshot &snapshot);
-ENUM_ORDER_TYPE BrokerExecutionOrderTypeForDirection(const SignalTypes direction);
-
-bool ExecutionLegUsesBrokerSideStops(const SignalParams &signal_params,
-                                     const ExecutionLegState &leg_state)
-{
-  return (signal_params.deterministic_strategy &&
-          Partial_TP_Mode == PARTIAL_TP_R_MULTIPLES &&
-          leg_state.opens_position);
-}
-
-double ExecutionLegBrokerStopLossPrice(const SignalParams &signal_params,
-                                       const ExecutionLegState &leg_state)
-{
-  if(!ExecutionLegUsesBrokerSideStops(signal_params, leg_state))
-    return 0.0;
-  if(leg_state.next_level_price <= 0.0)
-    return 0.0;
-
-  return NormalizeDouble(leg_state.next_level_price, Digits());
-}
-
-double ExecutionLegBrokerTakeProfitPrice(const SignalParams &signal_params,
-                                         const ExecutionLegState &leg_state)
-{
-  if(!ExecutionLegUsesBrokerSideStops(signal_params, leg_state))
-    return 0.0;
-  if(leg_state.take_profit_price <= 0.0)
-    return 0.0;
-
-  return NormalizeDouble(leg_state.take_profit_price, Digits());
-}
-
-void BrokerExecutionBlock(BrokerExecutionEligibility &eligibility,
-                          const string source,
-                          const string reason)
-{
-  eligibility.allowed      = false;
-  eligibility.block_source = source;
-  eligibility.block_reason = reason;
-}
-
-void BrokerExecutionAllow(BrokerExecutionEligibility &eligibility)
-{
-  eligibility.allowed      = true;
-  eligibility.block_source = "";
-  eligibility.block_reason = "";
-}
-
-MarketStatusTypes ResolveMarketStatusFromTradeMode(const long trade_mode)
+MarketStatusTypes MarketStatusFromSymbolTradeMode(const long trade_mode)
 {
   if(trade_mode == SYMBOL_TRADE_MODE_DISABLED)
     return MARKET_STATUS_BROKER_DISABLED;
@@ -270,135 +50,14 @@ MarketStatusTypes ResolveMarketStatusFromTradeMode(const long trade_mode)
   return MARKET_STATUS_ACTIVE;
 }
 
-bool SymbolTradeModeAllowsDirection(const long trade_mode,
-                                    const SignalTypes direction)
+ENUM_ORDER_TYPE ExecutionOrderType(const SignalTypes direction)
 {
-  if(trade_mode == SYMBOL_TRADE_MODE_DISABLED ||
-     trade_mode == SYMBOL_TRADE_MODE_CLOSEONLY)
-    return false;
-  if(trade_mode == SYMBOL_TRADE_MODE_LONGONLY)
-    return (direction == BULLISH);
-  if(trade_mode == SYMBOL_TRADE_MODE_SHORTONLY)
-    return (direction == BEARISH);
-  return (trade_mode == SYMBOL_TRADE_MODE_FULL);
+  return (direction == BULLISH) ? ORDER_TYPE_BUY : ORDER_TYPE_SELL;
 }
 
-bool CaptureBrokerExecutionSnapshot(const SignalTypes direction,
-                                    const double requested_volume,
-                                    BrokerExecutionSnapshot &snapshot)
+ENUM_ORDER_TYPE_FILLING ResolveExecutionFillingMode(const string symbol)
 {
-  snapshot = BrokerExecutionSnapshot();
-  snapshot.symbol           = _Symbol;
-  snapshot.direction        = direction;
-  snapshot.symbol_trade_mode = SymbolInfoInteger(snapshot.symbol, SYMBOL_TRADE_MODE);
-  snapshot.market_status    = ResolveMarketStatusFromTradeMode(snapshot.symbol_trade_mode);
-  snapshot.bid              = g_bid;
-  snapshot.ask              = g_ask;
-  snapshot.spread_points    = g_points_spread;
-  snapshot.requested_volume = requested_volume;
-
-  if(snapshot.symbol == "")
-  {
-    snapshot.invalid_reason = "symbol_empty";
-    return false;
-  }
-
-  if(BrokerExecutionConstraintsNeedRefresh())
-  {
-    if(!RefreshSymbolTradingConstraints(snapshot.symbol, g_symbol_constraints))
-    {
-      snapshot.invalid_reason = "constraints_unavailable";
-      return false;
-    }
-  }
-
-  snapshot.point_size               = g_symbol_constraints.point_size;
-  snapshot.min_stop_distance_points = MinBrokerDistancePoints(g_symbol_constraints);
-  snapshot.freeze_level_points      = g_symbol_constraints.freeze_level_points;
-  snapshot.stops_level_points       = g_symbol_constraints.stops_level_points;
-  snapshot.constraints_last_refresh = g_symbol_constraints.last_refresh;
-
-  if(snapshot.point_size <= 0.0)
-  {
-    snapshot.invalid_reason = "point_size_invalid";
-    return false;
-  }
-
-  if(snapshot.bid <= 0.0 || snapshot.ask <= 0.0)
-  {
-    snapshot.invalid_reason = "bid_ask_invalid";
-    return false;
-  }
-
-  snapshot.terminal_algo_allowed          = TerminalAlgoTradingEnabled();
-  snapshot.market_session_open            = IsMarketOpen();
-  snapshot.symbol_trade_mode_allows_direction =
-    SymbolTradeModeAllowsDirection(snapshot.symbol_trade_mode, direction);
-  snapshot.market_allows_signal           = snapshot.symbol_trade_mode_allows_direction;
-  snapshot.market_allows_broker_actions   =
-    (snapshot.market_status == MARKET_STATUS_ACTIVE ||
-     snapshot.market_status == MARKET_STATUS_BROKER_CLOSEONLY);
-  snapshot.account_margin_mode            = AccountInfoInteger(ACCOUNT_MARGIN_MODE);
-  snapshot.account_margin_mode_supported  =
-    (snapshot.account_margin_mode == ACCOUNT_MARGIN_MODE_RETAIL_HEDGING);
-
-  MarketStatusUpdate(snapshot.market_status,
-                     StringFormat("symbol_trade_mode=%d", snapshot.symbol_trade_mode));
-
-  if(requested_volume > 0.0)
-  {
-    snapshot.normalized_volume = BrokerExecutionNormalizeVolume(requested_volume);
-    snapshot.volume_valid = (snapshot.normalized_volume > 0.0);
-  }
-
-  snapshot.free_margin = AccountInfoDouble(ACCOUNT_MARGIN_FREE);
-  double broker_margin = 0.0;
-  double entry_side_price = BrokerExecutionEntrySidePrice(snapshot);
-  ENUM_ORDER_TYPE order_type = BrokerExecutionOrderTypeForDirection(direction);
-  if(snapshot.normalized_volume > 0.0 &&
-     entry_side_price > 0.0 &&
-     OrderCalcMargin(order_type,
-                     snapshot.symbol,
-                     snapshot.normalized_volume,
-                     entry_side_price,
-                     broker_margin))
-  {
-    snapshot.required_margin = broker_margin;
-    snapshot.margin_per_lot = broker_margin / snapshot.normalized_volume;
-  }
-  else
-  {
-    snapshot.margin_per_lot = BrokerExecutionEstimateMarginPerLot(direction);
-    if(snapshot.normalized_volume > 0.0 && snapshot.margin_per_lot > 0.0)
-      snapshot.required_margin = snapshot.margin_per_lot * snapshot.normalized_volume;
-  }
-  snapshot.margin_available = (snapshot.required_margin <= 0.0 ||
-                               snapshot.free_margin <= 0.0 ||
-                               snapshot.free_margin >= snapshot.required_margin);
-
-  snapshot.valid = true;
-  return true;
-}
-
-double BrokerExecutionEntrySidePrice(const BrokerExecutionSnapshot &snapshot)
-{
-  if(snapshot.direction == BULLISH)
-    return snapshot.ask;
-  if(snapshot.direction == BEARISH)
-    return snapshot.bid;
-  return 0.0;
-}
-
-ENUM_ORDER_TYPE BrokerExecutionOrderTypeForDirection(const SignalTypes direction)
-{
-  if(direction == BULLISH)
-    return ORDER_TYPE_BUY;
-  return ORDER_TYPE_SELL;
-}
-
-ENUM_ORDER_TYPE_FILLING BrokerExecutionResolveFillingMode()
-{
-  long filling_mode = SymbolInfoInteger(_Symbol, SYMBOL_FILLING_MODE);
+  long filling_mode = SymbolInfoInteger(symbol, SYMBOL_FILLING_MODE);
   if((filling_mode & SYMBOL_FILLING_FOK) == SYMBOL_FILLING_FOK)
     return ORDER_FILLING_FOK;
   if((filling_mode & SYMBOL_FILLING_IOC) == SYMBOL_FILLING_IOC)
@@ -406,269 +65,282 @@ ENUM_ORDER_TYPE_FILLING BrokerExecutionResolveFillingMode()
   return ORDER_FILLING_RETURN;
 }
 
-bool BrokerExecutionOrderCheckRetcodeAllowed(const ulong retcode,
-                                             const string comment)
+bool ExecutionOrderCheckRetcodeAllowed(const ulong retcode)
 {
-  if(retcode == TRADE_RETCODE_DONE ||
-     retcode == TRADE_RETCODE_PLACED)
+  // OrderCheck reports a successful verification with retcode 0 (typically
+  // comment "Done"); send retcodes use the explicit completed/placed values.
+  if(retcode == 0 ||
+     retcode == TRADE_RETCODE_DONE ||
+     retcode == TRADE_RETCODE_PLACED ||
+     retcode == TRADE_RETCODE_DONE_PARTIAL)
     return true;
-
-  if(MQLInfoInteger(MQL_TESTER) > 0 &&
-     retcode == 0 &&
-     comment == "")
-    return true;
-
   return false;
 }
 
-bool BrokerExecutionRunOrderCheck(BrokerExecutionSnapshot &snapshot,
-                                  BrokerExecutionEligibility &eligibility,
-                                  const double stop_loss_price,
-                                  const double take_profit_price)
+double ExecutionPriceDistancePoints(const double first_price,
+                                    const double second_price,
+                                    const double point_size)
 {
-  if(snapshot.normalized_volume <= 0.0)
-    return true;
+  if(first_price <= 0.0 || second_price <= 0.0 || point_size <= 0.0)
+    return 0.0;
+  return MathAbs(first_price - second_price) / point_size;
+}
 
-  double entry_price = BrokerExecutionEntrySidePrice(snapshot);
-  if(entry_price <= 0.0)
-    return true;
+bool ExecutionGeometryValid(const SignalTypes direction,
+                            const double entry_price,
+                            const double stop_loss_price,
+                            const double take_profit_price)
+{
+  if(entry_price <= 0.0 || stop_loss_price <= 0.0 || take_profit_price <= 0.0)
+    return false;
+  if(direction == BULLISH)
+    return (stop_loss_price < entry_price && take_profit_price > entry_price);
+  if(direction == BEARISH)
+    return (stop_loss_price > entry_price && take_profit_price < entry_price);
+  return false;
+}
 
+bool ExecutionVolumeMatchesBroker(const BrokerExecutionCheck &check)
+{
+  if(check.requested_volume <= 0.0 || check.normalized_volume <= 0.0 ||
+     check.volume_min <= 0.0 || check.volume_max <= 0.0 ||
+     check.volume_step <= 0.0)
+    return false;
+  if(check.normalized_volume + 1e-12 < check.volume_min ||
+     check.normalized_volume > check.volume_max + 1e-12 ||
+     check.normalized_volume > check.requested_volume + 1e-12)
+    return false;
+
+  double steps = check.normalized_volume / check.volume_step;
+  return (MathAbs(steps - MathRound(steps)) <= 1e-6);
+}
+
+bool RunExecutionOrderCheck(BrokerExecutionCheck &check)
+{
   MqlTradeRequest request;
-  MqlTradeCheckResult check;
+  MqlTradeCheckResult result;
   ZeroMemory(request);
-  ZeroMemory(check);
+  ZeroMemory(result);
 
   request.action = TRADE_ACTION_DEAL;
-  request.symbol = snapshot.symbol;
+  request.symbol = check.symbol;
   request.magic = g_execution_magic;
-  request.volume = snapshot.normalized_volume;
-	  request.price = entry_price;
-	  request.type = BrokerExecutionOrderTypeForDirection(snapshot.direction);
-	  request.type_filling = BrokerExecutionResolveFillingMode();
-	  request.type_time = ORDER_TIME_GTC;
-	  if(stop_loss_price > 0.0)
-	    request.sl = stop_loss_price;
-	  if(take_profit_price > 0.0)
-	    request.tp = take_profit_price;
+  request.volume = check.normalized_volume;
+  request.price = check.planned_entry_price;
+  request.sl = check.stop_loss_price;
+  request.tp = check.take_profit_price;
+  request.type = ExecutionOrderType(check.direction);
+  request.type_filling = ResolveExecutionFillingMode(check.symbol);
+  request.type_time = ORDER_TIME_GTC;
 
-  if(!OrderCheck(request, check))
+  check.order_check_performed = true;
+  if(!OrderCheck(request, result))
   {
-    snapshot.order_check_available = false;
-    snapshot.order_check_retcode = check.retcode;
-    snapshot.order_check_comment = check.comment;
-    BrokerExecutionBlock(eligibility,
-                         "order_check",
-                         StringFormat("api_failed|retcode=%I64u|comment=%s|error=%d",
-                                      check.retcode,
-                                      check.comment,
-                                      GetLastError()));
+    check.order_check_retcode = result.retcode;
+    check.order_check_comment = result.comment;
+    ExecutionCheckBlock(check,
+                        "order_check",
+                        StringFormat("api_failed|retcode=%I64u|error=%d|comment=%s",
+                                     result.retcode,
+                                     GetLastError(),
+                                     result.comment));
     return false;
   }
 
-  snapshot.order_check_available = true;
-  snapshot.order_check_retcode = check.retcode;
-  snapshot.order_check_comment = check.comment;
-
-  if(!BrokerExecutionOrderCheckRetcodeAllowed(check.retcode,
-                                              check.comment))
+  check.order_check_retcode = result.retcode;
+  check.order_check_comment = result.comment;
+  check.order_check_allowed =
+    ExecutionOrderCheckRetcodeAllowed(result.retcode);
+  if(!check.order_check_allowed)
   {
-    BrokerExecutionBlock(eligibility,
-                         "order_check",
-                         StringFormat("retcode=%I64u|comment=%s",
-                                      check.retcode,
-                                      check.comment));
+    ExecutionCheckBlock(check,
+                        "order_check",
+                        StringFormat("retcode=%I64u|comment=%s",
+                                     result.retcode,
+                                     result.comment));
     return false;
   }
-
   return true;
 }
 
-double BrokerExecutionPriceDistancePoints(const BrokerExecutionSnapshot &snapshot,
-                                          const double first_price,
-                                          const double second_price)
+bool CaptureBrokerExecutionCheck(const SignalParams &signal_params,
+                                 const string phase,
+                                 const int sequence,
+                                 const double entry_price,
+                                 const double stop_loss_price,
+                                 const double take_profit_price,
+                                 const double requested_volume,
+                                 const double normalized_volume,
+                                 const bool require_order_check,
+                                 BrokerExecutionCheck &check)
 {
-  if(snapshot.point_size <= 0.0 || first_price <= 0.0 || second_price <= 0.0)
-    return 0.0;
+  check = BrokerExecutionCheck();
+  check.phase = phase;
+  check.sequence = sequence;
+  check.broker_time = TimeCurrent();
+  check.symbol = _Symbol;
+  check.direction = signal_params.signal_type;
+  check.planned_entry_price = entry_price;
+  check.stop_loss_price = stop_loss_price;
+  check.take_profit_price = take_profit_price;
+  check.risk_distance = MathAbs(entry_price - stop_loss_price);
+  check.requested_volume = requested_volume;
+  check.normalized_volume = normalized_volume;
+  check.allowed = true;
 
-  return MathAbs(first_price - second_price) / snapshot.point_size;
-}
-
-bool BrokerExecutionValidateLegDistance(const BrokerExecutionSnapshot &snapshot,
-                                        const double reference_price,
-                                        const double target_price,
-                                        const string source,
-                                        BrokerExecutionEligibility &eligibility)
-{
-  if(reference_price <= 0.0 || target_price <= 0.0)
-    return true;
-
-  double min_distance = snapshot.min_stop_distance_points;
-  if(min_distance <= 0.0)
-    return true;
-
-  double distance_points = BrokerExecutionPriceDistancePoints(snapshot,
-                                                             reference_price,
-                                                             target_price);
-  if(distance_points + 1e-9 >= min_distance)
-    return true;
-
-  BrokerExecutionBlock(eligibility,
-                       "broker_distance",
-                       StringFormat("%s=%.2f<%.2f", source, distance_points, min_distance));
-  return false;
-}
-
-bool EvaluateLocalExecutionLegEligibility(const SignalParams &signal_params,
-                                          const ExecutionLegState &leg_state,
-                                          const double requested_volume,
-                                          BrokerExecutionSnapshot &snapshot,
-                                          BrokerExecutionEligibility &eligibility)
-{
-  eligibility = BrokerExecutionEligibility();
-
-  if(!CaptureBrokerExecutionSnapshot(signal_params.signal_type,
-                                     requested_volume,
-                                     snapshot))
+  MqlTick tick;
+  ZeroMemory(tick);
+  if(!SymbolInfoTick(check.symbol, tick))
   {
-    BrokerExecutionBlock(eligibility,
-                         "broker_snapshot",
-                         snapshot.invalid_reason);
-    return false;
+    ExecutionCheckBlock(check, "market_tick", "symbol_info_tick_failed");
+  }
+  else
+  {
+    check.bid = tick.bid;
+    check.ask = tick.ask;
   }
 
-  if(signal_params.signal_type != BULLISH && signal_params.signal_type != BEARISH)
+  if(BrokerConstraintsNeedRefresh() &&
+     !RefreshSymbolTradingConstraints(check.symbol, g_symbol_constraints))
   {
-    BrokerExecutionBlock(eligibility,
-                         "direction",
-                         "invalid_signal_direction");
-    return false;
+    ExecutionCheckBlock(check, "broker_constraints", "refresh_failed");
   }
 
-  if(!snapshot.terminal_algo_allowed)
+  check.point_size = g_symbol_constraints.point_size;
+  check.stops_distance_points = g_symbol_constraints.stops_level_points;
+  check.freeze_distance_points = g_symbol_constraints.freeze_level_points;
+  check.volume_min = g_symbol_constraints.min_volume;
+  check.volume_max = g_symbol_constraints.max_volume;
+  check.volume_step = g_symbol_constraints.volume_step;
+  if(check.point_size > 0.0 && check.ask > 0.0 && check.bid > 0.0)
+    check.spread_points = (check.ask - check.bid) / check.point_size;
+  else
+    ExecutionCheckBlock(check, "market_price", "bid_ask_or_point_invalid");
+
+  check.account_margin_mode = AccountInfoInteger(ACCOUNT_MARGIN_MODE);
+  check.account_margin_mode_supported =
+    (check.account_margin_mode == ACCOUNT_MARGIN_MODE_RETAIL_HEDGING);
+  if(!check.account_margin_mode_supported)
+    ExecutionCheckBlock(check,
+                        "account_margin_mode",
+                        StringFormat("unsupported=%d|required=%d",
+                                     check.account_margin_mode,
+                                     ACCOUNT_MARGIN_MODE_RETAIL_HEDGING));
+
+  check.symbol_trade_mode = SymbolInfoInteger(check.symbol, SYMBOL_TRADE_MODE);
+  check.symbol_trade_mode_allowed =
+    SymbolTradeModeAllowsExecution(check.symbol_trade_mode, check.direction);
+  if(!check.symbol_trade_mode_allowed)
+    ExecutionCheckBlock(check,
+                        "symbol_trade_mode",
+                        StringFormat("mode=%d|direction=%s",
+                                     check.symbol_trade_mode,
+                                     EnumToString(check.direction)));
+
+  MarketStatusTypes status = MarketStatusFromSymbolTradeMode(check.symbol_trade_mode);
+  MarketStatusUpdate(status,
+                     StringFormat("symbol_trade_mode=%d", check.symbol_trade_mode));
+
+  check.market_session_open =
+    IsSymbolTradeSessionOpen(check.symbol, check.broker_time);
+  if(!check.market_session_open)
+    ExecutionCheckBlock(check, "market_session", "actual_broker_session_closed");
+
+  check.account_trade_allowed =
+    (AccountInfoInteger(ACCOUNT_TRADE_ALLOWED) > 0);
+  check.account_expert_trade_allowed =
+    (AccountInfoInteger(ACCOUNT_TRADE_EXPERT) > 0);
+  check.terminal_trade_allowed =
+    (TerminalInfoInteger(TERMINAL_TRADE_ALLOWED) > 0);
+  check.mql_trade_allowed = (MQLInfoInteger(MQL_TRADE_ALLOWED) > 0);
+  if(!check.account_trade_allowed ||
+     !check.account_expert_trade_allowed ||
+     !check.terminal_trade_allowed ||
+     !check.mql_trade_allowed)
+    ExecutionCheckBlock(check,
+                        "algo_trading",
+                        "account_terminal_or_mql_trade_permission_disabled");
+
+  check.geometry_valid = ExecutionGeometryValid(check.direction,
+                                                entry_price,
+                                                stop_loss_price,
+                                                take_profit_price);
+  if(!check.geometry_valid)
+    ExecutionCheckBlock(check, "sl_tp_geometry", "directional_geometry_invalid");
+
+  double protection_reference = check.direction == BULLISH
+                                ? check.bid
+                                : check.ask;
+  double stop_points = ExecutionPriceDistancePoints(protection_reference,
+                                                    stop_loss_price,
+                                                    check.point_size);
+  double target_points = ExecutionPriceDistancePoints(protection_reference,
+                                                      take_profit_price,
+                                                      check.point_size);
+  check.stop_distance_valid =
+    (stop_points + 1e-9 >= check.stops_distance_points &&
+     target_points + 1e-9 >= check.stops_distance_points);
+  if(!check.stop_distance_valid)
+    ExecutionCheckBlock(check,
+                        "stops_distance",
+                        StringFormat("sl=%.2f|tp=%.2f|min=%.2f",
+                                     stop_points,
+                                     target_points,
+                                     check.stops_distance_points));
+
+  check.freeze_distance_valid =
+    (stop_points + 1e-9 >= check.freeze_distance_points &&
+     target_points + 1e-9 >= check.freeze_distance_points);
+  if(!check.freeze_distance_valid)
+    ExecutionCheckBlock(check,
+                        "freeze_distance",
+                        StringFormat("sl=%.2f|tp=%.2f|min=%.2f",
+                                     stop_points,
+                                     target_points,
+                                     check.freeze_distance_points));
+
+  check.volume_valid = ExecutionVolumeMatchesBroker(check);
+  if(!check.volume_valid)
+    ExecutionCheckBlock(check,
+                        "volume",
+                        StringFormat("requested=%.8f|normalized=%.8f|min=%.8f|max=%.8f|step=%.8f",
+                                     check.requested_volume,
+                                     check.normalized_volume,
+                                     check.volume_min,
+                                     check.volume_max,
+                                     check.volume_step));
+
+  check.account_balance = AccountInfoDouble(ACCOUNT_BALANCE);
+  check.free_margin = AccountInfoDouble(ACCOUNT_MARGIN_FREE);
+  if(check.volume_valid && check.geometry_valid)
   {
-    BrokerExecutionBlock(eligibility,
-                         "algo_trading",
-                         "terminal_or_mql_trading_disabled");
-    return false;
-  }
-
-  if(!snapshot.market_allows_signal)
-  {
-    BrokerExecutionBlock(eligibility,
-                         "symbol_trade_mode",
-                         StringFormat("mode=%d|direction=%s",
-                                      snapshot.symbol_trade_mode,
-                                      EnumToString(signal_params.signal_type)));
-    return false;
-  }
-
-  if(!snapshot.market_session_open)
-  {
-    BrokerExecutionBlock(eligibility,
-                         "market_session",
-                         "market_closed");
-    return false;
-  }
-
-  if(!snapshot.account_margin_mode_supported)
-  {
-    BrokerExecutionBlock(eligibility,
-                         "account_margin_mode",
-                         StringFormat("unsupported=%d|required=%d",
-                                      snapshot.account_margin_mode,
-                                      ACCOUNT_MARGIN_MODE_RETAIL_HEDGING));
-    return false;
-  }
-
-  double entry_side_price = BrokerExecutionEntrySidePrice(snapshot);
-  if(entry_side_price <= 0.0)
-  {
-    BrokerExecutionBlock(eligibility,
-                         "price",
-                         "entry_side_price_invalid");
-    return false;
-  }
-
-  if(leg_state.entry_reference_price <= 0.0)
-  {
-    BrokerExecutionBlock(eligibility,
-                         "entry_reference",
-                         "entry_reference_invalid");
-    return false;
-  }
-
-	  bool use_broker_side_stops = ExecutionLegUsesBrokerSideStops(signal_params, leg_state);
-	  double stop_loss_price = ExecutionLegBrokerStopLossPrice(signal_params, leg_state);
-	  double take_profit_price = ExecutionLegBrokerTakeProfitPrice(signal_params, leg_state);
-	  double distance_reference_price = use_broker_side_stops ? entry_side_price : leg_state.entry_reference_price;
-
-	  if(use_broker_side_stops && (stop_loss_price <= 0.0 || take_profit_price <= 0.0))
-	  {
-	    BrokerExecutionBlock(eligibility,
-	                         "broker_stops",
-	                         "sl_or_tp_invalid");
-	    return false;
-	  }
-
-	  if(!BrokerExecutionValidateLegDistance(snapshot,
-	                                         distance_reference_price,
-	                                         leg_state.take_profit_price,
-	                                         "tp_distance",
-	                                         eligibility))
-	    return false;
-
-	  if(!BrokerExecutionValidateLegDistance(snapshot,
-	                                         distance_reference_price,
-	                                         leg_state.next_level_price,
-	                                         use_broker_side_stops ? "sl_distance" : "next_distance",
-	                                         eligibility))
-	    return false;
-
-  if(leg_state.opens_position)
-  {
-    if(requested_volume <= 0.0 || !snapshot.volume_valid)
+    double required_margin = 0.0;
+    if(!OrderCalcMargin(ExecutionOrderType(check.direction),
+                        check.symbol,
+                        check.normalized_volume,
+                        entry_price,
+                        required_margin))
     {
-      BrokerExecutionBlock(eligibility,
-                           "volume",
-                           "normalized_volume_invalid");
-      return false;
+      ExecutionCheckBlock(check, "margin", "order_calc_margin_failed");
     }
-
-    if(snapshot.free_margin <= 0.0)
+    else
     {
-      BrokerExecutionBlock(eligibility,
-                           "margin",
-                           "free_margin_unavailable");
-      return false;
+      check.required_margin = required_margin;
+      check.margin_valid = (check.free_margin > 0.0 &&
+                            check.free_margin + 1e-8 >= required_margin);
+      if(!check.margin_valid)
+        ExecutionCheckBlock(check,
+                            "margin",
+                            StringFormat("free=%.2f|required=%.2f",
+                                         check.free_margin,
+                                         required_margin));
     }
+  }
 
-    if(snapshot.margin_per_lot <= 0.0)
-    {
-      BrokerExecutionBlock(eligibility,
-                           "margin",
-                           "margin_per_lot_unavailable");
-      return false;
-    }
+  if(require_order_check && check.allowed && !RunExecutionOrderCheck(check))
+    return false;
 
-    if(!snapshot.margin_available)
-    {
-      BrokerExecutionBlock(eligibility,
-                           "margin",
-                           StringFormat("margin=%.2f<%.2f",
-                                        snapshot.free_margin,
-                                        snapshot.required_margin));
-      return false;
-    }
-
-	    if(!BrokerExecutionRunOrderCheck(snapshot,
-	                                     eligibility,
-	                                     stop_loss_price,
-	                                     take_profit_price))
-	      return false;
-	  }
-
-  BrokerExecutionAllow(eligibility);
-  return true;
+  return check.allowed;
 }
 
 #endif // _SERVICES_TRADING_SIGNALS_EXECUTION_BROKER_CONTEXT_MQH_

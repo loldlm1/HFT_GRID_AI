@@ -669,7 +669,7 @@ bool PatternAuditPlaybackHasSelectedMatch(SignalParams &signal_params)
 }
 
 bool PatternAuditSelectedAdmissionAllowsEntry(SignalParams &signal_params,
-                                              const ExecutionLegState &leg_state,
+                                              const ExecutionState &execution_state,
                                               string &block_reason_out)
 {
   block_reason_out = "";
@@ -707,12 +707,12 @@ bool PatternAuditSelectedAdmissionAllowsEntry(SignalParams &signal_params,
   block_reason_out = StringFormat("selected_pattern_not_matched|source_key=%s|attempt=%d|entry=%.5f",
                                   source_key,
                                   attempt_index,
-                                  leg_state.entry_reference_price);
+                                  execution_state.planned_entry_price);
   return false;
 }
 
 void PatternAuditPlaybackRecordSignal(SignalParams &signal_params,
-                                      const ExecutionLegState &leg_state)
+                                      const ExecutionState &execution_state)
 {
   if(!PatternAuditPlaybackReady())
     return;
@@ -725,7 +725,7 @@ void PatternAuditPlaybackRecordSignal(SignalParams &signal_params,
     return;
 
   string observed_signal_id = PatternAuditPlaybackSignalId(signal_params);
-  string observed_entry_time = DeterministicSignalStatsTimeToken(leg_state.last_action_time);
+  string observed_entry_time = DeterministicSignalStatsTimeToken(execution_state.last_action_time);
 
   int index_entry = PatternAuditPlaybackFindIndex(source_key, attempt_index);
   if(index_entry < 0)
