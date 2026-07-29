@@ -60,6 +60,60 @@ class PivotFractalSchemaTests(unittest.TestCase):
         shutil.copytree(FIXTURE, run_path)
         return runs_root, run_path
 
+    def make_same_trigger_batch(self, run_path: Path) -> None:
+        attempts_path = run_path / SIGNAL_ATTEMPTS_FILE
+        attempt_columns, attempts = read_rows(attempts_path)
+        shared_attempt_values = {
+            column: attempts[0][column]
+            for column in (
+                "trigger_broker_time",
+                "trigger_analysis_time",
+                "trigger_offset_minutes",
+                "previous_m1_bar_open_broker_time",
+                "previous_m1_close_boundary_broker_time",
+                "trigger_bid",
+                "trigger_ask",
+                "spread_points",
+            )
+        }
+        shared_attempt_values["previous_m1_bid_close"] = "1.1160000000"
+        for attempt in attempts:
+            attempt.update(shared_attempt_values)
+        write_rows(attempts_path, attempt_columns, attempts)
+
+        features_path = run_path / SIGNAL_FEATURES_FILE
+        feature_columns, features = read_rows(features_path)
+        reference_by_context = {
+            row["context_timeframe"]: row
+            for row in features
+            if row["signal_id"] == "sig_fill"
+        }
+        shared_feature_columns = (
+            "trigger_broker_time",
+            "trigger_analysis_time",
+            "trigger_offset_minutes",
+            "structure_0",
+            "structure_1",
+            "structure_2",
+            "b_percent_0",
+            "b_percent_1",
+            "b_percent_2",
+            "b_percent_3",
+            "b_percent_4",
+            "b_percent_5",
+            "structure_complete",
+            "b_percent_complete",
+            "feature_complete",
+            "invalid_reason",
+        )
+        for feature in features:
+            if feature["signal_id"] != "sig_deny":
+                continue
+            reference = reference_by_context[feature["context_timeframe"]]
+            for column in shared_feature_columns:
+                feature[column] = reference[column]
+        write_rows(features_path, feature_columns, features)
+
     def test_v9_fixture_validates_and_builds_both_research_lanes(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             runs_root, _ = self.copy_fixture(temp_dir)
@@ -128,6 +182,42 @@ class PivotFractalSchemaTests(unittest.TestCase):
             columns, rows = read_rows(path)
             write_rows(path, columns, rows[:-1])
             with self.assertRaisesRegex(SchemaValidationError, "exactly six|Missing feature contexts"):
+                validate_run(runs_root, "schema_v9_pivot_fractal")
+
+    def test_future_context_and_pre_open_attempt_fail_closed(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            runs_root, run_path = self.copy_fixture(temp_dir)
+            path = run_path / SIGNAL_ATTEMPTS_FILE
+            columns, rows = read_rows(path)
+            rows[0]["previous_m1_close_boundary_broker_time"] = "2026.01.12 10:04:00"
+            write_rows(path, columns, rows)
+            with self.assertRaisesRegex(SchemaValidationError, "previous M1 context is not causal"):
+                validate_run(runs_root, "schema_v9_pivot_fractal")
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            runs_root, run_path = self.copy_fixture(temp_dir)
+            path = run_path / SIGNAL_ATTEMPTS_FILE
+            columns, rows = read_rows(path)
+            rows[0]["trigger_broker_time"] = "2026.01.12 09:59:59"
+            rows[0]["trigger_analysis_time"] = "2026.01.12 09:59:59"
+            write_rows(path, columns, rows)
+            with self.assertRaisesRegex(SchemaValidationError, "outside its active pivot window"):
+                validate_run(runs_root, "schema_v9_pivot_fractal")
+
+    def test_same_trigger_batch_requires_one_frozen_feature_snapshot(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            runs_root, run_path = self.copy_fixture(temp_dir)
+            self.make_same_trigger_batch(run_path)
+            validate_run(runs_root, "schema_v9_pivot_fractal")
+
+            path = run_path / SIGNAL_FEATURES_FILE
+            columns, rows = read_rows(path)
+            for row in rows:
+                if row["signal_id"] == "sig_deny" and row["context_timeframe"] == "PERIOD_M1":
+                    row["b_percent_0"] = "55.1"
+                    break
+            write_rows(path, columns, rows)
+            with self.assertRaisesRegex(SchemaValidationError, "feature snapshot divergence"):
                 validate_run(runs_root, "schema_v9_pivot_fractal")
 
     def test_future_feature_header_and_older_schema_are_rejected(self) -> None:

@@ -2,20 +2,22 @@
 
 ## Active
 
-- `docs/plans/pivot-fractal-engine-schema-v9-plan.md`: replaces the previous
-  signal/export foundation with `PIVOT_FRACTAL_V1`, strict schema V9, structural
-  trailing, and offline-only research. It remains active until the final real
-  compile and human Strategy Tester/chart acceptance are complete.
+No plan is active. Start a new explicitly invoked `$planner` plan under
+`docs/plans/` for the next substantial strategy, schema, runtime-model,
+live-rollout, or repository-wide change.
 
 Do not start another substantial strategy, architecture, live-rollout, schema,
-or repository-wide plan until this plan is formally closed, unless the human
-explicitly changes priority.
+or repository-wide change without explicitly starting its new plan.
 
 ## Archived
 
 Completed and superseded plans live under `docs/plans/archive/`. They document
 their historical code and exporter revisions only; they are not active
 implementation guidance.
+
+- `docs/plans/archive/pivot-fractal-engine-schema-v9-2026-07-29/README.md`:
+  completed `PIVOT_FRACTAL_V1`, schema V9, causal snapshot, structural trailing,
+  paired performance, and natural Strategy Tester acceptance work.
 
 Use these current documents:
 
@@ -24,5 +26,4 @@ Use these current documents:
 - `docs/workflows/pivot-fractal-offline-research-boundaries.md`
 - `docs/environment/mt5-agentic-workflows.md`
 
-Do not edit archived plans during normal implementation work. Add an archive
-index link only when an active plan is formally closed.
+Do not edit archived plans during normal implementation work.

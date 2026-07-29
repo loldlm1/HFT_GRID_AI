@@ -295,12 +295,7 @@ bool SendPivotMarketOrder(PivotSignal &signal)
 bool ProcessPivotSignalAttempt(PivotSignal &signal)
 {
   if(PivotV9Enabled())
-  {
-    CapturePivotContextFeatureSnapshot(signal.trigger_bid,
-                                       signal.trigger_time,
-                                       signal.features);
     ExportPivotFeatures(signal);
-  }
 
   BuildPivotSignalRoute(_Symbol,
                         signal.direction,

@@ -82,12 +82,16 @@ void ResetPivotFractalEngineState()
 
 void MarkPivotWindowPending(PivotFractalWindowState &window,
                             const int error_code,
-                            const string reason)
+                            const string reason,
+                            const datetime observation_time)
 {
+  datetime retry_base_time = observation_time > 0
+                             ? observation_time
+                             : TimeCurrent();
   window.state           = PIVOT_WINDOW_PENDING;
   window.last_error      = error_code;
   window.invalid_reason  = reason;
-  window.next_retry_time = TimeCurrent() + PIVOT_WINDOW_RETRY_SECONDS;
+  window.next_retry_time = retry_base_time + PIVOT_WINDOW_RETRY_SECONDS;
   window.levels.Reset();
 }
 
@@ -137,9 +141,12 @@ bool LoadCompletedPivotSourceRate(const string symbol,
 
 bool RefreshPivotFractalWindowState(PivotFractalWindowState &window,
                                     const int window_index,
+                                    const datetime observation_time,
                                     const bool force_refresh)
 {
-  if(window_index < 0 || window_index >= PIVOT_FRACTAL_TIMEFRAME_COUNT)
+  if(window_index < 0 ||
+     window_index >= PIVOT_FRACTAL_TIMEFRAME_COUNT ||
+     observation_time <= 0)
     return false;
 
   ENUM_TIMEFRAMES timeframe = PivotFractalTimeframeAt(window_index);
@@ -151,8 +158,21 @@ bool RefreshPivotFractalWindowState(PivotFractalWindowState &window,
   if(active_bar_open <= 0)
   {
     window.timeframe = timeframe;
-    MarkPivotWindowPending(window, GetLastError(), "ACTIVE_BAR_UNAVAILABLE");
+    MarkPivotWindowPending(window,
+                           GetLastError(),
+                           "ACTIVE_BAR_UNAVAILABLE",
+                           observation_time);
     return false;
+  }
+
+  // Series data can be visible ahead of the observed tester tick. Keep the
+  // last causal window until a tick reaches the advertised bar open.
+  if(active_bar_open > observation_time)
+  {
+    return window.state == PIVOT_WINDOW_VALID &&
+           window.active_bar_open > 0 &&
+           window.active_bar_open <= observation_time &&
+           window.source_close_boundary <= observation_time;
   }
 
   bool bar_changed = (window.active_bar_open != active_bar_open);
@@ -164,7 +184,7 @@ bool RefreshPivotFractalWindowState(PivotFractalWindowState &window,
     return false;
   else if(!force_refresh &&
           window.next_retry_time > 0 &&
-          TimeCurrent() < window.next_retry_time)
+          observation_time < window.next_retry_time)
     return false;
 
   MqlRates source_rate;
@@ -177,7 +197,10 @@ bool RefreshPivotFractalWindowState(PivotFractalWindowState &window,
                                    source_error,
                                    source_reason))
   {
-    MarkPivotWindowPending(window, source_error, source_reason);
+    MarkPivotWindowPending(window,
+                           source_error,
+                           source_reason,
+                           observation_time);
     return false;
   }
 
@@ -204,21 +227,27 @@ bool RefreshPivotFractalWindowState(PivotFractalWindowState &window,
 }
 
 bool RefreshPivotFractalWindow(const int window_index,
+                               const datetime observation_time,
                                const bool force_refresh = false)
 {
-  if(window_index < 0 || window_index >= PIVOT_FRACTAL_TIMEFRAME_COUNT)
+  if(window_index < 0 ||
+     window_index >= PIVOT_FRACTAL_TIMEFRAME_COUNT)
     return false;
   return RefreshPivotFractalWindowState(g_pivot_fractal_windows[window_index],
                                         window_index,
+                                        observation_time,
                                         force_refresh);
 }
 
-int RefreshPivotFractalWindows(const bool force_refresh = false)
+int RefreshPivotFractalWindows(const datetime observation_time,
+                               const bool force_refresh = false)
 {
+  if(observation_time <= 0)
+    return 0;
   int valid_windows = 0;
   for(int i = 0; i < PIVOT_FRACTAL_TIMEFRAME_COUNT; i++)
   {
-    if(RefreshPivotFractalWindow(i, force_refresh))
+    if(RefreshPivotFractalWindow(i, observation_time, force_refresh))
       valid_windows++;
   }
   return valid_windows;

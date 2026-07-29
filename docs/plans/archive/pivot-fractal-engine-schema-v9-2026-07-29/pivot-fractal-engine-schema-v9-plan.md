@@ -1,7 +1,8 @@
 # Plan: Pivot Fractal Engine And Schema V9
 
 **Generated**: 2026-07-29
-**Status**: Implementation in progress; final validation and closeout remain
+**Archived**: 2026-07-29
+**Status**: Complete; Sprint 9 acceptance and closeout gates passed
 **Planning Review**: Complete; no blocking clarification remains
 **Estimated Complexity**: High
 **Risk Class**: Critical - this changes signal generation, broker entry geometry, position protection, trailing, active persistence, and the research schema
@@ -20,12 +21,13 @@ The engine is a stronger fit for the stated research goal than the current extre
 Target runtime flow:
 
 ```text
-broker-native M1 bar transition
--> refresh previous M1 Bid close
--> refresh only pivot timeframes whose active broker bar changed
+observation tick with broker time
+-> refresh the last causal completed M1 Bid close
+-> refresh only pivot timeframes whose causal active broker bar changed
 -> cache previous completed candle and classic pivot ladder
 -> every tick: discover unconsumed Bid touch identities
--> capture one six-timeframe context snapshot per first touch
+-> capture one six-timeframe context snapshot for the tick candidate batch
+-> copy the frozen snapshot to every same-tick candidate
 -> build the immutable level route and observation broker facts
 -> reject unsupported route or failed broker eligibility
 -> refresh broker checks and OrderCheck immediately before send
@@ -132,6 +134,8 @@ previous completed M1 Bid close == level                         -> no side
 
 The condition is inclusive at the live boundary so exact touches and gaps through are captured. The trigger records previous M1 bar open/close time, previous close, live Bid, live Ask, spread, intended pivot price, broker time, analysis time, and offset. The order remains a market deal; the intended pivot level and broker-authoritative request/fill prices stay separate.
 
+Observation time is authoritative when broker series visibility and the current tick disagree. M1 context refresh and pivot-window refresh must not adopt an `iTime(..., 0)` bar whose open is later than the observed tick time. Candidate discovery also requires the cached `active_bar_open` and previous M1 close boundary to be no later than the trigger broker time.
+
 ### Entry And Trailing Matrix
 
 `BE` below means the captured logical entry level, not guaranteed monetary break-even after spread, slippage, commission, or swap.
@@ -164,7 +168,8 @@ At each first trigger, capture exactly one row for each context timeframe `M1`, 
 - Shift `0` uses trigger Bid against the developing shift-0 upper/lower bands for that context timeframe.
 - Shifts `1..5` use each matching completed candle close and the upper/lower bands at the same shift.
 - `%B = (price - lower_band) / (upper_band - lower_band) * 100`; values are not clamped to `0..100`.
-- The snapshot is captured before broker denial or send so denied and filled attempts share the same point-in-time feature semantics.
+- One snapshot is captured after candidate discovery and before any broker denial or send for that observation tick. Every same-tick confluence candidate receives an exact copy so sequential sends cannot change its feature values.
+- The strict offline validator requires feature equality across each contiguous attempt batch with identical trigger time, Bid/Ask, and M1 context facts. Contiguity avoids conflating unrelated later ticks that happen to share second-level prices.
 - Indicator handles are initialized once, checked with `BarsCalculated`/`CopyBuffer`, and released on deinitialization. They are not created per tick.
 - Feature unavailability is exported and invalidates research completeness; it does not change signal or broker execution.
 
@@ -308,7 +313,7 @@ Every event table retains schema/run identity, symbol, broker time, analysis tim
 - Confirm the account used for order lifecycle acceptance is `ACCOUNT_MARGIN_MODE_RETAIL_HEDGING` and has no open old-engine position for the test symbol.
 - Use a unique V9 run ID and the new V9 Common Files root. Never point V9 tooling at a V8 folder with overwrite enabled.
 - Preserve external/generated V8 data and archived repository plans/research. Destructive cleanup targets only active tracked V8 implementation, adapters, tests, and fixtures.
-- Do not run MetaEditor syntax or compile checks in Sprints 1-7. The only compile occurs in Sprint 8.
+- Do not run MetaEditor syntax or compile checks in Sprints 1-7. Sprint 8's diagnostic compile is not acceptance evidence after corrective code changes; the only post-fix acceptance compile occurs in Sprint 9.
 - Treat every intermediate sprint commit as implementation evidence, not live-deployment authorization.
 
 ## Dependencies And Parallel Work
@@ -378,13 +383,13 @@ Every event table retains schema/run identity, symbol, broker time, analysis tim
 
 ### Sprint 1 Gate
 
-- [ ] All Sprint 1 tasks complete.
-- [ ] Static formula, cache, identifier, include, and whitespace checks pass and evidence is recorded.
-- [ ] No runtime source, order behavior, V8 file, or public input changed.
-- [ ] Residual risks are documented.
-- [ ] Exactly one Sprint 1 commit is created with the proposed sprint message.
-- [ ] The Sprint 1 commit hash is recorded as the rollback point.
-- [ ] Sprint 2 has not started before this gate completes.
+- [x] All Sprint 1 tasks complete.
+- [x] Static formula, cache, identifier, include, and whitespace checks pass and evidence is recorded.
+- [x] No runtime source, order behavior, V8 file, or public input changed.
+- [x] Residual risks are documented.
+- [x] Exactly one Sprint 1 commit is created with the proposed sprint message.
+- [x] The Sprint 1 commit hash is recorded as the rollback point.
+- [x] Sprint 2 has not started before this gate completes.
 
 ## Sprint 2: Build M1 Trigger Context And Six-Timeframe Features
 
@@ -445,13 +450,13 @@ Every event table retains schema/run identity, symbol, broker time, analysis tim
 
 ### Sprint 2 Gate
 
-- [ ] All Sprint 2 tasks complete.
-- [ ] M1 side and six-timeframe feature semantics pass static review.
-- [ ] Handle lifecycle and hot-path review pass.
-- [ ] `git diff --check` passes.
-- [ ] No MetaEditor syntax check or compile was run.
-- [ ] Exactly one Sprint 2 commit is created and its hash recorded.
-- [ ] Sprint 3 has not started before this gate completes.
+- [x] All Sprint 2 tasks complete.
+- [x] M1 side and six-timeframe feature semantics pass static review.
+- [x] Handle lifecycle and hot-path review pass.
+- [x] `git diff --check` passes.
+- [x] No MetaEditor syntax check or compile was run.
+- [x] Exactly one Sprint 2 commit is created and its hash recorded.
+- [x] Sprint 3 has not started before this gate completes.
 
 ## Sprint 3: Define The MQL5 Schema V9 Export Contract
 
@@ -511,13 +516,13 @@ Every event table retains schema/run identity, symbol, broker time, analysis tim
 
 ### Sprint 3 Gate
 
-- [ ] All Sprint 3 tasks complete.
-- [ ] Every V9 header, key, event owner, and failure path is statically reviewed.
-- [ ] No V8 writer or runtime source has been removed yet.
-- [ ] `git diff --check` passes.
-- [ ] No MetaEditor syntax check or compile was run.
-- [ ] Exactly one Sprint 3 commit is created and its hash recorded.
-- [ ] Sprint 4 has not started before this gate completes.
+- [x] All Sprint 3 tasks complete.
+- [x] Every V9 header, key, event owner, and failure path is statically reviewed.
+- [x] No V8 writer or runtime source has been removed yet.
+- [x] `git diff --check` passes.
+- [x] No MetaEditor syntax check or compile was run.
+- [x] Exactly one Sprint 3 commit is created and its hash recorded.
+- [x] Sprint 4 has not started before this gate completes.
 
 ## Sprint 4: Atomically Cut Runtime Signals And Entries To Pivot Fractals
 
@@ -607,14 +612,14 @@ Every event table retains schema/run identity, symbol, broker time, analysis tim
 
 ### Sprint 4 Gate
 
-- [ ] All Sprint 4 tasks complete.
-- [ ] Runtime include tracing reaches only `PIVOT_FRACTAL_V1` signal creation.
-- [ ] The complete route matrix and all broker checks pass static review.
-- [ ] Active MQL5 V8/runtime ML/pattern/extremum files are deleted, not retained as compatibility code.
-- [ ] `git diff --check` passes.
-- [ ] No MetaEditor syntax check or compile was run.
-- [ ] Exactly one Sprint 4 commit is created and its hash recorded.
-- [ ] Sprint 5 has not started before this gate completes.
+- [x] All Sprint 4 tasks complete.
+- [x] Runtime include tracing reaches only `PIVOT_FRACTAL_V1` signal creation.
+- [x] The complete route matrix and all broker checks pass static review.
+- [x] Active MQL5 V8/runtime ML/pattern/extremum files are deleted, not retained as compatibility code.
+- [x] `git diff --check` passes.
+- [x] No MetaEditor syntax check or compile was run.
+- [x] Exactly one Sprint 4 commit is created and its hash recorded.
+- [x] Sprint 5 has not started before this gate completes.
 
 ## Sprint 5: Add Ticket-First Pivot Trailing And Outcomes
 
@@ -686,14 +691,14 @@ Every event table retains schema/run identity, symbol, broker time, analysis tim
 
 ### Sprint 5 Gate
 
-- [ ] All Sprint 5 tasks complete.
-- [ ] Ticket-first reconciliation and monotonic trailing pass static review.
-- [ ] Every trade operation and retcode path is checked.
-- [ ] Frontend remains bounded and execution-neutral.
-- [ ] `git diff --check` passes.
-- [ ] No MetaEditor syntax check or compile was run.
-- [ ] Exactly one Sprint 5 commit is created and its hash recorded.
-- [ ] Sprint 6 has not started before this gate completes.
+- [x] All Sprint 5 tasks complete.
+- [x] Ticket-first reconciliation and monotonic trailing pass static review.
+- [x] Every trade operation and retcode path is checked.
+- [x] Frontend remains bounded and execution-neutral.
+- [x] `git diff --check` passes.
+- [x] No MetaEditor syntax check or compile was run.
+- [x] Exactly one Sprint 5 commit is created and its hash recorded.
+- [x] Sprint 6 has not started before this gate completes.
 
 ## Sprint 6: Replace V8 Python Research With Strict V9 Tooling
 
@@ -770,14 +775,14 @@ Every event table retains schema/run identity, symbol, broker time, analysis tim
 
 ### Sprint 6 Gate
 
-- [ ] All Sprint 6 tasks complete.
-- [ ] Python compile, all existing/replaced tests, fixture validation, and a compact V9 dataset build pass.
-- [ ] Active tracked V8 Python adapters, runtime artifact/pattern tooling, and V8 fixture are deleted.
-- [ ] Offline DuckDB/XGBoost research remains functional and research-only.
-- [ ] `git diff --check` passes.
-- [ ] No MetaEditor syntax check or compile was run.
-- [ ] Exactly one Sprint 6 commit is created and its hash recorded.
-- [ ] Sprint 7 has not started before this gate completes.
+- [x] All Sprint 6 tasks complete.
+- [x] Python compile, all existing/replaced tests, fixture validation, and a compact V9 dataset build pass.
+- [x] Active tracked V8 Python adapters, runtime artifact/pattern tooling, and V8 fixture are deleted.
+- [x] Offline DuckDB/XGBoost research remains functional and research-only.
+- [x] `git diff --check` passes.
+- [x] No MetaEditor syntax check or compile was run.
+- [x] Exactly one Sprint 6 commit is created and its hash recorded.
+- [x] Sprint 7 has not started before this gate completes.
 
 ## Sprint 7: Remove Dead Context And Align Active Documentation
 
@@ -851,28 +856,30 @@ Every event table retains schema/run identity, symbol, broker time, analysis tim
 
 ### Sprint 7 Gate
 
-- [ ] All Sprint 7 tasks complete.
-- [ ] Active code/docs/tooling contain no current V8/extremum/runtime ML/pattern contract.
-- [ ] Public inputs, include topology, file inventory, and frontend boundary pass review.
-- [ ] Archived plans/research and external/generated datasets remain untouched.
-- [ ] `git diff --check` passes.
-- [ ] No MetaEditor syntax check or compile was run.
-- [ ] Exactly one Sprint 7 commit is created and its hash recorded.
-- [ ] Sprint 8 has not started before this gate completes.
+- [x] All Sprint 7 tasks complete.
+- [x] Active code/docs/tooling contain no current V8/extremum/runtime ML/pattern contract.
+- [x] Public inputs, include topology, file inventory, and frontend boundary pass review.
+- [x] Archived plans/research and external/generated datasets remain untouched.
+- [x] `git diff --check` passes.
+- [x] No MetaEditor syntax check or compile was run.
+- [x] Exactly one Sprint 7 commit is created and its hash recorded.
+- [x] Sprint 8 has not started before this gate completes.
 
 ## Sprint 8: Final Compile, Strategy Tester Acceptance, And Closeout
 
-**Goal**: Run the only real compile, strict Python/V9 integration, human broker lifecycle matrix, performance comparison, and plan closeout.
+**Goal**: Attempt the final compile, strict Python/V9 integration, human broker lifecycle matrix, performance comparison, and plan closeout; preserve a failed gate as diagnostic evidence and plan its correction.
 **Dependencies**: Sprint 7 gate complete; MetaEditor/Wine and human Strategy Tester access available.
 **Tracked scope**: Integration fixes only, compact validation evidence, active/archived plan indexes, and final documentation corrections. Do not add features during closeout.
-**Commit**: `chore: validate pivot fractal engine and schema v9`
+**Proposed commit if the gate passed**: `chore: validate pivot fractal engine and schema v9` (not created)
 **Demo/Validation**:
 
 - Final static/reference sweeps and Python tests.
 - Real MetaEditor compile with `0 errors, 0 warnings` and regenerated `HFT_Grid_AI.ex5`.
 - Human Strategy Tester/chart acceptance for pivot timing, first-touch directions, route/trailing behavior, broker denials, V9 exports, DST, and performance.
 
-**Rollback point**: Sprint 7 commit before integration fixes. If compile or Strategy Tester reveals unsafe behavior, leave Sprint 8 uncommitted, fix within Sprint 8, and rerun every final gate. Do not live-roll out a partially accepted build.
+**Rollback point**: Sprint 7 commit `1c9d573` before integration fixes. Strategy Tester revealed unsafe causal behavior, so Sprint 8 remains uncommitted and Sprint 9 owns the correction and repeated final gate. Do not live-roll out a partially accepted build.
+
+**2026-07-29 audit result**: FAIL, deliberately uncommitted. Static/Python gates and the real MetaEditor compile passed, and the human visual review was acceptable, but VPS run `us30_test_run_1` exposed future M1 context/early window activation and non-frozen same-tick feature snapshots. The run also ended `CENSORED`. Detailed evidence is in `docs/research/pivot-fractal-v9-vps-run-audit-2026-07-29.md`. Sprint 8 closeout is superseded by corrective Sprint 9 and must not create its proposed commit.
 
 ### Task 8.1: Run Final Static And Python Integration Checks
 
@@ -888,9 +895,9 @@ Every event table retains schema/run identity, symbol, broker time, analysis tim
   - `.venv/bin/python -m unittest discover -s tools/deterministic_signal_ml/tests -p 'test_*.py'`
   - Updated V9 `build_dataset.py --validate-only` and audit commands from the runbook.
   - `git diff --check`
-- **Rollback**: Fix within uncommitted Sprint 8 or revert to Sprint 7.
+- **Rollback**: Preserve the diagnostic result and carry corrections into Sprint 9; the last committed state remains Sprint 7.
 
-### Task 8.2: Run The Only MetaEditor Compile Sprint
+### Task 8.2: Run The Diagnostic MetaEditor Compile
 
 - **Location**: `HFT_Grid_AI.mq5`, `tools/mt5/compile_mt5.py`, `logs/compile/agentic-build.log`
 - **Description**: Run the real compile, parse the compact result, verify `0 errors, 0 warnings`, and confirm `.ex5` regeneration. `/s` syntax-only mode is not accepted as final evidence.
@@ -901,7 +908,7 @@ Every event table retains schema/run identity, symbol, broker time, analysis tim
   - Any Wine return-code discrepancy is recorded alongside parsed compiler status.
 - **Validation**:
   - `python3 tools/mt5/compile_mt5.py --wine --mt5-root "/home/loldlm/mql5_projects/metatrader_5_market_data_framework" --entrypoint "/home/loldlm/mql5_projects/metatrader_5_market_data_framework/MQL5/Experts/HFT_Grid_AI/HFT_Grid_AI.mq5" --log "logs/compile/agentic-build.log" --mode compile`
-- **Rollback**: Fix within Sprint 8; do not commit a failing compile.
+- **Rollback**: Treat this as diagnostic only; the post-fix compile belongs to Sprint 9 and no Sprint 8 commit is created.
 
 ### Task 8.3: Run Human Pivot Window And Trigger Acceptance
 
@@ -916,7 +923,7 @@ Every event table retains schema/run identity, symbol, broker time, analysis tim
   - Same price across timeframes creates separate attempts; non-hedging mode records denial and sends none.
 - **Validation**:
   - Human inspection of compact logs/V9 rows with exact broker timestamps and identities.
-- **Rollback**: Stop acceptance and fix within Sprint 8.
+- **Rollback**: Stop acceptance, preserve the run, and fix through Sprint 9.
 
 ### Task 8.4: Run Human Route, Trailing, And Broker Safety Acceptance
 
@@ -931,7 +938,7 @@ Every event table retains schema/run identity, symbol, broker time, analysis tim
   - Visual mode shows bounded entry/current SL/terminal TP lines; nonvisual mode creates no chart objects.
 - **Validation**:
   - Human Strategy Tester/chart evidence with compact route, ticket, retcode, and outcome records.
-- **Rollback**: Stop acceptance and fix within Sprint 8.
+- **Rollback**: Stop acceptance, preserve the run, and fix through Sprint 9.
 
 ### Task 8.5: Validate V9 Features, Time, And Performance
 
@@ -940,46 +947,173 @@ Every event table retains schema/run identity, symbol, broker time, analysis tim
 - **Dependencies**: Tasks 8.3-8.4.
 - **Acceptance criteria**:
   - Every complete attempt has exactly six feature rows with structure `0..2` and raw `%B 0..5`; shift 0 matches trigger Bid semantics.
+  - Every contiguous same-trigger candidate batch sharing trigger time, Bid/Ask, and M1 context facts has identical six-timeframe feature snapshots.
   - Broker time remains causal; `FIXED_TIME_SESSIONS` equality and documented Exness winter/summer/US/UK DST normalization remain export-only.
   - Run summary is natural/`OK`, duplicate identities are zero, referential checks pass, and Python strict validation succeeds.
   - Export overhead and output growth are measured over the same 1-3 market days and show no per-tick handle creation, full-history scans, or unbounded logs.
 - **Validation**:
   - Updated runbook validate/build/audit commands and compact elapsed-time/count/size comparison.
-- **Rollback**: Fix within Sprint 8; never relabel an invalid run as accepted.
+- **Rollback**: Preserve the invalid run and fix through Sprint 9; never relabel it as accepted.
 
-### Task 8.6: Record Closeout And Archive The Plan
+### Task 8.6: Record The Failed Audit And Defer Closeout
 
 - **Location**: This plan, `docs/plans/README.md`, archive directory/index, active docs if final evidence changes them
-- **Description**: Record all eight commit hashes/rollback points and compact final evidence, mark the plan complete, move it into a dated archive folder according to local practice, and restore `docs/plans/README.md` to no active plan.
-- **Dependencies**: Tasks 8.1-8.5 all pass.
+- **Description**: Record the failed audit, preserve the original/censored evidence, link the corrective research note, and keep this plan active for Sprint 9. Do not archive the plan or create a Sprint 8 closeout commit.
+- **Dependencies**: Tasks 8.1-8.5 were executed far enough to establish the failed acceptance result. Final closeout is deferred to Sprint 9.
 - **Acceptance criteria**:
   - Evidence distinguishes static, Python, compile, and human checks without claiming unrun validation.
-  - Every sprint has exactly one commit and recorded rollback point.
+  - The failed Sprint 8 audit and its `1c9d573` rollback point are explicit.
   - No live rollout approval is implied.
 - **Validation**:
-  - Final `rtk git status`, `rtk git log`, archive link review, and `git diff --check` before the Sprint 8 commit.
-- **Rollback**: Revert the Sprint 8 closeout commit to the validated Sprint 7 state if documentation/evidence is wrong; do not discard external test evidence.
+  - Final `rtk git status`, `rtk git log`, research-link review, and `git diff --check` before starting Sprint 9.
+- **Rollback**: Restore the uncommitted audit documentation and leave the last committed state at Sprint 7; do not discard external test evidence.
 
 ### Sprint 8 Gate
 
-- [ ] All Sprint 8 tasks complete.
-- [ ] Final static and Python checks pass.
-- [ ] Real MetaEditor compile reports `0 errors, 0 warnings` and regenerates `.ex5`.
-- [ ] Human Strategy Tester/chart acceptance passes the pivot, broker, route, trailing, V9, DST, and performance matrix.
-- [ ] All eight sprint rollback points and residual risks are recorded.
-- [ ] Exactly one Sprint 8 commit is created with the proposed message.
-- [ ] The plan is archived and no active plan remains.
-- [ ] Live rollout remains separately unauthorized.
+**Disposition**: Failed acceptance gate. Preserve all evidence, leave Sprint 8 uncommitted, and execute Sprint 9 from rollback point `1c9d573`.
+
+- [x] Final static and Python diagnostic checks pass.
+- [x] Diagnostic MetaEditor compile reports `0 errors, 0 warnings` and regenerates `.ex5`.
+- [x] Human visual QA and the VPS Strategy Tester evidence are audited.
+- [ ] Human/data acceptance passes the complete pivot, broker, route, trailing, V9, DST, causality, feature-freeze, and performance matrix.
+- [x] Sprint 8 remains deliberately uncommitted at rollback point `1c9d573`.
+- [x] Corrective Sprint 9 and its residual risks are recorded.
+- [x] The plan is archived and no active plan remains.
+- [x] Live rollout remains separately unauthorized.
+
+## Sprint 9: Enforce Causal Snapshots And Re-run Final Acceptance
+
+**Goal**: Correct observation-time causality and same-tick feature freezing, harden the strict V9 contract around both defects, measure normal export overhead, and complete the final compile/tester/closeout gate.
+**Dependencies**: Failed but fully documented Sprint 8 audit; Sprint 7 commit `1c9d573` remains the last committed rollback point.
+**Tracked scope**: Causal refresh/discovery guards, one frozen feature snapshot per tick candidate batch, existing Python contract/fixture updates, bounded performance evidence, final documentation, and the already uncommitted compile-integration corrections. Do not add strategy rules, inputs, schema columns, runtime ML, or new test infrastructure.
+**Commit**: `fix: make pivot trigger snapshots causal and deterministic`
+**Demo/Validation**:
+
+- Static and Python negative checks reject future M1 context, pre-open pivot attempts, and divergent same-tick feature snapshots.
+- The final post-fix MetaEditor compile reports `0 errors, 0 warnings` and regenerates the binary.
+- Paired VPS lanes measure export overhead with normal logs disabled, followed by one naturally completed strict V9 acceptance run.
+
+**Rollback point**: `1c9d573`. Sprint 8 created no commit. Revert the single Sprint 9 commit to return to the last committed Sprint 7 state; preserve all diagnostic and acceptance evidence outside Git.
+
+### Task 9.1: Make Series Refresh Causal To The Observation Tick
+
+- **Location**: `services/trading_signals/pivot_context_features.mqh`, `services/trading_signals/pivot_fractal_engine_state.mqh`, `services/trading_signals/pivot_fractal_signal_detection.mqh`, and their callers
+- **Description**: Pass the observed `MqlTick.time` through M1/pivot refresh and retry decisions. Do not adopt a current-series bar whose open is later than the observation time. Preserve the last valid causal context/window until the first tick at or after the new bar open, and reject candidate discovery when its window or M1 close boundary is later than the trigger.
+- **Dependencies**: Sprint 8 VPS causal rows.
+- **Acceptance criteria**:
+  - No attempt has `previous_m1_close_boundary_broker_time > trigger_broker_time`.
+  - No attempt has `active_bar_open_broker_time > trigger_broker_time`.
+  - A future-visible `iTime(..., 0)` value neither expires the prior window early nor loads shift `1` from an incomplete candle.
+  - Actual broker bar transitions, weekend gaps, and controlled data retries retain the existing lifecycle contract.
+- **Validation**:
+  - Exact call-chain/reference review for the observation time argument.
+  - Strict negative fixtures for a future M1 boundary and pre-open pivot trigger.
+  - `git diff --check` and no MetaEditor compile before Task 9.4.
+- **Rollback**: Revert the Sprint 9 commit.
+
+### Task 9.2: Freeze One Feature Snapshot Per Tick Candidate Batch
+
+- **Location**: `services/trading_signals/pivot_fractal_signal_detection.mqh`, `services/trading_signals/execution_controller.mqh`, `services/trading_signals/pivot_signal_struct.mqh`, and existing feature helpers
+- **Description**: Capture one `PivotContextFeatureSnapshot` after discovery/sorting and before processing the first candidate, then copy it into every signal built from that tick. Remove per-candidate recapture from `ProcessPivotSignalAttempt()` without changing execution order, route construction, broker checks, or the V9 headers.
+- **Dependencies**: Task 9.1 establishes one causal observation boundary.
+- **Acceptance criteria**:
+  - Every same-tick confluence candidate has byte-equivalent structure and `%B` feature values across all six contexts.
+  - Denied, send-failed, and filled attempts retain the same pre-broker snapshot semantics.
+  - Candidate ordering and broker send ordering remain unchanged.
+  - Indicator handles remain init-owned and buffer reads occur once per candidate batch, not once per candidate.
+- **Validation**:
+  - Static review confirms snapshot capture occurs before the candidate loop's first broker action.
+  - Existing Python tests plus a same-trigger divergent-feature negative fixture.
+  - A focused post-fix tester sample containing multi-level confluence.
+- **Rollback**: Revert the Sprint 9 commit.
+
+### Task 9.3: Harden V9 Validation And Preserve Evidence Boundaries
+
+- **Location**: `tools/deterministic_signal_ml/schema_contract.py`, the existing three test modules/fixtures, `docs/research/pivot-fractal-v9-vps-run-audit-2026-07-29.md`, and active workflow guidance only where final behavior changes it
+- **Description**: Make the already intended causal and frozen-snapshot contracts explicit in strict validation. Reject future M1/window facts and feature divergence within a maximal contiguous attempt batch sharing identical trigger tick/context facts. Keep the original VPS run immutable and censored; never teach tooling to silently drop or repair invalid rows.
+- **Dependencies**: Tasks 9.1-9.2 contracts fixed.
+- **Acceptance criteria**:
+  - Original `us30_test_run_1` still fails strict validation for the causal defect.
+  - Positive V9 fixture passes; targeted future-context, pre-open, and confluence-drift mutations fail for the intended reason.
+  - No new test module, MQL5 harness, compatibility adapter, or schema header is added.
+  - Temporary causal-filtered evidence remains labeled diagnostic only.
+- **Validation**:
+  - `.venv/bin/python -m compileall -q tools/deterministic_signal_ml`
+  - `.venv/bin/python -m unittest discover -s tools/deterministic_signal_ml/tests -p 'test_*.py'`
+  - Strict fixture validation and compact dataset/audit build.
+- **Rollback**: Revert the Sprint 9 commit.
+
+### Task 9.4: Run The Final Compile And Paired Performance Lanes
+
+- **Location**: `HFT_Grid_AI.mq5`, `tools/mt5/compile_mt5.py`, `logs/compile/agentic-build.log`, and VPS Strategy Tester evidence
+- **Description**: Run the only acceptance compile after the Sprint 9 code changes. Then run identical 1-3 market-day real-tick lanes: A export off/logs off, B export on/logs off, and optional diagnostic C export on/file logs on. Keep the broker, symbol, model, date range, `500 ms` delay, lot inputs, and all other settings identical.
+- **Dependencies**: Tasks 9.1-9.3 pass.
+- **Acceptance criteria**:
+  - MetaEditor reports exactly `0 errors, 0 warnings`; local/VPS `.ex5` hashes match before tester acceptance.
+  - Lanes A and B have matching order/deal direction, volume, intended route, SL/TP, and price facts at matching checkpoints.
+  - Record elapsed time, ticks/sec, peak memory, output bytes, row counts, and export-on/off delta without query-debug distortion.
+  - No per-tick handle creation, full-history scan, unbounded state, or repeated per-candidate feature capture remains.
+  - Retry behavior is not weakened. Compact identical retry diagnostics only if the paired measurement proves material cost, preserving first, changed, and terminal facts.
+- **Validation**:
+  - Final real MetaEditor compile command from Task 8.2.
+  - Compact tester summaries and folder-size/count comparison for lanes A-C.
+- **Rollback**: Fix within uncommitted Sprint 9 or revert to `1c9d573`.
+
+### Task 9.5: Run Natural V9 Acceptance And Close Out
+
+- **Location**: VPS Strategy Tester, strict V9 run folder, plan/research indexes, and active documentation
+- **Description**: Run a new naturally completed real-tick V9 evidence interval with export enabled and file/query logs disabled. Re-run the full pivot, trigger, route, trailing, broker, DST, feature, dataset, and audit gates; record evidence and archive the plan only after they pass.
+- **Dependencies**: Task 9.4.
+- **Acceptance criteria**:
+  - `completion_status=NATURAL`, `export_status=OK`, zero incomplete features, zero duplicate identities, and zero referential/row integrity errors.
+  - Strict validation finds zero future M1 contexts, zero pre-open attempts, and zero divergent same-tick snapshots.
+  - All pivot formula/window, 14-route, trailing, ticket, broker outcome, DST, and same-tick ordering checks pass again on unfiltered data.
+  - Dataset build and pivot audit pass without deleting, filtering, or relabeling source rows.
+  - The research note records final before/after evidence, all rollback points are accurate, and no live rollout or runtime model approval is implied.
+- **Validation**:
+  - Updated runbook validate/build/audit commands on the new run id.
+  - Final `rtk git status`, `rtk git log`, reference sweeps, archive-link review, and `git diff --check` before the one Sprint 9 commit.
+- **Rollback**: Revert the Sprint 9 commit to `1c9d573`; retain external evidence.
+
+### Sprint 9 Gate
+
+- [x] Tasks 9.1-9.5 complete.
+- [x] Static/Python negative and positive gates pass.
+- [x] Final post-fix compile reports `0 errors, 0 warnings` and the VPS runs the matching binary.
+- [x] Paired export-off/on performance evidence is recorded with logs disabled.
+- [x] A natural, unfiltered V9 run passes causal, feature, route, trailing, broker, DST, dataset, and audit acceptance.
+- [x] Exactly one Sprint 9 commit is created with the proposed message and `1c9d573` is recorded as its rollback point.
+- [x] The plan is archived only after the Sprint 9 commit; live rollout remains unauthorized.
+
+### Sprint 9 Closeout Evidence
+
+- Static and Python positive/negative gates pass, including rejection of the
+  original `us30_test_run_1` future-context rows and divergent-feature fixtures.
+- The post-fix compile reports `0 errors, 0 warnings`; local and both VPS
+  acceptance binaries match at SHA-256
+  `866d8bf3439a82c3570f029f94564b37781a53b934b612ccc2062c497cb2b07b`.
+- Export-off/on lanes over identical `578,669`-tick intervals took `5.301 s`
+  and `5.471 s`; normal export overhead was `3.21%`, with logs disabled and
+  `5,823` byte-identical broker lifecycle lines.
+- The natural run `sprint9_natural_us30_final_20260112_20260725` completed with
+  `export_status=OK`, `completion_status=NATURAL`, `49,716` attempts, `298,296`
+  features, `48,431` broker outcomes, and zero integrity/incomplete-feature
+  counters.
+- The pivot audit found zero causal, window, route, trailing, ticket, broker,
+  confluence, or DST mismatches. Twelve positions were right-censored at the
+  interval boundary and are excluded from broker-outcome research rows.
+- Evidence is preserved at `/tmp/hft-grid-ai-sprint9-evidence/`; generated
+  tester files, datasets, audits, and binaries remain outside Git.
 
 ## Testing Strategy
 
 - **MQL5 unit**: Do not add a unit harness. Use pure-function/static numeric review for formulas and the complete route table, exact identifier/reference sweeps, bounds checks, include tracing, and final real compilation.
-- **Python unit/contract**: Replace, do not increase, the existing three test modules. Cover strict headers, keys, duplicates, six-context completeness, no-future-feature rules, route/audit semantics, and outcome ownership.
-- **Integration**: Validate one strict V9 fixture and one real V9 Strategy Tester run through TSV validation, Parquet assembly, audit output, and an XGBoost-ready matrix.
+- **Python unit/contract**: Replace, do not increase, the existing three test modules. Cover strict headers, keys, duplicates, six-context completeness, future M1/window rejection, same-tick feature equality, route/audit semantics, and outcome ownership.
+- **Integration**: Validate one strict V9 fixture and one natural, unfiltered V9 Strategy Tester run through TSV validation, Parquet assembly, audit output, and an XGBoost-ready matrix.
 - **End-to-end/manual**: Human Strategy Tester/chart verification is mandatory for broker bar transitions, touches, gaps, confluence, broker checks, sends, ticket reconciliation, trailing, TP/SL, DST, and frontend behavior.
 - **Trading safety**: Reinspect hedging mode, actual broker session/trade mode, permissions, bid/ask, spread facts, stops/freeze, exact geometry, volume normalization, margin, `OrderCheck`, retcodes, magic/comment/ticket ownership, and old-position rollout isolation.
 - **Data migration**: This is a destructive active-contract cutover with no row migration. V8 active code/fixtures are deleted; V8 generated data remains historical and cannot be passed to V9 commands.
-- **Performance**: Confirm window reads occur only at init/bar change/pending retry, indicator handles are reused, trigger scans are bounded to 35 active identities, position lifecycle scans are bounded by owned attempts, logs are throttled, and export-off/on measurements are recorded.
+- **Performance**: Confirm window reads occur only at init/causal bar change/pending retry, indicator handles are reused, one feature buffer snapshot is read per tick candidate batch, trigger scans are bounded to 35 active identities, position lifecycle scans are bounded by owned attempts, logs are throttled, and export-off/on measurements are recorded with file logs disabled.
 - **Security/privacy**: No account IDs, credentials, tokens, proprietary full logs, or generated datasets are added to Git or external research calls. Existing Common Files/artifacts remain local and ignored.
 - **Accessibility/UI**: No interactive UI is introduced. Visual acceptance covers legible bounded labels/lines and confirms nonvisual runs do no chart work.
 
@@ -993,12 +1127,14 @@ Every event table retains schema/run identity, symbol, broker time, analysis tim
 | Gap crosses several levels | Send ordering can change which attempts receive available margin | Record all first touches, sort by distance from prior M1 close, then stable timeframe/level tie breaks | Repeated tester run produces identical attempt/send ordering |
 | First unsupported extreme consumes identity | A later valid opposite touch in the same window cannot trade that level | Preserve user-approved identity without direction and record `NO_FORWARD_LEVEL` clearly | One attempt only for Buy R3/Sell S3 identities |
 | Missing/delayed series data | New windows could accidentally reuse stale levels or stale M1 context | Invalidate the new identity until shift-1 data is available; controlled retries only | No row combines a new active open with an old source candle |
+| Series visibility advances ahead of the observed tick | Future M1 context or a new pivot window can trigger before its causal lifecycle | Pass observation time through refresh/retry/discovery and defer any `iTime(..., 0)` open later than the tick | Zero future M1 boundaries and zero pre-open attempts in strict validation |
 | Broker D1/weekend boundaries | Fixed seconds can misidentify lifecycle across gaps | Use actual `iTime` transitions and shift-1 `CopyRates`; use `PeriodSeconds` only for metadata/scheduling hints | Weekend tester evidence shows no synthetic bar |
 | Tick-size normalization collapses levels | Tiny source range may make route geometry ambiguous | Retain raw values, require strictly ordered normalized ladder, mark window invalid | Invalid-window reason and zero attempts for collapsed ladder |
 | Stops/freeze reject trailing | Desired protection may lag after a milestone | Keep prior broker SL, retain strongest pending desired SL, retry safely with retcode telemetry | Trailing events distinguish requested, rejected, retried, confirmed |
 | Window expires while position remains open | Recalculation could corrupt an active route | Copy all seven levels and route into immutable position-owned state | Position keeps original window ID/levels after next bar |
 | V8 destructive cutover | Historical scripts/models no longer run on current checkout | Delete active compatibility deliberately, preserve Git history/archives/generated data, use separate V9 root | V8 inputs fail clearly; archives/data remain untouched |
 | Feature handle readiness | Missing structure/bands data can create incomplete ML rows | Validate handles/buffers, mark run incomplete, never alter execution | `run_summary` feature completeness and strict validator failure |
+| Sequential sends mutate same-tick features | Confluence attempts with identical market facts can receive different shift-0 context | Capture once before the candidate loop and copy the frozen snapshot to every signal | Same-trigger feature rows are exactly equal across all six contexts |
 | New magic namespace | Old positions cannot be safely reconciled by new engine | Require old-engine positions flat before any future rollout | Human preflight confirms no old symbol positions |
 | Local/broker close race | Local milestone code could act after broker TP/SL | Reconcile ticket state before modifications and let broker terminal protection own close | No modification after confirmed close; one broker outcome |
 | Hot-path export/logging cost | Always-on M1 collector can slow tester/live processing | Bound scans, reuse handles/cache, append compact rows, throttle errors, compare export off/on | Measured elapsed time, row counts, and folder bytes |
@@ -1011,7 +1147,11 @@ Every event table retains schema/run identity, symbol, broker time, analysis tim
 - Sprint 5 can be reverted to the Sprint 4 entry-only pivot state for diagnosis, but that intermediate state is not approved for deployment.
 - Sprint 6 can be reverted independently to restore historical V8 Python tooling. That tooling must not be pointed at V9 output.
 - Sprint 7 can be reverted for documentation/dead-context corrections without rolling back implemented pivot behavior.
-- Sprint 8 remains uncommitted until all final checks pass. Revert its single closeout commit only if final fixes/evidence/archiving are wrong.
+- Sprint 8 is a documented failed acceptance attempt and remains permanently uncommitted. Its diagnostic compile does not satisfy the post-fix compile gate.
+- Sprint 9 started from `1c9d573`, owns the causal/frozen-snapshot corrections,
+  and is represented by exactly one closeout commit. Revert that commit to
+  return to `1c9d573` if the correction, evidence, or archive boundary is
+  found to be wrong.
 - Schema files are append-only evidence. Never overwrite or relabel V8 runs as V9 or failed/censored V9 runs as accepted. Use a new run ID after any schema/header-affecting fix.
 - Generated/external V8 datasets and archived plans/research are not deleted by this plan and therefore require no data restoration step.
 - Any future runtime rollback requires all new-engine positions flat before loading an older `.ex5`; magic namespaces intentionally do not cross-reconcile.
@@ -1025,21 +1165,23 @@ Every event table retains schema/run identity, symbol, broker time, analysis tim
 5. Start Sprint 2 only after the Sprint 1 gate passes.
 6. Repeat the complete/validate/one-commit/record-rollback gate for Sprints 2-7; do not run MetaEditor in those sprints.
 7. Start Sprint 8 only after Sprint 7 is committed and clean.
-8. Run final static/Python checks, the only real MetaEditor compile, and human Strategy Tester/chart acceptance.
-9. Create exactly one Sprint 8 commit only after every final gate passes, then archive the plan.
+8. Preserve Sprint 8 as a failed, uncommitted diagnostic acceptance attempt and record its VPS evidence.
+9. Implement Tasks 9.1-9.3 from rollback point `1c9d573`; run static/Python gates without an intermediate compile.
+10. Run the final post-fix MetaEditor compile, paired performance lanes, and natural unfiltered Strategy Tester acceptance in Tasks 9.4-9.5.
+11. Create exactly one Sprint 9 commit only after every final gate passes, then archive the plan.
 
 ## Completion Checklist
 
-- [ ] `PIVOT_FRACTAL_V1` is the only active signal source.
-- [ ] `M15/M30/H1/H4/D1` use only their immediately previous completed broker candles.
-- [ ] `M1` supplies only side/trigger context and requested research features.
-- [ ] First-touch identity, Bid/Ask semantics, gap ordering, expiry, and confluence match the fixed contract.
-- [ ] All allowed routes and the two `NO_FORWARD_LEVEL` denials match the matrix.
-- [ ] Broker entry, SL/TP, trailing, ticket reconciliation, and outcomes remain fail-closed and broker-authoritative.
-- [ ] Schema V9 strict export, DuckDB ingestion, audit, and offline XGBoost-ready data pass validation.
-- [ ] Active V8/extremum/runtime ML/pattern code, adapters, tests, and fixtures are removed.
-- [ ] Archived plans/research and external/generated historical datasets remain preserved.
-- [ ] Public inputs and active documentation describe only the final pivot runtime.
-- [ ] Every sprint has exactly one commit and recorded rollback point.
-- [ ] Final compile reports `0 errors, 0 warnings` and human Strategy Tester/chart acceptance passes.
-- [ ] No live rollout is authorized by plan completion.
+- [x] `PIVOT_FRACTAL_V1` is the only active signal source.
+- [x] `M15/M30/H1/H4/D1` use only their immediately previous completed broker candles.
+- [x] `M1` supplies only side/trigger context and requested research features.
+- [x] First-touch identity, Bid/Ask semantics, gap ordering, expiry, and confluence match the fixed contract.
+- [x] All allowed routes and the two `NO_FORWARD_LEVEL` denials match the matrix.
+- [x] Broker entry, SL/TP, trailing, ticket reconciliation, and outcomes remain fail-closed and broker-authoritative.
+- [x] Schema V9 strict export, DuckDB ingestion, audit, and offline XGBoost-ready data pass validation.
+- [x] Active V8/extremum/runtime ML/pattern code, adapters, tests, and fixtures are removed.
+- [x] Archived plans/research and external/generated historical datasets remain preserved.
+- [x] Public inputs and active documentation describe only the final pivot runtime.
+- [x] Every completed implementation sprint has exactly one commit and a recorded rollback point; failed Sprint 8 remains explicitly uncommitted.
+- [x] Final compile reports `0 errors, 0 warnings` and human Strategy Tester/chart acceptance passes.
+- [x] No live rollout is authorized by plan completion.

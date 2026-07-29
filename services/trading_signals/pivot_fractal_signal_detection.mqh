@@ -4,8 +4,11 @@
 #ifndef _SERVICES_TRADING_SIGNALS_PIVOT_FRACTAL_SIGNAL_DETECTION_MQH_
 #define _SERVICES_TRADING_SIGNALS_PIVOT_FRACTAL_SIGNAL_DETECTION_MQH_
 
-const int PIVOT_TOUCH_CANDIDATE_MAX =
-  PIVOT_FRACTAL_TIMEFRAME_COUNT * PIVOT_LEVEL_COUNT;
+enum PivotTouchFixedCounts
+{
+  PIVOT_TOUCH_CANDIDATE_MAX =
+    PIVOT_FRACTAL_TIMEFRAME_COUNT * PIVOT_LEVEL_COUNT
+};
 
 struct PivotTouchCandidate
 {
@@ -98,8 +101,12 @@ void ExportPivotWindowLevelsIfNeeded(const int window_index)
     window.active_bar_open;
 }
 
-void RefreshPivotWindowsForRuntime(const bool force_refresh = false)
+void RefreshPivotWindowsForRuntime(const datetime observation_time,
+                                   const bool force_refresh = false)
 {
+  if(observation_time <= 0)
+    return;
+
   for(int i = 0; i < PIVOT_FRACTAL_TIMEFRAME_COUNT; i++)
   {
     PivotFractalWindowState previous_window;
@@ -107,7 +114,9 @@ void RefreshPivotWindowsForRuntime(const bool force_refresh = false)
     ENUM_TIMEFRAMES timeframe = PivotFractalTimeframeAt(i);
     datetime current_open = iTime(_Symbol, timeframe, 0);
     if(current_open > 0 &&
+       current_open <= observation_time &&
        previous_window.active_bar_open > 0 &&
+       previous_window.active_bar_open <= observation_time &&
        current_open != previous_window.active_bar_open)
     {
       FinalizeExpiredPivotWindow(i,
@@ -116,7 +125,7 @@ void RefreshPivotWindowsForRuntime(const bool force_refresh = false)
       g_pivot_window_levels_exported_open[i] = 0;
     }
 
-    RefreshPivotFractalWindow(i, force_refresh);
+    RefreshPivotFractalWindow(i, observation_time, force_refresh);
     ExportPivotWindowLevelsIfNeeded(i);
   }
 }
@@ -144,19 +153,20 @@ void InitializePivotFractalRuntime()
   ResetPivotM1SideContext();
   ResetPivotFractalEngineState();
   ResetPivotSignalRuntimeState();
-  RefreshPivotM1SideContext(true);
-  RefreshPivotWindowsForRuntime(true);
 }
 
-void RefreshPivotFractalRuntimeContext()
+void RefreshPivotFractalRuntimeContext(const datetime observation_time)
 {
+  if(observation_time <= 0)
+    return;
+
   datetime previous_boundary = g_pivot_m1_side_context.close_boundary;
-  RefreshPivotM1SideContext(false);
+  RefreshPivotM1SideContext(observation_time, false);
   bool m1_bar_changed = g_pivot_m1_side_context.close_boundary > 0 &&
                         g_pivot_m1_side_context.close_boundary !=
                           previous_boundary;
-  if(m1_bar_changed || PivotWindowRetryDue(TimeCurrent()))
-    RefreshPivotWindowsForRuntime(false);
+  if(m1_bar_changed || PivotWindowRetryDue(observation_time))
+    RefreshPivotWindowsForRuntime(observation_time, false);
 }
 
 SignalTypes ResolvePivotTouchDirection(const PivotPriceSideStates side,
@@ -174,6 +184,11 @@ int DiscoverPivotTouchCandidates(const MqlTick &tick,
                                  PivotTouchCandidate &candidates[])
 {
   if(!g_pivot_m1_side_context.valid ||
+     tick.time <= 0 ||
+     g_pivot_m1_side_context.previous_bar_open <= 0 ||
+     g_pivot_m1_side_context.previous_bar_open >=
+       g_pivot_m1_side_context.close_boundary ||
+     g_pivot_m1_side_context.close_boundary > tick.time ||
      tick.bid <= 0.0 ||
      tick.ask <= 0.0 ||
      tick.ask < tick.bid)
@@ -185,7 +200,11 @@ int DiscoverPivotTouchCandidates(const MqlTick &tick,
       window_index++)
   {
     if(g_pivot_fractal_windows[window_index].state != PIVOT_WINDOW_VALID ||
-       !g_pivot_fractal_windows[window_index].levels.valid)
+       !g_pivot_fractal_windows[window_index].levels.valid ||
+       g_pivot_fractal_windows[window_index].active_bar_open <= 0 ||
+       g_pivot_fractal_windows[window_index].active_bar_open > tick.time ||
+       g_pivot_fractal_windows[window_index].source_close_boundary >
+         tick.time)
       continue;
 
     for(int level_index = 0;
@@ -260,6 +279,7 @@ void SortPivotTouchCandidates(PivotTouchCandidate &candidates[],
 
 void BuildPivotSignalFromCandidate(const PivotTouchCandidate &candidate,
                                    const MqlTick &tick,
+                                   const PivotContextFeatureSnapshot &features,
                                    PivotSignal &signal_out)
 {
   signal_out.Reset();
@@ -291,6 +311,7 @@ void BuildPivotSignalFromCandidate(const PivotTouchCandidate &candidate,
     signal_out.trigger_spread_points = (tick.ask - tick.bid) / point_size;
   signal_out.touch_distance = candidate.distance_from_previous_close;
   signal_out.levels.CopyFrom(candidate.window.levels);
+  signal_out.features.CopyFrom(features);
 }
 
 void ProcessPivotTouchCandidates(PivotTouchCandidate &candidates[],
@@ -298,10 +319,21 @@ void ProcessPivotTouchCandidates(PivotTouchCandidate &candidates[],
                                  const MqlTick &tick)
 {
   SortPivotTouchCandidates(candidates, total);
+  PivotContextFeatureSnapshot feature_snapshot;
+  if(PivotV9Enabled())
+  {
+    CapturePivotContextFeatureSnapshot(tick.bid,
+                                       tick.time,
+                                       feature_snapshot);
+  }
+
   for(int i = 0; i < total; i++)
   {
     PivotSignal signal;
-    BuildPivotSignalFromCandidate(candidates[i], tick, signal);
+    BuildPivotSignalFromCandidate(candidates[i],
+                                  tick,
+                                  feature_snapshot,
+                                  signal);
     if(FindPivotSignalIndex(signal.signal_id) >= 0)
     {
       PivotV9RegisterDuplicateIdentity();
@@ -313,7 +345,10 @@ void ProcessPivotTouchCandidates(PivotTouchCandidate &candidates[],
 
 void ProcessPivotFractalTick(const MqlTick &tick)
 {
-  RefreshPivotFractalRuntimeContext();
+  if(tick.time <= 0)
+    return;
+
+  RefreshPivotFractalRuntimeContext(tick.time);
   PivotTouchCandidate candidates[PIVOT_TOUCH_CANDIDATE_MAX];
   int total = DiscoverPivotTouchCandidates(tick, candidates);
   if(total > 0)

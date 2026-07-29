@@ -12,10 +12,13 @@ from pathlib import Path
 import re
 import subprocess
 import sys
+import time
 from typing import Sequence
 
 
 STATUS_RE = re.compile(r"(?P<errors>\d+)\s+errors?,\s+(?P<warnings>\d+)\s+warnings?", re.IGNORECASE)
+LOG_FINALIZATION_TIMEOUT_SECONDS = 30.0
+LOG_POLL_INTERVAL_SECONDS = 0.25
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -88,6 +91,24 @@ def compact_failure_lines(text: str) -> list[str]:
     return lines[-8:]
 
 
+def wait_for_final_status(path: Path, timeout: float) -> tuple[str, str | None, int | None, int | None]:
+    deadline = time.monotonic() + timeout
+    last_text = ""
+    while True:
+        if path.exists():
+            try:
+                last_text = read_text_best_effort(path)
+            except OSError:
+                last_text = ""
+            status_line, errors, warnings = final_status_line(last_text)
+            if errors is not None and warnings is not None:
+                return last_text, status_line, errors, warnings
+        if time.monotonic() >= deadline:
+            status_line, errors, warnings = final_status_line(last_text)
+            return last_text, status_line, errors, warnings
+        time.sleep(LOG_POLL_INTERVAL_SECONDS)
+
+
 def command_for(args: argparse.Namespace, mt5_root: Path, entrypoint: Path, log_path: Path) -> list[str]:
     metaeditor = mt5_root / "MetaEditor64.exe"
     if args.wine:
@@ -127,22 +148,25 @@ def main() -> int:
         return 2
 
     log_path.parent.mkdir(parents=True, exist_ok=True)
-    command = command_for(args, mt5_root, entrypoint, log_path)
-    process_code = run_command(command, args.timeout)
-
-    if not log_path.exists():
-        print(f"mode={args.mode}")
-        print(f"process_returncode={process_code}")
-        print(f"log_missing={log_path}")
+    try:
+        log_path.unlink(missing_ok=True)
+    except OSError as exc:
+        print(f"log_reset_failed={log_path}")
+        print(f"diagnostic={exc}")
         return 1
 
-    log_text = read_text_best_effort(log_path)
-    status_line, errors, warnings = final_status_line(log_text)
+    command = command_for(args, mt5_root, entrypoint, log_path)
+    process_code = run_command(command, args.timeout)
+    log_text, status_line, errors, warnings = wait_for_final_status(
+        log_path, LOG_FINALIZATION_TIMEOUT_SECONDS
+    )
     success = errors == 0 and warnings == 0
 
     print(f"mode={args.mode}")
     print(f"process_returncode={process_code}")
     print(f"log={log_path}")
+    if not log_path.exists():
+        print(f"log_missing={log_path}")
     if status_line:
         print(f"status={status_line}")
     else:

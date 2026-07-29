@@ -979,6 +979,21 @@ def _validate_features(
     rows: list[dict[str, str]],
     attempts: dict[str, dict[str, str]],
 ) -> None:
+    snapshot_columns = (
+        "structure_0",
+        "structure_1",
+        "structure_2",
+        "b_percent_0",
+        "b_percent_1",
+        "b_percent_2",
+        "b_percent_3",
+        "b_percent_4",
+        "b_percent_5",
+        "structure_complete",
+        "b_percent_complete",
+        "feature_complete",
+        "invalid_reason",
+    )
     by_signal: dict[str, list[dict[str, str]]] = defaultdict(list)
     for row_index, row in enumerate(rows, start=2):
         context = f"{SIGNAL_FEATURES_FILE}:{row_index}"
@@ -1024,6 +1039,57 @@ def _validate_features(
             raise SchemaValidationError(
                 f"Signal {signal_id} must have exactly six unique feature contexts"
             )
+
+    # Attempts are emitted in candidate-processing order. Compare only
+    # maximal contiguous runs whose trigger tick and M1 context are identical;
+    # unrelated later ticks may legitimately reuse the same broker second.
+    batch_columns = (
+        "symbol",
+        "trigger_broker_time",
+        "trigger_analysis_time",
+        "trigger_offset_minutes",
+        "previous_m1_bar_open_broker_time",
+        "previous_m1_close_boundary_broker_time",
+        "previous_m1_bid_close",
+        "trigger_bid",
+        "trigger_ask",
+        "spread_points",
+    )
+
+    def snapshot_signature(signal_id: str) -> tuple[tuple[str, ...], ...]:
+        by_context = {
+            row["context_timeframe"]: row
+            for row in by_signal[signal_id]
+        }
+        return tuple(
+            tuple(by_context[timeframe][column] for column in snapshot_columns)
+            for timeframe in CONTEXT_TIMEFRAMES
+        )
+
+    previous_batch_key: tuple[str, ...] | None = None
+    batch_signal_ids: list[str] = []
+
+    def validate_batch(signal_ids: list[str]) -> None:
+        if len(signal_ids) < 2:
+            return
+        reference_id = signal_ids[0]
+        reference_signature = snapshot_signature(reference_id)
+        for signal_id in signal_ids[1:]:
+            if snapshot_signature(signal_id) != reference_signature:
+                raise SchemaValidationError(
+                    "same-trigger feature snapshot divergence: "
+                    f"{reference_id} vs {signal_id}"
+                )
+
+    for signal_id, attempt in attempts.items():
+        batch_key = tuple(attempt[column] for column in batch_columns)
+        if previous_batch_key is None or batch_key == previous_batch_key:
+            batch_signal_ids.append(signal_id)
+        else:
+            validate_batch(batch_signal_ids)
+            batch_signal_ids = [signal_id]
+        previous_batch_key = batch_key
+    validate_batch(batch_signal_ids)
 
 
 def _validate_checks(

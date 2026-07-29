@@ -27,6 +27,8 @@ config/*.ini
 !/docs/plans/archive/phase3-ml-2026-07-07/*.md
 !/docs/plans/archive/extremum-engine-cycle-statistics-2026-07-11/
 !/docs/plans/archive/extremum-engine-cycle-statistics-2026-07-11/*.md
+!/docs/plans/archive/pivot-fractal-engine-schema-v9-2026-07-29/
+!/docs/plans/archive/pivot-fractal-engine-schema-v9-2026-07-29/*.md
 /docs/lead_magnet/output/*
 !/docs/lead_magnet/output/.gitkeep
 /docs/lead_magnet/dist/*.zip

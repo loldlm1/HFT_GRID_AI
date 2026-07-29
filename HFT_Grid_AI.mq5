@@ -18,6 +18,7 @@ double g_bid = 0.0;
 double g_ask = 0.0;
 ulong g_execution_magic = 0;
 SymbolTradingConstraints g_symbol_constraints;
+bool g_tester_interval_completed = false;
 
 ulong ResolveStableExecutionMagic()
 {
@@ -55,15 +56,16 @@ void RefreshCustomSymbolRates()
   RefreshCustomSymbolRates(tick);
 }
 
-string PivotRunCompletionStatus(const int deinit_reason)
+string PivotRunCompletionStatus()
 {
-  if(MQLInfoInteger(MQL_TESTER) > 0 && deinit_reason == REASON_CLOSE)
+  if(MQLInfoInteger(MQL_TESTER) > 0 && g_tester_interval_completed)
     return "NATURAL";
   return "CENSORED";
 }
 
 int OnInit()
 {
+  g_tester_interval_completed = false;
   ResetQueryDebugLogSession();
   if(!RefreshSymbolTradingConstraints(_Symbol, g_symbol_constraints))
   {
@@ -99,7 +101,7 @@ int OnInit()
 void OnDeinit(const int reason)
 {
   ReconcileAndFinalizePivotSignals();
-  string completion_status = PivotRunCompletionStatus(reason);
+  string completion_status = PivotRunCompletionStatus();
   FinalizeActivePivotWindowsForExport(completion_status);
   PivotV9StatsDeinit(completion_status);
   CloseAppendFileLog();
@@ -141,6 +143,8 @@ void OnTick()
 
 double OnTester()
 {
+  g_tester_interval_completed =
+    !g_forced_stop_triggered && !g_debug_no_money_abort_pending;
   if(g_forced_stop_triggered || g_debug_no_money_abort_pending)
     return 0.0;
 

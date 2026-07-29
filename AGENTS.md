@@ -7,8 +7,8 @@ contract; historical plans and evidence remain under their archive directories.
 ## Entrypoint And Active Work
 
 - Entrypoint: `HFT_Grid_AI.mq5`.
-- Active plan: `docs/plans/pivot-fractal-engine-schema-v9-plan.md` through its
-  final compile and human acceptance gate.
+- Active plan: none. The completed pivot-fractal/schema V9 plan is archived
+  under `docs/plans/archive/pivot-fractal-engine-schema-v9-2026-07-29/`.
 - Architecture: `docs/architecture/market-data-broker-executor.md`.
 - Environment runbook: `docs/environment/mt5-agentic-workflows.md`.
 - Statistics workflow: `docs/workflows/pivot-fractal-statistics-flow.md`.
@@ -47,9 +47,10 @@ controls, or compatibility aliases for removed inputs.
 
 ```text
 broker tick and previous completed M1 Bid close
--> refresh only changed or retry-due M15/M30/H1/H4/D1 pivot windows
+-> refresh only causal changed or retry-due M15/M30/H1/H4/D1 pivot windows
 -> discover unconsumed Bid first touches
--> capture one six-timeframe context snapshot
+-> capture one six-timeframe context snapshot per observed tick candidate batch
+-> copy the frozen snapshot to every same-tick candidate
 -> build immutable structural route
 -> observation and fresh pre-send broker checks
 -> one market order with broker structural SL and terminal pivot TP
@@ -63,6 +64,8 @@ broker tick and previous completed M1 Bid close
   and `D1` broker series. `M1` creates no pivot levels.
 - Each valid set lives for its actual broker-native active bar. No wall-clock
   aggregation, incomplete candle, or synthetic missing bar is permitted.
+- Series visibility is subordinate to the observed tick: a current bar whose
+  open is later than the tick cannot activate a window or replace M1 context.
 - Previous completed M1 Bid close above a level plus live Bid at/below it is a
   buy touch. Previous close below plus live Bid at/above it is a sell touch.
   Equality is neutral. Buy orders execute at Ask; sell orders execute at Bid.

@@ -167,8 +167,12 @@ void ResetPivotM1SideContext()
   g_pivot_m1_side_context.Reset();
 }
 
-bool RefreshPivotM1SideContext(const bool force_refresh = false)
+bool RefreshPivotM1SideContext(const datetime observation_time,
+                               const bool force_refresh = false)
 {
+  if(observation_time <= 0)
+    return false;
+
   ResetLastError();
   datetime current_bar_open = iTime(_Symbol, PERIOD_M1, 0);
   if(current_bar_open <= 0)
@@ -176,8 +180,18 @@ bool RefreshPivotM1SideContext(const bool force_refresh = false)
     g_pivot_m1_side_context.valid           = false;
     g_pivot_m1_side_context.last_error      = GetLastError();
     g_pivot_m1_side_context.invalid_reason  = "M1_ACTIVE_BAR_UNAVAILABLE";
-    g_pivot_m1_side_context.next_retry_time = TimeCurrent() + PIVOT_WINDOW_RETRY_SECONDS;
+    g_pivot_m1_side_context.next_retry_time =
+      observation_time + PIVOT_WINDOW_RETRY_SECONDS;
     return false;
+  }
+
+  // A tester series may expose the next bar before the observed tick reaches
+  // it. Keep using only an already-cached causal M1 boundary in that interval.
+  if(current_bar_open > observation_time)
+  {
+    return g_pivot_m1_side_context.valid &&
+           g_pivot_m1_side_context.close_boundary > 0 &&
+           g_pivot_m1_side_context.close_boundary <= observation_time;
   }
 
   if(g_pivot_m1_side_context.valid &&
@@ -186,7 +200,7 @@ bool RefreshPivotM1SideContext(const bool force_refresh = false)
 
   if(!force_refresh &&
      g_pivot_m1_side_context.next_retry_time > 0 &&
-     TimeCurrent() < g_pivot_m1_side_context.next_retry_time)
+     observation_time < g_pivot_m1_side_context.next_retry_time)
     return false;
 
   g_pivot_m1_side_context.valid              = false;
@@ -203,7 +217,8 @@ bool RefreshPivotM1SideContext(const bool force_refresh = false)
   {
     g_pivot_m1_side_context.last_error      = GetLastError();
     g_pivot_m1_side_context.invalid_reason  = "M1_PREVIOUS_RATE_UNAVAILABLE";
-    g_pivot_m1_side_context.next_retry_time = TimeCurrent() + PIVOT_WINDOW_RETRY_SECONDS;
+    g_pivot_m1_side_context.next_retry_time =
+      observation_time + PIVOT_WINDOW_RETRY_SECONDS;
     return false;
   }
 
@@ -215,7 +230,8 @@ bool RefreshPivotM1SideContext(const bool force_refresh = false)
   {
     g_pivot_m1_side_context.last_error      = 0;
     g_pivot_m1_side_context.invalid_reason  = "M1_PREVIOUS_RATE_INVALID";
-    g_pivot_m1_side_context.next_retry_time = TimeCurrent() + PIVOT_WINDOW_RETRY_SECONDS;
+    g_pivot_m1_side_context.next_retry_time =
+      observation_time + PIVOT_WINDOW_RETRY_SECONDS;
     return false;
   }
 
