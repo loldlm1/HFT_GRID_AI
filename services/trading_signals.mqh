@@ -12,6 +12,7 @@
 #include "trading_signals/signal_params_struct.mqh"
 #include "trading_signals/market_signal_state.mqh"
 #include "trading_signals/market_signal_indicators.mqh"
+#include "trading_signals/pivot_context_features.mqh"
 #include "trading_signals/extremum_engine_state.mqh"
 #include "trading_signals/pivot_fractal_engine_state.mqh"
 #include "trading_signals/market_signal_detection.mqh"

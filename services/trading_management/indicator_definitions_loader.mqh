@@ -7,38 +7,63 @@
 IndicatorsHandleInfo ExtStructStochIndicatorsHandle[];
 IndicatorsHandleInfo ExtDeterministicBandsLogicHandles[];
 
-void LoadAllStructStochIndicators()
+bool AddStructStochIndicatorHandle(const ENUM_TIMEFRAMES timeframe,
+                                   const bool required)
 {
+  for(int i = 0; i < ArraySize(ExtStructStochIndicatorsHandle); i++)
+  {
+    if(ExtStructStochIndicatorsHandle[i].indicator_timeframe == timeframe)
+      return true;
+  }
+
   IndicatorsHandleInfo handle_info;
   handle_info.indicator_period = DETERMINISTIC_STOCH_K;
   handle_info.indicator_handle = iCustom(_Symbol,
-                                         EXTREMUM_ENGINE_TIMEFRAME,
+                                         timeframe,
                                          "Examples\\Stochastic_Structure.ex5",
                                          DETERMINISTIC_STOCH_K,
                                          DETERMINISTIC_STOCH_D,
                                          DETERMINISTIC_STOCH_SLOWING,
                                          STO_CLOSECLOSE);
-  handle_info.indicator_timeframe = EXTREMUM_ENGINE_TIMEFRAME;
+  handle_info.indicator_timeframe = timeframe;
 
   if(handle_info.indicator_handle == INVALID_HANDLE)
   {
     Print("ERROR LOADING STRUCTURE INDICATOR: ",
-          EnumToString(EXTREMUM_ENGINE_TIMEFRAME),
+          EnumToString(timeframe),
           " | PERIOD: ",
           DETERMINISTIC_STOCH_K);
-    TesterStop();
-    return;
+    if(required)
+      TesterStop();
+    return false;
   }
 
   if(Enable_Logs)
   {
     Print("LOADED STRUCTURE INDICATOR SUCCESSFULLY: ",
-          EnumToString(EXTREMUM_ENGINE_TIMEFRAME),
+          EnumToString(timeframe),
           " | PERIOD: ",
           DETERMINISTIC_STOCH_K);
   }
 
   AddElementToArray(ExtStructStochIndicatorsHandle, handle_info);
+  return true;
+}
+
+void LoadAllStructStochIndicators()
+{
+  AddStructStochIndicatorHandle(EXTREMUM_ENGINE_TIMEFRAME, true);
+
+  if(!Enable_Signal_Feature_Export)
+    return;
+
+  for(int i = 0; i < PIVOT_CONTEXT_TIMEFRAME_COUNT; i++)
+  {
+    ENUM_TIMEFRAMES timeframe = PivotContextTimeframeAt(i);
+    if(timeframe == EXTREMUM_ENGINE_TIMEFRAME)
+      continue;
+    AddStructStochIndicatorHandle(timeframe, false);
+  }
 }
 
 void ReleaseAllStructStochIndicators()
@@ -136,7 +161,16 @@ void LoadDeterministicBandsLogicIndicators()
   ArrayResize(ExtDeterministicBandsLogicHandles, 0);
   SetTesterIndicatorHideMode(true);
 
-  if(Enable_Signal_Feature_Export || ML_Inference_Mode != ML_INFERENCE_DISABLED)
+  if(Enable_Signal_Feature_Export)
+  {
+    for(int i = 0; i < PIVOT_CONTEXT_TIMEFRAME_COUNT; i++)
+    {
+      AddDeterministicBandsBaseLogicHandle(ExtDeterministicBandsLogicHandles,
+                                           PivotContextTimeframeAt(i),
+                                           false);
+    }
+  }
+  else if(ML_Inference_Mode != ML_INFERENCE_DISABLED)
   {
     AddDeterministicBandsBaseLogicHandle(ExtDeterministicBandsLogicHandles,
                                          EXTREMUM_ENGINE_TIMEFRAME);

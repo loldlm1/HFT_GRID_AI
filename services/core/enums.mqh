@@ -51,6 +51,14 @@ enum PivotTriggerStates
   PIVOT_TRIGGER_EXPIRED   = 2
 };
 
+enum PivotPriceSideStates
+{
+  PIVOT_PRICE_SIDE_UNAVAILABLE = 0,
+  PIVOT_PRICE_SIDE_BELOW       = 1,
+  PIVOT_PRICE_SIDE_EQUAL       = 2,
+  PIVOT_PRICE_SIDE_ABOVE       = 3
+};
+
 enum PivotRouteStatuses
 {
   PIVOT_ROUTE_NOT_BUILT       = 0,

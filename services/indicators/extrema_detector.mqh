@@ -74,7 +74,8 @@ bool DetectMarketExtrema(
   bool &initial_is_peak,
   ENUM_TIMEFRAMES &timeframe,
   int &period,
-  int max_depth = 13  // NEW: configurable depth parameter
+  int max_depth = 13,
+  bool required = true
 ) {
   // --- buffers del indicador ---
   double indicator_extremum_values[];
@@ -114,8 +115,11 @@ bool DetectMarketExtrema(
 
   if(n_ext <= 0 || n_peak <= 0 || n_bot <= 0 || n_sext <= 0 || n_main <= 0)
   {
-    PrintFormat("Failed to copy data from the OSCILLATOR STRUCTURE indicator, error code %d", GetLastError());
-    TesterStop();
+    if(required)
+    {
+      PrintFormat("Failed to copy data from the OSCILLATOR STRUCTURE indicator, error code %d", GetLastError());
+      TesterStop();
+    }
     return false;
   }
 

@@ -5,11 +5,24 @@
 #define _SERVICES_TRADING_MANAGEMENT_PIVOT_FRACTAL_ENGINE_CONFIG_MQH_
 
 const int PIVOT_FRACTAL_TIMEFRAME_COUNT = 5;
+const int PIVOT_CONTEXT_TIMEFRAME_COUNT = 6;
 const int PIVOT_LEVEL_COUNT              = 7;
 const int PIVOT_WINDOW_RETRY_SECONDS     = 1;
+const int PIVOT_STRUCTURE_SLOT_COUNT     = 3;
+const int PIVOT_B_PERCENT_SHIFT_COUNT    = 6;
 
 ENUM_TIMEFRAMES PIVOT_FRACTAL_TIMEFRAMES[PIVOT_FRACTAL_TIMEFRAME_COUNT] =
 {
+  PERIOD_M15,
+  PERIOD_M30,
+  PERIOD_H1,
+  PERIOD_H4,
+  PERIOD_D1
+};
+
+ENUM_TIMEFRAMES PIVOT_CONTEXT_TIMEFRAMES[PIVOT_CONTEXT_TIMEFRAME_COUNT] =
+{
+  PERIOD_M1,
   PERIOD_M15,
   PERIOD_M30,
   PERIOD_H1,
@@ -44,6 +57,13 @@ int PivotFractalTimeframeIndex(const ENUM_TIMEFRAMES timeframe)
       return i;
   }
   return -1;
+}
+
+ENUM_TIMEFRAMES PivotContextTimeframeAt(const int index)
+{
+  if(index < 0 || index >= PIVOT_CONTEXT_TIMEFRAME_COUNT)
+    return PERIOD_CURRENT;
+  return PIVOT_CONTEXT_TIMEFRAMES[index];
 }
 
 string PivotLevelLabel(const PivotLevelIds level)
