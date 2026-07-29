@@ -1,97 +1,169 @@
-# Market Data Collector And Broker Executor
+# Pivot Fractal Market Data Collector And Broker Executor
 
 ## Purpose
 
-The EA has one responsibility boundary: observe the fixed M1 extremum source,
-record deterministic market/broker facts, and optionally execute one broker
-position for each admissible intrinsic attempt. It is not a general strategy
-framework, licensing platform, risk dashboard, session scheduler, or multi-leg
-grid engine.
+The EA owns one fixed strategy boundary: cache classic pivots from completed
+broker candles, record deterministic first-touch and broker facts, and
+optionally execute one market position for each admissible pivot identity. It
+is not a generic strategy framework, licensing platform, risk dashboard,
+session scheduler, or multi-leg grid engine.
 
 ## Runtime Sequence
 
 ```text
-minimal inputs
--> fixed M1 indicator hydration
--> provisional extremum observation
--> cycle/revision/attempt state
+broker tick
+-> refresh previous completed M1 Bid close when the M1 bar changes
+-> refresh only changed or retry-due M15/M30/H1/H4/D1 windows
+-> discover and consume all newly crossed pivot identities
+-> sort same-tick candidates deterministically
+-> capture one trigger-time feature snapshot
+-> build the immutable route
 -> observation-time broker snapshot
--> optional schema v8 write
--> broker-time breakout observation
--> PRE_FILTER broker eligibility
--> tester-only pattern and ML denial
--> PRE_SEND broker eligibility and OrderCheck
--> OrderSend with broker SL and 1R TP
--> SEND_RESULT fact
--> ticket-first broker reconciliation
--> broker-confirmed outcome
+-> fresh pre-send broker eligibility and OrderCheck
+-> OrderSend with broker structural SL and terminal pivot TP
+-> ticket-first reconciliation
+-> monotonic pivot-level SL progression
+-> broker-confirmed outcome and optional V9 persistence
 ```
 
-Observation and broker checks run even when persistence is disabled.
-`Enable_Signal_Feature_Export` controls file output, not whether eligibility is
-evaluated.
+Broker checks and execution remain active when persistence is disabled.
+`Enable_Signal_Feature_Export` controls V9 files and context indicator handles;
+it never authorizes or denies a trade.
 
-## Extremum Ownership
+## Pivot Window Ownership
 
-- `EXTREMUM_V1` and `PERIOD_M1` are fixed constants.
-- Stoch Structure slot `0` is the provisional source.
-- `BOTTOM` derives `BULLISH`; `PEAK` derives `BEARISH`.
-- Completed slots `1` and `2` freeze the cycle range.
-- A deeper same-type source creates a revision. A type transition finalizes the
-  cycle.
-- Raw depth may extend below `0` or above `100`; analytics may map it to
-  Fibonacci proximity without changing the runtime value.
-- The same source/revision is deduplicated, while distinct attempts may coexist.
+`PIVOT_FRACTAL_V1` owns fixed `M15`, `M30`, `H1`, `H4`, and `D1` windows.
+For each timeframe:
+
+- `iTime(symbol, timeframe, 0)` identifies the active lifecycle window.
+- `CopyRates(symbol, timeframe, 1, 1, ...)` supplies the immediately previous
+  completed source candle.
+- A changed active bar expires every untriggered identity from the old window
+  and creates a new pending window.
+- Pending market-data reads retry at a bounded one-second cadence. Invalid
+  source ranges or collapsed normalized ladders remain invalid for that window.
+- Weekend and broker-session gaps follow the actual series; no elapsed-seconds
+  candle synthesis is allowed.
+
+At a broker `09:30` transition, for example, `M15` and `M30` may refresh from
+their just-completed candles while the existing `H1`, `H4`, and `D1` windows
+retain their cached ladders until their own bar transitions.
+
+## Classic Pivot Calculation
+
+For source high `H`, low `L`, close `C`, and range `D = H - L`:
+
+```text
+PP = (H + L + C) / 3
+R1 = 2 * PP - L          S1 = 2 * PP - H
+R2 = PP + D              S2 = PP - D
+R3 = H + 2 * (PP - L)    S3 = L - 2 * (H - PP)
+```
+
+The calculator retains raw values and one tick-normalized trade ladder. A
+window is tradable only when finite positive source data produces the strict
+order `S3 < S2 < S1 < PP < R1 < R2 < R3` after normalization.
+
+## First-Touch Identity And Price Semantics
+
+Identity is exactly `(symbol, pivot timeframe, active bar open, level)`.
+Direction is an outcome of first touch and is not part of the key.
+
+```text
+previous completed M1 Bid close > level and live Bid <= level -> BUY
+previous completed M1 Bid close < level and live Bid >= level -> SELL
+previous completed M1 Bid close = level                       -> neutral
+```
+
+The live comparison is inclusive, so exact touches and gap-throughs count. All
+newly crossed identities are consumed and recorded before send attempts. They
+are ordered by distance from the previous M1 close, then fixed timeframe order
+`M15,M30,H1,H4,D1`, then `S3..R3` level order.
+
+One identity gets at most one signal and one send attempt, including when route
+construction, broker checks, `OrderCheck`, or `OrderSend` fails. Equal prices
+from different timeframes remain separate identities. Buy requests use current
+Ask and sell requests use current Bid; trigger Bid, trigger Ask, intended pivot,
+request price, and broker fill remain distinct facts.
+
+## Entry And Trailing Matrix
+
+`BE` means the captured entry pivot, not guaranteed monetary break-even.
+
+| Direction | Entry | Initial broker SL | Milestones and SL changes | Terminal broker TP |
+| --- | --- | --- | --- | --- |
+| Buy | `PP` | `S1` | `R1 -> PP (BE)`, `R2 -> R1` | `R3` |
+| Sell | `PP` | `R1` | `S1 -> PP (BE)`, `S2 -> S1` | `S3` |
+| Buy | `S1` | `S2` | `PP -> no change`, `R1 -> PP`, `R2 -> R1` | `R3` |
+| Sell | `R1` | `R2` | `PP -> no change`, `S1 -> PP`, `S2 -> S1` | `S3` |
+| Buy | `S2` | `S3` | `S1 -> S2 (BE)`, `PP -> S1` | `R1` |
+| Sell | `R2` | `R3` | `R1 -> R2 (BE)`, `PP -> R1` | `S1` |
+| Buy | `S3` | `S3 - (S2 - S3)` | `S2 -> S3 (BE)`, `S1 -> S2` | `PP` |
+| Sell | `R3` | `R3 + (R3 - R2)` | `R2 -> R3 (BE)`, `R1 -> R2` | `PP` |
+| Buy reversal | `R1` | `PP` | `R2 -> R1 (BE)` | `R3` |
+| Sell reversal | `S1` | `PP` | `S2 -> S1 (BE)` | `S3` |
+| Buy reversal | `R2` | `R1` | none | `R3` |
+| Sell reversal | `S2` | `S1` | none | `S3` |
+| Buy | `R3` | none | deny `NO_FORWARD_LEVEL` | none |
+| Sell | `S3` | none | deny `NO_FORWARD_LEVEL` | none |
+
+Filled positions copy the complete ladder and route into ticket-owned state, so
+later pivot-window refreshes cannot alter their geometry. Buy milestone reach
+uses live Bid; sell milestone reach uses live Ask. A multi-level gap selects the
+strongest new stop and submits at most one modification for that tick. Failed
+modifications keep the confirmed broker stop and retain the stronger desired
+stop for a safe retry; protection never widens or disappears.
 
 ## Before And After A Fill
 
-Before a real position exists, local state owns the attempt ID, trigger,
-structural stop anchor, planned 1R target, eligibility facts, and send attempt.
+Before a real position exists, local state owns the identity, trigger facts,
+captured ladder/route, broker observations, and send attempt.
 
 After a fill, the broker owns:
 
 - order, deal, position ticket, and position identifier;
 - executed volume and entry price;
-- broker-side stop loss and take profit;
+- current broker-side stop loss and terminal take profit;
 - open/closed state, close price/time, and realized profit.
 
 Reconciliation selects the owned ticket first and verifies symbol, stable
-internal magic, direction, and execution comment. Local state may copy broker
-facts but never manufacture or overwrite them.
+pivot namespace magic, direction, and execution comment. Local state may copy
+broker facts but never manufacture or overwrite them.
 
 ## Mandatory Broker Checks
 
-The observation check is telemetry. The fresh pre-send check is authority.
-Execution fails closed when any required condition is missing:
+The observation snapshot is telemetry. The fresh pre-send snapshot is
+authority. Execution fails closed when any required condition is missing:
 
 - `ACCOUNT_MARGIN_MODE_RETAIL_HEDGING`;
 - actual broker session open and compatible symbol trade mode;
 - account, expert, terminal, and MQL trading permission;
-- valid current bid/ask and point size;
+- valid current Bid/Ask and point size;
 - directional entry/SL/TP geometry;
 - stops and freeze distances;
 - volume min/max/step and normalized volume;
 - free margin, calculated margin, and successful `OrderCheck`;
-- successful `OrderSend` retcode.
+- accepted `OrderSend` retcode and reconciled owned ticket.
 
-Spread is exported as an observed cost. There is no configurable spread guard.
+Spread is exported as an observed cost. There is no configurable spread guard,
+and the engine never changes pivot prices to make invalid geometry pass.
 
 ## Lot And Protection Contract
 
 - `EXECUTION_LOT_FIXED_SIZE`: `Lot_Strategy_Size` is requested lots.
 - `EXECUTION_LOT_ACCOUNT_BALANCE_PERCENT`: `Lot_Strategy_Size` is the percent
-  of current account balance risked at the structural stop.
-- Broker volume rules normalize the result; invalid or unaffordable volume
-  blocks execution.
-- Every order requires a broker-side structural stop and a fixed 1R broker-side
-  take profit. There is no partial TP, virtual-only protection, multiplier, or
-  multi-leg lifecycle.
+  of current balance risked between the actual planned entry-side price and
+  captured structural initial SL.
+- Broker volume rules normalize the result without silently increasing risk to
+  the minimum; invalid or unaffordable volume blocks execution.
+- Every allowed route requires broker-side initial SL and terminal TP. There is
+  no partial close, fixed-R target, virtual-only protection, or multi-leg state.
 
 ## Time Ownership
 
-Broker time owns bars, breakout timing, actual session checks, durations,
-orders, and lifecycle ordering. Analysis time is derived only when building
-export, ML, audit, or pattern facts.
+Broker time owns pivot bars, M1 context, first-touch order, actual sessions,
+durations, orders, trailing, and reconciliation. Analysis time is derived only
+for exported research facts.
 
 | Mode | Broker time | Analysis time | Execution effect |
 | --- | --- | --- | --- |
@@ -99,48 +171,50 @@ export, ML, audit, or pattern facts.
 | `EXNESS_SESSION`, DST active | preserved | unchanged | none |
 | `EXNESS_SESSION`, winter | preserved | broker time minus 60 minutes | none |
 
-US30 therefore keeps a deterministic `13:30` analysis open across a summer
-broker open at `13:30` and a winter broker open at `14:30`. Exness metal
-prefixes use UK DST dates; other symbols use US DST dates. Each normalized row
-retains the offset, and causal sorting uses broker time plus stable identity.
+Exness metal prefixes use UK DST dates; other symbols use US DST dates. Every
+time-bearing V9 row retains broker time, analysis time, and offset. Causal
+sorting uses broker time plus stable identities, never analysis time alone.
 
-## Data Ownership
+## V9 Data Ownership
 
-Schema v8 is the sole active export contract:
+The sole active export contract contains:
 
-- `engine_cycles.tsv`
-- `engine_revisions.tsv`
-- `engine_attempts.tsv`
-- `execution_checks.tsv`
-- `signal_features.tsv`
-- `signal_outcomes.tsv`
 - `run_manifest.tsv`
+- `pivot_windows.tsv`
+- `pivot_levels.tsv`
+- `signal_attempts.tsv`
+- `signal_features.tsv`
+- `execution_checks.tsv`
+- `trailing_events.tsv`
+- `signal_outcomes.tsv`
 - `run_summary.tsv`
 
-Simulation labels live only with intrinsic attempts. `signal_outcomes.tsv`
-requires broker-confirmed entry and close evidence. Historical schemas remain
-immutable and require their historical repository revision.
+Each complete attempt has exactly six feature rows for `M1`, `M15`, `M30`,
+`H1`, `H4`, and `D1`. Each row contains Stoch Structure slots `0..2` and raw
+`%B` shifts `0..5`; shift `0` uses trigger Bid. Missing feature facts invalidate
+the exported run but do not change execution. Outcomes require broker-confirmed
+entry and close evidence.
 
-## Research Filters
-
-Broker checks run before research filters. `ML_INFERENCE_SHADOW` never changes
-execution. `ML_INFERENCE_FILTER` and pattern playback are Strategy Tester-only
-and may only deny an otherwise eligible send. They cannot create trades,
-resize volume, alter SL/TP, or change reconciliation.
+Current DuckDB/Parquet, audit, and XGBoost code is offline-only. It cannot load
+into MT5, approve a runtime artifact, filter an attempt, or alter broker state.
+Older export revisions require their historical repository revision and are not
+adapted or relabeled by current tooling.
 
 ## Frontend Boundary
 
-The frontend is optional human-inspection output: at most eight recent bullish
-and eight recent bearish attempts, each with entry, SL, and TP lines. It has no
-buttons or execution controls. Nonvisual tester runs skip all chart-object
-work.
+The frontend is optional inspection output: at most 16 active positions, each
+with intended entry, current broker SL, terminal pivot TP, and a compact
+timeframe/level/direction label. It has no buttons or execution controls.
+Nonvisual Strategy Tester runs skip all chart-object work.
 
-## Non-Goals
+## Non-Goals And Rollout
 
-- No license or entitlement layer.
-- No public account/magic settings.
-- No user trading-hours filters or synthetic missing bars.
-- No configurable spread, drawdown, daily-limit, direction, or concurrency
-  rules.
-- No generic strategy plug-in or multi-leg execution framework.
-- No live rollout approval and no approved schema v8 runtime model.
+- No license, entitlement, public account, or public magic settings.
+- No user trading-hours, configurable pivot formulas/timeframes, synthetic
+  bars, spread threshold, drawdown/daily limit, direction, or concurrency rule.
+- No pending limit orders, `R4/S4`, partial TP, or multi-leg lifecycle.
+- No runtime model scoring, filtering, pattern playback, or online learning.
+- No live rollout approval.
+
+Any future runtime handoff requires older-engine positions flat for the symbol,
+a hedging account, and one EA instance per account and symbol.

@@ -1,11 +1,11 @@
 # MT5 Agentic Workflows
 
 This runbook is the source of truth for local paths, the final MetaEditor
-compile gate, Common Files, schema v8 artifacts, and compact evidence handling.
+compile gate, Common Files V9 artifacts, and compact evidence handling.
 
 Do not paste full compile logs, `query_debug.txt`, TSV/Parquet contents, model
-JSON, or tree TSV files into chat. Report paths, sizes, counts, final status,
-and the first useful failure lines.
+JSON, or generated datasets into chat. Report paths, sizes, counts, final
+status, and the first useful failure lines.
 
 ## Path Contract
 
@@ -17,7 +17,7 @@ $METAEDITOR = Join-Path $MT5_ROOT "MetaEditor64.exe"
 $EA_ENTRYPOINT = Join-Path $MT5_ROOT "MQL5\Experts\HFT_Grid_AI\HFT_Grid_AI.mq5"
 $COMPILE_LOG = Join-Path $MT5_ROOT "MQL5\Experts\HFT_Grid_AI\logs\compile\agentic-build.log"
 $MT5_COMMON_FILES = Join-Path $env:APPDATA "MetaQuotes\Terminal\Common\Files"
-$DETERMINISTIC_RUNS_ROOT = Join-Path $MT5_COMMON_FILES "DeterministicSignalML\runs"
+$PIVOT_RUNS_ROOT = Join-Path $MT5_COMMON_FILES "PivotFractalV9\runs"
 ```
 
 ### Ubuntu/Wine
@@ -30,7 +30,7 @@ export METAEDITOR="$MT5_ROOT/MetaEditor64.exe"
 export EA_ENTRYPOINT="$MT5_ROOT/MQL5/Experts/HFT_Grid_AI/HFT_Grid_AI.mq5"
 export COMPILE_LOG="$MT5_ROOT/MQL5/Experts/HFT_Grid_AI/logs/compile/agentic-build.log"
 export MT5_COMMON_FILES="$HOME/.wine/drive_c/users/loldlm/AppData/Roaming/MetaQuotes/Terminal/Common/Files"
-export DETERMINISTIC_RUNS_ROOT="$MT5_COMMON_FILES/DeterministicSignalML/runs"
+export PIVOT_RUNS_ROOT="$MT5_COMMON_FILES/PivotFractalV9/runs"
 ```
 
 If the Wine prefix changes, locate Common Files without dumping contents:
@@ -42,26 +42,28 @@ find "$HOME/.wine" "$HOME/.mt5" "$HOME/.config" -maxdepth 8 \
 
 ## Runtime Indicator Placement
 
-The EA loads `Examples\Stochastic_Structure.ex5`. The canonical source in this
-checkout is `indicators/Stochastic_Structure.mq5`; the runtime copy must exist
-at:
+V9 feature export loads `Examples\Stochastic_Structure.ex5` for the six context
+timeframes. The canonical source in this checkout is
+`indicators/Stochastic_Structure.mq5`; the compiled runtime copy must exist at:
 
 ```text
 <MT5_ROOT>\MQL5\Indicators\Examples\Stochastic_Structure.ex5
 ```
 
-`indicators/BB_Percent_Standard.mq5` remains a maintained reference indicator,
-but schema v8 B-percent features use built-in `iBands` handles. Do not restore
-deleted ATR, Keltner, MACD, Body MA, or generic Bollinger indicator sources to
-the EA include/runtime graph.
+Raw `%B` features use cached built-in `iBands` handles. There is no separate
+custom Bollinger indicator in the active runtime or tracked reference set.
+Indicator handles are created at initialization only when V9 export is enabled
+and are released during deinitialization.
 
 ## Compile Policy
 
-- Documentation-only sprints do not run MetaEditor.
-- Substantial multi-sprint MQL5 plans use static validation in intermediate
-  sprints and one final real compile sprint.
+- Documentation-only and intermediate implementation sprints do not run
+  MetaEditor.
+- Substantial multi-sprint MQL5 plans use static validation per intermediate
+  sprint and one final real compile sprint.
 - Do not add custom MQL5 tests, harnesses, test EAs/scripts, or CI.
-- Final success requires `0 errors, 0 warnings` and a regenerated `.ex5`.
+- Final success requires `0 errors, 0 warnings` and regenerated
+  `HFT_Grid_AI.ex5`.
 - MetaEditor `/s` is syntax-only and is not final build evidence.
 
 ### Preferred Final Compile
@@ -87,8 +89,9 @@ py -3.12 tools\mt5\compile_mt5.py `
   --mode compile
 ```
 
-Record the helper result, final compiler status, and `.ex5` timestamp. On Wine,
-record the process return code when it differs from the parsed log result.
+Record the helper result, parsed final compiler status, and `.ex5` timestamp,
+size, and change from the precompile value. On Wine, record a process return
+code discrepancy alongside the parsed compiler result.
 
 ### Direct Fallback
 
@@ -118,21 +121,21 @@ python3 -m venv .venv
   -s tools/deterministic_signal_ml/tests -p 'test_*.py'
 ```
 
-The dependencies are pinned. Generated datasets, audits, pattern audits,
-models, exports, and reports remain under ignored `artifacts/` directories.
+Dependencies remain pinned. Generated datasets, audits, reports, and offline
+models stay under ignored `artifacts/` directories.
 
-## Schema V8 Artifact Inventory
+## V9 Artifact Inventory
 
 ```bash
-export SCHEMA_V8_RUN_ID="<schema_v8_run_id>"
-export SCHEMA_V8_DATASET_ID="<schema_v8_dataset_id>"
-export SCHEMA_V8_AUDIT_ID="<schema_v8_audit_id>"
+export PIVOT_V9_RUN_ID="<v9_run_id>"
+export PIVOT_V9_DATASET_ID="<v9_dataset_id>"
+export PIVOT_V9_AUDIT_ID="<v9_audit_id>"
 
-find "$DETERMINISTIC_RUNS_ROOT/$SCHEMA_V8_RUN_ID" -maxdepth 1 -type f \
+find "$PIVOT_RUNS_ROOT/$PIVOT_V9_RUN_ID" -maxdepth 1 -type f \
   -printf '%f %s bytes\n' 2>/dev/null | sort
 
-find "artifacts/datasets/$SCHEMA_V8_DATASET_ID" \
-  "artifacts/audits/$SCHEMA_V8_AUDIT_ID" -maxdepth 1 -type f \
+find "artifacts/datasets/$PIVOT_V9_DATASET_ID" \
+  "artifacts/audits/$PIVOT_V9_AUDIT_ID" -maxdepth 1 -type f \
   -printf '%p %s bytes\n' 2>/dev/null | sort
 ```
 
@@ -144,13 +147,14 @@ import os
 from pathlib import Path
 import duckdb
 
-dataset = Path("artifacts/datasets") / os.environ["SCHEMA_V8_DATASET_ID"]
+dataset = Path("artifacts/datasets") / os.environ["PIVOT_V9_DATASET_ID"]
 for name in (
-    "engine_cycles.parquet",
-    "engine_revisions.parquet",
-    "engine_attempts.parquet",
-    "execution_checks.parquet",
+    "pivot_windows.parquet",
+    "pivot_levels.parquet",
+    "signal_attempts.parquet",
     "signal_features.parquet",
+    "execution_checks.parquet",
+    "trailing_events.parquet",
     "signal_outcomes.parquet",
     "training_matrix.parquet",
 ):
@@ -163,46 +167,52 @@ for name in (
 PY
 ```
 
-## Dataset And Audit
+## Validate, Build, Audit, And Train
 
 ```bash
 .venv/bin/python tools/deterministic_signal_ml/build_dataset.py \
-  --runs-root "$DETERMINISTIC_RUNS_ROOT" \
-  --run-id "$SCHEMA_V8_RUN_ID" \
-  --dataset-id "$SCHEMA_V8_DATASET_ID" \
-  --schema-version 8 \
-  --feature-set-id schema_v8_extremum_engine_xgb \
-  --target-family broker_1r \
+  --runs-root "$PIVOT_RUNS_ROOT" \
+  --run-id "$PIVOT_V9_RUN_ID" \
   --validate-only
 
 .venv/bin/python tools/deterministic_signal_ml/build_dataset.py \
-  --runs-root "$DETERMINISTIC_RUNS_ROOT" \
-  --run-id "$SCHEMA_V8_RUN_ID" \
-  --dataset-id "$SCHEMA_V8_DATASET_ID" \
-  --schema-version 8 \
-  --feature-set-id schema_v8_extremum_engine_xgb \
-  --target-family broker_1r \
+  --runs-root "$PIVOT_RUNS_ROOT" \
+  --run-id "$PIVOT_V9_RUN_ID" \
+  --dataset-id "$PIVOT_V9_DATASET_ID" \
+  --target-family broker_outcome \
   --overwrite
 
-.venv/bin/python tools/deterministic_signal_ml/extremum_engine_audit.py \
-  --dataset-id "$SCHEMA_V8_DATASET_ID" \
-  --audit-id "$SCHEMA_V8_AUDIT_ID" \
+.venv/bin/python tools/deterministic_signal_ml/pivot_fractal_audit.py \
+  --dataset-id "$PIVOT_V9_DATASET_ID" \
+  --audit-id "$PIVOT_V9_AUDIT_ID" \
+  --overwrite
+
+.venv/bin/python tools/deterministic_signal_ml/train_model.py \
+  --dataset-id "$PIVOT_V9_DATASET_ID" \
+  --model-id <v9_model_id> \
+  --target-family broker_outcome \
   --overwrite
 ```
 
-Record schema/run/config/engine identity, cycle/revision/attempt/check/outcome
-counts, output sizes, and final validator status. Training is optional research
-validation and does not approve a runtime artifact.
+Use `--target-family admission` for a separate denied/unfilled-attempt study.
+Do not combine admission and broker-outcome targets. Training is offline-only
+and never approves or emits an MT5 runtime artifact.
+
+Record schema/run/config/engine identity; window, level, attempt, feature,
+check, trailing, and outcome counts; output sizes; and final validator status.
+An accepted evidence run ends naturally with `completion_status=NATURAL`,
+`export_status=OK`, six context rows per complete attempt, and zero duplicate or
+integrity errors.
 
 ## Final Human Strategy Tester Gate
 
-Use the exact matrix in
-`docs/workflows/extremum-engine-statistics-flow.md`, including winter/summer
-US30 dates, US and UK DST boundaries, actual broker-session blocks, hedging
-mode, stops/freeze, volume, margin, `OrderCheck`, one-position lifecycle,
-schema v8 output, and bounded visual lines.
+Use the matrix in `docs/workflows/pivot-fractal-statistics-flow.md`. It covers
+broker-native timeframe transitions, Bid/Ask first-touch behavior, same-tick
+confluence, all route families, trailing retries, broker denials, ticket-owned
+outcomes, V9 features, winter/summer time normalization, bounded visuals, and
+export performance.
 
-For performance, compare export disabled and schema v8 export enabled with file
-logs off over the same 1-3 market days before attempting a longer run. Record
-elapsed time and output growth. Human acceptance is required; compile and
-fixtures cannot substitute for it.
+Compare export disabled and V9 export enabled with file logs off over the same
+1-3 market days before a longer run. Record elapsed time, row counts, and
+folder growth. Human acceptance is required; compilation and fixtures cannot
+substitute for it.

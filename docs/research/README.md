@@ -2,23 +2,25 @@
 
 ## Active State
 
-The schema v8 market-data and broker-executor integration was accepted by human
-Strategy Tester/chart review on 2026-07-29. Its implementation plan and compact
-closeout evidence are archived under
-`docs/plans/archive/market-data-broker-executor-simplification-2026-07-28/`.
-No schema v8 model is approved for MT5 runtime by this acceptance.
+The current implementation is the `PIVOT_FRACTAL_V1` broker executor with
+strict schema V9 persistence and offline-only DuckDB/Parquet/XGBoost research.
+Its active implementation plan remains open until the final real compile and
+human Strategy Tester/chart acceptance are complete.
 
-Use these active runbooks:
+Use these active documents:
 
-- `docs/workflows/extremum-engine-statistics-flow.md`
-- `docs/workflows/deterministic-signal-ml-inference-flows.md`
+- `docs/plans/pivot-fractal-engine-schema-v9-plan.md`
+- `docs/workflows/pivot-fractal-statistics-flow.md`
+- `docs/workflows/pivot-fractal-offline-research-boundaries.md`
 - `docs/environment/mt5-agentic-workflows.md`
+
+No current research artifact is approved for MT5 runtime or live deployment.
 
 ## Archives
 
-Completed pre-v8 broker, extremum, deterministic ML, and robustness evidence
-remains under `docs/research/archive/`. It is immutable historical audit
-material and must not be presented as schema v8 acceptance.
+Completed broker, signal-engine, exporter, ML, and robustness evidence remains
+under `docs/research/archive/`. It is immutable historical audit material and
+must not be presented as acceptance for the current pivot implementation.
 
-Generated Common Files exports, datasets, audits, pattern audits, models,
-reports, screenshots, and binaries remain outside tracked documentation.
+Generated Common Files exports, datasets, audits, models, reports,
+screenshots, and binaries remain outside tracked documentation.

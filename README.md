@@ -1,97 +1,114 @@
 # HFT Grid AI
 
-MetaTrader 5 Expert Advisor focused on deterministic M1 market-data collection
-and one broker execution path. The entrypoint is `HFT_Grid_AI.mq5`.
+MetaTrader 5 Expert Advisor for deterministic pivot-fractal market-data
+collection and a small broker execution path. The entrypoint is
+`HFT_Grid_AI.mq5`.
 
 ## Active Flow
 
 ```text
-M1 Stoch Structure slot 0
--> extremum cycle/revision/attempt
--> observation broker checks
--> schema v8 market-data facts
--> M1 high/low breakout
--> fresh pre-send broker checks
--> optional tester-only research filter
--> one hedging-account position with broker SL and fixed 1R TP
--> ticket-first reconciliation and broker-confirmed outcome
+previous completed M1 Bid close
+-> cached classic pivots from completed M15/M30/H1/H4/D1 candles
+-> first live Bid touch for each timeframe/window/level identity
+-> six-timeframe Stoch Structure and raw %B snapshot
+-> immutable structural entry/SL/TP/trailing route
+-> fresh broker eligibility and OrderCheck
+-> one hedging-account market position
+-> ticket-owned trailing, reconciliation, and broker-confirmed outcome
+-> optional strict schema V9 export
 ```
 
-`BOTTOM` creates bullish attempts and `PEAK` creates bearish attempts. A deeper
-same-type provisional extremum creates a revision in the current cycle; a type
-change finalizes the cycle. Completed slots `1` and `2` freeze the cycle range.
+Each pivot timeframe refreshes only when its broker-native active bar changes
+or a controlled data-read retry is due. The source is always shift `1`; the EA
+does not build synthetic candles. `M1` provides side context and research
+features but no pivot levels.
+
+Previous M1 Bid close above a level followed by live Bid at/below it creates a
+buy touch. Previous close below followed by live Bid at/above it creates a sell
+touch. Equality is neutral. Buy orders execute at Ask, sell orders at Bid, and
+the touched pivot remains separate from the broker fill.
 
 ## Inputs
 
-The public surface is intentionally small:
+The public surface is intentionally fixed:
 
 - `Broker_Session`
 - `Lot_Type`, `Lot_Strategy_Size`
 - `Enable_Signal_Feature_Export`, `Signal_Feature_Run_Id`
-- `ML_Inference_Mode`, `ML_Model_Export_Id`
-- `Enable_Pattern_Audit_Overlay`, `Pattern_Audit_Set_Id`
 - `Enable_Logs`, `Enable_File_Logs`
 
-Removed license, account, protection, user-session, spread-threshold,
-direction/concurrency, multi-leg, and legacy risk settings are not supported as
-aliases.
+Pivot timeframes and formulas are internal. Removed license, account,
+protection, user-session, spread-threshold, direction/concurrency, multi-leg,
+runtime ML/pattern, and legacy settings are not supported as aliases.
+
+## Identity And Routes
+
+One immutable identity is `(symbol, pivot timeframe, active bar open, level)`.
+Its first touch is consumed even when execution is denied or fails. Equal
+prices from different timeframes remain independent identities; same-tick gaps
+are processed nearest crossed price first with stable timeframe/level ties.
+
+Allowed routes use a broker-side structural stop, terminal pivot target, and
+captured-level trailing. Stops moved to the entry pivot are structural, not
+guaranteed monetary break-even. Buy `R3` and sell `S3` have no forward level
+and are recorded as `NO_FORWARD_LEVEL` without a send.
 
 ## Broker Safety
 
-Every observed attempt records current broker eligibility. The EA refreshes
-the same facts immediately before sending and requires:
+The fresh pre-send result is authoritative. Execution requires:
 
-- hedging account mode and an open actual broker session;
-- allowed symbol trade mode and account/terminal/MQL trade permissions;
-- valid bid/ask, stops/freeze geometry, broker-side SL/TP, and fixed 1R target;
-- valid volume min/max/step, margin, and `OrderCheck`;
-- accepted send retcode plus symbol/magic/ticket reconciliation.
+- hedging account mode, actual open broker session, and allowed symbol mode;
+- account, terminal, expert, and MQL trading permissions;
+- valid Bid/Ask, point size, structural geometry, stops, and freeze distance;
+- valid normalized volume, free margin, and `OrderCheck`;
+- accepted send result and symbol/magic/ticket reconciliation.
 
-Spread is recorded as a fact but is not compared with a user threshold.
-Non-hedging accounts remain collection-only.
+Spread is recorded but has no user threshold. Pivot prices are not adjusted to
+force broker acceptance. After a fill, broker facts own ticket, volume, entry,
+SL/TP, close state, and realized profit.
 
-## Broker Time And Analysis Time
+## Broker And Analysis Time
 
-`FIXED_TIME_SESSIONS` leaves timestamps unchanged. `EXNESS_SESSION` keeps raw
-broker time and additionally normalizes winter analysis time by `-60` minutes
-on the applicable US or UK DST calendar. For example, US30 broker time `14:30`
-in winter is stored with analysis time `13:30`; summer `13:30` remains
-`13:30`.
+`FIXED_TIME_SESSIONS` leaves timestamps unchanged. `EXNESS_SESSION` preserves
+broker time and shifts winter analysis timestamps by `-60` minutes on the
+applicable US or UK DST calendar. Broker time always owns bars, touches,
+sessions, orders, trailing, and reconciliation; analysis time is export-only.
 
-Normalization affects exports, calendar features, research grouping, and
-pattern matching only. Bar scheduling, actual-session checks, durations, and
-orders always use broker time.
+## Schema V9 Research
 
-## Schema V8 Research
-
-When export is enabled, MT5 writes eight schema v8 TSV files under:
+When export is enabled, MT5 writes nine strict TSV files under:
 
 ```text
-Common\Files\DeterministicSignalML\runs\<run_id>\
+Common\Files\PivotFractalV9\runs\<run_id>\
 ```
 
-The contract includes cycle, revision, attempt, broker-check, feature, outcome,
-manifest, and summary facts. Broker and simulated targets stay separate.
+The export covers pivot windows and levels, first-touch attempts, six context
+rows per complete attempt, broker checks, trailing events, broker-confirmed
+outcomes, manifest, and summary. Research features contain only trigger-time
+facts: Stoch Structure slots `0..2` and raw `%B` shifts `0..5` for `M1`,
+`M15`, `M30`, `H1`, `H4`, and `D1`.
 
 ```bash
 .venv/bin/python tools/deterministic_signal_ml/build_dataset.py \
-  --runs-root <runs_root> \
-  --run-id <schema_v8_run_id> \
-  --dataset-id <schema_v8_dataset_id> \
-  --schema-version 8 \
-  --feature-set-id schema_v8_extremum_engine_xgb \
-  --target-family broker_1r \
+  --runs-root <PivotFractalV9/runs> \
+  --run-id <v9_run_id> \
+  --validate-only
+
+.venv/bin/python tools/deterministic_signal_ml/build_dataset.py \
+  --runs-root <PivotFractalV9/runs> \
+  --run-id <v9_run_id> \
+  --dataset-id <v9_dataset_id> \
+  --target-family broker_outcome \
   --overwrite
 
-.venv/bin/python tools/deterministic_signal_ml/extremum_engine_audit.py \
-  --dataset-id <schema_v8_dataset_id> \
-  --audit-id <schema_v8_audit_id> \
+.venv/bin/python tools/deterministic_signal_ml/pivot_fractal_audit.py \
+  --dataset-id <v9_dataset_id> \
+  --audit-id <v9_audit_id> \
   --overwrite
 ```
 
-No schema v8 model is approved for MT5 runtime. Shadow mode is passive;
-filter mode and pattern playback are Strategy Tester-only denials after broker
-eligibility passes.
+DuckDB/Parquet and XGBoost tooling is offline research only. No current code
+loads a model into MT5 or lets research artifacts alter broker execution.
 
 ## Validation Policy
 
@@ -99,9 +116,9 @@ eligibility passes.
 - Multi-sprint MQL5 changes use static review per sprint and one final real
   MetaEditor compile with `0 errors, 0 warnings`.
 - Human Strategy Tester/chart validation is required at final integration.
-- Existing Python schema tests validate research tooling, not MQL5 runtime.
+- Existing Python tests validate the V9 research contract, not MQL5 runtime.
 
-Agentic compile at the final gate:
+Final compile command:
 
 ```bash
 python3 tools/mt5/compile_mt5.py \
@@ -116,7 +133,10 @@ python3 tools/mt5/compile_mt5.py \
 
 - `AGENTS.md`: implementation, safety, and validation rules.
 - `docs/architecture/market-data-broker-executor.md`: active ownership model.
-- `docs/workflows/extremum-engine-statistics-flow.md`: export and research flow.
-- `docs/workflows/deterministic-signal-ml-inference-flows.md`: runtime ML limits.
+- `docs/workflows/pivot-fractal-statistics-flow.md`: export and acceptance flow.
+- `docs/workflows/pivot-fractal-offline-research-boundaries.md`: offline ML limits.
 - `docs/environment/mt5-agentic-workflows.md`: paths, compile, and artifacts.
 - `docs/plans/archive/` and `docs/research/archive/`: immutable history.
+
+Live rollout is not authorized. Older-engine positions must be flat before any
+future handoff, and only one EA instance may run per account and symbol.

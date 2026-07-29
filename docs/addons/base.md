@@ -1,38 +1,44 @@
-# Market Data Collector And Broker Executor Guide
+# Pivot Fractal Market Data Collector And Broker Executor Guide
 
 ## Purpose
 
-HFT Grid AI observes the fixed M1 Stoch Structure extremum, records schema v8
+HFT Grid AI caches classic pivot ladders from each immediately previous
+completed `M15`, `M30`, `H1`, `H4`, and `D1` broker candle, records strict V9
 market and broker facts, and may execute one broker position per admissible
-attempt. It runs continuously; there is no user trading-hours filter.
+first-touch identity. It runs continuously; there is no user trading-hours
+filter.
 
 ## Inputs
 
-- `Broker_Session`: selects unchanged broker timestamps or Exness-normalized
-  analysis timestamps.
+- `Broker_Session`: unchanged broker timestamps or export-only
+  Exness-normalized analysis time.
 - `Lot_Type`: fixed lots or account-balance percentage risk.
-- `Lot_Strategy_Size`: lots in fixed mode; balance-risk percent in percentage
-  mode.
-- Statistics, ML, pattern-audit, and debug fields control their named outputs
-  without bypassing broker safety.
+- `Lot_Strategy_Size`: requested lots in fixed mode; balance-risk percent in
+  percentage mode.
+- `Enable_Signal_Feature_Export`, `Signal_Feature_Run_Id`: strict V9
+  persistence and run identity.
+- `Enable_Logs`, `Enable_File_Logs`: optional diagnostics.
+
+Pivot formulas/timeframes and broker protection are not public controls.
 
 ## Execution
 
-The EA derives direction from the provisional extremum, waits for the M1
-breakout, refreshes actual broker eligibility, and sends one market order with
-a structural broker-side stop and fixed 1R take profit. Hedging mode, market
-session, permissions, stops/freeze, volume, margin, `OrderCheck`, send retcode,
-symbol, magic, and ticket reconciliation must all pass.
+The previous completed M1 Bid close establishes which side of each level price
+came from. Live Bid detects the first inclusive touch: downward from above is a
+buy and upward from below is a sell. Buy requests execute at Ask and sell
+requests at Bid.
 
-Non-hedging accounts continue collecting market facts but do not send orders.
-Spread is recorded and not compared with a configurable threshold.
+Each `(symbol, timeframe, active bar open, level)` is consumed once. Allowed
+routes use broker-side structural SL, terminal pivot TP, and captured-level
+trailing. Hedging mode, actual session, trade permissions, Bid/Ask, geometry,
+stops/freeze, volume, margin, `OrderCheck`, send retcode, magic, and ticket
+reconciliation must pass. Non-hedging accounts collect facts but send nothing.
 
 ## Deterministic Analysis Time
 
 `FIXED_TIME_SESSIONS` leaves time unchanged. `EXNESS_SESSION` preserves broker
-time and shifts winter analysis timestamps by `-60` minutes under the
-instrument calendar. This keeps sessions comparable for research and never
-changes live scheduling or order timing.
+time and shifts winter analysis timestamps by `-60` minutes under the symbol
+calendar. Analysis time never changes pivot scheduling, touches, or orders.
 
 ## Validation
 

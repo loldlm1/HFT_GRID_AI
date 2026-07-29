@@ -2,38 +2,36 @@
 
 ## Product
 
-- Name: `HFT Grid AI - Market Data Executor`
+- Name: `HFT Grid AI - Pivot Fractal Market Data Executor`
 - Type: `MT5 market-data collector and broker executor`
 - SKU: `base_ea`
 
 ## Short Copy
 
-`HFT Grid AI turns a fixed M1 Stoch Structure extremum stream into deterministic schema v8 market data, broker-safety evidence, and an optional one-position execution path with broker-side protection.`
+`HFT Grid AI turns completed multi-timeframe pivot windows and M1 first touches into deterministic schema V9 market data, broker-safety evidence, and an optional structurally protected execution path.`
 
 ## Medium Copy
 
-`The EA runs continuously, observes each M1 PEAK and BOTTOM revision, and records the broker facts needed to understand whether an attempt could execute. It keeps raw broker time alongside a normalized analysis clock for comparable research across DST-changing Exness sessions.`
+`The EA continuously calculates classic pivot ladders from the immediately previous completed M15, M30, H1, H4, and D1 broker candles. It uses the previous M1 Bid close and live Bid to record one first touch per timeframe, active window, and level, while keeping raw broker time alongside normalized research time.`
 
-`When execution is eligible, the EA can send one hedging-account position with a structural stop and fixed 1R take profit. Actual market session, permissions, stops and freeze levels, volume rules, margin, OrderCheck, send results, and broker ticket reconciliation remain mandatory.`
+`When execution is eligible, the EA can send one hedging-account market position with a broker-side structural stop, terminal pivot target, and ticket-owned pivot trailing. Actual market session, permissions, Bid/Ask geometry, stops and freeze levels, volume rules, margin, OrderCheck, send results, and broker reconciliation remain mandatory.`
 
 ## Inputs Explained
 
-- `Broker_Session`: keep broker timestamps unchanged or add Exness-normalized
-  analysis time without changing live order timing.
+- `Broker_Session`: preserve broker timestamps or add export-only
+  Exness-normalized analysis time.
 - `Lot_Type`: fixed lot size or account-balance percentage risk.
 - `Lot_Strategy_Size`: requested lots in fixed mode; risk percent in balance
   mode.
-- Statistics fields: enable schema v8 persistence and identify the run.
-- ML fields: disabled, passive shadow scoring, or Strategy Tester-only denial.
-- Pattern fields: Strategy Tester-only playback of a selected local audit set.
+- Statistics fields: enable strict schema V9 persistence and identify the run.
 - Debug fields: optional terminal and file diagnostics.
 
 ## Safety Boundary
 
 Non-hedging accounts remain data-collection only. Spread is recorded rather
 than compared with a user threshold. No licensing, user session schedule,
-drawdown panel, multi-leg grid, partial TP, or public magic-number setting is
-part of this product contract.
+drawdown panel, multi-leg grid, partial TP, runtime model control, pattern
+playback, or public magic-number setting is part of this product contract.
 
 ## Validation Model
 
