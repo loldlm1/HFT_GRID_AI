@@ -6,12 +6,14 @@
 
 // INDICATOR SERVICES
 #include "indicators/stochastic_market_indicator.mqh"
+#include "indicators/pivot_points_calculator.mqh"
 
 // SIGNAL SERVICE FILES
 #include "trading_signals/signal_params_struct.mqh"
 #include "trading_signals/market_signal_state.mqh"
 #include "trading_signals/market_signal_indicators.mqh"
 #include "trading_signals/extremum_engine_state.mqh"
+#include "trading_signals/pivot_fractal_engine_state.mqh"
 #include "trading_signals/market_signal_detection.mqh"
 #include "trading_signals/market_status_controller.mqh"
 #include "trading_signals/execution_broker_context.mqh"

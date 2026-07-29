@@ -19,6 +19,46 @@ enum ExtremumEngineIds
 	EXTREMUM_ENGINE_V1   = 1
 };
 
+enum PivotFractalEngineIds
+{
+  PIVOT_FRACTAL_NONE = 0,
+  PIVOT_FRACTAL_V1   = 1
+};
+
+enum PivotLevelIds
+{
+  PIVOT_LEVEL_S3 = 0,
+  PIVOT_LEVEL_S2 = 1,
+  PIVOT_LEVEL_S1 = 2,
+  PIVOT_LEVEL_PP = 3,
+  PIVOT_LEVEL_R1 = 4,
+  PIVOT_LEVEL_R2 = 5,
+  PIVOT_LEVEL_R3 = 6
+};
+
+enum PivotWindowStates
+{
+  PIVOT_WINDOW_EMPTY   = 0,
+  PIVOT_WINDOW_PENDING = 1,
+  PIVOT_WINDOW_VALID   = 2,
+  PIVOT_WINDOW_INVALID = 3
+};
+
+enum PivotTriggerStates
+{
+  PIVOT_TRIGGER_AVAILABLE = 0,
+  PIVOT_TRIGGER_CONSUMED  = 1,
+  PIVOT_TRIGGER_EXPIRED   = 2
+};
+
+enum PivotRouteStatuses
+{
+  PIVOT_ROUTE_NOT_BUILT       = 0,
+  PIVOT_ROUTE_ALLOWED         = 1,
+  PIVOT_ROUTE_NO_FORWARD_LEVEL = 2,
+  PIVOT_ROUTE_INVALID_GEOMETRY = 3
+};
+
 enum SignalStates
 {
 	WAITING = 0,
