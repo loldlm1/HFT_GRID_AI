@@ -8,6 +8,11 @@ from pathlib import Path
 
 import duckdb
 
+from retest_confluence import (
+    DerivedResearchError,
+    create_retest_context_table,
+    validate_retest_context_table,
+)
 from report_writer import (
     build_quality_payload,
     write_dataset_manifest,
@@ -451,11 +456,16 @@ def create_dataset_tables(
             [validation.run_path / filename for validation in validations],
             TABLE_COLUMNS[filename],
         )
+    create_retest_context_table(connection)
+    validate_retest_context_table(connection)
     _create_feature_snapshots(connection)
     _create_entry_evidence(connection)
     _create_training_matrix(connection, target_family)
 
-    table_names = [Path(filename).stem for filename in RUN_FILES] + ["training_matrix"]
+    table_names = [Path(filename).stem for filename in RUN_FILES] + [
+        "signal_retest_context",
+        "training_matrix",
+    ]
     return {
         table_name: int(connection.execute(f"SELECT COUNT(*) FROM {table_name}").fetchone()[0])
         for table_name in table_names
@@ -575,7 +585,13 @@ def main() -> int:
             write_dataset_report(output_dir, args.dataset_id, quality)
         finally:
             connection.close()
-    except (SchemaValidationError, RuntimeError, ValueError, duckdb.Error) as exc:
+    except (
+        SchemaValidationError,
+        DerivedResearchError,
+        RuntimeError,
+        ValueError,
+        duckdb.Error,
+    ) as exc:
         parser.exit(1, f"pivot V9 dataset build failed: {exc}\n")
 
     print(

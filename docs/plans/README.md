@@ -2,9 +2,11 @@
 
 ## Active
 
-No plan is active. Start a new explicitly invoked `$planner` plan under
-`docs/plans/` for the next substantial strategy, schema, runtime-model,
-live-rollout, or repository-wide change.
+The active implementation plan is
+[`pivot-retest-confluence-offline-research-plan.md`](pivot-retest-confluence-offline-research-plan.md).
+It extends the strict V9 research dataset with causal retest context and
+offline confluence analysis only; it does not change the EA, exporter schema,
+broker execution, runtime inference, or live rollout.
 
 Do not start another substantial strategy, architecture, live-rollout, schema,
 or repository-wide change without explicitly starting its new plan.

@@ -1,2 +1,2 @@
 schema_version	run_id	config_id	started_broker_time	started_analysis_time	started_offset_minutes	finished_broker_time	finished_analysis_time	finished_offset_minutes	pivot_window_rows	pivot_level_rows	signal_attempt_rows	signal_feature_rows	execution_check_rows	trailing_event_rows	signal_outcome_rows	feature_incomplete_rows	duplicate_identity_count	referential_integrity_error_count	row_integrity_error_count	export_status	completion_status
-9	schema_v9_pivot_fractal	cfg_fixture	2026.01.12 09:59:50	2026.01.12 09:59:50	0	2026.01.12 10:15:01	2026.01.12 10:15:01	0	1	7	2	12	4	1	1	0	0	0	0	OK	NATURAL
+9	schema_v9_pivot_fractal	cfg_fixture	2026.01.12 09:59:50	2026.01.12 09:59:50	0	2026.01.12 10:15:01	2026.01.12 10:15:01	0	5	35	2	12	4	1	1	0	0	0	0	OK	NATURAL

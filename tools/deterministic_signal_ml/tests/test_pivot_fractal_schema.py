@@ -15,6 +15,13 @@ if str(MODULE_ROOT) not in sys.path:
     sys.path.insert(0, str(MODULE_ROOT))
 
 from build_dataset import create_dataset_tables, write_parquet_outputs
+from retest_confluence import (
+    BUY_RETEST,
+    EQUAL_NEUTRAL,
+    OPPOSED,
+    SELL_RETEST,
+    classify_retest,
+)
 from schema_contract import (
     FUTURE_ONLY_COLUMNS,
     MODEL_FEATURE_COLUMNS,
@@ -119,8 +126,8 @@ class PivotFractalSchemaTests(unittest.TestCase):
             runs_root, _ = self.copy_fixture(temp_dir)
             validation = validate_run(runs_root, "schema_v9_pivot_fractal")
             self.assertEqual(SUPPORTED_SCHEMA_VERSION, 9)
-            self.assertEqual(validation.pivot_window_rows, 1)
-            self.assertEqual(validation.pivot_level_rows, 7)
+            self.assertEqual(validation.pivot_window_rows, 5)
+            self.assertEqual(validation.pivot_level_rows, 35)
             self.assertEqual(validation.signal_attempt_rows, 2)
             self.assertEqual(validation.signal_feature_rows, 12)
             self.assertEqual(validation.execution_check_rows, 4)
@@ -137,6 +144,25 @@ class PivotFractalSchemaTests(unittest.TestCase):
                 feature_columns_for_set(SUPPORTED_FEATURE_SET_ID),
             )
             self.assertEqual(counts["training_matrix"], 1)
+            self.assertEqual(counts["signal_retest_context"], 12)
+            self.assertEqual(
+                broker.execute(
+                    """
+                    SELECT context_timeframe, retest_type, alignment
+                    FROM signal_retest_context
+                    WHERE signal_id = 'sig_fill'
+                    ORDER BY context_timeframe_rank
+                    """
+                ).fetchall(),
+                [
+                    ("PERIOD_M1", BUY_RETEST, "ALIGNED"),
+                    ("PERIOD_M15", BUY_RETEST, "ALIGNED"),
+                    ("PERIOD_M30", SELL_RETEST, OPPOSED),
+                    ("PERIOD_H1", EQUAL_NEUTRAL, "NEUTRAL"),
+                    ("PERIOD_H4", BUY_RETEST, "ALIGNED"),
+                    ("PERIOD_D1", SELL_RETEST, OPPOSED),
+                ],
+            )
             self.assertEqual(
                 broker.execute(
                     "SELECT signal_id, target_is_profit, target_realized_profit "
@@ -165,6 +191,12 @@ class PivotFractalSchemaTests(unittest.TestCase):
                 [("sig_deny", False), ("sig_fill", True)],
             )
             admission.close()
+
+    def test_retest_classifier_is_symmetric_and_neutral_within_tolerance(self) -> None:
+        self.assertEqual(classify_retest(1.1001, 1.1000), BUY_RETEST)
+        self.assertEqual(classify_retest(1.0999, 1.1000), SELL_RETEST)
+        self.assertEqual(classify_retest(1.100000005, 1.1000), EQUAL_NEUTRAL)
+        self.assertEqual(classify_retest(None, 1.1000), "UNAVAILABLE")
 
     def test_duplicate_identity_and_missing_context_fail_closed(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

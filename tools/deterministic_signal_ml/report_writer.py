@@ -9,6 +9,12 @@ from typing import Any
 
 import duckdb
 
+from retest_confluence import (
+    RETEST_CONTEXT_KEY,
+    RETEST_EQUALITY_TOLERANCE,
+    RETEST_POLICY_VERSION,
+    retest_context_quality,
+)
 from schema_contract import (
     CATEGORICAL_COLUMNS,
     DatasetColumnGroups,
@@ -18,7 +24,7 @@ from schema_contract import (
 )
 
 
-BUILDER_VERSION = "pivot_fractal.schema_v9_dataset_builder.v1"
+BUILDER_VERSION = "pivot_fractal.schema_v9_dataset_builder.v2"
 
 
 def _fetch_dicts(
@@ -64,6 +70,7 @@ def build_quality_payload(
     target_distribution_column = (
         "target_is_profit" if target_family == "broker_outcome" else "target_admitted"
     )
+    retest_quality = retest_context_quality(connection)
     return {
         "status": "OK" if not warnings and blocking_nulls == 0 else "OK_WITH_WARNINGS",
         "target_family": target_family,
@@ -78,6 +85,7 @@ def build_quality_payload(
             "orphan_outcomes": 0,
             "outcomes_without_fill": 0,
         },
+        "derived_retest_context": retest_quality,
         "pivot_frequency": _fetch_dicts(
             connection,
             """
@@ -138,6 +146,7 @@ def write_dataset_manifest(
         "schema_version": schema_version,
         "engine_label": SUPPORTED_ENGINE_LABEL,
         "feature_set_id": feature_set_id,
+        "source_feature_set_id": feature_set_id,
         "target_family": target_family,
         "source_run_ids": [validation.run_id for validation in validations],
         "source_run_folders": [str(validation.run_path) for validation in validations],
@@ -157,6 +166,16 @@ def write_dataset_manifest(
             "causal_order_column": "trigger_broker_time",
             "calendar_feature_column": "trigger_analysis_time",
             "conversion": "analysis_time=broker_time+offset_minutes",
+        },
+        "derived_research_contracts": {
+            "signal_retest_context": {
+                "policy_version": RETEST_POLICY_VERSION,
+                "primary_key": list(RETEST_CONTEXT_KEY),
+                "contexts_per_signal": 6,
+                "equality_tolerance": RETEST_EQUALITY_TOLERANCE,
+                "source": "strict_schema_v9_facts",
+                "model_feature_status": "PERSISTED_NOT_ENABLED",
+            }
         },
         "outcome_contract": "broker-confirmed fill and close only",
         "approval_state": "OFFLINE_RESEARCH_ONLY",
