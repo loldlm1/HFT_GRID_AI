@@ -16,6 +16,13 @@ if str(MODULE_ROOT) not in sys.path:
 
 from build_dataset import create_dataset_tables, write_parquet_outputs
 from pivot_fractal_audit import PivotAuditError, build_audit
+from query_confluence import (
+    ConfluenceQueryError,
+    _load_dataset,
+    normalize_member_tokens,
+    query_pattern,
+    resolve_dataset_path,
+)
 from schema_contract import SUPPORTED_FEATURE_SET_ID, feature_columns_for_set, validate_run
 
 
@@ -84,6 +91,58 @@ class PivotFractalAuditTests(unittest.TestCase):
             replacement_path.rename(outcome_path)
             with self.assertRaisesRegex(PivotAuditError, "outcome without matching fill"):
                 build_audit(dataset_dir, root / "bad_audit", "bad_audit")
+
+    def test_unordered_exact_pattern_query_and_support_boundary(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            dataset_dir = self.build_fixture_dataset(root)
+            audit_dir = root / "audit"
+            metadata = build_audit(
+                dataset_dir,
+                audit_dir,
+                "fixture_audit",
+                minimum_group_support=1,
+            )
+            self.assertEqual(metadata["support_policy"]["pair_count_before_filter"], 1)
+            self.assertTrue((audit_dir / "confluence_pair_support.tsv").is_file())
+            self.assertTrue((audit_dir / "confluence_pair_outcomes.tsv").is_file())
+
+            connection = duckdb.connect(":memory:")
+            _load_dataset(connection, dataset_dir)
+            first = query_pattern(
+                connection,
+                ["BUY:PERIOD_M15:PP", "BUY:PERIOD_M15:R3"],
+                minimum_group_support=1,
+            )
+            reversed_order = query_pattern(
+                connection,
+                ["BUY:PERIOD_M15:R3", "BUY:PERIOD_M15:PP"],
+                minimum_group_support=1,
+            )
+            self.assertEqual(first, reversed_order)
+            self.assertEqual(len(first), 1)
+            self.assertEqual(first[0]["pattern_active_from"].strftime("%H:%M:%S"), "10:07:05")
+            self.assertEqual(
+                query_pattern(
+                    connection,
+                    ["BUY:PERIOD_M15:PP", "BUY:PERIOD_M15:R3"],
+                    minimum_group_support=2,
+                ),
+                [],
+            )
+            connection.close()
+
+    def test_query_vocabulary_and_dataset_path_fail_closed(self) -> None:
+        self.assertEqual(
+            normalize_member_tokens(
+                ["SELL:PERIOD_D1:R1", "BUY:PERIOD_M30:PP", "SELL:PERIOD_D1:R1"]
+            ),
+            ("BUY:PERIOD_M30:PP", "SELL:PERIOD_D1:R1"),
+        )
+        with self.assertRaises(ConfluenceQueryError):
+            normalize_member_tokens(["BUY:PERIOD_D1:BAD"])
+        with self.assertRaises(ConfluenceQueryError):
+            resolve_dataset_path(dataset_id="../outside")
 
 
 if __name__ == "__main__":
