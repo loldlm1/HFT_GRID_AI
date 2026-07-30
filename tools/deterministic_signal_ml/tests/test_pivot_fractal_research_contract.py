@@ -10,6 +10,11 @@ if str(MODULE_ROOT) not in sys.path:
     sys.path.insert(0, str(MODULE_ROOT))
 
 from feature_encoder import FeatureEncoder, MISSING_CATEGORY
+from retest_confluence import (
+    CONFLUENCE_CATEGORICAL_FEATURE_COLUMNS,
+    CONFLUENCE_DERIVED_FEATURE_COLUMNS,
+    CONFLUENCE_MODEL_FEATURE_COLUMNS,
+)
 from schema_contract import (
     CONTEXT_PREFIXES,
     CONTEXT_TIMEFRAMES,
@@ -70,6 +75,60 @@ class PivotFractalResearchContractTests(unittest.TestCase):
         self.assertEqual(encoded.matrix.shape[0], 1)
         self.assertIn(MISSING_CATEGORY, encoder.categories["symbol"])
         self.assertEqual(len(encoded.encoded_feature_names), encoded.matrix.shape[1])
+
+    def test_confluence_feature_contract_is_compact_and_trigger_time_only(self) -> None:
+        features = set(CONFLUENCE_MODEL_FEATURE_COLUMNS)
+        self.assertEqual(
+            tuple(CONFLUENCE_MODEL_FEATURE_COLUMNS[: len(MODEL_FEATURE_COLUMNS)]),
+            MODEL_FEATURE_COLUMNS,
+        )
+        self.assertTrue(set(CONFLUENCE_DERIVED_FEATURE_COLUMNS).issubset(features))
+        self.assertFalse(features & set(FUTURE_ONLY_COLUMNS))
+        self.assertFalse(
+            features
+            & {
+                "signal_id",
+                "window_id",
+                "research_group_id",
+                "canonical_member_tokens",
+                "m1_retest_type",
+                "target_realized_profit",
+            }
+        )
+        self.assertEqual(len(CONFLUENCE_CATEGORICAL_FEATURE_COLUMNS), 5)
+
+    def test_d1_research_groups_keep_duplicate_runs_in_one_partition(self) -> None:
+        rows = []
+        for day in range(16):
+            group_id = f"EURUSD|2026-02-{day + 1:02d}T00:00:00"
+            for run_id in ("run_a", "run_b"):
+                rows.append(
+                    {
+                        "run_id": run_id,
+                        "symbol": "EURUSD",
+                        "window_id": f"{run_id}_{day}",
+                        "research_group_id": group_id,
+                        "trigger_broker_time": f"2026-02-{day + 1:02d} 10:00:00",
+                    }
+                )
+        bundle = build_time_splits(
+            rows,
+            holdout_fraction=0.25,
+            n_splits=2,
+            gap=1,
+            grouping_policy="symbol_d1_active_broker_window",
+        )
+        self.assertEqual(
+            bundle.metadata["grouping_policy"],
+            "symbol_d1_active_broker_window",
+        )
+
+        def groups(indices: list[int]) -> set[str]:
+            return {str(rows[index]["research_group_id"]) for index in indices}
+
+        self.assertFalse(groups(bundle.train_indices) & groups(bundle.holdout_indices))
+        for fold in bundle.folds:
+            self.assertFalse(groups(fold.train_indices) & groups(fold.test_indices))
 
 
 if __name__ == "__main__":

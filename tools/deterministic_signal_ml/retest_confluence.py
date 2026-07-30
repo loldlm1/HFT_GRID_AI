@@ -13,7 +13,7 @@ from typing import Any
 
 import duckdb
 
-from schema_contract import CONTEXT_TIMEFRAMES, PIVOT_TIMEFRAMES
+from schema_contract import CONTEXT_TIMEFRAMES, MODEL_FEATURE_COLUMNS, PIVOT_TIMEFRAMES
 
 
 RETEST_POLICY_VERSION = "pivot_first_touch_retest_context_v1"
@@ -67,7 +67,32 @@ RETEST_CONTEXT_COLUMNS = (
 )
 
 CONFLUENCE_POLICY_VERSION = "pivot_first_touch_confluence_v1"
+CONFLUENCE_RESEARCH_FEATURE_SET_ID = "pivot_first_touch_confluence_v1"
 CONFLUENCE_MAX_ACTIVE_MEMBERS = len(PIVOT_TIMEFRAMES) * 7
+CONFLUENCE_CATEGORICAL_FEATURE_COLUMNS = (
+    "m15_retest_type",
+    "m30_retest_type",
+    "h1_retest_type",
+    "h4_retest_type",
+    "d1_retest_type",
+)
+CONFLUENCE_NUMERIC_FEATURE_COLUMNS = (
+    "macro_buy_retest_count",
+    "macro_sell_retest_count",
+    "macro_neutral_count",
+    "active_peer_count",
+    "active_timeframe_count",
+    "active_buy_peer_count",
+    "active_sell_peer_count",
+    "aligned_peer_count",
+    "opposed_peer_count",
+    "neutral_peer_count",
+    "same_trigger_peer_count",
+)
+CONFLUENCE_DERIVED_FEATURE_COLUMNS = (
+    CONFLUENCE_CATEGORICAL_FEATURE_COLUMNS + CONFLUENCE_NUMERIC_FEATURE_COLUMNS
+)
+CONFLUENCE_MODEL_FEATURE_COLUMNS = MODEL_FEATURE_COLUMNS + CONFLUENCE_DERIVED_FEATURE_COLUMNS
 CONFLUENCE_MEMBER_KEY = (
     "run_id",
     "config_id",
@@ -141,6 +166,26 @@ CONFLUENCE_SNAPSHOT_COLUMNS = (
     "active_from_broker_time",
     "earliest_active_until_broker_time",
 )
+
+
+def research_feature_columns_for_set(feature_set_id: str | None) -> tuple[str, ...]:
+    if not feature_set_id:
+        return MODEL_FEATURE_COLUMNS
+    if feature_set_id == CONFLUENCE_RESEARCH_FEATURE_SET_ID:
+        return CONFLUENCE_MODEL_FEATURE_COLUMNS
+    raise ValueError(f"Unsupported offline research feature set: {feature_set_id}")
+
+
+def research_categorical_columns_for_set(feature_set_id: str | None) -> tuple[str, ...]:
+    if not feature_set_id:
+        from schema_contract import CATEGORICAL_COLUMNS
+
+        return CATEGORICAL_COLUMNS
+    if feature_set_id == CONFLUENCE_RESEARCH_FEATURE_SET_ID:
+        from schema_contract import CATEGORICAL_COLUMNS
+
+        return CATEGORICAL_COLUMNS + CONFLUENCE_CATEGORICAL_FEATURE_COLUMNS
+    raise ValueError(f"Unsupported offline research feature set: {feature_set_id}")
 
 
 class DerivedResearchError(RuntimeError):

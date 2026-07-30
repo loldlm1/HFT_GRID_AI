@@ -10,9 +10,11 @@ from pathlib import Path
 import duckdb
 
 from retest_confluence import (
+    CONFLUENCE_RESEARCH_FEATURE_SET_ID,
     DerivedResearchError,
     create_confluence_tables,
     create_retest_context_table,
+    research_feature_columns_for_set,
     validate_retest_context_table,
 )
 from report_writer import (
@@ -320,6 +322,7 @@ o.highest_milestone_level
 def _create_training_matrix(
     connection: duckdb.DuckDBPyConnection,
     target_family: str,
+    research_feature_set_id: str = "",
 ) -> None:
     outcome_join, target_columns = _target_projection(target_family)
     context_columns = ",\n  ".join(
@@ -361,7 +364,7 @@ def _create_training_matrix(
     # The context set above intentionally leaves only the six-timeframe feature columns.
     connection.execute(
         f"""
-CREATE TABLE training_matrix AS
+CREATE TEMP TABLE base_training_matrix AS
 SELECT
   a.schema_version,
   a.run_id,
@@ -430,6 +433,82 @@ JOIN entry_evidence e USING (run_id, config_id, signal_id)
 ORDER BY a.trigger_broker_time, a.run_id, a.signal_id
 """
     )
+    if not research_feature_set_id:
+        connection.execute(
+            "CREATE TABLE training_matrix AS SELECT * FROM base_training_matrix"
+        )
+        return
+    if research_feature_set_id != CONFLUENCE_RESEARCH_FEATURE_SET_ID:
+        raise RuntimeError(
+            f"Unsupported offline research feature set: {research_feature_set_id}"
+        )
+    connection.execute(
+        """
+CREATE TEMP TABLE retest_model_features AS
+SELECT
+  run_id,
+  config_id,
+  signal_id,
+  MAX(CASE WHEN context_timeframe = 'PERIOD_M15' THEN retest_type END)
+    AS m15_retest_type,
+  MAX(CASE WHEN context_timeframe = 'PERIOD_M30' THEN retest_type END)
+    AS m30_retest_type,
+  MAX(CASE WHEN context_timeframe = 'PERIOD_H1' THEN retest_type END)
+    AS h1_retest_type,
+  MAX(CASE WHEN context_timeframe = 'PERIOD_H4' THEN retest_type END)
+    AS h4_retest_type,
+  MAX(CASE WHEN context_timeframe = 'PERIOD_D1' THEN retest_type END)
+    AS d1_retest_type,
+  SUM(CASE WHEN context_timeframe <> 'PERIOD_M1'
+                AND retest_type = 'BUY_RETEST' THEN 1 ELSE 0 END)::BIGINT
+    AS macro_buy_retest_count,
+  SUM(CASE WHEN context_timeframe <> 'PERIOD_M1'
+                AND retest_type = 'SELL_RETEST' THEN 1 ELSE 0 END)::BIGINT
+    AS macro_sell_retest_count,
+  SUM(CASE WHEN context_timeframe <> 'PERIOD_M1'
+                AND retest_type = 'EQUAL_NEUTRAL' THEN 1 ELSE 0 END)::BIGINT
+    AS macro_neutral_count
+FROM signal_retest_context
+GROUP BY 1, 2, 3
+"""
+    )
+    connection.execute(
+        """
+CREATE TABLE training_matrix AS
+SELECT
+  base.*,
+  retest.m15_retest_type,
+  retest.m30_retest_type,
+  retest.h1_retest_type,
+  retest.h4_retest_type,
+  retest.d1_retest_type,
+  retest.macro_buy_retest_count,
+  retest.macro_sell_retest_count,
+  retest.macro_neutral_count,
+  snapshot.active_peer_count,
+  snapshot.active_timeframe_count,
+  snapshot.active_buy_peer_count,
+  snapshot.active_sell_peer_count,
+  snapshot.aligned_peer_count,
+  snapshot.opposed_peer_count,
+  snapshot.neutral_peer_count,
+  snapshot.same_trigger_peer_count,
+  snapshot.research_group_id
+FROM base_training_matrix base
+JOIN retest_model_features retest USING (run_id, config_id, signal_id)
+JOIN confluence_snapshots snapshot
+  ON snapshot.run_id = base.run_id
+ AND snapshot.config_id = base.config_id
+ AND snapshot.anchor_signal_id = base.signal_id
+ORDER BY base.trigger_broker_time, base.run_id, base.signal_id
+"""
+    )
+    base_rows = int(connection.execute("SELECT COUNT(*) FROM base_training_matrix").fetchone()[0])
+    derived_rows = int(connection.execute("SELECT COUNT(*) FROM training_matrix").fetchone()[0])
+    if base_rows != derived_rows:
+        raise DerivedResearchError(
+            f"Confluence feature join changed training grain: {derived_rows} != {base_rows}"
+        )
 
 
 def create_dataset_tables(
@@ -438,6 +517,7 @@ def create_dataset_tables(
     target_family: str,
     schema_version: int,
     feature_columns: tuple[str, ...],
+    research_feature_set_id: str = "",
 ) -> dict[str, int]:
     if schema_version != SUPPORTED_SCHEMA_VERSION:
         raise RuntimeError(
@@ -449,6 +529,22 @@ def create_dataset_tables(
         raise RuntimeError("Schema V9 training requires the exact frozen feature set")
     if any(column in MODEL_FEATURE_COLUMNS for column in FUTURE_ONLY_COLUMNS):
         raise RuntimeError("Future-only fields leaked into the model feature contract")
+    selected_feature_columns = research_feature_columns_for_set(research_feature_set_id)
+    feature_denylist = {
+        *FUTURE_ONLY_COLUMNS,
+        "signal_id",
+        "window_id",
+        "research_group_id",
+        "canonical_member_tokens",
+        "target_admitted",
+        "target_is_profit",
+        "target_realized_profit",
+        "target_terminal_reason",
+        "target_duration_seconds",
+    }
+    leaked_columns = sorted(set(selected_feature_columns) & feature_denylist)
+    if leaked_columns:
+        raise RuntimeError(f"Denied fields leaked into research features: {leaked_columns}")
 
     for filename in RUN_FILES:
         table_name = Path(filename).stem
@@ -481,7 +577,7 @@ def create_dataset_tables(
     )
     _create_feature_snapshots(connection)
     _create_entry_evidence(connection)
-    _create_training_matrix(connection, target_family)
+    _create_training_matrix(connection, target_family, research_feature_set_id)
 
     table_names = [Path(filename).stem for filename in RUN_FILES] + [
         "signal_retest_context",
@@ -540,6 +636,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--output-root", default=DEFAULT_DATASET_ROOT)
     parser.add_argument("--schema-version", type=int, default=SUPPORTED_SCHEMA_VERSION)
     parser.add_argument("--feature-set-id", default=SUPPORTED_FEATURE_SET_ID)
+    parser.add_argument("--research-feature-set-id", default="")
     parser.add_argument(
         "--target-family",
         choices=DATASET_TARGET_FAMILIES,
@@ -555,6 +652,9 @@ def main() -> int:
     args = parser.parse_args()
     try:
         feature_columns = feature_columns_for_set(args.feature_set_id)
+        selected_feature_columns = research_feature_columns_for_set(
+            args.research_feature_set_id
+        )
         validations = validate_runs(
             Path(args.runs_root),
             args.run_id,
@@ -584,6 +684,7 @@ def main() -> int:
                 args.target_family,
                 args.schema_version,
                 feature_columns,
+                args.research_feature_set_id,
             )
             output_files = write_parquet_outputs(connection, output_dir, counts)
             quality = build_quality_payload(
@@ -591,7 +692,7 @@ def main() -> int:
                 validations,
                 counts,
                 args.target_family,
-                feature_columns,
+                selected_feature_columns,
                 output_dir,
             )
             write_dataset_manifest(
@@ -603,7 +704,8 @@ def main() -> int:
                 args.target_family,
                 args.schema_version,
                 args.feature_set_id,
-                feature_columns,
+                selected_feature_columns,
+                args.research_feature_set_id,
             )
             write_quality_json(output_dir, quality)
             write_dataset_report(output_dir, args.dataset_id, quality)
@@ -621,7 +723,8 @@ def main() -> int:
     print(
         "pivot V9 dataset build ok | "
         f"dataset={args.dataset_id} | target={args.target_family} | "
-        f"rows={counts['training_matrix']} | output={output_dir}"
+        f"rows={counts['training_matrix']} | research_features={args.research_feature_set_id or 'base'} | "
+        f"output={output_dir}"
     )
     return 0
 

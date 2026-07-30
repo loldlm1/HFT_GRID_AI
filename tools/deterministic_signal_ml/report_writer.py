@@ -21,6 +21,7 @@ from retest_confluence import (
     RETEST_CONTEXT_KEY,
     RETEST_EQUALITY_TOLERANCE,
     RETEST_POLICY_VERSION,
+    research_categorical_columns_for_set,
     retest_context_quality,
     validate_confluence_tables,
 )
@@ -61,7 +62,12 @@ def build_quality_payload(
             for column in feature_columns
         ),
     )
-    numeric_features = [column for column in NUMERIC_FEATURE_COLUMNS if column in feature_columns]
+    categorical_features = set(CATEGORICAL_COLUMNS) | {
+        column for column in feature_columns if column.endswith("_retest_type")
+    }
+    numeric_features = [
+        column for column in feature_columns if column not in categorical_features
+    ]
     feature_ranges = _fetch_dicts(
         connection,
         " UNION ALL ".join(
@@ -176,6 +182,7 @@ def write_dataset_manifest(
     schema_version: int,
     feature_set_id: str,
     feature_columns: tuple[str, ...],
+    research_feature_set_id: str = "",
 ) -> None:
     groups = DatasetColumnGroups(feature_columns=feature_columns)
     payload = {
@@ -184,8 +191,9 @@ def write_dataset_manifest(
         "created_at": datetime.now(UTC).isoformat(),
         "schema_version": schema_version,
         "engine_label": SUPPORTED_ENGINE_LABEL,
-        "feature_set_id": feature_set_id,
+        "feature_set_id": research_feature_set_id or feature_set_id,
         "source_feature_set_id": feature_set_id,
+        "research_feature_set_id": research_feature_set_id or None,
         "target_family": target_family,
         "source_run_ids": [validation.run_id for validation in validations],
         "source_run_folders": [str(validation.run_path) for validation in validations],
@@ -198,13 +206,26 @@ def write_dataset_manifest(
         },
         "feature_columns": list(groups.feature_columns),
         "categorical_columns": [
-            column for column in groups.feature_columns if column in CATEGORICAL_COLUMNS
+            column
+            for column in groups.feature_columns
+            if column in set(
+                research_categorical_columns_for_set(research_feature_set_id)
+            )
         ],
         "target_columns": list(groups.target_columns),
         "identity_columns": list(groups.identity_columns),
         "audit_columns": list(groups.audit_columns),
         "excluded_future_columns": list(FUTURE_ONLY_COLUMNS),
-        "identity_group_columns": ["run_id", "symbol", "window_id"],
+        "identity_group_columns": (
+            ["research_group_id"]
+            if research_feature_set_id
+            else ["run_id", "symbol", "window_id"]
+        ),
+        "split_grouping_policy": (
+            "symbol_d1_active_broker_window"
+            if research_feature_set_id
+            else "pivot_window_identity"
+        ),
         "time_contract": {
             "causal_order_column": "trigger_broker_time",
             "calendar_feature_column": "trigger_analysis_time",

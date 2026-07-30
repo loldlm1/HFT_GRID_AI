@@ -36,9 +36,9 @@ from model_config import (
 )
 from schema_contract import (
     DATASET_TARGET_FAMILIES,
-    MODEL_FEATURE_COLUMNS,
-    SUPPORTED_FEATURE_SET_ID,
+    FUTURE_ONLY_COLUMNS,
     SUPPORTED_SCHEMA_VERSION,
+    TARGET_COLUMNS,
 )
 from validation_splits import SplitBundle, build_time_splits
 
@@ -55,7 +55,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--dataset-root", default=DEFAULT_DATASET_ROOT)
     parser.add_argument("--model-id", required=True)
     parser.add_argument("--model-root", default=DEFAULT_MODEL_ROOT)
-    parser.add_argument("--feature-set-id", default=SUPPORTED_FEATURE_SET_ID)
+    parser.add_argument("--feature-set-id", default="")
     parser.add_argument("--target-family", choices=DATASET_TARGET_FAMILIES, default="")
     parser.add_argument("--overwrite", action="store_true")
     return parser
@@ -209,6 +209,8 @@ def _fit_and_score(
     train_indices: list[int],
     test_indices: list[int],
     target_family: str,
+    feature_columns: tuple[str, ...],
+    categorical_columns: tuple[str, ...],
     classifier_config,
     regressor_config,
 ) -> tuple[dict[str, Any], list[dict[str, Any]]]:
@@ -219,7 +221,11 @@ def _fit_and_score(
     if len(np.unique(train_labels)) != 2:
         raise TrainingError("A chronological training fold contains only one class")
 
-    encoder = FeatureEncoder.fit(train_rows, MODEL_FEATURE_COLUMNS)
+    encoder = FeatureEncoder.fit(
+        train_rows,
+        feature_columns,
+        categorical_columns,
+    )
     train_matrix = encoder.transform(train_rows).matrix
     test_matrix = encoder.transform(test_rows).matrix
     classifier = _classifier(classifier_config)
@@ -305,8 +311,29 @@ def train_candidate(
     dataset_manifest = _read_json(dataset_path / "dataset_manifest.json")
     if int(dataset_manifest.get("schema_version", 0)) != SUPPORTED_SCHEMA_VERSION:
         raise TrainingError("Dataset schema version is incompatible with active tooling")
-    if dataset_manifest.get("feature_set_id") != feature_set_id:
+    manifest_feature_set_id = str(dataset_manifest.get("feature_set_id", ""))
+    if not manifest_feature_set_id:
+        raise TrainingError("Dataset manifest is missing feature_set_id")
+    if feature_set_id and manifest_feature_set_id != feature_set_id:
         raise TrainingError("Dataset feature set differs from requested feature set")
+    feature_set_id = manifest_feature_set_id
+    feature_columns = tuple(dataset_manifest.get("feature_columns", ()))
+    categorical_columns = tuple(dataset_manifest.get("categorical_columns", ()))
+    if not feature_columns or len(set(feature_columns)) != len(feature_columns):
+        raise TrainingError("Dataset manifest has an invalid feature column contract")
+    if not set(categorical_columns).issubset(set(feature_columns)):
+        raise TrainingError("Dataset manifest has invalid categorical feature columns")
+    denied_features = {
+        *FUTURE_ONLY_COLUMNS,
+        *TARGET_COLUMNS,
+        "signal_id",
+        "window_id",
+        "research_group_id",
+        "canonical_member_tokens",
+    }
+    leaked_features = sorted(set(feature_columns) & denied_features)
+    if leaked_features:
+        raise TrainingError(f"Dataset feature contract contains denied fields: {leaked_features}")
     if dataset_manifest.get("approval_state") != "OFFLINE_RESEARCH_ONLY":
         raise TrainingError("Dataset is missing the offline-only research boundary")
     manifest_target = str(dataset_manifest.get("target_family", ""))
@@ -320,12 +347,21 @@ def train_candidate(
 
     config = training_config_for_feature_set(feature_set_id)
     rows = load_training_rows(dataset_path)
+    if not rows:
+        raise TrainingError("Training matrix is empty")
+    missing_columns = [column for column in feature_columns if column not in rows[0]]
+    if missing_columns:
+        raise TrainingError(f"Training matrix is missing manifest features: {missing_columns}")
     _require_support(rows, target_family, config.min_training_rows, config.min_class_count)
+    grouping_policy = str(
+        dataset_manifest.get("split_grouping_policy", "pivot_window_identity")
+    )
     splits = build_time_splits(
         rows,
         holdout_fraction=config.holdout_fraction,
         n_splits=config.walk_forward_splits,
         gap=config.walk_forward_gap,
+        grouping_policy=grouping_policy,
     )
 
     fold_metrics: list[dict[str, Any]] = []
@@ -336,6 +372,8 @@ def train_candidate(
             fold.train_indices,
             fold.test_indices,
             target_family,
+            feature_columns,
+            categorical_columns,
             config.classifier,
             config.regressor,
         )
@@ -349,12 +387,18 @@ def train_candidate(
         splits.train_indices,
         splits.holdout_indices,
         target_family,
+        feature_columns,
+        categorical_columns,
         config.classifier,
         config.regressor,
     )
 
     final_train_rows = _select(rows, splits.train_indices)
-    final_encoder = FeatureEncoder.fit(final_train_rows, MODEL_FEATURE_COLUMNS)
+    final_encoder = FeatureEncoder.fit(
+        final_train_rows,
+        feature_columns,
+        categorical_columns,
+    )
     final_matrix = final_encoder.transform(final_train_rows).matrix
     classifier = _classifier(config.classifier)
     classifier.fit(final_matrix, _label_array(final_train_rows, target_family))
@@ -390,7 +434,11 @@ def train_candidate(
         "dataset_path": str(dataset_path),
         "schema_version": SUPPORTED_SCHEMA_VERSION,
         "feature_set_id": feature_set_id,
-        "feature_columns": list(MODEL_FEATURE_COLUMNS),
+        "source_feature_set_id": dataset_manifest.get("source_feature_set_id"),
+        "research_feature_set_id": dataset_manifest.get("research_feature_set_id"),
+        "feature_columns": list(feature_columns),
+        "categorical_columns": list(categorical_columns),
+        "split_grouping_policy": grouping_policy,
         "target_family": target_family,
         "training_rows": len(rows),
         "train_partition_rows": len(splits.train_indices),

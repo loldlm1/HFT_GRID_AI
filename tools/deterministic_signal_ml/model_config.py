@@ -5,6 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from schema_contract import SUPPORTED_FEATURE_SET_ID
+from retest_confluence import CONFLUENCE_RESEARCH_FEATURE_SET_ID
 
 
 TRAINER_VERSION = "pivot_fractal.xgboost.schema_v9.v1"
@@ -67,6 +68,9 @@ class TrainingConfig:
 
 
 def training_config_for_feature_set(feature_set_id: str) -> TrainingConfig:
-    if feature_set_id != SUPPORTED_FEATURE_SET_ID:
+    if feature_set_id not in (
+        SUPPORTED_FEATURE_SET_ID,
+        CONFLUENCE_RESEARCH_FEATURE_SET_ID,
+    ):
         raise ValueError(f"Unsupported feature_set_id: {feature_set_id}")
     return TrainingConfig()

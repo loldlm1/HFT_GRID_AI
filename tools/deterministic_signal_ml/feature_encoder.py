@@ -34,10 +34,13 @@ class FeatureEncoder:
         cls,
         rows: list[dict[str, Any]],
         feature_columns: tuple[str, ...],
+        categorical_columns: tuple[str, ...] | list[str] | None = None,
     ) -> "FeatureEncoder":
         if not rows:
             raise ValueError("Cannot fit feature encoder without rows")
-        categorical_set = set(CATEGORICAL_COLUMNS)
+        categorical_set = set(categorical_columns or CATEGORICAL_COLUMNS)
+        if not categorical_set.issubset(set(feature_columns)):
+            raise ValueError("Categorical feature list contains an unknown column")
         categorical_columns = [column for column in feature_columns if column in categorical_set]
         numeric_columns = [column for column in feature_columns if column not in categorical_set]
         categories: dict[str, list[str]] = {}

@@ -18,6 +18,8 @@ from build_dataset import create_dataset_tables, write_parquet_outputs
 from retest_confluence import (
     BUY_RETEST,
     CONFLUENCE_MAX_ACTIVE_MEMBERS,
+    CONFLUENCE_MODEL_FEATURE_COLUMNS,
+    CONFLUENCE_RESEARCH_FEATURE_SET_ID,
     EQUAL_NEUTRAL,
     OPPOSED,
     SELL_RETEST,
@@ -240,6 +242,24 @@ class PivotFractalSchemaTests(unittest.TestCase):
                 [("sig_deny", False), ("sig_fill", True)],
             )
             admission.close()
+
+            confluence = duckdb.connect(":memory:")
+            confluence_counts = create_dataset_tables(
+                confluence,
+                [validation],
+                "admission",
+                9,
+                feature_columns_for_set(SUPPORTED_FEATURE_SET_ID),
+                CONFLUENCE_RESEARCH_FEATURE_SET_ID,
+            )
+            self.assertEqual(confluence_counts["training_matrix"], 2)
+            matrix_columns = {
+                row[0] for row in confluence.execute("DESCRIBE training_matrix").fetchall()
+            }
+            self.assertTrue(set(CONFLUENCE_MODEL_FEATURE_COLUMNS).issubset(matrix_columns))
+            self.assertIn("research_group_id", matrix_columns)
+            self.assertNotIn("m1_retest_type", matrix_columns)
+            confluence.close()
 
     def test_retest_classifier_is_symmetric_and_neutral_within_tolerance(self) -> None:
         self.assertEqual(classify_retest(1.1001, 1.1000), BUY_RETEST)
