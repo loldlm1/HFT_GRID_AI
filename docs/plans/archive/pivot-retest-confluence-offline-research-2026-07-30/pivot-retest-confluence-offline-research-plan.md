@@ -1,13 +1,14 @@
 # Plan: Pivot First-Touch Retest Confluence Offline Research
 
 **Generated**: 2026-07-29
-**Status**: Implementation complete; Sprint 5 acceptance evidence recorded
+**Archived**: 2026-07-30
+**Status**: Complete and archived
 **Planning Review**: Complete; all five execution sprints passed
 **Estimated Complexity**: Medium-High
 **Risk Class**: Medium - offline research contracts, feature engineering, validation splits, and model evidence change; MQL5 runtime and broker execution do not
 **Execution Baseline**: Branch `bot/pivot_points_fractal`, commit `67c43983b1ddb8175c04ab5ddbbec6ecac77aaad`, clean worktree
 **Sprint 4 Rollback Point**: `626eece` (`feat: add opt-in pivot confluence research features`)
-**Final Evidence**: `docs/research/pivot-retest-confluence-offline-acceptance.md`
+**Final Evidence**: `docs/research/archive/pivot-retest-confluence-offline-research-2026-07-30/pivot-retest-confluence-offline-acceptance.md`
 
 ## Overview
 
@@ -301,7 +302,7 @@ any target/future fields are not model features.
   - `tools/deterministic_signal_ml/README.md`
   - `docs/workflows/pivot-fractal-statistics-flow.md`
   - `docs/workflows/pivot-fractal-offline-research-boundaries.md`
-  - `docs/research/pivot-retest-confluence-offline-acceptance.md` (new during
+  - `docs/research/archive/pivot-retest-confluence-offline-research-2026-07-30/pivot-retest-confluence-offline-acceptance.md` (new during
     final acceptance)
   - `docs/plans/README.md`
 - **Read-only runtime/schema references**:
@@ -1008,7 +1009,7 @@ result, and close the plan without implying runtime approval.
 - `tools/deterministic_signal_ml/README.md`
 - `docs/workflows/pivot-fractal-statistics-flow.md`
 - `docs/workflows/pivot-fractal-offline-research-boundaries.md`
-- `docs/research/pivot-retest-confluence-offline-acceptance.md` (new)
+- `docs/research/archive/pivot-retest-confluence-offline-research-2026-07-30/pivot-retest-confluence-offline-acceptance.md` (new)
 - `docs/plans/README.md`
 - This plan file for final status/evidence updates while it remains at its
   active hook path
@@ -1060,7 +1061,7 @@ artifacts remain ignored and reproducible.
 ### Task 5.1: Re-run Full Strict V9 And Derived Integrity
 
 - **Location**: Generated accepted dataset/audit artifacts and
-  `docs/research/pivot-retest-confluence-offline-acceptance.md`
+  `docs/research/archive/pivot-retest-confluence-offline-research-2026-07-30/pivot-retest-confluence-offline-acceptance.md`
 - **Description**: Validate the natural V9 source first, build both base and
   confluence datasets from the same run, and record exact source/derived row
   counts, distributions, causal checks, group counts, output bytes, and
@@ -1143,7 +1144,7 @@ artifacts remain ignored and reproducible.
 - **Location**: `tools/deterministic_signal_ml/README.md`,
   `docs/workflows/pivot-fractal-statistics-flow.md`,
   `docs/workflows/pivot-fractal-offline-research-boundaries.md`,
-  `docs/research/pivot-retest-confluence-offline-acceptance.md`,
+  `docs/research/archive/pivot-retest-confluence-offline-research-2026-07-30/pivot-retest-confluence-offline-acceptance.md`,
   `docs/plans/README.md`, this plan file
 - **Description**: Document commands, table grains, label semantics, exact
   pattern querying, support/group rules, artifact paths, split policy,

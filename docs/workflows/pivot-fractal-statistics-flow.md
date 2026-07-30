@@ -178,9 +178,9 @@ lane's native split directly is not a feature-only comparison.
 
 Output is marked `OFFLINE_RESEARCH_ONLY`. There is no current MT5 loader,
 runtime model export, research-based send filter, or pattern playback path.
-Current natural-run evidence is recorded in
-`docs/research/pivot-retest-confluence-offline-acceptance.md` and is
-inconclusive for model promotion.
+The completed natural-run evidence is archived in
+`docs/research/archive/pivot-retest-confluence-offline-research-2026-07-30/pivot-retest-confluence-offline-acceptance.md`
+and is inconclusive for model promotion.
 
 ## Human Strategy Tester Matrix
 

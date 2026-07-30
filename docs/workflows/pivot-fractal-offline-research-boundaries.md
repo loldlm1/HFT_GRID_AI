@@ -109,8 +109,8 @@ explicit plan, frozen feature parity evidence, safety review, tester-only
 staging, human acceptance, and separate live-rollout authorization.
 
 The completed natural-run evidence, paired cost measurements, right-censoring
-handling, and fixed ablation are recorded in
-`docs/research/pivot-retest-confluence-offline-acceptance.md`.
+handling, and fixed ablation are archived in
+`docs/research/archive/pivot-retest-confluence-offline-research-2026-07-30/pivot-retest-confluence-offline-acceptance.md`.
 
 ## Historical Work
 

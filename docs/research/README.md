@@ -26,5 +26,8 @@ Completed broker, signal-engine, exporter, ML, and robustness evidence remains
 under `docs/research/archive/`. It is immutable historical audit material and
 must not be presented as acceptance for the current pivot implementation.
 
+- `docs/research/archive/pivot-retest-confluence-offline-research-2026-07-30/`:
+  completed causal retest/confluence acceptance and fixed offline ablation.
+
 Generated Common Files exports, datasets, audits, models, reports,
 screenshots, and binaries remain outside tracked documentation.

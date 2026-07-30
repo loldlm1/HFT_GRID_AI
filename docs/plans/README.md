@@ -2,16 +2,8 @@
 
 ## Active
 
-The active implementation plan is
-[`pivot-retest-confluence-offline-research-plan.md`](pivot-retest-confluence-offline-research-plan.md).
-It extends the strict V9 research dataset with causal retest context and
-offline confluence analysis only; it does not change the EA, exporter schema,
-broker execution, runtime inference, or live rollout.
-
-Its natural-data closeout evidence is
-[`../research/pivot-retest-confluence-offline-acceptance.md`](../research/pivot-retest-confluence-offline-acceptance.md).
-The accepted result remains offline and inconclusive for model or pattern
-promotion.
+No implementation plan is currently active. Start a new explicitly invoked
+`$planner` plan under `docs/plans/` for the next substantial change.
 
 Do not start another substantial strategy, architecture, live-rollout, schema,
 or repository-wide change without explicitly starting its new plan.
@@ -25,6 +17,9 @@ implementation guidance.
 - `docs/plans/archive/pivot-fractal-engine-schema-v9-2026-07-29/README.md`:
   completed `PIVOT_FRACTAL_V1`, schema V9, causal snapshot, structural trailing,
   paired performance, and natural Strategy Tester acceptance work.
+- `docs/plans/archive/pivot-retest-confluence-offline-research-2026-07-30/README.md`:
+  completed causal retest context, bounded unordered confluence, offline feature
+  ablation, and natural-data research acceptance.
 
 Use these current documents:
 

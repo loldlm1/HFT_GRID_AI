@@ -137,10 +137,10 @@ unchanged. Model folders are marked `OFFLINE_RESEARCH_ONLY` and record
 `runtime_artifact_emitted=false`; no MT5 runtime artifact or deployment command
 exists.
 
-The accepted natural-run evidence and matched D1-group ablation are documented
-in `docs/research/pivot-retest-confluence-offline-acceptance.md`. The current
-single-run result is inconclusive and does not approve a model or pattern for
-runtime use.
+The accepted natural-run evidence and matched D1-group ablation are archived in
+`docs/research/archive/pivot-retest-confluence-offline-research-2026-07-30/pivot-retest-confluence-offline-acceptance.md`.
+The single-run result is inconclusive and does not approve a model or pattern
+for runtime use.
 
 ## Validation
 

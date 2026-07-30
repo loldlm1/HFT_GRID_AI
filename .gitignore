@@ -29,6 +29,8 @@ config/*.ini
 !/docs/plans/archive/extremum-engine-cycle-statistics-2026-07-11/*.md
 !/docs/plans/archive/pivot-fractal-engine-schema-v9-2026-07-29/
 !/docs/plans/archive/pivot-fractal-engine-schema-v9-2026-07-29/*.md
+!/docs/plans/archive/pivot-retest-confluence-offline-research-2026-07-30/
+!/docs/plans/archive/pivot-retest-confluence-offline-research-2026-07-30/*.md
 /docs/lead_magnet/output/*
 !/docs/lead_magnet/output/.gitkeep
 /docs/lead_magnet/dist/*.zip
@@ -38,6 +40,8 @@ logs/*
 .envrc
 .venv/
 artifacts/datasets/
+artifacts/audits/
+artifacts/acceptance_logs/
 artifacts/models/
 artifacts/model_exports/
 artifacts/pattern_audits/
