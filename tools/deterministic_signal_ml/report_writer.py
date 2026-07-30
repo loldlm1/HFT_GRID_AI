@@ -9,11 +9,20 @@ from typing import Any
 
 import duckdb
 
+try:
+    import resource
+except ImportError:  # pragma: no cover - unavailable on native Windows Python.
+    resource = None
+
 from retest_confluence import (
+    CONFLUENCE_MAX_ACTIVE_MEMBERS,
+    CONFLUENCE_MEMBER_KEY,
+    CONFLUENCE_POLICY_VERSION,
     RETEST_CONTEXT_KEY,
     RETEST_EQUALITY_TOLERANCE,
     RETEST_POLICY_VERSION,
     retest_context_quality,
+    validate_confluence_tables,
 )
 from schema_contract import (
     CATEGORICAL_COLUMNS,
@@ -42,6 +51,7 @@ def build_quality_payload(
     counts: dict[str, int],
     target_family: str,
     feature_columns: tuple[str, ...],
+    output_dir: Path | None = None,
 ) -> dict[str, Any]:
     null_counts = _fetch_dicts(
         connection,
@@ -71,6 +81,19 @@ def build_quality_payload(
         "target_is_profit" if target_family == "broker_outcome" else "target_admitted"
     )
     retest_quality = retest_context_quality(connection)
+    confluence_quality = validate_confluence_tables(connection, require_complete=False)
+    derivation_durations = _fetch_dicts(
+        connection,
+        "SELECT stage, duration_seconds FROM derived_build_metrics ORDER BY stage",
+    )
+    output_bytes = (
+        {
+            path.name: path.stat().st_size
+            for path in sorted(output_dir.glob("*.parquet"))
+        }
+        if output_dir is not None
+        else {}
+    )
     return {
         "status": "OK" if not warnings and blocking_nulls == 0 else "OK_WITH_WARNINGS",
         "target_family": target_family,
@@ -78,6 +101,16 @@ def build_quality_payload(
         "blocking_null_feature_rows": blocking_nulls,
         "row_counts": counts,
         "source_runs": [validation.run_id for validation in validations],
+        "performance": {
+            "process_peak_rss_kb": (
+                resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
+                if resource is not None
+                else None
+            ),
+            "parquet_bytes": output_bytes,
+            "total_parquet_bytes": sum(output_bytes.values()),
+            "stage_durations": derivation_durations,
+        },
         "config_ids": sorted({validation.config_id for validation in validations}),
         "join_integrity": {
             "duplicate_signal_ids": 0,
@@ -86,6 +119,12 @@ def build_quality_payload(
             "outcomes_without_fill": 0,
         },
         "derived_retest_context": retest_quality,
+        "derived_confluence": {
+            "policy_version": CONFLUENCE_POLICY_VERSION,
+            "max_active_member_bound": CONFLUENCE_MAX_ACTIVE_MEMBERS,
+            **confluence_quality,
+            "stage_durations": derivation_durations,
+        },
         "pivot_frequency": _fetch_dicts(
             connection,
             """
@@ -153,6 +192,10 @@ def write_dataset_manifest(
         "config_ids": sorted({validation.config_id for validation in validations}),
         "row_counts": counts,
         "output_files": output_files,
+        "output_file_bytes": {
+            filename: (output_dir / filename).stat().st_size
+            for filename in output_files.values()
+        },
         "feature_columns": list(groups.feature_columns),
         "categorical_columns": [
             column for column in groups.feature_columns if column in CATEGORICAL_COLUMNS
@@ -175,7 +218,20 @@ def write_dataset_manifest(
                 "equality_tolerance": RETEST_EQUALITY_TOLERANCE,
                 "source": "strict_schema_v9_facts",
                 "model_feature_status": "PERSISTED_NOT_ENABLED",
-            }
+            },
+            "confluence_members": {
+                "policy_version": CONFLUENCE_POLICY_VERSION,
+                "primary_key": list(CONFLUENCE_MEMBER_KEY),
+                "max_active_member_bound": CONFLUENCE_MAX_ACTIVE_MEMBERS,
+                "source": "strict_schema_v9_first_touch_attempts",
+                "model_feature_status": "PERSISTED_NOT_ENABLED",
+            },
+            "confluence_snapshots": {
+                "policy_version": CONFLUENCE_POLICY_VERSION,
+                "grain": "one_snapshot_per_first_touch_anchor",
+                "source": "bounded_same_trigger_event_sweep",
+                "model_feature_status": "PERSISTED_NOT_ENABLED",
+            },
         },
         "outcome_contract": "broker-confirmed fill and close only",
         "approval_state": "OFFLINE_RESEARCH_ONLY",

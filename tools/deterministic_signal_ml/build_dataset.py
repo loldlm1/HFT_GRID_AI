@@ -4,12 +4,14 @@ from __future__ import annotations
 
 import argparse
 import shutil
+from time import perf_counter
 from pathlib import Path
 
 import duckdb
 
 from retest_confluence import (
     DerivedResearchError,
+    create_confluence_tables,
     create_retest_context_table,
     validate_retest_context_table,
 )
@@ -456,14 +458,35 @@ def create_dataset_tables(
             [validation.run_path / filename for validation in validations],
             TABLE_COLUMNS[filename],
         )
+    connection.execute(
+        "CREATE TEMP TABLE derived_build_metrics (stage VARCHAR, duration_seconds DOUBLE)"
+    )
+    stage_started = perf_counter()
     create_retest_context_table(connection)
     validate_retest_context_table(connection)
+    connection.execute(
+        "INSERT INTO derived_build_metrics VALUES ('retest_context', ?)",
+        [perf_counter() - stage_started],
+    )
+    confluence_quality = create_confluence_tables(connection)
+    connection.executemany(
+        "INSERT INTO derived_build_metrics VALUES (?, ?)",
+        [
+            ("confluence_sweep", confluence_quality["sweep_duration_seconds"]),
+            (
+                "confluence_persistence",
+                confluence_quality["persistence_duration_seconds"],
+            ),
+        ],
+    )
     _create_feature_snapshots(connection)
     _create_entry_evidence(connection)
     _create_training_matrix(connection, target_family)
 
     table_names = [Path(filename).stem for filename in RUN_FILES] + [
         "signal_retest_context",
+        "confluence_members",
+        "confluence_snapshots",
         "training_matrix",
     ]
     return {
@@ -569,6 +592,7 @@ def main() -> int:
                 counts,
                 args.target_family,
                 feature_columns,
+                output_dir,
             )
             write_dataset_manifest(
                 output_dir,

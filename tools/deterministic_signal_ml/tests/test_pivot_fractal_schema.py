@@ -17,6 +17,7 @@ if str(MODULE_ROOT) not in sys.path:
 from build_dataset import create_dataset_tables, write_parquet_outputs
 from retest_confluence import (
     BUY_RETEST,
+    CONFLUENCE_MAX_ACTIVE_MEMBERS,
     EQUAL_NEUTRAL,
     OPPOSED,
     SELL_RETEST,
@@ -145,6 +146,54 @@ class PivotFractalSchemaTests(unittest.TestCase):
             )
             self.assertEqual(counts["training_matrix"], 1)
             self.assertEqual(counts["signal_retest_context"], 12)
+            self.assertEqual(counts["confluence_members"], 3)
+            self.assertEqual(counts["confluence_snapshots"], 2)
+            self.assertEqual(
+                broker.execute(
+                    """
+                    SELECT anchor_signal_id, active_member_count, active_peer_count,
+                           research_group_id
+                    FROM confluence_snapshots
+                    ORDER BY anchor_signal_id
+                    """
+                ).fetchall(),
+                [
+                    ("sig_deny", 2, 1, "EURUSD|2026-01-12T00:00:00"),
+                    ("sig_fill", 1, 0, "EURUSD|2026-01-12T00:00:00"),
+                ],
+            )
+            self.assertLessEqual(
+                broker.execute(
+                    "SELECT MAX(active_member_count) FROM confluence_snapshots"
+                ).fetchone()[0],
+                CONFLUENCE_MAX_ACTIVE_MEMBERS,
+            )
+            self.assertEqual(
+                broker.execute(
+                    """
+                    SELECT anchor_signal_id, member_signal_id
+                    FROM confluence_members
+                    ORDER BY 1, 2
+                    """
+                ).fetchall(),
+                broker.execute(
+                    """
+                    SELECT anchor.signal_id, member.signal_id
+                    FROM signal_attempts anchor
+                    JOIN signal_attempts member
+                      ON member.run_id = anchor.run_id
+                     AND member.config_id = anchor.config_id
+                     AND member.symbol = anchor.symbol
+                    JOIN pivot_windows member_window
+                      ON member_window.run_id = member.run_id
+                     AND member_window.config_id = member.config_id
+                     AND member_window.window_id = member.window_id
+                    WHERE member.trigger_broker_time <= anchor.trigger_broker_time
+                      AND anchor.trigger_broker_time < member_window.terminal_broker_time
+                    ORDER BY 1, 2
+                    """
+                ).fetchall(),
+            )
             self.assertEqual(
                 broker.execute(
                     """
@@ -197,6 +246,42 @@ class PivotFractalSchemaTests(unittest.TestCase):
         self.assertEqual(classify_retest(1.0999, 1.1000), SELL_RETEST)
         self.assertEqual(classify_retest(1.100000005, 1.1000), EQUAL_NEUTRAL)
         self.assertEqual(classify_retest(None, 1.1000), "UNAVAILABLE")
+
+    def test_same_trigger_batch_freezes_identical_confluence_membership(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            runs_root, run_path = self.copy_fixture(temp_dir)
+            self.make_same_trigger_batch(run_path)
+            validation = validate_run(runs_root, "schema_v9_pivot_fractal")
+            connection = duckdb.connect(":memory:")
+            counts = create_dataset_tables(
+                connection,
+                [validation],
+                "admission",
+                9,
+                feature_columns_for_set(SUPPORTED_FEATURE_SET_ID),
+            )
+            self.assertEqual(counts["confluence_members"], 4)
+            self.assertEqual(
+                connection.execute(
+                    """
+                    SELECT anchor_signal_id, active_member_count, same_trigger_peer_count
+                    FROM confluence_snapshots
+                    ORDER BY anchor_signal_id
+                    """
+                ).fetchall(),
+                [("sig_deny", 2, 1), ("sig_fill", 2, 1)],
+            )
+            self.assertEqual(
+                connection.execute(
+                    """
+                    SELECT COUNT(*)
+                    FROM confluence_members
+                    WHERE same_trigger_batch
+                    """
+                ).fetchone()[0],
+                4,
+            )
+            connection.close()
 
     def test_duplicate_identity_and_missing_context_fail_closed(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
