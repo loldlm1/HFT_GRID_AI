@@ -102,6 +102,42 @@ Current tooling accepts only strict schema `9`, engine `PIVOT_FRACTAL_V1`, and
 feature set `schema_v9_pivot_fractal_xgb`. Older runs require their historical
 code revision and must not be migrated, adapted, or relabeled.
 
+## Offline Retest And Confluence Facts
+
+Each validated build derives six immutable retest contexts for every
+first-touch attempt. M1 uses the captured previous completed Bid close. M15,
+M30, H1, H4, and D1 use the latest causal valid pivot window's source close at
+the anchor trigger. `BUY_RETEST` means the close is above the tested pivot
+price, `SELL_RETEST` means below, and equality within `1e-8` is neutral.
+
+Macro side context and actual confluence are different facts:
+
+- A macro context is a previous-close side snapshot against the anchor price.
+- A confluence member is an actual V9 first-touch attempt with its own
+  timeframe, level, direction, trigger, and terminal boundary.
+
+Members are available from their trigger through their half-open pivot-window
+interval. Mixed directions and nonadjacent timeframe combinations are valid.
+Support and resistance labels do not impose trade direction, combinations are
+unordered, and no `retest_sequence` is recorded.
+
+Build the optional compact confluence feature lane with:
+
+```bash
+.venv/bin/python tools/deterministic_signal_ml/build_dataset.py \
+  --runs-root "$PIVOT_RUNS_ROOT" \
+  --run-id <v9_run_id> \
+  --dataset-id <confluence_dataset_id> \
+  --target-family broker_outcome \
+  --research-feature-set-id pivot_first_touch_confluence_v1 \
+  --overwrite
+```
+
+Without `--research-feature-set-id`, the exact base dataset behavior remains the
+default. The opt-in lane adds only five macro retest categories and eleven
+bounded trigger-time counts; M1 retest, IDs, pattern tokens, broker decisions,
+outcomes, and future facts are not model features.
+
 ## Pivot Audit
 
 ```bash
@@ -112,10 +148,14 @@ code revision and must not be migrated, adapted, or relabeled.
 ```
 
 The audit reports window validity, level/timeframe frequency, complete
-direction and reversal coverage, same-tick confluence, admission denials,
-milestone progression, structural break-even separately from realized profit,
-broker TP/SL/other outcomes, duration, spread, and adverse entry slippage. It
-does not manufacture a simulated price-path result.
+direction and reversal coverage, same-tick confluence, causal retest context,
+bounded active membership, unordered pair support, admission denials, milestone
+progression, structural break-even separately from realized profit, broker
+TP/SL/other outcomes, duration, spread, and adverse entry slippage. Pass
+`--minimum-group-support <n>` to set the D1-group interpretation threshold.
+Atomic member rows remain complete, and exact requested token sets are filtered
+without generating a full pattern power set. The audit does not manufacture a
+simulated price-path result.
 
 ## Offline Training
 
@@ -130,10 +170,17 @@ does not manufacture a simulated price-path result.
 Only trigger-time facts may be model features. Window terminal facts, broker
 decisions, sends, trailing, fills, closes, duration, and realized profit are
 labels or audit data. Chronological holdout and walk-forward folds keep every
-`(run_id, symbol, window_id)` group in one partition.
+`(run_id, symbol, window_id)` group in one partition for the default base lane.
+Opt-in confluence datasets use `research_group_id` so the same symbol/D1 active
+broker window stays together across runs. A base-versus-confluence ablation must
+use identical target rows and the same D1 group assignments; comparing each
+lane's native split directly is not a feature-only comparison.
 
 Output is marked `OFFLINE_RESEARCH_ONLY`. There is no current MT5 loader,
 runtime model export, research-based send filter, or pattern playback path.
+Current natural-run evidence is recorded in
+`docs/research/pivot-retest-confluence-offline-acceptance.md` and is
+inconclusive for model promotion.
 
 ## Human Strategy Tester Matrix
 

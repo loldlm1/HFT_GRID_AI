@@ -8,6 +8,11 @@ It extends the strict V9 research dataset with causal retest context and
 offline confluence analysis only; it does not change the EA, exporter schema,
 broker execution, runtime inference, or live rollout.
 
+Its natural-data closeout evidence is
+[`../research/pivot-retest-confluence-offline-acceptance.md`](../research/pivot-retest-confluence-offline-acceptance.md).
+The accepted result remains offline and inconclusive for model or pattern
+promotion.
+
 Do not start another substantial strategy, architecture, live-rollout, schema,
 or repository-wide change without explicitly starting its new plan.
 

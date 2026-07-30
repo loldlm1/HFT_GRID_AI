@@ -70,6 +70,36 @@ Outputs contain normalized Parquet copies of all nine tables plus
 state, execution results, trailing, fills, closes, duration, and realized profit
 remain labels or audit facts.
 
+Every validated build also derives these offline-only tables:
+
+- `signal_retest_context.parquet`: six immutable prior-close side contexts per
+  first-touch attempt (`M1`, `M15`, `M30`, `H1`, `H4`, and `D1`).
+- `confluence_members.parquet`: actual V9 first-touch members active on their
+  own half-open pivot-window intervals.
+- `confluence_snapshots.parquet`: one bounded causal member snapshot per anchor.
+
+A macro retest context compares a causal previous close with the anchor's tested
+price. It is not an independent macro touch. Confluence members require their
+own V9 attempt. Mixed BUY/SELL members and arbitrary timeframe combinations are
+valid, support/resistance roles remain dynamic, and no `retest_sequence` exists.
+
+Enable the compact model feature contract explicitly:
+
+```bash
+.venv/bin/python tools/deterministic_signal_ml/build_dataset.py \
+  --runs-root <PivotFractalV9/runs> \
+  --run-id <v9_run_id> \
+  --dataset-id <confluence_dataset_id> \
+  --target-family broker_outcome \
+  --research-feature-set-id pivot_first_touch_confluence_v1 \
+  --overwrite
+```
+
+The default command remains the exact base feature lane. The opt-in contract
+adds five macro retest categories and eleven bounded counts. It excludes M1
+retest type (a duplicate of direction), IDs, canonical pattern tokens, targets,
+outcomes, and future-only facts.
+
 ## Pivot Audit
 
 ```bash
@@ -80,10 +110,14 @@ remain labels or audit facts.
 ```
 
 The audit reports window validity, the complete level/direction matrix,
-same-tick confluence, admission denials, milestone progression, structural
+same-tick confluence, causal retest distributions, bounded active snapshots,
+unordered pair support, admission denials, milestone progression, structural
 break-even separately from realized profit, broker TP/SL/other outcomes,
-duration, spread, and adverse entry slippage. It never manufactures a simulated
-path label.
+duration, spread, and adverse entry slippage. Use
+`--minimum-group-support <n>` to set the D1-group interpretation threshold;
+atomic facts are never deleted. Exact requested token sets are queried from
+member rows rather than a precomputed power set. The audit never manufactures a
+simulated path label.
 
 ## Offline XGBoost
 
@@ -95,8 +129,18 @@ path label.
 ```
 
 Chronological holdout and walk-forward folds keep every
-`(run_id, symbol, window_id)` group in one partition. Model folders are marked
-`OFFLINE_RESEARCH_ONLY`; no MT5 runtime artifact or deployment command exists.
+`(run_id, symbol, window_id)` group in one partition for base datasets.
+Confluence datasets keep the same symbol/D1 active broker window together
+across run IDs through `research_group_id`. Feature and categorical columns are
+read from the fail-closed dataset manifest; fixed XGBoost settings and seeds are
+unchanged. Model folders are marked `OFFLINE_RESEARCH_ONLY` and record
+`runtime_artifact_emitted=false`; no MT5 runtime artifact or deployment command
+exists.
+
+The accepted natural-run evidence and matched D1-group ablation are documented
+in `docs/research/pivot-retest-confluence-offline-acceptance.md`. The current
+single-run result is inconclusive and does not approve a model or pattern for
+runtime use.
 
 ## Validation
 
@@ -108,5 +152,6 @@ Chronological holdout and walk-forward folds keep every
 
 The three test modules cover exact headers and keys, six-context completeness,
 duplicate and orphan rejection, future-feature exclusion, chronological window
-grouping, compact dataset assembly, broker-only outcomes, trailing semantics,
-and deterministic audit output.
+and D1-group separation, compact base/confluence feature contracts, broker-only
+outcomes, trailing semantics, unordered pattern queries, and deterministic audit
+output.

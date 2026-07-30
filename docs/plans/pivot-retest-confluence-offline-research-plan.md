@@ -1,11 +1,13 @@
 # Plan: Pivot First-Touch Retest Confluence Offline Research
 
 **Generated**: 2026-07-29
-**Status**: Planning only; implementation not started
-**Planning Review**: Complete; no blocking clarification remains
+**Status**: Implementation complete; Sprint 5 acceptance evidence recorded
+**Planning Review**: Complete; all five execution sprints passed
 **Estimated Complexity**: Medium-High
 **Risk Class**: Medium - offline research contracts, feature engineering, validation splits, and model evidence change; MQL5 runtime and broker execution do not
 **Execution Baseline**: Branch `bot/pivot_points_fractal`, commit `67c43983b1ddb8175c04ab5ddbbec6ecac77aaad`, clean worktree
+**Sprint 4 Rollback Point**: `626eece` (`feat: add opt-in pivot confluence research features`)
+**Final Evidence**: `docs/research/pivot-retest-confluence-offline-acceptance.md`
 
 ## Overview
 
@@ -982,16 +984,16 @@ capabilities while removing confluence fields from model training.
 
 ### Sprint 4 Gate
 
-- [ ] All Sprint 4 tasks complete.
-- [ ] Default base dataset/model behavior remains intact.
-- [ ] Confluence feature denylist and one-row-per-anchor checks pass.
-- [ ] D1 grouped chronological/walk-forward split tests pass.
-- [ ] Base and confluence smoke models remain offline-only.
-- [ ] `git diff --check` passes and residual risks are documented.
-- [ ] Hook state records implementation and validation transitions.
-- [ ] Exactly one Sprint 4 commit is created with the proposed message.
-- [ ] Hook state records the commit and Sprint 4 rollback point.
-- [ ] Sprint 5 has not started before this gate completes.
+- [x] All Sprint 4 tasks complete.
+- [x] Default base dataset/model behavior remains intact.
+- [x] Confluence feature denylist and one-row-per-anchor checks pass.
+- [x] D1 grouped chronological/walk-forward split tests pass.
+- [x] Base and confluence smoke models remain offline-only.
+- [x] `git diff --check` passes and residual risks are documented.
+- [x] Hook state records implementation and validation transitions.
+- [x] Exactly one Sprint 4 commit is created with the proposed message.
+- [x] Hook state records the commit and Sprint 4 rollback point (`626eece`).
+- [x] Sprint 5 did not start before this gate completed.
 
 ## Sprint 5: Run Natural-Data Acceptance, Ablation, And Closeout
 
@@ -1077,6 +1079,10 @@ artifacts remain ignored and reproducible.
 - **Validation**:
   - Dataset quality JSON, audit metadata, Parquet SQL checks, and source manifest
     review.
+- **Evidence**: `49,716` attempts, `298,296` retest rows, `384,086` members,
+  `49,716` snapshots, maximum active members `29/35`, zero future/expired/
+  duplicate/interval violations, and twelve broker-confirmed fills right
+  censored at the natural run boundary.
 - **Rollback**: Revert Sprint 5 documentation; preserve generated evidence until
   the review is complete.
 
@@ -1097,6 +1103,11 @@ artifacts remain ignored and reproducible.
     performance claim is made without paired evidence.
 - **Validation**:
   - `/usr/bin/time` paired commands and manifest duration/byte checks.
+- **Evidence**: base `6:02.98` wall / `44,811,172` Parquet bytes; confluence
+  `4:06.03` wall / `44,986,169` bytes; confluence stage timings were context
+  `4.182s`, sweep `1.739s`, persistence `10.848s`. A warm base repeat measured
+  context `3.349s` and sweep `1.680s`; the cold first context pass was `5.657s`
+  and is documented as cache/order variance. No quadratic interval join exists.
 - **Rollback**: If the budget fails, fix within uncommitted Sprint 5 or revert
   to Sprint 4; do not weaken causal or completeness checks for speed.
 
@@ -1120,6 +1131,10 @@ artifacts remain ignored and reproducible.
 - **Validation**:
   - Manifest/prediction joins and metric comparison script/query recorded in
     the research note.
+- **Evidence**: matched D1 ablation uses `167` groups and identical fold/
+  holdout assignments; zero identity/target mismatches across `30,270` fold
+  rows and `9,718` holdout rows. The acceptance note reports every fold and
+  holdout metric and records mixed, inconclusive feature effects.
 - **Rollback**: Revert Sprint 5 documentation; generated models remain offline
   and may be discarded by exact model ID.
 
@@ -1148,22 +1163,26 @@ artifacts remain ignored and reproducible.
 - **Validation**:
   - Exact terminology/reference sweeps, link review, `git diff --check`, final
     `rtk git status`, and commit history review.
+- **Evidence**: Updated the tooling README, statistics workflow, offline
+  boundaries, plan index, and acceptance note. All documents state the
+  DuckDB/XGBoost boundary, dynamic mixed-direction semantics, unordered
+  combinations, and absence of `retest_sequence`.
 - **Rollback**: Revert Sprint 5.
 
 ### Sprint 5 Gate
 
-- [ ] All Sprint 5 tasks complete.
-- [ ] Full source, derived, audit, performance, and ablation evidence is recorded.
-- [ ] No MQL5/runtime/schema file changed; otherwise this gate fails and a new
+- [x] All Sprint 5 tasks complete.
+- [x] Full source, derived, audit, performance, and ablation evidence is recorded.
+- [x] No MQL5/runtime/schema file changed; otherwise this gate fails and a new
   compile/tester plan is required.
-- [ ] Documentation and research approval boundaries are accurate.
-- [ ] `git diff --check` passes and residual risks are current.
-- [ ] Hook state records implementation and validation transitions.
-- [ ] Exactly one Sprint 5 commit is created with the proposed message.
-- [ ] Hook state records `commit_status=committed` and the rollback point.
-- [ ] `active_plan_state.py complete` succeeds only after validation and commit
+- [x] Documentation and research approval boundaries are accurate.
+- [x] `git diff --check` passes and residual risks are current.
+- [x] Hook state records implementation and validation transitions.
+- [x] Exactly one Sprint 5 commit is created with the proposed message.
+- [x] Hook state records `commit_status=committed` and the rollback point.
+- [x] `active_plan_state.py complete` succeeds only after validation and commit
   gates pass.
-- [ ] The completed plan is not moved while active hook state points to it.
+- [x] The completed plan is not moved while active hook state points to it.
 
 ## Testing Strategy
 
@@ -1272,20 +1291,20 @@ artifacts remain ignored and reproducible.
 
 ## Completion Checklist
 
-- [ ] Hook state safely references this plan and no stale V9 sprint reminder.
-- [ ] Every strict attempt has six causal immutable retest contexts.
-- [ ] First-touch identity remains unchanged and no `retest_sequence` exists.
-- [ ] Confluence members are causal, half-open, bounded, mixed-direction, and
+- [x] Hook state safely references this plan and no stale V9 sprint reminder.
+- [x] Every strict attempt has six causal immutable retest contexts.
+- [x] First-touch identity remains unchanged and no `retest_sequence` exists.
+- [x] Confluence members are causal, half-open, bounded, mixed-direction, and
   unordered.
-- [ ] Exact requested combinations are queryable without exhaustive mining.
-- [ ] Admission and broker-outcome analyses remain separate.
-- [ ] Minimum support, group support, confidence intervals, and holdout results
+- [x] Exact requested combinations are queryable without exhaustive mining.
+- [x] Admission and broker-outcome analyses remain separate.
+- [x] Minimum support, group support, confidence intervals, and holdout results
   are visible.
-- [ ] Base and opt-in confluence XGBoost lanes use identical target rows and
+- [x] Base and opt-in confluence XGBoost lanes use identical target rows and
   leakage-safe grouped splits.
-- [ ] DuckDB/Parquet performance and disk cost are measured on natural data.
-- [ ] No MQL5 runtime, V9 header, EA input, broker execution, or live-rollout
+- [x] DuckDB/Parquet performance and disk cost are measured on natural data.
+- [x] No MQL5 runtime, V9 header, EA input, broker execution, or live-rollout
   change occurred.
-- [ ] Every sprint passed its validation gate and has exactly one commit plus a
+- [x] Every sprint passed its validation gate and has exactly one commit plus a
   recorded rollback point.
-- [ ] Final artifacts and documentation remain `OFFLINE_RESEARCH_ONLY`.
+- [x] Final artifacts and documentation remain `OFFLINE_RESEARCH_ONLY`.
