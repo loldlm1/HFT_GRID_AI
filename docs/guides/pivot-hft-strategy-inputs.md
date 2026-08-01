@@ -56,6 +56,9 @@ No se aplica offset ni tolerancia adicional al pivote.
 
 Solo hay una campana pendiente; el ultimo pivote tocado reemplaza al anterior.
 Las posiciones abiertas no se reemplazan y pueden coexistir en hedging.
+Un nivel no se arma por duplicado dentro de la misma vela mientras su posicion
+siga activa o despues de completarse con neto positivo. Un cierre externo o de
+proteccion tampoco rearma esa campana; otro pivote si puede iniciar una nueva.
 
 ## Controles conservados
 

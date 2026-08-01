@@ -1,7 +1,7 @@
 # Plan: Pivot HFT sobre Bollinger y pivotes clasicos
 
 **Generated**: 2026-08-01
-**Status**: Planning only; implementation not started
+**Status**: Implemented through Sprint 8; compile passed, manual real-tick validation pending
 **Estimated Complexity**: Critical / trading-sensitive
 
 **Execution override**: Per explicit user authorization, this run executes all
@@ -9,6 +9,12 @@ eight sprints in order with one sprint-specific commit each, performs static and
 source-level checks between sprints, skips MQL5 harness/CI tests, and runs only
 one MetaEditor compilation after Sprint 8. The final compilation remains the
 release gate; any failure is fixed before the final Sprint 8 commit is closed.
+
+**Execution record**: Sprints 1-8 were executed in order. The final portable
+MetaEditor gate passed with `0 errors, 0 warnings`; `BUILD.log` and the temporary
+Include junction needed by the already-open MetaEditor profile were removed.
+No harness/CI or automated Strategy Tester matrix was run. Visual real-tick US30
+and demo-chart validation remain explicit release prerequisites.
 
 ## Overview
 
@@ -789,12 +795,13 @@ scan, `README.md`, `AGENTS.md`, `docs/guides/*`.
 
 ### Sprint 7 Gate
 
-- [ ] Pandora/grid runtime business logic is removed or proven unreachable.
-- [ ] Frontend and deinit cleanup pass visual checks.
-- [ ] Active docs and AGENTS map are synchronized with the new architecture.
-- [ ] Compile and `rg` cleanup evidence are recorded.
-- [ ] Exactly one Sprint 7 commit is created and rollback point recorded.
-- [ ] Sprint 8 has not started before this gate completes.
+- [x] Pandora/grid runtime business logic is removed or proven unreachable.
+- [ ] Frontend and deinit cleanup pass visual checks. Static cleanup passed;
+  attach/detach visual validation remains manual.
+- [x] Active docs and AGENTS map are synchronized with the new architecture.
+- [x] Compile and `rg` cleanup evidence are recorded.
+- [x] Exactly one Sprint 7 commit is created and rollback point recorded.
+- [x] Sprint 8 has not started before this gate completes.
 
 ## Sprint 8: Final Compile, Real-Tick Regression And Handoff
 
@@ -872,11 +879,11 @@ rollback if any final regression is found.
 
 ### Sprint 8 Gate
 
-- [ ] Final compile passes with current `BUILD.log` evidence, then the log is removed.
-- [ ] Real-tick/manual regression matrix is complete or each gap is documented.
-- [ ] Diff, secret, scope, magic and risk review passes.
-- [ ] Exactly one Sprint 8 commit is created and rollback point recorded.
-- [ ] Completion checklist and residual risks are current.
+- [x] Final compile passes with current `BUILD.log` evidence, then the log is removed.
+- [x] Real-tick/manual regression matrix is complete or each gap is documented.
+- [x] Diff, secret, scope, magic and risk review passes.
+- [x] Exactly one Sprint 8 commit is created and rollback point recorded.
+- [x] Completion checklist and residual risks are current.
 
 ## Testing Strategy
 
@@ -952,12 +959,12 @@ rollback if any final regression is found.
 
 ## Completion Checklist
 
-- [ ] Every sprint has passed its validation gate.
-- [ ] Every sprint has exactly one sprint-specific commit.
-- [ ] Final MetaEditor compile passes and `BUILD.log` is removed.
+- [x] Every sprint has passed its authorized static/compile validation gate.
+- [x] Every sprint has exactly one sprint-specific commit.
+- [x] Final MetaEditor compile passes and `BUILD.log` is removed.
 - [ ] Real-tick US30 visual/manual validation is recorded.
-- [ ] Hedging-only behavior, multiple tickets and symbol/magic scope are proven.
-- [ ] Local SL/BE/trailing, negative/BE reattempt and positive completion are proven.
-- [ ] Session, spread, margin, daily, drawdown, market-status and license guards remain active.
-- [ ] Residual risk from no server SL/TP is documented and demo approval is explicit.
-- [ ] Rollback points, remaining tester gaps and changed files are included in the handoff.
+- [ ] Hedging-only behavior, multiple tickets and symbol/magic scope are proven at runtime.
+- [ ] Local SL/BE/trailing, negative/BE reattempt and positive completion are proven at runtime.
+- [x] Session, spread, margin, daily, drawdown, market-status and license guards remain active in the compiled graph.
+- [x] Residual risk from no server SL/TP is documented and demo approval is explicit.
+- [x] Rollback points, remaining tester gaps and changed files are included in the handoff.

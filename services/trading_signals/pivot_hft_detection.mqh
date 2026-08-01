@@ -149,6 +149,16 @@ void PivotHftReplaceCampaignIfLatestLevelChanged(const double close_price,
 
   if(PivotHftCampaignMatches(direction, level, level_price))
     return;
+  if(g_pivot_hft_campaign.status != PIVOT_HFT_CAMPAIGN_IDLE &&
+     PivotHftCampaignBelongsToCurrentMicroBar() &&
+     g_pivot_hft_campaign.direction == direction &&
+     (int)level < (int)g_pivot_hft_campaign.pivot_level)
+    return;
+  if(PivotHftCampaignLevelOccupied(micro_bar_time, level))
+  {
+    PivotHftResetCampaign();
+    return;
+  }
 
   PivotHftStartCampaign(direction, level, level_price, micro_bar_time);
   if(Enable_Logs)
@@ -230,6 +240,14 @@ bool PivotHftDetectEntryIntent(const bool allow_new_campaign)
     return false;
   if(!PivotHftRefreshBandsSnapshot(false))
     return false;
+
+  if(g_pivot_hft_campaign.status == PIVOT_HFT_CAMPAIGN_TRACKING)
+  {
+    double tracking_close = PivotHftCurrentMicroClose();
+    if(tracking_close > 0.0)
+      PivotHftReplaceCampaignIfLatestLevelChanged(tracking_close,
+                                                  current_micro_bar);
+  }
 
   if(PivotHftEntryIntentReady())
     return true;

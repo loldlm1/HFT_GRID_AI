@@ -116,6 +116,9 @@ PivotHftPositionState  g_pivot_hft_positions[];
 datetime               g_pivot_hft_last_micro_bar = 0;
 datetime               g_pivot_hft_last_macro_bar = 0;
 string                 g_pivot_hft_last_error = "";
+const int              PIVOT_HFT_LEVEL_SLOT_TOTAL = 8;
+datetime               g_pivot_hft_completed_levels_bar = 0;
+bool                   g_pivot_hft_completed_levels[8];
 
 void PivotHftResetCampaign()
 {
@@ -125,6 +128,64 @@ void PivotHftResetCampaign()
 void PivotHftClearPositionStates()
 {
   ArrayResize(g_pivot_hft_positions, 0, 0);
+}
+
+void PivotHftEnsureCompletedLevelBar(const datetime micro_bar_time)
+{
+  if(micro_bar_time <= 0 ||
+     g_pivot_hft_completed_levels_bar == micro_bar_time)
+    return;
+
+  for(int i = 0; i < PIVOT_HFT_LEVEL_SLOT_TOTAL; i++)
+    g_pivot_hft_completed_levels[i] = false;
+  g_pivot_hft_completed_levels_bar = micro_bar_time;
+}
+
+bool PivotHftCampaignLevelCompleted(const datetime micro_bar_time,
+                                    const PivotHftPivotLevels level)
+{
+  int level_index = (int)level;
+  if(micro_bar_time <= 0 ||
+     level_index <= (int)PIVOT_HFT_LEVEL_NONE ||
+     level_index >= PIVOT_HFT_LEVEL_SLOT_TOTAL)
+    return false;
+
+  PivotHftEnsureCompletedLevelBar(micro_bar_time);
+  return g_pivot_hft_completed_levels[level_index];
+}
+
+void PivotHftMarkCampaignLevelCompleted(const datetime micro_bar_time,
+                                        const PivotHftPivotLevels level)
+{
+  if(iTime(_Symbol, Pivot_HFT_Micro_Timeframe, 0) != micro_bar_time)
+    return;
+
+  int level_index = (int)level;
+  if(level_index <= (int)PIVOT_HFT_LEVEL_NONE ||
+     level_index >= PIVOT_HFT_LEVEL_SLOT_TOTAL)
+    return;
+
+  PivotHftEnsureCompletedLevelBar(micro_bar_time);
+  g_pivot_hft_completed_levels[level_index] = true;
+}
+
+bool PivotHftCampaignLevelOccupied(const datetime micro_bar_time,
+                                   const PivotHftPivotLevels level)
+{
+  if(PivotHftCampaignLevelCompleted(micro_bar_time, level))
+    return true;
+
+  int total = ArraySize(g_pivot_hft_positions);
+  for(int i = 0; i < total; i++)
+  {
+    PivotHftPositionState state = g_pivot_hft_positions[i];
+    if(state.status == PIVOT_HFT_POSITION_COMPLETED)
+      continue;
+    if(state.campaign_micro_bar_time == micro_bar_time &&
+       state.pivot_level == level)
+      return true;
+  }
+  return false;
 }
 
 int PivotHftFindPositionStateIndex(const ulong position_ticket)
@@ -154,6 +215,24 @@ bool PivotHftAppendPositionState(const PivotHftPositionState &position_state)
 
   g_pivot_hft_positions[current_size] = position_state;
   return true;
+}
+
+void PivotHftCompactCompletedPositionStates()
+{
+  int total = ArraySize(g_pivot_hft_positions);
+  int write_index = 0;
+  for(int read_index = 0; read_index < total; read_index++)
+  {
+    if(g_pivot_hft_positions[read_index].status == PIVOT_HFT_POSITION_COMPLETED)
+      continue;
+
+    if(write_index != read_index)
+      g_pivot_hft_positions[write_index] = g_pivot_hft_positions[read_index];
+    write_index++;
+  }
+
+  if(write_index < total)
+    ArrayResize(g_pivot_hft_positions, write_index);
 }
 
 #endif // _SERVICES_TRADING_SIGNALS_PIVOT_HFT_STATE_MQH_

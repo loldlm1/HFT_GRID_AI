@@ -173,6 +173,7 @@ bool PivotHftTryRearmClosedPosition(PivotHftPositionState &position_state)
      current_micro_bar != position_state.campaign_micro_bar_time)
   {
     position_state.reattempt_pending = false;
+    position_state.status = PIVOT_HFT_POSITION_COMPLETED;
     return false;
   }
   if(g_pivot_hft_campaign.status != PIVOT_HFT_CAMPAIGN_IDLE)
@@ -210,6 +211,7 @@ bool PivotHftTryRearmClosedPosition(PivotHftPositionState &position_state)
     position_state.campaign_attempt_count + 1;
   position_state.reattempt_pending = false;
   position_state.campaign_attempt_count = g_pivot_hft_campaign.attempt_count;
+  position_state.status = PIVOT_HFT_POSITION_COMPLETED;
   return true;
 }
 
@@ -240,7 +242,11 @@ void PivotHftFinalizeClosedPosition(PivotHftPositionState &position_state)
     position_state.daily_outcome_registered = true;
   }
   if(!position_state.reattempt_pending)
+  {
+    PivotHftMarkCampaignLevelCompleted(position_state.campaign_micro_bar_time,
+                                       position_state.pivot_level);
     position_state.status = PIVOT_HFT_POSITION_COMPLETED;
+  }
 }
 
 bool PivotHftClosePositionLocally(PivotHftPositionState &position_state)
@@ -324,6 +330,8 @@ void PivotHftProcessAllPositions()
   int total_positions = ArraySize(g_pivot_hft_positions);
   for(int i = 0; i < total_positions; i++)
     PivotHftProcessPositionState(g_pivot_hft_positions[i]);
+
+  PivotHftCompactCompletedPositionStates();
 }
 
 #endif // _SERVICES_TRADING_SIGNALS_PIVOT_HFT_POSITION_LIFECYCLE_MQH_

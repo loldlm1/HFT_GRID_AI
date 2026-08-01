@@ -20,6 +20,8 @@ claim institutional HFT latency.
   follow the lowest Ask and enter after an upward retracement.
 - Only one pending campaign exists. A newly touched pivot replaces it, while
   already-open hedging positions remain independent.
+- The same pivot is not armed twice in one micro candle while its position is
+  active or after that level completes positively; another pivot can still arm.
 
 ## Position Lifecycle
 
@@ -28,6 +30,7 @@ anchors the local SL and trailing step. The first favorable step moves the local
 stop to break-even; later steps advance it monotonically. A locally closed
 position with net result `<= 0` can re-arm only while its original micro candle
 is still open and the same pivot/Bollinger condition remains valid.
+External or protection-driven closes never re-arm the closed campaign.
 
 Net result includes profit, swap, commission and fee for deals scoped by the
 position identifier, symbol and runtime magic.

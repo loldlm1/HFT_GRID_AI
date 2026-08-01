@@ -7,8 +7,8 @@
 const string PIVOT_HFT_OBJECT_PREFIX = "PIVOT_HFT_";
 bool g_pivot_hft_visualization_visible = false;
 const int PIVOT_HFT_VISUAL_SLOT_COUNT = 9;
-double g_pivot_hft_visual_prices[PIVOT_HFT_VISUAL_SLOT_COUNT];
-bool g_pivot_hft_visual_price_valid[PIVOT_HFT_VISUAL_SLOT_COUNT];
+double g_pivot_hft_visual_prices[9];
+bool g_pivot_hft_visual_price_valid[9];
 
 void PivotHftDeleteVisualObject(const string suffix)
 {

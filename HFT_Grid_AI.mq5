@@ -310,7 +310,11 @@ void RefreshCustomSymbolRates()
   g_ask           = g_symbol.Ask();
   g_bid           = g_symbol.Bid();
   g_local_spread  = MathAbs(g_ask-g_bid);
-  g_points_spread = g_local_spread*g_decimal_digits;
+  double point_size = SymbolInfoDouble(_Symbol, SYMBOL_POINT);
+  if(point_size > 0.0)
+    g_points_spread = g_local_spread / point_size;
+  else
+    g_points_spread = g_local_spread*g_decimal_digits;
 }
 
 double OnTester()
