@@ -1461,10 +1461,11 @@ creating a second managed position while another Pivot HFT lifecycle is active.
 
 ### Sprint 18 Gate
 
-- [ ] No normal or reattempt path can send while a managed position is live.
-- [ ] Broker position scope is exact `_Symbol + g_magic_number`.
-- [ ] Slow synchronous responses cannot create a duplicate send.
-- [ ] Static/diff validation passes and exactly one Sprint 18 commit exists.
+- [x] No normal or reattempt path can send while a managed position is live.
+- [x] Broker position scope is exact `_Symbol + g_magic_number`.
+- [x] Slow synchronous responses cannot create a duplicate send in the
+  serialized EA path; the pre-send guard is fail-closed.
+- [x] Static/diff validation passes; the Sprint 18 commit records this gate.
 
 ## Sprint 19: Bound Lifecycle Diagnostics And Final Validation
 

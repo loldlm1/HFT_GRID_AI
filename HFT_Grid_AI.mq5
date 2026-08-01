@@ -333,9 +333,13 @@ void OnTick()
     bool daily_budget_available =
       (DailySignalLimitAllowsAttempt(BULLISH) ||
        DailySignalLimitAllowsAttempt(BEARISH));
+    bool execution_slot_available =
+      (!PivotHftHasBlockingPositionLifecycle() &&
+       !PivotHftHasManagedBrokerPosition());
     allow_new_campaign = (execution_context_allowed &&
                           protection_allows &&
-                          daily_budget_available);
+                          daily_budget_available &&
+                          execution_slot_available);
     entry_intent_ready = PivotHftDetectEntryIntent(allow_new_campaign);
   }
 

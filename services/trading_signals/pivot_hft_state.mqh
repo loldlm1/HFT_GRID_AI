@@ -51,6 +51,7 @@ struct PivotHftCampaignState
   double                   trigger_price;
   int                      attempt_count;
   string                   sequence_id;
+  bool                     execution_slot_block_logged;
 
   PivotHftCampaignState()
   {
@@ -64,6 +65,7 @@ struct PivotHftCampaignState
     trigger_price    = 0.0;
     attempt_count    = 0;
     sequence_id      = "";
+    execution_slot_block_logged = false;
   }
 };
 
@@ -491,6 +493,52 @@ bool PivotHftHasLivePositionStates()
     if(status == PIVOT_HFT_POSITION_ACTIVE ||
        status == PIVOT_HFT_POSITION_CLOSE_WAIT)
       return true;
+  }
+  return false;
+}
+
+bool PivotHftPositionStatusBlocksAdmission(
+  const PivotHftPositionStatuses status)
+{
+  return (status != PIVOT_HFT_POSITION_COMPLETED);
+}
+
+bool PivotHftHasBlockingPositionLifecycle()
+{
+  int total = ArraySize(g_pivot_hft_positions);
+  for(int i = 0; i < total; i++)
+    if(PivotHftPositionStatusBlocksAdmission(g_pivot_hft_positions[i].status))
+      return true;
+  return false;
+}
+
+bool PivotHftHasOtherBlockingPositionLifecycle(const ulong position_ticket)
+{
+  int total = ArraySize(g_pivot_hft_positions);
+  for(int i = 0; i < total; i++)
+  {
+    PivotHftPositionState state = g_pivot_hft_positions[i];
+    if(state.position_ticket == position_ticket)
+      continue;
+    if(PivotHftPositionStatusBlocksAdmission(state.status))
+      return true;
+  }
+  return false;
+}
+
+bool PivotHftHasManagedBrokerPosition()
+{
+  int total_positions = PositionsTotal();
+  for(int i = total_positions - 1; i >= 0; i--)
+  {
+    ulong position_ticket = PositionGetTicket(i);
+    if(position_ticket == 0 || !PositionSelectByTicket(position_ticket))
+      continue;
+    if(PositionGetString(POSITION_SYMBOL) != _Symbol)
+      continue;
+    if(PositionGetInteger(POSITION_MAGIC) != g_magic_number)
+      continue;
+    return true;
   }
   return false;
 }

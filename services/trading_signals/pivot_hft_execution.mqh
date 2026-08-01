@@ -231,6 +231,21 @@ bool PivotHftExecuteEntryIntent()
     return false;
 
   PivotHftCampaignState campaign = g_pivot_hft_campaign;
+  if(PivotHftHasBlockingPositionLifecycle() ||
+     PivotHftHasManagedBrokerPosition())
+  {
+    if(!g_pivot_hft_campaign.execution_slot_block_logged)
+    {
+      PivotHftAuditLog("ENTRY_SINGLE_FLIGHT_BLOCKED",
+                       StringFormat("sequence=%s|dir=%s|level=%s|reason=position_lifecycle_occupied",
+                                    campaign.sequence_id,
+                                    EnumToString(campaign.direction),
+                                    PivotHftLevelLabel(campaign.pivot_level)));
+      g_pivot_hft_campaign.execution_slot_block_logged = true;
+    }
+    g_pivot_hft_last_error = "position_lifecycle_occupied";
+    return false;
+  }
   double normalized_volume = 0.0;
   string guard_reason = "";
   if(!PivotHftEntryGuardsAllow(campaign.direction,

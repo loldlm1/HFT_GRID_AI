@@ -351,6 +351,10 @@ bool PivotHftTryRearmClosedPosition(PivotHftPositionState &position_state)
   }
   if(g_pivot_hft_campaign.status != PIVOT_HFT_CAMPAIGN_IDLE)
     return false;
+  if(PivotHftHasOtherBlockingPositionLifecycle(
+       position_state.position_ticket) ||
+     PivotHftHasManagedBrokerPosition())
+    return false;
   if(!ProtectionRiskAllowsSignalAttempt() ||
      !SessionTimeFilterAllowsSignalAttempt() ||
      !DailySignalLimitAllowsAttempt(position_state.direction) ||
