@@ -1,9 +1,9 @@
 # Plan: Pivot HFT sobre Bollinger y pivotes clasicos
 
 **Generated**: 2026-08-01
-**Status**: Sprints 15-19, their static gates and the sole final compile are
-complete. Manual real-tick QA remains delegated to the user and is still a
-release prerequisite.
+**Status**: The post-remediation M1/M3/H1 runtime audit passed all trading
+lifecycle gates. Sprint 20 and its sole final compile are complete; one targeted
+user-run log check remains before archival.
 **Estimated Complexity**: Critical / trading-sensitive
 
 **Execution override**: Per explicit user authorization, the original batch
@@ -67,6 +67,20 @@ single-flight documentation and occupancy deduplication. The sole final
 MetaEditor gate then passed with `0 errors, 0 warnings` in `9066 ms`; the
 temporary profile Include junction and `BUILD.log` were removed. No harness,
 CI or Strategy Tester session was launched.
+
+**Post-remediation audit override**: The user supplied the completed visual
+M1 chart / M3 micro / H1 pivot run for log correlation. Sprint 20 executes as
+one trading-sensitive batch with one commit. No harness, CI or manual Strategy
+Tester QA may be created or launched, and MetaEditor is reserved for the sole
+final Sprint 20 compile.
+
+Sprint 20 replaced the single occupancy signature slot with a fixed 64-entry
+intrabar registry and removed lifecycle resets from campaign arm, fill and
+cancellation paths. Static checks passed for diff whitespace, fixed capacity,
+single logger call-site, bar-only reset, unchanged include topology and absence
+of trading consumers. The sole MetaEditor gate passed with `0 errors, 0
+warnings` in `8377 ms`; `BUILD.log` and the temporary profile Include junction
+were removed. No harness, CI or Strategy Tester session was launched.
 
 ## Overview
 
@@ -1514,6 +1528,72 @@ tick-path payloads, update active documentation and run the sole final compile.
   `BUILD.log` is removed.
 - [x] Exactly one Sprint 19 commit is created and the plan is current.
 
+## Post-Remediation Runtime Audit Findings
+
+The audited `query_debug.txt` contains one complete 3,839-record tester run
+from 2026-06-29 through 2026-07-31. The configuration records chart `M1`, micro
+`M3`, pivot `H1`, both directions and one shared append writer. All 210 order
+sends returned `TRADE_RETCODE_DONE` with a non-zero deal; all 210 fills received
+one local SL, one close request and one finalization. The run exercised 116 buy
+and 94 sell fills, and the maximum concurrent managed-position count was one.
+
+The runtime evidence also confirms 25 session-base scans, 51 aligned H1 pivot
+sets, 476 matched incremental scans, 25 valid zero-bar rollover scans, 87 unique
+provisional touches and 131 unique burns. All campaign/fill bars align to M3,
+all pivot sources align to H1, two campaigns filled after crossing an M3
+boundary, and all 154 non-positive outcomes resolved as 147 same-fill-bar
+rearms plus 7 explicit expirations.
+
+One remediation finding remains: `CAMPAIGN_LEVEL_OCCUPIED` emitted 128 rows for
+only 33 unique bar/direction/mask/selection signatures. The current single
+"last signature" slot forgets an earlier signature whenever candidate masks
+alternate, while campaign start/fill/cancel resets permit identical intrabar
+payloads to be emitted again. This is an observability defect only; it did not
+alter admission, execution or the verified single-flight position count.
+
+## Sprint 20: Deduplicate Occupancy Evidence Per Micro Bar
+
+**Goal**: Emit each occupied-candidate signature at most once per configured
+micro bar without changing campaign selection or trading state.
+**Dependencies**: Sprint 19 compiled baseline and the post-remediation runtime
+audit above.
+**Tracked scope**: `services/trading_signals/pivot_hft_state.mqh`,
+`services/trading_signals/pivot_hft_detection.mqh`,
+`services/trading_signals/pivot_hft_execution.mqh` and this plan.
+**Commit**: `Sprint 20: bound occupied campaign diagnostics`
+
+### Task 20.1: Retain all intrabar signatures
+
+- Replace the single last-signature slot with a fixed-capacity registry keyed
+  by micro bar, direction, occupied mask and selected level.
+- Suppress a signature already seen in the current micro bar, including when
+  another valid signature appeared between repeated calls.
+- Keep lookup and storage fixed-size with no `ArrayResize`, file I/O or string
+  formatting before a new signature is admitted.
+
+### Task 20.2: Separate lifecycle and occupancy diagnostics
+
+- Reset the occupancy registry on a real micro-bar boundary, not on campaign
+  arm, fill or cancellation transitions already covered by explicit events.
+- Preserve `CAMPAIGN_ARMED`, `CAMPAIGN_REPLACED`, `FILL_REGISTERED`,
+  `CAMPAIGN_CANCELLED`, `POSITION_REARMED` and finalization evidence unchanged.
+- Keep the registry diagnostic-only and outside every trading decision.
+
+### Task 20.3: Validate and compile once
+
+- Run static/diff, include-topology, fixed-capacity and logger-call-site checks.
+- Do not create or run harness/CI or manual Strategy Tester QA.
+- Run the sole Sprint 20 MetaEditor compile, require `0 errors, 0 warnings`,
+  inspect and remove `BUILD.log`, then create exactly one Sprint 20 commit.
+
+### Sprint 20 Gate
+
+- [x] Each occupancy signature can be logged at most once per micro bar.
+- [x] Lifecycle transitions no longer reset intrabar occupancy evidence.
+- [x] Trading selection, single-flight and symbol/magic scope are unchanged.
+- [x] Static validation and the sole final compile pass.
+- [x] Exactly one Sprint 20 commit records the completed gate.
+
 ## Testing Strategy
 
 - **Unit**:
@@ -1586,7 +1666,9 @@ tick-path payloads, update active documentation and run the sole final compile.
 6. Execute Sprint 9 only after Sprint 8, using one compile and one commit.
 7. Execute Sprints 17-19 in order, one critical Sprint per batch, with static
    gates for 17-18 and the sole final compile in Sprint 19.
-8. Stop and revise this plan if implementation reveals a missing risk,
+8. Execute Sprint 20 as one additional critical batch with one final compile
+   and one commit.
+9. Stop and revise this plan if implementation reveals a missing risk,
    lifecycle dependency, unsafe broker assumption or license contract change.
 
 ## Completion Checklist
@@ -1594,10 +1676,12 @@ tick-path payloads, update active documentation and run the sole final compile.
 - [x] Every sprint has passed its authorized static/compile validation gate.
 - [x] Every sprint has exactly one sprint-specific commit.
 - [x] Final MetaEditor compile passes and `BUILD.log` is removed.
-- [ ] Real-tick US30 visual/manual validation is recorded.
-- [ ] Hedging-only behavior, sequential tickets, single-flight admission and
+- [x] Real-tick US30 visual/manual validation is recorded.
+- [x] Hedging-only behavior, sequential tickets, single-flight admission and
   symbol/magic scope are proven at runtime.
-- [ ] Local SL/BE/trailing, negative/BE reattempt and positive completion are proven at runtime.
+- [x] Local SL/BE/trailing, negative/BE reattempt and positive completion are proven at runtime.
 - [x] Session, spread, margin, daily, drawdown, market-status and license guards remain active in the compiled graph.
 - [x] Residual risk from no server SL/TP is documented and demo approval is explicit.
 - [x] Rollback points, remaining tester gaps and changed files are included in the handoff.
+- [ ] A user-run `query_debug.txt` confirms one
+  `CAMPAIGN_LEVEL_OCCUPIED` row per unique intrabar signature before archival.

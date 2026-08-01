@@ -344,7 +344,6 @@ bool PivotHftExecuteEntryIntent()
                                        retcode,
                                        last_error);
     PivotHftResetCampaign();
-    PivotHftResetOccupiedAuditState();
     return false;
   }
 
@@ -373,7 +372,6 @@ bool PivotHftExecuteEntryIntent()
   g_pivot_hft_last_error = "";
   MarketStatusClearExecutionError("PIVOT_HFT_ORDER_SEND_OK");
   PivotHftResetCampaign();
-  PivotHftResetOccupiedAuditState();
 
   if(Enable_Logs)
   {

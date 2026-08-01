@@ -105,7 +105,6 @@ void PivotHftStartCampaign(const SignalTypes direction,
                            const datetime micro_bar_time)
 {
   PivotHftClearExpiredCampaignVisual();
-  PivotHftResetOccupiedAuditState();
   PivotHftCampaignState campaign;
   campaign.status          = PIVOT_HFT_CAMPAIGN_TRACKING;
   campaign.direction       = direction;
@@ -143,16 +142,11 @@ void PivotHftAuditOccupiedCandidateState(
   if(occupied_mask == 0)
     return;
 
-  if(g_pivot_hft_occupied_audit_bar == micro_bar_time &&
-     g_pivot_hft_occupied_audit_mask == occupied_mask &&
-     g_pivot_hft_occupied_audit_direction == direction &&
-     g_pivot_hft_occupied_audit_selected == selected_level)
+  if(!PivotHftRegisterOccupiedAuditSignature(micro_bar_time,
+                                              direction,
+                                              occupied_mask,
+                                              selected_level))
     return;
-
-  g_pivot_hft_occupied_audit_bar = micro_bar_time;
-  g_pivot_hft_occupied_audit_mask = occupied_mask;
-  g_pivot_hft_occupied_audit_direction = direction;
-  g_pivot_hft_occupied_audit_selected = selected_level;
 
   string direction_label = (direction == NO_SIGNAL)
                            ? "BOTH"

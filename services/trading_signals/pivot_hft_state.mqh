@@ -5,6 +5,7 @@
 #define _SERVICES_TRADING_SIGNALS_PIVOT_HFT_STATE_MQH_
 
 #define PIVOT_HFT_LEVEL_SLOT_TOTAL 8
+#define PIVOT_HFT_OCCUPIED_AUDIT_SIGNATURE_CAPACITY 64
 
 enum PivotHftLevelTestStatuses
 {
@@ -163,17 +164,53 @@ bool                      g_pivot_hft_level_test_ready = false;
 bool                      g_pivot_hft_level_test_failure_logged = false;
 string                    g_pivot_hft_level_test_last_failure = "";
 datetime                  g_pivot_hft_occupied_audit_bar = 0;
-ulong                     g_pivot_hft_occupied_audit_mask = 0;
-SignalTypes               g_pivot_hft_occupied_audit_direction = NO_SIGNAL;
-PivotHftPivotLevels       g_pivot_hft_occupied_audit_selected =
-  PIVOT_HFT_LEVEL_NONE;
+int                       g_pivot_hft_occupied_audit_count = 0;
+ulong                     g_pivot_hft_occupied_audit_masks[
+  PIVOT_HFT_OCCUPIED_AUDIT_SIGNATURE_CAPACITY];
+SignalTypes               g_pivot_hft_occupied_audit_directions[
+  PIVOT_HFT_OCCUPIED_AUDIT_SIGNATURE_CAPACITY];
+PivotHftPivotLevels       g_pivot_hft_occupied_audit_selected_levels[
+  PIVOT_HFT_OCCUPIED_AUDIT_SIGNATURE_CAPACITY];
 
 void PivotHftResetOccupiedAuditState()
 {
   g_pivot_hft_occupied_audit_bar = 0;
-  g_pivot_hft_occupied_audit_mask = 0;
-  g_pivot_hft_occupied_audit_direction = NO_SIGNAL;
-  g_pivot_hft_occupied_audit_selected = PIVOT_HFT_LEVEL_NONE;
+  g_pivot_hft_occupied_audit_count = 0;
+}
+
+bool PivotHftRegisterOccupiedAuditSignature(
+  const datetime micro_bar_time,
+  const SignalTypes direction,
+  const ulong occupied_mask,
+  const PivotHftPivotLevels selected_level)
+{
+  if(micro_bar_time <= 0 || occupied_mask == 0)
+    return false;
+
+  if(g_pivot_hft_occupied_audit_bar != micro_bar_time)
+  {
+    g_pivot_hft_occupied_audit_bar = micro_bar_time;
+    g_pivot_hft_occupied_audit_count = 0;
+  }
+
+  for(int i = 0; i < g_pivot_hft_occupied_audit_count; i++)
+  {
+    if(g_pivot_hft_occupied_audit_masks[i] == occupied_mask &&
+       g_pivot_hft_occupied_audit_directions[i] == direction &&
+       g_pivot_hft_occupied_audit_selected_levels[i] == selected_level)
+      return false;
+  }
+
+  if(g_pivot_hft_occupied_audit_count >=
+     PIVOT_HFT_OCCUPIED_AUDIT_SIGNATURE_CAPACITY)
+    return false;
+
+  int signature_index = g_pivot_hft_occupied_audit_count;
+  g_pivot_hft_occupied_audit_masks[signature_index] = occupied_mask;
+  g_pivot_hft_occupied_audit_directions[signature_index] = direction;
+  g_pivot_hft_occupied_audit_selected_levels[signature_index] = selected_level;
+  g_pivot_hft_occupied_audit_count++;
+  return true;
 }
 
 datetime PivotHftResolveMicroBarAt(const datetime event_time)
@@ -496,7 +533,6 @@ void PivotHftCancelPendingCampaign(const string reason,
   if(visual_bar > 0)
     PivotHftCaptureExpiredCampaignVisual(visual_bar);
   PivotHftResetCampaign();
-  PivotHftResetOccupiedAuditState();
 }
 
 bool PivotHftGetExpiredCampaignVisual(PivotHftCampaignState &snapshot)
