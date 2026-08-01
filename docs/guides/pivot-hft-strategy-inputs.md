@@ -130,6 +130,12 @@ Para auditar niveles buscar `LEVEL_SCAN_START`, `LEVEL_SCAN_RESULT`,
 `TRAILING_ADVANCED`, `LOCAL_CLOSE_*`, `POSITION_FINALIZED`, cierres de
 proteccion y `DEBUG_STOP`.
 
+Cuando un nivel tocado ya esta ocupado por una posicion o una finalizacion de
+la misma vela, `CAMPAIGN_LEVEL_OCCUPIED` registra una mascara acotada y el
+nivel alternativo seleccionado. La campana pendiente se conserva si no hay un
+fallback elegible; los reintentos de una posicion cerrada siguen usando su
+nivel original dentro de la misma vela micro.
+
 Rotar o vaciar el archivo antes de una sesion QA enfocada. No usar un log viejo
 como evidencia de la compilacion o del run actual.
 

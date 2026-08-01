@@ -1,9 +1,10 @@
 # Plan: Pivot HFT sobre Bollinger y pivotes clasicos
 
 **Generated**: 2026-08-01
-**Status**: Sprint 14 implementation, static review and the single final
-compile are complete. Manual real-tick QA is explicitly delegated to the user
-and remains a release prerequisite until that session is executed.
+**Status**: Sprint 15 is implemented and statically validated; Sprint 16 is
+next. The single MetaEditor compile is reserved for the end of Sprint 16.
+Manual real-tick QA is explicitly delegated to the user and remains a release
+prerequisite until that session is executed.
 **Estimated Complexity**: Critical / trading-sensitive
 
 **Execution override**: Per explicit user authorization, the original batch
@@ -36,6 +37,12 @@ Sprint 14 gate after all remediation code is complete. A Sprint 10 compile had
 already passed at `0 errors, 0 warnings` before this override was received; its
 temporary `BUILD.log`, helper script and Include junction were removed, and it
 does not replace the required final Sprint 14 compile.
+
+**Current remediation override**: The user authorized two additional
+trading-sensitive sprints after the M30 audit. Sprints 15 and 16 must run in
+order with one commit per sprint. No harness, CI or manual Strategy Tester QA
+may be created or launched. The only compile for this remediation batch is the
+final Sprint 16 MetaEditor gate.
 
 ## Overview
 
@@ -1229,6 +1236,107 @@ artifacts only.
 - [ ] Chart, history and audit evidence agree for tested levels and lifecycle.
 - [x] Active docs, rollback points and residual risks are current.
 - [x] Exactly one Sprint 14 commit is created and the plan status is final.
+
+## Sprint 15: Occupied-Level Campaign Arbitration And Audit Throttling
+
+**Goal**: Keep a valid pending campaign alive when a newer touched level is
+already occupied, select the next eligible sibling level when possible, and
+bound repeated occupied-level diagnostics on the tick path.
+**Dependencies**: Sprint 14 static audit evidence; no runtime QA is launched by
+the agent.
+**Tracked scope**: `services/trading_signals/pivot_hft_levels.mqh`,
+`services/trading_signals/pivot_hft_detection.mqh`, Pivot HFT state accessors,
+the active input guide and this plan.
+**Commit**: `Sprint 15: arbitrate occupied pivot campaigns`
+
+### Task 15.1: Arbitrate occupied candidates
+
+- Evaluate touched, unburned resistance/support levels from newest to oldest
+  while skipping levels occupied by an active or same-bar completed campaign.
+- Preserve the current pending campaign when the newly preferred level is
+  occupied; never reset the global campaign merely because one candidate is
+  unavailable.
+- Keep position-scoped reattempts able to select their original level inside
+  the original micro candle.
+
+### Task 15.2: Bound occupied-level diagnostics
+
+- Emit one `CAMPAIGN_LEVEL_OCCUPIED` record per changed bar/direction/mask
+  state, including the selected fallback (or `NONE`) and the active sequence.
+- Do not format or write repeated identical occupancy records on every tick.
+- Preserve all existing campaign replacement, burn, session, spread, margin,
+  protection, market-status and symbol/magic gates.
+
+### Task 15.3: Validate the arbitration boundary
+
+- Complete static candidate-order, same-bar retry, multi-ticket, hot-path and
+  include-scope review; do not compile or run manual QA before Sprint 16.
+- Record the acceptance evidence and create exactly one Sprint 15 commit.
+
+### Sprint 15 Gate
+
+- [x] Occupied newest levels fall back to an untouched sibling when one exists.
+- [x] An occupied candidate cannot erase an unrelated pending campaign.
+- [x] Reattempts still target their own level and micro candle.
+- [x] Occupancy logs are state-change bounded and static validation passes.
+- [x] Exactly one Sprint 15 commit is created before Sprint 16 starts.
+
+## Sprint 16: Complete Close/Run Audit Semantics And Logger Robustness
+
+**Goal**: Make close records distinguish trigger cause from net result, retain
+actual exit deal/price evidence, prevent run-id collisions across repeated
+tester executions, and make common-file logging resilient for shared instances.
+**Dependencies**: Sprint 15 behavior gate.
+**Tracked scope**: `microservices/core/enums.mqh`,
+`microservices/utils/file_logger.mqh`,
+`services/trading_signals/pivot_hft_state.mqh`,
+`services/trading_signals/pivot_hft_position_lifecycle.mqh`,
+`services/trading_signals/pivot_hft_diagnostics.mqh`, active docs and this plan.
+**Commit**: `Sprint 16: harden pivot hft audit semantics`
+
+### Task 16.1: Separate close trigger and net classification
+
+- Record `INITIAL_SL`, `BREAK_EVEN`, `TRAILING` or `EXTERNAL` as the close
+  trigger independently from `PROFIT`, `LOSS` or `FLAT` net classification.
+- Capture the trigger quote, trigger stop, trailing step/cause and close time
+  without changing local protection or same-bar reattempt rules.
+
+### Task 16.2: Correlate the actual exit
+
+- Aggregate close deals by the existing symbol, magic and position-identifier
+  scope, retain the latest exit deal ticket and a volume-weighted actual close
+  price, and include them in `POSITION_FINALIZED`.
+- Keep entry fills, partial close history, daily accounting and protection
+  behavior intact; do not weaken fail-closed broker handling.
+
+### Task 16.3: Harden the common-file logger and run identity
+
+- Use a shared append handle with explicit read/write sharing, seek-to-end per
+  record, flush and deterministic cleanup; retry once after a transient handle
+  failure and warn only once.
+- Build the run id with simulated time plus monotonic process/chart tokens so
+  identical tester reruns do not collapse into one audit run.
+- Update the guide/README with the new close fields and logger guarantees.
+
+### Task 16.4: Final validation gate
+
+- Perform static/diff, secret, include-topology, lifecycle-cleanup,
+  symbol/magic-scope and formatting checks. Do not create or run harness/CI or
+  manual Strategy Tester QA.
+- Run the sole MetaEditor compile after all Sprint 16 changes, require `0
+  errors, 0 warnings`, inspect and remove `BUILD.log`, then create exactly one
+  Sprint 16 commit.
+
+### Sprint 16 Gate
+
+- [ ] Close trigger and net class are explicit and no longer conflated.
+- [ ] Exit deal ticket, actual close price and trigger evidence are auditable.
+- [ ] Shared logging survives repeated/shared instances without hot-path open/
+  close churn or unbounded retries.
+- [ ] Unique run ids separate identical tester reruns.
+- [ ] Final compile passes with `0 errors, 0 warnings` and `BUILD.log` is
+  removed.
+- [ ] Exactly one Sprint 16 commit is created and the plan is current.
 
 ## Testing Strategy
 

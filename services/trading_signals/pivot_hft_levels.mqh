@@ -590,6 +590,53 @@ bool PivotHftLatestResistanceTouched(const double close_price,
   return false;
 }
 
+bool PivotHftLatestUnoccupiedResistanceTouched(
+  const double close_price,
+  const ulong occupied_levels,
+  PivotHftPivotLevels &level,
+  double &level_price,
+  ulong &occupied_mask,
+  bool &touched_any)
+{
+  level = PIVOT_HFT_LEVEL_NONE;
+  level_price = 0.0;
+  occupied_mask = 0;
+  touched_any = false;
+  if(!g_pivot_hft_pivots.valid ||
+     !PivotHftLevelTestStateReady() ||
+     close_price <= 0.0)
+    return false;
+
+  PivotHftPivotLevels candidates[3] = {PIVOT_HFT_LEVEL_R1,
+                                       PIVOT_HFT_LEVEL_R2,
+                                       PIVOT_HFT_LEVEL_R3};
+  for(int i = 2; i >= 0; i--)
+  {
+    PivotHftPivotLevels candidate = candidates[i];
+    if(!PivotHftLevelIsAvailable(candidate))
+      continue;
+
+    double candidate_price = PivotHftResolveLevelPrice(
+      candidate,
+      g_pivot_hft_pivots);
+    if(candidate_price <= 0.0 || close_price < candidate_price)
+      continue;
+
+    touched_any = true;
+    ulong candidate_mask = ((ulong)1 << (int)candidate);
+    if((occupied_levels & candidate_mask) != 0)
+    {
+      occupied_mask |= candidate_mask;
+      continue;
+    }
+
+    level = candidate;
+    level_price = candidate_price;
+    return true;
+  }
+  return false;
+}
+
 bool PivotHftLatestSupportTouched(const double close_price,
                                   PivotHftPivotLevels &level,
                                   double &level_price)
@@ -616,6 +663,53 @@ bool PivotHftLatestSupportTouched(const double close_price,
       level_price = candidate_price;
       return true;
     }
+  }
+  return false;
+}
+
+bool PivotHftLatestUnoccupiedSupportTouched(
+  const double close_price,
+  const ulong occupied_levels,
+  PivotHftPivotLevels &level,
+  double &level_price,
+  ulong &occupied_mask,
+  bool &touched_any)
+{
+  level = PIVOT_HFT_LEVEL_NONE;
+  level_price = 0.0;
+  occupied_mask = 0;
+  touched_any = false;
+  if(!g_pivot_hft_pivots.valid ||
+     !PivotHftLevelTestStateReady() ||
+     close_price <= 0.0)
+    return false;
+
+  PivotHftPivotLevels candidates[3] = {PIVOT_HFT_LEVEL_S1,
+                                       PIVOT_HFT_LEVEL_S2,
+                                       PIVOT_HFT_LEVEL_S3};
+  for(int i = 2; i >= 0; i--)
+  {
+    PivotHftPivotLevels candidate = candidates[i];
+    if(!PivotHftLevelIsAvailable(candidate))
+      continue;
+
+    double candidate_price = PivotHftResolveLevelPrice(
+      candidate,
+      g_pivot_hft_pivots);
+    if(candidate_price <= 0.0 || close_price > candidate_price)
+      continue;
+
+    touched_any = true;
+    ulong candidate_mask = ((ulong)1 << (int)candidate);
+    if((occupied_levels & candidate_mask) != 0)
+    {
+      occupied_mask |= candidate_mask;
+      continue;
+    }
+
+    level = candidate;
+    level_price = candidate_price;
+    return true;
   }
   return false;
 }

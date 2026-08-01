@@ -474,19 +474,6 @@ void PivotHftEnsureCompletedLevelBar(const datetime micro_bar_time)
   g_pivot_hft_completed_levels_bar = micro_bar_time;
 }
 
-bool PivotHftCampaignLevelCompleted(const datetime micro_bar_time,
-                                    const PivotHftPivotLevels level)
-{
-  int level_index = (int)level;
-  if(micro_bar_time <= 0 ||
-     level_index <= (int)PIVOT_HFT_LEVEL_NONE ||
-     level_index >= PIVOT_HFT_LEVEL_SLOT_TOTAL)
-    return false;
-
-  PivotHftEnsureCompletedLevelBar(micro_bar_time);
-  return g_pivot_hft_completed_levels[level_index];
-}
-
 void PivotHftMarkCampaignLevelCompleted(const datetime micro_bar_time,
                                         const PivotHftPivotLevels level)
 {
@@ -502,11 +489,16 @@ void PivotHftMarkCampaignLevelCompleted(const datetime micro_bar_time,
   g_pivot_hft_completed_levels[level_index] = true;
 }
 
-bool PivotHftCampaignLevelOccupied(const datetime micro_bar_time,
-                                   const PivotHftPivotLevels level)
+ulong PivotHftCampaignOccupiedLevelMask(const datetime micro_bar_time)
 {
-  if(PivotHftCampaignLevelCompleted(micro_bar_time, level))
-    return true;
+  if(micro_bar_time <= 0)
+    return 0;
+
+  PivotHftEnsureCompletedLevelBar(micro_bar_time);
+  ulong occupied_mask = 0;
+  for(int i = 1; i < PIVOT_HFT_LEVEL_SLOT_TOTAL; i++)
+    if(g_pivot_hft_completed_levels[i])
+      occupied_mask |= ((ulong)1 << i);
 
   int total = ArraySize(g_pivot_hft_positions);
   for(int i = 0; i < total; i++)
@@ -514,11 +506,12 @@ bool PivotHftCampaignLevelOccupied(const datetime micro_bar_time,
     PivotHftPositionState state = g_pivot_hft_positions[i];
     if(state.status == PIVOT_HFT_POSITION_COMPLETED)
       continue;
-    if(state.campaign_micro_bar_time == micro_bar_time &&
-       state.pivot_level == level)
-      return true;
+    if(state.campaign_micro_bar_time != micro_bar_time ||
+       !PivotHftLevelIndexValid(state.pivot_level))
+      continue;
+    occupied_mask |= ((ulong)1 << (int)state.pivot_level);
   }
-  return false;
+  return occupied_mask;
 }
 
 int PivotHftFindPositionStateIndex(const ulong position_ticket)

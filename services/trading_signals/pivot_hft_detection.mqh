@@ -8,6 +8,9 @@ bool     g_pivot_hft_tick_micro_bar_cached = false;
 datetime g_pivot_hft_tick_micro_bar = 0;
 bool     g_pivot_hft_tick_close_cached = false;
 double   g_pivot_hft_tick_micro_close = 0.0;
+datetime g_pivot_hft_occupied_audit_bar = 0;
+ulong    g_pivot_hft_occupied_audit_mask = 0;
+SignalTypes g_pivot_hft_occupied_audit_direction = NO_SIGNAL;
 
 void PivotHftBeginTickDataCache()
 {
@@ -113,6 +116,44 @@ void PivotHftStartCampaign(const SignalTypes direction,
                                 campaign.tracked_extreme));
 }
 
+void PivotHftAuditOccupiedCandidateState(
+  const datetime micro_bar_time,
+  const SignalTypes direction,
+  const ulong occupied_mask,
+  const PivotHftPivotLevels selected_level)
+{
+  if(!Enable_File_Logs)
+    return;
+
+  if(occupied_mask == 0)
+  {
+    g_pivot_hft_occupied_audit_bar = 0;
+    g_pivot_hft_occupied_audit_mask = 0;
+    g_pivot_hft_occupied_audit_direction = NO_SIGNAL;
+    return;
+  }
+
+  if(g_pivot_hft_occupied_audit_bar == micro_bar_time &&
+     g_pivot_hft_occupied_audit_mask == occupied_mask &&
+     g_pivot_hft_occupied_audit_direction == direction)
+    return;
+
+  g_pivot_hft_occupied_audit_bar = micro_bar_time;
+  g_pivot_hft_occupied_audit_mask = occupied_mask;
+  g_pivot_hft_occupied_audit_direction = direction;
+
+  string direction_label = (direction == NO_SIGNAL)
+                           ? "BOTH"
+                           : EnumToString(direction);
+  PivotHftAuditLog("CAMPAIGN_LEVEL_OCCUPIED",
+                   StringFormat("dir=%s|bar=%I64d|occupied_mask=%I64u|selected_level=%s|campaign=%s",
+                                direction_label,
+                                (long)micro_bar_time,
+                                occupied_mask,
+                                PivotHftLevelLabel(selected_level),
+                                g_pivot_hft_campaign.sequence_id));
+}
+
 bool PivotHftCampaignMatches(const SignalTypes direction,
                              const PivotHftPivotLevels level,
                              const double level_price)
@@ -182,11 +223,82 @@ void PivotHftReplaceCampaignIfLatestLevelChanged(const double close_price,
   SignalTypes direction = NO_SIGNAL;
   PivotHftPivotLevels level = PIVOT_HFT_LEVEL_NONE;
   double level_price = 0.0;
-  if(!PivotHftSelectCurrentTouchedLevel(close_price,
-                                        direction,
-                                        level,
-                                        level_price))
+  ulong occupied_mask = 0;
+  bool sell_touched = false;
+  bool buy_touched = false;
+  bool sell_candidate = false;
+  bool buy_candidate = false;
+  bool sell_side = (PivotHftDirectionAllowed(BEARISH) &&
+                    close_price >= g_pivot_hft_bands_upper);
+  bool buy_side = (PivotHftDirectionAllowed(BULLISH) &&
+                   close_price <= g_pivot_hft_bands_lower);
+  if(!sell_side && !buy_side)
+  {
+    PivotHftAuditOccupiedCandidateState(micro_bar_time,
+                                         NO_SIGNAL,
+                                         0,
+                                         PIVOT_HFT_LEVEL_NONE);
     return;
+  }
+
+  ulong occupied_levels = PivotHftCampaignOccupiedLevelMask(micro_bar_time);
+
+  if(sell_side)
+    sell_candidate = PivotHftLatestUnoccupiedResistanceTouched(
+      close_price,
+      occupied_levels,
+      level,
+      level_price,
+      occupied_mask,
+      sell_touched);
+
+  PivotHftPivotLevels buy_level = PIVOT_HFT_LEVEL_NONE;
+  double buy_price = 0.0;
+  ulong buy_occupied_mask = 0;
+  if(buy_side)
+    buy_candidate = PivotHftLatestUnoccupiedSupportTouched(
+      close_price,
+      occupied_levels,
+      buy_level,
+      buy_price,
+      buy_occupied_mask,
+      buy_touched);
+
+  occupied_mask |= buy_occupied_mask;
+  if(sell_touched && buy_touched)
+  {
+    PivotHftAuditOccupiedCandidateState(micro_bar_time,
+                                         NO_SIGNAL,
+                                         occupied_mask,
+                                         PIVOT_HFT_LEVEL_NONE);
+    return;
+  }
+
+  if(sell_candidate)
+    direction = BEARISH;
+  else if(buy_candidate)
+  {
+    direction = BULLISH;
+    level = buy_level;
+    level_price = buy_price;
+  }
+  else
+  {
+    if(sell_touched)
+      direction = BEARISH;
+    else if(buy_touched)
+      direction = BULLISH;
+    PivotHftAuditOccupiedCandidateState(micro_bar_time,
+                                         direction,
+                                         occupied_mask,
+                                         PIVOT_HFT_LEVEL_NONE);
+    return;
+  }
+
+  PivotHftAuditOccupiedCandidateState(micro_bar_time,
+                                       direction,
+                                       occupied_mask,
+                                       level);
 
   if(PivotHftCampaignMatches(direction, level, level_price))
     return;
@@ -200,17 +312,6 @@ void PivotHftReplaceCampaignIfLatestLevelChanged(const double close_price,
      g_pivot_hft_campaign.direction == direction &&
      (int)level < (int)g_pivot_hft_campaign.pivot_level)
     return;
-  if(PivotHftCampaignLevelOccupied(micro_bar_time, level))
-  {
-    PivotHftAuditLog("CAMPAIGN_LEVEL_OCCUPIED",
-                     StringFormat("dir=%s|level=%s|bar=%I64d",
-                                  EnumToString(direction),
-                                  PivotHftLevelLabel(level),
-                                  (long)micro_bar_time));
-    PivotHftResetCampaign();
-    return;
-  }
-
   PivotHftStartCampaign(direction, level, level_price, micro_bar_time);
   if(replacing_campaign)
   {
