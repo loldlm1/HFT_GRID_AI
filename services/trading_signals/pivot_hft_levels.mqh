@@ -18,7 +18,9 @@ bool PivotHftTimeframesValid()
 
 double PivotHftPointSize()
 {
-  double point_size = SymbolInfoDouble(_Symbol, SYMBOL_POINT);
+  double point_size = g_symbol_constraints.point_size;
+  if(point_size <= 0.0)
+    point_size = SymbolInfoDouble(_Symbol, SYMBOL_POINT);
   if(point_size <= 0.0)
     point_size = 0.0001;
   return point_size;
@@ -26,7 +28,9 @@ double PivotHftPointSize()
 
 double PivotHftTickSize()
 {
-  double tick_size = SymbolInfoDouble(_Symbol, SYMBOL_TRADE_TICK_SIZE);
+  double tick_size = g_symbol_constraints.tick_size;
+  if(tick_size <= 0.0)
+    tick_size = SymbolInfoDouble(_Symbol, SYMBOL_TRADE_TICK_SIZE);
   if(tick_size <= 0.0)
     tick_size = PivotHftPointSize();
   return tick_size;
@@ -42,7 +46,7 @@ double PivotHftNormalizePrice(const double price)
     return price;
 
   double rounded = MathRound(price / tick_size) * tick_size;
-  int digits = (int)SymbolInfoInteger(_Symbol, SYMBOL_DIGITS);
+  int digits = _Digits;
   if(digits < 0)
     digits = 0;
   return NormalizeDouble(rounded, digits);

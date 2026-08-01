@@ -4,14 +4,39 @@
 #ifndef _SERVICES_TRADING_SIGNALS_PIVOT_HFT_DETECTION_MQH_
 #define _SERVICES_TRADING_SIGNALS_PIVOT_HFT_DETECTION_MQH_
 
+bool     g_pivot_hft_tick_micro_bar_cached = false;
+datetime g_pivot_hft_tick_micro_bar = 0;
+bool     g_pivot_hft_tick_close_cached = false;
+double   g_pivot_hft_tick_micro_close = 0.0;
+
+void PivotHftBeginTickDataCache()
+{
+  g_pivot_hft_tick_micro_bar_cached = false;
+  g_pivot_hft_tick_micro_bar = 0;
+  g_pivot_hft_tick_close_cached = false;
+  g_pivot_hft_tick_micro_close = 0.0;
+}
+
 datetime PivotHftCurrentMicroBar()
 {
-  return iTime(_Symbol, Pivot_HFT_Micro_Timeframe, 0);
+  if(!g_pivot_hft_tick_micro_bar_cached)
+  {
+    g_pivot_hft_tick_micro_bar =
+      iTime(_Symbol, Pivot_HFT_Micro_Timeframe, 0);
+    g_pivot_hft_tick_micro_bar_cached = true;
+  }
+  return g_pivot_hft_tick_micro_bar;
 }
 
 double PivotHftCurrentMicroClose()
 {
-  return iClose(_Symbol, Pivot_HFT_Micro_Timeframe, 0);
+  if(!g_pivot_hft_tick_close_cached)
+  {
+    g_pivot_hft_tick_micro_close =
+      iClose(_Symbol, Pivot_HFT_Micro_Timeframe, 0);
+    g_pivot_hft_tick_close_cached = true;
+  }
+  return g_pivot_hft_tick_micro_close;
 }
 
 double PivotHftCurrentEntryQuote(const SignalTypes direction)

@@ -9,8 +9,9 @@
 
 ## Pivotes y Bollinger
 
-Las bandas son fijas: periodo `21`, desviacion `2.0`, shift `0` y
-`PRICE_CLOSE`. No existen inputs para alterarlas.
+Las bandas son fijas: periodo `21`, desviacion `2.0`, `shift=1` y
+`PRICE_CLOSE`. La deteccion compara `close_0` contra las bandas de la vela
+micro cerrada anterior; no existen inputs para alterarlas.
 
 ```text
 P  = (H + L + C) / 3
@@ -69,6 +70,16 @@ proteccion tampoco rearma esa campana; otro pivote si puede iniciar una nueva.
 
 El perfil backend conserva deliberadamente la identidad Pandora. No se cambia
 `ea_id`, contrato de licencia, secretos ni payloads de resultados diarios.
+
+## Optimizacion del Strategy Tester
+
+- La ventana de sesion se recalcula una vez por minuto, no por tick.
+- El handle de Bollinger se crea solo dentro de una ventana de entrada activa y
+  se libera al salir; una posicion ya abierta conserva su gestion local.
+- Los buffers superior/inferior se copian una vez por nueva vela micro cerrada.
+- El tester no visual omite objetos de chart y actualizaciones de `Comment`.
+- Fuera de sesion y sin posiciones vivas se omiten datos de entrada, spread,
+  deteccion y frontend. Licencia, proteccion y cierres forzados siguen activos.
 
 ## Validacion manual
 

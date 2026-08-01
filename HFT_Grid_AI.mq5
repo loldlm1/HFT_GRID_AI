@@ -27,7 +27,6 @@
 // GLOBAL VARIABLES
 CTrade       g_position;
 CAccountInfo g_account;
-CSymbolInfo  g_symbol;
 double       g_bid, g_ask, g_decimal_digits, g_points_spread, g_local_spread;
 long         g_magic_number;
 string       g_dataset_id = "";
@@ -149,7 +148,6 @@ int OnInit()
 
   // INITIALIZE GLOBAL VARIABLES
   g_ea_running = false;
-  g_symbol.Name(_Symbol);
   g_decimal_digits  = pow(10.0, Digits());
   g_initial_ea_date = TimeCurrent();
 
@@ -177,13 +175,21 @@ int OnInit()
     Print("Pivot HFT requires an MT5 hedging account.");
     return INIT_FAILED;
   }
+  if(!PivotHftTimeframesValid())
+  {
+    PrintFormat("Pivot HFT invalid timeframe pair | micro=%s | pivot=%s",
+                EnumToString(Pivot_HFT_Micro_Timeframe),
+                EnumToString(Pivot_HFT_Pivot_Timeframe));
+    return INIT_FAILED;
+  }
 
   // CHART SETUP
-  ApplyDefaultChartStyle(ChartID());
+  if(PivotHftVisualizationEnabledForRuntime())
+    ApplyDefaultChartStyle(ChartID());
 
   // INITIALIZE THE EA
   CreateLicensePanelLive();
-  if(!PivotHftCreateIndicators())
+  if(!PivotHftSetSignalResourcesActive(SessionTimeFilterWindowIsOpen()))
     return INIT_FAILED;
   if(!EventSetTimer(LicenseServiceTimerSeconds()))
   {
@@ -225,7 +231,7 @@ void OnTradeTransaction(const MqlTradeTransaction& trans,
                         const MqlTradeRequest& request,
                         const MqlTradeResult& result)
 {
-  RefreshCustomSymbolRates();
+  RefreshCustomSymbolRates(true);
 }
 
 //+------------------------------------------------------------------+
@@ -242,13 +248,19 @@ void OnTimer()
 //+------------------------------------------------------------------+
 void OnTick()
 {
-  RefreshCustomSymbolRates();
+  datetime current_time = TimeCurrent();
   bool debug_processing_allowed = DebugEquityGuardAllowsProcessing();
-  ProtectionRiskMonitorTradeMode();
+
+  static datetime next_market_status_check = 0;
+  if(current_time >= next_market_status_check ||
+     MarketStatusHasPendingForceClose())
+  {
+    ProtectionRiskMonitorTradeMode();
+    next_market_status_check = current_time + 1;
+  }
   ProtectionRiskFilterTick();
   bool signal_attempts_allowed = MarketStatusAllowsSignalAttempts();
   static datetime next_minute_bar_open    = 0;
-  datetime        current_time            = TimeCurrent();
   int             defined_tick_M1_seconds = PeriodSeconds(PERIOD_M1);
 
   // SESSION TIME FILTER CHECKS - PER MINUTE INSTEAD OF PER TICK
@@ -261,60 +273,102 @@ void OnTick()
     next_minute_bar_open+=defined_tick_M1_seconds;
   }
 
-  bool market_open = IsMarketOpen();
-  bool spread_allowed = (g_points_spread <= Max_Spread);
-  if(!spread_allowed)
+  bool session_allows = SessionTimeFilterAllowsSignalAttempt();
+  bool resources_ready = PivotHftSetSignalResourcesActive(session_allows);
+  bool has_position_states = PivotHftHasPositionStates();
+  if(session_allows || has_position_states)
+    PivotHftBeginTickDataCache();
+  bool has_live_positions = PivotHftHasLivePositionStates();
+  bool quotes_ready = true;
+  if((session_allows && resources_ready) || has_live_positions)
+    quotes_ready = RefreshCustomSymbolRates(session_allows && resources_ready);
+
+  bool market_open = false;
+  bool spread_allowed = false;
+  if(session_allows && resources_ready && quotes_ready)
   {
-    string spread_reason = StringFormat("spread=%.1f>%.1f",
-                                        g_points_spread,
-                                        Max_Spread);
-    MarketStatusRegisterExecutionError("PIVOT_HFT_SPREAD_BLOCK",
-                                       spread_reason,
-                                       0,
-                                       0);
+    market_open = IsMarketOpen();
+    spread_allowed = (g_points_spread <= Max_Spread);
+    if(!spread_allowed)
+    {
+      string spread_reason = StringFormat("spread=%.1f>%.1f",
+                                          g_points_spread,
+                                          Max_Spread);
+      MarketStatusRegisterExecutionError("PIVOT_HFT_SPREAD_BLOCK",
+                                         spread_reason,
+                                         0,
+                                         0);
+    }
   }
 
-  g_ea_running = (debug_processing_allowed &&
-                  signal_attempts_allowed &&
-                  market_open &&
-                  spread_allowed);
-  UpdateEARunningMagic();
+  bool strategy_data_allowed = (debug_processing_allowed &&
+                                session_allows &&
+                                resources_ready &&
+                                quotes_ready);
+  bool execution_context_allowed = (signal_attempts_allowed &&
+                                    market_open &&
+                                    spread_allowed);
+  bool allow_new_campaign = false;
+  bool entry_intent_ready = false;
+  if(strategy_data_allowed)
+  {
+    bool protection_allows = ProtectionRiskAllowsSignalAttempt();
+    bool daily_budget_available =
+      (DailySignalLimitAllowsAttempt(BULLISH) ||
+       DailySignalLimitAllowsAttempt(BEARISH));
+    allow_new_campaign = (execution_context_allowed &&
+                          protection_allows &&
+                          daily_budget_available);
+    entry_intent_ready = PivotHftDetectEntryIntent(allow_new_campaign);
+  }
 
-  bool protection_allows = ProtectionRiskAllowsSignalAttempt();
-  bool session_allows = SessionTimeFilterAllowsSignalAttempt();
-  bool daily_budget_available =
-    (DailySignalLimitAllowsAttempt(BULLISH) ||
-     DailySignalLimitAllowsAttempt(BEARISH));
-  bool allow_new_campaign = (debug_processing_allowed &&
-                             signal_attempts_allowed &&
-                             protection_allows &&
-                             session_allows &&
-                             daily_budget_available &&
-                             market_open &&
-                             spread_allowed);
-
-  if(PivotHftDetectEntryIntent(allow_new_campaign) &&
-     signal_attempts_allowed &&
-     market_open &&
-     spread_allowed)
+  if(entry_intent_ready && execution_context_allowed)
     PivotHftExecuteEntryIntent();
 
-  PivotHftProcessAllPositions();
-  RefreshPivotHftVisualization();
+  g_ea_running = (strategy_data_allowed &&
+                  execution_context_allowed &&
+                  allow_new_campaign);
+  UpdateEARunningMagic();
+
+  if(has_position_states || PivotHftHasPositionStates())
+    PivotHftProcessAllPositions();
+
+  if((session_allows && resources_ready) || PivotHftHasLivePositionStates())
+    RefreshPivotHftVisualization();
+  else if(g_pivot_hft_visualization_visible)
+    ClearFrontendVisualization();
 }
 
-void RefreshCustomSymbolRates()
+bool RefreshCustomSymbolRates(const bool include_spread)
 {
-  g_symbol.Refresh();
-  g_symbol.RefreshRates();
-  g_ask           = g_symbol.Ask();
-  g_bid           = g_symbol.Bid();
+  MqlTick current_tick;
+  if(!SymbolInfoTick(_Symbol, current_tick))
+  {
+    g_ask = 0.0;
+    g_bid = 0.0;
+    return false;
+  }
+
+  g_ask = current_tick.ask;
+  g_bid = current_tick.bid;
+  if(g_ask <= 0.0 || g_bid <= 0.0)
+  {
+    g_ask = 0.0;
+    g_bid = 0.0;
+    return false;
+  }
+  if(!include_spread)
+    return true;
+
   g_local_spread  = MathAbs(g_ask-g_bid);
-  double point_size = SymbolInfoDouble(_Symbol, SYMBOL_POINT);
+  double point_size = g_symbol_constraints.point_size;
+  if(point_size <= 0.0)
+    point_size = SymbolInfoDouble(_Symbol, SYMBOL_POINT);
   if(point_size > 0.0)
     g_points_spread = g_local_spread / point_size;
   else
     g_points_spread = g_local_spread*g_decimal_digits;
+  return true;
 }
 
 double OnTester()

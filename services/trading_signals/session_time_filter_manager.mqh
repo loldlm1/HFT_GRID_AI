@@ -12,6 +12,7 @@ bool      g_session_time_filter_slot_active[SESSION_TIME_FILTER_SLOT_TOTAL];
 bool      g_session_time_filter_slot_prev_state[SESSION_TIME_FILTER_SLOT_TOTAL];
 bool      g_session_time_filter_invalid_warned[SESSION_TIME_FILTER_SLOT_TOTAL];
 datetime  g_session_time_filter_last_day_anchor      = 0;
+datetime  g_session_time_filter_last_refresh_minute  = 0;
 bool      g_session_time_filter_block_logged         = false;
 string    g_session_time_filter_force_close_queue[];
 
@@ -28,11 +29,19 @@ void SessionTimeFilterRefreshWindowState()
 {
   SessionTimeFilterEnsureInitialized();
 
+  datetime current_time = TimeCurrent();
+  datetime current_minute = (datetime)((long)current_time -
+                                       ((long)current_time % 60));
+  if(current_minute > 0 &&
+     current_minute == g_session_time_filter_last_refresh_minute)
+    return;
+  g_session_time_filter_last_refresh_minute = current_minute;
+
   datetime day_anchor = iTime(_Symbol, PERIOD_D1, 0);
   if(day_anchor <= 0)
   {
-    datetime now = TimeCurrent();
-    day_anchor = (datetime)((long)now - ((long)now % 86400));
+    day_anchor = (datetime)((long)current_time -
+                            ((long)current_time % 86400));
   }
 
   if(day_anchor != g_session_time_filter_last_day_anchor)

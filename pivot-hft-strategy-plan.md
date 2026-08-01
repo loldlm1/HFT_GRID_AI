@@ -1,20 +1,23 @@
 # Plan: Pivot HFT sobre Bollinger y pivotes clasicos
 
 **Generated**: 2026-08-01
-**Status**: Implemented through Sprint 8; compile passed, manual real-tick validation pending
+**Status**: Implemented through Sprint 9; compile passed, manual real-tick
+validation pending
 **Estimated Complexity**: Critical / trading-sensitive
 
-**Execution override**: Per explicit user authorization, this run executes all
-eight sprints in order with one sprint-specific commit each, performs static and
-source-level checks between sprints, skips MQL5 harness/CI tests, and runs only
-one MetaEditor compilation after Sprint 8. The final compilation remains the
-release gate; any failure is fixed before the final Sprint 8 commit is closed.
+**Execution override**: Per explicit user authorization, the original batch
+executed Sprints 1-8 in order with one sprint-specific commit each. Sprint 9 is
+executed as one additional trading-sensitive sprint, skips MQL5 harness/CI
+tests, and uses one MetaEditor compilation as its final gate.
 
 **Execution record**: Sprints 1-8 were executed in order. The final portable
 MetaEditor gate passed with `0 errors, 0 warnings`; `BUILD.log` and the temporary
 Include junction needed by the already-open MetaEditor profile were removed.
 No harness/CI or automated Strategy Tester matrix was run. Visual real-tick US30
-and demo-chart validation remain explicit release prerequisites.
+and demo-chart validation remain explicit release prerequisites. Sprint 9
+completed with the exact MetaEditor `5-1` gate at `0 errors, 0 warnings` in
+`7624 ms`; `BUILD.log`, the temporary editor copy and the temporary Include
+junction were removed. No harness/CI or automated tester matrix was run.
 
 ## Overview
 
@@ -57,7 +60,8 @@ abierta no se cancela cuando cambia la vela micro o se recalculan los pivotes.
   - Pivotes clasicos `P`, `R1-R3` y `S1-S3`, con `R1-R3` para ventas y `S1-S3`
     para compras. `P` queda disponible para visualizacion y diagnostico.
   - Bollinger nativa `iBands` en el timeframe micro, fija en periodo `21`,
-    desviacion `2.0`, shift `0` y `PRICE_CLOSE`.
+    desviacion `2.0`, `PRICE_CLOSE` y lectura de la vela micro cerrada
+    anterior (`shift=1`).
   - Maquina de estados pendiente -> seguimiento -> envio -> posicion activa ->
     cierre local -> reintento o campana completada.
   - Multiples posiciones activas independientes por ticket, simbolo y magic,
@@ -92,7 +96,8 @@ abierta no se cancela cuando cambia la vela micro o se recalculan los pivotes.
     `points * SymbolInfoDouble(_Symbol, SYMBOL_POINT)`. El valor inicial sera
     `25.0` para retroceso, SL local y step TP, y se ajustara en optimizacion.
   - La deteccion de venta usa el cierre actual de la vela micro obtenido con
-    `iClose(_Symbol, Pivot_HFT_Micro_Timeframe, 0) >= Rn` y banda superior; la
+    `iClose(_Symbol, Pivot_HFT_Micro_Timeframe, 0) >= Rn` y la banda superior
+    de la vela anterior (`shift=1`); la
     compra usa la relacion `<= Sn` y banda inferior. No hay offset ni tolerancia
     adicional.
   - En venta se sigue el maximo del `Bid` y se vende cuando el `Bid` retrocede
@@ -309,9 +314,10 @@ and previous closed macro-candle pivots.
 - **Location**: `services/trading_signals/pivot_hft_indicators.mqh`,
   `services/trading_management/indicator_definitions_loader.mqh`
 - **Description**: Create one `iBands` handle for the micro timeframe with
-  period `21`, deviation `2.0`, shift `0` and `PRICE_CLOSE`. Read only the
-  current values needed from buffers `1` (upper) and `2` (lower), with minimal
-  `CopyBuffer` counts. Do not recreate the handle per tick.
+  period `21`, deviation `2.0` and `PRICE_CLOSE`. Sprint 9 supersedes the
+  original current-candle read: buffers `1` (upper) and `2` (lower) now use
+  the previous closed candle (`shift=1`) with one refresh per source bar. Do
+  not recreate the handle per tick.
 - **Dependencies**: Task 2.1.
 - **Acceptance criteria**:
   - Invalid handles stop safely in tester and block live detection.
@@ -885,6 +891,89 @@ rollback if any final regression is found.
 - [x] Exactly one Sprint 8 commit is created and rollback point recorded.
 - [x] Completion checklist and residual risks are current.
 
+## Sprint 9: Tester Hot-Path Optimization And Closed-Candle Bands
+
+**Goal**: Reduce Strategy Tester work outside an eligible session and remove
+per-tick indicator/UI overhead while keeping protection, lifecycle, licensing,
+symbol/magic scope and hedging behavior unchanged. Bollinger entry filters use
+the previous closed micro candle (`shift=1`) and refresh only when that source
+bar changes.
+**Dependencies**: Sprint 8.
+**Tracked scope**: `HFT_Grid_AI.mq5`,
+`services/trading_signals/pivot_hft_indicators.mqh`,
+`services/trading_signals/pivot_hft_detection.mqh`,
+`services/trading_signals/pivot_hft_state.mqh`,
+`services/trading_signals/session_time_filter_manager.mqh`,
+`services/trading_signals/pivot_hft_levels.mqh`,
+`services/frontend/pivot_hft_visualization.mqh`, `README.md`,
+`docs/guides/pivot-hft-strategy-inputs.md` and this plan.
+**Commit**: `perf: optimize pivot hft tester hot path`
+**Demo/Validation**:
+
+- Run static graph, scope and diff checks without MQL5 harness/CI tests.
+- Run exactly one MetaEditor compile, parse all errors/warnings, then remove
+  `BUILD.log`.
+- Confirm non-visual tester runs do not create chart objects or refresh the
+  frontend, and that the Bollinger buffers are read at `shift=1` once per
+  closed micro bar.
+
+**Rollback point**: `2c2da88` (Sprint 8 final compile gate).
+
+### Task 9.1: Use the previous closed micro candle and cache source-bar reads
+
+- **Location**: `services/trading_signals/pivot_hft_indicators.mqh`.
+- **Description**: Read upper/lower buffers `1/2` at `shift=1`, anchor the
+  cache to `iTime(micro_tf, 1)`, honor `force_refresh`, and return the cached
+  snapshot while the source candle is unchanged. Preserve invalid-handle,
+  insufficient-history and tester fail-fast behavior.
+- **Acceptance criteria**:
+  - No `CopyBuffer` is performed on every tick for the same closed candle.
+  - Upper/lower values remain normalized and independently validated.
+  - The handle is still released by the existing deinit path.
+
+### Task 9.2: Gate expensive strategy resources by the session window
+
+- **Location**: `HFT_Grid_AI.mq5`,
+  `services/trading_signals/session_time_filter_manager.mqh`,
+  `services/trading_signals/pivot_hft_detection.mqh` and state helpers.
+- **Description**: Cache session-window evaluation at minute granularity. Make
+  the Bollinger handle lazy and release it when the session window closes;
+  reset only the pending campaign on deactivation. Keep open-position local
+  SL/BE/trailing processing and pending force-closes active outside the window.
+  Skip new-entry quote/spread/data detection work when no session is eligible,
+  while preserving all market, protection, daily, license and broker guards.
+  Refresh symbol quotes with one tick read and reuse cached broker point data.
+- **Acceptance criteria**:
+  - Outside session with no managed live position, no entry indicator refresh,
+    spread calculation or frontend refresh occurs.
+  - Session re-entry creates one Bollinger handle and resumes detection without
+    changing pivot selection or position scope.
+  - Active positions continue to receive local protection and force-close
+    handling regardless of session state.
+
+### Task 9.3: Remove tester-only frontend and repeated hot-path work
+
+- **Location**: `services/frontend/pivot_hft_visualization.mqh`,
+  `services/trading_signals/pivot_hft_state.mqh`,
+  `services/trading_signals/pivot_hft_levels.mqh` and active docs.
+- **Description**: Disable chart objects/comments in non-visual Strategy Tester
+  mode, cache repeated micro-bar/close reads for one tick, and reuse cached
+  symbol point/tick metadata for normalization. Document the closed-candle
+  Bollinger semantics and tester optimization behavior without changing the
+  backend identity or server-side SL/TP contract.
+- **Acceptance criteria**:
+  - Non-visual tester execution has no chart-object churn or `Comment` updates.
+  - Point/tick normalization remains equivalent on US30 broker variants.
+  - README and input guide state `shift=1` and session-gated resources.
+
+### Sprint 9 Gate
+
+- [x] Closed-candle Bollinger and per-source-bar cache are implemented.
+- [x] Session-gated resources and active-position protection paths are reviewed.
+- [x] Static scope/include/diff checks pass without harness/CI tests.
+- [x] Exactly one Sprint 9 MetaEditor compile passes with `0 errors, 0 warnings`.
+- [x] `BUILD.log` is removed and exactly one Sprint 9 commit is created.
+
 ## Testing Strategy
 
 - **Unit**:
@@ -954,7 +1043,8 @@ rollback if any final regression is found.
 4. Start Sprint 2 only after the Sprint 1 gate passes.
 5. Repeat the gate for each sprint in order; because this plan is critical and
    trading-sensitive, execute exactly one sprint per batch.
-6. Stop and revise this plan if implementation reveals a missing risk,
+6. Execute Sprint 9 only after Sprint 8, using one compile and one commit.
+7. Stop and revise this plan if implementation reveals a missing risk,
    lifecycle dependency, unsafe broker assumption or license contract change.
 
 ## Completion Checklist

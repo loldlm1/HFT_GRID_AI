@@ -130,6 +130,24 @@ void PivotHftClearPositionStates()
   ArrayResize(g_pivot_hft_positions, 0, 0);
 }
 
+bool PivotHftHasPositionStates()
+{
+  return (ArraySize(g_pivot_hft_positions) > 0);
+}
+
+bool PivotHftHasLivePositionStates()
+{
+  int total = ArraySize(g_pivot_hft_positions);
+  for(int i = 0; i < total; i++)
+  {
+    PivotHftPositionStatuses status = g_pivot_hft_positions[i].status;
+    if(status == PIVOT_HFT_POSITION_ACTIVE ||
+       status == PIVOT_HFT_POSITION_CLOSE_WAIT)
+      return true;
+  }
+  return false;
+}
+
 void PivotHftEnsureCompletedLevelBar(const datetime micro_bar_time)
 {
   if(micro_bar_time <= 0 ||

@@ -10,6 +10,20 @@ const int PIVOT_HFT_VISUAL_SLOT_COUNT = 9;
 double g_pivot_hft_visual_prices[9];
 bool g_pivot_hft_visual_price_valid[9];
 
+bool PivotHftVisualizationEnabledForRuntime()
+{
+  static int cached_enabled = -1;
+  if(cached_enabled < 0)
+  {
+    bool tester_without_visuals =
+      ((bool)MQLInfoInteger(MQL_TESTER) &&
+       !(bool)MQLInfoInteger(MQL_VISUAL_MODE));
+    cached_enabled = (Pivot_HFT_Enable_Visualization &&
+                      !tester_without_visuals) ? 1 : 0;
+  }
+  return (cached_enabled == 1);
+}
+
 void PivotHftDeleteVisualObject(const string suffix)
 {
   string object_name = PIVOT_HFT_OBJECT_PREFIX + suffix;
@@ -81,7 +95,7 @@ void ClearFrontendVisualization()
 
 void RefreshPivotHftVisualization()
 {
-  if(!Pivot_HFT_Enable_Visualization)
+  if(!PivotHftVisualizationEnabledForRuntime())
   {
     if(g_pivot_hft_visualization_visible)
       ClearFrontendVisualization();

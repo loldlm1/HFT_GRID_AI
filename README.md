@@ -13,7 +13,8 @@ claim institutional HFT latency.
 - `Pivot_HFT_Pivot_Timeframe` calculates `P`, `R1-R3` and `S1-S3` from its
   previous closed candle.
 - `Pivot_HFT_Micro_Timeframe` owns the fixed Bollinger Bands (`21`, deviation
-  `2.0`, `PRICE_CLOSE`) and the retry window.
+  `2.0`, `PRICE_CLOSE`) and the retry window. Entry filtering reads the bands
+  from the previous closed micro candle (`shift=1`).
 - A sell campaign arms when the current micro close is at or above `R1-R3` and
   the upper band. A buy campaign uses `S1-S3` and the lower band.
 - Sells follow the highest Bid and enter after a downward retracement. Buys
@@ -57,6 +58,9 @@ the historical deterministic seed for compatibility.
   to remain available. Algo Trading or broker outages can delay a local close.
 - Spread, margin, session, daily-limit, drawdown, market-status and license
   guards remain authoritative for new entries.
+- Entry indicators are activated only while a configured session window is
+  open. Non-visual tester runs skip chart objects/comments, while open-position
+  local protection continues outside the entry window.
 - Use Strategy Tester `Every tick based on real ticks` and a demo hedging chart
   before live use.
 
