@@ -503,6 +503,10 @@ bool PivotHftRefreshPivotSnapshot(const bool force_refresh = false)
     return false;
   }
 
+  if(g_pivot_hft_last_macro_bar > 0 &&
+     current_macro_bar != g_pivot_hft_last_macro_bar)
+    PivotHftFinalizeLevelTestContext(current_macro_bar);
+
   g_pivot_hft_pivots = snapshot;
   g_pivot_hft_last_macro_bar = current_macro_bar;
   PivotHftAuditLog("PIVOT_SET_REFRESH",
@@ -562,7 +566,9 @@ bool PivotHftLatestResistanceTouched(const double close_price,
 {
   level = PIVOT_HFT_LEVEL_NONE;
   level_price = 0.0;
-  if(!g_pivot_hft_pivots.valid || close_price <= 0.0)
+  if(!g_pivot_hft_pivots.valid ||
+     !PivotHftLevelTestStateReady() ||
+     close_price <= 0.0)
     return false;
 
   PivotHftPivotLevels candidates[3] = {PIVOT_HFT_LEVEL_R1,
@@ -570,6 +576,8 @@ bool PivotHftLatestResistanceTouched(const double close_price,
                                        PIVOT_HFT_LEVEL_R3};
   for(int i = 2; i >= 0; i--)
   {
+    if(!PivotHftLevelIsAvailable(candidates[i]))
+      continue;
     double candidate_price = PivotHftResolveLevelPrice(candidates[i],
                                                        g_pivot_hft_pivots);
     if(candidate_price > 0.0 && close_price >= candidate_price)
@@ -588,7 +596,9 @@ bool PivotHftLatestSupportTouched(const double close_price,
 {
   level = PIVOT_HFT_LEVEL_NONE;
   level_price = 0.0;
-  if(!g_pivot_hft_pivots.valid || close_price <= 0.0)
+  if(!g_pivot_hft_pivots.valid ||
+     !PivotHftLevelTestStateReady() ||
+     close_price <= 0.0)
     return false;
 
   PivotHftPivotLevels candidates[3] = {PIVOT_HFT_LEVEL_S1,
@@ -596,6 +606,8 @@ bool PivotHftLatestSupportTouched(const double close_price,
                                        PIVOT_HFT_LEVEL_S3};
   for(int i = 2; i >= 0; i--)
   {
+    if(!PivotHftLevelIsAvailable(candidates[i]))
+      continue;
     double candidate_price = PivotHftResolveLevelPrice(candidates[i],
                                                        g_pivot_hft_pivots);
     if(candidate_price > 0.0 && close_price <= candidate_price)

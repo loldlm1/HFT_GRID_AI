@@ -81,10 +81,12 @@ bool PivotHftSetSignalResourcesActive(const bool should_be_active)
     return false;
   if(PivotHftCreateIndicators())
   {
+    bool level_history_ready = PivotHftRefreshPivotSnapshot(false);
     PivotHftAuditLog("SIGNAL_RESOURCES_ENABLED",
-                     StringFormat("bands_handle=%d|micro_tf=%s",
+                     StringFormat("bands_handle=%d|micro_tf=%s|level_history_ready=%d",
                                   g_pivot_hft_bands_handle,
-                                  EnumToString(Pivot_HFT_Micro_Timeframe)));
+                                  EnumToString(Pivot_HFT_Micro_Timeframe),
+                                  (int)level_history_ready));
     return true;
   }
 

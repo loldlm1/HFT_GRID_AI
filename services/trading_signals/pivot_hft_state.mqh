@@ -322,6 +322,28 @@ void PivotHftCommitOpenMicroBar(const datetime closed_micro_bar)
   }
 }
 
+void PivotHftFinalizeLevelTestContext(const datetime next_activation_bar)
+{
+  if(g_pivot_hft_level_test_activation_bar <= 0 ||
+     g_pivot_hft_level_test_source_bar <= 0 ||
+     next_activation_bar <= g_pivot_hft_level_test_activation_bar)
+    return;
+
+  datetime final_micro_bar = g_pivot_hft_level_test_last_micro_bar;
+  ulong open_mask = PivotHftLevelOpenTouchMask();
+  if(final_micro_bar > 0 && final_micro_bar < next_activation_bar)
+    PivotHftCommitOpenMicroBar(final_micro_bar);
+
+  PivotHftAuditLog("LEVEL_CONTEXT_FINALIZED",
+                   StringFormat("activation_bar=%I64d|source_bar=%I64d|last_micro_bar=%I64d|next_activation_bar=%I64d|open_mask=%I64u|burned_mask=%I64u",
+                                (long)g_pivot_hft_level_test_activation_bar,
+                                (long)g_pivot_hft_level_test_source_bar,
+                                (long)final_micro_bar,
+                                (long)next_activation_bar,
+                                open_mask,
+                                PivotHftLevelTestMask()));
+}
+
 void PivotHftMarkHistoricalLevelTouched(
   const PivotHftPivotLevels level,
   const datetime micro_bar_time)

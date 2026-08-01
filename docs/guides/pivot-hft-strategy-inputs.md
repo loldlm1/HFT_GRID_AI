@@ -25,6 +25,21 @@ S3 = L - 2(H - P)
 
 `R1-R3` autorizan ventas y `S1-S3` compras. `P` es informativo.
 
+## Validez de niveles
+
+Cada conjunto de pivotes nace al abrir la vela macro actual. El EA reconstruye
+desde esa apertura todas las velas micro cerradas, incluso si ocurrieron fuera
+de las sesiones de entrada. Un nivel queda quemado cuando una vela micro
+cerrada cumple `low <= nivel <= high` y no puede crear otra campana durante el
+mismo conjunto macro.
+
+El toque de la vela micro que aun esta abierta es provisional: el nivel sigue
+disponible durante esa vela y se quema cuando abre la siguiente. Esto conserva
+los reintentos por perdida o BE dentro de la vela original. Un nuevo conjunto
+macro reinicia la validez aunque alguno de sus precios coincida con el conjunto
+anterior. Si el historial requerido no esta sincronizado, no se admiten nuevas
+campanas hasta completar la reconstruccion.
+
 ## Inputs de estrategia
 
 | Input | Default | Funcion |
@@ -93,3 +108,7 @@ Usar `Every tick based on real ticks` sobre la variante US30 del broker:
 6. Multiples tickets activos en velas o niveles posteriores.
 7. Bloqueos por spread, margen, sesion, limite diario y proteccion.
 8. Limpieza de handles, lineas y comentario al retirar el EA.
+9. Nivel H1 probado antes de la sesion bloqueado al reingresar; nivel hermano
+   no probado disponible.
+10. Toque provisional utilizable solo en su vela micro y quemado en la
+    siguiente.

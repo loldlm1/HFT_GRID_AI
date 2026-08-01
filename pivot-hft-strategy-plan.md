@@ -1,7 +1,7 @@
 # Plan: Pivot HFT sobre Bollinger y pivotes clasicos
 
 **Generated**: 2026-08-01
-**Status**: Implemented through Sprint 11; QA remediation Sprints 12-14 remain.
+**Status**: Implemented through Sprint 12; QA remediation Sprints 13-14 remain.
 Final compile and manual real-tick validation remain pending.
 **Estimated Complexity**: Critical / trading-sensitive
 
@@ -1120,12 +1120,12 @@ indicator-resource activation, lifecycle retry handling, diagnostics and docs.
 
 ### Sprint 12 Gate
 
-- [ ] Burned levels cannot create later campaigns in the same macro pivot set.
-- [ ] Same-bar retries and active-position lifecycle remain unchanged.
-- [ ] Session catch-up and macro/micro boundary ordering pass review.
-- [ ] Sprint 12 static validation passes; final compile remains deferred to
+- [x] Burned levels cannot create later campaigns in the same macro pivot set.
+- [x] Same-bar retries and active-position lifecycle remain unchanged.
+- [x] Session catch-up and macro/micro boundary ordering pass review.
+- [x] Sprint 12 static validation passes; final compile remains deferred to
   Sprint 14.
-- [ ] Exactly one Sprint 12 commit is created before Sprint 13 starts.
+- [x] Exactly one Sprint 12 commit is created before Sprint 13 starts.
 
 ## Sprint 13: Ticket-Scoped Visual Lifecycle QA
 
