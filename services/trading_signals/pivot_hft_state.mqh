@@ -77,8 +77,10 @@ struct PivotHftPositionState
   double                   net_result;
   double                   entry_volume;
   int                      trailing_step_index;
+  int                      campaign_attempt_count;
   string                   position_comment;
   bool                     close_requested;
+  bool                     reattempt_pending;
 
   PivotHftPositionState()
   {
@@ -99,8 +101,10 @@ struct PivotHftPositionState
     net_result             = 0.0;
     entry_volume           = 0.0;
     trailing_step_index    = 0;
+    campaign_attempt_count = 0;
     position_comment       = "";
     close_requested        = false;
+    reattempt_pending      = false;
   }
 };
 

@@ -191,6 +191,7 @@ bool PivotHftRegisterFilledPosition(const PivotHftCampaignState &campaign,
   position_state.pivot_price = campaign.pivot_price;
   position_state.entry_price = PositionGetDouble(POSITION_PRICE_OPEN);
   position_state.entry_volume = PositionGetDouble(POSITION_VOLUME);
+  position_state.campaign_attempt_count = campaign.attempt_count;
   position_state.position_comment = PositionGetString(POSITION_COMMENT);
 
   if(position_state.entry_price <= 0.0)
