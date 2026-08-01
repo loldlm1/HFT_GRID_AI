@@ -503,9 +503,21 @@ bool PivotHftRefreshPivotSnapshot(const bool force_refresh = false)
     return false;
   }
 
-  if(g_pivot_hft_last_macro_bar > 0 &&
-     current_macro_bar != g_pivot_hft_last_macro_bar)
+  bool pivot_set_rollover = (g_pivot_hft_last_macro_bar > 0 &&
+                             current_macro_bar !=
+                               g_pivot_hft_last_macro_bar);
+  if(pivot_set_rollover)
     PivotHftFinalizeLevelTestContext(current_macro_bar);
+
+  if(g_pivot_hft_campaign.status != PIVOT_HFT_CAMPAIGN_IDLE)
+  {
+    string cancellation_reason = pivot_set_rollover
+                                 ? "pivot_set_rollover"
+                                 : "pivot_set_refresh";
+    PivotHftCancelPendingCampaign(
+      cancellation_reason,
+      iTime(_Symbol, Pivot_HFT_Micro_Timeframe, 0));
+  }
 
   g_pivot_hft_pivots = snapshot;
   g_pivot_hft_last_macro_bar = current_macro_bar;
@@ -520,8 +532,6 @@ bool PivotHftRefreshPivotSnapshot(const bool force_refresh = false)
                                 snapshot.support_1,
                                 snapshot.support_2,
                                 snapshot.support_3));
-  if(g_pivot_hft_campaign.status != PIVOT_HFT_CAMPAIGN_IDLE)
-    PivotHftResetCampaign();
   return PivotHftRefreshLevelTestState();
 }
 

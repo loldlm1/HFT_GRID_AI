@@ -162,6 +162,19 @@ datetime                  g_pivot_hft_level_test_retry_after = 0;
 bool                      g_pivot_hft_level_test_ready = false;
 bool                      g_pivot_hft_level_test_failure_logged = false;
 string                    g_pivot_hft_level_test_last_failure = "";
+datetime                  g_pivot_hft_occupied_audit_bar = 0;
+ulong                     g_pivot_hft_occupied_audit_mask = 0;
+SignalTypes               g_pivot_hft_occupied_audit_direction = NO_SIGNAL;
+PivotHftPivotLevels       g_pivot_hft_occupied_audit_selected =
+  PIVOT_HFT_LEVEL_NONE;
+
+void PivotHftResetOccupiedAuditState()
+{
+  g_pivot_hft_occupied_audit_bar = 0;
+  g_pivot_hft_occupied_audit_mask = 0;
+  g_pivot_hft_occupied_audit_direction = NO_SIGNAL;
+  g_pivot_hft_occupied_audit_selected = PIVOT_HFT_LEVEL_NONE;
+}
 
 datetime PivotHftResolveMicroBarAt(const datetime event_time)
 {
@@ -460,6 +473,30 @@ void PivotHftCaptureExpiredCampaignVisual(const datetime current_micro_bar)
   if(micro_seconds <= 0)
     micro_seconds = 60;
   g_pivot_hft_expired_visual_until = current_micro_bar + micro_seconds;
+}
+
+void PivotHftCancelPendingCampaign(const string reason,
+                                   const datetime current_micro_bar)
+{
+  if(g_pivot_hft_campaign.status == PIVOT_HFT_CAMPAIGN_IDLE)
+    return;
+
+  datetime visual_bar = current_micro_bar;
+  if(visual_bar <= 0)
+    visual_bar = iTime(_Symbol, Pivot_HFT_Micro_Timeframe, 0);
+  PivotHftAuditLog("CAMPAIGN_CANCELLED",
+                   StringFormat("sequence=%s|dir=%s|level=%s|origin_bar=%I64d|current_bar=%I64d|status=%s|reason=%s",
+                                g_pivot_hft_campaign.sequence_id,
+                                EnumToString(g_pivot_hft_campaign.direction),
+                                EnumToString(g_pivot_hft_campaign.pivot_level),
+                                (long)g_pivot_hft_campaign.micro_bar_time,
+                                (long)visual_bar,
+                                EnumToString(g_pivot_hft_campaign.status),
+                                reason));
+  if(visual_bar > 0)
+    PivotHftCaptureExpiredCampaignVisual(visual_bar);
+  PivotHftResetCampaign();
+  PivotHftResetOccupiedAuditState();
 }
 
 bool PivotHftGetExpiredCampaignVisual(PivotHftCampaignState &snapshot)

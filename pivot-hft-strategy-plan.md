@@ -1,10 +1,9 @@
 # Plan: Pivot HFT sobre Bollinger y pivotes clasicos
 
 **Generated**: 2026-08-01
-**Status**: Sprints 15-16 and their final compile are complete. The M1 chart /
-M3 micro / H1 pivot stress-test audit opened Sprints 17-19; they are authorized
-for sequential execution, with one commit per Sprint and one compile only at
-the final Sprint 19 gate. Manual real-tick QA remains delegated to the user.
+**Status**: Sprints 15-19, their static gates and the sole final compile are
+complete. Manual real-tick QA remains delegated to the user and is still a
+release prerequisite.
 **Estimated Complexity**: Critical / trading-sensitive
 
 **Execution override**: Per explicit user authorization, the original batch
@@ -61,6 +60,13 @@ Sprints 17-19 execute in order as trading-sensitive batches with one commit per
 Sprint. Sprints 17-18 use static/diff validation only. No harness, CI or manual
 Strategy Tester QA may be created or launched, and MetaEditor is reserved for
 the sole final Sprint 19 compile.
+
+Sprints 17 and 18 passed static-only gates and were committed as `9533b17` and
+`a84504a`, respectively. Sprint 19 added bounded carry/cancellation evidence,
+single-flight documentation and occupancy deduplication. The sole final
+MetaEditor gate then passed with `0 errors, 0 warnings` in `9066 ms`; the
+temporary profile Include junction and `BUILD.log` were removed. No harness,
+CI or Strategy Tester session was launched.
 
 ## Overview
 
@@ -1502,11 +1508,11 @@ tick-path payloads, update active documentation and run the sole final compile.
 
 ### Sprint 19 Gate
 
-- [ ] Carry, cancellation and occupancy decisions are state-change bounded.
-- [ ] Active docs match persistent single-flight behavior.
-- [ ] Final MetaEditor compile passes with `0 errors, 0 warnings` and
+- [x] Carry, cancellation and occupancy decisions are state-change bounded.
+- [x] Active docs match persistent single-flight behavior.
+- [x] Final MetaEditor compile passes with `0 errors, 0 warnings` and
   `BUILD.log` is removed.
-- [ ] Exactly one Sprint 19 commit is created and the plan is current.
+- [x] Exactly one Sprint 19 commit is created and the plan is current.
 
 ## Testing Strategy
 
@@ -1524,11 +1530,11 @@ tick-path payloads, update active documentation and run the sole final compile.
   - Session, spread, margin, daily budget, market-status, drawdown and license
     guards.
 - **End-to-end/manual**:
-  - Visual tester on US30 with real ticks, micro M1/M3 and macro M30 examples.
+  - Visual tester on US30 with real ticks, chart M1, micro M3 and macro H1.
   - Sell above upper band at R1/R2/R3 and buy below lower band at S1/S2/S3.
-  - Latest-pivot replacement before fill; repeated SL and BE reattempts;
-    positive trailing completion; active position surviving bar/pivot refresh;
-    multiple simultaneous hedging positions.
+  - Latest-pivot replacement inside the origin bar; a pending campaign carried
+    for at least five micro bars; repeated SL and BE reattempts in the fill bar;
+    positive trailing completion; no simultaneous managed positions.
 - **Non-functional**:
   - One cached indicator handle; no per-tick handle creation, full-history scan,
     unbounded logging or chart-object churn.
@@ -1542,11 +1548,11 @@ tick-path payloads, update active documentation and run the sole final compile.
 | Risk | Impact | Mitigation | Validation signal |
 | --- | --- | --- | --- |
 | Local SL/TP are not on the server | Large unprotected exposure during terminal, network or Algo Trading failure | Preserve market-status behavior, log active local protection state, require demo validation and document the risk prominently | Disable trading/network path in tester/demo and confirm no false local close is reported |
-| Netting account merges same-symbol positions | Individual campaigns lose independent fill/trailing state | Fail closed unless `ACCOUNT_MARGIN_MODE_RETAIL_HEDGING` | Margin-mode gate and multiple-ticket test |
+| Netting account merges same-symbol positions | Ticket identity and local lifecycle assumptions can break | Fail closed unless `ACCOUNT_MARGIN_MODE_RETAIL_HEDGING` | Margin-mode gate and sequential-ticket test |
 | US30 point size differs by broker | 25 points may represent different price movement | Use existing `SYMBOL_POINT` convention and log symbol point/tick metadata once | Compare `_Point=0.1` and other symbol configurations |
 | Current micro close crosses several pivots | Duplicate pending orders or nondeterministic level choice | One pending campaign; latest valid level replaces previous | Multi-level crossing scenario selects highest R or lowest S |
 | Broker returns `true` but no deal | Phantom local position or wrong anchor | Require retcode, deal and actual ticket before active state | Forced retcode/rejection test |
-| Multiple active positions grow risk rapidly | Margin exhaustion and drawdown | Preserve spread/margin/daily/protection guards and exact hedging scope; monitor active count | Multi-position and no-money tester scenarios |
+| A sibling campaign bypasses lifecycle occupancy | More than one managed position and unintended risk | Gate admission by local state and exact symbol/magic broker scan, then recheck immediately before send | M1/M3 delay stress test never exceeds one live managed ticket |
 | Local close fails while target is hit | Position remains open beyond intended local target | Keep state active, retry close under broker-action permissions, record retcode | Forced close failure and recovery scenario |
 | Indicator data is unavailable or stale | False pivot/Bollinger signals | Cached handle, minimum-bars checks, new-bar refresh and tester fail-fast | Invalid handle/history scenario |
 | Legacy grid/Pandora references survive cleanup | Conflicting order paths or compile regressions | Dependency scan before deletion and compile after each cleanup batch | Final `rg` scan and call-graph review |
@@ -1578,7 +1584,9 @@ tick-path payloads, update active documentation and run the sole final compile.
 5. Repeat the gate for each sprint in order; because this plan is critical and
    trading-sensitive, execute exactly one sprint per batch.
 6. Execute Sprint 9 only after Sprint 8, using one compile and one commit.
-7. Stop and revise this plan if implementation reveals a missing risk,
+7. Execute Sprints 17-19 in order, one critical Sprint per batch, with static
+   gates for 17-18 and the sole final compile in Sprint 19.
+8. Stop and revise this plan if implementation reveals a missing risk,
    lifecycle dependency, unsafe broker assumption or license contract change.
 
 ## Completion Checklist
@@ -1587,7 +1595,8 @@ tick-path payloads, update active documentation and run the sole final compile.
 - [x] Every sprint has exactly one sprint-specific commit.
 - [x] Final MetaEditor compile passes and `BUILD.log` is removed.
 - [ ] Real-tick US30 visual/manual validation is recorded.
-- [ ] Hedging-only behavior, multiple tickets and symbol/magic scope are proven at runtime.
+- [ ] Hedging-only behavior, sequential tickets, single-flight admission and
+  symbol/magic scope are proven at runtime.
 - [ ] Local SL/BE/trailing, negative/BE reattempt and positive completion are proven at runtime.
 - [x] Session, spread, margin, daily, drawdown, market-status and license guards remain active in the compiled graph.
 - [x] Residual risk from no server SL/TP is documented and demo approval is explicit.

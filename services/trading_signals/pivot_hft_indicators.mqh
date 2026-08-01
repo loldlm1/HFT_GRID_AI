@@ -69,7 +69,9 @@ bool PivotHftSetSignalResourcesActive(const bool should_be_active)
       PivotHftReleaseIndicators();
     }
     if(g_pivot_hft_campaign.status != PIVOT_HFT_CAMPAIGN_IDLE)
-      PivotHftResetCampaign();
+      PivotHftCancelPendingCampaign(
+        "session_closed",
+        iTime(_Symbol, Pivot_HFT_Micro_Timeframe, 0));
     return true;
   }
 

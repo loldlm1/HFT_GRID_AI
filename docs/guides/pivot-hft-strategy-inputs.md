@@ -2,10 +2,15 @@
 
 ## Temporalidades
 
-- `Pivot_HFT_Micro_Timeframe` (`M1`) define las bandas de Bollinger, la vela de
-  campana y la ventana de reintentos.
+- `Pivot_HFT_Micro_Timeframe` (`M1`) define las bandas de Bollinger, los cierres
+  micro y la ventana de reintento de la vela que contiene el fill. No limita la
+  duracion de una campana pendiente ya armada.
 - `Pivot_HFT_Pivot_Timeframe` (`M30`) calcula pivotes clasicos desde la vela
   macro cerrada anterior. Debe ser igual o mayor que el timeframe micro.
+
+El timeframe del chart o del Strategy Tester no participa en estas decisiones.
+Puede usarse M1 como chart con micro M3: toda barra de estrategia se obtiene de
+los dos inputs configurados.
 
 ## Pivotes y Bollinger
 
@@ -34,11 +39,14 @@ cerrada cumple `low <= nivel <= high` y no puede crear otra campana durante el
 mismo conjunto macro.
 
 El toque de la vela micro que aun esta abierta es provisional: el nivel sigue
-disponible durante esa vela y se quema cuando abre la siguiente. Esto conserva
-los reintentos por perdida o BE dentro de la vela original. Un nuevo conjunto
-macro reinicia la validez aunque alguno de sus precios coincida con el conjunto
-anterior. Si el historial requerido no esta sincronizado, no se admiten nuevas
-campanas hasta completar la reconstruccion.
+disponible durante esa vela y se quema cuando abre la siguiente. Quemar el nivel
+impide otra admision, pero no cancela la campana que ya lo reclamo: esa campana
+mantiene su secuencia y extremo durante las velas micro siguientes hasta el
+fill. El cierre de sesion/recursos o el rollover del conjunto macro son sus
+fronteras terminales. Un nuevo conjunto macro reinicia la validez aunque alguno
+de sus precios coincida con el conjunto anterior. Si el historial requerido no
+esta sincronizado, no se admiten nuevas campanas hasta completar la
+reconstruccion.
 
 ## Inputs de estrategia
 
@@ -71,13 +79,16 @@ No se aplica offset ni tolerancia adicional al pivote.
 5. La orden se envia sin SL/TP al servidor.
 6. El fill real define SL local, BE y trailing.
 7. Neto positivo completa el intento. Neto `<= 0` puede rearmar dentro de la
-   misma vela micro si el mismo nivel sigue valido.
+   vela micro que contiene el fill si el nivel original y Bollinger siguen
+   validos para ese reintento heredado.
 
-Solo hay una campana pendiente; el ultimo pivote tocado reemplaza al anterior.
-Las posiciones abiertas no se reemplazan y pueden coexistir en hedging.
-Un nivel no se arma por duplicado dentro de la misma vela mientras su posicion
-siga activa o despues de completarse con neto positivo. Un cierre externo o de
-proteccion tampoco rearma esa campana; otro pivote si puede iniciar una nueva.
+Solo hay una campana pendiente o una posicion administrada ocupando la ranura de
+ejecucion. El ultimo pivote tocado puede reemplazar al anterior unicamente en la
+vela donde se armo la campana; despues, la campana sigue el mismo nivel hasta el
+fill o una cancelacion terminal. No se admite un nivel hermano mientras exista
+un ticket activo, cierre pendiente o reintento pendiente. Un cierre externo o
+de proteccion tampoco rearma esa campana; otro pivote puede iniciar una nueva
+solo cuando la ranura queda libre.
 
 ## Lectura visual del lifecycle
 
@@ -87,8 +98,8 @@ nivel quemado conserva un segmento corto sobre su primera vela micro de test.
 
 La campana activa dibuja tres lineas: pivote seleccionado, extremo seguido y
 precio exacto que dispara la entrada por retroceso. `ENTRY READY` usa una linea
-mas gruesa; una campana expirada permanece atenuada durante una vela micro para
-facilitar el QA.
+mas gruesa; una campana cancelada por sesion o rollover macro aparece como
+`CANCELLED` y permanece atenuada durante una vela micro para facilitar el QA.
 
 Cada posicion administrada usa nombres y lineas por ticket:
 
@@ -134,11 +145,13 @@ Para auditar niveles buscar `LEVEL_SCAN_START`, `LEVEL_SCAN_RESULT`,
 `TRAILING_ADVANCED`, `LOCAL_CLOSE_*`, `POSITION_FINALIZED`, cierres de
 proteccion y `DEBUG_STOP`.
 
-Cuando un nivel tocado ya esta ocupado por una posicion o una finalizacion de
-la misma vela, `CAMPAIGN_LEVEL_OCCUPIED` registra una mascara acotada y el
-nivel alternativo seleccionado. La campana pendiente se conserva si no hay un
-fallback elegible; los reintentos de una posicion cerrada siguen usando su
-nivel original dentro de la misma vela micro.
+`CAMPAIGN_CARRIED_FORWARD` registra una sola fila por cambio de vela mientras
+una campana sigue pendiente. `CAMPAIGN_CANCELLED` identifica `session_closed`,
+`pivot_set_rollover` o una reconstruccion terminal del conjunto. Cuando un
+nivel tocado ya esta ocupado, `CAMPAIGN_LEVEL_OCCUPIED` registra la mascara y
+el fallback solo al cambiar la firma vela/direccion/mascara/seleccion; salir y
+volver temporalmente a la banda no repite el mismo payload. Los reintentos usan
+el nivel original dentro de la vela real del fill.
 
 `POSITION_FINALIZED` separa `close_trigger` (`INITIAL_SL`, `BREAK_EVEN`,
 `TRAILING` o `EXTERNAL`) de `net_class` (`PROFIT`, `LOSS` o `FLAT`). Tambien
@@ -180,9 +193,11 @@ y limpiar o rotar `query_debug.txt`:
 2. Con pivotes H1 y sesion `13:30`, confirmar que un nivel probado antes de la
    sesion llega quemado y que un nivel hermano no probado sigue disponible.
 3. Toque provisional utilizable durante su vela micro y cambio a `BURNED` solo
-   al abrir la vela siguiente; no debe rearmarse durante el mismo conjunto H1.
-4. Multiples niveles tocados, seleccion del ultimo pivote valido y exclusion de
-   cualquier nivel ya quemado.
+   al abrir la vela siguiente; la campana ya armada debe continuar siguiendo el
+   mismo extremo durante cinco o mas velas M3 hasta el retroceso.
+4. Con chart M1 y micro M3, confirmar que pivotes, bandas, burns y carry-forward
+   ocurren solo en fronteras M3. Multiples niveles pueden reemplazarse dentro de
+   la vela origen, pero no despues de que la campana cruza a otra vela.
 5. Rollover macro: el conjunto anterior se finaliza y el nuevo conjunto inicia
    su propia validez aunque repita un precio.
 6. Reinicio o re-attach dentro del mismo H1: la reconstruccion debe producir la
@@ -191,15 +206,15 @@ y limpiar o rotar `query_debug.txt`:
    `ORDER_SEND_RESULT`, `FILL_REGISTERED` e historial del broker.
 8. Lineas de pivote, extremo y trigger antes del fill; despues, lineas
    `ACTUAL FILL`, `LOCAL SL`, `BE` y `TRAIL STEP N` por ticket.
-9. SL local, BE, steps posteriores, cierre neto y eliminacion visual por ticket
-   independiente, incluyendo multiples posiciones hedging simultaneas. Verificar
-   que `close_trigger`, `exit_deal`, `close_price` y `net_class` coincidan con
-   el historial aunque exista delay de ejecucion del broker.
-10. Reintento tras perdida o BE solo dentro de la vela micro original; neto
-    positivo completa la campana y no rearma.
+9. SL local, BE, steps posteriores, cierre neto y eliminacion visual por ticket.
+   Bajo delay de broker no debe existir mas de una posicion administrada activa;
+   verificar que `close_trigger`, `exit_deal`, `close_price` y `net_class`
+   coincidan con el historial.
+10. Reintento tras perdida o BE solo dentro de la vela micro que contiene el
+    fill; neto positivo completa la campana y no rearma.
 11. Bloqueos por spread, margen, sesion, limite diario, proteccion y estado del
     broker, mas cierre de proteccion y `Debug_Stop_On_Negative_Equity`.
-12. Limpieza de handles, comentario y objetos `PIVOT_HFT_` al expirar, cerrar,
+12. Limpieza de handles, comentario y objetos `PIVOT_HFT_` al cancelar, cerrar,
     retirar o re-adjuntar el EA.
 13. Para cada escenario, correlacionar el chart, historial de ordenes/deals y
     las filas del mismo `run` en `query_debug.txt`.

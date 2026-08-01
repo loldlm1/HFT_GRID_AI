@@ -17,7 +17,7 @@ string PivotHftCampaignStatusLabel(const PivotHftCampaignStatuses status)
     case PIVOT_HFT_CAMPAIGN_ORDER_WAIT:
       return "ENTRY READY";
     case PIVOT_HFT_CAMPAIGN_EXPIRED:
-      return "EXPIRED";
+      return "CANCELLED";
     case PIVOT_HFT_CAMPAIGN_COMPLETED:
       return "COMPLETED";
     case PIVOT_HFT_CAMPAIGN_IDLE:

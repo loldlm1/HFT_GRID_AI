@@ -19,13 +19,21 @@ claim institutional HFT latency.
   the upper band. A buy campaign uses `S1-S3` and the lower band.
 - Sells follow the highest Bid and enter after a downward retracement. Buys
   follow the lowest Ask and enter after an upward retracement.
-- Only one pending campaign exists. A newly touched pivot replaces it, while
-  already-open hedging positions remain independent.
+- Only one pending campaign and one managed position may own the execution slot.
+  A newly touched pivot can replace the campaign only during its origin micro
+  candle; a running campaign keeps its level and tracked extreme across later
+  micro candles.
+- The chart timeframe is not a strategy clock. Bollinger, pivots, touches and
+  lifecycle transitions use the configured `Pivot_HFT_Micro_Timeframe` and
+  `Pivot_HFT_Pivot_Timeframe` even when the tester chart uses another period.
 - At startup and session entry, the active macro set is rebuilt from its open
   through every closed micro candle, including candles outside entry sessions.
 - A first touch in the open micro candle is provisional. When that candle
-  closes, the level is burned for the rest of the macro set; retries remain
-  possible only inside the original open micro candle.
+  closes, the level is burned for the rest of the macro set, but an already
+  armed campaign is grandfathered and may keep tracking across later candles.
+- A pending campaign is cancelled only by session/resource shutdown or a macro
+  pivot-set rollover. A filled ticket's retry boundary is the micro candle that
+  actually contains the broker fill.
 - If the required history is unavailable or unsynchronized, new campaigns fail
   closed until the level reconstruction succeeds.
 
@@ -34,8 +42,8 @@ claim institutional HFT latency.
 Entries are market orders with no server-side SL or TP. The actual broker fill
 anchors the local SL and trailing step. The first favorable step moves the local
 stop to break-even; later steps advance it monotonically. A locally closed
-position with net result `<= 0` can re-arm only while its original micro candle
-is still open and the same pivot/Bollinger condition remains valid.
+position with net result `<= 0` can re-arm only while its fill micro candle is
+still open and the same grandfathered pivot/Bollinger condition remains valid.
 External or protection-driven closes never re-arm the closed campaign.
 
 Net result includes profit, swap, commission and fee for deals scoped by the
@@ -67,8 +75,10 @@ the historical deterministic seed for compatibility.
   flushes each bounded event and retries one reopen after a write failure.
 - Every audit row carries `run`, `symbol` and runtime `magic`. Important event
   families include `LEVEL_SCAN_*`, `LEVEL_TOUCH_PROVISIONAL`, `LEVEL_BURNED`,
-  `CAMPAIGN_*`, `ENTRY_*`, `ORDER_SEND_RESULT`, `FILL_*`, local SL/trailing,
-  position finalization, protection closes and debug stops.
+  `CAMPAIGN_CARRIED_FORWARD`, `CAMPAIGN_CANCELLED`, `CAMPAIGN_*`, `ENTRY_*`,
+  `ORDER_SEND_RESULT`, `FILL_*`, local SL/trailing, position finalization,
+  protection closes and debug stops. Occupied-level diagnostics are emitted
+  only when their bar/direction/mask/selection signature changes.
 - `POSITION_FINALIZED` records the independent `close_trigger` and `net_class`,
   trigger quote/stop/step, latest exit deal and volume-weighted actual close
   price. A profitable BE or trailing close is therefore not mislabeled as TP.
@@ -77,8 +87,9 @@ the historical deterministic seed for compatibility.
 - Chart objects use the `PIVOT_HFT_` prefix. The campaign pivot, tracked
   extreme and retracement trigger are separate lines; each live ticket has
   deterministic `POSITION_<ticket>_ENTRY` and `POSITION_<ticket>_STOP` lines.
-  First-test segments and completed campaign/ticket objects are removed by the
-  owning visual cleanup path.
+  A terminally cancelled campaign is shown as `CANCELLED` briefly for visual
+  QA; first-test segments and completed ticket objects are removed by the owning
+  visual cleanup path.
 
 ## Safety Notes
 

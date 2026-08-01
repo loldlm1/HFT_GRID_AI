@@ -8,9 +8,6 @@ bool     g_pivot_hft_tick_micro_bar_cached = false;
 datetime g_pivot_hft_tick_micro_bar = 0;
 bool     g_pivot_hft_tick_close_cached = false;
 double   g_pivot_hft_tick_micro_close = 0.0;
-datetime g_pivot_hft_occupied_audit_bar = 0;
-ulong    g_pivot_hft_occupied_audit_mask = 0;
-SignalTypes g_pivot_hft_occupied_audit_direction = NO_SIGNAL;
 
 void PivotHftBeginTickDataCache()
 {
@@ -70,7 +67,36 @@ void PivotHftObserveMicroBarTransition(const datetime current_bar)
   if(current_bar == g_pivot_hft_last_micro_bar)
     return;
 
+  datetime previous_bar = g_pivot_hft_last_micro_bar;
   g_pivot_hft_last_micro_bar = current_bar;
+  PivotHftResetOccupiedAuditState();
+
+  if(g_pivot_hft_campaign.status != PIVOT_HFT_CAMPAIGN_TRACKING &&
+     g_pivot_hft_campaign.status != PIVOT_HFT_CAMPAIGN_ORDER_WAIT)
+    return;
+  if(g_pivot_hft_campaign.micro_bar_time <= 0 ||
+     g_pivot_hft_campaign.micro_bar_time >= current_bar)
+    return;
+
+  int micro_seconds = PeriodSeconds(Pivot_HFT_Micro_Timeframe);
+  if(micro_seconds <= 0)
+    micro_seconds = 60;
+  long age_bars = (long)((current_bar -
+                          g_pivot_hft_campaign.micro_bar_time) /
+                         micro_seconds);
+  if(age_bars < 1)
+    age_bars = 1;
+  PivotHftAuditLog("CAMPAIGN_CARRIED_FORWARD",
+                   StringFormat("sequence=%s|dir=%s|level=%s|origin_bar=%I64d|previous_bar=%I64d|current_bar=%I64d|age_bars=%I64d|status=%s",
+                                g_pivot_hft_campaign.sequence_id,
+                                EnumToString(g_pivot_hft_campaign.direction),
+                                PivotHftLevelLabel(
+                                  g_pivot_hft_campaign.pivot_level),
+                                (long)g_pivot_hft_campaign.micro_bar_time,
+                                (long)previous_bar,
+                                (long)current_bar,
+                                age_bars,
+                                EnumToString(g_pivot_hft_campaign.status)));
 }
 
 void PivotHftStartCampaign(const SignalTypes direction,
@@ -79,6 +105,7 @@ void PivotHftStartCampaign(const SignalTypes direction,
                            const datetime micro_bar_time)
 {
   PivotHftClearExpiredCampaignVisual();
+  PivotHftResetOccupiedAuditState();
   PivotHftCampaignState campaign;
   campaign.status          = PIVOT_HFT_CAMPAIGN_TRACKING;
   campaign.direction       = direction;
@@ -114,21 +141,18 @@ void PivotHftAuditOccupiedCandidateState(
     return;
 
   if(occupied_mask == 0)
-  {
-    g_pivot_hft_occupied_audit_bar = 0;
-    g_pivot_hft_occupied_audit_mask = 0;
-    g_pivot_hft_occupied_audit_direction = NO_SIGNAL;
     return;
-  }
 
   if(g_pivot_hft_occupied_audit_bar == micro_bar_time &&
      g_pivot_hft_occupied_audit_mask == occupied_mask &&
-     g_pivot_hft_occupied_audit_direction == direction)
+     g_pivot_hft_occupied_audit_direction == direction &&
+     g_pivot_hft_occupied_audit_selected == selected_level)
     return;
 
   g_pivot_hft_occupied_audit_bar = micro_bar_time;
   g_pivot_hft_occupied_audit_mask = occupied_mask;
   g_pivot_hft_occupied_audit_direction = direction;
+  g_pivot_hft_occupied_audit_selected = selected_level;
 
   string direction_label = (direction == NO_SIGNAL)
                            ? "BOTH"
@@ -405,11 +429,11 @@ bool PivotHftDetectEntryIntent(const bool allow_new_campaign)
   if(current_micro_bar <= 0)
     return false;
 
-  PivotHftObserveMicroBarTransition(current_micro_bar);
   if(!PivotHftRefreshPivotSnapshot(false))
     return false;
   if(!PivotHftRefreshBandsSnapshot(false))
     return false;
+  PivotHftObserveMicroBarTransition(current_micro_bar);
 
   if(g_pivot_hft_campaign.status == PIVOT_HFT_CAMPAIGN_TRACKING &&
      PivotHftCampaignBelongsToCurrentMicroBar())
