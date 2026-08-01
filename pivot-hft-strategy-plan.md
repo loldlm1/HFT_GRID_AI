@@ -1,7 +1,7 @@
 # Plan: Pivot HFT sobre Bollinger y pivotes clasicos
 
 **Generated**: 2026-08-01
-**Status**: Implemented through Sprint 12; QA remediation Sprints 13-14 remain.
+**Status**: Implemented through Sprint 13; QA remediation Sprint 14 remains.
 Final compile and manual real-tick validation remain pending.
 **Estimated Complexity**: Critical / trading-sensitive
 
@@ -1132,9 +1132,10 @@ indicator-resource activation, lifecycle retry handling, diagnostics and docs.
 **Goal**: Make campaign tracking and each live position understandable in the
 visual tester without allowing chart state to influence trading.
 **Dependencies**: Sprint 12 behavior gate.
-**Tracked scope**: `services/frontend/pivot_hft_panel.mqh`,
-`services/frontend/pivot_hft_visualization.mqh`, Pivot HFT state accessors,
-docs and this plan.
+**Tracked scope**: `HFT_Grid_AI.mq5`,
+`services/frontend/pivot_hft_panel.mqh`,
+`services/frontend/pivot_hft_visualization.mqh`, Pivot HFT state/detection
+accessors, docs and this plan.
 **Commit**: `Sprint 13: visualize pivot hft order lifecycle`
 
 ### Task 13.1: Render the pending campaign
@@ -1165,12 +1166,12 @@ docs and this plan.
 
 ### Sprint 13 Gate
 
-- [ ] Pending extreme and retracement threshold are visible and accurate.
-- [ ] Fill, local SL/BE/trailing and step state are visible per ticket.
-- [ ] Burned-level markers, object update cost and cleanup pass static review.
-- [ ] Sprint 13 static validation passes; final compile remains deferred to
+- [x] Pending extreme and retracement threshold are visible and accurate.
+- [x] Fill, local SL/BE/trailing and step state are visible per ticket.
+- [x] Burned-level markers, object update cost and cleanup pass static review.
+- [x] Sprint 13 static validation passes; final compile remains deferred to
   Sprint 14.
-- [ ] Exactly one Sprint 13 commit is created before Sprint 14 starts.
+- [x] Exactly one Sprint 13 commit is created before Sprint 14 starts.
 
 ## Sprint 14: Real-Tick QA Regression And Final Handoff
 

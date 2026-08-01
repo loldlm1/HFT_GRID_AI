@@ -197,6 +197,7 @@ int OnInit()
 
   // Rebuild the active pivot-set test state even when entry sessions are closed.
   PivotHftRefreshPivotSnapshot(true);
+  ClearFrontendVisualization();
 
   // CHART SETUP
   if(PivotHftVisualizationEnabledForRuntime())

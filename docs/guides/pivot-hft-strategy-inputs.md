@@ -76,6 +76,28 @@ Un nivel no se arma por duplicado dentro de la misma vela mientras su posicion
 siga activa o despues de completarse con neto positivo. Un cierre externo o de
 proteccion tampoco rearma esa campana; otro pivote si puede iniciar una nueva.
 
+## Lectura visual del lifecycle
+
+En chart o Strategy Tester visual, los pivotes muestran su estado en la
+descripcion: `UNTESTED`, `TEST OPEN`, `BURNED` o el estado de la campana. Cada
+nivel quemado conserva un segmento corto sobre su primera vela micro de test.
+
+La campana activa dibuja tres lineas: pivote seleccionado, extremo seguido y
+precio exacto que dispara la entrada por retroceso. `ENTRY READY` usa una linea
+mas gruesa; una campana expirada permanece atenuada durante una vela micro para
+facilitar el QA.
+
+Cada posicion administrada usa nombres y lineas por ticket:
+
+- `ACTUAL FILL`: precio real de entrada.
+- `LOCAL SL`: proteccion inicial local.
+- `BE`: stop movido al precio de entrada.
+- `TRAIL STEP N`: stop local vigente tras cada step del trailing.
+
+Las lineas se actualizan solo cuando cambia su precio o estado, se eliminan al
+completar el ticket y no existen en tester no visual. Ningun objeto del chart
+participa en la deteccion ni en la ejecucion.
+
 ## Controles conservados
 
 - Cuenta hedging obligatoria.
@@ -112,3 +134,7 @@ Usar `Every tick based on real ticks` sobre la variante US30 del broker:
    no probado disponible.
 10. Toque provisional utilizable solo en su vela micro y quemado en la
     siguiente.
+11. Lineas de trigger/extremo antes del fill y lineas `ACTUAL FILL`/SL/trailing
+    separadas para multiples tickets.
+12. Eliminacion de objetos de campana, nivel y ticket al expirar, cerrar o
+    retirar el EA.

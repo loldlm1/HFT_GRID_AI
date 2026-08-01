@@ -123,7 +123,9 @@ struct PivotHftPositionState
 
 PivotHftPivotSnapshot  g_pivot_hft_pivots;
 PivotHftCampaignState  g_pivot_hft_campaign;
+PivotHftCampaignState  g_pivot_hft_expired_visual_campaign;
 PivotHftPositionState  g_pivot_hft_positions[];
+datetime               g_pivot_hft_expired_visual_until = 0;
 datetime               g_pivot_hft_last_micro_bar = 0;
 datetime               g_pivot_hft_last_macro_bar = 0;
 string                 g_pivot_hft_last_error = "";
@@ -404,6 +406,38 @@ void PivotHftMarkLevelTouchedInOpenMicroBar(
 void PivotHftResetCampaign()
 {
   g_pivot_hft_campaign = PivotHftCampaignState();
+}
+
+void PivotHftClearExpiredCampaignVisual()
+{
+  g_pivot_hft_expired_visual_campaign = PivotHftCampaignState();
+  g_pivot_hft_expired_visual_until = 0;
+}
+
+void PivotHftCaptureExpiredCampaignVisual(const datetime current_micro_bar)
+{
+  if(g_pivot_hft_campaign.status == PIVOT_HFT_CAMPAIGN_IDLE ||
+     current_micro_bar <= 0)
+    return;
+
+  g_pivot_hft_expired_visual_campaign = g_pivot_hft_campaign;
+  g_pivot_hft_expired_visual_campaign.status = PIVOT_HFT_CAMPAIGN_EXPIRED;
+  int micro_seconds = PeriodSeconds(Pivot_HFT_Micro_Timeframe);
+  if(micro_seconds <= 0)
+    micro_seconds = 60;
+  g_pivot_hft_expired_visual_until = current_micro_bar + micro_seconds;
+}
+
+bool PivotHftGetExpiredCampaignVisual(PivotHftCampaignState &snapshot)
+{
+  snapshot = PivotHftCampaignState();
+  if(g_pivot_hft_expired_visual_until <= TimeCurrent() ||
+     g_pivot_hft_expired_visual_campaign.status !=
+       PIVOT_HFT_CAMPAIGN_EXPIRED)
+    return false;
+
+  snapshot = g_pivot_hft_expired_visual_campaign;
+  return true;
 }
 
 void PivotHftClearPositionStates()

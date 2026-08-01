@@ -40,20 +40,19 @@ int PivotHftActivePositionCount()
   return active_count;
 }
 
-double PivotHftCampaignRetracementTrigger()
+double PivotHftCampaignRetracementThresholdForState(
+  const PivotHftCampaignState &campaign)
 {
-  if(g_pivot_hft_campaign.trigger_price > 0.0)
-    return g_pivot_hft_campaign.trigger_price;
-  if(g_pivot_hft_campaign.tracked_extreme <= 0.0)
+  if(campaign.tracked_extreme <= 0.0)
     return 0.0;
 
   double distance = PivotHftDistanceToPrice(Pivot_HFT_Retracement_Points);
   if(distance <= 0.0)
     return 0.0;
-  if(g_pivot_hft_campaign.direction == BEARISH)
-    return PivotHftNormalizePrice(g_pivot_hft_campaign.tracked_extreme - distance);
-  if(g_pivot_hft_campaign.direction == BULLISH)
-    return PivotHftNormalizePrice(g_pivot_hft_campaign.tracked_extreme + distance);
+  if(campaign.direction == BEARISH)
+    return PivotHftNormalizePrice(campaign.tracked_extreme - distance);
+  if(campaign.direction == BULLISH)
+    return PivotHftNormalizePrice(campaign.tracked_extreme + distance);
   return 0.0;
 }
 
@@ -93,12 +92,38 @@ string PivotHftBuildPositionPanelLines()
   return text;
 }
 
+string PivotHftLevelStatusList(const PivotHftLevelTestStatuses status)
+{
+  string text = "";
+  for(int i = (int)PIVOT_HFT_LEVEL_R1;
+      i < PIVOT_HFT_LEVEL_SLOT_TOTAL;
+      i++)
+  {
+    PivotHftPivotLevels level = (PivotHftPivotLevels)i;
+    if(PivotHftGetLevelTestStatus(level) != status)
+      continue;
+    if(text != "")
+      text += ",";
+    text += PivotHftLevelLabel(level);
+  }
+  return (text == "") ? "-" : text;
+}
+
+void PivotHftResolvePanelCampaign(PivotHftCampaignState &campaign)
+{
+  campaign = g_pivot_hft_campaign;
+  if(campaign.status == PIVOT_HFT_CAMPAIGN_IDLE)
+    PivotHftGetExpiredCampaignVisual(campaign);
+}
+
 string PivotHftBuildPanelText()
 {
-  string campaign_level = PivotHftLevelLabel(g_pivot_hft_campaign.pivot_level);
-  string campaign_direction = (g_pivot_hft_campaign.direction == NO_SIGNAL)
+  PivotHftCampaignState campaign;
+  PivotHftResolvePanelCampaign(campaign);
+  string campaign_level = PivotHftLevelLabel(campaign.pivot_level);
+  string campaign_direction = (campaign.direction == NO_SIGNAL)
                               ? "-"
-                              : PivotHftDirectionToken(g_pivot_hft_campaign.direction);
+                              : PivotHftDirectionToken(campaign.direction);
 
   string text = "PIVOT HFT";
   text += StringFormat("\nMicro %s | Pivot %s | Session %s",
@@ -110,15 +135,20 @@ string PivotHftBuildPanelText()
                        g_pivot_hft_bands_upper,
                        g_pivot_hft_pivots.pivot);
   text += StringFormat("\nCampaign %s | %s %s %.5f | extreme %.5f",
-                       PivotHftCampaignStatusLabel(g_pivot_hft_campaign.status),
+                       PivotHftCampaignStatusLabel(campaign.status),
                        campaign_direction,
                        campaign_level,
-                       g_pivot_hft_campaign.pivot_price,
-                       g_pivot_hft_campaign.tracked_extreme);
-  text += StringFormat("\nRetrace trigger %.5f | Active positions %d | %s",
-                       PivotHftCampaignRetracementTrigger(),
+                       campaign.pivot_price,
+                       campaign.tracked_extreme);
+  text += StringFormat("\nRetrace threshold %.5f | trigger quote %.5f | Active %d | %s",
+                       PivotHftCampaignRetracementThresholdForState(campaign),
+                       campaign.trigger_price,
                        PivotHftActivePositionCount(),
                        MarketStatusErrorSummary());
+  text += StringFormat("\nLevels burned %s | test open %s | history %s",
+                       PivotHftLevelStatusList(PIVOT_HFT_LEVEL_BURNED),
+                       PivotHftLevelStatusList(PIVOT_HFT_LEVEL_TOUCHED_OPEN),
+                       PivotHftLevelTestStateReady() ? "READY" : "WAIT");
   text += PivotHftBuildPositionPanelLines();
   return text;
 }

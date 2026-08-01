@@ -76,6 +76,7 @@ void PivotHftResetPendingCampaignForNewMicroBar(const datetime current_bar)
                                   (long)g_pivot_hft_campaign.micro_bar_time,
                                   EnumToString(g_pivot_hft_campaign.status)));
     g_pivot_hft_campaign.status = PIVOT_HFT_CAMPAIGN_EXPIRED;
+    PivotHftCaptureExpiredCampaignVisual(current_bar);
     PivotHftResetCampaign();
   }
   g_pivot_hft_last_micro_bar = current_bar;
@@ -86,6 +87,7 @@ void PivotHftStartCampaign(const SignalTypes direction,
                            const double level_price,
                            const datetime micro_bar_time)
 {
+  PivotHftClearExpiredCampaignVisual();
   PivotHftCampaignState campaign;
   campaign.status          = PIVOT_HFT_CAMPAIGN_TRACKING;
   campaign.direction       = direction;
