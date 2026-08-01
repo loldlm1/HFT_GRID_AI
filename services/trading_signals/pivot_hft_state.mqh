@@ -65,6 +65,8 @@ struct PivotHftPositionState
   SignalTypes              direction;
   PivotHftPivotLevels      pivot_level;
   ulong                    position_ticket;
+  ulong                    position_identifier;
+  ulong                    entry_deal_ticket;
   datetime                 campaign_micro_bar_time;
   datetime                 entry_time;
   datetime                 close_time;
@@ -73,6 +75,7 @@ struct PivotHftPositionState
   double                   local_sl_price;
   double                   trailing_stop_price;
   double                   net_result;
+  double                   entry_volume;
   int                      trailing_step_index;
   string                   position_comment;
   bool                     close_requested;
@@ -84,6 +87,8 @@ struct PivotHftPositionState
     direction              = NO_SIGNAL;
     pivot_level            = PIVOT_HFT_LEVEL_NONE;
     position_ticket        = 0;
+    position_identifier    = 0;
+    entry_deal_ticket      = 0;
     campaign_micro_bar_time = 0;
     entry_time             = 0;
     close_time             = 0;
@@ -92,6 +97,7 @@ struct PivotHftPositionState
     local_sl_price         = 0.0;
     trailing_stop_price    = 0.0;
     net_result             = 0.0;
+    entry_volume           = 0.0;
     trailing_step_index    = 0;
     position_comment       = "";
     close_requested        = false;
@@ -113,6 +119,35 @@ void PivotHftResetCampaign()
 void PivotHftClearPositionStates()
 {
   ArrayResize(g_pivot_hft_positions, 0, 0);
+}
+
+int PivotHftFindPositionStateIndex(const ulong position_ticket)
+{
+  if(position_ticket == 0)
+    return -1;
+
+  int total = ArraySize(g_pivot_hft_positions);
+  for(int i = 0; i < total; i++)
+  {
+    if(g_pivot_hft_positions[i].position_ticket == position_ticket)
+      return i;
+  }
+  return -1;
+}
+
+bool PivotHftAppendPositionState(const PivotHftPositionState &position_state)
+{
+  if(position_state.position_ticket == 0)
+    return false;
+  if(PivotHftFindPositionStateIndex(position_state.position_ticket) >= 0)
+    return false;
+
+  int current_size = ArraySize(g_pivot_hft_positions);
+  if(ArrayResize(g_pivot_hft_positions, current_size + 1, 16) != current_size + 1)
+    return false;
+
+  g_pivot_hft_positions[current_size] = position_state;
+  return true;
 }
 
 #endif // _SERVICES_TRADING_SIGNALS_PIVOT_HFT_STATE_MQH_
