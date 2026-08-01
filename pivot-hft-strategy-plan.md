@@ -1,8 +1,9 @@
 # Plan: Pivot HFT sobre Bollinger y pivotes clasicos
 
 **Generated**: 2026-08-01
-**Status**: Implemented through Sprint 13; QA remediation Sprint 14 remains.
-Final compile and manual real-tick validation remain pending.
+**Status**: Sprint 14 implementation, static review and the single final
+compile are complete. Manual real-tick QA is explicitly delegated to the user
+and remains a release prerequisite until that session is executed.
 **Estimated Complexity**: Critical / trading-sensitive
 
 **Execution override**: Per explicit user authorization, the original batch
@@ -18,6 +19,15 @@ and demo-chart validation remain explicit release prerequisites. Sprint 9
 completed with the exact MetaEditor `5-1` gate at `0 errors, 0 warnings` in
 `7624 ms`; `BUILD.log`, the temporary editor copy and the temporary Include
 junction were removed. No harness/CI or automated tester matrix was run.
+
+Sprint 14 completed the final static review with `git diff --check` passing and
+the targeted include, history-boundary, file-log, chart-cleanup,
+symbol/magic-scope and license-contract checks passing. The exact portable
+MetaEditor `5-1` compile completed with `0 errors, 0 warnings` in `8772 ms`.
+The current `BUILD.log` and temporary Include junction were removed after the
+result was recorded; no harness, CI or Strategy Tester session was launched by
+the agent. Manual real-tick chart, broker-history and `query_debug.txt`
+correlation remains pending with the user.
 
 **QA remediation validation override**: By explicit user instruction during
 Sprint 10, Sprints 10-13 use static/diff review only. No MQL5 harness tests or
@@ -1197,6 +1207,10 @@ artifacts only.
 - Cover entry trigger, broker fill, local SL, BE, trailing steps, negative/BE
   retry, positive completion, multiple tickets, protection close and debug stop.
 - Correlate each chart transition with broker history and `query_debug.txt`.
+- Per explicit user instruction, the agent must not launch or manipulate manual
+  Strategy Tester QA. The complete matrix and evidence fields are documented in
+  `docs/guides/pivot-hft-strategy-inputs.md` for the user's visual run; until
+  that run exists, these scenarios remain an explicit release gap.
 
 ### Task 14.3: Finalize documentation and handoff
 
@@ -1209,12 +1223,12 @@ artifacts only.
 
 ### Sprint 14 Gate
 
-- [ ] Final static and MetaEditor compile gates pass; `BUILD.log` is removed.
-- [ ] Real-tick visual scenarios are executed or each unavailable scenario is
-  explicitly documented as a remaining manual gap.
+- [x] Final static and MetaEditor compile gates pass; `BUILD.log` is removed.
+- [x] Real-tick visual scenarios are explicitly documented as a remaining
+  manual gap delegated to the user; the agent did not launch the tester.
 - [ ] Chart, history and audit evidence agree for tested levels and lifecycle.
-- [ ] Active docs, rollback points and residual risks are current.
-- [ ] Exactly one Sprint 14 commit is created and the plan status is final.
+- [x] Active docs, rollback points and residual risks are current.
+- [x] Exactly one Sprint 14 commit is created and the plan status is final.
 
 ## Testing Strategy
 

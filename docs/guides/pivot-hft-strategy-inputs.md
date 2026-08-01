@@ -50,6 +50,9 @@ campanas hasta completar la reconstruccion.
 | `Pivot_HFT_TP_Step_Points` | `25.0` | Step 1 a BE y steps posteriores avanzan el SL. |
 | `Pivot_HFT_Lot_Size` | `0.01` | Volumen fijo normalizado al simbolo. |
 | `Pivot_HFT_Enable_Visualization` | `true` | Muestra pivotes, bandas, campana y posiciones. |
+| `Enable_Logs` | `false` | Mensajes compactos en Journal. |
+| `Enable_File_Logs` | `false` | Auditoria persistente del lifecycle en `query_debug.txt`. |
+| `Debug_Stop_On_Negative_Equity` | `false` | Detiene el tester segun el contrato de depuracion existente. |
 
 Todos los campos de distancia usan puntos MQL5:
 
@@ -98,6 +101,38 @@ Las lineas se actualizan solo cuando cambia su precio o estado, se eliminan al
 completar el ticket y no existen en tester no visual. Ningun objeto del chart
 participa en la deteccion ni en la ejecucion.
 
+Los nombres relevantes son deterministas:
+
+- `PIVOT_HFT_TEST_<nivel>`: segmento de la primera vela que probo el nivel.
+- `PIVOT_HFT_CAMPAIGN_PIVOT`: pivote de la campana visible.
+- `PIVOT_HFT_CAMPAIGN_EXTREME`: maximo Bid o minimo Ask seguido.
+- `PIVOT_HFT_CAMPAIGN_TRIGGER`: precio exacto del retroceso de entrada.
+- `PIVOT_HFT_POSITION_<ticket>_ENTRY`: fill real del broker.
+- `PIVOT_HFT_POSITION_<ticket>_STOP`: SL local, BE o trailing vigente.
+
+## Auditoria en archivo
+
+Activar `Enable_File_Logs=true` para escribir el lifecycle en:
+
+```text
+TERMINAL_COMMONDATA_PATH\Files\query_debug.txt
+```
+
+El EA imprime en Journal la ruta absoluta resuelta y el `run` al inicializar.
+El archivo usa `FILE_COMMON`, por lo que puede ser compartido por varias
+instalaciones MT5. Cada fila incluye timestamp, evento, `run`, simbolo y magic;
+usar esos campos para separar instancias y pruebas.
+
+Para auditar niveles buscar `LEVEL_SCAN_START`, `LEVEL_SCAN_RESULT`,
+`LEVEL_SCAN_FAILED`, `LEVEL_TOUCH_PROVISIONAL`, `LEVEL_BURNED` y
+`LEVEL_CONTEXT_FINALIZED`. Para el lifecycle correlacionar `CAMPAIGN_*`,
+`ENTRY_*`, `ORDER_SEND_RESULT`, `FILL_REGISTERED`, `LOCAL_SL_INITIALIZED`,
+`TRAILING_ADVANCED`, `LOCAL_CLOSE_*`, `POSITION_FINALIZED`, cierres de
+proteccion y `DEBUG_STOP`.
+
+Rotar o vaciar el archivo antes de una sesion QA enfocada. No usar un log viejo
+como evidencia de la compilacion o del run actual.
+
 ## Controles conservados
 
 - Cuenta hedging obligatoria.
@@ -120,21 +155,36 @@ El perfil backend conserva deliberadamente la identidad Pandora. No se cambia
 
 ## Validacion manual
 
-Usar `Every tick based on real ticks` sobre la variante US30 del broker:
+Usar `Every tick based on real ticks` sobre la variante US30 del broker. Antes
+de iniciar, activar `Enable_File_Logs`, conservar `Pivot_HFT_Enable_Visualization`
+y limpiar o rotar `query_debug.txt`:
 
 1. Rechazo de cuenta netting durante `OnInit`.
-2. Reemplazo del pivote pendiente por el ultimo nivel tocado.
-3. Entradas BUY/SELL con SL y TP servidor en cero.
-4. SL local, BE, steps posteriores y cierre por ticket independiente.
-5. Reintento en perdida/BE solo dentro de la vela micro original.
-6. Multiples tickets activos en velas o niveles posteriores.
-7. Bloqueos por spread, margen, sesion, limite diario y proteccion.
-8. Limpieza de handles, lineas y comentario al retirar el EA.
-9. Nivel H1 probado antes de la sesion bloqueado al reingresar; nivel hermano
-   no probado disponible.
-10. Toque provisional utilizable solo en su vela micro y quemado en la
-    siguiente.
-11. Lineas de trigger/extremo antes del fill y lineas `ACTUAL FILL`/SL/trailing
-    separadas para multiples tickets.
-12. Eliminacion de objetos de campana, nivel y ticket al expirar, cerrar o
-    retirar el EA.
+2. Con pivotes H1 y sesion `13:30`, confirmar que un nivel probado antes de la
+   sesion llega quemado y que un nivel hermano no probado sigue disponible.
+3. Toque provisional utilizable durante su vela micro y cambio a `BURNED` solo
+   al abrir la vela siguiente; no debe rearmarse durante el mismo conjunto H1.
+4. Multiples niveles tocados, seleccion del ultimo pivote valido y exclusion de
+   cualquier nivel ya quemado.
+5. Rollover macro: el conjunto anterior se finaliza y el nuevo conjunto inicia
+   su propia validez aunque repita un precio.
+6. Reinicio o re-attach dentro del mismo H1: la reconstruccion debe producir la
+   misma lista de niveles quemados antes de admitir una campana.
+7. Entradas BUY/SELL con SL y TP servidor en cero, y coincidencia entre
+   `ORDER_SEND_RESULT`, `FILL_REGISTERED` e historial del broker.
+8. Lineas de pivote, extremo y trigger antes del fill; despues, lineas
+   `ACTUAL FILL`, `LOCAL SL`, `BE` y `TRAIL STEP N` por ticket.
+9. SL local, BE, steps posteriores, cierre neto y eliminacion visual por ticket
+   independiente, incluyendo multiples posiciones hedging simultaneas.
+10. Reintento tras perdida o BE solo dentro de la vela micro original; neto
+    positivo completa la campana y no rearma.
+11. Bloqueos por spread, margen, sesion, limite diario, proteccion y estado del
+    broker, mas cierre de proteccion y `Debug_Stop_On_Negative_Equity`.
+12. Limpieza de handles, comentario y objetos `PIVOT_HFT_` al expirar, cerrar,
+    retirar o re-adjuntar el EA.
+13. Para cada escenario, correlacionar el chart, historial de ordenes/deals y
+    las filas del mismo `run` en `query_debug.txt`.
+
+No promover el EA a demo prolongada o live hasta registrar esta evidencia
+manual. El SL y el trailing son locales: terminal, EA, Algo Trading y conexion
+deben permanecer activos para ejecutar el cierre.

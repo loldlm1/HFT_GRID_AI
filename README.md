@@ -21,8 +21,13 @@ claim institutional HFT latency.
   follow the lowest Ask and enter after an upward retracement.
 - Only one pending campaign exists. A newly touched pivot replaces it, while
   already-open hedging positions remain independent.
-- The same pivot is not armed twice in one micro candle while its position is
-  active or after that level completes positively; another pivot can still arm.
+- At startup and session entry, the active macro set is rebuilt from its open
+  through every closed micro candle, including candles outside entry sessions.
+- A first touch in the open micro candle is provisional. When that candle
+  closes, the level is burned for the rest of the macro set; retries remain
+  possible only inside the original open micro candle.
+- If the required history is unavailable or unsynchronized, new campaigns fail
+  closed until the level reconstruction succeeds.
 
 ## Position Lifecycle
 
@@ -51,6 +56,25 @@ The shared license implementation and backend identity remain unchanged. Live
 magic still comes from `LicenseGetCachedMagicNumber()` and the tester retains
 the historical deterministic seed for compatibility.
 
+## Diagnostics And Visual QA
+
+- `Enable_Logs` controls compact Journal messages. `Enable_File_Logs` controls
+  the persistent Pivot HFT lifecycle audit; the two inputs are independent.
+- The audit appends to
+  `TERMINAL_COMMONDATA_PATH\Files\query_debug.txt` through `FILE_COMMON`. On
+  startup the Journal prints the resolved absolute path and the run id.
+- Every audit row carries `run`, `symbol` and runtime `magic`. Important event
+  families include `LEVEL_SCAN_*`, `LEVEL_TOUCH_PROVISIONAL`, `LEVEL_BURNED`,
+  `CAMPAIGN_*`, `ENTRY_*`, `ORDER_SEND_RESULT`, `FILL_*`, local SL/trailing,
+  position finalization, protection closes and debug stops.
+- Rotate or clear `query_debug.txt` before a focused tester session so chart,
+  broker history and one run id can be correlated without stale evidence.
+- Chart objects use the `PIVOT_HFT_` prefix. The campaign pivot, tracked
+  extreme and retracement trigger are separate lines; each live ticket has
+  deterministic `POSITION_<ticket>_ENTRY` and `POSITION_<ticket>_STOP` lines.
+  First-test segments and completed campaign/ticket objects are removed by the
+  owning visual cleanup path.
+
 ## Safety Notes
 
 - MT5 account mode must be `ACCOUNT_MARGIN_MODE_RETAIL_HEDGING`.
@@ -62,7 +86,8 @@ the historical deterministic seed for compatibility.
   open. Non-visual tester runs skip chart objects/comments, while open-position
   local protection continues outside the entry window.
 - Use Strategy Tester `Every tick based on real ticks` and a demo hedging chart
-  before live use.
+  before live use. Manual real-tick evidence is a release prerequisite; a clean
+  compile alone does not authorize live deployment.
 
 See `docs/guides/pivot-hft-strategy-inputs.md` for input definitions and the
 manual validation checklist.
