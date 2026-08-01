@@ -119,6 +119,17 @@ bool PivotHftRefreshPivotSnapshot(const bool force_refresh = false)
 
   g_pivot_hft_pivots = snapshot;
   g_pivot_hft_last_macro_bar = current_macro_bar;
+  PivotHftAuditLog("PIVOT_SET_REFRESH",
+                   StringFormat("activation_bar=%I64d|source_bar=%I64d|pivot=%.5f|r1=%.5f|r2=%.5f|r3=%.5f|s1=%.5f|s2=%.5f|s3=%.5f",
+                                (long)current_macro_bar,
+                                (long)source_bar_time,
+                                snapshot.pivot,
+                                snapshot.resistance_1,
+                                snapshot.resistance_2,
+                                snapshot.resistance_3,
+                                snapshot.support_1,
+                                snapshot.support_2,
+                                snapshot.support_3));
   if(g_pivot_hft_campaign.status != PIVOT_HFT_CAMPAIGN_IDLE)
     PivotHftResetCampaign();
   return true;

@@ -45,6 +45,7 @@ input DailySignalLimitModes Daily_Signal_Limit_Mode = STOP_DAILY_SIGNALS;
 
 input group "+= Diagnostics =+";
 input bool Enable_Logs                    = false;
+input bool Enable_File_Logs               = false;
 input bool Debug_Stop_On_Negative_Equity = false;
 
 #endif // _SERVICES_TRADING_MANAGEMENT_EA_INPUTS_MQH_

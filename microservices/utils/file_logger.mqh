@@ -11,15 +11,16 @@ bool AppendFileLog(const string filename, const string line)
   if(filename == "")
     return false;
 
+  ResetLastError();
   int handle = FileOpen(filename,
                         FILE_WRITE | FILE_READ | FILE_TXT | FILE_COMMON | FILE_ANSI);
   if(handle == INVALID_HANDLE)
     return false;
 
   FileSeek(handle, 0, SEEK_END);
-  FileWrite(handle, line);
+  uint bytes_written = FileWrite(handle, line);
   FileClose(handle);
-  return true;
+  return (bytes_written > 0);
 }
 
 bool AppendTimestampedLog(const string filename, const string label, const string message)

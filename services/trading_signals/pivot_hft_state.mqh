@@ -82,6 +82,7 @@ struct PivotHftPositionState
   bool                     close_requested;
   bool                     reattempt_pending;
   bool                     daily_outcome_registered;
+  datetime                 last_close_audit_time;
 
   PivotHftPositionState()
   {
@@ -107,6 +108,7 @@ struct PivotHftPositionState
     close_requested        = false;
     reattempt_pending      = false;
     daily_outcome_registered = false;
+    last_close_audit_time  = 0;
   }
 };
 

@@ -1,8 +1,8 @@
 # Plan: Pivot HFT sobre Bollinger y pivotes clasicos
 
 **Generated**: 2026-08-01
-**Status**: Implemented through Sprint 9; compile passed, manual real-tick
-validation pending
+**Status**: Implemented through Sprint 10; QA remediation Sprints 11-14 remain.
+Final compile and manual real-tick validation remain pending.
 **Estimated Complexity**: Critical / trading-sensitive
 
 **Execution override**: Per explicit user authorization, the original batch
@@ -18,6 +18,14 @@ and demo-chart validation remain explicit release prerequisites. Sprint 9
 completed with the exact MetaEditor `5-1` gate at `0 errors, 0 warnings` in
 `7624 ms`; `BUILD.log`, the temporary editor copy and the temporary Include
 junction were removed. No harness/CI or automated tester matrix was run.
+
+**QA remediation validation override**: By explicit user instruction during
+Sprint 10, Sprints 10-13 use static/diff review only. No MQL5 harness tests or
+CI are created or executed. One MetaEditor compile is reserved for the final
+Sprint 14 gate after all remediation code is complete. A Sprint 10 compile had
+already passed at `0 errors, 0 warnings` before this override was received; its
+temporary `BUILD.log`, helper script and Include junction were removed, and it
+does not replace the required final Sprint 14 compile.
 
 ## Overview
 
@@ -973,6 +981,238 @@ bar changes.
 - [x] Static scope/include/diff checks pass without harness/CI tests.
 - [x] Exactly one Sprint 9 MetaEditor compile passes with `0 errors, 0 warnings`.
 - [x] `BUILD.log` is removed and exactly one Sprint 9 commit is created.
+
+## Sprint 10: Persistent Lifecycle Audit Logging
+
+**Goal**: Add bounded, agent-readable file diagnostics for the complete Pivot
+HFT lifecycle without changing trading admission, broker requests, local
+protection, license identity or session behavior.
+**Dependencies**: Sprint 9 and the first visual QA findings.
+**Tracked scope**: `services/trading_management/ea_inputs.mqh`,
+`microservices/utils/file_logger.mqh`, `services/trading_tools.mqh`,
+`services/trading_signals.mqh`, a Pivot HFT diagnostics module, Pivot HFT
+detection/execution/lifecycle modules, session/protection/debug-stop paths,
+`HFT_Grid_AI.mq5` and this plan.
+**Commit**: `Sprint 10: add pivot hft lifecycle audit logging`
+
+### Task 10.1: Add an explicit file-log boundary
+
+- Add `Enable_File_Logs=false` independently from journal `Enable_Logs`.
+- Reuse the common-files logger and write to `query_debug.txt` with a run id,
+  symbol and runtime magic on every record.
+- Emit run start/end records and print the resolved file path once when file
+  logging is enabled.
+- Warn once on file-open/write failure; never log license keys, account numbers,
+  backend payloads or credentials.
+
+### Task 10.2: Record lifecycle transitions, not tick noise
+
+- Log campaign arm, replacement, expiry, retracement trigger and retry reset.
+- Log entry guard blocks, broker send result, verified fill registration and
+  unresolved-fill failures.
+- Log local SL initialization, trailing-step advancement, local close request,
+  broker close result, net result, reattempt and completion.
+- Log session transitions, market-status transitions, force-close scheduling
+  and debug tester stops. Repeated broker failures must be throttled or emitted
+  only on meaningful state changes.
+
+### Task 10.3: Validate the audit contract
+
+- Confirm disabled file logging performs no formatting or file I/O in hot paths.
+- Confirm enabled logging produces bounded pipe-delimited records that can be
+  correlated by run, campaign sequence and ticket.
+- Use static include/hot-path/secret/diff review only, then create one Sprint
+  10 commit. The single remediation compile is deferred to Sprint 14.
+
+### Sprint 10 Gate
+
+- [x] `Enable_File_Logs` and the active logger boundary are implemented.
+- [x] Campaign, execution, position, protection, session and debug-stop events
+  have bounded audit coverage.
+- [x] Static hot-path, secret, include-order and scope review passes.
+- [x] Sprint 10 static validation passes; final compile remains deferred to
+  Sprint 14 by explicit user instruction.
+- [ ] Exactly one Sprint 10 commit is created before Sprint 11 starts.
+
+## Sprint 11: Tested-Level State And Historical Reconstruction
+
+**Goal**: Model level validity independently from trade outcome and reconstruct
+which current macro pivots were already tested before the EA could operate.
+**Dependencies**: Sprint 10 audit evidence.
+**Tracked scope**: `services/trading_signals/pivot_hft_state.mqh`,
+`services/trading_signals/pivot_hft_levels.mqh`, diagnostics and this plan.
+**Commit**: `Sprint 11: reconstruct tested pivot levels`
+
+### Task 11.1: Define the tested-level lifetime
+
+- Key validity by the current pivot-set activation and source macro candle.
+- Treat a level as touched when a closed micro candle satisfies
+  `low <= level <= high`.
+- Keep a touch in the currently open micro candle provisional; burn it only
+  when the next micro candle opens.
+- Reset tested state only when a new macro pivot set becomes active, even when
+  its numeric price equals a prior level.
+
+### Task 11.2: Scan from the pivot-set base
+
+- Use bounded `CopyRates` on `Pivot_HFT_Micro_Timeframe` from the current macro
+  bar open through the last fully closed micro candle, regardless of sessions.
+- Cache the last scanned closed micro bar and scan only missing bars afterward.
+- Reconstruct deterministically on init, session re-entry and EA reattachment.
+- Fail closed for new campaigns while required history is unavailable or
+  unsynchronized, and record the reason in the audit log.
+
+### Task 11.3: Validate in observation-only mode
+
+- Compare reconstructed masks against hand inspection and the first-test logic
+  in `indicators/Pivot_MultiTF_Range_Channel_v2.20.mq5` without adding an
+  `iCustom` dependency.
+- Verify multi-level candle touches, current-open-bar behavior, macro rollover
+  and restart consistency before the mask gates entries.
+- Complete static scope/history-boundary review and create one Sprint 11
+  commit. Do not compile before Sprint 14.
+
+### Sprint 11 Gate
+
+- [ ] Tested-level state is separate from campaign completion/position outcome.
+- [ ] Historical reconstruction is bounded, cached and session-independent.
+- [ ] Incomplete history fails closed and produces actionable audit evidence.
+- [ ] Sprint 11 static validation passes; final compile remains deferred to
+  Sprint 14.
+- [ ] Exactly one Sprint 11 commit is created before Sprint 12 starts.
+
+## Sprint 12: Burned-Level Admission And Session Integration
+
+**Goal**: Enforce the reconstructed validity state in live campaign admission
+while preserving same-micro-bar retries and all existing risk controls.
+**Dependencies**: Sprint 11 reconstruction evidence.
+**Tracked scope**: `HFT_Grid_AI.mq5`, Pivot HFT state/levels/detection,
+indicator-resource activation, lifecycle retry handling, diagnostics and docs.
+**Commit**: `Sprint 12: enforce burned pivot levels`
+
+### Task 12.1: Gate candidate selection by untested levels
+
+- Exclude burned `R1-R3` and `S1-S3` before latest-level selection.
+- Burn every level intersected by a newly closed micro candle, even when no
+  Bollinger admission, campaign or order occurred.
+- Keep the existing same-bar occupancy rule so negative/BE reattempts remain
+  possible only inside their original micro candle.
+
+### Task 12.2: Order refresh and catch-up safely
+
+- On a micro transition, finalize the old pivot set before refreshing a macro
+  set whose activation starts at the same timestamp.
+- Run catch-up before the first eligible detection on init or session re-entry.
+- Preserve active positions, local SL/trailing, force closes and symbol/magic
+  scope outside the entry session.
+
+### Task 12.3: Validate behavioral scenarios
+
+- Prove an H1 level touched before a 13:30 session cannot arm at 13:30 while an
+  untouched sibling level remains eligible.
+- Prove a first touch remains usable during its open micro candle but cannot
+  arm in later candles.
+- Verify multi-level touches, macro rollover, restart, same-bar SL/BE retries,
+  positive completion, external/protection closes and all admission guards.
+- Complete static behavior/scope review and create one Sprint 12 commit. Do
+  not compile before Sprint 14.
+
+### Sprint 12 Gate
+
+- [ ] Burned levels cannot create later campaigns in the same macro pivot set.
+- [ ] Same-bar retries and active-position lifecycle remain unchanged.
+- [ ] Session catch-up and macro/micro boundary ordering pass review.
+- [ ] Sprint 12 static validation passes; final compile remains deferred to
+  Sprint 14.
+- [ ] Exactly one Sprint 12 commit is created before Sprint 13 starts.
+
+## Sprint 13: Ticket-Scoped Visual Lifecycle QA
+
+**Goal**: Make campaign tracking and each live position understandable in the
+visual tester without allowing chart state to influence trading.
+**Dependencies**: Sprint 12 behavior gate.
+**Tracked scope**: `services/frontend/pivot_hft_panel.mqh`,
+`services/frontend/pivot_hft_visualization.mqh`, Pivot HFT state accessors,
+docs and this plan.
+**Commit**: `Sprint 13: visualize pivot hft order lifecycle`
+
+### Task 13.1: Render the pending campaign
+
+- Highlight the selected pivot and draw the tracked extreme plus the live
+  retracement-entry threshold.
+- Distinguish tracking, entry-ready and expired states without recreating chart
+  objects on every tick.
+- Hide or mute burned levels and mark their first closed-micro-bar test.
+
+### Task 13.2: Render each position by ticket
+
+- Draw actual fill entry and current local SL/trailing line for every managed
+  ticket, with direction, ticket, BE state and trailing-step label.
+- Update existing objects only when their price/state changes and remove them
+  when the position completes.
+- Keep non-visual tester mode free of chart objects/comments and remove every
+  private object during deinit.
+
+### Task 13.3: Validate readability and cleanup
+
+- Inspect multiple simultaneous hedging tickets, trailing movement, BE, local
+  close and forced/external close scenarios.
+- Confirm object names are deterministic and ticket-scoped, object count stays
+  bounded, and frontend state never feeds detection or execution.
+- Complete static object-lifecycle/performance review and create one Sprint 13
+  commit. Do not compile before Sprint 14.
+
+### Sprint 13 Gate
+
+- [ ] Pending extreme and retracement threshold are visible and accurate.
+- [ ] Fill, local SL/BE/trailing and step state are visible per ticket.
+- [ ] Burned-level markers, object update cost and cleanup pass static review.
+- [ ] Sprint 13 static validation passes; final compile remains deferred to
+  Sprint 14.
+- [ ] Exactly one Sprint 13 commit is created before Sprint 14 starts.
+
+## Sprint 14: Real-Tick QA Regression And Final Handoff
+
+**Goal**: Correlate chart, broker history and audit log across the reported QA
+defects, then make the active documentation and release risks current.
+**Dependencies**: Sprint 13 visual gate.
+**Tracked scope**: final diff, active docs, this plan and temporary validation
+artifacts only.
+**Commit**: `Sprint 14: complete pivot hft qa regression`
+
+### Task 14.1: Run final static and compile gates
+
+- Review include topology, hot-path work, history scan bounds, symbol/magic
+  scope, file-log redaction, chart cleanup and untouched license contracts.
+- Run the only post-override MetaEditor compile, require `0 errors, 0 warnings`,
+  inspect the current `BUILD.log` and remove it.
+- Do not create or run MQL5 harness tests or CI.
+
+### Task 14.2: Run the visual real-tick matrix
+
+- Cover H1 pivots with a 13:30 session, pre-session tests, current-bar burn
+  timing, multiple levels, macro rollover and EA restart/re-attach.
+- Cover entry trigger, broker fill, local SL, BE, trailing steps, negative/BE
+  retry, positive completion, multiple tickets, protection close and debug stop.
+- Correlate each chart transition with broker history and `query_debug.txt`.
+
+### Task 14.3: Finalize documentation and handoff
+
+- Update README/input guide with tested-level semantics, file-log location,
+  visual object meanings and manual validation checklist.
+- Record checks run, checks not run, tester gaps, residual local-SL risk and
+  rollback hashes. Do not promote to live use without the manual real-tick
+  evidence requested by the project.
+- Create one Sprint 14 commit after all available gates pass.
+
+### Sprint 14 Gate
+
+- [ ] Final static and MetaEditor compile gates pass; `BUILD.log` is removed.
+- [ ] Real-tick visual scenarios are executed or each unavailable scenario is
+  explicitly documented as a remaining manual gap.
+- [ ] Chart, history and audit evidence agree for tested levels and lifecycle.
+- [ ] Active docs, rollback points and residual risks are current.
+- [ ] Exactly one Sprint 14 commit is created and the plan status is final.
 
 ## Testing Strategy
 

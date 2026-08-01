@@ -64,7 +64,10 @@ bool PivotHftSetSignalResourcesActive(const bool should_be_active)
   if(!should_be_active)
   {
     if(g_pivot_hft_bands_handle != INVALID_HANDLE)
+    {
+      PivotHftAuditLog("SIGNAL_RESOURCES_DISABLED", "reason=session_closed");
       PivotHftReleaseIndicators();
+    }
     if(g_pivot_hft_campaign.status != PIVOT_HFT_CAMPAIGN_IDLE)
       PivotHftResetCampaign();
     return true;
@@ -77,9 +80,19 @@ bool PivotHftSetSignalResourcesActive(const bool should_be_active)
   if(g_pivot_hft_next_indicator_retry > current_time)
     return false;
   if(PivotHftCreateIndicators())
+  {
+    PivotHftAuditLog("SIGNAL_RESOURCES_ENABLED",
+                     StringFormat("bands_handle=%d|micro_tf=%s",
+                                  g_pivot_hft_bands_handle,
+                                  EnumToString(Pivot_HFT_Micro_Timeframe)));
     return true;
+  }
 
   g_pivot_hft_next_indicator_retry = current_time + 60;
+  PivotHftAuditLog("SIGNAL_RESOURCES_FAILED",
+                   StringFormat("retry_at=%I64d|err=%d",
+                                (long)g_pivot_hft_next_indicator_retry,
+                                GetLastError()));
   return false;
 }
 
@@ -121,6 +134,11 @@ bool PivotHftRefreshBandsSnapshot(const bool force_refresh = false)
   g_pivot_hft_bands_upper = PivotHftNormalizePrice(upper_values[0]);
   g_pivot_hft_bands_lower = PivotHftNormalizePrice(lower_values[0]);
   g_pivot_hft_bands_bar = source_bar;
+  PivotHftAuditLog("BANDS_REFRESH",
+                   StringFormat("source_bar=%I64d|upper=%.5f|lower=%.5f",
+                                (long)source_bar,
+                                g_pivot_hft_bands_upper,
+                                g_pivot_hft_bands_lower));
   return true;
 }
 

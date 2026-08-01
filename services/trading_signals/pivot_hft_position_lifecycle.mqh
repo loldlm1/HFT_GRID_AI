@@ -28,6 +28,16 @@ bool PivotHftInitializeLocalStop(PivotHftPositionState &position_state)
                       : position_state.entry_price + distance;
   position_state.local_sl_price = PivotHftNormalizePrice(stop_price);
   position_state.trailing_stop_price = position_state.local_sl_price;
+  if(position_state.local_sl_price > 0.0)
+  {
+    PivotHftAuditLog("LOCAL_SL_INITIALIZED",
+                     StringFormat("ticket=%I64u|dir=%s|entry=%.5f|local_sl=%.5f|distance_pts=%.2f",
+                                  position_state.position_ticket,
+                                  EnumToString(position_state.direction),
+                                  position_state.entry_price,
+                                  position_state.local_sl_price,
+                                  Pivot_HFT_Local_SL_Points));
+  }
   return (position_state.local_sl_price > 0.0);
 }
 
@@ -49,6 +59,8 @@ double PivotHftFavorableDistancePoints(const PivotHftPositionState &position_sta
 
 void PivotHftUpdateTrailingStop(PivotHftPositionState &position_state)
 {
+  double previous_stop = position_state.local_sl_price;
+  int previous_step = position_state.trailing_step_index;
   double step_points = Pivot_HFT_TP_Step_Points;
   if(step_points <= 0.0 || position_state.entry_price <= 0.0)
     return;
@@ -86,6 +98,21 @@ void PivotHftUpdateTrailingStop(PivotHftPositionState &position_state)
   }
   if(completed_steps > position_state.trailing_step_index)
     position_state.trailing_step_index = completed_steps;
+
+  if(position_state.trailing_step_index != previous_step ||
+     MathAbs(position_state.local_sl_price - previous_stop) >
+       PivotHftTickSize() * 0.5)
+  {
+    PivotHftAuditLog("TRAILING_ADVANCED",
+                     StringFormat("ticket=%I64u|dir=%s|entry=%.5f|previous_sl=%.5f|local_sl=%.5f|step=%d|be=%d",
+                                  position_state.position_ticket,
+                                  EnumToString(position_state.direction),
+                                  position_state.entry_price,
+                                  previous_stop,
+                                  position_state.local_sl_price,
+                                  position_state.trailing_step_index,
+                                  (int)(position_state.trailing_step_index >= 1)));
+  }
 }
 
 bool PivotHftLocalStopTriggered(const PivotHftPositionState &position_state)
@@ -172,6 +199,12 @@ bool PivotHftTryRearmClosedPosition(PivotHftPositionState &position_state)
   if(current_micro_bar <= 0 ||
      current_micro_bar != position_state.campaign_micro_bar_time)
   {
+    PivotHftAuditLog("REARM_EXPIRED",
+                     StringFormat("ticket=%I64u|level=%s|campaign_bar=%I64d|current_bar=%I64d",
+                                  position_state.position_ticket,
+                                  PivotHftLevelLabel(position_state.pivot_level),
+                                  (long)position_state.campaign_micro_bar_time,
+                                  (long)current_micro_bar));
     position_state.reattempt_pending = false;
     position_state.status = PIVOT_HFT_POSITION_COMPLETED;
     return false;
@@ -212,6 +245,13 @@ bool PivotHftTryRearmClosedPosition(PivotHftPositionState &position_state)
   position_state.reattempt_pending = false;
   position_state.campaign_attempt_count = g_pivot_hft_campaign.attempt_count;
   position_state.status = PIVOT_HFT_POSITION_COMPLETED;
+  PivotHftAuditLog("POSITION_REARMED",
+                   StringFormat("ticket=%I64u|sequence=%s|dir=%s|level=%s|attempt=%d",
+                                position_state.position_ticket,
+                                g_pivot_hft_campaign.sequence_id,
+                                EnumToString(direction),
+                                PivotHftLevelLabel(level),
+                                g_pivot_hft_campaign.attempt_count + 1));
   return true;
 }
 
@@ -236,6 +276,17 @@ void PivotHftFinalizeClosedPosition(PivotHftPositionState &position_state)
                                     : PIVOT_HFT_CLOSE_BE);
   position_state.reattempt_pending = (net_result <= 0.0 &&
                                       position_state.close_requested);
+  PivotHftAuditLog("POSITION_FINALIZED",
+                   StringFormat("ticket=%I64u|position_id=%I64u|dir=%s|level=%s|net=%.2f|outcome=%s|close_requested=%d|reattempt=%d|close_time=%I64d",
+                                position_state.position_ticket,
+                                position_state.position_identifier,
+                                EnumToString(position_state.direction),
+                                PivotHftLevelLabel(position_state.pivot_level),
+                                net_result,
+                                EnumToString(position_state.close_outcome),
+                                (int)position_state.close_requested,
+                                (int)position_state.reattempt_pending,
+                                (long)position_state.close_time));
   if(!position_state.daily_outcome_registered)
   {
     RegisterDailySignalOutcome(position_state.direction, net_result);
@@ -261,10 +312,24 @@ bool PivotHftClosePositionLocally(PivotHftPositionState &position_state)
   ResetLastError();
   if(!g_position.PositionClose(position_state.position_ticket))
   {
+    ulong retcode = g_position.ResultRetcode();
+    int last_error = GetLastError();
     MarketStatusRegisterBrokerFailure("PIVOT_HFT_LOCAL_CLOSE_FAILED",
-                                      g_position.ResultRetcode(),
-                                      GetLastError(),
+                                      retcode,
+                                      last_error,
                                       true);
+    datetime now_time = TimeCurrent();
+    if(position_state.last_close_audit_time == 0 ||
+       now_time - position_state.last_close_audit_time >= 30)
+    {
+      PivotHftAuditLog("LOCAL_CLOSE_FAILED",
+                       StringFormat("ticket=%I64u|ret=%I64u|err=%d|local_sl=%.5f",
+                                    position_state.position_ticket,
+                                    retcode,
+                                    last_error,
+                                    position_state.local_sl_price));
+      position_state.last_close_audit_time = now_time;
+    }
     position_state.close_requested = false;
     position_state.status = PIVOT_HFT_POSITION_ACTIVE;
     return false;
@@ -273,16 +338,34 @@ bool PivotHftClosePositionLocally(PivotHftPositionState &position_state)
   ulong retcode = g_position.ResultRetcode();
   if(!PivotHftTradeRetcodeFilled(retcode))
   {
+    int last_error = GetLastError();
     MarketStatusRegisterBrokerFailure("PIVOT_HFT_LOCAL_CLOSE_REJECTED",
                                       retcode,
-                                      GetLastError(),
+                                      last_error,
                                       true);
+    datetime now_time = TimeCurrent();
+    if(position_state.last_close_audit_time == 0 ||
+       now_time - position_state.last_close_audit_time >= 30)
+    {
+      PivotHftAuditLog("LOCAL_CLOSE_REJECTED",
+                       StringFormat("ticket=%I64u|ret=%I64u|err=%d|local_sl=%.5f",
+                                    position_state.position_ticket,
+                                    retcode,
+                                    last_error,
+                                    position_state.local_sl_price));
+      position_state.last_close_audit_time = now_time;
+    }
     position_state.close_requested = false;
     position_state.status = PIVOT_HFT_POSITION_ACTIVE;
     return false;
   }
 
   MarketStatusClearExecutionError("PIVOT_HFT_LOCAL_CLOSE_OK");
+  PivotHftAuditLog("LOCAL_CLOSE_SENT",
+                   StringFormat("ticket=%I64u|ret=%I64u|local_sl=%.5f",
+                                position_state.position_ticket,
+                                retcode,
+                                position_state.local_sl_price));
   position_state.close_requested = true;
   position_state.status = PIVOT_HFT_POSITION_CLOSE_WAIT;
   return true;

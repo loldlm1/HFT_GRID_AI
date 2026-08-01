@@ -103,7 +103,14 @@ void DebugForceCloseAllPositions()
     if(PositionGetString(POSITION_SYMBOL) != _Symbol ||
        PositionGetInteger(POSITION_MAGIC) != g_magic_number)
       continue;
-    g_position.PositionClose(position_ticket);
+
+    ResetLastError();
+    bool closed = g_position.PositionClose(position_ticket);
+    PivotHftAuditLog(closed ? "DEBUG_CLOSE_SENT" : "DEBUG_CLOSE_FAILED",
+                     StringFormat("ticket=%I64u|ret=%I64u|err=%d",
+                                  position_ticket,
+                                  g_position.ResultRetcode(),
+                                  GetLastError()));
   }
 }
 
@@ -116,6 +123,10 @@ bool DebugEquityGuardAllowsProcessing()
   {
     g_forced_stop_triggered = true;
     g_debug_no_money_abort_pending = false;
+    PivotHftAuditLog("DEBUG_STOP",
+                     StringFormat("reason=no_money|equity=%.2f|balance=%.2f",
+                                  AccountInfoDouble(ACCOUNT_EQUITY),
+                                  AccountInfoDouble(ACCOUNT_BALANCE)));
     DebugForceCloseAllPositions();
     TesterStop();
     return false;
@@ -124,6 +135,10 @@ bool DebugEquityGuardAllowsProcessing()
   if(AccountInfoDouble(ACCOUNT_EQUITY) <= 0.0)
   {
     g_forced_stop_triggered = true;
+    PivotHftAuditLog("DEBUG_STOP",
+                     StringFormat("reason=negative_equity|equity=%.2f|balance=%.2f",
+                                  AccountInfoDouble(ACCOUNT_EQUITY),
+                                  AccountInfoDouble(ACCOUNT_BALANCE)));
     DebugForceCloseAllPositions();
     TesterStop();
     return false;

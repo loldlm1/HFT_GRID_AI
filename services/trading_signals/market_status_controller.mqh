@@ -45,6 +45,10 @@ void MarketStatusLogChange(const MarketStatusTypes status,
   PrintFormat("Market status updated | status=%s | reason=%s",
               MarketStatusToString(status),
               reason);
+  PivotHftAuditLog("MARKET_STATUS",
+                   StringFormat("status=%s|reason=%s",
+                                MarketStatusToString(status),
+                                reason));
 }
 
 void MarketStatusUpdate(const MarketStatusTypes status,
@@ -239,6 +243,8 @@ void MarketStatusRequestForceClose(const string reason)
 
   g_market_force_close_pending = true;
   g_market_force_close_reason  = reason;
+  PivotHftAuditLog("FORCE_CLOSE_SCHEDULED",
+                   StringFormat("reason=%s", reason));
   //PrintFormat("Force close scheduled | reason=%s", reason);
 }
 

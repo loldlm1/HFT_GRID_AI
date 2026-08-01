@@ -5,6 +5,7 @@
 #define _SERVICES_TRADING_SIGNALS_MQH_
 
 // SIGNAL SERVICE FILES
+#include "trading_signals/pivot_hft_diagnostics.mqh"
 #include "trading_signals/market_signal_state.mqh"
 #include "trading_signals/market_status_controller.mqh"
 #include "trading_signals/protection_risk_filter.mqh"

@@ -122,6 +122,20 @@ void SessionTimeFilterMonitorRuntime()
 {
   SessionTimeFilterRefreshWindowState();
 
+  static bool audit_window_initialized = false;
+  static bool audit_previous_window_active = false;
+  bool current_window_active = SessionTimeFilterWindowIsOpen();
+  if(!audit_window_initialized ||
+     current_window_active != audit_previous_window_active)
+  {
+    PivotHftAuditLog(current_window_active ? "SESSION_ENTER" : "SESSION_EXIT",
+                     StringFormat("session=%s|any_enabled=%d",
+                                  SessionTimeFilterActiveSessionLabel(),
+                                  (int)g_session_time_filter_any_enabled));
+    audit_window_initialized = true;
+    audit_previous_window_active = current_window_active;
+  }
+
   if(!g_session_time_filter_any_enabled)
     return;
 

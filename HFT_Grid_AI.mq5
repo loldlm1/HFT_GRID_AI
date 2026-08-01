@@ -183,6 +183,18 @@ int OnInit()
     return INIT_FAILED;
   }
 
+  PivotHftAuditInitialize();
+  PivotHftAuditLog("CONFIG",
+                   StringFormat("micro_tf=%s|pivot_tf=%s|direction=%s|retrace_pts=%.2f|local_sl_pts=%.2f|step_pts=%.2f|lot=%.2f|visual=%d",
+                                EnumToString(Pivot_HFT_Micro_Timeframe),
+                                EnumToString(Pivot_HFT_Pivot_Timeframe),
+                                EnumToString(Pivot_HFT_Direction_Mode),
+                                Pivot_HFT_Retracement_Points,
+                                Pivot_HFT_Local_SL_Points,
+                                Pivot_HFT_TP_Step_Points,
+                                Pivot_HFT_Lot_Size,
+                                (int)Pivot_HFT_Enable_Visualization));
+
   // CHART SETUP
   if(PivotHftVisualizationEnabledForRuntime())
     ApplyDefaultChartStyle(ChartID());
@@ -207,6 +219,7 @@ int OnInit()
 //+------------------------------------------------------------------+
 void OnDeinit(const int reason)
 {
+  PivotHftAuditShutdown(reason);
   LicenseServiceOnDeinit();
   EventKillTimer();
   PivotHftReleaseIndicators();

@@ -76,6 +76,9 @@ void ProtectionRiskForceClosePositions()
   if(!MarketStatusAllowsBrokerActions())
     return;
 
+  static datetime last_failed_log_time = 0;
+  static ulong last_failed_ticket = 0;
+
   int total_positions = PositionsTotal();
   for(int i = total_positions-1; i >= 0; i--)
   {
@@ -98,12 +101,28 @@ void ProtectionRiskForceClosePositions()
       ulong retcode = g_position.ResultRetcode();
       int last_error = GetLastError();
       MarketStatusRegisterBrokerFailure("PROTECTION_FORCE_CLOSE_FAILED", retcode, last_error, true);
+      datetime now_time = TimeCurrent();
+      if(position_ticket != last_failed_ticket ||
+         now_time - last_failed_log_time >= 30)
+      {
+        PivotHftAuditLog("PROTECTION_CLOSE_FAILED",
+                         StringFormat("ticket=%I64u|ret=%I64u|err=%d",
+                                      position_ticket,
+                                      retcode,
+                                      last_error));
+        last_failed_ticket = position_ticket;
+        last_failed_log_time = now_time;
+      }
       PrintFormat("ProtectionRiskForceClosePositions failed | ticket=%I64u | err=%d",
                   position_ticket,
                   last_error);
     }
     else
     {
+      PivotHftAuditLog("PROTECTION_CLOSE_SENT",
+                       StringFormat("ticket=%I64u|ret=%I64u",
+                                    position_ticket,
+                                    g_position.ResultRetcode()));
       MarketStatusClearExecutionError("PROTECTION_FORCE_CLOSE_OK");
     }
   }

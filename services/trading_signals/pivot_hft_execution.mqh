@@ -231,6 +231,13 @@ bool PivotHftExecuteEntryIntent()
                                normalized_volume,
                                guard_reason))
   {
+    PivotHftAuditLog("ENTRY_BLOCKED",
+                     StringFormat("sequence=%s|dir=%s|level=%s|reason=%s|attempt=%d",
+                                  campaign.sequence_id,
+                                  EnumToString(campaign.direction),
+                                  PivotHftLevelLabel(campaign.pivot_level),
+                                  guard_reason,
+                                  campaign.attempt_count + 1));
     g_pivot_hft_last_error = guard_reason;
     MarketStatusRegisterExecutionError("PIVOT_HFT_ENTRY_BLOCK",
                                        guard_reason,
@@ -257,6 +264,20 @@ bool PivotHftExecuteEntryIntent()
   double result_volume = g_position.ResultVolume();
   int last_error = GetLastError();
 
+  PivotHftAuditLog("ORDER_SEND_RESULT",
+                   StringFormat("sequence=%s|sent=%d|dir=%s|level=%s|volume=%.2f|ret=%I64u|err=%d|deal=%I64u|price=%.5f|result_volume=%.2f|server_sl=0|server_tp=0|comment=%s",
+                                campaign.sequence_id,
+                                (int)sent,
+                                EnumToString(campaign.direction),
+                                PivotHftLevelLabel(campaign.pivot_level),
+                                normalized_volume,
+                                retcode,
+                                last_error,
+                                deal_ticket,
+                                result_price,
+                                result_volume,
+                                comment));
+
   if(!sent ||
      !PivotHftTradeRetcodeFilled(retcode) ||
      deal_ticket == 0 ||
@@ -266,7 +287,14 @@ bool PivotHftExecuteEntryIntent()
     if(retcode == TRADE_RETCODE_NO_MONEY &&
        Debug_Stop_On_Negative_Equity &&
        MQLInfoInteger(MQL_TESTER) > 0)
+    {
       g_debug_no_money_abort_pending = true;
+      PivotHftAuditLog("DEBUG_STOP_PENDING",
+                       StringFormat("reason=no_money|sequence=%s|ret=%I64u|err=%d",
+                                    campaign.sequence_id,
+                                    retcode,
+                                    last_error));
+    }
 
     g_pivot_hft_last_error = StringFormat("ret=%I64u err=%d", retcode, last_error);
     MarketStatusRegisterBrokerFailure("PIVOT_HFT_ORDER_SEND_FAILED",
@@ -283,6 +311,12 @@ bool PivotHftExecuteEntryIntent()
                                      result_volume,
                                      comment))
   {
+    PivotHftAuditLog("FILL_UNRESOLVED",
+                     StringFormat("sequence=%s|deal=%I64u|ret=%I64u|err=%d",
+                                  campaign.sequence_id,
+                                  deal_ticket,
+                                  retcode,
+                                  last_error));
     g_pivot_hft_last_error = "filled_position_not_resolved";
     MarketStatusRegisterExecutionError("PIVOT_HFT_FILL_UNRESOLVED",
                                        g_pivot_hft_last_error,
@@ -293,6 +327,24 @@ bool PivotHftExecuteEntryIntent()
   }
 
   RegisterPivotHftDailySignalStart(campaign.direction);
+
+  int registered_index = ArraySize(g_pivot_hft_positions) - 1;
+  if(registered_index >= 0)
+  {
+    PivotHftPositionState registered_state =
+      g_pivot_hft_positions[registered_index];
+    PivotHftAuditLog("FILL_REGISTERED",
+                     StringFormat("sequence=%s|ticket=%I64u|position_id=%I64u|deal=%I64u|dir=%s|level=%s|entry=%.5f|volume=%.2f|attempt=%d",
+                                  campaign.sequence_id,
+                                  registered_state.position_ticket,
+                                  registered_state.position_identifier,
+                                  registered_state.entry_deal_ticket,
+                                  EnumToString(registered_state.direction),
+                                  PivotHftLevelLabel(registered_state.pivot_level),
+                                  registered_state.entry_price,
+                                  registered_state.entry_volume,
+                                  registered_state.campaign_attempt_count + 1));
+  }
 
   g_pivot_hft_last_error = "";
   MarketStatusClearExecutionError("PIVOT_HFT_ORDER_SEND_OK");
