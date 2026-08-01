@@ -195,6 +195,9 @@ int OnInit()
                                 Pivot_HFT_Lot_Size,
                                 (int)Pivot_HFT_Enable_Visualization));
 
+  // Rebuild the active pivot-set test state even when entry sessions are closed.
+  PivotHftRefreshPivotSnapshot(true);
+
   // CHART SETUP
   if(PivotHftVisualizationEnabledForRuntime())
     ApplyDefaultChartStyle(ChartID());

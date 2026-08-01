@@ -1,7 +1,7 @@
 # Plan: Pivot HFT sobre Bollinger y pivotes clasicos
 
 **Generated**: 2026-08-01
-**Status**: Implemented through Sprint 10; QA remediation Sprints 11-14 remain.
+**Status**: Implemented through Sprint 11; QA remediation Sprints 12-14 remain.
 Final compile and manual real-tick validation remain pending.
 **Estimated Complexity**: Critical / trading-sensitive
 
@@ -1032,14 +1032,15 @@ detection/execution/lifecycle modules, session/protection/debug-stop paths,
 - [x] Static hot-path, secret, include-order and scope review passes.
 - [x] Sprint 10 static validation passes; final compile remains deferred to
   Sprint 14 by explicit user instruction.
-- [ ] Exactly one Sprint 10 commit is created before Sprint 11 starts.
+- [x] Exactly one Sprint 10 commit is created before Sprint 11 starts.
 
 ## Sprint 11: Tested-Level State And Historical Reconstruction
 
 **Goal**: Model level validity independently from trade outcome and reconstruct
 which current macro pivots were already tested before the EA could operate.
 **Dependencies**: Sprint 10 audit evidence.
-**Tracked scope**: `services/trading_signals/pivot_hft_state.mqh`,
+**Tracked scope**: `HFT_Grid_AI.mq5`,
+`services/trading_signals/pivot_hft_state.mqh`,
 `services/trading_signals/pivot_hft_levels.mqh`, diagnostics and this plan.
 **Commit**: `Sprint 11: reconstruct tested pivot levels`
 
@@ -1074,12 +1075,12 @@ which current macro pivots were already tested before the EA could operate.
 
 ### Sprint 11 Gate
 
-- [ ] Tested-level state is separate from campaign completion/position outcome.
-- [ ] Historical reconstruction is bounded, cached and session-independent.
-- [ ] Incomplete history fails closed and produces actionable audit evidence.
-- [ ] Sprint 11 static validation passes; final compile remains deferred to
+- [x] Tested-level state is separate from campaign completion/position outcome.
+- [x] Historical reconstruction is bounded, cached and session-independent.
+- [x] Incomplete history fails closed and produces actionable audit evidence.
+- [x] Sprint 11 static validation passes; final compile remains deferred to
   Sprint 14.
-- [ ] Exactly one Sprint 11 commit is created before Sprint 12 starts.
+- [x] Exactly one Sprint 11 commit is created before Sprint 12 starts.
 
 ## Sprint 12: Burned-Level Admission And Session Integration
 
