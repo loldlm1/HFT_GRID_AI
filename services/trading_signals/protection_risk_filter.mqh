@@ -15,7 +15,7 @@ datetime g_market_close_guard_trigger_time = 0;
 double ProtectionRiskResolveThreshold()
 {
   double safe_value = MathAbs(Protection_Risk_Drawdown_Value);
-  if(Protection_Risk_Mode == ENABLED_OFF || safe_value <= 0.0)
+  if(Protection_Risk_Mode == PROTECTION_DISABLED || safe_value <= 0.0)
     return 0.0;
 
   double base_amount = 0.0;
@@ -109,61 +109,16 @@ void ProtectionRiskForceClosePositions()
   }
 }
 
-void ProtectionRiskForceCloseSignalArray(SignalParams &signals[],
-                                         const SignalTypes direction)
-{
-  int total_signals = ArraySize(signals);
-  if(total_signals <= 0)
-    return;
-
-  double point_size = GridResolvePointSize();
-  double close_price = (direction == BULLISH) ? g_bid : g_ask;
-  datetime close_time = TimeCurrent();
-
-  for(int i = total_signals-1; i >= 0; i--)
-  {
-    if(signals[i].grid_initialized)
-      GridCloseAllLevels(signals[i], point_size);
-
-    signals[i].signal_state = CLOSED;
-    signals[i].close_time   = close_time;
-    signals[i].close_price  = close_price;
-    if(signals[i].entry_price > 0.0 && close_price > 0.0)
-      signals[i].raw_profit = RawProfitUsd(direction,
-                                           signals[i].entry_price,
-                                           close_price);
-
-    PandoraFinalizeSignalOutcome(signals[i],
-                                 signals[i].close_price,
-                                 signals[i].raw_profit);
-    PandoraRegisterSideOutcome(signals[i]);
-
-    if(direction == BULLISH)
-      CloseBullishSignal(signals[i]);
-    else
-      CloseBearishSignal(signals[i]);
-
-    RemoveElementFromArray(signals, i);
-  }
-}
-
 void ProtectionRiskEnforceDrawdownGuard()
 {
   if(!MarketStatusAllowsBrokerActions())
     return;
 
-  ProtectionRiskForceCloseSignalArray(running_bullish_signals, BULLISH);
-  ProtectionRiskForceCloseSignalArray(running_bearish_signals, BEARISH);
   ProtectionRiskForceClosePositions();
 }
 
 bool ProtectionRiskHasActiveEntities()
 {
-  if(ArraySize(running_bullish_signals) > 0)
-    return true;
-  if(ArraySize(running_bearish_signals) > 0)
-    return true;
-
   int total_positions = PositionsTotal();
   for(int i = total_positions-1; i >= 0; i--)
   {
@@ -207,7 +162,7 @@ void ProtectionRiskResetDailyLock()
     return;
 
   ENUM_TIMEFRAMES anchor_tf = PERIOD_D1;
-  if(Protection_Risk_Mode == ENABLED_GRID_PROTECTION_WEEKLY)
+  if(Protection_Risk_Mode == PROTECTION_WEEKLY_LOCK)
     anchor_tf = PERIOD_W1;
 
   datetime current_anchor = iTime(_Symbol, anchor_tf, 0);
@@ -223,12 +178,12 @@ void ProtectionRiskResetDailyLock()
 
 void ProtectionRiskActivatePeriodLock()
 {
-  if(Protection_Risk_Mode == ENABLED_GRID_PROTECTION_DAILY)
+  if(Protection_Risk_Mode == PROTECTION_DAILY_LOCK)
   {
     g_protection_daily_lock_active = true;
     g_protection_daily_lock_anchor = iTime(_Symbol, PERIOD_D1, 0);
   }
-  if(Protection_Risk_Mode == ENABLED_GRID_PROTECTION_WEEKLY)
+  if(Protection_Risk_Mode == PROTECTION_WEEKLY_LOCK)
   {
     g_protection_daily_lock_active = true;
     g_protection_daily_lock_anchor = iTime(_Symbol, PERIOD_W1, 0);
@@ -357,7 +312,7 @@ void ProtectionRiskFilterTick()
   ProtectionRiskResetDailyLock();
   //ProtectionRiskCheckMarketCloseGuard();
   ProtectionRiskProcessPendingForceClose();
-  if(Protection_Risk_Mode == ENABLED_OFF)
+  if(Protection_Risk_Mode == PROTECTION_DISABLED)
     return;
 
   double threshold = ProtectionRiskResolveThreshold();
@@ -392,10 +347,10 @@ bool ProtectionRiskAllowsSignalAttempt()
   ProtectionRiskResetDailyLock();
   if(!MarketStatusAllowsSignalAttempts())
     return false;
-  if(Protection_Risk_Mode == ENABLED_OFF)
+  if(Protection_Risk_Mode == PROTECTION_DISABLED)
     return true;
-  if((Protection_Risk_Mode == ENABLED_GRID_PROTECTION_DAILY ||
-      Protection_Risk_Mode == ENABLED_GRID_PROTECTION_WEEKLY) &&
+  if((Protection_Risk_Mode == PROTECTION_DAILY_LOCK ||
+      Protection_Risk_Mode == PROTECTION_WEEKLY_LOCK) &&
      g_protection_daily_lock_active)
     return false;
 

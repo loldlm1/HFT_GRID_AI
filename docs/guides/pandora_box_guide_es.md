@@ -1,5 +1,8 @@
 # **Pandora Box: Guía de Instalación y Manual de Usuario**
 
+> Documento histórico y obsoleto para el runtime actual. La estrategia activa
+> se documenta en `pivot-hft-strategy-inputs.md`.
+
 ## 1. Introducción
 Bienvenido a la guía oficial de instalación y uso de **Pandora Box**, un EA (Expert Advisor) para MetaTrader 5 enfocado en ejecuciones por ruptura con control de riesgo y validación de licencia en línea.
 

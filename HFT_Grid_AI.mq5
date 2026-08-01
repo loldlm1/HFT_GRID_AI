@@ -5,10 +5,10 @@
 //+------------------------------------------------------------------+
 #property copyright     "https://tradingsniperpanel.com"
 #property description   "Copyright BULLISH LIFE Team."
-#property version       "1.11"
+#property version       "2.00"
 #property description   "Support Telegram Contact @chu4xtrade"
 #property description   "All Rights Reserved for the BULLISH LIFE Team."
-#property description   "PANDORA BOX EA"
+#property description   "PIVOT HFT EA"
 
 // STANDARD MQL5 LIBRARIES
 #include <Trade/Trade.mqh>
@@ -21,7 +21,6 @@
 // CUSTOM SERVICES - AGGREGATORS
 #include "services/trading_tools.mqh"
 #include "services/trading_management.mqh"
-#include "services/trading_management_strategies.mqh"
 #include "services/trading_signals.mqh"
 #include "services/frontend.mqh"
 
@@ -114,7 +113,7 @@ bool ResolveRuntimeTradeMagicNumber(long &runtime_magic)
   long lane_magic = LicenseGetCachedLaneMagicNumber();
   if(HasLegacyLaneMagicPositions(lane_magic, runtime_magic))
   {
-    EALifecycleRequestRemoval("Pandora Box EA removed: legacy lane-magic positions are still open on this symbol.");
+    EALifecycleRequestRemoval("Pivot HFT EA removed: legacy lane-magic positions are still open on this symbol.");
     return false;
   }
 
@@ -301,29 +300,7 @@ void OnTick()
     PivotHftExecuteEntryIntent();
 
   PivotHftProcessAllPositions();
-  RefreshGridVisualization();
-}
-
-// DETECT BULLISH AND BEARISH SIGNALS
-void Main(const bool pandora_already_observed = false)
-{
-  if(pandora_already_observed && PandoraStrategyEnabled())
-    return;
-  DetectStrategySignals();
-}
-
-// MANAGE BULLISH AND BEARISH SIGNALS
-void Main_Tick(const bool pandora_detection_allowed = true,
-               const bool pandora_already_observed = false)
-{
-  // Pandora strategy needs tick-based detection so breakout triggers arm immediately after the box window closes.
-  if(pandora_detection_allowed &&
-     !pandora_already_observed &&
-     PandoraStrategyEnabled())
-    PandoraDetectSignals();
-
-  CheckTickOpenBullishSignals();
-  CheckTickOpenBearishSignals();
+  RefreshPivotHftVisualization();
 }
 
 void RefreshCustomSymbolRates()

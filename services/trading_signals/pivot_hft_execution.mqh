@@ -129,8 +129,13 @@ bool PivotHftEntryGuardsAllow(const SignalTypes direction,
     return false;
   }
 
-  if(!GridGuardrailsAllowOrder(normalized_volume, reason))
+  if(g_points_spread > Max_Spread)
+  {
+    reason = StringFormat("spread=%.1f>%.1f",
+                          g_points_spread,
+                          Max_Spread);
     return false;
+  }
   return PivotHftMarginAllowsEntry(direction, normalized_volume, reason);
 }
 
@@ -258,6 +263,11 @@ bool PivotHftExecuteEntryIntent()
      result_price <= 0.0 ||
      result_volume <= 0.0)
   {
+    if(retcode == TRADE_RETCODE_NO_MONEY &&
+       Debug_Stop_On_Negative_Equity &&
+       MQLInfoInteger(MQL_TESTER) > 0)
+      g_debug_no_money_abort_pending = true;
+
     g_pivot_hft_last_error = StringFormat("ret=%I64u err=%d", retcode, last_error);
     MarketStatusRegisterBrokerFailure("PIVOT_HFT_ORDER_SEND_FAILED",
                                       retcode,

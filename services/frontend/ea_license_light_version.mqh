@@ -10,7 +10,7 @@
 //+------------------------------------------------------------------+
 void CreateLicensePanelLive()
 {
-  // Summary rendering is owned by RefreshGridVisualization().
+  // Strategy status is rendered by the Pivot HFT frontend.
 }
 
 void CreateEATitleBar()

@@ -6,17 +6,11 @@
 
 // CORE MICROSERVICES
 #include "../microservices/core/enums.mqh"
-#include "../microservices/core/base_structures.mqh"
 #include "shared/license_guard_v1/core/addon_catalog.mqh"
 
 // UTILITY MICROSERVICES
-#include "../microservices/utils/array_functions.mqh"
-#include "../microservices/utils/miscellaneous.mqh"
 #include "../microservices/utils/money_functions.mqh"
-#include "../microservices/utils/logs_helper.mqh"
 #include "../microservices/utils/broker_constraints_helper.mqh"
-#include "../microservices/utils/price_math.mqh"
-#include "../microservices/utils/file_logger.mqh"
 #include "../microservices/utils/time_offset_helper.mqh"
 
 #endif // _SERVICES_TRADING_TOOLS_MQH_

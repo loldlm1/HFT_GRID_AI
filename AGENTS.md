@@ -1,6 +1,6 @@
 This is a MetaTrader 5 MQL5 Expert Advisor.
 
-# HFT Grid AI Agent Rules
+# Pivot HFT Agent Rules
 
 Use this file for local project invariants. Keep reusable MQL5 engineering rules
 in the `mql5-production-engineering` skill, and keep detailed strategy guides or
@@ -87,12 +87,10 @@ not as replacements for project rules.
 - Entrypoint: `HFT_Grid_AI.mq5`.
 - Include pipeline: standard MQL5 libraries -> `services/license_service_setup.mqh`
   -> service aggregators: `trading_tools`, `trading_management`,
-  `trading_management_strategies`, `trading_signals`, `frontend`.
+  `trading_signals`, `frontend`.
 - Inputs and indicator setup: `services/trading_management/*`.
-- Grid trend-risk strategy glue: `services/trading_management_strategies/*`.
-- Signal state, context indicators, filters, detection, channel guards, planner,
-  order controller, protection, sessions, and telemetry:
-  `services/trading_signals/*`.
+- Pivot HFT state, detection, raw execution, local lifecycle, protection and
+  sessions: `services/trading_signals/*`.
 - Lower-level broker, price, money, array, lifecycle, logging, indicator, and
   order math helpers: `microservices/*`.
 - Chart overlays, panels, and visual state only: `services/frontend/*` and
@@ -112,9 +110,9 @@ not as replacements for project rules.
   startup verification. Missing or invalid backend `magic_number` is fail-closed.
 - Shared license daily-result dedupe and aggregation must stay scoped by
   `ea_id + magic_number` and deal filtering by `DEAL_MAGIC`.
-- Respect `Signal_Concurrency_Mode`, daily signal budgets, session filters,
-  market status, drawdown locks, debug stops, spread guards, margin checks, and
-  broker close-only/disabled states.
+- Respect daily signal budgets, session filters, market status, drawdown locks,
+  debug stops, spread guards, margin checks, and broker close-only/disabled
+  states. Pivot HFT uses one pending campaign and multiple hedging positions.
 - Always use existing broker and math helpers for stop/freeze distances, price
   normalization, point distances, margin references, and symbol volume
   normalization.
@@ -126,23 +124,16 @@ not as replacements for project rules.
 
 ## Architecture Contracts
 
-- Signal admission runs context gates in session -> macro -> trend -> base order.
-  Contexts should evaluate only when their timeframe prints a new bar, while
-  upstream cascade state stays aligned with the base bar.
-- `CaptureContextIndicators()` should hydrate only data required by the current
-  entry mode, slope toggles, channel MA filter, or fresh-structure guard.
-- `StrategyContextEvaluateTrend()`, `StrategyCascadeAllowsSignal()`,
-  `StrategyContextEvaluateEntry()`, and channel guards own signal authorization.
-  Keep grid planning and order sending out of filter helpers.
-- `BuildGridSignalPoints()` owns entry/TP/spacing geometry and broker-distance
-  constraints. Preserve ATR/Keltner/points semantics and pending-stop guards.
-- `GridOrderController` owns STOP -> ACTIVE -> TRAILING lifecycle, deeper level
-  instantiation after fills, BE/trailing/final TP exits, and level-cap behavior.
+- Pivot admission combines the current micro close, fixed Bollinger bands and
+  classic macro pivots, then maintains one latest-level campaign.
+- `pivot_hft_execution.mqh` owns raw hedging entries and verified fill
+  registration. `pivot_hft_position_lifecycle.mqh` owns local SL, BE, trailing
+  and net-result classification per ticket.
 - `ProtectionRiskFilter` and `market_status_controller` own forced closes,
   drawdown/daily locks, market-close guard, broker failures, and pending force
   closes.
-- Frontend modules render state only. Keep trading state authoritative in signal,
-  grid, protection, and license modules.
+- Frontend modules render state only. Keep trading state authoritative in Pivot
+  HFT signal, protection and license modules.
 
 ## Implementation Rules
 
@@ -190,10 +181,11 @@ not as replacements for project rules.
 
 ## Project Documentation
 
-- `README.md`: project overview.
+- `README.md`: Pivot HFT project overview.
+- `docs/guides/pivot-hft-strategy-inputs.md`: active strategy guide.
 - `docs/guides/pandora_box_guide_en.md` and `docs/guides/pandora_box_guide_es.md`:
-  Pandora strategy guide.
-- `docs/guides/pandora-box-strategy-inputs.md`: Pandora inputs.
+  historical Pandora strategy guides.
+- `docs/guides/pandora-box-strategy-inputs.md`: historical Pandora inputs.
 - `docs/plans/*`: active and archived implementation plans.
 - `docs/planner-execution-discipline.md`: Sprint batch, validation, and handoff
   rules for planner-based execution.

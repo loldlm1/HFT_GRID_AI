@@ -1,5 +1,8 @@
 # Pandora Box Strategy Inputs Guide
 
+> Historical document, obsolete for the current runtime. Active inputs are
+> documented in `pivot-hft-strategy-inputs.md`.
+
 This guide documents the MT5 `input` fields used by Pandora Box in `services/trading_management/ea_inputs.mqh` under both groups:
 - `"+= Pandora Box Strategy +="`
 - `"+= Pandora Risk Management Settings +="`

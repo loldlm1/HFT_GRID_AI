@@ -1,6 +1,6 @@
 //+------------------------------------------------------------------+
 //|                         time_offset_helper.mqh                   |
-//| Resolves trading time offsets (DST) for session/Pandora windows. |
+//| Resolves trading time offsets (DST) for session windows.         |
 //+------------------------------------------------------------------+
 #ifndef _MICROSERVICES_UTILS_TIME_OFFSET_HELPER_MQH_
 #define _MICROSERVICES_UTILS_TIME_OFFSET_HELPER_MQH_
