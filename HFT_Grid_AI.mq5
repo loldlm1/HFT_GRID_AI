@@ -173,14 +173,22 @@ int OnInit()
     return INIT_FAILED;
   g_position.SetExpertMagicNumber((ulong)g_magic_number);
 
+  if(!PivotHftHedgingAccountSupported())
+  {
+    Print("Pivot HFT requires an MT5 hedging account.");
+    return INIT_FAILED;
+  }
+
   // CHART SETUP
   ApplyDefaultChartStyle(ChartID());
 
   // INITIALIZE THE EA
   CreateLicensePanelLive();
-  LoadAllIndicatorDefinitions();
+  if(!PivotHftCreateIndicators())
+    return INIT_FAILED;
   if(!EventSetTimer(LicenseServiceTimerSeconds()))
   {
+    PivotHftReleaseIndicators();
     PrintFormat("[EA] Failed to set timer (%d seconds).",
                 LicenseServiceTimerSeconds());
     return INIT_FAILED;
@@ -196,6 +204,9 @@ void OnDeinit(const int reason)
 {
   LicenseServiceOnDeinit();
   EventKillTimer();
+  PivotHftReleaseIndicators();
+  PivotHftResetCampaign();
+  PivotHftClearPositionStates();
   ClearFrontendVisualization();
   Comment("");
   EALifecycleClearRemovalRequest();
@@ -233,17 +244,12 @@ void OnTimer()
 void OnTick()
 {
   RefreshCustomSymbolRates();
-  DebugEquityGuardAllowsProcessing();
+  bool debug_processing_allowed = DebugEquityGuardAllowsProcessing();
   ProtectionRiskMonitorTradeMode();
   ProtectionRiskFilterTick();
-  bool signal_attempts_allowed            = MarketStatusAllowsSignalAttempts();
-  bool broker_actions_allowed             = MarketStatusAllowsBrokerActions();
-  g_ea_running                            = MarketStatusPlatformTradeAllowed();
-  static datetime next_bar_open           = 0;
+  bool signal_attempts_allowed = MarketStatusAllowsSignalAttempts();
   static datetime next_minute_bar_open    = 0;
   datetime        current_time            = TimeCurrent();
-  datetime        current_daily_time      = iTime(_Symbol, PERIOD_D1, 0);
-  int             defined_tick_seconds    = PeriodSeconds(_Period);
   int             defined_tick_M1_seconds = PeriodSeconds(PERIOD_M1);
 
   // SESSION TIME FILTER CHECKS - PER MINUTE INSTEAD OF PER TICK
@@ -257,47 +263,44 @@ void OnTick()
   }
 
   bool market_open = IsMarketOpen();
-  bool pandora_observed_this_tick = false;
-  if(signal_attempts_allowed && market_open && PandoraStrategyEnabled())
+  bool spread_allowed = (g_points_spread <= Max_Spread);
+  if(!spread_allowed)
   {
-    PandoraDetectSignals();
-    pandora_observed_this_tick = true;
+    string spread_reason = StringFormat("spread=%.1f>%.1f",
+                                        g_points_spread,
+                                        Max_Spread);
+    MarketStatusRegisterExecutionError("PIVOT_HFT_SPREAD_BLOCK",
+                                       spread_reason,
+                                       0,
+                                       0);
   }
 
-  // AVOID BROKER/LIFECYCLE SEQUENCE WHEN CRAZY TICKS OR MARKET IS CLOSED
-  if(g_points_spread > Max_Spread || !market_open)
-  {
-    if(g_points_spread > Max_Spread)
-    {
-      string spread_reason = StringFormat("spread=%.1f>%.1f",
-                                          g_points_spread,
-                                          Max_Spread);
-      MarketStatusRegisterExecutionError("PANDORA_BROKER_SPREAD_BLOCK", spread_reason, 0, 0);
-    }
-    g_ea_running = false;
-    RefreshGridVisualization();
-    return;
-  }
-
-  // UPDATES THE STATUS COMMENT
+  g_ea_running = (debug_processing_allowed &&
+                  signal_attempts_allowed &&
+                  market_open &&
+                  spread_allowed);
   UpdateEARunningMagic();
 
-  //--- Phase 1 - check the emergence of a new bar and update the status
-  if(current_time>=next_bar_open)
-  {
-    if(signal_attempts_allowed)
-      Main(pandora_observed_this_tick);
+  bool protection_allows = ProtectionRiskAllowsSignalAttempt();
+  bool session_allows = SessionTimeFilterAllowsSignalAttempt();
+  bool daily_budget_available =
+    (DailySignalLimitAllowsAttempt(BULLISH) ||
+     DailySignalLimitAllowsAttempt(BEARISH));
+  bool allow_new_campaign = (debug_processing_allowed &&
+                             signal_attempts_allowed &&
+                             protection_allows &&
+                             session_allows &&
+                             daily_budget_available &&
+                             market_open &&
+                             spread_allowed);
 
-    //--- set the new bar opening time
-    next_bar_open=current_time;
-    next_bar_open-=next_bar_open%defined_tick_seconds;
-    next_bar_open+=defined_tick_seconds;
-  }
+  if(PivotHftDetectEntryIntent(allow_new_campaign) &&
+     signal_attempts_allowed &&
+     market_open &&
+     spread_allowed)
+    PivotHftExecuteEntryIntent();
 
-  // MANAGES THE BULLISH AND BEARISH SIGNALS
-  if(broker_actions_allowed)
-    Main_Tick(signal_attempts_allowed && market_open,
-              pandora_observed_this_tick);
+  PivotHftProcessAllPositions();
   RefreshGridVisualization();
 }
 

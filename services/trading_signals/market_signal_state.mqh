@@ -213,6 +213,18 @@ void DebugForceCloseAllGrids()
   int bearish_total = ArraySize(running_bearish_signals);
   for(int j = 0; j < bearish_total; j++)
     GridCloseAllLevels(running_bearish_signals[j], point_size);
+
+  int total_positions = PositionsTotal();
+  for(int k = total_positions - 1; k >= 0; k--)
+  {
+    ulong position_ticket = PositionGetTicket(k);
+    if(position_ticket == 0 || !PositionSelectByTicket(position_ticket))
+      continue;
+    if(PositionGetString(POSITION_SYMBOL) != _Symbol ||
+       PositionGetInteger(POSITION_MAGIC) != g_magic_number)
+      continue;
+    g_position.PositionClose(position_ticket);
+  }
 }
 
 datetime ResolveCurrentDayStart()
@@ -275,6 +287,18 @@ void RegisterDailySignalOutcome(const SignalTypes direction,
   DailySignalStatsEnsureDay(direction);
   if(raw_profit < 0.0)
     g_daily_signal_stats[DirectionIndex(direction)].losing_signals++;
+}
+
+void RegisterPivotHftDailySignalStart(const SignalTypes direction)
+{
+  if(Daily_Signal_Limit <= 0)
+    return;
+  if(direction != BULLISH && direction != BEARISH)
+    return;
+
+  DailySignalStatsEnsureDay(direction);
+  if(Daily_Signal_Limit_Mode == STOP_DAILY_SIGNALS)
+    g_daily_signal_stats[DirectionIndex(direction)].total_signals++;
 }
 
 bool DebugEquityGuardAllowsProcessing()

@@ -103,6 +103,14 @@ bool PivotHftEntryGuardsAllow(const SignalTypes direction,
     reason = "invalid_direction";
   else if(Pivot_HFT_Lot_Size <= 0.0)
     reason = "invalid_volume";
+  else if(!ProtectionRiskAllowsSignalAttempt())
+    reason = "protection_block";
+  else if(!DebugEquityGuardAllowsProcessing())
+    reason = "debug_equity_block";
+  else if(!SessionTimeFilterAllowsSignalAttempt())
+    reason = "session_block";
+  else if(!DailySignalLimitAllowsAttempt(direction))
+    reason = "daily_limit_block";
   else if(!MarketStatusRefreshPlatformTradePermission() ||
           !MarketStatusAllowsSignalAttempts())
     reason = "market_status_block";
@@ -273,6 +281,8 @@ bool PivotHftExecuteEntryIntent()
     PivotHftResetCampaign();
     return false;
   }
+
+  RegisterPivotHftDailySignalStart(campaign.direction);
 
   g_pivot_hft_last_error = "";
   MarketStatusClearExecutionError("PIVOT_HFT_ORDER_SEND_OK");

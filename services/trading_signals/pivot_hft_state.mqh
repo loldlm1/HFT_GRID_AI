@@ -81,6 +81,7 @@ struct PivotHftPositionState
   string                   position_comment;
   bool                     close_requested;
   bool                     reattempt_pending;
+  bool                     daily_outcome_registered;
 
   PivotHftPositionState()
   {
@@ -105,6 +106,7 @@ struct PivotHftPositionState
     position_comment       = "";
     close_requested        = false;
     reattempt_pending      = false;
+    daily_outcome_registered = false;
   }
 };
 

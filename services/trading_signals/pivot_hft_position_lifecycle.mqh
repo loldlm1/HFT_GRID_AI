@@ -177,6 +177,11 @@ bool PivotHftTryRearmClosedPosition(PivotHftPositionState &position_state)
   }
   if(g_pivot_hft_campaign.status != PIVOT_HFT_CAMPAIGN_IDLE)
     return false;
+  if(!ProtectionRiskAllowsSignalAttempt() ||
+     !SessionTimeFilterAllowsSignalAttempt() ||
+     !DailySignalLimitAllowsAttempt(position_state.direction) ||
+     !MarketStatusAllowsSignalAttempts())
+    return false;
 
   double close_price = PivotHftCurrentMicroClose();
   if(close_price <= 0.0 ||
@@ -227,7 +232,13 @@ void PivotHftFinalizeClosedPosition(PivotHftPositionState &position_state)
                                  : ((net_result < 0.0)
                                     ? PIVOT_HFT_CLOSE_SL
                                     : PIVOT_HFT_CLOSE_BE);
-  position_state.reattempt_pending = (net_result <= 0.0);
+  position_state.reattempt_pending = (net_result <= 0.0 &&
+                                      position_state.close_requested);
+  if(!position_state.daily_outcome_registered)
+  {
+    RegisterDailySignalOutcome(position_state.direction, net_result);
+    position_state.daily_outcome_registered = true;
+  }
   if(!position_state.reattempt_pending)
     position_state.status = PIVOT_HFT_POSITION_COMPLETED;
 }
