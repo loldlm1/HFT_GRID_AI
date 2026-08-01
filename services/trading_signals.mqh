@@ -19,6 +19,7 @@
 #include "trading_signals/pivot_hft_state.mqh"
 #include "trading_signals/pivot_hft_levels.mqh"
 #include "trading_signals/pivot_hft_indicators.mqh"
+#include "trading_signals/pivot_hft_detection.mqh"
 #include "trading_signals/pandora_box_state.mqh"
 #include "trading_signals/market_signal_indicators.mqh"
 #include "trading_signals/market_signal_channel_guards.mqh"
