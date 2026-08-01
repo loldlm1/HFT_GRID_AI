@@ -62,11 +62,16 @@ the historical deterministic seed for compatibility.
   the persistent Pivot HFT lifecycle audit; the two inputs are independent.
 - The audit appends to
   `TERMINAL_COMMONDATA_PATH\Files\query_debug.txt` through `FILE_COMMON`. On
-  startup the Journal prints the resolved absolute path and the run id.
+  startup the Journal prints the resolved absolute path and a collision-resistant
+  run id. Pivot HFT keeps a shared append handle, seeks to the current end,
+  flushes each bounded event and retries one reopen after a write failure.
 - Every audit row carries `run`, `symbol` and runtime `magic`. Important event
   families include `LEVEL_SCAN_*`, `LEVEL_TOUCH_PROVISIONAL`, `LEVEL_BURNED`,
   `CAMPAIGN_*`, `ENTRY_*`, `ORDER_SEND_RESULT`, `FILL_*`, local SL/trailing,
   position finalization, protection closes and debug stops.
+- `POSITION_FINALIZED` records the independent `close_trigger` and `net_class`,
+  trigger quote/stop/step, latest exit deal and volume-weighted actual close
+  price. A profitable BE or trailing close is therefore not mislabeled as TP.
 - Rotate or clear `query_debug.txt` before a focused tester session so chart,
   broker history and one run id can be correlated without stale evidence.
 - Chart objects use the `PIVOT_HFT_` prefix. The campaign pivot, tracked

@@ -48,13 +48,21 @@ enum PivotHftPivotLevels
   PIVOT_HFT_LEVEL_S3   = 7
 };
 
-enum PivotHftCloseOutcomes
+enum PivotHftCloseTriggers
 {
-  PIVOT_HFT_CLOSE_NONE  = 0,
-  PIVOT_HFT_CLOSE_SL    = 1,
-  PIVOT_HFT_CLOSE_BE    = 2,
-  PIVOT_HFT_CLOSE_TP    = 3,
-  PIVOT_HFT_CLOSE_ERROR = 4
+  PIVOT_HFT_CLOSE_TRIGGER_NONE       = 0,
+  PIVOT_HFT_CLOSE_TRIGGER_INITIAL_SL = 1,
+  PIVOT_HFT_CLOSE_TRIGGER_BREAK_EVEN = 2,
+  PIVOT_HFT_CLOSE_TRIGGER_TRAILING   = 3,
+  PIVOT_HFT_CLOSE_TRIGGER_EXTERNAL   = 4
+};
+
+enum PivotHftNetClasses
+{
+  PIVOT_HFT_NET_NONE   = 0,
+  PIVOT_HFT_NET_PROFIT = 1,
+  PIVOT_HFT_NET_LOSS   = 2,
+  PIVOT_HFT_NET_FLAT   = 3
 };
 
 enum DailySignalLimitModes

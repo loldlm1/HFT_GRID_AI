@@ -121,7 +121,11 @@ TERMINAL_COMMONDATA_PATH\Files\query_debug.txt
 El EA imprime en Journal la ruta absoluta resuelta y el `run` al inicializar.
 El archivo usa `FILE_COMMON`, por lo que puede ser compartido por varias
 instalaciones MT5. Cada fila incluye timestamp, evento, `run`, simbolo y magic;
-usar esos campos para separar instancias y pruebas.
+usar esos campos para separar instancias y pruebas. El `run` combina el tiempo
+simulado con tokens monotonicos y de chart para no colisionar al repetir el
+mismo periodo del tester. El writer conserva un handle compartible, busca el
+final y hace flush por evento; ante un fallo reabre una sola vez y avisa una
+sola vez en Journal.
 
 Para auditar niveles buscar `LEVEL_SCAN_START`, `LEVEL_SCAN_RESULT`,
 `LEVEL_SCAN_FAILED`, `LEVEL_TOUCH_PROVISIONAL`, `LEVEL_BURNED` y
@@ -135,6 +139,13 @@ la misma vela, `CAMPAIGN_LEVEL_OCCUPIED` registra una mascara acotada y el
 nivel alternativo seleccionado. La campana pendiente se conserva si no hay un
 fallback elegible; los reintentos de una posicion cerrada siguen usando su
 nivel original dentro de la misma vela micro.
+
+`POSITION_FINALIZED` separa `close_trigger` (`INITIAL_SL`, `BREAK_EVEN`,
+`TRAILING` o `EXTERNAL`) de `net_class` (`PROFIT`, `LOSS` o `FLAT`). Tambien
+incluye `trigger_time`, `trigger_quote`, `trigger_stop`, `trigger_step`, el
+ultimo `exit_deal`, el numero de deals de salida y `close_price` ponderado por
+volumen. Asi un BE o trailing con neto positivo conserva su causa real sin
+etiquetarse falsamente como TP.
 
 Rotar o vaciar el archivo antes de una sesion QA enfocada. No usar un log viejo
 como evidencia de la compilacion o del run actual.
@@ -181,7 +192,9 @@ y limpiar o rotar `query_debug.txt`:
 8. Lineas de pivote, extremo y trigger antes del fill; despues, lineas
    `ACTUAL FILL`, `LOCAL SL`, `BE` y `TRAIL STEP N` por ticket.
 9. SL local, BE, steps posteriores, cierre neto y eliminacion visual por ticket
-   independiente, incluyendo multiples posiciones hedging simultaneas.
+   independiente, incluyendo multiples posiciones hedging simultaneas. Verificar
+   que `close_trigger`, `exit_deal`, `close_price` y `net_class` coincidan con
+   el historial aunque exista delay de ejecucion del broker.
 10. Reintento tras perdida o BE solo dentro de la vela micro original; neto
     positivo completa la campana y no rearma.
 11. Bloqueos por spread, margen, sesion, limite diario, proteccion y estado del

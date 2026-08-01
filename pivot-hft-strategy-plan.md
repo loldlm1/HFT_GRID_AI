@@ -1,10 +1,9 @@
 # Plan: Pivot HFT sobre Bollinger y pivotes clasicos
 
 **Generated**: 2026-08-01
-**Status**: Sprint 15 is implemented and statically validated; Sprint 16 is
-next. The single MetaEditor compile is reserved for the end of Sprint 16.
-Manual real-tick QA is explicitly delegated to the user and remains a release
-prerequisite until that session is executed.
+**Status**: Sprints 15-16 implementation, static review and the final compile
+are complete. Manual real-tick QA is explicitly delegated to the user and
+remains a release prerequisite until that session is executed.
 **Estimated Complexity**: Critical / trading-sensitive
 
 **Execution override**: Per explicit user authorization, the original batch
@@ -43,6 +42,17 @@ trading-sensitive sprints after the M30 audit. Sprints 15 and 16 must run in
 order with one commit per sprint. No harness, CI or manual Strategy Tester QA
 may be created or launched. The only compile for this remediation batch is the
 final Sprint 16 MetaEditor gate.
+
+Sprint 15 passed candidate-order, same-bar retry, multi-ticket, hot-path,
+include-scope and diff checks without compiling, then was recorded as
+`e1c3ba9`. Sprint 16 static checks confirm the old TP/SL/BE net-sign conflation
+is absent, trigger and exit evidence is explicit, logger sharing/cleanup is
+bounded, no include topology changed and no sensitive values were introduced.
+The first final-gate invocation exposed the known portable MetaEditor profile
+problem (`Include\Trade\Trade.mqh` missing) before code compilation. After
+recreating only the temporary profile Include junction, the current source
+compiled with `0 errors, 0 warnings` in `8649 ms`. The junction and `BUILD.log`
+were removed; no harness, CI or Strategy Tester session was launched.
 
 ## Overview
 
@@ -1329,14 +1339,14 @@ tester executions, and make common-file logging resilient for shared instances.
 
 ### Sprint 16 Gate
 
-- [ ] Close trigger and net class are explicit and no longer conflated.
-- [ ] Exit deal ticket, actual close price and trigger evidence are auditable.
-- [ ] Shared logging survives repeated/shared instances without hot-path open/
+- [x] Close trigger and net class are explicit and no longer conflated.
+- [x] Exit deal ticket, actual close price and trigger evidence are auditable.
+- [x] Shared logging survives repeated/shared instances without hot-path open/
   close churn or unbounded retries.
-- [ ] Unique run ids separate identical tester reruns.
-- [ ] Final compile passes with `0 errors, 0 warnings` and `BUILD.log` is
+- [x] Unique run ids separate identical tester reruns.
+- [x] Final compile passes with `0 errors, 0 warnings` and `BUILD.log` is
   removed.
-- [ ] Exactly one Sprint 16 commit is created and the plan is current.
+- [x] Exactly one Sprint 16 commit is created and the plan is current.
 
 ## Testing Strategy
 
