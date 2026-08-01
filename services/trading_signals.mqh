@@ -16,6 +16,7 @@
 #include "trading_signals/signal_params_struct.mqh"
 #include "trading_signals/session_time_filter_manager.mqh"
 #include "trading_signals/market_signal_state.mqh"
+#include "trading_signals/pivot_hft_state.mqh"
 #include "trading_signals/pandora_box_state.mqh"
 #include "trading_signals/market_signal_indicators.mqh"
 #include "trading_signals/market_signal_channel_guards.mqh"

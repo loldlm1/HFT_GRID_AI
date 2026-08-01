@@ -1,0 +1,118 @@
+//+------------------------------------------------------------------+
+//|                         pivot_hft_state.mqh                      |
+//+------------------------------------------------------------------+
+#ifndef _SERVICES_TRADING_SIGNALS_PIVOT_HFT_STATE_MQH_
+#define _SERVICES_TRADING_SIGNALS_PIVOT_HFT_STATE_MQH_
+
+struct PivotHftPivotSnapshot
+{
+  datetime source_bar_time;
+  double pivot;
+  double resistance_1;
+  double resistance_2;
+  double resistance_3;
+  double support_1;
+  double support_2;
+  double support_3;
+  bool valid;
+
+  PivotHftPivotSnapshot()
+  {
+    source_bar_time = 0;
+    pivot           = 0.0;
+    resistance_1   = 0.0;
+    resistance_2   = 0.0;
+    resistance_3   = 0.0;
+    support_1      = 0.0;
+    support_2      = 0.0;
+    support_3      = 0.0;
+    valid           = false;
+  }
+};
+
+struct PivotHftCampaignState
+{
+  PivotHftCampaignStatuses status;
+  SignalTypes              direction;
+  PivotHftPivotLevels      pivot_level;
+  double                   pivot_price;
+  datetime                 micro_bar_time;
+  datetime                 arm_time;
+  double                   tracked_extreme;
+  double                   trigger_price;
+  int                      attempt_count;
+  string                   sequence_id;
+
+  PivotHftCampaignState()
+  {
+    status           = PIVOT_HFT_CAMPAIGN_IDLE;
+    direction        = NO_SIGNAL;
+    pivot_level      = PIVOT_HFT_LEVEL_NONE;
+    pivot_price      = 0.0;
+    micro_bar_time   = 0;
+    arm_time         = 0;
+    tracked_extreme  = 0.0;
+    trigger_price    = 0.0;
+    attempt_count    = 0;
+    sequence_id      = "";
+  }
+};
+
+struct PivotHftPositionState
+{
+  PivotHftPositionStatuses status;
+  PivotHftCloseOutcomes    close_outcome;
+  SignalTypes              direction;
+  PivotHftPivotLevels      pivot_level;
+  ulong                    position_ticket;
+  datetime                 campaign_micro_bar_time;
+  datetime                 entry_time;
+  datetime                 close_time;
+  double                   pivot_price;
+  double                   entry_price;
+  double                   local_sl_price;
+  double                   trailing_stop_price;
+  double                   net_result;
+  int                      trailing_step_index;
+  string                   position_comment;
+  bool                     close_requested;
+
+  PivotHftPositionState()
+  {
+    status                 = PIVOT_HFT_POSITION_ACTIVE;
+    close_outcome          = PIVOT_HFT_CLOSE_NONE;
+    direction              = NO_SIGNAL;
+    pivot_level            = PIVOT_HFT_LEVEL_NONE;
+    position_ticket        = 0;
+    campaign_micro_bar_time = 0;
+    entry_time             = 0;
+    close_time             = 0;
+    pivot_price             = 0.0;
+    entry_price            = 0.0;
+    local_sl_price         = 0.0;
+    trailing_stop_price    = 0.0;
+    net_result             = 0.0;
+    trailing_step_index    = 0;
+    position_comment       = "";
+    close_requested        = false;
+  }
+};
+
+PivotHftPivotSnapshot  g_pivot_hft_pivots;
+PivotHftCampaignState  g_pivot_hft_campaign;
+PivotHftPositionState  g_pivot_hft_positions[];
+datetime               g_pivot_hft_last_micro_bar = 0;
+datetime               g_pivot_hft_last_macro_bar = 0;
+string                 g_pivot_hft_last_error = "";
+
+void PivotHftResetCampaign()
+{
+  g_pivot_hft_campaign = PivotHftCampaignState();
+}
+
+void PivotHftClearPositionStates()
+{
+  ArrayResize(g_pivot_hft_positions, 0, 0);
+}
+
+#endif // _SERVICES_TRADING_SIGNALS_PIVOT_HFT_STATE_MQH_

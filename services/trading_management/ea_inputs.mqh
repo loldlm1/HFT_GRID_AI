@@ -15,6 +15,16 @@ GridEntryStyles      Grid_Deep_Entry_Style    = GRID_ENTRY_STYLE_STOP;
 input group  "+= PANDORA BOX EA V1.0 =+";
 input string EA_License_Key = "";
 
+input group  "+= Pivot HFT Strategy =+";
+input ENUM_TIMEFRAMES      Pivot_HFT_Micro_Timeframe       = PERIOD_M1;
+input ENUM_TIMEFRAMES      Pivot_HFT_Pivot_Timeframe       = PERIOD_M30;
+input StrategyDirectionTypes Pivot_HFT_Direction_Mode      = BOTH_DIRECTION;
+input double               Pivot_HFT_Retracement_Points   = 25.0;
+input double               Pivot_HFT_Local_SL_Points       = 25.0;
+input double               Pivot_HFT_TP_Step_Points        = 25.0;
+input double               Pivot_HFT_Lot_Size              = 0.01;
+input bool                 Pivot_HFT_Enable_Visualization  = true;
+
 input group  "+= Account Settings EA =+";
 input int    Custom_Magic     = 0;
 input string EA_Instance_Id   = "";
