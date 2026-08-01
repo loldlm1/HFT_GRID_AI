@@ -1,9 +1,10 @@
 # Plan: Pivot HFT sobre Bollinger y pivotes clasicos
 
 **Generated**: 2026-08-01
-**Status**: Sprints 15-16 implementation, static review and the final compile
-are complete. Manual real-tick QA is explicitly delegated to the user and
-remains a release prerequisite until that session is executed.
+**Status**: Sprints 15-16 and their final compile are complete. The M1 chart /
+M3 micro / H1 pivot stress-test audit opened Sprints 17-19; they are authorized
+for sequential execution, with one commit per Sprint and one compile only at
+the final Sprint 19 gate. Manual real-tick QA remains delegated to the user.
 **Estimated Complexity**: Critical / trading-sensitive
 
 **Execution override**: Per explicit user authorization, the original batch
@@ -54,6 +55,13 @@ recreating only the temporary profile Include junction, the current source
 compiled with `0 errors, 0 warnings` in `8649 ms`. The junction and `BUILD.log`
 were removed; no harness, CI or Strategy Tester session was launched.
 
+**Current stress-test remediation override**: The user authorized all findings
+from the M1 chart / M3 micro / H1 pivot audit to be documented and corrected.
+Sprints 17-19 execute in order as trading-sensitive batches with one commit per
+Sprint. Sprints 17-18 use static/diff validation only. No harness, CI or manual
+Strategy Tester QA may be created or launched, and MetaEditor is reserved for
+the sole final Sprint 19 compile.
+
 ## Overview
 
 Convertir HFT Grid AI en una estrategia tick-driven de Pivot HFT, conservando
@@ -82,10 +90,11 @@ es la fuente de verdad para el SL local, el trailing step, el BE y el resultado
 neto. Una posicion cerrada con resultado `<= 0` puede reintentar mientras su
 vela micro original siga abierta; un resultado `> 0` completa la campana.
 
-Se admiten multiples posiciones activas en cuentas MT5 de tipo hedging. Solo
-existe una campana de seguimiento pendiente a la vez; si se toca otro pivote
-antes del fill, el pivote mas reciente reemplaza al anterior. Una posicion ya
-abierta no se cancela cuando cambia la vela micro o se recalculan los pivotes.
+La ejecucion es single-flight: solo puede existir una campana pendiente o una
+posicion administrada activa a la vez. Dentro de la vela donde se arma una
+campana, un pivote mas reciente puede reemplazar al anterior antes del fill.
+Al cambiar la vela micro, la campana conserva su nivel, secuencia y extremo
+hasta llenar o alcanzar una frontera terminal de sesion o conjunto macro.
 
 ## Scope
 
@@ -99,8 +108,8 @@ abierta no se cancela cuando cambia la vela micro o se recalculan los pivotes.
     anterior (`shift=1`).
   - Maquina de estados pendiente -> seguimiento -> envio -> posicion activa ->
     cierre local -> reintento o campana completada.
-  - Multiples posiciones activas independientes por ticket, simbolo y magic,
-    con requisito de cuenta hedging.
+  - Una sola posicion administrada activa por simbolo y magic, con registro por
+    ticket y requisito de cuenta hedging para conservar lifecycle independiente.
   - Entradas de mercado sin proteccion SL/TP en servidor, con validacion de
     retcode, deal, fill, volumen, margen, spread y restricciones de mercado.
   - SL local, trailing step con BE, reintento despues de SL o BE y clasificacion
@@ -140,8 +149,10 @@ abierta no se cancela cuando cambia la vela micro o se recalculan los pivotes.
     se compra cuando el `Ask` rebota el numero configurado.
   - El pivote valido mas reciente reemplaza al pivote pendiente anterior antes
     del fill. No se mantienen varias campanas pendientes.
-  - La campana pendiente expira al cierre de su vela micro. Una posicion activa
-    continua hasta su cierre local aunque cambien la vela micro o los pivotes.
+  - La campana pendiente sobrevive cambios de vela micro y sigue el mismo
+    extremo hasta el fill. La sesion cerrada o un nuevo conjunto macro cancelan
+    de forma explicita la campana pendiente; una posicion activa continua hasta
+    su cierre local segun los guards existentes.
   - El step trailing usa `Pivot_HFT_TP_Step_Points` como intervalo favorable:
     el primer step mueve el SL a BE y cada step posterior avanza el SL por un
     intervalo. Un cierre neto en BE (`<= 0`) permite reintentar.
@@ -1347,6 +1358,154 @@ tester executions, and make common-file logging resilient for shared instances.
 - [x] Final compile passes with `0 errors, 0 warnings` and `BUILD.log` is
   removed.
 - [x] Exactly one Sprint 16 commit is created and the plan is current.
+
+## Stress-Test Audit Findings: M1 Chart / M3 Micro / H1 Pivot
+
+The audited `query_debug.txt` contains one complete tester run with 4,650
+records. All 207 order sends returned `TRADE_RETCODE_DONE` with a non-zero deal,
+all fills were registered and all positions finalized. The run exercised 119
+buy and 88 sell fills. Every campaign, provisional-touch and Bollinger source
+bar inspected was aligned to 180-second M3 boundaries; the M1 chart timeframe
+is present only as audit metadata and is not the source of the anomaly.
+
+Three remediation findings are confirmed:
+
+1. Four `TRACKING` campaigns were discarded exactly at the next M3 boundary by
+   `PivotHftResetPendingCampaignForNewMicroBar`, even though no fill or terminal
+   cancellation occurred.
+2. Fifteen real overlap intervals reached two live positions for 1-12 seconds.
+   None reused the same level or sequence: sibling-level admission and rearm
+   arbitration intentionally opened a second position while the first remained
+   active. The 500 ms broker delay did not create duplicate sends.
+3. `CAMPAIGN_LEVEL_OCCUPIED` emitted 973 rows for only 72 unique state payloads.
+   Resetting its dedupe state whenever price temporarily left the candidate
+   side allowed the same bar/direction/mask payload to be logged repeatedly.
+
+## Sprint 17: Persist Pending Campaigns Across Micro Bars
+
+**Goal**: Keep an armed pre-fill campaign following its original level and
+extreme across M3 boundaries until fill or an explicit terminal boundary.
+**Dependencies**: Sprint 16 compiled baseline and the stress-test findings.
+**Tracked scope**: `services/trading_signals/pivot_hft_detection.mqh`,
+`services/trading_signals/pivot_hft_state.mqh`,
+`services/trading_signals/pivot_hft_execution.mqh`,
+`services/trading_signals/pivot_hft_position_lifecycle.mqh`, indicator/pivot
+resource cancellation paths and this plan.
+**Commit**: `Sprint 17: persist pivot campaigns across micro bars`
+
+### Task 17.1: Carry active tracking state forward
+
+- Stop expiring `TRACKING` or `ORDER_WAIT` solely because the configured micro
+  candle changed.
+- Preserve the original sequence, selected level, pivot price and monotonic
+  Bid/Ask extreme across later micro candles.
+- Restrict latest-level replacement to the campaign's origin micro candle so a
+  burned or sibling level cannot silently steal an already-running campaign.
+
+### Task 17.2: Preserve lifecycle boundaries after a delayed fill
+
+- Record the actual fill micro candle separately from the campaign origin bar.
+- Keep the existing reattempt window bounded to the fill candle; allow the
+  grandfathered original level to rearm without treating its prior burn as a
+  new level admission.
+- Cancel pending campaigns explicitly on session/resource shutdown or macro
+  pivot-set rollover, while leaving filled-position protection unchanged.
+
+### Task 17.3: Validate continuity statically
+
+- Review tracking monotonicity, pivot rollover, session shutdown, burned-level
+  admission, reattempt timing, array state and visualization consumers.
+- Do not compile or launch tester/manual QA. Record static evidence and create
+  exactly one Sprint 17 commit.
+
+### Sprint 17 Gate
+
+- [x] A pending campaign survives any number of configured micro-bar changes.
+- [x] Its origin identity and extreme remain stable until fill or cancellation.
+- [x] Delayed fills retain a valid same-fill-bar reattempt boundary.
+- [x] Session and macro rollover remain explicit terminal boundaries.
+- [x] Static/diff validation passes; the Sprint 17 commit records this gate.
+
+## Sprint 18: Enforce Single-Flight Position Admission
+
+**Goal**: Prevent sibling levels, retries or delayed broker responses from
+creating a second managed position while another Pivot HFT lifecycle is active.
+**Dependencies**: Sprint 17 continuity gate.
+**Tracked scope**: `HFT_Grid_AI.mq5`,
+`services/trading_signals/pivot_hft_state.mqh`,
+`services/trading_signals/pivot_hft_execution.mqh`,
+`services/trading_signals/pivot_hft_position_lifecycle.mqh` and this plan.
+**Commit**: `Sprint 18: enforce single-flight pivot execution`
+
+### Task 18.1: Gate new campaigns on lifecycle occupancy
+
+- Treat active, close-wait and pending-reattempt states as admission blockers.
+- Preserve an already-running pending campaign, but do not admit a sibling
+  campaign while any managed position lifecycle still owns the execution slot.
+- Keep all symbol, magic, session, spread, margin, daily, protection and market
+  status gates authoritative.
+
+### Task 18.2: Add a pre-send broker fail-safe
+
+- Immediately before `Buy`/`Sell`, scan actual positions by symbol and magic
+  and fail closed if another managed position exists.
+- Keep synchronous trade retcode/deal/fill verification unchanged and emit a
+  bounded audit reason instead of repeatedly sending while occupied.
+
+### Task 18.3: Validate serialization statically
+
+- Review every campaign admission, fill reset, close/finalize, rearm and
+  compaction path for a maximum live managed-position count of one.
+- Do not compile or launch tester/manual QA. Record static evidence and create
+  exactly one Sprint 18 commit.
+
+### Sprint 18 Gate
+
+- [ ] No normal or reattempt path can send while a managed position is live.
+- [ ] Broker position scope is exact `_Symbol + g_magic_number`.
+- [ ] Slow synchronous responses cannot create a duplicate send.
+- [ ] Static/diff validation passes and exactly one Sprint 18 commit exists.
+
+## Sprint 19: Bound Lifecycle Diagnostics And Final Validation
+
+**Goal**: Make cross-bar and single-flight decisions auditable without repeated
+tick-path payloads, update active documentation and run the sole final compile.
+**Dependencies**: Sprint 18 serialization gate.
+**Tracked scope**: Pivot HFT diagnostics/state/frontend consumers, `README.md`,
+`docs/guides/pivot-hft-strategy-inputs.md`, this plan and final build artifacts.
+**Commit**: `Sprint 19: finalize persistent single-flight audit`
+
+### Task 19.1: Add terminal and carry-forward evidence
+
+- Emit one state-change record when a campaign crosses a micro boundary and one
+  explicit cancellation record for session or macro rollover.
+- Include origin bar, current bar, sequence and reason without logging prices or
+  formatting records on unchanged ticks.
+
+### Task 19.2: Repair occupied-state deduplication
+
+- Retain the last bar/direction/mask/selection signature even when price leaves
+  the Bollinger candidate side, so an identical payload is not re-emitted.
+- Reset the signature only on a real micro-bar or lifecycle boundary and keep
+  the logger out of trading decisions.
+
+### Task 19.3: Document and run the final gate
+
+- Update strategy and QA documentation for chart-timeframe independence,
+  cross-bar pending continuity, single-flight execution and fill-bar retries.
+- Run static/diff, include-topology, symbol/magic, logger hot-path and secret
+  checks. Do not create or run harness/CI or manual Strategy Tester QA.
+- Run the only MetaEditor compile for Sprints 17-19, require `0 errors, 0
+  warnings`, inspect and remove `BUILD.log`, then create exactly one Sprint 19
+  commit.
+
+### Sprint 19 Gate
+
+- [ ] Carry, cancellation and occupancy decisions are state-change bounded.
+- [ ] Active docs match persistent single-flight behavior.
+- [ ] Final MetaEditor compile passes with `0 errors, 0 warnings` and
+  `BUILD.log` is removed.
+- [ ] Exactly one Sprint 19 commit is created and the plan is current.
 
 ## Testing Strategy
 

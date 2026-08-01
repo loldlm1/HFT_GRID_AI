@@ -58,7 +58,7 @@ bool PivotHftCampaignBelongsToCurrentMicroBar()
           g_pivot_hft_campaign.micro_bar_time == current_bar);
 }
 
-void PivotHftResetPendingCampaignForNewMicroBar(const datetime current_bar)
+void PivotHftObserveMicroBarTransition(const datetime current_bar)
 {
   if(current_bar <= 0)
     return;
@@ -70,18 +70,6 @@ void PivotHftResetPendingCampaignForNewMicroBar(const datetime current_bar)
   if(current_bar == g_pivot_hft_last_micro_bar)
     return;
 
-  if(g_pivot_hft_campaign.status != PIVOT_HFT_CAMPAIGN_IDLE)
-  {
-    PivotHftAuditLog("CAMPAIGN_EXPIRED",
-                     StringFormat("dir=%s|level=%s|bar=%I64d|status=%s",
-                                  EnumToString(g_pivot_hft_campaign.direction),
-                                  PivotHftLevelLabel(g_pivot_hft_campaign.pivot_level),
-                                  (long)g_pivot_hft_campaign.micro_bar_time,
-                                  EnumToString(g_pivot_hft_campaign.status)));
-    g_pivot_hft_campaign.status = PIVOT_HFT_CAMPAIGN_EXPIRED;
-    PivotHftCaptureExpiredCampaignVisual(current_bar);
-    PivotHftResetCampaign();
-  }
   g_pivot_hft_last_micro_bar = current_bar;
 }
 
@@ -337,8 +325,6 @@ void PivotHftUpdateTrackedExtreme()
 {
   if(g_pivot_hft_campaign.status != PIVOT_HFT_CAMPAIGN_TRACKING)
     return;
-  if(!PivotHftCampaignBelongsToCurrentMicroBar())
-    return;
 
   double current_quote = PivotHftCurrentEntryQuote(g_pivot_hft_campaign.direction);
   if(current_quote <= 0.0)
@@ -393,8 +379,7 @@ void PivotHftUpdateTrackedExtreme()
 
 bool PivotHftEntryIntentReady()
 {
-  return (g_pivot_hft_campaign.status == PIVOT_HFT_CAMPAIGN_ORDER_WAIT &&
-          PivotHftCampaignBelongsToCurrentMicroBar());
+  return (g_pivot_hft_campaign.status == PIVOT_HFT_CAMPAIGN_ORDER_WAIT);
 }
 
 void PivotHftMarkEntryRetryable()
@@ -420,13 +405,14 @@ bool PivotHftDetectEntryIntent(const bool allow_new_campaign)
   if(current_micro_bar <= 0)
     return false;
 
-  PivotHftResetPendingCampaignForNewMicroBar(current_micro_bar);
+  PivotHftObserveMicroBarTransition(current_micro_bar);
   if(!PivotHftRefreshPivotSnapshot(false))
     return false;
   if(!PivotHftRefreshBandsSnapshot(false))
     return false;
 
-  if(g_pivot_hft_campaign.status == PIVOT_HFT_CAMPAIGN_TRACKING)
+  if(g_pivot_hft_campaign.status == PIVOT_HFT_CAMPAIGN_TRACKING &&
+     PivotHftCampaignBelongsToCurrentMicroBar())
   {
     double tracking_close = PivotHftCurrentMicroClose();
     if(tracking_close > 0.0)

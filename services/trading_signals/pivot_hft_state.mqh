@@ -79,6 +79,7 @@ struct PivotHftPositionState
   ulong                    entry_deal_ticket;
   ulong                    exit_deal_ticket;
   datetime                 campaign_micro_bar_time;
+  datetime                 entry_micro_bar_time;
   datetime                 entry_time;
   datetime                 close_trigger_time;
   datetime                 close_time;
@@ -113,6 +114,7 @@ struct PivotHftPositionState
     entry_deal_ticket      = 0;
     exit_deal_ticket       = 0;
     campaign_micro_bar_time = 0;
+    entry_micro_bar_time   = 0;
     entry_time             = 0;
     close_trigger_time     = 0;
     close_time             = 0;
@@ -158,6 +160,20 @@ datetime                  g_pivot_hft_level_test_retry_after = 0;
 bool                      g_pivot_hft_level_test_ready = false;
 bool                      g_pivot_hft_level_test_failure_logged = false;
 string                    g_pivot_hft_level_test_last_failure = "";
+
+datetime PivotHftResolveMicroBarAt(const datetime event_time)
+{
+  if(event_time <= 0)
+    return 0;
+
+  int bar_shift = iBarShift(_Symbol,
+                            Pivot_HFT_Micro_Timeframe,
+                            event_time,
+                            false);
+  if(bar_shift < 0)
+    return 0;
+  return iTime(_Symbol, Pivot_HFT_Micro_Timeframe, bar_shift);
+}
 
 string PivotHftLevelTestStatusLabel(const PivotHftLevelTestStatuses status)
 {
