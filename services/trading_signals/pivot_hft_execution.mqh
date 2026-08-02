@@ -176,6 +176,29 @@ ulong PivotHftFindFilledPosition(const ulong deal_ticket,
   return 0;
 }
 
+double PivotHftResolveInitialLocalStopPrice(
+  const PivotHftPositionState &position_state)
+{
+  if(position_state.entry_price <= 0.0 ||
+     position_state.initial_sl_points <= 0.0)
+    return 0.0;
+
+  double distance = PivotHftDistanceToPrice(
+    position_state.initial_sl_points);
+  if(distance <= 0.0)
+    return 0.0;
+
+  double stop_price = 0.0;
+  if(position_state.direction == BULLISH)
+    stop_price = position_state.entry_price - distance;
+  else if(position_state.direction == BEARISH)
+    stop_price = position_state.entry_price + distance;
+  else
+    return 0.0;
+
+  return PivotHftNormalizePrice(stop_price);
+}
+
 bool PivotHftRegisterFilledPosition(const PivotHftCampaignState &campaign,
                                     const PivotHftRiskGeometry &risk_geometry,
                                     const ulong deal_ticket,
@@ -232,8 +255,13 @@ bool PivotHftRegisterFilledPosition(const PivotHftCampaignState &campaign,
   if(position_state.entry_time <= 0)
     position_state.entry_time = TimeCurrent();
 
+  position_state.local_sl_price = PivotHftResolveInitialLocalStopPrice(
+    position_state);
+  position_state.trailing_stop_price = position_state.local_sl_price;
+
   return (position_state.entry_price > 0.0 &&
           position_state.entry_volume > 0.0 &&
+          position_state.local_sl_price > 0.0 &&
           PivotHftAppendPositionState(position_state));
 }
 
@@ -388,7 +416,7 @@ bool PivotHftExecuteEntryIntent()
     PivotHftPositionState registered_state =
       g_pivot_hft_positions[registered_index];
     PivotHftAuditLog("FILL_REGISTERED",
-                     StringFormat("sequence=%s|ticket=%I64u|position_id=%I64u|deal=%I64u|dir=%s|level=%s|entry=%.5f|volume=%.2f|attempt=%d|origin_bar=%I64d|fill_bar=%I64d",
+                     StringFormat("sequence=%s|ticket=%I64u|position_id=%I64u|deal=%I64u|dir=%s|level=%s|entry=%.5f|volume=%.2f|attempt=%d|origin_bar=%I64d|fill_bar=%I64d|sl_mode=%s|bands_bar=%I64d|band_width_pts=%.2f|initial_sl_pts=%.2f|local_sl=%.5f|step_pts=%.2f",
                                   campaign.sequence_id,
                                   registered_state.position_ticket,
                                   registered_state.position_identifier,
@@ -399,7 +427,13 @@ bool PivotHftExecuteEntryIntent()
                                   registered_state.entry_volume,
                                   registered_state.campaign_attempt_count + 1,
                                   (long)registered_state.campaign_micro_bar_time,
-                                  (long)registered_state.entry_micro_bar_time));
+                                  (long)registered_state.entry_micro_bar_time,
+                                  EnumToString(registered_state.local_sl_mode),
+                                  (long)registered_state.risk_bands_source_bar,
+                                  registered_state.risk_band_width_points,
+                                  registered_state.initial_sl_points,
+                                  registered_state.local_sl_price,
+                                  registered_state.trailing_step_points));
   }
 
   g_pivot_hft_last_error = "";

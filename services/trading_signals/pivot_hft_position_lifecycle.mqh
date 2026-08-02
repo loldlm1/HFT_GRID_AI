@@ -90,28 +90,22 @@ void PivotHftCaptureLocalCloseTrigger(
 
 bool PivotHftInitializeLocalStop(PivotHftPositionState &position_state)
 {
-  if(position_state.entry_price <= 0.0 ||
-     Pivot_HFT_Local_SL_Points <= 0.0)
-    return false;
-
-  double distance = PivotHftDistanceToPrice(Pivot_HFT_Local_SL_Points);
-  if(distance <= 0.0)
-    return false;
-
-  double stop_price = (position_state.direction == BULLISH)
-                      ? position_state.entry_price - distance
-                      : position_state.entry_price + distance;
-  position_state.local_sl_price = PivotHftNormalizePrice(stop_price);
+  position_state.local_sl_price = PivotHftResolveInitialLocalStopPrice(
+    position_state);
   position_state.trailing_stop_price = position_state.local_sl_price;
   if(position_state.local_sl_price > 0.0)
   {
     PivotHftAuditLog("LOCAL_SL_INITIALIZED",
-                     StringFormat("ticket=%I64u|dir=%s|entry=%.5f|local_sl=%.5f|distance_pts=%.2f",
+                     StringFormat("ticket=%I64u|dir=%s|entry=%.5f|local_sl=%.5f|sl_mode=%s|bands_bar=%I64d|band_width_pts=%.2f|initial_sl_pts=%.2f|step_pts=%.2f|source=recovery",
                                   position_state.position_ticket,
                                   EnumToString(position_state.direction),
                                   position_state.entry_price,
                                   position_state.local_sl_price,
-                                  Pivot_HFT_Local_SL_Points));
+                                  EnumToString(position_state.local_sl_mode),
+                                  (long)position_state.risk_bands_source_bar,
+                                  position_state.risk_band_width_points,
+                                  position_state.initial_sl_points,
+                                  position_state.trailing_step_points));
   }
   return (position_state.local_sl_price > 0.0);
 }
@@ -136,7 +130,7 @@ void PivotHftUpdateTrailingStop(PivotHftPositionState &position_state)
 {
   double previous_stop = position_state.local_sl_price;
   int previous_step = position_state.trailing_step_index;
-  double step_points = Pivot_HFT_TP_Step_Points;
+  double step_points = position_state.trailing_step_points;
   if(step_points <= 0.0 || position_state.entry_price <= 0.0)
     return;
 
@@ -179,12 +173,13 @@ void PivotHftUpdateTrailingStop(PivotHftPositionState &position_state)
        PivotHftTickSize() * 0.5)
   {
     PivotHftAuditLog("TRAILING_ADVANCED",
-                     StringFormat("ticket=%I64u|dir=%s|entry=%.5f|previous_sl=%.5f|local_sl=%.5f|step=%d|be=%d",
+                     StringFormat("ticket=%I64u|dir=%s|entry=%.5f|previous_sl=%.5f|local_sl=%.5f|step_pts=%.2f|step=%d|be=%d",
                                   position_state.position_ticket,
                                   EnumToString(position_state.direction),
                                   position_state.entry_price,
                                   previous_stop,
                                   position_state.local_sl_price,
+                                  step_points,
                                   position_state.trailing_step_index,
                                   (int)(position_state.trailing_step_index >= 1)));
   }
