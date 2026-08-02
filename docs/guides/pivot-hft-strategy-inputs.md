@@ -16,7 +16,10 @@ los dos inputs configurados.
 
 Las bandas son fijas: periodo `21`, desviacion `2.0`, `shift=1` y
 `PRICE_CLOSE`. La deteccion compara `close_0` contra las bandas de la vela
-micro cerrada anterior; no existen inputs para alterarlas.
+micro cerrada anterior; no existen inputs para alterarlas. Esa comparacion
+admite una campana nueva, pero no vuelve a validar una campana ya armada: entrar
+de nuevo en la banda durante el retroceso no cancela la secuencia ni reinicia su
+extremo seguido.
 
 ```text
 P  = (H + L + C) / 3
@@ -112,8 +115,10 @@ cero, por lo que terminal, EA, Algo Trading y conexion deben permanecer activos.
 7. El fill real define SL local, step y TP fijo opcional.
 8. El TP fijo se evalua antes de avanzar trailing en el mismo tick favorable.
 9. Neto positivo completa el intento. Neto `<= 0` puede rearmar dentro de la
-   vela micro que contiene el fill si el nivel original y Bollinger siguen
-   validos para ese reintento heredado.
+   vela micro que contiene el fill si el precio del nivel original sigue
+   perteneciendo al mismo conjunto de pivotes. La admision queda heredada: no
+   se exige que la cotizacion siga fuera de la banda ni del lado inicial del
+   pivote.
 10. Un ganador exterior consume la escalera interior de esa misma direccion y
     vela: R2 consume R1+R2, R3 consume R1+R2+R3, con simetria S1-S3.
 
@@ -202,6 +207,9 @@ del fill.
 conserva su causa real sin etiquetarse falsamente como TP fijo.
 
 `ENTRY_TRIGGERED` distingue `mode=IMMEDIATE` de `mode=RETRACEMENT`.
+`POSITION_REARMED` incluye `admission=latched` cuando reutiliza la admision
+original. `REARM_INVALIDATED` identifica un cambio del conjunto/precio del
+pivote y `REARM_EXPIRED` conserva la frontera de la vela micro del fill.
 `WINNING_LEVELS_CONSUMED` registra ticket, ganador, vela, mascara y niveles
 consumidos para auditar el caso R1 fallido seguido por R2 ganador.
 
@@ -273,7 +281,11 @@ y limpiar o rotar `query_debug.txt`:
     administrada activa; verificar que `close_trigger`, `trigger_target`,
     `exit_deal`, `close_price` y `net_class` coincidan con el historial.
 13. Reintento tras perdida o BE solo dentro de la vela micro que contiene el
-    fill; neto positivo completa la campana y no rearma.
+    fill. Dentro de esa vela, forzar que el precio vuelva dentro de Bollinger o
+    cruce el pivote: debe aparecer `POSITION_REARMED|admission=latched`. Tras el
+    cambio de vela debe aparecer `REARM_EXPIRED`; un cambio de conjunto/precio
+    del pivote debe producir `REARM_INVALIDATED`. Neto positivo completa la
+    campana y no rearma.
 14. En una vela que alcance R1 y R2, forzar R1 no positivo y R2 positivo:
     `WINNING_LEVELS_CONSUMED` debe incluir R1,R2 y no puede reaparecer R1. Repetir
     el caso simetrico con S1,S2.
