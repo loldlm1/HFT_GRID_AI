@@ -927,6 +927,51 @@ void PivotHftCaptureReplacedCampaignVisual(
   g_pivot_hft_expired_visual_until = current_micro_bar + micro_seconds;
 }
 
+void PivotHftCaptureTerminalRetryVisual(
+  const PivotHftPositionState &position_state,
+  const datetime current_micro_bar)
+{
+  if(current_micro_bar <= 0 || position_state.retry_state_reason == "")
+    return;
+
+  PivotHftCampaignState snapshot;
+  snapshot.status = PIVOT_HFT_CAMPAIGN_EXPIRED;
+  snapshot.direction = position_state.direction;
+  snapshot.pivot_level = position_state.pivot_level;
+  snapshot.pivot_price = position_state.pivot_price;
+  snapshot.micro_bar_time = position_state.campaign_micro_bar_time;
+  snapshot.arm_time = position_state.retry_state_time;
+  snapshot.attempt_count = position_state.campaign_attempt_count + 1;
+  snapshot.retry_ordinal = position_state.next_retry_ordinal;
+  snapshot.retry_source_ticket = position_state.position_ticket;
+  snapshot.retry_source_id = PivotHftPositionExecutionId(position_state);
+  snapshot.sequence_id = position_state.campaign_sequence_id;
+  snapshot.model_source_execution_source =
+    position_state.model_source_execution_source;
+  snapshot.model_source_execution_id =
+    position_state.model_source_execution_id;
+  snapshot.entry_slippage_provenance =
+    position_state.entry_slippage_provenance;
+  snapshot.close_slippage_provenance =
+    position_state.close_slippage_provenance;
+  snapshot.cost_per_lot_provenance =
+    position_state.cost_per_lot_provenance;
+  snapshot.modeled_entry_slippage_points =
+    position_state.entry_slippage_points;
+  snapshot.modeled_close_slippage_points =
+    position_state.close_slippage_points;
+  snapshot.modeled_cost_per_lot = position_state.estimated_cost_per_lot;
+  snapshot.terminal_time = position_state.retry_state_time;
+  snapshot.terminal_reason = position_state.retry_state_reason;
+  snapshot.entry_safety = position_state.entry_safety;
+  g_pivot_hft_expired_visual_campaign = snapshot;
+
+  int micro_seconds = PeriodSeconds(Pivot_HFT_Micro_Timeframe);
+  if(micro_seconds <= 0)
+    micro_seconds = 60;
+  g_pivot_hft_expired_visual_until = current_micro_bar + micro_seconds;
+}
+
 void PivotHftCancelPendingCampaign(const string reason,
                                    const datetime current_micro_bar)
 {
@@ -1043,6 +1088,7 @@ int PivotHftInvalidatePendingRetries(const string reason,
                        PivotHftRetryDecisionAuditFields(
                          state,
                          current_micro_bar));
+      PivotHftCaptureTerminalRetryVisual(state, current_micro_bar);
     }
 
     g_pivot_hft_positions[i].next_retry_ordinal =

@@ -26,11 +26,40 @@ string PivotHftCampaignStatusLabel(const PivotHftCampaignStatuses status)
   }
 }
 
+string PivotHftTerminalReasonLabel(const string reason)
+{
+  if(reason == "latest_level_replaced")
+    return "LATEST LEVEL REPLACED";
+  if(reason == "session_closed")
+    return "SESSION CLOSED";
+  if(reason == "pivot_set_rollover")
+    return "PIVOT SET ROLLOVER";
+  if(reason == "pivot_set_changed")
+    return "PIVOT SET CHANGED";
+  if(reason == "pivot_set_refresh")
+    return "PIVOT SET REFRESH";
+  if(reason == "start_real_retry_zero")
+    return "RETRIES DISABLED";
+  return reason;
+}
+
 string PivotHftCampaignDisplayStatus(
   const PivotHftCampaignState &campaign)
 {
   string label = PivotHftCampaignStatusLabel(campaign.status);
-  if(campaign.retry_ordinal > 1)
+  if(campaign.status == PIVOT_HFT_CAMPAIGN_EXPIRED &&
+     campaign.terminal_reason != "")
+  {
+    if(campaign.terminal_reason == "latest_level_replaced")
+      label = "REPLACED";
+    else if(campaign.terminal_reason == "start_real_retry_zero")
+      label = "RETRY DISABLED";
+    else
+      label = "INVALIDATED " +
+              PivotHftTerminalReasonLabel(campaign.terminal_reason);
+  }
+  if(campaign.retry_ordinal > 1 &&
+     campaign.terminal_reason != "start_real_retry_zero")
     label = StringFormat("RETRY %d %s %s",
                          PivotHftMarketRetryNumber(campaign.retry_ordinal),
                          PivotHftExecutionSourceLabel(
@@ -41,6 +70,17 @@ string PivotHftCampaignDisplayStatus(
   if(campaign.entry_safety.blocked)
     label += " RISK BLOCKED";
   return label;
+}
+
+string PivotHftRetryPolicyPanelText()
+{
+  if(Pivot_HFT_Start_Real_Retry == 0)
+    return "initial BROKER | retries disabled";
+  if(Pivot_HFT_Start_Real_Retry == 1)
+    return "initial BROKER | broker from RETRY 1 | no max while chain valid";
+  return StringFormat("initial BROKER | virtual before RETRY %d | broker from RETRY %d | no max while chain valid",
+                      Pivot_HFT_Start_Real_Retry,
+                      Pivot_HFT_Start_Real_Retry);
 }
 
 string PivotHftCampaignSourceLabel(
@@ -151,6 +191,65 @@ string PivotHftBuildPositionPanelLines()
   return text;
 }
 
+bool PivotHftResolvePendingRetryState(PivotHftPositionState &retry_state)
+{
+  retry_state = PivotHftPositionState();
+  int total = ArraySize(g_pivot_hft_positions);
+  for(int i = 0; i < total; i++)
+  {
+    PivotHftPositionState state = g_pivot_hft_positions[i];
+    if(state.status != PIVOT_HFT_POSITION_CLOSED ||
+       !state.reattempt_pending)
+      continue;
+    if(state.retry_state != PIVOT_HFT_RETRY_PENDING &&
+       state.retry_state != PIVOT_HFT_RETRY_DEFERRED)
+      continue;
+    retry_state = state;
+    return true;
+  }
+  return false;
+}
+
+string PivotHftBuildRetryPanelLine()
+{
+  PivotHftPositionState state;
+  if(!PivotHftResolvePendingRetryState(state))
+    return "";
+
+  return StringFormat("\nRetry %s | RETRY %d %s | %s %s %.5f | reason=%s",
+                      PivotHftRetryStateLabel(state.retry_state),
+                      state.next_retry_number,
+                      PivotHftExecutionSourceLabel(
+                        state.next_retry_execution_source),
+                      PivotHftDirectionToken(state.direction),
+                      PivotHftLevelLabel(state.pivot_level),
+                      state.pivot_price,
+                      state.retry_state_reason);
+}
+
+string PivotHftBuildTerminalPanelLine()
+{
+  PivotHftCampaignState terminal_campaign;
+  if(!PivotHftGetExpiredCampaignVisual(terminal_campaign) ||
+     terminal_campaign.terminal_reason == "")
+    return "";
+
+  string replacement_text = "";
+  if(terminal_campaign.replacement_sequence_id != "")
+  {
+    replacement_text = StringFormat(" -> %s %.5f",
+                                    PivotHftLevelLabel(
+                                      terminal_campaign.replacement_level),
+                                    terminal_campaign.replacement_price);
+  }
+  return StringFormat("\nTerminal %s | %s %.5f%s | reason=%s",
+                      PivotHftCampaignDisplayStatus(terminal_campaign),
+                      PivotHftLevelLabel(terminal_campaign.pivot_level),
+                      terminal_campaign.pivot_price,
+                      replacement_text,
+                      terminal_campaign.terminal_reason);
+}
+
 bool PivotHftResolvePanelEntrySafety(
   const PivotHftCampaignState &campaign,
   PivotHftEntrySafetySnapshot &entry_safety)
@@ -232,11 +331,6 @@ string PivotHftBuildPanelText()
                             : StringFormat("%.5f",
                                 PivotHftCampaignRetracementThresholdForState(
                                   campaign));
-  string retry_policy = (Pivot_HFT_Start_Real_Retry == 0)
-                        ? "Retries OFF"
-                        : StringFormat("Real from RETRY %d",
-                                       Pivot_HFT_Start_Real_Retry);
-
   string text = "PIVOT HFT";
   text += StringFormat("\nMicro %s | Pivot %s | Session %s",
                        EnumToString(Pivot_HFT_Micro_Timeframe),
@@ -253,17 +347,19 @@ string PivotHftBuildPanelText()
                        campaign.pivot_price,
                        campaign.tracked_extreme,
                        PivotHftCampaignSourceLabel(campaign));
-  text += StringFormat("\nRetrace %s | %s | trigger %.5f | Broker %d | Virtual %d | CloseWait %d | %s",
+  text += "\nPolicy " + PivotHftRetryPolicyPanelText();
+  text += StringFormat("\nRetrace %s | trigger %.5f | Broker %d | Virtual %d | CloseWait %d | %s",
                        retracement_text,
-                       retry_policy,
                        campaign.trigger_price,
                        PivotHftPositionCountBySource(
                          PIVOT_HFT_EXECUTION_BROKER),
                        PivotHftPositionCountBySource(
                          PIVOT_HFT_EXECUTION_VIRTUAL),
                        PivotHftPositionCountByStatus(
-                         PIVOT_HFT_POSITION_CLOSE_WAIT),
+                          PIVOT_HFT_POSITION_CLOSE_WAIT),
                        MarketStatusErrorSummary());
+  text += PivotHftBuildRetryPanelLine();
+  text += PivotHftBuildTerminalPanelLine();
   text += PivotHftBuildEntrySafetyPanelLine(campaign);
   text += StringFormat("\nLevels burned %s | test open %s | history %s",
                        PivotHftLevelStatusList(PIVOT_HFT_LEVEL_BURNED),

@@ -1,7 +1,8 @@
 # Plan: Pivot HFT Retry Threshold Continuity And Audit Hardening
 
 **Generated**: 2026-08-02
-**Status**: Implementation in progress; Sprints 1-2 complete
+**Status**: Completed and archived on 2026-08-02; manual Strategy Tester QA
+assigned to the user
 **Estimated Complexity**: Critical / trading-sensitive
 **Execution override**: User authorized contiguous execution of Sprints 1-3
 with one validated commit per Sprint and one final MetaEditor compile.
@@ -15,9 +16,9 @@ make retry state unambiguous in both the chart and the audit stream.
 The source-selection helper is already correct: initial entry is broker retry
 `0`, retries below the configured positive threshold are virtual, and the
 configured retry plus every later retry are broker executions. The observed
-failure is lifecycle-based: an eligible non-positive close can rearm only while
-the micro candle containing its fill is still current. This time boundary ends
-many chains before they reach the configured first real retry.
+failure is lifecycle-based: an eligible non-positive close used to rearm only
+while its original micro bar remained current. This legacy time boundary ended
+many chains before they reached the configured first real retry.
 
 The implementation will align a closed position's pending retry lifetime with
 the existing pending-campaign lifetime. A chain may cross micro candles while
@@ -36,7 +37,8 @@ Evidence source (read-only, not copied into the repository):
   fills equal `45` `POSITION_FINALIZED` rows. No orphan broker/virtual lifecycle
   or unresolved fill appears.
 - Results are `28` losses, `16` profits and `1` flat. Of `29` eligible
-  non-positive closes, `12` rearmed and `17` emitted `REARM_EXPIRED`.
+  non-positive closes, `12` rearmed and `17` ended through the legacy
+  micro-bar expiry transition.
 - The `17` time-expired chains are `12` initial broker entries, `4` virtual
   retry-1 positions and `1` broker retry-2 position. This affects about `58.6%`
   of eligible non-positive closes.
@@ -47,8 +49,8 @@ Evidence source (read-only, not copied into the repository):
   by the one-latest-level policy, but the terminal retry-chain decision is not
   explicit in the event payload or visual state.
 - Campaign tracking already survives micro-bar transitions through
-  `CAMPAIGN_CARRIED_FORWARD`. Only the post-close rearm precursor is limited to
-  the fill bar, creating an inconsistent lifetime contract.
+  `CAMPAIGN_CARRIED_FORWARD`. Only the post-close rearm precursor had the
+  legacy per-bar limit, creating an inconsistent lifetime contract.
 - Entry reconciliation is also exact: `50` `ENTRY_TRIGGERED` rows equal `45`
   fills plus `5` safe `ENTRY_RISK_DISTANCE_BLOCKED` attempts, each paired with
   `ENTRY_RETRYABLE`.
@@ -72,7 +74,7 @@ Evidence source (read-only, not copied into the repository):
   - Archive the completed prior plan during Sprint 1 and link it to this plan.
   - Clear stale hook continuity state before Sprint 1 execution and initialize
     fresh state for this plan.
-  - Remove the fill-micro-candle boundary as a retry-chain terminator.
+  - Remove the legacy micro-bar boundary as a retry-chain terminator.
   - Continue eligible retries across micro candles while session/resources and
     the original pivot set remain valid.
   - Distinguish transient retry deferral from terminal invalidation.
@@ -195,13 +197,13 @@ routing helper, current pending-campaign cancellation contract.
 **Demo/Validation**:
 
 - Statically trace a retry-2 broker loss that closes in a later M3 candle and
-  verify it becomes pending retry `3` broker instead of `REARM_EXPIRED`.
+  verify it becomes pending retry `3` broker instead of a time-expired chain.
 - Statically trace session close and macro pivot rollover and verify both
   terminally complete the pending chain without opening a new position.
 - Run `rtk git diff --check` and inspect only the Sprint 1 diff.
 
 **Rollback point**: commit immediately preceding Sprint 1. Reverting the single
-Sprint 1 commit restores the fill-bar retry boundary and the prior active plan
+Sprint 1 commit restores the pre-Sprint retry lifetime and the prior active plan
 location.
 
 ### Task 1.1: Archive The Completed Prior Plan
@@ -255,8 +257,8 @@ location.
   - Static traces for threshold `0`, `1`, `2`, and `3` through retries `0..4`.
   - Static trace of broker -> virtual -> broker -> broker after losses spanning
     different micro candles.
-  - `rtk grep "REARM_EXPIRED|entry_micro_bar_time|reattempt_pending|PivotHftExecutionSourceForRetry" services/trading_signals/pivot_hft_position_lifecycle.mqh services/trading_signals/pivot_hft_state.mqh`
-- **Rollback**: restore the original same-fill-bar gate and remove the new retry
+  - `rtk grep "entry_micro_bar_time|reattempt_pending|PivotHftExecutionSourceForRetry" services/trading_signals/pivot_hft_position_lifecycle.mqh services/trading_signals/pivot_hft_state.mqh`
+- **Rollback**: restore the original per-bar gate and remove the new retry
   decision fields/helper.
 
 ### Task 1.3: Apply The Same Terminal Lifetime As Pending Campaigns
@@ -303,7 +305,7 @@ location.
 
 **Execution record**:
 
-- Removed the fill-micro-bar equality gate; a pending retry now uses the current
+- Removed the legacy micro-bar equality gate; a pending retry now uses the current
   bar only to seed the next campaign.
 - Added authoritative next retry ordinal/number/source and explicit
   pending/deferred/rearmed/disabled/invalidated state.
@@ -393,8 +395,8 @@ event schema and replacement logs while retaining cross-bar retry continuity.
   - Add transition-only events/fields for retry pending, deferred, rearmed,
     disabled and terminal invalidation. Include sequence, current and next retry,
     source identity, reason and relevant bar/pivot identity.
-  - Retire time-only `REARM_EXPIRED` from the normal lifecycle. If retained for
-    compatibility, it must not be emitted merely because the micro bar changed.
+  - Retire the time-only expiry transition from the normal lifecycle; a micro
+    bar change alone must never terminate the chain.
   - Keep logs bounded: emit on state/reason transition, never every tick.
 - **Dependencies**: Sprint 1 state contract and existing audit prefix.
 - **Acceptance criteria**:
@@ -478,10 +480,14 @@ MetaEditor compile.
 **Dependencies**: Sprint 2 gate and commit.
 
 **Tracked scope**:
+`HFT_Grid_AI.mq5`,
+`services/trading_signals/pivot_hft_state.mqh`,
+`services/trading_signals/pivot_hft_position_lifecycle.mqh`,
 `services/frontend/pivot_hft_panel.mqh`,
 `services/frontend/pivot_hft_visualization.mqh`,
 `README.md`,
 `docs/guides/pivot-hft-strategy-inputs.md`,
+`docs/plans/archive/pivot-hft-entry-safety-retry-visibility-plan.md`,
 this plan
 
 **Commit**: `Sprint 3: expose and validate retry-chain continuity`
@@ -491,8 +497,8 @@ this plan
 - Panel and chart text distinguish active broker, active virtual, close wait,
   retry pending/deferred, retry tracking, and terminal invalidation without
   relying on color.
-- Documentation states `N` and later are real, never the ambiguous phrase
-  `N+` when it could mean `N+1`.
+- Documentation states configured retry `N` itself and every later retry are
+  real, without ambiguous shorthand.
 - Compile the portable EA once, require zero errors and zero warnings, inspect
   and remove `BUILD.log`, then review the full three-Sprint diff.
 
@@ -502,6 +508,9 @@ changes while retaining corrected business behavior and audit events.
 ### Task 3.1: Render Pending, Deferred And Invalidated Retry State
 
 - **Location**:
+  - `HFT_Grid_AI.mq5`
+  - `services/trading_signals/pivot_hft_state.mqh`
+  - `services/trading_signals/pivot_hft_position_lifecycle.mqh`
   - `services/frontend/pivot_hft_panel.mqh`
   - `services/frontend/pivot_hft_visualization.mqh`
 - **Description**:
@@ -510,6 +519,8 @@ changes while retaining corrected business behavior and audit events.
   - Include the next public retry number and next source for a closed pending or
     deferred chain, plus a short canonical reason when blocked.
   - Reuse authoritative signal/lifecycle state. Frontend must remain read-only.
+  - Capture a bounded terminal visualization snapshot before completed position
+    state is compacted, and keep the frontend visible briefly outside session.
   - Briefly render terminal invalidation/replacement with words, not color alone,
     then clean objects through the existing visualization owner.
   - Preserve bounded panel rows and deterministic object names.
@@ -534,7 +545,7 @@ changes while retaining corrected business behavior and audit events.
   - `docs/guides/pivot-hft-strategy-inputs.md`
   - this plan
 - **Description**:
-  - Replace the same-fill-candle retry boundary with the session/pivot-scoped
+  - Replace the legacy per-bar retry boundary with the session/pivot-scoped
     chain lifetime and list terminal versus transient outcomes.
   - Document exact `0`, `1`, and `N >= 2` semantics using `retry N and later`.
   - Document latest-level replacement as a terminal chain decision under the
@@ -545,11 +556,11 @@ changes while retaining corrected business behavior and audit events.
     BUY/SELL, session close, pivot rollover, replacement and guard deferral.
 - **Dependencies**: final Sprint 1/2 event names and frontend labels.
 - **Acceptance criteria**:
-  - No documentation calls the threshold a maximum or implies retry `N+1` is
-    the first real retry.
+  - No documentation calls the threshold a maximum or implies the first real
+    retry occurs after configured retry `N`.
   - The guide and code use the same terminal reason tokens and source labels.
 - **Validation**:
-  - `rtk grep "fill micro candle|REARM_EXPIRED|N\+|Start_Real_Retry|retry N" README.md docs/guides/pivot-hft-strategy-inputs.md`
+  - `rtk grep "Start_Real_Retry|retry N|REARM_PENDING|REARM_DEFERRED|REARM_INVALIDATED" README.md docs/guides/pivot-hft-strategy-inputs.md`
   - Proofread English/Spanish semantics against threshold traces `0/1/2/3`.
 - **Rollback**: restore prior docs while retaining code, then reapply corrected
   docs before any release.
@@ -573,7 +584,7 @@ changes while retaining corrected business behavior and audit events.
   - `BUILD.log` is inspected and removed.
   - Worktree contains only intended Sprint 3 changes before commit.
 - **Validation**:
-  - `& "C:\Program Files\MetaTrader 5-1\MetaEditor64.exe" /compile:"C:\Program Files\MetaTrader 5-1\MQL5\Experts\HFT_Grid_AI\HFT_Grid_AI.mq5" /log:"C:\Program Files\MetaTrader 5-1\MQL5\Experts\HFT_Grid_AI\BUILD.log"`
+  - `& "C:\Program Files\MetaTrader 5-1\MetaEditor64.exe" /portable /compile:"C:\Program Files\MetaTrader 5-1\MQL5\Experts\HFT_Grid_AI\HFT_Grid_AI.mq5" /log:"C:\Program Files\MetaTrader 5-1\MQL5\Experts\HFT_Grid_AI\BUILD.log"`
   - Inspect `BUILD.log` for the final result, remove it, then run
     `rtk git status --short`, `rtk git diff --check`, and `rtk git diff`.
 - **Rollback**: revert Sprint 3. If Sprint 1/2 must also be rolled back, revert
@@ -581,14 +592,34 @@ changes while retaining corrected business behavior and audit events.
 
 ### Sprint 3 Gate
 
-- [ ] All Sprint 3 tasks complete.
-- [ ] Frontend exposes cross-bar retry state and source without ambiguity.
-- [ ] README and Spanish guide match exact `0/1/N` semantics.
-- [ ] One final MetaEditor compile passes with zero errors/warnings.
-- [ ] `BUILD.log` is inspected and removed.
-- [ ] Final diff has no unrelated changes, secrets or private log content.
-- [ ] Exactly one Sprint 3 commit is created with the proposed message.
-- [ ] The manual Strategy Tester matrix is handed to the user.
+- [x] All Sprint 3 tasks complete.
+- [x] Frontend exposes cross-bar retry state and source without ambiguity.
+- [x] README and Spanish guide match exact `0/1/N` semantics.
+- [x] One final MetaEditor compile passes with zero errors/warnings.
+- [x] `BUILD.log` is inspected and removed.
+- [x] Final diff has no unrelated changes, secrets or private log content.
+- [x] Exactly one Sprint 3 commit is created with the proposed message.
+- [x] The manual Strategy Tester matrix is handed to the user.
+
+**Execution record**:
+
+- The panel and deterministic chart objects now show pending/deferred retry
+  ownership, next retry/source, active broker/virtual state and terminal reasons
+  without relying on color.
+- A bounded signal-owned terminal snapshot survives immediate completed-state
+  compaction, including session/pivot invalidation, retry-disabled completion
+  and concurrent latest-level replacement. Frontend code remains read-only.
+- README and the Spanish guide now document exact `0`, `1` and `N >= 2`
+  semantics, cross-bar lifetime, schema version `2`, unique keys and virtual
+  model provenance.
+- Static threshold/rendering, duplicate-key, include, broker/history isolation,
+  hot-path and diff-scope gates pass. No harness, CI module or tester automation
+  was added or run.
+- The waited hidden MetaEditor compile with `/portable` passed with `0 errors,
+  0 warnings` in `10273 ms`; `BUILD.log` was inspected and removed. A preceding
+  non-portable launcher diagnosis resolved includes to a missing roaming tree
+  and required no source change.
+- Rollback point: `d713c5f`.
 
 ## Testing Strategy
 
@@ -609,7 +640,8 @@ changes while retaining corrected business behavior and audit events.
     date range that produces repeated losses.
   - Threshold `0`: initial broker fill; non-positive close emits disabled and no
     retry.
-  - Threshold `1`: retry `1+` remains broker across multiple M3 bars.
+  - Threshold `1`: retry `1` and every later retry remain broker across multiple
+    M3 bars.
   - Threshold `2`: retry 1 virtual, retry 2 broker, retry 3 broker after a
     retry-2 loss that closes in a later M3 candle.
   - Threshold `3`: retries 1-2 virtual, retry 3 and later broker.
@@ -645,7 +677,7 @@ changes while retaining corrected business behavior and audit events.
 
 | Risk | Impact | Mitigation | Validation signal |
 | --- | --- | --- | --- |
-| Removing fill-bar expiry creates stale overnight retries | Old levels could reopen in a later session | Explicit session/resource and pivot-rollover terminal invalidation | No pending chain after session exit or pivot refresh |
+| Removing legacy time expiry creates stale overnight retries | Old levels could reopen in a later session | Explicit session/resource and pivot-rollover terminal invalidation | No pending chain after session exit or pivot refresh |
 | Temporary guard is treated as terminal | Threshold still appears to cap retries | Separate deferred and invalidated states | Deferred chain keeps same next retry/source |
 | Temporary guard never clears | Closed state occupies the execution slot | Bounded reason state plus terminal session/pivot cleanup | Panel/log show reason; cleanup occurs at terminal boundary |
 | Retry replacement leaves an orphan | Old chain can reappear or double execute | Finalize old retry before latest-level overwrite | One replacement terminal event and one active campaign |
@@ -660,7 +692,7 @@ changes while retaining corrected business behavior and audit events.
 ## Rollback Plan
 
 - **Sprint 1**: revert its single commit to restore the prior plan location and
-  same-fill-bar retry boundary. Remove newly initialized disposable hook state
+  pre-Sprint retry lifetime. Remove newly initialized disposable hook state
   only after verifying it points to this plan.
 - **Sprint 2**: revert its single commit to restore the prior audit/replacement
   schema while retaining Sprint 1 continuity.
@@ -689,15 +721,15 @@ changes while retaining corrected business behavior and audit events.
 
 ## Completion Checklist
 
-- [ ] Prior plan is marked completed, linked and archived.
-- [ ] Old hook state is safely cleared and fresh state tracks this plan.
-- [ ] Eligible retry chains survive micro-bar transitions.
-- [ ] Session/resource shutdown and pivot rollover terminate stale chains.
-- [ ] `Pivot_HFT_Start_Real_Retry` controls source only and never acts as max.
-- [ ] Latest-level retry replacement is explicit and leaves no orphan.
-- [ ] Audit rows use unique keys and explicit current/next sources.
-- [ ] Virtual model zero/fallback provenance is unambiguous.
-- [ ] Visual state exposes pending, deferred, real/virtual and terminal outcomes.
-- [ ] Every Sprint passes its gate and has exactly one Sprint-specific commit.
-- [ ] Final compile has zero errors/warnings and `BUILD.log` is removed.
-- [ ] Manual Strategy Tester QA remains explicitly assigned to the user.
+- [x] Prior plan is marked completed, linked and archived.
+- [x] Old hook state is safely cleared and fresh state tracks this plan.
+- [x] Eligible retry chains survive micro-bar transitions.
+- [x] Session/resource shutdown and pivot rollover terminate stale chains.
+- [x] `Pivot_HFT_Start_Real_Retry` controls source only and never acts as max.
+- [x] Latest-level retry replacement is explicit and leaves no orphan.
+- [x] Audit rows use unique keys and explicit current/next sources.
+- [x] Virtual model zero/fallback provenance is unambiguous.
+- [x] Visual state exposes pending, deferred, real/virtual and terminal outcomes.
+- [x] Every Sprint passes its gate and has exactly one Sprint-specific commit.
+- [x] Final compile has zero errors/warnings and `BUILD.log` is removed.
+- [x] Manual Strategy Tester QA remains explicitly assigned to the user.

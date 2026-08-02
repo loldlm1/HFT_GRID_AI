@@ -354,8 +354,46 @@ void PivotHftDrawCampaign(string &current_objects[])
                                                direction_label,
                                                source_label),
                                   false))
+      PivotHftTrackDynamicVisual(current_objects,
+                                 PivotHftVisualObjectName(trigger_suffix));
+}
+
+void PivotHftDrawConcurrentTerminalCampaign(string &current_objects[])
+{
+  if(g_pivot_hft_campaign.status == PIVOT_HFT_CAMPAIGN_IDLE)
+    return;
+
+  PivotHftCampaignState terminal_campaign;
+  if(!PivotHftGetExpiredCampaignVisual(terminal_campaign) ||
+     terminal_campaign.terminal_reason == "")
+    return;
+
+  string replacement_text = "";
+  if(terminal_campaign.replacement_sequence_id != "")
+  {
+    replacement_text = StringFormat(" -> %s %.5f",
+                                    PivotHftLevelLabel(
+                                      terminal_campaign.replacement_level),
+                                    terminal_campaign.replacement_price);
+  }
+  string suffix = "TERMINAL_CAMPAIGN_PIVOT";
+  string label = StringFormat("TERMINAL %s %s %.5f%s reason=%s",
+                              PivotHftCampaignDisplayStatus(
+                                terminal_campaign),
+                              PivotHftLevelLabel(
+                                terminal_campaign.pivot_level),
+                              terminal_campaign.pivot_price,
+                              replacement_text,
+                              terminal_campaign.terminal_reason);
+  if(PivotHftUpdateHorizontalLine(suffix,
+                                  terminal_campaign.pivot_price,
+                                  clrDimGray,
+                                  STYLE_DOT,
+                                  2,
+                                  label,
+                                  false))
     PivotHftTrackDynamicVisual(current_objects,
-                               PivotHftVisualObjectName(trigger_suffix));
+                               PivotHftVisualObjectName(suffix));
 }
 
 string PivotHftPositionStopLabel(const PivotHftPositionState &state)
@@ -465,11 +503,50 @@ void PivotHftDrawPosition(const PivotHftPositionState &state,
   }
 }
 
+void PivotHftDrawPendingRetry(const PivotHftPositionState &state,
+                              string &current_objects[])
+{
+  if(state.status != PIVOT_HFT_POSITION_CLOSED ||
+     !state.reattempt_pending ||
+     (state.retry_state != PIVOT_HFT_RETRY_PENDING &&
+      state.retry_state != PIVOT_HFT_RETRY_DEFERRED))
+    return;
+
+  string execution_token = PivotHftPositionExecutionId(state);
+  if(execution_token == "" || execution_token == "-")
+    return;
+
+  string suffix = "RETRY_WAIT_" + execution_token;
+  string label = StringFormat("RETRY %d %s %s | %s %s | reason=%s",
+                              state.next_retry_number,
+                              PivotHftExecutionSourceLabel(
+                                state.next_retry_execution_source),
+                              PivotHftRetryStateLabel(state.retry_state),
+                              PivotHftDirectionToken(state.direction),
+                              PivotHftLevelLabel(state.pivot_level),
+                              state.retry_state_reason);
+  color line_color = (state.retry_state == PIVOT_HFT_RETRY_DEFERRED)
+                     ? clrOrangeRed
+                     : clrOrange;
+  if(PivotHftUpdateHorizontalLine(suffix,
+                                  state.pivot_price,
+                                  line_color,
+                                  STYLE_DASHDOT,
+                                  2,
+                                  label,
+                                  false))
+    PivotHftTrackDynamicVisual(current_objects,
+                               PivotHftVisualObjectName(suffix));
+}
+
 void PivotHftDrawPositions(string &current_objects[])
 {
   int total = ArraySize(g_pivot_hft_positions);
   for(int i = 0; i < total; i++)
+  {
     PivotHftDrawPosition(g_pivot_hft_positions[i], current_objects);
+    PivotHftDrawPendingRetry(g_pivot_hft_positions[i], current_objects);
+  }
 }
 
 void PivotHftDeleteAllVisualObjects()
@@ -556,6 +633,7 @@ void RefreshPivotHftVisualization()
   string current_objects[];
   PivotHftDrawBurnedLevelTests(current_objects);
   PivotHftDrawCampaign(current_objects);
+  PivotHftDrawConcurrentTerminalCampaign(current_objects);
   PivotHftDrawPositions(current_objects);
   PivotHftSyncDynamicVisuals(current_objects);
   RefreshPivotHftPanel();

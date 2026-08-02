@@ -688,6 +688,8 @@ bool PivotHftTryRearmClosedPosition(PivotHftPositionState &position_state)
                                       current_micro_bar),
                                     position_state.pivot_price,
                                     current_level_price));
+      PivotHftCaptureTerminalRetryVisual(position_state,
+                                         current_micro_bar);
     }
     position_state.status = PIVOT_HFT_POSITION_COMPLETED;
     return false;
@@ -860,6 +862,8 @@ void PivotHftCompletePositionFinalization(
                                   net_result,
                                   PivotHftCloseTriggerLabel(
                                     position_state.close_trigger)));
+    PivotHftCaptureTerminalRetryVisual(position_state,
+                                       current_micro_bar);
   }
   if(register_daily_outcome &&
      !position_state.daily_outcome_registered)

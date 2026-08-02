@@ -390,7 +390,15 @@ void OnTick()
   if(has_position_states || PivotHftHasPositionStates())
     PivotHftProcessAllPositions();
 
-  if((session_allows && resources_ready) || PivotHftHasLivePositionStates())
+  bool show_strategy_visual = ((session_allows && resources_ready) ||
+                               PivotHftHasPositionStates());
+  if(!show_strategy_visual)
+  {
+    PivotHftCampaignState terminal_campaign;
+    show_strategy_visual = PivotHftGetExpiredCampaignVisual(
+      terminal_campaign);
+  }
+  if(show_strategy_visual)
     RefreshPivotHftVisualization();
   else if(g_pivot_hft_visualization_visible)
     ClearFrontendVisualization();

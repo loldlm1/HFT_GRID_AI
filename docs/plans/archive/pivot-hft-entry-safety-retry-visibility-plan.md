@@ -3,7 +3,7 @@
 **Generated**: 2026-08-02
 **Status**: Completed and archived on 2026-08-02; manual Strategy Tester QA
 identified a retry-continuity follow-up
-**Successor**: `docs/plans/pivot-hft-retry-threshold-log-audit-plan.md`
+**Successor**: `docs/plans/archive/pivot-hft-retry-threshold-log-audit-plan.md`
 **Estimated Complexity**: Critical / trading-sensitive
 **Execution Policy**: One authorized contiguous batch for Sprints 1-3, with one
 statically validated commit per Sprint and one MetaEditor compile after Sprint

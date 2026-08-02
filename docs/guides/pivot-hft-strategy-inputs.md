@@ -3,8 +3,8 @@
 ## Temporalidades
 
 - `Pivot_HFT_Micro_Timeframe` (`M1`) define las bandas de Bollinger, los cierres
-  micro y la ventana de reintento de la vela que contiene el fill. No limita la
-  duracion de una campana pendiente ya armada.
+  micro y la vela origen de una campana. Un cambio de vela micro no termina una
+  campana pendiente ni una cadena de retry elegible.
 - `Pivot_HFT_Pivot_Timeframe` (`M30`) calcula pivotes clasicos desde la vela
   macro cerrada anterior. Debe ser igual o mayor que el timeframe micro.
 
@@ -57,7 +57,7 @@ reconstruccion.
 | --- | ---: | --- |
 | `Pivot_HFT_Direction_Mode` | Ambas | Habilita compras, ventas o ambas. |
 | `Pivot_HFT_Retracement_Points` | `25.0` | `0` intenta entrar inmediatamente al admitir el pivote; `> 0` espera retroceso desde el extremo Bid/Ask. |
-| `Pivot_HFT_Start_Real_Retry` | `1` | Primer retry que abre en broker: `0` desactiva rearm, `1` hace reales todos los retries y `N >= 2` simula `1..N-1` antes de abrir `N+`. |
+| `Pivot_HFT_Start_Real_Retry` | `1` | Primer retry que abre en broker: `0` desactiva rearm, `1` abre retry `1` y posteriores, y `N >= 2` simula `1..N-1` antes de abrir retry `N` y posteriores. No es un maximo. |
 | `Pivot_HFT_Local_SL_Bands_Width_Percent` | `25.0` | Porcentaje positivo del ancho superior-inferior usado siempre para el SL local. |
 | `Pivot_HFT_TP_Step_SL_Ratio` | `1.0` | Multiplo positivo del SL inicial para el step de BE/trailing. |
 | `Pivot_HFT_Fixed_TP_SL_Ratio` | `0.0` | `0` desactiva TP fijo; `> 0` crea un target como multiplo del SL inicial. |
@@ -137,26 +137,28 @@ a `TRACKING` desde un extremo fresco.
    restante es menor al piso broker, se cierra una vez por el lifecycle local
    con trigger `ENTRY_SAFETY`.
 9. El TP fijo se evalua antes de avanzar trailing en el mismo tick favorable.
-10. Neto positivo completa el intento. Neto `<= 0` puede rearmar dentro de la
-   vela micro que contiene el fill si el precio del nivel original sigue
-   perteneciendo al mismo conjunto de pivotes. La admision queda heredada: no
-   se exige que la cotizacion siga fuera de la banda ni del lado inicial del
-   pivote. `Pivot_HFT_Start_Real_Retry=0` completa el nivel sin rearmar y emite
-   `RETRY_DISABLED`; `1` abre `RETRY 1+` en broker; `N >= 2` gestiona retries
-   `1..N-1` como posiciones virtuales completas y abre `RETRY N+` en broker.
-   Cada retry conserva secuencia, identidad origen, numero publico, ordinal
-   interno y comienza desde un extremo direccional fresco. No existe maximo ni
-   cooldown.
+10. Neto positivo completa el intento. Neto `<= 0` puede rearmar en la misma
+   vela micro o en velas posteriores mientras la sesion/recursos y el precio
+   del nivel original sigan perteneciendo al mismo conjunto de pivotes. La
+   admision queda heredada: no se exige que la cotizacion siga fuera de la banda
+   ni del lado inicial del pivote. `Pivot_HFT_Start_Real_Retry=0` completa el
+   nivel sin rearmar y emite `RETRY_DISABLED`; `1` abre retry `1` y posteriores
+   en broker; `N >= 2` gestiona retries `1..N-1` como posiciones virtuales
+   completas y abre retry `N` y posteriores en broker. Cada retry conserva
+   secuencia, identidad origen, numero publico, ordinal interno y comienza desde
+   un extremo direccional fresco. No existe maximo ni cooldown.
 11. Un ganador exterior consume la escalera interior de esa misma direccion y
     vela: R2 consume R1+R2, R3 consume R1+R2+R3, con simetria S1-S3.
 
 Solo hay una campana pendiente o una posicion real/virtual ocupando la ranura de
 ejecucion. El ultimo pivote tocado puede reemplazar al anterior unicamente en la
 vela donde se armo la campana; despues, la campana sigue el mismo nivel hasta el
-fill o una cancelacion terminal. No se admite un nivel hermano mientras exista
-una ejecucion activa, cierre pendiente o reintento pendiente. Un cierre externo o
-de proteccion tampoco rearma esa campana; otro pivote puede iniciar una nueva
-solo cuando la ranura queda libre.
+fill o una cancelacion terminal. El reemplazo termina explicitamente la cadena
+anterior con `latest_level_replaced`; no crea una cola ni deja un retry huerfano.
+No se admite un nivel hermano mientras exista una ejecucion activa, cierre
+pendiente o reintento pendiente. Un cierre externo o de proteccion tampoco
+rearma esa campana; otro pivote puede iniciar una nueva solo cuando la ranura
+queda libre.
 
 ### Modelo de retry virtual
 
@@ -175,6 +177,12 @@ orden real. Los retries virtuales no llaman `Buy`, `Sell`, `PositionClose` ni
 historial broker, no afectan equity y no consumen contadores diarios. El primer
 retry real vuelve a exigir y consumir el presupuesto diario normal.
 
+La auditoria conserva tanto el predecesor inmediato como la ejecucion broker
+original que calibro el modelo. Slippage de entrada, slippage de cierre y costo
+por lote se etiquetan como `OBSERVED_ZERO`, `OBSERVED_VALUE`, `FALLBACK_ZERO`,
+`FALLBACK_VALUE` o `UNAVAILABLE`; un cero observado no se interpreta como dato
+faltante y nunca se inventa ruido aleatorio.
+
 ## Lectura visual del lifecycle
 
 En chart o Strategy Tester visual, los pivotes muestran su estado en la
@@ -185,16 +193,19 @@ Con retracement positivo, la campana activa dibuja tres lineas: pivote
 seleccionado, extremo seguido y precio exacto que dispara la entrada. Con cero,
 el panel muestra `Retrace IMMEDIATE` y no necesita una linea de distancia.
 `ENTRY READY` usa una linea mas gruesa; una campana cancelada por sesion o
-rollover macro aparece como `CANCELLED` y permanece atenuada durante una vela
-micro para facilitar el QA.
+rollover macro aparece como invalidacion terminal y permanece atenuada
+brevemente para facilitar el QA.
 
 El panel separa posiciones activas `Broker`, activas `Virtual` y `CloseWait`.
-Cada fila y campana muestra su fuente en texto. Un reintento muestra
-`RETRY N VIRTUAL TRACKING` o `RETRY N BROKER ENTRY READY`, conserva la
-identidad origen y el panel indica `Retries OFF` para `0` o
-`Real from RETRY N` para valores positivos. La linea `Safety` muestra SL
-solicitado, SL requerido, spread y piso broker; un intento bloqueado aparece
-como `RISK BLOCKED` y nunca como posicion.
+Cada fila y campana muestra su fuente en texto. La politica visible declara
+`initial BROKER`, virtual antes de retry `N`, broker desde retry `N` y sin
+maximo mientras la cadena sea valida. Un reintento activo muestra
+`RETRY N VIRTUAL TRACKING` o `RETRY N BROKER ENTRY READY`; un cierre elegible
+muestra `PENDING` o `DEFERRED`, el proximo numero/fuente y la razon canonica.
+Sesion, rollover/cambio de pivote, reemplazo y retries deshabilitados aparecen
+como terminales distintos. La linea `Safety` muestra SL solicitado, SL
+requerido, spread y piso broker; un intento bloqueado aparece como
+`RISK BLOCKED` y nunca como posicion.
 
 Cada posicion administrada usa nombres y lineas por ticket o id virtual:
 
@@ -219,6 +230,9 @@ Los nombres relevantes son deterministas:
 - `PIVOT_HFT_POSITION_<id>_ENTRY`: fill broker o virtual.
 - `PIVOT_HFT_POSITION_<id>_STOP`: SL local, BE o trailing vigente.
 - `PIVOT_HFT_POSITION_<id>_TP`: TP fijo local cuando esta habilitado.
+- `PIVOT_HFT_RETRY_WAIT_<id>`: retry cerrado pendiente o diferido.
+- `PIVOT_HFT_TERMINAL_CAMPAIGN_PIVOT`: cadena terminal concurrente con una
+  campana nueva.
 
 ## Auditoria en archivo
 
@@ -237,6 +251,10 @@ mismo periodo del tester. El writer conserva un handle compartible, busca el
 final y hace flush por evento; ante un fallo reabre una sola vez y avisa una
 sola vez en Journal.
 
+`RUN_START` declara `schema_version=2`. El modo visual real del tester usa
+`tester_visual_mode` y el input usa `visualization_input`. Cada payload conserva
+claves unicas dentro de su fila para que un parser no sobrescriba evidencia.
+
 Para auditar niveles buscar `LEVEL_SCAN_START`, `LEVEL_SCAN_RESULT`,
 `LEVEL_SCAN_FAILED`, `LEVEL_TOUCH_PROVISIONAL`, `LEVEL_BURNED` y
 `LEVEL_CONTEXT_FINALIZED`. Para el lifecycle correlacionar `CAMPAIGN_*`,
@@ -253,12 +271,13 @@ debe tener envio/fill asociado; el segundo debe continuar con
 
 `CAMPAIGN_CARRIED_FORWARD` registra una sola fila por cambio de vela mientras
 una campana sigue pendiente. `CAMPAIGN_CANCELLED` identifica `session_closed`,
-`pivot_set_rollover` o una reconstruccion terminal del conjunto. Cuando un
+`pivot_set_rollover` o `pivot_set_refresh`. `CAMPAIGN_REPLACED` identifica
+propietario anterior/nuevo y `terminal_reason=latest_level_replaced`. Cuando un
 nivel tocado ya esta ocupado, `CAMPAIGN_LEVEL_OCCUPIED` registra la mascara y
 el fallback una sola vez por firma unica vela/direccion/mascara/seleccion;
 alternar entre firmas o salir y volver temporalmente a la banda no repite un
-payload ya visto. Los reintentos usan el nivel original dentro de la vela real
-del fill.
+payload ya visto. Los reintentos conservan el nivel original aunque crucen una
+o mas velas micro.
 
 `POSITION_FINALIZED` separa `close_trigger` (`INITIAL_SL`, `BREAK_EVEN`,
 `TRAILING`, `FIXED_TP`, `ENTRY_SAFETY` o `EXTERNAL`) de `net_class` (`PROFIT`, `LOSS` o
@@ -269,16 +288,20 @@ del fill.
 conserva su causa real sin etiquetarse falsamente como TP fijo.
 
 `ENTRY_TRIGGERED` distingue `mode=IMMEDIATE` de `mode=RETRACEMENT`.
-`POSITION_REARMED` incluye identidad origen, `retry_number`, `retry_ordinal`,
-`execution_source`, `start_real_retry`, slippage/costo heredado, extremo,
-proximo threshold y `admission=latched`. `ENTRY_TRIGGERED`, bloqueos, envio y
-fills conservan numero publico, ordinal interno y fuente para correlacion.
+`REARM_PENDING`, `REARM_DEFERRED`, `POSITION_REARMED`, `RETRY_DISABLED` y
+`REARM_INVALIDATED` registran transiciones acotadas, no una fila por tick.
+Incluyen secuencia, identidad origen, numero/ordinal actual y siguiente,
+`source_execution_source`, `next_execution_source` y razon canonica.
+`POSITION_REARMED` agrega `start_real_retry`, extremo, proximo threshold y
+`admission=latched`. `ENTRY_TRIGGERED`, bloqueos, envio y fills conservan numero
+publico, ordinal interno y fuente para correlacion.
 `VIRTUAL_FILL_REGISTERED` expone Bid/Ask, spread, entry quote/fill y el modelo;
 `VIRTUAL_CLOSE_FILLED` expone quote ejecutable, slippage aplicado, bruto, costo
-estimado y neto. `RETRY_DISABLED` identifica un threshold `0`.
-`REARM_INVALIDATED`
-identifica un cambio del conjunto/precio del
-pivote y `REARM_EXPIRED` conserva la frontera de la vela micro del fill.
+estimado y neto. El modelo identifica predecesor y calibrador broker, con
+provenance observada/fallback incluso cuando el valor es cero. `RETRY_DISABLED`
+identifica un threshold `0`; `REARM_INVALIDATED` identifica `session_closed`,
+`pivot_set_rollover` o `pivot_set_changed`. Los bloqueos temporales conservan
+numero/fuente mediante `REARM_DEFERRED`.
 `WINNING_LEVELS_CONSUMED` registra ticket, ganador, vela, mascara y niveles
 consumidos para auditar el caso R1 fallido seguido por R2 ganador.
 
@@ -360,49 +383,61 @@ y limpiar o rotar `query_debug.txt`:
     por ticket. Bajo delay de broker no debe existir mas de una posicion
     administrada activa; verificar que `close_trigger`, `trigger_target`,
     `exit_deal`, `close_price` y `net_class` coincidan con el historial.
-13. Reintento tras perdida o BE solo dentro de la vela micro que contiene el
-    fill. Dentro de esa vela, forzar que el precio vuelva dentro de Bollinger o
-    cruce el pivote: debe aparecer `POSITION_REARMED|admission=latched`. Tras el
-    cambio de vela debe aparecer `REARM_EXPIRED`; un cambio de conjunto/precio
-    del pivote debe producir `REARM_INVALIDATED`. Neto positivo completa la
-    campana y no rearma.
-14. En una vela que alcance R1 y R2, forzar R1 no positivo y R2 positivo:
-    `WINNING_LEVELS_CONSUMED` debe incluir R1,R2 y no puede reaparecer R1. Repetir
-    el caso simetrico con S1,S2.
-15. Bloqueos por spread, margen, sesion, limite diario, proteccion y estado del
-    broker, mas cierre de proteccion y `Debug_Stop_On_Negative_Equity`.
-16. Limpieza de handles, comentario y objetos `PIVOT_HFT_` al cancelar, cerrar,
-    retirar o re-adjuntar el EA.
-17. Para cada escenario, correlacionar el chart, historial de ordenes/deals y
-    las filas del mismo `run` en `query_debug.txt`.
-18. Con el perfil estrecho del 6 de enero, forzar
+13. Con start real `2`, cerrar la entrada broker inicial en negativo despues de
+    cruzar al menos una frontera M3. Debe conservar `RETRY 1 VIRTUAL` pendiente
+    o diferido y luego rearmar con `admission=latched`, sin exigir otro toque.
+    Cerrar ese virtual en negativo tras otra frontera M3: retry `2` debe ser
+    `BROKER`. Tras una nueva perdida tardia, retry `3` tambien debe ser `BROKER`.
+14. Repetir una cadena representativa BUY y SELL con start real `1` y `3`.
+    Con `1`, retry `1` y posteriores son `BROKER`; con `3`, retries `1-2` son
+    `VIRTUAL` y retry `3` y posteriores son `BROKER`.
+15. Con start real `0`, una perdida elegible debe emitir `RETRY_DISABLED`,
+    mostrar terminal `RETRY DISABLED`, completar el nivel y no producir
+    `POSITION_REARMED` ni orden de retry.
+16. Cerrar la sesion con un retry pendiente o diferido. Debe existir una sola
+    invalidacion `session_closed`, ninguna reactivacion nocturna y ningun estado
+    visual obsoleto despues de la ventana terminal.
+17. Forzar rollover macro con retry pendiente y exigir `pivot_set_rollover`.
+    Repetir con precio/snapshot original incompatible y exigir
+    `pivot_set_changed`; ambos conservan el numero/fuente que fue invalidado.
+18. Dentro de la vela origen, hacer que un nivel mas reciente reemplace una
+    campana inicial o retry. `CAMPAIGN_REPLACED` debe identificar propietario
+    anterior/nuevo, `latest_level_replaced` y dejar una sola campana sin retry
+    huerfano.
+19. Forzar temporalmente slot ocupado, lifecycle ocupado, posicion broker,
+    proteccion, limite diario, estado de mercado, indicadores o quote no
+    disponible. `REARM_DEFERRED` debe emitirse solo cuando cambia la razon y
+    conservar el mismo proximo retry/fuente hasta rearmar o invalidarse.
+20. Forzar spread excesivo y distancia de entrada insuficiente por separado.
+    El primero debe bloquear el contexto de ejecucion sin terminar la cadena;
+    el segundo debe emitir `ENTRY_RISK_DISTANCE_BLOCKED` y devolver la campana
+    a tracking sin envio ni consumo diario.
+21. Neto positivo completa la campana y no rearma. En una vela que alcance R1 y
+    R2, forzar R1 no positivo y R2 positivo: `WINNING_LEVELS_CONSUMED` debe
+    incluir R1,R2 y no puede reaparecer R1. Repetir con S1,S2.
+22. Con el perfil estrecho del 6 de enero, forzar
     `SL solicitado < spread + piso broker`: debe aparecer
     `ENTRY_RISK_DISTANCE_BLOCKED` sin `ORDER_SEND_RESULT`, `FILL_REGISTERED` ni
     consumo de senal diaria para ese intento.
-19. Caso seguro: confirmar fill normal y una sola evaluacion post-fill. Si se
+23. Caso seguro: confirmar fill normal y una sola evaluacion post-fill. Si se
     logra reproducir slippage/gap, exigir `FILL_ENTRY_DISTANCE_INVALID`,
     `ENTRY_SAFETY`, un solo cierre/finalizacion y ningun reemplazo durante
     `CloseWait`.
-20. Tras un cierre no positivo, mantener precio dentro de Bollinger o cruzado
-    respecto al pivote. Debe verse `RETRY N TRACKING`, luego
-    `RETRY N ENTRY READY`, y `ENTRY_TRIGGERED` desde el extremo fresco sin nuevo
-    toque del pivote.
-21. Repetir el mismo caso perdedor con start real `0`, `1` y `3`. Con `0` debe
-    aparecer `RETRY_DISABLED` sin `POSITION_REARMED`; con `1`, `RETRY 1+` debe
-    usar `BROKER`; con `3`, `RETRY 1-2` deben producir
-    `VIRTUAL_FILL_REGISTERED`/`VIRTUAL_CLOSE_FILLED` sin `ORDER_SEND_RESULT`, y
-    `RETRY 3+` debe volver a `BROKER`. Correlacionar `retry_number=1` con
-    `retry_ordinal=2`.
-22. Para un virtual BUY y SELL, verificar Ask/Bid de entrada, Bid/Ask de cierre,
+24. Para un virtual BUY y SELL, verificar Ask/Bid de entrada, Bid/Ask de cierre,
     tick normalization, slippage heredado, `OrderCalcProfit`, costo por lote y
-    neto. Forzar SL, TP, BE, trailing, `ENTRY_SAFETY` y force-close `EXTERNAL`.
-23. Capturar estados `Broker 1 | Virtual 0 | CloseWait 0`, luego el cierre
-    broker, y estados `Broker 0 | Virtual 1`. Verificar que identidades/objetos
-    desaparezcan tras `POSITION_FINALIZED`.
-24. Al terminar el run, reconciliar un `POSITION_FINALIZED` por cada
+    neto. Verificar predecesor inmediato, calibrador broker original y
+    provenance `OBSERVED_ZERO`/observada/fallback. Forzar SL, TP, BE, trailing,
+    `ENTRY_SAFETY` y force-close `EXTERNAL`.
+25. Capturar en texto, sin depender del color: idle, retry pending/deferred,
+    virtual activo, broker activo, `CloseWait`, tracking y terminal. Verificar
+    objetos `RETRY_WAIT_<id>` y terminales, luego limpieza de handles,
+    comentario y objetos `PIVOT_HFT_` al retirar o re-adjuntar el EA.
+26. Para cada escenario, correlacionar chart, historial y filas del mismo `run`.
+    Al terminar, reconciliar un `POSITION_FINALIZED` por cada
     `FILL_REGISTERED` o `VIRTUAL_FILL_REGISTERED`, sin identidad duplicada ni
     estado local pendiente. Confirmar que filas virtuales no cambian contadores
-    diarios ni historial del broker.
+    diarios ni historial broker, y que ninguna fila del schema `2` repita una
+    clave antes de `=`.
 
 El baseline de cierre fue validado el 2026-08-01 con chart M1, micro M3 y
 pivotes H1: 210 fills y finalizaciones correlacionadas, BUY/SELL, maximo de un
