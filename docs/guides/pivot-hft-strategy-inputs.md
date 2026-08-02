@@ -101,6 +101,20 @@ El lote sigue fijo: ampliar el SL tambien amplia el riesgo monetario aproximado.
 SL, BE, trailing y TP fijo son locales. La orden mantiene SL y TP servidor en
 cero, por lo que terminal, EA, Algo Trading y conexion deben permanecer activos.
 
+Antes de cada envio se refrescan `SYMBOL_TRADE_STOPS_LEVEL` y
+`SYMBOL_TRADE_FREEZE_LEVEL`. El SL solicitado no se amplia; se bloquea el envio
+si no cubre spread mas el piso broker con buffer de un tick:
+
+```text
+piso_broker_puntos = EffectiveBrokerDistancePoints(constraints, 0.0, 1.0)
+sl_minimo_entrada_puntos = spread_actual_puntos + piso_broker_puntos
+```
+
+Si `sl_inicial_puntos < sl_minimo_entrada_puntos`, aparece
+`ENTRY_RISK_DISTANCE_BLOCKED`, no existe `ORDER_SEND_RESULT`, no se crea estado
+de posicion y no se consume inicio de senal diaria. El intento admitido vuelve
+a `TRACKING` desde un extremo fresco.
+
 ## Flujo de ejecucion
 
 1. Venta: `close_0 >= Rn` y `close_0 >= banda_superior`.
@@ -111,15 +125,22 @@ cero, por lo que terminal, EA, Algo Trading y conexion deben permanecer activos.
    y pasa por los mismos guards antes del market order.
 5. Se resuelve y congela la geometria de salida; una geometria invalida bloquea
    la entrada.
-6. La orden se envia sin SL/TP al servidor.
-7. El fill real define SL local, step y TP fijo opcional.
-8. El TP fijo se evalua antes de avanzar trailing en el mismo tick favorable.
-9. Neto positivo completa el intento. Neto `<= 0` puede rearmar dentro de la
+6. Se refrescan stops/freeze y se exige
+   `SL solicitado >= spread + piso broker`; el fallo bloquea antes del envio sin
+   ampliar riesgo.
+7. La orden se envia sin SL/TP al servidor.
+8. El fill real define SL local, step y TP fijo opcional. Un tick fresco compara
+   Bid contra SL para BUY o SL contra Ask para SELL. Si el buffer restante es
+   menor al piso broker, se cierra una vez por el lifecycle local con trigger
+   `ENTRY_SAFETY`.
+9. El TP fijo se evalua antes de avanzar trailing en el mismo tick favorable.
+10. Neto positivo completa el intento. Neto `<= 0` puede rearmar dentro de la
    vela micro que contiene el fill si el precio del nivel original sigue
    perteneciendo al mismo conjunto de pivotes. La admision queda heredada: no
    se exige que la cotizacion siga fuera de la banda ni del lado inicial del
-   pivote.
-10. Un ganador exterior consume la escalera interior de esa misma direccion y
+   pivote. El reintento conserva la secuencia, registra ticket origen y ordinal,
+   y comienza desde un extremo direccional fresco.
+11. Un ganador exterior consume la escalera interior de esa misma direccion y
     vela: R2 consume R1+R2, R3 consume R1+R2+R3, con simetria S1-S3.
 
 Solo hay una campana pendiente o una posicion administrada ocupando la ranura de
@@ -143,6 +164,12 @@ el panel muestra `Retrace IMMEDIATE` y no necesita una linea de distancia.
 rollover macro aparece como `CANCELLED` y permanece atenuada durante una vela
 micro para facilitar el QA.
 
+El panel separa `Live` y `CloseWait`. Las filas de ticket empiezan con `LIVE` o
+`CLOSE WAIT <trigger>`. Un reintento muestra `RETRY N TRACKING` o
+`RETRY N ENTRY READY` y el ticket origen. La linea `Safety` muestra SL solicitado,
+SL requerido, spread y piso broker; un intento bloqueado aparece como
+`RISK BLOCKED` y nunca como posicion.
+
 Cada posicion administrada usa nombres y lineas por ticket:
 
 - `ACTUAL FILL`: precio real de entrada.
@@ -150,6 +177,8 @@ Cada posicion administrada usa nombres y lineas por ticket:
 - `BE`: stop movido al precio de entrada.
 - `TRAIL STEP N`: stop local vigente tras cada step del trailing.
 - `FIXED TP`: target local opcional basado en el SL inicial.
+- `ENTRY SAFETY CLOSE WAIT`: cierre local de un fill cuyo buffer real nacio por
+  debajo del piso broker.
 
 Las lineas se actualizan solo cuando cambia su precio o estado, se eliminan al
 completar el ticket y no existen en tester no visual. Ningun objeto del chart
@@ -185,9 +214,15 @@ sola vez en Journal.
 Para auditar niveles buscar `LEVEL_SCAN_START`, `LEVEL_SCAN_RESULT`,
 `LEVEL_SCAN_FAILED`, `LEVEL_TOUCH_PROVISIONAL`, `LEVEL_BURNED` y
 `LEVEL_CONTEXT_FINALIZED`. Para el lifecycle correlacionar `CAMPAIGN_*`,
-`ENTRY_*`, `ORDER_SEND_RESULT`, `FILL_REGISTERED`, `LOCAL_SL_INITIALIZED`,
-`TRAILING_ADVANCED`, `LOCAL_CLOSE_*`, `POSITION_FINALIZED`, cierres de
-proteccion y `DEBUG_STOP`.
+`ENTRY_*`, `ORDER_SEND_RESULT`, `FILL_REGISTERED`,
+`FILL_ENTRY_DISTANCE_INVALID`, `LOCAL_SL_INITIALIZED`, `TRAILING_ADVANCED`,
+`LOCAL_CLOSE_*`, `POSITION_FINALIZED`, cierres de proteccion y `DEBUG_STOP`.
+
+`ENTRY_RISK_DISTANCE_BLOCKED` expone SL solicitado/requerido, spread, stops,
+freeze, piso broker y tick. `FILL_ENTRY_DISTANCE_INVALID` expone fill, Bid/Ask
+frescos, SL local, spread real, buffer restante y piso requerido. El primero no
+debe tener envio/fill asociado; el segundo debe continuar con
+`LOCAL_CLOSE_SENT|close_trigger=ENTRY_SAFETY` y una sola finalizacion.
 
 `CAMPAIGN_CARRIED_FORWARD` registra una sola fila por cambio de vela mientras
 una campana sigue pendiente. `CAMPAIGN_CANCELLED` identifica `session_closed`,
@@ -199,7 +234,7 @@ payload ya visto. Los reintentos usan el nivel original dentro de la vela real
 del fill.
 
 `POSITION_FINALIZED` separa `close_trigger` (`INITIAL_SL`, `BREAK_EVEN`,
-`TRAILING`, `FIXED_TP` o `EXTERNAL`) de `net_class` (`PROFIT`, `LOSS` o
+`TRAILING`, `FIXED_TP`, `ENTRY_SAFETY` o `EXTERNAL`) de `net_class` (`PROFIT`, `LOSS` o
 `FLAT`). Tambien incluye ancho de bandas, SL inicial, step resuelto, ratios,
 `trigger_time`, `trigger_quote`, `trigger_stop`, `trigger_target`,
 `trigger_step`, el ultimo `exit_deal`, el numero de deals de salida y
@@ -207,8 +242,9 @@ del fill.
 conserva su causa real sin etiquetarse falsamente como TP fijo.
 
 `ENTRY_TRIGGERED` distingue `mode=IMMEDIATE` de `mode=RETRACEMENT`.
-`POSITION_REARMED` incluye `admission=latched` cuando reutiliza la admision
-original. `REARM_INVALIDATED` identifica un cambio del conjunto/precio del
+`POSITION_REARMED` incluye ticket origen, ordinal, extremo, proximo threshold y
+`admission=latched` cuando reutiliza la admision original. `REARM_INVALIDATED`
+identifica un cambio del conjunto/precio del
 pivote y `REARM_EXPIRED` conserva la frontera de la vela micro del fill.
 `WINNING_LEVELS_CONSUMED` registra ticket, ganador, vela, mascara y niveles
 consumidos para auditar el caso R1 fallido seguido por R2 ganador.
@@ -222,6 +258,10 @@ como evidencia de la compilacion o del run actual.
 - Magic live entregado por licencia y magic determinista en tester.
 - Spread maximo, margen, sesiones, limite diario, drawdown y estado del broker.
 - Cierres forzados filtrados por simbolo y magic.
+- Stops/freeze se usan como piso conservador del EA local; no crean SL/TP de
+  servidor.
+- No se agrega cap ni cooldown: reintentos rapidos siguen siendo posibles si
+  cada nueva entrada cumple todos los guards y distancias.
 
 El perfil backend conserva deliberadamente la identidad Pandora. No se cambia
 `ea_id`, contrato de licencia, secretos ni payloads de resultados diarios.
@@ -295,6 +335,22 @@ y limpiar o rotar `query_debug.txt`:
     retirar o re-adjuntar el EA.
 17. Para cada escenario, correlacionar el chart, historial de ordenes/deals y
     las filas del mismo `run` en `query_debug.txt`.
+18. Con el perfil estrecho del 6 de enero, forzar
+    `SL solicitado < spread + piso broker`: debe aparecer
+    `ENTRY_RISK_DISTANCE_BLOCKED` sin `ORDER_SEND_RESULT`, `FILL_REGISTERED` ni
+    consumo de senal diaria para ese intento.
+19. Caso seguro: confirmar fill normal y una sola evaluacion post-fill. Si se
+    logra reproducir slippage/gap, exigir `FILL_ENTRY_DISTANCE_INVALID`,
+    `ENTRY_SAFETY`, un solo cierre/finalizacion y ningun reemplazo durante
+    `CloseWait`.
+20. Tras un cierre no positivo, mantener precio dentro de Bollinger o cruzado
+    respecto al pivote. Debe verse `RETRY N TRACKING`, luego
+    `RETRY N ENTRY READY`, y `ENTRY_TRIGGERED` desde el extremo fresco sin nuevo
+    toque del pivote.
+21. Capturar estados `Live 1 | CloseWait 0`, luego `Live 0 | CloseWait 1`, y
+    verificar que ticket/objetos desaparezcan tras `POSITION_FINALIZED`.
+22. Al terminar el run, reconciliar un `POSITION_FINALIZED` por cada
+    `FILL_REGISTERED`, sin ticket duplicado ni estado local pendiente.
 
 El baseline de cierre fue validado el 2026-08-01 con chart M1, micro M3 y
 pivotes H1: 210 fills y finalizaciones correlacionadas, BUY/SELL, maximo de un

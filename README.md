@@ -36,6 +36,10 @@ claim institutional HFT latency.
 - A pending campaign is cancelled only by session/resource shutdown or a macro
   pivot-set rollover. A filled ticket's retry boundary is the micro candle that
   actually contains the broker fill.
+- An eligible non-positive local close preserves the admitted campaign sequence,
+  increments its retry ordinal, and seeds a fresh directional extreme from the
+  current entry-side quote. It does not require another pivot touch or live
+  Bollinger-side admission.
 - If the required history is unavailable or unsynchronized, new campaigns fail
   closed until the level reconstruction succeeds.
 
@@ -46,11 +50,12 @@ anchors one immutable local exit geometry snapshot. The first favorable step
 moves the local stop to break-even; later steps advance it monotonically. When
 enabled, the fixed local TP is checked before advancing trailing on the same
 favorable tick. A locally closed position with net result `<= 0` can re-arm only
-while its fill micro candle is still open and the same grandfathered
-pivot/Bollinger condition remains valid. External or protection-driven closes
-never re-arm the closed campaign. A profitable outer-level close consumes the
-same-side inner ladder from that fill candle: for example, R2 consumes R1+R2
-and S3 consumes S1+S2+S3.
+while its fill micro candle is still open and the original pivot price still
+belongs to the same pivot set. The admission remains latched, so price may be
+inside the bands or across the original pivot when the fresh retry retracement
+starts. External or protection-driven closes never re-arm the closed campaign.
+A profitable outer-level close consumes the same-side inner ladder from that
+fill candle: for example, R2 consumes R1+R2 and S3 consumes S1+S2+S3.
 
 Local risk always reuses the existing previous-closed-bar Bollinger snapshot;
 it creates no second indicator handle:
@@ -61,6 +66,22 @@ initial_sl_points = band_width_points * bands_width_percent / 100
 step_points       = initial_sl_points * tp_step_sl_ratio
 fixed_tp_points   = initial_sl_points * fixed_tp_sl_ratio
 ```
+
+Before every market send, Pivot HFT refreshes broker constraints and evaluates
+the immutable requested local SL against a conservative close-side floor:
+
+```text
+broker_floor_points = EffectiveBrokerDistancePoints(constraints, 0.0, 1.0)
+required_initial_sl_points = current_spread_points + broker_floor_points
+```
+
+If `initial_sl_points` is below that requirement, the EA emits
+`ENTRY_RISK_DISTANCE_BLOCKED`, sends no order, consumes no daily signal start,
+and returns the admitted campaign to tracking. It never widens the configured
+SL automatically. After a verified fill, one fresh tick rechecks the actual
+buffer from Bid to local SL for BUY, or local SL to Ask for SELL. A buffer below
+the stored broker floor emits `FILL_ENTRY_DISTANCE_INVALID` and closes through
+the normal local lifecycle with close trigger `ENTRY_SAFETY`.
 
 - `Pivot_HFT_Local_SL_Bands_Width_Percent` defaults to `25.0` and always
   resolves the initial SL from full band width.
@@ -114,6 +135,13 @@ the historical deterministic seed for compatibility.
 - `ENTRY_TRIGGERED` identifies `IMMEDIATE` versus `RETRACEMENT` intent, and
   `WINNING_LEVELS_CONSUMED` records the directional pivot ladder closed by a
   profitable same-candle campaign.
+- `ENTRY_RISK_DISTANCE_BLOCKED` records requested/required SL, spread, stops,
+  freeze, buffered broker floor and tick size. `FILL_ENTRY_DISTANCE_INVALID`
+  records the actual fill, fresh close-side quote, remaining buffer and the
+  `ENTRY_SAFETY` close reason.
+- `POSITION_REARMED` records source ticket, retry ordinal, fresh extreme, next
+  threshold and `admission=latched`; subsequent `ENTRY_TRIGGERED` rows retain
+  the same retry metadata.
 - Rotate or clear `query_debug.txt` before a focused tester session so chart,
   broker history and one run id can be correlated without stale evidence.
 - Chart objects use the `PIVOT_HFT_` prefix. The campaign pivot, tracked
@@ -124,6 +152,10 @@ the historical deterministic seed for compatibility.
   A terminally cancelled campaign is shown as `CANCELLED` briefly for visual
   QA; first-test segments and completed ticket objects are removed by the owning
   visual cleanup path.
+- The panel separates `Live` from `CloseWait`, prefixes ticket rows with `LIVE`
+  or `CLOSE WAIT`, and renders `RETRY N TRACKING`, `RETRY N ENTRY READY`, source
+  ticket, and requested-versus-required safety distance. A blocked intent is
+  labeled `RISK BLOCKED`; it is not counted or drawn as a position.
 
 ## Safety Notes
 
@@ -133,6 +165,9 @@ the historical deterministic seed for compatibility.
   delay a local close.
 - Spread, margin, session, daily-limit, drawdown, market-status and license
   guards remain authoritative for new entries.
+- Broker stops/freeze form a conservative floor for local protection only;
+  server SL/TP remain zero. Valid rapid retries can still occur because this
+  correction adds no retry cap or cooldown.
 - Entry indicators are activated only while a configured session window is
   open. Non-visual tester runs skip chart objects/comments, while open-position
   local protection continues outside the entry window.

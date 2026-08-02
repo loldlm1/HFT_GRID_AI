@@ -26,18 +26,33 @@ string PivotHftCampaignStatusLabel(const PivotHftCampaignStatuses status)
   }
 }
 
-int PivotHftActivePositionCount()
+string PivotHftCampaignDisplayStatus(
+  const PivotHftCampaignState &campaign)
 {
-  int active_count = 0;
+  string label = PivotHftCampaignStatusLabel(campaign.status);
+  if(campaign.retry_ordinal > 1)
+    label = StringFormat("RETRY %d %s", campaign.retry_ordinal, label);
+  if(campaign.entry_safety.blocked)
+    label += " RISK BLOCKED";
+  return label;
+}
+
+string PivotHftCampaignSourceLabel(
+  const PivotHftCampaignState &campaign)
+{
+  if(campaign.retry_ordinal <= 1 || campaign.retry_source_ticket == 0)
+    return "";
+  return StringFormat(" | source #%I64u", campaign.retry_source_ticket);
+}
+
+int PivotHftPositionCountByStatus(const PivotHftPositionStatuses target_status)
+{
+  int status_count = 0;
   int total = ArraySize(g_pivot_hft_positions);
   for(int i = 0; i < total; i++)
-  {
-    PivotHftPositionStatuses status = g_pivot_hft_positions[i].status;
-    if(status == PIVOT_HFT_POSITION_ACTIVE ||
-       status == PIVOT_HFT_POSITION_CLOSE_WAIT)
-      active_count++;
-  }
-  return active_count;
+    if(g_pivot_hft_positions[i].status == target_status)
+      status_count++;
+  return status_count;
 }
 
 double PivotHftCampaignRetracementThresholdForState(
@@ -46,14 +61,9 @@ double PivotHftCampaignRetracementThresholdForState(
   if(campaign.tracked_extreme <= 0.0)
     return 0.0;
 
-  double distance = PivotHftDistanceToPrice(Pivot_HFT_Retracement_Points);
-  if(distance <= 0.0)
+  if(Pivot_HFT_Retracement_Points <= 0.0)
     return 0.0;
-  if(campaign.direction == BEARISH)
-    return PivotHftNormalizePrice(campaign.tracked_extreme - distance);
-  if(campaign.direction == BULLISH)
-    return PivotHftNormalizePrice(campaign.tracked_extreme + distance);
-  return 0.0;
+  return PivotHftCampaignEntryThreshold(campaign);
 }
 
 bool PivotHftPositionAtBreakEvenOrBetter(const PivotHftPositionState &state)
@@ -83,10 +93,22 @@ string PivotHftBuildPositionPanelLines()
     if(state.local_tp_price > 0.0)
       target_text = StringFormat(" | TP %.5f", state.local_tp_price);
 
-    text += StringFormat("\n#%I64u %s %s | E %.5f | R %.2fpt BAND | SL %.5f | STEP %.2fpt[%d]%s",
+    string lifecycle_label = "LIVE";
+    if(state.status == PIVOT_HFT_POSITION_CLOSE_WAIT)
+    {
+      lifecycle_label = StringFormat("CLOSE WAIT %s",
+        PivotHftCloseTriggerLabel(state.close_trigger));
+    }
+    string retry_text = "";
+    if(state.campaign_retry_ordinal > 1)
+      retry_text = StringFormat(" | RETRY %d", state.campaign_retry_ordinal);
+
+    text += StringFormat("\n%s #%I64u %s %s%s | E %.5f | R %.2fpt BAND | SL %.5f | STEP %.2fpt[%d]%s",
+                         lifecycle_label,
                          state.position_ticket,
                          PivotHftDirectionToken(state.direction),
                          PivotHftLevelLabel(state.pivot_level),
+                         retry_text,
                          state.entry_price,
                          state.initial_sl_points,
                          state.local_sl_price,
@@ -96,6 +118,50 @@ string PivotHftBuildPositionPanelLines()
     displayed++;
   }
   return text;
+}
+
+bool PivotHftResolvePanelEntrySafety(
+  const PivotHftCampaignState &campaign,
+  PivotHftEntrySafetySnapshot &entry_safety)
+{
+  entry_safety = PivotHftEntrySafetySnapshot();
+  if(campaign.entry_safety.evaluated_at > 0)
+  {
+    entry_safety = campaign.entry_safety;
+    return true;
+  }
+
+  int total = ArraySize(g_pivot_hft_positions);
+  for(int i = 0; i < total; i++)
+  {
+    PivotHftPositionState state = g_pivot_hft_positions[i];
+    if(state.status != PIVOT_HFT_POSITION_ACTIVE &&
+       state.status != PIVOT_HFT_POSITION_CLOSE_WAIT)
+      continue;
+    if(state.entry_safety.evaluated_at <= 0)
+      continue;
+    entry_safety = state.entry_safety;
+    return true;
+  }
+  return false;
+}
+
+string PivotHftBuildEntrySafetyPanelLine(
+  const PivotHftCampaignState &campaign)
+{
+  PivotHftEntrySafetySnapshot entry_safety;
+  if(!PivotHftResolvePanelEntrySafety(campaign, entry_safety))
+    return "\nSafety WAIT | no evaluated entry intent";
+
+  string safety_label = (entry_safety.valid && !entry_safety.blocked)
+                        ? "SAFE"
+                        : "RISK BLOCKED";
+  return StringFormat("\nSafety %s | SL requested %.2f / required %.2f | spread %.2f | broker floor %.2f",
+                      safety_label,
+                      entry_safety.requested_sl_points,
+                      entry_safety.required_initial_sl_points,
+                      entry_safety.spread_points,
+                      entry_safety.broker_floor_points);
 }
 
 string PivotHftLevelStatusList(const PivotHftLevelTestStatuses status)
@@ -145,17 +211,22 @@ string PivotHftBuildPanelText()
                        g_pivot_hft_bands_lower,
                        g_pivot_hft_bands_upper,
                        g_pivot_hft_pivots.pivot);
-  text += StringFormat("\nCampaign %s | %s %s %.5f | extreme %.5f",
-                       PivotHftCampaignStatusLabel(campaign.status),
+  text += StringFormat("\nCampaign %s | %s %s %.5f | extreme %.5f%s",
+                       PivotHftCampaignDisplayStatus(campaign),
                        campaign_direction,
                        campaign_level,
                        campaign.pivot_price,
-                       campaign.tracked_extreme);
-  text += StringFormat("\nRetrace %s | trigger quote %.5f | Active %d | %s",
+                       campaign.tracked_extreme,
+                       PivotHftCampaignSourceLabel(campaign));
+  text += StringFormat("\nRetrace %s | trigger quote %.5f | Live %d | CloseWait %d | %s",
                        retracement_text,
                        campaign.trigger_price,
-                       PivotHftActivePositionCount(),
+                       PivotHftPositionCountByStatus(
+                         PIVOT_HFT_POSITION_ACTIVE),
+                       PivotHftPositionCountByStatus(
+                         PIVOT_HFT_POSITION_CLOSE_WAIT),
                        MarketStatusErrorSummary());
+  text += PivotHftBuildEntrySafetyPanelLine(campaign);
   text += StringFormat("\nLevels burned %s | test open %s | history %s",
                        PivotHftLevelStatusList(PIVOT_HFT_LEVEL_BURNED),
                        PivotHftLevelStatusList(PIVOT_HFT_LEVEL_TOUCHED_OPEN),

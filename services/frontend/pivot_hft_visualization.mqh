@@ -227,7 +227,7 @@ void PivotHftDrawLevelLine(const PivotHftPivotLevels level,
     line_color = clrGold;
     line_style = STYLE_SOLID;
     line_width = 2;
-    state_label = PivotHftCampaignStatusLabel(g_pivot_hft_campaign.status);
+    state_label = PivotHftCampaignDisplayStatus(g_pivot_hft_campaign);
   }
 
   PivotHftUpdateHorizontalLine(suffix,
@@ -294,7 +294,8 @@ void PivotHftDrawCampaign(string &current_objects[])
   if(!PivotHftResolveVisualCampaign(campaign, expired))
     return;
 
-  string status_label = PivotHftCampaignStatusLabel(campaign.status);
+  string status_label = PivotHftCampaignDisplayStatus(campaign);
+  string source_label = PivotHftCampaignSourceLabel(campaign);
   string direction_label = PivotHftDirectionToken(campaign.direction);
   color pivot_color = expired ? clrDimGray : clrGold;
   color extreme_color = expired ? clrDimGray : clrDeepSkyBlue;
@@ -316,11 +317,12 @@ void PivotHftDrawCampaign(string &current_objects[])
                                   pivot_color,
                                   line_style,
                                   2,
-                                  StringFormat("%s %s %s PIVOT",
+                                  StringFormat("%s %s %s PIVOT%s",
                                                status_label,
                                                direction_label,
                                                PivotHftLevelLabel(
-                                                 campaign.pivot_level)),
+                                                 campaign.pivot_level),
+                                               source_label),
                                   false))
     PivotHftTrackDynamicVisual(current_objects,
                                PivotHftVisualObjectName(pivot_suffix));
@@ -331,9 +333,10 @@ void PivotHftDrawCampaign(string &current_objects[])
                                   extreme_color,
                                   line_style,
                                   2,
-                                  StringFormat("%s %s TRACKED EXTREME",
+                                  StringFormat("%s %s TRACKED EXTREME%s",
                                                status_label,
-                                               direction_label),
+                                               direction_label,
+                                               source_label),
                                   false))
     PivotHftTrackDynamicVisual(current_objects,
                                PivotHftVisualObjectName(extreme_suffix));
@@ -346,9 +349,10 @@ void PivotHftDrawCampaign(string &current_objects[])
                                   trigger_color,
                                   line_style,
                                   trigger_width,
-                                  StringFormat("%s %s ENTRY THRESHOLD",
+                                  StringFormat("%s %s ENTRY THRESHOLD%s",
                                                status_label,
-                                               direction_label),
+                                               direction_label,
+                                               source_label),
                                   false))
     PivotHftTrackDynamicVisual(current_objects,
                                PivotHftVisualObjectName(trigger_suffix));
@@ -357,7 +361,10 @@ void PivotHftDrawCampaign(string &current_objects[])
 string PivotHftPositionStopLabel(const PivotHftPositionState &state)
 {
   string label = "LOCAL SL";
-  if(state.trailing_step_index == 1)
+  if(state.status == PIVOT_HFT_POSITION_CLOSE_WAIT &&
+     state.close_trigger == PIVOT_HFT_CLOSE_TRIGGER_ENTRY_SAFETY)
+    label = "ENTRY SAFETY";
+  else if(state.trailing_step_index == 1)
     label = "BE";
   else if(state.trailing_step_index > 1)
     label = StringFormat("TRAIL STEP %d", state.trailing_step_index);
@@ -386,6 +393,9 @@ void PivotHftDrawPosition(const PivotHftPositionState &state,
 
   string ticket_token = StringFormat("%I64u", state.position_ticket);
   string direction_label = PivotHftDirectionToken(state.direction);
+  string lifecycle_label = (state.status == PIVOT_HFT_POSITION_CLOSE_WAIT)
+                           ? "CLOSE WAIT"
+                           : "LIVE";
   color entry_color = (state.direction == BULLISH)
                       ? COLOR_CANDLE_BULL
                       : COLOR_CANDLE_BEAR;
@@ -396,9 +406,10 @@ void PivotHftDrawPosition(const PivotHftPositionState &state,
                                   entry_color,
                                   STYLE_DASH,
                                   1,
-                                  StringFormat("#%s %s %s ACTUAL FILL",
+                                  StringFormat("#%s %s %s %s ACTUAL FILL",
                                                ticket_token,
                                                direction_label,
+                                               lifecycle_label,
                                                PivotHftLevelLabel(
                                                  state.pivot_level)),
                                   false))
@@ -424,8 +435,7 @@ void PivotHftDrawPosition(const PivotHftPositionState &state,
   {
     string target_suffix = "POSITION_" + ticket_token + "_TP";
     string target_label = "FIXED TP";
-    if(state.status == PIVOT_HFT_POSITION_CLOSE_WAIT &&
-       state.close_trigger == PIVOT_HFT_CLOSE_TRIGGER_FIXED_TP)
+    if(state.status == PIVOT_HFT_POSITION_CLOSE_WAIT)
       target_label += " CLOSE WAIT";
 
     if(PivotHftUpdateHorizontalLine(target_suffix,

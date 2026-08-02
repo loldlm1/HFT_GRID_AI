@@ -1,7 +1,7 @@
 # Plan: Pivot HFT Entry Safety And Retry Visibility
 
 **Generated**: 2026-08-02
-**Status**: Sprints 1-2 complete; Sprint 3 pending
+**Status**: Implementation complete; manual Strategy Tester QA pending user
 **Estimated Complexity**: Critical / trading-sensitive
 **Execution Policy**: One authorized contiguous batch for Sprints 1-3, with one
 statically validated commit per Sprint and one MetaEditor compile after Sprint
@@ -486,15 +486,28 @@ Sprint 3 commit, leaving both business-safety Sprints intact.
 
 ### Sprint 3 Gate
 
-- [ ] All Sprint 3 tasks complete.
-- [ ] The single final compile passes; the manual QA matrix is handed off to the
+- [x] All Sprint 3 tasks complete.
+- [x] The single final compile passes; the manual QA matrix is handed off to the
   user without claiming runtime evidence.
-- [ ] `BUILD.log` and temporary tester artifacts are removed.
-- [ ] Documentation and audit event names match implementation.
-- [ ] Final diff contains no unrelated changes, secrets, private log content, or
+- [x] `BUILD.log` and temporary tester artifacts are removed.
+- [x] Documentation and audit event names match implementation.
+- [x] Final diff contains no unrelated changes, secrets, private log content, or
   new dependency.
-- [ ] Exactly one Sprint 3 commit is created with the proposed message.
-- [ ] The final rollback point is recorded.
+- [x] Exactly one Sprint 3 commit is created with the proposed message.
+- [x] The final rollback point is recorded.
+
+**Execution record**:
+
+- Static checks: panel separates `Live` and `CloseWait`; retry/source and
+  requested/required safety labels are read-only frontend state; object names,
+  non-visual gating, and cleanup remain unchanged.
+- Compile: portable MetaEditor generated the EA with `0 errors, 0 warnings` in
+  `8870 ms`; `BUILD.log` was inspected and removed. The default non-portable
+  data folder lacked `Include\\Trade\\Trade.mqh`, so it was not valid compile
+  evidence for this portable installation.
+- Runtime QA: intentionally not run. The guide contains the user-run real-tick
+  matrix, including the January 6 narrow-SL regression profile.
+- Rollback point: `50ff942` (revert the Sprint 3 commit).
 
 ## Testing Strategy
 
@@ -580,15 +593,15 @@ Sprint 3 commit, leaving both business-safety Sprints intact.
 
 ## Completion Checklist
 
-- [ ] Unsafe entry distance is blocked without risk widening.
-- [ ] Actual fills are revalidated and unsafe fills use the explicit safety
+- [x] Unsafe entry distance is blocked without risk widening.
+- [x] Actual fills are revalidated and unsafe fills use the explicit safety
   close trigger.
-- [ ] Eligible negative/flat closes rearm within the fill candle without pivot
+- [x] Eligible negative/flat closes rearm within the fill candle without pivot
   retouch or live-band readmission.
-- [ ] Live, close-wait, retry, and risk-blocked states are visually distinct.
-- [ ] Static lifecycle review is complete; fill/finalization reconciliation is
+- [x] Live, close-wait, retry, and risk-blocked states are visually distinct.
+- [x] Static lifecycle review is complete; fill/finalization reconciliation is
   explicitly deferred to the user's Strategy Tester QA.
-- [ ] Every Sprint has passed its validation gate.
-- [ ] Every Sprint has exactly one Sprint-specific commit.
-- [ ] Final compile has zero errors/warnings and `BUILD.log` is removed.
-- [ ] Residual rapid-retry risk and rollback instructions are current.
+- [x] Every Sprint has passed its validation gate.
+- [x] Every Sprint has exactly one Sprint-specific commit.
+- [x] Final compile has zero errors/warnings and `BUILD.log` is removed.
+- [x] Residual rapid-retry risk and rollback instructions are current.
