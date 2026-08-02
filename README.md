@@ -17,8 +17,10 @@ claim institutional HFT latency.
   from the previous closed micro candle (`shift=1`).
 - A sell campaign arms when the current micro close is at or above `R1-R3` and
   the upper band. A buy campaign uses `S1-S3` and the lower band.
-- Sells follow the highest Bid and enter after a downward retracement. Buys
-  follow the lowest Ask and enter after an upward retracement.
+- With positive retracement points, sells follow the highest Bid and enter
+  after a downward retracement; buys follow the lowest Ask and enter after an
+  upward retracement. `Pivot_HFT_Retracement_Points = 0.0` makes the touched
+  pivot an immediate market-entry intent under the same execution guards.
 - Only one pending campaign and one managed position may own the execution slot.
   A newly touched pivot can replace the campaign only during its origin micro
   candle; a running campaign keeps its level and tracked extreme across later
@@ -46,11 +48,12 @@ enabled, the fixed local TP is checked before advancing trailing on the same
 favorable tick. A locally closed position with net result `<= 0` can re-arm only
 while its fill micro candle is still open and the same grandfathered
 pivot/Bollinger condition remains valid. External or protection-driven closes
-never re-arm the closed campaign.
+never re-arm the closed campaign. A profitable outer-level close consumes the
+same-side inner ladder from that fill candle: for example, R2 consumes R1+R2
+and S3 consumes S1+S2+S3.
 
-The default remains fixed-point SL, fixed-point trailing step and no fixed TP.
-Optional volatility normalization reuses the existing previous-closed-bar
-Bollinger snapshot; it creates no second indicator handle:
+Local risk always reuses the existing previous-closed-bar Bollinger snapshot;
+it creates no second indicator handle:
 
 ```text
 band_width_points = (upper_band - lower_band) / SYMBOL_POINT
@@ -59,12 +62,10 @@ step_points       = initial_sl_points * tp_step_sl_ratio
 fixed_tp_points   = initial_sl_points * fixed_tp_sl_ratio
 ```
 
-- `Pivot_HFT_Local_SL_Mode` selects fixed points or full-band-width percent.
-- `Pivot_HFT_Local_SL_Bands_Width_Percent` defaults to `25.0` and is relevant
-  only in band mode.
-- `Pivot_HFT_TP_Step_SL_Ratio = 0.0` keeps
-  `Pivot_HFT_TP_Step_Points`; a positive value derives the step from initial
-  SL.
+- `Pivot_HFT_Local_SL_Bands_Width_Percent` defaults to `25.0` and always
+  resolves the initial SL from full band width.
+- `Pivot_HFT_TP_Step_SL_Ratio` defaults to `1.0`, must be positive, and derives
+  the trailing interval from immutable initial SL.
 - `Pivot_HFT_Fixed_TP_SL_Ratio = 0.0` disables fixed TP; a positive value
   enables that initial-SL multiple.
 
@@ -110,11 +111,15 @@ the historical deterministic seed for compatibility.
   immutable risk geometry, trigger quote/stop/target/step, latest exit deal and
   volume-weighted actual close price. A profitable BE or trailing close is
   therefore not mislabeled as fixed TP.
+- `ENTRY_TRIGGERED` identifies `IMMEDIATE` versus `RETRACEMENT` intent, and
+  `WINNING_LEVELS_CONSUMED` records the directional pivot ladder closed by a
+  profitable same-candle campaign.
 - Rotate or clear `query_debug.txt` before a focused tester session so chart,
   broker history and one run id can be correlated without stale evidence.
 - Chart objects use the `PIVOT_HFT_` prefix. The campaign pivot, tracked
-  extreme and retracement trigger are separate lines; each live ticket has
-  deterministic `POSITION_<ticket>_ENTRY` and `POSITION_<ticket>_STOP` lines.
+  extreme and positive-retracement trigger are separate lines; each live
+  ticket has deterministic `POSITION_<ticket>_ENTRY` and
+  `POSITION_<ticket>_STOP` lines.
   An enabled fixed target adds deterministic `POSITION_<ticket>_TP`.
   A terminally cancelled campaign is shown as `CANCELLED` briefly for visual
   QA; first-test segments and completed ticket objects are removed by the owning

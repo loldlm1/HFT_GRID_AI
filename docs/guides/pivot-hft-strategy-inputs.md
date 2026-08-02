@@ -53,12 +53,9 @@ reconstruccion.
 | Input | Default | Funcion |
 | --- | ---: | --- |
 | `Pivot_HFT_Direction_Mode` | Ambas | Habilita compras, ventas o ambas. |
-| `Pivot_HFT_Retracement_Points` | `25.0` | Retroceso desde el extremo Bid/Ask antes de la entrada. |
-| `Pivot_HFT_Local_SL_Mode` | `PIVOT_HFT_LOCAL_SL_POINTS` | Selecciona SL en puntos o porcentaje del ancho completo de Bollinger. |
-| `Pivot_HFT_Local_SL_Points` | `25.0` | Distancia del SL local desde el fill real. |
-| `Pivot_HFT_Local_SL_Bands_Width_Percent` | `25.0` | Porcentaje del ancho superior-inferior; solo aplica en modo bandas. |
-| `Pivot_HFT_TP_Step_Points` | `25.0` | Step 1 a BE y steps posteriores avanzan el SL. |
-| `Pivot_HFT_TP_Step_SL_Ratio` | `0.0` | `0` conserva el step en puntos; `> 0` usa un multiplo del SL inicial. |
+| `Pivot_HFT_Retracement_Points` | `25.0` | `0` intenta entrar inmediatamente al admitir el pivote; `> 0` espera retroceso desde el extremo Bid/Ask. |
+| `Pivot_HFT_Local_SL_Bands_Width_Percent` | `25.0` | Porcentaje positivo del ancho superior-inferior usado siempre para el SL local. |
+| `Pivot_HFT_TP_Step_SL_Ratio` | `1.0` | Multiplo positivo del SL inicial para el step de BE/trailing. |
 | `Pivot_HFT_Fixed_TP_SL_Ratio` | `0.0` | `0` desactiva TP fijo; `> 0` crea un target como multiplo del SL inicial. |
 | `Pivot_HFT_Lot_Size` | `0.01` | Volumen fijo normalizado al simbolo. |
 | `Pivot_HFT_Enable_Visualization` | `true` | Muestra pivotes, bandas, campana y posiciones. |
@@ -84,17 +81,10 @@ precios exactos se anclan al fill verificado del broker:
 ```text
 ancho_bandas_puntos = (banda_superior - banda_inferior) / SYMBOL_POINT
 
-si modo = PIVOT_HFT_LOCAL_SL_POINTS:
-  sl_inicial_puntos = Pivot_HFT_Local_SL_Points
+sl_inicial_puntos = ancho_bandas_puntos
+                    * Pivot_HFT_Local_SL_Bands_Width_Percent / 100
 
-si modo = PIVOT_HFT_LOCAL_SL_BANDS_WIDTH_PERCENT:
-  sl_inicial_puntos = ancho_bandas_puntos
-                      * Pivot_HFT_Local_SL_Bands_Width_Percent / 100
-
-si Pivot_HFT_TP_Step_SL_Ratio = 0:
-  step_puntos = Pivot_HFT_TP_Step_Points
-si no:
-  step_puntos = sl_inicial_puntos * Pivot_HFT_TP_Step_SL_Ratio
+step_puntos = sl_inicial_puntos * Pivot_HFT_TP_Step_SL_Ratio
 
 si Pivot_HFT_Fixed_TP_SL_Ratio > 0:
   tp_fijo_puntos = sl_inicial_puntos * Pivot_HFT_Fixed_TP_SL_Ratio
@@ -112,8 +102,10 @@ cero, por lo que terminal, EA, Algo Trading y conexion deben permanecer activos.
 
 1. Venta: `close_0 >= Rn` y `close_0 >= banda_superior`.
 2. Compra: `close_0 <= Sn` y `close_0 <= banda_inferior`.
-3. Venta: sigue el maximo Bid y vende al retroceder la distancia configurada.
-4. Compra: sigue el minimo Ask y compra al rebotar la distancia configurada.
+3. Con retracement `> 0`, venta sigue el maximo Bid y vende al retroceder la
+   distancia configurada; compra sigue el minimo Ask y compra al rebotar.
+4. Con retracement `0`, la admision cambia inmediatamente a intencion de orden
+   y pasa por los mismos guards antes del market order.
 5. Se resuelve y congela la geometria de salida; una geometria invalida bloquea
    la entrada.
 6. La orden se envia sin SL/TP al servidor.
@@ -122,6 +114,8 @@ cero, por lo que terminal, EA, Algo Trading y conexion deben permanecer activos.
 9. Neto positivo completa el intento. Neto `<= 0` puede rearmar dentro de la
    vela micro que contiene el fill si el nivel original y Bollinger siguen
    validos para ese reintento heredado.
+10. Un ganador exterior consume la escalera interior de esa misma direccion y
+    vela: R2 consume R1+R2, R3 consume R1+R2+R3, con simetria S1-S3.
 
 Solo hay una campana pendiente o una posicion administrada ocupando la ranura de
 ejecucion. El ultimo pivote tocado puede reemplazar al anterior unicamente en la
@@ -137,10 +131,12 @@ En chart o Strategy Tester visual, los pivotes muestran su estado en la
 descripcion: `UNTESTED`, `TEST OPEN`, `BURNED` o el estado de la campana. Cada
 nivel quemado conserva un segmento corto sobre su primera vela micro de test.
 
-La campana activa dibuja tres lineas: pivote seleccionado, extremo seguido y
-precio exacto que dispara la entrada por retroceso. `ENTRY READY` usa una linea
-mas gruesa; una campana cancelada por sesion o rollover macro aparece como
-`CANCELLED` y permanece atenuada durante una vela micro para facilitar el QA.
+Con retracement positivo, la campana activa dibuja tres lineas: pivote
+seleccionado, extremo seguido y precio exacto que dispara la entrada. Con cero,
+el panel muestra `Retrace IMMEDIATE` y no necesita una linea de distancia.
+`ENTRY READY` usa una linea mas gruesa; una campana cancelada por sesion o
+rollover macro aparece como `CANCELLED` y permanece atenuada durante una vela
+micro para facilitar el QA.
 
 Cada posicion administrada usa nombres y lineas por ticket:
 
@@ -199,11 +195,15 @@ del fill.
 
 `POSITION_FINALIZED` separa `close_trigger` (`INITIAL_SL`, `BREAK_EVEN`,
 `TRAILING`, `FIXED_TP` o `EXTERNAL`) de `net_class` (`PROFIT`, `LOSS` o
-`FLAT`). Tambien incluye modo SL, ancho de bandas, SL inicial, step resuelto,
-ratios, `trigger_time`, `trigger_quote`, `trigger_stop`, `trigger_target`,
+`FLAT`). Tambien incluye ancho de bandas, SL inicial, step resuelto, ratios,
+`trigger_time`, `trigger_quote`, `trigger_stop`, `trigger_target`,
 `trigger_step`, el ultimo `exit_deal`, el numero de deals de salida y
 `close_price` ponderado por volumen. Asi un BE o trailing con neto positivo
 conserva su causa real sin etiquetarse falsamente como TP fijo.
+
+`ENTRY_TRIGGERED` distingue `mode=IMMEDIATE` de `mode=RETRACEMENT`.
+`WINNING_LEVELS_CONSUMED` registra ticket, ganador, vela, mascara y niveles
+consumidos para auditar el caso R1 fallido seguido por R2 ganador.
 
 Rotar o vaciar el archivo antes de una sesion QA enfocada. No usar un log viejo
 como evidencia de la compilacion o del run actual.
@@ -220,12 +220,10 @@ El perfil backend conserva deliberadamente la identidad Pandora. No se cambia
 
 ## Optimizacion del Strategy Tester
 
-- Ejecutar una pasada por modo de SL. En modo puntos, no optimizar
-  `Pivot_HFT_Local_SL_Bands_Width_Percent`; en modo bandas, no optimizar
-  `Pivot_HFT_Local_SL_Points`.
-- Para trailing por puntos, fijar `Pivot_HFT_TP_Step_SL_Ratio=0` y optimizar
-  solo `Pivot_HFT_TP_Step_Points`. Para trailing por riesgo, usar ratio `> 0` y
-  no optimizar el input de puntos inactivo.
+- Separar retracement `0` como escenario inmediato discreto de las corridas con
+  retracement positivo; no mezclar el cero dentro de un step numerico continuo.
+- Optimizar solo el porcentaje de ancho de bandas y el ratio positivo del step;
+  ya no existen dimensiones inactivas de modo SL, SL fijo o step fijo.
 - Para una corrida sin TP fijo, dejar `Pivot_HFT_Fixed_TP_SL_Ratio=0`. Para
   estudiar R fijo, optimizar solo ese ratio como una dimension adicional.
 - El criterio `OnTester()` usa `STAT_PROFIT / STAT_INITIAL_DEPOSIT`, Sharpe no
@@ -258,12 +256,14 @@ y limpiar o rotar `query_debug.txt`:
    su propia validez aunque repita un precio.
 6. Reinicio o re-attach dentro del mismo H1: la reconstruccion debe producir la
    misma lista de niveles quemados antes de admitir una campana.
-7. Baseline legacy con modo puntos, ratio de step `0` y TP fijo `0`; confirmar
-   el mismo SL/step esperado y SL/TP servidor en cero.
-8. Modo bandas con varios porcentajes representativos; correlacionar la ultima
-   vela micro cerrada, ancho completo, SL inicial congelado y fill real.
-9. Comparar step ratio `0` contra ratios positivos. El primer step debe ir a BE
-   y los posteriores solo pueden avanzar, tanto en BUY como en SELL.
+7. Riesgo por bandas con varios porcentajes representativos; correlacionar la
+   ultima vela micro cerrada, ancho completo, SL inicial congelado, fill real y
+   SL/TP servidor en cero.
+8. Retracement `0`: confirmar intencion `IMMEDIATE` y fill en el primer tick
+   permitido por guards. Comparar contra valores positivos que deban esperar el
+   retroceso direccional.
+9. Comparar varios ratios positivos de step. El primer step debe ir a BE y los
+   posteriores solo pueden avanzar, tanto en BUY como en SELL.
 10. Comparar TP fijo `0` contra ratios positivos para BUY/SELL; validar target,
     prioridad sobre trailing en el mismo tick y reintento tras rechazo/delay.
 11. Lineas de pivote, extremo y trigger antes del fill; despues, lineas
@@ -274,11 +274,14 @@ y limpiar o rotar `query_debug.txt`:
     `exit_deal`, `close_price` y `net_class` coincidan con el historial.
 13. Reintento tras perdida o BE solo dentro de la vela micro que contiene el
     fill; neto positivo completa la campana y no rearma.
-14. Bloqueos por spread, margen, sesion, limite diario, proteccion y estado del
+14. En una vela que alcance R1 y R2, forzar R1 no positivo y R2 positivo:
+    `WINNING_LEVELS_CONSUMED` debe incluir R1,R2 y no puede reaparecer R1. Repetir
+    el caso simetrico con S1,S2.
+15. Bloqueos por spread, margen, sesion, limite diario, proteccion y estado del
     broker, mas cierre de proteccion y `Debug_Stop_On_Negative_Equity`.
-15. Limpieza de handles, comentario y objetos `PIVOT_HFT_` al cancelar, cerrar,
+16. Limpieza de handles, comentario y objetos `PIVOT_HFT_` al cancelar, cerrar,
     retirar o re-adjuntar el EA.
-16. Para cada escenario, correlacionar el chart, historial de ordenes/deals y
+17. Para cada escenario, correlacionar el chart, historial de ordenes/deals y
     las filas del mismo `run` en `query_debug.txt`.
 
 El baseline de cierre fue validado el 2026-08-01 con chart M1, micro M3 y
