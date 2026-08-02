@@ -12,6 +12,12 @@ bool     g_market_close_guard_active     = false;
 datetime g_market_close_guard_session_end = 0;
 datetime g_market_close_guard_trigger_time = 0;
 
+bool ProtectionRiskCloseRetcodeFilled(const ulong retcode)
+{
+  return (retcode == TRADE_RETCODE_DONE ||
+          retcode == TRADE_RETCODE_DONE_PARTIAL);
+}
+
 double ProtectionRiskResolveThreshold()
 {
   double safe_value = MathAbs(Protection_Risk_Drawdown_Value);
@@ -96,34 +102,52 @@ void ProtectionRiskForceClosePositions()
     if(position_symbol != _Symbol)
       continue;
 
-    if(!g_position.PositionClose(position_ticket))
+    ulong position_identifier =
+      (ulong)PositionGetInteger(POSITION_IDENTIFIER);
+    if(!MarketStatusForceCloseMatchesPosition(position_ticket,
+                                              position_identifier))
+      continue;
+
+    ResetLastError();
+    bool close_sent = g_position.PositionClose(position_ticket);
+    ulong retcode = g_position.ResultRetcode();
+    int last_error = GetLastError();
+    if(!close_sent || !ProtectionRiskCloseRetcodeFilled(retcode))
     {
-      ulong retcode = g_position.ResultRetcode();
-      int last_error = GetLastError();
-      MarketStatusRegisterBrokerFailure("PROTECTION_FORCE_CLOSE_FAILED", retcode, last_error, true);
+      MarketStatusRegisterBrokerFailure(
+        "PROTECTION_FORCE_CLOSE_FAILED",
+        retcode,
+        last_error,
+        !MarketStatusForceCloseIsScoped());
       datetime now_time = TimeCurrent();
       if(position_ticket != last_failed_ticket ||
          now_time - last_failed_log_time >= 30)
       {
         PivotHftAuditLog("PROTECTION_CLOSE_FAILED",
-                         StringFormat("ticket=%I64u|ret=%I64u|err=%d",
+                         StringFormat("ticket=%I64u|position_id=%I64u|scoped=%d|sent=%d|ret=%I64u|err=%d",
                                       position_ticket,
+                                      position_identifier,
+                                      (int)MarketStatusForceCloseIsScoped(),
+                                      (int)close_sent,
                                       retcode,
                                       last_error));
         last_failed_ticket = position_ticket;
         last_failed_log_time = now_time;
+        PrintFormat("ProtectionRiskForceClosePositions failed | ticket=%I64u | err=%d",
+                    position_ticket,
+                    last_error);
       }
-      PrintFormat("ProtectionRiskForceClosePositions failed | ticket=%I64u | err=%d",
-                  position_ticket,
-                  last_error);
     }
     else
     {
       PivotHftAuditLog("PROTECTION_CLOSE_SENT",
-                       StringFormat("ticket=%I64u|ret=%I64u",
+                       StringFormat("ticket=%I64u|position_id=%I64u|scoped=%d|ret=%I64u",
                                     position_ticket,
-                                    g_position.ResultRetcode()));
-      MarketStatusClearExecutionError("PROTECTION_FORCE_CLOSE_OK");
+                                    position_identifier,
+                                    (int)MarketStatusForceCloseIsScoped(),
+                                    retcode));
+      if(!MarketStatusForceCloseIsScoped())
+        MarketStatusClearExecutionError("PROTECTION_FORCE_CLOSE_OK");
     }
   }
 }
@@ -157,15 +181,39 @@ bool ProtectionRiskHasActiveEntities()
   return false;
 }
 
+bool ProtectionRiskHasPendingForceCloseEntities()
+{
+  int total_positions = PositionsTotal();
+  for(int i = total_positions - 1; i >= 0; i--)
+  {
+    ulong position_ticket = PositionGetTicket(i);
+    if(position_ticket == 0 || !PositionSelectByTicket(position_ticket))
+      continue;
+    if(PositionGetInteger(POSITION_MAGIC) != g_magic_number ||
+       PositionGetString(POSITION_SYMBOL) != _Symbol)
+      continue;
+
+    ulong position_identifier =
+      (ulong)PositionGetInteger(POSITION_IDENTIFIER);
+    if(MarketStatusForceCloseMatchesPosition(position_ticket,
+                                             position_identifier))
+      return true;
+  }
+  return false;
+}
+
 void ProtectionRiskProcessPendingForceClose()
 {
   if(!MarketStatusHasPendingForceClose())
     return;
   if(!MarketStatusAllowsBrokerActions())
     return;
+  if(!MarketStatusForceCloseAttemptAllowed())
+    return;
 
+  MarketStatusMarkForceCloseAttempt();
   ProtectionRiskEnforceDrawdownGuard();
-  if(!ProtectionRiskHasActiveEntities())
+  if(!ProtectionRiskHasPendingForceCloseEntities())
     MarketStatusClearForceCloseRequest();
 }
 
@@ -331,6 +379,8 @@ void ProtectionRiskFilterTick()
   ProtectionRiskResetDailyLock();
   //ProtectionRiskCheckMarketCloseGuard();
   ProtectionRiskProcessPendingForceClose();
+  if(MarketStatusHasPendingForceClose())
+    return;
   if(Protection_Risk_Mode == PROTECTION_DISABLED)
     return;
 

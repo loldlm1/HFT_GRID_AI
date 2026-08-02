@@ -4,6 +4,8 @@
 #ifndef _SERVICES_TRADING_SIGNALS_PIVOT_HFT_EXECUTION_MQH_
 #define _SERVICES_TRADING_SIGNALS_PIVOT_HFT_EXECUTION_MQH_
 
+bool PivotHftClosePositionLocally(PivotHftPositionState &position_state);
+
 bool PivotHftHedgingAccountSupported()
 {
   ENUM_ACCOUNT_MARGIN_MODE margin_mode =
@@ -289,12 +291,28 @@ bool PivotHftEntryGuardsAllow(const SignalTypes direction,
 
 ulong PivotHftFindFilledPosition(const ulong deal_ticket,
                                  const SignalTypes direction,
-                                 const string comment)
+                                 ulong &position_identifier)
 {
+  position_identifier = 0;
   ulong deal_position_id = 0;
   if(deal_ticket > 0 && HistoryDealSelect(deal_ticket))
-    deal_position_id = (ulong)HistoryDealGetInteger(deal_ticket, DEAL_POSITION_ID);
+  {
+    if(HistoryDealGetString(deal_ticket, DEAL_SYMBOL) != _Symbol ||
+       HistoryDealGetInteger(deal_ticket, DEAL_MAGIC) != g_magic_number)
+      return 0;
 
+    ENUM_DEAL_TYPE deal_type =
+      (ENUM_DEAL_TYPE)HistoryDealGetInteger(deal_ticket, DEAL_TYPE);
+    if((direction == BULLISH && deal_type != DEAL_TYPE_BUY) ||
+       (direction == BEARISH && deal_type != DEAL_TYPE_SELL))
+      return 0;
+    deal_position_id =
+      (ulong)HistoryDealGetInteger(deal_ticket, DEAL_POSITION_ID);
+  }
+
+  ulong matched_ticket = 0;
+  ulong matched_identifier = 0;
+  int matched_count = 0;
   int total_positions = PositionsTotal();
   for(int i = total_positions - 1; i >= 0; i--)
   {
@@ -312,16 +330,20 @@ ulong PivotHftFindFilledPosition(const ulong deal_ticket,
       continue;
     if(direction == BEARISH && position_type != POSITION_TYPE_SELL)
       continue;
-    if(comment != "" && PositionGetString(POSITION_COMMENT) != comment)
-      continue;
 
-    ulong position_identifier =
+    ulong candidate_identifier =
       (ulong)PositionGetInteger(POSITION_IDENTIFIER);
-    if(deal_position_id > 0 && position_identifier != deal_position_id)
+    if(deal_position_id > 0 && candidate_identifier != deal_position_id)
       continue;
-    return position_ticket;
+    matched_ticket = position_ticket;
+    matched_identifier = candidate_identifier;
+    matched_count++;
   }
-  return 0;
+  if(matched_count != 1)
+    return 0;
+
+  position_identifier = matched_identifier;
+  return matched_ticket;
 }
 
 double PivotHftResolveInitialLocalStopPrice(
@@ -430,14 +452,23 @@ bool PivotHftRegisterFilledPosition(const PivotHftCampaignState &campaign,
                                     const double result_price,
                                     const double result_volume,
                                     const string comment,
-                                    const double request_quote)
+                                    const double request_quote,
+                                    const bool daily_start_registered,
+                                    int &registered_index,
+                                    ulong &resolved_position_ticket,
+                                    ulong &resolved_position_identifier)
 {
+  registered_index = -1;
+  resolved_position_ticket = 0;
+  resolved_position_identifier = 0;
   if(!risk_geometry.valid)
     return false;
 
-  ulong position_ticket = PivotHftFindFilledPosition(deal_ticket,
-                                                     campaign.direction,
-                                                     comment);
+  ulong position_ticket = PivotHftFindFilledPosition(
+    deal_ticket,
+    campaign.direction,
+    resolved_position_identifier);
+  resolved_position_ticket = position_ticket;
   if(position_ticket == 0 || !PositionSelectByTicket(position_ticket))
     return false;
   if(PositionGetString(POSITION_SYMBOL) != _Symbol ||
@@ -453,6 +484,7 @@ bool PivotHftRegisterFilledPosition(const PivotHftCampaignState &campaign,
   position_state.execution_id = StringFormat("%I64u", position_ticket);
   position_state.position_identifier =
     (ulong)PositionGetInteger(POSITION_IDENTIFIER);
+  resolved_position_identifier = position_state.position_identifier;
   position_state.entry_deal_ticket = deal_ticket;
   position_state.campaign_retry_source_ticket =
     campaign.retry_source_ticket;
@@ -511,6 +543,7 @@ bool PivotHftRegisterFilledPosition(const PivotHftCampaignState &campaign,
     PIVOT_HFT_MODEL_VALUE_UNAVAILABLE;
   position_state.cost_per_lot_provenance =
     PIVOT_HFT_MODEL_VALUE_UNAVAILABLE;
+  position_state.daily_start_registered = daily_start_registered;
 
   position_state.local_sl_price = PivotHftResolveInitialLocalStopPrice(
     position_state.direction,
@@ -522,12 +555,111 @@ bool PivotHftRegisterFilledPosition(const PivotHftCampaignState &campaign,
     position_state.fixed_tp_points);
   position_state.trailing_stop_price = position_state.local_sl_price;
 
-  return (position_state.entry_price > 0.0 &&
-          position_state.entry_volume > 0.0 &&
-          position_state.local_sl_price > 0.0 &&
-          (position_state.fixed_tp_points <= 0.0 ||
-           position_state.local_tp_price > 0.0) &&
-          PivotHftAppendPositionState(position_state));
+  if(position_state.entry_price <= 0.0 ||
+     position_state.entry_volume <= 0.0 ||
+     position_state.local_sl_price <= 0.0 ||
+     (position_state.fixed_tp_points > 0.0 &&
+      position_state.local_tp_price <= 0.0) ||
+     !PivotHftAppendPositionState(position_state))
+    return false;
+
+  registered_index = PivotHftFindPositionStateIndex(
+    position_state.execution_id,
+    position_state.position_ticket);
+  return (registered_index >= 0);
+}
+
+bool PivotHftAppendEmergencyFilledPosition(
+  const PivotHftCampaignState &campaign,
+  const PivotHftRiskGeometry &risk_geometry,
+  const ulong deal_ticket,
+  const ulong position_ticket,
+  const ulong position_identifier,
+  const double result_price,
+  const double result_volume,
+  const string comment,
+  const double request_quote,
+  const bool daily_start_registered,
+  int &emergency_index)
+{
+  emergency_index = -1;
+  if(position_ticket == 0 || !PositionSelectByTicket(position_ticket))
+    return false;
+  if(PositionGetString(POSITION_SYMBOL) != _Symbol ||
+     PositionGetInteger(POSITION_MAGIC) != g_magic_number)
+    return false;
+
+  ulong selected_identifier =
+    (ulong)PositionGetInteger(POSITION_IDENTIFIER);
+  if(position_identifier > 0 && selected_identifier != position_identifier)
+    return false;
+
+  PivotHftPositionState position_state;
+  position_state.status = PIVOT_HFT_POSITION_CLOSE_WAIT;
+  position_state.execution_source = PIVOT_HFT_EXECUTION_BROKER;
+  position_state.close_trigger =
+    PIVOT_HFT_CLOSE_TRIGGER_REGISTRATION_FAILURE;
+  position_state.retry_state = PIVOT_HFT_RETRY_DISABLED;
+  position_state.retry_state_reason = "registration_failure";
+  position_state.retry_state_time = TimeCurrent();
+  position_state.direction = campaign.direction;
+  position_state.pivot_level = campaign.pivot_level;
+  position_state.position_ticket = position_ticket;
+  position_state.position_identifier = selected_identifier;
+  position_state.entry_deal_ticket = deal_ticket;
+  position_state.campaign_retry_source_ticket =
+    campaign.retry_source_ticket;
+  position_state.force_close_generation_at_entry =
+    MarketStatusForceCloseGeneration();
+  position_state.campaign_micro_bar_time = campaign.micro_bar_time;
+  position_state.entry_time =
+    (datetime)PositionGetInteger(POSITION_TIME);
+  if(position_state.entry_time <= 0)
+    position_state.entry_time = TimeCurrent();
+  position_state.entry_micro_bar_time =
+    PivotHftResolveMicroBarAt(position_state.entry_time);
+  if(position_state.entry_micro_bar_time <= 0)
+    position_state.entry_micro_bar_time = campaign.micro_bar_time;
+  position_state.close_trigger_time = TimeCurrent();
+  position_state.pivot_price = campaign.pivot_price;
+  position_state.entry_price = PositionGetDouble(POSITION_PRICE_OPEN);
+  if(position_state.entry_price <= 0.0)
+    position_state.entry_price = result_price;
+  position_state.entry_request_quote = request_quote;
+  position_state.entry_volume = PositionGetDouble(POSITION_VOLUME);
+  if(position_state.entry_volume <= 0.0)
+    position_state.entry_volume = result_volume;
+  position_state.close_trigger_quote = position_state.entry_price;
+  position_state.campaign_attempt_count = campaign.attempt_count;
+  position_state.campaign_retry_ordinal = campaign.retry_ordinal;
+  position_state.execution_id = StringFormat("%I64u", position_ticket);
+  position_state.campaign_retry_source_id = campaign.retry_source_id;
+  position_state.campaign_sequence_id = campaign.sequence_id;
+  position_state.position_comment = PositionGetString(POSITION_COMMENT);
+  if(position_state.position_comment == "")
+    position_state.position_comment = comment;
+  position_state.entry_safety = campaign.entry_safety;
+  position_state.daily_start_registered = daily_start_registered;
+  position_state.emergency_lifecycle = true;
+  position_state.close_requested = true;
+  position_state.close_send_confirmed = false;
+  if(risk_geometry.valid)
+  {
+    position_state.risk_bands_source_bar = risk_geometry.bands_source_bar;
+    position_state.risk_bands_upper = risk_geometry.bands_upper;
+    position_state.risk_bands_lower = risk_geometry.bands_lower;
+    position_state.risk_band_width_points = risk_geometry.band_width_points;
+    position_state.initial_sl_points = risk_geometry.initial_sl_points;
+    position_state.trailing_step_points = risk_geometry.trailing_step_points;
+    position_state.fixed_tp_points = risk_geometry.fixed_tp_points;
+  }
+
+  if(!PivotHftAppendPositionState(position_state))
+    return false;
+  emergency_index = PivotHftFindPositionStateIndex(
+    position_state.execution_id,
+    position_state.position_ticket);
+  return (emergency_index >= 0);
 }
 
 bool PivotHftRegisterVirtualPosition(
@@ -983,34 +1115,156 @@ bool PivotHftExecuteEntryIntent()
     return false;
   }
 
+  bool daily_start_registered = false;
+  bool daily_start_transition = RegisterPivotHftDailySignalStart(
+    campaign.direction,
+    daily_start_registered);
+  PivotHftAuditLog("BROKER_FILL_ACCOUNTED",
+                   StringFormat("sequence=%s|deal=%I64u|dir=%s|level=%s|retry_number=%d|retry_ordinal=%d|daily_start_registered=%d|daily_start_transition=%d|daily_limit=%d|daily_mode=%s",
+                                campaign.sequence_id,
+                                deal_ticket,
+                                EnumToString(campaign.direction),
+                                PivotHftLevelLabel(campaign.pivot_level),
+                                retry_number,
+                                campaign.retry_ordinal,
+                                (int)daily_start_registered,
+                                (int)daily_start_transition,
+                                Daily_Signal_Limit,
+                                EnumToString(Daily_Signal_Limit_Mode)));
+
+  int registered_index = -1;
+  ulong resolved_position_ticket = 0;
+  ulong resolved_position_identifier = 0;
   if(!PivotHftRegisterFilledPosition(campaign,
                                      risk_geometry,
                                      deal_ticket,
                                      result_price,
                                      result_volume,
                                      comment,
-                                     entry_quote))
+                                     entry_quote,
+                                     daily_start_registered,
+                                     registered_index,
+                                     resolved_position_ticket,
+                                     resolved_position_identifier))
   {
-    PivotHftAuditLog("FILL_UNRESOLVED",
-                     StringFormat("sequence=%s|retry_number=%d|retry_ordinal=%d|deal=%I64u|ret=%I64u|err=%d",
+    if(resolved_position_ticket == 0)
+    {
+      resolved_position_ticket = PivotHftFindFilledPosition(
+        deal_ticket,
+        campaign.direction,
+        resolved_position_identifier);
+    }
+
+    datetime emergency_entry_time = TimeCurrent();
+    double emergency_entry_price = result_price;
+    double emergency_entry_volume = result_volume;
+    string emergency_comment = comment;
+    if(resolved_position_ticket > 0 &&
+       PositionSelectByTicket(resolved_position_ticket) &&
+       PositionGetString(POSITION_SYMBOL) == _Symbol &&
+       PositionGetInteger(POSITION_MAGIC) == g_magic_number)
+    {
+      ulong selected_identifier =
+        (ulong)PositionGetInteger(POSITION_IDENTIFIER);
+      if(resolved_position_identifier == 0 ||
+         selected_identifier == resolved_position_identifier)
+      {
+        resolved_position_identifier = selected_identifier;
+        emergency_entry_time =
+          (datetime)PositionGetInteger(POSITION_TIME);
+        emergency_entry_price = PositionGetDouble(POSITION_PRICE_OPEN);
+        emergency_entry_volume = PositionGetDouble(POSITION_VOLUME);
+        emergency_comment = PositionGetString(POSITION_COMMENT);
+      }
+    }
+    if(emergency_entry_time <= 0)
+      emergency_entry_time = TimeCurrent();
+    if(emergency_entry_price <= 0.0)
+      emergency_entry_price = result_price;
+    if(emergency_entry_volume <= 0.0)
+      emergency_entry_volume = result_volume;
+
+    PivotHftActivateEmergencyQuarantine(
+      campaign,
+      resolved_position_ticket,
+      resolved_position_identifier,
+      deal_ticket,
+      emergency_entry_time,
+      emergency_entry_price,
+      emergency_entry_volume,
+      emergency_comment,
+      daily_start_registered,
+      "filled_position_registration_failed");
+    PivotHftAuditLog("FILL_REGISTRATION_FAILED",
+                     StringFormat("sequence=%s|retry_number=%d|retry_ordinal=%d|deal=%I64u|ticket=%I64u|position_id=%I64u|ret=%I64u|err=%d|daily_start_registered=%d",
                                   campaign.sequence_id,
                                   retry_number,
                                   campaign.retry_ordinal,
                                   deal_ticket,
+                                  resolved_position_ticket,
+                                  resolved_position_identifier,
                                   retcode,
-                                  last_error));
+                                  last_error,
+                                  (int)daily_start_registered));
     g_pivot_hft_last_error = "filled_position_not_resolved";
     MarketStatusRegisterExecutionError("PIVOT_HFT_FILL_UNRESOLVED",
                                        g_pivot_hft_last_error,
                                        retcode,
                                        last_error);
+
+    int emergency_index = -1;
+    bool emergency_attached = PivotHftAppendEmergencyFilledPosition(
+      campaign,
+      risk_geometry,
+      deal_ticket,
+      resolved_position_ticket,
+      resolved_position_identifier,
+      result_price,
+      result_volume,
+      comment,
+      entry_quote,
+      daily_start_registered,
+      emergency_index);
+    if(emergency_attached)
+    {
+      PivotHftMarkEmergencyQuarantineStateAttached();
+      PivotHftAuditLog("EMERGENCY_LIFECYCLE_REGISTERED",
+                       StringFormat("sequence=%s|%s|position_id=%I64u|deal=%I64u|reason=normal_registration_failed",
+                                    campaign.sequence_id,
+                                    PivotHftPositionAuditIdentityFields(
+                                      g_pivot_hft_positions[emergency_index]),
+                                    g_pivot_hft_positions[emergency_index].position_identifier,
+                                    deal_ticket));
+      if(!PivotHftClosePositionLocally(
+           g_pivot_hft_positions[emergency_index]))
+      {
+        if(!MarketStatusHasPendingForceClose())
+        {
+          MarketStatusRequestScopedForceClose(
+            "Pivot HFT registration failure",
+            resolved_position_ticket,
+            resolved_position_identifier);
+        }
+      }
+    }
+    else
+    {
+      PivotHftAuditLog("EMERGENCY_QUARANTINE_ACTIVE",
+                       StringFormat("sequence=%s|deal=%I64u|ticket=%I64u|position_id=%I64u|state_attached=0|reason=emergency_state_registration_failed",
+                                    campaign.sequence_id,
+                                    deal_ticket,
+                                    resolved_position_ticket,
+                                    resolved_position_identifier));
+      MarketStatusRequestScopedForceClose(
+        "Pivot HFT unresolved fill quarantine",
+        resolved_position_ticket,
+        resolved_position_identifier);
+      ProtectionRiskProcessPendingForceClose();
+    }
     PivotHftResetCampaign();
     return false;
   }
 
-  RegisterPivotHftDailySignalStart(campaign.direction);
-
-  int registered_index = ArraySize(g_pivot_hft_positions) - 1;
   if(registered_index >= 0)
   {
     PivotHftPositionState registered_state =
@@ -1049,7 +1303,7 @@ bool PivotHftExecuteEntryIntent()
   if(Enable_Logs)
   {
     PrintFormat("PIVOT_HFT_FILL ticket=%I64u deal=%I64u dir=%s price=%.5f volume=%.2f",
-                g_pivot_hft_positions[ArraySize(g_pivot_hft_positions) - 1].position_ticket,
+                g_pivot_hft_positions[registered_index].position_ticket,
                 deal_ticket,
                 EnumToString(campaign.direction),
                 result_price,

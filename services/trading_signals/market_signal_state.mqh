@@ -68,15 +68,22 @@ bool DailySignalLimitAllowsAttempt(const SignalTypes direction)
   return stats.total_signals < Daily_Signal_Limit;
 }
 
-void RegisterPivotHftDailySignalStart(const SignalTypes direction)
+bool RegisterPivotHftDailySignalStart(const SignalTypes direction,
+                                      bool &daily_start_registered)
 {
-  if(Daily_Signal_Limit <= 0 ||
-     (direction != BULLISH && direction != BEARISH))
-    return;
+  if(daily_start_registered)
+    return false;
+  if(direction != BULLISH && direction != BEARISH)
+    return false;
+
+  daily_start_registered = true;
+  if(Daily_Signal_Limit <= 0)
+    return true;
 
   DailySignalStatsEnsureDay(direction);
   if(Daily_Signal_Limit_Mode == STOP_DAILY_SIGNALS)
     g_daily_signal_stats[DirectionIndex(direction)].total_signals++;
+  return true;
 }
 
 void RegisterDailySignalOutcome(const SignalTypes direction,

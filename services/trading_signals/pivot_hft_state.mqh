@@ -252,10 +252,14 @@ struct PivotHftPositionState
   string                   entry_safety_post_fill_reason;
   bool                     entry_safety_checked;
   bool                     entry_safety_failed;
+  bool                     emergency_lifecycle;
+  bool                     daily_start_registered;
   bool                     close_requested;
   bool                     close_send_confirmed;
   bool                     reattempt_pending;
   bool                     daily_outcome_registered;
+  int                      close_attempt_count;
+  datetime                 close_retry_after;
   datetime                 last_close_audit_time;
 
   PivotHftPositionState()
@@ -327,11 +331,69 @@ struct PivotHftPositionState
     entry_safety_post_fill_reason = "";
     entry_safety_checked   = false;
     entry_safety_failed    = false;
+    emergency_lifecycle    = false;
+    daily_start_registered = false;
     close_requested        = false;
     close_send_confirmed   = false;
     reattempt_pending      = false;
     daily_outcome_registered = false;
+    close_attempt_count    = 0;
+    close_retry_after      = 0;
     last_close_audit_time  = 0;
+  }
+};
+
+struct PivotHftEmergencyQuarantineState
+{
+  bool                     active;
+  bool                     state_attached;
+  bool                     daily_start_registered;
+  bool                     daily_outcome_registered;
+  SignalTypes              direction;
+  PivotHftPivotLevels      pivot_level;
+  ulong                    position_ticket;
+  ulong                    position_identifier;
+  ulong                    entry_deal_ticket;
+  ulong                    force_close_generation_at_entry;
+  datetime                 campaign_micro_bar_time;
+  datetime                 entry_time;
+  datetime                 activated_at;
+  datetime                 next_action_time;
+  datetime                 last_audit_time;
+  double                   pivot_price;
+  double                   entry_price;
+  double                   entry_volume;
+  int                      campaign_attempt_count;
+  int                      campaign_retry_ordinal;
+  string                   campaign_sequence_id;
+  string                   position_comment;
+  string                   reason;
+
+  PivotHftEmergencyQuarantineState()
+  {
+    active = false;
+    state_attached = false;
+    daily_start_registered = false;
+    daily_outcome_registered = false;
+    direction = NO_SIGNAL;
+    pivot_level = PIVOT_HFT_LEVEL_NONE;
+    position_ticket = 0;
+    position_identifier = 0;
+    entry_deal_ticket = 0;
+    force_close_generation_at_entry = 0;
+    campaign_micro_bar_time = 0;
+    entry_time = 0;
+    activated_at = 0;
+    next_action_time = 0;
+    last_audit_time = 0;
+    pivot_price = 0.0;
+    entry_price = 0.0;
+    entry_volume = 0.0;
+    campaign_attempt_count = 0;
+    campaign_retry_ordinal = 0;
+    campaign_sequence_id = "";
+    position_comment = "";
+    reason = "";
   }
 };
 
@@ -531,6 +593,7 @@ PivotHftPivotSnapshot  g_pivot_hft_pivots;
 PivotHftCampaignState  g_pivot_hft_campaign;
 PivotHftCampaignState  g_pivot_hft_expired_visual_campaign;
 PivotHftPositionState  g_pivot_hft_positions[];
+PivotHftEmergencyQuarantineState g_pivot_hft_emergency_quarantine;
 datetime               g_pivot_hft_expired_visual_until = 0;
 datetime               g_pivot_hft_last_micro_bar = 0;
 datetime               g_pivot_hft_last_macro_bar = 0;
@@ -1014,11 +1077,15 @@ void PivotHftClearPositionStates()
 
 bool PivotHftHasPositionStates()
 {
-  return (ArraySize(g_pivot_hft_positions) > 0);
+  return (ArraySize(g_pivot_hft_positions) > 0 ||
+          g_pivot_hft_emergency_quarantine.active);
 }
 
 bool PivotHftHasLivePositionStates()
 {
+  if(g_pivot_hft_emergency_quarantine.active)
+    return true;
+
   int total = ArraySize(g_pivot_hft_positions);
   for(int i = 0; i < total; i++)
   {
@@ -1038,6 +1105,9 @@ bool PivotHftPositionStatusBlocksAdmission(
 
 bool PivotHftHasBlockingPositionLifecycle()
 {
+  if(g_pivot_hft_emergency_quarantine.active)
+    return true;
+
   int total = ArraySize(g_pivot_hft_positions);
   for(int i = 0; i < total; i++)
     if(PivotHftPositionStatusBlocksAdmission(g_pivot_hft_positions[i].status))
@@ -1226,6 +1296,129 @@ int PivotHftFindPositionStateIndex(const string execution_id,
       return i;
   }
   return -1;
+}
+
+int PivotHftFindEmergencyPositionStateIndex()
+{
+  int total = ArraySize(g_pivot_hft_positions);
+  for(int i = 0; i < total; i++)
+  {
+    if(!g_pivot_hft_positions[i].emergency_lifecycle)
+      continue;
+    if(g_pivot_hft_emergency_quarantine.position_identifier > 0 &&
+       g_pivot_hft_positions[i].position_identifier !=
+         g_pivot_hft_emergency_quarantine.position_identifier)
+      continue;
+    if(g_pivot_hft_emergency_quarantine.position_identifier == 0 &&
+       g_pivot_hft_emergency_quarantine.position_ticket > 0 &&
+       g_pivot_hft_positions[i].position_ticket !=
+         g_pivot_hft_emergency_quarantine.position_ticket)
+      continue;
+    return i;
+  }
+  return -1;
+}
+
+void PivotHftActivateEmergencyQuarantine(
+  const PivotHftCampaignState &campaign,
+  const ulong position_ticket,
+  const ulong position_identifier,
+  const ulong deal_ticket,
+  const datetime entry_time,
+  const double entry_price,
+  const double entry_volume,
+  const string position_comment,
+  const bool daily_start_registered,
+  const string reason)
+{
+  g_pivot_hft_emergency_quarantine =
+    PivotHftEmergencyQuarantineState();
+  g_pivot_hft_emergency_quarantine.active = true;
+  g_pivot_hft_emergency_quarantine.daily_start_registered =
+    daily_start_registered;
+  g_pivot_hft_emergency_quarantine.direction = campaign.direction;
+  g_pivot_hft_emergency_quarantine.pivot_level = campaign.pivot_level;
+  g_pivot_hft_emergency_quarantine.position_ticket = position_ticket;
+  g_pivot_hft_emergency_quarantine.position_identifier =
+    position_identifier;
+  g_pivot_hft_emergency_quarantine.entry_deal_ticket = deal_ticket;
+  g_pivot_hft_emergency_quarantine.force_close_generation_at_entry =
+    MarketStatusForceCloseGeneration();
+  g_pivot_hft_emergency_quarantine.campaign_micro_bar_time =
+    campaign.micro_bar_time;
+  g_pivot_hft_emergency_quarantine.entry_time = entry_time;
+  g_pivot_hft_emergency_quarantine.activated_at = TimeCurrent();
+  g_pivot_hft_emergency_quarantine.pivot_price = campaign.pivot_price;
+  g_pivot_hft_emergency_quarantine.entry_price = entry_price;
+  g_pivot_hft_emergency_quarantine.entry_volume = entry_volume;
+  g_pivot_hft_emergency_quarantine.campaign_attempt_count =
+    campaign.attempt_count;
+  g_pivot_hft_emergency_quarantine.campaign_retry_ordinal =
+    campaign.retry_ordinal;
+  g_pivot_hft_emergency_quarantine.campaign_sequence_id =
+    campaign.sequence_id;
+  g_pivot_hft_emergency_quarantine.position_comment = position_comment;
+  g_pivot_hft_emergency_quarantine.reason = reason;
+}
+
+void PivotHftUpdateEmergencyQuarantineIdentity(
+  const ulong position_ticket,
+  const ulong position_identifier)
+{
+  if(!g_pivot_hft_emergency_quarantine.active)
+    return;
+  if(position_ticket > 0)
+    g_pivot_hft_emergency_quarantine.position_ticket = position_ticket;
+  if(position_identifier > 0)
+    g_pivot_hft_emergency_quarantine.position_identifier =
+      position_identifier;
+}
+
+void PivotHftMarkEmergencyQuarantineStateAttached()
+{
+  if(g_pivot_hft_emergency_quarantine.active)
+    g_pivot_hft_emergency_quarantine.state_attached = true;
+}
+
+void PivotHftResetEmergencyQuarantine()
+{
+  g_pivot_hft_emergency_quarantine =
+    PivotHftEmergencyQuarantineState();
+}
+
+bool PivotHftEmergencyQuarantineHasOpenExposure()
+{
+  if(!g_pivot_hft_emergency_quarantine.active)
+    return false;
+
+  int total_positions = PositionsTotal();
+  for(int i = total_positions - 1; i >= 0; i--)
+  {
+    ulong position_ticket = PositionGetTicket(i);
+    if(position_ticket == 0 || !PositionSelectByTicket(position_ticket))
+      continue;
+    if(PositionGetString(POSITION_SYMBOL) != _Symbol ||
+       PositionGetInteger(POSITION_MAGIC) != g_magic_number)
+      continue;
+
+    ulong position_identifier =
+      (ulong)PositionGetInteger(POSITION_IDENTIFIER);
+    if(g_pivot_hft_emergency_quarantine.position_identifier > 0 &&
+       position_identifier !=
+         g_pivot_hft_emergency_quarantine.position_identifier)
+      continue;
+    if(g_pivot_hft_emergency_quarantine.position_identifier == 0 &&
+       g_pivot_hft_emergency_quarantine.position_ticket > 0 &&
+       position_ticket !=
+         g_pivot_hft_emergency_quarantine.position_ticket)
+      continue;
+    g_pivot_hft_emergency_quarantine.position_ticket = position_ticket;
+    if(position_identifier > 0)
+      g_pivot_hft_emergency_quarantine.position_identifier =
+        position_identifier;
+    return true;
+  }
+  return false;
 }
 
 bool PivotHftAppendPositionState(const PivotHftPositionState &position_state)
