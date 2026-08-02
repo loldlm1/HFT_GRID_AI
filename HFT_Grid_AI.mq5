@@ -251,6 +251,7 @@ int OnInit()
   CreateLicensePanelLive();
   if(!PivotHftSetSignalResourcesActive(SessionTimeFilterWindowIsOpen()))
     return INIT_FAILED;
+  PivotHftRecoveryFlushSupersessionCheckpoint();
   if(!EventSetTimer(LicenseServiceTimerSeconds()))
   {
     PivotHftReleaseIndicators();
@@ -274,6 +275,7 @@ void OnDeinit(const int reason)
   PivotHftReleaseIndicators();
   PivotHftResetCampaign();
   PivotHftClearPositionStates();
+  PivotHftResetSupersessionCandidate();
   ClearFrontendVisualization();
   Comment("");
   EALifecycleClearRemovalRequest();
@@ -340,6 +342,7 @@ void OnTick()
 
   bool session_allows = SessionTimeFilterAllowsSignalAttempt();
   bool resources_ready = PivotHftSetSignalResourcesActive(session_allows);
+  PivotHftRecoveryFlushSupersessionCheckpoint();
   bool has_position_states = PivotHftHasPositionStates();
   if(session_allows || has_position_states)
     PivotHftBeginTickDataCache();
@@ -374,6 +377,7 @@ void OnTick()
                                     market_open &&
                                     spread_allowed);
   bool allow_new_campaign = false;
+  bool allow_candidate_observation = false;
   bool entry_intent_ready = false;
   if(strategy_data_allowed)
   {
@@ -384,11 +388,17 @@ void OnTick()
     bool execution_slot_available =
       (!PivotHftHasBlockingPositionLifecycle() &&
        !PivotHftHasManagedBrokerPosition());
-    allow_new_campaign = (execution_context_allowed &&
-                          protection_allows &&
-                          daily_budget_available &&
+    bool admission_context_allowed = (execution_context_allowed &&
+                                      protection_allows &&
+                                      daily_budget_available);
+    allow_new_campaign = (admission_context_allowed &&
                           execution_slot_available);
-    entry_intent_ready = PivotHftDetectEntryIntent(allow_new_campaign);
+    allow_candidate_observation = (admission_context_allowed &&
+                                   !execution_slot_available);
+    entry_intent_ready = PivotHftDetectEntryIntent(
+      allow_new_campaign,
+      allow_candidate_observation);
+    PivotHftRecoveryFlushSupersessionCheckpoint();
   }
 
   if(entry_intent_ready && execution_context_allowed)
@@ -401,6 +411,7 @@ void OnTick()
 
   if(has_position_states || PivotHftHasPositionStates())
     PivotHftProcessAllPositions();
+  PivotHftRecoveryFlushSupersessionCheckpoint();
 
   bool show_strategy_visual = ((session_allows && resources_ready) ||
                                PivotHftHasPositionStates());

@@ -32,6 +32,87 @@ double PivotHftResolveLevelPrice(const PivotHftPivotLevels level,
   }
 }
 
+int PivotHftLevelDepthForDirection(const SignalTypes direction,
+                                   const PivotHftPivotLevels level)
+{
+  if(level == PIVOT_HFT_LEVEL_P)
+    return 0;
+  if(direction == BEARISH)
+  {
+    if(level == PIVOT_HFT_LEVEL_R1)
+      return 1;
+    if(level == PIVOT_HFT_LEVEL_R2)
+      return 2;
+    if(level == PIVOT_HFT_LEVEL_R3)
+      return 3;
+  }
+  else if(direction == BULLISH)
+  {
+    if(level == PIVOT_HFT_LEVEL_S1)
+      return 1;
+    if(level == PIVOT_HFT_LEVEL_S2)
+      return 2;
+    if(level == PIVOT_HFT_LEVEL_S3)
+      return 3;
+  }
+  return -1;
+}
+
+bool PivotHftLevelBelongsToDirection(const SignalTypes direction,
+                                     const PivotHftPivotLevels level)
+{
+  return (PivotHftLevelDepthForDirection(direction, level) >= 0);
+}
+
+bool PivotHftLevelIsStrictlyDeeper(const SignalTypes direction,
+                                   const PivotHftPivotLevels candidate_level,
+                                   const PivotHftPivotLevels owner_level)
+{
+  int candidate_depth = PivotHftLevelDepthForDirection(direction,
+                                                        candidate_level);
+  int owner_depth = PivotHftLevelDepthForDirection(direction, owner_level);
+  return (candidate_depth >= 0 && owner_depth >= 0 &&
+          candidate_depth > owner_depth);
+}
+
+bool PivotHftPositionMatchesPivotSnapshot(
+  const PivotHftPositionState &position_state,
+  const PivotHftPivotSnapshot &snapshot)
+{
+  if(!snapshot.valid ||
+     !PivotHftLevelBelongsToDirection(position_state.direction,
+                                      position_state.pivot_level))
+    return false;
+  double current_level_price = PivotHftResolveLevelPrice(
+    position_state.pivot_level,
+    snapshot);
+  double tolerance = PivotHftTickSize() * 0.5;
+  return (current_level_price > 0.0 &&
+          MathAbs(current_level_price - position_state.pivot_price) <=
+            tolerance);
+}
+
+bool PivotHftSupersessionCandidateMatchesPivotSnapshot(
+  const PivotHftSupersessionCandidate &candidate,
+  const PivotHftPivotSnapshot &snapshot,
+  const datetime activation_bar)
+{
+  if(!candidate.valid || !snapshot.valid || activation_bar <= 0)
+    return false;
+  if(candidate.pivot_activation_bar != activation_bar ||
+     candidate.pivot_source_bar != snapshot.source_bar_time ||
+     !PivotHftLevelBelongsToDirection(candidate.direction,
+                                      candidate.pivot_level))
+    return false;
+  double current_level_price = PivotHftResolveLevelPrice(
+    candidate.pivot_level,
+    snapshot);
+  double tolerance = PivotHftTickSize() * 0.5;
+  return (current_level_price > 0.0 &&
+          MathAbs(current_level_price - candidate.pivot_price) <=
+            tolerance);
+}
+
 bool PivotHftTimeframesValid()
 {
   int micro_seconds = PeriodSeconds(Pivot_HFT_Micro_Timeframe);
@@ -506,6 +587,16 @@ bool PivotHftRefreshPivotSnapshot(const bool force_refresh = false)
   bool pivot_set_rollover = (g_pivot_hft_last_macro_bar > 0 &&
                               current_macro_bar !=
                                 g_pivot_hft_last_macro_bar);
+  if(g_pivot_hft_supersession_candidate.valid &&
+     !PivotHftSupersessionCandidateMatchesPivotSnapshot(
+       g_pivot_hft_supersession_candidate,
+       snapshot,
+       current_macro_bar))
+  {
+    PivotHftTerminateSupersessionCandidate(
+      pivot_set_rollover ? "pivot_set_rollover"
+                         : "pivot_set_changed");
+  }
   if(pivot_set_rollover)
   {
     PivotHftInvalidatePendingRetries(

@@ -230,6 +230,17 @@ void PivotHftDrawLevelLine(const PivotHftPivotLevels level,
     state_label = PivotHftCampaignDisplayStatus(g_pivot_hft_campaign);
   }
 
+  if(g_pivot_hft_supersession_candidate.valid &&
+     g_pivot_hft_supersession_candidate.pivot_level == level)
+  {
+    line_color = clrDeepSkyBlue;
+    line_style = STYLE_DASHDOT;
+    line_width = 3;
+    state_label = StringFormat("CANDIDATE FOR %s",
+                               PivotHftLevelLabel(
+                                 g_pivot_hft_supersession_candidate.owner_pivot_level));
+  }
+
   PivotHftUpdateHorizontalLine(suffix,
                                price,
                                line_color,

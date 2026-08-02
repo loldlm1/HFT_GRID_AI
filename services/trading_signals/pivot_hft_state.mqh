@@ -20,7 +20,8 @@ enum PivotHftRetryStates
   PIVOT_HFT_RETRY_DEFERRED    = 2,
   PIVOT_HFT_RETRY_REARMED     = 3,
   PIVOT_HFT_RETRY_DISABLED    = 4,
-  PIVOT_HFT_RETRY_INVALIDATED = 5
+  PIVOT_HFT_RETRY_INVALIDATED = 5,
+  PIVOT_HFT_RETRY_SUPERSEDED  = 6
 };
 
 enum PivotHftModelValueProvenance
@@ -156,6 +157,52 @@ struct PivotHftCampaignState
     replacement_price = 0.0;
     execution_slot_block_logged = false;
     entry_safety     = PivotHftEntrySafetySnapshot();
+  }
+};
+
+struct PivotHftSupersessionCandidate
+{
+  bool                     valid;
+  SignalTypes              direction;
+  PivotHftPivotLevels      pivot_level;
+  double                   pivot_price;
+  datetime                 pivot_activation_bar;
+  datetime                 pivot_source_bar;
+  datetime                 admission_micro_bar;
+  datetime                 admitted_at;
+  PivotHftExecutionSources owner_execution_source;
+  PivotHftPivotLevels      owner_pivot_level;
+  double                   owner_pivot_price;
+  ulong                    owner_position_ticket;
+  ulong                    owner_position_identifier;
+  string                   owner_execution_id;
+  string                   owner_campaign_sequence_id;
+  int                      owner_retry_number;
+  datetime                 terminal_time;
+  string                   terminal_reason;
+  string                   promoted_sequence_id;
+
+  PivotHftSupersessionCandidate()
+    : valid(false),
+      direction(NO_SIGNAL),
+      pivot_level(PIVOT_HFT_LEVEL_NONE),
+      pivot_price(0.0),
+      pivot_activation_bar(0),
+      pivot_source_bar(0),
+      admission_micro_bar(0),
+      admitted_at(0),
+      owner_execution_source(PIVOT_HFT_EXECUTION_BROKER),
+      owner_pivot_level(PIVOT_HFT_LEVEL_NONE),
+      owner_pivot_price(0.0),
+      owner_position_ticket(0),
+      owner_position_identifier(0),
+      owner_execution_id(""),
+      owner_campaign_sequence_id(""),
+      owner_retry_number(0),
+      terminal_time(0),
+      terminal_reason(""),
+      promoted_sequence_id("")
+  {
   }
 };
 
@@ -469,6 +516,8 @@ string PivotHftRetryStateLabel(const PivotHftRetryStates retry_state)
       return "DISABLED";
     case PIVOT_HFT_RETRY_INVALIDATED:
       return "INVALIDATED";
+    case PIVOT_HFT_RETRY_SUPERSEDED:
+      return "SUPERSEDED";
     case PIVOT_HFT_RETRY_NONE:
     default:
       return "NONE";
@@ -625,6 +674,9 @@ PivotHftCampaignState  g_pivot_hft_campaign;
 PivotHftCampaignState  g_pivot_hft_expired_visual_campaign;
 PivotHftPositionState  g_pivot_hft_positions[];
 PivotHftEmergencyQuarantineState g_pivot_hft_emergency_quarantine;
+PivotHftSupersessionCandidate g_pivot_hft_supersession_candidate;
+bool                   g_pivot_hft_supersession_checkpoint_pending = false;
+string                 g_pivot_hft_supersession_checkpoint_transition = "";
 datetime               g_pivot_hft_expired_visual_until = 0;
 datetime               g_pivot_hft_last_micro_bar = 0;
 datetime               g_pivot_hft_last_macro_bar = 0;
@@ -650,6 +702,169 @@ SignalTypes               g_pivot_hft_occupied_audit_directions[
   PIVOT_HFT_OCCUPIED_AUDIT_SIGNATURE_CAPACITY];
 PivotHftPivotLevels       g_pivot_hft_occupied_audit_selected_levels[
   PIVOT_HFT_OCCUPIED_AUDIT_SIGNATURE_CAPACITY];
+
+void PivotHftResetSupersessionCandidate()
+{
+  g_pivot_hft_supersession_candidate =
+    PivotHftSupersessionCandidate();
+  g_pivot_hft_supersession_checkpoint_pending = false;
+  g_pivot_hft_supersession_checkpoint_transition = "";
+}
+
+void PivotHftRestoreSupersessionCandidate(
+  const PivotHftSupersessionCandidate &candidate)
+{
+  g_pivot_hft_supersession_candidate = candidate;
+  g_pivot_hft_supersession_checkpoint_pending = false;
+  g_pivot_hft_supersession_checkpoint_transition = "";
+}
+
+void PivotHftRequestSupersessionCheckpoint(const string transition)
+{
+  g_pivot_hft_supersession_checkpoint_pending = true;
+  g_pivot_hft_supersession_checkpoint_transition = transition;
+}
+
+bool PivotHftSupersessionCheckpointPending()
+{
+  return g_pivot_hft_supersession_checkpoint_pending;
+}
+
+string PivotHftSupersessionCheckpointTransition()
+{
+  return g_pivot_hft_supersession_checkpoint_transition;
+}
+
+void PivotHftMarkSupersessionCheckpointPersisted()
+{
+  g_pivot_hft_supersession_checkpoint_pending = false;
+  g_pivot_hft_supersession_checkpoint_transition = "";
+}
+
+bool PivotHftSupersessionCandidateOwnedByPosition(
+  const PivotHftSupersessionCandidate &candidate,
+  const PivotHftPositionState &position_state)
+{
+  if(candidate.owner_execution_source != position_state.execution_source ||
+     candidate.direction != position_state.direction ||
+     candidate.owner_pivot_level != position_state.pivot_level ||
+     candidate.owner_campaign_sequence_id !=
+       position_state.campaign_sequence_id)
+    return false;
+  if(candidate.owner_position_identifier > 0 &&
+     candidate.owner_position_identifier !=
+       position_state.position_identifier)
+    return false;
+  if(candidate.owner_position_ticket > 0 &&
+     candidate.owner_position_ticket != position_state.position_ticket)
+    return false;
+  if(candidate.owner_execution_id != "" &&
+     candidate.owner_execution_id !=
+       PivotHftPositionExecutionId(position_state))
+    return false;
+  return true;
+}
+
+int PivotHftFindSupersessionOwnerPositionIndex()
+{
+  int total = ArraySize(g_pivot_hft_positions);
+  for(int i = 0; i < total; i++)
+  {
+    if(PivotHftSupersessionCandidateOwnedByPosition(
+         g_pivot_hft_supersession_candidate,
+         g_pivot_hft_positions[i]))
+      return i;
+  }
+  return -1;
+}
+
+bool PivotHftSupersessionCandidateVisible()
+{
+  if(g_pivot_hft_supersession_candidate.valid)
+    return true;
+  if(g_pivot_hft_supersession_candidate.terminal_time <= 0 ||
+     g_pivot_hft_supersession_candidate.terminal_reason == "")
+    return false;
+  int micro_seconds = PeriodSeconds(Pivot_HFT_Micro_Timeframe);
+  if(micro_seconds <= 0)
+    micro_seconds = 60;
+  return (TimeCurrent() <=
+          g_pivot_hft_supersession_candidate.terminal_time +
+            micro_seconds);
+}
+
+string PivotHftSupersessionCandidateAuditFields(
+  const PivotHftSupersessionCandidate &candidate)
+{
+  return StringFormat("candidate_dir=%s|candidate_level=%s|candidate_price=%.5f|candidate_activation_bar=%I64d|candidate_source_bar=%I64d|candidate_admission_bar=%I64d|candidate_admitted_at=%I64d|owner_execution_source=%s|owner_execution_id=%s|owner_ticket=%I64u|owner_position_id=%I64u|owner_sequence=%s|owner_level=%s|owner_price=%.5f|owner_retry_number=%d|terminal_reason=%s|promoted_sequence=%s",
+                      EnumToString(candidate.direction),
+                      EnumToString(candidate.pivot_level),
+                      candidate.pivot_price,
+                      (long)candidate.pivot_activation_bar,
+                      (long)candidate.pivot_source_bar,
+                      (long)candidate.admission_micro_bar,
+                      (long)candidate.admitted_at,
+                      PivotHftExecutionSourceLabel(
+                        candidate.owner_execution_source),
+                      candidate.owner_execution_id,
+                      candidate.owner_position_ticket,
+                      candidate.owner_position_identifier,
+                      candidate.owner_campaign_sequence_id,
+                      EnumToString(candidate.owner_pivot_level),
+                      candidate.owner_pivot_price,
+                      candidate.owner_retry_number,
+                      candidate.terminal_reason,
+                      candidate.promoted_sequence_id);
+}
+
+bool PivotHftLatchSupersessionCandidate(
+  const PivotHftSupersessionCandidate &candidate)
+{
+  PivotHftSupersessionCandidate previous =
+    g_pivot_hft_supersession_candidate;
+  bool replacing = previous.valid;
+  g_pivot_hft_supersession_candidate = candidate;
+  PivotHftRequestSupersessionCheckpoint(
+    replacing ? "candidate_replaced" : "candidate_latched");
+  if(replacing)
+  {
+    PivotHftAuditLog("CANDIDATE_REPLACED",
+                     StringFormat("previous_level=%s|previous_price=%.5f|previous_admission_bar=%I64d|%s",
+                                  EnumToString(previous.pivot_level),
+                                  previous.pivot_price,
+                                  (long)previous.admission_micro_bar,
+                                  PivotHftSupersessionCandidateAuditFields(
+                                    candidate)));
+  }
+  else
+  {
+    PivotHftAuditLog("CANDIDATE_LATCHED",
+                     PivotHftSupersessionCandidateAuditFields(candidate));
+  }
+  return true;
+}
+
+bool PivotHftTerminateSupersessionCandidate(
+  const string reason,
+  const string promoted_sequence_id = "")
+{
+  if(!g_pivot_hft_supersession_candidate.valid)
+    return false;
+
+  g_pivot_hft_supersession_candidate.valid = false;
+  g_pivot_hft_supersession_candidate.terminal_time = TimeCurrent();
+  g_pivot_hft_supersession_candidate.terminal_reason = reason;
+  g_pivot_hft_supersession_candidate.promoted_sequence_id =
+    promoted_sequence_id;
+  bool promoted = (promoted_sequence_id != "");
+  PivotHftRequestSupersessionCheckpoint(
+    promoted ? "candidate_promoted" : "candidate_discarded");
+  PivotHftAuditLog(promoted ? "CANDIDATE_PROMOTED"
+                            : "CANDIDATE_DISCARDED",
+                   PivotHftSupersessionCandidateAuditFields(
+                     g_pivot_hft_supersession_candidate));
+  return true;
+}
 
 void PivotHftResetOccupiedAuditState()
 {
@@ -997,7 +1212,8 @@ void PivotHftCaptureExpiredCampaignVisual(const datetime current_micro_bar,
 void PivotHftCaptureReplacedCampaignVisual(
   const PivotHftCampaignState &previous_campaign,
   const PivotHftCampaignState &replacement_campaign,
-  const datetime current_micro_bar)
+  const datetime current_micro_bar,
+  const string terminal_reason = "latest_level_replaced")
 {
   if(previous_campaign.status == PIVOT_HFT_CAMPAIGN_IDLE ||
      current_micro_bar <= 0)
@@ -1007,7 +1223,7 @@ void PivotHftCaptureReplacedCampaignVisual(
   g_pivot_hft_expired_visual_campaign.status = PIVOT_HFT_CAMPAIGN_EXPIRED;
   g_pivot_hft_expired_visual_campaign.terminal_time = TimeCurrent();
   g_pivot_hft_expired_visual_campaign.terminal_reason =
-    "latest_level_replaced";
+    terminal_reason;
   g_pivot_hft_expired_visual_campaign.replacement_sequence_id =
     replacement_campaign.sequence_id;
   g_pivot_hft_expired_visual_campaign.replacement_level =

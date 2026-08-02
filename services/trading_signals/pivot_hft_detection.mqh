@@ -243,38 +243,85 @@ bool PivotHftCampaignMatches(const SignalTypes direction,
   return (MathAbs(g_pivot_hft_campaign.pivot_price - level_price) <= tolerance);
 }
 
-bool PivotHftSelectCurrentTouchedLevel(const double close_price,
-                                       SignalTypes &direction,
-                                       PivotHftPivotLevels &level,
-                                       double &level_price)
+bool PivotHftResolveSupersessionOwner(
+  PivotHftPositionState &owner_state)
+{
+  owner_state = PivotHftPositionState();
+  bool owner_found = false;
+  int total = ArraySize(g_pivot_hft_positions);
+  for(int i = 0; i < total; i++)
+  {
+    PivotHftPositionState state = g_pivot_hft_positions[i];
+    bool active_owner = (state.status == PIVOT_HFT_POSITION_ACTIVE ||
+                         state.status == PIVOT_HFT_POSITION_CLOSE_WAIT);
+    bool pending_retry_owner =
+      (state.status == PIVOT_HFT_POSITION_CLOSED &&
+       state.reattempt_pending);
+    if(!active_owner && !pending_retry_owner)
+      continue;
+    if(state.emergency_lifecycle ||
+       (state.direction != BULLISH && state.direction != BEARISH))
+      continue;
+    if(owner_found)
+      return false;
+    owner_state = state;
+    owner_found = true;
+  }
+  return owner_found;
+}
+
+bool PivotHftSelectCurrentAdmissibleLevel(
+  const double close_price,
+  const datetime micro_bar_time,
+  SignalTypes &direction,
+  PivotHftPivotLevels &level,
+  double &level_price)
 {
   direction = NO_SIGNAL;
   level = PIVOT_HFT_LEVEL_NONE;
   level_price = 0.0;
-  if(close_price <= 0.0 || !g_pivot_hft_pivots.valid)
+  if(close_price <= 0.0 || micro_bar_time <= 0 ||
+     !g_pivot_hft_pivots.valid)
     return false;
 
-  bool sell_candidate = false;
-  bool buy_candidate = false;
+  ulong occupied_levels = PivotHftCampaignOccupiedLevelMask(
+    micro_bar_time);
   PivotHftPivotLevels sell_level = PIVOT_HFT_LEVEL_NONE;
   PivotHftPivotLevels buy_level = PIVOT_HFT_LEVEL_NONE;
   double sell_price = 0.0;
   double buy_price = 0.0;
+  ulong sell_occupied_mask = 0;
+  ulong buy_occupied_mask = 0;
+  bool sell_touched = false;
+  bool buy_touched = false;
+  bool sell_candidate = false;
+  bool buy_candidate = false;
 
   if(PivotHftDirectionAllowed(BEARISH) &&
      close_price >= g_pivot_hft_bands_upper)
-    sell_candidate = PivotHftLatestResistanceTouched(close_price,
-                                                      sell_level,
-                                                      sell_price);
+  {
+    sell_candidate = PivotHftLatestUnoccupiedResistanceTouched(
+      close_price,
+      occupied_levels,
+      sell_level,
+      sell_price,
+      sell_occupied_mask,
+      sell_touched);
+  }
   if(PivotHftDirectionAllowed(BULLISH) &&
      close_price <= g_pivot_hft_bands_lower)
-    buy_candidate = PivotHftLatestSupportTouched(close_price,
-                                                 buy_level,
-                                                 buy_price);
+  {
+    buy_candidate = PivotHftLatestUnoccupiedSupportTouched(
+      close_price,
+      occupied_levels,
+      buy_level,
+      buy_price,
+      buy_occupied_mask,
+      buy_touched);
+  }
 
   if(sell_candidate == buy_candidate)
     return false;
-
   if(sell_candidate)
   {
     direction = BEARISH;
@@ -286,6 +333,173 @@ bool PivotHftSelectCurrentTouchedLevel(const double close_price,
   direction = BULLISH;
   level = buy_level;
   level_price = buy_price;
+  return true;
+}
+
+PivotHftSupersessionCandidate PivotHftBuildSupersessionCandidate(
+  const SignalTypes direction,
+  const PivotHftPivotLevels level,
+  const double level_price,
+  const datetime micro_bar_time,
+  const PivotHftExecutionSources owner_execution_source,
+  const PivotHftPivotLevels owner_level,
+  const double owner_price,
+  const ulong owner_ticket,
+  const ulong owner_position_identifier,
+  const string owner_execution_id,
+  const string owner_sequence_id,
+  const int owner_retry_number)
+{
+  PivotHftSupersessionCandidate candidate;
+  candidate.valid = true;
+  candidate.direction = direction;
+  candidate.pivot_level = level;
+  candidate.pivot_price = level_price;
+  candidate.pivot_activation_bar = g_pivot_hft_last_macro_bar;
+  candidate.pivot_source_bar = g_pivot_hft_pivots.source_bar_time;
+  candidate.admission_micro_bar = micro_bar_time;
+  candidate.admitted_at = TimeCurrent();
+  candidate.owner_execution_source = owner_execution_source;
+  candidate.owner_pivot_level = owner_level;
+  candidate.owner_pivot_price = owner_price;
+  candidate.owner_position_ticket = owner_ticket;
+  candidate.owner_position_identifier = owner_position_identifier;
+  candidate.owner_execution_id = owner_execution_id;
+  candidate.owner_campaign_sequence_id = owner_sequence_id;
+  candidate.owner_retry_number = owner_retry_number;
+  return candidate;
+}
+
+bool PivotHftObserveDeeperSupersessionCandidate(
+  const double close_price,
+  const datetime micro_bar_time)
+{
+  PivotHftPositionState owner_state;
+  if(!PivotHftResolveSupersessionOwner(owner_state) ||
+     !PivotHftPositionMatchesPivotSnapshot(owner_state,
+                                           g_pivot_hft_pivots))
+    return false;
+
+  SignalTypes direction = NO_SIGNAL;
+  PivotHftPivotLevels level = PIVOT_HFT_LEVEL_NONE;
+  double level_price = 0.0;
+  if(!PivotHftSelectCurrentAdmissibleLevel(close_price,
+                                           micro_bar_time,
+                                           direction,
+                                           level,
+                                           level_price) ||
+     direction != owner_state.direction ||
+     !DailySignalLimitAllowsAttempt(direction) ||
+     !PivotHftLevelIsStrictlyDeeper(direction,
+                                    level,
+                                    owner_state.pivot_level))
+    return false;
+
+  if(g_pivot_hft_supersession_candidate.valid)
+  {
+    if(!PivotHftSupersessionCandidateOwnedByPosition(
+         g_pivot_hft_supersession_candidate,
+         owner_state) ||
+       !PivotHftLevelIsStrictlyDeeper(
+         direction,
+         level,
+         g_pivot_hft_supersession_candidate.pivot_level))
+      return false;
+  }
+
+  PivotHftSupersessionCandidate candidate =
+    PivotHftBuildSupersessionCandidate(
+      direction,
+      level,
+      level_price,
+      micro_bar_time,
+      owner_state.execution_source,
+      owner_state.pivot_level,
+      owner_state.pivot_price,
+      owner_state.position_ticket,
+      owner_state.position_identifier,
+      PivotHftPositionExecutionId(owner_state),
+      owner_state.campaign_sequence_id,
+      PivotHftMarketRetryNumber(owner_state.campaign_retry_ordinal));
+  return PivotHftLatchSupersessionCandidate(candidate);
+}
+
+bool PivotHftSupersedePendingRetryCampaign(
+  const double close_price,
+  const datetime micro_bar_time)
+{
+  if((g_pivot_hft_campaign.status != PIVOT_HFT_CAMPAIGN_TRACKING &&
+      g_pivot_hft_campaign.status != PIVOT_HFT_CAMPAIGN_ORDER_WAIT) ||
+     PivotHftMarketRetryNumber(g_pivot_hft_campaign.retry_ordinal) <= 0)
+    return false;
+
+  SignalTypes direction = NO_SIGNAL;
+  PivotHftPivotLevels level = PIVOT_HFT_LEVEL_NONE;
+  double level_price = 0.0;
+  if(!PivotHftSelectCurrentAdmissibleLevel(close_price,
+                                           micro_bar_time,
+                                           direction,
+                                           level,
+                                           level_price) ||
+     direction != g_pivot_hft_campaign.direction ||
+     !DailySignalLimitAllowsAttempt(direction) ||
+     !PivotHftLevelIsStrictlyDeeper(
+       direction,
+       level,
+       g_pivot_hft_campaign.pivot_level))
+    return false;
+
+  double fresh_extreme = PivotHftCurrentEntryQuote(direction);
+  if(fresh_extreme <= 0.0)
+    return false;
+  if(g_pivot_hft_supersession_candidate.valid)
+    return false;
+
+  PivotHftCampaignState previous_campaign = g_pivot_hft_campaign;
+  int previous_retry_number = PivotHftMarketRetryNumber(
+    previous_campaign.retry_ordinal);
+  PivotHftSupersessionCandidate candidate =
+    PivotHftBuildSupersessionCandidate(
+      direction,
+      level,
+      level_price,
+      micro_bar_time,
+      PivotHftExecutionSourceForRetry(previous_retry_number),
+      previous_campaign.pivot_level,
+      previous_campaign.pivot_price,
+      previous_campaign.retry_source_ticket,
+      0,
+      previous_campaign.retry_source_id,
+      previous_campaign.sequence_id,
+      previous_retry_number);
+  PivotHftLatchSupersessionCandidate(candidate);
+
+  PivotHftStartCampaign(direction,
+                        level,
+                        level_price,
+                        micro_bar_time);
+  g_pivot_hft_campaign.tracked_extreme = fresh_extreme;
+  PivotHftCampaignState replacement_campaign = g_pivot_hft_campaign;
+  PivotHftCaptureReplacedCampaignVisual(previous_campaign,
+                                        replacement_campaign,
+                                        micro_bar_time,
+                                        "deeper_pivot_superseded");
+  PivotHftTerminateSupersessionCandidate(
+    "promoted_from_tracking_retry",
+    replacement_campaign.sequence_id);
+  PivotHftAuditLog("RETRY_CAMPAIGN_SUPERSEDED",
+                   StringFormat("previous_sequence=%s|previous_level=%s|previous_retry_number=%d|previous_execution_source=%s|sequence=%s|level=%s|retry_number=0|execution_source=BROKER|fresh_extreme=%.5f",
+                                previous_campaign.sequence_id,
+                                PivotHftLevelLabel(
+                                  previous_campaign.pivot_level),
+                                previous_retry_number,
+                                PivotHftExecutionSourceLabel(
+                                  PivotHftExecutionSourceForRetry(
+                                    previous_retry_number)),
+                                replacement_campaign.sequence_id,
+                                PivotHftLevelLabel(
+                                  replacement_campaign.pivot_level),
+                                fresh_extreme));
   return true;
 }
 
@@ -381,7 +595,10 @@ void PivotHftReplaceCampaignIfLatestLevelChanged(const double close_price,
   if(g_pivot_hft_campaign.status != PIVOT_HFT_CAMPAIGN_IDLE &&
      PivotHftCampaignBelongsToCurrentMicroBar() &&
      g_pivot_hft_campaign.direction == direction &&
-     (int)level < (int)g_pivot_hft_campaign.pivot_level)
+     !PivotHftLevelIsStrictlyDeeper(
+       direction,
+       level,
+       g_pivot_hft_campaign.pivot_level))
     return;
   PivotHftStartCampaign(direction, level, level_price, micro_bar_time);
   if(replacing_campaign)
@@ -565,7 +782,8 @@ void PivotHftMarkEntryRetryable()
   }
 }
 
-bool PivotHftDetectEntryIntent(const bool allow_new_campaign)
+bool PivotHftDetectEntryIntent(const bool allow_new_campaign,
+                               const bool allow_candidate_observation)
 {
   datetime current_micro_bar = PivotHftCurrentMicroBar();
   if(current_micro_bar <= 0)
@@ -577,10 +795,28 @@ bool PivotHftDetectEntryIntent(const bool allow_new_campaign)
     return false;
   PivotHftObserveMicroBarTransition(current_micro_bar);
 
+  double close_price = 0.0;
+  if(allow_candidate_observation ||
+     (allow_new_campaign &&
+      (g_pivot_hft_campaign.status == PIVOT_HFT_CAMPAIGN_TRACKING ||
+       g_pivot_hft_campaign.status == PIVOT_HFT_CAMPAIGN_ORDER_WAIT)))
+    close_price = PivotHftCurrentMicroClose();
+
+  if(allow_candidate_observation && close_price > 0.0)
+    PivotHftObserveDeeperSupersessionCandidate(close_price,
+                                               current_micro_bar);
+
+  if(allow_new_campaign && close_price > 0.0)
+    PivotHftSupersedePendingRetryCampaign(close_price,
+                                          current_micro_bar);
+
   if(g_pivot_hft_campaign.status == PIVOT_HFT_CAMPAIGN_TRACKING &&
-     PivotHftCampaignBelongsToCurrentMicroBar())
+     PivotHftCampaignBelongsToCurrentMicroBar() &&
+     PivotHftMarketRetryNumber(g_pivot_hft_campaign.retry_ordinal) == 0)
   {
-    double tracking_close = PivotHftCurrentMicroClose();
+    double tracking_close = close_price;
+    if(tracking_close <= 0.0)
+      tracking_close = PivotHftCurrentMicroClose();
     if(tracking_close > 0.0)
       PivotHftReplaceCampaignIfLatestLevelChanged(tracking_close,
                                                   current_micro_bar);
@@ -598,7 +834,8 @@ bool PivotHftDetectEntryIntent(const bool allow_new_campaign)
   if(!allow_new_campaign)
     return false;
 
-  double close_price = PivotHftCurrentMicroClose();
+  if(close_price <= 0.0)
+    close_price = PivotHftCurrentMicroClose();
   if(close_price <= 0.0)
     return false;
 

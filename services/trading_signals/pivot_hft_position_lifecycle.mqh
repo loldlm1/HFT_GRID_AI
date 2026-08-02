@@ -625,6 +625,29 @@ bool PivotHftTryRearmClosedPosition(PivotHftPositionState &position_state)
                        current_micro_bar);
     return false;
   }
+  if(g_pivot_hft_supersession_candidate.valid &&
+     PivotHftSupersessionCandidateOwnedByPosition(
+       g_pivot_hft_supersession_candidate,
+       position_state))
+  {
+    bool retry_superseded = false;
+    bool retry_disabled = false;
+    if(PivotHftPromoteSupersessionCandidate(position_state,
+                                            current_micro_bar,
+                                            retry_superseded,
+                                            retry_disabled))
+    {
+      position_state.reattempt_pending = false;
+      if(position_state.entry_micro_bar_time == current_micro_bar)
+      {
+        PivotHftMarkCampaignLevelCompleted(
+          position_state.entry_micro_bar_time,
+          position_state.pivot_level);
+      }
+      position_state.status = PIVOT_HFT_POSITION_COMPLETED;
+      return true;
+    }
+  }
   if(!PivotHftRecoveryAllowsSignalAttempts())
   {
     PivotHftDeferRetry(position_state,
@@ -785,6 +808,138 @@ bool PivotHftTryRearmClosedPosition(PivotHftPositionState &position_state)
   return true;
 }
 
+bool PivotHftSupersessionPromotionReady(
+  const PivotHftPositionState &position_state,
+  string &reason)
+{
+  reason = "";
+  if(!g_pivot_hft_supersession_candidate.valid ||
+     !PivotHftSupersessionCandidateOwnedByPosition(
+       g_pivot_hft_supersession_candidate,
+       position_state))
+    reason = "candidate_owner_mismatch";
+  else if(!PivotHftLevelIsStrictlyDeeper(
+            position_state.direction,
+            g_pivot_hft_supersession_candidate.pivot_level,
+            position_state.pivot_level))
+    reason = "candidate_not_deeper";
+  else if(!PivotHftSupersessionCandidateMatchesPivotSnapshot(
+            g_pivot_hft_supersession_candidate,
+            g_pivot_hft_pivots,
+            g_pivot_hft_last_macro_bar) ||
+          !PivotHftPositionMatchesPivotSnapshot(position_state,
+                                                g_pivot_hft_pivots))
+    reason = "pivot_set_changed";
+  else if(!PivotHftRecoveryAllowsSignalAttempts())
+    reason = "recovery_block";
+  else if(!SessionTimeFilterAllowsSignalAttempt())
+    reason = "session_closed";
+  else if(!PivotHftIndicatorsReady())
+    reason = "signal_resources_unavailable";
+  else if(g_pivot_hft_campaign.status != PIVOT_HFT_CAMPAIGN_IDLE)
+    reason = "campaign_slot_busy";
+  else if(PivotHftHasOtherBlockingPositionLifecycle(
+            PivotHftPositionExecutionId(position_state),
+            position_state.position_ticket))
+    reason = "position_lifecycle_busy";
+  else if(PivotHftHasManagedBrokerPosition())
+    reason = "broker_position_busy";
+  return (reason == "");
+}
+
+bool PivotHftPromoteSupersessionCandidate(
+  PivotHftPositionState &position_state,
+  const datetime current_micro_bar,
+  bool &retry_superseded,
+  bool &retry_disabled)
+{
+  retry_superseded = false;
+  retry_disabled = false;
+  string reason = "";
+  if(!PivotHftSupersessionPromotionReady(position_state, reason))
+  {
+    PivotHftTerminateSupersessionCandidate(reason);
+    return false;
+  }
+
+  double fresh_extreme = PivotHftCurrentEntryQuote(position_state.direction);
+  if(current_micro_bar <= 0 || fresh_extreme <= 0.0)
+  {
+    PivotHftTerminateSupersessionCandidate(
+      current_micro_bar <= 0 ? "micro_bar_unavailable"
+                             : "entry_quote_unavailable");
+    return false;
+  }
+
+  PivotHftSupersessionCandidate candidate =
+    g_pivot_hft_supersession_candidate;
+  PivotHftStartCampaign(candidate.direction,
+                        candidate.pivot_level,
+                        candidate.pivot_price,
+                        current_micro_bar);
+  g_pivot_hft_campaign.tracked_extreme = fresh_extreme;
+  position_state.reattempt_pending = false;
+  bool same_level_retry_allowed = PivotHftSameLevelRetryAllowed(
+    position_state.next_retry_number);
+  if(same_level_retry_allowed)
+  {
+    retry_superseded = true;
+    PivotHftSetRetryState(position_state,
+                          PIVOT_HFT_RETRY_SUPERSEDED,
+                          "deeper_pivot_promoted");
+  }
+  else
+  {
+    retry_disabled = PivotHftSetRetryState(
+      position_state,
+      PIVOT_HFT_RETRY_DISABLED,
+      "start_real_retry_zero");
+  }
+  PivotHftTerminateSupersessionCandidate(
+    "promoted_after_non_positive_close",
+    g_pivot_hft_campaign.sequence_id);
+  if(same_level_retry_allowed)
+  {
+    PivotHftAuditLog("RETRY_SUPERSEDED",
+                     StringFormat("%s|suppressed_retry_number=%d|suppressed_execution_source=%s|promoted_sequence=%s|promoted_level=%s|promoted_retry_number=0|promoted_execution_source=BROKER|fresh_extreme=%.5f|candidate_admission_bar=%I64d",
+                                  PivotHftRetryDecisionAuditFields(
+                                    position_state,
+                                    current_micro_bar),
+                                  position_state.next_retry_number,
+                                  PivotHftExecutionSourceLabel(
+                                    position_state.next_retry_execution_source),
+                                  g_pivot_hft_campaign.sequence_id,
+                                  PivotHftLevelLabel(
+                                    g_pivot_hft_campaign.pivot_level),
+                                  fresh_extreme,
+                                  (long)candidate.admission_micro_bar));
+  }
+  PivotHftCaptureTerminalRetryVisual(position_state,
+                                     current_micro_bar);
+  return true;
+}
+
+string PivotHftSupersessionFinalizationDiscardReason(
+  const PivotHftPositionState &position_state,
+  const double net_result)
+{
+  if(net_result > 0.0)
+    return "positive_close";
+  if(position_state.close_trigger == PIVOT_HFT_CLOSE_TRIGGER_EXTERNAL)
+    return "external_or_protection_close";
+  if(position_state.close_trigger ==
+       PIVOT_HFT_CLOSE_TRIGGER_REGISTRATION_FAILURE)
+    return "registration_failure";
+  if(position_state.close_trigger ==
+       PIVOT_HFT_CLOSE_TRIGGER_RECOVERY_FAILURE)
+    return "recovery_failure";
+  if(position_state.emergency_lifecycle)
+    return "emergency_lifecycle";
+  if(!position_state.close_requested)
+    return "non_local_close";
+  return "retry_ineligible_close";
+}
+
 void PivotHftCompletePositionFinalization(
   PivotHftPositionState &position_state,
   const double net_result,
@@ -821,44 +976,69 @@ void PivotHftCompletePositionFinalization(
   int next_retry_number = position_state.next_retry_number;
   PivotHftExecutionSources next_execution_source =
     position_state.next_retry_execution_source;
+  bool candidate_owned =
+    (g_pivot_hft_supersession_candidate.valid &&
+     PivotHftSupersessionCandidateOwnedByPosition(
+       g_pivot_hft_supersession_candidate,
+       position_state));
+  bool candidate_promoted = false;
+  bool superseded_transition = false;
+  bool disabled_transition = false;
+  datetime current_micro_bar = PivotHftCurrentMicroBar();
+  if(candidate_owned && retry_eligible)
+  {
+    candidate_promoted = PivotHftPromoteSupersessionCandidate(
+      position_state,
+      current_micro_bar,
+      superseded_transition,
+      disabled_transition);
+  }
+  else if(candidate_owned)
+  {
+    PivotHftTerminateSupersessionCandidate(
+      PivotHftSupersessionFinalizationDiscardReason(position_state,
+                                                    net_result));
+  }
   position_state.reattempt_pending =
-    (retry_eligible &&
+    (retry_eligible && !candidate_promoted &&
      PivotHftSameLevelRetryAllowed(next_retry_number));
   bool pending_transition = false;
-  bool disabled_transition = false;
-  if(position_state.reattempt_pending)
+  if(!candidate_promoted)
   {
-    pending_transition = PivotHftSetRetryState(
-      position_state,
-      PIVOT_HFT_RETRY_PENDING,
-      "eligible_non_positive_close");
-  }
-  else if(retry_eligible)
-  {
-    disabled_transition = PivotHftSetRetryState(
-      position_state,
-      PIVOT_HFT_RETRY_DISABLED,
-      "start_real_retry_zero");
-  }
-  else if(position_state.emergency_lifecycle)
-  {
-    disabled_transition = PivotHftSetRetryState(
-      position_state,
-      PIVOT_HFT_RETRY_DISABLED,
-      position_state.close_trigger ==
-        PIVOT_HFT_CLOSE_TRIGGER_RECOVERY_FAILURE
-          ? "recovery_failure"
-          : "registration_failure");
-  }
-  else
-  {
-    PivotHftSetRetryState(position_state,
-                          PIVOT_HFT_RETRY_NONE,
-                          "");
+    if(position_state.reattempt_pending)
+    {
+      pending_transition = PivotHftSetRetryState(
+        position_state,
+        PIVOT_HFT_RETRY_PENDING,
+        "eligible_non_positive_close");
+    }
+    else if(retry_eligible)
+    {
+      disabled_transition = PivotHftSetRetryState(
+        position_state,
+        PIVOT_HFT_RETRY_DISABLED,
+        "start_real_retry_zero");
+    }
+    else if(position_state.emergency_lifecycle)
+    {
+      disabled_transition = PivotHftSetRetryState(
+        position_state,
+        PIVOT_HFT_RETRY_DISABLED,
+        position_state.close_trigger ==
+          PIVOT_HFT_CLOSE_TRIGGER_RECOVERY_FAILURE
+            ? "recovery_failure"
+            : "registration_failure");
+    }
+    else
+    {
+      PivotHftSetRetryState(position_state,
+                            PIVOT_HFT_RETRY_NONE,
+                            "");
+    }
   }
 
   PivotHftAuditLog("POSITION_FINALIZED",
-                   StringFormat("%s|position_id=%I64u|dir=%s|level=%s|close_trigger=%s|trigger_time=%I64d|trigger_quote=%.5f|trigger_stop=%.5f|trigger_target=%.5f|trigger_step=%d|exit_deal=%I64u|close_price=%.5f|exit_deals=%d|net=%.5f|net_class=%s|close_requested=%d|close_confirmed=%d|retry_number=%d|retry_ordinal=%d|next_retry_number=%d|next_execution_source=%s|start_real_retry=%d|reattempt=%d|close_time=%I64d|%s|%s",
+                   StringFormat("%s|position_id=%I64u|dir=%s|level=%s|close_trigger=%s|trigger_time=%I64d|trigger_quote=%.5f|trigger_stop=%.5f|trigger_target=%.5f|trigger_step=%d|exit_deal=%I64u|close_price=%.5f|exit_deals=%d|net=%.5f|net_class=%s|close_requested=%d|close_confirmed=%d|retry_number=%d|retry_ordinal=%d|next_retry_number=%d|next_execution_source=%s|start_real_retry=%d|reattempt=%d|candidate_promoted=%d|retry_superseded=%d|close_time=%I64d|%s|%s",
                                  PivotHftPositionAuditIdentityFields(
                                    position_state),
                                  position_state.position_identifier,
@@ -885,12 +1065,13 @@ void PivotHftCompletePositionFinalization(
                                    next_execution_source),
                                  Pivot_HFT_Start_Real_Retry,
                                  (int)position_state.reattempt_pending,
+                                 (int)candidate_promoted,
+                                 (int)superseded_transition,
                                  (long)position_state.close_time,
                                  PivotHftPositionRiskAuditFields(
                                    position_state),
                                   PivotHftExecutionModelAuditFields(
                                     position_state)));
-  datetime current_micro_bar = PivotHftCurrentMicroBar();
   if(pending_transition)
   {
     PivotHftAuditLog("REARM_PENDING",
@@ -1047,6 +1228,12 @@ void PivotHftFinalizeClosedPosition(PivotHftPositionState &position_state)
 void PivotHftAbortVirtualPosition(PivotHftPositionState &position_state,
                                   const string reason)
 {
+  if(g_pivot_hft_supersession_candidate.valid &&
+     PivotHftSupersessionCandidateOwnedByPosition(
+       g_pivot_hft_supersession_candidate,
+       position_state))
+    PivotHftTerminateSupersessionCandidate(
+      "virtual_lifecycle_aborted");
   PivotHftAuditLog("VIRTUAL_LIFECYCLE_ABORTED",
                    StringFormat("%s|sequence=%s|dir=%s|level=%s|retry_number=%d|retry_ordinal=%d|reason=%s",
                                 PivotHftPositionAuditIdentityFields(

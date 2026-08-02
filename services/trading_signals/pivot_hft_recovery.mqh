@@ -4,7 +4,8 @@
 #ifndef _SERVICES_TRADING_SIGNALS_PIVOT_HFT_RECOVERY_MQH_
 #define _SERVICES_TRADING_SIGNALS_PIVOT_HFT_RECOVERY_MQH_
 
-const int PIVOT_HFT_RECOVERY_SCHEMA_VERSION = 1;
+const int PIVOT_HFT_RECOVERY_SCHEMA_VERSION = 2;
+const int PIVOT_HFT_RECOVERY_MIN_SCHEMA_VERSION = 1;
 const int PIVOT_HFT_RECOVERY_SLOT_A = 0;
 const int PIVOT_HFT_RECOVERY_SLOT_B = 1;
 const int PIVOT_HFT_RECOVERY_MAX_FILE_BYTES = 262144;
@@ -58,6 +59,7 @@ struct PivotHftRecoveryRecord
   string payload_checksum;
   string payload;
   PivotHftPositionState position_state;
+  PivotHftSupersessionCandidate supersession_candidate;
 
   PivotHftRecoveryRecord()
   {
@@ -69,6 +71,7 @@ struct PivotHftRecoveryRecord
     payload_checksum = "";
     payload = "";
     position_state = PivotHftPositionState();
+    supersession_candidate = PivotHftSupersessionCandidate();
   }
 };
 
@@ -798,6 +801,179 @@ string PivotHftRecoverySerializePositionState(
   return payload;
 }
 
+void PivotHftRecoveryAppendSupersessionCandidate(
+  string &payload,
+  const PivotHftSupersessionCandidate &candidate)
+{
+  PivotHftRecoveryAddBoolField(payload,
+                               "candidate_valid",
+                               candidate.valid);
+  PivotHftRecoveryAddIntField(payload,
+                              "candidate_direction",
+                              (int)candidate.direction);
+  PivotHftRecoveryAddIntField(payload,
+                              "candidate_level",
+                              (int)candidate.pivot_level);
+  PivotHftRecoveryAddDoubleField(payload,
+                                 "candidate_price",
+                                 candidate.pivot_price);
+  PivotHftRecoveryAddLongField(payload,
+                               "candidate_activation_bar",
+                               (long)candidate.pivot_activation_bar);
+  PivotHftRecoveryAddLongField(payload,
+                               "candidate_source_bar",
+                               (long)candidate.pivot_source_bar);
+  PivotHftRecoveryAddLongField(payload,
+                               "candidate_admission_bar",
+                               (long)candidate.admission_micro_bar);
+  PivotHftRecoveryAddLongField(payload,
+                               "candidate_admitted_at",
+                               (long)candidate.admitted_at);
+  PivotHftRecoveryAddIntField(payload,
+                              "candidate_owner_execution_source",
+                              (int)candidate.owner_execution_source);
+  PivotHftRecoveryAddIntField(payload,
+                              "candidate_owner_level",
+                              (int)candidate.owner_pivot_level);
+  PivotHftRecoveryAddDoubleField(payload,
+                                 "candidate_owner_price",
+                                 candidate.owner_pivot_price);
+  PivotHftRecoveryAddUlongField(payload,
+                                "candidate_owner_ticket",
+                                candidate.owner_position_ticket);
+  PivotHftRecoveryAddUlongField(payload,
+                                "candidate_owner_position_id",
+                                candidate.owner_position_identifier);
+  PivotHftRecoveryAddStringField(payload,
+                                 "candidate_owner_execution_id",
+                                 candidate.owner_execution_id);
+  PivotHftRecoveryAddStringField(payload,
+                                 "candidate_owner_sequence",
+                                 candidate.owner_campaign_sequence_id);
+  PivotHftRecoveryAddIntField(payload,
+                              "candidate_owner_retry_number",
+                              candidate.owner_retry_number);
+  PivotHftRecoveryAddLongField(payload,
+                               "candidate_terminal_time",
+                               (long)candidate.terminal_time);
+  PivotHftRecoveryAddStringField(payload,
+                                 "candidate_terminal_reason",
+                                 candidate.terminal_reason);
+  PivotHftRecoveryAddStringField(payload,
+                                 "candidate_promoted_sequence",
+                                 candidate.promoted_sequence_id);
+}
+
+string PivotHftRecoverySerializeCheckpointPayload(
+  const PivotHftPositionState &position_state)
+{
+  string payload = PivotHftRecoverySerializePositionState(
+    position_state);
+  PivotHftRecoveryAppendSupersessionCandidate(
+    payload,
+    g_pivot_hft_supersession_candidate);
+  return payload;
+}
+
+bool PivotHftRecoveryDeserializeSupersessionCandidate(
+  const string payload,
+  const int schema_version,
+  PivotHftSupersessionCandidate &candidate)
+{
+  candidate = PivotHftSupersessionCandidate();
+  if(schema_version < 2)
+    return true;
+
+  int int_value = 0;
+  long long_value = 0;
+  if(!PivotHftRecoveryParseBoolField(payload,
+                                     "candidate_valid",
+                                     candidate.valid) ||
+     !PivotHftRecoveryParseIntField(payload,
+                                    "candidate_direction",
+                                    int_value))
+    return false;
+  candidate.direction = (SignalTypes)int_value;
+  if(!PivotHftRecoveryParseIntField(payload,
+                                    "candidate_level",
+                                    int_value))
+    return false;
+  candidate.pivot_level = (PivotHftPivotLevels)int_value;
+  if(!PivotHftRecoveryParseDoubleField(payload,
+                                       "candidate_price",
+                                       candidate.pivot_price) ||
+     !PivotHftRecoveryParseLongField(payload,
+                                     "candidate_activation_bar",
+                                     long_value))
+    return false;
+  candidate.pivot_activation_bar = (datetime)long_value;
+  if(!PivotHftRecoveryParseLongField(payload,
+                                     "candidate_source_bar",
+                                     long_value))
+    return false;
+  candidate.pivot_source_bar = (datetime)long_value;
+  if(!PivotHftRecoveryParseLongField(payload,
+                                     "candidate_admission_bar",
+                                     long_value))
+    return false;
+  candidate.admission_micro_bar = (datetime)long_value;
+  if(!PivotHftRecoveryParseLongField(payload,
+                                     "candidate_admitted_at",
+                                     long_value))
+    return false;
+  candidate.admitted_at = (datetime)long_value;
+  if(!PivotHftRecoveryParseIntField(
+       payload,
+       "candidate_owner_execution_source",
+       int_value))
+    return false;
+  candidate.owner_execution_source =
+    (PivotHftExecutionSources)int_value;
+  if(!PivotHftRecoveryParseIntField(payload,
+                                    "candidate_owner_level",
+                                    int_value))
+    return false;
+  candidate.owner_pivot_level = (PivotHftPivotLevels)int_value;
+  if(!PivotHftRecoveryParseDoubleField(payload,
+                                       "candidate_owner_price",
+                                       candidate.owner_pivot_price) ||
+     !PivotHftRecoveryParseUlongField(
+       payload,
+       "candidate_owner_ticket",
+       candidate.owner_position_ticket) ||
+     !PivotHftRecoveryParseUlongField(
+       payload,
+       "candidate_owner_position_id",
+       candidate.owner_position_identifier) ||
+     !PivotHftRecoveryParseStringField(
+       payload,
+       "candidate_owner_execution_id",
+       candidate.owner_execution_id) ||
+     !PivotHftRecoveryParseStringField(
+       payload,
+       "candidate_owner_sequence",
+       candidate.owner_campaign_sequence_id) ||
+     !PivotHftRecoveryParseIntField(
+       payload,
+       "candidate_owner_retry_number",
+       candidate.owner_retry_number) ||
+     !PivotHftRecoveryParseLongField(payload,
+                                     "candidate_terminal_time",
+                                     long_value))
+    return false;
+  candidate.terminal_time = (datetime)long_value;
+  if(!PivotHftRecoveryParseStringField(
+       payload,
+       "candidate_terminal_reason",
+       candidate.terminal_reason) ||
+     !PivotHftRecoveryParseStringField(
+       payload,
+       "candidate_promoted_sequence",
+       candidate.promoted_sequence_id))
+    return false;
+  return true;
+}
+
 bool PivotHftRecoveryDeserializePositionState(
   const string payload,
   PivotHftPositionState &state)
@@ -1151,7 +1327,7 @@ bool PivotHftRecoveryPositionStateValid(
      state.net_class < PIVOT_HFT_NET_NONE ||
      state.net_class > PIVOT_HFT_NET_FLAT ||
      state.retry_state < PIVOT_HFT_RETRY_NONE ||
-     state.retry_state > PIVOT_HFT_RETRY_INVALIDATED ||
+     state.retry_state > PIVOT_HFT_RETRY_SUPERSEDED ||
      state.pivot_level < PIVOT_HFT_LEVEL_NONE ||
      state.pivot_level > PIVOT_HFT_LEVEL_S3)
     return false;
@@ -1188,6 +1364,45 @@ bool PivotHftRecoveryPositionStateValid(
       return false;
   }
   return true;
+}
+
+bool PivotHftRecoverySupersessionCandidateValid(
+  const PivotHftSupersessionCandidate &candidate,
+  const PivotHftPositionState &position_state)
+{
+  if(!candidate.valid)
+    return true;
+  if(candidate.direction != BULLISH && candidate.direction != BEARISH)
+    return false;
+  if(candidate.owner_execution_source != PIVOT_HFT_EXECUTION_BROKER ||
+     candidate.pivot_price <= 0.0 ||
+     candidate.owner_pivot_price <= 0.0 ||
+     candidate.pivot_activation_bar <= 0 ||
+     candidate.pivot_source_bar <= 0 ||
+     candidate.admission_micro_bar <= 0 ||
+     candidate.admitted_at <= 0 ||
+     candidate.owner_position_ticket == 0 ||
+     candidate.owner_position_identifier == 0 ||
+     candidate.owner_execution_id == "" ||
+     candidate.owner_campaign_sequence_id == "" ||
+     candidate.owner_retry_number < 0 ||
+     candidate.terminal_time != 0 ||
+     candidate.terminal_reason != "" ||
+     candidate.promoted_sequence_id != "")
+    return false;
+  if(!MathIsValidNumber(candidate.pivot_price) ||
+     !MathIsValidNumber(candidate.owner_pivot_price) ||
+     !PivotHftLevelIsStrictlyDeeper(candidate.direction,
+                                    candidate.pivot_level,
+                                    candidate.owner_pivot_level) ||
+     !PivotHftSupersessionCandidateOwnedByPosition(candidate,
+                                                   position_state) ||
+     candidate.owner_retry_number != PivotHftMarketRetryNumber(
+       position_state.campaign_retry_ordinal))
+    return false;
+  double tolerance = PivotHftTickSize() * 0.5;
+  return (MathAbs(candidate.owner_pivot_price -
+                  position_state.pivot_price) <= tolerance);
 }
 
 string PivotHftRecoveryChecksum(const int schema_version,
@@ -1393,7 +1608,8 @@ bool PivotHftRecoveryParseRecordText(
     reason = "record_number_invalid";
     return false;
   }
-  if(schema_value != PIVOT_HFT_RECOVERY_SCHEMA_VERSION)
+  if(schema_value < PIVOT_HFT_RECOVERY_MIN_SCHEMA_VERSION ||
+     schema_value > PIVOT_HFT_RECOVERY_SCHEMA_VERSION)
   {
     reason = "record_schema_mismatch";
     return false;
@@ -1434,6 +1650,19 @@ bool PivotHftRecoveryParseRecordText(
     return false;
   }
 
+  PivotHftSupersessionCandidate supersession_candidate;
+  if(!PivotHftRecoveryDeserializeSupersessionCandidate(
+       payload,
+       (int)schema_value,
+       supersession_candidate) ||
+     !PivotHftRecoverySupersessionCandidateValid(
+       supersession_candidate,
+       position_state))
+  {
+    reason = "record_candidate_state_invalid";
+    return false;
+  }
+
   record.valid = true;
   record.schema_version = (int)schema_value;
   record.slot = (int)slot_value;
@@ -1442,6 +1671,7 @@ bool PivotHftRecoveryParseRecordText(
   record.payload_checksum = checksum;
   record.payload = payload;
   record.position_state = position_state;
+  record.supersession_candidate = supersession_candidate;
   return true;
 }
 
@@ -1625,7 +1855,8 @@ bool PivotHftRecoveryWriteCheckpoint(
                      PIVOT_HFT_RECOVERY_SLOT_A)
                   ? PIVOT_HFT_RECOVERY_SLOT_B
                   : PIVOT_HFT_RECOVERY_SLOT_A;
-  string payload = PivotHftRecoverySerializePositionState(position_state);
+  string payload = PivotHftRecoverySerializeCheckpointPayload(
+    position_state);
   string record_text = PivotHftRecoveryBuildRecordText(next_slot,
                                                        next_generation,
                                                        payload);
@@ -1652,8 +1883,9 @@ bool PivotHftRecoveryWriteCheckpoint(
 
   g_pivot_hft_recovery_generation = next_generation;
   g_pivot_hft_recovery_active_slot = next_slot;
+  PivotHftMarkSupersessionCheckpointPersisted();
   PivotHftAuditLog("RECOVERY_CHECKPOINT",
-                   StringFormat("generation=%I64u|slot=%d|transition=%s|ticket=%I64u|position_id=%I64u|status=%s|close_trigger=%s|trailing_step=%d",
+                   StringFormat("generation=%I64u|slot=%d|transition=%s|ticket=%I64u|position_id=%I64u|status=%s|close_trigger=%s|trailing_step=%d|candidate_valid=%d|candidate_level=%s",
                                 next_generation,
                                 next_slot,
                                 transition,
@@ -1661,7 +1893,10 @@ bool PivotHftRecoveryWriteCheckpoint(
                                 position_state.position_identifier,
                                 EnumToString(position_state.status),
                                 EnumToString(position_state.close_trigger),
-                                position_state.trailing_step_index));
+                                position_state.trailing_step_index,
+                                (int)g_pivot_hft_supersession_candidate.valid,
+                                EnumToString(
+                                  g_pivot_hft_supersession_candidate.pivot_level)));
   return true;
 }
 
@@ -1684,6 +1919,11 @@ void PivotHftRecoveryQuarantinePositionState(
   PivotHftPositionState &position_state,
   const string reason)
 {
+  if(g_pivot_hft_supersession_candidate.valid &&
+     PivotHftSupersessionCandidateOwnedByPosition(
+       g_pivot_hft_supersession_candidate,
+       position_state))
+    PivotHftTerminateSupersessionCandidate("recovery_quarantine");
   position_state.status = PIVOT_HFT_POSITION_CLOSE_WAIT;
   position_state.close_trigger = PIVOT_HFT_CLOSE_TRIGGER_RECOVERY_FAILURE;
   if(position_state.close_trigger_time <= 0)
@@ -1761,6 +2001,35 @@ bool PivotHftRecoveryCheckpointOrQuarantine(
                               transition + ":" + reason);
   }
   return false;
+}
+
+bool PivotHftRecoveryFlushSupersessionCheckpoint()
+{
+  if(!PivotHftSupersessionCheckpointPending())
+    return true;
+
+  int owner_index = PivotHftFindSupersessionOwnerPositionIndex();
+  if(owner_index < 0 ||
+     g_pivot_hft_positions[owner_index].execution_source !=
+       PIVOT_HFT_EXECUTION_BROKER ||
+     (g_pivot_hft_positions[owner_index].status !=
+        PIVOT_HFT_POSITION_ACTIVE &&
+      g_pivot_hft_positions[owner_index].status !=
+        PIVOT_HFT_POSITION_CLOSE_WAIT))
+  {
+    PivotHftMarkSupersessionCheckpointPersisted();
+    return true;
+  }
+
+  string transition = PivotHftSupersessionCheckpointTransition();
+  if(transition == "")
+    transition = "candidate_transition";
+  bool persisted = PivotHftRecoveryCheckpointOrQuarantine(
+    g_pivot_hft_positions[owner_index],
+    transition);
+  if(!persisted)
+    PivotHftMarkSupersessionCheckpointPersisted();
+  return persisted;
 }
 
 ulong PivotHftRecoveryFindEntryDeal(const ulong position_identifier,
@@ -2158,8 +2427,11 @@ bool PivotHftRecoveryRestoreRecord(
      restored_state.close_retry_after <= TimeCurrent())
     restored_state.close_send_confirmed = false;
   PivotHftRecoveryRestoreDailyStart(restored_state);
+  PivotHftRestoreSupersessionCandidate(
+    record.supersession_candidate);
   if(!PivotHftAppendPositionState(restored_state))
   {
+    PivotHftResetSupersessionCandidate();
     reason = "recovered_state_append_failed";
     return false;
   }
@@ -2169,6 +2441,7 @@ bool PivotHftRecoveryRestoreRecord(
     restored_state.position_ticket);
   if(state_index < 0)
   {
+    PivotHftResetSupersessionCandidate();
     reason = "recovered_state_lookup_failed";
     return false;
   }
@@ -2187,19 +2460,24 @@ bool PivotHftRecoveryRestoreRecord(
       : PIVOT_HFT_RECOVERY_RECOVERED;
   PivotHftRecoverySetStatus(status, "exact_checkpoint_restored");
   PivotHftAuditLog("RECOVERY_POSITION_RESTORED",
-                   StringFormat("generation=%I64u|ticket=%I64u|position_id=%I64u|status=%s|local_sl=%.5f|local_tp=%.5f|trailing_step=%d",
+                   StringFormat("generation=%I64u|schema=%d|ticket=%I64u|position_id=%I64u|status=%s|local_sl=%.5f|local_tp=%.5f|trailing_step=%d|candidate_valid=%d|candidate_level=%s",
                                 record.generation,
+                                record.schema_version,
                                 restored_state.position_ticket,
                                 restored_state.position_identifier,
                                 EnumToString(restored_state.status),
                                 restored_state.local_sl_price,
                                 restored_state.local_tp_price,
-                                restored_state.trailing_step_index));
+                                restored_state.trailing_step_index,
+                                (int)g_pivot_hft_supersession_candidate.valid,
+                                EnumToString(
+                                  g_pivot_hft_supersession_candidate.pivot_level)));
   return true;
 }
 
 bool PivotHftRecoveryInitialize()
 {
+  PivotHftResetSupersessionCandidate();
   g_pivot_hft_recovery_initialized = false;
   g_pivot_hft_recovery_storage_ready = false;
   g_pivot_hft_recovery_reason = "";

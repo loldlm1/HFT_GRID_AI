@@ -72,6 +72,7 @@ bool PivotHftSetSignalResourcesActive(const bool should_be_active)
     }
     PivotHftInvalidatePendingRetries("session_closed",
                                      current_micro_bar);
+    PivotHftTerminateSupersessionCandidate("session_closed");
     if(g_pivot_hft_campaign.status != PIVOT_HFT_CAMPAIGN_IDLE)
       PivotHftCancelPendingCampaign(
         "session_closed",

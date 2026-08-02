@@ -40,6 +40,8 @@ string PivotHftTerminalReasonLabel(const string reason)
     return "PIVOT SET REFRESH";
   if(reason == "start_real_retry_zero")
     return "RETRIES DISABLED";
+  if(reason == "deeper_pivot_superseded")
+    return "SUPERSEDED";
   return reason;
 }
 
@@ -54,6 +56,8 @@ string PivotHftCampaignDisplayStatus(
       label = "REPLACED";
     else if(campaign.terminal_reason == "start_real_retry_zero")
       label = "RETRY DISABLED";
+    else if(campaign.terminal_reason == "deeper_pivot_superseded")
+      label = "SUPERSEDED";
     else
       label = "INVALIDATED " +
               PivotHftTerminalReasonLabel(campaign.terminal_reason);
@@ -90,6 +94,43 @@ string PivotHftRetryPolicyPanelText()
   return StringFormat("INITIAL BROKER | VIRTUAL before RETRY %d | BROKER from RETRY %d inclusive | no max while chain valid",
                       Pivot_HFT_Start_Real_Retry,
                       Pivot_HFT_Start_Real_Retry);
+}
+
+string PivotHftBuildSupersessionCandidatePanelLine()
+{
+  if(!PivotHftSupersessionCandidateVisible())
+    return "";
+
+  PivotHftSupersessionCandidate candidate =
+    g_pivot_hft_supersession_candidate;
+  string status_label = "LATCHED";
+  if(!candidate.valid)
+    status_label = (candidate.promoted_sequence_id != "")
+                   ? "PROMOTED"
+                   : "DISCARDED";
+  string owner_id = candidate.owner_execution_id;
+  if(owner_id == "" && candidate.owner_position_ticket > 0)
+    owner_id = StringFormat("%I64u", candidate.owner_position_ticket);
+  if(owner_id == "")
+    owner_id = "-";
+
+  string terminal_text = "";
+  if(candidate.terminal_reason != "")
+    terminal_text = " | reason=" + candidate.terminal_reason;
+  if(candidate.promoted_sequence_id != "")
+    terminal_text += " | new=" + candidate.promoted_sequence_id;
+  return StringFormat("\nCandidate %s | %s %s %.5f | owner %s %s %s %s%s",
+                      status_label,
+                      PivotHftDirectionToken(candidate.direction),
+                      PivotHftLevelLabel(candidate.pivot_level),
+                      candidate.pivot_price,
+                      PivotHftLevelLabel(candidate.owner_pivot_level),
+                      owner_id,
+                      PivotHftRetryIdentityLabel(
+                        candidate.owner_retry_number),
+                      PivotHftExecutionSourceLabel(
+                        candidate.owner_execution_source),
+                      terminal_text);
 }
 
 string PivotHftCampaignSourceLabel(
@@ -361,6 +402,7 @@ string PivotHftBuildPanelText()
   if(recovery_reason != "")
     text += " | " + recovery_reason;
   text += "\nPolicy " + PivotHftRetryPolicyPanelText();
+  text += PivotHftBuildSupersessionCandidatePanelLine();
   text += StringFormat("\nRetrace %s | trigger %.5f | Broker %d | Virtual %d | CloseWait %d | %s",
                        retracement_text,
                        campaign.trigger_price,
