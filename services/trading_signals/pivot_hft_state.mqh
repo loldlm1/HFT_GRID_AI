@@ -242,6 +242,11 @@ struct PivotHftPositionState
   }
 };
 
+int PivotHftMarketRetryNumber(const int retry_ordinal)
+{
+  return (retry_ordinal > 1) ? retry_ordinal - 1 : 0;
+}
+
 PivotHftPivotSnapshot  g_pivot_hft_pivots;
 PivotHftCampaignState  g_pivot_hft_campaign;
 PivotHftCampaignState  g_pivot_hft_expired_visual_campaign;

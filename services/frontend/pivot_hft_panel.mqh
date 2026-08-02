@@ -31,7 +31,9 @@ string PivotHftCampaignDisplayStatus(
 {
   string label = PivotHftCampaignStatusLabel(campaign.status);
   if(campaign.retry_ordinal > 1)
-    label = StringFormat("RETRY %d %s", campaign.retry_ordinal, label);
+    label = StringFormat("RETRY %d %s",
+                         PivotHftMarketRetryNumber(campaign.retry_ordinal),
+                         label);
   if(campaign.entry_safety.blocked)
     label += " RISK BLOCKED";
   return label;
@@ -101,7 +103,9 @@ string PivotHftBuildPositionPanelLines()
     }
     string retry_text = "";
     if(state.campaign_retry_ordinal > 1)
-      retry_text = StringFormat(" | RETRY %d", state.campaign_retry_ordinal);
+      retry_text = StringFormat(
+        " | RETRY %d",
+        PivotHftMarketRetryNumber(state.campaign_retry_ordinal));
 
     text += StringFormat("\n%s #%I64u %s %s%s | E %.5f | R %.2fpt BAND | SL %.5f | STEP %.2fpt[%d]%s",
                          lifecycle_label,
@@ -218,8 +222,9 @@ string PivotHftBuildPanelText()
                        campaign.pivot_price,
                        campaign.tracked_extreme,
                        PivotHftCampaignSourceLabel(campaign));
-  text += StringFormat("\nRetrace %s | trigger quote %.5f | Live %d | CloseWait %d | %s",
+  text += StringFormat("\nRetrace %s | Retry max %d | trigger quote %.5f | Live %d | CloseWait %d | %s",
                        retracement_text,
+                       Pivot_HFT_Max_Retries_Per_Level,
                        campaign.trigger_price,
                        PivotHftPositionCountByStatus(
                          PIVOT_HFT_POSITION_ACTIVE),

@@ -1,11 +1,14 @@
 # Plan: Pivot HFT Entry Safety And Retry Visibility
 
 **Generated**: 2026-08-02
-**Status**: Implementation complete; manual Strategy Tester QA pending user
+**Status**: Implementation complete through Sprint 4; manual Strategy Tester QA
+pending user
 **Estimated Complexity**: Critical / trading-sensitive
 **Execution Policy**: One authorized contiguous batch for Sprints 1-3, with one
 statically validated commit per Sprint and one MetaEditor compile after Sprint
-3. Strategy Tester QA is deferred to the user after implementation.
+3. Sprint 4 is a separate one-Sprint trading-sensitive batch with one final
+compile and one commit. Strategy Tester QA is deferred to the user after
+implementation.
 
 ## Overview
 
@@ -26,6 +29,11 @@ admission-latched retry contract: an eligible negative or flat local close may
 rearm inside its fill candle without another Bollinger or pivot-side admission
 test.
 
+Sprint 4 extends that completed safety work with a bounded retry policy per
+pivot level. The initial entry remains attempt zero; the public retry number is
+zero-based relative to the internal campaign ordinal, so internal ordinal `2`
+is displayed and audited as market retry `1`.
+
 ## Scope
 
 - **In scope**:
@@ -40,10 +48,12 @@ test.
     retouch the original pivot.
   - Separate live positions from `CLOSE_WAIT` in the panel and object labels.
   - Extend bounded audit/config fields for deterministic Strategy Tester QA.
+  - Add a non-negative maximum market-retry input per admitted pivot level.
+  - Align audit and frontend retry numbers so the first re-entry is `RETRY 1`.
   - Update the active strategy guide and README behavior summary.
 - **Out of scope**:
   - Server-side SL/TP, pending orders, lot sizing, or account-risk sizing.
-  - A new retry cap, cooldown input, or optimization dimension.
+  - A retry cooldown, delay, simulated/paper retry, or skipped-retry model.
   - Changes to pivot admission, Bollinger calculations, latest outer-level
     replacement, winning-level consumption, session filters, daily budgets,
     protection, license, symbol/magic scope, or single-flight ownership.
@@ -77,12 +87,20 @@ test.
     quote. It does not require another pivot touch or live Bollinger-side test.
   - Rearm preserves the admitted campaign sequence id and increments its retry
     ordinal; it does not create a logically unrelated pivot campaign.
+  - `Pivot_HFT_Max_Retries_Per_Level = 0` allows only the initial market entry;
+    `N > 0` allows market retries `1..N` after their preceding non-positive
+    locally requested closes.
+  - Negative retry limits fail initialization. The default is `1`, matching the
+    requested first-retry behavior while preventing unbounded same-level churn.
+  - The existing internal ordinal remains `1` for the initial entry and `2` for
+    the first retry. User-facing audit/frontend fields derive
+    `retry_number = max(0, retry_ordinal - 1)`.
   - Frontend state remains read-only and cannot influence trading decisions.
 - **Assumptions**:
   - The existing one-tick buffered broker helper is the approved safety margin;
     no public buffer input is required for this focused correction.
-  - Legitimate rapid retries can still occur when every entry passes the new
-    safety checks. A retry cap is a separate product/risk decision.
+  - Legitimate rapid retries can still occur up to the configured per-level
+    maximum; no time cooldown is introduced.
   - The portable MetaEditor install and the user-provided real-tick US30 history
     remain available during implementation validation.
 
@@ -457,8 +475,9 @@ Sprint 3 commit, leaving both business-safety Sprints intact.
     trigger, same-fill-candle retry semantics, and frontend labels.
   - State clearly that stop/freeze values form a conservative local-EA floor;
     SL/TP remain absent on the server.
-  - Document the residual risk that valid rapid retries remain possible because
-    this plan adds no cap/cooldown.
+  - Document the then-residual risk that valid rapid retries remained possible
+    because Sprints 1-3 added no cap/cooldown. Sprint 4 supersedes the cap part
+    while retaining the no-cooldown behavior.
   - Run the single final compile and hand off the real-tick matrix below for the
     user's manual QA. Do not copy the private/full log into git.
 - **Dependencies**: Task 3.1.
@@ -509,13 +528,146 @@ Sprint 3 commit, leaving both business-safety Sprints intact.
   matrix, including the January 6 narrow-SL regression profile.
 - Rollback point: `50ff942` (revert the Sprint 3 commit).
 
+## Sprint 4: Bound Market Retries Per Pivot Level
+
+**Goal**: Let the operator cap real market retries for one admitted pivot level
+without changing initial admission, local-close classification, or audit
+sequence ownership.
+
+**Dependencies**: Sprint 3 gate and commit; existing same-fill-candle rearm,
+single-flight ownership, daily budgets, and local-close lifecycle.
+
+**Tracked scope**:
+`services/trading_management/ea_inputs.mqh`,
+`services/trading_signals/pivot_hft_state.mqh`,
+`services/trading_signals/pivot_hft_position_lifecycle.mqh`,
+`services/trading_signals/pivot_hft_detection.mqh`,
+`services/trading_signals/pivot_hft_execution.mqh`,
+`services/frontend/pivot_hft_panel.mqh`,
+`services/frontend/pivot_hft_visualization.mqh`, `HFT_Grid_AI.mq5`,
+`README.md`, `docs/guides/pivot-hft-strategy-inputs.md`, and this plan.
+
+**Commit**: `Sprint 4: bound pivot hft retries per level`
+
+**Demo/Validation**:
+
+- `0` finalizes a non-positive initial close without `POSITION_REARMED`.
+- `1` permits exactly market retry `1`; a second rearm is blocked.
+- `2` permits market retries `1` and `2`; a third rearm is blocked.
+- The panel and bounded audit payloads call internal ordinal `2` `RETRY 1`.
+- The EA compiles once with zero errors and warnings. Runtime evidence remains
+  the user's manual real-tick Strategy Tester QA.
+
+**Rollback point**: the Sprint 3 commit; rollback is a revert of the single
+Sprint 4 commit.
+
+### Task 4.1: Add And Enforce The Retry Limit
+
+- **Location**:
+  - `services/trading_management/ea_inputs.mqh`
+  - `services/trading_signals/pivot_hft_state.mqh`
+  - `services/trading_signals/pivot_hft_position_lifecycle.mqh`
+  - `HFT_Grid_AI.mq5`
+- **Description**:
+  - Add `Pivot_HFT_Max_Retries_Per_Level` as a non-negative `int`, default `1`.
+  - Keep the initial market entry outside the retry budget. Derive public retry
+    number `0` for the initial entry and `retry_ordinal - 1` afterward.
+  - At finalization of an eligible non-positive local close, rearm only when
+    the next public retry number is at most the configured maximum.
+  - When exhausted, complete the existing level lifecycle and emit one bounded
+    `RETRY_LIMIT_REACHED` event with sequence, ticket, current/next retry,
+    configured maximum, direction, level, and net result.
+  - Preserve positive-result ladder consumption, external/protection close
+    behavior, same-fill-candle expiry, pivot-set validation, daily limits,
+    symbol/magic scope, and single-flight ownership.
+  - Add the configured maximum to `CONFIG`; reject negative values during
+    `OnInit` before trading resources become active.
+- **Acceptance criteria**:
+  - `0`, `1`, and `N` mean initial-only, first retry, and retries `1..N`.
+  - Exhaustion sends no market request, creates no campaign, and consumes no
+    daily signal start.
+  - No simulated retry, hidden ordinal advance, history scan, or per-tick log is
+    introduced.
+- **Validation**:
+  - Statically trace initial ordinal `1`, retry ordinal `2`, and the next-retry
+    comparison for limits `0`, `1`, and `2`.
+  - Search every assignment/read of `retry_ordinal` and confirm the legacy
+    sequence contract remains intact.
+  - `rtk git diff --check`
+- **Rollback**: remove the input, helper, exhaustion branch, config field, and
+  validation while restoring unconditional eligible rearm.
+
+### Task 4.2: Align Retry Audit, Visuals, Docs, And Final Gate
+
+- **Location**:
+  - `services/trading_signals/pivot_hft_detection.mqh`
+  - `services/trading_signals/pivot_hft_execution.mqh`
+  - `services/frontend/pivot_hft_panel.mqh`
+  - `services/frontend/pivot_hft_visualization.mqh`
+  - `README.md`
+  - `docs/guides/pivot-hft-strategy-inputs.md`
+  - this plan
+- **Description**:
+  - Add derived `retry_number` to campaign, trigger, fill, rearm, retryable, and
+    limit audit rows while retaining `retry_ordinal` for backward correlation.
+  - Render the first re-entry as `RETRY 1`, not internal ordinal `2`, and show
+    the configured maximum in the existing panel without feeding frontend state
+    back into execution.
+  - Document exact `0`, `1`, and `N` semantics, default, same-candle boundary,
+    and absence of cooldown.
+  - Run the one final portable MetaEditor compile, inspect the fresh log, remove
+    `BUILD.log`, review the Sprint-only diff, and create one Sprint 4 commit.
+- **Acceptance criteria**:
+  - Audit consumers can distinguish internal ordinal from public retry number.
+  - Frontend labels and docs match the input semantics exactly.
+  - Full compile has zero errors and zero warnings; no harness, CI module, or
+    headless tester matrix is added.
+- **Validation**:
+  - `rtk grep "retry_number|RETRY_LIMIT_REACHED|Max_Retries" HFT_Grid_AI.mq5 services README.md docs\\guides`
+  - Compile the portable EA once, inspect `BUILD.log`, require zero
+    errors/warnings, and remove the log.
+  - `rtk git diff --check`
+  - Review symbol/magic scoping, daily-start placement, lifecycle completion,
+    frontend-only reads, bounded logging, and unrelated changes.
+- **Rollback**: revert the Sprint 4 commit, restoring unlimited eligible
+  same-candle retries and the previous ordinal labels.
+
+### Sprint 4 Gate
+
+- [x] All Sprint 4 tasks complete.
+- [x] Static `0`, `1`, and `2` retry-limit traces pass.
+- [x] The single final compile passes with zero errors and warnings.
+- [x] `BUILD.log` is inspected and removed.
+- [x] Documentation and audit/frontend retry numbers match implementation.
+- [x] Final diff contains no unrelated changes, secrets, private log content,
+  harness, CI module, or new dependency.
+- [x] Exactly one Sprint 4 commit is created with the proposed message.
+- [x] Runtime real-tick QA is explicitly handed to the user.
+
+**Execution record**:
+
+- Static checks: internal ordinal `1` maps to initial retry number `0`; limits
+  `0`, `1`, and `2` block next retry numbers `1`, `2`, and `3` respectively.
+  Exhaustion completes the level before campaign creation or daily-start
+  registration.
+- Audit/frontend: public `retry_number` is emitted alongside the preserved
+  `retry_ordinal`; the panel and chart labels render internal ordinal `2` as
+  `RETRY 1` and show the configured maximum.
+- Compile: portable MetaEditor generated the EA with `0 errors, 0 warnings` in
+  `10480 ms`; `BUILD.log` was inspected and removed.
+- Runtime QA: intentionally not run. The guide now includes the user-run
+  real-tick matrix for retry limits `0`, `1`, and `2`.
+- Rollback point: `fc62b98` (revert the Sprint 4 commit after it is created).
+
 ## Testing Strategy
 
 - **Pure/static checks**:
   - Review point/tick conversions and BUY/SELL close-side formulas.
   - Verify the safety floor uses spread plus buffered max(stops, freeze), not a
     max that would omit spread.
-  - Verify no risk value is silently widened and no new input is introduced.
+  - Verify no risk value is silently widened and the retry limit is applied
+    only after an eligible finalized close.
+  - Trace retry limits `0`, `1`, and `2` against internal ordinals `1..4`.
 - **Integration**:
   - Correlate entry intent, safety decision, broker send, fill registration,
     local close, history finalization, and retry creation by run/ticket.
@@ -533,6 +685,8 @@ Sprint 3 commit, leaving both business-safety Sprints intact.
   - Close-delay case: panel shows `CloseWait 1`, `Live 0`, then clears after
     history finalization.
   - Repeat representative BUY and SELL cases.
+  - Retry-limit matrix: with the same losing setup, confirm `0` has no rearm,
+    `1` has only `RETRY 1`, and `2` can reach `RETRY 2` but not `RETRY 3`.
 - **Security/trading scope**:
   - Verify every position/deal/history lookup remains scoped to `_Symbol` and
     runtime `g_magic_number`.
@@ -560,6 +714,7 @@ Sprint 3 commit, leaving both business-safety Sprints intact.
 | Fill slippage invalidates a safe preview | Position can still open too close to SL | Fresh post-fill tick and lifecycle-owned safety close | `FILL_ENTRY_DISTANCE_INVALID` chain |
 | Post-fill safety close loops into repeated fills | Churn and costs | Pre-send floor, fresh retry retracement, same-candle boundary, existing budgets; record as residual risk | No repeated unsafe fills in regression profile |
 | Retry appears to require a pivot retouch | Misleading QA and missed defect reports | Explicit retry metadata, threshold line, and away-from-pivot scenario | `POSITION_REARMED` then `ENTRY_TRIGGERED` away from pivot |
+| Retry limit is off by one | Extra or missing market position per level | Keep internal ordinal, derive public retry number once, and trace `0/1/2` | No rearm at `0`; last fills are `RETRY 1` and `RETRY 2` for limits `1` and `2` |
 | `CLOSE_WAIT` looks live | Operator confusion | Separate panel counts/status words | `Live 0 | CloseWait 1` screenshot |
 | Frontend state leaks into execution | Trading regression | Read-only rendering from authoritative state | No frontend symbol referenced by trading modules |
 | New event payload becomes noisy | Tester/log overhead | Emit only on state transition/attempt, never per tick | Bounded event counts |
@@ -572,6 +727,9 @@ Sprint 3 commit, leaving both business-safety Sprints intact.
   retry metadata while retaining Sprint 1's pre-send block.
 - **Sprint 3**: revert its single commit to restore prior frontend/docs while
   retaining both business-safety Sprints.
+- **Sprint 4**: revert its single commit to restore unlimited eligible retries
+  and the previous internal-ordinal frontend labels while retaining Sprints
+  1-3.
 - After any rollback, compile with the portable MetaEditor command, inspect
   zero errors/warnings, remove `BUILD.log`, and run `rtk git status --short`.
 - There are no migrations, persisted schemas, server settings, or dependencies
@@ -590,6 +748,9 @@ Sprint 3 commit, leaving both business-safety Sprints intact.
    zero errors/warnings, remove `BUILD.log`, and create the Sprint 3 commit.
 6. Mark implementation complete and hand the documented Strategy Tester matrix
    to the user for manual QA.
+7. Extend the completed plan with Sprint 4, execute that single
+   trading-sensitive Sprint, compile once, commit once, and return the expanded
+   retry-limit matrix to the user for manual QA.
 
 ## Completion Checklist
 
@@ -605,3 +766,6 @@ Sprint 3 commit, leaving both business-safety Sprints intact.
 - [x] Every Sprint has exactly one Sprint-specific commit.
 - [x] Final compile has zero errors/warnings and `BUILD.log` is removed.
 - [x] Residual rapid-retry risk and rollback instructions are current.
+- [x] Market retries are bounded by the non-negative per-level input.
+- [x] Public retry numbering starts at `1` while preserving internal ordinals.
+- [x] Sprint 4 passes static validation, final compile, diff review, and commit.

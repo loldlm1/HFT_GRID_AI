@@ -57,6 +57,7 @@ reconstruccion.
 | --- | ---: | --- |
 | `Pivot_HFT_Direction_Mode` | Ambas | Habilita compras, ventas o ambas. |
 | `Pivot_HFT_Retracement_Points` | `25.0` | `0` intenta entrar inmediatamente al admitir el pivote; `> 0` espera retroceso desde el extremo Bid/Ask. |
+| `Pivot_HFT_Max_Retries_Per_Level` | `1` | Maximo de reentradas reales por nivel: `0` solo entrada inicial; `N` permite reintentos `1..N`. |
 | `Pivot_HFT_Local_SL_Bands_Width_Percent` | `25.0` | Porcentaje positivo del ancho superior-inferior usado siempre para el SL local. |
 | `Pivot_HFT_TP_Step_SL_Ratio` | `1.0` | Multiplo positivo del SL inicial para el step de BE/trailing. |
 | `Pivot_HFT_Fixed_TP_SL_Ratio` | `0.0` | `0` desactiva TP fijo; `> 0` crea un target como multiplo del SL inicial. |
@@ -138,8 +139,11 @@ a `TRACKING` desde un extremo fresco.
    vela micro que contiene el fill si el precio del nivel original sigue
    perteneciendo al mismo conjunto de pivotes. La admision queda heredada: no
    se exige que la cotizacion siga fuera de la banda ni del lado inicial del
-   pivote. El reintento conserva la secuencia, registra ticket origen y ordinal,
-   y comienza desde un extremo direccional fresco.
+   pivote. `Pivot_HFT_Max_Retries_Per_Level=0` completa el nivel sin rearmar;
+   `N` permite reintentos reales `1..N`. Cada reintento permitido conserva la
+   secuencia, registra ticket origen, numero publico y ordinal interno, y
+   comienza desde un extremo direccional fresco. Al agotar el limite se emite
+   `RETRY_LIMIT_REACHED` sin nueva campana, orden o inicio de senal diaria.
 11. Un ganador exterior consume la escalera interior de esa misma direccion y
     vela: R2 consume R1+R2, R3 consume R1+R2+R3, con simetria S1-S3.
 
@@ -166,9 +170,10 @@ micro para facilitar el QA.
 
 El panel separa `Live` y `CloseWait`. Las filas de ticket empiezan con `LIVE` o
 `CLOSE WAIT <trigger>`. Un reintento muestra `RETRY N TRACKING` o
-`RETRY N ENTRY READY` y el ticket origen. La linea `Safety` muestra SL solicitado,
-SL requerido, spread y piso broker; un intento bloqueado aparece como
-`RISK BLOCKED` y nunca como posicion.
+`RETRY N ENTRY READY` y el ticket origen, donde el primer reintento real es
+`RETRY 1`. El panel tambien muestra `Retry max`. La linea `Safety` muestra SL
+solicitado, SL requerido, spread y piso broker; un intento bloqueado aparece
+como `RISK BLOCKED` y nunca como posicion.
 
 Cada posicion administrada usa nombres y lineas por ticket:
 
@@ -242,8 +247,12 @@ del fill.
 conserva su causa real sin etiquetarse falsamente como TP fijo.
 
 `ENTRY_TRIGGERED` distingue `mode=IMMEDIATE` de `mode=RETRACEMENT`.
-`POSITION_REARMED` incluye ticket origen, ordinal, extremo, proximo threshold y
-`admission=latched` cuando reutiliza la admision original. `REARM_INVALIDATED`
+`POSITION_REARMED` incluye ticket origen, `retry_number`, `retry_ordinal`,
+`retry_max`, extremo, proximo threshold y `admission=latched` cuando reutiliza
+la admision original. `ENTRY_TRIGGERED`, bloqueos de entrada, envio y fill
+conservan numero publico y ordinal interno para correlacion estadistica.
+`RETRY_LIMIT_REACHED` identifica el retry actual, el siguiente bloqueado y el
+maximo configurado. `REARM_INVALIDATED`
 identifica un cambio del conjunto/precio del
 pivote y `REARM_EXPIRED` conserva la frontera de la vela micro del fill.
 `WINNING_LEVELS_CONSUMED` registra ticket, ganador, vela, mascara y niveles
@@ -260,8 +269,9 @@ como evidencia de la compilacion o del run actual.
 - Cierres forzados filtrados por simbolo y magic.
 - Stops/freeze se usan como piso conservador del EA local; no crean SL/TP de
   servidor.
-- No se agrega cap ni cooldown: reintentos rapidos siguen siendo posibles si
-  cada nueva entrada cumple todos los guards y distancias.
+- Los reintentos reales quedan limitados por
+  `Pivot_HFT_Max_Retries_Per_Level`; dentro del limite pueden seguir siendo
+  rapidos porque no se agrega cooldown temporal.
 
 El perfil backend conserva deliberadamente la identidad Pandora. No se cambia
 `ea_id`, contrato de licencia, secretos ni payloads de resultados diarios.
@@ -270,8 +280,12 @@ El perfil backend conserva deliberadamente la identidad Pandora. No se cambia
 
 - Separar retracement `0` como escenario inmediato discreto de las corridas con
   retracement positivo; no mezclar el cero dentro de un step numerico continuo.
-- Optimizar solo el porcentaje de ancho de bandas y el ratio positivo del step;
-  ya no existen dimensiones inactivas de modo SL, SL fijo o step fijo.
+- Tratar `Pivot_HFT_Max_Retries_Per_Level` como entero discreto. Comparar al
+  menos `0`, `1` y `2`; `retry_number=0` identifica la entrada inicial y no
+  debe contarse como reintento en estadisticas.
+- Fuera del entero de reintentos, optimizar el porcentaje de ancho de bandas y
+  el ratio positivo del step; ya no existen dimensiones inactivas de modo SL,
+  SL fijo o step fijo.
 - Para una corrida sin TP fijo, dejar `Pivot_HFT_Fixed_TP_SL_Ratio=0`. Para
   estudiar R fijo, optimizar solo ese ratio como una dimension adicional.
 - El criterio `OnTester()` usa `STAT_PROFIT / STAT_INITIAL_DEPOSIT`, Sharpe no
@@ -347,9 +361,13 @@ y limpiar o rotar `query_debug.txt`:
     respecto al pivote. Debe verse `RETRY N TRACKING`, luego
     `RETRY N ENTRY READY`, y `ENTRY_TRIGGERED` desde el extremo fresco sin nuevo
     toque del pivote.
-21. Capturar estados `Live 1 | CloseWait 0`, luego `Live 0 | CloseWait 1`, y
+21. Repetir el mismo caso perdedor con maximo `0`, `1` y `2`. Con `0` debe
+    aparecer `RETRY_LIMIT_REACHED` sin `POSITION_REARMED`; con `1` solo puede
+    existir `RETRY 1`; con `2` puede existir `RETRY 2` pero nunca `RETRY 3`.
+    Correlacionar `retry_number=1` con `retry_ordinal=2`.
+22. Capturar estados `Live 1 | CloseWait 0`, luego `Live 0 | CloseWait 1`, y
     verificar que ticket/objetos desaparezcan tras `POSITION_FINALIZED`.
-22. Al terminar el run, reconciliar un `POSITION_FINALIZED` por cada
+23. Al terminar el run, reconciliar un `POSITION_FINALIZED` por cada
     `FILL_REGISTERED`, sin ticket duplicado ni estado local pendiente.
 
 El baseline de cierre fue validado el 2026-08-01 con chart M1, micro M3 y

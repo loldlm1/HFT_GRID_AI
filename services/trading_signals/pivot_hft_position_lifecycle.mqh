@@ -559,6 +559,7 @@ bool PivotHftTryRearmClosedPosition(PivotHftPositionState &position_state)
   int retry_ordinal = position_state.campaign_retry_ordinal + 1;
   if(retry_ordinal <= 1)
     retry_ordinal = 2;
+  int retry_number = PivotHftMarketRetryNumber(retry_ordinal);
   PivotHftStartCampaign(position_state.direction,
                         position_state.pivot_level,
                         position_state.pivot_price,
@@ -574,13 +575,15 @@ bool PivotHftTryRearmClosedPosition(PivotHftPositionState &position_state)
     g_pivot_hft_campaign.retry_ordinal;
   position_state.status = PIVOT_HFT_POSITION_COMPLETED;
   PivotHftAuditLog("POSITION_REARMED",
-                   StringFormat("source_ticket=%I64u|sequence=%s|dir=%s|level=%s|attempt=%d|retry_ordinal=%d|extreme=%.5f|next_threshold=%.5f|admission=latched",
+                   StringFormat("source_ticket=%I64u|sequence=%s|dir=%s|level=%s|attempt=%d|retry_number=%d|retry_ordinal=%d|retry_max=%d|extreme=%.5f|next_threshold=%.5f|admission=latched",
                                  position_state.position_ticket,
                                  g_pivot_hft_campaign.sequence_id,
                                  EnumToString(position_state.direction),
                                  PivotHftLevelLabel(position_state.pivot_level),
                                  g_pivot_hft_campaign.attempt_count + 1,
+                                 retry_number,
                                  g_pivot_hft_campaign.retry_ordinal,
+                                 Pivot_HFT_Max_Retries_Per_Level,
                                  g_pivot_hft_campaign.tracked_extreme,
                                  PivotHftCampaignEntryThreshold(
                                    g_pivot_hft_campaign)));
@@ -617,10 +620,16 @@ void PivotHftFinalizeClosedPosition(PivotHftPositionState &position_state)
   }
   position_state.net_class = PivotHftClassifyNetResult(net_result);
   position_state.status = PIVOT_HFT_POSITION_CLOSED;
-  position_state.reattempt_pending = (net_result <= 0.0 &&
-                                      position_state.close_requested);
+  bool retry_eligible = (net_result <= 0.0 &&
+                         position_state.close_requested);
+  int current_retry_number = PivotHftMarketRetryNumber(
+    position_state.campaign_retry_ordinal);
+  int next_retry_number = current_retry_number + 1;
+  position_state.reattempt_pending =
+    (retry_eligible &&
+     next_retry_number <= Pivot_HFT_Max_Retries_Per_Level);
   PivotHftAuditLog("POSITION_FINALIZED",
-                   StringFormat("ticket=%I64u|position_id=%I64u|dir=%s|level=%s|close_trigger=%s|trigger_time=%I64d|trigger_quote=%.5f|trigger_stop=%.5f|trigger_target=%.5f|trigger_step=%d|exit_deal=%I64u|close_price=%.5f|exit_deals=%d|net=%.2f|net_class=%s|close_requested=%d|close_confirmed=%d|reattempt=%d|close_time=%I64d|%s",
+                   StringFormat("ticket=%I64u|position_id=%I64u|dir=%s|level=%s|close_trigger=%s|trigger_time=%I64d|trigger_quote=%.5f|trigger_stop=%.5f|trigger_target=%.5f|trigger_step=%d|exit_deal=%I64u|close_price=%.5f|exit_deals=%d|net=%.2f|net_class=%s|close_requested=%d|close_confirmed=%d|retry_number=%d|retry_ordinal=%d|retry_max=%d|reattempt=%d|close_time=%I64d|%s",
                                  position_state.position_ticket,
                                  position_state.position_identifier,
                                  EnumToString(position_state.direction),
@@ -639,10 +648,29 @@ void PivotHftFinalizeClosedPosition(PivotHftPositionState &position_state)
                                  PivotHftNetClassLabel(position_state.net_class),
                                  (int)position_state.close_requested,
                                  (int)position_state.close_send_confirmed,
+                                 current_retry_number,
+                                 position_state.campaign_retry_ordinal,
+                                 Pivot_HFT_Max_Retries_Per_Level,
                                  (int)position_state.reattempt_pending,
                                  (long)position_state.close_time,
                                  PivotHftPositionRiskAuditFields(
                                    position_state)));
+  if(retry_eligible && !position_state.reattempt_pending)
+  {
+    PivotHftAuditLog("RETRY_LIMIT_REACHED",
+                     StringFormat("ticket=%I64u|sequence=%s|dir=%s|level=%s|retry_number=%d|retry_ordinal=%d|next_retry_number=%d|retry_max=%d|net=%.2f|close_trigger=%s",
+                                  position_state.position_ticket,
+                                  position_state.campaign_sequence_id,
+                                  EnumToString(position_state.direction),
+                                  PivotHftLevelLabel(position_state.pivot_level),
+                                  current_retry_number,
+                                  position_state.campaign_retry_ordinal,
+                                  next_retry_number,
+                                  Pivot_HFT_Max_Retries_Per_Level,
+                                  net_result,
+                                  PivotHftCloseTriggerLabel(
+                                    position_state.close_trigger)));
+  }
   if(!position_state.daily_outcome_registered)
   {
     RegisterDailySignalOutcome(position_state.direction, net_result);

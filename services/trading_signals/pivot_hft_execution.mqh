@@ -346,16 +346,19 @@ bool PivotHftExecuteEntryIntent()
     return false;
 
   PivotHftCampaignState campaign = g_pivot_hft_campaign;
+  int retry_number = PivotHftMarketRetryNumber(campaign.retry_ordinal);
   if(PivotHftHasBlockingPositionLifecycle() ||
      PivotHftHasManagedBrokerPosition())
   {
     if(!g_pivot_hft_campaign.execution_slot_block_logged)
     {
       PivotHftAuditLog("ENTRY_SINGLE_FLIGHT_BLOCKED",
-                       StringFormat("sequence=%s|dir=%s|level=%s|reason=position_lifecycle_occupied",
+                       StringFormat("sequence=%s|dir=%s|level=%s|retry_number=%d|retry_ordinal=%d|reason=position_lifecycle_occupied",
                                     campaign.sequence_id,
                                     EnumToString(campaign.direction),
-                                    PivotHftLevelLabel(campaign.pivot_level)));
+                                    PivotHftLevelLabel(campaign.pivot_level),
+                                    retry_number,
+                                    campaign.retry_ordinal));
       g_pivot_hft_campaign.execution_slot_block_logged = true;
     }
     g_pivot_hft_last_error = "position_lifecycle_occupied";
@@ -368,10 +371,12 @@ bool PivotHftExecuteEntryIntent()
                                guard_reason))
   {
     PivotHftAuditLog("ENTRY_BLOCKED",
-                     StringFormat("sequence=%s|dir=%s|level=%s|reason=%s|attempt=%d",
+                     StringFormat("sequence=%s|dir=%s|level=%s|retry_number=%d|retry_ordinal=%d|reason=%s|attempt=%d",
                                   campaign.sequence_id,
                                   EnumToString(campaign.direction),
                                   PivotHftLevelLabel(campaign.pivot_level),
+                                  retry_number,
+                                  campaign.retry_ordinal,
                                   guard_reason,
                                   campaign.attempt_count + 1));
     g_pivot_hft_last_error = guard_reason;
@@ -388,10 +393,12 @@ bool PivotHftExecuteEntryIntent()
   if(!PivotHftResolveRiskGeometry(risk_geometry, risk_reason))
   {
     PivotHftAuditLog("ENTRY_RISK_GEOMETRY_BLOCKED",
-                     StringFormat("sequence=%s|dir=%s|level=%s|reason=%s|attempt=%d",
+                     StringFormat("sequence=%s|dir=%s|level=%s|retry_number=%d|retry_ordinal=%d|reason=%s|attempt=%d",
                                   campaign.sequence_id,
                                   EnumToString(campaign.direction),
                                   PivotHftLevelLabel(campaign.pivot_level),
+                                  retry_number,
+                                  campaign.retry_ordinal,
                                   risk_reason,
                                   campaign.attempt_count + 1));
     g_pivot_hft_last_error = risk_reason;
@@ -417,10 +424,12 @@ bool PivotHftExecuteEntryIntent()
   if(!entry_distance_safe)
   {
     PivotHftAuditLog("ENTRY_RISK_DISTANCE_BLOCKED",
-                     StringFormat("sequence=%s|dir=%s|level=%s|attempt=%d|%s",
+                     StringFormat("sequence=%s|dir=%s|level=%s|retry_number=%d|retry_ordinal=%d|attempt=%d|%s",
                                   campaign.sequence_id,
                                   EnumToString(campaign.direction),
                                   PivotHftLevelLabel(campaign.pivot_level),
+                                  retry_number,
+                                  campaign.retry_ordinal,
                                   campaign.attempt_count + 1,
                                   PivotHftEntrySafetyAuditFields(
                                     entry_safety)));
@@ -449,10 +458,12 @@ bool PivotHftExecuteEntryIntent()
                   ? "resolved_local_sl_price_invalid"
                   : "resolved_fixed_tp_price_invalid";
     PivotHftAuditLog("ENTRY_RISK_PRICE_BLOCKED",
-                     StringFormat("sequence=%s|dir=%s|level=%s|entry_quote=%.5f|initial_sl_pts=%.2f|fixed_tp_pts=%.2f|reason=%s|attempt=%d",
+                     StringFormat("sequence=%s|dir=%s|level=%s|retry_number=%d|retry_ordinal=%d|entry_quote=%.5f|initial_sl_pts=%.2f|fixed_tp_pts=%.2f|reason=%s|attempt=%d",
                                   campaign.sequence_id,
                                   EnumToString(campaign.direction),
                                   PivotHftLevelLabel(campaign.pivot_level),
+                                  retry_number,
+                                  campaign.retry_ordinal,
                                   entry_quote,
                                   risk_geometry.initial_sl_points,
                                   risk_geometry.fixed_tp_points,
@@ -485,11 +496,13 @@ bool PivotHftExecuteEntryIntent()
   int last_error = GetLastError();
 
   PivotHftAuditLog("ORDER_SEND_RESULT",
-                   StringFormat("sequence=%s|sent=%d|dir=%s|level=%s|volume=%.2f|ret=%I64u|err=%d|deal=%I64u|price=%.5f|result_volume=%.2f|server_sl=0|server_tp=0|comment=%s",
+                   StringFormat("sequence=%s|sent=%d|dir=%s|level=%s|retry_number=%d|retry_ordinal=%d|volume=%.2f|ret=%I64u|err=%d|deal=%I64u|price=%.5f|result_volume=%.2f|server_sl=0|server_tp=0|comment=%s",
                                 campaign.sequence_id,
                                 (int)sent,
                                 EnumToString(campaign.direction),
                                 PivotHftLevelLabel(campaign.pivot_level),
+                                retry_number,
+                                campaign.retry_ordinal,
                                 normalized_volume,
                                 retcode,
                                 last_error,
@@ -510,8 +523,10 @@ bool PivotHftExecuteEntryIntent()
     {
       g_debug_no_money_abort_pending = true;
       PivotHftAuditLog("DEBUG_STOP_PENDING",
-                       StringFormat("reason=no_money|sequence=%s|ret=%I64u|err=%d",
+                       StringFormat("reason=no_money|sequence=%s|retry_number=%d|retry_ordinal=%d|ret=%I64u|err=%d",
                                     campaign.sequence_id,
+                                    retry_number,
+                                    campaign.retry_ordinal,
                                     retcode,
                                     last_error));
     }
@@ -533,8 +548,10 @@ bool PivotHftExecuteEntryIntent()
                                      comment))
   {
     PivotHftAuditLog("FILL_UNRESOLVED",
-                     StringFormat("sequence=%s|deal=%I64u|ret=%I64u|err=%d",
+                     StringFormat("sequence=%s|retry_number=%d|retry_ordinal=%d|deal=%I64u|ret=%I64u|err=%d",
                                   campaign.sequence_id,
+                                  retry_number,
+                                  campaign.retry_ordinal,
                                   deal_ticket,
                                   retcode,
                                   last_error));
@@ -555,7 +572,7 @@ bool PivotHftExecuteEntryIntent()
     PivotHftPositionState registered_state =
       g_pivot_hft_positions[registered_index];
     PivotHftAuditLog("FILL_REGISTERED",
-                     StringFormat("sequence=%s|ticket=%I64u|position_id=%I64u|deal=%I64u|dir=%s|level=%s|entry=%.5f|volume=%.2f|attempt=%d|retry_ordinal=%d|source_ticket=%I64u|origin_bar=%I64d|fill_bar=%I64d|%s|%s",
+                     StringFormat("sequence=%s|ticket=%I64u|position_id=%I64u|deal=%I64u|dir=%s|level=%s|entry=%.5f|volume=%.2f|attempt=%d|retry_number=%d|retry_ordinal=%d|source_ticket=%I64u|origin_bar=%I64d|fill_bar=%I64d|%s|%s",
                                   campaign.sequence_id,
                                   registered_state.position_ticket,
                                   registered_state.position_identifier,
@@ -565,6 +582,8 @@ bool PivotHftExecuteEntryIntent()
                                   registered_state.entry_price,
                                   registered_state.entry_volume,
                                   registered_state.campaign_attempt_count + 1,
+                                  PivotHftMarketRetryNumber(
+                                    registered_state.campaign_retry_ordinal),
                                   registered_state.campaign_retry_ordinal,
                                   registered_state.campaign_retry_source_ticket,
                                   (long)registered_state.campaign_micro_bar_time,

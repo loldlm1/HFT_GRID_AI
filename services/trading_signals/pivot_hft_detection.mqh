@@ -131,13 +131,15 @@ void PivotHftStartCampaign(const SignalTypes direction,
   }
   g_pivot_hft_campaign = campaign;
   PivotHftAuditLog("CAMPAIGN_ARMED",
-                   StringFormat("sequence=%s|dir=%s|level=%s|price=%.5f|bar=%I64d|extreme=%.5f|retry_ordinal=%d|source_ticket=%I64u",
+                   StringFormat("sequence=%s|dir=%s|level=%s|price=%.5f|bar=%I64d|extreme=%.5f|retry_number=%d|retry_ordinal=%d|source_ticket=%I64u",
                                 campaign.sequence_id,
                                 EnumToString(direction),
                                 PivotHftLevelLabel(level),
                                 level_price,
                                 (long)micro_bar_time,
                                 campaign.tracked_extreme,
+                                PivotHftMarketRetryNumber(
+                                  campaign.retry_ordinal),
                                 campaign.retry_ordinal,
                                 campaign.retry_source_ticket));
 }
@@ -384,7 +386,7 @@ void PivotHftUpdateTrackedExtreme()
     g_pivot_hft_campaign.trigger_price = current_quote;
     g_pivot_hft_campaign.status = PIVOT_HFT_CAMPAIGN_ORDER_WAIT;
     PivotHftAuditLog("ENTRY_TRIGGERED",
-                     StringFormat("sequence=%s|dir=%s|level=%s|mode=IMMEDIATE|extreme=%.5f|threshold=%.5f|quote=%.5f|retrace_pts=%.2f|retry_ordinal=%d|source_ticket=%I64u",
+                     StringFormat("sequence=%s|dir=%s|level=%s|mode=IMMEDIATE|extreme=%.5f|threshold=%.5f|quote=%.5f|retrace_pts=%.2f|retry_number=%d|retry_ordinal=%d|source_ticket=%I64u",
                                   g_pivot_hft_campaign.sequence_id,
                                   EnumToString(g_pivot_hft_campaign.direction),
                                   PivotHftLevelLabel(
@@ -393,6 +395,8 @@ void PivotHftUpdateTrackedExtreme()
                                   current_quote,
                                   current_quote,
                                   Pivot_HFT_Retracement_Points,
+                                  PivotHftMarketRetryNumber(
+                                    g_pivot_hft_campaign.retry_ordinal),
                                   g_pivot_hft_campaign.retry_ordinal,
                                   g_pivot_hft_campaign.retry_source_ticket));
     return;
@@ -410,7 +414,7 @@ void PivotHftUpdateTrackedExtreme()
       g_pivot_hft_campaign.trigger_price = current_quote;
       g_pivot_hft_campaign.status = PIVOT_HFT_CAMPAIGN_ORDER_WAIT;
       PivotHftAuditLog("ENTRY_TRIGGERED",
-                       StringFormat("sequence=%s|dir=%s|level=%s|mode=RETRACEMENT|extreme=%.5f|threshold=%.5f|quote=%.5f|retrace_pts=%.2f|retry_ordinal=%d|source_ticket=%I64u",
+                       StringFormat("sequence=%s|dir=%s|level=%s|mode=RETRACEMENT|extreme=%.5f|threshold=%.5f|quote=%.5f|retrace_pts=%.2f|retry_number=%d|retry_ordinal=%d|source_ticket=%I64u",
                                     g_pivot_hft_campaign.sequence_id,
                                     EnumToString(g_pivot_hft_campaign.direction),
                                     PivotHftLevelLabel(g_pivot_hft_campaign.pivot_level),
@@ -419,6 +423,8 @@ void PivotHftUpdateTrackedExtreme()
                                       g_pivot_hft_campaign),
                                     current_quote,
                                     Pivot_HFT_Retracement_Points,
+                                    PivotHftMarketRetryNumber(
+                                      g_pivot_hft_campaign.retry_ordinal),
                                     g_pivot_hft_campaign.retry_ordinal,
                                     g_pivot_hft_campaign.retry_source_ticket));
     }
@@ -435,7 +441,7 @@ void PivotHftUpdateTrackedExtreme()
     g_pivot_hft_campaign.trigger_price = current_quote;
     g_pivot_hft_campaign.status = PIVOT_HFT_CAMPAIGN_ORDER_WAIT;
     PivotHftAuditLog("ENTRY_TRIGGERED",
-                     StringFormat("sequence=%s|dir=%s|level=%s|mode=RETRACEMENT|extreme=%.5f|threshold=%.5f|quote=%.5f|retrace_pts=%.2f|retry_ordinal=%d|source_ticket=%I64u",
+                     StringFormat("sequence=%s|dir=%s|level=%s|mode=RETRACEMENT|extreme=%.5f|threshold=%.5f|quote=%.5f|retrace_pts=%.2f|retry_number=%d|retry_ordinal=%d|source_ticket=%I64u",
                                   g_pivot_hft_campaign.sequence_id,
                                   EnumToString(g_pivot_hft_campaign.direction),
                                   PivotHftLevelLabel(g_pivot_hft_campaign.pivot_level),
@@ -444,6 +450,8 @@ void PivotHftUpdateTrackedExtreme()
                                     g_pivot_hft_campaign),
                                   current_quote,
                                   Pivot_HFT_Retracement_Points,
+                                  PivotHftMarketRetryNumber(
+                                    g_pivot_hft_campaign.retry_ordinal),
                                   g_pivot_hft_campaign.retry_ordinal,
                                   g_pivot_hft_campaign.retry_source_ticket));
   }
@@ -464,10 +472,12 @@ void PivotHftMarkEntryRetryable()
     g_pivot_hft_campaign.tracked_extreme =
       PivotHftCurrentEntryQuote(g_pivot_hft_campaign.direction);
     PivotHftAuditLog("ENTRY_RETRYABLE",
-                     StringFormat("sequence=%s|attempt=%d|extreme=%.5f|retry_ordinal=%d|source_ticket=%I64u",
+                     StringFormat("sequence=%s|attempt=%d|extreme=%.5f|retry_number=%d|retry_ordinal=%d|source_ticket=%I64u",
                                   g_pivot_hft_campaign.sequence_id,
                                   g_pivot_hft_campaign.attempt_count,
                                   g_pivot_hft_campaign.tracked_extreme,
+                                  PivotHftMarketRetryNumber(
+                                    g_pivot_hft_campaign.retry_ordinal),
                                   g_pivot_hft_campaign.retry_ordinal,
                                   g_pivot_hft_campaign.retry_source_ticket));
   }

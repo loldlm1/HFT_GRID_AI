@@ -37,9 +37,10 @@ claim institutional HFT latency.
   pivot-set rollover. A filled ticket's retry boundary is the micro candle that
   actually contains the broker fill.
 - An eligible non-positive local close preserves the admitted campaign sequence,
-  increments its retry ordinal, and seeds a fresh directional extreme from the
-  current entry-side quote. It does not require another pivot touch or live
-  Bollinger-side admission.
+  increments its internal retry ordinal, and seeds a fresh directional extreme
+  from the current entry-side quote. It does not require another pivot touch or
+  live Bollinger-side admission. `Pivot_HFT_Max_Retries_Per_Level` bounds real
+  market retries: `0` disables re-entry, while `N` permits retries `1..N`.
 - If the required history is unavailable or unsynchronized, new campaigns fail
   closed until the level reconstruction succeeds.
 
@@ -54,6 +55,9 @@ while its fill micro candle is still open and the original pivot price still
 belongs to the same pivot set. The admission remains latched, so price may be
 inside the bands or across the original pivot when the fresh retry retracement
 starts. External or protection-driven closes never re-arm the closed campaign.
+A configured retry limit is checked only after an eligible finalized close;
+exhaustion emits `RETRY_LIMIT_REACHED` and completes the level without a new
+campaign, market request, or daily signal start.
 A profitable outer-level close consumes the same-side inner ladder from that
 fill candle: for example, R2 consumes R1+R2 and S3 consumes S1+S2+S3.
 
@@ -89,6 +93,8 @@ the normal local lifecycle with close trigger `ENTRY_SAFETY`.
   the trailing interval from immutable initial SL.
 - `Pivot_HFT_Fixed_TP_SL_Ratio = 0.0` disables fixed TP; a positive value
   enables that initial-SL multiple.
+- `Pivot_HFT_Max_Retries_Per_Level` defaults to `1`. The initial entry is retry
+  number `0`; the first re-entry is `RETRY 1`. Negative values fail startup.
 
 With fixed Bollinger deviation `2.0`, full width is approximately `4 sigma`, so
 `25%` is approximately a `1 sigma` volatility scale. This is not a probability
@@ -139,9 +145,10 @@ the historical deterministic seed for compatibility.
   freeze, buffered broker floor and tick size. `FILL_ENTRY_DISTANCE_INVALID`
   records the actual fill, fresh close-side quote, remaining buffer and the
   `ENTRY_SAFETY` close reason.
-- `POSITION_REARMED` records source ticket, retry ordinal, fresh extreme, next
-  threshold and `admission=latched`; subsequent `ENTRY_TRIGGERED` rows retain
-  the same retry metadata.
+- `POSITION_REARMED` records source ticket, public retry number, internal retry
+  ordinal, configured maximum, fresh extreme, next threshold and
+  `admission=latched`; subsequent entry and fill rows retain both retry fields.
+  `RETRY_LIMIT_REACHED` records the current and blocked next retry.
 - Rotate or clear `query_debug.txt` before a focused tester session so chart,
   broker history and one run id can be correlated without stale evidence.
 - Chart objects use the `PIVOT_HFT_` prefix. The campaign pivot, tracked
@@ -166,8 +173,8 @@ the historical deterministic seed for compatibility.
 - Spread, margin, session, daily-limit, drawdown, market-status and license
   guards remain authoritative for new entries.
 - Broker stops/freeze form a conservative floor for local protection only;
-  server SL/TP remain zero. Valid rapid retries can still occur because this
-  correction adds no retry cap or cooldown.
+  server SL/TP remain zero. Valid rapid retries can still occur up to
+  `Pivot_HFT_Max_Retries_Per_Level`; no time cooldown is applied.
 - Entry indicators are activated only while a configured session window is
   open. Non-visual tester runs skip chart objects/comments, while open-position
   local protection continues outside the entry window.
