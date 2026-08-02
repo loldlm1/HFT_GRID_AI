@@ -1,8 +1,35 @@
 # Plan: Pivot HFT Retry Supersession And Broker Safety
 
 **Generated**: 2026-08-02
-**Status**: Sprint 1 complete; Sprint 2 pending
+**Status**: Sprints 1-2 complete; Sprint 3 pending
 **Estimated Complexity**: Critical / trading-sensitive
+
+## Execution Record
+
+### Sprint 1
+
+- Commit: `5cb8fa6 Sprint 1: fail close unresolved Pivot HFT fills`.
+- Static lifecycle validation passed; MetaEditor and runtime fault injection
+  remain intentionally consolidated into Sprint 5.
+- Rollback point: `52e9446`, only while the exact symbol-and-magic scope is
+  flat and no emergency close is pending.
+
+### Sprint 2
+
+- Commit message: `Sprint 2: recover Pivot HFT broker lifecycle state`.
+- Added terminal-local two-slot checkpoints with opaque scope, schema,
+  generation, checksum, inactive-slot read-back, exact broker identity checks,
+  startup preflight, exact restoration and safety-only quarantine.
+- Static validation passed: `git diff --check`, balanced source delimiters,
+  full `PivotHftPositionState` serialization/deserialization symmetry, exact
+  startup/identity traces, no ordinary-tick checkpoint or history scan, and an
+  unchanged `OnTester()` body.
+- MetaEditor compilation plus restart, corruption and broker-close runtime
+  cases remain explicitly deferred to Sprint 5 by user instruction.
+- Rollback point: `5cb8fa6`. Before rollback, flatten the exact scope and
+  remove only `pivot_hft_recovery_<opaque-scope>_a.chk` and
+  `pivot_hft_recovery_<opaque-scope>_b.chk` from the terminal-local Files
+  sandbox.
 
 ## Overview
 
@@ -567,17 +594,17 @@ for the exact account fingerprint, symbol and magic.
 
 ### Sprint 2 Gate
 
-- [ ] All Sprint 2 tasks are complete.
-- [ ] Static startup traces preserve exact lifecycle state for a valid record
+- [x] All Sprint 2 tasks are complete.
+- [x] Static startup traces preserve exact lifecycle state for a valid record
       and choose quarantine/scoped force-close for missing or corrupt state.
-- [ ] Compiled restart/corruption demo evidence remains explicitly deferred to
+- [x] Compiled restart/corruption demo evidence remains explicitly deferred to
       Sprint 5.
-- [ ] Focused checkpoint/recovery static validation passes; final compilation
+- [x] Focused checkpoint/recovery static validation passes; final compilation
       remains deferred to Sprint 5 by explicit user instruction.
-- [ ] Checkpoint writes are transition-bounded and privacy-reviewed.
-- [ ] Exactly one Sprint 2 commit is created with the proposed message.
-- [ ] The rollback point and checkpoint cleanup procedure are recorded.
-- [ ] Sprint 3 has not started before this gate completes.
+- [x] Checkpoint writes are transition-bounded and privacy-reviewed.
+- [x] Exactly one Sprint 2 commit is created with the proposed message.
+- [x] The rollback point and checkpoint cleanup procedure are recorded.
+- [x] Sprint 3 has not started before this gate completes.
 
 ## Sprint 3: Make Retry Threshold And Broker Identity Unambiguous
 

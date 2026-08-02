@@ -349,6 +349,7 @@ struct PivotHftEmergencyQuarantineState
   bool                     state_attached;
   bool                     daily_start_registered;
   bool                     daily_outcome_registered;
+  PivotHftCloseTriggers    close_trigger;
   SignalTypes              direction;
   PivotHftPivotLevels      pivot_level;
   ulong                    position_ticket;
@@ -375,6 +376,7 @@ struct PivotHftEmergencyQuarantineState
     state_attached = false;
     daily_start_registered = false;
     daily_outcome_registered = false;
+    close_trigger = PIVOT_HFT_CLOSE_TRIGGER_REGISTRATION_FAILURE;
     direction = NO_SIGNAL;
     pivot_level = PIVOT_HFT_LEVEL_NONE;
     position_ticket = 0;
@@ -1329,6 +1331,7 @@ void PivotHftActivateEmergencyQuarantine(
   const double entry_volume,
   const string position_comment,
   const bool daily_start_registered,
+  const PivotHftCloseTriggers close_trigger,
   const string reason)
 {
   g_pivot_hft_emergency_quarantine =
@@ -1336,6 +1339,7 @@ void PivotHftActivateEmergencyQuarantine(
   g_pivot_hft_emergency_quarantine.active = true;
   g_pivot_hft_emergency_quarantine.daily_start_registered =
     daily_start_registered;
+  g_pivot_hft_emergency_quarantine.close_trigger = close_trigger;
   g_pivot_hft_emergency_quarantine.direction = campaign.direction;
   g_pivot_hft_emergency_quarantine.pivot_level = campaign.pivot_level;
   g_pivot_hft_emergency_quarantine.position_ticket = position_ticket;

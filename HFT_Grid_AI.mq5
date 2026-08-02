@@ -231,6 +231,14 @@ int OnInit()
                                 g_symbol_constraints.tick_size,
                                 (int)Pivot_HFT_Enable_Visualization));
 
+  if(!PivotHftRecoveryInitialize())
+  {
+    PrintFormat("[EA] Pivot HFT recovery initialization failed | status=%s | reason=%s",
+                PivotHftRecoveryStatusLabel(),
+                PivotHftRecoveryStatusReason());
+    return INIT_FAILED;
+  }
+
   // Rebuild the active pivot-set test state even when entry sessions are closed.
   PivotHftRefreshPivotSnapshot(true);
   ClearFrontendVisualization();
@@ -259,6 +267,7 @@ int OnInit()
 //+------------------------------------------------------------------+
 void OnDeinit(const int reason)
 {
+  PivotHftRecoveryFlushOnDeinit();
   PivotHftAuditShutdown(reason);
   LicenseServiceOnDeinit();
   EventKillTimer();
@@ -312,7 +321,10 @@ void OnTick()
     next_market_status_check = current_time + 1;
   }
   ProtectionRiskFilterTick();
-  bool signal_attempts_allowed = MarketStatusAllowsSignalAttempts();
+  PivotHftRecoveryTick();
+  bool signal_attempts_allowed =
+    (MarketStatusAllowsSignalAttempts() &&
+     PivotHftRecoveryAllowsSignalAttempts());
   static datetime next_minute_bar_open    = 0;
   int             defined_tick_M1_seconds = PeriodSeconds(PERIOD_M1);
 

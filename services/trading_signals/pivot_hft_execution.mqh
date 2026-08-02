@@ -580,6 +580,8 @@ bool PivotHftAppendEmergencyFilledPosition(
   const string comment,
   const double request_quote,
   const bool daily_start_registered,
+  const PivotHftCloseTriggers close_trigger,
+  const string retry_state_reason,
   int &emergency_index)
 {
   emergency_index = -1;
@@ -597,10 +599,9 @@ bool PivotHftAppendEmergencyFilledPosition(
   PivotHftPositionState position_state;
   position_state.status = PIVOT_HFT_POSITION_CLOSE_WAIT;
   position_state.execution_source = PIVOT_HFT_EXECUTION_BROKER;
-  position_state.close_trigger =
-    PIVOT_HFT_CLOSE_TRIGGER_REGISTRATION_FAILURE;
+  position_state.close_trigger = close_trigger;
   position_state.retry_state = PIVOT_HFT_RETRY_DISABLED;
-  position_state.retry_state_reason = "registration_failure";
+  position_state.retry_state_reason = retry_state_reason;
   position_state.retry_state_time = TimeCurrent();
   position_state.direction = campaign.direction;
   position_state.pivot_level = campaign.pivot_level;
@@ -746,7 +747,8 @@ bool PivotHftRegisterVirtualPosition(
 
 bool PivotHftExecuteEntryIntent()
 {
-  if(!PivotHftEntryIntentReady())
+  if(!PivotHftEntryIntentReady() ||
+     !PivotHftRecoveryAllowsSignalAttempts())
     return false;
 
   PivotHftCampaignState campaign = g_pivot_hft_campaign;
@@ -1194,6 +1196,7 @@ bool PivotHftExecuteEntryIntent()
       emergency_entry_volume,
       emergency_comment,
       daily_start_registered,
+      PIVOT_HFT_CLOSE_TRIGGER_REGISTRATION_FAILURE,
       "filled_position_registration_failed");
     PivotHftAuditLog("FILL_REGISTRATION_FAILED",
                      StringFormat("sequence=%s|retry_number=%d|retry_ordinal=%d|deal=%I64u|ticket=%I64u|position_id=%I64u|ret=%I64u|err=%d|daily_start_registered=%d",
@@ -1224,10 +1227,15 @@ bool PivotHftExecuteEntryIntent()
       comment,
       entry_quote,
       daily_start_registered,
+      PIVOT_HFT_CLOSE_TRIGGER_REGISTRATION_FAILURE,
+      "registration_failure",
       emergency_index);
     if(emergency_attached)
     {
       PivotHftMarkEmergencyQuarantineStateAttached();
+      PivotHftRecoveryCheckpointOrQuarantine(
+        g_pivot_hft_positions[emergency_index],
+        "registration_failure_attached");
       PivotHftAuditLog("EMERGENCY_LIFECYCLE_REGISTERED",
                        StringFormat("sequence=%s|%s|position_id=%I64u|deal=%I64u|reason=normal_registration_failed",
                                     campaign.sequence_id,
@@ -1261,6 +1269,30 @@ bool PivotHftExecuteEntryIntent()
         resolved_position_identifier);
       ProtectionRiskProcessPendingForceClose();
     }
+    PivotHftResetCampaign();
+    return false;
+  }
+
+  if(registered_index < 0 ||
+     !PivotHftRecoveryCheckpointOrQuarantine(
+       g_pivot_hft_positions[registered_index],
+       "broker_fill_registered"))
+  {
+    PivotHftAuditLog("FILL_RECOVERY_CHECKPOINT_FAILED",
+                     StringFormat("sequence=%s|deal=%I64u|ticket=%I64u|position_id=%I64u|reason=durable_checkpoint_unavailable",
+                                  campaign.sequence_id,
+                                  deal_ticket,
+                                  resolved_position_ticket,
+                                  resolved_position_identifier));
+    g_pivot_hft_last_error = "recovery_checkpoint_failed";
+    MarketStatusRegisterExecutionError(
+      "PIVOT_HFT_RECOVERY_CHECKPOINT_FAILED",
+      g_pivot_hft_last_error,
+      retcode,
+      last_error);
+    if(registered_index >= 0)
+      PivotHftClosePositionLocally(
+        g_pivot_hft_positions[registered_index]);
     PivotHftResetCampaign();
     return false;
   }

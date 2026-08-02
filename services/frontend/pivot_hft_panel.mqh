@@ -347,6 +347,12 @@ string PivotHftBuildPanelText()
                        campaign.pivot_price,
                        campaign.tracked_extreme,
                        PivotHftCampaignSourceLabel(campaign));
+  string recovery_reason = PivotHftRecoveryStatusReason();
+  if(StringLen(recovery_reason) > 64)
+    recovery_reason = StringSubstr(recovery_reason, 0, 61) + "...";
+  text += "\nRecovery " + PivotHftRecoveryStatusLabel();
+  if(recovery_reason != "")
+    text += " | " + recovery_reason;
   text += "\nPolicy " + PivotHftRetryPolicyPanelText();
   text += StringFormat("\nRetrace %s | trigger %.5f | Broker %d | Virtual %d | CloseWait %d | %s",
                        retracement_text,

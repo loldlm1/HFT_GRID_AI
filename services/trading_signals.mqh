@@ -14,6 +14,7 @@
 #include "trading_signals/pivot_hft_levels.mqh"
 #include "trading_signals/pivot_hft_indicators.mqh"
 #include "trading_signals/pivot_hft_risk_geometry.mqh"
+#include "trading_signals/pivot_hft_recovery.mqh"
 #include "trading_signals/pivot_hft_detection.mqh"
 #include "trading_signals/pivot_hft_execution.mqh"
 #include "trading_signals/pivot_hft_position_lifecycle.mqh"

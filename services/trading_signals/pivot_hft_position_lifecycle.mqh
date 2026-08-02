@@ -50,6 +50,8 @@ string PivotHftCloseTriggerLabel(const PivotHftCloseTriggers trigger)
       return "ENTRY_SAFETY";
     case PIVOT_HFT_CLOSE_TRIGGER_REGISTRATION_FAILURE:
       return "REGISTRATION_FAILURE";
+    case PIVOT_HFT_CLOSE_TRIGGER_RECOVERY_FAILURE:
+      return "RECOVERY_FAILURE";
     case PIVOT_HFT_CLOSE_TRIGGER_NONE:
     default:
       return "NONE";
@@ -97,6 +99,8 @@ void PivotHftClearCloseTrigger(PivotHftPositionState &position_state)
   position_state.close_trigger_target = 0.0;
   position_state.close_trigger_step = 0;
   position_state.close_send_confirmed = false;
+  PivotHftRecoveryCheckpointOrQuarantine(position_state,
+                                         "close_trigger_cleared");
 }
 
 void PivotHftCaptureLocalCloseTrigger(
@@ -110,6 +114,8 @@ void PivotHftCaptureLocalCloseTrigger(
   position_state.close_trigger_stop = position_state.local_sl_price;
   position_state.close_trigger_target = 0.0;
   position_state.close_trigger_step = position_state.trailing_step_index;
+  PivotHftRecoveryCheckpointOrQuarantine(position_state,
+                                         "local_close_triggered");
 }
 
 void PivotHftCaptureFixedTpCloseTrigger(
@@ -122,6 +128,8 @@ void PivotHftCaptureFixedTpCloseTrigger(
   position_state.close_trigger_stop = position_state.local_sl_price;
   position_state.close_trigger_target = position_state.local_tp_price;
   position_state.close_trigger_step = position_state.trailing_step_index;
+  PivotHftRecoveryCheckpointOrQuarantine(position_state,
+                                         "fixed_tp_triggered");
 }
 
 void PivotHftCaptureEntrySafetyCloseTrigger(
@@ -134,6 +142,8 @@ void PivotHftCaptureEntrySafetyCloseTrigger(
   position_state.close_trigger_stop = position_state.local_sl_price;
   position_state.close_trigger_target = 0.0;
   position_state.close_trigger_step = 0;
+  PivotHftRecoveryCheckpointOrQuarantine(position_state,
+                                         "entry_safety_triggered");
 }
 
 void PivotHftCaptureExternalCloseTrigger(
@@ -146,6 +156,8 @@ void PivotHftCaptureExternalCloseTrigger(
   position_state.close_trigger_stop = position_state.local_sl_price;
   position_state.close_trigger_target = position_state.local_tp_price;
   position_state.close_trigger_step = position_state.trailing_step_index;
+  PivotHftRecoveryCheckpointOrQuarantine(position_state,
+                                         "external_close_triggered");
 }
 
 bool PivotHftResolveFreshCloseTick(MqlTick &tick,
@@ -276,7 +288,9 @@ bool PivotHftEvaluatePostFillEntrySafety(
   if(position_state.entry_safety_post_fill_reason == "")
   {
     position_state.entry_safety_post_fill_reason = "ok";
-    return true;
+    return PivotHftRecoveryCheckpointOrQuarantine(
+      position_state,
+      "post_fill_safety_checked");
   }
 
   position_state.entry_safety_failed = true;
@@ -296,6 +310,9 @@ bool PivotHftEvaluatePostFillEntrySafety(
                                 position_state.entry_safety_post_fill_reason,
                                 PivotHftPositionRiskAuditFields(
                                   position_state)));
+  PivotHftRecoveryCheckpointOrQuarantine(
+    position_state,
+    "post_fill_safety_failed");
   return false;
 }
 
@@ -319,6 +336,10 @@ bool PivotHftInitializeLocalStop(PivotHftPositionState &position_state)
                                   position_state.risk_band_width_points,
                                   position_state.initial_sl_points,
                                   position_state.trailing_step_points));
+    if(!PivotHftRecoveryCheckpointOrQuarantine(
+         position_state,
+         "local_sl_initialized"))
+      return false;
   }
   return (position_state.local_sl_price > 0.0);
 }
@@ -342,6 +363,10 @@ bool PivotHftInitializeLocalTarget(PivotHftPositionState &position_state)
                                   position_state.entry_price,
                                   position_state.fixed_tp_points,
                                   position_state.local_tp_price));
+    if(!PivotHftRecoveryCheckpointOrQuarantine(
+         position_state,
+         "local_tp_initialized"))
+      return false;
   }
   return (position_state.local_tp_price > 0.0);
 }
@@ -419,6 +444,8 @@ void PivotHftUpdateTrailingStop(PivotHftPositionState &position_state)
                                   (int)(position_state.trailing_step_index >= 1),
                                   PivotHftPositionRiskAuditFields(
                                     position_state)));
+    PivotHftRecoveryCheckpointOrQuarantine(position_state,
+                                           "trailing_advanced");
   }
 }
 
@@ -595,6 +622,13 @@ bool PivotHftTryRearmClosedPosition(PivotHftPositionState &position_state)
   {
     PivotHftDeferRetry(position_state,
                        "micro_bar_unavailable",
+                       current_micro_bar);
+    return false;
+  }
+  if(!PivotHftRecoveryAllowsSignalAttempts())
+  {
+    PivotHftDeferRetry(position_state,
+                       "recovery_block",
                        current_micro_bar);
     return false;
   }
@@ -778,6 +812,8 @@ void PivotHftCompletePositionFinalization(
                             PIVOT_HFT_CLOSE_TRIGGER_EXTERNAL &&
                           position_state.close_trigger !=
                             PIVOT_HFT_CLOSE_TRIGGER_REGISTRATION_FAILURE &&
+                          position_state.close_trigger !=
+                            PIVOT_HFT_CLOSE_TRIGGER_RECOVERY_FAILURE &&
                           !position_state.emergency_lifecycle);
   int current_retry_number = PivotHftMarketRetryNumber(
     position_state.campaign_retry_ordinal);
@@ -808,7 +844,10 @@ void PivotHftCompletePositionFinalization(
     disabled_transition = PivotHftSetRetryState(
       position_state,
       PIVOT_HFT_RETRY_DISABLED,
-      "registration_failure");
+      position_state.close_trigger ==
+        PIVOT_HFT_CLOSE_TRIGGER_RECOVERY_FAILURE
+          ? "recovery_failure"
+          : "registration_failure");
   }
   else
   {
@@ -913,6 +952,8 @@ void PivotHftCompletePositionFinalization(
     }
     position_state.status = PIVOT_HFT_POSITION_COMPLETED;
   }
+  PivotHftRecoveryFinalizeBrokerLifecycle(position_state,
+                                          "history_finalized");
 }
 
 void PivotHftFinalizeClosedPosition(PivotHftPositionState &position_state)
@@ -1122,8 +1163,12 @@ void PivotHftPreserveEmergencyCloseWait(
 {
   datetime now_time = TimeCurrent();
   position_state.status = PIVOT_HFT_POSITION_CLOSE_WAIT;
-  position_state.close_trigger =
-    PIVOT_HFT_CLOSE_TRIGGER_REGISTRATION_FAILURE;
+  if(position_state.close_trigger !=
+       PIVOT_HFT_CLOSE_TRIGGER_RECOVERY_FAILURE)
+  {
+    position_state.close_trigger =
+      PIVOT_HFT_CLOSE_TRIGGER_REGISTRATION_FAILURE;
+  }
   if(position_state.close_trigger_time <= 0)
     position_state.close_trigger_time = now_time;
   position_state.close_requested = true;
@@ -1153,6 +1198,8 @@ void PivotHftPreserveEmergencyCloseWait(
                                   (long)position_state.close_retry_after));
     position_state.last_close_audit_time = now_time;
   }
+  PivotHftRecoveryCheckpointOrQuarantine(position_state,
+                                         "emergency_close_wait");
 }
 
 bool PivotHftClosePositionLocally(PivotHftPositionState &position_state)
@@ -1309,7 +1356,14 @@ bool PivotHftClosePositionLocally(PivotHftPositionState &position_state)
     g_pivot_hft_emergency_quarantine.next_action_time =
       position_state.close_retry_after;
   }
-  return true;
+  if(position_state.close_trigger ==
+       PIVOT_HFT_CLOSE_TRIGGER_RECOVERY_FAILURE)
+  {
+    PivotHftRecoverySetStatus(PIVOT_HFT_RECOVERY_CLOSE_WAIT,
+                              "recovery_close_sent");
+  }
+  return PivotHftRecoveryCheckpointOrQuarantine(position_state,
+                                                "close_send_state");
 }
 
 void PivotHftRefreshEmergencyQuarantineIdentityFromDeal()
@@ -1343,7 +1397,7 @@ void PivotHftBuildEmergencyQuarantineHistoryState(
   position_state.status = PIVOT_HFT_POSITION_CLOSE_WAIT;
   position_state.execution_source = PIVOT_HFT_EXECUTION_BROKER;
   position_state.close_trigger =
-    PIVOT_HFT_CLOSE_TRIGGER_REGISTRATION_FAILURE;
+    g_pivot_hft_emergency_quarantine.close_trigger;
   position_state.direction = g_pivot_hft_emergency_quarantine.direction;
   position_state.pivot_level =
     g_pivot_hft_emergency_quarantine.pivot_level;
@@ -1411,6 +1465,16 @@ void PivotHftReconcileEmergencyQuarantine()
     {
       PivotHftPositionState emergency_state_ref =
         g_pivot_hft_positions[emergency_index];
+      bool recovery_state_changed =
+        (emergency_state_ref.position_ticket !=
+           g_pivot_hft_emergency_quarantine.position_ticket ||
+         emergency_state_ref.position_identifier !=
+           g_pivot_hft_emergency_quarantine.position_identifier ||
+         emergency_state_ref.status != PIVOT_HFT_POSITION_CLOSE_WAIT ||
+         emergency_state_ref.close_trigger !=
+           g_pivot_hft_emergency_quarantine.close_trigger ||
+         !emergency_state_ref.close_requested ||
+         emergency_state_ref.reattempt_pending);
       emergency_state_ref.position_ticket =
         g_pivot_hft_emergency_quarantine.position_ticket;
       emergency_state_ref.position_identifier =
@@ -1420,13 +1484,21 @@ void PivotHftReconcileEmergencyQuarantine()
         emergency_state_ref.position_ticket);
       emergency_state_ref.status = PIVOT_HFT_POSITION_CLOSE_WAIT;
       emergency_state_ref.close_trigger =
-        PIVOT_HFT_CLOSE_TRIGGER_REGISTRATION_FAILURE;
+        g_pivot_hft_emergency_quarantine.close_trigger;
       emergency_state_ref.close_requested = true;
       emergency_state_ref.reattempt_pending = false;
       datetime now_time = TimeCurrent();
       if(emergency_state_ref.close_retry_after <= now_time)
       {
+        if(emergency_state_ref.close_send_confirmed)
+          recovery_state_changed = true;
         emergency_state_ref.close_send_confirmed = false;
+      }
+      if(recovery_state_changed)
+      {
+        PivotHftRecoveryCheckpointOrQuarantine(
+          emergency_state_ref,
+          "emergency_identity_reconciled");
       }
       g_pivot_hft_positions[emergency_index] = emergency_state_ref;
       if(g_pivot_hft_positions[emergency_index].close_retry_after <= now_time)
@@ -1451,6 +1523,7 @@ void PivotHftReconcileEmergencyQuarantine()
       MarketStatusClearExecutionError(
         "PIVOT_HFT_EMERGENCY_RECONCILED");
       PivotHftResetEmergencyQuarantine();
+      PivotHftRecoveryOnEmergencyReconciled();
       return;
     }
     if(!exposure_open)
@@ -1529,6 +1602,7 @@ void PivotHftReconcileEmergencyQuarantine()
                                 net_result));
   MarketStatusClearExecutionError("PIVOT_HFT_EMERGENCY_RECONCILED");
   PivotHftResetEmergencyQuarantine();
+  PivotHftRecoveryOnEmergencyReconciled();
 }
 
 void PivotHftProcessVirtualPositionState(
@@ -1656,12 +1730,23 @@ void PivotHftProcessPositionState(PivotHftPositionState &position_state)
 
   position_state.entry_price = PositionGetDouble(POSITION_PRICE_OPEN);
   position_state.entry_volume = PositionGetDouble(POSITION_VOLUME);
-  if(position_state.local_sl_price <= 0.0)
-    PivotHftInitializeLocalStop(position_state);
+  if(position_state.local_sl_price <= 0.0 &&
+     !PivotHftInitializeLocalStop(position_state))
+  {
+    if(!position_state.emergency_lifecycle)
+    {
+      PivotHftRecoveryQuarantinePositionState(
+        position_state,
+        "local_sl_initialization_failed");
+    }
+    PivotHftClosePositionLocally(position_state);
+    return;
+  }
 
   if(!PivotHftEvaluatePostFillEntrySafety(position_state))
   {
-    PivotHftCaptureEntrySafetyCloseTrigger(position_state);
+    if(!position_state.emergency_lifecycle)
+      PivotHftCaptureEntrySafetyCloseTrigger(position_state);
     position_state.close_requested = true;
     position_state.status = PIVOT_HFT_POSITION_CLOSE_WAIT;
     PivotHftClosePositionLocally(position_state);
@@ -1669,8 +1754,18 @@ void PivotHftProcessPositionState(PivotHftPositionState &position_state)
   }
 
   if(position_state.local_tp_price <= 0.0 &&
-     position_state.fixed_tp_points > 0.0)
-    PivotHftInitializeLocalTarget(position_state);
+     position_state.fixed_tp_points > 0.0 &&
+     !PivotHftInitializeLocalTarget(position_state))
+  {
+    if(!position_state.emergency_lifecycle)
+    {
+      PivotHftRecoveryQuarantinePositionState(
+        position_state,
+        "local_tp_initialization_failed");
+    }
+    PivotHftClosePositionLocally(position_state);
+    return;
+  }
 
   double trigger_quote = 0.0;
   if(PivotHftFixedTpTriggered(position_state, trigger_quote))
@@ -1683,6 +1778,11 @@ void PivotHftProcessPositionState(PivotHftPositionState &position_state)
   }
 
   PivotHftUpdateTrailingStop(position_state);
+  if(position_state.emergency_lifecycle)
+  {
+    PivotHftClosePositionLocally(position_state);
+    return;
+  }
   trigger_quote = 0.0;
   if(PivotHftLocalStopTriggered(position_state, trigger_quote))
   {
