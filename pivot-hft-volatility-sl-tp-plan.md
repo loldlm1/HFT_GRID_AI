@@ -2,7 +2,8 @@
 
 **Generated**: 2026-08-01
 **Revised**: 2026-08-01 after execution authorization
-**Status**: Active implementation plan
+**Status**: Completed
+**Completed**: 2026-08-01
 **Complexity**: Critical / trading-sensitive
 **Execution**: Sprints 1-6 in order, exactly one validated commit per Sprint
 
@@ -165,9 +166,9 @@ remove `BUILD.log`. No Strategy Tester run is part of this execution.
 
 ### Sprint 1 Gate
 
-- [ ] Tasks and static validation complete.
-- [ ] Diff is limited to plan/input/enum contracts.
-- [ ] Exactly one Sprint 1 commit created and rollback hash recorded.
+- [x] Tasks and static validation complete.
+- [x] Diff is limited to plan/input/enum contracts.
+- [x] Exactly one Sprint 1 commit created and rollback hash recorded.
 
 ## Sprint 2: Immutable Cached-Band Risk Geometry
 
@@ -224,9 +225,9 @@ remove `BUILD.log`. No Strategy Tester run is part of this execution.
 
 ### Sprint 2 Gate
 
-- [ ] Tasks and static validation complete.
-- [ ] Include layering, immutable state, and pre-send failure path reviewed.
-- [ ] Exactly one Sprint 2 commit created and rollback hash recorded.
+- [x] Tasks and static validation complete.
+- [x] Include layering, immutable state, and pre-send failure path reviewed.
+- [x] Exactly one Sprint 2 commit created and rollback hash recorded.
 
 ## Sprint 3: Volatility SL And Initial-Risk Trailing Step
 
@@ -275,9 +276,9 @@ SL/BE/trailing behavior.
 
 ### Sprint 3 Gate
 
-- [ ] Tasks and static validation complete.
-- [ ] Legacy path and monotonic trailing reviewed for BUY/SELL.
-- [ ] Exactly one Sprint 3 commit created and rollback hash recorded.
+- [x] Tasks and static validation complete.
+- [x] Legacy path and monotonic trailing reviewed for BUY/SELL.
+- [x] Exactly one Sprint 3 commit created and rollback hash recorded.
 
 ## Sprint 4: Optional Fixed-R Local TP
 
@@ -327,9 +328,9 @@ SL/BE/trailing behavior.
 
 ### Sprint 4 Gate
 
-- [ ] Tasks and static validation complete.
-- [ ] Local close ownership and existing safety scopes reviewed.
-- [ ] Exactly one Sprint 4 commit created and rollback hash recorded.
+- [x] Tasks and static validation complete.
+- [x] Local close ownership and existing safety scopes reviewed.
+- [x] Exactly one Sprint 4 commit created and rollback hash recorded.
 
 ## Sprint 5: Diagnostics, Frontend, Tester Criterion, And Documentation
 
@@ -382,9 +383,9 @@ SL/BE/trailing behavior.
 
 ### Sprint 5 Gate
 
-- [ ] Tasks and static validation complete.
-- [ ] Frontend, diagnostics, docs, and tester arithmetic reviewed.
-- [ ] Exactly one Sprint 5 commit created and rollback hash recorded.
+- [x] Tasks and static validation complete.
+- [x] Frontend, diagnostics, docs, and tester arithmetic reviewed.
+- [x] Exactly one Sprint 5 commit created and rollback hash recorded.
 
 ## Sprint 6: Final Full-EA Compile And Defect Repair
 
@@ -436,11 +437,11 @@ compile defect, and leave a clean handoff for user-run Strategy Tester QA.
 
 ### Sprint 6 Gate
 
-- [ ] Full compile passes with zero errors/warnings.
-- [ ] `BUILD.log` removed and worktree reviewed.
-- [ ] Plan execution record updated.
-- [ ] Exactly one Sprint 6 commit created and rollback hash recorded.
-- [ ] Active plan state marked complete.
+- [x] Full compile passes with zero errors/warnings.
+- [x] `BUILD.log` removed and worktree reviewed.
+- [x] Plan execution record updated.
+- [x] Exactly one Sprint 6 commit created and rollback hash recorded.
+- [x] Active plan state marked complete.
 
 ## Risks And Mitigations
 
@@ -462,12 +463,25 @@ compile defect, and leave a clean handoff for user-run Strategy Tester QA.
 
 | Sprint | Status | Commit | Validation |
 | --- | --- | --- | --- |
-| 1 | Pending | - | Static only |
-| 2 | Pending | - | Static only |
-| 3 | Pending | - | Static only |
-| 4 | Pending | - | Static only |
-| 5 | Pending | - | Static only |
-| 6 | Pending | - | Full MetaEditor compile |
+| 1 | Complete | `0984e73` | Static input/enum compatibility review |
+| 2 | Complete | `42c503c` | Static include, cached-band, pre-send and immutable-state review |
+| 3 | Complete | `55b71f5` | Static BUY/SELL SL, BE and monotonic trailing review |
+| 4 | Complete | `1227b48` | Static fixed-TP priority, ticket close and retry review |
+| 5 | Complete | `fd6d4f2` | Static diagnostics, frontend, docs and `OnTester()` review |
+| 6 | Complete | This Sprint 6 commit | MetaEditor: `0 errors, 0 warnings` |
+
+### Completion Notes
+
+- The exact compile command was attempted first. MetaEditor selected its roaming
+  data directory and could not find the portable install's standard
+  `Include\Trade\Trade.mqh`.
+- The same compile and log paths were then run with MetaEditor's `/portable`
+  data-root mode. The current build completed with `0 errors, 0 warnings` in
+  `8627 ms`; no EA compile repair was required.
+- `BUILD.log` was removed after inspection. No harness, CI module, parser,
+  fixture, automated tester job, or result artifact was added.
+- Codex did not run Strategy Tester QA. The checklist below remains the user's
+  manual real-tick validation handoff.
 
 ## Final Manual QA Handoff
 
