@@ -1,7 +1,7 @@
 # Plan: Pivot HFT Retry Supersession And Broker Safety
 
 **Generated**: 2026-08-02
-**Status**: Sprints 1-2 complete; Sprint 3 pending
+**Status**: Sprints 1-3 complete; Sprint 4 pending
 **Estimated Complexity**: Critical / trading-sensitive
 
 ## Execution Record
@@ -30,6 +30,24 @@
   remove only `pivot_hft_recovery_<opaque-scope>_a.chk` and
   `pivot_hft_recovery_<opaque-scope>_b.chk` from the terminal-local Files
   sandbox.
+
+### Sprint 3
+
+- Commit message: `Sprint 3: clarify Pivot HFT retry identity`.
+- Centralized same-level retry eligibility and inclusive broker routing,
+  versioned broker comments as `PH2_<dir>_<level>_R<retry>_T<time>`, retained
+  legacy comments as non-authoritative hints, and aligned audit/panel/chart
+  terminology around `INITIAL`, `RETRY N`, `BROKER` and `VIRTUAL`.
+- Static validation passed: exact threshold `0/1/2/3` routing across retries
+  `0..4`, bounded comments across both directions, every pivot level,
+  two-digit and maximum integer retry values, canonical call-site scope,
+  read-only frontend include direction, balanced delimiters, `git diff
+  --check`, and unchanged `OnTester()` source.
+- MetaEditor compilation and visual tester inspection remain intentionally
+  deferred to Sprint 5 by user instruction.
+- Rollback point: `15f74ec`. Sprint 3 may be reverted while flat or with an
+  exactly recovered position because broker comments remain hints rather than
+  recovery authority.
 
 ## Overview
 
@@ -723,15 +741,15 @@ sole authority; retain backward-compatible display handling.
 
 ### Sprint 3 Gate
 
-- [ ] All Sprint 3 tasks are complete.
-- [ ] Threshold `0/1/2/3` matrix is exact.
-- [ ] Broker comments and audit retry numbers agree.
-- [ ] `OnTester()` score logic is unchanged.
-- [ ] Retry-policy/comment static validation passes; final compilation remains
+- [x] All Sprint 3 tasks are complete.
+- [x] Threshold `0/1/2/3` matrix is exact.
+- [x] Broker comments and audit retry numbers agree.
+- [x] `OnTester()` score logic is unchanged.
+- [x] Retry-policy/comment static validation passes; final compilation remains
       deferred to Sprint 5 by explicit user instruction.
-- [ ] Exactly one Sprint 3 commit is created with the proposed message.
-- [ ] The rollback point is recorded.
-- [ ] Sprint 4 has not started before this gate completes.
+- [x] Exactly one Sprint 3 commit is created with the proposed message.
+- [x] The rollback point is recorded.
+- [x] Sprint 4 has not started before this gate completes.
 
 ## Sprint 4: Supersede Same-Level Retries With Deeper Pivot Campaigns
 

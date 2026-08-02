@@ -433,6 +433,8 @@ void PivotHftDrawPosition(const PivotHftPositionState &state,
     return;
   string direction_label = PivotHftDirectionToken(state.direction);
   string source_label = PivotHftExecutionSourceLabel(state.execution_source);
+  string retry_identity = PivotHftRetryIdentityLabelForOrdinal(
+    state.campaign_retry_ordinal);
   string lifecycle_label = (state.status == PIVOT_HFT_POSITION_CLOSE_WAIT)
                            ? "CLOSE WAIT"
                            : "LIVE";
@@ -452,10 +454,11 @@ void PivotHftDrawPosition(const PivotHftPositionState &state,
                                   entry_color,
                                   entry_style,
                                   1,
-                                  StringFormat("%s %s %s %s %s FILL",
+                                  StringFormat("%s %s %s %s %s %s FILL",
                                                execution_token,
                                                direction_label,
                                                lifecycle_label,
+                                               retry_identity,
                                                source_label,
                                                PivotHftLevelLabel(
                                                  state.pivot_level)),
@@ -469,9 +472,10 @@ void PivotHftDrawPosition(const PivotHftPositionState &state,
                                   PivotHftPositionStopColor(state),
                                   STYLE_SOLID,
                                   2,
-                                  StringFormat("%s %s %s %s @ %.5f",
+                                  StringFormat("%s %s %s %s %s @ %.5f",
                                                execution_token,
                                                direction_label,
+                                               retry_identity,
                                                source_label,
                                                PivotHftPositionStopLabel(state),
                                                state.local_sl_price),
@@ -491,9 +495,10 @@ void PivotHftDrawPosition(const PivotHftPositionState &state,
                                     COLOR_PROFIT_POSITIVE,
                                     STYLE_DASHDOT,
                                     2,
-                                    StringFormat("%s %s %s %s @ %.5f",
+                                    StringFormat("%s %s %s %s %s @ %.5f",
                                                  execution_token,
                                                  direction_label,
+                                                 retry_identity,
                                                  source_label,
                                                  target_label,
                                                  state.local_tp_price),

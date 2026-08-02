@@ -21,6 +21,33 @@ enum PivotHftRecoveryStatuses
   PIVOT_HFT_RECOVERY_STORAGE_ERROR = 5
 };
 
+enum PivotHftRecoveryCommentKinds
+{
+  PIVOT_HFT_RECOVERY_COMMENT_NONE       = 0,
+  PIVOT_HFT_RECOVERY_COMMENT_VERSIONED  = 1,
+  PIVOT_HFT_RECOVERY_COMMENT_LEGACY     = 2
+};
+
+struct PivotHftRecoveryCommentHint
+{
+  PivotHftRecoveryCommentKinds kind;
+  bool valid;
+  SignalTypes direction;
+  PivotHftPivotLevels pivot_level;
+  int retry_number;
+  int legacy_attempt_number;
+
+  PivotHftRecoveryCommentHint()
+  {
+    kind = PIVOT_HFT_RECOVERY_COMMENT_NONE;
+    valid = false;
+    direction = NO_SIGNAL;
+    pivot_level = PIVOT_HFT_LEVEL_NONE;
+    retry_number = -1;
+    legacy_attempt_number = 0;
+  }
+};
+
 struct PivotHftRecoveryRecord
 {
   bool valid;
@@ -486,6 +513,117 @@ bool PivotHftRecoveryParseStringField(const string payload,
   string encoded = "";
   return (PivotHftRecoveryGetField(payload, key, encoded) &&
           PivotHftRecoveryDecodeString(encoded, value));
+}
+
+bool PivotHftRecoveryParseDirectionToken(const string token,
+                                         SignalTypes &direction)
+{
+  direction = NO_SIGNAL;
+  if(token == "B")
+    direction = BULLISH;
+  else if(token == "S")
+    direction = BEARISH;
+  return (direction != NO_SIGNAL);
+}
+
+bool PivotHftRecoveryParseLevelToken(const string token,
+                                     PivotHftPivotLevels &pivot_level)
+{
+  pivot_level = PIVOT_HFT_LEVEL_NONE;
+  if(token == "P")
+    pivot_level = PIVOT_HFT_LEVEL_P;
+  else if(token == "R1")
+    pivot_level = PIVOT_HFT_LEVEL_R1;
+  else if(token == "R2")
+    pivot_level = PIVOT_HFT_LEVEL_R2;
+  else if(token == "R3")
+    pivot_level = PIVOT_HFT_LEVEL_R3;
+  else if(token == "S1")
+    pivot_level = PIVOT_HFT_LEVEL_S1;
+  else if(token == "S2")
+    pivot_level = PIVOT_HFT_LEVEL_S2;
+  else if(token == "S3")
+    pivot_level = PIVOT_HFT_LEVEL_S3;
+  return (pivot_level != PIVOT_HFT_LEVEL_NONE);
+}
+
+bool PivotHftRecoveryParseBrokerComment(
+  const string comment,
+  PivotHftRecoveryCommentHint &hint)
+{
+  hint = PivotHftRecoveryCommentHint();
+  if(comment == "")
+    return false;
+
+  string tokens[];
+  ushort separator = (ushort)StringGetCharacter("_", 0);
+  int token_count = StringSplit(comment, separator, tokens);
+  if(token_count >= 4 && tokens[0] == PIVOT_HFT_BROKER_COMMENT_PREFIX)
+  {
+    long retry_value = 0;
+    if(!PivotHftRecoveryParseDirectionToken(tokens[1], hint.direction) ||
+       !PivotHftRecoveryParseLevelToken(tokens[2], hint.pivot_level) ||
+       StringLen(tokens[3]) < 2 ||
+       StringGetCharacter(tokens[3], 0) != 'R' ||
+       !PivotHftRecoveryParseLong(StringSubstr(tokens[3], 1),
+                                  retry_value) ||
+       retry_value < 0 ||
+       (long)(int)retry_value != retry_value)
+      return false;
+    hint.kind = PIVOT_HFT_RECOVERY_COMMENT_VERSIONED;
+    hint.valid = true;
+    hint.retry_number = (int)retry_value;
+    return true;
+  }
+
+  if(token_count >= 5 && tokens[0] == "phft")
+  {
+    long attempt_value = 0;
+    if(!PivotHftRecoveryParseDirectionToken(tokens[2], hint.direction) ||
+       !PivotHftRecoveryParseLevelToken(tokens[3], hint.pivot_level) ||
+       !PivotHftRecoveryParseLong(tokens[4], attempt_value) ||
+       attempt_value <= 0 ||
+       (long)(int)attempt_value != attempt_value)
+      return false;
+    hint.kind = PIVOT_HFT_RECOVERY_COMMENT_LEGACY;
+    hint.valid = true;
+    hint.legacy_attempt_number = (int)attempt_value;
+    return true;
+  }
+  return false;
+}
+
+void PivotHftRecoveryAuditBrokerCommentHint(
+  const PivotHftPositionState &state,
+  const string broker_comment)
+{
+  PivotHftRecoveryCommentHint hint;
+  bool parsed = PivotHftRecoveryParseBrokerComment(broker_comment, hint);
+  string format_label = "UNAVAILABLE";
+  string corroboration = "UNAVAILABLE";
+  int checkpoint_retry_number = PivotHftMarketRetryNumber(
+    state.campaign_retry_ordinal);
+  if(parsed && hint.kind == PIVOT_HFT_RECOVERY_COMMENT_VERSIONED)
+  {
+    format_label = PIVOT_HFT_BROKER_COMMENT_PREFIX;
+    corroboration = (hint.direction == state.direction &&
+                     hint.pivot_level == state.pivot_level &&
+                     hint.retry_number == checkpoint_retry_number)
+                    ? "MATCH"
+                    : "MISMATCH_IGNORED";
+  }
+  else if(parsed && hint.kind == PIVOT_HFT_RECOVERY_COMMENT_LEGACY)
+  {
+    format_label = "LEGACY";
+    corroboration = "LEGACY_HINT_ONLY";
+  }
+
+  PivotHftAuditLog("RECOVERY_COMMENT_HINT",
+                   StringFormat("format=%s|corroboration=%s|checkpoint_retry_number=%d|legacy_attempt=%d",
+                                format_label,
+                                corroboration,
+                                checkpoint_retry_number,
+                                hint.legacy_attempt_number));
 }
 
 string PivotHftRecoverySerializePositionState(
@@ -1829,6 +1967,8 @@ bool PivotHftRecoveryBrokerStateMatches(
       return false;
     }
   }
+  PivotHftRecoveryAuditBrokerCommentHint(state,
+                                         broker_position.position_comment);
   return true;
 }
 

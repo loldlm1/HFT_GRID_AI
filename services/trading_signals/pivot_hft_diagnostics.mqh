@@ -6,6 +6,8 @@
 
 const string PIVOT_HFT_AUDIT_FILENAME = "query_debug.txt";
 const int    PIVOT_HFT_AUDIT_SCHEMA_VERSION = 2;
+const string PIVOT_HFT_BROKER_COMMENT_PREFIX = "PH2";
+const int    PIVOT_HFT_BROKER_COMMENT_MAX_LENGTH = 31;
 string g_pivot_hft_audit_run_id = "";
 bool   g_pivot_hft_audit_initialized = false;
 bool   g_pivot_hft_audit_failure_warned = false;
@@ -114,11 +116,12 @@ void PivotHftAuditInitialize()
               PivotHftAuditFilePath(),
               g_pivot_hft_audit_run_id);
   PivotHftAuditLog("RUN_START",
-                   StringFormat("schema_version=%d|tester=%d|tester_visual_mode=%d|chart_tf=%s|writer=shared_append",
+                   StringFormat("schema_version=%d|tester=%d|tester_visual_mode=%d|chart_tf=%s|writer=shared_append|retry_identity=logical|broker_comment_schema=%s",
                                 PIVOT_HFT_AUDIT_SCHEMA_VERSION,
                                 (int)MQLInfoInteger(MQL_TESTER),
                                 (int)MQLInfoInteger(MQL_VISUAL_MODE),
-                                EnumToString((ENUM_TIMEFRAMES)_Period)));
+                                EnumToString((ENUM_TIMEFRAMES)_Period),
+                                PIVOT_HFT_BROKER_COMMENT_PREFIX));
 }
 
 void PivotHftAuditShutdown(const int reason)

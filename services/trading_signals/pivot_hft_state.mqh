@@ -404,14 +404,37 @@ int PivotHftMarketRetryNumber(const int retry_ordinal)
   return (retry_ordinal > 1) ? retry_ordinal - 1 : 0;
 }
 
+bool PivotHftSameLevelRetriesEnabled()
+{
+  return (Pivot_HFT_Start_Real_Retry >= 1);
+}
+
+bool PivotHftSameLevelRetryAllowed(const int retry_number)
+{
+  return (retry_number >= 1 && PivotHftSameLevelRetriesEnabled());
+}
+
 PivotHftExecutionSources PivotHftExecutionSourceForRetry(
   const int retry_number)
 {
-  if(retry_number > 0 &&
-     Pivot_HFT_Start_Real_Retry > 1 &&
-     retry_number < Pivot_HFT_Start_Real_Retry)
+  if(retry_number <= 0 || Pivot_HFT_Start_Real_Retry <= 1)
+    return PIVOT_HFT_EXECUTION_BROKER;
+  if(retry_number < Pivot_HFT_Start_Real_Retry)
     return PIVOT_HFT_EXECUTION_VIRTUAL;
   return PIVOT_HFT_EXECUTION_BROKER;
+}
+
+string PivotHftRetryIdentityLabel(const int retry_number)
+{
+  if(retry_number <= 0)
+    return "INITIAL";
+  return StringFormat("RETRY %d", retry_number);
+}
+
+string PivotHftRetryIdentityLabelForOrdinal(const int retry_ordinal)
+{
+  return PivotHftRetryIdentityLabel(
+    PivotHftMarketRetryNumber(retry_ordinal));
 }
 
 string PivotHftExecutionSourceLabel(
@@ -512,7 +535,9 @@ string PivotHftRetryDecisionAuditFields(
   const PivotHftPositionState &position_state,
   const datetime current_micro_bar)
 {
-  return StringFormat("source_execution_source=%s|source_execution_id=%s|source_ticket=%I64u|parent_execution_id=%s|sequence=%s|dir=%s|level=%s|pivot_price=%.5f|current_retry_number=%d|current_retry_ordinal=%d|next_retry_number=%d|next_retry_ordinal=%d|next_execution_source=%s|retry_state=%s|reason=%s|origin_bar=%I64d|fill_bar=%I64d|current_bar=%I64d",
+  int current_retry_number = PivotHftMarketRetryNumber(
+    position_state.campaign_retry_ordinal);
+  return StringFormat("source_execution_source=%s|source_execution_id=%s|source_ticket=%I64u|parent_execution_id=%s|sequence=%s|dir=%s|level=%s|pivot_price=%.5f|current_entry_identity=%s|current_retry_number=%d|current_retry_ordinal=%d|next_entry_identity=%s|next_retry_number=%d|next_retry_ordinal=%d|next_execution_source=%s|next_same_level_allowed=%d|retry_state=%s|reason=%s|origin_bar=%I64d|fill_bar=%I64d|current_bar=%I64d",
                       PivotHftExecutionSourceLabel(
                         position_state.execution_source),
                       PivotHftPositionExecutionId(position_state),
@@ -522,13 +547,17 @@ string PivotHftRetryDecisionAuditFields(
                       EnumToString(position_state.direction),
                       PivotHftLevelLabel(position_state.pivot_level),
                       position_state.pivot_price,
-                      PivotHftMarketRetryNumber(
-                        position_state.campaign_retry_ordinal),
+                      PivotHftRetryIdentityLabel(current_retry_number),
+                      current_retry_number,
                       position_state.campaign_retry_ordinal,
+                      PivotHftRetryIdentityLabel(
+                        position_state.next_retry_number),
                       position_state.next_retry_number,
                       position_state.next_retry_ordinal,
                       PivotHftExecutionSourceLabel(
                         position_state.next_retry_execution_source),
+                      (int)PivotHftSameLevelRetryAllowed(
+                        position_state.next_retry_number),
                       PivotHftRetryStateLabel(position_state.retry_state),
                       position_state.retry_state_reason,
                       (long)position_state.campaign_micro_bar_time,

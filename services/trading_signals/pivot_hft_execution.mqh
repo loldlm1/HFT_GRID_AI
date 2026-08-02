@@ -172,11 +172,20 @@ string PivotHftBuildVirtualExecutionId(
 
 string PivotHftBuildPositionComment(const PivotHftCampaignState &campaign)
 {
-  return StringFormat("phft_%I64d_%s_%s_%d",
-                      (long)campaign.micro_bar_time,
-                      PivotHftDirectionToken(campaign.direction),
-                      PivotHftLevelLabel(campaign.pivot_level),
-                      campaign.attempt_count + 1);
+  int retry_number = PivotHftMarketRetryNumber(campaign.retry_ordinal);
+  string comment = StringFormat("%s_%s_%s_R%d_T%I64d",
+                                PIVOT_HFT_BROKER_COMMENT_PREFIX,
+                                PivotHftDirectionToken(campaign.direction),
+                                PivotHftLevelLabel(campaign.pivot_level),
+                                retry_number,
+                                (long)campaign.micro_bar_time);
+  if(StringLen(comment) > PIVOT_HFT_BROKER_COMMENT_MAX_LENGTH)
+  {
+    comment = StringSubstr(comment,
+                           0,
+                           PIVOT_HFT_BROKER_COMMENT_MAX_LENGTH);
+  }
+  return comment;
 }
 
 bool PivotHftSymbolAllowsDirection(const SignalTypes direction,

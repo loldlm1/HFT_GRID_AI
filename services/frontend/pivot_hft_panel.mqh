@@ -58,15 +58,24 @@ string PivotHftCampaignDisplayStatus(
       label = "INVALIDATED " +
               PivotHftTerminalReasonLabel(campaign.terminal_reason);
   }
-  if(campaign.retry_ordinal > 1 &&
-     campaign.terminal_reason != "start_real_retry_zero")
-    label = StringFormat("RETRY %d %s %s",
-                         PivotHftMarketRetryNumber(campaign.retry_ordinal),
-                         PivotHftExecutionSourceLabel(
-                           PivotHftExecutionSourceForRetry(
-                             PivotHftMarketRetryNumber(
-                               campaign.retry_ordinal))),
-                         label);
+  int retry_number = PivotHftMarketRetryNumber(campaign.retry_ordinal);
+  if(campaign.status != PIVOT_HFT_CAMPAIGN_IDLE)
+  {
+    if(campaign.terminal_reason == "start_real_retry_zero" &&
+       retry_number > 0)
+    {
+      label = StringFormat("RETRY %d DISABLED", retry_number);
+    }
+    else
+    {
+      label = StringFormat("%s %s %s",
+                           PivotHftRetryIdentityLabel(retry_number),
+                           PivotHftExecutionSourceLabel(
+                             PivotHftExecutionSourceForRetry(
+                               retry_number)),
+                           label);
+    }
+  }
   if(campaign.entry_safety.blocked)
     label += " RISK BLOCKED";
   return label;
@@ -75,10 +84,10 @@ string PivotHftCampaignDisplayStatus(
 string PivotHftRetryPolicyPanelText()
 {
   if(Pivot_HFT_Start_Real_Retry == 0)
-    return "initial BROKER | retries disabled";
+    return "INITIAL BROKER | same-level retries disabled | deeper pivots remain eligible as new INITIAL";
   if(Pivot_HFT_Start_Real_Retry == 1)
-    return "initial BROKER | broker from RETRY 1 | no max while chain valid";
-  return StringFormat("initial BROKER | virtual before RETRY %d | broker from RETRY %d | no max while chain valid",
+    return "INITIAL BROKER | BROKER from RETRY 1 | no max while chain valid";
+  return StringFormat("INITIAL BROKER | VIRTUAL before RETRY %d | BROKER from RETRY %d inclusive | no max while chain valid",
                       Pivot_HFT_Start_Real_Retry,
                       Pivot_HFT_Start_Real_Retry);
 }
@@ -168,11 +177,9 @@ string PivotHftBuildPositionPanelLines()
         source_label,
         PivotHftCloseTriggerLabel(state.close_trigger));
     }
-    string retry_text = "";
-    if(state.campaign_retry_ordinal > 1)
-      retry_text = StringFormat(
-        " | RETRY %d",
-        PivotHftMarketRetryNumber(state.campaign_retry_ordinal));
+    string retry_text = " | " +
+      PivotHftRetryIdentityLabelForOrdinal(
+        state.campaign_retry_ordinal);
 
     text += StringFormat("\n%s %s %s %s%s | E %.5f | R %.2fpt BAND | SL %.5f | STEP %.2fpt[%d]%s",
                          lifecycle_label,
@@ -216,11 +223,11 @@ string PivotHftBuildRetryPanelLine()
   if(!PivotHftResolvePendingRetryState(state))
     return "";
 
-  return StringFormat("\nRetry %s | RETRY %d %s | %s %s %.5f | reason=%s",
-                      PivotHftRetryStateLabel(state.retry_state),
+  return StringFormat("\nRETRY %d %s | state %s | %s %s %.5f | reason=%s",
                       state.next_retry_number,
                       PivotHftExecutionSourceLabel(
                         state.next_retry_execution_source),
+                      PivotHftRetryStateLabel(state.retry_state),
                       PivotHftDirectionToken(state.direction),
                       PivotHftLevelLabel(state.pivot_level),
                       state.pivot_price,

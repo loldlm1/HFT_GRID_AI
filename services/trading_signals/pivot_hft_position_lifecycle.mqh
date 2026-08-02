@@ -822,7 +822,8 @@ void PivotHftCompletePositionFinalization(
   PivotHftExecutionSources next_execution_source =
     position_state.next_retry_execution_source;
   position_state.reattempt_pending =
-    (retry_eligible && Pivot_HFT_Start_Real_Retry > 0);
+    (retry_eligible &&
+     PivotHftSameLevelRetryAllowed(next_retry_number));
   bool pending_transition = false;
   bool disabled_transition = false;
   if(position_state.reattempt_pending)
