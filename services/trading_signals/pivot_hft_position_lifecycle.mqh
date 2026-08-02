@@ -371,30 +371,21 @@ bool PivotHftHistoryNetResult(const PivotHftPositionState &position_state,
   return has_close_deal;
 }
 
-bool PivotHftPositionLevelStillAllowsRearm(
+bool PivotHftPositionPivotSetStillAllowsRearm(
   const PivotHftPositionState &position_state,
-  const double close_price)
+  double &current_level_price)
 {
-  if(close_price <= 0.0 ||
-     !g_pivot_hft_pivots.valid ||
-     !PivotHftIndicatorsReady())
+  current_level_price = 0.0;
+  if(!g_pivot_hft_pivots.valid)
     return false;
 
-  double current_level_price = PivotHftResolveLevelPrice(
+  current_level_price = PivotHftResolveLevelPrice(
     position_state.pivot_level,
     g_pivot_hft_pivots);
   double tolerance = PivotHftTickSize() * 0.5;
-  if(current_level_price <= 0.0 ||
-     MathAbs(current_level_price - position_state.pivot_price) > tolerance)
-    return false;
-
-  if(position_state.direction == BEARISH)
-    return (close_price >= position_state.pivot_price &&
-            close_price >= g_pivot_hft_bands_upper);
-  if(position_state.direction == BULLISH)
-    return (close_price <= position_state.pivot_price &&
-            close_price <= g_pivot_hft_bands_lower);
-  return false;
+  return (current_level_price > 0.0 &&
+          MathAbs(current_level_price - position_state.pivot_price) <=
+            tolerance);
 }
 
 bool PivotHftTryRearmClosedPosition(PivotHftPositionState &position_state)
@@ -429,15 +420,26 @@ bool PivotHftTryRearmClosedPosition(PivotHftPositionState &position_state)
      !MarketStatusAllowsSignalAttempts())
     return false;
 
-  double close_price = PivotHftCurrentMicroClose();
-  if(close_price <= 0.0 ||
-     !PivotHftRefreshPivotSnapshot(false) ||
-     !PivotHftRefreshBandsSnapshot(false) ||
+  if(!PivotHftRefreshPivotSnapshot(false) ||
      !PivotHftIndicatorsReady())
     return false;
 
-  if(!PivotHftPositionLevelStillAllowsRearm(position_state, close_price))
+  double current_level_price = 0.0;
+  if(!PivotHftPositionPivotSetStillAllowsRearm(position_state,
+                                               current_level_price))
+  {
+    PivotHftAuditLog("REARM_INVALIDATED",
+                     StringFormat("ticket=%I64u|level=%s|reason=pivot_set_changed|stored_price=%.5f|current_price=%.5f|fill_bar=%I64d|current_bar=%I64d",
+                                  position_state.position_ticket,
+                                  PivotHftLevelLabel(position_state.pivot_level),
+                                  position_state.pivot_price,
+                                  current_level_price,
+                                  (long)position_state.entry_micro_bar_time,
+                                  (long)current_micro_bar));
+    position_state.reattempt_pending = false;
+    position_state.status = PIVOT_HFT_POSITION_COMPLETED;
     return false;
+  }
 
   PivotHftStartCampaign(position_state.direction,
                         position_state.pivot_level,
@@ -449,12 +451,12 @@ bool PivotHftTryRearmClosedPosition(PivotHftPositionState &position_state)
   position_state.campaign_attempt_count = g_pivot_hft_campaign.attempt_count;
   position_state.status = PIVOT_HFT_POSITION_COMPLETED;
   PivotHftAuditLog("POSITION_REARMED",
-                   StringFormat("ticket=%I64u|sequence=%s|dir=%s|level=%s|attempt=%d",
-                                position_state.position_ticket,
-                                g_pivot_hft_campaign.sequence_id,
-                                EnumToString(position_state.direction),
-                                PivotHftLevelLabel(position_state.pivot_level),
-                                g_pivot_hft_campaign.attempt_count + 1));
+                   StringFormat("ticket=%I64u|sequence=%s|dir=%s|level=%s|attempt=%d|admission=latched",
+                                 position_state.position_ticket,
+                                 g_pivot_hft_campaign.sequence_id,
+                                 EnumToString(position_state.direction),
+                                 PivotHftLevelLabel(position_state.pivot_level),
+                                 g_pivot_hft_campaign.attempt_count + 1));
   return true;
 }
 

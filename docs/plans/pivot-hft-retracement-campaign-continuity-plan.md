@@ -160,9 +160,9 @@ plan.
 
 ### Sprint 2 Gate
 
-- [ ] Tasks and static validation complete.
-- [ ] Trading guard order and campaign boundaries reviewed.
-- [ ] Exactly one Sprint 2 commit created.
+- [x] Tasks and static validation complete.
+- [x] Trading guard order and campaign boundaries reviewed.
+- [x] Exactly one Sprint 2 commit created.
 
 ## Sprint 3: Documentation And Final Compile
 
@@ -203,6 +203,6 @@ implementation files requiring compile repair.
 
 | Sprint | Status | Commit | Validation |
 | --- | --- | --- | --- |
-| 1 | Complete | This Sprint 1 commit | Plan paths, focused audit, and static diff review |
-| 2 | Pending | Pending | Rearm flow and safety-scope static review |
+| 1 | Complete | `757fc3f` | Plan paths, focused audit, and static diff review |
+| 2 | Complete | This Sprint 2 commit | Rearm flow and safety-scope static review |
 | 3 | Pending | Pending | Sole full MetaEditor compile and final review |
