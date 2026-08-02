@@ -1,14 +1,14 @@
 # Plan: Pivot HFT Entry Safety And Retry Visibility
 
 **Generated**: 2026-08-02
-**Status**: Implementation complete through Sprint 4; manual Strategy Tester QA
+**Status**: Implementation complete through Sprint 5; manual Strategy Tester QA
 pending user
 **Estimated Complexity**: Critical / trading-sensitive
 **Execution Policy**: One authorized contiguous batch for Sprints 1-3, with one
 statically validated commit per Sprint and one MetaEditor compile after Sprint
-3. Sprint 4 is a separate one-Sprint trading-sensitive batch with one final
-compile and one commit. Strategy Tester QA is deferred to the user after
-implementation.
+3. Sprint 4 and Sprint 5 are separate one-Sprint trading-sensitive batches,
+each with one final compile and one commit. Strategy Tester QA is deferred to
+the user after implementation.
 
 ## Overview
 
@@ -34,6 +34,12 @@ pivot level. The initial entry remains attempt zero; the public retry number is
 zero-based relative to the internal campaign ordinal, so internal ordinal `2`
 is displayed and audited as market retry `1`.
 
+Sprint 5 supersedes only Sprint 4's maximum-retry policy. The initial entry
+remains a real broker position. `Pivot_HFT_Start_Real_Retry` instead selects the
+first retry that opens in the market: earlier retries run as complete local
+broker-like positions, and every retry from the configured threshold onward is
+real. Public retry numbering remains unchanged.
+
 ## Scope
 
 - **In scope**:
@@ -48,12 +54,14 @@ is displayed and audited as market retry `1`.
     retouch the original pivot.
   - Separate live positions from `CLOSE_WAIT` in the panel and object labels.
   - Extend bounded audit/config fields for deterministic Strategy Tester QA.
-  - Add a non-negative maximum market-retry input per admitted pivot level.
+  - Add a non-negative real-retry start input per admitted pivot level.
+  - Simulate complete local entry/SL/TP/BE/trailing/close lifecycles before the
+    configured real-retry threshold.
   - Align audit and frontend retry numbers so the first re-entry is `RETRY 1`.
   - Update the active strategy guide and README behavior summary.
 - **Out of scope**:
   - Server-side SL/TP, pending orders, lot sizing, or account-risk sizing.
-  - A retry cooldown, delay, simulated/paper retry, or skipped-retry model.
+  - A retry cooldown, delay, random slippage generator, or skipped ordinal.
   - Changes to pivot admission, Bollinger calculations, latest outer-level
     replacement, winning-level consumption, session filters, daily budgets,
     protection, license, symbol/magic scope, or single-flight ownership.
@@ -87,11 +95,21 @@ is displayed and audited as market retry `1`.
     quote. It does not require another pivot touch or live Bollinger-side test.
   - Rearm preserves the admitted campaign sequence id and increments its retry
     ordinal; it does not create a logically unrelated pivot campaign.
-  - `Pivot_HFT_Max_Retries_Per_Level = 0` allows only the initial market entry;
-    `N > 0` allows market retries `1..N` after their preceding non-positive
-    locally requested closes.
-  - Negative retry limits fail initialization. The default is `1`, matching the
-    requested first-retry behavior while preventing unbounded same-level churn.
+  - `Pivot_HFT_Start_Real_Retry = 0` allows only the initial market entry and
+    disables rearm. `1` preserves the pre-Sprint-5 behavior: retry `1+` is real.
+    `N >= 2` simulates retries `1..N-1` locally and opens retry `N+` in the
+    market, subject to the existing guards and same-fill-candle rearm boundary.
+  - Negative values fail initialization. The default is `1`.
+  - A virtual fill uses a fresh executable Ask for BUY or Bid for SELL, current
+    spread, broker tick normalization, and the latest observed signed entry and
+    exit slippage plus per-lot transaction-cost estimate inherited from the
+    preceding real source. No random or invented fill is introduced.
+  - Virtual net result uses `OrderCalcProfit` plus the inherited cost estimate.
+    Commission/swap cannot be queried prospectively; the exact model inputs and
+    fallback-to-zero cases remain auditable.
+  - Virtual retries do not send broker requests, change account equity, or
+    consume daily start/outcome counters. The first real retry at or above the
+    threshold still requires and consumes the normal daily budget.
   - The existing internal ordinal remains `1` for the initial entry and `2` for
     the first retry. User-facing audit/frontend fields derive
     `retry_number = max(0, retry_ordinal - 1)`.
@@ -99,8 +117,8 @@ is displayed and audited as market retry `1`.
 - **Assumptions**:
   - The existing one-tick buffered broker helper is the approved safety margin;
     no public buffer input is required for this focused correction.
-  - Legitimate rapid retries can still occur up to the configured per-level
-    maximum; no time cooldown is introduced.
+  - Legitimate rapid retries can remain unbounded inside the existing lifecycle
+    and safety gates; no time cooldown is introduced.
   - The portable MetaEditor install and the user-provided real-tick US30 history
     remain available during implementation validation.
 
@@ -659,19 +677,194 @@ Sprint 4 commit.
   real-tick matrix for retry limits `0`, `1`, and `2`.
 - Rollback point: `fc62b98` (revert the Sprint 4 commit after it is created).
 
+## Sprint 5: Start Real Execution At A Configured Retry
+
+**Goal**: Replace the Sprint 4 retry cap with a virtual-to-real threshold so
+early losing retries advance the same campaign locally before later retries
+open real broker positions.
+
+**Dependencies**: Sprint 4 gate and commit; broker-first fill safety from
+Sprints 1-3; same-fill-candle rearm, single-flight ownership, daily budgets,
+and local close classification.
+
+**Tracked scope**:
+`services/trading_management/ea_inputs.mqh`,
+`services/trading_signals/market_status_controller.mqh`,
+`services/trading_signals/pivot_hft_state.mqh`,
+`services/trading_signals/pivot_hft_detection.mqh`,
+`services/trading_signals/pivot_hft_execution.mqh`,
+`services/trading_signals/pivot_hft_position_lifecycle.mqh`,
+`services/frontend/pivot_hft_panel.mqh`,
+`services/frontend/pivot_hft_visualization.mqh`, `HFT_Grid_AI.mq5`,
+`README.md`, `docs/guides/pivot-hft-strategy-inputs.md`, and this plan.
+
+**Commit**: `Sprint 5: simulate pivot retries before real entry`
+
+**Demo/Validation**:
+
+- `0` keeps the initial broker entry and disables rearm.
+- `1` keeps every eligible retry real, matching behavior before Sprint 5.
+- `3` registers retries `1` and `2` as virtual positions with no `Buy`/`Sell`,
+  then routes retry `3+` through the normal broker send/fill lifecycle.
+- BUY and SELL virtual fills use fresh executable sides, actual tick spread,
+  broker tick normalization, inherited observed slippage and inherited costs.
+- The EA compiles once with zero errors and warnings. Runtime evidence remains
+  the user's manual real-tick Strategy Tester QA.
+
+**Rollback point**: the Sprint 4 commit; rollback is a revert of the single
+Sprint 5 commit.
+
+### Task 5.1: Replace The Retry Cap With A Real-Start Threshold
+
+- **Location**:
+  - `services/trading_management/ea_inputs.mqh`
+  - `services/trading_signals/pivot_hft_state.mqh`
+  - `services/trading_signals/pivot_hft_position_lifecycle.mqh`
+  - `HFT_Grid_AI.mq5`
+- **Description**:
+  - Replace `Pivot_HFT_Max_Retries_Per_Level` with the non-negative
+    `Pivot_HFT_Start_Real_Retry`, default `1`.
+  - Preserve public retry `0` as the initial real entry. Treat `0` as rearm
+    disabled, `1` as all retries real, and `N >= 2` as virtual retries
+    `1..N-1` followed by real retries `N+`.
+  - Remove `RETRY_LIMIT_REACHED`; emit `RETRY_DISABLED` only when `0` prevents
+    an otherwise eligible rearm.
+  - Keep public retry numbers contiguous and preserve the admitted sequence,
+    pivot identity, same-fill-candle expiry and fresh retracement extreme.
+- **Acceptance criteria**:
+  - No maximum remains; retries at and above the threshold stay real while
+    lifecycle guards continue to allow them.
+  - Positive, external and protection closes retain their previous terminal
+    behavior.
+  - Negative values fail startup before trading resources become active.
+- **Validation**:
+  - Trace internal ordinals `1..5` for threshold values `0`, `1`, and `3`.
+  - Search every old maximum input/event reference and require none outside the
+    historical Sprint 4 record in this plan.
+  - `rtk git diff --check`
+- **Rollback**: restore the Sprint 4 maximum input and limit branch.
+
+### Task 5.2: Add Broker-Like Virtual Retry Execution And Lifecycle
+
+- **Location**:
+  - `services/trading_signals/market_status_controller.mqh`
+  - `services/trading_signals/pivot_hft_state.mqh`
+  - `services/trading_signals/pivot_hft_detection.mqh`
+  - `services/trading_signals/pivot_hft_execution.mqh`
+  - `services/trading_signals/pivot_hft_position_lifecycle.mqh`
+- **Description**:
+  - Add explicit broker/virtual execution source and stable execution/source
+    identifiers without using synthetic tickets in broker APIs.
+  - Capture a fresh tick immediately before each real or virtual entry. For a
+    virtual entry, use Ask for BUY and Bid for SELL, apply the preceding real
+    source's signed observed entry slippage, and normalize to broker tick size.
+  - Carry the preceding real source's signed exit slippage and per-lot net cost
+    estimate. At a virtual close, use fresh Bid for BUY or Ask for SELL, apply
+    that exit slippage, calculate gross with `OrderCalcProfit`, then add the
+    inherited cost estimate before classifying the result.
+  - Run virtual positions through the same immutable local SL/TP, post-fill
+    entry-safety, BE, trailing, trigger ordering and rearm classification.
+  - Preserve spread, stops/freeze, volume, margin, session, protection,
+    market-status and single-flight guards. Virtual retries bypass only the
+    daily counter gate and never register daily starts/outcomes; real retries
+    retain both.
+  - Retain the latest force-close timestamp so a virtual position closes as
+    `EXTERNAL` when the equivalent broker position would have been force-closed.
+- **Acceptance criteria**:
+  - A virtual retry cannot call `Buy`, `Sell`, `PositionClose`, broker history,
+    or daily result registration.
+  - A virtual loss alone advances to the next retry; virtual profit completes
+    the normal winning-level lifecycle.
+  - Missing tick, price, `OrderCalcProfit`, or model data fails closed and is
+    bounded/auditable; no random slippage or history scan is added per tick.
+- **Validation**:
+  - Trace BUY/SELL entry and close formulas, including positive and negative
+    signed slippage.
+  - Confirm real history remains scoped by symbol, magic and position id.
+  - Confirm one active virtual or broker position occupies the same single
+    execution slot.
+  - `rtk git diff --check`
+- **Rollback**: remove virtual source/state branches and restore broker-only
+  registration/finalization while keeping Sprints 1-4 intact.
+
+### Task 5.3: Expose Execution Source And Complete The Final Gate
+
+- **Location**:
+  - `services/frontend/pivot_hft_panel.mqh`
+  - `services/frontend/pivot_hft_visualization.mqh`
+  - `README.md`
+  - `docs/guides/pivot-hft-strategy-inputs.md`
+  - this plan
+- **Description**:
+  - Label campaigns and positions as `VIRTUAL` or `BROKER`, show the configured
+    first real retry, and keep `RETRY N` numbering identical in chart and audit.
+  - Add bounded virtual fill/close/finalization rows with executable quote,
+    spread, modeled entry/exit slippage, gross result, cost estimate and net.
+  - Document exact `0`, `1`, and `N` semantics, daily-counter treatment,
+    deterministic slippage calibration, limitations and manual QA matrix.
+  - Run the one final portable MetaEditor compile, inspect the fresh log, remove
+    `BUILD.log`, review the Sprint-only diff and create one Sprint 5 commit.
+- **Acceptance criteria**:
+  - Operators can distinguish broker and virtual lifecycles without relying on
+    color or ticket presence.
+  - Full compile has zero errors and zero warnings; no harness, CI module,
+    headless tester matrix, dependency or include-pipeline change is added.
+- **Validation**:
+  - `rtk grep "Start_Real_Retry|VIRTUAL_|execution_source|retry_number" HFT_Grid_AI.mq5 services README.md docs\\guides`
+  - Compile the portable EA once, inspect `BUILD.log`, require zero
+    errors/warnings, and remove the log.
+  - Review daily-start/outcome placement, symbol/magic history scope, virtual
+    broker-call isolation, forced close, frontend-only reads and bounded logs.
+- **Rollback**: revert the Sprint 5 commit.
+
+### Sprint 5 Gate
+
+- [x] All Sprint 5 tasks complete.
+- [x] Static `0`, `1`, and `3` threshold traces pass.
+- [x] Virtual BUY/SELL entry, post-fill safety, TP, BE, trailing and close paths
+  pass static review.
+- [x] Virtual paths contain no broker send/close/history or daily registration.
+- [x] The single final compile passes with zero errors and warnings.
+- [x] `BUILD.log` is inspected and removed.
+- [x] Documentation, audit and frontend source/retry labels match.
+- [x] Exactly one Sprint 5 commit is created with the proposed message.
+- [x] Runtime real-tick QA is explicitly handed to the user.
+
+**Execution record**:
+
+- Threshold trace: `0` keeps the initial broker entry and disables rearm; `1`
+  routes retry `1+` to broker; `3` routes retries `1-2` to `VIRTUAL` and retry
+  `3+` to `BROKER`.
+- Static lifecycle review: virtual entry returns before `Buy`/`Sell`; virtual
+  processing returns before `PositionClose` and broker history; daily start and
+  outcome registration remain broker-only.
+- Execution model review: BUY/SELL use fresh executable sides, current spread,
+  tick normalization, signed inherited entry/close slippage, `OrderCalcProfit`
+  and inherited per-lot costs without random values.
+- Frontend review: active `Broker`, active `Virtual` and `CloseWait` counts are
+  disjoint; input `0` renders `Retries OFF` instead of a misleading retry zero.
+- Compile: waited hidden portable MetaEditor process completed with `0 errors,
+  0 warnings` in `10402 ms`; `BUILD.log` was inspected and removed.
+- Runtime QA: intentionally not run. The real-tick `0/1/3`, BUY/SELL and local
+  lifecycle matrix remains assigned to the user.
+- Rollback point: `332ce19` (revert the Sprint 5 commit).
+
 ## Testing Strategy
 
 - **Pure/static checks**:
   - Review point/tick conversions and BUY/SELL close-side formulas.
   - Verify the safety floor uses spread plus buffered max(stops, freeze), not a
     max that would omit spread.
-  - Verify no risk value is silently widened and the retry limit is applied
-    only after an eligible finalized close.
-  - Trace retry limits `0`, `1`, and `2` against internal ordinals `1..4`.
+  - Verify no risk value is silently widened and the real-start source is
+    derived only from the public retry number.
+  - Trace thresholds `0`, `1`, and `3` against internal ordinals `1..5`.
+  - Verify BUY/SELL virtual entry and close slippage formulas, broker tick
+    normalization, `OrderCalcProfit` and inherited cost treatment.
 - **Integration**:
   - Correlate entry intent, safety decision, broker send, fill registration,
-    local close, history finalization, and retry creation by run/ticket.
-  - Require equal fill/finalization counts after the tester run.
+    local close, history/virtual finalization, and retry creation by run and
+    execution id.
+  - Require equal real+virtual fill/finalization counts after the tester run.
 - **End-to-end/manual Strategy Tester (user-run after implementation)**:
   - Use `Every tick based on real ticks`, US30, visual mode, micro M3, pivot M30,
     retracement `50`, band SL percent `6.25`, step ratio `1.5`, and fixed TP
@@ -682,11 +875,13 @@ Sprint 4 commit.
     one finalization, then visible retry tracking.
   - Retry-away-from-pivot case: after a negative close, keep price inside the
     band/across the pivot and confirm a fresh retracement can trigger.
-  - Close-delay case: panel shows `CloseWait 1`, `Live 0`, then clears after
-    history finalization.
+  - Close-delay case: panel separates `Broker`, `Virtual` and `CloseWait`, then
+    clears broker rows after history finalization.
   - Repeat representative BUY and SELL cases.
-  - Retry-limit matrix: with the same losing setup, confirm `0` has no rearm,
-    `1` has only `RETRY 1`, and `2` can reach `RETRY 2` but not `RETRY 3`.
+  - Real-start matrix: confirm `0` has no rearm, `1` routes retry `1+` to
+    broker, and `3` routes retries `1-2` virtual then retry `3+` broker.
+  - Confirm virtual fills create no broker history or daily-counter changes and
+    force-close scheduling completes them as `EXTERNAL` without rearm.
 - **Security/trading scope**:
   - Verify every position/deal/history lookup remains scoped to `_Symbol` and
     runtime `g_magic_number`.
@@ -714,8 +909,10 @@ Sprint 4 commit.
 | Fill slippage invalidates a safe preview | Position can still open too close to SL | Fresh post-fill tick and lifecycle-owned safety close | `FILL_ENTRY_DISTANCE_INVALID` chain |
 | Post-fill safety close loops into repeated fills | Churn and costs | Pre-send floor, fresh retry retracement, same-candle boundary, existing budgets; record as residual risk | No repeated unsafe fills in regression profile |
 | Retry appears to require a pivot retouch | Misleading QA and missed defect reports | Explicit retry metadata, threshold line, and away-from-pivot scenario | `POSITION_REARMED` then `ENTRY_TRIGGERED` away from pivot |
-| Retry limit is off by one | Extra or missing market position per level | Keep internal ordinal, derive public retry number once, and trace `0/1/2` | No rearm at `0`; last fills are `RETRY 1` and `RETRY 2` for limits `1` and `2` |
-| `CLOSE_WAIT` looks live | Operator confusion | Separate panel counts/status words | `Live 0 | CloseWait 1` screenshot |
+| Real-start threshold is off by one | A virtual retry opens real too early or too late | Keep internal ordinal, derive public retry once, trace `0/1/3` | At `3`, only retries `1-2` are virtual |
+| Virtual slippage/cost estimate diverges from next broker fill | Simulated classification differs from live outcome | Inherit signed observed source slippage/cost, expose all components, avoid random values | Virtual fill/close audit reconciles formula |
+| Virtual path touches broker or daily state | Hidden order/account-risk regression | Explicit execution source branches and static call isolation | No broker history/send or daily counter event for virtual id |
+| `CLOSE_WAIT` looks live | Operator confusion | Separate panel counts/status words | `Broker 0 | Virtual 0 | CloseWait 1` screenshot |
 | Frontend state leaks into execution | Trading regression | Read-only rendering from authoritative state | No frontend symbol referenced by trading modules |
 | New event payload becomes noisy | Tester/log overhead | Emit only on state transition/attempt, never per tick | Bounded event counts |
 
@@ -730,6 +927,8 @@ Sprint 4 commit.
 - **Sprint 4**: revert its single commit to restore unlimited eligible retries
   and the previous internal-ordinal frontend labels while retaining Sprints
   1-3.
+- **Sprint 5**: revert its single commit to restore Sprint 4's bounded real
+  retries and remove all virtual execution state.
 - After any rollback, compile with the portable MetaEditor command, inspect
   zero errors/warnings, remove `BUILD.log`, and run `rtk git status --short`.
 - There are no migrations, persisted schemas, server settings, or dependencies
@@ -751,6 +950,9 @@ Sprint 4 commit.
 7. Extend the completed plan with Sprint 4, execute that single
    trading-sensitive Sprint, compile once, commit once, and return the expanded
    retry-limit matrix to the user for manual QA.
+8. Supersede Sprint 4's maximum with Sprint 5's real-start threshold, execute
+   one trading-sensitive Sprint, compile once, commit once, and hand the
+   virtual-to-real matrix to the user.
 
 ## Completion Checklist
 
@@ -766,6 +968,8 @@ Sprint 4 commit.
 - [x] Every Sprint has exactly one Sprint-specific commit.
 - [x] Final compile has zero errors/warnings and `BUILD.log` is removed.
 - [x] Residual rapid-retry risk and rollback instructions are current.
-- [x] Market retries are bounded by the non-negative per-level input.
+- [x] The non-negative real-start input routes early retries virtual and later
+  retries broker without imposing a maximum.
 - [x] Public retry numbering starts at `1` while preserving internal ordinals.
 - [x] Sprint 4 passes static validation, final compile, diff review, and commit.
+- [x] Sprint 5 passes static validation, final compile, diff review, and commit.

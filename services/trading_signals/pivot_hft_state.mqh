@@ -7,6 +7,12 @@
 #define PIVOT_HFT_LEVEL_SLOT_TOTAL 8
 #define PIVOT_HFT_OCCUPIED_AUDIT_SIGNATURE_CAPACITY 64
 
+enum PivotHftExecutionSources
+{
+  PIVOT_HFT_EXECUTION_BROKER  = 0,
+  PIVOT_HFT_EXECUTION_VIRTUAL = 1
+};
+
 enum PivotHftLevelTestStatuses
 {
   PIVOT_HFT_LEVEL_UNTESTED      = 0,
@@ -85,7 +91,11 @@ struct PivotHftCampaignState
   int                      attempt_count;
   int                      retry_ordinal;
   ulong                    retry_source_ticket;
+  string                   retry_source_id;
   string                   sequence_id;
+  double                   modeled_entry_slippage_points;
+  double                   modeled_close_slippage_points;
+  double                   modeled_cost_per_lot;
   bool                     execution_slot_block_logged;
   PivotHftEntrySafetySnapshot entry_safety;
 
@@ -102,7 +112,11 @@ struct PivotHftCampaignState
     attempt_count    = 0;
     retry_ordinal    = 0;
     retry_source_ticket = 0;
+    retry_source_id  = "";
     sequence_id      = "";
+    modeled_entry_slippage_points = 0.0;
+    modeled_close_slippage_points = 0.0;
+    modeled_cost_per_lot = 0.0;
     execution_slot_block_logged = false;
     entry_safety     = PivotHftEntrySafetySnapshot();
   }
@@ -135,6 +149,7 @@ struct PivotHftRiskGeometry
 struct PivotHftPositionState
 {
   PivotHftPositionStatuses status;
+  PivotHftExecutionSources execution_source;
   PivotHftCloseTriggers    close_trigger;
   PivotHftNetClasses       net_class;
   SignalTypes              direction;
@@ -144,6 +159,7 @@ struct PivotHftPositionState
   ulong                    entry_deal_ticket;
   ulong                    exit_deal_ticket;
   ulong                    campaign_retry_source_ticket;
+  ulong                    force_close_generation_at_entry;
   datetime                 campaign_micro_bar_time;
   datetime                 entry_micro_bar_time;
   datetime                 entry_time;
@@ -152,6 +168,8 @@ struct PivotHftPositionState
   datetime                 risk_bands_source_bar;
   double                   pivot_price;
   double                   entry_price;
+  double                   entry_request_quote;
+  double                   entry_slippage_points;
   double                   risk_bands_upper;
   double                   risk_bands_lower;
   double                   risk_band_width_points;
@@ -165,12 +183,18 @@ struct PivotHftPositionState
   double                   close_trigger_stop;
   double                   close_trigger_target;
   double                   close_price;
+  double                   close_slippage_points;
   double                   net_result;
+  double                   gross_result;
+  double                   estimated_cost_result;
+  double                   estimated_cost_per_lot;
   double                   entry_volume;
   int                      trailing_step_index;
   int                      close_trigger_step;
   int                      campaign_attempt_count;
   int                      campaign_retry_ordinal;
+  string                   execution_id;
+  string                   campaign_retry_source_id;
   string                   campaign_sequence_id;
   string                   position_comment;
   PivotHftEntrySafetySnapshot entry_safety;
@@ -189,6 +213,7 @@ struct PivotHftPositionState
   PivotHftPositionState()
   {
     status                 = PIVOT_HFT_POSITION_ACTIVE;
+    execution_source       = PIVOT_HFT_EXECUTION_BROKER;
     close_trigger          = PIVOT_HFT_CLOSE_TRIGGER_NONE;
     net_class              = PIVOT_HFT_NET_NONE;
     direction              = NO_SIGNAL;
@@ -198,6 +223,7 @@ struct PivotHftPositionState
     entry_deal_ticket      = 0;
     exit_deal_ticket       = 0;
     campaign_retry_source_ticket = 0;
+    force_close_generation_at_entry = 0;
     campaign_micro_bar_time = 0;
     entry_micro_bar_time   = 0;
     entry_time             = 0;
@@ -206,6 +232,8 @@ struct PivotHftPositionState
     risk_bands_source_bar  = 0;
     pivot_price             = 0.0;
     entry_price            = 0.0;
+    entry_request_quote    = 0.0;
+    entry_slippage_points  = 0.0;
     risk_bands_upper       = 0.0;
     risk_bands_lower       = 0.0;
     risk_band_width_points = 0.0;
@@ -219,12 +247,18 @@ struct PivotHftPositionState
     close_trigger_stop     = 0.0;
     close_trigger_target   = 0.0;
     close_price            = 0.0;
+    close_slippage_points  = 0.0;
     net_result             = 0.0;
+    gross_result           = 0.0;
+    estimated_cost_result  = 0.0;
+    estimated_cost_per_lot = 0.0;
     entry_volume           = 0.0;
     trailing_step_index    = 0;
     close_trigger_step     = 0;
     campaign_attempt_count = 0;
     campaign_retry_ordinal = 0;
+    execution_id           = "";
+    campaign_retry_source_id = "";
     campaign_sequence_id   = "";
     position_comment       = "";
     entry_safety           = PivotHftEntrySafetySnapshot();
@@ -245,6 +279,41 @@ struct PivotHftPositionState
 int PivotHftMarketRetryNumber(const int retry_ordinal)
 {
   return (retry_ordinal > 1) ? retry_ordinal - 1 : 0;
+}
+
+PivotHftExecutionSources PivotHftExecutionSourceForRetry(
+  const int retry_number)
+{
+  if(retry_number > 0 &&
+     Pivot_HFT_Start_Real_Retry > 1 &&
+     retry_number < Pivot_HFT_Start_Real_Retry)
+    return PIVOT_HFT_EXECUTION_VIRTUAL;
+  return PIVOT_HFT_EXECUTION_BROKER;
+}
+
+string PivotHftExecutionSourceLabel(
+  const PivotHftExecutionSources source)
+{
+  return (source == PIVOT_HFT_EXECUTION_VIRTUAL) ? "VIRTUAL" : "BROKER";
+}
+
+string PivotHftPositionExecutionId(const PivotHftPositionState &position_state)
+{
+  if(position_state.execution_id != "")
+    return position_state.execution_id;
+  if(position_state.position_ticket > 0)
+    return StringFormat("%I64u", position_state.position_ticket);
+  return "-";
+}
+
+string PivotHftPositionAuditIdentityFields(
+  const PivotHftPositionState &position_state)
+{
+  return StringFormat("execution_source=%s|execution_id=%s|ticket=%I64u",
+                      PivotHftExecutionSourceLabel(
+                        position_state.execution_source),
+                      PivotHftPositionExecutionId(position_state),
+                      position_state.position_ticket);
 }
 
 PivotHftPivotSnapshot  g_pivot_hft_pivots;
@@ -690,13 +759,20 @@ bool PivotHftHasBlockingPositionLifecycle()
   return false;
 }
 
-bool PivotHftHasOtherBlockingPositionLifecycle(const ulong position_ticket)
+bool PivotHftHasOtherBlockingPositionLifecycle(
+  const string execution_id,
+  const ulong position_ticket)
 {
   int total = ArraySize(g_pivot_hft_positions);
   for(int i = 0; i < total; i++)
   {
     PivotHftPositionState state = g_pivot_hft_positions[i];
-    if(state.position_ticket == position_ticket)
+    if(execution_id != "" &&
+       PivotHftPositionExecutionId(state) == execution_id)
+      continue;
+    if(execution_id == "" &&
+       position_ticket > 0 &&
+       state.position_ticket == position_ticket)
       continue;
     if(PivotHftPositionStatusBlocksAdmission(state.status))
       return true;
@@ -805,15 +881,21 @@ ulong PivotHftCampaignOccupiedLevelMask(const datetime micro_bar_time)
   return occupied_mask;
 }
 
-int PivotHftFindPositionStateIndex(const ulong position_ticket)
+int PivotHftFindPositionStateIndex(const string execution_id,
+                                   const ulong position_ticket)
 {
-  if(position_ticket == 0)
+  if(execution_id == "" && position_ticket == 0)
     return -1;
 
   int total = ArraySize(g_pivot_hft_positions);
   for(int i = 0; i < total; i++)
   {
-    if(g_pivot_hft_positions[i].position_ticket == position_ticket)
+    if(execution_id != "" &&
+       PivotHftPositionExecutionId(g_pivot_hft_positions[i]) == execution_id)
+      return i;
+    if(execution_id == "" &&
+       position_ticket > 0 &&
+       g_pivot_hft_positions[i].position_ticket == position_ticket)
       return i;
   }
   return -1;
@@ -821,9 +903,15 @@ int PivotHftFindPositionStateIndex(const ulong position_ticket)
 
 bool PivotHftAppendPositionState(const PivotHftPositionState &position_state)
 {
-  if(position_state.position_ticket == 0)
+  string execution_id = PivotHftPositionExecutionId(position_state);
+  if(position_state.execution_source == PIVOT_HFT_EXECUTION_BROKER &&
+     position_state.position_ticket == 0)
     return false;
-  if(PivotHftFindPositionStateIndex(position_state.position_ticket) >= 0)
+  if(position_state.execution_source == PIVOT_HFT_EXECUTION_VIRTUAL &&
+     (execution_id == "" || execution_id == "-"))
+    return false;
+  if(PivotHftFindPositionStateIndex(execution_id,
+                                    position_state.position_ticket) >= 0)
     return false;
 
   int current_size = ArraySize(g_pivot_hft_positions);

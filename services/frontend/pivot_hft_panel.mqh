@@ -31,8 +31,12 @@ string PivotHftCampaignDisplayStatus(
 {
   string label = PivotHftCampaignStatusLabel(campaign.status);
   if(campaign.retry_ordinal > 1)
-    label = StringFormat("RETRY %d %s",
+    label = StringFormat("RETRY %d %s %s",
                          PivotHftMarketRetryNumber(campaign.retry_ordinal),
+                         PivotHftExecutionSourceLabel(
+                           PivotHftExecutionSourceForRetry(
+                             PivotHftMarketRetryNumber(
+                               campaign.retry_ordinal))),
                          label);
   if(campaign.entry_safety.blocked)
     label += " RISK BLOCKED";
@@ -42,9 +46,13 @@ string PivotHftCampaignDisplayStatus(
 string PivotHftCampaignSourceLabel(
   const PivotHftCampaignState &campaign)
 {
-  if(campaign.retry_ordinal <= 1 || campaign.retry_source_ticket == 0)
+  if(campaign.retry_ordinal <= 1)
     return "";
-  return StringFormat(" | source #%I64u", campaign.retry_source_ticket);
+  if(campaign.retry_source_id != "")
+    return " | source " + campaign.retry_source_id;
+  if(campaign.retry_source_ticket > 0)
+    return StringFormat(" | source #%I64u", campaign.retry_source_ticket);
+  return "";
 }
 
 int PivotHftPositionCountByStatus(const PivotHftPositionStatuses target_status)
@@ -55,6 +63,22 @@ int PivotHftPositionCountByStatus(const PivotHftPositionStatuses target_status)
     if(g_pivot_hft_positions[i].status == target_status)
       status_count++;
   return status_count;
+}
+
+int PivotHftPositionCountBySource(
+  const PivotHftExecutionSources execution_source)
+{
+  int source_count = 0;
+  int total = ArraySize(g_pivot_hft_positions);
+  for(int i = 0; i < total; i++)
+  {
+    PivotHftPositionState state = g_pivot_hft_positions[i];
+    if(state.status != PIVOT_HFT_POSITION_ACTIVE)
+      continue;
+    if(state.execution_source == execution_source)
+      source_count++;
+  }
+  return source_count;
 }
 
 double PivotHftCampaignRetracementThresholdForState(
@@ -95,10 +119,13 @@ string PivotHftBuildPositionPanelLines()
     if(state.local_tp_price > 0.0)
       target_text = StringFormat(" | TP %.5f", state.local_tp_price);
 
-    string lifecycle_label = "LIVE";
+    string source_label = PivotHftExecutionSourceLabel(
+      state.execution_source);
+    string lifecycle_label = "LIVE " + source_label;
     if(state.status == PIVOT_HFT_POSITION_CLOSE_WAIT)
     {
-      lifecycle_label = StringFormat("CLOSE WAIT %s",
+      lifecycle_label = StringFormat("CLOSE WAIT %s %s",
+        source_label,
         PivotHftCloseTriggerLabel(state.close_trigger));
     }
     string retry_text = "";
@@ -107,9 +134,9 @@ string PivotHftBuildPositionPanelLines()
         " | RETRY %d",
         PivotHftMarketRetryNumber(state.campaign_retry_ordinal));
 
-    text += StringFormat("\n%s #%I64u %s %s%s | E %.5f | R %.2fpt BAND | SL %.5f | STEP %.2fpt[%d]%s",
+    text += StringFormat("\n%s %s %s %s%s | E %.5f | R %.2fpt BAND | SL %.5f | STEP %.2fpt[%d]%s",
                          lifecycle_label,
-                         state.position_ticket,
+                         PivotHftPositionExecutionId(state),
                          PivotHftDirectionToken(state.direction),
                          PivotHftLevelLabel(state.pivot_level),
                          retry_text,
@@ -205,6 +232,10 @@ string PivotHftBuildPanelText()
                             : StringFormat("%.5f",
                                 PivotHftCampaignRetracementThresholdForState(
                                   campaign));
+  string retry_policy = (Pivot_HFT_Start_Real_Retry == 0)
+                        ? "Retries OFF"
+                        : StringFormat("Real from RETRY %d",
+                                       Pivot_HFT_Start_Real_Retry);
 
   string text = "PIVOT HFT";
   text += StringFormat("\nMicro %s | Pivot %s | Session %s",
@@ -222,12 +253,14 @@ string PivotHftBuildPanelText()
                        campaign.pivot_price,
                        campaign.tracked_extreme,
                        PivotHftCampaignSourceLabel(campaign));
-  text += StringFormat("\nRetrace %s | Retry max %d | trigger quote %.5f | Live %d | CloseWait %d | %s",
+  text += StringFormat("\nRetrace %s | %s | trigger %.5f | Broker %d | Virtual %d | CloseWait %d | %s",
                        retracement_text,
-                       Pivot_HFT_Max_Retries_Per_Level,
+                       retry_policy,
                        campaign.trigger_price,
-                       PivotHftPositionCountByStatus(
-                         PIVOT_HFT_POSITION_ACTIVE),
+                       PivotHftPositionCountBySource(
+                         PIVOT_HFT_EXECUTION_BROKER),
+                       PivotHftPositionCountBySource(
+                         PIVOT_HFT_EXECUTION_VIRTUAL),
                        PivotHftPositionCountByStatus(
                          PIVOT_HFT_POSITION_CLOSE_WAIT),
                        MarketStatusErrorSummary());

@@ -39,25 +39,28 @@ claim institutional HFT latency.
 - An eligible non-positive local close preserves the admitted campaign sequence,
   increments its internal retry ordinal, and seeds a fresh directional extreme
   from the current entry-side quote. It does not require another pivot touch or
-  live Bollinger-side admission. `Pivot_HFT_Max_Retries_Per_Level` bounds real
-  market retries: `0` disables re-entry, while `N` permits retries `1..N`.
+  live Bollinger-side admission. `Pivot_HFT_Start_Real_Retry=0` disables
+  re-entry; `1` makes retry `1+` real; `N >= 2` runs retries `1..N-1` as local
+  broker-like positions and opens retry `N+` in the market.
 - If the required history is unavailable or unsynchronized, new campaigns fail
   closed until the level reconstruction succeeds.
 
 ## Position Lifecycle
 
-Entries are market orders with no server-side SL or TP. The actual broker fill
-anchors one immutable local exit geometry snapshot. The first favorable step
-moves the local stop to break-even; later steps advance it monotonically. When
-enabled, the fixed local TP is checked before advancing trailing on the same
-favorable tick. A locally closed position with net result `<= 0` can re-arm only
+The initial entry is always a market order with no server-side SL or TP. Real
+retries use the same broker path; earlier retries selected by
+`Pivot_HFT_Start_Real_Retry` are complete virtual positions. Every real or
+virtual fill anchors one immutable local exit geometry snapshot. The first
+favorable step moves the local stop to break-even; later steps advance it
+monotonically. When enabled, the fixed local TP is checked before advancing
+trailing on the same favorable tick. A locally closed position with net result
+`<= 0` can re-arm only
 while its fill micro candle is still open and the original pivot price still
 belongs to the same pivot set. The admission remains latched, so price may be
 inside the bands or across the original pivot when the fresh retry retracement
 starts. External or protection-driven closes never re-arm the closed campaign.
-A configured retry limit is checked only after an eligible finalized close;
-exhaustion emits `RETRY_LIMIT_REACHED` and completes the level without a new
-campaign, market request, or daily signal start.
+With start value `0`, an otherwise eligible loss emits `RETRY_DISABLED` and
+completes the level. There is no retry maximum or cooldown.
 A profitable outer-level close consumes the same-side inner ladder from that
 fill candle: for example, R2 consumes R1+R2 and S3 consumes S1+S2+S3.
 
@@ -93,16 +96,21 @@ the normal local lifecycle with close trigger `ENTRY_SAFETY`.
   the trailing interval from immutable initial SL.
 - `Pivot_HFT_Fixed_TP_SL_Ratio = 0.0` disables fixed TP; a positive value
   enables that initial-SL multiple.
-- `Pivot_HFT_Max_Retries_Per_Level` defaults to `1`. The initial entry is retry
-  number `0`; the first re-entry is `RETRY 1`. Negative values fail startup.
+- `Pivot_HFT_Start_Real_Retry` defaults to `1`. The initial broker entry is
+  retry number `0`; `0` disables rearm, `1` makes `RETRY 1+` real, and `N >= 2`
+  simulates retries `1..N-1`. Negative values fail startup.
 
 With fixed Bollinger deviation `2.0`, full width is approximately `4 sigma`, so
 `25%` is approximately a `1 sigma` volatility scale. This is not a probability
 claim. Lot size remains fixed, so volatility-normalized exits do not create
 constant monetary risk.
 
-Net result includes profit, swap, commission and fee for deals scoped by the
-position identifier, symbol and runtime magic.
+Real net result includes profit, swap, commission and fee for deals scoped by
+position identifier, symbol and runtime magic. A virtual retry uses
+`OrderCalcProfit` plus the preceding real source's observed per-lot cost
+estimate. Its entry and close prices use fresh executable Ask/Bid, actual
+spread, broker tick normalization and the source's signed observed slippage.
+The audit exposes every modeled component; no random slippage is generated.
 
 ## Architecture
 
@@ -145,24 +153,27 @@ the historical deterministic seed for compatibility.
   freeze, buffered broker floor and tick size. `FILL_ENTRY_DISTANCE_INVALID`
   records the actual fill, fresh close-side quote, remaining buffer and the
   `ENTRY_SAFETY` close reason.
-- `POSITION_REARMED` records source ticket, public retry number, internal retry
-  ordinal, configured maximum, fresh extreme, next threshold and
-  `admission=latched`; subsequent entry and fill rows retain both retry fields.
-  `RETRY_LIMIT_REACHED` records the current and blocked next retry.
+- `POSITION_REARMED` records source identity, public retry number, internal
+  ordinal, next `BROKER`/`VIRTUAL` source, configured real-start threshold,
+  fresh extreme, next threshold and `admission=latched`.
+- `VIRTUAL_FILL_REGISTERED` and `VIRTUAL_CLOSE_FILLED` record fresh Bid/Ask,
+  spread, modeled/applied slippage, gross result, estimated costs and net.
+  `RETRY_DISABLED` records a start value of `0` blocking rearm.
 - Rotate or clear `query_debug.txt` before a focused tester session so chart,
   broker history and one run id can be correlated without stale evidence.
 - Chart objects use the `PIVOT_HFT_` prefix. The campaign pivot, tracked
   extreme and positive-retracement trigger are separate lines; each live
-  ticket has deterministic `POSITION_<ticket>_ENTRY` and
-  `POSITION_<ticket>_STOP` lines.
-  An enabled fixed target adds deterministic `POSITION_<ticket>_TP`.
+  broker ticket or virtual execution id has deterministic
+  `POSITION_<id>_ENTRY` and `POSITION_<id>_STOP` lines.
+  An enabled fixed target adds deterministic `POSITION_<id>_TP`.
   A terminally cancelled campaign is shown as `CANCELLED` briefly for visual
   QA; first-test segments and completed ticket objects are removed by the owning
   visual cleanup path.
-- The panel separates `Live` from `CloseWait`, prefixes ticket rows with `LIVE`
-  or `CLOSE WAIT`, and renders `RETRY N TRACKING`, `RETRY N ENTRY READY`, source
-  ticket, and requested-versus-required safety distance. A blocked intent is
-  labeled `RISK BLOCKED`; it is not counted or drawn as a position.
+- The panel separates active `Broker`, active `Virtual` and `CloseWait`, labels
+  every campaign/position source in text, and shows `Retries OFF` for `0` or
+  `Real from RETRY N` otherwise. It retains the requested-versus-required
+  safety distance. A blocked intent is labeled `RISK BLOCKED`; it is not
+  counted or drawn as a position.
 
 ## Safety Notes
 
@@ -173,8 +184,11 @@ the historical deterministic seed for compatibility.
 - Spread, margin, session, daily-limit, drawdown, market-status and license
   guards remain authoritative for new entries.
 - Broker stops/freeze form a conservative floor for local protection only;
-  server SL/TP remain zero. Valid rapid retries can still occur up to
-  `Pivot_HFT_Max_Retries_Per_Level`; no time cooldown is applied.
+  server SL/TP remain zero. Valid rapid retries remain possible; the input
+  changes their virtual/real source, not their count, and adds no cooldown.
+- Virtual retries never call broker send/close APIs, affect account equity, or
+  consume daily start/outcome counters. The first real retry still requires and
+  consumes the normal daily budget.
 - Entry indicators are activated only while a configured session window is
   open. Non-visual tester runs skip chart objects/comments, while open-position
   local protection continues outside the entry window.

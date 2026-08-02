@@ -386,45 +386,55 @@ color PivotHftPositionStopColor(const PivotHftPositionState &state)
 void PivotHftDrawPosition(const PivotHftPositionState &state,
                           string &current_objects[])
 {
-  if(state.position_ticket == 0 ||
-     (state.status != PIVOT_HFT_POSITION_ACTIVE &&
+  if((state.status != PIVOT_HFT_POSITION_ACTIVE &&
       state.status != PIVOT_HFT_POSITION_CLOSE_WAIT))
     return;
 
-  string ticket_token = StringFormat("%I64u", state.position_ticket);
+  string execution_token = PivotHftPositionExecutionId(state);
+  if(execution_token == "" || execution_token == "-")
+    return;
   string direction_label = PivotHftDirectionToken(state.direction);
+  string source_label = PivotHftExecutionSourceLabel(state.execution_source);
   string lifecycle_label = (state.status == PIVOT_HFT_POSITION_CLOSE_WAIT)
                            ? "CLOSE WAIT"
                            : "LIVE";
   color entry_color = (state.direction == BULLISH)
                       ? COLOR_CANDLE_BULL
                       : COLOR_CANDLE_BEAR;
+  ENUM_LINE_STYLE entry_style = STYLE_DASH;
+  if(state.execution_source == PIVOT_HFT_EXECUTION_VIRTUAL)
+  {
+    entry_color = clrDeepSkyBlue;
+    entry_style = STYLE_DOT;
+  }
 
-  string entry_suffix = "POSITION_" + ticket_token + "_ENTRY";
+  string entry_suffix = "POSITION_" + execution_token + "_ENTRY";
   if(PivotHftUpdateHorizontalLine(entry_suffix,
                                   state.entry_price,
                                   entry_color,
-                                  STYLE_DASH,
+                                  entry_style,
                                   1,
-                                  StringFormat("#%s %s %s %s ACTUAL FILL",
-                                               ticket_token,
+                                  StringFormat("%s %s %s %s %s FILL",
+                                               execution_token,
                                                direction_label,
                                                lifecycle_label,
+                                               source_label,
                                                PivotHftLevelLabel(
                                                  state.pivot_level)),
                                   false))
     PivotHftTrackDynamicVisual(current_objects,
                                PivotHftVisualObjectName(entry_suffix));
 
-  string stop_suffix = "POSITION_" + ticket_token + "_STOP";
+  string stop_suffix = "POSITION_" + execution_token + "_STOP";
   if(PivotHftUpdateHorizontalLine(stop_suffix,
                                   state.local_sl_price,
                                   PivotHftPositionStopColor(state),
                                   STYLE_SOLID,
                                   2,
-                                  StringFormat("#%s %s %s @ %.5f",
-                                               ticket_token,
+                                  StringFormat("%s %s %s %s @ %.5f",
+                                               execution_token,
                                                direction_label,
+                                               source_label,
                                                PivotHftPositionStopLabel(state),
                                                state.local_sl_price),
                                   false))
@@ -433,7 +443,7 @@ void PivotHftDrawPosition(const PivotHftPositionState &state,
 
   if(state.local_tp_price > 0.0)
   {
-    string target_suffix = "POSITION_" + ticket_token + "_TP";
+    string target_suffix = "POSITION_" + execution_token + "_TP";
     string target_label = "FIXED TP";
     if(state.status == PIVOT_HFT_POSITION_CLOSE_WAIT)
       target_label += " CLOSE WAIT";
@@ -443,9 +453,10 @@ void PivotHftDrawPosition(const PivotHftPositionState &state,
                                     COLOR_PROFIT_POSITIVE,
                                     STYLE_DASHDOT,
                                     2,
-                                    StringFormat("#%s %s %s @ %.5f",
-                                                 ticket_token,
+                                    StringFormat("%s %s %s %s @ %.5f",
+                                                 execution_token,
                                                  direction_label,
+                                                 source_label,
                                                  target_label,
                                                  state.local_tp_price),
                                     false))

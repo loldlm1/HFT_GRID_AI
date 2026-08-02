@@ -190,10 +190,10 @@ int OnInit()
     return INIT_PARAMETERS_INCORRECT;
   }
 
-  if(Pivot_HFT_Max_Retries_Per_Level < 0)
+  if(Pivot_HFT_Start_Real_Retry < 0)
   {
-    PrintFormat("Pivot HFT invalid max retries input | retries=%d",
-                Pivot_HFT_Max_Retries_Per_Level);
+    PrintFormat("Pivot HFT invalid real retry start input | retry=%d",
+                Pivot_HFT_Start_Real_Retry);
     return INIT_PARAMETERS_INCORRECT;
   }
 
@@ -211,12 +211,12 @@ int OnInit()
     0.0,
     1.0);
   PivotHftAuditLog("CONFIG",
-                   StringFormat("micro_tf=%s|pivot_tf=%s|direction=%s|retrace_pts=%.2f|max_retries_per_level=%d|bands_width_pct=%.2f|step_sl_ratio=%.4f|fixed_tp_sl_ratio=%.4f|lot=%.2f|max_spread=%.2f|daily_signal_limit=%d|daily_limit_mode=%s|broker_stops_pts=%.2f|broker_freeze_pts=%.2f|broker_floor_pts=%.2f|point=%.8f|tick=%.8f|visual=%d",
+                   StringFormat("micro_tf=%s|pivot_tf=%s|direction=%s|retrace_pts=%.2f|start_real_retry=%d|bands_width_pct=%.2f|step_sl_ratio=%.4f|fixed_tp_sl_ratio=%.4f|lot=%.2f|max_spread=%.2f|daily_signal_limit=%d|daily_limit_mode=%s|broker_stops_pts=%.2f|broker_freeze_pts=%.2f|broker_floor_pts=%.2f|point=%.8f|tick=%.8f|visual=%d",
                                 EnumToString(Pivot_HFT_Micro_Timeframe),
                                 EnumToString(Pivot_HFT_Pivot_Timeframe),
                                 EnumToString(Pivot_HFT_Direction_Mode),
                                 Pivot_HFT_Retracement_Points,
-                                Pivot_HFT_Max_Retries_Per_Level,
+                                Pivot_HFT_Start_Real_Retry,
                                 Pivot_HFT_Local_SL_Bands_Width_Percent,
                                 Pivot_HFT_TP_Step_SL_Ratio,
                                 Pivot_HFT_Fixed_TP_SL_Ratio,

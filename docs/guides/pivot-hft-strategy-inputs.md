@@ -57,7 +57,7 @@ reconstruccion.
 | --- | ---: | --- |
 | `Pivot_HFT_Direction_Mode` | Ambas | Habilita compras, ventas o ambas. |
 | `Pivot_HFT_Retracement_Points` | `25.0` | `0` intenta entrar inmediatamente al admitir el pivote; `> 0` espera retroceso desde el extremo Bid/Ask. |
-| `Pivot_HFT_Max_Retries_Per_Level` | `1` | Maximo de reentradas reales por nivel: `0` solo entrada inicial; `N` permite reintentos `1..N`. |
+| `Pivot_HFT_Start_Real_Retry` | `1` | Primer retry que abre en broker: `0` desactiva rearm, `1` hace reales todos los retries y `N >= 2` simula `1..N-1` antes de abrir `N+`. |
 | `Pivot_HFT_Local_SL_Bands_Width_Percent` | `25.0` | Porcentaje positivo del ancho superior-inferior usado siempre para el SL local. |
 | `Pivot_HFT_TP_Step_SL_Ratio` | `1.0` | Multiplo positivo del SL inicial para el step de BE/trailing. |
 | `Pivot_HFT_Fixed_TP_SL_Ratio` | `0.0` | `0` desactiva TP fijo; `> 0` crea un target como multiplo del SL inicial. |
@@ -129,31 +129,51 @@ a `TRACKING` desde un extremo fresco.
 6. Se refrescan stops/freeze y se exige
    `SL solicitado >= spread + piso broker`; el fallo bloquea antes del envio sin
    ampliar riesgo.
-7. La orden se envia sin SL/TP al servidor.
-8. El fill real define SL local, step y TP fijo opcional. Un tick fresco compara
-   Bid contra SL para BUY o SL contra Ask para SELL. Si el buffer restante es
-   menor al piso broker, se cierra una vez por el lifecycle local con trigger
-   `ENTRY_SAFETY`.
+7. La entrada inicial siempre se envia sin SL/TP al servidor. En retries, la
+   fuente se resuelve con `Pivot_HFT_Start_Real_Retry`: `BROKER` desde el
+   threshold o `VIRTUAL` antes de el.
+8. Cada fill real o virtual define SL local, step y TP fijo opcional. Un tick
+   fresco compara Bid contra SL para BUY o SL contra Ask para SELL. Si el buffer
+   restante es menor al piso broker, se cierra una vez por el lifecycle local
+   con trigger `ENTRY_SAFETY`.
 9. El TP fijo se evalua antes de avanzar trailing en el mismo tick favorable.
 10. Neto positivo completa el intento. Neto `<= 0` puede rearmar dentro de la
    vela micro que contiene el fill si el precio del nivel original sigue
    perteneciendo al mismo conjunto de pivotes. La admision queda heredada: no
    se exige que la cotizacion siga fuera de la banda ni del lado inicial del
-   pivote. `Pivot_HFT_Max_Retries_Per_Level=0` completa el nivel sin rearmar;
-   `N` permite reintentos reales `1..N`. Cada reintento permitido conserva la
-   secuencia, registra ticket origen, numero publico y ordinal interno, y
-   comienza desde un extremo direccional fresco. Al agotar el limite se emite
-   `RETRY_LIMIT_REACHED` sin nueva campana, orden o inicio de senal diaria.
+   pivote. `Pivot_HFT_Start_Real_Retry=0` completa el nivel sin rearmar y emite
+   `RETRY_DISABLED`; `1` abre `RETRY 1+` en broker; `N >= 2` gestiona retries
+   `1..N-1` como posiciones virtuales completas y abre `RETRY N+` en broker.
+   Cada retry conserva secuencia, identidad origen, numero publico, ordinal
+   interno y comienza desde un extremo direccional fresco. No existe maximo ni
+   cooldown.
 11. Un ganador exterior consume la escalera interior de esa misma direccion y
     vela: R2 consume R1+R2, R3 consume R1+R2+R3, con simetria S1-S3.
 
-Solo hay una campana pendiente o una posicion administrada ocupando la ranura de
+Solo hay una campana pendiente o una posicion real/virtual ocupando la ranura de
 ejecucion. El ultimo pivote tocado puede reemplazar al anterior unicamente en la
 vela donde se armo la campana; despues, la campana sigue el mismo nivel hasta el
 fill o una cancelacion terminal. No se admite un nivel hermano mientras exista
-un ticket activo, cierre pendiente o reintento pendiente. Un cierre externo o
+una ejecucion activa, cierre pendiente o reintento pendiente. Un cierre externo o
 de proteccion tampoco rearma esa campana; otro pivote puede iniciar una nueva
 solo cuando la ranura queda libre.
+
+### Modelo de retry virtual
+
+El retry virtual no inventa un precio aleatorio. Justo al ejecutar toma un
+`MqlTick` fresco, usa Ask para BUY o Bid para SELL, aplica el slippage firmado
+observado entre quote y fill de la posicion real fuente, y normaliza al tick del
+broker. Al cerrar toma Bid para BUY o Ask para SELL y aplica del mismo modo el
+slippage de cierre observado. Spread, stops/freeze, volumen, margen, sesiones,
+proteccion y estado del mercado siguen siendo guards obligatorios.
+
+El bruto virtual se calcula con `OrderCalcProfit`. Comision, fee y swap no se
+pueden consultar prospectivamente de forma generica; por eso se hereda el costo
+neto por lote observado en la posicion real fuente. Si falta un modelo valido o
+falla el calculo, el lifecycle virtual termina fail-closed y no avanza a una
+orden real. Los retries virtuales no llaman `Buy`, `Sell`, `PositionClose` ni
+historial broker, no afectan equity y no consumen contadores diarios. El primer
+retry real vuelve a exigir y consumir el presupuesto diario normal.
 
 ## Lectura visual del lifecycle
 
@@ -168,16 +188,17 @@ el panel muestra `Retrace IMMEDIATE` y no necesita una linea de distancia.
 rollover macro aparece como `CANCELLED` y permanece atenuada durante una vela
 micro para facilitar el QA.
 
-El panel separa `Live` y `CloseWait`. Las filas de ticket empiezan con `LIVE` o
-`CLOSE WAIT <trigger>`. Un reintento muestra `RETRY N TRACKING` o
-`RETRY N ENTRY READY` y el ticket origen, donde el primer reintento real es
-`RETRY 1`. El panel tambien muestra `Retry max`. La linea `Safety` muestra SL
+El panel separa posiciones activas `Broker`, activas `Virtual` y `CloseWait`.
+Cada fila y campana muestra su fuente en texto. Un reintento muestra
+`RETRY N VIRTUAL TRACKING` o `RETRY N BROKER ENTRY READY`, conserva la
+identidad origen y el panel indica `Retries OFF` para `0` o
+`Real from RETRY N` para valores positivos. La linea `Safety` muestra SL
 solicitado, SL requerido, spread y piso broker; un intento bloqueado aparece
 como `RISK BLOCKED` y nunca como posicion.
 
-Cada posicion administrada usa nombres y lineas por ticket:
+Cada posicion administrada usa nombres y lineas por ticket o id virtual:
 
-- `ACTUAL FILL`: precio real de entrada.
+- `BROKER FILL` o `VIRTUAL FILL`: precio de entrada segun la fuente.
 - `LOCAL SL`: proteccion inicial local.
 - `BE`: stop movido al precio de entrada.
 - `TRAIL STEP N`: stop local vigente tras cada step del trailing.
@@ -186,7 +207,7 @@ Cada posicion administrada usa nombres y lineas por ticket:
   debajo del piso broker.
 
 Las lineas se actualizan solo cuando cambia su precio o estado, se eliminan al
-completar el ticket y no existen en tester no visual. Ningun objeto del chart
+completar la ejecucion y no existen en tester no visual. Ningun objeto del chart
 participa en la deteccion ni en la ejecucion.
 
 Los nombres relevantes son deterministas:
@@ -195,9 +216,9 @@ Los nombres relevantes son deterministas:
 - `PIVOT_HFT_CAMPAIGN_PIVOT`: pivote de la campana visible.
 - `PIVOT_HFT_CAMPAIGN_EXTREME`: maximo Bid o minimo Ask seguido.
 - `PIVOT_HFT_CAMPAIGN_TRIGGER`: precio exacto del retroceso de entrada.
-- `PIVOT_HFT_POSITION_<ticket>_ENTRY`: fill real del broker.
-- `PIVOT_HFT_POSITION_<ticket>_STOP`: SL local, BE o trailing vigente.
-- `PIVOT_HFT_POSITION_<ticket>_TP`: TP fijo local cuando esta habilitado.
+- `PIVOT_HFT_POSITION_<id>_ENTRY`: fill broker o virtual.
+- `PIVOT_HFT_POSITION_<id>_STOP`: SL local, BE o trailing vigente.
+- `PIVOT_HFT_POSITION_<id>_TP`: TP fijo local cuando esta habilitado.
 
 ## Auditoria en archivo
 
@@ -219,9 +240,10 @@ sola vez en Journal.
 Para auditar niveles buscar `LEVEL_SCAN_START`, `LEVEL_SCAN_RESULT`,
 `LEVEL_SCAN_FAILED`, `LEVEL_TOUCH_PROVISIONAL`, `LEVEL_BURNED` y
 `LEVEL_CONTEXT_FINALIZED`. Para el lifecycle correlacionar `CAMPAIGN_*`,
-`ENTRY_*`, `ORDER_SEND_RESULT`, `FILL_REGISTERED`,
+`ENTRY_*`, `ORDER_SEND_RESULT`, `FILL_REGISTERED`, `VIRTUAL_FILL_REGISTERED`,
 `FILL_ENTRY_DISTANCE_INVALID`, `LOCAL_SL_INITIALIZED`, `TRAILING_ADVANCED`,
-`LOCAL_CLOSE_*`, `POSITION_FINALIZED`, cierres de proteccion y `DEBUG_STOP`.
+`LOCAL_CLOSE_*`, `VIRTUAL_CLOSE_FILLED`, `POSITION_FINALIZED`, cierres de
+proteccion y `DEBUG_STOP`.
 
 `ENTRY_RISK_DISTANCE_BLOCKED` expone SL solicitado/requerido, spread, stops,
 freeze, piso broker y tick. `FILL_ENTRY_DISTANCE_INVALID` expone fill, Bid/Ask
@@ -247,12 +269,14 @@ del fill.
 conserva su causa real sin etiquetarse falsamente como TP fijo.
 
 `ENTRY_TRIGGERED` distingue `mode=IMMEDIATE` de `mode=RETRACEMENT`.
-`POSITION_REARMED` incluye ticket origen, `retry_number`, `retry_ordinal`,
-`retry_max`, extremo, proximo threshold y `admission=latched` cuando reutiliza
-la admision original. `ENTRY_TRIGGERED`, bloqueos de entrada, envio y fill
-conservan numero publico y ordinal interno para correlacion estadistica.
-`RETRY_LIMIT_REACHED` identifica el retry actual, el siguiente bloqueado y el
-maximo configurado. `REARM_INVALIDATED`
+`POSITION_REARMED` incluye identidad origen, `retry_number`, `retry_ordinal`,
+`execution_source`, `start_real_retry`, slippage/costo heredado, extremo,
+proximo threshold y `admission=latched`. `ENTRY_TRIGGERED`, bloqueos, envio y
+fills conservan numero publico, ordinal interno y fuente para correlacion.
+`VIRTUAL_FILL_REGISTERED` expone Bid/Ask, spread, entry quote/fill y el modelo;
+`VIRTUAL_CLOSE_FILLED` expone quote ejecutable, slippage aplicado, bruto, costo
+estimado y neto. `RETRY_DISABLED` identifica un threshold `0`.
+`REARM_INVALIDATED`
 identifica un cambio del conjunto/precio del
 pivote y `REARM_EXPIRED` conserva la frontera de la vela micro del fill.
 `WINNING_LEVELS_CONSUMED` registra ticket, ganador, vela, mascara y niveles
@@ -269,9 +293,10 @@ como evidencia de la compilacion o del run actual.
 - Cierres forzados filtrados por simbolo y magic.
 - Stops/freeze se usan como piso conservador del EA local; no crean SL/TP de
   servidor.
-- Los reintentos reales quedan limitados por
-  `Pivot_HFT_Max_Retries_Per_Level`; dentro del limite pueden seguir siendo
-  rapidos porque no se agrega cooldown temporal.
+- `Pivot_HFT_Start_Real_Retry` cambia la fuente virtual/real, no limita la
+  cantidad. Los retries pueden seguir siendo rapidos porque no hay cooldown.
+- Los virtuales no afectan equity ni contadores diarios; cada retry broker
+  conserva limite diario, magic, simbolo, margen y guards normales.
 
 El perfil backend conserva deliberadamente la identidad Pandora. No se cambia
 `ea_id`, contrato de licencia, secretos ni payloads de resultados diarios.
@@ -280,9 +305,9 @@ El perfil backend conserva deliberadamente la identidad Pandora. No se cambia
 
 - Separar retracement `0` como escenario inmediato discreto de las corridas con
   retracement positivo; no mezclar el cero dentro de un step numerico continuo.
-- Tratar `Pivot_HFT_Max_Retries_Per_Level` como entero discreto. Comparar al
-  menos `0`, `1` y `2`; `retry_number=0` identifica la entrada inicial y no
-  debe contarse como reintento en estadisticas.
+- Tratar `Pivot_HFT_Start_Real_Retry` como entero discreto. Comparar al menos
+  `0`, `1` y `3`; `retry_number=0` identifica la entrada inicial real y no debe
+  contarse como reintento en estadisticas.
 - Fuera del entero de reintentos, optimizar el porcentaje de ancho de bandas y
   el ratio positivo del step; ya no existen dimensiones inactivas de modo SL,
   SL fijo o step fijo.
@@ -329,7 +354,8 @@ y limpiar o rotar `query_debug.txt`:
 10. Comparar TP fijo `0` contra ratios positivos para BUY/SELL; validar target,
     prioridad sobre trailing en el mismo tick y reintento tras rechazo/delay.
 11. Lineas de pivote, extremo y trigger antes del fill; despues, lineas
-    `ACTUAL FILL`, `LOCAL SL`, `BE`, `TRAIL STEP N` y `FIXED TP` por ticket.
+    `BROKER FILL` o `VIRTUAL FILL`, `LOCAL SL`, `BE`, `TRAIL STEP N` y
+    `FIXED TP` por identidad.
 12. SL local, BE, steps posteriores, TP fijo, cierre neto y eliminacion visual
     por ticket. Bajo delay de broker no debe existir mas de una posicion
     administrada activa; verificar que `close_trigger`, `trigger_target`,
@@ -361,14 +387,22 @@ y limpiar o rotar `query_debug.txt`:
     respecto al pivote. Debe verse `RETRY N TRACKING`, luego
     `RETRY N ENTRY READY`, y `ENTRY_TRIGGERED` desde el extremo fresco sin nuevo
     toque del pivote.
-21. Repetir el mismo caso perdedor con maximo `0`, `1` y `2`. Con `0` debe
-    aparecer `RETRY_LIMIT_REACHED` sin `POSITION_REARMED`; con `1` solo puede
-    existir `RETRY 1`; con `2` puede existir `RETRY 2` pero nunca `RETRY 3`.
-    Correlacionar `retry_number=1` con `retry_ordinal=2`.
-22. Capturar estados `Live 1 | CloseWait 0`, luego `Live 0 | CloseWait 1`, y
-    verificar que ticket/objetos desaparezcan tras `POSITION_FINALIZED`.
-23. Al terminar el run, reconciliar un `POSITION_FINALIZED` por cada
-    `FILL_REGISTERED`, sin ticket duplicado ni estado local pendiente.
+21. Repetir el mismo caso perdedor con start real `0`, `1` y `3`. Con `0` debe
+    aparecer `RETRY_DISABLED` sin `POSITION_REARMED`; con `1`, `RETRY 1+` debe
+    usar `BROKER`; con `3`, `RETRY 1-2` deben producir
+    `VIRTUAL_FILL_REGISTERED`/`VIRTUAL_CLOSE_FILLED` sin `ORDER_SEND_RESULT`, y
+    `RETRY 3+` debe volver a `BROKER`. Correlacionar `retry_number=1` con
+    `retry_ordinal=2`.
+22. Para un virtual BUY y SELL, verificar Ask/Bid de entrada, Bid/Ask de cierre,
+    tick normalization, slippage heredado, `OrderCalcProfit`, costo por lote y
+    neto. Forzar SL, TP, BE, trailing, `ENTRY_SAFETY` y force-close `EXTERNAL`.
+23. Capturar estados `Broker 1 | Virtual 0 | CloseWait 0`, luego el cierre
+    broker, y estados `Broker 0 | Virtual 1`. Verificar que identidades/objetos
+    desaparezcan tras `POSITION_FINALIZED`.
+24. Al terminar el run, reconciliar un `POSITION_FINALIZED` por cada
+    `FILL_REGISTERED` o `VIRTUAL_FILL_REGISTERED`, sin identidad duplicada ni
+    estado local pendiente. Confirmar que filas virtuales no cambian contadores
+    diarios ni historial del broker.
 
 El baseline de cierre fue validado el 2026-08-01 con chart M1, micro M3 y
 pivotes H1: 210 fills y finalizaciones correlacionadas, BUY/SELL, maximo de un

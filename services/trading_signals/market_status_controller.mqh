@@ -6,6 +6,9 @@ string            g_market_status_reason = "";
 datetime          g_market_status_updated = 0;
 bool              g_market_force_close_pending = false;
 string            g_market_force_close_reason = "";
+ulong             g_market_force_close_generation = 0;
+datetime          g_market_force_close_last_time = 0;
+string            g_market_force_close_last_reason = "";
 bool              g_market_platform_trade_allowed = true;
 string            g_market_platform_trade_reason = "";
 datetime          g_market_platform_trade_updated = 0;
@@ -243,8 +246,13 @@ void MarketStatusRequestForceClose(const string reason)
 
   g_market_force_close_pending = true;
   g_market_force_close_reason  = reason;
+  g_market_force_close_generation++;
+  g_market_force_close_last_time = TimeCurrent();
+  g_market_force_close_last_reason = reason;
   PivotHftAuditLog("FORCE_CLOSE_SCHEDULED",
-                   StringFormat("reason=%s", reason));
+                   StringFormat("reason=%s|generation=%I64u",
+                                reason,
+                                g_market_force_close_generation));
   //PrintFormat("Force close scheduled | reason=%s", reason);
 }
 
@@ -256,6 +264,21 @@ bool MarketStatusHasPendingForceClose()
 string MarketStatusPendingReason()
 {
   return g_market_force_close_reason;
+}
+
+ulong MarketStatusForceCloseGeneration()
+{
+  return g_market_force_close_generation;
+}
+
+datetime MarketStatusLastForceCloseTime()
+{
+  return g_market_force_close_last_time;
+}
+
+string MarketStatusLastForceCloseReason()
+{
+  return g_market_force_close_last_reason;
 }
 
 void MarketStatusClearForceCloseRequest()
