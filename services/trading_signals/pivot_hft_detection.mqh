@@ -348,20 +348,38 @@ void PivotHftUpdateTrackedExtreme()
   if(current_quote <= 0.0)
     return;
 
+  double trigger_distance = PivotHftDistanceToPrice(
+    Pivot_HFT_Retracement_Points);
+  if(Pivot_HFT_Retracement_Points <= 0.0)
+  {
+    g_pivot_hft_campaign.trigger_price = current_quote;
+    g_pivot_hft_campaign.status = PIVOT_HFT_CAMPAIGN_ORDER_WAIT;
+    PivotHftAuditLog("ENTRY_TRIGGERED",
+                     StringFormat("sequence=%s|dir=%s|level=%s|mode=IMMEDIATE|extreme=%.5f|threshold=%.5f|quote=%.5f|retrace_pts=%.2f",
+                                  g_pivot_hft_campaign.sequence_id,
+                                  EnumToString(g_pivot_hft_campaign.direction),
+                                  PivotHftLevelLabel(
+                                    g_pivot_hft_campaign.pivot_level),
+                                  g_pivot_hft_campaign.tracked_extreme,
+                                  current_quote,
+                                  current_quote,
+                                  Pivot_HFT_Retracement_Points));
+    return;
+  }
+
   if(g_pivot_hft_campaign.direction == BEARISH)
   {
     if(g_pivot_hft_campaign.tracked_extreme <= 0.0 ||
        current_quote > g_pivot_hft_campaign.tracked_extreme)
       g_pivot_hft_campaign.tracked_extreme = current_quote;
 
-    double trigger_distance = PivotHftDistanceToPrice(Pivot_HFT_Retracement_Points);
     if(trigger_distance > 0.0 &&
        current_quote <= g_pivot_hft_campaign.tracked_extreme - trigger_distance)
     {
       g_pivot_hft_campaign.trigger_price = current_quote;
       g_pivot_hft_campaign.status = PIVOT_HFT_CAMPAIGN_ORDER_WAIT;
       PivotHftAuditLog("ENTRY_TRIGGERED",
-                       StringFormat("sequence=%s|dir=%s|level=%s|extreme=%.5f|threshold=%.5f|quote=%.5f|retrace_pts=%.2f",
+                       StringFormat("sequence=%s|dir=%s|level=%s|mode=RETRACEMENT|extreme=%.5f|threshold=%.5f|quote=%.5f|retrace_pts=%.2f",
                                     g_pivot_hft_campaign.sequence_id,
                                     EnumToString(g_pivot_hft_campaign.direction),
                                     PivotHftLevelLabel(g_pivot_hft_campaign.pivot_level),
@@ -377,14 +395,13 @@ void PivotHftUpdateTrackedExtreme()
      current_quote < g_pivot_hft_campaign.tracked_extreme)
     g_pivot_hft_campaign.tracked_extreme = current_quote;
 
-  double trigger_distance = PivotHftDistanceToPrice(Pivot_HFT_Retracement_Points);
   if(trigger_distance > 0.0 &&
      current_quote >= g_pivot_hft_campaign.tracked_extreme + trigger_distance)
   {
     g_pivot_hft_campaign.trigger_price = current_quote;
     g_pivot_hft_campaign.status = PIVOT_HFT_CAMPAIGN_ORDER_WAIT;
     PivotHftAuditLog("ENTRY_TRIGGERED",
-                     StringFormat("sequence=%s|dir=%s|level=%s|extreme=%.5f|threshold=%.5f|quote=%.5f|retrace_pts=%.2f",
+                     StringFormat("sequence=%s|dir=%s|level=%s|mode=RETRACEMENT|extreme=%.5f|threshold=%.5f|quote=%.5f|retrace_pts=%.2f",
                                   g_pivot_hft_campaign.sequence_id,
                                   EnumToString(g_pivot_hft_campaign.direction),
                                   PivotHftLevelLabel(g_pivot_hft_campaign.pivot_level),

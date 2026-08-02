@@ -183,6 +183,13 @@ int OnInit()
     return INIT_FAILED;
   }
 
+  if(Pivot_HFT_Retracement_Points < 0.0)
+  {
+    PrintFormat("Pivot HFT invalid retracement input | points=%.2f",
+                Pivot_HFT_Retracement_Points);
+    return INIT_PARAMETERS_INCORRECT;
+  }
+
   string risk_input_reason = "";
   if(!PivotHftValidateRiskGeometryInputs(risk_input_reason))
   {

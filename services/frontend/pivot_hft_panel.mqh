@@ -130,6 +130,11 @@ string PivotHftBuildPanelText()
   string campaign_direction = (campaign.direction == NO_SIGNAL)
                               ? "-"
                               : PivotHftDirectionToken(campaign.direction);
+  string retracement_text = (Pivot_HFT_Retracement_Points <= 0.0)
+                            ? "IMMEDIATE"
+                            : StringFormat("%.5f",
+                                PivotHftCampaignRetracementThresholdForState(
+                                  campaign));
 
   string text = "PIVOT HFT";
   text += StringFormat("\nMicro %s | Pivot %s | Session %s",
@@ -146,8 +151,8 @@ string PivotHftBuildPanelText()
                        campaign_level,
                        campaign.pivot_price,
                        campaign.tracked_extreme);
-  text += StringFormat("\nRetrace threshold %.5f | trigger quote %.5f | Active %d | %s",
-                       PivotHftCampaignRetracementThresholdForState(campaign),
+  text += StringFormat("\nRetrace %s | trigger quote %.5f | Active %d | %s",
+                       retracement_text,
                        campaign.trigger_price,
                        PivotHftActivePositionCount(),
                        MarketStatusErrorSummary());

@@ -151,6 +151,6 @@ plus only implementation files requiring compile fixes.
 | Sprint | Status | Commit | Validation |
 | --- | --- | --- | --- |
 | 1 | Complete | This Sprint 1 commit | No obsolete active references; diff and indicator/send ownership reviewed |
-| 2 | Pending | - | Static entry-flow and guard review |
+| 2 | Complete | This Sprint 2 commit | Immediate/positive trigger branches, init validation, and guard path reviewed |
 | 3 | Pending | - | Static lifecycle and consumption review |
 | 4 | Pending | - | MetaEditor compile, final diff/status review |
