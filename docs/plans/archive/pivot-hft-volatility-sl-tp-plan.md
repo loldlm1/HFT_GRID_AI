@@ -4,8 +4,9 @@
 **Revised**: 2026-08-01 after execution authorization
 **Status**: Completed
 **Completed**: 2026-08-01
-**Superseded**: The active input contract is replaced by
-`docs/plans/pivot-hft-immediate-entry-band-risk-consumption-plan.md`.
+**Archived**: 2026-08-02
+**Superseded**: The completed successor is archived at
+`docs/plans/archive/pivot-hft-immediate-entry-band-risk-consumption-plan.md`.
 **Complexity**: Critical / trading-sensitive
 **Execution**: Sprints 1-6 in order, exactly one validated commit per Sprint
 
