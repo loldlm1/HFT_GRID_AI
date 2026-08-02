@@ -1,7 +1,7 @@
 # Plan: Pivot HFT Entry Safety And Retry Visibility
 
 **Generated**: 2026-08-02
-**Status**: Sprint 1 complete; Sprint 2 pending
+**Status**: Sprints 1-2 complete; Sprint 3 pending
 **Estimated Complexity**: Critical / trading-sensitive
 **Execution Policy**: One authorized contiguous batch for Sprints 1-3, with one
 statically validated commit per Sprint and one MetaEditor compile after Sprint
@@ -358,15 +358,28 @@ Sprint 2 commit while retaining pre-send protection.
 
 ### Sprint 2 Gate
 
-- [ ] All Sprint 2 tasks complete.
-- [ ] Safe-fill and post-fill-invalid paths are statically validated.
-- [ ] Retry-without-retouch paths and both directional formulas are statically
+- [x] All Sprint 2 tasks complete.
+- [x] Safe-fill and post-fill-invalid paths are statically validated.
+- [x] Retry-without-retouch paths and both directional formulas are statically
   reviewed; runtime evidence remains in the user QA matrix.
-- [ ] Ownership and state transitions statically prevent duplicate tickets,
+- [x] Ownership and state transitions statically prevent duplicate tickets,
   orphan state, or replacement during `CLOSE_WAIT`.
-- [ ] Exactly one Sprint 2 commit is created with the proposed message.
-- [ ] The rollback point is recorded.
-- [ ] Sprint 3 starts only after this gate and commit complete.
+- [x] Exactly one Sprint 2 commit is created with the proposed message.
+- [x] The rollback point is recorded.
+- [x] Sprint 3 starts only after this gate and commit complete.
+
+**Execution record**:
+
+- Static checks: post-fill safety runs before fixed TP, trailing, and local SL;
+  BUY uses `Bid - local_sl`, SELL uses `local_sl - Ask`; the close routes only
+  through `PivotHftClosePositionLocally` with the appended `ENTRY_SAFETY`
+  trigger.
+- Rearm checks: history finalization precedes `POSITION_REARMED`; the admitted
+  sequence is preserved, retry ordinal/source ticket are explicit, and the
+  fresh entry-side quote seeds the next threshold without Bollinger readmission.
+- Runtime/compile: intentionally deferred under the authorized execution
+  override; MetaEditor runs once after Sprint 3 and the user runs tester QA.
+- Rollback point: `506a965` (revert the Sprint 2 commit).
 
 ## Sprint 3: Visual Clarity, Documentation, And Final Validation
 

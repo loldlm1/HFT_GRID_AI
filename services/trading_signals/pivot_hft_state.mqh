@@ -83,6 +83,8 @@ struct PivotHftCampaignState
   double                   tracked_extreme;
   double                   trigger_price;
   int                      attempt_count;
+  int                      retry_ordinal;
+  ulong                    retry_source_ticket;
   string                   sequence_id;
   bool                     execution_slot_block_logged;
   PivotHftEntrySafetySnapshot entry_safety;
@@ -98,6 +100,8 @@ struct PivotHftCampaignState
     tracked_extreme  = 0.0;
     trigger_price    = 0.0;
     attempt_count    = 0;
+    retry_ordinal    = 0;
+    retry_source_ticket = 0;
     sequence_id      = "";
     execution_slot_block_logged = false;
     entry_safety     = PivotHftEntrySafetySnapshot();
@@ -139,6 +143,7 @@ struct PivotHftPositionState
   ulong                    position_identifier;
   ulong                    entry_deal_ticket;
   ulong                    exit_deal_ticket;
+  ulong                    campaign_retry_source_ticket;
   datetime                 campaign_micro_bar_time;
   datetime                 entry_micro_bar_time;
   datetime                 entry_time;
@@ -165,7 +170,16 @@ struct PivotHftPositionState
   int                      trailing_step_index;
   int                      close_trigger_step;
   int                      campaign_attempt_count;
+  int                      campaign_retry_ordinal;
+  string                   campaign_sequence_id;
   string                   position_comment;
+  PivotHftEntrySafetySnapshot entry_safety;
+  double                   entry_safety_close_quote;
+  double                   entry_safety_actual_spread_points;
+  double                   entry_safety_available_buffer_points;
+  string                   entry_safety_post_fill_reason;
+  bool                     entry_safety_checked;
+  bool                     entry_safety_failed;
   bool                     close_requested;
   bool                     close_send_confirmed;
   bool                     reattempt_pending;
@@ -183,6 +197,7 @@ struct PivotHftPositionState
     position_identifier    = 0;
     entry_deal_ticket      = 0;
     exit_deal_ticket       = 0;
+    campaign_retry_source_ticket = 0;
     campaign_micro_bar_time = 0;
     entry_micro_bar_time   = 0;
     entry_time             = 0;
@@ -209,7 +224,16 @@ struct PivotHftPositionState
     trailing_step_index    = 0;
     close_trigger_step     = 0;
     campaign_attempt_count = 0;
+    campaign_retry_ordinal = 0;
+    campaign_sequence_id   = "";
     position_comment       = "";
+    entry_safety           = PivotHftEntrySafetySnapshot();
+    entry_safety_close_quote = 0.0;
+    entry_safety_actual_spread_points = 0.0;
+    entry_safety_available_buffer_points = 0.0;
+    entry_safety_post_fill_reason = "";
+    entry_safety_checked   = false;
+    entry_safety_failed    = false;
     close_requested        = false;
     close_send_confirmed   = false;
     reattempt_pending      = false;

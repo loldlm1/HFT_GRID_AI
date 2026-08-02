@@ -46,6 +46,8 @@ string PivotHftCloseTriggerLabel(const PivotHftCloseTriggers trigger)
       return "EXTERNAL";
     case PIVOT_HFT_CLOSE_TRIGGER_FIXED_TP:
       return "FIXED_TP";
+    case PIVOT_HFT_CLOSE_TRIGGER_ENTRY_SAFETY:
+      return "ENTRY_SAFETY";
     case PIVOT_HFT_CLOSE_TRIGGER_NONE:
     default:
       return "NONE";
@@ -118,6 +120,115 @@ void PivotHftCaptureFixedTpCloseTrigger(
   position_state.close_trigger_stop = position_state.local_sl_price;
   position_state.close_trigger_target = position_state.local_tp_price;
   position_state.close_trigger_step = position_state.trailing_step_index;
+}
+
+void PivotHftCaptureEntrySafetyCloseTrigger(
+  PivotHftPositionState &position_state)
+{
+  position_state.close_trigger = PIVOT_HFT_CLOSE_TRIGGER_ENTRY_SAFETY;
+  position_state.close_trigger_time = TimeCurrent();
+  position_state.close_trigger_quote =
+    position_state.entry_safety_close_quote;
+  position_state.close_trigger_stop = position_state.local_sl_price;
+  position_state.close_trigger_target = 0.0;
+  position_state.close_trigger_step = 0;
+}
+
+bool PivotHftEvaluatePostFillEntrySafety(
+  PivotHftPositionState &position_state)
+{
+  if(position_state.entry_safety_checked)
+    return !position_state.entry_safety_failed;
+
+  position_state.entry_safety_checked = true;
+  position_state.entry_safety_failed = false;
+  position_state.entry_safety_post_fill_reason = "";
+
+  double point_size = position_state.entry_safety.point_size;
+  double required_floor_points =
+    position_state.entry_safety.broker_floor_points;
+  MqlTick fresh_tick;
+  ZeroMemory(fresh_tick);
+  ResetLastError();
+  bool tick_ready = SymbolInfoTick(_Symbol, fresh_tick);
+  int tick_error = GetLastError();
+
+  if(!position_state.entry_safety.valid ||
+     position_state.entry_safety.blocked)
+    position_state.entry_safety_post_fill_reason =
+      "pre_send_safety_snapshot_invalid";
+  else if(!MathIsValidNumber(point_size) || point_size <= 0.0)
+    position_state.entry_safety_post_fill_reason = "invalid_symbol_point_size";
+  else if(!MathIsValidNumber(required_floor_points) ||
+          required_floor_points <= 0.0)
+    position_state.entry_safety_post_fill_reason =
+      "invalid_broker_distance_floor";
+  else if(position_state.entry_price <= 0.0 ||
+          position_state.local_sl_price <= 0.0)
+    position_state.entry_safety_post_fill_reason =
+      "invalid_fill_or_local_sl";
+  else if(!tick_ready)
+    position_state.entry_safety_post_fill_reason =
+      StringFormat("fresh_tick_unavailable:%d", tick_error);
+  else if(fresh_tick.ask <= 0.0 || fresh_tick.bid <= 0.0 ||
+          fresh_tick.ask < fresh_tick.bid)
+    position_state.entry_safety_post_fill_reason = "invalid_fresh_tick";
+  else
+  {
+    position_state.entry_safety_actual_spread_points =
+      (fresh_tick.ask - fresh_tick.bid) / point_size;
+    if(position_state.direction == BULLISH)
+    {
+      position_state.entry_safety_close_quote = fresh_tick.bid;
+      position_state.entry_safety_available_buffer_points =
+        (fresh_tick.bid - position_state.local_sl_price) / point_size;
+    }
+    else if(position_state.direction == BEARISH)
+    {
+      position_state.entry_safety_close_quote = fresh_tick.ask;
+      position_state.entry_safety_available_buffer_points =
+        (position_state.local_sl_price - fresh_tick.ask) / point_size;
+    }
+    else
+      position_state.entry_safety_post_fill_reason = "invalid_direction";
+
+    if(position_state.entry_safety_post_fill_reason == "" &&
+       (!MathIsValidNumber(
+          position_state.entry_safety_actual_spread_points) ||
+        !MathIsValidNumber(
+          position_state.entry_safety_available_buffer_points)))
+      position_state.entry_safety_post_fill_reason =
+        "invalid_post_fill_distance";
+    if(position_state.entry_safety_post_fill_reason == "" &&
+       position_state.entry_safety_available_buffer_points + 1e-9 <
+         required_floor_points)
+      position_state.entry_safety_post_fill_reason =
+        "available_buffer_below_broker_floor";
+  }
+
+  if(position_state.entry_safety_post_fill_reason == "")
+  {
+    position_state.entry_safety_post_fill_reason = "ok";
+    return true;
+  }
+
+  position_state.entry_safety_failed = true;
+  PivotHftAuditLog("FILL_ENTRY_DISTANCE_INVALID",
+                   StringFormat("ticket=%I64u|fill=%.5f|fresh_bid=%.5f|fresh_ask=%.5f|close_quote=%.5f|local_sl=%.5f|actual_spread_pts=%.2f|available_buffer_pts=%.2f|required_broker_floor_pts=%.2f|pre_spread_pts=%.2f|reason=%s|%s",
+                                position_state.position_ticket,
+                                position_state.entry_price,
+                                fresh_tick.bid,
+                                fresh_tick.ask,
+                                position_state.entry_safety_close_quote,
+                                position_state.local_sl_price,
+                                position_state.entry_safety_actual_spread_points,
+                                position_state.entry_safety_available_buffer_points,
+                                required_floor_points,
+                                position_state.entry_safety.spread_points,
+                                position_state.entry_safety_post_fill_reason,
+                                PivotHftPositionRiskAuditFields(
+                                  position_state)));
+  return false;
 }
 
 bool PivotHftInitializeLocalStop(PivotHftPositionState &position_state)
@@ -441,22 +552,38 @@ bool PivotHftTryRearmClosedPosition(PivotHftPositionState &position_state)
     return false;
   }
 
+  double fresh_extreme = PivotHftCurrentEntryQuote(position_state.direction);
+  if(fresh_extreme <= 0.0)
+    return false;
+
+  int retry_ordinal = position_state.campaign_retry_ordinal + 1;
+  if(retry_ordinal <= 1)
+    retry_ordinal = 2;
   PivotHftStartCampaign(position_state.direction,
                         position_state.pivot_level,
                         position_state.pivot_price,
-                        current_micro_bar);
-  g_pivot_hft_campaign.attempt_count =
-    position_state.campaign_attempt_count + 1;
+                        current_micro_bar,
+                        position_state.campaign_sequence_id,
+                        position_state.position_ticket,
+                        retry_ordinal,
+                        position_state.campaign_attempt_count + 1);
+  g_pivot_hft_campaign.tracked_extreme = fresh_extreme;
   position_state.reattempt_pending = false;
   position_state.campaign_attempt_count = g_pivot_hft_campaign.attempt_count;
+  position_state.campaign_retry_ordinal =
+    g_pivot_hft_campaign.retry_ordinal;
   position_state.status = PIVOT_HFT_POSITION_COMPLETED;
   PivotHftAuditLog("POSITION_REARMED",
-                   StringFormat("ticket=%I64u|sequence=%s|dir=%s|level=%s|attempt=%d|admission=latched",
+                   StringFormat("source_ticket=%I64u|sequence=%s|dir=%s|level=%s|attempt=%d|retry_ordinal=%d|extreme=%.5f|next_threshold=%.5f|admission=latched",
                                  position_state.position_ticket,
                                  g_pivot_hft_campaign.sequence_id,
                                  EnumToString(position_state.direction),
                                  PivotHftLevelLabel(position_state.pivot_level),
-                                 g_pivot_hft_campaign.attempt_count + 1));
+                                 g_pivot_hft_campaign.attempt_count + 1,
+                                 g_pivot_hft_campaign.retry_ordinal,
+                                 g_pivot_hft_campaign.tracked_extreme,
+                                 PivotHftCampaignEntryThreshold(
+                                   g_pivot_hft_campaign)));
   return true;
 }
 
@@ -687,6 +814,16 @@ void PivotHftProcessPositionState(PivotHftPositionState &position_state)
   position_state.entry_volume = PositionGetDouble(POSITION_VOLUME);
   if(position_state.local_sl_price <= 0.0)
     PivotHftInitializeLocalStop(position_state);
+
+  if(!PivotHftEvaluatePostFillEntrySafety(position_state))
+  {
+    PivotHftCaptureEntrySafetyCloseTrigger(position_state);
+    position_state.close_requested = true;
+    position_state.status = PIVOT_HFT_POSITION_CLOSE_WAIT;
+    PivotHftClosePositionLocally(position_state);
+    return;
+  }
+
   if(position_state.local_tp_price <= 0.0 &&
      position_state.fixed_tp_points > 0.0)
     PivotHftInitializeLocalTarget(position_state);
