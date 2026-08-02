@@ -149,9 +149,10 @@ proteccion y `DEBUG_STOP`.
 una campana sigue pendiente. `CAMPAIGN_CANCELLED` identifica `session_closed`,
 `pivot_set_rollover` o una reconstruccion terminal del conjunto. Cuando un
 nivel tocado ya esta ocupado, `CAMPAIGN_LEVEL_OCCUPIED` registra la mascara y
-el fallback solo al cambiar la firma vela/direccion/mascara/seleccion; salir y
-volver temporalmente a la banda no repite el mismo payload. Los reintentos usan
-el nivel original dentro de la vela real del fill.
+el fallback una sola vez por firma unica vela/direccion/mascara/seleccion;
+alternar entre firmas o salir y volver temporalmente a la banda no repite un
+payload ya visto. Los reintentos usan el nivel original dentro de la vela real
+del fill.
 
 `POSITION_FINALIZED` separa `close_trigger` (`INITIAL_SL`, `BREAK_EVEN`,
 `TRAILING` o `EXTERNAL`) de `net_class` (`PROFIT`, `LOSS` o `FLAT`). Tambien
@@ -219,6 +220,12 @@ y limpiar o rotar `query_debug.txt`:
 13. Para cada escenario, correlacionar el chart, historial de ordenes/deals y
     las filas del mismo `run` en `query_debug.txt`.
 
-No promover el EA a demo prolongada o live hasta registrar esta evidencia
-manual. El SL y el trailing son locales: terminal, EA, Algo Trading y conexion
+El baseline de cierre fue validado el 2026-08-01 con chart M1, micro M3 y
+pivotes H1: 210 fills y finalizaciones correlacionadas, BUY/SELL, maximo de un
+ticket administrado, escaneo historico, burns, carry-forward, reintentos,
+SL/trailing y 33 firmas de ocupacion sin duplicados. El plan de implementacion
+queda archivado en `docs/plans/archive/pivot-hft-strategy-plan.md`.
+
+Repetir los controles relevantes al cambiar broker, simbolo o parametros antes
+de live. El SL y el trailing son locales: terminal, EA, Algo Trading y conexion
 deben permanecer activos para ejecutar el cierre.

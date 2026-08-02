@@ -112,7 +112,8 @@ not as replacements for project rules.
   `ea_id + magic_number` and deal filtering by `DEAL_MAGIC`.
 - Respect daily signal budgets, session filters, market status, drawdown locks,
   debug stops, spread guards, margin checks, and broker close-only/disabled
-  states. Pivot HFT uses one pending campaign and multiple hedging positions.
+  states. Pivot HFT uses one pending campaign and at most one managed hedging
+  position at a time.
 - Always use existing broker and math helpers for stop/freeze distances, price
   normalization, point distances, margin references, and symbol volume
   normalization.

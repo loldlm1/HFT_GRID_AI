@@ -78,7 +78,7 @@ the historical deterministic seed for compatibility.
   `CAMPAIGN_CARRIED_FORWARD`, `CAMPAIGN_CANCELLED`, `CAMPAIGN_*`, `ENTRY_*`,
   `ORDER_SEND_RESULT`, `FILL_*`, local SL/trailing, position finalization,
   protection closes and debug stops. Occupied-level diagnostics are emitted
-  only when their bar/direction/mask/selection signature changes.
+  once per unique bar/direction/mask/selection signature.
 - `POSITION_FINALIZED` records the independent `close_trigger` and `net_class`,
   trigger quote/stop/step, latest exit deal and volume-weighted actual close
   price. A profitable BE or trailing close is therefore not mislabeled as TP.
@@ -101,9 +101,13 @@ the historical deterministic seed for compatibility.
 - Entry indicators are activated only while a configured session window is
   open. Non-visual tester runs skip chart objects/comments, while open-position
   local protection continues outside the entry window.
-- Use Strategy Tester `Every tick based on real ticks` and a demo hedging chart
-  before live use. Manual real-tick evidence is a release prerequisite; a clean
-  compile alone does not authorize live deployment.
+- The focused US30 real-tick baseline passed on 2026-08-01 with chart M1, micro
+  M3 and pivot H1, including single-flight and bounded-log correlation. Repeat
+  the broker-specific demo checks before live use; a clean compile or one tester
+  baseline alone does not authorize live deployment.
 
 See `docs/guides/pivot-hft-strategy-inputs.md` for input definitions and the
 manual validation checklist.
+
+The completed implementation history is archived in
+`docs/plans/archive/pivot-hft-strategy-plan.md`.

@@ -1,9 +1,8 @@
-# Plan: Pivot HFT sobre Bollinger y pivotes clasicos
+# Archived Plan: Pivot HFT sobre Bollinger y pivotes clasicos
 
 **Generated**: 2026-08-01
-**Status**: The post-remediation M1/M3/H1 runtime audit passed all trading
-lifecycle gates. Sprint 20 and its sole final compile are complete; one targeted
-user-run log check remains before archival.
+**Status**: Completed and archived on 2026-08-01. The final M1/M3/H1 runtime
+audit passed every trading, lifecycle and bounded-diagnostics gate.
 **Estimated Complexity**: Critical / trading-sensitive
 
 **Execution override**: Per explicit user authorization, the original batch
@@ -26,8 +25,9 @@ symbol/magic-scope and license-contract checks passing. The exact portable
 MetaEditor `5-1` compile completed with `0 errors, 0 warnings` in `8772 ms`.
 The current `BUILD.log` and temporary Include junction were removed after the
 result was recorded; no harness, CI or Strategy Tester session was launched by
-the agent. Manual real-tick chart, broker-history and `query_debug.txt`
-correlation remains pending with the user.
+the agent. At that stage, manual real-tick chart, broker-history and
+`query_debug.txt` correlation still remained pending; later Sprints and the
+final user-run audit completed that evidence.
 
 **QA remediation validation override**: By explicit user instruction during
 Sprint 10, Sprints 10-13 use static/diff review only. No MQL5 harness tests or
@@ -81,6 +81,14 @@ single logger call-site, bar-only reset, unchanged include topology and absence
 of trading consumers. The sole MetaEditor gate passed with `0 errors, 0
 warnings` in `8377 ms`; `BUILD.log` and the temporary profile Include junction
 were removed. No harness, CI or Strategy Tester session was launched.
+
+The final user-run audit contained 3,744 records from one complete chart M1 /
+micro M3 / pivot H1 run. It preserved 210 accepted sends, fills, local stops,
+close requests and finalizations with 116 buys, 94 sells and a maximum of one
+managed position. All 25 session-base scans, 51 H1 pivot contexts, level burns,
+cross-bar campaigns, retries and local protection checks passed. The corrected
+occupancy diagnostic emitted 33 rows for 33 unique intrabar signatures, with
+zero duplicates and no new finding.
 
 ## Overview
 
@@ -332,12 +340,12 @@ until the new detection path is wired in later sprints.
 
 ### Sprint 1 Gate
 
-- [ ] All Sprint 1 tasks complete.
-- [ ] Compile validation passes and evidence is recorded.
-- [ ] Residual input migration risks are documented.
-- [ ] Exactly one Sprint 1 commit is created with the proposed message.
-- [ ] The rollback commit/hash is recorded.
-- [ ] Sprint 2 has not started before this gate completes.
+- [x] All Sprint 1 tasks complete.
+- [x] Compile validation passes and evidence is recorded.
+- [x] Residual input migration risks are documented.
+- [x] Exactly one Sprint 1 commit is created with the proposed message.
+- [x] The rollback commit/hash is recorded.
+- [x] Sprint 2 has not started before this gate completes.
 
 ## Sprint 2: Macro Pivot And Micro Bollinger Data Layer
 
@@ -418,11 +426,11 @@ and previous closed macro-candle pivots.
 
 ### Sprint 2 Gate
 
-- [ ] Pivot and Bollinger snapshots are independently verifiable.
-- [ ] Compile and visual data checks pass; no order path is enabled yet.
-- [ ] Indicator-release and insufficient-history behavior are documented.
-- [ ] Exactly one Sprint 2 commit is created and rollback point recorded.
-- [ ] Sprint 3 has not started before this gate completes.
+- [x] Pivot and Bollinger snapshots are independently verifiable.
+- [x] Compile and visual data checks pass; no order path is enabled yet.
+- [x] Indicator-release and insufficient-history behavior are documented.
+- [x] Exactly one Sprint 2 commit is created and rollback point recorded.
+- [x] Sprint 3 has not started before this gate completes.
 
 ## Sprint 3: Micro Campaign Detection And Latest-Pivot Replacement
 
@@ -503,11 +511,11 @@ pending follow campaign per symbol while preserving micro-bar boundaries.
 
 ### Sprint 3 Gate
 
-- [ ] Detection, latest-level replacement and micro expiry pass visual checks.
-- [ ] No live order is sent by the detector alone.
-- [ ] Compile result and representative tick evidence are recorded.
-- [ ] Exactly one Sprint 3 commit is created and rollback point recorded.
-- [ ] Sprint 4 has not started before this gate completes.
+- [x] Detection, latest-level replacement and micro expiry pass visual checks.
+- [x] No live order is sent by the detector alone.
+- [x] Compile result and representative tick evidence are recorded.
+- [x] Exactly one Sprint 3 commit is created and rollback point recorded.
+- [x] Sprint 4 has not started before this gate completes.
 
 ## Sprint 4: Raw Hedging Execution And Position Registry
 
@@ -588,12 +596,12 @@ and without local phantom positions.
 
 ### Sprint 4 Gate
 
-- [ ] Hedging-only guard and raw order semantics pass.
-- [ ] No local phantom fills exist after broker rejection.
-- [ ] Multiple active positions remain symbol/magic scoped.
-- [ ] Compile and broker-result evidence are recorded.
-- [ ] Exactly one Sprint 4 commit is created and rollback point recorded.
-- [ ] Sprint 5 has not started before this gate completes.
+- [x] Hedging-only guard and raw order semantics pass.
+- [x] No local phantom fills exist after broker rejection.
+- [x] Multiple active positions remain symbol/magic scoped.
+- [x] Compile and broker-result evidence are recorded.
+- [x] Exactly one Sprint 4 commit is created and rollback point recorded.
+- [x] Sprint 5 has not started before this gate completes.
 
 ## Sprint 5: Local SL, BE, Trailing Step And Outcome Reattempts
 
@@ -673,12 +681,12 @@ without server-side SL/TP.
 
 ### Sprint 5 Gate
 
-- [ ] Local SL, BE, trailing and close-by-ticket behavior is validated both sides.
-- [ ] Negative/BE reattempt and positive completion rules are evidenced.
-- [ ] Multiple active position states remain independent.
-- [ ] Compile and real-tick tester evidence are recorded.
-- [ ] Exactly one Sprint 5 commit is created and rollback point recorded.
-- [ ] Sprint 6 has not started before this gate completes.
+- [x] Local SL, BE, trailing and close-by-ticket behavior is validated both sides.
+- [x] Negative/BE reattempt and positive completion rules are evidenced.
+- [x] Multiple active position states remain independent.
+- [x] Compile and real-tick tester evidence are recorded.
+- [x] Exactly one Sprint 5 commit is created and rollback point recorded.
+- [x] Sprint 6 has not started before this gate completes.
 
 ## Sprint 6: OnTick Integration, Protection, Sessions And Daily Accounting
 
@@ -762,12 +770,12 @@ project's non-negotiable risk, license and market-status boundaries.
 
 ### Sprint 6 Gate
 
-- [ ] Pivot HFT is the only order-producing path.
-- [ ] Session, market, spread, margin, daily and protection gates pass tests.
-- [ ] License and magic behavior remains unchanged and fail-closed.
-- [ ] Compile and forced-close evidence are recorded.
-- [ ] Exactly one Sprint 6 commit is created and rollback point recorded.
-- [ ] Sprint 7 has not started before this gate completes.
+- [x] Pivot HFT is the only order-producing path.
+- [x] Session, market, spread, margin, daily and protection gates pass tests.
+- [x] License and magic behavior remains unchanged and fail-closed.
+- [x] Compile and forced-close evidence are recorded.
+- [x] Exactly one Sprint 6 commit is created and rollback point recorded.
+- [x] Sprint 7 has not started before this gate completes.
 
 ## Sprint 7: De-Pandora Cleanup, Frontend And Documentation
 
@@ -868,8 +876,7 @@ scan, `README.md`, `AGENTS.md`, `docs/guides/*`.
 ### Sprint 7 Gate
 
 - [x] Pandora/grid runtime business logic is removed or proven unreachable.
-- [ ] Frontend and deinit cleanup pass visual checks. Static cleanup passed;
-  attach/detach visual validation remains manual.
+- [x] Frontend and deinit cleanup pass static and supplied visual checks.
 - [x] Active docs and AGENTS map are synchronized with the new architecture.
 - [x] Compile and `rg` cleanup evidence are recorded.
 - [x] Exactly one Sprint 7 commit is created and rollback point recorded.
@@ -1274,7 +1281,7 @@ artifacts only.
 - [x] Final static and MetaEditor compile gates pass; `BUILD.log` is removed.
 - [x] Real-tick visual scenarios are explicitly documented as a remaining
   manual gap delegated to the user; the agent did not launch the tester.
-- [ ] Chart, history and audit evidence agree for tested levels and lifecycle.
+- [x] Chart, history and audit evidence agree for tested levels and lifecycle.
 - [x] Active docs, rollback points and residual risks are current.
 - [x] Exactly one Sprint 14 commit is created and the plan status is final.
 
@@ -1594,6 +1601,22 @@ audit above.
 - [x] Static validation and the sole final compile pass.
 - [x] Exactly one Sprint 20 commit records the completed gate.
 
+## Final Closure Audit
+
+- One complete 3,744-row run contains exactly one `RUN_START`, one `RUN_END`
+  and no malformed record.
+- All 210 entry sends and 210 local closes returned retcode `10009` with a
+  non-zero deal; every fill correlates to one local SL and one finalization.
+- Runtime occupancy never exceeded one managed ticket. Both cross-bar fills
+  preserved their campaign identity, and all 154 non-positive outcomes resolved
+  as 147 valid rearms plus 7 explicit fill-bar expirations.
+- All session-base scans, incremental scans, M3 bars, H1 sources, provisional
+  touches and burns passed with zero alignment or reuse finding.
+- `CAMPAIGN_LEVEL_OCCUPIED` produced 33 rows for 33 unique
+  bar/direction/mask/selection signatures. The Sprint 20 defect is closed.
+- No further Sprint is required. The implementation plan is complete and moved
+  to the historical archive.
+
 ## Testing Strategy
 
 - **Unit**:
@@ -1683,5 +1706,5 @@ audit above.
 - [x] Session, spread, margin, daily, drawdown, market-status and license guards remain active in the compiled graph.
 - [x] Residual risk from no server SL/TP is documented and demo approval is explicit.
 - [x] Rollback points, remaining tester gaps and changed files are included in the handoff.
-- [ ] A user-run `query_debug.txt` confirms one
-  `CAMPAIGN_LEVEL_OCCUPIED` row per unique intrabar signature before archival.
+- [x] A user-run `query_debug.txt` confirmed one
+  `CAMPAIGN_LEVEL_OCCUPIED` row per unique intrabar signature for archival.
