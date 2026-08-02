@@ -152,5 +152,5 @@ plus only implementation files requiring compile fixes.
 | --- | --- | --- | --- |
 | 1 | Complete | This Sprint 1 commit | No obsolete active references; diff and indicator/send ownership reviewed |
 | 2 | Complete | This Sprint 2 commit | Immediate/positive trigger branches, init validation, and guard path reviewed |
-| 3 | Pending | - | Static lifecycle and consumption review |
+| 3 | Complete | This Sprint 3 commit | Profitable ladder mask, losing retry branch, and finalization scopes reviewed |
 | 4 | Pending | - | MetaEditor compile, final diff/status review |

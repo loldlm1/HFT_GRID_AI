@@ -68,6 +68,22 @@ string PivotHftNetClassLabel(const PivotHftNetClasses net_class)
   }
 }
 
+string PivotHftLevelMaskLabel(const ulong level_mask)
+{
+  string label = "";
+  for(int level_index = 1;
+      level_index < PIVOT_HFT_LEVEL_SLOT_TOTAL;
+      level_index++)
+  {
+    if((level_mask & ((ulong)1 << level_index)) == 0)
+      continue;
+    if(label != "")
+      label += ",";
+    label += PivotHftLevelLabel((PivotHftPivotLevels)level_index);
+  }
+  return (label == "") ? "-" : label;
+}
+
 void PivotHftClearCloseTrigger(PivotHftPositionState &position_state)
 {
   position_state.close_trigger = PIVOT_HFT_CLOSE_TRIGGER_NONE;
@@ -505,8 +521,31 @@ void PivotHftFinalizeClosedPosition(PivotHftPositionState &position_state)
   }
   if(!position_state.reattempt_pending)
   {
-    PivotHftMarkCampaignLevelCompleted(position_state.entry_micro_bar_time,
-                                       position_state.pivot_level);
+    ulong consumed_mask = 0;
+    if(net_result > 0.0)
+    {
+      consumed_mask = PivotHftMarkWinningLevelLadderCompleted(
+        position_state.entry_micro_bar_time,
+        position_state.direction,
+        position_state.pivot_level);
+    }
+    if(consumed_mask == 0)
+    {
+      PivotHftMarkCampaignLevelCompleted(position_state.entry_micro_bar_time,
+                                         position_state.pivot_level);
+    }
+    else
+    {
+      PivotHftAuditLog("WINNING_LEVELS_CONSUMED",
+                       StringFormat("ticket=%I64u|dir=%s|winner=%s|bar=%I64d|consumed_mask=%I64u|consumed=%s",
+                                    position_state.position_ticket,
+                                    EnumToString(position_state.direction),
+                                    PivotHftLevelLabel(
+                                      position_state.pivot_level),
+                                    (long)position_state.entry_micro_bar_time,
+                                    consumed_mask,
+                                    PivotHftLevelMaskLabel(consumed_mask)));
+    }
     position_state.status = PIVOT_HFT_POSITION_COMPLETED;
   }
 }

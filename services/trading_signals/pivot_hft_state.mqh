@@ -684,6 +684,39 @@ void PivotHftMarkCampaignLevelCompleted(const datetime micro_bar_time,
   g_pivot_hft_completed_levels[level_index] = true;
 }
 
+ulong PivotHftMarkWinningLevelLadderCompleted(
+  const datetime micro_bar_time,
+  const SignalTypes direction,
+  const PivotHftPivotLevels winning_level)
+{
+  if(iTime(_Symbol, Pivot_HFT_Micro_Timeframe, 0) != micro_bar_time)
+    return 0;
+
+  int first_level = 0;
+  int last_level = (int)winning_level;
+  if(direction == BEARISH &&
+     winning_level >= PIVOT_HFT_LEVEL_R1 &&
+     winning_level <= PIVOT_HFT_LEVEL_R3)
+    first_level = (int)PIVOT_HFT_LEVEL_R1;
+  else if(direction == BULLISH &&
+          winning_level >= PIVOT_HFT_LEVEL_S1 &&
+          winning_level <= PIVOT_HFT_LEVEL_S3)
+    first_level = (int)PIVOT_HFT_LEVEL_S1;
+  else
+    return 0;
+
+  PivotHftEnsureCompletedLevelBar(micro_bar_time);
+  ulong consumed_mask = 0;
+  for(int level_index = first_level;
+      level_index <= last_level;
+      level_index++)
+  {
+    g_pivot_hft_completed_levels[level_index] = true;
+    consumed_mask |= ((ulong)1 << level_index);
+  }
+  return consumed_mask;
+}
+
 ulong PivotHftCampaignOccupiedLevelMask(const datetime micro_bar_time)
 {
   if(micro_bar_time <= 0)
