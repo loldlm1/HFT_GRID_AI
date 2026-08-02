@@ -103,4 +103,77 @@ bool PivotHftResolveRiskGeometry(PivotHftRiskGeometry &geometry,
   return true;
 }
 
+bool PivotHftResolveEntrySafetySnapshot(
+  const double requested_sl_points,
+  const bool broker_constraints_ready,
+  PivotHftEntrySafetySnapshot &snapshot)
+{
+  snapshot = PivotHftEntrySafetySnapshot();
+  snapshot.evaluated_at = TimeCurrent();
+  snapshot.requested_sl_points = requested_sl_points;
+  snapshot.spread_points = g_points_spread;
+  snapshot.stops_level_points = g_symbol_constraints.stops_level_points;
+  snapshot.freeze_level_points = g_symbol_constraints.freeze_level_points;
+  snapshot.point_size = g_symbol_constraints.point_size;
+  snapshot.tick_size = g_symbol_constraints.tick_size;
+  snapshot.blocked = true;
+
+  if(!broker_constraints_ready)
+  {
+    snapshot.reason = "broker_constraints_refresh_failed";
+    return false;
+  }
+  if(!MathIsValidNumber(snapshot.point_size) || snapshot.point_size <= 0.0)
+  {
+    snapshot.reason = "invalid_symbol_point_size";
+    return false;
+  }
+  if(!MathIsValidNumber(snapshot.tick_size) || snapshot.tick_size <= 0.0)
+  {
+    snapshot.reason = "invalid_symbol_tick_size";
+    return false;
+  }
+  if(!MathIsValidNumber(snapshot.spread_points) || snapshot.spread_points < 0.0)
+  {
+    snapshot.reason = "invalid_current_spread";
+    return false;
+  }
+  if(!MathIsValidNumber(requested_sl_points) || requested_sl_points <= 0.0)
+  {
+    snapshot.reason = "invalid_requested_local_sl";
+    return false;
+  }
+
+  snapshot.broker_floor_points = EffectiveBrokerDistancePoints(
+    g_symbol_constraints,
+    0.0,
+    1.0);
+  if(!MathIsValidNumber(snapshot.broker_floor_points) ||
+     snapshot.broker_floor_points <= 0.0)
+  {
+    snapshot.reason = "invalid_broker_distance_floor";
+    return false;
+  }
+
+  snapshot.required_initial_sl_points =
+    snapshot.spread_points + snapshot.broker_floor_points;
+  if(!MathIsValidNumber(snapshot.required_initial_sl_points) ||
+     snapshot.required_initial_sl_points <= 0.0)
+  {
+    snapshot.reason = "invalid_required_local_sl";
+    return false;
+  }
+
+  snapshot.valid = true;
+  if(requested_sl_points + 1e-9 < snapshot.required_initial_sl_points)
+  {
+    snapshot.reason = "requested_sl_below_spread_and_broker_floor";
+    return false;
+  }
+
+  snapshot.blocked = false;
+  snapshot.reason = "ok";
+  return true;
+}
+
 #endif // _SERVICES_TRADING_SIGNALS_PIVOT_HFT_RISK_GEOMETRY_MQH_

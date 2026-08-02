@@ -247,6 +247,21 @@ string PivotHftPositionRiskAuditFields(
                       position_state.local_tp_price);
 }
 
+string PivotHftEntrySafetyAuditFields(
+  const PivotHftEntrySafetySnapshot &entry_safety)
+{
+  return StringFormat("requested_sl_pts=%.2f|required_sl_pts=%.2f|spread_pts=%.2f|stops_pts=%.2f|freeze_pts=%.2f|broker_floor_pts=%.2f|point=%.8f|tick=%.8f|reason=%s",
+                      entry_safety.requested_sl_points,
+                      entry_safety.required_initial_sl_points,
+                      entry_safety.spread_points,
+                      entry_safety.stops_level_points,
+                      entry_safety.freeze_level_points,
+                      entry_safety.broker_floor_points,
+                      entry_safety.point_size,
+                      entry_safety.tick_size,
+                      entry_safety.reason);
+}
+
 bool PivotHftRegisterFilledPosition(const PivotHftCampaignState &campaign,
                                     const PivotHftRiskGeometry &risk_geometry,
                                     const ulong deal_ticket,
@@ -379,6 +394,36 @@ bool PivotHftExecuteEntryIntent()
                                        risk_reason,
                                        0,
                                        0);
+    PivotHftMarkEntryRetryable();
+    return false;
+  }
+
+  bool broker_constraints_ready = RefreshBrokerConstraintsForAction(
+    _Symbol,
+    g_symbol_constraints,
+    "PIVOT_HFT_ENTRY_SAFETY");
+  PivotHftEntrySafetySnapshot entry_safety;
+  bool entry_distance_safe = PivotHftResolveEntrySafetySnapshot(
+    risk_geometry.initial_sl_points,
+    broker_constraints_ready,
+    entry_safety);
+  campaign.entry_safety = entry_safety;
+  g_pivot_hft_campaign.entry_safety = entry_safety;
+  if(!entry_distance_safe)
+  {
+    PivotHftAuditLog("ENTRY_RISK_DISTANCE_BLOCKED",
+                     StringFormat("sequence=%s|dir=%s|level=%s|attempt=%d|%s",
+                                  campaign.sequence_id,
+                                  EnumToString(campaign.direction),
+                                  PivotHftLevelLabel(campaign.pivot_level),
+                                  campaign.attempt_count + 1,
+                                  PivotHftEntrySafetyAuditFields(
+                                    entry_safety)));
+    g_pivot_hft_last_error = entry_safety.reason;
+    MarketStatusRegisterExecutionError("PIVOT_HFT_ENTRY_DISTANCE_BLOCK",
+                                       entry_safety.reason,
+                                       0,
+                                       GetLastError());
     PivotHftMarkEntryRetryable();
     return false;
   }

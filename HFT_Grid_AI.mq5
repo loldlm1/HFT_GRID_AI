@@ -199,8 +199,12 @@ int OnInit()
   }
 
   PivotHftAuditInitialize();
+  double initial_broker_floor_points = EffectiveBrokerDistancePoints(
+    g_symbol_constraints,
+    0.0,
+    1.0);
   PivotHftAuditLog("CONFIG",
-                   StringFormat("micro_tf=%s|pivot_tf=%s|direction=%s|retrace_pts=%.2f|bands_width_pct=%.2f|step_sl_ratio=%.4f|fixed_tp_sl_ratio=%.4f|lot=%.2f|visual=%d",
+                   StringFormat("micro_tf=%s|pivot_tf=%s|direction=%s|retrace_pts=%.2f|bands_width_pct=%.2f|step_sl_ratio=%.4f|fixed_tp_sl_ratio=%.4f|lot=%.2f|max_spread=%.2f|daily_signal_limit=%d|daily_limit_mode=%s|broker_stops_pts=%.2f|broker_freeze_pts=%.2f|broker_floor_pts=%.2f|point=%.8f|tick=%.8f|visual=%d",
                                 EnumToString(Pivot_HFT_Micro_Timeframe),
                                 EnumToString(Pivot_HFT_Pivot_Timeframe),
                                 EnumToString(Pivot_HFT_Direction_Mode),
@@ -209,6 +213,14 @@ int OnInit()
                                 Pivot_HFT_TP_Step_SL_Ratio,
                                 Pivot_HFT_Fixed_TP_SL_Ratio,
                                 Pivot_HFT_Lot_Size,
+                                Max_Spread,
+                                Daily_Signal_Limit,
+                                EnumToString(Daily_Signal_Limit_Mode),
+                                g_symbol_constraints.stops_level_points,
+                                g_symbol_constraints.freeze_level_points,
+                                initial_broker_floor_points,
+                                g_symbol_constraints.point_size,
+                                g_symbol_constraints.tick_size,
                                 (int)Pivot_HFT_Enable_Visualization));
 
   // Rebuild the active pivot-set test state even when entry sessions are closed.

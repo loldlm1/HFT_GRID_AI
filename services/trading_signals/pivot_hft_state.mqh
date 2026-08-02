@@ -40,6 +40,38 @@ struct PivotHftPivotSnapshot
   }
 };
 
+struct PivotHftEntrySafetySnapshot
+{
+  datetime evaluated_at;
+  double   requested_sl_points;
+  double   spread_points;
+  double   stops_level_points;
+  double   freeze_level_points;
+  double   broker_floor_points;
+  double   required_initial_sl_points;
+  double   point_size;
+  double   tick_size;
+  string   reason;
+  bool     valid;
+  bool     blocked;
+
+  PivotHftEntrySafetySnapshot()
+    : evaluated_at(0),
+      requested_sl_points(0.0),
+      spread_points(0.0),
+      stops_level_points(0.0),
+      freeze_level_points(0.0),
+      broker_floor_points(0.0),
+      required_initial_sl_points(0.0),
+      point_size(0.0),
+      tick_size(0.0),
+      reason(""),
+      valid(false),
+      blocked(false)
+  {
+  }
+};
+
 struct PivotHftCampaignState
 {
   PivotHftCampaignStatuses status;
@@ -53,6 +85,7 @@ struct PivotHftCampaignState
   int                      attempt_count;
   string                   sequence_id;
   bool                     execution_slot_block_logged;
+  PivotHftEntrySafetySnapshot entry_safety;
 
   PivotHftCampaignState()
   {
@@ -67,6 +100,7 @@ struct PivotHftCampaignState
     attempt_count    = 0;
     sequence_id      = "";
     execution_slot_block_logged = false;
+    entry_safety     = PivotHftEntrySafetySnapshot();
   }
 };
 
