@@ -110,7 +110,20 @@ void PivotHftStartCampaign(const SignalTypes direction,
                            const string retry_source_id = "",
                            const double modeled_entry_slippage_points = 0.0,
                            const double modeled_close_slippage_points = 0.0,
-                           const double modeled_cost_per_lot = 0.0)
+                           const double modeled_cost_per_lot = 0.0,
+                           const string model_source_execution_id = "",
+                           const PivotHftExecutionSources
+                             model_source_execution_source =
+                               PIVOT_HFT_EXECUTION_BROKER,
+                           const PivotHftModelValueProvenance
+                             entry_slippage_provenance =
+                               PIVOT_HFT_MODEL_VALUE_UNAVAILABLE,
+                           const PivotHftModelValueProvenance
+                             close_slippage_provenance =
+                               PIVOT_HFT_MODEL_VALUE_UNAVAILABLE,
+                           const PivotHftModelValueProvenance
+                             cost_per_lot_provenance =
+                               PIVOT_HFT_MODEL_VALUE_UNAVAILABLE)
 {
   PivotHftClearExpiredCampaignVisual();
   PivotHftCampaignState campaign;
@@ -126,6 +139,11 @@ void PivotHftStartCampaign(const SignalTypes direction,
   campaign.retry_ordinal   = (retry_ordinal > 1) ? retry_ordinal : 1;
   campaign.retry_source_ticket = retry_source_ticket;
   campaign.retry_source_id = retry_source_id;
+  campaign.model_source_execution_id = model_source_execution_id;
+  campaign.model_source_execution_source = model_source_execution_source;
+  campaign.entry_slippage_provenance = entry_slippage_provenance;
+  campaign.close_slippage_provenance = close_slippage_provenance;
+  campaign.cost_per_lot_provenance = cost_per_lot_provenance;
   campaign.modeled_entry_slippage_points =
     modeled_entry_slippage_points;
   campaign.modeled_close_slippage_points =
@@ -144,7 +162,7 @@ void PivotHftStartCampaign(const SignalTypes direction,
   PivotHftExecutionSources execution_source =
     PivotHftExecutionSourceForRetry(retry_number);
   PivotHftAuditLog("CAMPAIGN_ARMED",
-                   StringFormat("sequence=%s|dir=%s|level=%s|price=%.5f|bar=%I64d|extreme=%.5f|retry_number=%d|retry_ordinal=%d|execution_source=%s|source_ticket=%I64u|source_id=%s|modeled_entry_slippage_pts=%.2f|modeled_close_slippage_pts=%.2f|modeled_cost_per_lot=%.5f",
+                   StringFormat("sequence=%s|dir=%s|level=%s|price=%.5f|bar=%I64d|extreme=%.5f|retry_number=%d|retry_ordinal=%d|execution_source=%s|source_ticket=%I64u|source_id=%s|%s",
                                 campaign.sequence_id,
                                 EnumToString(direction),
                                 PivotHftLevelLabel(level),
@@ -157,9 +175,8 @@ void PivotHftStartCampaign(const SignalTypes direction,
                                   execution_source),
                                 campaign.retry_source_ticket,
                                 campaign.retry_source_id,
-                                campaign.modeled_entry_slippage_points,
-                                campaign.modeled_close_slippage_points,
-                                campaign.modeled_cost_per_lot));
+                                PivotHftCampaignModelProvenanceAuditFields(
+                                  campaign)));
 }
 
 double PivotHftCampaignEntryThreshold(
@@ -360,8 +377,7 @@ void PivotHftReplaceCampaignIfLatestLevelChanged(const double close_price,
 
   bool replacing_campaign =
     (g_pivot_hft_campaign.status != PIVOT_HFT_CAMPAIGN_IDLE);
-  PivotHftPivotLevels previous_level = g_pivot_hft_campaign.pivot_level;
-  string previous_sequence = g_pivot_hft_campaign.sequence_id;
+  PivotHftCampaignState previous_campaign = g_pivot_hft_campaign;
   if(g_pivot_hft_campaign.status != PIVOT_HFT_CAMPAIGN_IDLE &&
      PivotHftCampaignBelongsToCurrentMicroBar() &&
      g_pivot_hft_campaign.direction == direction &&
@@ -370,13 +386,41 @@ void PivotHftReplaceCampaignIfLatestLevelChanged(const double close_price,
   PivotHftStartCampaign(direction, level, level_price, micro_bar_time);
   if(replacing_campaign)
   {
+    PivotHftCampaignState replacement_campaign = g_pivot_hft_campaign;
+    PivotHftCaptureReplacedCampaignVisual(previous_campaign,
+                                          replacement_campaign,
+                                          micro_bar_time);
+    int previous_retry_number = PivotHftMarketRetryNumber(
+      previous_campaign.retry_ordinal);
+    int replacement_retry_number = PivotHftMarketRetryNumber(
+      replacement_campaign.retry_ordinal);
     PivotHftAuditLog("CAMPAIGN_REPLACED",
-                     StringFormat("previous_sequence=%s|previous_level=%s|sequence=%s|level=%s|price=%.5f",
-                                  previous_sequence,
-                                  PivotHftLevelLabel(previous_level),
-                                  g_pivot_hft_campaign.sequence_id,
-                                  PivotHftLevelLabel(level),
-                                  level_price));
+                     StringFormat("previous_sequence=%s|previous_dir=%s|previous_level=%s|previous_price=%.5f|previous_origin_bar=%I64d|previous_status=%s|previous_retry_number=%d|previous_retry_ordinal=%d|previous_execution_source=%s|previous_source_ticket=%I64u|previous_source_id=%s|terminal_reason=latest_level_replaced|sequence=%s|dir=%s|level=%s|price=%.5f|origin_bar=%I64d|retry_number=%d|retry_ordinal=%d|execution_source=%s",
+                                  previous_campaign.sequence_id,
+                                  EnumToString(previous_campaign.direction),
+                                  PivotHftLevelLabel(
+                                    previous_campaign.pivot_level),
+                                  previous_campaign.pivot_price,
+                                  (long)previous_campaign.micro_bar_time,
+                                  EnumToString(previous_campaign.status),
+                                  previous_retry_number,
+                                  previous_campaign.retry_ordinal,
+                                  PivotHftExecutionSourceLabel(
+                                    PivotHftExecutionSourceForRetry(
+                                      previous_retry_number)),
+                                  previous_campaign.retry_source_ticket,
+                                  previous_campaign.retry_source_id,
+                                  replacement_campaign.sequence_id,
+                                  EnumToString(replacement_campaign.direction),
+                                  PivotHftLevelLabel(
+                                    replacement_campaign.pivot_level),
+                                  replacement_campaign.pivot_price,
+                                  (long)replacement_campaign.micro_bar_time,
+                                  replacement_retry_number,
+                                  replacement_campaign.retry_ordinal,
+                                  PivotHftExecutionSourceLabel(
+                                    PivotHftExecutionSourceForRetry(
+                                      replacement_retry_number))));
   }
   if(Enable_Logs)
   {

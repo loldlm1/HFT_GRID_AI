@@ -211,7 +211,7 @@ int OnInit()
     0.0,
     1.0);
   PivotHftAuditLog("CONFIG",
-                   StringFormat("micro_tf=%s|pivot_tf=%s|direction=%s|retrace_pts=%.2f|start_real_retry=%d|bands_width_pct=%.2f|step_sl_ratio=%.4f|fixed_tp_sl_ratio=%.4f|lot=%.2f|max_spread=%.2f|daily_signal_limit=%d|daily_limit_mode=%s|broker_stops_pts=%.2f|broker_freeze_pts=%.2f|broker_floor_pts=%.2f|point=%.8f|tick=%.8f|visual=%d",
+                   StringFormat("micro_tf=%s|pivot_tf=%s|direction=%s|retrace_pts=%.2f|start_real_retry=%d|bands_width_pct=%.2f|step_sl_ratio=%.4f|fixed_tp_sl_ratio=%.4f|lot=%.2f|max_spread=%.2f|daily_signal_limit=%d|daily_limit_mode=%s|broker_stops_pts=%.2f|broker_freeze_pts=%.2f|broker_floor_pts=%.2f|point=%.8f|tick=%.8f|visualization_input=%d",
                                 EnumToString(Pivot_HFT_Micro_Timeframe),
                                 EnumToString(Pivot_HFT_Pivot_Timeframe),
                                 EnumToString(Pivot_HFT_Direction_Mode),

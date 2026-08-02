@@ -1,7 +1,7 @@
 # Plan: Pivot HFT Retry Threshold Continuity And Audit Hardening
 
 **Generated**: 2026-08-02
-**Status**: Implementation in progress; Sprint 1 complete
+**Status**: Implementation in progress; Sprints 1-2 complete
 **Estimated Complexity**: Critical / trading-sensitive
 **Execution override**: User authorized contiguous execution of Sprints 1-3
 with one validated commit per Sprint and one final MetaEditor compile.
@@ -440,15 +440,34 @@ event schema and replacement logs while retaining cross-bar retry continuity.
 
 ### Sprint 2 Gate
 
-- [ ] All Sprint 2 tasks complete.
-- [ ] Initial and retry campaign replacements have explicit terminal ownership.
-- [ ] Audit payload review finds no duplicate keys.
-- [ ] Retry decision events reconcile one-to-one with eligible finalizations.
-- [ ] Virtual model provenance is deterministic and broker-scoped.
-- [ ] No per-tick log flood, history scan or frontend authority is introduced.
-- [ ] `rtk git diff --check` passes and the Sprint-only diff is reviewed.
-- [ ] Exactly one Sprint 2 commit is created with the proposed message.
-- [ ] The rollback point is recorded before Sprint 3 starts.
+- [x] All Sprint 2 tasks complete.
+- [x] Initial and retry campaign replacements have explicit terminal ownership.
+- [x] Audit payload review finds no duplicate keys.
+- [x] Retry decision events reconcile one-to-one with eligible finalizations.
+- [x] Virtual model provenance is deterministic and broker-scoped.
+- [x] No per-tick log flood, history scan or frontend authority is introduced.
+- [x] `rtk git diff --check` passes and the Sprint-only diff is reviewed.
+- [x] Exactly one Sprint 2 commit is created with the proposed message.
+- [x] The rollback point is recorded before Sprint 3 starts.
+
+**Execution record**:
+
+- Latest-level replacement now records the previous and replacement campaign
+  identities, retry/source ownership and terminal reason
+  `latest_level_replaced`; the previous campaign is retained briefly as a
+  terminal visualization snapshot without re-entering execution.
+- Added schema version `2`, distinct tester/input visualization keys and bounded
+  `REARM_PENDING`, `REARM_DEFERRED`, `POSITION_REARMED`, `RETRY_DISABLED` and
+  `REARM_INVALIDATED` transitions.
+- Removed duplicate audit keys from `POSITION_REARMED`,
+  `VIRTUAL_FILL_REGISTERED` and the latent post-fill `local_sl` composition.
+- Virtual model values now retain both the immediate retry predecessor and the
+  original broker calibration execution, with `OBSERVED_ZERO`, observed-value,
+  fallback and unavailable provenance per component.
+- Static composed-event parsing reports zero duplicate keys; threshold traces
+  remain deterministic for `0`, `1`, `2` and `3`. No MetaEditor compile was run
+  by design.
+- Rollback point: `381087f`.
 
 ## Sprint 3: Expose Retry Continuity And Complete Final Validation
 

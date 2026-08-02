@@ -279,7 +279,7 @@ bool PivotHftEvaluatePostFillEntrySafety(
 
   position_state.entry_safety_failed = true;
   PivotHftAuditLog("FILL_ENTRY_DISTANCE_INVALID",
-                   StringFormat("%s|fill=%.5f|fresh_bid=%.5f|fresh_ask=%.5f|close_quote=%.5f|local_sl=%.5f|actual_spread_pts=%.2f|available_buffer_pts=%.2f|required_broker_floor_pts=%.2f|pre_spread_pts=%.2f|reason=%s|%s",
+                   StringFormat("%s|fill=%.5f|fresh_bid=%.5f|fresh_ask=%.5f|close_quote=%.5f|post_fill_local_sl=%.5f|actual_spread_pts=%.2f|available_buffer_pts=%.2f|required_broker_floor_pts=%.2f|pre_spread_pts=%.2f|reason=%s|%s",
                                 PivotHftPositionAuditIdentityFields(
                                   position_state),
                                 position_state.entry_price,
@@ -564,8 +564,22 @@ bool PivotHftPositionPivotSetStillAllowsRearm(
     g_pivot_hft_pivots);
   double tolerance = PivotHftTickSize() * 0.5;
   return (current_level_price > 0.0 &&
-          MathAbs(current_level_price - position_state.pivot_price) <=
-            tolerance);
+           MathAbs(current_level_price - position_state.pivot_price) <=
+             tolerance);
+}
+
+void PivotHftDeferRetry(PivotHftPositionState &position_state,
+                        const string reason,
+                        const datetime current_micro_bar)
+{
+  if(!PivotHftSetRetryState(position_state,
+                            PIVOT_HFT_RETRY_DEFERRED,
+                            reason))
+    return;
+
+  PivotHftAuditLog("REARM_DEFERRED",
+                   PivotHftRetryDecisionAuditFields(position_state,
+                                                    current_micro_bar));
 }
 
 bool PivotHftTryRearmClosedPosition(PivotHftPositionState &position_state)
@@ -577,83 +591,82 @@ bool PivotHftTryRearmClosedPosition(PivotHftPositionState &position_state)
   datetime current_micro_bar = PivotHftCurrentMicroBar();
   if(current_micro_bar <= 0)
   {
-    PivotHftSetRetryState(position_state,
-                          PIVOT_HFT_RETRY_DEFERRED,
-                          "micro_bar_unavailable");
+    PivotHftDeferRetry(position_state,
+                       "micro_bar_unavailable",
+                       current_micro_bar);
     return false;
   }
   if(g_pivot_hft_campaign.status != PIVOT_HFT_CAMPAIGN_IDLE)
   {
-    PivotHftSetRetryState(position_state,
-                          PIVOT_HFT_RETRY_DEFERRED,
-                          "campaign_slot_busy");
+    PivotHftDeferRetry(position_state,
+                       "campaign_slot_busy",
+                       current_micro_bar);
     return false;
   }
   if(PivotHftHasOtherBlockingPositionLifecycle(
        PivotHftPositionExecutionId(position_state),
        position_state.position_ticket))
   {
-    PivotHftSetRetryState(position_state,
-                          PIVOT_HFT_RETRY_DEFERRED,
-                          "position_lifecycle_busy");
+    PivotHftDeferRetry(position_state,
+                       "position_lifecycle_busy",
+                       current_micro_bar);
     return false;
   }
   if(PivotHftHasManagedBrokerPosition())
   {
-    PivotHftSetRetryState(position_state,
-                          PIVOT_HFT_RETRY_DEFERRED,
-                          "broker_position_busy");
+    PivotHftDeferRetry(position_state,
+                       "broker_position_busy",
+                       current_micro_bar);
     return false;
   }
 
   int retry_ordinal = position_state.next_retry_ordinal;
-  int retry_number = position_state.next_retry_number;
   PivotHftExecutionSources next_execution_source =
     position_state.next_retry_execution_source;
   if(!ProtectionRiskAllowsSignalAttempt())
   {
-    PivotHftSetRetryState(position_state,
-                          PIVOT_HFT_RETRY_DEFERRED,
-                          "protection_block");
+    PivotHftDeferRetry(position_state,
+                       "protection_block",
+                       current_micro_bar);
     return false;
   }
   if(!SessionTimeFilterAllowsSignalAttempt())
   {
-    PivotHftSetRetryState(position_state,
-                          PIVOT_HFT_RETRY_DEFERRED,
-                          "session_block");
+    PivotHftDeferRetry(position_state,
+                       "session_block",
+                       current_micro_bar);
     return false;
   }
   if(next_execution_source == PIVOT_HFT_EXECUTION_BROKER &&
      !DailySignalLimitAllowsAttempt(position_state.direction))
   {
-    PivotHftSetRetryState(position_state,
-                          PIVOT_HFT_RETRY_DEFERRED,
-                          "daily_limit");
+    PivotHftDeferRetry(position_state,
+                       "daily_limit",
+                       current_micro_bar);
     return false;
   }
   if(!MarketStatusAllowsSignalAttempts())
   {
-    PivotHftSetRetryState(position_state,
-                          PIVOT_HFT_RETRY_DEFERRED,
-                          "market_status");
+    PivotHftDeferRetry(position_state,
+                       "market_status",
+                       current_micro_bar);
     return false;
   }
 
   if(!PivotHftRefreshPivotSnapshot(false))
   {
-    PivotHftSetRetryState(position_state,
-                          PIVOT_HFT_RETRY_DEFERRED,
-                          "pivot_snapshot_wait");
+    PivotHftDeferRetry(position_state,
+                       "pivot_snapshot_wait",
+                       current_micro_bar);
     return false;
   }
   if(!position_state.reattempt_pending)
     return false;
   if(!PivotHftIndicatorsReady())
   {
-    PivotHftSetRetryState(position_state,
-                          PIVOT_HFT_RETRY_DEFERRED,
-                          "indicators_wait");
+    PivotHftDeferRetry(position_state,
+                       "indicators_wait",
+                       current_micro_bar);
     return false;
   }
 
@@ -661,19 +674,21 @@ bool PivotHftTryRearmClosedPosition(PivotHftPositionState &position_state)
   if(!PivotHftPositionPivotSetStillAllowsRearm(position_state,
                                                current_level_price))
   {
-    PivotHftAuditLog("REARM_INVALIDATED",
-                     StringFormat("%s|level=%s|reason=pivot_set_changed|stored_price=%.5f|current_price=%.5f|fill_bar=%I64d|current_bar=%I64d",
-                                  PivotHftPositionAuditIdentityFields(
-                                    position_state),
-                                  PivotHftLevelLabel(position_state.pivot_level),
-                                  position_state.pivot_price,
-                                  current_level_price,
-                                  (long)position_state.entry_micro_bar_time,
-                                  (long)current_micro_bar));
     position_state.reattempt_pending = false;
-    PivotHftSetRetryState(position_state,
-                          PIVOT_HFT_RETRY_INVALIDATED,
-                          "pivot_set_changed");
+    bool state_changed = PivotHftSetRetryState(
+      position_state,
+      PIVOT_HFT_RETRY_INVALIDATED,
+      "pivot_set_changed");
+    if(state_changed)
+    {
+      PivotHftAuditLog("REARM_INVALIDATED",
+                       StringFormat("%s|stored_pivot_price=%.5f|current_pivot_price=%.5f",
+                                    PivotHftRetryDecisionAuditFields(
+                                      position_state,
+                                      current_micro_bar),
+                                    position_state.pivot_price,
+                                    current_level_price));
+    }
     position_state.status = PIVOT_HFT_POSITION_COMPLETED;
     return false;
   }
@@ -681,9 +696,9 @@ bool PivotHftTryRearmClosedPosition(PivotHftPositionState &position_state)
   double fresh_extreme = PivotHftCurrentEntryQuote(position_state.direction);
   if(fresh_extreme <= 0.0)
   {
-    PivotHftSetRetryState(position_state,
-                          PIVOT_HFT_RETRY_DEFERRED,
-                          "entry_quote_unavailable");
+    PivotHftDeferRetry(position_state,
+                       "entry_quote_unavailable",
+                       current_micro_bar);
     return false;
   }
 
@@ -698,37 +713,37 @@ bool PivotHftTryRearmClosedPosition(PivotHftPositionState &position_state)
                         PivotHftPositionExecutionId(position_state),
                         position_state.entry_slippage_points,
                         position_state.close_slippage_points,
-                        position_state.estimated_cost_per_lot);
+                        position_state.estimated_cost_per_lot,
+                        position_state.model_source_execution_id,
+                        position_state.model_source_execution_source,
+                        position_state.entry_slippage_provenance,
+                        position_state.close_slippage_provenance,
+                        position_state.cost_per_lot_provenance);
   g_pivot_hft_campaign.tracked_extreme = fresh_extreme;
   position_state.reattempt_pending = false;
-  PivotHftSetRetryState(position_state,
-                        PIVOT_HFT_RETRY_REARMED,
-                        "campaign_rearmed");
+  bool state_changed = PivotHftSetRetryState(
+    position_state,
+    PIVOT_HFT_RETRY_REARMED,
+    "campaign_rearmed");
+  if(state_changed)
+  {
+    PivotHftAuditLog("POSITION_REARMED",
+                     StringFormat("%s|attempt=%d|start_real_retry=%d|extreme=%.5f|next_threshold=%.5f|admission=latched|%s",
+                                  PivotHftRetryDecisionAuditFields(
+                                    position_state,
+                                    current_micro_bar),
+                                  g_pivot_hft_campaign.attempt_count + 1,
+                                  Pivot_HFT_Start_Real_Retry,
+                                  g_pivot_hft_campaign.tracked_extreme,
+                                  PivotHftCampaignEntryThreshold(
+                                    g_pivot_hft_campaign),
+                                  PivotHftCampaignModelProvenanceAuditFields(
+                                    g_pivot_hft_campaign)));
+  }
   position_state.campaign_attempt_count = g_pivot_hft_campaign.attempt_count;
   position_state.campaign_retry_ordinal =
     g_pivot_hft_campaign.retry_ordinal;
   position_state.status = PIVOT_HFT_POSITION_COMPLETED;
-  PivotHftAuditLog("POSITION_REARMED",
-                   StringFormat("%s|source_ticket=%I64u|source_id=%s|sequence=%s|dir=%s|level=%s|attempt=%d|retry_number=%d|retry_ordinal=%d|execution_source=%s|start_real_retry=%d|extreme=%.5f|next_threshold=%.5f|entry_slippage_pts=%.2f|close_slippage_pts=%.2f|estimated_cost_per_lot=%.5f|admission=latched",
-                                 PivotHftPositionAuditIdentityFields(
-                                   position_state),
-                                 position_state.position_ticket,
-                                 PivotHftPositionExecutionId(position_state),
-                                 g_pivot_hft_campaign.sequence_id,
-                                 EnumToString(position_state.direction),
-                                 PivotHftLevelLabel(position_state.pivot_level),
-                                 g_pivot_hft_campaign.attempt_count + 1,
-                                 retry_number,
-                                 g_pivot_hft_campaign.retry_ordinal,
-                                 PivotHftExecutionSourceLabel(
-                                   next_execution_source),
-                                 Pivot_HFT_Start_Real_Retry,
-                                 g_pivot_hft_campaign.tracked_extreme,
-                                 PivotHftCampaignEntryThreshold(
-                                   g_pivot_hft_campaign),
-                                 g_pivot_hft_campaign.modeled_entry_slippage_points,
-                                 g_pivot_hft_campaign.modeled_close_slippage_points,
-                                 g_pivot_hft_campaign.modeled_cost_per_lot));
   return true;
 }
 
@@ -765,17 +780,21 @@ void PivotHftCompletePositionFinalization(
     position_state.next_retry_execution_source;
   position_state.reattempt_pending =
     (retry_eligible && Pivot_HFT_Start_Real_Retry > 0);
+  bool pending_transition = false;
+  bool disabled_transition = false;
   if(position_state.reattempt_pending)
   {
-    PivotHftSetRetryState(position_state,
-                          PIVOT_HFT_RETRY_PENDING,
-                          "eligible_non_positive_close");
+    pending_transition = PivotHftSetRetryState(
+      position_state,
+      PIVOT_HFT_RETRY_PENDING,
+      "eligible_non_positive_close");
   }
   else if(retry_eligible)
   {
-    PivotHftSetRetryState(position_state,
-                          PIVOT_HFT_RETRY_DISABLED,
-                          "start_real_retry_zero");
+    disabled_transition = PivotHftSetRetryState(
+      position_state,
+      PIVOT_HFT_RETRY_DISABLED,
+      "start_real_retry_zero");
   }
   else
   {
@@ -815,22 +834,28 @@ void PivotHftCompletePositionFinalization(
                                  (long)position_state.close_time,
                                  PivotHftPositionRiskAuditFields(
                                    position_state),
-                                 PivotHftExecutionModelAuditFields(
-                                   position_state)));
-  if(retry_eligible &&
-     !position_state.reattempt_pending &&
-     Pivot_HFT_Start_Real_Retry == 0)
+                                  PivotHftExecutionModelAuditFields(
+                                    position_state)));
+  datetime current_micro_bar = PivotHftCurrentMicroBar();
+  if(pending_transition)
+  {
+    PivotHftAuditLog("REARM_PENDING",
+                     StringFormat("%s|start_real_retry=%d|net=%.5f|close_trigger=%s",
+                                  PivotHftRetryDecisionAuditFields(
+                                    position_state,
+                                    current_micro_bar),
+                                  Pivot_HFT_Start_Real_Retry,
+                                  net_result,
+                                  PivotHftCloseTriggerLabel(
+                                    position_state.close_trigger)));
+  }
+  else if(disabled_transition)
   {
     PivotHftAuditLog("RETRY_DISABLED",
-                     StringFormat("%s|sequence=%s|dir=%s|level=%s|retry_number=%d|retry_ordinal=%d|next_retry_number=%d|start_real_retry=%d|net=%.5f|close_trigger=%s",
-                                  PivotHftPositionAuditIdentityFields(
-                                    position_state),
-                                  position_state.campaign_sequence_id,
-                                  EnumToString(position_state.direction),
-                                  PivotHftLevelLabel(position_state.pivot_level),
-                                  current_retry_number,
-                                  position_state.campaign_retry_ordinal,
-                                  next_retry_number,
+                     StringFormat("%s|start_real_retry=%d|net=%.5f|close_trigger=%s",
+                                  PivotHftRetryDecisionAuditFields(
+                                    position_state,
+                                    current_micro_bar),
                                   Pivot_HFT_Start_Real_Retry,
                                   net_result,
                                   PivotHftCloseTriggerLabel(
@@ -911,15 +936,46 @@ void PivotHftFinalizeClosedPosition(PivotHftPositionState &position_state)
   }
   position_state.gross_result = gross_result;
   position_state.estimated_cost_result = net_result - gross_result;
-  if(position_state.entry_volume > 0.0)
+  bool cost_model_observed = (gross_ready &&
+                              position_state.entry_volume > 0.0 &&
+                              MathIsValidNumber(
+                                position_state.estimated_cost_result));
+  if(cost_model_observed)
   {
     position_state.estimated_cost_per_lot =
       position_state.estimated_cost_result / position_state.entry_volume;
+    if(!MathIsValidNumber(position_state.estimated_cost_per_lot))
+      cost_model_observed = false;
   }
-  position_state.close_slippage_points =
-    PivotHftSignedCloseSlippagePoints(position_state.direction,
-                                      position_state.close_trigger_quote,
-                                      close_price);
+  if(!cost_model_observed)
+  {
+    position_state.estimated_cost_result = 0.0;
+    position_state.estimated_cost_per_lot = 0.0;
+  }
+  position_state.cost_per_lot_provenance = cost_model_observed
+    ? PIVOT_HFT_MODEL_VALUE_OBSERVED
+    : PIVOT_HFT_MODEL_VALUE_FALLBACK;
+
+  bool close_model_observed =
+    (position_state.close_trigger_quote > 0.0 &&
+     close_price > 0.0 &&
+     PivotHftPointSize() > 0.0);
+  position_state.close_slippage_points = PivotHftSignedCloseSlippagePoints(
+    position_state.direction,
+    position_state.close_trigger_quote,
+    close_price);
+  if(!MathIsValidNumber(position_state.close_slippage_points))
+  {
+    position_state.close_slippage_points = 0.0;
+    close_model_observed = false;
+  }
+  position_state.close_slippage_provenance = close_model_observed
+    ? PIVOT_HFT_MODEL_VALUE_OBSERVED
+    : PIVOT_HFT_MODEL_VALUE_FALLBACK;
+  position_state.model_source_execution_source =
+    PIVOT_HFT_EXECUTION_BROKER;
+  position_state.model_source_execution_id =
+    PivotHftPositionExecutionId(position_state);
 
   PivotHftCompletePositionFinalization(position_state,
                                        net_result,

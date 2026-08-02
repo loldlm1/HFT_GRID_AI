@@ -5,6 +5,7 @@
 #define _SERVICES_TRADING_SIGNALS_PIVOT_HFT_DIAGNOSTICS_MQH_
 
 const string PIVOT_HFT_AUDIT_FILENAME = "query_debug.txt";
+const int    PIVOT_HFT_AUDIT_SCHEMA_VERSION = 2;
 string g_pivot_hft_audit_run_id = "";
 bool   g_pivot_hft_audit_initialized = false;
 bool   g_pivot_hft_audit_failure_warned = false;
@@ -113,7 +114,8 @@ void PivotHftAuditInitialize()
               PivotHftAuditFilePath(),
               g_pivot_hft_audit_run_id);
   PivotHftAuditLog("RUN_START",
-                   StringFormat("tester=%d|visual=%d|chart_tf=%s|writer=shared_append",
+                   StringFormat("schema_version=%d|tester=%d|tester_visual_mode=%d|chart_tf=%s|writer=shared_append",
+                                PIVOT_HFT_AUDIT_SCHEMA_VERSION,
                                 (int)MQLInfoInteger(MQL_TESTER),
                                 (int)MQLInfoInteger(MQL_VISUAL_MODE),
                                 EnumToString((ENUM_TIMEFRAMES)_Period)));

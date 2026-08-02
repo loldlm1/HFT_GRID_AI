@@ -23,6 +23,13 @@ enum PivotHftRetryStates
   PIVOT_HFT_RETRY_INVALIDATED = 5
 };
 
+enum PivotHftModelValueProvenance
+{
+  PIVOT_HFT_MODEL_VALUE_UNAVAILABLE = 0,
+  PIVOT_HFT_MODEL_VALUE_OBSERVED    = 1,
+  PIVOT_HFT_MODEL_VALUE_FALLBACK    = 2
+};
+
 enum PivotHftLevelTestStatuses
 {
   PIVOT_HFT_LEVEL_UNTESTED      = 0,
@@ -103,9 +110,19 @@ struct PivotHftCampaignState
   ulong                    retry_source_ticket;
   string                   retry_source_id;
   string                   sequence_id;
+  PivotHftExecutionSources model_source_execution_source;
+  string                   model_source_execution_id;
+  PivotHftModelValueProvenance entry_slippage_provenance;
+  PivotHftModelValueProvenance close_slippage_provenance;
+  PivotHftModelValueProvenance cost_per_lot_provenance;
   double                   modeled_entry_slippage_points;
   double                   modeled_close_slippage_points;
   double                   modeled_cost_per_lot;
+  datetime                 terminal_time;
+  string                   terminal_reason;
+  string                   replacement_sequence_id;
+  PivotHftPivotLevels      replacement_level;
+  double                   replacement_price;
   bool                     execution_slot_block_logged;
   PivotHftEntrySafetySnapshot entry_safety;
 
@@ -124,9 +141,19 @@ struct PivotHftCampaignState
     retry_source_ticket = 0;
     retry_source_id  = "";
     sequence_id      = "";
+    model_source_execution_source = PIVOT_HFT_EXECUTION_BROKER;
+    model_source_execution_id = "";
+    entry_slippage_provenance = PIVOT_HFT_MODEL_VALUE_UNAVAILABLE;
+    close_slippage_provenance = PIVOT_HFT_MODEL_VALUE_UNAVAILABLE;
+    cost_per_lot_provenance = PIVOT_HFT_MODEL_VALUE_UNAVAILABLE;
     modeled_entry_slippage_points = 0.0;
     modeled_close_slippage_points = 0.0;
     modeled_cost_per_lot = 0.0;
+    terminal_time = 0;
+    terminal_reason = "";
+    replacement_sequence_id = "";
+    replacement_level = PIVOT_HFT_LEVEL_NONE;
+    replacement_price = 0.0;
     execution_slot_block_logged = false;
     entry_safety     = PivotHftEntrySafetySnapshot();
   }
@@ -211,6 +238,11 @@ struct PivotHftPositionState
   string                   execution_id;
   string                   campaign_retry_source_id;
   string                   campaign_sequence_id;
+  PivotHftExecutionSources model_source_execution_source;
+  string                   model_source_execution_id;
+  PivotHftModelValueProvenance entry_slippage_provenance;
+  PivotHftModelValueProvenance close_slippage_provenance;
+  PivotHftModelValueProvenance cost_per_lot_provenance;
   string                   position_comment;
   string                   retry_state_reason;
   PivotHftEntrySafetySnapshot entry_safety;
@@ -281,6 +313,11 @@ struct PivotHftPositionState
     execution_id           = "";
     campaign_retry_source_id = "";
     campaign_sequence_id   = "";
+    model_source_execution_source = PIVOT_HFT_EXECUTION_BROKER;
+    model_source_execution_id = "";
+    entry_slippage_provenance = PIVOT_HFT_MODEL_VALUE_UNAVAILABLE;
+    close_slippage_provenance = PIVOT_HFT_MODEL_VALUE_UNAVAILABLE;
+    cost_per_lot_provenance = PIVOT_HFT_MODEL_VALUE_UNAVAILABLE;
     position_comment       = "";
     retry_state_reason     = "";
     entry_safety           = PivotHftEntrySafetySnapshot();
@@ -317,6 +354,18 @@ string PivotHftExecutionSourceLabel(
   const PivotHftExecutionSources source)
 {
   return (source == PIVOT_HFT_EXECUTION_VIRTUAL) ? "VIRTUAL" : "BROKER";
+}
+
+string PivotHftModelValueProvenanceLabel(
+  const PivotHftModelValueProvenance provenance,
+  const double value)
+{
+  bool is_zero = (MathAbs(value) <= 0.000000000001);
+  if(provenance == PIVOT_HFT_MODEL_VALUE_OBSERVED)
+    return is_zero ? "OBSERVED_ZERO" : "OBSERVED_VALUE";
+  if(provenance == PIVOT_HFT_MODEL_VALUE_FALLBACK)
+    return is_zero ? "FALLBACK_ZERO" : "FALLBACK_VALUE";
+  return "UNAVAILABLE";
 }
 
 string PivotHftRetryStateLabel(const PivotHftRetryStates retry_state)
@@ -362,17 +411,18 @@ void PivotHftPrepareNextRetryDecision(
     position_state.next_retry_execution_source);
 }
 
-void PivotHftSetRetryState(PivotHftPositionState &position_state,
+bool PivotHftSetRetryState(PivotHftPositionState &position_state,
                            const PivotHftRetryStates retry_state,
                            const string reason)
 {
   if(position_state.retry_state == retry_state &&
      position_state.retry_state_reason == reason)
-    return;
+    return false;
 
   position_state.retry_state = retry_state;
   position_state.retry_state_reason = reason;
   position_state.retry_state_time = TimeCurrent();
+  return true;
 }
 
 string PivotHftPositionExecutionId(const PivotHftPositionState &position_state)
@@ -392,6 +442,89 @@ string PivotHftPositionAuditIdentityFields(
                         position_state.execution_source),
                       PivotHftPositionExecutionId(position_state),
                       position_state.position_ticket);
+}
+
+string PivotHftRetryDecisionAuditFields(
+  const PivotHftPositionState &position_state,
+  const datetime current_micro_bar)
+{
+  return StringFormat("source_execution_source=%s|source_execution_id=%s|source_ticket=%I64u|parent_execution_id=%s|sequence=%s|dir=%s|level=%s|pivot_price=%.5f|current_retry_number=%d|current_retry_ordinal=%d|next_retry_number=%d|next_retry_ordinal=%d|next_execution_source=%s|retry_state=%s|reason=%s|origin_bar=%I64d|fill_bar=%I64d|current_bar=%I64d",
+                      PivotHftExecutionSourceLabel(
+                        position_state.execution_source),
+                      PivotHftPositionExecutionId(position_state),
+                      position_state.position_ticket,
+                      position_state.campaign_retry_source_id,
+                      position_state.campaign_sequence_id,
+                      EnumToString(position_state.direction),
+                      PivotHftLevelLabel(position_state.pivot_level),
+                      position_state.pivot_price,
+                      PivotHftMarketRetryNumber(
+                        position_state.campaign_retry_ordinal),
+                      position_state.campaign_retry_ordinal,
+                      position_state.next_retry_number,
+                      position_state.next_retry_ordinal,
+                      PivotHftExecutionSourceLabel(
+                        position_state.next_retry_execution_source),
+                      PivotHftRetryStateLabel(position_state.retry_state),
+                      position_state.retry_state_reason,
+                      (long)position_state.campaign_micro_bar_time,
+                      (long)position_state.entry_micro_bar_time,
+                      (long)current_micro_bar);
+}
+
+string PivotHftModelProvenanceAuditFields(
+  const PivotHftExecutionSources source,
+  const string source_execution_id,
+  const double entry_slippage_points,
+  const PivotHftModelValueProvenance entry_provenance,
+  const double close_slippage_points,
+  const PivotHftModelValueProvenance close_provenance,
+  const double cost_per_lot,
+  const PivotHftModelValueProvenance cost_provenance)
+{
+  string source_id = source_execution_id;
+  if(source_id == "")
+    source_id = "-";
+  return StringFormat("model_source_execution_source=%s|model_source_execution_id=%s|model_entry_slippage_pts=%.2f|entry_slippage_provenance=%s|model_close_slippage_pts=%.2f|close_slippage_provenance=%s|model_cost_per_lot=%.5f|cost_per_lot_provenance=%s",
+                      PivotHftExecutionSourceLabel(source),
+                      source_id,
+                      entry_slippage_points,
+                      PivotHftModelValueProvenanceLabel(entry_provenance,
+                                                        entry_slippage_points),
+                      close_slippage_points,
+                      PivotHftModelValueProvenanceLabel(close_provenance,
+                                                        close_slippage_points),
+                      cost_per_lot,
+                      PivotHftModelValueProvenanceLabel(cost_provenance,
+                                                        cost_per_lot));
+}
+
+string PivotHftCampaignModelProvenanceAuditFields(
+  const PivotHftCampaignState &campaign)
+{
+  return PivotHftModelProvenanceAuditFields(
+    campaign.model_source_execution_source,
+    campaign.model_source_execution_id,
+    campaign.modeled_entry_slippage_points,
+    campaign.entry_slippage_provenance,
+    campaign.modeled_close_slippage_points,
+    campaign.close_slippage_provenance,
+    campaign.modeled_cost_per_lot,
+    campaign.cost_per_lot_provenance);
+}
+
+string PivotHftPositionModelProvenanceAuditFields(
+  const PivotHftPositionState &position_state)
+{
+  return PivotHftModelProvenanceAuditFields(
+    position_state.model_source_execution_source,
+    position_state.model_source_execution_id,
+    position_state.entry_slippage_points,
+    position_state.entry_slippage_provenance,
+    position_state.close_slippage_points,
+    position_state.close_slippage_provenance,
+    position_state.estimated_cost_per_lot,
+    position_state.cost_per_lot_provenance);
 }
 
 PivotHftPivotSnapshot  g_pivot_hft_pivots;
@@ -750,7 +883,8 @@ void PivotHftClearExpiredCampaignVisual()
   g_pivot_hft_expired_visual_until = 0;
 }
 
-void PivotHftCaptureExpiredCampaignVisual(const datetime current_micro_bar)
+void PivotHftCaptureExpiredCampaignVisual(const datetime current_micro_bar,
+                                          const string reason = "")
 {
   if(g_pivot_hft_campaign.status == PIVOT_HFT_CAMPAIGN_IDLE ||
      current_micro_bar <= 0)
@@ -758,6 +892,35 @@ void PivotHftCaptureExpiredCampaignVisual(const datetime current_micro_bar)
 
   g_pivot_hft_expired_visual_campaign = g_pivot_hft_campaign;
   g_pivot_hft_expired_visual_campaign.status = PIVOT_HFT_CAMPAIGN_EXPIRED;
+  g_pivot_hft_expired_visual_campaign.terminal_time = TimeCurrent();
+  g_pivot_hft_expired_visual_campaign.terminal_reason = reason;
+  int micro_seconds = PeriodSeconds(Pivot_HFT_Micro_Timeframe);
+  if(micro_seconds <= 0)
+    micro_seconds = 60;
+  g_pivot_hft_expired_visual_until = current_micro_bar + micro_seconds;
+}
+
+void PivotHftCaptureReplacedCampaignVisual(
+  const PivotHftCampaignState &previous_campaign,
+  const PivotHftCampaignState &replacement_campaign,
+  const datetime current_micro_bar)
+{
+  if(previous_campaign.status == PIVOT_HFT_CAMPAIGN_IDLE ||
+     current_micro_bar <= 0)
+    return;
+
+  g_pivot_hft_expired_visual_campaign = previous_campaign;
+  g_pivot_hft_expired_visual_campaign.status = PIVOT_HFT_CAMPAIGN_EXPIRED;
+  g_pivot_hft_expired_visual_campaign.terminal_time = TimeCurrent();
+  g_pivot_hft_expired_visual_campaign.terminal_reason =
+    "latest_level_replaced";
+  g_pivot_hft_expired_visual_campaign.replacement_sequence_id =
+    replacement_campaign.sequence_id;
+  g_pivot_hft_expired_visual_campaign.replacement_level =
+    replacement_campaign.pivot_level;
+  g_pivot_hft_expired_visual_campaign.replacement_price =
+    replacement_campaign.pivot_price;
+
   int micro_seconds = PeriodSeconds(Pivot_HFT_Micro_Timeframe);
   if(micro_seconds <= 0)
     micro_seconds = 60;
@@ -781,9 +944,9 @@ void PivotHftCancelPendingCampaign(const string reason,
                                 (long)g_pivot_hft_campaign.micro_bar_time,
                                 (long)visual_bar,
                                 EnumToString(g_pivot_hft_campaign.status),
-                                reason));
+                                 reason));
   if(visual_bar > 0)
-    PivotHftCaptureExpiredCampaignVisual(visual_bar);
+    PivotHftCaptureExpiredCampaignVisual(visual_bar, reason);
   PivotHftResetCampaign();
 }
 
@@ -870,21 +1033,17 @@ int PivotHftInvalidatePendingRetries(const string reason,
 
     PivotHftPositionState state = g_pivot_hft_positions[i];
     PivotHftPrepareNextRetryDecision(state);
-    PivotHftAuditLog("REARM_INVALIDATED",
-                     StringFormat("%s|sequence=%s|dir=%s|level=%s|current_retry_number=%d|next_retry_number=%d|next_execution_source=%s|reason=%s|origin_bar=%I64d|fill_bar=%I64d|current_bar=%I64d",
-                                  PivotHftPositionAuditIdentityFields(state),
-                                  state.campaign_sequence_id,
-                                  EnumToString(state.direction),
-                                  EnumToString(state.pivot_level),
-                                  PivotHftMarketRetryNumber(
-                                    state.campaign_retry_ordinal),
-                                  state.next_retry_number,
-                                  PivotHftExecutionSourceLabel(
-                                    state.next_retry_execution_source),
-                                  reason,
-                                  (long)state.campaign_micro_bar_time,
-                                  (long)state.entry_micro_bar_time,
-                                  (long)current_micro_bar));
+    bool state_changed = PivotHftSetRetryState(
+      state,
+      PIVOT_HFT_RETRY_INVALIDATED,
+      reason);
+    if(state_changed)
+    {
+      PivotHftAuditLog("REARM_INVALIDATED",
+                       PivotHftRetryDecisionAuditFields(
+                         state,
+                         current_micro_bar));
+    }
 
     g_pivot_hft_positions[i].next_retry_ordinal =
       state.next_retry_ordinal;
@@ -892,10 +1051,10 @@ int PivotHftInvalidatePendingRetries(const string reason,
       state.next_retry_number;
     g_pivot_hft_positions[i].next_retry_execution_source =
       state.next_retry_execution_source;
+    g_pivot_hft_positions[i].retry_state = state.retry_state;
+    g_pivot_hft_positions[i].retry_state_reason = state.retry_state_reason;
+    g_pivot_hft_positions[i].retry_state_time = state.retry_state_time;
     g_pivot_hft_positions[i].reattempt_pending = false;
-    PivotHftSetRetryState(g_pivot_hft_positions[i],
-                          PIVOT_HFT_RETRY_INVALIDATED,
-                          reason);
     g_pivot_hft_positions[i].status = PIVOT_HFT_POSITION_COMPLETED;
     invalidated++;
   }

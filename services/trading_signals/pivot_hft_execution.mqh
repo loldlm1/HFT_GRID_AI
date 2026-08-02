@@ -413,13 +413,15 @@ string PivotHftEntrySafetyAuditFields(
 string PivotHftExecutionModelAuditFields(
   const PivotHftPositionState &position_state)
 {
-  return StringFormat("request_quote=%.5f|entry_slippage_pts=%.2f|close_slippage_pts=%.2f|gross=%.5f|estimated_cost=%.5f|estimated_cost_per_lot=%.5f",
+  return StringFormat("request_quote=%.5f|entry_slippage_pts=%.2f|close_slippage_pts=%.2f|gross=%.5f|estimated_cost=%.5f|estimated_cost_per_lot=%.5f|%s",
                       position_state.entry_request_quote,
                       position_state.entry_slippage_points,
                       position_state.close_slippage_points,
                       position_state.gross_result,
                       position_state.estimated_cost_result,
-                      position_state.estimated_cost_per_lot);
+                      position_state.estimated_cost_per_lot,
+                      PivotHftPositionModelProvenanceAuditFields(
+                        position_state));
 }
 
 bool PivotHftRegisterFilledPosition(const PivotHftCampaignState &campaign,
@@ -492,6 +494,23 @@ bool PivotHftRegisterFilledPosition(const PivotHftCampaignState &campaign,
     PivotHftSignedEntrySlippagePoints(position_state.direction,
                                       position_state.entry_request_quote,
                                       position_state.entry_price);
+  bool entry_slippage_observed =
+    (position_state.entry_request_quote > 0.0 &&
+     position_state.entry_price > 0.0 &&
+     PivotHftPointSize() > 0.0 &&
+     MathIsValidNumber(position_state.entry_slippage_points));
+  if(!entry_slippage_observed)
+    position_state.entry_slippage_points = 0.0;
+  position_state.model_source_execution_source =
+    PIVOT_HFT_EXECUTION_BROKER;
+  position_state.model_source_execution_id = position_state.execution_id;
+  position_state.entry_slippage_provenance = entry_slippage_observed
+    ? PIVOT_HFT_MODEL_VALUE_OBSERVED
+    : PIVOT_HFT_MODEL_VALUE_FALLBACK;
+  position_state.close_slippage_provenance =
+    PIVOT_HFT_MODEL_VALUE_UNAVAILABLE;
+  position_state.cost_per_lot_provenance =
+    PIVOT_HFT_MODEL_VALUE_UNAVAILABLE;
 
   position_state.local_sl_price = PivotHftResolveInitialLocalStopPrice(
     position_state.direction,
@@ -533,6 +552,16 @@ bool PivotHftRegisterVirtualPosition(
   position_state.pivot_level = campaign.pivot_level;
   position_state.campaign_retry_source_ticket = campaign.retry_source_ticket;
   position_state.campaign_retry_source_id = campaign.retry_source_id;
+  position_state.model_source_execution_source =
+    campaign.model_source_execution_source;
+  position_state.model_source_execution_id =
+    campaign.model_source_execution_id;
+  position_state.entry_slippage_provenance =
+    campaign.entry_slippage_provenance;
+  position_state.close_slippage_provenance =
+    campaign.close_slippage_provenance;
+  position_state.cost_per_lot_provenance =
+    campaign.cost_per_lot_provenance;
   position_state.force_close_generation_at_entry =
     MarketStatusForceCloseGeneration();
   position_state.campaign_micro_bar_time = campaign.micro_bar_time;
@@ -751,20 +780,35 @@ bool PivotHftExecuteEntryIntent()
   double planned_entry_price = entry_quote;
   if(execution_source == PIVOT_HFT_EXECUTION_VIRTUAL)
   {
-    if(!MathIsValidNumber(campaign.modeled_entry_slippage_points) ||
-       !MathIsValidNumber(campaign.modeled_close_slippage_points) ||
-       !MathIsValidNumber(campaign.modeled_cost_per_lot))
+    bool model_values_finite =
+      (MathIsValidNumber(campaign.modeled_entry_slippage_points) &&
+       MathIsValidNumber(campaign.modeled_close_slippage_points) &&
+       MathIsValidNumber(campaign.modeled_cost_per_lot));
+    bool model_provenance_available =
+      (campaign.entry_slippage_provenance !=
+         PIVOT_HFT_MODEL_VALUE_UNAVAILABLE &&
+       campaign.close_slippage_provenance !=
+         PIVOT_HFT_MODEL_VALUE_UNAVAILABLE &&
+       campaign.cost_per_lot_provenance !=
+         PIVOT_HFT_MODEL_VALUE_UNAVAILABLE);
+    if(!model_values_finite ||
+       campaign.model_source_execution_id == "" ||
+       !model_provenance_available)
     {
-      risk_reason = "invalid_virtual_execution_model";
+      if(!model_values_finite)
+        risk_reason = "non_finite_virtual_execution_model";
+      else if(campaign.model_source_execution_id == "")
+        risk_reason = "virtual_model_source_unavailable";
+      else
+        risk_reason = "virtual_model_provenance_unavailable";
       PivotHftAuditLog("VIRTUAL_ENTRY_BLOCKED",
-                       StringFormat("sequence=%s|retry_number=%d|retry_ordinal=%d|reason=%s|modeled_entry_slippage_pts=%.2f|modeled_close_slippage_pts=%.2f|modeled_cost_per_lot=%.5f",
+                       StringFormat("sequence=%s|retry_number=%d|retry_ordinal=%d|reason=%s|%s",
                                     campaign.sequence_id,
                                     retry_number,
                                     campaign.retry_ordinal,
                                     risk_reason,
-                                    campaign.modeled_entry_slippage_points,
-                                    campaign.modeled_close_slippage_points,
-                                    campaign.modeled_cost_per_lot));
+                                    PivotHftCampaignModelProvenanceAuditFields(
+                                      campaign)));
       g_pivot_hft_last_error = risk_reason;
       PivotHftMarkEntryRetryable();
       return false;
@@ -845,7 +889,7 @@ bool PivotHftExecuteEntryIntent()
       PivotHftPositionState virtual_state =
         g_pivot_hft_positions[virtual_index];
       PivotHftAuditLog("VIRTUAL_FILL_REGISTERED",
-                       StringFormat("sequence=%s|%s|dir=%s|level=%s|retry_number=%d|retry_ordinal=%d|source_ticket=%I64u|source_id=%s|bid=%.5f|ask=%.5f|spread_pts=%.2f|entry=%.5f|volume=%.2f|origin_bar=%I64d|fill_bar=%I64d|%s|%s|%s",
+                       StringFormat("sequence=%s|%s|dir=%s|level=%s|retry_number=%d|retry_ordinal=%d|source_ticket=%I64u|source_id=%s|bid=%.5f|ask=%.5f|execution_spread_pts=%.2f|entry=%.5f|volume=%.2f|origin_bar=%I64d|fill_bar=%I64d|%s|%s|%s",
                                     campaign.sequence_id,
                                     PivotHftPositionAuditIdentityFields(
                                       virtual_state),
