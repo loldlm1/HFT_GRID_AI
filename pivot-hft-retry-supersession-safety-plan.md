@@ -1,7 +1,7 @@
 # Plan: Pivot HFT Retry Supersession And Broker Safety
 
 **Generated**: 2026-08-02
-**Status**: Sprints 1-3 complete; Sprint 4 pending
+**Status**: Sprints 1-5 implementation complete; manual runtime release QA pending
 **Estimated Complexity**: Critical / trading-sensitive
 
 ## Execution Record
@@ -48,6 +48,50 @@
 - Rollback point: `15f74ec`. Sprint 3 may be reverted while flat or with an
   exactly recovered position because broker comments remain hints rather than
   recovery authority.
+
+### Sprint 4
+
+- Commit: `4fbd5e1 Sprint 4: supersede retries with deeper pivot campaigns`.
+- Added deepest-only same-side candidate admission, cross-bar persistence,
+  promotion-before-rearm, terminal invalidation and backward-compatible
+  checkpoint persistence without changing the one-slot execution contract.
+- Static validation passed for R/S depth symmetry, threshold `0/1/2/3`
+  behavior, admission guards, promotion/discard ordering, recovery schema
+  compatibility, frontend read-only ownership and unchanged `OnTester()`.
+- Runtime overlap and restart evidence remained intentionally consolidated into
+  Sprint 5 by explicit user instruction.
+- Rollback point: `0329374`. Revert only while flat and after removing the
+  exact scoped recovery slots through the active cleanup path.
+
+### Sprint 5
+
+- Commit message: `Sprint 5: audit and document Pivot HFT supersession`.
+- Added audit schema `3`, bounded diagnostic counters, explicit campaign,
+  candidate, recovery and suppression identities, a pre-`RUN_END` summary and
+  redacted recovery scope metadata. Audit state remains non-authoritative.
+- Added the dependency-free `scripts/audit_pivot_hft_retry.py` checker. Its twelve
+  synthetic pass/fail cases pass, including routing, emergency lifecycle,
+  recovery quarantine, candidate replacement, suppressed broker fill, duplicate
+  key, missing finalization, summary mismatch and missing promoted-campaign
+  evidence.
+- The checker passes the private schema-2 baseline without printing raw rows:
+  one run, `3,862` events, `90` broker fills, `34` virtual fills, `124`
+  finalizations and zero violations. Exact `--run-id` selection also passes.
+- Static source validation passed: changed-file delimiter balance, `50` direct
+  audit format key scans, `git diff --check`, diagnostics-only counter
+  references, no new Fibonacci strategy code and unchanged `OnTester()` from
+  the pre-plan baseline.
+- The first Sprint 5 compile exposed one sign-mismatch warning in the Sprint 2
+  checkpoint file-size comparison. An explicit unsigned cast removed it. The
+  final fresh portable MetaEditor compile passed with `0 errors, 0 warnings` in
+  `16,675 ms`; the inspected `BUILD.log` was removed.
+- The real-tick threshold/overlap matrix and demo restart, corrupt-checkpoint
+  and forced-registration-failure matrix were not run from this CLI session.
+  They remain mandatory release gates; compilation and static evidence do not
+  authorize live rollout.
+- Rollback point: `4fbd5e1`. Sprint 5 diagnostics/docs can be reverted alone;
+  recovery or supersession rollback still requires exact-scope flat state and
+  checkpoint cleanup first.
 
 ## Overview
 
@@ -925,18 +969,18 @@ recovery cleanup path.
 
 ### Sprint 4 Gate
 
-- [ ] All Sprint 4 tasks are complete.
-- [ ] Static R2-to-R3 and S2-to-S3 traces supersede non-positive outcomes.
-- [ ] Static positive/external/session/pivot traces discard the latch.
-- [ ] Static threshold `0` trace permits deeper initial promotion but no
+- [x] All Sprint 4 tasks are complete.
+- [x] Static R2-to-R3 and S2-to-S3 traces supersede non-positive outcomes.
+- [x] Static positive/external/session/pivot traces discard the latch.
+- [x] Static threshold `0` trace permits deeper initial promotion but no
       same-level retry.
-- [ ] Checkpoint schema/recovery review preserves a latch attached to an active
+- [x] Checkpoint schema/recovery review preserves a latch attached to an active
       broker lifecycle; compiled restart evidence remains deferred to Sprint 5.
-- [ ] Supersession static and lifecycle trace validation passes; final
+- [x] Supersession static and lifecycle trace validation passes; final
       compilation remains deferred to Sprint 5 by explicit user instruction.
-- [ ] Exactly one Sprint 4 commit is created with the proposed message.
-- [ ] The rollback point is recorded.
-- [ ] Sprint 5 has not started before this gate completes.
+- [x] Exactly one Sprint 4 commit is created with the proposed message.
+- [x] The rollback point is recorded.
+- [x] Sprint 5 has not started before this gate completes.
 
 ## Sprint 5: Campaign Auditability, Documentation And Release QA
 
@@ -1100,16 +1144,16 @@ requires flat state and recovery-file cleanup in reverse order.
 
 ### Sprint 5 Gate
 
-- [ ] All Sprint 5 tasks are complete.
-- [ ] Audit schema and offline checker pass their focused validation.
-- [ ] Documentation matches exact implemented semantics.
-- [ ] MetaEditor compile reports zero errors and zero warnings.
-- [ ] `BUILD.log` is inspected and removed.
+- [ ] All Sprint 5 release tasks are complete; manual runtime matrices remain.
+- [x] Audit schema and offline checker pass their focused validation.
+- [x] Documentation matches exact implemented semantics.
+- [x] MetaEditor compile reports zero errors and zero warnings.
+- [x] `BUILD.log` is inspected and removed.
 - [ ] Strategy Tester threshold/supersession matrix passes.
 - [ ] Demo restart and fail-close matrix passes.
-- [ ] `OnTester()` scoring remains unchanged.
-- [ ] Exactly one Sprint 5 commit is created with the proposed message.
-- [ ] Final residual risks and rollout/rollback instructions are recorded.
+- [x] `OnTester()` scoring remains unchanged.
+- [x] Exactly one Sprint 5 commit is created with the proposed message.
+- [x] Final residual risks and rollout/rollback instructions are recorded.
 
 ## Testing Strategy
 
@@ -1222,16 +1266,16 @@ requires flat state and recovery-file cleanup in reverse order.
 - [ ] Daily-start accounting occurs exactly once per verified broker fill.
 - [ ] Restart restores exact broker lifecycle state or quarantines and closes.
 - [ ] Checkpoint storage is versioned, scoped, validated and transition-bounded.
-- [ ] Broker comments distinguish logical retry from execution attempt.
-- [ ] Threshold `0`, `1` and `N >= 2` semantics match the fixed contract.
-- [ ] No Fibonacci calculation or related strategy logic is added.
+- [x] Broker comments distinguish logical retry from execution attempt.
+- [x] Threshold `0`, `1` and `N >= 2` semantics match the fixed contract.
+- [x] No Fibonacci calculation or related strategy logic is added.
 - [ ] One deepest same-side candidate survives occupied micro bars.
 - [ ] Eligible non-positive outcomes suppress the old retry and promote the
   deeper level once as broker retry `0`.
 - [ ] Positive/external/session/pivot outcomes discard the candidate.
 - [ ] Threshold `0` disables same-level retry but permits a deeper new initial.
 - [ ] Audit metrics and the offline checker reconcile every focused run.
-- [ ] `OnTester()` scoring remains unchanged.
+- [x] `OnTester()` scoring remains unchanged.
 - [ ] Every Sprint passes its validation gate and has exactly one commit.
-- [ ] The sole Sprint 5 build log is inspected and removed.
+- [x] The final Sprint 5 build log is inspected and removed.
 - [ ] Final Strategy Tester and demo safety matrices pass before live rollout.

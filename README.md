@@ -39,6 +39,12 @@ claim institutional HFT latency.
   Session/resource shutdown and pivot-set rollover or price change are terminal.
   Under the one-campaign rule, latest-level replacement explicitly terminates
   the superseded campaign instead of leaving an orphan retry.
+- While that execution slot is occupied, the EA may retain one independently
+  admitted, same-side pivot that is strictly deeper than the owner level. It
+  applies the normal session, data, band, pivot, protection, daily, market and
+  spread admission rules; only the occupied-slot predicate is omitted. The
+  deepest valid candidate wins, and its admission remains latched across micro
+  candles even if the original touch candle later burns the level.
 - An eligible non-positive local close preserves the admitted campaign sequence,
   increments its internal retry ordinal, and seeds a fresh directional extreme
   from the current entry-side quote. It does not require another pivot touch or
@@ -47,8 +53,20 @@ claim institutional HFT latency.
   retries `1..N-1` as local broker-like positions, then opens retry `N` and
   every later retry in the market. The input selects a source boundary, not a
   maximum retry count.
+- If a valid deeper candidate exists at an eligible non-positive close, the EA
+  suppresses the shallower same-level retry and promotes the deeper pivot as a
+  distinct broker initial campaign: new sequence, `retry_number=0`, attempt
+  `1`, fresh entry-side extreme and normal retracement/execution guards. A
+  positive, external/protection, session-terminal, pivot-invalidating or
+  recovery-quarantine outcome discards the candidate. Threshold `0` still
+  disables all same-level reentries, but it does not block this independently
+  admitted deeper initial campaign.
 - If the required history is unavailable or unsynchronized, new campaigns fail
   closed until the level reconstruction succeeds.
+
+The strategy uses only the configured classic pivot levels. References to
+"deeper" retries or retracement levels are descriptive; no Fibonacci price,
+ratio, input or calculation is part of this EA.
 
 ## Position Lifecycle
 
@@ -70,6 +88,30 @@ value `0`, an otherwise eligible loss emits `RETRY_DISABLED` and completes the
 level. There is no retry maximum or cooldown.
 A profitable outer-level close consumes the same-side inner ladder from that
 fill candle: for example, R2 consumes R1+R2 and S3 consumes S1+S2+S3.
+
+## Recovery And Fail-Closed Ownership
+
+Every verified broker fill consumes its applicable daily-start accounting
+before normal local registration can fail. A normal registration failure is
+never left unmanaged: the EA creates an emergency lifecycle when possible,
+requests an exact symbol/magic/ticket close and remains quarantined until deal
+history reconciles the exposure.
+
+Active broker lifecycle state is stored in two alternating, checksummed
+checkpoint slots in the terminal-local MQL5 file sandbox. Recovery schema `2`
+persists exact ticket and position identity, immutable local SL/TP geometry,
+trailing state, accounting flags and any active deeper candidate. Filenames use
+an opaque scope hash; audit rows expose status and canonical reasons, not the
+account/server fingerprint or checkpoint path.
+
+On restart, recompile or chart reload, a matching symbol, runtime magic, ticket,
+position identifier and checkpoint restore the exact lifecycle. Current price,
+current bands and broker comments are never used to guess a missing local stop.
+If exact restoration is impossible, the EA blocks new entries and closes the
+scoped exposure through safety-only quarantine. Storage preflight failure while
+flat fails initialization closed. Stale slots are removed after flat
+reconciliation; rollback of lifecycle or candidate code requires flat state and
+scoped checkpoint cleanup first.
 
 Local risk always reuses the existing previous-closed-bar Bollinger snapshot;
 it creates no second indicator handle:
@@ -130,7 +172,7 @@ generated.
 | Entrypoint | `HFT_Grid_AI.mq5` |
 | Inputs and sessions | `services/trading_management/ea_inputs.mqh`, `services/trading_management/session_time_filter_context.mqh` |
 | Pivot data and detection | `services/trading_signals/pivot_hft_levels.mqh`, `services/trading_signals/pivot_hft_indicators.mqh`, `services/trading_signals/pivot_hft_detection.mqh` |
-| Risk, execution and lifecycle | `services/trading_signals/pivot_hft_risk_geometry.mqh`, `services/trading_signals/pivot_hft_execution.mqh`, `services/trading_signals/pivot_hft_position_lifecycle.mqh` |
+| Risk, execution, lifecycle and recovery | `services/trading_signals/pivot_hft_risk_geometry.mqh`, `services/trading_signals/pivot_hft_execution.mqh`, `services/trading_signals/pivot_hft_position_lifecycle.mqh`, `services/trading_signals/pivot_hft_recovery.mqh` |
 | Protection and status | `services/trading_signals/protection_risk_filter.mqh`, `services/trading_signals/market_status_controller.mqh` |
 | Frontend | `services/frontend/pivot_hft_panel.mqh`, `services/frontend/pivot_hft_visualization.mqh` |
 
@@ -153,9 +195,14 @@ the historical deterministic seed for compatibility.
   `ORDER_SEND_RESULT`, `FILL_*`, local SL/trailing, position finalization,
   protection closes and debug stops. Occupied-level diagnostics are emitted
   once per unique bar/direction/mask/selection signature.
-- Audit schema `2` is declared by `RUN_START|schema_version=2`. Runtime tester
+- Audit schema `3` is declared by `RUN_START|schema_version=3`. Runtime tester
   visualization uses `tester_visual_mode`, while the configured chart input
   uses `visualization_input`; event payload keys are unique within each row.
+  `RUN_SUMMARY` is emitted once before `RUN_END` with bounded diagnostic-only
+  counters. Recovery rows retain lifecycle evidence, while scope metadata is
+  limited to a non-sensitive status; the account/server fingerprint and local
+  checkpoint path remain redacted. Schema `2` files remain readable as legacy
+  evidence by the offline checker.
 - `POSITION_FINALIZED` records the independent `close_trigger` and `net_class`,
   immutable risk geometry, trigger quote/stop/target/step, latest exit deal and
   volume-weighted actual close price. A profitable BE or trailing close is
@@ -172,12 +219,29 @@ the historical deterministic seed for compatibility.
   retry, `source_execution_source`, `next_execution_source`, sequence, source
   identity and canonical reason. `CAMPAIGN_REPLACED` records old/new ownership
   and terminal reason `latest_level_replaced`.
+- `CANDIDATE_LATCHED`, `CANDIDATE_REPLACED`, `CANDIDATE_DISCARDED`,
+  `CANDIDATE_PROMOTED`, `RETRY_SUPERSEDED` and
+  `RETRY_CAMPAIGN_SUPERSEDED` correlate the owner sequence/execution, old and
+  new levels, logical retry, execution attempt, admission bar, fresh promoted
+  sequence and canonical terminal reason. These events occur only on state
+  transitions and never authorize a trade.
 - `VIRTUAL_FILL_REGISTERED` and `VIRTUAL_CLOSE_FILLED` record fresh Bid/Ask,
   spread, modeled/applied slippage, gross result, estimated costs and net.
   Model fields identify both the preceding execution and original broker
   calibration, including observed-zero/fallback provenance.
 - Rotate or clear `query_debug.txt` before a focused tester session so chart,
   broker history and one run id can be correlated without stale evidence.
+- Validate a focused file without copying its raw rows:
+
+  ```bash
+  python3 scripts/audit_pivot_hft_retry.py --self-test
+  python3 scripts/audit_pivot_hft_retry.py --file /explicit/path/query_debug.txt
+  ```
+
+  Add `--run-id <id>` when a shared file contains multiple runs. The checker
+  uses only the Python standard library, prints aggregate counts plus a bounded
+  violation list, and returns non-zero for malformed schema, wrong retry
+  routing, orphan lifecycles, duplicate transitions or invalid supersession.
 - Chart objects use the `PIVOT_HFT_` prefix. The campaign pivot, tracked
   extreme and positive-retracement trigger are separate lines; each live
   broker ticket or virtual execution id has deterministic
@@ -215,6 +279,10 @@ the historical deterministic seed for compatibility.
   evidence for single-flight and bounded-log correlation. The corrected
   cross-bar retry contract still requires the manual matrix in the strategy
   guide before live use; a clean compile alone does not authorize deployment.
+- `OnTester()` remains the existing profit/deposit, non-negative Sharpe and
+  logarithmic trade-count score. Audit counters and campaign supersession do not
+  feed that formula; any scoring redesign requires a separate evidence-driven
+  plan.
 
 See `docs/guides/pivot-hft-strategy-inputs.md` for input definitions and the
 manual validation checklist.

@@ -901,11 +901,12 @@ bool PivotHftPromoteSupersessionCandidate(
   if(same_level_retry_allowed)
   {
     PivotHftAuditLog("RETRY_SUPERSEDED",
-                     StringFormat("%s|suppressed_retry_number=%d|suppressed_execution_source=%s|promoted_sequence=%s|promoted_level=%s|promoted_retry_number=0|promoted_execution_source=BROKER|fresh_extreme=%.5f|candidate_admission_bar=%I64d",
+                     StringFormat("transition_version=1|transition_reason=deeper_pivot_promoted|%s|suppressed_retry_number=%d|suppressed_attempt=%d|suppressed_execution_source=%s|promoted_sequence=%s|promoted_level=%s|promoted_retry_number=0|promoted_attempt=1|promoted_execution_source=BROKER|fresh_extreme=%.5f|candidate_admission_bar=%I64d",
                                   PivotHftRetryDecisionAuditFields(
                                     position_state,
                                     current_micro_bar),
                                   position_state.next_retry_number,
+                                  position_state.campaign_attempt_count + 1,
                                   PivotHftExecutionSourceLabel(
                                     position_state.next_retry_execution_source),
                                   g_pivot_hft_campaign.sequence_id,

@@ -796,7 +796,7 @@ bool PivotHftSupersessionCandidateVisible()
 string PivotHftSupersessionCandidateAuditFields(
   const PivotHftSupersessionCandidate &candidate)
 {
-  return StringFormat("candidate_dir=%s|candidate_level=%s|candidate_price=%.5f|candidate_activation_bar=%I64d|candidate_source_bar=%I64d|candidate_admission_bar=%I64d|candidate_admitted_at=%I64d|owner_execution_source=%s|owner_execution_id=%s|owner_ticket=%I64u|owner_position_id=%I64u|owner_sequence=%s|owner_level=%s|owner_price=%.5f|owner_retry_number=%d|terminal_reason=%s|promoted_sequence=%s",
+  return StringFormat("candidate_transition_version=1|candidate_dir=%s|candidate_level=%s|candidate_price=%.5f|candidate_activation_bar=%I64d|candidate_source_bar=%I64d|candidate_admission_bar=%I64d|candidate_admitted_at=%I64d|owner_execution_source=%s|owner_execution_id=%s|owner_ticket=%I64u|owner_position_id=%I64u|owner_sequence=%s|owner_level=%s|owner_price=%.5f|owner_retry_number=%d|terminal_reason=%s|promoted_sequence=%s",
                       EnumToString(candidate.direction),
                       EnumToString(candidate.pivot_level),
                       candidate.pivot_price,
@@ -829,18 +829,21 @@ bool PivotHftLatchSupersessionCandidate(
   if(replacing)
   {
     PivotHftAuditLog("CANDIDATE_REPLACED",
-                     StringFormat("previous_level=%s|previous_price=%.5f|previous_admission_bar=%I64d|%s",
+                     StringFormat("transition_reason=strictly_deeper_candidate|previous_owner_sequence=%s|previous_owner_execution_id=%s|previous_level=%s|previous_price=%.5f|previous_activation_bar=%I64d|previous_admission_bar=%I64d|%s",
+                                  previous.owner_campaign_sequence_id,
+                                  previous.owner_execution_id,
                                   EnumToString(previous.pivot_level),
                                   previous.pivot_price,
+                                  (long)previous.pivot_activation_bar,
                                   (long)previous.admission_micro_bar,
                                   PivotHftSupersessionCandidateAuditFields(
                                     candidate)));
   }
-  else
-  {
-    PivotHftAuditLog("CANDIDATE_LATCHED",
-                     PivotHftSupersessionCandidateAuditFields(candidate));
-  }
+  PivotHftAuditLog("CANDIDATE_LATCHED",
+                   StringFormat("latch_kind=%s|transition_reason=deeper_pivot_admitted|%s",
+                                replacing ? "REPLACEMENT" : "INITIAL",
+                                PivotHftSupersessionCandidateAuditFields(
+                                  candidate)));
   return true;
 }
 

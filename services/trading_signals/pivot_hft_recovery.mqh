@@ -1484,7 +1484,8 @@ bool PivotHftRecoveryReadText(const string filename,
   }
 
   ulong file_size = FileSize(handle);
-  if(file_size == 0 || file_size > PIVOT_HFT_RECOVERY_MAX_FILE_BYTES)
+  if(file_size == 0 ||
+     file_size > (ulong)PIVOT_HFT_RECOVERY_MAX_FILE_BYTES)
   {
     FileClose(handle);
     reason = (file_size == 0) ? "file_empty" : "file_too_large";
@@ -1964,9 +1965,12 @@ void PivotHftRecoveryQuarantinePositionState(
                                       position_state.position_ticket,
                                       position_state.position_identifier);
   PivotHftAuditLog("RECOVERY_POSITION_QUARANTINED",
-                   StringFormat("ticket=%I64u|position_id=%I64u|reason=%s",
-                                position_state.position_ticket,
+                   StringFormat("sequence=%s|%s|position_id=%I64u|deal=%I64u|status=SAFETY_ONLY|quarantine_mode=SINGLE|reason=%s",
+                                position_state.campaign_sequence_id,
+                                PivotHftPositionAuditIdentityFields(
+                                  position_state),
                                 position_state.position_identifier,
+                                position_state.entry_deal_ticket,
                                 reason));
 }
 
@@ -2306,7 +2310,22 @@ bool PivotHftRecoveryAppendSafetyQuarantine(
     reason);
 
   if(!PivotHftAppendPositionState(position_state))
+  {
+    PivotHftAuditLog("RECOVERY_QUARANTINE_STATE_FAILED",
+                     StringFormat("sequence=recovery|execution_source=BROKER|execution_id=%I64u|ticket=%I64u|position_id=%I64u|deal=%I64u|quarantine_mode=SINGLE|reason=state_append_failed",
+                                  broker_position.position_ticket,
+                                  broker_position.position_ticket,
+                                  broker_position.position_identifier,
+                                  broker_position.entry_deal_ticket));
     return false;
+  }
+  PivotHftAuditLog("RECOVERY_POSITION_QUARANTINED",
+                   StringFormat("sequence=recovery|%s|position_id=%I64u|deal=%I64u|status=SAFETY_ONLY|quarantine_mode=SINGLE|reason=%s",
+                                PivotHftPositionAuditIdentityFields(
+                                  position_state),
+                                position_state.position_identifier,
+                                position_state.entry_deal_ticket,
+                                reason));
   PivotHftMarkEmergencyQuarantineStateAttached();
   int state_index = PivotHftFindPositionStateIndex(
     position_state.execution_id,
@@ -2366,7 +2385,24 @@ void PivotHftRecoveryAppendMultipleSafetyStates()
     position_state.force_close_generation_at_entry =
       MarketStatusForceCloseGeneration();
     PivotHftRecoveryRestoreDailyStart(position_state);
-    PivotHftAppendPositionState(position_state);
+    if(PivotHftAppendPositionState(position_state))
+    {
+      PivotHftAuditLog("RECOVERY_POSITION_QUARANTINED",
+                       StringFormat("sequence=recovery-multiple|%s|position_id=%I64u|deal=%I64u|status=SAFETY_ONLY|quarantine_mode=MULTIPLE|reason=multiple_scoped_positions",
+                                    PivotHftPositionAuditIdentityFields(
+                                      position_state),
+                                    position_state.position_identifier,
+                                    position_state.entry_deal_ticket));
+    }
+    else
+    {
+      PivotHftAuditLog("RECOVERY_QUARANTINE_STATE_FAILED",
+                       StringFormat("sequence=recovery-multiple|execution_source=BROKER|execution_id=%I64u|ticket=%I64u|position_id=%I64u|deal=%I64u|quarantine_mode=MULTIPLE|reason=state_append_failed",
+                                    position_state.position_ticket,
+                                    position_state.position_ticket,
+                                    position_state.position_identifier,
+                                    position_state.entry_deal_ticket));
+    }
   }
 }
 
@@ -2460,7 +2496,7 @@ bool PivotHftRecoveryRestoreRecord(
       : PIVOT_HFT_RECOVERY_RECOVERED;
   PivotHftRecoverySetStatus(status, "exact_checkpoint_restored");
   PivotHftAuditLog("RECOVERY_POSITION_RESTORED",
-                   StringFormat("generation=%I64u|schema=%d|ticket=%I64u|position_id=%I64u|status=%s|local_sl=%.5f|local_tp=%.5f|trailing_step=%d|candidate_valid=%d|candidate_level=%s",
+                   StringFormat("generation=%I64u|schema=%d|ticket=%I64u|position_id=%I64u|status=%s|local_sl=%.5f|local_tp=%.5f|trailing_step=%d|candidate_restored=%d|%s",
                                 record.generation,
                                 record.schema_version,
                                 restored_state.position_ticket,
@@ -2470,8 +2506,8 @@ bool PivotHftRecoveryRestoreRecord(
                                 restored_state.local_tp_price,
                                 restored_state.trailing_step_index,
                                 (int)g_pivot_hft_supersession_candidate.valid,
-                                EnumToString(
-                                  g_pivot_hft_supersession_candidate.pivot_level)));
+                                PivotHftSupersessionCandidateAuditFields(
+                                  g_pivot_hft_supersession_candidate)));
   return true;
 }
 

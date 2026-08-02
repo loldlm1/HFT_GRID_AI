@@ -162,7 +162,7 @@ void PivotHftStartCampaign(const SignalTypes direction,
   PivotHftExecutionSources execution_source =
     PivotHftExecutionSourceForRetry(retry_number);
   PivotHftAuditLog("CAMPAIGN_ARMED",
-                   StringFormat("sequence=%s|dir=%s|level=%s|price=%.5f|bar=%I64d|extreme=%.5f|retry_number=%d|retry_ordinal=%d|execution_source=%s|source_ticket=%I64u|source_id=%s|%s",
+                   StringFormat("sequence=%s|dir=%s|level=%s|price=%.5f|bar=%I64d|extreme=%.5f|retry_number=%d|retry_ordinal=%d|attempt=%d|execution_source=%s|source_ticket=%I64u|source_id=%s|%s",
                                 campaign.sequence_id,
                                 EnumToString(direction),
                                 PivotHftLevelLabel(level),
@@ -171,6 +171,7 @@ void PivotHftStartCampaign(const SignalTypes direction,
                                 campaign.tracked_extreme,
                                 retry_number,
                                 campaign.retry_ordinal,
+                                campaign.attempt_count + 1,
                                 PivotHftExecutionSourceLabel(
                                   execution_source),
                                 campaign.retry_source_ticket,
@@ -488,18 +489,20 @@ bool PivotHftSupersedePendingRetryCampaign(
     "promoted_from_tracking_retry",
     replacement_campaign.sequence_id);
   PivotHftAuditLog("RETRY_CAMPAIGN_SUPERSEDED",
-                   StringFormat("previous_sequence=%s|previous_level=%s|previous_retry_number=%d|previous_execution_source=%s|sequence=%s|level=%s|retry_number=0|execution_source=BROKER|fresh_extreme=%.5f",
+                   StringFormat("transition_version=1|transition_reason=deeper_pivot_admitted|previous_sequence=%s|previous_level=%s|previous_retry_number=%d|previous_attempt=%d|previous_execution_source=%s|sequence=%s|level=%s|retry_number=0|attempt=1|execution_source=BROKER|fresh_extreme=%.5f|candidate_admission_bar=%I64d",
                                 previous_campaign.sequence_id,
                                 PivotHftLevelLabel(
                                   previous_campaign.pivot_level),
                                 previous_retry_number,
+                                previous_campaign.attempt_count + 1,
                                 PivotHftExecutionSourceLabel(
                                   PivotHftExecutionSourceForRetry(
                                     previous_retry_number)),
                                 replacement_campaign.sequence_id,
                                 PivotHftLevelLabel(
                                   replacement_campaign.pivot_level),
-                                fresh_extreme));
+                                fresh_extreme,
+                                (long)candidate.admission_micro_bar));
   return true;
 }
 

@@ -57,7 +57,7 @@ reconstruccion.
 | --- | ---: | --- |
 | `Pivot_HFT_Direction_Mode` | Ambas | Habilita compras, ventas o ambas. |
 | `Pivot_HFT_Retracement_Points` | `25.0` | `0` intenta entrar inmediatamente al admitir el pivote; `> 0` espera retroceso desde el extremo Bid/Ask. |
-| `Pivot_HFT_Start_Real_Retry` | `1` | Primer retry que abre en broker: `0` desactiva rearm, `1` abre retry `1` y posteriores, y `N >= 2` simula `1..N-1` antes de abrir retry `N` y posteriores. No es un maximo. |
+| `Pivot_HFT_Start_Real_Retry` | `1` | La entrada inicial siempre es broker `retry 0`. `0` desactiva todas las reentradas del mismo nivel; `1` abre retry `1` y posteriores en broker; `N >= 2` simula retries `1..N-1` y abre en broker desde retry `N` inclusive. No es un maximo. |
 | `Pivot_HFT_Local_SL_Bands_Width_Percent` | `25.0` | Porcentaje positivo del ancho superior-inferior usado siempre para el SL local. |
 | `Pivot_HFT_TP_Step_SL_Ratio` | `1.0` | Multiplo positivo del SL inicial para el step de BE/trailing. |
 | `Pivot_HFT_Fixed_TP_SL_Ratio` | `0.0` | `0` desactiva TP fijo; `> 0` crea un target como multiplo del SL inicial. |
@@ -147,7 +147,16 @@ a `TRACKING` desde un extremo fresco.
    completas y abre retry `N` y posteriores en broker. Cada retry conserva
    secuencia, identidad origen, numero publico, ordinal interno y comienza desde
    un extremo direccional fresco. No existe maximo ni cooldown.
-11. Un ganador exterior consume la escalera interior de esa misma direccion y
+11. Si existe un candidato de pivote mas profundo, admitido de forma
+    independiente y del mismo lado, un cierre local elegible con neto `<= 0`
+    suprime el proximo retry del nivel anterior y promueve el candidato como
+    nueva campana broker: nueva secuencia, `retry_number=0`, intento `1`,
+    extremo fresco y retracement normal. Un cierre positivo, externo/de
+    proteccion, cierre de sesion, cambio/rollover de pivotes o cuarentena de
+    recovery descarta el candidato. Con threshold `0` no existe retry del mismo
+    nivel, pero el pivote mas profundo puede promoverse porque es otra admision
+    inicial.
+12. Un ganador exterior consume la escalera interior de esa misma direccion y
     vela: R2 consume R1+R2, R3 consume R1+R2+R3, con simetria S1-S3.
 
 Solo hay una campana pendiente o una posicion real/virtual ocupando la ranura de
@@ -155,10 +164,18 @@ ejecucion. El ultimo pivote tocado puede reemplazar al anterior unicamente en la
 vela donde se armo la campana; despues, la campana sigue el mismo nivel hasta el
 fill o una cancelacion terminal. El reemplazo termina explicitamente la cadena
 anterior con `latest_level_replaced`; no crea una cola ni deja un retry huerfano.
-No se admite un nivel hermano mientras exista una ejecucion activa, cierre
-pendiente o reintento pendiente. Un cierre externo o de proteccion tampoco
-rearma esa campana; otro pivote puede iniciar una nueva solo cuando la ranura
-queda libre.
+Mientras exista una ejecucion activa, cierre pendiente o retry pendiente, el EA
+no abre una segunda campana, pero puede observar un unico candidato del mismo
+lado que sea estrictamente mas profundo que el nivel propietario. Ese candidato
+debe pasar todos los guards normales de una nueva admision salvo la ranura ya
+ocupada: sesion, recursos, Bollinger, pivote, proteccion, limite diario, mercado
+y spread. Se conserva solo el mas profundo; uno igual, menos profundo, opuesto o
+de otro conjunto de pivotes no reemplaza el latch. La admision ya valida cruza
+velas micro y no se pierde cuando su vela original quema el nivel.
+
+"Mas profundo" describe la progresion R1 -> R2 -> R3 o S1 -> S2 -> S3, no una
+desigualdad de precios. No existe ni se planifica ninguna formula, ratio, input,
+precio o calculo Fibonacci.
 
 ### Modelo de retry virtual
 
@@ -182,6 +199,31 @@ original que calibro el modelo. Slippage de entrada, slippage de cierre y costo
 por lote se etiquetan como `OBSERVED_ZERO`, `OBSERVED_VALUE`, `FALLBACK_ZERO`,
 `FALLBACK_VALUE` o `UNAVAILABLE`; un cero observado no se interpreta como dato
 faltante y nunca se inventa ruido aleatorio.
+
+## Recovery y ownership fail-closed
+
+Cada fill broker verificado consume una sola vez el inicio diario aplicable
+antes de que pueda fallar el registro local normal. Si ese registro falla, el
+EA crea un lifecycle de emergencia cuando es posible, solicita el cierre por
+simbolo, magic, ticket e identificador exactos y mantiene cuarentena hasta
+reconciliar el historial. El fill nunca queda deliberadamente sin owner local o
+de emergencia.
+
+El estado broker activo se guarda en dos slots alternos con checksum dentro del
+sandbox local de archivos MQL5 del terminal. El schema de recovery `2` conserva
+ticket, position id, deal, geometria local inmutable, trailing, flags contables
+y el candidato profundo activo. Los nombres usan un hash opaco del scope; el
+log de auditoria no publica login, servidor, hash ni ruta del checkpoint.
+
+En reinicio, recompilacion o re-attach solo se restaura cuando checkpoint,
+simbolo, magic runtime, ticket y position id coinciden exactamente. Precio
+actual, bandas actuales y comment broker son pistas insuficientes para
+reconstruir un SL local perdido. Si no existe restauracion exacta, se bloquean
+nuevas entradas y la exposicion queda en cuarentena de seguridad hasta cerrar y
+reconciliar. Un fallo de preflight estando flat hace fallar `OnInit`; estando
+expuesto conserva solo la gestion de cierre. Los slots se limpian al quedar flat
+y cualquier rollback de recovery o supersession exige primero flat state y
+cleanup del scope correcto.
 
 ## Lectura visual del lifecycle
 
@@ -251,9 +293,14 @@ mismo periodo del tester. El writer conserva un handle compartible, busca el
 final y hace flush por evento; ante un fallo reabre una sola vez y avisa una
 sola vez en Journal.
 
-`RUN_START` declara `schema_version=2`. El modo visual real del tester usa
+`RUN_START` declara `schema_version=3`. El modo visual real del tester usa
 `tester_visual_mode` y el input usa `visualization_input`. Cada payload conserva
 claves unicas dentro de su fila para que un parser no sobrescriba evidencia.
+Antes de `RUN_END` se emite un unico `RUN_SUMMARY` con contadores acotados de
+fills iniciales/retries, candidatos, retries suprimidos, recovery, cierres de
+emergencia y fallos de reconciliacion. Son diagnosticos y no participan en
+admision, ejecucion ni score. El checker acepta schema `2` solo como evidencia
+legacy de lectura y aplica el contrato completo al schema `3`.
 
 Para auditar niveles buscar `LEVEL_SCAN_START`, `LEVEL_SCAN_RESULT`,
 `LEVEL_SCAN_FAILED`, `LEVEL_TOUCH_PROVISIONAL`, `LEVEL_BURNED` y
@@ -305,6 +352,24 @@ numero/fuente mediante `REARM_DEFERRED`.
 `WINNING_LEVELS_CONSUMED` registra ticket, ganador, vela, mascara y niveles
 consumidos para auditar el caso R1 fallido seguido por R2 ganador.
 
+`CANDIDATE_LATCHED`, `CANDIDATE_REPLACED`, `CANDIDATE_DISCARDED`,
+`CANDIDATE_PROMOTED`, `RETRY_SUPERSEDED` y `RETRY_CAMPAIGN_SUPERSEDED`
+correlacionan owner, secuencia, ejecucion, nivel anterior/nuevo, retry logico,
+intento, vela de admision, nueva secuencia y razon canonica. Un reemplazo emite
+el terminal del candidato anterior y un nuevo latch; cada candidato promovido
+debe tener una sola admision y una sola promocion.
+
+Validar sin copiar filas privadas:
+
+```bash
+python3 scripts/audit_pivot_hft_retry.py --self-test
+python3 scripts/audit_pivot_hft_retry.py --file /ruta/explicita/query_debug.txt
+```
+
+Usar `--run-id <id>` cuando el archivo contiene varios runs. El script usa solo
+la libreria estandar, no accede a red y muestra agregados mas una lista acotada
+de violaciones, nunca las filas completas ni credenciales.
+
 Rotar o vaciar el archivo antes de una sesion QA enfocada. No usar un log viejo
 como evidencia de la compilacion o del run actual.
 
@@ -338,7 +403,8 @@ El perfil backend conserva deliberadamente la identidad Pandora. No se cambia
   estudiar R fijo, optimizar solo ese ratio como una dimension adicional.
 - El criterio `OnTester()` usa `STAT_PROFIT / STAT_INITIAL_DEPOSIT`, Sharpe no
   negativo y el componente logaritmico de cantidad de trades. Un stop forzado
-  conserva score cero.
+  conserva score cero. Supersession y contadores de auditoria no modifican esta
+  formula; cualquier rediseno requiere otro plan con evidencia.
 - La ventana de sesion se recalcula una vez por minuto, no por tick.
 - El handle de Bollinger se crea solo dentro de una ventana de entrada activa y
   se libera al salir; una posicion ya abierta conserva su gestion local.
@@ -436,8 +502,26 @@ y limpiar o rotar `query_debug.txt`:
     Al terminar, reconciliar un `POSITION_FINALIZED` por cada
     `FILL_REGISTERED` o `VIRTUAL_FILL_REGISTERED`, sin identidad duplicada ni
     estado local pendiente. Confirmar que filas virtuales no cambian contadores
-    diarios ni historial broker, y que ninguna fila del schema `2` repita una
+    diarios ni historial broker, y que ninguna fila del schema `3` repita una
     clave antes de `=`.
+27. Con R2 o S2 activo, admitir R3 o S3 bajo los mismos guards salvo la ranura
+    ocupada. El candidato debe sobrevivir cambios M3 y su burn original; otro
+    candidato mas profundo lo reemplaza, pero uno igual/opuesto no.
+28. Cerrar R2/S2 localmente con neto `<= 0`: debe existir un solo
+    `RETRY_SUPERSEDED`, ningun fill del retry suprimido y una nueva campana
+    R3/S3 broker `retry_number=0`, intento `1` y extremo fresco. Repetir con
+    thresholds `0`, `1`, `2` y `3`.
+29. Repetir el overlap con neto positivo, cierre externo/proteccion, cierre de
+    sesion y rollover/cambio macro. Cada caso debe emitir un unico discard y no
+    promover despues.
+30. Recompilar o re-adjuntar con posicion broker y candidato activos. Exigir
+    restauracion exacta de ticket, position id, SL/trailing y candidato. Luego
+    probar un slot corrupto, ambos slots corruptos y checkpoint ausente: fallback
+    cuando existe copia valida; de otro modo cuarentena, cierre exacto y cero
+    entradas nuevas hasta flat.
+31. Ejecutar el self-test del checker y luego el checker sobre el run rotado.
+    Exigir `violations=0`, `RUN_SUMMARY` antes de `RUN_END` y reconciliacion de
+    todos los contadores antes de considerar live.
 
 El baseline de cierre fue validado el 2026-08-01 con chart M1, micro M3 y
 pivotes H1: 210 fills y finalizaciones correlacionadas, BUY/SELL, maximo de un
