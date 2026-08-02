@@ -72,19 +72,17 @@ struct PivotHftCampaignState
 
 struct PivotHftRiskGeometry
 {
-  PivotHftLocalSlModes local_sl_mode;
-  datetime             bands_source_bar;
-  double               bands_upper;
-  double               bands_lower;
-  double               band_width_points;
-  double               initial_sl_points;
-  double               trailing_step_points;
-  double               fixed_tp_points;
-  bool                 valid;
+  datetime bands_source_bar;
+  double   bands_upper;
+  double   bands_lower;
+  double   band_width_points;
+  double   initial_sl_points;
+  double   trailing_step_points;
+  double   fixed_tp_points;
+  bool     valid;
 
   PivotHftRiskGeometry()
-    : local_sl_mode(PIVOT_HFT_LOCAL_SL_POINTS),
-      bands_source_bar(0),
+    : bands_source_bar(0),
       bands_upper(0.0),
       bands_lower(0.0),
       band_width_points(0.0),
@@ -101,7 +99,6 @@ struct PivotHftPositionState
   PivotHftPositionStatuses status;
   PivotHftCloseTriggers    close_trigger;
   PivotHftNetClasses       net_class;
-  PivotHftLocalSlModes     local_sl_mode;
   SignalTypes              direction;
   PivotHftPivotLevels      pivot_level;
   ulong                    position_ticket;
@@ -146,7 +143,6 @@ struct PivotHftPositionState
     status                 = PIVOT_HFT_POSITION_ACTIVE;
     close_trigger          = PIVOT_HFT_CLOSE_TRIGGER_NONE;
     net_class              = PIVOT_HFT_NET_NONE;
-    local_sl_mode          = PIVOT_HFT_LOCAL_SL_POINTS;
     direction              = NO_SIGNAL;
     pivot_level            = PIVOT_HFT_LEVEL_NONE;
     position_ticket        = 0;

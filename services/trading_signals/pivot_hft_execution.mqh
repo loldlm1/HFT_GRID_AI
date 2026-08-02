@@ -235,8 +235,7 @@ double PivotHftResolveFixedLocalTargetPrice(
 string PivotHftPositionRiskAuditFields(
   const PivotHftPositionState &position_state)
 {
-  return StringFormat("sl_mode=%s|bands_bar=%I64d|band_width_pts=%.2f|initial_sl_pts=%.2f|step_pts=%.2f|step_sl_ratio=%.4f|fixed_tp_sl_ratio=%.4f|fixed_tp_pts=%.2f|local_sl=%.5f|local_tp=%.5f",
-                      EnumToString(position_state.local_sl_mode),
+  return StringFormat("bands_bar=%I64d|band_width_pts=%.2f|initial_sl_pts=%.2f|step_pts=%.2f|step_sl_ratio=%.4f|fixed_tp_sl_ratio=%.4f|fixed_tp_pts=%.2f|local_sl=%.5f|local_tp=%.5f",
                       (long)position_state.risk_bands_source_bar,
                       position_state.risk_band_width_points,
                       position_state.initial_sl_points,
@@ -288,7 +287,6 @@ bool PivotHftRegisterFilledPosition(const PivotHftCampaignState &campaign,
   position_state.entry_volume = PositionGetDouble(POSITION_VOLUME);
   position_state.campaign_attempt_count = campaign.attempt_count;
   position_state.position_comment = PositionGetString(POSITION_COMMENT);
-  position_state.local_sl_mode = risk_geometry.local_sl_mode;
   position_state.risk_bands_source_bar = risk_geometry.bands_source_bar;
   position_state.risk_bands_upper = risk_geometry.bands_upper;
   position_state.risk_bands_lower = risk_geometry.bands_lower;

@@ -193,15 +193,12 @@ int OnInit()
 
   PivotHftAuditInitialize();
   PivotHftAuditLog("CONFIG",
-                   StringFormat("micro_tf=%s|pivot_tf=%s|direction=%s|retrace_pts=%.2f|sl_mode=%s|local_sl_pts=%.2f|bands_width_pct=%.2f|step_pts=%.2f|step_sl_ratio=%.4f|fixed_tp_sl_ratio=%.4f|lot=%.2f|visual=%d",
+                   StringFormat("micro_tf=%s|pivot_tf=%s|direction=%s|retrace_pts=%.2f|bands_width_pct=%.2f|step_sl_ratio=%.4f|fixed_tp_sl_ratio=%.4f|lot=%.2f|visual=%d",
                                 EnumToString(Pivot_HFT_Micro_Timeframe),
                                 EnumToString(Pivot_HFT_Pivot_Timeframe),
                                 EnumToString(Pivot_HFT_Direction_Mode),
                                 Pivot_HFT_Retracement_Points,
-                                EnumToString(Pivot_HFT_Local_SL_Mode),
-                                Pivot_HFT_Local_SL_Points,
                                 Pivot_HFT_Local_SL_Bands_Width_Percent,
-                                Pivot_HFT_TP_Step_Points,
                                 Pivot_HFT_TP_Step_SL_Ratio,
                                 Pivot_HFT_Fixed_TP_SL_Ratio,
                                 Pivot_HFT_Lot_Size,

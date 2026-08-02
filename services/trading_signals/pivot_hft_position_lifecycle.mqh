@@ -114,12 +114,11 @@ bool PivotHftInitializeLocalStop(PivotHftPositionState &position_state)
   if(position_state.local_sl_price > 0.0)
   {
     PivotHftAuditLog("LOCAL_SL_INITIALIZED",
-                     StringFormat("ticket=%I64u|dir=%s|entry=%.5f|local_sl=%.5f|sl_mode=%s|bands_bar=%I64d|band_width_pts=%.2f|initial_sl_pts=%.2f|step_pts=%.2f|source=recovery",
+                     StringFormat("ticket=%I64u|dir=%s|entry=%.5f|local_sl=%.5f|bands_bar=%I64d|band_width_pts=%.2f|initial_sl_pts=%.2f|step_pts=%.2f|source=recovery",
                                   position_state.position_ticket,
                                   EnumToString(position_state.direction),
                                   position_state.entry_price,
                                   position_state.local_sl_price,
-                                  EnumToString(position_state.local_sl_mode),
                                   (long)position_state.risk_bands_source_bar,
                                   position_state.risk_band_width_points,
                                   position_state.initial_sl_points,

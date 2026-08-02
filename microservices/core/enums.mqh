@@ -18,12 +18,6 @@ enum StrategyDirectionTypes
   BEARISH_DIRECTION = 2
 };
 
-enum PivotHftLocalSlModes
-{
-  PIVOT_HFT_LOCAL_SL_POINTS              = 0,
-  PIVOT_HFT_LOCAL_SL_BANDS_WIDTH_PERCENT = 1
-};
-
 enum PivotHftCampaignStatuses
 {
   PIVOT_HFT_CAMPAIGN_IDLE       = 0,
