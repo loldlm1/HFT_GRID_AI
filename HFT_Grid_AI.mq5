@@ -183,6 +183,14 @@ int OnInit()
     return INIT_FAILED;
   }
 
+  string risk_input_reason = "";
+  if(!PivotHftValidateRiskGeometryInputs(risk_input_reason))
+  {
+    PrintFormat("Pivot HFT invalid exit geometry inputs | reason=%s",
+                risk_input_reason);
+    return INIT_PARAMETERS_INCORRECT;
+  }
+
   PivotHftAuditInitialize();
   PivotHftAuditLog("CONFIG",
                    StringFormat("micro_tf=%s|pivot_tf=%s|direction=%s|retrace_pts=%.2f|local_sl_pts=%.2f|step_pts=%.2f|lot=%.2f|visual=%d",

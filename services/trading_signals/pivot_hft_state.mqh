@@ -70,11 +70,38 @@ struct PivotHftCampaignState
   }
 };
 
+struct PivotHftRiskGeometry
+{
+  PivotHftLocalSlModes local_sl_mode;
+  datetime             bands_source_bar;
+  double               bands_upper;
+  double               bands_lower;
+  double               band_width_points;
+  double               initial_sl_points;
+  double               trailing_step_points;
+  double               fixed_tp_points;
+  bool                 valid;
+
+  PivotHftRiskGeometry()
+    : local_sl_mode(PIVOT_HFT_LOCAL_SL_POINTS),
+      bands_source_bar(0),
+      bands_upper(0.0),
+      bands_lower(0.0),
+      band_width_points(0.0),
+      initial_sl_points(0.0),
+      trailing_step_points(0.0),
+      fixed_tp_points(0.0),
+      valid(false)
+  {
+  }
+};
+
 struct PivotHftPositionState
 {
   PivotHftPositionStatuses status;
   PivotHftCloseTriggers    close_trigger;
   PivotHftNetClasses       net_class;
+  PivotHftLocalSlModes     local_sl_mode;
   SignalTypes              direction;
   PivotHftPivotLevels      pivot_level;
   ulong                    position_ticket;
@@ -86,8 +113,15 @@ struct PivotHftPositionState
   datetime                 entry_time;
   datetime                 close_trigger_time;
   datetime                 close_time;
+  datetime                 risk_bands_source_bar;
   double                   pivot_price;
   double                   entry_price;
+  double                   risk_bands_upper;
+  double                   risk_bands_lower;
+  double                   risk_band_width_points;
+  double                   initial_sl_points;
+  double                   trailing_step_points;
+  double                   fixed_tp_points;
   double                   local_sl_price;
   double                   trailing_stop_price;
   double                   close_trigger_quote;
@@ -110,6 +144,7 @@ struct PivotHftPositionState
     status                 = PIVOT_HFT_POSITION_ACTIVE;
     close_trigger          = PIVOT_HFT_CLOSE_TRIGGER_NONE;
     net_class              = PIVOT_HFT_NET_NONE;
+    local_sl_mode          = PIVOT_HFT_LOCAL_SL_POINTS;
     direction              = NO_SIGNAL;
     pivot_level            = PIVOT_HFT_LEVEL_NONE;
     position_ticket        = 0;
@@ -121,8 +156,15 @@ struct PivotHftPositionState
     entry_time             = 0;
     close_trigger_time     = 0;
     close_time             = 0;
+    risk_bands_source_bar  = 0;
     pivot_price             = 0.0;
     entry_price            = 0.0;
+    risk_bands_upper       = 0.0;
+    risk_bands_lower       = 0.0;
+    risk_band_width_points = 0.0;
+    initial_sl_points      = 0.0;
+    trailing_step_points   = 0.0;
+    fixed_tp_points        = 0.0;
     local_sl_price         = 0.0;
     trailing_stop_price    = 0.0;
     close_trigger_quote    = 0.0;

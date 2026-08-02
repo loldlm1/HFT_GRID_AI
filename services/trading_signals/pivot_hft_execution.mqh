@@ -177,11 +177,15 @@ ulong PivotHftFindFilledPosition(const ulong deal_ticket,
 }
 
 bool PivotHftRegisterFilledPosition(const PivotHftCampaignState &campaign,
+                                    const PivotHftRiskGeometry &risk_geometry,
                                     const ulong deal_ticket,
                                     const double result_price,
                                     const double result_volume,
                                     const string comment)
 {
+  if(!risk_geometry.valid)
+    return false;
+
   ulong position_ticket = PivotHftFindFilledPosition(deal_ticket,
                                                      campaign.direction,
                                                      comment);
@@ -212,6 +216,14 @@ bool PivotHftRegisterFilledPosition(const PivotHftCampaignState &campaign,
   position_state.entry_volume = PositionGetDouble(POSITION_VOLUME);
   position_state.campaign_attempt_count = campaign.attempt_count;
   position_state.position_comment = PositionGetString(POSITION_COMMENT);
+  position_state.local_sl_mode = risk_geometry.local_sl_mode;
+  position_state.risk_bands_source_bar = risk_geometry.bands_source_bar;
+  position_state.risk_bands_upper = risk_geometry.bands_upper;
+  position_state.risk_bands_lower = risk_geometry.bands_lower;
+  position_state.risk_band_width_points = risk_geometry.band_width_points;
+  position_state.initial_sl_points = risk_geometry.initial_sl_points;
+  position_state.trailing_step_points = risk_geometry.trailing_step_points;
+  position_state.fixed_tp_points = risk_geometry.fixed_tp_points;
 
   if(position_state.entry_price <= 0.0)
     position_state.entry_price = result_price;
@@ -264,6 +276,26 @@ bool PivotHftExecuteEntryIntent()
                                        guard_reason,
                                        0,
                                        GetLastError());
+    PivotHftMarkEntryRetryable();
+    return false;
+  }
+
+  PivotHftRiskGeometry risk_geometry;
+  string risk_reason = "";
+  if(!PivotHftResolveRiskGeometry(risk_geometry, risk_reason))
+  {
+    PivotHftAuditLog("ENTRY_RISK_GEOMETRY_BLOCKED",
+                     StringFormat("sequence=%s|dir=%s|level=%s|reason=%s|attempt=%d",
+                                  campaign.sequence_id,
+                                  EnumToString(campaign.direction),
+                                  PivotHftLevelLabel(campaign.pivot_level),
+                                  risk_reason,
+                                  campaign.attempt_count + 1));
+    g_pivot_hft_last_error = risk_reason;
+    MarketStatusRegisterExecutionError("PIVOT_HFT_RISK_GEOMETRY_BLOCK",
+                                       risk_reason,
+                                       0,
+                                       0);
     PivotHftMarkEntryRetryable();
     return false;
   }
@@ -327,6 +359,7 @@ bool PivotHftExecuteEntryIntent()
   }
 
   if(!PivotHftRegisterFilledPosition(campaign,
+                                     risk_geometry,
                                      deal_ticket,
                                      result_price,
                                      result_volume,
