@@ -44,6 +44,8 @@ string PivotHftCloseTriggerLabel(const PivotHftCloseTriggers trigger)
       return "TRAILING";
     case PIVOT_HFT_CLOSE_TRIGGER_EXTERNAL:
       return "EXTERNAL";
+    case PIVOT_HFT_CLOSE_TRIGGER_FIXED_TP:
+      return "FIXED_TP";
     case PIVOT_HFT_CLOSE_TRIGGER_NONE:
     default:
       return "NONE";
@@ -72,6 +74,7 @@ void PivotHftClearCloseTrigger(PivotHftPositionState &position_state)
   position_state.close_trigger_time = 0;
   position_state.close_trigger_quote = 0.0;
   position_state.close_trigger_stop = 0.0;
+  position_state.close_trigger_target = 0.0;
   position_state.close_trigger_step = 0;
   position_state.close_send_confirmed = false;
 }
@@ -85,13 +88,28 @@ void PivotHftCaptureLocalCloseTrigger(
   position_state.close_trigger_time = TimeCurrent();
   position_state.close_trigger_quote = trigger_quote;
   position_state.close_trigger_stop = position_state.local_sl_price;
+  position_state.close_trigger_target = 0.0;
+  position_state.close_trigger_step = position_state.trailing_step_index;
+}
+
+void PivotHftCaptureFixedTpCloseTrigger(
+  PivotHftPositionState &position_state,
+  const double trigger_quote)
+{
+  position_state.close_trigger = PIVOT_HFT_CLOSE_TRIGGER_FIXED_TP;
+  position_state.close_trigger_time = TimeCurrent();
+  position_state.close_trigger_quote = trigger_quote;
+  position_state.close_trigger_stop = position_state.local_sl_price;
+  position_state.close_trigger_target = position_state.local_tp_price;
   position_state.close_trigger_step = position_state.trailing_step_index;
 }
 
 bool PivotHftInitializeLocalStop(PivotHftPositionState &position_state)
 {
   position_state.local_sl_price = PivotHftResolveInitialLocalStopPrice(
-    position_state);
+    position_state.direction,
+    position_state.entry_price,
+    position_state.initial_sl_points);
   position_state.trailing_stop_price = position_state.local_sl_price;
   if(position_state.local_sl_price > 0.0)
   {
@@ -108,6 +126,28 @@ bool PivotHftInitializeLocalStop(PivotHftPositionState &position_state)
                                   position_state.trailing_step_points));
   }
   return (position_state.local_sl_price > 0.0);
+}
+
+bool PivotHftInitializeLocalTarget(PivotHftPositionState &position_state)
+{
+  if(position_state.fixed_tp_points <= 0.0)
+    return false;
+
+  position_state.local_tp_price = PivotHftResolveFixedLocalTargetPrice(
+    position_state.direction,
+    position_state.entry_price,
+    position_state.fixed_tp_points);
+  if(position_state.local_tp_price > 0.0)
+  {
+    PivotHftAuditLog("LOCAL_TP_INITIALIZED",
+                     StringFormat("ticket=%I64u|dir=%s|entry=%.5f|fixed_tp_pts=%.2f|local_tp=%.5f|source=recovery",
+                                  position_state.position_ticket,
+                                  EnumToString(position_state.direction),
+                                  position_state.entry_price,
+                                  position_state.fixed_tp_points,
+                                  position_state.local_tp_price));
+  }
+  return (position_state.local_tp_price > 0.0);
 }
 
 double PivotHftFavorableDistancePoints(const PivotHftPositionState &position_state,
@@ -186,7 +226,7 @@ void PivotHftUpdateTrailingStop(PivotHftPositionState &position_state)
 }
 
 bool PivotHftLocalStopTriggered(const PivotHftPositionState &position_state,
-                                double &trigger_quote)
+                                 double &trigger_quote)
 {
   trigger_quote = 0.0;
   if(position_state.local_sl_price <= 0.0)
@@ -200,6 +240,24 @@ bool PivotHftLocalStopTriggered(const PivotHftPositionState &position_state,
     return trigger_quote <= position_state.local_sl_price;
   if(position_state.direction == BEARISH)
     return trigger_quote >= position_state.local_sl_price;
+  return false;
+}
+
+bool PivotHftFixedTpTriggered(const PivotHftPositionState &position_state,
+                              double &trigger_quote)
+{
+  trigger_quote = 0.0;
+  if(position_state.local_tp_price <= 0.0)
+    return false;
+
+  trigger_quote = PivotHftCurrentCloseQuote(position_state.direction);
+  if(trigger_quote <= 0.0)
+    return false;
+
+  if(position_state.direction == BULLISH)
+    return trigger_quote >= position_state.local_tp_price;
+  if(position_state.direction == BEARISH)
+    return trigger_quote <= position_state.local_tp_price;
   return false;
 }
 
@@ -418,7 +476,7 @@ void PivotHftFinalizeClosedPosition(PivotHftPositionState &position_state)
   position_state.reattempt_pending = (net_result <= 0.0 &&
                                       position_state.close_requested);
   PivotHftAuditLog("POSITION_FINALIZED",
-                   StringFormat("ticket=%I64u|position_id=%I64u|dir=%s|level=%s|close_trigger=%s|trigger_time=%I64d|trigger_quote=%.5f|trigger_stop=%.5f|trigger_step=%d|exit_deal=%I64u|close_price=%.5f|exit_deals=%d|net=%.2f|net_class=%s|close_requested=%d|close_confirmed=%d|reattempt=%d|close_time=%I64d",
+                   StringFormat("ticket=%I64u|position_id=%I64u|dir=%s|level=%s|close_trigger=%s|trigger_time=%I64d|trigger_quote=%.5f|trigger_stop=%.5f|trigger_target=%.5f|trigger_step=%d|exit_deal=%I64u|close_price=%.5f|exit_deals=%d|net=%.2f|net_class=%s|close_requested=%d|close_confirmed=%d|reattempt=%d|close_time=%I64d",
                                  position_state.position_ticket,
                                  position_state.position_identifier,
                                  EnumToString(position_state.direction),
@@ -428,6 +486,7 @@ void PivotHftFinalizeClosedPosition(PivotHftPositionState &position_state)
                                  (long)position_state.close_trigger_time,
                                  position_state.close_trigger_quote,
                                  position_state.close_trigger_stop,
+                                 position_state.close_trigger_target,
                                  position_state.close_trigger_step,
                                  position_state.exit_deal_ticket,
                                  position_state.close_price,
@@ -474,7 +533,7 @@ bool PivotHftClosePositionLocally(PivotHftPositionState &position_state)
        now_time - position_state.last_close_audit_time >= 30)
     {
       PivotHftAuditLog("LOCAL_CLOSE_FAILED",
-                       StringFormat("ticket=%I64u|ret=%I64u|err=%d|close_trigger=%s|trigger_quote=%.5f|trigger_stop=%.5f|trigger_step=%d",
+                       StringFormat("ticket=%I64u|ret=%I64u|err=%d|close_trigger=%s|trigger_quote=%.5f|trigger_stop=%.5f|trigger_target=%.5f|trigger_step=%d",
                                      position_state.position_ticket,
                                      retcode,
                                      last_error,
@@ -482,6 +541,7 @@ bool PivotHftClosePositionLocally(PivotHftPositionState &position_state)
                                        position_state.close_trigger),
                                      position_state.close_trigger_quote,
                                      position_state.close_trigger_stop,
+                                     position_state.close_trigger_target,
                                      position_state.close_trigger_step));
       position_state.last_close_audit_time = now_time;
     }
@@ -507,7 +567,7 @@ bool PivotHftClosePositionLocally(PivotHftPositionState &position_state)
        now_time - position_state.last_close_audit_time >= 30)
     {
       PivotHftAuditLog("LOCAL_CLOSE_REJECTED",
-                       StringFormat("ticket=%I64u|ret=%I64u|err=%d|close_trigger=%s|trigger_quote=%.5f|trigger_stop=%.5f|trigger_step=%d|result_deal=%I64u|result_price=%.5f",
+                       StringFormat("ticket=%I64u|ret=%I64u|err=%d|close_trigger=%s|trigger_quote=%.5f|trigger_stop=%.5f|trigger_target=%.5f|trigger_step=%d|result_deal=%I64u|result_price=%.5f",
                                      position_state.position_ticket,
                                      retcode,
                                      last_error,
@@ -515,6 +575,7 @@ bool PivotHftClosePositionLocally(PivotHftPositionState &position_state)
                                        position_state.close_trigger),
                                      position_state.close_trigger_quote,
                                      position_state.close_trigger_stop,
+                                     position_state.close_trigger_target,
                                      position_state.close_trigger_step,
                                      result_deal_ticket,
                                      result_price));
@@ -528,13 +589,14 @@ bool PivotHftClosePositionLocally(PivotHftPositionState &position_state)
 
   MarketStatusClearExecutionError("PIVOT_HFT_LOCAL_CLOSE_OK");
   PivotHftAuditLog("LOCAL_CLOSE_SENT",
-                   StringFormat("ticket=%I64u|ret=%I64u|close_trigger=%s|trigger_quote=%.5f|trigger_stop=%.5f|trigger_step=%d|result_deal=%I64u|result_price=%.5f|result_volume=%.2f",
+                   StringFormat("ticket=%I64u|ret=%I64u|close_trigger=%s|trigger_quote=%.5f|trigger_stop=%.5f|trigger_target=%.5f|trigger_step=%d|result_deal=%I64u|result_price=%.5f|result_volume=%.2f",
                                  position_state.position_ticket,
                                  retcode,
                                  PivotHftCloseTriggerLabel(
                                    position_state.close_trigger),
                                  position_state.close_trigger_quote,
                                  position_state.close_trigger_stop,
+                                 position_state.close_trigger_target,
                                  position_state.close_trigger_step,
                                  result_deal_ticket,
                                  result_price,
@@ -577,9 +639,22 @@ void PivotHftProcessPositionState(PivotHftPositionState &position_state)
   position_state.entry_volume = PositionGetDouble(POSITION_VOLUME);
   if(position_state.local_sl_price <= 0.0)
     PivotHftInitializeLocalStop(position_state);
+  if(position_state.local_tp_price <= 0.0 &&
+     position_state.fixed_tp_points > 0.0)
+    PivotHftInitializeLocalTarget(position_state);
+
+  double trigger_quote = 0.0;
+  if(PivotHftFixedTpTriggered(position_state, trigger_quote))
+  {
+    PivotHftCaptureFixedTpCloseTrigger(position_state, trigger_quote);
+    position_state.close_requested = true;
+    position_state.status = PIVOT_HFT_POSITION_CLOSE_WAIT;
+    PivotHftClosePositionLocally(position_state);
+    return;
+  }
 
   PivotHftUpdateTrailingStop(position_state);
-  double trigger_quote = 0.0;
+  trigger_quote = 0.0;
   if(PivotHftLocalStopTriggered(position_state, trigger_quote))
   {
     PivotHftCaptureLocalCloseTrigger(position_state, trigger_quote);

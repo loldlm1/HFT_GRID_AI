@@ -123,9 +123,11 @@ struct PivotHftPositionState
   double                   trailing_step_points;
   double                   fixed_tp_points;
   double                   local_sl_price;
+  double                   local_tp_price;
   double                   trailing_stop_price;
   double                   close_trigger_quote;
   double                   close_trigger_stop;
+  double                   close_trigger_target;
   double                   close_price;
   double                   net_result;
   double                   entry_volume;
@@ -166,9 +168,11 @@ struct PivotHftPositionState
     trailing_step_points   = 0.0;
     fixed_tp_points        = 0.0;
     local_sl_price         = 0.0;
+    local_tp_price         = 0.0;
     trailing_stop_price    = 0.0;
     close_trigger_quote    = 0.0;
     close_trigger_stop     = 0.0;
+    close_trigger_target   = 0.0;
     close_price            = 0.0;
     net_result             = 0.0;
     entry_volume           = 0.0;

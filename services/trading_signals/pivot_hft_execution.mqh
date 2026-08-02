@@ -177,26 +177,59 @@ ulong PivotHftFindFilledPosition(const ulong deal_ticket,
 }
 
 double PivotHftResolveInitialLocalStopPrice(
-  const PivotHftPositionState &position_state)
+  const SignalTypes direction,
+  const double entry_price,
+  const double initial_sl_points)
 {
-  if(position_state.entry_price <= 0.0 ||
-     position_state.initial_sl_points <= 0.0)
+  if(entry_price <= 0.0 || initial_sl_points <= 0.0)
     return 0.0;
 
-  double distance = PivotHftDistanceToPrice(
-    position_state.initial_sl_points);
+  double distance = PivotHftDistanceToPrice(initial_sl_points);
   if(distance <= 0.0)
     return 0.0;
 
   double stop_price = 0.0;
-  if(position_state.direction == BULLISH)
-    stop_price = position_state.entry_price - distance;
-  else if(position_state.direction == BEARISH)
-    stop_price = position_state.entry_price + distance;
+  if(direction == BULLISH)
+    stop_price = entry_price - distance;
+  else if(direction == BEARISH)
+    stop_price = entry_price + distance;
   else
     return 0.0;
 
-  return PivotHftNormalizePrice(stop_price);
+  stop_price = PivotHftNormalizePrice(stop_price);
+  if(direction == BULLISH && stop_price >= entry_price)
+    return 0.0;
+  if(direction == BEARISH && stop_price <= entry_price)
+    return 0.0;
+  return stop_price;
+}
+
+double PivotHftResolveFixedLocalTargetPrice(
+  const SignalTypes direction,
+  const double entry_price,
+  const double fixed_tp_points)
+{
+  if(entry_price <= 0.0 || fixed_tp_points <= 0.0)
+    return 0.0;
+
+  double distance = PivotHftDistanceToPrice(fixed_tp_points);
+  if(distance <= 0.0)
+    return 0.0;
+
+  double target_price = 0.0;
+  if(direction == BULLISH)
+    target_price = entry_price + distance;
+  else if(direction == BEARISH)
+    target_price = entry_price - distance;
+  else
+    return 0.0;
+
+  target_price = PivotHftNormalizePrice(target_price);
+  if(direction == BULLISH && target_price <= entry_price)
+    return 0.0;
+  if(direction == BEARISH && target_price >= entry_price)
+    return 0.0;
+  return target_price;
 }
 
 bool PivotHftRegisterFilledPosition(const PivotHftCampaignState &campaign,
@@ -256,12 +289,20 @@ bool PivotHftRegisterFilledPosition(const PivotHftCampaignState &campaign,
     position_state.entry_time = TimeCurrent();
 
   position_state.local_sl_price = PivotHftResolveInitialLocalStopPrice(
-    position_state);
+    position_state.direction,
+    position_state.entry_price,
+    position_state.initial_sl_points);
+  position_state.local_tp_price = PivotHftResolveFixedLocalTargetPrice(
+    position_state.direction,
+    position_state.entry_price,
+    position_state.fixed_tp_points);
   position_state.trailing_stop_price = position_state.local_sl_price;
 
   return (position_state.entry_price > 0.0 &&
           position_state.entry_volume > 0.0 &&
           position_state.local_sl_price > 0.0 &&
+          (position_state.fixed_tp_points <= 0.0 ||
+           position_state.local_tp_price > 0.0) &&
           PivotHftAppendPositionState(position_state));
 }
 
@@ -321,6 +362,40 @@ bool PivotHftExecuteEntryIntent()
                                   campaign.attempt_count + 1));
     g_pivot_hft_last_error = risk_reason;
     MarketStatusRegisterExecutionError("PIVOT_HFT_RISK_GEOMETRY_BLOCK",
+                                       risk_reason,
+                                       0,
+                                       0);
+    PivotHftMarkEntryRetryable();
+    return false;
+  }
+
+  double entry_quote = PivotHftCurrentEntryQuote(campaign.direction);
+  double preview_local_sl = PivotHftResolveInitialLocalStopPrice(
+    campaign.direction,
+    entry_quote,
+    risk_geometry.initial_sl_points);
+  double preview_local_tp = PivotHftResolveFixedLocalTargetPrice(
+    campaign.direction,
+    entry_quote,
+    risk_geometry.fixed_tp_points);
+  if(preview_local_sl <= 0.0 ||
+     (risk_geometry.fixed_tp_points > 0.0 && preview_local_tp <= 0.0))
+  {
+    risk_reason = (preview_local_sl <= 0.0)
+                  ? "resolved_local_sl_price_invalid"
+                  : "resolved_fixed_tp_price_invalid";
+    PivotHftAuditLog("ENTRY_RISK_PRICE_BLOCKED",
+                     StringFormat("sequence=%s|dir=%s|level=%s|entry_quote=%.5f|initial_sl_pts=%.2f|fixed_tp_pts=%.2f|reason=%s|attempt=%d",
+                                  campaign.sequence_id,
+                                  EnumToString(campaign.direction),
+                                  PivotHftLevelLabel(campaign.pivot_level),
+                                  entry_quote,
+                                  risk_geometry.initial_sl_points,
+                                  risk_geometry.fixed_tp_points,
+                                  risk_reason,
+                                  campaign.attempt_count + 1));
+    g_pivot_hft_last_error = risk_reason;
+    MarketStatusRegisterExecutionError("PIVOT_HFT_RISK_PRICE_BLOCK",
                                        risk_reason,
                                        0,
                                        0);
@@ -416,7 +491,7 @@ bool PivotHftExecuteEntryIntent()
     PivotHftPositionState registered_state =
       g_pivot_hft_positions[registered_index];
     PivotHftAuditLog("FILL_REGISTERED",
-                     StringFormat("sequence=%s|ticket=%I64u|position_id=%I64u|deal=%I64u|dir=%s|level=%s|entry=%.5f|volume=%.2f|attempt=%d|origin_bar=%I64d|fill_bar=%I64d|sl_mode=%s|bands_bar=%I64d|band_width_pts=%.2f|initial_sl_pts=%.2f|local_sl=%.5f|step_pts=%.2f",
+                     StringFormat("sequence=%s|ticket=%I64u|position_id=%I64u|deal=%I64u|dir=%s|level=%s|entry=%.5f|volume=%.2f|attempt=%d|origin_bar=%I64d|fill_bar=%I64d|sl_mode=%s|bands_bar=%I64d|band_width_pts=%.2f|initial_sl_pts=%.2f|local_sl=%.5f|step_pts=%.2f|fixed_tp_pts=%.2f|local_tp=%.5f",
                                   campaign.sequence_id,
                                   registered_state.position_ticket,
                                   registered_state.position_identifier,
@@ -433,7 +508,9 @@ bool PivotHftExecuteEntryIntent()
                                   registered_state.risk_band_width_points,
                                   registered_state.initial_sl_points,
                                   registered_state.local_sl_price,
-                                  registered_state.trailing_step_points));
+                                  registered_state.trailing_step_points,
+                                  registered_state.fixed_tp_points,
+                                  registered_state.local_tp_price));
   }
 
   g_pivot_hft_last_error = "";
