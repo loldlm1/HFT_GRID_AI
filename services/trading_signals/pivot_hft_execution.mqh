@@ -232,6 +232,22 @@ double PivotHftResolveFixedLocalTargetPrice(
   return target_price;
 }
 
+string PivotHftPositionRiskAuditFields(
+  const PivotHftPositionState &position_state)
+{
+  return StringFormat("sl_mode=%s|bands_bar=%I64d|band_width_pts=%.2f|initial_sl_pts=%.2f|step_pts=%.2f|step_sl_ratio=%.4f|fixed_tp_sl_ratio=%.4f|fixed_tp_pts=%.2f|local_sl=%.5f|local_tp=%.5f",
+                      EnumToString(position_state.local_sl_mode),
+                      (long)position_state.risk_bands_source_bar,
+                      position_state.risk_band_width_points,
+                      position_state.initial_sl_points,
+                      position_state.trailing_step_points,
+                      Pivot_HFT_TP_Step_SL_Ratio,
+                      Pivot_HFT_Fixed_TP_SL_Ratio,
+                      position_state.fixed_tp_points,
+                      position_state.local_sl_price,
+                      position_state.local_tp_price);
+}
+
 bool PivotHftRegisterFilledPosition(const PivotHftCampaignState &campaign,
                                     const PivotHftRiskGeometry &risk_geometry,
                                     const ulong deal_ticket,
@@ -491,7 +507,7 @@ bool PivotHftExecuteEntryIntent()
     PivotHftPositionState registered_state =
       g_pivot_hft_positions[registered_index];
     PivotHftAuditLog("FILL_REGISTERED",
-                     StringFormat("sequence=%s|ticket=%I64u|position_id=%I64u|deal=%I64u|dir=%s|level=%s|entry=%.5f|volume=%.2f|attempt=%d|origin_bar=%I64d|fill_bar=%I64d|sl_mode=%s|bands_bar=%I64d|band_width_pts=%.2f|initial_sl_pts=%.2f|local_sl=%.5f|step_pts=%.2f|fixed_tp_pts=%.2f|local_tp=%.5f",
+                     StringFormat("sequence=%s|ticket=%I64u|position_id=%I64u|deal=%I64u|dir=%s|level=%s|entry=%.5f|volume=%.2f|attempt=%d|origin_bar=%I64d|fill_bar=%I64d|%s",
                                   campaign.sequence_id,
                                   registered_state.position_ticket,
                                   registered_state.position_identifier,
@@ -503,14 +519,8 @@ bool PivotHftExecuteEntryIntent()
                                   registered_state.campaign_attempt_count + 1,
                                   (long)registered_state.campaign_micro_bar_time,
                                   (long)registered_state.entry_micro_bar_time,
-                                  EnumToString(registered_state.local_sl_mode),
-                                  (long)registered_state.risk_bands_source_bar,
-                                  registered_state.risk_band_width_points,
-                                  registered_state.initial_sl_points,
-                                  registered_state.local_sl_price,
-                                  registered_state.trailing_step_points,
-                                  registered_state.fixed_tp_points,
-                                  registered_state.local_tp_price));
+                                  PivotHftPositionRiskAuditFields(
+                                    registered_state)));
   }
 
   g_pivot_hft_last_error = "";

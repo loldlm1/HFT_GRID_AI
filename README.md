@@ -40,11 +40,38 @@ claim institutional HFT latency.
 ## Position Lifecycle
 
 Entries are market orders with no server-side SL or TP. The actual broker fill
-anchors the local SL and trailing step. The first favorable step moves the local
-stop to break-even; later steps advance it monotonically. A locally closed
-position with net result `<= 0` can re-arm only while its fill micro candle is
-still open and the same grandfathered pivot/Bollinger condition remains valid.
-External or protection-driven closes never re-arm the closed campaign.
+anchors one immutable local exit geometry snapshot. The first favorable step
+moves the local stop to break-even; later steps advance it monotonically. When
+enabled, the fixed local TP is checked before advancing trailing on the same
+favorable tick. A locally closed position with net result `<= 0` can re-arm only
+while its fill micro candle is still open and the same grandfathered
+pivot/Bollinger condition remains valid. External or protection-driven closes
+never re-arm the closed campaign.
+
+The default remains fixed-point SL, fixed-point trailing step and no fixed TP.
+Optional volatility normalization reuses the existing previous-closed-bar
+Bollinger snapshot; it creates no second indicator handle:
+
+```text
+band_width_points = (upper_band - lower_band) / SYMBOL_POINT
+initial_sl_points = band_width_points * bands_width_percent / 100
+step_points       = initial_sl_points * tp_step_sl_ratio
+fixed_tp_points   = initial_sl_points * fixed_tp_sl_ratio
+```
+
+- `Pivot_HFT_Local_SL_Mode` selects fixed points or full-band-width percent.
+- `Pivot_HFT_Local_SL_Bands_Width_Percent` defaults to `25.0` and is relevant
+  only in band mode.
+- `Pivot_HFT_TP_Step_SL_Ratio = 0.0` keeps
+  `Pivot_HFT_TP_Step_Points`; a positive value derives the step from initial
+  SL.
+- `Pivot_HFT_Fixed_TP_SL_Ratio = 0.0` disables fixed TP; a positive value
+  enables that initial-SL multiple.
+
+With fixed Bollinger deviation `2.0`, full width is approximately `4 sigma`, so
+`25%` is approximately a `1 sigma` volatility scale. This is not a probability
+claim. Lot size remains fixed, so volatility-normalized exits do not create
+constant monetary risk.
 
 Net result includes profit, swap, commission and fee for deals scoped by the
 position identifier, symbol and runtime magic.
@@ -56,7 +83,7 @@ position identifier, symbol and runtime magic.
 | Entrypoint | `HFT_Grid_AI.mq5` |
 | Inputs and sessions | `services/trading_management/ea_inputs.mqh`, `services/trading_management/session_time_filter_context.mqh` |
 | Pivot data and detection | `services/trading_signals/pivot_hft_levels.mqh`, `services/trading_signals/pivot_hft_indicators.mqh`, `services/trading_signals/pivot_hft_detection.mqh` |
-| Execution and lifecycle | `services/trading_signals/pivot_hft_execution.mqh`, `services/trading_signals/pivot_hft_position_lifecycle.mqh` |
+| Risk, execution and lifecycle | `services/trading_signals/pivot_hft_risk_geometry.mqh`, `services/trading_signals/pivot_hft_execution.mqh`, `services/trading_signals/pivot_hft_position_lifecycle.mqh` |
 | Protection and status | `services/trading_signals/protection_risk_filter.mqh`, `services/trading_signals/market_status_controller.mqh` |
 | Frontend | `services/frontend/pivot_hft_panel.mqh`, `services/frontend/pivot_hft_visualization.mqh` |
 
@@ -80,13 +107,15 @@ the historical deterministic seed for compatibility.
   protection closes and debug stops. Occupied-level diagnostics are emitted
   once per unique bar/direction/mask/selection signature.
 - `POSITION_FINALIZED` records the independent `close_trigger` and `net_class`,
-  trigger quote/stop/step, latest exit deal and volume-weighted actual close
-  price. A profitable BE or trailing close is therefore not mislabeled as TP.
+  immutable risk geometry, trigger quote/stop/target/step, latest exit deal and
+  volume-weighted actual close price. A profitable BE or trailing close is
+  therefore not mislabeled as fixed TP.
 - Rotate or clear `query_debug.txt` before a focused tester session so chart,
   broker history and one run id can be correlated without stale evidence.
 - Chart objects use the `PIVOT_HFT_` prefix. The campaign pivot, tracked
   extreme and retracement trigger are separate lines; each live ticket has
   deterministic `POSITION_<ticket>_ENTRY` and `POSITION_<ticket>_STOP` lines.
+  An enabled fixed target adds deterministic `POSITION_<ticket>_TP`.
   A terminally cancelled campaign is shown as `CANCELLED` briefly for visual
   QA; first-test segments and completed ticket objects are removed by the owning
   visual cleanup path.
@@ -94,8 +123,9 @@ the historical deterministic seed for compatibility.
 ## Safety Notes
 
 - MT5 account mode must be `ACCOUNT_MARGIN_MODE_RETAIL_HEDGING`.
-- Local SL/trailing protection requires the EA, terminal and broker connection
-  to remain available. Algo Trading or broker outages can delay a local close.
+- Local SL, trailing and fixed TP protection require the EA, terminal and
+  broker connection to remain available. Algo Trading or broker outages can
+  delay a local close.
 - Spread, margin, session, daily-limit, drawdown, market-status and license
   guards remain authoritative for new entries.
 - Entry indicators are activated only while a configured session window is

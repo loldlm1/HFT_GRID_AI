@@ -79,14 +79,25 @@ string PivotHftBuildPositionPanelLines()
        state.status != PIVOT_HFT_POSITION_CLOSE_WAIT)
       continue;
 
-    text += StringFormat("\n#%I64u %s %s entry %.5f SL %.5f step %d BE %s",
+    string risk_mode = (state.local_sl_mode ==
+                        PIVOT_HFT_LOCAL_SL_BANDS_WIDTH_PERCENT)
+                       ? "BAND%"
+                       : "POINTS";
+    string target_text = "";
+    if(state.local_tp_price > 0.0)
+      target_text = StringFormat(" | TP %.5f", state.local_tp_price);
+
+    text += StringFormat("\n#%I64u %s %s | E %.5f | R %.2fpt %s | SL %.5f | STEP %.2fpt[%d]%s",
                          state.position_ticket,
                          PivotHftDirectionToken(state.direction),
                          PivotHftLevelLabel(state.pivot_level),
                          state.entry_price,
+                         state.initial_sl_points,
+                         risk_mode,
                          state.local_sl_price,
+                         state.trailing_step_points,
                          state.trailing_step_index,
-                         PivotHftPositionAtBreakEvenOrBetter(state) ? "YES" : "NO");
+                         target_text);
     displayed++;
   }
   return text;

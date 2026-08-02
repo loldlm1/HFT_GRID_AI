@@ -54,8 +54,12 @@ reconstruccion.
 | --- | ---: | --- |
 | `Pivot_HFT_Direction_Mode` | Ambas | Habilita compras, ventas o ambas. |
 | `Pivot_HFT_Retracement_Points` | `25.0` | Retroceso desde el extremo Bid/Ask antes de la entrada. |
+| `Pivot_HFT_Local_SL_Mode` | `PIVOT_HFT_LOCAL_SL_POINTS` | Selecciona SL en puntos o porcentaje del ancho completo de Bollinger. |
 | `Pivot_HFT_Local_SL_Points` | `25.0` | Distancia del SL local desde el fill real. |
+| `Pivot_HFT_Local_SL_Bands_Width_Percent` | `25.0` | Porcentaje del ancho superior-inferior; solo aplica en modo bandas. |
 | `Pivot_HFT_TP_Step_Points` | `25.0` | Step 1 a BE y steps posteriores avanzan el SL. |
+| `Pivot_HFT_TP_Step_SL_Ratio` | `0.0` | `0` conserva el step en puntos; `> 0` usa un multiplo del SL inicial. |
+| `Pivot_HFT_Fixed_TP_SL_Ratio` | `0.0` | `0` desactiva TP fijo; `> 0` crea un target como multiplo del SL inicial. |
 | `Pivot_HFT_Lot_Size` | `0.01` | Volumen fijo normalizado al simbolo. |
 | `Pivot_HFT_Enable_Visualization` | `true` | Muestra pivotes, bandas, campana y posiciones. |
 | `Enable_Logs` | `false` | Mensajes compactos en Journal. |
@@ -70,15 +74,52 @@ distancia_precio = puntos * SYMBOL_POINT
 
 No se aplica offset ni tolerancia adicional al pivote.
 
+## Geometria local de salida
+
+El EA reutiliza el unico snapshot Bollinger ya cargado desde la ultima vela
+micro cerrada (`shift=1`) justo antes de enviar la orden. No crea ATR, Keltner,
+otro Bollinger ni otro `CopyBuffer`. La distancia se congela por ticket y los
+precios exactos se anclan al fill verificado del broker:
+
+```text
+ancho_bandas_puntos = (banda_superior - banda_inferior) / SYMBOL_POINT
+
+si modo = PIVOT_HFT_LOCAL_SL_POINTS:
+  sl_inicial_puntos = Pivot_HFT_Local_SL_Points
+
+si modo = PIVOT_HFT_LOCAL_SL_BANDS_WIDTH_PERCENT:
+  sl_inicial_puntos = ancho_bandas_puntos
+                      * Pivot_HFT_Local_SL_Bands_Width_Percent / 100
+
+si Pivot_HFT_TP_Step_SL_Ratio = 0:
+  step_puntos = Pivot_HFT_TP_Step_Points
+si no:
+  step_puntos = sl_inicial_puntos * Pivot_HFT_TP_Step_SL_Ratio
+
+si Pivot_HFT_Fixed_TP_SL_Ratio > 0:
+  tp_fijo_puntos = sl_inicial_puntos * Pivot_HFT_Fixed_TP_SL_Ratio
+```
+
+Con desviacion Bollinger fija `2.0`, el ancho completo es aproximadamente
+`4 sigma`; por eso `25%` aproxima una escala de `1 sigma`. Es una normalizacion
+de volatilidad, no una probabilidad estadistica ni una promesa de rendimiento.
+El lote sigue fijo: ampliar el SL tambien amplia el riesgo monetario aproximado.
+
+SL, BE, trailing y TP fijo son locales. La orden mantiene SL y TP servidor en
+cero, por lo que terminal, EA, Algo Trading y conexion deben permanecer activos.
+
 ## Flujo de ejecucion
 
 1. Venta: `close_0 >= Rn` y `close_0 >= banda_superior`.
 2. Compra: `close_0 <= Sn` y `close_0 <= banda_inferior`.
 3. Venta: sigue el maximo Bid y vende al retroceder la distancia configurada.
 4. Compra: sigue el minimo Ask y compra al rebotar la distancia configurada.
-5. La orden se envia sin SL/TP al servidor.
-6. El fill real define SL local, BE y trailing.
-7. Neto positivo completa el intento. Neto `<= 0` puede rearmar dentro de la
+5. Se resuelve y congela la geometria de salida; una geometria invalida bloquea
+   la entrada.
+6. La orden se envia sin SL/TP al servidor.
+7. El fill real define SL local, step y TP fijo opcional.
+8. El TP fijo se evalua antes de avanzar trailing en el mismo tick favorable.
+9. Neto positivo completa el intento. Neto `<= 0` puede rearmar dentro de la
    vela micro que contiene el fill si el nivel original y Bollinger siguen
    validos para ese reintento heredado.
 
@@ -107,6 +148,7 @@ Cada posicion administrada usa nombres y lineas por ticket:
 - `LOCAL SL`: proteccion inicial local.
 - `BE`: stop movido al precio de entrada.
 - `TRAIL STEP N`: stop local vigente tras cada step del trailing.
+- `FIXED TP`: target local opcional basado en el SL inicial.
 
 Las lineas se actualizan solo cuando cambia su precio o estado, se eliminan al
 completar el ticket y no existen en tester no visual. Ningun objeto del chart
@@ -120,6 +162,7 @@ Los nombres relevantes son deterministas:
 - `PIVOT_HFT_CAMPAIGN_TRIGGER`: precio exacto del retroceso de entrada.
 - `PIVOT_HFT_POSITION_<ticket>_ENTRY`: fill real del broker.
 - `PIVOT_HFT_POSITION_<ticket>_STOP`: SL local, BE o trailing vigente.
+- `PIVOT_HFT_POSITION_<ticket>_TP`: TP fijo local cuando esta habilitado.
 
 ## Auditoria en archivo
 
@@ -155,11 +198,12 @@ payload ya visto. Los reintentos usan el nivel original dentro de la vela real
 del fill.
 
 `POSITION_FINALIZED` separa `close_trigger` (`INITIAL_SL`, `BREAK_EVEN`,
-`TRAILING` o `EXTERNAL`) de `net_class` (`PROFIT`, `LOSS` o `FLAT`). Tambien
-incluye `trigger_time`, `trigger_quote`, `trigger_stop`, `trigger_step`, el
-ultimo `exit_deal`, el numero de deals de salida y `close_price` ponderado por
-volumen. Asi un BE o trailing con neto positivo conserva su causa real sin
-etiquetarse falsamente como TP.
+`TRAILING`, `FIXED_TP` o `EXTERNAL`) de `net_class` (`PROFIT`, `LOSS` o
+`FLAT`). Tambien incluye modo SL, ancho de bandas, SL inicial, step resuelto,
+ratios, `trigger_time`, `trigger_quote`, `trigger_stop`, `trigger_target`,
+`trigger_step`, el ultimo `exit_deal`, el numero de deals de salida y
+`close_price` ponderado por volumen. Asi un BE o trailing con neto positivo
+conserva su causa real sin etiquetarse falsamente como TP fijo.
 
 Rotar o vaciar el archivo antes de una sesion QA enfocada. No usar un log viejo
 como evidencia de la compilacion o del run actual.
@@ -176,6 +220,17 @@ El perfil backend conserva deliberadamente la identidad Pandora. No se cambia
 
 ## Optimizacion del Strategy Tester
 
+- Ejecutar una pasada por modo de SL. En modo puntos, no optimizar
+  `Pivot_HFT_Local_SL_Bands_Width_Percent`; en modo bandas, no optimizar
+  `Pivot_HFT_Local_SL_Points`.
+- Para trailing por puntos, fijar `Pivot_HFT_TP_Step_SL_Ratio=0` y optimizar
+  solo `Pivot_HFT_TP_Step_Points`. Para trailing por riesgo, usar ratio `> 0` y
+  no optimizar el input de puntos inactivo.
+- Para una corrida sin TP fijo, dejar `Pivot_HFT_Fixed_TP_SL_Ratio=0`. Para
+  estudiar R fijo, optimizar solo ese ratio como una dimension adicional.
+- El criterio `OnTester()` usa `STAT_PROFIT / STAT_INITIAL_DEPOSIT`, Sharpe no
+  negativo y el componente logaritmico de cantidad de trades. Un stop forzado
+  conserva score cero.
 - La ventana de sesion se recalcula una vez por minuto, no por tick.
 - El handle de Bollinger se crea solo dentro de una ventana de entrada activa y
   se libera al salir; una posicion ya abierta conserva su gestion local.
@@ -203,21 +258,27 @@ y limpiar o rotar `query_debug.txt`:
    su propia validez aunque repita un precio.
 6. Reinicio o re-attach dentro del mismo H1: la reconstruccion debe producir la
    misma lista de niveles quemados antes de admitir una campana.
-7. Entradas BUY/SELL con SL y TP servidor en cero, y coincidencia entre
-   `ORDER_SEND_RESULT`, `FILL_REGISTERED` e historial del broker.
-8. Lineas de pivote, extremo y trigger antes del fill; despues, lineas
-   `ACTUAL FILL`, `LOCAL SL`, `BE` y `TRAIL STEP N` por ticket.
-9. SL local, BE, steps posteriores, cierre neto y eliminacion visual por ticket.
-   Bajo delay de broker no debe existir mas de una posicion administrada activa;
-   verificar que `close_trigger`, `exit_deal`, `close_price` y `net_class`
-   coincidan con el historial.
-10. Reintento tras perdida o BE solo dentro de la vela micro que contiene el
+7. Baseline legacy con modo puntos, ratio de step `0` y TP fijo `0`; confirmar
+   el mismo SL/step esperado y SL/TP servidor en cero.
+8. Modo bandas con varios porcentajes representativos; correlacionar la ultima
+   vela micro cerrada, ancho completo, SL inicial congelado y fill real.
+9. Comparar step ratio `0` contra ratios positivos. El primer step debe ir a BE
+   y los posteriores solo pueden avanzar, tanto en BUY como en SELL.
+10. Comparar TP fijo `0` contra ratios positivos para BUY/SELL; validar target,
+    prioridad sobre trailing en el mismo tick y reintento tras rechazo/delay.
+11. Lineas de pivote, extremo y trigger antes del fill; despues, lineas
+    `ACTUAL FILL`, `LOCAL SL`, `BE`, `TRAIL STEP N` y `FIXED TP` por ticket.
+12. SL local, BE, steps posteriores, TP fijo, cierre neto y eliminacion visual
+    por ticket. Bajo delay de broker no debe existir mas de una posicion
+    administrada activa; verificar que `close_trigger`, `trigger_target`,
+    `exit_deal`, `close_price` y `net_class` coincidan con el historial.
+13. Reintento tras perdida o BE solo dentro de la vela micro que contiene el
     fill; neto positivo completa la campana y no rearma.
-11. Bloqueos por spread, margen, sesion, limite diario, proteccion y estado del
+14. Bloqueos por spread, margen, sesion, limite diario, proteccion y estado del
     broker, mas cierre de proteccion y `Debug_Stop_On_Negative_Equity`.
-12. Limpieza de handles, comentario y objetos `PIVOT_HFT_` al cancelar, cerrar,
+15. Limpieza de handles, comentario y objetos `PIVOT_HFT_` al cancelar, cerrar,
     retirar o re-adjuntar el EA.
-13. Para cada escenario, correlacionar el chart, historial de ordenes/deals y
+16. Para cada escenario, correlacionar el chart, historial de ordenes/deals y
     las filas del mismo `run` en `query_debug.txt`.
 
 El baseline de cierre fue validado el 2026-08-01 con chart M1, micro M3 y
@@ -227,5 +288,5 @@ SL/trailing y 33 firmas de ocupacion sin duplicados. El plan de implementacion
 queda archivado en `docs/plans/archive/pivot-hft-strategy-plan.md`.
 
 Repetir los controles relevantes al cambiar broker, simbolo o parametros antes
-de live. El SL y el trailing son locales: terminal, EA, Algo Trading y conexion
-deben permanecer activos para ejecutar el cierre.
+de live. El SL, trailing y TP fijo son locales: terminal, EA, Algo Trading y
+conexion deben permanecer activos para ejecutar el cierre.

@@ -419,6 +419,29 @@ void PivotHftDrawPosition(const PivotHftPositionState &state,
                                   false))
     PivotHftTrackDynamicVisual(current_objects,
                                PivotHftVisualObjectName(stop_suffix));
+
+  if(state.local_tp_price > 0.0)
+  {
+    string target_suffix = "POSITION_" + ticket_token + "_TP";
+    string target_label = "FIXED TP";
+    if(state.status == PIVOT_HFT_POSITION_CLOSE_WAIT &&
+       state.close_trigger == PIVOT_HFT_CLOSE_TRIGGER_FIXED_TP)
+      target_label += " CLOSE WAIT";
+
+    if(PivotHftUpdateHorizontalLine(target_suffix,
+                                    state.local_tp_price,
+                                    COLOR_PROFIT_POSITIVE,
+                                    STYLE_DASHDOT,
+                                    2,
+                                    StringFormat("#%s %s %s @ %.5f",
+                                                 ticket_token,
+                                                 direction_label,
+                                                 target_label,
+                                                 state.local_tp_price),
+                                    false))
+      PivotHftTrackDynamicVisual(current_objects,
+                                 PivotHftVisualObjectName(target_suffix));
+  }
 }
 
 void PivotHftDrawPositions(string &current_objects[])

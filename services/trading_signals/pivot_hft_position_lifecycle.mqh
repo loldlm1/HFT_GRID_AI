@@ -213,15 +213,15 @@ void PivotHftUpdateTrailingStop(PivotHftPositionState &position_state)
        PivotHftTickSize() * 0.5)
   {
     PivotHftAuditLog("TRAILING_ADVANCED",
-                     StringFormat("ticket=%I64u|dir=%s|entry=%.5f|previous_sl=%.5f|local_sl=%.5f|step_pts=%.2f|step=%d|be=%d",
+                     StringFormat("ticket=%I64u|dir=%s|entry=%.5f|previous_sl=%.5f|step=%d|be=%d|%s",
                                   position_state.position_ticket,
                                   EnumToString(position_state.direction),
                                   position_state.entry_price,
                                   previous_stop,
-                                  position_state.local_sl_price,
-                                  step_points,
                                   position_state.trailing_step_index,
-                                  (int)(position_state.trailing_step_index >= 1)));
+                                  (int)(position_state.trailing_step_index >= 1),
+                                  PivotHftPositionRiskAuditFields(
+                                    position_state)));
   }
 }
 
@@ -476,7 +476,7 @@ void PivotHftFinalizeClosedPosition(PivotHftPositionState &position_state)
   position_state.reattempt_pending = (net_result <= 0.0 &&
                                       position_state.close_requested);
   PivotHftAuditLog("POSITION_FINALIZED",
-                   StringFormat("ticket=%I64u|position_id=%I64u|dir=%s|level=%s|close_trigger=%s|trigger_time=%I64d|trigger_quote=%.5f|trigger_stop=%.5f|trigger_target=%.5f|trigger_step=%d|exit_deal=%I64u|close_price=%.5f|exit_deals=%d|net=%.2f|net_class=%s|close_requested=%d|close_confirmed=%d|reattempt=%d|close_time=%I64d",
+                   StringFormat("ticket=%I64u|position_id=%I64u|dir=%s|level=%s|close_trigger=%s|trigger_time=%I64d|trigger_quote=%.5f|trigger_stop=%.5f|trigger_target=%.5f|trigger_step=%d|exit_deal=%I64u|close_price=%.5f|exit_deals=%d|net=%.2f|net_class=%s|close_requested=%d|close_confirmed=%d|reattempt=%d|close_time=%I64d|%s",
                                  position_state.position_ticket,
                                  position_state.position_identifier,
                                  EnumToString(position_state.direction),
@@ -496,7 +496,9 @@ void PivotHftFinalizeClosedPosition(PivotHftPositionState &position_state)
                                  (int)position_state.close_requested,
                                  (int)position_state.close_send_confirmed,
                                  (int)position_state.reattempt_pending,
-                                 (long)position_state.close_time));
+                                 (long)position_state.close_time,
+                                 PivotHftPositionRiskAuditFields(
+                                   position_state)));
   if(!position_state.daily_outcome_registered)
   {
     RegisterDailySignalOutcome(position_state.direction, net_result);
@@ -533,7 +535,7 @@ bool PivotHftClosePositionLocally(PivotHftPositionState &position_state)
        now_time - position_state.last_close_audit_time >= 30)
     {
       PivotHftAuditLog("LOCAL_CLOSE_FAILED",
-                       StringFormat("ticket=%I64u|ret=%I64u|err=%d|close_trigger=%s|trigger_quote=%.5f|trigger_stop=%.5f|trigger_target=%.5f|trigger_step=%d",
+                       StringFormat("ticket=%I64u|ret=%I64u|err=%d|close_trigger=%s|trigger_quote=%.5f|trigger_stop=%.5f|trigger_target=%.5f|trigger_step=%d|%s",
                                      position_state.position_ticket,
                                      retcode,
                                      last_error,
@@ -542,7 +544,9 @@ bool PivotHftClosePositionLocally(PivotHftPositionState &position_state)
                                      position_state.close_trigger_quote,
                                      position_state.close_trigger_stop,
                                      position_state.close_trigger_target,
-                                     position_state.close_trigger_step));
+                                     position_state.close_trigger_step,
+                                     PivotHftPositionRiskAuditFields(
+                                       position_state)));
       position_state.last_close_audit_time = now_time;
     }
     position_state.close_requested = false;
@@ -567,7 +571,7 @@ bool PivotHftClosePositionLocally(PivotHftPositionState &position_state)
        now_time - position_state.last_close_audit_time >= 30)
     {
       PivotHftAuditLog("LOCAL_CLOSE_REJECTED",
-                       StringFormat("ticket=%I64u|ret=%I64u|err=%d|close_trigger=%s|trigger_quote=%.5f|trigger_stop=%.5f|trigger_target=%.5f|trigger_step=%d|result_deal=%I64u|result_price=%.5f",
+                       StringFormat("ticket=%I64u|ret=%I64u|err=%d|close_trigger=%s|trigger_quote=%.5f|trigger_stop=%.5f|trigger_target=%.5f|trigger_step=%d|result_deal=%I64u|result_price=%.5f|%s",
                                      position_state.position_ticket,
                                      retcode,
                                      last_error,
@@ -578,7 +582,9 @@ bool PivotHftClosePositionLocally(PivotHftPositionState &position_state)
                                      position_state.close_trigger_target,
                                      position_state.close_trigger_step,
                                      result_deal_ticket,
-                                     result_price));
+                                     result_price,
+                                     PivotHftPositionRiskAuditFields(
+                                       position_state)));
       position_state.last_close_audit_time = now_time;
     }
     position_state.close_requested = false;
@@ -589,7 +595,7 @@ bool PivotHftClosePositionLocally(PivotHftPositionState &position_state)
 
   MarketStatusClearExecutionError("PIVOT_HFT_LOCAL_CLOSE_OK");
   PivotHftAuditLog("LOCAL_CLOSE_SENT",
-                   StringFormat("ticket=%I64u|ret=%I64u|close_trigger=%s|trigger_quote=%.5f|trigger_stop=%.5f|trigger_target=%.5f|trigger_step=%d|result_deal=%I64u|result_price=%.5f|result_volume=%.2f",
+                   StringFormat("ticket=%I64u|ret=%I64u|close_trigger=%s|trigger_quote=%.5f|trigger_stop=%.5f|trigger_target=%.5f|trigger_step=%d|result_deal=%I64u|result_price=%.5f|result_volume=%.2f|%s",
                                  position_state.position_ticket,
                                  retcode,
                                  PivotHftCloseTriggerLabel(
@@ -600,7 +606,9 @@ bool PivotHftClosePositionLocally(PivotHftPositionState &position_state)
                                  position_state.close_trigger_step,
                                  result_deal_ticket,
                                  result_price,
-                                 result_volume));
+                                 result_volume,
+                                 PivotHftPositionRiskAuditFields(
+                                   position_state)));
   position_state.close_requested = true;
   position_state.close_send_confirmed =
     (retcode == TRADE_RETCODE_DONE);

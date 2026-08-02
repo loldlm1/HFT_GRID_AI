@@ -193,13 +193,17 @@ int OnInit()
 
   PivotHftAuditInitialize();
   PivotHftAuditLog("CONFIG",
-                   StringFormat("micro_tf=%s|pivot_tf=%s|direction=%s|retrace_pts=%.2f|local_sl_pts=%.2f|step_pts=%.2f|lot=%.2f|visual=%d",
+                   StringFormat("micro_tf=%s|pivot_tf=%s|direction=%s|retrace_pts=%.2f|sl_mode=%s|local_sl_pts=%.2f|bands_width_pct=%.2f|step_pts=%.2f|step_sl_ratio=%.4f|fixed_tp_sl_ratio=%.4f|lot=%.2f|visual=%d",
                                 EnumToString(Pivot_HFT_Micro_Timeframe),
                                 EnumToString(Pivot_HFT_Pivot_Timeframe),
                                 EnumToString(Pivot_HFT_Direction_Mode),
                                 Pivot_HFT_Retracement_Points,
+                                EnumToString(Pivot_HFT_Local_SL_Mode),
                                 Pivot_HFT_Local_SL_Points,
+                                Pivot_HFT_Local_SL_Bands_Width_Percent,
                                 Pivot_HFT_TP_Step_Points,
+                                Pivot_HFT_TP_Step_SL_Ratio,
+                                Pivot_HFT_Fixed_TP_SL_Ratio,
                                 Pivot_HFT_Lot_Size,
                                 (int)Pivot_HFT_Enable_Visualization));
 
@@ -407,14 +411,14 @@ double OnTester()
     return 0.0;
 
   double initial_deposit = TesterStatistics(STAT_INITIAL_DEPOSIT);
-  double final_balance   = TesterStatistics(STAT_PROFIT);
+  double net_profit      = TesterStatistics(STAT_PROFIT);
   double sharpe_ratio    = TesterStatistics(STAT_SHARPE_RATIO);
   double trades_total    = TesterStatistics(STAT_TRADES);
 
   if(initial_deposit <= 0.0 || trades_total <= 0.0)
     return 0.0;
 
-  double growth = (final_balance - initial_deposit) / initial_deposit; // normalized growth
+  double growth = net_profit / initial_deposit; // STAT_PROFIT is already net profit.
   if(growth < 0.0)
     growth = 0.0;
 
