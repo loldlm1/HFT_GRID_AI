@@ -573,46 +573,89 @@ bool PivotHftTryRearmClosedPosition(PivotHftPositionState &position_state)
   if(!position_state.reattempt_pending)
     return false;
 
+  PivotHftPrepareNextRetryDecision(position_state);
   datetime current_micro_bar = PivotHftCurrentMicroBar();
-  if(current_micro_bar <= 0 ||
-     current_micro_bar != position_state.entry_micro_bar_time)
+  if(current_micro_bar <= 0)
   {
-    PivotHftAuditLog("REARM_EXPIRED",
-                     StringFormat("%s|level=%s|origin_bar=%I64d|fill_bar=%I64d|current_bar=%I64d",
-                                  PivotHftPositionAuditIdentityFields(
-                                    position_state),
-                                  PivotHftLevelLabel(position_state.pivot_level),
-                                  (long)position_state.campaign_micro_bar_time,
-                                  (long)position_state.entry_micro_bar_time,
-                                  (long)current_micro_bar));
-    position_state.reattempt_pending = false;
-    position_state.status = PIVOT_HFT_POSITION_COMPLETED;
+    PivotHftSetRetryState(position_state,
+                          PIVOT_HFT_RETRY_DEFERRED,
+                          "micro_bar_unavailable");
     return false;
   }
   if(g_pivot_hft_campaign.status != PIVOT_HFT_CAMPAIGN_IDLE)
+  {
+    PivotHftSetRetryState(position_state,
+                          PIVOT_HFT_RETRY_DEFERRED,
+                          "campaign_slot_busy");
     return false;
+  }
   if(PivotHftHasOtherBlockingPositionLifecycle(
        PivotHftPositionExecutionId(position_state),
-       position_state.position_ticket) ||
-     PivotHftHasManagedBrokerPosition())
+       position_state.position_ticket))
+  {
+    PivotHftSetRetryState(position_state,
+                          PIVOT_HFT_RETRY_DEFERRED,
+                          "position_lifecycle_busy");
     return false;
+  }
+  if(PivotHftHasManagedBrokerPosition())
+  {
+    PivotHftSetRetryState(position_state,
+                          PIVOT_HFT_RETRY_DEFERRED,
+                          "broker_position_busy");
+    return false;
+  }
 
-  int retry_ordinal = position_state.campaign_retry_ordinal + 1;
-  if(retry_ordinal <= 1)
-    retry_ordinal = 2;
-  int retry_number = PivotHftMarketRetryNumber(retry_ordinal);
+  int retry_ordinal = position_state.next_retry_ordinal;
+  int retry_number = position_state.next_retry_number;
   PivotHftExecutionSources next_execution_source =
-    PivotHftExecutionSourceForRetry(retry_number);
-  if(!ProtectionRiskAllowsSignalAttempt() ||
-     !SessionTimeFilterAllowsSignalAttempt() ||
-     (next_execution_source == PIVOT_HFT_EXECUTION_BROKER &&
-      !DailySignalLimitAllowsAttempt(position_state.direction)) ||
-     !MarketStatusAllowsSignalAttempts())
+    position_state.next_retry_execution_source;
+  if(!ProtectionRiskAllowsSignalAttempt())
+  {
+    PivotHftSetRetryState(position_state,
+                          PIVOT_HFT_RETRY_DEFERRED,
+                          "protection_block");
     return false;
+  }
+  if(!SessionTimeFilterAllowsSignalAttempt())
+  {
+    PivotHftSetRetryState(position_state,
+                          PIVOT_HFT_RETRY_DEFERRED,
+                          "session_block");
+    return false;
+  }
+  if(next_execution_source == PIVOT_HFT_EXECUTION_BROKER &&
+     !DailySignalLimitAllowsAttempt(position_state.direction))
+  {
+    PivotHftSetRetryState(position_state,
+                          PIVOT_HFT_RETRY_DEFERRED,
+                          "daily_limit");
+    return false;
+  }
+  if(!MarketStatusAllowsSignalAttempts())
+  {
+    PivotHftSetRetryState(position_state,
+                          PIVOT_HFT_RETRY_DEFERRED,
+                          "market_status");
+    return false;
+  }
 
-  if(!PivotHftRefreshPivotSnapshot(false) ||
-     !PivotHftIndicatorsReady())
+  if(!PivotHftRefreshPivotSnapshot(false))
+  {
+    PivotHftSetRetryState(position_state,
+                          PIVOT_HFT_RETRY_DEFERRED,
+                          "pivot_snapshot_wait");
     return false;
+  }
+  if(!position_state.reattempt_pending)
+    return false;
+  if(!PivotHftIndicatorsReady())
+  {
+    PivotHftSetRetryState(position_state,
+                          PIVOT_HFT_RETRY_DEFERRED,
+                          "indicators_wait");
+    return false;
+  }
 
   double current_level_price = 0.0;
   if(!PivotHftPositionPivotSetStillAllowsRearm(position_state,
@@ -628,13 +671,21 @@ bool PivotHftTryRearmClosedPosition(PivotHftPositionState &position_state)
                                   (long)position_state.entry_micro_bar_time,
                                   (long)current_micro_bar));
     position_state.reattempt_pending = false;
+    PivotHftSetRetryState(position_state,
+                          PIVOT_HFT_RETRY_INVALIDATED,
+                          "pivot_set_changed");
     position_state.status = PIVOT_HFT_POSITION_COMPLETED;
     return false;
   }
 
   double fresh_extreme = PivotHftCurrentEntryQuote(position_state.direction);
   if(fresh_extreme <= 0.0)
+  {
+    PivotHftSetRetryState(position_state,
+                          PIVOT_HFT_RETRY_DEFERRED,
+                          "entry_quote_unavailable");
     return false;
+  }
 
   PivotHftStartCampaign(position_state.direction,
                         position_state.pivot_level,
@@ -650,6 +701,9 @@ bool PivotHftTryRearmClosedPosition(PivotHftPositionState &position_state)
                         position_state.estimated_cost_per_lot);
   g_pivot_hft_campaign.tracked_extreme = fresh_extreme;
   position_state.reattempt_pending = false;
+  PivotHftSetRetryState(position_state,
+                        PIVOT_HFT_RETRY_REARMED,
+                        "campaign_rearmed");
   position_state.campaign_attempt_count = g_pivot_hft_campaign.attempt_count;
   position_state.campaign_retry_ordinal =
     g_pivot_hft_campaign.retry_ordinal;
@@ -700,14 +754,35 @@ void PivotHftCompletePositionFinalization(
   position_state.status = PIVOT_HFT_POSITION_CLOSED;
 
   bool retry_eligible = (net_result <= 0.0 &&
-                         position_state.close_requested);
+                          position_state.close_requested &&
+                          position_state.close_trigger !=
+                            PIVOT_HFT_CLOSE_TRIGGER_EXTERNAL);
   int current_retry_number = PivotHftMarketRetryNumber(
     position_state.campaign_retry_ordinal);
-  int next_retry_number = current_retry_number + 1;
+  PivotHftPrepareNextRetryDecision(position_state);
+  int next_retry_number = position_state.next_retry_number;
   PivotHftExecutionSources next_execution_source =
-    PivotHftExecutionSourceForRetry(next_retry_number);
+    position_state.next_retry_execution_source;
   position_state.reattempt_pending =
     (retry_eligible && Pivot_HFT_Start_Real_Retry > 0);
+  if(position_state.reattempt_pending)
+  {
+    PivotHftSetRetryState(position_state,
+                          PIVOT_HFT_RETRY_PENDING,
+                          "eligible_non_positive_close");
+  }
+  else if(retry_eligible)
+  {
+    PivotHftSetRetryState(position_state,
+                          PIVOT_HFT_RETRY_DISABLED,
+                          "start_real_retry_zero");
+  }
+  else
+  {
+    PivotHftSetRetryState(position_state,
+                          PIVOT_HFT_RETRY_NONE,
+                          "");
+  }
 
   PivotHftAuditLog("POSITION_FINALIZED",
                    StringFormat("%s|position_id=%I64u|dir=%s|level=%s|close_trigger=%s|trigger_time=%I64d|trigger_quote=%.5f|trigger_stop=%.5f|trigger_target=%.5f|trigger_step=%d|exit_deal=%I64u|close_price=%.5f|exit_deals=%d|net=%.5f|net_class=%s|close_requested=%d|close_confirmed=%d|retry_number=%d|retry_ordinal=%d|next_retry_number=%d|next_execution_source=%s|start_real_retry=%d|reattempt=%d|close_time=%I64d|%s|%s",
@@ -742,7 +817,9 @@ void PivotHftCompletePositionFinalization(
                                    position_state),
                                  PivotHftExecutionModelAuditFields(
                                    position_state)));
-  if(retry_eligible && !position_state.reattempt_pending)
+  if(retry_eligible &&
+     !position_state.reattempt_pending &&
+     Pivot_HFT_Start_Real_Retry == 0)
   {
     PivotHftAuditLog("RETRY_DISABLED",
                      StringFormat("%s|sequence=%s|dir=%s|level=%s|retry_number=%d|retry_ordinal=%d|next_retry_number=%d|start_real_retry=%d|net=%.5f|close_trigger=%s",

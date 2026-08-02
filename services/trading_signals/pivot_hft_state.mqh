@@ -13,6 +13,16 @@ enum PivotHftExecutionSources
   PIVOT_HFT_EXECUTION_VIRTUAL = 1
 };
 
+enum PivotHftRetryStates
+{
+  PIVOT_HFT_RETRY_NONE        = 0,
+  PIVOT_HFT_RETRY_PENDING     = 1,
+  PIVOT_HFT_RETRY_DEFERRED    = 2,
+  PIVOT_HFT_RETRY_REARMED     = 3,
+  PIVOT_HFT_RETRY_DISABLED    = 4,
+  PIVOT_HFT_RETRY_INVALIDATED = 5
+};
+
 enum PivotHftLevelTestStatuses
 {
   PIVOT_HFT_LEVEL_UNTESTED      = 0,
@@ -152,6 +162,7 @@ struct PivotHftPositionState
   PivotHftExecutionSources execution_source;
   PivotHftCloseTriggers    close_trigger;
   PivotHftNetClasses       net_class;
+  PivotHftRetryStates      retry_state;
   SignalTypes              direction;
   PivotHftPivotLevels      pivot_level;
   ulong                    position_ticket;
@@ -165,6 +176,7 @@ struct PivotHftPositionState
   datetime                 entry_time;
   datetime                 close_trigger_time;
   datetime                 close_time;
+  datetime                 retry_state_time;
   datetime                 risk_bands_source_bar;
   double                   pivot_price;
   double                   entry_price;
@@ -193,10 +205,14 @@ struct PivotHftPositionState
   int                      close_trigger_step;
   int                      campaign_attempt_count;
   int                      campaign_retry_ordinal;
+  int                      next_retry_ordinal;
+  int                      next_retry_number;
+  PivotHftExecutionSources next_retry_execution_source;
   string                   execution_id;
   string                   campaign_retry_source_id;
   string                   campaign_sequence_id;
   string                   position_comment;
+  string                   retry_state_reason;
   PivotHftEntrySafetySnapshot entry_safety;
   double                   entry_safety_close_quote;
   double                   entry_safety_actual_spread_points;
@@ -216,6 +232,7 @@ struct PivotHftPositionState
     execution_source       = PIVOT_HFT_EXECUTION_BROKER;
     close_trigger          = PIVOT_HFT_CLOSE_TRIGGER_NONE;
     net_class              = PIVOT_HFT_NET_NONE;
+    retry_state            = PIVOT_HFT_RETRY_NONE;
     direction              = NO_SIGNAL;
     pivot_level            = PIVOT_HFT_LEVEL_NONE;
     position_ticket        = 0;
@@ -229,6 +246,7 @@ struct PivotHftPositionState
     entry_time             = 0;
     close_trigger_time     = 0;
     close_time             = 0;
+    retry_state_time       = 0;
     risk_bands_source_bar  = 0;
     pivot_price             = 0.0;
     entry_price            = 0.0;
@@ -257,10 +275,14 @@ struct PivotHftPositionState
     close_trigger_step     = 0;
     campaign_attempt_count = 0;
     campaign_retry_ordinal = 0;
+    next_retry_ordinal     = 0;
+    next_retry_number      = 0;
+    next_retry_execution_source = PIVOT_HFT_EXECUTION_BROKER;
     execution_id           = "";
     campaign_retry_source_id = "";
     campaign_sequence_id   = "";
     position_comment       = "";
+    retry_state_reason     = "";
     entry_safety           = PivotHftEntrySafetySnapshot();
     entry_safety_close_quote = 0.0;
     entry_safety_actual_spread_points = 0.0;
@@ -295,6 +317,62 @@ string PivotHftExecutionSourceLabel(
   const PivotHftExecutionSources source)
 {
   return (source == PIVOT_HFT_EXECUTION_VIRTUAL) ? "VIRTUAL" : "BROKER";
+}
+
+string PivotHftRetryStateLabel(const PivotHftRetryStates retry_state)
+{
+  switch(retry_state)
+  {
+    case PIVOT_HFT_RETRY_PENDING:
+      return "PENDING";
+    case PIVOT_HFT_RETRY_DEFERRED:
+      return "DEFERRED";
+    case PIVOT_HFT_RETRY_REARMED:
+      return "REARMED";
+    case PIVOT_HFT_RETRY_DISABLED:
+      return "DISABLED";
+    case PIVOT_HFT_RETRY_INVALIDATED:
+      return "INVALIDATED";
+    case PIVOT_HFT_RETRY_NONE:
+    default:
+      return "NONE";
+  }
+}
+
+void PivotHftResolveNextRetryDecision(
+  const PivotHftPositionState &position_state,
+  int &retry_ordinal,
+  int &retry_number,
+  PivotHftExecutionSources &execution_source)
+{
+  retry_ordinal = position_state.campaign_retry_ordinal + 1;
+  if(retry_ordinal <= 1)
+    retry_ordinal = 2;
+  retry_number = PivotHftMarketRetryNumber(retry_ordinal);
+  execution_source = PivotHftExecutionSourceForRetry(retry_number);
+}
+
+void PivotHftPrepareNextRetryDecision(
+  PivotHftPositionState &position_state)
+{
+  PivotHftResolveNextRetryDecision(
+    position_state,
+    position_state.next_retry_ordinal,
+    position_state.next_retry_number,
+    position_state.next_retry_execution_source);
+}
+
+void PivotHftSetRetryState(PivotHftPositionState &position_state,
+                           const PivotHftRetryStates retry_state,
+                           const string reason)
+{
+  if(position_state.retry_state == retry_state &&
+     position_state.retry_state_reason == reason)
+    return;
+
+  position_state.retry_state = retry_state;
+  position_state.retry_state_reason = reason;
+  position_state.retry_state_time = TimeCurrent();
 }
 
 string PivotHftPositionExecutionId(const PivotHftPositionState &position_state)
@@ -778,6 +856,50 @@ bool PivotHftHasOtherBlockingPositionLifecycle(
       return true;
   }
   return false;
+}
+
+int PivotHftInvalidatePendingRetries(const string reason,
+                                     const datetime current_micro_bar)
+{
+  int invalidated = 0;
+  int total = ArraySize(g_pivot_hft_positions);
+  for(int i = 0; i < total; i++)
+  {
+    if(!g_pivot_hft_positions[i].reattempt_pending)
+      continue;
+
+    PivotHftPositionState state = g_pivot_hft_positions[i];
+    PivotHftPrepareNextRetryDecision(state);
+    PivotHftAuditLog("REARM_INVALIDATED",
+                     StringFormat("%s|sequence=%s|dir=%s|level=%s|current_retry_number=%d|next_retry_number=%d|next_execution_source=%s|reason=%s|origin_bar=%I64d|fill_bar=%I64d|current_bar=%I64d",
+                                  PivotHftPositionAuditIdentityFields(state),
+                                  state.campaign_sequence_id,
+                                  EnumToString(state.direction),
+                                  EnumToString(state.pivot_level),
+                                  PivotHftMarketRetryNumber(
+                                    state.campaign_retry_ordinal),
+                                  state.next_retry_number,
+                                  PivotHftExecutionSourceLabel(
+                                    state.next_retry_execution_source),
+                                  reason,
+                                  (long)state.campaign_micro_bar_time,
+                                  (long)state.entry_micro_bar_time,
+                                  (long)current_micro_bar));
+
+    g_pivot_hft_positions[i].next_retry_ordinal =
+      state.next_retry_ordinal;
+    g_pivot_hft_positions[i].next_retry_number =
+      state.next_retry_number;
+    g_pivot_hft_positions[i].next_retry_execution_source =
+      state.next_retry_execution_source;
+    g_pivot_hft_positions[i].reattempt_pending = false;
+    PivotHftSetRetryState(g_pivot_hft_positions[i],
+                          PIVOT_HFT_RETRY_INVALIDATED,
+                          reason);
+    g_pivot_hft_positions[i].status = PIVOT_HFT_POSITION_COMPLETED;
+    invalidated++;
+  }
+  return invalidated;
 }
 
 bool PivotHftHasManagedBrokerPosition()

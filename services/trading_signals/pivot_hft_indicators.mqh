@@ -63,15 +63,19 @@ bool PivotHftSetSignalResourcesActive(const bool should_be_active)
 {
   if(!should_be_active)
   {
+    datetime current_micro_bar =
+      iTime(_Symbol, Pivot_HFT_Micro_Timeframe, 0);
     if(g_pivot_hft_bands_handle != INVALID_HANDLE)
     {
       PivotHftAuditLog("SIGNAL_RESOURCES_DISABLED", "reason=session_closed");
       PivotHftReleaseIndicators();
     }
+    PivotHftInvalidatePendingRetries("session_closed",
+                                     current_micro_bar);
     if(g_pivot_hft_campaign.status != PIVOT_HFT_CAMPAIGN_IDLE)
       PivotHftCancelPendingCampaign(
         "session_closed",
-        iTime(_Symbol, Pivot_HFT_Micro_Timeframe, 0));
+        current_micro_bar);
     return true;
   }
 
