@@ -7,6 +7,7 @@
 struct PivotPriceLadder
 {
   bool   valid;
+  double source_open;
   double source_high;
   double source_low;
   double source_close;
@@ -27,6 +28,7 @@ struct PivotPriceLadder
   void Reset()
   {
     valid        = false;
+    source_open  = 0.0;
     source_high  = 0.0;
     source_low   = 0.0;
     source_close = 0.0;
@@ -41,6 +43,7 @@ struct PivotPriceLadder
   void CopyFrom(const PivotPriceLadder &other)
   {
     valid        = other.valid;
+    source_open  = other.source_open;
     source_high  = other.source_high;
     source_low   = other.source_low;
     source_close = other.source_close;
@@ -63,7 +66,8 @@ bool PivotSourceCandleValid(const MqlRates &source_rate,
     reason_out = "INVALID_SOURCE_TIME";
     return false;
   }
-  if(!MathIsValidNumber(source_rate.high) ||
+  if(!MathIsValidNumber(source_rate.open) ||
+     !MathIsValidNumber(source_rate.high) ||
      !MathIsValidNumber(source_rate.low) ||
      !MathIsValidNumber(source_rate.close))
   {
@@ -73,6 +77,11 @@ bool PivotSourceCandleValid(const MqlRates &source_rate,
   if(source_rate.low <= 0.0 || source_rate.high <= source_rate.low)
   {
     reason_out = "INVALID_SOURCE_RANGE";
+    return false;
+  }
+  if(source_rate.open < source_rate.low || source_rate.open > source_rate.high)
+  {
+    reason_out = "SOURCE_OPEN_OUTSIDE_RANGE";
     return false;
   }
   if(source_rate.close < source_rate.low || source_rate.close > source_rate.high)
@@ -124,12 +133,14 @@ bool BuildClassicPivotPriceLadder(const string symbol,
   if(!PivotSourceCandleValid(source_rate, reason_out))
     return false;
 
+  double open  = source_rate.open;
   double high  = source_rate.high;
   double low   = source_rate.low;
   double close = source_rate.close;
   double range = high - low;
   double pp    = (high + low + close) / 3.0;
 
+  levels_out.source_open  = open;
   levels_out.source_high  = high;
   levels_out.source_low   = low;
   levels_out.source_close = close;

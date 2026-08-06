@@ -20,6 +20,7 @@ bool LoadPivotBandsHandle(const ENUM_TIMEFRAMES timeframe,
                           PivotBandsHandleInfo &handle_out)
 {
   handle_out.Reset(timeframe);
+  ResetLastError();
   handle_out.indicator_handle = iBands(_Symbol,
                                        timeframe,
                                        PIVOT_CONTEXT_BANDS_PERIOD,

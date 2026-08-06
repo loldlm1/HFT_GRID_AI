@@ -25,13 +25,13 @@ const string PIVOT_V9_SUMMARY_FILE  = "run_summary.tsv";
 const string PIVOT_V9_MANIFEST_HEADER =
   "schema_version\tkey\tvalue";
 const string PIVOT_V9_WINDOWS_HEADER =
-  "schema_version\trun_id\tconfig_id\twindow_id\tsymbol\tpivot_timeframe\tactive_bar_open_broker_time\tactive_bar_open_analysis_time\tactive_bar_open_offset_minutes\tsource_bar_open_broker_time\tsource_bar_open_analysis_time\tsource_bar_open_offset_minutes\tsource_close_boundary_broker_time\tsource_close_boundary_analysis_time\tsource_close_boundary_offset_minutes\tsource_high\tsource_low\tsource_close\tsource_range\twindow_state\tinvalid_reason\tterminal_broker_time\tterminal_analysis_time\tterminal_offset_minutes\tterminal_status";
+  "schema_version\trun_id\tconfig_id\twindow_id\tsymbol\tpivot_timeframe\tactive_bar_open_broker_time\tactive_bar_open_analysis_time\tactive_bar_open_offset_minutes\tsource_bar_open_broker_time\tsource_bar_open_analysis_time\tsource_bar_open_offset_minutes\tsource_close_boundary_broker_time\tsource_close_boundary_analysis_time\tsource_close_boundary_offset_minutes\tsource_open\tsource_high\tsource_low\tsource_close\tsource_range\tfirst_observed_broker_time\tfirst_observed_analysis_time\tfirst_observed_offset_minutes\tfirst_observed_bid\tpp_initial_relation\tpp_role\tpp_arm_broker_time\tpp_arm_analysis_time\tpp_arm_offset_minutes\tpp_arm_bid\tmacro_band_base_1\tmacro_band_upper_1\tmacro_band_lower_1\tmacro_band_width_1\tmacro_band_width_percent_1\tmacro_band_complete\tmacro_band_invalid_reason\twindow_state\tinvalid_reason\tterminal_broker_time\tterminal_analysis_time\tterminal_offset_minutes\tterminal_status";
 const string PIVOT_V9_LEVELS_HEADER =
   "schema_version\trun_id\tconfig_id\twindow_id\tsymbol\tpivot_timeframe\tactive_bar_open_broker_time\tlevel_id\traw_price\ttrade_price\tlevel_order";
 const string PIVOT_V9_ATTEMPTS_HEADER =
-  "schema_version\trun_id\tconfig_id\tsignal_id\twindow_id\tsymbol\tpivot_timeframe\tactive_bar_open_broker_time\tlevel_id\tdirection\ttrigger_broker_time\ttrigger_analysis_time\ttrigger_offset_minutes\tprevious_m1_bar_open_broker_time\tprevious_m1_close_boundary_broker_time\tprevious_m1_bid_close\ttrigger_bid\ttrigger_ask\tspread_points\tintended_entry_price\tinitial_stop_loss\tterminal_take_profit\troute_status\tattempt_status\tblock_source\tblock_reason\tfeature_snapshot_complete\tsend_attempted";
+  "schema_version\trun_id\tconfig_id\tsignal_id\twindow_id\tsymbol\tpivot_timeframe\tactive_bar_open_broker_time\tlevel_id\tdirection\ttrigger_broker_time\ttrigger_analysis_time\ttrigger_offset_minutes\ttrigger_bid\ttrigger_ask\tspread_points\tintended_entry_price\tinitial_stop_loss\tterminal_take_profit\troute_status\tattempt_status\tblock_source\tblock_reason\tfeature_snapshot_complete\tsend_attempted";
 const string PIVOT_V9_FEATURES_HEADER =
-  "schema_version\trun_id\tconfig_id\tsignal_id\twindow_id\tsymbol\tpivot_timeframe\tactive_bar_open_broker_time\tlevel_id\tdirection\ttrigger_broker_time\ttrigger_analysis_time\ttrigger_offset_minutes\tcontext_timeframe\tb_percent_0\tb_percent_1\tb_percent_2\tb_percent_3\tb_percent_4\tb_percent_5\tb_percent_complete\tfeature_complete\tinvalid_reason";
+  "schema_version\trun_id\tconfig_id\tsignal_id\twindow_id\tsymbol\tpivot_timeframe\tactive_bar_open_broker_time\tlevel_id\tdirection\ttrigger_broker_time\ttrigger_analysis_time\ttrigger_offset_minutes\tmicro_band_base_0\tmicro_band_upper_0\tmicro_band_lower_0\tmicro_band_width_0\tmicro_band_width_percent_0\tmicro_b_percent_0\tmicro_b_percent_1\tmicro_b_percent_2\tmicro_b_percent_3\tmicro_b_percent_4\tmicro_b_percent_5\tmacro_pivot_b_percent_0\tmacro_pivot_b_percent_1\tmacro_pivot_b_percent_2\tmacro_pivot_b_percent_3\tmacro_pivot_b_percent_4\tmacro_pivot_b_percent_5\tmicro_features_complete\tmacro_features_complete\tfeature_complete\tinvalid_reason";
 const string PIVOT_V9_CHECKS_HEADER =
   "schema_version\trun_id\tconfig_id\tsignal_id\twindow_id\tcheck_sequence\tcheck_phase\tbroker_time\tanalysis_time\toffset_minutes\tsymbol\tdirection\taccount_margin_mode\taccount_margin_mode_supported\tsymbol_trade_mode\tsymbol_trade_mode_allowed\tmarket_session_open\taccount_trade_allowed\taccount_expert_trade_allowed\tterminal_trade_allowed\tmql_trade_allowed\tbid\task\tspread_points\tpoint_size\tstops_distance_points\tfreeze_distance_points\tplanned_entry_price\tstop_loss_price\ttake_profit_price\trisk_distance\trequested_volume\tnormalized_volume\tvolume_min\tvolume_max\tvolume_step\tvolume_valid\taccount_balance\tfree_margin\trequired_margin\tmargin_valid\tgeometry_valid\tstop_distance_valid\tfreeze_distance_valid\torder_check_performed\torder_check_allowed\torder_check_retcode\torder_check_comment\tallowed\tblock_source\tblock_reason\tsend_retcode\tsend_comment\torder_ticket\tdeal_ticket\tposition_ticket\tposition_identifier\tbroker_entry_confirmed\tbroker_close_confirmed\tbroker_entry_price\tbroker_volume\tbroker_stop_loss\tbroker_take_profit\tclose_price\tclosed_volume\trealized_profit\tterminal_reason";
 const string PIVOT_V9_TRAILING_HEADER =
@@ -50,9 +50,6 @@ struct PivotV9AttemptPayload
   PivotLevelIds level_id;
   SignalTypes direction;
   datetime trigger_time;
-  datetime previous_m1_bar_open;
-  datetime previous_m1_close_boundary;
-  double previous_m1_bid_close;
   double trigger_bid;
   double trigger_ask;
   double spread_points;
@@ -75,9 +72,6 @@ struct PivotV9AttemptPayload
     level_id                  = PIVOT_LEVEL_PP;
     direction                 = NO_SIGNAL;
     trigger_time              = 0;
-    previous_m1_bar_open      = 0;
-    previous_m1_close_boundary = 0;
-    previous_m1_bid_close     = 0.0;
     trigger_bid               = 0.0;
     trigger_ask               = 0.0;
     spread_points             = 0.0;
@@ -358,6 +352,26 @@ string PivotV9WindowStateToken(const PivotWindowStates state)
   return "UNKNOWN";
 }
 
+string PivotV9PriceSideToken(const PivotPriceSideStates side)
+{
+  switch(side)
+  {
+    case PIVOT_PRICE_SIDE_BELOW: return "BELOW";
+    case PIVOT_PRICE_SIDE_EQUAL: return "EQUAL";
+    case PIVOT_PRICE_SIDE_ABOVE: return "ABOVE";
+  }
+  return "UNAVAILABLE";
+}
+
+string PivotV9PpRoleToken(const PivotPpArmStates state)
+{
+  if(state == PIVOT_PP_BUY_ARMED)
+    return "BUY";
+  if(state == PIVOT_PP_SELL_ARMED)
+    return "SELL";
+  return "UNARMED";
+}
+
 string PivotV9RouteStatusToken(const PivotRouteStatuses status)
 {
   switch(status)
@@ -441,7 +455,7 @@ string PivotV9SignalId(const string symbol,
 
 string PivotV9BuildConfigPayload()
 {
-  return StringFormat("schema=%d|engine=%s|symbol=%s|chart_tf=%d|macro_tf=%d|micro_tf=%d|trigger=previous_m1_bid_close_live_bid|bands=%d,%.4f,PRICE_WEIGHTED|broker_session=%d|lot_type=%d|lot_size=%.8f",
+  return StringFormat("schema=%d|engine=%s|symbol=%s|chart_tf=%d|macro_tf=%d|micro_tf=%d|trigger=live_bid_virtual_limit|pp=first_causal_bid_side_return|bands=%d,%.4f,PRICE_WEIGHTED|broker_session=%d|lot_type=%d|lot_size=%.8f",
                       PIVOT_V9_SCHEMA_VERSION,
                       PIVOT_V9_ENGINE_LABEL,
                       _Symbol,
@@ -685,8 +699,8 @@ bool PivotV9WriteManifest()
   rows[8]  = PivotV9ManifestRow("feature_context_timeframes", EnumToString(Micro_Timeframe) + "," + EnumToString(Macro_Timeframe));
   rows[9]  = PivotV9ManifestRow("pivot_formula", "CLASSIC_PP_S1_S3_R1_R3");
   rows[10] = PivotV9ManifestRow("source_policy", "immediately_previous_completed_broker_candle_shift_1");
-  rows[11] = PivotV9ManifestRow("identity_policy", "symbol,timeframe,active_bar_open,level_first_touch_once");
-  rows[12] = PivotV9ManifestRow("trigger_policy", "previous_completed_m1_bid_close_side_live_bid_touch");
+  rows[11] = PivotV9ManifestRow("identity_policy", "symbol,macro_timeframe,active_bar_open,level_first_touch_once");
+  rows[12] = PivotV9ManifestRow("trigger_policy", "live_bid_virtual_limit_support_buy_resistance_sell_pp_return");
   rows[13] = PivotV9ManifestRow("execution_price_policy", "buy_ask_sell_bid_market_deal");
   rows[14] = PivotV9ManifestRow("time_policy", "broker_time_causal_analysis_time_export_only");
   rows[15] = PivotV9ManifestRow("broker_session", MarketDataTimePolicyToken(Broker_Session));
@@ -750,10 +764,36 @@ bool PivotV9RecordWindow(const PivotFractalWindowState &window,
                PivotV9TimestampColumns(window.active_bar_open) + "\t" +
                PivotV9TimestampColumns(window.source_bar_open) + "\t" +
                PivotV9TimestampColumns(window.source_close_boundary) + "\t" +
+               PivotV9DoubleToken(window.levels.source_open, false) + "\t" +
                PivotV9DoubleToken(window.levels.source_high, false) + "\t" +
                PivotV9DoubleToken(window.levels.source_low, false) + "\t" +
                PivotV9DoubleToken(window.levels.source_close, false) + "\t" +
                PivotV9DoubleToken(window.levels.source_range, false) + "\t" +
+               PivotV9TimestampColumns(window.first_observed_time) + "\t" +
+               PivotV9DoubleToken(window.first_observed_bid, false) + "\t" +
+               PivotV9PriceSideToken(window.pp_initial_relation) + "\t" +
+               PivotV9PpRoleToken(window.pp_arm_state) + "\t" +
+               PivotV9TimestampColumns(window.pp_arm_time) + "\t" +
+               (window.pp_arm_state != PIVOT_PP_UNARMED
+                ? PivotV9DoubleToken(window.pp_arm_bid, false)
+                : PIVOT_V9_NULL) + "\t" +
+               (window.macro_band.complete
+                ? PivotV9DoubleToken(window.macro_band.base_1, false)
+                : PIVOT_V9_NULL) + "\t" +
+               (window.macro_band.complete
+                ? PivotV9DoubleToken(window.macro_band.upper_1, false)
+                : PIVOT_V9_NULL) + "\t" +
+               (window.macro_band.complete
+                ? PivotV9DoubleToken(window.macro_band.lower_1, false)
+                : PIVOT_V9_NULL) + "\t" +
+               (window.macro_band.complete
+                ? PivotV9DoubleToken(window.macro_band.width_1, false)
+                : PIVOT_V9_NULL) + "\t" +
+               (window.macro_band.complete
+                ? PivotV9DoubleToken(window.macro_band.width_percent_1, false)
+                : PIVOT_V9_NULL) + "\t" +
+               PivotV9BoolToken(window.macro_band.complete) + "\t" +
+               PivotV9Cell(window.macro_band.invalid_reason) + "\t" +
                PivotV9WindowStateToken(window.state) + "\t" +
                PivotV9Cell(window.invalid_reason) + "\t" +
                PivotV9TimestampColumns(terminal_time) + "\t" +
@@ -819,9 +859,6 @@ bool PivotV9RecordAttempt(const PivotV9AttemptPayload &payload)
                PivotLevelLabel(payload.level_id) + "\t" +
                PivotV9DirectionToken(payload.direction) + "\t" +
                PivotV9TimestampColumns(payload.trigger_time) + "\t" +
-               PivotV9TimeToken(payload.previous_m1_bar_open) + "\t" +
-               PivotV9TimeToken(payload.previous_m1_close_boundary) + "\t" +
-               PivotV9DoubleToken(payload.previous_m1_bid_close, false) + "\t" +
                PivotV9DoubleToken(payload.trigger_bid, false) + "\t" +
                PivotV9DoubleToken(payload.trigger_ask, false) + "\t" +
                PivotV9DoubleToken(payload.spread_points) + "\t" +
@@ -843,19 +880,32 @@ bool PivotV9RecordAttempt(const PivotV9AttemptPayload &payload)
   return true;
 }
 
-bool PivotV9RecordFeatureRow(const PivotV9AttemptPayload &attempt,
-                             const PivotContextFeatureRow &feature)
+bool PivotV9RecordFeatures(const PivotV9AttemptPayload &attempt,
+                           const PivotContextFeatureSnapshot &snapshot)
 {
-  string b_tokens = "";
+  if(!PivotV9Ready())
+    return false;
+  if(attempt.signal_id == "" || attempt.window_id == "" || !snapshot.captured)
+    return PivotV9RejectReference("RECORD_FEATURES");
+
+  string micro_tokens = "";
+  string macro_tokens = "";
   for(int shift = 0; shift < PIVOT_B_PERCENT_SHIFT_COUNT; shift++)
   {
     if(shift > 0)
-      b_tokens += "\t";
-    b_tokens += feature.b_percent_available[shift]
-                ? PivotV9DoubleToken(feature.b_percent_values[shift])
-                : PIVOT_V9_NULL;
+    {
+      micro_tokens += "\t";
+      macro_tokens += "\t";
+    }
+    micro_tokens += snapshot.micro_b_percent_available[shift]
+                    ? PivotV9DoubleToken(snapshot.micro_b_percent[shift])
+                    : PIVOT_V9_NULL;
+    macro_tokens += snapshot.macro_pivot_b_percent_available[shift]
+                    ? PivotV9DoubleToken(snapshot.macro_pivot_b_percent[shift])
+                    : PIVOT_V9_NULL;
   }
 
+  bool micro_shift_zero_available = snapshot.micro_bands.available[0];
   string row = IntegerToString(PIVOT_V9_SCHEMA_VERSION) + "\t" +
                PivotV9Cell(g_pivot_v9_run_id) + "\t" +
                PivotV9Cell(g_pivot_v9_config_id) + "\t" +
@@ -867,33 +917,37 @@ bool PivotV9RecordFeatureRow(const PivotV9AttemptPayload &attempt,
                PivotLevelLabel(attempt.level_id) + "\t" +
                PivotV9DirectionToken(attempt.direction) + "\t" +
                PivotV9TimestampColumns(attempt.trigger_time) + "\t" +
-               PivotV9Cell(EnumToString(feature.timeframe)) + "\t" +
-               b_tokens + "\t" +
-               PivotV9BoolToken(feature.b_percent_complete) + "\t" +
-               PivotV9BoolToken(feature.b_percent_complete) + "\t" +
-               PivotV9Cell(feature.invalid_reason);
+               (micro_shift_zero_available
+                ? PivotV9DoubleToken(snapshot.micro_band_base_0, false)
+                : PIVOT_V9_NULL) + "\t" +
+               (micro_shift_zero_available
+                ? PivotV9DoubleToken(snapshot.micro_band_upper_0, false)
+                : PIVOT_V9_NULL) + "\t" +
+               (micro_shift_zero_available
+                ? PivotV9DoubleToken(snapshot.micro_band_lower_0, false)
+                : PIVOT_V9_NULL) + "\t" +
+               (micro_shift_zero_available
+                ? PivotV9DoubleToken(snapshot.micro_band_width_0, false)
+                : PIVOT_V9_NULL) + "\t" +
+               (micro_shift_zero_available
+                ? PivotV9DoubleToken(snapshot.micro_band_width_percent_0,
+                                     false)
+                : PIVOT_V9_NULL) + "\t" +
+               micro_tokens + "\t" +
+               macro_tokens + "\t" +
+               PivotV9BoolToken(snapshot.micro_complete) + "\t" +
+               PivotV9BoolToken(snapshot.macro_complete) + "\t" +
+               PivotV9BoolToken(snapshot.complete) + "\t" +
+               PivotV9Cell(snapshot.invalid_reason);
   if(!PivotV9QueueRow(PivotV9Path(PIVOT_V9_FEATURES_FILE),
                       PIVOT_V9_FEATURES_HEADER,
                       row,
                       g_pivot_v9_feature_buffer))
     return false;
   g_pivot_v9_feature_rows++;
-  if(!feature.b_percent_complete)
+  if(!snapshot.complete)
     g_pivot_v9_feature_incomplete_rows++;
   return true;
-}
-
-bool PivotV9RecordFeatures(const PivotV9AttemptPayload &attempt,
-                           const PivotContextFeatureSnapshot &snapshot)
-{
-  if(!PivotV9Ready())
-    return false;
-  if(attempt.signal_id == "" || attempt.window_id == "" || !snapshot.captured)
-    return PivotV9RejectReference("RECORD_FEATURES");
-
-  bool micro_ok = PivotV9RecordFeatureRow(attempt, snapshot.micro);
-  bool macro_ok = PivotV9RecordFeatureRow(attempt, snapshot.macro);
-  return micro_ok && macro_ok;
 }
 
 bool PivotV9RecordExecutionCheck(const PivotV9ExecutionPayload &payload)

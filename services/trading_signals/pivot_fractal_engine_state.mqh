@@ -12,6 +12,8 @@ struct PivotMacroBandCache
   double lower_1;
   double width_1;
   double width_percent_1;
+  datetime next_retry_time;
+  int last_error;
   string invalid_reason;
 
   PivotMacroBandCache()
@@ -32,6 +34,8 @@ struct PivotMacroBandCache
     lower_1 = 0.0;
     width_1 = 0.0;
     width_percent_1 = 0.0;
+    next_retry_time = 0;
+    last_error = 0;
     invalid_reason = "";
   }
 
@@ -43,6 +47,8 @@ struct PivotMacroBandCache
     lower_1 = other.lower_1;
     width_1 = other.width_1;
     width_percent_1 = other.width_percent_1;
+    next_retry_time = other.next_retry_time;
+    last_error = other.last_error;
     invalid_reason = other.invalid_reason;
   }
 };
@@ -62,7 +68,7 @@ struct PivotFractalWindowState
   datetime first_observed_time;
   double first_observed_bid;
   PivotPriceSideStates pp_initial_relation;
-  SignalTypes pp_role;
+  PivotPpArmStates pp_arm_state;
   datetime pp_arm_time;
   double pp_arm_bid;
   PivotMacroBandCache macro_band;
@@ -91,7 +97,7 @@ struct PivotFractalWindowState
     first_observed_time = 0;
     first_observed_bid = 0.0;
     pp_initial_relation = PIVOT_PRICE_SIDE_UNAVAILABLE;
-    pp_role = NO_SIGNAL;
+    pp_arm_state = PIVOT_PP_UNARMED;
     pp_arm_time = 0;
     pp_arm_bid = 0.0;
     macro_band.Reset();
@@ -121,7 +127,7 @@ struct PivotFractalWindowState
     first_observed_time = other.first_observed_time;
     first_observed_bid = other.first_observed_bid;
     pp_initial_relation = other.pp_initial_relation;
-    pp_role = other.pp_role;
+    pp_arm_state = other.pp_arm_state;
     pp_arm_time = other.pp_arm_time;
     pp_arm_bid = other.pp_arm_bid;
     macro_band.CopyFrom(other.macro_band);
@@ -198,24 +204,113 @@ bool LoadCompletedPivotSourceRate(const string symbol,
   return true;
 }
 
+bool CapturePivotMacroBandCache(PivotFractalWindowState &window,
+                                const datetime observation_time)
+{
+  window.macro_band.Reset();
+  if(!Enable_Signal_Feature_Export)
+  {
+    window.macro_band.invalid_reason = "FEATURE_EXPORT_DISABLED";
+    return false;
+  }
+  if(observation_time <= 0 ||
+     window.active_bar_open <= 0 ||
+     window.source_bar_open <= 0)
+  {
+    window.macro_band.invalid_reason = "MACRO_BAND_WINDOW_IDENTITY_INVALID";
+    return false;
+  }
+
+  int handle = g_macro_bands_handle.indicator_handle;
+  if(handle == INVALID_HANDLE)
+  {
+    window.macro_band.invalid_reason = "MACRO_BANDS_HANDLE_MISSING";
+    window.macro_band.next_retry_time =
+      observation_time + PIVOT_WINDOW_RETRY_SECONDS;
+    return false;
+  }
+  if(BarsCalculated(handle) < 2)
+  {
+    window.macro_band.invalid_reason = "MACRO_BANDS_HANDLE_NOT_READY";
+    window.macro_band.next_retry_time =
+      observation_time + PIVOT_WINDOW_RETRY_SECONDS;
+    return false;
+  }
+
+  datetime active_bar_open = iTime(_Symbol, Macro_Timeframe, 0);
+  if(active_bar_open != window.active_bar_open ||
+     active_bar_open > observation_time)
+  {
+    window.macro_band.invalid_reason = "MACRO_BANDS_WINDOW_NOT_CAUSAL";
+    window.macro_band.next_retry_time =
+      observation_time + PIVOT_WINDOW_RETRY_SECONDS;
+    return false;
+  }
+
+  double base = 0.0;
+  double upper = 0.0;
+  double lower = 0.0;
+  if(!CopyPivotBandValue(handle, 0, 1, base))
+  {
+    window.macro_band.last_error = GetLastError();
+    window.macro_band.invalid_reason = "MACRO_BAND_BASE_SHIFT_1_UNAVAILABLE";
+  }
+  else if(!CopyPivotBandValue(handle, 1, 1, upper))
+  {
+    window.macro_band.last_error = GetLastError();
+    window.macro_band.invalid_reason = "MACRO_BAND_UPPER_SHIFT_1_UNAVAILABLE";
+  }
+  else if(!CopyPivotBandValue(handle, 2, 1, lower))
+  {
+    window.macro_band.last_error = GetLastError();
+    window.macro_band.invalid_reason = "MACRO_BAND_LOWER_SHIFT_1_UNAVAILABLE";
+  }
+  else if(base <= 0.0 || !MathIsValidNumber(base))
+  {
+    window.macro_band.invalid_reason = "MACRO_BAND_BASE_SHIFT_1_INVALID";
+  }
+  else if(upper <= lower)
+  {
+    window.macro_band.invalid_reason = "MACRO_BAND_WIDTH_SHIFT_1_INVALID";
+  }
+
+  if(window.macro_band.invalid_reason != "")
+  {
+    window.macro_band.next_retry_time =
+      observation_time + PIVOT_WINDOW_RETRY_SECONDS;
+    return false;
+  }
+
+  window.macro_band.base_1 = base;
+  window.macro_band.upper_1 = upper;
+  window.macro_band.lower_1 = lower;
+  window.macro_band.width_1 = upper - lower;
+  window.macro_band.width_percent_1 = 100.0 *
+    window.macro_band.width_1 / base;
+  if(window.macro_band.width_1 <= 0.0 ||
+     !MathIsValidNumber(window.macro_band.width_percent_1))
+  {
+    window.macro_band.Reset();
+    window.macro_band.invalid_reason =
+      "MACRO_BAND_WIDTH_PERCENT_SHIFT_1_INVALID";
+    window.macro_band.next_retry_time =
+      observation_time + PIVOT_WINDOW_RETRY_SECONDS;
+    return false;
+  }
+
+  window.macro_band.complete = true;
+  return true;
+}
+
 bool RefreshPivotFractalWindowState(PivotFractalWindowState &window,
+                                    const datetime active_bar_open,
                                     const datetime observation_time,
                                     const bool force_refresh)
 {
-  if(observation_time <= 0 || Macro_Timeframe == PERIOD_CURRENT)
+  if(active_bar_open <= 0 ||
+     observation_time <= 0 ||
+     Macro_Timeframe == PERIOD_CURRENT)
     return false;
-
-  ResetLastError();
-  datetime active_bar_open = iTime(_Symbol, Macro_Timeframe, 0);
-  if(active_bar_open <= 0)
-  {
-    window.timeframe = Macro_Timeframe;
-    MarkPivotWindowPending(window,
-                           GetLastError(),
-                           "ACTIVE_BAR_UNAVAILABLE",
-                           observation_time);
-    return false;
-  }
 
   // Tester series may advertise the next bar before the observed tick reaches
   // it, so an already-causal window remains authoritative in that interval.
@@ -231,7 +326,15 @@ bool RefreshPivotFractalWindowState(PivotFractalWindowState &window,
   if(bar_changed)
     window.BeginWindow(active_bar_open);
   else if(window.state == PIVOT_WINDOW_VALID)
+  {
+    if(Enable_Signal_Feature_Export &&
+       !window.macro_band.complete &&
+       (force_refresh ||
+        window.macro_band.next_retry_time <= 0 ||
+        observation_time >= window.macro_band.next_retry_time))
+      CapturePivotMacroBandCache(window, observation_time);
     return true;
+  }
   else if(window.state == PIVOT_WINDOW_INVALID && !force_refresh)
     return false;
   else if(!force_refresh &&
@@ -275,13 +378,16 @@ bool RefreshPivotFractalWindowState(PivotFractalWindowState &window,
   window.last_error = 0;
   window.invalid_reason = "";
   window.levels.CopyFrom(levels);
+  CapturePivotMacroBandCache(window, observation_time);
   return true;
 }
 
-bool RefreshPivotFractalWindow(const datetime observation_time,
+bool RefreshPivotFractalWindow(const datetime active_bar_open,
+                               const datetime observation_time,
                                const bool force_refresh = false)
 {
   return RefreshPivotFractalWindowState(g_pivot_fractal_window,
+                                        active_bar_open,
                                         observation_time,
                                         force_refresh);
 }

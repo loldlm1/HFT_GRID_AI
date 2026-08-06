@@ -55,9 +55,6 @@ void BuildPivotV9AttemptPayload(const PivotSignal &signal,
   payload.level_id = signal.level_id;
   payload.direction = signal.direction;
   payload.trigger_time = signal.trigger_time;
-  payload.previous_m1_bar_open = signal.previous_m1_bar_open;
-  payload.previous_m1_close_boundary = signal.previous_m1_close_boundary;
-  payload.previous_m1_bid_close = signal.previous_m1_bid_close;
   payload.trigger_bid = signal.trigger_bid;
   payload.trigger_ask = signal.trigger_ask;
   payload.spread_points = signal.trigger_spread_points;

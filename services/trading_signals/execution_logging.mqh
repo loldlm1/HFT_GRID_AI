@@ -196,13 +196,12 @@ void ExecutionAppendQueryDebugThrottledLog(const string label,
 
 void ExecutionLogPivotAttempt(const PivotSignal &signal)
 {
-  string message = StringFormat("signal_id=%s|window_id=%s|tf=%s|level=%s|direction=%s|previous_m1_close=%.10f|trigger_bid=%.10f|trigger_ask=%.10f|route=%s|attempt=%s|block_source=%s|block_reason=%s",
+  string message = StringFormat("signal_id=%s|window_id=%s|tf=%s|level=%s|direction=%s|trigger_bid=%.10f|trigger_ask=%.10f|route=%s|attempt=%s|block_source=%s|block_reason=%s",
                                 signal.signal_id,
                                 signal.window_id,
                                 EnumToString(signal.pivot_timeframe),
                                 PivotLevelLabel(signal.level_id),
                                 signal.direction == BULLISH ? "BUY" : "SELL",
-                                signal.previous_m1_bid_close,
                                 signal.trigger_bid,
                                 signal.trigger_ask,
                                 EnumToString(signal.route.status),

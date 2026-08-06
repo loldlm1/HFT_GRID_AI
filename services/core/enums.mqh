@@ -53,6 +53,13 @@ enum PivotPriceSideStates
   PIVOT_PRICE_SIDE_ABOVE       = 3
 };
 
+enum PivotPpArmStates
+{
+  PIVOT_PP_UNARMED    = 0,
+  PIVOT_PP_BUY_ARMED  = 1,
+  PIVOT_PP_SELL_ARMED = 2
+};
+
 enum PivotRouteStatuses
 {
   PIVOT_ROUTE_NOT_BUILT       = 0,
