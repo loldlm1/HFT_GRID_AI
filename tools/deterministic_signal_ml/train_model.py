@@ -1,11 +1,10 @@
-"""Train research-only XGBoost candidates from a leakage-safe V9 matrix."""
+"""Train offline-only V10 XGBoost binary candidates with ordered ablations."""
 
 from __future__ import annotations
 
 import argparse
 import csv
 import json
-import math
 import shutil
 from dataclasses import asdict
 from datetime import UTC, datetime
@@ -20,8 +19,6 @@ from sklearn.metrics import (
     average_precision_score,
     balanced_accuracy_score,
     log_loss,
-    mean_absolute_error,
-    mean_squared_error,
     precision_score,
     recall_score,
     roc_auc_score,
@@ -31,16 +28,19 @@ from feature_encoder import FeatureEncoder
 from model_config import (
     DEFAULT_DATASET_ROOT,
     DEFAULT_MODEL_ROOT,
+    FEATURE_ABLATIONS,
     TRAINER_VERSION,
     training_config_for_feature_set,
 )
 from schema_contract import (
-    DATASET_TARGET_FAMILIES,
+    CATEGORICAL_COLUMNS,
     FUTURE_ONLY_COLUMNS,
+    MODEL_FEATURE_COLUMNS,
+    SUPPORTED_FEATURE_SET_ID,
     SUPPORTED_SCHEMA_VERSION,
     TARGET_COLUMNS,
 )
-from validation_splits import SplitBundle, build_time_splits
+from validation_splits import GROUPING_POLICY, build_time_splits
 
 
 class TrainingError(RuntimeError):
@@ -56,7 +56,6 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--model-id", required=True)
     parser.add_argument("--model-root", default=DEFAULT_MODEL_ROOT)
     parser.add_argument("--feature-set-id", default="")
-    parser.add_argument("--target-family", choices=DATASET_TARGET_FAMILIES, default="")
     parser.add_argument("--overwrite", action="store_true")
     return parser
 
@@ -95,9 +94,9 @@ def _read_json(path: Path) -> dict[str, Any]:
 
 
 def load_training_rows(dataset_path: Path) -> list[dict[str, Any]]:
-    matrix_path = dataset_path / "training_matrix.parquet"
+    matrix_path = dataset_path / "binary_outcomes.parquet"
     if not matrix_path.is_file():
-        raise TrainingError(f"Missing training matrix: {matrix_path}")
+        raise TrainingError(f"Missing binary outcomes matrix: {matrix_path}")
     connection = duckdb.connect(":memory:")
     try:
         escaped = matrix_path.resolve().as_posix().replace("'", "''")
@@ -138,51 +137,16 @@ def _classification_metrics(
     return metrics
 
 
-def _regression_metrics(actual: np.ndarray, predicted: np.ndarray) -> dict[str, Any]:
-    correlation = None
-    if actual.size > 1 and float(np.std(actual)) > 0.0 and float(np.std(predicted)) > 0.0:
-        with np.errstate(divide="ignore", invalid="ignore"):
-            candidate = float(np.corrcoef(actual, predicted)[0, 1])
-        correlation = candidate if math.isfinite(candidate) else None
-    return {
-        "rows": int(actual.size),
-        "mae": float(mean_absolute_error(actual, predicted)),
-        "rmse": float(math.sqrt(mean_squared_error(actual, predicted))),
-        "actual_mean_profit": float(np.mean(actual)),
-        "predicted_mean_profit": float(np.mean(predicted)),
-        "correlation": correlation,
-    }
+def _labels(rows: list[dict[str, Any]]) -> np.ndarray:
+    if any(row.get("binary_target") not in (0, 1, False, True) for row in rows):
+        raise TrainingError("Binary cohort contains a null or invalid target")
+    return np.asarray([int(row["binary_target"]) for row in rows], dtype=np.int64)
 
 
-def _label_column(target_family: str) -> str:
-    return "target_is_profit" if target_family == "broker_outcome" else "target_admitted"
-
-
-def _label_array(rows: list[dict[str, Any]], target_family: str) -> np.ndarray:
-    column = _label_column(target_family)
-    if any(row.get(column) is None for row in rows):
-        raise TrainingError(f"Training target contains null values: {column}")
-    return np.asarray([int(bool(row[column])) for row in rows], dtype=np.int64)
-
-
-def _profit_array(rows: list[dict[str, Any]]) -> np.ndarray:
-    if any(row.get("target_realized_profit") is None for row in rows):
-        raise TrainingError("Broker-outcome target contains null realized profit")
-    return np.asarray(
-        [float(row["target_realized_profit"]) for row in rows],
-        dtype=np.float64,
-    )
-
-
-def _require_support(
-    rows: list[dict[str, Any]],
-    target_family: str,
-    min_rows: int,
-    min_class_count: int,
-) -> None:
+def _require_support(rows: list[dict[str, Any]], min_rows: int, min_class_count: int) -> None:
     if len(rows) < min_rows:
         raise TrainingError(f"Not enough rows: {len(rows)} < {min_rows}")
-    labels = _label_array(rows, target_family)
+    labels = _labels(rows)
     counts = {int(label): int(np.sum(labels == label)) for label in np.unique(labels)}
     if set(counts) != {0, 1}:
         raise TrainingError(f"Classifier target requires both classes: {counts}")
@@ -196,10 +160,6 @@ def _classifier(config) -> xgb.XGBClassifier:
     return xgb.XGBClassifier(**asdict(config))
 
 
-def _regressor(config) -> xgb.XGBRegressor:
-    return xgb.XGBRegressor(**asdict(config))
-
-
 def _select(rows: list[dict[str, Any]], indices: list[int]) -> list[dict[str, Any]]:
     return [rows[index] for index in indices]
 
@@ -208,64 +168,41 @@ def _fit_and_score(
     rows: list[dict[str, Any]],
     train_indices: list[int],
     test_indices: list[int],
-    target_family: str,
     feature_columns: tuple[str, ...],
-    categorical_columns: tuple[str, ...],
     classifier_config,
-    regressor_config,
 ) -> tuple[dict[str, Any], list[dict[str, Any]]]:
     train_rows = _select(rows, train_indices)
     test_rows = _select(rows, test_indices)
-    train_labels = _label_array(train_rows, target_family)
-    test_labels = _label_array(test_rows, target_family)
+    train_labels = _labels(train_rows)
+    test_labels = _labels(test_rows)
     if len(np.unique(train_labels)) != 2:
         raise TrainingError("A chronological training fold contains only one class")
-
-    encoder = FeatureEncoder.fit(
-        train_rows,
-        feature_columns,
-        categorical_columns,
+    categorical = tuple(
+        column for column in CATEGORICAL_COLUMNS if column in feature_columns
     )
-    train_matrix = encoder.transform(train_rows).matrix
-    test_matrix = encoder.transform(test_rows).matrix
+    encoder = FeatureEncoder.fit(train_rows, feature_columns, categorical)
     classifier = _classifier(classifier_config)
-    classifier.fit(train_matrix, train_labels)
-    probabilities = classifier.predict_proba(test_matrix)[:, 1]
-    metrics: dict[str, Any] = {
-        "classification": _classification_metrics(test_labels, probabilities)
-    }
-    predicted_profit: np.ndarray | None = None
-    if target_family == "broker_outcome":
-        regressor = _regressor(regressor_config)
-        regressor.fit(train_matrix, _profit_array(train_rows))
-        predicted_profit = regressor.predict(test_matrix)
-        metrics["regression"] = _regression_metrics(
-            _profit_array(test_rows),
-            predicted_profit,
-        )
-
-    predictions: list[dict[str, Any]] = []
-    for row, probability, label, index in zip(
-        test_rows,
-        probabilities,
-        test_labels,
-        test_indices,
-    ):
-        prediction = {
-            "row_index": index,
+    classifier.fit(encoder.transform(train_rows).matrix, train_labels)
+    probability = classifier.predict_proba(encoder.transform(test_rows).matrix)[:, 1]
+    predictions = [
+        {
+            "row_index": row_index,
             "run_id": row["run_id"],
             "signal_id": row["signal_id"],
-            "window_id": row["window_id"],
+            "research_group_id": row["research_group_id"],
             "trigger_broker_time": row["trigger_broker_time"],
+            "close_broker_time": row["close_broker_time"],
             "actual_label": int(label),
-            "predicted_probability": float(probability),
+            "predicted_probability": float(score),
         }
-        if predicted_profit is not None:
-            local_index = len(predictions)
-            prediction["actual_realized_profit"] = float(row["target_realized_profit"])
-            prediction["predicted_realized_profit"] = float(predicted_profit[local_index])
-        predictions.append(prediction)
-    return metrics, predictions
+        for row, label, score, row_index in zip(
+            test_rows,
+            test_labels,
+            probability,
+            test_indices,
+        )
+    ]
+    return _classification_metrics(test_labels, probability), predictions
 
 
 def _write_tsv(path: Path, rows: list[dict[str, Any]]) -> None:
@@ -274,30 +211,39 @@ def _write_tsv(path: Path, rows: list[dict[str, Any]]) -> None:
         return
     columns = list(rows[0])
     with path.open("w", encoding="utf-8", newline="") as handle:
-        writer = csv.DictWriter(handle, fieldnames=columns, delimiter="\t", lineterminator="\n")
+        writer = csv.DictWriter(
+            handle,
+            fieldnames=columns,
+            delimiter="\t",
+            lineterminator="\n",
+        )
         writer.writeheader()
         writer.writerows(rows)
 
 
 def _render_report(manifest: dict[str, Any], metrics: dict[str, Any]) -> str:
-    holdout = metrics["holdout"]["classification"]
     lines = [
-        f"# Offline Pivot Model: {manifest['model_id']}",
+        f"# Offline Pivot V10 Model: {manifest['model_id']}",
         "",
         "Approval: `OFFLINE_RESEARCH_ONLY`",
         f"Dataset: `{manifest['dataset_id']}`",
-        f"Target family: `{manifest['target_family']}`",
-        f"Rows: `{manifest['training_rows']}`",
+        f"Binary rows: `{manifest['training_rows']}`",
         "",
-        "## Final Holdout",
+        "## Ablations",
         "",
-        f"- Rows: `{holdout['rows']}`",
-        f"- ROC AUC: `{holdout['roc_auc']}`",
-        f"- Average precision: `{holdout['average_precision']}`",
-        f"- Balanced accuracy: `{holdout['balanced_accuracy']}`",
-        "",
-        "This command does not emit or approve an MT5 runtime artifact.",
     ]
+    for ablation_id, payload in metrics["ablations"].items():
+        holdout = payload["holdout"]
+        lines.append(
+            f"- `{ablation_id}`: ROC AUC `{holdout['roc_auc']}`, "
+            f"balanced accuracy `{holdout['balanced_accuracy']}`"
+        )
+    lines.extend(
+        [
+            "",
+            "The saved classifiers are offline research candidates only; no MT5 runtime artifact is emitted.",
+        ]
+    )
     return "\n".join(lines) + "\n"
 
 
@@ -305,127 +251,106 @@ def train_candidate(
     dataset_path: Path,
     output_dir: Path,
     model_id: str,
-    feature_set_id: str,
-    target_family: str,
+    feature_set_id: str = "",
 ) -> dict[str, Any]:
     dataset_manifest = _read_json(dataset_path / "dataset_manifest.json")
     if int(dataset_manifest.get("schema_version", 0)) != SUPPORTED_SCHEMA_VERSION:
         raise TrainingError("Dataset schema version is incompatible with active tooling")
-    manifest_feature_set_id = str(dataset_manifest.get("feature_set_id", ""))
-    if not manifest_feature_set_id:
-        raise TrainingError("Dataset manifest is missing feature_set_id")
-    if feature_set_id and manifest_feature_set_id != feature_set_id:
+    manifest_feature_set = str(dataset_manifest.get("feature_set_id", ""))
+    if feature_set_id and feature_set_id != manifest_feature_set:
         raise TrainingError("Dataset feature set differs from requested feature set")
-    feature_set_id = manifest_feature_set_id
+    if manifest_feature_set != SUPPORTED_FEATURE_SET_ID:
+        raise TrainingError(f"Unsupported dataset feature set: {manifest_feature_set}")
     feature_columns = tuple(dataset_manifest.get("feature_columns", ()))
-    categorical_columns = tuple(dataset_manifest.get("categorical_columns", ()))
-    if not feature_columns or len(set(feature_columns)) != len(feature_columns):
-        raise TrainingError("Dataset manifest has an invalid feature column contract")
-    if not set(categorical_columns).issubset(set(feature_columns)):
-        raise TrainingError("Dataset manifest has invalid categorical feature columns")
-    denied_features = {
-        *FUTURE_ONLY_COLUMNS,
-        *TARGET_COLUMNS,
-        "signal_id",
-        "window_id",
-        "research_group_id",
-        "canonical_member_tokens",
-    }
-    leaked_features = sorted(set(feature_columns) & denied_features)
-    if leaked_features:
-        raise TrainingError(f"Dataset feature contract contains denied fields: {leaked_features}")
+    if feature_columns != MODEL_FEATURE_COLUMNS:
+        raise TrainingError("Dataset manifest does not carry the exact V10 feature contract")
+    denied = {*FUTURE_ONLY_COLUMNS, *TARGET_COLUMNS}
+    leaked = sorted(set(feature_columns) & denied)
+    if leaked:
+        raise TrainingError(f"Dataset feature contract contains denied fields: {leaked}")
     if dataset_manifest.get("approval_state") != "OFFLINE_RESEARCH_ONLY":
         raise TrainingError("Dataset is missing the offline-only research boundary")
-    manifest_target = str(dataset_manifest.get("target_family", ""))
-    if target_family and target_family != manifest_target:
-        raise TrainingError(
-            f"Dataset target family is {manifest_target}, requested {target_family}"
-        )
-    target_family = manifest_target
-    if target_family not in DATASET_TARGET_FAMILIES:
-        raise TrainingError(f"Unsupported dataset target family: {target_family}")
+    if dataset_manifest.get("split_grouping_policy") != GROUPING_POLICY:
+        raise TrainingError("Dataset split grouping policy is incompatible")
 
-    config = training_config_for_feature_set(feature_set_id)
+    config = training_config_for_feature_set(manifest_feature_set)
     rows = load_training_rows(dataset_path)
     if not rows:
-        raise TrainingError("Training matrix is empty")
-    missing_columns = [column for column in feature_columns if column not in rows[0]]
+        raise TrainingError("Binary outcomes matrix is empty")
+    missing_columns = [column for column in MODEL_FEATURE_COLUMNS if column not in rows[0]]
     if missing_columns:
-        raise TrainingError(f"Training matrix is missing manifest features: {missing_columns}")
-    _require_support(rows, target_family, config.min_training_rows, config.min_class_count)
-    grouping_policy = str(
-        dataset_manifest.get("split_grouping_policy", "pivot_window_identity")
-    )
+        raise TrainingError(f"Binary matrix is missing model features: {missing_columns}")
+    _require_support(rows, config.min_training_rows, config.min_class_count)
     splits = build_time_splits(
         rows,
         holdout_fraction=config.holdout_fraction,
         n_splits=config.walk_forward_splits,
         gap=config.walk_forward_gap,
-        grouping_policy=grouping_policy,
+        grouping_policy=GROUPING_POLICY,
     )
 
-    fold_metrics: list[dict[str, Any]] = []
-    fold_predictions: list[dict[str, Any]] = []
-    for fold in splits.folds:
-        metrics, predictions = _fit_and_score(
-            rows,
-            fold.train_indices,
-            fold.test_indices,
-            target_family,
-            feature_columns,
-            categorical_columns,
-            config.classifier,
-            config.regressor,
-        )
-        fold_metrics.append({"fold_index": fold.fold_index, **metrics})
-        fold_predictions.extend(
-            {"split": f"fold_{fold.fold_index}", **row} for row in predictions
-        )
-
-    holdout_metrics, holdout_predictions = _fit_and_score(
-        rows,
-        splits.train_indices,
-        splits.holdout_indices,
-        target_family,
-        feature_columns,
-        categorical_columns,
-        config.classifier,
-        config.regressor,
-    )
-
-    final_train_rows = _select(rows, splits.train_indices)
-    final_encoder = FeatureEncoder.fit(
-        final_train_rows,
-        feature_columns,
-        categorical_columns,
-    )
-    final_matrix = final_encoder.transform(final_train_rows).matrix
-    classifier = _classifier(config.classifier)
-    classifier.fit(final_matrix, _label_array(final_train_rows, target_family))
-    classifier.get_booster().save_model(str(output_dir / "classifier.json"))
-    regressor_written = False
-    if target_family == "broker_outcome":
-        regressor = _regressor(config.regressor)
-        regressor.fit(final_matrix, _profit_array(final_train_rows))
-        regressor.get_booster().save_model(str(output_dir / "regressor.json"))
-        regressor_written = True
-    final_encoder.write_json(output_dir / "feature_encoder.json")
-
-    metrics_payload = {
+    metrics_payload: dict[str, Any] = {
         "split_policy": splits.metadata,
-        "folds": fold_metrics,
-        "holdout": holdout_metrics,
+        "ablations": {},
     }
-    (output_dir / "metrics.json").write_text(
+    prediction_rows: list[dict[str, Any]] = []
+    model_files: dict[str, str] = {}
+    encoder_files: dict[str, str] = {}
+    final_train_rows = _select(rows, splits.train_indices)
+    for ablation_id, ablation_columns in FEATURE_ABLATIONS:
+        fold_metrics: list[dict[str, Any]] = []
+        for fold in splits.folds:
+            metrics, predictions = _fit_and_score(
+                rows,
+                fold.train_indices,
+                fold.test_indices,
+                ablation_columns,
+                config.classifier,
+            )
+            fold_metrics.append({"fold_index": fold.fold_index, **metrics})
+            prediction_rows.extend(
+                {
+                    "ablation": ablation_id,
+                    "split": f"fold_{fold.fold_index}",
+                    **row,
+                }
+                for row in predictions
+            )
+        holdout_metrics, holdout_predictions = _fit_and_score(
+            rows,
+            splits.train_indices,
+            splits.holdout_indices,
+            ablation_columns,
+            config.classifier,
+        )
+        prediction_rows.extend(
+            {"ablation": ablation_id, "split": "final_holdout", **row}
+            for row in holdout_predictions
+        )
+        metrics_payload["ablations"][ablation_id] = {
+            "feature_columns": list(ablation_columns),
+            "folds": fold_metrics,
+            "holdout": holdout_metrics,
+        }
+
+        categorical = tuple(
+            column for column in CATEGORICAL_COLUMNS if column in ablation_columns
+        )
+        encoder = FeatureEncoder.fit(final_train_rows, ablation_columns, categorical)
+        classifier = _classifier(config.classifier)
+        classifier.fit(encoder.transform(final_train_rows).matrix, _labels(final_train_rows))
+        model_path = output_dir / f"offline_classifier_{ablation_id}.json"
+        encoder_path = output_dir / f"feature_encoder_{ablation_id}.json"
+        classifier.get_booster().save_model(str(model_path))
+        encoder.write_json(encoder_path)
+        model_files[ablation_id] = model_path.name
+        encoder_files[ablation_id] = encoder_path.name
+
+    (output_dir / "ablation_metrics.json").write_text(
         json.dumps(metrics_payload, indent=2, sort_keys=True, default=str),
         encoding="utf-8",
     )
-    _write_tsv(output_dir / "fold_predictions.tsv", fold_predictions)
-    _write_tsv(
-        output_dir / "holdout_predictions.tsv",
-        [{"split": "final_holdout", **row} for row in holdout_predictions],
-    )
-
+    _write_tsv(output_dir / "predictions.tsv", prediction_rows)
     model_manifest = {
         "model_id": model_id,
         "trainer_version": TRAINER_VERSION,
@@ -433,19 +358,17 @@ def train_candidate(
         "dataset_id": dataset_manifest["dataset_id"],
         "dataset_path": str(dataset_path),
         "schema_version": SUPPORTED_SCHEMA_VERSION,
-        "feature_set_id": feature_set_id,
-        "source_feature_set_id": dataset_manifest.get("source_feature_set_id"),
-        "research_feature_set_id": dataset_manifest.get("research_feature_set_id"),
-        "feature_columns": list(feature_columns),
-        "categorical_columns": list(categorical_columns),
-        "split_grouping_policy": grouping_policy,
-        "target_family": target_family,
+        "feature_set_id": manifest_feature_set,
+        "feature_ablations": {
+            ablation_id: list(columns) for ablation_id, columns in FEATURE_ABLATIONS
+        },
+        "split_grouping_policy": GROUPING_POLICY,
         "training_rows": len(rows),
         "train_partition_rows": len(splits.train_indices),
         "holdout_rows": len(splits.holdout_indices),
-        "encoded_feature_count": len(final_encoder.encoded_feature_names),
         "classifier_config": asdict(config.classifier),
-        "regressor_config": asdict(config.regressor) if regressor_written else None,
+        "model_files": model_files,
+        "encoder_files": encoder_files,
         "approval_state": "OFFLINE_RESEARCH_ONLY",
         "runtime_artifact_emitted": False,
     }
@@ -471,15 +394,20 @@ def main() -> int:
             output_dir,
             args.model_id,
             args.feature_set_id,
-            args.target_family,
         )
-    except (TrainingError, ValueError, json.JSONDecodeError, duckdb.Error, xgb.core.XGBoostError) as exc:
-        parser.exit(1, f"offline pivot model training failed: {exc}\n")
+    except (
+        TrainingError,
+        ValueError,
+        json.JSONDecodeError,
+        duckdb.Error,
+        xgb.core.XGBoostError,
+    ) as exc:
+        parser.exit(1, f"offline pivot V10 model training failed: {exc}\n")
 
     print(
-        "offline pivot model training ok | "
-        f"model={manifest['model_id']} | target={manifest['target_family']} | "
-        f"rows={manifest['training_rows']} | output={output_dir}"
+        "offline pivot V10 model training ok | "
+        f"model={manifest['model_id']} | rows={manifest['training_rows']} | "
+        f"output={output_dir}"
     )
     return 0
 

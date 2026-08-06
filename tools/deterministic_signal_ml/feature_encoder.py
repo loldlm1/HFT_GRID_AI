@@ -38,7 +38,9 @@ class FeatureEncoder:
     ) -> "FeatureEncoder":
         if not rows:
             raise ValueError("Cannot fit feature encoder without rows")
-        categorical_set = set(categorical_columns or CATEGORICAL_COLUMNS)
+        categorical_set = set(
+            CATEGORICAL_COLUMNS if categorical_columns is None else categorical_columns
+        )
         if not categorical_set.issubset(set(feature_columns)):
             raise ValueError("Categorical feature list contains an unknown column")
         categorical_columns = [column for column in feature_columns if column in categorical_set]

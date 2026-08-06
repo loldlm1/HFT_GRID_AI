@@ -473,6 +473,22 @@ FUTURE_ONLY_COLUMNS = (
     "duration_seconds",
 )
 
+DATASET_CONFIG_KEYS = (
+    "config_id",
+    "engine_label",
+    "macro_timeframe",
+    "micro_timeframe",
+    "bands_period",
+    "bands_deviation",
+    "bands_ma_method",
+    "bands_applied_price",
+    "lot_mode",
+    "lot_strategy_size",
+    "reference_balance",
+    "account_currency",
+    "feature_set_id",
+)
+
 REQUIRED_MANIFEST_KEYS = {
     "run_id",
     "config_id",
@@ -2004,3 +2020,32 @@ def validate_run(
         row_counts=actual_counts,
         warnings=warnings,
     )
+
+
+def validate_runs(
+    runs_root: Path,
+    run_ids: list[str] | tuple[str, ...],
+    *,
+    schema_version: int = SUPPORTED_SCHEMA_VERSION,
+) -> list[RunValidation]:
+    if not run_ids:
+        raise ValueError("At least one run ID is required")
+    if len(set(run_ids)) != len(run_ids):
+        raise ValueError("Duplicate run IDs are not allowed")
+    validations = [
+        validate_run(runs_root, run_id, schema_version=schema_version)
+        for run_id in run_ids
+    ]
+    baseline = validations[0].manifest
+    for validation in validations[1:]:
+        mismatches = [
+            key
+            for key in DATASET_CONFIG_KEYS
+            if validation.manifest[key] != baseline[key]
+        ]
+        if mismatches:
+            raise SchemaValidationError(
+                "Runs cannot be mixed across configuration boundaries: "
+                f"run_id={validation.run_id}, fields={mismatches}"
+            )
+    return validations

@@ -1,4 +1,4 @@
-"""Chronological splits that keep each pivot window identity in one partition."""
+"""Purged chronological splits grouped by Macro window across duplicate runs."""
 
 from __future__ import annotations
 
@@ -8,6 +8,9 @@ from datetime import datetime
 from typing import Any
 
 from sklearn.model_selection import TimeSeriesSplit
+
+
+GROUPING_POLICY = "macro_window_identity_across_runs"
 
 
 @dataclass(frozen=True)
@@ -33,40 +36,45 @@ class _IdentityGroup:
     indices: list[int]
 
 
-def _trigger_time(row: dict[str, Any]) -> datetime:
-    value = row.get("trigger_broker_time")
+def _parse_time(value: Any, column: str) -> datetime:
     if isinstance(value, datetime):
         return value
     if value in (None, ""):
-        raise ValueError("Training row lacks trigger_broker_time")
+        raise ValueError(f"Training row lacks {column}")
     text = str(value)
     for pattern in ("%Y-%m-%d %H:%M:%S", "%Y.%m.%d %H:%M:%S"):
         try:
             return datetime.strptime(text[:19], pattern)
         except ValueError:
             continue
-    raise ValueError(f"Invalid trigger_broker_time: {value}")
+    raise ValueError(f"Invalid {column}: {value}")
 
 
-def _identity_key(
-    row: dict[str, Any], grouping_policy: str = "pivot_window_identity"
-) -> tuple[str, ...]:
-    if grouping_policy == "symbol_d1_active_broker_window":
-        value = row.get("research_group_id")
-        if value in (None, ""):
-            raise ValueError("Training row lacks research_group_id")
-        return (str(value),)
-    if grouping_policy != "pivot_window_identity":
+def _trigger_time(row: dict[str, Any]) -> datetime:
+    return _parse_time(row.get("trigger_broker_time"), "trigger_broker_time")
+
+
+def _close_time(row: dict[str, Any]) -> datetime:
+    return _parse_time(row.get("close_broker_time"), "close_broker_time")
+
+
+def _identity_key(row: dict[str, Any], grouping_policy: str) -> tuple[str, ...]:
+    if grouping_policy != GROUPING_POLICY:
         raise ValueError(f"Unsupported grouping policy: {grouping_policy}")
-    values = (row.get("run_id"), row.get("symbol"), row.get("window_id"))
+    research_group_id = row.get("research_group_id")
+    if research_group_id not in (None, ""):
+        return (str(research_group_id),)
+    values = (
+        row.get("symbol"),
+        row.get("macro_timeframe"),
+        row.get("active_bar_open_broker_time"),
+    )
     if any(value in (None, "") for value in values):
-        raise ValueError("Training row lacks run_id, symbol, or window_id")
+        raise ValueError("Training row lacks Macro window grouping facts")
     return tuple(str(value) for value in values)
 
 
-def _groups(
-    rows: list[dict[str, Any]], grouping_policy: str
-) -> list[_IdentityGroup]:
+def _groups(rows: list[dict[str, Any]], grouping_policy: str) -> list[_IdentityGroup]:
     grouped: dict[tuple[str, ...], list[int]] = {}
     for index, row in enumerate(rows):
         grouped.setdefault(_identity_key(row, grouping_policy), []).append(index)
@@ -79,11 +87,6 @@ def _groups(
         for key, indices in grouped.items()
     ]
     groups.sort(key=lambda group: (group.first_time, group.key))
-    previous: datetime | None = None
-    for group in groups:
-        if previous is not None and group.first_time < previous:
-            raise ValueError("Pivot identity groups are not chronological")
-        previous = group.first_time
     return groups
 
 
@@ -91,19 +94,34 @@ def _expand(groups: list[_IdentityGroup], group_indices: list[int]) -> list[int]
     return sorted(index for group_index in group_indices for index in groups[group_index].indices)
 
 
+def _purge_closed_after(
+    rows: list[dict[str, Any]],
+    indices: list[int],
+    boundary: datetime,
+) -> list[int]:
+    return [index for index in indices if _close_time(rows[index]) < boundary]
+
+
 def _range_metadata(
-    rows: list[dict[str, Any]], indices: list[int], grouping_policy: str
+    rows: list[dict[str, Any]],
+    indices: list[int],
+    grouping_policy: str,
 ) -> dict[str, Any]:
     if not indices:
-        return {"row_count": 0, "group_count": 0, "first_time": None, "last_time": None}
+        return {
+            "row_count": 0,
+            "group_count": 0,
+            "first_trigger_time": None,
+            "last_trigger_time": None,
+        }
     times = [_trigger_time(rows[index]) for index in indices]
     return {
         "row_count": len(indices),
         "group_count": len(
             {_identity_key(rows[index], grouping_policy) for index in indices}
         ),
-        "first_time": min(times).isoformat(sep=" "),
-        "last_time": max(times).isoformat(sep=" "),
+        "first_trigger_time": min(times).isoformat(sep=" "),
+        "last_trigger_time": max(times).isoformat(sep=" "),
     }
 
 
@@ -112,10 +130,10 @@ def build_time_splits(
     holdout_fraction: float = 0.20,
     n_splits: int = 4,
     gap: int = 1,
-    grouping_policy: str = "pivot_window_identity",
+    grouping_policy: str = GROUPING_POLICY,
 ) -> SplitBundle:
     if not rows:
-        raise ValueError("Cannot split an empty training matrix")
+        raise ValueError("Cannot split an empty binary cohort")
     if not 0.0 < holdout_fraction < 1.0:
         raise ValueError(f"holdout_fraction must be between 0 and 1: {holdout_fraction}")
     if n_splits < 2:
@@ -132,50 +150,73 @@ def build_time_splits(
         holdout_rows += len(group.indices)
         if holdout_rows >= holdout_target:
             break
-    train_groups = groups[:-holdout_group_count]
-    holdout_groups = groups[-holdout_group_count:]
-    if len(train_groups) <= n_splits + gap:
+    pre_holdout_count = len(groups) - holdout_group_count
+    if pre_holdout_count <= n_splits + gap:
         raise ValueError(
-            "Not enough pre-holdout pivot windows for "
-            f"{n_splits} splits and gap {gap}: {len(train_groups)}"
+            "Not enough pre-holdout Macro windows for "
+            f"{n_splits} splits and gap {gap}: {pre_holdout_count}"
         )
 
-    train_indices = _expand(train_groups, list(range(len(train_groups))))
-    holdout_indices = _expand(holdout_groups, list(range(len(holdout_groups))))
+    holdout_group_indices = list(range(pre_holdout_count, len(groups)))
+    holdout_indices = _expand(groups, holdout_group_indices)
+    holdout_boundary = min(_trigger_time(rows[index]) for index in holdout_indices)
+    raw_train_group_end = pre_holdout_count - gap
+    raw_train_indices = _expand(groups, list(range(raw_train_group_end)))
+    train_indices = _purge_closed_after(rows, raw_train_indices, holdout_boundary)
+    if not train_indices:
+        raise ValueError("Close-time purge removed every pre-holdout training row")
+
+    fold_groups = groups[:pre_holdout_count]
     splitter = TimeSeriesSplit(n_splits=n_splits, gap=gap)
     folds: list[FoldSplit] = []
     for fold_index, (local_train, local_test) in enumerate(
-        splitter.split(list(range(len(train_groups)))),
+        splitter.split(list(range(len(fold_groups)))),
         start=1,
     ):
-        fold_train = _expand(train_groups, [int(index) for index in local_train])
-        fold_test = _expand(train_groups, [int(index) for index in local_test])
+        test_indices = _expand(fold_groups, [int(index) for index in local_test])
+        boundary = min(_trigger_time(rows[index]) for index in test_indices)
+        raw_fold_train = _expand(
+            fold_groups,
+            [int(index) for index in local_train],
+        )
+        fold_train = _purge_closed_after(rows, raw_fold_train, boundary)
+        if not fold_train:
+            raise ValueError(f"Close-time purge removed every row from fold {fold_index}")
         folds.append(
             FoldSplit(
                 fold_index=fold_index,
                 train_indices=fold_train,
-                test_indices=fold_test,
+                test_indices=test_indices,
                 metadata={
                     "fold_index": fold_index,
+                    "validation_boundary": boundary.isoformat(sep=" "),
+                    "raw_train_rows": len(raw_fold_train),
+                    "purged_train_rows": len(raw_fold_train) - len(fold_train),
                     "train": _range_metadata(rows, fold_train, grouping_policy),
-                    "test": _range_metadata(rows, fold_test, grouping_policy),
+                    "test": _range_metadata(rows, test_indices, grouping_policy),
                 },
             )
         )
 
     metadata = {
-        "policy": "chronological_grouped_holdout_plus_walk_forward",
+        "policy": "purged_chronological_holdout_plus_expanding_walk_forward",
         "grouping_policy": grouping_policy,
-        "group_columns": (
-            ["research_group_id"]
-            if grouping_policy == "symbol_d1_active_broker_window"
-            else ["run_id", "symbol", "window_id"]
+        "group_columns": [
+            "symbol",
+            "macro_timeframe",
+            "active_bar_open_broker_time",
+        ],
+        "close_time_rule": (
+            "training close_broker_time must be strictly earlier than validation boundary"
         ),
         "holdout_fraction": holdout_fraction,
         "walk_forward_splits": n_splits,
         "walk_forward_gap_groups": gap,
         "row_count": len(rows),
         "group_count": len(groups),
+        "holdout_boundary": holdout_boundary.isoformat(sep=" "),
+        "raw_train_rows": len(raw_train_indices),
+        "purged_train_rows": len(raw_train_indices) - len(train_indices),
         "train": _range_metadata(rows, train_indices, grouping_policy),
         "holdout": _range_metadata(rows, holdout_indices, grouping_policy),
         "folds": [fold.metadata for fold in folds],
@@ -185,21 +226,4 @@ def build_time_splits(
         holdout_indices=holdout_indices,
         folds=folds,
         metadata=metadata,
-    )
-
-
-if __name__ == "__main__":
-    demo_rows = [
-        {
-            "run_id": "demo",
-            "symbol": "EURUSD",
-            "window_id": f"window_{index}",
-            "trigger_broker_time": f"2026-01-{index + 1:02d} 10:00:00",
-        }
-        for index in range(16)
-    ]
-    bundle = build_time_splits(demo_rows, holdout_fraction=0.25, n_splits=2, gap=1)
-    print(
-        "validation_splits self-test ok | "
-        f"train={len(bundle.train_indices)} | holdout={len(bundle.holdout_indices)}"
     )
