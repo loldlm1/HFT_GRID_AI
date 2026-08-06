@@ -145,14 +145,15 @@ void EnsureQueryDebugSessionHeaderLogged()
   AppendTimestampedLog(
     QUERY_DEBUG_FILENAME,
     "QUERY_DEBUG_SESSION",
-    StringFormat("symbol=%s|engine=%s|macro_tf=%s|micro_tf=%s|broker_session=%s|lot_type=%s|lot_size=%.8f",
+    StringFormat("symbol=%s|engine=%s|macro_tf=%s|micro_tf=%s|broker_session=%s|lot_type=%s|lot_size=%.8f|reference_balance=%.2f",
                  _Symbol,
                  PivotFractalEngineLabel(PIVOT_FRACTAL_V2),
                  EnumToString(Macro_Timeframe),
                  EnumToString(Micro_Timeframe),
                  EnumToString(Broker_Session),
                  EnumToString(Lot_Type),
-                 Lot_Strategy_Size));
+                 Lot_Strategy_Size,
+                 PIVOT_EXECUTION_REFERENCE_BALANCE));
 }
 
 void ExecutionAppendQueryDebugLog(const string label,
@@ -196,7 +197,7 @@ void ExecutionAppendQueryDebugThrottledLog(const string label,
 
 void ExecutionLogPivotAttempt(const PivotSignal &signal)
 {
-  string message = StringFormat("signal_id=%s|window_id=%s|tf=%s|level=%s|direction=%s|trigger_bid=%.10f|trigger_ask=%.10f|route=%s|attempt=%s|block_source=%s|block_reason=%s",
+  string message = StringFormat("signal_id=%s|window_id=%s|tf=%s|level=%s|direction=%s|trigger_bid=%.10f|trigger_ask=%.10f|structural_sl=%.10f|request_entry=%.10f|request_tp=%.10f|price_rr=%.10f|risk_budget=%.10f|requested_volume=%.8f|normalized_volume=%.8f|quote_sl=%.10f|quote_tp=%.10f|money_rr=%.10f|budget_utilization=%.10f|route=%s|attempt=%s|block_source=%s|block_reason=%s",
                                 signal.signal_id,
                                 signal.window_id,
                                 EnumToString(signal.pivot_timeframe),
@@ -204,6 +205,17 @@ void ExecutionLogPivotAttempt(const PivotSignal &signal)
                                 signal.direction == BULLISH ? "BUY" : "SELL",
                                 signal.trigger_bid,
                                 signal.trigger_ask,
+                                signal.route.structural_stop_loss,
+                                signal.execution.planned_entry_price,
+                                signal.execution.take_profit_price,
+                                signal.execution.price_reward_risk_ratio,
+                                signal.execution.risk_budget_amount,
+                                signal.execution.requested_volume,
+                                signal.execution.normalized_volume,
+                                signal.execution.quote_expected_stop_loss,
+                                signal.execution.quote_expected_take_profit,
+                                signal.execution.quote_expected_reward_risk_ratio,
+                                signal.execution.risk_budget_utilization_ratio,
                                 EnumToString(signal.route.status),
                                 signal.attempt_status,
                                 signal.block_source,
@@ -216,11 +228,19 @@ void ExecutionLogPivotAttempt(const PivotSignal &signal)
 void ExecutionLogPivotSendResult(const PivotSignal &signal,
                                  const BrokerExecutionCheck &check)
 {
-  string message = StringFormat("signal_id=%s|tf=%s|level=%s|direction=%s|allowed=%s|retcode=%I64u|order=%I64u|deal=%I64u|comment=%s|block=%s:%s",
+  string message = StringFormat("signal_id=%s|tf=%s|level=%s|direction=%s|entry=%.10f|sl=%.10f|tp=%.10f|price_rr=%.10f|volume=%.8f|quote_sl=%.10f|quote_tp=%.10f|money_rr=%.10f|allowed=%s|retcode=%I64u|order=%I64u|deal=%I64u|comment=%s|block=%s:%s",
                                 signal.signal_id,
                                 EnumToString(signal.pivot_timeframe),
                                 PivotLevelLabel(signal.level_id),
                                 signal.direction == BULLISH ? "BUY" : "SELL",
+                                check.planned_entry_price,
+                                check.stop_loss_price,
+                                check.take_profit_price,
+                                check.price_reward_risk_ratio,
+                                check.normalized_volume,
+                                check.quote_expected_stop_loss,
+                                check.quote_expected_take_profit,
+                                check.quote_expected_reward_risk_ratio,
                                 ExecutionBoolToken(check.allowed),
                                 check.send_retcode,
                                 check.order_ticket,

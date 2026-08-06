@@ -378,7 +378,6 @@ string PivotV9RouteStatusToken(const PivotRouteStatuses status)
   {
     case PIVOT_ROUTE_NOT_BUILT:        return "NOT_BUILT";
     case PIVOT_ROUTE_ALLOWED:          return "ALLOWED";
-    case PIVOT_ROUTE_NO_FORWARD_LEVEL: return "NO_FORWARD_LEVEL";
     case PIVOT_ROUTE_INVALID_GEOMETRY: return "INVALID_GEOMETRY";
   }
   return "UNKNOWN";
@@ -455,7 +454,7 @@ string PivotV9SignalId(const string symbol,
 
 string PivotV9BuildConfigPayload()
 {
-  return StringFormat("schema=%d|engine=%s|symbol=%s|chart_tf=%d|macro_tf=%d|micro_tf=%d|trigger=live_bid_virtual_limit|pp=first_causal_bid_side_return|bands=%d,%.4f,PRICE_WEIGHTED|broker_session=%d|lot_type=%d|lot_size=%.8f",
+  return StringFormat("schema=%d|engine=%s|symbol=%s|chart_tf=%d|macro_tf=%d|micro_tf=%d|trigger=live_bid_virtual_limit|pp=first_causal_bid_side_return|route=structural_sl_fresh_quote_price_distance_1r|bands=%d,%.4f,PRICE_WEIGHTED|broker_session=%d|lot_type=%d|lot_size=%.8f|reference_balance=%.8f",
                       PIVOT_V9_SCHEMA_VERSION,
                       PIVOT_V9_ENGINE_LABEL,
                       _Symbol,
@@ -466,7 +465,8 @@ string PivotV9BuildConfigPayload()
                       PIVOT_CONTEXT_B_PERCENT_DEVIATION,
                       (int)Broker_Session,
                       (int)Lot_Type,
-                      Lot_Strategy_Size);
+                      Lot_Strategy_Size,
+                      PIVOT_EXECUTION_REFERENCE_BALANCE);
 }
 
 string PivotV9BuildRunId()
@@ -687,7 +687,7 @@ bool PivotV9WriteManifest()
     return false;
 
   string rows[];
-  ArrayResize(rows, 22);
+  ArrayResize(rows, 26);
   rows[0]  = PivotV9ManifestRow("run_id", g_pivot_v9_run_id);
   rows[1]  = PivotV9ManifestRow("config_id", g_pivot_v9_config_id);
   rows[2]  = PivotV9ManifestRow("started_broker_time", PivotV9TimeToken(g_pivot_v9_started_at));
@@ -701,7 +701,7 @@ bool PivotV9WriteManifest()
   rows[10] = PivotV9ManifestRow("source_policy", "immediately_previous_completed_broker_candle_shift_1");
   rows[11] = PivotV9ManifestRow("identity_policy", "symbol,macro_timeframe,active_bar_open,level_first_touch_once");
   rows[12] = PivotV9ManifestRow("trigger_policy", "live_bid_virtual_limit_support_buy_resistance_sell_pp_return");
-  rows[13] = PivotV9ManifestRow("execution_price_policy", "buy_ask_sell_bid_market_deal");
+  rows[13] = PivotV9ManifestRow("execution_price_policy", "trigger_bid_buy_fresh_ask_sell_fresh_bid_market_deal");
   rows[14] = PivotV9ManifestRow("time_policy", "broker_time_causal_analysis_time_export_only");
   rows[15] = PivotV9ManifestRow("broker_session", MarketDataTimePolicyToken(Broker_Session));
   rows[16] = PivotV9ManifestRow("lot_mode", EnumToString(Lot_Type));
@@ -710,6 +710,10 @@ bool PivotV9WriteManifest()
   rows[19] = PivotV9ManifestRow("feature_set_id", PIVOT_V9_FEATURE_SET_ID);
   rows[20] = PivotV9ManifestRow("outcome_policy", "broker_confirmed_only");
   rows[21] = PivotV9ManifestRow("research_approval_state", "OFFLINE_RESEARCH_ONLY");
+  rows[22] = PivotV9ManifestRow("route_policy", "structural_sl_fresh_quote_price_distance_1r_no_modifications");
+  rows[23] = PivotV9ManifestRow("reference_balance", DoubleToString(PIVOT_EXECUTION_REFERENCE_BALANCE, 8));
+  rows[24] = PivotV9ManifestRow("account_currency", AccountInfoString(ACCOUNT_CURRENCY));
+  rows[25] = PivotV9ManifestRow("volume_normalization_policy", "normalize_down_block_below_minimum");
 
   for(int i = 0; i < ArraySize(rows); i++)
   {
@@ -985,7 +989,7 @@ bool PivotV9RecordExecutionCheck(const PivotV9ExecutionPayload &payload)
                PivotV9DoubleToken(check.planned_entry_price, false) + "\t" +
                PivotV9DoubleToken(check.stop_loss_price, false) + "\t" +
                PivotV9DoubleToken(check.take_profit_price, false) + "\t" +
-               PivotV9DoubleToken(check.risk_distance, false) + "\t" +
+               PivotV9DoubleToken(check.risk_distance_points, false) + "\t" +
                PivotV9DoubleToken(check.requested_volume, false) + "\t" +
                PivotV9DoubleToken(check.normalized_volume, false) + "\t" +
                PivotV9DoubleToken(check.volume_min, false) + "\t" +

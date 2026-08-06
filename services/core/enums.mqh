@@ -62,10 +62,9 @@ enum PivotPpArmStates
 
 enum PivotRouteStatuses
 {
-  PIVOT_ROUTE_NOT_BUILT       = 0,
-  PIVOT_ROUTE_ALLOWED         = 1,
-  PIVOT_ROUTE_NO_FORWARD_LEVEL = 2,
-  PIVOT_ROUTE_INVALID_GEOMETRY = 3
+  PIVOT_ROUTE_NOT_BUILT        = 0,
+  PIVOT_ROUTE_ALLOWED          = 1,
+  PIVOT_ROUTE_INVALID_GEOMETRY = 2
 };
 
 enum ExecutionLotTypes

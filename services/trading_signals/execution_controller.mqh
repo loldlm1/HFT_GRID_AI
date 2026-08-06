@@ -14,6 +14,70 @@ double ExecutionEntryPriceFromTick(const SignalTypes direction,
   return 0.0;
 }
 
+bool BuildExecutionOneRGeometry(const string symbol,
+                                const SignalTypes direction,
+                                const MqlTick &tick,
+                                const double structural_stop_loss,
+                                double &entry_price_out,
+                                double &take_profit_out,
+                                string &reason_out)
+{
+  entry_price_out = 0.0;
+  take_profit_out = 0.0;
+  reason_out = "";
+  if(symbol == "" ||
+     (direction != BULLISH && direction != BEARISH) ||
+     tick.bid <= 0.0 || tick.ask <= 0.0 || tick.ask < tick.bid ||
+     structural_stop_loss <= 0.0)
+  {
+    reason_out = "QUOTE_OR_STRUCTURAL_STOP_INVALID";
+    return false;
+  }
+
+  entry_price_out = ExecutionEntryPriceFromTick(direction, tick);
+  double risk_distance = direction == BULLISH
+                         ? entry_price_out - structural_stop_loss
+                         : structural_stop_loss - entry_price_out;
+  if(risk_distance <= 0.0 || !MathIsValidNumber(risk_distance))
+  {
+    reason_out = "STRUCTURAL_STOP_WRONG_SIDE_OF_FRESH_ENTRY";
+    return false;
+  }
+
+  double raw_take_profit = direction == BULLISH
+                           ? entry_price_out + risk_distance
+                           : entry_price_out - risk_distance;
+  if(!NormalizePivotTradePrice(symbol,
+                               raw_take_profit,
+                               take_profit_out))
+  {
+    reason_out = "ONE_R_TAKE_PROFIT_NORMALIZATION_FAILED";
+    return false;
+  }
+
+  double point_size = 0.0;
+  if(!SymbolInfoDouble(symbol, SYMBOL_POINT, point_size) || point_size <= 0.0)
+  {
+    reason_out = "POINT_SIZE_UNAVAILABLE";
+    return false;
+  }
+  double risk_points =
+    ExecutionPriceDistancePoints(entry_price_out,
+                                 structural_stop_loss,
+                                 point_size);
+  double reward_points =
+    ExecutionPriceDistancePoints(entry_price_out,
+                                 take_profit_out,
+                                 point_size);
+  double ratio = risk_points > 0.0 ? reward_points / risk_points : 0.0;
+  if(!ExecutionPriceDistanceOneRValid(risk_points, reward_points, ratio))
+  {
+    reason_out = "NORMALIZED_TAKE_PROFIT_NOT_EXACT_PRICE_DISTANCE_ONE_R";
+    return false;
+  }
+  return true;
+}
+
 void PivotSignalTriggerTick(const PivotSignal &signal,
                             MqlTick &tick_out)
 {
@@ -59,8 +123,8 @@ void BuildPivotV9AttemptPayload(const PivotSignal &signal,
   payload.trigger_ask = signal.trigger_ask;
   payload.spread_points = signal.trigger_spread_points;
   payload.intended_entry_price = signal.route.intended_entry_price;
-  payload.initial_stop_loss = signal.route.initial_stop_loss;
-  payload.terminal_take_profit = signal.route.terminal_take_profit;
+  payload.initial_stop_loss = signal.route.structural_stop_loss;
+  payload.terminal_take_profit = signal.execution.take_profit_price;
   payload.route_status = signal.route.status;
   payload.attempt_status = signal.attempt_status;
   payload.block_source = signal.block_source;
@@ -125,19 +189,36 @@ bool CapturePivotEligibility(PivotSignal &signal,
                              const bool require_order_check,
                              BrokerExecutionCheck &check_out)
 {
-  double entry_price = ExecutionEntryPriceFromTick(signal.direction, tick);
+  double entry_price = 0.0;
+  double take_profit_price = 0.0;
+  string geometry_reason = "";
+  bool geometry_ok = BuildExecutionOneRGeometry(_Symbol,
+                                                signal.direction,
+                                                tick,
+                                                signal.route.structural_stop_loss,
+                                                entry_price,
+                                                take_profit_price,
+                                                geometry_reason);
   double requested_volume = 0.0;
   double normalized_volume = 0.0;
-  double risk_target_amount = 0.0;
-  double expected_stop_loss = 0.0;
+  double risk_budget_amount = 0.0;
+  double quote_expected_stop_loss = 0.0;
+  double quote_expected_take_profit = 0.0;
+  double quote_expected_ratio = 0.0;
+  double risk_budget_utilization = 0.0;
   string volume_reason = "";
-  bool volume_ok = ResolveExecutionVolumePlan(signal.direction,
+  bool volume_ok = geometry_ok &&
+                   ResolveExecutionVolumePlan(signal.direction,
                                               entry_price,
-                                              signal.route.initial_stop_loss,
+                                              signal.route.structural_stop_loss,
+                                              take_profit_price,
                                               requested_volume,
                                               normalized_volume,
-                                              risk_target_amount,
-                                              expected_stop_loss,
+                                              risk_budget_amount,
+                                              quote_expected_stop_loss,
+                                              quote_expected_take_profit,
+                                              quote_expected_ratio,
+                                              risk_budget_utilization,
                                               volume_reason);
 
   CaptureBrokerExecutionCheck(signal.direction,
@@ -146,23 +227,45 @@ bool CapturePivotEligibility(PivotSignal &signal,
                               broker_time,
                               tick,
                               entry_price,
-                              signal.route.initial_stop_loss,
-                              signal.route.terminal_take_profit,
+                              signal.route.structural_stop_loss,
+                              take_profit_price,
                               requested_volume,
                               normalized_volume,
+                              risk_budget_amount,
+                              quote_expected_stop_loss,
+                              quote_expected_take_profit,
+                              quote_expected_ratio,
+                              risk_budget_utilization,
                               require_order_check,
                               check_out);
+  if(!geometry_ok)
+    AppendExecutionBlockReason(check_out, "one_r_geometry", geometry_reason);
   if(!volume_ok)
-    AppendExecutionBlockReason(check_out, "lot_plan", volume_reason);
+  {
+    if(volume_reason != "")
+      AppendExecutionBlockReason(check_out, "lot_plan", volume_reason);
+  }
+  if(require_order_check && check_out.allowed)
+    RunExecutionOrderCheck(check_out);
 
-  signal.execution.planned_entry_price = entry_price;
-  signal.execution.stop_loss_price = signal.route.initial_stop_loss;
-  signal.execution.take_profit_price = signal.route.terminal_take_profit;
-  signal.execution.risk_distance = MathAbs(entry_price - signal.route.initial_stop_loss);
-  signal.execution.requested_volume = requested_volume;
-  signal.execution.normalized_volume = normalized_volume;
-  signal.execution.risk_target_amount = risk_target_amount;
-  signal.execution.expected_stop_loss = expected_stop_loss;
+  signal.execution.planned_entry_price = check_out.planned_entry_price;
+  signal.execution.stop_loss_price = check_out.stop_loss_price;
+  signal.execution.take_profit_price = check_out.take_profit_price;
+  signal.execution.risk_distance_points = check_out.risk_distance_points;
+  signal.execution.reward_distance_points = check_out.reward_distance_points;
+  signal.execution.price_reward_risk_ratio =
+    check_out.price_reward_risk_ratio;
+  signal.execution.requested_volume = check_out.requested_volume;
+  signal.execution.normalized_volume = check_out.normalized_volume;
+  signal.execution.risk_budget_amount = check_out.risk_budget_amount;
+  signal.execution.quote_expected_stop_loss =
+    check_out.quote_expected_stop_loss;
+  signal.execution.quote_expected_take_profit =
+    check_out.quote_expected_take_profit;
+  signal.execution.quote_expected_reward_risk_ratio =
+    check_out.quote_expected_reward_risk_ratio;
+  signal.execution.risk_budget_utilization_ratio =
+    check_out.risk_budget_utilization_ratio;
   signal.execution.last_action_time = broker_time;
   return check_out.allowed;
 }
@@ -221,8 +324,8 @@ bool SendPivotMarketOrder(PivotSignal &signal)
   request.magic = g_execution_magic;
   request.volume = signal.execution.pre_send_check.normalized_volume;
   request.price = signal.execution.pre_send_check.planned_entry_price;
-  request.sl = signal.route.initial_stop_loss;
-  request.tp = signal.route.terminal_take_profit;
+  request.sl = signal.execution.pre_send_check.stop_loss_price;
+  request.tp = signal.execution.pre_send_check.take_profit_price;
   request.type = ExecutionOrderType(signal.direction);
   request.type_filling = ResolveExecutionFillingMode(_Symbol);
   request.type_time = ORDER_TIME_GTC;
@@ -328,13 +431,6 @@ bool ProcessPivotSignalAttempt(PivotSignal &signal)
                                permission_source,
                                permission_reason);
     ApplyPivotAttemptBlock(signal, permission_source, permission_reason);
-  }
-  else if(!signal.execution.observation_check.allowed)
-  {
-    ApplyFailedEligibilityDebugSideEffect(signal.execution.observation_check);
-    ApplyPivotAttemptBlock(signal,
-                           signal.execution.observation_check.block_source,
-                           signal.execution.observation_check.block_reason);
   }
   else
   {

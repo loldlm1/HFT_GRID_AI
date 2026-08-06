@@ -115,20 +115,7 @@ bool PivotTrailingStopStronger(const SignalTypes direction,
 int PivotHighestReachedMilestone(const PivotSignal &signal,
                                  const MqlTick &tick)
 {
-  if(tick.bid <= 0.0 || tick.ask <= 0.0 || tick.ask < tick.bid)
-    return -1;
-
-  int highest = -1;
-  for(int i = 0; i < signal.route.milestone_count; i++)
-  {
-    double milestone_price = signal.route.milestones[i].reached_price;
-    bool reached = signal.direction == BULLISH
-                   ? tick.bid >= milestone_price
-                   : signal.direction == BEARISH && tick.ask <= milestone_price;
-    if(reached)
-      highest = i;
-  }
-  return highest;
+  return -1;
 }
 
 bool PivotStrongestDesiredStop(const PivotSignal &signal,
@@ -138,25 +125,7 @@ bool PivotStrongestDesiredStop(const PivotSignal &signal,
 {
   milestone_index_out = -1;
   desired_stop_out = 0.0;
-  if(highest_index < 0 || signal.route.milestone_count <= 0)
-    return false;
-
-  for(int i = 0; i <= highest_index &&
-                  i < signal.route.milestone_count; i++)
-  {
-    if(!signal.route.milestones[i].moves_stop ||
-       signal.route.milestones[i].desired_stop_price <= 0.0)
-      continue;
-    if(milestone_index_out < 0 ||
-       PivotTrailingStopStronger(signal.direction,
-                                 signal.route.milestones[i].desired_stop_price,
-                                 desired_stop_out))
-    {
-      milestone_index_out = i;
-      desired_stop_out = signal.route.milestones[i].desired_stop_price;
-    }
-  }
-  return milestone_index_out >= 0 && desired_stop_out > 0.0;
+  return false;
 }
 
 void PivotSetPendingStop(PivotSignal &signal,
@@ -244,16 +213,8 @@ void PivotRecordTrailingEvent(PivotSignal &signal,
   payload.direction = signal.direction;
   payload.position_ticket = signal.execution.position_ticket;
   payload.position_identifier = signal.execution.position_identifier;
-  payload.milestone_level = PIVOT_LEVEL_PP;
-  payload.milestone_price = 0.0;
-  if(milestone_index >= 0 &&
-     milestone_index < signal.route.milestone_count)
-  {
-    payload.milestone_level =
-      signal.route.milestones[milestone_index].reached_level;
-    payload.milestone_price =
-      signal.route.milestones[milestone_index].reached_price;
-  }
+  payload.milestone_level = signal.level_id;
+  payload.milestone_price = signal.route.intended_entry_price;
   payload.previous_confirmed_stop = previous_stop;
   payload.desired_stop = desired_stop;
   payload.requested_stop = requested_stop;
@@ -302,13 +263,7 @@ bool PivotDesiredStopBelongsToRoute(const PivotSignal &signal,
                                     const int milestone_index,
                                     const double desired_stop)
 {
-  if(milestone_index < 0 ||
-     milestone_index >= signal.route.milestone_count ||
-     !signal.route.milestones[milestone_index].moves_stop)
-    return false;
-  double expected = signal.route.milestones[milestone_index].desired_stop_price;
-  return expected > 0.0 &&
-         MathAbs(expected - desired_stop) <= PivotTrailingPriceTolerance();
+  return false;
 }
 
 bool PreparePivotTrailingModification(PivotSignal &signal,
@@ -412,7 +367,7 @@ bool PreparePivotTrailingModification(PivotSignal &signal,
   }
 
   double target_tolerance = PivotTrailingPriceTolerance();
-  if(MathAbs(validation.take_profit - signal.route.terminal_take_profit) >
+  if(MathAbs(validation.take_profit - signal.execution.take_profit_price) >
      target_tolerance)
   {
     validation.reason = "BROKER_TP_CAPTURE_MISMATCH";
@@ -813,19 +768,14 @@ bool ExportPivotSignalOutcome(PivotSignal &signal)
   payload.position_identifier = signal.execution.position_identifier;
   payload.broker_entry_price = signal.execution.broker_entry_price;
   payload.broker_volume = signal.execution.broker_volume;
-  payload.initial_stop_loss = signal.route.initial_stop_loss;
-  payload.terminal_take_profit = signal.route.terminal_take_profit;
+  payload.initial_stop_loss = signal.route.structural_stop_loss;
+  payload.terminal_take_profit = signal.execution.take_profit_price;
   payload.final_broker_stop_loss = signal.execution.broker_stop_loss;
   payload.final_broker_take_profit = signal.execution.broker_take_profit;
   payload.close_price = signal.execution.close_price;
   payload.closed_volume = signal.execution.closed_volume;
   payload.realized_profit = signal.execution.realized_profit;
   payload.highest_milestone_level = "NONE";
-  if(signal.execution.highest_milestone_index >= 0 &&
-     signal.execution.highest_milestone_index < signal.route.milestone_count)
-    payload.highest_milestone_level =
-      PivotLevelLabel(signal.route.milestones[
-        signal.execution.highest_milestone_index].reached_level);
   payload.terminal_reason = signal.execution.terminal_reason;
   payload.broker_entry_confirmed = signal.execution.broker_entry_confirmed;
   payload.broker_close_confirmed = signal.execution.broker_close_confirmed;

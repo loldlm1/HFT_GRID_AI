@@ -24,7 +24,7 @@ void DrawExecutionState(const long chart_id,
 
   double entry_price = signal.route.intended_entry_price;
   double stop_loss = signal.execution.broker_stop_loss;
-  double take_profit = signal.route.terminal_take_profit;
+  double take_profit = signal.execution.broker_take_profit;
   string identity_label = EnumToString(signal.pivot_timeframe) + " " +
                           PivotLevelLabel(signal.level_id) + " " +
                           (signal.direction == BULLISH ? "BUY" : "SELL");

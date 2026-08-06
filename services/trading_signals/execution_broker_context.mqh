@@ -106,6 +106,21 @@ bool ExecutionGeometryValid(const SignalTypes direction,
   return false;
 }
 
+bool ExecutionPriceDistanceOneRValid(const double risk_distance_points,
+                                     const double reward_distance_points,
+                                     const double ratio)
+{
+  if(risk_distance_points <= 0.0 ||
+     reward_distance_points <= 0.0 ||
+     !MathIsValidNumber(ratio))
+    return false;
+  double tolerance = MathMax(1e-7,
+                             MathMax(risk_distance_points,
+                                     reward_distance_points) * 1e-10);
+  return MathAbs(risk_distance_points - reward_distance_points) <= tolerance &&
+         MathAbs(ratio - 1.0) <= 1e-9;
+}
+
 bool ExecutionProtectionGeometryValid(const SignalTypes direction,
                                       const double bid,
                                       const double ask,
@@ -195,7 +210,12 @@ bool CaptureBrokerExecutionCheck(const SignalTypes direction,
                                  const double take_profit_price,
                                  const double requested_volume,
                                  const double normalized_volume,
-                                 const bool require_order_check,
+                                 const double risk_budget_amount,
+                                 const double quote_expected_stop_loss,
+                                 const double quote_expected_take_profit,
+                                 const double quote_expected_ratio,
+                                 const double risk_budget_utilization_ratio,
+                                 const bool refresh_constraints_for_send,
                                  BrokerExecutionCheck &check)
 {
   check.Reset();
@@ -207,9 +227,13 @@ bool CaptureBrokerExecutionCheck(const SignalTypes direction,
   check.planned_entry_price = entry_price;
   check.stop_loss_price = stop_loss_price;
   check.take_profit_price = take_profit_price;
-  check.risk_distance = MathAbs(entry_price - stop_loss_price);
+  check.risk_budget_amount = risk_budget_amount;
   check.requested_volume = requested_volume;
   check.normalized_volume = normalized_volume;
+  check.quote_expected_stop_loss = quote_expected_stop_loss;
+  check.quote_expected_take_profit = quote_expected_take_profit;
+  check.quote_expected_reward_risk_ratio = quote_expected_ratio;
+  check.risk_budget_utilization_ratio = risk_budget_utilization_ratio;
   check.allowed = true;
 
   if(observed_tick.bid <= 0.0 ||
@@ -224,7 +248,7 @@ bool CaptureBrokerExecutionCheck(const SignalTypes direction,
     check.ask = observed_tick.ask;
   }
 
-  bool refresh_constraints = require_order_check ||
+  bool refresh_constraints = refresh_constraints_for_send ||
                              BrokerConstraintsNeedRefresh();
   if(refresh_constraints &&
      !RefreshSymbolTradingConstraints(check.symbol, g_symbol_constraints))
@@ -242,6 +266,18 @@ bool CaptureBrokerExecutionCheck(const SignalTypes direction,
     check.spread_points = (check.ask - check.bid) / check.point_size;
   else
     ExecutionCheckBlock(check, "market_price", "bid_ask_or_point_invalid");
+
+  check.risk_distance_points =
+    ExecutionPriceDistancePoints(entry_price,
+                                 stop_loss_price,
+                                 check.point_size);
+  check.reward_distance_points =
+    ExecutionPriceDistancePoints(entry_price,
+                                 take_profit_price,
+                                 check.point_size);
+  if(check.risk_distance_points > 0.0)
+    check.price_reward_risk_ratio =
+      check.reward_distance_points / check.risk_distance_points;
 
   check.account_margin_mode = AccountInfoInteger(ACCOUNT_MARGIN_MODE);
   check.account_margin_mode_supported =
@@ -296,9 +332,14 @@ bool CaptureBrokerExecutionCheck(const SignalTypes direction,
                                      check.bid,
                                      check.ask,
                                      stop_loss_price,
-                                     take_profit_price);
+                                     take_profit_price) &&
+    ExecutionPriceDistanceOneRValid(check.risk_distance_points,
+                                    check.reward_distance_points,
+                                    check.price_reward_risk_ratio);
   if(!check.geometry_valid)
-    ExecutionCheckBlock(check, "sl_tp_geometry", "directional_geometry_invalid");
+    ExecutionCheckBlock(check,
+                        "sl_tp_geometry",
+                        "directional_or_exact_one_r_geometry_invalid");
 
   double protection_reference = check.direction == BULLISH
                                 ? check.bid
@@ -370,9 +411,6 @@ bool CaptureBrokerExecutionCheck(const SignalTypes direction,
                                          required_margin));
     }
   }
-
-  if(require_order_check && check.allowed && !RunExecutionOrderCheck(check))
-    return false;
 
   return check.allowed;
 }

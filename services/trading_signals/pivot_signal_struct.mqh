@@ -4,11 +4,6 @@
 #ifndef _SERVICES_TRADING_SIGNALS_PIVOT_SIGNAL_STRUCT_MQH_
 #define _SERVICES_TRADING_SIGNALS_PIVOT_SIGNAL_STRUCT_MQH_
 
-enum PivotRouteFixedCounts
-{
-  PIVOT_ROUTE_MAX_MILESTONES = 3
-};
-
 struct BrokerExecutionCheck
 {
   string phase;
@@ -34,13 +29,20 @@ struct BrokerExecutionCheck
   double planned_entry_price;
   double stop_loss_price;
   double take_profit_price;
-  double risk_distance;
+  double risk_distance_points;
+  double reward_distance_points;
+  double price_reward_risk_ratio;
+  double risk_budget_amount;
   double requested_volume;
   double normalized_volume;
   double volume_min;
   double volume_max;
   double volume_step;
   bool volume_valid;
+  double quote_expected_stop_loss;
+  double quote_expected_take_profit;
+  double quote_expected_reward_risk_ratio;
+  double risk_budget_utilization_ratio;
   double account_balance;
   double free_margin;
   double required_margin;
@@ -95,13 +97,20 @@ struct BrokerExecutionCheck
     planned_entry_price = 0.0;
     stop_loss_price = 0.0;
     take_profit_price = 0.0;
-    risk_distance = 0.0;
+    risk_distance_points = 0.0;
+    reward_distance_points = 0.0;
+    price_reward_risk_ratio = 0.0;
+    risk_budget_amount = 0.0;
     requested_volume = 0.0;
     normalized_volume = 0.0;
     volume_min = 0.0;
     volume_max = 0.0;
     volume_step = 0.0;
     volume_valid = false;
+    quote_expected_stop_loss = 0.0;
+    quote_expected_take_profit = 0.0;
+    quote_expected_reward_risk_ratio = 0.0;
+    risk_budget_utilization_ratio = 0.0;
     account_balance = 0.0;
     free_margin = 0.0;
     required_margin = 0.0;
@@ -147,13 +156,21 @@ struct BrokerExecutionCheck
     planned_entry_price = other.planned_entry_price;
     stop_loss_price = other.stop_loss_price;
     take_profit_price = other.take_profit_price;
-    risk_distance = other.risk_distance;
+    risk_distance_points = other.risk_distance_points;
+    reward_distance_points = other.reward_distance_points;
+    price_reward_risk_ratio = other.price_reward_risk_ratio;
+    risk_budget_amount = other.risk_budget_amount;
     requested_volume = other.requested_volume;
     normalized_volume = other.normalized_volume;
     volume_min = other.volume_min;
     volume_max = other.volume_max;
     volume_step = other.volume_step;
     volume_valid = other.volume_valid;
+    quote_expected_stop_loss = other.quote_expected_stop_loss;
+    quote_expected_take_profit = other.quote_expected_take_profit;
+    quote_expected_reward_risk_ratio =
+      other.quote_expected_reward_risk_ratio;
+    risk_budget_utilization_ratio = other.risk_budget_utilization_ratio;
     account_balance = other.account_balance;
     free_margin = other.free_margin;
     required_margin = other.required_margin;
@@ -175,48 +192,11 @@ struct BrokerExecutionCheck
   }
 };
 
-struct PivotRouteMilestone
-{
-  PivotLevelIds reached_level;
-  double reached_price;
-  bool moves_stop;
-  double desired_stop_price;
-
-  PivotRouteMilestone()
-  {
-    Reset();
-  }
-
-  PivotRouteMilestone(const PivotRouteMilestone &other)
-  {
-    CopyFrom(other);
-  }
-
-  void Reset()
-  {
-    reached_level = PIVOT_LEVEL_PP;
-    reached_price = 0.0;
-    moves_stop = false;
-    desired_stop_price = 0.0;
-  }
-
-  void CopyFrom(const PivotRouteMilestone &other)
-  {
-    reached_level = other.reached_level;
-    reached_price = other.reached_price;
-    moves_stop = other.moves_stop;
-    desired_stop_price = other.desired_stop_price;
-  }
-};
-
 struct PivotSignalRoute
 {
   PivotRouteStatuses status;
   double intended_entry_price;
-  double initial_stop_loss;
-  double terminal_take_profit;
-  int milestone_count;
-  PivotRouteMilestone milestones[PIVOT_ROUTE_MAX_MILESTONES];
+  double structural_stop_loss;
   string denial_reason;
 
   PivotSignalRoute()
@@ -233,24 +213,16 @@ struct PivotSignalRoute
   {
     status = PIVOT_ROUTE_NOT_BUILT;
     intended_entry_price = 0.0;
-    initial_stop_loss = 0.0;
-    terminal_take_profit = 0.0;
-    milestone_count = 0;
+    structural_stop_loss = 0.0;
     denial_reason = "";
-    for(int i = 0; i < PIVOT_ROUTE_MAX_MILESTONES; i++)
-      milestones[i].Reset();
   }
 
   void CopyFrom(const PivotSignalRoute &other)
   {
     status = other.status;
     intended_entry_price = other.intended_entry_price;
-    initial_stop_loss = other.initial_stop_loss;
-    terminal_take_profit = other.terminal_take_profit;
-    milestone_count = other.milestone_count;
+    structural_stop_loss = other.structural_stop_loss;
     denial_reason = other.denial_reason;
-    for(int i = 0; i < PIVOT_ROUTE_MAX_MILESTONES; i++)
-      milestones[i].CopyFrom(other.milestones[i]);
   }
 };
 
@@ -260,11 +232,16 @@ struct PivotSignalExecution
   double planned_entry_price;
   double stop_loss_price;
   double take_profit_price;
-  double risk_distance;
+  double risk_distance_points;
+  double reward_distance_points;
+  double price_reward_risk_ratio;
   double requested_volume;
   double normalized_volume;
-  double risk_target_amount;
-  double expected_stop_loss;
+  double risk_budget_amount;
+  double quote_expected_stop_loss;
+  double quote_expected_take_profit;
+  double quote_expected_reward_risk_ratio;
+  double risk_budget_utilization_ratio;
   double broker_entry_price;
   double broker_volume;
   double broker_stop_loss;
@@ -317,11 +294,16 @@ struct PivotSignalExecution
     planned_entry_price = 0.0;
     stop_loss_price = 0.0;
     take_profit_price = 0.0;
-    risk_distance = 0.0;
+    risk_distance_points = 0.0;
+    reward_distance_points = 0.0;
+    price_reward_risk_ratio = 0.0;
     requested_volume = 0.0;
     normalized_volume = 0.0;
-    risk_target_amount = 0.0;
-    expected_stop_loss = 0.0;
+    risk_budget_amount = 0.0;
+    quote_expected_stop_loss = 0.0;
+    quote_expected_take_profit = 0.0;
+    quote_expected_reward_risk_ratio = 0.0;
+    risk_budget_utilization_ratio = 0.0;
     broker_entry_price = 0.0;
     broker_volume = 0.0;
     broker_stop_loss = 0.0;
@@ -365,11 +347,17 @@ struct PivotSignalExecution
     planned_entry_price = other.planned_entry_price;
     stop_loss_price = other.stop_loss_price;
     take_profit_price = other.take_profit_price;
-    risk_distance = other.risk_distance;
+    risk_distance_points = other.risk_distance_points;
+    reward_distance_points = other.reward_distance_points;
+    price_reward_risk_ratio = other.price_reward_risk_ratio;
     requested_volume = other.requested_volume;
     normalized_volume = other.normalized_volume;
-    risk_target_amount = other.risk_target_amount;
-    expected_stop_loss = other.expected_stop_loss;
+    risk_budget_amount = other.risk_budget_amount;
+    quote_expected_stop_loss = other.quote_expected_stop_loss;
+    quote_expected_take_profit = other.quote_expected_take_profit;
+    quote_expected_reward_risk_ratio =
+      other.quote_expected_reward_risk_ratio;
+    risk_budget_utilization_ratio = other.risk_budget_utilization_ratio;
     broker_entry_price = other.broker_entry_price;
     broker_volume = other.broker_volume;
     broker_stop_loss = other.broker_stop_loss;
@@ -501,46 +489,16 @@ bool PivotRouteSetLevelPrice(const PivotPriceLadder &levels,
   return PivotTradePrice(levels, level, price_out);
 }
 
-bool PivotRouteAddMilestone(PivotSignalRoute &route,
-                            const PivotPriceLadder &levels,
-                            const PivotLevelIds reached_level,
-                            const bool moves_stop,
-                            const PivotLevelIds desired_stop_level = PIVOT_LEVEL_PP)
-{
-  if(route.milestone_count < 0 ||
-     route.milestone_count >= PIVOT_ROUTE_MAX_MILESTONES)
-    return false;
-
-  PivotRouteMilestone milestone;
-  if(!PivotRouteSetLevelPrice(levels,
-                              reached_level,
-                              milestone.reached_price))
-    return false;
-  milestone.reached_level = reached_level;
-  milestone.moves_stop = moves_stop;
-  if(moves_stop &&
-     !PivotRouteSetLevelPrice(levels,
-                              desired_stop_level,
-                              milestone.desired_stop_price))
-    return false;
-  route.milestones[route.milestone_count].CopyFrom(milestone);
-  route.milestone_count++;
-  return true;
-}
-
 bool PivotRouteGeometryValid(const SignalTypes direction,
                              const PivotSignalRoute &route)
 {
   if(route.intended_entry_price <= 0.0 ||
-     route.initial_stop_loss <= 0.0 ||
-     route.terminal_take_profit <= 0.0)
+     route.structural_stop_loss <= 0.0)
     return false;
   if(direction == BULLISH)
-    return (route.initial_stop_loss < route.intended_entry_price &&
-            route.terminal_take_profit > route.intended_entry_price);
+    return route.structural_stop_loss < route.intended_entry_price;
   if(direction == BEARISH)
-    return (route.initial_stop_loss > route.intended_entry_price &&
-            route.terminal_take_profit < route.intended_entry_price);
+    return route.structural_stop_loss > route.intended_entry_price;
   return false;
 }
 
@@ -567,23 +525,19 @@ bool BuildPivotSignalRoute(const string symbol,
     switch(entry_level)
     {
       case PIVOT_LEVEL_PP:
-        route_built = PivotRouteSetLevelPrice(levels, PIVOT_LEVEL_S1, route_out.initial_stop_loss) &&
-                      PivotRouteSetLevelPrice(levels, PIVOT_LEVEL_R3, route_out.terminal_take_profit) &&
-                      PivotRouteAddMilestone(route_out, levels, PIVOT_LEVEL_R1, true, PIVOT_LEVEL_PP) &&
-                      PivotRouteAddMilestone(route_out, levels, PIVOT_LEVEL_R2, true, PIVOT_LEVEL_R1);
+        route_built = PivotRouteSetLevelPrice(levels,
+                                              PIVOT_LEVEL_S1,
+                                              route_out.structural_stop_loss);
         break;
       case PIVOT_LEVEL_S1:
-        route_built = PivotRouteSetLevelPrice(levels, PIVOT_LEVEL_S2, route_out.initial_stop_loss) &&
-                      PivotRouteSetLevelPrice(levels, PIVOT_LEVEL_R3, route_out.terminal_take_profit) &&
-                      PivotRouteAddMilestone(route_out, levels, PIVOT_LEVEL_PP, false) &&
-                      PivotRouteAddMilestone(route_out, levels, PIVOT_LEVEL_R1, true, PIVOT_LEVEL_PP) &&
-                      PivotRouteAddMilestone(route_out, levels, PIVOT_LEVEL_R2, true, PIVOT_LEVEL_R1);
+        route_built = PivotRouteSetLevelPrice(levels,
+                                              PIVOT_LEVEL_S2,
+                                              route_out.structural_stop_loss);
         break;
       case PIVOT_LEVEL_S2:
-        route_built = PivotRouteSetLevelPrice(levels, PIVOT_LEVEL_S3, route_out.initial_stop_loss) &&
-                      PivotRouteSetLevelPrice(levels, PIVOT_LEVEL_R1, route_out.terminal_take_profit) &&
-                      PivotRouteAddMilestone(route_out, levels, PIVOT_LEVEL_S1, true, PIVOT_LEVEL_S2) &&
-                      PivotRouteAddMilestone(route_out, levels, PIVOT_LEVEL_PP, true, PIVOT_LEVEL_S1);
+        route_built = PivotRouteSetLevelPrice(levels,
+                                              PIVOT_LEVEL_S3,
+                                              route_out.structural_stop_loss);
         break;
       case PIVOT_LEVEL_S3:
       {
@@ -594,26 +548,13 @@ bool BuildPivotSignalRoute(const string symbol,
                       PivotRouteSetLevelPrice(levels, PIVOT_LEVEL_S3, s3) &&
                       NormalizePivotTradePrice(symbol,
                                                s3 - (s2 - s3),
-                                               synthetic_stop) &&
-                      PivotRouteSetLevelPrice(levels, PIVOT_LEVEL_PP, route_out.terminal_take_profit) &&
-                      PivotRouteAddMilestone(route_out, levels, PIVOT_LEVEL_S2, true, PIVOT_LEVEL_S3) &&
-                      PivotRouteAddMilestone(route_out, levels, PIVOT_LEVEL_S1, true, PIVOT_LEVEL_S2);
-        route_out.initial_stop_loss = synthetic_stop;
+                                               synthetic_stop);
+        route_out.structural_stop_loss = synthetic_stop;
         break;
       }
-      case PIVOT_LEVEL_R1:
-        route_built = PivotRouteSetLevelPrice(levels, PIVOT_LEVEL_PP, route_out.initial_stop_loss) &&
-                      PivotRouteSetLevelPrice(levels, PIVOT_LEVEL_R3, route_out.terminal_take_profit) &&
-                      PivotRouteAddMilestone(route_out, levels, PIVOT_LEVEL_R2, true, PIVOT_LEVEL_R1);
+      default:
+        route_built = false;
         break;
-      case PIVOT_LEVEL_R2:
-        route_built = PivotRouteSetLevelPrice(levels, PIVOT_LEVEL_R1, route_out.initial_stop_loss) &&
-                      PivotRouteSetLevelPrice(levels, PIVOT_LEVEL_R3, route_out.terminal_take_profit);
-        break;
-      case PIVOT_LEVEL_R3:
-        route_out.status = PIVOT_ROUTE_NO_FORWARD_LEVEL;
-        route_out.denial_reason = "NO_FORWARD_LEVEL";
-        return false;
     }
   }
   else if(direction == BEARISH)
@@ -621,23 +562,19 @@ bool BuildPivotSignalRoute(const string symbol,
     switch(entry_level)
     {
       case PIVOT_LEVEL_PP:
-        route_built = PivotRouteSetLevelPrice(levels, PIVOT_LEVEL_R1, route_out.initial_stop_loss) &&
-                      PivotRouteSetLevelPrice(levels, PIVOT_LEVEL_S3, route_out.terminal_take_profit) &&
-                      PivotRouteAddMilestone(route_out, levels, PIVOT_LEVEL_S1, true, PIVOT_LEVEL_PP) &&
-                      PivotRouteAddMilestone(route_out, levels, PIVOT_LEVEL_S2, true, PIVOT_LEVEL_S1);
+        route_built = PivotRouteSetLevelPrice(levels,
+                                              PIVOT_LEVEL_R1,
+                                              route_out.structural_stop_loss);
         break;
       case PIVOT_LEVEL_R1:
-        route_built = PivotRouteSetLevelPrice(levels, PIVOT_LEVEL_R2, route_out.initial_stop_loss) &&
-                      PivotRouteSetLevelPrice(levels, PIVOT_LEVEL_S3, route_out.terminal_take_profit) &&
-                      PivotRouteAddMilestone(route_out, levels, PIVOT_LEVEL_PP, false) &&
-                      PivotRouteAddMilestone(route_out, levels, PIVOT_LEVEL_S1, true, PIVOT_LEVEL_PP) &&
-                      PivotRouteAddMilestone(route_out, levels, PIVOT_LEVEL_S2, true, PIVOT_LEVEL_S1);
+        route_built = PivotRouteSetLevelPrice(levels,
+                                              PIVOT_LEVEL_R2,
+                                              route_out.structural_stop_loss);
         break;
       case PIVOT_LEVEL_R2:
-        route_built = PivotRouteSetLevelPrice(levels, PIVOT_LEVEL_R3, route_out.initial_stop_loss) &&
-                      PivotRouteSetLevelPrice(levels, PIVOT_LEVEL_S1, route_out.terminal_take_profit) &&
-                      PivotRouteAddMilestone(route_out, levels, PIVOT_LEVEL_R1, true, PIVOT_LEVEL_R2) &&
-                      PivotRouteAddMilestone(route_out, levels, PIVOT_LEVEL_PP, true, PIVOT_LEVEL_R1);
+        route_built = PivotRouteSetLevelPrice(levels,
+                                              PIVOT_LEVEL_R3,
+                                              route_out.structural_stop_loss);
         break;
       case PIVOT_LEVEL_R3:
       {
@@ -648,26 +585,13 @@ bool BuildPivotSignalRoute(const string symbol,
                       PivotRouteSetLevelPrice(levels, PIVOT_LEVEL_R3, r3) &&
                       NormalizePivotTradePrice(symbol,
                                                r3 + (r3 - r2),
-                                               synthetic_stop) &&
-                      PivotRouteSetLevelPrice(levels, PIVOT_LEVEL_PP, route_out.terminal_take_profit) &&
-                      PivotRouteAddMilestone(route_out, levels, PIVOT_LEVEL_R2, true, PIVOT_LEVEL_R3) &&
-                      PivotRouteAddMilestone(route_out, levels, PIVOT_LEVEL_R1, true, PIVOT_LEVEL_R2);
-        route_out.initial_stop_loss = synthetic_stop;
+                                               synthetic_stop);
+        route_out.structural_stop_loss = synthetic_stop;
         break;
       }
-      case PIVOT_LEVEL_S1:
-        route_built = PivotRouteSetLevelPrice(levels, PIVOT_LEVEL_PP, route_out.initial_stop_loss) &&
-                      PivotRouteSetLevelPrice(levels, PIVOT_LEVEL_S3, route_out.terminal_take_profit) &&
-                      PivotRouteAddMilestone(route_out, levels, PIVOT_LEVEL_S2, true, PIVOT_LEVEL_S1);
+      default:
+        route_built = false;
         break;
-      case PIVOT_LEVEL_S2:
-        route_built = PivotRouteSetLevelPrice(levels, PIVOT_LEVEL_S1, route_out.initial_stop_loss) &&
-                      PivotRouteSetLevelPrice(levels, PIVOT_LEVEL_S3, route_out.terminal_take_profit);
-        break;
-      case PIVOT_LEVEL_S3:
-        route_out.status = PIVOT_ROUTE_NO_FORWARD_LEVEL;
-        route_out.denial_reason = "NO_FORWARD_LEVEL";
-        return false;
     }
   }
   else
@@ -678,7 +602,9 @@ bool BuildPivotSignalRoute(const string symbol,
   if(!route_built || !PivotRouteGeometryValid(direction, route_out))
   {
     route_out.status = PIVOT_ROUTE_INVALID_GEOMETRY;
-    route_out.denial_reason = "ROUTE_GEOMETRY_INVALID";
+    route_out.denial_reason = route_built
+                              ? "ROUTE_GEOMETRY_INVALID"
+                              : "DIRECTION_LEVEL_ROUTE_UNSUPPORTED";
     return false;
   }
 

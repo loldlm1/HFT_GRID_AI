@@ -364,23 +364,6 @@ string PivotCloseReasonToken(const ENUM_DEAL_REASON reason)
   return "broker_history_close";
 }
 
-void ApplyPivotCloseMilestoneFacts(PivotSignal &signal,
-                                   const double close_price)
-{
-  if(close_price <= 0.0)
-    return;
-  for(int i = 0; i < signal.route.milestone_count; i++)
-  {
-    double milestone_price = signal.route.milestones[i].reached_price;
-    bool reached = signal.direction == BULLISH
-                   ? close_price >= milestone_price
-                   : signal.direction == BEARISH &&
-                     close_price <= milestone_price;
-    if(reached && i > signal.execution.highest_milestone_index)
-      signal.execution.highest_milestone_index = i;
-  }
-}
-
 bool PivotPositionIdentifierStillOpen(PivotSignal &signal)
 {
   if(signal.execution.position_identifier == 0)
@@ -420,7 +403,6 @@ bool ReconcilePivotCloseFromHistory(PivotSignal &signal)
   double realized_profit = 0.0;
   double closed_volume = 0.0;
   double close_value = 0.0;
-  double favorable_close_price = 0.0;
   datetime close_time = 0;
   ulong close_deal_ticket = 0;
   double close_deal_stop_loss = 0.0;
@@ -457,12 +439,6 @@ bool ReconcilePivotCloseFromHistory(PivotSignal &signal)
       return false;
     closed_volume += deal_volume;
     close_value += deal_price * deal_volume;
-    if(favorable_close_price <= 0.0 ||
-       (signal.direction == BULLISH &&
-        deal_price > favorable_close_price) ||
-       (signal.direction == BEARISH &&
-        deal_price < favorable_close_price))
-      favorable_close_price = deal_price;
     datetime deal_time =
       (datetime)HistoryDealGetInteger(deal_ticket, DEAL_TIME);
     if(deal_time > close_time ||
@@ -500,7 +476,6 @@ bool ReconcilePivotCloseFromHistory(PivotSignal &signal)
   signal.execution.broker_close_confirmed = true;
   signal.execution.state = EXECUTION_ORDER_BROKER_CLOSED;
   signal.execution.terminal_reason = PivotCloseReasonToken(close_reason);
-  ApplyPivotCloseMilestoneFacts(signal, favorable_close_price);
   signal.execution.last_action_time = TimeCurrent();
   return true;
 }
