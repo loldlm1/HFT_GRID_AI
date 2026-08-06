@@ -37,7 +37,7 @@ string PivotPositionComment(const PivotSignal &signal)
   string identity = signal.signal_id;
   if(StringLen(identity) > 24)
     identity = StringSubstr(identity, StringLen(identity) - 24);
-  return "PF9_" + identity;
+  return "PF10_" + identity;
 }
 
 bool PivotPositionCommentMatches(const PivotSignal &signal)
@@ -180,6 +180,7 @@ bool SelectPivotEntryPositionByIdentity(PivotSignal &signal,
 
 void ApplySelectedPivotPositionFacts(PivotSignal &signal)
 {
+  bool first_confirmation = !signal.execution.broker_entry_confirmed;
   double selected_volume = PositionGetDouble(POSITION_VOLUME);
   signal.execution.position_ticket =
     (ulong)PositionGetInteger(POSITION_TICKET);
@@ -189,14 +190,28 @@ void ApplySelectedPivotPositionFacts(PivotSignal &signal)
   signal.execution.broker_entry_price = PositionGetDouble(POSITION_PRICE_OPEN);
   if(selected_volume > signal.execution.broker_volume)
     signal.execution.broker_volume = selected_volume;
-  signal.execution.broker_stop_loss = PositionGetDouble(POSITION_SL);
-  signal.execution.broker_take_profit = PositionGetDouble(POSITION_TP);
+  if(first_confirmation)
+  {
+    signal.execution.broker_stop_loss = PositionGetDouble(POSITION_SL);
+    signal.execution.broker_take_profit = PositionGetDouble(POSITION_TP);
+  }
   signal.execution.broker_entry_time =
     (datetime)PositionGetInteger(POSITION_TIME);
+  double point_size = SymbolInfoDouble(_Symbol, SYMBOL_POINT);
+  if(point_size > 0.0)
+  {
+    signal.execution.entry_slippage_points =
+      signal.direction == BULLISH
+      ? (signal.execution.broker_entry_price -
+         signal.execution.planned_entry_price) / point_size
+      : (signal.execution.planned_entry_price -
+         signal.execution.broker_entry_price) / point_size;
+  }
   signal.execution.broker_entry_confirmed = true;
   signal.execution.state = EXECUTION_ORDER_BROKER_ACTIVE;
   signal.execution.last_action_time = TimeCurrent();
   signal.admission_status = EXECUTION_ADMISSION_FILLED;
+  signal.attempt_status = "FILLED";
 }
 
 bool PivotDealDirectionMatches(const ulong deal_ticket,
@@ -340,28 +355,39 @@ bool ReconcilePivotEntryFromHistory(PivotSignal &signal)
     signal.execution.broker_take_profit =
       HistoryOrderGetDouble(entry_order_ticket, ORDER_TP);
   }
+  double point_size = SymbolInfoDouble(_Symbol, SYMBOL_POINT);
+  if(point_size > 0.0)
+  {
+    signal.execution.entry_slippage_points =
+      signal.direction == BULLISH
+      ? (signal.execution.broker_entry_price -
+         signal.execution.planned_entry_price) / point_size
+      : (signal.execution.planned_entry_price -
+         signal.execution.broker_entry_price) / point_size;
+  }
   signal.execution.broker_entry_confirmed = true;
   signal.execution.state = EXECUTION_ORDER_BROKER_ACTIVE;
   signal.execution.last_action_time = TimeCurrent();
   signal.admission_status = EXECUTION_ADMISSION_FILLED;
+  signal.attempt_status = "FILLED";
   return true;
 }
 
 string PivotCloseReasonToken(const ENUM_DEAL_REASON reason)
 {
   if(reason == DEAL_REASON_TP)
-    return "broker_tp";
+    return "BROKER_TP";
   if(reason == DEAL_REASON_SL)
-    return "broker_sl";
+    return "BROKER_SL";
   if(reason == DEAL_REASON_CLIENT ||
      reason == DEAL_REASON_MOBILE ||
      reason == DEAL_REASON_WEB)
-    return "manual_close";
+    return "MANUAL";
   if(reason == DEAL_REASON_SO)
-    return "stop_out";
+    return "STOP_OUT";
   if(reason == DEAL_REASON_EXPERT)
-    return "expert_or_other_close";
-  return "broker_history_close";
+    return "EXPERT";
+  return "OTHER";
 }
 
 bool PivotPositionIdentifierStillOpen(PivotSignal &signal)
@@ -400,14 +426,17 @@ bool ReconcilePivotCloseFromHistory(PivotSignal &signal)
   if(!HistorySelect(from_time, TimeCurrent() + 60))
     return false;
 
-  double realized_profit = 0.0;
+  double gross_profit = 0.0;
+  double commission = 0.0;
+  double swap = 0.0;
+  double fee = 0.0;
   double closed_volume = 0.0;
   double close_value = 0.0;
   datetime close_time = 0;
-  ulong close_deal_ticket = 0;
-  double close_deal_stop_loss = 0.0;
-  double close_deal_take_profit = 0.0;
-  ENUM_DEAL_REASON close_reason = DEAL_REASON_EXPERT;
+  ulong last_close_deal_ticket = 0;
+  int close_deal_count = 0;
+  string close_reason_token = "";
+  bool close_reason_consistent = true;
   bool close_found = false;
   int total = HistoryDealsTotal();
   for(int i = 0; i < total; i++)
@@ -415,15 +444,14 @@ bool ReconcilePivotCloseFromHistory(PivotSignal &signal)
     ulong deal_ticket = HistoryDealGetTicket(i);
     if(deal_ticket == 0 ||
        HistoryDealGetString(deal_ticket, DEAL_SYMBOL) != _Symbol ||
-       (ulong)HistoryDealGetInteger(deal_ticket, DEAL_MAGIC) !=
-         g_execution_magic ||
        (ulong)HistoryDealGetInteger(deal_ticket, DEAL_POSITION_ID) !=
          signal.execution.position_identifier)
       continue;
 
-    realized_profit += HistoryDealGetDouble(deal_ticket, DEAL_PROFIT);
-    realized_profit += HistoryDealGetDouble(deal_ticket, DEAL_COMMISSION);
-    realized_profit += HistoryDealGetDouble(deal_ticket, DEAL_SWAP);
+    gross_profit += HistoryDealGetDouble(deal_ticket, DEAL_PROFIT);
+    commission += HistoryDealGetDouble(deal_ticket, DEAL_COMMISSION);
+    swap += HistoryDealGetDouble(deal_ticket, DEAL_SWAP);
+    fee += HistoryDealGetDouble(deal_ticket, DEAL_FEE);
 
     ENUM_DEAL_ENTRY deal_entry =
       (ENUM_DEAL_ENTRY)HistoryDealGetInteger(deal_ticket, DEAL_ENTRY);
@@ -433,6 +461,7 @@ bool ReconcilePivotCloseFromHistory(PivotSignal &signal)
       continue;
 
     close_found = true;
+    close_deal_count++;
     double deal_volume = HistoryDealGetDouble(deal_ticket, DEAL_VOLUME);
     double deal_price = HistoryDealGetDouble(deal_ticket, DEAL_PRICE);
     if(deal_volume <= 0.0 || deal_price <= 0.0)
@@ -441,42 +470,101 @@ bool ReconcilePivotCloseFromHistory(PivotSignal &signal)
     close_value += deal_price * deal_volume;
     datetime deal_time =
       (datetime)HistoryDealGetInteger(deal_ticket, DEAL_TIME);
+    ENUM_DEAL_REASON deal_reason =
+      (ENUM_DEAL_REASON)HistoryDealGetInteger(deal_ticket, DEAL_REASON);
+    string deal_reason_token = PivotCloseReasonToken(deal_reason);
+    if(close_reason_token == "")
+      close_reason_token = deal_reason_token;
+    else if(deal_reason_token != close_reason_token)
+      close_reason_consistent = false;
+
     if(deal_time > close_time ||
-       (deal_time == close_time && deal_ticket > close_deal_ticket))
+       (deal_time == close_time && deal_ticket > last_close_deal_ticket))
     {
       close_time = deal_time;
-      close_deal_ticket = deal_ticket;
-      close_deal_stop_loss = HistoryDealGetDouble(deal_ticket, DEAL_SL);
-      close_deal_take_profit = HistoryDealGetDouble(deal_ticket, DEAL_TP);
-      close_reason =
-        (ENUM_DEAL_REASON)HistoryDealGetInteger(deal_ticket, DEAL_REASON);
+      last_close_deal_ticket = deal_ticket;
     }
   }
 
   double close_price = closed_volume > 0.0
                        ? close_value / closed_volume
                        : 0.0;
+  double volume_tolerance =
+    SymbolInfoDouble(_Symbol, SYMBOL_VOLUME_STEP) * 0.5;
+  if(volume_tolerance <= 0.0)
+    volume_tolerance = 1e-8;
   if(!close_found ||
+     close_deal_count <= 0 ||
      close_time <= 0 ||
      close_price <= 0.0 ||
      closed_volume <= 0.0 ||
-     (signal.execution.broker_volume > 0.0 &&
-      closed_volume + 1e-9 < signal.execution.broker_volume))
+     signal.execution.broker_volume <= 0.0 ||
+     MathAbs(closed_volume - signal.execution.broker_volume) >
+       volume_tolerance ||
+     signal.execution.quote_expected_stop_loss <= 0.0)
     return false;
 
-  signal.execution.close_deal_ticket = close_deal_ticket;
+  string terminal_reason = close_reason_consistent
+                           ? close_reason_token
+                           : "MIXED";
+  double point_size = SymbolInfoDouble(_Symbol, SYMBOL_POINT);
+  if(point_size <= 0.0 || terminal_reason == "")
+    return false;
+
+  signal.execution.last_close_deal_ticket = last_close_deal_ticket;
+  signal.execution.close_deal_count = close_deal_count;
   signal.execution.close_price = close_price;
   signal.execution.close_time = close_time;
   signal.execution.closed_volume = closed_volume;
-  signal.execution.realized_profit = realized_profit;
-  if(close_deal_stop_loss > 0.0)
-    signal.execution.broker_stop_loss = close_deal_stop_loss;
-  if(close_deal_take_profit > 0.0)
-    signal.execution.broker_take_profit = close_deal_take_profit;
+  signal.execution.gross_profit = gross_profit;
+  signal.execution.commission = commission;
+  signal.execution.swap = swap;
+  signal.execution.fee = fee;
+  signal.execution.net_profit = gross_profit + commission + swap + fee;
+  signal.execution.gross_execution_r = gross_profit /
+    signal.execution.quote_expected_stop_loss;
+  signal.execution.net_execution_r = signal.execution.net_profit /
+    signal.execution.quote_expected_stop_loss;
+  if(Lot_Type == EXECUTION_LOT_REFERENCE_BALANCE_PERCENT &&
+     signal.execution.risk_budget_amount > 0.0)
+  {
+    signal.execution.gross_budget_r = gross_profit /
+      signal.execution.risk_budget_amount;
+    signal.execution.net_budget_r = signal.execution.net_profit /
+      signal.execution.risk_budget_amount;
+  }
+  signal.execution.close_reason_consistent = close_reason_consistent;
+  signal.execution.binary_eligible = false;
+  signal.execution.binary_target = -1;
+  signal.execution.exclusion_reason = "";
+  if(terminal_reason == "BROKER_TP" || terminal_reason == "BROKER_SL")
+  {
+    double terminal_price = terminal_reason == "BROKER_TP"
+                            ? signal.execution.broker_take_profit
+                            : signal.execution.broker_stop_loss;
+    signal.execution.exit_slippage_points =
+      signal.direction == BULLISH
+      ? (terminal_price - close_price) / point_size
+      : (close_price - terminal_price) / point_size;
+    if(signal.features.complete)
+    {
+      signal.execution.binary_eligible = true;
+      signal.execution.binary_target = terminal_reason == "BROKER_TP" ? 1 : 0;
+    }
+    else
+    {
+      signal.execution.exclusion_reason = "FEATURE_INCOMPLETE";
+    }
+  }
+  else
+  {
+    signal.execution.exclusion_reason = "NONBINARY_" + terminal_reason;
+  }
   signal.execution.broker_close_confirmed = true;
   signal.execution.state = EXECUTION_ORDER_BROKER_CLOSED;
-  signal.execution.terminal_reason = PivotCloseReasonToken(close_reason);
+  signal.execution.terminal_reason = terminal_reason;
   signal.execution.last_action_time = TimeCurrent();
+  signal.attempt_status = "CLOSED";
   return true;
 }
 
@@ -499,6 +587,7 @@ bool ReconcilePivotOrderTerminalState(PivotSignal &signal)
     signal.execution.terminal_reason = "BROKER_ORDER_IDENTITY_MISMATCH";
     signal.execution.last_action_time = TimeCurrent();
     signal.admission_status = EXECUTION_ADMISSION_SEND_FAILED;
+    signal.attempt_status = "SEND_FAILED";
     signal.block_source = "broker_order";
     signal.block_reason = signal.execution.terminal_reason;
     return true;
@@ -511,6 +600,7 @@ bool ReconcilePivotOrderTerminalState(PivotSignal &signal)
     StringFormat("BROKER_ORDER_%s", EnumToString(order_state));
   signal.execution.last_action_time = TimeCurrent();
   signal.admission_status = EXECUTION_ADMISSION_SEND_FAILED;
+  signal.attempt_status = "SEND_FAILED";
   signal.block_source = "broker_order";
   signal.block_reason = signal.execution.terminal_reason;
   return true;
@@ -530,12 +620,6 @@ void ReconcilePivotSignalBrokerPosition(PivotSignal &signal)
     return;
   }
 
-  if(SelectPivotEntryPositionByKnownTicket(signal, reason))
-  {
-    ApplySelectedPivotPositionFacts(signal);
-    return;
-  }
-
   if(ReconcilePivotEntryFromHistory(signal))
   {
     if(SelectPivotEntryPositionByIdentity(signal, reason) &&
@@ -545,6 +629,12 @@ void ReconcilePivotSignalBrokerPosition(PivotSignal &signal)
       return;
     }
     ReconcilePivotCloseFromHistory(signal);
+    return;
+  }
+
+  if(SelectPivotEntryPositionByKnownTicket(signal, reason))
+  {
+    ApplySelectedPivotPositionFacts(signal);
     return;
   }
 

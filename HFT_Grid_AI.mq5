@@ -137,6 +137,8 @@ void RefreshCustomSymbolRates()
 
 string PivotRunCompletionStatus()
 {
+  if(PivotSignalLifecycleHasOutstandingAttempts())
+    return "CENSORED";
   if(MQLInfoInteger(MQL_TESTER) > 0 && g_tester_interval_completed)
     return "NATURAL";
   return "CENSORED";
@@ -171,7 +173,11 @@ int OnInit()
   }
 
   g_execution_magic = ResolveStableExecutionMagic();
-  PivotV9StatsInit();
+  if(!PivotV10StatsInit())
+  {
+    Print("Schema V10 export initialization failed; EA initialization stopped");
+    return INIT_FAILED;
+  }
   LoadAllIndicatorDefinitions();
   InitializePivotFractalRuntime();
   InitializePivotBrokerOwnershipBoundary();
@@ -191,8 +197,9 @@ void OnDeinit(const int reason)
 {
   ReconcileAndFinalizePivotSignals();
   string completion_status = PivotRunCompletionStatus();
-  FinalizeActivePivotWindowsForExport(completion_status);
-  PivotV9StatsDeinit(completion_status);
+  FinalizePivotSignalAttemptsForExport();
+  FinalizeActivePivotWindowsForExport();
+  PivotV10StatsDeinit(completion_status);
   CloseAppendFileLog();
   ReleaseAllIndicatorDefinitions();
   FrontendResetRefreshThrottle();
@@ -223,7 +230,7 @@ void OnTick()
   if(!DebugEquityGuardAllowsProcessing())
     return;
 
-  ProcessPivotSignalLifecycle(tick);
+  ProcessPivotSignalLifecycle();
   ProcessPivotFractalTick(tick);
   datetime current_time = TimeCurrent();
   if(FrontendRefreshDue(current_time))

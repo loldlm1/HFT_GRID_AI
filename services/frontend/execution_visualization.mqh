@@ -22,12 +22,15 @@ void DrawExecutionState(const long chart_id,
      signal.execution.state != EXECUTION_ORDER_BROKER_ACTIVE)
     return;
 
-  double entry_price = signal.route.intended_entry_price;
+  double entry_price = signal.execution.broker_entry_price;
   double stop_loss = signal.execution.broker_stop_loss;
   double take_profit = signal.execution.broker_take_profit;
   string identity_label = EnumToString(signal.pivot_timeframe) + " " +
                           PivotLevelLabel(signal.level_id) + " " +
-                          (signal.direction == BULLISH ? "BUY" : "SELL");
+                          (signal.direction == BULLISH ? "BUY" : "SELL") +
+                          " PIVOT=" +
+                          DoubleToString(signal.route.intended_entry_price,
+                                         _Digits);
 
   UpdateTrackedLine(chart_id,
                     ExecutionSignalObjectName(signal, "ENTRY"),

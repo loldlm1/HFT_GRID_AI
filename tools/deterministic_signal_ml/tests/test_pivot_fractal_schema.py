@@ -278,6 +278,22 @@ class PivotFractalSchemaTests(unittest.TestCase):
 
         self.assert_mutation_rejected(duplicate_consumed_identity, "duplicate consumed pivot identity")
 
+    def test_denied_wrong_side_geometry_can_remain_a_raw_attempt(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            runs_root, run_path = self.copy_fixture(temp_dir)
+            mutate_row(
+                run_path,
+                SIGNAL_ATTEMPTS_FILE,
+                lambda row: row["signal_id"] == "sig_s2_denied",
+                observed_entry_price=NULL_TOKEN,
+                observed_stop_loss=NULL_TOKEN,
+                observed_take_profit=NULL_TOKEN,
+                observed_risk_distance_points=NULL_TOKEN,
+                observed_reward_distance_points=NULL_TOKEN,
+            )
+            validation = validate_run(runs_root, V10_FIXTURE.name)
+            self.assertEqual(validation.signal_attempt_rows, 4)
+
     def test_band_features_are_formula_checked(self) -> None:
         cases = (
             ("micro_b_percent_0", "51.0000000000", "Micro %B shift 0 mismatch"),
@@ -355,6 +371,12 @@ class PivotFractalSchemaTests(unittest.TestCase):
                 {"position_identifier": "3001"},
                 "duplicate position identifier ownership",
             ),
+            (
+                "sig_s1_buy_tp",
+                "SEND_RESULT",
+                {"broker_volume": "0.0900000000"},
+                "broker entry changed owned broker_volume",
+            ),
         )
         for signal_id, phase, values, expected_error in cases:
             with self.subTest(signal_id=signal_id, phase=phase):
@@ -379,6 +401,123 @@ class PivotFractalSchemaTests(unittest.TestCase):
             )
 
         self.assert_mutation_rejected(remove_entry_confirmation, "lacks broker entry confirmation")
+
+    def test_send_failed_attempt_is_a_valid_terminal_raw_fact(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            runs_root, run_path = self.copy_fixture(temp_dir)
+            mutate_row(
+                run_path,
+                SIGNAL_ATTEMPTS_FILE,
+                lambda row: row["signal_id"] == "sig_s1_buy_tp",
+                attempt_status="SEND_FAILED",
+                block_source="order_send",
+                block_reason="TRADE_RETCODE_REJECT",
+                send_succeeded="0",
+            )
+            mutate_row(
+                run_path,
+                EXECUTION_CHECKS_FILE,
+                lambda row: row["signal_id"] == "sig_s1_buy_tp"
+                and row["check_phase"] == "SEND_RESULT",
+                allowed="0",
+                block_source="order_send",
+                block_reason="TRADE_RETCODE_REJECT",
+                send_succeeded="0",
+                broker_entry_confirmed="0",
+                order_ticket=NULL_TOKEN,
+                deal_ticket=NULL_TOKEN,
+                position_ticket=NULL_TOKEN,
+                position_identifier=NULL_TOKEN,
+                broker_entry_price=NULL_TOKEN,
+                broker_volume=NULL_TOKEN,
+                broker_stop_loss=NULL_TOKEN,
+                broker_take_profit=NULL_TOKEN,
+            )
+
+            outcomes_path = run_path / SIGNAL_OUTCOMES_FILE
+            outcome_columns, outcomes = read_rows(outcomes_path)
+            outcomes = [
+                row for row in outcomes if row["signal_id"] != "sig_s1_buy_tp"
+            ]
+            write_rows(outcomes_path, outcome_columns, outcomes)
+            mutate_summary(
+                run_path,
+                signal_outcome_rows="2",
+                send_succeeded_rows="2",
+                broker_filled_rows="2",
+                broker_closed_rows="2",
+                binary_eligible_rows="1",
+                binary_tp_rows="0",
+                excluded_outcome_rows="1",
+            )
+
+            validation = validate_run(runs_root, V10_FIXTURE.name)
+            self.assertEqual(validation.signal_outcome_rows, 2)
+
+    def test_accepted_order_can_end_terminal_without_a_fill(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            runs_root, run_path = self.copy_fixture(temp_dir)
+            mutate_row(
+                run_path,
+                SIGNAL_ATTEMPTS_FILE,
+                lambda row: row["signal_id"] == "sig_s1_buy_tp",
+                attempt_status="SEND_FAILED",
+                block_source="broker_order",
+                block_reason="BROKER_ORDER_ORDER_STATE_CANCELED",
+            )
+
+            checks_path = run_path / EXECUTION_CHECKS_FILE
+            check_columns, checks = read_rows(checks_path)
+            send_row = next(
+                row
+                for row in checks
+                if row["signal_id"] == "sig_s1_buy_tp"
+                and row["check_phase"] == "SEND_RESULT"
+            )
+            send_row.update(
+                deal_ticket=NULL_TOKEN,
+                position_identifier=NULL_TOKEN,
+                broker_entry_confirmed="0",
+                broker_entry_price=NULL_TOKEN,
+                broker_volume=NULL_TOKEN,
+                broker_stop_loss=NULL_TOKEN,
+                broker_take_profit=NULL_TOKEN,
+            )
+            terminal_row = dict(
+                send_row,
+                check_sequence="3",
+                check_phase="TERMINAL",
+                broker_time="2026.01.12 10:05:03",
+                analysis_time="2026.01.12 10:05:03",
+                allowed="0",
+                block_source="broker_order",
+                block_reason="BROKER_ORDER_ORDER_STATE_CANCELED",
+                send_performed="0",
+                send_succeeded="0",
+                send_retcode=NULL_TOKEN,
+            )
+            checks.append(terminal_row)
+            write_rows(checks_path, check_columns, checks)
+
+            outcomes_path = run_path / SIGNAL_OUTCOMES_FILE
+            outcome_columns, outcomes = read_rows(outcomes_path)
+            outcomes = [
+                row for row in outcomes if row["signal_id"] != "sig_s1_buy_tp"
+            ]
+            write_rows(outcomes_path, outcome_columns, outcomes)
+            mutate_summary(
+                run_path,
+                execution_check_rows="8",
+                signal_outcome_rows="2",
+                broker_filled_rows="2",
+                broker_closed_rows="2",
+                binary_eligible_rows="1",
+                binary_tp_rows="0",
+                excluded_outcome_rows="1",
+            )
+
+            validation = validate_run(runs_root, V10_FIXTURE.name)
+            self.assertEqual(validation.execution_check_rows, 8)
 
     def test_outcome_cost_slippage_binary_and_ownership_fail_closed(self) -> None:
         cases = (

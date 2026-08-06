@@ -109,71 +109,29 @@ void AppendExecutionBlockReason(BrokerExecutionCheck &check,
   check.allowed = false;
 }
 
-void BuildPivotV9AttemptPayload(const PivotSignal &signal,
-                                PivotV9AttemptPayload &payload)
-{
-  payload.signal_id = signal.signal_id;
-  payload.window_id = signal.window_id;
-  payload.pivot_timeframe = signal.pivot_timeframe;
-  payload.active_bar_open = signal.active_bar_open;
-  payload.level_id = signal.level_id;
-  payload.direction = signal.direction;
-  payload.trigger_time = signal.trigger_time;
-  payload.trigger_bid = signal.trigger_bid;
-  payload.trigger_ask = signal.trigger_ask;
-  payload.spread_points = signal.trigger_spread_points;
-  payload.intended_entry_price = signal.route.intended_entry_price;
-  payload.initial_stop_loss = signal.route.structural_stop_loss;
-  payload.terminal_take_profit = signal.execution.take_profit_price;
-  payload.route_status = signal.route.status;
-  payload.attempt_status = signal.attempt_status;
-  payload.block_source = signal.block_source;
-  payload.block_reason = signal.block_reason;
-  payload.feature_snapshot_complete = signal.features.complete;
-  payload.send_attempted = signal.execution.send_attempted;
-}
-
-void ExportPivotExecutionCheck(const PivotSignal &signal,
+bool ExportPivotExecutionCheck(PivotSignal &signal,
                                const BrokerExecutionCheck &check)
 {
-  if(!PivotV9Enabled())
-    return;
-  PivotV9ExecutionPayload payload;
-  payload.signal_id = signal.signal_id;
-  payload.window_id = signal.window_id;
-  payload.check.CopyFrom(check);
-  payload.position_ticket = signal.execution.position_ticket;
-  payload.position_identifier = signal.execution.position_identifier;
-  payload.broker_entry_confirmed = signal.execution.broker_entry_confirmed;
-  payload.broker_close_confirmed = signal.execution.broker_close_confirmed;
-  payload.broker_entry_price = signal.execution.broker_entry_price;
-  payload.broker_volume = signal.execution.broker_volume;
-  payload.broker_stop_loss = signal.execution.broker_stop_loss;
-  payload.broker_take_profit = signal.execution.broker_take_profit;
-  payload.close_price = signal.execution.close_price;
-  payload.closed_volume = signal.execution.closed_volume;
-  payload.realized_profit = signal.execution.realized_profit;
-  payload.terminal_reason = signal.execution.terminal_reason;
-  PivotV9RecordExecutionCheck(payload);
+  if(!PivotV10Enabled())
+    return true;
+  bool recorded = PivotV10RecordExecutionCheck(signal, check);
+  if(recorded && check.phase != "TERMINAL" &&
+     signal.execution.broker_entry_confirmed)
+    signal.execution.entry_check_exported = true;
+  return recorded;
 }
 
 void ExportPivotAttempt(PivotSignal &signal)
 {
-  if(signal.attempt_exported || !PivotV9Enabled())
+  if(signal.attempt_exported)
     return;
-  PivotV9AttemptPayload payload;
-  BuildPivotV9AttemptPayload(signal, payload);
-  PivotV9RecordAttempt(payload);
-  signal.attempt_exported = true;
-}
-
-void ExportPivotFeatures(const PivotSignal &signal)
-{
-  if(!PivotV9Enabled())
+  if(!PivotV10Enabled())
+  {
+    signal.attempt_exported = true;
     return;
-  PivotV9AttemptPayload payload;
-  BuildPivotV9AttemptPayload(signal, payload);
-  PivotV9RecordFeatures(payload, signal.features);
+  }
+  if(PivotV10RecordAttempt(signal))
+    signal.attempt_exported = true;
 }
 
 void ApplyFailedEligibilityDebugSideEffect(const BrokerExecutionCheck &check)
@@ -285,8 +243,7 @@ void ApplyPivotAttemptBlock(PivotSignal &signal,
 bool PivotSendRetcodeAccepted(const ulong retcode)
 {
   return retcode == TRADE_RETCODE_DONE ||
-         retcode == TRADE_RETCODE_PLACED ||
-         retcode == TRADE_RETCODE_DONE_PARTIAL;
+         retcode == TRADE_RETCODE_PLACED;
 }
 
 bool SendPivotMarketOrder(PivotSignal &signal)
@@ -327,7 +284,7 @@ bool SendPivotMarketOrder(PivotSignal &signal)
   request.sl = signal.execution.pre_send_check.stop_loss_price;
   request.tp = signal.execution.pre_send_check.take_profit_price;
   request.type = ExecutionOrderType(signal.direction);
-  request.type_filling = ResolveExecutionFillingMode(_Symbol);
+  request.type_filling = ORDER_FILLING_FOK;
   request.type_time = ORDER_TIME_GTC;
   request.comment = PivotPositionComment(signal);
 
@@ -394,9 +351,6 @@ bool SendPivotMarketOrder(PivotSignal &signal)
 
 bool ProcessPivotSignalAttempt(PivotSignal &signal)
 {
-  if(PivotV9Enabled())
-    ExportPivotFeatures(signal);
-
   BuildPivotSignalRoute(_Symbol,
                         signal.direction,
                         signal.level_id,
@@ -412,7 +366,7 @@ bool ProcessPivotSignalAttempt(PivotSignal &signal)
   MqlTick observation_tick;
   PivotSignalTriggerTick(signal, observation_tick);
   CapturePivotEligibility(signal,
-                          "ATTEMPT_OBSERVED",
+                          "OBSERVATION",
                           observation_tick,
                           signal.trigger_time,
                           false,
@@ -467,10 +421,12 @@ bool ProcessPivotSignalAttempt(PivotSignal &signal)
   }
 
   bool sent = SendPivotMarketOrder(g_pivot_signals[signal_index]);
-  ExportPivotAttempt(g_pivot_signals[signal_index]);
   ExecutionLogPivotAttempt(g_pivot_signals[signal_index]);
   if(!sent)
+  {
+    ExportPivotAttempt(g_pivot_signals[signal_index]);
     PivotSignalRemoveAt(signal_index);
+  }
   return sent;
 }
 

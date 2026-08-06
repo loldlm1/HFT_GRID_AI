@@ -61,14 +61,10 @@ ENUM_ORDER_TYPE ExecutionOrderType(const SignalTypes direction)
   return (direction == BULLISH) ? ORDER_TYPE_BUY : ORDER_TYPE_SELL;
 }
 
-ENUM_ORDER_TYPE_FILLING ResolveExecutionFillingMode(const string symbol)
+bool ExecutionFullFillPolicyAvailable(const string symbol)
 {
   long filling_mode = SymbolInfoInteger(symbol, SYMBOL_FILLING_MODE);
-  if((filling_mode & SYMBOL_FILLING_FOK) == SYMBOL_FILLING_FOK)
-    return ORDER_FILLING_FOK;
-  if((filling_mode & SYMBOL_FILLING_IOC) == SYMBOL_FILLING_IOC)
-    return ORDER_FILLING_IOC;
-  return ORDER_FILLING_RETURN;
+  return (filling_mode & SYMBOL_FILLING_FOK) == SYMBOL_FILLING_FOK;
 }
 
 bool ExecutionOrderCheckRetcodeAllowed(const ulong retcode)
@@ -77,8 +73,7 @@ bool ExecutionOrderCheckRetcodeAllowed(const ulong retcode)
   // comment "Done"); send retcodes use the explicit completed/placed values.
   if(retcode == 0 ||
      retcode == TRADE_RETCODE_DONE ||
-     retcode == TRADE_RETCODE_PLACED ||
-     retcode == TRADE_RETCODE_DONE_PARTIAL)
+     retcode == TRADE_RETCODE_PLACED)
     return true;
   return false;
 }
@@ -167,7 +162,7 @@ bool RunExecutionOrderCheck(BrokerExecutionCheck &check)
   request.sl = check.stop_loss_price;
   request.tp = check.take_profit_price;
   request.type = ExecutionOrderType(check.direction);
-  request.type_filling = ResolveExecutionFillingMode(check.symbol);
+  request.type_filling = ORDER_FILLING_FOK;
   request.type_time = ORDER_TIME_GTC;
 
   check.order_check_performed = true;
@@ -298,6 +293,11 @@ bool CaptureBrokerExecutionCheck(const SignalTypes direction,
                         StringFormat("mode=%d|direction=%s",
                                      check.symbol_trade_mode,
                                      EnumToString(check.direction)));
+
+  if(!ExecutionFullFillPolicyAvailable(check.symbol))
+    ExecutionCheckBlock(check,
+                        "filling_mode",
+                        "full_fill_fok_required");
 
   MarketStatusTypes status = MarketStatusFromSymbolTradeMode(check.symbol_trade_mode);
   MarketStatusUpdate(status,

@@ -49,25 +49,14 @@ struct PivotTouchCandidate
 void FinalizeExpiredPivotWindow(const PivotFractalWindowState &window,
                                 const datetime terminal_time)
 {
-  if(!PivotV9Enabled() ||
+  if(!PivotV10Enabled() ||
+     window.state != PIVOT_WINDOW_VALID ||
+     !window.levels.valid ||
      window.active_bar_open <= 0 ||
      g_pivot_window_terminal_exported_open == window.active_bar_open)
     return;
-  PivotV9RecordWindow(window, terminal_time, "EXPIRED");
+  PivotV10RecordWindow(window, terminal_time, "EXPIRED");
   g_pivot_window_terminal_exported_open = window.active_bar_open;
-}
-
-void ExportPivotWindowLevelsIfNeeded()
-{
-  if(!PivotV9Enabled() ||
-     g_pivot_fractal_window.state != PIVOT_WINDOW_VALID ||
-     !g_pivot_fractal_window.levels.valid ||
-     g_pivot_window_levels_exported_open ==
-       g_pivot_fractal_window.active_bar_open)
-    return;
-  PivotV9RecordLevels(g_pivot_fractal_window);
-  g_pivot_window_levels_exported_open =
-    g_pivot_fractal_window.active_bar_open;
 }
 
 bool RefreshPivotWindowForRuntime(const datetime observation_time,
@@ -98,27 +87,26 @@ bool RefreshPivotWindowForRuntime(const datetime observation_time,
      current_open != previous_window.active_bar_open)
   {
     FinalizeExpiredPivotWindow(previous_window, current_open);
-    g_pivot_window_levels_exported_open = 0;
   }
 
-  bool window_valid = RefreshPivotFractalWindow(current_open,
-                                                 observation_time,
-                                                 force_refresh);
-  ExportPivotWindowLevelsIfNeeded();
-  return window_valid;
+  return RefreshPivotFractalWindow(current_open,
+                                   observation_time,
+                                   force_refresh);
 }
 
-void FinalizeActivePivotWindowsForExport(const string terminal_status)
+void FinalizeActivePivotWindowsForExport()
 {
-  if(!PivotV9Enabled() ||
+  if(!PivotV10Enabled() ||
+     g_pivot_fractal_window.state != PIVOT_WINDOW_VALID ||
+     !g_pivot_fractal_window.levels.valid ||
      g_pivot_fractal_window.active_bar_open <= 0 ||
      g_pivot_window_terminal_exported_open ==
        g_pivot_fractal_window.active_bar_open)
     return;
 
-  PivotV9RecordWindow(g_pivot_fractal_window,
-                      TimeCurrent(),
-                      terminal_status);
+  PivotV10RecordWindow(g_pivot_fractal_window,
+                       TimeCurrent(),
+                       "RUN_FINISHED");
   g_pivot_window_terminal_exported_open =
     g_pivot_fractal_window.active_bar_open;
 }
@@ -199,7 +187,7 @@ bool AppendPivotTouchCandidate(const PivotLevelIds level_id,
     PIVOT_TRIGGER_CONSUMED;
   if(total >= PIVOT_TOUCH_CANDIDATE_MAX)
   {
-    PivotV9RegisterDuplicateIdentity();
+    PivotV10RegisterDuplicateIdentity();
     return false;
   }
 
@@ -281,13 +269,13 @@ void BuildPivotSignalFromCandidate(
   PivotSignal &signal_out)
 {
   signal_out.Reset();
-  signal_out.window_id = PivotV9WindowId(_Symbol,
-                                         candidate.window.timeframe,
-                                         candidate.window.active_bar_open);
-  signal_out.signal_id = PivotV9SignalId(_Symbol,
-                                         candidate.window.timeframe,
-                                         candidate.window.active_bar_open,
-                                         candidate.level_id);
+  signal_out.window_id = PivotV10WindowId(_Symbol,
+                                          candidate.window.timeframe,
+                                          candidate.window.active_bar_open);
+  signal_out.signal_id = PivotV10SignalId(_Symbol,
+                                          candidate.window.timeframe,
+                                          candidate.window.active_bar_open,
+                                          candidate.level_id);
   signal_out.pivot_timeframe = candidate.window.timeframe;
   signal_out.active_bar_open = candidate.window.active_bar_open;
   signal_out.source_bar_open = candidate.window.source_bar_open;
@@ -331,7 +319,7 @@ void ProcessPivotTouchCandidates(PivotTouchCandidate &candidates[],
                                   signal);
     if(FindPivotSignalIndex(signal.signal_id) >= 0)
     {
-      PivotV9RegisterDuplicateIdentity();
+      PivotV10RegisterDuplicateIdentity();
       continue;
     }
     ProcessPivotSignalAttempt(signal);

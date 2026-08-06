@@ -1170,40 +1170,48 @@ def _validate_attempts(
         if not _same_number(structural_sl, expected_stop):
             raise SchemaValidationError(f"{context}: structural SL matrix mismatch")
 
-        observed_entry = _as_float(row, "observed_entry_price", context)
-        observed_stop = _as_float(row, "observed_stop_loss", context)
-        observed_take = _as_float(row, "observed_take_profit", context)
-        observed_risk = _as_float(row, "observed_risk_distance_points", context)
-        observed_reward = _as_float(row, "observed_reward_distance_points", context)
-        assert None not in (
-            observed_entry,
-            observed_stop,
-            observed_take,
-            observed_risk,
-            observed_reward,
+        observed_geometry_columns = (
+            "observed_entry_price",
+            "observed_stop_loss",
+            "observed_take_profit",
+            "observed_risk_distance_points",
+            "observed_reward_distance_points",
         )
-        expected_observed_entry = trigger_ask if direction == "BUY" else trigger_bid
-        if not _same_number(observed_entry, expected_observed_entry) or not _same_number(
-            observed_stop, structural_sl
-        ):
-            raise SchemaValidationError(f"{context}: observation geometry mismatch")
-        calculated_observed_risk = (
-            (observed_entry - observed_stop) / point_size
-            if direction == "BUY"
-            else (observed_stop - observed_entry) / point_size
+        _validate_optional_number_group(
+            row,
+            observed_geometry_columns,
+            context,
+            required=False,
         )
-        calculated_observed_reward = (
-            (observed_take - observed_entry) / point_size
-            if direction == "BUY"
-            else (observed_entry - observed_take) / point_size
-        )
-        if (
-            calculated_observed_risk <= 0.0
-            or not _same_number(observed_risk, calculated_observed_risk)
-            or not _same_number(observed_reward, calculated_observed_reward)
-            or not _same_number(observed_risk, observed_reward)
-        ):
-            raise SchemaValidationError(f"{context}: invalid observation risk geometry")
+        observed_geometry_present = not _is_null(row[observed_geometry_columns[0]])
+        if observed_geometry_present:
+            observed_entry = float(row["observed_entry_price"])
+            observed_stop = float(row["observed_stop_loss"])
+            observed_take = float(row["observed_take_profit"])
+            observed_risk = float(row["observed_risk_distance_points"])
+            observed_reward = float(row["observed_reward_distance_points"])
+            expected_observed_entry = trigger_ask if direction == "BUY" else trigger_bid
+            if not _same_number(observed_entry, expected_observed_entry) or not _same_number(
+                observed_stop, structural_sl
+            ):
+                raise SchemaValidationError(f"{context}: observation geometry mismatch")
+            calculated_observed_risk = (
+                (observed_entry - observed_stop) / point_size
+                if direction == "BUY"
+                else (observed_stop - observed_entry) / point_size
+            )
+            calculated_observed_reward = (
+                (observed_take - observed_entry) / point_size
+                if direction == "BUY"
+                else (observed_entry - observed_take) / point_size
+            )
+            if (
+                calculated_observed_risk <= 0.0
+                or not _same_number(observed_risk, calculated_observed_risk)
+                or not _same_number(observed_reward, calculated_observed_reward)
+                or not _same_number(observed_risk, observed_reward)
+            ):
+                raise SchemaValidationError(f"{context}: invalid observation risk geometry")
 
         send_attempted = _as_bool(row, "send_attempted", context)
         send_succeeded = _as_bool(row, "send_succeeded", context)
@@ -1375,12 +1383,16 @@ def _validate_attempts(
             raise SchemaValidationError(f"{context}: partial block reason")
         if attempt_status == "DENIED" and (send_attempted or not blocked):
             raise SchemaValidationError(f"{context}: denied attempt status mismatch")
-        if attempt_status == "SEND_FAILED" and (not send_attempted or send_succeeded or not blocked):
+        if attempt_status == "SEND_FAILED" and (not send_attempted or not blocked):
             raise SchemaValidationError(f"{context}: send-failed status mismatch")
         if attempt_status in ("SENT", "FILLED", "CLOSED", "CENSORED") and not send_succeeded:
             raise SchemaValidationError(f"{context}: successful lifecycle status lacks send success")
-        if attempt_status != "DENIED" and blocked:
+        if attempt_status not in ("DENIED", "SEND_FAILED") and blocked:
             raise SchemaValidationError(f"{context}: non-denied attempt has a block reason")
+        if not observed_geometry_present and attempt_status != "DENIED":
+            raise SchemaValidationError(
+                f"{context}: non-denied attempt lacks observation geometry"
+            )
         attempts[signal_id] = row
     return attempts
 
@@ -1619,6 +1631,8 @@ def _validate_checks(
             raise SchemaValidationError(f"Signal {signal_id} sent despite denied attempt")
         if attempt["attempt_status"] in ("FILLED", "CLOSED") and signal_id not in entry_confirmations:
             raise SchemaValidationError(f"Signal {signal_id} lacks broker entry confirmation")
+        if attempt["attempt_status"] == "SEND_FAILED" and signal_id in entry_confirmations:
+            raise SchemaValidationError(f"Signal {signal_id} failed send but has a broker fill")
         if signal_id in close_confirmations and signal_id not in entry_confirmations:
             raise SchemaValidationError(f"Signal {signal_id} closed without broker entry confirmation")
     return checks, entry_confirmations, close_confirmations
