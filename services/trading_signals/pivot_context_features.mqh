@@ -26,33 +26,31 @@ struct PivotM1SideContext
 
   void Reset()
   {
-    valid              = false;
-    previous_bar_open  = 0;
-    close_boundary     = 0;
-    next_retry_time    = 0;
+    valid = false;
+    previous_bar_open = 0;
+    close_boundary = 0;
+    next_retry_time = 0;
     previous_bid_close = 0.0;
-    last_error         = 0;
-    invalid_reason     = "";
+    last_error = 0;
+    invalid_reason = "";
   }
 
   void CopyFrom(const PivotM1SideContext &other)
   {
-    valid              = other.valid;
-    previous_bar_open  = other.previous_bar_open;
-    close_boundary     = other.close_boundary;
-    next_retry_time    = other.next_retry_time;
+    valid = other.valid;
+    previous_bar_open = other.previous_bar_open;
+    close_boundary = other.close_boundary;
+    next_retry_time = other.next_retry_time;
     previous_bid_close = other.previous_bid_close;
-    last_error         = other.last_error;
-    invalid_reason     = other.invalid_reason;
+    last_error = other.last_error;
+    invalid_reason = other.invalid_reason;
   }
 };
 
 struct PivotContextFeatureRow
 {
   ENUM_TIMEFRAMES timeframe;
-  bool structure_complete;
   bool b_percent_complete;
-  OscillatorStructureTypes structure_slots[PIVOT_STRUCTURE_SLOT_COUNT];
   bool b_percent_available[PIVOT_B_PERCENT_SHIFT_COUNT];
   double b_percent_values[PIVOT_B_PERCENT_SHIFT_COUNT];
   string invalid_reason;
@@ -69,31 +67,25 @@ struct PivotContextFeatureRow
 
   void Reset(const ENUM_TIMEFRAMES context_timeframe)
   {
-    timeframe          = context_timeframe;
-    structure_complete = false;
+    timeframe = context_timeframe;
     b_percent_complete = false;
-    invalid_reason     = "";
-    for(int i = 0; i < PIVOT_STRUCTURE_SLOT_COUNT; i++)
-      structure_slots[i] = OSCILLATOR_STRUCTURE_EQ;
-    for(int j = 0; j < PIVOT_B_PERCENT_SHIFT_COUNT; j++)
+    invalid_reason = "";
+    for(int i = 0; i < PIVOT_B_PERCENT_SHIFT_COUNT; i++)
     {
-      b_percent_available[j] = false;
-      b_percent_values[j]    = 0.0;
+      b_percent_available[i] = false;
+      b_percent_values[i] = 0.0;
     }
   }
 
   void CopyFrom(const PivotContextFeatureRow &other)
   {
-    timeframe          = other.timeframe;
-    structure_complete = other.structure_complete;
+    timeframe = other.timeframe;
     b_percent_complete = other.b_percent_complete;
-    invalid_reason     = other.invalid_reason;
-    for(int i = 0; i < PIVOT_STRUCTURE_SLOT_COUNT; i++)
-      structure_slots[i] = other.structure_slots[i];
-    for(int j = 0; j < PIVOT_B_PERCENT_SHIFT_COUNT; j++)
+    invalid_reason = other.invalid_reason;
+    for(int i = 0; i < PIVOT_B_PERCENT_SHIFT_COUNT; i++)
     {
-      b_percent_available[j] = other.b_percent_available[j];
-      b_percent_values[j]    = other.b_percent_values[j];
+      b_percent_available[i] = other.b_percent_available[i];
+      b_percent_values[i] = other.b_percent_values[i];
     }
   }
 };
@@ -104,7 +96,8 @@ struct PivotContextFeatureSnapshot
   bool complete;
   datetime broker_time;
   double trigger_bid;
-  PivotContextFeatureRow rows[PIVOT_CONTEXT_TIMEFRAME_COUNT];
+  PivotContextFeatureRow micro;
+  PivotContextFeatureRow macro;
 
   PivotContextFeatureSnapshot()
   {
@@ -118,49 +111,26 @@ struct PivotContextFeatureSnapshot
 
   void Reset()
   {
-    captured   = false;
-    complete   = false;
+    captured = false;
+    complete = false;
     broker_time = 0;
     trigger_bid = 0.0;
-    for(int i = 0; i < PIVOT_CONTEXT_TIMEFRAME_COUNT; i++)
-      rows[i].Reset(PivotContextTimeframeAt(i));
+    micro.Reset(Micro_Timeframe);
+    macro.Reset(Macro_Timeframe);
   }
 
   void CopyFrom(const PivotContextFeatureSnapshot &other)
   {
-    captured    = other.captured;
-    complete    = other.complete;
+    captured = other.captured;
+    complete = other.complete;
     broker_time = other.broker_time;
     trigger_bid = other.trigger_bid;
-    for(int i = 0; i < PIVOT_CONTEXT_TIMEFRAME_COUNT; i++)
-      rows[i].CopyFrom(other.rows[i]);
+    micro.CopyFrom(other.micro);
+    macro.CopyFrom(other.macro);
   }
 };
 
 PivotM1SideContext g_pivot_m1_side_context;
-
-string PivotStructureTypeToken(const OscillatorStructureTypes structure_type)
-{
-  switch(structure_type)
-  {
-    case OSCILLATOR_STRUCTURE_HH: return "HH";
-    case OSCILLATOR_STRUCTURE_HL: return "HL";
-    case OSCILLATOR_STRUCTURE_LH: return "LH";
-    case OSCILLATOR_STRUCTURE_LL: return "LL";
-    case OSCILLATOR_STRUCTURE_EQ: return "EQ";
-  }
-  return "UNAVAILABLE";
-}
-
-void AppendPivotFeatureReason(string &reason,
-                              const string value)
-{
-  if(value == "")
-    return;
-  if(reason != "")
-    reason += "|";
-  reason += value;
-}
 
 void ResetPivotM1SideContext()
 {
@@ -177,16 +147,16 @@ bool RefreshPivotM1SideContext(const datetime observation_time,
   datetime current_bar_open = iTime(_Symbol, PERIOD_M1, 0);
   if(current_bar_open <= 0)
   {
-    g_pivot_m1_side_context.valid           = false;
-    g_pivot_m1_side_context.last_error      = GetLastError();
-    g_pivot_m1_side_context.invalid_reason  = "M1_ACTIVE_BAR_UNAVAILABLE";
+    g_pivot_m1_side_context.valid = false;
+    g_pivot_m1_side_context.last_error = GetLastError();
+    g_pivot_m1_side_context.invalid_reason = "M1_ACTIVE_BAR_UNAVAILABLE";
     g_pivot_m1_side_context.next_retry_time =
       observation_time + PIVOT_WINDOW_RETRY_SECONDS;
     return false;
   }
 
-  // A tester series may expose the next bar before the observed tick reaches
-  // it. Keep using only an already-cached causal M1 boundary in that interval.
+  // Keep only an already-causal M1 boundary if tester series are ahead of the
+  // observed tick.
   if(current_bar_open > observation_time)
   {
     return g_pivot_m1_side_context.valid &&
@@ -203,11 +173,11 @@ bool RefreshPivotM1SideContext(const datetime observation_time,
      observation_time < g_pivot_m1_side_context.next_retry_time)
     return false;
 
-  g_pivot_m1_side_context.valid              = false;
-  g_pivot_m1_side_context.previous_bar_open  = 0;
-  g_pivot_m1_side_context.close_boundary     = current_bar_open;
+  g_pivot_m1_side_context.valid = false;
+  g_pivot_m1_side_context.previous_bar_open = 0;
+  g_pivot_m1_side_context.close_boundary = current_bar_open;
   g_pivot_m1_side_context.previous_bid_close = 0.0;
-  g_pivot_m1_side_context.invalid_reason     = "";
+  g_pivot_m1_side_context.invalid_reason = "";
 
   MqlRates previous_rates[];
   ArraySetAsSeries(previous_rates, true);
@@ -215,8 +185,8 @@ bool RefreshPivotM1SideContext(const datetime observation_time,
   int copied = CopyRates(_Symbol, PERIOD_M1, 1, 1, previous_rates);
   if(copied != 1 || ArraySize(previous_rates) != 1)
   {
-    g_pivot_m1_side_context.last_error      = GetLastError();
-    g_pivot_m1_side_context.invalid_reason  = "M1_PREVIOUS_RATE_UNAVAILABLE";
+    g_pivot_m1_side_context.last_error = GetLastError();
+    g_pivot_m1_side_context.invalid_reason = "M1_PREVIOUS_RATE_UNAVAILABLE";
     g_pivot_m1_side_context.next_retry_time =
       observation_time + PIVOT_WINDOW_RETRY_SECONDS;
     return false;
@@ -228,19 +198,19 @@ bool RefreshPivotM1SideContext(const datetime observation_time,
      !MathIsValidNumber(previous_rate.close) ||
      previous_rate.close <= 0.0)
   {
-    g_pivot_m1_side_context.last_error      = 0;
-    g_pivot_m1_side_context.invalid_reason  = "M1_PREVIOUS_RATE_INVALID";
+    g_pivot_m1_side_context.last_error = 0;
+    g_pivot_m1_side_context.invalid_reason = "M1_PREVIOUS_RATE_INVALID";
     g_pivot_m1_side_context.next_retry_time =
       observation_time + PIVOT_WINDOW_RETRY_SECONDS;
     return false;
   }
 
-  g_pivot_m1_side_context.valid              = true;
-  g_pivot_m1_side_context.previous_bar_open  = previous_rate.time;
+  g_pivot_m1_side_context.valid = true;
+  g_pivot_m1_side_context.previous_bar_open = previous_rate.time;
   g_pivot_m1_side_context.previous_bid_close = previous_rate.close;
-  g_pivot_m1_side_context.last_error         = 0;
-  g_pivot_m1_side_context.invalid_reason     = "";
-  g_pivot_m1_side_context.next_retry_time    = 0;
+  g_pivot_m1_side_context.last_error = 0;
+  g_pivot_m1_side_context.invalid_reason = "";
+  g_pivot_m1_side_context.next_retry_time = 0;
   return true;
 }
 
@@ -258,95 +228,13 @@ PivotPriceSideStates PivotM1SideRelativeToLevel(const double level_price)
   return PIVOT_PRICE_SIDE_EQUAL;
 }
 
-int FindPivotStructureHandleIndex(const ENUM_TIMEFRAMES timeframe)
-{
-  for(int i = 0; i < ArraySize(ExtStructStochIndicatorsHandle); i++)
-  {
-    if(ExtStructStochIndicatorsHandle[i].indicator_timeframe == timeframe)
-      return i;
-  }
-  return -1;
-}
-
 int FindPivotBandsHandle(const ENUM_TIMEFRAMES timeframe)
 {
-  for(int i = 0; i < ArraySize(ExtPivotBandsHandles); i++)
-  {
-    if(ExtPivotBandsHandles[i].indicator_timeframe != timeframe)
-      continue;
-    if(ExtPivotBandsHandles[i].indicator_shift != 0)
-      continue;
-    return ExtPivotBandsHandles[i].indicator_handle;
-  }
+  if(timeframe == Macro_Timeframe)
+    return g_macro_bands_handle.indicator_handle;
+  if(timeframe == Micro_Timeframe)
+    return g_micro_bands_handle.indicator_handle;
   return INVALID_HANDLE;
-}
-
-bool CapturePivotStructureSlots(const ENUM_TIMEFRAMES timeframe,
-                                PivotContextFeatureRow &row,
-                                string &reason_out)
-{
-  reason_out = "";
-  int handle_index = FindPivotStructureHandleIndex(timeframe);
-  if(handle_index < 0)
-  {
-    reason_out = "STRUCTURE_HANDLE_MISSING";
-    return false;
-  }
-
-  IndicatorsHandleInfo handle;
-  handle.indicator_handle    = ExtStructStochIndicatorsHandle[handle_index].indicator_handle;
-  handle.indicator_period    = ExtStructStochIndicatorsHandle[handle_index].indicator_period;
-  handle.indicator_timeframe = ExtStructStochIndicatorsHandle[handle_index].indicator_timeframe;
-  if(handle.indicator_handle == INVALID_HANDLE ||
-     BarsCalculated(handle.indicator_handle) <= 0)
-  {
-    reason_out = "STRUCTURE_HANDLE_NOT_READY";
-    return false;
-  }
-
-  OscillatorMarketStructure extrema[];
-  bool initial_is_bottom = false;
-  bool initial_is_peak   = false;
-  ENUM_TIMEFRAMES loaded_timeframe = PERIOD_CURRENT;
-  int loaded_period = 0;
-  if(!DetectMarketExtrema(handle,
-                          extrema,
-                          initial_is_bottom,
-                          initial_is_peak,
-                          loaded_timeframe,
-                          loaded_period,
-                          13,
-                          false))
-  {
-    reason_out = "STRUCTURE_COPY_FAILED";
-    return false;
-  }
-
-  if(loaded_timeframe != timeframe ||
-     ArraySize(extrema) < 8 ||
-     (!initial_is_bottom && !initial_is_peak))
-  {
-    reason_out = "STRUCTURE_DEPTH_INCOMPLETE";
-    return false;
-  }
-
-  OscillatorStructureTypes structure_types[];
-  StructureTimePrice structure_data[];
-  ClassifyStructureTypes(extrema,
-                         initial_is_bottom,
-                         initial_is_peak,
-                         structure_types,
-                         structure_data);
-  if(ArraySize(structure_types) < PIVOT_STRUCTURE_SLOT_COUNT)
-  {
-    reason_out = "STRUCTURE_CLASSIFICATION_INCOMPLETE";
-    return false;
-  }
-
-  for(int i = 0; i < PIVOT_STRUCTURE_SLOT_COUNT; i++)
-    row.structure_slots[i] = structure_types[i];
-  row.structure_complete = true;
-  return true;
 }
 
 bool CopyPivotBandValue(const int handle,
@@ -363,16 +251,19 @@ bool CopyPivotBandValue(const int handle,
   return MathIsValidNumber(value_out) && value_out != EMPTY_VALUE;
 }
 
-bool CopyPivotCloseValue(const ENUM_TIMEFRAMES timeframe,
-                         const int shift,
-                         double &value_out)
+bool CopyPivotWeightedPriceValue(const ENUM_TIMEFRAMES timeframe,
+                                 const int shift,
+                                 double &value_out)
 {
   value_out = 0.0;
-  double values[];
-  int copied = CopyClose(_Symbol, timeframe, shift, 1, values);
+  MqlRates values[];
+  ArraySetAsSeries(values, true);
+  int copied = CopyRates(_Symbol, timeframe, shift, 1, values);
   if(copied != 1 || ArraySize(values) != 1)
     return false;
-  value_out = values[0];
+
+  value_out = (values[0].high + values[0].low +
+               values[0].close + values[0].close) / 4.0;
   return MathIsValidNumber(value_out) && value_out > 0.0;
 }
 
@@ -394,10 +285,11 @@ bool CapturePivotBPercentValues(const ENUM_TIMEFRAMES timeframe,
   {
     double upper_band = 0.0;
     double lower_band = 0.0;
-    double price       = trigger_bid;
+    double price = trigger_bid;
     if(!CopyPivotBandValue(handle, 1, shift, upper_band) ||
        !CopyPivotBandValue(handle, 2, shift, lower_band) ||
-       (shift > 0 && !CopyPivotCloseValue(timeframe, shift, price)) ||
+       (shift > 0 &&
+        !CopyPivotWeightedPriceValue(timeframe, shift, price)) ||
        !MathIsValidNumber(price) ||
        price <= 0.0 ||
        upper_band <= lower_band)
@@ -407,7 +299,7 @@ bool CapturePivotBPercentValues(const ENUM_TIMEFRAMES timeframe,
     }
 
     row.b_percent_values[shift] =
-      (price - lower_band) / (upper_band - lower_band) * 100.0;
+      100.0 * (price - lower_band) / (upper_band - lower_band);
     row.b_percent_available[shift] =
       MathIsValidNumber(row.b_percent_values[shift]);
     if(!row.b_percent_available[shift])
@@ -425,16 +317,10 @@ bool CapturePivotContextFeatureRow(const ENUM_TIMEFRAMES timeframe,
                                    PivotContextFeatureRow &row_out)
 {
   row_out.Reset(timeframe);
-  string structure_reason = "";
-  string b_percent_reason = "";
-  CapturePivotStructureSlots(timeframe, row_out, structure_reason);
-  CapturePivotBPercentValues(timeframe,
-                             trigger_bid,
-                             row_out,
-                             b_percent_reason);
-  AppendPivotFeatureReason(row_out.invalid_reason, structure_reason);
-  AppendPivotFeatureReason(row_out.invalid_reason, b_percent_reason);
-  return row_out.structure_complete && row_out.b_percent_complete;
+  string reason = "";
+  CapturePivotBPercentValues(timeframe, trigger_bid, row_out, reason);
+  row_out.invalid_reason = reason;
+  return row_out.b_percent_complete;
 }
 
 bool CapturePivotContextFeatureSnapshot(const double trigger_bid,
@@ -442,22 +328,18 @@ bool CapturePivotContextFeatureSnapshot(const double trigger_bid,
                                         PivotContextFeatureSnapshot &snapshot_out)
 {
   snapshot_out.Reset();
-  snapshot_out.captured    = true;
+  snapshot_out.captured = true;
   snapshot_out.broker_time = broker_time;
   snapshot_out.trigger_bid = trigger_bid;
 
-  bool complete = true;
-  for(int i = 0; i < PIVOT_CONTEXT_TIMEFRAME_COUNT; i++)
-  {
-    ENUM_TIMEFRAMES timeframe = PivotContextTimeframeAt(i);
-    if(!CapturePivotContextFeatureRow(timeframe,
-                                      trigger_bid,
-                                      snapshot_out.rows[i]))
-      complete = false;
-  }
-
-  snapshot_out.complete = complete;
-  return complete;
+  bool micro_complete = CapturePivotContextFeatureRow(Micro_Timeframe,
+                                                       trigger_bid,
+                                                       snapshot_out.micro);
+  bool macro_complete = CapturePivotContextFeatureRow(Macro_Timeframe,
+                                                       trigger_bid,
+                                                       snapshot_out.macro);
+  snapshot_out.complete = micro_complete && macro_complete;
+  return snapshot_out.complete;
 }
 
 #endif // _SERVICES_TRADING_SIGNALS_PIVOT_CONTEXT_FEATURES_MQH_

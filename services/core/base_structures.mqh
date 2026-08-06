@@ -4,25 +4,26 @@
 #ifndef _MICROSERVICES_CORE_BASE_STRUCTURES_MQH_
 #define _MICROSERVICES_CORE_BASE_STRUCTURES_MQH_
 
-struct IndicatorsHandleInfo
+struct PivotBandsHandleInfo
 {
-  int                 indicator_handle;
-  int                 overlay_indicator_handle;
-  int                 indicator_period;
-  int                 indicator_shift;
-  ENUM_MA_METHOD      indicator_ma_method;
-  ENUM_APPLIED_PRICE  indicator_applied_price;
-  ENUM_TIMEFRAMES     indicator_timeframe;
+  int indicator_handle;
+  ENUM_TIMEFRAMES timeframe;
 
-  IndicatorsHandleInfo()
+  PivotBandsHandleInfo()
   {
-    indicator_handle        = INVALID_HANDLE;
-    overlay_indicator_handle = INVALID_HANDLE;
-    indicator_period        = 0;
-    indicator_shift         = 0;
-    indicator_ma_method     = -1;
-    indicator_applied_price = -1;
-    indicator_timeframe     = PERIOD_CURRENT;
+    Reset(PERIOD_CURRENT);
+  }
+
+  PivotBandsHandleInfo(const PivotBandsHandleInfo &other)
+  {
+    indicator_handle = other.indicator_handle;
+    timeframe = other.timeframe;
+  }
+
+  void Reset(const ENUM_TIMEFRAMES source_timeframe)
+  {
+    indicator_handle = INVALID_HANDLE;
+    timeframe = source_timeframe;
   }
 };
 

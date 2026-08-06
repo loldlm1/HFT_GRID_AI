@@ -9,16 +9,16 @@
 // (directly or through the trading_management aggregator).
 
 const int    PIVOT_CONTEXT_BANDS_PERIOD      = 21;
-const int    PIVOT_CONTEXT_STOCH_K           = 5;
-const int    PIVOT_CONTEXT_STOCH_D           = 3;
-const int    PIVOT_CONTEXT_STOCH_SLOWING     = 3;
 const double PIVOT_CONTEXT_B_PERCENT_DEVIATION = 2.0;
+const double PIVOT_EXECUTION_REFERENCE_BALANCE = 1000000.0;
 
 input group  "+= Market Data Time =+";
 input BrokerSessionTimeModes Broker_Session = FIXED_TIME_SESSIONS;
+input ENUM_TIMEFRAMES Macro_Timeframe = PERIOD_H1;
+input ENUM_TIMEFRAMES Micro_Timeframe = PERIOD_M3;
 
 input group  "+= Broker Execution =+";
-input ExecutionLotTypes Lot_Type          = EXECUTION_LOT_FIXED_SIZE;
+input ExecutionLotTypes Lot_Type          = EXECUTION_LOT_REFERENCE_BALANCE_PERCENT;
 input double            Lot_Strategy_Size = 0.01;
 
 input group  "+= Signal Statistics Export =+";

@@ -4,6 +4,49 @@
 #ifndef _SERVICES_TRADING_SIGNALS_PIVOT_FRACTAL_ENGINE_STATE_MQH_
 #define _SERVICES_TRADING_SIGNALS_PIVOT_FRACTAL_ENGINE_STATE_MQH_
 
+struct PivotMacroBandCache
+{
+  bool complete;
+  double base_1;
+  double upper_1;
+  double lower_1;
+  double width_1;
+  double width_percent_1;
+  string invalid_reason;
+
+  PivotMacroBandCache()
+  {
+    Reset();
+  }
+
+  PivotMacroBandCache(const PivotMacroBandCache &other)
+  {
+    CopyFrom(other);
+  }
+
+  void Reset()
+  {
+    complete = false;
+    base_1 = 0.0;
+    upper_1 = 0.0;
+    lower_1 = 0.0;
+    width_1 = 0.0;
+    width_percent_1 = 0.0;
+    invalid_reason = "";
+  }
+
+  void CopyFrom(const PivotMacroBandCache &other)
+  {
+    complete = other.complete;
+    base_1 = other.base_1;
+    upper_1 = other.upper_1;
+    lower_1 = other.lower_1;
+    width_1 = other.width_1;
+    width_percent_1 = other.width_percent_1;
+    invalid_reason = other.invalid_reason;
+  }
+};
+
 struct PivotFractalWindowState
 {
   ENUM_TIMEFRAMES timeframe;
@@ -16,6 +59,13 @@ struct PivotFractalWindowState
   string invalid_reason;
   PivotPriceLadder levels;
   PivotTriggerStates trigger_states[PIVOT_LEVEL_COUNT];
+  datetime first_observed_time;
+  double first_observed_bid;
+  PivotPriceSideStates pp_initial_relation;
+  SignalTypes pp_role;
+  datetime pp_arm_time;
+  double pp_arm_bid;
+  PivotMacroBandCache macro_band;
 
   PivotFractalWindowState()
   {
@@ -29,55 +79,62 @@ struct PivotFractalWindowState
 
   void Reset(const ENUM_TIMEFRAMES source_timeframe)
   {
-    timeframe             = source_timeframe;
-    state                 = PIVOT_WINDOW_EMPTY;
-    active_bar_open       = 0;
-    source_bar_open       = 0;
+    timeframe = source_timeframe;
+    state = PIVOT_WINDOW_EMPTY;
+    active_bar_open = 0;
+    source_bar_open = 0;
     source_close_boundary = 0;
-    next_retry_time       = 0;
-    last_error            = 0;
-    invalid_reason        = "";
+    next_retry_time = 0;
+    last_error = 0;
+    invalid_reason = "";
     levels.Reset();
+    first_observed_time = 0;
+    first_observed_bid = 0.0;
+    pp_initial_relation = PIVOT_PRICE_SIDE_UNAVAILABLE;
+    pp_role = NO_SIGNAL;
+    pp_arm_time = 0;
+    pp_arm_bid = 0.0;
+    macro_band.Reset();
     for(int i = 0; i < PIVOT_LEVEL_COUNT; i++)
       trigger_states[i] = PIVOT_TRIGGER_AVAILABLE;
   }
 
   void BeginWindow(const datetime new_active_bar_open)
   {
-    active_bar_open       = new_active_bar_open;
-    source_bar_open       = 0;
+    Reset(timeframe);
+    active_bar_open = new_active_bar_open;
     source_close_boundary = new_active_bar_open;
-    next_retry_time       = 0;
-    last_error            = 0;
-    invalid_reason        = "";
-    state                 = PIVOT_WINDOW_PENDING;
-    levels.Reset();
-    for(int i = 0; i < PIVOT_LEVEL_COUNT; i++)
-      trigger_states[i] = PIVOT_TRIGGER_AVAILABLE;
+    state = PIVOT_WINDOW_PENDING;
   }
 
   void CopyFrom(const PivotFractalWindowState &other)
   {
-    timeframe             = other.timeframe;
-    state                 = other.state;
-    active_bar_open       = other.active_bar_open;
-    source_bar_open       = other.source_bar_open;
+    timeframe = other.timeframe;
+    state = other.state;
+    active_bar_open = other.active_bar_open;
+    source_bar_open = other.source_bar_open;
     source_close_boundary = other.source_close_boundary;
-    next_retry_time       = other.next_retry_time;
-    last_error            = other.last_error;
-    invalid_reason        = other.invalid_reason;
+    next_retry_time = other.next_retry_time;
+    last_error = other.last_error;
+    invalid_reason = other.invalid_reason;
     levels.CopyFrom(other.levels);
+    first_observed_time = other.first_observed_time;
+    first_observed_bid = other.first_observed_bid;
+    pp_initial_relation = other.pp_initial_relation;
+    pp_role = other.pp_role;
+    pp_arm_time = other.pp_arm_time;
+    pp_arm_bid = other.pp_arm_bid;
+    macro_band.CopyFrom(other.macro_band);
     for(int i = 0; i < PIVOT_LEVEL_COUNT; i++)
       trigger_states[i] = other.trigger_states[i];
   }
 };
 
-PivotFractalWindowState g_pivot_fractal_windows[PIVOT_FRACTAL_TIMEFRAME_COUNT];
+PivotFractalWindowState g_pivot_fractal_window;
 
 void ResetPivotFractalEngineState()
 {
-  for(int i = 0; i < PIVOT_FRACTAL_TIMEFRAME_COUNT; i++)
-    g_pivot_fractal_windows[i].Reset(PivotFractalTimeframeAt(i));
+  g_pivot_fractal_window.Reset(Macro_Timeframe);
 }
 
 void MarkPivotWindowPending(PivotFractalWindowState &window,
@@ -88,21 +145,23 @@ void MarkPivotWindowPending(PivotFractalWindowState &window,
   datetime retry_base_time = observation_time > 0
                              ? observation_time
                              : TimeCurrent();
-  window.state           = PIVOT_WINDOW_PENDING;
-  window.last_error      = error_code;
-  window.invalid_reason  = reason;
+  window.state = PIVOT_WINDOW_PENDING;
+  window.last_error = error_code;
+  window.invalid_reason = reason;
   window.next_retry_time = retry_base_time + PIVOT_WINDOW_RETRY_SECONDS;
   window.levels.Reset();
+  window.macro_band.Reset();
 }
 
 void MarkPivotWindowInvalid(PivotFractalWindowState &window,
                             const string reason)
 {
-  window.state           = PIVOT_WINDOW_INVALID;
-  window.last_error      = 0;
-  window.invalid_reason  = reason;
+  window.state = PIVOT_WINDOW_INVALID;
+  window.last_error = 0;
+  window.invalid_reason = reason;
   window.next_retry_time = 0;
   window.levels.Reset();
+  window.macro_band.Reset();
 }
 
 bool LoadCompletedPivotSourceRate(const string symbol,
@@ -113,7 +172,7 @@ bool LoadCompletedPivotSourceRate(const string symbol,
                                   string &reason_out)
 {
   ZeroMemory(source_out);
-  error_out  = 0;
+  error_out = 0;
   reason_out = "";
 
   MqlRates source_rates[];
@@ -122,7 +181,7 @@ bool LoadCompletedPivotSourceRate(const string symbol,
   int copied = CopyRates(symbol, timeframe, 1, 1, source_rates);
   if(copied != 1)
   {
-    error_out  = GetLastError();
+    error_out = GetLastError();
     reason_out = "COPY_PREVIOUS_RATE_FAILED";
     return false;
   }
@@ -140,24 +199,17 @@ bool LoadCompletedPivotSourceRate(const string symbol,
 }
 
 bool RefreshPivotFractalWindowState(PivotFractalWindowState &window,
-                                    const int window_index,
                                     const datetime observation_time,
                                     const bool force_refresh)
 {
-  if(window_index < 0 ||
-     window_index >= PIVOT_FRACTAL_TIMEFRAME_COUNT ||
-     observation_time <= 0)
-    return false;
-
-  ENUM_TIMEFRAMES timeframe = PivotFractalTimeframeAt(window_index);
-  if(timeframe == PERIOD_CURRENT)
+  if(observation_time <= 0 || Macro_Timeframe == PERIOD_CURRENT)
     return false;
 
   ResetLastError();
-  datetime active_bar_open = iTime(_Symbol, timeframe, 0);
+  datetime active_bar_open = iTime(_Symbol, Macro_Timeframe, 0);
   if(active_bar_open <= 0)
   {
-    window.timeframe = timeframe;
+    window.timeframe = Macro_Timeframe;
     MarkPivotWindowPending(window,
                            GetLastError(),
                            "ACTIVE_BAR_UNAVAILABLE",
@@ -165,8 +217,8 @@ bool RefreshPivotFractalWindowState(PivotFractalWindowState &window,
     return false;
   }
 
-  // Series data can be visible ahead of the observed tester tick. Keep the
-  // last causal window until a tick reaches the advertised bar open.
+  // Tester series may advertise the next bar before the observed tick reaches
+  // it, so an already-causal window remains authoritative in that interval.
   if(active_bar_open > observation_time)
   {
     return window.state == PIVOT_WINDOW_VALID &&
@@ -175,7 +227,7 @@ bool RefreshPivotFractalWindowState(PivotFractalWindowState &window,
            window.source_close_boundary <= observation_time;
   }
 
-  bool bar_changed = (window.active_bar_open != active_bar_open);
+  bool bar_changed = window.active_bar_open != active_bar_open;
   if(bar_changed)
     window.BeginWindow(active_bar_open);
   else if(window.state == PIVOT_WINDOW_VALID)
@@ -191,7 +243,7 @@ bool RefreshPivotFractalWindowState(PivotFractalWindowState &window,
   int source_error = 0;
   string source_reason = "";
   if(!LoadCompletedPivotSourceRate(_Symbol,
-                                   timeframe,
+                                   Macro_Timeframe,
                                    active_bar_open,
                                    source_rate,
                                    source_error,
@@ -215,50 +267,28 @@ bool RefreshPivotFractalWindowState(PivotFractalWindowState &window,
     return false;
   }
 
-  window.timeframe             = timeframe;
-  window.state                 = PIVOT_WINDOW_VALID;
-  window.source_bar_open       = source_rate.time;
+  window.timeframe = Macro_Timeframe;
+  window.state = PIVOT_WINDOW_VALID;
+  window.source_bar_open = source_rate.time;
   window.source_close_boundary = active_bar_open;
-  window.next_retry_time       = 0;
-  window.last_error            = 0;
-  window.invalid_reason        = "";
+  window.next_retry_time = 0;
+  window.last_error = 0;
+  window.invalid_reason = "";
   window.levels.CopyFrom(levels);
   return true;
 }
 
-bool RefreshPivotFractalWindow(const int window_index,
-                               const datetime observation_time,
+bool RefreshPivotFractalWindow(const datetime observation_time,
                                const bool force_refresh = false)
 {
-  if(window_index < 0 ||
-     window_index >= PIVOT_FRACTAL_TIMEFRAME_COUNT)
-    return false;
-  return RefreshPivotFractalWindowState(g_pivot_fractal_windows[window_index],
-                                        window_index,
+  return RefreshPivotFractalWindowState(g_pivot_fractal_window,
                                         observation_time,
                                         force_refresh);
 }
 
-int RefreshPivotFractalWindows(const datetime observation_time,
-                               const bool force_refresh = false)
+bool PivotFractalWindow(PivotFractalWindowState &window_out)
 {
-  if(observation_time <= 0)
-    return 0;
-  int valid_windows = 0;
-  for(int i = 0; i < PIVOT_FRACTAL_TIMEFRAME_COUNT; i++)
-  {
-    if(RefreshPivotFractalWindow(i, observation_time, force_refresh))
-      valid_windows++;
-  }
-  return valid_windows;
-}
-
-bool PivotFractalWindowAt(const int index,
-                          PivotFractalWindowState &window_out)
-{
-  if(index < 0 || index >= PIVOT_FRACTAL_TIMEFRAME_COUNT)
-    return false;
-  window_out.CopyFrom(g_pivot_fractal_windows[index]);
+  window_out.CopyFrom(g_pivot_fractal_window);
   return true;
 }
 

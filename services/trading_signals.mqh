@@ -5,7 +5,6 @@
 #define _SERVICES_TRADING_SIGNALS_MQH_
 
 // INDICATOR SERVICES
-#include "indicators/stochastic_market_indicator.mqh"
 #include "indicators/pivot_points_calculator.mqh"
 
 // SIGNAL SERVICE FILES

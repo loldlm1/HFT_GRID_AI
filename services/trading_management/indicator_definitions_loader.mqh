@@ -4,142 +4,8 @@
 #ifndef _SERVICES_TRADING_MANAGEMENT_INDICATOR_DEFINITIONS_LOADER_MQH_
 #define _SERVICES_TRADING_MANAGEMENT_INDICATOR_DEFINITIONS_LOADER_MQH_
 
-IndicatorsHandleInfo ExtStructStochIndicatorsHandle[];
-IndicatorsHandleInfo ExtPivotBandsHandles[];
-
-bool AddStructStochIndicatorHandle(const ENUM_TIMEFRAMES timeframe,
-                                   const bool required)
-{
-  for(int i = 0; i < ArraySize(ExtStructStochIndicatorsHandle); i++)
-  {
-    if(ExtStructStochIndicatorsHandle[i].indicator_timeframe == timeframe)
-      return true;
-  }
-
-  IndicatorsHandleInfo handle_info;
-  handle_info.indicator_period = PIVOT_CONTEXT_STOCH_K;
-  handle_info.indicator_handle = iCustom(_Symbol,
-                                         timeframe,
-                                         "Examples\\Stochastic_Structure.ex5",
-                                         PIVOT_CONTEXT_STOCH_K,
-                                         PIVOT_CONTEXT_STOCH_D,
-                                         PIVOT_CONTEXT_STOCH_SLOWING,
-                                         STO_CLOSECLOSE);
-  handle_info.indicator_timeframe = timeframe;
-
-  if(handle_info.indicator_handle == INVALID_HANDLE)
-  {
-    Print("ERROR LOADING STRUCTURE INDICATOR: ",
-          EnumToString(timeframe),
-          " | PERIOD: ",
-          PIVOT_CONTEXT_STOCH_K);
-    if(required)
-      TesterStop();
-    return false;
-  }
-
-  if(Enable_Logs)
-  {
-    Print("LOADED STRUCTURE INDICATOR SUCCESSFULLY: ",
-          EnumToString(timeframe),
-          " | PERIOD: ",
-          PIVOT_CONTEXT_STOCH_K);
-  }
-
-  AddElementToArray(ExtStructStochIndicatorsHandle, handle_info);
-  return true;
-}
-
-void LoadAllStructStochIndicators()
-{
-  if(!Enable_Signal_Feature_Export)
-    return;
-
-  for(int i = 0; i < PIVOT_CONTEXT_TIMEFRAME_COUNT; i++)
-    AddStructStochIndicatorHandle(PivotContextTimeframeAt(i), false);
-}
-
-void ReleaseAllStructStochIndicators()
-{
-  int total = ArraySize(ExtStructStochIndicatorsHandle);
-  for(int i = 0; i < total; i++)
-  {
-    if(ExtStructStochIndicatorsHandle[i].indicator_handle != INVALID_HANDLE)
-    {
-      IndicatorRelease(ExtStructStochIndicatorsHandle[i].indicator_handle);
-      ExtStructStochIndicatorsHandle[i].indicator_handle = INVALID_HANDLE;
-    }
-
-    if(ExtStructStochIndicatorsHandle[i].overlay_indicator_handle != INVALID_HANDLE)
-    {
-      IndicatorRelease(ExtStructStochIndicatorsHandle[i].overlay_indicator_handle);
-      ExtStructStochIndicatorsHandle[i].overlay_indicator_handle = INVALID_HANDLE;
-    }
-  }
-
-  ArrayResize(ExtStructStochIndicatorsHandle, 0);
-}
-
-bool PivotIndicatorHandleExists(IndicatorsHandleInfo &handles[],
-                                const ENUM_TIMEFRAMES timeframe,
-                                const int indicator_shift)
-{
-  int total = ArraySize(handles);
-  for(int i = 0; i < total; i++)
-  {
-    if(handles[i].indicator_timeframe != timeframe)
-      continue;
-    if(handles[i].indicator_shift != indicator_shift)
-      continue;
-    return true;
-  }
-
-  return false;
-}
-
-bool LoadPivotBandsHandle(const ENUM_TIMEFRAMES timeframe,
-                          IndicatorsHandleInfo &handle_info,
-                          const bool required = true)
-{
-  handle_info = IndicatorsHandleInfo();
-  handle_info.indicator_period        = PIVOT_CONTEXT_BANDS_PERIOD;
-  handle_info.indicator_shift         = 0;
-  handle_info.indicator_ma_method     = MODE_SMA;
-  handle_info.indicator_applied_price = PRICE_CLOSE;
-  handle_info.indicator_timeframe     = timeframe;
-  handle_info.indicator_handle        = iBands(_Symbol,
-                                               timeframe,
-                                               PIVOT_CONTEXT_BANDS_PERIOD,
-                                               0,
-                                               PIVOT_CONTEXT_B_PERCENT_DEVIATION,
-                                               PRICE_CLOSE);
-
-  if(handle_info.indicator_handle == INVALID_HANDLE)
-  {
-    PrintFormat("ERROR LOADING DETERMINISTIC BANDS BASE: tf=%s | period=%d",
-                EnumToString(timeframe),
-                PIVOT_CONTEXT_BANDS_PERIOD);
-    if(required)
-      TesterStop();
-    return false;
-  }
-
-  return true;
-}
-
-void AddPivotBandsHandle(IndicatorsHandleInfo &handles[],
-                         const ENUM_TIMEFRAMES timeframe,
-                         const bool required = true)
-{
-  if(PivotIndicatorHandleExists(handles, timeframe, 0))
-    return;
-
-  IndicatorsHandleInfo handle_info;
-  if(!LoadPivotBandsHandle(timeframe, handle_info, required))
-    return;
-
-  AddElementToArray(handles, handle_info);
-}
+PivotBandsHandleInfo g_macro_bands_handle;
+PivotBandsHandleInfo g_micro_bands_handle;
 
 void SetTesterIndicatorHideMode(const bool hide)
 {
@@ -149,70 +15,79 @@ void SetTesterIndicatorHideMode(const bool hide)
   TesterHideIndicators(hide);
 }
 
-void LoadPivotBandsIndicators()
+bool LoadPivotBandsHandle(const ENUM_TIMEFRAMES timeframe,
+                          const string context_label,
+                          PivotBandsHandleInfo &handle_out)
 {
-  ArrayResize(ExtPivotBandsHandles, 0);
-  SetTesterIndicatorHideMode(true);
-
-  if(Enable_Signal_Feature_Export)
+  handle_out.Reset(timeframe);
+  handle_out.indicator_handle = iBands(_Symbol,
+                                       timeframe,
+                                       PIVOT_CONTEXT_BANDS_PERIOD,
+                                       0,
+                                       PIVOT_CONTEXT_B_PERCENT_DEVIATION,
+                                       PRICE_WEIGHTED);
+  if(handle_out.indicator_handle == INVALID_HANDLE)
   {
-    for(int i = 0; i < PIVOT_CONTEXT_TIMEFRAME_COUNT; i++)
-    {
-      AddPivotBandsHandle(ExtPivotBandsHandles,
-                          PivotContextTimeframeAt(i),
-                          false);
-    }
-  }
-  SetTesterIndicatorHideMode(false);
-}
-
-void ReleaseIndicatorHandleArray(IndicatorsHandleInfo &handles[])
-{
-  int total = ArraySize(handles);
-  for(int i = 0; i < total; i++)
-  {
-    if(handles[i].indicator_handle != INVALID_HANDLE)
-    {
-      IndicatorRelease(handles[i].indicator_handle);
-      handles[i].indicator_handle = INVALID_HANDLE;
-    }
-
-    if(handles[i].overlay_indicator_handle != INVALID_HANDLE)
-    {
-      IndicatorRelease(handles[i].overlay_indicator_handle);
-      handles[i].overlay_indicator_handle = INVALID_HANDLE;
-    }
+    PrintFormat("Weighted Bands handle unavailable | context=%s | timeframe=%s | period=%d | error=%d",
+                context_label,
+                EnumToString(timeframe),
+                PIVOT_CONTEXT_BANDS_PERIOD,
+                GetLastError());
+    return false;
   }
 
-  ArrayResize(handles, 0);
+  if(Enable_Logs)
+  {
+    PrintFormat("Weighted Bands handle loaded | context=%s | timeframe=%s | period=%d | deviation=%.2f",
+                context_label,
+                EnumToString(timeframe),
+                PIVOT_CONTEXT_BANDS_PERIOD,
+                PIVOT_CONTEXT_B_PERCENT_DEVIATION);
+  }
+  return true;
 }
 
-void ReleaseAllPivotBandsIndicators()
+bool PivotBandsHandleReady(const PivotBandsHandleInfo &handle_info)
 {
-  ReleaseIndicatorHandleArray(ExtPivotBandsHandles);
+  return handle_info.indicator_handle != INVALID_HANDLE &&
+         BarsCalculated(handle_info.indicator_handle) > 0;
+}
+
+void ReleasePivotBandsHandle(PivotBandsHandleInfo &handle_info)
+{
+  if(handle_info.indicator_handle != INVALID_HANDLE)
+    IndicatorRelease(handle_info.indicator_handle);
+  handle_info.Reset(handle_info.timeframe);
 }
 
 void LoadAllIndicatorDefinitions()
 {
-  ReleaseAllStructStochIndicators();
-  ReleaseAllPivotBandsIndicators();
-  LoadAllStructStochIndicators();
-  LoadPivotBandsIndicators();
+  ReleasePivotBandsHandle(g_macro_bands_handle);
+  ReleasePivotBandsHandle(g_micro_bands_handle);
+  g_macro_bands_handle.Reset(Macro_Timeframe);
+  g_micro_bands_handle.Reset(Micro_Timeframe);
+
+  if(!Enable_Signal_Feature_Export)
+    return;
+
+  SetTesterIndicatorHideMode(true);
+  LoadPivotBandsHandle(Macro_Timeframe, "Macro", g_macro_bands_handle);
+  LoadPivotBandsHandle(Micro_Timeframe, "Micro", g_micro_bands_handle);
+  SetTesterIndicatorHideMode(false);
 
   if(Enable_Logs)
   {
-    PrintFormat("Pivot context handles | Engine=%s | Contexts=M1,M15,M30,H1,H4,D1 | Stoch=%d,%d,%d",
-                PivotFractalEngineLabel(PIVOT_FRACTAL_V1),
-                PIVOT_CONTEXT_STOCH_K,
-                PIVOT_CONTEXT_STOCH_D,
-                PIVOT_CONTEXT_STOCH_SLOWING);
+    PrintFormat("Pivot Bands contexts | Engine=%s | Macro=%s | Micro=%s | applied_price=PRICE_WEIGHTED",
+                PivotFractalEngineLabel(PIVOT_FRACTAL_V2),
+                EnumToString(Macro_Timeframe),
+                EnumToString(Micro_Timeframe));
   }
 }
 
 void ReleaseAllIndicatorDefinitions()
 {
-  ReleaseAllStructStochIndicators();
-  ReleaseAllPivotBandsIndicators();
+  ReleasePivotBandsHandle(g_macro_bands_handle);
+  ReleasePivotBandsHandle(g_micro_bands_handle);
 }
 
 #endif // _SERVICES_TRADING_MANAGEMENT_INDICATOR_DEFINITIONS_LOADER_MQH_

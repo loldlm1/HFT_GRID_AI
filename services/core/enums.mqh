@@ -16,7 +16,7 @@ enum SignalTypes
 enum PivotFractalEngineIds
 {
   PIVOT_FRACTAL_NONE = 0,
-  PIVOT_FRACTAL_V1   = 1
+  PIVOT_FRACTAL_V2   = 2
 };
 
 enum PivotLevelIds
@@ -61,25 +61,10 @@ enum PivotRouteStatuses
   PIVOT_ROUTE_INVALID_GEOMETRY = 3
 };
 
-enum OscillatorPricesTypes
-{
-	OSCILLATOR_HIGH_PRICES = 0,
-	OSCILLATOR_LOW_PRICES  = 1
-};
-
-enum OscillatorStructureTypes
-{
-	OSCILLATOR_STRUCTURE_EQ = 0, // iguales o sin cambio
-	OSCILLATOR_STRUCTURE_HH = 1, // Higher High
-	OSCILLATOR_STRUCTURE_HL = 2, // Higher Low
-	OSCILLATOR_STRUCTURE_LH = 3, // Lower High
-	OSCILLATOR_STRUCTURE_LL = 4  // Lower Low
-};
-
 enum ExecutionLotTypes
 {
-  EXECUTION_LOT_FIXED_SIZE              = 0,
-  EXECUTION_LOT_ACCOUNT_BALANCE_PERCENT = 1
+  EXECUTION_LOT_FIXED_SIZE                = 0,
+  EXECUTION_LOT_REFERENCE_BALANCE_PERCENT = 1
 };
 
 enum ExecutionOrderStates

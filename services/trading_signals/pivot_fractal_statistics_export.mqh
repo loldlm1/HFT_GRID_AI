@@ -5,7 +5,7 @@
 #define _SERVICES_TRADING_SIGNALS_PIVOT_FRACTAL_STATISTICS_EXPORT_MQH_
 
 const int    PIVOT_V9_SCHEMA_VERSION = 9;
-const string PIVOT_V9_ENGINE_LABEL   = "PIVOT_FRACTAL_V1";
+const string PIVOT_V9_ENGINE_LABEL   = "PIVOT_FRACTAL_V2";
 const string PIVOT_V9_FEATURE_SET_ID = "schema_v9_pivot_fractal_xgb";
 const string PIVOT_V9_STORAGE_ROOT   = "PivotFractalV9";
 const string PIVOT_V9_RUNS_FOLDER    = "runs";
@@ -31,7 +31,7 @@ const string PIVOT_V9_LEVELS_HEADER =
 const string PIVOT_V9_ATTEMPTS_HEADER =
   "schema_version\trun_id\tconfig_id\tsignal_id\twindow_id\tsymbol\tpivot_timeframe\tactive_bar_open_broker_time\tlevel_id\tdirection\ttrigger_broker_time\ttrigger_analysis_time\ttrigger_offset_minutes\tprevious_m1_bar_open_broker_time\tprevious_m1_close_boundary_broker_time\tprevious_m1_bid_close\ttrigger_bid\ttrigger_ask\tspread_points\tintended_entry_price\tinitial_stop_loss\tterminal_take_profit\troute_status\tattempt_status\tblock_source\tblock_reason\tfeature_snapshot_complete\tsend_attempted";
 const string PIVOT_V9_FEATURES_HEADER =
-  "schema_version\trun_id\tconfig_id\tsignal_id\twindow_id\tsymbol\tpivot_timeframe\tactive_bar_open_broker_time\tlevel_id\tdirection\ttrigger_broker_time\ttrigger_analysis_time\ttrigger_offset_minutes\tcontext_timeframe\tstructure_0\tstructure_1\tstructure_2\tb_percent_0\tb_percent_1\tb_percent_2\tb_percent_3\tb_percent_4\tb_percent_5\tstructure_complete\tb_percent_complete\tfeature_complete\tinvalid_reason";
+  "schema_version\trun_id\tconfig_id\tsignal_id\twindow_id\tsymbol\tpivot_timeframe\tactive_bar_open_broker_time\tlevel_id\tdirection\ttrigger_broker_time\ttrigger_analysis_time\ttrigger_offset_minutes\tcontext_timeframe\tb_percent_0\tb_percent_1\tb_percent_2\tb_percent_3\tb_percent_4\tb_percent_5\tb_percent_complete\tfeature_complete\tinvalid_reason";
 const string PIVOT_V9_CHECKS_HEADER =
   "schema_version\trun_id\tconfig_id\tsignal_id\twindow_id\tcheck_sequence\tcheck_phase\tbroker_time\tanalysis_time\toffset_minutes\tsymbol\tdirection\taccount_margin_mode\taccount_margin_mode_supported\tsymbol_trade_mode\tsymbol_trade_mode_allowed\tmarket_session_open\taccount_trade_allowed\taccount_expert_trade_allowed\tterminal_trade_allowed\tmql_trade_allowed\tbid\task\tspread_points\tpoint_size\tstops_distance_points\tfreeze_distance_points\tplanned_entry_price\tstop_loss_price\ttake_profit_price\trisk_distance\trequested_volume\tnormalized_volume\tvolume_min\tvolume_max\tvolume_step\tvolume_valid\taccount_balance\tfree_margin\trequired_margin\tmargin_valid\tgeometry_valid\tstop_distance_valid\tfreeze_distance_valid\torder_check_performed\torder_check_allowed\torder_check_retcode\torder_check_comment\tallowed\tblock_source\tblock_reason\tsend_retcode\tsend_comment\torder_ticket\tdeal_ticket\tposition_ticket\tposition_identifier\tbroker_entry_confirmed\tbroker_close_confirmed\tbroker_entry_price\tbroker_volume\tbroker_stop_loss\tbroker_take_profit\tclose_price\tclosed_volume\trealized_profit\tterminal_reason";
 const string PIVOT_V9_TRAILING_HEADER =
@@ -441,14 +441,13 @@ string PivotV9SignalId(const string symbol,
 
 string PivotV9BuildConfigPayload()
 {
-  return StringFormat("schema=%d|engine=%s|symbol=%s|chart_tf=%d|pivot_tfs=M15,M30,H1,H4,D1|trigger=previous_m1_bid_close_live_bid|stoch=%d,%d,%d|bands=%d,%.4f|broker_session=%d|lot_type=%d|lot_size=%.8f",
+  return StringFormat("schema=%d|engine=%s|symbol=%s|chart_tf=%d|macro_tf=%d|micro_tf=%d|trigger=previous_m1_bid_close_live_bid|bands=%d,%.4f,PRICE_WEIGHTED|broker_session=%d|lot_type=%d|lot_size=%.8f",
                       PIVOT_V9_SCHEMA_VERSION,
                       PIVOT_V9_ENGINE_LABEL,
                       _Symbol,
                       (int)_Period,
-                      PIVOT_CONTEXT_STOCH_K,
-                      PIVOT_CONTEXT_STOCH_D,
-                      PIVOT_CONTEXT_STOCH_SLOWING,
+                      (int)Macro_Timeframe,
+                      (int)Micro_Timeframe,
                       PIVOT_CONTEXT_BANDS_PERIOD,
                       PIVOT_CONTEXT_B_PERCENT_DEVIATION,
                       (int)Broker_Session,
@@ -673,19 +672,17 @@ bool PivotV9WriteManifest()
   if(!PivotV9WriteLine(filename, PIVOT_V9_MANIFEST_HEADER, false))
     return false;
 
-  string timeframe_policy = "M15,M30,H1,H4,D1";
-  string feature_contexts = "M1,M15,M30,H1,H4,D1";
   string rows[];
-  ArrayResize(rows, 23);
+  ArrayResize(rows, 22);
   rows[0]  = PivotV9ManifestRow("run_id", g_pivot_v9_run_id);
   rows[1]  = PivotV9ManifestRow("config_id", g_pivot_v9_config_id);
   rows[2]  = PivotV9ManifestRow("started_broker_time", PivotV9TimeToken(g_pivot_v9_started_at));
   rows[3]  = PivotV9ManifestRow("symbol", _Symbol);
   rows[4]  = PivotV9ManifestRow("chart_period", EnumToString(_Period));
-  rows[5]  = PivotV9ManifestRow("engine_id", IntegerToString(PIVOT_FRACTAL_V1));
+  rows[5]  = PivotV9ManifestRow("engine_id", IntegerToString(PIVOT_FRACTAL_V2));
   rows[6]  = PivotV9ManifestRow("engine_label", PIVOT_V9_ENGINE_LABEL);
-  rows[7]  = PivotV9ManifestRow("pivot_timeframes", timeframe_policy);
-  rows[8]  = PivotV9ManifestRow("feature_context_timeframes", feature_contexts);
+  rows[7]  = PivotV9ManifestRow("pivot_timeframes", EnumToString(Macro_Timeframe));
+  rows[8]  = PivotV9ManifestRow("feature_context_timeframes", EnumToString(Micro_Timeframe) + "," + EnumToString(Macro_Timeframe));
   rows[9]  = PivotV9ManifestRow("pivot_formula", "CLASSIC_PP_S1_S3_R1_R3");
   rows[10] = PivotV9ManifestRow("source_policy", "immediately_previous_completed_broker_candle_shift_1");
   rows[11] = PivotV9ManifestRow("identity_policy", "symbol,timeframe,active_bar_open,level_first_touch_once");
@@ -695,11 +692,10 @@ bool PivotV9WriteManifest()
   rows[15] = PivotV9ManifestRow("broker_session", MarketDataTimePolicyToken(Broker_Session));
   rows[16] = PivotV9ManifestRow("lot_mode", EnumToString(Lot_Type));
   rows[17] = PivotV9ManifestRow("lot_size", DoubleToString(Lot_Strategy_Size, 8));
-  rows[18] = PivotV9ManifestRow("stoch_structure", StringFormat("%d,%d,%d;slots=0,1,2", PIVOT_CONTEXT_STOCH_K, PIVOT_CONTEXT_STOCH_D, PIVOT_CONTEXT_STOCH_SLOWING));
-  rows[19] = PivotV9ManifestRow("b_percent", StringFormat("iBands;period=%d;deviation=%.4f;PRICE_CLOSE;shifts=0..5;shift0=trigger_bid;raw", PIVOT_CONTEXT_BANDS_PERIOD, PIVOT_CONTEXT_B_PERCENT_DEVIATION));
-  rows[20] = PivotV9ManifestRow("feature_set_id", PIVOT_V9_FEATURE_SET_ID);
-  rows[21] = PivotV9ManifestRow("outcome_policy", "broker_confirmed_only");
-  rows[22] = PivotV9ManifestRow("research_approval_state", "OFFLINE_RESEARCH_ONLY");
+  rows[18] = PivotV9ManifestRow("b_percent", StringFormat("iBands;period=%d;deviation=%.4f;PRICE_WEIGHTED;shifts=0..5;shift0=trigger_bid;raw", PIVOT_CONTEXT_BANDS_PERIOD, PIVOT_CONTEXT_B_PERCENT_DEVIATION));
+  rows[19] = PivotV9ManifestRow("feature_set_id", PIVOT_V9_FEATURE_SET_ID);
+  rows[20] = PivotV9ManifestRow("outcome_policy", "broker_confirmed_only");
+  rows[21] = PivotV9ManifestRow("research_approval_state", "OFFLINE_RESEARCH_ONLY");
 
   for(int i = 0; i < ArraySize(rows); i++)
   {
@@ -847,6 +843,46 @@ bool PivotV9RecordAttempt(const PivotV9AttemptPayload &payload)
   return true;
 }
 
+bool PivotV9RecordFeatureRow(const PivotV9AttemptPayload &attempt,
+                             const PivotContextFeatureRow &feature)
+{
+  string b_tokens = "";
+  for(int shift = 0; shift < PIVOT_B_PERCENT_SHIFT_COUNT; shift++)
+  {
+    if(shift > 0)
+      b_tokens += "\t";
+    b_tokens += feature.b_percent_available[shift]
+                ? PivotV9DoubleToken(feature.b_percent_values[shift])
+                : PIVOT_V9_NULL;
+  }
+
+  string row = IntegerToString(PIVOT_V9_SCHEMA_VERSION) + "\t" +
+               PivotV9Cell(g_pivot_v9_run_id) + "\t" +
+               PivotV9Cell(g_pivot_v9_config_id) + "\t" +
+               PivotV9Cell(attempt.signal_id) + "\t" +
+               PivotV9Cell(attempt.window_id) + "\t" +
+               PivotV9Cell(_Symbol) + "\t" +
+               PivotV9Cell(EnumToString(attempt.pivot_timeframe)) + "\t" +
+               PivotV9TimeToken(attempt.active_bar_open) + "\t" +
+               PivotLevelLabel(attempt.level_id) + "\t" +
+               PivotV9DirectionToken(attempt.direction) + "\t" +
+               PivotV9TimestampColumns(attempt.trigger_time) + "\t" +
+               PivotV9Cell(EnumToString(feature.timeframe)) + "\t" +
+               b_tokens + "\t" +
+               PivotV9BoolToken(feature.b_percent_complete) + "\t" +
+               PivotV9BoolToken(feature.b_percent_complete) + "\t" +
+               PivotV9Cell(feature.invalid_reason);
+  if(!PivotV9QueueRow(PivotV9Path(PIVOT_V9_FEATURES_FILE),
+                      PIVOT_V9_FEATURES_HEADER,
+                      row,
+                      g_pivot_v9_feature_buffer))
+    return false;
+  g_pivot_v9_feature_rows++;
+  if(!feature.b_percent_complete)
+    g_pivot_v9_feature_incomplete_rows++;
+  return true;
+}
+
 bool PivotV9RecordFeatures(const PivotV9AttemptPayload &attempt,
                            const PivotContextFeatureSnapshot &snapshot)
 {
@@ -854,52 +890,10 @@ bool PivotV9RecordFeatures(const PivotV9AttemptPayload &attempt,
     return false;
   if(attempt.signal_id == "" || attempt.window_id == "" || !snapshot.captured)
     return PivotV9RejectReference("RECORD_FEATURES");
-  bool all_rows_ok = true;
-  for(int i = 0; i < PIVOT_CONTEXT_TIMEFRAME_COUNT; i++)
-  {
-    PivotContextFeatureRow feature;
-    feature.CopyFrom(snapshot.rows[i]);
-    string b_tokens = "";
-    for(int shift = 0; shift < PIVOT_B_PERCENT_SHIFT_COUNT; shift++)
-    {
-      if(shift > 0)
-        b_tokens += "\t";
-      b_tokens += feature.b_percent_available[shift]
-                  ? PivotV9DoubleToken(feature.b_percent_values[shift])
-                  : PIVOT_V9_NULL;
-    }
-    bool feature_complete = feature.structure_complete && feature.b_percent_complete;
-    string row = IntegerToString(PIVOT_V9_SCHEMA_VERSION) + "\t" +
-                 PivotV9Cell(g_pivot_v9_run_id) + "\t" +
-                 PivotV9Cell(g_pivot_v9_config_id) + "\t" +
-                 PivotV9Cell(attempt.signal_id) + "\t" +
-                 PivotV9Cell(attempt.window_id) + "\t" +
-                 PivotV9Cell(_Symbol) + "\t" +
-                 PivotV9Cell(EnumToString(attempt.pivot_timeframe)) + "\t" +
-                 PivotV9TimeToken(attempt.active_bar_open) + "\t" +
-                 PivotLevelLabel(attempt.level_id) + "\t" +
-                 PivotV9DirectionToken(attempt.direction) + "\t" +
-                 PivotV9TimestampColumns(attempt.trigger_time) + "\t" +
-                 PivotV9Cell(EnumToString(feature.timeframe)) + "\t" +
-                 (feature.structure_complete ? PivotStructureTypeToken(feature.structure_slots[0]) : "UNAVAILABLE") + "\t" +
-                 (feature.structure_complete ? PivotStructureTypeToken(feature.structure_slots[1]) : "UNAVAILABLE") + "\t" +
-                 (feature.structure_complete ? PivotStructureTypeToken(feature.structure_slots[2]) : "UNAVAILABLE") + "\t" +
-                 b_tokens + "\t" +
-                 PivotV9BoolToken(feature.structure_complete) + "\t" +
-                 PivotV9BoolToken(feature.b_percent_complete) + "\t" +
-                 PivotV9BoolToken(feature_complete) + "\t" +
-                 PivotV9Cell(feature.invalid_reason);
-    if(!PivotV9QueueRow(PivotV9Path(PIVOT_V9_FEATURES_FILE),
-                        PIVOT_V9_FEATURES_HEADER,
-                        row,
-                        g_pivot_v9_feature_buffer))
-      all_rows_ok = false;
-    else
-      g_pivot_v9_feature_rows++;
-    if(!feature_complete)
-      g_pivot_v9_feature_incomplete_rows++;
-  }
-  return all_rows_ok;
+
+  bool micro_ok = PivotV9RecordFeatureRow(attempt, snapshot.micro);
+  bool macro_ok = PivotV9RecordFeatureRow(attempt, snapshot.macro);
+  return micro_ok && macro_ok;
 }
 
 bool PivotV9RecordExecutionCheck(const PivotV9ExecutionPayload &payload)

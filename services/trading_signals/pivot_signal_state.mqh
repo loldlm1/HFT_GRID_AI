@@ -10,8 +10,8 @@ PivotSignal g_pivot_signals[];
 bool g_forced_stop_triggered = false;
 bool g_debug_no_money_abort_pending = false;
 bool g_pivot_startup_positions_block_entries = false;
-datetime g_pivot_window_levels_exported_open[PIVOT_FRACTAL_TIMEFRAME_COUNT];
-datetime g_pivot_window_terminal_exported_open[PIVOT_FRACTAL_TIMEFRAME_COUNT];
+datetime g_pivot_window_levels_exported_open = 0;
+datetime g_pivot_window_terminal_exported_open = 0;
 
 void ResetPivotSignalRuntimeState()
 {
@@ -19,11 +19,8 @@ void ResetPivotSignalRuntimeState()
   g_forced_stop_triggered = false;
   g_debug_no_money_abort_pending = false;
   g_pivot_startup_positions_block_entries = false;
-  for(int i = 0; i < PIVOT_FRACTAL_TIMEFRAME_COUNT; i++)
-  {
-    g_pivot_window_levels_exported_open[i] = 0;
-    g_pivot_window_terminal_exported_open[i] = 0;
-  }
+  g_pivot_window_levels_exported_open = 0;
+  g_pivot_window_terminal_exported_open = 0;
 }
 
 int FindPivotSignalIndex(const string signal_id)

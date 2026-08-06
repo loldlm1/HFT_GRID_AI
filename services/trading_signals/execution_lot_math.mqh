@@ -96,7 +96,7 @@ bool ResolveExecutionVolumePlan(const SignalTypes direction,
   {
     requested_volume_out = configured_size;
   }
-  else if(Lot_Type == EXECUTION_LOT_ACCOUNT_BALANCE_PERCENT)
+  else if(Lot_Type == EXECUTION_LOT_REFERENCE_BALANCE_PERCENT)
   {
     if(configured_size > 100.0)
     {
@@ -155,7 +155,7 @@ bool ResolveExecutionVolumePlan(const SignalTypes direction,
   }
 
   expected_stop_loss_out = MathAbs(stop_profit);
-  if(Lot_Type == EXECUTION_LOT_ACCOUNT_BALANCE_PERCENT &&
+  if(Lot_Type == EXECUTION_LOT_REFERENCE_BALANCE_PERCENT &&
      expected_stop_loss_out > risk_target_amount_out * (1.0 + 1e-9))
   {
     reason_out = "NORMALIZED_VOLUME_EXCEEDS_RISK_BUDGET";

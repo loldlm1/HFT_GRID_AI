@@ -145,9 +145,11 @@ void EnsureQueryDebugSessionHeaderLogged()
   AppendTimestampedLog(
     QUERY_DEBUG_FILENAME,
     "QUERY_DEBUG_SESSION",
-    StringFormat("symbol=%s|engine=%s|pivot_tfs=M15,M30,H1,H4,D1|broker_session=%s|lot_type=%s|lot_size=%.8f",
+    StringFormat("symbol=%s|engine=%s|macro_tf=%s|micro_tf=%s|broker_session=%s|lot_type=%s|lot_size=%.8f",
                  _Symbol,
-                 PivotFractalEngineLabel(PIVOT_FRACTAL_V1),
+                 PivotFractalEngineLabel(PIVOT_FRACTAL_V2),
+                 EnumToString(Macro_Timeframe),
+                 EnumToString(Micro_Timeframe),
                  EnumToString(Broker_Session),
                  EnumToString(Lot_Type),
                  Lot_Strategy_Size));
