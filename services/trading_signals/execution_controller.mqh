@@ -112,26 +112,37 @@ void AppendExecutionBlockReason(BrokerExecutionCheck &check,
 bool ExportPivotExecutionCheck(PivotSignal &signal,
                                const BrokerExecutionCheck &check)
 {
-  if(!PivotV10Enabled())
+  if(!PivotV11Enabled())
     return true;
-  bool recorded = PivotV10RecordExecutionCheck(signal, check);
+  bool recorded = PivotV11RecordExecutionCheck(signal, check);
   if(recorded && check.phase != "TERMINAL" &&
      signal.execution.broker_entry_confirmed)
     signal.execution.entry_check_exported = true;
   return recorded;
 }
 
-void ExportPivotAttempt(PivotSignal &signal)
+bool RegisterPivotOrigin(PivotSignal &signal)
 {
-  if(signal.attempt_exported)
-    return;
-  if(!PivotV10Enabled())
+  if(signal.origin_registered)
+    return true;
+  if(!PivotV11Enabled())
   {
-    signal.attempt_exported = true;
-    return;
+    signal.origin_registered = true;
+    return true;
   }
-  if(PivotV10RecordAttempt(signal))
-    signal.attempt_exported = true;
+  if(!PivotV11RegisterOrigin(signal))
+    return false;
+  signal.origin_registered = true;
+  return true;
+}
+
+bool UpdatePivotOrigin(PivotSignal &signal)
+{
+  if(!PivotV11Enabled())
+    return true;
+  if(!signal.origin_registered)
+    return false;
+  return PivotV11UpdateOrigin(signal);
 }
 
 void ApplyFailedEligibilityDebugSideEffect(const BrokerExecutionCheck &check)
@@ -269,6 +280,7 @@ bool SendPivotMarketOrder(PivotSignal &signal)
     ApplyPivotAttemptBlock(signal,
                            signal.execution.pre_send_check.block_source,
                            signal.execution.pre_send_check.block_reason);
+    UpdatePivotOrigin(signal);
     return false;
   }
 
@@ -331,6 +343,7 @@ bool SendPivotMarketOrder(PivotSignal &signal)
     signal.attempt_status = "SEND_FAILED";
     signal.block_source = send_check.block_source;
     signal.block_reason = send_check.block_reason;
+    UpdatePivotOrigin(signal);
     ExportPivotExecutionCheck(signal, send_check);
     ExecutionLogPivotSendResult(signal, send_check);
     MarketStatusRegisterBrokerFailure("PIVOT_SEND_FAILED",
@@ -344,6 +357,7 @@ bool SendPivotMarketOrder(PivotSignal &signal)
   signal.block_source = "";
   signal.block_reason = "";
   ReconcilePivotSignalBrokerPosition(signal);
+  UpdatePivotOrigin(signal);
   ExportPivotExecutionCheck(signal, send_check);
   ExecutionLogPivotSendResult(signal, send_check);
   return true;
@@ -357,12 +371,6 @@ bool ProcessPivotSignalAttempt(PivotSignal &signal)
                         signal.levels,
                         signal.route);
 
-  string permission_source = "";
-  string permission_reason = "";
-  bool permission_allowed = ResolvePivotSignalPermission(signal.direction,
-                                                         permission_source,
-                                                         permission_reason);
-
   MqlTick observation_tick;
   PivotSignalTriggerTick(signal, observation_tick);
   CapturePivotEligibility(signal,
@@ -371,6 +379,13 @@ bool ProcessPivotSignalAttempt(PivotSignal &signal)
                           signal.trigger_time,
                           false,
                           signal.execution.observation_check);
+  RegisterPivotOrigin(signal);
+
+  string permission_source = "";
+  string permission_reason = "";
+  bool permission_allowed = ResolvePivotSignalPermission(signal.direction,
+                                                         permission_source,
+                                                         permission_reason);
 
   if(signal.route.status != PIVOT_ROUTE_ALLOWED)
   {
@@ -391,10 +406,10 @@ bool ProcessPivotSignalAttempt(PivotSignal &signal)
     signal.admission_status = EXECUTION_ADMISSION_CANDIDATE;
   }
 
+  UpdatePivotOrigin(signal);
   ExportPivotExecutionCheck(signal, signal.execution.observation_check);
   if(signal.admission_status == EXECUTION_ADMISSION_BLOCKED)
   {
-    ExportPivotAttempt(signal);
     ExecutionLogPivotAttempt(signal);
     return false;
   }
@@ -404,18 +419,18 @@ bool ProcessPivotSignalAttempt(PivotSignal &signal)
     ApplyPivotAttemptBlock(signal,
                            "signal_state",
                            "ACTIVE_SIGNAL_STORAGE_FAILED");
-    ExportPivotAttempt(signal);
+    UpdatePivotOrigin(signal);
     ExecutionLogPivotAttempt(signal);
     return false;
   }
 
-  int signal_index = FindPivotSignalIndex(signal.signal_id);
+  int signal_index = FindPivotSignalIndex(signal.broker_signal_id);
   if(signal_index < 0)
   {
     ApplyPivotAttemptBlock(signal,
                            "signal_state",
                            "ACTIVE_SIGNAL_LOOKUP_FAILED");
-    ExportPivotAttempt(signal);
+    UpdatePivotOrigin(signal);
     ExecutionLogPivotAttempt(signal);
     return false;
   }
@@ -424,7 +439,6 @@ bool ProcessPivotSignalAttempt(PivotSignal &signal)
   ExecutionLogPivotAttempt(g_pivot_signals[signal_index]);
   if(!sent)
   {
-    ExportPivotAttempt(g_pivot_signals[signal_index]);
     PivotSignalRemoveAt(signal_index);
   }
   return sent;

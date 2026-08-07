@@ -230,8 +230,8 @@ void ExecutionLogPivotAttempt(const PivotSignal &signal)
   bool structural_stop_available =
     signal.route.status == PIVOT_ROUTE_ALLOWED &&
     signal.route.structural_stop_loss > 0.0;
-  string message = StringFormat("signal_id=%s|window_id=%s|tf=%s|level=%s|direction=%s|trigger_bid=%.10f|trigger_ask=%.10f|structural_sl=%s|request_available=%s|request_entry=%s|request_tp=%s|price_rr=%s|configured_risk_budget=%s|requested_volume=%s|normalized_volume=%s|quote_sl=%s|quote_tp=%s|money_rr=%s|budget_utilization=%s|route=%s|attempt=%s|block_source=%s|block_reason=%s",
-                                signal.signal_id,
+  string message = StringFormat("broker_signal_id=%s|window_id=%s|tf=%s|level=%s|direction=%s|trigger_bid=%.10f|trigger_ask=%.10f|structural_sl=%s|request_available=%s|request_entry=%s|request_tp=%s|price_rr=%s|configured_risk_budget=%s|requested_volume=%s|normalized_volume=%s|quote_sl=%s|quote_tp=%s|money_rr=%s|budget_utilization=%s|route=%s|attempt=%s|block_source=%s|block_reason=%s",
+                                signal.broker_signal_id,
                                 signal.window_id,
                                 EnumToString(signal.pivot_timeframe),
                                 PivotLevelLabel(signal.level_id),
@@ -295,8 +295,8 @@ void ExecutionLogPivotAttempt(const PivotSignal &signal)
 void ExecutionLogPivotSendResult(const PivotSignal &signal,
                                  const BrokerExecutionCheck &check)
 {
-  string message = StringFormat("signal_id=%s|tf=%s|level=%s|direction=%s|entry=%.10f|sl=%.10f|tp=%.10f|price_rr=%.10f|volume=%.8f|quote_sl=%.10f|quote_tp=%.10f|money_rr=%.10f|allowed=%s|retcode=%I64u|order=%I64u|deal=%I64u|comment=%s|block=%s:%s",
-                                signal.signal_id,
+  string message = StringFormat("broker_signal_id=%s|tf=%s|level=%s|direction=%s|entry=%.10f|sl=%.10f|tp=%.10f|price_rr=%.10f|volume=%.8f|quote_sl=%.10f|quote_tp=%.10f|money_rr=%.10f|allowed=%s|retcode=%I64u|order=%I64u|deal=%I64u|comment=%s|block=%s:%s",
+                                signal.broker_signal_id,
                                 EnumToString(signal.pivot_timeframe),
                                 PivotLevelLabel(signal.level_id),
                                 signal.direction == BULLISH ? "BUY" : "SELL",

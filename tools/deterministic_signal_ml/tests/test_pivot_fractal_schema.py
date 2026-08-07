@@ -45,8 +45,9 @@ from schema_contract import (
 
 FIXTURES = Path(__file__).parent / "fixtures"
 V11_FIXTURE = FIXTURES / "schema_v11_pivot_trial_matrix"
-V10_FIXTURE = FIXTURES / "schema_v10_macro_micro_pivot"
-V9_FIXTURE = FIXTURES / "schema_v9_pivot_fractal"
+LEGACY_FIXTURES = tuple(
+    fixture for fixture in FIXTURES.iterdir() if fixture != V11_FIXTURE
+)
 NULL_TOKEN = r"\N"
 
 
@@ -193,8 +194,8 @@ class PivotFractalSchemaTests(unittest.TestCase):
             1,
         )
 
-    def test_v9_v10_and_non_v11_shapes_are_rejected(self) -> None:
-        for fixture in (V9_FIXTURE, V10_FIXTURE):
+    def test_legacy_and_non_v11_shapes_are_rejected(self) -> None:
+        for fixture in LEGACY_FIXTURES:
             with self.subTest(fixture=fixture.name):
                 with self.assertRaisesRegex(
                     SchemaValidationError,

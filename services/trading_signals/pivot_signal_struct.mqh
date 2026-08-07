@@ -24,6 +24,7 @@ struct BrokerExecutionCheck
   double ask;
   double spread_points;
   double point_size;
+  double trade_tick_size;
   double stops_distance_points;
   double freeze_distance_points;
   double planned_entry_price;
@@ -39,6 +40,7 @@ struct BrokerExecutionCheck
   double volume_max;
   double volume_step;
   bool volume_valid;
+  bool fok_supported;
   double quote_expected_stop_loss;
   double quote_expected_take_profit;
   double quote_expected_reward_risk_ratio;
@@ -92,6 +94,7 @@ struct BrokerExecutionCheck
     ask = 0.0;
     spread_points = 0.0;
     point_size = 0.0;
+    trade_tick_size = 0.0;
     stops_distance_points = 0.0;
     freeze_distance_points = 0.0;
     planned_entry_price = 0.0;
@@ -107,6 +110,7 @@ struct BrokerExecutionCheck
     volume_max = 0.0;
     volume_step = 0.0;
     volume_valid = false;
+    fok_supported = false;
     quote_expected_stop_loss = 0.0;
     quote_expected_take_profit = 0.0;
     quote_expected_reward_risk_ratio = 0.0;
@@ -151,6 +155,7 @@ struct BrokerExecutionCheck
     ask = other.ask;
     spread_points = other.spread_points;
     point_size = other.point_size;
+    trade_tick_size = other.trade_tick_size;
     stops_distance_points = other.stops_distance_points;
     freeze_distance_points = other.freeze_distance_points;
     planned_entry_price = other.planned_entry_price;
@@ -166,6 +171,7 @@ struct BrokerExecutionCheck
     volume_max = other.volume_max;
     volume_step = other.volume_step;
     volume_valid = other.volume_valid;
+    fok_supported = other.fok_supported;
     quote_expected_stop_loss = other.quote_expected_stop_loss;
     quote_expected_take_profit = other.quote_expected_take_profit;
     quote_expected_reward_risk_ratio =
@@ -419,7 +425,9 @@ struct PivotSignalExecution
 
 struct PivotSignal
 {
-  string signal_id;
+  string origin_id;
+  string broker_signal_id;
+  string parity_trial_id;
   string window_id;
   ENUM_TIMEFRAMES pivot_timeframe;
   datetime active_bar_open;
@@ -439,7 +447,8 @@ struct PivotSignal
   string attempt_status;
   string block_source;
   string block_reason;
-  bool attempt_exported;
+  bool matrix_declared;
+  bool origin_registered;
 
   PivotSignal()
   {
@@ -453,7 +462,9 @@ struct PivotSignal
 
   void Reset()
   {
-    signal_id = "";
+    origin_id = "";
+    broker_signal_id = "";
+    parity_trial_id = "";
     window_id = "";
     pivot_timeframe = PERIOD_CURRENT;
     active_bar_open = 0;
@@ -473,12 +484,15 @@ struct PivotSignal
     attempt_status = "";
     block_source = "";
     block_reason = "";
-    attempt_exported = false;
+    matrix_declared = false;
+    origin_registered = false;
   }
 
   void CopyFrom(const PivotSignal &other)
   {
-    signal_id = other.signal_id;
+    origin_id = other.origin_id;
+    broker_signal_id = other.broker_signal_id;
+    parity_trial_id = other.parity_trial_id;
     window_id = other.window_id;
     pivot_timeframe = other.pivot_timeframe;
     active_bar_open = other.active_bar_open;
@@ -498,7 +512,8 @@ struct PivotSignal
     attempt_status = other.attempt_status;
     block_source = other.block_source;
     block_reason = other.block_reason;
-    attempt_exported = other.attempt_exported;
+    matrix_declared = other.matrix_declared;
+    origin_registered = other.origin_registered;
   }
 };
 

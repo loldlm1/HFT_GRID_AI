@@ -16,7 +16,7 @@ void DrawExecutionState(const long chart_id,
                         const PivotSignal &signal,
                         string &tracked_objects[])
 {
-  if(signal.signal_id == "" ||
+  if(signal.broker_signal_id == "" ||
      !signal.execution.broker_entry_confirmed ||
      signal.execution.broker_close_confirmed ||
      signal.execution.state != EXECUTION_ORDER_BROKER_ACTIVE)

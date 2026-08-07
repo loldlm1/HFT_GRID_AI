@@ -34,10 +34,10 @@ void ActivatePivotOwnershipEntryBlock(const string reason)
 
 string PivotPositionComment(const PivotSignal &signal)
 {
-  string identity = signal.signal_id;
+  string identity = signal.broker_signal_id;
   if(StringLen(identity) > 24)
     identity = StringSubstr(identity, StringLen(identity) - 24);
-  return "PF10_" + identity;
+  return "PF11_" + identity;
 }
 
 bool PivotPositionCommentMatches(const PivotSignal &signal)

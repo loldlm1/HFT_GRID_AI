@@ -252,6 +252,7 @@ bool CaptureBrokerExecutionCheck(const SignalTypes direction,
   }
 
   check.point_size = g_symbol_constraints.point_size;
+  check.trade_tick_size = g_symbol_constraints.tick_size;
   check.stops_distance_points = g_symbol_constraints.stops_level_points;
   check.freeze_distance_points = g_symbol_constraints.freeze_level_points;
   check.volume_min = g_symbol_constraints.min_volume;
@@ -294,7 +295,8 @@ bool CaptureBrokerExecutionCheck(const SignalTypes direction,
                                      check.symbol_trade_mode,
                                      EnumToString(check.direction)));
 
-  if(!ExecutionFullFillPolicyAvailable(check.symbol))
+  check.fok_supported = ExecutionFullFillPolicyAvailable(check.symbol);
+  if(!check.fok_supported)
     ExecutionCheckBlock(check,
                         "filling_mode",
                         "full_fill_fok_required");

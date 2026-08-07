@@ -21,13 +21,13 @@ void ResetPivotSignalRuntimeState()
   g_pivot_window_terminal_exported_open = 0;
 }
 
-int FindPivotSignalIndex(const string signal_id)
+int FindPivotSignalIndex(const string broker_signal_id)
 {
-  if(signal_id == "")
+  if(broker_signal_id == "")
     return -1;
   for(int i = 0; i < ArraySize(g_pivot_signals); i++)
   {
-    if(g_pivot_signals[i].signal_id == signal_id)
+    if(g_pivot_signals[i].broker_signal_id == broker_signal_id)
       return i;
   }
   return -1;
@@ -35,7 +35,7 @@ int FindPivotSignalIndex(const string signal_id)
 
 bool PivotSignalStore(const PivotSignal &signal)
 {
-  if(signal.signal_id == "" || FindPivotSignalIndex(signal.signal_id) >= 0)
+  if(signal.broker_signal_id == "" || FindPivotSignalIndex(signal.broker_signal_id) >= 0)
     return false;
 
   int total = ArraySize(g_pivot_signals);

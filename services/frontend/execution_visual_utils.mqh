@@ -40,7 +40,7 @@ void PushObjectName(string &names[], const string name)
 
 string ExecutionSignalIdentifier(const PivotSignal &signal)
 {
-  string identity = signal.signal_id;
+  string identity = signal.broker_signal_id;
   if(identity == "")
     identity = IntegerToString((int)signal.trigger_time);
   return identity;

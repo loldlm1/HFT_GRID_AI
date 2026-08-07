@@ -38,7 +38,7 @@ bool ExportPivotOwnershipExecutionCheckIfNeeded(PivotSignal &signal)
   if(!signal.execution.broker_entry_confirmed ||
      signal.execution.entry_check_exported)
     return true;
-  if(!PivotV10Enabled())
+  if(!PivotV11Enabled())
   {
     signal.execution.entry_check_exported = true;
     return true;
@@ -63,7 +63,7 @@ bool ExportPivotTerminalExecutionCheck(PivotSignal &signal)
                         signal.execution.state == EXECUTION_ORDER_FAILED;
   if(!broker_closed && !order_terminal)
     return false;
-  if(!PivotV10Enabled())
+  if(!PivotV11Enabled())
   {
     signal.execution.terminal_check_exported = true;
     return true;
@@ -90,13 +90,13 @@ bool ExportPivotSignalOutcome(PivotSignal &signal)
 {
   if(signal.execution.outcome_exported)
     return true;
-  if(!PivotV10Enabled())
+  if(!PivotV11Enabled())
   {
     signal.execution.outcome_exported = true;
     return true;
   }
 
-  bool recorded = PivotV10RecordOutcome(signal);
+  bool recorded = PivotV11RecordBrokerOutcome(signal);
   if(recorded)
     signal.execution.outcome_exported = true;
   return recorded;
@@ -104,8 +104,8 @@ bool ExportPivotSignalOutcome(PivotSignal &signal)
 
 void LogPivotSignalTerminal(const PivotSignal &signal)
 {
-  string message = StringFormat("signal_id=%s|state=%s|entry_confirmed=%s|close_confirmed=%s|reason=%s|position=%I64u|identifier=%I64u|gross=%.10f|net=%.10f|binary=%s",
-                                signal.signal_id,
+  string message = StringFormat("broker_signal_id=%s|state=%s|entry_confirmed=%s|close_confirmed=%s|reason=%s|position=%I64u|identifier=%I64u|gross=%.10f|net=%.10f|binary=%s",
+                                signal.broker_signal_id,
                                 EnumToString(signal.execution.state),
                                 signal.execution.broker_entry_confirmed
                                 ? "true"
@@ -139,9 +139,9 @@ void FinalizePivotSignalTerminalStates()
     if(g_pivot_signals[i].execution.state ==
        EXECUTION_ORDER_BROKER_CLOSED)
     {
+      UpdatePivotOrigin(g_pivot_signals[i]);
       ExportPivotOwnershipExecutionCheckIfNeeded(g_pivot_signals[i]);
       ExportPivotTerminalExecutionCheck(g_pivot_signals[i]);
-      ExportPivotAttempt(g_pivot_signals[i]);
       ExportPivotSignalOutcome(g_pivot_signals[i]);
       LogPivotSignalTerminal(g_pivot_signals[i]);
       PivotSignalRemoveAt(i);
@@ -150,8 +150,8 @@ void FinalizePivotSignalTerminalStates()
     if(g_pivot_signals[i].execution.state == EXECUTION_ORDER_CANCELED ||
        g_pivot_signals[i].execution.state == EXECUTION_ORDER_FAILED)
     {
+      UpdatePivotOrigin(g_pivot_signals[i]);
       ExportPivotTerminalExecutionCheck(g_pivot_signals[i]);
-      ExportPivotAttempt(g_pivot_signals[i]);
       LogPivotSignalTerminal(g_pivot_signals[i]);
       PivotSignalRemoveAt(i);
     }
@@ -163,6 +163,7 @@ void ReconcileAndFinalizePivotSignals()
   for(int i = 0; i < ArraySize(g_pivot_signals); i++)
   {
     ReconcilePivotSignalBrokerPosition(g_pivot_signals[i]);
+    UpdatePivotOrigin(g_pivot_signals[i]);
     ExportPivotOwnershipExecutionCheckIfNeeded(g_pivot_signals[i]);
   }
   FinalizePivotSignalTerminalStates();
@@ -187,7 +188,7 @@ void FinalizePivotSignalAttemptsForExport()
     g_pivot_signals[i].attempt_status = "CENSORED";
     g_pivot_signals[i].block_source = "";
     g_pivot_signals[i].block_reason = "";
-    ExportPivotAttempt(g_pivot_signals[i]);
+    UpdatePivotOrigin(g_pivot_signals[i]);
   }
 }
 
