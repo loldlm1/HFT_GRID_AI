@@ -8,9 +8,9 @@ archive directories.
 ## Entrypoint And Active Work
 
 - Entrypoint: `HFT_Grid_AI.mq5`.
-- Active plan: `pivot-sl-tp-reentry-matrix-plan.md`. The accepted V2/V10
-  baseline remains archived under
-  `docs/plans/archive/macro-micro-pivot-bandwidth-schema-v10-2026-08-06/`.
+- Active plan: none. The completed V2/V11 matrix plan is archived under
+  `docs/plans/archive/pivot-sl-tp-reentry-matrix-v11-2026-08-07/`; its isolated
+  offline dataset-builder typing follow-up requires a new focused plan.
 - Architecture: `docs/architecture/market-data-broker-executor.md`.
 - Environment runbook: `docs/environment/mt5-agentic-workflows.md`.
 - Statistics workflow: `docs/workflows/pivot-fractal-statistics-flow.md`.

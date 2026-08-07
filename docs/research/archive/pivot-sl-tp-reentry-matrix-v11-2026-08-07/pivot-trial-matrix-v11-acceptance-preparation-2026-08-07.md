@@ -2,16 +2,14 @@
 
 ## Status And Boundary
 
-**Status**: The initial, Sprint 12, Sprint 14, and Sprint 16 MetaEditor compiles
-passed, but four human real-tick runs exposed distinct strict V11 defects.
-Sprint 11 fixed finalized-origin reconciliation and Sprint 13 fixed
-accepted-send boundary parity. Sprint 15 now retains the third run's expected
-gap-through structural denial as four explicit geometry-ineligible cells and
-passes the complete non-compiler gate. The fourth run passes deterministic
-time, broker, and matrix audits but exposes closed-session parity observation,
-broker-terminal parity cleanup, run-completion ambiguity, and quadratic strict
-validation. Corrective Sprints 17-19 are active; archive and hook cleanup remain
-pending.
+**Status**: Archived acceptance record. The final renewed real-tick run passes
+the EA runtime, strict raw V11, broker, matrix, parity, deterministic-time, and
+bounded-performance audits after Sprints 17-18. The only remaining defect is
+offline: the official dataset builder misclassifies
+`execution_checks.block_source` as numeric. A focused successor plan owns the
+exhaustive V11 type registry and official full-run rebuild. This archive does
+not claim that correction, matched export-off timing, renewed chart evidence,
+runtime model approval, or live rollout.
 
 This protocol validates strict schema V11, the virtual SL/TP trial matrix,
 bounded volatility re-entries, the unchanged one-order broker lane, and
@@ -921,6 +919,80 @@ Validation records:
   Strategy Tester path was invoked.
 - `git diff --check`: pass.
 
+## Fifth Human Run Audit - Raw V11 Accepted, Builder Follow-Up Isolated
+
+### Evidence Identity
+
+- Symbol/setup: XAUUSD, `EXNESS_SESSION`, Macro H1, Micro M3, reference lot
+  `0.01`, export and file logging enabled.
+- Run ID: `2026.01.05_00_00_00_XAUUSD_pivot_v11`.
+- Tester interval: `2026.01.05 00:00:00` through
+  `2026.07.31 20:57:59` broker time.
+- Query evidence: 21,289 lines, 8,807,481 bytes, SHA-256
+  `e913a0dd82c9f4db7a5c2091f438ad574e43a97cb0b73046b537753854487858`.
+- V11 evidence: exactly eight TSV files, 299,971,368 bytes. Raw query and TSV
+  evidence was inspected read-only and remains unedited.
+
+### Raw Schema, Matrix, And Lifecycle - Pass
+
+The final summary is `export_status=OK`, `completion_status=NATURAL`, with zero
+duplicate, referential-integrity, row-integrity, or capacity errors. It records
+3,412 windows, 7,178 origins, 186,036 trials, 185,788 outcomes, 28,466
+execution checks, and 7,054 broker outcomes. Active state peaks at 83 of 2,048.
+
+The matrix lane contains 178,982 matrix trials and 64,134 retries. Outcomes are
+51,096 TP, 127,605 SL, 33 censored, and 248 ineligible. The 33 explicit
+run-end censors coexist with natural run completion and do not enter the binary
+cohort. Strict validation passes in 119.04 seconds with 1,934,568 KB peak RSS.
+
+### Query, Broker, And Parity - Pass
+
+The query ledger reconciles 7,178 attempts, 7,056 sends, 7,054 accepted broker
+positions, 122 pre-send denials, and two failed sends. Every accepted position
+has one terminal outcome: 3,493 TP, 3,560 SL, and one manual tester-end
+exclusion. Request geometry remains exact 1R, broker SL/TP remains immutable,
+and no protection modification appears.
+
+All 7,032 strict broker-parity pairs match. The remaining 22 parity exclusions
+are 21 explicit parity censors and the one manual broker outcome; there are
+zero unexplained parity mismatches.
+
+### Deterministic Exness Time - Pass
+
+All 449,228 broker/analysis/offset triplets satisfy the XAUUSD UK-DST policy.
+There are 180,525 winter rows at `-60` minutes and 268,703 UK-DST rows at `0`,
+with zero conversion mismatches. Broker time remains the causal clock.
+
+### Offline Dataset Builder - Isolated Defect
+
+The official build fails after 155.75 seconds because
+`execution_checks.block_source` is not classified as text. DuckDB therefore
+attempts to convert the valid value `broker_close` to `DOUBLE`. A full type
+sweep finds no other currently populated nonnumeric column with this defect.
+
+An in-memory diagnostic override that changes only `block_source` to text
+builds the complete dataset: 178,982 long matrix rows, 7,178 initial-wide rows,
+114,848 policy chains, 7,054 calibration rows, and 178,701 eligible ML rows.
+The official audit then passes with 7,032 strict parity matches and zero
+mismatches. Offline XGBoost training also passes on all 178,701 eligible rows
+in 708.99 seconds with 1,959,184 KB peak RSS. These diagnostic artifacts remain
+Git-ignored and offline-only.
+
+The robust correction is an exhaustive frozen V11 column-type registry with a
+coverage assertion that every schema column has exactly one explicit type.
+That change belongs to the focused successor plan; it does not require an MQL5
+source change or MetaEditor compile.
+
+### Performance Disposition
+
+File timestamps bound the export-enabled, file-logged January-July tester run
+to approximately 3m55s while writing about 300 MB. The EA hot path remains
+bounded: two cached Bands handles, one shared feature snapshot per trigger
+batch, current-generation-only trial state, and 83/2,048 peak state. No runtime
+optimization is justified by this evidence. Disable file logs for ordinary
+performance runs; a matched log-disabled export-off/export-on pair is still
+required to attribute export overhead precisely.
+
 ## Precompile Validation Record
 
 The frozen candidate has the following non-compiler evidence:
@@ -1123,31 +1195,32 @@ censors; those row outcomes do not redefine why the tester run ended.
 
 Sprint 10 records the failed first run, Sprint 12 records the second, Sprint 14
 records the third gap-through failure, and Sprint 16 records the fourth
-parity/session and completion-semantics failure. Sprint 19 will replace only the
-pending final-acceptance values after the Sprint 17/18 corrections:
+parity/session and completion-semantics failure. Sprint 19 records the accepted
+raw V11 run and isolates the offline builder defect for a focused successor:
 
 | Evidence | Result |
 | --- | --- |
-| Current source commit | Sprint 17 correction `c2466eb`; Sprint 18 correction and Sprint 19 acceptance pending |
-| Latest compile result and elapsed time | Sprint 16 pass: `0 errors, 0 warnings`, 10,966 ms; superseded by the fourth failed run |
-| Latest compiled `.ex5` size/mtime/SHA-256 | 233,494 bytes; `2026-08-07 15:09:04.103724822 -0400`; `777b952b94e024436f5d49fbd34f62f4f9816efe9785b06516c9a598c45696df` |
+| Current source commit | Sprint 18 correction `0cdca4f389b3a28339bb821d91ea04941f57bed3`; no MQL5 source change after the accepted run |
+| Latest compile result and elapsed time | Sprint 19 pass: `0 errors, 0 warnings`, 11,418 ms; Wine process return code `1` remains a separate wrapper discrepancy |
+| Latest compiled `.ex5` size/mtime/SHA-256 | 235,376 bytes; `2026-08-07 16:58:51.506059066 -0400`; `c10cc85d7e1200acf74dc70983daf3515583281612f2e6d866fc5f99f3ac87ea` |
 | First failed run | XAUUSD, `EXNESS_SESSION`, `test_run_1`, `2026.06.08` through `2026.07.31`, approximately 232 KB |
 | Second failed run | XAUUSD, `FIXED_TIME_SESSIONS`, `2026.06.05_00_00_00_XAUUSD_pivot_v11`, `2026.06.05` through `2026.07.31`, 11,001,177 bytes |
 | Third failed run | XAUUSD, `EXNESS_SESSION`, `2026.01.05_00_00_00_XAUUSD_pivot_v11`, `2026.01.05` through `2026.07.31`, 1,676,201 raw TSV bytes |
 | Fourth failed run | Same setup/run ID after fresh regeneration, 299,967,529 raw TSV bytes; full interval exported before parity summary failure |
+| Fifth accepted raw run | Same XAUUSD Exness January-July setup after fresh regeneration; 299,971,368 raw TSV bytes; `OK/NATURAL`; zero integrity or capacity errors |
 | Second-run windows/origins/matrix/retry/parity rows | 122 / 265 / 6,552 / 2,248 / 268; export fails at the next H1 boundary |
 | Third-run windows/origins/matrix/retry/parity rows | 22 / 42 / 987 / 315 / 41; export fails on wrong-side structural origin registration |
 | Third-run TP/SL/censored/ineligible counts | 267 TP / 708 SL / 0 censored / 0 ineligible; 12 active matrix outcomes missing after failure |
 | Fourth-run windows/origins/matrix/retry/parity rows | 3,412 / 7,178 / 178,982 / 64,134 / 7,054 |
 | Fourth-run TP/SL/censored/ineligible counts | 54,592 TP / 131,162 SL / 34 censored / 248 ineligible; active/outcome identities exact |
-| Broker outcomes and exclusions | Query runs one through four all reconcile; fourth run has 3,493 TP / 3,560 SL / 1 manual, 122 denials, and 2 failed sends |
-| Strict parity pairs/matches/mismatches/exclusions | Fourth run: 7,054 / 7,048 / 5 / 1 |
-| Active-state peak/cap status | First/second/third/fourth runs: 25 / 68 / 49 / 83 of 2,048; no capacity failure |
-| Dataset/audit/model artifact IDs and sizes | Pending |
+| Broker outcomes and exclusions | Fifth run: 3,493 TP / 3,560 SL / 1 manual, 122 denials, and 2 failed sends; complete query parity |
+| Strict parity pairs/matches/mismatches/exclusions | Fifth run: 7,032 strict pairs / 7,032 matches / 0 mismatches; 21 parity censors plus 1 manual exclusion |
+| Active-state peak/cap status | First/second/third/fourth/fifth runs: 25 / 68 / 49 / 83 / 83 of 2,048; no capacity failure |
+| Dataset/audit/model artifact IDs and sizes | Diagnostic dataset `sprint19_xauusd_20260105_20260731_v11_diagnostic`; audit `sprint19_xauusd_20260105_20260731_v11_audit`; model `sprint19_xauusd_20260105_20260731_v11_model` |
 | Export-disabled elapsed time | Pending |
-| Export-enabled elapsed time and overhead | Pending |
-| Human chart/broker-history observations | All broker/query audits pass; all four V11 research runs fail for distinct strict-export/calibration defects |
-| Static fallbacks used | Fourth run has detailed winter/summer triplets; matched log-disabled performance and renewed chart acceptance remain pending |
+| Export-enabled elapsed time and overhead | Approximately 3m55s with export and file logging enabled; matched log-disabled overhead remains pending |
+| Human chart/broker-history observations | Fifth run broker/query/raw V11 evidence passes; renewed chart confirmation remains a successor human gate |
+| Static fallbacks used | Fifth run covers winter/summer DST and natural censors; matched log-disabled performance and renewed chart acceptance remain pending |
 
 ## Blocking Conditions
 

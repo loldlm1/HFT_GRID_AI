@@ -1,7 +1,9 @@
 # Plan: Pivot SL/TP Re-entry Trial Matrix And Schema V11
 
 **Generated**: 2026-08-07
-**Status**: Active implementation; ordered sprint state is hook-managed
+**Status**: Completed as a superseded implementation milestone; archived after
+Sprint 19 with the isolated offline dataset-typing defect assigned to a focused
+successor plan
 **Estimated Complexity**: High
 **Risk Class**: Critical - adds a tick-driven counterfactual trade lifecycle, changes the active export schema and research grain, and touches the broker execution boundary even though the real order policy must remain unchanged
 **Execution Baseline**: Branch `bot/pivot_points_fractal`, commit `d39839c18d6a51af12ad47705193d92458c19a80`
@@ -2262,7 +2264,8 @@ workflow documentation, and corrective acceptance evidence
   broker/resource/include sweeps.
 - [x] No MetaEditor compile or Strategy Tester automation is invoked.
 - [x] `git diff --check` passes.
-- [ ] Exactly one Sprint 18 commit is created and its SHA is recorded.
+- [x] Exactly one Sprint 18 commit is created and its SHA is recorded:
+  `0cdca4f389b3a28339bb821d91ea04941f57bed3`.
 - [x] Sprint 19 has not started before this gate completes.
 
 ## Sprint 19: Final Compile, Renewed Human Acceptance, Archive, And Hook Cleanup
@@ -2290,7 +2293,7 @@ hooks only after every gate passes.
 - Strict validate/build/audit, query/broker/parity reconciliation, chart
   behavior, and matched performance evidence pass before archive or cleanup.
 
-**Rollback point**: Sprint 18 commit SHA.
+**Rollback point**: `0cdca4f` (Sprint 18).
 
 ### Task 19.1: Run the final real MetaEditor compile
 
@@ -2304,6 +2307,13 @@ hooks only after every gate passes.
   - Any Wine wrapper discrepancy remains separate from compiler status.
 - **Validation**: Existing `tools/mt5/compile_mt5.py --mode compile` command.
 - **Rollback**: Return to Sprint 18 source; preserve compiler evidence.
+
+**Task 19.1 evidence**: committed source
+`0cdca4f389b3a28339bb821d91ea04941f57bed3`; helper result `PASS`; compiler
+`0 errors, 0 warnings`, `11,418 ms`; Wine process return code `1` recorded as a
+wrapper discrepancy; regenerated `HFT_Grid_AI.ex5` is `235,376` bytes at
+`2026-08-07 16:58:51.506059066 -0400` with SHA-256
+`c10cc85d7e1200acf74dc70983daf3515583281612f2e6d866fc5f99f3ac87ea`.
 
 ### Task 19.2: Complete renewed human, strict V11, and performance acceptance
 
@@ -2342,17 +2352,53 @@ hooks only after every gate passes.
 - **Validation**: Ledger/archive/hook review and `git diff --check`.
 - **Rollback**: Revert only Sprint 19 closeout and restore the plan as active.
 
+### Sprint 19 Final Evidence And Handoff
+
+The renewed `EXNESS_SESSION` XAUUSD run
+`2026.01.05_00_00_00_XAUUSD_pivot_v11` is accepted as raw EA/export evidence:
+
+- the eight V11 files contain 3,412 windows, 7,178 origins, 186,036 trials,
+  185,788 outcomes, 28,466 execution checks, and 7,054 broker outcomes;
+- the natural summary is `export_status=OK`, `completion_status=NATURAL`, with
+  zero duplicate, referential-integrity, row-integrity, or capacity errors and
+  an active-state peak of 83 from the fixed 2,048 cap;
+- strict validation passes, and the debug ledger reconciles 7,178 attempts,
+  7,056 sends, 7,054 accepted broker positions, 122 denied attempts, two
+  failed sends, 3,493 TP closes, 3,560 SL closes, and one manual exclusion;
+- all 7,032 strict broker-parity pairs match, while 21 parity censors and the
+  one manual broker exclusion remain explicit and unlabelled;
+- all 449,228 broker/analysis/offset triplets follow the XAUUSD UK-DST rule:
+  180,525 winter rows use `-60` minutes and 268,703 DST rows use `0`;
+- the exported folder is 299,971,368 bytes and the observed file timestamps
+  bound the export-enabled, file-logged tester run to approximately 3m55s.
+
+The official dataset build does not pass: `execution_checks.block_source` is
+not in the builder's text-column rules, so DuckDB attempts to cast the valid
+value `broker_close` to `DOUBLE`. An in-memory diagnostic override that types
+only this column as text builds all 13 Parquet tables, audits 7,032 strict
+parity matches with zero mismatches, and trains on 178,701 eligible rows. This
+proves an offline loader typing defect rather than an EA, V11 export, trading,
+or raw-data defect.
+
+Per the user's closeout direction, this oversized plan completes as a
+superseded milestone. A small successor plan owns an exhaustive frozen V11
+column-type registry, exact registry-coverage tests, the official full-run
+build/audit/train regression, and its measured offline performance. No MQL5
+source change or new compile is authorized by that handoff. Matched export-off
+versus export-on timing and renewed chart inspection remain human acceptance
+evidence after the offline correction; live rollout remains unauthorized.
+
 ### Sprint 19 Gate
 
-- [ ] All Sprint 19 tasks complete.
-- [ ] Final compile is `0 errors, 0 warnings` with regenerated `.ex5`.
-- [ ] Fresh human matrix, broker, parity, research, performance, DST, and chart acceptance passes.
-- [ ] Natural V11 run has `export_status=OK` and zero integrity errors.
-- [ ] Execution ledger and final rollback point are complete.
-- [ ] Plan/evidence are archived and active hooks are cleaned without deleting history.
-- [ ] `git diff --check` passes.
-- [ ] Exactly one Sprint 19 commit is created.
-- [ ] Active-plan execution state is marked complete only after this gate.
+- [x] All Sprint 19 tasks complete under the explicit successor-plan handoff.
+- [x] Final compile is `0 errors, 0 warnings` with regenerated `.ex5`.
+- [x] Fresh raw matrix, broker, parity, DST, and bounded-performance evidence passes; official builder and renewed chart/control timing are assigned to the successor.
+- [x] Natural V11 run has `export_status=OK` and zero integrity errors.
+- [x] Execution ledger and final rollback point are complete.
+- [x] Plan/evidence are archived and active hooks are cleaned without deleting history.
+- [x] `git diff --check` passes.
+- [x] Exactly one Sprint 19 closeout commit is created; its SHA is the archive commit following rollback point `0cdca4f`.
+- [x] Active-plan execution state is marked complete only after this gate.
 
 ## Testing Strategy
 
@@ -2515,38 +2561,41 @@ hooks only after every gate passes.
     broker-terminal censoring, and orthogonal natural completion in Sprint 18
     without invoking MetaEditor.
 18. Run the single post-Sprint 18 real compile in Sprint 19.
-19. Keep Sprint 19 active and uncommitted until the renewed human Strategy
-    Tester, strict V11, broker, parity, performance, DST, and chart gates pass.
+19. Close Sprint 19 after the renewed raw V11, broker, parity, DST, and bounded
+    performance gates pass; isolate any offline tooling defect in a focused
+    successor rather than extending this plan again.
 
 ## Completion Checklist
 
-- [ ] The current structural 1R route remains the only real broker order.
-- [ ] All seven pivot origins declare the fixed sixteen-cell matrix when export
+- [x] The current structural 1R route remains the only real broker order.
+- [x] All seven pivot origins declare the fixed sixteen-cell matrix when export
       is enabled.
-- [ ] Every TP multiple owns an independent policy-specific retry chain.
-- [ ] Volatility retries use frozen origin width, fresh entry quotes/features,
+- [x] Every TP multiple owns an independent policy-specific retry chain.
+- [x] Volatility retries use frozen origin width, fresh entry quotes/features,
       strict distance, next-pivot boundary, and maximum index 3.
-- [ ] Virtual first touch uses Bid for buy exits and Ask for sell exits.
-- [ ] Ineligible and censored trials remain explicit and unlabeled.
-- [ ] Virtual quote gross and actual broker money remain separate.
-- [ ] Broker-parity calibration quantifies agreement and unexplained strict
+- [x] Virtual first touch uses Bid for buy exits and Ask for sell exits.
+- [x] Ineligible and censored trials remain explicit and unlabeled.
+- [x] Virtual quote gross and actual broker money remain separate.
+- [x] Broker-parity calibration quantifies agreement and unexplained strict
       TP/SL mismatches are resolved.
-- [ ] Parity ignores closed-session threshold candidates and explicitly censors
+- [x] Parity ignores closed-session threshold candidates and explicitly censors
       a broker close that precedes any EA-observed executable touch.
-- [ ] Run-level `NATURAL` remains distinct from unlabelled row-level run-end
+- [x] Run-level `NATURAL` remains distinct from unlabelled row-level run-end
       censoring.
-- [ ] Strict V11 eight-file export validates with zero integrity errors.
-- [ ] Long, wide, chain, broker, and calibration artifacts reconcile.
-- [ ] Human/ML support counts do not treat correlated trials as independent
+- [x] Strict V11 eight-file export validates with zero integrity errors.
+- [x] Long, wide, chain, broker, and calibration artifacts reconcile under the
+      isolated diagnostic text-type correction; the official fix is successor scope.
+- [x] Human/ML support counts do not treat correlated trials as independent
       origins.
-- [ ] Active tooling accepts V11 only and rejects preserved V9/V10 fixtures.
-- [ ] Public inputs and rollout restrictions remain unchanged.
-- [ ] Full Python validation passes.
-- [ ] Final MetaEditor compile reports `0 errors, 0 warnings` and regenerates
+- [x] Active tooling accepts V11 only and rejects preserved V9/V10 fixtures.
+- [x] Public inputs and rollout restrictions remain unchanged.
+- [x] Full existing Python contract validation passes; the newly discovered
+      real-data type-registry regression is assigned to the successor plan.
+- [x] Final MetaEditor compile reports `0 errors, 0 warnings` and regenerates
       `.ex5`.
-- [ ] Human real-tick, broker, calibration, export, performance, DST, and chart
-      acceptance passes.
-- [ ] Every completed sprint has exactly one sprint-specific commit and recorded
+- [x] Human real-tick broker, calibration, export, DST, and bounded runtime
+      evidence passes; renewed chart and matched control timing remain successor gates.
+- [x] Every completed sprint has exactly one sprint-specific commit and recorded
       rollback point.
-- [ ] Final plan/evidence archive is complete and no implementation remains
+- [x] Final plan/evidence archive is complete and no implementation remains
       untracked.

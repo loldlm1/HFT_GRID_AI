@@ -2,30 +2,29 @@
 
 ## Active State
 
-The current implementation candidate is the `PIVOT_FRACTAL_V2` Macro/Micro
-broker executor with strict schema V11 persistence, a virtual SL/TP policy
-matrix, bounded volatility re-entries, broker-parity calibration, and
-offline-only DuckDB/Parquet/XGBoost research. The fourth V11 real-tick run
-passed deterministic time, broker, and matrix audits but exposed parity/session,
-run-completion, and large-run validator blockers. Corrective Sprints 17-19 are
-active; final acceptance remains pending.
+The current `PIVOT_FRACTAL_V2` Macro/Micro broker executor and strict schema V11
+export have accepted raw real-tick evidence for the virtual SL/TP matrix,
+bounded volatility re-entries, and broker-parity calibration. The official
+offline dataset build remains blocked only by the isolated
+`execution_checks.block_source` type-registry defect. No active plan remains;
+create a focused successor before changing the builder.
 
 Use these active documents:
 
 - `docs/workflows/pivot-fractal-statistics-flow.md`
 - `docs/workflows/pivot-fractal-offline-research-boundaries.md`
 - `docs/environment/mt5-agentic-workflows.md`
-- `docs/research/pivot-trial-matrix-v11-acceptance-preparation-2026-08-07.md`
-- `pivot-sl-tp-reentry-matrix-plan.md`
+- `docs/research/archive/pivot-sl-tp-reentry-matrix-v11-2026-08-07/README.md`
+- `docs/plans/archive/pivot-sl-tp-reentry-matrix-v11-2026-08-07/README.md`
 - `docs/research/archive/macro-micro-pivot-bandwidth-schema-v10-2026-08-06/README.md`
 - `docs/plans/archive/macro-micro-pivot-bandwidth-schema-v10-2026-08-06/README.md`
 
 No current research artifact is approved for MT5 runtime or live deployment.
-Accepted V2/V11 evidence must come from a natural eight-file run that passes
-the strict validator and the human tester matrix. Generated Common Files
-exports, datasets, audits, models, reports, screenshots, and binaries remain
-outside tracked documentation unless the closeout explicitly archives compact
-evidence.
+Accepted V2/V11 runtime evidence comes from the archived natural eight-file
+run. Generated Common Files exports, datasets, audits, models, reports,
+screenshots, and binaries remain outside tracked documentation unless a
+closeout explicitly archives compact evidence. The diagnostic dataset does not
+replace the pending official builder correction.
 
 ## V10 Acceptance Archive
 
