@@ -480,7 +480,7 @@ balance, account currency, or quote-side policy.
 - Confirm the local `.venv` can run the pinned DuckDB, NumPy, scikit-learn, and
   XGBoost versions before Python sprints.
 - Keep the current MetaEditor/Wine and MT5 Common Files paths available for the
-  final compile and human real-tick acceptance only.
+  planned acceptance compiles and human real-tick evidence only.
 - Do not run intermediate MetaEditor compilation unless a human explicitly
   changes this plan.
 - Do not create MQL5 tests or automated Strategy Tester infrastructure.
@@ -1203,8 +1203,8 @@ broker position without claiming virtual net-profit equivalence.
 ## Sprint 8: Integrate Documentation, Tooling, And Static Contracts
 
 **Goal**: Make V11 the sole active documented workflow and complete all static
-and Python integration before release-candidate freeze and the Sprint 10 final
-compile/acceptance gate.
+and Python integration before release-candidate freeze and the initial Sprint
+10 compile/acceptance gate.
 
 **Dependencies**: Sprint 7 gate.
 
@@ -1391,16 +1391,205 @@ runbook corrections
 - [ ] Rollback point and commit SHA are recorded.
 - [ ] Sprint 10 has not started before this gate completes.
 
-## Sprint 10: Final Compile, Human Acceptance, And Archive
+## Sprint 10: Record The Failed Human Acceptance And Extend The Plan
 
-**Goal**: Run the sole real MetaEditor compile, complete human real-tick and V11
-acceptance, record final evidence, archive the plan, and leave active
-documentation pointing only to the accepted V11 workflow.
+**Goal**: Preserve the clean initial compile and failed real-tick evidence,
+separate the valid broker/time findings from the invalid V11 research run,
+document the lifecycle root cause, and extend the active plan before any source
+correction.
 
-**Dependencies**: Sprint 9 gate and human access to MetaEditor/Strategy Tester.
+**Dependencies**: Sprint 9 gate and the first human Strategy Tester run.
 
-**Tracked scope**: Only compile corrections required by final validation,
-`HFT_Grid_AI.ex5`, `logs/compile/agentic-build.log`, final acceptance evidence,
+**Tracked scope**: `pivot-sl-tp-reentry-matrix-plan.md` and
+`docs/research/pivot-trial-matrix-v11-acceptance-preparation-2026-08-07.md`
+
+**Commit**: `docs: record failed pivot matrix v11 acceptance`
+
+**Demo/Validation**:
+
+- The initial real MetaEditor compile is preserved as `0 errors, 0 warnings`,
+  but is not treated as final evidence after a required source correction.
+- The XAUUSD `EXNESS_SESSION` run proves all 327 available timestamp triplets
+  use the correct summer offset `0` and preserve broker time.
+- `query_debug.txt` reconciles 1,922 attempts, 1,910 sends, 1,909 successful
+  sends, 1,909 terminal events, one audited `10016 Invalid stops` failure, and
+  twelve pre-send denials with zero internal consistency defects.
+- Strict V11 validation fails because fourteen active trials have no outcome;
+  `run_summary.tsv` reports two referential errors and `export_status=FAILED`.
+- The failed run, debug log, and summary are preserved without editing raw TSVs.
+
+**Rollback point**: `cdc2e57` (Sprint 9).
+
+### Task 10.1: Record the initial compile evidence
+
+- **Location**: `docs/research/pivot-trial-matrix-v11-acceptance-preparation-2026-08-07.md`
+- **Description**: Record the regenerated binary, compile log, parsed compiler
+  result, and Wine wrapper discrepancy from the first acceptance candidate.
+- **Dependencies**: Sprint 9.
+- **Acceptance criteria**:
+  - The recorded result is exactly `0 errors, 0 warnings`.
+  - Binary size, timestamp, and SHA-256 prove `.ex5` regeneration.
+  - The evidence is explicitly superseded by Sprint 12 after source changes.
+- **Validation**: Compare the recorded artifact metadata with the compile log.
+- **Rollback**: Revert only the Sprint 10 documentation; preserve compile files.
+
+### Task 10.2: Audit the human run and isolate the exporter defect
+
+- **Location**: External Common Files `query_debug.txt`,
+  `PivotFractalV11/runs/test_run_1/`, active exporter and signal lifecycle.
+- **Description**: Audit deterministic time, debug trade consistency, strict
+  V11 structure, trial chains, parity rows, summary integrity, and lifecycle
+  control flow without changing raw evidence.
+- **Dependencies**: Task 10.1.
+- **Acceptance criteria**:
+  - Time and broker-trade findings are reported separately from export status.
+  - Five origins each have the complete sixteen-cell initial matrix and all 57
+    observed re-entry rows have contiguous indices.
+  - The first missing-origin update is traced to a broker position that opens
+    at `2026.06.08 02:01:28`, outlives its H1 window, and closes at
+    `2026.06.08 05:30:53`.
+  - The secondary missing parity outcome is identified as a consequence of the
+    exporter already being disabled.
+  - Missing `PIVOT_V11_EXPORT_FAILED` file telemetry is recorded as a separate
+    observability defect.
+- **Validation**:
+  - Existing strict V11 `--validate-only` command.
+  - Read-only TSV/debug reconciliation and exact source control-flow review.
+- **Rollback**: Preserve the failed external run and revert only documentation.
+
+### Task 10.3: Add bounded corrective sprints
+
+- **Location**: This active plan.
+- **Description**: Add Sprint 11 for finalized-origin lifecycle state and
+  first-failure telemetry, then Sprint 12 for the sole corrective compile,
+  renewed human evidence, and archive closeout.
+- **Dependencies**: Task 10.2.
+- **Acceptance criteria**:
+  - Sprint 11 permits a no-op only for explicitly finalized origins and keeps
+    genuinely unknown origin references fail-closed.
+  - Sprint 11 adds no MQL5 harness, test EA/script, CI, or tester automation.
+  - Sprint 12 is the only post-correction compile sprint.
+  - The plan remains active and unarchived until a new natural V11 run passes.
+- **Validation**: Plan cross-check, `rg` reference sweep, and `git diff --check`.
+- **Rollback**: Revert the Sprint 10 plan extension only.
+
+### Sprint 10 Gate
+
+- [ ] All Sprint 10 tasks complete.
+- [ ] Initial compile evidence is recorded without claiming runtime acceptance.
+- [ ] Deterministic time and query-debug audits pass with exact counts.
+- [ ] V11 failure, strict-validator output, root cause, and secondary effects are recorded.
+- [ ] Failed external evidence remains preserved and unedited.
+- [ ] Corrective Sprints 11 and 12 are explicit and ordered.
+- [ ] `git diff --check` passes.
+- [ ] Exactly one Sprint 10 commit is created.
+- [ ] Sprint 11 has not started before this gate completes.
+
+## Sprint 11: Preserve Finalized Origins During Broker Reconciliation
+
+**Goal**: Allow broker positions to reconcile after their origin window has
+been exported without disabling V11, while preserving strict rejection for
+unknown origins and adding one durable first-failure diagnostic.
+
+**Dependencies**: Sprint 10 gate.
+
+**Tracked scope**: `services/trading_signals/pivot_signal_struct.mqh`,
+`services/trading_signals/pivot_signal_state.mqh`,
+`services/trading_signals/pivot_fractal_signal_detection.mqh`,
+`services/trading_signals/pivot_fractal_statistics_export.mqh`, and focused
+acceptance documentation
+
+**Commit**: `fix: preserve finalized v11 origins during reconciliation`
+
+**Demo/Validation**:
+
+- A successful window export marks matching bounded active `PivotSignal`
+  objects as origin-export-finalized.
+- Later updates for those explicitly marked signals are deterministic no-ops.
+- A missing unmarked origin still increments referential integrity and fails
+  the exporter.
+- The first exporter failure is written once to `query_debug.txt` when file
+  logging is enabled and printed once when console logging is enabled.
+- No broker route, sizing, protection, order send, parity geometry, schema
+  header, or public input changes.
+
+**Rollback point**: Sprint 10 commit SHA.
+
+### Task 11.1: Carry explicit finalized-origin state on active signals
+
+- **Location**: `pivot_signal_struct.mqh`, `pivot_signal_state.mqh`,
+  `pivot_fractal_signal_detection.mqh`.
+- **Description**: Add `origin_export_finalized`, reset/copy it deterministically,
+  and mark registered active signals for a window only after
+  `PivotV11RecordWindow()` succeeds.
+- **Dependencies**: Sprint 10.
+- **Acceptance criteria**:
+  - New signals default to `origin_export_finalized=false`.
+  - Copy/move-through-array behavior preserves the flag.
+  - Window terminal-export markers advance only after successful recording.
+  - The bounded marking loop uses existing active signal state and adds no
+    unbounded history or per-tick allocation.
+- **Validation**: Exact field/reset/copy/mark reference sweep and include trace.
+- **Rollback**: Revert only Task 11.1 source changes.
+
+### Task 11.2: Make finalized updates safe and failures observable
+
+- **Location**: `execution_controller.mqh`,
+  `pivot_fractal_statistics_export.mqh`, `execution_logging.mqh` integration.
+- **Description**: Treat a missing pending origin as success only when the
+  supplied active signal is explicitly finalized; otherwise keep the existing
+  referential failure. Emit the first exporter failure through the existing
+  query-debug file logger and console gates.
+- **Dependencies**: Task 11.1.
+- **Acceptance criteria**:
+  - Pending origins continue to receive mutable attempt/matrix status updates.
+  - Explicitly finalized origins do not recreate or mutate exported rows.
+  - Unknown, unregistered, or falsely marked references cannot bypass the
+    fail-closed path.
+  - Exporter failure remains research-only and cannot alter broker positions.
+  - Exactly one failure event is attempted per run regardless of later errors.
+- **Validation**: Branch/control-flow review and first-failure logging sweep.
+- **Rollback**: Revert only Task 11.2 source changes.
+
+### Task 11.3: Run the complete non-compiler correction gate
+
+- **Location**: Entire active source and existing Python V11 tooling/fixture.
+- **Description**: Run exact identifier/reference sweeps, include tracing,
+  lifecycle and broker-safety inspection, Python compileall/contracts/fixture
+  validation, and whitespace checks without invoking MetaEditor.
+- **Dependencies**: Tasks 11.1-11.2.
+- **Acceptance criteria**:
+  - One `OrderSend`, one `OrderCheck`, FOK-only, and no `TRADE_ACTION_SLTP`
+    remain unchanged.
+  - No matrix module can mutate broker positions.
+  - Existing strict V11 fixture and Python contract suite pass.
+  - The failed `test_run_1` remains expected-fail evidence and is not edited.
+  - `git diff --check` passes.
+- **Validation**: Static and existing Python checks only; no MQL5 compile.
+- **Rollback**: Revert the Sprint 11 commit to the Sprint 10 rollback point.
+
+### Sprint 11 Gate
+
+- [ ] All Sprint 11 tasks complete.
+- [ ] Finalized-origin state is explicit, copied, bounded, and marked only after success.
+- [ ] Missing finalized updates no-op while unknown origin references still fail closed.
+- [ ] First exporter failure reaches query debug exactly once when enabled.
+- [ ] Broker execution and public input contracts remain unchanged.
+- [ ] Full non-compiler validation passes.
+- [ ] No MetaEditor compile or new MQL5 test infrastructure was created.
+- [ ] Exactly one Sprint 11 commit is created.
+- [ ] Rollback point and commit SHA are recorded.
+- [ ] Sprint 12 has not started before this gate completes.
+
+## Sprint 12: Final Corrective Compile, Renewed Acceptance, And Archive
+
+**Goal**: Compile the corrected source once, obtain a fresh human real-tick V11
+run, complete research and broker acceptance, record the execution ledger, and
+archive only after every gate passes.
+
+**Dependencies**: Sprint 11 gate and human access to MetaEditor/Strategy Tester.
+
+**Tracked scope**: Compile artifacts, final acceptance evidence,
 `pivot-sl-tp-reentry-matrix-plan.md`, `docs/plans/README.md`, and new dated
 archive folders under `docs/plans/archive/` and `docs/research/archive/`
 
@@ -1408,96 +1597,80 @@ archive folders under `docs/plans/archive/` and `docs/research/archive/`
 
 **Demo/Validation**:
 
-- The only real MetaEditor compile reports `0 errors, 0 warnings` and
-  regenerates `HFT_Grid_AI.ex5`.
-- Human `Every tick based on real ticks` acceptance covers virtual policies,
-  unchanged broker execution, parity, natural V11 research, and performance.
-- Plan execution ledger lists every sprint commit and rollback point.
-- Completed plan and acceptance evidence are archived without modifying older
-  archives.
-- Active plan index returns to `None` and points to V11 architecture/workflows.
+- The sole corrective real compile reports `0 errors, 0 warnings` and
+  regenerates `.ex5` from the Sprint 11 source.
+- A fresh unique V11 run completes with `export_status=OK`, zero integrity
+  errors, no active-trial/outcome mismatch, and natural completion.
+- `query_debug.txt` includes no exporter failure; if any future exporter error
+  occurs, its first cause is present once.
+- Human broker, matrix, parity, research, performance, DST, and chart evidence
+  passes before archive or final commit.
 
-**Rollback point**: Sprint 9 commit SHA.
+**Rollback point**: Sprint 11 commit SHA.
 
-### Task 10.1: Run the single final MetaEditor compile
+### Task 12.1: Run the single corrective MetaEditor compile
 
 - **Location**: `HFT_Grid_AI.mq5`, `HFT_Grid_AI.ex5`,
-  `tools/mt5/compile_mt5.py`, `logs/compile/agentic-build.log`
-- **Description**: Compare the Sprint 9 precompile binary evidence, run the real
-  compile helper once, parse the log, and record postcompile timestamp, size,
-  and hash. `/s` syntax mode is not accepted as final proof.
-- **Dependencies**: Sprint 9.
+  `tools/mt5/compile_mt5.py`, `logs/compile/agentic-build.log`.
+- **Description**: Run one real `/compile` against the Sprint 11 source, parse
+  the log, and record regenerated binary metadata. Do not use `/s` as proof.
+- **Dependencies**: Sprint 11.
 - **Acceptance criteria**:
   - Compiler result is exactly `0 errors, 0 warnings`.
-  - `.ex5` is regenerated and postcompile evidence differs from the frozen
-    precompile binary.
-  - Any Wine process-code discrepancy is recorded beside parsed compiler status.
+  - `.ex5` is regenerated after the Sprint 11 commit.
+  - Any Wine wrapper discrepancy is recorded separately from compiler status.
 - **Validation**:
   - `python3 tools/mt5/compile_mt5.py --wine --mt5-root "/home/loldlm/mql5_projects/metatrader_5_market_data_framework" --entrypoint "/home/loldlm/mql5_projects/metatrader_5_market_data_framework/MQL5/Experts/HFT_Grid_AI/HFT_Grid_AI.mq5" --log "logs/compile/agentic-build.log" --mode compile`
-- **Rollback**: Revert Sprint 10 source corrections if compilation exposes a
-  regression; never delete historical compiler evidence.
+- **Rollback**: Return to the Sprint 11 source; preserve compiler evidence.
 
-### Task 10.2: Complete human runtime, broker, research, and performance acceptance
+### Task 12.2: Complete renewed human and strict V11 acceptance
 
-- **Location**: Human Strategy Tester/chart, V11 Common Files run output,
-  ignored dataset/audit/model artifacts, final `docs/research/` evidence.
-- **Description**: Execute the Sprint 9 manual protocol using real ticks and
-  fixed inputs, validate the natural V11 run, and record broker/parity and
-  matched performance evidence without adding an automated harness.
-- **Dependencies**: Task 10.1.
+- **Location**: Human Strategy Tester/chart, a fresh Common Files V11 run, a
+  freshly separated `query_debug.txt`, and ignored research artifacts.
+- **Description**: Preserve the failed `test_run_1` evidence, use a unique new
+  run ID, rerun `Every tick based on real ticks`, and execute the full Sprint 9
+  acceptance protocol and strict research flow.
+- **Dependencies**: Task 12.1.
 - **Acceptance criteria**:
-  - One origin shows sixteen index-0 cells and policy-specific retry behavior.
-  - Boundary, gap, expiry, censoring, Bid/Ask exits, and ineligible cells are
-    verified through human observations or named static fallbacks.
-  - The real lane remains one-order, FOK, immutable, ticket-owned, and the sole
-    source of broker-confirmed money.
-  - Strict parity pairs have no unexplained TP/SL terminal mismatch.
-  - Natural V11 validate/build/audit behavior and support guards pass.
-  - Export-disabled versus export-enabled overhead, peak state, file growth,
-    and elapsed tester time are recorded over the same interval.
-- **Validation**:
-  - Human timestamped observations and broker history inspection.
-  - `.venv/bin/python tools/deterministic_signal_ml/build_dataset.py --runs-root "$PIVOT_RUNS_ROOT" --run-id "$PIVOT_RUN_ID" --validate-only`
-  - `.venv/bin/python tools/deterministic_signal_ml/build_dataset.py --runs-root "$PIVOT_RUNS_ROOT" --run-id "$PIVOT_RUN_ID" --dataset-id "$PIVOT_DATASET_ID"`
-  - `.venv/bin/python tools/deterministic_signal_ml/pivot_fractal_audit.py --dataset-id "$PIVOT_DATASET_ID" --audit-id "$PIVOT_AUDIT_ID" --minimum-group-support 30`
-  - `.venv/bin/python tools/deterministic_signal_ml/train_model.py --dataset-id "$PIVOT_DATASET_ID" --model-id <model_id>`
-- **Rollback**: Preserve failed evidence and stop closeout if runtime, broker,
-  parity, research, or performance acceptance fails.
+  - Natural H1 windows continue exporting while broker positions outlive their
+    origin windows.
+  - Strict validation/build/audit complete with zero duplicate, referential,
+    row-integrity, state-cap, active-outcome, or parity mismatch errors.
+  - Broker trade counts and geometry remain consistent with query debug.
+  - Export-disabled versus export-enabled performance evidence is recorded.
+  - No raw failed or accepted TSV is edited to satisfy validation.
+- **Validation**: Human evidence plus the strict validate/build/audit/train
+  support-guard commands from the acceptance protocol.
+- **Rollback**: Preserve failed evidence and keep the plan active if any gate fails.
 
-### Task 10.3: Record the ledger and archive without deleting history
+### Task 12.3: Record the ledger and archive without deleting history
 
-- **Location**: This plan before archival, final acceptance evidence,
+- **Location**: This plan, final acceptance evidence,
   `docs/plans/archive/<v11-topic-date>/`,
-  `docs/research/archive/<v11-topic-date>/`, `docs/plans/README.md`
-- **Description**: Record every sprint SHA, rollback point, validation result,
-  compile and human evidence, calibration findings, performance, and residual
-  risks; then move the completed plan/evidence into dated archives and update
-  the plan index. Do not edit or remove V9/V10 history or fixtures.
-- **Dependencies**: Task 10.2.
+  `docs/research/archive/<v11-topic-date>/`, and `docs/plans/README.md`.
+- **Description**: Record every Sprint 1-12 SHA, rollback point, validation
+  result, compile/run evidence, calibration finding, performance result, and
+  residual restriction; archive only after Task 12.2 passes.
+- **Dependencies**: Task 12.2.
 - **Acceptance criteria**:
-  - No validation is claimed without recorded evidence.
-  - Virtual-vs-broker limitations and non-live-rollout restrictions remain
-    explicit.
-  - Archive links resolve and no duplicate active plan copy remains.
-  - Active docs remain V11 and historical docs remain clearly historical.
-- **Validation**:
-  - Manual ledger/evidence cross-check.
-  - `rg -n 'pivot trial matrix|schema V11|Active|Archived' docs/plans README.md AGENTS.md`
-  - `git diff --check`
-- **Rollback**: Revert only Sprint 10 and restore the accepted plan to active
-  status without deleting archive content.
+  - Failed Sprint 10 evidence and accepted Sprint 12 evidence both remain
+    auditable.
+  - Older V9/V10 history and fixtures remain untouched.
+  - Active plan index returns to no active plan only after acceptance.
+  - Live rollout remains explicitly unauthorized.
+- **Validation**: Ledger/archive link review and `git diff --check`.
+- **Rollback**: Revert only Sprint 12 closeout and restore the plan to active.
 
-### Sprint 10 Gate
+### Sprint 12 Gate
 
-- [ ] All Sprint 10 tasks complete.
-- [ ] Sole final MetaEditor compile is `0 errors, 0 warnings` with regenerated `.ex5`.
-- [ ] Human real-tick matrix, broker, parity, research, and performance acceptance passes.
+- [ ] All Sprint 12 tasks complete.
+- [ ] Sole corrective compile is `0 errors, 0 warnings` with regenerated `.ex5`.
+- [ ] Fresh human real-tick matrix, broker, parity, research, performance, DST, and chart acceptance passes.
+- [ ] Natural V11 run has `export_status=OK` and zero integrity errors.
 - [ ] Execution ledger and final rollback point are complete.
-- [ ] Plan and acceptance evidence are archived.
-- [ ] Older history remains preserved.
-- [ ] Active plan index and documentation links are correct.
+- [ ] Plan and evidence are archived without deleting failed or historical evidence.
 - [ ] `git diff --check` passes.
-- [ ] Exactly one Sprint 10 commit is created.
+- [ ] Exactly one Sprint 12 commit is created.
 - [ ] Active-plan execution state is marked complete only after this gate.
 
 ## Testing Strategy
@@ -1598,9 +1771,14 @@ archive folders under `docs/plans/archive/` and `docs/research/archive/`
   never edits archived history.
 - Sprint 9 rollback returns to the Sprint 8 validated source commit while
   preserving precompile and acceptance-preparation evidence.
-- Sprint 10 rollback returns to the Sprint 9 release-candidate commit and
-  restores the accepted plan to active status without deleting compiler,
-  tester, run, or archive evidence.
+- Sprint 10 rollback returns only the failed-acceptance documentation to the
+  Sprint 9 state; compiler, tester, query, and V11 run evidence remains
+  preserved.
+- Sprint 11 rollback removes the finalized-origin state and first-failure
+  telemetry correction, returning to the documented Sprint 10 defect state.
+- Sprint 12 rollback returns to the Sprint 11 corrected source and active plan
+  without deleting compiler, tester, accepted-run, failed-run, or archive
+  evidence.
 - Never use destructive Git reset or delete external datasets to perform a
   rollback. Revert the sprint-specific commit or redeploy the recorded prior
   commit after confirming the exact target.
@@ -1618,10 +1796,13 @@ archive folders under `docs/plans/archive/` and `docs/research/archive/`
    amends the plan.
 8. Freeze the release candidate and complete all non-compiler acceptance
    preparation in Sprint 9 without invoking MetaEditor.
-9. Run the single final real compile and human Strategy Tester gate in Sprint 10.
-10. If Sprint 10 discovers behavior requiring source changes beyond local
-    compile correction, stop, amend the plan with a corrective sprint, and do
-    not archive or claim acceptance.
+9. Preserve the initial Sprint 10 compile and failed human run as evidence;
+   document the defect and extend the plan before changing source.
+10. Implement and statically validate the bounded lifecycle correction in
+    Sprint 11 without invoking MetaEditor.
+11. Run the single corrective real compile in Sprint 12.
+12. Keep Sprint 12 active and uncommitted until the renewed human Strategy
+    Tester, strict V11, broker, parity, performance, DST, and chart gates pass.
 
 ## Completion Checklist
 
