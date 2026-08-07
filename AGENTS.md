@@ -8,9 +8,9 @@ archive directories.
 ## Entrypoint And Active Work
 
 - Entrypoint: `HFT_Grid_AI.mq5`.
-- Active plan: `v11-dataset-column-type-registry-plan.md`. The completed V2/V11
-  matrix plan and raw real-tick acceptance are archived under
-  `docs/plans/archive/pivot-sl-tp-reentry-matrix-v11-2026-08-07/`.
+- Active plan: none. The completed V11 dataset type-registry correction is
+  archived under
+  `docs/plans/archive/v11-dataset-column-type-registry-2026-08-07/`.
 - Architecture: `docs/architecture/market-data-broker-executor.md`.
 - Environment runbook: `docs/environment/mt5-agentic-workflows.md`.
 - Statistics workflow: `docs/workflows/pivot-fractal-statistics-flow.md`.

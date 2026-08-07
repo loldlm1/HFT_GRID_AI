@@ -6,8 +6,7 @@ The current `PIVOT_FRACTAL_V2` Macro/Micro broker executor and strict schema V11
 export have accepted raw real-tick evidence for the virtual SL/TP matrix,
 bounded volatility re-entries, and broker-parity calibration. The focused type
 registry correction now passes the official full-run dataset, audit, and
-offline training pipeline; closeout and archive remain under
-`v11-dataset-column-type-registry-plan.md`.
+offline training pipeline. No active implementation plan remains.
 
 Use these active documents:
 
@@ -16,7 +15,8 @@ Use these active documents:
 - `docs/environment/mt5-agentic-workflows.md`
 - `docs/research/archive/pivot-sl-tp-reentry-matrix-v11-2026-08-07/README.md`
 - `docs/plans/archive/pivot-sl-tp-reentry-matrix-v11-2026-08-07/README.md`
-- `v11-dataset-column-type-registry-plan.md`
+- `docs/research/archive/v11-dataset-column-type-registry-2026-08-07/README.md`
+- `docs/plans/archive/v11-dataset-column-type-registry-2026-08-07/README.md`
 - `docs/research/archive/macro-micro-pivot-bandwidth-schema-v10-2026-08-06/README.md`
 - `docs/plans/archive/macro-micro-pivot-bandwidth-schema-v10-2026-08-06/README.md`
 

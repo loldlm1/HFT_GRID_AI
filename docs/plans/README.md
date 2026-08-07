@@ -2,9 +2,9 @@
 
 ## Active
 
-- `v11-dataset-column-type-registry-plan.md`: active three-sprint Python-only
-  correction for exhaustive strict V11 column typing and official full-run
-  validate/build/audit/train acceptance.
+- None. The V11 runtime/export and official offline dataset pipeline are
+  accepted and archived. Create a new explicit plan before further strategy,
+  schema, runtime, or repository-wide work.
 
 Create a new explicit saved plan before another substantial strategy,
 architecture, live-rollout, schema, or repository-wide change.
@@ -28,6 +28,9 @@ implementation guidance.
 - `docs/plans/archive/pivot-sl-tp-reentry-matrix-v11-2026-08-07/README.md`:
   completed strict V11 virtual matrix, bounded re-entry, broker-parity, final
   raw real-tick acceptance, and the isolated offline builder handoff.
+- `docs/plans/archive/v11-dataset-column-type-registry-2026-08-07/README.md`:
+  completed exhaustive V11 dataset typing, populated text regression, and
+  official validate/build/audit/train acceptance.
 
 Use these current documents:
 

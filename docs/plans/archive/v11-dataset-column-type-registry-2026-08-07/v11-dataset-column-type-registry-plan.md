@@ -1,7 +1,7 @@
 # Plan: Strict V11 Dataset Column Type Registry Correction
 
 **Generated**: 2026-08-07
-**Status**: Active implementation; ordered sprint state is hook-managed
+**Status**: Completed and archived after Sprint 3
 **Estimated complexity**: Medium
 **Risk class**: Medium - changes offline TSV-to-DuckDB typing and research
 artifacts only; broker execution, MQL5 runtime, schema headers, and raw evidence
@@ -38,7 +38,8 @@ prevents future schema columns from silently inheriting a numeric type.
   `2026.01.05_00_00_00_XAUUSD_pivot_v11` for the official full regression.
 - Measure strict validation, build, audit, and training wall time and peak RSS.
 - Do not change `.mq5`/`.mqh`, broker behavior, public inputs, the `.ex5`, or
-  compile artifacts. No MetaEditor compile is required.
+  compile artifacts. No agent MetaEditor compile is required. Preserve and
+  record the user's fresh pre-run `.ex5` regeneration if present.
 - Do not add MQL5 harnesses, test EAs/scripts, CI, or Strategy Tester automation.
 - Live rollout and runtime model loading remain unauthorized.
 
@@ -157,7 +158,10 @@ toolchain without the diagnostic override and record bounded offline cost.
   to the diagnostic build; 12 are byte-identical and `virtual_outcomes` has
   equal schema plus zero rows in either `EXCEPT ALL` direction.
 - Python compileall and all 28 tests pass again; raw hashes remain exact and no
-  MQL5, `.ex5`, compile log, query, or TSV content changes.
+  MQL5 source, compile log, query, or TSV content changes. The user-confirmed
+  fresh `.ex5` regeneration predates this corrective plan and is preserved.
+
+**Sprint 2 commit**: `cc48d1cb375c5403a71f8ba34322051f5c21d753`.
 
 **Performance decision**: no source optimization is justified. The explicit
 registry adds no meaningful cost, audit is cheap, and training dominates the
@@ -200,13 +204,32 @@ human real-tick evidence.
 
 ### Acceptance Gate
 
-- [ ] The official offline pipeline is accepted and documented.
-- [ ] No MQL5 source or binary changed.
-- [ ] The plan and compact evidence are archived with correct links.
-- [ ] Exactly one Sprint 3 commit is created and recorded.
-- [ ] Active hook state is completed and cleaned.
+- [x] The official offline pipeline is accepted and documented.
+- [x] No MQL5 source changed; the user-confirmed pre-plan binary regeneration
+  is preserved and recorded without another compile.
+- [x] The plan and compact evidence are archived with correct links.
+- [x] Exactly one Sprint 3 closeout commit is created; its SHA is the archive
+  commit following Sprint 2.
+- [x] Active hook state is completed and cleaned.
 
-**Rollback point**: Sprint 2 commit.
+**Sprint 3 closeout evidence**:
+
+- Ordered commits are Sprint 1 `a5547c3` and Sprint 2 `cc48d1c`, followed by
+  the single archive/closeout commit containing this completed plan.
+- The official dataset, audit, and model artifact IDs remain Git-ignored and
+  preserved; prior failed and diagnostic artifacts are not deleted.
+- Active documentation returns to no plan, prior V11 archives remain unchanged,
+  and disposable hook JSON is removed only after the final commit gate.
+- This correction is Python-only. The accepted run began after the user's
+  intentional fresh binary regeneration: `HFT_Grid_AI.ex5` is 236,798 bytes,
+  modified `2026-08-07 17:12:13.571463230 -0400`, SHA-256
+  `169685833d0f10e0504352b2b9333778aef29e4aabdd2d5d5e05d0daffdccb33`.
+  A renewed human real-tick run may be used for operational confirmation, but
+  another `.ex5` regeneration is unnecessary because this plan changes no
+  MQL5 source.
+- Runtime model loading and live rollout remain unauthorized.
+
+**Rollback point**: `cc48d1c` (Sprint 2).
 
 ## Validation Strategy
 
@@ -234,11 +257,11 @@ human real-tick evidence.
 
 ## Completion Checklist
 
-- [ ] Explicit type registry exactly covers strict V11.
-- [ ] Populated `block_source` text is regression-tested.
-- [ ] Official accepted-run dataset, audit, and model artifacts succeed.
-- [ ] Diagnostic and official counts match.
-- [ ] Performance evidence is recorded without speculative runtime changes.
-- [ ] Raw evidence and MQL5 behavior remain unchanged.
-- [ ] Three ordered sprint commits and rollback points are recorded.
-- [ ] Plan archive and hook cleanup are complete.
+- [x] Explicit type registry exactly covers strict V11.
+- [x] Populated `block_source` text is regression-tested.
+- [x] Official accepted-run dataset, audit, and model artifacts succeed.
+- [x] Diagnostic and official counts match.
+- [x] Performance evidence is recorded without speculative runtime changes.
+- [x] Raw evidence and MQL5 behavior remain unchanged.
+- [x] Three ordered sprint commits and rollback points are recorded.
+- [x] Plan archive and hook cleanup are complete.
