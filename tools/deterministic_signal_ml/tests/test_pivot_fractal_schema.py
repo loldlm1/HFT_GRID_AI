@@ -14,21 +14,28 @@ if str(MODULE_ROOT) not in sys.path:
     sys.path.insert(0, str(MODULE_ROOT))
 
 from schema_contract import (
+    ACTIVE_STATE_CAP,
+    BROKER_OUTCOMES_FILE,
     EXECUTION_CHECKS_FILE,
-    FIXED_LOT_MODE,
+    FIXED_MANIFEST_VALUES,
     FUTURE_ONLY_COLUMNS,
+    INITIAL_MATRIX_SIZE,
+    MAX_MATRIX_TRIALS_PER_ORIGIN,
+    MAX_REENTRY_INDEX,
     MODEL_FEATURE_COLUMNS,
     PIVOT_WINDOWS_FILE,
-    REFERENCE_LOT_MODE,
     RUN_FILES,
     RUN_MANIFEST_FILE,
     RUN_SUMMARY_FILE,
-    SIGNAL_ATTEMPTS_FILE,
-    SIGNAL_OUTCOMES_FILE,
+    SIGNAL_ORIGINS_FILE,
+    SL_POLICIES,
     SUPPORTED_ENGINE_LABEL,
     SUPPORTED_FEATURE_SET_ID,
     SUPPORTED_SCHEMA_VERSION,
     TABLE_COLUMNS,
+    TP_R_MULTIPLES,
+    VIRTUAL_OUTCOMES_FILE,
+    VIRTUAL_TRIALS_FILE,
     SchemaValidationError,
     expected_columns_for,
     feature_columns_for_set,
@@ -37,6 +44,7 @@ from schema_contract import (
 
 
 FIXTURES = Path(__file__).parent / "fixtures"
+V11_FIXTURE = FIXTURES / "schema_v11_pivot_trial_matrix"
 V10_FIXTURE = FIXTURES / "schema_v10_macro_micro_pivot"
 V9_FIXTURE = FIXTURES / "schema_v9_pivot_fractal"
 NULL_TOKEN = r"\N"
@@ -97,8 +105,8 @@ def mutate_row(
 class PivotFractalSchemaTests(unittest.TestCase):
     def copy_fixture(self, temp_dir: str) -> tuple[Path, Path]:
         runs_root = Path(temp_dir) / "runs"
-        run_path = runs_root / V10_FIXTURE.name
-        shutil.copytree(V10_FIXTURE, run_path)
+        run_path = runs_root / V11_FIXTURE.name
+        shutil.copytree(V11_FIXTURE, run_path)
         return runs_root, run_path
 
     def assert_mutation_rejected(
@@ -110,62 +118,113 @@ class PivotFractalSchemaTests(unittest.TestCase):
             runs_root, run_path = self.copy_fixture(temp_dir)
             mutate(run_path)
             with self.assertRaisesRegex(SchemaValidationError, expected_error):
-                validate_run(runs_root, V10_FIXTURE.name)
+                validate_run(runs_root, V11_FIXTURE.name)
 
-    def test_v10_fixture_freezes_exact_contract(self) -> None:
-        validation = validate_run(FIXTURES, V10_FIXTURE.name)
+    def test_v11_fixture_freezes_exact_contract(self) -> None:
+        validation = validate_run(FIXTURES, V11_FIXTURE.name)
 
-        self.assertEqual(SUPPORTED_SCHEMA_VERSION, 10)
+        self.assertEqual(SUPPORTED_SCHEMA_VERSION, 11)
         self.assertEqual(SUPPORTED_ENGINE_LABEL, "PIVOT_FRACTAL_V2")
+        self.assertEqual(SUPPORTED_FEATURE_SET_ID, "schema_v11_pivot_trial_matrix")
+        self.assertEqual(len(RUN_FILES), 8)
+        self.assertEqual(INITIAL_MATRIX_SIZE, 16)
+        self.assertEqual(MAX_REENTRY_INDEX, 3)
+        self.assertEqual(MAX_MATRIX_TRIALS_PER_ORIGIN, 52)
+        self.assertEqual(ACTIVE_STATE_CAP, 2048)
         self.assertEqual(
-            SUPPORTED_FEATURE_SET_ID,
-            "schema_v10_macro_micro_pivot_bands",
+            {path.name for path in V11_FIXTURE.glob("*.tsv")},
+            set(RUN_FILES),
         )
-        self.assertEqual(len(RUN_FILES), 6)
-        self.assertEqual({path.name for path in V10_FIXTURE.glob("*.tsv")}, set(RUN_FILES))
         self.assertEqual(validation.pivot_window_rows, 1)
-        self.assertEqual(validation.signal_attempt_rows, 4)
-        self.assertEqual(validation.execution_check_rows, 7)
-        self.assertEqual(validation.signal_outcome_rows, 3)
-        self.assertEqual(validation.warnings, ())
+        self.assertEqual(validation.signal_origin_rows, 1)
+        self.assertEqual(validation.virtual_trial_rows, 19)
+        self.assertEqual(validation.virtual_outcome_rows, 18)
+        self.assertEqual(validation.execution_check_rows, 4)
+        self.assertEqual(validation.broker_outcome_rows, 1)
+        self.assertEqual(validation.warnings, ("run completion is CENSORED",))
 
         for filename in RUN_FILES:
-            columns, _ = read_rows(V10_FIXTURE / filename)
+            columns, _ = read_rows(V11_FIXTURE / filename)
             self.assertEqual(tuple(columns), TABLE_COLUMNS[filename])
             self.assertEqual(expected_columns_for(filename), TABLE_COLUMNS[filename])
-        self.assertIn("source_open", TABLE_COLUMNS[PIVOT_WINDOWS_FILE])
-        self.assertIn("excluded_manual_rows", TABLE_COLUMNS[RUN_SUMMARY_FILE])
         self.assertEqual(
             feature_columns_for_set(SUPPORTED_FEATURE_SET_ID),
             MODEL_FEATURE_COLUMNS,
         )
         self.assertFalse(set(MODEL_FEATURE_COLUMNS) & set(FUTURE_ONLY_COLUMNS))
+        self.assertFalse(
+            {"broker_commission", "broker_swap", "broker_fee", "broker_net_profit"}
+            & set(TABLE_COLUMNS[VIRTUAL_OUTCOMES_FILE])
+        )
+        self.assertTrue(
+            {"broker_gross_profit", "broker_commission", "broker_net_profit"}
+            <= set(TABLE_COLUMNS[BROKER_OUTCOMES_FILE])
+        )
+        self.assertEqual(FIXED_MANIFEST_VALUES["matrix_sl_ratios"], "0.13,0.21,0.34")
+        self.assertEqual(FIXED_MANIFEST_VALUES["matrix_tp_multiples"], "1,2,3,5")
 
-    def test_v9_and_non_v10_shapes_are_rejected(self) -> None:
-        with self.assertRaisesRegex(SchemaValidationError, "exactly six V10 TSV files"):
-            validate_run(FIXTURES, V9_FIXTURE.name)
-        with self.assertRaisesRegex(ValueError, "Unsupported schema version 9"):
-            validate_run(FIXTURES, V10_FIXTURE.name, schema_version=9)
+        _, trials = read_rows(V11_FIXTURE / VIRTUAL_TRIALS_FILE)
+        initial = [
+            row
+            for row in trials
+            if row["trial_role"] == "MATRIX" and row["reentry_index"] == "0"
+        ]
+        self.assertEqual(
+            [(row["sl_policy"], int(row["tp_r_multiple"])) for row in initial],
+            [(sl_policy, tp) for sl_policy in SL_POLICIES for tp in TP_R_MULTIPLES],
+        )
+        self.assertEqual(
+            sum(row["eligibility_status"] == "INELIGIBLE_MONEY_PLAN" for row in initial),
+            1,
+        )
+        _, outcomes = read_rows(V11_FIXTURE / VIRTUAL_OUTCOMES_FILE)
+        chain = sorted(
+            (
+                row
+                for row in outcomes
+                if row["policy_id"] == "policy_micro_bw_13_tp3"
+            ),
+            key=lambda row: int(row["reentry_index"]),
+        )
+        self.assertEqual([row["terminal_status"] for row in chain], ["SL_FIRST", "SL_FIRST", "TP_FIRST"])
+        self.assertAlmostEqual(sum(float(row["virtual_nominal_r"]) for row in chain), 1.0)
+        self.assertEqual(
+            sum(row["trial_role"] == "BROKER_PARITY" for row in outcomes),
+            1,
+        )
+
+    def test_v9_v10_and_non_v11_shapes_are_rejected(self) -> None:
+        for fixture in (V9_FIXTURE, V10_FIXTURE):
+            with self.subTest(fixture=fixture.name):
+                with self.assertRaisesRegex(
+                    SchemaValidationError,
+                    "exactly eight V11 TSV files",
+                ):
+                    validate_run(FIXTURES, fixture.name)
+        with self.assertRaisesRegex(ValueError, "Unsupported schema version 10"):
+            validate_run(FIXTURES, V11_FIXTURE.name, schema_version=10)
 
         def add_unexpected_file(run_path: Path) -> None:
             (run_path / "unexpected.tsv").write_text("unexpected\n", encoding="utf-8")
 
-        self.assert_mutation_rejected(add_unexpected_file, "exactly six V10 TSV files")
+        self.assert_mutation_rejected(add_unexpected_file, "exactly eight V11 TSV files")
 
-        def add_future_header(run_path: Path) -> None:
-            path = run_path / SIGNAL_ATTEMPTS_FILE
+        def reorder_header(run_path: Path) -> None:
+            path = run_path / SIGNAL_ORIGINS_FILE
             columns, rows = read_rows(path)
-            columns.append("close_price")
-            for row in rows:
-                row["close_price"] = "1.2000000000"
+            columns[0], columns[1] = columns[1], columns[0]
             write_rows(path, columns, rows)
 
-        self.assert_mutation_rejected(add_future_header, "Header mismatch")
+        self.assert_mutation_rejected(reorder_header, "Header mismatch")
 
-    def test_manifest_policy_fails_closed(self) -> None:
+    def test_manifest_fixed_policies_fail_closed(self) -> None:
         cases = (
             ("engine_label", "PIVOT_FRACTAL_V1", "fixed value mismatch"),
-            ("bands_applied_price", "PRICE_CLOSE", "fixed value mismatch"),
+            ("matrix_sl_ratios", "0.12,0.21,0.34", "fixed value mismatch"),
+            ("matrix_tp_multiples", "1,2,3,4", "fixed value mismatch"),
+            ("reentry_max_index", "4", "fixed value mismatch"),
+            ("minimum_distance_policy", "spread_plus_stops_plus_freeze", "fixed value mismatch"),
+            ("active_state_cap", "4096", "fixed value mismatch"),
             ("micro_timeframe", "PERIOD_H1", "Micro timeframe shorter"),
             ("lot_strategy_size", "0", "must be positive"),
         )
@@ -173,434 +232,261 @@ class PivotFractalSchemaTests(unittest.TestCase):
             with self.subTest(key=key):
                 self.assert_mutation_rejected(
                     lambda run_path, key=key, value=value: mutate_manifest(
-                        run_path, key, value
-                    ),
-                    expected_error,
-                )
-
-    def test_macro_window_pivot_pp_and_band_semantics_fail_closed(self) -> None:
-        cases: tuple[tuple[str, str, str], ...] = (
-            ("source_open", "1.1200000000", "invalid Macro source OHLC"),
-            ("raw_pp_price", "1.1010000000", "classic pivot formula mismatch"),
-            ("trade_s2_price", "1.0700000000", "unordered trade pivot ladder"),
-            ("macro_band_width_1", "0.0500000000", "band width arithmetic mismatch"),
-        )
-        for column, value, expected_error in cases:
-            with self.subTest(column=column):
-                self.assert_mutation_rejected(
-                    lambda run_path, column=column, value=value: mutate_row(
                         run_path,
-                        PIVOT_WINDOWS_FILE,
-                        lambda row: row["window_id"] == "win_h1_202601121000",
-                        **{column: value},
+                        key,
+                        value,
                     ),
                     expected_error,
                 )
 
-        def leave_strict_side_unarmed(run_path: Path) -> None:
-            mutate_row(
+    def test_window_and_origin_identity_semantics_fail_closed(self) -> None:
+        self.assert_mutation_rejected(
+            lambda run_path: mutate_row(
                 run_path,
                 PIVOT_WINDOWS_FILE,
                 lambda row: True,
-                pp_role="UNARMED",
-                pp_arm_broker_time=NULL_TOKEN,
-                pp_arm_analysis_time=NULL_TOKEN,
-                pp_arm_offset_minutes=NULL_TOKEN,
-                pp_arm_bid=NULL_TOKEN,
-            )
-
-        self.assert_mutation_rejected(leave_strict_side_unarmed, "remained unarmed")
-
-        def delay_initial_arm(run_path: Path) -> None:
-            mutate_row(
-                run_path,
-                PIVOT_WINDOWS_FILE,
-                lambda row: True,
-                pp_arm_broker_time="2026.01.12 10:00:01",
-                pp_arm_analysis_time="2026.01.12 10:00:01",
-            )
-
-        self.assert_mutation_rejected(delay_initial_arm, "first causal tick")
-
-    def test_direction_trigger_route_and_one_r_semantics_fail_closed(self) -> None:
-        cases = (
-            (
-                "sig_s1_buy_tp",
-                {"direction": "SELL"},
-                "support levels are BUY only",
+                raw_pp_price="1.1010000000",
             ),
-            (
-                "sig_pp_buy_manual",
-                {"direction": "SELL"},
-                "PP direction differs from armed role",
-            ),
-            (
-                "sig_s1_buy_tp",
-                {
-                    "trigger_bid": "1.0901000000",
-                    "spread_points": "10.0000000000",
-                },
-                "BUY trigger Bid did not reach pivot",
-            ),
-            (
-                "sig_s1_buy_tp",
-                {"structural_sl_price": "1.0700000000"},
-                "structural SL matrix mismatch",
-            ),
-            (
-                "sig_s1_buy_tp",
-                {"observed_take_profit": "1.1005000000"},
-                "invalid observation risk geometry",
-            ),
-            (
-                "sig_s1_buy_tp",
-                {"request_take_profit": "1.1005000000"},
-                "not exact price-distance 1R",
-            ),
+            "classic pivot formula mismatch",
         )
-        for signal_id, values, expected_error in cases:
-            with self.subTest(signal_id=signal_id, values=values):
-                self.assert_mutation_rejected(
-                    lambda run_path, signal_id=signal_id, values=values: mutate_row(
-                        run_path,
-                        SIGNAL_ATTEMPTS_FILE,
-                        lambda row: row["signal_id"] == signal_id,
-                        **values,
-                    ),
-                    expected_error,
-                )
+        self.assert_mutation_rejected(
+            lambda run_path: mutate_row(
+                run_path,
+                SIGNAL_ORIGINS_FILE,
+                lambda row: True,
+                pivot_trade_price="1.0910000000",
+            ),
+            "pivot_trade_price mismatch",
+        )
 
-        def duplicate_consumed_identity(run_path: Path) -> None:
-            path = run_path / SIGNAL_ATTEMPTS_FILE
+        def duplicate_origin_identity(run_path: Path) -> None:
+            path = run_path / SIGNAL_ORIGINS_FILE
             columns, rows = read_rows(path)
-            rows.append(dict(rows[0], signal_id="sig_duplicate_identity"))
+            rows.append(dict(rows[0], origin_id="origin_duplicate", broker_signal_id="broker_duplicate"))
             write_rows(path, columns, rows)
 
-        self.assert_mutation_rejected(duplicate_consumed_identity, "duplicate consumed pivot identity")
+        self.assert_mutation_rejected(duplicate_origin_identity, "duplicate consumed pivot identity")
 
-    def test_denied_wrong_side_geometry_can_remain_a_raw_attempt(self) -> None:
-        with tempfile.TemporaryDirectory() as temp_dir:
-            runs_root, run_path = self.copy_fixture(temp_dir)
+    def test_initial_matrix_count_order_and_identity_fail_closed(self) -> None:
+        def remove_initial_cell(run_path: Path) -> None:
+            path = run_path / VIRTUAL_TRIALS_FILE
+            columns, rows = read_rows(path)
+            rows = [row for row in rows if row["trial_id"] != "trial_micro_bw_34_tp5_r0"]
+            write_rows(path, columns, rows)
+
+        self.assert_mutation_rejected(remove_initial_cell, "exactly sixteen initial matrix cells")
+
+        def reorder_initial_cells(run_path: Path) -> None:
+            path = run_path / VIRTUAL_TRIALS_FILE
+            columns, rows = read_rows(path)
+            rows[0], rows[1] = rows[1], rows[0]
+            write_rows(path, columns, rows)
+
+        self.assert_mutation_rejected(reorder_initial_cells, "in policy order")
+
+        def duplicate_policy_identity(run_path: Path) -> None:
+            path = run_path / VIRTUAL_TRIALS_FILE
+            columns, rows = read_rows(path)
+            rows.append(dict(rows[0], trial_id="duplicate_trial_id"))
+            write_rows(path, columns, rows)
+
+        self.assert_mutation_rejected(duplicate_policy_identity, "duplicate matrix policy/retry identity")
+
+    def test_retry_chain_invariants_fail_closed(self) -> None:
+        def skip_retry_index(run_path: Path) -> None:
             mutate_row(
                 run_path,
-                SIGNAL_ATTEMPTS_FILE,
-                lambda row: row["signal_id"] == "sig_s2_denied",
-                observed_entry_price=NULL_TOKEN,
-                observed_stop_loss=NULL_TOKEN,
-                observed_take_profit=NULL_TOKEN,
-                observed_risk_distance_points=NULL_TOKEN,
-                observed_reward_distance_points=NULL_TOKEN,
+                VIRTUAL_TRIALS_FILE,
+                lambda row: row["trial_id"] == "trial_micro_bw_13_tp3_r2",
+                reentry_index="3",
+                preceding_loss_count="3",
             )
-            validation = validate_run(runs_root, V10_FIXTURE.name)
-            self.assertEqual(validation.signal_attempt_rows, 4)
+            mutate_row(
+                run_path,
+                VIRTUAL_OUTCOMES_FILE,
+                lambda row: row["trial_id"] == "trial_micro_bw_13_tp3_r2",
+                reentry_index="3",
+            )
 
-    def test_band_features_are_formula_checked(self) -> None:
+        self.assert_mutation_rejected(skip_retry_index, "retry index gap")
+
+        self.assert_mutation_rejected(
+            lambda run_path: mutate_row(
+                run_path,
+                VIRTUAL_TRIALS_FILE,
+                lambda row: row["trial_id"] == "trial_micro_bw_13_tp3_r1",
+                sl_policy="STRUCTURAL",
+                policy_id="policy_structural_tp3",
+            ),
+            "structural policy cannot re-enter",
+        )
+
+        def consume_tp_before_retry(run_path: Path) -> None:
+            _, trials = read_rows(run_path / VIRTUAL_TRIALS_FILE)
+            trial = next(row for row in trials if row["trial_id"] == "trial_micro_bw_13_tp3_r0")
+            tp = trial["take_profit_price"]
+            mutate_row(
+                run_path,
+                VIRTUAL_OUTCOMES_FILE,
+                lambda row: row["trial_id"] == trial["trial_id"],
+                terminal_status="TP_FIRST",
+                terminal_reason="TP_THRESHOLD",
+                threshold_price=tp,
+                observed_exit_bid=tp,
+                observed_exit_ask=f"{float(tp) + 0.0002:.10f}",
+                observed_exit_price=tp,
+                gap_points="0.0000000000",
+                virtual_nominal_r="3.0000000000",
+                virtual_quote_gross_profit="300.0000000000",
+                virtual_quote_gross_r="3.0000000000",
+                virtual_binary_target="1",
+                chain_terminal="1",
+                chain_terminal_reason="TP_REACHED",
+                continuation_allowed="0",
+                continuation_reason=NULL_TOKEN,
+                next_reentry_index=NULL_TOKEN,
+                next_trial_id=NULL_TOKEN,
+            )
+
+        self.assert_mutation_rejected(consume_tp_before_retry, "retry lacks immediately preceding SL_FIRST")
+
+        def create_two_generations_on_one_tick(run_path: Path) -> None:
+            mutate_row(
+                run_path,
+                VIRTUAL_TRIALS_FILE,
+                lambda row: row["trial_id"] == "trial_micro_bw_13_tp3_r1",
+                declared_broker_time="2026.01.12 10:05:00",
+                declared_analysis_time="2026.01.12 10:05:00",
+            )
+            mutate_row(
+                run_path,
+                VIRTUAL_OUTCOMES_FILE,
+                lambda row: row["trial_id"] == "trial_micro_bw_13_tp3_r1",
+                duration_seconds="600",
+            )
+
+        self.assert_mutation_rejected(create_two_generations_on_one_tick, "more than one generation per tick")
+
+    def test_quote_geometry_distance_and_boundary_rules_fail_closed(self) -> None:
         cases = (
-            ("micro_b_percent_0", "51.0000000000", "Micro %B shift 0 mismatch"),
             (
-                "macro_pivot_b_percent_1",
-                "26.0000000000",
-                "Macro pivot %B shift 1 mismatch",
+                VIRTUAL_TRIALS_FILE,
+                lambda row: row["trial_id"] == "trial_micro_bw_13_tp1_r0",
+                {"entry_quote_side": "BID"},
+                "wrong executable entry quote side",
             ),
             (
-                "micro_band_width_percent_0",
-                "2.0000000000",
-                "normalized band width mismatch",
+                VIRTUAL_TRIALS_FILE,
+                lambda row: row["trial_id"] == "trial_micro_bw_13_tp1_r0",
+                {"minimum_risk_distance_points": "9.0000000000"},
+                "minimum distance formula mismatch",
+            ),
+            (
+                VIRTUAL_TRIALS_FILE,
+                lambda row: row["trial_id"] == "trial_micro_bw_13_tp1_r0",
+                {"normalized_risk_distance_price": "0.0012000000"},
+                "normalized tick risk mismatch",
+            ),
+            (
+                VIRTUAL_OUTCOMES_FILE,
+                lambda row: row["trial_id"] == "trial_micro_bw_21_tp5_r0",
+                {"chain_terminal_reason": "REENTRY_CAP_REACHED"},
+                "terminal reason does not match cap/boundary/expiry",
+            ),
+            (
+                VIRTUAL_OUTCOMES_FILE,
+                lambda row: row["trial_id"] == "trial_micro_bw_13_tp3_r2",
+                {"terminal_status": "SL_FIRST", "terminal_reason": "SL_THRESHOLD"},
+                "first-touch threshold mismatch",
             ),
         )
-        for column, value, expected_error in cases:
-            with self.subTest(column=column):
+        for filename, predicate, values, expected_error in cases:
+            with self.subTest(expected_error=expected_error):
                 self.assert_mutation_rejected(
-                    lambda run_path, column=column, value=value: mutate_row(
+                    lambda run_path, filename=filename, predicate=predicate, values=values: mutate_row(
                         run_path,
-                        SIGNAL_ATTEMPTS_FILE,
-                        lambda row: row["signal_id"] == "sig_s1_buy_tp",
-                        **{column: value},
+                        filename,
+                        predicate,
+                        **values,
                     ),
                     expected_error,
                 )
 
-    def test_feature_incomplete_tp_is_valid_raw_fact_but_not_binary(self) -> None:
-        with tempfile.TemporaryDirectory() as temp_dir:
-            runs_root, run_path = self.copy_fixture(temp_dir)
-            mutate_row(
+    def test_virtual_broker_and_parity_lanes_fail_closed(self) -> None:
+        self.assert_mutation_rejected(
+            lambda run_path: mutate_row(
                 run_path,
-                SIGNAL_ATTEMPTS_FILE,
-                lambda row: row["signal_id"] == "sig_s1_buy_tp",
-                micro_features_complete="0",
-                feature_snapshot_complete="0",
-                feature_invalid_reason="MICRO_BANDS_UNAVAILABLE",
-            )
-            mutate_row(
-                run_path,
-                SIGNAL_OUTCOMES_FILE,
-                lambda row: row["signal_id"] == "sig_s1_buy_tp",
-                binary_eligible="0",
-                binary_target=NULL_TOKEN,
-                exclusion_reason="FEATURE_INCOMPLETE",
-            )
-            mutate_summary(
-                run_path,
-                feature_complete_rows="3",
-                feature_incomplete_rows="1",
-                binary_eligible_rows="1",
-                binary_tp_rows="0",
-                excluded_outcome_rows="2",
-                excluded_feature_incomplete_rows="1",
-            )
-            validation = validate_run(runs_root, V10_FIXTURE.name)
-            self.assertEqual(validation.signal_outcome_rows, 3)
-
-    def test_execution_chain_and_ticket_ownership_fail_closed(self) -> None:
-        cases = (
-            (
-                "sig_s1_buy_tp",
-                "PRE_SEND",
-                {"entry_price": "1.0902200000"},
-                "fresh check differs from attempt",
+                VIRTUAL_OUTCOMES_FILE,
+                lambda row: row["trial_id"] == "trial_micro_bw_34_tp3_r0",
+                virtual_binary_target="0",
             ),
-            (
-                "sig_s1_buy_tp",
-                "SEND_RESULT",
-                {"send_succeeded": "0"},
-                "send result disagrees with attempt",
-            ),
-            (
-                "sig_r1_sell_sl",
-                "SEND_RESULT",
-                {"position_identifier": "3001"},
-                "duplicate position identifier ownership",
-            ),
-            (
-                "sig_s1_buy_tp",
-                "SEND_RESULT",
-                {"broker_volume": "0.0900000000"},
-                "broker entry changed owned broker_volume",
-            ),
+            "censored outcome carries virtual_binary_target",
         )
-        for signal_id, phase, values, expected_error in cases:
-            with self.subTest(signal_id=signal_id, phase=phase):
+        self.assert_mutation_rejected(
+            lambda run_path: mutate_row(
+                run_path,
+                BROKER_OUTCOMES_FILE,
+                lambda row: True,
+                broker_net_profit="99.0000000000",
+            ),
+            "broker net profit cost arithmetic mismatch",
+        )
+
+        def mismatch_parity_terminal(run_path: Path) -> None:
+            mutate_row(
+                run_path,
+                BROKER_OUTCOMES_FILE,
+                lambda row: True,
+                broker_terminal_reason="BROKER_SL",
+                broker_binary_target="0",
+            )
+
+        self.assert_mutation_rejected(mismatch_parity_terminal, "broker/parity TP/SL terminal mismatch")
+
+    def test_execution_safety_contract_fails_closed(self) -> None:
+        cases = (
+            ({"fill_policy": "ORDER_FILLING_IOC"}, "not FOK-only"),
+            ({"trade_action": "TRADE_ACTION_SLTP"}, "non-deal trade action"),
+            ({"protection_modified": "1"}, "protection was modified"),
+        )
+        for values, expected_error in cases:
+            with self.subTest(values=values):
                 self.assert_mutation_rejected(
-                    lambda run_path, signal_id=signal_id, phase=phase, values=values: mutate_row(
+                    lambda run_path, values=values: mutate_row(
                         run_path,
                         EXECUTION_CHECKS_FILE,
-                        lambda row: row["signal_id"] == signal_id
-                        and row["check_phase"] == phase,
+                        lambda row: row["check_phase"] == "SEND_RESULT",
                         **values,
                     ),
                     expected_error,
                 )
 
-        def remove_entry_confirmation(run_path: Path) -> None:
+        def create_second_send(run_path: Path) -> None:
             mutate_row(
                 run_path,
                 EXECUTION_CHECKS_FILE,
-                lambda row: row["signal_id"] == "sig_s1_buy_tp"
-                and row["check_phase"] == "SEND_RESULT",
-                broker_entry_confirmed="0",
+                lambda row: row["check_phase"] == "PRE_SEND",
+                send_performed="1",
+                send_succeeded="1",
+                trade_action="TRADE_ACTION_DEAL",
+                send_retcode="10009",
+                send_comment="DONE",
             )
 
-        self.assert_mutation_rejected(remove_entry_confirmation, "lacks broker entry confirmation")
+        self.assert_mutation_rejected(create_second_send, "multiple sends")
 
-    def test_send_failed_attempt_is_a_valid_terminal_raw_fact(self) -> None:
-        with tempfile.TemporaryDirectory() as temp_dir:
-            runs_root, run_path = self.copy_fixture(temp_dir)
-            mutate_row(
-                run_path,
-                SIGNAL_ATTEMPTS_FILE,
-                lambda row: row["signal_id"] == "sig_s1_buy_tp",
-                attempt_status="SEND_FAILED",
-                block_source="order_send",
-                block_reason="TRADE_RETCODE_REJECT",
-                send_succeeded="0",
-            )
-            mutate_row(
-                run_path,
-                EXECUTION_CHECKS_FILE,
-                lambda row: row["signal_id"] == "sig_s1_buy_tp"
-                and row["check_phase"] == "SEND_RESULT",
-                allowed="0",
-                block_source="order_send",
-                block_reason="TRADE_RETCODE_REJECT",
-                send_succeeded="0",
-                broker_entry_confirmed="0",
-                order_ticket=NULL_TOKEN,
-                deal_ticket=NULL_TOKEN,
-                position_ticket=NULL_TOKEN,
-                position_identifier=NULL_TOKEN,
-                broker_entry_price=NULL_TOKEN,
-                broker_volume=NULL_TOKEN,
-                broker_stop_loss=NULL_TOKEN,
-                broker_take_profit=NULL_TOKEN,
-            )
-
-            outcomes_path = run_path / SIGNAL_OUTCOMES_FILE
-            outcome_columns, outcomes = read_rows(outcomes_path)
-            outcomes = [
-                row for row in outcomes if row["signal_id"] != "sig_s1_buy_tp"
-            ]
-            write_rows(outcomes_path, outcome_columns, outcomes)
-            mutate_summary(
-                run_path,
-                signal_outcome_rows="2",
-                send_succeeded_rows="2",
-                broker_filled_rows="2",
-                broker_closed_rows="2",
-                binary_eligible_rows="1",
-                binary_tp_rows="0",
-                excluded_outcome_rows="1",
-            )
-
-            validation = validate_run(runs_root, V10_FIXTURE.name)
-            self.assertEqual(validation.signal_outcome_rows, 2)
-
-    def test_accepted_order_can_end_terminal_without_a_fill(self) -> None:
-        with tempfile.TemporaryDirectory() as temp_dir:
-            runs_root, run_path = self.copy_fixture(temp_dir)
-            mutate_row(
-                run_path,
-                SIGNAL_ATTEMPTS_FILE,
-                lambda row: row["signal_id"] == "sig_s1_buy_tp",
-                attempt_status="SEND_FAILED",
-                block_source="broker_order",
-                block_reason="BROKER_ORDER_ORDER_STATE_CANCELED",
-            )
-
-            checks_path = run_path / EXECUTION_CHECKS_FILE
-            check_columns, checks = read_rows(checks_path)
-            send_row = next(
-                row
-                for row in checks
-                if row["signal_id"] == "sig_s1_buy_tp"
-                and row["check_phase"] == "SEND_RESULT"
-            )
-            send_row.update(
-                deal_ticket=NULL_TOKEN,
-                position_identifier=NULL_TOKEN,
-                broker_entry_confirmed="0",
-                broker_entry_price=NULL_TOKEN,
-                broker_volume=NULL_TOKEN,
-                broker_stop_loss=NULL_TOKEN,
-                broker_take_profit=NULL_TOKEN,
-            )
-            terminal_row = dict(
-                send_row,
-                check_sequence="3",
-                check_phase="TERMINAL",
-                broker_time="2026.01.12 10:05:03",
-                analysis_time="2026.01.12 10:05:03",
-                allowed="0",
-                block_source="broker_order",
-                block_reason="BROKER_ORDER_ORDER_STATE_CANCELED",
-                send_performed="0",
-                send_succeeded="0",
-                send_retcode=NULL_TOKEN,
-            )
-            checks.append(terminal_row)
-            write_rows(checks_path, check_columns, checks)
-
-            outcomes_path = run_path / SIGNAL_OUTCOMES_FILE
-            outcome_columns, outcomes = read_rows(outcomes_path)
-            outcomes = [
-                row for row in outcomes if row["signal_id"] != "sig_s1_buy_tp"
-            ]
-            write_rows(outcomes_path, outcome_columns, outcomes)
-            mutate_summary(
-                run_path,
-                execution_check_rows="8",
-                signal_outcome_rows="2",
-                broker_filled_rows="2",
-                broker_closed_rows="2",
-                binary_eligible_rows="1",
-                binary_tp_rows="0",
-                excluded_outcome_rows="1",
-            )
-
-            validation = validate_run(runs_root, V10_FIXTURE.name)
-            self.assertEqual(validation.execution_check_rows, 8)
-
-    def test_outcome_cost_slippage_binary_and_ownership_fail_closed(self) -> None:
-        cases = (
-            (
-                "sig_s1_buy_tp",
-                {"net_profit": "99.0000000000"},
-                "net profit cost arithmetic mismatch",
-            ),
-            (
-                "sig_r1_sell_sl",
-                {"entry_slippage_points": "-5.0000000000"},
-                "entry slippage sign/arithmetic mismatch",
-            ),
-            (
-                "sig_pp_buy_manual",
-                {"binary_target": "0"},
-                "nonbinary outcome carries binary target",
-            ),
-            (
-                "sig_s1_buy_tp",
-                {"position_identifier": "3999"},
-                "changed entry ownership fact",
-            ),
-        )
-        for signal_id, values, expected_error in cases:
-            with self.subTest(signal_id=signal_id, values=values):
-                self.assert_mutation_rejected(
-                    lambda run_path, signal_id=signal_id, values=values: mutate_row(
-                        run_path,
-                        SIGNAL_OUTCOMES_FILE,
-                        lambda row: row["signal_id"] == signal_id,
-                        **values,
-                    ),
-                    expected_error,
-                )
-
-    def test_fixed_lot_runs_keep_budget_fields_not_applicable(self) -> None:
-        with tempfile.TemporaryDirectory() as temp_dir:
-            runs_root, run_path = self.copy_fixture(temp_dir)
-            mutate_manifest(run_path, "lot_mode", FIXED_LOT_MODE)
-            mutate_manifest(run_path, "lot_strategy_size", "0.10000000")
-
-            attempts_path = run_path / SIGNAL_ATTEMPTS_FILE
-            attempt_columns, attempts = read_rows(attempts_path)
-            for row in attempts:
-                row["lot_mode"] = FIXED_LOT_MODE
-                row["lot_strategy_size"] = "0.10000000"
-                row["reference_balance"] = NULL_TOKEN
-                row["risk_budget_amount"] = NULL_TOKEN
-                row["risk_budget_utilization_ratio"] = NULL_TOKEN
-                if row["signal_id"] == "sig_s2_denied":
-                    row["block_source"] = "session"
-                    row["block_reason"] = "MARKET_SESSION_CLOSED"
-            write_rows(attempts_path, attempt_columns, attempts)
-
-            checks_path = run_path / EXECUTION_CHECKS_FILE
-            check_columns, checks = read_rows(checks_path)
-            for row in checks:
-                row["risk_budget_amount"] = NULL_TOKEN
-                row["risk_budget_utilization_ratio"] = NULL_TOKEN
-                if row["signal_id"] == "sig_s2_denied":
-                    row["market_session_open"] = "0"
-                    row["block_source"] = "session"
-                    row["block_reason"] = "MARKET_SESSION_CLOSED"
-            write_rows(checks_path, check_columns, checks)
-
-            outcomes_path = run_path / SIGNAL_OUTCOMES_FILE
-            outcome_columns, outcomes = read_rows(outcomes_path)
-            for row in outcomes:
-                row["risk_budget_amount"] = NULL_TOKEN
-                row["risk_budget_utilization_ratio"] = NULL_TOKEN
-                row["gross_budget_r"] = NULL_TOKEN
-                row["net_budget_r"] = NULL_TOKEN
-            write_rows(outcomes_path, outcome_columns, outcomes)
-
-            validation = validate_run(runs_root, V10_FIXTURE.name)
-            self.assertEqual(validation.manifest["lot_mode"], FIXED_LOT_MODE)
-            self.assertNotEqual(validation.manifest["lot_mode"], REFERENCE_LOT_MODE)
-
-    def test_summary_counts_fail_closed(self) -> None:
+    def test_summary_counts_and_integrity_fail_closed(self) -> None:
         self.assert_mutation_rejected(
-            lambda run_path: mutate_summary(run_path, binary_tp_rows="2"),
-            "run summary count mismatch for binary_tp_rows",
+            lambda run_path: mutate_summary(run_path, matrix_tp_rows="14"),
+            "run summary count mismatch for matrix_tp_rows",
+        )
+        self.assert_mutation_rejected(
+            lambda run_path: mutate_summary(run_path, active_state_cap="4096"),
+            "active-state cap/peak mismatch",
+        )
+        self.assert_mutation_rejected(
+            lambda run_path: mutate_summary(run_path, state_capacity_failed="1"),
+            "state capacity failure",
         )
 
 
