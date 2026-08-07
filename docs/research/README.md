@@ -4,10 +4,10 @@
 
 The current `PIVOT_FRACTAL_V2` Macro/Micro broker executor and strict schema V11
 export have accepted raw real-tick evidence for the virtual SL/TP matrix,
-bounded volatility re-entries, and broker-parity calibration. The official
-offline dataset build remains blocked only by the isolated
-`execution_checks.block_source` type-registry defect. The focused active plan
-is `v11-dataset-column-type-registry-plan.md`.
+bounded volatility re-entries, and broker-parity calibration. The focused type
+registry correction now passes the official full-run dataset, audit, and
+offline training pipeline; closeout and archive remain under
+`v11-dataset-column-type-registry-plan.md`.
 
 Use these active documents:
 
@@ -24,8 +24,8 @@ No current research artifact is approved for MT5 runtime or live deployment.
 Accepted V2/V11 runtime evidence comes from the archived natural eight-file
 run. Generated Common Files exports, datasets, audits, models, reports,
 screenshots, and binaries remain outside tracked documentation unless a
-closeout explicitly archives compact evidence. The diagnostic dataset does not
-replace the pending official builder correction.
+closeout explicitly archives compact evidence. The official corrected
+artifacts supersede the diagnostic override while remaining offline-only.
 
 ## V10 Acceptance Archive
 

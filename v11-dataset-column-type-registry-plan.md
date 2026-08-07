@@ -89,6 +89,8 @@ complete, reviewable, and fail-closed.
 - Exact raw query/eight-file hashes remain unchanged, no MQL5 or compile
   artifact is modified, and `git diff --check` passes.
 
+**Sprint 1 commit**: `a5547c3adf99b1bae615309b67fc0884a75958e7`.
+
 **Rollback point**: `0e2f729`.
 
 ## Sprint 2: Official Full-Run Regression And Performance Evidence
@@ -120,14 +122,52 @@ toolchain without the diagnostic override and record bounded offline cost.
 
 ### Acceptance Gate
 
-- [ ] Official validate/build/audit/train completes without an override.
-- [ ] Dataset and audit counts exactly match the accepted diagnostic evidence.
-- [ ] Raw query and eight TSV hashes remain unchanged.
-- [ ] Offline time/memory/file growth are measured and bounded.
-- [ ] Any optimization recommendation preserves strict deterministic behavior.
-- [ ] Exactly one Sprint 2 commit is created and recorded.
+- [x] Official validate/build/audit/train completes without an override.
+- [x] Dataset and audit counts exactly match the accepted diagnostic evidence.
+- [x] Raw query and eight TSV hashes remain unchanged.
+- [x] Offline time/memory/file growth are measured and bounded.
+- [x] Any optimization recommendation preserves strict deterministic behavior.
+- [x] Exactly one Sprint 2 commit is created; its SHA is recorded in Sprint 3.
 
-**Rollback point**: Sprint 1 commit.
+**Sprint 2 evidence**:
+
+- Strict validate: 7,178 origins, 186,036 trials, 185,788 outcomes;
+  119.08 seconds and 1,935,292 KB peak RSS.
+- Official build: dataset
+  `v11_type_registry_xauusd_20260105_20260731`; 181.15 seconds and
+  1,935,524 KB peak RSS. The build includes its own strict validation.
+- Official table counts exactly match the diagnostic build: 3,412 windows,
+  7,178 origins, 186,036 trials, 185,788 outcomes, 178,982 matrix-long rows,
+  7,178 initial-wide rows, 114,848 chains, 7,054 calibration rows, and 178,701
+  eligible ML rows.
+- `block_source` is DuckDB `VARCHAR` for all 28,466 checks: 21,166 null,
+  7,054 `broker_close`, 134 `market_session`, 104 `sl_tp_geometry`, six
+  `volume`, and two `order_send` rows.
+- Official audit
+  `v11_type_registry_xauusd_20260105_20260731_audit` completes in 2.36 seconds
+  at 158,948 KB peak RSS with 7,032 strict pairs, 7,032 matches, and zero
+  mismatches.
+- Official model
+  `v11_type_registry_xauusd_20260105_20260731_model` trains 178,701 rows in
+  746.65 seconds at 2,024,896 KB peak RSS. All four ablation metrics exactly
+  match the diagnostic run; approval remains `OFFLINE_RESEARCH_ONLY` and no
+  runtime artifact is emitted.
+- Official artifact sizes are 84,614,794 dataset bytes, 3,302,417 audit bytes,
+  and 147,935,571 model bytes. All 13 Parquet tables are semantically identical
+  to the diagnostic build; 12 are byte-identical and `virtual_outcomes` has
+  equal schema plus zero rows in either `EXCEPT ALL` direction.
+- Python compileall and all 28 tests pass again; raw hashes remain exact and no
+  MQL5, `.ex5`, compile log, query, or TSV content changes.
+
+**Performance decision**: no source optimization is justified. The explicit
+registry adds no meaningful cost, audit is cheap, and training dominates the
+offline workflow. For routine builds, skip a separate `--validate-only` pass
+because the build command validates internally. For Strategy Tester speed,
+keep file logging disabled outside evidence runs. The accepted approximately
+3m55s export-enabled, file-logged seven-month run and 83/2,048 peak EA state do
+not justify changing the bounded MQL5 hot path.
+
+**Rollback point**: `a5547c3` (Sprint 1).
 
 ## Sprint 3: Closeout, Archive, And Hook Cleanup
 

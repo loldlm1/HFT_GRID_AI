@@ -45,6 +45,10 @@ Repeat `--run-id` to validate compatible runs together.
 
 The builder writes typed Parquet copies of the eight source tables plus:
 
+Every strict V11 column has one explicit frozen `VARCHAR`, `TIMESTAMP`,
+`BOOLEAN`, `BIGINT`, or `DOUBLE` type. Registry overlap, missing schema columns,
+and stale entries fail closed; new columns never inherit a numeric fallback.
+
 - `origin_matrix_long.parquet`: every matrix trial, including retries,
   ineligible rows, and censored facts.
 - `initial_matrix_wide.parquet`: one human/agent comparison row per origin with
