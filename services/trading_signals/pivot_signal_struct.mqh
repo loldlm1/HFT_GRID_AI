@@ -449,6 +449,7 @@ struct PivotSignal
   string block_reason;
   bool matrix_declared;
   bool origin_registered;
+  bool origin_export_finalized;
 
   PivotSignal()
   {
@@ -486,6 +487,7 @@ struct PivotSignal
     block_reason = "";
     matrix_declared = false;
     origin_registered = false;
+    origin_export_finalized = false;
   }
 
   void CopyFrom(const PivotSignal &other)
@@ -514,6 +516,7 @@ struct PivotSignal
     block_reason = other.block_reason;
     matrix_declared = other.matrix_declared;
     origin_registered = other.origin_registered;
+    origin_export_finalized = other.origin_export_finalized;
   }
 };
 

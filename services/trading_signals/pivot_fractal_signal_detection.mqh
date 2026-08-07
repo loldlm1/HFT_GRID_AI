@@ -55,7 +55,12 @@ void FinalizeExpiredPivotWindow(const PivotFractalWindowState &window,
      window.active_bar_open <= 0 ||
      g_pivot_window_terminal_exported_open == window.active_bar_open)
     return;
-  PivotV11RecordWindow(window, terminal_time, "EXPIRED");
+  if(!PivotV11RecordWindow(window, terminal_time, "EXPIRED"))
+    return;
+  string window_id = PivotV11WindowId(_Symbol,
+                                      window.timeframe,
+                                      window.active_bar_open);
+  MarkPivotSignalOriginsExportFinalized(window_id);
   g_pivot_window_terminal_exported_open = window.active_bar_open;
 }
 
@@ -104,9 +109,14 @@ void FinalizeActivePivotWindowsForExport()
        g_pivot_fractal_window.active_bar_open)
     return;
 
-  PivotV11RecordWindow(g_pivot_fractal_window,
-                       TimeCurrent(),
-                       "RUN_FINISHED");
+  if(!PivotV11RecordWindow(g_pivot_fractal_window,
+                           TimeCurrent(),
+                           "RUN_FINISHED"))
+    return;
+  string window_id = PivotV11WindowId(_Symbol,
+                                      g_pivot_fractal_window.timeframe,
+                                      g_pivot_fractal_window.active_bar_open);
+  MarkPivotSignalOriginsExportFinalized(window_id);
   g_pivot_window_terminal_exported_open =
     g_pivot_fractal_window.active_bar_open;
 }

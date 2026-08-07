@@ -3,8 +3,9 @@
 ## Status And Boundary
 
 **Status**: Initial MetaEditor compile passed, but the first human real-tick run
-failed strict V11 acceptance. Sprint 11 corrects the exporter lifecycle and
-Sprint 12 owns the final corrective compile and renewed human evidence.
+failed strict V11 acceptance. Sprint 11 implements and statically validates the
+exporter lifecycle correction. Sprint 12 owns the final corrective compile and
+renewed human evidence.
 
 This protocol validates strict schema V11, the virtual SL/TP trial matrix,
 bounded volatility re-entries, the unchanged one-order broker lane, and
@@ -175,6 +176,40 @@ keeps unknown origins fail-closed, and writes the first exporter failure once
 through the existing query-debug logger. Sprint 11 uses static and existing
 Python validation only. Sprint 12 performs the sole corrective compile and
 waits for a fresh unique real-tick V11 run before commit or archive.
+
+## Sprint 11 Corrective Implementation
+
+The correction is intentionally narrow and leaves broker execution and schema
+columns unchanged:
+
+- `PivotSignal` carries `origin_export_finalized`, defaults it to `false`, and
+  preserves it through explicit copies and bounded active-array compaction.
+- A successful expired-window or run-finished `PivotV11RecordWindow()` call
+  marks registered active signals with the same deterministic `window_id`.
+- Failed window recording does not advance the terminal-export marker or mark
+  any signal finalized.
+- `PivotV11UpdateOrigin()` continues updating pending origins normally. A
+  missing origin returns success only when the supplied signal is registered,
+  explicitly finalized, and has non-empty origin/window identity. Every other
+  missing origin still raises `UPDATE_ORIGIN_NOT_FOUND` and fails closed.
+- `PivotV11MarkFailed()` now sends the first failure once through
+  `ExecutionAppendQueryDebugLog()` when file logging is enabled and once to the
+  terminal when console logging is enabled.
+
+Non-compiler validation passes:
+
+- exact finalized-state reset/copy/mark/update references and include order;
+- one active `OrderSend`, one `OrderCheck`, FOK-only, and no
+  `TRADE_ACTION_SLTP` path;
+- no trade-mutation API reference in virtual matrix modules;
+- Python compileall and all 22 existing contract tests;
+- deterministic V11 fixture validate/build/audit with 19 trials, 18 outcomes,
+  and expected training support rejection `16 < 500`;
+- `git diff --check`.
+
+No MetaEditor compile, MQL5 harness, test EA/script, CI module, or automated
+Strategy Tester run is used in Sprint 11. Rollback point is Sprint 10 commit
+`99b86c3`.
 
 ## Precompile Validation Record
 

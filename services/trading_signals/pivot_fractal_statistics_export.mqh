@@ -141,12 +141,16 @@ void PivotV11MarkFailed(const string operation,
                         const int error_code = 0)
 {
   g_pivot_v11_failed = true;
-  if(g_pivot_v11_error_logged || (!Enable_Logs && !Enable_File_Logs))
+  if(g_pivot_v11_error_logged)
     return;
-  PrintFormat("PIVOT_V11_EXPORT_FAILED | operation=%s | file=%s | error=%d",
-              operation,
-              filename,
-              error_code);
+  string message = StringFormat("operation=%s|file=%s|error=%d",
+                                operation,
+                                filename,
+                                error_code);
+  if(Enable_File_Logs)
+    ExecutionAppendQueryDebugLog("PIVOT_V11_EXPORT_FAILED", message);
+  if(Enable_Logs)
+    Print("PIVOT_V11_EXPORT_FAILED | ", message);
   g_pivot_v11_error_logged = true;
 }
 
@@ -1093,7 +1097,12 @@ bool PivotV11UpdateOrigin(const PivotSignal &signal)
     return false;
   int index = FindPivotV11PendingOrigin(signal.origin_id);
   if(index < 0)
+  {
+    if(signal.origin_registered && signal.origin_export_finalized &&
+       signal.origin_id != "" && signal.window_id != "")
+      return true;
     return PivotV11RejectReference("UPDATE_ORIGIN_NOT_FOUND");
+  }
   g_pivot_v11_pending_origins[index].broker_attempt_status =
     PivotV11BrokerAttemptStatus(signal);
   g_pivot_v11_pending_origins[index].matrix_declared = signal.matrix_declared;

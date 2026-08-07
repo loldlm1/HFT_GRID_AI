@@ -62,6 +62,18 @@ bool PivotSignalRemoveAt(const int index)
   return ArrayResize(g_pivot_signals, total - 1, reserve) == total - 1;
 }
 
+void MarkPivotSignalOriginsExportFinalized(const string window_id)
+{
+  if(window_id == "")
+    return;
+  for(int i = 0; i < ArraySize(g_pivot_signals); i++)
+  {
+    if(g_pivot_signals[i].origin_registered &&
+       g_pivot_signals[i].window_id == window_id)
+      g_pivot_signals[i].origin_export_finalized = true;
+  }
+}
+
 bool PivotSignalHasBrokerExposure(const PivotSignal &signal)
 {
   if(signal.execution.broker_entry_confirmed &&

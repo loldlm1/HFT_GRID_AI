@@ -1513,7 +1513,7 @@ acceptance documentation
 - No broker route, sizing, protection, order send, parity geometry, schema
   header, or public input changes.
 
-**Rollback point**: Sprint 10 commit SHA.
+**Rollback point**: `99b86c3` (Sprint 10).
 
 ### Task 11.1: Carry explicit finalized-origin state on active signals
 
