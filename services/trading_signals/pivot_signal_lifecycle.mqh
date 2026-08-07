@@ -122,7 +122,12 @@ void LogPivotSignalTerminal(const PivotSignal &signal)
                                 ? IntegerToString(
                                     signal.execution.binary_target)
                                 : "excluded");
-  ExecutionAppendQueryDebugLog("PIVOT_TERMINAL", message);
+  datetime event_time = signal.execution.broker_close_confirmed
+                        ? signal.execution.close_time
+                        : signal.execution.last_action_time;
+  ExecutionAppendQueryDebugLogAt(event_time,
+                                 "PIVOT_TERMINAL",
+                                 message);
   if(Enable_Logs)
     Print("PIVOT_TERMINAL | ", message);
 }

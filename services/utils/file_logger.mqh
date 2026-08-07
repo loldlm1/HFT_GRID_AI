@@ -60,13 +60,24 @@ bool AppendFileLog(const string filename, const string line)
   return true;
 }
 
-bool AppendTimestampedLog(const string filename, const string label, const string message)
+bool AppendTimestampedLogAt(const string filename,
+                            const string label,
+                            const string message,
+                            const datetime event_time)
 {
+  datetime timestamp = event_time > 0 ? event_time : TimeCurrent();
   string line = StringFormat("%s | %s | %s",
-                             TimeToString(TimeCurrent(), TIME_DATE | TIME_SECONDS),
+                             TimeToString(timestamp, TIME_DATE | TIME_SECONDS),
                              label,
                              message);
   return AppendFileLog(filename, line);
+}
+
+bool AppendTimestampedLog(const string filename,
+                          const string label,
+                          const string message)
+{
+  return AppendTimestampedLogAt(filename, label, message, TimeCurrent());
 }
 
 #endif // _MICROSERVICES_UTILS_FILE_LOGGER_MQH_

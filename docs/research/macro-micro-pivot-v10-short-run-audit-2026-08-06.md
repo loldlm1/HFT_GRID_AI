@@ -156,14 +156,22 @@ rows:
 These values are a smoke test, not a profitability conclusion. Approval remains
 `OFFLINE_RESEARCH_ONLY`, and no MT5 runtime artifact was emitted.
 
-## Required Correction And Remaining Human Work
+## Corrective Resolution And Remaining Human Work
 
-Sprint 9 will:
+Sprint 9 completed the diagnostic-only correction:
 
-1. prefix attempt/send/terminal debug lines with their captured event time;
-2. render unavailable denied-request facts as `n/a`;
-3. distinguish configured reference risk from an absent request plan;
-4. repeat static/Python integration and one final real MetaEditor compile.
+1. attempt/send/terminal debug lines now use captured trigger, send-check, and
+   broker-close event times;
+2. unavailable denied-request facts now render as `n/a`;
+3. configured reference risk is distinct from an absent request plan, while
+   fixed-lot mode reports no reference budget;
+4. Python compileall and all 23 existing contract tests passed;
+5. the final MetaEditor compile regenerated `.ex5` with
+   `0 errors, 0 warnings`.
+
+The compiler result was `Result: 0 errors, 0 warnings, 6396 ms elapsed,
+cpu='X64 Regular'`. The regenerated binary is 163,142 bytes with SHA-256
+`0e023a5441469021edd46858e6432d7a0c740328442ef508c70f6a6bb9957376`.
 
 Sprint 10 still requires the user's renewed human evidence for winter/boundary
 time behavior, selected Data Window Bands values, visual/nonvisual behavior,

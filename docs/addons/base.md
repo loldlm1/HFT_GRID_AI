@@ -21,6 +21,11 @@ continuously; there is no user trading-hours filter.
   persistence and run identity.
 - `Enable_Logs`, `Enable_File_Logs`: optional diagnostics.
 
+When file diagnostics are enabled, pivot attempt, send-result, and terminal
+lines use their captured broker event time. A denied attempt reports unavailable
+request, volume, and quote facts as `n/a`; its configured reference-risk budget
+remains distinct from a broker request that was never built.
+
 Pivot formulas, Bands parameters, and broker protection are not public
 controls.
 

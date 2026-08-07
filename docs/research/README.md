@@ -5,9 +5,9 @@
 The current implementation is the `PIVOT_FRACTAL_V2` Macro/Micro broker
 executor with strict schema V10 persistence and offline-only
 DuckDB/Parquet/XGBoost research. A natural short run passed the runtime, V10,
-audit, and training checks but exposed a diagnostic-only query-log ambiguity.
-The active plan now contains a focused logger correction and final recompile
-before renewed human real-tick acceptance.
+audit, and training checks. Its diagnostic-only query-log ambiguity has been
+corrected and the final compile passed; the active plan now awaits renewed
+human real-tick acceptance.
 
 Use these active documents:
 

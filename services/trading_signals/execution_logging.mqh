@@ -29,6 +29,15 @@ string ExecutionTimeToken(const datetime value)
          : "n/a";
 }
 
+string ExecutionDoubleToken(const double value,
+                            const int digits,
+                            const bool available)
+{
+  if(!available || !MathIsValidNumber(value))
+    return "n/a";
+  return DoubleToString(value, digits);
+}
+
 void ResetQueryDebugLogSession()
 {
   CloseAppendFileLog();
@@ -165,6 +174,19 @@ void ExecutionAppendQueryDebugLog(const string label,
   AppendTimestampedLog(QUERY_DEBUG_FILENAME, label, message);
 }
 
+void ExecutionAppendQueryDebugLogAt(const datetime event_time,
+                                    const string label,
+                                    const string message)
+{
+  if(!Enable_File_Logs)
+    return;
+  EnsureQueryDebugSessionHeaderLogged();
+  AppendTimestampedLogAt(QUERY_DEBUG_FILENAME,
+                         label,
+                         message,
+                         event_time);
+}
+
 void ExecutionAppendQueryDebugChangedLog(const string label,
                                          const string state_key,
                                          const string message)
@@ -197,7 +219,18 @@ void ExecutionAppendQueryDebugThrottledLog(const string label,
 
 void ExecutionLogPivotAttempt(const PivotSignal &signal)
 {
-  string message = StringFormat("signal_id=%s|window_id=%s|tf=%s|level=%s|direction=%s|trigger_bid=%.10f|trigger_ask=%.10f|structural_sl=%.10f|request_entry=%.10f|request_tp=%.10f|price_rr=%.10f|risk_budget=%.10f|requested_volume=%.8f|normalized_volume=%.8f|quote_sl=%.10f|quote_tp=%.10f|money_rr=%.10f|budget_utilization=%.10f|route=%s|attempt=%s|block_source=%s|block_reason=%s",
+  bool request_available = signal.execution.send_attempted;
+  bool reference_risk_available =
+    Lot_Type == EXECUTION_LOT_REFERENCE_BALANCE_PERCENT;
+  double configured_risk_budget = reference_risk_available
+                                  ? PIVOT_EXECUTION_REFERENCE_BALANCE *
+                                    Lot_Strategy_Size / 100.0
+                                  : 0.0;
+  BrokerExecutionCheck request(signal.execution.pre_send_check);
+  bool structural_stop_available =
+    signal.route.status == PIVOT_ROUTE_ALLOWED &&
+    signal.route.structural_stop_loss > 0.0;
+  string message = StringFormat("signal_id=%s|window_id=%s|tf=%s|level=%s|direction=%s|trigger_bid=%.10f|trigger_ask=%.10f|structural_sl=%s|request_available=%s|request_entry=%s|request_tp=%s|price_rr=%s|configured_risk_budget=%s|requested_volume=%s|normalized_volume=%s|quote_sl=%s|quote_tp=%s|money_rr=%s|budget_utilization=%s|route=%s|attempt=%s|block_source=%s|block_reason=%s",
                                 signal.signal_id,
                                 signal.window_id,
                                 EnumToString(signal.pivot_timeframe),
@@ -205,22 +238,56 @@ void ExecutionLogPivotAttempt(const PivotSignal &signal)
                                 signal.direction == BULLISH ? "BUY" : "SELL",
                                 signal.trigger_bid,
                                 signal.trigger_ask,
-                                signal.route.structural_stop_loss,
-                                signal.execution.planned_entry_price,
-                                signal.execution.take_profit_price,
-                                signal.execution.price_reward_risk_ratio,
-                                signal.execution.risk_budget_amount,
-                                signal.execution.requested_volume,
-                                signal.execution.normalized_volume,
-                                signal.execution.quote_expected_stop_loss,
-                                signal.execution.quote_expected_take_profit,
-                                signal.execution.quote_expected_reward_risk_ratio,
-                                signal.execution.risk_budget_utilization_ratio,
+                                ExecutionDoubleToken(
+                                  signal.route.structural_stop_loss,
+                                  10,
+                                  structural_stop_available),
+                                ExecutionBoolToken(request_available),
+                                ExecutionDoubleToken(
+                                  request.planned_entry_price,
+                                  10,
+                                  request_available),
+                                ExecutionDoubleToken(
+                                  request.take_profit_price,
+                                  10,
+                                  request_available),
+                                ExecutionDoubleToken(
+                                  request.price_reward_risk_ratio,
+                                  10,
+                                  request_available),
+                                ExecutionDoubleToken(configured_risk_budget,
+                                                     10,
+                                                     reference_risk_available),
+                                ExecutionDoubleToken(request.requested_volume,
+                                                     8,
+                                                     request_available),
+                                ExecutionDoubleToken(request.normalized_volume,
+                                                     8,
+                                                     request_available),
+                                ExecutionDoubleToken(
+                                  request.quote_expected_stop_loss,
+                                  10,
+                                  request_available),
+                                ExecutionDoubleToken(
+                                  request.quote_expected_take_profit,
+                                  10,
+                                  request_available),
+                                ExecutionDoubleToken(
+                                  request.quote_expected_reward_risk_ratio,
+                                  10,
+                                  request_available),
+                                ExecutionDoubleToken(
+                                  request.risk_budget_utilization_ratio,
+                                  10,
+                                  request_available &&
+                                  reference_risk_available),
                                 EnumToString(signal.route.status),
                                 signal.attempt_status,
                                 signal.block_source,
                                 signal.block_reason);
-  ExecutionAppendQueryDebugLog("PIVOT_ATTEMPT", message);
+  ExecutionAppendQueryDebugLogAt(signal.trigger_time,
+                                 "PIVOT_ATTEMPT",
+                                 message);
   if(Enable_Logs)
     Print("PIVOT_ATTEMPT | ", message);
 }
@@ -248,7 +315,9 @@ void ExecutionLogPivotSendResult(const PivotSignal &signal,
                                 check.send_comment,
                                 check.block_source,
                                 check.block_reason);
-  ExecutionAppendQueryDebugLog("PIVOT_SEND_RESULT", message);
+  ExecutionAppendQueryDebugLogAt(check.broker_time,
+                                 "PIVOT_SEND_RESULT",
+                                 message);
   if(Enable_Logs)
     Print("PIVOT_SEND_RESULT | ", message);
 }

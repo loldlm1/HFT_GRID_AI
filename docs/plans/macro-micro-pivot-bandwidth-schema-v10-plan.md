@@ -1,7 +1,7 @@
 # Plan: Macro-Micro Pivot Bands Engine And Schema V10
 
 **Generated**: 2026-08-06
-**Status**: Active corrective implementation; Sprint 8 diagnostic audit complete, Sprint 9 corrects debug telemetry, and Sprint 10 awaits renewed human acceptance
+**Status**: Corrective implementation complete through Sprint 9; Sprint 10 awaits renewed human acceptance
 **Planning Review**: Complete; no blocking clarification remains
 **Estimated Complexity**: High
 **Risk Class**: Critical - changes signal arming, trade direction, stop/target geometry, lot sizing, broker lifecycle state, persistence, and ML research inputs
@@ -18,8 +18,8 @@
 | 5 | `344789a8d841c4b6993f336461e3e6a0def03e56` | `16c7c1d531f4f0258ab7b4e89d207b02591d19fb` | Complete |
 | 6 | `f2a83babd94104223aec4aa31cecec8d1fd83dbc` | `344789a8d841c4b6993f336461e3e6a0def03e56` | Complete |
 | 7 | `9e195b7c72579d1face2300f5bb3a827a0ecafd1` | `f2a83babd94104223aec4aa31cecec8d1fd83dbc` | Complete |
-| 8 | This Sprint 8 commit (`docs: record V10 short-run diagnostic audit`) | `9e195b7c72579d1face2300f5bb3a827a0ecafd1` | Complete |
-| 9 | Pending | Sprint 8 commit | Query-debug correction and final recompile pending |
+| 8 | `4d0516ba58743c14f262d2c29e39e85fbdeb7b63` | `9e195b7c72579d1face2300f5bb3a827a0ecafd1` | Complete |
+| 9 | This Sprint 9 commit (`fix: make pivot debug events deterministic`) | `4d0516ba58743c14f262d2c29e39e85fbdeb7b63` | Complete |
 | 10 | Pending | Sprint 9 commit | Renewed human acceptance pending |
 
 ## Sprint 7 Integration Evidence
@@ -1062,13 +1062,38 @@ The offline builder may create typed Parquet copies plus a wide `research_matrix
 
 ### Sprint 9 Gate
 
-- [ ] All Sprint 9 tasks complete.
-- [ ] Static and Python validation pass.
-- [ ] The only final corrective-batch compile reports `0 errors, 0 warnings` and regenerates `.ex5`.
-- [ ] `git diff --check` passes.
-- [ ] Exactly one Sprint 9 commit is created with the proposed message.
-- [ ] The Sprint 9 rollback point is recorded.
-- [ ] Sprint 10 has not started before this gate completes.
+- [x] All Sprint 9 tasks complete.
+- [x] Static and Python validation pass.
+- [x] The only final corrective-batch compile reports `0 errors, 0 warnings` and regenerates `.ex5`.
+- [x] `git diff --check` passes.
+- [x] Exactly one Sprint 9 commit is created with the proposed message.
+- [x] The Sprint 9 rollback point is recorded.
+- [x] Sprint 10 has not started before this gate completes.
+
+### Sprint 9 Integration Evidence
+
+- Tracked changes are limited to the file-log timestamp helper, pivot query
+  diagnostics, terminal diagnostic timing, focused documentation, and this
+  plan/evidence update. Order, risk, signal, lifecycle state, V10 writer,
+  schema, model, and frontend paths are unchanged.
+- Attempt lines use immutable trigger time; send-result lines use captured
+  send-check time; broker-closed terminal lines use broker close time. Generic
+  changed/throttled diagnostics retain emission time.
+- No-send attempts render request entry/TP/RR, volume, quote expectations, and
+  utilization as `n/a`. Reference mode separately reports the configured
+  `100` account-currency budget; fixed-lot mode reports no reference budget.
+- Include tracing remains ordered through `trading_tools`,
+  `trading_management`, `trading_signals`, and `frontend`; no sibling
+  re-include or cycle was introduced.
+- Python compileall passed and all `23` existing contract tests passed.
+- Final MetaEditor compile: `Result: 0 errors, 0 warnings, 6396 ms elapsed,
+  cpu='X64 Regular'`. Wine returned process code `1`; parsed compiler status was
+  `PASS`.
+- Compile log: `logs/compile/agentic-build.log`.
+- `.ex5` before: `161876` bytes, SHA-256
+  `d9e8618563522e1f5e1cf31ec14324137fbf19db9423023f3ee007f98047b851`.
+- `.ex5` after: `163142` bytes, SHA-256
+  `0e023a5441469021edd46858e6432d7a0c740328442ef508c70f6a6bb9957376`.
 
 ## Sprint 10: Renewed Human Real-Tick Acceptance And Closeout
 
