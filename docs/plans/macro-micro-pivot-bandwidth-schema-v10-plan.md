@@ -1,7 +1,7 @@
 # Plan: Macro-Micro Pivot Bands Engine And Schema V10
 
 **Generated**: 2026-08-06
-**Status**: Active implementation; Sprint 7 complete, Sprint 8 pending human acceptance
+**Status**: Active corrective implementation; Sprint 8 diagnostic audit complete, Sprint 9 corrects debug telemetry, and Sprint 10 awaits renewed human acceptance
 **Planning Review**: Complete; no blocking clarification remains
 **Estimated Complexity**: High
 **Risk Class**: Critical - changes signal arming, trade direction, stop/target geometry, lot sizing, broker lifecycle state, persistence, and ML research inputs
@@ -17,8 +17,10 @@
 | 4 | `16c7c1d531f4f0258ab7b4e89d207b02591d19fb` | `826d7923c0d7c115976e52f2260f0c96623f60ed` | Complete |
 | 5 | `344789a8d841c4b6993f336461e3e6a0def03e56` | `16c7c1d531f4f0258ab7b4e89d207b02591d19fb` | Complete |
 | 6 | `f2a83babd94104223aec4aa31cecec8d1fd83dbc` | `344789a8d841c4b6993f336461e3e6a0def03e56` | Complete |
-| 7 | This Sprint 7 commit (`build: validate macro micro pivot executor v2`) | `f2a83babd94104223aec4aa31cecec8d1fd83dbc` | Complete |
-| 8 | Pending | Sprint 7 commit | Human acceptance pending |
+| 7 | `9e195b7c72579d1face2300f5bb3a827a0ecafd1` | `f2a83babd94104223aec4aa31cecec8d1fd83dbc` | Complete |
+| 8 | This Sprint 8 commit (`docs: record V10 short-run diagnostic audit`) | `9e195b7c72579d1face2300f5bb3a827a0ecafd1` | Complete |
+| 9 | Pending | Sprint 8 commit | Query-debug correction and final recompile pending |
+| 10 | Pending | Sprint 9 commit | Renewed human acceptance pending |
 
 ## Sprint 7 Integration Evidence
 
@@ -939,39 +941,169 @@ The offline builder may create typed Parquet copies plus a wide `research_matrix
 - [x] The Sprint 7 rollback point is recorded.
 - [x] Sprint 8 has not started before this gate completes.
 
-## Sprint 8: Human Real-Tick Acceptance And Closeout
+## Sprint 8: Human Short-Run Audit And Corrective Design
 
-**Goal**: Validate causal runtime behavior, broker lifecycle, V10 evidence, research usability, and performance in human Strategy Tester/chart workflows, then archive the completed plan and evidence.
-**Dependencies**: Sprint 7 gate and no source changes after the accepted compile.
+**Goal**: Audit the natural `test_run_1` Strategy Tester evidence, distinguish runtime/schema defects from diagnostic-only discrepancies, and preserve enough context for a narrow corrective sprint.
+**Dependencies**: Sprint 7 gate and the human `Every tick based on real ticks` run from `2026.06.08` through `2026.07.31`.
+**Tracked scope**: This plan and the active diagnostic audit under `docs/research/`; no runtime or schema source changes.
+**Commit**: `docs: record V10 short-run diagnostic audit`
+**Demo/Validation**:
+
+- Strict six-file V10 validation, full dataset build, audit, and offline training smoke.
+- Independent read-only reconciliation of `query_debug.txt` against attempts, send-result checks, and outcomes.
+- Independent formula and lifecycle sweeps for windows, triggers, Bands, 1R geometry, checks, costs, slippage, and binary inclusion.
+
+**Rollback point**: `9e195b7`. Reverting Sprint 8 removes only tracked diagnostic documentation; external tester evidence and ignored generated artifacts remain untouched.
+
+### Task 8.1: Verify Deterministic Exness Analysis Time
+
+- **Location**: `services/utils/market_data_time.mqh`, all time-bearing V10 rows, and the diagnostic audit.
+- **Description**: Verify every exported `analysis_time = broker_time + offset_minutes`, confirm XAUUSD selects the UK DST calendar, and record the exact 2026 summer/winter boundaries.
+- **Acceptance criteria**:
+  - All exported time triples are arithmetically consistent.
+  - The June-July evidence uses offset `0`, as required inside UK DST.
+  - Static review confirms XAUUSD uses `-60` before `2026.03.29 01:00:00` and from `2026.10.25 01:00:00`, while retaining raw broker time for causality.
+  - The audit states clearly that this run empirically covers summer only; winter/boundary behavior remains part of renewed human acceptance.
+- **Validation**: Strict schema validation plus exact identifier/reference review of the UK/US calendar helpers.
+- **Rollback**: Documentation-only.
+
+### Task 8.2: Reconcile Query Debug Events
+
+- **Location**: External `query_debug.txt`, V10 attempts/checks/outcomes, and `services/trading_signals/execution_logging.mqh`.
+- **Description**: Reconcile event identity, immutable prices, directions, broker results, tickets, P&L, close reasons, and event timestamps without treating lifecycle-stage labels as final-row mismatches.
+- **Acceptance criteria**:
+  - All `1,922` attempt, `1,910` send-result, and `1,909` terminal IDs reconcile exactly.
+  - Stable attempt/send/terminal facts have zero unexplained mismatches.
+  - The one failed send and all denied attempts remain attributable to their exact broker/geometry reasons.
+  - Diagnostic rendering discrepancies are classified separately from runtime or V10 defects.
+- **Validation**: Read-only ordered-field reconciliation with numeric tolerances matching exported precision.
+- **Rollback**: Documentation-only.
+
+### Task 8.3: Audit V10 Structure And Research Flow
+
+- **Location**: External `PivotFractalV10/runs/test_run_1`, ignored dataset/audit/model artifacts, and active Python tooling.
+- **Description**: Validate the six runtime files, independently reproduce core formulas and lifecycle invariants, then build, audit, and train the complete natural run.
+- **Acceptance criteria**:
+  - Strict validation passes with zero duplicate, referential, or row-integrity errors.
+  - Independent sweeps find zero pivot, trigger-side, direction, route-SL, 1R, Bands, check-sequence, outcome-cost, slippage, or binary-cohort violations.
+  - All `1,922` attempts are feature-complete and only the `1,908` consistent TP/SL outcomes enter the binary cohort.
+  - The one manual close remains excluded; 12 geometry denials and one broker send failure remain operational facts.
+  - Offline training completes with `OFFLINE_RESEARCH_ONLY` and emits no MT5 runtime artifact.
+- **Validation**: V10 validate/build/audit/train commands and compact independent row sweeps.
+- **Rollback**: Generated artifacts are ignored evidence; tracked rollback is documentation-only.
+
+### Task 8.4: Define The Minimal Correction
+
+- **Location**: This plan and the diagnostic audit.
+- **Description**: Record that the trading runtime and V10 schema pass, while `query_debug.txt` uses log-emission timestamps for attempt/terminal prefixes and renders unavailable denied-request facts as numeric zero or a fresh entry value.
+- **Acceptance criteria**:
+  - The correction does not change trigger, broker, risk, lifecycle, V10, or model behavior.
+  - Sprint 9 uses immutable event timestamps and explicit unavailable tokens in debug output.
+  - No MQL5 harness, test EA/script, CI, or schema revision is introduced.
+- **Validation**: Scope and safety-boundary review.
+- **Rollback**: Remove the corrective design and retain Sprint 7 behavior.
+
+### Sprint 8 Gate
+
+- [x] All Sprint 8 tasks complete.
+- [x] The diagnostic audit records verified passes, exact discrepancies, residual human checks, and no live-rollout authorization.
+- [x] `git diff --check` passes.
+- [x] Exactly one Sprint 8 commit is created with the proposed message.
+- [x] The Sprint 8 rollback point is recorded.
+
+## Sprint 9: Deterministic Query Debug Telemetry And Final Recompile
+
+**Goal**: Make file diagnostics event-time deterministic and availability-aware without changing runtime execution or strict schema V10, then repeat final static/Python integration and one real MetaEditor compile.
+**Dependencies**: Sprint 8 gate.
+**Tracked scope**: `services/utils/file_logger.mqh`, `services/trading_signals/execution_logging.mqh`, `services/trading_signals/pivot_signal_lifecycle.mqh`, focused active documentation, and compile evidence.
+**Commit**: `fix: make pivot debug events deterministic`
+**Demo/Validation**:
+
+- Static trace from trigger/send/close event time to the debug line prefix.
+- Availability-aware denied-attempt rendering with configured reference risk distinguished from absent request facts.
+- Existing Python contract suite and one final real MetaEditor compile.
+
+**Rollback point**: Record the Sprint 8 commit. Reverting Sprint 9 restores only the previous diagnostic rendering and compile evidence.
+
+### Task 9.1: Write Explicit Event Timestamps
+
+- **Location**: `services/utils/file_logger.mqh`, `services/trading_signals/execution_logging.mqh`, and `services/trading_signals/pivot_signal_lifecycle.mqh`.
+- **Description**: Add a checked timestamp-at-event append path. Prefix attempts with immutable `trigger_time`, send results with the captured send-result check time, and broker-closed terminal events with broker `close_time`; fall back to emission time only when an explicit event time is unavailable.
+- **Acceptance criteria**:
+  - Delayed broker/reconciliation work cannot move an attempt or close event into the next second in `query_debug.txt`.
+  - Generic changed/throttled diagnostics retain emission-time behavior.
+  - File-open, append, flush, and cleanup behavior remains unchanged.
+- **Validation**: Exact call/reference sweep and lifecycle timing review.
+- **Rollback**: Revert the explicit timestamp helper and its three event callers.
+
+### Task 9.2: Render Only Available Request Facts
+
+- **Location**: `services/trading_signals/execution_logging.mqh`.
+- **Description**: Use stable token helpers so denied attempts report `n/a` for request entry/TP/RR, requested/normalized volume, quote loss/profit/RR, and utilization. Report the configured reference risk budget independently of whether a request was built.
+- **Acceptance criteria**:
+  - A no-send denial cannot look like a zero-price or zero-risk broker request.
+  - Filled and send-failed attempt values remain numerically identical to V10 request facts.
+  - Fixed-lot mode reports no reference-risk budget.
+  - Debug-only changes do not alter signal state or exported values.
+- **Validation**: Branch/field mapping review against `PivotV10RecordAttempt` availability rules.
+- **Rollback**: Restore the previous formatted numeric fields.
+
+### Task 9.3: Repeat Final Integration And Compile
+
+- **Location**: Active MQL5/Python source, docs, `logs/compile/agentic-build.log`, and generated `.ex5` evidence.
+- **Description**: Run exact identifier/reference sweeps, include tracing, broker-safety inspection, existing Python tests, `git diff --check`, and one final non-syntax-only MetaEditor compile.
+- **Acceptance criteria**:
+  - No order, risk, signal, schema, or model path changes are present.
+  - Existing Python tests pass.
+  - MetaEditor reports `0 errors, 0 warnings` and regenerates the `.ex5`.
+  - No MQL5 harness or CI module is added.
+- **Validation**: Compact command evidence plus before/after `.ex5` size and SHA-256.
+- **Rollback**: Revert the Sprint 9 commit to the Sprint 8 rollback point.
+
+### Sprint 9 Gate
+
+- [ ] All Sprint 9 tasks complete.
+- [ ] Static and Python validation pass.
+- [ ] The only final corrective-batch compile reports `0 errors, 0 warnings` and regenerates `.ex5`.
+- [ ] `git diff --check` passes.
+- [ ] Exactly one Sprint 9 commit is created with the proposed message.
+- [ ] The Sprint 9 rollback point is recorded.
+- [ ] Sprint 10 has not started before this gate completes.
+
+## Sprint 10: Renewed Human Real-Tick Acceptance And Closeout
+
+**Goal**: Validate causal runtime behavior, broker lifecycle, corrected diagnostics, V10 evidence, research usability, and performance in human Strategy Tester/chart workflows, then archive the completed plan and evidence.
+**Dependencies**: Sprint 9 gate and no source changes after the accepted compile.
 **Tracked scope**: Acceptance evidence, plan/archive indexes, and closeout documentation only.
 **Commit**: `docs: close out macro micro pivot v2 acceptance`
 **Demo/Validation**:
 
 - Human Strategy Tester using `Every tick based on real ticks`.
 - Natural V10 run validation, dataset build, audit, and offline training smoke.
+- Corrected `query_debug.txt` event-time/null-semantics reconciliation when diagnostics are enabled.
 - Paired export-disabled/export-enabled cost measurement.
 - Visual and nonvisual chart inspection.
 
-**Rollback point**: Record the Sprint 7 commit. Reverting Sprint 8 removes only closeout documentation; it does not modify runtime code or external evidence.
+**Rollback point**: Record the Sprint 9 commit. Reverting Sprint 10 removes only closeout documentation; it does not modify runtime code or external evidence.
 
-### Task 8.1: Validate Timeframes, Windows, And Causality
+### Task 10.1: Validate Timeframes, Windows, And Causality
 
 - **Location**: Human Strategy Tester and V10 run files.
 - **Description**: Verify H1/M3 defaults, invalid input rejection, actual Macro bar transitions, shift-1 source ownership, weekend/session gaps, handle warmup/retry, and no future-visible shift-0 feature values.
-- **Dependencies**: Sprint 7.
+- **Dependencies**: Sprint 9.
 - **Acceptance criteria**:
   - Macro window changes only on causal broker H1 transitions in the default case.
   - M3 features are developing only through the observed real tick.
   - No synthetic or incomplete source candle creates pivots.
 - **Validation**:
   - Compare selected chart/Data Window values and compact exported rows at known broker timestamps.
-- **Rollback**: Any source defect returns execution to the owning sprint and invalidates the Sprint 7 compile gate.
+- **Rollback**: Any source defect adds a scoped corrective sprint and invalidates the Sprint 9 compile gate.
 
-### Task 8.2: Validate Trigger, PP, Identity, And Batch Semantics
+### Task 10.2: Validate Trigger, PP, Identity, And Batch Semantics
 
 - **Location**: Human real-tick Strategy Tester, optional visual chart, V10 attempts.
 - **Description**: Exercise exact support/resistance touches, already-marketable window-start levels, PP start above/below/equal, return touch, gap-through multiple levels, one identity, denial consumption, and stable candidate ordering.
-- **Dependencies**: Task 8.1.
+- **Dependencies**: Task 10.1.
 - **Acceptance criteria**:
   - S levels trigger buys from live Bid only; R levels trigger sells from live Bid only.
   - Buy fill uses Ask; sell fill uses Bid.
@@ -981,11 +1113,11 @@ The offline builder may create typed Parquet copies plus a wide `research_matrix
   - Cross-check attempt IDs, times, directions, trigger prices, and send sequence against chart/tick evidence.
 - **Rollback**: Return trigger defects to Sprint 4.
 
-### Task 8.3: Validate Bands And Research Features
+### Task 10.3: Validate Bands And Research Features
 
 - **Location**: Tester/Data Window, V10 window/attempt files, Python validator.
 - **Description**: Verify weighted Bands formula, buffer mapping, Macro shift-1 cached width, Micro shift-0 current width, Micro `%B 0..5`, Macro pivot `%B 0..5`, unclipped values, same-tick shared context, and feature-incomplete behavior.
-- **Dependencies**: Task 8.2.
+- **Dependencies**: Task 10.2.
 - **Acceptance criteria**:
   - Sample formulas reproduce within numeric tolerance.
   - Same-tick Micro facts match across candidates; Macro pivot `%B` changes with pivot price only.
@@ -994,11 +1126,11 @@ The offline builder may create typed Parquet copies plus a wide `research_matrix
   - Strict V10 validator and focused manual formula spreadsheet/calculation for selected rows.
 - **Rollback**: Return feature defects to Sprint 3 or Sprint 4.
 
-### Task 8.4: Validate All Routes, Risk, And Broker Safety
+### Task 10.4: Validate All Routes, Risk, And Broker Safety
 
 - **Location**: Human Strategy Tester and execution checks.
 - **Description**: Observe or statically/visually confirm PP buy/sell, S1/S2/S3 buys, R1/R2/R3 sells, synthetic extreme stops, fresh 1R TP, fixed reference risk, fixed lots, volume floor, margin, stops/freeze, `OrderCheck`, unsupported margin mode, session, permission, and send failures.
-- **Dependencies**: Task 8.3.
+- **Dependencies**: Task 10.3.
 - **Acceptance criteria**:
   - Every sent order has immutable broker SL/TP and no later SLTP request.
   - Default reference mode requests a `100` account-currency risk budget independent of current balance.
@@ -1008,11 +1140,11 @@ The offline builder may create typed Parquet copies plus a wide `research_matrix
   - Route/check matrix with at least one observed PP, inner support, inner resistance, and extreme route; remaining rows receive exact static geometry review if market coverage is unavailable.
 - **Rollback**: Return route/lot defects to Sprint 5 and lifecycle defects to Sprint 6.
 
-### Task 8.5: Validate Outcomes, Slippage, Binary Cohort, And Research Flow
+### Task 10.5: Validate Outcomes, Slippage, Binary Cohort, And Research Flow
 
 - **Location**: V10 run, built datasets, audit, model smoke, acceptance evidence.
 - **Description**: Reconcile TP, SL, manual/mixed/other/censored examples; verify cost sums, adverse-positive direction-aware slippage, budget and executable R, strict binary inclusion, excluded-reason counts, chronological grouping, human filters, and XGBoost continuous features/ablations.
-- **Dependencies**: Task 8.4.
+- **Dependencies**: Task 10.4.
 - **Acceptance criteria**:
   - Only feature-complete, fully closed, consistent TP/SL rows enter `binary_outcomes.parquet` and performance/model reports.
   - Raw integrity tables still count every attempt and terminal/exclusion state.
@@ -1024,30 +1156,30 @@ The offline builder may create typed Parquet copies plus a wide `research_matrix
   - Inspect compact counts and selected rows, not full TSV/Parquet dumps.
 - **Rollback**: Return schema/research defects to Sprint 1 or Sprint 2; return outcome defects to Sprint 6.
 
-### Task 8.6: Measure Performance, Visuals, And Close Out
+### Task 10.6: Measure Performance, Visuals, And Close Out
 
 - **Location**: Human tester/chart, ignored evidence artifacts, `docs/research/archive/`, `docs/plans/archive/`, `docs/plans/README.md`, `docs/research/README.md`.
 - **Description**: Compare export disabled/enabled over the same 1-3 market days with logs off, inspect nonvisual/visual behavior, record elapsed time/rows/folder bytes, write acceptance evidence, record all sprint commit hashes/rollback points, and archive the completed plan without rewriting historical V9 evidence.
-- **Dependencies**: Tasks 8.1-8.5.
+- **Dependencies**: Tasks 10.1-10.5.
 - **Acceptance criteria**:
   - Nonvisual tester runs create no chart work.
   - Visual mode shows bounded immutable entry/SL/TP lines.
   - Accepted run has `completion_status=NATURAL`, strict V10 integrity success, and documented binary/excluded/censored counts.
-  - The plan archive README records all eight sprint commits and rollback points.
+  - The plan archive README records all ten sprint commits and rollback points.
   - Live rollout remains explicitly unauthorized.
 - **Validation**:
   - Compact artifact inventory, validation status, performance comparison, and final `git diff --check`.
-- **Rollback**: Revert only the Sprint 8 closeout commit; external tester evidence remains preserved outside tracked source unless intentionally archived.
+- **Rollback**: Revert only the Sprint 10 closeout commit; external tester evidence remains preserved outside tracked source unless intentionally archived.
 
-### Sprint 8 Gate
+### Sprint 10 Gate
 
-- [ ] All Sprint 8 tasks complete.
+- [ ] All Sprint 10 tasks complete.
 - [ ] Human real-tick tester and chart acceptance is recorded.
 - [ ] Strict V10 natural-run validation and research flow pass.
 - [ ] Performance and visual/nonvisual evidence is recorded.
-- [ ] No source changed after the accepted Sprint 7 compile; otherwise Sprint 7 was repeated before closeout.
-- [ ] Exactly one Sprint 8 commit is created with the proposed message.
-- [ ] The Sprint 8 rollback point and every prior sprint rollback point are recorded.
+- [ ] No source changed after the accepted Sprint 9 compile; otherwise a new corrective sprint repeated the compile gate before closeout.
+- [ ] Exactly one Sprint 10 commit is created with the proposed message.
+- [ ] The Sprint 10 rollback point and every prior sprint rollback point are recorded.
 - [ ] Plan and evidence are archived and indexed.
 
 ## Testing Strategy
@@ -1059,7 +1191,9 @@ The offline builder may create typed Parquet copies plus a wide `research_matrix
   - Per sprint: exact identifier/reference sweeps, include tracing, constructor/copy/reset review, array/buffer bounds, market-data failure handling, broker safety trace, file/handle cleanup, and `git diff --check`.
   - Do not add MQL5 test infrastructure.
 - **MQL5 compile**:
-  - One final real MetaEditor compile in Sprint 7.
+  - Sprint 7 retains the original accepted V2 compile evidence.
+  - Run one additional real MetaEditor compile only in the final corrective
+    Sprint 9 because source changes after Sprint 7 invalidate that binary.
   - Required result: `0 errors, 0 warnings` with regenerated `HFT_Grid_AI.ex5`.
 - **End-to-end/manual**:
   - Human `Every tick based on real ticks` Strategy Tester validation is mandatory.
@@ -1084,6 +1218,8 @@ The offline builder may create typed Parquet copies plus a wide `research_matrix
 - Within Sprint 2, audit/report and model feature work may proceed after `research_matrix.parquet` columns are frozen; no worker may independently change schema columns.
 - MQL5 Sprints 3-6 should have one integration owner because shared structs, include order, exporter payloads, and broker state create high merge-conflict and safety risk.
 - Documentation review may be prepared while Sprint 7 static checks run, but no document is finalized before source identifiers and commands are stable.
+- Sprint 8 is documentation-only. Sprint 9 has one implementation owner and
+  does not compile until its final integration gate.
 
 ## Risks And Gotchas
 
@@ -1109,7 +1245,7 @@ The offline builder may create typed Parquet copies plus a wide `research_matrix
 | A training position closes after validation begins | Outcome information was unavailable at prediction time | Purge rows by broker close time at every holdout/walk-forward boundary | Split tests assert every retained training close precedes validation |
 | V9 and V10 are mixed | Corrupt schema/research semantics | New root, strict version, no adapter/dual writer | Validator fails mixed/old runs |
 | Old V1 position remains open | V2 cannot safely own it | New magic and flat-before-handoff restriction | Startup ownership and deployment checklist |
-| Intermediate sprints are not compiled | Integration defect found late | Strong static gates and one planned final compile; return defects to owner sprint | Sprint 7 compile result |
+| Intermediate corrective work is compiled repeatedly | Slow, noisy validation | Strong static gates and one corrective-batch compile after the logger fix | Sprint 9 compile result |
 
 ## Rollback Plan
 
@@ -1122,9 +1258,13 @@ The offline builder may create typed Parquet copies plus a wide `research_matrix
 - Sprint 5 rollback removes V2 execution behavior; do not attach a partially reverted build to positions created by another magic namespace.
 - Sprint 6 rollback removes V10 writer/lifecycle completion. Delete no external V10 evidence automatically; quarantine incomplete run folders instead.
 - Sprint 7 rollback restores precompile docs/artifact state. A prior `.ex5` may be redeployed only under the old version's flat-position and compatibility rules.
-- Sprint 8 rollback removes closeout documentation only.
+- Sprint 8 rollback removes only the short-run diagnostic record and corrective
+  plan extension; external evidence remains untouched.
+- Sprint 9 rollback restores the Sprint 8 diagnostic state and the prior debug
+  rendering; its regenerated `.ex5` must not be used after rollback.
+- Sprint 10 rollback removes closeout documentation only.
 - No data backfill or destructive migration is required because V10 uses a new Common Files root.
-- If a human tester defect requires source changes after Sprint 7, stop Sprint 8, return to the owning sprint, repeat all later gates, and produce a new final compile before acceptance.
+- If a human tester defect requires source changes after Sprint 9, stop Sprint 10, add a scoped corrective sprint, repeat the final compile gate, and produce new human evidence before acceptance.
 
 ## Execution Order
 
@@ -1134,10 +1274,11 @@ The offline builder may create typed Parquet copies plus a wide `research_matrix
 4. Create exactly one Sprint 1 commit and record its rollback point.
 5. Start Sprint 2 only after the Sprint 1 gate passes.
 6. Repeat the validate-one-commit-record-rollback gate for every sprint.
-7. Do not compile MQL5 during Sprints 1-6.
-8. Run the first and final real MetaEditor compile only in Sprint 7.
-9. Begin human Sprint 8 only from the accepted Sprint 7 compile with no later source changes.
-10. Do not authorize live rollout from plan completion or tester acceptance.
+7. Do not compile MQL5 during Sprints 1-6 or the documentation-only Sprint 8.
+8. Retain the historical Sprint 7 compile evidence and run exactly one corrective-batch recompile in Sprint 9.
+9. Complete the Sprint 8 diagnostic record and Sprint 9 query-debug correction/final compile.
+10. Begin human Sprint 10 only from the accepted Sprint 9 compile with no later source changes.
+11. Do not authorize live rollout from plan completion or tester acceptance.
 
 ## Completion Checklist
 
