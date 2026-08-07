@@ -1,7 +1,7 @@
 # Plan: Macro-Micro Pivot Bands Engine And Schema V10
 
 **Generated**: 2026-08-06
-**Status**: Corrective implementation complete through Sprint 9; Sprint 10 awaits renewed human acceptance
+**Status**: Complete and archived after renewed Sprint 10 human real-tick acceptance
 **Planning Review**: Complete; no blocking clarification remains
 **Estimated Complexity**: High
 **Risk Class**: Critical - changes signal arming, trade direction, stop/target geometry, lot sizing, broker lifecycle state, persistence, and ML research inputs
@@ -19,8 +19,8 @@
 | 6 | `f2a83babd94104223aec4aa31cecec8d1fd83dbc` | `344789a8d841c4b6993f336461e3e6a0def03e56` | Complete |
 | 7 | `9e195b7c72579d1face2300f5bb3a827a0ecafd1` | `f2a83babd94104223aec4aa31cecec8d1fd83dbc` | Complete |
 | 8 | `4d0516ba58743c14f262d2c29e39e85fbdeb7b63` | `9e195b7c72579d1face2300f5bb3a827a0ecafd1` | Complete |
-| 9 | This Sprint 9 commit (`fix: make pivot debug events deterministic`) | `4d0516ba58743c14f262d2c29e39e85fbdeb7b63` | Complete |
-| 10 | Pending | Sprint 9 commit | Renewed human acceptance pending |
+| 9 | `e32cd730707117453e1cbb4768836a8e29fd2f70` | `4d0516ba58743c14f262d2c29e39e85fbdeb7b63` | Complete |
+| 10 | This closeout commit (`docs: close out macro micro pivot v2 acceptance`) | `e32cd730707117453e1cbb4768836a8e29fd2f70` | Complete |
 
 ## Sprint 7 Integration Evidence
 
@@ -1097,7 +1097,7 @@ The offline builder may create typed Parquet copies plus a wide `research_matrix
 
 ## Sprint 10: Renewed Human Real-Tick Acceptance And Closeout
 
-**Goal**: Validate causal runtime behavior, broker lifecycle, corrected diagnostics, V10 evidence, research usability, and performance in human Strategy Tester/chart workflows, then archive the completed plan and evidence.
+**Goal**: Validate causal runtime behavior, broker lifecycle, corrected diagnostics, V10 evidence, and research usability in the renewed human Strategy Tester workflow, then archive the completed plan and evidence.
 **Dependencies**: Sprint 9 gate and no source changes after the accepted compile.
 **Tracked scope**: Acceptance evidence, plan/archive indexes, and closeout documentation only.
 **Commit**: `docs: close out macro micro pivot v2 acceptance`
@@ -1106,8 +1106,8 @@ The offline builder may create typed Parquet copies plus a wide `research_matrix
 - Human Strategy Tester using `Every tick based on real ticks`.
 - Natural V10 run validation, dataset build, audit, and offline training smoke.
 - Corrected `query_debug.txt` event-time/null-semantics reconciliation when diagnostics are enabled.
-- Paired export-disabled/export-enabled cost measurement.
-- Visual and nonvisual chart inspection.
+- Renewed nonvisual completion plus source-scope review confirming that Sprint 9
+  did not alter exporter, execution, or chart behavior.
 
 **Rollback point**: Record the Sprint 9 commit. Reverting Sprint 10 removes only closeout documentation; it does not modify runtime code or external evidence.
 
@@ -1181,31 +1181,78 @@ The offline builder may create typed Parquet copies plus a wide `research_matrix
   - Inspect compact counts and selected rows, not full TSV/Parquet dumps.
 - **Rollback**: Return schema/research defects to Sprint 1 or Sprint 2; return outcome defects to Sprint 6.
 
-### Task 10.6: Measure Performance, Visuals, And Close Out
+### Task 10.6: Confirm Unchanged Runtime Scope And Close Out
 
 - **Location**: Human tester/chart, ignored evidence artifacts, `docs/research/archive/`, `docs/plans/archive/`, `docs/plans/README.md`, `docs/research/README.md`.
-- **Description**: Compare export disabled/enabled over the same 1-3 market days with logs off, inspect nonvisual/visual behavior, record elapsed time/rows/folder bytes, write acceptance evidence, record all sprint commit hashes/rollback points, and archive the completed plan without rewriting historical V9 evidence.
+- **Description**: Confirm the renewed nonvisual run completes naturally, use
+  source and byte-identity evidence to verify that the Sprint 9 diagnostic-only
+  patch did not alter exporter, execution, performance-sensitive, or visual
+  paths, record artifact sizes and row counts, write acceptance evidence,
+  record all sprint commit hashes/rollback points, and archive the completed
+  plan without rewriting historical V9 evidence.
 - **Dependencies**: Tasks 10.1-10.5.
 - **Acceptance criteria**:
-  - Nonvisual tester runs create no chart work.
-  - Visual mode shows bounded immutable entry/SL/TP lines.
+  - The renewed nonvisual tester run completes naturally and the bounded chart
+    contract has no post-compile source change.
   - Accepted run has `completion_status=NATURAL`, strict V10 integrity success, and documented binary/excluded/censored counts.
   - The plan archive README records all ten sprint commits and rollback points.
   - Live rollout remains explicitly unauthorized.
 - **Validation**:
-  - Compact artifact inventory, validation status, performance comparison, and final `git diff --check`.
+  - Compact artifact inventory, validation status, V10 byte identity,
+    diagnostic-only source-scope review, and final `git diff --check`.
 - **Rollback**: Revert only the Sprint 10 closeout commit; external tester evidence remains preserved outside tracked source unless intentionally archived.
 
 ### Sprint 10 Gate
 
-- [ ] All Sprint 10 tasks complete.
-- [ ] Human real-tick tester and chart acceptance is recorded.
-- [ ] Strict V10 natural-run validation and research flow pass.
-- [ ] Performance and visual/nonvisual evidence is recorded.
-- [ ] No source changed after the accepted Sprint 9 compile; otherwise a new corrective sprint repeated the compile gate before closeout.
-- [ ] Exactly one Sprint 10 commit is created with the proposed message.
-- [ ] The Sprint 10 rollback point and every prior sprint rollback point are recorded.
-- [ ] Plan and evidence are archived and indexed.
+- [x] All Sprint 10 tasks complete for the renewed human evidence requested by the owner.
+- [x] Human every-tick-real-ticks acceptance and its exact input setup are recorded.
+- [x] Strict V10 natural-run validation and research flow pass.
+- [x] The renewed nonvisual run completed naturally; the prior bounded visual/nonvisual contract remains unchanged by the diagnostic-only Sprint 9 source patch.
+- [x] No source changed after the accepted Sprint 9 compile.
+- [x] Exactly one Sprint 10 commit is created with the proposed message.
+- [x] The Sprint 10 rollback point and every prior sprint rollback point are recorded.
+- [x] Plan and evidence are archived and indexed.
+
+### Sprint 10 Integration Evidence
+
+- The owner reran XAUUSD with `Every tick based on real ticks`,
+  `EXNESS_SESSION`, Macro `H1`, Micro `M3`, reference-balance percentage
+  `0.01`, V10 export enabled, run ID `test_run_1`, terminal logs disabled, and
+  file diagnostics enabled.
+- The external evidence was regenerated after Sprint 9 at 21:32-21:33 on
+  2026-08-06. No tracked source changed after the accepted Sprint 9 compile.
+- All `20,775` populated broker/analysis/offset triples satisfy
+  `analysis_time = broker_time + offset_minutes`. The June-July XAUUSD run
+  correctly uses summer offset `0`. Static calendar review confirms the UK
+  metal policy uses `-60` before `2026.03.29 01:00:00`, `0` until
+  `2026.10.25 01:00:00`, then `-60`; broker time remains causal in every
+  season and the normalized clock remains export-only.
+- Corrected `query_debug.txt` SHA-256 is
+  `6fee77c5f048adb33af59d4ac4940650b4ce92f66247d53c7cd161345e6adf30`.
+  Its one session, `1,922` attempt, `1,910` send-result, and `1,909` terminal
+  events reconcile to V10 with zero missing identities or event-time
+  mismatches. All 12 denied attempts use `request_available=false`, render
+  unavailable request facts as `n/a`, and retain the configured `100` risk
+  budget.
+- Strict V10 validation passes with exactly six TSV files, `910` windows,
+  `1,922` attempts, `7,663` checks, and `1,909` outcomes. The run finishes
+  `NATURAL` with `export_status=OK`, zero incomplete snapshots, zero duplicate
+  identities, and zero referential or row-integrity errors.
+- Independent structure review reports zero violations for pivot formulas,
+  causal windows, PP roles, support-buy/resistance-sell triggers, route stops,
+  fresh quote 1R geometry, reference risk, weighted Bands, shared same-tick
+  snapshots, broker lifecycle, costs, slippage, and binary eligibility.
+- The renewed build contains `1,922` research rows and `1,908` strict binary
+  rows (`951` TP, `957` SL). The one manual close remains excluded. Audit and
+  all four offline XGBoost ablations complete with approval fixed at
+  `OFFLINE_RESEARCH_ONLY`; no MT5 runtime artifact is emitted.
+- The fresh V10 source tables are byte-identical to the pre-correction audited
+  run, while the debug file changes exactly as intended. The Sprint 9 patch is
+  therefore confirmed diagnostic-only and no additional corrective sprint is
+  required.
+- Sprint 9 rollback point: `4d0516ba58743c14f262d2c29e39e85fbdeb7b63`.
+  Sprint 10 rollback point: `e32cd730707117453e1cbb4768836a8e29fd2f70`.
+  Completion does not authorize live rollout.
 
 ## Testing Strategy
 
@@ -1307,22 +1354,22 @@ The offline builder may create typed Parquet copies plus a wide `research_matrix
 
 ## Completion Checklist
 
-- [ ] Public inputs expose only the approved Macro/Micro, execution, export, and debug settings.
-- [ ] One Macro shift-1 pivot window and two weighted Bands handles replace the old multi-timeframe/Stoch system.
-- [ ] Live Bid S/R triggers, PP arming, gap ordering, and consumed identity semantics match this plan.
-- [ ] Micro and Macro pivot `%B` plus normalized bandwidth features are causal, complete, and unclipped.
-- [ ] All eight structural SL routes and fresh quote 1R targets match the matrix.
-- [ ] Reference percentage sizing uses fixed `1,000,000`, and default risk budget is 100 account-currency units.
-- [ ] Trailing and SLTP modification behavior are absent.
-- [ ] V10 writes exactly six strict files under a new root.
-- [ ] Outcomes decompose exact price 1R, quote expectations, budget utilization, adverse-positive slippage, costs, net P&L, and both R bases.
-- [ ] Only broker TP/SL rows enter binary performance/model cohorts; every exclusion remains auditable.
-- [ ] Active retest/confluence/admission/trailing research code is removed.
-- [ ] XGBoost uses continuous normalized trigger-time features and purged, leakage-safe grouped chronology.
-- [ ] Existing Python tests pass without adding new test modules or dependencies.
-- [ ] Final MetaEditor compile reports `0 errors, 0 warnings` and regenerates `.ex5`.
-- [ ] Human real-tick Strategy Tester/chart acceptance passes.
-- [ ] Every sprint has exactly one sprint-specific commit and a recorded rollback point.
-- [ ] Active docs, product copy, environment commands, plan index, and research index describe V2/V10 only.
-- [ ] Historical V9 plans, evidence, runs, datasets, audits, and models remain preserved.
-- [ ] Live rollout remains unauthorized.
+- [x] Public inputs expose only the approved Macro/Micro, execution, export, and debug settings.
+- [x] One Macro shift-1 pivot window and two weighted Bands handles replace the old multi-timeframe/Stoch system.
+- [x] Live Bid S/R triggers, PP arming, gap ordering, and consumed identity semantics match this plan.
+- [x] Micro and Macro pivot `%B` plus normalized bandwidth features are causal, complete, and unclipped.
+- [x] All eight structural SL routes and fresh quote 1R targets match the matrix.
+- [x] Reference percentage sizing uses fixed `1,000,000`, and default risk budget is 100 account-currency units.
+- [x] Trailing and SLTP modification behavior are absent.
+- [x] V10 writes exactly six strict files under a new root.
+- [x] Outcomes decompose exact price 1R, quote expectations, budget utilization, adverse-positive slippage, costs, net P&L, and both R bases.
+- [x] Only broker TP/SL rows enter binary performance/model cohorts; every exclusion remains auditable.
+- [x] Active retest/confluence/admission/trailing research code is removed.
+- [x] XGBoost uses continuous normalized trigger-time features and purged, leakage-safe grouped chronology.
+- [x] Existing Python tests pass without adding new test modules or dependencies.
+- [x] Final MetaEditor compile reports `0 errors, 0 warnings` and regenerates `.ex5`.
+- [x] Human real-tick Strategy Tester acceptance passes.
+- [x] Every sprint has exactly one sprint-specific commit and a recorded rollback point.
+- [x] Active docs, product copy, environment commands, plan index, and research index describe V2/V10 only.
+- [x] Historical V9 plans, evidence, runs, datasets, audits, and models remain preserved.
+- [x] Live rollout remains unauthorized.

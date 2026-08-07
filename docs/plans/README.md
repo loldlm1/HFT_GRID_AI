@@ -2,15 +2,11 @@
 
 ## Active
 
-- `docs/plans/macro-micro-pivot-bandwidth-schema-v10-plan.md`: active ordered
-  implementation of `PIVOT_FRACTAL_V2`, one Macro/one Micro weighted-Bands
-  context, fixed-reference risk, immutable 1R execution, and strict schema V10.
-  Source integration and the final zero-warning compile are complete through
-  Sprint 7. Sprint 8 requires human real-tick acceptance before archival.
+- None. The `PIVOT_FRACTAL_V2` and strict schema V10 implementation completed
+  all ten sprints and is archived below.
 
-Do not start another substantial strategy, architecture, live-rollout, schema,
-or repository-wide change until the active plan is completed or explicitly
-superseded.
+Create a new explicit saved plan before another substantial strategy,
+architecture, live-rollout, schema, or repository-wide change.
 
 ## Archived
 
@@ -18,6 +14,10 @@ Completed and superseded plans live under `docs/plans/archive/`. They document
 their historical code and exporter revisions only; they are not active
 implementation guidance.
 
+- `docs/plans/archive/macro-micro-pivot-bandwidth-schema-v10-2026-08-06/README.md`:
+  completed `PIVOT_FRACTAL_V2`, one Macro/one Micro weighted-Bands context,
+  fixed-reference risk, immutable quote-based 1R execution, strict schema V10,
+  deterministic debug telemetry, and renewed real-tick acceptance.
 - `docs/plans/archive/pivot-fractal-engine-schema-v9-2026-07-29/README.md`:
   completed `PIVOT_FRACTAL_V1`, schema V9, causal snapshot, structural trailing,
   paired performance, and natural Strategy Tester acceptance work.

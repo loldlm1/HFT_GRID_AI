@@ -8,7 +8,8 @@ archive directories.
 ## Entrypoint And Active Work
 
 - Entrypoint: `HFT_Grid_AI.mq5`.
-- Active plan: `docs/plans/macro-micro-pivot-bandwidth-schema-v10-plan.md`.
+- Active plan: none. The completed V2/V10 plan is archived under
+  `docs/plans/archive/macro-micro-pivot-bandwidth-schema-v10-2026-08-06/`.
 - Architecture: `docs/architecture/market-data-broker-executor.md`.
 - Environment runbook: `docs/environment/mt5-agentic-workflows.md`.
 - Statistics workflow: `docs/workflows/pivot-fractal-statistics-flow.md`.
@@ -23,7 +24,6 @@ Use only skills that match the task and are installed under
   MetaEditor, and Strategy Tester work.
 - `token-saver-orchestrator` for RTK-first inspection and compact command
   evidence.
-- `planner` when a human explicitly requests a saved, sprint-based plan.
 
 Do not list or invoke unavailable skills as project requirements.
 

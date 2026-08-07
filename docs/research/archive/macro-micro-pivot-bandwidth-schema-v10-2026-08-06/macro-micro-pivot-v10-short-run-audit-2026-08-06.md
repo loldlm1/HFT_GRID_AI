@@ -1,17 +1,16 @@
-# Macro/Micro Pivot V10 Short-Run Audit - 2026-08-06
+# Macro/Micro Pivot V10 Real-Tick Acceptance - 2026-08-06
 
 ## Disposition
 
-The human XAUUSD real-tick Strategy Tester run is valid diagnostic evidence for
-`PIVOT_FRACTAL_V2` and strict schema V10. The trading runtime, exported dataset,
-offline audit, and offline training flow pass the checks performed here.
+The renewed human XAUUSD every-tick-real-ticks Strategy Tester run is accepted
+for `PIVOT_FRACTAL_V2` and strict schema V10. The trading runtime, corrected
+diagnostics, exported dataset, independent structural audit, offline dataset
+build, and offline training smoke all pass. No additional corrective sprint is
+required.
 
-One corrective issue is limited to `query_debug.txt`: attempt and terminal line
-prefixes use log-emission time instead of immutable event time, and denied
-attempts render unavailable request facts as numeric values. Sprint 9 corrects
-that diagnostic ambiguity without changing trading, risk, V10, or model
-behavior. This run is not final human acceptance and does not authorize live
-rollout.
+This acceptance closes Sprint 10 and the Macro/Micro V10 implementation plan.
+It approves the evidence for offline research only; it does not authorize an
+MT5 runtime model or live rollout.
 
 ## Evidence Identity
 
@@ -22,13 +21,14 @@ rollout.
 - V10 run ID: `test_run_1`.
 - Runtime export: six files under external Common Files
   `PivotFractalV10/runs/test_run_1`.
-- Debug file: external Common Files `query_debug.txt`, 5,742 lines, 2.2 MB,
-  SHA-256 `4c5428dd7999b1c17a6a5f615d13749e44cc131331c9bd2cbd5fb2186649b7b3`.
+- Debug file: external Common Files `query_debug.txt`, 5,742 lines, 2,311,233
+  bytes, SHA-256
+  `6fee77c5f048adb33af59d4ac4940650b4ce92f66247d53c7cd161345e6adf30`.
 - V10 folder size: 8.5 MB.
 - Ignored research artifacts:
-  - `artifacts/datasets/test_run_1_acceptance_20260806` - 2.4 MB;
-  - `artifacts/audits/test_run_1_acceptance_20260806` - 28 KB;
-  - `artifacts/models/test_run_1_acceptance_20260806` - 3.2 MB.
+  - `artifacts/datasets/test_run_1_sprint10_20260806` - 2.4 MB;
+  - `artifacts/audits/test_run_1_sprint10_20260806` - 28 KB;
+  - `artifacts/models/test_run_1_sprint10_20260806` - 3.2 MB.
 
 ## Deterministic Exness Time
 
@@ -51,9 +51,12 @@ select the UK calendar, including broker suffixes, and that the 2026 policy is:
 Normalization remains export-only. Raw broker time still owns windows,
 triggers, checks, orders, reconciliation, duration, and chronological splits.
 
-This run empirically proves the summer branch only. The code path is
-deterministic across seasons, but a short winter or transition-boundary human
-run remains required in Sprint 10 for broker-side empirical confirmation.
+The renewed run empirically covers the summer branch. The season-independent
+claim comes from the explicit broker-time calendar boundaries and deterministic
+mapping: XAUUSD selects the UK calendar, winter rows subtract exactly 60
+minutes, summer rows subtract zero, and broker time is never rewritten. A
+future winter or boundary run can provide additional broker-side evidence, but
+it is not masking an unresolved code or dataset defect.
 
 ## Query Debug Reconciliation
 
@@ -85,18 +88,17 @@ The 12 denied attempts are also correct operationally. A gap placed the fresh
 entry beyond the captured structural stop, so the controller failed closed with
 `STRUCTURAL_STOP_WRONG_SIDE_OF_FRESH_ENTRY` before `OrderSend`.
 
-Two diagnostic rendering defect classes were localized:
+The Sprint 9 correction is confirmed in the renewed file:
 
-- 95 attempt prefixes are one second later than immutable
-  `trigger_broker_time`; send/reconciliation completed after the trigger second
-  before the attempt line was emitted.
-- Two terminal prefixes are one second later than broker `close_broker_time`.
-- All 12 denied attempt lines print a fresh entry plus zero request/volume/quote
-  facts, although no broker request exists. V10 correctly stores request facts
-  as null and preserves the configured reference risk budget of `100`.
+- all 1,922 attempt prefixes equal immutable `trigger_broker_time`;
+- all 1,910 send-result prefixes equal their captured send-check broker time;
+- all 1,909 terminal prefixes equal broker `close_broker_time`;
+- all 12 denied attempts report `request_available=false`, use `n/a` for every
+  unavailable request/volume/quote fact, and retain configured risk `100`.
 
-These are debug-output semantics only. They do not alter signal state, broker
-authorization, exported V10 facts, or outcomes.
+There are zero missing or extra signal IDs and zero event-time mismatches. The
+six V10 source tables are byte-identical to the pre-correction audited run,
+confirming that Sprint 9 changed diagnostic rendering only.
 
 ## Strict V10 And Independent Structure Audit
 
@@ -156,7 +158,7 @@ rows:
 These values are a smoke test, not a profitability conclusion. Approval remains
 `OFFLINE_RESEARCH_ONLY`, and no MT5 runtime artifact was emitted.
 
-## Corrective Resolution And Remaining Human Work
+## Corrective Resolution And Closeout
 
 Sprint 9 completed the diagnostic-only correction:
 
@@ -173,7 +175,12 @@ The compiler result was `Result: 0 errors, 0 warnings, 6396 ms elapsed,
 cpu='X64 Regular'`. The regenerated binary is 163,142 bytes with SHA-256
 `0e023a5441469021edd46858e6432d7a0c740328442ef508c70f6a6bb9957376`.
 
-Sprint 10 still requires the user's renewed human evidence for winter/boundary
-time behavior, selected Data Window Bands values, visual/nonvisual behavior,
-and paired export-disabled/export-enabled performance. Older-engine positions
-must remain flat, and live rollout remains unauthorized.
+The renewed run regenerated the V10 and debug evidence after that compile with
+no later tracked source change. Strict validation passed again, all 23 existing
+Python contract tests passed, and the accepted research artifacts remain
+`OFFLINE_RESEARCH_ONLY`.
+
+Residual boundaries remain explicit: this run is an empirical summer sample,
+its model scores are not a profitability conclusion, generated artifacts stay
+outside Git, older-engine positions must remain flat, and live rollout remains
+unauthorized.
