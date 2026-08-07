@@ -1585,6 +1585,8 @@ def _validate_trials(
     parity_trials: dict[str, dict[str, str]] = {}
     policy_ids: dict[tuple[str, str, int], str] = {}
     matrix_identities: set[tuple[str, str, int, int]] = set()
+    initial_matrix_order: dict[str, list[tuple[str, int]]] = defaultdict(list)
+    matrix_trial_counts: dict[str, int] = defaultdict(int)
     for row_index, row in enumerate(rows, start=2):
         context = f"{VIRTUAL_TRIALS_FILE}:{row_index}"
         _validate_common_row(row, context, manifest)
@@ -1681,7 +1683,9 @@ def _validate_trials(
             if policy_key in policy_ids and policy_ids[policy_key] != policy_id:
                 raise SchemaValidationError(f"{context}: policy_id changed across retries")
             policy_ids[policy_key] = policy_id
+            matrix_trial_counts[origin_id] += 1
             if reentry_index == 0:
+                initial_matrix_order[origin_id].append((sl_policy, tp_multiple))
                 if declared_time != trigger_time:
                     raise SchemaValidationError(f"{context}: initial matrix trial not declared on origin tick")
                 if not _is_null(row["parent_trial_id"]) or not _is_null(
@@ -1795,26 +1799,16 @@ def _validate_trials(
         trials[trial_id] = row
 
     for origin_id, origin in origins.items():
-        initial = [
-            row
-            for row in trials.values()
-            if row["trial_role"] == "MATRIX"
-            and row["origin_id"] == origin_id
-            and row["reentry_index"] == "0"
-        ]
+        actual_order = initial_matrix_order.get(origin_id, [])
         if origin["matrix_declared"] == "1":
             expected_order = [(sl, tp) for sl in SL_POLICIES for tp in TP_R_MULTIPLES]
-            actual_order = [(row["sl_policy"], int(row["tp_r_multiple"])) for row in initial]
-            if len(initial) != INITIAL_MATRIX_SIZE or actual_order != expected_order:
+            if len(actual_order) != INITIAL_MATRIX_SIZE or actual_order != expected_order:
                 raise SchemaValidationError(
                     f"Origin {origin_id} must declare exactly sixteen initial matrix cells in policy order"
                 )
-        elif initial:
+        elif actual_order:
             raise SchemaValidationError(f"Origin {origin_id} suppressed matrix but exported cells")
-        if sum(
-            row["trial_role"] == "MATRIX" and row["origin_id"] == origin_id
-            for row in trials.values()
-        ) > MAX_MATRIX_TRIALS_PER_ORIGIN:
+        if matrix_trial_counts.get(origin_id, 0) > MAX_MATRIX_TRIALS_PER_ORIGIN:
             raise SchemaValidationError(f"Origin {origin_id} exceeds 52 matrix trial rows")
     return trials, policy_chains, parity_trials
 

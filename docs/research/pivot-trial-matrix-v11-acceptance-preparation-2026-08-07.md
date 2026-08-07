@@ -850,6 +850,36 @@ MetaEditor compile and remains active until renewed human real-tick, strict V11,
 broker, parity, performance, DST, and chart evidence pass. Archive and hook
 cleanup remain prohibited until then.
 
+## Sprint 17 Linear Validator Correction And Validation
+
+`_validate_trials()` now accumulates each origin's ordered index-0 matrix cells
+and total matrix row count during its existing single pass. The final origin
+gate uses direct per-origin lookups. Exact sixteen-cell order, suppressed-matrix
+rejection, and the 52-row cap are unchanged, while the former
+`origins x trials` scan is removed.
+
+Validation records:
+
+- Focused initial-matrix count/order/identity mutation test: pass.
+- Python compileall: pass.
+- Full Python contract suite: 24 tests pass in 9.621 seconds.
+- Preserved 299,967,529-byte failed run: reaches the expected strict error
+  `broker_outcomes.tsv:281: unexplained broker/parity TP/SL terminal mismatch`
+  in 144.69 seconds, with 1,930,264 KB peak RSS. The same command previously
+  remained inside the quadratic trial/origin gate after more than five minutes.
+- Deterministic fixture validate/build/audit: pass; audit remains the expected
+  `INSUFFICIENT_SUPPORT` result.
+- Training support guard: expected fail-closed result
+  `Not enough rows: 16 < 500`.
+- No schema token, runtime source, MetaEditor compile, MQL5 harness, test
+  EA/script, CI module, or automated Strategy Tester path changed.
+- `git diff --check`: pass.
+
+The remaining approximately 1.9 GB validator peak reflects loading and joining
+all strict raw tables in memory. Streaming the entire validator would be a much
+larger tooling redesign and is not justified by this run: the full failed path
+now completes in bounded time and reports the intended semantic blocker.
+
 ## Precompile Validation Record
 
 The frozen candidate has the following non-compiler evidence:

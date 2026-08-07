@@ -2082,6 +2082,8 @@ exposes a parity/session, run-completion, or validation-performance defect.
 
 ### Sprint 16 Gate
 
+**Sprint 16 commit**: `a82feac503de7f00539c80abf2552d8144b45ae8`.
+
 - [x] All Sprint 16 audit and plan-extension tasks complete.
 - [x] Compile evidence remains `0 errors, 0 warnings` with regenerated `.ex5`.
 - [x] Exness seasonal time, broker/query consistency, and matrix structure pass.
@@ -2089,7 +2091,7 @@ exposes a parity/session, run-completion, or validation-performance defect.
 - [x] Failed evidence remains unedited and the query copy is preserved.
 - [x] Corrective Sprints 17 through 19 are explicit and ordered.
 - [x] `git diff --check` passes.
-- [ ] Exactly one Sprint 16 commit is created and its SHA is recorded.
+- [x] Exactly one Sprint 16 commit is created and its SHA is recorded.
 - [x] Sprint 17 has not started before this gate completes.
 
 ## Sprint 17: Make Strict V11 Validation Linear In Run Size
@@ -2114,7 +2116,7 @@ Python contract coverage, and performance evidence
 - Schema rules, errors, artifacts, and accepted/rejected fixture behavior remain
   unchanged.
 
-**Rollback point**: Sprint 16 commit SHA.
+**Rollback point**: `a82feac` (Sprint 16).
 
 ### Task 17.1: Index initial matrix order and per-origin counts
 
@@ -2146,14 +2148,14 @@ Python contract coverage, and performance evidence
 
 ### Sprint 17 Gate
 
-- [ ] All Sprint 17 tasks complete.
-- [ ] The quadratic origin/trial scan is absent.
-- [ ] Large-run validation reaches the expected semantic blocker in bounded time.
-- [ ] Full Python validation passes without schema drift.
-- [ ] No MetaEditor compile or Strategy Tester automation is invoked.
-- [ ] `git diff --check` passes.
+- [x] All Sprint 17 tasks complete.
+- [x] The quadratic origin/trial scan is absent.
+- [x] Large-run validation reaches the expected semantic blocker in bounded time.
+- [x] Full Python validation passes without schema drift.
+- [x] No MetaEditor compile or Strategy Tester automation is invoked.
+- [x] `git diff --check` passes.
 - [ ] Exactly one Sprint 17 commit is created and its SHA is recorded.
-- [ ] Sprint 18 has not started before this gate completes.
+- [x] Sprint 18 has not started before this gate completes.
 
 ## Sprint 18: Align Parity With Broker-Executable Observation And Natural Run Completion
 
