@@ -444,6 +444,77 @@ class PivotFractalSchemaTests(unittest.TestCase):
 
         self.assert_mutation_rejected(mismatch_parity_terminal, "broker/parity TP/SL terminal mismatch")
 
+    def test_broker_parity_can_declare_at_origin_expiry(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            runs_root, run_path = self.copy_fixture(temp_dir)
+            boundary_time = "2026.01.12 11:00:00"
+            terminal_time = "2026.01.12 11:00:01"
+            mutate_row(
+                run_path,
+                VIRTUAL_TRIALS_FILE,
+                lambda row: row["trial_id"] == "parity_broker_sig_s1",
+                declared_broker_time=boundary_time,
+                declared_analysis_time=boundary_time,
+                origin_window_active_at_entry="0",
+            )
+            mutate_row(
+                run_path,
+                VIRTUAL_OUTCOMES_FILE,
+                lambda row: row["trial_id"] == "parity_broker_sig_s1",
+                terminal_broker_time=terminal_time,
+                terminal_analysis_time=terminal_time,
+                duration_seconds="1",
+            )
+            for phase, event_time in (
+                ("PRE_SEND", boundary_time),
+                ("SEND_RESULT", boundary_time),
+                ("TERMINAL", terminal_time),
+            ):
+                mutate_row(
+                    run_path,
+                    EXECUTION_CHECKS_FILE,
+                    lambda row, phase=phase: row["check_phase"] == phase,
+                    broker_time=event_time,
+                    analysis_time=event_time,
+                )
+            mutate_row(
+                run_path,
+                BROKER_OUTCOMES_FILE,
+                lambda row: True,
+                entry_broker_time=boundary_time,
+                entry_analysis_time=boundary_time,
+                close_broker_time=terminal_time,
+                close_analysis_time=terminal_time,
+                duration_seconds="1",
+            )
+            mutate_summary(
+                run_path,
+                finished_broker_time=terminal_time,
+                finished_analysis_time=terminal_time,
+            )
+
+            validate_run(runs_root, V11_FIXTURE.name)
+
+        self.assert_mutation_rejected(
+            lambda run_path: mutate_row(
+                run_path,
+                VIRTUAL_TRIALS_FILE,
+                lambda row: row["trial_id"] == "parity_broker_sig_s1",
+                origin_window_active_at_entry="0",
+            ),
+            "broker parity origin-window flag mismatch",
+        )
+        self.assert_mutation_rejected(
+            lambda run_path: mutate_row(
+                run_path,
+                VIRTUAL_TRIALS_FILE,
+                lambda row: row["trial_id"] == "trial_structural_tp1_r0",
+                declared_broker_time="2026.01.12 11:00:00",
+                declared_analysis_time="2026.01.12 11:00:00",
+            ),
+            "trial declaration is outside origin lifetime",
+        )
+
     def test_feature_incomplete_broker_outcome_is_excluded_from_calibration(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             runs_root, run_path = self.copy_fixture(temp_dir)

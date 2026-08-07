@@ -1688,7 +1688,8 @@ unnecessary deep copy from the active-trial tick path.
 `services/trading_signals/pivot_trial_matrix_lifecycle.mqh`,
 `services/trading_signals/pivot_fractal_statistics_export.mqh`,
 `tools/deterministic_signal_ml/schema_contract.py`, focused V11 Python tests,
-and acceptance evidence
+`AGENTS.md`, active architecture/workflow documentation, and acceptance
+evidence
 
 **Commit**: `fix: preserve accepted v11 parity at origin boundaries`
 
@@ -1704,7 +1705,7 @@ and acceptance evidence
 - Broker order routing, sizing, FOK, SL/TP, ticket ownership, and public inputs
   remain unchanged.
 
-**Rollback point**: Sprint 12 commit SHA.
+**Rollback point**: `c2fa5a0` (Sprint 12).
 
 ### Task 13.1: Define accepted-send parity lifetime semantics
 

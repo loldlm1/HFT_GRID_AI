@@ -110,15 +110,19 @@ bool BuildBrokerParityTrial(const PivotSignal &signal,
   datetime origin_expiry = macro_seconds > 0
                            ? signal.active_bar_open + macro_seconds
                            : 0;
+  bool trigger_in_origin_window =
+    origin_expiry > signal.active_bar_open &&
+    signal.trigger_time >= signal.active_bar_open &&
+    signal.trigger_time < origin_expiry;
   if(!send_check.allowed || signal.origin_id == "" ||
      signal.window_id == "" || signal.broker_signal_id == "" ||
      signal.active_bar_open <= 0 || signal.trigger_time <= 0 ||
+     !trigger_in_origin_window ||
      (signal.direction != BULLISH && signal.direction != BEARISH) ||
      !PivotTrialQuoteValid(entry_tick) || point_size <= 0.0 ||
      trade_tick_size <= 0.0 || send_check.stops_distance_points < 0.0 ||
      send_check.freeze_distance_points < 0.0 ||
      send_check.broker_time < signal.trigger_time ||
-     origin_expiry <= send_check.broker_time ||
      request.symbol != _Symbol || request.magic != g_execution_magic ||
      request.type != expected_type ||
      request.type_filling != ORDER_FILLING_FOK || request.volume <= 0.0 ||
@@ -255,7 +259,8 @@ bool BuildBrokerParityTrial(const PivotSignal &signal,
     send_check.quote_expected_reward_risk_ratio;
   trial_out.money_plan.complete = true;
   trial_out.eligibility_status = PIVOT_TRIAL_ELIGIBILITY_ACTIVE;
-  trial_out.origin_window_active_at_entry = true;
+  trial_out.origin_window_active_at_entry =
+    send_check.broker_time < origin_expiry;
   return true;
 }
 
@@ -952,14 +957,14 @@ void ProcessPivotTrialMatrixTick(const MqlTick &tick)
 
   for(int i = PivotTrialActiveStateCount() - 1; i >= 0; i--)
   {
-    PivotTrialActiveState previous_state;
-    previous_state.CopyFrom(g_pivot_trial_active_states[i]);
     PivotTrialOutcome outcome;
-    if(!ResolvePivotTrialFirstTouch(previous_state.trial,
+    if(!ResolvePivotTrialFirstTouch(g_pivot_trial_active_states[i].trial,
                                     tick,
                                     outcome))
       continue;
 
+    PivotTrialActiveState previous_state;
+    previous_state.CopyFrom(g_pivot_trial_active_states[i]);
     bool next_trial_declared = false;
     PivotTrialEntry next_trial;
     if(!ConfigurePivotTrialContinuation(previous_state,

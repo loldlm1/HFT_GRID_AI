@@ -311,9 +311,12 @@ remain auditable and are never relabeled as losses.
 
 One accepted real request creates one `BROKER_PARITY` row using the exact
 submitted entry, SL, TP, and normalized volume. Denied and failed sends create
-none. Parity is excluded from the sixteen matrix cells, retry chains, policy
-support, and model targets. Unexplained strict parity/broker TP/SL disagreement
-is an integrity failure.
+none. The causal trigger must be inside its Macro origin. If synchronous broker
+processing completes on or after the exact origin boundary, parity retains the
+accepted send timestamp and records `origin_window_active_at_entry=0`; matrix
+and re-entry declarations still cannot cross that boundary. Parity is excluded
+from the sixteen matrix cells, retry chains, policy support, and model targets.
+Unexplained strict parity/broker TP/SL disagreement is an integrity failure.
 
 Current DuckDB/Parquet, audit, and XGBoost code is offline-only. It cannot load
 into MT5, approve a runtime artifact, filter an attempt, or alter broker state.

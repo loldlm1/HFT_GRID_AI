@@ -192,7 +192,10 @@ realized profit after a fill.
   slippage, gross profit, commission, swap, fee, net profit, and realized R.
 - An accepted real request creates one parity shadow from the exact submitted
   entry, SL, TP, and normalized volume. It is outside the matrix/retry/ML
-  cohorts and exists only to measure virtual-versus-broker agreement.
+  cohorts and exists only to measure virtual-versus-broker agreement. The
+  trigger must belong to its Macro origin, but synchronous send completion may
+  cross the exact origin boundary; parity keeps the accepted send time and
+  exports `origin_window_active_at_entry=0` for that explicit case.
 - The primary virtual binary cohort contains feature-complete eligible
   `TP_FIRST`/`SL_FIRST` matrix rows. The broker TP/SL cohort and parity
   calibration remain separate; ineligible and censored rows are never losses.

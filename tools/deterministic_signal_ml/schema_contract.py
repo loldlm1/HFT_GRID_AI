@@ -1606,14 +1606,21 @@ def _validate_trials(
         trigger_time = _as_time(origin, "trigger_broker_time", context)
         expiry_time = _as_time(origin, "origin_expiry_broker_time", context)
         assert declared_time is not None and trigger_time is not None and expiry_time is not None
-        if not trigger_time <= declared_time < expiry_time:
-            raise SchemaValidationError(f"{context}: trial declaration is outside origin lifetime")
-        if not _as_bool(row, "origin_window_active_at_entry", context):
-            raise SchemaValidationError(f"{context}: trial declared from expired origin")
-
         role = row["trial_role"]
         if role not in ("MATRIX", "BROKER_PARITY"):
             raise SchemaValidationError(f"{context}: invalid trial role")
+        if declared_time < trigger_time:
+            raise SchemaValidationError(f"{context}: trial declaration precedes origin trigger")
+        origin_window_active = _as_bool(row, "origin_window_active_at_entry", context)
+        expected_origin_window_active = declared_time < expiry_time
+        if role == "MATRIX":
+            if not expected_origin_window_active:
+                raise SchemaValidationError(f"{context}: trial declaration is outside origin lifetime")
+            if not origin_window_active:
+                raise SchemaValidationError(f"{context}: trial declared from expired origin")
+        elif origin_window_active != expected_origin_window_active:
+            raise SchemaValidationError(f"{context}: broker parity origin-window flag mismatch")
+
         reentry_index = _as_int(row, "reentry_index", context)
         preceding_losses = _as_int(row, "preceding_loss_count", context)
         assert reentry_index is not None and preceding_losses is not None

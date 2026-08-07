@@ -386,12 +386,53 @@ evidence should compare the same interval with file/console logs disabled and
 export disabled versus enabled. No broader refactor or state-index abstraction
 is justified without that measurement.
 
+## Sprint 13 Corrective Implementation And Static Validation
+
+Sprint 13 keeps the accepted broker request authoritative. The parity builder
+now validates that the causal trigger belongs to
+`[active_bar_open, origin_expiry)`, retains the accepted send time as the parity
+declaration, and derives `origin_window_active_at_entry` from whether that send
+time is still before expiry. The exporter permits a false active-window flag
+only for a broker-parity row whose internal declaration/expiry facts agree.
+Matrix and re-entry rows still require the flag to be true.
+
+The strict Python contract mirrors that distinction. A complete linked fixture
+mutation moves pre-send, send, parity declaration, virtual outcome, terminal
+check, broker entry/close, and run-finish facts to the exact H1 boundary. It
+validates with `origin_window_active_at_entry=0`. Negative mutations reject a
+false parity flag before expiry and an index-0 matrix declaration at expiry.
+
+The bounded performance correction resolves TP/SL directly against the stored
+trial and copies the complete active state only after a first touch. Reverse
+iteration, continuation construction, outcome ordering, and removal behavior
+are unchanged. No cache, index, allocation policy, state cap, broker API, or
+public input changes.
+
+Sprint 13 non-compiler validation records:
+
+- Python compileall: pass.
+- Full Python contract suite: 23 tests pass in 8.801 seconds.
+- Exact-boundary parity test: pass.
+- Deterministic V11 fixture validate/build/audit: pass; audit status remains the
+  expected `INSUFFICIENT_SUPPORT` for the tiny fixture.
+- Training support guard: expected fail-closed result
+  `Not enough rows: 16 < 500`.
+- Broker safety sweep: one `OrderSend`, one `OrderCheck`, FOK only, no
+  `TRADE_ACTION_SLTP`, and no broker mutation in virtual modules.
+- Include aggregation, lifetime references, active-state ordering, and
+  whitespace checks: pass.
+
+No MetaEditor compile, MQL5 harness, test EA/script, CI module, or automated
+Strategy Tester run is used in Sprint 13. Rollback point is Sprint 12 commit
+`c2fa5a0`.
+
 ## Precompile Validation Record
 
 The frozen candidate has the following non-compiler evidence:
 
 - Python compileall: pass.
-- Full Python contract suite: 22 tests pass.
+- Full Python contract suite before Sprint 13: 22 tests pass; Sprint 13 expands
+  the suite to 23 passing tests.
 - Exact MQL5/Python V11 header parity: eight files pass.
 - Exact manifest key/fixed-token parity: 48 keys pass.
 - Deterministic V11 fixture: validation, build, and audit pass.

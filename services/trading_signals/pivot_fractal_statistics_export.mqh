@@ -1401,7 +1401,8 @@ bool PivotV11RecordVirtualTrial(const PivotTrialEntry &trial)
   if((!matrix_trial && !parity_trial) ||
      trial.identity.trial_id == "" ||
      trial.identity.origin_id == "" || trial.identity.window_id == "" ||
-     trial.declared_time <= 0 || !trial.origin_window_active_at_entry ||
+     trial.declared_time <= 0 ||
+     (matrix_trial && !trial.origin_window_active_at_entry) ||
      trial.geometry.entry_bid <= 0.0 ||
      trial.geometry.entry_ask < trial.geometry.entry_bid ||
      trial.geometry.entry_price <= 0.0 ||
@@ -1426,6 +1427,9 @@ bool PivotV11RecordVirtualTrial(const PivotTrialEntry &trial)
       trial.preceding_loss_count != 0 ||
       trial.parent_trial_id != "" ||
       trial.continuation_source_outcome_id != "" ||
+      trial.origin_expiry_time <= 0 ||
+      trial.origin_window_active_at_entry !=
+        (trial.declared_time < trial.origin_expiry_time) ||
       trial.eligibility_status != PIVOT_TRIAL_ELIGIBILITY_ACTIVE))
     return PivotV11RejectReference("RECORD_PARITY_TRIAL_IDENTITY_INVALID");
 

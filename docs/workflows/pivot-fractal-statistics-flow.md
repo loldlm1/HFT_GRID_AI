@@ -254,9 +254,11 @@ deposit, and inputs fixed for comparable runs. Record actual broker timestamps.
 10. Observe volatility retries, one-generation-per-tick behavior, next-pivot
     boundary suppression, gap-through handling, origin expiry, index-3 cap,
     and run-end censoring; use named static evidence for unreachable cases.
-11. Confirm accepted sends create one exact-geometry parity shadow, denied or
-    failed sends create none, and strict TP/SL pairs have no unexplained
-    terminal mismatch.
+11. Confirm accepted sends create one exact-geometry parity shadow, including
+    a send that completes on the exact origin boundary; that case keeps the
+    accepted send timestamp and records `origin_window_active_at_entry=0`.
+    Denied or failed sends create none, and strict TP/SL pairs have no
+    unexplained terminal mismatch.
 12. Validate the natural eight-file V11 run, long/wide/chain/calibration
     build, audit/train support guards, causal splits, and human filtering.
 13. Verify `FIXED_TIME_SESSIONS` and `EXNESS_SESSION` DST cases, bounded real
