@@ -1,30 +1,33 @@
-# Deterministic Pivot V10 Research
+# Deterministic Pivot V11 Research
 
-This directory validates strict schema V10 exports and builds offline research
-artifacts for `PIVOT_FRACTAL_V2`. It never loads a model into MT5, authorizes a
-trade, or emits a runtime-compatible model.
+This directory validates strict schema V11 exports and builds policy-aware
+offline research artifacts for `PIVOT_FRACTAL_V2`. It never loads a model into
+MT5, authorizes a trade, or emits a runtime-compatible model.
 
 ## Input Contract
 
-Each run contains exactly six TSV files:
+Each run contains exactly eight TSV files:
 
 - `run_manifest.tsv`
 - `pivot_windows.tsv`
-- `signal_attempts.tsv`
+- `signal_origins.tsv`
+- `virtual_trials.tsv`
+- `virtual_outcomes.tsv`
 - `execution_checks.tsv`
-- `signal_outcomes.tsv`
+- `broker_outcomes.tsv`
 - `run_summary.tsv`
 
-The active feature set is `schema_v10_macro_micro_pivot_bands`. Runs must agree
-on config ID, Macro/Micro timeframes, weighted-Bands policy, lot mode and size,
-reference balance, account currency, and feature set. V9 runs remain historical
-evidence and are rejected by active tooling.
+The active feature set is `schema_v11_pivot_trial_matrix`. Runs must agree on
+config ID, Macro/Micro timeframes, weighted-Bands policy, fixed matrix
+percentages/TPs, quote-side and minimum-distance rules, retry/capacity policy,
+lot mode and size, reference balance, account currency, and feature set. V9/V10
+runs remain historical evidence and are rejected by active tooling.
 
 ## Validate
 
 ```bash
 .venv/bin/python tools/deterministic_signal_ml/build_dataset.py \
-  --runs-root <PivotFractalV10/runs> \
+  --runs-root <PivotFractalV11/runs> \
   --run-id <run_id> \
   --validate-only
 ```
@@ -35,24 +38,30 @@ Repeat `--run-id` to validate compatible runs together.
 
 ```bash
 .venv/bin/python tools/deterministic_signal_ml/build_dataset.py \
-  --runs-root <PivotFractalV10/runs> \
+  --runs-root <PivotFractalV11/runs> \
   --run-id <run_id> \
   --dataset-id <dataset_id>
 ```
 
-The builder writes typed Parquet copies of the six source tables plus:
+The builder writes typed Parquet copies of the eight source tables plus:
 
-- `research_matrix.parquet`: one row per feature-complete consumed attempt,
-  including denied and nonbinary attempts as operational/audit facts.
-- `binary_outcomes.parquet`: only feature-complete, fully closed,
-  broker-confirmed TP/SL rows with target `1` for TP and `0` for SL.
+- `origin_matrix_long.parquet`: every matrix trial, including retries,
+  ineligible rows, and censored facts.
+- `initial_matrix_wide.parquet`: one human/agent comparison row per origin with
+  the initial sixteen cells; never used directly for model training.
+- `eligible_virtual_trials.parquet`: feature-complete eligible
+  `TP_FIRST`/`SL_FIRST` matrix rows with target `1/0` and per-origin weight.
+- `policy_chains.parquet`: one row per policy chain with attempt count, losses,
+  final state, nominal R, quote gross R, and censoring.
+- `broker_virtual_calibration.parquet`: paired accepted-request parity and
+  broker outcomes with terminal, timing, price, gross, R, and cost differences.
 
-The model contract uses only trigger-time categories and normalized continuous
-features: level/direction/time, Micro and Macro normalized widths, Micro `%B`
-shifts `0..5`, Macro pivot `%B` shifts `0..5`, trigger gap/risk, spread/risk,
-and Macro range/band width. Raw prices, tickets, route/send results, fill/close
-facts, slippage, costs, duration, and P&L stay available for audit but are not
-model inputs.
+The model contract uses only entry-known policy and market features:
+level/direction, SL policy, TP multiple, retry index/loss count, time, frozen
+origin width, normalized Micro/Macro widths, Micro `%B 0..5`, Macro pivot `%B
+0..5`, entry gap/risk, spread/risk, and Macro range/band width. Eligibility,
+continuation, first touch, parity, broker checks, fills/closes, slippage, costs,
+duration, and P&L stay available for audit but are not model inputs.
 
 `analysis_weekday` uses `0=Sunday` through `6=Saturday`. `analysis_session`
 uses neutral six-hour analysis-time buckets: `SESSION_00_05`, `SESSION_06_11`,
@@ -67,10 +76,12 @@ uses neutral six-hour analysis-time buckets: `SESSION_00_05`, `SESSION_06_11`,
   --minimum-group-support 30
 ```
 
-The audit separates operational denials and excluded outcomes from strict
-binary performance. It reports level/direction, calendar/session, and
-human-readable quintile groups. Bins are report-only; XGBoost receives the
-underlying continuous values.
+The audit separates origin/matrix support, virtual policy performance, chain
+results, broker execution, and parity calibration. It reports both unique
+origins and trial rows, expected nominal R, quote gross R, censoring, and
+calibration exclusions. Human bins are report-only; XGBoost receives the
+underlying continuous values. Any unexplained strict TP/SL parity mismatch
+fails the audit.
 
 ## Train
 
@@ -80,16 +91,17 @@ underlying continuous values.
   --model-id <model_id>
 ```
 
-Training uses only `binary_outcomes.parquet`, fixed seeds, a purged
-chronological holdout, and expanding walk-forward folds. All rows sharing
-`(symbol, Macro timeframe, active Macro bar open)` stay in one partition across
-duplicate run IDs. A training row is retained only when its broker close time
-is strictly earlier than the validation boundary.
+Training uses only `eligible_virtual_trials.parquet`, fixed seeds,
+origin-normalized sample weights, a purged chronological holdout, and expanding
+walk-forward folds. All rows sharing `(symbol, Macro timeframe, active Macro bar
+open)` stay in one partition across duplicate run IDs. A training row is
+retained only when its virtual terminal time is strictly earlier than the
+validation boundary.
 
 The deterministic ablation order is:
 
-1. level/direction/time plus normalized trigger gap and spread;
-2. add normalized Micro/Macro widths and Macro range/width;
+1. policy/level/direction/time plus normalized entry gap and spread;
+2. add frozen origin width, normalized Micro/Macro widths, and Macro range/width;
 3. add Micro `%B 0..5`;
 4. add Macro pivot `%B 0..5`.
 
@@ -99,8 +111,10 @@ manifest remains `OFFLINE_RESEARCH_ONLY` with
 
 ## Exclusions
 
-Manual, mixed-reason, stop-out, expert, other, denied, failed-send, and censored
-facts remain required for integrity and operations. They are not relabeled as
-losses and never enter the binary target. Fixed-lot and reference-risk datasets,
-different currencies, or different Macro/Micro configurations are not mixed in
-the initial research contract.
+Ineligible and censored virtual rows, parity shadows, manual/mixed/stop-out/
+expert/other broker outcomes, denied attempts, and failed sends remain required
+for integrity and operations. They are not relabeled as losses and never enter
+the primary virtual target. Broker-confirmed TP/SL outcomes stay in a separate
+cohort. Virtual gross is counterfactual and has no commission, swap, fee, or
+net-profit claim. Fixed-lot and reference-risk datasets, different currencies,
+or different Macro/Micro and matrix contracts are not mixed.

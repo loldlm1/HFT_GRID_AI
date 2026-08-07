@@ -1,8 +1,8 @@
 # Pivot Fractal Statistics Flow
 
 This is the active operator workflow for the always-on `PIVOT_FRACTAL_V2`
-collector, strict schema V10 export, broker execution checks, immutable 1R
-positions, and offline research tooling.
+collector, strict schema V11 export, one immutable structural 1R broker lane,
+virtual SL/TP policy trials, parity calibration, and offline research tooling.
 
 ## Runtime Identity
 
@@ -21,16 +21,18 @@ positions, and offline research tooling.
   `OrderCheck`, or `OrderSend` fails.
 
 ```text
-Macro window -> seven ordered levels -> consumed attempt
-                                      |-> shared Micro/Macro band snapshot
-                                      |-> candidate-specific Macro pivot %B
-                                      |-> observation/pre-send/send facts
-                                      `-> optional broker-confirmed outcome
+Macro window -> seven ordered levels -> consumed origin
+                                     |-> shared Micro/Macro band snapshot
+                                     |-> sixteen virtual policy trials
+                                     |   `-> independent volatility retry chains
+                                     |-> unchanged structural 1R broker attempt
+                                     |   `-> accepted-request parity shadow
+                                     `-> separate virtual/broker outcomes
 ```
 
 ## Time Contract
 
-Every time-bearing V10 fact retains broker time, analysis time, and offset.
+Every time-bearing V11 fact retains broker time, analysis time, and offset.
 
 - `FIXED_TIME_SESSIONS`: analysis time equals broker time.
 - `EXNESS_SESSION`: winter analysis time is broker time minus 60 minutes under
@@ -42,7 +44,7 @@ Every time-bearing V10 fact retains broker time, analysis time, and offset.
 
 ## Feature Snapshot
 
-V10 uses fixed built-in Bands parameters: period `21`, shift `0`, deviation
+V11 uses fixed built-in Bands parameters: period `21`, shift `0`, deviation
 `2.0`, SMA, and `PRICE_WEIGHTED`.
 
 - Micro `%B 0..5`: shift `0` uses trigger Bid; shifts `1..5` use matching
@@ -51,7 +53,7 @@ V10 uses fixed built-in Bands parameters: period `21`, shift `0`, deviation
 - Micro bandwidth: raw and normalized shift `0` at the observed trigger tick.
 - Macro bandwidth: raw and normalized shift `1` cached with the Macro source.
 - `%B = 100 * (price - lower) / (upper - lower)` and is not clipped.
-- Missing or noncausal features mark the attempt incomplete but do not change
+- Missing or noncausal features mark the research snapshot incomplete but do not change
   execution authorization.
 
 ## Route And Risk Facts
@@ -67,6 +69,33 @@ The authoritative pre-send TP is exactly one normalized price-distance R from
 fresh Ask for a buy or fresh Bid for a sell. Broker SL/TP are immutable after
 fill. No trailing or SL/TP modification events exist.
 
+The virtual origin matrix is fixed and internal:
+
+| SL policy | Stop construction | TP multiples | Retries |
+| --- | --- | --- | --- |
+| `STRUCTURAL` | Existing structural route | `1`, `2`, `3`, `5` | None |
+| `MICRO_BW_13` | Origin Micro width x `0.13` | `1`, `2`, `3`, `5` | `1..3` after own SL |
+| `MICRO_BW_21` | Origin Micro width x `0.21` | `1`, `2`, `3`, `5` | `1..3` after own SL |
+| `MICRO_BW_34` | Origin Micro width x `0.34` | `1`, `2`, `3`, `5` | `1..3` after own SL |
+
+The full shift-0 Micro Bands width is frozen at index `0` and reused by each
+retry. Stops round outward to the trade-tick grid; TP is rebuilt from the
+normalized risk ticks. A cell is active only when:
+
+```text
+risk points >= spread + max(stops level, freeze level) + trade tick points
+```
+
+Virtual buy entry is Ask and exit first touch is Bid. Virtual sell entry is Bid
+and exit first touch is Ask. Each TP multiple owns its own chain, so TP1 can
+finish while TP2/TP3/TP5 remain active. Only an `SL_FIRST` outcome may create
+that same chain's next generation.
+
+Inner retries must keep both the observed re-entry and proposed SL at least one
+trade tick inside the next outward pivot. Gap-through, equality, window expiry,
+retry cap, ineligible geometry, and run-end censoring are explicit states.
+`S3`/`R3` have no outward boundary and use the same maximum index `3`.
+
 Reference-percentage mode uses a fixed `1,000,000` account-currency reference.
 The default `0.01` percent requests a `100` unit risk budget before downward
 volume normalization. Quote expected SL/TP money and budget utilization are
@@ -80,23 +109,29 @@ Set `Enable_Signal_Feature_Export=true` and provide a unique
 be created safely. MT5 writes to:
 
 ```text
-Common\Files\PivotFractalV10\runs\<run_id>\
+Common\Files\PivotFractalV11\runs\<run_id>\
 ```
 
-Schema V10 contains exactly:
+Schema V11 contains exactly:
 
-- `run_manifest.tsv`: engine/config, timeframes, Bands, trigger, route, lot,
-  time, feature, cohort, and approval policies.
+- `run_manifest.tsv`: engine/config, timeframes, Bands, matrix, quote-side,
+  distance, retry, capacity, lot, money, cohort, and approval policies.
 - `pivot_windows.tsv`: Macro source candle, seven wide raw/trade levels, PP
   arming, cached shift-1 Macro bands, validity, and terminal state.
-- `signal_attempts.tsv`: consumed trigger, route/request geometry, Micro and
-  Macro pivot band facts, completeness, denial, and send status.
+- `signal_origins.tsv`: consumed identity, trigger quote, frozen origin
+  features/width, pivot ladder, structural route, broker-attempt link, and
+  origin expiry.
+- `virtual_trials.tsv`: matrix or parity identity, entry quote/features,
+  normalized geometry, broker-distance facts, hypothetical volume/money,
+  eligibility, and continuation references.
+- `virtual_outcomes.tsv`: TP/SL/censor first touch, threshold and observed exit,
+  gap, duration, nominal R, counterfactual quote gross, and chain terminal data.
 - `execution_checks.tsv`: ordered observation, pre-send, send, ownership, and
   terminal broker facts.
-- `signal_outcomes.tsv`: broker-confirmed entry/close, immutable SL/TP,
+- `broker_outcomes.tsv`: broker-confirmed entry/close, immutable SL/TP,
   slippage, costs, P&L, R values, close classification, and binary eligibility.
-- `run_summary.tsv`: row/cohort/exclusion/censoring counts, integrity status,
-  export status, and completion status.
+- `run_summary.tsv`: matrix/parity/broker counts, ineligibility, chain
+  terminals, state peak/cap, integrity, export, and completion status.
 
 Keep `Enable_Logs=false` and `Enable_File_Logs=false` for normal evidence runs.
 A manually stopped or outstanding-position run is useful for diagnosis but is
@@ -107,7 +142,7 @@ A manually stopped or outstanding-position run is useful for diagnosis but is
 
 ```bash
 export MT5_COMMON_FILES="$HOME/.wine/drive_c/users/loldlm/AppData/Roaming/MetaQuotes/Terminal/Common/Files"
-export PIVOT_RUNS_ROOT="$MT5_COMMON_FILES/PivotFractalV10/runs"
+export PIVOT_RUNS_ROOT="$MT5_COMMON_FILES/PivotFractalV11/runs"
 export PIVOT_RUN_ID="<run_id>"
 export PIVOT_DATASET_ID="<dataset_id>"
 
@@ -123,15 +158,21 @@ export PIVOT_DATASET_ID="<dataset_id>"
 ```
 
 Repeat `--run-id` to assemble compatible runs. The builder rejects mixed
-configuration, timeframe, Bands, lot, reference-balance, feature-set, or
-currency contracts.
+configuration, timeframe, Bands, matrix constants, quote sides, distance
+policy, retry/capacity policy, lot, reference balance, feature set, or currency.
 
-The output contains typed copies of all six tables plus:
+The output contains typed copies of all eight tables plus:
 
-- `research_matrix.parquet`: one row per feature-complete consumed attempt,
-  including operationally denied and nonbinary facts;
-- `binary_outcomes.parquet`: only feature-complete, fully closed, consistent
-  broker TP/SL rows, with `1=TP` and `0=SL`.
+- `origin_matrix_long.parquet`: every matrix row, including retries,
+  ineligible cells, and censored outcomes;
+- `initial_matrix_wide.parquet`: one human-readable row per origin with the
+  initial sixteen cells; never used directly as model input;
+- `eligible_virtual_trials.parquet`: feature-complete eligible matrix
+  `TP_FIRST`/`SL_FIRST` rows with the virtual target and per-origin weight;
+- `policy_chains.parquet`: one row per policy chain with attempts, losses,
+  final status, nominal R, quote gross R, and censoring;
+- `broker_virtual_calibration.parquet`: exact parity-shadow/broker pairs with
+  agreement, timing, price, gross, execution-R, and actual cost deltas.
 
 ## Audit And Train
 
@@ -146,33 +187,45 @@ The output contains typed copies of all six tables plus:
   --model-id <model_id>
 ```
 
-The audit separates integrity/operations from strict binary performance and
-can group by trigger time, level, direction, normalized Micro volatility,
-Micro `%B`, and Macro pivot `%B`. Human bins are report-only.
+The audit separates matrix support, virtual policy performance, chain results,
+broker execution, and parity calibration. It reports both unique-origin and
+trial-row support; retry rows are never presented as independent market
+origins. Unexplained eligible TP/SL parity disagreement fails the audit.
 
-Training uses normalized continuous trigger-time features, fixed seeds, a
-purged chronological holdout, and expanding walk-forward folds. Rows sharing
-the same `(symbol, Macro timeframe, active Macro bar open)` stay together
-across duplicate runs. A training outcome must close strictly before the next
-validation boundary.
+Training uses `eligible_virtual_trials.parquet`, fixed seeds, origin-normalized
+sample weights, a purged chronological holdout, and expanding walk-forward
+folds. Rows sharing one `(symbol, Macro timeframe, active Macro bar open)` stay
+together across duplicate runs. A training trial must terminate strictly
+before the next validation boundary.
 
-The deterministic ablation order is base level/direction/time, normalized
+The deterministic ablation order is policy/level/direction/time, normalized
 widths, Micro `%B`, then Macro pivot `%B`. Output is
 `OFFLINE_RESEARCH_ONLY`; no MT5 loader, runtime model export, research-based
 send filter, or pattern playback exists.
 
 ## Outcome Interpretation
 
-Only a feature-complete, fully closed position with one consistent owned
-`BROKER_TP` or `BROKER_SL` reason receives a binary target. Manual, mixed,
-stop-out, expert, other, denied, failed-send, and censored facts remain in raw
-and audit tables but are not treated as losses.
+The primary virtual target is `1` for feature-complete eligible `TP_FIRST` and
+`0` for feature-complete eligible `SL_FIRST`. Ineligible and censored rows have
+no target. Nominal policy value must consider the TP multiple, for example
+`p(TP) * tp_r_multiple - (1 - p(TP))`; win rate alone is insufficient.
 
-Do not filter the primary binary cohort using realized P&L or slippage. Those
-facts occur after the trigger and are diagnostics. A result such as `+130` or
-`-150` must be decomposed into quote expectation, budget utilization, entry
-and exit slippage, commission, swap, and fees rather than labeled generically
-as volatility slippage.
+The broker target remains separate: only a feature-complete, fully closed
+position with one consistent owned `BROKER_TP` or `BROKER_SL` reason qualifies.
+Manual, mixed, stop-out, expert, other, denied, failed-send, and censored facts
+remain auditable and are not treated as losses.
+
+Virtual quote gross is counterfactual `OrderCalcProfit` output. It contains no
+commission, swap, fee, latency, slippage, or net-profit claim. Broker deal
+history remains the sole authority for actual gross, costs, net, and realized
+execution R. Parity shadows are calibration-only and excluded from model and
+policy cohorts.
+
+Do not select either target cohort using realized P&L or slippage. Those facts
+occur after entry and are diagnostics. A broker result such as `+130` or `-150`
+must be decomposed into quote expectation, budget utilization, entry and exit
+slippage, commission, swap, and fees rather than labeled generically as
+volatility slippage.
 
 ## Human Strategy Tester Matrix
 
@@ -196,12 +249,21 @@ deposit, and inputs fixed for comparable runs. Record actual broker timestamps.
    `OrderCheck`, and fail-closed denial paths.
 8. Confirm broker SL/TP never changes after fill and TP/SL/manual/mixed/other
    outcomes reconcile by owned ticket with correct costs and slippage signs.
-9. Validate the natural six-file V10 run, build/audit/train flow, binary and
-   excluded counts, causal splits, and human filtering dimensions.
-10. Verify `FIXED_TIME_SESSIONS` and `EXNESS_SESSION` DST cases, bounded visual
-    entry/SL/TP lines, and zero chart work in nonvisual mode.
-11. Compare export disabled and enabled with file logs off over the same 1-3
-    market days; record elapsed time, rows, folder bytes, and final status.
+9. Verify one origin declares all sixteen index-0 cells, exact integer-R TP,
+   explicit ineligible cells, and independent TP-chain consumption.
+10. Observe volatility retries, one-generation-per-tick behavior, next-pivot
+    boundary suppression, gap-through handling, origin expiry, index-3 cap,
+    and run-end censoring; use named static evidence for unreachable cases.
+11. Confirm accepted sends create one exact-geometry parity shadow, denied or
+    failed sends create none, and strict TP/SL pairs have no unexplained
+    terminal mismatch.
+12. Validate the natural eight-file V11 run, long/wide/chain/calibration
+    build, audit/train support guards, causal splits, and human filtering.
+13. Verify `FIXED_TIME_SESSIONS` and `EXNESS_SESSION` DST cases, bounded real
+    position visuals, and zero chart work in nonvisual mode.
+14. Compare export disabled and enabled with file logs off over the same 1-3
+    market days; record elapsed time, peak state, rows, folder bytes, and final
+    status.
 
 MetaEditor compilation, Python fixtures, and static review do not replace this
 human gate.

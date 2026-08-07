@@ -12,6 +12,8 @@ dashboard, session scheduler, pending-order engine, or multi-leg grid system.
 
 ```text
 broker tick
+-> reconcile the one real structural 1R broker lane
+-> resolve current virtual TP/SL first touches and at most one retry per chain
 -> refresh one changed or retry-due Macro window
 -> calculate seven classic pivot levels from Macro shift 1
 -> cache Macro shift-1 weighted Bands and PP role state
@@ -21,13 +23,15 @@ broker tick
 -> build structural SL and observation-time 1R geometry
 -> repeat quote, volume, broker, margin, and OrderCheck facts pre-send
 -> OrderSend one FOK market request with immutable broker SL/TP
--> reconcile entry and close by owned broker ticket
--> record optional strict schema V10 facts
+-> declare the independent sixteen-cell origin matrix when export is enabled
+-> create one exact-geometry parity shadow only after an accepted send
+-> record strict schema V11 virtual, broker, and calibration facts
 ```
 
 Broker checks and execution remain active when persistence is disabled.
-`Enable_Signal_Feature_Export` controls V10 files and the two Bands handles; it
-never authorizes or denies a trade.
+`Enable_Signal_Feature_Export` controls V11 files, the two Bands handles, and
+all virtual trial state; it never authorizes, denies, delays, resizes, or
+duplicates a real trade.
 
 ## Timeframe And Window Ownership
 
@@ -120,9 +124,62 @@ project tolerance. The pivot ladder is never moved to force valid geometry.
 After a fill, broker SL and TP are immutable. The EA submits no stop
 modification, trailing, break-even, partial-close, or resize request.
 
+## Virtual Trial Matrix
+
+The matrix is a bounded counterfactual price-path engine, not a broker grid.
+Every export-enabled consumed origin declares the Cartesian product:
+
+```text
+SL = STRUCTURAL, MICRO_BW_13, MICRO_BW_21, MICRO_BW_34
+TP = 1R, 2R, 3R, 5R
+```
+
+This creates sixteen initial rows. Structural cells reuse the current route SL
+and never retry. Volatility cells freeze the full trigger-time Micro shift-0
+Bands width and request `13%`, `21%`, or `34%` of it. Risk normalizes outward
+to the trade-tick grid before each TP is constructed from the normalized tick
+count, preserving exact integer R after normalization.
+
+Virtual quote ownership is explicit:
+
+| Direction | Entry | TP/SL first touch |
+| --- | --- | --- |
+| Buy | Ask | Bid |
+| Sell | Bid | Ask |
+
+Every matrix cell must satisfy:
+
+```text
+normalized risk points >=
+  spread points + max(stops level points, freeze level points)
+  + trade tick points
+```
+
+Failed feature, geometry, distance, volume, or `OrderCalcProfit` checks produce
+an explicit ineligible row. Stops are not stretched and cells are not silently
+removed.
+
+Each volatility `(SL policy, TP multiple)` has its own chain. Index `0` is the
+origin trial; indices `1..3` can follow only that chain's immediately preceding
+`SL_FIRST`. Re-entry uses the current executable quote while preserving the
+origin width. A TP completes only its own chain. At most one generation per
+chain is created on one tick.
+
+For `PP`, `S1`, and `S2` buys, both retry entry and proposed SL must remain more
+than one trade tick above `S1`, `S2`, or `S3` respectively. The sell mapping is
+`PP -> R1`, `R1 -> R2`, and `R2 -> R3`, with both prices more than one tick
+below the boundary. Gap-through and equality suppress the old-context retry.
+`S3` and `R3` have no outer boundary and stop at index `3`. Window expiry
+allows an active trial to finish but prohibits another retry.
+
+Current matrix and parity state is capped at `2048`. Capacity exhaustion marks
+the research run failed, stops new virtual declarations, and does not evict
+existing trials or change broker execution. Remaining active state is exported
+as `CENSORED` at run end.
+
 ## Weighted Bands Feature Ownership
 
-The runtime creates two cached built-in `iBands` handles only when V10 export
+The runtime creates two cached built-in `iBands` handles only when V11 export
 is enabled:
 
 ```text
@@ -146,6 +203,10 @@ Buffers are `0=BASE_LINE`, `1=UPPER_BAND`, and `2=LOWER_BAND`.
 - Macro bandwidth is cached at shift `1` with the Macro source window.
 - Raw width is audit-only; normalized width is
   `100 * (upper - lower) / base` and is model-eligible.
+- One trigger batch shares one captured Bands snapshot. Each retry tick captures
+  at most one additional shared retry snapshot, regardless of chain count.
+- Volatility retries retain the frozen origin raw Micro width while their fresh
+  entry feature snapshot describes the retry market.
 
 Unavailable, noncausal, nonfinite, or zero-width facts make the feature
 snapshot incomplete. They never alter an otherwise valid execution decision.
@@ -216,30 +277,48 @@ and reconciliation. Analysis time is derived only for research features.
 | `EXNESS_SESSION`, winter | preserved | broker time minus 60 minutes | none |
 
 Exness metal prefixes use UK DST dates; other symbols use US DST dates. Every
-time-bearing V10 row retains broker time, analysis time, and offset. Causal
+time-bearing V11 row retains broker time, analysis time, and offset. Causal
 sorting uses broker time plus stable identity, never analysis time alone.
 
-## V10 Data Ownership
+## V11 Data Ownership
 
 The sole active export contract contains exactly:
 
 - `run_manifest.tsv`
 - `pivot_windows.tsv`
-- `signal_attempts.tsv`
+- `signal_origins.tsv`
+- `virtual_trials.tsv`
+- `virtual_outcomes.tsv`
 - `execution_checks.tsv`
-- `signal_outcomes.tsv`
+- `broker_outcomes.tsv`
 - `run_summary.tsv`
 
-The outcome table includes only broker-confirmed closed positions. A binary
-target exists only for a feature-complete full close whose owned closing volume
-has one consistent `BROKER_TP` or `BROKER_SL` reason. Manual, mixed, stop-out,
-expert, other, denied, failed-send, and censored facts remain required for
-integrity and operations but do not enter binary performance or XGBoost.
+The four research lanes stay distinct:
+
+| Lane | Authority | Use |
+| --- | --- | --- |
+| Virtual nominal R | Normalized matrix geometry and first touch | Primary policy comparison |
+| Virtual quote gross | `OrderCalcProfit` at observed virtual entry/exit | Counterfactual gross audit |
+| Broker gross/costs/net | Reconciled deal history | Actual execution cohort |
+| Broker-parity comparison | Exact accepted request shadow joined to broker close | Simulation agreement and drift |
+
+Only feature-complete eligible matrix `TP_FIRST`/`SL_FIRST` outcomes receive the
+primary virtual target. Each origin's eligible rows share total sample weight
+`1.0`. Broker binary eligibility remains a separate feature-complete,
+fully-closed, consistent `BROKER_TP`/`BROKER_SL` cohort. Manual, mixed,
+stop-out, expert, other, denied, failed-send, ineligible, and censored facts
+remain auditable and are never relabeled as losses.
+
+One accepted real request creates one `BROKER_PARITY` row using the exact
+submitted entry, SL, TP, and normalized volume. Denied and failed sends create
+none. Parity is excluded from the sixteen matrix cells, retry chains, policy
+support, and model targets. Unexplained strict parity/broker TP/SL disagreement
+is an integrity failure.
 
 Current DuckDB/Parquet, audit, and XGBoost code is offline-only. It cannot load
 into MT5, approve a runtime artifact, filter an attempt, or alter broker state.
-V9 evidence requires its historical repository revision and is not converted
-or relabeled by current tooling.
+Active tooling accepts schema V11 only. V9/V10 evidence requires its historical
+repository revision and is not converted, dual-written, or relabeled.
 
 ## Frontend Boundary
 

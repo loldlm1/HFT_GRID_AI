@@ -8,6 +8,7 @@ data collection and one small broker execution path. The entrypoint is
 
 ```text
 real broker tick
+-> reconcile the single real broker lane and active virtual trials
 -> one classic pivot ladder from the previous completed Macro candle
 -> live-Bid virtual support/resistance trigger
 -> shared Micro/Macro weighted-Bands snapshot
@@ -15,7 +16,8 @@ real broker tick
 -> fresh broker eligibility and OrderCheck
 -> one FOK hedging-account market position
 -> ticket-first reconciliation without trailing
--> optional strict schema V10 export
+-> independent 4 x 4 virtual SL/TP matrix with bounded volatility re-entries
+-> optional strict schema V11 export and broker-parity calibration
 ```
 
 The defaults are Macro `H1` and Micro `M3`. The Macro source is always shift
@@ -63,6 +65,33 @@ The authoritative TP is rebuilt from the fresh pre-send quote at exactly one
 normalized price-distance R. Broker SL and TP are never modified after fill;
 there is no trailing or break-even path.
 
+## Virtual Research Matrix
+
+When export is enabled, every consumed pivot origin also declares sixteen
+virtual trials without creating additional broker orders:
+
+| SL policy | Risk distance | TP chains | Re-entry |
+| --- | --- | --- | --- |
+| `STRUCTURAL` | Existing structural stop | `1R`, `2R`, `3R`, `5R` | None |
+| `MICRO_BW_13` | Trigger Micro width x `0.13` | `1R`, `2R`, `3R`, `5R` | Up to 3 |
+| `MICRO_BW_21` | Trigger Micro width x `0.21` | `1R`, `2R`, `3R`, `5R` | Up to 3 |
+| `MICRO_BW_34` | Trigger Micro width x `0.34` | `1R`, `2R`, `3R`, `5R` | Up to 3 |
+
+The full shift-0 Micro Bands width is frozen at the origin. Stops normalize
+outward to the symbol trade-tick grid, TP uses the normalized risk ticks, and
+each cell must satisfy:
+
+```text
+risk points >= spread + max(stops level, freeze level) + one trade tick
+```
+
+Virtual buys enter at Ask and resolve on Bid; sells enter at Bid and resolve on
+Ask. Each TP multiple owns an independent retry chain. Only that chain's
+`SL_FIRST` may create its next generation, and a reached TP never reopens.
+Inner-level retries stop before the next outward pivot; `S3` and `R3` use only
+the fixed three-retry cap. Invalid, boundary-blocked, expired, capacity-failed,
+and censored states remain explicit research facts.
+
 ## Bands And Sizing
 
 Research uses two cached built-in Bands handles with period `21`, deviation
@@ -95,40 +124,49 @@ Spread and live account balance are telemetry. Pivot prices are never moved to
 force acceptance. Non-hedging accounts continue collecting facts and fail
 sends closed.
 
-## Schema V10 Research
+## Schema V11 Research
 
 When export is enabled, MT5 writes exactly six strict TSV files under:
 
 ```text
-Common\Files\PivotFractalV10\runs\<run_id>\
+Common\Files\PivotFractalV11\runs\<run_id>\
 ```
 
 - `run_manifest.tsv`
 - `pivot_windows.tsv`
-- `signal_attempts.tsv`
+- `signal_origins.tsv`
+- `virtual_trials.tsv`
+- `virtual_outcomes.tsv`
 - `execution_checks.tsv`
-- `signal_outcomes.tsv`
+- `broker_outcomes.tsv`
 - `run_summary.tsv`
 
 Validate and build with:
 
 ```bash
 .venv/bin/python tools/deterministic_signal_ml/build_dataset.py \
-  --runs-root <PivotFractalV10/runs> \
+  --runs-root <PivotFractalV11/runs> \
   --run-id <run_id> \
   --validate-only
 
 .venv/bin/python tools/deterministic_signal_ml/build_dataset.py \
-  --runs-root <PivotFractalV10/runs> \
+  --runs-root <PivotFractalV11/runs> \
   --run-id <run_id> \
   --dataset-id <dataset_id>
 ```
 
-The builder emits one trigger-time `research_matrix.parquet` and a strict
-`binary_outcomes.parquet`. Only feature-complete, fully closed, consistent
-broker TP/SL outcomes enter the binary target. Denied, failed, censored,
-manual, mixed, stop-out, expert, and other facts remain auditable and are not
-relabeled as losses.
+The builder emits typed copies of all eight source tables plus
+`origin_matrix_long.parquet`, `initial_matrix_wide.parquet`,
+`eligible_virtual_trials.parquet`, `policy_chains.parquet`, and
+`broker_virtual_calibration.parquet`.
+
+The primary model target is the feature-complete eligible virtual first-touch
+result: `1=TP_FIRST`, `0=SL_FIRST`. Sample weight is normalized per origin so
+retry-heavy chains do not manufacture support. Broker TP/SL outcomes remain a
+separate execution cohort. An accepted real request also creates one
+calibration-only parity shadow from its exact submitted geometry and volume;
+virtual gross remains counterfactual and has no commission, swap, fee, or net
+claim.
 
 DuckDB/Parquet audits and XGBoost are offline research only. Current code does
 not load a model into MT5 or let research artifacts alter broker execution.
@@ -146,7 +184,7 @@ export-only.
   MetaEditor compile with `0 errors, 0 warnings`.
 - Human real-tick Strategy Tester/chart validation is mandatory at final
   integration.
-- Existing Python tests validate the V10 research contract, not MT5 runtime.
+- Existing Python tests validate the V11 research contract, not MT5 runtime.
 
 Final compile command:
 

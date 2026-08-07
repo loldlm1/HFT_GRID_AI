@@ -1,7 +1,7 @@
 # MT5 Agentic Workflows
 
 This runbook is the source of truth for local paths, the final MetaEditor
-compile gate, Common Files V10 artifacts, and compact evidence handling.
+compile gate, Common Files V11 artifacts, and compact evidence handling.
 
 Do not paste full compile logs, TSV/Parquet contents, model JSON, or generated
 datasets into chat. Report paths, sizes, counts, final status, and the first
@@ -17,7 +17,7 @@ $METAEDITOR = Join-Path $MT5_ROOT "MetaEditor64.exe"
 $EA_ENTRYPOINT = Join-Path $MT5_ROOT "MQL5\Experts\HFT_Grid_AI\HFT_Grid_AI.mq5"
 $COMPILE_LOG = Join-Path $MT5_ROOT "MQL5\Experts\HFT_Grid_AI\logs\compile\agentic-build.log"
 $MT5_COMMON_FILES = Join-Path $env:APPDATA "MetaQuotes\Terminal\Common\Files"
-$PIVOT_RUNS_ROOT = Join-Path $MT5_COMMON_FILES "PivotFractalV10\runs"
+$PIVOT_RUNS_ROOT = Join-Path $MT5_COMMON_FILES "PivotFractalV11\runs"
 ```
 
 ### Ubuntu/Wine
@@ -30,7 +30,7 @@ export METAEDITOR="$MT5_ROOT/MetaEditor64.exe"
 export EA_ENTRYPOINT="$MT5_ROOT/MQL5/Experts/HFT_Grid_AI/HFT_Grid_AI.mq5"
 export COMPILE_LOG="$MT5_ROOT/MQL5/Experts/HFT_Grid_AI/logs/compile/agentic-build.log"
 export MT5_COMMON_FILES="$HOME/.wine/drive_c/users/loldlm/AppData/Roaming/MetaQuotes/Terminal/Common/Files"
-export PIVOT_RUNS_ROOT="$MT5_COMMON_FILES/PivotFractalV10/runs"
+export PIVOT_RUNS_ROOT="$MT5_COMMON_FILES/PivotFractalV11/runs"
 ```
 
 If the Wine prefix changes, locate Common Files without dumping contents:
@@ -42,10 +42,13 @@ find "$HOME/.wine" "$HOME/.mt5" "$HOME/.config" -maxdepth 8 \
 
 ## Runtime Indicator Resources
 
-V10 feature export uses only cached built-in `iBands` handles: one for the
+V11 feature export uses only cached built-in `iBands` handles: one for the
 configured Macro timeframe and one for Micro. The handles use period `21`,
 deviation `2.0`, SMA, and `PRICE_WEIGHTED`; they are created during
 initialization only when export is enabled and released during deinitialization.
+
+The same export switch owns the bounded virtual matrix and parity state. No
+virtual state, V11 files, or additional Bands work exists when export is off.
 
 There is no custom Stochastic or Bollinger `.ex5` placement requirement.
 
@@ -118,7 +121,7 @@ python3 -m venv .venv
 Dependencies remain pinned. Generated datasets, audits, reports, and offline
 models stay under ignored `artifacts/` directories.
 
-## V10 Artifact Inventory
+## V11 Artifact Inventory
 
 ```bash
 export PIVOT_RUN_ID="<run_id>"
@@ -143,12 +146,19 @@ import duckdb
 
 dataset = Path("artifacts/datasets") / os.environ["PIVOT_DATASET_ID"]
 for name in (
+    "run_manifest.parquet",
     "pivot_windows.parquet",
-    "signal_attempts.parquet",
+    "signal_origins.parquet",
+    "virtual_trials.parquet",
+    "virtual_outcomes.parquet",
     "execution_checks.parquet",
-    "signal_outcomes.parquet",
-    "research_matrix.parquet",
-    "binary_outcomes.parquet",
+    "broker_outcomes.parquet",
+    "run_summary.parquet",
+    "origin_matrix_long.parquet",
+    "initial_matrix_wide.parquet",
+    "eligible_virtual_trials.parquet",
+    "policy_chains.parquet",
+    "broker_virtual_calibration.parquet",
 ):
     path = dataset / name
     if path.exists():
@@ -183,12 +193,13 @@ PY
 ```
 
 Training is offline-only and never approves or emits an MT5 runtime artifact.
-The builder creates `research_matrix.parquet` and `binary_outcomes.parquet` in
-addition to typed V10 tables.
+The builder creates long, wide, eligible-trial, policy-chain, and
+broker-parity calibration artifacts in addition to typed V11 tables.
 
-Record schema/run/config/engine identity; Macro/Micro and lot settings; window,
-attempt, check, outcome, binary, excluded, and censored counts; output sizes;
-and final validator status. Accepted evidence ends naturally with
+Record schema/run/config/engine identity; Macro/Micro, matrix, distance, retry,
+capacity, and lot settings; window, origin, trial, parity, broker, excluded,
+censored, chain-terminal, and support counts; output sizes; and final validator
+status. Accepted evidence ends naturally with
 `completion_status=NATURAL`, `export_status=OK`, and zero duplicate,
 referential, or row-integrity errors.
 
@@ -197,9 +208,10 @@ referential, or row-integrity errors.
 Use the matrix in `docs/workflows/pivot-fractal-statistics-flow.md` with
 `Every tick based on real ticks`. It covers causal Macro/Micro data, direct Bid
 virtual limits, PP arming, same-tick gaps, all route families, immutable SL/TP,
-broker denials, V10 features/outcomes, DST normalization, bounded visuals, and
-export performance.
+broker denials, V11 matrix/retries, parity calibration, DST normalization,
+bounded real-position visuals, and export performance.
 
 Compare export disabled and enabled with file logs off over the same 1-3 market
-days. Record elapsed time, row counts, and folder growth. Human acceptance is
-required; compilation and fixtures cannot substitute for it.
+days. Record elapsed time, active-state peak/cap status, row counts, and folder
+growth. Human acceptance is required; compilation and fixtures cannot
+substitute for it.

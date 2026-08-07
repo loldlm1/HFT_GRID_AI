@@ -8,7 +8,8 @@ archive directories.
 ## Entrypoint And Active Work
 
 - Entrypoint: `HFT_Grid_AI.mq5`.
-- Active plan: none. The completed V2/V10 plan is archived under
+- Active plan: `pivot-sl-tp-reentry-matrix-plan.md`. The accepted V2/V10
+  baseline remains archived under
   `docs/plans/archive/macro-micro-pivot-bandwidth-schema-v10-2026-08-06/`.
 - Architecture: `docs/architecture/market-data-broker-executor.md`.
 - Environment runbook: `docs/environment/mt5-agentic-workflows.md`.
@@ -52,6 +53,8 @@ controls, or compatibility aliases for removed inputs.
 
 ```text
 broker tick
+-> reconcile the one real structural 1R broker lane
+-> resolve active virtual trial TP/SL first touches and bounded re-entries
 -> refresh one causal Macro pivot window when its broker bar changes or retry is due
 -> calculate PP/S1..S3/R1..R3 from the previous completed Macro candle
 -> arm PP from the first causal live Bid side
@@ -61,8 +64,9 @@ broker tick
 -> build immutable structural SL and fresh quote 1R TP
 -> perform observation and fresh pre-send broker checks
 -> submit one FOK market order with broker SL/TP
--> reconcile by broker ticket without modifying protection
--> export broker-confirmed outcome and optional strict schema V10 facts
+-> declare an independent sixteen-cell virtual research matrix when export is enabled
+-> create one accepted-request broker-parity shadow after a successful send
+-> export separate virtual, broker, calibration, and strict schema V11 facts
 ```
 
 - `PIVOT_FRACTAL_V2` is the only signal source. One configured Macro timeframe
@@ -103,6 +107,34 @@ broker tick
   Budget utilization, broker slippage, costs, and realized R remain separate.
 - Broker SL and TP are immutable after fill. There is no trailing, break-even,
   partial close, position resize, or `TRADE_ACTION_SLTP` path.
+
+## Virtual Trial Matrix Contract
+
+- Export-enabled consumed origins declare sixteen index-0 virtual trials:
+  `STRUCTURAL`, `MICRO_BW_13`, `MICRO_BW_21`, and `MICRO_BW_34`, each paired
+  with `1R`, `2R`, `3R`, and `5R`.
+- The structural policy uses the existing next-pivot stop and never re-enters.
+  Volatility policies freeze the trigger Micro shift-0 full Bands width and use
+  `0.13`, `0.21`, or `0.34` of it for every generation in that chain.
+- Virtual buys enter at observed Ask and resolve on Bid. Virtual sells enter at
+  observed Bid and resolve on Ask. Stops normalize outward to the trade-tick
+  grid, and TP is rebuilt from normalized risk ticks for exact integer R.
+- Every matrix risk distance must be at least spread plus
+  `max(stops level, freeze level)` plus one trade tick. Invalid cells are
+  exported explicitly and never stretched, omitted, or routed to the broker.
+- Each volatility `(SL policy, TP multiple)` chain re-enters only after its own
+  `SL_FIRST`, at the next observed executable quote, with indices `0..3`.
+  A TP completes only that chain; it never reopens.
+- Inner-level retries require both entry and proposed SL to remain at least one
+  trade tick inside the next outward pivot. Gap-through, expired-window,
+  capacity, and retry-cap stops are explicit terminal facts. `S3`/`R3` use the
+  same three-retry cap without an outer pivot boundary.
+- Virtual state is bounded to `2048` active matrix/parity trials. Active trials
+  may resolve after window expiry, but no new retry may be created then. Run
+  termination censors remaining trials rather than relabeling them as losses.
+- Matrix trials, retries, and parity shadows are research-only. They cannot
+  authorize, deny, delay, resize, duplicate, close, or modify the one real
+  structural 1R broker order.
 
 ## Broker Safety Kernel
 
@@ -151,17 +183,23 @@ realized profit after a fill.
   exported; normalized widths are model features.
 - Feature availability never authorizes or denies execution. Missing feature
   data makes the research row incomplete.
-- Schema V10 owns exactly six TSV files under
-  `Common\Files\PivotFractalV10\runs\<run_id>\`: manifest, windows, attempts,
-  execution checks, outcomes, and summary.
-- Outcomes decompose entry/exit slippage, gross profit, commission, swap, fee,
-  net profit, budget-relative R, and executable-risk-relative R.
-- Only feature-complete, fully closed positions with one consistent
-  broker-confirmed TP or SL reason enter the binary cohort. Other outcomes and
-  censored attempts remain auditable and are never relabeled as losses.
-- Current Python tooling validates strict V10, builds leakage-safe
-  DuckDB/Parquet datasets, audits pivot behavior, and trains offline XGBoost
-  candidates. It has no runtime export, shadow/filter mode, or pattern playback.
+- Schema V11 owns exactly eight TSV files under
+  `Common\Files\PivotFractalV11\runs\<run_id>\`: manifest, windows, origins,
+  virtual trials, virtual outcomes, execution checks, broker outcomes, and
+  summary.
+- Virtual outcomes contain first-touch status, nominal R, and counterfactual
+  `OrderCalcProfit` gross only. Broker outcomes alone own actual fills,
+  slippage, gross profit, commission, swap, fee, net profit, and realized R.
+- An accepted real request creates one parity shadow from the exact submitted
+  entry, SL, TP, and normalized volume. It is outside the matrix/retry/ML
+  cohorts and exists only to measure virtual-versus-broker agreement.
+- The primary virtual binary cohort contains feature-complete eligible
+  `TP_FIRST`/`SL_FIRST` matrix rows. The broker TP/SL cohort and parity
+  calibration remain separate; ineligible and censored rows are never losses.
+- Current Python tooling accepts strict V11 only, builds long/wide/chain/
+  calibration DuckDB and Parquet artifacts, audits origin and row support, and
+  trains offline XGBoost trial candidates with per-origin sample weights. It
+  has no runtime export, filter mode, online learning, or pattern playback.
 
 ## Include Pipeline
 
@@ -176,8 +214,8 @@ services/frontend.mqh
 
 - Aggregators own include order; do not add sibling re-includes or cycles.
 - Keep source limited to one cached Macro pivot window, two Bands handles,
-  virtual trigger/context collection, broker execution/reconciliation, V10
-  telemetry, and bounded inspection.
+  virtual trigger/context collection, bounded V11 trial state, broker
+  execution/reconciliation, V11 telemetry, and bounded inspection.
 - The frontend draws at most 16 active positions with broker entry, immutable
   SL, immutable TP, and pivot identity. It cannot influence execution;
   nonvisual tester runs do no chart work.
