@@ -1,4 +1,4 @@
-"""Validate strict V10 runs and build leakage-safe Parquet research datasets."""
+"""Validate strict V11 runs and build policy-aware Parquet research datasets."""
 
 from __future__ import annotations
 
@@ -15,16 +15,10 @@ from report_writer import (
     write_quality_json,
 )
 from schema_contract import (
-    EXECUTION_CHECKS_FILE,
     FUTURE_ONLY_COLUMNS,
     MODEL_FEATURE_COLUMNS,
     NULL_TOKEN,
-    PIVOT_WINDOWS_FILE,
     RUN_FILES,
-    RUN_MANIFEST_FILE,
-    RUN_SUMMARY_FILE,
-    SIGNAL_ATTEMPTS_FILE,
-    SIGNAL_OUTCOMES_FILE,
     SUPPORTED_FEATURE_SET_ID,
     SUPPORTED_SCHEMA_VERSION,
     TABLE_COLUMNS,
@@ -36,17 +30,36 @@ from schema_contract import (
 
 
 DEFAULT_DATASET_ROOT = "artifacts/datasets"
-RESEARCH_MATRIX_TABLE = "research_matrix"
-BINARY_OUTCOMES_TABLE = "binary_outcomes"
+ORIGIN_MATRIX_LONG_TABLE = "origin_matrix_long"
+INITIAL_MATRIX_WIDE_TABLE = "initial_matrix_wide"
+ELIGIBLE_VIRTUAL_TRIALS_TABLE = "eligible_virtual_trials"
+POLICY_CHAINS_TABLE = "policy_chains"
+BROKER_VIRTUAL_CALIBRATION_TABLE = "broker_virtual_calibration"
+
+DERIVED_TABLES = (
+    ORIGIN_MATRIX_LONG_TABLE,
+    INITIAL_MATRIX_WIDE_TABLE,
+    ELIGIBLE_VIRTUAL_TRIALS_TABLE,
+    POLICY_CHAINS_TABLE,
+    BROKER_VIRTUAL_CALIBRATION_TABLE,
+)
 
 BOOLEAN_COLUMNS = {
     "macro_band_complete",
-    "micro_features_complete",
-    "macro_features_complete",
-    "feature_snapshot_complete",
+    "origin_micro_features_complete",
+    "origin_macro_features_complete",
+    "origin_feature_snapshot_complete",
     "identity_consumed",
-    "send_attempted",
-    "send_succeeded",
+    "matrix_declared",
+    "distance_eligible",
+    "boundary_eligible",
+    "virtual_money_plan_complete",
+    "entry_feature_snapshot_complete",
+    "origin_window_active_at_entry",
+    "virtual_binary_eligible",
+    "first_touch_consistent",
+    "chain_terminal",
+    "continuation_allowed",
     "account_margin_mode_supported",
     "symbol_trade_mode_allowed",
     "market_session_open",
@@ -55,6 +68,7 @@ BOOLEAN_COLUMNS = {
     "terminal_trade_allowed",
     "mql_trade_allowed",
     "volume_valid",
+    "fok_supported",
     "margin_valid",
     "geometry_valid",
     "stop_distance_valid",
@@ -63,10 +77,13 @@ BOOLEAN_COLUMNS = {
     "order_check_allowed",
     "allowed",
     "send_performed",
+    "send_succeeded",
     "broker_entry_confirmed",
     "broker_close_confirmed",
+    "protection_modified",
     "close_reason_consistent",
-    "binary_eligible",
+    "broker_binary_eligible",
+    "state_capacity_failed",
 }
 
 INTEGER_COLUMNS = {
@@ -78,11 +95,17 @@ INTEGER_COLUMNS = {
     "pp_arm_offset_minutes",
     "terminal_offset_minutes",
     "trigger_offset_minutes",
-    "request_offset_minutes",
+    "origin_expiry_offset_minutes",
+    "declared_offset_minutes",
+    "tp_r_multiple",
+    "reentry_index",
+    "preceding_loss_count",
+    "normalized_risk_ticks",
+    "virtual_binary_target",
+    "duration_seconds",
+    "next_reentry_index",
     "check_sequence",
     "offset_minutes",
-    "entry_offset_minutes",
-    "close_offset_minutes",
     "account_margin_mode",
     "symbol_trade_mode",
     "order_check_retcode",
@@ -91,32 +114,49 @@ INTEGER_COLUMNS = {
     "deal_ticket",
     "position_ticket",
     "position_identifier",
+    "entry_offset_minutes",
+    "close_offset_minutes",
     "entry_deal_ticket",
     "last_close_deal_ticket",
     "close_deal_count",
-    "binary_target",
-    "duration_seconds",
+    "broker_binary_target",
+    "started_offset_minutes",
+    "finished_offset_minutes",
     "pivot_window_rows",
-    "signal_attempt_rows",
+    "signal_origin_rows",
+    "virtual_trial_rows",
+    "matrix_trial_rows",
+    "reentry_trial_rows",
+    "parity_trial_rows",
+    "virtual_active_trial_rows",
+    "virtual_ineligible_feature_rows",
+    "virtual_ineligible_geometry_rows",
+    "virtual_ineligible_distance_rows",
+    "virtual_ineligible_money_rows",
+    "virtual_outcome_rows",
+    "matrix_tp_rows",
+    "matrix_sl_rows",
+    "matrix_censored_rows",
+    "parity_outcome_rows",
     "execution_check_rows",
-    "signal_outcome_rows",
-    "feature_complete_rows",
-    "feature_incomplete_rows",
-    "send_attempt_rows",
-    "send_succeeded_rows",
-    "broker_filled_rows",
-    "broker_closed_rows",
-    "binary_eligible_rows",
-    "binary_tp_rows",
-    "binary_sl_rows",
-    "excluded_outcome_rows",
-    "excluded_feature_incomplete_rows",
-    "excluded_mixed_rows",
-    "excluded_manual_rows",
-    "excluded_stop_out_rows",
-    "excluded_expert_rows",
-    "excluded_other_rows",
-    "censored_attempt_rows",
+    "broker_outcome_rows",
+    "broker_binary_eligible_rows",
+    "broker_binary_tp_rows",
+    "broker_binary_sl_rows",
+    "broker_excluded_rows",
+    "parity_pair_rows",
+    "parity_terminal_match_rows",
+    "parity_terminal_mismatch_rows",
+    "parity_excluded_rows",
+    "chain_tp_complete_rows",
+    "chain_structural_sl_rows",
+    "chain_reentry_cap_rows",
+    "chain_next_pivot_boundary_rows",
+    "chain_origin_expired_rows",
+    "chain_run_end_censored_rows",
+    "chain_ineligible_rows",
+    "active_state_peak",
+    "active_state_cap",
     "duplicate_identity_count",
     "referential_integrity_error_count",
     "row_integrity_error_count",
@@ -125,33 +165,24 @@ INTEGER_COLUMNS = {
 STRING_COLUMNS = {
     "key",
     "value",
-    "run_id",
-    "config_id",
-    "window_id",
-    "signal_id",
     "symbol",
     "macro_timeframe",
     "micro_timeframe",
-    "pp_initial_relation",
-    "pp_role",
-    "macro_band_invalid_reason",
-    "window_state",
-    "invalid_reason",
-    "terminal_status",
     "level_id",
     "direction",
+    "pp_initial_relation",
+    "pp_role",
     "lot_mode",
     "account_currency",
-    "feature_invalid_reason",
-    "route_status",
-    "attempt_status",
-    "block_source",
-    "block_reason",
+    "trial_role",
+    "sl_policy",
+    "entry_quote_side",
+    "exit_quote_side",
     "check_phase",
+    "fill_policy",
+    "trade_action",
     "order_check_comment",
     "send_comment",
-    "terminal_reason",
-    "exclusion_reason",
     "export_status",
     "completion_status",
 }
@@ -172,6 +203,21 @@ def _quoted(column: str) -> str:
     return '"' + column.replace('"', '""') + '"'
 
 
+def _is_string_column(column: str) -> bool:
+    return (
+        column in STRING_COLUMNS
+        or column.endswith("_id")
+        or column.endswith("_status")
+        or column.endswith("_state")
+        or column.endswith("_reason")
+        or column.endswith("_policy")
+        or column.endswith("_mode")
+        or column.endswith("_side")
+        or column.endswith("_currency")
+        or column.endswith("_timeframe")
+    )
+
+
 def _typed_expression(column: str) -> str:
     quoted = _quoted(column)
     nullified = f"NULLIF({quoted}, {_sql_literal(NULL_TOKEN)})"
@@ -181,7 +227,7 @@ def _typed_expression(column: str) -> str:
         return f"CAST(CAST({nullified} AS TINYINT) AS BOOLEAN) AS {quoted}"
     if column in INTEGER_COLUMNS:
         return f"CAST({nullified} AS BIGINT) AS {quoted}"
-    if column in STRING_COLUMNS:
+    if _is_string_column(column):
         return f"{nullified} AS {quoted}"
     return f"CAST({nullified} AS DOUBLE) AS {quoted}"
 
@@ -203,8 +249,8 @@ FROM read_csv(
   delim='\t',
   header=true,
   all_varchar=true,
-  union_by_name=true,
-  nullstr='__PIVOT_V10_NO_AUTOMATIC_NULL__'
+  union_by_name=false,
+  nullstr='__PIVOT_V11_NO_AUTOMATIC_NULL__'
 )
 """
     )
@@ -220,204 +266,426 @@ FROM {raw_table}
     connection.execute(f"DROP TABLE {raw_table}")
 
 
-def _create_research_matrix(connection: duckdb.DuckDBPyConnection) -> None:
-    micro_b_columns = ",\n  ".join(
-        f"a.micro_b_percent_{shift}" for shift in range(6)
+def _create_origin_matrix_long(connection: duckdb.DuckDBPyConnection) -> None:
+    outcome_columns = (
+        "outcome_id",
+        "terminal_broker_time",
+        "terminal_analysis_time",
+        "terminal_status",
+        "terminal_reason",
+        "threshold_price",
+        "observed_exit_bid",
+        "observed_exit_ask",
+        "observed_exit_price",
+        "gap_points",
+        "duration_seconds",
+        "virtual_nominal_r",
+        "virtual_quote_gross_profit",
+        "virtual_quote_gross_r",
+        "virtual_binary_eligible",
+        "virtual_binary_target",
+        "virtual_exclusion_reason",
+        "first_touch_consistent",
+        "chain_terminal",
+        "chain_terminal_reason",
+        "continuation_allowed",
+        "continuation_reason",
+        "next_reentry_index",
+        "next_trial_id",
     )
-    macro_b_columns = ",\n  ".join(
-        f"a.macro_pivot_b_percent_{shift}" for shift in range(6)
-    )
+    outcome_select = ",\n  ".join(f"vo.{column}" for column in outcome_columns)
     connection.execute(
         f"""
-CREATE TABLE {RESEARCH_MATRIX_TABLE} AS
+CREATE TABLE {ORIGIN_MATRIX_LONG_TABLE} AS
 SELECT
-  a.schema_version,
-  a.run_id,
-  a.config_id,
-  a.signal_id,
-  a.window_id,
-  a.symbol,
-  a.macro_timeframe,
-  a.micro_timeframe,
-  a.active_bar_open_broker_time,
-  a.level_id,
-  a.direction,
-  a.trigger_broker_time,
-  a.trigger_analysis_time,
-  a.trigger_offset_minutes,
+  vt.*,
+  so.symbol,
+  so.macro_timeframe,
+  so.micro_timeframe,
+  so.active_bar_open_broker_time,
+  so.trigger_broker_time,
+  so.trigger_analysis_time,
+  so.trigger_bid,
+  so.trigger_ask,
+  so.pivot_raw_price,
+  so.pivot_trade_price,
+  so.structural_sl_price,
+  so.origin_feature_snapshot_complete,
+  pw.source_open,
+  pw.source_high,
+  pw.source_low,
+  pw.source_close,
+  pw.source_range,
+  pw.macro_band_width_1,
   concat(
-    a.symbol,
+    so.symbol,
     '|',
-    a.macro_timeframe,
+    so.macro_timeframe,
     '|',
-    strftime(a.active_bar_open_broker_time, '%Y.%m.%d %H:%M:%S')
+    strftime(so.active_bar_open_broker_time, '%Y.%m.%d %H:%M:%S')
   ) AS research_group_id,
-  strftime(a.trigger_analysis_time, '%w') AS analysis_weekday,
+  strftime(vt.declared_analysis_time, '%w') AS analysis_weekday,
   CASE
-    WHEN EXTRACT(hour FROM a.trigger_analysis_time) < 6 THEN 'SESSION_00_05'
-    WHEN EXTRACT(hour FROM a.trigger_analysis_time) < 12 THEN 'SESSION_06_11'
-    WHEN EXTRACT(hour FROM a.trigger_analysis_time) < 18 THEN 'SESSION_12_17'
+    WHEN EXTRACT(hour FROM vt.declared_analysis_time) < 6 THEN 'SESSION_00_05'
+    WHEN EXTRACT(hour FROM vt.declared_analysis_time) < 12 THEN 'SESSION_06_11'
+    WHEN EXTRACT(hour FROM vt.declared_analysis_time) < 18 THEN 'SESSION_12_17'
     ELSE 'SESSION_18_23'
   END AS analysis_session,
   sin(
     2.0 * pi() *
-    (EXTRACT(hour FROM a.trigger_analysis_time) * 60.0 +
-     EXTRACT(minute FROM a.trigger_analysis_time)) / 1440.0
+    (EXTRACT(hour FROM vt.declared_analysis_time) * 60.0 +
+     EXTRACT(minute FROM vt.declared_analysis_time)) / 1440.0
   ) AS time_sin,
   cos(
     2.0 * pi() *
-    (EXTRACT(hour FROM a.trigger_analysis_time) * 60.0 +
-     EXTRACT(minute FROM a.trigger_analysis_time)) / 1440.0
+    (EXTRACT(hour FROM vt.declared_analysis_time) * 60.0 +
+     EXTRACT(minute FROM vt.declared_analysis_time)) / 1440.0
   ) AS time_cos,
-  a.micro_band_width_percent_0,
-  w.macro_band_width_percent_1,
-  {micro_b_columns},
-  {macro_b_columns},
-  CASE
-    WHEN a.direction = 'BUY' THEN a.pivot_trade_price - a.trigger_bid
-    ELSE a.trigger_bid - a.pivot_trade_price
-  END / NULLIF(a.observed_risk_distance_points * a.point_size, 0.0)
-    AS trigger_gap_to_risk,
-  a.spread_points / NULLIF(a.observed_risk_distance_points, 0.0)
-    AS spread_to_risk,
-  w.source_range / NULLIF(w.macro_band_width_1, 0.0)
-    AS macro_range_to_band_width,
-  w.source_open,
-  w.source_high,
-  w.source_low,
-  w.source_close,
-  w.source_range,
-  w.macro_band_width_1,
-  a.trigger_bid,
-  a.trigger_ask,
-  a.spread_points,
-  a.point_size,
-  a.pivot_raw_price,
-  a.pivot_trade_price,
-  a.structural_sl_price,
-  a.observed_entry_price,
-  a.observed_take_profit,
-  a.observed_risk_distance_points,
-  a.request_broker_time,
-  a.request_entry_price,
-  a.request_stop_loss,
-  a.request_take_profit,
-  a.request_risk_distance_points,
-  a.request_reward_distance_points,
-  a.request_price_reward_risk_ratio,
-  a.lot_mode,
-  a.lot_strategy_size,
-  a.reference_balance,
-  a.account_currency,
-  a.risk_budget_amount,
-  a.normalized_volume,
-  a.quote_expected_stop_loss,
-  a.quote_expected_take_profit,
-  a.quote_expected_reward_risk_ratio,
-  a.risk_budget_utilization_ratio,
-  a.route_status,
-  a.attempt_status,
-  a.block_source,
-  a.block_reason,
-  a.send_attempted,
-  a.send_succeeded,
-  o.entry_broker_time,
-  o.close_broker_time,
-  o.order_ticket,
-  o.position_identifier,
-  o.broker_entry_price,
-  o.close_price,
-  o.entry_slippage_points,
-  o.exit_slippage_points,
-  o.gross_profit,
-  o.commission,
-  o.swap,
-  o.fee,
-  o.net_profit,
-  o.gross_budget_r,
-  o.net_budget_r,
-  o.gross_execution_r,
-  o.net_execution_r,
-  o.terminal_reason,
-  o.binary_eligible,
-  o.binary_target,
-  o.exclusion_reason,
-  o.duration_seconds
-FROM signal_attempts a
-JOIN pivot_windows w
-  ON w.run_id = a.run_id
- AND w.config_id = a.config_id
- AND w.window_id = a.window_id
-LEFT JOIN signal_outcomes o
-  ON o.run_id = a.run_id
- AND o.config_id = a.config_id
- AND o.signal_id = a.signal_id
-WHERE a.identity_consumed
-  AND a.feature_snapshot_complete
-ORDER BY a.trigger_broker_time, a.run_id, a.signal_id
+  abs(vt.entry_price - so.pivot_trade_price)
+    / NULLIF(vt.normalized_risk_distance_price, 0.0) AS trigger_gap_to_risk,
+  vt.spread_points
+    / NULLIF(vt.normalized_risk_distance_points, 0.0) AS spread_to_risk,
+  pw.source_range / NULLIF(pw.macro_band_width_1, 0.0) AS macro_range_to_band_width,
+  {outcome_select}
+FROM virtual_trials vt
+JOIN signal_origins so
+  USING (run_id, config_id, origin_id, window_id)
+JOIN pivot_windows pw
+  USING (run_id, config_id, window_id)
+LEFT JOIN virtual_outcomes vo
+  USING (run_id, config_id, trial_id, origin_id, window_id)
+WHERE vt.trial_role = 'MATRIX'
+ORDER BY vt.declared_broker_time, vt.origin_id, vt.sl_policy, vt.tp_r_multiple, vt.reentry_index
 """
     )
+
+
+def _create_initial_matrix_wide(connection: duckdb.DuckDBPyConnection) -> None:
+    policy_cells: list[str] = []
+    for sl_policy in ("STRUCTURAL", "MICRO_BW_13", "MICRO_BW_21", "MICRO_BW_34"):
+        slug = sl_policy.lower()
+        for tp in (1, 2, 3, 5):
+            prefix = f"{slug}_tp{tp}"
+            predicate = f"sl_policy = '{sl_policy}' AND tp_r_multiple = {tp}"
+            for column in (
+                "trial_id",
+                "eligibility_status",
+                "ineligible_reason",
+                "terminal_status",
+                "virtual_binary_target",
+                "virtual_nominal_r",
+                "virtual_quote_gross_r",
+            ):
+                policy_cells.append(
+                    f"max(CASE WHEN {predicate} THEN {column} END) "
+                    f"AS {prefix}_{column}"
+                )
+    cells = ",\n  ".join(policy_cells)
     connection.execute(
         f"""
-CREATE TABLE {BINARY_OUTCOMES_TABLE} AS
-SELECT *
-FROM {RESEARCH_MATRIX_TABLE}
-WHERE binary_eligible
-  AND binary_target IN (0, 1)
-  AND close_broker_time IS NOT NULL
-ORDER BY trigger_broker_time, run_id, signal_id
+CREATE TABLE {INITIAL_MATRIX_WIDE_TABLE} AS
+SELECT
+  run_id,
+  config_id,
+  origin_id,
+  window_id,
+  symbol,
+  macro_timeframe,
+  micro_timeframe,
+  active_bar_open_broker_time,
+  level_id,
+  direction,
+  trigger_broker_time,
+  trigger_analysis_time,
+  trigger_bid,
+  trigger_ask,
+  pivot_trade_price,
+  origin_micro_band_width_0,
+  research_group_id,
+  {cells}
+FROM {ORIGIN_MATRIX_LONG_TABLE}
+WHERE reentry_index = 0
+GROUP BY ALL
+ORDER BY trigger_broker_time, run_id, origin_id
+"""
+    )
+
+
+def _create_eligible_virtual_trials(connection: duckdb.DuckDBPyConnection) -> None:
+    connection.execute(
+        f"""
+CREATE TABLE {ELIGIBLE_VIRTUAL_TRIALS_TABLE} AS
+SELECT
+  *,
+  1.0 / count(*) OVER (PARTITION BY run_id, config_id, origin_id)
+    AS origin_sample_weight,
+  1.0 / (tp_r_multiple + 1.0) AS break_even_tp_rate
+FROM {ORIGIN_MATRIX_LONG_TABLE}
+WHERE eligibility_status = 'ACTIVE'
+  AND virtual_binary_eligible
+  AND virtual_binary_target IN (0, 1)
+  AND terminal_status IN ('TP_FIRST', 'SL_FIRST')
+ORDER BY declared_broker_time, run_id, origin_id, policy_id, reentry_index
+"""
+    )
+
+
+def _create_policy_chains(connection: duckdb.DuckDBPyConnection) -> None:
+    connection.execute(
+        f"""
+CREATE TABLE {POLICY_CHAINS_TABLE} AS
+WITH ranked AS (
+  SELECT
+    *,
+    row_number() OVER (
+      PARTITION BY run_id, config_id, origin_id, policy_id
+      ORDER BY reentry_index DESC
+    ) AS final_rank
+  FROM {ORIGIN_MATRIX_LONG_TABLE}
+)
+SELECT
+  run_id,
+  config_id,
+  origin_id,
+  window_id,
+  policy_id,
+  symbol,
+  macro_timeframe,
+  micro_timeframe,
+  active_bar_open_broker_time,
+  level_id,
+  direction,
+  sl_policy,
+  tp_r_multiple,
+  research_group_id,
+  count(*) AS attempts,
+  sum(CASE WHEN terminal_status = 'SL_FIRST' THEN 1 ELSE 0 END) AS losses_before_success,
+  max(reentry_index) AS final_reentry_index,
+  sum(coalesce(virtual_nominal_r, 0.0)) AS closed_nominal_r,
+  sum(coalesce(virtual_quote_gross_profit, 0.0)) AS virtual_quote_gross_profit,
+  sum(coalesce(virtual_quote_gross_r, 0.0)) AS virtual_quote_gross_r,
+  max(CASE WHEN final_rank = 1 THEN eligibility_status END) AS final_eligibility_status,
+  max(CASE WHEN final_rank = 1 THEN terminal_status END) AS final_terminal_status,
+  max(CASE WHEN final_rank = 1 THEN chain_terminal_reason END) AS chain_terminal_reason,
+  max(CASE WHEN final_rank = 1 THEN ineligible_reason END) AS ineligible_reason,
+  bool_or(terminal_status = 'CENSORED') AS censored,
+  bool_or(terminal_status = 'TP_FIRST') AS reached_tp,
+  sum(CASE WHEN virtual_binary_eligible THEN 1 ELSE 0 END) AS binary_rows
+FROM ranked
+GROUP BY
+  run_id,
+  config_id,
+  origin_id,
+  window_id,
+  policy_id,
+  symbol,
+  macro_timeframe,
+  micro_timeframe,
+  active_bar_open_broker_time,
+  level_id,
+  direction,
+  sl_policy,
+  tp_r_multiple,
+  research_group_id
+ORDER BY active_bar_open_broker_time, run_id, origin_id, sl_policy, tp_r_multiple
+"""
+    )
+
+
+def _create_broker_virtual_calibration(connection: duckdb.DuckDBPyConnection) -> None:
+    connection.execute(
+        f"""
+CREATE TABLE {BROKER_VIRTUAL_CALIBRATION_TABLE} AS
+SELECT
+  bo.schema_version,
+  bo.run_id,
+  bo.config_id,
+  bo.broker_outcome_id,
+  bo.origin_id,
+  bo.broker_signal_id,
+  bo.parity_trial_id,
+  bo.window_id,
+  bo.symbol,
+  bo.macro_timeframe,
+  bo.micro_timeframe,
+  bo.level_id,
+  bo.direction,
+  bo.broker_terminal_reason,
+  vo.terminal_status AS virtual_terminal_status,
+  bo.broker_binary_eligible
+    AND vo.terminal_status IN ('TP_FIRST', 'SL_FIRST') AS strict_pair_eligible,
+  CASE
+    WHEN NOT bo.broker_binary_eligible THEN bo.broker_exclusion_reason
+    WHEN vo.terminal_status = 'CENSORED' THEN 'PARITY_CENSORED'
+    WHEN vo.terminal_status NOT IN ('TP_FIRST', 'SL_FIRST') THEN 'PARITY_NONBINARY'
+    ELSE NULL
+  END AS calibration_exclusion_reason,
+  CASE
+    WHEN bo.broker_terminal_reason = 'BROKER_TP' THEN vo.terminal_status = 'TP_FIRST'
+    WHEN bo.broker_terminal_reason = 'BROKER_SL' THEN vo.terminal_status = 'SL_FIRST'
+    ELSE NULL
+  END AS terminal_agreement,
+  vo.terminal_broker_time AS virtual_first_crossing_time,
+  bo.close_broker_time AS broker_close_time,
+  date_diff('second', vo.terminal_broker_time, bo.close_broker_time)
+    AS crossing_close_delta_seconds,
+  bo.submitted_request_price,
+  vt.entry_price AS virtual_entry_price,
+  bo.broker_entry_price,
+  (bo.broker_entry_price - bo.submitted_request_price) / NULLIF(vt.point_size, 0.0)
+    AS broker_entry_slippage_points,
+  vo.observed_exit_price AS virtual_exit_price,
+  bo.broker_close_price,
+  (bo.broker_close_price - vo.observed_exit_price) / NULLIF(vt.point_size, 0.0)
+    AS broker_minus_virtual_exit_points,
+  vo.virtual_quote_gross_profit,
+  bo.broker_gross_profit,
+  bo.broker_gross_profit - vo.virtual_quote_gross_profit AS broker_minus_virtual_gross_profit,
+  vo.virtual_quote_gross_r,
+  bo.broker_gross_execution_r,
+  bo.broker_gross_execution_r - vo.virtual_quote_gross_r
+    AS broker_minus_virtual_gross_execution_r,
+  bo.broker_commission,
+  bo.broker_swap,
+  bo.broker_fee,
+  bo.broker_net_profit
+FROM broker_outcomes bo
+JOIN virtual_trials vt
+  ON vt.run_id = bo.run_id
+ AND vt.config_id = bo.config_id
+ AND vt.parity_trial_id = bo.parity_trial_id
+ AND vt.trial_role = 'BROKER_PARITY'
+JOIN virtual_outcomes vo
+  ON vo.run_id = vt.run_id
+ AND vo.config_id = vt.config_id
+ AND vo.trial_id = vt.trial_id
+WHERE bo.parity_trial_id IS NOT NULL
+ORDER BY bo.close_broker_time, bo.run_id, bo.broker_signal_id
 """
     )
 
 
 def _validate_derived_tables(connection: duckdb.DuckDBPyConnection) -> None:
-    expected_research = int(
+    expected_long = int(
         connection.execute(
-            "SELECT COUNT(*) FROM signal_attempts "
-            "WHERE identity_consumed AND feature_snapshot_complete"
+            "SELECT count(*) FROM virtual_trials WHERE trial_role = 'MATRIX'"
         ).fetchone()[0]
     )
-    actual_research = int(
-        connection.execute(f"SELECT COUNT(*) FROM {RESEARCH_MATRIX_TABLE}").fetchone()[0]
+    actual_long = int(
+        connection.execute(f"SELECT count(*) FROM {ORIGIN_MATRIX_LONG_TABLE}").fetchone()[0]
     )
-    if actual_research != expected_research:
-        raise RuntimeError(
-            f"Research matrix grain mismatch: {actual_research} != {expected_research}"
-        )
-    duplicate_rows = int(
+    if actual_long != expected_long:
+        raise RuntimeError(f"Origin matrix long grain mismatch: {actual_long} != {expected_long}")
+    duplicate_long = int(
         connection.execute(
             f"""
-SELECT COUNT(*)
+SELECT count(*)
 FROM (
-  SELECT run_id, config_id, signal_id
-  FROM {RESEARCH_MATRIX_TABLE}
-  GROUP BY 1, 2, 3
-  HAVING COUNT(*) <> 1
+  SELECT run_id, config_id, trial_id
+  FROM {ORIGIN_MATRIX_LONG_TABLE}
+  GROUP BY ALL
+  HAVING count(*) <> 1
 )
 """
         ).fetchone()[0]
     )
-    if duplicate_rows:
-        raise RuntimeError("Research matrix contains duplicate attempt rows")
-    expected_binary = int(
+    if duplicate_long:
+        raise RuntimeError("Origin matrix long contains duplicate trial grain")
+    malformed_initial = int(
         connection.execute(
-            "SELECT COUNT(*) FROM signal_outcomes WHERE binary_eligible"
+            f"""
+SELECT count(*)
+FROM (
+  SELECT run_id, config_id, origin_id, count(*) AS cells
+  FROM {ORIGIN_MATRIX_LONG_TABLE}
+  WHERE reentry_index = 0
+  GROUP BY ALL
+  HAVING cells <> 16
+)
+"""
         ).fetchone()[0]
     )
-    actual_binary = int(
-        connection.execute(f"SELECT COUNT(*) FROM {BINARY_OUTCOMES_TABLE}").fetchone()[0]
+    if malformed_initial:
+        raise RuntimeError("Initial matrix wide source does not contain exactly sixteen cells")
+    expected_wide = int(
+        connection.execute("SELECT count(*) FROM signal_origins WHERE matrix_declared").fetchone()[0]
     )
-    if actual_binary != expected_binary:
+    actual_wide = int(
+        connection.execute(f"SELECT count(*) FROM {INITIAL_MATRIX_WIDE_TABLE}").fetchone()[0]
+    )
+    if actual_wide != expected_wide:
+        raise RuntimeError(f"Initial matrix wide grain mismatch: {actual_wide} != {expected_wide}")
+    expected_eligible = int(
+        connection.execute(
+            "SELECT count(*) FROM virtual_outcomes WHERE trial_role = 'MATRIX' "
+            "AND virtual_binary_eligible"
+        ).fetchone()[0]
+    )
+    actual_eligible = int(
+        connection.execute(f"SELECT count(*) FROM {ELIGIBLE_VIRTUAL_TRIALS_TABLE}").fetchone()[0]
+    )
+    if actual_eligible != expected_eligible:
         raise RuntimeError(
-            f"Binary outcome grain mismatch: {actual_binary} != {expected_binary}"
+            f"Eligible virtual-trial grain mismatch: {actual_eligible} != {expected_eligible}"
         )
-    matrix_columns = {
+    invalid_weights = int(
+        connection.execute(
+            f"""
+SELECT count(*)
+FROM (
+  SELECT run_id, config_id, origin_id, sum(origin_sample_weight) AS total_weight
+  FROM {ELIGIBLE_VIRTUAL_TRIALS_TABLE}
+  GROUP BY ALL
+  HAVING abs(total_weight - 1.0) > 1e-9
+)
+"""
+        ).fetchone()[0]
+    )
+    if invalid_weights:
+        raise RuntimeError("Eligible virtual-trial origin weights do not sum to one")
+    expected_chains = int(
+        connection.execute(
+            "SELECT count(DISTINCT (run_id, config_id, policy_id)) "
+            "FROM virtual_trials WHERE trial_role = 'MATRIX'"
+        ).fetchone()[0]
+    )
+    actual_chains = int(
+        connection.execute(f"SELECT count(*) FROM {POLICY_CHAINS_TABLE}").fetchone()[0]
+    )
+    if actual_chains != expected_chains:
+        raise RuntimeError(f"Policy-chain grain mismatch: {actual_chains} != {expected_chains}")
+    expected_calibration = int(
+        connection.execute(
+            "SELECT count(*) FROM broker_outcomes WHERE parity_trial_id IS NOT NULL"
+        ).fetchone()[0]
+    )
+    actual_calibration = int(
+        connection.execute(
+            f"SELECT count(*) FROM {BROKER_VIRTUAL_CALIBRATION_TABLE}"
+        ).fetchone()[0]
+    )
+    if actual_calibration != expected_calibration:
+        raise RuntimeError(
+            f"Broker/virtual calibration grain mismatch: {actual_calibration} != {expected_calibration}"
+        )
+    unexplained_mismatches = int(
+        connection.execute(
+            f"""
+SELECT count(*)
+FROM {BROKER_VIRTUAL_CALIBRATION_TABLE}
+WHERE strict_pair_eligible AND NOT terminal_agreement
+"""
+        ).fetchone()[0]
+    )
+    if unexplained_mismatches:
+        raise RuntimeError("Calibration contains unexplained strict TP/SL mismatch")
+    long_columns = {
         row[0]
-        for row in connection.execute(f"DESCRIBE {RESEARCH_MATRIX_TABLE}").fetchall()
+        for row in connection.execute(f"DESCRIBE {ORIGIN_MATRIX_LONG_TABLE}").fetchall()
     }
-    missing_features = sorted(set(MODEL_FEATURE_COLUMNS) - matrix_columns)
+    missing_features = sorted(set(MODEL_FEATURE_COLUMNS) - long_columns)
     if missing_features:
-        raise RuntimeError(f"Research matrix lacks model features: {missing_features}")
+        raise RuntimeError(f"Origin matrix long lacks model features: {missing_features}")
     leaked_features = sorted(set(MODEL_FEATURE_COLUMNS) & set(FUTURE_ONLY_COLUMNS))
     if leaked_features:
         raise RuntimeError(f"Future-only fields leaked into model features: {leaked_features}")
@@ -434,7 +702,7 @@ def create_dataset_tables(
             f"Only schema {SUPPORTED_SCHEMA_VERSION} dataset assembly is active"
         )
     if tuple(feature_columns) != MODEL_FEATURE_COLUMNS:
-        raise RuntimeError("Schema V10 requires the exact frozen feature set")
+        raise RuntimeError("Schema V11 requires the exact frozen feature set")
     if not validations:
         raise RuntimeError("At least one validated run is required")
     for filename in RUN_FILES:
@@ -445,15 +713,16 @@ def create_dataset_tables(
             [validation.run_path / filename for validation in validations],
             TABLE_COLUMNS[filename],
         )
-    _create_research_matrix(connection)
+    _create_origin_matrix_long(connection)
+    _create_initial_matrix_wide(connection)
+    _create_eligible_virtual_trials(connection)
+    _create_policy_chains(connection)
+    _create_broker_virtual_calibration(connection)
     _validate_derived_tables(connection)
-    table_names = [Path(filename).stem for filename in RUN_FILES] + [
-        RESEARCH_MATRIX_TABLE,
-        BINARY_OUTCOMES_TABLE,
-    ]
+    table_names = [Path(filename).stem for filename in RUN_FILES] + list(DERIVED_TABLES)
     return {
         table_name: int(
-            connection.execute(f"SELECT COUNT(*) FROM {table_name}").fetchone()[0]
+            connection.execute(f"SELECT count(*) FROM {table_name}").fetchone()[0]
         )
         for table_name in table_names
     }
@@ -493,7 +762,7 @@ def write_parquet_outputs(
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--runs-root", required=True, help="Folder containing V10 run folders.")
+    parser.add_argument("--runs-root", required=True, help="Folder containing V11 run folders.")
     parser.add_argument(
         "--run-id",
         action="append",
@@ -510,8 +779,7 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def main() -> int:
-    parser = build_parser()
-    args = parser.parse_args()
+    args = build_parser().parse_args()
     try:
         feature_columns = feature_columns_for_set(args.feature_set_id)
         validations = validate_runs(
@@ -519,28 +787,29 @@ def main() -> int:
             args.run_id,
             schema_version=args.schema_version,
         )
-        totals = {
-            filename: sum(validation.row_counts[filename] for validation in validations)
-            for filename in RUN_FILES
-        }
         if args.validate_only:
-            print(
-                "schema V10 validation ok | "
-                f"runs={len(validations)} | attempts={totals[SIGNAL_ATTEMPTS_FILE]} | "
-                f"outcomes={totals[SIGNAL_OUTCOMES_FILE]}"
-            )
+            for validation in validations:
+                print(
+                    f"validated run_id={validation.run_id} "
+                    f"origins={validation.signal_origin_rows} "
+                    f"trials={validation.virtual_trial_rows} "
+                    f"outcomes={validation.virtual_outcome_rows}"
+                )
             return 0
         if not args.dataset_id:
-            raise RuntimeError("--dataset-id is required when building a dataset")
-
-        output_dir = prepare_output_dir(Path(args.output_root), args.dataset_id, args.overwrite)
+            raise RuntimeError("--dataset-id is required unless --validate-only is used")
+        output_dir = prepare_output_dir(
+            Path(args.output_root),
+            args.dataset_id,
+            args.overwrite,
+        )
         connection = duckdb.connect(":memory:")
         try:
             counts = create_dataset_tables(
                 connection,
                 validations,
-                args.schema_version,
-                feature_columns,
+                schema_version=args.schema_version,
+                feature_columns=feature_columns,
             )
             output_files = write_parquet_outputs(connection, output_dir, counts)
             quality = build_quality_payload(connection, validations, counts)
@@ -556,15 +825,11 @@ def main() -> int:
             write_dataset_report(output_dir, args.dataset_id, quality)
         finally:
             connection.close()
-    except (SchemaValidationError, RuntimeError, ValueError, duckdb.Error) as exc:
-        parser.exit(1, f"pivot V10 dataset build failed: {exc}\n")
-
-    print(
-        "pivot V10 dataset build ok | "
-        f"dataset={args.dataset_id} | research_rows={counts[RESEARCH_MATRIX_TABLE]} | "
-        f"binary_rows={counts[BINARY_OUTCOMES_TABLE]} | output={output_dir}"
-    )
-    return 0
+        print(f"dataset_id={args.dataset_id} output={output_dir}")
+        return 0
+    except (RuntimeError, ValueError, SchemaValidationError, duckdb.Error) as exc:
+        print(f"ERROR: {exc}")
+        return 1
 
 
 if __name__ == "__main__":

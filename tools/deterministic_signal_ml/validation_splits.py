@@ -11,6 +11,7 @@ from sklearn.model_selection import TimeSeriesSplit
 
 
 GROUPING_POLICY = "macro_window_identity_across_runs"
+ORIGIN_WEIGHT_POLICY = "sum_to_one_per_origin_within_subset"
 
 
 @dataclass(frozen=True)
@@ -51,11 +52,27 @@ def _parse_time(value: Any, column: str) -> datetime:
 
 
 def _trigger_time(row: dict[str, Any]) -> datetime:
-    return _parse_time(row.get("trigger_broker_time"), "trigger_broker_time")
+    value = row.get("declared_broker_time", row.get("trigger_broker_time"))
+    return _parse_time(value, "declared_broker_time")
 
 
 def _close_time(row: dict[str, Any]) -> datetime:
-    return _parse_time(row.get("close_broker_time"), "close_broker_time")
+    value = row.get("terminal_broker_time", row.get("close_broker_time"))
+    return _parse_time(value, "terminal_broker_time")
+
+
+def origin_balanced_weights(
+    rows: list[dict[str, Any]],
+    indices: list[int],
+) -> list[float]:
+    counts: dict[str, int] = {}
+    for index in indices:
+        origin_id = rows[index].get("origin_id")
+        if origin_id in (None, ""):
+            raise ValueError("Training row lacks origin_id for sample weighting")
+        key = str(origin_id)
+        counts[key] = counts.get(key, 0) + 1
+    return [1.0 / counts[str(rows[index]["origin_id"])] for index in indices]
 
 
 def _identity_key(row: dict[str, Any], grouping_policy: str) -> tuple[str, ...]:
@@ -207,8 +224,9 @@ def build_time_splits(
             "active_bar_open_broker_time",
         ],
         "close_time_rule": (
-            "training close_broker_time must be strictly earlier than validation boundary"
+            "training terminal_broker_time must be strictly earlier than validation boundary"
         ),
+        "origin_weight_policy": ORIGIN_WEIGHT_POLICY,
         "holdout_fraction": holdout_fraction,
         "walk_forward_splits": n_splits,
         "walk_forward_gap_groups": gap,

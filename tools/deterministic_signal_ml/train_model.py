@@ -1,4 +1,4 @@
-"""Train offline-only V10 XGBoost binary candidates with ordered ablations."""
+"""Train offline-only V11 virtual-policy classifiers with ordered ablations."""
 
 from __future__ import annotations
 
@@ -40,7 +40,12 @@ from schema_contract import (
     SUPPORTED_SCHEMA_VERSION,
     TARGET_COLUMNS,
 )
-from validation_splits import GROUPING_POLICY, build_time_splits
+from validation_splits import (
+    GROUPING_POLICY,
+    ORIGIN_WEIGHT_POLICY,
+    build_time_splits,
+    origin_balanced_weights,
+)
 
 
 class TrainingError(RuntimeError):
@@ -94,15 +99,15 @@ def _read_json(path: Path) -> dict[str, Any]:
 
 
 def load_training_rows(dataset_path: Path) -> list[dict[str, Any]]:
-    matrix_path = dataset_path / "binary_outcomes.parquet"
+    matrix_path = dataset_path / "eligible_virtual_trials.parquet"
     if not matrix_path.is_file():
-        raise TrainingError(f"Missing binary outcomes matrix: {matrix_path}")
+        raise TrainingError(f"Missing eligible virtual-trials matrix: {matrix_path}")
     connection = duckdb.connect(":memory:")
     try:
         escaped = matrix_path.resolve().as_posix().replace("'", "''")
         relation = connection.execute(
             f"SELECT * FROM read_parquet('{escaped}') "
-            "ORDER BY trigger_broker_time, run_id, signal_id"
+            "ORDER BY declared_broker_time, run_id, origin_id, policy_id, reentry_index"
         )
         columns = [column[0] for column in relation.description]
         return [dict(zip(columns, row)) for row in relation.fetchall()]
@@ -138,14 +143,28 @@ def _classification_metrics(
 
 
 def _labels(rows: list[dict[str, Any]]) -> np.ndarray:
-    if any(row.get("binary_target") not in (0, 1, False, True) for row in rows):
-        raise TrainingError("Binary cohort contains a null or invalid target")
-    return np.asarray([int(row["binary_target"]) for row in rows], dtype=np.int64)
+    if any(row.get("virtual_binary_target") not in (0, 1, False, True) for row in rows):
+        raise TrainingError("Virtual binary cohort contains a null or invalid target")
+    return np.asarray(
+        [int(row["virtual_binary_target"]) for row in rows],
+        dtype=np.int64,
+    )
 
 
-def _require_support(rows: list[dict[str, Any]], min_rows: int, min_class_count: int) -> None:
+def _require_support(
+    rows: list[dict[str, Any]],
+    min_rows: int,
+    min_origins: int,
+    min_class_count: int,
+    min_class_origin_count: int,
+) -> None:
     if len(rows) < min_rows:
         raise TrainingError(f"Not enough rows: {len(rows)} < {min_rows}")
+    origin_ids = {str(row.get("origin_id", "")) for row in rows}
+    if "" in origin_ids:
+        raise TrainingError("Training cohort contains a row without origin_id")
+    if len(origin_ids) < min_origins:
+        raise TrainingError(f"Not enough unique origins: {len(origin_ids)} < {min_origins}")
     labels = _labels(rows)
     counts = {int(label): int(np.sum(labels == label)) for label in np.unique(labels)}
     if set(counts) != {0, 1}:
@@ -153,6 +172,20 @@ def _require_support(rows: list[dict[str, Any]], min_rows: int, min_class_count:
     if min(counts.values()) < min_class_count:
         raise TrainingError(
             f"Insufficient minority-class support: {min(counts.values())} < {min_class_count}"
+        )
+    class_origins = {
+        label: {
+            str(row["origin_id"])
+            for row in rows
+            if int(row["virtual_binary_target"]) == label
+        }
+        for label in (0, 1)
+    }
+    minority_origin_count = min(len(origins) for origins in class_origins.values())
+    if minority_origin_count < min_class_origin_count:
+        raise TrainingError(
+            "Insufficient minority-class unique-origin support: "
+            f"{minority_origin_count} < {min_class_origin_count}"
         )
 
 
@@ -182,16 +215,25 @@ def _fit_and_score(
     )
     encoder = FeatureEncoder.fit(train_rows, feature_columns, categorical)
     classifier = _classifier(classifier_config)
-    classifier.fit(encoder.transform(train_rows).matrix, train_labels)
+    classifier.fit(
+        encoder.transform(train_rows).matrix,
+        train_labels,
+        sample_weight=np.asarray(
+            origin_balanced_weights(rows, train_indices),
+            dtype=np.float64,
+        ),
+    )
     probability = classifier.predict_proba(encoder.transform(test_rows).matrix)[:, 1]
     predictions = [
         {
             "row_index": row_index,
             "run_id": row["run_id"],
-            "signal_id": row["signal_id"],
+            "origin_id": row["origin_id"],
+            "policy_id": row["policy_id"],
+            "trial_id": row["trial_id"],
             "research_group_id": row["research_group_id"],
-            "trigger_broker_time": row["trigger_broker_time"],
-            "close_broker_time": row["close_broker_time"],
+            "declared_broker_time": row["declared_broker_time"],
+            "terminal_broker_time": row["terminal_broker_time"],
             "actual_label": int(label),
             "predicted_probability": float(score),
         }
@@ -223,11 +265,11 @@ def _write_tsv(path: Path, rows: list[dict[str, Any]]) -> None:
 
 def _render_report(manifest: dict[str, Any], metrics: dict[str, Any]) -> str:
     lines = [
-        f"# Offline Pivot V10 Model: {manifest['model_id']}",
+        f"# Offline Pivot V11 Trial Model: {manifest['model_id']}",
         "",
         "Approval: `OFFLINE_RESEARCH_ONLY`",
         f"Dataset: `{manifest['dataset_id']}`",
-        f"Binary rows: `{manifest['training_rows']}`",
+        f"Eligible virtual trial rows: `{manifest['training_rows']}`",
         "",
         "## Ablations",
         "",
@@ -261,26 +303,39 @@ def train_candidate(
         raise TrainingError("Dataset feature set differs from requested feature set")
     if manifest_feature_set != SUPPORTED_FEATURE_SET_ID:
         raise TrainingError(f"Unsupported dataset feature set: {manifest_feature_set}")
-    feature_columns = tuple(dataset_manifest.get("feature_columns", ()))
+    feature_contract = dataset_manifest.get("feature_contract", {})
+    feature_columns = tuple(feature_contract.get("model_features", ()))
     if feature_columns != MODEL_FEATURE_COLUMNS:
-        raise TrainingError("Dataset manifest does not carry the exact V10 feature contract")
+        raise TrainingError("Dataset manifest does not carry the exact V11 feature contract")
     denied = {*FUTURE_ONLY_COLUMNS, *TARGET_COLUMNS}
     leaked = sorted(set(feature_columns) & denied)
     if leaked:
         raise TrainingError(f"Dataset feature contract contains denied fields: {leaked}")
-    if dataset_manifest.get("approval_state") != "OFFLINE_RESEARCH_ONLY":
+    if dataset_manifest.get("research_approval_state") != "OFFLINE_RESEARCH_ONLY":
         raise TrainingError("Dataset is missing the offline-only research boundary")
-    if dataset_manifest.get("split_grouping_policy") != GROUPING_POLICY:
+    if feature_contract.get("grouping_policy") != GROUPING_POLICY:
         raise TrainingError("Dataset split grouping policy is incompatible")
+    if feature_contract.get("origin_weight_policy") != (
+        "sum_to_one_per_origin_within_each_training_subset"
+    ):
+        raise TrainingError("Dataset origin-weight policy is incompatible")
+    if feature_contract.get("target") != "virtual_binary_target":
+        raise TrainingError("Dataset target is not the V11 virtual target")
 
     config = training_config_for_feature_set(manifest_feature_set)
     rows = load_training_rows(dataset_path)
     if not rows:
-        raise TrainingError("Binary outcomes matrix is empty")
+        raise TrainingError("Eligible virtual-trials matrix is empty")
     missing_columns = [column for column in MODEL_FEATURE_COLUMNS if column not in rows[0]]
     if missing_columns:
         raise TrainingError(f"Binary matrix is missing model features: {missing_columns}")
-    _require_support(rows, config.min_training_rows, config.min_class_count)
+    _require_support(
+        rows,
+        config.min_training_rows,
+        config.min_training_origins,
+        config.min_class_count,
+        config.min_class_origin_count,
+    )
     splits = build_time_splits(
         rows,
         holdout_fraction=config.holdout_fraction,
@@ -338,7 +393,14 @@ def train_candidate(
         )
         encoder = FeatureEncoder.fit(final_train_rows, ablation_columns, categorical)
         classifier = _classifier(config.classifier)
-        classifier.fit(encoder.transform(final_train_rows).matrix, _labels(final_train_rows))
+        classifier.fit(
+            encoder.transform(final_train_rows).matrix,
+            _labels(final_train_rows),
+            sample_weight=np.asarray(
+                origin_balanced_weights(rows, splits.train_indices),
+                dtype=np.float64,
+            ),
+        )
         model_path = output_dir / f"offline_classifier_{ablation_id}.json"
         encoder_path = output_dir / f"feature_encoder_{ablation_id}.json"
         classifier.get_booster().save_model(str(model_path))
@@ -363,10 +425,17 @@ def train_candidate(
             ablation_id: list(columns) for ablation_id, columns in FEATURE_ABLATIONS
         },
         "split_grouping_policy": GROUPING_POLICY,
+        "origin_weight_policy": ORIGIN_WEIGHT_POLICY,
         "training_rows": len(rows),
         "train_partition_rows": len(splits.train_indices),
         "holdout_rows": len(splits.holdout_indices),
         "classifier_config": asdict(config.classifier),
+        "support_config": {
+            "min_training_rows": config.min_training_rows,
+            "min_training_origins": config.min_training_origins,
+            "min_class_count": config.min_class_count,
+            "min_class_origin_count": config.min_class_origin_count,
+        },
         "model_files": model_files,
         "encoder_files": encoder_files,
         "approval_state": "OFFLINE_RESEARCH_ONLY",
@@ -402,10 +471,10 @@ def main() -> int:
         duckdb.Error,
         xgb.core.XGBoostError,
     ) as exc:
-        parser.exit(1, f"offline pivot V10 model training failed: {exc}\n")
+        parser.exit(1, f"offline pivot V11 model training failed: {exc}\n")
 
     print(
-        "offline pivot V10 model training ok | "
+        "offline pivot V11 model training ok | "
         f"model={manifest['model_id']} | rows={manifest['training_rows']} | "
         f"output={output_dir}"
     )
