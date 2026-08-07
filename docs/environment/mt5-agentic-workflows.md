@@ -211,6 +211,11 @@ virtual limits, PP arming, same-tick gaps, all route families, immutable SL/TP,
 broker denials, V11 matrix/retries, parity calibration, DST normalization,
 bounded real-position visuals, and export performance.
 
+Record the run with
+`docs/research/pivot-trial-matrix-v11-acceptance-preparation-2026-08-07.md`.
+Do not edit raw TSV evidence and do not replace the human gate with a new MQL5
+harness or automated tester workflow.
+
 Compare export disabled and enabled with file logs off over the same 1-3 market
 days. Record elapsed time, active-state peak/cap status, row counts, and folder
 growth. Human acceptance is required; compilation and fixtures cannot

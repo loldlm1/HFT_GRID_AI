@@ -13,6 +13,7 @@ Use these active documents:
 - `docs/workflows/pivot-fractal-statistics-flow.md`
 - `docs/workflows/pivot-fractal-offline-research-boundaries.md`
 - `docs/environment/mt5-agentic-workflows.md`
+- `docs/research/pivot-trial-matrix-v11-acceptance-preparation-2026-08-07.md`
 - `pivot-sl-tp-reentry-matrix-plan.md`
 - `docs/research/archive/macro-micro-pivot-bandwidth-schema-v10-2026-08-06/README.md`
 - `docs/plans/archive/macro-micro-pivot-bandwidth-schema-v10-2026-08-06/README.md`
