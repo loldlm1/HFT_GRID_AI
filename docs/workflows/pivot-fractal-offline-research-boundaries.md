@@ -1,6 +1,6 @@
 # Pivot Fractal Offline Research Boundaries
 
-Current research starts from strict `PIVOT_FRACTAL_V1` schema V9 exports and
+Current research starts from strict `PIVOT_FRACTAL_V2` schema V10 exports and
 ends in local DuckDB/Parquet datasets, deterministic audits, reports, and
 offline XGBoost candidates. Nothing in this workflow runs inside MT5 or changes
 broker execution.
@@ -11,12 +11,12 @@ dataset, audit, training, and human acceptance commands.
 ## Runtime Separation
 
 ```text
-deterministic pivot first touch
+deterministic Macro pivot trigger
 -> route and broker safety decisions inside MQL5
--> optional V9 fact persistence
+-> optional V10 fact persistence
 -> strict offline validation
--> leakage-safe dataset and audit
--> optional offline XGBoost experiment
+-> leakage-safe research matrix and binary cohort
+-> deterministic audit and optional offline XGBoost
 ```
 
 - Feature export never authorizes, denies, resizes, delays, or redirects a
@@ -24,96 +24,88 @@ deterministic pivot first touch
 - The MQL5 runtime has no model loader, model score, research threshold,
   inference mode, pattern matcher, or playback denial.
 - Broker session, permissions, Bid/Ask, structural geometry, stops/freeze,
-  volume, margin, `OrderCheck`, send retcodes, magic, ticket ownership,
-  trailing, and reconciliation remain deterministic MQL5 responsibilities.
+  volume, margin, `OrderCheck`, send retcodes, magic, ticket ownership, and
+  reconciliation remain deterministic MQL5 responsibilities.
 - Missing or malformed feature data invalidates research evidence while the
   independently valid broker path remains unchanged.
 
 ## Strict Input Contract
 
-The validator requires schema `9`, engine `PIVOT_FRACTAL_V1`, feature set
-`schema_v9_pivot_fractal_xgb`, exact frozen headers, unique keys, seven ordered
-levels per valid window, exactly six context rows per complete attempt,
-execution-chain integrity, ticket-owned trailing, and broker-confirmed entry
-plus close evidence for outcomes.
+The validator requires schema `10`, engine `PIVOT_FRACTAL_V2`, feature set
+`schema_v10_macro_micro_pivot_bands`, exact frozen headers, one Macro window,
+unique consumed identities, seven ordered levels, PP arming coherence, direct
+support-buy/resistance-sell direction, exact structural routes, price-distance
+1R, broker execution-chain ownership, decomposed costs, and strict summary
+counts.
 
-Older exporter revisions fail closed. Use the historical repository revision
-that created those rows; do not adapt, relabel, or combine them with V9.
+Each run contains exactly six TSV files. V9 and older exporter revisions fail
+closed. Use the historical repository revision that created those rows; do not
+adapt, relabel, or combine them with V10.
 
-## Leakage Boundary
+## Trigger-Time Feature Boundary
 
-Allowed model features are facts available at first touch:
+The approved model features are available when a pivot trigger is observed:
 
-- pivot timeframe, level, direction, normalized ladder geometry, and source
-  range;
-- previous M1 Bid close, trigger Bid/Ask, spread, and trigger-time calendar;
-- six context rows of Stoch Structure slots `0..2` and raw `%B` shifts `0..5`;
-- observation-time broker facts that do not depend on later send or outcome.
+- categorical `symbol`, `level_id`, `direction`, analysis weekday, and
+  analysis session;
+- normalized Micro shift-0 and Macro shift-1 bandwidth;
+- Micro `%B 0..5`;
+- Macro pivot `%B 0..5` using the immutable pivot price;
+- trigger gap and spread normalized by structural risk distance;
+- Macro source range normalized by Macro band width;
+- cyclical analysis-time values.
 
-The following are labels or audit-only facts and must not enter training
-features: window terminal state, route admission result, pre-send/send result,
-broker fill, trailing milestones, final stop, close facts, duration, terminal
-reason, and realized profit.
+Continuous values enter XGBoost directly. Audit reports may show quantile or
+range bins for human interpretation, but bins do not replace the model inputs.
 
-## Retest And Confluence Boundary
+Raw Bid/Ask, pivot/source prices, SL/TP, volume, IDs, tickets, and account
+balance remain identity or audit facts. Route/admission decisions, broker
+checks, request/send results, fills, closes, slippage, costs, duration,
+terminal reason, and P&L are future or outcome facts and must not enter model
+features.
 
-The offline retest table freezes the previous completed close relative to the
-anchor's immutable tested pivot price. It records `BUY_RETEST`, `SELL_RETEST`,
-`EQUAL_NEUTRAL`, or explicit `UNAVAILABLE` for M1, M15, M30, H1, H4, and D1.
-M1 is a context/audit fact as well as the first-touch direction check; it is not
-duplicated in the opt-in model columns.
+## Binary Outcome Boundary
 
-Do not confuse macro side context with an independent macro touch. A confluence
-member exists only for an actual V9 first-touch attempt and remains active on
-`[member_trigger_broker_time, member_window_terminal_broker_time)`. The member
-set is causal, bounded, and frozen at each same-trigger batch. Mixed BUY/SELL
-members, reversal interpretations at any level, and arbitrary timeframe
-combinations are expected research facts. Support/resistance names do not force
-direction, combinations are unordered, and `retest_sequence` is deliberately
-absent.
+The primary target is strict broker TP/SL:
 
-The opt-in feature contract `pivot_first_touch_confluence_v1` contains only
-five macro retest categories and bounded peer/context counts. It excludes M1
-retest type, IDs, canonical pattern strings, targets, outcomes, trailing facts,
-and every future-only field. DuckDB/Parquet remains the authoritative query
-layer; XGBoost is only an optional offline consumer.
+- target `1`: feature-complete, fully closed, consistent `BROKER_TP` outcome;
+- target `0`: feature-complete, fully closed, consistent `BROKER_SL` outcome.
 
-## Target Families
+Manual, mixed-reason, stop-out, expert, other, feature-incomplete, denied,
+failed-send, and censored rows remain required audit facts. They are excluded,
+not relabeled as losses. Realized P&L and slippage are diagnostics and must not
+be used to select the primary binary cohort because that would introduce
+post-outcome selection bias.
 
-- `broker_outcome`: filled positions with broker-confirmed closes; use for
-  profitability or realized-outcome research.
-- `admission`: all first-touch attempts, including denied and unfilled rows;
-  use for separate operational admission analysis.
+Exact price-distance 1R does not imply exact monetary symmetry. Research must
+keep quote expected loss/profit, reference-budget utilization, fill/close
+slippage, commission, swap, fee, gross/net P&L, budget R, and executable-risk R
+as separate explainable quantities.
 
-Do not mix the two families or treat denied attempts as broker losses. The
-pivot audit may compare structural break-even with realized money, but it does
-not manufacture simulated TP-before-SL labels.
+## Splitting And Configuration
 
-## Splitting And Artifacts
+Purged chronological holdout and expanding walk-forward folds keep every row
+from the same `(symbol, Macro timeframe, active Macro bar open)` in one
+partition across duplicate run IDs. A training row is eligible only when its
+broker close time is strictly earlier than the minimum broker trigger time in
+the validation fold. Analysis time never orders causal splits.
 
-Chronological holdout and walk-forward folds keep each
-`(run_id, symbol, window_id)` group in one partition so confluence identities
-from the same window cannot cross train/evaluation boundaries.
+The initial research contract fails closed when runs mix config IDs,
+Macro/Micro timeframes, Bands policy, lot mode/size, reference balance, feature
+set, or account currency. Fixed-lot and fixed-reference risk studies remain
+separate.
 
-Confluence feature datasets additionally group by `research_group_id`, which is
-the symbol plus D1 active broker window and intentionally omits run ID. This
-keeps duplicate historical periods across runs together. A valid feature
-ablation uses the exact same row identities, targets, groups, gap, folds, and
-holdout for both the base and confluence columns; native base and confluence
-metrics with different grouping policies are not directly comparable.
+## Artifacts And Promotion
 
 Generated datasets, audits, reports, and models remain under ignored
 `artifacts/` directories. Model folders are marked `OFFLINE_RESEARCH_ONLY` and
-are not deployment packages. A future runtime integration would require a new
+are not deployment packages. A future runtime integration requires a new
 explicit plan, frozen feature parity evidence, safety review, tester-only
 staging, human acceptance, and separate live-rollout authorization.
 
-The completed natural-run evidence, paired cost measurements, right-censoring
-handling, and fixed ablation are archived in
-`docs/research/archive/pivot-retest-confluence-offline-research-2026-07-30/pivot-retest-confluence-offline-acceptance.md`.
-
 ## Historical Work
 
-Archived execution, exporter, ML, and pattern experiments remain immutable
-under `docs/plans/archive/` and `docs/research/archive/`. They explain their own
-historical revisions only and are not active runbooks.
+Archived V9 execution, exporter, retest/confluence, ML, and pattern experiments
+remain immutable under `docs/plans/archive/` and `docs/research/archive/`.
+They explain their own historical revisions only and are not active runbooks or
+acceptance evidence for V2/V10.

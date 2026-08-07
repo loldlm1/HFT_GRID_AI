@@ -5,6 +5,8 @@
 - `docs/plans/macro-micro-pivot-bandwidth-schema-v10-plan.md`: active ordered
   implementation of `PIVOT_FRACTAL_V2`, one Macro/one Micro weighted-Bands
   context, fixed-reference risk, immutable 1R execution, and strict schema V10.
+  Source integration and the final zero-warning compile are complete through
+  Sprint 7. Sprint 8 requires human real-tick acceptance before archival.
 
 Do not start another substantial strategy, architecture, live-rollout, schema,
 or repository-wide change until the active plan is completed or explicitly

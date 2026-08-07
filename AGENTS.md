@@ -1,14 +1,14 @@
 # HFT Grid AI - Agent Brief
 
-This repository is an always-on pivot-fractal market-data collector with one
-small broker execution path. Keep active code and documentation focused on that
-contract; historical plans and evidence remain under their archive directories.
+This repository is an always-on Macro/Micro pivot-band market-data collector
+with one small broker execution path. Keep active code and documentation
+focused on that contract; historical plans and evidence remain under their
+archive directories.
 
 ## Entrypoint And Active Work
 
 - Entrypoint: `HFT_Grid_AI.mq5`.
-- Active plan: none. The completed pivot-fractal/schema V9 plan is archived
-  under `docs/plans/archive/pivot-fractal-engine-schema-v9-2026-07-29/`.
+- Active plan: `docs/plans/macro-micro-pivot-bandwidth-schema-v10-plan.md`.
 - Architecture: `docs/architecture/market-data-broker-executor.md`.
 - Environment runbook: `docs/environment/mt5-agentic-workflows.md`.
 - Statistics workflow: `docs/workflows/pivot-fractal-statistics-flow.md`.
@@ -33,10 +33,15 @@ The active EA exposes only these groups:
 
 | Group | Inputs |
 | --- | --- |
-| `+= Market Data Time =+` | `Broker_Session` |
+| `+= Market Data Time =+` | `Broker_Session`, `Macro_Timeframe`, `Micro_Timeframe` |
 | `+= Broker Execution =+` | `Lot_Type`, `Lot_Strategy_Size` |
 | `+= Signal Statistics Export =+` | `Enable_Signal_Feature_Export`, `Signal_Feature_Run_Id` |
 | `+= Developer Debug Settings =+` | `Enable_Logs`, `Enable_File_Logs` |
+
+Defaults are `Macro_Timeframe=PERIOD_H1`, `Micro_Timeframe=PERIOD_M3`,
+`Lot_Type=EXECUTION_LOT_REFERENCE_BALANCE_PERCENT`, and
+`Lot_Strategy_Size=0.01`. Timeframes must be explicit and supported, distinct,
+and Micro must be shorter than Macro.
 
 Do not restore licensing, account settings, configurable protection,
 user-defined sessions, spread thresholds, direction/concurrency selectors,
@@ -46,38 +51,58 @@ controls, or compatibility aliases for removed inputs.
 ## Runtime Contract
 
 ```text
-broker tick and previous completed M1 Bid close
--> refresh only causal changed or retry-due M15/M30/H1/H4/D1 pivot windows
--> discover unconsumed Bid first touches
--> capture one six-timeframe context snapshot per observed tick candidate batch
--> copy the frozen snapshot to every same-tick candidate
--> build immutable structural route
--> observation and fresh pre-send broker checks
--> one market order with broker structural SL and terminal pivot TP
--> ticket-first broker reconciliation
--> monotonic captured-level trailing
--> broker-confirmed outcome and optional schema V9 persistence
+broker tick
+-> refresh one causal Macro pivot window when its broker bar changes or retry is due
+-> calculate PP/S1..S3/R1..R3 from the previous completed Macro candle
+-> arm PP from the first causal live Bid side
+-> discover unconsumed live-Bid virtual-limit triggers
+-> capture one shared Micro/Macro weighted-Bands snapshot per tick batch
+-> derive candidate-specific Macro pivot %B
+-> build immutable structural SL and fresh quote 1R TP
+-> perform observation and fresh pre-send broker checks
+-> submit one FOK market order with broker SL/TP
+-> reconcile by broker ticket without modifying protection
+-> export broker-confirmed outcome and optional strict schema V10 facts
 ```
 
-- `PIVOT_FRACTAL_V1` is the only signal source. It calculates classic `PP`,
-  `S1..S3`, and `R1..R3` from shift `1` of fixed `M15`, `M30`, `H1`, `H4`,
-  and `D1` broker series. `M1` creates no pivot levels.
+- `PIVOT_FRACTAL_V2` is the only signal source. One configured Macro timeframe
+  creates classic `PP`, `S1..S3`, and `R1..R3` from broker shift `1`.
 - Each valid set lives for its actual broker-native active bar. No wall-clock
-  aggregation, incomplete candle, or synthetic missing bar is permitted.
+  aggregation, incomplete source candle, or synthetic missing bar is allowed.
 - Series visibility is subordinate to the observed tick: a current bar whose
-  open is later than the tick cannot activate a window or replace M1 context.
-- Previous completed M1 Bid close above a level plus live Bid at/below it is a
-  buy touch. Previous close below plus live Bid at/above it is a sell touch.
-  Equality is neutral. Buy orders execute at Ask; sell orders execute at Bid.
-- Identity is `(symbol, pivot timeframe, active bar open, level)`. First touch
-  consumes it even when the route or broker send is denied or fails. Direction
-  is the first-touch outcome and is not part of identity.
-- Filled positions retain their captured seven-level ladder and route after the
-  source window expires. Local state trails and reconciles by broker ticket.
-- Real execution requires `ACCOUNT_MARGIN_MODE_RETAIL_HEDGING`. Other account
-  modes continue collecting facts and fail sends closed.
-- The internal magic is stable, nonzero, and derived from the pivot namespace
-  plus symbol. There is no public magic input.
+  open is later than the tick cannot activate a window or feature snapshot.
+- `S1..S3` are buy-only and trigger when live Bid is at or below the level.
+  `R1..R3` are sell-only and trigger when live Bid is at or above the level.
+- PP observed above arms a future support buy; PP observed below arms a future
+  resistance sell. Equality remains neutral until Bid first leaves PP.
+- Identity is `(symbol, Macro timeframe, active bar open, level)`. First
+  trigger consumes it even when routing or broker execution is denied or
+  fails. Direction is an outcome and is not part of identity.
+- Downward same-tick path order is buy-armed `PP`, `S1`, `S2`, `S3`; upward
+  order is sell-armed `PP`, `R1`, `R2`, `R3`.
+- Buy triggers use Bid and execute at fresh Ask. Sell triggers and execution
+  use Bid. Trigger, pivot, request, fill, and close prices remain distinct.
+- The stable nonzero magic is derived from the V2 namespace plus symbol.
+  Older-engine positions must never be adopted, closed, or modified by V2.
+
+## Route And Sizing Contract
+
+- Buy stops: `PP -> S1`, `S1 -> S2`, `S2 -> S3`, and
+  `S3 -> S3 - (S2 - S3)`.
+- Sell stops: `PP -> R1`, `R1 -> R2`, `R2 -> R3`, and
+  `R3 -> R3 + (R3 - R2)`.
+- The authoritative pre-send buy TP is `Ask + (Ask - SL)`; the sell TP is
+  `Bid - (SL - Bid)`. Normalized reward and risk price distances must be 1:1.
+- `EXECUTION_LOT_REFERENCE_BALANCE_PERCENT` uses the fixed internal reference
+  `1,000,000`, not live account balance. The default `0.01` percent requests a
+  `100` account-currency risk budget before broker volume normalization.
+- Volume normalizes downward. A broker minimum that would exceed the budget,
+  unsupported FOK full-fill policy, invalid geometry, or failed profit/margin
+  calculation blocks the send.
+- Quote expected stop/profit money can differ despite exact price-distance 1R.
+  Budget utilization, broker slippage, costs, and realized R remain separate.
+- Broker SL and TP are immutable after fill. There is no trailing, break-even,
+  partial close, position resize, or `TRADE_ACTION_SLTP` path.
 
 ## Broker Safety Kernel
 
@@ -90,25 +115,14 @@ Required facts and guards include:
 - hedging margin mode and account/terminal/MQL trading permissions;
 - current Bid, Ask, point size, and observed spread;
 - structural entry/SL/TP geometry, stops level, and freeze level;
-- volume min/max/step, requested/normalized volume, free margin, and
-  `OrderCheck`;
+- volume min/max/step, requested/normalized volume, FOK support, free margin,
+  and `OrderCheck`;
 - send retcode/comment and symbol/magic/ticket reconciliation.
 
-Spread is telemetry, not a configurable denial threshold. Pivot prices are
-never moved to force broker geometry to pass. Broker facts own ticket, volume,
-entry, SL/TP, close state, and realized profit after a fill.
-
-## Trailing Contract
-
-- Broker-side initial SL and terminal TP are mandatory for every allowed route.
-- Trailing uses the immutable pivot route captured at entry. It tightens to the
-  strongest reached eligible level, submits at most one modification per tick,
-  and never widens or removes protection.
-- Buy milestone reach uses live Bid; sell milestone reach uses live Ask.
-- A stop at the logical entry pivot is structural break-even only. Spread,
-  slippage, commission, and swap can still make the monetary result negative.
-- Buy `R3` and sell `S3` touches are recorded and denied as
-  `NO_FORWARD_LEVEL`; no `R4/S4` is calculated.
+Spread and live account balance are telemetry, not configurable authorization
+thresholds. Pivot prices are never moved to force broker geometry to pass.
+Broker facts own ticket, volume, entry, immutable SL/TP, close state, and
+realized profit after a fill.
 
 ## Deterministic Time
 
@@ -116,26 +130,36 @@ entry, SL/TP, close state, and realized profit after a fill.
 - `EXNESS_SESSION`: winter timestamps shift by `-60` minutes on the documented
   DST calendar so research uses a stable session clock. Exness metal prefixes
   `XAU`, `XAG`, `XPT`, and `XPD` use UK DST; other symbols use US DST.
-- Broker time remains causal for bars, identity, touch order, sessions,
-  durations, orders, trailing, and reconciliation.
+- Broker time remains causal for bars, identity, trigger order, sessions,
+  durations, orders, and reconciliation.
 - Analysis time is export-only for research calendar features and grouping.
-  Every time-bearing row retains broker time, analysis time, and offset; never
-  sort causal events by analysis time alone.
+  Never sort causal events by analysis time alone.
 
 ## Feature And Schema Contract
 
-- A first touch captures exactly one context row for `M1`, `M15`, `M30`, `H1`,
-  `H4`, and `D1` when export is enabled.
-- Each row retains Stoch Structure classifications for slots `0..2` and raw
-  Bollinger `%B` shifts `0..5`. Shift `0` uses trigger Bid against developing
-  bands; shifts `1..5` use matching completed closes and bands.
+- Research context uses fixed built-in Bands parameters: period `21`, shift
+  `0`, deviation `2.0`, SMA, and `PRICE_WEIGHTED`.
+- Exactly two cached handles exist when export is enabled: one Macro and one
+  Micro. They are created at initialization and released at deinitialization.
+- Micro `%B 0..5` describes the trigger market. Shift `0` uses trigger Bid
+  against developing bands; shifts `1..5` use matching completed weighted
+  prices and bands.
+- Macro pivot `%B 0..5` projects the immutable touched pivot price through
+  Macro band envelopes. Values are not clipped.
+- Micro bandwidth uses shift `0`; the Macro source bandwidth is cached from
+  shift `1` when the Macro window is created. Raw and normalized widths are
+  exported; normalized widths are model features.
 - Feature availability never authorizes or denies execution. Missing feature
-  data makes the exported run incomplete/invalid.
-- Schema V9 owns exactly nine TSV files under
-  `Common\Files\PivotFractalV9\runs\<run_id>\`: manifest, windows, levels,
-  attempts, features, execution checks, trailing events, broker outcomes, and
-  run summary.
-- Current Python tooling validates only strict V9, builds leakage-safe
+  data makes the research row incomplete.
+- Schema V10 owns exactly six TSV files under
+  `Common\Files\PivotFractalV10\runs\<run_id>\`: manifest, windows, attempts,
+  execution checks, outcomes, and summary.
+- Outcomes decompose entry/exit slippage, gross profit, commission, swap, fee,
+  net profit, budget-relative R, and executable-risk-relative R.
+- Only feature-complete, fully closed positions with one consistent
+  broker-confirmed TP or SL reason enter the binary cohort. Other outcomes and
+  censored attempts remain auditable and are never relabeled as losses.
+- Current Python tooling validates strict V10, builds leakage-safe
   DuckDB/Parquet datasets, audits pivot behavior, and trains offline XGBoost
   candidates. It has no runtime export, shadow/filter mode, or pattern playback.
 
@@ -151,13 +175,12 @@ services/frontend.mqh
 ```
 
 - Aggregators own include order; do not add sibling re-includes or cycles.
-- Keep source limited to cached pivot windows, M1 touch/context collection,
-  broker execution/reconciliation, V9 telemetry, and bounded inspection.
-- `indicators/Stochastic_Structure.mq5` remains the standalone source required
-  for context slots. `%B` uses cached built-in `iBands` handles.
-- The frontend draws at most 16 active signals with entry/current SL/terminal
-  TP lines. It cannot influence execution; nonvisual tester runs do no chart
-  work.
+- Keep source limited to one cached Macro pivot window, two Bands handles,
+  virtual trigger/context collection, broker execution/reconciliation, V10
+  telemetry, and bounded inspection.
+- The frontend draws at most 16 active positions with broker entry, immutable
+  SL, immutable TP, and pivot identity. It cannot influence execution;
+  nonvisual tester runs do no chart work.
 
 ## Validation And Commit Policy
 
@@ -173,7 +196,7 @@ services/frontend.mqh
   does not prove `.ex5` regeneration.
 - Final integration requires human Strategy Tester/chart verification. Python
   fixtures and compilation cannot replace broker-window, order-lifecycle, DST,
-  trailing, export, performance, and visual acceptance.
+  export, performance, and visual acceptance.
 - Complete and validate one sprint, create exactly one sprint-specific commit,
   record its rollback point, then advance.
 - Preserve archived plans/research, old datasets, and generated artifacts.

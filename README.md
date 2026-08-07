@@ -1,122 +1,152 @@
 # HFT Grid AI
 
-MetaTrader 5 Expert Advisor for deterministic pivot-fractal market-data
-collection and a small broker execution path. The entrypoint is
+MetaTrader 5 Expert Advisor for deterministic Macro/Micro pivot-band market
+data collection and one small broker execution path. The entrypoint is
 `HFT_Grid_AI.mq5`.
 
 ## Active Flow
 
 ```text
-previous completed M1 Bid close
--> cached classic pivots from completed M15/M30/H1/H4/D1 candles
--> first live Bid touch for each timeframe/window/level identity
--> six-timeframe Stoch Structure and raw %B snapshot
--> immutable structural entry/SL/TP/trailing route
+real broker tick
+-> one classic pivot ladder from the previous completed Macro candle
+-> live-Bid virtual support/resistance trigger
+-> shared Micro/Macro weighted-Bands snapshot
+-> immutable structural SL plus fresh quote 1R TP
 -> fresh broker eligibility and OrderCheck
--> one hedging-account market position
--> ticket-owned trailing, reconciliation, and broker-confirmed outcome
--> optional strict schema V9 export
+-> one FOK hedging-account market position
+-> ticket-first reconciliation without trailing
+-> optional strict schema V10 export
 ```
 
-Each pivot timeframe refreshes only when its broker-native active bar changes
-or a controlled data-read retry is due. The source is always shift `1`; the EA
-does not build synthetic candles. `M1` provides side context and research
-features but no pivot levels.
-
-Previous M1 Bid close above a level followed by live Bid at/below it creates a
-buy touch. Previous close below followed by live Bid at/above it creates a sell
-touch. Equality is neutral. Buy orders execute at Ask, sell orders at Bid, and
-the touched pivot remains separate from the broker fill.
+The defaults are Macro `H1` and Micro `M3`. The Macro source is always shift
+`1`; the EA follows broker-native bars and never synthesizes missing candles.
+Micro shift `0` describes volatility at the observed trigger tick.
 
 ## Inputs
 
 The public surface is intentionally fixed:
 
-- `Broker_Session`
+- `Broker_Session`, `Macro_Timeframe`, `Micro_Timeframe`
 - `Lot_Type`, `Lot_Strategy_Size`
 - `Enable_Signal_Feature_Export`, `Signal_Feature_Run_Id`
 - `Enable_Logs`, `Enable_File_Logs`
 
-Pivot timeframes and formulas are internal. Removed license, account,
-protection, user-session, spread-threshold, direction/concurrency, multi-leg,
-runtime ML/pattern, and legacy settings are not supported as aliases.
+Macro and Micro must be explicit supported timeframes, must differ, and Micro
+must be shorter than Macro. Removed licensing, account, protection,
+user-session, spread-threshold, direction/concurrency, multi-leg, runtime
+ML/pattern, and legacy settings are not supported as aliases.
 
-## Identity And Routes
+## Triggers And Routes
 
-One immutable identity is `(symbol, pivot timeframe, active bar open, level)`.
-Its first touch is consumed even when execution is denied or fails. Equal
-prices from different timeframes remain independent identities; same-tick gaps
-are processed nearest crossed price first with stable timeframe/level ties.
+Identity is `(symbol, Macro timeframe, active Macro bar open, level)`. Its first
+trigger is consumed even when routing, broker checks, `OrderCheck`, or
+`OrderSend` fails.
 
-Allowed routes use a broker-side structural stop, terminal pivot target, and
-captured-level trailing. Stops moved to the entry pivot are structural, not
-guaranteed monetary break-even. Buy `R3` and sell `S3` have no forward level
-and are recorded as `NO_FORWARD_LEVEL` without a send.
+- `S1..S3` are buy-only virtual limits: trigger on live `Bid <= support`.
+- `R1..R3` are sell-only virtual limits: trigger on live `Bid >= resistance`.
+- PP first observed above arms a future support buy; first observed below arms
+  a future resistance sell. Equality waits for a strict departure.
+- Buy requests use fresh Ask; sell requests use fresh Bid.
+
+| Trigger | Direction | Structural SL |
+| --- | --- | --- |
+| `PP` armed as support | Buy | `S1` |
+| `S1` | Buy | `S2` |
+| `S2` | Buy | `S3` |
+| `S3` | Buy | `S3 - (S2 - S3)` |
+| `PP` armed as resistance | Sell | `R1` |
+| `R1` | Sell | `R2` |
+| `R2` | Sell | `R3` |
+| `R3` | Sell | `R3 + (R3 - R2)` |
+
+The authoritative TP is rebuilt from the fresh pre-send quote at exactly one
+normalized price-distance R. Broker SL and TP are never modified after fill;
+there is no trailing or break-even path.
+
+## Bands And Sizing
+
+Research uses two cached built-in Bands handles with period `21`, deviation
+`2.0`, SMA, and `PRICE_WEIGHTED`:
+
+- Micro `%B 0..5`; shift `0` uses trigger Bid and current developing bands.
+- Macro pivot `%B 0..5`; every numerator is the immutable touched pivot price.
+- Micro raw/normalized bandwidth at shift `0`.
+- Macro raw/normalized bandwidth from source shift `1`.
+
+`EXECUTION_LOT_REFERENCE_BALANCE_PERCENT` uses a fixed internal reference of
+`1,000,000` account-currency units, not live account balance. The default
+`Lot_Strategy_Size=0.01` therefore requests a `100` unit risk budget. Volume is
+normalized downward; a broker minimum that would exceed the budget blocks the
+send. Fixed-lot mode remains separate.
+
+Exact price-distance 1R does not guarantee symmetric or exact monetary
+results. Quote expected loss/profit, budget utilization, entry/exit slippage,
+commission, swap, fee, and realized gross/net R are stored separately.
 
 ## Broker Safety
 
-The fresh pre-send result is authoritative. Execution requires:
+Only fresh pre-send facts may authorize execution. The EA requires hedging
+mode, an open broker session, an allowed symbol mode, trading permissions,
+valid Bid/Ask and structural geometry, stops/freeze compliance, supported FOK
+full fill, normalized volume, sufficient margin, successful `OrderCheck`, and
+ticket/magic ownership reconciliation.
 
-- hedging account mode, actual open broker session, and allowed symbol mode;
-- account, terminal, expert, and MQL trading permissions;
-- valid Bid/Ask, point size, structural geometry, stops, and freeze distance;
-- valid normalized volume, free margin, and `OrderCheck`;
-- accepted send result and symbol/magic/ticket reconciliation.
+Spread and live account balance are telemetry. Pivot prices are never moved to
+force acceptance. Non-hedging accounts continue collecting facts and fail
+sends closed.
 
-Spread is recorded but has no user threshold. Pivot prices are not adjusted to
-force broker acceptance. After a fill, broker facts own ticket, volume, entry,
-SL/TP, close state, and realized profit.
+## Schema V10 Research
 
-## Broker And Analysis Time
-
-`FIXED_TIME_SESSIONS` leaves timestamps unchanged. `EXNESS_SESSION` preserves
-broker time and shifts winter analysis timestamps by `-60` minutes on the
-applicable US or UK DST calendar. Broker time always owns bars, touches,
-sessions, orders, trailing, and reconciliation; analysis time is export-only.
-
-## Schema V9 Research
-
-When export is enabled, MT5 writes nine strict TSV files under:
+When export is enabled, MT5 writes exactly six strict TSV files under:
 
 ```text
-Common\Files\PivotFractalV9\runs\<run_id>\
+Common\Files\PivotFractalV10\runs\<run_id>\
 ```
 
-The export covers pivot windows and levels, first-touch attempts, six context
-rows per complete attempt, broker checks, trailing events, broker-confirmed
-outcomes, manifest, and summary. Research features contain only trigger-time
-facts: Stoch Structure slots `0..2` and raw `%B` shifts `0..5` for `M1`,
-`M15`, `M30`, `H1`, `H4`, and `D1`.
+- `run_manifest.tsv`
+- `pivot_windows.tsv`
+- `signal_attempts.tsv`
+- `execution_checks.tsv`
+- `signal_outcomes.tsv`
+- `run_summary.tsv`
+
+Validate and build with:
 
 ```bash
 .venv/bin/python tools/deterministic_signal_ml/build_dataset.py \
-  --runs-root <PivotFractalV9/runs> \
-  --run-id <v9_run_id> \
+  --runs-root <PivotFractalV10/runs> \
+  --run-id <run_id> \
   --validate-only
 
 .venv/bin/python tools/deterministic_signal_ml/build_dataset.py \
-  --runs-root <PivotFractalV9/runs> \
-  --run-id <v9_run_id> \
-  --dataset-id <v9_dataset_id> \
-  --target-family broker_outcome \
-  --overwrite
-
-.venv/bin/python tools/deterministic_signal_ml/pivot_fractal_audit.py \
-  --dataset-id <v9_dataset_id> \
-  --audit-id <v9_audit_id> \
-  --overwrite
+  --runs-root <PivotFractalV10/runs> \
+  --run-id <run_id> \
+  --dataset-id <dataset_id>
 ```
 
-DuckDB/Parquet and XGBoost tooling is offline research only. No current code
-loads a model into MT5 or lets research artifacts alter broker execution.
+The builder emits one trigger-time `research_matrix.parquet` and a strict
+`binary_outcomes.parquet`. Only feature-complete, fully closed, consistent
+broker TP/SL outcomes enter the binary target. Denied, failed, censored,
+manual, mixed, stop-out, expert, and other facts remain auditable and are not
+relabeled as losses.
 
-## Validation Policy
+DuckDB/Parquet audits and XGBoost are offline research only. Current code does
+not load a model into MT5 or let research artifacts alter broker execution.
+
+## Time And Validation
+
+`FIXED_TIME_SESSIONS` leaves analysis time equal to broker time.
+`EXNESS_SESSION` preserves broker time and shifts winter analysis timestamps by
+`-60` minutes under the documented US/UK DST rules. Broker time always owns
+bars, triggers, sessions, orders, and reconciliation; analysis time is
+export-only.
 
 - No custom MQL5 harnesses, test modules, test EAs/scripts, or MQL5 CI.
-- Multi-sprint MQL5 changes use static review per sprint and one final real
+- Multi-sprint MQL5 work uses static review per sprint and one final real
   MetaEditor compile with `0 errors, 0 warnings`.
-- Human Strategy Tester/chart validation is required at final integration.
-- Existing Python tests validate the V9 research contract, not MQL5 runtime.
+- Human real-tick Strategy Tester/chart validation is mandatory at final
+  integration.
+- Existing Python tests validate the V10 research contract, not MT5 runtime.
 
 Final compile command:
 

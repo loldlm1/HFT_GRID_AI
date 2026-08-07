@@ -1,11 +1,48 @@
 # Plan: Macro-Micro Pivot Bands Engine And Schema V10
 
 **Generated**: 2026-08-06
-**Status**: Active implementation; Sprint 2 complete, Sprint 3 pending
+**Status**: Active implementation; Sprint 7 complete, Sprint 8 pending human acceptance
 **Planning Review**: Complete; no blocking clarification remains
 **Estimated Complexity**: High
 **Risk Class**: Critical - changes signal arming, trade direction, stop/target geometry, lot sizing, broker lifecycle state, persistence, and ML research inputs
 **Execution Baseline**: Branch `bot/pivot_points_fractal`, commit `0a47ce2df99f804667f8110c2c8788f4fb89f297`
+
+## Execution Ledger
+
+| Sprint | Commit | Rollback point | State |
+| --- | --- | --- | --- |
+| 1 | `2c5d383f1b959644dc3e4fdec88c57066b6142b7` | `0a47ce2df99f804667f8110c2c8788f4fb89f297` | Complete |
+| 2 | `aaead3232bd3b591e2120bc66ce6264e53ee9f17` | `2c5d383f1b959644dc3e4fdec88c57066b6142b7` | Complete |
+| 3 | `826d7923c0d7c115976e52f2260f0c96623f60ed` | `aaead3232bd3b591e2120bc66ce6264e53ee9f17` | Complete |
+| 4 | `16c7c1d531f4f0258ab7b4e89d207b02591d19fb` | `826d7923c0d7c115976e52f2260f0c96623f60ed` | Complete |
+| 5 | `344789a8d841c4b6993f336461e3e6a0def03e56` | `16c7c1d531f4f0258ab7b4e89d207b02591d19fb` | Complete |
+| 6 | `f2a83babd94104223aec4aa31cecec8d1fd83dbc` | `344789a8d841c4b6993f336461e3e6a0def03e56` | Complete |
+| 7 | This Sprint 7 commit (`build: validate macro micro pivot executor v2`) | `f2a83babd94104223aec4aa31cecec8d1fd83dbc` | Complete |
+| 8 | Pending | Sprint 7 commit | Human acceptance pending |
+
+## Sprint 7 Integration Evidence
+
+- Active V2/V10 documentation sweep: clean; retained V1/V9 references are
+  explicitly historical index entries only.
+- Historical archive and V9 fixture diff from execution baseline: clean.
+- Static integration: ordered aggregator chain; no sibling re-includes; one
+  real `OrderSend`, one real `OrderCheck`, FOK-only requests, no
+  `TRADE_ACTION_SLTP`, and deterministic two-handle init/release.
+- Exact MQL5/Python V10 header counts:
+  `run_manifest=3`, `pivot_windows=58`, `signal_attempts=76`,
+  `execution_checks=74`, `signal_outcomes=57`, `run_summary=35`.
+- Python: compileall passed; all `23` unit tests passed.
+- Fixture flow: `4` research attempts, `3` outcomes, `2` strict binary rows;
+  build and audit passed; training stopped at the expected
+  `Not enough rows: 2 < 500` support guard.
+- Final MetaEditor compile: `Result: 0 errors, 0 warnings, 6244 ms elapsed,
+  cpu='X64 Regular'`. Wine process return code was `1`; the parsed compiler
+  result was `PASS`.
+- Compile log: `logs/compile/agentic-build.log`.
+- `.ex5` before: `221054` bytes, SHA-256
+  `befa7ef307ccb82899655d40cecc89b5bcc5d20c3e057ea9d824dd4418d9aacb`.
+- `.ex5` after: `161742` bytes, SHA-256
+  `ce03a439d533ae88198e7115886bece11a3338d2f4d34067ee9b78525eb5e093`.
 
 ## Overview
 
@@ -383,13 +420,13 @@ The offline builder may create typed Parquet copies plus a wide `research_matrix
 
 ### Sprint 1 Gate
 
-- [ ] All Sprint 1 tasks complete.
-- [ ] Targeted schema tests pass and evidence is recorded.
-- [ ] Exact six-file headers and fixed manifest values are reviewed.
-- [ ] `git diff --check` passes.
-- [ ] Exactly one Sprint 1 commit is created with the proposed message.
-- [ ] The Sprint 1 rollback point is recorded.
-- [ ] Sprint 2 has not started before this gate completes.
+- [x] All Sprint 1 tasks complete.
+- [x] Targeted schema tests pass and evidence is recorded.
+- [x] Exact six-file headers and fixed manifest values are reviewed.
+- [x] `git diff --check` passes.
+- [x] Exactly one Sprint 1 commit is created with the proposed message.
+- [x] The Sprint 1 rollback point is recorded.
+- [x] Sprint 2 has not started before this gate completes.
 
 ## Sprint 2: Simplify Dataset, Audit, And XGBoost Research
 
@@ -468,14 +505,14 @@ The offline builder may create typed Parquet copies plus a wide `research_matrix
 
 ### Sprint 2 Gate
 
-- [ ] All Sprint 2 tasks complete.
-- [ ] Full Python compile and unit suite pass.
-- [ ] Fixture validate/build/audit evidence is recorded outside tracked artifacts.
-- [ ] Feature and future-only column lists receive explicit leakage review.
-- [ ] `git diff --check` passes.
-- [ ] Exactly one Sprint 2 commit is created with the proposed message.
-- [ ] The Sprint 2 rollback point is recorded.
-- [ ] Sprint 3 has not started before this gate completes.
+- [x] All Sprint 2 tasks complete.
+- [x] Full Python compile and unit suite pass.
+- [x] Fixture validate/build/audit evidence is recorded outside tracked artifacts.
+- [x] Feature and future-only column lists receive explicit leakage review.
+- [x] `git diff --check` passes.
+- [x] Exactly one Sprint 2 commit is created with the proposed message.
+- [x] The Sprint 2 rollback point is recorded.
+- [x] Sprint 3 has not started before this gate completes.
 
 ## Sprint 3: Reduce MQL5 Inputs, Handles, And Window State
 
@@ -548,14 +585,14 @@ The offline builder may create typed Parquet copies plus a wide `research_matrix
 
 ### Sprint 3 Gate
 
-- [ ] All Sprint 3 tasks complete.
-- [ ] Input, include, handle, constructor/copy/reset, and deinit static reviews pass.
-- [ ] Exact Stoch and multi-timeframe identifier sweeps are clean.
-- [ ] No MetaEditor syntax or compile command was run.
-- [ ] `git diff --check` passes.
-- [ ] Exactly one Sprint 3 commit is created with the proposed message.
-- [ ] The Sprint 3 rollback point is recorded.
-- [ ] Sprint 4 has not started before this gate completes.
+- [x] All Sprint 3 tasks complete.
+- [x] Input, include, handle, constructor/copy/reset, and deinit static reviews pass.
+- [x] Exact Stoch and multi-timeframe identifier sweeps are clean.
+- [x] No MetaEditor syntax or compile command was run.
+- [x] `git diff --check` passes.
+- [x] Exactly one Sprint 3 commit is created with the proposed message.
+- [x] The Sprint 3 rollback point is recorded.
+- [x] Sprint 4 has not started before this gate completes.
 
 ## Sprint 4: Implement Virtual Pivot Triggers And Band Snapshots
 
@@ -632,15 +669,15 @@ The offline builder may create typed Parquet copies plus a wide `research_matrix
 
 ### Sprint 4 Gate
 
-- [ ] All Sprint 4 tasks complete.
-- [ ] Trigger and PP truth tables are reviewed and recorded.
-- [ ] Causality, batching, array bounds, handle readiness, and formula static reviews pass.
-- [ ] Exact M1, Stoch, and old direction-helper sweeps are clean.
-- [ ] No MetaEditor syntax or compile command was run.
-- [ ] `git diff --check` passes.
-- [ ] Exactly one Sprint 4 commit is created with the proposed message.
-- [ ] The Sprint 4 rollback point is recorded.
-- [ ] Sprint 5 has not started before this gate completes.
+- [x] All Sprint 4 tasks complete.
+- [x] Trigger and PP truth tables are reviewed and recorded.
+- [x] Causality, batching, array bounds, handle readiness, and formula static reviews pass.
+- [x] Exact M1, Stoch, and old direction-helper sweeps are clean.
+- [x] No MetaEditor syntax or compile command was run.
+- [x] `git diff --check` passes.
+- [x] Exactly one Sprint 4 commit is created with the proposed message.
+- [x] The Sprint 4 rollback point is recorded.
+- [x] Sprint 5 has not started before this gate completes.
 
 ## Sprint 5: Implement Fresh Quote 1R And Reference-Risk Sizing
 
@@ -717,15 +754,15 @@ The offline builder may create typed Parquet copies plus a wide `research_matrix
 
 ### Sprint 5 Gate
 
-- [ ] All Sprint 5 tasks complete.
-- [ ] All eight routes and fresh Bid/Ask formulas pass static review.
-- [ ] Reference-risk, fixed-lot, volume-floor, and quote expectation calculations are reviewed.
-- [ ] Broker safety and ownership checks remain fail closed.
-- [ ] No MetaEditor syntax or compile command was run.
-- [ ] `git diff --check` passes.
-- [ ] Exactly one Sprint 5 commit is created with the proposed message.
-- [ ] The Sprint 5 rollback point is recorded.
-- [ ] Sprint 6 has not started before this gate completes.
+- [x] All Sprint 5 tasks complete.
+- [x] All eight routes and fresh Bid/Ask formulas pass static review.
+- [x] Reference-risk, fixed-lot, volume-floor, and quote expectation calculations are reviewed.
+- [x] Broker safety and ownership checks remain fail closed.
+- [x] No MetaEditor syntax or compile command was run.
+- [x] `git diff --check` passes.
+- [x] Exactly one Sprint 5 commit is created with the proposed message.
+- [x] The Sprint 5 rollback point is recorded.
+- [x] Sprint 6 has not started before this gate completes.
 
 ## Sprint 6: Remove Trailing And Write Broker Outcomes To V10
 
@@ -806,15 +843,15 @@ The offline builder may create typed Parquet copies plus a wide `research_matrix
 
 ### Sprint 6 Gate
 
-- [ ] All Sprint 6 tasks complete.
-- [ ] Trailing and V9 active-source sweeps are clean.
-- [ ] V10 MQL5/Python headers and row counts match exactly.
-- [ ] Cost, slippage, binary eligibility, file lifecycle, and deinit reviews pass.
-- [ ] No MetaEditor syntax or compile command was run.
-- [ ] `git diff --check` passes.
-- [ ] Exactly one Sprint 6 commit is created with the proposed message.
-- [ ] The Sprint 6 rollback point is recorded.
-- [ ] Sprint 7 has not started before this gate completes.
+- [x] All Sprint 6 tasks complete.
+- [x] Trailing and V9 active-source sweeps are clean.
+- [x] V10 MQL5/Python headers and row counts match exactly.
+- [x] Cost, slippage, binary eligibility, file lifecycle, and deinit reviews pass.
+- [x] No MetaEditor syntax or compile command was run.
+- [x] `git diff --check` passes.
+- [x] Exactly one Sprint 6 commit is created with the proposed message.
+- [x] The Sprint 6 rollback point is recorded.
+- [x] Sprint 7 has not started before this gate completes.
 
 ## Sprint 7: Integrate Active Documentation And Perform The Final Compile
 
@@ -893,14 +930,14 @@ The offline builder may create typed Parquet copies plus a wide `research_matrix
 
 ### Sprint 7 Gate
 
-- [ ] All Sprint 7 tasks complete.
-- [ ] Active docs and product copy agree with V2/V10.
-- [ ] Full static and Python gates pass.
-- [ ] Final real compile reports `0 errors, 0 warnings` and regenerates `.ex5`.
-- [ ] `git diff --check` passes.
-- [ ] Exactly one Sprint 7 commit is created with the proposed message.
-- [ ] The Sprint 7 rollback point is recorded.
-- [ ] Sprint 8 has not started before this gate completes.
+- [x] All Sprint 7 tasks complete.
+- [x] Active docs and product copy agree with V2/V10.
+- [x] Full static and Python gates pass.
+- [x] Final real compile reports `0 errors, 0 warnings` and regenerates `.ex5`.
+- [x] `git diff --check` passes.
+- [x] Exactly one Sprint 7 commit is created with the proposed message.
+- [x] The Sprint 7 rollback point is recorded.
+- [x] Sprint 8 has not started before this gate completes.
 
 ## Sprint 8: Human Real-Tick Acceptance And Closeout
 
