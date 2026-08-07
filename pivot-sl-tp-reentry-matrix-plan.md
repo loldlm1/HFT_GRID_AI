@@ -1923,7 +1923,7 @@ architecture/workflow contracts, and corrective acceptance evidence
 - Strict tooling rejects a wrong-side structural route whose structural matrix
   cells are active, distance-only ineligible, or directionally reflected.
 
-**Rollback point**: Sprint 14 commit SHA.
+**Rollback point**: `496ae4a` (Sprint 14).
 
 ### Task 15.1: Separate origin identity validity from structural tradability
 
@@ -1992,15 +1992,15 @@ architecture/workflow contracts, and corrective acceptance evidence
 
 ### Sprint 15 Gate
 
-- [ ] All Sprint 15 tasks complete.
-- [ ] Gap-through origins declare sixteen cells without exporter failure.
-- [ ] Structural wrong-side cells are explicit and cannot become active.
-- [ ] Broker execution and parity authority remain unchanged.
-- [ ] Full non-compiler validation passes.
-- [ ] No MetaEditor compile or Strategy Tester automation is invoked.
-- [ ] `git diff --check` passes.
+- [x] All Sprint 15 tasks complete.
+- [x] Gap-through origins declare sixteen cells without exporter failure.
+- [x] Structural wrong-side cells are explicit and cannot become active.
+- [x] Broker execution and parity authority remain unchanged.
+- [x] Full non-compiler validation passes.
+- [x] No MetaEditor compile or Strategy Tester automation is invoked.
+- [x] `git diff --check` passes.
 - [ ] Exactly one Sprint 15 commit is created and its SHA is recorded.
-- [ ] Sprint 16 has not started before this gate completes.
+- [x] Sprint 16 has not started before this gate completes.
 
 ## Sprint 16: Final Compile, Renewed Human Acceptance, Archive, And Hook Cleanup
 

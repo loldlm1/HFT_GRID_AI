@@ -116,6 +116,11 @@ broker tick
 - The structural policy uses the existing next-pivot stop and never re-enters.
   Volatility policies freeze the trigger Micro shift-0 full Bands width and use
   `0.13`, `0.21`, or `0.34` of it for every generation in that chain.
+- A gap-through origin still declares all sixteen cells. If its next-pivot
+  structural stop is equal to or on the wrong side of the fresh executable
+  entry, the four structural cells are explicit `INELIGIBLE_GEOMETRY` rows;
+  the stop is never reflected across entry and volatility cells remain
+  independent.
 - Virtual buys enter at observed Ask and resolve on Bid. Virtual sells enter at
   observed Bid and resolve on Ask. Stops normalize outward to the trade-tick
   grid, and TP is rebuilt from normalized risk ticks for exact integer R.

@@ -96,6 +96,12 @@ trade tick inside the next outward pivot. Gap-through, equality, window expiry,
 retry cap, ineligible geometry, and run-end censoring are explicit states.
 `S3`/`R3` have no outward boundary and use the same maximum index `3`.
 
+An initial gap-through origin is not dropped when its structural next-pivot
+stop is already equal to or beyond the executable entry. Its four structural
+TP policies are exported as geometry-ineligible rows with no active state; the
+stop is not mirrored to invent a tradable route. Volatility policies still use
+the frozen trigger width and their own eligibility checks.
+
 Reference-percentage mode uses a fixed `1,000,000` account-currency reference.
 The default `0.01` percent requests a `100` unit risk budget before downward
 volume normalization. Quote expected SL/TP money and budget utilization are

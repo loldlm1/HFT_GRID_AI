@@ -363,6 +363,24 @@ bool BuildInitialPivotTrial(const PivotSignal &signal,
                             boundary_price,
                             trial_out.geometry);
 
+  double structural_entry =
+    PivotTrialEntryPriceFromTick(signal.direction, origin_tick);
+  double structural_stop = signal.route.structural_stop_loss;
+  bool structural_stop_tradable =
+    MathIsValidNumber(structural_entry) && structural_entry > 0.0 &&
+    MathIsValidNumber(structural_stop) && structural_stop > 0.0 &&
+    ((signal.direction == BULLISH && structural_stop < structural_entry) ||
+     (signal.direction == BEARISH && structural_stop > structural_entry));
+  if(sl_policy == PIVOT_TRIAL_SL_STRUCTURAL &&
+     !structural_stop_tradable)
+  {
+    trial_out.ineligible_reason =
+      "STRUCTURAL_STOP_WRONG_SIDE_OF_ORIGIN_ENTRY";
+    trial_out.eligibility_status =
+      PIVOT_TRIAL_ELIGIBILITY_INELIGIBLE_GEOMETRY;
+    return true;
+  }
+
   if(sl_policy != PIVOT_TRIAL_SL_STRUCTURAL &&
      !trial_out.origin_micro_band_width_available)
   {
@@ -375,8 +393,8 @@ bool BuildInitialPivotTrial(const PivotSignal &signal,
   double requested_risk_distance = 0.0;
   if(!PivotTrialRequestedRiskDistance(
        sl_policy,
-       PivotTrialEntryPriceFromTick(signal.direction, origin_tick),
-       signal.route.structural_stop_loss,
+       structural_entry,
+       structural_stop,
        trial_out.origin_micro_band_width_available,
        trial_out.origin_micro_band_width_0,
        requested_risk_distance) ||

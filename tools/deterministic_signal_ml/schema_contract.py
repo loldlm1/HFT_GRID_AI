@@ -1345,6 +1345,8 @@ def _validate_origins(
         stop = _as_float(row, "structural_sl_price", context)
         take_profit = _as_float(row, "structural_take_profit", context)
         assert entry is not None and stop is not None and take_profit is not None
+        if entry <= 0.0 or stop <= 0.0 or take_profit <= 0.0:
+            raise SchemaValidationError(f"{context}: invalid structural route price")
         expected_entry = ask if direction == "BUY" else bid
         expected_stop = _structural_stop(window, level_id, direction)
         expected_tp = (
@@ -1486,11 +1488,13 @@ def _validate_trial_geometry(
     )
     eligibility = row["eligibility_status"]
     geometry_available = eligibility not in ("INELIGIBLE_FEATURE", "INELIGIBLE_GEOMETRY")
-    _require_numeric_group(row, geometry_columns, context, required=geometry_available)
     if not geometry_available:
-        if not _is_null(row["geometry_equivalence_id"]):
-            raise SchemaValidationError(f"{context}: unavailable geometry has equivalence ID")
+        if any(not _is_null(row[column]) for column in geometry_columns) or not _is_null(
+            row["geometry_equivalence_id"]
+        ):
+            raise SchemaValidationError(f"{context}: unavailable geometry carries values")
         return
+    _require_numeric_group(row, geometry_columns, context, required=True)
 
     requested_price = _as_float(row, "requested_risk_distance_price", context)
     requested_points = _as_float(row, "requested_risk_distance_points", context)
@@ -1708,6 +1712,22 @@ def _validate_trials(
             requested = _as_float(
                 row, "requested_risk_distance_price", context, nullable=True
             )
+            structural_route_tradable = (
+                float(origin["structural_sl_price"])
+                < float(origin["structural_entry_price"])
+                if row["direction"] == "BUY"
+                else float(origin["structural_sl_price"])
+                > float(origin["structural_entry_price"])
+            )
+            if sl_policy == "STRUCTURAL" and not structural_route_tradable:
+                if (
+                    eligibility != "INELIGIBLE_GEOMETRY"
+                    or row["ineligible_reason"]
+                    != "STRUCTURAL_STOP_WRONG_SIDE_OF_ORIGIN_ENTRY"
+                ):
+                    raise SchemaValidationError(
+                        f"{context}: wrong-side structural route must be geometry-ineligible"
+                    )
             if requested is not None:
                 expected_requested = (
                     abs(float(origin["structural_entry_price"]) - float(origin["structural_sl_price"]))
@@ -1752,7 +1772,10 @@ def _validate_trials(
             "virtual_expected_reward_risk_ratio",
         )
         money_required = eligibility in ("ACTIVE",)
-        _require_numeric_group(row, money_columns, context, required=money_required)
+        if money_required:
+            _require_numeric_group(row, money_columns, context, required=True)
+        elif any(not _is_null(row[column]) for column in money_columns):
+            raise SchemaValidationError(f"{context}: ineligible trial carries money values")
         if money_complete != money_required:
             if not (eligibility == "INELIGIBLE_MONEY_PLAN" and not money_complete):
                 raise SchemaValidationError(f"{context}: virtual money-plan status mismatch")

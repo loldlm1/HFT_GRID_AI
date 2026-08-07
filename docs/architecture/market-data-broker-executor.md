@@ -159,6 +159,14 @@ Failed feature, geometry, distance, volume, or `OrderCalcProfit` checks produce
 an explicit ineligible row. Stops are not stretched and cells are not silently
 removed.
 
+Gap-through batches can consume a pivot after price has already crossed its
+next outward pivot. The broker structural route correctly rejects that origin
+when its stop is equal to or on the wrong side of the fresh executable entry.
+V11 still retains the origin and declares all sixteen cells: the four
+structural policies are `INELIGIBLE_GEOMETRY` with no synthesized SL/TP or
+money plan, while the twelve volatility policies remain independently
+researchable. The invalid structural stop is never reflected across entry.
+
 Each volatility `(SL policy, TP multiple)` has its own chain. Index `0` is the
 origin trial; indices `1..3` can follow only that chain's immediately preceding
 `SL_FIRST`. Re-entry uses the current executable quote while preserving the

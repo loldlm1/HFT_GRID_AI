@@ -5,10 +5,10 @@
 **Status**: The initial, Sprint 12, and Sprint 14 MetaEditor compiles passed,
 but three human real-tick runs exposed distinct strict V11 exporter defects.
 Sprint 11 fixed finalized-origin reconciliation and Sprint 13 fixed
-accepted-send boundary parity. The third run now exposes an expected
-gap-through structural denial that origin registration incorrectly treats as a
-fatal export error. Sprint 15 is the bounded correction; Sprint 16 owns the
-only new compile, renewed human acceptance, archive, and hook cleanup.
+accepted-send boundary parity. Sprint 15 now retains the third run's expected
+gap-through structural denial as four explicit geometry-ineligible cells and
+passes the complete non-compiler gate. Sprint 16 owns the only new compile,
+renewed human acceptance, archive, and hook cleanup.
 
 This protocol validates strict schema V11, the virtual SL/TP trial matrix,
 bounded volatility re-entries, the unchanged one-order broker lane, and
@@ -632,13 +632,54 @@ real-tick, strict V11, broker, parity, seasonal-time, chart, and matched
 performance evidence all pass. Archive and hook cleanup remain prohibited
 until then.
 
+## Sprint 15 Gap-Through Correction And Static Validation
+
+Origin registration now distinguishes valid identity and broker facts from
+fresh-entry structural tradability. A finite positive next-pivot stop remains
+an origin fact even when a gap has moved it to the wrong side of the executable
+entry. The origin preserves its raw entry/SL and signed algebraic 1R TP instead
+of disabling V11.
+
+Initial matrix construction checks the structural stop direction before
+requested-risk normalization. A wrong-side or equal stop declares the four
+structural TP policies as `INELIGIBLE_GEOMETRY` with reason
+`STRUCTURAL_STOP_WRONG_SIDE_OF_ORIGIN_ENTRY`; those rows have no synthesized
+geometry, money plan, active state, or outcome. The twelve volatility policies
+remain independent and retain the frozen trigger Micro width.
+
+Strict tooling mirrors the exporter. A consistent gap-through origin validates,
+while active, distance-only, reflected, geometry-populated, or money-populated
+structural cells fail closed. The preserved third failed run remains rejected
+for its twelve missing active outcomes; no raw TSV was changed or retroactively
+accepted.
+
+Sprint 15 non-compiler validation records:
+
+- Focused gap-through contract: pass.
+- Python compileall: pass.
+- Full Python contract suite: 24 tests pass in 9.280 seconds.
+- Deterministic V11 fixture validate/build/audit: pass; audit status remains the
+  expected `INSUFFICIENT_SUPPORT` for the 16-row training cohort.
+- Training support guard: expected fail-closed result
+  `Not enough rows: 16 < 500`.
+- Include graph, nine-input public contract, header/manifest tests, broker
+  safety, active-state cap, buffering, handle lifecycle, and frontend isolation:
+  pass.
+- Broker boundary remains one `OrderSend`, one `OrderCheck`, FOK only, no
+  `TRADE_ACTION_SLTP`, and no broker mutation in virtual modules.
+- `git diff --check`: pass.
+
+No MetaEditor compile, MQL5 harness, test EA/script, CI module, or automated
+Strategy Tester run is used in Sprint 15. Rollback point is Sprint 14 commit
+`496ae4a`.
+
 ## Precompile Validation Record
 
 The frozen candidate has the following non-compiler evidence:
 
 - Python compileall: pass.
-- Full Python contract suite before Sprint 13: 22 tests pass; Sprint 13 expands
-  the suite to 23 passing tests.
+- Full Python contract suite: Sprint 13 expands the suite from 22 to 23 tests;
+  Sprint 15 expands it to 24 passing tests.
 - Exact MQL5/Python V11 header parity: eight files pass.
 - Exact manifest key/fixed-token parity: 48 keys pass.
 - Deterministic V11 fixture: validation, build, and audit pass.

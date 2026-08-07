@@ -1005,7 +1005,9 @@ bool PivotV11RegisterOrigin(const PivotSignal &signal)
      signal.broker_signal_id == "" ||
      signal.active_bar_open <= 0 || signal.trigger_time <= 0 ||
      signal.trigger_bid <= 0.0 || signal.trigger_ask < signal.trigger_bid ||
-     !signal.levels.valid || signal.route.structural_stop_loss <= 0.0)
+     !signal.levels.valid ||
+     !MathIsValidNumber(signal.route.structural_stop_loss) ||
+     signal.route.structural_stop_loss <= 0.0)
     return PivotV11RejectReference("REGISTER_ORIGIN_INVALID");
   if(FindPivotV11PendingOrigin(signal.origin_id) >= 0)
   {
@@ -1043,17 +1045,18 @@ bool PivotV11RegisterOrigin(const PivotSignal &signal)
                                   ? signal.trigger_ask
                                   : signal.trigger_bid;
   origin.structural_stop_loss = signal.route.structural_stop_loss;
-  double structural_risk = signal.direction == BULLISH
-                           ? origin.structural_entry_price -
-                             origin.structural_stop_loss
-                           : origin.structural_stop_loss -
-                             origin.structural_entry_price;
+  double signed_structural_risk = signal.direction == BULLISH
+                                  ? origin.structural_entry_price -
+                                    origin.structural_stop_loss
+                                  : origin.structural_stop_loss -
+                                    origin.structural_entry_price;
   origin.structural_take_profit = signal.direction == BULLISH
                                   ? origin.structural_entry_price +
-                                    structural_risk
+                                    signed_structural_risk
                                   : origin.structural_entry_price -
-                                    structural_risk;
-  if(structural_risk <= 0.0 ||
+                                    signed_structural_risk;
+  if(!MathIsValidNumber(origin.structural_take_profit) ||
+     origin.structural_take_profit <= 0.0 ||
      origin.point_size <= 0.0 || origin.trade_tick_size <= 0.0 ||
      origin.stops_level_points < 0.0 ||
      origin.freeze_level_points < 0.0 ||

@@ -49,6 +49,25 @@ LEGACY_FIXTURES = tuple(
     fixture for fixture in FIXTURES.iterdir() if fixture != V11_FIXTURE
 )
 NULL_TOKEN = r"\N"
+GEOMETRY_COLUMNS = (
+    "requested_risk_distance_price",
+    "requested_risk_distance_points",
+    "normalized_risk_ticks",
+    "normalized_risk_distance_price",
+    "normalized_risk_distance_points",
+    "stop_loss_price",
+    "take_profit_price",
+    "geometry_equivalence_id",
+    "minimum_risk_distance_points",
+)
+MONEY_COLUMNS = (
+    "risk_budget_amount",
+    "requested_volume",
+    "normalized_volume",
+    "virtual_expected_stop_loss",
+    "virtual_expected_take_profit",
+    "virtual_expected_reward_risk_ratio",
+)
 
 
 def read_rows(path: Path) -> tuple[list[str], list[dict[str, str]]]:
@@ -101,6 +120,123 @@ def mutate_row(
         raise AssertionError(f"Expected one {filename} row, found {len(matches)}")
     matches[0].update(values)
     write_rows(path, columns, rows)
+
+
+def make_gap_through_structural_origin(run_path: Path) -> None:
+    origin_path = run_path / SIGNAL_ORIGINS_FILE
+    origin_columns, origins = read_rows(origin_path)
+    if len(origins) != 1:
+        raise AssertionError("Fixture must contain one origin")
+    origin = origins[0]
+    old_ask = float(origin["trigger_ask"])
+    new_bid = 1.0790
+    new_ask = 1.0792
+    price_shift = new_ask - old_ask
+    origin.update(
+        trigger_bid=f"{new_bid:.10f}",
+        trigger_ask=f"{new_ask:.10f}",
+        structural_entry_price=f"{new_ask:.10f}",
+        structural_take_profit=f"{2.0 * new_ask - float(origin['structural_sl_price']):.10f}",
+        broker_attempt_status="BLOCKED",
+    )
+    write_rows(origin_path, origin_columns, origins)
+
+    trial_path = run_path / VIRTUAL_TRIALS_FILE
+    trial_columns, trials = read_rows(trial_path)
+    removed_retry_ids = {
+        row["trial_id"]
+        for row in trials
+        if row["trial_role"] == "MATRIX" and row["reentry_index"] != "0"
+    }
+    trials = [
+        row
+        for row in trials
+        if row["trial_role"] != "BROKER_PARITY"
+        and row["trial_id"] not in removed_retry_ids
+    ]
+    shifted_trial_ids: set[str] = set()
+    structural_trial_ids: set[str] = set()
+    for row in trials:
+        if row["trial_role"] != "MATRIX" or row["reentry_index"] != "0":
+            continue
+        row["entry_bid"] = f"{new_bid:.10f}"
+        row["entry_ask"] = f"{new_ask:.10f}"
+        row["entry_price"] = f"{new_ask:.10f}"
+        if row["sl_policy"] == "STRUCTURAL":
+            structural_trial_ids.add(row["trial_id"])
+            for column in GEOMETRY_COLUMNS + MONEY_COLUMNS:
+                row[column] = NULL_TOKEN
+            row["distance_eligible"] = "0"
+            row["boundary_eligible"] = "0"
+            row["virtual_money_plan_complete"] = "0"
+            row["eligibility_status"] = "INELIGIBLE_GEOMETRY"
+            row["ineligible_reason"] = "STRUCTURAL_STOP_WRONG_SIDE_OF_ORIGIN_ENTRY"
+            continue
+        shifted_trial_ids.add(row["trial_id"])
+        for column in ("stop_loss_price", "take_profit_price"):
+            if row[column] != NULL_TOKEN:
+                row[column] = f"{float(row[column]) + price_shift:.10f}"
+        if row["geometry_equivalence_id"] != NULL_TOKEN:
+            row["geometry_equivalence_id"] += "_gap"
+    write_rows(trial_path, trial_columns, trials)
+
+    outcome_path = run_path / VIRTUAL_OUTCOMES_FILE
+    outcome_columns, outcomes = read_rows(outcome_path)
+    outcomes = [
+        row
+        for row in outcomes
+        if row["trial_role"] != "BROKER_PARITY"
+        and row["trial_id"] not in structural_trial_ids
+        and row["trial_id"] not in removed_retry_ids
+    ]
+    for row in outcomes:
+        if row["trial_id"] not in shifted_trial_ids:
+            continue
+        for column in (
+            "threshold_price",
+            "observed_exit_bid",
+            "observed_exit_ask",
+            "observed_exit_price",
+        ):
+            if row[column] != NULL_TOKEN:
+                row[column] = f"{float(row[column]) + price_shift:.10f}"
+        if row["next_trial_id"] in removed_retry_ids:
+            row["chain_terminal"] = "1"
+            row["chain_terminal_reason"] = "NEXT_PIVOT_BOUNDARY"
+            row["continuation_allowed"] = "0"
+            row["continuation_reason"] = NULL_TOKEN
+            row["next_reentry_index"] = NULL_TOKEN
+            row["next_trial_id"] = NULL_TOKEN
+    write_rows(outcome_path, outcome_columns, outcomes)
+
+    for filename in (EXECUTION_CHECKS_FILE, BROKER_OUTCOMES_FILE):
+        path = run_path / filename
+        columns, _ = read_rows(path)
+        write_rows(path, columns, [])
+
+    mutate_summary(
+        run_path,
+        virtual_trial_rows="16",
+        matrix_trial_rows="16",
+        reentry_trial_rows="0",
+        parity_trial_rows="0",
+        virtual_active_trial_rows="11",
+        virtual_ineligible_geometry_rows="4",
+        virtual_outcome_rows="11",
+        matrix_tp_rows="8",
+        matrix_sl_rows="2",
+        parity_outcome_rows="0",
+        execution_check_rows="0",
+        broker_outcome_rows="0",
+        broker_binary_eligible_rows="0",
+        broker_binary_tp_rows="0",
+        parity_pair_rows="0",
+        parity_terminal_match_rows="0",
+        chain_tp_complete_rows="8",
+        chain_next_pivot_boundary_rows="2",
+        chain_ineligible_rows="5",
+        active_state_peak="11",
+    )
 
 
 class PivotFractalSchemaTests(unittest.TestCase):
@@ -292,6 +428,101 @@ class PivotFractalSchemaTests(unittest.TestCase):
             write_rows(path, columns, rows)
 
         self.assert_mutation_rejected(duplicate_policy_identity, "duplicate matrix policy/retry identity")
+
+    def test_gap_through_structural_cells_are_explicitly_ineligible(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            runs_root, run_path = self.copy_fixture(temp_dir)
+            make_gap_through_structural_origin(run_path)
+            validation = validate_run(runs_root, V11_FIXTURE.name)
+            self.assertEqual(validation.virtual_trial_rows, 16)
+            self.assertEqual(validation.virtual_outcome_rows, 11)
+            _, trials = read_rows(run_path / VIRTUAL_TRIALS_FILE)
+            structural = [
+                row
+                for row in trials
+                if row["trial_role"] == "MATRIX"
+                and row["sl_policy"] == "STRUCTURAL"
+            ]
+            self.assertEqual(len(structural), 4)
+            self.assertTrue(
+                all(row["eligibility_status"] == "INELIGIBLE_GEOMETRY" for row in structural)
+            )
+            self.assertTrue(all(row["stop_loss_price"] == NULL_TOKEN for row in structural))
+            self.assertTrue(all(row["virtual_money_plan_complete"] == "0" for row in structural))
+
+        def reflect_structural_stop(run_path: Path) -> None:
+            make_gap_through_structural_origin(run_path)
+            mutate_row(
+                run_path,
+                VIRTUAL_TRIALS_FILE,
+                lambda row: row["trial_id"] == "trial_structural_tp1_r0",
+                requested_risk_distance_price="0.0008000000",
+                requested_risk_distance_points="8.0000000000",
+                normalized_risk_ticks="8",
+                normalized_risk_distance_price="0.0008000000",
+                normalized_risk_distance_points="8.0000000000",
+                stop_loss_price="1.0784000000",
+                take_profit_price="1.0800000000",
+                geometry_equivalence_id="geom_reflected_structural_gap",
+                minimum_risk_distance_points="8.0000000000",
+                distance_eligible="1",
+                boundary_eligible="1",
+                risk_budget_amount="100.0000000000",
+                requested_volume="0.1000000000",
+                normalized_volume="0.1000000000",
+                virtual_expected_stop_loss="-100.0000000000",
+                virtual_expected_take_profit="100.0000000000",
+                virtual_expected_reward_risk_ratio="1.0000000000",
+                virtual_money_plan_complete="1",
+                eligibility_status="ACTIVE",
+                ineligible_reason=NULL_TOKEN,
+            )
+
+        self.assert_mutation_rejected(
+            reflect_structural_stop,
+            "wrong-side structural route must be geometry-ineligible",
+        )
+
+        def retain_reflected_structural_geometry(run_path: Path) -> None:
+            make_gap_through_structural_origin(run_path)
+            mutate_row(
+                run_path,
+                VIRTUAL_TRIALS_FILE,
+                lambda row: row["trial_id"] == "trial_structural_tp1_r0",
+                requested_risk_distance_price="0.0008000000",
+                requested_risk_distance_points="8.0000000000",
+                normalized_risk_ticks="8",
+                normalized_risk_distance_price="0.0008000000",
+                normalized_risk_distance_points="8.0000000000",
+                stop_loss_price="1.0784000000",
+                take_profit_price="1.0800000000",
+                geometry_equivalence_id=NULL_TOKEN,
+                minimum_risk_distance_points="8.0000000000",
+            )
+
+        self.assert_mutation_rejected(
+            retain_reflected_structural_geometry,
+            "unavailable geometry carries values",
+        )
+
+        def retain_ineligible_structural_money(run_path: Path) -> None:
+            make_gap_through_structural_origin(run_path)
+            mutate_row(
+                run_path,
+                VIRTUAL_TRIALS_FILE,
+                lambda row: row["trial_id"] == "trial_structural_tp1_r0",
+                risk_budget_amount="100.0000000000",
+                requested_volume="0.1000000000",
+                normalized_volume="0.1000000000",
+                virtual_expected_stop_loss="-100.0000000000",
+                virtual_expected_take_profit="100.0000000000",
+                virtual_expected_reward_risk_ratio="1.0000000000",
+            )
+
+        self.assert_mutation_rejected(
+            retain_ineligible_structural_money,
+            "ineligible trial carries money values",
+        )
 
     def test_retry_chain_invariants_fail_closed(self) -> None:
         def skip_retry_index(run_path: Path) -> None:
