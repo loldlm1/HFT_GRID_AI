@@ -1790,14 +1790,226 @@ evidence
 - [ ] Exactly one Sprint 13 commit is created and its SHA is recorded.
 - [ ] Sprint 14 has not started before this gate completes.
 
-## Sprint 14: Final Compile, Human Acceptance, Archive, And Hook Cleanup
+## Sprint 14: Record The Third Failed Acceptance And Extend The Plan
 
-**Goal**: Compile the Sprint 13 source once, obtain fresh human real-tick V11
-and seasonal-time evidence, complete strict research and measured performance
-acceptance, record the execution ledger, archive the plan, and clean active
-hooks only after every gate passes.
+**Goal**: Preserve the clean Sprint 14 compile and the third failed human run,
+separate valid seasonal-time and broker findings from the invalid V11 research
+export, isolate the gap-through structural-origin defect, and extend the plan
+before another source change.
 
-**Dependencies**: Sprint 13 gate and human access to MetaEditor/Strategy Tester.
+**Dependencies**: Sprint 13 gate, the Sprint 14 real compile, and the third
+human Strategy Tester run.
+
+**Tracked scope**: `pivot-sl-tp-reentry-matrix-plan.md` and
+`docs/research/pivot-trial-matrix-v11-acceptance-preparation-2026-08-07.md`
+
+**Commit**: `docs: record third pivot matrix v11 acceptance failure`
+
+**Demo/Validation**:
+
+- The Sprint 14 real compile remains preserved as `0 errors, 0 warnings`, but
+  is superseded as a release candidate by a required source correction.
+- All 2,510 available timestamp triplets satisfy the configured
+  `EXNESS_SESSION` rule: 2,509 winter facts use `-60`, the July run-finish fact
+  uses `0`, and broker time remains causal and unchanged.
+- `query_debug.txt` reconciles 7,178 attempts, 7,054 accepted sends, 122
+  no-send denials, two failed sends, and 7,054 terminal positions with zero
+  broker-lane consistency defects.
+- Strict V11 validation fails after a gap-through R1 sell has its structural
+  R2 stop below the fresh sell entry and origin registration incorrectly raises
+  `REGISTER_ORIGIN_GEOMETRY_INVALID` instead of declaring ineligible rows.
+- The exported prefix remains bounded at 49 active trials of 2,048, with 42
+  complete initial matrices, contiguous retries, and 41 matching parity pairs.
+
+**Rollback point**: `5f08f48` (Sprint 13).
+
+### Task 14.1: Preserve the compile and third-run identity
+
+- **Location**: Compile evidence, external Common Files artifacts, and the
+  acceptance record.
+- **Description**: Record the compiler result, regenerated binary, auto-run ID,
+  query hash and preserved copy, exact eight-file size/count, and natural run
+  completion without editing raw TSV evidence.
+- **Dependencies**: Sprint 13.
+- **Acceptance criteria**:
+  - Compiler result remains exactly `0 errors, 0 warnings`.
+  - The unique V11 run and query evidence are identified reproducibly.
+  - The failed query is copied before another tester run can overwrite it.
+  - No failed raw TSV is relabeled or modified to satisfy validation.
+- **Validation**: Artifact metadata, SHA-256, eight-file listing, and summary
+  cross-check.
+- **Rollback**: Revert documentation only; preserve external evidence.
+
+### Task 14.2: Complete time, broker, structure, and performance audits
+
+- **Location**: Third-run `query_debug.txt`, strict V11 files, deterministic-time
+  helper, origin registration, initial matrix construction, and hot paths.
+- **Description**: Audit all timestamp triplets, broker event identities and
+  geometry, matrix/retry/parity structure, strict references, exporter control
+  flow, bounded state, file buffering, handle reuse, and remaining performance
+  opportunities.
+- **Dependencies**: Task 14.1.
+- **Acceptance criteria**:
+  - Winter `-60` and summer `0` are distinguished from broker-causal time.
+  - Accepted, denied, failed-send, and terminal event sets reconcile exactly.
+  - Every exported origin has sixteen initial cells and contiguous retries.
+  - The first fatal event and missing active outcomes are explained from source.
+  - Performance conclusions distinguish static boundedness from missing matched
+    export-off/export-on timing with logs disabled.
+- **Validation**: Strict `--validate-only`, read-only TSV/query reconciliation,
+  exact source review, and bounded-state/file/handle sweeps.
+- **Rollback**: Preserve evidence and revert documentation only.
+
+### Task 14.3: Add bounded corrective sprints
+
+- **Location**: This active plan.
+- **Description**: Add Sprint 15 for nonfatal gap-through origin registration,
+  explicit structural-geometry ineligibility, strict Python coverage, and full
+  non-compiler validation. Add Sprint 16 for the sole post-correction compile,
+  renewed human evidence, measured performance, archive, and hook cleanup.
+- **Dependencies**: Task 14.2.
+- **Acceptance criteria**:
+  - A consumed origin always retains its complete sixteen-cell declaration when
+    exporter identity and broker facts are valid.
+  - A structural stop on the wrong side of the fresh origin entry produces four
+    explicit structural `INELIGIBLE_GEOMETRY` cells; it is never reflected to
+    the other side of entry and never becomes broker authority.
+  - Volatility cells remain independent of broker structural admission.
+  - Sprint 15 invokes no MetaEditor compile or Strategy Tester automation.
+  - Sprint 16 archives and cleans hooks only after all human gates pass.
+- **Validation**: Plan cross-check, reference sweep, and `git diff --check`.
+- **Rollback**: Revert only the Sprint 14 plan extension.
+
+### Sprint 14 Gate
+
+- [ ] All Sprint 14 tasks complete.
+- [ ] Sprint 14 compile and third failed human evidence remain preserved.
+- [ ] Seasonal time and broker-query audits pass with exact counts.
+- [ ] Strict V11 failure, root cause, missing outcomes, and performance finding are recorded.
+- [ ] Failed external evidence remains unedited and the query copy is preserved.
+- [ ] Corrective Sprints 15 and 16 are explicit and ordered.
+- [ ] `git diff --check` passes.
+- [ ] Exactly one Sprint 14 commit is created.
+- [ ] Sprint 15 has not started before this gate completes.
+
+## Sprint 15: Retain Gap-Through Origins As Explicit Ineligible Trials
+
+**Goal**: Keep a valid consumed pivot origin research-auditable when its
+structural stop is already on the wrong side of the fresh executable entry,
+without changing broker routing or reflecting the structural stop into a
+synthetic valid position.
+
+**Dependencies**: Sprint 14 gate.
+
+**Tracked scope**:
+`services/trading_signals/pivot_fractal_statistics_export.mqh`,
+`services/trading_signals/pivot_trial_matrix_lifecycle.mqh`,
+`tools/deterministic_signal_ml/schema_contract.py`,
+`tools/deterministic_signal_ml/tests/test_pivot_fractal_schema.py`, active
+architecture/workflow contracts, and corrective acceptance evidence
+
+**Commit**: `fix: retain gap-through v11 origins as ineligible trials`
+
+**Demo/Validation**:
+
+- Origin registration preserves the actual trigger quote, pivot ladder, and
+  structural route even when directional structural risk is nonpositive.
+- Each such origin still declares the ordered four-by-four index-0 matrix.
+- Its four structural cells are `INELIGIBLE_GEOMETRY`, carry no synthesized
+  stop/TP/money plan, and never enter active state; volatility cells continue
+  through their own feature, geometry, distance, and money checks.
+- Broker denial, FOK routing, sizing, tickets, immutable protection, parity
+  creation, public inputs, and causal trigger order are unchanged.
+- Strict tooling rejects a wrong-side structural route whose structural matrix
+  cells are active, distance-only ineligible, or directionally reflected.
+
+**Rollback point**: Sprint 14 commit SHA.
+
+### Task 15.1: Separate origin identity validity from structural tradability
+
+- **Location**: `pivot_fractal_statistics_export.mqh`.
+- **Description**: Permit a finite positive structural route price to be stored
+  when it is on the wrong side of the origin entry. Continue failing closed for
+  missing identity, invalid pivot ladder, invalid broker point/tick facts,
+  invalid boundary mapping, or nonfinite/nonpositive route prices.
+- **Dependencies**: Sprint 14.
+- **Acceptance criteria**:
+  - Expected broker geometry denial cannot disable the exporter.
+  - Raw structural entry/SL and algebraic 1R TP remain faithful origin facts.
+  - Referential-integrity counters remain reserved for broken references.
+- **Validation**: Exact branch/reference review and exporter failure sweep.
+- **Rollback**: Revert only the Sprint 15 commit.
+
+### Task 15.2: Declare structural gap-through cells as geometry-ineligible
+
+- **Location**: `pivot_trial_matrix_lifecycle.mqh`.
+- **Description**: Before calculating structural requested risk, require the
+  structural stop to be strictly beyond the executable entry in the correct
+  direction. When it is equal or wrong-sided, retain quote/broker facts and
+  return an explicit ineligible trial instead of using absolute distance to
+  construct a reflected stop.
+- **Dependencies**: Task 15.1.
+- **Acceptance criteria**:
+  - All four structural TP policies receive the same deterministic ineligible
+    reason and no active state or outcome.
+  - Volatility cells are unaffected and retain frozen-width behavior.
+  - A normally sided structural route retains existing exact integer-R output.
+- **Validation**: Directional geometry and declaration-order review.
+- **Rollback**: Revert only the Sprint 15 commit.
+
+### Task 15.3: Align strict V11 validation, docs, and coverage
+
+- **Location**: `schema_contract.py`, focused Python tests, architecture,
+  workflow, and acceptance evidence.
+- **Description**: Encode the wrong-side structural-route rule and add positive
+  and negative fixture coverage without adding an MQL5 harness, test EA/script,
+  CI module, or automated Strategy Tester orchestration.
+- **Dependencies**: Tasks 15.1 and 15.2.
+- **Acceptance criteria**:
+  - A consistent gap-through origin with four structural geometry-ineligible
+    rows validates.
+  - Active or directionally reflected structural rows for that origin fail.
+  - Existing valid structural, volatility, retry, parity, and boundary fixtures
+    continue passing.
+- **Validation**: Focused and full Python contract suites.
+- **Rollback**: Revert only the Sprint 15 commit.
+
+### Task 15.4: Run the complete non-compiler correction gate
+
+- **Location**: All Sprint 15 source and docs.
+- **Description**: Run compileall, the full Python suite, fixture
+  validate/build/audit/train guards, header/manifest parity, include tracing,
+  broker safety, state/resource/performance sweeps, and whitespace checks
+  without invoking MetaEditor.
+- **Dependencies**: Tasks 15.1 through 15.3.
+- **Acceptance criteria**:
+  - All non-compiler checks pass.
+  - One native `OrderSend`, one native `OrderCheck`, FOK-only behavior, no
+    `TRADE_ACTION_SLTP`, and no broker mutation from virtual modules remain.
+  - No public input, schema header, include-order, or active-state-cap drift.
+- **Validation**: Existing repository commands and exact static sweeps.
+- **Rollback**: Revert the Sprint 15 commit to the Sprint 14 rollback point.
+
+### Sprint 15 Gate
+
+- [ ] All Sprint 15 tasks complete.
+- [ ] Gap-through origins declare sixteen cells without exporter failure.
+- [ ] Structural wrong-side cells are explicit and cannot become active.
+- [ ] Broker execution and parity authority remain unchanged.
+- [ ] Full non-compiler validation passes.
+- [ ] No MetaEditor compile or Strategy Tester automation is invoked.
+- [ ] `git diff --check` passes.
+- [ ] Exactly one Sprint 15 commit is created and its SHA is recorded.
+- [ ] Sprint 16 has not started before this gate completes.
+
+## Sprint 16: Final Compile, Renewed Human Acceptance, Archive, And Hook Cleanup
+
+**Goal**: Compile the Sprint 15 source once, obtain fresh human real-tick V11
+evidence including the gap-through path, complete strict research and measured
+performance acceptance, record the execution ledger, archive the plan, and
+clean active hooks only after every gate passes.
+
+**Dependencies**: Sprint 15 gate and human access to MetaEditor/Strategy Tester.
 
 **Tracked scope**: Compile artifacts, final acceptance evidence,
 `pivot-sl-tp-reentry-matrix-plan.md`, `docs/plans/README.md`, dated archive
@@ -1808,82 +2020,79 @@ plan-hook state
 
 **Demo/Validation**:
 
-- The only post-Sprint 13 real compile reports `0 errors, 0 warnings` and
-  regenerates `.ex5` from the Sprint 13 commit.
-- A fresh unique V11 run completes naturally with `export_status=OK`, zero
-  integrity errors, one parity row per accepted send, and no exporter failure.
-- Query, broker, matrix, parity, research, chart, seasonal-time, and measured
-  performance evidence passes before archive or hook cleanup.
+- The only post-Sprint 15 real compile reports `0 errors, 0 warnings` and
+  regenerates `.ex5` from the Sprint 15 commit.
+- A fresh unique V11 run crosses an observed structural gap-through without
+  exporter failure and completes naturally with `export_status=OK`.
+- Strict validate/build/audit, query/broker/parity reconciliation, seasonal
+  time, chart behavior, and matched performance evidence all pass before
+  archive or hook cleanup.
 
-**Rollback point**: Sprint 13 commit SHA.
+**Rollback point**: Sprint 15 commit SHA.
 
-### Task 14.1: Run the final real MetaEditor compile
+### Task 16.1: Run the final real MetaEditor compile
 
-- **Location**: `HFT_Grid_AI.mq5`, `HFT_Grid_AI.ex5`,
-  `tools/mt5/compile_mt5.py`, and `logs/compile/agentic-build.log`.
-- **Description**: Run one real `/compile` against the committed Sprint 13
-  source, parse the log, and record regenerated binary metadata. Do not use `/s`
-  as regeneration proof.
-- **Dependencies**: Sprint 13.
+- **Location**: Entrypoint, regenerated `.ex5`, compile helper, and compile log.
+- **Description**: Run one real `/compile` against the committed Sprint 15
+  source, parse the log, and record binary metadata. Do not use `/s` as
+  regeneration proof.
+- **Dependencies**: Sprint 15.
 - **Acceptance criteria**:
   - Compiler result is exactly `0 errors, 0 warnings`.
-  - `.ex5` timestamp, size, and SHA-256 prove regeneration after Sprint 13.
+  - `.ex5` timestamp, size, and SHA-256 prove regeneration after Sprint 15.
   - Any Wine wrapper discrepancy remains separate from compiler status.
-- **Validation**:
-  - `python3 tools/mt5/compile_mt5.py --wine --mt5-root "/home/loldlm/mql5_projects/metatrader_5_market_data_framework" --entrypoint "/home/loldlm/mql5_projects/metatrader_5_market_data_framework/MQL5/Experts/HFT_Grid_AI/HFT_Grid_AI.mq5" --log "logs/compile/agentic-build.log" --mode compile`
-- **Rollback**: Return to the Sprint 13 source; preserve compiler evidence.
+- **Validation**: Existing `tools/mt5/compile_mt5.py --mode compile` command.
+- **Rollback**: Return to Sprint 15 source; preserve compiler evidence.
 
-### Task 14.2: Complete fresh human, strict V11, time, and performance acceptance
+### Task 16.2: Complete renewed human, strict V11, and performance acceptance
 
 - **Location**: Human Strategy Tester/chart, fresh Common Files evidence, and
   ignored research artifacts.
 - **Description**: Use unique run IDs and `Every tick based on real ticks`.
-  Preserve both failed runs. Run the full matrix/broker acceptance, plus a
-  short `EXNESS_SESSION` XAUUSD winter or UK-DST-boundary sample. Record matched
-  tester elapsed time with logs disabled for export disabled versus enabled.
-- **Dependencies**: Task 14.1.
+  Include the January 5 gap-through path or another naturally equivalent case,
+  plus winter/summer Exness evidence. Record matched tester elapsed time with
+  both logs disabled for export disabled versus enabled.
+- **Dependencies**: Task 16.1.
 - **Acceptance criteria**:
-  - Natural windows continue exporting across exact-boundary accepted sends.
+  - Gap-through structural cells are explicit ineligible rows and export
+    continues into later windows.
   - Strict validate/build/audit complete with zero duplicate, referential,
     row-integrity, state-cap, active-outcome, or parity mismatch errors.
   - Query events and broker history remain one-to-one and exact 1R.
-  - Fixed mode remains equality; Exness XAUUSD shows `-60` outside UK DST and
-    `0` during UK DST without affecting causal broker time.
-  - Matched performance timing and folder growth are recorded; any overhead is
-    bounded and operationally acceptable.
+  - Exness XAUUSD shows `-60` outside UK DST and `0` during UK DST without
+    affecting causal broker time.
+  - Matched performance timing and folder growth are bounded and acceptable.
   - No raw failed or accepted TSV is edited.
 - **Validation**: Human evidence plus strict validate/build/audit/train support
   guards and the acceptance protocol.
-- **Rollback**: Preserve evidence and keep Sprint 14 active on any failure.
+- **Rollback**: Preserve evidence and keep Sprint 16 active on any failure.
 
-### Task 14.3: Record the ledger, archive, and clean hooks
+### Task 16.3: Record the ledger, archive, and clean hooks
 
-- **Location**: This plan, final acceptance evidence,
-  `docs/plans/archive/<v11-topic-date>/`,
-  `docs/research/archive/<v11-topic-date>/`, `docs/plans/README.md`, and active
-  plan-hook state.
-- **Description**: Record every Sprint 1-14 SHA, rollback point, validation,
+- **Location**: This plan, final acceptance evidence, dated plan/research
+  archive folders, `docs/plans/README.md`, and active plan-hook state.
+- **Description**: Record every Sprint 1-16 SHA, rollback point, validation,
   compile/run evidence, calibration finding, performance result, and residual
-  restriction. Archive and clear active hooks only after Task 14.2 passes.
-- **Dependencies**: Task 14.2.
+  restriction. Archive and clear active hooks only after Task 16.2 passes.
+- **Dependencies**: Task 16.2.
 - **Acceptance criteria**:
-  - Both failed runs and the final accepted run remain auditable.
+  - Failed and accepted evidence identities remain auditable.
   - Older V9/V10 history and fixtures remain untouched.
   - Active plan index and hooks return to no active plan only after acceptance.
   - Live rollout remains explicitly unauthorized.
 - **Validation**: Ledger/archive/hook review and `git diff --check`.
-- **Rollback**: Revert only Sprint 14 closeout and restore the plan as active.
+- **Rollback**: Revert only Sprint 16 closeout and restore the plan as active.
 
-### Sprint 14 Gate
+### Sprint 16 Gate
 
-- [ ] All Sprint 14 tasks complete.
+- [ ] All Sprint 16 tasks complete.
 - [ ] Final compile is `0 errors, 0 warnings` with regenerated `.ex5`.
 - [ ] Fresh human matrix, broker, parity, research, performance, DST, and chart acceptance passes.
 - [ ] Natural V11 run has `export_status=OK` and zero integrity errors.
 - [ ] Execution ledger and final rollback point are complete.
 - [ ] Plan/evidence are archived and active hooks are cleaned without deleting history.
 - [ ] `git diff --check` passes.
-- [ ] Exactly one Sprint 14 commit is created.
+- [ ] Exactly one Sprint 16 commit is created.
 - [ ] Active-plan execution state is marked complete only after this gate.
 
 ## Testing Strategy
@@ -1995,7 +2204,12 @@ plan-hook state
 - Sprint 13 rollback removes the accepted-boundary parity semantics, strict
   temporal coverage, and bounded hot-path copy optimization, returning to the
   documented Sprint 12 defect state.
-- Sprint 14 rollback returns to the committed Sprint 13 source and active plan
+- Sprint 14 rollback removes only the third failed-acceptance documentation and
+  plan extension; the compile, tester, preserved query, and raw V11 evidence
+  remain.
+- Sprint 15 rollback removes the nonfatal gap-through origin and structural
+  ineligibility correction, returning to the documented Sprint 14 defect.
+- Sprint 16 rollback returns to the committed Sprint 15 source and active plan
   without deleting compiler, tester, accepted-run, failed-run, or archive
   evidence.
 - Never use destructive Git reset or delete external datasets to perform a
@@ -2023,8 +2237,12 @@ plan-hook state
     audit, and extend the plan before changing source.
 12. Implement and statically validate accepted-boundary parity semantics and
     bounded hot-path copy elimination in Sprint 13 without invoking MetaEditor.
-13. Run the single post-Sprint 13 real compile in Sprint 14.
-14. Keep Sprint 14 active and uncommitted until the renewed human Strategy
+13. Preserve the Sprint 14 compile and third failed human run, complete the
+    audit, and extend the plan before changing source.
+14. Implement and statically validate the gap-through structural-ineligibility
+    correction in Sprint 15 without invoking MetaEditor.
+15. Run the single post-Sprint 15 real compile in Sprint 16.
+16. Keep Sprint 16 active and uncommitted until the renewed human Strategy
     Tester, strict V11, broker, parity, performance, DST, and chart gates pass.
 
 ## Completion Checklist
