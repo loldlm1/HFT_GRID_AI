@@ -233,8 +233,11 @@ void OnTick()
     return;
 
   ProcessPivotSignalLifecycle();
+  bool pivot_context_ready =
+    RefreshPivotFractalRuntimeContext(tick.time);
   ProcessPivotTrialMatrixTick(tick);
-  ProcessPivotFractalTick(tick);
+  if(pivot_context_ready)
+    ProcessPreparedPivotFractalTick(tick);
   datetime current_time = TimeCurrent();
   if(FrontendRefreshDue(current_time))
     RefreshExecutionVisualization();

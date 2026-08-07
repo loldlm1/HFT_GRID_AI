@@ -2069,6 +2069,8 @@ bool PivotV11WriteSummary(const string completion_status)
      g_pivot_v11_summary_written)
     return !g_pivot_v11_failed;
 
+  if(PivotTrialResearchIntegrityFailed())
+    PivotV11MarkFailed("VIRTUAL_STATE_INTEGRITY");
   if(ArraySize(g_pivot_v11_pending_origins) > 0)
     PivotV11RejectReference("SUMMARY_PENDING_ORIGINS");
   if(!PivotV11FlushAll())

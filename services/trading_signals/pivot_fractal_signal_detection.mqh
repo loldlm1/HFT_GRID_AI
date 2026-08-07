@@ -328,17 +328,21 @@ void ProcessPivotTouchCandidates(PivotTouchCandidate &candidates[],
   }
 }
 
-void ProcessPivotFractalTick(const MqlTick &tick)
+void ProcessPreparedPivotFractalTick(const MqlTick &tick)
 {
   if(tick.time <= 0)
-    return;
-
-  if(!RefreshPivotFractalRuntimeContext(tick.time))
     return;
   PivotTouchCandidate candidates[PIVOT_TOUCH_CANDIDATE_MAX];
   int total = DiscoverPivotTouchCandidates(tick, candidates);
   if(total > 0)
     ProcessPivotTouchCandidates(candidates, total, tick);
+}
+
+void ProcessPivotFractalTick(const MqlTick &tick)
+{
+  if(tick.time <= 0 || !RefreshPivotFractalRuntimeContext(tick.time))
+    return;
+  ProcessPreparedPivotFractalTick(tick);
 }
 
 #endif // _SERVICES_TRADING_SIGNALS_PIVOT_FRACTAL_SIGNAL_DETECTION_MQH_
