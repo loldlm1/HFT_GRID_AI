@@ -1925,6 +1925,8 @@ architecture/workflow contracts, and corrective acceptance evidence
 
 **Rollback point**: `496ae4a` (Sprint 14).
 
+**Sprint 15 commit**: `448bda1122896557bf8fc5d22c356b19c9bcd59f`.
+
 ### Task 15.1: Separate origin identity validity from structural tradability
 
 - **Location**: `pivot_fractal_statistics_export.mqh`.
@@ -1999,100 +2001,351 @@ architecture/workflow contracts, and corrective acceptance evidence
 - [x] Full non-compiler validation passes.
 - [x] No MetaEditor compile or Strategy Tester automation is invoked.
 - [x] `git diff --check` passes.
-- [ ] Exactly one Sprint 15 commit is created and its SHA is recorded.
+- [x] Exactly one Sprint 15 commit is created and its SHA is recorded.
 - [x] Sprint 16 has not started before this gate completes.
 
-## Sprint 16: Final Compile, Renewed Human Acceptance, Archive, And Hook Cleanup
+## Sprint 16: Final Compile And Fourth Human Acceptance Audit
 
-**Goal**: Compile the Sprint 15 source once, obtain fresh human real-tick V11
-evidence including the gap-through path, complete strict research and measured
-performance acceptance, record the execution ledger, archive the plan, and
-clean active hooks only after every gate passes.
+**Goal**: Preserve the clean post-Sprint 15 compile, audit the fresh seven-month
+real-tick evidence without editing it, and extend the active plan when the run
+exposes a parity/session, run-completion, or validation-performance defect.
 
 **Dependencies**: Sprint 15 gate and human access to MetaEditor/Strategy Tester.
 
-**Tracked scope**: Compile artifacts, final acceptance evidence,
-`pivot-sl-tp-reentry-matrix-plan.md`, `docs/plans/README.md`, dated archive
-folders under `docs/plans/archive/` and `docs/research/archive/`, and active
-plan-hook state
+**Tracked scope**: Compile artifacts, fourth-run acceptance evidence,
+`pivot-sl-tp-reentry-matrix-plan.md`, `docs/plans/README.md`,
+`docs/research/README.md`, and active plan-hook state
 
-**Commit**: `build: validate and close out pivot trial matrix v11`
+**Commit**: `docs: record fourth pivot matrix v11 acceptance failure`
 
 **Demo/Validation**:
 
 - The only post-Sprint 15 real compile reports `0 errors, 0 warnings` and
   regenerates `.ex5` from the Sprint 15 commit.
-- A fresh unique V11 run crosses an observed structural gap-through without
-  exporter failure and completes naturally with `export_status=OK`.
-- Strict validate/build/audit, query/broker/parity reconciliation, seasonal
-  time, chart behavior, and matched performance evidence all pass before
-  archive or hook cleanup.
+- All 449,228 exported broker/analysis timestamp triplets satisfy the Exness
+  XAUUSD UK-DST rule, and the complete broker query ledger reconciles.
+- Every one of 7,178 origins declares the ordered sixteen-cell matrix; retries,
+  active outcomes, gap-through ineligibility, and state bounds reconcile.
+- Five strict parity mismatches, run-level `CENSORED` ambiguity, and a
+  1,335,366,408-comparison validator scan block acceptance and are assigned to
+  explicit corrective sprints before source changes.
 
-**Rollback point**: Sprint 15 commit SHA.
+**Rollback point**: `448bda1` (Sprint 15).
 
-### Task 16.1: Run the final real MetaEditor compile
+### Task 16.1: Preserve the clean post-Sprint 15 compile
 
 - **Location**: Entrypoint, regenerated `.ex5`, compile helper, and compile log.
-- **Description**: Run one real `/compile` against the committed Sprint 15
-  source, parse the log, and record binary metadata. Do not use `/s` as
-  regeneration proof.
+- **Description**: Retain the one real `/compile` against committed Sprint 15
+  source and its binary metadata. Do not compile again during this audit.
 - **Dependencies**: Sprint 15.
 - **Acceptance criteria**:
   - Compiler result is exactly `0 errors, 0 warnings`.
   - `.ex5` timestamp, size, and SHA-256 prove regeneration after Sprint 15.
-  - Any Wine wrapper discrepancy remains separate from compiler status.
-- **Validation**: Existing `tools/mt5/compile_mt5.py --mode compile` command.
+  - The known Wine wrapper return-code discrepancy remains separate.
+- **Validation**: Existing recorded compile log and binary metadata.
 - **Rollback**: Return to Sprint 15 source; preserve compiler evidence.
 
-### Task 16.2: Complete renewed human, strict V11, and performance acceptance
+### Task 16.2: Audit deterministic time, broker facts, V11 structure, and cost
+
+- **Location**: Fresh Common Files `query_debug.txt`, the exact eight-file V11
+  run, source hot paths, and acceptance evidence.
+- **Description**: Inspect the evidence read-only. Reconcile timestamp triplets,
+  attempts/sends/terminals, broker outcomes, matrix cardinality, retries,
+  gap-through cells, parity pairs, completion state, artifact size, active-state
+  peak, and strict-validator elapsed behavior.
+- **Dependencies**: Task 16.1.
+- **Acceptance criteria**:
+  - Seasonal time, the real broker lane, and matrix structure receive explicit
+    pass/fail findings with exact counts.
+  - Every parity mismatch is identified by signal, terminal order, and causal
+    session/reconciliation evidence.
+  - Tester/runtime and offline-validator performance are assessed separately.
+  - Raw TSV and query evidence remain unedited; the query is preserved by hash.
+- **Validation**: Read-only streaming audits, exact hashes, static lifecycle
+  review, and `git diff --check`.
+- **Rollback**: Revert only the Sprint 16 documentation commit.
+
+### Task 16.3: Extend the plan before correcting source
+
+- **Location**: This active plan and acceptance evidence.
+- **Description**: Add Sprint 17 for linear strict validation, Sprint 18 for
+  executable-session parity and orthogonal run-completion semantics, and Sprint
+  19 for the sole new compile, renewed human evidence, archive, and hook cleanup.
+- **Dependencies**: Task 16.2.
+- **Acceptance criteria**:
+  - Each defect has one owning sprint, explicit acceptance criteria, and a
+    rollback point.
+  - No MQL5 harness, test EA/script, CI module, or tester automation is added.
+  - No source correction starts before the Sprint 16 commit exists.
+- **Validation**: Plan cross-check, reference sweep, and `git diff --check`.
+- **Rollback**: Revert only the Sprint 16 plan extension.
+
+### Sprint 16 Gate
+
+- [x] All Sprint 16 audit and plan-extension tasks complete.
+- [x] Compile evidence remains `0 errors, 0 warnings` with regenerated `.ex5`.
+- [x] Exness seasonal time, broker/query consistency, and matrix structure pass.
+- [x] Parity/session, natural-completion, and validator-complexity blockers are recorded.
+- [x] Failed evidence remains unedited and the query copy is preserved.
+- [x] Corrective Sprints 17 through 19 are explicit and ordered.
+- [x] `git diff --check` passes.
+- [ ] Exactly one Sprint 16 commit is created and its SHA is recorded.
+- [x] Sprint 17 has not started before this gate completes.
+
+## Sprint 17: Make Strict V11 Validation Linear In Run Size
+
+**Goal**: Remove the origin-by-all-trials scan so strict validation remains
+practical on natural multi-month V11 exports without weakening any invariant.
+
+**Dependencies**: Sprint 16 gate.
+
+**Tracked scope**: `tools/deterministic_signal_ml/schema_contract.py`, focused
+Python contract coverage, and performance evidence
+
+**Commit**: `perf: index v11 origin matrix validation`
+
+**Demo/Validation**:
+
+- Initial matrix order and per-origin maximum rows are accumulated while trials
+  are already being validated instead of rescanning all trials for every origin.
+- The preserved 299,967,529-byte failed run reaches its known strict parity
+  mismatch in bounded wall time instead of performing approximately 1.335
+  billion Python comparisons.
+- Schema rules, errors, artifacts, and accepted/rejected fixture behavior remain
+  unchanged.
+
+**Rollback point**: Sprint 16 commit SHA.
+
+### Task 17.1: Index initial matrix order and per-origin counts
+
+- **Location**: `_validate_trials()` in `schema_contract.py`.
+- **Description**: Accumulate ordered index-0 cells and matrix row counts by
+  `origin_id` during the existing single pass, then use direct lookups for the
+  origin gate.
+- **Dependencies**: Sprint 16.
+- **Acceptance criteria**:
+  - Validation complexity for this gate is `O(trials + origins)`.
+  - Exact sixteen-cell file order and the 52-row cap remain fail-closed.
+  - No schema, dataset, or runtime behavior changes.
+- **Validation**: Focused mutation tests and source complexity review.
+- **Rollback**: Revert only the Sprint 17 commit.
+
+### Task 17.2: Benchmark and run the complete Python contract gate
+
+- **Location**: Preserved large failed run and existing Python tests.
+- **Description**: Time strict validation of the large evidence until its known
+  parity mismatch, then run compileall and the full contract suite.
+- **Dependencies**: Task 17.1.
+- **Acceptance criteria**:
+  - The large run reaches the expected parity mismatch without manual timeout.
+  - All existing fixture, build, audit, and support-guard behavior passes.
+  - No MQL5 compile or tester automation runs.
+- **Validation**: Timed validate-only command, full Python suite, and
+  `git diff --check`.
+- **Rollback**: Revert only the Sprint 17 commit.
+
+### Sprint 17 Gate
+
+- [ ] All Sprint 17 tasks complete.
+- [ ] The quadratic origin/trial scan is absent.
+- [ ] Large-run validation reaches the expected semantic blocker in bounded time.
+- [ ] Full Python validation passes without schema drift.
+- [ ] No MetaEditor compile or Strategy Tester automation is invoked.
+- [ ] `git diff --check` passes.
+- [ ] Exactly one Sprint 17 commit is created and its SHA is recorded.
+- [ ] Sprint 18 has not started before this gate completes.
+
+## Sprint 18: Align Parity With Broker-Executable Observation And Natural Run Completion
+
+**Goal**: Keep the counterfactual matrix price-path lane unchanged while making
+the calibration-only parity shadow observe only broker-executable session
+touches, explicitly censor an unresolved shadow when its broker position closes,
+and separate natural run completion from row-level run-end censoring.
+
+**Dependencies**: Sprint 17 gate.
+
+**Tracked scope**: `HFT_Grid_AI.mq5`, parity trial lifecycle/state/export,
+strict V11 schema semantics and tests, manifest policy, active architecture and
+workflow documentation, and corrective acceptance evidence
+
+**Commit**: `fix: align v11 parity with broker observability`
+
+**Demo/Validation**:
+
+- A parity TP/SL candidate is accepted only when the actual symbol trade session
+  is open; the session lookup runs only after a parity threshold candidate is
+  detected, not on every trial or tick.
+- If broker history closes the owned position before an EA-observed executable
+  threshold, the active parity shadow records an explicit unlabelled
+  `CENSORED / BROKER_TERMINAL_BEFORE_OBSERVED_TOUCH` outcome and is excluded
+  from strict terminal agreement rather than later resolving on the opposite side.
+- Natural tester completion remains `NATURAL` even when active virtual matrix
+  rows correctly become `CENSORED` at the configured interval end.
+- Matrix entry, first-touch, retry, broker routing, one-order authority, and
+  actual broker money remain unchanged.
+
+**Rollback point**: Sprint 17 commit SHA.
+
+### Task 18.1: Gate parity threshold observation by actual trade session
+
+- **Location**: `pivot_trial_matrix_lifecycle.mqh` and existing broker-session
+  helper boundary.
+- **Description**: After detecting a parity-only TP/SL candidate, require
+  `IsSymbolTradeSessionOpen(_Symbol, tick.time)`. Do not gate or relabel matrix
+  trials, whose lane remains explicitly counterfactual quote-path research.
+- **Dependencies**: Sprint 17.
+- **Acceptance criteria**:
+  - Closed-session quotes cannot terminally classify parity.
+  - Matrix labels and retries remain byte-contract compatible.
+  - The session call is candidate-gated and does not add per-tick work when no
+    parity threshold is touched.
+- **Validation**: Exact branch/order review and static hot-path sweep.
+- **Rollback**: Revert only the Sprint 18 commit.
+
+### Task 18.2: Censor unresolved parity at broker terminal reconciliation
+
+- **Location**: parity lifecycle, broker outcome export handoff, and strict V11
+  outcome validation.
+- **Description**: Before linking a broker outcome, find any still-active parity
+  shadow, record one explicit broker-terminal censor at the current observed
+  quote, remove its active state, then link the broker pair as excluded.
+- **Dependencies**: Task 18.1.
+- **Acceptance criteria**:
+  - A broker close between `OnTick` callbacks cannot leave parity active.
+  - Existing TP/SL parity outcomes are not overwritten or double-counted.
+  - Missing quote/state/write failures remain fail-closed and auditable.
+- **Validation**: Link/order/reference review plus focused Python fixtures.
+- **Rollback**: Revert only the Sprint 18 commit.
+
+### Task 18.3: Make run completion orthogonal to row censoring
+
+- **Location**: `HFT_Grid_AI.mq5`, summary validation, tests, and workflow docs.
+- **Description**: Let the successful tester-interval flag own run-level
+  `NATURAL`; retain `CENSORED` for interrupted/forced runs. Permit natural runs
+  to contain explicit unlabelled run-end matrix censor rows.
+- **Dependencies**: Task 18.2.
+- **Acceptance criteria**:
+  - Run reason and trial terminal reason are no longer conflated.
+  - Natural censored rows remain excluded from binary/model cohorts.
+  - Forced/debug/manual interruption still cannot be accepted as natural.
+- **Validation**: Static lifecycle order, strict summary tests, and docs review.
+- **Rollback**: Revert only the Sprint 18 commit.
+
+### Task 18.4: Run the complete non-compiler correction gate
+
+- **Location**: All Sprint 18 source, schema tooling, tests, and docs.
+- **Description**: Run compileall, full Python tests, fixture validate/build/audit,
+  header/manifest parity, include tracing, broker safety, active-state/resource
+  sweeps, exact identifier references, and whitespace checks without MetaEditor.
+- **Dependencies**: Tasks 18.1 through 18.3.
+- **Acceptance criteria**:
+  - One native `OrderSend`, one native `OrderCheck`, FOK only, no
+    `TRADE_ACTION_SLTP`, and no matrix/parity broker mutation remain.
+  - Public inputs, eight-file headers, one-order policy, and state cap do not drift.
+  - All non-compiler checks pass.
+- **Validation**: Existing repository commands and exact static sweeps.
+- **Rollback**: Revert the Sprint 18 commit to the Sprint 17 rollback point.
+
+### Sprint 18 Gate
+
+- [ ] All Sprint 18 tasks complete.
+- [ ] Closed-session parity touches are ignored without changing matrix labels.
+- [ ] Broker-terminal-before-observed-touch parity is explicit and excluded.
+- [ ] Natural run status permits row-level censoring without binary labels.
+- [ ] Broker execution, money ownership, public inputs, and hot-path bounds remain unchanged.
+- [ ] Full non-compiler validation passes.
+- [ ] No MetaEditor compile or Strategy Tester automation is invoked.
+- [ ] `git diff --check` passes.
+- [ ] Exactly one Sprint 18 commit is created and its SHA is recorded.
+- [ ] Sprint 19 has not started before this gate completes.
+
+## Sprint 19: Final Compile, Renewed Human Acceptance, Archive, And Hook Cleanup
+
+**Goal**: Compile the committed Sprint 18 source once, obtain fresh human
+real-tick V11 evidence, complete strict research and measured performance
+acceptance, record the execution ledger, archive the plan, and clean active
+hooks only after every gate passes.
+
+**Dependencies**: Sprint 18 gate and human access to MetaEditor/Strategy Tester.
+
+**Tracked scope**: Compile artifacts, final acceptance evidence, this plan,
+`docs/plans/README.md`, dated archive folders under `docs/plans/archive/` and
+`docs/research/archive/`, project instructions, and active plan-hook state
+
+**Commit**: `build: validate and close out pivot trial matrix v11`
+
+**Demo/Validation**:
+
+- The only post-Sprint 18 real compile reports `0 errors, 0 warnings` and
+  regenerates `.ex5` from the Sprint 18 commit.
+- A fresh V11 run covers winter/summer time, gap-through structural cells,
+  closed-session parity candidates, broker-terminal censoring when naturally
+  present, and finishes with `completion_status=NATURAL`, `export_status=OK`.
+- Strict validate/build/audit, query/broker/parity reconciliation, chart
+  behavior, and matched performance evidence pass before archive or cleanup.
+
+**Rollback point**: Sprint 18 commit SHA.
+
+### Task 19.1: Run the final real MetaEditor compile
+
+- **Location**: Entrypoint, regenerated `.ex5`, compile helper, and compile log.
+- **Description**: Run one real `/compile` against committed Sprint 18 source,
+  parse the log, and record binary metadata. Do not use `/s` as regeneration proof.
+- **Dependencies**: Sprint 18.
+- **Acceptance criteria**:
+  - Compiler result is exactly `0 errors, 0 warnings`.
+  - `.ex5` timestamp, size, and SHA-256 prove regeneration after Sprint 18.
+  - Any Wine wrapper discrepancy remains separate from compiler status.
+- **Validation**: Existing `tools/mt5/compile_mt5.py --mode compile` command.
+- **Rollback**: Return to Sprint 18 source; preserve compiler evidence.
+
+### Task 19.2: Complete renewed human, strict V11, and performance acceptance
 
 - **Location**: Human Strategy Tester/chart, fresh Common Files evidence, and
   ignored research artifacts.
-- **Description**: Use unique run IDs and `Every tick based on real ticks`.
-  Include the January 5 gap-through path or another naturally equivalent case,
-  plus winter/summer Exness evidence. Record matched tester elapsed time with
-  both logs disabled for export disabled versus enabled.
-- **Dependencies**: Task 16.1.
+- **Description**: Use `Every tick based on real ticks`, fresh evidence, and the
+  fixed setup. Record a matched log-disabled control/export timing pair when
+  practical; never edit raw evidence.
+- **Dependencies**: Task 19.1.
 - **Acceptance criteria**:
-  - Gap-through structural cells are explicit ineligible rows and export
-    continues into later windows.
   - Strict validate/build/audit complete with zero duplicate, referential,
-    row-integrity, state-cap, active-outcome, or parity mismatch errors.
+    row-integrity, state-cap, active-outcome, or unexplained parity mismatch errors.
   - Query events and broker history remain one-to-one and exact 1R.
   - Exness XAUUSD shows `-60` outside UK DST and `0` during UK DST without
     affecting causal broker time.
-  - Matched performance timing and folder growth are bounded and acceptable.
-  - No raw failed or accepted TSV is edited.
+  - `NATURAL` run completion coexists with explicit unlabelled run-end censors.
+  - Tester timing, active-state peak, validator timing, and folder growth are bounded.
 - **Validation**: Human evidence plus strict validate/build/audit/train support
   guards and the acceptance protocol.
-- **Rollback**: Preserve evidence and keep Sprint 16 active on any failure.
+- **Rollback**: Preserve evidence and keep Sprint 19 active on any failure.
 
-### Task 16.3: Record the ledger, archive, and clean hooks
+### Task 19.3: Record the ledger, archive, and clean hooks
 
 - **Location**: This plan, final acceptance evidence, dated plan/research
-  archive folders, `docs/plans/README.md`, and active plan-hook state.
-- **Description**: Record every Sprint 1-16 SHA, rollback point, validation,
+  archive folders, `docs/plans/README.md`, project instructions, and active
+  plan-hook state.
+- **Description**: Record every Sprint 1-19 SHA, rollback point, validation,
   compile/run evidence, calibration finding, performance result, and residual
-  restriction. Archive and clear active hooks only after Task 16.2 passes.
-- **Dependencies**: Task 16.2.
+  restriction. Archive and clear active hooks only after Task 19.2 passes.
+- **Dependencies**: Task 19.2.
 - **Acceptance criteria**:
   - Failed and accepted evidence identities remain auditable.
   - Older V9/V10 history and fixtures remain untouched.
   - Active plan index and hooks return to no active plan only after acceptance.
   - Live rollout remains explicitly unauthorized.
 - **Validation**: Ledger/archive/hook review and `git diff --check`.
-- **Rollback**: Revert only Sprint 16 closeout and restore the plan as active.
+- **Rollback**: Revert only Sprint 19 closeout and restore the plan as active.
 
-### Sprint 16 Gate
+### Sprint 19 Gate
 
-- [ ] All Sprint 16 tasks complete.
+- [ ] All Sprint 19 tasks complete.
 - [ ] Final compile is `0 errors, 0 warnings` with regenerated `.ex5`.
 - [ ] Fresh human matrix, broker, parity, research, performance, DST, and chart acceptance passes.
 - [ ] Natural V11 run has `export_status=OK` and zero integrity errors.
 - [ ] Execution ledger and final rollback point are complete.
 - [ ] Plan/evidence are archived and active hooks are cleaned without deleting history.
 - [ ] `git diff --check` passes.
-- [ ] Exactly one Sprint 16 commit is created.
+- [ ] Exactly one Sprint 19 commit is created.
 - [ ] Active-plan execution state is marked complete only after this gate.
 
 ## Testing Strategy
@@ -2209,7 +2462,14 @@ plan-hook state
   remain.
 - Sprint 15 rollback removes the nonfatal gap-through origin and structural
   ineligibility correction, returning to the documented Sprint 14 defect.
-- Sprint 16 rollback returns to the committed Sprint 15 source and active plan
+- Sprint 16 rollback removes only the fourth failed-acceptance documentation and
+  plan extension; compiler, tester, query, and raw V11 evidence remain.
+- Sprint 17 rollback restores the prior strict validator implementation without
+  changing schema semantics or any runtime source.
+- Sprint 18 rollback removes executable-session parity, broker-terminal censor,
+  and orthogonal natural-completion semantics, returning to the documented
+  Sprint 17 state.
+- Sprint 19 rollback returns to the committed Sprint 18 source and active plan
   without deleting compiler, tester, accepted-run, failed-run, or archive
   evidence.
 - Never use destructive Git reset or delete external datasets to perform a
@@ -2241,8 +2501,15 @@ plan-hook state
     audit, and extend the plan before changing source.
 14. Implement and statically validate the gap-through structural-ineligibility
     correction in Sprint 15 without invoking MetaEditor.
-15. Run the single post-Sprint 15 real compile in Sprint 16.
-16. Keep Sprint 16 active and uncommitted until the renewed human Strategy
+15. Preserve the post-Sprint 15 compile and fourth failed human run in Sprint
+    16, complete the audit, and extend the plan before changing source.
+16. Remove the strict validator's quadratic origin/trial scan in Sprint 17
+    without invoking MetaEditor.
+17. Implement and statically validate executable-session parity,
+    broker-terminal censoring, and orthogonal natural completion in Sprint 18
+    without invoking MetaEditor.
+18. Run the single post-Sprint 18 real compile in Sprint 19.
+19. Keep Sprint 19 active and uncommitted until the renewed human Strategy
     Tester, strict V11, broker, parity, performance, DST, and chart gates pass.
 
 ## Completion Checklist
@@ -2258,6 +2525,10 @@ plan-hook state
 - [ ] Virtual quote gross and actual broker money remain separate.
 - [ ] Broker-parity calibration quantifies agreement and unexplained strict
       TP/SL mismatches are resolved.
+- [ ] Parity ignores closed-session threshold candidates and explicitly censors
+      a broker close that precedes any EA-observed executable touch.
+- [ ] Run-level `NATURAL` remains distinct from unlabelled row-level run-end
+      censoring.
 - [ ] Strict V11 eight-file export validates with zero integrity errors.
 - [ ] Long, wide, chain, broker, and calibration artifacts reconcile.
 - [ ] Human/ML support counts do not treat correlated trials as independent

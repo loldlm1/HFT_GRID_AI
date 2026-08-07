@@ -2,13 +2,16 @@
 
 ## Status And Boundary
 
-**Status**: The initial, Sprint 12, and Sprint 14 MetaEditor compiles passed,
-but three human real-tick runs exposed distinct strict V11 exporter defects.
+**Status**: The initial, Sprint 12, Sprint 14, and Sprint 16 MetaEditor compiles
+passed, but four human real-tick runs exposed distinct strict V11 defects.
 Sprint 11 fixed finalized-origin reconciliation and Sprint 13 fixed
 accepted-send boundary parity. Sprint 15 now retains the third run's expected
 gap-through structural denial as four explicit geometry-ineligible cells and
-passes the complete non-compiler gate. Sprint 16 owns the only new compile,
-renewed human acceptance, archive, and hook cleanup.
+passes the complete non-compiler gate. The fourth run passes deterministic
+time, broker, and matrix audits but exposes closed-session parity observation,
+broker-terminal parity cleanup, run-completion ambiguity, and quadratic strict
+validation. Corrective Sprints 17-19 are active; archive and hook cleanup remain
+pending.
 
 This protocol validates strict schema V11, the virtual SL/TP trial matrix,
 bounded volatility re-entries, the unchanged one-order broker lane, and
@@ -671,7 +674,181 @@ Sprint 15 non-compiler validation records:
 
 No MetaEditor compile, MQL5 harness, test EA/script, CI module, or automated
 Strategy Tester run is used in Sprint 15. Rollback point is Sprint 14 commit
-`496ae4a`.
+`496ae4a`; the Sprint 15 correction commit is
+`448bda1122896557bf8fc5d22c356b19c9bcd59f`.
+
+## Sprint 16 Final Compile Evidence
+
+The sole post-Sprint 15 real `/compile` ran against committed source
+`448bda1122896557bf8fc5d22c356b19c9bcd59f` and completed with:
+
+| Artifact/result | Evidence |
+| --- | --- |
+| MetaEditor result | `0 errors, 0 warnings, 10966 ms elapsed, cpu='X64 Regular'` |
+| Compile helper result | `PASS` |
+| Wine process return code | `1`; retained as the known wrapper discrepancy because the parsed MetaEditor result is clean |
+| Pre-compile `HFT_Grid_AI.ex5` | 233,282 bytes; modified `2026-08-07 14:24:00.867741170 -0400`; SHA-256 `5c4340cffcd909a3c99549d3a94afad4478e178aaa8b4df8e9e801005ef7d3cd` |
+| Compiled `HFT_Grid_AI.ex5` | 233,494 bytes; modified `2026-08-07 15:09:04.103724822 -0400`; SHA-256 `777b952b94e024436f5d49fbd34f62f4f9816efe9785b06516c9a598c45696df` |
+| `logs/compile/agentic-build.log` | 23,148 bytes; modified `2026-08-07 15:09:04.104724788 -0400`; SHA-256 `22e136350f4dc61ff01272e4e17c0b7ae2e247ebd12a4ccdd55744218fec42d5` |
+
+The changed size, timestamp, and SHA-256 prove `.ex5` regeneration after the
+Sprint 15 commit. The fourth run below supersedes this binary as final release
+evidence because source correction is required. No second compile is authorized
+until Sprint 19.
+
+## Fourth Human Run Audit - Failed Acceptance
+
+### Evidence Identity
+
+- Symbol and setup: `XAUUSD`, `EXNESS_SESSION`, Macro `H1`, Micro `M3`,
+  reference-balance lot `0.01`, export enabled, console logs disabled, and file
+  logs enabled.
+- Source/binary: Sprint 15 commit `448bda1`; Sprint 16 compiled `.ex5`
+  SHA-256 `777b952b94e024436f5d49fbd34f62f4f9816efe9785b06516c9a598c45696df`.
+- Run ID: `2026.01.05_00_00_00_XAUUSD_pivot_v11`.
+- Tester interval: `2026.01.05 00:00:00` through
+  `2026.07.31 20:57:59` broker time.
+- Debug evidence: `query_debug.txt`, 21,290 lines, 8,807,579 bytes, SHA-256
+  `e9b08af8743b2e019b3baf5f5fdceea60ba21d0a9fe6b4d699757d810668ced4`;
+  preserved byte-identically as
+  `query_debug_pivot_v11_sprint16_e9b08af8.txt`.
+- V11 evidence: exactly eight raw TSV files and 299,967,529 file bytes. The
+  query and TSV evidence were inspected read-only.
+
+| V11 file | Bytes | SHA-256 |
+| --- | ---: | --- |
+| `run_manifest.tsv` | 2,516 | `fc06b9d0d500b12b51cec9a58cc0cc4e62346475257af9e6df8935056bfc5691` |
+| `pivot_windows.tsv` | 2,785,376 | `b8621592f92c146a0ac87258c36b023f22ac88239a2bb53207819a71d61f57c3` |
+| `signal_origins.tsv` | 7,054,206 | `c038e04f51de87c460916b6a7efbe5fa1e9634e325ffbe9ecf4fb3ba30557a65` |
+| `virtual_trials.tsv` | 174,878,369 | `2baaca0a92c2671835c6164c073eafb6f25e906898e031f966afccc94c5a716f` |
+| `virtual_outcomes.tsv` | 87,299,791 | `0a30b586f26741b72f42877fe431d2b84c82ea7bcf9c033be026d9cdcc52e57c` |
+| `execution_checks.tsv` | 22,470,547 | `022acdd4da37ec14d3c41a0543f51a27277d2d6d45b19acdd1ecb71622ece824` |
+| `broker_outcomes.tsv` | 5,475,276 | `a47f76e40ee8e77c6d2085a5bc2c823d86af5addb6b01a42d94b969a5d8def5f` |
+| `run_summary.tsv` | 1,448 | `da51faa83ed1dc0b7dd83b0a96eb4aac490cd94e70240b89cd393f9ea692221b` |
+
+### Deterministic Exness Time - Pass
+
+All 449,228 non-null broker/analysis/offset triplets satisfy:
+
+```text
+analysis_time = broker_time + offset_minutes
+```
+
+The distribution is 180,525 rows at `-60` and 268,703 rows at `0`, with zero
+partial triplets, arithmetic mismatches, or UK-DST classification errors. The
+latest winter fact is `2026.03.27 20:54:03` at `-60`; the first available
+post-transition fact is `2026.03.29 22:00:00` at `0`. Broker timestamps remain
+unchanged and causal; only analysis timestamps shift.
+
+### Query Debug And Broker Consistency - Pass
+
+The complete query and V11 broker ledger reconcile as follows:
+
+| Event/result | Rows |
+| --- | ---: |
+| Session headers | 1 |
+| `PIVOT_ATTEMPT` | 7,178 |
+| Filled / denied / failed sends | 7,054 / 122 / 2 |
+| `PIVOT_SEND_RESULT` | 7,056 |
+| Accepted `10009` / failed `10016` | 7,054 / 2 |
+| `PIVOT_TERMINAL` / `broker_outcomes.tsv` | 7,054 / 7,054 |
+| Broker TP / SL / manual run-end close | 3,493 / 3,560 / 1 |
+
+Every event identity is unique. Filled attempts map one-to-one to accepted
+sends, terminal events, execution-check ownership, and broker outcomes. Denied
+attempts create no send or terminal; failed sends create no broker position.
+Trigger/request quote sides, request/send geometry, exact price-distance 1R,
+downward volume normalization, ticket/identifier ownership, timestamps, close
+reason, gross/net money, and binary eligibility have zero reconciliation errors.
+The 122 denials remain 67 closed-session, 52 structural-geometry, and three
+below-minimum-volume cases; the two failed sends remain explicit `10016 Invalid
+stops` facts.
+
+### Matrix And V11 Structure - Pass Before Parity Summary
+
+A streaming structural audit completes with zero errors:
+
+| Fact | Rows/result |
+| --- | ---: |
+| Pivot windows / signal origins | 3,412 / 7,178 |
+| Virtual trials / active declarations / outcomes | 186,036 / 185,788 / 185,788 |
+| Matrix / parity trials | 178,982 / 7,054 |
+| Initial matrix origins / policy chains | 7,178 / 114,848 |
+| TP / SL / censored virtual outcomes | 54,592 / 131,162 / 34 |
+| Geometry / distance / money ineligible rows | 200 / 32 / 16 |
+| Gap-through origins | 50, each with exactly four structural geometry-ineligible cells |
+| Maximum rows for one origin | 52 |
+| Active-state peak / cap | 83 / 2,048; no capacity failure |
+| Duplicate / referential / row-integrity counters | 0 / 0 / 0 |
+
+All 7,178 declared origins contain the exact ordered four-SL-policy by TP
+`1,2,3,5` index-0 product. Every chain is contiguous, every retry points to its
+immediately preceding `SL_FIRST`, structural policies never retry, exact R and
+minimum-distance arithmetic pass, and active trials equal outcome identities.
+Execution checks contain 7,178 observations, 7,178 fresh pre-send checks, 7,056
+send results, and 7,054 terminal checks, with one FOK deal send at most per
+signal and no protection mutation.
+
+### Blocking Parity Observation Defects
+
+The summary reports 7,054 parity pairs, 7,048 terminal matches, five strict
+mismatches, and one manual run-end exclusion. The five mismatches are:
+
+| Broker signal | Parity first touch | Broker terminal | Causal finding |
+| --- | --- | --- | --- |
+| `broker_11561925449488809286` | `SL_FIRST` at `2026.01.12 21:44:54` | TP at `23:02:31` | Threshold quote occurs during the metals daily closed interval; broker execution resumes after `23:01` |
+| `broker_10887269983167353549` | `TP_FIRST` at `2026.01.26 21:32:02` | SL at `2026.01.27 01:11:59` | Same-window attempts at `21:08` through `21:36` are explicitly denied as `actual_broker_session_closed` |
+| `broker_11336469120627649661` | `TP_FIRST` at `2026.02.05 21:04:01` | SL at `23:01:03` | Same-window attempts at `21:02` through `21:34` are explicitly session-closed |
+| `broker_5730662912872475597` | `TP_FIRST` at `2026.02.13 21:05:44` | SL at Sunday `2026.02.15 23:01:51` | Friday attempts at `21:12` through `21:46` are explicitly session-closed |
+| `broker_12643081431797828316` | `TP_FIRST` at `2026.05.26 22:35:35` | SL at `22:06:58` | Broker reconciliation closes first between relevant `OnTick` observations; the unresolved parity state later reaches the opposite side |
+
+Parity currently treats every quote-side threshold as broker-executable. That
+is invalid for calibration during an actual closed trade session. Separately,
+broker reconciliation can complete from `OnTradeTransaction` or history before
+the matrix receives another qualifying tick; no handoff currently censors the
+still-active parity shadow. The correction must remain parity-only: the matrix
+continues to be the documented counterfactual quote-path lane, while parity is
+the broker-executability calibration lane.
+
+### Blocking Run-Completion Ambiguity
+
+The run reaches the configured tester end but reports
+`completion_status=CENSORED`. `PivotRunCompletionStatus()` checks outstanding
+virtual state before the successful tester-interval flag, so 33 active matrix
+rows and one unresolved parity row make the run-level reason censored before
+those rows receive their correct run-end censor outcomes. Run completion and
+row terminal state are distinct facts: a natural interval may contain explicit
+unlabelled `CENSORED` trials. The runtime and strict summary validator must stop
+conflating them.
+
+### Performance Audit
+
+The V11 artifact modification window spans approximately 236 seconds from
+manifest creation to summary write while producing about 300 MB for seven
+months of real ticks. Runtime state peaks at only 83 of 2,048, uses two cached
+Bands handles, scans only current active state, buffers 256 rows per file, and
+does no nonvisual chart work. No broad MQL5 cache, state-index, file-format, or
+broker-call refactor is justified. The new parity session lookup should run
+only after a parity threshold candidate is detected.
+
+Offline strict validation is the material performance defect. The validator
+was manually interrupted after more than five minutes while still in
+`_validate_trials()`. Its final origin gate scans all 186,036 trials for every
+one of 7,178 origins, approximately 1,335,366,408 comparisons. A separate
+single-pass streaming audit of the same matrix finishes in about 22 seconds.
+Sprint 17 replaces the nested scan with per-origin indices without weakening
+validation. Exact tester export overhead still requires the planned matched
+log-disabled control/export pair after correction.
+
+### Corrective Disposition
+
+Sprint 16 records this fourth failed acceptance and stops closeout. Sprint 17
+makes strict validation linear in run size. Sprint 18 adds session-aware parity
+touches, explicit broker-terminal parity censoring, and orthogonal natural run
+completion, then runs the complete non-compiler gate. Sprint 19 is the only new
+MetaEditor compile and remains active until renewed human real-tick, strict V11,
+broker, parity, performance, DST, and chart evidence pass. Archive and hook
+cleanup remain prohibited until then.
 
 ## Precompile Validation Record
 
@@ -864,33 +1041,39 @@ export PIVOT_AUDIT_ID="<audit_id>"
 
 The raw run must contain exactly eight files. Acceptance requires
 `completion_status=NATURAL`, `export_status=OK`, zero duplicate/referential/row
-integrity errors, no state-cap failure, and no strict parity mismatch.
+integrity errors, no state-cap failure, and no unexplained strict parity
+mismatch. Natural completion may contain explicit unlabelled run-end trial
+censors; those row outcomes do not redefine why the tester run ended.
 
 ## Evidence Record
 
-Sprint 10 records the failed first run, Sprint 12 records the second, and
-Sprint 14 records the third gap-through failure. Sprint 16 will replace only
-the pending final-acceptance values after the Sprint 15 source correction:
+Sprint 10 records the failed first run, Sprint 12 records the second, Sprint 14
+records the third gap-through failure, and Sprint 16 records the fourth
+parity/session and completion-semantics failure. Sprint 19 will replace only the
+pending final-acceptance values after the Sprint 17/18 corrections:
 
 | Evidence | Result |
 | --- | --- |
-| Current source commit | Sprint 13 source `5f08f48`; Sprint 15 correction and final Sprint 16 acceptance pending |
-| Latest compile result and elapsed time | Sprint 14 pass: `0 errors, 0 warnings`, 10,822 ms; superseded by the third failed run |
-| Latest compiled `.ex5` size/mtime/SHA-256 | 233,398 bytes; `2026-08-07 13:38:24.154920432 -0400`; `bf522b2bc8e8187047b04a5728fb7f429d1e6a548b3efe0235721594cea36d03` |
+| Current source commit | Sprint 15 correction `448bda1`; Sprint 17/18 corrections and Sprint 19 acceptance pending |
+| Latest compile result and elapsed time | Sprint 16 pass: `0 errors, 0 warnings`, 10,966 ms; superseded by the fourth failed run |
+| Latest compiled `.ex5` size/mtime/SHA-256 | 233,494 bytes; `2026-08-07 15:09:04.103724822 -0400`; `777b952b94e024436f5d49fbd34f62f4f9816efe9785b06516c9a598c45696df` |
 | First failed run | XAUUSD, `EXNESS_SESSION`, `test_run_1`, `2026.06.08` through `2026.07.31`, approximately 232 KB |
 | Second failed run | XAUUSD, `FIXED_TIME_SESSIONS`, `2026.06.05_00_00_00_XAUUSD_pivot_v11`, `2026.06.05` through `2026.07.31`, 11,001,177 bytes |
 | Third failed run | XAUUSD, `EXNESS_SESSION`, `2026.01.05_00_00_00_XAUUSD_pivot_v11`, `2026.01.05` through `2026.07.31`, 1,676,201 raw TSV bytes |
+| Fourth failed run | Same setup/run ID after fresh regeneration, 299,967,529 raw TSV bytes; full interval exported before parity summary failure |
 | Second-run windows/origins/matrix/retry/parity rows | 122 / 265 / 6,552 / 2,248 / 268; export fails at the next H1 boundary |
 | Third-run windows/origins/matrix/retry/parity rows | 22 / 42 / 987 / 315 / 41; export fails on wrong-side structural origin registration |
 | Third-run TP/SL/censored/ineligible counts | 267 TP / 708 SL / 0 censored / 0 ineligible; 12 active matrix outcomes missing after failure |
-| Broker outcomes and exclusions | Query runs one through three all reconcile; third run has 3,493 TP / 3,560 SL / 1 manual, 122 denials, and 2 failed sends |
-| Strict parity pairs/matches/mismatches/exclusions | Third exported prefix: 41 / 41 / 0 / 0 |
-| Active-state peak/cap status | First/second/third runs: 25 / 68 / 49 of 2,048; no capacity failure |
+| Fourth-run windows/origins/matrix/retry/parity rows | 3,412 / 7,178 / 178,982 / 64,134 / 7,054 |
+| Fourth-run TP/SL/censored/ineligible counts | 54,592 TP / 131,162 SL / 34 censored / 248 ineligible; active/outcome identities exact |
+| Broker outcomes and exclusions | Query runs one through four all reconcile; fourth run has 3,493 TP / 3,560 SL / 1 manual, 122 denials, and 2 failed sends |
+| Strict parity pairs/matches/mismatches/exclusions | Fourth run: 7,054 / 7,048 / 5 / 1 |
+| Active-state peak/cap status | First/second/third/fourth runs: 25 / 68 / 49 / 83 of 2,048; no capacity failure |
 | Dataset/audit/model artifact IDs and sizes | Pending |
 | Export-disabled elapsed time | Pending |
 | Export-enabled elapsed time and overhead | Pending |
-| Human chart/broker-history observations | All broker/query audits pass; all three V11 research runs fail for distinct exporter defects |
-| Static fallbacks used | Explicit DST calendar/source review plus winter and run-finish summer triplets; successful detailed summer and matched performance evidence remain pending |
+| Human chart/broker-history observations | All broker/query audits pass; all four V11 research runs fail for distinct strict-export/calibration defects |
+| Static fallbacks used | Fourth run has detailed winter/summer triplets; matched log-disabled performance and renewed chart acceptance remain pending |
 
 ## Blocking Conditions
 

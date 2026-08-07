@@ -2,7 +2,7 @@
 
 ## Active
 
-- `pivot-sl-tp-reentry-matrix-plan.md`: active ten-sprint implementation of the
+- `pivot-sl-tp-reentry-matrix-plan.md`: active nineteen-sprint implementation of the
   strict schema V11 virtual SL/TP matrix, bounded volatility re-entry chains,
   broker-parity calibration, and unchanged single structural 1R broker lane.
 

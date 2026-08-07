@@ -5,8 +5,10 @@
 The current implementation candidate is the `PIVOT_FRACTAL_V2` Macro/Micro
 broker executor with strict schema V11 persistence, a virtual SL/TP policy
 matrix, bounded volatility re-entries, broker-parity calibration, and
-offline-only DuckDB/Parquet/XGBoost research. Final V11 real-tick acceptance is
-pending the active plan's compile and human Strategy Tester gate.
+offline-only DuckDB/Parquet/XGBoost research. The fourth V11 real-tick run
+passed deterministic time, broker, and matrix audits but exposed parity/session,
+run-completion, and large-run validator blockers. Corrective Sprints 17-19 are
+active; final acceptance remains pending.
 
 Use these active documents:
 
