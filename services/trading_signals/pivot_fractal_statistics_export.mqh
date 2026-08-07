@@ -263,6 +263,13 @@ bool PivotV11LinkParityVirtualOutcome(const PivotTrialOutcome &outcome)
   return PivotV11FinalizeParityLink(index);
 }
 
+bool PivotV11ParityHasVirtualOutcome(const string parity_trial_id)
+{
+  int index = FindPivotV11ParityLink(parity_trial_id);
+  return index >= 0 &&
+         g_pivot_v11_parity_links[index].virtual_outcome_recorded;
+}
+
 bool PivotV11LinkParityBrokerOutcome(const PivotSignal &signal)
 {
   int index = FindPivotV11ParityLink(signal.parity_trial_id);
@@ -469,7 +476,7 @@ string PivotV11BuildConfigPayload()
   payload +=
     "|deal_history_authoritative_gross_commission_swap_fee_net";
   payload +=
-    "|accepted_request_geometry_shadow_calibration_only_not_matrix_or_ml";
+    "|accepted_request_geometry_shadow_trade_session_observed_broker_terminal_censored_calibration_only_not_matrix_or_ml";
   payload += "|" + PIVOT_V11_FEATURE_SET_ID;
   return payload;
 }
@@ -797,7 +804,7 @@ bool PivotV11WriteManifest()
     "feature_complete_consistent_broker_tp_or_sl_only");
   rows[43] = PivotV11ManifestRow(
     "parity_policy",
-    "accepted_request_geometry_shadow_calibration_only_not_matrix_or_ml");
+    "accepted_request_geometry_shadow_trade_session_observed_broker_terminal_censored_calibration_only_not_matrix_or_ml");
   rows[44] = PivotV11ManifestRow(
     "time_policy",
     "broker_time_causal_analysis_time_export_only");
@@ -1884,7 +1891,8 @@ bool PivotV11RecordVirtualOutcome(const PivotTrialOutcome &outcome)
   if(parity_outcome)
   {
     g_pivot_v11_parity_outcome_rows++;
-    PivotV11LinkParityVirtualOutcome(outcome);
+    if(!PivotV11LinkParityVirtualOutcome(outcome))
+      return false;
   }
   else
   {
@@ -2271,7 +2279,10 @@ bool PivotV11RecordBrokerOutcome(const PivotSignal &signal)
     g_pivot_v11_broker_excluded_rows++;
   }
   if(signal.parity_trial_id != "")
-    PivotV11LinkParityBrokerOutcome(signal);
+  {
+    if(!PivotV11LinkParityBrokerOutcome(signal))
+      return false;
+  }
   return true;
 }
 

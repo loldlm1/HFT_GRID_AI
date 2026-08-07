@@ -880,13 +880,54 @@ all strict raw tables in memory. Streaming the entire validator would be a much
 larger tooling redesign and is not justified by this run: the full failed path
 now completes in bounded time and reports the intended semantic blocker.
 
+## Sprint 18 Broker-Observable Parity And Completion Correction
+
+The parity lane now checks `IsSymbolTradeSessionOpen()` only after its exact
+accepted-request TP or SL threshold becomes a candidate. Matrix trials remain
+the unchanged counterfactual quote-path lane, so no session call or broker rule
+changes their labels or retry chains.
+
+Broker reconciliation now finalizes an active parity shadow before exporting
+the paired broker outcome. A current tick at the broker-close second may still
+record its executable TP/SL observation. Otherwise the shadow records one
+unlabelled `CENSORED / BROKER_TERMINAL_BEFORE_OBSERVED_TOUCH` outcome and leaves
+active state before the broker pair is linked. Missing identity, quote, write,
+or removal facts fail the export closed.
+
+Successful tester-interval completion now owns run-level `NATURAL` before
+outstanding virtual-state inspection. Active matrix/parity rows still receive
+their explicit run-end censor outcomes, remain outside binary/model cohorts,
+and do not redefine why the run ended. The manifest parity policy now freezes
+the session-observed and broker-terminal-censor behavior.
+
+The correction adds no per-tick session lookup unless a parity threshold is
+already touched, changes no matrix geometry, and does not alter `OrderSend`,
+`OrderCheck`, FOK, lot sizing, SL/TP, broker money, or protection ownership.
+
+Validation records:
+
+- Focused broker-terminal censor, censor-time ordering, natural-with-row-censor,
+  and strict parity mismatch tests: pass.
+- Python compileall: pass.
+- Full Python contract suite: 26 tests pass in 8.788 seconds.
+- Deterministic fixture validate/build/audit: pass; audit remains the expected
+  `INSUFFICIENT_SUPPORT` result.
+- Training support guard: expected fail-closed result
+  `Not enough rows: 16 < 500`.
+- Static broker/resource gate: one `OrderSend`, one `OrderCheck`, FOK only, no
+  `TRADE_ACTION_SLTP`, no matrix broker calls, two cached Bands handles, nine
+  value inputs, and unchanged include order.
+- No MetaEditor compile, MQL5 harness, test EA/script, CI module, or automated
+  Strategy Tester path was invoked.
+- `git diff --check`: pass.
+
 ## Precompile Validation Record
 
 The frozen candidate has the following non-compiler evidence:
 
 - Python compileall: pass.
 - Full Python contract suite: Sprint 13 expands the suite from 22 to 23 tests;
-  Sprint 15 expands it to 24 passing tests.
+  Sprint 15 expands it to 24 and Sprint 18 to 26 passing tests.
 - Exact MQL5/Python V11 header parity: eight files pass.
 - Exact manifest key/fixed-token parity: 48 keys pass.
 - Deterministic V11 fixture: validation, build, and audit pass.
@@ -1002,6 +1043,9 @@ by `(origin_id, sl_policy, tp_r_multiple)`.
 - [ ] Denied and failed sends create no parity row.
 - [ ] Parity entry, SL, TP, and normalized volume equal the submitted request.
 - [ ] Parity is outside the sixteen-cell matrix, retries, policy support, and ML.
+- [ ] Closed-session threshold candidates leave parity active and unlabelled.
+- [ ] Broker-terminal-before-observed-touch parity is explicitly censored and
+  excluded before the broker outcome is linked.
 - [ ] Each closed broker outcome with `parity_trial_id` joins one parity trial
   and one parity outcome.
 - [ ] Manual, mixed, stop-out, expert, other, feature-incomplete, and censored
@@ -1084,7 +1128,7 @@ pending final-acceptance values after the Sprint 17/18 corrections:
 
 | Evidence | Result |
 | --- | --- |
-| Current source commit | Sprint 15 correction `448bda1`; Sprint 17/18 corrections and Sprint 19 acceptance pending |
+| Current source commit | Sprint 17 correction `c2466eb`; Sprint 18 correction and Sprint 19 acceptance pending |
 | Latest compile result and elapsed time | Sprint 16 pass: `0 errors, 0 warnings`, 10,966 ms; superseded by the fourth failed run |
 | Latest compiled `.ex5` size/mtime/SHA-256 | 233,494 bytes; `2026-08-07 15:09:04.103724822 -0400`; `777b952b94e024436f5d49fbd34f62f4f9816efe9785b06516c9a598c45696df` |
 | First failed run | XAUUSD, `EXNESS_SESSION`, `test_run_1`, `2026.06.08` through `2026.07.31`, approximately 232 KB |

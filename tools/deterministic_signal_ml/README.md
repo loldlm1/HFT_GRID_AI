@@ -80,8 +80,9 @@ The audit separates origin/matrix support, virtual policy performance, chain
 results, broker execution, and parity calibration. It reports both unique
 origins and trial rows, expected nominal R, quote gross R, censoring, and
 calibration exclusions. Human bins are report-only; XGBoost receives the
-underlying continuous values. Any unexplained strict TP/SL parity mismatch
-fails the audit.
+underlying continuous values. Parity terminal observations are session-aware;
+broker-terminal-before-observed-touch shadows are explicit censored exclusions.
+Any unexplained fully observed TP/SL parity mismatch fails the audit.
 
 ## Train
 

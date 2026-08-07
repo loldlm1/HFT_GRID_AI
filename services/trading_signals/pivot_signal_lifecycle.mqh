@@ -142,7 +142,9 @@ void FinalizePivotSignalTerminalStates()
       UpdatePivotOrigin(g_pivot_signals[i]);
       ExportPivotOwnershipExecutionCheckIfNeeded(g_pivot_signals[i]);
       ExportPivotTerminalExecutionCheck(g_pivot_signals[i]);
-      ExportPivotSignalOutcome(g_pivot_signals[i]);
+      if(!FinalizeBrokerParityAtBrokerTerminal(g_pivot_signals[i]) ||
+         !ExportPivotSignalOutcome(g_pivot_signals[i]))
+        continue;
       LogPivotSignalTerminal(g_pivot_signals[i]);
       PivotSignalRemoveAt(i);
       continue;

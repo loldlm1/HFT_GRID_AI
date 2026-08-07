@@ -126,7 +126,7 @@ sends closed.
 
 ## Schema V11 Research
 
-When export is enabled, MT5 writes exactly six strict TSV files under:
+When export is enabled, MT5 writes exactly eight strict TSV files under:
 
 ```text
 Common\Files\PivotFractalV11\runs\<run_id>\
@@ -165,8 +165,10 @@ result: `1=TP_FIRST`, `0=SL_FIRST`. Sample weight is normalized per origin so
 retry-heavy chains do not manufacture support. Broker TP/SL outcomes remain a
 separate execution cohort. An accepted real request also creates one
 calibration-only parity shadow from its exact submitted geometry and volume;
-virtual gross remains counterfactual and has no commission, swap, fee, or net
-claim.
+parity threshold candidates resolve only while the actual symbol trade session
+is open. A broker close observed before a parity threshold produces an explicit
+unlabelled broker-terminal censor. Virtual gross remains counterfactual and has
+no commission, swap, fee, or net claim.
 
 DuckDB/Parquet audits and XGBoost are offline research only. Current code does
 not load a model into MT5 or let research artifacts alter broker execution.

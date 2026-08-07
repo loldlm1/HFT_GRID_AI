@@ -675,6 +675,56 @@ class PivotFractalSchemaTests(unittest.TestCase):
 
         self.assert_mutation_rejected(mismatch_parity_terminal, "broker/parity TP/SL terminal mismatch")
 
+    def test_broker_terminal_censored_parity_is_explicitly_excluded(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            runs_root, run_path = self.copy_fixture(temp_dir)
+            mutate_row(
+                run_path,
+                VIRTUAL_OUTCOMES_FILE,
+                lambda row: row["trial_id"] == "parity_broker_sig_s1",
+                terminal_broker_time="2026.01.12 10:30:01",
+                terminal_analysis_time="2026.01.12 10:30:01",
+                terminal_status="CENSORED",
+                terminal_reason="BROKER_TERMINAL_BEFORE_OBSERVED_TOUCH",
+                threshold_price=NULL_TOKEN,
+                gap_points=NULL_TOKEN,
+                duration_seconds="1500",
+                virtual_nominal_r=NULL_TOKEN,
+                virtual_quote_gross_profit=NULL_TOKEN,
+                virtual_quote_gross_r=NULL_TOKEN,
+                virtual_exclusion_reason="BROKER_TERMINAL_BEFORE_OBSERVED_TOUCH",
+            )
+            mutate_summary(
+                run_path,
+                parity_terminal_match_rows="0",
+                parity_excluded_rows="1",
+            )
+
+            validate_run(runs_root, V11_FIXTURE.name)
+
+            mutate_row(
+                run_path,
+                VIRTUAL_OUTCOMES_FILE,
+                lambda row: row["trial_id"] == "parity_broker_sig_s1",
+                terminal_broker_time="2026.01.12 10:30:00",
+                terminal_analysis_time="2026.01.12 10:30:00",
+                duration_seconds="1499",
+            )
+            with self.assertRaisesRegex(
+                SchemaValidationError,
+                "broker-terminal parity censor precedes broker close",
+            ):
+                validate_run(runs_root, V11_FIXTURE.name)
+
+    def test_natural_completion_allows_unlabelled_run_end_censors(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            runs_root, run_path = self.copy_fixture(temp_dir)
+            mutate_summary(run_path, completion_status="NATURAL")
+
+            validation = validate_run(runs_root, V11_FIXTURE.name)
+
+            self.assertEqual(validation.warnings, ())
+
     def test_broker_parity_can_declare_at_origin_expiry(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             runs_root, run_path = self.copy_fixture(temp_dir)

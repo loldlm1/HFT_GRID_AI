@@ -92,7 +92,11 @@ Virtual nominal R and virtual quote gross are counterfactual price-path facts.
 They do not contain commission, swap, fee, latency, broker slippage, or net
 profit. Broker deal history alone owns actual gross, costs, net, budget R, and
 execution R. Parity calibration compares exact accepted request geometry to
-the broker outcome; unexplained strict TP/SL disagreement fails integrity.
+the broker outcome. Parity observes threshold candidates only during the actual
+trade session; broker-terminal-before-observed-touch shadows are censored and
+excluded. Unexplained fully observed in-session TP/SL disagreement fails
+integrity. Natural run completion remains independent from unlabelled row-level
+run-end censoring.
 
 ## Splitting And Configuration
 

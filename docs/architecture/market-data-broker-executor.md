@@ -183,7 +183,8 @@ allows an active trial to finish but prohibits another retry.
 Current matrix and parity state is capped at `2048`. Capacity exhaustion marks
 the research run failed, stops new virtual declarations, and does not evict
 existing trials or change broker execution. Remaining active state is exported
-as `CENSORED` at run end.
+as `CENSORED` at run end. A successful tester interval remains run-level
+`NATURAL`; row censoring describes unresolved trials, not why the run ended.
 
 ## Weighted Bands Feature Ownership
 
@@ -324,7 +325,13 @@ processing completes on or after the exact origin boundary, parity retains the
 accepted send timestamp and records `origin_window_active_at_entry=0`; matrix
 and re-entry declarations still cannot cross that boundary. Parity is excluded
 from the sixteen matrix cells, retry chains, policy support, and model targets.
-Unexplained strict parity/broker TP/SL disagreement is an integrity failure.
+Only a detected parity threshold candidate performs an actual symbol-session
+lookup, and a closed-session quote cannot classify parity. When broker history
+closes before another observed executable threshold, the current same-time tick
+resolves parity when possible; otherwise the shadow becomes unlabelled
+`CENSORED / BROKER_TERMINAL_BEFORE_OBSERVED_TOUCH` before broker-outcome
+linking. Unexplained in-session strict parity/broker TP/SL disagreement remains
+an integrity failure.
 
 Current DuckDB/Parquet, audit, and XGBoost code is offline-only. It cannot load
 into MT5, approve a runtime artifact, filter an attempt, or alter broker state.

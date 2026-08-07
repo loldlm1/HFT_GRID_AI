@@ -201,7 +201,8 @@ capacity, and lot settings; window, origin, trial, parity, broker, excluded,
 censored, chain-terminal, and support counts; output sizes; and final validator
 status. Accepted evidence ends naturally with
 `completion_status=NATURAL`, `export_status=OK`, and zero duplicate,
-referential, or row-integrity errors.
+referential, or row-integrity errors. Natural completion may coexist with
+explicit unlabelled run-end virtual censors.
 
 ## Final Human Strategy Tester Gate
 
@@ -209,7 +210,9 @@ Use the matrix in `docs/workflows/pivot-fractal-statistics-flow.md` with
 `Every tick based on real ticks`. It covers causal Macro/Micro data, direct Bid
 virtual limits, PP arming, same-tick gaps, all route families, immutable SL/TP,
 broker denials, V11 matrix/retries, parity calibration, DST normalization,
-bounded real-position visuals, and export performance.
+bounded real-position visuals, and export performance. Verify that parity
+ignores closed-session threshold candidates and explicitly excludes any
+broker-terminal-before-observed-touch censor.
 
 Record the run with
 `docs/research/pivot-trial-matrix-v11-acceptance-preparation-2026-08-07.md`.

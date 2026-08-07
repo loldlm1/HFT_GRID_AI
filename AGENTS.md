@@ -136,7 +136,8 @@ broker tick
   same three-retry cap without an outer pivot boundary.
 - Virtual state is bounded to `2048` active matrix/parity trials. Active trials
   may resolve after window expiry, but no new retry may be created then. Run
-  termination censors remaining trials rather than relabeling them as losses.
+  termination censors remaining trials rather than relabeling them as losses;
+  a naturally completed tester interval remains run-level `NATURAL`.
 - Matrix trials, retries, and parity shadows are research-only. They cannot
   authorize, deny, delay, resize, duplicate, close, or modify the one real
   structural 1R broker order.
@@ -200,7 +201,10 @@ realized profit after a fill.
   cohorts and exists only to measure virtual-versus-broker agreement. The
   trigger must belong to its Macro origin, but synchronous send completion may
   cross the exact origin boundary; parity keeps the accepted send time and
-  exports `origin_window_active_at_entry=0` for that explicit case.
+  exports `origin_window_active_at_entry=0` for that explicit case. Parity
+  threshold candidates resolve only in an actual trade session. If broker
+  history closes first, the unresolved shadow is explicitly censored as
+  `BROKER_TERMINAL_BEFORE_OBSERVED_TOUCH` before broker-outcome linking.
 - The primary virtual binary cohort contains feature-complete eligible
   `TP_FIRST`/`SL_FIRST` matrix rows. The broker TP/SL cohort and parity
   calibration remain separate; ineligible and censored rows are never losses.

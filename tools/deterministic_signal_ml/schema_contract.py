@@ -736,7 +736,7 @@ FIXED_MANIFEST_VALUES = {
     "virtual_outcome_policy": "tp_first_sl_first_or_censored_from_causal_executable_quote",
     "virtual_binary_cohort_policy": "entry_feature_complete_eligible_tp_or_sl_only",
     "broker_binary_cohort_policy": "feature_complete_consistent_broker_tp_or_sl_only",
-    "parity_policy": "accepted_request_geometry_shadow_calibration_only_not_matrix_or_ml",
+    "parity_policy": "accepted_request_geometry_shadow_trade_session_observed_broker_terminal_censored_calibration_only_not_matrix_or_ml",
     "time_policy": "broker_time_causal_analysis_time_export_only",
     "feature_set_id": SUPPORTED_FEATURE_SET_ID,
     "research_approval_state": "OFFLINE_RESEARCH_ONLY",
@@ -1869,9 +1869,16 @@ def _validate_virtual_outcomes(
         expected_reason = {
             "TP_FIRST": "TP_THRESHOLD",
             "SL_FIRST": "SL_THRESHOLD",
-            "CENSORED": "RUN_END",
-        }[status]
-        if row["terminal_reason"] != expected_reason:
+        }.get(status)
+        if status == "CENSORED":
+            allowed_reasons = (
+                ("RUN_END", "BROKER_TERMINAL_BEFORE_OBSERVED_TOUCH")
+                if trial["trial_role"] == "BROKER_PARITY"
+                else ("RUN_END",)
+            )
+            if row["terminal_reason"] not in allowed_reasons:
+                raise SchemaValidationError(f"{context}: virtual terminal reason mismatch")
+        elif row["terminal_reason"] != expected_reason:
             raise SchemaValidationError(f"{context}: virtual terminal reason mismatch")
         direction = row["direction"]
         expected_side = "BID" if direction == "BUY" else "ASK"
@@ -1949,6 +1956,14 @@ def _validate_virtual_outcomes(
         else:
             if binary_target is not None or _is_null(row["virtual_exclusion_reason"]):
                 raise SchemaValidationError(f"{context}: excluded virtual outcome target mismatch")
+        if trial["trial_role"] == "BROKER_PARITY":
+            expected_exclusion = (
+                "BROKER_TERMINAL_BEFORE_OBSERVED_TOUCH"
+                if row["terminal_reason"] == "BROKER_TERMINAL_BEFORE_OBSERVED_TOUCH"
+                else "PARITY_CALIBRATION_ONLY"
+            )
+            if row["virtual_exclusion_reason"] != expected_exclusion:
+                raise SchemaValidationError(f"{context}: parity exclusion reason mismatch")
 
         chain_terminal = _as_bool(row, "chain_terminal", context)
         continuation_allowed = _as_bool(row, "continuation_allowed", context)
@@ -2252,6 +2267,7 @@ def _validate_broker_outcomes(
     outcomes: dict[str, dict[str, str]] = {}
     outcome_ids: set[str] = set()
     position_ids: set[str] = set()
+    paired_parity_ids: set[str] = set()
     for row_index, row in enumerate(rows, start=2):
         context = f"{BROKER_OUTCOMES_FILE}:{row_index}"
         _validate_common_row(row, context, manifest)
@@ -2407,6 +2423,23 @@ def _validate_broker_outcomes(
                 raise SchemaValidationError(f"{context}: broker outcome lacks parity pair") from exc
             if parity_trial["broker_signal_id"] != broker_signal_id:
                 raise SchemaValidationError(f"{context}: parity pair broker identity mismatch")
+            paired_parity_ids.add(parity_trial_id)
+            if parity_outcome["terminal_status"] == "CENSORED":
+                if (
+                    parity_outcome["terminal_reason"]
+                    != "BROKER_TERMINAL_BEFORE_OBSERVED_TOUCH"
+                ):
+                    raise SchemaValidationError(
+                        f"{context}: broker outcome has unresolved parity without terminal censor"
+                    )
+                parity_terminal_time = _as_time(
+                    parity_outcome, "terminal_broker_time", context
+                )
+                assert parity_terminal_time is not None
+                if parity_terminal_time < close_time:
+                    raise SchemaValidationError(
+                        f"{context}: broker-terminal parity censor precedes broker close"
+                    )
             strict_pair = binary_eligible and parity_outcome["terminal_status"] in (
                 "TP_FIRST",
                 "SL_FIRST",
@@ -2418,6 +2451,16 @@ def _validate_broker_outcomes(
                         f"{context}: unexplained broker/parity TP/SL terminal mismatch"
                     )
         outcomes[broker_signal_id] = row
+    for parity_trial_id, parity_outcome in virtual_outcomes.items():
+        if (
+            parity_outcome["trial_role"] == "BROKER_PARITY"
+            and parity_outcome["terminal_reason"]
+            == "BROKER_TERMINAL_BEFORE_OBSERVED_TOUCH"
+            and parity_trial_id not in paired_parity_ids
+        ):
+            raise SchemaValidationError(
+                f"Parity outcome {parity_trial_id} has broker-terminal censor without broker outcome"
+            )
     return outcomes
 
 
@@ -2583,9 +2626,6 @@ def _validate_summary(
         raise SchemaValidationError(
             f"run summary has invalid completion_status: {completion_status}"
         )
-    censored_rows = count_columns["matrix_censored_rows"]
-    if completion_status == "NATURAL" and censored_rows:
-        raise SchemaValidationError("natural run contains censored virtual trials")
     if terminal_mismatches:
         raise SchemaValidationError("run summary contains broker/parity terminal mismatch")
     return ("run completion is CENSORED",) if completion_status == "CENSORED" else ()

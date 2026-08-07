@@ -2148,13 +2148,15 @@ Python contract coverage, and performance evidence
 
 ### Sprint 17 Gate
 
+**Sprint 17 commit**: `c2466eb723caea4616135ae690a2b309761d4a95`.
+
 - [x] All Sprint 17 tasks complete.
 - [x] The quadratic origin/trial scan is absent.
 - [x] Large-run validation reaches the expected semantic blocker in bounded time.
 - [x] Full Python validation passes without schema drift.
 - [x] No MetaEditor compile or Strategy Tester automation is invoked.
 - [x] `git diff --check` passes.
-- [ ] Exactly one Sprint 17 commit is created and its SHA is recorded.
+- [x] Exactly one Sprint 17 commit is created and its SHA is recorded.
 - [x] Sprint 18 has not started before this gate completes.
 
 ## Sprint 18: Align Parity With Broker-Executable Observation And Natural Run Completion
@@ -2186,7 +2188,7 @@ workflow documentation, and corrective acceptance evidence
 - Matrix entry, first-touch, retry, broker routing, one-order authority, and
   actual broker money remain unchanged.
 
-**Rollback point**: Sprint 17 commit SHA.
+**Rollback point**: `c2466eb` (Sprint 17).
 
 ### Task 18.1: Gate parity threshold observation by actual trade session
 
@@ -2250,16 +2252,18 @@ workflow documentation, and corrective acceptance evidence
 
 ### Sprint 18 Gate
 
-- [ ] All Sprint 18 tasks complete.
-- [ ] Closed-session parity touches are ignored without changing matrix labels.
-- [ ] Broker-terminal-before-observed-touch parity is explicit and excluded.
-- [ ] Natural run status permits row-level censoring without binary labels.
-- [ ] Broker execution, money ownership, public inputs, and hot-path bounds remain unchanged.
-- [ ] Full non-compiler validation passes.
-- [ ] No MetaEditor compile or Strategy Tester automation is invoked.
-- [ ] `git diff --check` passes.
+- [x] All Sprint 18 tasks complete.
+- [x] Closed-session parity touches are ignored without changing matrix labels.
+- [x] Broker-terminal-before-observed-touch parity is explicit and excluded.
+- [x] Natural run status permits row-level censoring without binary labels.
+- [x] Broker execution, money ownership, public inputs, and hot-path bounds remain unchanged.
+- [x] Full non-compiler validation passes: compileall, 26 Python tests,
+  fixture validate/build/audit, expected training support guard, and static
+  broker/resource/include sweeps.
+- [x] No MetaEditor compile or Strategy Tester automation is invoked.
+- [x] `git diff --check` passes.
 - [ ] Exactly one Sprint 18 commit is created and its SHA is recorded.
-- [ ] Sprint 19 has not started before this gate completes.
+- [x] Sprint 19 has not started before this gate completes.
 
 ## Sprint 19: Final Compile, Renewed Human Acceptance, Archive, And Hook Cleanup
 

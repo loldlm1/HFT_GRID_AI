@@ -840,6 +840,11 @@ bool ResolvePivotTrialFirstTouch(const PivotTrialEntry &trial,
   if(tp_touched == sl_touched)
     return false;
 
+  bool parity_trial =
+    trial.identity.role == PIVOT_TRIAL_ROLE_BROKER_PARITY;
+  if(parity_trial && !IsSymbolTradeSessionOpen(_Symbol, tick.time))
+    return false;
+
   outcome_out.outcome_id =
     PivotTrialOutcomeId(trial.identity.trial_id);
   outcome_out.identity.CopyFrom(trial.identity);
@@ -863,8 +868,6 @@ bool ResolvePivotTrialFirstTouch(const PivotTrialEntry &trial,
     trial.geometry.point_size;
   outcome_out.duration_seconds =
     (long)(outcome_out.terminal_time - trial.declared_time);
-  bool parity_trial =
-    trial.identity.role == PIVOT_TRIAL_ROLE_BROKER_PARITY;
   if(parity_trial && tp_touched)
   {
     double risk_distance =
@@ -923,13 +926,16 @@ bool ResolvePivotTrialFirstTouch(const PivotTrialEntry &trial,
   return true;
 }
 
-bool BuildPivotTrialRunEndOutcome(const PivotTrialEntry &trial,
-                                  const MqlTick &tick,
-                                  PivotTrialOutcome &outcome_out)
+bool BuildPivotTrialCensoredOutcome(const PivotTrialEntry &trial,
+                                    const MqlTick &tick,
+                                    const string terminal_reason,
+                                    const string exclusion_reason,
+                                    PivotTrialOutcome &outcome_out)
 {
   outcome_out.Reset();
   if(trial.eligibility_status != PIVOT_TRIAL_ELIGIBILITY_ACTIVE ||
-     !PivotTrialQuoteValid(tick))
+     !PivotTrialQuoteValid(tick) || terminal_reason == "" ||
+     exclusion_reason == "")
     return false;
 
   outcome_out.outcome_id =
@@ -940,7 +946,7 @@ bool BuildPivotTrialRunEndOutcome(const PivotTrialEntry &trial,
   if(outcome_out.terminal_time <= trial.declared_time)
     outcome_out.terminal_time = trial.declared_time + 1;
   outcome_out.first_touch = PIVOT_TRIAL_FIRST_TOUCH_CENSORED;
-  outcome_out.terminal_reason = "RUN_END";
+  outcome_out.terminal_reason = terminal_reason;
   outcome_out.observed_exit_bid = tick.bid;
   outcome_out.observed_exit_ask = tick.ask;
   outcome_out.observed_exit_price =
@@ -952,14 +958,103 @@ bool BuildPivotTrialRunEndOutcome(const PivotTrialEntry &trial,
   outcome_out.virtual_binary_target = -1;
   bool parity_trial =
     trial.identity.role == PIVOT_TRIAL_ROLE_BROKER_PARITY;
-  outcome_out.virtual_exclusion_reason = parity_trial
-                                         ? "PARITY_CALIBRATION_ONLY"
-                                         : "CENSORED_RUN_END";
+  outcome_out.virtual_exclusion_reason = exclusion_reason;
   outcome_out.first_touch_consistent = true;
   outcome_out.chain_terminal = true;
   outcome_out.chain_terminal_reason = parity_trial
                                       ? PIVOT_TRIAL_CHAIN_PARITY_COMPLETE
                                       : PIVOT_TRIAL_CHAIN_RUN_END_CENSORED;
+  return true;
+}
+
+bool BuildPivotTrialRunEndOutcome(const PivotTrialEntry &trial,
+                                  const MqlTick &tick,
+                                  PivotTrialOutcome &outcome_out)
+{
+  bool parity_trial =
+    trial.identity.role == PIVOT_TRIAL_ROLE_BROKER_PARITY;
+  return BuildPivotTrialCensoredOutcome(
+           trial,
+           tick,
+           "RUN_END",
+           parity_trial ? "PARITY_CALIBRATION_ONLY" : "CENSORED_RUN_END",
+           outcome_out);
+}
+
+bool BuildBrokerParityTerminalCensorOutcome(
+  const PivotTrialEntry &trial,
+  const MqlTick &tick,
+  PivotTrialOutcome &outcome_out)
+{
+  if(trial.identity.role != PIVOT_TRIAL_ROLE_BROKER_PARITY)
+    return false;
+  return BuildPivotTrialCensoredOutcome(
+           trial,
+           tick,
+           "BROKER_TERMINAL_BEFORE_OBSERVED_TOUCH",
+           "BROKER_TERMINAL_BEFORE_OBSERVED_TOUCH",
+           outcome_out);
+}
+
+bool FinalizeBrokerParityAtBrokerTerminal(const PivotSignal &signal)
+{
+  if(!PivotV11Enabled() || signal.parity_trial_id == "")
+    return true;
+  if(!PivotV11Ready() || !signal.execution.broker_close_confirmed ||
+     signal.execution.close_time <= 0)
+    return false;
+
+  int state_index =
+    FindPivotTrialActiveStateByParityId(signal.parity_trial_id);
+  if(state_index < 0)
+  {
+    if(PivotV11ParityHasVirtualOutcome(signal.parity_trial_id))
+      return true;
+    PivotV11MarkFailed("BROKER_PARITY_ACTIVE_STATE_MISSING");
+    return false;
+  }
+
+  PivotTrialActiveState state;
+  if(!CopyPivotTrialActiveStateAt(state_index, state) ||
+     state.parity.origin_id != signal.origin_id ||
+     state.parity.broker_signal_id != signal.broker_signal_id ||
+     state.parity.parity_trial_id != signal.parity_trial_id)
+  {
+    PivotV11MarkFailed("BROKER_PARITY_ACTIVE_STATE_INVALID");
+    return false;
+  }
+
+  MqlTick tick;
+  ZeroMemory(tick);
+  if(!SymbolInfoTick(_Symbol, tick) || !PivotTrialQuoteValid(tick))
+  {
+    PivotV11MarkFailed("BROKER_PARITY_TERMINAL_QUOTE_UNAVAILABLE");
+    return false;
+  }
+  if(tick.time < signal.execution.close_time)
+    return false;
+
+  PivotTrialOutcome outcome;
+  bool threshold_resolved =
+    tick.time == signal.execution.close_time &&
+    ResolvePivotTrialFirstTouch(state.trial, tick, outcome);
+  bool outcome_recorded = threshold_resolved
+                          ? PivotV11RecordVirtualOutcome(outcome)
+                          : (BuildBrokerParityTerminalCensorOutcome(
+                               state.trial,
+                               tick,
+                               outcome) &&
+                             PivotV11RecordVirtualOutcome(outcome));
+  if(!outcome_recorded)
+  {
+    PivotV11MarkFailed("BROKER_PARITY_TERMINAL_OUTCOME_FAILED");
+    return false;
+  }
+  if(!RemovePivotTrialActiveStateAt(state_index))
+  {
+    PivotV11MarkFailed("BROKER_PARITY_TERMINAL_STATE_REMOVE_FAILED");
+    return false;
+  }
   return true;
 }
 

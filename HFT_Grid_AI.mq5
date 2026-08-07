@@ -137,11 +137,11 @@ void RefreshCustomSymbolRates()
 
 string PivotRunCompletionStatus()
 {
+  if(MQLInfoInteger(MQL_TESTER) > 0 && g_tester_interval_completed)
+    return "NATURAL";
   if(PivotSignalLifecycleHasOutstandingAttempts() ||
      PivotTrialMatrixHasOutstandingState())
     return "CENSORED";
-  if(MQLInfoInteger(MQL_TESTER) > 0 && g_tester_interval_completed)
-    return "NATURAL";
   return "CENSORED";
 }
 

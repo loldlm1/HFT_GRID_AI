@@ -140,9 +140,10 @@ Schema V11 contains exactly:
   terminals, state peak/cap, integrity, export, and completion status.
 
 Keep `Enable_Logs=false` and `Enable_File_Logs=false` for normal evidence runs.
-A manually stopped or outstanding-position run is useful for diagnosis but is
-`CENSORED`. Accepted evidence requires `completion_status=NATURAL`,
-`export_status=OK`, and strict validation with no integrity errors.
+A manually stopped, forced, or debug-aborted run is `CENSORED`. A successful
+tester interval is `NATURAL` even when active virtual rows receive explicit
+unlabelled run-end censors. Accepted evidence also requires `export_status=OK`
+and strict validation with no integrity errors.
 
 ## Validate And Build
 
@@ -225,7 +226,10 @@ Virtual quote gross is counterfactual `OrderCalcProfit` output. It contains no
 commission, swap, fee, latency, slippage, or net-profit claim. Broker deal
 history remains the sole authority for actual gross, costs, net, and realized
 execution R. Parity shadows are calibration-only and excluded from model and
-policy cohorts.
+policy cohorts. Their threshold candidates resolve only during the actual
+symbol trade session. If broker history closes first, an unresolved shadow is
+paired as unlabelled
+`CENSORED / BROKER_TERMINAL_BEFORE_OBSERVED_TOUCH`, not forced into TP or SL.
 
 Do not select either target cohort using realized P&L or slippage. Those facts
 occur after entry and are diagnostics. A broker result such as `+130` or `-150`
