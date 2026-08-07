@@ -44,7 +44,7 @@ DERIVED_TABLES = (
     BROKER_VIRTUAL_CALIBRATION_TABLE,
 )
 
-BOOLEAN_COLUMNS = {
+BOOLEAN_COLUMNS = frozenset({
     "macro_band_complete",
     "origin_micro_features_complete",
     "origin_macro_features_complete",
@@ -84,9 +84,9 @@ BOOLEAN_COLUMNS = {
     "close_reason_consistent",
     "broker_binary_eligible",
     "state_capacity_failed",
-}
+})
 
-INTEGER_COLUMNS = {
+INTEGER_COLUMNS = frozenset({
     "schema_version",
     "active_bar_open_offset_minutes",
     "source_bar_open_offset_minutes",
@@ -160,39 +160,272 @@ INTEGER_COLUMNS = {
     "duplicate_identity_count",
     "referential_integrity_error_count",
     "row_integrity_error_count",
-}
+})
 
-STRING_COLUMNS = {
-    "key",
-    "value",
-    "symbol",
-    "macro_timeframe",
-    "micro_timeframe",
-    "level_id",
-    "direction",
-    "pp_initial_relation",
-    "pp_role",
-    "lot_mode",
+STRING_COLUMNS = frozenset({
     "account_currency",
-    "trial_role",
-    "sl_policy",
+    "block_reason",
+    "block_source",
+    "broker_attempt_status",
+    "broker_exclusion_reason",
+    "broker_outcome_id",
+    "broker_signal_id",
+    "broker_terminal_reason",
+    "chain_terminal_reason",
+    "check_id",
+    "check_phase",
+    "completion_status",
+    "config_id",
+    "continuation_reason",
+    "continuation_source_outcome_id",
+    "direction",
+    "eligibility_status",
+    "entry_feature_invalid_reason",
     "entry_quote_side",
     "exit_quote_side",
-    "check_phase",
-    "fill_policy",
-    "trade_action",
-    "order_check_comment",
-    "send_comment",
     "export_status",
-    "completion_status",
+    "fill_policy",
+    "geometry_equivalence_id",
+    "ineligible_reason",
+    "invalid_reason",
+    "key",
+    "level_id",
+    "lot_mode",
+    "macro_band_invalid_reason",
+    "macro_timeframe",
+    "micro_timeframe",
+    "next_trial_id",
+    "order_check_comment",
+    "origin_feature_invalid_reason",
+    "origin_id",
+    "origin_terminal_status",
+    "outcome_id",
+    "parent_trial_id",
+    "parity_trial_id",
+    "policy_id",
+    "pp_initial_relation",
+    "pp_role",
+    "run_id",
+    "send_comment",
+    "sl_policy",
+    "symbol",
+    "terminal_reason",
+    "terminal_status",
+    "trade_action",
+    "trial_id",
+    "trial_role",
+    "value",
+    "virtual_exclusion_reason",
+    "window_id",
+    "window_state",
+})
+
+TIMESTAMP_COLUMNS = frozenset({
+    "active_bar_open_analysis_time",
+    "active_bar_open_broker_time",
+    "analysis_time",
+    "broker_time",
+    "close_analysis_time",
+    "close_broker_time",
+    "declared_analysis_time",
+    "declared_broker_time",
+    "entry_analysis_time",
+    "entry_broker_time",
+    "finished_analysis_time",
+    "finished_broker_time",
+    "first_observed_analysis_time",
+    "first_observed_broker_time",
+    "origin_expiry_analysis_time",
+    "origin_expiry_broker_time",
+    "pp_arm_analysis_time",
+    "pp_arm_broker_time",
+    "source_bar_open_analysis_time",
+    "source_bar_open_broker_time",
+    "source_close_boundary_analysis_time",
+    "source_close_boundary_broker_time",
+    "started_analysis_time",
+    "started_broker_time",
+    "terminal_analysis_time",
+    "terminal_broker_time",
+    "trigger_analysis_time",
+    "trigger_broker_time",
+})
+
+FLOAT_COLUMNS = frozenset({
+    "account_balance",
+    "ask",
+    "bid",
+    "boundary_price",
+    "broker_close_price",
+    "broker_closed_volume",
+    "broker_commission",
+    "broker_entry_price",
+    "broker_fee",
+    "broker_gross_budget_r",
+    "broker_gross_execution_r",
+    "broker_gross_profit",
+    "broker_net_budget_r",
+    "broker_net_execution_r",
+    "broker_net_profit",
+    "broker_stop_loss",
+    "broker_swap",
+    "broker_take_profit",
+    "broker_volume",
+    "close_price",
+    "closed_volume",
+    "entry_ask",
+    "entry_bid",
+    "entry_macro_band_width_percent_1",
+    "entry_macro_pivot_b_percent_0",
+    "entry_macro_pivot_b_percent_1",
+    "entry_macro_pivot_b_percent_2",
+    "entry_macro_pivot_b_percent_3",
+    "entry_macro_pivot_b_percent_4",
+    "entry_macro_pivot_b_percent_5",
+    "entry_micro_b_percent_0",
+    "entry_micro_b_percent_1",
+    "entry_micro_b_percent_2",
+    "entry_micro_b_percent_3",
+    "entry_micro_b_percent_4",
+    "entry_micro_b_percent_5",
+    "entry_micro_band_width_percent_0",
+    "entry_price",
+    "entry_slippage_points",
+    "exit_slippage_points",
+    "first_observed_bid",
+    "free_margin",
+    "freeze_distance_points",
+    "freeze_level_points",
+    "gap_points",
+    "immutable_stop_loss",
+    "immutable_take_profit",
+    "lot_strategy_size",
+    "macro_band_base_1",
+    "macro_band_lower_1",
+    "macro_band_upper_1",
+    "macro_band_width_1",
+    "macro_band_width_percent_1",
+    "minimum_risk_distance_points",
+    "next_outward_pivot_price",
+    "normalized_risk_distance_points",
+    "normalized_risk_distance_price",
+    "normalized_volume",
+    "observed_exit_ask",
+    "observed_exit_bid",
+    "observed_exit_price",
+    "origin_macro_pivot_b_percent_0",
+    "origin_macro_pivot_b_percent_1",
+    "origin_macro_pivot_b_percent_2",
+    "origin_macro_pivot_b_percent_3",
+    "origin_macro_pivot_b_percent_4",
+    "origin_macro_pivot_b_percent_5",
+    "origin_micro_b_percent_0",
+    "origin_micro_b_percent_1",
+    "origin_micro_b_percent_2",
+    "origin_micro_b_percent_3",
+    "origin_micro_b_percent_4",
+    "origin_micro_b_percent_5",
+    "origin_micro_band_base_0",
+    "origin_micro_band_lower_0",
+    "origin_micro_band_upper_0",
+    "origin_micro_band_width_0",
+    "origin_micro_band_width_percent_0",
+    "pivot_raw_price",
+    "pivot_trade_price",
+    "point_size",
+    "pp_arm_bid",
+    "quote_expected_reward_risk_ratio",
+    "quote_expected_stop_loss",
+    "quote_expected_take_profit",
+    "raw_pp_price",
+    "raw_r1_price",
+    "raw_r2_price",
+    "raw_r3_price",
+    "raw_s1_price",
+    "raw_s2_price",
+    "raw_s3_price",
+    "reference_balance",
+    "request_price_reward_risk_ratio",
+    "request_reward_distance_points",
+    "request_risk_distance_points",
+    "requested_risk_distance_points",
+    "requested_risk_distance_price",
+    "requested_volume",
+    "required_margin",
+    "reward_distance_points",
+    "risk_budget_amount",
+    "risk_budget_utilization_ratio",
+    "risk_distance_points",
+    "source_close",
+    "source_high",
+    "source_low",
+    "source_open",
+    "source_range",
+    "spread_points",
+    "stop_loss_price",
+    "stops_distance_points",
+    "stops_level_points",
+    "structural_entry_price",
+    "structural_sl_price",
+    "structural_take_profit",
+    "submitted_request_price",
+    "take_profit_price",
+    "threshold_price",
+    "trade_pp_price",
+    "trade_r1_price",
+    "trade_r2_price",
+    "trade_r3_price",
+    "trade_s1_price",
+    "trade_s2_price",
+    "trade_s3_price",
+    "trade_tick_size",
+    "trigger_ask",
+    "trigger_bid",
+    "virtual_expected_reward_risk_ratio",
+    "virtual_expected_stop_loss",
+    "virtual_expected_take_profit",
+    "virtual_nominal_r",
+    "virtual_quote_gross_profit",
+    "virtual_quote_gross_r",
+    "volume_max",
+    "volume_min",
+    "volume_step",
+})
+
+COLUMN_TYPE_GROUPS = {
+    "VARCHAR": STRING_COLUMNS,
+    "TIMESTAMP": TIMESTAMP_COLUMNS,
+    "BOOLEAN": BOOLEAN_COLUMNS,
+    "BIGINT": INTEGER_COLUMNS,
+    "DOUBLE": FLOAT_COLUMNS,
 }
 
-TIMESTAMP_COLUMNS = {
-    column
-    for columns in TABLE_COLUMNS.values()
-    for column in columns
-    if column.endswith("_time")
-}
+
+def _build_column_type_registry() -> dict[str, str]:
+    registry: dict[str, str] = {}
+    overlaps: set[str] = set()
+    for column_type, columns in COLUMN_TYPE_GROUPS.items():
+        for column in columns:
+            if column in registry:
+                overlaps.add(column)
+            registry[column] = column_type
+
+    schema_columns = {
+        column
+        for columns in TABLE_COLUMNS.values()
+        for column in columns
+    }
+    missing = sorted(schema_columns - set(registry))
+    unexpected = sorted(set(registry) - schema_columns)
+    if overlaps or missing or unexpected:
+        raise RuntimeError(
+            "Invalid V11 column type registry: "
+            f"overlaps={sorted(overlaps)}, missing={missing}, unexpected={unexpected}"
+        )
+    return registry
+
+
+COLUMN_TYPE_BY_NAME = _build_column_type_registry()
 
 
 def _sql_literal(value: str | Path) -> str:
@@ -203,33 +436,24 @@ def _quoted(column: str) -> str:
     return '"' + column.replace('"', '""') + '"'
 
 
-def _is_string_column(column: str) -> bool:
-    return (
-        column in STRING_COLUMNS
-        or column.endswith("_id")
-        or column.endswith("_status")
-        or column.endswith("_state")
-        or column.endswith("_reason")
-        or column.endswith("_policy")
-        or column.endswith("_mode")
-        or column.endswith("_side")
-        or column.endswith("_currency")
-        or column.endswith("_timeframe")
-    )
-
-
 def _typed_expression(column: str) -> str:
     quoted = _quoted(column)
     nullified = f"NULLIF({quoted}, {_sql_literal(NULL_TOKEN)})"
-    if column in TIMESTAMP_COLUMNS:
+    try:
+        column_type = COLUMN_TYPE_BY_NAME[column]
+    except KeyError as exc:
+        raise RuntimeError(f"V11 column lacks an explicit dataset type: {column}") from exc
+    if column_type == "TIMESTAMP":
         return f"strptime({nullified}, '%Y.%m.%d %H:%M:%S') AS {quoted}"
-    if column in BOOLEAN_COLUMNS:
+    if column_type == "BOOLEAN":
         return f"CAST(CAST({nullified} AS TINYINT) AS BOOLEAN) AS {quoted}"
-    if column in INTEGER_COLUMNS:
+    if column_type == "BIGINT":
         return f"CAST({nullified} AS BIGINT) AS {quoted}"
-    if _is_string_column(column):
+    if column_type == "VARCHAR":
         return f"{nullified} AS {quoted}"
-    return f"CAST({nullified} AS DOUBLE) AS {quoted}"
+    if column_type == "DOUBLE":
+        return f"CAST({nullified} AS DOUBLE) AS {quoted}"
+    raise RuntimeError(f"Unsupported V11 dataset type for {column}: {column_type}")
 
 
 def _load_typed_table(

@@ -2,9 +2,9 @@
 
 ## Active
 
-- None. The completed V11 matrix implementation is archived below. Create a
-  focused saved plan before correcting the isolated offline dataset-builder
-  typing defect.
+- `v11-dataset-column-type-registry-plan.md`: active three-sprint Python-only
+  correction for exhaustive strict V11 column typing and official full-run
+  validate/build/audit/train acceptance.
 
 Create a new explicit saved plan before another substantial strategy,
 architecture, live-rollout, schema, or repository-wide change.

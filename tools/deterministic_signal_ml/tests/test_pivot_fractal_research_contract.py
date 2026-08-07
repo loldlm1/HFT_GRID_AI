@@ -18,10 +18,13 @@ if str(MODULE_ROOT) not in sys.path:
 
 from build_dataset import (
     BROKER_VIRTUAL_CALIBRATION_TABLE,
+    COLUMN_TYPE_BY_NAME,
+    COLUMN_TYPE_GROUPS,
     ELIGIBLE_VIRTUAL_TRIALS_TABLE,
     INITIAL_MATRIX_WIDE_TABLE,
     ORIGIN_MATRIX_LONG_TABLE,
     POLICY_CHAINS_TABLE,
+    _typed_expression,
     create_dataset_tables,
     write_parquet_outputs,
 )
@@ -38,6 +41,7 @@ from schema_contract import (
     MODEL_FEATURE_COLUMNS,
     RUN_FILES,
     SUPPORTED_FEATURE_SET_ID,
+    TABLE_COLUMNS,
     SchemaValidationError,
     validate_run,
     validate_runs,
@@ -112,6 +116,50 @@ def build_dataset_artifact(output_dir: Path) -> dict[str, int]:
 
 
 class PivotFractalResearchContractTests(unittest.TestCase):
+    def test_v11_column_type_registry_is_exhaustive_and_disjoint(self) -> None:
+        schema_columns = {
+            column
+            for columns in TABLE_COLUMNS.values()
+            for column in columns
+        }
+        declared_columns = [
+            column
+            for columns in COLUMN_TYPE_GROUPS.values()
+            for column in columns
+        ]
+        self.assertEqual(set(COLUMN_TYPE_BY_NAME), schema_columns)
+        self.assertEqual(len(declared_columns), len(set(declared_columns)))
+        self.assertEqual(COLUMN_TYPE_BY_NAME["block_source"], "VARCHAR")
+        self.assertNotIn(" AS DOUBLE", _typed_expression("block_source"))
+        with self.assertRaisesRegex(RuntimeError, "lacks an explicit dataset type"):
+            _typed_expression("future_unregistered_column")
+
+    def test_builder_loads_populated_block_source_as_text(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            runs_root = Path(temp_dir) / "runs"
+            run_path = clone_run(runs_root, "populated_block_source")
+            checks_path = run_path / "execution_checks.tsv"
+            columns, rows = read_rows(checks_path)
+            terminal = next(row for row in rows if row["check_phase"] == "TERMINAL")
+            terminal["allowed"] = "0"
+            terminal["block_source"] = "broker_close"
+            terminal["block_reason"] = terminal["terminal_reason"]
+            write_rows(checks_path, columns, rows)
+
+            validation = validate_run(runs_root, run_path.name)
+            connection = duckdb.connect(":memory:")
+            try:
+                create_dataset_tables(connection, [validation])
+                self.assertEqual(
+                    connection.execute(
+                        "SELECT typeof(block_source), block_source "
+                        "FROM execution_checks WHERE block_source IS NOT NULL"
+                    ).fetchone(),
+                    ("VARCHAR", "broker_close"),
+                )
+            finally:
+                connection.close()
+
     def test_builder_emits_all_v11_views_and_exact_grains(self) -> None:
         validation = validate_run(FIXTURES, FIXTURE.name)
         connection = duckdb.connect(":memory:")
