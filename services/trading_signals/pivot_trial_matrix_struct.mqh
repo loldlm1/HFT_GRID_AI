@@ -388,6 +388,7 @@ struct PivotTrialOutcome
 {
   string outcome_id;
   PivotTrialIdentity identity;
+  SignalTypes direction;
   datetime terminal_time;
   PivotTrialFirstTouchOutcomes first_touch;
   string terminal_reason;
@@ -427,6 +428,7 @@ struct PivotTrialOutcome
   {
     outcome_id = "";
     identity.Reset();
+    direction = NO_SIGNAL;
     terminal_time = 0;
     first_touch = PIVOT_TRIAL_FIRST_TOUCH_PENDING;
     terminal_reason = "";
@@ -457,6 +459,7 @@ struct PivotTrialOutcome
   {
     outcome_id = other.outcome_id;
     identity.CopyFrom(other.identity);
+    direction = other.direction;
     terminal_time = other.terminal_time;
     first_touch = other.first_touch;
     terminal_reason = other.terminal_reason;

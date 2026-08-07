@@ -137,7 +137,8 @@ void RefreshCustomSymbolRates()
 
 string PivotRunCompletionStatus()
 {
-  if(PivotSignalLifecycleHasOutstandingAttempts())
+  if(PivotSignalLifecycleHasOutstandingAttempts() ||
+     PivotTrialMatrixHasOutstandingState())
     return "CENSORED";
   if(MQLInfoInteger(MQL_TESTER) > 0 && g_tester_interval_completed)
     return "NATURAL";
@@ -198,6 +199,7 @@ void OnDeinit(const int reason)
   ReconcileAndFinalizePivotSignals();
   string completion_status = PivotRunCompletionStatus();
   FinalizePivotSignalAttemptsForExport();
+  FinalizePivotTrialMatrixForExport();
   FinalizeActivePivotWindowsForExport();
   PivotV11StatsDeinit(completion_status);
   CloseAppendFileLog();
@@ -231,6 +233,7 @@ void OnTick()
     return;
 
   ProcessPivotSignalLifecycle();
+  ProcessPivotTrialMatrixTick(tick);
   ProcessPivotFractalTick(tick);
   datetime current_time = TimeCurrent();
   if(FrontendRefreshDue(current_time))

@@ -379,7 +379,8 @@ bool ProcessPivotSignalAttempt(PivotSignal &signal)
                           signal.trigger_time,
                           false,
                           signal.execution.observation_check);
-  RegisterPivotOrigin(signal);
+  if(RegisterPivotOrigin(signal))
+    DeclareInitialPivotTrialMatrix(signal, observation_tick);
 
   string permission_source = "";
   string permission_reason = "";

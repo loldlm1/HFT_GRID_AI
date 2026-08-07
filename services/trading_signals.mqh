@@ -20,6 +20,7 @@
 #include "trading_signals/execution_lot_math.mqh"
 #include "trading_signals/execution_logging.mqh"
 #include "trading_signals/pivot_fractal_statistics_export.mqh"
+#include "trading_signals/pivot_trial_matrix_lifecycle.mqh"
 #include "trading_signals/execution_broker_reconciliation.mqh"
 #include "trading_signals/execution_controller.mqh"
 #include "trading_signals/pivot_signal_lifecycle.mqh"

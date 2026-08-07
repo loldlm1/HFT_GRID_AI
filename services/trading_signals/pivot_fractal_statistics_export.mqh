@@ -822,7 +822,7 @@ bool PivotV11StatsInit()
 string PivotV11FeatureToken(const bool available,
                             const double value)
 {
-  return available ? PivotV11DoubleToken(value) : PIVOT_V11_NULL;
+  return available ? PivotV11DoubleToken(value, true) : PIVOT_V11_NULL;
 }
 
 int FindPivotV11PendingOrigin(const string origin_id)
@@ -1241,6 +1241,455 @@ bool PivotV11RecordWindow(const PivotFractalWindowState &window,
   return PivotV11FinalizeOriginsForWindow(window_id,
                                           terminal_time,
                                           origin_terminal_status);
+}
+
+bool PivotV11TrialMacroWidthPercent1(
+  const PivotContextFeatureSnapshot &features,
+  double &width_percent_out)
+{
+  width_percent_out = 0.0;
+  if(!features.complete || !features.macro_bands.available[1])
+    return false;
+  double base = features.macro_bands.base_values[1];
+  double upper = features.macro_bands.upper_values[1];
+  double lower = features.macro_bands.lower_values[1];
+  if(base == 0.0 || upper <= lower)
+    return false;
+  width_percent_out = 100.0 * (upper - lower) / base;
+  return MathIsValidNumber(width_percent_out);
+}
+
+bool PivotV11RecordVirtualTrial(const PivotTrialEntry &trial)
+{
+  if(!PivotV11Ready())
+    return false;
+  if(trial.identity.role != PIVOT_TRIAL_ROLE_MATRIX ||
+     trial.identity.trial_id == "" || trial.identity.policy_id == "" ||
+     trial.identity.origin_id == "" || trial.identity.window_id == "" ||
+     !PivotTrialTpMultipleSupported(trial.identity.tp_r_multiple) ||
+     trial.identity.reentry_index < 0 ||
+     trial.identity.reentry_index > PIVOT_TRIAL_MAX_REENTRY_INDEX ||
+     trial.declared_time <= 0 || !trial.origin_window_active_at_entry ||
+     trial.geometry.entry_bid <= 0.0 ||
+     trial.geometry.entry_ask < trial.geometry.entry_bid ||
+     trial.geometry.entry_price <= 0.0 ||
+     trial.geometry.point_size <= 0.0 ||
+     trial.geometry.trade_tick_size <= 0.0)
+    return PivotV11RejectReference("RECORD_VIRTUAL_TRIAL_INVALID");
+
+  bool geometry_available =
+    trial.eligibility_status != PIVOT_TRIAL_ELIGIBILITY_INELIGIBLE_FEATURE &&
+    trial.eligibility_status != PIVOT_TRIAL_ELIGIBILITY_INELIGIBLE_GEOMETRY;
+  bool active =
+    trial.eligibility_status == PIVOT_TRIAL_ELIGIBILITY_ACTIVE;
+  if((geometry_available && !trial.geometry.valid) ||
+     (active && !trial.money_plan.complete) ||
+     (!active && trial.ineligible_reason == ""))
+    return PivotV11RejectReference("RECORD_VIRTUAL_TRIAL_STATE_INVALID");
+
+  double macro_width_percent_1 = 0.0;
+  if(trial.entry_features.complete &&
+     !PivotV11TrialMacroWidthPercent1(trial.entry_features,
+                                      macro_width_percent_1))
+    return PivotV11RejectReference("RECORD_VIRTUAL_TRIAL_FEATURE_INVALID");
+
+  bool reference_mode =
+    Lot_Type == EXECUTION_LOT_REFERENCE_BALANCE_PERCENT;
+  string row = "";
+  PivotV11AppendColumn(row, IntegerToString(PIVOT_V11_SCHEMA_VERSION));
+  PivotV11AppendColumn(row, g_pivot_v11_run_id);
+  PivotV11AppendColumn(row, g_pivot_v11_config_id);
+  PivotV11AppendColumn(row, trial.identity.trial_id);
+  PivotV11AppendColumn(row, PIVOT_V11_NULL);
+  PivotV11AppendColumn(row, trial.identity.policy_id);
+  PivotV11AppendColumn(row, trial.identity.origin_id);
+  PivotV11AppendColumn(row, trial.identity.window_id);
+  PivotV11AppendColumn(row, PIVOT_V11_NULL);
+  PivotV11AppendColumn(row, PivotTrialRoleLabel(trial.identity.role));
+  PivotV11AppendColumn(row,
+                       PivotTrialSlPolicyLabel(trial.identity.sl_policy));
+  PivotV11AppendColumn(row,
+                       IntegerToString(trial.identity.tp_r_multiple));
+  PivotV11AppendColumn(row,
+                       IntegerToString(trial.identity.reentry_index));
+  PivotV11AppendColumn(row,
+                       IntegerToString(trial.preceding_loss_count));
+  PivotV11AppendColumn(row, PivotLevelLabel(trial.level_id));
+  PivotV11AppendColumn(row, PivotV11DirectionToken(trial.direction));
+  PivotV11AppendTimestamp(row, trial.declared_time);
+  PivotV11AppendColumn(row,
+                       PivotV11DoubleToken(trial.geometry.entry_bid));
+  PivotV11AppendColumn(row,
+                       PivotV11DoubleToken(trial.geometry.entry_ask));
+  PivotV11AppendColumn(row,
+                       PivotV11DoubleToken(trial.geometry.entry_price));
+  PivotV11AppendColumn(
+    row,
+    PivotTrialQuoteSideLabel(trial.geometry.entry_quote_side));
+  PivotV11AppendColumn(
+    row,
+    PivotTrialQuoteSideLabel(trial.geometry.exit_quote_side));
+  PivotV11AppendColumn(
+    row,
+    trial.origin_micro_band_width_available
+    ? PivotV11DoubleToken(trial.origin_micro_band_width_0)
+    : PIVOT_V11_NULL);
+  PivotV11AppendColumn(
+    row,
+    geometry_available
+    ? PivotV11DoubleToken(trial.geometry.requested_risk_distance_price)
+    : PIVOT_V11_NULL);
+  PivotV11AppendColumn(
+    row,
+    geometry_available
+    ? PivotV11DoubleToken(trial.geometry.requested_risk_distance_points)
+    : PIVOT_V11_NULL);
+  PivotV11AppendColumn(
+    row,
+    geometry_available
+    ? StringFormat("%I64d", trial.geometry.normalized_risk_ticks)
+    : PIVOT_V11_NULL);
+  PivotV11AppendColumn(
+    row,
+    geometry_available
+    ? PivotV11DoubleToken(trial.geometry.normalized_risk_distance_price)
+    : PIVOT_V11_NULL);
+  PivotV11AppendColumn(
+    row,
+    geometry_available
+    ? PivotV11DoubleToken(trial.geometry.normalized_risk_distance_points)
+    : PIVOT_V11_NULL);
+  PivotV11AppendColumn(
+    row,
+    geometry_available
+    ? PivotV11DoubleToken(trial.geometry.stop_loss_price)
+    : PIVOT_V11_NULL);
+  PivotV11AppendColumn(
+    row,
+    geometry_available
+    ? PivotV11DoubleToken(trial.geometry.take_profit_price)
+    : PIVOT_V11_NULL);
+  PivotV11AppendColumn(
+    row,
+    geometry_available
+    ? PivotV11Cell(trial.geometry.geometry_equivalence_id)
+    : PIVOT_V11_NULL);
+  PivotV11AppendColumn(row,
+                       PivotV11DoubleToken(trial.geometry.spread_points,
+                                           true));
+  PivotV11AppendColumn(row,
+                       PivotV11DoubleToken(trial.geometry.point_size));
+  PivotV11AppendColumn(row,
+                       PivotV11DoubleToken(trial.geometry.trade_tick_size));
+  PivotV11AppendColumn(row,
+                       PivotV11DoubleToken(
+                         trial.geometry.stops_level_points,
+                         true));
+  PivotV11AppendColumn(row,
+                       PivotV11DoubleToken(
+                         trial.geometry.freeze_level_points,
+                         true));
+  PivotV11AppendColumn(
+    row,
+    geometry_available
+    ? PivotV11DoubleToken(trial.geometry.minimum_risk_distance_points)
+    : PIVOT_V11_NULL);
+  PivotV11AppendColumn(row,
+                       PivotV11BoolToken(
+                         geometry_available &&
+                         trial.geometry.distance_eligible));
+  PivotV11AppendColumn(
+    row,
+    trial.geometry.boundary_available
+    ? PivotV11DoubleToken(trial.geometry.boundary_price)
+    : PIVOT_V11_NULL);
+  PivotV11AppendColumn(row,
+                       PivotV11BoolToken(
+                         geometry_available &&
+                         trial.geometry.boundary_eligible));
+  PivotV11AppendColumn(row, EnumToString(Lot_Type));
+  PivotV11AppendColumn(row, DoubleToString(Lot_Strategy_Size, 8));
+  PivotV11AppendColumn(
+    row,
+    reference_mode
+    ? PivotV11DoubleToken(PIVOT_EXECUTION_REFERENCE_BALANCE)
+    : PIVOT_V11_NULL);
+  PivotV11AppendColumn(row, AccountInfoString(ACCOUNT_CURRENCY));
+  PivotV11AppendColumn(
+    row,
+    trial.money_plan.complete
+    ? PivotV11DoubleToken(trial.money_plan.risk_budget_amount, true)
+    : PIVOT_V11_NULL);
+  PivotV11AppendColumn(
+    row,
+    trial.money_plan.complete
+    ? PivotV11DoubleToken(trial.money_plan.requested_volume)
+    : PIVOT_V11_NULL);
+  PivotV11AppendColumn(
+    row,
+    trial.money_plan.complete
+    ? PivotV11DoubleToken(trial.money_plan.normalized_volume)
+    : PIVOT_V11_NULL);
+  PivotV11AppendColumn(
+    row,
+    trial.money_plan.complete
+    ? PivotV11DoubleToken(
+        trial.money_plan.virtual_expected_stop_loss,
+        true)
+    : PIVOT_V11_NULL);
+  PivotV11AppendColumn(
+    row,
+    trial.money_plan.complete
+    ? PivotV11DoubleToken(
+        trial.money_plan.virtual_expected_take_profit,
+        true)
+    : PIVOT_V11_NULL);
+  PivotV11AppendColumn(
+    row,
+    trial.money_plan.complete
+    ? PivotV11DoubleToken(
+        trial.money_plan.virtual_expected_reward_risk_ratio,
+        true)
+    : PIVOT_V11_NULL);
+  PivotV11AppendColumn(row,
+                       PivotV11BoolToken(trial.money_plan.complete));
+
+  bool features_complete = trial.entry_features.complete;
+  PivotV11AppendColumn(
+    row,
+    features_complete
+    ? PivotV11DoubleToken(
+        trial.entry_features.micro_band_width_percent_0,
+        true)
+    : PIVOT_V11_NULL);
+  PivotV11AppendColumn(
+    row,
+    features_complete
+    ? PivotV11DoubleToken(macro_width_percent_1, true)
+    : PIVOT_V11_NULL);
+  for(int shift = 0; shift < PIVOT_B_PERCENT_SHIFT_COUNT; shift++)
+  {
+    PivotV11AppendColumn(
+      row,
+      features_complete
+      ? PivotV11DoubleToken(
+          trial.entry_features.micro_b_percent[shift],
+          true)
+      : PIVOT_V11_NULL);
+  }
+  for(int shift = 0; shift < PIVOT_B_PERCENT_SHIFT_COUNT; shift++)
+  {
+    PivotV11AppendColumn(
+      row,
+      features_complete
+      ? PivotV11DoubleToken(
+          trial.entry_features.macro_pivot_b_percent[shift],
+          true)
+      : PIVOT_V11_NULL);
+  }
+  PivotV11AppendColumn(row, PivotV11BoolToken(features_complete));
+  string feature_reason = trial.entry_features.invalid_reason;
+  if(feature_reason == "")
+    feature_reason = "ENTRY_FEATURE_SNAPSHOT_INCOMPLETE";
+  PivotV11AppendColumn(row,
+                       features_complete
+                       ? PIVOT_V11_NULL
+                       : PivotV11Cell(feature_reason));
+  PivotV11AppendColumn(
+    row,
+    PivotTrialEligibilityLabel(trial.eligibility_status));
+  PivotV11AppendColumn(row,
+                       active
+                       ? PIVOT_V11_NULL
+                       : PivotV11Cell(trial.ineligible_reason));
+  PivotV11AppendColumn(row, PivotV11Cell(trial.parent_trial_id));
+  PivotV11AppendColumn(
+    row,
+    PivotV11Cell(trial.continuation_source_outcome_id));
+  PivotV11AppendColumn(
+    row,
+    PivotV11BoolToken(trial.origin_window_active_at_entry));
+
+  if(!PivotV11QueueRow(PivotV11Path(PIVOT_V11_TRIALS_FILE),
+                       PIVOT_V11_TRIALS_HEADER,
+                       row,
+                       g_pivot_v11_trial_buffer))
+    return false;
+  g_pivot_v11_virtual_trial_rows++;
+  g_pivot_v11_matrix_trial_rows++;
+  if(trial.identity.reentry_index > 0)
+    g_pivot_v11_reentry_trial_rows++;
+  if(active)
+    g_pivot_v11_virtual_active_rows++;
+  else
+  {
+    g_pivot_v11_chain_ineligible_rows++;
+    if(trial.eligibility_status ==
+       PIVOT_TRIAL_ELIGIBILITY_INELIGIBLE_FEATURE)
+      g_pivot_v11_ineligible_feature_rows++;
+    else if(trial.eligibility_status ==
+            PIVOT_TRIAL_ELIGIBILITY_INELIGIBLE_GEOMETRY)
+      g_pivot_v11_ineligible_geometry_rows++;
+    else if(trial.eligibility_status ==
+            PIVOT_TRIAL_ELIGIBILITY_INELIGIBLE_DISTANCE)
+      g_pivot_v11_ineligible_distance_rows++;
+    else if(trial.eligibility_status ==
+            PIVOT_TRIAL_ELIGIBILITY_INELIGIBLE_MONEY)
+      g_pivot_v11_ineligible_money_rows++;
+  }
+  return true;
+}
+
+bool PivotV11RecordVirtualOutcome(const PivotTrialOutcome &outcome)
+{
+  if(!PivotV11Ready())
+    return false;
+  bool censored =
+    outcome.first_touch == PIVOT_TRIAL_FIRST_TOUCH_CENSORED;
+  bool terminal_touch =
+    outcome.first_touch == PIVOT_TRIAL_FIRST_TOUCH_TP_FIRST ||
+    outcome.first_touch == PIVOT_TRIAL_FIRST_TOUCH_SL_FIRST;
+  if(outcome.outcome_id == "" || outcome.identity.trial_id == "" ||
+     outcome.identity.origin_id == "" || outcome.identity.window_id == "" ||
+     outcome.identity.role != PIVOT_TRIAL_ROLE_MATRIX ||
+     (outcome.direction != BULLISH && outcome.direction != BEARISH) ||
+     outcome.terminal_time <= 0 || outcome.duration_seconds <= 0 ||
+     outcome.observed_exit_bid <= 0.0 ||
+     outcome.observed_exit_ask < outcome.observed_exit_bid ||
+     outcome.exit_quote_side != PivotTrialExitQuoteSide(outcome.direction) ||
+     outcome.observed_exit_price !=
+       (outcome.direction == BULLISH
+        ? outcome.observed_exit_bid
+        : outcome.observed_exit_ask) ||
+     (!terminal_touch && !censored) || !outcome.first_touch_consistent ||
+     (terminal_touch &&
+      (outcome.threshold_price <= 0.0 ||
+       !outcome.virtual_quote_gross_available)))
+    return PivotV11RejectReference("RECORD_VIRTUAL_OUTCOME_INVALID");
+
+  string row = "";
+  PivotV11AppendColumn(row, IntegerToString(PIVOT_V11_SCHEMA_VERSION));
+  PivotV11AppendColumn(row, g_pivot_v11_run_id);
+  PivotV11AppendColumn(row, g_pivot_v11_config_id);
+  PivotV11AppendColumn(row, outcome.outcome_id);
+  PivotV11AppendColumn(row, outcome.identity.trial_id);
+  PivotV11AppendColumn(row, PIVOT_V11_NULL);
+  PivotV11AppendColumn(row, outcome.identity.policy_id);
+  PivotV11AppendColumn(row, outcome.identity.origin_id);
+  PivotV11AppendColumn(row, outcome.identity.window_id);
+  PivotV11AppendColumn(row, PivotTrialRoleLabel(outcome.identity.role));
+  PivotV11AppendColumn(
+    row,
+    PivotTrialSlPolicyLabel(outcome.identity.sl_policy));
+  PivotV11AppendColumn(row,
+                       IntegerToString(outcome.identity.tp_r_multiple));
+  PivotV11AppendColumn(row,
+                       IntegerToString(outcome.identity.reentry_index));
+  PivotV11AppendColumn(row,
+                       PivotV11DirectionToken(outcome.direction));
+  PivotV11AppendTimestamp(row, outcome.terminal_time);
+  PivotV11AppendColumn(row,
+                       PivotTrialFirstTouchLabel(outcome.first_touch));
+  PivotV11AppendColumn(row, outcome.terminal_reason);
+  PivotV11AppendColumn(row,
+                       censored
+                       ? PIVOT_V11_NULL
+                       : PivotV11DoubleToken(outcome.threshold_price));
+  PivotV11AppendColumn(row,
+                       PivotV11DoubleToken(outcome.observed_exit_bid));
+  PivotV11AppendColumn(row,
+                       PivotV11DoubleToken(outcome.observed_exit_ask));
+  PivotV11AppendColumn(row,
+                       PivotV11DoubleToken(outcome.observed_exit_price));
+  PivotV11AppendColumn(
+    row,
+    PivotTrialQuoteSideLabel(outcome.exit_quote_side));
+  PivotV11AppendColumn(row,
+                       censored
+                       ? PIVOT_V11_NULL
+                       : PivotV11DoubleToken(outcome.gap_points, true));
+  PivotV11AppendColumn(row,
+                       StringFormat("%I64d", outcome.duration_seconds));
+  PivotV11AppendColumn(row,
+                       censored
+                       ? PIVOT_V11_NULL
+                       : PivotV11DoubleToken(outcome.virtual_nominal_r,
+                                             true));
+  PivotV11AppendColumn(
+    row,
+    censored
+    ? PIVOT_V11_NULL
+    : PivotV11DoubleToken(outcome.virtual_quote_gross_profit, true));
+  PivotV11AppendColumn(row,
+                       censored
+                       ? PIVOT_V11_NULL
+                       : PivotV11DoubleToken(outcome.virtual_quote_gross_r,
+                                             true));
+  PivotV11AppendColumn(
+    row,
+    PivotV11BoolToken(outcome.virtual_binary_eligible));
+  PivotV11AppendColumn(
+    row,
+    outcome.virtual_binary_eligible
+    ? IntegerToString(outcome.virtual_binary_target)
+    : PIVOT_V11_NULL);
+  PivotV11AppendColumn(
+    row,
+    outcome.virtual_binary_eligible
+    ? PIVOT_V11_NULL
+    : PivotV11Cell(outcome.virtual_exclusion_reason));
+  PivotV11AppendColumn(row,
+                       PivotV11BoolToken(outcome.first_touch_consistent));
+  PivotV11AppendColumn(row,
+                       PivotV11BoolToken(outcome.chain_terminal));
+  PivotV11AppendColumn(
+    row,
+    outcome.chain_terminal
+    ? PivotTrialChainTerminalLabel(outcome.chain_terminal_reason)
+    : PIVOT_V11_NULL);
+  PivotV11AppendColumn(
+    row,
+    PivotV11BoolToken(outcome.continuation_allowed));
+  PivotV11AppendColumn(row,
+                       PivotV11Cell(outcome.continuation_reason));
+  PivotV11AppendColumn(
+    row,
+    outcome.next_reentry_index >= 0
+    ? IntegerToString(outcome.next_reentry_index)
+    : PIVOT_V11_NULL);
+  PivotV11AppendColumn(row, PivotV11Cell(outcome.next_trial_id));
+
+  if(!PivotV11QueueRow(PivotV11Path(PIVOT_V11_VIRTUAL_OUTCOMES_FILE),
+                       PIVOT_V11_VIRTUAL_OUTCOMES_HEADER,
+                       row,
+                       g_pivot_v11_virtual_outcome_buffer))
+    return false;
+  g_pivot_v11_virtual_outcome_rows++;
+  if(outcome.first_touch == PIVOT_TRIAL_FIRST_TOUCH_TP_FIRST)
+    g_pivot_v11_matrix_tp_rows++;
+  else if(outcome.first_touch == PIVOT_TRIAL_FIRST_TOUCH_SL_FIRST)
+    g_pivot_v11_matrix_sl_rows++;
+  else if(censored)
+    g_pivot_v11_matrix_censored_rows++;
+
+  if(outcome.chain_terminal_reason == PIVOT_TRIAL_CHAIN_TP_REACHED)
+    g_pivot_v11_chain_tp_complete_rows++;
+  else if(outcome.chain_terminal_reason ==
+          PIVOT_TRIAL_CHAIN_STRUCTURAL_SL)
+    g_pivot_v11_chain_structural_sl_rows++;
+  else if(outcome.chain_terminal_reason ==
+          PIVOT_TRIAL_CHAIN_REENTRY_CAP_REACHED)
+    g_pivot_v11_chain_reentry_cap_rows++;
+  else if(outcome.chain_terminal_reason ==
+          PIVOT_TRIAL_CHAIN_NEXT_PIVOT_BOUNDARY)
+    g_pivot_v11_chain_boundary_rows++;
+  else if(outcome.chain_terminal_reason ==
+          PIVOT_TRIAL_CHAIN_ORIGIN_EXPIRED)
+    g_pivot_v11_chain_origin_expired_rows++;
+  else if(outcome.chain_terminal_reason ==
+          PIVOT_TRIAL_CHAIN_RUN_END_CENSORED)
+    g_pivot_v11_chain_run_end_censored_rows++;
+  return true;
 }
 
 bool PivotV11RecordExecutionCheck(const PivotSignal &signal,
