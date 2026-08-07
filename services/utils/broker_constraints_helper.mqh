@@ -89,6 +89,29 @@ double MinBrokerDistancePoints(const SymbolTradingConstraints &constraints)
   return MathMax(freeze_pts, stops_pts);
 }
 
+bool CalculateStrictRiskDistancePoints(const double spread_points,
+                                       const double point_size,
+                                       const double trade_tick_size,
+                                       const double stops_level_points,
+                                       const double freeze_level_points,
+                                       double &minimum_points_out)
+{
+  minimum_points_out = 0.0;
+  if(!MathIsValidNumber(spread_points) || spread_points < 0.0 ||
+     !MathIsValidNumber(point_size) || point_size <= 0.0 ||
+     !MathIsValidNumber(trade_tick_size) || trade_tick_size <= 0.0 ||
+     !MathIsValidNumber(stops_level_points) || stops_level_points < 0.0 ||
+     !MathIsValidNumber(freeze_level_points) || freeze_level_points < 0.0)
+    return false;
+
+  double trade_tick_points = trade_tick_size / point_size;
+  minimum_points_out = spread_points +
+                       MathMax(stops_level_points,
+                               freeze_level_points) +
+                       trade_tick_points;
+  return MathIsValidNumber(minimum_points_out) && minimum_points_out > 0.0;
+}
+
 // Returns a safe distance in points that respects broker freeze/stops limits.
 double EnforceBrokerDistance(const SymbolTradingConstraints &constraints,
                              const double requested_distance_points = 0)
