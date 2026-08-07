@@ -28,6 +28,15 @@ string PivotTrialOutcomeId(const string trial_id)
                       PivotTrialStableHash(trial_id + "|TERMINAL"));
 }
 
+string PivotTrialParityId(const string broker_signal_id)
+{
+  return "parity_" +
+         StringFormat(
+           "%I64u",
+           PivotTrialStableHash(broker_signal_id +
+                                "|BROKER_PARITY_SHADOW"));
+}
+
 void PrimePivotTrialQuoteFacts(const SignalTypes direction,
                                const MqlTick &tick,
                                const BrokerExecutionCheck &broker_check,
@@ -78,6 +87,216 @@ bool ResolvePivotTrialMoneyPlan(const PivotTrialGeometry &geometry,
 
   money_plan.virtual_expected_stop_loss = -MathAbs(expected_stop_loss);
   money_plan.complete = true;
+  return true;
+}
+
+bool BuildBrokerParityTrial(const PivotSignal &signal,
+                            const MqlTick &entry_tick,
+                            const MqlTradeRequest &request,
+                            const BrokerExecutionCheck &send_check,
+                            PivotTrialEntry &trial_out)
+{
+  trial_out.Reset();
+  double point_size = send_check.point_size;
+  double trade_tick_size = send_check.trade_tick_size;
+  double price_tolerance = MathMin(point_size, trade_tick_size) * 1e-7;
+  double expected_entry = signal.direction == BULLISH
+                          ? send_check.ask
+                          : send_check.bid;
+  ENUM_ORDER_TYPE expected_type = signal.direction == BULLISH
+                                  ? ORDER_TYPE_BUY
+                                  : ORDER_TYPE_SELL;
+  int macro_seconds = PeriodSeconds(signal.pivot_timeframe);
+  datetime origin_expiry = macro_seconds > 0
+                           ? signal.active_bar_open + macro_seconds
+                           : 0;
+  if(!send_check.allowed || signal.origin_id == "" ||
+     signal.window_id == "" || signal.broker_signal_id == "" ||
+     signal.active_bar_open <= 0 || signal.trigger_time <= 0 ||
+     (signal.direction != BULLISH && signal.direction != BEARISH) ||
+     !PivotTrialQuoteValid(entry_tick) || point_size <= 0.0 ||
+     trade_tick_size <= 0.0 || send_check.stops_distance_points < 0.0 ||
+     send_check.freeze_distance_points < 0.0 ||
+     send_check.broker_time < signal.trigger_time ||
+     origin_expiry <= send_check.broker_time ||
+     request.symbol != _Symbol || request.magic != g_execution_magic ||
+     request.type != expected_type ||
+     request.type_filling != ORDER_FILLING_FOK || request.volume <= 0.0 ||
+     request.price <= 0.0 || request.sl <= 0.0 || request.tp <= 0.0 ||
+     send_check.requested_volume <= 0.0 ||
+     MathAbs(entry_tick.bid - send_check.bid) > price_tolerance ||
+     MathAbs(entry_tick.ask - send_check.ask) > price_tolerance ||
+     MathAbs(request.price - expected_entry) > price_tolerance ||
+     MathAbs(request.price - send_check.planned_entry_price) >
+       price_tolerance ||
+     MathAbs(request.sl - send_check.stop_loss_price) > price_tolerance ||
+     MathAbs(request.tp - send_check.take_profit_price) > price_tolerance ||
+     MathAbs(request.volume - send_check.normalized_volume) > 1e-8 ||
+     send_check.quote_expected_stop_loss <= 0.0 ||
+     send_check.quote_expected_take_profit <= 0.0 ||
+     send_check.quote_expected_reward_risk_ratio <= 0.0)
+    return false;
+
+  double risk_distance = signal.direction == BULLISH
+                         ? request.price - request.sl
+                         : request.sl - request.price;
+  double reward_distance = signal.direction == BULLISH
+                           ? request.tp - request.price
+                           : request.price - request.tp;
+  long risk_ticks =
+    (long)MathRound(risk_distance / trade_tick_size);
+  if(risk_distance <= 0.0 || reward_distance <= 0.0 || risk_ticks <= 0 ||
+     MathAbs(risk_distance -
+             (double)risk_ticks * trade_tick_size) > price_tolerance ||
+     !PivotTrialExactIntegerR(signal.direction,
+                              request.price,
+                              request.sl,
+                              request.tp,
+                              1,
+                              trade_tick_size))
+    return false;
+
+  bool boundary_available = false;
+  double boundary_price = 0.0;
+  if(!PivotTrialNextOutwardBoundary(signal.direction,
+                                    signal.level_id,
+                                    signal.levels,
+                                    boundary_available,
+                                    boundary_price))
+    return false;
+
+  trial_out.identity.origin_id = signal.origin_id;
+  trial_out.identity.window_id = signal.window_id;
+  trial_out.identity.broker_signal_id = signal.broker_signal_id;
+  trial_out.identity.parity_trial_id =
+    PivotTrialParityId(signal.broker_signal_id);
+  trial_out.identity.trial_id = trial_out.identity.parity_trial_id;
+  trial_out.identity.role = PIVOT_TRIAL_ROLE_BROKER_PARITY;
+  trial_out.identity.tp_r_multiple = 0;
+  trial_out.identity.reentry_index = 0;
+  trial_out.level_id = signal.level_id;
+  trial_out.direction = signal.direction;
+  trial_out.declared_time = send_check.broker_time;
+  trial_out.origin_expiry_time = origin_expiry;
+  trial_out.preceding_loss_count = 0;
+  trial_out.origin_micro_band_width_available =
+    signal.features.micro_complete &&
+    signal.features.micro_band_width_0 > 0.0;
+  trial_out.origin_micro_band_width_0 =
+    trial_out.origin_micro_band_width_available
+    ? signal.features.micro_band_width_0
+    : 0.0;
+  int level_index = (int)signal.level_id;
+  if(level_index < 0 || level_index >= PIVOT_LEVEL_COUNT)
+    return false;
+  trial_out.origin_pivot_price = signal.levels.trade_prices[level_index];
+
+  trial_out.entry_features.CopyFrom(signal.features);
+
+  trial_out.geometry.direction = signal.direction;
+  trial_out.geometry.entry_bid = send_check.bid;
+  trial_out.geometry.entry_ask = send_check.ask;
+  trial_out.geometry.entry_price = request.price;
+  trial_out.geometry.entry_quote_side =
+    PivotTrialEntryQuoteSide(signal.direction);
+  trial_out.geometry.exit_quote_side =
+    PivotTrialExitQuoteSide(signal.direction);
+  trial_out.geometry.requested_risk_distance_price = risk_distance;
+  trial_out.geometry.requested_risk_distance_points =
+    risk_distance / point_size;
+  trial_out.geometry.normalized_risk_ticks = risk_ticks;
+  trial_out.geometry.normalized_risk_distance_price = risk_distance;
+  trial_out.geometry.normalized_risk_distance_points =
+    risk_distance / point_size;
+  trial_out.geometry.stop_loss_price = request.sl;
+  trial_out.geometry.take_profit_price = request.tp;
+  trial_out.geometry.spread_points =
+    (send_check.ask - send_check.bid) / point_size;
+  trial_out.geometry.point_size = point_size;
+  trial_out.geometry.trade_tick_size = trade_tick_size;
+  trial_out.geometry.stops_level_points =
+    send_check.stops_distance_points;
+  trial_out.geometry.freeze_level_points =
+    send_check.freeze_distance_points;
+  if(!CalculateStrictRiskDistancePoints(
+       trial_out.geometry.spread_points,
+       point_size,
+       trade_tick_size,
+       send_check.stops_distance_points,
+       send_check.freeze_distance_points,
+       trial_out.geometry.minimum_risk_distance_points))
+    return false;
+  trial_out.geometry.distance_eligible =
+    trial_out.geometry.normalized_risk_distance_points + 1e-7 >=
+    trial_out.geometry.minimum_risk_distance_points;
+  if(!trial_out.geometry.distance_eligible)
+    return false;
+  trial_out.geometry.boundary_available = boundary_available;
+  trial_out.geometry.boundary_price = boundary_price;
+  trial_out.geometry.boundary_eligible = true;
+  trial_out.geometry.geometry_equivalence_id =
+    PivotTrialGeometryEquivalenceId(signal.origin_id,
+                                    signal.direction,
+                                    request.price,
+                                    request.sl,
+                                    request.tp);
+  if(trial_out.geometry.geometry_equivalence_id == "")
+    return false;
+  trial_out.geometry.valid = true;
+
+  trial_out.money_plan.risk_budget_amount = send_check.risk_budget_amount;
+  trial_out.money_plan.requested_volume = send_check.requested_volume;
+  trial_out.money_plan.normalized_volume = request.volume;
+  trial_out.money_plan.virtual_expected_stop_loss =
+    -MathAbs(send_check.quote_expected_stop_loss);
+  trial_out.money_plan.virtual_expected_take_profit =
+    MathAbs(send_check.quote_expected_take_profit);
+  trial_out.money_plan.virtual_expected_reward_risk_ratio =
+    send_check.quote_expected_reward_risk_ratio;
+  trial_out.money_plan.complete = true;
+  trial_out.eligibility_status = PIVOT_TRIAL_ELIGIBILITY_ACTIVE;
+  trial_out.origin_window_active_at_entry = true;
+  return true;
+}
+
+void BuildBrokerParityActiveState(const PivotTrialEntry &trial,
+                                  PivotTrialActiveState &state_out)
+{
+  state_out.Reset();
+  state_out.trial.CopyFrom(trial);
+  state_out.parity.origin_id = trial.identity.origin_id;
+  state_out.parity.broker_signal_id = trial.identity.broker_signal_id;
+  state_out.parity.parity_trial_id = trial.identity.parity_trial_id;
+  state_out.parity.accepted_request_copied = true;
+  state_out.active = true;
+}
+
+bool DeclareBrokerParityShadow(PivotSignal &signal,
+                               const MqlTick &entry_tick,
+                               const MqlTradeRequest &request,
+                               const BrokerExecutionCheck &send_check)
+{
+  if(!PivotV11Enabled())
+    return true;
+  if(!PivotV11Ready() || PivotTrialResearchIntegrityFailed() ||
+     signal.parity_trial_id != "")
+    return false;
+
+  PivotTrialEntry trial;
+  if(!BuildBrokerParityTrial(signal,
+                             entry_tick,
+                             request,
+                             send_check,
+                             trial) ||
+     !PivotV11RecordVirtualTrial(trial))
+    return false;
+
+  PivotTrialActiveState state;
+  BuildBrokerParityActiveState(trial, state);
+  string state_reason = "";
+  if(!AppendPivotTrialActiveState(state, state_reason))
+    return false;
+  signal.parity_trial_id = trial.identity.parity_trial_id;
   return true;
 }
 
@@ -621,9 +840,26 @@ bool ResolvePivotTrialFirstTouch(const PivotTrialEntry &trial,
     trial.geometry.point_size;
   outcome_out.duration_seconds =
     (long)(outcome_out.terminal_time - trial.declared_time);
-  outcome_out.virtual_nominal_r = tp_touched
-                                  ? (double)trial.identity.tp_r_multiple
-                                  : -1.0;
+  bool parity_trial =
+    trial.identity.role == PIVOT_TRIAL_ROLE_BROKER_PARITY;
+  if(parity_trial && tp_touched)
+  {
+    double risk_distance =
+      MathAbs(trial.geometry.entry_price -
+              trial.geometry.stop_loss_price);
+    double reward_distance =
+      MathAbs(trial.geometry.take_profit_price -
+              trial.geometry.entry_price);
+    if(risk_distance <= 0.0 || reward_distance <= 0.0)
+      return false;
+    outcome_out.virtual_nominal_r = reward_distance / risk_distance;
+  }
+  else
+  {
+    outcome_out.virtual_nominal_r = tp_touched
+                                    ? (double)trial.identity.tp_r_multiple
+                                    : -1.0;
+  }
   outcome_out.virtual_quote_gross_available =
     ResolveExecutionQuoteProfit(trial.direction,
                                 trial.money_plan.normalized_volume,
@@ -636,15 +872,22 @@ bool ResolvePivotTrialFirstTouch(const PivotTrialEntry &trial,
       outcome_out.virtual_quote_gross_profit /
       MathAbs(trial.money_plan.virtual_expected_stop_loss);
   }
-  outcome_out.virtual_binary_eligible = trial.entry_features.complete;
+  outcome_out.virtual_binary_eligible =
+    !parity_trial && trial.entry_features.complete;
   outcome_out.virtual_binary_target =
     outcome_out.virtual_binary_eligible ? (tp_touched ? 1 : 0) : -1;
-  outcome_out.virtual_exclusion_reason =
-    outcome_out.virtual_binary_eligible
-    ? ""
-    : "ENTRY_FEATURE_SNAPSHOT_INCOMPLETE";
+  outcome_out.virtual_exclusion_reason = parity_trial
+                                         ? "PARITY_CALIBRATION_ONLY"
+                                         : (outcome_out.virtual_binary_eligible
+                                            ? ""
+                                            : "ENTRY_FEATURE_SNAPSHOT_INCOMPLETE");
   outcome_out.first_touch_consistent = true;
-  if(tp_touched)
+  if(parity_trial)
+  {
+    SetPivotTrialTerminalChain(outcome_out,
+                               PIVOT_TRIAL_CHAIN_PARITY_COMPLETE);
+  }
+  else if(tp_touched)
   {
     SetPivotTrialTerminalChain(outcome_out,
                                PIVOT_TRIAL_CHAIN_TP_REACHED);
@@ -684,11 +927,16 @@ bool BuildPivotTrialRunEndOutcome(const PivotTrialEntry &trial,
     (long)(outcome_out.terminal_time - trial.declared_time);
   outcome_out.virtual_binary_eligible = false;
   outcome_out.virtual_binary_target = -1;
-  outcome_out.virtual_exclusion_reason = "CENSORED_RUN_END";
+  bool parity_trial =
+    trial.identity.role == PIVOT_TRIAL_ROLE_BROKER_PARITY;
+  outcome_out.virtual_exclusion_reason = parity_trial
+                                         ? "PARITY_CALIBRATION_ONLY"
+                                         : "CENSORED_RUN_END";
   outcome_out.first_touch_consistent = true;
   outcome_out.chain_terminal = true;
-  outcome_out.chain_terminal_reason =
-    PIVOT_TRIAL_CHAIN_RUN_END_CENSORED;
+  outcome_out.chain_terminal_reason = parity_trial
+                                      ? PIVOT_TRIAL_CHAIN_PARITY_COMPLETE
+                                      : PIVOT_TRIAL_CHAIN_RUN_END_CENSORED;
   return true;
 }
 

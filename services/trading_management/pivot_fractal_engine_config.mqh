@@ -188,6 +188,8 @@ string PivotTrialChainTerminalLabel(const PivotTrialChainTerminalReasons reason)
       return "RUN_END_CENSORED";
     case PIVOT_TRIAL_CHAIN_INELIGIBLE:
       return "INELIGIBLE";
+    case PIVOT_TRIAL_CHAIN_PARITY_COMPLETE:
+      return "PARITY_COMPLETE";
   }
   return "UNKNOWN";
 }

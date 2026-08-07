@@ -444,6 +444,36 @@ class PivotFractalSchemaTests(unittest.TestCase):
 
         self.assert_mutation_rejected(mismatch_parity_terminal, "broker/parity TP/SL terminal mismatch")
 
+    def test_feature_incomplete_broker_outcome_is_excluded_from_calibration(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            runs_root, run_path = self.copy_fixture(temp_dir)
+            mutate_row(
+                run_path,
+                SIGNAL_ORIGINS_FILE,
+                lambda row: True,
+                origin_macro_features_complete="0",
+                origin_feature_snapshot_complete="0",
+                origin_feature_invalid_reason="MACRO_BANDS_INCOMPLETE",
+            )
+            mutate_row(
+                run_path,
+                BROKER_OUTCOMES_FILE,
+                lambda row: True,
+                broker_binary_eligible="0",
+                broker_binary_target=NULL_TOKEN,
+                broker_exclusion_reason="FEATURE_INCOMPLETE",
+            )
+            mutate_summary(
+                run_path,
+                broker_binary_eligible_rows="0",
+                broker_binary_tp_rows="0",
+                broker_excluded_rows="1",
+                parity_terminal_match_rows="0",
+                parity_excluded_rows="1",
+            )
+
+            validate_run(runs_root, V11_FIXTURE.name)
+
     def test_execution_safety_contract_fails_closed(self) -> None:
         cases = (
             ({"fill_policy": "ORDER_FILLING_IOC"}, "not FOK-only"),

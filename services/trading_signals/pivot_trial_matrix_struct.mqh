@@ -562,6 +562,10 @@ struct PivotTrialParityLink
   bool accepted_request_copied;
   bool virtual_outcome_recorded;
   bool broker_outcome_linked;
+  PivotTrialFirstTouchOutcomes virtual_first_touch;
+  bool broker_binary_eligible;
+  int broker_binary_target;
+  bool summary_counted;
 
   PivotTrialParityLink()
   {
@@ -581,6 +585,10 @@ struct PivotTrialParityLink
     accepted_request_copied = false;
     virtual_outcome_recorded = false;
     broker_outcome_linked = false;
+    virtual_first_touch = PIVOT_TRIAL_FIRST_TOUCH_PENDING;
+    broker_binary_eligible = false;
+    broker_binary_target = -1;
+    summary_counted = false;
   }
 
   void CopyFrom(const PivotTrialParityLink &other)
@@ -591,6 +599,10 @@ struct PivotTrialParityLink
     accepted_request_copied = other.accepted_request_copied;
     virtual_outcome_recorded = other.virtual_outcome_recorded;
     broker_outcome_linked = other.broker_outcome_linked;
+    virtual_first_touch = other.virtual_first_touch;
+    broker_binary_eligible = other.broker_binary_eligible;
+    broker_binary_target = other.broker_binary_target;
+    summary_counted = other.summary_counted;
   }
 };
 

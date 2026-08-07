@@ -356,6 +356,12 @@ bool SendPivotMarketOrder(PivotSignal &signal)
   signal.attempt_status = "SENT";
   signal.block_source = "";
   signal.block_reason = "";
+  if(!DeclareBrokerParityShadow(signal,
+                                pre_send_tick,
+                                request,
+                                send_check) &&
+     PivotV11Enabled())
+    PivotV11MarkFailed("BROKER_PARITY_DECLARATION_FAILED");
   ReconcilePivotSignalBrokerPosition(signal);
   UpdatePivotOrigin(signal);
   ExportPivotExecutionCheck(signal, send_check);

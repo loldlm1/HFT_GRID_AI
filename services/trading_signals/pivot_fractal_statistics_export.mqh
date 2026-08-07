@@ -13,6 +13,7 @@ const string PIVOT_V11_RUNS_FOLDER = "runs";
 const string PIVOT_V11_NULL = "\\N";
 const int PIVOT_V11_FLUSH_ROWS = 256;
 const int PIVOT_V11_ORIGIN_STATE_RESERVE = 64;
+const int PIVOT_V11_PARITY_LINK_RESERVE = 16;
 
 const string PIVOT_V11_MANIFEST_FILE = "run_manifest.tsv";
 const string PIVOT_V11_WINDOWS_FILE = "pivot_windows.tsv";
@@ -122,6 +123,7 @@ string g_pivot_v11_virtual_outcome_buffer[];
 string g_pivot_v11_check_buffer[];
 string g_pivot_v11_broker_outcome_buffer[];
 PivotV11PendingOrigin g_pivot_v11_pending_origins[];
+PivotTrialParityLink g_pivot_v11_parity_links[];
 
 bool PivotV11Enabled()
 {
@@ -153,6 +155,125 @@ bool PivotV11RejectReference(const string operation)
   g_pivot_v11_referential_integrity_error_count++;
   PivotV11MarkFailed(operation);
   return false;
+}
+
+int FindPivotV11ParityLink(const string parity_trial_id)
+{
+  if(parity_trial_id == "")
+    return -1;
+  for(int i = 0; i < ArraySize(g_pivot_v11_parity_links); i++)
+  {
+    if(g_pivot_v11_parity_links[i].parity_trial_id == parity_trial_id)
+      return i;
+  }
+  return -1;
+}
+
+bool RemovePivotV11ParityLinkAt(const int index)
+{
+  int total = ArraySize(g_pivot_v11_parity_links);
+  if(index < 0 || index >= total)
+    return false;
+  for(int i = index; i < total - 1; i++)
+    g_pivot_v11_parity_links[i].CopyFrom(
+      g_pivot_v11_parity_links[i + 1]);
+  int reserve = total - 1 > 0 ? PIVOT_V11_PARITY_LINK_RESERVE : 0;
+  return ArrayResize(g_pivot_v11_parity_links,
+                     total - 1,
+                     reserve) == total - 1;
+}
+
+bool PivotV11FinalizeParityLink(const int index)
+{
+  if(index < 0 || index >= ArraySize(g_pivot_v11_parity_links))
+    return false;
+  PivotTrialParityLink link(g_pivot_v11_parity_links[index]);
+  if(!link.virtual_outcome_recorded || !link.broker_outcome_linked)
+    return true;
+  if(link.summary_counted)
+    return PivotV11RejectReference("PARITY_SUMMARY_DUPLICATE");
+
+  g_pivot_v11_parity_pair_rows++;
+  bool virtual_binary =
+    link.virtual_first_touch == PIVOT_TRIAL_FIRST_TOUCH_TP_FIRST ||
+    link.virtual_first_touch == PIVOT_TRIAL_FIRST_TOUCH_SL_FIRST;
+  if(!link.broker_binary_eligible || !virtual_binary)
+  {
+    g_pivot_v11_parity_excluded_rows++;
+  }
+  else
+  {
+    int virtual_target =
+      link.virtual_first_touch == PIVOT_TRIAL_FIRST_TOUCH_TP_FIRST ? 1 : 0;
+    if(virtual_target == link.broker_binary_target)
+      g_pivot_v11_parity_terminal_match_rows++;
+    else
+    {
+      g_pivot_v11_parity_terminal_mismatch_rows++;
+    }
+  }
+  g_pivot_v11_parity_links[index].summary_counted = true;
+  if(!RemovePivotV11ParityLinkAt(index))
+    return PivotV11RejectReference("PARITY_LINK_REMOVE_FAILED");
+  return true;
+}
+
+bool PivotV11RegisterParityLink(const PivotTrialEntry &trial)
+{
+  if(trial.identity.role != PIVOT_TRIAL_ROLE_BROKER_PARITY ||
+     trial.identity.parity_trial_id == "" ||
+     trial.identity.trial_id != trial.identity.parity_trial_id ||
+     trial.identity.origin_id == "" ||
+     trial.identity.broker_signal_id == "" ||
+     FindPivotV11ParityLink(trial.identity.parity_trial_id) >= 0)
+    return PivotV11RejectReference("PARITY_LINK_REGISTER_INVALID");
+  int total = ArraySize(g_pivot_v11_parity_links);
+  if(total >= PIVOT_TRIAL_ACTIVE_STATE_CAP)
+    return PivotV11RejectReference("PARITY_LINK_CAP_REACHED");
+  if(ArrayResize(g_pivot_v11_parity_links,
+                 total + 1,
+                 PIVOT_V11_PARITY_LINK_RESERVE) != total + 1)
+    return PivotV11RejectReference("PARITY_LINK_RESIZE_FAILED");
+  g_pivot_v11_parity_links[total].Reset();
+  g_pivot_v11_parity_links[total].origin_id = trial.identity.origin_id;
+  g_pivot_v11_parity_links[total].broker_signal_id =
+    trial.identity.broker_signal_id;
+  g_pivot_v11_parity_links[total].parity_trial_id =
+    trial.identity.parity_trial_id;
+  g_pivot_v11_parity_links[total].accepted_request_copied = true;
+  return true;
+}
+
+bool PivotV11LinkParityVirtualOutcome(const PivotTrialOutcome &outcome)
+{
+  int index = FindPivotV11ParityLink(outcome.identity.parity_trial_id);
+  if(index < 0 ||
+     g_pivot_v11_parity_links[index].origin_id !=
+       outcome.identity.origin_id ||
+     g_pivot_v11_parity_links[index].broker_signal_id !=
+       outcome.identity.broker_signal_id ||
+     g_pivot_v11_parity_links[index].virtual_outcome_recorded)
+    return PivotV11RejectReference("PARITY_VIRTUAL_LINK_INVALID");
+  g_pivot_v11_parity_links[index].virtual_outcome_recorded = true;
+  g_pivot_v11_parity_links[index].virtual_first_touch = outcome.first_touch;
+  return PivotV11FinalizeParityLink(index);
+}
+
+bool PivotV11LinkParityBrokerOutcome(const PivotSignal &signal)
+{
+  int index = FindPivotV11ParityLink(signal.parity_trial_id);
+  if(index < 0 ||
+     g_pivot_v11_parity_links[index].origin_id != signal.origin_id ||
+     g_pivot_v11_parity_links[index].broker_signal_id !=
+       signal.broker_signal_id ||
+     g_pivot_v11_parity_links[index].broker_outcome_linked)
+    return PivotV11RejectReference("PARITY_BROKER_LINK_INVALID");
+  g_pivot_v11_parity_links[index].broker_outcome_linked = true;
+  g_pivot_v11_parity_links[index].broker_binary_eligible =
+    signal.execution.binary_eligible;
+  g_pivot_v11_parity_links[index].broker_binary_target =
+    signal.execution.binary_target;
+  return PivotV11FinalizeParityLink(index);
 }
 
 string PivotV11BoolToken(const bool value)
@@ -786,6 +907,8 @@ void PivotV11StatsReset()
   ArrayResize(g_pivot_v11_broker_outcome_buffer, 0);
   ArrayResize(g_pivot_v11_pending_origins, 0,
               PIVOT_V11_ORIGIN_STATE_RESERVE);
+  ArrayResize(g_pivot_v11_parity_links, 0,
+              PIVOT_V11_PARITY_LINK_RESERVE);
   ResetPivotTrialMatrixState();
 }
 
@@ -1263,12 +1386,12 @@ bool PivotV11RecordVirtualTrial(const PivotTrialEntry &trial)
 {
   if(!PivotV11Ready())
     return false;
-  if(trial.identity.role != PIVOT_TRIAL_ROLE_MATRIX ||
-     trial.identity.trial_id == "" || trial.identity.policy_id == "" ||
+  bool matrix_trial = trial.identity.role == PIVOT_TRIAL_ROLE_MATRIX;
+  bool parity_trial =
+    trial.identity.role == PIVOT_TRIAL_ROLE_BROKER_PARITY;
+  if((!matrix_trial && !parity_trial) ||
+     trial.identity.trial_id == "" ||
      trial.identity.origin_id == "" || trial.identity.window_id == "" ||
-     !PivotTrialTpMultipleSupported(trial.identity.tp_r_multiple) ||
-     trial.identity.reentry_index < 0 ||
-     trial.identity.reentry_index > PIVOT_TRIAL_MAX_REENTRY_INDEX ||
      trial.declared_time <= 0 || !trial.origin_window_active_at_entry ||
      trial.geometry.entry_bid <= 0.0 ||
      trial.geometry.entry_ask < trial.geometry.entry_bid ||
@@ -1276,6 +1399,26 @@ bool PivotV11RecordVirtualTrial(const PivotTrialEntry &trial)
      trial.geometry.point_size <= 0.0 ||
      trial.geometry.trade_tick_size <= 0.0)
     return PivotV11RejectReference("RECORD_VIRTUAL_TRIAL_INVALID");
+  if(matrix_trial &&
+     (trial.identity.policy_id == "" ||
+      !PivotTrialTpMultipleSupported(trial.identity.tp_r_multiple) ||
+      trial.identity.reentry_index < 0 ||
+      trial.identity.reentry_index > PIVOT_TRIAL_MAX_REENTRY_INDEX ||
+      trial.identity.parity_trial_id != "" ||
+      trial.identity.broker_signal_id != ""))
+    return PivotV11RejectReference("RECORD_MATRIX_TRIAL_IDENTITY_INVALID");
+  if(parity_trial &&
+     (trial.identity.parity_trial_id == "" ||
+      trial.identity.parity_trial_id != trial.identity.trial_id ||
+      trial.identity.broker_signal_id == "" ||
+      trial.identity.policy_id != "" ||
+      trial.identity.tp_r_multiple != 0 ||
+      trial.identity.reentry_index != 0 ||
+      trial.preceding_loss_count != 0 ||
+      trial.parent_trial_id != "" ||
+      trial.continuation_source_outcome_id != "" ||
+      trial.eligibility_status != PIVOT_TRIAL_ELIGIBILITY_ACTIVE))
+    return PivotV11RejectReference("RECORD_PARITY_TRIAL_IDENTITY_INVALID");
 
   bool geometry_available =
     trial.eligibility_status != PIVOT_TRIAL_ELIGIBILITY_INELIGIBLE_FEATURE &&
@@ -1300,16 +1443,30 @@ bool PivotV11RecordVirtualTrial(const PivotTrialEntry &trial)
   PivotV11AppendColumn(row, g_pivot_v11_run_id);
   PivotV11AppendColumn(row, g_pivot_v11_config_id);
   PivotV11AppendColumn(row, trial.identity.trial_id);
-  PivotV11AppendColumn(row, PIVOT_V11_NULL);
-  PivotV11AppendColumn(row, trial.identity.policy_id);
+  PivotV11AppendColumn(
+    row,
+    parity_trial
+    ? trial.identity.parity_trial_id
+    : PIVOT_V11_NULL);
+  PivotV11AppendColumn(
+    row,
+    matrix_trial ? trial.identity.policy_id : PIVOT_V11_NULL);
   PivotV11AppendColumn(row, trial.identity.origin_id);
   PivotV11AppendColumn(row, trial.identity.window_id);
-  PivotV11AppendColumn(row, PIVOT_V11_NULL);
+  PivotV11AppendColumn(
+    row,
+    parity_trial
+    ? trial.identity.broker_signal_id
+    : PIVOT_V11_NULL);
   PivotV11AppendColumn(row, PivotTrialRoleLabel(trial.identity.role));
   PivotV11AppendColumn(row,
-                       PivotTrialSlPolicyLabel(trial.identity.sl_policy));
+                       matrix_trial
+                       ? PivotTrialSlPolicyLabel(trial.identity.sl_policy)
+                       : PIVOT_V11_NULL);
   PivotV11AppendColumn(row,
-                       IntegerToString(trial.identity.tp_r_multiple));
+                       matrix_trial
+                       ? IntegerToString(trial.identity.tp_r_multiple)
+                       : PIVOT_V11_NULL);
   PivotV11AppendColumn(row,
                        IntegerToString(trial.identity.reentry_index));
   PivotV11AppendColumn(row,
@@ -1516,12 +1673,21 @@ bool PivotV11RecordVirtualTrial(const PivotTrialEntry &trial)
                        g_pivot_v11_trial_buffer))
     return false;
   g_pivot_v11_virtual_trial_rows++;
-  g_pivot_v11_matrix_trial_rows++;
-  if(trial.identity.reentry_index > 0)
-    g_pivot_v11_reentry_trial_rows++;
+  if(matrix_trial)
+  {
+    g_pivot_v11_matrix_trial_rows++;
+    if(trial.identity.reentry_index > 0)
+      g_pivot_v11_reentry_trial_rows++;
+  }
+  else
+  {
+    g_pivot_v11_parity_trial_rows++;
+    if(!PivotV11RegisterParityLink(trial))
+      return false;
+  }
   if(active)
     g_pivot_v11_virtual_active_rows++;
-  else
+  else if(matrix_trial)
   {
     g_pivot_v11_chain_ineligible_rows++;
     if(trial.eligibility_status ==
@@ -1549,9 +1715,13 @@ bool PivotV11RecordVirtualOutcome(const PivotTrialOutcome &outcome)
   bool terminal_touch =
     outcome.first_touch == PIVOT_TRIAL_FIRST_TOUCH_TP_FIRST ||
     outcome.first_touch == PIVOT_TRIAL_FIRST_TOUCH_SL_FIRST;
+  bool matrix_outcome =
+    outcome.identity.role == PIVOT_TRIAL_ROLE_MATRIX;
+  bool parity_outcome =
+    outcome.identity.role == PIVOT_TRIAL_ROLE_BROKER_PARITY;
   if(outcome.outcome_id == "" || outcome.identity.trial_id == "" ||
      outcome.identity.origin_id == "" || outcome.identity.window_id == "" ||
-     outcome.identity.role != PIVOT_TRIAL_ROLE_MATRIX ||
+     (!matrix_outcome && !parity_outcome) ||
      (outcome.direction != BULLISH && outcome.direction != BEARISH) ||
      outcome.terminal_time <= 0 || outcome.duration_seconds <= 0 ||
      outcome.observed_exit_bid <= 0.0 ||
@@ -1566,6 +1736,26 @@ bool PivotV11RecordVirtualOutcome(const PivotTrialOutcome &outcome)
       (outcome.threshold_price <= 0.0 ||
        !outcome.virtual_quote_gross_available)))
     return PivotV11RejectReference("RECORD_VIRTUAL_OUTCOME_INVALID");
+  if(matrix_outcome &&
+     (outcome.identity.policy_id == "" ||
+      !PivotTrialTpMultipleSupported(outcome.identity.tp_r_multiple) ||
+      outcome.identity.parity_trial_id != "" ||
+      outcome.identity.broker_signal_id != ""))
+    return PivotV11RejectReference("RECORD_MATRIX_OUTCOME_IDENTITY_INVALID");
+  if(parity_outcome &&
+     (outcome.identity.parity_trial_id == "" ||
+      outcome.identity.parity_trial_id != outcome.identity.trial_id ||
+      outcome.identity.broker_signal_id == "" ||
+      outcome.identity.policy_id != "" ||
+      outcome.identity.tp_r_multiple != 0 ||
+      outcome.identity.reentry_index != 0 ||
+      outcome.virtual_binary_eligible ||
+      outcome.virtual_exclusion_reason == "" ||
+      !outcome.chain_terminal ||
+      outcome.chain_terminal_reason !=
+        PIVOT_TRIAL_CHAIN_PARITY_COMPLETE ||
+      outcome.continuation_allowed))
+    return PivotV11RejectReference("RECORD_PARITY_OUTCOME_INVALID");
 
   string row = "";
   PivotV11AppendColumn(row, IntegerToString(PIVOT_V11_SCHEMA_VERSION));
@@ -1573,16 +1763,26 @@ bool PivotV11RecordVirtualOutcome(const PivotTrialOutcome &outcome)
   PivotV11AppendColumn(row, g_pivot_v11_config_id);
   PivotV11AppendColumn(row, outcome.outcome_id);
   PivotV11AppendColumn(row, outcome.identity.trial_id);
-  PivotV11AppendColumn(row, PIVOT_V11_NULL);
-  PivotV11AppendColumn(row, outcome.identity.policy_id);
+  PivotV11AppendColumn(
+    row,
+    parity_outcome
+    ? outcome.identity.parity_trial_id
+    : PIVOT_V11_NULL);
+  PivotV11AppendColumn(
+    row,
+    matrix_outcome ? outcome.identity.policy_id : PIVOT_V11_NULL);
   PivotV11AppendColumn(row, outcome.identity.origin_id);
   PivotV11AppendColumn(row, outcome.identity.window_id);
   PivotV11AppendColumn(row, PivotTrialRoleLabel(outcome.identity.role));
   PivotV11AppendColumn(
     row,
-    PivotTrialSlPolicyLabel(outcome.identity.sl_policy));
+    matrix_outcome
+    ? PivotTrialSlPolicyLabel(outcome.identity.sl_policy)
+    : PIVOT_V11_NULL);
   PivotV11AppendColumn(row,
-                       IntegerToString(outcome.identity.tp_r_multiple));
+                       matrix_outcome
+                       ? IntegerToString(outcome.identity.tp_r_multiple)
+                       : PIVOT_V11_NULL);
   PivotV11AppendColumn(row,
                        IntegerToString(outcome.identity.reentry_index));
   PivotV11AppendColumn(row,
@@ -1665,30 +1865,38 @@ bool PivotV11RecordVirtualOutcome(const PivotTrialOutcome &outcome)
                        g_pivot_v11_virtual_outcome_buffer))
     return false;
   g_pivot_v11_virtual_outcome_rows++;
-  if(outcome.first_touch == PIVOT_TRIAL_FIRST_TOUCH_TP_FIRST)
-    g_pivot_v11_matrix_tp_rows++;
-  else if(outcome.first_touch == PIVOT_TRIAL_FIRST_TOUCH_SL_FIRST)
-    g_pivot_v11_matrix_sl_rows++;
-  else if(censored)
-    g_pivot_v11_matrix_censored_rows++;
+  if(parity_outcome)
+  {
+    g_pivot_v11_parity_outcome_rows++;
+    PivotV11LinkParityVirtualOutcome(outcome);
+  }
+  else
+  {
+    if(outcome.first_touch == PIVOT_TRIAL_FIRST_TOUCH_TP_FIRST)
+      g_pivot_v11_matrix_tp_rows++;
+    else if(outcome.first_touch == PIVOT_TRIAL_FIRST_TOUCH_SL_FIRST)
+      g_pivot_v11_matrix_sl_rows++;
+    else if(censored)
+      g_pivot_v11_matrix_censored_rows++;
 
-  if(outcome.chain_terminal_reason == PIVOT_TRIAL_CHAIN_TP_REACHED)
-    g_pivot_v11_chain_tp_complete_rows++;
-  else if(outcome.chain_terminal_reason ==
-          PIVOT_TRIAL_CHAIN_STRUCTURAL_SL)
-    g_pivot_v11_chain_structural_sl_rows++;
-  else if(outcome.chain_terminal_reason ==
-          PIVOT_TRIAL_CHAIN_REENTRY_CAP_REACHED)
-    g_pivot_v11_chain_reentry_cap_rows++;
-  else if(outcome.chain_terminal_reason ==
-          PIVOT_TRIAL_CHAIN_NEXT_PIVOT_BOUNDARY)
-    g_pivot_v11_chain_boundary_rows++;
-  else if(outcome.chain_terminal_reason ==
-          PIVOT_TRIAL_CHAIN_ORIGIN_EXPIRED)
-    g_pivot_v11_chain_origin_expired_rows++;
-  else if(outcome.chain_terminal_reason ==
-          PIVOT_TRIAL_CHAIN_RUN_END_CENSORED)
-    g_pivot_v11_chain_run_end_censored_rows++;
+    if(outcome.chain_terminal_reason == PIVOT_TRIAL_CHAIN_TP_REACHED)
+      g_pivot_v11_chain_tp_complete_rows++;
+    else if(outcome.chain_terminal_reason ==
+            PIVOT_TRIAL_CHAIN_STRUCTURAL_SL)
+      g_pivot_v11_chain_structural_sl_rows++;
+    else if(outcome.chain_terminal_reason ==
+            PIVOT_TRIAL_CHAIN_REENTRY_CAP_REACHED)
+      g_pivot_v11_chain_reentry_cap_rows++;
+    else if(outcome.chain_terminal_reason ==
+            PIVOT_TRIAL_CHAIN_NEXT_PIVOT_BOUNDARY)
+      g_pivot_v11_chain_boundary_rows++;
+    else if(outcome.chain_terminal_reason ==
+            PIVOT_TRIAL_CHAIN_ORIGIN_EXPIRED)
+      g_pivot_v11_chain_origin_expired_rows++;
+    else if(outcome.chain_terminal_reason ==
+            PIVOT_TRIAL_CHAIN_RUN_END_CENSORED)
+      g_pivot_v11_chain_run_end_censored_rows++;
+  }
   return true;
 }
 
@@ -2046,6 +2254,8 @@ bool PivotV11RecordBrokerOutcome(const PivotSignal &signal)
   {
     g_pivot_v11_broker_excluded_rows++;
   }
+  if(signal.parity_trial_id != "")
+    PivotV11LinkParityBrokerOutcome(signal);
   return true;
 }
 
@@ -2071,6 +2281,16 @@ bool PivotV11WriteSummary(const string completion_status)
 
   if(PivotTrialResearchIntegrityFailed())
     PivotV11MarkFailed("VIRTUAL_STATE_INTEGRITY");
+  if(g_pivot_v11_parity_terminal_mismatch_rows > 0)
+    PivotV11MarkFailed("PARITY_TERMINAL_MISMATCH");
+  for(int i = 0; i < ArraySize(g_pivot_v11_parity_links); i++)
+  {
+    if(!g_pivot_v11_parity_links[i].virtual_outcome_recorded)
+    {
+      PivotV11RejectReference("PARITY_OUTCOME_MISSING");
+      break;
+    }
+  }
   if(ArraySize(g_pivot_v11_pending_origins) > 0)
     PivotV11RejectReference("SUMMARY_PENDING_ORIGINS");
   if(!PivotV11FlushAll())
@@ -2185,6 +2405,7 @@ void PivotV11StatsDeinit(const string completion_status = "CENSORED")
   ArrayResize(g_pivot_v11_check_buffer, 0);
   ArrayResize(g_pivot_v11_broker_outcome_buffer, 0);
   ArrayResize(g_pivot_v11_pending_origins, 0);
+  ArrayResize(g_pivot_v11_parity_links, 0);
   ResetPivotTrialMatrixState();
 }
 

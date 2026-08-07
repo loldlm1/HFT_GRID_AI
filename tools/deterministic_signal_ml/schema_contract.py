@@ -2360,7 +2360,11 @@ def _validate_broker_outcomes(
             raise SchemaValidationError(f"{context}: invalid broker terminal reason")
         reason_consistent = _as_bool(row, "close_reason_consistent", context)
         binary_eligible = _as_bool(row, "broker_binary_eligible", context)
-        expected_binary = reason_consistent and terminal_reason in ("BROKER_TP", "BROKER_SL")
+        expected_binary = (
+            reason_consistent
+            and terminal_reason in ("BROKER_TP", "BROKER_SL")
+            and origin["origin_feature_snapshot_complete"] == "1"
+        )
         if binary_eligible != expected_binary:
             raise SchemaValidationError(f"{context}: broker binary eligibility mismatch")
         target = _as_int(row, "broker_binary_target", context, nullable=True)
