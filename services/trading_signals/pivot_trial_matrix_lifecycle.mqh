@@ -184,7 +184,7 @@ bool BuildBrokerParityTrial(const PivotSignal &signal,
   trial_out.origin_expiry_time = origin_expiry;
   trial_out.preceding_loss_count = 0;
   trial_out.origin_micro_band_width_available =
-    signal.features.micro_complete &&
+    signal.features.micro_band_trend.width_available &&
     signal.features.micro_band_width_0 > 0.0;
   trial_out.origin_micro_band_width_0 =
     trial_out.origin_micro_band_width_available
@@ -327,7 +327,7 @@ bool BuildInitialPivotTrial(const PivotSignal &signal,
   trial_out.declared_time = signal.trigger_time;
   trial_out.preceding_loss_count = 0;
   trial_out.origin_micro_band_width_available =
-    signal.features.micro_complete &&
+    signal.features.micro_band_trend.width_available &&
     signal.features.micro_band_width_0 > 0.0;
   trial_out.origin_micro_band_width_0 =
     trial_out.origin_micro_band_width_available

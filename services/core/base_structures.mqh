@@ -27,4 +27,27 @@ struct PivotBandsHandleInfo
   }
 };
 
+struct PivotStochasticHandleInfo
+{
+  int indicator_handle;
+  ENUM_TIMEFRAMES timeframe;
+
+  PivotStochasticHandleInfo()
+  {
+    Reset(PERIOD_CURRENT);
+  }
+
+  PivotStochasticHandleInfo(const PivotStochasticHandleInfo &other)
+  {
+    indicator_handle = other.indicator_handle;
+    timeframe = other.timeframe;
+  }
+
+  void Reset(const ENUM_TIMEFRAMES source_timeframe)
+  {
+    indicator_handle = INVALID_HANDLE;
+    timeframe = source_timeframe;
+  }
+};
+
 #endif // _MICROSERVICES_CORE_BASE_STRUCTURES_MQH_

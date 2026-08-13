@@ -1075,7 +1075,7 @@ bool PivotV11RegisterOrigin(const PivotSignal &signal)
     return PivotV11RejectReference("REGISTER_ORIGIN_GEOMETRY_INVALID");
 
   origin.origin_micro_band_width_available =
-    signal.features.micro_complete &&
+    signal.features.micro_band_trend.width_available &&
     signal.features.micro_band_width_0 > 0.0;
   origin.origin_micro_band_width_0 =
     origin.origin_micro_band_width_available

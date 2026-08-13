@@ -6,8 +6,12 @@
 
 enum PivotFractalFixedCounts
 {
-  PIVOT_LEVEL_COUNT           = 7,
-  PIVOT_B_PERCENT_SHIFT_COUNT = 6
+  PIVOT_LEVEL_COUNT                 = 7,
+  PIVOT_B_PERCENT_SHIFT_COUNT       = 6,
+  PIVOT_FEATURE_EXPORT_SHIFT_COUNT  = 6,
+  PIVOT_FEATURE_SMA_PERIOD          = 5,
+  PIVOT_FEATURE_SMA_SHIFT_COUNT     = 7,
+  PIVOT_FEATURE_RAW_SHIFT_COUNT     = 11
 };
 
 enum PivotTrialFixedCounts
@@ -22,6 +26,7 @@ enum PivotTrialFixedCounts
 };
 
 const int PIVOT_WINDOW_RETRY_SECONDS = 1;
+const double PIVOT_FEATURE_STATE_TOLERANCE = 0.0000001;
 const double PIVOT_TRIAL_MICRO_BW_13_RATIO = 0.13;
 const double PIVOT_TRIAL_MICRO_BW_21_RATIO = 0.21;
 const double PIVOT_TRIAL_MICRO_BW_34_RATIO = 0.34;

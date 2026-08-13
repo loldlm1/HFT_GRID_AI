@@ -6,6 +6,8 @@
 
 PivotBandsHandleInfo g_macro_bands_handle;
 PivotBandsHandleInfo g_micro_bands_handle;
+PivotStochasticHandleInfo g_macro_stochastic_handle;
+PivotStochasticHandleInfo g_micro_stochastic_handle;
 
 void SetTesterIndicatorHideMode(const bool hide)
 {
@@ -54,7 +56,60 @@ bool PivotBandsHandleReady(const PivotBandsHandleInfo &handle_info)
          BarsCalculated(handle_info.indicator_handle) > 0;
 }
 
+bool LoadPivotStochasticHandle(const ENUM_TIMEFRAMES timeframe,
+                               const string context_label,
+                               PivotStochasticHandleInfo &handle_out)
+{
+  handle_out.Reset(timeframe);
+  ResetLastError();
+  handle_out.indicator_handle = iStochastic(
+    _Symbol,
+    timeframe,
+    PIVOT_CONTEXT_STOCHASTIC_K_PERIOD,
+    PIVOT_CONTEXT_STOCHASTIC_D_PERIOD,
+    PIVOT_CONTEXT_STOCHASTIC_SLOWING,
+    MODE_SMA,
+    STO_CLOSECLOSE);
+  if(handle_out.indicator_handle == INVALID_HANDLE)
+  {
+    PrintFormat("Stochastic handle unavailable | context=%s | timeframe=%s | K=%d | D=%d | slowing=%d | error=%d",
+                context_label,
+                EnumToString(timeframe),
+                PIVOT_CONTEXT_STOCHASTIC_K_PERIOD,
+                PIVOT_CONTEXT_STOCHASTIC_D_PERIOD,
+                PIVOT_CONTEXT_STOCHASTIC_SLOWING,
+                GetLastError());
+    return false;
+  }
+
+  if(Enable_Logs)
+  {
+    PrintFormat("Stochastic handle loaded | context=%s | timeframe=%s | K=%d | D=%d | slowing=%d | method=MODE_SMA | price=STO_CLOSECLOSE",
+                context_label,
+                EnumToString(timeframe),
+                PIVOT_CONTEXT_STOCHASTIC_K_PERIOD,
+                PIVOT_CONTEXT_STOCHASTIC_D_PERIOD,
+                PIVOT_CONTEXT_STOCHASTIC_SLOWING);
+  }
+  return true;
+}
+
+bool PivotStochasticHandleReady(
+  const PivotStochasticHandleInfo &handle_info)
+{
+  return handle_info.indicator_handle != INVALID_HANDLE &&
+         BarsCalculated(handle_info.indicator_handle) > 0;
+}
+
 void ReleasePivotBandsHandle(PivotBandsHandleInfo &handle_info)
+{
+  if(handle_info.indicator_handle != INVALID_HANDLE)
+    IndicatorRelease(handle_info.indicator_handle);
+  handle_info.Reset(handle_info.timeframe);
+}
+
+void ReleasePivotStochasticHandle(
+  PivotStochasticHandleInfo &handle_info)
 {
   if(handle_info.indicator_handle != INVALID_HANDLE)
     IndicatorRelease(handle_info.indicator_handle);
@@ -65,8 +120,12 @@ void LoadAllIndicatorDefinitions()
 {
   ReleasePivotBandsHandle(g_macro_bands_handle);
   ReleasePivotBandsHandle(g_micro_bands_handle);
+  ReleasePivotStochasticHandle(g_macro_stochastic_handle);
+  ReleasePivotStochasticHandle(g_micro_stochastic_handle);
   g_macro_bands_handle.Reset(Macro_Timeframe);
   g_micro_bands_handle.Reset(Micro_Timeframe);
+  g_macro_stochastic_handle.Reset(Macro_Timeframe);
+  g_micro_stochastic_handle.Reset(Micro_Timeframe);
 
   if(!Enable_Signal_Feature_Export)
     return;
@@ -74,11 +133,17 @@ void LoadAllIndicatorDefinitions()
   SetTesterIndicatorHideMode(true);
   LoadPivotBandsHandle(Macro_Timeframe, "Macro", g_macro_bands_handle);
   LoadPivotBandsHandle(Micro_Timeframe, "Micro", g_micro_bands_handle);
+  LoadPivotStochasticHandle(Macro_Timeframe,
+                            "Macro",
+                            g_macro_stochastic_handle);
+  LoadPivotStochasticHandle(Micro_Timeframe,
+                            "Micro",
+                            g_micro_stochastic_handle);
   SetTesterIndicatorHideMode(false);
 
   if(Enable_Logs)
   {
-    PrintFormat("Pivot Bands contexts | Engine=%s | Macro=%s | Micro=%s | applied_price=PRICE_WEIGHTED",
+    PrintFormat("Pivot feature contexts | Engine=%s | Macro=%s | Micro=%s | Bands=PRICE_WEIGHTED | Stochastic=MAIN_LINE,SIGNAL_LINE",
                 PivotFractalEngineLabel(PIVOT_FRACTAL_V2),
                 EnumToString(Macro_Timeframe),
                 EnumToString(Micro_Timeframe));
@@ -89,6 +154,8 @@ void ReleaseAllIndicatorDefinitions()
 {
   ReleasePivotBandsHandle(g_macro_bands_handle);
   ReleasePivotBandsHandle(g_micro_bands_handle);
+  ReleasePivotStochasticHandle(g_macro_stochastic_handle);
+  ReleasePivotStochasticHandle(g_micro_stochastic_handle);
 }
 
 #endif // _SERVICES_TRADING_MANAGEMENT_INDICATOR_DEFINITIONS_LOADER_MQH_

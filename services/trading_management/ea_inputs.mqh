@@ -10,6 +10,9 @@
 
 const int    PIVOT_CONTEXT_BANDS_PERIOD      = 21;
 const double PIVOT_CONTEXT_B_PERCENT_DEVIATION = 2.0;
+const int    PIVOT_CONTEXT_STOCHASTIC_K_PERIOD = 5;
+const int    PIVOT_CONTEXT_STOCHASTIC_D_PERIOD = 3;
+const int    PIVOT_CONTEXT_STOCHASTIC_SLOWING  = 3;
 const double PIVOT_EXECUTION_REFERENCE_BALANCE = 1000000.0;
 
 input group  "+= Market Data Time =+";
