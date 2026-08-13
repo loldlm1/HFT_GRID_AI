@@ -223,15 +223,7 @@ struct PivotContextFeatureSnapshot
   PivotDerivedFeatureSeries macro_stochastic_signal_line_features;
   PivotBandTrendSnapshot micro_band_trend;
   PivotBandTrendSnapshot macro_band_trend;
-  bool micro_b_percent_available[PIVOT_B_PERCENT_SHIFT_COUNT];
-  double micro_b_percent[PIVOT_B_PERCENT_SHIFT_COUNT];
-  bool macro_pivot_b_percent_available[PIVOT_B_PERCENT_SHIFT_COUNT];
-  double macro_pivot_b_percent[PIVOT_B_PERCENT_SHIFT_COUNT];
-  double micro_band_base_0;
-  double micro_band_upper_0;
-  double micro_band_lower_0;
   double micro_band_width_0;
-  double micro_band_width_percent_0;
   bool micro_complete;
   bool macro_complete;
   string invalid_reason;
@@ -265,21 +257,10 @@ struct PivotContextFeatureSnapshot
     macro_stochastic_signal_line_features.Reset();
     micro_band_trend.Reset();
     macro_band_trend.Reset();
-    micro_band_base_0 = 0.0;
-    micro_band_upper_0 = 0.0;
-    micro_band_lower_0 = 0.0;
     micro_band_width_0 = 0.0;
-    micro_band_width_percent_0 = 0.0;
     micro_complete = false;
     macro_complete = false;
     invalid_reason = "";
-    for(int i = 0; i < PIVOT_B_PERCENT_SHIFT_COUNT; i++)
-    {
-      micro_b_percent_available[i] = false;
-      micro_b_percent[i] = 0.0;
-      macro_pivot_b_percent_available[i] = false;
-      macro_pivot_b_percent[i] = 0.0;
-    }
   }
 
   void CopyFrom(const PivotContextFeatureSnapshot &other)
@@ -305,22 +286,10 @@ struct PivotContextFeatureSnapshot
       other.macro_stochastic_signal_line_features);
     micro_band_trend.CopyFrom(other.micro_band_trend);
     macro_band_trend.CopyFrom(other.macro_band_trend);
-    micro_band_base_0 = other.micro_band_base_0;
-    micro_band_upper_0 = other.micro_band_upper_0;
-    micro_band_lower_0 = other.micro_band_lower_0;
     micro_band_width_0 = other.micro_band_width_0;
-    micro_band_width_percent_0 = other.micro_band_width_percent_0;
     micro_complete = other.micro_complete;
     macro_complete = other.macro_complete;
     invalid_reason = other.invalid_reason;
-    for(int i = 0; i < PIVOT_B_PERCENT_SHIFT_COUNT; i++)
-    {
-      micro_b_percent_available[i] = other.micro_b_percent_available[i];
-      micro_b_percent[i] = other.micro_b_percent[i];
-      macro_pivot_b_percent_available[i] =
-        other.macro_pivot_b_percent_available[i];
-      macro_pivot_b_percent[i] = other.macro_pivot_b_percent[i];
-    }
   }
 };
 
@@ -350,21 +319,6 @@ int PivotStochasticHandleForTimeframe(const ENUM_TIMEFRAMES timeframe)
   if(timeframe == Micro_Timeframe)
     return g_micro_stochastic_handle.indicator_handle;
   return INVALID_HANDLE;
-}
-
-bool CopyPivotBandValue(const int handle,
-                        const int buffer_index,
-                        const int shift,
-                        double &value_out)
-{
-  value_out = 0.0;
-  double values[];
-  ResetLastError();
-  int copied = CopyBuffer(handle, buffer_index, shift, 1, values);
-  if(copied != 1 || ArraySize(values) != 1)
-    return false;
-  value_out = values[0];
-  return MathIsValidNumber(value_out) && value_out != EMPTY_VALUE;
 }
 
 bool CopyPivotIndicatorBuffer(const int handle,
@@ -765,22 +719,8 @@ bool CapturePivotContextFeatureSnapshot(
                              "MACRO_BAND_TREND_INVALID");
 
   if(snapshot_out.micro_band_trend.width_available)
-  {
-    snapshot_out.micro_band_base_0 =
-      snapshot_out.micro_bands.base_values[0];
-    snapshot_out.micro_band_upper_0 =
-      snapshot_out.micro_bands.upper_values[0];
-    snapshot_out.micro_band_lower_0 =
-      snapshot_out.micro_bands.lower_values[0];
     snapshot_out.micro_band_width_0 =
       snapshot_out.micro_band_trend.width_price_0;
-    if(snapshot_out.micro_band_base_0 > 0.0)
-    {
-      snapshot_out.micro_band_width_percent_0 =
-        100.0 * snapshot_out.micro_band_width_0 /
-        snapshot_out.micro_band_base_0;
-    }
-  }
 
   snapshot_out.micro_complete =
     micro_bands_complete &&
@@ -808,13 +748,6 @@ bool BuildPivotSignalFeatureSnapshot(
   signal_snapshot_out.pivot_price = pivot_price;
   signal_snapshot_out.micro_b_percent_features.Reset();
   signal_snapshot_out.macro_b_percent_features.Reset();
-  for(int shift = 0; shift < PIVOT_B_PERCENT_SHIFT_COUNT; shift++)
-  {
-    signal_snapshot_out.micro_b_percent_available[shift] = false;
-    signal_snapshot_out.micro_b_percent[shift] = 0.0;
-    signal_snapshot_out.macro_pivot_b_percent_available[shift] = false;
-    signal_snapshot_out.macro_pivot_b_percent[shift] = 0.0;
-  }
 
   bool micro_b_percent_complete = BuildPivotBPercentSeries(
     pivot_price,
@@ -830,22 +763,6 @@ bool BuildPivotSignalFeatureSnapshot(
   if(!macro_b_percent_complete)
     AppendPivotFeatureReason(signal_snapshot_out.invalid_reason,
                              "MACRO_B_PERCENT_INVALID");
-
-  for(int shift = 0; shift < PIVOT_B_PERCENT_SHIFT_COUNT; shift++)
-  {
-    if(signal_snapshot_out.micro_b_percent_features.available[shift])
-    {
-      signal_snapshot_out.micro_b_percent_available[shift] = true;
-      signal_snapshot_out.micro_b_percent[shift] =
-        signal_snapshot_out.micro_b_percent_features.raw_values[shift];
-    }
-    if(signal_snapshot_out.macro_b_percent_features.available[shift])
-    {
-      signal_snapshot_out.macro_pivot_b_percent_available[shift] = true;
-      signal_snapshot_out.macro_pivot_b_percent[shift] =
-        signal_snapshot_out.macro_b_percent_features.raw_values[shift];
-    }
-  }
 
   signal_snapshot_out.micro_complete =
     shared_snapshot.micro_complete && micro_b_percent_complete;

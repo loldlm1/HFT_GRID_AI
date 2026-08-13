@@ -38,7 +38,7 @@ bool ExportPivotOwnershipExecutionCheckIfNeeded(PivotSignal &signal)
   if(!signal.execution.broker_entry_confirmed ||
      signal.execution.entry_check_exported)
     return true;
-  if(!PivotV11Enabled())
+  if(!PivotV12Enabled())
   {
     signal.execution.entry_check_exported = true;
     return true;
@@ -63,7 +63,7 @@ bool ExportPivotTerminalExecutionCheck(PivotSignal &signal)
                         signal.execution.state == EXECUTION_ORDER_FAILED;
   if(!broker_closed && !order_terminal)
     return false;
-  if(!PivotV11Enabled())
+  if(!PivotV12Enabled())
   {
     signal.execution.terminal_check_exported = true;
     return true;
@@ -90,13 +90,13 @@ bool ExportPivotSignalOutcome(PivotSignal &signal)
 {
   if(signal.execution.outcome_exported)
     return true;
-  if(!PivotV11Enabled())
+  if(!PivotV12Enabled())
   {
     signal.execution.outcome_exported = true;
     return true;
   }
 
-  bool recorded = PivotV11RecordBrokerOutcome(signal);
+  bool recorded = PivotV12RecordBrokerOutcome(signal);
   if(recorded)
     signal.execution.outcome_exported = true;
   return recorded;

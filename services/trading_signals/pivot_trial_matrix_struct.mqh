@@ -323,10 +323,9 @@ struct PivotTrialEntry
   int preceding_loss_count;
   bool origin_micro_band_width_available;
   double origin_micro_band_width_0;
-  double origin_pivot_price;
+  bool origin_feature_snapshot_complete;
   PivotTrialGeometry geometry;
   PivotTrialMoneyPlan money_plan;
-  PivotContextFeatureSnapshot entry_features;
   PivotTrialEligibilityStatuses eligibility_status;
   string ineligible_reason;
   string parent_trial_id;
@@ -353,10 +352,9 @@ struct PivotTrialEntry
     preceding_loss_count = 0;
     origin_micro_band_width_available = false;
     origin_micro_band_width_0 = 0.0;
-    origin_pivot_price = 0.0;
+    origin_feature_snapshot_complete = false;
     geometry.Reset();
     money_plan.Reset();
-    entry_features.Reset();
     eligibility_status = PIVOT_TRIAL_ELIGIBILITY_INELIGIBLE_GEOMETRY;
     ineligible_reason = "";
     parent_trial_id = "";
@@ -375,10 +373,10 @@ struct PivotTrialEntry
     origin_micro_band_width_available =
       other.origin_micro_band_width_available;
     origin_micro_band_width_0 = other.origin_micro_band_width_0;
-    origin_pivot_price = other.origin_pivot_price;
+    origin_feature_snapshot_complete =
+      other.origin_feature_snapshot_complete;
     geometry.CopyFrom(other.geometry);
     money_plan.CopyFrom(other.money_plan);
-    entry_features.CopyFrom(other.entry_features);
     eligibility_status = other.eligibility_status;
     ineligible_reason = other.ineligible_reason;
     parent_trial_id = other.parent_trial_id;

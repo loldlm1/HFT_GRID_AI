@@ -7,7 +7,6 @@
 enum PivotFractalFixedCounts
 {
   PIVOT_LEVEL_COUNT                 = 7,
-  PIVOT_B_PERCENT_SHIFT_COUNT       = 6,
   PIVOT_FEATURE_EXPORT_SHIFT_COUNT  = 6,
   PIVOT_FEATURE_SMA_PERIOD          = 5,
   PIVOT_FEATURE_SMA_SHIFT_COUNT     = 7,

@@ -174,9 +174,9 @@ int OnInit()
   }
 
   g_execution_magic = ResolveStableExecutionMagic();
-  if(!PivotV11StatsInit())
+  if(!PivotV12StatsInit())
   {
-    Print("Schema V11 export initialization failed; EA initialization stopped");
+    Print("Schema V12 export initialization failed; EA initialization stopped");
     return INIT_FAILED;
   }
   LoadAllIndicatorDefinitions();
@@ -201,7 +201,7 @@ void OnDeinit(const int reason)
   FinalizePivotSignalAttemptsForExport();
   FinalizePivotTrialMatrixForExport();
   FinalizeActivePivotWindowsForExport();
-  PivotV11StatsDeinit(completion_status);
+  PivotV12StatsDeinit(completion_status);
   CloseAppendFileLog();
   ReleaseAllIndicatorDefinitions();
   FrontendResetRefreshThrottle();
