@@ -15,6 +15,7 @@ archive directories.
 - Environment runbook: `docs/environment/mt5-agentic-workflows.md`.
 - Statistics workflow: `docs/workflows/pivot-fractal-statistics-flow.md`.
 - Research boundary: `docs/workflows/pivot-fractal-offline-research-boundaries.md`.
+- V12 downstream handoff: `docs/research/pivot-fractal-v12-producer-handoff.md`.
 
 ## Skill Stack
 
@@ -27,9 +28,13 @@ Use only capabilities that match the task and are installed under
 - `codex-agentic-stack:token-saver-orchestrator` for RTK-first inspection,
   compact command evidence, and minimal implementation without reduced
   validation.
-- `production-engineering-stack:python-django-production-engineering` only
-  when a task explicitly crosses into the downstream Django repository. It is
-  not required for the standalone Python research tooling in this repository.
+- `production-engineering-stack:python-django-production-engineering` for the
+  Python validator, typed DuckDB/Parquet builder, audit, offline trainer, and
+  any explicitly authorized downstream Django work.
+- `production-engineering-stack:postgres-production-engineering` and
+  `production-engineering-stack:devops-release-production-engineering` only
+  when an explicitly authorized downstream task reaches database or release
+  operations; they are not default requirements for this MQL5 repository.
 
 The `production-engineering-stack` MetaEditor MCP is the preferred compiler
 integration. Call `get_workspace_info` before any other MetaEditor MCP tool,
@@ -70,14 +75,14 @@ broker tick
 -> calculate PP/S1..S3/R1..R3 from the previous completed Macro candle
 -> arm PP from the first causal live Bid side
 -> discover unconsumed live-Bid virtual-limit triggers
--> capture one shared Micro/Macro weighted-Bands snapshot per tick batch
--> derive candidate-specific Macro pivot %B
+-> capture one shared Micro/Macro Bands and Stochastic snapshot per tick batch
+-> derive candidate-specific touched-pivot features
 -> build immutable structural SL and fresh quote 1R TP
 -> perform observation and fresh pre-send broker checks
 -> submit one FOK market order with broker SL/TP
 -> declare an independent sixteen-cell virtual research matrix when export is enabled
 -> create one accepted-request broker-parity shadow after a successful send
--> export separate virtual, broker, calibration, and strict schema V11 facts
+-> export separate virtual, broker, calibration, and strict schema V12 facts
 ```
 
 - `PIVOT_FRACTAL_V2` is the only signal source. One configured Macro timeframe
@@ -188,20 +193,28 @@ realized profit after a fill.
 
 - Research context uses fixed built-in Bands parameters: period `21`, shift
   `0`, deviation `2.0`, SMA, and `PRICE_WEIGHTED`.
-- Exactly two cached handles exist when export is enabled: one Macro and one
-  Micro. They are created at initialization and released at deinitialization.
-- Micro `%B 0..5` describes the trigger market. Shift `0` uses trigger Bid
-  against developing bands; shifts `1..5` use matching completed weighted
-  prices and bands.
-- Macro pivot `%B 0..5` projects the immutable touched pivot price through
-  Macro band envelopes. Values are not clipped.
-- Micro bandwidth uses shift `0`; the Macro source bandwidth is cached from
-  shift `1` when the Macro window is created. Raw and normalized widths are
-  exported; normalized widths are model features.
+- Stochastic is fixed to `K=5`, `D=3`, slowing `3`, `MODE_SMA`, and
+  `STO_CLOSECLOSE`; buffer `0` is `MAIN_LINE` and buffer `1` is
+  `SIGNAL_LINE`.
+- Exactly four cached handles exist when export is enabled: Macro/Micro Bands
+  and Macro/Micro Stochastic. They are created at initialization and released
+  safely after partial initialization or normal deinitialization.
+- Micro and Macro `%B 0..5` both use the immutable touched pivot price. Shift
+  `0` uses the developing envelope observed at the trigger; shifts `1..5` use
+  their matching completed envelopes. Values are not clipped, so `<0` and
+  `>100` identify touches outside the bands.
+- `%B`, Stochastic `MAIN_LINE`, and Stochastic `SIGNAL_LINE` each export raw,
+  SMA 5, SMA slope, and `ABOVE`/`BELOW`/`EQUAL` state for shifts `0..5`.
+  Bands `BASE_LINE` exports raw values and one-shift slope in points for the
+  same shifts. Micro and Macro Band width in points are shift `0` only.
+- All signal features are captured once on the immutable
+  `signal_origins.tsv` row. Virtual trials and retries join by `origin_id` and
+  do not recapture or duplicate indicator features. The raw Micro shift-0
+  price width remains frozen separately for virtual volatility geometry.
 - Feature availability never authorizes or denies execution. Missing feature
   data makes the research row incomplete.
-- Schema V11 owns exactly eight TSV files under
-  `Common\Files\PivotFractalV11\runs\<run_id>\`: manifest, windows, origins,
+- Schema V12 owns exactly eight TSV files under
+  `Common\Files\PivotFractalV12\runs\<run_id>\`: manifest, windows, origins,
   virtual trials, virtual outcomes, execution checks, broker outcomes, and
   summary.
 - Virtual outcomes contain first-touch status, nominal R, and counterfactual
@@ -219,10 +232,12 @@ realized profit after a fill.
 - The primary virtual binary cohort contains feature-complete eligible
   `TP_FIRST`/`SL_FIRST` matrix rows. The broker TP/SL cohort and parity
   calibration remain separate; ineligible and censored rows are never losses.
-- Current Python tooling accepts strict V11 only, builds long/wide/chain/
-  calibration DuckDB and Parquet artifacts, audits origin and row support, and
-  trains offline XGBoost trial candidates with per-origin sample weights. It
-  has no runtime export, filter mode, online learning, or pattern playback.
+- Current Python tooling accepts strict V12 only, owns an exhaustive 464-column
+  type registry, builds long/wide/chain/calibration DuckDB and Parquet
+  artifacts by joining origin features, audits per-feature availability and
+  row/origin support, and trains offline XGBoost candidates with per-origin
+  sample weights. It has no runtime export, filter mode, online learning, or
+  pattern playback.
 
 ## Include Pipeline
 
@@ -236,9 +251,9 @@ services/frontend.mqh
 ```
 
 - Aggregators own include order; do not add sibling re-includes or cycles.
-- Keep source limited to one cached Macro pivot window, two Bands handles,
-  virtual trigger/context collection, bounded V11 trial state, broker
-  execution/reconciliation, V11 telemetry, and bounded inspection.
+- Keep source limited to one cached Macro pivot window, four feature indicator
+  handles, virtual trigger/context collection, bounded V12 trial state, broker
+  execution/reconciliation, V12 telemetry, and bounded inspection.
 - The frontend draws at most 16 active positions with broker entry, immutable
   SL, immutable TP, and pivot identity. It cannot influence execution;
   nonvisual tester runs do no chart work.

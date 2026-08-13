@@ -17,7 +17,7 @@ $METAEDITOR = Join-Path $MT5_ROOT "MetaEditor64.exe"
 $EA_ENTRYPOINT = Join-Path $MT5_ROOT "MQL5\Experts\HFT_Grid_AI\HFT_Grid_AI.mq5"
 $COMPILE_LOG = Join-Path $MT5_ROOT "MQL5\Experts\HFT_Grid_AI\logs\compile\agentic-build.log"
 $MT5_COMMON_FILES = Join-Path $env:APPDATA "MetaQuotes\Terminal\Common\Files"
-$PIVOT_RUNS_ROOT = Join-Path $MT5_COMMON_FILES "PivotFractalV11\runs"
+$PIVOT_RUNS_ROOT = Join-Path $MT5_COMMON_FILES "PivotFractalV12\runs"
 ```
 
 ### Ubuntu/Wine
@@ -30,7 +30,7 @@ export METAEDITOR="$MT5_ROOT/MetaEditor64.exe"
 export EA_ENTRYPOINT="$MT5_ROOT/MQL5/Experts/HFT_Grid_AI/HFT_Grid_AI.mq5"
 export COMPILE_LOG="$MT5_ROOT/MQL5/Experts/HFT_Grid_AI/logs/compile/agentic-build.log"
 export MT5_COMMON_FILES="$HOME/.wine/drive_c/users/loldlm/AppData/Roaming/MetaQuotes/Terminal/Common/Files"
-export PIVOT_RUNS_ROOT="$MT5_COMMON_FILES/PivotFractalV11/runs"
+export PIVOT_RUNS_ROOT="$MT5_COMMON_FILES/PivotFractalV12/runs"
 ```
 
 If the Wine prefix changes, locate Common Files without dumping contents:
@@ -42,13 +42,15 @@ find "$HOME/.wine" "$HOME/.mt5" "$HOME/.config" -maxdepth 8 \
 
 ## Runtime Indicator Resources
 
-V11 feature export uses only cached built-in `iBands` handles: one for the
-configured Macro timeframe and one for Micro. The handles use period `21`,
-deviation `2.0`, SMA, and `PRICE_WEIGHTED`; they are created during
-initialization only when export is enabled and released during deinitialization.
+V12 feature export owns four cached built-in handles: Macro/Micro `iBands` and
+Macro/Micro `iStochastic`. Bands use period `21`, deviation `2.0`, SMA, and
+`PRICE_WEIGHTED`; Stochastic uses `K=5`, `D=3`, slowing `3`, `MODE_SMA`, and
+`STO_CLOSECLOSE`. They are created during initialization only when export is
+enabled, cleaned up safely after partial initialization, and released during
+deinitialization.
 
 The same export switch owns the bounded virtual matrix and parity state. No
-virtual state, V11 files, or additional Bands work exists when export is off.
+virtual state, V12 files, or feature indicator work exists when export is off.
 
 There is no custom Stochastic or Bollinger `.ex5` placement requirement.
 
@@ -136,7 +138,7 @@ python3 -m venv .venv
 Dependencies remain pinned. Generated datasets, audits, reports, and offline
 models stay under ignored `artifacts/` directories.
 
-## V11 Artifact Inventory
+## V12 Artifact Inventory
 
 ```bash
 export PIVOT_RUN_ID="<run_id>"
@@ -209,7 +211,8 @@ PY
 
 Training is offline-only and never approves or emits an MT5 runtime artifact.
 The builder creates long, wide, eligible-trial, policy-chain, and
-broker-parity calibration artifacts in addition to typed V11 tables.
+broker-parity calibration artifacts in addition to typed V12 tables. The audit
+also writes per-feature origin availability.
 
 Record schema/run/config/engine identity; Macro/Micro, matrix, distance, retry,
 capacity, and lot settings; window, origin, trial, parity, broker, excluded,
@@ -224,13 +227,14 @@ explicit unlabelled run-end virtual censors.
 Use the matrix in `docs/workflows/pivot-fractal-statistics-flow.md` with
 `Every tick based on real ticks`. It covers causal Macro/Micro data, direct Bid
 virtual limits, PP arming, same-tick gaps, all route families, immutable SL/TP,
-broker denials, V11 matrix/retries, parity calibration, DST normalization,
+broker denials, V12 matrix/retries, parity calibration, DST normalization,
 bounded real-position visuals, and export performance. Verify that parity
 ignores closed-session threshold candidates and explicitly excludes any
 broker-terminal-before-observed-touch censor.
 
-Record the run with
-`docs/research/pivot-trial-matrix-v11-acceptance-preparation-2026-08-07.md`.
+Record the run with a new V12 acceptance record under `docs/research/`; use
+`docs/research/pivot-fractal-v12-producer-handoff.md` for the pinned contract
+and downstream resource list.
 Do not edit raw TSV evidence and do not replace the human gate with a new MQL5
 harness or automated tester workflow.
 

@@ -4,7 +4,7 @@
 
 The EA owns one fixed strategy boundary: create one classic pivot ladder from
 the previous completed Macro broker candle, capture deterministic trigger-time
-band facts, and optionally execute one market position per consumed pivot
+Bands/Stochastic facts, and optionally execute one market position per consumed pivot
 identity. It is not a generic strategy framework, licensing platform, risk
 dashboard, session scheduler, pending-order engine, or multi-leg grid system.
 
@@ -16,20 +16,20 @@ broker tick
 -> resolve current virtual TP/SL first touches and at most one retry per chain
 -> refresh one changed or retry-due Macro window
 -> calculate seven classic pivot levels from Macro shift 1
--> cache Macro shift-1 weighted Bands and PP role state
+-> cache PP role state for the active Macro window
 -> discover and consume live-Bid virtual-limit triggers
--> capture one Micro/Macro context snapshot for the tick batch
--> derive each candidate's Macro pivot %B
+-> capture one Micro/Macro Bands and Stochastic snapshot for the tick batch
+-> derive each candidate's immutable touched-pivot feature vector
 -> build structural SL and observation-time 1R geometry
 -> repeat quote, volume, broker, margin, and OrderCheck facts pre-send
 -> OrderSend one FOK market request with immutable broker SL/TP
 -> declare the independent sixteen-cell origin matrix when export is enabled
 -> create one exact-geometry parity shadow only after an accepted send
--> record strict schema V11 virtual, broker, and calibration facts
+-> record strict schema V12 virtual, broker, and calibration facts
 ```
 
 Broker checks and execution remain active when persistence is disabled.
-`Enable_Signal_Feature_Export` controls V11 files, the two Bands handles, and
+`Enable_Signal_Feature_Export` controls V12 files, four indicator handles, and
 all virtual trial state; it never authorizes, denies, delays, resizes, or
 duplicates a real trade.
 
@@ -47,9 +47,9 @@ For the Macro timeframe:
   previous completed source candle.
 - A changed active bar expires every untriggered identity from the old window
   and creates one new pending window.
-- Pending source or Bands reads retry at a bounded cadence. Invalid source
-  ranges, collapsed normalized ladders, unavailable bands, and zero-width
-  bands remain explicit facts.
+- Pending source reads retry at a bounded cadence. Invalid source ranges and
+  collapsed normalized ladders remain explicit facts; feature readiness is
+  evaluated independently at trigger time.
 - Weekend and broker-session gaps follow the actual series. No elapsed-time
   arithmetic creates synthetic candles.
 - A bar or band snapshot whose open is later than the observed tick is not
@@ -97,7 +97,7 @@ failed attempt cannot trigger again.
 
 Downward candidate order is buy-armed `PP`, `S1`, `S2`, `S3`. Upward order is
 sell-armed `PP`, `R1`, `R2`, `R3`. Every candidate in the same observed batch
-copies the same frozen window and shared band snapshot.
+copies the same frozen window and shared feature snapshot.
 
 Buy triggers use Bid but requests use fresh Ask. Sell triggers and requests use
 Bid. Trigger Bid/Ask, pivot price, request quote, broker fill, immutable
@@ -162,7 +162,7 @@ removed.
 Gap-through batches can consume a pivot after price has already crossed its
 next outward pivot. The broker structural route correctly rejects that origin
 when its stop is equal to or on the wrong side of the fresh executable entry.
-V11 still retains the origin and declares all sixteen cells: the four
+V12 still retains the origin and declares all sixteen cells: the four
 structural policies are `INELIGIBLE_GEOMETRY` with no synthesized SL/TP or
 money plan, while the twelve volatility policies remain independently
 researchable. The invalid structural stop is never reflected across entry.
@@ -186,36 +186,42 @@ existing trials or change broker execution. Remaining active state is exported
 as `CENSORED` at run end. A successful tester interval remains run-level
 `NATURAL`; row censoring describes unresolved trials, not why the run ended.
 
-## Weighted Bands Feature Ownership
+## Signal Feature Ownership
 
-The runtime creates two cached built-in `iBands` handles only when V11 export
-is enabled:
+The runtime creates four cached built-in handles only when V12 export is
+enabled:
 
 ```text
 iBands(symbol, timeframe, 21, 0, 2.0, PRICE_WEIGHTED)
+iStochastic(symbol, timeframe, 5, 3, 3, MODE_SMA, STO_CLOSECLOSE)
 ```
 
 Buffers are `0=BASE_LINE`, `1=UPPER_BAND`, and `2=LOWER_BAND`.
-`PRICE_WEIGHTED` is `(High + Low + Close + Close) / 4`.
+Stochastic buffers are `0=MAIN_LINE` and `1=SIGNAL_LINE`.
 
 `%B` is never clipped:
 
 ```text
-100 * (price - lower_band) / (upper_band - lower_band)
+100 * (touched_pivot - lower_band) / (upper_band - lower_band)
 ```
 
-- Micro shift `0` uses trigger Bid against the developing Micro bands.
-- Micro shifts `1..5` use each matching completed weighted price and bands.
-- Macro pivot shifts `0..5` use the immutable touched pivot price as numerator
-  against each Macro band envelope.
-- Micro bandwidth is captured at shift `0` on the trigger tick.
-- Macro bandwidth is cached at shift `1` with the Macro source window.
-- Raw width is audit-only; normalized width is
-  `100 * (upper - lower) / base` and is model-eligible.
-- One trigger batch shares one captured Bands snapshot. Each retry tick captures
-  at most one additional shared retry snapshot, regardless of chain count.
-- Volatility retries retain the frozen origin raw Micro width while their fresh
-  entry feature snapshot describes the retry market.
+- Micro and Macro `%B 0..5` use the same immutable touched pivot numerator.
+  Shift `0` uses the developing envelope observed at the trigger; shifts
+  `1..5` use matching completed envelopes. Values below `0` and above `100`
+  remain valid.
+- `%B`, Stochastic `MAIN_LINE`, and Stochastic `SIGNAL_LINE` each export raw,
+  SMA 5, SMA slope, and `ABOVE`/`BELOW`/`EQUAL` state for shifts `0..5`.
+- Bands `BASE_LINE 0..5` exports the raw value and
+  `(BASE_LINE[shift] - BASE_LINE[shift+1]) / point_size`.
+- Micro and Macro width points are
+  `(UPPER_BAND[0] - LOWER_BAND[0]) / point_size`.
+- The derived SMA horizon is bounded to internal shifts `0..10`; only shifts
+  `0..5` are exported.
+- One trigger batch shares one captured indicator snapshot. Each origin stores
+  the vector exactly once on `signal_origins.tsv`; retries retain the same
+  origin vector and never create a fresh indicator snapshot.
+- Volatility retries separately retain the frozen origin raw Micro width used
+  for their stop geometry.
 
 Unavailable, noncausal, nonfinite, or zero-width facts make the feature
 snapshot incomplete. They never alter an otherwise valid execution decision.
@@ -286,10 +292,10 @@ and reconciliation. Analysis time is derived only for research features.
 | `EXNESS_SESSION`, winter | preserved | broker time minus 60 minutes | none |
 
 Exness metal prefixes use UK DST dates; other symbols use US DST dates. Every
-time-bearing V11 row retains broker time, analysis time, and offset. Causal
+time-bearing V12 row retains broker time, analysis time, and offset. Causal
 sorting uses broker time plus stable identity, never analysis time alone.
 
-## V11 Data Ownership
+## V12 Data Ownership
 
 The sole active export contract contains exactly:
 
@@ -335,8 +341,9 @@ an integrity failure.
 
 Current DuckDB/Parquet, audit, and XGBoost code is offline-only. It cannot load
 into MT5, approve a runtime artifact, filter an attempt, or alter broker state.
-Active tooling accepts schema V11 only. V9/V10 evidence requires its historical
-repository revision and is not converted, dual-written, or relabeled.
+Active tooling accepts schema V12 only and joins signal features from origins.
+V9/V10/V11 evidence requires its historical repository revision and is not
+converted, dual-written, or relabeled.
 
 ## Frontend Boundary
 

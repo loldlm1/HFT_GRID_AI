@@ -1,6 +1,6 @@
-# Deterministic Pivot V11 Research
+# Deterministic Pivot V12 Research
 
-This directory validates strict schema V11 exports and builds policy-aware
+This directory validates strict schema V12 exports and builds policy-aware
 offline research artifacts for `PIVOT_FRACTAL_V2`. It never loads a model into
 MT5, authorizes a trade, or emits a runtime-compatible model.
 
@@ -17,17 +17,17 @@ Each run contains exactly eight TSV files:
 - `broker_outcomes.tsv`
 - `run_summary.tsv`
 
-The active feature set is `schema_v11_pivot_trial_matrix`. Runs must agree on
-config ID, Macro/Micro timeframes, weighted-Bands policy, fixed matrix
+The active feature set is `schema_v12_pivot_signal_features`. Runs must agree
+on config ID, Macro/Micro timeframes, fixed Bands/Stochastic parameters, matrix
 percentages/TPs, quote-side and minimum-distance rules, retry/capacity policy,
-lot mode and size, reference balance, account currency, and feature set. V9/V10
-runs remain historical evidence and are rejected by active tooling.
+lot mode and size, reference balance, account currency, and feature set.
+V9/V10/V11 runs remain historical evidence and are rejected by active tooling.
 
 ## Validate
 
 ```bash
 .venv/bin/python tools/deterministic_signal_ml/build_dataset.py \
-  --runs-root <PivotFractalV11/runs> \
+  --runs-root <PivotFractalV12/runs> \
   --run-id <run_id> \
   --validate-only
 ```
@@ -38,14 +38,14 @@ Repeat `--run-id` to validate compatible runs together.
 
 ```bash
 .venv/bin/python tools/deterministic_signal_ml/build_dataset.py \
-  --runs-root <PivotFractalV11/runs> \
+  --runs-root <PivotFractalV12/runs> \
   --run-id <run_id> \
   --dataset-id <dataset_id>
 ```
 
 The builder writes typed Parquet copies of the eight source tables plus:
 
-Every strict V11 column has one explicit frozen `VARCHAR`, `TIMESTAMP`,
+Every strict V12 column has one explicit frozen `VARCHAR`, `TIMESTAMP`,
 `BOOLEAN`, `BIGINT`, or `DOUBLE` type. Registry overlap, missing schema columns,
 and stale entries fail closed; new columns never inherit a numeric fallback.
 
@@ -60,12 +60,20 @@ and stale entries fail closed; new columns never inherit a numeric fallback.
 - `broker_virtual_calibration.parquet`: paired accepted-request parity and
   broker outcomes with terminal, timing, price, gross, R, and cost differences.
 
-The model contract uses only entry-known policy and market features:
-level/direction, SL policy, TP multiple, retry index/loss count, time, frozen
-origin width, normalized Micro/Macro widths, Micro `%B 0..5`, Macro pivot `%B
-0..5`, entry gap/risk, spread/risk, and Macro range/band width. Eligibility,
-continuation, first touch, parity, broker checks, fills/closes, slippage, costs,
-duration, and P&L stay available for audit but are not model inputs.
+The model contract uses only causal policy and origin features: level/direction,
+SL policy, TP multiple, retry index/loss count, trigger analysis time, normalized
+entry gap/spread, Micro/Macro shift-0 width points, and separate Micro/Macro
+Bands and Stochastic groups. `%B`, `MAIN_LINE`, and `SIGNAL_LINE` include raw,
+SMA 5, SMA slope, and state for shifts `0..5`; Bands also include raw
+`BASE_LINE` and its point slope. Eligibility, continuation, first touch,
+parity, broker checks, fills/closes, slippage, costs, duration, and P&L remain
+audit facts and never enter model features.
+
+All indicator features come from one immutable `signal_origins.tsv` row joined
+by origin. Retries do not create independent market snapshots or discovery
+support. `initial_matrix_wide.parquet` carries the same origin vector once for
+human comparison, while `eligible_virtual_trials.parquet` carries joined
+features with weights summing to `1.0` per origin.
 
 `analysis_weekday` uses `0=Sunday` through `6=Saturday`. `analysis_session`
 uses neutral six-hour analysis-time buckets: `SESSION_00_05`, `SESSION_06_11`,
@@ -80,8 +88,9 @@ uses neutral six-hour analysis-time buckets: `SESSION_00_05`, `SESSION_06_11`,
   --minimum-group-support 30
 ```
 
-The audit separates origin/matrix support, virtual policy performance, chain
-results, broker execution, and parity calibration. It reports both unique
+The audit separates origin/matrix support, per-feature availability, virtual
+policy performance, chain results, broker execution, and parity calibration.
+It reports both unique
 origins and trial rows, expected nominal R, quote gross R, censoring, and
 calibration exclusions. Human bins are report-only; XGBoost receives the
 underlying continuous values. Parity terminal observations are session-aware;
@@ -106,9 +115,11 @@ validation boundary.
 The deterministic ablation order is:
 
 1. policy/level/direction/time plus normalized entry gap and spread;
-2. add frozen origin width, normalized Micro/Macro widths, and Macro range/width;
-3. add Micro `%B 0..5`;
-4. add Macro pivot `%B 0..5`.
+2. add Micro/Macro shift-0 width points;
+3. add Micro Bands `%B`/SMA/slope/state and `BASE_LINE`/slope;
+4. add the matching Macro Bands group;
+5. add Micro Stochastic `MAIN_LINE` and `SIGNAL_LINE` groups;
+6. add the matching Macro Stochastic groups.
 
 Saved classifiers are offline candidates under `artifacts/models/`. Their
 manifest remains `OFFLINE_RESEARCH_ONLY` with

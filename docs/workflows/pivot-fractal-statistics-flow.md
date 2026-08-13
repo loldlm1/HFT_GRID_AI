@@ -1,7 +1,7 @@
 # Pivot Fractal Statistics Flow
 
 This is the active operator workflow for the always-on `PIVOT_FRACTAL_V2`
-collector, strict schema V11 export, one immutable structural 1R broker lane,
+collector, strict schema V12 export, one immutable structural 1R broker lane,
 virtual SL/TP policy trials, parity calibration, and offline research tooling.
 
 ## Runtime Identity
@@ -22,7 +22,7 @@ virtual SL/TP policy trials, parity calibration, and offline research tooling.
 
 ```text
 Macro window -> seven ordered levels -> consumed origin
-                                     |-> shared Micro/Macro band snapshot
+                                     |-> one immutable Micro/Macro feature snapshot
                                      |-> sixteen virtual policy trials
                                      |   `-> independent volatility retry chains
                                      |-> unchanged structural 1R broker attempt
@@ -32,7 +32,7 @@ Macro window -> seven ordered levels -> consumed origin
 
 ## Time Contract
 
-Every time-bearing V11 fact retains broker time, analysis time, and offset.
+Every time-bearing V12 fact retains broker time, analysis time, and offset.
 
 - `FIXED_TIME_SESSIONS`: analysis time equals broker time.
 - `EXNESS_SESSION`: winter analysis time is broker time minus 60 minutes under
@@ -44,17 +44,25 @@ Every time-bearing V11 fact retains broker time, analysis time, and offset.
 
 ## Feature Snapshot
 
-V11 uses fixed built-in Bands parameters: period `21`, shift `0`, deviation
-`2.0`, SMA, and `PRICE_WEIGHTED`.
+V12 uses fixed built-in Bands parameters `21`, shift `0`, deviation `2.0`, SMA,
+and `PRICE_WEIGHTED`, plus Stochastic `K=5`, `D=3`, slowing `3`, `MODE_SMA`,
+and `STO_CLOSECLOSE`.
 
-- Micro `%B 0..5`: shift `0` uses trigger Bid; shifts `1..5` use matching
-  completed weighted prices.
-- Macro pivot `%B 0..5`: every numerator is the immutable touched pivot price.
-- Micro bandwidth: raw and normalized shift `0` at the observed trigger tick.
-- Macro bandwidth: raw and normalized shift `1` cached with the Macro source.
-- `%B = 100 * (price - lower) / (upper - lower)` and is not clipped.
-- Missing or noncausal features mark the research snapshot incomplete but do not change
-  execution authorization.
+- Micro and Macro `%B 0..5` both use the immutable touched pivot price. Shift
+  `0` uses the developing envelope observed at the touch; shifts `1..5` use
+  their matching completed envelopes.
+- `%B = 100 * (pivot - lower) / (upper - lower)` and is not clipped. Filtering
+  shift `0` below `0` or above `100` finds pivot touches outside the bands.
+- `%B`, Stochastic `MAIN_LINE`, and Stochastic `SIGNAL_LINE` each export raw,
+  SMA 5, `SMA5[shift] - SMA5[shift+1]`, and deterministic
+  `ABOVE`/`BELOW`/`EQUAL` state for shifts `0..5`.
+- Bands `BASE_LINE 0..5` exports raw values and
+  `(BASE_LINE[shift] - BASE_LINE[shift+1]) / point_size`.
+- Micro and Macro width points use `(UPPER_BAND[0] - LOWER_BAND[0]) / point_size`.
+- The full vector is captured once on `signal_origins.tsv`; trial and retry rows
+  reference the origin and never recapture indicator values.
+- Missing or noncausal features mark the research snapshot incomplete but do
+  not change execution authorization.
 
 ## Route And Risk Facts
 
@@ -115,19 +123,19 @@ Set `Enable_Signal_Feature_Export=true` and provide a unique
 be created safely. MT5 writes to:
 
 ```text
-Common\Files\PivotFractalV11\runs\<run_id>\
+Common\Files\PivotFractalV12\runs\<run_id>\
 ```
 
-Schema V11 contains exactly:
+Schema V12 contains exactly:
 
-- `run_manifest.tsv`: engine/config, timeframes, Bands, matrix, quote-side,
+- `run_manifest.tsv`: engine/config, timeframes, Bands/Stochastic, matrix, quote-side,
   distance, retry, capacity, lot, money, cohort, and approval policies.
 - `pivot_windows.tsv`: Macro source candle, seven wide raw/trade levels, PP
-  arming, cached shift-1 Macro bands, validity, and terminal state.
+  arming, validity, and terminal state.
 - `signal_origins.tsv`: consumed identity, trigger quote, frozen origin
   features/width, pivot ladder, structural route, broker-attempt link, and
   origin expiry.
-- `virtual_trials.tsv`: matrix or parity identity, entry quote/features,
+- `virtual_trials.tsv`: matrix or parity identity, entry quote,
   normalized geometry, broker-distance facts, hypothetical volume/money,
   eligibility, and continuation references.
 - `virtual_outcomes.tsv`: TP/SL/censor first touch, threshold and observed exit,
@@ -149,7 +157,7 @@ and strict validation with no integrity errors.
 
 ```bash
 export MT5_COMMON_FILES="$HOME/.wine/drive_c/users/loldlm/AppData/Roaming/MetaQuotes/Terminal/Common/Files"
-export PIVOT_RUNS_ROOT="$MT5_COMMON_FILES/PivotFractalV11/runs"
+export PIVOT_RUNS_ROOT="$MT5_COMMON_FILES/PivotFractalV12/runs"
 export PIVOT_RUN_ID="<run_id>"
 export PIVOT_DATASET_ID="<dataset_id>"
 
@@ -165,7 +173,7 @@ export PIVOT_DATASET_ID="<dataset_id>"
 ```
 
 Repeat `--run-id` to assemble compatible runs. The builder rejects mixed
-configuration, timeframe, Bands, matrix constants, quote sides, distance
+configuration, timeframe, Bands/Stochastic, matrix constants, quote sides, distance
 policy, retry/capacity policy, lot, reference balance, feature set, or currency.
 
 The output contains typed copies of all eight tables plus:
@@ -194,8 +202,9 @@ The output contains typed copies of all eight tables plus:
   --model-id <model_id>
 ```
 
-The audit separates matrix support, virtual policy performance, chain results,
-broker execution, and parity calibration. It reports both unique-origin and
+The audit separates matrix support, per-feature availability, virtual policy
+performance, chain results, broker execution, and parity calibration. It
+reports both unique-origin and
 trial-row support; retry rows are never presented as independent market
 origins. Unexplained eligible TP/SL parity disagreement fails the audit.
 
@@ -205,8 +214,8 @@ folds. Rows sharing one `(symbol, Macro timeframe, active Macro bar open)` stay
 together across duplicate runs. A training trial must terminate strictly
 before the next validation boundary.
 
-The deterministic ablation order is policy/level/direction/time, normalized
-widths, Micro `%B`, then Macro pivot `%B`. Output is
+The deterministic ablation order is base policy/time/geometry, shift-0 widths,
+Micro Bands, Macro Bands, Micro Stochastic, then Macro Stochastic. Output is
 `OFFLINE_RESEARCH_ONLY`; no MT5 loader, runtime model export, research-based
 send filter, or pattern playback exists.
 
@@ -250,8 +259,9 @@ deposit, and inputs fixed for comparable runs. Record actual broker timestamps.
    return trigger behavior, stable path order, and one consumed identity.
 4. Confirm buy request/fill semantics use Ask and sell semantics use Bid while
    trigger and pivot prices remain distinct.
-5. Reproduce selected weighted Bands, Micro `%B 0..5`, Macro pivot `%B 0..5`,
-   and raw/normalized bandwidth formulas without clipping.
+5. Reproduce selected Micro/Macro touched-pivot `%B`, SMA 5, SMA slope/state,
+   Stochastic `MAIN_LINE`/`SIGNAL_LINE`, Bands `BASE_LINE` slopes, and shift-0
+   width points. Confirm `%B` remains unclipped.
 6. Observe at least PP, one inner support, one inner resistance, and one extreme
    route; statically review any route not reached by market data.
 7. Confirm exact normalized price-distance 1R, fixed `100` default budget,
@@ -269,7 +279,7 @@ deposit, and inputs fixed for comparable runs. Record actual broker timestamps.
     accepted send timestamp and records `origin_window_active_at_entry=0`.
     Denied or failed sends create none, and strict TP/SL pairs have no
     unexplained terminal mismatch.
-12. Validate the natural eight-file V11 run, long/wide/chain/calibration
+12. Validate the natural eight-file V12 run, long/wide/chain/calibration
     build, audit/train support guards, causal splits, and human filtering.
 13. Verify `FIXED_TIME_SESSIONS` and `EXNESS_SESSION` DST cases, bounded real
     position visuals, and zero chart work in nonvisual mode.

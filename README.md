@@ -11,13 +11,13 @@ real broker tick
 -> reconcile the single real broker lane and active virtual trials
 -> one classic pivot ladder from the previous completed Macro candle
 -> live-Bid virtual support/resistance trigger
--> shared Micro/Macro weighted-Bands snapshot
+-> shared Micro/Macro Bands and Stochastic snapshot
 -> immutable structural SL plus fresh quote 1R TP
 -> fresh broker eligibility and OrderCheck
 -> one FOK hedging-account market position
 -> ticket-first reconciliation without trailing
 -> independent 4 x 4 virtual SL/TP matrix with bounded volatility re-entries
--> optional strict schema V11 export and broker-parity calibration
+-> optional strict schema V12 export and broker-parity calibration
 ```
 
 The defaults are Macro `H1` and Micro `M3`. The Macro source is always shift
@@ -92,15 +92,24 @@ Inner-level retries stop before the next outward pivot; `S3` and `R3` use only
 the fixed three-retry cap. Invalid, boundary-blocked, expired, capacity-failed,
 and censored states remain explicit research facts.
 
-## Bands And Sizing
+## Signal Features And Sizing
 
-Research uses two cached built-in Bands handles with period `21`, deviation
-`2.0`, SMA, and `PRICE_WEIGHTED`:
+Research uses four cached built-in handles, created only when export is enabled:
+Macro/Micro Bands with period `21`, deviation `2.0`, SMA, and
+`PRICE_WEIGHTED`, plus Macro/Micro Stochastic with `K=5`, `D=3`, slowing `3`,
+`MODE_SMA`, and `STO_CLOSECLOSE`.
 
-- Micro `%B 0..5`; shift `0` uses trigger Bid and current developing bands.
-- Macro pivot `%B 0..5`; every numerator is the immutable touched pivot price.
-- Micro raw/normalized bandwidth at shift `0`.
-- Macro raw/normalized bandwidth from source shift `1`.
+- Micro and Macro `%B 0..5` both project the immutable touched pivot through
+  each shift's Bands envelope. Values are unclipped, so shift-0 values below
+  `0` or above `100` show that the pivot touch was outside the bands.
+- `%B`, Stochastic `MAIN_LINE`, and Stochastic `SIGNAL_LINE` each export raw,
+  SMA 5, SMA slope, and `ABOVE`/`BELOW`/`EQUAL` state for shifts `0..5`.
+- Bands `BASE_LINE` exports raw values and one-shift slopes in points for
+  shifts `0..5`; Micro and Macro width points are exported at shift `0` only.
+- The full signal vector is captured once on `signal_origins.tsv`. Trial and
+  retry rows reference the origin instead of duplicating or recapturing it.
+- The raw Micro shift-0 Bands width is still frozen separately for virtual
+  volatility-policy geometry.
 
 `EXECUTION_LOT_REFERENCE_BALANCE_PERCENT` uses a fixed internal reference of
 `1,000,000` account-currency units, not live account balance. The default
@@ -124,12 +133,12 @@ Spread and live account balance are telemetry. Pivot prices are never moved to
 force acceptance. Non-hedging accounts continue collecting facts and fail
 sends closed.
 
-## Schema V11 Research
+## Schema V12 Research
 
 When export is enabled, MT5 writes exactly eight strict TSV files under:
 
 ```text
-Common\Files\PivotFractalV11\runs\<run_id>\
+Common\Files\PivotFractalV12\runs\<run_id>\
 ```
 
 - `run_manifest.tsv`
@@ -145,17 +154,18 @@ Validate and build with:
 
 ```bash
 .venv/bin/python tools/deterministic_signal_ml/build_dataset.py \
-  --runs-root <PivotFractalV11/runs> \
+  --runs-root <PivotFractalV12/runs> \
   --run-id <run_id> \
   --validate-only
 
 .venv/bin/python tools/deterministic_signal_ml/build_dataset.py \
-  --runs-root <PivotFractalV11/runs> \
+  --runs-root <PivotFractalV12/runs> \
   --run-id <run_id> \
   --dataset-id <dataset_id>
 ```
 
-The builder emits typed copies of all eight source tables plus
+The strict builder accepts `schema_v12_pivot_signal_features` only and emits
+typed copies of all eight source tables plus
 `origin_matrix_long.parquet`, `initial_matrix_wide.parquet`,
 `eligible_virtual_trials.parquet`, `policy_chains.parquet`, and
 `broker_virtual_calibration.parquet`.
@@ -188,7 +198,7 @@ export-only.
   path: call `get_workspace_info`, then `compile_file` for `HFT_Grid_AI.mq5`.
 - Human real-tick Strategy Tester/chart validation is mandatory at final
   integration.
-- Existing Python tests validate the V11 research contract, not MT5 runtime.
+- Existing Python tests validate the V12 research contract, not MT5 runtime.
 
 Project-native fallback when the MetaEditor MCP is unavailable:
 

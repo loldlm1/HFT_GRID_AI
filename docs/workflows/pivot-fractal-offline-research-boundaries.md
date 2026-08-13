@@ -1,6 +1,6 @@
 # Pivot Fractal Offline Research Boundaries
 
-Current research starts from strict `PIVOT_FRACTAL_V2` schema V11 exports and
+Current research starts from strict `PIVOT_FRACTAL_V2` schema V12 exports and
 ends in local DuckDB/Parquet datasets, deterministic audits, reports, and
 offline XGBoost trial candidates. Nothing in this workflow changes the single
 real structural 1R broker path.
@@ -14,7 +14,7 @@ dataset, audit, training, and human acceptance commands.
 deterministic Macro pivot trigger
 -> route and broker safety decisions inside MQL5
 -> one real structural 1R broker attempt
--> optional V11 virtual matrix and parity fact persistence
+-> optional V12 origin features, virtual matrix, and parity fact persistence
 -> strict offline validation
 -> leakage-safe policy trials, chains, broker outcomes, and calibration
 -> deterministic audit and optional offline XGBoost
@@ -32,29 +32,35 @@ deterministic Macro pivot trigger
 
 ## Strict Input Contract
 
-The validator requires schema `11`, engine `PIVOT_FRACTAL_V2`, feature set
-`schema_v11_pivot_trial_matrix`, exact frozen headers, one Macro window, unique
-origins, the sixteen-cell index-0 matrix, contiguous policy retries, exact
+The validator requires schema `12`, engine `PIVOT_FRACTAL_V2`, feature set
+`schema_v12_pivot_signal_features`, exact frozen headers, one Macro window,
+unique origins, the sixteen-cell index-0 matrix, contiguous policy retries, exact
 integer-R geometry, quote-side ownership, distance and boundary rules, broker
 execution ownership, parity joins, decomposed money lanes, and strict summary
 counts.
 
-Each run contains exactly eight TSV files. V9/V10 exporter revisions fail
+Each run contains exactly eight TSV files. V9/V10/V11 exporter revisions fail
 closed. Use the historical repository revision that created those rows; do not
-convert, relabel, dual-write, or combine them with V11.
+convert, relabel, dual-write, or combine them with V12.
 
 ## Trigger-Time Feature Boundary
 
-The approved model features are available at the matrix or retry entry:
+The approved model features are captured once at the original pivot touch and
+joined to matrix/retry rows by `origin_id`:
 
-- categorical `symbol`, `level_id`, `direction`, `sl_policy`, TP multiple,
-  retry index, analysis weekday, and analysis session;
-- frozen origin Micro raw width and normalized entry Micro/Macro bandwidth;
-- entry Micro `%B 0..5`;
-- entry Macro pivot `%B 0..5` using the immutable origin pivot;
-- trigger/retry gap and spread normalized by trial risk distance;
-- Macro source range normalized by Macro band width;
-- cyclical analysis-time values.
+- categorical `symbol`, `level_id`, `direction`, `sl_policy`, analysis weekday,
+  analysis session, and signal states;
+- TP multiple, retry index/loss count, trial gap/risk, spread/risk, and
+  cyclical values derived from the origin trigger analysis time;
+- Micro/Macro Bands shift-0 width points;
+- Micro/Macro `%B 0..5`, each with SMA 5, SMA slope, and state;
+- Micro/Macro Bands `BASE_LINE 0..5` and one-shift slope in points;
+- Micro/Macro Stochastic `MAIN_LINE` and `SIGNAL_LINE 0..5`, each with SMA 5,
+  SMA slope, and state.
+
+Both Micro and Macro `%B` use the immutable touched pivot as the numerator.
+Values are unclipped, so `<0` and `>100` remain valid discovery values. A
+retry never recaptures an indicator or changes the origin calendar features.
 
 Continuous values enter XGBoost directly. Audit reports may show quantile or
 range bins for human interpretation, but bins do not replace the model inputs.
@@ -107,9 +113,10 @@ when its terminal time is strictly earlier than the minimum declared broker
 time in the validation fold. Analysis time never orders causal splits.
 
 The research contract fails closed when runs mix config IDs, Macro/Micro
-timeframes, Bands policy, matrix percentages/TPs, quote sides, distance policy,
-retry/capacity policy, lot mode/size, reference balance, feature set, or account
-currency. Fixed-lot and fixed-reference risk studies remain separate.
+timeframes, Bands/Stochastic policy, matrix percentages/TPs, quote sides,
+distance policy, retry/capacity policy, lot mode/size, reference balance,
+feature set, or account currency. Fixed-lot and fixed-reference risk studies
+remain separate.
 
 ## Artifacts And Promotion
 
@@ -124,4 +131,4 @@ staging, human acceptance, and separate live-rollout authorization.
 Archived V9 execution, exporter, retest/confluence, ML, and pattern experiments
 remain immutable under `docs/plans/archive/` and `docs/research/archive/`.
 They explain their own historical revisions only and are not active runbooks or
-acceptance evidence for V2/V11.
+acceptance evidence for V2/V12.

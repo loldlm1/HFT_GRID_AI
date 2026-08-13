@@ -4,8 +4,9 @@
 
 - `docs/plans/pivot-fractal-v12-signal-features-plan.md`: active six-sprint
   replacement of strict V11 with origin-grain Macro/Micro Bands and
-  Stochastic features under strict schema V12. Broker execution, virtual
-  policy behavior, and offline-only model boundaries remain unchanged.
+  Stochastic features under strict schema V12. Sprints 1-4 are committed;
+  documentation, final compile, and human acceptance remain. Broker execution,
+  virtual policy behavior, and offline-only model boundaries remain unchanged.
 
 Do not start another substantial strategy, architecture, live-rollout,
 schema, or repository-wide change until the active plan is completed or
