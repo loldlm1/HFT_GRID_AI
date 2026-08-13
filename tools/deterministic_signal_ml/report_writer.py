@@ -1,4 +1,4 @@
-"""Deterministic manifests and quality reports for V11 trial-matrix datasets."""
+"""Deterministic manifests and quality reports for V12 signal-feature datasets."""
 
 from __future__ import annotations
 
@@ -15,6 +15,7 @@ from schema_contract import (
     FUTURE_ONLY_COLUMNS,
     MODEL_FEATURE_COLUMNS,
     NUMERIC_FEATURE_COLUMNS,
+    ORIGIN_SIGNAL_FEATURE_COLUMNS,
     SUPPORTED_ENGINE_LABEL,
     SUPPORTED_FEATURE_SET_ID,
     SUPPORTED_SCHEMA_VERSION,
@@ -22,7 +23,29 @@ from schema_contract import (
 )
 
 
-BUILDER_VERSION = "pivot_fractal.schema_v11_trial_matrix_builder.v1"
+BUILDER_VERSION = "pivot_fractal.schema_v12_pivot_signal_features_builder.v1"
+
+
+def _quoted(column: str) -> str:
+    return '"' + column.replace('"', '""') + '"'
+
+
+def _build_feature_availability(
+    connection: duckdb.DuckDBPyConnection,
+) -> list[dict[str, Any]]:
+    total_origins = int(connection.execute("SELECT count(*) FROM signal_origins").fetchone()[0])
+    return [
+        {
+            "feature": column,
+            "available_origins": int(
+                connection.execute(
+                    f"SELECT count({_quoted(column)}) FROM signal_origins"
+                ).fetchone()[0]
+            ),
+            "total_origins": total_origins,
+        }
+        for column in ORIGIN_SIGNAL_FEATURE_COLUMNS
+    ]
 
 
 def _fetch_dicts(
@@ -39,6 +62,13 @@ def build_quality_payload(
     validations: list[RunValidation],
     counts: dict[str, int],
 ) -> dict[str, Any]:
+    feature_availability = _build_feature_availability(connection)
+    for row in feature_availability:
+        row["availability_rate"] = (
+            row["available_origins"] / row["total_origins"]
+            if row["total_origins"]
+            else None
+        )
     support = _fetch_dicts(
         connection,
         """
@@ -178,6 +208,7 @@ ORDER BY policy_chains DESC, terminal_reason
         "counts": counts,
         "run_ids": [validation.run_id for validation in validations],
         "warnings": [warning for validation in validations for warning in validation.warnings],
+        "feature_availability": feature_availability,
         "support": support,
         "eligibility": eligibility,
         "policy_performance": policy_performance,
@@ -223,6 +254,7 @@ def write_dataset_manifest(
         "files": output_files,
         "quality_summary": {
             "support": quality_payload["support"],
+            "feature_availability": quality_payload["feature_availability"],
             "broker_virtual_calibration": quality_payload[
                 "broker_virtual_calibration"
             ],
@@ -258,6 +290,7 @@ def write_dataset_report(
         f"- Matrix trial rows: `{support['matrix_trial_rows']}`",
         f"- Retry rows: `{support['retry_rows']}`",
         f"- Ineligible rows: `{support['ineligible_rows']}`",
+        f"- Signal features tracked: `{len(quality_payload['feature_availability'])}`",
         f"- Censored rows: `{support['censored_rows']}`",
         "",
         "## Outcome Boundaries",

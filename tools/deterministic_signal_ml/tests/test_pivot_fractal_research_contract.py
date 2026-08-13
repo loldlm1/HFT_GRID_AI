@@ -55,7 +55,7 @@ from validation_splits import (
 
 
 FIXTURES = Path(__file__).parent / "fixtures"
-FIXTURE = FIXTURES / "schema_v11_pivot_trial_matrix"
+FIXTURE = FIXTURES / "schema_v12_pivot_signal_features"
 
 
 def read_rows(path: Path) -> tuple[list[str], list[dict[str, str]]]:
@@ -116,7 +116,7 @@ def build_dataset_artifact(output_dir: Path) -> dict[str, int]:
 
 
 class PivotFractalResearchContractTests(unittest.TestCase):
-    def test_v11_column_type_registry_is_exhaustive_and_disjoint(self) -> None:
+    def test_v12_column_type_registry_is_exhaustive_and_disjoint(self) -> None:
         schema_columns = {
             column
             for columns in TABLE_COLUMNS.values()
@@ -160,7 +160,7 @@ class PivotFractalResearchContractTests(unittest.TestCase):
             finally:
                 connection.close()
 
-    def test_builder_emits_all_v11_views_and_exact_grains(self) -> None:
+    def test_builder_emits_all_v12_views_and_exact_grains(self) -> None:
         validation = validate_run(FIXTURES, FIXTURE.name)
         connection = duckdb.connect(":memory:")
         try:
@@ -210,6 +210,19 @@ GROUP BY origin_id
 """
             ).fetchall()
             self.assertEqual(weights, [("origin_s1_buy", 1.0)])
+            origin_features = connection.execute(
+                """
+SELECT count(DISTINCT origin_micro_b_percent_0),
+       count(DISTINCT origin_macro_stochastic_main_line_0),
+       count(DISTINCT analysis_weekday),
+       count(DISTINCT analysis_session),
+       count(DISTINCT time_sin),
+       count(DISTINCT time_cos)
+FROM origin_matrix_long
+WHERE origin_id = 'origin_s1_buy'
+"""
+            ).fetchone()
+            self.assertEqual(origin_features, (1, 1, 1, 1, 1, 1))
             wide_columns = {
                 row[0]
                 for row in connection.execute("DESCRIBE initial_matrix_wide").fetchall()
@@ -220,10 +233,11 @@ GROUP BY origin_id
                 if column.endswith("_trial_id") and "tp" in column
             }
             self.assertEqual(len(trial_id_columns), 16)
+            self.assertTrue(set(MODEL_FEATURE_COLUMNS) - {"sl_policy", "tp_r_multiple", "reentry_index", "preceding_loss_count", "trigger_gap_to_risk", "spread_to_risk"} <= wide_columns)
         finally:
             connection.close()
 
-    def test_parquet_artifact_contains_raw_and_derived_v11_tables(self) -> None:
+    def test_parquet_artifact_contains_raw_and_derived_v12_tables(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             output_dir = Path(temp_dir)
             counts = build_dataset_artifact(output_dir)
@@ -233,7 +247,7 @@ GROUP BY origin_id
             manifest = json.loads(
                 (output_dir / "dataset_manifest.json").read_text(encoding="utf-8")
             )
-            self.assertEqual(manifest["schema_version"], 11)
+            self.assertEqual(manifest["schema_version"], 12)
             self.assertEqual(manifest["feature_set_id"], SUPPORTED_FEATURE_SET_ID)
             self.assertEqual(
                 tuple(manifest["feature_contract"]["model_features"]),
@@ -337,7 +351,7 @@ GROUP BY origin_id
         self.assertEqual(transformed.matrix[0, symbol_missing], 1.0)
         self.assertEqual(transformed.matrix[0, policy_missing], 1.0)
 
-    def test_ablation_order_reconstructs_v11_features_without_leakage(self) -> None:
+    def test_ablation_order_reconstructs_v12_features_without_leakage(self) -> None:
         previous: set[str] = set()
         for _, columns in FEATURE_ABLATIONS:
             current = set(columns)
@@ -349,6 +363,17 @@ GROUP BY origin_id
         self.assertIn("tp_r_multiple", MODEL_FEATURE_COLUMNS)
         self.assertIn("reentry_index", MODEL_FEATURE_COLUMNS)
         self.assertIn("preceding_loss_count", MODEL_FEATURE_COLUMNS)
+        self.assertEqual(
+            [ablation_id for ablation_id, _ in FEATURE_ABLATIONS],
+            [
+                "base",
+                "widths",
+                "micro_bands",
+                "macro_bands",
+                "micro_stochastic",
+                "macro_stochastic",
+            ],
+        )
 
     def test_fixture_training_stops_at_deterministic_support_guard(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

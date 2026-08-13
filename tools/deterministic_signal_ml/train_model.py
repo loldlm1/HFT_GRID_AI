@@ -1,4 +1,4 @@
-"""Train offline-only V11 virtual-policy classifiers with ordered ablations."""
+"""Train offline-only V12 virtual-policy classifiers with ordered ablations."""
 
 from __future__ import annotations
 
@@ -265,7 +265,7 @@ def _write_tsv(path: Path, rows: list[dict[str, Any]]) -> None:
 
 def _render_report(manifest: dict[str, Any], metrics: dict[str, Any]) -> str:
     lines = [
-        f"# Offline Pivot V11 Trial Model: {manifest['model_id']}",
+        f"# Offline Pivot V12 Trial Model: {manifest['model_id']}",
         "",
         "Approval: `OFFLINE_RESEARCH_ONLY`",
         f"Dataset: `{manifest['dataset_id']}`",
@@ -306,7 +306,7 @@ def train_candidate(
     feature_contract = dataset_manifest.get("feature_contract", {})
     feature_columns = tuple(feature_contract.get("model_features", ()))
     if feature_columns != MODEL_FEATURE_COLUMNS:
-        raise TrainingError("Dataset manifest does not carry the exact V11 feature contract")
+        raise TrainingError("Dataset manifest does not carry the exact V12 feature contract")
     denied = {*FUTURE_ONLY_COLUMNS, *TARGET_COLUMNS}
     leaked = sorted(set(feature_columns) & denied)
     if leaked:
@@ -320,7 +320,7 @@ def train_candidate(
     ):
         raise TrainingError("Dataset origin-weight policy is incompatible")
     if feature_contract.get("target") != "virtual_binary_target":
-        raise TrainingError("Dataset target is not the V11 virtual target")
+        raise TrainingError("Dataset target is not the V12 virtual target")
 
     config = training_config_for_feature_set(manifest_feature_set)
     rows = load_training_rows(dataset_path)
@@ -471,10 +471,10 @@ def main() -> int:
         duckdb.Error,
         xgb.core.XGBoostError,
     ) as exc:
-        parser.exit(1, f"offline pivot V11 model training failed: {exc}\n")
+        parser.exit(1, f"offline pivot V12 model training failed: {exc}\n")
 
     print(
-        "offline pivot V11 model training ok | "
+        "offline pivot V12 model training ok | "
         f"model={manifest['model_id']} | rows={manifest['training_rows']} | "
         f"output={output_dir}"
     )

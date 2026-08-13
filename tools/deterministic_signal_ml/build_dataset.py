@@ -1,4 +1,4 @@
-"""Validate strict V11 runs and build policy-aware Parquet research datasets."""
+"""Validate strict V12 runs and build policy-aware Parquet research datasets."""
 
 from __future__ import annotations
 
@@ -18,6 +18,8 @@ from schema_contract import (
     FUTURE_ONLY_COLUMNS,
     MODEL_FEATURE_COLUMNS,
     NULL_TOKEN,
+    ORIGIN_SIGNAL_FEATURE_COLUMNS,
+    ORIGIN_STATE_FEATURE_COLUMNS,
     RUN_FILES,
     SUPPORTED_FEATURE_SET_ID,
     SUPPORTED_SCHEMA_VERSION,
@@ -45,7 +47,6 @@ DERIVED_TABLES = (
 )
 
 BOOLEAN_COLUMNS = frozenset({
-    "macro_band_complete",
     "origin_micro_features_complete",
     "origin_macro_features_complete",
     "origin_feature_snapshot_complete",
@@ -54,7 +55,6 @@ BOOLEAN_COLUMNS = frozenset({
     "distance_eligible",
     "boundary_eligible",
     "virtual_money_plan_complete",
-    "entry_feature_snapshot_complete",
     "origin_window_active_at_entry",
     "virtual_binary_eligible",
     "first_touch_consistent",
@@ -180,7 +180,6 @@ STRING_COLUMNS = frozenset({
     "continuation_source_outcome_id",
     "direction",
     "eligibility_status",
-    "entry_feature_invalid_reason",
     "entry_quote_side",
     "exit_quote_side",
     "export_status",
@@ -191,7 +190,6 @@ STRING_COLUMNS = frozenset({
     "key",
     "level_id",
     "lot_mode",
-    "macro_band_invalid_reason",
     "macro_timeframe",
     "micro_timeframe",
     "next_trial_id",
@@ -218,6 +216,7 @@ STRING_COLUMNS = frozenset({
     "virtual_exclusion_reason",
     "window_id",
     "window_state",
+    *ORIGIN_STATE_FEATURE_COLUMNS,
 })
 
 TIMESTAMP_COLUMNS = frozenset({
@@ -275,20 +274,6 @@ FLOAT_COLUMNS = frozenset({
     "closed_volume",
     "entry_ask",
     "entry_bid",
-    "entry_macro_band_width_percent_1",
-    "entry_macro_pivot_b_percent_0",
-    "entry_macro_pivot_b_percent_1",
-    "entry_macro_pivot_b_percent_2",
-    "entry_macro_pivot_b_percent_3",
-    "entry_macro_pivot_b_percent_4",
-    "entry_macro_pivot_b_percent_5",
-    "entry_micro_b_percent_0",
-    "entry_micro_b_percent_1",
-    "entry_micro_b_percent_2",
-    "entry_micro_b_percent_3",
-    "entry_micro_b_percent_4",
-    "entry_micro_b_percent_5",
-    "entry_micro_band_width_percent_0",
     "entry_price",
     "entry_slippage_points",
     "exit_slippage_points",
@@ -300,11 +285,6 @@ FLOAT_COLUMNS = frozenset({
     "immutable_stop_loss",
     "immutable_take_profit",
     "lot_strategy_size",
-    "macro_band_base_1",
-    "macro_band_lower_1",
-    "macro_band_upper_1",
-    "macro_band_width_1",
-    "macro_band_width_percent_1",
     "minimum_risk_distance_points",
     "next_outward_pivot_price",
     "normalized_risk_distance_points",
@@ -313,23 +293,7 @@ FLOAT_COLUMNS = frozenset({
     "observed_exit_ask",
     "observed_exit_bid",
     "observed_exit_price",
-    "origin_macro_pivot_b_percent_0",
-    "origin_macro_pivot_b_percent_1",
-    "origin_macro_pivot_b_percent_2",
-    "origin_macro_pivot_b_percent_3",
-    "origin_macro_pivot_b_percent_4",
-    "origin_macro_pivot_b_percent_5",
-    "origin_micro_b_percent_0",
-    "origin_micro_b_percent_1",
-    "origin_micro_b_percent_2",
-    "origin_micro_b_percent_3",
-    "origin_micro_b_percent_4",
-    "origin_micro_b_percent_5",
-    "origin_micro_band_base_0",
-    "origin_micro_band_lower_0",
-    "origin_micro_band_upper_0",
     "origin_micro_band_width_0",
-    "origin_micro_band_width_percent_0",
     "pivot_raw_price",
     "pivot_trade_price",
     "point_size",
@@ -390,6 +354,7 @@ FLOAT_COLUMNS = frozenset({
     "volume_max",
     "volume_min",
     "volume_step",
+    *(set(ORIGIN_SIGNAL_FEATURE_COLUMNS) - set(ORIGIN_STATE_FEATURE_COLUMNS)),
 })
 
 COLUMN_TYPE_GROUPS = {
@@ -419,7 +384,7 @@ def _build_column_type_registry() -> dict[str, str]:
     unexpected = sorted(set(registry) - schema_columns)
     if overlaps or missing or unexpected:
         raise RuntimeError(
-            "Invalid V11 column type registry: "
+            "Invalid V12 column type registry: "
             f"overlaps={sorted(overlaps)}, missing={missing}, unexpected={unexpected}"
         )
     return registry
@@ -442,7 +407,7 @@ def _typed_expression(column: str) -> str:
     try:
         column_type = COLUMN_TYPE_BY_NAME[column]
     except KeyError as exc:
-        raise RuntimeError(f"V11 column lacks an explicit dataset type: {column}") from exc
+        raise RuntimeError(f"V12 column lacks an explicit dataset type: {column}") from exc
     if column_type == "TIMESTAMP":
         return f"strptime({nullified}, '%Y.%m.%d %H:%M:%S') AS {quoted}"
     if column_type == "BOOLEAN":
@@ -453,7 +418,7 @@ def _typed_expression(column: str) -> str:
         return f"{nullified} AS {quoted}"
     if column_type == "DOUBLE":
         return f"CAST({nullified} AS DOUBLE) AS {quoted}"
-    raise RuntimeError(f"Unsupported V11 dataset type for {column}: {column_type}")
+    raise RuntimeError(f"Unsupported V12 dataset type for {column}: {column_type}")
 
 
 def _load_typed_table(
@@ -474,7 +439,7 @@ FROM read_csv(
   header=true,
   all_varchar=true,
   union_by_name=false,
-  nullstr='__PIVOT_V11_NO_AUTOMATIC_NULL__'
+  nullstr='__PIVOT_V12_NO_AUTOMATIC_NULL__'
 )
 """
     )
@@ -518,6 +483,9 @@ def _create_origin_matrix_long(connection: duckdb.DuckDBPyConnection) -> None:
         "next_trial_id",
     )
     outcome_select = ",\n  ".join(f"vo.{column}" for column in outcome_columns)
+    origin_feature_select = ",\n  ".join(
+        f"so.{column}" for column in ORIGIN_SIGNAL_FEATURE_COLUMNS
+    )
     connection.execute(
         f"""
 CREATE TABLE {ORIGIN_MATRIX_LONG_TABLE} AS
@@ -534,13 +502,16 @@ SELECT
   so.pivot_raw_price,
   so.pivot_trade_price,
   so.structural_sl_price,
+  so.origin_micro_features_complete,
+  so.origin_macro_features_complete,
   so.origin_feature_snapshot_complete,
+  so.origin_feature_invalid_reason,
+  {origin_feature_select},
   pw.source_open,
   pw.source_high,
   pw.source_low,
   pw.source_close,
   pw.source_range,
-  pw.macro_band_width_1,
   concat(
     so.symbol,
     '|',
@@ -548,36 +519,42 @@ SELECT
     '|',
     strftime(so.active_bar_open_broker_time, '%Y.%m.%d %H:%M:%S')
   ) AS research_group_id,
-  strftime(vt.declared_analysis_time, '%w') AS analysis_weekday,
+  strftime(so.trigger_analysis_time, '%w') AS analysis_weekday,
   CASE
-    WHEN EXTRACT(hour FROM vt.declared_analysis_time) < 6 THEN 'SESSION_00_05'
-    WHEN EXTRACT(hour FROM vt.declared_analysis_time) < 12 THEN 'SESSION_06_11'
-    WHEN EXTRACT(hour FROM vt.declared_analysis_time) < 18 THEN 'SESSION_12_17'
+    WHEN EXTRACT(hour FROM so.trigger_analysis_time) < 6 THEN 'SESSION_00_05'
+    WHEN EXTRACT(hour FROM so.trigger_analysis_time) < 12 THEN 'SESSION_06_11'
+    WHEN EXTRACT(hour FROM so.trigger_analysis_time) < 18 THEN 'SESSION_12_17'
     ELSE 'SESSION_18_23'
   END AS analysis_session,
   sin(
     2.0 * pi() *
-    (EXTRACT(hour FROM vt.declared_analysis_time) * 60.0 +
-     EXTRACT(minute FROM vt.declared_analysis_time)) / 1440.0
+    (EXTRACT(hour FROM so.trigger_analysis_time) * 60.0 +
+     EXTRACT(minute FROM so.trigger_analysis_time)) / 1440.0
   ) AS time_sin,
   cos(
     2.0 * pi() *
-    (EXTRACT(hour FROM vt.declared_analysis_time) * 60.0 +
-     EXTRACT(minute FROM vt.declared_analysis_time)) / 1440.0
+    (EXTRACT(hour FROM so.trigger_analysis_time) * 60.0 +
+     EXTRACT(minute FROM so.trigger_analysis_time)) / 1440.0
   ) AS time_cos,
   abs(vt.entry_price - so.pivot_trade_price)
     / NULLIF(vt.normalized_risk_distance_price, 0.0) AS trigger_gap_to_risk,
   vt.spread_points
     / NULLIF(vt.normalized_risk_distance_points, 0.0) AS spread_to_risk,
-  pw.source_range / NULLIF(pw.macro_band_width_1, 0.0) AS macro_range_to_band_width,
   {outcome_select}
 FROM virtual_trials vt
 JOIN signal_origins so
-  USING (run_id, config_id, origin_id, window_id)
+  ON so.run_id = vt.run_id
+ AND so.origin_id = vt.origin_id
 JOIN pivot_windows pw
-  USING (run_id, config_id, window_id)
+  ON pw.run_id = vt.run_id
+ AND pw.config_id = vt.config_id
+ AND pw.window_id = vt.window_id
 LEFT JOIN virtual_outcomes vo
-  USING (run_id, config_id, trial_id, origin_id, window_id)
+  ON vo.run_id = vt.run_id
+ AND vo.config_id = vt.config_id
+ AND vo.trial_id = vt.trial_id
+ AND vo.origin_id = vt.origin_id
+ AND vo.window_id = vt.window_id
 WHERE vt.trial_role = 'MATRIX'
 ORDER BY vt.declared_broker_time, vt.origin_id, vt.sl_policy, vt.tp_r_multiple, vt.reentry_index
 """
@@ -605,6 +582,7 @@ def _create_initial_matrix_wide(connection: duckdb.DuckDBPyConnection) -> None:
                     f"AS {prefix}_{column}"
                 )
     cells = ",\n  ".join(policy_cells)
+    origin_feature_select = ",\n  ".join(ORIGIN_SIGNAL_FEATURE_COLUMNS)
     connection.execute(
         f"""
 CREATE TABLE {INITIAL_MATRIX_WIDE_TABLE} AS
@@ -625,6 +603,16 @@ SELECT
   trigger_ask,
   pivot_trade_price,
   origin_micro_band_width_0,
+  origin_micro_band_width_points_0,
+  origin_macro_band_width_points_0,
+  origin_micro_features_complete,
+  origin_macro_features_complete,
+  origin_feature_snapshot_complete,
+  {origin_feature_select},
+  analysis_weekday,
+  analysis_session,
+  time_sin,
+  time_cos,
   research_group_id,
   {cells}
 FROM {ORIGIN_MATRIX_LONG_TABLE}
@@ -926,7 +914,7 @@ def create_dataset_tables(
             f"Only schema {SUPPORTED_SCHEMA_VERSION} dataset assembly is active"
         )
     if tuple(feature_columns) != MODEL_FEATURE_COLUMNS:
-        raise RuntimeError("Schema V11 requires the exact frozen feature set")
+        raise RuntimeError("Schema V12 requires the exact frozen feature set")
     if not validations:
         raise RuntimeError("At least one validated run is required")
     for filename in RUN_FILES:
@@ -986,7 +974,7 @@ def write_parquet_outputs(
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--runs-root", required=True, help="Folder containing V11 run folders.")
+    parser.add_argument("--runs-root", required=True, help="Folder containing V12 run folders.")
     parser.add_argument(
         "--run-id",
         action="append",

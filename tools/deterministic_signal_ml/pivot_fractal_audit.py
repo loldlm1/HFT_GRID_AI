@@ -1,4 +1,4 @@
-"""Audit V11 pivot trial-matrix datasets with separate virtual and broker lanes."""
+"""Audit V12 pivot signal-feature datasets with separate outcome lanes."""
 
 from __future__ import annotations
 
@@ -17,6 +17,7 @@ from model_config import DEFAULT_DATASET_ROOT
 from schema_contract import (
     FUTURE_ONLY_COLUMNS,
     MODEL_FEATURE_COLUMNS,
+    ORIGIN_SIGNAL_FEATURE_COLUMNS,
     RUN_FILES,
     SUPPORTED_FEATURE_SET_ID,
     SUPPORTED_SCHEMA_VERSION,
@@ -28,7 +29,7 @@ REQUIRED_TABLES = tuple(Path(filename).stem for filename in RUN_FILES) + DERIVED
 
 
 class PivotAuditError(RuntimeError):
-    """Raised when a dataset cannot support a trustworthy V11 audit."""
+    """Raised when a dataset cannot support a trustworthy V12 audit."""
 
 
 def _sql_literal(value: str | Path) -> str:
@@ -42,6 +43,34 @@ def _fetch_dicts(
     relation = connection.execute(query)
     columns = [column[0] for column in relation.description]
     return [dict(zip(columns, row)) for row in relation.fetchall()]
+
+
+def _quoted(column: str) -> str:
+    return '"' + column.replace('"', '""') + '"'
+
+
+def _feature_availability(
+    connection: duckdb.DuckDBPyConnection,
+) -> list[dict[str, Any]]:
+    total_origins = int(connection.execute("SELECT count(*) FROM signal_origins").fetchone()[0])
+    rows = []
+    for column in ORIGIN_SIGNAL_FEATURE_COLUMNS:
+        available_origins = int(
+            connection.execute(
+                f"SELECT count({_quoted(column)}) FROM signal_origins"
+            ).fetchone()[0]
+        )
+        rows.append(
+            {
+                "feature": column,
+                "available_origins": available_origins,
+                "total_origins": total_origins,
+                "availability_rate": (
+                    available_origins / total_origins if total_origins else None
+                ),
+            }
+        )
+    return rows
 
 
 def _write_tsv(path: Path, rows: list[dict[str, Any]]) -> None:
@@ -273,12 +302,12 @@ def build_audit(
         raise PivotAuditError(f"Missing dataset manifest: {manifest_path}")
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     if int(manifest.get("schema_version", 0)) != SUPPORTED_SCHEMA_VERSION:
-        raise PivotAuditError("Dataset schema version is incompatible with V11 audit")
+        raise PivotAuditError("Dataset schema version is incompatible with V12 audit")
     if manifest.get("feature_set_id") != SUPPORTED_FEATURE_SET_ID:
-        raise PivotAuditError("Dataset feature set is incompatible with V11 audit")
+        raise PivotAuditError("Dataset feature set is incompatible with V12 audit")
     feature_contract = manifest.get("feature_contract", {})
     if tuple(feature_contract.get("model_features", ())) != MODEL_FEATURE_COLUMNS:
-        raise PivotAuditError("Dataset feature contract differs from strict V11")
+        raise PivotAuditError("Dataset feature contract differs from strict V12")
     connection = duckdb.connect(":memory:")
     try:
         _load_dataset(connection, dataset_dir)
@@ -325,6 +354,7 @@ SELECT
   (SELECT count(*) FROM broker_outcomes) AS broker_outcomes
 """,
         )[0]
+        feature_availability = _feature_availability(connection)
         calibration = _fetch_dicts(
             connection,
             """
@@ -356,6 +386,7 @@ FROM broker_virtual_calibration
         "minimum_group_support": minimum_group_support,
         "research_status": "INSUFFICIENT_SUPPORT" if low_support else "AUDIT_COMPLETE",
         "support": support,
+        "feature_availability": feature_availability,
         "policy_performance": policy,
         "chain_performance": chains,
         "eligibility": eligibility,
@@ -371,6 +402,7 @@ FROM broker_virtual_calibration
     _write_tsv(output_dir / "policy_performance.tsv", policy)
     _write_tsv(output_dir / "chain_performance.tsv", chains)
     _write_tsv(output_dir / "eligibility.tsv", eligibility)
+    _write_tsv(output_dir / "feature_availability.tsv", feature_availability)
     _write_tsv(output_dir / "broker_performance.tsv", broker)
     _write_tsv(output_dir / "broker_virtual_calibration.tsv", calibration_rows)
     (output_dir / "audit.json").write_text(
@@ -426,9 +458,9 @@ def main() -> int:
             args.minimum_group_support,
         )
     except (PivotAuditError, ValueError, json.JSONDecodeError, duckdb.Error) as exc:
-        parser.exit(1, f"pivot V11 audit failed: {exc}\n")
+        parser.exit(1, f"pivot V12 audit failed: {exc}\n")
     print(
-        "pivot V11 audit ok | "
+        "pivot V12 audit ok | "
         f"status={metadata['research_status']} | output={output_dir}"
     )
     return 0

@@ -25,7 +25,7 @@ from schema_contract import SUPPORTED_FEATURE_SET_ID, validate_run
 
 
 FIXTURES = Path(__file__).parent / "fixtures"
-FIXTURE = FIXTURES / "schema_v11_pivot_trial_matrix"
+FIXTURE = FIXTURES / "schema_v12_pivot_signal_features"
 
 
 def build_dataset_artifact(output_dir: Path) -> dict[str, int]:
@@ -90,6 +90,13 @@ class PivotFractalAuditTests(unittest.TestCase):
             self.assertEqual(metadata["calibration"]["strict_pairs"], 1)
             self.assertEqual(metadata["calibration"]["terminal_matches"], 1)
             self.assertEqual(metadata["calibration"]["terminal_mismatches"], 0)
+            self.assertEqual(len(metadata["feature_availability"]), 170)
+            self.assertTrue(
+                all(
+                    row["availability_rate"] == 1.0
+                    for row in metadata["feature_availability"]
+                )
+            )
             policy = {
                 (row["sl_policy"], int(row["tp_r_multiple"])): row
                 for row in metadata["policy_performance"]
@@ -103,6 +110,7 @@ class PivotFractalAuditTests(unittest.TestCase):
                     "policy_performance.tsv",
                     "chain_performance.tsv",
                     "eligibility.tsv",
+                    "feature_availability.tsv",
                     "broker_performance.tsv",
                     "broker_virtual_calibration.tsv",
                 }

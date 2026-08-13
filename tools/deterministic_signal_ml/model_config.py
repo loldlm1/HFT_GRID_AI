@@ -1,13 +1,17 @@
-"""Pinned offline XGBoost configuration and ordered V11 feature ablations."""
+"""Pinned offline XGBoost configuration and ordered V12 feature ablations."""
 
 from __future__ import annotations
 
 from dataclasses import dataclass
 
-from schema_contract import MODEL_FEATURE_COLUMNS, SUPPORTED_FEATURE_SET_ID
+from schema_contract import (
+    FEATURE_SHIFTS,
+    MODEL_FEATURE_COLUMNS,
+    SUPPORTED_FEATURE_SET_ID,
+)
 
 
-TRAINER_VERSION = "pivot_fractal.xgboost.schema_v11_trial_matrix.v1"
+TRAINER_VERSION = "pivot_fractal.xgboost.schema_v12_pivot_signal_features.v1"
 DEFAULT_DATASET_ROOT = "artifacts/datasets"
 DEFAULT_MODEL_ROOT = "artifacts/models"
 DEFAULT_HOLDOUT_FRACTION = 0.20
@@ -34,28 +38,68 @@ BASE_FEATURE_COLUMNS = (
     "time_cos",
 )
 WIDTH_FEATURE_COLUMNS = BASE_FEATURE_COLUMNS + (
-    "origin_micro_band_width_0",
-    "entry_micro_band_width_percent_0",
-    "entry_macro_band_width_percent_1",
-    "macro_range_to_band_width",
+    "origin_micro_band_width_points_0",
+    "origin_macro_band_width_points_0",
 )
-MICRO_FEATURE_COLUMNS = WIDTH_FEATURE_COLUMNS + tuple(
-    f"entry_micro_b_percent_{shift}" for shift in range(6)
+
+
+def _series_columns(timeframe: str, series: str) -> tuple[str, ...]:
+    prefix = f"origin_{timeframe}_{series}"
+    return tuple(
+        column
+        for shift in FEATURE_SHIFTS
+        for column in (
+            f"{prefix}_{shift}",
+            f"{prefix}_sma_5_{shift}",
+            f"{prefix}_sma_slope_{shift}",
+            f"{prefix}_state_{shift}",
+        )
+    )
+
+
+def _band_columns(timeframe: str) -> tuple[str, ...]:
+    prefix = f"origin_{timeframe}"
+    return (
+        *_series_columns(timeframe, "b_percent"),
+        *(
+            column
+            for shift in FEATURE_SHIFTS
+            for column in (
+                f"{prefix}_band_base_line_{shift}",
+                f"{prefix}_band_base_line_slope_points_{shift}",
+            )
+        ),
+    )
+
+
+def _stochastic_columns(timeframe: str) -> tuple[str, ...]:
+    return (
+        *_series_columns(timeframe, "stochastic_main_line"),
+        *_series_columns(timeframe, "stochastic_signal_line"),
+    )
+
+
+MICRO_BANDS_FEATURE_COLUMNS = WIDTH_FEATURE_COLUMNS + _band_columns("micro")
+MACRO_BANDS_FEATURE_COLUMNS = MICRO_BANDS_FEATURE_COLUMNS + _band_columns("macro")
+MICRO_STOCHASTIC_FEATURE_COLUMNS = (
+    MACRO_BANDS_FEATURE_COLUMNS + _stochastic_columns("micro")
 )
-MACRO_FEATURE_COLUMNS = MICRO_FEATURE_COLUMNS + tuple(
-    f"entry_macro_pivot_b_percent_{shift}" for shift in range(6)
+MACRO_STOCHASTIC_FEATURE_COLUMNS = (
+    MICRO_STOCHASTIC_FEATURE_COLUMNS + _stochastic_columns("macro")
 )
 FEATURE_ABLATIONS = (
     ("base", BASE_FEATURE_COLUMNS),
     ("widths", WIDTH_FEATURE_COLUMNS),
-    ("micro_b_percent", MICRO_FEATURE_COLUMNS),
-    ("macro_b_percent", MACRO_FEATURE_COLUMNS),
+    ("micro_bands", MICRO_BANDS_FEATURE_COLUMNS),
+    ("macro_bands", MACRO_BANDS_FEATURE_COLUMNS),
+    ("micro_stochastic", MICRO_STOCHASTIC_FEATURE_COLUMNS),
+    ("macro_stochastic", MACRO_STOCHASTIC_FEATURE_COLUMNS),
 )
 
-if len(MACRO_FEATURE_COLUMNS) != len(MODEL_FEATURE_COLUMNS) or set(
-    MACRO_FEATURE_COLUMNS
+if len(MACRO_STOCHASTIC_FEATURE_COLUMNS) != len(MODEL_FEATURE_COLUMNS) or set(
+    MACRO_STOCHASTIC_FEATURE_COLUMNS
 ) != set(MODEL_FEATURE_COLUMNS):
-    raise RuntimeError("V11 ablation order does not reconstruct the frozen feature set")
+    raise RuntimeError("V12 ablation order does not reconstruct the frozen feature set")
 
 
 @dataclass(frozen=True)
