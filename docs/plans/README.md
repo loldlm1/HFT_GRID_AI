@@ -2,12 +2,14 @@
 
 ## Active
 
-- None. The V11 runtime/export and official offline dataset pipeline are
-  accepted and archived. Create a new explicit plan before further strategy,
-  schema, runtime, or repository-wide work.
+- `docs/plans/pivot-fractal-v12-signal-features-plan.md`: active six-sprint
+  replacement of strict V11 with origin-grain Macro/Micro Bands and
+  Stochastic features under strict schema V12. Broker execution, virtual
+  policy behavior, and offline-only model boundaries remain unchanged.
 
-Create a new explicit saved plan before another substantial strategy,
-architecture, live-rollout, schema, or repository-wide change.
+Do not start another substantial strategy, architecture, live-rollout,
+schema, or repository-wide change until the active plan is completed or
+explicitly superseded.
 
 ## Archived
 

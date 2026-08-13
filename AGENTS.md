@@ -8,9 +8,9 @@ archive directories.
 ## Entrypoint And Active Work
 
 - Entrypoint: `HFT_Grid_AI.mq5`.
-- Active plan: none. The completed V11 dataset type-registry correction is
-  archived under
-  `docs/plans/archive/v11-dataset-column-type-registry-2026-08-07/`.
+- Active plan: `docs/plans/pivot-fractal-v12-signal-features-plan.md`. Execute
+  its six sprints in order, validating and committing each sprint before
+  advancing.
 - Architecture: `docs/architecture/market-data-broker-executor.md`.
 - Environment runbook: `docs/environment/mt5-agentic-workflows.md`.
 - Statistics workflow: `docs/workflows/pivot-fractal-statistics-flow.md`.
@@ -18,13 +18,24 @@ archive directories.
 
 ## Skill Stack
 
-Use only skills that match the task and are installed under
+Use only capabilities that match the task and are installed under
 `/home/loldlm/.codex/skills`:
 
-- `mql5-production-engineering` for `.mq5`/`.mqh`, broker execution,
-  MetaEditor, and Strategy Tester work.
-- `token-saver-orchestrator` for RTK-first inspection and compact command
-  evidence.
+- `production-engineering-stack:mql5-production-engineering` for
+  `.mq5`/`.mqh`, broker execution, indicator lifecycle, MetaEditor, and
+  Strategy Tester work.
+- `codex-agentic-stack:token-saver-orchestrator` for RTK-first inspection,
+  compact command evidence, and minimal implementation without reduced
+  validation.
+- `production-engineering-stack:python-django-production-engineering` only
+  when a task explicitly crosses into the downstream Django repository. It is
+  not required for the standalone Python research tooling in this repository.
+
+The `production-engineering-stack` MetaEditor MCP is the preferred compiler
+integration. Call `get_workspace_info` before any other MetaEditor MCP tool,
+honor its roots and capabilities, and use `compile_file` for the final EA
+compile. Keep credentials and private terminal/account data out of logs and
+commits.
 
 Do not list or invoke unavailable skills as project requirements.
 
@@ -242,8 +253,12 @@ services/frontend.mqh
   schema tooling changes.
 - Substantial multi-sprint MQL5 plans use one final real MetaEditor compile;
   intermediate sprints do not compile unless a human changes the plan.
+- Prefer the live MetaEditor MCP for that final compile. Use the documented
+  project-native runner only when the MCP is unavailable or its compiler gate
+  cannot execute, and record the precise fallback reason.
 - Final compilation must report `0 errors, 0 warnings`; `/s` is syntax-only and
-  does not prove `.ex5` regeneration.
+  does not prove `.ex5` regeneration. Confirm the MCP result and generated
+  `.ex5` output metadata.
 - Final integration requires human Strategy Tester/chart verification. Python
   fixtures and compilation cannot replace broker-window, order-lifecycle, DST,
   export, performance, and visual acceptance.

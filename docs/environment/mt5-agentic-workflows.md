@@ -1,7 +1,7 @@
 # MT5 Agentic Workflows
 
-This runbook is the source of truth for local paths, the final MetaEditor
-compile gate, Common Files V11 artifacts, and compact evidence handling.
+This runbook is the source of truth for local paths, the final MetaEditor MCP
+compile gate, Common Files artifacts, and compact evidence handling.
 
 Do not paste full compile logs, TSV/Parquet contents, model JSON, or generated
 datasets into chat. Report paths, sizes, counts, final status, and the first
@@ -65,6 +65,21 @@ There is no custom Stochastic or Bollinger `.ex5` placement requirement.
 
 ### Preferred Final Compile
 
+Use the `production-engineering-stack` MetaEditor MCP first:
+
+1. Call `get_workspace_info` and verify the workspace, permitted roots,
+   compiler availability, compiler build, and `can_compile_file` capability.
+2. Call `compile_file` for the absolute `HFT_Grid_AI.mq5` path.
+3. Require a successful compiler result with exactly `0 errors, 0 warnings`.
+4. Record compact compiler metadata and generated `.ex5` output metadata;
+   never record MCP credentials or private terminal/account data.
+
+The MCP server is owned by the running MetaEditor application. If it is
+unavailable, unauthenticated, outside the allowed roots, or cannot run the
+compile gate, record that precise reason and use the project-native fallback.
+
+### Project-Native Fallback
+
 Ubuntu/Wine:
 
 ```bash
@@ -90,7 +105,7 @@ Record the helper result, parsed final compiler status, and `.ex5` timestamp,
 size, and change from the precompile value. On Wine, record any process return
 code discrepancy beside the parsed compiler result.
 
-### Direct Fallback
+### Direct Last-Resort Fallback
 
 Ubuntu/Wine:
 

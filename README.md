@@ -184,11 +184,13 @@ export-only.
 - No custom MQL5 harnesses, test modules, test EAs/scripts, or MQL5 CI.
 - Multi-sprint MQL5 work uses static review per sprint and one final real
   MetaEditor compile with `0 errors, 0 warnings`.
+- The `production-engineering-stack` MetaEditor MCP is the preferred compile
+  path: call `get_workspace_info`, then `compile_file` for `HFT_Grid_AI.mq5`.
 - Human real-tick Strategy Tester/chart validation is mandatory at final
   integration.
 - Existing Python tests validate the V11 research contract, not MT5 runtime.
 
-Final compile command:
+Project-native fallback when the MetaEditor MCP is unavailable:
 
 ```bash
 python3 tools/mt5/compile_mt5.py \
