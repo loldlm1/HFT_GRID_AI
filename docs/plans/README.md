@@ -2,15 +2,10 @@
 
 ## Active
 
-- `docs/plans/pivot-fractal-v12-signal-features-plan.md`: active six-sprint
-  replacement of strict V11 with origin-grain Macro/Micro Bands and
-  Stochastic features under strict schema V12. Sprints 1-4 are committed;
-  documentation, final compile, and human acceptance remain. Broker execution,
-  virtual policy behavior, and offline-only model boundaries remain unchanged.
+- None.
 
-Do not start another substantial strategy, architecture, live-rollout,
-schema, or repository-wide change until the active plan is completed or
-explicitly superseded.
+Create and activate a new plan before another substantial strategy,
+architecture, live-rollout, schema, or repository-wide change.
 
 ## Archived
 
@@ -34,6 +29,10 @@ implementation guidance.
 - `docs/plans/archive/v11-dataset-column-type-registry-2026-08-07/README.md`:
   completed exhaustive V11 dataset typing, populated text regression, and
   official validate/build/audit/train acceptance.
+- `docs/plans/archive/pivot-fractal-v12-signal-features-2026-08-13/README.md`:
+  completed strict V12 origin-grain Bands/Stochastic features, matched
+  export-on/off runtime acceptance, derived wide-table correction, and the
+  offline Django handoff.
 
 Use these current documents:
 

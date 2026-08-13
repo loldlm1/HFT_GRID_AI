@@ -1,7 +1,7 @@
 # Plan: Pivot Fractal V12 Signal Features And Offline Research Contract
 
 **Generated**: 2026-08-13
-**Status**: Active implementation; execute Sprints 1-6 in order
+**Status**: Completed and archived after Sprint 6
 **Estimated Complexity**: High
 **Risk class**: Medium - changes export-only indicator capture, strict TSV schema,
 offline datasets, and offline XGBoost inputs; the broker execution lane and virtual

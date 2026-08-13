@@ -223,10 +223,17 @@ WHERE origin_id = 'origin_s1_buy'
 """
             ).fetchone()
             self.assertEqual(origin_features, (1, 1, 1, 1, 1, 1))
-            wide_columns = {
+            wide_column_list = [
                 row[0]
                 for row in connection.execute("DESCRIBE initial_matrix_wide").fetchall()
-            }
+            ]
+            wide_columns = set(wide_column_list)
+            for width_column in (
+                "origin_micro_band_width_points_0",
+                "origin_macro_band_width_points_0",
+            ):
+                self.assertEqual(wide_column_list.count(width_column), 1)
+                self.assertNotIn(f"{width_column}_1", wide_columns)
             trial_id_columns = {
                 column
                 for column in wide_columns

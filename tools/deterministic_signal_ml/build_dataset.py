@@ -603,8 +603,6 @@ SELECT
   trigger_ask,
   pivot_trade_price,
   origin_micro_band_width_0,
-  origin_micro_band_width_points_0,
-  origin_macro_band_width_points_0,
   origin_micro_features_complete,
   origin_macro_features_complete,
   origin_feature_snapshot_complete,

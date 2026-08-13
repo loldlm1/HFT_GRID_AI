@@ -3,9 +3,10 @@
 ## Active State
 
 The current `PIVOT_FRACTAL_V2` Macro/Micro broker executor now implements the
-strict schema V12 producer and offline tooling. Static and fixture gates pass;
-the final real MetaEditor compile and human real-tick V12 acceptance remain
-pending under the active plan.
+strict schema V12 producer and offline tooling. The producer is accepted for
+the downstream Django cutover after the real-tick export audit, matched
+export-on/off broker parity, strict build/audit/train gate, and focused builder
+correction. Visual chart behavior was waived and remains unverified.
 
 Use these active documents:
 
@@ -13,6 +14,7 @@ Use these active documents:
 - `docs/workflows/pivot-fractal-offline-research-boundaries.md`
 - `docs/environment/mt5-agentic-workflows.md`
 - `docs/research/pivot-fractal-v12-producer-handoff.md`
+- `docs/research/pivot-fractal-v12-producer-acceptance-2026-08-13.md`
 - `docs/research/archive/pivot-sl-tp-reentry-matrix-v11-2026-08-07/README.md`
 - `docs/plans/archive/pivot-sl-tp-reentry-matrix-v11-2026-08-07/README.md`
 - `docs/research/archive/v11-dataset-column-type-registry-2026-08-07/README.md`

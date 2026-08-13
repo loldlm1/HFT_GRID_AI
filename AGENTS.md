@@ -8,14 +8,14 @@ archive directories.
 ## Entrypoint And Active Work
 
 - Entrypoint: `HFT_Grid_AI.mq5`.
-- Active plan: `docs/plans/pivot-fractal-v12-signal-features-plan.md`. Execute
-  its six sprints in order, validating and committing each sprint before
-  advancing.
+- Active plan: none. The completed V12 signal-feature producer plan is archived
+  under `docs/plans/archive/pivot-fractal-v12-signal-features-2026-08-13/`.
 - Architecture: `docs/architecture/market-data-broker-executor.md`.
 - Environment runbook: `docs/environment/mt5-agentic-workflows.md`.
 - Statistics workflow: `docs/workflows/pivot-fractal-statistics-flow.md`.
 - Research boundary: `docs/workflows/pivot-fractal-offline-research-boundaries.md`.
 - V12 downstream handoff: `docs/research/pivot-fractal-v12-producer-handoff.md`.
+- V12 acceptance: `docs/research/pivot-fractal-v12-producer-acceptance-2026-08-13.md`.
 
 ## Skill Stack
 
