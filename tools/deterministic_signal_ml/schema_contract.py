@@ -1,4 +1,4 @@
-"""Strict schema V11 contract for pivot trial-matrix research exports."""
+"""Strict schema V12 contract for pivot signal-feature research exports."""
 
 from __future__ import annotations
 
@@ -10,10 +10,62 @@ from datetime import datetime, timedelta
 from pathlib import Path
 
 
-SUPPORTED_SCHEMA_VERSION = 11
+SUPPORTED_SCHEMA_VERSION = 12
 SUPPORTED_ENGINE_LABEL = "PIVOT_FRACTAL_V2"
-SUPPORTED_FEATURE_SET_ID = "schema_v11_pivot_trial_matrix"
+SUPPORTED_FEATURE_SET_ID = "schema_v12_pivot_signal_features"
 NULL_TOKEN = r"\N"
+
+FEATURE_SHIFTS = tuple(range(6))
+FEATURE_SMA_PERIOD = 5
+FEATURE_STATE_TOLERANCE = 1e-7
+FEATURE_STATES = ("ABOVE", "BELOW", "EQUAL")
+SIGNAL_SERIES = (
+    "b_percent",
+    "stochastic_main_line",
+    "stochastic_signal_line",
+)
+
+
+def _origin_series_columns(timeframe: str, series: str) -> tuple[str, ...]:
+    prefix = f"origin_{timeframe}_{series}"
+    return tuple(
+        column
+        for shift in FEATURE_SHIFTS
+        for column in (
+            f"{prefix}_{shift}",
+            f"{prefix}_sma_5_{shift}",
+            f"{prefix}_sma_slope_{shift}",
+            f"{prefix}_state_{shift}",
+        )
+    )
+
+
+def _origin_timeframe_feature_columns(timeframe: str) -> tuple[str, ...]:
+    prefix = f"origin_{timeframe}"
+    return (
+        f"{prefix}_band_width_points_0",
+        *(
+            column
+            for series in SIGNAL_SERIES
+            for column in _origin_series_columns(timeframe, series)
+        ),
+        *(
+            column
+            for shift in FEATURE_SHIFTS
+            for column in (
+                f"{prefix}_band_base_line_{shift}",
+                f"{prefix}_band_base_line_slope_points_{shift}",
+            )
+        ),
+    )
+
+
+ORIGIN_MICRO_FEATURE_COLUMNS = _origin_timeframe_feature_columns("micro")
+ORIGIN_MACRO_FEATURE_COLUMNS = _origin_timeframe_feature_columns("macro")
+ORIGIN_SIGNAL_FEATURE_COLUMNS = (
+    *ORIGIN_MICRO_FEATURE_COLUMNS,
+    *ORIGIN_MACRO_FEATURE_COLUMNS,
+)
 
 RUN_MANIFEST_FILE = "run_manifest.tsv"
 PIVOT_WINDOWS_FILE = "pivot_windows.tsv"
@@ -83,13 +135,6 @@ PIVOT_WINDOW_COLUMNS = (
     "pp_arm_analysis_time",
     "pp_arm_offset_minutes",
     "pp_arm_bid",
-    "macro_band_base_1",
-    "macro_band_upper_1",
-    "macro_band_lower_1",
-    "macro_band_width_1",
-    "macro_band_width_percent_1",
-    "macro_band_complete",
-    "macro_band_invalid_reason",
     "window_state",
     "invalid_reason",
     "terminal_broker_time",
@@ -141,13 +186,8 @@ SIGNAL_ORIGIN_COLUMNS = (
     "structural_entry_price",
     "structural_sl_price",
     "structural_take_profit",
-    "origin_micro_band_base_0",
-    "origin_micro_band_upper_0",
-    "origin_micro_band_lower_0",
     "origin_micro_band_width_0",
-    "origin_micro_band_width_percent_0",
-    *(f"origin_micro_b_percent_{shift}" for shift in range(6)),
-    *(f"origin_macro_pivot_b_percent_{shift}" for shift in range(6)),
+    *ORIGIN_SIGNAL_FEATURE_COLUMNS,
     "origin_micro_features_complete",
     "origin_macro_features_complete",
     "origin_feature_snapshot_complete",
@@ -215,12 +255,6 @@ VIRTUAL_TRIAL_COLUMNS = (
     "virtual_expected_take_profit",
     "virtual_expected_reward_risk_ratio",
     "virtual_money_plan_complete",
-    "entry_micro_band_width_percent_0",
-    "entry_macro_band_width_percent_1",
-    *(f"entry_micro_b_percent_{shift}" for shift in range(6)),
-    *(f"entry_macro_pivot_b_percent_{shift}" for shift in range(6)),
-    "entry_feature_snapshot_complete",
-    "entry_feature_invalid_reason",
     "eligibility_status",
     "ineligible_reason",
     "parent_trial_id",
@@ -485,7 +519,7 @@ TABLE_COLUMNS = {
 PIVOT_LEVELS = ("S3", "S2", "S1", "PP", "R1", "R2", "R3")
 SUPPORT_LEVELS = ("S1", "S2", "S3")
 RESISTANCE_LEVELS = ("R1", "R2", "R3")
-BAND_SHIFTS = tuple(range(6))
+BAND_SHIFTS = FEATURE_SHIFTS
 SL_POLICIES = ("STRUCTURAL", "MICRO_BW_13", "MICRO_BW_21", "MICRO_BW_34")
 VOLATILITY_SL_POLICIES = SL_POLICIES[1:]
 SL_POLICY_RATIOS = {
@@ -529,6 +563,18 @@ TIMEFRAME_SECONDS = {
     "PERIOD_MN1": 2592000,
 }
 
+ORIGIN_STATE_FEATURE_COLUMNS = tuple(
+    f"origin_{timeframe}_{series}_state_{shift}"
+    for timeframe in ("micro", "macro")
+    for series in SIGNAL_SERIES
+    for shift in FEATURE_SHIFTS
+)
+ORIGIN_NUMERIC_SIGNAL_FEATURE_COLUMNS = tuple(
+    column
+    for column in ORIGIN_SIGNAL_FEATURE_COLUMNS
+    if column not in ORIGIN_STATE_FEATURE_COLUMNS
+)
+
 CATEGORICAL_COLUMNS = (
     "symbol",
     "level_id",
@@ -536,19 +582,15 @@ CATEGORICAL_COLUMNS = (
     "sl_policy",
     "analysis_weekday",
     "analysis_session",
+    *ORIGIN_STATE_FEATURE_COLUMNS,
 )
 NUMERIC_FEATURE_COLUMNS = (
     "tp_r_multiple",
     "reentry_index",
     "preceding_loss_count",
-    "origin_micro_band_width_0",
-    "entry_micro_band_width_percent_0",
-    "entry_macro_band_width_percent_1",
-    *(f"entry_micro_b_percent_{shift}" for shift in BAND_SHIFTS),
-    *(f"entry_macro_pivot_b_percent_{shift}" for shift in BAND_SHIFTS),
+    *ORIGIN_NUMERIC_SIGNAL_FEATURE_COLUMNS,
     "trigger_gap_to_risk",
     "spread_to_risk",
-    "macro_range_to_band_width",
     "time_sin",
     "time_cos",
 )
@@ -638,6 +680,14 @@ DATASET_CONFIG_KEYS = (
     "bands_deviation",
     "bands_ma_method",
     "bands_applied_price",
+    "feature_export_shifts",
+    "feature_sma_period",
+    "feature_state_tolerance",
+    "stochastic_k_period",
+    "stochastic_d_period",
+    "stochastic_slowing",
+    "stochastic_ma_method",
+    "stochastic_price_field",
     "matrix_sl_policies",
     "matrix_sl_ratios",
     "matrix_tp_multiples",
@@ -685,6 +735,28 @@ REQUIRED_MANIFEST_KEYS = {
     "bands_shift",
     "bands_ma_method",
     "bands_applied_price",
+    "feature_capture_policy",
+    "feature_price_policy",
+    "feature_export_shifts",
+    "feature_internal_history_max_shift",
+    "feature_sma_period",
+    "feature_sma_policy",
+    "feature_sma_slope_policy",
+    "feature_state_policy",
+    "feature_state_tolerance",
+    "bands_b_percent_policy",
+    "bands_width_policy",
+    "bands_base_line_slope_policy",
+    "bands_base_line_buffer",
+    "bands_upper_band_buffer",
+    "bands_lower_band_buffer",
+    "stochastic_k_period",
+    "stochastic_d_period",
+    "stochastic_slowing",
+    "stochastic_ma_method",
+    "stochastic_price_field",
+    "stochastic_main_line_buffer",
+    "stochastic_signal_line_buffer",
     "lot_mode",
     "lot_strategy_size",
     "reference_balance",
@@ -715,7 +787,7 @@ FIXED_MANIFEST_VALUES = {
     "matrix_sl_policies": "STRUCTURAL,MICRO_BW_13,MICRO_BW_21,MICRO_BW_34",
     "matrix_sl_ratios": "0.13,0.21,0.34",
     "matrix_tp_multiples": "1,2,3,5",
-    "origin_width_policy": "micro_bands_shift_0_full_width_frozen_per_origin",
+    "origin_width_policy": "micro_bands_shift_0_price_width_frozen_per_origin_virtual_geometry",
     "reentry_policy": "sl_first_same_policy_fresh_quote_frozen_width_one_generation_per_tick",
     "reentry_max_index": "3",
     "boundary_policy": "entry_and_sl_strictly_inside_next_outward_pivot_by_one_trade_tick",
@@ -729,12 +801,34 @@ FIXED_MANIFEST_VALUES = {
     "bands_shift": "0",
     "bands_ma_method": "MODE_SMA",
     "bands_applied_price": "PRICE_WEIGHTED",
+    "feature_capture_policy": "one_immutable_origin_snapshot_shift_0_developing_shift_1_5_completed",
+    "feature_price_policy": "immutable_touched_pivot_for_micro_and_macro_b_percent_all_shifts",
+    "feature_export_shifts": "0,1,2,3,4,5",
+    "feature_internal_history_max_shift": "10",
+    "feature_sma_period": "5",
+    "feature_sma_policy": "arithmetic_mean_series_shift_through_shift_plus_4",
+    "feature_sma_slope_policy": "sma_5_shift_minus_sma_5_shift_plus_1",
+    "feature_state_policy": "raw_vs_sma_5_above_below_equal_absolute_tolerance",
+    "feature_state_tolerance": "0.0000001",
+    "bands_b_percent_policy": "100_times_pivot_minus_lower_divided_by_upper_minus_lower_unclipped",
+    "bands_width_policy": "upper_minus_lower_divided_by_point_shift_0",
+    "bands_base_line_slope_policy": "base_line_shift_minus_next_shift_divided_by_point",
+    "bands_base_line_buffer": "0:BASE_LINE",
+    "bands_upper_band_buffer": "1:UPPER_BAND",
+    "bands_lower_band_buffer": "2:LOWER_BAND",
+    "stochastic_k_period": "5",
+    "stochastic_d_period": "3",
+    "stochastic_slowing": "3",
+    "stochastic_ma_method": "MODE_SMA",
+    "stochastic_price_field": "STO_CLOSECLOSE",
+    "stochastic_main_line_buffer": "0:MAIN_LINE",
+    "stochastic_signal_line_buffer": "1:SIGNAL_LINE",
     "reference_balance": "1000000.00000000",
     "volume_normalization_policy": "normalize_down_block_below_minimum",
     "virtual_money_policy": "order_calc_profit_counterfactual_gross_only_no_costs_or_net",
     "broker_money_policy": "deal_history_authoritative_gross_commission_swap_fee_net",
     "virtual_outcome_policy": "tp_first_sl_first_or_censored_from_causal_executable_quote",
-    "virtual_binary_cohort_policy": "entry_feature_complete_eligible_tp_or_sl_only",
+    "virtual_binary_cohort_policy": "origin_feature_complete_eligible_tp_or_sl_only",
     "broker_binary_cohort_policy": "feature_complete_consistent_broker_tp_or_sl_only",
     "parity_policy": "accepted_request_geometry_shadow_trade_session_observed_broker_terminal_censored_calibration_only_not_matrix_or_ml",
     "time_policy": "broker_time_causal_analysis_time_export_only",
@@ -744,7 +838,7 @@ FIXED_MANIFEST_VALUES = {
 
 
 class SchemaValidationError(RuntimeError):
-    """Raised when a run violates the strict V11 export contract."""
+    """Raised when a run violates the strict V12 export contract."""
 
 
 @dataclass(frozen=True)
@@ -805,7 +899,7 @@ def expected_columns_for(
     try:
         return TABLE_COLUMNS[filename]
     except KeyError as exc:
-        raise ValueError(f"Unknown schema V11 file: {filename}") from exc
+        raise ValueError(f"Unknown schema V12 file: {filename}") from exc
 
 
 def feature_columns_for_set(feature_set_id: str) -> tuple[str, ...]:
@@ -930,7 +1024,7 @@ def _validate_time_triplet(
 
 def _read_tsv(path: Path, expected_columns: tuple[str, ...]) -> list[dict[str, str]]:
     if not path.is_file():
-        raise SchemaValidationError(f"Missing required schema V11 file: {path}")
+        raise SchemaValidationError(f"Missing required schema V12 file: {path}")
     with path.open("r", encoding="utf-8", newline="") as handle:
         header = handle.readline().rstrip("\r\n").split("\t")
         if tuple(header) != expected_columns:
@@ -958,7 +1052,7 @@ def _resolve_run_path(runs_root: Path, run_id: str) -> Path:
         missing = sorted(expected_files - actual_files)
         unexpected = sorted(actual_files - expected_files)
         raise SchemaValidationError(
-            "Run must contain exactly eight V11 TSV files; "
+            "Run must contain exactly eight V12 TSV files; "
             f"missing={missing}, unexpected={unexpected}"
         )
     return run_path
@@ -1025,27 +1119,146 @@ def _level_column(prefix: str, level_id: str) -> str:
     return f"{prefix}_{level_id.lower()}_price"
 
 
-def _validate_band_width(
+def _feature_state(raw_value: float, sma_value: float) -> str:
+    delta = raw_value - sma_value
+    if delta > FEATURE_STATE_TOLERANCE:
+        return "ABOVE"
+    if delta < -FEATURE_STATE_TOLERANCE:
+        return "BELOW"
+    return "EQUAL"
+
+
+def _validate_origin_series(
     row: dict[str, str],
-    base_column: str,
-    upper_column: str,
-    lower_column: str,
-    width_column: str,
-    percent_column: str,
+    timeframe: str,
+    series: str,
     context: str,
 ) -> None:
-    base = _as_float(row, base_column, context)
-    upper = _as_float(row, upper_column, context)
-    lower = _as_float(row, lower_column, context)
-    width = _as_float(row, width_column, context)
-    width_percent = _as_float(row, percent_column, context)
-    assert None not in (base, upper, lower, width, width_percent)
-    if upper <= lower or base <= 0.0 or not lower <= base <= upper:
-        raise SchemaValidationError(f"{context}: invalid band envelope")
-    if not _same_number(width, upper - lower):
-        raise SchemaValidationError(f"{context}: band width arithmetic mismatch")
-    if not _same_number(width_percent, 100.0 * width / base):
-        raise SchemaValidationError(f"{context}: normalized band width mismatch")
+    prefix = f"origin_{timeframe}_{series}"
+    raw_values = [
+        _as_float(row, f"{prefix}_{shift}", context)
+        for shift in FEATURE_SHIFTS
+    ]
+    sma_values = [
+        _as_float(row, f"{prefix}_sma_5_{shift}", context)
+        for shift in FEATURE_SHIFTS
+    ]
+    slopes = [
+        _as_float(row, f"{prefix}_sma_slope_{shift}", context)
+        for shift in FEATURE_SHIFTS
+    ]
+    assert all(value is not None for value in raw_values + sma_values + slopes)
+    raw = [float(value) for value in raw_values]
+    sma = [float(value) for value in sma_values]
+    slope = [float(value) for value in slopes]
+
+    if series.startswith("stochastic_") and any(
+        value < -FEATURE_STATE_TOLERANCE or value > 100.0 + FEATURE_STATE_TOLERANCE
+        for value in raw
+    ):
+        raise SchemaValidationError(f"{context}: Stochastic line is outside 0..100")
+
+    history = list(raw)
+    for shift in FEATURE_SHIFTS:
+        derived_previous = raw[shift] - FEATURE_SMA_PERIOD * slope[shift]
+        history_shift = shift + FEATURE_SMA_PERIOD
+        if history_shift < len(history):
+            if not _same_number(history[history_shift], derived_previous):
+                raise SchemaValidationError(
+                    f"{context}: {timeframe} {series} SMA slope/raw mismatch "
+                    f"at shift {shift}"
+                )
+        else:
+            history.append(derived_previous)
+
+    expected_sma_values = [
+        sum(history[shift : shift + FEATURE_SMA_PERIOD]) / FEATURE_SMA_PERIOD
+        for shift in range(len(FEATURE_SHIFTS) + 1)
+    ]
+    for shift in FEATURE_SHIFTS:
+        expected_sma = expected_sma_values[shift]
+        if not _same_number(sma[shift], expected_sma):
+            raise SchemaValidationError(
+                f"{context}: {timeframe} {series} SMA 5 formula mismatch at shift {shift}"
+            )
+    for shift in FEATURE_SHIFTS:
+        expected_slope = expected_sma_values[shift] - expected_sma_values[shift + 1]
+        if not _same_number(slope[shift], expected_slope):
+            raise SchemaValidationError(
+                f"{context}: {timeframe} {series} SMA slope mismatch at shift {shift}"
+            )
+    for shift in FEATURE_SHIFTS:
+        state_column = f"{prefix}_state_{shift}"
+        state = _require_value(row, state_column, context)
+        if state not in FEATURE_STATES:
+            raise SchemaValidationError(f"{context}: invalid feature state {state_column}={state!r}")
+        if state != _feature_state(raw[shift], sma[shift]):
+            raise SchemaValidationError(
+                f"{context}: {timeframe} {series} state mismatch at shift {shift}"
+            )
+
+
+def _validate_origin_timeframe_features(
+    row: dict[str, str],
+    timeframe: str,
+    context: str,
+    *,
+    complete: bool,
+    point_size: float,
+) -> None:
+    feature_columns = (
+        ORIGIN_MICRO_FEATURE_COLUMNS
+        if timeframe == "micro"
+        else ORIGIN_MACRO_FEATURE_COLUMNS
+    )
+    null_count = sum(_is_null(row[column]) for column in feature_columns)
+    if complete and null_count:
+        raise SchemaValidationError(
+            f"{context}: complete {timeframe} origin features are incomplete"
+        )
+    if not complete:
+        if null_count != len(feature_columns):
+            raise SchemaValidationError(
+                f"{context}: incomplete {timeframe} origin features carry values"
+            )
+        return
+
+    width_points = _as_float(row, f"origin_{timeframe}_band_width_points_0", context)
+    assert width_points is not None
+    if width_points <= 0.0:
+        raise SchemaValidationError(f"{context}: {timeframe} Band width points must be positive")
+    if timeframe == "micro":
+        width_price = _as_float(row, "origin_micro_band_width_0", context)
+        assert width_price is not None
+        if width_price <= 0.0 or not _same_number(width_points, width_price / point_size):
+            raise SchemaValidationError(f"{context}: Micro Band width points mismatch")
+
+    for series in SIGNAL_SERIES:
+        _validate_origin_series(row, timeframe, series, context)
+
+    base_values = [
+        _as_float(row, f"origin_{timeframe}_band_base_line_{shift}", context)
+        for shift in FEATURE_SHIFTS
+    ]
+    slope_values = [
+        _as_float(
+            row,
+            f"origin_{timeframe}_band_base_line_slope_points_{shift}",
+            context,
+        )
+        for shift in FEATURE_SHIFTS
+    ]
+    assert all(value is not None for value in base_values + slope_values)
+    base = [float(value) for value in base_values]
+    slope = [float(value) for value in slope_values]
+    if any(value <= 0.0 for value in base):
+        raise SchemaValidationError(f"{context}: {timeframe} Band BASE_LINE is not positive")
+    for shift in FEATURE_SHIFTS[:-1]:
+        expected_slope = (base[shift] - base[shift + 1]) / point_size
+        if not _same_number(slope[shift], expected_slope):
+            raise SchemaValidationError(
+                f"{context}: {timeframe} Band BASE_LINE slope mismatch at shift {shift}"
+            )
 
 
 def _validate_windows(
@@ -1180,21 +1393,6 @@ def _validate_windows(
             if role == "SELL" and arm_bid >= trade_pp:
                 raise SchemaValidationError(f"{context}: SELL PP must arm from below")
 
-        macro_complete = _as_bool(row, "macro_band_complete", context)
-        if macro_complete:
-            _validate_band_width(
-                row,
-                "macro_band_base_1",
-                "macro_band_upper_1",
-                "macro_band_lower_1",
-                "macro_band_width_1",
-                "macro_band_width_percent_1",
-                context,
-            )
-            if not _is_null(row["macro_band_invalid_reason"]):
-                raise SchemaValidationError(f"{context}: complete Macro bands have invalid reason")
-        elif _is_null(row["macro_band_invalid_reason"]):
-            raise SchemaValidationError(f"{context}: incomplete Macro bands lack invalid reason")
         if row["window_state"] != "VALID" or not _is_null(row["invalid_reason"]):
             raise SchemaValidationError(f"{context}: exported window is not valid")
         if row["terminal_status"] not in ("EXPIRED", "RUN_FINISHED"):
@@ -1364,22 +1562,30 @@ def _validate_origins(
         snapshot_complete = _as_bool(row, "origin_feature_snapshot_complete", context)
         if snapshot_complete != (micro_complete and macro_complete):
             raise SchemaValidationError(f"{context}: origin feature completeness mismatch")
-        micro_band_columns = (
-            "origin_micro_band_base_0",
-            "origin_micro_band_upper_0",
-            "origin_micro_band_lower_0",
+        width_price = _as_float(
+            row,
             "origin_micro_band_width_0",
-            "origin_micro_band_width_percent_0",
+            context,
+            nullable=True,
         )
-        if micro_complete:
-            _validate_band_width(row, *micro_band_columns, context)
-            for shift in BAND_SHIFTS:
-                _as_float(row, f"origin_micro_b_percent_{shift}", context)
-        elif any(not _is_null(row[column]) for column in micro_band_columns):
-            raise SchemaValidationError(f"{context}: incomplete Micro features carry band values")
-        if macro_complete:
-            for shift in BAND_SHIFTS:
-                _as_float(row, f"origin_macro_pivot_b_percent_{shift}", context)
+        if micro_complete and width_price is None:
+            raise SchemaValidationError(f"{context}: complete Micro features lack frozen width")
+        if width_price is not None and width_price <= 0.0:
+            raise SchemaValidationError(f"{context}: frozen Micro width must be positive")
+        _validate_origin_timeframe_features(
+            row,
+            "micro",
+            context,
+            complete=micro_complete,
+            point_size=point,
+        )
+        _validate_origin_timeframe_features(
+            row,
+            "macro",
+            context,
+            complete=macro_complete,
+            point_size=point,
+        )
         if snapshot_complete and not _is_null(row["origin_feature_invalid_reason"]):
             raise SchemaValidationError(f"{context}: complete origin features have invalid reason")
         if not snapshot_complete and _is_null(row["origin_feature_invalid_reason"]):
@@ -1428,21 +1634,6 @@ def _require_numeric_group(
     if null_count == 0:
         for column in columns:
             _as_float(row, column, context)
-
-
-def _validate_trial_entry_features(row: dict[str, str], context: str) -> None:
-    feature_columns = (
-        "entry_micro_band_width_percent_0",
-        "entry_macro_band_width_percent_1",
-        *(f"entry_micro_b_percent_{shift}" for shift in BAND_SHIFTS),
-        *(f"entry_macro_pivot_b_percent_{shift}" for shift in BAND_SHIFTS),
-    )
-    complete = _as_bool(row, "entry_feature_snapshot_complete", context)
-    _require_numeric_group(row, feature_columns, context, required=complete)
-    if complete and not _is_null(row["entry_feature_invalid_reason"]):
-        raise SchemaValidationError(f"{context}: complete entry features have invalid reason")
-    if not complete and _is_null(row["entry_feature_invalid_reason"]):
-        raise SchemaValidationError(f"{context}: incomplete entry features lack invalid reason")
 
 
 def _validate_trial_geometry(
@@ -1632,7 +1823,6 @@ def _validate_trials(
         assert reentry_index is not None and preceding_losses is not None
         if not 0 <= reentry_index <= MAX_REENTRY_INDEX or preceding_losses != reentry_index:
             raise SchemaValidationError(f"{context}: invalid retry index or preceding-loss count")
-        _validate_trial_entry_features(row, context)
         eligibility = row["eligibility_status"]
         if eligibility not in (
             "ACTIVE",
@@ -1943,7 +2133,7 @@ def _validate_virtual_outcomes(
         binary_eligible = _as_bool(row, "virtual_binary_eligible", context)
         expected_binary = (
             trial["trial_role"] == "MATRIX"
-            and trial["entry_feature_snapshot_complete"] == "1"
+            and origins[trial["origin_id"]]["origin_feature_snapshot_complete"] == "1"
             and status in ("TP_FIRST", "SL_FIRST")
         )
         if binary_eligible != expected_binary:

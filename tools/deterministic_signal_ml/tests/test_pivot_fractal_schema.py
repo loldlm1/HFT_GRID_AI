@@ -19,10 +19,14 @@ from schema_contract import (
     EXECUTION_CHECKS_FILE,
     FIXED_MANIFEST_VALUES,
     FUTURE_ONLY_COLUMNS,
+    FEATURE_STATE_TOLERANCE,
     INITIAL_MATRIX_SIZE,
     MAX_MATRIX_TRIALS_PER_ORIGIN,
     MAX_REENTRY_INDEX,
     MODEL_FEATURE_COLUMNS,
+    ORIGIN_MACRO_FEATURE_COLUMNS,
+    ORIGIN_MICRO_FEATURE_COLUMNS,
+    ORIGIN_SIGNAL_FEATURE_COLUMNS,
     PIVOT_WINDOWS_FILE,
     RUN_FILES,
     RUN_MANIFEST_FILE,
@@ -44,9 +48,9 @@ from schema_contract import (
 
 
 FIXTURES = Path(__file__).parent / "fixtures"
-V11_FIXTURE = FIXTURES / "schema_v11_pivot_trial_matrix"
+V12_FIXTURE = FIXTURES / "schema_v12_pivot_signal_features"
 LEGACY_FIXTURES = tuple(
-    fixture for fixture in FIXTURES.iterdir() if fixture != V11_FIXTURE
+    fixture for fixture in FIXTURES.iterdir() if fixture != V12_FIXTURE
 )
 NULL_TOKEN = r"\N"
 GEOMETRY_COLUMNS = (
@@ -242,8 +246,8 @@ def make_gap_through_structural_origin(run_path: Path) -> None:
 class PivotFractalSchemaTests(unittest.TestCase):
     def copy_fixture(self, temp_dir: str) -> tuple[Path, Path]:
         runs_root = Path(temp_dir) / "runs"
-        run_path = runs_root / V11_FIXTURE.name
-        shutil.copytree(V11_FIXTURE, run_path)
+        run_path = runs_root / V12_FIXTURE.name
+        shutil.copytree(V12_FIXTURE, run_path)
         return runs_root, run_path
 
     def assert_mutation_rejected(
@@ -255,21 +259,22 @@ class PivotFractalSchemaTests(unittest.TestCase):
             runs_root, run_path = self.copy_fixture(temp_dir)
             mutate(run_path)
             with self.assertRaisesRegex(SchemaValidationError, expected_error):
-                validate_run(runs_root, V11_FIXTURE.name)
+                validate_run(runs_root, V12_FIXTURE.name)
 
-    def test_v11_fixture_freezes_exact_contract(self) -> None:
-        validation = validate_run(FIXTURES, V11_FIXTURE.name)
+    def test_v12_fixture_freezes_exact_contract(self) -> None:
+        validation = validate_run(FIXTURES, V12_FIXTURE.name)
 
-        self.assertEqual(SUPPORTED_SCHEMA_VERSION, 11)
+        self.assertEqual(SUPPORTED_SCHEMA_VERSION, 12)
         self.assertEqual(SUPPORTED_ENGINE_LABEL, "PIVOT_FRACTAL_V2")
-        self.assertEqual(SUPPORTED_FEATURE_SET_ID, "schema_v11_pivot_trial_matrix")
+        self.assertEqual(SUPPORTED_FEATURE_SET_ID, "schema_v12_pivot_signal_features")
+        self.assertEqual(FEATURE_STATE_TOLERANCE, 1e-7)
         self.assertEqual(len(RUN_FILES), 8)
         self.assertEqual(INITIAL_MATRIX_SIZE, 16)
         self.assertEqual(MAX_REENTRY_INDEX, 3)
         self.assertEqual(MAX_MATRIX_TRIALS_PER_ORIGIN, 52)
         self.assertEqual(ACTIVE_STATE_CAP, 2048)
         self.assertEqual(
-            {path.name for path in V11_FIXTURE.glob("*.tsv")},
+            {path.name for path in V12_FIXTURE.glob("*.tsv")},
             set(RUN_FILES),
         )
         self.assertEqual(validation.pivot_window_rows, 1)
@@ -281,12 +286,28 @@ class PivotFractalSchemaTests(unittest.TestCase):
         self.assertEqual(validation.warnings, ("run completion is CENSORED",))
 
         for filename in RUN_FILES:
-            columns, _ = read_rows(V11_FIXTURE / filename)
+            columns, _ = read_rows(V12_FIXTURE / filename)
             self.assertEqual(tuple(columns), TABLE_COLUMNS[filename])
             self.assertEqual(expected_columns_for(filename), TABLE_COLUMNS[filename])
         self.assertEqual(
             feature_columns_for_set(SUPPORTED_FEATURE_SET_ID),
             MODEL_FEATURE_COLUMNS,
+        )
+        self.assertTrue(
+            set(ORIGIN_MICRO_FEATURE_COLUMNS)
+            | set(ORIGIN_MACRO_FEATURE_COLUMNS)
+            <= set(TABLE_COLUMNS[SIGNAL_ORIGINS_FILE])
+        )
+        self.assertEqual(
+            set(ORIGIN_SIGNAL_FEATURE_COLUMNS),
+            set(ORIGIN_MICRO_FEATURE_COLUMNS) | set(ORIGIN_MACRO_FEATURE_COLUMNS),
+        )
+        self.assertFalse(
+            set(ORIGIN_SIGNAL_FEATURE_COLUMNS) & set(TABLE_COLUMNS[VIRTUAL_TRIALS_FILE])
+        )
+        self.assertFalse(
+            any(column.startswith("entry_") and "feature" in column
+                for column in TABLE_COLUMNS[VIRTUAL_TRIALS_FILE])
         )
         self.assertFalse(set(MODEL_FEATURE_COLUMNS) & set(FUTURE_ONLY_COLUMNS))
         self.assertFalse(
@@ -299,8 +320,16 @@ class PivotFractalSchemaTests(unittest.TestCase):
         )
         self.assertEqual(FIXED_MANIFEST_VALUES["matrix_sl_ratios"], "0.13,0.21,0.34")
         self.assertEqual(FIXED_MANIFEST_VALUES["matrix_tp_multiples"], "1,2,3,5")
+        self.assertEqual(FIXED_MANIFEST_VALUES["stochastic_main_line_buffer"], "0:MAIN_LINE")
+        self.assertEqual(FIXED_MANIFEST_VALUES["stochastic_signal_line_buffer"], "1:SIGNAL_LINE")
 
-        _, trials = read_rows(V11_FIXTURE / VIRTUAL_TRIALS_FILE)
+        _, origins = read_rows(V12_FIXTURE / SIGNAL_ORIGINS_FILE)
+        origin = origins[0]
+        self.assertGreater(float(origin["origin_micro_b_percent_0"]), 100.0)
+        self.assertLess(float(origin["origin_macro_b_percent_0"]), 0.0)
+        self.assertEqual(origin["origin_macro_stochastic_signal_line_state_0"], "EQUAL")
+
+        _, trials = read_rows(V12_FIXTURE / VIRTUAL_TRIALS_FILE)
         initial = [
             row
             for row in trials
@@ -314,7 +343,7 @@ class PivotFractalSchemaTests(unittest.TestCase):
             sum(row["eligibility_status"] == "INELIGIBLE_MONEY_PLAN" for row in initial),
             1,
         )
-        _, outcomes = read_rows(V11_FIXTURE / VIRTUAL_OUTCOMES_FILE)
+        _, outcomes = read_rows(V12_FIXTURE / VIRTUAL_OUTCOMES_FILE)
         chain = sorted(
             (
                 row
@@ -330,21 +359,22 @@ class PivotFractalSchemaTests(unittest.TestCase):
             1,
         )
 
-    def test_legacy_and_non_v11_shapes_are_rejected(self) -> None:
+    def test_legacy_and_non_v12_shapes_are_rejected(self) -> None:
+        with self.assertRaisesRegex(SchemaValidationError, "Header mismatch"):
+            validate_run(FIXTURES, "schema_v11_pivot_trial_matrix")
         for fixture in LEGACY_FIXTURES:
+            if fixture.name == "schema_v11_pivot_trial_matrix":
+                continue
             with self.subTest(fixture=fixture.name):
-                with self.assertRaisesRegex(
-                    SchemaValidationError,
-                    "exactly eight V11 TSV files",
-                ):
+                with self.assertRaises(SchemaValidationError):
                     validate_run(FIXTURES, fixture.name)
         with self.assertRaisesRegex(ValueError, "Unsupported schema version 10"):
-            validate_run(FIXTURES, V11_FIXTURE.name, schema_version=10)
+            validate_run(FIXTURES, V12_FIXTURE.name, schema_version=10)
 
         def add_unexpected_file(run_path: Path) -> None:
             (run_path / "unexpected.tsv").write_text("unexpected\n", encoding="utf-8")
 
-        self.assert_mutation_rejected(add_unexpected_file, "exactly eight V11 TSV files")
+        self.assert_mutation_rejected(add_unexpected_file, "exactly eight V12 TSV files")
 
         def reorder_header(run_path: Path) -> None:
             path = run_path / SIGNAL_ORIGINS_FILE
@@ -362,6 +392,10 @@ class PivotFractalSchemaTests(unittest.TestCase):
             ("reentry_max_index", "4", "fixed value mismatch"),
             ("minimum_distance_policy", "spread_plus_stops_plus_freeze", "fixed value mismatch"),
             ("active_state_cap", "4096", "fixed value mismatch"),
+            ("feature_export_shifts", "1,2,3,4,5", "fixed value mismatch"),
+            ("feature_state_tolerance", "0.000001", "fixed value mismatch"),
+            ("stochastic_main_line_buffer", "0:K_LINE", "fixed value mismatch"),
+            ("stochastic_signal_line_buffer", "1:D_LINE", "fixed value mismatch"),
             ("micro_timeframe", "PERIOD_H1", "Micro timeframe shorter"),
             ("lot_strategy_size", "0", "must be positive"),
         )
@@ -375,6 +409,55 @@ class PivotFractalSchemaTests(unittest.TestCase):
                     ),
                     expected_error,
                 )
+
+    def test_v12_origin_feature_formulas_states_and_units_fail_closed(self) -> None:
+        cases = (
+            (
+                {"origin_micro_b_percent_sma_5_0": "69.0000000000"},
+                "micro b_percent SMA 5 formula mismatch",
+            ),
+            (
+                {"origin_macro_stochastic_main_line_sma_slope_0": "0.0000000000"},
+                "macro stochastic_main_line SMA slope/raw mismatch",
+            ),
+            (
+                {"origin_macro_stochastic_signal_line_state_0": "ABOVE"},
+                "macro stochastic_signal_line state mismatch",
+            ),
+            (
+                {"origin_micro_band_width_points_0": "99.0000000000"},
+                "Micro Band width points mismatch",
+            ),
+            (
+                {"origin_macro_band_base_line_slope_points_0": "79.0000000000"},
+                "macro Band BASE_LINE slope mismatch",
+            ),
+            (
+                {"origin_micro_stochastic_main_line_0": "101.0000000000"},
+                "Stochastic line is outside 0..100",
+            ),
+        )
+        for values, expected_error in cases:
+            with self.subTest(values=values):
+                self.assert_mutation_rejected(
+                    lambda run_path, values=values: mutate_row(
+                        run_path,
+                        SIGNAL_ORIGINS_FILE,
+                        lambda row: True,
+                        **values,
+                    ),
+                    expected_error,
+                )
+
+        self.assert_mutation_rejected(
+            lambda run_path: mutate_row(
+                run_path,
+                SIGNAL_ORIGINS_FILE,
+                lambda row: True,
+                origin_macro_stochastic_signal_line_state_0="UNKNOWN",
+            ),
+            "invalid feature state",
+        )
 
     def test_window_and_origin_identity_semantics_fail_closed(self) -> None:
         self.assert_mutation_rejected(
@@ -433,7 +516,7 @@ class PivotFractalSchemaTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp_dir:
             runs_root, run_path = self.copy_fixture(temp_dir)
             make_gap_through_structural_origin(run_path)
-            validation = validate_run(runs_root, V11_FIXTURE.name)
+            validation = validate_run(runs_root, V12_FIXTURE.name)
             self.assertEqual(validation.virtual_trial_rows, 16)
             self.assertEqual(validation.virtual_outcome_rows, 11)
             _, trials = read_rows(run_path / VIRTUAL_TRIALS_FILE)
@@ -700,7 +783,7 @@ class PivotFractalSchemaTests(unittest.TestCase):
                 parity_excluded_rows="1",
             )
 
-            validate_run(runs_root, V11_FIXTURE.name)
+            validate_run(runs_root, V12_FIXTURE.name)
 
             mutate_row(
                 run_path,
@@ -714,14 +797,14 @@ class PivotFractalSchemaTests(unittest.TestCase):
                 SchemaValidationError,
                 "broker-terminal parity censor precedes broker close",
             ):
-                validate_run(runs_root, V11_FIXTURE.name)
+                validate_run(runs_root, V12_FIXTURE.name)
 
     def test_natural_completion_allows_unlabelled_run_end_censors(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             runs_root, run_path = self.copy_fixture(temp_dir)
             mutate_summary(run_path, completion_status="NATURAL")
 
-            validation = validate_run(runs_root, V11_FIXTURE.name)
+            validation = validate_run(runs_root, V12_FIXTURE.name)
 
             self.assertEqual(validation.warnings, ())
 
@@ -774,7 +857,7 @@ class PivotFractalSchemaTests(unittest.TestCase):
                 finished_analysis_time=terminal_time,
             )
 
-            validate_run(runs_root, V11_FIXTURE.name)
+            validate_run(runs_root, V12_FIXTURE.name)
 
         self.assert_mutation_rejected(
             lambda run_path: mutate_row(
@@ -799,14 +882,23 @@ class PivotFractalSchemaTests(unittest.TestCase):
     def test_feature_incomplete_broker_outcome_is_excluded_from_calibration(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             runs_root, run_path = self.copy_fixture(temp_dir)
-            mutate_row(
-                run_path,
-                SIGNAL_ORIGINS_FILE,
-                lambda row: True,
-                origin_macro_features_complete="0",
-                origin_feature_snapshot_complete="0",
-                origin_feature_invalid_reason="MACRO_BANDS_INCOMPLETE",
-            )
+            origin_path = run_path / SIGNAL_ORIGINS_FILE
+            columns, origins = read_rows(origin_path)
+            origins[0]["origin_macro_features_complete"] = "0"
+            origins[0]["origin_feature_snapshot_complete"] = "0"
+            origins[0]["origin_feature_invalid_reason"] = "MACRO_FEATURES_INCOMPLETE"
+            for column in ORIGIN_MACRO_FEATURE_COLUMNS:
+                origins[0][column] = NULL_TOKEN
+            write_rows(origin_path, columns, origins)
+            outcome_path = run_path / VIRTUAL_OUTCOMES_FILE
+            outcome_columns, outcomes = read_rows(outcome_path)
+            for outcome in outcomes:
+                if outcome["trial_role"] != "MATRIX":
+                    continue
+                outcome["virtual_binary_eligible"] = "0"
+                outcome["virtual_binary_target"] = NULL_TOKEN
+                outcome["virtual_exclusion_reason"] = "FEATURE_INCOMPLETE"
+            write_rows(outcome_path, outcome_columns, outcomes)
             mutate_row(
                 run_path,
                 BROKER_OUTCOMES_FILE,
@@ -824,7 +916,7 @@ class PivotFractalSchemaTests(unittest.TestCase):
                 parity_excluded_rows="1",
             )
 
-            validate_run(runs_root, V11_FIXTURE.name)
+            validate_run(runs_root, V12_FIXTURE.name)
 
     def test_execution_safety_contract_fails_closed(self) -> None:
         cases = (
