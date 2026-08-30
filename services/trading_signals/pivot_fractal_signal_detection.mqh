@@ -178,26 +178,40 @@ void ArmPivotPpFromTick(PivotFractalWindowState &window,
   window.pp_arm_bid = tick.bid;
 }
 
-bool AppendPivotTouchCandidate(const PivotLevelIds level_id,
+bool ConsumePivotTouchIdentity(PivotFractalWindowState &window,
+                               const PivotLevelIds level_id)
+{
+  int level_index = (int)level_id;
+  if(level_index < 0 || level_index >= PIVOT_LEVEL_COUNT ||
+     window.trigger_states[level_index] != PIVOT_TRIGGER_AVAILABLE)
+    return false;
+  window.trigger_states[level_index] = PIVOT_TRIGGER_CONSUMED;
+  return true;
+}
+
+bool AppendPivotTouchCandidate(PivotFractalWindowState &window,
+                               const PivotLevelIds level_id,
                                const SignalTypes direction,
                                const int path_order,
+                               const bool consume_identity,
                                PivotTouchCandidate &candidates[],
                                int &total)
 {
   int level_index = (int)level_id;
   if(level_index < 0 ||
      level_index >= PIVOT_LEVEL_COUNT ||
-     g_pivot_fractal_window.trigger_states[level_index] !=
+     window.trigger_states[level_index] !=
        PIVOT_TRIGGER_AVAILABLE)
     return false;
 
   // First observation owns the identity even if later routing or broker
   // checks deny the attempt.
-  g_pivot_fractal_window.trigger_states[level_index] =
-    PIVOT_TRIGGER_CONSUMED;
+  if(consume_identity)
+    window.trigger_states[level_index] = PIVOT_TRIGGER_CONSUMED;
   if(total >= PIVOT_TOUCH_CANDIDATE_MAX)
   {
-    PivotV12RegisterDuplicateIdentity();
+    if(consume_identity)
+      PivotV12RegisterDuplicateIdentity();
     return false;
   }
 
@@ -205,71 +219,88 @@ bool AppendPivotTouchCandidate(const PivotLevelIds level_id,
   candidates[total].level_id = level_id;
   candidates[total].direction = direction;
   candidates[total].level_price =
-    g_pivot_fractal_window.levels.trade_prices[level_index];
+    window.levels.trade_prices[level_index];
+  candidates[total].window.CopyFrom(window);
   total++;
   return true;
 }
 
-int DiscoverPivotTouchCandidates(const MqlTick &tick,
-                                 PivotTouchCandidate &candidates[])
+int DiscoverPivotTouchCandidatesFromWindow(PivotFractalWindowState &window,
+                                           const MqlTick &tick,
+                                           PivotTouchCandidate &candidates[],
+                                           const bool consume_identity = true)
 {
   if(tick.time <= 0 ||
      tick.bid <= 0.0 ||
      tick.ask <= 0.0 ||
      tick.ask < tick.bid ||
-     g_pivot_fractal_window.state != PIVOT_WINDOW_VALID ||
-     !g_pivot_fractal_window.levels.valid ||
-     g_pivot_fractal_window.active_bar_open <= 0 ||
-     g_pivot_fractal_window.active_bar_open > tick.time ||
-     g_pivot_fractal_window.source_close_boundary > tick.time)
+     window.state != PIVOT_WINDOW_VALID ||
+     !window.levels.valid ||
+     window.active_bar_open <= 0 ||
+     window.active_bar_open > tick.time ||
+     window.source_close_boundary > tick.time)
     return 0;
 
-  ArmPivotPpFromTick(g_pivot_fractal_window, tick);
+  ArmPivotPpFromTick(window, tick);
   int total = 0;
   double bid = tick.bid;
-  double pp = g_pivot_fractal_window.levels.trade_prices[PIVOT_LEVEL_PP];
-  double s1 = g_pivot_fractal_window.levels.trade_prices[PIVOT_LEVEL_S1];
-  double s2 = g_pivot_fractal_window.levels.trade_prices[PIVOT_LEVEL_S2];
-  double s3 = g_pivot_fractal_window.levels.trade_prices[PIVOT_LEVEL_S3];
-  double r1 = g_pivot_fractal_window.levels.trade_prices[PIVOT_LEVEL_R1];
-  double r2 = g_pivot_fractal_window.levels.trade_prices[PIVOT_LEVEL_R2];
-  double r3 = g_pivot_fractal_window.levels.trade_prices[PIVOT_LEVEL_R3];
+  double pp = window.levels.trade_prices[PIVOT_LEVEL_PP];
+  double s1 = window.levels.trade_prices[PIVOT_LEVEL_S1];
+  double s2 = window.levels.trade_prices[PIVOT_LEVEL_S2];
+  double s3 = window.levels.trade_prices[PIVOT_LEVEL_S3];
+  double r1 = window.levels.trade_prices[PIVOT_LEVEL_R1];
+  double r2 = window.levels.trade_prices[PIVOT_LEVEL_R2];
+  double r3 = window.levels.trade_prices[PIVOT_LEVEL_R3];
 
-  if(g_pivot_fractal_window.pp_arm_state == PIVOT_PP_BUY_ARMED &&
+  if(window.pp_arm_state == PIVOT_PP_BUY_ARMED &&
      bid <= pp)
   {
-    AppendPivotTouchCandidate(PIVOT_LEVEL_PP,
+    AppendPivotTouchCandidate(window, PIVOT_LEVEL_PP,
                               BULLISH,
                               0,
+                              consume_identity,
                               candidates,
                               total);
   }
   if(bid <= s1)
-    AppendPivotTouchCandidate(PIVOT_LEVEL_S1, BULLISH, 1, candidates, total);
+    AppendPivotTouchCandidate(window, PIVOT_LEVEL_S1, BULLISH, 1,
+                              consume_identity, candidates, total);
   if(bid <= s2)
-    AppendPivotTouchCandidate(PIVOT_LEVEL_S2, BULLISH, 2, candidates, total);
+    AppendPivotTouchCandidate(window, PIVOT_LEVEL_S2, BULLISH, 2,
+                              consume_identity, candidates, total);
   if(bid <= s3)
-    AppendPivotTouchCandidate(PIVOT_LEVEL_S3, BULLISH, 3, candidates, total);
+    AppendPivotTouchCandidate(window, PIVOT_LEVEL_S3, BULLISH, 3,
+                              consume_identity, candidates, total);
 
-  if(g_pivot_fractal_window.pp_arm_state == PIVOT_PP_SELL_ARMED &&
+  if(window.pp_arm_state == PIVOT_PP_SELL_ARMED &&
      bid >= pp)
   {
-    AppendPivotTouchCandidate(PIVOT_LEVEL_PP,
+    AppendPivotTouchCandidate(window, PIVOT_LEVEL_PP,
                               BEARISH,
                               0,
+                              consume_identity,
                               candidates,
                               total);
   }
   if(bid >= r1)
-    AppendPivotTouchCandidate(PIVOT_LEVEL_R1, BEARISH, 1, candidates, total);
+    AppendPivotTouchCandidate(window, PIVOT_LEVEL_R1, BEARISH, 1,
+                              consume_identity, candidates, total);
   if(bid >= r2)
-    AppendPivotTouchCandidate(PIVOT_LEVEL_R2, BEARISH, 2, candidates, total);
+    AppendPivotTouchCandidate(window, PIVOT_LEVEL_R2, BEARISH, 2,
+                              consume_identity, candidates, total);
   if(bid >= r3)
-    AppendPivotTouchCandidate(PIVOT_LEVEL_R3, BEARISH, 3, candidates, total);
-
-  for(int i = 0; i < total; i++)
-    candidates[i].window.CopyFrom(g_pivot_fractal_window);
+    AppendPivotTouchCandidate(window, PIVOT_LEVEL_R3, BEARISH, 3,
+                              consume_identity, candidates, total);
   return total;
+}
+
+int DiscoverPivotTouchCandidates(const MqlTick &tick,
+                                 PivotTouchCandidate &candidates[])
+{
+  return DiscoverPivotTouchCandidatesFromWindow(g_pivot_fractal_window,
+                                                tick,
+                                                candidates,
+                                                true);
 }
 
 void BuildPivotSignalFromCandidate(

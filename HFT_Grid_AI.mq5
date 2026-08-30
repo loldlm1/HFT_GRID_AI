@@ -79,6 +79,11 @@ bool ValidatePivotTimeframeInputs(string &reason_out)
     reason_out = "Micro_Timeframe must be an explicit timeframe";
     return false;
   }
+  if(Deep_Timeframe == PERIOD_CURRENT)
+  {
+    reason_out = "Deep_Timeframe must be an explicit timeframe";
+    return false;
+  }
   if(!IsExplicitSupportedPivotTimeframe(Macro_Timeframe))
   {
     reason_out = "Macro_Timeframe is not a supported MetaTrader timeframe";
@@ -89,13 +94,21 @@ bool ValidatePivotTimeframeInputs(string &reason_out)
     reason_out = "Micro_Timeframe is not a supported MetaTrader timeframe";
     return false;
   }
-  if(Macro_Timeframe == Micro_Timeframe)
+  if(!IsExplicitSupportedPivotTimeframe(Deep_Timeframe))
   {
-    reason_out = "Macro_Timeframe and Micro_Timeframe must be distinct";
+    reason_out = "Deep_Timeframe is not a supported MetaTrader timeframe";
+    return false;
+  }
+  if(Macro_Timeframe == Micro_Timeframe ||
+     Macro_Timeframe == Deep_Timeframe ||
+     Micro_Timeframe == Deep_Timeframe)
+  {
+    reason_out = "Macro_Timeframe, Deep_Timeframe, and Micro_Timeframe must be distinct";
     return false;
   }
 
   int macro_seconds = PeriodSeconds(Macro_Timeframe);
+  int deep_seconds = PeriodSeconds(Deep_Timeframe);
   int micro_seconds = PeriodSeconds(Micro_Timeframe);
   if(macro_seconds <= 0)
   {
@@ -107,9 +120,14 @@ bool ValidatePivotTimeframeInputs(string &reason_out)
     reason_out = "Micro_Timeframe duration is unavailable";
     return false;
   }
-  if(micro_seconds >= macro_seconds)
+  if(deep_seconds <= 0)
   {
-    reason_out = "Micro_Timeframe must be shorter than Macro_Timeframe";
+    reason_out = "Deep_Timeframe duration is unavailable";
+    return false;
+  }
+  if(micro_seconds >= deep_seconds || deep_seconds >= macro_seconds)
+  {
+    reason_out = "Timeframes must satisfy Micro_Timeframe < Deep_Timeframe < Macro_Timeframe";
     return false;
   }
   return true;
@@ -152,8 +170,9 @@ int OnInit()
   string timeframe_reason = "";
   if(!ValidatePivotTimeframeInputs(timeframe_reason))
   {
-    PrintFormat("Invalid pivot timeframe inputs | Macro=%s | Micro=%s | reason=%s",
+    PrintFormat("Invalid pivot timeframe inputs | Macro=%s | Deep=%s | Micro=%s | reason=%s",
                 EnumToString(Macro_Timeframe),
+                EnumToString(Deep_Timeframe),
                 EnumToString(Micro_Timeframe),
                 timeframe_reason);
     return INIT_PARAMETERS_INCORRECT;
@@ -174,6 +193,11 @@ int OnInit()
   }
 
   g_execution_magic = ResolveStableExecutionMagic();
+  if(Enable_Logs)
+    PrintFormat("Pivot timeframe order | Micro=%s | Deep=%s | Macro=%s",
+                EnumToString(Micro_Timeframe),
+                EnumToString(Deep_Timeframe),
+                EnumToString(Macro_Timeframe));
   if(!PivotV12StatsInit())
   {
     Print("V13 export initialization failed; EA initialization stopped");
@@ -238,6 +262,7 @@ void OnTick()
   ProcessPivotTrialLanesTick(tick);
   if(pivot_context_ready)
     ProcessPreparedPivotFractalTick(tick);
+  ProcessDeepPivotTick(tick);
   datetime current_time = TimeCurrent();
   if(FrontendRefreshDue(current_time))
     RefreshExecutionVisualization();

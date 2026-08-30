@@ -105,6 +105,26 @@ enum PivotTrialQuoteSides
   PIVOT_TRIAL_QUOTE_SIDE_ASK  = 2
 };
 
+enum DeepPivotAdmissionStatuses
+{
+  DEEP_PIVOT_ADMISSION_ADMITTED          = 0,
+  DEEP_PIVOT_ADMISSION_CAPACITY_REJECTED = 1
+};
+
+enum DeepPivotParentKinds
+{
+  DEEP_PIVOT_PARENT_H1_VIRTUAL = 0,
+  DEEP_PIVOT_PARENT_BROKER     = 1
+};
+
+enum DeepPivotLinkStatuses
+{
+  DEEP_PIVOT_LINK_ACTIVE       = 0,
+  DEEP_PIVOT_LINK_PARENT_EXIT  = 1,
+  DEEP_PIVOT_LINK_RUN_END      = 2,
+  DEEP_PIVOT_LINK_COMPLETE     = 3
+};
+
 enum ExecutionLotTypes
 {
   EXECUTION_LOT_FIXED_SIZE                = 0,

@@ -86,9 +86,15 @@ struct PivotFractalWindowState
 
 PivotFractalWindowState g_pivot_fractal_window;
 
+PivotFractalWindowState g_deep_pivot_window;
+
+void ResetDeepPivotRuntimeState();
+
 void ResetPivotFractalEngineState()
 {
   g_pivot_fractal_window.Reset(Macro_Timeframe);
+  g_deep_pivot_window.Reset(Deep_Timeframe);
+  ResetDeepPivotRuntimeState();
 }
 
 void MarkPivotWindowPending(PivotFractalWindowState &window,
@@ -150,14 +156,16 @@ bool LoadCompletedPivotSourceRate(const string symbol,
   return true;
 }
 
-bool RefreshPivotFractalWindowState(PivotFractalWindowState &window,
-                                    const datetime active_bar_open,
-                                    const datetime observation_time,
-                                    const bool force_refresh)
+bool RefreshPivotFractalWindowStateForTimeframe(
+  PivotFractalWindowState &window,
+  const ENUM_TIMEFRAMES timeframe,
+  const datetime active_bar_open,
+  const datetime observation_time,
+  const bool force_refresh)
 {
   if(active_bar_open <= 0 ||
      observation_time <= 0 ||
-     Macro_Timeframe == PERIOD_CURRENT)
+     timeframe == PERIOD_CURRENT)
     return false;
 
   // Tester series may advertise the next bar before the observed tick reaches
@@ -186,7 +194,7 @@ bool RefreshPivotFractalWindowState(PivotFractalWindowState &window,
   int source_error = 0;
   string source_reason = "";
   if(!LoadCompletedPivotSourceRate(_Symbol,
-                                   Macro_Timeframe,
+                                   timeframe,
                                    active_bar_open,
                                    source_rate,
                                    source_error,
@@ -210,7 +218,7 @@ bool RefreshPivotFractalWindowState(PivotFractalWindowState &window,
     return false;
   }
 
-  window.timeframe = Macro_Timeframe;
+  window.timeframe = timeframe;
   window.state = PIVOT_WINDOW_VALID;
   window.source_bar_open = source_rate.time;
   window.source_close_boundary = active_bar_open;
@@ -221,6 +229,18 @@ bool RefreshPivotFractalWindowState(PivotFractalWindowState &window,
   return true;
 }
 
+bool RefreshPivotFractalWindowState(PivotFractalWindowState &window,
+                                    const datetime active_bar_open,
+                                    const datetime observation_time,
+                                    const bool force_refresh)
+{
+  return RefreshPivotFractalWindowStateForTimeframe(window,
+                                                    Macro_Timeframe,
+                                                    active_bar_open,
+                                                    observation_time,
+                                                    force_refresh);
+}
+
 bool RefreshPivotFractalWindow(const datetime active_bar_open,
                                const datetime observation_time,
                                const bool force_refresh = false)
@@ -229,6 +249,32 @@ bool RefreshPivotFractalWindow(const datetime active_bar_open,
                                         active_bar_open,
                                         observation_time,
                                         force_refresh);
+}
+
+bool RefreshDeepPivotFractalWindow(const datetime observation_time,
+                                   const bool force_refresh = false)
+{
+  if(observation_time <= 0 || Deep_Timeframe == PERIOD_CURRENT)
+    return false;
+  ResetLastError();
+  datetime current_open = iTime(_Symbol, Deep_Timeframe, 0);
+  if(current_open <= 0)
+  {
+    if(g_deep_pivot_window.state != PIVOT_WINDOW_VALID)
+    {
+      g_deep_pivot_window.timeframe = Deep_Timeframe;
+      MarkPivotWindowPending(g_deep_pivot_window,
+                             GetLastError(),
+                             "ACTIVE_DEEP_BAR_UNAVAILABLE",
+                             observation_time);
+    }
+    return false;
+  }
+  return RefreshPivotFractalWindowStateForTimeframe(g_deep_pivot_window,
+                                                    Deep_Timeframe,
+                                                    current_open,
+                                                    observation_time,
+                                                    force_refresh);
 }
 
 bool PivotFractalWindow(PivotFractalWindowState &window_out)

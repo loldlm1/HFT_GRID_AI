@@ -18,6 +18,7 @@ const double PIVOT_EXECUTION_REFERENCE_BALANCE = 1000000.0;
 input group  "+= Market Data Time =+";
 input BrokerSessionTimeModes Broker_Session = FIXED_TIME_SESSIONS;
 input ENUM_TIMEFRAMES Macro_Timeframe = PERIOD_H1;
+input ENUM_TIMEFRAMES Deep_Timeframe = PERIOD_M10;
 input ENUM_TIMEFRAMES Micro_Timeframe = PERIOD_M3;
 
 input group  "+= Broker Execution =+";

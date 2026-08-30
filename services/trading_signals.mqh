@@ -12,6 +12,7 @@
 #include "trading_signals/pivot_fractal_engine_state.mqh"
 #include "trading_signals/pivot_signal_struct.mqh"
 #include "trading_signals/pivot_trial_matrix_struct.mqh"
+#include "trading_signals/deep_pivot_signal_struct.mqh"
 #include "trading_signals/pivot_trial_matrix_geometry.mqh"
 #include "trading_signals/pivot_trial_matrix_state.mqh"
 #include "trading_signals/pivot_signal_state.mqh"
@@ -25,5 +26,6 @@
 #include "trading_signals/execution_controller.mqh"
 #include "trading_signals/pivot_signal_lifecycle.mqh"
 #include "trading_signals/pivot_fractal_signal_detection.mqh"
+#include "trading_signals/deep_pivot_lifecycle.mqh"
 
 #endif // _SERVICES_TRADING_SIGNALS_MQH_
