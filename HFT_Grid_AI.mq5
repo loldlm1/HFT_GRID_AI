@@ -224,6 +224,7 @@ void OnDeinit(const int reason)
   string completion_status = PivotRunCompletionStatus();
   FinalizePivotSignalAttemptsForExport();
   FinalizePivotTrialLanesForExport();
+  FinalizeDeepPivotForExport();
   FinalizeActivePivotWindowsForExport();
   PivotV12StatsDeinit(completion_status);
   CloseAppendFileLog();

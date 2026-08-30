@@ -356,6 +356,7 @@ bool BuildInitialPivotTrial(const PivotSignal &signal,
        signal.execution.observation_check.trade_tick_size,
        signal.execution.observation_check.stops_distance_points,
        signal.execution.observation_check.freeze_distance_points,
+       false,
        trial_out.geometry))
   {
     trial_out.ineligible_reason = trial_out.geometry.invalid_reason == ""
@@ -533,6 +534,7 @@ bool ActivatePendingMidpointLanesAtTick(const MqlTick &tick)
          facts.trade_tick_size,
          facts.stops_distance_points,
          facts.freeze_distance_points,
+         true,
          geometry))
     {
       PivotTrialOutcome outcome;

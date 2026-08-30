@@ -404,6 +404,7 @@ bool BuildPivotTrialGeometryAtStop(const string origin_id,
                                    const double trade_tick_size,
                                    const double stops_level_points,
                                    const double freeze_level_points,
+                                   const bool allow_outward_normalization,
                                    PivotTrialGeometry &geometry_out)
 {
   geometry_out.Reset();
@@ -429,13 +430,23 @@ bool BuildPivotTrialGeometryAtStop(const string origin_id,
                               geometry_out))
     return false;
   double tolerance = trade_tick_size * 1e-7;
-  if(MathAbs(geometry_out.stop_loss_price - stop_loss_price) > tolerance)
+  if(MathAbs(geometry_out.stop_loss_price - stop_loss_price) > tolerance &&
+     !allow_outward_normalization)
   {
     geometry_out.Reset();
     geometry_out.invalid_reason = "STRUCTURAL_STOP_NOT_TICK_ALIGNED";
     return false;
   }
-  geometry_out.stop_loss_price = stop_loss_price;
+  if(allow_outward_normalization &&
+     ((direction == BULLISH && geometry_out.stop_loss_price > stop_loss_price + tolerance) ||
+      (direction == BEARISH && geometry_out.stop_loss_price < stop_loss_price - tolerance)))
+  {
+    geometry_out.Reset();
+    geometry_out.invalid_reason = "STOP_NORMALIZATION_NOT_OUTWARD";
+    return false;
+  }
+  if(!allow_outward_normalization)
+    geometry_out.stop_loss_price = stop_loss_price;
   return true;
 }
 

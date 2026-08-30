@@ -774,4 +774,67 @@ bool BuildPivotSignalFeatureSnapshot(
   return signal_snapshot_out.complete;
 }
 
+bool CapturePivotMicroFeatureSnapshot(const double trigger_bid,
+                                      const double pivot_price,
+                                      const datetime broker_time,
+                                      PivotContextFeatureSnapshot &snapshot_out)
+{
+  snapshot_out.Reset();
+  snapshot_out.captured = true;
+  snapshot_out.broker_time = broker_time;
+  snapshot_out.trigger_bid = trigger_bid;
+  snapshot_out.pivot_price = pivot_price;
+
+  double point_size = SymbolInfoDouble(_Symbol, SYMBOL_POINT);
+  bool bands_complete = CapturePivotBandEnvelope(Micro_Timeframe,
+                                                  broker_time,
+                                                  snapshot_out.micro_bands);
+  bool stochastic_complete = CapturePivotStochasticLines(
+    Micro_Timeframe,
+    broker_time,
+    snapshot_out.micro_stochastic);
+  bool main_complete = DerivePivotFeatureSeries(
+    snapshot_out.micro_stochastic.main_line,
+    snapshot_out.micro_stochastic.main_line_available,
+    snapshot_out.micro_stochastic_main_line_features);
+  bool signal_complete = DerivePivotFeatureSeries(
+    snapshot_out.micro_stochastic.signal_line,
+    snapshot_out.micro_stochastic.signal_line_available,
+    snapshot_out.micro_stochastic_signal_line_features);
+  bool trend_complete = DerivePivotBandTrend(snapshot_out.micro_bands,
+                                             point_size,
+                                             snapshot_out.micro_band_trend);
+  bool b_percent_complete = BuildPivotBPercentSeries(
+    pivot_price,
+    snapshot_out.micro_bands,
+    snapshot_out.micro_b_percent_features);
+
+  if(!bands_complete)
+    AppendPivotFeatureReason(snapshot_out.invalid_reason,
+                             "MICRO_" +
+                             snapshot_out.micro_bands.invalid_reason);
+  if(!stochastic_complete)
+    AppendPivotFeatureReason(snapshot_out.invalid_reason,
+                             "MICRO_" +
+                             snapshot_out.micro_stochastic.invalid_reason);
+  if(!main_complete || !signal_complete)
+    AppendPivotFeatureReason(snapshot_out.invalid_reason,
+                             "MICRO_STOCHASTIC_DERIVATION_INVALID");
+  if(!trend_complete)
+    AppendPivotFeatureReason(snapshot_out.invalid_reason,
+                             "MICRO_BAND_TREND_INVALID");
+  if(!b_percent_complete)
+    AppendPivotFeatureReason(snapshot_out.invalid_reason,
+                             "MICRO_B_PERCENT_INVALID");
+
+  if(snapshot_out.micro_band_trend.width_available)
+    snapshot_out.micro_band_width_0 =
+      snapshot_out.micro_band_trend.width_price_0;
+  snapshot_out.micro_complete = bands_complete && stochastic_complete &&
+                                main_complete && signal_complete &&
+                                trend_complete && b_percent_complete;
+  snapshot_out.complete = snapshot_out.micro_complete;
+  return snapshot_out.complete;
+}
+
 #endif // _SERVICES_TRADING_SIGNALS_PIVOT_CONTEXT_FEATURES_MQH_

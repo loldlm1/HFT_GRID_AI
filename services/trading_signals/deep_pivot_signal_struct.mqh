@@ -60,6 +60,9 @@ struct DeepPivotEvent
   double pivot_trade_price;
   double next_outward_pivot_price;
   PivotPriceLadder levels;
+  PivotContextFeatureSnapshot features;
+  bool deep_micro_features_complete;
+  string deep_feature_invalid_reason;
   bool identity_consumed;
   DeepPivotAdmissionStatuses admission_status;
   int active_parent_count;
@@ -98,6 +101,9 @@ struct DeepPivotEvent
     pivot_trade_price = 0.0;
     next_outward_pivot_price = 0.0;
     levels.Reset();
+    features.Reset();
+    deep_micro_features_complete = false;
+    deep_feature_invalid_reason = "";
     identity_consumed = false;
     admission_status = DEEP_PIVOT_ADMISSION_ADMITTED;
     active_parent_count = 0;
@@ -127,6 +133,9 @@ struct DeepPivotEvent
     pivot_trade_price = other.pivot_trade_price;
     next_outward_pivot_price = other.next_outward_pivot_price;
     levels.CopyFrom(other.levels);
+    features.CopyFrom(other.features);
+    deep_micro_features_complete = other.deep_micro_features_complete;
+    deep_feature_invalid_reason = other.deep_feature_invalid_reason;
     identity_consumed = other.identity_consumed;
     admission_status = other.admission_status;
     active_parent_count = other.active_parent_count;
@@ -212,6 +221,234 @@ struct DeepPivotFrozenParent
   {
     deep_event_id = other.deep_event_id;
     parent.CopyFrom(other.parent);
+  }
+};
+
+struct DeepPivotParentLink
+{
+  string parent_link_id;
+  string deep_event_id;
+  string origin_id;
+  DeepPivotParentKinds parent_kind;
+  string parent_trial_id;
+  string parent_broker_signal_id;
+  PivotTrialEntryPolicies parent_entry_policy;
+  int parent_tp_r_multiple;
+  SignalTypes direction;
+  datetime parent_entry_time;
+  datetime event_trigger_time;
+  long parent_age_seconds;
+  DeepPivotLinkStatuses link_status;
+  bool active;
+
+  DeepPivotParentLink()
+  {
+    Reset();
+  }
+
+  DeepPivotParentLink(const DeepPivotParentLink &other)
+  {
+    CopyFrom(other);
+  }
+
+  void Reset()
+  {
+    parent_link_id = "";
+    deep_event_id = "";
+    origin_id = "";
+    parent_kind = DEEP_PIVOT_PARENT_H1_VIRTUAL;
+    parent_trial_id = "";
+    parent_broker_signal_id = "";
+    parent_entry_policy = PIVOT_TRIAL_ENTRY_STRUCTURAL;
+    parent_tp_r_multiple = 0;
+    direction = NO_SIGNAL;
+    parent_entry_time = 0;
+    event_trigger_time = 0;
+    parent_age_seconds = 0;
+    link_status = DEEP_PIVOT_LINK_ACTIVE;
+    active = true;
+  }
+
+  void CopyFrom(const DeepPivotParentLink &other)
+  {
+    parent_link_id = other.parent_link_id;
+    deep_event_id = other.deep_event_id;
+    origin_id = other.origin_id;
+    parent_kind = other.parent_kind;
+    parent_trial_id = other.parent_trial_id;
+    parent_broker_signal_id = other.parent_broker_signal_id;
+    parent_entry_policy = other.parent_entry_policy;
+    parent_tp_r_multiple = other.parent_tp_r_multiple;
+    direction = other.direction;
+    parent_entry_time = other.parent_entry_time;
+    event_trigger_time = other.event_trigger_time;
+    parent_age_seconds = other.parent_age_seconds;
+    link_status = other.link_status;
+    active = other.active;
+  }
+};
+
+struct DeepPivotTrial
+{
+  string deep_trial_id;
+  string deep_event_id;
+  int tp_r_multiple;
+  PivotLevelIds level_id;
+  SignalTypes direction;
+  datetime declared_time;
+  PivotTrialGeometry geometry;
+  PivotTrialMoneyPlan money_plan;
+  PivotTrialEligibilityStatuses eligibility_status;
+  string ineligible_reason;
+  int remaining_parent_count;
+  bool active;
+
+  DeepPivotTrial()
+  {
+    Reset();
+  }
+
+  DeepPivotTrial(const DeepPivotTrial &other)
+  {
+    CopyFrom(other);
+  }
+
+  void Reset()
+  {
+    deep_trial_id = "";
+    deep_event_id = "";
+    tp_r_multiple = 0;
+    level_id = PIVOT_LEVEL_PP;
+    direction = NO_SIGNAL;
+    declared_time = 0;
+    geometry.Reset();
+    money_plan.Reset();
+    eligibility_status = PIVOT_TRIAL_ELIGIBILITY_INELIGIBLE_GEOMETRY;
+    ineligible_reason = "";
+    remaining_parent_count = 0;
+    active = true;
+  }
+
+  void CopyFrom(const DeepPivotTrial &other)
+  {
+    deep_trial_id = other.deep_trial_id;
+    deep_event_id = other.deep_event_id;
+    tp_r_multiple = other.tp_r_multiple;
+    level_id = other.level_id;
+    direction = other.direction;
+    declared_time = other.declared_time;
+    geometry.CopyFrom(other.geometry);
+    money_plan.CopyFrom(other.money_plan);
+    eligibility_status = other.eligibility_status;
+    ineligible_reason = other.ineligible_reason;
+    remaining_parent_count = other.remaining_parent_count;
+    active = other.active;
+  }
+};
+
+struct DeepPivotOutcome
+{
+  string deep_outcome_id;
+  string parent_link_id;
+  string deep_trial_id;
+  string deep_event_id;
+  string origin_id;
+  int tp_r_multiple;
+  SignalTypes direction;
+  datetime terminal_time;
+  PivotTrialFirstTouchOutcomes first_touch;
+  string terminal_status;
+  string terminal_reason;
+  double threshold_price;
+  double observed_exit_bid;
+  double observed_exit_ask;
+  double observed_exit_price;
+  PivotTrialQuoteSides exit_quote_side;
+  double gap_points;
+  bool lifecycle_seconds_available;
+  long lifecycle_seconds;
+  double virtual_nominal_r;
+  bool virtual_quote_gross_available;
+  double virtual_quote_gross_profit;
+  double virtual_quote_gross_r;
+  bool virtual_binary_eligible;
+  int virtual_binary_target;
+  string virtual_exclusion_reason;
+  bool first_touch_consistent;
+  bool active;
+
+  DeepPivotOutcome()
+  {
+    Reset();
+  }
+
+  DeepPivotOutcome(const DeepPivotOutcome &other)
+  {
+    CopyFrom(other);
+  }
+
+  void Reset()
+  {
+    deep_outcome_id = "";
+    parent_link_id = "";
+    deep_trial_id = "";
+    deep_event_id = "";
+    origin_id = "";
+    tp_r_multiple = 0;
+    direction = NO_SIGNAL;
+    terminal_time = 0;
+    first_touch = PIVOT_TRIAL_FIRST_TOUCH_PENDING;
+    terminal_status = "";
+    terminal_reason = "";
+    threshold_price = 0.0;
+    observed_exit_bid = 0.0;
+    observed_exit_ask = 0.0;
+    observed_exit_price = 0.0;
+    exit_quote_side = PIVOT_TRIAL_QUOTE_SIDE_NONE;
+    gap_points = 0.0;
+    lifecycle_seconds_available = false;
+    lifecycle_seconds = 0;
+    virtual_nominal_r = 0.0;
+    virtual_quote_gross_available = false;
+    virtual_quote_gross_profit = 0.0;
+    virtual_quote_gross_r = 0.0;
+    virtual_binary_eligible = false;
+    virtual_binary_target = -1;
+    virtual_exclusion_reason = "";
+    first_touch_consistent = false;
+    active = true;
+  }
+
+  void CopyFrom(const DeepPivotOutcome &other)
+  {
+    deep_outcome_id = other.deep_outcome_id;
+    parent_link_id = other.parent_link_id;
+    deep_trial_id = other.deep_trial_id;
+    deep_event_id = other.deep_event_id;
+    origin_id = other.origin_id;
+    tp_r_multiple = other.tp_r_multiple;
+    direction = other.direction;
+    terminal_time = other.terminal_time;
+    first_touch = other.first_touch;
+    terminal_status = other.terminal_status;
+    terminal_reason = other.terminal_reason;
+    threshold_price = other.threshold_price;
+    observed_exit_bid = other.observed_exit_bid;
+    observed_exit_ask = other.observed_exit_ask;
+    observed_exit_price = other.observed_exit_price;
+    exit_quote_side = other.exit_quote_side;
+    gap_points = other.gap_points;
+    lifecycle_seconds_available = other.lifecycle_seconds_available;
+    lifecycle_seconds = other.lifecycle_seconds;
+    virtual_nominal_r = other.virtual_nominal_r;
+    virtual_quote_gross_available = other.virtual_quote_gross_available;
+    virtual_quote_gross_profit = other.virtual_quote_gross_profit;
+    virtual_quote_gross_r = other.virtual_quote_gross_r;
+    virtual_binary_eligible = other.virtual_binary_eligible;
+    virtual_binary_target = other.virtual_binary_target;
+    virtual_exclusion_reason = other.virtual_exclusion_reason;
+    first_touch_consistent = other.first_touch_consistent;
+    active = other.active;
   }
 };
 
