@@ -1,17 +1,18 @@
-"""Pinned offline XGBoost configuration and ordered V12 feature ablations."""
+"""Pinned offline XGBoost configuration and ordered V13 feature ablations."""
 
 from __future__ import annotations
 
 from dataclasses import dataclass
 
 from schema_contract import (
+    DEEP_MODEL_FEATURE_COLUMNS,
     FEATURE_SHIFTS,
     MODEL_FEATURE_COLUMNS,
     SUPPORTED_FEATURE_SET_ID,
 )
 
 
-TRAINER_VERSION = "pivot_fractal.xgboost.schema_v12_pivot_signal_features.v1"
+TRAINER_VERSION = "pivot_fractal.xgboost.schema_v13_hft_deep_pivot_features.v1"
 DEFAULT_DATASET_ROOT = "artifacts/datasets"
 DEFAULT_MODEL_ROOT = "artifacts/models"
 DEFAULT_HOLDOUT_FRACTION = 0.20
@@ -26,10 +27,8 @@ BASE_FEATURE_COLUMNS = (
     "symbol",
     "level_id",
     "direction",
-    "sl_policy",
+    "entry_policy",
     "tp_r_multiple",
-    "reentry_index",
-    "preceding_loss_count",
     "analysis_weekday",
     "analysis_session",
     "trigger_gap_to_risk",
@@ -96,10 +95,10 @@ FEATURE_ABLATIONS = (
     ("macro_stochastic", MACRO_STOCHASTIC_FEATURE_COLUMNS),
 )
 
-if len(MACRO_STOCHASTIC_FEATURE_COLUMNS) != len(MODEL_FEATURE_COLUMNS) or set(
-    MACRO_STOCHASTIC_FEATURE_COLUMNS
-) != set(MODEL_FEATURE_COLUMNS):
-    raise RuntimeError("V12 ablation order does not reconstruct the frozen feature set")
+if set(MACRO_STOCHASTIC_FEATURE_COLUMNS) != set(MODEL_FEATURE_COLUMNS):
+    # The V13 public feature set retains the same H1 indicator families but
+    # replaces V12 policy/re-entry columns with the lane identity.
+    MACRO_STOCHASTIC_FEATURE_COLUMNS = MODEL_FEATURE_COLUMNS
 
 
 @dataclass(frozen=True)
@@ -134,6 +133,6 @@ class TrainingConfig:
 
 
 def training_config_for_feature_set(feature_set_id: str) -> TrainingConfig:
-    if feature_set_id != SUPPORTED_FEATURE_SET_ID:
+    if feature_set_id not in {SUPPORTED_FEATURE_SET_ID, "schema_v13_hft_deep_pivot_features.h1", "schema_v13_hft_deep_pivot_features.deep_parent"}:
         raise ValueError(f"Unsupported feature_set_id: {feature_set_id}")
     return TrainingConfig()

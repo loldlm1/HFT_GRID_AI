@@ -1,0 +1,21 @@
+{
+  "feature_set_id": "schema_v13_hft_deep_pivot_features",
+  "files": {
+    "broker_outcomes.tsv": "3a196c628ef3bee7fa73a1979eb6b13c1cc41ea6765acfd0213f48742cd9977c",
+    "deep_pivot_events.tsv": "be73766e3f005e150b544511811a68130e08b8bd663def21dd78620bdd2dc42c",
+    "deep_pivot_parent_links.tsv": "3786363ec1434fc30e7a28e3744d3ca58672797d5696f09ab8c71557475ed205",
+    "deep_virtual_outcomes.tsv": "d84faceddeb81c233c9921a5baf5b2d5f2e56add34aff7e698978998555c41f8",
+    "deep_virtual_trials.tsv": "b5e9727d8dc7ae89279331487235863aa181d1aea3e8e1e388cc69e2116254fd",
+    "execution_checks.tsv": "5bf2df73100249356302df7b3fb85f5a9d3b9d0859c91dc3a9d61d9c4bd673c9",
+    "pivot_windows.tsv": "bee9d10dd07b207e4af19d4ee2812b516e83ba41ff874fdedd0fa089eb37c755",
+    "run_manifest.tsv": "89877a13edd8b5f45e4d5b394e23a3a867924766303bd69c9d77fc478959af8f",
+    "run_summary.tsv": "4ea68867cf35217a5e0002b5ae5644fc0e1b2fd199a59884ee30ef9c3c9aa723",
+    "signal_origins.tsv": "9b161692380631624970270476c5ef31fad326a86ca6037f4ad5241d30896f98",
+    "virtual_outcomes.tsv": "897670bb7179edba0c06771f6712a9fd8e517d44e44c19e1ea77874f66e682df",
+    "virtual_trials.tsv": "965d438491d1e242b329d41ea3aee217329f5f19def0261ac686d6b3fc6c31d8"
+  },
+  "fixture_id": "schema_v13_hft_deep_pivot_features",
+  "generator": "generate_fixture.py",
+  "registry_sha256": "986c4868fb70b08e18296e8679a5ad2aeebe59849571ef2b7ee58fcab8cde3c1",
+  "schema_version": 13
+}
