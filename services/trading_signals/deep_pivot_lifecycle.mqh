@@ -20,14 +20,14 @@ int g_deep_pivot_duplicate_identity_count = 0;
 int g_deep_pivot_capacity_rejected_count = 0;
 bool g_deep_pivot_state_capacity_failed = false;
 bool g_deep_pivot_state_allocation_failed = false;
+datetime g_deep_pivot_window_terminal_exported_open = 0;
 
 string DeepPivotWindowId(const ENUM_TIMEFRAMES timeframe,
                          const datetime active_bar_open)
 {
   if(timeframe == PERIOD_CURRENT || active_bar_open <= 0)
     return "";
-  return "deep_window_" + EnumToString(timeframe) + "_" +
-         StringFormat("%I64d", active_bar_open);
+  return PivotV13WindowId(_Symbol, timeframe, active_bar_open);
 }
 
 string DeepPivotEventId(const string deep_window_id,
@@ -65,6 +65,7 @@ void ResetDeepPivotRuntimeState()
   g_deep_pivot_duplicate_identity_count = 0;
   g_deep_pivot_capacity_rejected_count = 0;
   g_deep_pivot_state_capacity_failed = false;
+  g_deep_pivot_window_terminal_exported_open = 0;
   g_deep_pivot_state_allocation_failed = resized != 0 ||
                                         parent_resized != 0 ||
                                         link_resized != 0 ||
@@ -87,6 +88,11 @@ int DeepPivotEventCapacityRejectedCount()
   return g_deep_pivot_capacity_rejected_count;
 }
 
+int DeepPivotDuplicateIdentityCount()
+{
+  return g_deep_pivot_duplicate_identity_count;
+}
+
 int DeepPivotFrozenParentCount()
 {
   return ArraySize(g_deep_pivot_frozen_parents);
@@ -105,6 +111,23 @@ int DeepPivotTrialCount()
 int DeepPivotOutcomeCount()
 {
   return ArraySize(g_deep_pivot_outcomes);
+}
+
+bool DeepPivotHasOutstandingOutcomes()
+{
+  for(int i = 0; i < DeepPivotOutcomeCount(); i++)
+    if(g_deep_pivot_outcomes[i].active)
+      return true;
+  for(int i = 0; i < DeepPivotParentLinkCount(); i++)
+    if(g_deep_pivot_parent_links[i].active)
+      return true;
+  for(int i = 0; i < DeepPivotTrialCount(); i++)
+    if(g_deep_pivot_trials[i].active)
+      return true;
+  for(int i = 0; i < DeepPivotEventCount(); i++)
+    if(!g_deep_pivot_events[i].terminal)
+      return true;
+  return false;
 }
 
 int DeepPivotParentLinkPeak()
@@ -290,7 +313,7 @@ int CollectDeepPivotParentSnapshot(const SignalTypes direction,
   if(ArrayResize(parents, 0, DEEP_PIVOT_PARENT_SNAPSHOT_RESERVE) != 0)
   {
     g_deep_pivot_state_allocation_failed = true;
-    return 0;
+    return -1;
   }
   if(event_time <= 0)
     return 0;
@@ -324,14 +347,14 @@ int CollectDeepPivotParentSnapshot(const SignalTypes direction,
     if(total >= PIVOT_DEEP_LINK_ACTIVE_CAP)
     {
       g_deep_pivot_state_capacity_failed = true;
-      break;
+      return -1;
     }
     if(ArrayResize(parents,
                    total + 1,
                    DEEP_PIVOT_PARENT_SNAPSHOT_RESERVE) != total + 1)
     {
       g_deep_pivot_state_allocation_failed = true;
-      break;
+      return -1;
     }
     parents[total].CopyFrom(candidate);
     total++;
@@ -365,14 +388,14 @@ int CollectDeepPivotParentSnapshot(const SignalTypes direction,
     if(total >= PIVOT_DEEP_LINK_ACTIVE_CAP)
     {
       g_deep_pivot_state_capacity_failed = true;
-      break;
+      return -1;
     }
     if(ArrayResize(parents,
                    total + 1,
                    DEEP_PIVOT_PARENT_SNAPSHOT_RESERVE) != total + 1)
     {
       g_deep_pivot_state_allocation_failed = true;
-      break;
+      return -1;
     }
     parents[total].CopyFrom(candidate);
     total++;
@@ -665,8 +688,25 @@ bool DeepPivotEventHasActiveOutcome(const string deep_event_id)
   return false;
 }
 
+int DeepPivotTrialActiveOutcomeCount(const string deep_trial_id)
+{
+  int count = 0;
+  for(int i = 0; i < DeepPivotOutcomeCount(); i++)
+    if(g_deep_pivot_outcomes[i].deep_trial_id == deep_trial_id &&
+       g_deep_pivot_outcomes[i].active)
+      count++;
+  return count;
+}
+
 void RefreshDeepPivotTerminalFlags()
 {
+  for(int i = 0; i < DeepPivotTrialCount(); i++)
+  {
+    int remaining = DeepPivotTrialActiveOutcomeCount(
+      g_deep_pivot_trials[i].deep_trial_id);
+    g_deep_pivot_trials[i].remaining_parent_count = remaining;
+    g_deep_pivot_trials[i].active = remaining > 0;
+  }
   for(int i = 0; i < DeepPivotParentLinkCount(); i++)
   {
     DeepPivotParentLink &link = g_deep_pivot_parent_links[i];
@@ -685,6 +725,108 @@ void RefreshDeepPivotTerminalFlags()
   }
 }
 
+bool RemoveDeepPivotOutcomeAt(const int index)
+{
+  int total = DeepPivotOutcomeCount();
+  if(index < 0 || index >= total)
+    return false;
+  for(int i = index; i < total - 1; i++)
+    g_deep_pivot_outcomes[i].CopyFrom(g_deep_pivot_outcomes[i + 1]);
+  int reserve = total - 1 > 0 ? DEEP_PIVOT_PARENT_SNAPSHOT_RESERVE : 0;
+  return ArrayResize(g_deep_pivot_outcomes, total - 1, reserve) == total - 1;
+}
+
+bool RemoveDeepPivotParentLinkAt(const int index)
+{
+  int total = DeepPivotParentLinkCount();
+  if(index < 0 || index >= total)
+    return false;
+  for(int i = index; i < total - 1; i++)
+    g_deep_pivot_parent_links[i].CopyFrom(g_deep_pivot_parent_links[i + 1]);
+  int reserve = total - 1 > 0 ? DEEP_PIVOT_PARENT_SNAPSHOT_RESERVE : 0;
+  return ArrayResize(g_deep_pivot_parent_links,
+                     total - 1,
+                     reserve) == total - 1;
+}
+
+bool RemoveDeepPivotTrialAt(const int index)
+{
+  int total = DeepPivotTrialCount();
+  if(index < 0 || index >= total)
+    return false;
+  for(int i = index; i < total - 1; i++)
+    g_deep_pivot_trials[i].CopyFrom(g_deep_pivot_trials[i + 1]);
+  int reserve = total - 1 > 0 ? DEEP_PIVOT_PARENT_SNAPSHOT_RESERVE : 0;
+  return ArrayResize(g_deep_pivot_trials, total - 1, reserve) == total - 1;
+}
+
+bool RemoveDeepPivotFrozenParentAt(const int index)
+{
+  int total = DeepPivotFrozenParentCount();
+  if(index < 0 || index >= total)
+    return false;
+  for(int i = index; i < total - 1; i++)
+    g_deep_pivot_frozen_parents[i].CopyFrom(
+      g_deep_pivot_frozen_parents[i + 1]);
+  int reserve = total - 1 > 0 ? DEEP_PIVOT_PARENT_SNAPSHOT_RESERVE : 0;
+  return ArrayResize(g_deep_pivot_frozen_parents,
+                     total - 1,
+                     reserve) == total - 1;
+}
+
+bool RemoveDeepPivotEventAt(const int index)
+{
+  int total = DeepPivotEventCount();
+  if(index < 0 || index >= total)
+    return false;
+  for(int i = index; i < total - 1; i++)
+    g_deep_pivot_events[i].CopyFrom(g_deep_pivot_events[i + 1]);
+  int reserve = total - 1 > 0 ? DEEP_PIVOT_PARENT_SNAPSHOT_RESERVE : 0;
+  return ArrayResize(g_deep_pivot_events, total - 1, reserve) == total - 1;
+}
+
+bool ReleaseTerminalDeepPivotState()
+{
+  for(int event_index = DeepPivotEventCount() - 1;
+      event_index >= 0;
+      event_index--)
+  {
+    const string deep_event_id =
+      g_deep_pivot_events[event_index].identity.deep_event_id;
+    if(!g_deep_pivot_events[event_index].terminal ||
+       DeepPivotEventHasActiveOutcome(deep_event_id))
+      continue;
+
+    for(int i = DeepPivotOutcomeCount() - 1; i >= 0; i--)
+    {
+      if(g_deep_pivot_outcomes[i].deep_event_id == deep_event_id &&
+         !RemoveDeepPivotOutcomeAt(i))
+        return false;
+    }
+    for(int i = DeepPivotParentLinkCount() - 1; i >= 0; i--)
+    {
+      if(g_deep_pivot_parent_links[i].deep_event_id == deep_event_id &&
+         !RemoveDeepPivotParentLinkAt(i))
+        return false;
+    }
+    for(int i = DeepPivotTrialCount() - 1; i >= 0; i--)
+    {
+      if(g_deep_pivot_trials[i].deep_event_id == deep_event_id &&
+         !RemoveDeepPivotTrialAt(i))
+        return false;
+    }
+    for(int i = DeepPivotFrozenParentCount() - 1; i >= 0; i--)
+    {
+      if(g_deep_pivot_frozen_parents[i].deep_event_id == deep_event_id &&
+         !RemoveDeepPivotFrozenParentAt(i))
+        return false;
+    }
+    if(!RemoveDeepPivotEventAt(event_index))
+      return false;
+  }
+  return true;
+}
+
 void ResolveDeepPivotActiveOutcomes(const MqlTick &tick)
 {
   if(!PivotTrialQuoteValid(tick))
@@ -697,7 +839,10 @@ void ResolveDeepPivotActiveOutcomes(const MqlTick &tick)
     int link_index = FindDeepPivotParentLink(active_outcome.parent_link_id);
     int trial_index = FindDeepPivotTrial(active_outcome.deep_trial_id);
     if(link_index < 0 || trial_index < 0)
+    {
+      g_deep_pivot_state_allocation_failed = true;
       continue;
+    }
     DeepPivotParentLink &link = g_deep_pivot_parent_links[link_index];
     DeepPivotTrial &trial = g_deep_pivot_trials[trial_index];
     DeepPivotOutcome resolved;
@@ -719,7 +864,8 @@ void ResolveDeepPivotActiveOutcomes(const MqlTick &tick)
     }
     if(!resolved_now)
       continue;
-    if(!QueueDeepPivotOutcomeForExport(resolved))
+    if(!PivotV13RecordDeepPivotOutcome(resolved) ||
+       !QueueDeepPivotOutcomeForExport(resolved))
     {
       g_deep_pivot_state_allocation_failed = true;
       continue;
@@ -732,6 +878,8 @@ void ResolveDeepPivotActiveOutcomes(const MqlTick &tick)
       trial.active = false;
   }
   RefreshDeepPivotTerminalFlags();
+  if(!ReleaseTerminalDeepPivotState())
+    g_deep_pivot_state_allocation_failed = true;
 }
 
 bool AppendDeepPivotCapacityRejectedEvent(const DeepPivotEvent &event,
@@ -747,33 +895,16 @@ bool AppendDeepPivotCapacityRejectedEvent(const DeepPivotEvent &event,
     g_deep_pivot_duplicate_identity_count++;
     return false;
   }
-  int total = DeepPivotEventCount();
-  if(total >= PIVOT_DEEP_EVENT_ACTIVE_CAP)
-  {
-    g_deep_pivot_state_capacity_failed = true;
-    return false;
-  }
-  if(ArrayResize(g_deep_pivot_events,
-                 total + 1,
-                 DEEP_PIVOT_PARENT_SNAPSHOT_RESERVE) != total + 1)
-  {
-    g_deep_pivot_state_allocation_failed = true;
-    return false;
-  }
-  DeepPivotEvent &rejected = g_deep_pivot_events[total];
+  DeepPivotEvent rejected;
   rejected.CopyFrom(event);
   rejected.admission_status = DEEP_PIVOT_ADMISSION_CAPACITY_REJECTED;
-  rejected.active_parent_count = 0;
-  rejected.required_link_slots = 0;
-  rejected.required_trial_slots = 0;
-  rejected.required_outcome_slots = 0;
   rejected.capacity_rejection_reason = rejection_reason;
   rejected.reserved_link_slots = 0;
   rejected.reserved_trial_slots = 0;
   rejected.reserved_outcome_slots = 0;
   rejected.terminal = true;
-  if(total + 1 > g_deep_pivot_event_peak)
-    g_deep_pivot_event_peak = total + 1;
+  if(!PivotV13RecordDeepPivotEvent(rejected))
+    return false;
   return true;
 }
 
@@ -826,6 +957,7 @@ bool AppendDeepPivotEvent(const DeepPivotEvent &event,
     trials[trial_index].remaining_parent_count =
       trials[trial_index].eligibility_status ==
       PIVOT_TRIAL_ELIGIBILITY_ACTIVE ? parent_count : 0;
+    trials[trial_index].active = trials[trial_index].remaining_parent_count > 0;
   }
 
   int total = DeepPivotEventCount();
@@ -875,6 +1007,11 @@ bool AppendDeepPivotEvent(const DeepPivotEvent &event,
     return false;
   }
   g_deep_pivot_events[total].CopyFrom(event);
+  if(!PivotV13RecordDeepPivotEvent(g_deep_pivot_events[total]))
+  {
+    g_deep_pivot_state_allocation_failed = true;
+    return false;
+  }
   for(int i = 0; i < parent_count; i++)
   {
     g_deep_pivot_frozen_parents[parents_start + i].deep_event_id =
@@ -901,12 +1038,23 @@ bool AppendDeepPivotEvent(const DeepPivotEvent &event,
                               ? (long)(event.trigger_time -
                                        parents[i].parent_entry_time)
                               : 0;
+    if(!PivotV13RecordDeepPivotParentLink(link))
+    {
+      g_deep_pivot_state_allocation_failed = true;
+      return false;
+    }
   }
   bool event_active = false;
   for(int trial_index = 0; trial_index < 3; trial_index++)
   {
     g_deep_pivot_trials[trials_start + trial_index].CopyFrom(
       trials[trial_index]);
+    if(!PivotV13RecordDeepPivotTrial(
+         g_deep_pivot_trials[trials_start + trial_index]))
+    {
+      g_deep_pivot_state_allocation_failed = true;
+      return false;
+    }
     if(trials[trial_index].eligibility_status ==
        PIVOT_TRIAL_ELIGIBILITY_ACTIVE)
       event_active = true;
@@ -940,6 +1088,11 @@ bool AppendDeepPivotEvent(const DeepPivotEvent &event,
           return false;
         }
         outcome.active = false;
+        if(!PivotV13RecordDeepPivotOutcome(outcome))
+        {
+          g_deep_pivot_state_allocation_failed = true;
+          return false;
+        }
       }
       else
       {
@@ -968,12 +1121,71 @@ bool AppendDeepPivotEvent(const DeepPivotEvent &event,
   if(outcomes_start + parent_count * 3 > g_deep_pivot_outcome_peak)
     g_deep_pivot_outcome_peak = outcomes_start + parent_count * 3;
   RefreshDeepPivotTerminalFlags();
+  if(!ReleaseTerminalDeepPivotState())
+  {
+    g_deep_pivot_state_allocation_failed = true;
+    return false;
+  }
   return true;
+}
+
+bool RefreshDeepPivotWindowForRuntime(const datetime observation_time)
+{
+  if(observation_time <= 0)
+    return false;
+  datetime current_open = iTime(_Symbol, Deep_Timeframe, 0);
+  PivotFractalWindowState previous(g_deep_pivot_window);
+  if(current_open > 0 && current_open <= observation_time &&
+     previous.state == PIVOT_WINDOW_VALID && previous.levels.valid &&
+     previous.active_bar_open > 0 &&
+     previous.active_bar_open != current_open &&
+     g_deep_pivot_window_terminal_exported_open !=
+       previous.active_bar_open)
+  {
+    int deep_seconds = PeriodSeconds(previous.timeframe);
+    datetime terminal_time = deep_seconds > 0
+                             ? previous.active_bar_open + deep_seconds
+                             : current_open;
+    if(!PivotV13RecordWindow(previous, terminal_time, "EXPIRED"))
+      return false;
+    g_deep_pivot_window_terminal_exported_open = previous.active_bar_open;
+  }
+  return RefreshDeepPivotFractalWindow(observation_time);
+}
+
+void FinalizeDeepPivotWindowForExport()
+{
+  if(!PivotV13Enabled() ||
+     g_deep_pivot_window.state != PIVOT_WINDOW_VALID ||
+     !g_deep_pivot_window.levels.valid ||
+     g_deep_pivot_window.active_bar_open <= 0 ||
+     g_deep_pivot_window_terminal_exported_open ==
+       g_deep_pivot_window.active_bar_open)
+    return;
+  datetime terminal_time = TimeCurrent();
+  string terminal_status = "RUN_FINISHED";
+  datetime current_open = iTime(_Symbol, Deep_Timeframe, 0);
+  if(current_open > g_deep_pivot_window.active_bar_open &&
+     current_open <= terminal_time)
+  {
+    int deep_seconds = PeriodSeconds(g_deep_pivot_window.timeframe);
+    terminal_time = deep_seconds > 0
+                    ? g_deep_pivot_window.active_bar_open + deep_seconds
+                    : current_open;
+    terminal_status = "EXPIRED";
+  }
+  if(PivotV13RecordWindow(g_deep_pivot_window,
+                          terminal_time,
+                          terminal_status))
+  {
+    g_deep_pivot_window_terminal_exported_open =
+      g_deep_pivot_window.active_bar_open;
+  }
 }
 
 void ProcessDeepPivotTick(const MqlTick &tick)
 {
-  if(!Enable_Signal_Feature_Export || !PivotTrialQuoteValid(tick) ||
+  if(!PivotV13Ready() || !PivotTrialQuoteValid(tick) ||
      DeepPivotResearchIntegrityFailed())
     return;
 
@@ -991,9 +1203,10 @@ void ProcessDeepPivotTick(const MqlTick &tick)
   int sell_parent_count = CollectDeepPivotParentSnapshot(BEARISH,
                                                           tick.time,
                                                           sell_parents);
-  if(buy_parent_count <= 0 && sell_parent_count <= 0)
+  if(buy_parent_count < 0 || sell_parent_count < 0 ||
+     (buy_parent_count <= 0 && sell_parent_count <= 0))
     return;
-  if(!RefreshDeepPivotFractalWindow(tick.time))
+  if(!RefreshDeepPivotWindowForRuntime(tick.time))
     return;
 
   PivotTouchCandidate candidates[PIVOT_TOUCH_CANDIDATE_MAX];
@@ -1026,8 +1239,13 @@ void ProcessDeepPivotTick(const MqlTick &tick)
 
 void FinalizeDeepPivotForExport()
 {
-  if(!Enable_Signal_Feature_Export || DeepPivotOutcomeCount() <= 0)
+  if(!Enable_Signal_Feature_Export)
     return;
+  if(DeepPivotOutcomeCount() <= 0)
+  {
+    FinalizeDeepPivotWindowForExport();
+    return;
+  }
   MqlTick tick;
   ZeroMemory(tick);
   if(!SymbolInfoTick(_Symbol, tick) || !PivotTrialQuoteValid(tick))
@@ -1067,12 +1285,16 @@ void FinalizeDeepPivotForExport()
     int trial_index = FindDeepPivotTrial(
       g_deep_pivot_outcomes[i].deep_trial_id);
     if(link_index < 0 || trial_index < 0)
+    {
+      g_deep_pivot_state_allocation_failed = true;
       continue;
+    }
     DeepPivotOutcome outcome;
     if(!BuildDeepPivotRunEndOutcome(g_deep_pivot_parent_links[link_index],
                                     g_deep_pivot_trials[trial_index],
                                     tick,
                                     outcome) ||
+       !PivotV13RecordDeepPivotOutcome(outcome) ||
        !QueueDeepPivotOutcomeForExport(outcome))
       continue;
     g_deep_pivot_outcomes[i].CopyFrom(outcome);
@@ -1081,6 +1303,9 @@ void FinalizeDeepPivotForExport()
       DEEP_PIVOT_LINK_RUN_END;
   }
   RefreshDeepPivotTerminalFlags();
+  if(!ReleaseTerminalDeepPivotState())
+    g_deep_pivot_state_allocation_failed = true;
+  FinalizeDeepPivotWindowForExport();
 }
 
 #endif // _SERVICES_TRADING_SIGNALS_DEEP_PIVOT_LIFECYCLE_MQH_

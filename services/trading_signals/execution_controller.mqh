@@ -112,9 +112,9 @@ void AppendExecutionBlockReason(BrokerExecutionCheck &check,
 bool ExportPivotExecutionCheck(PivotSignal &signal,
                                const BrokerExecutionCheck &check)
 {
-  if(!PivotV12Enabled())
+  if(!PivotV13Enabled())
     return true;
-  bool recorded = PivotV12RecordExecutionCheck(signal, check);
+  bool recorded = PivotV13RecordExecutionCheck(signal, check);
   if(recorded && check.phase != "TERMINAL" &&
      signal.execution.broker_entry_confirmed)
     signal.execution.entry_check_exported = true;
@@ -125,12 +125,12 @@ bool RegisterPivotOrigin(PivotSignal &signal)
 {
   if(signal.origin_registered)
     return true;
-  if(!PivotV12Enabled())
+  if(!PivotV13Enabled())
   {
     signal.origin_registered = true;
     return true;
   }
-  if(!PivotV12RegisterOrigin(signal))
+  if(!PivotV13RegisterOrigin(signal))
     return false;
   signal.origin_registered = true;
   return true;
@@ -138,11 +138,11 @@ bool RegisterPivotOrigin(PivotSignal &signal)
 
 bool UpdatePivotOrigin(PivotSignal &signal)
 {
-  if(!PivotV12Enabled())
+  if(!PivotV13Enabled())
     return true;
   if(!signal.origin_registered)
     return false;
-  return PivotV12UpdateOrigin(signal);
+  return PivotV13UpdateOrigin(signal);
 }
 
 void ApplyFailedEligibilityDebugSideEffect(const BrokerExecutionCheck &check)
@@ -370,8 +370,8 @@ bool SendPivotMarketOrder(PivotSignal &signal)
                                 pre_send_tick,
                                 request,
                                 send_check) &&
-     PivotV12Enabled())
-    PivotV12MarkFailed("BROKER_PARITY_DECLARATION_FAILED");
+     PivotV13Enabled())
+    PivotV13MarkFailed("BROKER_PARITY_DECLARATION_FAILED");
   ReconcilePivotSignalBrokerPosition(signal);
   UpdatePivotOrigin(signal);
   ExportPivotExecutionCheck(signal, send_check);

@@ -513,6 +513,7 @@ struct PivotTrialActiveState
 {
   PivotTrialEntry trial;
   PivotTrialParityLink parity;
+  bool export_recorded;
   bool pending_entry;
   bool active;
 
@@ -530,6 +531,7 @@ struct PivotTrialActiveState
   {
     trial.Reset();
     parity.Reset();
+    export_recorded = false;
     pending_entry = false;
     active = false;
   }
@@ -538,6 +540,7 @@ struct PivotTrialActiveState
   {
     trial.CopyFrom(other.trial);
     parity.CopyFrom(other.parity);
+    export_recorded = other.export_recorded;
     pending_entry = other.pending_entry;
     active = other.active;
   }

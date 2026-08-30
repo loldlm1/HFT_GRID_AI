@@ -966,10 +966,17 @@ def _validate_deep(rows: dict[str, list[dict[str, str]]], manifest: dict[str, st
         required_links = _as_int(row, "required_link_slots", context)
         required_trials = _as_int(row, "required_trial_slots", context)
         required_outcomes = _as_int(row, "required_outcome_slots", context)
+        reserved_links = _as_int(row, "reserved_link_slots", context)
+        reserved_trials = _as_int(row, "reserved_trial_slots", context)
+        reserved_outcomes = _as_int(row, "reserved_outcome_slots", context)
         assert parent_count is not None and required_links is not None and required_trials is not None and required_outcomes is not None
-        if required_links != parent_count or required_trials != 3 or required_outcomes != parent_count * 3:
+        assert reserved_links is not None and reserved_trials is not None and reserved_outcomes is not None
+        if parent_count <= 0 or required_links != parent_count or required_trials != 3 or required_outcomes != parent_count * 3:
             raise SchemaValidationError(f"{context}: deep fan-out reservation arithmetic mismatch")
-        if status == "CAPACITY_REJECTED" and (parent_count != 0 or required_links != 0 or required_trials != 0 or required_outcomes != 0):
+        if status == "ADMITTED":
+            if (reserved_links, reserved_trials, reserved_outcomes) != (required_links, required_trials, required_outcomes) or row["capacity_rejection_reason"] != NULL_TOKEN:
+                raise SchemaValidationError(f"{context}: admitted event reservation mismatch")
+        elif (reserved_links, reserved_trials, reserved_outcomes) != (0, 0, 0) or row["capacity_rejection_reason"] == NULL_TOKEN:
             raise SchemaValidationError(f"{context}: capacity rejection has partial fan-out")
         events[event_id] = row
     links: dict[str, dict[str, str]] = {}

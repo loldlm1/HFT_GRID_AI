@@ -198,7 +198,7 @@ int OnInit()
                 EnumToString(Micro_Timeframe),
                 EnumToString(Deep_Timeframe),
                 EnumToString(Macro_Timeframe));
-  if(!PivotV12StatsInit())
+  if(!PivotV13StatsInit())
   {
     Print("V13 export initialization failed; EA initialization stopped");
     return INIT_FAILED;
@@ -226,7 +226,7 @@ void OnDeinit(const int reason)
   FinalizePivotTrialLanesForExport();
   FinalizeDeepPivotForExport();
   FinalizeActivePivotWindowsForExport();
-  PivotV12StatsDeinit(completion_status);
+  PivotV13StatsDeinit(completion_status);
   CloseAppendFileLog();
   ReleaseAllIndicatorDefinitions();
   FrontendResetRefreshThrottle();

@@ -275,6 +275,52 @@ class PivotFractalV13SchemaTests(unittest.TestCase):
 
         self.assert_mutation_rejected(duplicate_opposite_direction, "duplicate deep event identity")
 
+    def test_capacity_rejection_preserves_required_fanout_without_partial_rows(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root, run_path = self.copy_fixture(temp_dir)
+            mutate_row(
+                run_path,
+                DEEP_PIVOT_EVENTS_FILE,
+                lambda row: True,
+                admission_status="CAPACITY_REJECTED",
+                reserved_link_slots="0",
+                reserved_trial_slots="0",
+                reserved_outcome_slots="0",
+                capacity_rejection_reason="DEEP_FANOUT_CAPACITY_REJECTED",
+            )
+            for filename in (
+                DEEP_PIVOT_PARENT_LINKS_FILE,
+                DEEP_VIRTUAL_TRIALS_FILE,
+                DEEP_VIRTUAL_OUTCOMES_FILE,
+            ):
+                columns, _ = read_rows(run_path / filename)
+                write_rows(run_path / filename, columns, [])
+            mutate_row(
+                run_path,
+                RUN_SUMMARY_FILE,
+                lambda row: True,
+                deep_event_admitted_rows="0",
+                deep_event_capacity_rejected_rows="1",
+                deep_parent_link_rows="0",
+                deep_trial_rows="0",
+                deep_outcome_rows="0",
+                deep_tp_rows="0",
+                deep_sl_rows="0",
+                deep_parent_exit_censored_rows="0",
+            )
+            validation = validate_run(root, FIXTURE.name)
+            self.assertEqual(validation.deep_event_rows, 1)
+            self.assertEqual(validation.deep_parent_link_rows, 0)
+
+            mutate_row(
+                run_path,
+                DEEP_PIVOT_EVENTS_FILE,
+                lambda row: True,
+                reserved_link_slots="1",
+            )
+            with self.assertRaisesRegex(SchemaValidationError, "capacity rejection has partial fan-out"):
+                validate_run(root, FIXTURE.name)
+
 
 if __name__ == "__main__":
     unittest.main()
