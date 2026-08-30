@@ -435,6 +435,8 @@ struct PivotSignal
   datetime source_close_boundary;
   PivotLevelIds level_id;
   SignalTypes direction;
+  PivotTrialEntryPolicies broker_entry_policy;
+  int broker_tp_r_multiple;
   datetime trigger_time;
   double trigger_bid;
   double trigger_ask;
@@ -447,7 +449,7 @@ struct PivotSignal
   string attempt_status;
   string block_source;
   string block_reason;
-  bool matrix_declared;
+  bool h1_lanes_declared;
   bool origin_registered;
   bool origin_export_finalized;
 
@@ -473,6 +475,8 @@ struct PivotSignal
     source_close_boundary = 0;
     level_id = PIVOT_LEVEL_PP;
     direction = NO_SIGNAL;
+    broker_entry_policy = PIVOT_TRIAL_ENTRY_STRUCTURAL;
+    broker_tp_r_multiple = 1;
     trigger_time = 0;
     trigger_bid = 0.0;
     trigger_ask = 0.0;
@@ -485,7 +489,7 @@ struct PivotSignal
     attempt_status = "";
     block_source = "";
     block_reason = "";
-    matrix_declared = false;
+    h1_lanes_declared = false;
     origin_registered = false;
     origin_export_finalized = false;
   }
@@ -502,6 +506,8 @@ struct PivotSignal
     source_close_boundary = other.source_close_boundary;
     level_id = other.level_id;
     direction = other.direction;
+    broker_entry_policy = other.broker_entry_policy;
+    broker_tp_r_multiple = other.broker_tp_r_multiple;
     trigger_time = other.trigger_time;
     trigger_bid = other.trigger_bid;
     trigger_ask = other.trigger_ask;
@@ -514,7 +520,7 @@ struct PivotSignal
     attempt_status = other.attempt_status;
     block_source = other.block_source;
     block_reason = other.block_reason;
-    matrix_declared = other.matrix_declared;
+    h1_lanes_declared = other.h1_lanes_declared;
     origin_registered = other.origin_registered;
     origin_export_finalized = other.origin_export_finalized;
   }

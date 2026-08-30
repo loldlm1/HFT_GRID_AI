@@ -4,7 +4,7 @@
 //+------------------------------------------------------------------+
 #property copyright     "https://tradingsniperpanel.com/"
 #property description   "Copyright Trading Sniper Team."
-#property version       "1.20"
+#property version       "1.30"
 #property description   "Support Contact @chu4xtrade"
 #property description   "All Rights Reserved for the Trading Sniper Team."
 #property description   "Pivot Fractal Market Data Collector And Broker Executor"
@@ -22,7 +22,7 @@ bool g_tester_interval_completed = false;
 
 ulong ResolveStableExecutionMagic()
 {
-  string source = "HFT_GRID_AI_PIVOT_FRACTAL_V2|" + _Symbol;
+  string source = "HFT_GRID_AI_PIVOT_FRACTAL_V13|" + _Symbol;
   ulong hash = 1469598103934665603;
   for(int i = 0; i < StringLen(source); i++)
   {
@@ -140,7 +140,7 @@ string PivotRunCompletionStatus()
   if(MQLInfoInteger(MQL_TESTER) > 0 && g_tester_interval_completed)
     return "NATURAL";
   if(PivotSignalLifecycleHasOutstandingAttempts() ||
-     PivotTrialMatrixHasOutstandingState())
+     PivotTrialLanesHaveOutstandingState())
     return "CENSORED";
   return "CENSORED";
 }
@@ -176,7 +176,7 @@ int OnInit()
   g_execution_magic = ResolveStableExecutionMagic();
   if(!PivotV12StatsInit())
   {
-    Print("Schema V12 export initialization failed; EA initialization stopped");
+    Print("V13 export initialization failed; EA initialization stopped");
     return INIT_FAILED;
   }
   LoadAllIndicatorDefinitions();
@@ -199,7 +199,7 @@ void OnDeinit(const int reason)
   ReconcileAndFinalizePivotSignals();
   string completion_status = PivotRunCompletionStatus();
   FinalizePivotSignalAttemptsForExport();
-  FinalizePivotTrialMatrixForExport();
+  FinalizePivotTrialLanesForExport();
   FinalizeActivePivotWindowsForExport();
   PivotV12StatsDeinit(completion_status);
   CloseAppendFileLog();
@@ -235,7 +235,7 @@ void OnTick()
   ProcessPivotSignalLifecycle();
   bool pivot_context_ready =
     RefreshPivotFractalRuntimeContext(tick.time);
-  ProcessPivotTrialMatrixTick(tick);
+  ProcessPivotTrialLanesTick(tick);
   if(pivot_context_ready)
     ProcessPreparedPivotFractalTick(tick);
   datetime current_time = TimeCurrent();

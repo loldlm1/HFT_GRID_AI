@@ -9,13 +9,11 @@ struct PivotTrialIdentity
   string origin_id;
   string window_id;
   string broker_signal_id;
-  string policy_id;
   string trial_id;
   string parity_trial_id;
   PivotTrialRoles role;
-  PivotTrialSlPolicies sl_policy;
+  PivotTrialEntryPolicies entry_policy;
   int tp_r_multiple;
-  int reentry_index;
 
   PivotTrialIdentity()
   {
@@ -32,13 +30,11 @@ struct PivotTrialIdentity
     origin_id = "";
     window_id = "";
     broker_signal_id = "";
-    policy_id = "";
     trial_id = "";
     parity_trial_id = "";
-    role = PIVOT_TRIAL_ROLE_MATRIX;
-    sl_policy = PIVOT_TRIAL_SL_STRUCTURAL;
+    role = PIVOT_TRIAL_ROLE_H1;
+    entry_policy = PIVOT_TRIAL_ENTRY_STRUCTURAL;
     tp_r_multiple = 0;
-    reentry_index = 0;
   }
 
   void CopyFrom(const PivotTrialIdentity &other)
@@ -46,13 +42,11 @@ struct PivotTrialIdentity
     origin_id = other.origin_id;
     window_id = other.window_id;
     broker_signal_id = other.broker_signal_id;
-    policy_id = other.policy_id;
     trial_id = other.trial_id;
     parity_trial_id = other.parity_trial_id;
     role = other.role;
-    sl_policy = other.sl_policy;
+    entry_policy = other.entry_policy;
     tp_r_multiple = other.tp_r_multiple;
-    reentry_index = other.reentry_index;
   }
 };
 
@@ -63,10 +57,10 @@ struct PivotTrialOriginSnapshot
   string broker_signal_id;
   string symbol;
   ENUM_TIMEFRAMES macro_timeframe;
+  ENUM_TIMEFRAMES deep_timeframe;
   ENUM_TIMEFRAMES micro_timeframe;
   datetime active_bar_open;
   datetime trigger_time;
-  datetime origin_expiry_time;
   PivotLevelIds level_id;
   SignalTypes direction;
   double trigger_bid;
@@ -78,13 +72,11 @@ struct PivotTrialOriginSnapshot
   double freeze_level_points;
   double pivot_raw_price;
   double pivot_trade_price;
-  bool boundary_available;
   double next_outward_pivot_price;
+  double midpoint_50_price;
   double structural_entry_price;
   double structural_stop_loss;
   double structural_take_profit;
-  bool origin_micro_band_width_available;
-  double origin_micro_band_width_0;
   PivotPriceLadder levels;
   PivotContextFeatureSnapshot features;
 
@@ -105,10 +97,10 @@ struct PivotTrialOriginSnapshot
     broker_signal_id = "";
     symbol = "";
     macro_timeframe = PERIOD_CURRENT;
+    deep_timeframe = PERIOD_CURRENT;
     micro_timeframe = PERIOD_CURRENT;
     active_bar_open = 0;
     trigger_time = 0;
-    origin_expiry_time = 0;
     level_id = PIVOT_LEVEL_PP;
     direction = NO_SIGNAL;
     trigger_bid = 0.0;
@@ -120,13 +112,11 @@ struct PivotTrialOriginSnapshot
     freeze_level_points = 0.0;
     pivot_raw_price = 0.0;
     pivot_trade_price = 0.0;
-    boundary_available = false;
     next_outward_pivot_price = 0.0;
+    midpoint_50_price = 0.0;
     structural_entry_price = 0.0;
     structural_stop_loss = 0.0;
     structural_take_profit = 0.0;
-    origin_micro_band_width_available = false;
-    origin_micro_band_width_0 = 0.0;
     levels.Reset();
     features.Reset();
   }
@@ -138,10 +128,10 @@ struct PivotTrialOriginSnapshot
     broker_signal_id = other.broker_signal_id;
     symbol = other.symbol;
     macro_timeframe = other.macro_timeframe;
+    deep_timeframe = other.deep_timeframe;
     micro_timeframe = other.micro_timeframe;
     active_bar_open = other.active_bar_open;
     trigger_time = other.trigger_time;
-    origin_expiry_time = other.origin_expiry_time;
     level_id = other.level_id;
     direction = other.direction;
     trigger_bid = other.trigger_bid;
@@ -153,14 +143,11 @@ struct PivotTrialOriginSnapshot
     freeze_level_points = other.freeze_level_points;
     pivot_raw_price = other.pivot_raw_price;
     pivot_trade_price = other.pivot_trade_price;
-    boundary_available = other.boundary_available;
     next_outward_pivot_price = other.next_outward_pivot_price;
+    midpoint_50_price = other.midpoint_50_price;
     structural_entry_price = other.structural_entry_price;
     structural_stop_loss = other.structural_stop_loss;
     structural_take_profit = other.structural_take_profit;
-    origin_micro_band_width_available =
-      other.origin_micro_band_width_available;
-    origin_micro_band_width_0 = other.origin_micro_band_width_0;
     levels.CopyFrom(other.levels);
     features.CopyFrom(other.features);
   }
@@ -189,9 +176,6 @@ struct PivotTrialGeometry
   double freeze_level_points;
   double minimum_risk_distance_points;
   bool distance_eligible;
-  bool boundary_available;
-  double boundary_price;
-  bool boundary_eligible;
   bool valid;
   string invalid_reason;
 
@@ -228,9 +212,6 @@ struct PivotTrialGeometry
     freeze_level_points = 0.0;
     minimum_risk_distance_points = 0.0;
     distance_eligible = false;
-    boundary_available = false;
-    boundary_price = 0.0;
-    boundary_eligible = false;
     valid = false;
     invalid_reason = "";
   }
@@ -258,9 +239,6 @@ struct PivotTrialGeometry
     freeze_level_points = other.freeze_level_points;
     minimum_risk_distance_points = other.minimum_risk_distance_points;
     distance_eligible = other.distance_eligible;
-    boundary_available = other.boundary_available;
-    boundary_price = other.boundary_price;
-    boundary_eligible = other.boundary_eligible;
     valid = other.valid;
     invalid_reason = other.invalid_reason;
   }
@@ -319,17 +297,19 @@ struct PivotTrialEntry
   PivotLevelIds level_id;
   SignalTypes direction;
   datetime declared_time;
+  datetime entry_time;
   datetime origin_expiry_time;
-  int preceding_loss_count;
+  bool boundary_available;
+  double boundary_price;
+  double midpoint_50_price;
   bool origin_micro_band_width_available;
   double origin_micro_band_width_0;
+  bool midpoint_touched;
   bool origin_feature_snapshot_complete;
   PivotTrialGeometry geometry;
   PivotTrialMoneyPlan money_plan;
   PivotTrialEligibilityStatuses eligibility_status;
   string ineligible_reason;
-  string parent_trial_id;
-  string continuation_source_outcome_id;
   bool origin_window_active_at_entry;
 
   PivotTrialEntry()
@@ -348,17 +328,19 @@ struct PivotTrialEntry
     level_id = PIVOT_LEVEL_PP;
     direction = NO_SIGNAL;
     declared_time = 0;
+    entry_time = 0;
     origin_expiry_time = 0;
-    preceding_loss_count = 0;
+    boundary_available = false;
+    boundary_price = 0.0;
+    midpoint_50_price = 0.0;
     origin_micro_band_width_available = false;
     origin_micro_band_width_0 = 0.0;
+    midpoint_touched = false;
     origin_feature_snapshot_complete = false;
     geometry.Reset();
     money_plan.Reset();
     eligibility_status = PIVOT_TRIAL_ELIGIBILITY_INELIGIBLE_GEOMETRY;
     ineligible_reason = "";
-    parent_trial_id = "";
-    continuation_source_outcome_id = "";
     origin_window_active_at_entry = false;
   }
 
@@ -368,19 +350,21 @@ struct PivotTrialEntry
     level_id = other.level_id;
     direction = other.direction;
     declared_time = other.declared_time;
+    entry_time = other.entry_time;
     origin_expiry_time = other.origin_expiry_time;
-    preceding_loss_count = other.preceding_loss_count;
+    boundary_available = other.boundary_available;
+    boundary_price = other.boundary_price;
+    midpoint_50_price = other.midpoint_50_price;
     origin_micro_band_width_available =
       other.origin_micro_band_width_available;
     origin_micro_band_width_0 = other.origin_micro_band_width_0;
+    midpoint_touched = other.midpoint_touched;
     origin_feature_snapshot_complete =
       other.origin_feature_snapshot_complete;
     geometry.CopyFrom(other.geometry);
     money_plan.CopyFrom(other.money_plan);
     eligibility_status = other.eligibility_status;
     ineligible_reason = other.ineligible_reason;
-    parent_trial_id = other.parent_trial_id;
-    continuation_source_outcome_id = other.continuation_source_outcome_id;
     origin_window_active_at_entry = other.origin_window_active_at_entry;
   }
 };
@@ -399,6 +383,7 @@ struct PivotTrialOutcome
   double observed_exit_price;
   PivotTrialQuoteSides exit_quote_side;
   double gap_points;
+  bool lifecycle_seconds_available;
   long duration_seconds;
   double virtual_nominal_r;
   bool virtual_quote_gross_available;
@@ -408,12 +393,6 @@ struct PivotTrialOutcome
   int virtual_binary_target;
   string virtual_exclusion_reason;
   bool first_touch_consistent;
-  bool chain_terminal;
-  PivotTrialChainTerminalReasons chain_terminal_reason;
-  bool continuation_allowed;
-  string continuation_reason;
-  int next_reentry_index;
-  string next_trial_id;
 
   PivotTrialOutcome()
   {
@@ -439,6 +418,7 @@ struct PivotTrialOutcome
     observed_exit_price = 0.0;
     exit_quote_side = PIVOT_TRIAL_QUOTE_SIDE_NONE;
     gap_points = 0.0;
+    lifecycle_seconds_available = false;
     duration_seconds = 0;
     virtual_nominal_r = 0.0;
     virtual_quote_gross_available = false;
@@ -448,12 +428,6 @@ struct PivotTrialOutcome
     virtual_binary_target = -1;
     virtual_exclusion_reason = "";
     first_touch_consistent = false;
-    chain_terminal = false;
-    chain_terminal_reason = PIVOT_TRIAL_CHAIN_NOT_TERMINAL;
-    continuation_allowed = false;
-    continuation_reason = "";
-    next_reentry_index = -1;
-    next_trial_id = "";
   }
 
   void CopyFrom(const PivotTrialOutcome &other)
@@ -470,6 +444,7 @@ struct PivotTrialOutcome
     observed_exit_price = other.observed_exit_price;
     exit_quote_side = other.exit_quote_side;
     gap_points = other.gap_points;
+    lifecycle_seconds_available = other.lifecycle_seconds_available;
     duration_seconds = other.duration_seconds;
     virtual_nominal_r = other.virtual_nominal_r;
     virtual_quote_gross_available = other.virtual_quote_gross_available;
@@ -479,76 +454,6 @@ struct PivotTrialOutcome
     virtual_binary_target = other.virtual_binary_target;
     virtual_exclusion_reason = other.virtual_exclusion_reason;
     first_touch_consistent = other.first_touch_consistent;
-    chain_terminal = other.chain_terminal;
-    chain_terminal_reason = other.chain_terminal_reason;
-    continuation_allowed = other.continuation_allowed;
-    continuation_reason = other.continuation_reason;
-    next_reentry_index = other.next_reentry_index;
-    next_trial_id = other.next_trial_id;
-  }
-};
-
-struct PivotTrialPolicyChainState
-{
-  string origin_id;
-  string policy_id;
-  string current_trial_id;
-  string last_outcome_id;
-  PivotTrialSlPolicies sl_policy;
-  int tp_r_multiple;
-  int current_reentry_index;
-  int preceding_loss_count;
-  datetime last_generation_time;
-  double closed_nominal_r;
-  double closed_virtual_gross_r;
-  bool active;
-  bool terminal;
-  PivotTrialChainTerminalReasons terminal_reason;
-
-  PivotTrialPolicyChainState()
-  {
-    Reset();
-  }
-
-  PivotTrialPolicyChainState(const PivotTrialPolicyChainState &other)
-  {
-    CopyFrom(other);
-  }
-
-  void Reset()
-  {
-    origin_id = "";
-    policy_id = "";
-    current_trial_id = "";
-    last_outcome_id = "";
-    sl_policy = PIVOT_TRIAL_SL_STRUCTURAL;
-    tp_r_multiple = 0;
-    current_reentry_index = 0;
-    preceding_loss_count = 0;
-    last_generation_time = 0;
-    closed_nominal_r = 0.0;
-    closed_virtual_gross_r = 0.0;
-    active = false;
-    terminal = false;
-    terminal_reason = PIVOT_TRIAL_CHAIN_NOT_TERMINAL;
-  }
-
-  void CopyFrom(const PivotTrialPolicyChainState &other)
-  {
-    origin_id = other.origin_id;
-    policy_id = other.policy_id;
-    current_trial_id = other.current_trial_id;
-    last_outcome_id = other.last_outcome_id;
-    sl_policy = other.sl_policy;
-    tp_r_multiple = other.tp_r_multiple;
-    current_reentry_index = other.current_reentry_index;
-    preceding_loss_count = other.preceding_loss_count;
-    last_generation_time = other.last_generation_time;
-    closed_nominal_r = other.closed_nominal_r;
-    closed_virtual_gross_r = other.closed_virtual_gross_r;
-    active = other.active;
-    terminal = other.terminal;
-    terminal_reason = other.terminal_reason;
   }
 };
 
@@ -607,8 +512,8 @@ struct PivotTrialParityLink
 struct PivotTrialActiveState
 {
   PivotTrialEntry trial;
-  PivotTrialPolicyChainState chain;
   PivotTrialParityLink parity;
+  bool pending_entry;
   bool active;
 
   PivotTrialActiveState()
@@ -624,16 +529,16 @@ struct PivotTrialActiveState
   void Reset()
   {
     trial.Reset();
-    chain.Reset();
     parity.Reset();
+    pending_entry = false;
     active = false;
   }
 
   void CopyFrom(const PivotTrialActiveState &other)
   {
     trial.CopyFrom(other.trial);
-    chain.CopyFrom(other.chain);
     parity.CopyFrom(other.parity);
+    pending_entry = other.pending_entry;
     active = other.active;
   }
 };

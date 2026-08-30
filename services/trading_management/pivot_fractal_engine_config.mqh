@@ -15,20 +15,14 @@ enum PivotFractalFixedCounts
 
 enum PivotTrialFixedCounts
 {
-  PIVOT_TRIAL_SL_POLICY_COUNT          = 4,
-  PIVOT_TRIAL_TP_MULTIPLE_COUNT        = 4,
-  PIVOT_TRIAL_MAX_REENTRY_INDEX        = 3,
-  PIVOT_TRIAL_REENTRY_GENERATION_COUNT = 4,
-  PIVOT_TRIAL_INITIAL_MATRIX_SIZE      = 16,
-  PIVOT_TRIAL_MAX_ROWS_PER_ORIGIN      = 52,
-  PIVOT_TRIAL_ACTIVE_STATE_CAP         = 2048
+  PIVOT_TRIAL_ENTRY_POLICY_COUNT   = 2,
+  PIVOT_TRIAL_TP_MULTIPLE_COUNT    = 4,
+  PIVOT_TRIAL_INITIAL_LANE_COUNT   = 8,
+  PIVOT_TRIAL_ACTIVE_STATE_CAP     = 2048
 };
 
 const int PIVOT_WINDOW_RETRY_SECONDS = 1;
 const double PIVOT_FEATURE_STATE_TOLERANCE = 0.0000001;
-const double PIVOT_TRIAL_MICRO_BW_13_RATIO = 0.13;
-const double PIVOT_TRIAL_MICRO_BW_21_RATIO = 0.21;
-const double PIVOT_TRIAL_MICRO_BW_34_RATIO = 0.34;
 
 string PivotFractalEngineLabel(const int engine_id)
 {
@@ -65,53 +59,23 @@ bool PivotLevelIdAt(const int index, PivotLevelIds &level_out)
   return true;
 }
 
-bool PivotTrialSlPolicyAt(const int index,
-                          PivotTrialSlPolicies &policy_out)
+bool PivotTrialEntryPolicyAt(const int index,
+                             PivotTrialEntryPolicies &policy_out)
 {
-  if(index < 0 || index >= PIVOT_TRIAL_SL_POLICY_COUNT)
+  if(index < 0 || index >= PIVOT_TRIAL_ENTRY_POLICY_COUNT)
     return false;
-  policy_out = (PivotTrialSlPolicies)index;
+  policy_out = (PivotTrialEntryPolicies)index;
   return true;
 }
 
-string PivotTrialSlPolicyLabel(const PivotTrialSlPolicies policy)
+string PivotTrialEntryPolicyLabel(const PivotTrialEntryPolicies policy)
 {
   switch(policy)
   {
-    case PIVOT_TRIAL_SL_STRUCTURAL:  return "STRUCTURAL";
-    case PIVOT_TRIAL_SL_MICRO_BW_13: return "MICRO_BW_13";
-    case PIVOT_TRIAL_SL_MICRO_BW_21: return "MICRO_BW_21";
-    case PIVOT_TRIAL_SL_MICRO_BW_34: return "MICRO_BW_34";
+    case PIVOT_TRIAL_ENTRY_STRUCTURAL:  return "STRUCTURAL";
+    case PIVOT_TRIAL_ENTRY_MIDPOINT_50: return "MIDPOINT_50";
   }
   return "UNKNOWN";
-}
-
-bool PivotTrialSlPolicyRatio(const PivotTrialSlPolicies policy,
-                             double &ratio_out)
-{
-  ratio_out = 0.0;
-  switch(policy)
-  {
-    case PIVOT_TRIAL_SL_MICRO_BW_13:
-      ratio_out = PIVOT_TRIAL_MICRO_BW_13_RATIO;
-      return true;
-    case PIVOT_TRIAL_SL_MICRO_BW_21:
-      ratio_out = PIVOT_TRIAL_MICRO_BW_21_RATIO;
-      return true;
-    case PIVOT_TRIAL_SL_MICRO_BW_34:
-      ratio_out = PIVOT_TRIAL_MICRO_BW_34_RATIO;
-      return true;
-    case PIVOT_TRIAL_SL_STRUCTURAL:
-      return false;
-  }
-  return false;
-}
-
-bool PivotTrialSlPolicyAllowsReentry(const PivotTrialSlPolicies policy)
-{
-  return policy == PIVOT_TRIAL_SL_MICRO_BW_13 ||
-         policy == PIVOT_TRIAL_SL_MICRO_BW_21 ||
-         policy == PIVOT_TRIAL_SL_MICRO_BW_34;
 }
 
 bool PivotTrialTpMultipleAt(const int index,
@@ -135,8 +99,8 @@ bool PivotTrialTpMultipleSupported(const int multiple)
 
 string PivotTrialRoleLabel(const PivotTrialRoles role)
 {
-  if(role == PIVOT_TRIAL_ROLE_MATRIX)
-    return "MATRIX";
+  if(role == PIVOT_TRIAL_ROLE_H1)
+    return "H1";
   if(role == PIVOT_TRIAL_ROLE_BROKER_PARITY)
     return "BROKER_PARITY";
   return "UNKNOWN";
@@ -148,8 +112,8 @@ string PivotTrialEligibilityLabel(const PivotTrialEligibilityStatuses status)
   {
     case PIVOT_TRIAL_ELIGIBILITY_ACTIVE:
       return "ACTIVE";
-    case PIVOT_TRIAL_ELIGIBILITY_INELIGIBLE_FEATURE:
-      return "INELIGIBLE_FEATURE";
+    case PIVOT_TRIAL_ELIGIBILITY_NOT_TRIGGERED:
+      return "NOT_TRIGGERED";
     case PIVOT_TRIAL_ELIGIBILITY_INELIGIBLE_GEOMETRY:
       return "INELIGIBLE_GEOMETRY";
     case PIVOT_TRIAL_ELIGIBILITY_INELIGIBLE_DISTANCE:
@@ -167,33 +131,9 @@ string PivotTrialFirstTouchLabel(const PivotTrialFirstTouchOutcomes outcome)
     case PIVOT_TRIAL_FIRST_TOUCH_PENDING:  return "PENDING";
     case PIVOT_TRIAL_FIRST_TOUCH_TP_FIRST: return "TP_FIRST";
     case PIVOT_TRIAL_FIRST_TOUCH_SL_FIRST: return "SL_FIRST";
+    case PIVOT_TRIAL_FIRST_TOUCH_NOT_TRIGGERED: return "NOT_TRIGGERED";
+    case PIVOT_TRIAL_FIRST_TOUCH_INELIGIBLE: return "INELIGIBLE";
     case PIVOT_TRIAL_FIRST_TOUCH_CENSORED: return "CENSORED";
-  }
-  return "UNKNOWN";
-}
-
-string PivotTrialChainTerminalLabel(const PivotTrialChainTerminalReasons reason)
-{
-  switch(reason)
-  {
-    case PIVOT_TRIAL_CHAIN_NOT_TERMINAL:
-      return "NOT_TERMINAL";
-    case PIVOT_TRIAL_CHAIN_TP_REACHED:
-      return "TP_REACHED";
-    case PIVOT_TRIAL_CHAIN_STRUCTURAL_SL:
-      return "STRUCTURAL_SL";
-    case PIVOT_TRIAL_CHAIN_REENTRY_CAP_REACHED:
-      return "REENTRY_CAP_REACHED";
-    case PIVOT_TRIAL_CHAIN_NEXT_PIVOT_BOUNDARY:
-      return "NEXT_PIVOT_BOUNDARY";
-    case PIVOT_TRIAL_CHAIN_ORIGIN_EXPIRED:
-      return "ORIGIN_WINDOW_EXPIRED";
-    case PIVOT_TRIAL_CHAIN_RUN_END_CENSORED:
-      return "RUN_END_CENSORED";
-    case PIVOT_TRIAL_CHAIN_INELIGIBLE:
-      return "INELIGIBLE";
-    case PIVOT_TRIAL_CHAIN_PARITY_COMPLETE:
-      return "PARITY_COMPLETE";
   }
   return "UNKNOWN";
 }

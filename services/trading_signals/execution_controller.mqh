@@ -259,6 +259,16 @@ bool PivotSendRetcodeAccepted(const ulong retcode)
 
 bool SendPivotMarketOrder(PivotSignal &signal)
 {
+  if(signal.broker_entry_policy != PIVOT_TRIAL_ENTRY_STRUCTURAL ||
+     signal.broker_tp_r_multiple != 1)
+  {
+    ApplyPivotAttemptBlock(signal,
+                           "broker_lane",
+                           "ONLY_STRUCTURAL_1R_BROKER_LANE_ALLOWED");
+    UpdatePivotOrigin(signal);
+    return false;
+  }
+
   MqlTick pre_send_tick;
   bool tick_loaded = LoadFreshExecutionTick(pre_send_tick);
   datetime broker_time = tick_loaded && pre_send_tick.time > 0
@@ -386,7 +396,7 @@ bool ProcessPivotSignalAttempt(PivotSignal &signal)
                           false,
                           signal.execution.observation_check);
   if(RegisterPivotOrigin(signal))
-    DeclareInitialPivotTrialMatrix(signal, observation_tick);
+    DeclareInitialPivotTrialLanes(signal, observation_tick);
 
   string permission_source = "";
   string permission_reason = "";
