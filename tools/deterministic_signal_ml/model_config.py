@@ -1,16 +1,18 @@
-"""Pinned offline XGBoost configuration and ordered V13 feature ablations."""
+"""Pinned offline XGBoost configuration for separate V13 H1 and deep cohorts."""
 
 from __future__ import annotations
 
 from dataclasses import dataclass
 
 from schema_contract import (
+    DEEP_CATEGORICAL_COLUMNS,
+    DEEP_FEATURE_SET_ID,
     DEEP_MODEL_FEATURE_COLUMNS,
     FEATURE_SHIFTS,
-    MODEL_FEATURE_COLUMNS,
-    SUPPORTED_FEATURE_SET_ID,
+    H1_CATEGORICAL_COLUMNS,
+    H1_FEATURE_SET_ID,
+    H1_MODEL_FEATURE_COLUMNS,
 )
-
 
 TRAINER_VERSION = "pivot_fractal.xgboost.schema_v13_hft_deep_pivot_features.v1"
 DEFAULT_DATASET_ROOT = "artifacts/datasets"
@@ -22,8 +24,45 @@ MIN_TRAINING_ROWS = 500
 MIN_TRAINING_ORIGINS = 100
 MIN_CLASS_COUNT = 20
 MIN_CLASS_ORIGIN_COUNT = 20
+ORIGIN_WEIGHT_POLICY = "sum_to_one_per_origin_within_each_training_subset"
+EVENT_WEIGHT_POLICY = "sum_to_one_per_deep_event_in_full_cohort"
 
-BASE_FEATURE_COLUMNS = (
+
+def _series_columns(prefix: str, series: str) -> tuple[str, ...]:
+    return tuple(
+        column
+        for shift in FEATURE_SHIFTS
+        for column in (
+            f"{prefix}_{series}_{shift}",
+            f"{prefix}_{series}_sma_5_{shift}",
+            f"{prefix}_{series}_sma_slope_{shift}",
+            f"{prefix}_{series}_state_{shift}",
+        )
+    )
+
+
+def _band_columns(prefix: str) -> tuple[str, ...]:
+    return (
+        *_series_columns(prefix, "b_percent"),
+        *(
+            column
+            for shift in FEATURE_SHIFTS
+            for column in (
+                f"{prefix}_band_base_line_{shift}",
+                f"{prefix}_band_base_line_slope_points_{shift}",
+            )
+        ),
+    )
+
+
+def _stochastic_columns(prefix: str) -> tuple[str, ...]:
+    return (
+        *_series_columns(prefix, "stochastic_main_line"),
+        *_series_columns(prefix, "stochastic_signal_line"),
+    )
+
+
+H1_BASE_FEATURE_COLUMNS = (
     "symbol",
     "level_id",
     "direction",
@@ -36,69 +75,68 @@ BASE_FEATURE_COLUMNS = (
     "time_sin",
     "time_cos",
 )
-WIDTH_FEATURE_COLUMNS = BASE_FEATURE_COLUMNS + (
+H1_WIDTH_FEATURE_COLUMNS = H1_BASE_FEATURE_COLUMNS + (
     "origin_micro_band_width_points_0",
     "origin_macro_band_width_points_0",
 )
-
-
-def _series_columns(timeframe: str, series: str) -> tuple[str, ...]:
-    prefix = f"origin_{timeframe}_{series}"
-    return tuple(
-        column
-        for shift in FEATURE_SHIFTS
-        for column in (
-            f"{prefix}_{shift}",
-            f"{prefix}_sma_5_{shift}",
-            f"{prefix}_sma_slope_{shift}",
-            f"{prefix}_state_{shift}",
-        )
-    )
-
-
-def _band_columns(timeframe: str) -> tuple[str, ...]:
-    prefix = f"origin_{timeframe}"
-    return (
-        *_series_columns(timeframe, "b_percent"),
-        *(
-            column
-            for shift in FEATURE_SHIFTS
-            for column in (
-                f"{prefix}_band_base_line_{shift}",
-                f"{prefix}_band_base_line_slope_points_{shift}",
-            )
-        ),
-    )
-
-
-def _stochastic_columns(timeframe: str) -> tuple[str, ...]:
-    return (
-        *_series_columns(timeframe, "stochastic_main_line"),
-        *_series_columns(timeframe, "stochastic_signal_line"),
-    )
-
-
-MICRO_BANDS_FEATURE_COLUMNS = WIDTH_FEATURE_COLUMNS + _band_columns("micro")
-MACRO_BANDS_FEATURE_COLUMNS = MICRO_BANDS_FEATURE_COLUMNS + _band_columns("macro")
-MICRO_STOCHASTIC_FEATURE_COLUMNS = (
-    MACRO_BANDS_FEATURE_COLUMNS + _stochastic_columns("micro")
+H1_MICRO_BANDS_FEATURE_COLUMNS = H1_WIDTH_FEATURE_COLUMNS + _band_columns(
+    "origin_micro"
 )
-MACRO_STOCHASTIC_FEATURE_COLUMNS = (
-    MICRO_STOCHASTIC_FEATURE_COLUMNS + _stochastic_columns("macro")
+H1_MACRO_BANDS_FEATURE_COLUMNS = H1_MICRO_BANDS_FEATURE_COLUMNS + _band_columns(
+    "origin_macro"
 )
-FEATURE_ABLATIONS = (
-    ("base", BASE_FEATURE_COLUMNS),
-    ("widths", WIDTH_FEATURE_COLUMNS),
-    ("micro_bands", MICRO_BANDS_FEATURE_COLUMNS),
-    ("macro_bands", MACRO_BANDS_FEATURE_COLUMNS),
-    ("micro_stochastic", MICRO_STOCHASTIC_FEATURE_COLUMNS),
-    ("macro_stochastic", MACRO_STOCHASTIC_FEATURE_COLUMNS),
+H1_MICRO_STOCHASTIC_FEATURE_COLUMNS = (
+    H1_MACRO_BANDS_FEATURE_COLUMNS + _stochastic_columns("origin_micro")
+)
+H1_ALL_FEATURE_COLUMNS = (
+    H1_MICRO_STOCHASTIC_FEATURE_COLUMNS + _stochastic_columns("origin_macro")
+)
+H1_FEATURE_ABLATIONS = (
+    ("base", H1_BASE_FEATURE_COLUMNS),
+    ("widths", H1_WIDTH_FEATURE_COLUMNS),
+    ("micro_bands", H1_MICRO_BANDS_FEATURE_COLUMNS),
+    ("macro_bands", H1_MACRO_BANDS_FEATURE_COLUMNS),
+    ("micro_stochastic", H1_MICRO_STOCHASTIC_FEATURE_COLUMNS),
+    ("macro_stochastic", H1_ALL_FEATURE_COLUMNS),
+)
+# Generic callers default to the primary H1 evidence grain; deep training
+# selects its own explicit ablation sequence through feature_set_id.
+FEATURE_ABLATIONS = H1_FEATURE_ABLATIONS
+
+DEEP_BASE_FEATURE_COLUMNS = (
+    "symbol",
+    "level_id",
+    "direction",
+    "parent_kind",
+    "parent_entry_policy",
+    "tp_r_multiple",
+    "parent_tp_r_multiple",
+    "m10_parent_age_seconds",
+    "analysis_weekday",
+    "analysis_session",
+    "trigger_gap_to_risk",
+    "spread_to_risk",
+    "time_sin",
+    "time_cos",
+)
+DEEP_WIDTH_FEATURE_COLUMNS = DEEP_BASE_FEATURE_COLUMNS + (
+    "deep_micro_band_width_points_0",
+)
+DEEP_BANDS_FEATURE_COLUMNS = DEEP_WIDTH_FEATURE_COLUMNS + _band_columns("deep_micro")
+DEEP_ALL_FEATURE_COLUMNS = DEEP_BANDS_FEATURE_COLUMNS + _stochastic_columns(
+    "deep_micro"
+)
+DEEP_FEATURE_ABLATIONS = (
+    ("base", DEEP_BASE_FEATURE_COLUMNS),
+    ("width", DEEP_WIDTH_FEATURE_COLUMNS),
+    ("micro_bands", DEEP_BANDS_FEATURE_COLUMNS),
+    ("micro_stochastic", DEEP_ALL_FEATURE_COLUMNS),
 )
 
-if set(MACRO_STOCHASTIC_FEATURE_COLUMNS) != set(MODEL_FEATURE_COLUMNS):
-    # The V13 public feature set retains the same H1 indicator families but
-    # replaces V12 policy/re-entry columns with the lane identity.
-    MACRO_STOCHASTIC_FEATURE_COLUMNS = MODEL_FEATURE_COLUMNS
+if set(H1_ALL_FEATURE_COLUMNS) != set(H1_MODEL_FEATURE_COLUMNS):
+    raise RuntimeError("H1 ablation contract does not reconstruct the V13 H1 feature set")
+if set(DEEP_ALL_FEATURE_COLUMNS) != set(DEEP_MODEL_FEATURE_COLUMNS):
+    raise RuntimeError("Deep ablation contract does not reconstruct the V13 deep feature set")
 
 
 @dataclass(frozen=True)
@@ -132,7 +170,48 @@ class TrainingConfig:
     classifier: XGBoostClassifierConfig = XGBoostClassifierConfig()
 
 
+def model_feature_columns_for_set(feature_set_id: str) -> tuple[str, ...]:
+    if feature_set_id == H1_FEATURE_SET_ID:
+        return H1_MODEL_FEATURE_COLUMNS
+    if feature_set_id == DEEP_FEATURE_SET_ID:
+        return DEEP_MODEL_FEATURE_COLUMNS
+    raise ValueError(f"Explicit H1 or deep feature_set_id required: {feature_set_id}")
+
+
+def categorical_columns_for_set(feature_set_id: str) -> tuple[str, ...]:
+    if feature_set_id == H1_FEATURE_SET_ID:
+        return H1_CATEGORICAL_COLUMNS
+    if feature_set_id == DEEP_FEATURE_SET_ID:
+        return DEEP_CATEGORICAL_COLUMNS
+    raise ValueError(f"Explicit H1 or deep feature_set_id required: {feature_set_id}")
+
+
+def feature_ablations_for_set(
+    feature_set_id: str,
+) -> tuple[tuple[str, tuple[str, ...]], ...]:
+    if feature_set_id == H1_FEATURE_SET_ID:
+        return H1_FEATURE_ABLATIONS
+    if feature_set_id == DEEP_FEATURE_SET_ID:
+        return DEEP_FEATURE_ABLATIONS
+    raise ValueError(f"Explicit H1 or deep feature_set_id required: {feature_set_id}")
+
+
+def source_grain_for_set(feature_set_id: str) -> str:
+    if feature_set_id == H1_FEATURE_SET_ID:
+        return "H1_LANE"
+    if feature_set_id == DEEP_FEATURE_SET_ID:
+        return "DEEP_PARENT_LINK_X_RATIO"
+    raise ValueError(f"Explicit H1 or deep feature_set_id required: {feature_set_id}")
+
+
+def training_table_for_set(feature_set_id: str) -> str:
+    if feature_set_id == H1_FEATURE_SET_ID:
+        return "eligible_h1_trials"
+    if feature_set_id == DEEP_FEATURE_SET_ID:
+        return "eligible_deep_trials"
+    raise ValueError(f"Explicit H1 or deep feature_set_id required: {feature_set_id}")
+
+
 def training_config_for_feature_set(feature_set_id: str) -> TrainingConfig:
-    if feature_set_id not in {SUPPORTED_FEATURE_SET_ID, "schema_v13_hft_deep_pivot_features.h1", "schema_v13_hft_deep_pivot_features.deep_parent"}:
-        raise ValueError(f"Unsupported feature_set_id: {feature_set_id}")
+    model_feature_columns_for_set(feature_set_id)
     return TrainingConfig()

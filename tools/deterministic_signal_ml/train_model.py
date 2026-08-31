@@ -1,4 +1,4 @@
-"""Train offline-only V12 virtual-policy classifiers with ordered ablations."""
+"""Train an offline-only V13 H1 or deep-parent classifier candidate."""
 
 from __future__ import annotations
 
@@ -28,21 +28,27 @@ from feature_encoder import FeatureEncoder
 from model_config import (
     DEFAULT_DATASET_ROOT,
     DEFAULT_MODEL_ROOT,
-    FEATURE_ABLATIONS,
+    EVENT_WEIGHT_POLICY,
+    ORIGIN_WEIGHT_POLICY,
     TRAINER_VERSION,
+    categorical_columns_for_set,
+    feature_ablations_for_set,
+    model_feature_columns_for_set,
+    source_grain_for_set,
     training_config_for_feature_set,
+    training_table_for_set,
 )
 from schema_contract import (
-    CATEGORICAL_COLUMNS,
+    DEEP_FEATURE_SET_ID,
+    DEEP_MICRO_FEATURE_COLUMNS,
     FUTURE_ONLY_COLUMNS,
-    MODEL_FEATURE_COLUMNS,
+    H1_FEATURE_SET_ID,
     SUPPORTED_FEATURE_SET_ID,
     SUPPORTED_SCHEMA_VERSION,
     TARGET_COLUMNS,
 )
 from validation_splits import (
     GROUPING_POLICY,
-    ORIGIN_WEIGHT_POLICY,
     build_time_splits,
     origin_balanced_weights,
 )
@@ -60,7 +66,11 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--dataset-root", default=DEFAULT_DATASET_ROOT)
     parser.add_argument("--model-id", required=True)
     parser.add_argument("--model-root", default=DEFAULT_MODEL_ROOT)
-    parser.add_argument("--feature-set-id", default="")
+    parser.add_argument(
+        "--feature-set-id",
+        required=True,
+        choices=(H1_FEATURE_SET_ID, DEEP_FEATURE_SET_ID),
+    )
     parser.add_argument("--overwrite", action="store_true")
     return parser
 
@@ -98,19 +108,56 @@ def _read_json(path: Path) -> dict[str, Any]:
     return json.loads(path.read_text(encoding="utf-8"))
 
 
-def load_training_rows(dataset_path: Path) -> list[dict[str, Any]]:
-    matrix_path = dataset_path / "eligible_virtual_trials.parquet"
-    if not matrix_path.is_file():
-        raise TrainingError(f"Missing eligible virtual-trials matrix: {matrix_path}")
+def load_training_rows(
+    dataset_path: Path,
+    feature_set_id: str,
+) -> list[dict[str, Any]]:
+    table_name = training_table_for_set(feature_set_id)
+    cohort_path = dataset_path / f"{table_name}.parquet"
+    if not cohort_path.is_file():
+        raise TrainingError(f"Missing training cohort: {cohort_path}")
+    order = (
+        "declared_broker_time, run_id, origin_id, entry_policy, tp_r_multiple"
+        if feature_set_id == H1_FEATURE_SET_ID
+        else "declared_broker_time, run_id, origin_id, deep_event_id, "
+        "parent_link_id, tp_r_multiple"
+    )
     connection = duckdb.connect(":memory:")
     try:
-        escaped = matrix_path.resolve().as_posix().replace("'", "''")
-        relation = connection.execute(
-            f"SELECT * FROM read_parquet('{escaped}') "
-            "ORDER BY declared_broker_time, run_id, origin_id, policy_id, reentry_index"
-        )
+        escaped_cohort = cohort_path.resolve().as_posix().replace("'", "''")
+        if feature_set_id == H1_FEATURE_SET_ID:
+            query = f"SELECT * FROM read_parquet('{escaped_cohort}') ORDER BY {order}"
+        else:
+            event_path = dataset_path / "deep_pivot_events.parquet"
+            if not event_path.is_file():
+                raise TrainingError(f"Missing deep event feature source: {event_path}")
+            escaped_events = event_path.resolve().as_posix().replace("'", "''")
+            event_features = ",\n  ".join(
+                f"event.\"{column}\"" for column in DEEP_MICRO_FEATURE_COLUMNS
+            )
+            query = f"""
+SELECT
+  cohort.*,
+  {event_features}
+FROM read_parquet('{escaped_cohort}') cohort
+JOIN read_parquet('{escaped_events}') event
+  USING (run_id, config_id, deep_event_id)
+ORDER BY {order}
+"""
+        relation = connection.execute(query)
         columns = [column[0] for column in relation.description]
-        return [dict(zip(columns, row)) for row in relation.fetchall()]
+        rows = [dict(zip(columns, row)) for row in relation.fetchall()]
+        expected_rows = int(
+            connection.execute(
+                f"SELECT count(*) FROM read_parquet('{escaped_cohort}')"
+            ).fetchone()[0]
+        )
+        if len(rows) != expected_rows:
+            raise TrainingError(
+                "Training feature load changed cohort cardinality: "
+                f"{len(rows)} != {expected_rows}"
+            )
+        return rows
     finally:
         connection.close()
 
@@ -144,11 +191,8 @@ def _classification_metrics(
 
 def _labels(rows: list[dict[str, Any]]) -> np.ndarray:
     if any(row.get("virtual_binary_target") not in (0, 1, False, True) for row in rows):
-        raise TrainingError("Virtual binary cohort contains a null or invalid target")
-    return np.asarray(
-        [int(row["virtual_binary_target"]) for row in rows],
-        dtype=np.int64,
-    )
+        raise TrainingError("Binary cohort contains a null or invalid target")
+    return np.asarray([int(row["virtual_binary_target"]) for row in rows], dtype=np.int64)
 
 
 def _require_support(
@@ -189,7 +233,7 @@ def _require_support(
         )
 
 
-def _classifier(config) -> xgb.XGBClassifier:
+def _classifier(config: Any) -> xgb.XGBClassifier:
     return xgb.XGBClassifier(**asdict(config))
 
 
@@ -197,12 +241,27 @@ def _select(rows: list[dict[str, Any]], indices: list[int]) -> list[dict[str, An
     return [rows[index] for index in indices]
 
 
+def _prediction_identity(row: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "run_id": row["run_id"],
+        "origin_id": row["origin_id"],
+        "trial_id": row.get("trial_id"),
+        "deep_event_id": row.get("deep_event_id"),
+        "parent_link_id": row.get("parent_link_id"),
+        "deep_trial_id": row.get("deep_trial_id"),
+        "research_group_id": row["research_group_id"],
+        "declared_broker_time": row["declared_broker_time"],
+        "terminal_broker_time": row["terminal_broker_time"],
+    }
+
+
 def _fit_and_score(
     rows: list[dict[str, Any]],
     train_indices: list[int],
     test_indices: list[int],
     feature_columns: tuple[str, ...],
-    classifier_config,
+    categorical_columns: tuple[str, ...],
+    classifier_config: Any,
 ) -> tuple[dict[str, Any], list[dict[str, Any]]]:
     train_rows = _select(rows, train_indices)
     test_rows = _select(rows, test_indices)
@@ -210,9 +269,7 @@ def _fit_and_score(
     test_labels = _labels(test_rows)
     if len(np.unique(train_labels)) != 2:
         raise TrainingError("A chronological training fold contains only one class")
-    categorical = tuple(
-        column for column in CATEGORICAL_COLUMNS if column in feature_columns
-    )
+    categorical = tuple(column for column in categorical_columns if column in feature_columns)
     encoder = FeatureEncoder.fit(train_rows, feature_columns, categorical)
     classifier = _classifier(classifier_config)
     classifier.fit(
@@ -227,13 +284,7 @@ def _fit_and_score(
     predictions = [
         {
             "row_index": row_index,
-            "run_id": row["run_id"],
-            "origin_id": row["origin_id"],
-            "policy_id": row["policy_id"],
-            "trial_id": row["trial_id"],
-            "research_group_id": row["research_group_id"],
-            "declared_broker_time": row["declared_broker_time"],
-            "terminal_broker_time": row["terminal_broker_time"],
+            **_prediction_identity(row),
             "actual_label": int(label),
             "predicted_probability": float(score),
         }
@@ -251,11 +302,10 @@ def _write_tsv(path: Path, rows: list[dict[str, Any]]) -> None:
     if not rows:
         path.write_text("", encoding="utf-8")
         return
-    columns = list(rows[0])
     with path.open("w", encoding="utf-8", newline="") as handle:
         writer = csv.DictWriter(
             handle,
-            fieldnames=columns,
+            fieldnames=list(rows[0]),
             delimiter="\t",
             lineterminator="\n",
         )
@@ -265,11 +315,14 @@ def _write_tsv(path: Path, rows: list[dict[str, Any]]) -> None:
 
 def _render_report(manifest: dict[str, Any], metrics: dict[str, Any]) -> str:
     lines = [
-        f"# Offline Pivot V12 Trial Model: {manifest['model_id']}",
+        f"# Offline Pivot V13 Model: {manifest['model_id']}",
         "",
         "Approval: `OFFLINE_RESEARCH_ONLY`",
-        f"Dataset: `{manifest['dataset_id']}`",
-        f"Eligible virtual trial rows: `{manifest['training_rows']}`",
+        f"Evidence grain: `{manifest['source_grain']}`",
+        f"Feature set: `{manifest['feature_set_id']}`",
+        f"Training rows: `{manifest['training_rows']}`",
+        f"Holdout cutoff: `{manifest['split_metadata']['holdout_boundary']}`",
+        f"Weighting: `{manifest['origin_weight_policy']}`",
         "",
         "## Ablations",
         "",
@@ -283,7 +336,7 @@ def _render_report(manifest: dict[str, Any], metrics: dict[str, Any]) -> str:
     lines.extend(
         [
             "",
-            "The saved classifiers are offline research candidates only; no MT5 runtime artifact is emitted.",
+            "The candidate is offline research only. It is not an MT5 runtime artifact and cannot filter execution.",
         ]
     )
     return "\n".join(lines) + "\n"
@@ -293,20 +346,24 @@ def train_candidate(
     dataset_path: Path,
     output_dir: Path,
     model_id: str,
-    feature_set_id: str = "",
+    feature_set_id: str,
 ) -> dict[str, Any]:
     dataset_manifest = _read_json(dataset_path / "dataset_manifest.json")
     if int(dataset_manifest.get("schema_version", 0)) != SUPPORTED_SCHEMA_VERSION:
         raise TrainingError("Dataset schema version is incompatible with active tooling")
-    manifest_feature_set = str(dataset_manifest.get("feature_set_id", ""))
-    if feature_set_id and feature_set_id != manifest_feature_set:
-        raise TrainingError("Dataset feature set differs from requested feature set")
-    if manifest_feature_set != SUPPORTED_FEATURE_SET_ID:
-        raise TrainingError(f"Unsupported dataset feature set: {manifest_feature_set}")
-    feature_contract = dataset_manifest.get("feature_contract", {})
-    feature_columns = tuple(feature_contract.get("model_features", ()))
-    if feature_columns != MODEL_FEATURE_COLUMNS:
-        raise TrainingError("Dataset manifest does not carry the exact V12 feature contract")
+    if dataset_manifest.get("feature_set_id") != SUPPORTED_FEATURE_SET_ID:
+        raise TrainingError("Dataset producer feature set is incompatible with active tooling")
+    if feature_set_id not in dataset_manifest.get("available_feature_set_ids", ()):
+        raise TrainingError("Dataset does not advertise the requested evidence grain")
+    feature_columns = model_feature_columns_for_set(feature_set_id)
+    categorical_columns = categorical_columns_for_set(feature_set_id)
+    feature_ablations = feature_ablations_for_set(feature_set_id)
+    feature_contracts = dataset_manifest.get("feature_contracts", {})
+    feature_contract = feature_contracts.get(feature_set_id)
+    if not isinstance(feature_contract, dict):
+        raise TrainingError("Dataset manifest lacks the requested evidence-grain contract")
+    if tuple(feature_contract.get("model_features", ())) != feature_columns:
+        raise TrainingError("Dataset manifest does not carry the exact V13 feature contract")
     denied = {*FUTURE_ONLY_COLUMNS, *TARGET_COLUMNS}
     leaked = sorted(set(feature_columns) & denied)
     if leaked:
@@ -315,20 +372,44 @@ def train_candidate(
         raise TrainingError("Dataset is missing the offline-only research boundary")
     if feature_contract.get("grouping_policy") != GROUPING_POLICY:
         raise TrainingError("Dataset split grouping policy is incompatible")
-    if feature_contract.get("origin_weight_policy") != (
-        "sum_to_one_per_origin_within_each_training_subset"
-    ):
+    if feature_contract.get("origin_weight_policy") != ORIGIN_WEIGHT_POLICY:
         raise TrainingError("Dataset origin-weight policy is incompatible")
     if feature_contract.get("target") != "virtual_binary_target":
-        raise TrainingError("Dataset target is not the V12 virtual target")
+        raise TrainingError("Dataset target is not the V13 virtual target")
+    if feature_contract.get("training_table") != training_table_for_set(feature_set_id):
+        raise TrainingError("Dataset training-table contract is incompatible")
+    if feature_contract.get("source_grain") != source_grain_for_set(feature_set_id):
+        raise TrainingError("Dataset source-grain contract is incompatible")
+    if feature_set_id == DEEP_FEATURE_SET_ID:
+        if feature_contract.get("event_feature_source") != "deep_pivot_events":
+            raise TrainingError("Dataset deep event feature source is incompatible")
+        if feature_contract.get("event_feature_join") != [
+            "run_id",
+            "config_id",
+            "deep_event_id",
+        ]:
+            raise TrainingError("Dataset deep event feature join is incompatible")
+        if feature_contract.get("event_features_native_grain") is not True:
+            raise TrainingError("Dataset does not preserve deep features at event grain")
+        if feature_contract.get("event_features_persisted_in_training_table") is not False:
+            raise TrainingError("Dataset persists deep event features at parent grain")
+        if feature_contract.get("event_weight_policy") != EVENT_WEIGHT_POLICY:
+            raise TrainingError("Dataset deep event-weight policy is incompatible")
 
-    config = training_config_for_feature_set(manifest_feature_set)
-    rows = load_training_rows(dataset_path)
+    config = training_config_for_feature_set(feature_set_id)
+    rows = load_training_rows(dataset_path, feature_set_id)
     if not rows:
-        raise TrainingError("Eligible virtual-trials matrix is empty")
-    missing_columns = [column for column in MODEL_FEATURE_COLUMNS if column not in rows[0]]
+        raise TrainingError("Requested binary cohort is empty")
+    missing_columns = [column for column in feature_columns if column not in rows[0]]
     if missing_columns:
-        raise TrainingError(f"Binary matrix is missing model features: {missing_columns}")
+        raise TrainingError(f"Binary cohort is missing model features: {missing_columns}")
+    incomplete_rows = sum(
+        any(row.get(column) is None for column in feature_columns) for row in rows
+    )
+    if incomplete_rows:
+        raise TrainingError(
+            f"Binary cohort contains {incomplete_rows} incomplete feature rows"
+        )
     _require_support(
         rows,
         config.min_training_rows,
@@ -345,6 +426,8 @@ def train_candidate(
     )
 
     metrics_payload: dict[str, Any] = {
+        "source_grain": source_grain_for_set(feature_set_id),
+        "feature_set_id": feature_set_id,
         "split_policy": splits.metadata,
         "ablations": {},
     }
@@ -352,7 +435,7 @@ def train_candidate(
     model_files: dict[str, str] = {}
     encoder_files: dict[str, str] = {}
     final_train_rows = _select(rows, splits.train_indices)
-    for ablation_id, ablation_columns in FEATURE_ABLATIONS:
+    for ablation_id, ablation_columns in feature_ablations:
         fold_metrics: list[dict[str, Any]] = []
         for fold in splits.folds:
             metrics, predictions = _fit_and_score(
@@ -360,15 +443,12 @@ def train_candidate(
                 fold.train_indices,
                 fold.test_indices,
                 ablation_columns,
+                categorical_columns,
                 config.classifier,
             )
             fold_metrics.append({"fold_index": fold.fold_index, **metrics})
             prediction_rows.extend(
-                {
-                    "ablation": ablation_id,
-                    "split": f"fold_{fold.fold_index}",
-                    **row,
-                }
+                {"ablation": ablation_id, "split": f"fold_{fold.fold_index}", **row}
                 for row in predictions
             )
         holdout_metrics, holdout_predictions = _fit_and_score(
@@ -376,6 +456,7 @@ def train_candidate(
             splits.train_indices,
             splits.holdout_indices,
             ablation_columns,
+            categorical_columns,
             config.classifier,
         )
         prediction_rows.extend(
@@ -389,7 +470,7 @@ def train_candidate(
         }
 
         categorical = tuple(
-            column for column in CATEGORICAL_COLUMNS if column in ablation_columns
+            column for column in categorical_columns if column in ablation_columns
         )
         encoder = FeatureEncoder.fit(final_train_rows, ablation_columns, categorical)
         classifier = _classifier(config.classifier)
@@ -420,12 +501,17 @@ def train_candidate(
         "dataset_id": dataset_manifest["dataset_id"],
         "dataset_path": str(dataset_path),
         "schema_version": SUPPORTED_SCHEMA_VERSION,
-        "feature_set_id": manifest_feature_set,
+        "feature_set_id": feature_set_id,
+        "source_grain": source_grain_for_set(feature_set_id),
         "feature_ablations": {
-            ablation_id: list(columns) for ablation_id, columns in FEATURE_ABLATIONS
+            ablation_id: list(columns) for ablation_id, columns in feature_ablations
         },
         "split_grouping_policy": GROUPING_POLICY,
         "origin_weight_policy": ORIGIN_WEIGHT_POLICY,
+        "event_weight_policy": (
+            EVENT_WEIGHT_POLICY if feature_set_id == DEEP_FEATURE_SET_ID else None
+        ),
+        "split_metadata": splits.metadata,
         "training_rows": len(rows),
         "train_partition_rows": len(splits.train_indices),
         "holdout_rows": len(splits.holdout_indices),
@@ -438,6 +524,17 @@ def train_candidate(
         },
         "model_files": model_files,
         "encoder_files": encoder_files,
+        "warnings": [
+            "H1 lifecycle duration and all terminal fields are excluded from features.",
+            *(
+                [
+                    "Deep event features are joined from native event grain only during explicit model loading.",
+                    "Deep parent rows are origin-weighted so repeated M10 events cannot inflate support.",
+                ]
+                if feature_set_id == DEEP_FEATURE_SET_ID
+                else []
+            ),
+        ],
         "approval_state": "OFFLINE_RESEARCH_ONLY",
         "runtime_artifact_emitted": False,
     }
@@ -471,12 +568,12 @@ def main() -> int:
         duckdb.Error,
         xgb.core.XGBoostError,
     ) as exc:
-        parser.exit(1, f"offline pivot V12 model training failed: {exc}\n")
+        parser.exit(1, f"offline pivot V13 model training failed: {exc}\n")
 
     print(
-        "offline pivot V12 model training ok | "
-        f"model={manifest['model_id']} | rows={manifest['training_rows']} | "
-        f"output={output_dir}"
+        "offline pivot V13 model training ok | "
+        f"model={manifest['model_id']} | grain={manifest['source_grain']} | "
+        f"rows={manifest['training_rows']} | output={output_dir}"
     )
     return 0
 

@@ -1,83 +1,86 @@
-# Deterministic Pivot V12 Research
+# Deterministic Pivot V13 Research
 
-This directory validates strict schema V12 exports and builds policy-aware
-offline research artifacts for `PIVOT_FRACTAL_V2`. It never loads a model into
-MT5, authorizes a trade, or emits a runtime-compatible model.
+This directory validates strict Pivot Fractal V13 exports and builds typed,
+grain-aware offline research artifacts for `PIVOT_FRACTAL_V2`. It never loads a
+model into MT5, authorizes execution, or emits a runtime-compatible artifact.
 
 ## Input Contract
 
-Each run contains exactly eight TSV files:
+Each run contains exactly twelve TSV files in this order:
 
-- `run_manifest.tsv`
-- `pivot_windows.tsv`
-- `signal_origins.tsv`
-- `virtual_trials.tsv`
-- `virtual_outcomes.tsv`
-- `execution_checks.tsv`
-- `broker_outcomes.tsv`
-- `run_summary.tsv`
+1. `run_manifest.tsv`
+2. `pivot_windows.tsv`
+3. `signal_origins.tsv`
+4. `virtual_trials.tsv`
+5. `virtual_outcomes.tsv`
+6. `deep_pivot_events.tsv`
+7. `deep_pivot_parent_links.tsv`
+8. `deep_virtual_trials.tsv`
+9. `deep_virtual_outcomes.tsv`
+10. `execution_checks.tsv`
+11. `broker_outcomes.tsv`
+12. `run_summary.tsv`
 
-The active feature set is `schema_v12_pivot_signal_features`. Runs must agree
-on config ID, Macro/Micro timeframes, fixed Bands/Stochastic parameters, matrix
-percentages/TPs, quote-side and minimum-distance rules, retry/capacity policy,
-lot mode and size, reference balance, account currency, and feature set.
-V9/V10/V11 runs remain historical evidence and are rejected by active tooling.
+The producer feature set is `schema_v13_hft_deep_pivot_features`. Compatible
+runs must agree on `Micro < Deep < Macro` timeframes, H1 entry policies and
+ratios, deep ratios, fixed indicator settings, capacity rules, money policy,
+account currency, and feature identity. Active tooling rejects older schemas;
+it does not convert or dual-load them.
+
+V13 keeps evidence at explicit native grains:
+
+- `signal_origins.tsv` owns one H1 Micro/Macro feature vector per origin.
+- `deep_pivot_events.tsv` owns one configured-Micro vector per shared M10 event.
+- Parent links associate an event with active H1 virtual or broker parents.
+- Deep outcomes resolve one `(parent link, deep trial)` pair.
+- Broker parity remains calibration evidence outside H1/deep target cohorts.
 
 ## Validate
 
 ```bash
 .venv/bin/python tools/deterministic_signal_ml/build_dataset.py \
-  --runs-root <PivotFractalV12/runs> \
+  --runs-root <PivotFractalV13/runs> \
   --run-id <run_id> \
   --validate-only
 ```
 
-Repeat `--run-id` to validate compatible runs together.
+Repeat `--run-id` for compatible runs. Every source column has one frozen
+`VARCHAR`, `TIMESTAMP`, `BOOLEAN`, `BIGINT`, or `DOUBLE` type; unknown files,
+headers, columns, and incompatible configurations fail closed.
 
 ## Build
 
 ```bash
 .venv/bin/python tools/deterministic_signal_ml/build_dataset.py \
-  --runs-root <PivotFractalV12/runs> \
+  --runs-root <PivotFractalV13/runs> \
   --run-id <run_id> \
   --dataset-id <dataset_id>
 ```
 
-The builder writes typed Parquet copies of the eight source tables plus:
+The builder writes typed Parquet copies of all twelve source tables plus:
 
-Every strict V12 column has one explicit frozen `VARCHAR`, `TIMESTAMP`,
-`BOOLEAN`, `BIGINT`, or `DOUBLE` type. Registry overlap, missing schema columns,
-and stale entries fail closed; new columns never inherit a numeric fallback.
+- `h1_lane_long.parquet`: all structural/midpoint H1 `1R/2R/3R/5R` outcomes,
+  including ineligible, not-triggered, and run-censored evidence.
+- `h1_lane_wide.parquet`: one eight-cell comparison row per H1 origin.
+- `eligible_h1_trials.parquet`: feature-complete binary H1 TP/SL rows only.
+- `deep_parent_long.parquet`: link-scoped deep `1R/2R/3R` outcomes without a
+  duplicated configured-Micro feature vector.
+- `eligible_deep_trials.parquet`: feature-complete binary parent/ratio rows;
+  event features remain absent and are joined only by the explicit deep trainer.
+- `broker_virtual_calibration.parquet`: accepted-request parity paired with
+  broker-history outcomes; it never enters either model target cohort.
 
-- `origin_matrix_long.parquet`: every matrix trial, including retries,
-  ineligible rows, and censored facts.
-- `initial_matrix_wide.parquet`: one human/agent comparison row per origin with
-  the initial sixteen cells; never used directly for model training.
-- `eligible_virtual_trials.parquet`: feature-complete eligible
-  `TP_FIRST`/`SL_FIRST` matrix rows with target `1/0` and per-origin weight.
-- `policy_chains.parquet`: one row per policy chain with attempt count, losses,
-  final state, nominal R, quote gross R, and censoring.
-- `broker_virtual_calibration.parquet`: paired accepted-request parity and
-  broker outcomes with terminal, timing, price, gross, R, and cost differences.
+Origin weights sum to `1.0` per deterministic `origin_id`, including repeated
+run IDs. Deep event weights separately sum to `1.0` per `deep_event_id` for
+support diagnostics. Training recomputes origin-balanced weights inside each
+chronological training subset.
 
-The model contract uses only causal policy and origin features: level/direction,
-SL policy, TP multiple, retry index/loss count, trigger analysis time, normalized
-entry gap/spread, Micro/Macro shift-0 width points, and separate Micro/Macro
-Bands and Stochastic groups. `%B`, `MAIN_LINE`, and `SIGNAL_LINE` include raw,
-SMA 5, SMA slope, and state for shifts `0..5`; Bands also include raw
-`BASE_LINE` and its point slope. Eligibility, continuation, first touch,
-parity, broker checks, fills/closes, slippage, costs, duration, and P&L remain
-audit facts and never enter model features.
-
-All indicator features come from one immutable `signal_origins.tsv` row joined
-by origin. Retries do not create independent market snapshots or discovery
-support. `initial_matrix_wide.parquet` carries the same origin vector once for
-human comparison, while `eligible_virtual_trials.parquet` carries joined
-features with weights summing to `1.0` per origin.
-
-`analysis_weekday` uses `0=Sunday` through `6=Saturday`. `analysis_session`
-uses neutral six-hour analysis-time buckets: `SESSION_00_05`, `SESSION_06_11`,
-`SESSION_12_17`, and `SESSION_18_23`.
+`h1_structural_lifecycle_seconds` is retrospective evidence and is non-null
+only for a confirmed completed H1 virtual or broker lifecycle.
+`m10_parent_age_seconds` is causal at the M10 trigger. Neither value is rounded
+or capped. Downstream minute filters must use exact `<= minutes * 60`
+predicates; censored, ineligible, and not-triggered rows remain separate support
+evidence.
 
 ## Audit
 
@@ -88,49 +91,65 @@ uses neutral six-hour analysis-time buckets: `SESSION_00_05`, `SESSION_06_11`,
   --minimum-group-support 30
 ```
 
-The audit separates origin/matrix support, per-feature availability, virtual
-policy performance, chain results, broker execution, and parity calibration.
-It reports both unique
-origins and trial rows, expected nominal R, quote gross R, censoring, and
-calibration exclusions. Human bins are report-only; XGBoost receives the
-underlying continuous values. Parity terminal observations are session-aware;
-broker-terminal-before-observed-touch shadows are explicit censored exclusions.
-Any unexplained fully observed TP/SL parity mismatch fails the audit.
+The audit verifies manifest/table counts, H1 eight-lane cardinality, deep
+event/link/trial/outcome joins, native configured-Micro feature ownership,
+origin/event weight
+balances, parent-exit censoring, capacity peaks, broker ownership, and parity
+agreement. Reports separate row, event, parent, and unique-origin support and
+use origin-balanced performance summaries. A censor or ineligible row is never
+relabeled as a binary loss.
 
 ## Train
+
+Training requires one explicit evidence grain:
 
 ```bash
 .venv/bin/python tools/deterministic_signal_ml/train_model.py \
   --dataset-id <dataset_id> \
-  --model-id <model_id>
+  --model-id <model_id> \
+  --feature-set-id schema_v13_hft_deep_pivot_features.h1
 ```
 
-Training uses only `eligible_virtual_trials.parquet`, fixed seeds,
-origin-normalized sample weights, a purged chronological holdout, and expanding
-walk-forward folds. All rows sharing `(symbol, Macro timeframe, active Macro bar
-open)` stay in one partition across duplicate run IDs. A training row is
-retained only when its virtual terminal time is strictly earlier than the
-validation boundary.
+```bash
+.venv/bin/python tools/deterministic_signal_ml/train_model.py \
+  --dataset-id <dataset_id> \
+  --model-id <model_id> \
+  --feature-set-id schema_v13_hft_deep_pivot_features.deep_parent
+```
 
-The deterministic ablation order is:
+The H1 trainer reads `eligible_h1_trials.parquet`. The deep trainer reads
+`eligible_deep_trials.parquet` and joins the configured-Micro vector from
+`deep_pivot_events.parquet` by `(run_id, config_id, deep_event_id)` at load time.
+The two cohorts cannot be silently combined.
 
-1. policy/level/direction/time plus normalized entry gap and spread;
-2. add Micro/Macro shift-0 width points;
-3. add Micro Bands `%B`/SMA/slope/state and `BASE_LINE`/slope;
-4. add the matching Macro Bands group;
-5. add Micro Stochastic `MAIN_LINE` and `SIGNAL_LINE` groups;
-6. add the matching Macro Stochastic groups.
+Both trainers use fixed seeds, origin-balanced sample weights, a purged
+chronological holdout, and expanding walk-forward folds. All rows sharing the
+same `(symbol, Macro timeframe, active Macro bar open)` remain in one partition
+across duplicate runs. A training row is retained only when its terminal time
+is strictly earlier than the validation boundary.
 
-Saved classifiers are offline candidates under `artifacts/models/`. Their
-manifest remains `OFFLINE_RESEARCH_ONLY` with
+H1 ablations add base lane/time context, widths, Micro Bands, Macro Bands,
+Micro Stochastic, and Macro Stochastic. Deep ablations add base parent/M10-age
+context plus configured-Micro width, Bands, and Stochastic. Under the accepted
+defaults that source is M3; the actual manifest timeframe remains authoritative.
+Lifecycle duration, terminal
+status, targets, censoring, broker money, and other future-only fields are
+prohibited from both feature sets.
+
+Saved classifiers remain offline candidates under `artifacts/models/`. Their
+manifest records the evidence grain, cutoff, weighting policy, and warnings,
+and always carries `approval_state=OFFLINE_RESEARCH_ONLY` and
 `runtime_artifact_emitted=false`.
 
-## Exclusions
+## Fixture Gate
 
-Ineligible and censored virtual rows, parity shadows, manual/mixed/stop-out/
-expert/other broker outcomes, denied attempts, and failed sends remain required
-for integrity and operations. They are not relabeled as losses and never enter
-the primary virtual target. Broker-confirmed TP/SL outcomes stay in a separate
-cohort. Virtual gross is counterfactual and has no commission, swap, fee, or
-net-profit claim. Fixed-lot and reference-risk datasets, different currencies,
-or different Macro/Micro and matrix contracts are not mixed.
+```bash
+.venv/bin/python -m compileall -q tools/deterministic_signal_ml
+.venv/bin/python -m unittest discover \
+  -s tools/deterministic_signal_ml/tests -p 'test_*.py'
+```
+
+The tracked V13 fixture is intentionally too small to train a deployable model.
+It proves strict build/audit joins and that both trainer selections reach their
+minimum-support gate. Real ablations require the configured row, origin, class,
+and chronological-window support.

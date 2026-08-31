@@ -1,4 +1,4 @@
-"""Deterministic manifests and quality reports for V12 signal-feature datasets."""
+"""Deterministic manifests and quality reports for V13 research datasets."""
 
 from __future__ import annotations
 
@@ -9,12 +9,17 @@ from typing import Any
 
 import duckdb
 
+from model_config import EVENT_WEIGHT_POLICY, ORIGIN_WEIGHT_POLICY
 from schema_contract import (
-    CATEGORICAL_COLUMNS,
     DATASET_CONFIG_KEYS,
+    DEEP_CATEGORICAL_COLUMNS,
+    DEEP_FEATURE_SET_ID,
+    DEEP_MICRO_FEATURE_COLUMNS,
+    DEEP_MODEL_FEATURE_COLUMNS,
     FUTURE_ONLY_COLUMNS,
-    MODEL_FEATURE_COLUMNS,
-    NUMERIC_FEATURE_COLUMNS,
+    H1_CATEGORICAL_COLUMNS,
+    H1_FEATURE_SET_ID,
+    H1_MODEL_FEATURE_COLUMNS,
     ORIGIN_SIGNAL_FEATURE_COLUMNS,
     SUPPORTED_ENGINE_LABEL,
     SUPPORTED_FEATURE_SET_ID,
@@ -22,30 +27,11 @@ from schema_contract import (
     RunValidation,
 )
 
-
-BUILDER_VERSION = "pivot_fractal.schema_v12_pivot_signal_features_builder.v1"
+BUILDER_VERSION = "pivot_fractal.schema_v13_hft_deep_pivot_features_builder.v1"
 
 
 def _quoted(column: str) -> str:
     return '"' + column.replace('"', '""') + '"'
-
-
-def _build_feature_availability(
-    connection: duckdb.DuckDBPyConnection,
-) -> list[dict[str, Any]]:
-    total_origins = int(connection.execute("SELECT count(*) FROM signal_origins").fetchone()[0])
-    return [
-        {
-            "feature": column,
-            "available_origins": int(
-                connection.execute(
-                    f"SELECT count({_quoted(column)}) FROM signal_origins"
-                ).fetchone()[0]
-            ),
-            "total_origins": total_origins,
-        }
-        for column in ORIGIN_SIGNAL_FEATURE_COLUMNS
-    ]
 
 
 def _fetch_dicts(
@@ -57,76 +43,189 @@ def _fetch_dicts(
     return [dict(zip(columns, row)) for row in relation.fetchall()]
 
 
+def _feature_availability(
+    connection: duckdb.DuckDBPyConnection,
+    table_name: str,
+    grain: str,
+    identity_column: str,
+    feature_columns: tuple[str, ...],
+) -> list[dict[str, Any]]:
+    total_rows = int(connection.execute(f"SELECT count(*) FROM {table_name}").fetchone()[0])
+    total_identities = int(
+        connection.execute(
+            f"SELECT count(DISTINCT {_quoted(identity_column)}) FROM {table_name}"
+        ).fetchone()[0]
+    )
+    rows: list[dict[str, Any]] = []
+    for column in feature_columns:
+        available_rows = int(
+            connection.execute(
+                f"SELECT count({_quoted(column)}) FROM {table_name}"
+            ).fetchone()[0]
+        )
+        rows.append(
+            {
+                "grain": grain,
+                "feature": column,
+                "available_rows": available_rows,
+                "total_rows": total_rows,
+                "total_identities": total_identities,
+                "availability_rate": available_rows / total_rows if total_rows else None,
+            }
+        )
+    return rows
+
+
 def build_quality_payload(
     connection: duckdb.DuckDBPyConnection,
     validations: list[RunValidation],
     counts: dict[str, int],
 ) -> dict[str, Any]:
-    feature_availability = _build_feature_availability(connection)
-    for row in feature_availability:
-        row["availability_rate"] = (
-            row["available_origins"] / row["total_origins"]
-            if row["total_origins"]
-            else None
-        )
+    feature_availability = {
+        "h1_origin": _feature_availability(
+            connection,
+            "signal_origins",
+            "H1_ORIGIN",
+            "origin_id",
+            ORIGIN_SIGNAL_FEATURE_COLUMNS,
+        ),
+        "deep_event": _feature_availability(
+            connection,
+            "deep_pivot_events",
+            "DEEP_EVENT",
+            "deep_event_id",
+            DEEP_MICRO_FEATURE_COLUMNS,
+        ),
+    }
     support = _fetch_dicts(
         connection,
         """
 SELECT
-  count(DISTINCT origin_id) AS unique_origins,
-  count(*) AS matrix_trial_rows,
-  sum(CASE WHEN reentry_index > 0 THEN 1 ELSE 0 END) AS retry_rows,
-  sum(CASE WHEN eligibility_status = 'ACTIVE' THEN 1 ELSE 0 END) AS active_rows,
-  sum(CASE WHEN eligibility_status <> 'ACTIVE' THEN 1 ELSE 0 END) AS ineligible_rows,
-  sum(CASE WHEN terminal_status = 'CENSORED' THEN 1 ELSE 0 END) AS censored_rows
-FROM origin_matrix_long
+  (SELECT count(DISTINCT origin_id) FROM signal_origins) AS unique_origins,
+  (SELECT count(*) FROM h1_lane_long) AS h1_lane_rows,
+  (SELECT count(*) FROM eligible_h1_trials) AS eligible_h1_rows,
+  (SELECT count(*) FROM h1_lane_long
+    WHERE h1_structural_lifecycle_seconds IS NOT NULL) AS completed_h1_duration_rows,
+  (SELECT count(*) FROM h1_lane_long
+    WHERE terminal_status = 'NOT_TRIGGERED') AS h1_not_triggered_rows,
+  (SELECT count(*) FROM h1_lane_long
+    WHERE terminal_status = 'INELIGIBLE') AS h1_ineligible_rows,
+  (SELECT count(*) FROM h1_lane_long
+    WHERE terminal_status = 'CENSORED_RUN_END') AS h1_run_censored_rows,
+  (SELECT count(*) FROM deep_pivot_events) AS deep_event_rows,
+  (SELECT count(DISTINCT deep_event_id) FROM deep_pivot_events)
+    AS unique_deep_events,
+  (SELECT count(*) FROM deep_pivot_events
+    WHERE admission_status = 'CAPACITY_REJECTED') AS deep_capacity_rejected_rows,
+  (SELECT count(*) FROM deep_pivot_parent_links) AS deep_parent_link_rows,
+  (SELECT count(*) FROM deep_parent_long) AS deep_parent_outcome_rows,
+  (SELECT count(*) FROM eligible_deep_trials) AS eligible_deep_rows,
+  (SELECT count(DISTINCT origin_id) FROM eligible_deep_trials) AS eligible_deep_origins,
+  (SELECT count(*) FROM deep_parent_long
+    WHERE terminal_status = 'CENSORED_PARENT_EXIT') AS deep_parent_exit_censored_rows,
+  (SELECT count(*) FROM deep_parent_long
+    WHERE terminal_status = 'CENSORED_RUN_END') AS deep_run_censored_rows,
+  (SELECT count(*) FROM broker_outcomes) AS broker_outcomes,
+  (SELECT count(*) FROM broker_virtual_calibration) AS calibration_rows
 """,
     )[0]
-    eligibility = _fetch_dicts(
+    h1_performance = _fetch_dicts(
         connection,
         """
-SELECT eligibility_status, ineligible_reason, count(*) AS trial_rows,
-       count(DISTINCT origin_id) AS unique_origins
-FROM origin_matrix_long
+WITH per_group AS (
+  SELECT entry_policy, tp_r_multiple,
+         count(*) AS eligible_rows,
+         count(DISTINCT origin_id) AS unique_origins
+  FROM eligible_h1_trials
+  GROUP BY entry_policy, tp_r_multiple
+), per_origin AS (
+  SELECT entry_policy, tp_r_multiple, origin_id,
+         avg(virtual_binary_target) AS tp_rate,
+         avg(CASE WHEN virtual_binary_target = 1 THEN tp_r_multiple ELSE -1.0 END)
+           AS expected_nominal_r,
+         avg(virtual_quote_gross_r) AS virtual_quote_gross_r
+  FROM eligible_h1_trials
+  GROUP BY entry_policy, tp_r_multiple, origin_id
+)
+SELECT
+  grouped.entry_policy,
+  grouped.tp_r_multiple,
+  grouped.eligible_rows,
+  grouped.unique_origins,
+  avg(per_origin.tp_rate) AS origin_balanced_tp_rate,
+  1.0 / (grouped.tp_r_multiple + 1.0) AS break_even_tp_rate,
+  avg(per_origin.expected_nominal_r) AS origin_balanced_expected_nominal_r,
+  avg(per_origin.virtual_quote_gross_r)
+    AS origin_balanced_virtual_quote_gross_r
+FROM per_group grouped
+JOIN per_origin USING (entry_policy, tp_r_multiple)
 GROUP BY ALL
-ORDER BY trial_rows DESC, eligibility_status, ineligible_reason
+ORDER BY grouped.entry_policy, grouped.tp_r_multiple
 """,
     )
-    policy_performance = _fetch_dicts(
+    deep_performance = _fetch_dicts(
         connection,
         """
+WITH per_group AS (
+  SELECT parent_kind, parent_entry_policy, parent_tp_r_multiple, tp_r_multiple,
+         count(*) AS eligible_rows,
+         count(DISTINCT origin_id) AS unique_origins,
+         count(DISTINCT deep_event_id) AS unique_deep_events
+  FROM eligible_deep_trials
+  GROUP BY parent_kind, parent_entry_policy, parent_tp_r_multiple, tp_r_multiple
+), per_origin AS (
+  SELECT parent_kind, parent_entry_policy, parent_tp_r_multiple, tp_r_multiple,
+         origin_id,
+         avg(virtual_binary_target) AS tp_rate,
+         avg(CASE WHEN virtual_binary_target = 1 THEN tp_r_multiple ELSE -1.0 END)
+           AS expected_nominal_r,
+         avg(virtual_quote_gross_r) AS virtual_quote_gross_r
+  FROM eligible_deep_trials
+  GROUP BY parent_kind, parent_entry_policy, parent_tp_r_multiple,
+           tp_r_multiple, origin_id
+)
 SELECT
-  sl_policy,
-  tp_r_multiple,
-  count(*) AS eligible_trial_rows,
-  count(DISTINCT origin_id) AS unique_origins,
-  avg(virtual_binary_target) AS tp_rate,
-  1.0 / (tp_r_multiple + 1.0) AS break_even_tp_rate,
-  avg(CASE WHEN virtual_binary_target = 1 THEN tp_r_multiple ELSE -1.0 END)
-    AS expected_nominal_r,
-  avg(virtual_quote_gross_r) AS average_virtual_quote_gross_r
-FROM eligible_virtual_trials
-GROUP BY sl_policy, tp_r_multiple
-ORDER BY sl_policy, tp_r_multiple
+  grouped.parent_kind,
+  grouped.parent_entry_policy,
+  grouped.parent_tp_r_multiple,
+  grouped.tp_r_multiple,
+  grouped.eligible_rows,
+  grouped.unique_origins,
+  grouped.unique_deep_events,
+  avg(per_origin.tp_rate) AS origin_balanced_tp_rate,
+  1.0 / (grouped.tp_r_multiple + 1.0) AS break_even_tp_rate,
+  avg(per_origin.expected_nominal_r) AS origin_balanced_expected_nominal_r,
+  avg(per_origin.virtual_quote_gross_r)
+    AS origin_balanced_virtual_quote_gross_r
+FROM per_group grouped
+JOIN per_origin USING (
+  parent_kind, parent_entry_policy, parent_tp_r_multiple, tp_r_multiple
+)
+GROUP BY ALL
+ORDER BY grouped.parent_kind, grouped.parent_entry_policy,
+         grouped.parent_tp_r_multiple, grouped.tp_r_multiple
 """,
     )
-    chain_performance = _fetch_dicts(
+    h1_terminal_support = _fetch_dicts(
         connection,
         """
-SELECT
-  sl_policy,
-  tp_r_multiple,
-  count(*) AS policy_chains,
-  count(DISTINCT origin_id) AS unique_origins,
-  avg(attempts) AS average_attempts,
-  avg(losses_before_success) AS average_losses_before_success,
-  avg(closed_nominal_r) AS average_closed_nominal_r,
-  avg(virtual_quote_gross_r) AS average_virtual_quote_gross_r,
-  sum(CASE WHEN censored THEN 1 ELSE 0 END) AS censored_chains,
-  sum(CASE WHEN reached_tp THEN 1 ELSE 0 END) AS tp_chains
-FROM policy_chains
-GROUP BY sl_policy, tp_r_multiple
-ORDER BY sl_policy, tp_r_multiple
+SELECT terminal_status, entry_policy, tp_r_multiple,
+       count(*) AS rows, count(DISTINCT origin_id) AS unique_origins,
+       count(h1_structural_lifecycle_seconds) AS completed_duration_rows
+FROM h1_lane_long
+GROUP BY ALL
+ORDER BY terminal_status, entry_policy, tp_r_multiple
+""",
+    )
+    deep_terminal_support = _fetch_dicts(
+        connection,
+        """
+SELECT terminal_status, parent_kind, tp_r_multiple,
+       count(*) AS rows, count(DISTINCT origin_id) AS unique_origins,
+       count(DISTINCT deep_event_id) AS unique_deep_events
+FROM deep_parent_long
+GROUP BY ALL
+ORDER BY terminal_status, parent_kind, tp_r_multiple
 """,
     )
     broker = _fetch_dicts(
@@ -138,10 +237,7 @@ SELECT
   sum(CASE WHEN broker_binary_target = 1 THEN 1 ELSE 0 END) AS tp_rows,
   sum(CASE WHEN broker_binary_target = 0 THEN 1 ELSE 0 END) AS sl_rows,
   avg(broker_gross_profit) AS average_broker_gross_profit,
-  avg(broker_net_profit) AS average_broker_net_profit,
-  avg(broker_commission) AS average_commission,
-  avg(broker_swap) AS average_swap,
-  avg(broker_fee) AS average_fee
+  avg(broker_net_profit) AS average_broker_net_profit
 FROM broker_outcomes
 """,
     )[0]
@@ -156,67 +252,70 @@ SELECT
   sum(CASE WHEN strict_pair_eligible AND NOT terminal_agreement THEN 1 ELSE 0 END)
     AS terminal_mismatches,
   avg(crossing_close_delta_seconds) AS average_crossing_close_delta_seconds,
-  avg(broker_entry_slippage_points) AS average_broker_entry_slippage_points,
-  avg(broker_minus_virtual_exit_points) AS average_broker_minus_virtual_exit_points,
-  avg(broker_minus_virtual_gross_profit) AS average_broker_minus_virtual_gross_profit,
-  avg(broker_minus_virtual_gross_execution_r)
-    AS average_broker_minus_virtual_gross_execution_r
+  avg(broker_minus_virtual_gross_profit) AS average_broker_minus_virtual_gross_profit
 FROM broker_virtual_calibration
 """,
     )[0]
-    calibration_exclusions = _fetch_dicts(
-        connection,
-        """
-SELECT calibration_exclusion_reason, count(*) AS rows
-FROM broker_virtual_calibration
-WHERE NOT strict_pair_eligible
-GROUP BY calibration_exclusion_reason
-ORDER BY rows DESC, calibration_exclusion_reason
-""",
-    )
-    chain_terminal_reasons = _fetch_dicts(
-        connection,
-        """
-SELECT
-  coalesce(chain_terminal_reason, final_eligibility_status) AS terminal_reason,
-  count(*) AS policy_chains,
-  count(DISTINCT origin_id) AS unique_origins
-FROM policy_chains
-GROUP BY ALL
-ORDER BY policy_chains DESC, terminal_reason
-""",
-    )
     return {
         "builder_version": BUILDER_VERSION,
         "schema_version": SUPPORTED_SCHEMA_VERSION,
         "engine_label": SUPPORTED_ENGINE_LABEL,
         "feature_set_id": SUPPORTED_FEATURE_SET_ID,
+        "available_feature_set_ids": [H1_FEATURE_SET_ID, DEEP_FEATURE_SET_ID],
         "research_approval_state": "OFFLINE_RESEARCH_ONLY",
-        "outcome_lanes": {
-            "virtual": "counterfactual nominal R and OrderCalcProfit gross only",
-            "broker": "deal-history gross, costs, and net only",
-            "calibration": "broker-parity comparison only; excluded from ML targets",
-        },
-        "support_warning": (
-            "Trial rows are correlated within origins and Macro windows; report unique-origin "
-            "support and trial-row support separately."
-        ),
-        "multiple_comparison_warning": (
-            "Policy leaderboards are exploratory until chronological holdout support and "
-            "uncertainty are reviewed."
-        ),
         "counts": counts,
         "run_ids": [validation.run_id for validation in validations],
         "warnings": [warning for validation in validations for warning in validation.warnings],
         "feature_availability": feature_availability,
         "support": support,
-        "eligibility": eligibility,
-        "policy_performance": policy_performance,
-        "chain_performance": chain_performance,
-        "chain_terminal_reasons": chain_terminal_reasons,
+        "h1_performance": h1_performance,
+        "deep_performance": deep_performance,
+        "h1_terminal_support": h1_terminal_support,
+        "deep_terminal_support": deep_terminal_support,
         "broker_performance": broker,
         "broker_virtual_calibration": calibration,
-        "calibration_exclusions": calibration_exclusions,
+        "outcome_boundaries": {
+            "h1_virtual": "H1 structural/midpoint counterfactual evidence only",
+            "deep_virtual": "parent-scoped deep 1R/2R/3R evidence only",
+            "broker": "deal-history broker facts only",
+            "calibration": "accepted-request parity comparison only",
+        },
+        "duration_policy": (
+            "h1_structural_lifecycle_seconds is retrospective and non-null only for "
+            "confirmed completed H1 parents; m10_parent_age_seconds is causal at trigger"
+        ),
+        "support_warning": (
+            "Deep rows are correlated within events, parents, origins, and Macro windows; "
+            "report row, event, and unique-origin support separately."
+        ),
+    }
+
+
+def build_feature_contracts() -> dict[str, Any]:
+    return {
+        H1_FEATURE_SET_ID: {
+            "source_grain": "H1_LANE",
+            "training_table": "eligible_h1_trials",
+            "model_features": list(H1_MODEL_FEATURE_COLUMNS),
+            "categorical_features": list(H1_CATEGORICAL_COLUMNS),
+            "target": "virtual_binary_target",
+            "origin_weight_policy": ORIGIN_WEIGHT_POLICY,
+            "grouping_policy": "macro_window_identity_across_runs",
+        },
+        DEEP_FEATURE_SET_ID: {
+            "source_grain": "DEEP_PARENT_LINK_X_RATIO",
+            "training_table": "eligible_deep_trials",
+            "event_feature_source": "deep_pivot_events",
+            "event_feature_join": ["run_id", "config_id", "deep_event_id"],
+            "event_features_native_grain": True,
+            "event_features_persisted_in_training_table": False,
+            "model_features": list(DEEP_MODEL_FEATURE_COLUMNS),
+            "categorical_features": list(DEEP_CATEGORICAL_COLUMNS),
+            "target": "virtual_binary_target",
+            "origin_weight_policy": ORIGIN_WEIGHT_POLICY,
+            "event_weight_policy": EVENT_WEIGHT_POLICY,
+            "grouping_policy": "macro_window_identity_across_runs",
+        },
     }
 
 
@@ -236,25 +335,25 @@ def write_dataset_manifest(
         "schema_version": SUPPORTED_SCHEMA_VERSION,
         "engine_label": SUPPORTED_ENGINE_LABEL,
         "feature_set_id": SUPPORTED_FEATURE_SET_ID,
+        "available_feature_set_ids": [H1_FEATURE_SET_ID, DEEP_FEATURE_SET_ID],
         "research_approval_state": "OFFLINE_RESEARCH_ONLY",
         "runtime_artifact": False,
         "run_ids": [validation.run_id for validation in validations],
         "configuration": {key: baseline[key] for key in DATASET_CONFIG_KEYS},
-        "feature_contract": {
-            "model_features": list(MODEL_FEATURE_COLUMNS),
-            "categorical_features": list(CATEGORICAL_COLUMNS),
-            "numeric_features": list(NUMERIC_FEATURE_COLUMNS),
-            "future_only_columns": list(FUTURE_ONLY_COLUMNS),
-            "target": "virtual_binary_target",
-            "broker_target_separate": True,
-            "origin_weight_policy": "sum_to_one_per_origin_within_each_training_subset",
-            "grouping_policy": "macro_window_identity_across_runs",
+        "feature_contracts": build_feature_contracts(),
+        "future_only_columns": list(FUTURE_ONLY_COLUMNS),
+        "duration_research_contract": {
+            "h1_filter_column": "h1_structural_lifecycle_seconds",
+            "deep_age_filter_column": "m10_parent_age_seconds",
+            "public_operator": "<=",
+            "minutes_conversion": "minutes * 60 without rounding",
+            "completed_h1_duration_required": True,
+            "implicit_cap": False,
         },
         "counts": counts,
         "files": output_files,
         "quality_summary": {
             "support": quality_payload["support"],
-            "feature_availability": quality_payload["feature_availability"],
             "broker_virtual_calibration": quality_payload[
                 "broker_virtual_calibration"
             ],
@@ -281,35 +380,37 @@ def write_dataset_report(
     support = quality_payload["support"]
     calibration = quality_payload["broker_virtual_calibration"]
     lines = [
-        f"# Dataset Report: {dataset_id}",
+        f"# Pivot V13 Dataset Report: {dataset_id}",
         "",
         "- Status: `OFFLINE_RESEARCH_ONLY`",
-        f"- Schema: `{quality_payload['schema_version']}`",
-        f"- Feature set: `{quality_payload['feature_set_id']}`",
-        f"- Unique origins: `{support['unique_origins']}`",
-        f"- Matrix trial rows: `{support['matrix_trial_rows']}`",
-        f"- Retry rows: `{support['retry_rows']}`",
-        f"- Ineligible rows: `{support['ineligible_rows']}`",
-        f"- Signal features tracked: `{len(quality_payload['feature_availability'])}`",
-        f"- Censored rows: `{support['censored_rows']}`",
+        f"- Unique H1 origins: `{support['unique_origins']}`",
+        f"- H1 lane rows / eligible: `{support['h1_lane_rows']}` / `{support['eligible_h1_rows']}`",
+        f"- Deep events / parent outcomes / eligible: `{support['deep_event_rows']}` / "
+        f"`{support['deep_parent_outcome_rows']}` / `{support['eligible_deep_rows']}`",
+        f"- Unique deep event identities: `{support['unique_deep_events']}`",
+        f"- Completed H1 duration rows: `{support['completed_h1_duration_rows']}`",
+        f"- Capacity-rejected deep events: `{support['deep_capacity_rejected_rows']}`",
         "",
-        "## Outcome Boundaries",
+        "## Evidence Boundaries",
         "",
-        "Virtual policy targets, broker outcomes, and parity calibration remain separate. ",
-        "Virtual gross values are counterfactual and never include broker commission, swap, fee, or net profit.",
+        "H1 lanes, shared M10 events, parent-scoped deep outcomes, broker outcomes, and parity calibration remain separate grains.",
+        "Deep indicator features stay in `deep_pivot_events`; parent/ratio Parquet rows join them only for explicit model loading.",
+        "Censored, ineligible, and not-triggered rows remain support evidence and are never target-zero losses.",
+        "",
+        "## Duration Semantics",
+        "",
+        quality_payload["duration_policy"],
+        "There is no 30/60/120-minute cap; downstream research applies exact `<= minutes * 60` predicates.",
         "",
         "## Calibration",
         "",
         f"- Paired rows: `{calibration['paired_rows']}`",
         f"- Strict pairs: `{calibration['strict_pairs']}`",
-        f"- Terminal matches: `{calibration['terminal_matches']}`",
         f"- Terminal mismatches: `{calibration['terminal_mismatches']}`",
         "",
         "## Statistical Caution",
         "",
         quality_payload["support_warning"],
-        "",
-        quality_payload["multiple_comparison_warning"],
         "",
     ]
     (output_dir / "dataset_report.md").write_text("\n".join(lines), encoding="utf-8")

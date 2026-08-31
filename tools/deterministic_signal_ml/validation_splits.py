@@ -9,9 +9,9 @@ from typing import Any
 
 from sklearn.model_selection import TimeSeriesSplit
 
+from model_config import ORIGIN_WEIGHT_POLICY
 
 GROUPING_POLICY = "macro_window_identity_across_runs"
-ORIGIN_WEIGHT_POLICY = "sum_to_one_per_origin_within_subset"
 
 
 @dataclass(frozen=True)

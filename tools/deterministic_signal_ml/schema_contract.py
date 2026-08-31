@@ -601,10 +601,15 @@ def _feature_state(raw: float, sma: float) -> str:
     return "EQUAL"
 
 
-def _validate_feature_family(row: dict[str, str], prefix: str, context: str, point_size: float) -> None:
+def _validate_feature_family(
+    row: dict[str, str],
+    prefix: str,
+    context: str,
+    point_size: float,
+    pivot_price: float,
+) -> None:
     width = _as_float(row, f"{prefix}_band_width_points_0", context)
     assert width is not None and width > 0.0
-    history: dict[int, float] = {}
     for series in SIGNAL_SERIES:
         raw = [_as_float(row, f"{prefix}_{series}_{shift}", context) for shift in FEATURE_SHIFTS]
         sma = [_as_float(row, f"{prefix}_{series}_sma_5_{shift}", context) for shift in FEATURE_SHIFTS]
@@ -613,18 +618,12 @@ def _validate_feature_family(row: dict[str, str], prefix: str, context: str, poi
         raw_values = [float(value) for value in raw]
         if series.startswith("stochastic_") and any(value < -FEATURE_STATE_TOLERANCE or value > 100.0 + FEATURE_STATE_TOLERANCE for value in raw_values):
             raise SchemaValidationError(f"{context}: Stochastic line is outside 0..100")
-        for shift, value in enumerate(raw_values):
-            history[shift] = value
         for shift in FEATURE_SHIFTS:
-            expected_sma = sum(raw_values[max(0, shift - 4): shift + 1]) / len(raw_values[max(0, shift - 4): shift + 1])
-            # Fixtures and the producer use a causal five-value window. For the
-            # oldest shifts, requiring the supplied relation is more useful than
-            # inventing unavailable history.
-            if not _same_number(float(sma[shift]), expected_sma):
-                raise SchemaValidationError(f"{context}: {prefix} {series} SMA 5 formula mismatch at shift {shift}")
-            expected_slope = float(sma[shift]) - (float(sma[shift + 1]) if shift < 5 else float(sma[shift]))
-            if shift < 5 and not _same_number(float(slope[shift]), expected_slope):
-                raise SchemaValidationError(f"{context}: {prefix} {series} SMA slope/raw mismatch at shift {shift}")
+            if shift < 5 and not _same_number(
+                float(slope[shift]),
+                float(sma[shift]) - float(sma[shift + 1]),
+            ):
+                raise SchemaValidationError(f"{context}: {prefix} {series} SMA slope mismatch at shift {shift}")
             state = _require_value(row, f"{prefix}_{series}_state_{shift}", context)
             if state not in FEATURE_STATES or state != _feature_state(raw_values[shift], float(sma[shift])):
                 raise SchemaValidationError(f"{context}: {prefix} {series} state mismatch at shift {shift}")
@@ -633,13 +632,25 @@ def _validate_feature_family(row: dict[str, str], prefix: str, context: str, poi
     assert all(value is not None for value in (*base, *slopes))
     if any(float(value) <= 0.0 for value in base):
         raise SchemaValidationError(f"{context}: {prefix} Band BASE_LINE is not positive")
+    expected_b_percent_0 = 50.0 + 100.0 * (
+        pivot_price - float(base[0])
+    ) / (width * point_size)
+    if not _same_number(float(row[f"{prefix}_b_percent_0"]), expected_b_percent_0):
+        raise SchemaValidationError(f"{context}: {prefix} B percent shift 0 formula mismatch")
     for shift in range(5):
         expected = (float(base[shift]) - float(base[shift + 1])) / point_size
         if not _same_number(float(slopes[shift]), expected):
             raise SchemaValidationError(f"{context}: {prefix} Band BASE_LINE slope mismatch at shift {shift}")
 
 
-def _validate_features(row: dict[str, str], prefix: str, context: str, complete: bool, point_size: float) -> None:
+def _validate_features(
+    row: dict[str, str],
+    prefix: str,
+    context: str,
+    complete: bool,
+    point_size: float,
+    pivot_price: float,
+) -> None:
     columns = ORIGIN_MICRO_FEATURE_COLUMNS if prefix == "origin_micro" else ORIGIN_MACRO_FEATURE_COLUMNS if prefix == "origin_macro" else DEEP_MICRO_FEATURE_COLUMNS
     null_count = sum(_is_null(row.get(column)) for column in columns)
     if not complete:
@@ -648,7 +659,7 @@ def _validate_features(row: dict[str, str], prefix: str, context: str, complete:
         return
     if null_count:
         raise SchemaValidationError(f"{context}: complete {prefix} features are incomplete")
-    _validate_feature_family(row, prefix, context, point_size)
+    _validate_feature_family(row, prefix, context, point_size, pivot_price)
 
 
 def _validate_windows(rows: list[dict[str, str]], manifest: dict[str, str]) -> dict[str, dict[str, str]]:
@@ -786,8 +797,22 @@ def _validate_origins(rows: list[dict[str, str]], manifest: dict[str, str], wind
         snapshot_complete = bool(_as_bool(row, "origin_feature_snapshot_complete", context))
         if snapshot_complete != (micro_complete and macro_complete):
             raise SchemaValidationError(f"{context}: origin feature completeness mismatch")
-        _validate_features(row, "origin_micro", context, micro_complete, point)
-        _validate_features(row, "origin_macro", context, macro_complete, point)
+        _validate_features(
+            row,
+            "origin_micro",
+            context,
+            micro_complete,
+            point,
+            pivot_trade,
+        )
+        _validate_features(
+            row,
+            "origin_macro",
+            context,
+            macro_complete,
+            point,
+            pivot_trade,
+        )
         if snapshot_complete != _is_null(row["origin_feature_invalid_reason"]):
             raise SchemaValidationError(f"{context}: invalid origin feature reason state")
         if not _as_bool(row, "identity_consumed", context) or not _as_bool(row, "h1_lanes_declared", context):
@@ -814,10 +839,20 @@ def _validate_trials(rows: list[dict[str, str]], manifest: dict[str, str], origi
             raise SchemaValidationError(f"{context}: trial references unknown origin/window")
         role = row["trial_role"]
         if role == "BROKER_PARITY":
-            if row["entry_policy"] != "STRUCTURAL" or int(row["tp_r_multiple"]) != 1:
+            if (
+                row["entry_policy"] != "STRUCTURAL"
+                or int(row["tp_r_multiple"]) != 1
+                or row["parity_trial_id"] != trial_id
+                or _is_null(row["broker_signal_id"])
+            ):
                 raise SchemaValidationError(f"{context}: parity must shadow structural 1R")
         elif role == "H1":
-            if row["entry_policy"] not in H1_ENTRY_POLICIES or int(row["tp_r_multiple"]) not in H1_TP_R_MULTIPLES:
+            if (
+                row["entry_policy"] not in H1_ENTRY_POLICIES
+                or int(row["tp_r_multiple"]) not in H1_TP_R_MULTIPLES
+                or not _is_null(row["parity_trial_id"])
+                or not _is_null(row["broker_signal_id"])
+            ):
                 raise SchemaValidationError(f"{context}: invalid H1 lane identity")
             by_origin.setdefault(row["origin_id"], []).append(row)
         else:
@@ -905,14 +940,27 @@ def _validate_trials(rows: list[dict[str, str]], manifest: dict[str, str], origi
 
 def _validate_outcomes(rows: list[dict[str, str]], manifest: dict[str, str], trials: dict[str, dict[str, str]]) -> dict[str, dict[str, str]]:
     outcomes: dict[str, dict[str, str]] = {}
+    trial_ids: set[str] = set()
     for index, row in enumerate(rows, start=2):
         context = f"{VIRTUAL_OUTCOMES_FILE}:{index}"
         _validate_common(row, context, manifest)
         outcome_id = _require_value(row, "outcome_id", context)
         trial_id = _require_value(row, "trial_id", context)
-        if outcome_id in outcomes or trial_id not in trials:
+        if outcome_id in outcomes or trial_id in trial_ids or trial_id not in trials:
             raise SchemaValidationError(f"{context}: duplicate outcome or unknown trial")
         trial = trials[trial_id]
+        trial_ids.add(trial_id)
+        for column in (
+            "parity_trial_id",
+            "origin_id",
+            "window_id",
+            "trial_role",
+            "entry_policy",
+            "tp_r_multiple",
+            "direction",
+        ):
+            if row[column] != trial[column]:
+                raise SchemaValidationError(f"{context}: H1 outcome identity mismatch")
         status = row["terminal_status"]
         if status not in ("TP_FIRST", "SL_FIRST", "NOT_TRIGGERED", "INELIGIBLE", "CENSORED_RUN_END"):
             raise SchemaValidationError(f"{context}: invalid H1 terminal status")
@@ -930,21 +978,202 @@ def _validate_outcomes(rows: list[dict[str, str]], manifest: dict[str, str], tri
         )
         entry_time = _as_time(trial, "entry_broker_time", context, nullable=True)
         assert terminal_time is not None
+        observed_bid = _as_float(row, "observed_exit_bid", context)
+        observed_ask = _as_float(row, "observed_exit_ask", context)
+        observed_price = _as_float(row, "observed_exit_price", context)
+        point = _as_float(trial, "point_size", context)
+        assert observed_bid is not None and observed_ask is not None
+        assert observed_price is not None and point is not None
+        expected_exit_side = "BID" if row["direction"] == "BUY" else "ASK"
+        expected_exit_price = observed_bid if row["direction"] == "BUY" else observed_ask
+        if (
+            observed_bid <= 0.0
+            or observed_ask < observed_bid
+            or row["exit_quote_side"] != expected_exit_side
+            or not _same_number(observed_price, expected_exit_price)
+            or not _as_bool(row, "first_touch_consistent", context)
+        ):
+            raise SchemaValidationError(f"{context}: invalid H1 observed exit facts")
         if status in ("TP_FIRST", "SL_FIRST"):
             assert entry_time is not None and duration is not None
-            if duration != int((terminal_time - entry_time).total_seconds()):
+            if terminal_time <= entry_time or duration != int((terminal_time - entry_time).total_seconds()):
                 raise SchemaValidationError(f"{context}: H1 lifecycle seconds mismatch")
+            if trial["eligibility_status"] != "ACTIVE":
+                raise SchemaValidationError(f"{context}: completed H1 outcome references inactive trial")
+            threshold = _as_float(row, "threshold_price", context)
+            gap = _as_float(row, "gap_points", context)
+            nominal_r = _as_float(row, "virtual_nominal_r", context)
+            gross_profit = _as_float(row, "virtual_quote_gross_profit", context)
+            gross_r = _as_float(row, "virtual_quote_gross_r", context)
+            assert threshold is not None and gap is not None and nominal_r is not None
+            assert gross_profit is not None and gross_r is not None
+            expected_threshold = float(
+                trial["take_profit_price"] if status == "TP_FIRST" else trial["stop_loss_price"]
+            )
+            expected_nominal_r = float(trial["tp_r_multiple"]) if status == "TP_FIRST" else -1.0
+            expected_target = 1 if status == "TP_FIRST" else 0
+            expected_reason = "TP_THRESHOLD" if status == "TP_FIRST" else "SL_THRESHOLD"
+            expected_stop_loss = abs(float(trial["virtual_expected_stop_loss"]))
+            if (
+                row["terminal_reason"] != expected_reason
+                or not _same_number(threshold, expected_threshold)
+                or not _same_number(gap, abs(observed_price - threshold) / point)
+                or not _same_number(nominal_r, expected_nominal_r)
+                or expected_stop_loss <= 0.0
+                or not _same_number(gross_r, gross_profit / expected_stop_loss)
+                or not _is_null(row["virtual_exclusion_reason"])
+            ):
+                raise SchemaValidationError(f"{context}: H1 outcome arithmetic mismatch")
+            if row["direction"] == "BUY":
+                threshold_touched = observed_price >= threshold if status == "TP_FIRST" else observed_price <= threshold
+            else:
+                threshold_touched = observed_price <= threshold if status == "TP_FIRST" else observed_price >= threshold
+            if not threshold_touched:
+                raise SchemaValidationError(f"{context}: H1 threshold touch is not proven")
+        else:
+            terminal_only = (
+                "threshold_price",
+                "gap_points",
+                "h1_structural_lifecycle_seconds",
+                "virtual_nominal_r",
+                "virtual_quote_gross_profit",
+                "virtual_quote_gross_r",
+            )
+            if any(not _is_null(row[column]) for column in terminal_only):
+                raise SchemaValidationError(f"{context}: non-completed H1 outcome carries terminal arithmetic")
+            expected_eligibility = {
+                "NOT_TRIGGERED": "NOT_TRIGGERED",
+                "INELIGIBLE": trial["eligibility_status"],
+                "CENSORED_RUN_END": "ACTIVE",
+            }[status]
+            if trial["eligibility_status"] != expected_eligibility:
+                raise SchemaValidationError(f"{context}: H1 terminal status/trial eligibility mismatch")
+            if _is_null(row["virtual_exclusion_reason"]):
+                raise SchemaValidationError(f"{context}: excluded H1 outcome lacks reason")
         if status == "NOT_TRIGGERED" and bool(_as_bool(trial, "midpoint_touched", context)):
             raise SchemaValidationError(f"{context}: touched midpoint cannot be NOT_TRIGGERED")
         eligible = bool(_as_bool(row, "virtual_binary_eligible", context))
         target = _as_int(row, "virtual_binary_target", context, nullable=True)
-        if eligible != (status in ("TP_FIRST", "SL_FIRST")) or (eligible and target not in (0, 1)) or (not eligible and target is not None):
+        expected_target = 1 if status == "TP_FIRST" else 0 if status == "SL_FIRST" else None
+        if eligible != (status in ("TP_FIRST", "SL_FIRST")) or target != expected_target:
             raise SchemaValidationError(f"{context}: H1 binary eligibility/status mismatch")
         outcomes[outcome_id] = row
+    if trial_ids != set(trials):
+        raise SchemaValidationError("Every H1/parity trial must have exactly one outcome")
     return outcomes
 
 
-def _validate_deep(rows: dict[str, list[dict[str, str]]], manifest: dict[str, str], origins: dict[str, dict[str, str]], trials: dict[str, dict[str, str]], outcomes: dict[str, dict[str, str]]) -> None:
+def _validate_broker_outcomes(
+    rows: list[dict[str, str]],
+    manifest: dict[str, str],
+    origins: dict[str, dict[str, str]],
+    trials: dict[str, dict[str, str]],
+    outcomes: dict[str, dict[str, str]],
+) -> dict[str, dict[str, str]]:
+    broker_outcomes: dict[str, dict[str, str]] = {}
+    outcome_by_trial = {row["trial_id"]: row for row in outcomes.values()}
+    outcome_ids: set[str] = set()
+    for index, row in enumerate(rows, start=2):
+        context = f"{BROKER_OUTCOMES_FILE}:{index}"
+        _validate_common(row, context, manifest)
+        outcome_id = _require_value(row, "broker_outcome_id", context)
+        broker_signal_id = _require_value(row, "broker_signal_id", context)
+        origin = origins.get(_require_value(row, "origin_id", context))
+        if (
+            outcome_id in outcome_ids
+            or broker_signal_id in broker_outcomes
+            or origin is None
+        ):
+            raise SchemaValidationError(f"{context}: duplicate/unknown broker outcome")
+        outcome_ids.add(outcome_id)
+        for column in (
+            "window_id",
+            "symbol",
+            "macro_timeframe",
+            "deep_timeframe",
+            "micro_timeframe",
+            "active_bar_open_broker_time",
+            "level_id",
+            "direction",
+        ):
+            origin_column = "window_id" if column == "window_id" else column
+            if row[column] != origin[origin_column]:
+                raise SchemaValidationError(f"{context}: broker outcome identity mismatch")
+        entry_time, _, _ = _validate_time_triplet(
+            row,
+            "entry_broker_time",
+            "entry_analysis_time",
+            "entry_offset_minutes",
+            context,
+        )
+        close_time, _, _ = _validate_time_triplet(
+            row,
+            "close_broker_time",
+            "close_analysis_time",
+            "close_offset_minutes",
+            context,
+        )
+        duration = _as_int(row, "h1_structural_lifecycle_seconds", context)
+        assert entry_time is not None and close_time is not None and duration is not None
+        if (
+            close_time <= entry_time
+            or duration != int((close_time - entry_time).total_seconds())
+            or not _as_bool(row, "broker_entry_confirmed", context)
+            or not _as_bool(row, "broker_close_confirmed", context)
+            or int(_require_value(row, "close_deal_count", context)) <= 0
+        ):
+            raise SchemaValidationError(f"{context}: incomplete broker lifecycle")
+        parity_trial_id = _require_value(row, "parity_trial_id", context)
+        parity_trial = trials.get(parity_trial_id)
+        parity_outcome = outcome_by_trial.get(parity_trial_id)
+        if (
+            parity_trial is None
+            or parity_outcome is None
+            or parity_trial["trial_role"] != "BROKER_PARITY"
+            or parity_trial["origin_id"] != row["origin_id"]
+            or parity_trial["broker_signal_id"] != broker_signal_id
+            or parity_trial["parity_trial_id"] != parity_trial_id
+        ):
+            raise SchemaValidationError(f"{context}: broker parity reference mismatch")
+        request_risk = _as_float(row, "request_risk_distance_points", context)
+        request_reward = _as_float(row, "request_reward_distance_points", context)
+        request_ratio = _as_float(row, "request_price_reward_risk_ratio", context)
+        assert request_risk is not None and request_reward is not None and request_ratio is not None
+        if (
+            request_risk <= 0.0
+            or not _same_number(request_reward, request_risk)
+            or not _same_number(request_ratio, 1.0)
+        ):
+            raise SchemaValidationError(f"{context}: broker request is not structural 1R")
+        terminal_reason = _require_value(row, "broker_terminal_reason", context)
+        binary_eligible = bool(_as_bool(row, "broker_binary_eligible", context))
+        binary_target = _as_int(row, "broker_binary_target", context, nullable=True)
+        expected_target = 1 if terminal_reason == "BROKER_TP" else 0 if terminal_reason == "BROKER_SL" else None
+        expected_eligible = (
+            expected_target is not None
+            and bool(_as_bool(row, "close_reason_consistent", context))
+            and bool(_as_bool(origin, "origin_feature_snapshot_complete", context))
+        )
+        if (
+            binary_eligible != expected_eligible
+            or binary_target != (expected_target if expected_eligible else None)
+            or (binary_eligible and not _is_null(row["broker_exclusion_reason"]))
+            or (not binary_eligible and _is_null(row["broker_exclusion_reason"]))
+        ):
+            raise SchemaValidationError(f"{context}: broker binary evidence mismatch")
+        broker_outcomes[broker_signal_id] = row
+    return broker_outcomes
+
+
+def _validate_deep(
+    rows: dict[str, list[dict[str, str]]],
+    manifest: dict[str, str],
+    windows: dict[str, dict[str, str]],
+    origins: dict[str, dict[str, str]],
+    trials: dict[str, dict[str, str]],
+    outcomes: dict[str, dict[str, str]],
+    broker_outcomes: dict[str, dict[str, str]],
+) -> None:
     events: dict[str, dict[str, str]] = {}
     identities: set[tuple[str, str, str, str]] = set()
     for index, row in enumerate(rows[DEEP_PIVOT_EVENTS_FILE], start=2):
@@ -955,8 +1184,82 @@ def _validate_deep(rows: dict[str, list[dict[str, str]]], manifest: dict[str, st
         if event_id in events or identity in identities:
             raise SchemaValidationError(f"{context}: duplicate deep event identity")
         identities.add(identity)
-        if row["deep_timeframe"] != manifest["deep_timeframe"] or row["micro_timeframe"] != manifest["micro_timeframe"] or row["level_id"] not in PIVOT_LEVELS or row["direction"] not in ("BUY", "SELL"):
+        window = windows.get(_require_value(row, "deep_window_id", context))
+        level = row["level_id"]
+        direction = row["direction"]
+        if (
+            window is None
+            or window["window_scope"] != "DEEP"
+            or row["symbol"] != manifest["symbol"]
+            or row["symbol"] != window["symbol"]
+            or row["deep_timeframe"] != manifest["deep_timeframe"]
+            or row["deep_timeframe"] != window["timeframe"]
+            or row["micro_timeframe"] != manifest["micro_timeframe"]
+            or row["active_deep_bar_open_broker_time"] != window["active_bar_open_broker_time"]
+            or level not in PIVOT_LEVELS
+            or direction not in ("BUY", "SELL")
+            or (level in SUPPORT_LEVELS and direction != "BUY")
+            or (level in RESISTANCE_LEVELS and direction != "SELL")
+        ):
             raise SchemaValidationError(f"{context}: invalid deep event identity")
+        if level == "PP" and window["pp_role"] != direction:
+            raise SchemaValidationError(f"{context}: deep PP direction differs from armed role")
+        trigger_time, _, _ = _validate_time_triplet(
+            row,
+            "trigger_broker_time",
+            "trigger_analysis_time",
+            "trigger_offset_minutes",
+            context,
+        )
+        active_time = _as_time(window, "active_bar_open_broker_time", context)
+        terminal_time = _as_time(window, "terminal_broker_time", context)
+        assert trigger_time is not None and active_time is not None and terminal_time is not None
+        if not active_time <= trigger_time < terminal_time:
+            raise SchemaValidationError(f"{context}: deep trigger outside referenced window")
+        point = _as_float(row, "point_size", context)
+        trade_tick = _as_float(row, "trade_tick_size", context)
+        bid = _as_float(row, "trigger_bid", context)
+        ask = _as_float(row, "trigger_ask", context)
+        spread = _as_float(row, "spread_points", context)
+        stops = _as_float(row, "stops_level_points", context)
+        freeze = _as_float(row, "freeze_level_points", context)
+        assert point is not None and trade_tick is not None and bid is not None
+        assert ask is not None and spread is not None and stops is not None and freeze is not None
+        if (
+            point <= 0.0
+            or trade_tick <= 0.0
+            or bid <= 0.0
+            or ask < bid
+            or stops < 0.0
+            or freeze < 0.0
+            or not _same_number(spread, (ask - bid) / point)
+        ):
+            raise SchemaValidationError(f"{context}: invalid deep broker facts")
+        pivot_raw = _as_float(row, "pivot_raw_price", context)
+        pivot_trade = _as_float(row, "pivot_trade_price", context)
+        boundary = _as_float(row, "next_outward_pivot_price", context)
+        assert pivot_raw is not None and pivot_trade is not None and boundary is not None
+        if (
+            not _same_number(pivot_raw, float(window[_level_column("raw", level)]))
+            or not _same_number(pivot_trade, float(window[_level_column("trade", level)]))
+            or not _same_number(boundary, _structural_stop(window, level, direction))
+        ):
+            raise SchemaValidationError(f"{context}: deep pivot/window geometry mismatch")
+        if (direction == "BUY" and bid > pivot_trade) or (
+            direction == "SELL" and bid < pivot_trade
+        ):
+            raise SchemaValidationError(f"{context}: deep trigger touch is not proven")
+        features_complete = bool(_as_bool(row, "deep_micro_features_complete", context))
+        _validate_features(
+            row,
+            "deep_micro",
+            context,
+            features_complete,
+            point,
+            pivot_trade,
+        )
+        if features_complete != _is_null(row["deep_feature_invalid_reason"]):
+            raise SchemaValidationError(f"{context}: invalid deep feature reason state")
         if not _as_bool(row, "identity_consumed", context):
             raise SchemaValidationError(f"{context}: deep identity is not consumed")
         status = row["admission_status"]
@@ -986,17 +1289,84 @@ def _validate_deep(rows: dict[str, list[dict[str, str]]], manifest: dict[str, st
         _validate_common(row, context, manifest)
         link_id = _require_value(row, "parent_link_id", context)
         event = events.get(_require_value(row, "deep_event_id", context))
-        parent_trial = trials.get(_require_value(row, "parent_trial_id", context))
-        if link_id in links or event is None or parent_trial is None:
+        parent_kind = row["parent_kind"]
+        if parent_kind not in ("VIRTUAL", "BROKER"):
+            raise SchemaValidationError(f"{context}: invalid deep parent kind")
+        parent_trial_id = _require_value(row, "parent_trial_id", context)
+        parent_trial = trials.get(parent_trial_id)
+        if link_id in links or event is None:
             raise SchemaValidationError(f"{context}: unknown/duplicate deep parent link")
-        if event["admission_status"] != "ADMITTED" or row["direction"] != event["direction"] or row["origin_id"] != parent_trial["origin_id"]:
+        if event["admission_status"] != "ADMITTED":
+            raise SchemaValidationError(f"{context}: parent link references rejected event")
+        origin = origins.get(row["origin_id"])
+        if origin is None or row["direction"] != event["direction"] or row["direction"] != origin["direction"]:
             raise SchemaValidationError(f"{context}: parent link identity mismatch")
         entry_time = _as_time(row, "parent_entry_broker_time", context)
         event_time = _as_time(row, "event_trigger_broker_time", context)
         age = _as_int(row, "m10_parent_age_seconds", context)
         assert entry_time and event_time and age is not None
-        if age < 0 or age != int((event_time - entry_time).total_seconds()):
+        event_recorded_time = _as_time(event, "trigger_broker_time", context)
+        assert event_recorded_time is not None
+        if (
+            event_time != event_recorded_time
+            or entry_time > event_time
+            or age < 0
+            or age != int((event_time - entry_time).total_seconds())
+        ):
             raise SchemaValidationError(f"{context}: m10_parent_age_seconds mismatch")
+        if parent_kind == "VIRTUAL":
+            if (
+                parent_trial is None
+                or parent_trial["trial_role"] != "H1"
+                or parent_trial["eligibility_status"] != "ACTIVE"
+                or parent_trial["origin_id"] != row["origin_id"]
+                or parent_trial["direction"] != row["direction"]
+                or parent_trial["entry_policy"] != row["parent_entry_policy"]
+                or parent_trial["tp_r_multiple"] != row["parent_tp_r_multiple"]
+                or parent_trial["broker_signal_id"] != row["parent_broker_signal_id"]
+                or _as_time(parent_trial, "entry_broker_time", context) != entry_time
+            ):
+                raise SchemaValidationError(f"{context}: virtual parent identity mismatch")
+            parent_outcome = next(
+                (outcome for outcome in outcomes.values() if outcome["trial_id"] == parent_trial_id),
+                None,
+            )
+            if parent_outcome is None:
+                raise SchemaValidationError(f"{context}: virtual parent lacks outcome")
+            parent_terminal = _as_time(parent_outcome, "terminal_broker_time", context)
+            assert parent_terminal is not None
+            if event_time >= parent_terminal:
+                raise SchemaValidationError(f"{context}: parent link begins after virtual parent terminal")
+        else:
+            if (
+                parent_trial is None
+                or parent_trial["trial_role"] != "BROKER_PARITY"
+                or parent_trial["parity_trial_id"] != parent_trial_id
+                or parent_trial["origin_id"] != row["origin_id"]
+                or parent_trial["broker_signal_id"] != row["parent_broker_signal_id"]
+                or row["parent_entry_policy"] != "STRUCTURAL"
+                or row["parent_tp_r_multiple"] != "1"
+            ):
+                raise SchemaValidationError(f"{context}: broker parent parity identity mismatch")
+            broker_outcome = broker_outcomes.get(row["parent_broker_signal_id"])
+            if broker_outcome is not None:
+                broker_entry = _as_time(broker_outcome, "entry_broker_time", context)
+                broker_close = _as_time(broker_outcome, "close_broker_time", context)
+                assert broker_entry is not None and broker_close is not None
+                if entry_time != broker_entry or event_time >= broker_close:
+                    raise SchemaValidationError(f"{context}: broker parent interval mismatch")
+            else:
+                # A filled broker parent may still be open at run end. Its fill
+                # needs execution-check evidence; unresolved deep outcomes are
+                # then represented by their own run-end censor rows.
+                if not any(
+                    check["origin_id"] == row["origin_id"]
+                    and check["broker_signal_id"] == row["parent_broker_signal_id"]
+                    and check["broker_entry_confirmed"] == "1"
+                    and _as_time(check, "broker_time", context) <= event_time
+                    for check in rows[EXECUTION_CHECKS_FILE]
+                ):
+                    raise SchemaValidationError(f"{context}: open broker parent lacks fill evidence")
         links[link_id] = row
         links_by_event.setdefault(row["deep_event_id"], []).append(link_id)
     deep_trials: dict[str, dict[str, str]] = {}
@@ -1011,6 +1381,102 @@ def _validate_deep(rows: dict[str, list[dict[str, str]]], manifest: dict[str, st
             raise SchemaValidationError(f"{context}: invalid deep trial identity")
         if event["admission_status"] != "ADMITTED":
             raise SchemaValidationError(f"{context}: trial exists for rejected event")
+        if (
+            row["level_id"] != event["level_id"]
+            or row["direction"] != event["direction"]
+            or row["declared_broker_time"] != event["trigger_broker_time"]
+            or row["declared_analysis_time"] != event["trigger_analysis_time"]
+            or row["declared_offset_minutes"] != event["trigger_offset_minutes"]
+        ):
+            raise SchemaValidationError(f"{context}: deep trial/event identity mismatch")
+        event_point = _as_float(event, "point_size", context)
+        event_tick = _as_float(event, "trade_tick_size", context)
+        event_spread = _as_float(event, "spread_points", context)
+        event_stops = _as_float(event, "stops_level_points", context)
+        event_freeze = _as_float(event, "freeze_level_points", context)
+        event_bid = _as_float(event, "trigger_bid", context)
+        event_ask = _as_float(event, "trigger_ask", context)
+        boundary = _as_float(event, "next_outward_pivot_price", context)
+        assert event_point is not None and event_tick is not None and event_spread is not None
+        assert event_stops is not None and event_freeze is not None
+        assert event_bid is not None and event_ask is not None and boundary is not None
+        active = row["eligibility_status"] == "ACTIVE"
+        if row["eligibility_status"] not in (
+            "ACTIVE",
+            "INELIGIBLE_GEOMETRY",
+            "INELIGIBLE_DISTANCE",
+            "INELIGIBLE_MONEY_PLAN",
+        ):
+            raise SchemaValidationError(f"{context}: invalid deep eligibility status")
+        if not active:
+            geometry_columns = (
+                "entry_bid", "entry_ask", "entry_price", "entry_quote_side",
+                "exit_quote_side", "requested_risk_distance_price",
+                "requested_risk_distance_points", "normalized_risk_ticks",
+                "normalized_risk_distance_price", "normalized_risk_distance_points",
+                "stop_loss_price", "take_profit_price", "geometry_equivalence_id",
+                "spread_points", "point_size", "trade_tick_size",
+                "stops_level_points", "freeze_level_points",
+                "minimum_risk_distance_points",
+            )
+            if any(not _is_null(row[column]) for column in geometry_columns) or bool(_as_bool(row, "distance_eligible", context)):
+                raise SchemaValidationError(f"{context}: ineligible deep trial carries geometry")
+            if _is_null(row["ineligible_reason"]):
+                raise SchemaValidationError(f"{context}: ineligible deep trial lacks reason")
+            deep_trials[trial_id] = row
+            trials_by_event.setdefault(row["deep_event_id"], []).append(trial_id)
+            continue
+        for column, expected in (
+            ("entry_bid", event_bid),
+            ("entry_ask", event_ask),
+            ("spread_points", event_spread),
+            ("point_size", event_point),
+            ("trade_tick_size", event_tick),
+            ("stops_level_points", event_stops),
+            ("freeze_level_points", event_freeze),
+        ):
+            actual = _as_float(row, column, context)
+            assert actual is not None
+            if not _same_number(actual, expected):
+                raise SchemaValidationError(f"{context}: deep trial/event broker facts mismatch")
+        entry_bid = _as_float(row, "entry_bid", context)
+        entry_ask = _as_float(row, "entry_ask", context)
+        entry = _as_float(row, "entry_price", context)
+        requested_risk = _as_float(row, "requested_risk_distance_price", context)
+        requested_points = _as_float(row, "requested_risk_distance_points", context)
+        normalized_ticks = _as_int(row, "normalized_risk_ticks", context)
+        normalized_risk = _as_float(row, "normalized_risk_distance_price", context)
+        normalized_points = _as_float(row, "normalized_risk_distance_points", context)
+        stop = _as_float(row, "stop_loss_price", context)
+        take_profit = _as_float(row, "take_profit_price", context)
+        minimum = _as_float(row, "minimum_risk_distance_points", context)
+        assert entry_bid is not None and entry_ask is not None and entry is not None
+        assert requested_risk is not None and requested_points is not None
+        assert normalized_ticks is not None and normalized_risk is not None and normalized_points is not None
+        assert stop is not None and take_profit is not None and minimum is not None
+        expected_entry = event_ask if event["direction"] == "BUY" else event_bid
+        expected_requested = abs(expected_entry - boundary)
+        expected_ticks = math.ceil(expected_requested / event_tick - 1e-12)
+        expected_normalized = expected_ticks * event_tick
+        expected_stop = expected_entry - expected_normalized if event["direction"] == "BUY" else expected_entry + expected_normalized
+        expected_tp = expected_entry + ratio * expected_normalized if event["direction"] == "BUY" else expected_entry - ratio * expected_normalized
+        expected_minimum = event_spread + max(event_stops, event_freeze) + event_tick / event_point
+        if (
+            not _same_number(entry, expected_entry)
+            or row["entry_quote_side"] != ("ASK" if event["direction"] == "BUY" else "BID")
+            or row["exit_quote_side"] != ("BID" if event["direction"] == "BUY" else "ASK")
+            or not _same_number(requested_risk, expected_requested)
+            or not _same_number(requested_points, expected_requested / event_point)
+            or normalized_ticks != expected_ticks
+            or not _same_number(normalized_risk, expected_normalized)
+            or not _same_number(normalized_points, expected_normalized / event_point)
+            or not _same_number(stop, expected_stop)
+            or not _same_number(take_profit, expected_tp)
+            or not _same_number(minimum, expected_minimum)
+            or bool(_as_bool(row, "distance_eligible", context)) != (normalized_points + 1e-7 >= minimum)
+            or not _is_null(row["ineligible_reason"])
+        ):
+            raise SchemaValidationError(f"{context}: deep trial geometry arithmetic mismatch")
         deep_trials[trial_id] = row
         trials_by_event.setdefault(row["deep_event_id"], []).append(trial_id)
     for event_id, event in events.items():
@@ -1029,36 +1495,186 @@ def _validate_deep(rows: dict[str, list[dict[str, str]]], manifest: dict[str, st
         if identity in deep_outcomes:
             raise SchemaValidationError(f"{context}: duplicate deep outcome identity")
         deep_outcomes.add(identity)
+        event = events[row["deep_event_id"]]
+        for column, expected in (
+            ("origin_id", link["origin_id"]),
+            ("tp_r_multiple", trial["tp_r_multiple"]),
+            ("direction", event["direction"]),
+        ):
+            if row[column] != expected:
+                raise SchemaValidationError(f"{context}: deep outcome identity mismatch")
+        terminal_time, _, _ = _validate_time_triplet(
+            row,
+            "terminal_broker_time",
+            "terminal_analysis_time",
+            "terminal_offset_minutes",
+            context,
+        )
+        event_time = _as_time(event, "trigger_broker_time", context)
+        assert terminal_time is not None and event_time is not None
+        if terminal_time <= event_time:
+            raise SchemaValidationError(f"{context}: deep outcome terminal precedes event trigger")
+        observed_bid = _as_float(row, "observed_exit_bid", context)
+        observed_ask = _as_float(row, "observed_exit_ask", context)
+        observed_price = _as_float(row, "observed_exit_price", context)
+        point = _as_float(event, "point_size", context)
+        assert observed_bid is not None and observed_ask is not None and observed_price is not None and point is not None
+        expected_exit_side = "BID" if row["direction"] == "BUY" else "ASK"
+        expected_exit_price = observed_bid if row["direction"] == "BUY" else observed_ask
+        if (
+            observed_bid <= 0.0
+            or observed_ask < observed_bid
+            or row["exit_quote_side"] != expected_exit_side
+            or not _same_number(observed_price, expected_exit_price)
+            or not _as_bool(row, "first_touch_consistent", context)
+        ):
+            raise SchemaValidationError(f"{context}: invalid deep observed exit facts")
         status = row["terminal_status"]
         if status not in ("TP_FIRST", "SL_FIRST", "CENSORED_PARENT_EXIT", "CENSORED_RUN_END", "INELIGIBLE"):
             raise SchemaValidationError(f"{context}: invalid deep terminal status")
         duration = _as_int(row, "deep_lifecycle_seconds", context, nullable=True)
         if status in ("TP_FIRST", "SL_FIRST") and (duration is None or duration < 0):
             raise SchemaValidationError(f"{context}: completed deep outcome lacks duration")
-        if status not in ("TP_FIRST", "SL_FIRST") and duration is not None:
-            raise SchemaValidationError(f"{context}: censored/ineligible deep outcome carries duration")
+        if status in ("TP_FIRST", "SL_FIRST"):
+            if trial["eligibility_status"] != "ACTIVE" or duration != int((terminal_time - event_time).total_seconds()):
+                raise SchemaValidationError(f"{context}: completed deep lifecycle mismatch")
+            threshold = _as_float(row, "threshold_price", context)
+            gap = _as_float(row, "gap_points", context)
+            nominal_r = _as_float(row, "virtual_nominal_r", context)
+            gross_profit = _as_float(row, "virtual_quote_gross_profit", context)
+            gross_r = _as_float(row, "virtual_quote_gross_r", context)
+            assert threshold is not None and gap is not None and nominal_r is not None
+            assert gross_profit is not None and gross_r is not None
+            expected_threshold = float(trial["take_profit_price"] if status == "TP_FIRST" else trial["stop_loss_price"])
+            expected_nominal = float(trial["tp_r_multiple"]) if status == "TP_FIRST" else -1.0
+            if (
+                row["terminal_reason"] != ("TP_THRESHOLD" if status == "TP_FIRST" else "SL_THRESHOLD")
+                or not _same_number(threshold, expected_threshold)
+                or not _same_number(gap, abs(observed_price - threshold) / point)
+                or not _same_number(nominal_r, expected_nominal)
+                or not _is_null(row["virtual_exclusion_reason"])
+            ):
+                raise SchemaValidationError(f"{context}: deep outcome arithmetic mismatch")
+            touched = (
+                observed_price >= threshold
+                if row["direction"] == "BUY" and status == "TP_FIRST"
+                else observed_price <= threshold
+                if row["direction"] == "BUY"
+                else observed_price <= threshold
+                if status == "TP_FIRST"
+                else observed_price >= threshold
+            )
+            if not touched:
+                raise SchemaValidationError(f"{context}: deep threshold touch is not proven")
+        else:
+            if any(
+                not _is_null(row[column])
+                for column in (
+                    "threshold_price", "gap_points", "deep_lifecycle_seconds",
+                    "virtual_nominal_r", "virtual_quote_gross_profit", "virtual_quote_gross_r",
+                )
+            ):
+                raise SchemaValidationError(f"{context}: non-completed deep outcome carries terminal arithmetic")
+            if _is_null(row["virtual_exclusion_reason"]):
+                raise SchemaValidationError(f"{context}: excluded deep outcome lacks reason")
+            if status == "INELIGIBLE" and trial["eligibility_status"] == "ACTIVE":
+                raise SchemaValidationError(f"{context}: active deep trial has ineligible outcome")
+            if status in ("CENSORED_PARENT_EXIT", "CENSORED_RUN_END") and trial["eligibility_status"] != "ACTIVE":
+                raise SchemaValidationError(f"{context}: censored deep outcome references inactive trial")
+            if status == "CENSORED_PARENT_EXIT":
+                parent_kind = link["parent_kind"]
+                parent_terminal = None
+                if parent_kind == "VIRTUAL":
+                    parent_outcome = next(
+                        outcome for outcome in outcomes.values() if outcome["trial_id"] == link["parent_trial_id"]
+                    )
+                    parent_terminal = _as_time(parent_outcome, "terminal_broker_time", context)
+                elif link["parent_broker_signal_id"] in broker_outcomes:
+                    parent_terminal = _as_time(
+                        broker_outcomes[link["parent_broker_signal_id"]],
+                        "close_broker_time",
+                        context,
+                    )
+                if parent_terminal is None:
+                    raise SchemaValidationError(f"{context}: parent-exit censor lacks terminal parent evidence")
+                if terminal_time != parent_terminal:
+                    raise SchemaValidationError(f"{context}: parent-exit censor time mismatch")
+            if status == "CENSORED_RUN_END" and terminal_time < event_time:
+                raise SchemaValidationError(f"{context}: run-end censor precedes event")
         eligible = bool(_as_bool(row, "virtual_binary_eligible", context))
         target = _as_int(row, "virtual_binary_target", context, nullable=True)
-        if eligible != (status in ("TP_FIRST", "SL_FIRST")) or (eligible and target not in (0, 1)) or (not eligible and target is not None):
+        expected_target = 1 if status == "TP_FIRST" else 0 if status == "SL_FIRST" else None
+        if eligible != (status in ("TP_FIRST", "SL_FIRST")) or target != expected_target:
             raise SchemaValidationError(f"{context}: deep binary eligibility/status mismatch")
     expected_outcomes = sum(len(ids) * 3 for ids in links_by_event.values())
     if len(deep_outcomes) != expected_outcomes:
         raise SchemaValidationError(f"Deep outcome cardinality mismatch: {len(deep_outcomes)} != {expected_outcomes}")
 
 
-def _validate_summary(row: dict[str, str], manifest: dict[str, str], counts: dict[str, int]) -> None:
+def _validate_summary(
+    row: dict[str, str],
+    manifest: dict[str, str],
+    tables: dict[str, list[dict[str, str]]],
+) -> None:
     context = RUN_SUMMARY_FILE
     _validate_common(row, context, manifest)
+    counts = {filename: len(rows) for filename, rows in tables.items()}
     for key, filename in (("pivot_window_rows", PIVOT_WINDOWS_FILE), ("signal_origin_rows", SIGNAL_ORIGINS_FILE), ("h1_trial_rows", VIRTUAL_TRIALS_FILE), ("h1_outcome_rows", VIRTUAL_OUTCOMES_FILE), ("deep_event_rows", DEEP_PIVOT_EVENTS_FILE), ("deep_parent_link_rows", DEEP_PIVOT_PARENT_LINKS_FILE), ("deep_trial_rows", DEEP_VIRTUAL_TRIALS_FILE), ("deep_outcome_rows", DEEP_VIRTUAL_OUTCOMES_FILE), ("execution_check_rows", EXECUTION_CHECKS_FILE), ("broker_outcome_rows", BROKER_OUTCOMES_FILE)):
         value = _as_int(row, key, context)
         assert value is not None
         if value != counts[filename]:
             raise SchemaValidationError(f"{context}: summary {key} mismatch")
+    category_checks = {
+        "macro_window_rows": sum(window["window_scope"] == "MACRO" for window in tables[PIVOT_WINDOWS_FILE]),
+        "deep_window_rows": sum(window["window_scope"] == "DEEP" for window in tables[PIVOT_WINDOWS_FILE]),
+        "h1_structural_trial_rows": sum(
+            trial["trial_role"] == "H1" and trial["entry_policy"] == "STRUCTURAL"
+            for trial in tables[VIRTUAL_TRIALS_FILE]
+        ),
+        "h1_midpoint_trial_rows": sum(
+            trial["trial_role"] == "H1" and trial["entry_policy"] == "MIDPOINT_50"
+            for trial in tables[VIRTUAL_TRIALS_FILE]
+        ),
+        "parity_trial_rows": sum(
+            trial["trial_role"] == "BROKER_PARITY"
+            for trial in tables[VIRTUAL_TRIALS_FILE]
+        ),
+        "h1_tp_rows": sum(outcome["terminal_status"] == "TP_FIRST" for outcome in tables[VIRTUAL_OUTCOMES_FILE]),
+        "h1_sl_rows": sum(outcome["terminal_status"] == "SL_FIRST" for outcome in tables[VIRTUAL_OUTCOMES_FILE]),
+        "h1_not_triggered_rows": sum(outcome["terminal_status"] == "NOT_TRIGGERED" for outcome in tables[VIRTUAL_OUTCOMES_FILE]),
+        "h1_ineligible_rows": sum(outcome["terminal_status"] == "INELIGIBLE" for outcome in tables[VIRTUAL_OUTCOMES_FILE]),
+        "h1_run_censored_rows": sum(outcome["terminal_status"] == "CENSORED_RUN_END" for outcome in tables[VIRTUAL_OUTCOMES_FILE]),
+        "deep_event_admitted_rows": sum(event["admission_status"] == "ADMITTED" for event in tables[DEEP_PIVOT_EVENTS_FILE]),
+        "deep_event_capacity_rejected_rows": sum(event["admission_status"] == "CAPACITY_REJECTED" for event in tables[DEEP_PIVOT_EVENTS_FILE]),
+        "deep_tp_rows": sum(outcome["terminal_status"] == "TP_FIRST" for outcome in tables[DEEP_VIRTUAL_OUTCOMES_FILE]),
+        "deep_sl_rows": sum(outcome["terminal_status"] == "SL_FIRST" for outcome in tables[DEEP_VIRTUAL_OUTCOMES_FILE]),
+        "deep_parent_exit_censored_rows": sum(outcome["terminal_status"] == "CENSORED_PARENT_EXIT" for outcome in tables[DEEP_VIRTUAL_OUTCOMES_FILE]),
+        "deep_run_censored_rows": sum(outcome["terminal_status"] == "CENSORED_RUN_END" for outcome in tables[DEEP_VIRTUAL_OUTCOMES_FILE]),
+        "deep_ineligible_rows": sum(outcome["terminal_status"] == "INELIGIBLE" for outcome in tables[DEEP_VIRTUAL_OUTCOMES_FILE]),
+    }
+    for key, expected in category_checks.items():
+        if _as_int(row, key, context) != expected:
+            raise SchemaValidationError(f"{context}: summary {key} mismatch")
+    capacity_keys = (
+        ("h1_active_state_peak", "h1_active_state_cap", "h1_active_state_cap"),
+        ("deep_event_active_peak", "deep_event_active_cap", "deep_event_active_cap"),
+        ("deep_link_active_peak", "deep_link_active_cap", "deep_link_active_cap"),
+        ("deep_trial_active_peak", "deep_trial_active_cap", "deep_trial_active_cap"),
+        ("deep_outcome_active_peak", "deep_outcome_active_cap", "deep_outcome_active_cap"),
+    )
+    for peak_key, cap_key, manifest_key in capacity_keys:
+        peak = _as_int(row, peak_key, context)
+        cap = _as_int(row, cap_key, context)
+        assert peak is not None and cap is not None
+        if peak < 0 or cap <= 0 or peak > cap or str(cap) != manifest[manifest_key]:
+            raise SchemaValidationError(f"{context}: invalid {cap_key} active-state capacity")
     for key in ("duplicate_identity_count", "referential_integrity_error_count", "row_integrity_error_count"):
         if _as_int(row, key, context) != 0:
             raise SchemaValidationError(f"{context}: non-zero integrity count {key}")
     if row["export_status"] != "OK":
         raise SchemaValidationError(f"{context}: export status is not OK")
+    if row["completion_status"] not in ("NATURAL", "CENSORED"):
+        raise SchemaValidationError(f"{context}: invalid completion status")
 
 
 def validate_run(runs_root: Path, run_id: str, *, schema_version: int = SUPPORTED_SCHEMA_VERSION) -> RunValidation:
@@ -1070,11 +1686,26 @@ def validate_run(runs_root: Path, run_id: str, *, schema_version: int = SUPPORTE
     origins = _validate_origins(tables[SIGNAL_ORIGINS_FILE], manifest, windows)
     trials = _validate_trials(tables[VIRTUAL_TRIALS_FILE], manifest, origins, windows)
     outcomes = _validate_outcomes(tables[VIRTUAL_OUTCOMES_FILE], manifest, trials)
-    _validate_deep(tables, manifest, origins, trials, outcomes)
-    counts = {filename: len(rows) for filename, rows in tables.items()}
+    broker_outcomes = _validate_broker_outcomes(
+        tables[BROKER_OUTCOMES_FILE],
+        manifest,
+        origins,
+        trials,
+        outcomes,
+    )
+    _validate_deep(
+        tables,
+        manifest,
+        windows,
+        origins,
+        trials,
+        outcomes,
+        broker_outcomes,
+    )
     if len(tables[RUN_SUMMARY_FILE]) != 1:
         raise SchemaValidationError("run_summary.tsv must contain exactly one row")
-    _validate_summary(tables[RUN_SUMMARY_FILE][0], manifest, counts)
+    _validate_summary(tables[RUN_SUMMARY_FILE][0], manifest, tables)
+    counts = {filename: len(rows) for filename, rows in tables.items()}
     warnings = ("run completion is CENSORED",) if tables[RUN_SUMMARY_FILE][0]["completion_status"] != "NATURAL" else ()
     return RunValidation(run_id, manifest["config_id"], run_path, manifest, counts, warnings)
 

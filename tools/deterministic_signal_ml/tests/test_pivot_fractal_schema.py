@@ -21,6 +21,7 @@ from schema_contract import (
     DEEP_TP_R_MULTIPLES,
     DEEP_VIRTUAL_OUTCOMES_FILE,
     DEEP_VIRTUAL_TRIALS_FILE,
+    EXECUTION_CHECKS_FILE,
     FUTURE_ONLY_COLUMNS,
     H1_ENTRY_POLICIES,
     H1_MATRIX_SIZE,
@@ -236,6 +237,146 @@ class PivotFractalV13SchemaTests(unittest.TestCase):
             ),
             "m10_parent_age_seconds mismatch",
         )
+
+    def test_deep_event_must_reference_its_causal_deep_window(self) -> None:
+        self.assert_mutation_rejected(
+            lambda run_path: mutate_row(
+                run_path,
+                DEEP_PIVOT_EVENTS_FILE,
+                lambda row: True,
+                deep_window_id="win_h1_202601121000",
+            ),
+            "invalid deep event identity",
+        )
+
+    def test_deep_m3_feature_formulas_fail_closed(self) -> None:
+        cases = (
+            (
+                {
+                    "deep_micro_b_percent_0": "49.0000000000",
+                    "deep_micro_b_percent_state_0": "BELOW",
+                },
+                "B percent shift 0 formula mismatch",
+            ),
+            (
+                {"deep_micro_stochastic_main_line_sma_slope_0": "1.0000000000"},
+                "SMA slope mismatch",
+            ),
+            (
+                {"deep_micro_stochastic_main_line_state_0": "ABOVE"},
+                "state mismatch",
+            ),
+        )
+        for values, expected_error in cases:
+            with self.subTest(values=values):
+                self.assert_mutation_rejected(
+                    lambda run_path, values=values: mutate_row(
+                        run_path,
+                        DEEP_PIVOT_EVENTS_FILE,
+                        lambda row: True,
+                        **values,
+                    ),
+                    expected_error,
+                )
+
+    def test_deep_trial_geometry_and_outcome_arithmetic_fail_closed(self) -> None:
+        self.assert_mutation_rejected(
+            lambda run_path: mutate_row(
+                run_path,
+                DEEP_VIRTUAL_TRIALS_FILE,
+                lambda row: row["tp_r_multiple"] == "2",
+                take_profit_price="1.1049000000",
+            ),
+            "deep trial geometry arithmetic mismatch",
+        )
+        self.assert_mutation_rejected(
+            lambda run_path: mutate_row(
+                run_path,
+                DEEP_VIRTUAL_OUTCOMES_FILE,
+                lambda row: row["parent_link_id"] == "link_0"
+                and row["tp_r_multiple"] == "3",
+                virtual_nominal_r="2.0000000000",
+            ),
+            "deep outcome arithmetic mismatch",
+        )
+
+    def test_virtual_and_parity_identifiers_match_the_producer_boundary(self) -> None:
+        self.assert_mutation_rejected(
+            lambda run_path: mutate_row(
+                run_path,
+                VIRTUAL_TRIALS_FILE,
+                lambda row: row["trial_id"] == "trial_structural_tp1",
+                broker_signal_id="broker_sig_s1",
+            ),
+            "invalid H1 lane identity",
+        )
+        self.assert_mutation_rejected(
+            lambda run_path: mutate_row(
+                run_path,
+                VIRTUAL_TRIALS_FILE,
+                lambda row: row["trial_role"] == "BROKER_PARITY",
+                parity_trial_id="mismatched_parity_id",
+            ),
+            "parity must shadow structural 1R",
+        )
+
+    def test_open_broker_parent_can_end_with_run_censored_deep_evidence(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root, run_path = self.copy_fixture(temp_dir)
+            mutate_row(
+                run_path,
+                DEEP_PIVOT_PARENT_LINKS_FILE,
+                lambda row: row["parent_link_id"] == "link_1",
+                parent_kind="BROKER",
+                parent_trial_id="parity_broker_sig_s1",
+                parent_broker_signal_id="broker_sig_s1",
+                parent_entry_policy="STRUCTURAL",
+                parent_tp_r_multiple="1",
+                parent_entry_broker_time="2026.01.12 10:05:00",
+                m10_parent_age_seconds="840",
+            )
+            mutate_row(
+                run_path,
+                DEEP_VIRTUAL_OUTCOMES_FILE,
+                lambda row: row["parent_link_id"] == "link_1"
+                and row["tp_r_multiple"] == "3",
+                terminal_broker_time="2026.01.12 11:00:00",
+                terminal_analysis_time="2026.01.12 11:00:00",
+                terminal_offset_minutes="0",
+                terminal_status="CENSORED_RUN_END",
+                terminal_reason="CENSORED_RUN_END",
+                virtual_exclusion_reason="CENSORED_RUN_END",
+            )
+            columns, checks = read_rows(run_path / EXECUTION_CHECKS_FILE)
+            check = {column: NULL_TOKEN for column in columns}
+            check.update(
+                {
+                    "schema_version": "13",
+                    "run_id": FIXTURE.name,
+                    "config_id": "cfg_v13_fixture",
+                    "check_id": "check_open_broker_fill",
+                    "origin_id": "origin_s1_buy",
+                    "broker_signal_id": "broker_sig_s1",
+                    "parity_trial_id": "parity_broker_sig_s1",
+                    "window_id": "win_h1_202601121000",
+                    "broker_time": "2026.01.12 10:05:00",
+                    "analysis_time": "2026.01.12 10:05:00",
+                    "offset_minutes": "0",
+                    "broker_entry_confirmed": "1",
+                }
+            )
+            checks.append(check)
+            write_rows(run_path / EXECUTION_CHECKS_FILE, columns, checks)
+            mutate_row(
+                run_path,
+                RUN_SUMMARY_FILE,
+                lambda row: True,
+                execution_check_rows="1",
+                deep_parent_exit_censored_rows="0",
+                deep_run_censored_rows="1",
+            )
+            validation = validate_run(root, FIXTURE.name)
+            self.assertEqual(validation.deep_parent_link_rows, 2)
 
     def test_one_event_has_shared_trials_and_link_scoped_outcomes(self) -> None:
         _, events = read_rows(FIXTURE / DEEP_PIVOT_EVENTS_FILE)

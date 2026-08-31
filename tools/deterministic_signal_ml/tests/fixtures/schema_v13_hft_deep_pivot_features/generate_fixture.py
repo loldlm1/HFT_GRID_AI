@@ -52,7 +52,7 @@ def _write(filename: str, rows: list[dict[str, str]]) -> None:
         writer.writerows(rows)
 
 
-def _features(row: dict[str, str], prefix: str) -> None:
+def _features(row: dict[str, str], prefix: str, pivot_price: float) -> None:
     row[f"{prefix}_band_width_points_0"] = "100.0000000000"
     for series in contract.SIGNAL_SERIES:
         for shift in contract.FEATURE_SHIFTS:
@@ -61,7 +61,7 @@ def _features(row: dict[str, str], prefix: str) -> None:
             row[f"{prefix}_{series}_sma_slope_{shift}"] = "0.0000000000"
             row[f"{prefix}_{series}_state_{shift}"] = "EQUAL"
     for shift in contract.FEATURE_SHIFTS:
-        row[f"{prefix}_band_base_line_{shift}"] = "1.1000000000"
+        row[f"{prefix}_band_base_line_{shift}"] = f"{pivot_price:.10f}"
         row[f"{prefix}_band_base_line_slope_points_{shift}"] = "0.0000000000"
 
 
@@ -113,7 +113,11 @@ def _window(
     _triplet(row, "source_close_boundary", active)
     _triplet(row, "first_observed", active + timedelta(seconds=1))
     _triplet(row, "pp_arm", active + timedelta(seconds=1))
-    _triplet(row, "terminal", datetime(2026, 1, 12, 11, 0, 0))
+    _triplet(
+        row,
+        "terminal",
+        active + timedelta(seconds=contract.TIMEFRAME_SECONDS[timeframe]),
+    )
     row["pp_arm_bid"] = f"{first_bid:.10f}"
     for level, value in levels.items():
         row[f"raw_{level.lower()}_price"] = f"{value:.10f}"
@@ -143,7 +147,7 @@ def _h1_trial(
         parity_trial_id=NULL,
         origin_id="origin_s1_buy",
         window_id="win_h1_202601121000",
-        broker_signal_id="broker_sig_s1",
+        broker_signal_id="broker_sig_s1" if role == "BROKER_PARITY" else NULL,
         trial_role=role,
         entry_policy=policy,
         tp_r_multiple=ratio,
@@ -169,7 +173,7 @@ def _h1_trial(
         trade_tick_size="0.0001000000",
         stops_level_points="5.0000000000",
         freeze_level_points="2.0000000000",
-        minimum_risk_distance_points="7.0000000000",
+        minimum_risk_distance_points="8.0000000000",
         distance_eligible="1",
         lot_mode=contract.REFERENCE_LOT_MODE,
         lot_strategy_size="0.01000000",
@@ -318,8 +322,8 @@ def generate() -> None:
     for level in contract.PIVOT_LEVELS:
         origin[f"raw_{level.lower()}_price"] = macro[f"raw_{level.lower()}_price"]
         origin[f"trade_{level.lower()}_price"] = macro[f"trade_{level.lower()}_price"]
-    _features(origin, "origin_micro")
-    _features(origin, "origin_macro")
+    _features(origin, "origin_micro", 1.0900)
+    _features(origin, "origin_macro", 1.0900)
     _write(contract.SIGNAL_ORIGINS_FILE, [origin])
 
     trials: list[dict[str, str]] = []
@@ -337,13 +341,21 @@ def generate() -> None:
                     1.0852 if midpoint else 1.0902,
                 )
             )
-    parity = _h1_trial("STRUCTURAL", 1, "trial_parity_s1", trigger, 1.0900, 1.0902, "BROKER_PARITY")
+    parity = _h1_trial(
+        "STRUCTURAL",
+        1,
+        "parity_broker_sig_s1",
+        trigger,
+        1.0900,
+        1.0902,
+        "BROKER_PARITY",
+    )
     parity["parity_trial_id"] = "parity_broker_sig_s1"
     trials.append(parity)
     _write(contract.VIRTUAL_TRIALS_FILE, trials)
     _write(contract.VIRTUAL_OUTCOMES_FILE, [_h1_outcome(trial, index) for index, trial in enumerate(trials)])
 
-    event_time = datetime(2026, 1, 12, 10, 20)
+    event_time = datetime(2026, 1, 12, 10, 19)
     event = _row(
         contract.DEEP_PIVOT_EVENT_COLUMNS,
         schema_version=13,
@@ -381,7 +393,7 @@ def generate() -> None:
         capacity_rejection_reason=NULL,
     )
     _triplet(event, "trigger", event_time)
-    _features(event, "deep_micro")
+    _features(event, "deep_micro", 1.0950)
     _write(contract.DEEP_PIVOT_EVENTS_FILE, [event])
 
     links: list[dict[str, str]] = []
@@ -401,7 +413,7 @@ def generate() -> None:
                 origin_id="origin_s1_buy",
                 parent_kind="VIRTUAL",
                 parent_trial_id=trial_id,
-                parent_broker_signal_id="broker_sig_s1",
+                parent_broker_signal_id=parent["broker_signal_id"],
                 parent_entry_policy=policy,
                 parent_tp_r_multiple="1",
                 direction="BUY",
@@ -444,7 +456,7 @@ def generate() -> None:
             trade_tick_size="0.0001000000",
             stops_level_points="5.0000000000",
             freeze_level_points="2.0000000000",
-            minimum_risk_distance_points="7.0000000000",
+            minimum_risk_distance_points="8.0000000000",
             distance_eligible="1",
             eligibility_status="ACTIVE",
             ineligible_reason=NULL,
@@ -472,7 +484,21 @@ def generate() -> None:
                 )
             else:
                 terminal = event_time + timedelta(minutes=5 + ratio)
+            trial = next(
+                trial
+                for trial in deep_trials
+                if trial["deep_trial_id"] == f"deep_trial_s1_r{ratio}"
+            )
             completed = status in ("TP_FIRST", "SL_FIRST")
+            threshold = (
+                trial["take_profit_price"]
+                if status == "TP_FIRST"
+                else trial["stop_loss_price"]
+                if status == "SL_FIRST"
+                else NULL
+            )
+            observed_bid = float(threshold) if completed else 1.1000
+            gross_r = float(ratio) if status == "TP_FIRST" else -1.0
             row = _row(
                 contract.DEEP_VIRTUAL_OUTCOME_COLUMNS,
                 schema_version=13,
@@ -486,17 +512,23 @@ def generate() -> None:
                 tp_r_multiple=ratio,
                 direction="BUY",
                 terminal_status=status,
-                terminal_reason=status,
-                threshold_price="1.1000000000",
-                observed_exit_bid="1.1000000000",
-                observed_exit_ask="1.1002000000",
-                observed_exit_price="1.1000000000",
+                terminal_reason=(
+                    "TP_THRESHOLD"
+                    if status == "TP_FIRST"
+                    else "SL_THRESHOLD"
+                    if status == "SL_FIRST"
+                    else status
+                ),
+                threshold_price=threshold,
+                observed_exit_bid=f"{observed_bid:.10f}",
+                observed_exit_ask=f"{observed_bid + 0.0002:.10f}",
+                observed_exit_price=f"{observed_bid:.10f}",
                 exit_quote_side="BID",
-                gap_points="0.0000000000",
+                gap_points="0.0000000000" if completed else NULL,
                 deep_lifecycle_seconds=int((terminal - event_time).total_seconds()) if completed else NULL,
-                virtual_nominal_r=f"{ratio if status == 'TP_FIRST' else -1 if status == 'SL_FIRST' else 0:.10f}",
-                virtual_quote_gross_profit="0.0000000000",
-                virtual_quote_gross_r="0.0000000000",
+                virtual_nominal_r=f"{gross_r:.10f}" if completed else NULL,
+                virtual_quote_gross_profit=f"{gross_r * 100.0:.10f}" if completed else NULL,
+                virtual_quote_gross_r=f"{gross_r:.10f}" if completed else NULL,
                 virtual_binary_eligible="1" if completed else "0",
                 virtual_binary_target="1" if status == "TP_FIRST" else "0" if status == "SL_FIRST" else NULL,
                 virtual_exclusion_reason=NULL if completed else "PARENT_EXIT",
@@ -539,8 +571,8 @@ def generate() -> None:
         deep_parent_link_rows=2,
         deep_trial_rows=3,
         deep_outcome_rows=6,
-        deep_tp_rows=4,
-        deep_sl_rows=1,
+        deep_tp_rows=3,
+        deep_sl_rows=2,
         deep_parent_exit_censored_rows=1,
         deep_run_censored_rows=0,
         deep_ineligible_rows=0,

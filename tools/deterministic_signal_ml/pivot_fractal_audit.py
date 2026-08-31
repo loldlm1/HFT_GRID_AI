@@ -1,4 +1,4 @@
-"""Audit V12 pivot signal-feature datasets with separate outcome lanes."""
+"""Audit strict V13 H1, deep-parent, broker, and calibration research artifacts."""
 
 from __future__ import annotations
 
@@ -14,26 +14,33 @@ import duckdb
 
 from build_dataset import DERIVED_TABLES
 from model_config import DEFAULT_DATASET_ROOT
+from report_writer import build_feature_contracts
 from schema_contract import (
+    DEEP_FEATURE_SET_ID,
+    DEEP_MICRO_FEATURE_COLUMNS,
+    DEEP_MODEL_FEATURE_COLUMNS,
     FUTURE_ONLY_COLUMNS,
-    MODEL_FEATURE_COLUMNS,
-    ORIGIN_SIGNAL_FEATURE_COLUMNS,
+    H1_FEATURE_SET_ID,
+    H1_MODEL_FEATURE_COLUMNS,
     RUN_FILES,
     SUPPORTED_FEATURE_SET_ID,
     SUPPORTED_SCHEMA_VERSION,
 )
-
 
 DEFAULT_AUDIT_ROOT = "artifacts/audits"
 REQUIRED_TABLES = tuple(Path(filename).stem for filename in RUN_FILES) + DERIVED_TABLES
 
 
 class PivotAuditError(RuntimeError):
-    """Raised when a dataset cannot support a trustworthy V12 audit."""
+    """Raised when a V13 dataset cannot support a trustworthy audit."""
 
 
 def _sql_literal(value: str | Path) -> str:
     return "'" + str(value).replace("'", "''") + "'"
+
+
+def _quoted(column: str) -> str:
+    return '"' + column.replace('"', '""') + '"'
 
 
 def _fetch_dicts(
@@ -45,43 +52,14 @@ def _fetch_dicts(
     return [dict(zip(columns, row)) for row in relation.fetchall()]
 
 
-def _quoted(column: str) -> str:
-    return '"' + column.replace('"', '""') + '"'
-
-
-def _feature_availability(
-    connection: duckdb.DuckDBPyConnection,
-) -> list[dict[str, Any]]:
-    total_origins = int(connection.execute("SELECT count(*) FROM signal_origins").fetchone()[0])
-    rows = []
-    for column in ORIGIN_SIGNAL_FEATURE_COLUMNS:
-        available_origins = int(
-            connection.execute(
-                f"SELECT count({_quoted(column)}) FROM signal_origins"
-            ).fetchone()[0]
-        )
-        rows.append(
-            {
-                "feature": column,
-                "available_origins": available_origins,
-                "total_origins": total_origins,
-                "availability_rate": (
-                    available_origins / total_origins if total_origins else None
-                ),
-            }
-        )
-    return rows
-
-
 def _write_tsv(path: Path, rows: list[dict[str, Any]]) -> None:
     if not rows:
         path.write_text("", encoding="utf-8")
         return
-    columns = list(rows[0])
     with path.open("w", encoding="utf-8", newline="") as handle:
         writer = csv.DictWriter(
             handle,
-            fieldnames=columns,
+            fieldnames=list(rows[0]),
             delimiter="\t",
             lineterminator="\n",
         )
@@ -100,72 +78,196 @@ def _load_dataset(connection: duckdb.DuckDBPyConnection, dataset_dir: Path) -> N
         )
 
 
-def _validate_dataset_integrity(connection: duckdb.DuckDBPyConnection) -> None:
-    duplicate_long = int(
-        connection.execute(
-            """
-SELECT count(*)
-FROM (
+def _count(connection: duckdb.DuckDBPyConnection, query: str) -> int:
+    return int(connection.execute(query).fetchone()[0])
+
+
+def _require_zero(
+    connection: duckdb.DuckDBPyConnection,
+    query: str,
+    message: str,
+) -> None:
+    if _count(connection, query):
+        raise PivotAuditError(message)
+
+
+def _validate_manifest_contract(manifest: dict[str, Any]) -> None:
+    if int(manifest.get("schema_version", 0)) != SUPPORTED_SCHEMA_VERSION:
+        raise PivotAuditError("Dataset schema version is incompatible with V13 audit")
+    if manifest.get("feature_set_id") != SUPPORTED_FEATURE_SET_ID:
+        raise PivotAuditError("Dataset feature set is incompatible with V13 audit")
+    if manifest.get("research_approval_state") != "OFFLINE_RESEARCH_ONLY":
+        raise PivotAuditError("Dataset is missing the offline-only research boundary")
+    if manifest.get("available_feature_set_ids") != [
+        H1_FEATURE_SET_ID,
+        DEEP_FEATURE_SET_ID,
+    ]:
+        raise PivotAuditError("Dataset evidence-grain list is incompatible")
+    if manifest.get("feature_contracts") != build_feature_contracts():
+        raise PivotAuditError("Dataset evidence-grain contracts differ from strict V13")
+    expected_files = {table: f"{table}.parquet" for table in REQUIRED_TABLES}
+    if manifest.get("files") != expected_files:
+        raise PivotAuditError("Dataset file manifest differs from strict V13")
+    counts = manifest.get("counts")
+    if not isinstance(counts, dict) or set(counts) != set(REQUIRED_TABLES):
+        raise PivotAuditError("Dataset count manifest differs from strict V13")
+
+
+def _validate_dataset_integrity(
+    connection: duckdb.DuckDBPyConnection,
+    manifest: dict[str, Any],
+) -> None:
+    for table_name in REQUIRED_TABLES:
+        actual = _count(connection, f"SELECT count(*) FROM {table_name}")
+        expected = int(manifest["counts"][table_name])
+        if actual != expected:
+            raise PivotAuditError(
+                f"Dataset manifest count mismatch for {table_name}: {actual} != {expected}"
+            )
+    expected_h1_rows = _count(
+        connection,
+        "SELECT count(*) FROM virtual_trials WHERE trial_role = 'H1'",
+    )
+    if _count(connection, "SELECT count(*) FROM h1_lane_long") != expected_h1_rows:
+        raise PivotAuditError("H1 lane long does not reconcile to H1 trials")
+    expected_deep_rows = _count(connection, "SELECT count(*) FROM deep_virtual_outcomes")
+    if _count(connection, "SELECT count(*) FROM deep_parent_long") != expected_deep_rows:
+        raise PivotAuditError("Deep parent long does not reconcile to deep outcomes")
+    _require_zero(
+        connection,
+        """
+SELECT count(*) FROM (
   SELECT run_id, config_id, trial_id
-  FROM origin_matrix_long
+  FROM h1_lane_long
   GROUP BY ALL
   HAVING count(*) <> 1
 )
-"""
-        ).fetchone()[0]
+""",
+        "H1 lane long contains duplicate trial grain",
     )
-    if duplicate_long:
-        raise PivotAuditError("Origin matrix long contains duplicate trial grain")
-    orphan_long = int(
-        connection.execute(
-            """
-SELECT count(*)
-FROM origin_matrix_long oml
-LEFT JOIN virtual_trials vt
-  USING (run_id, config_id, trial_id)
-WHERE vt.trial_id IS NULL
-"""
-        ).fetchone()[0]
+    _require_zero(
+        connection,
+        """
+SELECT count(*) FROM (
+  SELECT run_id, config_id, origin_id
+  FROM h1_lane_long
+  GROUP BY ALL
+  HAVING count(*) <> 8
+)
+""",
+        "H1 origin does not contain exactly eight lane outcomes",
     )
-    if orphan_long:
-        raise PivotAuditError("Origin matrix long contains rows outside virtual_trials")
-    invalid_eligible = int(
-        connection.execute(
-            """
+    _require_zero(
+        connection,
+        """
 SELECT count(*)
-FROM eligible_virtual_trials
+FROM eligible_h1_trials
 WHERE virtual_binary_target NOT IN (0, 1)
    OR NOT virtual_binary_eligible
    OR eligibility_status <> 'ACTIVE'
    OR terminal_status NOT IN ('TP_FIRST', 'SL_FIRST')
-"""
-        ).fetchone()[0]
+   OR NOT origin_feature_snapshot_complete
+""",
+        "Eligible H1 cohort contains excluded or malformed rows",
     )
-    if invalid_eligible:
-        raise PivotAuditError("Eligible virtual cohort contains excluded or malformed rows")
-    bad_origin_weights = int(
-        connection.execute(
-            """
-SELECT count(*)
-FROM (
-  SELECT run_id, config_id, origin_id, sum(origin_sample_weight) AS total_weight
-  FROM eligible_virtual_trials
-  GROUP BY ALL
-  HAVING abs(total_weight - 1.0) > 1e-9
+    _require_zero(
+        connection,
+        """
+SELECT count(*) FROM (
+  SELECT origin_id, sum(origin_sample_weight) AS weight
+  FROM eligible_h1_trials
+  GROUP BY origin_id
+  HAVING abs(weight - 1.0) > 1e-9
 )
-"""
-        ).fetchone()[0]
+""",
+        "Eligible H1 origin weights do not sum to one",
     )
-    if bad_origin_weights:
-        raise PivotAuditError("Origin-balanced weights do not sum to one")
-    missing_broker_ownership = int(
-        connection.execute(
-            """
+    _require_zero(
+        connection,
+        """
+SELECT count(*) FROM (
+  SELECT run_id, config_id, parent_link_id, deep_trial_id
+  FROM deep_parent_long
+  GROUP BY ALL
+  HAVING count(*) <> 1
+)
+""",
+        "Deep parent long contains duplicate link/trial grain",
+    )
+    _require_zero(
+        connection,
+        """
+SELECT count(*)
+FROM eligible_deep_trials
+WHERE virtual_binary_target NOT IN (0, 1)
+   OR NOT virtual_binary_eligible
+   OR eligibility_status <> 'ACTIVE'
+   OR terminal_status NOT IN ('TP_FIRST', 'SL_FIRST')
+   OR NOT deep_micro_features_complete
+""",
+        "Eligible deep cohort contains excluded or malformed rows",
+    )
+    _require_zero(
+        connection,
+        """
+SELECT count(*) FROM (
+  SELECT origin_id, sum(origin_sample_weight) AS weight
+  FROM eligible_deep_trials
+  GROUP BY origin_id
+  HAVING abs(weight - 1.0) > 1e-9
+)
+""",
+        "Eligible deep origin weights do not sum to one",
+    )
+    _require_zero(
+        connection,
+        """
+SELECT count(*) FROM (
+  SELECT deep_event_id, sum(event_sample_weight) AS weight
+  FROM eligible_deep_trials
+  GROUP BY deep_event_id
+  HAVING abs(weight - 1.0) > 1e-9
+)
+""",
+        "Eligible deep event weights do not sum to one",
+    )
+    _require_zero(
+        connection,
+        """
+SELECT count(*)
+FROM deep_parent_long
+WHERE parent_lifecycle_complete IS NULL
+   OR (parent_lifecycle_complete AND h1_structural_lifecycle_seconds IS NULL)
+   OR (NOT parent_lifecycle_complete AND h1_structural_lifecycle_seconds IS NOT NULL)
+   OR (terminal_status = 'CENSORED_PARENT_EXIT'
+       AND terminal_broker_time IS DISTINCT FROM parent_terminal_broker_time)
+""",
+        "Deep parent lifecycle duration/censor evidence is inconsistent",
+    )
+    _require_zero(
+        connection,
+        """
+SELECT count(*)
+FROM run_summary
+WHERE duplicate_identity_count <> 0
+   OR referential_integrity_error_count <> 0
+   OR row_integrity_error_count <> 0
+   OR export_status <> 'OK'
+   OR h1_active_state_peak > h1_active_state_cap
+   OR deep_event_active_peak > deep_event_active_cap
+   OR deep_link_active_peak > deep_link_active_cap
+   OR deep_trial_active_peak > deep_trial_active_cap
+   OR deep_outcome_active_peak > deep_outcome_active_cap
+""",
+        "Run summary contains integrity, export, or capacity failure",
+    )
+    _require_zero(
+        connection,
+        """
 SELECT count(*)
 FROM broker_outcomes bo
 WHERE NOT EXISTS (
-  SELECT 1
-  FROM execution_checks ec
+  SELECT 1 FROM execution_checks ec
   WHERE ec.run_id = bo.run_id
     AND ec.config_id = bo.config_id
     AND ec.broker_signal_id = bo.broker_signal_id
@@ -173,119 +275,124 @@ WHERE NOT EXISTS (
     AND ec.broker_entry_confirmed
 )
 OR NOT EXISTS (
-  SELECT 1
-  FROM execution_checks ec
+  SELECT 1 FROM execution_checks ec
   WHERE ec.run_id = bo.run_id
     AND ec.config_id = bo.config_id
     AND ec.broker_signal_id = bo.broker_signal_id
     AND ec.position_identifier = bo.position_identifier
     AND ec.broker_close_confirmed
 )
-"""
-        ).fetchone()[0]
+""",
+        "Broker outcome lacks execution-check ownership evidence",
     )
-    if missing_broker_ownership:
-        raise PivotAuditError("Broker outcome lacks execution-check ownership evidence")
-    summary_failures = int(
-        connection.execute(
-            """
-SELECT count(*)
-FROM run_summary
-WHERE duplicate_identity_count <> 0
-   OR referential_integrity_error_count <> 0
-   OR row_integrity_error_count <> 0
-   OR state_capacity_failed
-   OR export_status <> 'OK'
-"""
-        ).fetchone()[0]
-    )
-    if summary_failures:
-        raise PivotAuditError("Run summary contains integrity/export/capacity failure")
-    parity_mismatches = int(
-        connection.execute(
-            """
+    _require_zero(
+        connection,
+        """
 SELECT count(*)
 FROM broker_virtual_calibration
 WHERE strict_pair_eligible AND NOT terminal_agreement
-"""
-        ).fetchone()[0]
+""",
+        "Calibration contains unexplained strict TP/SL mismatch",
     )
-    if parity_mismatches:
-        raise PivotAuditError("Calibration contains unexplained strict TP/SL mismatch")
-    leaked_features = sorted(set(MODEL_FEATURE_COLUMNS) & set(FUTURE_ONLY_COLUMNS))
-    if leaked_features:
-        raise PivotAuditError(f"Future-only fields leaked into model features: {leaked_features}")
-    matrix_columns = {
-        row[0] for row in connection.execute("DESCRIBE eligible_virtual_trials").fetchall()
+    if set(H1_MODEL_FEATURE_COLUMNS) & set(FUTURE_ONLY_COLUMNS):
+        raise PivotAuditError("Future-only fields leaked into H1 model features")
+    if set(DEEP_MODEL_FEATURE_COLUMNS) & set(FUTURE_ONLY_COLUMNS):
+        raise PivotAuditError("Future-only fields leaked into deep model features")
+    deep_parent_columns = {
+        row[0] for row in connection.execute("DESCRIBE deep_parent_long").fetchall()
     }
-    missing_features = sorted(set(MODEL_FEATURE_COLUMNS) - matrix_columns)
-    if missing_features:
-        raise PivotAuditError(f"Eligible virtual cohort lacks model features: {missing_features}")
-
-
-def _policy_performance(connection: duckdb.DuckDBPyConnection) -> list[dict[str, Any]]:
-    return _fetch_dicts(
+    eligible_deep_columns = {
+        row[0]
+        for row in connection.execute("DESCRIBE eligible_deep_trials").fetchall()
+    }
+    duplicated = sorted(
+        set(DEEP_MICRO_FEATURE_COLUMNS)
+        & (deep_parent_columns | eligible_deep_columns)
+    )
+    if duplicated:
+        raise PivotAuditError(f"Deep features persisted outside event grain: {duplicated}")
+    event_columns = {
+        row[0] for row in connection.execute("DESCRIBE deep_pivot_events").fetchall()
+    }
+    missing_event_features = sorted(set(DEEP_MICRO_FEATURE_COLUMNS) - event_columns)
+    if missing_event_features:
+        raise PivotAuditError(
+            f"Deep event grain lacks model features: {missing_event_features}"
+        )
+    h1_columns = {
+        row[0] for row in connection.execute("DESCRIBE eligible_h1_trials").fetchall()
+    }
+    missing_h1_features = sorted(set(H1_MODEL_FEATURE_COLUMNS) - h1_columns)
+    if missing_h1_features:
+        raise PivotAuditError(
+            f"Eligible H1 cohort lacks model features: {missing_h1_features}"
+        )
+    h1_missing_predicate = " OR ".join(
+        f"{_quoted(column)} IS NULL" for column in H1_MODEL_FEATURE_COLUMNS
+    )
+    _require_zero(
+        connection,
+        f"SELECT count(*) FROM eligible_h1_trials WHERE {h1_missing_predicate}",
+        "Eligible H1 cohort contains incomplete model features",
+    )
+    deep_parent_features = set(DEEP_MODEL_FEATURE_COLUMNS) - set(
+        DEEP_MICRO_FEATURE_COLUMNS
+    )
+    missing_deep_parent_features = sorted(deep_parent_features - eligible_deep_columns)
+    if missing_deep_parent_features:
+        raise PivotAuditError(
+            "Eligible deep cohort lacks parent-grain model features: "
+            f"{missing_deep_parent_features}"
+        )
+    deep_parent_missing_predicate = " OR ".join(
+        f"{_quoted(column)} IS NULL" for column in sorted(deep_parent_features)
+    )
+    _require_zero(
+        connection,
+        "SELECT count(*) FROM eligible_deep_trials WHERE "
+        f"{deep_parent_missing_predicate}",
+        "Eligible deep cohort contains incomplete parent-grain features",
+    )
+    deep_event_missing_predicate = " OR ".join(
+        f"{_quoted(column)} IS NULL" for column in DEEP_MICRO_FEATURE_COLUMNS
+    )
+    _require_zero(
+        connection,
+        "SELECT count(*) FROM deep_pivot_events "
+        "WHERE deep_micro_features_complete AND "
+        f"({deep_event_missing_predicate})",
+        "Complete deep event contains incomplete model features",
+    )
+    joined_deep_rows = _count(
         connection,
         """
-SELECT
-  sl_policy,
-  tp_r_multiple,
-  count(*) AS trial_rows,
-  count(DISTINCT origin_id) AS unique_origins,
-  avg(virtual_binary_target) AS tp_rate,
-  1.0 / (tp_r_multiple + 1.0) AS break_even_tp_rate,
-  avg(CASE WHEN virtual_binary_target = 1 THEN tp_r_multiple ELSE -1.0 END)
-    AS expected_nominal_r,
-  avg(virtual_quote_gross_r) AS average_virtual_quote_gross_r
-FROM eligible_virtual_trials
-GROUP BY sl_policy, tp_r_multiple
-ORDER BY sl_policy, tp_r_multiple
+SELECT count(*)
+FROM eligible_deep_trials cohort
+JOIN deep_pivot_events event
+  USING (run_id, config_id, deep_event_id)
 """,
     )
-
-
-def _chain_performance(connection: duckdb.DuckDBPyConnection) -> list[dict[str, Any]]:
-    return _fetch_dicts(
-        connection,
-        """
-SELECT
-  sl_policy,
-  tp_r_multiple,
-  count(*) AS policy_chains,
-  count(DISTINCT origin_id) AS unique_origins,
-  avg(attempts) AS average_attempts,
-  avg(losses_before_success) AS average_losses_before_success,
-  avg(closed_nominal_r) AS average_closed_nominal_r,
-  avg(virtual_quote_gross_r) AS average_virtual_quote_gross_r,
-  sum(CASE WHEN reached_tp THEN 1 ELSE 0 END) AS tp_chains,
-  sum(CASE WHEN censored THEN 1 ELSE 0 END) AS censored_chains
-FROM policy_chains
-GROUP BY sl_policy, tp_r_multiple
-ORDER BY sl_policy, tp_r_multiple
-""",
-    )
+    if joined_deep_rows != _count(connection, "SELECT count(*) FROM eligible_deep_trials"):
+        raise PivotAuditError("Deep event feature join changes eligible cohort cardinality")
 
 
 def _render_report(audit_id: str, metadata: dict[str, Any]) -> str:
     support = metadata["support"]
-    calibration = metadata["calibration"]
     return "\n".join(
         [
-            f"# Pivot Trial Matrix Audit: {audit_id}",
+            f"# Pivot V13 Evidence Audit: {audit_id}",
             "",
             f"- Research status: `{metadata['research_status']}`",
             f"- Unique origins: `{support['unique_origins']}`",
-            f"- Matrix trial rows: `{support['matrix_trial_rows']}`",
-            f"- Eligible virtual rows: `{support['eligible_virtual_rows']}`",
-            f"- Broker outcomes: `{support['broker_outcomes']}`",
-            f"- Calibration strict pairs: `{calibration['strict_pairs']}`",
-            f"- Calibration terminal mismatches: `{calibration['terminal_mismatches']}`",
+            f"- H1 lane / eligible rows: `{support['h1_lane_rows']}` / `{support['eligible_h1_rows']}`",
+            f"- Deep event / parent outcome / eligible rows: `{support['deep_event_rows']}` / "
+            f"`{support['deep_parent_outcome_rows']}` / `{support['eligible_deep_rows']}`",
+            f"- Unique deep event identities: `{support['unique_deep_events']}`",
+            f"- Deep parent-exit censors: `{support['deep_parent_exit_censored_rows']}`",
             "",
-            "## Interpretation",
-            "",
-            "Virtual TP/SL targets, broker outcomes, and parity calibration are separate cohorts.",
-            "Unique-origin support and trial-row support are both reported because retries and policy cells are correlated.",
-            "Policy comparisons remain exploratory and require chronological holdout support and uncertainty review.",
+            "H1, deep-parent, broker, and parity evidence remain separate cohorts. "
+            "Censored, ineligible, and not-triggered rows are support facts, not losses.",
+            "H1 lifecycle duration is retrospective; M10 parent age is causal at event trigger.",
             "",
         ]
     )
@@ -297,50 +404,89 @@ def build_audit(
     audit_id: str,
     minimum_group_support: int = 30,
 ) -> dict[str, Any]:
+    if minimum_group_support < 1:
+        raise PivotAuditError("minimum_group_support must be at least 1")
     manifest_path = dataset_dir / "dataset_manifest.json"
     if not manifest_path.is_file():
         raise PivotAuditError(f"Missing dataset manifest: {manifest_path}")
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
-    if int(manifest.get("schema_version", 0)) != SUPPORTED_SCHEMA_VERSION:
-        raise PivotAuditError("Dataset schema version is incompatible with V12 audit")
-    if manifest.get("feature_set_id") != SUPPORTED_FEATURE_SET_ID:
-        raise PivotAuditError("Dataset feature set is incompatible with V12 audit")
-    feature_contract = manifest.get("feature_contract", {})
-    if tuple(feature_contract.get("model_features", ())) != MODEL_FEATURE_COLUMNS:
-        raise PivotAuditError("Dataset feature contract differs from strict V12")
+    _validate_manifest_contract(manifest)
+
     connection = duckdb.connect(":memory:")
     try:
         _load_dataset(connection, dataset_dir)
-        _validate_dataset_integrity(connection)
-        policy = _policy_performance(connection)
-        chains = _chain_performance(connection)
-        eligibility = _fetch_dicts(
+        _validate_dataset_integrity(connection, manifest)
+        h1_performance = _fetch_dicts(
             connection,
             """
-SELECT eligibility_status, ineligible_reason, count(*) AS trial_rows,
-       count(DISTINCT origin_id) AS unique_origins
-FROM origin_matrix_long
+WITH per_group AS (
+  SELECT entry_policy, tp_r_multiple, count(*) AS rows,
+         count(DISTINCT origin_id) AS unique_origins
+  FROM eligible_h1_trials
+  GROUP BY entry_policy, tp_r_multiple
+), per_origin AS (
+  SELECT entry_policy, tp_r_multiple, origin_id,
+         avg(virtual_binary_target) AS tp_rate,
+         avg(virtual_quote_gross_r) AS quote_gross_r
+  FROM eligible_h1_trials
+  GROUP BY entry_policy, tp_r_multiple, origin_id
+)
+SELECT grouped.*, avg(per_origin.tp_rate) AS origin_balanced_tp_rate,
+       avg(per_origin.quote_gross_r) AS origin_balanced_quote_gross_r
+FROM per_group grouped
+JOIN per_origin USING (entry_policy, tp_r_multiple)
 GROUP BY ALL
-ORDER BY trial_rows DESC, eligibility_status, ineligible_reason
+ORDER BY grouped.entry_policy, grouped.tp_r_multiple
 """,
         )
-        broker = _fetch_dicts(
+        deep_performance = _fetch_dicts(
             connection,
             """
-SELECT broker_terminal_reason, broker_binary_eligible,
-       count(*) AS rows, avg(broker_gross_profit) AS average_gross_profit,
-       avg(broker_net_profit) AS average_net_profit
-FROM broker_outcomes
+WITH per_group AS (
+  SELECT parent_kind, parent_entry_policy, parent_tp_r_multiple, tp_r_multiple,
+         count(*) AS rows, count(DISTINCT origin_id) AS unique_origins,
+         count(DISTINCT deep_event_id) AS unique_deep_events
+  FROM eligible_deep_trials
+  GROUP BY parent_kind, parent_entry_policy, parent_tp_r_multiple, tp_r_multiple
+), per_origin AS (
+  SELECT parent_kind, parent_entry_policy, parent_tp_r_multiple, tp_r_multiple,
+         origin_id, avg(virtual_binary_target) AS tp_rate,
+         avg(virtual_quote_gross_r) AS quote_gross_r
+  FROM eligible_deep_trials
+  GROUP BY parent_kind, parent_entry_policy, parent_tp_r_multiple,
+           tp_r_multiple, origin_id
+)
+SELECT grouped.*, avg(per_origin.tp_rate) AS origin_balanced_tp_rate,
+       avg(per_origin.quote_gross_r) AS origin_balanced_quote_gross_r
+FROM per_group grouped
+JOIN per_origin USING (
+  parent_kind, parent_entry_policy, parent_tp_r_multiple, tp_r_multiple
+)
 GROUP BY ALL
-ORDER BY rows DESC, broker_terminal_reason
+ORDER BY grouped.parent_kind, grouped.parent_entry_policy,
+         grouped.parent_tp_r_multiple, grouped.tp_r_multiple
 """,
         )
-        calibration_rows = _fetch_dicts(
+        h1_terminal = _fetch_dicts(
             connection,
             """
-SELECT *
-FROM broker_virtual_calibration
-ORDER BY broker_close_time, run_id, broker_signal_id
+SELECT terminal_status, entry_policy, tp_r_multiple,
+       count(*) AS rows, count(DISTINCT origin_id) AS unique_origins,
+       count(h1_structural_lifecycle_seconds) AS completed_duration_rows
+FROM h1_lane_long
+GROUP BY ALL
+ORDER BY terminal_status, entry_policy, tp_r_multiple
+""",
+        )
+        deep_terminal = _fetch_dicts(
+            connection,
+            """
+SELECT terminal_status, parent_kind, tp_r_multiple,
+       count(*) AS rows, count(DISTINCT origin_id) AS unique_origins,
+       count(DISTINCT deep_event_id) AS unique_deep_events
+FROM deep_parent_long
+GROUP BY ALL
+ORDER BY terminal_status, parent_kind, tp_r_multiple
 """,
         )
         support = _fetch_dicts(
@@ -348,34 +494,33 @@ ORDER BY broker_close_time, run_id, broker_signal_id
             """
 SELECT
   (SELECT count(DISTINCT origin_id) FROM signal_origins) AS unique_origins,
-  (SELECT count(*) FROM origin_matrix_long) AS matrix_trial_rows,
-  (SELECT count(*) FROM eligible_virtual_trials) AS eligible_virtual_rows,
-  (SELECT count(*) FROM policy_chains) AS policy_chains,
-  (SELECT count(*) FROM broker_outcomes) AS broker_outcomes
+  (SELECT count(*) FROM h1_lane_long) AS h1_lane_rows,
+  (SELECT count(*) FROM eligible_h1_trials) AS eligible_h1_rows,
+  (SELECT count(*) FROM deep_pivot_events) AS deep_event_rows,
+  (SELECT count(DISTINCT deep_event_id) FROM deep_pivot_events)
+    AS unique_deep_events,
+  (SELECT count(*) FROM deep_parent_long) AS deep_parent_outcome_rows,
+  (SELECT count(*) FROM eligible_deep_trials) AS eligible_deep_rows,
+  (SELECT count(*) FROM deep_parent_long
+    WHERE terminal_status = 'CENSORED_PARENT_EXIT') AS deep_parent_exit_censored_rows,
+  (SELECT count(*) FROM broker_outcomes) AS broker_outcomes,
+  (SELECT count(*) FROM broker_virtual_calibration) AS calibration_rows
 """,
         )[0]
-        feature_availability = _feature_availability(connection)
-        calibration = _fetch_dicts(
+        calibration_rows = _fetch_dicts(
             connection,
-            """
-SELECT
-  count(*) AS paired_rows,
-  sum(CASE WHEN strict_pair_eligible THEN 1 ELSE 0 END) AS strict_pairs,
-  sum(CASE WHEN strict_pair_eligible AND terminal_agreement THEN 1 ELSE 0 END)
-    AS terminal_matches,
-  sum(CASE WHEN strict_pair_eligible AND NOT terminal_agreement THEN 1 ELSE 0 END)
-    AS terminal_mismatches,
-  avg(crossing_close_delta_seconds) AS average_crossing_close_delta_seconds,
-  avg(broker_minus_virtual_gross_profit) AS average_broker_minus_virtual_gross_profit
-FROM broker_virtual_calibration
-""",
-        )[0]
+            "SELECT * FROM broker_virtual_calibration ORDER BY broker_close_time",
+        )
     finally:
         connection.close()
 
     low_support = [
-        row
-        for row in policy
+        {"cohort": "H1", **row}
+        for row in h1_performance
+        if int(row["unique_origins"] or 0) < minimum_group_support
+    ] + [
+        {"cohort": "DEEP", **row}
+        for row in deep_performance
         if int(row["unique_origins"] or 0) < minimum_group_support
     ]
     metadata = {
@@ -386,24 +531,21 @@ FROM broker_virtual_calibration
         "minimum_group_support": minimum_group_support,
         "research_status": "INSUFFICIENT_SUPPORT" if low_support else "AUDIT_COMPLETE",
         "support": support,
-        "feature_availability": feature_availability,
-        "policy_performance": policy,
-        "chain_performance": chains,
-        "eligibility": eligibility,
-        "broker_performance": broker,
-        "calibration": calibration,
-        "low_support_policy_groups": low_support,
+        "h1_performance": h1_performance,
+        "deep_performance": deep_performance,
+        "h1_terminal_support": h1_terminal,
+        "deep_terminal_support": deep_terminal,
+        "low_support_groups": low_support,
         "warnings": [
-            "Virtual and broker targets are separate.",
-            "Trial rows are correlated within origins and Macro windows.",
-            "Multiple policy comparisons require holdout support and uncertainty review.",
+            "H1 and deep target cohorts are never combined.",
+            "Lifecycle duration is retrospective and excluded from model features.",
+            "Deep row counts do not replace unique-event and unique-origin support.",
         ],
     }
-    _write_tsv(output_dir / "policy_performance.tsv", policy)
-    _write_tsv(output_dir / "chain_performance.tsv", chains)
-    _write_tsv(output_dir / "eligibility.tsv", eligibility)
-    _write_tsv(output_dir / "feature_availability.tsv", feature_availability)
-    _write_tsv(output_dir / "broker_performance.tsv", broker)
+    _write_tsv(output_dir / "h1_performance.tsv", h1_performance)
+    _write_tsv(output_dir / "deep_performance.tsv", deep_performance)
+    _write_tsv(output_dir / "h1_terminal_support.tsv", h1_terminal)
+    _write_tsv(output_dir / "deep_terminal_support.tsv", deep_terminal)
     _write_tsv(output_dir / "broker_virtual_calibration.tsv", calibration_rows)
     (output_dir / "audit.json").write_text(
         json.dumps(metadata, indent=2, sort_keys=True, default=str),
@@ -458,9 +600,9 @@ def main() -> int:
             args.minimum_group_support,
         )
     except (PivotAuditError, ValueError, json.JSONDecodeError, duckdb.Error) as exc:
-        parser.exit(1, f"pivot V12 audit failed: {exc}\n")
+        parser.exit(1, f"pivot V13 audit failed: {exc}\n")
     print(
-        "pivot V12 audit ok | "
+        "pivot V13 audit ok | "
         f"status={metadata['research_status']} | output={output_dir}"
     )
     return 0
