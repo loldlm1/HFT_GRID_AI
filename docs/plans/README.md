@@ -2,9 +2,9 @@
 
 ## Active
 
-- `../../pivot-fractal-v13-deep-pivot-producer-plan.md`: active eight-sprint
-  producer migration. Sprints 1-6 are committed; Sprint 7 is the documentation
-  and handoff gate; Sprint 8 owns the final compile and human acceptance.
+- `../../pivot-fractal-v13-deep-pivot-producer-plan.md`: completed eight-sprint
+  producer migration for the offline V13 handoff. The bounded compile/tester
+  gate is recorded; human chart verification remains outstanding.
 
 The downstream Django plan at
 `/home/loldlm/python_projects/hft-grid-ai-orchestrator/pivot-fractal-v13-django-research-progression-plan.md`

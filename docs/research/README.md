@@ -3,10 +3,15 @@
 ## Active State
 
 The active producer is the strict Pivot Fractal V13 H1/M10 evidence contract.
-Sprints 1-6 (contract, runtime lanes, deep lifecycle, M3 evidence, export, and
-offline artifacts) are committed. Sprint 7 publishes the handoff; Sprint 8
-still requires the single final MetaEditor compile and human Strategy
-Tester/chart gate before Django may begin its separately authorized V13 work.
+Sprints 1-8 (contract, runtime lanes, deep lifecycle, M3 evidence, export,
+offline artifacts, handoff, and bounded tester acceptance) are committed. The
+human chart-object/rendering check remains outstanding. Django may prepare its
+separately authorized V13 work from the frozen handoff, but its destructive V12
+removal gate remains separate.
+
+The accepted tester used `ExecutionMode=120` milliseconds. Its evidence is
+causal and reconciliation-focused; it does not claim sub-120 ms latency,
+perfect intra-second fill ordering, or exchange-level tick sequencing.
 
 Use these active documents:
 

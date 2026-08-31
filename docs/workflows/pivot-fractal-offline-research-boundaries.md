@@ -131,9 +131,11 @@ warnings, `approval_state=OFFLINE_RESEARCH_ONLY`, and
 `runtime_artifact_emitted=false`.
 
 The V13 producer handoff is not a deployment approval. Downstream Django may
-prepare only after the final compile and human tester/chart gate are recorded;
-its explicit V12 removal/deletion work remains a separate authorized change.
-No live rollout is authorized by this workflow.
+prepare from the accepted contract after the final compile and bounded
+real-tick tester evidence are recorded; the human chart-object/rendering check
+remains a separate outstanding gate. Its explicit V12 removal/deletion work
+also remains a separately authorized change. No live rollout is authorized by
+this workflow.
 
 ## Historical Boundary
 

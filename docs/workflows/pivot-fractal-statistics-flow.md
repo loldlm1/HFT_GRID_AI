@@ -165,8 +165,12 @@ are prohibited from model features. Artifacts remain
 6. Human-test midpoint touch/no-touch, all H1 ratios, shared M10/Micro evidence,
    parent-specific censoring, R5 continuation without hard-coding, one broker
    structural 1R lane, export-off parity, DST, performance, and chart behavior.
+   When `ExecutionMode=120` milliseconds is configured, treat it as a tester
+   timing limitation and do not claim sub-120 ms latency or perfect
+   intra-second/exchange tick ordering.
 7. Complete `docs/research/pivot-fractal-v13-producer-handoff.md` and its dated
-   acceptance record before any Django V13 cutover.
+   acceptance record before Django consumes the V13 contract. Django's active
+   V12 removal/deletion remains a separately authorized gate.
 
 Compilation and fixtures cannot replace the human Strategy Tester/chart gate.
 No step authorizes live rollout.

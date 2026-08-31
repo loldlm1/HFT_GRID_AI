@@ -300,12 +300,12 @@ bool BuildInitialPivotTrial(const PivotSignal &signal,
   trial_out.origin_micro_band_width_0 =
     trial_out.origin_micro_band_width_available
     ? signal.features.micro_band_width_0 : 0.0;
-  PrimePivotTrialQuoteFacts(signal.direction,
-                            origin_tick,
-                            signal.execution.observation_check,
-                            trial_out.geometry);
   if(entry_policy == PIVOT_TRIAL_ENTRY_STRUCTURAL)
   {
+    PrimePivotTrialQuoteFacts(signal.direction,
+                              origin_tick,
+                              signal.execution.observation_check,
+                              trial_out.geometry);
     trial_out.entry_time = signal.trigger_time;
     trial_out.midpoint_touched = true;
     trial_out.origin_window_active_at_entry =

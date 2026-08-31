@@ -40,6 +40,7 @@ from schema_contract import (
     VIRTUAL_OUTCOMES_FILE,
     VIRTUAL_TRIALS_FILE,
     SchemaValidationError,
+    _normalize_risk_ticks_outward,
     expected_columns_for,
     validate_run,
 )
@@ -80,6 +81,88 @@ def mutate_row(
         raise AssertionError(f"Expected one {filename} row, found {len(matches)}")
     matches[0].update(values)
     write_rows(run_path / filename, columns, rows)
+
+
+def mutate_rows(
+    run_path: Path,
+    filename: str,
+    predicate: Callable[[dict[str, str]], bool],
+    **values: str,
+) -> None:
+    path = run_path / filename
+    columns, rows = read_rows(path)
+    matches = [row for row in rows if predicate(row)]
+    if not matches:
+        raise AssertionError(f"Expected at least one {filename} row")
+    for row in matches:
+        row.update(values)
+    write_rows(path, columns, rows)
+
+
+def make_midpoint_pending(run_path: Path) -> None:
+    trial_id = "trial_midpoint_50_tp5"
+    mutate_row(
+        run_path,
+        VIRTUAL_TRIALS_FILE,
+        lambda row: row["trial_id"] == trial_id,
+        entry_broker_time=NULL_TOKEN,
+        entry_analysis_time=NULL_TOKEN,
+        entry_offset_minutes=NULL_TOKEN,
+        entry_bid=NULL_TOKEN,
+        entry_ask=NULL_TOKEN,
+        entry_price=NULL_TOKEN,
+        entry_quote_side=NULL_TOKEN,
+        exit_quote_side=NULL_TOKEN,
+        midpoint_touched="0",
+        requested_risk_distance_price=NULL_TOKEN,
+        requested_risk_distance_points=NULL_TOKEN,
+        normalized_risk_ticks=NULL_TOKEN,
+        normalized_risk_distance_price=NULL_TOKEN,
+        normalized_risk_distance_points=NULL_TOKEN,
+        stop_loss_price=NULL_TOKEN,
+        take_profit_price=NULL_TOKEN,
+        geometry_equivalence_id=NULL_TOKEN,
+        spread_points="0.0000000000",
+        point_size="0.0000000000",
+        trade_tick_size="0.0000000000",
+        stops_level_points="0.0000000000",
+        freeze_level_points="0.0000000000",
+        minimum_risk_distance_points=NULL_TOKEN,
+        distance_eligible="0",
+        risk_budget_amount=NULL_TOKEN,
+        requested_volume=NULL_TOKEN,
+        normalized_volume=NULL_TOKEN,
+        virtual_expected_stop_loss=NULL_TOKEN,
+        virtual_expected_take_profit=NULL_TOKEN,
+        virtual_expected_reward_risk_ratio=NULL_TOKEN,
+        virtual_money_plan_complete="0",
+        eligibility_status="NOT_TRIGGERED",
+        ineligible_reason="MIDPOINT_PENDING_TOUCH",
+        origin_window_active_at_entry="0",
+    )
+    mutate_row(
+        run_path,
+        VIRTUAL_OUTCOMES_FILE,
+        lambda row: row["trial_id"] == trial_id,
+        terminal_status="NOT_TRIGGERED",
+        terminal_reason="STRUCTURAL_LANES_UNAVAILABLE",
+        threshold_price=NULL_TOKEN,
+        gap_points=NULL_TOKEN,
+        h1_structural_lifecycle_seconds=NULL_TOKEN,
+        virtual_nominal_r=NULL_TOKEN,
+        virtual_quote_gross_profit=NULL_TOKEN,
+        virtual_quote_gross_r=NULL_TOKEN,
+        virtual_binary_eligible="0",
+        virtual_binary_target=NULL_TOKEN,
+        virtual_exclusion_reason="NOT_TRIGGERED",
+    )
+    mutate_row(
+        run_path,
+        RUN_SUMMARY_FILE,
+        lambda row: True,
+        h1_sl_rows="0",
+        h1_not_triggered_rows="1",
+    )
 
 
 class PivotFractalV13SchemaTests(unittest.TestCase):
@@ -182,6 +265,27 @@ class PivotFractalV13SchemaTests(unittest.TestCase):
             "exact midpoint geometry mismatch",
         )
 
+    def test_pending_midpoint_has_no_entry_quote_or_geometry(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root, run_path = self.copy_fixture(temp_dir)
+            make_midpoint_pending(run_path)
+            validation = validate_run(root, FIXTURE.name)
+            self.assertEqual(validation.virtual_trial_rows, 9)
+
+        def add_pre_entry_quote_facts(run_path: Path) -> None:
+            make_midpoint_pending(run_path)
+            mutate_row(
+                run_path,
+                VIRTUAL_TRIALS_FILE,
+                lambda row: row["trial_id"] == "trial_midpoint_50_tp5",
+                point_size="0.0001000000",
+            )
+
+        self.assert_mutation_rejected(
+            add_pre_entry_quote_facts,
+            "pending midpoint carries pre-entry quote facts",
+        )
+
     def test_h1_lane_matrix_has_no_retry_or_old_band_identity(self) -> None:
         columns = TABLE_COLUMNS[VIRTUAL_TRIALS_FILE]
         for removed in ("reentry_index", "preceding_loss_count", "sl_policy"):
@@ -238,6 +342,94 @@ class PivotFractalV13SchemaTests(unittest.TestCase):
             "m10_parent_age_seconds mismatch",
         )
 
+    def test_same_second_event_before_parent_terminal_is_accepted(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root, run_path = self.copy_fixture(temp_dir)
+            mutate_row(
+                run_path,
+                VIRTUAL_OUTCOMES_FILE,
+                lambda row: row["trial_id"] == "trial_structural_tp1",
+                terminal_broker_time="2026.01.12 10:19:00",
+                terminal_analysis_time="2026.01.12 10:19:00",
+                h1_structural_lifecycle_seconds="840",
+            )
+            validation = validate_run(root, FIXTURE.name)
+            self.assertEqual(validation.deep_parent_link_rows, 2)
+
+        def terminate_before_event(run_path: Path) -> None:
+            mutate_row(
+                run_path,
+                VIRTUAL_OUTCOMES_FILE,
+                lambda row: row["trial_id"] == "trial_structural_tp1",
+                terminal_broker_time="2026.01.12 10:18:00",
+                terminal_analysis_time="2026.01.12 10:18:00",
+                h1_structural_lifecycle_seconds="780",
+            )
+
+        self.assert_mutation_rejected(
+            terminate_before_event,
+            "parent link begins after virtual parent terminal",
+        )
+
+    def test_same_second_parent_exit_censor_is_accepted(self) -> None:
+        def make_same_second_parent_exit(run_path: Path) -> None:
+            mutate_row(
+                run_path,
+                VIRTUAL_OUTCOMES_FILE,
+                lambda row: row["trial_id"] == "trial_structural_tp1",
+                terminal_broker_time="2026.01.12 10:19:00",
+                terminal_analysis_time="2026.01.12 10:19:00",
+                h1_structural_lifecycle_seconds="840",
+            )
+            mutate_rows(
+                run_path,
+                DEEP_VIRTUAL_OUTCOMES_FILE,
+                lambda row: row["parent_link_id"] == "link_0",
+                terminal_broker_time="2026.01.12 10:19:00",
+                terminal_analysis_time="2026.01.12 10:19:00",
+                terminal_status="CENSORED_PARENT_EXIT",
+                terminal_reason="CENSORED_PARENT_EXIT",
+                threshold_price=NULL_TOKEN,
+                gap_points=NULL_TOKEN,
+                deep_lifecycle_seconds=NULL_TOKEN,
+                virtual_nominal_r=NULL_TOKEN,
+                virtual_quote_gross_profit=NULL_TOKEN,
+                virtual_quote_gross_r=NULL_TOKEN,
+                virtual_binary_eligible="0",
+                virtual_binary_target=NULL_TOKEN,
+                virtual_exclusion_reason="CENSORED_PARENT_EXIT",
+            )
+            mutate_row(
+                run_path,
+                RUN_SUMMARY_FILE,
+                lambda row: True,
+                deep_tp_rows="1",
+                deep_sl_rows="1",
+                deep_parent_exit_censored_rows="4",
+            )
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root, run_path = self.copy_fixture(temp_dir)
+            make_same_second_parent_exit(run_path)
+            validation = validate_run(root, FIXTURE.name)
+            self.assertEqual(validation.deep_outcome_rows, 6)
+
+        def censor_before_event(run_path: Path) -> None:
+            make_same_second_parent_exit(run_path)
+            mutate_row(
+                run_path,
+                DEEP_VIRTUAL_OUTCOMES_FILE,
+                lambda row: row["parent_link_id"] == "link_0"
+                and row["deep_trial_id"] == "deep_trial_s1_r1",
+                terminal_broker_time="2026.01.12 10:18:59",
+                terminal_analysis_time="2026.01.12 10:18:59",
+            )
+
+        self.assert_mutation_rejected(
+            censor_before_event,
+            "deep outcome terminal precedes event trigger",
+        )
+
     def test_deep_event_must_reference_its_causal_deep_window(self) -> None:
         self.assert_mutation_rejected(
             lambda run_path: mutate_row(
@@ -280,6 +472,15 @@ class PivotFractalV13SchemaTests(unittest.TestCase):
                 )
 
     def test_deep_trial_geometry_and_outcome_arithmetic_fail_closed(self) -> None:
+        requested_distance = abs(4053.152 - 4049.480)
+        self.assertEqual(
+            _normalize_risk_ticks_outward(requested_distance, 0.001),
+            3672,
+        )
+        self.assertEqual(
+            _normalize_risk_ticks_outward(requested_distance + 0.000001, 0.001),
+            3673,
+        )
         self.assert_mutation_rejected(
             lambda run_path: mutate_row(
                 run_path,

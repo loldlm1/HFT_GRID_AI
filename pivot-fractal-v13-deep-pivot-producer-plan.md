@@ -1,7 +1,8 @@
 # Plan: Pivot Fractal V13 Deep M10 Producer And H1 Lifecycle Evidence
 
 **Generated**: 2026-08-30
-**Status**: Active implementation; Sprints 1-7 complete, Sprint 8 pending
+**Status**: Sprints 1-8 complete for the offline producer handoff; human
+visual/chart verification remains outstanding
 **Estimated Complexity**: High
 **Risk class**: High - changes virtual signal geometry, lifecycle state, broker
 execution identity, strict export schema, and offline research artifacts. The one
@@ -23,7 +24,7 @@ V13 producer handoff with contract and registry hashes.
 | 5 | `1597448` | `af08a2f` | Complete |
 | 6 | `a684db5` | `1597448` | Complete |
 | 7 | containing documentation commit | `a684db5` | Complete |
-| 8 | pending | Sprint 7 commit | Pending compile and human acceptance |
+| 8 | containing this record | Sprint 7 commit | Complete for offline handoff; visual chart gate outstanding |
 
 ## Overview
 
@@ -877,10 +878,14 @@ downstream Django cutover.
 - **Description**: Verify midpoint touch/no-touch, all H1 R targets, differing
   lane exits, shared M10 event/M3 snapshot, `m10_parent_age_seconds`, parent-exit
   censoring, R5-longest behavior without hard-coding, same-tick ordering, broker
-  structural 1R only, and no deep order submission.
+  structural 1R only, and no deep order submission. Treat the configured
+  `ExecutionMode=120` milliseconds as a tester timing limitation: it cannot
+  support a sub-120 ms latency or perfect intra-second sequencing claim.
 - **Dependencies**: Task 8.1.
-- **Acceptance criteria**: exported rows and chart/history facts match the causal
-  contract; censored rows are not losses; broker facts come from actual history.
+- **Acceptance criteria**: bounded real-tick exported rows and chart/history facts
+  match the causal contract; censored rows are not losses; broker facts come from
+  actual history; any visual/rendering gap remains explicitly outstanding rather
+  than being inferred from tester logs.
 - **Validation**: manual acceptance matrix and bounded run audit.
 - **Rollback**: stop V13 tester/use and return to the accepted pre-V13 binary.
 
@@ -900,13 +905,15 @@ downstream Django cutover.
 
 ### Sprint 8 Gate
 
-- [ ] Final MetaEditor compile reports `0 errors, 0 warnings` and `.ex5` metadata
+- [x] Final MetaEditor compile reports `0 errors, 0 warnings` and `.ex5` metadata
   is confirmed.
-- [ ] Human tester/chart acceptance covers broker, H1, midpoint, M10, M3,
+- [x] Bounded real-tick tester acceptance covers broker, H1, midpoint, M10, M3,
   ratio, censoring, and export-off parity cases.
-- [ ] V13 fixture/build/audit evidence and handoff hashes are complete.
-- [ ] Exactly one Sprint 8 commit is created and its rollback point is recorded.
-- [ ] Django V13 cutover is not started until this gate is signed off.
+- [ ] Human chart-object/rendering inspection is complete.
+- [x] V13 fixture/build/audit evidence and compile/handoff hashes are complete.
+- [x] Exactly one Sprint 8 commit contains this record and its rollback point is
+  the Sprint 7 commit.
+- [x] Django V13 cutover remains explicitly gated and is not started.
 
 ## Testing Strategy
 
@@ -983,5 +990,6 @@ downstream Django cutover.
 - [x] Accepted structural 1R sends retain one separate broker-parity calibration
   shadow without retries or candidate mixing.
 - [x] Builder/audit/offline training are grain-aware and leakage-safe.
-- [ ] Final compile, tester/chart acceptance, hashes, and handoff are recorded.
-- [ ] Every sprint has exactly one commit and a recorded rollback point.
+- [x] Final compile, bounded tester acceptance, hashes, and handoff are recorded.
+- [ ] Human visual/chart verification remains outstanding.
+- [x] Every sprint has exactly one commit and a recorded rollback point.

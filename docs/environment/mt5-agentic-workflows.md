@@ -188,6 +188,12 @@ Compare export disabled/enabled on the same interval with file logs off. Record
 elapsed time, peak state/capacity, twelve-file row counts, and folder growth.
 Python fixtures and compilation cannot replace this human gate.
 
+If the tester uses `ExecutionMode=120` milliseconds, record it as a timing
+limitation. The run can establish causal processing order, immutable trade
+geometry, terminal reconciliation, and export parity, but it cannot prove
+sub-120 ms latency, perfect intra-second fill ordering, or exchange-level tick
+sequencing.
+
 ## Evidence And Privacy
 
 Keep raw TSVs, tester journals, account identifiers, credentials, and private

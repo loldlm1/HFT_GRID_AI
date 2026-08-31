@@ -25,6 +25,7 @@ NULL_TOKEN = r"\N"
 FEATURE_SHIFTS = tuple(range(6))
 FEATURE_SMA_PERIOD = 5
 FEATURE_STATE_TOLERANCE = 1e-7
+RISK_TICK_TOLERANCE = 1e-7
 FEATURE_STATES = ("ABOVE", "BELOW", "EQUAL")
 SIGNAL_SERIES = ("b_percent", "stochastic_main_line", "stochastic_signal_line")
 
@@ -485,6 +486,19 @@ def _same_number(left: float, right: float, tolerance: float = 1e-7) -> bool:
     return math.isclose(left, right, rel_tol=tolerance, abs_tol=tolerance)
 
 
+def _normalize_risk_ticks_outward(requested_distance: float, trade_tick: float) -> int:
+    requested_ticks = requested_distance / trade_tick
+    nearest_ticks = round(requested_ticks)
+    if nearest_ticks > 0 and abs(requested_ticks - nearest_ticks) <= RISK_TICK_TOLERANCE:
+        risk_ticks = nearest_ticks
+    else:
+        risk_ticks = math.ceil(requested_ticks)
+    risk_ticks = max(1, risk_ticks)
+    if risk_ticks * trade_tick + trade_tick * RISK_TICK_TOLERANCE < requested_distance:
+        risk_ticks += 1
+    return risk_ticks
+
+
 def _validate_time_triplet(row: dict[str, str], broker_column: str, analysis_column: str, offset_column: str, context: str, *, nullable: bool = False) -> tuple[datetime | None, datetime | None, int | None]:
     values = (row.get(broker_column), row.get(analysis_column), row.get(offset_column))
     null_count = sum(_is_null(value) for value in values)
@@ -878,7 +892,6 @@ def _validate_trials(rows: list[dict[str, str]], manifest: dict[str, str], origi
         ask = _as_float(row, "entry_ask", context, nullable=pending_midpoint)
         point = _as_float(row, "point_size", context)
         spread = _as_float(row, "spread_points", context)
-        assert point and spread is not None
         if pending_midpoint:
             pending_columns = (
                 "entry_bid", "entry_ask", "entry_price", "entry_quote_side",
@@ -892,10 +905,27 @@ def _validate_trials(rows: list[dict[str, str]], manifest: dict[str, str], origi
             )
             if entry_time is not None or any(not _is_null(row[column]) for column in pending_columns):
                 raise SchemaValidationError(f"{context}: pending midpoint carries entry/geometry")
+            pending_quote_facts = (
+                spread,
+                point,
+                _as_float(row, "trade_tick_size", context),
+                _as_float(row, "stops_level_points", context),
+                _as_float(row, "freeze_level_points", context),
+            )
+            if any(value is None or not _same_number(value, 0.0) for value in pending_quote_facts):
+                raise SchemaValidationError(f"{context}: pending midpoint carries pre-entry quote facts")
+            if (
+                _as_bool(row, "distance_eligible", context)
+                or _as_bool(row, "virtual_money_plan_complete", context)
+                or _as_bool(row, "origin_window_active_at_entry", context)
+            ):
+                raise SchemaValidationError(f"{context}: pending midpoint carries active entry state")
             if row["eligibility_status"] != "NOT_TRIGGERED":
                 raise SchemaValidationError(f"{context}: pending midpoint must be NOT_TRIGGERED")
             trials[trial_id] = row
             continue
+        if point is None or point <= 0.0 or spread is None:
+            raise SchemaValidationError(f"{context}: invalid entry quote facts")
         assert entry_time and entry and bid and ask
         if not _same_number(spread, (ask - bid) / point):
             raise SchemaValidationError(f"{context}: spread arithmetic mismatch")
@@ -1335,7 +1365,7 @@ def _validate_deep(
                 raise SchemaValidationError(f"{context}: virtual parent lacks outcome")
             parent_terminal = _as_time(parent_outcome, "terminal_broker_time", context)
             assert parent_terminal is not None
-            if event_time >= parent_terminal:
+            if event_time > parent_terminal:
                 raise SchemaValidationError(f"{context}: parent link begins after virtual parent terminal")
         else:
             if (
@@ -1353,7 +1383,7 @@ def _validate_deep(
                 broker_entry = _as_time(broker_outcome, "entry_broker_time", context)
                 broker_close = _as_time(broker_outcome, "close_broker_time", context)
                 assert broker_entry is not None and broker_close is not None
-                if entry_time != broker_entry or event_time >= broker_close:
+                if entry_time != broker_entry or event_time > broker_close:
                     raise SchemaValidationError(f"{context}: broker parent interval mismatch")
             else:
                 # A filled broker parent may still be open at run end. Its fill
@@ -1456,7 +1486,7 @@ def _validate_deep(
         assert stop is not None and take_profit is not None and minimum is not None
         expected_entry = event_ask if event["direction"] == "BUY" else event_bid
         expected_requested = abs(expected_entry - boundary)
-        expected_ticks = math.ceil(expected_requested / event_tick - 1e-12)
+        expected_ticks = _normalize_risk_ticks_outward(expected_requested, event_tick)
         expected_normalized = expected_ticks * event_tick
         expected_stop = expected_entry - expected_normalized if event["direction"] == "BUY" else expected_entry + expected_normalized
         expected_tp = expected_entry + ratio * expected_normalized if event["direction"] == "BUY" else expected_entry - ratio * expected_normalized
@@ -1512,7 +1542,11 @@ def _validate_deep(
         )
         event_time = _as_time(event, "trigger_broker_time", context)
         assert terminal_time is not None and event_time is not None
-        if terminal_time <= event_time:
+        status = row["terminal_status"]
+        if terminal_time < event_time or (
+            terminal_time == event_time
+            and status != "CENSORED_PARENT_EXIT"
+        ):
             raise SchemaValidationError(f"{context}: deep outcome terminal precedes event trigger")
         observed_bid = _as_float(row, "observed_exit_bid", context)
         observed_ask = _as_float(row, "observed_exit_ask", context)
@@ -1529,7 +1563,6 @@ def _validate_deep(
             or not _as_bool(row, "first_touch_consistent", context)
         ):
             raise SchemaValidationError(f"{context}: invalid deep observed exit facts")
-        status = row["terminal_status"]
         if status not in ("TP_FIRST", "SL_FIRST", "CENSORED_PARENT_EXIT", "CENSORED_RUN_END", "INELIGIBLE"):
             raise SchemaValidationError(f"{context}: invalid deep terminal status")
         duration = _as_int(row, "deep_lifecycle_seconds", context, nullable=True)

@@ -79,17 +79,24 @@ bool NormalizePivotTrialRiskOutward(const double requested_distance_price,
   double requested_ticks = requested_distance_price / trade_tick_size;
   if(!MathIsValidNumber(requested_ticks) || requested_ticks <= 0.0)
     return false;
-  long risk_ticks = (long)MathCeil(requested_ticks - 1e-12);
+  const double tick_tolerance = 1e-7;
+  long nearest_ticks = (long)MathRound(requested_ticks);
+  long risk_ticks = nearest_ticks > 0 &&
+                    MathAbs(requested_ticks - (double)nearest_ticks) <=
+                    tick_tolerance
+                    ? nearest_ticks
+                    : (long)MathCeil(requested_ticks);
   if(risk_ticks <= 0)
     risk_ticks = 1;
   double normalized_distance = (double)risk_ticks * trade_tick_size;
-  if(normalized_distance < requested_distance_price)
+  double price_tolerance = trade_tick_size * tick_tolerance;
+  if(normalized_distance + price_tolerance < requested_distance_price)
   {
     risk_ticks++;
     normalized_distance = (double)risk_ticks * trade_tick_size;
   }
   if(!MathIsValidNumber(normalized_distance) ||
-     normalized_distance < requested_distance_price)
+     normalized_distance + price_tolerance < requested_distance_price)
     return false;
   risk_ticks_out = risk_ticks;
   normalized_distance_price_out = normalized_distance;

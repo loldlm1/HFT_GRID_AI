@@ -108,9 +108,9 @@ int CountPivotTrialActiveStatesForOrigin(const string origin_id,
   int count = 0;
   for(int i = 0; i < PivotTrialActiveStateCount(); i++)
   {
-    PivotTrialActiveState &state = g_pivot_trial_active_states[i];
-    if(state.active && state.trial.identity.origin_id == origin_id &&
-       state.trial.direction == direction)
+    if(g_pivot_trial_active_states[i].active &&
+       g_pivot_trial_active_states[i].trial.identity.origin_id == origin_id &&
+       g_pivot_trial_active_states[i].trial.direction == direction)
       count++;
   }
   return count;
@@ -121,12 +121,15 @@ bool PivotTrialOriginHasActiveStructuralLane(const string origin_id,
 {
   for(int i = 0; i < PivotTrialActiveStateCount(); i++)
   {
-    PivotTrialActiveState &state = g_pivot_trial_active_states[i];
-    if(state.active && state.trial.identity.origin_id == origin_id &&
-       state.trial.direction == direction &&
-       state.trial.identity.role == PIVOT_TRIAL_ROLE_H1 &&
-       state.trial.identity.entry_policy == PIVOT_TRIAL_ENTRY_STRUCTURAL &&
-       state.trial.eligibility_status == PIVOT_TRIAL_ELIGIBILITY_ACTIVE)
+    if(g_pivot_trial_active_states[i].active &&
+       g_pivot_trial_active_states[i].trial.identity.origin_id == origin_id &&
+       g_pivot_trial_active_states[i].trial.direction == direction &&
+       g_pivot_trial_active_states[i].trial.identity.role ==
+         PIVOT_TRIAL_ROLE_H1 &&
+       g_pivot_trial_active_states[i].trial.identity.entry_policy ==
+         PIVOT_TRIAL_ENTRY_STRUCTURAL &&
+       g_pivot_trial_active_states[i].trial.eligibility_status ==
+         PIVOT_TRIAL_ELIGIBILITY_ACTIVE)
       return true;
   }
   return false;
@@ -146,7 +149,8 @@ bool PivotTrialActiveStateIdentityValid(const PivotTrialActiveState &state,
                                         string &reason_out)
 {
   reason_out = "";
-  const PivotTrialIdentity &identity = state.trial.identity;
+  PivotTrialIdentity identity;
+  identity.CopyFrom(state.trial.identity);
   if(!state.active || identity.trial_id == "" || identity.origin_id == "")
   {
     reason_out = "ACTIVE_TRIAL_IDENTITY_INVALID";

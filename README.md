@@ -177,10 +177,14 @@ not-triggered facts never become target-zero losses. All model artifacts remain
 
 ## Validation Status
 
-Sprints 1-6 have strict static and Python evidence. Sprint 7 publishes the V13
-handoff. One final real MetaEditor compile and human Strategy Tester/chart
-acceptance remain mandatory in Sprint 8 before the downstream Django V13
-cutover can begin. Live rollout is not authorized.
+Sprints 1-8 have strict static, Python, compile, and bounded real-tick tester
+evidence recorded in the V13 handoff. Human chart-object/rendering verification
+remains outstanding; it is required before any deployment-oriented claim. The
+downstream Django app may prepare against the frozen contract, but its
+destructive V12 removal gate remains separate. The accepted tester used
+`ExecutionMode=120` milliseconds, so it does not prove sub-120 ms latency,
+perfect intra-second fill ordering, or exchange-level tick sequencing. Live
+rollout is not authorized.
 
 ## Documentation
 
