@@ -2,44 +2,40 @@
 
 ## Active State
 
-The current `PIVOT_FRACTAL_V2` Macro/Micro broker executor now implements the
-strict schema V12 producer and offline tooling. The producer is accepted for
-the downstream Django cutover after the real-tick export audit, matched
-export-on/off broker parity, strict build/audit/train gate, and focused builder
-correction. Visual chart behavior was waived and remains unverified.
+The active producer is the strict Pivot Fractal V13 H1/M10 evidence contract.
+Sprints 1-6 (contract, runtime lanes, deep lifecycle, M3 evidence, export, and
+offline artifacts) are committed. Sprint 7 publishes the handoff; Sprint 8
+still requires the single final MetaEditor compile and human Strategy
+Tester/chart gate before Django may begin its separately authorized V13 work.
 
 Use these active documents:
 
-- `docs/workflows/pivot-fractal-statistics-flow.md`
-- `docs/workflows/pivot-fractal-offline-research-boundaries.md`
-- `docs/environment/mt5-agentic-workflows.md`
-- `docs/research/pivot-fractal-v12-producer-handoff.md`
-- `docs/research/pivot-fractal-v12-producer-acceptance-2026-08-13.md`
-- `docs/research/archive/pivot-sl-tp-reentry-matrix-v11-2026-08-07/README.md`
-- `docs/plans/archive/pivot-sl-tp-reentry-matrix-v11-2026-08-07/README.md`
-- `docs/research/archive/v11-dataset-column-type-registry-2026-08-07/README.md`
-- `docs/plans/archive/v11-dataset-column-type-registry-2026-08-07/README.md`
-- `docs/research/archive/macro-micro-pivot-bandwidth-schema-v10-2026-08-06/README.md`
-- `docs/plans/archive/macro-micro-pivot-bandwidth-schema-v10-2026-08-06/README.md`
+- `pivot-fractal-v13-producer-handoff.md`
+- `pivot-fractal-v13-producer-acceptance-2026-08-31.md`
+- `../workflows/pivot-fractal-statistics-flow.md`
+- `../workflows/pivot-fractal-offline-research-boundaries.md`
+- `../environment/mt5-agentic-workflows.md`
+- `../../pivot-fractal-v13-deep-pivot-producer-plan.md`
 
-No current research artifact is approved for MT5 runtime or live deployment.
-Accepted schema V11 runtime evidence remains historical and does not prove V12.
-Generated Common Files exports, datasets, audits, models, reports,
-screenshots, and binaries remain outside tracked documentation unless a
-closeout explicitly archives compact evidence.
+V13 writes twelve strict TSV files under
+`Common\\Files\\PivotFractalV13\\runs\\<run_id>\\`. H1 evidence has
+`STRUCTURAL` and `MIDPOINT_50` lanes at `1R/2R/3R/5R`; shared M10 events
+capture one configured-Micro vector and deep `1R/2R/3R` parent outcomes.
+Lifecycle durations and parent ages are exact, uncapped broker-time facts.
 
-## V10 Acceptance Archive
+No current artifact authorizes live rollout, runtime model loading, online
+learning, or execution filtering. Generated runs, datasets, audits, models,
+screenshots, journals, and binaries remain operator-owned outside tracked
+documentation unless a closeout explicitly archives compact evidence.
 
-`docs/research/archive/macro-micro-pivot-bandwidth-schema-v10-2026-08-06/`
-records the accepted post-Sprint-9 XAUUSD run. It remains offline research
-evidence only and does not approve runtime model loading or live deployment.
+## Historical Evidence
 
-## Historical V9 Evidence
+The accepted V12 producer handoff and acceptance remain historical references:
 
-`docs/research/pivot-fractal-v9-vps-run-audit-2026-07-29.md` and all V9
-archives describe the historical `PIVOT_FRACTAL_V1` implementation only. They
-must not be presented as V2/V12 acceptance or converted into V12 datasets.
+- `pivot-fractal-v12-producer-handoff.md`
+- `pivot-fractal-v12-producer-acceptance-2026-08-13.md`
 
-Completed broker, signal-engine, exporter, retest/confluence, ML, and
-robustness evidence remains under `docs/research/archive/` as immutable
-historical audit material.
+V12 and earlier plans, fixtures, raw runs, and migration evidence are immutable
+historical material. Active V13 tooling rejects V12 rather than converting,
+dual-writing, or relabeling it. Earlier research remains under `archive/` and
+must not be presented as V13 acceptance.

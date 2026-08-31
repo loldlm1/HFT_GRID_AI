@@ -1,365 +1,162 @@
-# Macro/Micro Pivot Market Data Collector And Broker Executor
+# H1/M10 Pivot Collector And Broker Executor
 
 ## Purpose
 
-The EA owns one fixed strategy boundary: create one classic pivot ladder from
-the previous completed Macro broker candle, capture deterministic trigger-time
-Bands/Stochastic facts, and optionally execute one market position per consumed pivot
-identity. It is not a generic strategy framework, licensing platform, risk
-dashboard, session scheduler, pending-order engine, or multi-leg grid system.
+The EA owns one deterministic market-data boundary: classic pivot ladders from
+previous completed broker candles, immutable H1 and nested M10 research facts,
+and one structural H1 `1R` broker lane. It is not a generic strategy, grid,
+licensing, risk-dashboard, model-serving, or multi-leg execution framework.
 
-## Runtime Sequence
+## Runtime Ownership
 
 ```text
 broker tick
--> reconcile the one real structural 1R broker lane
--> resolve current virtual TP/SL first touches and at most one retry per chain
--> refresh one changed or retry-due Macro window
--> calculate seven classic pivot levels from Macro shift 1
--> cache PP role state for the active Macro window
--> discover and consume live-Bid virtual-limit triggers
--> capture one Micro/Macro Bands and Stochastic snapshot for the tick batch
--> derive each candidate's immutable touched-pivot feature vector
--> build structural SL and observation-time 1R geometry
--> repeat quote, volume, broker, margin, and OrderCheck facts pre-send
--> OrderSend one FOK market request with immutable broker SL/TP
--> declare the independent sixteen-cell origin matrix when export is enabled
--> create one exact-geometry parity shadow only after an accepted send
--> record strict schema V12 virtual, broker, and calibration facts
+-> reconcile the one real structural H1 1R lane
+-> resolve H1 virtual first touches and midpoint state
+-> resolve/censor active deep parent links
+-> refresh causal H1 and M10 windows on bar change or bounded data retry
+-> discover H1 live-Bid pivot identities
+-> capture one H1-origin Micro/Macro snapshot per tick batch
+-> perform fresh broker checks and submit at most one FOK structural request
+-> freeze active same-direction H1 parents
+-> discover one shared M10 event per consumed deep identity
+-> capture one configured-Micro snapshot and deep 1R/2R/3R geometry
+-> serialize strict V13 facts
 ```
 
-Broker checks and execution remain active when persistence is disabled.
-`Enable_Signal_Feature_Export` controls V12 files, four indicator handles, and
-all virtual trial state; it never authorizes, denies, delays, resizes, or
-duplicates a real trade.
+H1 terminal transitions are processed before same-tick M10 discovery. Research
+state never authorizes, denies, delays, resizes, duplicates, closes, or modifies
+the real broker order.
 
-## Timeframe And Window Ownership
+## Timeframes And Windows
 
-`PIVOT_FRACTAL_V2` owns one configurable Macro and one configurable Micro
-timeframe. Defaults are `H1` and `M3`. Inputs fail initialization unless both
-are explicit supported MetaTrader timeframes, distinct, and Micro is shorter
-than Macro.
+`Macro_Timeframe`, `Deep_Timeframe`, and `Micro_Timeframe` are explicit supported
+periods. Initialization validates normalized `PeriodSeconds` ordering:
+`Micro < Deep < Macro`; defaults are `M3 < M10 < H1`. The EA uses broker-native
+active bars and the previous completed source candle (`shift 1`). A current bar
+whose open is later than the observed tick is not causal. Weekend/session gaps
+do not create synthetic windows.
 
-For the Macro timeframe:
+Each H1 and M10 window retains raw and trade-tick-normalized
+`PP`, `S1..S3`, and `R1..R3` with strict ladder ordering. Window identity and
+trigger ordering are independent of analysis-time display/DST fields.
 
-- `iTime(symbol, Macro_Timeframe, 0)` identifies the active lifecycle window.
-- `CopyRates(symbol, Macro_Timeframe, 1, 1, ...)` supplies the immediately
-  previous completed source candle.
-- A changed active bar expires every untriggered identity from the old window
-  and creates one new pending window.
-- Pending source reads retry at a bounded cadence. Invalid source ranges and
-  collapsed normalized ladders remain explicit facts; feature readiness is
-  evaluated independently at trigger time.
-- Weekend and broker-session gaps follow the actual series. No elapsed-time
-  arithmetic creates synthetic candles.
-- A bar or band snapshot whose open is later than the observed tick is not
-  causal and cannot activate.
+## Pivot Identity And Triggers
 
-## Classic Pivot Calculation
+Identity is `(symbol, timeframe, active bar open, level)` and is consumed on the
+first eligible live-Bid trigger. Direction is an outcome, not an identity field.
 
-For source high `H`, low `L`, close `C`, and range `D = H - L`:
+- `S1..S3`: buy when `Bid <= level`.
+- `R1..R3`: sell when `Bid >= level`.
+- PP: first strict Bid side arms support/resistance, then a return touch triggers.
+- Equality at PP remains neutral until a strict departure.
+
+Same-batch order is buy-armed `PP`, `S1`, `S2`, `S3` downward and sell-armed
+`PP`, `R1`, `R2`, `R3` upward. Buy triggers use Bid and executable entry uses
+fresh Ask; sell trigger and entry use Bid.
+
+## H1 Lanes
+
+Every export-enabled consumed origin declares exactly eight virtual lanes:
 
 ```text
-PP = (H + L + C) / 3
-R1 = 2 * PP - L          S1 = 2 * PP - H
-R2 = PP + D              S2 = PP - D
-R3 = H + 2 * (PP - L)    S3 = L - 2 * (H - PP)
+STRUCTURAL x 1R, 2R, 3R, 5R
+MIDPOINT_50 x 1R, 2R, 3R, 5R
 ```
 
-The calculator retains raw values and one tick-normalized trade ladder. A
-window is valid only when finite positive source data produces the strict
-order `S3 < S2 < S1 < PP < R1 < R2 < R3` after normalization.
+Structural lanes enter at the H1 trigger. The midpoint is the exact halfway
+price from the touched pivot toward its next outward structural stop; its clock
+starts only on the first executable midpoint touch. The shared midpoint remains
+armed while any structural lane from the origin is active, including after H1
+bar rollover. If the final structural lane exits first, untouched midpoint lanes
+are `NOT_TRIGGERED`; they are not losses. Once touched, midpoint ratios resolve
+independently from their shared entry.
 
-## Identity, PP Arming, And Trigger Semantics
+There are no Bands-width policies, retry/re-entry generations, continuation
+rows, or retry-cap transitions. Stops use the next outward pivot, with the
+existing S3/R3 extrapolation. Virtual buys enter at Ask and resolve on Bid;
+virtual sells enter at Bid and resolve on Ask. Stops normalize outward to the
+trade-tick grid and exact integer-R targets are rebuilt from normalized risk.
+Invalid geometry, distance, money, no-touch, and run-end states are explicit.
 
-Identity is exactly `(symbol, Macro timeframe, active bar open, level)`.
-Direction is an outcome and is not part of the key.
+## Deep M10 Evidence
+
+Deep capture is research-only and requires at least one entered eligible
+same-direction H1 virtual lane or confirmed broker fill. The event identity is:
 
 ```text
-live Bid <= S1/S2/S3 -> BUY support trigger
-live Bid >= R1/R2/R3 -> SELL resistance trigger
+(symbol, Deep_Timeframe, active Deep bar open, level)
 ```
 
-PP requires a fixed role for each Macro window:
+One event stores one configured-Micro indicator vector (M3 by default), and one
+event-level shared trial for each deep ratio `1R`, `2R`, and `3R`. Parent links
+associate the event with every eligible H1 parent active at the trigger. A link
+stores its own parent identity, entry time, and exact `m10_parent_age_seconds`;
+features are never copied into each ratio/link row.
 
-- first causal Bid above PP arms PP as support; a later `Bid <= PP` triggers a
-  buy;
-- first causal Bid below PP arms PP as resistance; a later `Bid >= PP`
-  triggers a sell;
-- equality records the first observation but remains neutral until Bid first
-  leaves strictly above or below, at which point the return direction is armed;
-- PP never flips role after arming.
+The deep path uses the event executable quote and next outward M10 pivot as the
+normalized stop. It never reaches `OrderSend`. A parent exit censors only that
+link as `CENSORED_PARENT_EXIT`; a run stop uses `CENSORED_RUN_END`. The same
+shared trial may resolve normally for another still-active parent. Observation
+ends when no linked parent remains active.
 
-Inclusive comparisons mean exact touches and gap-throughs count. A support or
-resistance already marketable at the first causal tick may trigger immediately.
-All candidates are consumed before route or broker evaluation, so a denied or
-failed attempt cannot trigger again.
+Admission reserves the complete fan-out atomically: one event, all frozen links,
+three trials, and three outcomes per link. If it cannot fit, the event identity
+is consumed and one `CAPACITY_REJECTED` row is emitted with no partial children.
+Caps are 2048 events, 4096 links, 6144 trials, and 18432 outcomes.
 
-Downward candidate order is buy-armed `PP`, `S1`, `S2`, `S3`. Upward order is
-sell-armed `PP`, `R1`, `R2`, `R3`. Every candidate in the same observed batch
-copies the same frozen window and shared feature snapshot.
+## Broker Boundary
 
-Buy triggers use Bid but requests use fresh Ask. Sell triggers and requests use
-Bid. Trigger Bid/Ask, pivot price, request quote, broker fill, immutable
-terminal prices, and close price remain separate facts.
+Only the structural H1 `1R` lane may send. The fresh pre-send path rechecks
+session, symbol mode, hedging mode, permissions, Bid/Ask, stops/freeze, volume,
+FOK support, margin, and `OrderCheck`. Broker SL/TP are immutable after fill;
+there is no trailing, break-even, partial close, resize, or `TRADE_ACTION_SLTP`.
 
-## Immutable Route Matrix
+V13 derives magic namespace `HFT_GRID_AI_PIVOT_FRACTAL_V13`; older-engine
+positions are never adopted, closed, or modified. One accepted request creates
+one exact submitted-geometry parity shadow outside H1/deep target cohorts.
 
-| Level | Role | Structural SL | Fresh quote TP |
-| --- | --- | --- | --- |
-| `PP` | Buy when armed as support | `S1` | `Ask + (Ask - S1)` |
-| `S1` | Buy support | `S2` | `Ask + (Ask - S2)` |
-| `S2` | Buy support | `S3` | `Ask + (Ask - S3)` |
-| `S3` | Buy support | `S3 - (S2 - S3)` | `Ask + (Ask - SL)` |
-| `PP` | Sell when armed as resistance | `R1` | `Bid - (R1 - Bid)` |
-| `R1` | Sell resistance | `R2` | `Bid - (R2 - Bid)` |
-| `R2` | Sell resistance | `R3` | `Bid - (R3 - Bid)` |
-| `R3` | Sell resistance | `R3 + (R3 - R2)` | `Bid - (SL - Bid)` |
+## Features And Duration
 
-Observation geometry is telemetry. The authoritative entry, risk distance, and
-TP are rebuilt from a fresh pre-send quote and normalized to symbol price
-rules. Reward and risk distance in points must remain exactly 1:1 within the
-project tolerance. The pivot ladder is never moved to force valid geometry.
+When export is enabled, exactly four cached handles exist: Macro/Micro Bands and
+Macro/Micro Stochastic. Fixed settings are Bands `21/0/2.0`, SMA,
+`PRICE_WEIGHTED`; Stochastic `K=5`, `D=3`, slowing `3`, `MODE_SMA`,
+`STO_CLOSECLOSE`. H1-origin features live once on `signal_origins.tsv`; deep
+configured-Micro features live once on `deep_pivot_events.tsv`.
 
-After a fill, broker SL and TP are immutable. The EA submits no stop
-modification, trailing, break-even, partial-close, or resize request.
+`h1_structural_lifecycle_seconds` is exact broker-time duration from a lane's
+own entry to a confirmed close. `m10_parent_age_seconds` is exact parent entry
+to M10 trigger age. Neither is rounded or capped. The downstream application
+maps them to separate `<= minutes * 60` research predicates; H1 duration is
+retrospective and excluded from causal/model features.
 
-## Virtual Trial Matrix
+## Export And Include Boundaries
 
-The matrix is a bounded counterfactual price-path engine, not a broker grid.
-Every export-enabled consumed origin declares the Cartesian product:
+V13 writes twelve files under
+`Common\\Files\\PivotFractalV13\\runs\\<run_id>\\` in this order:
 
 ```text
-SL = STRUCTURAL, MICRO_BW_13, MICRO_BW_21, MICRO_BW_34
-TP = 1R, 2R, 3R, 5R
+run_manifest.tsv
+pivot_windows.tsv
+signal_origins.tsv
+virtual_trials.tsv
+virtual_outcomes.tsv
+deep_pivot_events.tsv
+deep_pivot_parent_links.tsv
+deep_virtual_trials.tsv
+deep_virtual_outcomes.tsv
+execution_checks.tsv
+broker_outcomes.tsv
+run_summary.tsv
 ```
 
-This creates sixteen initial rows. Structural cells reuse the current route SL
-and never retry. Volatility cells freeze the full trigger-time Micro shift-0
-Bands width and request `13%`, `21%`, or `34%` of it. Risk normalizes outward
-to the trade-tick grid before each TP is constructed from the normalized tick
-count, preserving exact integer R after normalization.
+The entrypoint's ordered aggregators are
+`services/trading_tools.mqh`, `services/trading_management.mqh`,
+`services/trading_signals.mqh`, and `services/frontend.mqh`. Aggregators own
+include order; no sibling cycles or per-tick handle creation are permitted.
+The frontend is read-only and cannot influence execution.
 
-Virtual quote ownership is explicit:
-
-| Direction | Entry | TP/SL first touch |
-| --- | --- | --- |
-| Buy | Ask | Bid |
-| Sell | Bid | Ask |
-
-Every matrix cell must satisfy:
-
-```text
-normalized risk points >=
-  spread points + max(stops level points, freeze level points)
-  + trade tick points
-```
-
-Failed feature, geometry, distance, volume, or `OrderCalcProfit` checks produce
-an explicit ineligible row. Stops are not stretched and cells are not silently
-removed.
-
-Gap-through batches can consume a pivot after price has already crossed its
-next outward pivot. The broker structural route correctly rejects that origin
-when its stop is equal to or on the wrong side of the fresh executable entry.
-V12 still retains the origin and declares all sixteen cells: the four
-structural policies are `INELIGIBLE_GEOMETRY` with no synthesized SL/TP or
-money plan, while the twelve volatility policies remain independently
-researchable. The invalid structural stop is never reflected across entry.
-
-Each volatility `(SL policy, TP multiple)` has its own chain. Index `0` is the
-origin trial; indices `1..3` can follow only that chain's immediately preceding
-`SL_FIRST`. Re-entry uses the current executable quote while preserving the
-origin width. A TP completes only its own chain. At most one generation per
-chain is created on one tick.
-
-For `PP`, `S1`, and `S2` buys, both retry entry and proposed SL must remain more
-than one trade tick above `S1`, `S2`, or `S3` respectively. The sell mapping is
-`PP -> R1`, `R1 -> R2`, and `R2 -> R3`, with both prices more than one tick
-below the boundary. Gap-through and equality suppress the old-context retry.
-`S3` and `R3` have no outer boundary and stop at index `3`. Window expiry
-allows an active trial to finish but prohibits another retry.
-
-Current matrix and parity state is capped at `2048`. Capacity exhaustion marks
-the research run failed, stops new virtual declarations, and does not evict
-existing trials or change broker execution. Remaining active state is exported
-as `CENSORED` at run end. A successful tester interval remains run-level
-`NATURAL`; row censoring describes unresolved trials, not why the run ended.
-
-## Signal Feature Ownership
-
-The runtime creates four cached built-in handles only when V12 export is
-enabled:
-
-```text
-iBands(symbol, timeframe, 21, 0, 2.0, PRICE_WEIGHTED)
-iStochastic(symbol, timeframe, 5, 3, 3, MODE_SMA, STO_CLOSECLOSE)
-```
-
-Buffers are `0=BASE_LINE`, `1=UPPER_BAND`, and `2=LOWER_BAND`.
-Stochastic buffers are `0=MAIN_LINE` and `1=SIGNAL_LINE`.
-
-`%B` is never clipped:
-
-```text
-100 * (touched_pivot - lower_band) / (upper_band - lower_band)
-```
-
-- Micro and Macro `%B 0..5` use the same immutable touched pivot numerator.
-  Shift `0` uses the developing envelope observed at the trigger; shifts
-  `1..5` use matching completed envelopes. Values below `0` and above `100`
-  remain valid.
-- `%B`, Stochastic `MAIN_LINE`, and Stochastic `SIGNAL_LINE` each export raw,
-  SMA 5, SMA slope, and `ABOVE`/`BELOW`/`EQUAL` state for shifts `0..5`.
-- Bands `BASE_LINE 0..5` exports the raw value and
-  `(BASE_LINE[shift] - BASE_LINE[shift+1]) / point_size`.
-- Micro and Macro width points are
-  `(UPPER_BAND[0] - LOWER_BAND[0]) / point_size`.
-- The derived SMA horizon is bounded to internal shifts `0..10`; only shifts
-  `0..5` are exported.
-- One trigger batch shares one captured indicator snapshot. Each origin stores
-  the vector exactly once on `signal_origins.tsv`; retries retain the same
-  origin vector and never create a fresh indicator snapshot.
-- Volatility retries separately retain the frozen origin raw Micro width used
-  for their stop geometry.
-
-Unavailable, noncausal, nonfinite, or zero-width facts make the feature
-snapshot incomplete. They never alter an otherwise valid execution decision.
-
-## Lot And Money Semantics
-
-- `EXECUTION_LOT_FIXED_SIZE`: `Lot_Strategy_Size` is requested lots.
-- `EXECUTION_LOT_REFERENCE_BALANCE_PERCENT`: the risk budget is
-  `1,000,000 * Lot_Strategy_Size / 100`, independent of live balance.
-- The default `0.01` percentage requests `100` account-currency units.
-- `OrderCalcProfit` derives per-lot stop risk and quote expected SL/TP money.
-- Requested volume normalizes downward to broker min/max/step. The EA does not
-  round up to minimum volume or exceed the reference risk budget.
-- Fixed-lot and reference-risk runs, currencies, or different timeframe
-  configurations are not mixed in the initial research dataset.
-
-Price-distance 1R and money R are different facts. Instrument conversion,
-volume steps, entry/exit execution, commission, swap, and fees can produce a
-result other than exactly `+100` or `-100`. The exporter records quote expected
-loss/profit, utilization, adverse-positive entry/exit slippage, gross/net P&L,
-and R against both the budget and executable quote risk.
-
-## Before And After A Fill
-
-Before a real position exists, local state owns identity, trigger facts,
-captured ladder, route, feature snapshot, broker observations, and send status.
-
-After a fill, the broker owns:
-
-- order, deal, position ticket, and position identifier;
-- full executed volume and entry price;
-- immutable broker-side stop loss and take profit;
-- open/closed state, close deals, close price/time, and realized costs/profit.
-
-Requests use `ORDER_FILLING_FOK`. Unsupported full-fill policy fails closed;
-partial volume is not adopted. Reconciliation selects the owned ticket first
-and verifies symbol, V2 magic, direction, execution comment, and broker volume.
-Local state may copy broker facts but never manufacture or overwrite them.
-
-## Mandatory Broker Checks
-
-The observation snapshot is telemetry. The fresh pre-send snapshot is
-authority. Execution fails closed when any required condition is missing:
-
-- `ACCOUNT_MARGIN_MODE_RETAIL_HEDGING`;
-- actual broker session open and compatible symbol trade mode;
-- account, expert, terminal, and MQL trading permission;
-- valid current Bid/Ask and point size;
-- directional entry/SL/TP geometry;
-- stops and freeze distances;
-- volume min/max/step, FOK support, and normalized volume;
-- free margin, calculated margin, and successful `OrderCheck`;
-- accepted `OrderSend` retcode and reconciled owned ticket.
-
-Spread and live account balance are exported telemetry. There is no user
-threshold for either, and the engine never changes pivot prices to make an
-invalid request pass.
-
-## Time Ownership
-
-Broker time owns pivot bars, trigger order, actual sessions, durations, orders,
-and reconciliation. Analysis time is derived only for research features.
-
-| Mode | Broker time | Analysis time | Execution effect |
-| --- | --- | --- | --- |
-| `FIXED_TIME_SESSIONS` | preserved | unchanged | none |
-| `EXNESS_SESSION`, DST active | preserved | unchanged | none |
-| `EXNESS_SESSION`, winter | preserved | broker time minus 60 minutes | none |
-
-Exness metal prefixes use UK DST dates; other symbols use US DST dates. Every
-time-bearing V12 row retains broker time, analysis time, and offset. Causal
-sorting uses broker time plus stable identity, never analysis time alone.
-
-## V12 Data Ownership
-
-The sole active export contract contains exactly:
-
-- `run_manifest.tsv`
-- `pivot_windows.tsv`
-- `signal_origins.tsv`
-- `virtual_trials.tsv`
-- `virtual_outcomes.tsv`
-- `execution_checks.tsv`
-- `broker_outcomes.tsv`
-- `run_summary.tsv`
-
-The four research lanes stay distinct:
-
-| Lane | Authority | Use |
-| --- | --- | --- |
-| Virtual nominal R | Normalized matrix geometry and first touch | Primary policy comparison |
-| Virtual quote gross | `OrderCalcProfit` at observed virtual entry/exit | Counterfactual gross audit |
-| Broker gross/costs/net | Reconciled deal history | Actual execution cohort |
-| Broker-parity comparison | Exact accepted request shadow joined to broker close | Simulation agreement and drift |
-
-Only feature-complete eligible matrix `TP_FIRST`/`SL_FIRST` outcomes receive the
-primary virtual target. Each origin's eligible rows share total sample weight
-`1.0`. Broker binary eligibility remains a separate feature-complete,
-fully-closed, consistent `BROKER_TP`/`BROKER_SL` cohort. Manual, mixed,
-stop-out, expert, other, denied, failed-send, ineligible, and censored facts
-remain auditable and are never relabeled as losses.
-
-One accepted real request creates one `BROKER_PARITY` row using the exact
-submitted entry, SL, TP, and normalized volume. Denied and failed sends create
-none. The causal trigger must be inside its Macro origin. If synchronous broker
-processing completes on or after the exact origin boundary, parity retains the
-accepted send timestamp and records `origin_window_active_at_entry=0`; matrix
-and re-entry declarations still cannot cross that boundary. Parity is excluded
-from the sixteen matrix cells, retry chains, policy support, and model targets.
-Only a detected parity threshold candidate performs an actual symbol-session
-lookup, and a closed-session quote cannot classify parity. When broker history
-closes before another observed executable threshold, the current same-time tick
-resolves parity when possible; otherwise the shadow becomes unlabelled
-`CENSORED / BROKER_TERMINAL_BEFORE_OBSERVED_TOUCH` before broker-outcome
-linking. Unexplained in-session strict parity/broker TP/SL disagreement remains
-an integrity failure.
-
-Current DuckDB/Parquet, audit, and XGBoost code is offline-only. It cannot load
-into MT5, approve a runtime artifact, filter an attempt, or alter broker state.
-Active tooling accepts schema V12 only and joins signal features from origins.
-V9/V10/V11 evidence requires its historical repository revision and is not
-converted, dual-written, or relabeled.
-
-## Frontend Boundary
-
-The frontend is optional inspection output: at most 16 active positions, each
-with broker entry, immutable broker SL, immutable broker TP, and a compact
-Macro timeframe/level/direction/pivot label. It has no execution controls.
-Nonvisual Strategy Tester runs skip all chart-object work.
-
-## Non-Goals And Rollout
-
-- No license, entitlement, public account, or public magic settings.
-- No user trading-hours, configurable Bands formulas, synthetic bars, spread
-  threshold, drawdown/daily limit, direction selector, or concurrency rule.
-- No pending limit orders, `R4/S4`, trailing, partial TP, or multi-leg state.
-- No runtime model scoring, filtering, pattern playback, or online learning.
-- No live rollout approval.
-
-Any future runtime handoff requires older-engine positions flat for the symbol,
-a hedging account, and one EA instance per account and symbol.
+The Python validator accepts strict V13 only, builds native-grain H1/deep/
+broker/calibration artifacts, audits referential integrity and leakage, and
+trains explicit offline H1 or deep candidates. No runtime model artifact or
+execution filter is produced.

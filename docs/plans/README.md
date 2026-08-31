@@ -2,43 +2,32 @@
 
 ## Active
 
-- None.
+- `../../pivot-fractal-v13-deep-pivot-producer-plan.md`: active eight-sprint
+  producer migration. Sprints 1-6 are committed; Sprint 7 is the documentation
+  and handoff gate; Sprint 8 owns the final compile and human acceptance.
 
-Create and activate a new plan before another substantial strategy,
-architecture, live-rollout, schema, or repository-wide change.
+The downstream Django plan at
+`/home/loldlm/python_projects/hft-grid-ai-orchestrator/pivot-fractal-v13-django-research-progression-plan.md`
+is a separate repository workflow. It must not perform its V12 removal or
+destructive cutover until the V13 producer handoff is accepted.
 
 ## Archived
 
 Completed and superseded plans live under `docs/plans/archive/`. They document
-their historical code and exporter revisions only; they are not active
-implementation guidance.
+historical code and exporter revisions only; they are not active implementation
+guidance.
 
 - `docs/plans/archive/macro-micro-pivot-bandwidth-schema-v10-2026-08-06/README.md`:
-  completed `PIVOT_FRACTAL_V2`, one Macro/one Micro weighted-Bands context,
-  fixed-reference risk, immutable quote-based 1R execution, strict schema V10,
-  deterministic debug telemetry, and renewed real-tick acceptance.
+  completed V10 pivot-bandwidth producer and broker acceptance.
 - `docs/plans/archive/pivot-fractal-engine-schema-v9-2026-07-29/README.md`:
-  completed `PIVOT_FRACTAL_V1`, schema V9, causal snapshot, structural trailing,
-  paired performance, and natural Strategy Tester acceptance work.
+  completed V9 signal-engine and structural lifecycle work.
 - `docs/plans/archive/pivot-retest-confluence-offline-research-2026-07-30/README.md`:
-  completed causal retest context, bounded unordered confluence, offline feature
-  ablation, and natural-data research acceptance.
+  completed causal retest/confluence offline research.
 - `docs/plans/archive/pivot-sl-tp-reentry-matrix-v11-2026-08-07/README.md`:
-  completed strict V11 virtual matrix, bounded re-entry, broker-parity, final
-  raw real-tick acceptance, and the isolated offline builder handoff.
+  completed V11 matrix, retries, parity, and acceptance work.
 - `docs/plans/archive/v11-dataset-column-type-registry-2026-08-07/README.md`:
-  completed exhaustive V11 dataset typing, populated text regression, and
-  official validate/build/audit/train acceptance.
+  completed V11 type registry and offline builder gate.
 - `docs/plans/archive/pivot-fractal-v12-signal-features-2026-08-13/README.md`:
-  completed strict V12 origin-grain Bands/Stochastic features, matched
-  export-on/off runtime acceptance, derived wide-table correction, and the
-  offline Django handoff.
+  completed V12 origin-grain feature producer and Django handoff.
 
-Use these current documents:
-
-- `docs/architecture/market-data-broker-executor.md`
-- `docs/workflows/pivot-fractal-statistics-flow.md`
-- `docs/workflows/pivot-fractal-offline-research-boundaries.md`
-- `docs/environment/mt5-agentic-workflows.md`
-
-Do not edit archived plans during normal implementation work.
+Do not edit archived plans during normal V13 implementation work.

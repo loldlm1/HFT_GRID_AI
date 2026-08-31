@@ -1,247 +1,234 @@
 # HFT Grid AI - Agent Brief
 
-This repository is an always-on Macro/Micro pivot-band market-data collector
-with one small broker execution path. Keep active code and documentation
-focused on that contract; historical plans and evidence remain under their
-archive directories.
+This repository is an always-on H1/M10/Micro pivot market-data collector with
+one small structural broker execution path. Keep active code and documentation
+focused on that contract. Historical plans, handoffs, datasets, and acceptance
+evidence remain immutable under their existing archive or research locations.
 
 ## Entrypoint And Active Work
 
 - Entrypoint: `HFT_Grid_AI.mq5`.
-- Active plan: none. The completed V12 signal-feature producer plan is archived
-  under `docs/plans/archive/pivot-fractal-v12-signal-features-2026-08-13/`.
+- Active plan: `pivot-fractal-v13-deep-pivot-producer-plan.md` through the final
+  compile and human acceptance gate.
 - Architecture: `docs/architecture/market-data-broker-executor.md`.
-- Environment runbook: `docs/environment/mt5-agentic-workflows.md`.
-- Statistics workflow: `docs/workflows/pivot-fractal-statistics-flow.md`.
-- Research boundary: `docs/workflows/pivot-fractal-offline-research-boundaries.md`.
-- V12 downstream handoff: `docs/research/pivot-fractal-v12-producer-handoff.md`.
-- V12 acceptance: `docs/research/pivot-fractal-v12-producer-acceptance-2026-08-13.md`.
+- Environment: `docs/environment/mt5-agentic-workflows.md`.
+- Statistics: `docs/workflows/pivot-fractal-statistics-flow.md`.
+- Research boundary:
+  `docs/workflows/pivot-fractal-offline-research-boundaries.md`.
+- V13 handoff: `docs/research/pivot-fractal-v13-producer-handoff.md`.
+- V13 acceptance draft:
+  `docs/research/pivot-fractal-v13-producer-acceptance-2026-08-31.md`.
+
+The V12 plan and acceptance records are historical only. Active code and
+tooling must not emit, accept, convert, or dual-write V12.
 
 ## Skill Stack
 
-Use only capabilities that match the task and are installed under
-`/home/loldlm/.codex/skills`:
+Use only installed capabilities that match the task:
 
-- `production-engineering-stack:mql5-production-engineering` for
-  `.mq5`/`.mqh`, broker execution, indicator lifecycle, MetaEditor, and
-  Strategy Tester work.
-- `codex-agentic-stack:token-saver-orchestrator` for RTK-first inspection,
-  compact command evidence, and minimal implementation without reduced
-  validation.
+- `production-engineering-stack:mql5-production-engineering` for `.mq5`/`.mqh`,
+  broker execution, handles, MetaEditor, and Strategy Tester work.
+- `codex-agentic-stack:token-saver-orchestrator` for RTK-first inspection and
+  compact validation evidence.
 - `production-engineering-stack:python-django-production-engineering` for the
-  Python validator, typed DuckDB/Parquet builder, audit, offline trainer, and
-  any explicitly authorized downstream Django work.
-- `production-engineering-stack:postgres-production-engineering` and
-  `production-engineering-stack:devops-release-production-engineering` only
-  when an explicitly authorized downstream task reaches database or release
-  operations; they are not default requirements for this MQL5 repository.
+  Python validator, DuckDB/Parquet builder, audit, offline trainer, and only
+  explicitly authorized downstream Django work.
+- PostgreSQL and release skills only when a separately authorized downstream
+  task reaches those boundaries.
 
-The `production-engineering-stack` MetaEditor MCP is the preferred compiler
-integration. Call `get_workspace_info` before any other MetaEditor MCP tool,
-honor its roots and capabilities, and use `compile_file` for the final EA
-compile. Keep credentials and private terminal/account data out of logs and
-commits.
-
-Do not list or invoke unavailable skills as project requirements.
+For the final compile, call the MetaEditor MCP `get_workspace_info` before any
+other compiler tool, then use `compile_file` for the EA. Keep credentials and
+private account or terminal data out of logs and commits.
 
 ## Public Input Contract
 
-The active EA exposes only these groups:
-
 | Group | Inputs |
 | --- | --- |
-| `+= Market Data Time =+` | `Broker_Session`, `Macro_Timeframe`, `Micro_Timeframe` |
+| `+= Market Data Time =+` | `Broker_Session`, `Macro_Timeframe`, `Deep_Timeframe`, `Micro_Timeframe` |
 | `+= Broker Execution =+` | `Lot_Type`, `Lot_Strategy_Size` |
 | `+= Signal Statistics Export =+` | `Enable_Signal_Feature_Export`, `Signal_Feature_Run_Id` |
 | `+= Developer Debug Settings =+` | `Enable_Logs`, `Enable_File_Logs` |
 
-Defaults are `Macro_Timeframe=PERIOD_H1`, `Micro_Timeframe=PERIOD_M3`,
+Defaults are `Macro_Timeframe=PERIOD_H1`, `Deep_Timeframe=PERIOD_M10`,
+`Micro_Timeframe=PERIOD_M3`,
 `Lot_Type=EXECUTION_LOT_REFERENCE_BALANCE_PERCENT`, and
-`Lot_Strategy_Size=0.01`. Timeframes must be explicit and supported, distinct,
-and Micro must be shorter than Macro.
+`Lot_Strategy_Size=0.01`. Validate explicit supported periods using normalized
+seconds, with strict `Micro < Deep < Macro` ordering.
 
 Do not restore licensing, account settings, configurable protection,
 user-defined sessions, spread thresholds, direction/concurrency selectors,
 multi-leg risk, partial TP, daily limits, lot sequences, runtime model/pattern
-controls, or compatibility aliases for removed inputs.
+controls, old Bands policies, retries, or compatibility aliases.
 
 ## Runtime Contract
 
 ```text
 broker tick
--> reconcile the one real structural 1R broker lane
--> resolve active virtual trial TP/SL first touches and bounded re-entries
--> refresh one causal Macro pivot window when its broker bar changes or retry is due
--> calculate PP/S1..S3/R1..R3 from the previous completed Macro candle
--> arm PP from the first causal live Bid side
--> discover unconsumed live-Bid virtual-limit triggers
--> capture one shared Micro/Macro Bands and Stochastic snapshot per tick batch
--> derive candidate-specific touched-pivot features
--> build immutable structural SL and fresh quote 1R TP
+-> reconcile the one real structural H1 1R broker lane
+-> resolve H1 virtual first touches and midpoint pending state
+-> resolve or censor existing parent-scoped deep outcomes
+-> refresh causal Macro and Deep pivot windows when their broker bars change
+-> calculate PP/S1..S3/R1..R3 from each previous completed candle
+-> arm and consume untriggered H1 live-Bid identities
+-> capture one shared H1-origin Micro/Macro indicator snapshot
+-> build immutable structural route and fresh-quote 1R broker geometry
 -> perform observation and fresh pre-send broker checks
--> submit one FOK market order with broker SL/TP
--> declare an independent sixteen-cell virtual research matrix when export is enabled
+-> submit at most one FOK structural 1R market order
+-> declare eight structural/midpoint H1 virtual lanes when export is enabled
 -> create one accepted-request broker-parity shadow after a successful send
--> export separate virtual, broker, calibration, and strict schema V12 facts
+-> freeze entered same-direction H1 virtual and confirmed broker parents
+-> discover one shared causal M10 event per deep pivot identity
+-> capture one configured-Micro feature vector for that event
+-> declare shared deep 1R/2R/3R trials and link-scoped outcomes
+-> export strict schema V13 facts at their native evidence grains
 ```
 
-- `PIVOT_FRACTAL_V2` is the only signal source. One configured Macro timeframe
-  creates classic `PP`, `S1..S3`, and `R1..R3` from broker shift `1`.
-- Each valid set lives for its actual broker-native active bar. No wall-clock
-  aggregation, incomplete source candle, or synthetic missing bar is allowed.
-- Series visibility is subordinate to the observed tick: a current bar whose
-  open is later than the tick cannot activate a window or feature snapshot.
+- `PIVOT_FRACTAL_V2` remains the only signal source.
+- Macro and Deep ladders use classic pivots from broker shift `1`.
+- No incomplete candle, future current bar, wall-clock aggregate, or synthetic
+  missing bar may activate a window or snapshot.
+- H1 and Deep identities are direction-independent first-consumption keys.
+- H1 terminal transitions precede same-tick deep discovery.
+- Export and all virtual/deep state can never authorize, deny, delay, resize,
+  duplicate, close, or modify the real broker order.
+
+## H1 Trigger And Route Contract
+
 - `S1..S3` are buy-only and trigger when live Bid is at or below the level.
-  `R1..R3` are sell-only and trigger when live Bid is at or above the level.
-- PP observed above arms a future support buy; PP observed below arms a future
-  resistance sell. Equality remains neutral until Bid first leaves PP.
-- Identity is `(symbol, Macro timeframe, active bar open, level)`. First
-  trigger consumes it even when routing or broker execution is denied or
-  fails. Direction is an outcome and is not part of identity.
-- Downward same-tick path order is buy-armed `PP`, `S1`, `S2`, `S3`; upward
-  order is sell-armed `PP`, `R1`, `R2`, `R3`.
-- Buy triggers use Bid and execute at fresh Ask. Sell triggers and execution
-  use Bid. Trigger, pivot, request, fill, and close prices remain distinct.
-- The stable nonzero magic is derived from the V2 namespace plus symbol.
-  Older-engine positions must never be adopted, closed, or modified by V2.
+- `R1..R3` are sell-only and trigger when live Bid is at or above the level.
+- PP observed above arms a support buy; PP observed below arms a resistance
+  sell. Equality remains neutral until the first strict departure.
+- H1 identity is `(symbol, Macro timeframe, active bar open, level)`.
+- Downward same-tick order is buy-armed `PP`, `S1`, `S2`, `S3`; upward order is
+  sell-armed `PP`, `R1`, `R2`, `R3`.
+- Buys trigger on Bid and execute at fresh Ask. Sells trigger and execute at Bid.
 
-## Route And Sizing Contract
+Stops are `PP -> S1`, `S1 -> S2`, `S2 -> S3`, and extrapolated below `S3` for
+buys; the sell mapping is symmetric through `R3`. The authoritative pre-send
+TP is exactly one fresh-quote price-distance R from the structural stop.
 
-- Buy stops: `PP -> S1`, `S1 -> S2`, `S2 -> S3`, and
-  `S3 -> S3 - (S2 - S3)`.
-- Sell stops: `PP -> R1`, `R1 -> R2`, `R2 -> R3`, and
-  `R3 -> R3 + (R3 - R2)`.
-- The authoritative pre-send buy TP is `Ask + (Ask - SL)`; the sell TP is
-  `Bid - (SL - Bid)`. Normalized reward and risk price distances must be 1:1.
-- `EXECUTION_LOT_REFERENCE_BALANCE_PERCENT` uses the fixed internal reference
-  `1,000,000`, not live account balance. The default `0.01` percent requests a
-  `100` account-currency risk budget before broker volume normalization.
-- Volume normalizes downward. A broker minimum that would exceed the budget,
-  unsupported FOK full-fill policy, invalid geometry, or failed profit/margin
-  calculation blocks the send.
-- Quote expected stop/profit money can differ despite exact price-distance 1R.
-  Budget utilization, broker slippage, costs, and realized R remain separate.
-- Broker SL and TP are immutable after fill. There is no trailing, break-even,
-  partial close, position resize, or `TRADE_ACTION_SLTP` path.
+## H1 Virtual Lane Contract
 
-## Virtual Trial Matrix Contract
+Each export-enabled consumed origin declares exactly eight H1 lanes:
 
-- Export-enabled consumed origins declare sixteen index-0 virtual trials:
-  `STRUCTURAL`, `MICRO_BW_13`, `MICRO_BW_21`, and `MICRO_BW_34`, each paired
-  with `1R`, `2R`, `3R`, and `5R`.
-- The structural policy uses the existing next-pivot stop and never re-enters.
-  Volatility policies freeze the trigger Micro shift-0 full Bands width and use
-  `0.13`, `0.21`, or `0.34` of it for every generation in that chain.
-- A gap-through origin still declares all sixteen cells. If its next-pivot
-  structural stop is equal to or on the wrong side of the fresh executable
-  entry, the four structural cells are explicit `INELIGIBLE_GEOMETRY` rows;
-  the stop is never reflected across entry and volatility cells remain
-  independent.
-- Virtual buys enter at observed Ask and resolve on Bid. Virtual sells enter at
-  observed Bid and resolve on Ask. Stops normalize outward to the trade-tick
-  grid, and TP is rebuilt from normalized risk ticks for exact integer R.
-- Every matrix risk distance must be at least spread plus
-  `max(stops level, freeze level)` plus one trade tick. Invalid cells are
-  exported explicitly and never stretched, omitted, or routed to the broker.
-- Each volatility `(SL policy, TP multiple)` chain re-enters only after its own
-  `SL_FIRST`, at the next observed executable quote, with indices `0..3`.
-  A TP completes only that chain; it never reopens.
-- Inner-level retries require both entry and proposed SL to remain at least one
-  trade tick inside the next outward pivot. Gap-through, expired-window,
-  capacity, and retry-cap stops are explicit terminal facts. `S3`/`R3` use the
-  same three-retry cap without an outer pivot boundary.
-- Virtual state is bounded to `2048` active matrix/parity trials. Active trials
-  may resolve after window expiry, but no new retry may be created then. Run
-  termination censors remaining trials rather than relabeling them as losses;
-  a naturally completed tester interval remains run-level `NATURAL`.
-- Matrix trials, retries, and parity shadows are research-only. They cannot
-  authorize, deny, delay, resize, duplicate, close, or modify the one real
-  structural 1R broker order.
+```text
+entry_policy = STRUCTURAL, MIDPOINT_50
+tp_r_multiple = 1, 2, 3, 5
+```
+
+- There is no `sl_policy`, re-entry index, preceding-loss count, continuation,
+  retry cap, Bands-width geometry, or reopening after SL.
+- Structural lanes enter at the observed H1 trigger and use the next outward
+  pivot stop.
+- `MIDPOINT_50` is the exact halfway price from the touched pivot toward that
+  stop. It is not entered at the origin trigger.
+- The shared midpoint remains armed while any structural lane from the origin
+  is active, including after H1 bar rollover; R5 has no special controller role.
+- If the final structural lane exits before midpoint touch, all four midpoint
+  rows become `NOT_TRIGGERED`, never losses.
+- Once touched, all four midpoint ratios share one executable entry timestamp
+  and then resolve independently.
+- Virtual buys enter at Ask and resolve on Bid; sells enter at Bid and resolve
+  on Ask. Stops normalize outward to the trade-tick grid and TP is rebuilt from
+  normalized risk ticks for exact integer R.
+- Invalid geometry, distance, or money plans remain explicit ineligible rows.
+
+The H1/parity active-state cap is `2048`. Run termination censors unresolved
+entered lanes; it does not relabel them as SL losses.
+
+## Deep M10 Contract
+
+- `Deep_Timeframe` defaults to `PERIOD_M10` and owns one causal pivot-window
+  cache with the same classic formula and Bid trigger rules as H1.
+- Capture occurs only when at least one entered eligible H1 virtual lane or
+  confirmed broker fill is active in the same direction.
+- One event identity is `(symbol, Deep timeframe, active Deep bar, level)`.
+  Direction is an immutable trigger outcome and cannot create a second event.
+- Freeze the active-parent set immediately before discovery. Later entries or
+  fills are never linked retroactively.
+- One event owns one configured-Micro snapshot and three shared trials at
+  `1R`, `2R`, and `3R`. There is no deep `5R`, retry, or broker send.
+- One parent link records the H1 lane/broker identity, entry time,
+  `m10_parent_age_seconds`, and direction.
+- One deep outcome exists per `(parent_link_id, deep_trial_id)`. Shared event
+  features and geometry must not be copied into every link/ratio row.
+- Deep entry uses the event executable quote, the next outward M10 pivot as the
+  normalized stop, and exact integer-R targets. Invalid geometry is explicit;
+  it is never reflected, stretched, or routed.
+- If a parent exits first, unresolved outcomes for that link become
+  `CENSORED_PARENT_EXIT`. Run stop uses `CENSORED_RUN_END`. Neither is a loss.
+- The shared path may resolve for another still-active parent after one link is
+  censored. Observation stops when no linked parent remains active.
+
+Admission reserves one event, all frozen links, three trials, and three
+outcomes per link atomically. If the complete fan-out cannot fit, emit one
+`CAPACITY_REJECTED` event with zero partial children. Caps are `2048` events,
+`4096` links, `6144` trials, and `18432` outcomes.
 
 ## Broker Safety Kernel
 
-Every attempt captures broker facts when observed. Checks run again immediately
-before a send; only the fresh result may authorize `OrderSend`.
+Only the H1 structural `1R` lane may reach `OrderSend`. V13 uses the distinct
+`HFT_GRID_AI_PIVOT_FRACTAL_V13` magic namespace; older-engine positions must
+never be adopted, closed, or modified.
 
-Required facts and guards include:
+Every attempt captures and freshly rechecks:
 
-- actual broker session and symbol trade mode;
-- hedging margin mode and account/terminal/MQL trading permissions;
-- current Bid, Ask, point size, and observed spread;
-- structural entry/SL/TP geometry, stops level, and freeze level;
-- volume min/max/step, requested/normalized volume, FOK support, free margin,
-  and `OrderCheck`;
-- send retcode/comment and symbol/magic/ticket reconciliation.
+- broker session, symbol trade mode, hedging mode, and trading permissions;
+- Bid, Ask, point, trade tick, spread, stops, freeze, and route geometry;
+- volume min/max/step, requested and downward-normalized volume;
+- FOK full-fill support, free margin, profit/margin calculations, and
+  `OrderCheck`;
+- request, send, ticket, fill, immutable protection, close, and deal-history
+  facts.
 
-Spread and live account balance are telemetry, not configurable authorization
-thresholds. Pivot prices are never moved to force broker geometry to pass.
-Broker facts own ticket, volume, entry, immutable SL/TP, close state, and
-realized profit after a fill.
+The reference-balance lot mode uses fixed `1,000,000`, not live balance. Broker
+SL/TP remain immutable. There is no trailing, break-even, partial close, resize,
+or `TRADE_ACTION_SLTP` path. One accepted request creates one exact parity
+shadow outside H1/deep model cohorts.
 
-## Deterministic Time
+## Deterministic Time And Duration
 
-- `FIXED_TIME_SESSIONS`: analysis time equals broker time and offset is `0`.
-- `EXNESS_SESSION`: winter timestamps shift by `-60` minutes on the documented
-  DST calendar so research uses a stable session clock. Exness metal prefixes
-  `XAU`, `XAG`, `XPT`, and `XPD` use UK DST; other symbols use US DST.
-- Broker time remains causal for bars, identity, trigger order, sessions,
-  durations, orders, and reconciliation.
-- Analysis time is export-only for research calendar features and grouping.
-  Never sort causal events by analysis time alone.
+- Broker time owns bars, identities, trigger order, sessions, durations,
+  orders, and reconciliation.
+- Analysis time is export-only and retains the documented fixed/Exness DST
+  mapping. Never sort causal events by analysis time alone.
+- H1 virtual outcomes and confirmed broker outcomes expose exact
+  `h1_structural_lifecycle_seconds` only after a completed entered lifecycle.
+- `NOT_TRIGGERED`, `INELIGIBLE`, and `CENSORED_RUN_END` have null completed H1
+  duration.
+- Parent links expose exact `m10_parent_age_seconds` at the M10 trigger.
+- Neither duration is rounded or capped. Public minute selectors downstream use
+  exact `<= minutes * 60` predicates.
+- H1 completed duration is retrospective evidence and cannot support a causal
+  deployment claim. M10 parent age is causal trigger-time context, but remains
+  virtual research evidence.
 
 ## Feature And Schema Contract
 
-- Research context uses fixed built-in Bands parameters: period `21`, shift
-  `0`, deviation `2.0`, SMA, and `PRICE_WEIGHTED`.
-- Stochastic is fixed to `K=5`, `D=3`, slowing `3`, `MODE_SMA`, and
-  `STO_CLOSECLOSE`; buffer `0` is `MAIN_LINE` and buffer `1` is
-  `SIGNAL_LINE`.
 - Exactly four cached handles exist when export is enabled: Macro/Micro Bands
-  and Macro/Micro Stochastic. They are created at initialization and released
-  safely after partial initialization or normal deinitialization.
-- Micro and Macro `%B 0..5` both use the immutable touched pivot price. Shift
-  `0` uses the developing envelope observed at the trigger; shifts `1..5` use
-  their matching completed envelopes. Values are not clipped, so `<0` and
-  `>100` identify touches outside the bands.
-- `%B`, Stochastic `MAIN_LINE`, and Stochastic `SIGNAL_LINE` each export raw,
-  SMA 5, SMA slope, and `ABOVE`/`BELOW`/`EQUAL` state for shifts `0..5`.
-  Bands `BASE_LINE` exports raw values and one-shift slope in points for the
-  same shifts. Micro and Macro Band width in points are shift `0` only.
-- All signal features are captured once on the immutable
-  `signal_origins.tsv` row. Virtual trials and retries join by `origin_id` and
-  do not recapture or duplicate indicator features. The raw Micro shift-0
-  price width remains frozen separately for virtual volatility geometry.
-- Feature availability never authorizes or denies execution. Missing feature
-  data makes the research row incomplete.
-- Schema V12 owns exactly eight TSV files under
-  `Common\Files\PivotFractalV12\runs\<run_id>\`: manifest, windows, origins,
-  virtual trials, virtual outcomes, execution checks, broker outcomes, and
-  summary.
-- Virtual outcomes contain first-touch status, nominal R, and counterfactual
-  `OrderCalcProfit` gross only. Broker outcomes alone own actual fills,
-  slippage, gross profit, commission, swap, fee, net profit, and realized R.
-- An accepted real request creates one parity shadow from the exact submitted
-  entry, SL, TP, and normalized volume. It is outside the matrix/retry/ML
-  cohorts and exists only to measure virtual-versus-broker agreement. The
-  trigger must belong to its Macro origin, but synchronous send completion may
-  cross the exact origin boundary; parity keeps the accepted send time and
-  exports `origin_window_active_at_entry=0` for that explicit case. Parity
-  threshold candidates resolve only in an actual trade session. If broker
-  history closes first, the unresolved shadow is explicitly censored as
-  `BROKER_TERMINAL_BEFORE_OBSERVED_TOUCH` before broker-outcome linking.
-- The primary virtual binary cohort contains feature-complete eligible
-  `TP_FIRST`/`SL_FIRST` matrix rows. The broker TP/SL cohort and parity
-  calibration remain separate; ineligible and censored rows are never losses.
-- Current Python tooling accepts strict V12 only, owns an exhaustive 464-column
-  type registry, builds long/wide/chain/calibration DuckDB and Parquet
-  artifacts by joining origin features, audits per-feature availability and
-  row/origin support, and trains offline XGBoost candidates with per-origin
-  sample weights. It has no runtime export, filter mode, online learning, or
-  pattern playback.
+  and Macro/Micro Stochastic. Create at initialization and release safely after
+  partial initialization or normal deinitialization.
+- Bands are fixed to period `21`, shift `0`, deviation `2.0`, SMA, and
+  `PRICE_WEIGHTED`. Stochastic is fixed to `5/3/3`, `MODE_SMA`, and
+  `STO_CLOSECLOSE`.
+- H1-origin features live once on `signal_origins.tsv`; deep configured-Micro
+  features live once on `deep_pivot_events.tsv`.
+- `%B` uses the immutable touched pivot. Raw, SMA 5, SMA slope, state, Band
+  base-line/slope, and shift-0 width facts follow the strict V13 headers.
+- Missing feature data marks research incompleteness only.
+
+Schema V13 owns exactly twelve TSV files under
+`Common\Files\PivotFractalV13\runs\<run_id>\`: manifest, windows, origins,
+H1 trials/outcomes, deep events/links/trials/outcomes, execution checks, broker
+outcomes, and summary.
+
+The Python boundary accepts strict V13 only, uses an exhaustive typed registry,
+builds native-grain H1/deep/broker/calibration artifacts, audits support and
+leakage, and trains explicit offline H1 or deep candidates. Deep event features
+join only during explicit deep training. No runtime model or execution filter
+is produced.
 
 ## Include Pipeline
-
-The entrypoint owns one ordered aggregator chain:
 
 ```text
 services/trading_tools.mqh
@@ -250,49 +237,34 @@ services/trading_signals.mqh
 services/frontend.mqh
 ```
 
-- Aggregators own include order; do not add sibling re-includes or cycles.
-- Keep source limited to one cached Macro pivot window, four feature indicator
-  handles, virtual trigger/context collection, bounded V12 trial state, broker
-  execution/reconciliation, V12 telemetry, and bounded inspection.
-- The frontend draws at most 16 active positions with broker entry, immutable
-  SL, immutable TP, and pivot identity. It cannot influence execution;
-  nonvisual tester runs do no chart work.
+Aggregators own include order. Do not add sibling re-includes, cycles, per-tick
+indicator creation, full-history scans, unbounded logging, or unrelated source
+ownership. The frontend remains read-only and draws at most 16 owned positions;
+nonvisual tester runs do no chart work.
 
 ## Validation And Commit Policy
 
-- Do not add MQL5 test harnesses, custom test modules, test EAs/scripts,
-  agentic MQL5 CI, or new test infrastructure.
-- Every implementation sprint requires static logic review: exact
-  identifier/reference sweeps, include tracing, safety-boundary inspection,
-  and `git diff --check`. Existing Python contract tests may be maintained when
-  schema tooling changes.
-- Substantial multi-sprint MQL5 plans use one final real MetaEditor compile;
-  intermediate sprints do not compile unless a human changes the plan.
-- Prefer the live MetaEditor MCP for that final compile. Use the documented
-  project-native runner only when the MCP is unavailable or its compiler gate
-  cannot execute, and record the precise fallback reason.
-- Final compilation must report `0 errors, 0 warnings`; `/s` is syntax-only and
-  does not prove `.ex5` regeneration. Confirm the MCP result and generated
-  `.ex5` output metadata.
-- Final integration requires human Strategy Tester/chart verification. Python
-  fixtures and compilation cannot replace broker-window, order-lifecycle, DST,
-  export, performance, and visual acceptance.
-- Complete and validate one sprint, create exactly one sprint-specific commit,
-  record its rollback point, then advance.
-- Preserve archived plans/research, old datasets, and generated artifacts.
+- Do not add MQL5 harnesses, custom test modules, test EAs/scripts, agentic
+  MQL5 CI, or new test infrastructure.
+- Every sprint requires exact identifier/reference sweeps, include tracing,
+  safety-boundary review, and `git diff --check`.
+- Maintain existing Python contract tests when schema tooling changes.
+- Use exactly one sprint-specific commit after each completed gate and record
+  its rollback SHA.
+- Do not compile intermediate sprints. Sprint 8 owns the single final real
+  MetaEditor compile.
+- Final compile must call `get_workspace_info` before `compile_file`, report
+  `0 errors, 0 warnings`, and confirm regenerated `.ex5` metadata. Use the
+  documented runner only if MCP cannot execute and record the precise reason.
+- Human Strategy Tester/chart acceptance is required for broker-window,
+  midpoint, M10/M3, censoring, export, performance, and visual behavior.
 
-## Style And Performance
+## Style And Rollout
 
-- 2-space indentation; `snake_case` variables; `CamelCase` functions;
-  `ALL_CAPS` enums and constants.
-- Avoid `auto`, lambdas, range-for, per-tick handle creation, full-history
-  scans, unbounded logging, and repeated market-data calls without a reason.
-- Check indicator, market-data, file, array, and trade operations. Release
-  handles, files, and chart objects during deinitialization.
+Use 2-space indentation, `snake_case` variables, `CamelCase` functions, and
+`ALL_CAPS` enums/constants. Avoid `auto`, lambdas, range-for, unchecked platform
+operations, and repeated market-data calls without a reason.
 
-## Rollout Restriction
-
-This implementation does not authorize live rollout. Before any future
-deployment, every older-engine position for the symbol must be flat, the
-account must support hedging, and only one EA instance may run per account and
-symbol.
+This work does not authorize live rollout. Older-engine positions must be flat,
+the account must support hedging, and only one EA instance may run per account
+and symbol before any separately approved deployment.

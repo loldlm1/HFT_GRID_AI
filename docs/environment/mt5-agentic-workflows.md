@@ -1,11 +1,8 @@
 # MT5 Agentic Workflows
 
-This runbook is the source of truth for local paths, the final MetaEditor MCP
-compile gate, Common Files artifacts, and compact evidence handling.
-
-Do not paste full compile logs, TSV/Parquet contents, model JSON, or generated
-datasets into chat. Report paths, sizes, counts, final status, and the first
-useful failure lines.
+This runbook is the source of truth for V13 local paths, deterministic Python
+evidence, the single final MetaEditor compile, and operator-owned Strategy
+Tester artifacts. Keep full logs and raw market data out of chat and commits.
 
 ## Path Contract
 
@@ -17,12 +14,10 @@ $METAEDITOR = Join-Path $MT5_ROOT "MetaEditor64.exe"
 $EA_ENTRYPOINT = Join-Path $MT5_ROOT "MQL5\Experts\HFT_Grid_AI\HFT_Grid_AI.mq5"
 $COMPILE_LOG = Join-Path $MT5_ROOT "MQL5\Experts\HFT_Grid_AI\logs\compile\agentic-build.log"
 $MT5_COMMON_FILES = Join-Path $env:APPDATA "MetaQuotes\Terminal\Common\Files"
-$PIVOT_RUNS_ROOT = Join-Path $MT5_COMMON_FILES "PivotFractalV12\runs"
+$PIVOT_RUNS_ROOT = Join-Path $MT5_COMMON_FILES "PivotFractalV13\runs"
 ```
 
 ### Ubuntu/Wine
-
-Observed on this workstation:
 
 ```bash
 export MT5_ROOT="/home/loldlm/mql5_projects/metatrader_5_market_data_framework"
@@ -30,55 +25,40 @@ export METAEDITOR="$MT5_ROOT/MetaEditor64.exe"
 export EA_ENTRYPOINT="$MT5_ROOT/MQL5/Experts/HFT_Grid_AI/HFT_Grid_AI.mq5"
 export COMPILE_LOG="$MT5_ROOT/MQL5/Experts/HFT_Grid_AI/logs/compile/agentic-build.log"
 export MT5_COMMON_FILES="$HOME/.wine/drive_c/users/loldlm/AppData/Roaming/MetaQuotes/Terminal/Common/Files"
-export PIVOT_RUNS_ROOT="$MT5_COMMON_FILES/PivotFractalV12/runs"
+export PIVOT_RUNS_ROOT="$MT5_COMMON_FILES/PivotFractalV13/runs"
 ```
 
-If the Wine prefix changes, locate Common Files without dumping contents:
+If the Wine prefix changes, locate only the Common Files directory:
 
 ```bash
 find "$HOME/.wine" "$HOME/.mt5" "$HOME/.config" -maxdepth 8 \
   -type d -path '*/MetaQuotes/Terminal/Common/Files' 2>/dev/null
 ```
 
-## Runtime Indicator Resources
+## Runtime Resources
 
-V12 feature export owns four cached built-in handles: Macro/Micro `iBands` and
-Macro/Micro `iStochastic`. Bands use period `21`, deviation `2.0`, SMA, and
-`PRICE_WEIGHTED`; Stochastic uses `K=5`, `D=3`, slowing `3`, `MODE_SMA`, and
-`STO_CLOSECLOSE`. They are created during initialization only when export is
-enabled, cleaned up safely after partial initialization, and released during
-deinitialization.
+When export is enabled, V13 owns exactly four cached built-in handles:
+Macro/Micro Bands and Macro/Micro Stochastic. Bands use period `21`, shift `0`,
+deviation `2.0`, SMA, and `PRICE_WEIGHTED`; Stochastic uses `K=5`, `D=3`,
+slowing `3`, `MODE_SMA`, and `STO_CLOSECLOSE`. The configured Micro source is
+captured once per shared M10 event (M3 by default).
 
-The same export switch owns the bounded virtual matrix and parity state. No
-virtual state, V12 files, or feature indicator work exists when export is off.
-
-There is no custom Stochastic or Bollinger `.ex5` placement requirement.
+Handles, deep state, and the twelve V13 files are disabled when export is off.
+Handles are created during initialization and released safely after partial
+initialization and normal deinitialization. There is no custom indicator or
+runtime-model artifact requirement.
 
 ## Compile Policy
 
-- Documentation-only and intermediate implementation sprints do not run
-  MetaEditor.
-- Substantial multi-sprint MQL5 plans use static validation per intermediate
-  sprint and one final real compile sprint.
-- Do not add custom MQL5 tests, harnesses, test EAs/scripts, or CI.
-- Final success requires `0 errors, 0 warnings` and regenerated
-  `HFT_Grid_AI.ex5`.
-- MetaEditor `/s` is syntax-only and is not final build evidence.
-
-### Preferred Final Compile
-
-Use the `production-engineering-stack` MetaEditor MCP first:
-
-1. Call `get_workspace_info` and verify the workspace, permitted roots,
-   compiler availability, compiler build, and `can_compile_file` capability.
-2. Call `compile_file` for the absolute `HFT_Grid_AI.mq5` path.
-3. Require a successful compiler result with exactly `0 errors, 0 warnings`.
-4. Record compact compiler metadata and generated `.ex5` output metadata;
-   never record MCP credentials or private terminal/account data.
-
-The MCP server is owned by the running MetaEditor application. If it is
-unavailable, unauthenticated, outside the allowed roots, or cannot run the
-compile gate, record that precise reason and use the project-native fallback.
+- Intermediate sprints use static review and Python evidence only.
+- Sprint 8 owns the one final real MetaEditor compile.
+- Call MetaEditor MCP `get_workspace_info` first, verify allowed roots and
+  `can_compile_file`, then call `compile_file` for the absolute EA path.
+- Accept only `0 errors, 0 warnings`, and verify that `HFT_Grid_AI.ex5` was
+  regenerated (timestamp, size, and hash where available).
+- MetaEditor `/s` syntax checks are not binary acceptance evidence.
+- Use the project-native runner only when MCP cannot execute, and record the
+  precise fallback reason in the handoff.
 
 ### Project-Native Fallback
 
@@ -103,29 +83,9 @@ py -3.12 tools\mt5\compile_mt5.py `
   --mode compile
 ```
 
-Record the helper result, parsed final compiler status, and `.ex5` timestamp,
-size, and change from the precompile value. On Wine, record any process return
-code discrepancy beside the parsed compiler result.
+Record parsed compiler status and `.ex5` metadata, not the full log.
 
-### Direct Last-Resort Fallback
-
-Ubuntu/Wine:
-
-```bash
-entrypoint_win="$(winepath -w "$EA_ENTRYPOINT")"
-log_win="$(winepath -w "$COMPILE_LOG")"
-wine "$METAEDITOR" /portable "/compile:$entrypoint_win" "/log:$log_win"
-iconv -f UTF-16 -t UTF-8 "$COMPILE_LOG" | tail -20
-```
-
-Windows PowerShell:
-
-```powershell
-& $METAEDITOR /portable /compile:$EA_ENTRYPOINT /log:$COMPILE_LOG
-Get-Content $COMPILE_LOG -Tail 20
-```
-
-## Python Research Environment
+## Python Validation
 
 ```bash
 python3 -m venv .venv
@@ -135,10 +95,10 @@ python3 -m venv .venv
   -s tools/deterministic_signal_ml/tests -p 'test_*.py'
 ```
 
-Dependencies remain pinned. Generated datasets, audits, reports, and offline
-models stay under ignored `artifacts/` directories.
+Generated datasets, audits, reports, and offline models remain under ignored
+`artifacts/` directories.
 
-## V12 Artifact Inventory
+## V13 Artifact Inventory
 
 ```bash
 export PIVOT_RUN_ID="<run_id>"
@@ -147,46 +107,29 @@ export PIVOT_AUDIT_ID="<audit_id>"
 
 find "$PIVOT_RUNS_ROOT/$PIVOT_RUN_ID" -maxdepth 1 -type f \
   -printf '%f %s bytes\n' 2>/dev/null | sort
-
-find "artifacts/datasets/$PIVOT_DATASET_ID" \
-  "artifacts/audits/$PIVOT_AUDIT_ID" -maxdepth 1 -type f \
-  -printf '%p %s bytes\n' 2>/dev/null | sort
 ```
 
-Compact Parquet counts:
+Every run must contain exactly twelve files in the contract order:
 
-```bash
-.venv/bin/python - <<'PY'
-import os
-from pathlib import Path
-import duckdb
-
-dataset = Path("artifacts/datasets") / os.environ["PIVOT_DATASET_ID"]
-for name in (
-    "run_manifest.parquet",
-    "pivot_windows.parquet",
-    "signal_origins.parquet",
-    "virtual_trials.parquet",
-    "virtual_outcomes.parquet",
-    "execution_checks.parquet",
-    "broker_outcomes.parquet",
-    "run_summary.parquet",
-    "origin_matrix_long.parquet",
-    "initial_matrix_wide.parquet",
-    "eligible_virtual_trials.parquet",
-    "policy_chains.parquet",
-    "broker_virtual_calibration.parquet",
-):
-    path = dataset / name
-    if path.exists():
-        count = duckdb.sql(
-            f"select count(*) from read_parquet('{path.as_posix()}')"
-        ).fetchone()[0]
-        print(name, count)
-PY
+```text
+run_manifest.tsv
+pivot_windows.tsv
+signal_origins.tsv
+virtual_trials.tsv
+virtual_outcomes.tsv
+deep_pivot_events.tsv
+deep_pivot_parent_links.tsv
+deep_virtual_trials.tsv
+deep_virtual_outcomes.tsv
+execution_checks.tsv
+broker_outcomes.tsv
+run_summary.tsv
 ```
 
-## Validate, Build, Audit, And Train
+The root is `Common\\Files\\PivotFractalV13\\runs\\<run_id>\\`; older
+schema roots are not intake aliases.
+
+## Validate, Build, And Audit
 
 ```bash
 .venv/bin/python tools/deterministic_signal_ml/build_dataset.py \
@@ -203,42 +146,55 @@ PY
   --dataset-id "$PIVOT_DATASET_ID" \
   --audit-id "$PIVOT_AUDIT_ID" \
   --minimum-group-support 30
+```
+
+The builder creates native-grain H1, deep-parent, broker, and parity artifacts.
+The audit reports row, event, parent, and unique-origin support separately;
+capacity rejection and censoring are not binary losses.
+
+## Offline Training Boundary
+
+Select exactly one explicit grain:
+
+```bash
+.venv/bin/python tools/deterministic_signal_ml/train_model.py \
+  --dataset-id "$PIVOT_DATASET_ID" \
+  --model-id <h1_model_id> \
+  --feature-set-id schema_v13_hft_deep_pivot_features.h1
 
 .venv/bin/python tools/deterministic_signal_ml/train_model.py \
   --dataset-id "$PIVOT_DATASET_ID" \
-  --model-id <model_id>
+  --model-id <deep_model_id> \
+  --feature-set-id schema_v13_hft_deep_pivot_features.deep_parent
 ```
 
-Training is offline-only and never approves or emits an MT5 runtime artifact.
-The builder creates long, wide, eligible-trial, policy-chain, and
-broker-parity calibration artifacts in addition to typed V12 tables. The audit
-also writes per-feature origin availability.
+H1 training reads eligible structural/midpoint rows and balances by
+`origin_id`. Deep training joins one event feature vector to explicit parent
+links and keeps event/parent/origin support visible. Lifecycle duration,
+terminal status, censoring, broker money, and post-trigger age selections are
+not model features. Every model manifest states
+`approval_state=OFFLINE_RESEARCH_ONLY` and `runtime_artifact_emitted=false`.
 
-Record schema/run/config/engine identity; Macro/Micro, matrix, distance, retry,
-capacity, and lot settings; window, origin, trial, parity, broker, excluded,
-censored, chain-terminal, and support counts; output sizes; and final validator
-status. Accepted evidence ends naturally with
-`completion_status=NATURAL`, `export_status=OK`, and zero duplicate,
-referential, or row-integrity errors. Natural completion may coexist with
-explicit unlabelled run-end virtual censors.
+## Human Strategy Tester Gate
 
-## Final Human Strategy Tester Gate
+Use `docs/workflows/pivot-fractal-statistics-flow.md` and test with **Every tick
+based on real ticks**. The operator must verify midpoint touch and no-touch,
+all H1 ratios, shared M10 event/M3 capture, parent-specific censoring,
+uncapped R5 continuation, same-tick ordering, one structural broker `1R` lane,
+no deep order submission, export-off parity, DST/session behavior, bounded
+state, and chart behavior.
 
-Use the matrix in `docs/workflows/pivot-fractal-statistics-flow.md` with
-`Every tick based on real ticks`. It covers causal Macro/Micro data, direct Bid
-virtual limits, PP arming, same-tick gaps, all route families, immutable SL/TP,
-broker denials, V12 matrix/retries, parity calibration, DST normalization,
-bounded real-position visuals, and export performance. Verify that parity
-ignores closed-session threshold candidates and explicitly excludes any
-broker-terminal-before-observed-touch censor.
+Compare export disabled/enabled on the same interval with file logs off. Record
+elapsed time, peak state/capacity, twelve-file row counts, and folder growth.
+Python fixtures and compilation cannot replace this human gate.
 
-Record the run with a new V12 acceptance record under `docs/research/`; use
-`docs/research/pivot-fractal-v12-producer-handoff.md` for the pinned contract
-and downstream resource list.
-Do not edit raw TSV evidence and do not replace the human gate with a new MQL5
-harness or automated tester workflow.
+## Evidence And Privacy
 
-Compare export disabled and enabled with file logs off over the same 1-3 market
-days. Record elapsed time, active-state peak/cap status, row counts, and folder
-growth. Human acceptance is required; compilation and fixtures cannot
-substitute for it.
+Keep raw TSVs, tester journals, account identifiers, credentials, and private
+terminal data operator-owned. Handoff records contain bounded status, hashes,
+paths, counts, and first useful diagnostics only. A failed-integrity run gets a
+new run ID after correction; its raw files are not edited in place.
+
+The V13 handoff does not authorize live rollout or the downstream Django V12
+removal. Older-engine positions must be flat, the account must support hedging,
+and one EA instance per account/symbol requires separate human authorization.

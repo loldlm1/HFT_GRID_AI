@@ -1,17 +1,29 @@
 # Plan: Pivot Fractal V13 Deep M10 Producer And H1 Lifecycle Evidence
 
 **Generated**: 2026-08-30
-**Status**: Planning only; implementation not started
+**Status**: Active implementation; Sprints 1-7 complete, Sprint 8 pending
 **Estimated Complexity**: High
 **Risk class**: High - changes virtual signal geometry, lifecycle state, broker
 execution identity, strict export schema, and offline research artifacts. The one
 real broker lane must remain structural 1R only.
-**Planning baseline**: clean `bot/pivot_points_fractal` worktree at observed
-baseline `d7508f0` (reconfirm the exact SHA before execution)
+**Planning baseline**: `bot/pivot_points_fractal` at `d7508f0`
 **Downstream dependency**: the Django V13 alignment plan at
 `/home/loldlm/python_projects/hft-grid-ai-orchestrator/pivot-fractal-v13-django-research-progression-plan.md`
 must not perform its destructive cutover until this plan publishes an accepted
 V13 producer handoff with contract and registry hashes.
+
+## Execution Ledger
+
+| Sprint | Commit | Rollback point | Status |
+| --- | --- | --- | --- |
+| 1 | `8b2069b` | `d7508f0` | Complete |
+| 2 | `f05678b` | `8b2069b` | Complete |
+| 3 | `84bfb36` | `f05678b` | Complete |
+| 4 | `af08a2f` | `84bfb36` | Complete |
+| 5 | `1597448` | `af08a2f` | Complete |
+| 6 | `a684db5` | `1597448` | Complete |
+| 7 | containing documentation commit | `a684db5` | Complete |
+| 8 | pending | Sprint 7 commit | Pending compile and human acceptance |
 
 ## Overview
 
@@ -351,12 +363,12 @@ fixture/provenance tree, and `tools/deterministic_signal_ml/tests/`.
 
 ### Sprint 1 Gate
 
-- [ ] All Sprint 1 tasks complete.
-- [ ] V13 fixture, mutations, exact headers, registry, and V12 rejection pass.
-- [ ] No `.mq5`/`.mqh`, broker behavior, or generated run changed.
-- [ ] `git diff --check` and identifier review pass.
-- [ ] Exactly one Sprint 1 commit is created and its rollback SHA is recorded.
-- [ ] Sprint 2 does not start before this gate is complete.
+- [x] All Sprint 1 tasks complete.
+- [x] V13 fixture, mutations, exact headers, registry, and V12 rejection pass.
+- [x] No `.mq5`/`.mqh`, broker behavior, or generated run changed.
+- [x] `git diff --check` and identifier review pass.
+- [x] Exactly one Sprint 1 commit is created and its rollback SHA is recorded.
+- [x] Sprint 2 does not start before this gate is complete.
 
 ## Sprint 2: Simplify H1 Virtual Lanes And Add The 50% Midpoint
 
@@ -441,11 +453,11 @@ midpoint H1 lanes while leaving the one real structural 1R broker path intact.
 
 ### Sprint 2 Gate
 
-- [ ] H1 lane matrix and midpoint geometry are complete.
-- [ ] Bands policies and all retry/re-entry code are absent from active paths.
-- [ ] Broker path remains one structural 1R lane with a distinct V13 magic.
-- [ ] Static safety and `git diff --check` pass.
-- [ ] Exactly one Sprint 2 commit is created and rollback recorded.
+- [x] H1 lane matrix and midpoint geometry are complete.
+- [x] Bands policies and all retry/re-entry code are absent from active paths.
+- [x] Broker path remains one structural 1R lane with a distinct V13 magic.
+- [x] Static safety and `git diff --check` pass.
+- [x] Exactly one Sprint 2 commit is created and rollback recorded.
 
 ## Sprint 3: Add The Causal M10 Pivot Window And Shared Event State
 
@@ -521,11 +533,11 @@ new `deep_pivot_lifecycle.mqh`, and `trading_signals.mqh` include ordering.
 
 ### Sprint 3 Gate
 
-- [ ] `Deep_Timeframe` and causal M10 windows are validated.
-- [ ] Include order is acyclic and event discovery is active-parent/same-direction
+- [x] `Deep_Timeframe` and causal M10 windows are validated.
+- [x] Include order is acyclic and event discovery is active-parent/same-direction
   restricted.
-- [ ] No per-ratio M10 signal creation exists.
-- [ ] Static review and `git diff --check` pass; exactly one commit is recorded.
+- [x] No per-ratio M10 signal creation exists.
+- [x] Static review and `git diff --check` pass; exactly one commit is recorded.
 
 ## Sprint 4: Capture One M3 Snapshot And Resolve Parent-Scoped Deep Lifecycles
 
@@ -607,12 +619,12 @@ structures, and bounded active-state helpers.
 
 ### Sprint 4 Gate
 
-- [ ] Four cached handles remain correctly owned/released.
-- [ ] M10 event/configured-Micro snapshot is single-capture and parent links are
+- [x] Four cached handles remain correctly owned/released.
+- [x] M10 event/configured-Micro snapshot is single-capture and parent links are
   unique.
-- [ ] Deep 1R/2R/3R outcomes and parent/run censoring are explicit.
-- [ ] No deep broker send path, deep 5R, or retry path exists.
-- [ ] Static review and one Sprint 4 commit/rollback point are recorded.
+- [x] Deep 1R/2R/3R outcomes and parent/run censoring are explicit.
+- [x] No deep broker send path, deep 5R, or retry path exists.
+- [x] Static review and one Sprint 4 commit/rollback point are recorded.
 
 ## Sprint 5: Emit The Strict V13 TSV Export And Reconcile All Lanes
 
@@ -691,10 +703,10 @@ summary counts, and cross-file integrity checks.
 
 ### Sprint 5 Gate
 
-- [ ] Strict V13 headers, root, manifest, row order, and summary reconcile.
-- [ ] No active V12 writer, Bands-width policy, or re-entry reference remains.
-- [ ] Broker and virtual ownership boundaries are preserved.
-- [ ] `git diff --check` passes; exactly one Sprint 5 commit is recorded.
+- [x] Strict V13 headers, root, manifest, row order, and summary reconcile.
+- [x] No active V12 writer, Bands-width policy, or re-entry reference remains.
+- [x] Broker and virtual ownership boundaries are preserved.
+- [x] `git diff --check` passes; exactly one Sprint 5 commit is recorded.
 
 ## Sprint 6: Update The Typed Builder, Audit, And Offline Research Artifacts
 
@@ -766,10 +778,10 @@ duration into causal/model features.
 
 ### Sprint 6 Gate
 
-- [ ] V13 fixture builds/audits with exact typed joins and no leakage.
-- [ ] H1/deep/broker cohorts and origin weights reconcile.
-- [ ] Offline training remains explicitly separated from MT5 execution.
-- [ ] Focused Python suite and `git diff --check` pass; one commit/rollback point
+- [x] V13 fixture builds/audits with exact typed joins and no leakage.
+- [x] H1/deep/broker cohorts and origin weights reconcile.
+- [x] Offline training remains explicitly separated from MT5 execution.
+- [x] Focused Python suite and `git diff --check` pass; one commit/rollback point
   is recorded.
 
 ## Sprint 7: Update Active Documentation And Publish The V13 Handoff
@@ -818,11 +830,11 @@ environment/research docs, `docs/research/`, and `docs/plans/README.md`.
 
 ### Sprint 7 Gate
 
-- [ ] Active documentation is V13-only and archived V12 evidence is preserved.
-- [ ] Handoff fields, hashes, and acceptance checklist are complete or explicitly
+- [x] Active documentation is V13-only and archived V12 evidence is preserved.
+- [x] Handoff fields, hashes, and acceptance checklist are complete or explicitly
   marked pending final evidence.
-- [ ] Static identifier/include/safety review and `git diff --check` pass.
-- [ ] Exactly one Sprint 7 commit is recorded before compilation.
+- [x] Static identifier/include/safety review and `git diff --check` pass.
+- [x] Exactly one Sprint 7 commit is recorded before compilation.
 
 ## Sprint 8: Final MetaEditor Compile And Human V13 Acceptance
 
@@ -962,14 +974,14 @@ downstream Django cutover.
 
 ## Completion Checklist
 
-- [ ] Strict V13 producer contract and 12-file fixture are accepted.
-- [ ] Bands-width policies and all re-entry code are removed from active paths.
-- [ ] Structural/midpoint H1 lanes and H1 `1R/2R/3R/5R` lifecycles are exact.
-- [ ] Configurable M10 windows, shared events, one M3 snapshot, parent links, and
+- [x] Strict V13 producer contract and 12-file fixture are accepted.
+- [x] Bands-width policies and all re-entry code are removed from active paths.
+- [x] Structural/midpoint H1 lanes and H1 `1R/2R/3R/5R` lifecycles are exact.
+- [x] Configurable M10 windows, shared events, one M3 snapshot, parent links, and
   deep `1R/2R/3R` outcomes are exported and reconciled.
-- [ ] Broker remains one structural 1R lane with V13 magic isolation.
-- [ ] Accepted structural 1R sends retain one separate broker-parity calibration
+- [x] Broker remains one structural 1R lane with V13 magic isolation.
+- [x] Accepted structural 1R sends retain one separate broker-parity calibration
   shadow without retries or candidate mixing.
-- [ ] Builder/audit/offline training are grain-aware and leakage-safe.
+- [x] Builder/audit/offline training are grain-aware and leakage-safe.
 - [ ] Final compile, tester/chart acceptance, hashes, and handoff are recorded.
 - [ ] Every sprint has exactly one commit and a recorded rollback point.

@@ -1,134 +1,143 @@
-# Pivot Fractal Offline Research Boundaries
+# Pivot Fractal V13 Offline Research Boundaries
 
-Current research starts from strict `PIVOT_FRACTAL_V2` schema V12 exports and
-ends in local DuckDB/Parquet datasets, deterministic audits, reports, and
-offline XGBoost trial candidates. Nothing in this workflow changes the single
-real structural 1R broker path.
+This workflow starts from strict Pivot Fractal V13 producer exports and ends
+in local typed DuckDB/Parquet datasets, deterministic audits, reports, and
+offline model candidates. It never loads a model into MT5, authorizes an order,
+or turns a retrospective selector into a runtime filter.
 
-Use `docs/workflows/pivot-fractal-statistics-flow.md` for export, validation,
-dataset, audit, training, and human acceptance commands.
+Use `docs/workflows/pivot-fractal-statistics-flow.md` for the operator sequence
+and `docs/research/pivot-fractal-v13-producer-handoff.md` for the pinned
+producer contract. V12 documents, fixtures, and runs are historical evidence;
+they are not converted, dual-written, or accepted by active tooling.
 
 ## Runtime Separation
 
 ```text
-deterministic Macro pivot trigger
--> route and broker safety decisions inside MQL5
--> one real structural 1R broker attempt
--> optional V12 origin features, virtual matrix, and parity fact persistence
--> strict offline validation
--> leakage-safe policy trials, chains, broker outcomes, and calibration
--> deterministic audit and optional offline XGBoost
+causal H1 pivot trigger
+-> one structural H1 1R broker decision inside MQL5
+-> H1 structural/midpoint virtual lanes and shared M10 evidence
+-> strict V13 export seal
+-> typed validation and native-grain derived artifacts
+-> leakage-safe audit and explicit H1/deep offline training
 ```
 
-- Feature export never authorizes, denies, resizes, delays, or redirects a
-  trade.
-- The MQL5 runtime has no model loader, model score, research threshold,
-  inference mode, pattern matcher, or playback denial.
-- Broker session, permissions, Bid/Ask, structural geometry, stops/freeze,
-  volume, margin, `OrderCheck`, send retcodes, magic, ticket ownership, and
-  reconciliation remain deterministic MQL5 responsibilities.
-- Missing or malformed feature data invalidates research evidence while the
-  independently valid broker path remains unchanged.
+- Export, virtual lanes, deep events, and offline artifacts cannot authorize,
+  deny, delay, resize, duplicate, close, or modify the broker lane.
+- MT5 owns broker session, permissions, Bid/Ask, pivot geometry, stops/freeze,
+  volume, margin, `OrderCheck`, send retcodes, magic, tickets, and reconciliation.
+- Missing or malformed feature data makes research evidence incomplete while an
+  independently valid broker decision remains unchanged.
+- No runtime model loader, score, pattern matcher, online learner, or execution
+  filter exists in this boundary.
 
-## Strict Input Contract
+## Strict V13 Intake
 
-The validator requires schema `12`, engine `PIVOT_FRACTAL_V2`, feature set
-`schema_v12_pivot_signal_features`, exact frozen headers, one Macro window,
-unique origins, the sixteen-cell index-0 matrix, contiguous policy retries, exact
-integer-R geometry, quote-side ownership, distance and boundary rules, broker
-execution ownership, parity joins, decomposed money lanes, and strict summary
-counts.
+The validator accepts schema `13`, engine `PIVOT_FRACTAL_V2`, feature set
+`schema_v13_hft_deep_pivot_features`, and exactly these twelve files under
+`Common\\Files\\PivotFractalV13\\runs\\<run_id>\\`:
 
-Each run contains exactly eight TSV files. V9/V10/V11 exporter revisions fail
-closed. Use the historical repository revision that created those rows; do not
-convert, relabel, dual-write, or combine them with V12.
+1. `run_manifest.tsv`
+2. `pivot_windows.tsv`
+3. `signal_origins.tsv`
+4. `virtual_trials.tsv`
+5. `virtual_outcomes.tsv`
+6. `deep_pivot_events.tsv`
+7. `deep_pivot_parent_links.tsv`
+8. `deep_virtual_trials.tsv`
+9. `deep_virtual_outcomes.tsv`
+10. `execution_checks.tsv`
+11. `broker_outcomes.tsv`
+12. `run_summary.tsv`
 
-## Trigger-Time Feature Boundary
+Every header and column type is frozen. The validator rejects unknown files,
+unknown columns, V12 roots/headers, mixed configurations, partial fan-out,
+orphan links, and incompatible timeframe, quote, geometry, capacity, money, or
+feature policies. It never migrates an older run in place.
 
-The approved model features are captured once at the original pivot touch and
-joined to matrix/retry rows by `origin_id`:
+## Native Evidence Boundary
 
-- categorical `symbol`, `level_id`, `direction`, `sl_policy`, analysis weekday,
-  analysis session, and signal states;
-- TP multiple, retry index/loss count, trial gap/risk, spread/risk, and
-  cyclical values derived from the origin trigger analysis time;
-- Micro/Macro Bands shift-0 width points;
-- Micro/Macro `%B 0..5`, each with SMA 5, SMA slope, and state;
-- Micro/Macro Bands `BASE_LINE 0..5` and one-shift slope in points;
-- Micro/Macro Stochastic `MAIN_LINE` and `SIGNAL_LINE 0..5`, each with SMA 5,
-  SMA slope, and state.
+- `signal_origins.tsv` owns one immutable H1 Micro/Macro feature vector per
+  consumed H1 identity.
+- `virtual_trials.tsv` and `virtual_outcomes.tsv` own the eight H1 lanes:
+  `STRUCTURAL` and `MIDPOINT_50`, each at `1R`, `2R`, `3R`, and `5R`.
+- `deep_pivot_events.tsv` owns one configured-Micro vector per shared causal
+  M10 event. The default source is M3, but the manifest's actual timeframe is
+  authoritative.
+- `deep_pivot_parent_links.tsv` owns the active H1 parent association and its
+  exact `m10_parent_age_seconds`.
+- `deep_virtual_trials.tsv` owns shared M10 `1R/2R/3R` geometry; deep outcomes
+  resolve each `(parent_link_id, deep_trial_id)` pair independently.
+- `broker_outcomes.tsv` owns actual fills, closes, costs, and realized R. A
+  parity shadow is calibration-only and never enters an H1 or deep target cohort.
 
-Both Micro and Macro `%B` use the immutable touched pivot as the numerator.
-Values are unclipped, so `<0` and `>100` remain valid discovery values. A
-retry never recaptures an indicator or changes the origin calendar features.
+Features remain at their native grain. Joining an M10 event feature onto a
+parent/ratio row is allowed only inside the explicit deep trainer and must not
+be persisted as duplicated source evidence.
 
-Continuous values enter XGBoost directly. Audit reports may show quantile or
-range bins for human interpretation, but bins do not replace the model inputs.
+## Causal And Retrospective Time
 
-Raw Bid/Ask, pivot/source prices, SL/TP, volume, IDs, tickets, and account
-balance remain identity or audit facts. Eligibility, continuation, first touch,
-terminal reason, duration, virtual gross, parity, broker checks, request/send
-results, fills, closes, slippage, costs, and P&L are future or outcome facts and
-must not enter model features.
+The producer stores exact non-negative broker-time seconds without rounding or
+an upper bound:
 
-## Outcome Boundaries
+```text
+h1_structural_lifecycle_seconds = completed parent close - parent entry
+m10_parent_age_seconds = M10 trigger - parent entry
+```
 
-The primary target is virtual matrix first touch:
+The H1 duration is known only after a virtual or broker parent has closed. It is
+therefore a retrospective segmentation field, not a causal feature or a
+deployable execution condition. `NOT_TRIGGERED`, `INELIGIBLE`, and
+`CENSORED_RUN_END` rows keep it null. The M10 age is known at event time and is
+valid only for the linked parent.
 
-- target `1`: feature-complete eligible `TP_FIRST` matrix trial;
-- target `0`: feature-complete eligible `SL_FIRST` matrix trial.
+The downstream application exposes two independent, inclusive selectors:
 
-Ineligible and censored rows remain required facts with no target. Parity rows
-are calibration-only and never enter model or policy support. Training weights
-sum to `1.0` per `origin_id` within each dataset so retries do not manufacture
-independent market support.
+```text
+h1_structural_lifecycle_seconds <= h1_minutes * 60
+m10_parent_age_seconds <= m10_minutes * 60
+```
 
-The separate broker target remains strict broker TP/SL:
+Applying both selectors is an explicit AND at research time. A value such as
+`h1_minutes=30` excludes M10 links whose parent age is outside the selected
+parent lifecycle cohort, but it does not delete later raw events, cap producer
+capture, or relabel censored evidence. There is no implicit 30/60/120-minute
+maximum.
 
-- target `1`: feature-complete, fully closed, consistent `BROKER_TP` outcome;
-- target `0`: feature-complete, fully closed, consistent `BROKER_SL` outcome.
+## Target And Leakage Boundary
 
-Manual, mixed-reason, stop-out, expert, other, feature-incomplete, denied,
-failed-send, and censored rows remain required audit facts. They are excluded,
-not relabeled as losses. Realized P&L and slippage are diagnostics and must not
-be used to select the primary binary cohort because that would introduce
-post-outcome selection bias.
+The primary binary cohorts contain only feature-complete, eligible
+`TP_FIRST`/`SL_FIRST` rows. Censored, ineligible, not-triggered, capacity,
+parity, denied, failed-send, and incomplete rows remain auditable facts with no
+binary target. Broker P&L, terminal status, close time, lifecycle duration,
+parent age after selection, and any other future-only value are prohibited from
+model features.
 
-Virtual nominal R and virtual quote gross are counterfactual price-path facts.
-They do not contain commission, swap, fee, latency, broker slippage, or net
-profit. Broker deal history alone owns actual gross, costs, net, budget R, and
-execution R. Parity calibration compares exact accepted request geometry to
-the broker outcome. Parity observes threshold candidates only during the actual
-trade session; broker-terminal-before-observed-touch shadows are censored and
-excluded. Unexplained fully observed in-session TP/SL disagreement fails
-integrity. Natural run completion remains independent from unlabelled row-level
-run-end censoring.
+H1 and deep training are separate selections:
 
-## Splitting And Configuration
+- H1 reads `eligible_h1_trials.parquet` and balances support by `origin_id`.
+- Deep reads `eligible_deep_trials.parquet`, joins event features explicitly,
+  and reports parent/event/origin support separately.
 
-Purged chronological holdout and expanding walk-forward folds keep every row
-from the same `(symbol, Macro timeframe, active Macro bar open)` in one
-partition across duplicate run IDs. A virtual training row is eligible only
-when its terminal time is strictly earlier than the minimum declared broker
-time in the validation fold. Analysis time never orders causal splits.
+Chronological partitions keep all rows for one H1 active bar together across
+duplicate runs. A training row must terminate strictly before the validation
+boundary. Analysis time is presentation/grouping metadata only and never
+reorders causal events.
 
-The research contract fails closed when runs mix config IDs, Macro/Micro
-timeframes, Bands/Stochastic policy, matrix percentages/TPs, quote sides,
-distance policy, retry/capacity policy, lot mode/size, reference balance,
-feature set, or account currency. Fixed-lot and fixed-reference risk studies
-remain separate.
+## Artifact And Promotion Rules
 
-## Artifacts And Promotion
+Generated datasets, audits, reports, and models stay under ignored `artifacts/`
+directories. Model manifests must state the evidence grain, cutoff, weighting,
+warnings, `approval_state=OFFLINE_RESEARCH_ONLY`, and
+`runtime_artifact_emitted=false`.
 
-Generated datasets, audits, reports, and models remain under ignored
-`artifacts/` directories. Model folders are marked `OFFLINE_RESEARCH_ONLY` and
-are not deployment packages. A future runtime integration requires a new
-explicit plan, frozen feature parity evidence, safety review, tester-only
-staging, human acceptance, and separate live-rollout authorization.
+The V13 producer handoff is not a deployment approval. Downstream Django may
+prepare only after the final compile and human tester/chart gate are recorded;
+its explicit V12 removal/deletion work remains a separate authorized change.
+No live rollout is authorized by this workflow.
 
-## Historical Work
+## Historical Boundary
 
-Archived V9 execution, exporter, retest/confluence, ML, and pattern experiments
-remain immutable under `docs/plans/archive/` and `docs/research/archive/`.
-They explain their own historical revisions only and are not active runbooks or
-acceptance evidence for V2/V12.
+V12 and earlier plans, acceptance records, fixtures, datasets, and raw runs stay
+under their existing archive paths as immutable historical material. They may be
+consulted for provenance, but active V13 validation never rewrites, relabels,
+or combines them.
