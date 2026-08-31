@@ -168,9 +168,9 @@ are prohibited from model features. Artifacts remain
    When `ExecutionMode=120` milliseconds is configured, treat it as a tester
    timing limitation and do not claim sub-120 ms latency or perfect
    intra-second/exchange tick ordering.
-7. Complete `docs/research/pivot-fractal-v13-producer-handoff.md` and its dated
-   acceptance record before Django consumes the V13 contract. Django's active
-   V12 removal/deletion remains a separately authorized gate.
+7. Use the completed `docs/research/pivot-fractal-v13-producer-handoff.md` and
+   dated acceptance record as the frozen Django input. Django's active V12
+   removal/deletion remains a separately authorized gate.
 
 Compilation and fixtures cannot replace the human Strategy Tester/chart gate.
 No step authorizes live rollout.

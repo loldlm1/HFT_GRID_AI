@@ -8,16 +8,19 @@ evidence remain immutable under their existing archive or research locations.
 ## Entrypoint And Active Work
 
 - Entrypoint: `HFT_Grid_AI.mq5`.
-- Active plan: `pivot-fractal-v13-deep-pivot-producer-plan.md` through the final
-  compile and human acceptance gate.
+- Active implementation plan: none.
+- Completed V13 plan:
+  `docs/plans/archive/pivot-fractal-v13-deep-pivot-producer-2026-08-31/`.
 - Architecture: `docs/architecture/market-data-broker-executor.md`.
 - Environment: `docs/environment/mt5-agentic-workflows.md`.
 - Statistics: `docs/workflows/pivot-fractal-statistics-flow.md`.
 - Research boundary:
   `docs/workflows/pivot-fractal-offline-research-boundaries.md`.
 - V13 handoff: `docs/research/pivot-fractal-v13-producer-handoff.md`.
-- V13 acceptance draft:
+- V13 acceptance:
   `docs/research/pivot-fractal-v13-producer-acceptance-2026-08-31.md`.
+- Outstanding operational gate: human chart-object/rendering verification before
+  any deployment-oriented claim.
 
 The V12 plan and acceptance records are historical only. Active code and
 tooling must not emit, accept, convert, or dual-write V12.
@@ -36,7 +39,7 @@ Use only installed capabilities that match the task:
 - PostgreSQL and release skills only when a separately authorized downstream
   task reaches those boundaries.
 
-For the final compile, call the MetaEditor MCP `get_workspace_info` before any
+For any future compile, call the MetaEditor MCP `get_workspace_info` before any
 other compiler tool, then use `compile_file` for the EA. Keep credentials and
 private account or terminal data out of logs and commits.
 
@@ -249,15 +252,16 @@ nonvisual tester runs do no chart work.
 - Every sprint requires exact identifier/reference sweeps, include tracing,
   safety-boundary review, and `git diff --check`.
 - Maintain existing Python contract tests when schema tooling changes.
-- Use exactly one sprint-specific commit after each completed gate and record
-  its rollback SHA.
-- Do not compile intermediate sprints. Sprint 8 owns the single final real
-  MetaEditor compile.
-- Final compile must call `get_workspace_info` before `compile_file`, report
+- Substantial future multi-sprint work uses one sprint-specific commit after
+  each completed gate and records its rollback SHA.
+- The accepted V13 compile is pinned in the handoff. Recompile only when source,
+  include, compiler, or an explicit acceptance gate changes.
+- A final compile must call `get_workspace_info` before `compile_file`, report
   `0 errors, 0 warnings`, and confirm regenerated `.ex5` metadata. Use the
   documented runner only if MCP cannot execute and record the precise reason.
-- Human Strategy Tester/chart acceptance is required for broker-window,
-  midpoint, M10/M3, censoring, export, performance, and visual behavior.
+- New MQL5 behavior requires proportional human Strategy Tester/chart
+  acceptance. Current V13 lifecycle, broker, export, and performance evidence is
+  accepted; only chart-object/rendering verification remains outstanding.
 
 ## Style And Rollout
 

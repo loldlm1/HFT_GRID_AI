@@ -1,8 +1,8 @@
 # Plan: Pivot Fractal V13 Deep M10 Producer And H1 Lifecycle Evidence
 
 **Generated**: 2026-08-30
-**Status**: Sprints 1-8 complete for the offline producer handoff; human
-visual/chart verification remains outstanding
+**Status**: Completed and archived after Sprint 8 for the offline producer
+handoff; human visual/chart verification remains an outstanding rollout gate
 **Estimated Complexity**: High
 **Risk class**: High - changes virtual signal geometry, lifecycle state, broker
 execution identity, strict export schema, and offline research artifacts. The one
@@ -23,8 +23,8 @@ V13 producer handoff with contract and registry hashes.
 | 4 | `af08a2f` | `84bfb36` | Complete |
 | 5 | `1597448` | `af08a2f` | Complete |
 | 6 | `a684db5` | `1597448` | Complete |
-| 7 | containing documentation commit | `a684db5` | Complete |
-| 8 | containing this record | Sprint 7 commit | Complete for offline handoff; visual chart gate outstanding |
+| 7 | `dc41827` | `a684db5` | Complete |
+| 8 | `8c57aaf` | `dc41827` | Complete for offline handoff; visual chart gate outstanding |
 
 ## Overview
 

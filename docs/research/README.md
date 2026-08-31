@@ -2,12 +2,13 @@
 
 ## Active State
 
-The active producer is the strict Pivot Fractal V13 H1/M10 evidence contract.
-Sprints 1-8 (contract, runtime lanes, deep lifecycle, M3 evidence, export,
-offline artifacts, handoff, and bounded tester acceptance) are committed. The
-human chart-object/rendering check remains outstanding. Django may prepare its
-separately authorized V13 work from the frozen handoff, but its destructive V12
-removal gate remains separate.
+The active producer is the strict Pivot Fractal V13 H1/M10 evidence contract,
+with no open MQL5 implementation plan. Sprints 1-8 (contract, runtime lanes,
+deep lifecycle, M3 evidence, export, offline artifacts, handoff, and bounded
+tester acceptance) are committed and archived. The human chart-object/rendering
+check remains an outstanding rollout gate. Django may prepare its separately
+authorized V13 work from the frozen handoff, but its destructive V12 removal
+gate remains separate.
 
 The accepted tester used `ExecutionMode=120` milliseconds. Its evidence is
 causal and reconciliation-focused; it does not claim sub-120 ms latency,
@@ -20,7 +21,7 @@ Use these active documents:
 - `../workflows/pivot-fractal-statistics-flow.md`
 - `../workflows/pivot-fractal-offline-research-boundaries.md`
 - `../environment/mt5-agentic-workflows.md`
-- `../../pivot-fractal-v13-deep-pivot-producer-plan.md`
+- `../plans/archive/pivot-fractal-v13-deep-pivot-producer-2026-08-31/README.md`
 
 V13 writes twelve strict TSV files under
 `Common\\Files\\PivotFractalV13\\runs\\<run_id>\\`. H1 evidence has

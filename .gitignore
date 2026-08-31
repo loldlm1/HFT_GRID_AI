@@ -33,6 +33,8 @@ config/*.ini
 !/docs/plans/archive/pivot-retest-confluence-offline-research-2026-07-30/*.md
 !/docs/plans/archive/pivot-fractal-v12-signal-features-2026-08-13/
 !/docs/plans/archive/pivot-fractal-v12-signal-features-2026-08-13/*.md
+!/docs/plans/archive/pivot-fractal-v13-deep-pivot-producer-2026-08-31/
+!/docs/plans/archive/pivot-fractal-v13-deep-pivot-producer-2026-08-31/*.md
 /docs/lead_magnet/output/*
 !/docs/lead_magnet/output/.gitkeep
 /docs/lead_magnet/dist/*.zip

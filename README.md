@@ -177,9 +177,10 @@ not-triggered facts never become target-zero losses. All model artifacts remain
 
 ## Validation Status
 
-Sprints 1-8 have strict static, Python, compile, and bounded real-tick tester
-evidence recorded in the V13 handoff. Human chart-object/rendering verification
-remains outstanding; it is required before any deployment-oriented claim. The
+The V13 MQL5 implementation plan is complete and archived. Sprints 1-8 have
+strict static, Python, compile, and bounded real-tick tester evidence recorded
+in the V13 handoff. Human chart-object/rendering verification remains
+outstanding; it is required before any deployment-oriented claim. The
 downstream Django app may prepare against the frozen contract, but its
 destructive V12 removal gate remains separate. The accepted tester used
 `ExecutionMode=120` milliseconds, so it does not prove sub-120 ms latency,
@@ -195,4 +196,6 @@ rollout is not authorized.
   retrospective research boundaries.
 - `docs/environment/mt5-agentic-workflows.md`: paths, compile, and artifacts.
 - `docs/research/pivot-fractal-v13-producer-handoff.md`: downstream contract.
+- `docs/plans/archive/pivot-fractal-v13-deep-pivot-producer-2026-08-31/`:
+  completed V13 execution plan and rollback ledger.
 - `docs/plans/archive/` and `docs/research/archive/`: historical evidence.

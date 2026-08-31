@@ -1,8 +1,8 @@
 # MT5 Agentic Workflows
 
 This runbook is the source of truth for V13 local paths, deterministic Python
-evidence, the single final MetaEditor compile, and operator-owned Strategy
-Tester artifacts. Keep full logs and raw market data out of chat and commits.
+evidence, MetaEditor compilation, and operator-owned Strategy Tester artifacts.
+Keep full logs and raw market data out of chat and commits.
 
 ## Path Contract
 
@@ -50,8 +50,11 @@ runtime-model artifact requirement.
 
 ## Compile Policy
 
-- Intermediate sprints use static review and Python evidence only.
-- Sprint 8 owns the one final real MetaEditor compile.
+- The accepted V13 compile is pinned in the producer handoff and acceptance
+  record. Do not rerun it merely to start a new work session.
+- Recompile after an MQL5 source/include change, a compiler/toolchain change, or
+  an explicit new acceptance gate. Future multi-sprint plans define whether
+  intermediate compiles are required.
 - Call MetaEditor MCP `get_workspace_info` first, verify allowed roots and
   `can_compile_file`, then call `compile_file` for the absolute EA path.
 - Accept only `0 errors, 0 warnings`, and verify that `HFT_Grid_AI.ex5` was
@@ -175,18 +178,19 @@ terminal status, censoring, broker money, and post-trigger age selections are
 not model features. Every model manifest states
 `approval_state=OFFLINE_RESEARCH_ONLY` and `runtime_artifact_emitted=false`.
 
-## Human Strategy Tester Gate
+## Remaining Human Visual Gate
 
-Use `docs/workflows/pivot-fractal-statistics-flow.md` and test with **Every tick
-based on real ticks**. The operator must verify midpoint touch and no-touch,
-all H1 ratios, shared M10 event/M3 capture, parent-specific censoring,
-uncapped R5 continuation, same-tick ordering, one structural broker `1R` lane,
-no deep order submission, export-off parity, DST/session behavior, bounded
-state, and chart behavior.
+The bounded real-tick lifecycle, broker, export, and parity run is accepted in
+`docs/research/pivot-fractal-v13-producer-acceptance-2026-08-31.md`. The remaining
+operator gate is a visual Strategy Tester/chart pass for owned position lines,
+labels, cleanup, and the 16-position rendering bound. It is required only before
+a deployment-oriented claim; it does not block offline Django contract work.
 
-Compare export disabled/enabled on the same interval with file logs off. Record
-elapsed time, peak state/capacity, twelve-file row counts, and folder growth.
-Python fixtures and compilation cannot replace this human gate.
+If a new full acceptance run becomes necessary, use **Every tick based on real
+ticks**, compare export disabled/enabled on the same interval with file logs
+off, and follow `docs/workflows/pivot-fractal-statistics-flow.md`. Record elapsed
+time, peak state/capacity, twelve-file row counts, and folder growth. Python
+fixtures and compilation cannot replace visual verification.
 
 If the tester uses `ExecutionMode=120` milliseconds, record it as a timing
 limitation. The run can establish causal processing order, immutable trade

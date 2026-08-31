@@ -16,8 +16,8 @@ pass remains required before any deployment claim.
 
 - Branch: `bot/pivot_points_fractal`
 - Sprint 8 rollback point: `dc41827b087cda707e7d9c4e31d882463871d20b`
-- Sprint 8 acceptance commit: the commit containing this record; resolve with
-  `git log -1 -- docs/research/pivot-fractal-v13-producer-acceptance-2026-08-31.md`
+- Sprint 8 acceptance commit:
+  `8c57aaf28577b872ad9863367585c549012364a6`
 - Schema/feature/root: `13`, `schema_v13_hft_deep_pivot_features`,
   `Common\\Files\\PivotFractalV13\\runs\\<run_id>\\`
 - Accepted run: `v13_sprint8_acceptance_1d_fix9_20260831`

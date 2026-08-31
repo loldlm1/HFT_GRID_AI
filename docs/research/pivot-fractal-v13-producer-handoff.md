@@ -20,8 +20,8 @@ censoring behavior.
 - Default timeframe order: `PERIOD_M3 < PERIOD_M10 < PERIOD_H1`
 - Pre-compile producer/tooling pin: `a684db53fe9988425005933c57f4e9bd32b9eb5c`
 - Sprint 7 documentation commit: `dc41827b087cda707e7d9c4e31d882463871d20b`
-- Final accepted producer commit: the Sprint 8 commit containing this handoff
-  (resolve with `git log -1 -- docs/research/pivot-fractal-v13-producer-handoff.md`)
+- Final accepted producer commit:
+  `8c57aaf28577b872ad9863367585c549012364a6`
 - Final compile source anchors:
   - `HFT_Grid_AI.mq5`:
     `43cee11c41d5f59759c7c17773bd46837062b71456aa5d34ef6b51f85782e43c`
