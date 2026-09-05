@@ -1,0 +1,51 @@
+schema_version = 1
+profile_id = "xauusd-pro"
+
+[instrument]
+base_symbol = "XAUUSD"
+archive_symbol = "XAUUSD"
+account_type = "pro"
+broker_suffix = ""
+# Set an exact broker_symbol instead if a future account changes the base name.
+account_mode = "unverified"
+server_alias = ""
+feed_mapping_status = "unverified"
+
+[selection]
+start = "2015-01-01"
+end = "latest-published"
+granularity = "auto"
+
+[storage]
+data_root = "artifacts/exness_tick_history"
+max_archive_bytes = 4294967296
+max_uncompressed_bytes = 34359738368
+max_members = 128
+max_expansion_ratio = 200
+memory_limit_mb = 512
+temp_limit_mb = 4096
+disk_reserve_bytes = 1073741824
+
+[network]
+timeout_seconds = 30
+workers = 2
+max_retries = 4
+retry_max_seconds = 60
+
+[terminal]
+platform = "wine"
+wine_prefix = ""
+host_root = ""
+windows_root = ""
+
+[comparison]
+# Starting targets only. Pin every limit before held-out seasonal acceptance.
+status = "PROPOSED"
+max_match_delta_ms = 500
+min_matched_fraction_each_feed = 0.95
+min_active_minute_jaccard = 0.999
+max_p99_bid_error_ticks = 5
+max_p99_ask_error_ticks = 5
+max_p99_spread_error_ticks = 5
+max_p99_m1_ohlc_error_ticks = 5
+max_unexplained_clock_offset_seconds = 0

@@ -49,5 +49,6 @@ artifacts/acceptance_logs/
 artifacts/models/
 artifacts/model_exports/
 artifacts/pattern_audits/
+/artifacts/exness_tick_history/
 .codex-hook-state/
 .codex-artifacts/
