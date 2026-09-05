@@ -1,0 +1,30 @@
+{
+  "schema_version": 1,
+  "operator_verified": false,
+  "evidence_id": "replace-with-native-spec-evidence-id",
+  "feed_sha256": "copy-from-inspect-config-after-pinning-private-profile",
+  "broker_symbol": "XAUUSD",
+  "captured_at_utc": "2026-09-05T00:00:00.000Z",
+  "existing_symbols": ["XAUUSD"],
+  "properties": {
+    "digits": 3,
+    "point": "0.001",
+    "tick_size": "0",
+    "tick_value": "0",
+    "chart_mode": "bid",
+    "contract_size": "100",
+    "currency_base": "XAU",
+    "currency_profit": "USD",
+    "currency_margin": "USD",
+    "calculation_mode": "REPLACE_FROM_NATIVE",
+    "volume_min": "0",
+    "volume_max": "0",
+    "volume_step": "0",
+    "margin_initial": "0",
+    "margin_maintenance": "0",
+    "stops_level": 0,
+    "freeze_level": 0,
+    "quote_sessions": [],
+    "trade_sessions": []
+  }
+}

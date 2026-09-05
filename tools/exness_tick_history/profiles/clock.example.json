@@ -1,0 +1,12 @@
+{
+  "schema_version": 1,
+  "operator_verified": false,
+  "evidence_id": "replace-with-clock-evidence-id",
+  "periods": [
+    {
+      "start_utc": "2015-01-01T00:00:00.000Z",
+      "end_utc": "2027-01-01T00:00:00.000Z",
+      "offset_seconds": 0
+    }
+  ]
+}

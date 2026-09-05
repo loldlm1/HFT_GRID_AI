@@ -58,3 +58,21 @@ build: 59.089 seconds, peak RSS 358,532 KiB with a 512 MB DuckDB setting.
 The full archive/partition audit verifies bytes, logical order and conservation.
 Resource evidence is a one-day measurement, not a completed full backfill.
 The 2015/August archives are retained for subsequent larger-range operation.
+
+## Sprint 4
+
+Sprint 3 commit / rollback parent: `f51d489`.
+Automated gate PASS: 40 tests, including native six-field formatting, exact
+digits/trade-tick compatibility, reversible clock intervals, unknown regimes,
+backward DST ambiguity, name collisions, unsplit timestamp groups, duplicate
+multiplicity and exact native Bid OHLC comparison on M1/M3/M10/H1 fixtures.
+Deletion, added ticks, tied-row reversal, 1 ms/price perturbations, altered
+specification and bar files cannot pass. Millisecond precision loss and absent
+native evidence yield `INCONCLUSIVE`. Compileall and common review pass.
+
+The public specification/clock templates remain deliberately unverified and
+the real export command refuses them. Native custom-symbol creation/import,
+round trip, current nonzero trade tick and M1 history generation remain
+`PENDING_OPERATOR`. There is no new MQL5 program or terminal mutation API.
+Whether a companion M1 file is necessary is deferred with the native capability
+finding; no unverified native bar convention has been implemented.

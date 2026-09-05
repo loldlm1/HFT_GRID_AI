@@ -14,6 +14,8 @@ with DuckDB 1.5.4. Run from the repository root:
 .venv/bin/python -m tools.exness_tick_history download --inventory <inventory_id> --resume
 .venv/bin/python -m tools.exness_tick_history build --inventory <inventory_id> --dataset-id <new_dataset_id>
 .venv/bin/python -m tools.exness_tick_history audit --dataset-id <dataset_id>
+.venv/bin/python -m tools.exness_tick_history export-mt5 --dataset-id <dataset_id> --export-id <new_export_id> --specification <spec.json> --clock <clock.json>
+.venv/bin/python -m tools.exness_tick_history compare-roundtrip --export-id <export_id> --native-export <native.tsv> --evidence <native-evidence.json>
 .venv/bin/python -m unittest discover -s tools/exness_tick_history/tests -p 'test_*.py'
 ```
 
@@ -76,6 +78,28 @@ unreviewed gaps over 60 seconds. Dates with no ticks remain unknown closures.
 coverage; exit 3 means failed integrity. An integrity pass concerns the supplied
 archive and transformation; it does not prove missing intraday ticks never
 existed, native import equality, or broker equivalence.
+
+Export requires reviewed local copies of `profiles/specification.example.json`
+and `profiles/clock.example.json`. Both examples intentionally fail verification.
+Fill the native properties, captured symbol list and `feed_sha256` printed by
+`inspect-config`; record the actual evidence before setting `operator_verified`.
+Sessions use weekday 0=Monday and seconds within the day; split overnight
+sessions at midnight. Clock intervals are UTC, contiguous, explicit and
+reversible. Ambiguous backward clock changes block export of that map.
+
+The native package uses ASCII, tabs, one header line, zero Last/Volume and
+Shift=0. Files are ordered in `exports/<export_id>/import-manifest.json`.
+`--chunk-rows` is a soft row bound because equal-time groups stay intact.
+The source UTC dataset is unchanged. Unknown coverage remains visible in the
+export; quarantined/empty data cannot export. Do not select a partially imported
+symbol for accepted research. Use a new export ID and custom symbol whenever
+the data, specification or clock changes.
+
+Native re-exports require explicit milliseconds and all six columns. Choose
+`--encoding utf-16` for a BOM-bearing native UTF-16 export; default is UTF-8
+with optional BOM. Exact quote equality can pass while `mt5_round_trip` remains
+inconclusive until metadata and all four native timeframe bar files are supplied.
+See the workflow for the evidence schema and guided native steps.
 
 See the [workflow](../../docs/workflows/exness-tick-history.md) for the source,
 terminal and acceptance contract. Native MT5 checks are pending until the

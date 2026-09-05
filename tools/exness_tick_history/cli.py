@@ -10,9 +10,11 @@ from pathlib import Path
 from .archive import ArchiveKey, SourceError, inspect_archive, inventory, probe_archive
 from .config import ConfigError, load_profile
 from .download import download_inventory
-from .storage import Store, StorageError, atomic_json
+from .storage import Store, StorageError, atomic_json, feed_identity, object_hash, read_json
 from .sanitize import build_dataset
 from .report import audit_dataset
+from .mt5_export import export_mt5
+from .compare import compare_roundtrip
 
 DEFAULT_PROFILE = Path(__file__).parent / "profiles/xauusd_pro.example.toml"
 
@@ -34,6 +36,18 @@ def main(argv: list[str] | None = None) -> int:
     command.add_argument("--dataset-id", required=True)
     command = commands.add_parser("audit", help="Verify partition bytes, logical hashes and row conservation")
     command.add_argument("--dataset-id", required=True)
+    command = commands.add_parser("export-mt5", help="Prepare exact native tick chunks under verified spec/clock inputs")
+    command.add_argument("--dataset-id", required=True)
+    command.add_argument("--export-id", required=True)
+    command.add_argument("--specification", type=Path, required=True)
+    command.add_argument("--clock", type=Path, required=True)
+    command.add_argument("--custom-symbol")
+    command.add_argument("--chunk-rows", type=int, default=1_000_000)
+    command = commands.add_parser("compare-roundtrip", help="Compare complete native re-export in exact tick order")
+    command.add_argument("--export-id", required=True)
+    command.add_argument("--native-export", type=Path, required=True)
+    command.add_argument("--encoding", choices=("utf-8-sig", "utf-16", "ascii"), default="utf-8-sig")
+    command.add_argument("--evidence", type=Path)
     for name, help_text in (("probe-archive", "Probe one annual/monthly/daily ZIP URL without downloading its body"),
                             ("inspect-archive", "Verify one local source ZIP/CSV without changing it")):
         command = commands.add_parser(name, help=help_text)
@@ -47,6 +61,7 @@ def main(argv: list[str] | None = None) -> int:
         profile = load_profile(args.config)
         if args.command == "inspect-config":
             result = profile.summary()
+            result["feed_sha256"] = object_hash(feed_identity(profile))
         elif args.command == "inventory":
             with Store(profile.data_root) as store:
                 result = inventory(profile, start=args.start, end=args.end, granularity=args.granularity)
@@ -62,6 +77,15 @@ def main(argv: list[str] | None = None) -> int:
             result = {key: report[key] for key in ("dataset_id", "rows", "logical_sha256", "data_integrity")}
         elif args.command == "audit":
             result = audit_dataset(profile, args.dataset_id)
+        elif args.command == "export-mt5":
+            report = export_mt5(profile, args.dataset_id, args.export_id, read_json(args.specification), read_json(args.clock),
+                                custom_symbol=args.custom_symbol, chunk_rows=args.chunk_rows)
+            result = {key: report[key] for key in ("export_id", "custom_symbol", "rows", "ordered_quote_sha256", "data_integrity", "mt5_round_trip")}
+            result["chunk_count"] = len(report["chunks"])
+        elif args.command == "compare-roundtrip":
+            result = compare_roundtrip(profile, args.export_id, args.native_export, encoding=args.encoding,
+                                       evidence=read_json(args.evidence) if args.evidence else None,
+                                       evidence_root=args.evidence.parent if args.evidence else None)
         else:
             key = ArchiveKey(profile.instrument.archive_symbol, args.year, args.month, args.day)
             if args.command == "probe-archive":
@@ -69,6 +93,8 @@ def main(argv: list[str] | None = None) -> int:
             else:
                 result = inspect_archive(args.path, key, profile.limits)
         print(json.dumps(result, indent=2, sort_keys=True))
+        if args.command == "compare-roundtrip":
+            return {"PASS": 0, "FAIL": 3, "INCONCLUSIVE": 4}[result["mt5_round_trip"]]
         if result.get("data_integrity") in ("FAIL", "INCONCLUSIVE"):
             return 3 if result["data_integrity"] == "FAIL" else 4
         if result.get("status") == "DOWNLOAD_INCOMPLETE":

@@ -49,6 +49,59 @@ The prepared native pilot and raw evidence remain in ignored
 `.codex-artifacts/exness-sprint1/`. It contains 1,831 ticks in five minutes and
 nine adjacent equal-time rows. No native import is confirmed.
 
+## Guided Native Import And Evidence
+
+After the native specification and clock evidence are recorded, prepare an
+export using the service README commands. In MT5, open Market Watch -> Symbols
+(Ctrl+U), select the exact broker symbol, and create a custom symbol copying its
+properties. Use the package's fresh `custom_symbol` name and freeze the complete
+specification before importing. Confirm the name is still unused at creation.
+Changing properties such as digits, point or chart mode afterward can erase
+history. Never select the broker symbol as the import destination.
+
+Open the custom symbol's Ticks tab and import each manifest chunk in order.
+Set tab separator, skip the one header row, verify the six preview columns and
+use Shift=0. Record each filename/hash/count in an operator-owned import log.
+Import replaces the covered interval, including holes; a partial import is not
+accepted history. Recovery uses the same owned version and exact chunk files
+only after confirming which intervals were replaced, or a fresh custom symbol.
+
+Re-export the entire imported interval from the native Ticks tab. If the UI or
+reader limits rows, capture exhaustive disjoint intervals without splitting an
+equal-millisecond group. Export native M1/M3/M10/H1 bars for the same imported
+coverage. Expected bar format is tab-separated
+`<DATE> <TIME> <OPEN> <HIGH> <LOW> <CLOSE> <TICKVOL> <VOL> <SPREAD>`;
+bar dates are dotted and times are `HH:MM:SS`. Tick times require milliseconds.
+If tick import does not produce native M1 bars, this gate remains pending. A
+companion M1 path must use the observed native convention before acceptance;
+the current implementation does not invent a bar-import convention.
+
+Create a private evidence JSON beside the native files:
+
+```json
+{
+  "schema_version": 1,
+  "operator_verified": true,
+  "complete": true,
+  "export_manifest_sha256": "from-import-manifest",
+  "native_specification_sha256": "hash-of-verified-frozen-specification",
+  "custom_symbol": "name-from-import-manifest",
+  "native_ticks_sha256": "sha256-of-complete-native-reexport",
+  "native_bars": {
+    "M1": {"path": "M1.tsv", "sha256": "file-sha256"},
+    "M3": {"path": "M3.tsv", "sha256": "file-sha256"},
+    "M10": {"path": "M10.tsv", "sha256": "file-sha256"},
+    "H1": {"path": "H1.tsv", "sha256": "file-sha256"}
+  }
+}
+```
+
+The booleans attest completed native operations, never preparation alone.
+`compare-roundtrip` checks ordered time/Bid/Ask multiplicity, file/spec hashes,
+and exact quote-derived Bid OHLC against every native timeframe. It reports
+bounded mismatches. Missing native evidence is `INCONCLUSIVE`; a demonstrated
+tick, specification or bar mismatch is `FAIL`.
+
 ## Validation And Rollback
 
 Each sprint runs focused Python tests, compileall, identifier/include and
