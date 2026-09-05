@@ -20,3 +20,21 @@ terminal/trading mutation references occur in the service. Source pilot:
 344,128 rows, 766 adjacent equal timestamps, no timestamp regressions.
 Native specification, feed mapping, clock mapping, import round trip and bar
 availability: `PENDING_OPERATOR`. No broker-equivalence claim is made.
+
+## Sprint 2
+
+Sprint 1 commit / rollback parent: `66ca15f`.
+Automated gate PASS: 22 tests including mixed calendar ownership, leap day,
+HTTP recovery, 200/206 range semantics, changed validators, rejected HTML,
+truncation, Retry-After, corrupt ZIP, disk reserve, lock contention and cached
+reuse. Compileall and the common source/include/safety/whitespace gate pass.
+
+Real pilot inventories: `inv-de3bd1931b34c6722c14a2cf` (2015 annual) and
+`inv-138658e774d08b22dfc2ad01` (August 2026 monthly plus September 1 daily).
+All three ZIPs passed length/structure/CRC and SHA-256 checks: 124,484,055
+compressed bytes total. The recent run was deliberately interrupted (exit 130),
+then completed while reusing the daily object already committed to the ledger.
+Its monthly partial had zero bytes at interruption; nonzero byte-range resume
+is validated by deterministic transfer fixtures. A competing writer failed
+without disturbing the active lock. Repeat download performs zero HTTP body
+bytes. Source rows and historical coverage are assessed in Sprint 3.

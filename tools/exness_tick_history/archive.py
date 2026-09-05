@@ -11,11 +11,11 @@ import urllib.parse
 import urllib.request
 import zipfile
 from dataclasses import asdict, dataclass
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, timedelta, timezone
 from decimal import Decimal, InvalidOperation
 from pathlib import Path, PurePosixPath
 
-from .config import ConfigError, Limits, Network, validate_symbol
+from .config import ConfigError, Limits, Network, Profile, parse_date, validate_symbol
 
 ARCHIVE_BASE_URL = "https://ticks.ex2archive.com/ticks"
 SOURCE_CONTRACT_VERSION = 1
@@ -230,3 +230,113 @@ def inspect_archive(path: Path, key: ArchiveKey, limits: Limits) -> dict:
         }
     except (OSError, zipfile.BadZipFile, UnicodeError, csv.Error, InvalidOperation) as exc:
         raise SourceError("Archive read, CRC, CSV encoding, or numeric parsing failed") from exc
+
+
+def zip_member(archive: zipfile.ZipFile, key: ArchiveKey, limits: Limits) -> zipfile.ZipInfo:
+    members = archive.infolist()
+    if len(members) != 1 or len(members) > limits.max_members:
+        raise SourceError("Source contract requires one matching CSV member")
+    member = members[0]
+    if member.filename != key.filename.removesuffix(".zip") + ".csv":
+        raise SourceError("Unexpected or unsafe ZIP member name")
+    if member.flag_bits & 1 or member.compress_type not in (zipfile.ZIP_STORED, zipfile.ZIP_DEFLATED):
+        raise SourceError("Encrypted or unsupported ZIP member")
+    if (member.file_size > limits.max_uncompressed_bytes
+            or member.file_size > max(member.compress_size, 1) * limits.max_expansion_ratio):
+        raise SourceError("ZIP expansion exceeds configured limits")
+    return member
+
+
+def verify_zip(path: Path, key: ArchiveKey, limits: Limits) -> dict:
+    try:
+        if path.stat().st_size > limits.max_archive_bytes:
+            raise SourceError("Archive exceeds configured byte limit")
+        with zipfile.ZipFile(path) as archive:
+            member = zip_member(archive, key, limits)
+            read_bytes = 0
+            with archive.open(member) as stream:
+                while chunk := stream.read(1024 * 1024):
+                    read_bytes += len(chunk)
+                    if read_bytes > limits.max_uncompressed_bytes:
+                        raise SourceError("Expanded CSV exceeds configured byte limit")
+            if read_bytes != member.file_size:
+                raise SourceError("Expanded CSV length mismatch")
+        return {"csv_member": member.filename, "csv_bytes": read_bytes, "crc_verified": True}
+    except (OSError, zipfile.BadZipFile, RuntimeError, EOFError) as exc:
+        raise SourceError("Invalid archive structure, compression or CRC") from exc
+
+
+def inventory(profile: Profile, *, start=None, end=None, granularity=None,
+              today: date | None = None, probe=probe_archive) -> dict:
+    """Assign disjoint intervals; a 404 is availability evidence, never a holiday."""
+    from .storage import feed_identity, object_hash
+
+    today = today or datetime.now(timezone.utc).date()
+    start = parse_date(start or profile.selection.start, "start")
+    requested_end = end or profile.selection.end
+    mode = granularity or profile.selection.granularity
+    if mode not in ("auto", "year", "month", "day"):
+        raise ConfigError("Invalid granularity")
+    cutoff = today if requested_end == "latest-published" else parse_date(requested_end, "end")
+    if not date(1970, 1, 1) <= start < cutoff <= today:
+        raise ConfigError("Inventory requires 1970 <= start < end <= today's UTC boundary")
+    if (cutoff - start).days > 366 * 100:
+        raise ConfigError("Inventory range exceeds the 100-year probe bound")
+    cache = {}
+
+    def candidate(key):
+        if key.url not in cache:
+            observed = probe(key, profile.network)
+            cache[key.url] = {"key": asdict(key), **observed.summary()}
+        return cache[key.url]
+
+    publication_candidate = None
+    if requested_end == "latest-published":
+        for offset in range(1, 32):
+            day = today - timedelta(days=offset)
+            if day < start:
+                break
+            observed = candidate(ArchiveKey(profile.instrument.archive_symbol, day.year, day.month, day.day))
+            if observed["state"] == "AVAILABLE_CANDIDATE":
+                publication_candidate = day
+                cutoff = day + timedelta(days=1)
+                break
+            if observed["state"] != "NOT_FOUND":
+                break
+
+    owners = []
+    cursor = start
+    while cursor < cutoff:
+        possible = [ArchiveKey(profile.instrument.archive_symbol, cursor.year),
+                    ArchiveKey(profile.instrument.archive_symbol, cursor.year, cursor.month),
+                    ArchiveKey(profile.instrument.archive_symbol, cursor.year, cursor.month, cursor.day)]
+        chosen = None
+        for key in possible:
+            left, right = key.bounds
+            if mode != "auto" and key.granularity != mode:
+                continue
+            if mode == "auto" and (left != cursor or right > cutoff):
+                continue
+            observed = candidate(key)
+            chosen = (key, observed)
+            if observed["state"] != "NOT_FOUND" or mode != "auto" or key.granularity == "day":
+                break
+        key, observed = chosen
+        left, right = key.bounds
+        stop = min(right, cutoff)
+        owners.append({"start": cursor.isoformat(), "end": stop.isoformat(), "key": asdict(key),
+                       "state": observed["state"], "probe": observed,
+                       "extra_container_days": (right - left).days - (stop - cursor).days})
+        cursor = stop
+    result = {"schema_version": 1, "feed": feed_identity(profile), "source_contract_version": SOURCE_CONTRACT_VERSION,
+              "requested_start": start.isoformat(), "requested_end": str(requested_end),
+              "resolved_end_exclusive": cutoff.isoformat(), "discovery_utc_date": today.isoformat(),
+              "publication_candidate_day": str(publication_candidate) if publication_candidate else None,
+              "publication_verified": False, "granularity": mode, "owners": owners,
+              "candidates": sorted(cache.values(), key=lambda item: item["url"]),
+              "estimated_download_bytes": sum(item["probe"]["content_length"] or 0 for item in owners
+                                               if item["state"] == "AVAILABLE_CANDIDATE"),
+              "unknown_size_archives": sum(item["state"] == "AVAILABLE_CANDIDATE" and item["probe"]["content_length"] is None
+                                           for item in owners), "coverage_verified": False}
+    result["inventory_id"] = "inv-" + object_hash(result)[:24]
+    return result

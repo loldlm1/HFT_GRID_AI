@@ -8,7 +8,8 @@ from email.message import Message
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
-from tools.exness_tick_history.archive import ArchiveKey, SourceError, _allowed_url, inspect_archive, probe_archive
+from tools.exness_tick_history.archive import ArchiveKey, Probe, SourceError, _allowed_url, inspect_archive, inventory, probe_archive
+from datetime import date
 from tools.exness_tick_history.cli import DEFAULT_PROFILE
 from tools.exness_tick_history.config import ConfigError, load_profile
 
@@ -84,3 +85,30 @@ class ArchiveTests(unittest.TestCase):
                     "https://ticks.ex2archive.com/ticks/../private", "https://ticks.ex2archive.com/ticks/a?token=secret"]:
             self.assertFalse(_allowed_url(url))
         self.assertTrue(_allowed_url(self.key.url))
+
+    def test_disjoint_mixed_ownership_and_fallback(self):
+        def probe(key, network):
+            missing = key.year == 2024 and key.granularity == "year"
+            return Probe(key.url, "NOT_FOUND" if missing else "AVAILABLE_CANDIDATE", 404 if missing else 200, 10)
+        result = inventory(self.profile, start="2023-01-01", end="2025-01-03", today=date(2026, 9, 5), probe=probe)
+        owners = result["owners"]
+        self.assertEqual(len(owners), 15)  # year + twelve months + two days
+        self.assertEqual(owners[0]["key"]["year"], 2023)
+        for previous, current in zip(owners, owners[1:]):
+            self.assertEqual(previous["end"], current["start"])
+        self.assertEqual(owners[2]["end"], "2024-03-01")
+
+    def test_latest_freezes_candidate_and_keeps_unknown_coverage(self):
+        result = inventory(self.profile, start="2026-09-01", today=date(2026, 9, 5),
+                           probe=lambda key, network: Probe(key.url, "AVAILABLE_CANDIDATE" if key.day == 3 else "NOT_FOUND", 200 if key.day == 3 else 404, 10))
+        self.assertEqual(result["resolved_end_exclusive"], "2026-09-04")
+        self.assertFalse(result["coverage_verified"])
+        self.assertFalse(result["publication_verified"])
+        self.assertEqual(result["owners"][0]["state"], "NOT_FOUND")
+
+    def test_explicit_container_reports_extra_period_and_denial_does_not_fallback(self):
+        result = inventory(self.profile, start="2024-02-29", end="2024-03-01", granularity="year", today=date(2026, 9, 5),
+                           probe=lambda key, network: Probe(key.url, "ACCESS_DENIED", 403))
+        self.assertEqual(len(result["owners"]), 1)
+        self.assertEqual(result["owners"][0]["extra_container_days"], 365)
+        self.assertEqual(result["owners"][0]["state"], "ACCESS_DENIED")
