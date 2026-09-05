@@ -29,19 +29,45 @@ tooling must not emit, accept, convert, or dual-write V12.
 
 Use only installed capabilities that match the task:
 
-- `production-engineering-stack:mql5-production-engineering` for `.mq5`/`.mqh`,
+- `$production-engineering-stack:mql5-production-engineering` for `.mq5`/`.mqh`,
   broker execution, handles, MetaEditor, and Strategy Tester work.
-- `codex-agentic-stack:token-saver-orchestrator` for RTK-first inspection and
+- `$codex-agentic-stack:token-saver-orchestrator` for RTK-first inspection and
   compact validation evidence.
-- `production-engineering-stack:python-django-production-engineering` for the
+- `$production-engineering-stack:python-django-production-engineering` for the
   Python validator, DuckDB/Parquet builder, audit, offline trainer, and only
   explicitly authorized downstream Django work.
-- PostgreSQL and release skills only when a separately authorized downstream
-  task reaches those boundaries.
+- `$production-engineering-stack:postgres-production-engineering` and
+  `$production-engineering-stack:devops-release-production-engineering` only when
+  an authorized downstream task reaches those boundaries.
+- Use `$planner` only when explicitly invoked for a saved sprint plan;
+  `create-plan` provides concise chat planning. Resume authorized execution from
+  its existing checkpoint. Archived plans do not start a new execution.
+- Use `$openai-docs` for current Codex/model configuration, with an official
+  search and page fetch. Offline Python training does not create an OpenAI agent
+  runtime or trigger the AI-agent application skill.
+
+The installed plugins own their skills and lifecycle hooks. Do not duplicate
+them in this repository or edit their native caches. Resolve tools and helper
+paths from the installed capability instead of pinning user-specific skill paths.
+Source inspection remains useful when optional MetaTrader MCP servers are offline;
+report compilation/tester checks as unrun when their runner is unavailable.
 
 For any future compile, call the MetaEditor MCP `get_workspace_info` before any
-other compiler tool, then use `compile_file` for the EA. Keep credentials and
-private account or terminal data out of logs and commits.
+other compiler operation, then use `compile_file` for the EA. Discover the current
+tool names and schemas at runtime. Automatic tool approval does not authorize
+trading or account changes. Keep credentials and private account or terminal data
+out of logs and commits.
+
+## Session And Artifact Ownership
+
+Use one writing session per worktree and separate worktrees for concurrent
+writers. Coordinate shared global Codex config/plugin changes with their owner.
+Preserve unexpected edits, inspect the current branch, and stage only reviewed
+paths. Keep checkpoints in ignored `.codex-hook-state/` and disposable output in
+ignored `.codex-artifacts/` or the existing ignored `logs/` and `artifacts/` paths.
+Accepted plans and concise evidence remain source-controlled; private datasets,
+terminal logs, credentials, and `.ex5` output remain local. See
+`docs/environment/mt5-agentic-workflows.md` for the documentation validation gate.
 
 ## Public Input Contract
 

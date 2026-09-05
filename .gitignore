@@ -50,3 +50,4 @@ artifacts/models/
 artifacts/model_exports/
 artifacts/pattern_audits/
 .codex-hook-state/
+.codex-artifacts/

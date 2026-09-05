@@ -4,6 +4,48 @@ This runbook is the source of truth for V13 local paths, deterministic Python
 evidence, MetaEditor compilation, and operator-owned Strategy Tester artifacts.
 Keep full logs and raw market data out of chat and commits.
 
+## Codex Skills And Local State
+
+Read the root [AGENTS.md](../../AGENTS.md) for current product and skill routing.
+MQL5 and Python capabilities come from `production-engineering-stack`; Token
+Saver comes from `codex-agentic-stack`. The standalone `$planner` writes saved
+plans only when explicitly invoked. Installed plugins own `Stop`, `PreCompact`,
+`PostCompact`, and compact `SessionStart` hooks; do not add duplicate local hooks
+or restore the retired per-tool cleanup workflow.
+
+MetaEditor and MetaTrader terminal MCP servers remain optional capabilities.
+Discover their actual tool names and schemas in the active session. MetaEditor
+must run for compilation, and the terminal must run for terminal/tester tools.
+Missing tools leave the corresponding gate unrun; they do not prevent source
+inspection. Tool availability and automatic approval never authorize live trades.
+Keep `METATRADER_METAEDITOR_MCP_API_KEY` and `METATRADER_TERMINAL_MCP_API_KEY`
+values outside project files, logs, and commits.
+
+Use one writer per worktree. Keep runtime checkpoints in `.codex-hook-state/`
+and disposable diagnostics in `.codex-artifacts/`, both ignored. Preserve accepted
+operator artifacts; do not clean shared terminal folders as session maintenance.
+Global provider/authentication configuration belongs in the user Codex layer,
+not in this project's `.codex/config.toml`. Restart the Codex session to load
+updated instructions; do not reinstall unchanged plugins.
+
+For guidance-only edits, review skill identifiers and links, confirm that source
+and include files are unchanged, review the broker/research boundaries, and run:
+
+```bash
+git diff --check
+git diff --name-only
+git check-ignore .codex-hook-state/probe.json .codex-artifacts/probe.txt
+```
+
+Commit only the reviewed documentation/ignore paths on the current branch and
+record the parent SHA as rollback. These checks do not replace compilation,
+Python contracts, or human chart acceptance when their inputs change.
+
+Reviewed 2026-09-05 against OpenAI's
+[AGENTS.md discovery](https://learn.chatgpt.com/docs/agent-configuration/agents-md),
+[skills](https://learn.chatgpt.com/docs/build-skills), and
+[configuration](https://learn.chatgpt.com/docs/config-file/config-advanced) guidance.
+
 ## Path Contract
 
 ### Windows
@@ -55,8 +97,9 @@ runtime-model artifact requirement.
 - Recompile after an MQL5 source/include change, a compiler/toolchain change, or
   an explicit new acceptance gate. Future multi-sprint plans define whether
   intermediate compiles are required.
-- Call MetaEditor MCP `get_workspace_info` first, verify allowed roots and
-  `can_compile_file`, then call `compile_file` for the absolute EA path.
+- Discover the current MetaEditor tool schema, call `get_workspace_info` first,
+  verify allowed roots and `can_compile_file`, then call `compile_file` for the
+  absolute EA path.
 - Accept only `0 errors, 0 warnings`, and verify that `HFT_Grid_AI.ex5` was
   regenerated (timestamp, size, and hash where available).
 - MetaEditor `/s` syntax checks are not binary acceptance evidence.
