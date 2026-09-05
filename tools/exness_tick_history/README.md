@@ -12,6 +12,8 @@ with DuckDB 1.5.4. Run from the repository root:
 .venv/bin/python -m tools.exness_tick_history inspect-archive <local.zip> --year 2026 --month 9 --day 1
 .venv/bin/python -m tools.exness_tick_history inventory --start 2026-08-01 --end 2026-09-02 --granularity auto
 .venv/bin/python -m tools.exness_tick_history download --inventory <inventory_id> --resume
+.venv/bin/python -m tools.exness_tick_history build --inventory <inventory_id> --dataset-id <new_dataset_id>
+.venv/bin/python -m tools.exness_tick_history audit --dataset-id <dataset_id>
 .venv/bin/python -m unittest discover -s tools/exness_tick_history/tests -p 'test_*.py'
 ```
 
@@ -49,6 +51,31 @@ requires a fresh inventory; previous archive versions remain intact. Run one
 writer per data root. A stale lock file is harmless once its OS lock is released;
 never delete another process's active lock. Incomplete downloads exit 3 and
 write details to `runs/<inventory_id>/download-status.json`.
+
+Build writes ordered UTC-date Parquet partitions with `DECIMAL(38,12)` quotes
+and source archive/member/row provenance. Quotes outside the supported exact
+range or precision are quarantined, never rounded. A day is sorted by timestamp
+and original row number; byte-identical source rows remain separate ticks.
+Each source is spooled on disk before per-day DuckDB sorting, with four open
+spool files, 4,096-row read batches, one database thread and configured memory/
+spill limits. Memory limits apply to DuckDB's buffer manager, not total RSS.
+Budget about twice the largest expanded source for working storage, plus
+retained ZIPs, Parquet, future MT5 text/history, and the configured reserve.
+
+Interrupted builds resume completed sources/partitions in `<dataset_id>-partial`.
+The final directory appears only after row conservation and manifests are
+written. Source spools are removed after their partitions are published to
+staging; raw ZIPs remain. Reusing an ID with changed inputs fails. IDs ending
+in `-partial` are reserved. Invalid rows and reasons remain in the dataset's
+source-hash directory, alongside `source-summary.json`.
+
+`quality.json` reports conservation, regressions, precision and report-only
+spread/jump flags. Each date has `activity.json` with minute/hour counts and
+unreviewed gaps over 60 seconds. Dates with no ticks remain unknown closures.
+`audit` rechecks physical and ordered logical hashes. Exit 4 means inconclusive
+coverage; exit 3 means failed integrity. An integrity pass concerns the supplied
+archive and transformation; it does not prove missing intraday ticks never
+existed, native import equality, or broker equivalence.
 
 See the [workflow](../../docs/workflows/exness-tick-history.md) for the source,
 terminal and acceptance contract. Native MT5 checks are pending until the

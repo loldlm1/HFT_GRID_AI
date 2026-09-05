@@ -38,3 +38,23 @@ Its monthly partial had zero bytes at interruption; nonzero byte-range resume
 is validated by deterministic transfer fixtures. A competing writer failed
 without disturbing the active lock. Repeat download performs zero HTTP body
 bytes. Source rows and historical coverage are assessed in Sprint 3.
+
+## Sprint 3
+
+Sprint 2 commit / rollback parent: `286e6b7`.
+Automated gate PASS: 32 tests, including exact decimal range/precision,
+malformed UTC dates, legitimate duplicates, stable tie order, quarantine and
+selection conservation, interrupted atomic publication, altered Parquet,
+9,000-row multiple-batch processing at 64 MB, and actual DuckDB spill-limit
+exhaustion. Compileall and the common source/include/safety gate pass.
+
+Real dataset `xauusd-20260901-v2`, inventory
+`inv-77b1cceb5cf5e13a90c6e695`: 344,128 retained rows, zero quarantined or
+excluded rows, 766 equal-time rows, no adjacent identical ticks, and no source
+timestamp regressions. Ordered logical dataset SHA-256:
+`7b69fd2dc2a4d23a8e308be2b2852c5079d611325a9dd18ffd7773126309cb16`.
+An earlier build produced the same logical hash. Final Parquet: 3,891,663 bytes;
+build: 59.089 seconds, peak RSS 358,532 KiB with a 512 MB DuckDB setting.
+The full archive/partition audit verifies bytes, logical order and conservation.
+Resource evidence is a one-day measurement, not a completed full backfill.
+The 2015/August archives are retained for subsequent larger-range operation.
