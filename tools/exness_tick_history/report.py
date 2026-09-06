@@ -3,7 +3,10 @@
 from __future__ import annotations
 
 import hashlib
+import math
+import shutil
 from datetime import date, timedelta
+from pathlib import Path
 
 from .config import Profile
 from .storage import Store, StorageError, atomic_json, feed_identity, file_hash, identifier, object_hash, read_json
@@ -153,3 +156,92 @@ def seasonal_report(profile: Profile, year: int, comparison_ids: list[str]) -> d
     clock_state = "FAIL" if mismatches or "FAIL" in gates.values() else "PASS" if set(gates.values()) == {"PASS"} else "INCONCLUSIVE"
     return {"seasonal_acceptance": state, "clock_regime_acceptance": clock_state, "year": year, "day_gates": gates, "profile_or_feed_mismatches": mismatches,
             "comparison_ids": comparison_ids, "schedule": schedule, "scope": "Accepted samples only; no full-history broker equivalence or deployment claim."}
+
+
+def storage_plan(profile: Profile, inventory_id: str, pilot_dataset_id: str,
+                 *, text_bytes_per_tick: int = 160, mt5_bytes_per_tick: int = 128) -> dict:
+    from .download import request_identity
+    from .storage import load_inventory
+    for value in (text_bytes_per_tick, mt5_bytes_per_tick):
+        if type(value) is not int or not 1 <= value <= 4096:
+            raise StorageError("Storage byte-per-tick estimates must be integers from 1 to 4096")
+    with Store(profile.data_root) as store:
+        inventory = load_inventory(store, inventory_id, profile)
+        pilot, quality = load_dataset(store, profile, pilot_dataset_id)
+        if pilot["rows"] <= 0 or quality["row_conservation"]["quarantined_rows"]:
+            raise StorageError("Storage planning needs a nonempty pilot without quarantine")
+        known = [store.object(request_identity(owner)) for owner in inventory["owners"]]
+        known = [item for item in known if item]
+        pilot_sizes = []
+        for source in pilot["sources"]:
+            # Match source hashes to ledger facts; no archive-body download is needed.
+            row = store.connection.execute("SELECT metadata FROM objects WHERE json_extract(metadata,'$.sha256')=? LIMIT 1", [source["sha256"]]).fetchone()
+            if row:
+                import json
+                pilot_sizes.append(json.loads(row[0]))
+        samples = known + pilot_sizes
+        if not samples:
+            raise StorageError("No measured archive expansion is available")
+        expansion = max(item["csv_bytes"] / item["bytes"] for item in samples if item.get("bytes"))
+        raw = inventory["estimated_download_bytes"]
+        expanded = math.ceil(raw * expansion)
+        pilot_csv = sum(item["csv_bytes"] for item in pilot_sizes)
+        source_rows = quality["row_conservation"]["source_rows"]
+        if not pilot_csv or not source_rows:
+            raise StorageError("Pilot source size/count evidence is incomplete")
+        row_estimate = math.ceil(expanded / (pilot_csv / source_rows))
+        parquet_per_tick = sum(part["bytes"] for part in pilot["parts"]) / pilot["rows"]
+        working = math.ceil(max(owner["probe"].get("content_length") or 0 for owner in inventory["owners"]) * expansion * 2)
+        components = {"raw_archives": raw, "canonical_parquet_estimate": math.ceil(row_estimate * parquet_per_tick),
+                      "native_text_estimate": row_estimate * text_bytes_per_tick,
+                      "mt5_history_estimate": row_estimate * mt5_bytes_per_tick,
+                      "largest_source_working_estimate": working, "configured_spill_allowance": profile.limits.temp_limit_mb * 1024**2,
+                      "reserve": profile.limits.disk_reserve_bytes}
+        total = sum(components.values())
+        free = shutil.disk_usage(store.root).free
+        unresolved = [owner["state"] for owner in inventory["owners"] if owner["state"] != "AVAILABLE_CANDIDATE"]
+        status = ("STORAGE_ESTIMATE_INCONCLUSIVE" if inventory["unknown_size_archives"] or unresolved
+                  else "INSUFFICIENT_ESTIMATED_STORAGE" if total > free else "ESTIMATED_STORAGE_FITS")
+        result = {"inventory_id": inventory_id, "pilot_dataset_id": pilot_dataset_id, "status": status,
+                  "requested_start": inventory["requested_start"], "resolved_end_exclusive": inventory["resolved_end_exclusive"],
+                  "archive_candidates": len(inventory["owners"]), "unresolved_archive_states": unresolved,
+                  "unknown_archive_sizes": inventory["unknown_size_archives"], "estimated_rows": row_estimate,
+                  "components_bytes": components, "estimated_total_bytes": total, "available_bytes": free,
+                  "assumptions": {"maximum_observed_zip_expansion": expansion, "pilot_csv_bytes_per_source_row": pilot_csv / source_rows,
+                                  "pilot_parquet_bytes_per_retained_tick": parquet_per_tick, "native_text_bytes_per_tick": text_bytes_per_tick,
+                                  "mt5_bytes_per_tick": mt5_bytes_per_tick, "mt5_storage_measured": False},
+                  "note": "Conservative complete-workflow estimate; refine text/native storage after the operator pilot. Existing pilot bytes are counted again as headroom. This is not a completed backfill."}
+        atomic_json(store.path("runs", inventory_id, "storage-plan.json"), result)
+        return result
+
+
+def research_provenance(profile: Profile, dataset_id: str, export_id: str, research_id: str,
+                        v13_run_id: str, ea_source: Path, ea_binary: Path,
+                        tester_evidence: dict | None = None) -> dict:
+    from .mt5_export import load_export
+    identifier(research_id)
+    identifier(v13_run_id)
+    with Store(profile.data_root) as store:
+        dataset, _ = load_dataset(store, profile, dataset_id)
+        exported = load_export(store, profile, export_id)
+        if exported["dataset_manifest_sha256"] != dataset["manifest_sha256"]:
+            raise StorageError("Research export belongs to different dataset inputs")
+        evidence = tester_evidence or {}
+        settings = evidence.get("settings", {})
+        allowed_settings = {"model", "start", "end", "Broker_Session", "Macro_Timeframe", "Deep_Timeframe", "Micro_Timeframe",
+                            "Enable_Signal_Feature_Export", "Signal_Feature_Run_Id", "execution_delay_ms", "warmup_start"}
+        if not isinstance(settings, dict) or settings.keys() - allowed_settings:
+            raise StorageError("Tester evidence settings must use the documented non-private input fields")
+        result = {"schema_version": 1, "research_id": research_id, "v13_run_id": v13_run_id,
+                  "dataset_id": dataset_id, "dataset_manifest_sha256": dataset["manifest_sha256"],
+                  "export_id": export_id, "export_manifest_sha256": exported["manifest_sha256"],
+                  "custom_symbol": exported["custom_symbol"], "specification_sha256": exported["specification_sha256"],
+                  "clock_sha256": exported["clock_sha256"], "feed_sha256": object_hash(feed_identity(profile)),
+                  "ea_source_sha256": file_hash(ea_source), "ea_binary_sha256": file_hash(ea_binary),
+                  "tester_evidence_sha256": object_hash(evidence) if evidence else None,
+                  "tester_build": evidence.get("tester_build"), "tester_settings": settings,
+                  "operator_validation": evidence.get("operator_validation", "PENDING_OPERATOR"),
+                  "approval_state": "OFFLINE_RESEARCH_ONLY", "evidence_role": "input provenance; not native/tester acceptance",
+                  "v13_run_files_written": False, "runtime_artifact_emitted": False}
+        atomic_json(store.path("research", research_id, "input-provenance.json"), result, immutable=True)
+        return result

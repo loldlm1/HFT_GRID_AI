@@ -14,7 +14,7 @@ from tools.exness_tick_history.config import load_profile
 from tools.exness_tick_history.download import request_identity
 from tools.exness_tick_history.report import audit_dataset
 from tools.exness_tick_history.sanitize import build_dataset, connection, iter_ticks
-from tools.exness_tick_history.storage import Store, StorageError, atomic_json, file_hash, read_json
+from tools.exness_tick_history.storage import Store, StorageError, atomic_json, file_hash, object_hash, read_json
 
 
 class PipelineTests(unittest.TestCase):
@@ -41,7 +41,7 @@ class PipelineTests(unittest.TestCase):
                 target = store.path("archives", sha, key.filename)
                 target.parent.mkdir(parents=True, exist_ok=True)
                 path.replace(target)
-                store.record(request_identity(owner), {"state": "VERIFIED", "sha256": sha, "filename": key.filename,
+                store.record(request_identity(owner), {"state": "VERIFIED", "sha256": sha, "filename": key.filename, "bytes": target.stat().st_size,
                                                        **verify_zip(target, key, self.profile.limits)})
         return inv["inventory_id"]
 
@@ -126,3 +126,57 @@ class PipelineTests(unittest.TestCase):
                 con.execute("SELECT i, hash(i) k FROM range(10000000) t(i) ORDER BY k")
         finally:
             con.close()
+
+    def test_storage_planning_discloses_unknown_sizes_and_insufficient_disk(self):
+        from tools.exness_tick_history.report import storage_plan
+        from unittest.mock import Mock
+        inv_id = self.seed([self.row()])
+        build_dataset(self.profile, inv_id, "pilot")
+        self.assertEqual(storage_plan(self.profile, inv_id, "pilot")["status"], "STORAGE_ESTIMATE_INCONCLUSIVE")
+        with Store(self.profile.data_root) as store:
+            inv = read_json(store.path("runs", inv_id, "inventory.json"))
+            inv.pop("inventory_id")
+            inv["unknown_size_archives"] = 0
+            inv["estimated_download_bytes"] = 1000000
+            inv["owners"][0]["probe"]["content_length"] = 1000000
+            inv["inventory_id"] = "inv-" + object_hash(inv)[:24]
+            atomic_json(store.path("runs", inv["inventory_id"], "inventory.json"), inv, immutable=True)
+        with patch("shutil.disk_usage", return_value=Mock(free=1)):
+            result = storage_plan(self.profile, inv["inventory_id"], "pilot")
+        self.assertEqual(result["status"], "INSUFFICIENT_ESTIMATED_STORAGE")
+        self.assertEqual(sum(result["components_bytes"].values()), result["estimated_total_bytes"])
+        self.assertFalse(result["assumptions"]["mt5_storage_measured"])
+
+    def test_research_provenance_is_immutable_and_outside_v13_run(self):
+        from tools.exness_tick_history.report import research_provenance
+        from tools.exness_tick_history.mt5_export import export_mt5
+        from tools.exness_tick_history.tests import test_mt5_export as exports
+        inv = self.seed([self.row()])
+        build_dataset(self.profile, inv, "input")
+        export_mt5(self.profile, "input", "export", exports.specification(self.profile), exports.clock_map())
+        source, binary = self.profile.data_root / "source.bin", self.profile.data_root / "binary.bin"
+        source.write_bytes(b"authored source hash fixture")
+        binary.write_bytes(b"authored binary hash fixture; not a compiled program")
+        result = research_provenance(self.profile, "input", "export", "research", "v13-fixture", source, binary)
+        self.assertFalse(result["v13_run_files_written"])
+        self.assertEqual(result["operator_validation"], "PENDING_OPERATOR")
+        self.assertEqual(result["ea_binary_sha256"], file_hash(binary))
+        self.assertEqual(list(self.profile.data_root.rglob("*.tsv")), [self.profile.data_root / "exports/export/ticks-000000.tsv"])
+        binary.write_bytes(b"changed")
+        with self.assertRaises(StorageError):
+            research_provenance(self.profile, "input", "export", "research", "v13-fixture", source, binary)
+
+    def test_cli_build_audit_and_deferred_acceptance_status(self):
+        from contextlib import redirect_stdout
+        from tools.exness_tick_history.cli import main
+        inv = self.seed([self.row()])
+        config = self.profile.data_root / "local.toml"
+        config.write_text(f'schema_version = 1\n[storage]\ndata_root = "{self.profile.data_root}"\n')
+        prefix = ["--config", str(config)]
+        output = io.StringIO()
+        with redirect_stdout(output):
+            self.assertEqual(main(prefix + ["build", "--inventory", inv, "--dataset-id", "cli"]), 0)
+            self.assertEqual(main(prefix + ["audit", "--dataset-id", "cli"]), 0)
+            self.assertEqual(main(prefix + ["seasonal-report", "--year", "2026"]), 4)
+        self.assertIn('"artifact_verification": "PASS"', output.getvalue())
+        self.assertIn('"seasonal_acceptance": "INCONCLUSIVE"', output.getvalue())

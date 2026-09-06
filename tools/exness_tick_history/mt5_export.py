@@ -7,9 +7,8 @@ import os
 from dataclasses import dataclass
 from datetime import timedelta
 from decimal import Decimal, localcontext
-from pathlib import Path
 
-from .archive import SourceError
+from .archive import PRICE_PATTERN, SourceError
 from .config import Profile, validate_symbol
 from .report import load_dataset
 from .sanitize import EPOCH, connection, exact_price, iter_ticks, quote_line, utc_milliseconds
@@ -28,7 +27,7 @@ class ClockMap:
 
     @classmethod
     def parse(cls, raw: dict):
-        if (raw.get("schema_version") != 1 or raw.get("operator_verified") is not True
+        if (type(raw.get("schema_version")) is not int or raw.get("schema_version") != 1 or raw.get("operator_verified") is not True
                 or not raw.get("evidence_id") or not isinstance(raw.get("periods"), list)
                 or not 1 <= len(raw["periods"]) <= 1000):
             raise SourceError("Clock mapping requires explicit verified periods and evidence")
@@ -64,7 +63,7 @@ class ClockMap:
 
 
 def validate_specification(raw: dict, profile: Profile) -> dict:
-    if (raw.get("schema_version") != 1 or raw.get("operator_verified") is not True
+    if (type(raw.get("schema_version")) is not int or raw.get("schema_version") != 1 or raw.get("operator_verified") is not True
             or raw.get("feed_sha256") != object_hash(feed_identity(profile))
             or raw.get("broker_symbol") != profile.instrument.broker_symbol
             or not raw.get("evidence_id") or not isinstance(raw.get("properties"), dict)):
@@ -95,8 +94,10 @@ def validate_specification(raw: dict, profile: Profile) -> dict:
             raise SourceError("Incomplete symbol calculation/currency specification")
     for key in ("margin_initial", "margin_maintenance"):
         value = props[key]
-        if not isinstance(value, str) or value != "0" and exact_price(value) < 0:
+        if not isinstance(value, str) or len(value) > 64 or not PRICE_PATTERN.fullmatch(value):
             raise SourceError("Invalid margin specification")
+        if Decimal(value) != 0:
+            exact_price(value)
     for key in ("stops_level", "freeze_level"):
         if type(props[key]) is not int or props[key] < 0:
             raise SourceError("Invalid stops/freeze specification")
@@ -151,7 +152,7 @@ def export_mt5(profile: Profile, dataset_id: str, export_id: str, spec: dict, cl
         raise SourceError("Invalid export ID or chunk_rows (1..10000000)")
     spec = validate_specification(spec, profile)
     mapping = ClockMap.parse(clock)
-    name = validate_symbol(custom_symbol or f"{profile.instrument.base_symbol}_EXN_{object_hash(export_id)[:8]}")
+    name = validate_symbol(custom_symbol or f"{profile.instrument.base_symbol[:18]}_EXN_{object_hash(export_id)[:8]}")
     if name in spec["existing_symbols"] or name == profile.instrument.broker_symbol:
         raise SourceError("Custom-symbol name collides with an existing symbol")
     if profile.instrument.base_symbol.startswith(("XAU", "XAG", "XPT", "XPD")) and not name.startswith(profile.instrument.base_symbol[:3]):

@@ -35,6 +35,7 @@ class ConfigTests(unittest.TestCase):
                  '[selection]\nstart = "2026-02-29"', '[comparison]\nstatus = "PINNED"',
                  '[comparison]\nmax_unexplained_clock_offset_seconds = 3600',
                  '[storage]\ndata_root = "."', '[storage]\ndata_root = "tools/raw"',
+                 '[storage]\ndata_root = ".."',
                  '[terminal]\nhost_root = "/tmp"', '[terminal]\nwine_prefix = "relative"']
         for case in cases:
             with self.subTest(case=case), self.assertRaises(ConfigError):

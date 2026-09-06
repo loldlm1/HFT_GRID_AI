@@ -5,14 +5,15 @@ from __future__ import annotations
 import argparse
 import json
 import sys
+from collections import Counter
 from pathlib import Path
 
-from .archive import ArchiveKey, SourceError, inspect_archive, inventory, probe_archive
+from .archive import ArchiveKey, SourceError, inspect_archive, inventory, network_check, probe_archive
 from .config import ConfigError, load_profile
 from .download import download_inventory
 from .storage import Store, StorageError, atomic_json, feed_identity, object_hash, read_json
 from .sanitize import build_dataset
-from .report import audit_dataset, save_comparison, seasonal_report, seasonal_schedule
+from .report import audit_dataset, research_provenance, save_comparison, seasonal_report, seasonal_schedule, storage_plan
 from .mt5_export import export_mt5
 from .compare import compare_broker, compare_roundtrip, comparison_profile_hash
 
@@ -59,8 +60,22 @@ def main(argv: list[str] | None = None) -> int:
     command = commands.add_parser("seasonal-report", help="Require independent frozen winter/summer and transition results")
     command.add_argument("--year", type=int, required=True)
     command.add_argument("--comparisons", nargs="*", default=[])
+    command = commands.add_parser("storage-plan", help="Estimate full-workflow disk needs from measured pilot evidence")
+    command.add_argument("--inventory", required=True)
+    command.add_argument("--pilot-dataset", required=True)
+    command.add_argument("--text-bytes-per-tick", type=int, default=160)
+    command.add_argument("--mt5-bytes-per-tick", type=int, default=128)
+    command = commands.add_parser("research-provenance", help="Write an immutable sidecar outside the strict V13 run folder")
+    command.add_argument("--dataset-id", required=True)
+    command.add_argument("--export-id", required=True)
+    command.add_argument("--research-id", required=True)
+    command.add_argument("--v13-run-id", required=True)
+    command.add_argument("--ea-source", type=Path, required=True)
+    command.add_argument("--ea-binary", type=Path, required=True)
+    command.add_argument("--tester-evidence", type=Path)
     for name, help_text in (("probe-archive", "Probe one annual/monthly/daily ZIP URL without downloading its body"),
-                            ("inspect-archive", "Verify one local source ZIP/CSV without changing it")):
+                            ("inspect-archive", "Verify one local source ZIP/CSV without changing it"),
+                            ("network-check", "Check the selection page and archive host independently")):
         command = commands.add_parser(name, help=help_text)
         if name == "inspect-archive":
             command.add_argument("path", type=Path)
@@ -78,11 +93,20 @@ def main(argv: list[str] | None = None) -> int:
             result = seasonal_schedule(args.year)
         elif args.command == "seasonal-report":
             result = seasonal_report(profile, args.year, args.comparisons)
+        elif args.command == "storage-plan":
+            result = storage_plan(profile, args.inventory, args.pilot_dataset,
+                                  text_bytes_per_tick=args.text_bytes_per_tick, mt5_bytes_per_tick=args.mt5_bytes_per_tick)
+        elif args.command == "research-provenance":
+            result = research_provenance(profile, args.dataset_id, args.export_id, args.research_id,
+                                         args.v13_run_id, args.ea_source, args.ea_binary,
+                                         read_json(args.tester_evidence) if args.tester_evidence else None)
         elif args.command == "inventory":
             with Store(profile.data_root) as store:
                 result = inventory(profile, start=args.start, end=args.end, granularity=args.granularity)
                 atomic_json(store.path("runs", result["inventory_id"], "inventory.json"), result, immutable=True)
+            states = dict(Counter(owner["state"] for owner in result["owners"]))
             result = {key: value for key, value in result.items() if key not in ("candidates", "owners", "feed")}
+            result["archive_state_counts"] = states
         elif args.command == "download":
             report = download_inventory(profile, args.inventory, resume=args.resume)
             result = {key: value for key, value in report.items() if key != "objects"}
@@ -111,6 +135,8 @@ def main(argv: list[str] | None = None) -> int:
             key = ArchiveKey(profile.instrument.archive_symbol, args.year, args.month, args.day)
             if args.command == "probe-archive":
                 result = probe_archive(key, profile.network).summary()
+            elif args.command == "network-check":
+                result = network_check(key, profile.network)
             else:
                 result = inspect_archive(args.path, key, profile.limits)
         if args.command == "compare-broker":
@@ -124,6 +150,10 @@ def main(argv: list[str] | None = None) -> int:
             return {"PASS": 0, "FAIL": 3, "INCONCLUSIVE": 4}[result["broker_comparison"]]
         if args.command == "seasonal-report":
             return {"PASS": 0, "FAIL": 3, "INCONCLUSIVE": 4}[result["seasonal_acceptance"]]
+        if result.get("status") in ("INSUFFICIENT_ESTIMATED_STORAGE", "STORAGE_ESTIMATE_INCONCLUSIVE"):
+            return 4
+        if args.command == "network-check" and not result["archive_candidate_reachable"]:
+            return 3
         if result.get("data_integrity") in ("FAIL", "INCONCLUSIVE"):
             return 3 if result["data_integrity"] == "FAIL" else 4
         if result.get("status") == "DOWNLOAD_INCOMPLETE":

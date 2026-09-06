@@ -136,6 +136,9 @@ def probe_archive(key: ArchiveKey, network: Network) -> Probe:
             length = response.headers.get("Content-Length")
             if length is not None and (not re.fullmatch(r"[0-9]+", length) or int(length) <= 0):
                 return Probe(key.url, "INVALID_RESPONSE", response.status, diagnostic="Invalid Content-Length")
+            if any(len(value) > 4096 or any(ord(char) < 32 or ord(char) == 127 for char in value)
+                   for value in (response.headers.get("ETag", ""), response.headers.get("Last-Modified", ""))):
+                return Probe(key.url, "INVALID_RESPONSE", response.status, diagnostic="Invalid object validator header")
             return Probe(key.url, "AVAILABLE_CANDIDATE", response.status,
                          int(length) if length else None, response.headers.get("ETag"),
                          response.headers.get("Last-Modified"), response.headers.get("Accept-Ranges") == "bytes")
@@ -347,3 +350,23 @@ def inventory(profile: Profile, *, start=None, end=None, granularity=None,
                                            for item in owners), "coverage_verified": False}
     result["inventory_id"] = "inv-" + object_hash(result)[:24]
     return result
+
+
+def network_check(key: ArchiveKey, network: Network) -> dict:
+    class PageRedirects(urllib.request.HTTPRedirectHandler):
+        def redirect_request(self, req, fp, code, msg, headers, newurl):
+            return None
+
+    page = {"host": "www.exness.com", "state": "NETWORK_ERROR", "http_status": None}
+    request = urllib.request.Request("https://www.exness.com/tick-history/", method="HEAD")
+    try:
+        with urllib.request.build_opener(PageRedirects()).open(request, timeout=network.timeout_seconds) as response:
+            page.update(state="REACHABLE" if response.status == 200 else "UNEXPECTED_STATUS", http_status=response.status)
+    except urllib.error.HTTPError as exc:
+        page.update(state="ACCESS_DENIED" if exc.code in (401, 403) else "HEAD_UNSUPPORTED" if exc.code == 405 else "HTTP_ERROR", http_status=exc.code)
+        exc.close()
+    except (urllib.error.URLError, OSError, TimeoutError):
+        pass
+    archive = probe_archive(key, network).summary()
+    return {"page": page, "archive": archive, "archive_candidate_reachable": archive["state"] == "AVAILABLE_CANDIDATE",
+            "note": "Checks the operator's current network only; no VPN or proxy settings were changed."}

@@ -239,7 +239,7 @@ def load_profile(path: Path, *, workspace: Path = PROJECT_ROOT) -> Profile:
     root = Path(_text(storage, "data_root", "artifacts/exness_tick_history")).expanduser()
     workspace = workspace.resolve()
     root = (workspace / root).resolve() if not root.is_absolute() else root.resolve()
-    if root == Path(root.anchor) or root == Path.home().resolve() or root == workspace:
+    if root == Path(root.anchor) or root == Path.home().resolve() or workspace.is_relative_to(root):
         raise ConfigError("data_root must be a dedicated data directory")
     if root.is_relative_to(workspace) and not root.is_relative_to(workspace / "artifacts/exness_tick_history"):
         raise ConfigError("An in-project data_root must be under artifacts/exness_tick_history")

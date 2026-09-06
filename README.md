@@ -175,6 +175,19 @@ them only during explicit deep training. Censored, ineligible, parity, and
 not-triggered facts never become target-zero losses. All model artifacts remain
 `OFFLINE_RESEARCH_ONLY` and cannot influence MT5 execution.
 
+## Exness Historical Input
+
+The separate [Exness tick-history CLI](tools/exness_tick_history/README.md)
+discovers annual/monthly/daily archives, resumes verified downloads, preserves
+exact UTC quotes and tied ticks in Parquet, prepares native MT5 import files,
+and compares custom/broker ticks and bars. It supports explicit symbols,
+suffixes, dates and separate Pro demo/live profiles on Ubuntu with Wine.
+
+See the [operator workflow](docs/workflows/exness-tick-history.md) and
+[implementation evidence](docs/research/exness-tick-history-acceptance.md).
+Guided native import and real seasonal acceptance remain pending. Exness input
+provenance stays outside the strict twelve-file V13 run folder.
+
 ## Validation Status
 
 The V13 MQL5 implementation plan is complete and archived. Sprints 1-8 have

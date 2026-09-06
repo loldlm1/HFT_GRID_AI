@@ -163,6 +163,77 @@ release's aggregate uses this deterministic schedule. A justified replacement
 day must be frozen and reviewed explicitly; it is not silently substituted by
 the aggregate command.
 
+## Full-History Operation And Recovery
+
+The implementation inventory frozen on September 6 UTC requests 2015 through
+the latest published candidate day, September 4, 2026. Inventory ID:
+`inv-6e244609e216802ca3d09123`. It selects 11 annual, eight monthly and four
+daily candidates, totaling 2,993,886,749 compressed bytes. All 23 HEAD probes
+were available; only the three bounded-pilot bodies have been downloaded and
+verified. Actual earliest/full coverage still requires the source build/audit.
+
+The conservative storage plan estimates 146,437,977,528 bytes for the complete
+workflow versus 120,363,225,088 bytes free at measurement. It uses measured
+maximum ZIP expansion 9.2602, pilot Parquet size and explicit allowances of
+160 text bytes and 128 MT5-history bytes per tick. Native storage is unmeasured;
+this is a planning estimate, not proof that MT5 requires those exact bytes.
+Measure the native pilot and/or provision a larger dedicated data root before
+the full download/build/export/import workflow. The full backfill remains
+pending; no partial pilot is labeled as the complete 2015-present history.
+
+```bash
+.venv/bin/python -m tools.exness_tick_history inventory --start 2015-01-01 --end latest-published
+.venv/bin/python -m tools.exness_tick_history storage-plan --inventory <full_inventory_id> --pilot-dataset <pilot_dataset_id>
+.venv/bin/python -m tools.exness_tick_history download --inventory <full_inventory_id> --resume
+.venv/bin/python -m tools.exness_tick_history build --inventory <full_inventory_id> --dataset-id <new_full_dataset_id>
+.venv/bin/python -m tools.exness_tick_history audit --dataset-id <new_full_dataset_id>
+```
+
+Run from the repo root and include `--config <private_profile.toml>` before each
+command once feed and terminal evidence are pinned. A changed feed identity
+requires a new inventory/dataset; the ledger can still reuse the same immutable
+raw archive bytes. Preserve the pilot and accepted versions. A later history
+extension uses new inventory, dataset, export and custom-symbol IDs.
+
+Ctrl-C retains owned partial downloads and build checkpoints. Retry with
+`download --resume` or the same build inputs/ID; conflicting immutable inputs
+require a new ID. Without `--resume`, only the request's disposable partial ZIP
+restarts. Do not remove an active writer lock, overwrite accepted ZIPs or edit
+ledger checksums to hide corruption. Restore matching raw bytes from retained
+backup or start an isolated corrected version.
+
+## Operator Validation Queue
+
+The six implementation sprints do not complete these deferred gates:
+
+1. Pin the actual Pro demo/live profile, server alias, feed mapping and terminal
+   path/build; verify the nonzero trade tick and native sessions/specification.
+2. Verify the historical UTC/broker clock from real tick/bar evidence; keep the
+   EA's export-only analysis calendar separate.
+3. Create/import the small owned custom symbol, check milliseconds/tied ticks,
+   determine native M1 generation, and run exact tick plus M1/M3/M10/H1 round trip.
+4. Calibrate and pin the numeric profile using the independent pilot. Freeze
+   complete winter/summer and available transition captures before scoring.
+5. Run the independent seasonal comparisons. Retain failures and missing-history
+   evidence; a replacement day requires a documented predeclared rule.
+6. Refine the full-workflow storage estimate, provision capacity, then complete
+   the full available source backfill, quality audit and native import/round trip.
+7. Run the unchanged EA in the operator-owned Strategy Tester using **Every tick
+   based on real ticks**, `EXNESS_SESSION`, H1/M10/M3, real warm-up and an isolated
+   custom-symbol run ID. Inspect the tester report/journal for modeled-tick
+   substitution and history errors. No live chart deployment follows.
+8. Use the existing strict V13 validator, builder and audit from the
+   [statistics workflow](pivot-fractal-statistics-flow.md). Preserve its support
+   floor of 30 even when a bounded run has insufficient statistical support.
+9. Write the service's `research-provenance` sidecar outside V13, linking the
+   actual source/binary, dataset/export, symbol/spec/clock and tester evidence.
+
+If compilation becomes necessary for the tester's actual source/toolchain,
+follow the [environment preflight/compile policy](../environment/mt5-agentic-workflows.md).
+No MQL5 source/include changed during this implementation batch and no new
+compile, native import or Strategy Tester run is claimed. The earlier V13
+human chart-object/rendering gate also remains independent and outstanding.
+
 ## Validation And Rollback
 
 Each sprint runs focused Python tests, compileall, identifier/include and

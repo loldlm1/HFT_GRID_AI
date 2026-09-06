@@ -61,6 +61,13 @@ class ExportTests(unittest.TestCase):
         with self.assertRaises(SourceError):
             compatible_quote(Decimal("1.001"), Decimal("1.005"), self.spec)
 
+    def test_exact_zero_margin_and_boolean_schema_rejection(self):
+        self.spec["properties"]["margin_initial"] = "0.000"
+        validate_specification(self.spec, self.profile)
+        self.spec["schema_version"] = True
+        with self.assertRaises(SourceError):
+            validate_specification(self.spec, self.profile)
+
     def test_clock_is_explicit_reversible_and_covers_input(self):
         self.clock["periods"][0]["offset_seconds"] = 7200
         mapping = ClockMap.parse(self.clock)

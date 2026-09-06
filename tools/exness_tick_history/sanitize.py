@@ -47,7 +47,7 @@ def day_milliseconds(value: date | str) -> int:
 
 @lru_cache(maxsize=8192)
 def exact_price(text: str) -> Decimal:
-    if not PRICE_PATTERN.fullmatch(text):
+    if not isinstance(text, str) or len(text) > 64 or not PRICE_PATTERN.fullmatch(text):
         raise SourceError("PRICE_GRAMMAR")
     integer, _, fractional = text.partition(".")
     if len(integer.lstrip("0")) > 26 or len(fractional) > 12:

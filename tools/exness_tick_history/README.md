@@ -19,6 +19,8 @@ with DuckDB 1.5.4. Run from the repository root:
 .venv/bin/python -m tools.exness_tick_history seasonal-schedule --year 2026
 .venv/bin/python -m tools.exness_tick_history compare-broker --dataset-id <dataset_id> --reference <reference.json> --roundtrip-report <roundtrip-report.json> --comparison-id <new_comparison_id>
 .venv/bin/python -m tools.exness_tick_history seasonal-report --year 2026 --comparisons <winter_id> <summer_id> <transition_ids>
+.venv/bin/python -m tools.exness_tick_history storage-plan --inventory <full_inventory_id> --pilot-dataset <pilot_dataset_id>
+.venv/bin/python -m tools.exness_tick_history network-check --year 2026 --month 9 --day 1
 .venv/bin/python -m unittest discover -s tools/exness_tick_history/tests -p 'test_*.py'
 ```
 
@@ -123,6 +125,40 @@ the profile hash; do not change thresholds after scoring an acceptance day.
 `seasonal-report` reports winter/summer sample acceptance separately from the
 broader clock-regime diagnostics. Future transition dates remain untested.
 Neither result certifies every historical year or real broker execution.
+
+For the full backfill, freeze a new inventory from 2015 to `latest-published`,
+then run `storage-plan` using a measured pilot dataset. Its explicit estimates
+include retained archives, Parquet, native text/history, the largest source's
+working storage, spill allowance and reserve. `--text-bytes-per-tick` and
+`--mt5-bytes-per-tick` may be refined from native pilot measurements; defaults
+are conservative estimates, not measured MT5 disk use. Unknown sizes or an
+insufficient estimate exit 4. Provision a dedicated larger data root or measure
+the native pilot before launching a full workflow that exceeds available space.
+
+Extending history uses another inventory/dataset/export ID on the same data
+root. Verified unchanged archives are reused from the ledger; the new dataset
+does not append into a prior accepted version. A changed URL validator creates
+a new source request identity. If immutable bytes are corrupted or missing,
+restore the matching checksum from a retained backup or use a new data root
+and source version; do not edit the ledger to claim repaired evidence.
+
+After an operator-owned tester run, `research-provenance` records dataset,
+export, custom-symbol, clock/spec and EA source/binary hashes outside V13:
+
+```bash
+.venv/bin/python -m tools.exness_tick_history research-provenance \
+  --dataset-id <dataset_id> --export-id <export_id> \
+  --research-id <new_research_id> --v13-run-id <run_id> \
+  --ea-source HFT_Grid_AI.mq5 --ea-binary HFT_Grid_AI.ex5 \
+  --tester-evidence <private_tester_evidence.json>
+```
+
+The optional tester evidence contains `tester_build`, `operator_validation`
+and `settings`. Allowed settings are `model`, `start`, `end`, `warmup_start`,
+`Broker_Session`, `Macro_Timeframe`, `Deep_Timeframe`, `Micro_Timeframe`,
+`Enable_Signal_Feature_Export`, `Signal_Feature_Run_Id`, `execution_delay_ms`.
+This sidecar records provenance only; it never certifies a tester run, writes
+inside the V13 folder, trains a model or activates broker execution.
 
 See the [workflow](../../docs/workflows/exness-tick-history.md) for the source,
 terminal and acceptance contract. Native MT5 checks are pending until the

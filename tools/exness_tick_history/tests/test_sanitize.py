@@ -15,7 +15,7 @@ class SanitizeTests(unittest.TestCase):
                 utc_milliseconds(text)
 
     def test_exact_decimal_registry_rejects_loss(self):
-        for value in ("1.1234567890123", "100000000000000000000000000", "NaN", "inf", "-1", "1e3", "0"):
+        for value in ("1.1234567890123", "100000000000000000000000000", "NaN", "inf", "-1", "1e3", "0", "0" * 1000 + "1"):
             with self.subTest(value=value), self.assertRaises(SourceError):
                 exact_price(value)
         large = "99999999999999999999999999.123456789012"

@@ -94,3 +94,58 @@ operator broker reference, verified clock/specification or native custom-symbol
 round trip has been supplied. Real winter, summer and transition comparison
 results therefore remain `PENDING_OPERATOR`; fixture results are software
 validation only. Future autumn dates are not represented as observed history.
+
+## Sprint 6
+
+Sprint 5 commit / rollback parent: `3005705`.
+Automated gate PASS: **58 service tests** in a newly created virtual environment
+with Python 3.12.11 and a fresh DuckDB 1.5.4 install; **38 existing V13 contract
+tests** in the project environment. CLI help/build/audit/status tests and
+compileall pass. The final reliability review added bounded validator/price
+inputs, source revision retention, conservative storage planning, and recovery
+after ZIP publication but before ledger commit. An initially failing retry
+fixture was isolated from the prior iteration's recoverable object; the final
+full suite passes with its HTTP/retry assertions intact.
+
+Real network check: selection page HEAD 403; archive host HEAD 200. No VPN or
+proxy configuration was changed. Full inventory
+`inv-6e244609e216802ca3d09123`, frozen September 6 UTC, selects 23 candidates
+(11 annual, eight monthly, four daily), 2,993,886,749 ZIP bytes, with requested
+start 2015-01-01 and resolved exclusive cutoff 2026-09-05. These are HEAD
+candidates, not a verified full backfill. Three pilot ZIP bodies are verified.
+
+The first 10,000 rows sampled from the retained 2015 ZIP pass the exact parser,
+begin at 2015-08-10 00:00:00.000Z and include 3,817 adjacent equal timestamps.
+This is a bounded first-row sample, not proof of the annual minimum or complete
+2015 coverage. The complete modern-day dataset/audit remains the Sprint 3
+evidence, including its preserved ordered hash and 344,128 ticks.
+
+The conservative full-workflow storage estimate is 146,437,977,528 bytes versus
+120,363,225,088 free at measurement. Its source expansion and Parquet inputs
+are measured; the native text/history allowances are explicit estimates.
+Full backfill/export/import is `PENDING_CAPACITY_AND_NATIVE_PILOT`. Measure the
+native pilot and/or provision capacity before executing it. No full-history,
+native round-trip, real seasonal comparison or tester pass is claimed.
+
+The final documentation/identifier/include/safety gate preserves all `.mq5`,
+`.mqh` and existing V13 Python source. Local links, artifact ignore paths and
+`git diff --check` pass. No compile or Strategy Tester run was performed in this
+Python-only batch. The workflow supplies the concrete deferred operator queue.
+
+## Commit And Rollback Ledger
+
+| Sprint | Commit | Rollback parent |
+| --- | --- | --- |
+| 1 | `66ca15f` | `5cb7b24` |
+| 2 | `286e6b7` | `66ca15f` |
+| 3 | `f51d489` | `286e6b7` |
+| 4 | `46ec437` | `f51d489` |
+| 5 | `3005705` | `46ec437` |
+| 6 | The commit containing this final handoff | `3005705` |
+
+The ignored execution journal records full commit and rollback SHAs, including
+Sprint 6 after publication. Revert reviewed code commits in reverse order if
+necessary; preserve raw archives, data manifests and operator evidence. There
+is no accepted new custom symbol, seasonal cohort or V13 tester run to roll
+back yet. Implementation completion does not close the operator gates listed
+in the [workflow](../workflows/exness-tick-history.md).

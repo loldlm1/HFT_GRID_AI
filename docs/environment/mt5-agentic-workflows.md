@@ -4,6 +4,11 @@ This runbook is the source of truth for V13 local paths, deterministic Python
 evidence, MetaEditor compilation, and operator-owned Strategy Tester artifacts.
 Keep full logs and raw market data out of chat and commits.
 
+The [Exness history workflow](../workflows/exness-tick-history.md) documents the
+separate Python source pipeline, Wine/native import steps and pending seasonal
+acceptance. Its data root is ignored `artifacts/exness_tick_history/` or a
+dedicated external directory. It adds no terminal mutation API or EA include.
+
 ## Codex Skills And Local State
 
 Read the root [AGENTS.md](../../AGENTS.md) for current product and skill routing.

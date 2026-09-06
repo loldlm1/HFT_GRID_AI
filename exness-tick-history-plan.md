@@ -1,7 +1,7 @@
 # Plan: Exness Tick History Service And MT5 Research Validation
 
 **Generated**: 2026-09-05
-**Status**: Authorized implementation in progress; manual MT5 acceptance deferred until the six-sprint code batch is complete
+**Status**: Six-sprint implementation batch complete; full-history operation and native MT5/broker acceptance remain pending
 **Complexity**: High data-integrity requirements; isolated offline Python tooling
 **Discovery baseline**: `bot/pivot_points_fractal`, `5cb7b24`
 
@@ -30,6 +30,17 @@ advancement. At the end of the code batch, provide a concrete operator checklist
 and preserve the remaining validation state for continuation. Full-history
 operations remain bounded by actual available storage and source integrity; do
 not hide a resource/access failure or claim an unperformed backfill succeeded.
+
+Implementation checkpoint: Sprints 1-5 are committed as `66ca15f`, `286e6b7`,
+`f51d489`, `46ec437`, and `3005705`; Sprint 6 is the commit carrying this final
+checkpoint. All 58 service tests and 38 existing V13 tests pass. The
+[acceptance record](docs/research/exness-tick-history-acceptance.md) contains
+measured pilot/inventory evidence and rollback parents. The
+[operator workflow](docs/workflows/exness-tick-history.md) retains the deferred
+native/specification, seasonal, full-backfill and tester queue. Full-workflow
+storage currently estimates 146.4 GB against 120.4 GB free; refine it from the
+native pilot or provision capacity. These implementation results do not mark
+the original operational completion checklist as passed.
 
 ## Overview
 

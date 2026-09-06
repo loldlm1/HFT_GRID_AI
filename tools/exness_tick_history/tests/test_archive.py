@@ -8,7 +8,7 @@ from email.message import Message
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
-from tools.exness_tick_history.archive import ArchiveKey, Probe, SourceError, _allowed_url, inspect_archive, inventory, probe_archive
+from tools.exness_tick_history.archive import ArchiveKey, Probe, SourceError, _allowed_url, inspect_archive, inventory, network_check, probe_archive
 from datetime import date
 from tools.exness_tick_history.cli import DEFAULT_PROFILE
 from tools.exness_tick_history.config import ConfigError, load_profile
@@ -112,3 +112,10 @@ class ArchiveTests(unittest.TestCase):
         self.assertEqual(len(result["owners"]), 1)
         self.assertEqual(result["owners"][0]["extra_container_days"], 365)
         self.assertEqual(result["owners"][0]["state"], "ACCESS_DENIED")
+
+    def test_page_denial_does_not_imply_archive_denial(self):
+        with patch("tools.exness_tick_history.archive.probe_archive", return_value=Probe(self.key.url, "AVAILABLE_CANDIDATE", 200)), patch("urllib.request.build_opener") as factory:
+            factory.return_value.open.side_effect = urllib.error.HTTPError("https://www.exness.com/tick-history/", 403, "", Message(), io.BytesIO())
+            result = network_check(self.key, self.profile.network)
+        self.assertEqual(result["page"]["state"], "ACCESS_DENIED")
+        self.assertTrue(result["archive_candidate_reachable"])

@@ -60,7 +60,15 @@ def fetch_object(store: Store, owner: dict, profile: Profile, *, resume: bool,
     validator = etag if etag and not etag.startswith("W/") else probe.get("last_modified")
     identity = {"request_id": request_id, "validator": validator, "expected_bytes": expected}
     prior = read_json(checkpoint) if checkpoint.exists() else None
-    if part.exists() and (not resume or prior != identity or not validator or expected is None):
+    prior_matches = prior is not None and all(prior.get(key) == value for key, value in identity.items())
+    recovered = prior.get("verified") if prior_matches else None
+    if isinstance(recovered, dict) and recovered.get("request_id") == request_id and recovered.get("filename") == key.filename:
+        target = store.path("archives", recovered["sha256"], key.filename)
+        if target.exists():
+            if file_hash(target) != recovered["sha256"]:
+                raise StorageError("Published archive changed during ledger recovery")
+            return {**recovered, "network_bytes": 0, "recovered_publication": True}
+    if part.exists() and (not resume or not prior_matches or not validator or expected is None):
         part.unlink()  # Only this request's disposable partial object is restarted.
     atomic_json(checkpoint, identity)
     network_bytes = 0
@@ -154,15 +162,18 @@ def fetch_object(store: Store, owner: dict, profile: Profile, *, resume: bool,
     digest = file_hash(part)
     target = store.path("archives", digest, key.filename)
     target.parent.mkdir(parents=True, exist_ok=True)
+    result = {"state": "VERIFIED", "sha256": digest, "filename": key.filename, "key": owner["key"],
+              "bytes": part.stat().st_size, "request_id": request_id, **verified,
+              "network_bytes": network_bytes, "resumed_from_bytes": resumed_from}
+    # The receipt precedes rename so a crash before the ledger commit can reuse published bytes.
+    atomic_json(checkpoint, {**identity, "verified": result})
     if target.exists():
         if file_hash(target) != digest:
             raise StorageError("Immutable archive content changed on disk")
         part.unlink()
     else:
         os.replace(part, target)
-    return {"state": "VERIFIED", "sha256": digest, "filename": key.filename, "key": owner["key"],
-            "bytes": target.stat().st_size, "request_id": request_id, **verified,
-            "network_bytes": network_bytes, "resumed_from_bytes": resumed_from}
+    return result
 
 
 def download_inventory(profile: Profile, inventory_id: str, *, resume: bool = True,
@@ -209,7 +220,8 @@ def download_inventory(profile: Profile, inventory_id: str, *, resume: bool = Tr
                 raise
         report = {"inventory_id": inventory_id, "status": "DOWNLOAD_COMPLETE" if all(
                   item["state"] == "VERIFIED" for item in results) else "DOWNLOAD_INCOMPLETE",
-                  "objects": results, "network_bytes": sum(item.get("network_bytes", 0) for item in results),
+                  "objects": results, "network_bytes": None if any(item["state"] == "DOWNLOAD_FAILED" for item in results)
+                  else sum(item.get("network_bytes", 0) for item in results),
                   "coverage_verified": False}
         atomic_json(store.path("runs", identifier(inventory_id), "download-status.json"), report)
         return report

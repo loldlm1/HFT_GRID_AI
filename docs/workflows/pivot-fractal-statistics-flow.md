@@ -21,6 +21,11 @@ H1 pivot trigger
 Export and offline research remain observational. They cannot alter the one
 structural H1 `1R` broker path.
 
+For Exness custom-symbol historical inputs, complete the independent
+[source/import/broker validation workflow](exness-tick-history.md) before
+selecting accepted research data. Store its input-provenance sidecar outside
+the twelve-file V13 run directory and keep broker/custom cohorts separate.
+
 ## Evidence Grains
 
 | File | Grain | Authoritative facts |

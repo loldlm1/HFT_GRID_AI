@@ -1,4 +1,5 @@
 import io
+import copy
 import tempfile
 import unittest
 import urllib.error
@@ -98,6 +99,7 @@ class DownloadTests(unittest.TestCase):
         headers["Retry-After"] = "2"
         for status in (403, 404, 429, 503):
             with self.subTest(status=status), Store(self.profile.data_root) as store:
+                self.partial(store, 0)
                 opener = Mock()
                 opener.open.side_effect = [urllib.error.HTTPError(self.key.url, status, "", headers, io.BytesIO()),
                                            Response(self.body, self.key)]
@@ -147,3 +149,32 @@ class DownloadTests(unittest.TestCase):
                 fetch_object(store, self.owner, self.profile, resume=False,
                              opener=Mock(open=Mock(return_value=Response(body, self.key))))
             self.assertFalse(store.path("archives").exists())
+
+    def test_republished_source_keeps_both_immutable_versions(self):
+        with Store(self.profile.data_root) as store:
+            first = fetch_object(store, self.owner, self.profile, resume=False,
+                                 opener=Mock(open=Mock(return_value=Response(self.body, self.key))))
+            data = io.BytesIO()
+            with zipfile.ZipFile(data, "w", zipfile.ZIP_DEFLATED) as archive:
+                archive.writestr("Exness_XAUUSD_2026_09_01.csv", "Exness,Symbol,Timestamp,Bid,Ask\nexness,XAUUSD,2026-09-01 00:00:00.001Z,2,3\n")
+            revised = data.getvalue()
+            owner = copy.deepcopy(self.owner)
+            owner["probe"].update(etag='"two"', content_length=len(revised))
+            second = fetch_object(store, owner, self.profile, resume=False,
+                                  opener=Mock(open=Mock(return_value=Response(revised, self.key, etag='"two"'))))
+            self.assertNotEqual(first["sha256"], second["sha256"])
+            self.assertNotEqual(first["request_id"], second["request_id"])
+            for item in (first, second):
+                self.assertEqual(file_hash(store.path("archives", item["sha256"], item["filename"])), item["sha256"])
+
+    def test_crash_after_publication_before_ledger_recovers_without_http(self):
+        with Store(self.profile.data_root) as store:
+            atomic_json(store.path("runs", self.inv["inventory_id"], "inventory.json"), self.inv, immutable=True)
+        factory = lambda: Mock(open=Mock(return_value=Response(self.body, self.key)))
+        with patch.object(Store, "record", side_effect=KeyboardInterrupt), self.assertRaises(KeyboardInterrupt):
+            download_inventory(self.profile, self.inv["inventory_id"], opener_factory=factory)
+        no_http = Mock(open=Mock(side_effect=AssertionError("must reuse published object")))
+        result = download_inventory(self.profile, self.inv["inventory_id"], opener_factory=lambda: no_http)
+        self.assertEqual(result["status"], "DOWNLOAD_COMPLETE")
+        self.assertEqual(result["network_bytes"], 0)
+        self.assertTrue(result["objects"][0]["recovered_publication"])
