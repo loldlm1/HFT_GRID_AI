@@ -5,8 +5,8 @@ from __future__ import annotations
 import math
 import re
 import tomllib
-from dataclasses import dataclass
-from datetime import date
+from dataclasses import dataclass, field
+from datetime import date, datetime
 from pathlib import Path, PureWindowsPath
 from types import MappingProxyType
 from typing import Mapping
@@ -147,6 +147,7 @@ class Profile:
     terminal: Terminal
     comparison_status: str
     comparison_limits: Mapping[str, int | float]
+    comparison_provenance: Mapping[str, object] = field(default_factory=dict)
 
     def summary(self) -> dict:
         instrument = self.instrument
@@ -276,7 +277,7 @@ def load_profile(path: Path, *, workspace: Path = PROJECT_ROOT) -> Profile:
     terminal = Terminal(platform, Path(wine_prefix).expanduser().resolve() if wine_prefix else None,
                         Path(host).expanduser().resolve() if host else None, win_path)
 
-    comparison = _table(raw, "comparison", {"status", *COMPARISON_DEFAULTS})
+    comparison = _table(raw, "comparison", {"status", "name", "pinned_at_utc", "pilot_dates", "rationale", *COMPARISON_DEFAULTS})
     status = _choice(comparison, "status", "PROPOSED", ("PROPOSED", "PINNED"))
     if status == "PINNED" and not COMPARISON_DEFAULTS.keys() <= comparison.keys():
         raise ConfigError("A PINNED comparison profile must explicitly set every threshold")
@@ -288,6 +289,25 @@ def load_profile(path: Path, *, workspace: Path = PROJECT_ROOT) -> Profile:
                                   integer=key.endswith("_ms") or key.endswith("_seconds"))
     if thresholds["max_unexplained_clock_offset_seconds"] != 0:
         raise ConfigError("Exact clock alignment requires max_unexplained_clock_offset_seconds = 0")
+    provenance = {key: comparison[key] for key in ("name", "pinned_at_utc", "pilot_dates", "rationale") if key in comparison}
+    if status == "PINNED" or provenance:
+        if len(provenance) != 4 or not isinstance(provenance["name"], str) or not ID_PATTERN.fullmatch(provenance["name"]):
+            raise ConfigError("PINNED comparisons require name, pinned_at_utc, pilot_dates and rationale")
+        pinned = provenance["pinned_at_utc"]
+        if not isinstance(pinned, str) or not re.fullmatch(r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z", pinned, re.ASCII):
+            raise ConfigError("pinned_at_utc requires an explicit UTC millisecond timestamp")
+        try:
+            datetime.fromisoformat(pinned)
+        except ValueError as exc:
+            raise ConfigError("Invalid profile pin date") from exc
+        if not isinstance(provenance["rationale"], str) or not 1 <= len(provenance["rationale"]) <= 2000:
+            raise ConfigError("Profile rationale must be nonempty and at most 2000 characters")
+        dates = provenance["pilot_dates"]
+        if not isinstance(dates, list) or not 1 <= len(dates) <= 32:
+            raise ConfigError("Profile requires 1..32 distinct pilot dates")
+        provenance["pilot_dates"] = [parse_date(value, "pilot_dates").isoformat() for value in dates]
+        if len(set(provenance["pilot_dates"])) != len(dates):
+            raise ConfigError("Pilot dates must be distinct")
     return Profile(profile_id, Instrument(base, archive, account_type, broker, suffix, mode, server, mapping),
                    Selection(start, end, granularity), root, limits, network, terminal,
-                   status, MappingProxyType(thresholds))
+                   status, MappingProxyType(thresholds), MappingProxyType(provenance))

@@ -76,3 +76,21 @@ round trip, current nonzero trade tick and M1 history generation remain
 `PENDING_OPERATOR`. There is no new MQL5 program or terminal mutation API.
 Whether a companion M1 file is necessary is deferred with the native capability
 finding; no unverified native bar convention has been implemented.
+
+## Sprint 5
+
+Sprint 4 commit / rollback parent: `46ec437`.
+Automated gate PASS: 51 tests. Authored complete native round-trip and broker-day
+fixtures pass all independent gates; wrong feeds, an hour shift, missing ticks,
+reversed equal-time groups and widened spreads cannot pass. Empty, incomplete,
+limit-sized MCP captures, missing pin provenance and absent native acceptance
+remain inconclusive. Tests cover JSON numeric lexemes, interval bisection and
+the unsplittable one-millisecond limit case, seasonal/DST candidates, real prior
+bar warm-up and source-versus-native Bid OHLC/pivot input metrics. Compileall,
+CLI schedule/inconclusive seasonal report and common source/include review pass.
+
+The numerical profile remains `PROPOSED` in the public example. No complete
+operator broker reference, verified clock/specification or native custom-symbol
+round trip has been supplied. Real winter, summer and transition comparison
+results therefore remain `PENDING_OPERATOR`; fixture results are software
+validation only. Future autumn dates are not represented as observed history.

@@ -28,6 +28,13 @@ class SourceError(ValueError):
     """The observed object does not satisfy the source contract."""
 
 
+def bounded_lines(stream, maximum: int = 65536):
+    while line := stream.readline(maximum + 1):
+        if len(line) > maximum:
+            raise SourceError("Input line exceeds the bounded source/capture contract")
+        yield line
+
+
 @dataclass(frozen=True)
 class ArchiveKey:
     symbol: str
@@ -184,7 +191,7 @@ def inspect_archive(path: Path, key: ArchiveKey, limits: Limits) -> dict:
             first = last = minimum = maximum = previous = None
             price_scale = 0
             with io.TextIOWrapper(archive.open(member), encoding="utf-8-sig", newline="") as stream:
-                reader = csv.reader(stream, strict=True)
+                reader = csv.reader(bounded_lines(stream), strict=True)
                 if tuple(next(reader, ())) != SOURCE_HEADER:
                     raise SourceError("Unsupported source CSV header")
                 for row in reader:

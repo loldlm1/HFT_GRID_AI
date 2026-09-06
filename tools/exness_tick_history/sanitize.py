@@ -15,7 +15,7 @@ from decimal import Decimal, localcontext
 from functools import lru_cache
 from pathlib import Path
 
-from .archive import ArchiveKey, PRICE_PATTERN, SOURCE_HEADER, STAMP_PATTERN, SourceError, zip_member
+from .archive import ArchiveKey, PRICE_PATTERN, SOURCE_HEADER, STAMP_PATTERN, SourceError, bounded_lines, zip_member
 from .config import Profile
 from .download import request_identity
 from .storage import Store, StorageError, atomic_json, feed_identity, file_hash, identifier, load_inventory, object_hash, read_json
@@ -149,7 +149,7 @@ def _source_partitions(store: Store, profile: Profile, stage: Path, owner: dict,
             with zipfile.ZipFile(archive_path) as archive, quarantine_path.open("w", encoding="utf-8") as rejected:
                 member = zip_member(archive, key, profile.limits)
                 with io.TextIOWrapper(archive.open(member), encoding="utf-8-sig", newline="") as stream:
-                    reader = csv.reader(stream, strict=True)
+                    reader = csv.reader(bounded_lines(stream), strict=True)
                     if tuple(next(reader, ())) != SOURCE_HEADER:
                         raise SourceError("Unsupported source CSV header; no dataset published")
                     with localcontext() as context:

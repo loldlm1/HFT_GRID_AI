@@ -1,0 +1,35 @@
+{
+  "schema_version": 1,
+  "feed_sha256": "copy-from-inspect-config",
+  "operator_verified": false,
+  "all_quotes_verified": false,
+  "terminal_build": 0,
+  "clock": {},
+  "specification": {},
+  "day": "2026-01-14",
+  "purpose": "winter",
+  "captured_at_utc": "2026-09-05T00:00:00.000Z",
+  "selection_frozen": false,
+  "selection_reason": "Second Wednesday of January; verify complete availability before freezing",
+  "comparison_profile_sha256": "copy-after-pinning-independent-pilot-limits",
+  "clock_alignment_verified": false,
+  "unexplained_clock_offset_seconds": 0,
+  "ticks": [
+    {
+      "path": "broker-day.tsv",
+      "format": "native_tsv",
+      "encoding": "utf-8-sig",
+      "sha256": "replace-with-complete-file-sha256",
+      "rows": 0,
+      "start_broker_msc": 1768348800000,
+      "end_broker_msc": 1768435200000,
+      "complete": false
+    }
+  ],
+  "bars": {
+    "M1": {"path": "M1.tsv", "sha256": "replace-with-file-sha256"},
+    "M3": {"path": "M3.tsv", "sha256": "replace-with-file-sha256"},
+    "M10": {"path": "M10.tsv", "sha256": "replace-with-file-sha256"},
+    "H1": {"path": "H1.tsv", "sha256": "replace-with-file-sha256"}
+  }
+}

@@ -4,6 +4,7 @@ import unittest
 from pathlib import Path
 
 from tools.exness_tick_history.config import ConfigError, load_profile
+from tools.exness_tick_history.config import COMPARISON_DEFAULTS
 
 
 class ConfigTests(unittest.TestCase):
@@ -59,3 +60,10 @@ class ConfigTests(unittest.TestCase):
             profile = self.load(f'[terminal]\nhost_root = "{root}"\nwindows_root = \'Z:\\mt5\'')
             with self.assertRaises(ConfigError):
                 profile.terminal.windows_path(root / "link/passwd")
+
+    def test_pinning_requires_numerical_limits_and_independent_pilot_provenance(self):
+        text = '[comparison]\nstatus = "PINNED"\n' + "\n".join(f"{key} = {value}" for key, value in COMPARISON_DEFAULTS.items())
+        with self.assertRaises(ConfigError):
+            self.load(text)
+        text += '\nname = "modern-pilot"\npinned_at_utc = "2026-09-01T00:00:00.000Z"\npilot_dates = ["2026-08-25"]\nrationale = "Separate pilot"'
+        self.assertEqual(self.load(text).comparison_provenance["pilot_dates"], ["2026-08-25"])

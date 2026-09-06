@@ -49,6 +49,8 @@ def feed_identity(profile: Profile) -> dict:
 
 def read_json(path: Path) -> dict:
     try:
+        if path.stat().st_size > 64 * 1024 * 1024:
+            raise StorageError("Manifest exceeds the 64 MiB read bound")
         value = json.loads(path.read_text(encoding="utf-8"))
         if not isinstance(value, dict):
             raise ValueError()

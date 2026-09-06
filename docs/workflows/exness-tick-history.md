@@ -102,6 +102,67 @@ and exact quote-derived Bid OHLC against every native timeframe. It reports
 bounded mismatches. Missing native evidence is `INCONCLUSIVE`; a demonstrated
 tick, specification or bar mismatch is `FAIL`.
 
+## Seasonal Broker Captures
+
+Start with the public `profiles/reference.example.json`, copied into an ignored
+reference directory. Its booleans and placeholder hashes deliberately prevent
+acceptance. Embed the verified `clock` and `specification` objects, set the exact
+profile hash and actual terminal build/capture time, and freeze a day and reason
+before scoring. The example broker wall-time interval is January 14, 2026;
+the clock object maps that entire day to UTC explicitly. Fetch adjacent UTC
+source partitions when the mapping crosses a date boundary.
+
+Pin the private TOML comparison table from a separate pilot:
+
+```toml
+# Keep every numeric threshold explicitly set in this table as well.
+status = "PINNED"
+name = "xauusd-pro-modern-v1"
+pinned_at_utc = "2026-09-05T00:00:00.000Z" # replace with the actual pin time
+pilot_dates = ["2026-08-25"]               # replace with the reviewed pilot
+rationale = "Record the evidence supporting each frozen limit"
+```
+
+`inspect-config` prints the feed and comparison profile hashes. Keep Pro demo
+and live references separate. Do not reuse an acceptance date as a calibration
+pilot or raise thresholds after inspecting a failed acceptance result.
+
+Use native all-quote tick exports for complete days. MCP assistance requires
+runtime discovery and workspace preflight. Capture the actual numeric JSON
+lexemes to files; normalize the `history` rows to JSONL with `time_ms`, `bid`
+and `ask`. The timestamp is exactly `YYYY.MM.DD HH:MM:SS.mmm`, interpreted under
+the verified broker clock. Do not reinterpret its name as an integer epoch or
+discard its milliseconds. Keep account/community fields out of the capture.
+
+Each tick entry declares a disjoint `[start_broker_msc, end_broker_msc)` interval,
+file SHA-256, actual row count, format and completeness. For `mcp_jsonl`, also
+record the positive reader `limit` and
+`millisecond_and_all_quotes_verified=true` only after checking those semantics.
+A response with `rows >= limit` is potentially truncated. Bisect the requested
+time interval and recapture both halves; never advance to the last returned
+tick, which can lose other ticks at that millisecond. The reusable
+`split_capture_interval` implements this rule. If a one-millisecond interval
+still reaches the limit, use a complete native export. Empty captures need an
+`empty_interval_evidence` explanation; empty data alone cannot prove closure.
+
+Capture native M1/M3/M10/H1 bars with at least 26 real completed prior bars per
+period, plus the scored day. Include the corresponding real source warm-up
+within the dataset (the comparator examines at most seven prior UTC days).
+Do not fill missing minutes. Native bar opens, OHLC and completed-bar PP/S1..S3/
+R1..R3 input differences are independent evidence. Warm-up diagnostics are
+reported separately from the scored day's errors.
+
+Run `compare-broker` with the exact dataset's successful round-trip report.
+It writes detailed metrics, row supports, all threshold gates, hashes and a
+readable report. Diagnostics at -1/0/+1 hour never adjust data. The default
+2026 winter/summer candidates are January 14 and July 15. `seasonal-schedule`
+also lists Friday/Monday captures around US and UK transitions and their
+mismatch weeks. Future autumn dates remain pending; seasonal sample acceptance
+and broader clock-regime acceptance are separate report fields. The initial
+release's aggregate uses this deterministic schedule. A justified replacement
+day must be frozen and reviewed explicitly; it is not silently substituted by
+the aggregate command.
+
 ## Validation And Rollback
 
 Each sprint runs focused Python tests, compileall, identifier/include and

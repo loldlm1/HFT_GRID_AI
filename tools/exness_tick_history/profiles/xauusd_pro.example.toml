@@ -41,6 +41,8 @@ windows_root = ""
 [comparison]
 # Starting targets only. Pin every limit before held-out seasonal acceptance.
 status = "PROPOSED"
+# PINNED also requires a name, rationale, independent pilot_dates and a
+# pinned_at_utc timestamp such as "2026-09-05T00:00:00.000Z". See the workflow.
 max_match_delta_ms = 500
 min_matched_fraction_each_feed = 0.95
 min_active_minute_jaccard = 0.999

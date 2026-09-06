@@ -6,7 +6,7 @@ import hashlib
 from datetime import date, timedelta
 
 from .config import Profile
-from .storage import Store, StorageError, feed_identity, file_hash, identifier, object_hash, read_json
+from .storage import Store, StorageError, atomic_json, feed_identity, file_hash, identifier, object_hash, read_json
 
 
 def quality_report(inventory: dict, sources: list[dict], missing: list[dict], parts: list[dict]) -> dict:
@@ -85,3 +85,71 @@ def audit_dataset(profile: Profile, dataset_id: str) -> dict:
                 "rows": total, "logical_sha256": manifest["logical_sha256"],
                 "row_conservation": quality["row_conservation"], "unknown_no_tick_days": len(quality["no_tick_days_unknown_closure"]),
                 "mt5_round_trip": "INCONCLUSIVE", "broker_comparison": "INCONCLUSIVE"}
+
+
+def save_comparison(profile: Profile, result: dict, comparison_id: str | None = None) -> dict:
+    comparison_id = identifier(comparison_id or "cmp-" + object_hash(result)[:24])
+    value = {**result, "comparison_id": comparison_id}
+    with Store(profile.data_root) as store:
+        atomic_json(store.path("comparisons", comparison_id, "report.json"), value, immutable=True)
+        path = store.path("comparisons", comparison_id, "report.md")
+        lines = ["# Exness Comparison", "", f"Comparison: `{comparison_id}`", ""]
+        for key in ("data_integrity", "mt5_round_trip", "tick_equality", "broker_comparison", "day", "purpose"):
+            if key in result:
+                lines.append(f"- {key}: `{result[key]}`")
+        lines.extend(["", "Detailed metrics, supports, independent gates and hashes are in `report.json`.", ""])
+        text = "\n".join(lines)
+        if path.exists() and path.read_text(encoding="utf-8") != text:
+            raise StorageError("Comparison text already exists with different content")
+        path.write_text(text, encoding="utf-8")
+    return value
+
+
+def seasonal_schedule(year: int) -> dict:
+    if type(year) is not int or not 1970 <= year <= 9998:
+        raise StorageError("Schedule year must be 1970..9998")
+
+    def nth_weekday(month, weekday, number):
+        first = date(year, month, 1)
+        return first + timedelta(days=(weekday - first.weekday()) % 7 + 7 * (number - 1))
+
+    def last_sunday(month):
+        next_month = date(year + (month == 12), month % 12 + 1, 1)
+        last = next_month - timedelta(days=1)
+        return last - timedelta(days=(last.weekday() - 6) % 7)
+
+    boundaries = {"us_spring": nth_weekday(3, 6, 2), "uk_spring": last_sunday(3),
+                  "uk_autumn": last_sunday(10), "us_autumn": nth_weekday(11, 6, 1)}
+    return {"schema_version": 1, "year": year, "winter": nth_weekday(1, 2, 2).isoformat(),
+            "summer": nth_weekday(7, 2, 3).isoformat(),
+            "transition_days": {name: {"before": (day - timedelta(days=2)).isoformat(), "after": (day + timedelta(days=1)).isoformat()}
+                                for name, day in boundaries.items()},
+            "selection_rule": "Second January Wednesday; third July Wednesday; Friday/Monday around US/UK DST Sundays. Verify actual market availability before freezing replacements.",
+            "scope": "Diagnostic dates; these calendars do not assert the broker changes its historical UTC clock."}
+
+
+def seasonal_report(profile: Profile, year: int, comparison_ids: list[str]) -> dict:
+    from .compare import comparison_profile_hash
+    schedule = seasonal_schedule(year)
+    reports, mismatches = {}, []
+    with Store(profile.data_root) as store:
+        for comparison_id in comparison_ids:
+            result = read_json(store.path("comparisons", identifier(comparison_id), "report.json"))
+            if result.get("comparison_profile_sha256") != comparison_profile_hash(profile) or result.get("feed_sha256") != object_hash(feed_identity(profile)):
+                mismatches.append(comparison_id)
+            key = result.get("day")
+            if key in reports:
+                raise StorageError("Provide one frozen report per day; do not select the most favorable result")
+            reports[key] = result
+    required = {schedule["winter"]: "winter", schedule["summer"]: "summer"}
+    for dates in schedule["transition_days"].values():
+        required.update({value: "transition" for value in dates.values()})
+    gates = {}
+    for day, purpose in required.items():
+        result = reports.get(day, {})
+        gates[day] = result.get("broker_comparison", "INCONCLUSIVE") if result.get("purpose") == purpose else "INCONCLUSIVE"
+    seasonal = [gates[schedule["winter"]], gates[schedule["summer"]]]
+    state = "FAIL" if mismatches or "FAIL" in seasonal else "PASS" if set(seasonal) == {"PASS"} else "INCONCLUSIVE"
+    clock_state = "FAIL" if mismatches or "FAIL" in gates.values() else "PASS" if set(gates.values()) == {"PASS"} else "INCONCLUSIVE"
+    return {"seasonal_acceptance": state, "clock_regime_acceptance": clock_state, "year": year, "day_gates": gates, "profile_or_feed_mismatches": mismatches,
+            "comparison_ids": comparison_ids, "schedule": schedule, "scope": "Accepted samples only; no full-history broker equivalence or deployment claim."}

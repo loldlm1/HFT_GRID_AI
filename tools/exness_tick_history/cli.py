@@ -12,9 +12,9 @@ from .config import ConfigError, load_profile
 from .download import download_inventory
 from .storage import Store, StorageError, atomic_json, feed_identity, object_hash, read_json
 from .sanitize import build_dataset
-from .report import audit_dataset
+from .report import audit_dataset, save_comparison, seasonal_report, seasonal_schedule
 from .mt5_export import export_mt5
-from .compare import compare_roundtrip
+from .compare import compare_broker, compare_roundtrip, comparison_profile_hash
 
 DEFAULT_PROFILE = Path(__file__).parent / "profiles/xauusd_pro.example.toml"
 
@@ -48,6 +48,17 @@ def main(argv: list[str] | None = None) -> int:
     command.add_argument("--native-export", type=Path, required=True)
     command.add_argument("--encoding", choices=("utf-8-sig", "utf-16", "ascii"), default="utf-8-sig")
     command.add_argument("--evidence", type=Path)
+    command.add_argument("--comparison-id")
+    command = commands.add_parser("compare-broker", help="Score one frozen broker day with complete native reference captures")
+    command.add_argument("--dataset-id", required=True)
+    command.add_argument("--reference", type=Path, required=True)
+    command.add_argument("--roundtrip-report", type=Path)
+    command.add_argument("--comparison-id")
+    command = commands.add_parser("seasonal-schedule", help="Show deterministic winter/summer and US/UK transition candidates")
+    command.add_argument("--year", type=int, required=True)
+    command = commands.add_parser("seasonal-report", help="Require independent frozen winter/summer and transition results")
+    command.add_argument("--year", type=int, required=True)
+    command.add_argument("--comparisons", nargs="*", default=[])
     for name, help_text in (("probe-archive", "Probe one annual/monthly/daily ZIP URL without downloading its body"),
                             ("inspect-archive", "Verify one local source ZIP/CSV without changing it")):
         command = commands.add_parser(name, help=help_text)
@@ -62,6 +73,11 @@ def main(argv: list[str] | None = None) -> int:
         if args.command == "inspect-config":
             result = profile.summary()
             result["feed_sha256"] = object_hash(feed_identity(profile))
+            result["comparison_profile_sha256"] = comparison_profile_hash(profile)
+        elif args.command == "seasonal-schedule":
+            result = seasonal_schedule(args.year)
+        elif args.command == "seasonal-report":
+            result = seasonal_report(profile, args.year, args.comparisons)
         elif args.command == "inventory":
             with Store(profile.data_root) as store:
                 result = inventory(profile, start=args.start, end=args.end, granularity=args.granularity)
@@ -86,15 +102,28 @@ def main(argv: list[str] | None = None) -> int:
             result = compare_roundtrip(profile, args.export_id, args.native_export, encoding=args.encoding,
                                        evidence=read_json(args.evidence) if args.evidence else None,
                                        evidence_root=args.evidence.parent if args.evidence else None)
+            result = save_comparison(profile, result, args.comparison_id)
+        elif args.command == "compare-broker":
+            result = compare_broker(profile, args.dataset_id, args.reference,
+                                    roundtrip=read_json(args.roundtrip_report) if args.roundtrip_report else None)
+            result = save_comparison(profile, result, args.comparison_id)
         else:
             key = ArchiveKey(profile.instrument.archive_symbol, args.year, args.month, args.day)
             if args.command == "probe-archive":
                 result = probe_archive(key, profile.network).summary()
             else:
                 result = inspect_archive(args.path, key, profile.limits)
-        print(json.dumps(result, indent=2, sort_keys=True))
+        if args.command == "compare-broker":
+            summary = {key: result[key] for key in ("comparison_id", "broker_comparison", "gates", "unresolved")}
+            print(json.dumps(summary, indent=2, sort_keys=True))
+        else:
+            print(json.dumps(result, indent=2, sort_keys=True))
         if args.command == "compare-roundtrip":
             return {"PASS": 0, "FAIL": 3, "INCONCLUSIVE": 4}[result["mt5_round_trip"]]
+        if args.command == "compare-broker":
+            return {"PASS": 0, "FAIL": 3, "INCONCLUSIVE": 4}[result["broker_comparison"]]
+        if args.command == "seasonal-report":
+            return {"PASS": 0, "FAIL": 3, "INCONCLUSIVE": 4}[result["seasonal_acceptance"]]
         if result.get("data_integrity") in ("FAIL", "INCONCLUSIVE"):
             return 3 if result["data_integrity"] == "FAIL" else 4
         if result.get("status") == "DOWNLOAD_INCOMPLETE":

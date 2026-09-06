@@ -16,6 +16,9 @@ with DuckDB 1.5.4. Run from the repository root:
 .venv/bin/python -m tools.exness_tick_history audit --dataset-id <dataset_id>
 .venv/bin/python -m tools.exness_tick_history export-mt5 --dataset-id <dataset_id> --export-id <new_export_id> --specification <spec.json> --clock <clock.json>
 .venv/bin/python -m tools.exness_tick_history compare-roundtrip --export-id <export_id> --native-export <native.tsv> --evidence <native-evidence.json>
+.venv/bin/python -m tools.exness_tick_history seasonal-schedule --year 2026
+.venv/bin/python -m tools.exness_tick_history compare-broker --dataset-id <dataset_id> --reference <reference.json> --roundtrip-report <roundtrip-report.json> --comparison-id <new_comparison_id>
+.venv/bin/python -m tools.exness_tick_history seasonal-report --year 2026 --comparisons <winter_id> <summer_id> <transition_ids>
 .venv/bin/python -m unittest discover -s tools/exness_tick_history/tests -p 'test_*.py'
 ```
 
@@ -100,6 +103,26 @@ Native re-exports require explicit milliseconds and all six columns. Choose
 with optional BOM. Exact quote equality can pass while `mt5_round_trip` remains
 inconclusive until metadata and all four native timeframe bar files are supplied.
 See the workflow for the evidence schema and guided native steps.
+
+Broker comparison accepts complete native TSV or MCP JSONL captures. It uses
+one-to-one chronological matches within the pinned time delta and never reuses
+a broker tick. Price-error quantiles describe matched pairs; unmatched counts
+and fractions on each feed remain mandatory independent gates. Minute/hour
+activity, session segments, day boundaries, tied-order defects and diagnostic
+hour shifts remain visible. Native Bid OHLC and completed-bar pivot inputs are
+compared at M1/M3/M10/H1. Twenty-six real prior bars per period are required for
+warm-up; only the selected day contributes to scored bar metrics.
+
+Comparison reports are immutable JSON/Markdown under `comparisons/<id>/`.
+Native acceptance needs the matching successful round-trip report. Unpinned
+limits, unidentified feeds, incomplete captures and missing warm-up cannot
+produce acceptance. Profile pinning requires every numeric threshold plus
+name, rationale, UTC pin time and separate pilot dates. The comparator records
+the profile hash; do not change thresholds after scoring an acceptance day.
+
+`seasonal-report` reports winter/summer sample acceptance separately from the
+broader clock-regime diagnostics. Future transition dates remain untested.
+Neither result certifies every historical year or real broker execution.
 
 See the [workflow](../../docs/workflows/exness-tick-history.md) for the source,
 terminal and acceptance contract. Native MT5 checks are pending until the
