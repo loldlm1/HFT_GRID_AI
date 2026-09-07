@@ -3,9 +3,11 @@
 The [service](../../tools/exness_tick_history/README.md) prepares independent
 historical research inputs. It does not participate in the EA's include
 pipeline, broker execution or strict twelve-file V13 output contract. The
-[saved plan](../../exness-tick-history-plan.md) defines six sequential commits.
-The user deferred native import, specification and broker acceptance until the
-implementation batch is complete; these checks remain `PENDING_OPERATOR`.
+[six-sprint implementation plan](../plans/archive/exness-tick-history-2026-09-07/README.md)
+is complete and archived. The [current handoff](../research/exness-tick-history-handoff-2026-09-07.md)
+records passing winter/summer custom imports and retained captures. Formal
+broker equivalence remains `INCONCLUSIVE`; registered-export acceptance,
+full-history operation and tester evidence remain pending.
 
 ## Source And Profile Contract
 
@@ -22,7 +24,17 @@ symbol and evidence of archive/feed mapping before comparison. Keep private
 profiles, raw data and terminal captures under `artifacts/exness_tick_history/`
 or a dedicated external data root. Shared roots allow one writer at a time.
 
-## Native Checks To Complete After Implementation
+## Native Verification Contract
+
+The existing `XAUUSD_EXN_PRO_W1` and `XAUUSD_EXN_PRO_S1` diagnostic ranges pass
+exact tick and native M1/M3/M10/H1 OHLC/tick-volume audits, including warm-up.
+MT5 generated these bars from ticks; no separate bar import or chart opening
+is needed to verify these ranges. The winter import starts on January 12 at
+20:00 and contains 922,664 ticks; summer contains 947,513 ticks. See the handoff
+for complete intervals and report hashes. These diagnostics do not replace
+registered `export-mt5`/`compare-roundtrip` evidence or broker acceptance.
+
+For each future registered package:
 
 1. Verify the selected Wine prefix, terminal/build, host-to-Windows mapping,
    account mode and exact broker symbol. Discover MCP schemas and call its
@@ -38,16 +50,20 @@ or a dedicated external data root. Shared roots allow one writer at a time.
    one header row skipped and Shift=0. Current MCP readers cannot create or
    import a custom symbol; the operator performs the native UI steps.
 5. Re-export all pilot ticks, preserving milliseconds and equal-time groups.
-   Check M1, M3, M10 and H1 bars. Whether a companion M1 import is required
-   remains unknown; no bar availability claim follows from a tick file alone.
-6. Pin numeric comparison limits from a separate pilot before scoring the
-   held-out winter/summer candidates, 2026-01-14 and 2026-07-15. Default limits
-   are proposals. Incomplete captures or unverified feed/clock yield
+   Check M1, M3, M10 and H1 bars. Tick-generated bars pass for the two prepared
+   seasonal ranges; verify native bar availability and equality for each new
+   package before acceptance.
+6. Pin numeric comparison limits from a separate pilot before formal scoring
+   of the fixed seasonal days, 2026-01-14 and 2026-07-15. Their inspected
+   diagnostics cannot be used to tune limits; defaults remain proposals.
+   Incomplete captures or unverified feed/clock yield
    `INCONCLUSIVE`, never broker acceptance.
 
 The prepared native pilot and raw evidence remain in ignored
 `.codex-artifacts/exness-sprint1/`. It contains 1,831 ticks in five minutes and
-nine adjacent equal-time rows. No native import is confirmed.
+nine adjacent equal-time rows. The later five-minute native verification is
+retained in `.codex-artifacts/exness-native-probe-20260906/`; final seasonal
+captures and audits are in `.codex-artifacts/exness-seasonal-native-20260906/`.
 
 ## Guided Native Import And Evidence
 
@@ -61,7 +77,8 @@ history. Never select the broker symbol as the import destination.
 
 Open the custom symbol's Ticks tab and import each manifest chunk in order.
 Set tab separator, skip the one header row, verify the six preview columns and
-use Shift=0. Record each filename/hash/count in an operator-owned import log.
+use Shift=0. Skip zero columns: row skipping and column skipping are distinct
+controls. Record each filename/hash/count in an operator-owned import log.
 Import replaces the covered interval, including holes; a partial import is not
 accepted history. Recovery uses the same owned version and exact chunk files
 only after confirming which intervals were replaced, or a fresh custom symbol.
@@ -74,7 +91,8 @@ coverage. Expected bar format is tab-separated
 bar dates are dotted and times are `HH:MM:SS`. Tick times require milliseconds.
 If tick import does not produce native M1 bars, this gate remains pending. A
 companion M1 path must use the observed native convention before acceptance;
-the current implementation does not invent a bar-import convention.
+the current implementation does not invent a bar-import convention. Both
+validated seasonal ranges already have native bars generated from ticks.
 
 Create a private evidence JSON beside the native files:
 
@@ -115,6 +133,15 @@ verified feed/specification/clock and pinned threshold requirements remain in
 force. Reacquire only missing, corrupt or potentially truncated evidence, or a
 deliberately changed capture. A frozen diagnostic audit does not fabricate a
 registered MT5 export or operator attestation.
+
+The complete seasonal custom captures and broker tick days are already retained.
+Reuse their manifests and reports from the handoff. Native broker January M1
+was unavailable through MCP with the 100,000-bar chart limit; broker-tick-derived
+M1 diagnostics do not close that native-bar gate. Last observed custom tick
+values differ (winter `0.1`, summer `1`), and the broker reader reports zero
+tick size/value. Resolve the native specifications before P&L/specification
+parity or formal broker acceptance. Do not change existing properties blindly;
+some edits erase imported history.
 
 Start with the public `profiles/reference.example.json`, copied into an ignored
 reference directory. Its booleans and placeholder hashes deliberately prevent
@@ -183,8 +210,10 @@ The implementation inventory frozen on September 6 UTC requests 2015 through
 the latest published candidate day, September 4, 2026. Inventory ID:
 `inv-6e244609e216802ca3d09123`. It selects 11 annual, eight monthly and four
 daily candidates, totaling 2,993,886,749 compressed bytes. All 23 HEAD probes
-were available; only the three bounded-pilot bodies have been downloaded and
-verified. Actual earliest/full coverage still requires the source build/audit.
+were available. At the Sprint 6 checkpoint, three bounded-pilot bodies had been
+downloaded and verified; subsequent January/July source downloads support the
+seasonal samples. This inventory snapshot is not a current download count or
+proof of earliest/full coverage, which still requires the source build/audit.
 
 The conservative storage plan estimates 146,437,977,528 bytes for the complete
 workflow versus 120,363,225,088 bytes free at measurement. It uses measured
@@ -218,16 +247,22 @@ backup or start an isolated corrected version.
 
 ## Operator Validation Queue
 
-The six implementation sprints do not complete these deferred gates:
+Implementation and the two sampled diagnostic native-import audits are
+complete. Continue with the remaining operational gates:
 
 1. Pin the actual Pro demo/live profile, server alias, feed mapping and terminal
    path/build; verify the nonzero trade tick and native sessions/specification.
 2. Verify the historical UTC/broker clock from real tick/bar evidence; keep the
-   EA's export-only analysis calendar separate.
-3. Create/import the small owned custom symbol, check milliseconds/tied ticks,
-   determine native M1 generation, and run exact tick plus M1/M3/M10/H1 round trip.
+   EA's export-only analysis calendar separate. Existing diagnostics support
+   Shift=0 for both sampled days; broader clock evidence remains outstanding.
+3. Complete verified registered-export and `compare-roundtrip` evidence after
+   the specification/clock prerequisites. The W1/S1 diagnostic imports already
+   preserve milliseconds, tied ticks and native bars exactly; do not recreate
+   them merely to repeat that passing audit or invent registered export IDs.
 4. Calibrate and pin the numeric profile using the independent pilot. Freeze
-   complete winter/summer and available transition captures before scoring.
+   complete references before formal scoring, reusing existing captures and
+   obtaining missing native broker January M1 bars. Do not calibrate on the
+   winter/summer dates whose diagnostics have already been inspected.
 5. Run the independent seasonal comparisons. Retain failures and missing-history
    evidence; a replacement day requires a documented predeclared rule.
 6. Refine the full-workflow storage estimate, provision capacity, then complete
@@ -245,8 +280,9 @@ The six implementation sprints do not complete these deferred gates:
 If compilation becomes necessary for the tester's actual source/toolchain,
 follow the [environment preflight/compile policy](../environment/mt5-agentic-workflows.md).
 No MQL5 source/include changed during this implementation batch and no new
-compile, native import or Strategy Tester run is claimed. The earlier V13
-human chart-object/rendering gate also remains independent and outstanding.
+compile or Strategy Tester run is claimed. The passing seasonal native audits
+are scoped to the handoff's exact diagnostic ranges. The earlier V13 human
+chart-object/rendering gate also remains independent and outstanding.
 
 ## Validation And Rollback
 
@@ -254,4 +290,5 @@ Each sprint runs focused Python tests, compileall, identifier/include and
 broker-boundary review, and `git diff --check`. Code rollback uses the recorded
 parent commit; preserve immutable raw data and version derived corrections.
 No MQL5 source change is planned, so the existing compile evidence is reused.
-See the [acceptance record](../research/exness-tick-history-acceptance.md).
+See the [historical sprint evidence](../research/exness-tick-history-acceptance.md)
+and [current handoff](../research/exness-tick-history-handoff-2026-09-07.md).

@@ -183,10 +183,15 @@ exact UTC quotes and tied ticks in Parquet, prepares native MT5 import files,
 and compares custom/broker ticks and bars. It supports explicit symbols,
 suffixes, dates and separate Pro demo/live profiles on Ubuntu with Wine.
 
-See the [operator workflow](docs/workflows/exness-tick-history.md) and
-[implementation evidence](docs/research/exness-tick-history-acceptance.md).
-Guided native import and real seasonal acceptance remain pending. Exness input
-provenance stays outside the strict twelve-file V13 run folder.
+The six implementation sprints and deterministic offline capture auditor are
+complete. The prepared winter and summer custom-symbol ranges pass exact tick
+and M1/M3/M10/H1 bar checks. Broker equivalence, full backfill and tester
+acceptance remain pending.
+
+Start with the [current handoff](docs/research/exness-tick-history-handoff-2026-09-07.md)
+and [operator workflow](docs/workflows/exness-tick-history.md). The
+[original sprint evidence](docs/research/exness-tick-history-acceptance.md)
+is historical. Exness provenance stays outside the twelve-file V13 run folder.
 
 ## Validation Status
 

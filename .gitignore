@@ -35,6 +35,9 @@ config/*.ini
 !/docs/plans/archive/pivot-fractal-v12-signal-features-2026-08-13/*.md
 !/docs/plans/archive/pivot-fractal-v13-deep-pivot-producer-2026-08-31/
 !/docs/plans/archive/pivot-fractal-v13-deep-pivot-producer-2026-08-31/*.md
+!/docs/plans/archive/exness-tick-history-2026-09-07/
+/docs/plans/archive/exness-tick-history-2026-09-07/*
+!/docs/plans/archive/exness-tick-history-2026-09-07/*.md
 /docs/lead_magnet/output/*
 !/docs/lead_magnet/output/.gitkeep
 /docs/lead_magnet/dist/*.zip

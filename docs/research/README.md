@@ -23,6 +23,12 @@ Use these active documents:
 - `../environment/mt5-agentic-workflows.md`
 - `../plans/archive/pivot-fractal-v13-deep-pivot-producer-2026-08-31/README.md`
 
+The separate Exness source pipeline has a
+[current handoff](exness-tick-history-handoff-2026-09-07.md): implementation and
+sampled winter/summer custom imports pass; broker equivalence, full backfill and
+tester acceptance remain pending. Its original
+[sprint evidence](exness-tick-history-acceptance.md) is a historical snapshot.
+
 V13 writes twelve strict TSV files under
 `Common\\Files\\PivotFractalV13\\runs\\<run_id>\\`. H1 evidence has
 `STRUCTURAL` and `MIDPOINT_50` lanes at `1R/2R/3R/5R`; shared M10 events

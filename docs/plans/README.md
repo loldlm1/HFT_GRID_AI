@@ -2,9 +2,10 @@
 
 ## Active
 
-There is no active implementation plan in this repository. The remaining human
-chart-object/rendering check is an operational rollout gate, not an unfinished
-producer sprint.
+There is no active implementation plan in this repository. V13 chart rendering
+and the Exness broker/full-history acceptance queue are operational gates. The
+[Exness handoff](../research/exness-tick-history-handoff-2026-09-07.md) records the
+completed implementation, passing sampled imports and remaining evidence.
 
 The downstream Django plan at
 `/home/loldlm/python_projects/hft-grid-ai-orchestrator/pivot-fractal-v13-django-research-progression-plan.md`
@@ -18,6 +19,9 @@ Completed and superseded plans live under `docs/plans/archive/`. They document
 historical code and exporter revisions only; they are not active implementation
 guidance.
 
+- [Exness tick-history service](archive/exness-tick-history-2026-09-07/README.md):
+  completed six-sprint implementation; subsequent offline/native validation is
+  recorded in its current handoff.
 - `docs/plans/archive/pivot-fractal-v13-deep-pivot-producer-2026-08-31/README.md`:
   completed V13 H1/M10 producer migration and offline handoff.
 - `docs/plans/archive/macro-micro-pivot-bandwidth-schema-v10-2026-08-06/README.md`:

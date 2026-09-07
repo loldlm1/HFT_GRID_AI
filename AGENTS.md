@@ -19,6 +19,9 @@ evidence remain immutable under their existing archive or research locations.
 - V13 handoff: `docs/research/pivot-fractal-v13-producer-handoff.md`.
 - V13 acceptance:
   `docs/research/pivot-fractal-v13-producer-acceptance-2026-08-31.md`.
+- Exness handoff: `docs/research/exness-tick-history-handoff-2026-09-07.md`.
+  Its implementation plan is archived; sampled imports pass, while broker
+  equivalence, full backfill and tester acceptance remain operational work.
 - Outstanding operational gate: human chart-object/rendering verification before
   any deployment-oriented claim.
 

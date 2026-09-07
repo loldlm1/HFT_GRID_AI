@@ -1,6 +1,6 @@
 # Exness Implementation And Acceptance Evidence
 
-Implementation follows [the saved plan](../../exness-tick-history-plan.md).
+Implementation follows [the saved plan](../plans/archive/exness-tick-history-2026-09-07/exness-tick-history-plan.md).
 Operator-dependent gates are deferred by explicit user instruction. Automated
 software validation is separate from native import and broker-feed acceptance.
 

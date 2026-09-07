@@ -243,5 +243,8 @@ This sidecar records provenance only; it never certifies a tester run, writes
 inside the V13 folder, trains a model or activates broker execution.
 
 See the [workflow](../../docs/workflows/exness-tick-history.md) for the source,
-terminal and acceptance contract. Native MT5 checks are pending until the
-operator completes the guided steps after the implementation batch.
+terminal and acceptance contract, and the
+[current handoff](../../docs/research/exness-tick-history-handoff-2026-09-07.md)
+before continuing work. Both prepared seasonal custom-symbol ranges pass exact
+tick, bar and warm-up audits. Broker equivalence, verified registered-export
+acceptance, full backfill and tester evidence remain separate pending gates.

@@ -34,9 +34,9 @@ not hide a resource/access failure or claim an unperformed backfill succeeded.
 Implementation checkpoint: Sprints 1-5 are committed as `66ca15f`, `286e6b7`,
 `f51d489`, `46ec437`, and `3005705`; Sprint 6 is the commit carrying this final
 checkpoint. All 58 service tests and 38 existing V13 tests pass. The
-[acceptance record](docs/research/exness-tick-history-acceptance.md) contains
+[acceptance record](../../../research/exness-tick-history-acceptance.md) contains
 measured pilot/inventory evidence and rollback parents. The
-[operator workflow](docs/workflows/exness-tick-history.md) retains the deferred
+[operator workflow](../../../workflows/exness-tick-history.md) retains the deferred
 native/specification, seasonal, full-backfill and tester queue. Full-workflow
 storage currently estimates 146.4 GB against 120.4 GB free; refine it from the
 native pilot or provision capacity. These implementation results do not mark
