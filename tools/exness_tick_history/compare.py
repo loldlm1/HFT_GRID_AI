@@ -200,6 +200,73 @@ def mcp_ticks(path: Path):
         raise SourceError("Invalid MCP JSONL capture") from exc
 
 
+def read_mcp_history(path: Path, symbol: str, period: str, sha256: str | None = None):
+    """Read one bounded raw response without converting JSON prices to floats."""
+    def unique_fields(pairs):
+        result = {}
+        for key, value in pairs:
+            if key in result:
+                raise SourceError("Duplicate MCP JSON field")
+            result[key] = value
+        return result
+
+    def invalid_constant(value):
+        raise SourceError("Non-finite MCP JSON number")
+
+    try:
+        with path.open("rb") as stream:
+            raw = stream.read(16 * 1024 * 1024 + 1)
+        if len(raw) > 16 * 1024 * 1024:
+            raise SourceError("MCP response exceeds 16 MiB; capture smaller intervals")
+        digest = hashlib.sha256(raw).hexdigest()
+        if sha256 is not None and digest != sha256:
+            raise SourceError("MCP response checksum mismatch")
+        data = json.loads(raw, parse_float=Decimal, parse_constant=invalid_constant, object_pairs_hook=unique_fields)
+        if (not isinstance(data, dict) or data.get("symbol") != symbol or data.get("period") != period
+                or not isinstance(data.get("history"), list) or len(data["history"]) > 100000):
+            raise SourceError("MCP response symbol, period or history differs from the capture contract")
+        return data["history"], digest
+    except (OSError, ValueError, UnicodeError, RecursionError) as exc:
+        if isinstance(exc, SourceError):
+            raise
+        raise SourceError("Cannot read a valid bounded MCP history response") from exc
+
+
+def mcp_tick_rows(rows):
+    previous = None
+    for row in rows:
+        if not isinstance(row, dict) or not {"time_ms", "bid", "ask"} <= row.keys():
+            raise SourceError("MCP tick row lacks required fields")
+        stamp = native_milliseconds(row["time_ms"])
+        if any(type(row[key]) not in (str, int, Decimal) for key in ("bid", "ask")):
+            raise SourceError("MCP prices require exact numeric lexemes")
+        bid, ask = (exact_price(str(row[key])) for key in ("bid", "ask"))
+        if ask < bid or previous is not None and stamp < previous:
+            raise SourceError("MCP quotes crossed or timestamps regressed")
+        previous = stamp
+        yield stamp, bid, ask
+
+
+def mcp_bar_rows(rows, period: str):
+    previous = None
+    for row in rows:
+        if not isinstance(row, dict) or not {"time", "open", "high", "low", "close", "tick_volume"} <= row.keys():
+            raise SourceError("MCP bar row lacks required fields")
+        if not isinstance(row["time"], str) or not re.fullmatch(r"\d{4}\.\d{2}\.\d{2} \d{2}:\d{2}:\d{2}", row["time"], re.ASCII):
+            raise SourceError("MCP bars require dotted second-precision timestamps")
+        stamp = native_milliseconds(row["time"] + ".000")
+        if any(type(row[key]) not in (str, int, Decimal) for key in ("open", "high", "low", "close")):
+            raise SourceError("MCP OHLC requires exact numeric lexemes")
+        opened, high, low, closed = (exact_price(str(row[key])) for key in ("open", "high", "low", "close"))
+        volume = row["tick_volume"]
+        if (stamp % PERIOD_MS[period] or previous is not None and stamp <= previous
+                or not low <= min(opened, closed) <= max(opened, closed) <= high
+                or type(volume) is not int or volume <= 0):
+            raise SourceError("Invalid MCP bar alignment, order, OHLC or tick volume")
+        previous = stamp
+        yield stamp, opened, high, low, closed, volume
+
+
 def reference_ticks(reference: dict, root: Path, start: int, end: int, issues: set[str]):
     cursor = start
     entries = reference.get("ticks")
@@ -216,9 +283,13 @@ def reference_ticks(reference: dict, root: Path, start: int, end: int, issues: s
         if file_hash(path) != entry.get("sha256"):
             raise SourceError("Reference tick checksum mismatch")
         mode = entry.get("format")
-        if mode not in ("native_tsv", "mcp_jsonl"):
+        if mode not in ("native_tsv", "mcp_jsonl", "mcp_json"):
             raise SourceError("Unknown reference tick capture format")
-        reader = mcp_ticks(path) if mode == "mcp_jsonl" else native_ticks(path, encoding=entry.get("encoding", "utf-8-sig"))
+        if mode == "mcp_json":
+            rows, _ = read_mcp_history(path, reference["specification"]["broker_symbol"], "tick", entry["sha256"])
+            reader = mcp_tick_rows(rows)
+        else:
+            reader = mcp_ticks(path) if mode == "mcp_jsonl" else native_ticks(path, encoding=entry.get("encoding", "utf-8-sig"))
         count = 0
         for tick in reader:
             if not left <= tick[0] < right:
@@ -230,7 +301,7 @@ def reference_ticks(reference: dict, root: Path, start: int, end: int, issues: s
         if entry.get("complete") is not True:
             issues.add("unverified_capture_completeness")
         limit = entry.get("limit")
-        if mode == "mcp_jsonl":
+        if mode in ("mcp_jsonl", "mcp_json"):
             if type(limit) is not int or limit <= 0 or count >= limit:
                 issues.add("potentially_truncated_mcp_capture")
             if entry.get("millisecond_and_all_quotes_verified") is not True:
@@ -550,7 +621,18 @@ def compare_broker(profile: Profile, dataset_id: str, reference_path: Path, *, r
                 continue
             native, prior = [], deque(maxlen=26)
             try:
-                for bar in native_bars(path, milliseconds, encoding=entry.get("encoding", "utf-8-sig")):
+                if entry.get("format") == "mcp_json":
+                    rows, _ = read_mcp_history(path, spec["broker_symbol"], period, entry["sha256"])
+                    reader = (bar[:5] for bar in mcp_bar_rows(rows, period))
+                    if type(entry.get("limit")) is not int or entry["limit"] <= 0 or len(rows) >= entry["limit"]:
+                        issues.add(period + "_native_bar_capture_limit_unverified")
+                        issues.add("native_bar_capture_incomplete")
+                        continue
+                elif entry.get("format", "native_tsv") == "native_tsv":
+                    reader = native_bars(path, milliseconds, encoding=entry.get("encoding", "utf-8-sig"))
+                else:
+                    raise SourceError("Unknown reference bar capture format")
+                for bar in reader:
                     if bar[0] < start:
                         prior.append(bar)
                     elif bar[0] < end:
@@ -582,7 +664,7 @@ def compare_broker(profile: Profile, dataset_id: str, reference_path: Path, *, r
         gates["clock_shift_diagnostic"] = "FAIL" if any(item["diagnostic_shift_seconds"] and item["exact_bid_ohlc_bars"] > zero for item in diagnostics) else "PASS"
         incomplete_capture = {"no_tick_support", "missing_tick_captures", "potentially_truncated_mcp_capture",
                               "unverified_capture_completeness", "capture_does_not_reach_day_end",
-                              "reference_captured_before_day_completed"}
+                              "reference_captured_before_day_completed", "native_bar_capture_incomplete"}
         result = ("INCONCLUSIVE" if issues & incomplete_capture else "FAIL" if "FAIL" in gates.values()
                   else "INCONCLUSIVE" if issues or "INCONCLUSIVE" in gates.values() else "PASS")
         return {**base, "broker_comparison": result, "gates": gates, "unresolved": sorted(issues),

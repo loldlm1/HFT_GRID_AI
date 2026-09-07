@@ -16,6 +16,7 @@ from .sanitize import build_dataset
 from .report import audit_dataset, research_provenance, save_comparison, seasonal_report, seasonal_schedule, storage_plan
 from .mt5_export import export_mt5
 from .compare import compare_broker, compare_roundtrip, comparison_profile_hash
+from .capture import audit_capture, freeze_capture
 
 DEFAULT_PROFILE = Path(__file__).parent / "profiles/xauusd_pro.example.toml"
 
@@ -50,6 +51,16 @@ def main(argv: list[str] | None = None) -> int:
     command.add_argument("--encoding", choices=("utf-8-sig", "utf-16", "ascii"), default="utf-8-sig")
     command.add_argument("--evidence", type=Path)
     command.add_argument("--comparison-id")
+    command = commands.add_parser("freeze-capture", help="Seal saved raw MCP responses with immutable checksums; no terminal calls")
+    command.add_argument("--requests", type=Path, required=True)
+    command.add_argument("--output", type=Path, required=True)
+    command = commands.add_parser("audit-capture", help="Replay exact tick and native bar checks against a frozen MCP capture")
+    command.add_argument("--capture", type=Path, required=True)
+    command.add_argument("--expected-ticks", type=Path)
+    command.add_argument("--expected-sha256")
+    command.add_argument("--encoding", choices=("utf-8-sig", "utf-16", "ascii"), default="utf-8-sig")
+    command.add_argument("--score-day", help="Require the whole YYYY-MM-DD day and at least 26 real prior bars per timeframe")
+    command.add_argument("--report", type=Path, required=True)
     command = commands.add_parser("compare-broker", help="Score one frozen broker day with complete native reference captures")
     command.add_argument("--dataset-id", required=True)
     command.add_argument("--reference", type=Path, required=True)
@@ -84,6 +95,16 @@ def main(argv: list[str] | None = None) -> int:
         command.add_argument("--day", type=int)
     args = parser.parse_args(argv)
     try:
+        if args.command == "freeze-capture":
+            result = freeze_capture(args.requests, args.output)
+            print(json.dumps({key: result[key] for key in ("manifest_sha256", "symbol", "requested_from", "requested_to")}, indent=2, sort_keys=True))
+            return 0
+        if args.command == "audit-capture":
+            result = audit_capture(args.capture, expected_ticks=args.expected_ticks, expected_sha256=args.expected_sha256,
+                                   encoding=args.encoding, score_day=args.score_day)
+            atomic_json(args.report, result, immutable=True)
+            print(json.dumps({key: result[key] for key in ("capture_audit", "capture_integrity", "tick_equality", "native_bars", "errors", "unresolved")}, indent=2, sort_keys=True))
+            return {"PASS": 0, "FAIL": 3, "INCONCLUSIVE": 4}[result["capture_audit"]]
         profile = load_profile(args.config)
         if args.command == "inspect-config":
             result = profile.summary()

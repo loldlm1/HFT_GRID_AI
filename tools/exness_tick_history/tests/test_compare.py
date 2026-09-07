@@ -211,6 +211,47 @@ class BrokerTests(unittest.TestCase):
         self.refresh_reference()
         self.assertEqual(self.compare()["broker_comparison"], "INCONCLUSIVE")
 
+    def test_raw_mcp_capture_reuses_exact_reference_metrics_without_jsonl_copy(self):
+        before = self.compare()
+        tick_path = self.profile.data_root / "broker-raw.json"
+        ticks = [{"time_ms": f"{EPOCH + timedelta(milliseconds=stamp):%Y.%m.%d %H:%M:%S}.{stamp % 1000:03d}",
+                  "bid": str(bid), "ask": str(ask)} for stamp, bid, ask in self.day_ticks]
+        atomic_json(tick_path, {"symbol": "XAUUSD", "period": "tick", "history": ticks})
+        self.reference["ticks"][0].update(path=tick_path.name, format="mcp_json", sha256=file_hash(tick_path),
+                                          limit=10000, millisecond_and_all_quotes_verified=True)
+        for period, milliseconds in PERIOD_MS.items():
+            path = self.profile.data_root / (period + "-raw.json")
+            rows = [{"time": f"{EPOCH + timedelta(milliseconds=stamp):%Y.%m.%d %H:%M:%S}",
+                     **dict(zip(("open", "high", "low", "close"), map(str, ohlc))), "tick_volume": 1}
+                    for stamp, *ohlc in quote_bars(self.all_ticks, milliseconds)]
+            atomic_json(path, {"symbol": "XAUUSD", "period": period, "history": rows})
+            self.reference["bars"][period] = {"path": path.name, "format": "mcp_json", "sha256": file_hash(path), "limit": 10000}
+        atomic_json(self.reference_path, self.reference)
+        result = self.compare()
+        for key in ("matched_pairs", "unmatched_source", "unmatched_broker", "quote_errors", "bars", "gates", "broker_comparison"):
+            self.assertEqual(result[key], before[key], key)
+        self.reference["ticks"][0]["limit"] = len(self.day_ticks)
+        atomic_json(self.reference_path, self.reference)
+        result = self.compare()
+        self.assertEqual(result["broker_comparison"], "INCONCLUSIVE")
+        self.assertIn("potentially_truncated_mcp_capture", result["unresolved"])
+        self.reference["ticks"][0]["limit"] = 10000
+        self.reference["bars"]["M1"]["limit"] = 1
+        atomic_json(self.reference_path, self.reference)
+        result = self.compare()
+        self.assertEqual(result["broker_comparison"], "INCONCLUSIVE")
+        self.assertIn("M1_native_bar_capture_limit_unverified", result["unresolved"])
+        self.assertNotIn("M1_bar_opens", result["gates"])
+        path = self.profile.data_root / self.reference["bars"]["M1"]["path"]
+        raw = json.loads(path.read_text())
+        raw["history"] = raw["history"][-1:]
+        atomic_json(path, raw)
+        self.reference["bars"]["M1"]["sha256"] = file_hash(path)
+        atomic_json(self.reference_path, self.reference)
+        result = self.compare()
+        self.assertEqual(result["broker_comparison"], "INCONCLUSIVE")
+        self.assertNotIn("M1_bar_opens", result["gates"])
+
     def test_interval_subdivision_preserves_boundary_groups(self):
         self.assertEqual(split_capture_interval(1000, 2000, 100, 100), [(1000, 1500), (1500, 2000)])
         self.assertEqual(split_capture_interval(1000, 1500, 99, 100), [(1000, 1500)])

@@ -104,6 +104,18 @@ tick, specification or bar mismatch is `FAIL`.
 
 ## Seasonal Broker Captures
 
+Capture terminal evidence once and replay the analysis with the service's
+[`freeze-capture` and `audit-capture` commands](../../tools/exness_tick_history/README.md#capture-once-audit-offline).
+Save raw MCP JSON responses without reserializing numeric prices; record each
+actual request interval, returned count and reader limit. Freeze hashes before
+analysis. The offline audit checks complete tick order and native Bid OHLC/tick
+volumes at M1/M3/M10/H1 in one pass, with explicit failure/incomplete results.
+Reuse these raw responses in `compare-broker` with `format=mcp_json`; its
+verified feed/specification/clock and pinned threshold requirements remain in
+force. Reacquire only missing, corrupt or potentially truncated evidence, or a
+deliberately changed capture. A frozen diagnostic audit does not fabricate a
+registered MT5 export or operator attestation.
+
 Start with the public `profiles/reference.example.json`, copied into an ignored
 reference directory. Its booleans and placeholder hashes deliberately prevent
 acceptance. Embed the verified `clock` and `specification` objects, set the exact
@@ -129,13 +141,15 @@ pilot or raise thresholds after inspecting a failed acceptance result.
 
 Use native all-quote tick exports for complete days. MCP assistance requires
 runtime discovery and workspace preflight. Capture the actual numeric JSON
-lexemes to files; normalize the `history` rows to JSONL with `time_ms`, `bid`
-and `ask`. The timestamp is exactly `YYYY.MM.DD HH:MM:SS.mmm`, interpreted under
+lexemes to files; retain the raw response with `format=mcp_json`, or normalize
+`history` rows to JSONL with `time_ms`, `bid` and `ask` without float conversion.
+The timestamp is exactly `YYYY.MM.DD HH:MM:SS.mmm`, interpreted under
 the verified broker clock. Do not reinterpret its name as an integer epoch or
 discard its milliseconds. Keep account/community fields out of the capture.
 
 Each tick entry declares a disjoint `[start_broker_msc, end_broker_msc)` interval,
-file SHA-256, actual row count, format and completeness. For `mcp_jsonl`, also
+file SHA-256, actual row count, format and completeness. For `mcp_jsonl` and
+`mcp_json`, also
 record the positive reader `limit` and
 `millisecond_and_all_quotes_verified=true` only after checking those semantics.
 A response with `rows >= limit` is potentially truncated. Bisect the requested

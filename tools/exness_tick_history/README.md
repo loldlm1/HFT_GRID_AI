@@ -16,6 +16,8 @@ with DuckDB 1.5.4. Run from the repository root:
 .venv/bin/python -m tools.exness_tick_history audit --dataset-id <dataset_id>
 .venv/bin/python -m tools.exness_tick_history export-mt5 --dataset-id <dataset_id> --export-id <new_export_id> --specification <spec.json> --clock <clock.json>
 .venv/bin/python -m tools.exness_tick_history compare-roundtrip --export-id <export_id> --native-export <native.tsv> --evidence <native-evidence.json>
+.venv/bin/python -m tools.exness_tick_history freeze-capture --requests <capture-requests.json> --output <capture-frozen.json>
+.venv/bin/python -m tools.exness_tick_history audit-capture --capture <capture-frozen.json> --expected-ticks <import.tsv> --expected-sha256 <sha256> --score-day <YYYY-MM-DD> --report <audit.json>
 .venv/bin/python -m tools.exness_tick_history seasonal-schedule --year 2026
 .venv/bin/python -m tools.exness_tick_history compare-broker --dataset-id <dataset_id> --reference <reference.json> --roundtrip-report <roundtrip-report.json> --comparison-id <new_comparison_id>
 .venv/bin/python -m tools.exness_tick_history seasonal-report --year 2026 --comparisons <winter_id> <summer_id> <transition_ids>
@@ -106,7 +108,87 @@ with optional BOM. Exact quote equality can pass while `mt5_round_trip` remains
 inconclusive until metadata and all four native timeframe bar files are supplied.
 See the workflow for the evidence schema and guided native steps.
 
-Broker comparison accepts complete native TSV or MCP JSONL captures. It uses
+## Capture Once, Audit Offline
+
+`freeze-capture` seals existing raw MCP JSON responses and their actual request
+intervals, row counts and reader limits. It writes a separate immutable manifest
+beside the request manifest, with a SHA-256 for every response. It does not call
+MT5, download data, copy tick files, approve a feed or infer missing metadata.
+Keep responses under the manifest directory; absolute paths, parent traversal,
+symlinks and duplicate file ownership are refused.
+
+The request manifest uses the following shape. Include one entry for every
+disjoint tick request, in request order, and captured M1/M3/M10/H1 bar responses:
+
+```json
+{
+  "schema_version": 1,
+  "symbol": "XAUUSD_EXN_PRO_S1",
+  "requested_from": "2026-07-13T00:00:00",
+  "requested_to": "2026-07-16T00:00:00",
+  "entries": [
+    {
+      "path": "ticks/first-response.json",
+      "start": "2026-07-13T00:00:00",
+      "end": "2026-07-16T00:00:00",
+      "rows": 0,
+      "limit": 10000
+    }
+  ],
+  "bars": {
+    "M1": {
+      "path": "bars/M1.json",
+      "start": "2026-07-13T00:00:00",
+      "end": "2026-07-16T00:00:00",
+      "rows": 0,
+      "limit": 10000
+    }
+  }
+}
+```
+
+The zero counts are placeholders, not evidence of a closure. Raw files contain
+the MCP response object with `symbol`, `period` and `history`, preserving the
+original JSON numeric text. Save those bytes directly; parsing prices into
+JavaScript floats and serializing them again can destroy precision. Record the
+actual limits, never inferred values. A legacy bar limit may be `null`; bar
+completeness then rests on exact equality to every tick-derived candle. Tick
+limits are mandatory. Include missing timeframes before claiming a full audit.
+Bar requests cover the same interval as ticks, with boundaries aligned to each
+supplied timeframe. A frozen manifest cannot be overwritten with changed input.
+
+`audit-capture` rechecks checksums, exact symbol/period, exhaustive half-open
+interval coverage, millisecond precision, monotonic order and row counts. It
+compares the optional TSV once, row for row, including Bid/Ask and equal-time
+multiplicity/order. Its expected checksum must come from the prepared import
+manifest. It derives M1/M3/M10/H1 Bid OHLC and tick volumes in that same pass,
+keeping one current candle per timeframe and one bounded tick response in
+memory. Raw responses are capped at 16 MiB and 100,000 rows; split larger
+requests. There is no full-history tick array or normalization copy on disk.
+
+Reader-limit-sized tick responses yield `INCONCLUSIVE` and deterministic
+bisected recapture requests. Never resume from the last returned tick. A
+saturated single millisecond requires a complete native export. Empty intervals
+need exact supplied TSV equality; that proves equality of the supplied data,
+not market closure. Missing bars or fewer than 26 real preceding bars when
+`--score-day` is used remain inconclusive. Zero support cannot pass.
+
+Exit codes are 0 for `PASS`, 3 for `FAIL`, and 4 for `INCONCLUSIVE`. The report
+contains bounded mismatch examples, counts, ordered quote hashes, input hashes
+and the auditor implementation hash. Same inputs and implementation produce
+byte-identical reports; replay needs neither a running terminal nor a private
+profile. Reports are immutable, so changed evidence/code requires a new report
+path. These diagnostics never set `mt5_round_trip=PASS` for an unregistered TSV
+or replace the verified specification/clock/feed gates of broker acceptance.
+
+## Broker Comparison
+
+Broker comparison accepts complete native TSV, MCP JSONL or raw MCP JSON
+captures. For raw responses, set a tick/reference bar entry's `format` to
+`mcp_json`, preserve its raw file checksum and record the actual positive reader
+`limit`. Other completeness and reference requirements still apply. The exact
+response symbol must match the reference's verified broker symbol. No JSONL or
+bar TSV copy is needed. It uses
 one-to-one chronological matches within the pinned time delta and never reuses
 a broker tick. Price-error quantiles describe matched pairs; unmatched counts
 and fractions on each feed remain mandatory independent gates. Minute/hour
