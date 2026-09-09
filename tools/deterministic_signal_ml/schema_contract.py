@@ -1146,7 +1146,7 @@ def _validate_broker_outcomes(
         duration = _as_int(row, "h1_structural_lifecycle_seconds", context)
         assert entry_time is not None and close_time is not None and duration is not None
         if (
-            close_time <= entry_time
+            close_time < entry_time
             or duration != int((close_time - entry_time).total_seconds())
             or not _as_bool(row, "broker_entry_confirmed", context)
             or not _as_bool(row, "broker_close_confirmed", context)

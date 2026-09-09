@@ -8,8 +8,11 @@ evidence remain immutable under their existing archive or research locations.
 ## Entrypoint And Active Work
 
 - Entrypoint: `HFT_Grid_AI.mq5`.
-- Active implementation plan:
-  `docs/plans/parent-close-chronology-2026-09-09/README.md`.
+- Active implementation plan: none.
+- Completed parent-close correction:
+  `docs/plans/archive/parent-close-chronology-2026-09-09/README.md`.
+- Parent-close acceptance and recovered-run limits:
+  `docs/research/parent-close-chronology-acceptance-2026-09-09.md`.
 - Completed V13 plan:
   `docs/plans/archive/pivot-fractal-v13-deep-pivot-producer-2026-08-31/`.
 - Architecture: `docs/architecture/market-data-broker-executor.md`.
@@ -190,6 +193,9 @@ entered lanes; it does not relabel them as SL losses.
   it is never reflected, stretched, or routed.
 - If a parent exits first, unresolved outcomes for that link become
   `CENSORED_PARENT_EXIT`. Run stop uses `CENSORED_RUN_END`. Neither is a loss.
+- Retain confirmed broker close time on existing deep links before broker
+  cleanup; use it for parent-exit censoring, including at run termination.
+  Later reconciliation/observed quotes do not extend the parent's lifecycle.
 - The shared path may resolve for another still-active parent after one link is
   censored. Observation stops when no linked parent remains active.
 
@@ -227,6 +233,7 @@ shadow outside H1/deep model cohorts.
   mapping. Never sort causal events by analysis time alone.
 - H1 virtual outcomes and confirmed broker outcomes expose exact
   `h1_structural_lifecycle_seconds` only after a completed entered lifecycle.
+  Confirmed entry and close in the same serialized second may have duration zero.
 - `NOT_TRIGGERED`, `INELIGIBLE`, and `CENSORED_RUN_END` have null completed H1
   duration.
 - Parent links expose exact `m10_parent_age_seconds` at the M10 trigger.
@@ -260,6 +267,11 @@ builds native-grain H1/deep/broker/calibration artifacts, audits support and
 leakage, and trains explicit offline H1 or deep candidates. Deep event features
 join only during explicit deep training. No runtime model or execution filter
 is produced.
+
+The bounded `parent_chronology.py` audit is a separate operational gate, not full
+semantic acceptance. Historical recovery requires a distinct visible run and
+retained correction/provenance sidecars; it never changes binary labels or the
+original export.
 
 ## Include Pipeline
 

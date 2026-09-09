@@ -171,7 +171,7 @@ def _audit(db: duckdb.DuckDBPyConnection, run: Path, manifest: dict, summary: di
           OR (parent_kind='VIRTUAL' AND (trial_role IS DISTINCT FROM 'H1' OR eligibility_status IS DISTINCT FROM 'ACTIVE' OR parent_terminal IS NULL
               OR parent_entry_broker_time IS DISTINCT FROM trial_entry))
           OR (parent_kind='BROKER' AND (trial_role IS DISTINCT FROM 'BROKER_PARITY' OR parent_entry_policy IS DISTINCT FROM 'STRUCTURAL' OR parent_tp_r_multiple IS DISTINCT FROM 1))""",
-        "broker_lifecycle": "SELECT count(*) FROM broker_outcomes WHERE close_broker_time<=entry_broker_time OR broker_entry_confirmed IS DISTINCT FROM '1' OR broker_close_confirmed IS DISTINCT FROM '1'",
+        "broker_lifecycle": "SELECT count(*) FROM broker_outcomes WHERE close_broker_time<entry_broker_time OR broker_entry_confirmed IS DISTINCT FROM '1' OR broker_close_confirmed IS DISTINCT FROM '1'",
         "broker_parent_evidence": """SELECT count(*) FROM parents WHERE parent_kind='BROKER' AND
           ((referenced_broker IS NOT NULL AND (parent_entry_broker_time IS DISTINCT FROM broker_entry
             OR origin_id IS DISTINCT FROM broker_origin OR broker_entry_confirmed IS DISTINCT FROM '1'

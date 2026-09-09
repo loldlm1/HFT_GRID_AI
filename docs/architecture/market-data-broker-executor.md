@@ -100,6 +100,15 @@ link as `CENSORED_PARENT_EXIT`; a run stop uses `CENSORED_RUN_END`. The same
 shared trial may resolve normally for another still-active parent. Observation
 ends when no linked parent remains active.
 
+Before broker signal cleanup, confirmed deal close time is retained on its
+existing deep links. Unfinished children use that time for parent-exit censoring,
+including when the run stops after closure. Missing or inconsistent close
+evidence invalidates research integrity without changing broker execution.
+Reconciliation may observe closure later: broker outcomes own the actual close
+clock, while terminal execution checks retain reconciliation time. Observed
+censor quotes remain observation evidence and produce no completed return or
+binary label. Strict V13 headers remain unchanged.
+
 Admission reserves the complete fan-out atomically: one event, all frozen links,
 three trials, and three outcomes per link. If it cannot fit, the event identity
 is consumed and one `CAPACITY_REJECTED` row is emitted with no partial children.
@@ -129,6 +138,10 @@ own entry to a confirmed close. `m10_parent_age_seconds` is exact parent entry
 to M10 trigger age. Neither is rounded or capped. The downstream application
 maps them to separate `<= minutes * 60` research predicates; H1 duration is
 retrospective and excluded from causal/model features.
+
+Confirmed broker entry and close may serialize to the same second, giving a
+valid duration of zero. Reversed clocks and duration mismatches are rejected;
+second-resolution fields do not establish actual subsecond latency.
 
 ## Export And Include Boundaries
 
@@ -160,3 +173,9 @@ The Python validator accepts strict V13 only, builds native-grain H1/deep/
 broker/calibration artifacts, audits referential integrity and leakage, and
 trains explicit offline H1 or deep candidates. No runtime model artifact or
 execution filter is produced.
+
+The bounded DuckDB parent chronology audit checks parent intervals and labels
+separately from full semantic validation. Timestamp-only historical recovery
+creates a distinct derivative with adjacent correction/provenance sidecars and
+preserves source exports. The [parent-close acceptance record](../research/parent-close-chronology-acceptance-2026-09-09.md)
+documents the corrected producer, focused tester parity and recovered-run limits.

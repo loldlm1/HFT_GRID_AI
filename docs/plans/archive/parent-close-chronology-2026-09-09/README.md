@@ -1,6 +1,7 @@
 # Parent Close Chronology - Execution Plan
 
-Status: authorized and in progress, 2026-09-09. One writing session.
+Status: all three authorized sprints complete and archived, 2026-09-09.
+One writing session. No active implementation remains in this plan.
 
 ## Objective And Boundaries
 
@@ -50,11 +51,11 @@ Exness preparation changes remain outside these commits. No old handoff is edite
 | Sprint | Status | Commit | Rollback |
 | --- | --- | --- | --- |
 | 1 | Complete | `65090dc` | `3478c97` |
-| 2 | Complete | Recorded by sprint commit | `65090dc` |
-| 3 | In progress | Pending | Sprint 2 commit |
+| 2 | Complete | `10aa194` | `65090dc` |
+| 3 | Complete | Acceptance commit containing this ledger | `10aa194` |
 
 Runtime evidence: ignored `.codex-artifacts/parent-close-chronology-20260909/`.
-Earlier diagnosis: [run verification](../../research/exness-xauusd-run-verification-2026-09-09.md).
+Final evidence and recovered artifact: [acceptance record](../../../research/parent-close-chronology-acceptance-2026-09-09.md).
 The full existing in-memory semantic validator is not silently replaced by a
 parent-only audit; each acceptance report must state which checks actually ran.
 
@@ -73,3 +74,15 @@ late admissions or completed children were found. A separate recovered copy
 at `/home/admin/Documents/Exness_Research_Runs/` passes parent chronology, with
 per-row observation/quote provenance and both file hash sets. Full semantic
 validation of this large derivative remains separate and is not claimed.
+
+Sprint 3 evidence: 45 Python tests pass. Confirmed broker lifecycles may have
+zero serialized seconds; both Python checks now agree with the producer's
+nonnegative-duration contract. The corrected binary passes strict V13 and all
+53 chronology checks on the verified Exness real-tick interval. Export-on/off
+results match across all 43 report fields and all 694 ordered broker messages.
+Three children from the original example now censor at `2015.08.13 05:55:04`.
+The full recovered derivative passes all 53 chronology checks; independent
+inverse transformation reproduces every original TSV hash. The original run
+remains unchanged. No full historical tester rerun was needed for this defect.
+Full semantic validation of the large derivative and human chart acceptance
+remain outside this acceptance claim.

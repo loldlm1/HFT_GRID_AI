@@ -43,6 +43,7 @@ from schema_contract import (
     VIRTUAL_OUTCOMES_FILE,
     VIRTUAL_TRIALS_FILE,
     SchemaValidationError,
+    _validate_broker_outcomes,
     _validate_deep,
     _validate_manifest,
     _normalize_risk_ticks_outward,
@@ -823,6 +824,31 @@ class ParentChronologyOperationalTests(unittest.TestCase):
             self.assertEqual(report["checks"]["virtual_trials.required_identity"], 1)
             with self.assertRaisesRegex(SchemaValidationError, "not eligible"):
                 recover_run(root, run.name, root / "recovered", "bad_role")
+
+    def test_confirmed_broker_lifecycle_accepts_zero_serialized_seconds(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            run = self.make_broker_run(root)
+            tables = {name: read_rows(run / name)[1] for name in RUN_FILES}
+            broker = tables["broker_outcomes.tsv"][0]
+            broker.update(close_broker_time=broker["entry_broker_time"],
+                          close_analysis_time=broker["entry_analysis_time"],
+                          h1_structural_lifecycle_seconds="0")
+            def validate_broker() -> None:
+                _validate_broker_outcomes(
+                    [broker], _validate_manifest(tables[RUN_MANIFEST_FILE], run.name),
+                    {row["origin_id"]: row for row in tables[SIGNAL_ORIGINS_FILE]},
+                    {row["trial_id"]: row for row in tables[VIRTUAL_TRIALS_FILE]},
+                    {row["outcome_id"]: row for row in tables[VIRTUAL_OUTCOMES_FILE]},
+                )
+            validate_broker()
+            broker["h1_structural_lifecycle_seconds"] = "1"
+            with self.assertRaisesRegex(SchemaValidationError, "incomplete broker lifecycle"):
+                validate_broker()
+            broker.update(close_broker_time="2026.01.12 10:04:59",
+                          close_analysis_time="2026.01.12 10:04:59", h1_structural_lifecycle_seconds="-1")
+            with self.assertRaisesRegex(SchemaValidationError, "incomplete broker lifecycle"):
+                validate_broker()
 
 
 if __name__ == "__main__":

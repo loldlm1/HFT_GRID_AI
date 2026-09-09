@@ -19,6 +19,10 @@ Completed and superseded plans live under `docs/plans/archive/`. They document
 historical code and exporter revisions only; they are not active implementation
 guidance.
 
+- [Parent-close chronology](archive/parent-close-chronology-2026-09-09/README.md):
+  completed three sprints covering the EA close-clock handoff, bounded Python
+  audit/recovery, and Exness tester acceptance. The [acceptance record](../research/parent-close-chronology-acceptance-2026-09-09.md)
+  retains the full recovered-run validation limits.
 - [Exness tick-history service](archive/exness-tick-history-2026-09-07/README.md):
   completed six-sprint implementation; subsequent offline/native validation is
   recorded in its current handoff.

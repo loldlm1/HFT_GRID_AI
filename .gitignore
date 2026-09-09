@@ -38,6 +38,9 @@ config/*.ini
 !/docs/plans/archive/exness-tick-history-2026-09-07/
 /docs/plans/archive/exness-tick-history-2026-09-07/*
 !/docs/plans/archive/exness-tick-history-2026-09-07/*.md
+!/docs/plans/archive/parent-close-chronology-2026-09-09/
+/docs/plans/archive/parent-close-chronology-2026-09-09/*
+!/docs/plans/archive/parent-close-chronology-2026-09-09/*.md
 /docs/lead_magnet/output/*
 !/docs/lead_magnet/output/.gitkeep
 /docs/lead_magnet/dist/*.zip

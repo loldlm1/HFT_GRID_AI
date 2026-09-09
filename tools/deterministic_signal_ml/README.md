@@ -65,6 +65,11 @@ Exit code 1 means a failed audit or invalid input. Reports are never written
 inside source runs. All twelve exact V13 headers and the producer seal are checked;
 the report lists the eight tables whose chronology columns were scanned.
 
+Confirmed broker entry and close may occupy the same serialized second; an
+exact lifecycle duration of zero is valid. Reversed clocks remain invalid. A
+parent-exit censor uses the actual parent close time even if reconciliation
+observes closure later; observed censor quotes are not completed trade returns.
+
 A naturally completed historical run with **only** late broker-parent censor
 timestamps may be recovered explicitly into a new directory:
 
@@ -92,6 +97,9 @@ outcomes, invalid admission intervals and all other audit failures. More than
 The corrected run is published only after its parent chronology audit passes.
 Run full semantic validation separately when practical; passing this focused
 audit alone is not full statistical acceptance or broker-equivalence evidence.
+
+The [2026-09-09 acceptance record](../../docs/research/parent-close-chronology-acceptance-2026-09-09.md)
+documents the retained XAUUSD derivative, validation scope and tester evidence.
 
 ## Build
 
