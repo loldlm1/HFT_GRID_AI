@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import csv
+import hashlib
+import json
 import shutil
 import sys
 import tempfile
@@ -47,6 +49,7 @@ from schema_contract import (
     expected_columns_for,
     validate_run,
 )
+from parent_chronology import audit_run, recover_run
 
 FIXTURES = Path(__file__).parent / "fixtures"
 FIXTURE = FIXTURES / "schema_v13_hft_deep_pivot_features"
@@ -702,6 +705,124 @@ class PivotFractalV13SchemaTests(unittest.TestCase):
             )
             with self.assertRaisesRegex(SchemaValidationError, "capacity rejection has partial fan-out"):
                 validate_run(root, FIXTURE.name)
+
+
+class ParentChronologyOperationalTests(unittest.TestCase):
+    def make_broker_run(self, directory: Path) -> Path:
+        run = directory / FIXTURE.name
+        shutil.copytree(FIXTURE, run)
+        mutate_row(run, DEEP_PIVOT_PARENT_LINKS_FILE, lambda row: row["parent_link_id"] == "link_1",
+                   parent_kind="BROKER", parent_trial_id="parity_broker_sig_s1",
+                   parent_broker_signal_id="broker_sig_s1", parent_entry_policy="STRUCTURAL",
+                   parent_tp_r_multiple="1", parent_entry_broker_time="2026.01.12 10:05:00",
+                   m10_parent_age_seconds="840")
+        columns, _ = read_rows(run / "broker_outcomes.tsv")
+        _, origins = read_rows(run / SIGNAL_ORIGINS_FILE)
+        origin = origins[0]
+        broker = {column: NULL_TOKEN for column in columns}
+        for column in ("schema_version", "run_id", "config_id", "origin_id", "window_id", "symbol",
+                       "macro_timeframe", "deep_timeframe", "micro_timeframe", "active_bar_open_broker_time", "level_id", "direction"):
+            broker[column] = origin[column]
+        broker.update(broker_outcome_id="broker_close_1", broker_signal_id="broker_sig_s1",
+                      parity_trial_id="parity_broker_sig_s1", entry_broker_time="2026.01.12 10:05:00",
+                      entry_analysis_time="2026.01.12 10:05:00", entry_offset_minutes="0",
+                      close_broker_time="2026.01.12 10:40:00", close_analysis_time="2026.01.12 10:40:00",
+                      close_offset_minutes="0", h1_structural_lifecycle_seconds="2100",
+                      broker_entry_confirmed="1", broker_close_confirmed="1", close_deal_count="1",
+                      request_risk_distance_points="100", request_reward_distance_points="100",
+                      request_price_reward_risk_ratio="1", broker_terminal_reason="BROKER_TP",
+                      close_reason_consistent="1", broker_binary_eligible="1", broker_binary_target="1")
+        write_rows(run / "broker_outcomes.tsv", columns, [broker])
+        mutate_row(run, RUN_SUMMARY_FILE, lambda row: True, broker_outcome_rows="1", parity_pair_rows="1")
+        return run
+
+    def delay_censor(self, run: Path) -> None:
+        mutate_row(run, DEEP_VIRTUAL_OUTCOMES_FILE, lambda row: row["terminal_status"] == "CENSORED_PARENT_EXIT",
+                   terminal_broker_time="2026.01.12 10:40:02", terminal_analysis_time="2026.01.12 10:40:02")
+
+    def test_audit_and_recovery_preserve_every_nonclock_fact_and_original_byte(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            run = self.make_broker_run(root)
+            validate_run(root, run.name)
+            self.assertEqual(audit_run(root, run.name)["status"], "PASS")
+            self.delay_censor(run)
+            hashes = {name: hashlib.sha256((run / name).read_bytes()).hexdigest() for name in RUN_FILES}
+            report = audit_run(root, run.name)
+            self.assertEqual({k: v for k, v in report["checks"].items() if v}, {"broker_parent_censor_after_close": 1})
+            recovered_root = root / "recovered"
+            recovered = recover_run(root, run.name, recovered_root, "recovered_clock")
+            target = recovered_root / "recovered_clock"
+            self.assertEqual(recovered["corrected_rows"], 1)
+            self.assertEqual(recovered["audit_after"]["status"], "PASS")
+            validate_run(recovered_root, target.name)
+            self.assertEqual(set(p.name for p in target.iterdir()), set(RUN_FILES))
+            changed = []
+            for filename in RUN_FILES:
+                self.assertEqual(hashlib.sha256((run / filename).read_bytes()).hexdigest(), hashes[filename])
+                columns, old_rows = read_rows(run / filename)
+                _, new_rows = read_rows(target / filename)
+                self.assertEqual(len(old_rows), len(new_rows))
+                for old, new in zip(old_rows, new_rows):
+                    if filename == RUN_MANIFEST_FILE:
+                        if old["key"] == "run_id":
+                            self.assertEqual(new["value"], target.name)
+                            new["value"] = old["value"]
+                    else:
+                        self.assertEqual(new["run_id"], target.name)
+                        new["run_id"] = old["run_id"]
+                    changed.extend((filename, c) for c in columns if old[c] != new[c])
+            self.assertEqual(changed, [(DEEP_VIRTUAL_OUTCOMES_FILE, "terminal_broker_time"),
+                                       (DEEP_VIRTUAL_OUTCOMES_FILE, "terminal_analysis_time")])
+            corrections = [json.loads(line) for line in Path(recovered["correction_file"]).read_text().splitlines()]
+            self.assertEqual(corrections[0]["observation_clock"][0], "2026.01.12 10:40:02")
+            self.assertEqual(corrections[0]["after"][0], "2026.01.12 10:40:00")
+            self.assertTrue((recovered_root / "recovered_clock.provenance.json").is_file())
+            with self.assertRaises(FileExistsError):
+                recover_run(root, run.name, recovered_root, "recovered_clock")
+
+    def test_recovery_refuses_completed_children_after_close_and_broken_references(self) -> None:
+        for mutation, key in (
+            (lambda run: mutate_row(run, "broker_outcomes.tsv", lambda row: True,
+                                   close_broker_time="2026.01.12 10:24:59", close_analysis_time="2026.01.12 10:24:59"), "completed_after_parent"),
+            (lambda run: mutate_row(run, DEEP_PIVOT_PARENT_LINKS_FILE, lambda row: row["parent_link_id"] == "link_1",
+                                   parent_trial_id="unknown_parent"), "parent_identity"),
+        ):
+            with self.subTest(check=key), tempfile.TemporaryDirectory() as temporary:
+                root = Path(temporary)
+                run = self.make_broker_run(root)
+                self.delay_censor(run)
+                mutation(run)
+                self.assertGreater(audit_run(root, run.name)["checks"][key], 0)
+                with self.assertRaisesRegex(SchemaValidationError, "not eligible"):
+                    recover_run(root, run.name, root / "recovered", "bad_recovery")
+                self.assertFalse((root / "recovered" / "bad_recovery").exists())
+
+    def test_duplicate_identity_partial_clock_and_recovery_path_fail_closed(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            run = self.make_broker_run(root)
+            mutate_row(run, "broker_outcomes.tsv", lambda row: True, close_analysis_time=NULL_TOKEN)
+            self.assertEqual(audit_run(root, run.name)["checks"]["broker_outcomes.time_triplet"], 1)
+            with self.assertRaises(ValueError):
+                recover_run(root, run.name, run / "nested", "new_run")
+            columns, rows = read_rows(run / DEEP_VIRTUAL_OUTCOMES_FILE)
+            rows[1]["deep_outcome_id"] = rows[0]["deep_outcome_id"]
+            write_rows(run / DEEP_VIRTUAL_OUTCOMES_FILE, columns, rows)
+            report = audit_run(root, run.name)
+            self.assertEqual(report["checks"]["deep_virtual_outcomes.primary_key"], 1)
+            self.assertIn("relationship_checks_skipped", report)
+
+    def test_null_parent_role_is_not_a_recoverable_timestamp_error(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            run = self.make_broker_run(root)
+            self.delay_censor(run)
+            mutate_row(run, VIRTUAL_TRIALS_FILE, lambda row: row["trial_role"] == "BROKER_PARITY", trial_role=NULL_TOKEN)
+            report = audit_run(root, run.name)
+            self.assertEqual(report["checks"]["virtual_trials.required_identity"], 1)
+            with self.assertRaisesRegex(SchemaValidationError, "not eligible"):
+                recover_run(root, run.name, root / "recovered", "bad_role")
 
 
 if __name__ == "__main__":

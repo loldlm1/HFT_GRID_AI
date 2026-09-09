@@ -49,9 +49,9 @@ Exness preparation changes remain outside these commits. No old handoff is edite
 
 | Sprint | Status | Commit | Rollback |
 | --- | --- | --- | --- |
-| 1 | Complete | Recorded by sprint commit | `3478c97` |
-| 2 | In progress | Pending | Sprint 1 commit |
-| 3 | Pending | Pending | Pending |
+| 1 | Complete | `65090dc` | `3478c97` |
+| 2 | Complete | Recorded by sprint commit | `65090dc` |
+| 3 | In progress | Pending | Sprint 2 commit |
 
 Runtime evidence: ignored `.codex-artifacts/parent-close-chronology-20260909/`.
 Earlier diagnosis: [run verification](../../research/exness-xauusd-run-verification-2026-09-09.md).
@@ -66,3 +66,10 @@ All 39 project include files resolve without cycles. Public inputs and the one
 `OrderSend` owner remain unchanged. The CLI did not expose compiler tools; after
 the documented Wine runner produced no log, runtime discovery reached the local
 MetaEditor MCP endpoint and `get_workspace_info` preceded `compile_file` there.
+
+Sprint 2 evidence: 44 Python tests pass. The maintained bounded audit confirms
+that the original full run has only 1,109 late broker-parent censor rows; zero
+late admissions or completed children were found. A separate recovered copy
+at `/home/admin/Documents/Exness_Research_Runs/` passes parent chronology, with
+per-row observation/quote provenance and both file hash sets. Full semantic
+validation of this large derivative remains separate and is not claimed.

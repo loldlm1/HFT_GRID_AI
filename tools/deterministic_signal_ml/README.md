@@ -48,6 +48,51 @@ Repeat `--run-id` for compatible runs. Every source column has one frozen
 `VARCHAR`, `TIMESTAMP`, `BOOLEAN`, `BIGINT`, or `DOUBLE` type; unknown files,
 headers, columns, and incompatible configurations fail closed.
 
+### Large-Run Parent Chronology
+
+The focused operational audit below uses bounded DuckDB memory and disk spill.
+It checks parent identities, admission intervals, outcome chronology, censor
+timestamps, binary labels and supporting counts. It does not replace the complete
+semantic `--validate-only` gate above, which still loads full TSV rows into Python.
+
+```bash
+.venv/bin/python tools/deterministic_signal_ml/parent_chronology.py \
+  --runs-root <PivotFractalV13/runs> --run-id <run_id> \
+  --memory-limit-mb 4096 --report <new-report-outside-run.json>
+```
+
+Exit code 1 means a failed audit or invalid input. Reports are never written
+inside source runs. All twelve exact V13 headers and the producer seal are checked;
+the report lists the eight tables whose chronology columns were scanned.
+
+A naturally completed historical run with **only** late broker-parent censor
+timestamps may be recovered explicitly into a new directory:
+
+```bash
+.venv/bin/python tools/deterministic_signal_ml/parent_chronology.py \
+  --runs-root <original-runs> --run-id <original-run-id> \
+  --recover-run-id <distinct-recovered-id> \
+  --recovered-runs-root <retained-output-directory> \
+  --memory-limit-mb 4096 --report <new-recovery-report.json>
+```
+
+Recovery copies the twelve files, relabels their run ID and replaces only affected
+terminal broker/analysis/offset triplets using the linked broker close record.
+It preserves statuses, exclusion labels, null durations, quotes and features.
+An adjacent `.corrections.jsonl` retains every original observation clock/quote
+and replacement clock; `.provenance.json` retains original and derivative SHA-256
+hashes, audit results and the exact transformation. These sidecars are part of the
+recovered artifact and must stay with it. A derivative is never presented as a new
+tester run or output of the fixed EA.
+
+Recovery refuses existing destinations, sources changing during the operation,
+incomplete seals, ambiguous identities, missing parent evidence, late completed
+outcomes, invalid admission intervals and all other audit failures. More than
+100,000 corrections require separate review; the map is intentionally bounded.
+The corrected run is published only after its parent chronology audit passes.
+Run full semantic validation separately when practical; passing this focused
+audit alone is not full statistical acceptance or broker-equivalence evidence.
+
 ## Build
 
 ```bash
