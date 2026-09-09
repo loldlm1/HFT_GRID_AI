@@ -139,6 +139,7 @@ void FinalizePivotSignalTerminalStates()
     if(g_pivot_signals[i].execution.state ==
        EXECUTION_ORDER_BROKER_CLOSED)
     {
+      RecordDeepPivotBrokerParentClose(g_pivot_signals[i]);
       UpdatePivotOrigin(g_pivot_signals[i]);
       ExportPivotOwnershipExecutionCheckIfNeeded(g_pivot_signals[i]);
       ExportPivotTerminalExecutionCheck(g_pivot_signals[i]);

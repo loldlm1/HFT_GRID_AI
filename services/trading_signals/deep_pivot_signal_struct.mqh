@@ -238,6 +238,7 @@ struct DeepPivotParentLink
   datetime parent_entry_time;
   datetime event_trigger_time;
   long parent_age_seconds;
+  datetime parent_terminal_time;
   DeepPivotLinkStatuses link_status;
   bool active;
 
@@ -265,6 +266,7 @@ struct DeepPivotParentLink
     parent_entry_time = 0;
     event_trigger_time = 0;
     parent_age_seconds = 0;
+    parent_terminal_time = 0;
     link_status = DEEP_PIVOT_LINK_ACTIVE;
     active = true;
   }
@@ -283,6 +285,7 @@ struct DeepPivotParentLink
     parent_entry_time = other.parent_entry_time;
     event_trigger_time = other.event_trigger_time;
     parent_age_seconds = other.parent_age_seconds;
+    parent_terminal_time = other.parent_terminal_time;
     link_status = other.link_status;
     active = other.active;
   }

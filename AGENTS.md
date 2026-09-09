@@ -8,7 +8,8 @@ evidence remain immutable under their existing archive or research locations.
 ## Entrypoint And Active Work
 
 - Entrypoint: `HFT_Grid_AI.mq5`.
-- Active implementation plan: none.
+- Active implementation plan:
+  `docs/plans/parent-close-chronology-2026-09-09/README.md`.
 - Completed V13 plan:
   `docs/plans/archive/pivot-fractal-v13-deep-pivot-producer-2026-08-31/`.
 - Architecture: `docs/architecture/market-data-broker-executor.md`.

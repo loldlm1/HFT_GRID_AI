@@ -1204,6 +1204,18 @@ def _validate_deep(
     outcomes: dict[str, dict[str, str]],
     broker_outcomes: dict[str, dict[str, str]],
 ) -> None:
+    outcome_by_trial = {row["trial_id"]: row for row in outcomes.values()}
+    parent_terminal_by_link: dict[str, datetime | None] = {}
+    closed_parent_links: set[str] = set()
+    fill_times: dict[tuple[str, str], datetime] = {}
+    for check in rows[EXECUTION_CHECKS_FILE]:
+        if check["broker_entry_confirmed"] != "1":
+            continue
+        fill_key = (check["origin_id"], check["broker_signal_id"])
+        fill_time = _as_time(check, "broker_time", EXECUTION_CHECKS_FILE)
+        assert fill_time is not None
+        if fill_key not in fill_times or fill_time < fill_times[fill_key]:
+            fill_times[fill_key] = fill_time
     events: dict[str, dict[str, str]] = {}
     identities: set[tuple[str, str, str, str]] = set()
     for index, row in enumerate(rows[DEEP_PIVOT_EVENTS_FILE], start=2):
@@ -1357,16 +1369,16 @@ def _validate_deep(
                 or _as_time(parent_trial, "entry_broker_time", context) != entry_time
             ):
                 raise SchemaValidationError(f"{context}: virtual parent identity mismatch")
-            parent_outcome = next(
-                (outcome for outcome in outcomes.values() if outcome["trial_id"] == parent_trial_id),
-                None,
-            )
+            parent_outcome = outcome_by_trial.get(parent_trial_id)
             if parent_outcome is None:
                 raise SchemaValidationError(f"{context}: virtual parent lacks outcome")
             parent_terminal = _as_time(parent_outcome, "terminal_broker_time", context)
             assert parent_terminal is not None
             if event_time > parent_terminal:
                 raise SchemaValidationError(f"{context}: parent link begins after virtual parent terminal")
+            parent_terminal_by_link[link_id] = parent_terminal
+            if parent_outcome["terminal_status"] in ("TP_FIRST", "SL_FIRST"):
+                closed_parent_links.add(link_id)
         else:
             if (
                 parent_trial is None
@@ -1385,18 +1397,16 @@ def _validate_deep(
                 assert broker_entry is not None and broker_close is not None
                 if entry_time != broker_entry or event_time > broker_close:
                     raise SchemaValidationError(f"{context}: broker parent interval mismatch")
+                parent_terminal_by_link[link_id] = broker_close
+                closed_parent_links.add(link_id)
             else:
                 # A filled broker parent may still be open at run end. Its fill
                 # needs execution-check evidence; unresolved deep outcomes are
                 # then represented by their own run-end censor rows.
-                if not any(
-                    check["origin_id"] == row["origin_id"]
-                    and check["broker_signal_id"] == row["parent_broker_signal_id"]
-                    and check["broker_entry_confirmed"] == "1"
-                    and _as_time(check, "broker_time", context) <= event_time
-                    for check in rows[EXECUTION_CHECKS_FILE]
-                ):
+                fill_time = fill_times.get((row["origin_id"], row["parent_broker_signal_id"]))
+                if fill_time is None or fill_time > event_time:
                     raise SchemaValidationError(f"{context}: open broker parent lacks fill evidence")
+                parent_terminal_by_link[link_id] = None
         links[link_id] = row
         links_by_event.setdefault(row["deep_event_id"], []).append(link_id)
     deep_trials: dict[str, dict[str, str]] = {}
@@ -1548,6 +1558,11 @@ def _validate_deep(
             and status != "CENSORED_PARENT_EXIT"
         ):
             raise SchemaValidationError(f"{context}: deep outcome terminal precedes event trigger")
+        parent_terminal = parent_terminal_by_link[row["parent_link_id"]]
+        if status in ("TP_FIRST", "SL_FIRST") and parent_terminal is not None and terminal_time > parent_terminal:
+            raise SchemaValidationError(f"{context}: completed deep outcome follows parent terminal")
+        if status == "CENSORED_RUN_END" and row["parent_link_id"] in closed_parent_links:
+            raise SchemaValidationError(f"{context}: run-end censor references completed parent")
         observed_bid = _as_float(row, "observed_exit_bid", context)
         observed_ask = _as_float(row, "observed_exit_ask", context)
         observed_price = _as_float(row, "observed_exit_price", context)
@@ -1615,19 +1630,6 @@ def _validate_deep(
             if status in ("CENSORED_PARENT_EXIT", "CENSORED_RUN_END") and trial["eligibility_status"] != "ACTIVE":
                 raise SchemaValidationError(f"{context}: censored deep outcome references inactive trial")
             if status == "CENSORED_PARENT_EXIT":
-                parent_kind = link["parent_kind"]
-                parent_terminal = None
-                if parent_kind == "VIRTUAL":
-                    parent_outcome = next(
-                        outcome for outcome in outcomes.values() if outcome["trial_id"] == link["parent_trial_id"]
-                    )
-                    parent_terminal = _as_time(parent_outcome, "terminal_broker_time", context)
-                elif link["parent_broker_signal_id"] in broker_outcomes:
-                    parent_terminal = _as_time(
-                        broker_outcomes[link["parent_broker_signal_id"]],
-                        "close_broker_time",
-                        context,
-                    )
                 if parent_terminal is None:
                     raise SchemaValidationError(f"{context}: parent-exit censor lacks terminal parent evidence")
                 if terminal_time != parent_terminal:

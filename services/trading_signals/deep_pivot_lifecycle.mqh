@@ -202,9 +202,39 @@ bool DeepPivotTpMultipleAt(const int index,
   return true;
 }
 
+void RecordDeepPivotBrokerParentClose(const PivotSignal &signal)
+{
+  if(!Enable_Signal_Feature_Export ||
+     !signal.execution.broker_close_confirmed ||
+     signal.execution.close_time <= 0)
+    return;
+
+  // Transfer the deal clock before broker cleanup removes the signal. Only
+  // existing bounded research links retain it; execution never waits for them.
+  for(int i = 0; i < DeepPivotParentLinkCount(); i++)
+  {
+    if(!g_deep_pivot_parent_links[i].active ||
+       g_deep_pivot_parent_links[i].parent_kind != DEEP_PIVOT_PARENT_BROKER ||
+       g_deep_pivot_parent_links[i].parent_broker_signal_id !=
+         signal.broker_signal_id)
+      continue;
+    datetime existing_time = g_deep_pivot_parent_links[i].parent_terminal_time;
+    if(signal.execution.close_time <
+         g_deep_pivot_parent_links[i].event_trigger_time ||
+       (existing_time > 0 && existing_time != signal.execution.close_time))
+    {
+      g_deep_pivot_state_allocation_failed = true;
+      PivotV13RejectReference("DEEP_BROKER_PARENT_TERMINAL_INVALID");
+      continue;
+    }
+    g_deep_pivot_parent_links[i].parent_terminal_time =
+      signal.execution.close_time;
+  }
+}
+
 bool DeepPivotParentStillActive(const DeepPivotParentLink &link)
 {
-  if(!link.active || link.parent_trial_id == "")
+  if(!link.active || link.parent_trial_id == "" || link.parent_terminal_time > 0)
     return false;
   if(link.parent_kind == DEEP_PIVOT_PARENT_H1_VIRTUAL)
   {
@@ -640,6 +670,11 @@ bool BuildDeepPivotParentExitOutcome(const DeepPivotParentLink &link,
                                      const MqlTick &tick,
                                      DeepPivotOutcome &outcome_out)
 {
+  datetime terminal_time = link.parent_kind == DEEP_PIVOT_PARENT_BROKER
+                           ? link.parent_terminal_time
+                           : tick.time;
+  if(terminal_time <= 0 || terminal_time < link.event_trigger_time)
+    return false;
   if(!BuildDeepPivotOutcomeBase(link,
                                 trial,
                                 tick,
@@ -649,10 +684,9 @@ bool BuildDeepPivotParentExitOutcome(const DeepPivotParentLink &link,
                                 outcome_out))
     return false;
 
-  // Broker timestamps have one-second precision. Preserve equality when the
-  // parent terminal tick and deep event tick share that serialized second.
-  if(tick.time >= link.event_trigger_time)
-    outcome_out.terminal_time = tick.time;
+  // Censor at the parent's actual terminal clock. The observed quote remains
+  // an observation, with no completed return or duration assigned to a censor.
+  outcome_out.terminal_time = terminal_time;
   return true;
 }
 
@@ -860,6 +894,11 @@ void ResolveDeepPivotActiveOutcomes(const MqlTick &tick)
                                                       trial,
                                                       tick,
                                                       resolved);
+      if(!resolved_now)
+      {
+        g_deep_pivot_state_allocation_failed = true;
+        PivotV13RejectReference("DEEP_PARENT_TERMINAL_UNAVAILABLE");
+      }
       g_deep_pivot_parent_links[link_index].link_status =
         DEEP_PIVOT_LINK_PARENT_EXIT;
     }
@@ -1299,17 +1338,23 @@ void FinalizeDeepPivotForExport()
       continue;
     }
     DeepPivotOutcome outcome;
-    if(!BuildDeepPivotRunEndOutcome(g_deep_pivot_parent_links[link_index],
-                                    g_deep_pivot_trials[trial_index],
-                                    tick,
-                                    outcome) ||
+    bool parent_closed =
+      g_deep_pivot_parent_links[link_index].parent_terminal_time > 0;
+    bool built = parent_closed
+                 ? BuildDeepPivotParentExitOutcome(
+                     g_deep_pivot_parent_links[link_index],
+                     g_deep_pivot_trials[trial_index], tick, outcome)
+                 : BuildDeepPivotRunEndOutcome(
+                     g_deep_pivot_parent_links[link_index],
+                     g_deep_pivot_trials[trial_index], tick, outcome);
+    if(!built ||
        !PivotV13RecordDeepPivotOutcome(outcome) ||
        !QueueDeepPivotOutcomeForExport(outcome))
       continue;
     g_deep_pivot_outcomes[i].CopyFrom(outcome);
     g_deep_pivot_outcomes[i].active = false;
     g_deep_pivot_parent_links[link_index].link_status =
-      DEEP_PIVOT_LINK_RUN_END;
+      parent_closed ? DEEP_PIVOT_LINK_PARENT_EXIT : DEEP_PIVOT_LINK_RUN_END;
   }
   RefreshDeepPivotTerminalFlags();
   if(!ReleaseTerminalDeepPivotState())

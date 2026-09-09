@@ -6,6 +6,7 @@ import sys
 import tempfile
 import unittest
 from collections.abc import Callable
+from datetime import datetime, timedelta
 from pathlib import Path
 
 MODULE_ROOT = Path(__file__).resolve().parents[1]
@@ -40,6 +41,8 @@ from schema_contract import (
     VIRTUAL_OUTCOMES_FILE,
     VIRTUAL_TRIALS_FILE,
     SchemaValidationError,
+    _validate_deep,
+    _validate_manifest,
     _normalize_risk_ticks_outward,
     expected_columns_for,
     validate_run,
@@ -342,7 +345,7 @@ class PivotFractalV13SchemaTests(unittest.TestCase):
             "m10_parent_age_seconds mismatch",
         )
 
-    def test_same_second_event_before_parent_terminal_is_accepted(self) -> None:
+    def test_same_second_admission_does_not_allow_later_completed_outcomes(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root, run_path = self.copy_fixture(temp_dir)
             mutate_row(
@@ -353,8 +356,8 @@ class PivotFractalV13SchemaTests(unittest.TestCase):
                 terminal_analysis_time="2026.01.12 10:19:00",
                 h1_structural_lifecycle_seconds="840",
             )
-            validation = validate_run(root, FIXTURE.name)
-            self.assertEqual(validation.deep_parent_link_rows, 2)
+            with self.assertRaisesRegex(SchemaValidationError, "completed deep outcome follows parent terminal"):
+                validate_run(root, FIXTURE.name)
 
         def terminate_before_event(run_path: Path) -> None:
             mutate_row(
@@ -606,6 +609,43 @@ class PivotFractalV13SchemaTests(unittest.TestCase):
             ),
             "deep binary eligibility/status mismatch",
         )
+
+    def validate_broker_parent_slice(
+        self, *, delay_seconds: int = 0, close_time: str = "2026.01.12 10:40:00",
+        run_end: bool = False,
+    ) -> None:
+        tables = {name: read_rows(FIXTURE / name)[1] for name in RUN_FILES}
+        link = next(row for row in tables[DEEP_PIVOT_PARENT_LINKS_FILE] if row["parent_link_id"] == "link_1")
+        link.update(parent_kind="BROKER", parent_trial_id="parity_broker_sig_s1",
+                    parent_broker_signal_id="broker_sig_s1", parent_entry_policy="STRUCTURAL",
+                    parent_tp_r_multiple="1", parent_entry_broker_time="2026.01.12 10:05:00",
+                    m10_parent_age_seconds="840")
+        censored = next(row for row in tables[DEEP_VIRTUAL_OUTCOMES_FILE] if row["terminal_status"] == "CENSORED_PARENT_EXIT")
+        observation = datetime.strptime("2026.01.12 10:40:00", "%Y.%m.%d %H:%M:%S") + timedelta(seconds=delay_seconds)
+        censored["terminal_broker_time"] = censored["terminal_analysis_time"] = observation.strftime("%Y.%m.%d %H:%M:%S")
+        if run_end:
+            for column in ("terminal_status", "terminal_reason", "virtual_exclusion_reason"):
+                censored[column] = "CENSORED_RUN_END"
+        _validate_deep(
+            tables, _validate_manifest(tables[RUN_MANIFEST_FILE], FIXTURE.name),
+            {row["window_id"]: row for row in tables["pivot_windows.tsv"]},
+            {row["origin_id"]: row for row in tables[SIGNAL_ORIGINS_FILE]},
+            {row["trial_id"]: row for row in tables[VIRTUAL_TRIALS_FILE]},
+            {row["outcome_id"]: row for row in tables[VIRTUAL_OUTCOMES_FILE]},
+            {"broker_sig_s1": {"entry_broker_time": "2026.01.12 10:05:00", "close_broker_time": close_time}},
+        )
+
+    def test_broker_parent_censor_uses_deal_time_without_latency_tolerance(self) -> None:
+        self.validate_broker_parent_slice()
+        for delay in (1, 2, 3, 10):
+            with self.subTest(delay=delay), self.assertRaisesRegex(SchemaValidationError, "parent-exit censor time mismatch"):
+                self.validate_broker_parent_slice(delay_seconds=delay)
+
+    def test_broker_parent_completion_and_run_end_censor_boundaries(self) -> None:
+        with self.assertRaisesRegex(SchemaValidationError, "completed deep outcome follows parent terminal"):
+            self.validate_broker_parent_slice(close_time="2026.01.12 10:24:59")
+        with self.assertRaisesRegex(SchemaValidationError, "run-end censor references completed parent"):
+            self.validate_broker_parent_slice(run_end=True)
 
     def test_direction_is_not_part_of_deep_event_identity(self) -> None:
         def duplicate_opposite_direction(run_path: Path) -> None:
