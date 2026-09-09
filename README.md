@@ -183,12 +183,13 @@ exact UTC quotes and tied ticks in Parquet, prepares native MT5 import files,
 and compares custom/broker ticks and bars. It supports explicit symbols,
 suffixes, dates and separate Pro demo/live profiles on Ubuntu with Wine.
 
-The six implementation sprints and deterministic offline capture auditor are
-complete. The prepared winter and summer custom-symbol ranges pass exact tick
-and M1/M3/M10/H1 bar checks. Broker equivalence, full backfill and tester
-acceptance remain pending.
+The service prepares one persistent source-UTC tick file for each of XAUUSD,
+EURUSD, GBPJPY and BTCUSD. Full published histories through September 7, 2026
+are retained under `/home/admin/Documents/Exness_Tick_Data`. Their custom-symbol
+mappings, full-history H1 prices/tick volumes and sampled native ticks pass.
+Formal broker equivalence remains `INCONCLUSIVE`.
 
-Start with the [current handoff](docs/research/exness-tick-history-handoff-2026-09-07.md)
+Start with the [current handoff](docs/research/exness-research-handoff-2026-09-09.md)
 and [operator workflow](docs/workflows/exness-tick-history.md). The
 [original sprint evidence](docs/research/exness-tick-history-acceptance.md)
 is historical. Exness provenance stays outside the twelve-file V13 run folder.
@@ -197,13 +198,21 @@ is historical. Exness provenance stays outside the twelve-file V13 run folder.
 
 The V13 MQL5 implementation plan is complete and archived. Sprints 1-8 have
 strict static, Python, compile, and bounded real-tick tester evidence recorded
-in the V13 handoff. Human chart-object/rendering verification remains
+in the V13 handoff. The subsequent [parent-close correction](docs/research/parent-close-chronology-acceptance-2026-09-09.md)
+completes three more sprints: the EA retains actual broker close time, Python
+audits parent chronology, and a separate historical derivative corrects 1,109
+censor timestamps while preserving their exclusion from binary statistics.
+The current compile has zero errors/warnings; 45 V13 contract tests and the
+focused Exness real-tick tester pass with matching export-on/off broker results.
+Full semantic validation of the large recovered dataset remains unrun.
+
+Human chart-object/rendering verification remains
 outstanding; it is required before any deployment-oriented claim. The
 downstream Django app may prepare against the frozen contract, but its
-destructive V12 removal gate remains separate. The accepted tester used
-`ExecutionMode=120` milliseconds, so it does not prove sub-120 ms latency,
-perfect intra-second fill ordering, or exchange-level tick sequencing. Live
-rollout is not authorized.
+destructive V12 removal gate remains separate. The original V13 acceptance used
+120 ms execution delay; the parent-close Exness acceptance used 50 ms. Neither
+establishes precise subsecond ordering or exchange-level tick sequencing.
+Live rollout is not authorized.
 
 ## Documentation
 
@@ -214,6 +223,8 @@ rollout is not authorized.
   retrospective research boundaries.
 - `docs/environment/mt5-agentic-workflows.md`: paths, compile, and artifacts.
 - `docs/research/pivot-fractal-v13-producer-handoff.md`: downstream contract.
+- `docs/research/exness-research-handoff-2026-09-09.md`: current evidence,
+  retained files, remaining gates and clean-thread entrypoint.
 - `docs/plans/archive/pivot-fractal-v13-deep-pivot-producer-2026-08-31/`:
   completed V13 execution plan and rollback ledger.
 - `docs/plans/archive/` and `docs/research/archive/`: historical evidence.

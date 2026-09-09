@@ -5,8 +5,10 @@ evidence, MetaEditor compilation, and operator-owned Strategy Tester artifacts.
 Keep full logs and raw market data out of chat and commits.
 
 The [Exness history workflow](../workflows/exness-tick-history.md) documents the
-separate Python source pipeline, Wine/native import steps, passing sampled
-imports and pending broker acceptance. Its data root is ignored
+separate Python source pipeline, Wine/native import steps, completed persistent
+tick files and pending broker acceptance. The [current handoff](../research/exness-research-handoff-2026-09-09.md)
+records the accepted Exness tester and recovered-run limits. The service data
+root is ignored
 `artifacts/exness_tick_history/` or a dedicated external directory. It adds no
 terminal mutation API or EA include.
 
@@ -57,7 +59,7 @@ Reviewed 2026-09-05 against OpenAI's
 ### Windows
 
 ```powershell
-$MT5_ROOT = "C:\Program Files\MetaTrader 5-1"
+$MT5_ROOT = "C:\MetaTrader 5-1"
 $METAEDITOR = Join-Path $MT5_ROOT "MetaEditor64.exe"
 $EA_ENTRYPOINT = Join-Path $MT5_ROOT "MQL5\Experts\HFT_Grid_AI\HFT_Grid_AI.mq5"
 $COMPILE_LOG = Join-Path $MT5_ROOT "MQL5\Experts\HFT_Grid_AI\logs\compile\agentic-build.log"
@@ -68,11 +70,11 @@ $PIVOT_RUNS_ROOT = Join-Path $MT5_COMMON_FILES "PivotFractalV13\runs"
 ### Ubuntu/Wine
 
 ```bash
-export MT5_ROOT="/home/loldlm/mql5_projects/metatrader_5_market_data_framework"
+export MT5_ROOT="/home/admin/.wine/drive_c/MetaTrader 5-1"
 export METAEDITOR="$MT5_ROOT/MetaEditor64.exe"
 export EA_ENTRYPOINT="$MT5_ROOT/MQL5/Experts/HFT_Grid_AI/HFT_Grid_AI.mq5"
 export COMPILE_LOG="$MT5_ROOT/MQL5/Experts/HFT_Grid_AI/logs/compile/agentic-build.log"
-export MT5_COMMON_FILES="$HOME/.wine/drive_c/users/loldlm/AppData/Roaming/MetaQuotes/Terminal/Common/Files"
+export MT5_COMMON_FILES="$HOME/.wine/drive_c/users/admin/AppData/Roaming/MetaQuotes/Terminal/Common/Files"
 export PIVOT_RUNS_ROOT="$MT5_COMMON_FILES/PivotFractalV13/runs"
 ```
 
@@ -98,8 +100,10 @@ runtime-model artifact requirement.
 
 ## Compile Policy
 
-- The accepted V13 compile is pinned in the producer handoff and acceptance
-  record. Do not rerun it merely to start a new work session.
+- The current V13 compile is pinned in the
+  [parent-close acceptance record](../research/parent-close-chronology-acceptance-2026-09-09.md).
+  The producer handoff retains its older baseline. Do not rerun compilation
+  merely to start a new work session.
 - Recompile after an MQL5 source/include change, a compiler/toolchain change, or
   an explicit new acceptance gate. Future multi-sprint plans define whether
   intermediate compiles are required.
@@ -248,6 +252,13 @@ sub-120 ms latency, perfect intra-second fill ordering, or exchange-level tick
 sequencing.
 
 ## Evidence And Privacy
+
+Start a new thread from the [current handoff](../research/exness-research-handoff-2026-09-09.md).
+Completed task checkpoints are retained as historical evidence under ignored
+`.codex-artifacts/`; they do not authorize resuming archived plans. No active
+project hook state remains after this closeout. Installed plugin lifecycle hooks
+retain their configuration; project cleanup does not remove global session,
+authentication or plugin state. See the official [hook discovery contract](https://learn.chatgpt.com/docs/hooks#where-codex-looks-for-hooks).
 
 Keep raw TSVs, tester journals, account identifiers, credentials, and private
 terminal data operator-owned. Handoff records contain bounded status, hashes,

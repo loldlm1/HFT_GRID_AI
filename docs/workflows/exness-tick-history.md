@@ -4,19 +4,29 @@ The [service](../../tools/exness_tick_history/README.md) prepares independent
 historical research inputs. It does not participate in the EA's include
 pipeline, broker execution or strict twelve-file V13 output contract. The
 [six-sprint implementation plan](../plans/archive/exness-tick-history-2026-09-07/README.md)
-is complete and archived. The [current handoff](../research/exness-tick-history-handoff-2026-09-07.md)
-records passing winter/summer custom imports and retained captures. Formal
-broker equivalence remains `INCONCLUSIVE`; registered-export acceptance,
-full-history operation and tester evidence remain pending.
+is complete and archived. The [current handoff](../research/exness-research-handoff-2026-09-09.md)
+records retained source/import evidence and accepted parent-close correction.
+Formal broker equivalence remains `INCONCLUSIVE`; registered-export acceptance,
+exhaustive native tick round-trip and full recovered-run semantic validation
+remain separate gates. Full published source histories have been prepared as
+reusable single files for four symbols;
+see the [preparation record](../research/exness-single-file-preparation-2026-09-09.md).
+The [custom-symbol audit](../research/exness-custom-symbol-alignment-2026-09-09.md)
+confirms their mappings, full-history H1 prices/tick volumes and sampled imports.
+It also records broker feed differences and unresolved specification evidence.
+The [original XAUUSD run verification](../research/exness-xauusd-run-verification-2026-09-09.md)
+records the historical censor-time defect. The [parent-close acceptance](../research/parent-close-chronology-acceptance-2026-09-09.md)
+records the corrected EA, passing focused Exness tester and separate recovered
+copy; the original export remains unchanged.
 
 ## Source And Profile Contract
 
 Verified adapter: `https://ticks.ex2archive.com/ticks/` with annual, monthly and
 daily `Exness_<symbol>_<period>.zip` objects. Version 1 accepts exactly one
 matching CSV with header `Exness,Symbol,Timestamp,Bid,Ask`, vendor `exness`,
-explicit symbol and UTC millisecond timestamps ending in `Z`. Preserve raw ZIPs,
-valid repeated rows and equal-time order. Availability probes do not prove
-coverage. The inspected 2015 annual sample begins on August 10.
+explicit symbol and UTC millisecond timestamps ending in `Z`. Retained raw ZIPs
+are immutable. Preserve valid repeated rows and equal-time order. Availability
+probes do not prove coverage. The inspected 2015 annual sample begins on August 10.
 
 Use isolated Pro demo/live profile IDs. Current broker symbols are bare;
 future suffixes are explicit. Pin a private opaque server alias, exact broker
@@ -24,13 +34,31 @@ symbol and evidence of archive/feed mapping before comparison. Keep private
 profiles, raw data and terminal captures under `artifacts/exness_tick_history/`
 or a dedicated external data root. Shared roots allow one writer at a time.
 
+## Persistent Single-File Preparation
+
+For future custom-symbol creation, use the service's
+[`prepare-mt5-file` command](../../tools/exness_tick_history/README.md#one-persistent-mt5-file-per-symbol).
+It turns a frozen inventory into one visible, reusable source-UTC tick TSV per
+configured symbol, with a small coverage/checksum manifest. It downloads missing
+sources into its own disposable cache, streams ordered archives, stably sorts
+regressions, checkpoints each append and validates the complete final file.
+Previously retained shared archives are preserved. No Parquet build or native
+symbol creation is needed to prepare the source file.
+
+Keep strict quote handling unless an explicit derived-file policy is selected.
+The optional EURUSD representation-artifact policy and its exact tolerance are
+documented with the command; adjustments are recorded and never applied to raw
+archives. Source preparation does not close the native specification, import,
+broker-equivalence or tester gates below.
+
 ## Native Verification Contract
 
 The existing `XAUUSD_EXN_PRO_W1` and `XAUUSD_EXN_PRO_S1` diagnostic ranges pass
 exact tick and native M1/M3/M10/H1 OHLC/tick-volume audits, including warm-up.
 MT5 generated these bars from ticks; no separate bar import or chart opening
 is needed to verify these ranges. The winter import starts on January 12 at
-20:00 and contains 922,664 ticks; summer contains 947,513 ticks. See the handoff
+20:00 and contains 922,664 ticks; summer contains 947,513 ticks. See the
+[seasonal handoff](../research/exness-tick-history-handoff-2026-09-07.md)
 for complete intervals and report hashes. These diagnostics do not replace
 registered `export-mt5`/`compare-roundtrip` evidence or broker acceptance.
 
@@ -222,7 +250,9 @@ maximum ZIP expansion 9.2602, pilot Parquet size and explicit allowances of
 this is a planning estimate, not proof that MT5 requires those exact bytes.
 Measure the native pilot and/or provision a larger dedicated data root before
 the full download/build/export/import workflow. The full backfill remains
-pending; no partial pilot is labeled as the complete 2015-present history.
+pending for the registered dataset/export/native acceptance path. The separate
+single-file source preparation is complete as recorded above; these storage
+estimates cover the broader workflow.
 
 ```bash
 .venv/bin/python -m tools.exness_tick_history inventory --start 2015-01-01 --end latest-published
@@ -247,8 +277,9 @@ backup or start an isolated corrected version.
 
 ## Operator Validation Queue
 
-Implementation and the two sampled diagnostic native-import audits are
-complete. Continue with the remaining operational gates:
+Implementation, four persistent source files, full-history native H1 checks and
+the focused Exness parent-close tester are complete. Use this queue only for
+the remaining evidence or a newly requested run; do not repeat completed work:
 
 1. Pin the actual Pro demo/live profile, server alias, feed mapping and terminal
    path/build; verify the nonzero trade tick and native sessions/specification.
@@ -266,23 +297,28 @@ complete. Continue with the remaining operational gates:
 5. Run the independent seasonal comparisons. Retain failures and missing-history
    evidence; a replacement day requires a documented predeclared rule.
 6. Refine the full-workflow storage estimate, provision capacity, then complete
-   the full available source backfill, quality audit and native import/round trip.
-7. Run the unchanged EA in the operator-owned Strategy Tester using **Every tick
+   the registered dataset/export backfill, quality audit and native import/round
+   trip. Reuse the completed source-file preparation evidence where applicable.
+7. For a new symbol/interval, run the corrected EA in the operator-owned Strategy Tester using **Every tick
    based on real ticks**, `EXNESS_SESSION`, H1/M10/M3, real warm-up and an isolated
    custom-symbol run ID. Inspect the tester report/journal for modeled-tick
-   substitution and history errors. No live chart deployment follows.
+   substitution and history errors. The focused XAUUSD interval already passes;
+   its historical censor-time defect did not require a full rerun. No live chart
+   deployment follows.
 8. Use the existing strict V13 validator, builder and audit from the
    [statistics workflow](pivot-fractal-statistics-flow.md). Preserve its support
    floor of 30 even when a bounded run has insufficient statistical support.
+   The recovered XAUUSD run passes the bounded chronology audit; its complete
+   semantic validation remains unrun and must not be inferred from that pass.
 9. Write the service's `research-provenance` sidecar outside V13, linking the
    actual source/binary, dataset/export, symbol/spec/clock and tester evidence.
 
 If compilation becomes necessary for the tester's actual source/toolchain,
 follow the [environment preflight/compile policy](../environment/mt5-agentic-workflows.md).
-No MQL5 source/include changed during this implementation batch and no new
-compile or Strategy Tester run is claimed. The passing seasonal native audits
-are scoped to the handoff's exact diagnostic ranges. The earlier V13 human
-chart-object/rendering gate also remains independent and outstanding.
+Source preparation changes no MQL5 code. The separate parent-close correction
+has its own compile and tester acceptance record. Each native audit remains
+scoped to its captured ranges and facts; human chart-object/rendering acceptance
+remains independent and outstanding.
 
 ## Validation And Rollback
 
@@ -291,4 +327,4 @@ broker-boundary review, and `git diff --check`. Code rollback uses the recorded
 parent commit; preserve immutable raw data and version derived corrections.
 No MQL5 source change is planned, so the existing compile evidence is reused.
 See the [historical sprint evidence](../research/exness-tick-history-acceptance.md)
-and [current handoff](../research/exness-tick-history-handoff-2026-09-07.md).
+and [current handoff](../research/exness-research-handoff-2026-09-09.md).

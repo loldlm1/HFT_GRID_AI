@@ -23,9 +23,10 @@ evidence remain immutable under their existing archive or research locations.
 - V13 handoff: `docs/research/pivot-fractal-v13-producer-handoff.md`.
 - V13 acceptance:
   `docs/research/pivot-fractal-v13-producer-acceptance-2026-08-31.md`.
-- Exness handoff: `docs/research/exness-tick-history-handoff-2026-09-07.md`.
-  Its implementation plan is archived; sampled imports pass, while broker
-  equivalence, full backfill and tester acceptance remain operational work.
+- Current thread handoff: `docs/research/exness-research-handoff-2026-09-09.md`.
+  Four persistent tick files, custom-symbol mapping/H1 checks and parent-close
+  recovery are complete. Broker equivalence and full recovered-run semantic
+  validation remain operational gates. Completed plans must not be restarted.
 - Outstanding operational gate: human chart-object/rendering verification before
   any deployment-oriented claim.
 
@@ -296,8 +297,8 @@ nonvisual tester runs do no chart work.
 - Maintain existing Python contract tests when schema tooling changes.
 - Substantial future multi-sprint work uses one sprint-specific commit after
   each completed gate and records its rollback SHA.
-- The accepted V13 compile is pinned in the handoff. Recompile only when source,
-  include, compiler, or an explicit acceptance gate changes.
+- The current V13 compile is pinned in the parent-close acceptance record.
+  Recompile only when source, include, compiler, or an explicit gate changes.
 - A final compile must call `get_workspace_info` before `compile_file`, report
   `0 errors, 0 warnings`, and confirm regenerated `.ex5` metadata. Use the
   documented runner only if MCP cannot execute and record the precise reason.

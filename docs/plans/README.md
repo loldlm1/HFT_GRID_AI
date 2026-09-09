@@ -2,10 +2,11 @@
 
 ## Active
 
-There is no active implementation plan in this repository. V13 chart rendering
-and the Exness broker/full-history acceptance queue are operational gates. The
-[Exness handoff](../research/exness-tick-history-handoff-2026-09-07.md) records the
-completed implementation, passing sampled imports and remaining evidence.
+There is no active implementation plan in this repository. V13 chart rendering,
+Exness broker equivalence and full recovered-run semantic validation remain
+operational gates. The [current handoff](../research/exness-research-handoff-2026-09-09.md)
+records completed source preparation, custom-symbol checks, parent-close
+recovery and the evidence available to a new thread.
 
 The downstream Django plan at
 `/home/loldlm/python_projects/hft-grid-ai-orchestrator/pivot-fractal-v13-django-research-progression-plan.md`

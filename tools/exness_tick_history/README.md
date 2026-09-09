@@ -43,6 +43,69 @@ The archive host may work when the Exness selection page returns 403. A denied
 request does not establish missing history or a market holiday. This tool does
 not control a VPN. Never change raw timestamps or quotes to obtain a match.
 
+## One Persistent MT5 File Per Symbol
+
+`prepare-mt5-file` prepares one reusable `<SYMBOL>_ticks.tsv` plus a checksum and
+coverage manifest in an explicitly selected visible directory. It accepts a
+frozen inventory directly and downloads missing sources as it processes them:
+
+```bash
+.venv/bin/python -m tools.exness_tick_history --config <symbol-profile.toml> \
+  inventory --start 2015-01-01 --end latest-published
+.venv/bin/python -m tools.exness_tick_history --config <symbol-profile.toml> \
+  prepare-mt5-file --inventory <inventory_id> --preparation-id <new_preparation_id> \
+  --output-dir "$HOME/Documents/Exness_Tick_Data"
+```
+
+Use separate profiles/data roots for XAUUSD, EURUSD, GBPJPY and BTCUSD, setting
+each profile's `profile_id`, `base_symbol` and `archive_symbol`. The first three
+have published annual sources from 2015; BTCUSD starts in 2017. The manifest
+records the actual first/last tick, rather than inventing earlier history.
+`latest-published` excludes the current, incomplete UTC day. A 404 remains an
+explicit unavailable interval; it is not filled with synthetic ticks.
+
+This command requires a C++17 compiler (`g++` or `c++` with 128-bit integer
+support). It builds and checksum-pins the small repository-owned streaming
+helper in the data root. Quotes use exact integer/decimal validation without
+floating-point conversion. Already ordered sources stream directly; sources
+with regressions receive a stable external sort, preserving equal-time order
+and duplicate multiplicity. GNU sort uses the profile's memory budget and a
+conservative spill preflight; DuckDB supplies the portable bounded fallback.
+No Parquet dataset or full-history in-memory table is required.
+
+Each completed archive is appended to one accumulating file, flushed and
+checkpointed. Resume verifies all committed byte ranges and removes only an
+uncommitted tail. Final publication requires complete native-format/order/row
+validation and SHA-256 readback. The same ID resumes or verifies the same
+inputs; changed inputs, code or price policy require a new ID/output directory.
+Existing unrelated output files are never overwritten.
+
+Owned downloads, extracted CSVs and per-source parts are removed after their
+bytes are committed. Existing shared archives from earlier `download` runs are
+reused and retained. `--keep-work-files` explicitly retains the preparation's
+temporary files. Small inventories, checkpoints, source hashes, helper build
+receipts and `preparations/<id>/performance.json` remain in the data root.
+
+The file contains source UTC, six tab-separated MT5 columns, one header, exact
+millisecond timestamps and zero Last/Volume. Import with tabs, one header row
+skipped, zero columns skipped and Shift=0 into a custom symbol whose properties
+were configured first. This source-only preparation does not attest a broker
+specification, clock/feed equivalence, native import or registered round trip.
+The verified `export-mt5` acceptance workflow remains separate.
+
+Strict price validation is the default. Some EURUSD sources contain decimal
+representation artifacts such as `1.1847699999999999`. Only an explicit
+`--normalize-eurusd-decimal-artifacts` selection permits values with more than
+12 decimal places to become five-decimal quotes, and only within an exact
+`0.0000000000000001` distance. Other symbols, larger differences, crossed source
+quotes and invalid values still fail. Every tick is retained; the manifest
+records the policy, affected row/quote counts, maximum change and bounded
+before/after examples. Original archive bytes remain unchanged. This explicit
+derived-file policy does not relax the strict Parquet builder or certify a
+broker feed.
+
+## Registered Dataset Workflow
+
 Inventory freezes a UTC cutoff, HEAD evidence, estimated bytes and disjoint
 source intervals in `runs/<inventory_id>/inventory.json`. Auto mode prefers
 whole completed years, then months, then days. Explicit year/month modes may
@@ -208,7 +271,7 @@ the profile hash; do not change thresholds after scoring an acceptance day.
 broader clock-regime diagnostics. Future transition dates remain untested.
 Neither result certifies every historical year or real broker execution.
 
-For the full backfill, freeze a new inventory from 2015 to `latest-published`,
+For a registered Parquet/export backfill, freeze an inventory from 2015 to `latest-published`,
 then run `storage-plan` using a measured pilot dataset. Its explicit estimates
 include retained archives, Parquet, native text/history, the largest source's
 working storage, spill allowance and reserve. `--text-bytes-per-tick` and
@@ -244,7 +307,11 @@ inside the V13 folder, trains a model or activates broker execution.
 
 See the [workflow](../../docs/workflows/exness-tick-history.md) for the source,
 terminal and acceptance contract, and the
-[current handoff](../../docs/research/exness-tick-history-handoff-2026-09-07.md)
-before continuing work. Both prepared seasonal custom-symbol ranges pass exact
-tick, bar and warm-up audits. Broker equivalence, verified registered-export
-acceptance, full backfill and tester evidence remain separate pending gates.
+[current handoff](../../docs/research/exness-research-handoff-2026-09-09.md)
+before continuing work. Four persistent tick files, their custom-symbol mapping,
+full-history H1 checks and sampled native tick checks are complete. The
+[single-file preparation record](../../docs/research/exness-single-file-preparation-2026-09-09.md)
+retains source coverage and hashes. The corrected V13 EA passes focused Exness
+tester acceptance in its separate [parent-close record](../../docs/research/parent-close-chronology-acceptance-2026-09-09.md).
+Broker equivalence, registered-export acceptance and full recovered-run semantic
+validation remain separate gates.
