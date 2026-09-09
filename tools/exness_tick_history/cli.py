@@ -17,6 +17,7 @@ from .report import audit_dataset, research_provenance, save_comparison, seasona
 from .mt5_export import export_mt5
 from .compare import compare_broker, compare_roundtrip, comparison_profile_hash
 from .capture import audit_capture, freeze_capture
+from .prepare import prepare_mt5_file
 
 DEFAULT_PROFILE = Path(__file__).parent / "profiles/xauusd_pro.example.toml"
 
@@ -36,6 +37,13 @@ def main(argv: list[str] | None = None) -> int:
     command = commands.add_parser("build", help="Build exact ordered UTC-date Parquet partitions")
     command.add_argument("--inventory", required=True)
     command.add_argument("--dataset-id", required=True)
+    command = commands.add_parser("prepare-mt5-file", help="Stream a frozen source inventory into one reusable UTC tick TSV")
+    command.add_argument("--inventory", required=True)
+    command.add_argument("--preparation-id", required=True)
+    command.add_argument("--output-dir", type=Path, required=True, help="Persistent directory outside the working data root")
+    command.add_argument("--normalize-eurusd-decimal-artifacts", action="store_true",
+                         help="Explicitly allow EURUSD >12-decimal representation noise within 1e-16 of five decimals")
+    command.add_argument("--keep-work-files", action="store_true", help="Retain this preparation's temporary sources and parts")
     command = commands.add_parser("audit", help="Verify partition bytes, logical hashes and row conservation")
     command.add_argument("--dataset-id", required=True)
     command = commands.add_parser("export-mt5", help="Prepare exact native tick chunks under verified spec/clock inputs")
@@ -136,6 +144,13 @@ def main(argv: list[str] | None = None) -> int:
         elif args.command == "build":
             report = build_dataset(profile, args.inventory, args.dataset_id)
             result = {key: report[key] for key in ("dataset_id", "rows", "logical_sha256", "data_integrity")}
+        elif args.command == "prepare-mt5-file":
+            policy = "eurusd-5dp-artifacts" if args.normalize_eurusd_decimal_artifacts else "strict"
+            report = prepare_mt5_file(profile, args.inventory, args.preparation_id, args.output_dir,
+                                      price_policy=policy, keep_work_files=args.keep_work_files,
+                                      progress=lambda value: print(json.dumps(value, sort_keys=True), file=sys.stderr, flush=True))
+            result = {key: report[key] for key in ("symbol", "output", "rows", "bytes", "sha256", "price_policy",
+                                                  "adjusted_rows", "adjusted_quotes", "native_import", "broker_equivalence")}
         elif args.command == "audit":
             result = audit_dataset(profile, args.dataset_id)
         elif args.command == "export-mt5":
