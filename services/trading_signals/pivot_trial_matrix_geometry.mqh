@@ -50,20 +50,6 @@ PivotTrialQuoteSides PivotTrialExitQuoteSide(const SignalTypes direction)
   return PIVOT_TRIAL_QUOTE_SIDE_NONE;
 }
 
-bool PivotTrialPriceDistancePoints(const double first_price,
-                                   const double second_price,
-                                   const double point_size,
-                                   double &distance_points_out)
-{
-  distance_points_out = 0.0;
-  if(!MathIsValidNumber(first_price) || first_price <= 0.0 ||
-     !MathIsValidNumber(second_price) || second_price <= 0.0 ||
-     !MathIsValidNumber(point_size) || point_size <= 0.0)
-    return false;
-  distance_points_out = MathAbs(first_price - second_price) / point_size;
-  return MathIsValidNumber(distance_points_out);
-}
-
 bool NormalizePivotTrialRiskOutward(const double requested_distance_price,
                                     const double trade_tick_size,
                                     long &risk_ticks_out,
@@ -290,21 +276,6 @@ string PivotTrialGeometryEquivalenceId(const string origin_id,
                    DoubleToString(stop_loss_price, 12) + "|" +
                    DoubleToString(take_profit_price, 12);
   return "geom_" + StringFormat("%I64u", PivotTrialStableHash(payload));
-}
-
-bool PivotTrialGeometryEquivalent(const PivotTrialGeometry &left,
-                                  const PivotTrialGeometry &right)
-{
-  if(!left.valid || !right.valid || left.direction != right.direction)
-    return false;
-  double comparison_tick = MathMin(left.trade_tick_size,
-                                   right.trade_tick_size);
-  if(comparison_tick <= 0.0)
-    return false;
-  double tolerance = comparison_tick * 1e-7;
-  return MathAbs(left.entry_price - right.entry_price) <= tolerance &&
-         MathAbs(left.stop_loss_price - right.stop_loss_price) <= tolerance &&
-         MathAbs(left.take_profit_price - right.take_profit_price) <= tolerance;
 }
 
 bool BuildPivotTrialGeometry(const string origin_id,

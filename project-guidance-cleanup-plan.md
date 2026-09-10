@@ -1,7 +1,7 @@
 # Plan: Project Guidance, Documentation, And Dead-Code Cleanup
 
 **Generated**: 2026-09-10
-**Status**: In progress - Sprint 2
+**Status**: Complete in the commit containing this closeout
 **Execution authorization**: User requested ordered execution of Sprints 1-3, validation and sprint commits on 2026-09-10. Accepted decisions remain in force.
 **Proposal**: Not requested; direct Planner plan with questions.
 **Estimated complexity**: Medium, with a high-consequence broker boundary that must remain unchanged.
@@ -324,8 +324,8 @@ Sprint 2 commit to restore retired paths and their matching navigation.
 - [x] All retirements have a recoverable commit/path and resolved live references.
 - [x] Document count/bytes, ignore policy, G1-G3 and unchanged source checks pass.
 - [x] Preserve private artifacts; record any justified retention exception.
-- [ ] Create exactly one Sprint 2 commit; record commit SHA and `S2_PARENT`.
-- [ ] Start Sprint 3 only after this gate completes. No compile is needed here.
+- [x] Create exactly one Sprint 2 commit; record commit SHA and `S2_PARENT`.
+- [x] Start Sprint 3 only after this gate completes. No compile is needed here.
 
 Sprint 2 validation (2026-09-10): G1-G3 PASS. All 106 retired document
 contents recovered from Git and matched to baseline SHA-256. Exactly 14 permanent
@@ -429,11 +429,43 @@ another live caller and must remain even if its completion-status use is removed
 
 ### Sprint 3 Gate
 
-- [ ] Every removal has proof; G1-G6 pass for their affected inputs.
-- [ ] Final MQL5 compile reports `0 errors, 0 warnings` and regenerated binary metadata.
-- [ ] Source/fixture contracts and pre-existing operational limits remain intact.
-- [ ] Create exactly one Sprint 3 commit; record commit SHA and `S3_PARENT`.
-- [ ] Record completion in ignored execution state; retain only this latest plan.
+- [x] Every removal has proof; G1-G6 pass for their affected inputs.
+- [x] Final MQL5 compile reports `0 errors, 0 warnings` and regenerated binary metadata.
+- [x] Source/fixture contracts and pre-existing operational limits remain intact.
+- [x] Create exactly one Sprint 3 commit; record commit SHA and `S3_PARENT`.
+- [x] Record completion in ignored execution state; retain only this latest plan.
+
+Sprint 3 results (2026-09-10): removed 40 proven-unused functions, one private
+constant, the array utility header/include and 23 unused V9/V10/V11 TSV fixtures.
+The only changed live function is the equivalent CENSORED branch in
+`PivotRunCompletionStatus`; 434 retained function bodies match after lexical
+normalization. Broker send/reconciliation/sizing, public inputs, enums, schemas,
+feature code and all Python/C++ sources are unchanged. V12 rejection and V13
+fixtures/provenance are retained. Implicit callbacks, the live trial-state helper
+and reachable diagnostic reset/setter operations remain.
+
+G1-G4 pass: 38-source include closure has no cycles/missing files; sole OrderSend
+ownership, privacy and documentation links are preserved. The initial preservation
+audit helper mishandled strings and repeated struct-method signatures; its lexer
+and identity key were corrected and coverage asserted. This audit-only failure
+required no source change; the final preservation review passes.
+
+G5: all 45 Python contract tests pass (3.881 seconds); the strict V13 fixture CLI
+passes with one origin, nine H1/parity trials and one deep event. Exness source and
+dependency inputs are unchanged, so its prior suite evidence is reused; no Exness
+suite, full-history run or new Strategy Tester/chart run was performed here.
+
+G6: MetaEditor MCP workspace preflight then compile_file, build 6184 / x64,
+0 errors and 0 warnings. Regenerated binary: 294,694 bytes, modified
+2026-09-10T11:57:01.228474+00:00, SHA-256
+`f729139e19f1867a74006f041175d7f4d4668e2ab92732b0b852b487240cd125`.
+All 38 compiled-source hashes match; no fallback was needed. The prior accepted
+binary is retained in the ignored task directory for rollback. The current index
+owns this new compile pin; historical evidence keeps its original pins.
+
+Detailed removal/retention, test, compile, source-preservation and recovery receipts
+remain in `.codex-artifacts/project-guidance-cleanup/`. All three pre-existing
+operational gates remain open; no deployment or new runtime acceptance is claimed.
 
 ## Validation Contract
 
@@ -609,8 +641,8 @@ the most recent closeout until a later task replaces it and retains its Git anch
 | Sprint | Proposed commit | Rollback parent | Execution evidence |
 | --- | --- | --- | --- |
 | 1 | `docs: align V13 guidance and consolidate current workflows` | `bb97e9e29ad4cc61a07b7e4b9f4b92c56c64de93` | G1-G3 and CLI help PASS; commit `e9b3998ab10cbb433a387771ceb7bee0ca769e59` |
-| 2 | `docs: remove obsolete archives and superseded handoffs` | `e9b3998ab10cbb433a387771ceb7bee0ca769e59` | G1-G3 and full document recovery PASS; commit pending |
-| 3 | `refactor: remove unused helpers and obsolete fixtures` | Sprint 2 commit (`S3_PARENT`) | Not run |
+| 2 | `docs: remove obsolete archives and superseded handoffs` | `e9b3998ab10cbb433a387771ceb7bee0ca769e59` | G1-G3 and full document recovery PASS; commit `04aabccd0375337ba82ec673cc775f27d0081ebe` |
+| 3 | `refactor: remove unused helpers and obsolete fixtures` | `04aabccd0375337ba82ec673cc775f27d0081ebe` | G1-G6 PASS; commit containing this closeout |
 
 ## Completion Checklist
 
@@ -619,9 +651,9 @@ the most recent closeout until a later task replaces it and retains its Git anch
 - [x] Execution authorized and active-plan checkpoint initialized.
 - [x] Current documentation consolidated and critical instructions preserved.
 - [x] Reviewed obsolete documents removed with recoverable Git references.
-- [ ] Proven dead code/fixtures removed; uncertain candidates retained explicitly.
-- [ ] Affected checks pass, final binary/source metadata is recorded, and all
+- [x] Proven dead code/fixtures removed; uncertain candidates retained explicitly.
+- [x] Affected checks pass, final binary/source metadata is recorded, and all
   unrun operational gates remain accurately labeled.
-- [ ] Exactly three sprint commits and their rollback parents are recorded.
-- [ ] Current status and completed execution state agree; private artifacts and
+- [x] Exactly three sprint commits and their rollback parents are recorded.
+- [x] Current status and completed execution state agree; private artifacts and
   unrelated history remain preserved.

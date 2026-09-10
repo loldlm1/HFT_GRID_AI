@@ -9,7 +9,6 @@
 #include "core/base_structures.mqh"
 
 // UTILITY SERVICES
-#include "utils/array_functions.mqh"
 #include "utils/broker_constraints_helper.mqh"
 #include "utils/market_data_time.mqh"
 #include "utils/file_logger.mqh"

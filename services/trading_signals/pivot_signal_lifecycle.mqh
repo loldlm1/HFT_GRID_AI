@@ -178,11 +178,6 @@ void ProcessPivotSignalLifecycle()
   ReconcileAndFinalizePivotSignals();
 }
 
-bool PivotSignalLifecycleHasOutstandingAttempts()
-{
-  return ArraySize(g_pivot_signals) > 0;
-}
-
 void FinalizePivotSignalAttemptsForExport()
 {
   for(int i = 0; i < ArraySize(g_pivot_signals); i++)

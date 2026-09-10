@@ -50,12 +50,6 @@ bool LoadPivotBandsHandle(const ENUM_TIMEFRAMES timeframe,
   return true;
 }
 
-bool PivotBandsHandleReady(const PivotBandsHandleInfo &handle_info)
-{
-  return handle_info.indicator_handle != INVALID_HANDLE &&
-         BarsCalculated(handle_info.indicator_handle) > 0;
-}
-
 bool LoadPivotStochasticHandle(const ENUM_TIMEFRAMES timeframe,
                                const string context_label,
                                PivotStochasticHandleInfo &handle_out)
@@ -92,13 +86,6 @@ bool LoadPivotStochasticHandle(const ENUM_TIMEFRAMES timeframe,
                 PIVOT_CONTEXT_STOCHASTIC_SLOWING);
   }
   return true;
-}
-
-bool PivotStochasticHandleReady(
-  const PivotStochasticHandleInfo &handle_info)
-{
-  return handle_info.indicator_handle != INVALID_HANDLE &&
-         BarsCalculated(handle_info.indicator_handle) > 0;
 }
 
 void ReleasePivotBandsHandle(PivotBandsHandleInfo &handle_info)

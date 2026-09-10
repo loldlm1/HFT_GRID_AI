@@ -85,9 +85,4 @@ bool IsSymbolTradeSessionOpen(const string symbol,
   return false;
 }
 
-bool IsMarketOpen()
-{
-  return IsSymbolTradeSessionOpen(_Symbol, TimeCurrent());
-}
-
 #endif // _SERVICES_TRADING_MANAGEMENT_MARKET_CONDITIONS_FUNCTIONS_MQH_

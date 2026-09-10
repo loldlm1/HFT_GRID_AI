@@ -379,11 +379,4 @@ void ProcessPreparedPivotFractalTick(const MqlTick &tick)
     ProcessPivotTouchCandidates(candidates, total, tick);
 }
 
-void ProcessPivotFractalTick(const MqlTick &tick)
-{
-  if(tick.time <= 0 || !RefreshPivotFractalRuntimeContext(tick.time))
-    return;
-  ProcessPreparedPivotFractalTick(tick);
-}
-
 #endif // _SERVICES_TRADING_SIGNALS_PIVOT_FRACTAL_SIGNAL_DETECTION_MQH_

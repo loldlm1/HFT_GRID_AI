@@ -74,30 +74,6 @@ void MarkPivotSignalOriginsExportFinalized(const string window_id)
   }
 }
 
-bool PivotSignalHasBrokerExposure(const PivotSignal &signal)
-{
-  if(signal.execution.broker_entry_confirmed &&
-     !signal.execution.broker_close_confirmed &&
-     signal.execution.position_ticket > 0)
-    return true;
-
-  return (signal.execution.state == EXECUTION_ORDER_SEND_ATTEMPTED &&
-          signal.execution.send_result_check.allowed);
-}
-
-bool PivotSignalHasConfirmedOutcome(const PivotSignal &signal)
-{
-  return signal.execution.broker_entry_confirmed &&
-         signal.execution.broker_close_confirmed;
-}
-
-bool PivotSignalExecutionComplete(const PivotSignal &signal)
-{
-  return signal.execution.state == EXECUTION_ORDER_BROKER_CLOSED ||
-         signal.execution.state == EXECUTION_ORDER_CANCELED ||
-         signal.execution.state == EXECUTION_ORDER_FAILED;
-}
-
 bool DebugEquityGuardAllowsProcessing()
 {
   if(!Debug_Stop_On_Negative_Equity || MQLInfoInteger(MQL_TESTER) <= 0)

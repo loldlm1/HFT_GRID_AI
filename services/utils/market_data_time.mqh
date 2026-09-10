@@ -100,13 +100,6 @@ bool MarketDataUsesUnitedKingdomDst(const string symbol)
           MarketDataSymbolHasPrefix(symbol, "XPD"));
 }
 
-bool MarketDataUsesUnitedStatesDst(const string symbol)
-{
-  // Exness instruments default to the US calendar. Keep this explicit helper
-  // so the documented UK metal exceptions remain auditable.
-  return !MarketDataUsesUnitedKingdomDst(symbol);
-}
-
 datetime MarketDataUsDstStart(const int year)
 {
   int day = MarketDataNthWeekday(year, 3, 0, 2);
@@ -129,34 +122,6 @@ datetime MarketDataUkDstEnd(const int year)
 {
   int day = MarketDataLastWeekday(year, 10, 0);
   return (day > 0) ? MarketDataDateAt(year, 10, day, 1, 0, 0) : 0;
-}
-
-bool MarketDataDstActive(const string symbol,
-                         const datetime broker_time,
-                         int &offset_minutes_out)
-{
-  offset_minutes_out = 0;
-  MqlDateTime value;
-  ZeroMemory(value);
-  if(!TimeToStruct(broker_time, value))
-    return false;
-
-  bool uk_calendar = MarketDataUsesUnitedKingdomDst(symbol);
-  datetime start = uk_calendar ? MarketDataUkDstStart(value.year)
-                               : MarketDataUsDstStart(value.year);
-  datetime end = uk_calendar ? MarketDataUkDstEnd(value.year)
-                             : MarketDataUsDstEnd(value.year);
-  if(start <= 0 || end <= 0)
-    return false;
-
-  if(broker_time < start || broker_time >= end)
-  {
-    offset_minutes_out = -60;
-    return false;
-  }
-
-  offset_minutes_out = 0;
-  return true;
 }
 
 datetime MarketDataNormalizeAnalysisTime(const datetime broker_time,

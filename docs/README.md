@@ -6,9 +6,9 @@ own procedures and dated evidence owns its original results.
 
 ## Active Work
 
-The authorized [guidance and cleanup plan](../project-guidance-cleanup-plan.md)
-is executing Sprint 2 of 3. Completed V13, Exness preparation and parent-close
-plans are historical and must not be restarted.
+No implementation plan remains active. The [latest cleanup plan](../project-guidance-cleanup-plan.md)
+completes three ordered sprints in the commit containing this closeout. Prior V13,
+Exness preparation and parent-close plans are historical and must not be restarted.
 
 | Area | Accepted baseline and evidence |
 | --- | --- |
@@ -45,17 +45,31 @@ that external path is operator context, not a required file in this checkout.
 
 ## Source And Validation Pins
 
-Current pre-cleanup source anchor:
-`bb97e9e29ad4cc61a07b7e4b9f4b92c56c64de93`. The parent-close acceptance records
-MetaEditor build 6184, zero errors/warnings and a 295,370-byte binary, SHA-256
-`ac5ae06f4d7a2c788d4470e2b849a9bb76cd6b97d1d0c646c2e9ffd719b79237`.
-The cleanup has not changed source or replaced this compile evidence yet.
+Current compile (2026-09-10), from the source in the commit containing this
+cleanup closeout: MetaEditor MCP preflight and `compile_file`, build 6184 / x64,
+**0 errors, 0 warnings**. Regenerated binary: 294,694 bytes, modified
+`2026-09-10T11:57:01.228474+00:00`, SHA-256
+`f729139e19f1867a74006f041175d7f4d4668e2ab92732b0b852b487240cd125`.
+All 38 source/include hashes match the compile receipt. The compact, sorted JSON
+path-to-SHA-256 mapping hashes to
+`a0ff8c10c0173f9c977d1dac45ca611dcdba2f536679a434276fb55e19ab5a97`;
+the full mapping and binary rollback copy are in ignored
+`.codex-artifacts/project-guidance-cleanup/`.
 
-The prior correction closeout reports 45 Python contract tests and 91 Exness
-service tests. These are historical results, not fresh tests in this cleanup.
-Its focused Exness export-on/off tester matched 43 report fields and 694 ordered
-broker messages at 50 ms delay. The original V13 acceptance used 120 ms delay.
-Neither establishes subsecond accuracy or exchange-level tick ordering.
+Cleanup validation passes: 45 Python contract tests, strict V13 fixture CLI,
+include/reference/broker-boundary checks, document links and Git recovery. Removed
+40 unused functions, one private constant, an unused array header/include and 23
+unused V9/V10/V11 fixtures. V12 rejection/V13 fixtures, all Python/C++ sources,
+public inputs and broker guards remain unchanged. The equivalent CENSORED branch
+was simplified; 434 retained function bodies are unchanged. No new tester run was
+needed for these proved removals; the previous runtime evidence tested its own
+recorded binary and is not relabeled as testing this binary.
+
+The parent-close acceptance preserves the prior 295,370-byte binary and its source
+pin. Its focused Exness export-on/off tester matched 43 report fields and 694
+ordered broker messages at 50 ms delay. The original V13 acceptance used 120 ms.
+Neither proves subsecond/exchange ordering. The unchanged Exness service's prior
+91-test result is historical and was not rerun for this cleanup.
 
 The [frozen V13 handoff](research/pivot-fractal-v13-producer-handoff.md) preserves
 schema/header/registry/fixture pins and the downstream vendoring boundary as of
@@ -102,3 +116,21 @@ Parent-close commits are `65090dc`, `10aa194`, `4185054`; preparation service
 commit is `33eb5a6` with rollback parent `4185054`; prior documentation closeout
 is `bb97e9e` with rollback parent `33eb5a6`. Source rollback preserves original
 and derived datasets independently. Do not reset history to retrieve a document.
+
+## Cleanup Commit Ledger
+
+The retained set is seven current guides/indexes and seven dated evidence records,
+plus the latest plan. All 106 retired Markdown files are recoverable byte-for-byte
+from the baseline Git anchor. AGENTS is 128 lines / 8,174 bytes. The cleanup removes
+about 92% of the prior Markdown bytes even including its execution plan; it does
+not delete private market data, sidecars or retained operator checkpoints.
+
+| Sprint | Commit | Rollback parent |
+| --- | --- | --- |
+| Guidance and current owners | `e9b3998ab10cbb433a387771ceb7bee0ca769e59` | `bb97e9e29ad4cc61a07b7e4b9f4b92c56c64de93` |
+| Historical document retirement | `04aabccd0375337ba82ec673cc775f27d0081ebe` | `e9b3998ab10cbb433a387771ceb7bee0ca769e59` |
+| Proven dead-code removal and integration | Commit containing this closeout | `04aabccd0375337ba82ec673cc775f27d0081ebe` |
+
+The final commit SHA and completed execution state are recorded in the ignored
+execution journal. Revert reviewed sprint commits in reverse order when needed;
+source rollback also requires its matching retained binary or a recompile.

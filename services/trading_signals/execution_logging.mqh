@@ -6,7 +6,6 @@
 
 const string QUERY_DEBUG_FILENAME = "query_debug.txt";
 const int QUERY_DEBUG_STATE_RESERVE = 64;
-const int QUERY_DEBUG_STATE_MAX = 512;
 
 bool g_query_debug_session_header_logged = false;
 string g_query_debug_state_keys[];
@@ -20,13 +19,6 @@ int g_query_debug_throttle_replace_index = 0;
 string ExecutionBoolToken(const bool value)
 {
   return value ? "true" : "false";
-}
-
-string ExecutionTimeToken(const datetime value)
-{
-  return value > 0
-         ? TimeToString(value, TIME_DATE | TIME_SECONDS)
-         : "n/a";
 }
 
 string ExecutionDoubleToken(const double value,
@@ -49,101 +41,6 @@ void ResetQueryDebugLogSession()
   ArrayResize(g_query_debug_throttle_suppressed, 0, QUERY_DEBUG_STATE_RESERVE);
   g_query_debug_state_replace_index = 0;
   g_query_debug_throttle_replace_index = 0;
-}
-
-int ExecutionFindStateIndex(string &keys[],
-                            const string state_key)
-{
-  for(int i = 0; i < ArraySize(keys); i++)
-  {
-    if(keys[i] == state_key)
-      return i;
-  }
-  return -1;
-}
-
-bool ExecutionShouldLogChangedState(const string state_key,
-                                    const string message)
-{
-  int index = ExecutionFindStateIndex(g_query_debug_state_keys, state_key);
-  if(index < 0)
-  {
-    int total = ArraySize(g_query_debug_state_keys);
-    if(total < QUERY_DEBUG_STATE_MAX)
-    {
-      ArrayResize(g_query_debug_state_keys,
-                  total + 1,
-                  QUERY_DEBUG_STATE_RESERVE);
-      ArrayResize(g_query_debug_state_messages,
-                  total + 1,
-                  QUERY_DEBUG_STATE_RESERVE);
-      index = total;
-    }
-    else
-    {
-      index = g_query_debug_state_replace_index;
-      g_query_debug_state_replace_index =
-        (g_query_debug_state_replace_index + 1) % QUERY_DEBUG_STATE_MAX;
-    }
-    g_query_debug_state_keys[index] = state_key;
-    g_query_debug_state_messages[index] = message;
-    return true;
-  }
-
-  if(g_query_debug_state_messages[index] == message)
-    return false;
-  g_query_debug_state_messages[index] = message;
-  return true;
-}
-
-bool ExecutionShouldLogThrottledState(const string state_key,
-                                      const int throttle_seconds,
-                                      int &suppressed_since_last)
-{
-  suppressed_since_last = 0;
-  if(throttle_seconds <= 0)
-    return true;
-
-  datetime now = TimeCurrent();
-  int index = ExecutionFindStateIndex(g_query_debug_throttle_keys, state_key);
-  if(index < 0)
-  {
-    int total = ArraySize(g_query_debug_throttle_keys);
-    if(total < QUERY_DEBUG_STATE_MAX)
-    {
-      ArrayResize(g_query_debug_throttle_keys,
-                  total + 1,
-                  QUERY_DEBUG_STATE_RESERVE);
-      ArrayResize(g_query_debug_throttle_times,
-                  total + 1,
-                  QUERY_DEBUG_STATE_RESERVE);
-      ArrayResize(g_query_debug_throttle_suppressed,
-                  total + 1,
-                  QUERY_DEBUG_STATE_RESERVE);
-      index = total;
-    }
-    else
-    {
-      index = g_query_debug_throttle_replace_index;
-      g_query_debug_throttle_replace_index =
-        (g_query_debug_throttle_replace_index + 1) % QUERY_DEBUG_STATE_MAX;
-    }
-    g_query_debug_throttle_keys[index] = state_key;
-    g_query_debug_throttle_times[index] = now;
-    g_query_debug_throttle_suppressed[index] = 0;
-    return true;
-  }
-
-  if((int)(now - g_query_debug_throttle_times[index]) >= throttle_seconds)
-  {
-    suppressed_since_last = g_query_debug_throttle_suppressed[index];
-    g_query_debug_throttle_times[index] = now;
-    g_query_debug_throttle_suppressed[index] = 0;
-    return true;
-  }
-
-  g_query_debug_throttle_suppressed[index]++;
-  return false;
 }
 
 void EnsureQueryDebugSessionHeaderLogged()
@@ -185,36 +82,6 @@ void ExecutionAppendQueryDebugLogAt(const datetime event_time,
                          label,
                          message,
                          event_time);
-}
-
-void ExecutionAppendQueryDebugChangedLog(const string label,
-                                         const string state_key,
-                                         const string message)
-{
-  if(!Enable_File_Logs)
-    return;
-  EnsureQueryDebugSessionHeaderLogged();
-  if(ExecutionShouldLogChangedState(label + "|" + state_key, message))
-    AppendTimestampedLog(QUERY_DEBUG_FILENAME, label, message);
-}
-
-void ExecutionAppendQueryDebugThrottledLog(const string label,
-                                           const string state_key,
-                                           const string message,
-                                           const int throttle_seconds)
-{
-  if(!Enable_File_Logs)
-    return;
-  EnsureQueryDebugSessionHeaderLogged();
-  int suppressed = 0;
-  if(!ExecutionShouldLogThrottledState(label + "|" + state_key,
-                                       throttle_seconds,
-                                       suppressed))
-    return;
-  string output = message;
-  if(suppressed > 0)
-    output += StringFormat("|suppressed_since_last=%d", suppressed);
-  AppendTimestampedLog(QUERY_DEBUG_FILENAME, label, output);
 }
 
 void ExecutionLogPivotAttempt(const PivotSignal &signal)

@@ -83,11 +83,6 @@ int DeepPivotEventPeak()
   return g_deep_pivot_event_peak;
 }
 
-int DeepPivotEventCapacityRejectedCount()
-{
-  return g_deep_pivot_capacity_rejected_count;
-}
-
 int DeepPivotDuplicateIdentityCount()
 {
   return g_deep_pivot_duplicate_identity_count;
@@ -143,20 +138,6 @@ int DeepPivotTrialPeak()
 int DeepPivotOutcomePeak()
 {
   return g_deep_pivot_outcome_peak;
-}
-
-int DeepPivotFrozenParentPeak()
-{
-  return g_deep_pivot_frozen_parent_peak;
-}
-
-int DeepPivotFrozenParentCountForEvent(const string deep_event_id)
-{
-  int count = 0;
-  for(int i = 0; i < DeepPivotFrozenParentCount(); i++)
-    if(g_deep_pivot_frozen_parents[i].deep_event_id == deep_event_id)
-      count++;
-  return count;
 }
 
 string DeepPivotParentLinkId(const string deep_event_id,
@@ -274,20 +255,6 @@ int FindDeepPivotTrial(const string deep_trial_id)
   for(int i = 0; i < DeepPivotTrialCount(); i++)
     if(g_deep_pivot_trials[i].deep_trial_id == deep_trial_id)
       return i;
-  return -1;
-}
-
-int FindDeepPivotOutcome(const string parent_link_id,
-                         const string deep_trial_id)
-{
-  if(parent_link_id == "" || deep_trial_id == "")
-    return -1;
-  for(int i = 0; i < DeepPivotOutcomeCount(); i++)
-  {
-    if(g_deep_pivot_outcomes[i].parent_link_id == parent_link_id &&
-       g_deep_pivot_outcomes[i].deep_trial_id == deep_trial_id)
-      return i;
-  }
   return -1;
 }
 

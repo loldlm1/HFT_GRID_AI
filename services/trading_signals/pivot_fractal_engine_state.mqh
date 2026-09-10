@@ -277,10 +277,4 @@ bool RefreshDeepPivotFractalWindow(const datetime observation_time,
                                                     force_refresh);
 }
 
-bool PivotFractalWindow(PivotFractalWindowState &window_out)
-{
-  window_out.CopyFrom(g_pivot_fractal_window);
-  return true;
-}
-
 #endif // _SERVICES_TRADING_SIGNALS_PIVOT_FRACTAL_ENGINE_STATE_MQH_

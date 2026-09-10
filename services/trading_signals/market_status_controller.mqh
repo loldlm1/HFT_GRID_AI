@@ -47,26 +47,6 @@ MarketStatusTypes MarketStatusGet()
   return g_market_status;
 }
 
-datetime MarketStatusLastChangeTime()
-{
-  return g_market_status_updated;
-}
-
-string MarketStatusReason()
-{
-  return g_market_status_reason;
-}
-
-bool MarketStatusAllowsSignalAttempts()
-{
-  return (g_market_status == MARKET_STATUS_ACTIVE);
-}
-
-bool MarketStatusAllowsBrokerActions()
-{
-  return (g_market_status == MARKET_STATUS_ACTIVE);
-}
-
 bool MarketStatusRetcodeImpliesClosure(const ulong retcode,
                                        const int last_error)
 {

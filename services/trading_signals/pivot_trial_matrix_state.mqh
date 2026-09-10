@@ -38,16 +38,6 @@ int PivotTrialDuplicateIdentityCount()
   return g_pivot_trial_duplicate_identity_count;
 }
 
-bool PivotTrialStateCapacityFailed()
-{
-  return g_pivot_trial_state_capacity_failed;
-}
-
-bool PivotTrialStateAllocationFailed()
-{
-  return g_pivot_trial_state_allocation_failed;
-}
-
 bool PivotTrialResearchIntegrityFailed()
 {
   return g_pivot_trial_state_capacity_failed ||
@@ -73,19 +63,6 @@ int FindPivotTrialActiveStateByTrialId(const string trial_id)
   return -1;
 }
 
-int FindPivotTrialActiveStateByOriginId(const string origin_id)
-{
-  if(origin_id == "")
-    return -1;
-  for(int i = 0; i < PivotTrialActiveStateCount(); i++)
-  {
-    if(g_pivot_trial_active_states[i].active &&
-       g_pivot_trial_active_states[i].trial.identity.origin_id == origin_id)
-      return i;
-  }
-  return -1;
-}
-
 int FindPivotTrialActiveStateByParityId(const string parity_trial_id)
 {
   if(parity_trial_id == "")
@@ -100,20 +77,6 @@ int FindPivotTrialActiveStateByParityId(const string parity_trial_id)
       return i;
   }
   return -1;
-}
-
-int CountPivotTrialActiveStatesForOrigin(const string origin_id,
-                                         const SignalTypes direction)
-{
-  int count = 0;
-  for(int i = 0; i < PivotTrialActiveStateCount(); i++)
-  {
-    if(g_pivot_trial_active_states[i].active &&
-       g_pivot_trial_active_states[i].trial.identity.origin_id == origin_id &&
-       g_pivot_trial_active_states[i].trial.direction == direction)
-      count++;
-  }
-  return count;
 }
 
 bool PivotTrialOriginHasActiveStructuralLane(const string origin_id,
@@ -263,12 +226,6 @@ bool RemovePivotTrialActiveStateAt(const int index)
     return false;
   }
   return true;
-}
-
-bool RemovePivotTrialActiveStateByTrialId(const string trial_id)
-{
-  int index = FindPivotTrialActiveStateByTrialId(trial_id);
-  return index >= 0 && RemovePivotTrialActiveStateAt(index);
 }
 
 #endif // _SERVICES_TRADING_SIGNALS_PIVOT_TRIAL_MATRIX_STATE_MQH_

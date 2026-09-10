@@ -39,11 +39,6 @@ string PivotFractalEngineLabel(const int engine_id)
   return "NONE";
 }
 
-bool PivotFractalEngineEnabled(const int engine_id)
-{
-  return (engine_id == PIVOT_FRACTAL_V2);
-}
-
 string PivotLevelLabel(const PivotLevelIds level)
 {
   switch(level)
@@ -57,14 +52,6 @@ string PivotLevelLabel(const PivotLevelIds level)
     case PIVOT_LEVEL_R3: return "R3";
   }
   return "UNKNOWN";
-}
-
-bool PivotLevelIdAt(const int index, PivotLevelIds &level_out)
-{
-  if(index < 0 || index >= PIVOT_LEVEL_COUNT)
-    return false;
-  level_out = (PivotLevelIds)index;
-  return true;
 }
 
 bool PivotTrialEntryPolicyAt(const int index,
@@ -128,20 +115,6 @@ string PivotTrialEligibilityLabel(const PivotTrialEligibilityStatuses status)
       return "INELIGIBLE_DISTANCE";
     case PIVOT_TRIAL_ELIGIBILITY_INELIGIBLE_MONEY:
       return "INELIGIBLE_MONEY_PLAN";
-  }
-  return "UNKNOWN";
-}
-
-string PivotTrialFirstTouchLabel(const PivotTrialFirstTouchOutcomes outcome)
-{
-  switch(outcome)
-  {
-    case PIVOT_TRIAL_FIRST_TOUCH_PENDING:  return "PENDING";
-    case PIVOT_TRIAL_FIRST_TOUCH_TP_FIRST: return "TP_FIRST";
-    case PIVOT_TRIAL_FIRST_TOUCH_SL_FIRST: return "SL_FIRST";
-    case PIVOT_TRIAL_FIRST_TOUCH_NOT_TRIGGERED: return "NOT_TRIGGERED";
-    case PIVOT_TRIAL_FIRST_TOUCH_INELIGIBLE: return "INELIGIBLE";
-    case PIVOT_TRIAL_FIRST_TOUCH_CENSORED: return "CENSORED";
   }
   return "UNKNOWN";
 }

@@ -157,9 +157,6 @@ string PivotRunCompletionStatus()
 {
   if(MQLInfoInteger(MQL_TESTER) > 0 && g_tester_interval_completed)
     return "NATURAL";
-  if(PivotSignalLifecycleHasOutstandingAttempts() ||
-     PivotTrialLanesHaveOutstandingState())
-    return "CENSORED";
   return "CENSORED";
 }
 

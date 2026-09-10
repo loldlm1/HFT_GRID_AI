@@ -77,18 +77,6 @@ bool RefreshSymbolTradingConstraints(const string symbol, SymbolTradingConstrain
   return spec_loaded;
 }
 
-// Calculates the strictest distance required by the broker in points.
-double MinBrokerDistancePoints(const SymbolTradingConstraints &constraints)
-{
-  double freeze_pts = constraints.freeze_level_points;
-  double stops_pts  = constraints.stops_level_points;
-
-  if(freeze_pts < 0.0) freeze_pts = 0.0;
-  if(stops_pts  < 0.0) stops_pts  = 0.0;
-
-  return MathMax(freeze_pts, stops_pts);
-}
-
 bool CalculateStrictRiskDistancePoints(const double spread_points,
                                        const double point_size,
                                        const double trade_tick_size,
@@ -110,53 +98,6 @@ bool CalculateStrictRiskDistancePoints(const double spread_points,
                                freeze_level_points) +
                        trade_tick_points;
   return MathIsValidNumber(minimum_points_out) && minimum_points_out > 0.0;
-}
-
-// Returns a safe distance in points that respects broker freeze/stops limits.
-double EnforceBrokerDistance(const SymbolTradingConstraints &constraints,
-                             const double requested_distance_points = 0)
-{
-  double min_pts = MinBrokerDistancePoints(constraints);
-
-  // If broker did not provide a minimum (0 or negative), derive a safe fallback
-  double effective_min = min_pts;
-  if(effective_min <= 0.0)
-  {
-    // Default conservative fallback in points
-    double fallback = 10.0;
-
-    // If we have symbol specs, try to derive a sensible fallback from tick/point sizes.
-    // tick_size / point_size gives approximate "points per tick" which can be used as a baseline.
-    if(constraints.point_size > 0.0 && constraints.tick_size > 0.0)
-      fallback = MathMax(10.0, constraints.tick_size / constraints.point_size);
-    else if(constraints.point_size > 0.0)
-      fallback = MathMax(10.0, 1.0 / constraints.point_size);
-
-    effective_min = fallback;
-  }
-
-  if(requested_distance_points < effective_min)
-    return effective_min;
-  return requested_distance_points;
-}
-
-// Simple validation helper. Prints a warning when the requested distance
-// violates broker limitations.
-bool ValidateDistanceAgainstBrokerLimits(const SymbolTradingConstraints &constraints,
-                                         const double distance_points,
-                                         const string context_label)
-{
-  double min_pts = MinBrokerDistancePoints(constraints);
-  if(distance_points + 1e-9 < min_pts)
-  {
-    PrintFormat("[%s] Distance %.2f pts is below broker minimum %.2f pts for %s",
-                context_label,
-                distance_points,
-                min_pts,
-                constraints.symbol);
-    return false;
-  }
-  return true;
 }
 
 #endif // _MICROSERVICES_UTILS_BROKER_CONSTRAINTS_HELPER_MQH_
