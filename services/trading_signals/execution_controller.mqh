@@ -395,8 +395,9 @@ bool ProcessPivotSignalAttempt(PivotSignal &signal)
                           signal.trigger_time,
                           false,
                           signal.execution.observation_check);
-  if(RegisterPivotOrigin(signal))
-    DeclareInitialPivotTrialLanes(signal, observation_tick);
+  if(RegisterPivotOrigin(signal) &&
+     !DeclareInitialPivotTrialLanes(signal, observation_tick))
+    PivotV13MarkFailed("H1_LANE_DECLARATION_FAILED", "", 0, signal.origin_id);
 
   string permission_source = "";
   string permission_reason = "";

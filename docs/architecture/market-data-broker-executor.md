@@ -238,6 +238,17 @@ broker/calibration artifacts, audits referential integrity and leakage, and
 trains explicit offline H1 or deep candidates. No runtime model artifact or
 execution filter is produced.
 
+Fatal export or research-integrity failures latch the first operation, broker
+clock and bounded state context. The journal diagnostic is unconditional, even
+with both debug switches off; best-effort persistence uses
+`Common\\Files\\PivotFractalV13\\diagnostics\\<run_id>.failure.txt` outside the
+strict dataset. Secondary teardown errors cannot replace the first cause.
+The EA requests one tester-only stop at the event boundary. Research is sealed
+before tester scoring, including its final flush; a failed run has a zero custom
+score and a `FAILED` / `CENSORED` summary when writable. An absent successful
+seal also invalidates the run. Valid ineligible, no-touch and capacity-rejected
+rows remain explicit outcomes. This research policy adds no live order control.
+
 The bounded DuckDB parent chronology audit checks parent intervals and labels
 separately from full semantic validation. Timestamp-only historical recovery
 creates a distinct derivative with adjacent correction/provenance sidecars and

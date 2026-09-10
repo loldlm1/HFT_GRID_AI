@@ -6,9 +6,26 @@ own procedures and dated evidence owns its original results.
 
 ## Active Work
 
-No implementation plan remains active. The [latest cleanup plan](../project-guidance-cleanup-plan.md)
-completes three ordered sprints in the commit containing this closeout. Prior V13,
+The [EURUSD reliability and performance plan](../eurusd-tester-reliability-performance-plan.md)
+has validated Sprint 1 of four authorized, ordered sprints; its commit gate is
+next. The affected EURUSD tester is stopped; its incomplete original export and
+pre-stop snapshot remain preserved. Prior cleanup, V13,
 Exness preparation and parent-close plans are historical and must not be restarted.
+
+The native EURUSD reproduction isolates `PARITY_DISTANCE_INELIGIBLE` at
+2017-11-14 07:18:42: an accepted broker request has 29 risk points, while its
+research parity shadow incorrectly requires 30 (spread 29 plus one trade tick).
+The first diagnostic and tester stop now work with debug logging off, and the
+output seals `FAILED` / `CENSORED`. Header corruption and missing-file tests also
+stop once and reject. Sprint 2 owns the parity correction and independent closed
+broker cleanup; the original historical run remains incomplete and unaccepted.
+
+Strict intake also exposes a separate decimal serialization issue in the failed
+EURUSD reproduction: a below-PP bid and the pivot both print as `1.1586400000`.
+Sprint 2 must retain the causal numeric evidence without changing tick comparisons
+or weakening validation. XAUUSD baseline/candidate/export-off broker streams
+match all 1,392 captured messages and 43 report fields; the two export-on runs
+match all twelve TSVs after run-ID normalization and pass strict/chronology checks.
 
 | Area | Accepted baseline and evidence |
 | --- | --- |
@@ -28,6 +45,8 @@ policy bounded by `1e-16`; all source ticks are retained.
 
 ## Remaining Operational Gates
 
+- **Full-history EURUSD: outstanding operator gate.** Focused reliability and
+  performance checks in the active plan do not certify the 2015-2026 interval.
 - **Human chart/rendering verification: outstanding.** Required before any
   deployment-oriented claim; compilation and fixtures cannot replace it.
 - **Formal Exness broker equivalence: INCONCLUSIVE.** Positive native broker
@@ -45,8 +64,19 @@ that external path is operator context, not a required file in this checkout.
 
 ## Source And Validation Pins
 
-Current compile (2026-09-10), from the source in the commit containing this
-cleanup closeout: MetaEditor MCP preflight and `compile_file`, build 6184 / x64,
+Sprint 1 compile (2026-09-10): MetaEditor MCP build 6184, explicit optimized
+`AVX2 + FMA3`, **0 errors, 0 warnings**. Binary: 304,964 bytes, modified
+`2026-09-10T13:00:47.358840+00:00`, SHA-256
+`ad238cb3343038fe7103e6e1c570360311da80ef0b291b35312a7d67e8501126`.
+The 38-source compact sorted mapping hashes to
+`15054598caf827ecddd757732d67a3b0d125b378a490148c8b3cfb0a9b2ee301`.
+Receipts, paired rollback binaries, settings, failed-run diagnostics and exact
+comparisons are in ignored `.codex-artifacts/eurusd-tester-reliability/sprint-1/`.
+The existing 45 Python tests and strict V13 fixture pass. No live failure test,
+full-history EURUSD run or new human chart acceptance is claimed.
+
+Historical cleanup compile (2026-09-10), source `c9ebb24`: MetaEditor MCP preflight
+and `compile_file`, build 6184 / x64,
 **0 errors, 0 warnings**. Regenerated binary: 294,694 bytes, modified
 `2026-09-10T11:57:01.228474+00:00`, SHA-256
 `f729139e19f1867a74006f041175d7f4d4668e2ab92732b0b852b487240cd125`.
@@ -129,8 +159,13 @@ not delete private market data, sidecars or retained operator checkpoints.
 | --- | --- | --- |
 | Guidance and current owners | `e9b3998ab10cbb433a387771ceb7bee0ca769e59` | `bb97e9e29ad4cc61a07b7e4b9f4b92c56c64de93` |
 | Historical document retirement | `04aabccd0375337ba82ec673cc775f27d0081ebe` | `e9b3998ab10cbb433a387771ceb7bee0ca769e59` |
-| Proven dead-code removal and integration | Commit containing this closeout | `04aabccd0375337ba82ec673cc775f27d0081ebe` |
+| Proven dead-code removal and integration | `c9ebb24a28276a42a72d33970f941ac37507ead5` | `04aabccd0375337ba82ec673cc775f27d0081ebe` |
 
 The final commit SHA and completed execution state are recorded in the ignored
 execution journal. Revert reviewed sprint commits in reverse order when needed;
 source rollback also requires its matching retained binary or a recompile.
+
+The completed cleanup plan is recoverable with
+`git show c9ebb24a28276a42a72d33970f941ac37507ead5:project-guidance-cleanup-plan.md`.
+Its completed execution state and exact plan copy were preserved before the
+reliability plan was initialized; they do not authorize restarting old work.

@@ -19,6 +19,7 @@ double g_ask = 0.0;
 ulong g_execution_magic = 0;
 SymbolTradingConstraints g_symbol_constraints;
 bool g_tester_interval_completed = false;
+bool g_pivot_run_finalized = false;
 
 ulong ResolveStableExecutionMagic()
 {
@@ -155,7 +156,8 @@ void RefreshCustomSymbolRates()
 
 string PivotRunCompletionStatus()
 {
-  if(MQLInfoInteger(MQL_TESTER) > 0 && g_tester_interval_completed)
+  if(MQLInfoInteger(MQL_TESTER) > 0 && g_tester_interval_completed &&
+     !PivotV13ResearchFailed())
     return "NATURAL";
   return "CENSORED";
 }
@@ -163,6 +165,7 @@ string PivotRunCompletionStatus()
 int OnInit()
 {
   g_tester_interval_completed = false;
+  g_pivot_run_finalized = false;
   ResetQueryDebugLogSession();
   string timeframe_reason = "";
   if(!ValidatePivotTimeframeInputs(timeframe_reason))
@@ -215,15 +218,30 @@ int OnInit()
   return INIT_SUCCEEDED;
 }
 
+void FinalizePivotRunExport()
+{
+  if(g_pivot_run_finalized)
+    return;
+  g_pivot_run_finalized = true;
+  ReconcileAndFinalizePivotSignals();
+  PivotV13CaptureResearchFailure();
+  if(!PivotV13ResearchFailed())
+    FinalizePivotSignalAttemptsForExport();
+  if(!PivotV13ResearchFailed())
+    FinalizePivotTrialLanesForExport();
+  if(!PivotV13ResearchFailed())
+    FinalizeDeepPivotForExport();
+  if(!PivotV13ResearchFailed())
+    FinalizeActivePivotWindowsForExport();
+  PivotV13CaptureResearchFailure();
+  if(!PivotV13WriteSummary(PivotRunCompletionStatus()))
+    PivotV13CaptureResearchFailure();
+}
+
 void OnDeinit(const int reason)
 {
-  ReconcileAndFinalizePivotSignals();
-  string completion_status = PivotRunCompletionStatus();
-  FinalizePivotSignalAttemptsForExport();
-  FinalizePivotTrialLanesForExport();
-  FinalizeDeepPivotForExport();
-  FinalizeActivePivotWindowsForExport();
-  PivotV13StatsDeinit(completion_status);
+  FinalizePivotRunExport();
+  PivotV13StatsDeinit(PivotRunCompletionStatus());
   CloseAppendFileLog();
   ReleaseAllIndicatorDefinitions();
   FrontendResetRefreshThrottle();
@@ -245,6 +263,7 @@ void OnTradeTransaction(const MqlTradeTransaction &trans,
 {
   RefreshCustomSymbolRates();
   ReconcileAndFinalizePivotSignals();
+  PivotV13StopFailedTesterAtEventBoundary();
 }
 
 void OnTick()
@@ -252,7 +271,10 @@ void OnTick()
   MqlTick tick;
   RefreshCustomSymbolRates(tick);
   if(!DebugEquityGuardAllowsProcessing())
+  {
+    PivotV13StopFailedTesterAtEventBoundary();
     return;
+  }
 
   ProcessPivotSignalLifecycle();
   bool pivot_context_ready =
@@ -264,13 +286,21 @@ void OnTick()
   datetime current_time = TimeCurrent();
   if(FrontendRefreshDue(current_time))
     RefreshExecutionVisualization();
+  PivotV13StopFailedTesterAtEventBoundary();
 }
 
 double OnTester()
 {
+  PivotV13CaptureResearchFailure();
   g_tester_interval_completed =
-    !g_forced_stop_triggered && !g_debug_no_money_abort_pending;
-  if(g_forced_stop_triggered || g_debug_no_money_abort_pending)
+    !g_forced_stop_triggered && !g_debug_no_money_abort_pending &&
+    !PivotV13ResearchFailed();
+  // Seal before scoring: TesterStop also invokes OnTester, and a final flush
+  // can discover the first failure after the final tick.
+  FinalizePivotRunExport();
+  if(PivotV13ResearchFailed())
+    g_tester_interval_completed = false;
+  if(!g_tester_interval_completed)
     return 0.0;
 
   double initial_deposit = TesterStatistics(STAT_INITIAL_DEPOSIT);

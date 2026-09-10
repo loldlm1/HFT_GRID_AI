@@ -149,7 +149,21 @@ bool BuildBrokerParityTrial(const PivotSignal &signal,
      send_check.quote_expected_stop_loss <= 0.0 ||
      send_check.quote_expected_take_profit <= 0.0 ||
      send_check.quote_expected_reward_risk_ratio <= 0.0)
+  {
+    PivotV13MarkFailed("PARITY_SOURCE_FACTS_INVALID", "", 0,
+      StringFormat("broker=%s|trigger=%I64d|send=%I64d|origin_window=%d|allowed=%d|type=%d|expected_type=%d|fok=%d|quote_valid=%d|point=%.10f|tick_size=%.10f|tick_bid=%.10f|tick_ask=%.10f|check_bid=%.10f|check_ask=%.10f|request_price=%.10f|planned_price=%.10f|request_sl=%.10f|planned_sl=%.10f|request_tp=%.10f|planned_tp=%.10f|request_volume=%.10f|planned_volume=%.10f|stop_money=%.10f|tp_money=%.10f|money_rr=%.10f",
+        signal.broker_signal_id, (long)signal.trigger_time,
+        (long)send_check.broker_time, (int)trigger_in_origin_window,
+        (int)send_check.allowed, (int)request.type, (int)expected_type,
+        (int)(request.type_filling == ORDER_FILLING_FOK),
+        (int)PivotTrialQuoteValid(entry_tick), point_size, trade_tick_size,
+        entry_tick.bid, entry_tick.ask, send_check.bid, send_check.ask,
+        request.price, send_check.planned_entry_price,
+        request.sl, send_check.stop_loss_price, request.tp, send_check.take_profit_price,
+        request.volume, send_check.normalized_volume, send_check.quote_expected_stop_loss,
+        send_check.quote_expected_take_profit, send_check.quote_expected_reward_risk_ratio));
     return false;
+  }
 
   double risk_distance = signal.direction == BULLISH
                          ? request.price - request.sl
@@ -160,7 +174,13 @@ bool BuildBrokerParityTrial(const PivotSignal &signal,
        price_tolerance ||
      !PivotTrialExactIntegerR(signal.direction, request.price, request.sl,
                               request.tp, 1, trade_tick_size))
+  {
+    PivotV13MarkFailed("PARITY_RISK_GEOMETRY_INVALID", "", 0,
+      StringFormat("broker=%s|entry=%.16f|sl=%.16f|tp=%.16f|risk=%.16f|ticks=%I64d|tick_size=%.16f|tolerance=%.16f",
+        signal.broker_signal_id, request.price, request.sl, request.tp,
+        risk_distance, risk_ticks, trade_tick_size, price_tolerance));
     return false;
+  }
 
   trial_out.identity.origin_id = signal.origin_id;
   trial_out.identity.window_id = signal.window_id;
@@ -208,12 +228,22 @@ bool BuildBrokerParityTrial(const PivotSignal &signal,
                                         send_check.stops_distance_points,
                                         send_check.freeze_distance_points,
                                         trial_out.geometry.minimum_risk_distance_points))
+  {
+    PivotV13MarkFailed("PARITY_MINIMUM_DISTANCE_FAILED", "", 0, signal.broker_signal_id);
     return false;
+  }
   trial_out.geometry.distance_eligible =
     trial_out.geometry.normalized_risk_distance_points + 1e-7 >=
     trial_out.geometry.minimum_risk_distance_points;
   if(!trial_out.geometry.distance_eligible)
+  {
+    PivotV13MarkFailed("PARITY_DISTANCE_INELIGIBLE", "", 0,
+      StringFormat("broker=%s|risk_points=%.10f|minimum_points=%.10f|spread_points=%.10f|stops_points=%.10f|freeze_points=%.10f",
+        signal.broker_signal_id, trial_out.geometry.normalized_risk_distance_points,
+        trial_out.geometry.minimum_risk_distance_points, trial_out.geometry.spread_points,
+        send_check.stops_distance_points, send_check.freeze_distance_points));
     return false;
+  }
   trial_out.geometry.geometry_equivalence_id =
     PivotTrialGeometryEquivalenceId(signal.origin_id, signal.direction,
                                     request.price, request.sl, request.tp);
@@ -652,6 +682,7 @@ bool DeclareInitialPivotTrialLanes(PivotSignal &signal,
      PIVOT_TRIAL_ACTIVE_STATE_CAP)
   {
     g_pivot_trial_state_capacity_failed = true;
+    PivotV13MarkFailed("H1_LANE_RESERVATION_CAP", "", 0, signal.origin_id);
     return false;
   }
 

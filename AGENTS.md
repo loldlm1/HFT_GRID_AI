@@ -80,10 +80,10 @@ separate offline research tools.
 - Export owns four cached handles: Macro/Micro Bands and Stochastic. Fixed Bands
   are 21/0/2.0, SMA, PRICE_WEIGHTED; Stochastic 5/3/3, MODE_SMA, STO_CLOSECLOSE.
   Initialize/release safely, including partial initialization; no per-tick creation.
-- Twelve TSVs: `Common\Files\PivotFractalV13\runs\<run_id>\`. H1 features live
-  once on origins, deep features once on events. Preserve typed headers/native
-  grains; missing features affect research only. Python accepts only V13, training
-  offline H1/deep candidates, no runtime artifact/filter. Keep V12 rejection tests.
+- Twelve TSVs: `Common\Files\PivotFractalV13\runs\<run_id>\`; H1 features on origins,
+  deep features on events. Preserve headers/grains and V12 rejection. Python is
+  V13/offline only. Missing features affect research only. Fatal research errors
+  latch diagnostics, stop only the tester and seal FAILED/CENSORED when writable.
 - The bounded parent chronology audit is separate from full semantic acceptance.
   Recovery uses a distinct run plus retained correction/provenance sidecars,
   preserving original data and binary labels; it is not a new tester run.

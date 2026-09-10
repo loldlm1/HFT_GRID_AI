@@ -91,6 +91,9 @@ datetime g_pivot_v13_started_at = 0;
 bool g_pivot_v13_initialized = false;
 bool g_pivot_v13_failed = false;
 bool g_pivot_v13_error_logged = false;
+bool g_pivot_v13_tester_stop_requested = false;
+bool g_pivot_v13_tester_stop_sent = false;
+string g_pivot_v13_first_failure = "";
 bool g_pivot_v13_summary_written = false;
 int g_pivot_v13_window_rows = 0;
 int g_pivot_v13_macro_window_rows = 0;
@@ -137,6 +140,10 @@ PivotV13PendingOrigin g_pivot_v13_pending_origins[];
 PivotTrialParityLink g_pivot_v13_parity_links[];
 
 int DeepPivotEventPeak();
+int DeepPivotEventCount();
+int DeepPivotParentLinkCount();
+int DeepPivotTrialCount();
+int DeepPivotOutcomeCount();
 int DeepPivotParentLinkPeak();
 int DeepPivotTrialPeak();
 int DeepPivotOutcomePeak();
@@ -157,27 +164,81 @@ bool PivotV13Ready()
 
 void PivotV13MarkFailed(const string operation,
                         const string filename = "",
-                        const int error_code = 0)
+                        const int error_code = 0,
+                        const string context = "")
 {
+  if(!PivotV13Enabled())
+    return;
   g_pivot_v13_failed = true;
   if(g_pivot_v13_error_logged)
     return;
-  string message = StringFormat("operation=%s|file=%s|error=%d",
-                                operation,
-                                filename,
-                                error_code);
-  if(Enable_File_Logs)
-    ExecutionAppendQueryDebugLog("PIVOT_V13_EXPORT_FAILED", message);
-  if(Enable_Logs)
-    Print("PIVOT_V13_EXPORT_FAILED | ", message);
   g_pivot_v13_error_logged = true;
+  g_pivot_v13_tester_stop_requested = MQLInfoInteger(MQL_TESTER) > 0;
+  g_pivot_v13_first_failure = StringFormat(
+    "operation=%s|file=%s|error=%d|run=%s|broker_time=%s|broker_states=%d|h1_states=%d|deep_events=%d|deep_links=%d|deep_trials=%d|deep_outcomes=%d|pending_origins=%d|parity_links=%d|context=%s",
+    operation, filename, error_code, g_pivot_v13_run_id,
+    TimeToString(TimeCurrent(), TIME_DATE | TIME_SECONDS),
+    ArraySize(g_pivot_signals), PivotTrialActiveStateCount(),
+    DeepPivotEventCount(), DeepPivotParentLinkCount(),
+    DeepPivotTrialCount(), DeepPivotOutcomeCount(),
+    ArraySize(g_pivot_v13_pending_origins), ArraySize(g_pivot_v13_parity_links),
+    StringSubstr(context, 0, 1024));
+  Print("PIVOT_V13_EXPORT_FAILED | ", g_pivot_v13_first_failure);
+  if(Enable_File_Logs)
+    ExecutionAppendQueryDebugLog("PIVOT_V13_EXPORT_FAILED",
+                                g_pivot_v13_first_failure);
+
+  // The diagnostic is best effort and outside the strict twelve-file run.
+  // Never feed its I/O errors back into the first-failure latch.
+  string folder = PIVOT_V13_STORAGE_ROOT + "\\diagnostics";
+  ResetLastError();
+  bool created = FolderCreate(folder, FILE_COMMON);
+  if(!created && GetLastError() != 5019)
+    return;
+  int handle = FileOpen(folder + "\\" + g_pivot_v13_run_id + ".failure.txt",
+                        FILE_WRITE | FILE_TXT | FILE_ANSI | FILE_COMMON);
+  if(handle == INVALID_HANDLE)
+    return;
+  uint written = FileWrite(handle, g_pivot_v13_first_failure);
+  FileClose(handle);
+  if(written == 0)
+    return;
 }
 
-bool PivotV13RejectReference(const string operation)
+bool PivotV13RejectReference(const string operation,
+                             const string context = "")
 {
   g_pivot_v13_referential_integrity_error_count++;
-  PivotV13MarkFailed(operation);
+  PivotV13MarkFailed(operation, "", 0, context);
   return false;
+}
+
+bool PivotV13ResearchFailed()
+{
+  return PivotV13Enabled() &&
+         (g_pivot_v13_failed || PivotTrialResearchIntegrityFailed() ||
+          DeepPivotResearchIntegrityFailed());
+}
+
+void PivotV13CaptureResearchFailure()
+{
+  if(!PivotV13Enabled() || g_pivot_v13_failed)
+    return;
+  if(PivotTrialResearchIntegrityFailed())
+    PivotV13MarkFailed("VIRTUAL_STATE_INTEGRITY");
+  else if(DeepPivotResearchIntegrityFailed())
+    PivotV13MarkFailed("DEEP_STATE_INTEGRITY");
+}
+
+void PivotV13StopFailedTesterAtEventBoundary()
+{
+  PivotV13CaptureResearchFailure();
+  if(!g_pivot_v13_tester_stop_requested || g_pivot_v13_tester_stop_sent ||
+     !PivotV13Enabled() || MQLInfoInteger(MQL_TESTER) == 0)
+    return;
+  g_pivot_v13_tester_stop_sent = true;
+  Print("PIVOT_V13_TESTER_STOP | run=", g_pivot_v13_run_id);
+  TesterStop();
 }
 
 int FindPivotV13ParityLink(const string parity_trial_id)
@@ -630,9 +691,10 @@ bool PivotV13WriteLine(const string filename,
     return false;
   }
   bool written = FileWrite(handle, line) > 0;
+  int error_code = GetLastError();
   FileClose(handle);
   if(!written)
-    PivotV13MarkFailed("WRITE_LINE", filename, GetLastError());
+    PivotV13MarkFailed("WRITE_LINE", filename, error_code);
   return written;
 }
 
@@ -643,10 +705,16 @@ bool PivotV13AppendRows(const string filename,
   int total = ArraySize(buffer);
   if(total <= 0)
     return true;
-  if(!FileIsExist(filename, FILE_COMMON) ||
-     !PivotV13FileHeaderMatches(filename, header))
+  ResetLastError();
+  if(!FileIsExist(filename, FILE_COMMON))
+  {
+    PivotV13MarkFailed("APPEND_FILE_MISSING", filename, GetLastError());
+    return false;
+  }
+  if(!PivotV13FileHeaderMatches(filename, header))
     return false;
 
+  ResetLastError();
   int handle = FileOpen(filename,
                         FILE_WRITE | FILE_READ | FILE_TXT | FILE_ANSI |
                         FILE_COMMON);
@@ -659,18 +727,20 @@ bool PivotV13AppendRows(const string filename,
   }
 
   bool success = true;
+  int error_code = 0;
   for(int i = 0; i < total; i++)
   {
     if(!PivotV13RowMatchesHeader(header, buffer[i]) ||
        FileWrite(handle, buffer[i]) == 0)
     {
+      error_code = GetLastError();
       success = false;
       break;
     }
   }
   FileClose(handle);
   if(!success)
-    PivotV13MarkFailed("WRITE_BATCH", filename, GetLastError());
+    PivotV13MarkFailed("WRITE_BATCH", filename, error_code);
   return success;
 }
 
@@ -680,9 +750,14 @@ bool PivotV13FlushBuffer(const string filename,
 {
   if(ArraySize(buffer) <= 0)
     return true;
+  if(g_pivot_v13_failed)
+    return false;
   if(!PivotV13AppendRows(filename, header, buffer))
     return false;
-  return ArrayResize(buffer, 0) == 0;
+  if(ArrayResize(buffer, 0) == 0)
+    return true;
+  PivotV13MarkFailed("BUFFER_CLEAR", filename, GetLastError());
+  return false;
 }
 
 bool PivotV13QueueRow(const string filename,
@@ -933,6 +1008,9 @@ void PivotV13StatsReset()
   g_pivot_v13_initialized = false;
   g_pivot_v13_failed = false;
   g_pivot_v13_error_logged = false;
+  g_pivot_v13_tester_stop_requested = false;
+  g_pivot_v13_tester_stop_sent = false;
+  g_pivot_v13_first_failure = "";
   g_pivot_v13_summary_written = false;
   g_pivot_v13_window_rows = 0;
   g_pivot_v13_macro_window_rows = 0;
@@ -1099,9 +1177,10 @@ bool RemovePivotV13PendingOriginAt(const int index)
     g_pivot_v13_pending_origins[i].CopyFrom(
       g_pivot_v13_pending_origins[i + 1]);
   int reserve = total > 1 ? PIVOT_V13_ORIGIN_STATE_RESERVE : 0;
-  return ArrayResize(g_pivot_v13_pending_origins,
-                     total - 1,
-                     reserve) == total - 1;
+  if(ArrayResize(g_pivot_v13_pending_origins, total - 1, reserve) == total - 1)
+    return true;
+  PivotV13MarkFailed("ORIGIN_STATE_REMOVE", "", GetLastError(), IntegerToString(index));
+  return false;
 }
 
 string PivotV13BrokerAttemptStatus(const PivotSignal &signal)
@@ -1619,7 +1698,11 @@ bool PivotV13RecordVirtualOutcome(const PivotTrialOutcome &outcome)
      (!outcome.lifecycle_seconds_available || outcome.duration_seconds < 0 ||
       outcome.threshold_price <= 0.0 ||
       !outcome.virtual_quote_gross_available))
-    return PivotV13RejectReference("RECORD_COMPLETED_OUTCOME_FACTS_INVALID");
+    return PivotV13RejectReference("RECORD_COMPLETED_OUTCOME_FACTS_INVALID",
+      StringFormat("trial=%s|duration_available=%d|duration=%I64d|threshold=%.10f|gross_available=%d",
+        outcome.identity.trial_id, (int)outcome.lifecycle_seconds_available,
+        outcome.duration_seconds, outcome.threshold_price,
+        (int)outcome.virtual_quote_gross_available));
   if(!terminal_touch && outcome.lifecycle_seconds_available)
     return PivotV13RejectReference("RECORD_NONTERMINAL_DURATION_INVALID");
 
@@ -2003,7 +2086,7 @@ bool PivotV13RecordDeepPivotOutcome(const DeepPivotOutcome &outcome)
                                      ? outcome.observed_exit_bid
                                      : outcome.observed_exit_ask) ||
      !outcome.first_touch_consistent)
-    return PivotV13RejectReference("RECORD_DEEP_OUTCOME_INVALID");
+    return PivotV13RejectReference("RECORD_DEEP_OUTCOME_INVALID", outcome.deep_outcome_id);
 
   bool completed = outcome.terminal_status == "TP_FIRST" ||
                    outcome.terminal_status == "SL_FIRST";
@@ -2021,7 +2104,13 @@ bool PivotV13RecordDeepPivotOutcome(const DeepPivotOutcome &outcome)
        outcome.virtual_binary_target != 1)) ||
      (completed && !outcome.virtual_binary_eligible &&
       outcome.virtual_binary_target != -1))
-    return PivotV13RejectReference("RECORD_DEEP_OUTCOME_FACTS_INVALID");
+    return PivotV13RejectReference("RECORD_DEEP_OUTCOME_FACTS_INVALID",
+      StringFormat("outcome=%s|link=%s|trial=%s|status=%s|duration_available=%d|duration=%I64d|threshold=%.10f|gross_available=%d|binary_eligible=%d|target=%d",
+        outcome.deep_outcome_id, outcome.parent_link_id, outcome.deep_trial_id,
+        outcome.terminal_status, (int)outcome.lifecycle_seconds_available,
+        outcome.lifecycle_seconds, outcome.threshold_price,
+        (int)outcome.virtual_quote_gross_available,
+        (int)outcome.virtual_binary_eligible, outcome.virtual_binary_target));
 
   string row = "";
   PivotV13AppendColumn(row, IntegerToString(PIVOT_V13_SCHEMA_VERSION));
@@ -2453,13 +2542,14 @@ bool PivotV13RecordBrokerOutcome(const PivotSignal &signal)
 void PivotV13RegisterDuplicateIdentity()
 {
   g_pivot_v13_duplicate_identity_count++;
+  PivotV13MarkFailed("EXPORT_IDENTITY_DUPLICATE");
 }
 
 bool PivotV13MarkOriginMatrixDeclared(const string origin_id)
 {
   int index = FindPivotV13PendingOrigin(origin_id);
   if(index < 0)
-    return false;
+    return PivotV13RejectReference("MATRIX_ORIGIN_NOT_FOUND", origin_id);
   g_pivot_v13_pending_origins[index].h1_lanes_declared = true;
   return true;
 }
@@ -2519,7 +2609,7 @@ bool PivotV13WriteSummary(const string completion_status)
     PivotV13MarkFailed("VIRTUAL_STATE_INTEGRITY");
   if(DeepPivotResearchIntegrityFailed())
     PivotV13MarkFailed("DEEP_STATE_INTEGRITY");
-  for(int i = 0; i < ArraySize(g_pivot_v13_parity_links); i++)
+  for(int i = 0; !g_pivot_v13_failed && i < ArraySize(g_pivot_v13_parity_links); i++)
   {
     if(!g_pivot_v13_parity_links[i].virtual_outcome_recorded)
     {
@@ -2527,10 +2617,11 @@ bool PivotV13WriteSummary(const string completion_status)
       break;
     }
   }
-  if(ArraySize(g_pivot_v13_pending_origins) > 0)
+  if(!g_pivot_v13_failed && ArraySize(g_pivot_v13_pending_origins) > 0)
     PivotV13RejectReference("SUMMARY_PENDING_ORIGINS");
-  PivotV13ValidateSummaryReconciliation();
-  if(!PivotV13FlushAll())
+  if(!g_pivot_v13_failed)
+    PivotV13ValidateSummaryReconciliation();
+  if(!g_pivot_v13_failed && !PivotV13FlushAll())
     PivotV13MarkFailed("FLUSH_ALL");
   datetime finished_at = TimeCurrent();
   if(finished_at < g_pivot_v13_started_at)
@@ -2616,7 +2707,7 @@ bool PivotV13WriteSummary(const string completion_status)
   PivotV13AppendColumn(row,
                        IntegerToString(g_pivot_v13_row_integrity_error_count));
   PivotV13AppendColumn(row, g_pivot_v13_failed ? "FAILED" : "OK");
-  PivotV13AppendColumn(row, completion_status);
+  PivotV13AppendColumn(row, g_pivot_v13_failed ? "CENSORED" : completion_status);
 
   string filename = PivotV13Path(PIVOT_V13_SUMMARY_FILE);
   if(!PivotV13RowMatchesHeader(PIVOT_V13_SUMMARY_HEADER, row) ||

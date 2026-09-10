@@ -173,6 +173,19 @@ and compilation cannot replace that visual check. It is required before a
 deployment-oriented claim and does not block separately authorized offline
 contract preparation.
 
+For a fatal research failure, retain the first `PIVOT_V13_EXPORT_FAILED` journal
+entry, its external `PivotFractalV13/diagnostics/<run_id>.failure.txt` sidecar when
+available, tester job ID, settings and source/binary pin. The EA stops only the
+tester at an event boundary; a `FAILED` / `CENSORED` or unsealed export is invalid.
+Use fresh run IDs after correction. Fault checks may invalidate a header or
+remove an export file only in a new disposable run, with the original file
+retained outside its strict directory.
+
+Native tester tool timeouts limit waiting, not execution. Retain each returned
+job ID, poll at 15-30 seconds, and explicitly stop that matching active job when
+the planned guard expires. The reliability plan uses 30-minute focused-run
+guards and a three-hour guard only for its optional incident prefix.
+
 Record the actual execution delay. A run configured with `ExecutionMode=120`
 ms can establish causal processing, geometry, reconciliation and parity, but not
 sub-120 ms latency, perfect intra-second ordering or exchange tick sequencing.
