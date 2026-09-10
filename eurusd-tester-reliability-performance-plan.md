@@ -1,7 +1,8 @@
 # Plan: EURUSD Tester Reliability And Deep-State Performance
 
 **Generated**: 2026-09-10
-**Status**: All four sprints implemented and validated; final commit closure is recorded in the private Sprint 4 receipt and Planner execution state
+**Status**: Complete; all four sprints validated and committed through `06ecfdbcc45c4cbdbb2b0ef1a7e815538111140a`, rollback parent `629fdf5517530767bd31c38c290502626e136916`
+**Record scope**: Completed execution history, not an active work queue. Use the [current index](docs/README.md) for remaining operator gates. Completed hook state is archived under `.codex-artifacts/eurusd-tester-reliability/thread-closeout-20260910/`.
 **Execution authorization**: The user authorized ordered execution of Sprints 1-4, including validation and one commit per sprint. Stopping the affected tester and removing its current V13 data if necessary remain separately authorized; the stopped data is preserved.
 **Proposal**: Not requested; direct Planner plan with questions.
 **Estimated complexity**: High; failure handling crosses broker bookkeeping, research lifecycles, tester completion and state indexing.
@@ -504,11 +505,11 @@ completion criteria under D3; no live rollout follows automatically.
 
 - [x] Q1=A, Q2=B and Q3=B are explicitly answered and recorded.
 - [x] Authorized incident stop and pre-stop preservation are recorded separately from implementation.
-- [x] Execution is authorized and this plan's execution state is initialized.
+- [x] Execution was authorized and its initialized state was completed after all four sprint gates.
 - [x] Sprint 1 first-error/stop gates pass; commit `9215df8`, rollback `c9ebb24`, private receipt `sprint-1/commit.json`.
 - [x] Sprint 2 cleanup/correction gates pass; commit `4360448`, rollback `9215df8`, private receipt `sprint-2/commit.json`.
 - [x] Sprint 3 behavioral/performance gates pass; commit `629fdf5`, rollback `4360448`, private receipt `sprint-3/commit.json`.
-- [x] Sprint 4 target/acceptance gates pass; final commit receipt is `.codex-artifacts/eurusd-tester-reliability/sprint-4/commit.json`, rollback `629fdf5`.
+- [x] Sprint 4 target/acceptance gates pass; commit `06ecfdb`, rollback `629fdf5`, private receipt `.codex-artifacts/eurusd-tester-reliability/sprint-4/commit.json`.
 - [x] Final binary/source pins, evidence links and bounded acceptance agree; `sprint-4/final-pin.json` and `compiler-benchmarks.json`.
 - [x] Full-history EURUSD and all unrelated operational gates remain explicit.
 - [x] Original data, retained recovery artifacts and operator handoffs are preserved.

@@ -7,11 +7,13 @@ own procedures and dated evidence owns its original results.
 ## Reliability And Performance
 
 The [EURUSD reliability and performance plan](../eurusd-tester-reliability-performance-plan.md)
-has completed implementation and focused validation for all four sprints.
+has completed implementation, focused validation and commits for all four sprints.
 Sprint 1 is `9215df8` (rollback `c9ebb24`), Sprint 2 is
 `4360448` (rollback `9215df8`), and Sprint 3 is `629fdf5` (rollback `4360448`).
-The final documentation commit records Sprint 4; its SHA and rollback `629fdf5`
-are retained in `.codex-artifacts/eurusd-tester-reliability/sprint-4/commit.json`.
+Sprint 4 is `06ecfdb` (rollback `629fdf5`); its exact receipt is
+`.codex-artifacts/eurusd-tester-reliability/sprint-4/commit.json`.
+No implementation sprint remains active. The completed plan is retained as the
+latest execution record; a new thread starts from this index and a new scoped task.
 The affected EURUSD tester is stopped; its incomplete original export and
 pre-stop snapshot remain preserved. Prior cleanup, V13,
 Exness preparation and parent-close plans are historical and must not be restarted.
@@ -113,11 +115,26 @@ policy bounded by `1e-16`; all source ticks are retained.
 - **Full recovered-run semantic validation: NOT RUN.** Chronology and reversible
   correction do not certify every geometry, feature or money rule.
 
-No live rollout is authorized. Downstream Django contract preparation is a separate
-repository workflow; its V12 deletion/cutover needs its own explicit authorization.
-Its locally documented plan location at the prior handoff was
-`/home/loldlm/python_projects/hft-grid-ai-orchestrator/pivot-fractal-v13-django-research-progression-plan.md`;
-that external path is operator context, not a required file in this checkout.
+No live rollout is authorized.
+
+## Downstream Django Intake
+
+Read-only inspection of the Django checkout at revision `8a58e70` found no required
+app changes for this producer update. All twelve V13 headers match. Its existing
+parser and contract checks accept the new 17-significant-digit numeric format;
+the tracked fixture also passes after simulating its `NUMERIC(38,18)` storage.
+This is compatibility evidence, not a completed database intake or deployment check.
+
+For a new intake, use a fresh run with `export_status=OK` and
+`completion_status=NATURAL`, upload exactly the twelve TSVs, and wait for Django's
+`READY` state. Keep diagnostics and provenance sidecars outside that file set.
+The interrupted original EURUSD dataset is incomplete and unsuitable. An actual
+new-export intake through Django has not been performed in this work.
+
+The application checkout is `/home/admin/python_projects/hft-grid-ai-orchestrator`;
+its own intake contract and operations runbook govern uploads and database changes.
+The old external plan path in the August handoff is historical operator context,
+not a required file or active work queue for this repository.
 
 ## Source And Validation Pins
 
@@ -185,6 +202,12 @@ and any later validation from this index and the correction acceptance.
   checkpoints and the prior cleanup receipt. Old session IDs/uncommitted labels
   do not represent active work. The maintained environment, helper cache and data
   remain local; project cleanup does not remove global Codex/plugin state.
+- Ignored `.codex-artifacts/eurusd-tester-reliability/thread-closeout-20260910/`
+  retains the completed plan-state file, two superseded compaction snapshots,
+  the plan at Sprint 4 completion, cleanup verification and `thread-handoff.md`.
+  These snapshots are archived outside the active hook directory and must not
+  resume either completed plan. Validation receipts, rollback binaries and the
+  full-history operator handoff remain in their original artifact locations.
 
 ## Guides And History Recovery
 
@@ -210,11 +233,12 @@ and derived datasets independently. Do not reset history to retrieve a document.
 
 ## Cleanup Commit Ledger
 
-The retained set is seven current guides/indexes and seven dated evidence records,
-plus the latest plan. All 106 retired Markdown files are recoverable byte-for-byte
-from the baseline Git anchor. AGENTS is 128 lines / 8,174 bytes. The cleanup removes
-about 92% of the prior Markdown bytes even including its execution plan; it does
-not delete private market data, sidecars or retained operator checkpoints.
+The guidance cleanup retained seven current guides/indexes, seven dated evidence
+records and its then-latest plan. All 106 retired Markdown files are recoverable
+byte-for-byte from the baseline Git anchor. At that acceptance, AGENTS was 128 lines
+/ 8,174 bytes and the cleanup removed about 92% of the prior Markdown bytes, even
+including its execution plan. These are historical measurements, not current
+document sizes; private market data, sidecars and operator checkpoints were retained.
 
 | Sprint | Commit | Rollback parent |
 | --- | --- | --- |

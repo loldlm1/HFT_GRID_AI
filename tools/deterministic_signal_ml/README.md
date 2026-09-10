@@ -249,9 +249,12 @@ chart verification, and chronology-only auditing is not full semantic acceptance
 
 The [frozen V13 handoff](../../docs/research/pivot-fractal-v13-producer-handoff.md)
 preserves dated schema/registry/fixture pins and the downstream vendoring
-boundary. Use the current index for subsequent source corrections. Downstream
-Django may prepare its separately authorized contract work; this repository does
-not authorize its V12 data/code removal or destructive cutover. Private raw runs,
+boundary. Use the current index for subsequent source corrections and
+[Django intake compatibility](../../docs/README.md#downstream-django-intake).
+For a fresh intake, provide exactly the twelve TSVs from a successful natural
+completion; keep diagnostics/provenance sidecars outside the run directory and
+wait for the downstream application's READY state. Its own repository governs
+application changes, uploads and destructive data operations. Private raw runs,
 generated datasets/models, binaries and account metadata are not vendored.
 
 Superseded document history is recoverable through the current index. Active
