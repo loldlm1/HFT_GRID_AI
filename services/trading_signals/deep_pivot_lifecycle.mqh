@@ -7,12 +7,12 @@
 const int DEEP_PIVOT_PARENT_SNAPSHOT_RESERVE = 64;
 
 DeepPivotEvent g_deep_pivot_events[];
-DeepPivotFrozenParent g_deep_pivot_frozen_parents[];
+DeepPivotParentCandidate g_deep_pivot_buy_parents[];
+DeepPivotParentCandidate g_deep_pivot_sell_parents[];
 DeepPivotParentLink g_deep_pivot_parent_links[];
 DeepPivotTrial g_deep_pivot_trials[];
 DeepPivotOutcome g_deep_pivot_outcomes[];
 int g_deep_pivot_event_peak = 0;
-int g_deep_pivot_frozen_parent_peak = 0;
 int g_deep_pivot_link_peak = 0;
 int g_deep_pivot_trial_peak = 0;
 int g_deep_pivot_outcome_peak = 0;
@@ -53,9 +53,8 @@ void ResetDeepPivotRuntimeState()
   int resized = ArrayResize(g_deep_pivot_events,
                             0,
                             DEEP_PIVOT_PARENT_SNAPSHOT_RESERVE);
-  int parent_resized = ArrayResize(g_deep_pivot_frozen_parents,
-                                   0,
-                                   DEEP_PIVOT_PARENT_SNAPSHOT_RESERVE);
+  ArrayFree(g_deep_pivot_buy_parents);
+  ArrayFree(g_deep_pivot_sell_parents);
   int link_resized = ArrayResize(g_deep_pivot_parent_links,
                                  0,
                                  DEEP_PIVOT_PARENT_SNAPSHOT_RESERVE);
@@ -66,7 +65,6 @@ void ResetDeepPivotRuntimeState()
                                     0,
                                     DEEP_PIVOT_PARENT_SNAPSHOT_RESERVE);
   g_deep_pivot_event_peak = 0;
-  g_deep_pivot_frozen_parent_peak = 0;
   g_deep_pivot_link_peak = 0;
   g_deep_pivot_trial_peak = 0;
   g_deep_pivot_outcome_peak = 0;
@@ -75,7 +73,6 @@ void ResetDeepPivotRuntimeState()
   g_deep_pivot_state_capacity_failed = false;
   g_deep_pivot_window_terminal_exported_open = 0;
   g_deep_pivot_state_allocation_failed = resized != 0 ||
-                                        parent_resized != 0 ||
                                         link_resized != 0 ||
                                         trial_resized != 0 ||
                                         outcome_resized != 0;
@@ -88,7 +85,8 @@ void DiscardDeepPivotResearchState()
   // Retain failure flags and peaks for the failed seal; broker state is owned
   // elsewhere and remains available for normal reconciliation.
   ArrayFree(g_deep_pivot_events);
-  ArrayFree(g_deep_pivot_frozen_parents);
+  ArrayFree(g_deep_pivot_buy_parents);
+  ArrayFree(g_deep_pivot_sell_parents);
   ArrayFree(g_deep_pivot_parent_links);
   ArrayFree(g_deep_pivot_trials);
   ArrayFree(g_deep_pivot_outcomes);
@@ -107,11 +105,6 @@ int DeepPivotEventPeak()
 int DeepPivotDuplicateIdentityCount()
 {
   return g_deep_pivot_duplicate_identity_count;
-}
-
-int DeepPivotFrozenParentCount()
-{
-  return ArraySize(g_deep_pivot_frozen_parents);
 }
 
 int DeepPivotParentLinkCount()
@@ -238,49 +231,58 @@ void RecordDeepPivotBrokerParentClose(const PivotSignal &signal)
   }
 }
 
-bool DeepPivotParentStillActive(const DeepPivotParentLink &link)
+bool DeepPivotVirtualParentMatches(const PivotTrialActiveState &state,
+                                    const DeepPivotParentLink &link)
+{
+  return state.trial.identity.trial_id == link.parent_trial_id &&
+         state.trial.identity.origin_id == link.origin_id &&
+         state.trial.identity.role == PIVOT_TRIAL_ROLE_H1 &&
+         state.trial.identity.entry_policy == link.parent_entry_policy &&
+         state.trial.identity.tp_r_multiple == link.parent_tp_r_multiple &&
+         state.trial.direction == link.direction &&
+         state.trial.entry_time == link.parent_entry_time;
+}
+
+bool DeepPivotBrokerParentMatches(const PivotSignal &signal,
+                                   const DeepPivotParentLink &link)
+{
+  string parent_id = signal.parity_trial_id != ""
+                     ? signal.parity_trial_id : signal.broker_signal_id;
+  return signal.broker_signal_id == link.parent_broker_signal_id &&
+         parent_id == link.parent_trial_id && signal.origin_id == link.origin_id &&
+         signal.direction == link.direction &&
+         signal.broker_entry_policy == link.parent_entry_policy &&
+         signal.broker_tp_r_multiple == link.parent_tp_r_multiple &&
+         signal.execution.broker_entry_time == link.parent_entry_time;
+}
+
+bool DeepPivotParentStillActive(DeepPivotParentLink &link)
 {
   if(!link.active || link.parent_trial_id == "" || link.parent_terminal_time > 0)
     return false;
+  int index = link.parent_state_index;
+  // H1 and broker arrays compact independently. A cached slot is only a hint;
+  // validate its full parent identity before reading lifecycle state.
   if(link.parent_kind == DEEP_PIVOT_PARENT_H1_VIRTUAL)
   {
-    int index = FindPivotTrialActiveStateByTrialId(link.parent_trial_id);
-    if(index < 0)
-      return false;
-    PivotTrialActiveState state;
-    return CopyPivotTrialActiveStateAt(index, state) && state.active &&
-           !state.pending_entry &&
-           state.trial.eligibility_status == PIVOT_TRIAL_ELIGIBILITY_ACTIVE;
+    if(index < 0 || index >= PivotTrialActiveStateCount() ||
+       !DeepPivotVirtualParentMatches(g_pivot_trial_active_states[index], link))
+      index = FindPivotTrialActiveStateByTrialId(link.parent_trial_id);
+    link.parent_state_index = index;
+    return index >= 0 &&
+           DeepPivotVirtualParentMatches(g_pivot_trial_active_states[index], link) &&
+           g_pivot_trial_active_states[index].active &&
+           !g_pivot_trial_active_states[index].pending_entry &&
+           g_pivot_trial_active_states[index].trial.eligibility_status ==
+             PIVOT_TRIAL_ELIGIBILITY_ACTIVE;
   }
-  for(int i = 0; i < ArraySize(g_pivot_signals); i++)
-  {
-    PivotSignal signal(g_pivot_signals[i]);
-    if(signal.broker_signal_id == link.parent_broker_signal_id &&
-       signal.execution.broker_entry_confirmed &&
-       !signal.execution.broker_close_confirmed)
-      return true;
-  }
-  return false;
-}
-
-int FindDeepPivotParentLink(const string parent_link_id)
-{
-  if(parent_link_id == "")
-    return -1;
-  for(int i = 0; i < DeepPivotParentLinkCount(); i++)
-    if(g_deep_pivot_parent_links[i].parent_link_id == parent_link_id)
-      return i;
-  return -1;
-}
-
-int FindDeepPivotTrial(const string deep_trial_id)
-{
-  if(deep_trial_id == "")
-    return -1;
-  for(int i = 0; i < DeepPivotTrialCount(); i++)
-    if(g_deep_pivot_trials[i].deep_trial_id == deep_trial_id)
-      return i;
-  return -1;
+  if(index < 0 || index >= ArraySize(g_pivot_signals) ||
+     !DeepPivotBrokerParentMatches(g_pivot_signals[index], link))
+    index = FindPivotSignalIndex(link.parent_broker_signal_id);
+  link.parent_state_index = index;
+  return index >= 0 && DeepPivotBrokerParentMatches(g_pivot_signals[index], link) &&
+         g_pivot_signals[index].execution.broker_entry_confirmed &&
+         !g_pivot_signals[index].execution.broker_close_confirmed;
 }
 
 bool DeepPivotResearchIntegrityFailed()
@@ -304,129 +306,117 @@ int FindDeepPivotEventByIdentity(const string deep_window_id,
   return -1;
 }
 
-int FindDeepPivotEventById(const string deep_event_id)
+bool BuildDeepPivotVirtualParentCandidate(const PivotTrialActiveState &state,
+                                           const int index,
+                                           const datetime event_time,
+                                           DeepPivotParentCandidate &candidate)
 {
-  if(deep_event_id == "")
-    return -1;
-  for(int i = 0; i < DeepPivotEventCount(); i++)
-    if(g_deep_pivot_events[i].identity.deep_event_id == deep_event_id)
-      return i;
-  return -1;
+  if(!state.active || state.pending_entry ||
+     state.trial.eligibility_status != PIVOT_TRIAL_ELIGIBILITY_ACTIVE ||
+     state.trial.identity.role != PIVOT_TRIAL_ROLE_H1 ||
+     state.trial.entry_time <= 0 || state.trial.entry_time > event_time ||
+     state.trial.identity.trial_id == "")
+    return false;
+  candidate.parent_state_index = index;
+  candidate.parent_kind = DEEP_PIVOT_PARENT_H1_VIRTUAL;
+  candidate.origin_id = state.trial.identity.origin_id;
+  candidate.parent_trial_id = state.trial.identity.trial_id;
+  candidate.parent_broker_signal_id = state.trial.identity.broker_signal_id;
+  candidate.parent_entry_policy = state.trial.identity.entry_policy;
+  candidate.parent_tp_r_multiple = state.trial.identity.tp_r_multiple;
+  candidate.direction = state.trial.direction;
+  candidate.parent_entry_time = state.trial.entry_time;
+  return true;
 }
 
-bool DeepPivotParentCandidateDuplicate(
-  const DeepPivotParentCandidate &candidate,
-  const DeepPivotParentCandidate &parents[],
-  const int total)
+bool BuildDeepPivotBrokerParentCandidate(const PivotSignal &signal,
+                                          const int index,
+                                          const datetime event_time,
+                                          DeepPivotParentCandidate &candidate)
 {
-  for(int i = 0; i < total; i++)
+  if(!signal.execution.broker_entry_confirmed ||
+     signal.execution.broker_close_confirmed ||
+     signal.execution.broker_entry_time <= 0 ||
+     signal.execution.broker_entry_time > event_time ||
+     signal.broker_signal_id == "")
+    return false;
+  candidate.parent_state_index = index;
+  candidate.parent_kind = DEEP_PIVOT_PARENT_BROKER;
+  candidate.origin_id = signal.origin_id;
+  candidate.parent_trial_id = signal.parity_trial_id != ""
+                              ? signal.parity_trial_id : signal.broker_signal_id;
+  candidate.parent_broker_signal_id = signal.broker_signal_id;
+  candidate.parent_entry_policy = signal.broker_entry_policy;
+  candidate.parent_tp_r_multiple = signal.broker_tp_r_multiple;
+  candidate.direction = signal.direction;
+  candidate.parent_entry_time = signal.execution.broker_entry_time;
+  return true;
+}
+
+bool AppendDeepPivotParentCandidate(const DeepPivotParentCandidate &candidate,
+                                     DeepPivotParentCandidate &parents[])
+{
+  int total = ArraySize(parents);
+  if(total >= PIVOT_DEEP_LINK_ACTIVE_CAP)
   {
-    if(parents[i].parent_trial_id == candidate.parent_trial_id &&
-       candidate.parent_trial_id != "")
-      return true;
+    g_deep_pivot_state_capacity_failed = true;
+    PivotV13MarkFailed("DEEP_SNAPSHOT_CAP", "", 0, candidate.parent_trial_id);
+    return false;
   }
-  return false;
+  if(ArrayResize(parents, total + 1,
+                 DEEP_PIVOT_PARENT_SNAPSHOT_RESERVE) != total + 1)
+  {
+    MarkDeepPivotStateFailed("DEEP_SNAPSHOT_RESIZE", candidate.parent_trial_id,
+                            GetLastError());
+    return false;
+  }
+  parents[total].CopyFrom(candidate);
+  return true;
 }
 
-int CollectDeepPivotParentSnapshot(const SignalTypes direction,
-                                   const datetime event_time,
-                                   DeepPivotParentCandidate &parents[])
+bool CollectDeepPivotParentSnapshots(const datetime event_time)
 {
-  if(ArrayResize(parents, 0, DEEP_PIVOT_PARENT_SNAPSHOT_RESERVE) != 0)
+  if(ArrayResize(g_deep_pivot_buy_parents, 0,
+                 DEEP_PIVOT_PARENT_SNAPSHOT_RESERVE) != 0 ||
+     ArrayResize(g_deep_pivot_sell_parents, 0,
+                 DEEP_PIVOT_PARENT_SNAPSHOT_RESERVE) != 0)
   {
     MarkDeepPivotStateFailed("DEEP_SNAPSHOT_RESET", "", GetLastError());
-    return -1;
+    return false;
   }
   if(event_time <= 0)
-    return 0;
-
-  int total = 0;
+    return true;
+  // Admission already enforces unique H1 trial IDs and broker/parity IDs.
+  // Their trial_/parity_/broker_ namespaces cannot overlap. Preserve H1-then-
+  // broker order within each direction without per-tick duplicate probes.
   for(int i = 0; i < PivotTrialActiveStateCount(); i++)
   {
-    PivotTrialActiveState state;
-    if(!CopyPivotTrialActiveStateAt(i, state) || !state.active ||
-       state.pending_entry ||
-       state.trial.eligibility_status != PIVOT_TRIAL_ELIGIBILITY_ACTIVE ||
-       state.trial.direction != direction || state.trial.entry_time <= 0 ||
-       state.trial.entry_time > event_time ||
-       state.trial.identity.trial_id == "")
-      continue;
-
     DeepPivotParentCandidate candidate;
-    if(state.trial.identity.role != PIVOT_TRIAL_ROLE_H1)
+    if(!BuildDeepPivotVirtualParentCandidate(g_pivot_trial_active_states[i], i,
+                                              event_time, candidate))
       continue;
-    candidate.parent_kind = DEEP_PIVOT_PARENT_H1_VIRTUAL;
-    candidate.origin_id = state.trial.identity.origin_id;
-    candidate.parent_trial_id = state.trial.identity.trial_id;
-    candidate.parent_broker_signal_id = state.trial.identity.broker_signal_id;
-    candidate.parent_entry_policy = state.trial.identity.entry_policy;
-    candidate.parent_tp_r_multiple = state.trial.identity.tp_r_multiple;
-    candidate.direction = state.trial.direction;
-    candidate.parent_entry_time = state.trial.entry_time;
-    if(DeepPivotParentCandidateDuplicate(candidate, parents, total))
-      continue;
-
-    if(total >= PIVOT_DEEP_LINK_ACTIVE_CAP)
-    {
-      g_deep_pivot_state_capacity_failed = true;
-      PivotV13MarkFailed("DEEP_SNAPSHOT_CAP", "", 0, candidate.parent_trial_id);
-      return -1;
-    }
-    if(ArrayResize(parents,
-                   total + 1,
-                   DEEP_PIVOT_PARENT_SNAPSHOT_RESERVE) != total + 1)
-    {
-      MarkDeepPivotStateFailed("DEEP_SNAPSHOT_RESIZE", candidate.parent_trial_id,
-                              GetLastError());
-      return -1;
-    }
-    parents[total].CopyFrom(candidate);
-    total++;
+    if(candidate.direction == BULLISH &&
+       !AppendDeepPivotParentCandidate(candidate, g_deep_pivot_buy_parents))
+      return false;
+    if(candidate.direction == BEARISH &&
+       !AppendDeepPivotParentCandidate(candidate, g_deep_pivot_sell_parents))
+      return false;
   }
-
-  // Broker parents are admitted only after a confirmed fill. The parity
-  // shadow is deliberately not used as a proxy for broker exposure.
+  // Confirmed fills own broker parenthood; parity never substitutes exposure.
   for(int i = 0; i < ArraySize(g_pivot_signals); i++)
   {
-    PivotSignal signal(g_pivot_signals[i]);
-    if(!signal.execution.broker_entry_confirmed ||
-       signal.execution.broker_close_confirmed ||
-       signal.direction != direction ||
-       signal.execution.broker_entry_time <= 0 ||
-       signal.execution.broker_entry_time > event_time ||
-       signal.broker_signal_id == "")
-      continue;
     DeepPivotParentCandidate candidate;
-    candidate.parent_kind = DEEP_PIVOT_PARENT_BROKER;
-    candidate.origin_id = signal.origin_id;
-    candidate.parent_trial_id = signal.parity_trial_id != ""
-                                ? signal.parity_trial_id
-                                : signal.broker_signal_id;
-    candidate.parent_broker_signal_id = signal.broker_signal_id;
-    candidate.parent_entry_policy = signal.broker_entry_policy;
-    candidate.parent_tp_r_multiple = signal.broker_tp_r_multiple;
-    candidate.direction = signal.direction;
-    candidate.parent_entry_time = signal.execution.broker_entry_time;
-    if(DeepPivotParentCandidateDuplicate(candidate, parents, total))
+    if(!BuildDeepPivotBrokerParentCandidate(g_pivot_signals[i], i,
+                                             event_time, candidate))
       continue;
-    if(total >= PIVOT_DEEP_LINK_ACTIVE_CAP)
-    {
-      g_deep_pivot_state_capacity_failed = true;
-      PivotV13MarkFailed("DEEP_SNAPSHOT_CAP", "", 0, candidate.parent_trial_id);
-      return -1;
-    }
-    if(ArrayResize(parents,
-                   total + 1,
-                   DEEP_PIVOT_PARENT_SNAPSHOT_RESERVE) != total + 1)
-    {
-      MarkDeepPivotStateFailed("DEEP_SNAPSHOT_RESIZE", candidate.parent_trial_id,
-                              GetLastError());
-      return -1;
-    }
-    parents[total].CopyFrom(candidate);
-    total++;
+    if(candidate.direction == BULLISH &&
+       !AppendDeepPivotParentCandidate(candidate, g_deep_pivot_buy_parents))
+      return false;
+    if(candidate.direction == BEARISH &&
+       !AppendDeepPivotParentCandidate(candidate, g_deep_pivot_sell_parents))
+      return false;
   }
-  return total;
+  return true;
 }
 
 bool BuildDeepPivotEventFromCandidate(const PivotTouchCandidate &candidate,
@@ -707,208 +697,191 @@ bool QueueDeepPivotOutcomeForExport(const DeepPivotOutcome &outcome)
   return outcome.deep_outcome_id != "";
 }
 
-bool DeepPivotLinkHasActiveOutcome(const string parent_link_id)
+bool DeepPivotEventAssociationValid(const int event_index,
+                                     const string deep_event_id)
 {
-  for(int i = 0; i < DeepPivotOutcomeCount(); i++)
-    if(g_deep_pivot_outcomes[i].parent_link_id == parent_link_id &&
-       g_deep_pivot_outcomes[i].active)
-      return true;
-  return false;
+  return event_index >= 0 && event_index < DeepPivotEventCount() &&
+         g_deep_pivot_events[event_index].identity.deep_event_id == deep_event_id;
 }
 
-bool DeepPivotEventHasActiveOutcome(const string deep_event_id)
+bool DeepPivotOutcomeAssociationValid(const DeepPivotOutcome &outcome)
 {
-  for(int i = 0; i < DeepPivotOutcomeCount(); i++)
-    if(g_deep_pivot_outcomes[i].deep_event_id == deep_event_id &&
-       g_deep_pivot_outcomes[i].active)
-      return true;
-  return false;
+  return DeepPivotEventAssociationValid(outcome.event_index, outcome.deep_event_id) &&
+         outcome.link_index >= 0 && outcome.link_index < DeepPivotParentLinkCount() &&
+         outcome.trial_index >= 0 && outcome.trial_index < DeepPivotTrialCount() &&
+         g_deep_pivot_parent_links[outcome.link_index].parent_link_id ==
+           outcome.parent_link_id &&
+         g_deep_pivot_trials[outcome.trial_index].deep_trial_id == outcome.deep_trial_id &&
+         g_deep_pivot_parent_links[outcome.link_index].event_index == outcome.event_index &&
+         g_deep_pivot_trials[outcome.trial_index].event_index == outcome.event_index &&
+         g_deep_pivot_parent_links[outcome.link_index].deep_event_id == outcome.deep_event_id &&
+         g_deep_pivot_trials[outcome.trial_index].deep_event_id == outcome.deep_event_id &&
+         g_deep_pivot_parent_links[outcome.link_index].origin_id == outcome.origin_id;
 }
 
-int DeepPivotTrialActiveOutcomeCount(const string deep_trial_id)
-{
-  int count = 0;
-  for(int i = 0; i < DeepPivotOutcomeCount(); i++)
-    if(g_deep_pivot_outcomes[i].deep_trial_id == deep_trial_id &&
-       g_deep_pivot_outcomes[i].active)
-      count++;
-  return count;
-}
-
-void RefreshDeepPivotTerminalFlags()
+bool RefreshDeepPivotTerminalFlags()
 {
   for(int i = 0; i < DeepPivotTrialCount(); i++)
   {
-    int remaining = DeepPivotTrialActiveOutcomeCount(
-      g_deep_pivot_trials[i].deep_trial_id);
-    g_deep_pivot_trials[i].remaining_parent_count = remaining;
-    g_deep_pivot_trials[i].active = remaining > 0;
+    g_deep_pivot_trials[i].remaining_parent_count = 0;
+    g_deep_pivot_trials[i].active = false;
   }
   for(int i = 0; i < DeepPivotParentLinkCount(); i++)
-  {
-    if(!DeepPivotLinkHasActiveOutcome(
-         g_deep_pivot_parent_links[i].parent_link_id))
-    {
-      g_deep_pivot_parent_links[i].active = false;
-      if(g_deep_pivot_parent_links[i].link_status == DEEP_PIVOT_LINK_ACTIVE)
-        g_deep_pivot_parent_links[i].link_status = DEEP_PIVOT_LINK_COMPLETE;
-    }
-  }
+    g_deep_pivot_parent_links[i].active = false;
   for(int i = 0; i < DeepPivotEventCount(); i++)
+    g_deep_pivot_events[i].terminal = true;
+  // Reconcile all owners in one bounded pass, including mixed eligible ratios.
+  for(int i = 0; i < DeepPivotOutcomeCount(); i++)
   {
-    if(!DeepPivotEventHasActiveOutcome(
-         g_deep_pivot_events[i].identity.deep_event_id))
-      g_deep_pivot_events[i].terminal = true;
+    if(!g_deep_pivot_outcomes[i].active)
+      continue;
+    if(!DeepPivotOutcomeAssociationValid(g_deep_pivot_outcomes[i]))
+    {
+      MarkDeepPivotStateFailed("DEEP_COUNT_ASSOCIATION",
+                              g_deep_pivot_outcomes[i].deep_outcome_id);
+      return false;
+    }
+    int trial_index = g_deep_pivot_outcomes[i].trial_index;
+    g_deep_pivot_trials[trial_index].remaining_parent_count++;
+    g_deep_pivot_trials[trial_index].active = true;
+    g_deep_pivot_parent_links[g_deep_pivot_outcomes[i].link_index].active = true;
+    g_deep_pivot_events[g_deep_pivot_outcomes[i].event_index].terminal = false;
   }
-}
-
-bool RemoveDeepPivotOutcomeAt(const int index)
-{
-  int total = DeepPivotOutcomeCount();
-  if(index < 0 || index >= total)
-    return false;
-  for(int i = index; i < total - 1; i++)
-    g_deep_pivot_outcomes[i].CopyFrom(g_deep_pivot_outcomes[i + 1]);
-  int reserve = total - 1 > 0 ? DEEP_PIVOT_PARENT_SNAPSHOT_RESERVE : 0;
-  return ArrayResize(g_deep_pivot_outcomes, total - 1, reserve) == total - 1;
-}
-
-bool RemoveDeepPivotParentLinkAt(const int index)
-{
-  int total = DeepPivotParentLinkCount();
-  if(index < 0 || index >= total)
-    return false;
-  for(int i = index; i < total - 1; i++)
-    g_deep_pivot_parent_links[i].CopyFrom(g_deep_pivot_parent_links[i + 1]);
-  int reserve = total - 1 > 0 ? DEEP_PIVOT_PARENT_SNAPSHOT_RESERVE : 0;
-  return ArrayResize(g_deep_pivot_parent_links,
-                     total - 1,
-                     reserve) == total - 1;
-}
-
-bool RemoveDeepPivotTrialAt(const int index)
-{
-  int total = DeepPivotTrialCount();
-  if(index < 0 || index >= total)
-    return false;
-  for(int i = index; i < total - 1; i++)
-    g_deep_pivot_trials[i].CopyFrom(g_deep_pivot_trials[i + 1]);
-  int reserve = total - 1 > 0 ? DEEP_PIVOT_PARENT_SNAPSHOT_RESERVE : 0;
-  return ArrayResize(g_deep_pivot_trials, total - 1, reserve) == total - 1;
-}
-
-bool RemoveDeepPivotFrozenParentAt(const int index)
-{
-  int total = DeepPivotFrozenParentCount();
-  if(index < 0 || index >= total)
-    return false;
-  for(int i = index; i < total - 1; i++)
-    g_deep_pivot_frozen_parents[i].CopyFrom(
-      g_deep_pivot_frozen_parents[i + 1]);
-  int reserve = total - 1 > 0 ? DEEP_PIVOT_PARENT_SNAPSHOT_RESERVE : 0;
-  return ArrayResize(g_deep_pivot_frozen_parents,
-                     total - 1,
-                     reserve) == total - 1;
-}
-
-bool RemoveDeepPivotEventAt(const int index)
-{
-  int total = DeepPivotEventCount();
-  if(index < 0 || index >= total)
-    return false;
-  for(int i = index; i < total - 1; i++)
-    g_deep_pivot_events[i].CopyFrom(g_deep_pivot_events[i + 1]);
-  int reserve = total - 1 > 0 ? DEEP_PIVOT_PARENT_SNAPSHOT_RESERVE : 0;
-  return ArrayResize(g_deep_pivot_events, total - 1, reserve) == total - 1;
+  for(int i = 0; i < DeepPivotParentLinkCount(); i++)
+    if(!g_deep_pivot_parent_links[i].active &&
+       g_deep_pivot_parent_links[i].link_status == DEEP_PIVOT_LINK_ACTIVE)
+      g_deep_pivot_parent_links[i].link_status = DEEP_PIVOT_LINK_COMPLETE;
+  return true;
 }
 
 bool ReleaseTerminalDeepPivotState()
 {
-  for(int event_index = DeepPivotEventCount() - 1;
-      event_index >= 0;
-      event_index--)
-  {
-    const string deep_event_id =
-      g_deep_pivot_events[event_index].identity.deep_event_id;
-    if(!g_deep_pivot_events[event_index].terminal ||
-       DeepPivotEventHasActiveOutcome(deep_event_id))
-      continue;
+  int event_count = DeepPivotEventCount();
+  bool release_needed = false;
+  for(int i = 0; i < event_count; i++)
+    if(g_deep_pivot_events[i].terminal)
+      release_needed = true;
+  if(!release_needed)
+    return true;
 
-    for(int i = DeepPivotOutcomeCount() - 1; i >= 0; i--)
-    {
-      if(g_deep_pivot_outcomes[i].deep_event_id == deep_event_id &&
-         !RemoveDeepPivotOutcomeAt(i))
-        return false;
-    }
-    for(int i = DeepPivotParentLinkCount() - 1; i >= 0; i--)
-    {
-      if(g_deep_pivot_parent_links[i].deep_event_id == deep_event_id &&
-         !RemoveDeepPivotParentLinkAt(i))
-        return false;
-    }
-    for(int i = DeepPivotTrialCount() - 1; i >= 0; i--)
-    {
-      if(g_deep_pivot_trials[i].deep_event_id == deep_event_id &&
-         !RemoveDeepPivotTrialAt(i))
-        return false;
-    }
-    for(int i = DeepPivotFrozenParentCount() - 1; i >= 0; i--)
-    {
-      if(g_deep_pivot_frozen_parents[i].deep_event_id == deep_event_id &&
-         !RemoveDeepPivotFrozenParentAt(i))
-        return false;
-    }
-    if(!RemoveDeepPivotEventAt(event_index))
+  // Release whole event groups at the original boundary. Validate old slots
+  // before moving anything, then remap children and compact every array stably.
+  int event_map[PIVOT_DEEP_EVENT_ACTIVE_CAP];
+  int link_map[PIVOT_DEEP_LINK_ACTIVE_CAP];
+  int trial_map[PIVOT_DEEP_TRIAL_ACTIVE_CAP];
+  int events_kept = 0;
+  for(int i = 0; i < event_count; i++)
+    event_map[i] = g_deep_pivot_events[i].terminal ? -1 : events_kept++;
+  int links_kept = 0;
+  for(int i = 0; i < DeepPivotParentLinkCount(); i++)
+  {
+    int event_index = g_deep_pivot_parent_links[i].event_index;
+    if(!DeepPivotEventAssociationValid(event_index, g_deep_pivot_parent_links[i].deep_event_id))
       return false;
+    link_map[i] = event_map[event_index] < 0 ? -1 : links_kept++;
   }
-  return true;
+  int trials_kept = 0;
+  for(int i = 0; i < DeepPivotTrialCount(); i++)
+  {
+    int event_index = g_deep_pivot_trials[i].event_index;
+    if(!DeepPivotEventAssociationValid(event_index, g_deep_pivot_trials[i].deep_event_id))
+      return false;
+    trial_map[i] = event_map[event_index] < 0 ? -1 : trials_kept++;
+  }
+  for(int i = 0; i < DeepPivotOutcomeCount(); i++)
+    if(!DeepPivotOutcomeAssociationValid(g_deep_pivot_outcomes[i]) ||
+       (g_deep_pivot_outcomes[i].active &&
+        event_map[g_deep_pivot_outcomes[i].event_index] < 0))
+      return false;
+
+  int outcomes_kept = 0;
+  for(int i = 0; i < DeepPivotOutcomeCount(); i++)
+  {
+    int event_index = event_map[g_deep_pivot_outcomes[i].event_index];
+    if(event_index < 0)
+      continue;
+    if(i != outcomes_kept)
+      g_deep_pivot_outcomes[outcomes_kept].CopyFrom(g_deep_pivot_outcomes[i]);
+    g_deep_pivot_outcomes[outcomes_kept].event_index = event_index;
+    g_deep_pivot_outcomes[outcomes_kept].link_index =
+      link_map[g_deep_pivot_outcomes[outcomes_kept].link_index];
+    g_deep_pivot_outcomes[outcomes_kept].trial_index =
+      trial_map[g_deep_pivot_outcomes[outcomes_kept].trial_index];
+    outcomes_kept++;
+  }
+  for(int i = 0; i < DeepPivotParentLinkCount(); i++)
+  {
+    int destination = link_map[i];
+    if(destination < 0)
+      continue;
+    if(i != destination)
+      g_deep_pivot_parent_links[destination].CopyFrom(g_deep_pivot_parent_links[i]);
+    g_deep_pivot_parent_links[destination].event_index =
+      event_map[g_deep_pivot_parent_links[destination].event_index];
+  }
+  for(int i = 0; i < DeepPivotTrialCount(); i++)
+  {
+    int destination = trial_map[i];
+    if(destination < 0)
+      continue;
+    if(i != destination)
+      g_deep_pivot_trials[destination].CopyFrom(g_deep_pivot_trials[i]);
+    g_deep_pivot_trials[destination].event_index =
+      event_map[g_deep_pivot_trials[destination].event_index];
+  }
+  for(int i = 0; i < event_count; i++)
+    if(event_map[i] >= 0 && event_map[i] != i)
+      g_deep_pivot_events[event_map[i]].CopyFrom(g_deep_pivot_events[i]);
+  return ArrayResize(g_deep_pivot_outcomes, outcomes_kept) == outcomes_kept &&
+         ArrayResize(g_deep_pivot_parent_links, links_kept) == links_kept &&
+         ArrayResize(g_deep_pivot_trials, trials_kept) == trials_kept &&
+         ArrayResize(g_deep_pivot_events, events_kept) == events_kept;
 }
 
 void ResolveDeepPivotActiveOutcomes(const MqlTick &tick)
 {
   if(!PivotTrialQuoteValid(tick))
     return;
+  for(int i = 0; i < DeepPivotParentLinkCount(); i++)
+    g_deep_pivot_parent_links[i].parent_active =
+      DeepPivotParentStillActive(g_deep_pivot_parent_links[i]);
   for(int i = 0; i < DeepPivotOutcomeCount(); i++)
   {
-    DeepPivotOutcome active_outcome(g_deep_pivot_outcomes[i]);
-    if(!active_outcome.active)
+    if(!g_deep_pivot_outcomes[i].active)
       continue;
-    int link_index = FindDeepPivotParentLink(active_outcome.parent_link_id);
-    int trial_index = FindDeepPivotTrial(active_outcome.deep_trial_id);
-    if(link_index < 0 || trial_index < 0)
+    if(!DeepPivotOutcomeAssociationValid(g_deep_pivot_outcomes[i]))
     {
-      MarkDeepPivotStateFailed("DEEP_OUTCOME_ASSOCIATION", active_outcome.deep_outcome_id);
-      continue;
+      MarkDeepPivotStateFailed("DEEP_OUTCOME_ASSOCIATION",
+                              g_deep_pivot_outcomes[i].deep_outcome_id);
+      return;
     }
-    DeepPivotParentLink link(g_deep_pivot_parent_links[link_index]);
-    DeepPivotTrial trial(g_deep_pivot_trials[trial_index]);
+    int link_index = g_deep_pivot_outcomes[i].link_index;
+    int trial_index = g_deep_pivot_outcomes[i].trial_index;
     DeepPivotOutcome resolved;
     bool resolved_now = false;
-    if(!DeepPivotParentStillActive(link))
+    if(!g_deep_pivot_parent_links[link_index].parent_active)
     {
-      resolved_now = BuildDeepPivotParentExitOutcome(link,
-                                                      trial,
-                                                      tick,
-                                                      resolved);
+      resolved_now = BuildDeepPivotParentExitOutcome(
+        g_deep_pivot_parent_links[link_index], g_deep_pivot_trials[trial_index],
+        tick, resolved);
       if(!resolved_now)
       {
         g_deep_pivot_state_allocation_failed = true;
         PivotV13RejectReference("DEEP_PARENT_TERMINAL_UNAVAILABLE",
           StringFormat("broker=%s|link=%s|trial=%s|kind=%d|trigger=%I64d|retained_close=%I64d",
-            link.parent_broker_signal_id, link.parent_link_id, trial.deep_trial_id,
-            (int)link.parent_kind, (long)link.event_trigger_time,
-            (long)link.parent_terminal_time));
+            g_deep_pivot_parent_links[link_index].parent_broker_signal_id,
+            g_deep_pivot_parent_links[link_index].parent_link_id,
+            g_deep_pivot_trials[trial_index].deep_trial_id,
+            (int)g_deep_pivot_parent_links[link_index].parent_kind,
+            (long)g_deep_pivot_parent_links[link_index].event_trigger_time,
+            (long)g_deep_pivot_parent_links[link_index].parent_terminal_time));
       }
-      g_deep_pivot_parent_links[link_index].link_status =
-        DEEP_PIVOT_LINK_PARENT_EXIT;
+      g_deep_pivot_parent_links[link_index].link_status = DEEP_PIVOT_LINK_PARENT_EXIT;
     }
     else
-    {
-      resolved_now = ResolveDeepPivotOutcome(link,
-                                             trial,
-                                             tick,
-                                             resolved);
-    }
+      resolved_now = ResolveDeepPivotOutcome(g_deep_pivot_parent_links[link_index],
+                                              g_deep_pivot_trials[trial_index],
+                                              tick, resolved);
     if(!resolved_now)
       continue;
     if(!PivotV13RecordDeepPivotOutcome(resolved) ||
@@ -917,14 +890,10 @@ void ResolveDeepPivotActiveOutcomes(const MqlTick &tick)
       MarkDeepPivotStateFailed("DEEP_OUTCOME_RECORD", resolved.deep_outcome_id);
       continue;
     }
-    g_deep_pivot_outcomes[i].CopyFrom(resolved);
     g_deep_pivot_outcomes[i].active = false;
-    if(g_deep_pivot_trials[trial_index].remaining_parent_count > 0)
-      g_deep_pivot_trials[trial_index].remaining_parent_count--;
-    if(g_deep_pivot_trials[trial_index].remaining_parent_count <= 0)
-      g_deep_pivot_trials[trial_index].active = false;
   }
-  RefreshDeepPivotTerminalFlags();
+  if(!RefreshDeepPivotTerminalFlags())
+    return;
   if(!ReleaseTerminalDeepPivotState())
     MarkDeepPivotStateFailed("DEEP_TERMINAL_RELEASE", "", GetLastError());
 }
@@ -974,8 +943,6 @@ bool AppendDeepPivotEvent(const DeepPivotEvent &event,
     return false;
   }
   if(DeepPivotEventCount() >= PIVOT_DEEP_EVENT_ACTIVE_CAP ||
-     DeepPivotFrozenParentCount() + parent_count >
-       PIVOT_DEEP_LINK_ACTIVE_CAP ||
      DeepPivotParentLinkCount() + parent_count >
        PIVOT_DEEP_LINK_ACTIVE_CAP ||
      DeepPivotTrialCount() + 3 > PIVOT_DEEP_TRIAL_ACTIVE_CAP ||
@@ -1010,7 +977,6 @@ bool AppendDeepPivotEvent(const DeepPivotEvent &event,
   }
 
   int total = DeepPivotEventCount();
-  int parents_start = DeepPivotFrozenParentCount();
   int links_start = DeepPivotParentLinkCount();
   int trials_start = DeepPivotTrialCount();
   int outcomes_start = DeepPivotOutcomeCount();
@@ -1022,11 +988,7 @@ bool AppendDeepPivotEvent(const DeepPivotEvent &event,
                             GetLastError());
     return false;
   }
-  if(ArrayResize(g_deep_pivot_frozen_parents,
-                 parents_start + parent_count,
-                 DEEP_PIVOT_PARENT_SNAPSHOT_RESERVE) !=
-     parents_start + parent_count ||
-     ArrayResize(g_deep_pivot_parent_links,
+  if(ArrayResize(g_deep_pivot_parent_links,
                  links_start + parent_count,
                  DEEP_PIVOT_PARENT_SNAPSHOT_RESERVE) !=
        links_start + parent_count ||
@@ -1042,9 +1004,6 @@ bool AppendDeepPivotEvent(const DeepPivotEvent &event,
                             GetLastError());
     ArrayResize(g_deep_pivot_events,
                 total,
-                DEEP_PIVOT_PARENT_SNAPSHOT_RESERVE);
-    ArrayResize(g_deep_pivot_frozen_parents,
-                parents_start,
                 DEEP_PIVOT_PARENT_SNAPSHOT_RESERVE);
     ArrayResize(g_deep_pivot_parent_links,
                 links_start,
@@ -1065,12 +1024,9 @@ bool AppendDeepPivotEvent(const DeepPivotEvent &event,
   }
   for(int i = 0; i < parent_count; i++)
   {
-    g_deep_pivot_frozen_parents[parents_start + i].deep_event_id =
-      event.identity.deep_event_id;
-    g_deep_pivot_frozen_parents[parents_start + i].parent.CopyFrom(parents[i]);
-
     DeepPivotParentLink link;
-    link.Reset();
+    link.event_index = total;
+    link.parent_state_index = parents[i].parent_state_index;
     link.parent_link_id = DeepPivotParentLinkId(
       event.identity.deep_event_id,
       parents[i].parent_trial_id);
@@ -1098,6 +1054,7 @@ bool AppendDeepPivotEvent(const DeepPivotEvent &event,
   bool event_active = false;
   for(int trial_index = 0; trial_index < 3; trial_index++)
   {
+    trials[trial_index].event_index = total;
     g_deep_pivot_trials[trials_start + trial_index].CopyFrom(
       trials[trial_index]);
     if(!PivotV13RecordDeepPivotTrial(
@@ -1126,8 +1083,6 @@ bool AppendDeepPivotEvent(const DeepPivotEvent &event,
         {
           MarkDeepPivotStateFailed("DEEP_INELIGIBLE_OUTCOME_BUILD", link.parent_link_id);
           ArrayResize(g_deep_pivot_events, total,
-                      DEEP_PIVOT_PARENT_SNAPSHOT_RESERVE);
-          ArrayResize(g_deep_pivot_frozen_parents, parents_start,
                       DEEP_PIVOT_PARENT_SNAPSHOT_RESERVE);
           ArrayResize(g_deep_pivot_parent_links, links_start,
                       DEEP_PIVOT_PARENT_SNAPSHOT_RESERVE);
@@ -1159,20 +1114,22 @@ bool AppendDeepPivotEvent(const DeepPivotEvent &event,
         outcome.active = true;
         g_deep_pivot_outcomes[outcome_index].CopyFrom(outcome);
       }
+      g_deep_pivot_outcomes[outcome_index].event_index = total;
+      g_deep_pivot_outcomes[outcome_index].link_index = links_start + parent_index;
+      g_deep_pivot_outcomes[outcome_index].trial_index = trials_start + trial_index;
     }
   }
   g_deep_pivot_events[total].terminal = !event_active;
   if(total + 1 > g_deep_pivot_event_peak)
     g_deep_pivot_event_peak = total + 1;
-  if(parents_start + parent_count > g_deep_pivot_link_peak)
-    g_deep_pivot_link_peak = parents_start + parent_count;
-  if(parents_start + parent_count > g_deep_pivot_frozen_parent_peak)
-    g_deep_pivot_frozen_parent_peak = parents_start + parent_count;
+  if(links_start + parent_count > g_deep_pivot_link_peak)
+    g_deep_pivot_link_peak = links_start + parent_count;
   if(trials_start + 3 > g_deep_pivot_trial_peak)
     g_deep_pivot_trial_peak = trials_start + 3;
   if(outcomes_start + parent_count * 3 > g_deep_pivot_outcome_peak)
     g_deep_pivot_outcome_peak = outcomes_start + parent_count * 3;
-  RefreshDeepPivotTerminalFlags();
+  if(!RefreshDeepPivotTerminalFlags())
+    return false;
   if(!ReleaseTerminalDeepPivotState())
   {
     MarkDeepPivotStateFailed("DEEP_TERMINAL_RELEASE", event.identity.deep_event_id,
@@ -1248,16 +1205,11 @@ void ProcessDeepPivotTick(const MqlTick &tick)
 
   // Freeze eligible parents before discovering any M10 level. A later lane
   // entry cannot be linked retroactively to an already-triggered event.
-  DeepPivotParentCandidate buy_parents[];
-  DeepPivotParentCandidate sell_parents[];
-  int buy_parent_count = CollectDeepPivotParentSnapshot(BULLISH,
-                                                         tick.time,
-                                                         buy_parents);
-  int sell_parent_count = CollectDeepPivotParentSnapshot(BEARISH,
-                                                          tick.time,
-                                                          sell_parents);
-  if(buy_parent_count < 0 || sell_parent_count < 0 ||
-     (buy_parent_count <= 0 && sell_parent_count <= 0))
+  if(!PivotV13Ready() || !CollectDeepPivotParentSnapshots(tick.time))
+    return;
+  int buy_parent_count = ArraySize(g_deep_pivot_buy_parents);
+  int sell_parent_count = ArraySize(g_deep_pivot_sell_parents);
+  if(buy_parent_count <= 0 && sell_parent_count <= 0)
     return;
   if(!RefreshDeepPivotWindowForRuntime(tick.time))
     return;
@@ -1284,8 +1236,8 @@ void ProcessDeepPivotTick(const MqlTick &tick)
                                   candidates[i].level_id))
       continue;
     bool appended = candidates[i].direction == BULLISH
-                    ? AppendDeepPivotEvent(event, buy_parents, buy_parent_count)
-                    : AppendDeepPivotEvent(event, sell_parents, sell_parent_count);
+                    ? AppendDeepPivotEvent(event, g_deep_pivot_buy_parents, buy_parent_count)
+                    : AppendDeepPivotEvent(event, g_deep_pivot_sell_parents, sell_parent_count);
     if(!appended)
       MarkDeepPivotStateFailed("DEEP_EVENT_ADMISSION_FAILED", event.identity.deep_event_id);
   }
@@ -1309,13 +1261,8 @@ void FinalizeDeepPivotForExport()
     {
       if(!g_deep_pivot_outcomes[i].active)
         continue;
-      int link_index = FindDeepPivotParentLink(
-        g_deep_pivot_outcomes[i].parent_link_id);
-      int event_index = link_index >= 0
-                        ? FindDeepPivotEventById(
-                            g_deep_pivot_parent_links[link_index].deep_event_id)
-                        : -1;
-      if(link_index < 0 || event_index < 0)
+      int event_index = g_deep_pivot_outcomes[i].event_index;
+      if(!DeepPivotOutcomeAssociationValid(g_deep_pivot_outcomes[i]))
       {
         MarkDeepPivotStateFailed("DEEP_FINAL_QUOTE_ASSOCIATION",
                                 g_deep_pivot_outcomes[i].deep_outcome_id);
@@ -1335,11 +1282,9 @@ void FinalizeDeepPivotForExport()
   {
     if(!g_deep_pivot_outcomes[i].active)
       continue;
-    int link_index = FindDeepPivotParentLink(
-      g_deep_pivot_outcomes[i].parent_link_id);
-    int trial_index = FindDeepPivotTrial(
-      g_deep_pivot_outcomes[i].deep_trial_id);
-    if(link_index < 0 || trial_index < 0)
+    int link_index = g_deep_pivot_outcomes[i].link_index;
+    int trial_index = g_deep_pivot_outcomes[i].trial_index;
+    if(!DeepPivotOutcomeAssociationValid(g_deep_pivot_outcomes[i]))
     {
       MarkDeepPivotStateFailed("DEEP_FINAL_OUTCOME_ASSOCIATION",
                               g_deep_pivot_outcomes[i].deep_outcome_id);
@@ -1359,12 +1304,12 @@ void FinalizeDeepPivotForExport()
        !PivotV13RecordDeepPivotOutcome(outcome) ||
        !QueueDeepPivotOutcomeForExport(outcome))
       continue;
-    g_deep_pivot_outcomes[i].CopyFrom(outcome);
     g_deep_pivot_outcomes[i].active = false;
     g_deep_pivot_parent_links[link_index].link_status =
       parent_closed ? DEEP_PIVOT_LINK_PARENT_EXIT : DEEP_PIVOT_LINK_RUN_END;
   }
-  RefreshDeepPivotTerminalFlags();
+  if(!RefreshDeepPivotTerminalFlags())
+    return;
   if(!ReleaseTerminalDeepPivotState())
     MarkDeepPivotStateFailed("DEEP_TERMINAL_RELEASE", "", GetLastError());
   FinalizeDeepPivotWindowForExport();

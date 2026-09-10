@@ -158,6 +158,14 @@ three trials, and three outcomes per link. If it cannot fit, the event identity
 is consumed and one `CAPACITY_REJECTED` row is emitted with no partial children.
 Caps are 2048 events, 4096 links, 6144 trials, and 18432 outcomes.
 
+Deep outcomes hold checked link/trial/event indices. A bounded pass reconciles
+active counts, and stable compaction releases only whole terminal event groups,
+remapping all retained indices together. Links own frozen parent membership;
+there is no duplicate frozen-parent array. Cached H1/broker slots validate full
+identity before use and fall back to lookup after their owning arrays move.
+Both parent directions are collected in one pass before each discovery batch,
+preserving H1-then-broker order and exact trigger-time ages.
+
 ## Broker Boundary
 
 Only the structural H1 `1R` lane may send. The fresh pre-send path rechecks

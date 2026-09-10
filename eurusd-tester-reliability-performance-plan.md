@@ -1,7 +1,7 @@
 # Plan: EURUSD Tester Reliability And Deep-State Performance
 
 **Generated**: 2026-09-10
-**Status**: Executing Sprint 2; Sprint 1 committed as `9215df8`
+**Status**: Executing Sprint 3; Sprints 1-2 committed
 **Execution authorization**: The user authorized ordered execution of Sprints 1-4, including validation and one commit per sprint. Stopping the affected tester and removing its current V13 data if necessary remain separately authorized; the stopped data is preserved.
 **Proposal**: Not requested; direct Planner plan with questions.
 **Estimated complexity**: High; failure handling crosses broker bookkeeping, research lifecycles, tester completion and state indexing.
@@ -506,7 +506,7 @@ completion criteria under D3; no live rollout follows automatically.
 - [x] Authorized incident stop and pre-stop preservation are recorded separately from implementation.
 - [x] Execution is authorized and this plan's execution state is initialized.
 - [x] Sprint 1 first-error/stop gates pass; commit `9215df8`, rollback `c9ebb24`, private receipt `sprint-1/commit.json`.
-- [ ] Sprint 2 cleanup/correction gates pass; commit and rollback point recorded.
+- [x] Sprint 2 cleanup/correction gates pass; commit `4360448`, rollback `9215df8`, private receipt `sprint-2/commit.json`.
 - [ ] Sprint 3 behavioral/performance gates pass; commit and rollback point recorded.
 - [ ] Sprint 4 target/acceptance gates pass; commit and rollback point recorded.
 - [ ] Final binary/source pins, evidence links and bounded acceptance agree.

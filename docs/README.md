@@ -7,8 +7,9 @@ own procedures and dated evidence owns its original results.
 ## Active Work
 
 The [EURUSD reliability and performance plan](../eurusd-tester-reliability-performance-plan.md)
-is executing Sprint 2 of four authorized, ordered sprints. Sprint 1 is committed
-as `9215df8` (rollback `c9ebb24`). The affected EURUSD tester is stopped; its incomplete original export and
+has validated Sprint 3 of four authorized, ordered sprints; its commit gate is
+next. Sprint 1 is `9215df8` (rollback `c9ebb24`), and Sprint 2 is `4360448`
+(rollback `9215df8`). The affected EURUSD tester is stopped; its incomplete original export and
 pre-stop snapshot remain preserved. Prior cleanup, V13,
 Exness preparation and parent-close plans are historical and must not be restarted.
 
@@ -33,11 +34,27 @@ numeric precision; row order, identities, labels and clocks remain unchanged.
 
 All six Sprint 2 windows pass strict validation and parent chronology: E-FAIL,
 X-PARITY, EURUSD June 2016 stress, XAUUSD March 2020 stress and both March 2024
-DST cases. Corrected AVX2 stress characterizations take 68.163 s / 775,654 ticks
-for EURUSD and 95.940 s / 1,710,103 ticks for XAUUSD, with peak deep outcomes
-522 and 420 respectively. These are single characterization passes, not measured
-optimization gains. Sprint 3 requires alternating repeated comparisons against
-this exact corrected source/binary and frozen intervals.
+DST cases. Sprint 3 also passes this matrix with exact twelve-table facts, row
+order and broker events against Sprint 2. Export-on/off parity and both injected
+failure/release/stop checks pass. Deep processing now uses checked associations,
+one bounded active-count pass, stable event-group compaction and one parent
+snapshot pass; links own frozen membership without a duplicate parent array.
+
+One unmeasured warm-up per workload/binary and three alternating measured pairs
+on optimized AVX2 establish the algorithm gain:
+
+| Frozen workload | Ticks | Sprint 2 median (min-max), seconds | Sprint 3 median (min-max), seconds | Elapsed reduction |
+| --- | ---: | ---: | ---: | ---: |
+| EURUSD 2016-06-20 to 2016-06-28 | 775,654 | 68.225 (67.427-68.382) | 20.616 (20.356-20.730) | 69.78% |
+| XAUUSD 2020-03-09 to 2020-03-21 | 1,710,103 | 96.907 (95.348-97.279) | 33.756 (33.670-34.558) | 65.17% |
+
+All twelve measured passes match exact native facts and broker events, including
+the separately retained rejected-request messages. Maximum observed repeat
+spread is 1.81% for EURUSD and 2.63% for XAUUSD, well below the gain. Peak deep
+outcomes remain 522 and 420. Sampled tester RSS peaks at 156.90 / 195.45 MiB
+across each symbol's measured pairs; process/load samples and full receipts live
+in `sprint-3/benchmark-results.json` and adjacent private artifacts. These results
+do not predict full-history elapsed time. Sprint 4 owns compiler selection.
 
 | Area | Accepted baseline and evidence |
 | --- | --- |
@@ -76,16 +93,16 @@ that external path is operator context, not a required file in this checkout.
 
 ## Source And Validation Pins
 
-Sprint 2 compile (2026-09-10): MetaEditor MCP build 6184, explicit optimized
-`AVX2 + FMA3`, **0 errors, 0 warnings**. Binary: 306,272 bytes, modified
-`2026-09-10T13:11:58.509647+00:00`, SHA-256
-`a7046b579da5bda9e66141704b2a904fbbe5d10926ebaae69dd1d129481a9fcb`.
+Sprint 3 compile (2026-09-10): MetaEditor MCP build 6184, explicit optimized
+`AVX2 + FMA3`, **0 errors, 0 warnings**. Binary: 306,420 bytes, modified
+`2026-09-10T13:37:42.748495+00:00`, SHA-256
+`cdd51b362965f90d5fb4ae45da3b7d1b2e0379093dc1d3327a62a6e7a1ae035f`.
 The 38-source compact sorted mapping hashes to
-`ff251a1193fdd5a807c81b423ca7155c0b23d6d047008496ebdb07aab31db02b`.
+`1f342ddcdb0ff0d110faa4520d997dbe55f0523c5cab22093a34a2736c14b0ff`.
 Receipts, paired rollback binaries, settings, failed-run diagnostics and exact
-comparisons are in ignored `.codex-artifacts/eurusd-tester-reliability/sprint-2/`;
-`corrected-1-pin.json` is the matching source/binary receipt. Sprint 1's matching
-rollback pair remains in the adjacent `sprint-1/` receipts and Git `9215df8`.
+comparisons are in ignored `.codex-artifacts/eurusd-tester-reliability/sprint-3/`;
+`optimized-1-pin.json` is the matching source/binary receipt. The Sprint 2
+rollback pair remains in `sprint-2/corrected-1-pin.json` and Git `4360448`.
 The unchanged 45 Python tests and strict V13 fixture reuse their Sprint 1 pass.
 No live failure test, full-history EURUSD run or new human chart acceptance is claimed.
 

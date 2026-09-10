@@ -152,6 +152,7 @@ struct DeepPivotEvent
 
 struct DeepPivotParentCandidate
 {
+  int parent_state_index;
   DeepPivotParentKinds parent_kind;
   string origin_id;
   string parent_trial_id;
@@ -173,6 +174,7 @@ struct DeepPivotParentCandidate
 
   void Reset()
   {
+    parent_state_index = -1;
     parent_kind = DEEP_PIVOT_PARENT_H1_VIRTUAL;
     origin_id = "";
     parent_trial_id = "";
@@ -185,6 +187,7 @@ struct DeepPivotParentCandidate
 
   void CopyFrom(const DeepPivotParentCandidate &other)
   {
+    parent_state_index = other.parent_state_index;
     parent_kind = other.parent_kind;
     origin_id = other.origin_id;
     parent_trial_id = other.parent_trial_id;
@@ -196,36 +199,11 @@ struct DeepPivotParentCandidate
   }
 };
 
-struct DeepPivotFrozenParent
-{
-  string deep_event_id;
-  DeepPivotParentCandidate parent;
-
-  DeepPivotFrozenParent()
-  {
-    Reset();
-  }
-
-  DeepPivotFrozenParent(const DeepPivotFrozenParent &other)
-  {
-    CopyFrom(other);
-  }
-
-  void Reset()
-  {
-    deep_event_id = "";
-    parent.Reset();
-  }
-
-  void CopyFrom(const DeepPivotFrozenParent &other)
-  {
-    deep_event_id = other.deep_event_id;
-    parent.CopyFrom(other.parent);
-  }
-};
-
 struct DeepPivotParentLink
 {
+  int event_index;
+  int parent_state_index;
+  bool parent_active;
   string parent_link_id;
   string deep_event_id;
   string origin_id;
@@ -254,6 +232,9 @@ struct DeepPivotParentLink
 
   void Reset()
   {
+    event_index = -1;
+    parent_state_index = -1;
+    parent_active = false;
     parent_link_id = "";
     deep_event_id = "";
     origin_id = "";
@@ -273,6 +254,9 @@ struct DeepPivotParentLink
 
   void CopyFrom(const DeepPivotParentLink &other)
   {
+    event_index = other.event_index;
+    parent_state_index = other.parent_state_index;
+    parent_active = other.parent_active;
     parent_link_id = other.parent_link_id;
     deep_event_id = other.deep_event_id;
     origin_id = other.origin_id;
@@ -293,6 +277,7 @@ struct DeepPivotParentLink
 
 struct DeepPivotTrial
 {
+  int event_index;
   string deep_trial_id;
   string deep_event_id;
   int tp_r_multiple;
@@ -318,6 +303,7 @@ struct DeepPivotTrial
 
   void Reset()
   {
+    event_index = -1;
     deep_trial_id = "";
     deep_event_id = "";
     tp_r_multiple = 0;
@@ -334,6 +320,7 @@ struct DeepPivotTrial
 
   void CopyFrom(const DeepPivotTrial &other)
   {
+    event_index = other.event_index;
     deep_trial_id = other.deep_trial_id;
     deep_event_id = other.deep_event_id;
     tp_r_multiple = other.tp_r_multiple;
@@ -351,6 +338,9 @@ struct DeepPivotTrial
 
 struct DeepPivotOutcome
 {
+  int event_index;
+  int link_index;
+  int trial_index;
   string deep_outcome_id;
   string parent_link_id;
   string deep_trial_id;
@@ -392,6 +382,9 @@ struct DeepPivotOutcome
 
   void Reset()
   {
+    event_index = -1;
+    link_index = -1;
+    trial_index = -1;
     deep_outcome_id = "";
     parent_link_id = "";
     deep_trial_id = "";
@@ -424,6 +417,9 @@ struct DeepPivotOutcome
 
   void CopyFrom(const DeepPivotOutcome &other)
   {
+    event_index = other.event_index;
+    link_index = other.link_index;
+    trial_index = other.trial_index;
     deep_outcome_id = other.deep_outcome_id;
     parent_link_id = other.parent_link_id;
     deep_trial_id = other.deep_trial_id;
