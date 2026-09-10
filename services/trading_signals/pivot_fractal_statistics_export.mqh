@@ -93,6 +93,7 @@ bool g_pivot_v13_failed = false;
 bool g_pivot_v13_error_logged = false;
 bool g_pivot_v13_tester_stop_requested = false;
 bool g_pivot_v13_tester_stop_sent = false;
+bool g_pivot_v13_research_discarded = false;
 string g_pivot_v13_first_failure = "";
 bool g_pivot_v13_summary_written = false;
 int g_pivot_v13_window_rows = 0;
@@ -150,6 +151,7 @@ int DeepPivotOutcomePeak();
 int DeepPivotDuplicateIdentityCount();
 bool DeepPivotResearchIntegrityFailed();
 bool DeepPivotHasOutstandingOutcomes();
+void DiscardDeepPivotResearchState();
 
 bool PivotV13Enabled()
 {
@@ -375,7 +377,9 @@ string PivotV13DoubleToken(const double value,
 {
   if(!MathIsValidNumber(value) || (!allow_zero && value == 0.0))
     return PIVOT_V13_NULL;
-  return DoubleToString(value, 10);
+  // Round-trip the runtime double: decimal rounding can erase a strict
+  // below/above-pivot comparison while retaining its causal relation label.
+  return StringFormat("%.17g", value);
 }
 
 string PivotV13UlongToken(const ulong value)
@@ -1010,6 +1014,7 @@ void PivotV13StatsReset()
   g_pivot_v13_error_logged = false;
   g_pivot_v13_tester_stop_requested = false;
   g_pivot_v13_tester_stop_sent = false;
+  g_pivot_v13_research_discarded = false;
   g_pivot_v13_first_failure = "";
   g_pivot_v13_summary_written = false;
   g_pivot_v13_window_rows = 0;
@@ -2718,23 +2723,47 @@ bool PivotV13WriteSummary(const string completion_status)
   return !g_pivot_v13_failed;
 }
 
+void ReleasePivotV13ExportBuffers()
+{
+  ArrayFree(g_pivot_v13_window_buffer);
+  ArrayFree(g_pivot_v13_origin_buffer);
+  ArrayFree(g_pivot_v13_trial_buffer);
+  ArrayFree(g_pivot_v13_virtual_outcome_buffer);
+  ArrayFree(g_pivot_v13_deep_event_buffer);
+  ArrayFree(g_pivot_v13_deep_link_buffer);
+  ArrayFree(g_pivot_v13_deep_trial_buffer);
+  ArrayFree(g_pivot_v13_deep_outcome_buffer);
+  ArrayFree(g_pivot_v13_check_buffer);
+  ArrayFree(g_pivot_v13_broker_outcome_buffer);
+  ArrayFree(g_pivot_v13_pending_origins);
+  ArrayFree(g_pivot_v13_parity_links);
+}
+
+void DiscardFailedPivotResearch()
+{
+  if(!g_pivot_v13_failed || g_pivot_v13_research_discarded)
+    return;
+  g_pivot_v13_research_discarded = true;
+  ReleasePivotV13ExportBuffers();
+  ArrayFree(g_pivot_trial_active_states);
+  DiscardDeepPivotResearchState();
+  ReleaseAllIndicatorDefinitions();
+  int closed_broker_states = 0;
+  for(int i = 0; i < ArraySize(g_pivot_signals); i++)
+    if(g_pivot_signals[i].execution.broker_close_confirmed)
+      closed_broker_states++;
+  PrintFormat("PIVOT_V13_RESEARCH_RELEASED | run=%s|broker_states=%d|closed_broker_states=%d|h1_states=%d|deep_events=%d|deep_links=%d|deep_trials=%d|deep_outcomes=%d",
+    g_pivot_v13_run_id, ArraySize(g_pivot_signals), closed_broker_states,
+    PivotTrialActiveStateCount(), DeepPivotEventCount(), DeepPivotParentLinkCount(),
+    DeepPivotTrialCount(), DeepPivotOutcomeCount());
+}
+
 void PivotV13StatsDeinit(const string completion_status = "CENSORED")
 {
   if(!PivotV13Enabled() || !g_pivot_v13_initialized)
     return;
   PivotV13WriteSummary(completion_status);
-  ArrayResize(g_pivot_v13_window_buffer, 0);
-  ArrayResize(g_pivot_v13_origin_buffer, 0);
-  ArrayResize(g_pivot_v13_trial_buffer, 0);
-  ArrayResize(g_pivot_v13_virtual_outcome_buffer, 0);
-  ArrayResize(g_pivot_v13_deep_event_buffer, 0);
-  ArrayResize(g_pivot_v13_deep_link_buffer, 0);
-  ArrayResize(g_pivot_v13_deep_trial_buffer, 0);
-  ArrayResize(g_pivot_v13_deep_outcome_buffer, 0);
-  ArrayResize(g_pivot_v13_check_buffer, 0);
-  ArrayResize(g_pivot_v13_broker_outcome_buffer, 0);
-  ArrayResize(g_pivot_v13_pending_origins, 0);
-  ArrayResize(g_pivot_v13_parity_links, 0);
+  ReleasePivotV13ExportBuffers();
   ResetPivotTrialLaneState();
   ResetDeepPivotRuntimeState();
 }

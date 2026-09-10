@@ -83,6 +83,17 @@ void ResetDeepPivotRuntimeState()
     PivotV13MarkFailed("DEEP_STATE_RESET", "", GetLastError());
 }
 
+void DiscardDeepPivotResearchState()
+{
+  // Retain failure flags and peaks for the failed seal; broker state is owned
+  // elsewhere and remains available for normal reconciliation.
+  ArrayFree(g_deep_pivot_events);
+  ArrayFree(g_deep_pivot_frozen_parents);
+  ArrayFree(g_deep_pivot_parent_links);
+  ArrayFree(g_deep_pivot_trials);
+  ArrayFree(g_deep_pivot_outcomes);
+}
+
 int DeepPivotEventCount()
 {
   return ArraySize(g_deep_pivot_events);

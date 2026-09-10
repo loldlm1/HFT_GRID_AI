@@ -168,6 +168,9 @@ there is no trailing, break-even, partial close, resize, or `TRADE_ACTION_SLTP`.
 V13 derives magic namespace `HFT_GRID_AI_PIVOT_FRACTAL_V13`; older-engine
 positions are never adopted, closed, or modified. One accepted request creates
 one exact submitted-geometry parity shadow outside H1/deep target cohorts.
+Its `distance_eligible` field reports the stricter research minimum as a fact;
+that field may be false for a broker-accepted request and does not veto its
+calibration shadow. Broker stops/freeze checks and immutable prices are unchanged.
 
 Capture and freshly recheck point/trade tick, spread, volume min/max/step,
 requested and downward-normalized volume, free margin, profit/margin calculation
@@ -248,6 +251,17 @@ before tester scoring, including its final flush; a failed run has a zero custom
 score and a `FAILED` / `CENSORED` summary when writable. An absent successful
 seal also invalidates the run. Valid ineligible, no-touch and capacity-rejected
 rows remain explicit outcomes. This research policy adds no live order control.
+Confirmed closed broker bookkeeping is removed after handing its close clock to
+existing research links, regardless of export success. A fatal research failure
+releases its buffers, pending origins, H1/deep state and indicator handles once,
+retaining first-error and peak evidence. Open/unresolved broker ownership stays
+with normal reconciliation. Export initialization failure stops tester startup;
+live broker processing continues independently with research disabled.
+
+Finite numeric TSV facts use 17 significant digits to round-trip runtime doubles.
+This preserves strict price comparisons such as a bid below PP even when the two
+numbers would round to the same ten-decimal string. Headers, typed grains, causal
+comparisons, submitted prices and schema version stay unchanged.
 
 The bounded DuckDB parent chronology audit checks parent intervals and labels
 separately from full semantic validation. Timestamp-only historical recovery

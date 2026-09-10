@@ -56,9 +56,9 @@ separate offline research tools.
   Freshly recheck session, symbol/hedging mode, permissions,
   quotes, geometry, stops/freeze, volume, margin/profit calculations and `OrderCheck`.
   Use `HFT_GRID_AI_PIVOT_FRACTAL_V13` ownership; never adopt older-engine positions.
-- Broker SL/TP stay immutable; TP is one fresh-quote price-distance R from the
+- Immutable broker SL/TP; TP is one fresh-quote price-distance R from the
   structural stop. No trailing, break-even, partial close, resize or
-  `TRADE_ACTION_SLTP`. One accepted request owns one exact calibration parity shadow.
+  `TRADE_ACTION_SLTP`. Each accepted request owns one exact parity regardless of research eligibility.
 - Eight H1 lanes: STRUCTURAL/MIDPOINT_50 times 1R/2R/3R/5R. Midpoints enter at
   executable halfway touch, armed while any structural lane survives bar rollover;
   untouched rows become NOT_TRIGGERED when the last structural lane exits.

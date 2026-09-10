@@ -235,15 +235,8 @@ bool BuildBrokerParityTrial(const PivotSignal &signal,
   trial_out.geometry.distance_eligible =
     trial_out.geometry.normalized_risk_distance_points + 1e-7 >=
     trial_out.geometry.minimum_risk_distance_points;
-  if(!trial_out.geometry.distance_eligible)
-  {
-    PivotV13MarkFailed("PARITY_DISTANCE_INELIGIBLE", "", 0,
-      StringFormat("broker=%s|risk_points=%.10f|minimum_points=%.10f|spread_points=%.10f|stops_points=%.10f|freeze_points=%.10f",
-        signal.broker_signal_id, trial_out.geometry.normalized_risk_distance_points,
-        trial_out.geometry.minimum_risk_distance_points, trial_out.geometry.spread_points,
-        send_check.stops_distance_points, send_check.freeze_distance_points));
-    return false;
-  }
+  // Parity copies an accepted request. Preserve research distance eligibility
+  // as a fact, but never use its extra tick to veto the broker's shadow.
   trial_out.geometry.geometry_equivalence_id =
     PivotTrialGeometryEquivalenceId(signal.origin_id, signal.direction,
                                     request.price, request.sl, request.tp);
@@ -904,7 +897,7 @@ bool FinalizeBrokerParityAtBrokerTerminal(const PivotSignal &signal)
 
 void ProcessPivotTrialLanesTick(const MqlTick &tick)
 {
-  if(!PivotV13Enabled() || !PivotTrialQuoteValid(tick) ||
+  if(!PivotV13Ready() || !PivotTrialQuoteValid(tick) ||
      PivotTrialResearchIntegrityFailed())
     return;
   // Resolve entered lanes before considering midpoint touches. This makes a

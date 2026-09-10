@@ -7,25 +7,37 @@ own procedures and dated evidence owns its original results.
 ## Active Work
 
 The [EURUSD reliability and performance plan](../eurusd-tester-reliability-performance-plan.md)
-has validated Sprint 1 of four authorized, ordered sprints; its commit gate is
-next. The affected EURUSD tester is stopped; its incomplete original export and
+is executing Sprint 2 of four authorized, ordered sprints. Sprint 1 is committed
+as `9215df8` (rollback `c9ebb24`). The affected EURUSD tester is stopped; its incomplete original export and
 pre-stop snapshot remain preserved. Prior cleanup, V13,
 Exness preparation and parent-close plans are historical and must not be restarted.
 
-The native EURUSD reproduction isolates `PARITY_DISTANCE_INELIGIBLE` at
+The native EURUSD reproduction isolated `PARITY_DISTANCE_INELIGIBLE` at
 2017-11-14 07:18:42: an accepted broker request has 29 risk points, while its
 research parity shadow incorrectly requires 30 (spread 29 plus one trade tick).
 The first diagnostic and tester stop now work with debug logging off, and the
-output seals `FAILED` / `CENSORED`. Header corruption and missing-file tests also
-stop once and reject. Sprint 2 owns the parity correction and independent closed
-broker cleanup; the original historical run remains incomplete and unaccepted.
+output seals `FAILED` / `CENSORED`. The corrected EURUSD run crosses this boundary
+and finishes naturally with valid strict/chronology output. Accepted parity now
+retains its actual `distance_eligible=0` fact without vetoing the shadow. Closed
+broker cleanup no longer depends on research delivery. Both injected failures
+release research state once, preserve open broker ownership, stop and reject;
+the original historical run remains incomplete and unaccepted.
 
 Strict intake also exposes a separate decimal serialization issue in the failed
 EURUSD reproduction: a below-PP bid and the pivot both print as `1.1586400000`.
-Sprint 2 must retain the causal numeric evidence without changing tick comparisons
-or weakening validation. XAUUSD baseline/candidate/export-off broker streams
-match all 1,392 captured messages and 43 report fields; the two export-on runs
-match all twelve TSVs after run-ID normalization and pass strict/chronology checks.
+Seventeen-significant-digit serialization now retains the causal numeric evidence
+without changing tick comparisons or weakening validation. EURUSD export-on/off
+matches 4,216 broker messages and 43 report fields; XAUUSD matches 1,392 messages
+and 43 fields against Sprint 1. XAUUSD's only table changes from Sprint 1 are
+numeric precision; row order, identities, labels and clocks remain unchanged.
+
+All six Sprint 2 windows pass strict validation and parent chronology: E-FAIL,
+X-PARITY, EURUSD June 2016 stress, XAUUSD March 2020 stress and both March 2024
+DST cases. Corrected AVX2 stress characterizations take 68.163 s / 775,654 ticks
+for EURUSD and 95.940 s / 1,710,103 ticks for XAUUSD, with peak deep outcomes
+522 and 420 respectively. These are single characterization passes, not measured
+optimization gains. Sprint 3 requires alternating repeated comparisons against
+this exact corrected source/binary and frozen intervals.
 
 | Area | Accepted baseline and evidence |
 | --- | --- |
@@ -64,16 +76,18 @@ that external path is operator context, not a required file in this checkout.
 
 ## Source And Validation Pins
 
-Sprint 1 compile (2026-09-10): MetaEditor MCP build 6184, explicit optimized
-`AVX2 + FMA3`, **0 errors, 0 warnings**. Binary: 304,964 bytes, modified
-`2026-09-10T13:00:47.358840+00:00`, SHA-256
-`ad238cb3343038fe7103e6e1c570360311da80ef0b291b35312a7d67e8501126`.
+Sprint 2 compile (2026-09-10): MetaEditor MCP build 6184, explicit optimized
+`AVX2 + FMA3`, **0 errors, 0 warnings**. Binary: 306,272 bytes, modified
+`2026-09-10T13:11:58.509647+00:00`, SHA-256
+`a7046b579da5bda9e66141704b2a904fbbe5d10926ebaae69dd1d129481a9fcb`.
 The 38-source compact sorted mapping hashes to
-`15054598caf827ecddd757732d67a3b0d125b378a490148c8b3cfb0a9b2ee301`.
+`ff251a1193fdd5a807c81b423ca7155c0b23d6d047008496ebdb07aab31db02b`.
 Receipts, paired rollback binaries, settings, failed-run diagnostics and exact
-comparisons are in ignored `.codex-artifacts/eurusd-tester-reliability/sprint-1/`.
-The existing 45 Python tests and strict V13 fixture pass. No live failure test,
-full-history EURUSD run or new human chart acceptance is claimed.
+comparisons are in ignored `.codex-artifacts/eurusd-tester-reliability/sprint-2/`;
+`corrected-1-pin.json` is the matching source/binary receipt. Sprint 1's matching
+rollback pair remains in the adjacent `sprint-1/` receipts and Git `9215df8`.
+The unchanged 45 Python tests and strict V13 fixture reuse their Sprint 1 pass.
+No live failure test, full-history EURUSD run or new human chart acceptance is claimed.
 
 Historical cleanup compile (2026-09-10), source `c9ebb24`: MetaEditor MCP preflight
 and `compile_file`, build 6184 / x64,

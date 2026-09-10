@@ -162,6 +162,18 @@ string PivotRunCompletionStatus()
   return "CENSORED";
 }
 
+void HandlePivotResearchFailureAtEventBoundary(const bool stop_tester = true)
+{
+  PivotV13CaptureResearchFailure();
+  if(PivotV13ResearchFailed() && !g_pivot_v13_research_discarded)
+  {
+    FinalizePivotSignalTerminalStates();
+    DiscardFailedPivotResearch();
+  }
+  if(stop_tester)
+    PivotV13StopFailedTesterAtEventBoundary();
+}
+
 int OnInit()
 {
   g_tester_interval_completed = false;
@@ -200,13 +212,19 @@ int OnInit()
                 EnumToString(Macro_Timeframe));
   if(!PivotV13StatsInit())
   {
-    Print("V13 export initialization failed; EA initialization stopped");
-    return INIT_FAILED;
+    if(MQLInfoInteger(MQL_TESTER) > 0)
+    {
+      Print("V13 export initialization failed; tester initialization stopped");
+      return INIT_FAILED;
+    }
+    Print("V13 export initialization failed; live broker processing remains active");
   }
-  LoadAllIndicatorDefinitions();
+  if(PivotV13Ready())
+    LoadAllIndicatorDefinitions();
   InitializePivotFractalRuntime();
   InitializePivotBrokerOwnershipBoundary();
   RefreshCustomSymbolRates();
+  HandlePivotResearchFailureAtEventBoundary(false);
 
   ResetExecutionVisualizationCache();
   FrontendResetRefreshThrottle();
@@ -233,9 +251,9 @@ void FinalizePivotRunExport()
     FinalizeDeepPivotForExport();
   if(!PivotV13ResearchFailed())
     FinalizeActivePivotWindowsForExport();
-  PivotV13CaptureResearchFailure();
+  HandlePivotResearchFailureAtEventBoundary(false);
   if(!PivotV13WriteSummary(PivotRunCompletionStatus()))
-    PivotV13CaptureResearchFailure();
+    HandlePivotResearchFailureAtEventBoundary(false);
 }
 
 void OnDeinit(const int reason)
@@ -263,7 +281,7 @@ void OnTradeTransaction(const MqlTradeTransaction &trans,
 {
   RefreshCustomSymbolRates();
   ReconcileAndFinalizePivotSignals();
-  PivotV13StopFailedTesterAtEventBoundary();
+  HandlePivotResearchFailureAtEventBoundary();
 }
 
 void OnTick()
@@ -272,7 +290,7 @@ void OnTick()
   RefreshCustomSymbolRates(tick);
   if(!DebugEquityGuardAllowsProcessing())
   {
-    PivotV13StopFailedTesterAtEventBoundary();
+    HandlePivotResearchFailureAtEventBoundary();
     return;
   }
 
@@ -286,7 +304,7 @@ void OnTick()
   datetime current_time = TimeCurrent();
   if(FrontendRefreshDue(current_time))
     RefreshExecutionVisualization();
-  PivotV13StopFailedTesterAtEventBoundary();
+  HandlePivotResearchFailureAtEventBoundary();
 }
 
 double OnTester()

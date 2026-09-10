@@ -139,22 +139,35 @@ void FinalizePivotSignalTerminalStates()
     if(g_pivot_signals[i].execution.state ==
        EXECUTION_ORDER_BROKER_CLOSED)
     {
-      RecordDeepPivotBrokerParentClose(g_pivot_signals[i]);
-      UpdatePivotOrigin(g_pivot_signals[i]);
-      ExportPivotOwnershipExecutionCheckIfNeeded(g_pivot_signals[i]);
-      ExportPivotTerminalExecutionCheck(g_pivot_signals[i]);
-      if(!FinalizeBrokerParityAtBrokerTerminal(g_pivot_signals[i]) ||
-         !ExportPivotSignalOutcome(g_pivot_signals[i]))
+      if(!g_pivot_signals[i].execution.broker_close_confirmed ||
+         g_pivot_signals[i].execution.close_time <= 0)
         continue;
+      if(PivotV13Ready())
+      {
+        // Hand off the authoritative close clock exactly once before removing
+        // broker bookkeeping, even if research delivery fails on this boundary.
+        RecordDeepPivotBrokerParentClose(g_pivot_signals[i]);
+        UpdatePivotOrigin(g_pivot_signals[i]);
+        ExportPivotOwnershipExecutionCheckIfNeeded(g_pivot_signals[i]);
+        ExportPivotTerminalExecutionCheck(g_pivot_signals[i]);
+        if(!FinalizeBrokerParityAtBrokerTerminal(g_pivot_signals[i]) ||
+           !ExportPivotSignalOutcome(g_pivot_signals[i]))
+          PivotV13MarkFailed("CLOSED_BROKER_RESEARCH_DELIVERY_FAILED", "", 0,
+                            g_pivot_signals[i].broker_signal_id);
+      }
       LogPivotSignalTerminal(g_pivot_signals[i]);
-      PivotSignalRemoveAt(i);
+      if(!PivotSignalRemoveAt(i))
+        PivotV13MarkFailed("CLOSED_BROKER_STATE_REMOVE_FAILED", "", GetLastError());
       continue;
     }
     if(g_pivot_signals[i].execution.state == EXECUTION_ORDER_CANCELED ||
        g_pivot_signals[i].execution.state == EXECUTION_ORDER_FAILED)
     {
-      UpdatePivotOrigin(g_pivot_signals[i]);
-      ExportPivotTerminalExecutionCheck(g_pivot_signals[i]);
+      if(PivotV13Ready())
+      {
+        UpdatePivotOrigin(g_pivot_signals[i]);
+        ExportPivotTerminalExecutionCheck(g_pivot_signals[i]);
+      }
       LogPivotSignalTerminal(g_pivot_signals[i]);
       PivotSignalRemoveAt(i);
     }

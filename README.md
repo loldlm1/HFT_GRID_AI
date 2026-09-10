@@ -15,7 +15,8 @@ Classic pivots come from previous completed broker candles. Consumed H1 origins
 can declare eight structural/midpoint research lanes; shared M10 events capture
 one Micro feature vector and parent-scoped 1R/2R/3R outcomes. The independently
 checked broker lane uses FOK, immutable structural protection and a fresh-quote
-1R target. Research and export never control broker execution.
+1R target. Research and export never control live broker execution. Fatal research
+errors stop the Strategy Tester and invalidate its dataset.
 
 Offline Python tools validate V13, build typed native-grain datasets, audit support
 and leakage, and train explicitly selected H1 or deep candidates. The separate

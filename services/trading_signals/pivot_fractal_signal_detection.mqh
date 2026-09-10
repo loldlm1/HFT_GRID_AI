@@ -346,7 +346,7 @@ void ProcessPivotTouchCandidates(PivotTouchCandidate &candidates[],
                                  const MqlTick &tick)
 {
   PivotContextFeatureSnapshot shared_features;
-  if(Enable_Signal_Feature_Export)
+  if(PivotV13Ready())
   {
     CapturePivotContextFeatureSnapshot(tick.bid,
                                        tick.time,
