@@ -1,5 +1,9 @@
 # Pivot Fractal V13 Producer Handoff
 
+Navigation note (2026-09-10): frozen August 31 contract/evidence snapshot.
+Use the [current index](../README.md) for subsequent source/compile corrections.
+Original pins and results below remain unchanged.
+
 **Status**: Sprint 8 compile and bounded real-tick tester acceptance complete;
 human visual/chart verification remains outstanding. Django may prepare against
 this frozen V13 handoff, but its destructive V12 removal gate remains separate.

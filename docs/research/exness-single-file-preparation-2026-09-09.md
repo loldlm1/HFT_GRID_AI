@@ -66,5 +66,5 @@ Other symbols retained strict source quotes; no raw archive was rewritten.
 The resumable service keeps one accumulating output, verifies committed byte
 ranges, atomically publishes the final file and deletes owned temporary inputs
 by default. See the [service command](../../tools/exness_tick_history/README.md#one-persistent-mt5-file-per-symbol)
-and [workflow](../workflows/exness-tick-history.md) for future preparation and
+and [workflow](../../tools/exness_tick_history/README.md#operator-validation-queue) for future preparation and
 the separate native acceptance path.

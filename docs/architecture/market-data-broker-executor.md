@@ -7,6 +7,30 @@ previous completed broker candles, immutable H1 and nested M10 research facts,
 and one structural H1 `1R` broker lane. It is not a generic strategy, grid,
 licensing, risk-dashboard, model-serving, or multi-leg execution framework.
 
+The EA property version is `1.30`; the export schema is separately versioned as
+`13`, with signal source `PIVOT_FRACTAL_V2`. See the [current index](../README.md)
+for source/compile pins and open operational gates.
+
+## Public Inputs
+
+| Group | Inputs and defaults |
+| --- | --- |
+| `+= Market Data Time =+` | `Broker_Session=FIXED_TIME_SESSIONS`, `Macro_Timeframe=PERIOD_H1`, `Deep_Timeframe=PERIOD_M10`, `Micro_Timeframe=PERIOD_M3` |
+| `+= Broker Execution =+` | `Lot_Type=EXECUTION_LOT_REFERENCE_BALANCE_PERCENT`, `Lot_Strategy_Size=0.01` |
+| `+= Signal Statistics Export =+` | `Enable_Signal_Feature_Export=false`, `Signal_Feature_Run_Id=""` |
+| `+= Developer Debug Settings =+` | `Enable_Logs=false`, `Enable_File_Logs=false` |
+
+`Lot_Strategy_Size` selects requested lots in fixed mode or percentage risk from
+the fixed `1,000,000` reference in reference-balance mode. The default `0.01`
+percent means a `100` account-currency reference budget, not live-balance risk.
+Pivot formulas, feature parameters and protection rules are not public controls.
+
+Do not restore licensing, account settings, configurable protection, user trading
+hours, spread thresholds, direction/concurrency selectors, multi-leg risk,
+partial TP, daily limits, lot sequences, runtime model/pattern controls, Bands
+policies, retries or compatibility aliases. The collector runs continuously;
+actual broker trading sessions still gate the real order.
+
 ## Runtime Ownership
 
 ```text
@@ -41,6 +65,12 @@ Each H1 and M10 window retains raw and trade-tick-normalized
 `PP`, `S1..S3`, and `R1..R3` with strict ladder ordering. Window identity and
 trigger ordering are independent of analysis-time display/DST fields.
 
+`FIXED_TIME_SESSIONS` preserves analysis timestamps. `EXNESS_SESSION` retains
+broker timestamps and applies the implemented symbol/calendar winter analysis
+adjustment of `-60` minutes. Neither changes source ticks, broker bars, scheduling,
+triggers or orders. The existing custom-symbol session choices are in the current
+index; they do not change the public input default.
+
 ## Pivot Identity And Triggers
 
 Identity is `(symbol, timeframe, active bar open, level)` and is consumed on the
@@ -54,6 +84,11 @@ first eligible live-Bid trigger. Direction is an outcome, not an identity field.
 Same-batch order is buy-armed `PP`, `S1`, `S2`, `S3` downward and sell-armed
 `PP`, `R1`, `R2`, `R3` upward. Buy triggers use Bid and executable entry uses
 fresh Ask; sell trigger and entry use Bid.
+
+H1 consumption is final even if its broker route is denied or the send fails.
+Buy stops map `PP -> S1`, `S1 -> S2`, `S2 -> S3`, then one extrapolated boundary
+below S3; sells are symmetric through R3. The pre-send TP is exactly one fresh
+executable quote's price-distance R from that structural stop.
 
 ## H1 Lanes
 
@@ -79,6 +114,10 @@ virtual sells enter at Bid and resolve on Ask. Stops normalize outward to the
 trade-tick grid and exact integer-R targets are rebuilt from normalized risk.
 Invalid geometry, distance, money, no-touch, and run-end states are explicit.
 
+The H1/parity active-state cap is `2048`. Run termination censors unresolved
+entered lanes and never reports them as SL losses. R5 has no special midpoint
+controller role; any surviving structural lane keeps the shared pending entry armed.
+
 ## Deep M10 Evidence
 
 Deep capture is research-only and requires at least one entered eligible
@@ -93,6 +132,11 @@ event-level shared trial for each deep ratio `1R`, `2R`, and `3R`. Parent links
 associate the event with every eligible H1 parent active at the trigger. A link
 stores its own parent identity, entry time, and exact `m10_parent_age_seconds`;
 features are never copied into each ratio/link row.
+
+Freeze the active-parent set immediately before discovery. Later entries or fills
+are never linked retroactively; direction is an immutable trigger outcome, not a
+second event identity. Invalid deep geometry remains explicit: it is never
+reflected, stretched or routed to another stop.
 
 The deep path uses the event executable quote and next outward M10 pivot as the
 normalized stop. It never reaches `OrderSend`. A parent exit censors only that
@@ -125,6 +169,13 @@ V13 derives magic namespace `HFT_GRID_AI_PIVOT_FRACTAL_V13`; older-engine
 positions are never adopted, closed, or modified. One accepted request creates
 one exact submitted-geometry parity shadow outside H1/deep target cohorts.
 
+Capture and freshly recheck point/trade tick, spread, volume min/max/step,
+requested and downward-normalized volume, free margin, profit/margin calculation
+results, full-fill support and request/send retcodes. Preserve ticket/fill,
+protection, close and deal-history facts. Non-hedging accounts collect evidence
+but cannot send. File diagnostics use captured broker event time; denied attempts
+show unavailable request/volume/quote facts as `n/a`, separate from reference risk.
+
 ## Features And Duration
 
 When export is enabled, exactly four cached handles exist: Macro/Micro Bands and
@@ -133,11 +184,22 @@ Macro/Micro Stochastic. Fixed settings are Bands `21/0/2.0`, SMA,
 `STO_CLOSECLOSE`. H1-origin features live once on `signal_origins.tsv`; deep
 configured-Micro features live once on `deep_pivot_events.tsv`.
 
+Handles are initialized once and safely released after partial initialization or
+normal deinitialization; export-off creates no research handles or deep/export
+state. `%B` uses the immutable touched pivot, remains unclipped, and exports raw,
+SMA 5, SMA slope, state, Band base-line/slope and shift-0 width facts according to
+the strict headers. Missing feature data marks research incompleteness only.
+
 `h1_structural_lifecycle_seconds` is exact broker-time duration from a lane's
 own entry to a confirmed close. `m10_parent_age_seconds` is exact parent entry
 to M10 trigger age. Neither is rounded or capped. The downstream application
 maps them to separate `<= minutes * 60` research predicates; H1 duration is
 retrospective and excluded from causal/model features.
+
+Duration starts at each lane's own executable entry, including the midpoint.
+`NOT_TRIGGERED`, `INELIGIBLE` and `CENSORED_RUN_END` have null completed H1 duration.
+The two inclusive minute selectors combine with AND during research; they never
+delete later raw events or cap producer capture.
 
 Confirmed broker entry and close may serialize to the same second, giving a
 valid duration of zero. Reversed clocks and duration mismatches are rejected;
@@ -167,7 +229,9 @@ The entrypoint's ordered aggregators are
 `services/trading_tools.mqh`, `services/trading_management.mqh`,
 `services/trading_signals.mqh`, and `services/frontend.mqh`. Aggregators own
 include order; no sibling cycles or per-tick handle creation are permitted.
-The frontend is read-only and cannot influence execution.
+The frontend is read-only and cannot influence execution. It draws at most 16
+owned positions and performs no chart work in nonvisual tester runs. Avoid
+per-tick handle creation, unbounded logging and full-history scans in hot paths.
 
 The Python validator accepts strict V13 only, builds native-grain H1/deep/
 broker/calibration artifacts, audits referential integrity and leakage, and
@@ -179,3 +243,8 @@ separately from full semantic validation. Timestamp-only historical recovery
 creates a distinct derivative with adjacent correction/provenance sidecars and
 preserves source exports. The [parent-close acceptance record](../research/parent-close-chronology-acceptance-2026-09-09.md)
 documents the corrected producer, focused tester parity and recovered-run limits.
+
+The [research tool guide](../../tools/deterministic_signal_ml/README.md) owns
+typed intake, native-grain artifacts, leakage/support rules and offline training
+procedures. [Environment validation](../environment/mt5-agentic-workflows.md)
+owns compile and operator acceptance procedures. No document authorizes live rollout.

@@ -1,58 +1,39 @@
-# MT5 Agentic Workflows
+# MT5 Environment And Validation
 
-This runbook is the source of truth for V13 local paths, deterministic Python
-evidence, MetaEditor compilation, and operator-owned Strategy Tester artifacts.
-Keep full logs and raw market data out of chat and commits.
+Use this runbook for environment setup, compiler operations and verification.
+The [current index](../README.md) selects source/compile evidence and outstanding
+gates. Runtime semantics belong to the [architecture](../architecture/market-data-broker-executor.md);
+research and source procedures belong to the [V13](../../tools/deterministic_signal_ml/README.md)
+and [Exness](../../tools/exness_tick_history/README.md) tool guides.
 
-The [Exness history workflow](../workflows/exness-tick-history.md) documents the
-separate Python source pipeline, Wine/native import steps, completed persistent
-tick files and pending broker acceptance. The [current handoff](../research/exness-research-handoff-2026-09-09.md)
-records the accepted Exness tester and recovered-run limits. The service data
-root is ignored
-`artifacts/exness_tick_history/` or a dedicated external directory. It adds no
-terminal mutation API or EA include.
+## Codex And Artifact Ownership
 
-## Codex Skills And Local State
+[AGENTS.md](../../AGENTS.md) routes tasks to installed skills. MQL5/Python
+engineering comes from `production-engineering-stack`; Token Saver and lifecycle
+hooks come from `codex-agentic-stack`. Planner handles saved/phased/sprint plans,
+including direct requests; create-plan handles short chat plans. Resolve helpers
+from installed capabilities, without copying skills/hooks or pinning cache versions.
 
-Read the root [AGENTS.md](../../AGENTS.md) for current product and skill routing.
-MQL5 and Python capabilities come from `production-engineering-stack`; Token
-Saver comes from `codex-agentic-stack`. The standalone `$planner` writes saved
-plans only when explicitly invoked. Installed plugins own `Stop`, `PreCompact`,
-`PostCompact`, and compact `SessionStart` hooks; do not add duplicate local hooks
-or restore the retired per-tool cleanup workflow.
+The official [instruction discovery](https://learn.chatgpt.com/docs/agent-configuration/agents-md)
+and [skills/plugins](https://learn.chatgpt.com/docs/skills-and-plugins) pages were
+searched and fetched on 2026-09-10; the observed CLI was `0.153.4`. Project AGENTS
+owns product-specific rules. User/global configuration and installed plugins own
+provider/authentication settings and shared lifecycle hooks. Restart a session to
+load revised instructions; do not reinstall unchanged plugins or duplicate their
+Stop/PreCompact/PostCompact/SessionStart hooks. No project config override is needed.
 
-MetaEditor and MetaTrader terminal MCP servers remain optional capabilities.
-Discover their actual tool names and schemas in the active session. MetaEditor
-must run for compilation, and the terminal must run for terminal/tester tools.
-Missing tools leave the corresponding gate unrun; they do not prevent source
-inspection. Tool availability and automatic approval never authorize live trades.
-Keep `METATRADER_METAEDITOR_MCP_API_KEY` and `METATRADER_TERMINAL_MCP_API_KEY`
-values outside project files, logs, and commits.
+Use one writer per worktree. Planner execution state belongs in ignored
+`.codex-hook-state/`; detailed receipts belong in ignored `.codex-artifacts/`.
+Retain accepted operator handoffs and original/derived evidence. Do not clean
+shared terminal folders, global session/authentication state or plugin caches.
 
-Use one writer per worktree. Keep runtime checkpoints in `.codex-hook-state/`
-and disposable diagnostics in `.codex-artifacts/`, both ignored. Preserve accepted
-operator artifacts; do not clean shared terminal folders as session maintenance.
-Global provider/authentication configuration belongs in the user Codex layer,
-not in this project's `.codex/config.toml`. Restart the Codex session to load
-updated instructions; do not reinstall unchanged plugins.
-
-For guidance-only edits, review skill identifiers and links, confirm that source
-and include files are unchanged, review the broker/research boundaries, and run:
-
-```bash
-git diff --check
-git diff --name-only
-git check-ignore .codex-hook-state/probe.json .codex-artifacts/probe.txt
-```
-
-Commit only the reviewed documentation/ignore paths on the current branch and
-record the parent SHA as rollback. These checks do not replace compilation,
-Python contracts, or human chart acceptance when their inputs change.
-
-Reviewed 2026-09-05 against OpenAI's
-[AGENTS.md discovery](https://learn.chatgpt.com/docs/agent-configuration/agents-md),
-[skills](https://learn.chatgpt.com/docs/build-skills), and
-[configuration](https://learn.chatgpt.com/docs/config-file/config-advanced) guidance.
+MetaEditor and terminal MCP capabilities are discovered at runtime. MetaEditor
+must run for compiler tools; MT5 must run for terminal/tester tools. Call the
+respective `get_workspace_info` before that server's operations. Missing tools
+leave dependent gates unrun, while source inspection can continue. Tool approval
+never authorizes account changes or live orders. Keep
+`METATRADER_METAEDITOR_MCP_API_KEY` and `METATRADER_TERMINAL_MCP_API_KEY` values,
+account/community identifiers and private terminal data out of logs and commits.
 
 ## Path Contract
 
@@ -85,36 +66,20 @@ find "$HOME/.wine" "$HOME/.mt5" "$HOME/.config" -maxdepth 8 \
   -type d -path '*/MetaQuotes/Terminal/Common/Files' 2>/dev/null
 ```
 
-## Runtime Resources
-
-When export is enabled, V13 owns exactly four cached built-in handles:
-Macro/Micro Bands and Macro/Micro Stochastic. Bands use period `21`, shift `0`,
-deviation `2.0`, SMA, and `PRICE_WEIGHTED`; Stochastic uses `K=5`, `D=3`,
-slowing `3`, `MODE_SMA`, and `STO_CLOSECLOSE`. The configured Micro source is
-captured once per shared M10 event (M3 by default).
-
-Handles, deep state, and the twelve V13 files are disabled when export is off.
-Handles are created during initialization and released safely after partial
-initialization and normal deinitialization. There is no custom indicator or
-runtime-model artifact requirement.
-
 ## Compile Policy
 
-- The current V13 compile is pinned in the
-  [parent-close acceptance record](../research/parent-close-chronology-acceptance-2026-09-09.md).
-  The producer handoff retains its older baseline. Do not rerun compilation
-  merely to start a new work session.
-- Recompile after an MQL5 source/include change, a compiler/toolchain change, or
-  an explicit new acceptance gate. Future multi-sprint plans define whether
-  intermediate compiles are required.
-- Discover the current MetaEditor tool schema, call `get_workspace_info` first,
-  verify allowed roots and `can_compile_file`, then call `compile_file` for the
-  absolute EA path.
-- Accept only `0 errors, 0 warnings`, and verify that `HFT_Grid_AI.ex5` was
-  regenerated (timestamp, size, and hash where available).
-- MetaEditor `/s` syntax checks are not binary acceptance evidence.
-- Use the project-native runner only when MCP cannot execute, and record the
-  precise fallback reason in the handoff.
+Recompile after MQL5 source/include or toolchain changes, or an explicit gate.
+Reuse an unchanged compile pin selected by the current index. Before source edits,
+retain the matching ignored binary and source hashes when available for rollback.
+
+1. Discover the current MetaEditor schema and call `get_workspace_info` first.
+   Verify allowed roots and `can_compile_file` before compiler/file operations.
+2. Call `compile_file` with the actual absolute EA path and supported target.
+3. Require `0 errors, 0 warnings`; verify a regenerated `HFT_Grid_AI.ex5` using
+   timestamp, size and SHA-256, and retain matching source/include hashes.
+4. If MCP cannot execute, record the precise reason and use the fallback below.
+   A syntax-only `/s` check or stale binary is not acceptance. If no runner works,
+   the compile gate remains unrun and source sprint completion is blocked.
 
 ### Project-Native Fallback
 
@@ -141,130 +106,81 @@ py -3.12 tools\mt5\compile_mt5.py `
 
 Record parsed compiler status and `.ex5` metadata, not the full log.
 
-## Python Validation
+## Python Environment And Checks
+
+The Exness tool requires Python 3.11+ (`tomllib`). The accepted local environment
+uses Python 3.12 and the pinned dependencies in each requirements file. Reuse the
+maintained `.venv`; setup commands are for an absent environment, not routine upgrades:
 
 ```bash
 python3 -m venv .venv
 .venv/bin/python -m pip install -r tools/deterministic_signal_ml/requirements.txt
-.venv/bin/python -m compileall -q tools/deterministic_signal_ml
-.venv/bin/python -m unittest discover \
-  -s tools/deterministic_signal_ml/tests -p 'test_*.py'
+.venv/bin/python -m pip install -r tools/exness_tick_history/requirements.txt
 ```
 
-Generated datasets, audits, reports, and offline models remain under ignored
-`artifacts/` directories.
-
-## V13 Artifact Inventory
+Run affected existing contracts and syntax checks after Python/fixture changes:
 
 ```bash
-export PIVOT_RUN_ID="<run_id>"
-export PIVOT_DATASET_ID="<dataset_id>"
-export PIVOT_AUDIT_ID="<audit_id>"
-
-find "$PIVOT_RUNS_ROOT/$PIVOT_RUN_ID" -maxdepth 1 -type f \
-  -printf '%f %s bytes\n' 2>/dev/null | sort
+rtk test .venv/bin/python -m unittest discover -s tools/deterministic_signal_ml/tests -p 'test_*.py'
+rtk test .venv/bin/python -m unittest discover -s tools/exness_tick_history/tests -p 'test_*.py'
+.venv/bin/python -m compileall -q tools/deterministic_signal_ml tools/exness_tick_history
 ```
 
-Every run must contain exactly twelve files in the contract order:
+If RTK is unavailable, run the underlying command and keep bounded output.
+The Exness preparation tests exercise its maintained C++17 helper; `g++`/`c++`
+with 128-bit integers is required for that path. Do not add MQL5 test infrastructure.
+Use the V13 tool guide for validate/build/audit/train commands; keep generated
+artifacts under the existing ignored dataset/audit/model paths. Never place
+provenance sidecars inside a strict twelve-file source run.
 
-```text
-run_manifest.tsv
-pivot_windows.tsv
-signal_origins.tsv
-virtual_trials.tsv
-virtual_outcomes.tsv
-deep_pivot_events.tsv
-deep_pivot_parent_links.tsv
-deep_virtual_trials.tsv
-deep_virtual_outcomes.tsv
-execution_checks.tsv
-broker_outcomes.tsv
-run_summary.tsv
-```
-
-The root is `Common\\Files\\PivotFractalV13\\runs\\<run_id>\\`; older
-schema roots are not intake aliases.
-
-## Validate, Build, And Audit
+## Documentation And Static Gate
 
 ```bash
-.venv/bin/python tools/deterministic_signal_ml/build_dataset.py \
-  --runs-root "$PIVOT_RUNS_ROOT" \
-  --run-id "$PIVOT_RUN_ID" \
-  --validate-only
-
-.venv/bin/python tools/deterministic_signal_ml/build_dataset.py \
-  --runs-root "$PIVOT_RUNS_ROOT" \
-  --run-id "$PIVOT_RUN_ID" \
-  --dataset-id "$PIVOT_DATASET_ID"
-
-.venv/bin/python tools/deterministic_signal_ml/pivot_fractal_audit.py \
-  --dataset-id "$PIVOT_DATASET_ID" \
-  --audit-id "$PIVOT_AUDIT_ID" \
-  --minimum-group-support 30
+git diff --check
+git diff --name-only
+git diff --cached --check
+git diff --cached --name-status
+git check-ignore .codex-hook-state/probe.json .codex-artifacts/probe.txt HFT_Grid_AI.ex5 .venv/probe logs/probe.log artifacts/exness_tick_history/probe.json
 ```
 
-The builder creates native-grain H1, deep-parent, broker, and parity artifacts.
-The audit reports row, event, parent, and unique-origin support separately;
-capacity rejection and censoring are not binary losses.
+Review exact identifiers, all relative links/anchors, current version/status
+claims and each contract's document owner. Keep AGENTS at most 160 lines / 8 KiB.
+For retirements, verify Git commit/path recovery and migrate unique current facts
+before deleting explicit reviewed files. A historical Git path, external operator
+path or command placeholder is distinct from a live local documentation link.
 
-## Offline Training Boundary
+Every sprint also traces include order/reachability/cycles and reviews the broker
+and research boundaries. Documentation-only gates confirm source/include/schema
+hashes unchanged; no new compile is needed. Source cleanup needs exact non-use or
+equivalence proof, existing affected tests and the compile gate. Stage only reviewed
+paths, commit each sprint separately and record its rollback parent. Restore a
+matching binary or recompile if source is reverted.
 
-Select exactly one explicit grain:
+## Strategy Tester And Chart Acceptance
 
-```bash
-.venv/bin/python tools/deterministic_signal_ml/train_model.py \
-  --dataset-id "$PIVOT_DATASET_ID" \
-  --model-id <h1_model_id> \
-  --feature-set-id schema_v13_hft_deep_pivot_features.h1
+Use the current index to select accepted prior evidence and the remaining human
+visual gate. A new full runtime acceptance uses **Every tick based on real ticks**,
+matched export-disabled/enabled intervals and file logs off. Check H1 midpoint
+touch/no-touch and all ratios, shared M10/Micro capture, parent-specific censoring,
+R5 continuation without a special controller, structural 1R broker ownership,
+export-off parity and DST. Validate/build/audit the strict V13 output, preserving
+the configured support floor even when the run has insufficient support.
 
-.venv/bin/python tools/deterministic_signal_ml/train_model.py \
-  --dataset-id "$PIVOT_DATASET_ID" \
-  --model-id <deep_model_id> \
-  --feature-set-id schema_v13_hft_deep_pivot_features.deep_parent
-```
+Record elapsed time, peak state/capacity, twelve-file row counts, folder growth,
+source/binary hashes, tester settings and meaningful diagnostics. Human inspection
+checks owned lines/labels, cleanup and the 16-position rendering bound. Fixtures
+and compilation cannot replace that visual check. It is required before a
+deployment-oriented claim and does not block separately authorized offline
+contract preparation.
 
-H1 training reads eligible structural/midpoint rows and balances by
-`origin_id`. Deep training joins one event feature vector to explicit parent
-links and keeps event/parent/origin support visible. Lifecycle duration,
-terminal status, censoring, broker money, and post-trigger age selections are
-not model features. Every model manifest states
-`approval_state=OFFLINE_RESEARCH_ONLY` and `runtime_artifact_emitted=false`.
+Record the actual execution delay. A run configured with `ExecutionMode=120`
+ms can establish causal processing, geometry, reconciliation and parity, but not
+sub-120 ms latency, perfect intra-second ordering or exchange tick sequencing.
+Any other configured delay retains its corresponding limitation. A recovered
+historical export is not a fresh test of the corrected binary.
 
-## Remaining Human Visual Gate
-
-The bounded real-tick lifecycle, broker, export, and parity run is accepted in
-`docs/research/pivot-fractal-v13-producer-acceptance-2026-08-31.md`. The remaining
-operator gate is a visual Strategy Tester/chart pass for owned position lines,
-labels, cleanup, and the 16-position rendering bound. It is required only before
-a deployment-oriented claim; it does not block offline Django contract work.
-
-If a new full acceptance run becomes necessary, use **Every tick based on real
-ticks**, compare export disabled/enabled on the same interval with file logs
-off, and follow `docs/workflows/pivot-fractal-statistics-flow.md`. Record elapsed
-time, peak state/capacity, twelve-file row counts, and folder growth. Python
-fixtures and compilation cannot replace visual verification.
-
-If the tester uses `ExecutionMode=120` milliseconds, record it as a timing
-limitation. The run can establish causal processing order, immutable trade
-geometry, terminal reconciliation, and export parity, but it cannot prove
-sub-120 ms latency, perfect intra-second fill ordering, or exchange-level tick
-sequencing.
-
-## Evidence And Privacy
-
-Start a new thread from the [current handoff](../research/exness-research-handoff-2026-09-09.md).
-Completed task checkpoints are retained as historical evidence under ignored
-`.codex-artifacts/`; they do not authorize resuming archived plans. No active
-project hook state remains after this closeout. Installed plugin lifecycle hooks
-retain their configuration; project cleanup does not remove global session,
-authentication or plugin state. See the official [hook discovery contract](https://learn.chatgpt.com/docs/hooks#where-codex-looks-for-hooks).
-
-Keep raw TSVs, tester journals, account identifiers, credentials, and private
-terminal data operator-owned. Handoff records contain bounded status, hashes,
-paths, counts, and first useful diagnostics only. A failed-integrity run gets a
-new run ID after correction; its raw files are not edited in place.
-
-The V13 handoff does not authorize live rollout or the downstream Django V12
-removal. Older-engine positions must be flat, the account must support hedging,
-and one EA instance per account/symbol requires separate human authorization.
+Retain private reports/journals outside tracked source, using compact status,
+hashes, paths, counts and first useful failures in documentation. Reuse passing
+evidence while its inputs remain valid. Keep failed original runs intact and use
+new run IDs for corrections. No validation result authorizes live rollout or
+another repository's destructive data/schema cutover.

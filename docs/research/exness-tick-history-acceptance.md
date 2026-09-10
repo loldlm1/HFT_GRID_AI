@@ -148,4 +148,4 @@ Sprint 6 after publication. Revert reviewed code commits in reverse order if
 necessary; preserve raw archives, data manifests and operator evidence. There
 is no accepted new custom symbol, seasonal cohort or V13 tester run to roll
 back yet. Implementation completion does not close the operator gates listed
-in the [workflow](../workflows/exness-tick-history.md).
+in the [workflow](../../tools/exness_tick_history/README.md#operator-validation-queue).

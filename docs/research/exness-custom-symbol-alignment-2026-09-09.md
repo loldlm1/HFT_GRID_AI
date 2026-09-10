@@ -91,5 +91,5 @@ offline with `audit-capture`, writing to a fresh report path.
 The [source preparation record](exness-single-file-preparation-2026-09-09.md)
 retains the TSV coverage, policies and checksums. The
 [service documentation](../../tools/exness_tick_history/README.md#capture-once-audit-offline)
-and [workflow](../workflows/exness-tick-history.md) describe the separate
+and [workflow](../../tools/exness_tick_history/README.md#operator-validation-queue) describe the separate
 registered round-trip, specification and broker acceptance gates.

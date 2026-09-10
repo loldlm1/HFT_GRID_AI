@@ -169,7 +169,66 @@ Native re-exports require explicit milliseconds and all six columns. Choose
 `--encoding utf-16` for a BOM-bearing native UTF-16 export; default is UTF-8
 with optional BOM. Exact quote equality can pass while `mt5_round_trip` remains
 inconclusive until metadata and all four native timeframe bar files are supplied.
-See the workflow for the evidence schema and guided native steps.
+Follow the guided native steps and evidence schema below.
+
+## Guided Native Import And Round-Trip Evidence
+
+For a newly requested registered package, discover terminal MCP schemas and call
+`get_workspace_info` first. Verify Wine prefix, terminal/build, host/Windows path
+mapping, account mode and exact broker symbol. Pin the archive-to-broker feed,
+complete native specification and reversible historical UTC/broker clock.
+A zero/unavailable trade tick or tick value cannot establish specification/P&L
+parity; never infer the trade tick from Point. Keep the EA's export-only Exness
+analysis adjustment separate from source UTC and imported broker timestamps.
+
+In MT5, open Market Watch -> Symbols (Ctrl+U). Create a fresh, unused custom name
+from the export manifest, copying the verified broker specification first. Names
+must fit 31 characters; retain `XAU` for the existing gold calendar mapping.
+Never import into the broker symbol. Freeze digits, point, chart mode and other
+properties before import: changing some properties later erases history. A
+corrected specification uses a fresh symbol/version rather than blind edits.
+
+Import manifest chunks in order through the custom symbol's Ticks tab. Select
+tabs, skip one header row, skip zero columns, preserve the six preview columns,
+and use Shift=0. Record each file/hash/count privately. Import replaces its
+covered interval, including holes; partial imports are not accepted history.
+Recovery reuses exact owned chunks only after reconciling replaced intervals,
+or uses a fresh custom symbol. The separate source-only preparation is not a
+registered export and does not create an attested round trip automatically.
+
+Re-export the entire interval with milliseconds, preserving equal-time groups.
+Capture native M1/M3/M10/H1 bars over the same coverage. Expected native bar
+columns are `<DATE> <TIME> <OPEN> <HIGH> <LOW> <CLOSE> <TICKVOL> <VOL> <SPREAD>`,
+tab-separated, dotted dates and `HH:MM:SS`; tick times include milliseconds.
+MT5 can derive bars from imported ticks. Verify availability/equality for each
+new package; if bars are missing, the gate remains pending. Do not synthesize
+bars or invent a separate bar-import convention.
+
+Create private evidence beside the native files, only after the operations pass:
+
+```json
+{
+  "schema_version": 1,
+  "operator_verified": true,
+  "complete": true,
+  "export_manifest_sha256": "from-import-manifest",
+  "native_specification_sha256": "hash-of-frozen-verified-specification",
+  "custom_symbol": "name-from-import-manifest",
+  "native_ticks_sha256": "sha256-of-complete-native-reexport",
+  "native_bars": {
+    "M1": {"path": "M1.tsv", "sha256": "file-sha256"},
+    "M3": {"path": "M3.tsv", "sha256": "file-sha256"},
+    "M10": {"path": "M10.tsv", "sha256": "file-sha256"},
+    "H1": {"path": "H1.tsv", "sha256": "file-sha256"}
+  }
+}
+```
+
+Placeholder hashes are not evidence. The booleans attest completed operations,
+never preparation alone. `compare-roundtrip` checks ordered time/Bid/Ask
+multiplicity, specification/file hashes and exact native Bid OHLC. Missing
+native evidence yields INCONCLUSIVE; demonstrated tick/spec/bar mismatch yields
+FAIL. Full-range tick verification is distinct from H1 or sampled tick checks.
 
 ## Capture Once, Audit Offline
 
@@ -244,6 +303,136 @@ profile. Reports are immutable, so changed evidence/code requires a new report
 path. These diagnostics never set `mt5_round_trip=PASS` for an unregistered TSV
 or replace the verified specification/clock/feed gates of broker acceptance.
 
+## Seasonal References And Scoring
+
+Copy `profiles/reference.example.json` into an ignored reference directory.
+Its booleans/placeholders intentionally prevent acceptance. Supply verified clock
+and specification objects, feed/profile hash, actual terminal build/capture time,
+and a predeclared scored day/reason. Keep Pro demo/live references separate.
+Map the entire broker day explicitly to UTC; include adjacent source partitions
+when the mapping crosses a date boundary.
+
+Pin limits using an independent pilot, not the already-inspected January 14 and
+July 15, 2026 scored days. The private TOML comparison table needs every numeric
+threshold plus these metadata fields:
+
+```toml
+status = "PINNED"
+name = "xauusd-pro-modern-v1"
+pinned_at_utc = "2026-09-05T00:00:00.000Z" # replace with the actual pin time
+pilot_dates = ["2026-08-25"]               # replace with the reviewed pilot
+rationale = "Evidence supporting each frozen limit"
+# Include every numeric threshold from the profile contract as well.
+```
+
+Freeze references before scoring; do not raise thresholds after inspecting
+failures or calibrate on acceptance days. `inspect-config` exposes the exact
+feed/comparison hashes. The example reference's January 14 broker interval is
+interpreted by its clock object, not assumed to be UTC.
+
+Use native all-quote tick exports or raw MCP JSON with original numeric lexemes.
+For MCP JSONL retain `time_ms`, `bid` and `ask` without float conversion. Despite
+its name, `time_ms` is `YYYY.MM.DD HH:MM:SS.mmm`, interpreted under the verified
+broker clock, not an integer epoch. Each tick entry declares a disjoint
+`[start_broker_msc, end_broker_msc)` interval, SHA-256, row count, format and
+completeness. MCP entries require a positive `limit` and
+`millisecond_and_all_quotes_verified=true` only after checking those semantics.
+Keep account/community fields out of captures.
+
+For `rows >= limit`, bisect and recapture both halves; never advance from the
+last returned tick. The existing `split_capture_interval` preserves tied ticks.
+A saturated one-millisecond interval requires a complete native export. Empty
+broker captures need `empty_interval_evidence`; they do not prove market closure.
+Capture native M1/M3/M10/H1 and at least 26 real completed prior bars per period,
+plus the scored day. Include real source warm-up; the comparator examines at
+most seven prior UTC days. Never fill missing minutes. Warm-up diagnostics are
+separate from scored errors; tick-derived diagnostics do not replace missing
+native broker bars.
+
+Use the exact dataset's successful round-trip report for `compare-broker`.
+Diagnostic -1/0/+1-hour comparisons never adjust data. `seasonal-schedule` lists
+winter/summer and Friday/Monday US/UK transition/mismatch-week captures. Future
+transition dates remain untested. The aggregate uses that deterministic schedule;
+a replacement day must be justified and frozen explicitly, not selected after a
+failure. Seasonal sample acceptance does not certify all historical clock regimes.
+
+### Retained Seasonal Diagnostic Evidence
+
+The September 6, 2026 captures prove exact diagnostic import preservation with
+Shift=0, not registered export or broker acceptance. Preserve these existing
+symbols and raw reports; reacquire only changed, missing, corrupt or potentially
+truncated evidence.
+
+| Evidence | Winter | Summer |
+| --- | --- | --- |
+| Custom symbol | `XAUUSD_EXN_PRO_W1` | `XAUUSD_EXN_PRO_S1` |
+| UTC start | 2026-01-12 20:00 | 2026-07-13 00:00 |
+| Exclusive UTC end | 2026-01-15 00:00 | 2026-07-16 00:00 |
+| Scored day / ticks | January 14 / 459,039 | July 15 / 272,226 |
+| Full-range ticks | 922,664 | 947,513 |
+| Adjacent equal-time rows | 6,254 | 4,473 |
+| Native M1 / M3 / M10 / H1 bars | 2,929 / 979 / 294 / 49 | 4,134 / 1,380 / 414 / 69 |
+| Preceding completed H1 bars | 26 | 46 |
+| Tick and native-bar audit | PASS, zero mismatches | PASS, zero mismatches |
+
+These native bars were generated from ticks. The verified ranges need no new
+import, separate bar import or chart opening. Winter's final compact file starts
+at 20:00. `.codex-artifacts/exness-seasonal-native-20260906/` retains request/frozen
+capture manifests, `seasonal-native-imports-v1.json` and reports:
+
+- `winter-audit-v1.json`: SHA-256 `40f03493e3e04b430e80f652524fba077e00745e0589e7192d96686c964e4975`.
+- `summer-audit-v2.json`: SHA-256 `6f9f4ec7dc4918128773f3da553c3bae1aa6ee1a9acc7ea27f11c91112712df5`.
+
+Original source/broker captures are in `.codex-artifacts/exness-seasonal-20260906/`;
+datasets include `xauusd-winter-20260112-15-v1` and `xauusd-summer-20260713-16-v1`
+under `artifacts/exness_tick_history/`. Earlier pilot evidence remains in
+`.codex-artifacts/exness-sprint1/`, `.codex-artifacts/exness-native-probe-20260906/`
+and `.codex-artifacts/exness-2015-parser-sample.json`. Archived task checkpoints
+and the original seasonal preparation guide remain in
+`.codex-artifacts/thread-closeout-exness-20260907/hook-state/`; preserve them.
+
+Observed broker delays were 38 ms winter / 37 ms summer; maximum M1 OHLC
+errors were 1.605 / 0.375 price units in tick-derived diagnostics. January native
+broker M1 was unavailable with the 100,000-bar reader limit. The reader reported
+zero broker tick size/value; custom tick values differed (0.1 winter, 1 summer).
+These measurements do not establish specification/P&L parity or every year's
+clock regime. Full original diagnostics and capture-auditor commit/rollback pins
+are recoverable at baseline Git path
+`bb97e9e29ad4cc61a07b7e4b9f4b92c56c64de93:docs/research/exness-tick-history-handoff-2026-09-07.md`.
+
+## Operator Validation Queue
+
+Use the [current index](../../docs/README.md) before a new task; reuse accepted
+inputs and captures rather than repeating completed work. For remaining gates:
+
+1. Pin actual profile/feed, terminal/build, nonzero trade tick, native sessions
+   and complete specification. Verify historical UTC/broker clock separately
+   from EA analysis time.
+2. Complete the registered export and exhaustive round trip with verified native
+   evidence. Diagnostic imports cannot supply invented export IDs/attestations.
+3. Pin the independent pilot limits and frozen complete seasonal references;
+   obtain missing native broker bars before formal scoring. Preserve failures.
+4. For a registered full-history workflow, refresh `storage-plan` from a measured
+   pilot and available disk, then download/build/audit/export/import. The historic
+   146.4 GB estimate exceeded then-free 120.4 GB; neither is a current measurement
+   or the requirement of the completed source-only preparation. HEAD availability
+   is not source-body or full-coverage evidence. Use new IDs for extensions.
+5. For newly requested tester acceptance, use the corrected source with real
+   ticks, real warm-up, the verified session and periods, and an isolated run ID.
+   Inspect reports/journals for modeled-tick substitution and history errors.
+6. Apply [strict V13 validation/build/audit](../deterministic_signal_ml/README.md#acceptance-and-downstream-boundary),
+   retaining the support floor of 30 and explicit insufficient support. Full
+   recovered-run semantics cannot be inferred from a bounded chronology pass.
+7. Write `research-provenance` outside V13 with the actual source/binary,
+   dataset/export, specification/clock and tester evidence. Follow the
+   [compile/tester runbook](../../docs/environment/mt5-agentic-workflows.md)
+   only when source/toolchain or a new acceptance gate requires it.
+
+No procedure authorizes live rollout. Human chart/rendering verification remains
+a separate operational gate. Resume only task-owned partial downloads/builds;
+do not delete another writer's lock, overwrite accepted bytes or edit checksums
+to hide corruption. Restore matching immutable data or create an isolated version.
+
 ## Broker Comparison
 
 Broker comparison accepts complete native TSV, MCP JSONL or raw MCP JSON
@@ -305,13 +494,5 @@ and `settings`. Allowed settings are `model`, `start`, `end`, `warmup_start`,
 This sidecar records provenance only; it never certifies a tester run, writes
 inside the V13 folder, trains a model or activates broker execution.
 
-See the [workflow](../../docs/workflows/exness-tick-history.md) for the source,
-terminal and acceptance contract, and the
-[current handoff](../../docs/research/exness-research-handoff-2026-09-09.md)
-before continuing work. Four persistent tick files, their custom-symbol mapping,
-full-history H1 checks and sampled native tick checks are complete. The
-[single-file preparation record](../../docs/research/exness-single-file-preparation-2026-09-09.md)
-retains source coverage and hashes. The corrected V13 EA passes focused Exness
-tester acceptance in its separate [parent-close record](../../docs/research/parent-close-chronology-acceptance-2026-09-09.md).
-Broker equivalence, registered-export acceptance and full recovered-run semantic
-validation remain separate gates.
+See the [current project index](../../docs/README.md) for accepted source,
+custom-symbol, tester and recovery evidence and remaining operational gates.

@@ -4,22 +4,30 @@ This directory validates strict Pivot Fractal V13 exports and builds typed,
 grain-aware offline research artifacts for `PIVOT_FRACTAL_V2`. It never loads a
 model into MT5, authorizes execution, or emits a runtime-compatible artifact.
 
+The [runtime contract](../../docs/architecture/market-data-broker-executor.md)
+owns pivot/entry/stop/lifecycle behavior; the [current index](../../docs/README.md)
+selects accepted source and evidence. Export, virtual/deep state and offline
+artifacts cannot authorize, deny, delay, resize, duplicate, close or modify the
+broker lane. Missing features affect research completeness only.
+
 ## Input Contract
 
 Each run contains exactly twelve TSV files in this order:
 
-1. `run_manifest.tsv`
-2. `pivot_windows.tsv`
-3. `signal_origins.tsv`
-4. `virtual_trials.tsv`
-5. `virtual_outcomes.tsv`
-6. `deep_pivot_events.tsv`
-7. `deep_pivot_parent_links.tsv`
-8. `deep_virtual_trials.tsv`
-9. `deep_virtual_outcomes.tsv`
-10. `execution_checks.tsv`
-11. `broker_outcomes.tsv`
-12. `run_summary.tsv`
+| File | Grain | Authoritative facts |
+| --- | --- | --- |
+| `run_manifest.tsv` | key/value per run | Schema, engine, periods, fixed policies, capacities and approval boundary |
+| `pivot_windows.tsv` | H1 or M10 window | Completed source candle, ladder, PP state and window lifecycle |
+| `signal_origins.tsv` | consumed H1 pivot | Trigger, geometry and one Micro/Macro feature vector |
+| `virtual_trials.tsv` | H1 lane or parity shadow | Entry policy, R, entry, normalized geometry and eligibility |
+| `virtual_outcomes.tsv` | H1/parity trial | First touch, H1 duration and binary eligibility/exclusion |
+| `deep_pivot_events.tsv` | consumed M10 pivot | Direction, trigger, one configured-Micro vector and admission |
+| `deep_pivot_parent_links.tsv` | event x active H1 parent | Parent identity, entry and `m10_parent_age_seconds` |
+| `deep_virtual_trials.tsv` | event x deep R | Shared 1R/2R/3R entry/stop/target geometry |
+| `deep_virtual_outcomes.tsv` | parent link x deep trial | TP/SL or parent/run censor evidence |
+| `execution_checks.tsv` | broker check | Observation, fresh checks, request/send and reconciliation facts |
+| `broker_outcomes.tsv` | confirmed real position | Fill/close, money, costs and completed H1 duration |
+| `run_summary.tsv` | run seal | Counts, high-water marks, integrity and completion |
 
 The producer feature set is `schema_v13_hft_deep_pivot_features`. Compatible
 runs must agree on `Micro < Deep < Macro` timeframes, H1 entry policies and
@@ -34,6 +42,14 @@ V13 keeps evidence at explicit native grains:
 - Parent links associate an event with active H1 virtual or broker parents.
 - Deep outcomes resolve one `(parent link, deep trial)` pair.
 - Broker parity remains calibration evidence outside H1/deep target cohorts.
+
+The source root is `Common\Files\PivotFractalV13\runs\<run_id>\`. No older
+root, header or feature identity is an intake alias. Preserve original source
+exports; malformed or incompatible configurations are rejected, not migrated.
+For Exness custom-symbol inputs, complete the applicable
+[source/import/broker gates](../exness_tick_history/README.md#operator-validation-queue)
+before selecting accepted research data. Keep broker/custom cohorts separate
+and input-provenance sidecars outside the twelve-file run directory.
 
 ## Validate
 
@@ -135,6 +151,14 @@ or capped. Downstream minute filters must use exact `<= minutes * 60`
 predicates; censored, ineligible, and not-triggered rows remain separate support
 evidence.
 
+The two public minute selectors are independent inclusive predicates and combine
+with AND. The H1 selector applies only to completed parent lifecycles and is
+retrospective; it cannot be a causal child admission condition. The M10-age
+selector applies to the linked parent at the deep trigger. Neither caps capture,
+deletes later raw events or relabels censors; there is no implicit 30/60/120-minute
+maximum. Midpoint duration begins at its actual midpoint entry. NOT_TRIGGERED,
+INELIGIBLE and CENSORED_RUN_END rows have null completed H1 duration.
+
 ## Audit
 
 ```bash
@@ -151,6 +175,12 @@ balances, parent-exit censoring, capacity peaks, broker ownership, and parity
 agreement. Reports separate row, event, parent, and unique-origin support and
 use origin-balanced performance summaries. A censor or ineligible row is never
 relabeled as a binary loss.
+
+Binary cohorts contain only feature-complete, eligible TP_FIRST/SL_FIRST rows.
+Capacity, parity, denied/failed-send and incomplete evidence stays outside model
+targets. Parent links are frozen at discovery, never added retroactively; a
+CAPACITY_REJECTED event has no partial children. Shared deep outcomes remain
+link-scoped, so another active parent may continue after one parent's censor.
 
 ## Train
 
@@ -206,3 +236,25 @@ The tracked V13 fixture is intentionally too small to train a deployable model.
 It proves strict build/audit joins and that both trainer selections reach their
 minimum-support gate. Real ablations require the configured row, origin, class,
 and chronological-window support.
+
+## Acceptance And Downstream Boundary
+
+For a new accepted producer/input: run affected Python contracts; validate/build
+the strict run; audit with the configured unique-origin support floor (default
+30); review native feature ownership, lane ratios, weights, censors, capacities,
+broker ownership and parity. Insufficient support remains explicit, not waived.
+Apply the [compile and human tester gates](../../docs/environment/mt5-agentic-workflows.md#strategy-tester-and-chart-acceptance)
+when their source/behavior inputs change. Compilation/fixtures do not replace
+chart verification, and chronology-only auditing is not full semantic acceptance.
+
+The [frozen V13 handoff](../../docs/research/pivot-fractal-v13-producer-handoff.md)
+preserves dated schema/registry/fixture pins and the downstream vendoring
+boundary. Use the current index for subsequent source corrections. Downstream
+Django may prepare its separately authorized contract work; this repository does
+not authorize its V12 data/code removal or destructive cutover. Private raw runs,
+generated datasets/models, binaries and account metadata are not vendored.
+
+Superseded document history is recoverable through the current index. Active
+tooling rejects V12; the retained V12 fixture proves that boundary. Offline
+training produces no MT5 loader, runtime score/filter or online learner. No
+artifact or acceptance sequence authorizes live rollout.
