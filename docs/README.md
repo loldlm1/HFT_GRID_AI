@@ -7,7 +7,7 @@ own procedures and dated evidence owns its original results.
 ## Active Work
 
 The authorized [guidance and cleanup plan](../project-guidance-cleanup-plan.md)
-is executing Sprint 1 of 3. Completed V13, Exness preparation and parent-close
+is executing Sprint 2 of 3. Completed V13, Exness preparation and parent-close
 plans are historical and must not be restarted.
 
 | Area | Accepted baseline and evidence |

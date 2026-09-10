@@ -1,7 +1,10 @@
 # Parent-Close Chronology Acceptance
 
-All three authorized [sprints](../plans/archive/parent-close-chronology-2026-09-09/README.md)
-are complete. The EA close-clock handoff, Python chronology checks, focused
+All three authorized sprints are complete. The original sprint ledger is
+recoverable at Git location
+`bb97e9e29ad4cc61a07b7e4b9f4b92c56c64de93:docs/plans/archive/parent-close-chronology-2026-09-09/README.md`
+through [history recovery](../README.md#guides-and-history-recovery).
+The EA close-clock handoff, Python chronology checks, focused
 Exness tester acceptance and separate historical recovery pass. Full semantic
 validation of the large recovered run remains unrun.
 

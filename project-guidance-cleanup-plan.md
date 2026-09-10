@@ -1,7 +1,7 @@
 # Plan: Project Guidance, Documentation, And Dead-Code Cleanup
 
 **Generated**: 2026-09-10
-**Status**: In progress - Sprint 1
+**Status**: In progress - Sprint 2
 **Execution authorization**: User requested ordered execution of Sprints 1-3, validation and sprint commits on 2026-09-10. Accepted decisions remain in force.
 **Proposal**: Not requested; direct Planner plan with questions.
 **Estimated complexity**: Medium, with a high-consequence broker boundary that must remain unchanged.
@@ -261,8 +261,8 @@ this sprint's reviewed changes or revert its completed commit.
 - [x] Tasks complete; G1-G3 pass and source/include baseline is unchanged.
 - [x] Evidence navigation and all preserved safety/research requirements reviewed.
 - [x] Record actual evidence and residual risks; stage only reviewed paths.
-- [ ] Create exactly one Sprint 1 commit; record commit SHA and `S1_PARENT`.
-- [ ] Start Sprint 2 only after this gate completes. No compile is needed here.
+- [x] Create exactly one Sprint 1 commit; record commit SHA and `S1_PARENT`.
+- [x] Start Sprint 2 only after this gate completes. No compile is needed here.
 
 Sprint 1 validation (2026-09-10): G1-G3 PASS; 55 retained local links/anchors,
 119 recovery objects and six privacy probes checked; all 39 source/include files
@@ -285,7 +285,7 @@ navigation/status annotations in retained documents.
 
 **Commit**: `docs: remove obsolete archives and superseded handoffs`
 
-**Rollback point**: Sprint 1 commit, recorded as `S2_PARENT`; revert the complete
+**Rollback point**: Sprint 1 commit `e9b3998ab10cbb433a387771ceb7bee0ca769e59`, recorded as `S2_PARENT`; revert the complete
 Sprint 2 commit to restore retired paths and their matching navigation.
 
 ### Task 2.1: Preserve Recovery References And Resolve Historical Dependencies
@@ -321,11 +321,18 @@ Sprint 2 commit to restore retired paths and their matching navigation.
 
 ### Sprint 2 Gate
 
-- [ ] All retirements have a recoverable commit/path and resolved live references.
-- [ ] Document count/bytes, ignore policy, G1-G3 and unchanged source checks pass.
-- [ ] Preserve private artifacts; record any justified retention exception.
+- [x] All retirements have a recoverable commit/path and resolved live references.
+- [x] Document count/bytes, ignore policy, G1-G3 and unchanged source checks pass.
+- [x] Preserve private artifacts; record any justified retention exception.
 - [ ] Create exactly one Sprint 2 commit; record commit SHA and `S2_PARENT`.
 - [ ] Start Sprint 3 only after this gate completes. No compile is needed here.
+
+Sprint 2 validation (2026-09-10): G1-G3 PASS. All 106 retired document
+contents recovered from Git and matched to baseline SHA-256. Exactly 14 permanent
+documents plus this plan remain; all 55 retained local links/anchors and six
+privacy probes pass. Removed 29 obsolete ignore lines; private artifact ignores
+remain. All source/include/schema/fixture hashes are unchanged. Historical
+results/hashes are preserved, with recovery navigation replacing retired links.
 
 ## Sprint 3: Remove Proven Dead Code And Validate Integration
 
@@ -601,8 +608,8 @@ the most recent closeout until a later task replaces it and retains its Git anch
 
 | Sprint | Proposed commit | Rollback parent | Execution evidence |
 | --- | --- | --- | --- |
-| 1 | `docs: align V13 guidance and consolidate current workflows` | `bb97e9e29ad4cc61a07b7e4b9f4b92c56c64de93` | G1-G3 and CLI help PASS; commit pending |
-| 2 | `docs: remove obsolete archives and superseded handoffs` | Sprint 1 commit (`S2_PARENT`) | Not run |
+| 1 | `docs: align V13 guidance and consolidate current workflows` | `bb97e9e29ad4cc61a07b7e4b9f4b92c56c64de93` | G1-G3 and CLI help PASS; commit `e9b3998ab10cbb433a387771ceb7bee0ca769e59` |
+| 2 | `docs: remove obsolete archives and superseded handoffs` | `e9b3998ab10cbb433a387771ceb7bee0ca769e59` | G1-G3 and full document recovery PASS; commit pending |
 | 3 | `refactor: remove unused helpers and obsolete fixtures` | Sprint 2 commit (`S3_PARENT`) | Not run |
 
 ## Completion Checklist
@@ -611,7 +618,7 @@ the most recent closeout until a later task replaces it and retains its Git anch
 - [x] Three ordered sprints name scope, validation, commits and rollback points.
 - [x] Execution authorized and active-plan checkpoint initialized.
 - [x] Current documentation consolidated and critical instructions preserved.
-- [ ] Reviewed obsolete documents removed with recoverable Git references.
+- [x] Reviewed obsolete documents removed with recoverable Git references.
 - [ ] Proven dead code/fixtures removed; uncertain candidates retained explicitly.
 - [ ] Affected checks pass, final binary/source metadata is recorded, and all
   unrun operational gates remain accurately labeled.

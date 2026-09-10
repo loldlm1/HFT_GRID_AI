@@ -1,6 +1,9 @@
 # Exness Implementation And Acceptance Evidence
 
-Implementation follows [the saved plan](../plans/archive/exness-tick-history-2026-09-07/exness-tick-history-plan.md).
+Implementation follows the saved plan, now recoverable at Git location
+`bb97e9e29ad4cc61a07b7e4b9f4b92c56c64de93:docs/plans/archive/exness-tick-history-2026-09-07/exness-tick-history-plan.md`.
+See [history recovery](../README.md#guides-and-history-recovery);
+original sprint results below are unchanged.
 Operator-dependent gates are deferred by explicit user instruction. Automated
 software validation is separate from native import and broker-feed acceptance.
 
