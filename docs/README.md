@@ -4,12 +4,15 @@ Updated 2026-09-10. EA version `1.30`, strict Pivot Fractal schema `13`, engine
 `PIVOT_FRACTAL_V2`. This index owns changing project status; the linked guides
 own procedures and dated evidence owns its original results.
 
-## Active Work
+## Reliability And Performance
 
 The [EURUSD reliability and performance plan](../eurusd-tester-reliability-performance-plan.md)
-has validated Sprint 3 of four authorized, ordered sprints; its commit gate is
-next. Sprint 1 is `9215df8` (rollback `c9ebb24`), and Sprint 2 is `4360448`
-(rollback `9215df8`). The affected EURUSD tester is stopped; its incomplete original export and
+has completed implementation and focused validation for all four sprints.
+Sprint 1 is `9215df8` (rollback `c9ebb24`), Sprint 2 is
+`4360448` (rollback `9215df8`), and Sprint 3 is `629fdf5` (rollback `4360448`).
+The final documentation commit records Sprint 4; its SHA and rollback `629fdf5`
+are retained in `.codex-artifacts/eurusd-tester-reliability/sprint-4/commit.json`.
+The affected EURUSD tester is stopped; its incomplete original export and
 pre-stop snapshot remain preserved. Prior cleanup, V13,
 Exness preparation and parent-close plans are historical and must not be restarted.
 
@@ -54,7 +57,32 @@ spread is 1.81% for EURUSD and 2.63% for XAUUSD, well below the gain. Peak deep
 outcomes remain 522 and 420. Sampled tester RSS peaks at 156.90 / 195.45 MiB
 across each symbol's measured pairs; process/load samples and full receipts live
 in `sprint-3/benchmark-results.json` and adjacent private artifacts. These results
-do not predict full-history elapsed time. Sprint 4 owns compiler selection.
+do not predict full-history elapsed time.
+
+Sprint 4 compiles identical source on MetaEditor build 6184 with optimization
+enabled for Regular/x64, AVX2 and AVX512. All targets load and match exact facts
+and broker streams. One warm-up per target/workload and three alternating
+measured repetitions give:
+
+| Target | EURUSD median (min-max), seconds | XAUUSD median (min-max), seconds |
+| --- | ---: | ---: |
+| Regular/x64 | 20.520 (20.425-20.527) | 33.885 (33.856-33.955) |
+| AVX2 + FMA3 | 20.462 (20.359-20.476) | 33.771 (33.761-33.875) |
+| AVX512 + FMA3 | 20.318 (20.240-20.415) | 33.541 (33.411-33.706) |
+
+**Selected target: AVX2.** AVX512's 0.70% / 0.68% median gain is within its
+0.86% / 0.88% observed repeat spread and below the 5% promotion threshold.
+Regular has no material advantage. All eighteen measured compiler passes match;
+the exact final AVX2 binary also passes six strict/chronology cases, export-on/off
+parity and both failed-export teardown/stop checks. The compiler preference stays
+AVX2; no global setting was changed. The original stalled EURUSD run already used
+AVX2, so the later Regular compilation did not cause that run's slowdown.
+
+The private `sprint-4/operator-handoff.md` and paired
+`eurusd-reliability-full-history-avx2-operator.ini` / `.set` prepare the separate
+2015-08-10 to 2026-09-08 EURUSD gate with a fresh run ID. They are not launched.
+Use the [environment procedure](environment/mt5-agentic-workflows.md#full-history-eurusd-operator-gate)
+for the remaining operator acceptance.
 
 | Area | Accepted baseline and evidence |
 | --- | --- |
@@ -75,7 +103,7 @@ policy bounded by `1e-16`; all source ticks are retained.
 ## Remaining Operational Gates
 
 - **Full-history EURUSD: outstanding operator gate.** Focused reliability and
-  performance checks in the active plan do not certify the 2015-2026 interval.
+  performance checks in the completed implementation do not certify the 2015-2026 interval.
 - **Human chart/rendering verification: outstanding.** Required before any
   deployment-oriented claim; compilation and fixtures cannot replace it.
 - **Formal Exness broker equivalence: INCONCLUSIVE.** Positive native broker
@@ -93,16 +121,18 @@ that external path is operator context, not a required file in this checkout.
 
 ## Source And Validation Pins
 
-Sprint 3 compile (2026-09-10): MetaEditor MCP build 6184, explicit optimized
-`AVX2 + FMA3`, **0 errors, 0 warnings**. Binary: 306,420 bytes, modified
-`2026-09-10T13:37:42.748495+00:00`, SHA-256
-`cdd51b362965f90d5fb4ae45da3b7d1b2e0379093dc1d3327a62a6e7a1ae035f`.
+Final compile (2026-09-10): MetaEditor MCP build 6184, explicit optimized
+`AVX2 + FMA3`, **0 errors, 0 warnings**. Binary: 306,260 bytes, modified
+`2026-09-10T14:04:30.256769+00:00`, SHA-256
+`b1a15fea4bee29ef881e304dade16efe5e80b4779da497c8653f5ac5cdea80e6`.
 The 38-source compact sorted mapping hashes to
 `1f342ddcdb0ff0d110faa4520d997dbe55f0523c5cab22093a34a2736c14b0ff`.
 Receipts, paired rollback binaries, settings, failed-run diagnostics and exact
-comparisons are in ignored `.codex-artifacts/eurusd-tester-reliability/sprint-3/`;
-`optimized-1-pin.json` is the matching source/binary receipt. The Sprint 2
-rollback pair remains in `sprint-2/corrected-1-pin.json` and Git `4360448`.
+comparisons are in ignored `.codex-artifacts/eurusd-tester-reliability/sprint-4/`;
+`final-pin.json` is the matching source/binary receipt, and
+`compiler-benchmarks.json` owns target measurements. Source is Git `629fdf5`;
+Sprint 4 changes documentation only. The Sprint 3 rollback pair remains in
+`sprint-3/optimized-1-pin.json` and `sprint-4/before-avx2.ex5`.
 The unchanged 45 Python tests and strict V13 fixture reuse their Sprint 1 pass.
 No live failure test, full-history EURUSD run or new human chart acceptance is claimed.
 

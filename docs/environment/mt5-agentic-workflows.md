@@ -81,6 +81,16 @@ retain the matching ignored binary and source hashes when available for rollback
    A syntax-only `/s` check or stale binary is not acceptance. If no runner works,
    the compile gate remains unrun and source sprint completion is blocked.
 
+Keep optimization and instruction target explicit: use `no_optimization=false`
+and `target="AVX2"` for the selected local build. The current index records the
+same-source Regular/AVX2/AVX512 comparison and exact tested binary. Linux CPU
+flags alone do not establish tester support or speed. Test loading and compare
+exact native facts before measuring another target; use warm-ups, alternating
+repetitions and observed variability. Retain AVX2 when a target's gain is within
+noise or below the recorded promotion threshold. Per-build target experiments
+must not change the global compiler preference. Binary pins are local-host
+acceptance, not portability or deployment certification.
+
 ### Project-Native Fallback
 
 Ubuntu/Wine:
@@ -185,6 +195,34 @@ Native tester tool timeouts limit waiting, not execution. Retain each returned
 job ID, poll at 15-30 seconds, and explicitly stop that matching active job when
 the planned guard expires. The reliability plan uses 30-minute focused-run
 guards and a three-hour guard only for its optional incident prefix.
+
+### Full-History EURUSD Operator Gate
+
+The reliability plan's focused acceptance leaves the full-history run separate.
+Its prepared `.ini` and `.set` are named
+`eurusd-reliability-full-history-avx2-operator` under the existing
+`C:\MetaTrader 5-1\MQL5\Profiles\Tester\` directory. Exact copies and the
+operator handoff are in ignored `.codex-artifacts/eurusd-tester-reliability/sprint-4/`.
+Preparing these files does not launch the gate.
+
+For a separately authorized launch, verify the selected binary hash from the
+current index and that no tester job is active. Confirm a fresh export ID; the
+prepared ID is `EURUSD_Reliability_FULL_AVX2_OPERATOR_20260910`. Keep the existing
+`EURUSD_Exness_2015` ticks/specifications, requested interval 2015-08-10 to
+2026-09-08 (end exclusive), real ticks, M3 chart, H1/M10/M3, EXNESS_SESSION,
+50 ms delay, reference-balance size 0.001, simulated USD 1,000,000 / 1:10000,
+export on and debug/visualization/optimization/forward off. Preflight the terminal
+MCP, then call `tester_run_backtest` with the absolute configuration/input paths
+and `wait=false`; retain the returned job ID.
+
+Set the full-history monitoring/stop budget at launch. Focused-run guards are not
+a full-history acceptance budget. Monitor export growth and first-failure
+diagnostics; retain any failed output and restart only with a new ID. Acceptance
+requires natural successful sealing, reconciled warm-up/tick counts, capacity
+evidence and applicable strict semantic plus chronology validation. A bounded
+chronology audit alone is insufficient. Preserve the original failed EURUSD run,
+its pre-stop backup and the XAUUSD original/recovered artifacts. Human chart,
+formal Exness broker-equivalence and recovered-run semantic gates remain separate.
 
 Record the actual execution delay. A run configured with `ExecutionMode=120`
 ms can establish causal processing, geometry, reconciliation and parity, but not
