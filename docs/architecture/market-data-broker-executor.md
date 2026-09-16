@@ -7,8 +7,8 @@ previous completed broker candles, immutable H1 and nested M10 research facts,
 and one structural H1 `1R` broker lane. It is not a generic strategy, grid,
 licensing, risk-dashboard, model-serving, or multi-leg execution framework.
 
-The EA property version is `1.30`; the export schema is separately versioned as
-`13`, with signal source `PIVOT_FRACTAL_V2`. See the [current index](../README.md)
+The EA property version is `1.40`; the export schema is separately versioned as
+`14`, with signal source `PIVOT_FRACTAL_V2`. See the [current index](../README.md)
 for source/compile pins and open operational gates.
 
 ## Public Inputs
@@ -36,16 +36,17 @@ actual broker trading sessions still gate the real order.
 ```text
 broker tick
 -> reconcile the one real structural H1 1R lane
+-> refresh causal Macro context on bar change or bounded data retry
 -> resolve H1 virtual first touches and midpoint state
--> resolve/censor active deep parent links
--> refresh causal H1 and M10 windows on bar change or bounded data retry
 -> discover H1 live-Bid pivot identities
--> capture one H1-origin Micro/Macro snapshot per tick batch
+-> capture Macro/Deep features against each origin's touched pivot
 -> perform fresh broker checks and submit at most one FOK structural request
--> freeze active same-direction H1 parents
+-> resolve/censor active deep parent links
+-> freeze eligible active H1 parents in both directions
+-> refresh the causal Deep window while eligible parents exist
 -> discover one shared M10 event per consumed deep identity
--> capture one configured-Micro snapshot and deep 1R/2R/3R geometry
--> serialize strict V13 facts
+-> capture one Deep/Micro snapshot and shared deep 1R/2R/3R geometry
+-> serialize strict V14 facts
 ```
 
 H1 terminal transitions are processed before same-tick M10 discovery. Research
@@ -120,18 +121,22 @@ controller role; any surviving structural lane keeps the shared pending entry ar
 
 ## Deep M10 Evidence
 
-Deep capture is research-only and requires at least one entered eligible
-same-direction H1 virtual lane or confirmed broker fill. The event identity is:
+Deep capture is research-only and requires at least one entered eligible H1
+virtual lane or confirmed broker fill, in either direction. No event is collected
+without an active Macro parent. The event identity is:
 
 ```text
 (symbol, Deep_Timeframe, active Deep bar open, level)
 ```
 
-One event stores one configured-Micro indicator vector (M3 by default), and one
+One event stores one Deep/Micro indicator vector, and one
 event-level shared trial for each deep ratio `1R`, `2R`, and `3R`. Parent links
 associate the event with every eligible H1 parent active at the trigger. A link
-stores its own parent identity, entry time, and exact `m10_parent_age_seconds`;
-features are never copied into each ratio/link row.
+stores its parent identity, entry time, exact `m10_parent_age_seconds`,
+`parent_direction`, `deep_direction` and `direction_relationship`
+(`ALIGNED`/`OPPOSED`). Outcome `direction` owns Deep execution; outcome
+`parent_direction` resolves the origin. Features are never copied into link/ratio
+rows. H1/M10 identifiers denote roles; the manifest owns their actual periods.
 
 Freeze the active-parent set immediately before discovery. Later entries or fills
 are never linked retroactively; direction is an immutable trigger outcome, not a
@@ -151,7 +156,7 @@ evidence invalidates research integrity without changing broker execution.
 Reconciliation may observe closure later: broker outcomes own the actual close
 clock, while terminal execution checks retain reconciliation time. Observed
 censor quotes remain observation evidence and produce no completed return or
-binary label. Strict V13 headers remain unchanged.
+binary label.
 
 Admission reserves the complete fan-out atomically: one event, all frozen links,
 three trials, and three outcomes per link. If it cannot fit, the event identity
@@ -173,7 +178,7 @@ session, symbol mode, hedging mode, permissions, Bid/Ask, stops/freeze, volume,
 FOK support, margin, and `OrderCheck`. Broker SL/TP are immutable after fill;
 there is no trailing, break-even, partial close, resize, or `TRADE_ACTION_SLTP`.
 
-V13 derives magic namespace `HFT_GRID_AI_PIVOT_FRACTAL_V13`; older-engine
+V14 derives magic namespace `HFT_GRID_AI_PIVOT_FRACTAL_V14`; older-engine
 positions are never adopted, closed, or modified. One accepted request creates
 one exact submitted-geometry parity shadow outside H1/deep target cohorts.
 Its `distance_eligible` field reports the stricter research minimum as a fact;
@@ -189,11 +194,15 @@ show unavailable request/volume/quote facts as `n/a`, separate from reference ri
 
 ## Features And Duration
 
-When export is enabled, exactly four cached handles exist: Macro/Micro Bands and
-Macro/Micro Stochastic. Fixed settings are Bands `21/0/2.0`, SMA,
+When export is enabled, exactly six cached handles exist: Macro/Deep/Micro Bands
+and Stochastic. Fixed settings are Bands `21/0/2.0`, SMA,
 `PRICE_WEIGHTED`; Stochastic `K=5`, `D=3`, slowing `3`, `MODE_SMA`,
-`STO_CLOSECLOSE`. H1-origin features live once on `signal_origins.tsv`; deep
-configured-Micro features live once on `deep_pivot_events.tsv`.
+`STO_CLOSECLOSE`. Origins own `origin_macro_*` and `origin_deep_*` on
+`signal_origins.tsv`; events own `deep_deep_*` and `deep_micro_*` on
+`deep_pivot_events.tsv`. Each block has a completeness flag; the snapshot flag
+requires both blocks. Missing blocks remain explicit and exclude only the
+corresponding model cohort. Each pair freezes at its own trigger: later Deep
+events cannot populate an earlier Macro snapshot.
 
 Handles are initialized once and safely released after partial initialization or
 normal deinitialization; export-off creates no research handles or deep/export
@@ -218,8 +227,8 @@ second-resolution fields do not establish actual subsecond latency.
 
 ## Export And Include Boundaries
 
-V13 writes twelve files under
-`Common\\Files\\PivotFractalV13\\runs\\<run_id>\\` in this order:
+V14 writes twelve files under
+`Common\\Files\\PivotFractalV14\\runs\\<run_id>\\` in this order:
 
 ```text
 run_manifest.tsv
@@ -244,7 +253,7 @@ The frontend is read-only and cannot influence execution. It draws at most 16
 owned positions and performs no chart work in nonvisual tester runs. Avoid
 per-tick handle creation, unbounded logging and full-history scans in hot paths.
 
-The Python validator accepts strict V13 only, builds native-grain H1/deep/
+The Python validator accepts strict V14 only, builds native-grain H1/deep/
 broker/calibration artifacts, audits referential integrity and leakage, and
 trains explicit offline H1 or deep candidates. No runtime model artifact or
 execution filter is produced.
@@ -252,7 +261,7 @@ execution filter is produced.
 Fatal export or research-integrity failures latch the first operation, broker
 clock and bounded state context. The journal diagnostic is unconditional, even
 with both debug switches off; best-effort persistence uses
-`Common\\Files\\PivotFractalV13\\diagnostics\\<run_id>.failure.txt` outside the
+`Common\\Files\\PivotFractalV14\\diagnostics\\<run_id>.failure.txt` outside the
 strict dataset. Secondary teardown errors cannot replace the first cause.
 The EA requests one tester-only stop at the event boundary. Research is sealed
 before tester scoring, including its final flush; a failed run has a zero custom
@@ -268,8 +277,9 @@ live broker processing continues independently with research disabled.
 
 Finite numeric TSV facts use 17 significant digits to round-trip runtime doubles.
 This preserves strict price comparisons such as a bid below PP even when the two
-numbers would round to the same ten-decimal string. Headers, typed grains, causal
-comparisons, submitted prices and schema version stay unchanged.
+numbers would round to the same ten-decimal string. This numeric format preserves
+causal comparisons and submitted prices; V14 separately versions the paired
+feature and direction contract.
 
 The bounded DuckDB parent chronology audit checks parent intervals and labels
 separately from full semantic validation. Timestamp-only historical recovery

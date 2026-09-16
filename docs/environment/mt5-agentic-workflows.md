@@ -3,7 +3,7 @@
 Use this runbook for environment setup, compiler operations and verification.
 The [current index](../README.md) selects source/compile evidence and outstanding
 gates. Runtime semantics belong to the [architecture](../architecture/market-data-broker-executor.md);
-research and source procedures belong to the [V13](../../tools/deterministic_signal_ml/README.md)
+research and source procedures belong to the [V14](../../tools/deterministic_signal_ml/README.md)
 and [Exness](../../tools/exness_tick_history/README.md) tool guides.
 
 ## Codex And Artifact Ownership
@@ -45,7 +45,7 @@ $METAEDITOR = Join-Path $MT5_ROOT "MetaEditor64.exe"
 $EA_ENTRYPOINT = Join-Path $MT5_ROOT "MQL5\Experts\HFT_Grid_AI\HFT_Grid_AI.mq5"
 $COMPILE_LOG = Join-Path $MT5_ROOT "MQL5\Experts\HFT_Grid_AI\logs\compile\agentic-build.log"
 $MT5_COMMON_FILES = Join-Path $env:APPDATA "MetaQuotes\Terminal\Common\Files"
-$PIVOT_RUNS_ROOT = Join-Path $MT5_COMMON_FILES "PivotFractalV13\runs"
+$PIVOT_RUNS_ROOT = Join-Path $MT5_COMMON_FILES "PivotFractalV14\runs"
 ```
 
 ### Ubuntu/Wine
@@ -56,7 +56,7 @@ export METAEDITOR="$MT5_ROOT/MetaEditor64.exe"
 export EA_ENTRYPOINT="$MT5_ROOT/MQL5/Experts/HFT_Grid_AI/HFT_Grid_AI.mq5"
 export COMPILE_LOG="$MT5_ROOT/MQL5/Experts/HFT_Grid_AI/logs/compile/agentic-build.log"
 export MT5_COMMON_FILES="$HOME/.wine/drive_c/users/admin/AppData/Roaming/MetaQuotes/Terminal/Common/Files"
-export PIVOT_RUNS_ROOT="$MT5_COMMON_FILES/PivotFractalV13/runs"
+export PIVOT_RUNS_ROOT="$MT5_COMMON_FILES/PivotFractalV14/runs"
 ```
 
 If the Wine prefix changes, locate only the Common Files directory:
@@ -139,7 +139,7 @@ rtk test .venv/bin/python -m unittest discover -s tools/exness_tick_history/test
 If RTK is unavailable, run the underlying command and keep bounded output.
 The Exness preparation tests exercise its maintained C++17 helper; `g++`/`c++`
 with 128-bit integers is required for that path. Do not add MQL5 test infrastructure.
-Use the V13 tool guide for validate/build/audit/train commands; keep generated
+Use the V14 tool guide for validate/build/audit/train commands; keep generated
 artifacts under the existing ignored dataset/audit/model paths. Never place
 provenance sidecars inside a strict twelve-file source run.
 
@@ -171,9 +171,10 @@ matching binary or recompile if source is reverted.
 Use the current index to select accepted prior evidence and the remaining human
 visual gate. A new full runtime acceptance uses **Every tick based on real ticks**,
 matched export-disabled/enabled intervals and file logs off. Check H1 midpoint
-touch/no-touch and all ratios, shared M10/Micro capture, parent-specific censoring,
+touch/no-touch and all ratios, paired Macro/Deep and Deep/Micro capture, both
+parent relationships, parent-specific censoring,
 R5 continuation without a special controller, structural 1R broker ownership,
-export-off parity and DST. Validate/build/audit the strict V13 output, preserving
+export-off parity and DST. Validate/build/audit the strict V14 output, preserving
 the configured support floor even when the run has insufficient support.
 
 Record elapsed time, peak state/capacity, twelve-file row counts, folder growth,
@@ -183,8 +184,8 @@ and compilation cannot replace that visual check. It is required before a
 deployment-oriented claim and does not block separately authorized offline
 contract preparation.
 
-For a fatal research failure, retain the first `PIVOT_V13_EXPORT_FAILED` journal
-entry, its external `PivotFractalV13/diagnostics/<run_id>.failure.txt` sidecar when
+For a fatal research failure, retain the first `PIVOT_V14_EXPORT_FAILED` journal
+entry, its external `PivotFractalV14/diagnostics/<run_id>.failure.txt` sidecar when
 available, tester job ID, settings and source/binary pin. The EA stops only the
 tester at an event boundary; a `FAILED` / `CENSORED` or unsealed export is invalid.
 Use fresh run IDs after correction. Fault checks may invalidate a header or
@@ -192,22 +193,23 @@ remove an export file only in a new disposable run, with the original file
 retained outside its strict directory.
 
 Native tester tool timeouts limit waiting, not execution. Retain each returned
-job ID, poll at 15-30 seconds, and explicitly stop that matching active job when
-the planned guard expires. The reliability plan uses 30-minute focused-run
-guards and a three-hour guard only for its optional incident prefix.
+job ID, use waits no longer than 60 seconds, and stop only that matching active
+job if its planned guard expires. Retain owned settings and raw receipts outside
+tracked source; never start a duplicate job after a waiting timeout.
 
 ### Full-History EURUSD Operator Gate
 
-The reliability plan's focused acceptance leaves the full-history run separate.
-Its prepared `.ini` and `.set` are named
+The completed reliability work leaves full-history acceptance separate. Its
+historical V13 `.ini` and `.set` are named
 `eurusd-reliability-full-history-avx2-operator` under the existing
 `C:\MetaTrader 5-1\MQL5\Profiles\Tester\` directory. Exact copies and the
 operator handoff are in ignored `.codex-artifacts/eurusd-tester-reliability/sprint-4/`.
-Preparing these files does not launch the gate.
+These settings and their original ID remain retained historical artifacts.
 
-For a separately authorized launch, verify the selected binary hash from the
-current index and that no tester job is active. Confirm a fresh export ID; the
-prepared ID is `EURUSD_Reliability_FULL_AVX2_OPERATOR_20260910`. Keep the existing
+For a separately authorized V14 launch, create new owned settings and a new V14
+run ID after verifying the selected binary and that no tester job is active.
+Do not reuse the historical `EURUSD_Reliability_FULL_AVX2_OPERATOR_20260910`
+identity or apply its V13 acceptance to V14. Keep the existing
 `EURUSD_Exness_2015` ticks/specifications, requested interval 2015-08-10 to
 2026-09-08 (end exclusive), real ticks, M3 chart, H1/M10/M3, EXNESS_SESSION,
 50 ms delay, reference-balance size 0.001, simulated USD 1,000,000 / 1:10000,

@@ -216,11 +216,11 @@ def storage_plan(profile: Profile, inventory_id: str, pilot_dataset_id: str,
 
 
 def research_provenance(profile: Profile, dataset_id: str, export_id: str, research_id: str,
-                        v13_run_id: str, ea_source: Path, ea_binary: Path,
+                        v14_run_id: str, ea_source: Path, ea_binary: Path,
                         tester_evidence: dict | None = None) -> dict:
     from .mt5_export import load_export
     identifier(research_id)
-    identifier(v13_run_id)
+    identifier(v14_run_id)
     with Store(profile.data_root) as store:
         dataset, _ = load_dataset(store, profile, dataset_id)
         exported = load_export(store, profile, export_id)
@@ -232,7 +232,7 @@ def research_provenance(profile: Profile, dataset_id: str, export_id: str, resea
                             "Enable_Signal_Feature_Export", "Signal_Feature_Run_Id", "execution_delay_ms", "warmup_start"}
         if not isinstance(settings, dict) or settings.keys() - allowed_settings:
             raise StorageError("Tester evidence settings must use the documented non-private input fields")
-        result = {"schema_version": 1, "research_id": research_id, "v13_run_id": v13_run_id,
+        result = {"schema_version": 2, "research_id": research_id, "v14_run_id": v14_run_id,
                   "dataset_id": dataset_id, "dataset_manifest_sha256": dataset["manifest_sha256"],
                   "export_id": export_id, "export_manifest_sha256": exported["manifest_sha256"],
                   "custom_symbol": exported["custom_symbol"], "specification_sha256": exported["specification_sha256"],
@@ -242,6 +242,6 @@ def research_provenance(profile: Profile, dataset_id: str, export_id: str, resea
                   "tester_build": evidence.get("tester_build"), "tester_settings": settings,
                   "operator_validation": evidence.get("operator_validation", "PENDING_OPERATOR"),
                   "approval_state": "OFFLINE_RESEARCH_ONLY", "evidence_role": "input provenance; not native/tester acceptance",
-                  "v13_run_files_written": False, "runtime_artifact_emitted": False}
+                  "v14_run_files_written": False, "runtime_artifact_emitted": False}
         atomic_json(store.path("research", research_id, "input-provenance.json"), result, immutable=True)
         return result

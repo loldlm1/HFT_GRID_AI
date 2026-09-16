@@ -262,11 +262,10 @@ Apply the [compile and human tester gates](../../docs/environment/mt5-agentic-wo
 when their source/behavior inputs change. Compilation/fixtures do not replace
 chart verification, and chronology-only auditing is not full semantic acceptance.
 
-The [MT5 V14 plan](../../pivot-fractal-v14-mt5-plan.md) owns the new producer
-handoff gates; M4 will freeze exact downstream pins after native acceptance.
-The [historical V13 handoff](../../docs/research/pivot-fractal-v13-producer-handoff.md)
-records old pins and is not a V14 intake contract. Use the current index for
-[Django intake compatibility](../../docs/README.md#downstream-django-intake).
+Use the [frozen V14 handoff](../../docs/research/pivot-fractal-v14-producer-handoff.md)
+for exact source/header/type/fixture pins and the independently retained small
+native source. The [current index](../../docs/README.md#downstream-django-intake)
+owns Django execution status; the consumer must implement its V14 contract first.
 For a fresh intake, provide exactly the twelve TSVs from a successful natural
 completion; keep diagnostics/provenance sidecars outside the run directory and
 wait for the downstream application's READY state. Its own repository governs

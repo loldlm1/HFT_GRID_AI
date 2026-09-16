@@ -147,7 +147,7 @@ class PipelineTests(unittest.TestCase):
         self.assertEqual(sum(result["components_bytes"].values()), result["estimated_total_bytes"])
         self.assertFalse(result["assumptions"]["mt5_storage_measured"])
 
-    def test_research_provenance_is_immutable_and_outside_v13_run(self):
+    def test_research_provenance_is_immutable_and_outside_v14_run(self):
         from tools.exness_tick_history.report import research_provenance
         from tools.exness_tick_history.mt5_export import export_mt5
         from tools.exness_tick_history.tests import test_mt5_export as exports
@@ -157,14 +157,16 @@ class PipelineTests(unittest.TestCase):
         source, binary = self.profile.data_root / "source.bin", self.profile.data_root / "binary.bin"
         source.write_bytes(b"authored source hash fixture")
         binary.write_bytes(b"authored binary hash fixture; not a compiled program")
-        result = research_provenance(self.profile, "input", "export", "research", "v13-fixture", source, binary)
-        self.assertFalse(result["v13_run_files_written"])
+        result = research_provenance(self.profile, "input", "export", "research", "v14-fixture", source, binary)
+        self.assertEqual(result["schema_version"], 2)
+        self.assertEqual(result["v14_run_id"], "v14-fixture")
+        self.assertFalse(result["v14_run_files_written"])
         self.assertEqual(result["operator_validation"], "PENDING_OPERATOR")
         self.assertEqual(result["ea_binary_sha256"], file_hash(binary))
         self.assertEqual(list(self.profile.data_root.rglob("*.tsv")), [self.profile.data_root / "exports/export/ticks-000000.tsv"])
         binary.write_bytes(b"changed")
         with self.assertRaises(StorageError):
-            research_provenance(self.profile, "input", "export", "research", "v13-fixture", source, binary)
+            research_provenance(self.profile, "input", "export", "research", "v14-fixture", source, binary)
 
     def test_cli_build_audit_and_deferred_acceptance_status(self):
         from contextlib import redirect_stdout

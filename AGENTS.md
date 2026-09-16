@@ -2,14 +2,13 @@
 
 ## Start Here
 
-Entrypoint: `HFT_Grid_AI.mq5`, version `1.30`, schema `13`, source
-`PIVOT_FRACTAL_V2`: H1/M10/Micro collector, structural H1 1R broker lane,
-separate offline research tools.
+Entrypoint: `HFT_Grid_AI.mq5`, version `1.40`, schema `14`, source
+`PIVOT_FRACTAL_V2`: paired Macro/Deep/Micro research, structural H1 1R broker lane.
 
 - [Status, plan and evidence](docs/README.md).
 - [Runtime contract](docs/architecture/market-data-broker-executor.md): read before MQL5 changes.
-- [Environment/validation](docs/environment/mt5-agentic-workflows.md): paths, MCP and checks.
-- [V13 research](tools/deterministic_signal_ml/README.md).
+- [Validation](docs/environment/mt5-agentic-workflows.md): paths, MCP and checks.
+- [V14 research](tools/deterministic_signal_ml/README.md).
 - [Exness preparation/import/comparison](tools/exness_tick_history/README.md).
 
 ## Skills And Execution
@@ -21,10 +20,10 @@ separate offline research tools.
   retain exact failure diagnostics when needed.
 - Use `planner` for saved/phased/sprint plans, `create-plan` for chat plans.
   Skills do not change native `/plan` mode.
-- Use `openai-docs` with official search/fetch for Codex configuration. Resolve
-  installed helpers dynamically; never copy skills/hooks here or edit plugin caches.
-- Planning/review is not execution permission. Preserve accepted scope/decisions
-  across interruptions; record required question blockers in Planner state.
+- Use `openai-docs` for Codex configuration. Discover installed helpers; never
+  copy skills/hooks here or edit plugin caches.
+- Planning/review is not execution permission. Retain accepted scope/decisions
+  across interruptions; record required questions in Planner state.
 - One agent/writer per worktree; delegation requires authorization. Preserve
   unexpected edits, stop to reconcile ownership, and stage only reviewed paths.
 - Validate/commit each sprint before advancing: one commit and recorded rollback
@@ -55,16 +54,17 @@ separate offline research tools.
 - Only structural H1 1R may `OrderSend`: one FOK request per consumed origin.
   Freshly recheck session, symbol/hedging mode, permissions,
   quotes, geometry, stops/freeze, volume, margin/profit calculations and `OrderCheck`.
-  Use `HFT_GRID_AI_PIVOT_FRACTAL_V13` ownership; never adopt older-engine positions.
+  Use `HFT_GRID_AI_PIVOT_FRACTAL_V14` ownership; never adopt older-engine positions.
 - Immutable broker SL/TP; TP is one fresh-quote price-distance R from the
   structural stop. No trailing, break-even, partial close, resize or
   `TRADE_ACTION_SLTP`. Each accepted request owns one exact parity regardless of research eligibility.
 - Eight H1 lanes: STRUCTURAL/MIDPOINT_50 times 1R/2R/3R/5R. Midpoints enter at
   executable halfway touch, armed while any structural lane survives bar rollover;
   untouched rows become NOT_TRIGGERED when the last structural lane exits.
-- Freeze entered eligible same-direction virtual/confirmed broker parents before
-  deep discovery; never add parents retroactively. One deep event owns one Micro
-  vector, three shared 1R/2R/3R trials and link-scoped outcomes. No deep 5R or send.
+- Freeze entered eligible virtual/confirmed broker parents in both directions
+  before deep discovery; no standalone events or retroactive links. Each event
+  owns Deep/Micro features, shared 1R/2R/3R trials and link outcomes; no 5R/send.
+  Links own parent/deep directions and ALIGNED/OPPOSED; outcome direction is Deep.
 - Retain actual confirmed broker close time on existing deep links before cleanup.
   Unresolved children censor at parent close, including at run end; later observed
   quotes/reconciliation do not extend the parent. Other active links may continue.
@@ -77,12 +77,12 @@ separate offline research tools.
   not-triggered/run-censored durations are null. `m10_parent_age_seconds` is exact
   trigger-time age. Selectors use `<= minutes * 60`; completed H1 duration is
   retrospective, never a causal model feature.
-- Export owns four cached handles: Macro/Micro Bands and Stochastic. Fixed Bands
+- Export owns six cached handles: Macro/Deep/Micro Bands and Stochastic. Fixed Bands
   are 21/0/2.0, SMA, PRICE_WEIGHTED; Stochastic 5/3/3, MODE_SMA, STO_CLOSECLOSE.
   Initialize/release safely, including partial initialization; no per-tick creation.
-- Twelve TSVs: `Common\Files\PivotFractalV13\runs\<run_id>\`; H1 features on origins,
-  deep features on events. Preserve headers/grains and V12 rejection. Python is
-  V13/offline only. Missing features affect research only. Fatal research errors
+- Twelve TSVs: `Common\Files\PivotFractalV14\runs\<run_id>\`; Macro/Deep on origins,
+  Deep/Micro on events, frozen at each trigger. Python is V14/offline only; reject
+  older schemas. Missing features affect research only. Fatal research errors
   latch diagnostics, stop only the tester and seal FAILED/CENSORED when writable.
 - The bounded parent chronology audit is separate from full semantic acceptance.
   Recovery uses a distinct run plus retained correction/provenance sidecars,

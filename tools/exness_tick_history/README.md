@@ -420,10 +420,10 @@ inputs and captures rather than repeating completed work. For remaining gates:
 5. For newly requested tester acceptance, use the corrected source with real
    ticks, real warm-up, the verified session and periods, and an isolated run ID.
    Inspect reports/journals for modeled-tick substitution and history errors.
-6. Apply [strict V13 validation/build/audit](../deterministic_signal_ml/README.md#acceptance-and-downstream-boundary),
+6. Apply [strict V14 validation/build/audit](../deterministic_signal_ml/README.md#acceptance-and-downstream-boundary),
    retaining the support floor of 30 and explicit insufficient support. Full
    recovered-run semantics cannot be inferred from a bounded chronology pass.
-7. Write `research-provenance` outside V13 with the actual source/binary,
+7. Write `research-provenance` outside V14 with the actual source/binary,
    dataset/export, specification/clock and tester evidence. Follow the
    [compile/tester runbook](../../docs/environment/mt5-agentic-workflows.md)
    only when source/toolchain or a new acceptance gate requires it.
@@ -477,12 +477,12 @@ restore the matching checksum from a retained backup or use a new data root
 and source version; do not edit the ledger to claim repaired evidence.
 
 After an operator-owned tester run, `research-provenance` records dataset,
-export, custom-symbol, clock/spec and EA source/binary hashes outside V13:
+export, custom-symbol, clock/spec and EA source/binary hashes outside V14:
 
 ```bash
 .venv/bin/python -m tools.exness_tick_history research-provenance \
   --dataset-id <dataset_id> --export-id <export_id> \
-  --research-id <new_research_id> --v13-run-id <run_id> \
+  --research-id <new_research_id> --v14-run-id <run_id> \
   --ea-source HFT_Grid_AI.mq5 --ea-binary HFT_Grid_AI.ex5 \
   --tester-evidence <private_tester_evidence.json>
 ```
@@ -492,7 +492,10 @@ and `settings`. Allowed settings are `model`, `start`, `end`, `warmup_start`,
 `Broker_Session`, `Macro_Timeframe`, `Deep_Timeframe`, `Micro_Timeframe`,
 `Enable_Signal_Feature_Export`, `Signal_Feature_Run_Id`, `execution_delay_ms`.
 This sidecar records provenance only; it never certifies a tester run, writes
-inside the V13 folder, trains a model or activates broker execution.
+inside the V14 folder, trains a model or activates broker execution.
+Its own schema is version 2, with `v14_run_id` and `v14_run_files_written`;
+the producer dataset schema remains 14. The old CLI option is removed. Retained
+historical sidecars remain immutable and are not converted or loaded as V14.
 
 See the [current project index](../../docs/README.md) for accepted source,
 custom-symbol, tester and recovery evidence and remaining operational gates.

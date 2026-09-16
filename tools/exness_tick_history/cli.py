@@ -84,11 +84,11 @@ def main(argv: list[str] | None = None) -> int:
     command.add_argument("--pilot-dataset", required=True)
     command.add_argument("--text-bytes-per-tick", type=int, default=160)
     command.add_argument("--mt5-bytes-per-tick", type=int, default=128)
-    command = commands.add_parser("research-provenance", help="Write an immutable sidecar outside the strict V13 run folder")
+    command = commands.add_parser("research-provenance", help="Write an immutable sidecar outside the strict V14 run folder")
     command.add_argument("--dataset-id", required=True)
     command.add_argument("--export-id", required=True)
     command.add_argument("--research-id", required=True)
-    command.add_argument("--v13-run-id", required=True)
+    command.add_argument("--v14-run-id", required=True)
     command.add_argument("--ea-source", type=Path, required=True)
     command.add_argument("--ea-binary", type=Path, required=True)
     command.add_argument("--tester-evidence", type=Path)
@@ -127,7 +127,7 @@ def main(argv: list[str] | None = None) -> int:
                                   text_bytes_per_tick=args.text_bytes_per_tick, mt5_bytes_per_tick=args.mt5_bytes_per_tick)
         elif args.command == "research-provenance":
             result = research_provenance(profile, args.dataset_id, args.export_id, args.research_id,
-                                         args.v13_run_id, args.ea_source, args.ea_binary,
+                                         args.v14_run_id, args.ea_source, args.ea_binary,
                                          read_json(args.tester_evidence) if args.tester_evidence else None)
         elif args.command == "inventory":
             with Store(profile.data_root) as store:
