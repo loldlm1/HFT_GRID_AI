@@ -23,8 +23,65 @@ and sprint commit/rollback receipts.
 M2 binary SHA-256: `423433befab4ecfb97a9685bfefda479d0a5acfe7d5d08ffaf0b03399b92be1b`;
 308,334 bytes, MetaEditor 6184. Exact source mapping and native receipt are in
 `m2-producer-pins.json` and `m2/native-receipt.json` under that artifact directory.
-M3 still owns matched export-on/off and baseline broker comparison; M4 owns final
-guide cleanup and Django handoff. Earlier V13 evidence below remains historical.
+M3 completes the bounded native matrix and failure checks described below. M4
+owns final guide cleanup and Django handoff. Earlier V13 evidence below remains
+historical.
+
+### V14 Initial-2015 QA
+
+All three successful exports seal `OK/NATURAL`, pass strict semantic validation
+and the separate parent chronology audit. Settings are real ticks, 50 ms delay,
+USD 1,000,000, 1:10000 leverage, EXNESS_SESSION, fixed-reference 0.01 percent
+lot sizing and `profit_in_pips=false`. Source ticks retain Shift=0.
+
+| Window (end exclusive) | Macro / Deep / Micro | Origins | Deep events | Aligned / opposed links | Broker comparison |
+| --- | --- | ---: | ---: | ---: | --- |
+| August 10-15, 2015 | H2 / M15 / M3 | 104 | 709 | 6,653 / 6,397 | On/off and V13 baseline: 768 ordered messages, 43 report fields identical |
+| August 10-15, 2015 | H1 / M10 / M3 | 196 | 1,049 | 9,971 / 9,431 | On/off and V13 baseline: 1,393 messages, 43 fields identical |
+| August 17-22, 2015 | H2 / M15 / M3 | 129 | 908 | 7,248 / 8,484 | On/off: 955 messages including three failed requests, 43 fields identical |
+
+August 10 supplies initial history; observed first-window execution starts on
+August 11. All Deep pairs are complete. Macro warm-up remains explicit on 44 H2
+and 15 default snapshots; the adjacent window has all 129 Macro pairs complete.
+The adjacent dataset audit is `AUDIT_COMPLETE` at unchanged minimum support 30,
+with 803 eligible H1 rows and 27,380 eligible Deep parent outcomes. This is a small
+workflow source, not model-training or full-history acceptance.
+
+Native data covers every pivot level, PP return, both directions, all eight Macro
+lanes and three shared Deep trials, no-touch, ineligible and parent/run censors.
+The existing 51-test fixture suite additionally checks same-second parent clocks,
+non-binary invalid money, atomic capacity rejection, first-consumption identity,
+opposed origin references and shared-event split purging. Native caps are not
+saturated; no capacity rejection or duplicate/referential/row-integrity error
+occurs. Exact same-tick causal order is also source-reviewed; serialized seconds
+cannot establish subsecond order. The unchanged M2 Python/compile/SMA evidence is
+reused after source/hash reconciliation, rather than relabeled as new tests.
+
+Two owned fault runs corrupt a flushed `virtual_outcomes.tsv` header or move that
+file aside, preserving its original bytes. Both latch exactly one first error,
+release research once, retain two open broker states at release, request one
+tester-only stop, score zero and seal `FAILED/CENSORED`; strict intake rejects
+both. No permanent fault switch or MQL5 test harness was added.
+
+| Bounded resource observation | H2 V14 / V13 | Default V14 / V13 | Adjacent V14 |
+| --- | ---: | ---: | ---: |
+| Single-pass export-on elapsed, seconds | 10.774 / 9.735 | 10.330 / 9.129 | 13.980 |
+| Twelve-file bytes | 25,651,343 / 13,862,585 | 37,443,852 / 21,674,426 | 30,841,071 |
+| Peak Deep events / links / outcomes (V14) | 13 / 339 / 1,017 | 15 / 445 / 1,335 | 16 / 426 / 1,278 |
+
+Both-direction capture roughly doubles links and adds the new event feature
+block; observed elapsed increases are 10.7% and 13.2%. These single passes are
+not repeated benchmarks. Tester memory is 88-97 MB for the main/default matrix;
+the maximum observed 445 links and 1,335 outcomes remain well below 4,096 and
+18,432. Caps and atomic admission stay unchanged. Export-off remains independent.
+
+Receipts: `.codex-artifacts/pivot-fractal-v14/m3/` contains matched reports,
+ordered broker streams, `matrix-comparison.json`, `native-case-counts.json`,
+`baseline-resources.json`, fault validation and static review. Adjacent on/off
+jobs are `7686113583110594438` / `7686113836061878532`; header/missing fault jobs
+are `7686114978818728391` / `7686115247455143138`. The exact M2 EX5 is restored
+after the retained baseline comparison. Human chart acceptance and formal
+Exness broker equivalence remain open; no live or full-history gate is claimed.
 
 ## Reliability And Performance
 
