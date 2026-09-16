@@ -4,7 +4,7 @@
 //+------------------------------------------------------------------+
 #property copyright     "https://tradingsniperpanel.com/"
 #property description   "Copyright Trading Sniper Team."
-#property version       "1.30"
+#property version       "1.40"
 #property description   "Support Contact @chu4xtrade"
 #property description   "All Rights Reserved for the Trading Sniper Team."
 #property description   "Pivot Fractal Market Data Collector And Broker Executor"
@@ -23,7 +23,7 @@ bool g_pivot_run_finalized = false;
 
 ulong ResolveStableExecutionMagic()
 {
-  string source = "HFT_GRID_AI_PIVOT_FRACTAL_V13|" + _Symbol;
+  string source = "HFT_GRID_AI_PIVOT_FRACTAL_V14|" + _Symbol;
   ulong hash = 1469598103934665603;
   for(int i = 0; i < StringLen(source); i++)
   {
@@ -157,21 +157,21 @@ void RefreshCustomSymbolRates()
 string PivotRunCompletionStatus()
 {
   if(MQLInfoInteger(MQL_TESTER) > 0 && g_tester_interval_completed &&
-     !PivotV13ResearchFailed())
+     !PivotV14ResearchFailed())
     return "NATURAL";
   return "CENSORED";
 }
 
 void HandlePivotResearchFailureAtEventBoundary(const bool stop_tester = true)
 {
-  PivotV13CaptureResearchFailure();
-  if(PivotV13ResearchFailed() && !g_pivot_v13_research_discarded)
+  PivotV14CaptureResearchFailure();
+  if(PivotV14ResearchFailed() && !g_pivot_v14_research_discarded)
   {
     FinalizePivotSignalTerminalStates();
     DiscardFailedPivotResearch();
   }
   if(stop_tester)
-    PivotV13StopFailedTesterAtEventBoundary();
+    PivotV14StopFailedTesterAtEventBoundary();
 }
 
 int OnInit()
@@ -210,16 +210,16 @@ int OnInit()
                 EnumToString(Micro_Timeframe),
                 EnumToString(Deep_Timeframe),
                 EnumToString(Macro_Timeframe));
-  if(!PivotV13StatsInit())
+  if(!PivotV14StatsInit())
   {
     if(MQLInfoInteger(MQL_TESTER) > 0)
     {
-      Print("V13 export initialization failed; tester initialization stopped");
+      Print("V14 export initialization failed; tester initialization stopped");
       return INIT_FAILED;
     }
-    Print("V13 export initialization failed; live broker processing remains active");
+    Print("V14 export initialization failed; live broker processing remains active");
   }
-  if(PivotV13Ready())
+  if(PivotV14Ready())
     LoadAllIndicatorDefinitions();
   InitializePivotFractalRuntime();
   InitializePivotBrokerOwnershipBoundary();
@@ -242,24 +242,24 @@ void FinalizePivotRunExport()
     return;
   g_pivot_run_finalized = true;
   ReconcileAndFinalizePivotSignals();
-  PivotV13CaptureResearchFailure();
-  if(!PivotV13ResearchFailed())
+  PivotV14CaptureResearchFailure();
+  if(!PivotV14ResearchFailed())
     FinalizePivotSignalAttemptsForExport();
-  if(!PivotV13ResearchFailed())
+  if(!PivotV14ResearchFailed())
     FinalizePivotTrialLanesForExport();
-  if(!PivotV13ResearchFailed())
+  if(!PivotV14ResearchFailed())
     FinalizeDeepPivotForExport();
-  if(!PivotV13ResearchFailed())
+  if(!PivotV14ResearchFailed())
     FinalizeActivePivotWindowsForExport();
   HandlePivotResearchFailureAtEventBoundary(false);
-  if(!PivotV13WriteSummary(PivotRunCompletionStatus()))
+  if(!PivotV14WriteSummary(PivotRunCompletionStatus()))
     HandlePivotResearchFailureAtEventBoundary(false);
 }
 
 void OnDeinit(const int reason)
 {
   FinalizePivotRunExport();
-  PivotV13StatsDeinit(PivotRunCompletionStatus());
+  PivotV14StatsDeinit(PivotRunCompletionStatus());
   CloseAppendFileLog();
   ReleaseAllIndicatorDefinitions();
   FrontendResetRefreshThrottle();
@@ -309,14 +309,14 @@ void OnTick()
 
 double OnTester()
 {
-  PivotV13CaptureResearchFailure();
+  PivotV14CaptureResearchFailure();
   g_tester_interval_completed =
     !g_forced_stop_triggered && !g_debug_no_money_abort_pending &&
-    !PivotV13ResearchFailed();
+    !PivotV14ResearchFailed();
   // Seal before scoring: TesterStop also invokes OnTester, and a final flush
   // can discover the first failure after the final tick.
   FinalizePivotRunExport();
-  if(PivotV13ResearchFailed())
+  if(PivotV14ResearchFailed())
     g_tester_interval_completed = false;
   if(!g_tester_interval_completed)
     return 0.0;

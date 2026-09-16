@@ -112,9 +112,9 @@ void AppendExecutionBlockReason(BrokerExecutionCheck &check,
 bool ExportPivotExecutionCheck(PivotSignal &signal,
                                const BrokerExecutionCheck &check)
 {
-  if(!PivotV13Enabled())
+  if(!PivotV14Enabled())
     return true;
-  bool recorded = PivotV13RecordExecutionCheck(signal, check);
+  bool recorded = PivotV14RecordExecutionCheck(signal, check);
   if(recorded && check.phase != "TERMINAL" &&
      signal.execution.broker_entry_confirmed)
     signal.execution.entry_check_exported = true;
@@ -125,12 +125,12 @@ bool RegisterPivotOrigin(PivotSignal &signal)
 {
   if(signal.origin_registered)
     return true;
-  if(!PivotV13Enabled())
+  if(!PivotV14Enabled())
   {
     signal.origin_registered = true;
     return true;
   }
-  if(!PivotV13RegisterOrigin(signal))
+  if(!PivotV14RegisterOrigin(signal))
     return false;
   signal.origin_registered = true;
   return true;
@@ -138,11 +138,11 @@ bool RegisterPivotOrigin(PivotSignal &signal)
 
 bool UpdatePivotOrigin(PivotSignal &signal)
 {
-  if(!PivotV13Enabled())
+  if(!PivotV14Enabled())
     return true;
   if(!signal.origin_registered)
     return false;
-  return PivotV13UpdateOrigin(signal);
+  return PivotV14UpdateOrigin(signal);
 }
 
 void ApplyFailedEligibilityDebugSideEffect(const BrokerExecutionCheck &check)
@@ -370,8 +370,8 @@ bool SendPivotMarketOrder(PivotSignal &signal)
                                 pre_send_tick,
                                 request,
                                 send_check) &&
-     PivotV13Enabled())
-    PivotV13MarkFailed("BROKER_PARITY_DECLARATION_FAILED");
+     PivotV14Enabled())
+    PivotV14MarkFailed("BROKER_PARITY_DECLARATION_FAILED");
   ReconcilePivotSignalBrokerPosition(signal);
   UpdatePivotOrigin(signal);
   ExportPivotExecutionCheck(signal, send_check);
@@ -397,7 +397,7 @@ bool ProcessPivotSignalAttempt(PivotSignal &signal)
                           signal.execution.observation_check);
   if(RegisterPivotOrigin(signal) &&
      !DeclareInitialPivotTrialLanes(signal, observation_tick))
-    PivotV13MarkFailed("H1_LANE_DECLARATION_FAILED", "", 0, signal.origin_id);
+    PivotV14MarkFailed("H1_LANE_DECLARATION_FAILED", "", 0, signal.origin_id);
 
   string permission_source = "";
   string permission_reason = "";

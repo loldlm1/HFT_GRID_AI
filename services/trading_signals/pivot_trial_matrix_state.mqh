@@ -12,7 +12,7 @@ int g_pivot_trial_duplicate_identity_count = 0;
 bool g_pivot_trial_state_capacity_failed = false;
 bool g_pivot_trial_state_allocation_failed = false;
 
-void PivotV13MarkFailed(const string operation,
+void PivotV14MarkFailed(const string operation,
                         const string filename,
                         const int error_code,
                         const string context);
@@ -27,7 +27,7 @@ void ResetPivotTrialLaneState()
   g_pivot_trial_state_capacity_failed = false;
   g_pivot_trial_state_allocation_failed = reset_size != 0;
   if(g_pivot_trial_state_allocation_failed)
-    PivotV13MarkFailed("H1_STATE_RESET", "", GetLastError(), "");
+    PivotV14MarkFailed("H1_STATE_RESET", "", GetLastError(), "");
 }
 
 int PivotTrialActiveStateCount()
@@ -187,14 +187,14 @@ bool AppendPivotTrialActiveState(const PivotTrialActiveState &state,
   reason_out = "";
   if(!PivotTrialActiveStateIdentityValid(state, reason_out))
   {
-    PivotV13MarkFailed(reason_out, "", 0, state.trial.identity.trial_id);
+    PivotV14MarkFailed(reason_out, "", 0, state.trial.identity.trial_id);
     return false;
   }
   if(FindPivotTrialActiveStateByTrialId(state.trial.identity.trial_id) >= 0)
   {
     g_pivot_trial_duplicate_identity_count++;
     reason_out = "ACTIVE_TRIAL_IDENTITY_DUPLICATE";
-    PivotV13MarkFailed(reason_out, "", 0, state.trial.identity.trial_id);
+    PivotV14MarkFailed(reason_out, "", 0, state.trial.identity.trial_id);
     return false;
   }
   int total = PivotTrialActiveStateCount();
@@ -202,7 +202,7 @@ bool AppendPivotTrialActiveState(const PivotTrialActiveState &state,
   {
     g_pivot_trial_state_capacity_failed = true;
     reason_out = "ACTIVE_TRIAL_STATE_CAP_REACHED";
-    PivotV13MarkFailed(reason_out, "", 0, state.trial.identity.trial_id);
+    PivotV14MarkFailed(reason_out, "", 0, state.trial.identity.trial_id);
     return false;
   }
   int resized = ArrayResize(g_pivot_trial_active_states,
@@ -212,7 +212,7 @@ bool AppendPivotTrialActiveState(const PivotTrialActiveState &state,
   {
     g_pivot_trial_state_allocation_failed = true;
     reason_out = "ACTIVE_TRIAL_STATE_RESIZE_FAILED";
-    PivotV13MarkFailed(reason_out, "", GetLastError(), state.trial.identity.trial_id);
+    PivotV14MarkFailed(reason_out, "", GetLastError(), state.trial.identity.trial_id);
     return false;
   }
   g_pivot_trial_active_states[total].CopyFrom(state);
@@ -236,7 +236,7 @@ bool RemovePivotTrialActiveStateAt(const int index)
   if(resized != total - 1)
   {
     g_pivot_trial_state_allocation_failed = true;
-    PivotV13MarkFailed("H1_STATE_REMOVE", "", GetLastError(), IntegerToString(index));
+    PivotV14MarkFailed("H1_STATE_REMOVE", "", GetLastError(), IntegerToString(index));
     return false;
   }
   return true;

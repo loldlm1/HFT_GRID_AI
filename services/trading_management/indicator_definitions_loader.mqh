@@ -5,8 +5,10 @@
 #define _SERVICES_TRADING_MANAGEMENT_INDICATOR_DEFINITIONS_LOADER_MQH_
 
 PivotBandsHandleInfo g_macro_bands_handle;
+PivotBandsHandleInfo g_deep_bands_handle;
 PivotBandsHandleInfo g_micro_bands_handle;
 PivotStochasticHandleInfo g_macro_stochastic_handle;
+PivotStochasticHandleInfo g_deep_stochastic_handle;
 PivotStochasticHandleInfo g_micro_stochastic_handle;
 
 void SetTesterIndicatorHideMode(const bool hide)
@@ -106,12 +108,16 @@ void ReleasePivotStochasticHandle(
 void LoadAllIndicatorDefinitions()
 {
   ReleasePivotBandsHandle(g_macro_bands_handle);
+  ReleasePivotBandsHandle(g_deep_bands_handle);
   ReleasePivotBandsHandle(g_micro_bands_handle);
   ReleasePivotStochasticHandle(g_macro_stochastic_handle);
+  ReleasePivotStochasticHandle(g_deep_stochastic_handle);
   ReleasePivotStochasticHandle(g_micro_stochastic_handle);
   g_macro_bands_handle.Reset(Macro_Timeframe);
+  g_deep_bands_handle.Reset(Deep_Timeframe);
   g_micro_bands_handle.Reset(Micro_Timeframe);
   g_macro_stochastic_handle.Reset(Macro_Timeframe);
+  g_deep_stochastic_handle.Reset(Deep_Timeframe);
   g_micro_stochastic_handle.Reset(Micro_Timeframe);
 
   if(!Enable_Signal_Feature_Export)
@@ -119,10 +125,14 @@ void LoadAllIndicatorDefinitions()
 
   SetTesterIndicatorHideMode(true);
   LoadPivotBandsHandle(Macro_Timeframe, "Macro", g_macro_bands_handle);
+  LoadPivotBandsHandle(Deep_Timeframe, "Deep", g_deep_bands_handle);
   LoadPivotBandsHandle(Micro_Timeframe, "Micro", g_micro_bands_handle);
   LoadPivotStochasticHandle(Macro_Timeframe,
                             "Macro",
                             g_macro_stochastic_handle);
+  LoadPivotStochasticHandle(Deep_Timeframe,
+                            "Deep",
+                            g_deep_stochastic_handle);
   LoadPivotStochasticHandle(Micro_Timeframe,
                             "Micro",
                             g_micro_stochastic_handle);
@@ -130,9 +140,10 @@ void LoadAllIndicatorDefinitions()
 
   if(Enable_Logs)
   {
-    PrintFormat("Pivot feature contexts | Engine=%s | Macro=%s | Micro=%s | Bands=PRICE_WEIGHTED | Stochastic=MAIN_LINE,SIGNAL_LINE",
+    PrintFormat("Pivot feature contexts | Engine=%s | Macro=%s | Deep=%s | Micro=%s | Bands=PRICE_WEIGHTED | Stochastic=MAIN_LINE,SIGNAL_LINE",
                 PivotFractalEngineLabel(PIVOT_FRACTAL_V2),
                 EnumToString(Macro_Timeframe),
+                EnumToString(Deep_Timeframe),
                 EnumToString(Micro_Timeframe));
   }
 }
@@ -140,8 +151,10 @@ void LoadAllIndicatorDefinitions()
 void ReleaseAllIndicatorDefinitions()
 {
   ReleasePivotBandsHandle(g_macro_bands_handle);
+  ReleasePivotBandsHandle(g_deep_bands_handle);
   ReleasePivotBandsHandle(g_micro_bands_handle);
   ReleasePivotStochasticHandle(g_macro_stochastic_handle);
+  ReleasePivotStochasticHandle(g_deep_stochastic_handle);
   ReleasePivotStochasticHandle(g_micro_stochastic_handle);
 }
 

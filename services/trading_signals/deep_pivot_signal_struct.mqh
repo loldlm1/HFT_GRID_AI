@@ -61,8 +61,6 @@ struct DeepPivotEvent
   double next_outward_pivot_price;
   PivotPriceLadder levels;
   PivotContextFeatureSnapshot features;
-  bool deep_micro_features_complete;
-  string deep_feature_invalid_reason;
   bool identity_consumed;
   DeepPivotAdmissionStatuses admission_status;
   int active_parent_count;
@@ -102,8 +100,6 @@ struct DeepPivotEvent
     next_outward_pivot_price = 0.0;
     levels.Reset();
     features.Reset();
-    deep_micro_features_complete = false;
-    deep_feature_invalid_reason = "";
     identity_consumed = false;
     admission_status = DEEP_PIVOT_ADMISSION_ADMITTED;
     active_parent_count = 0;
@@ -134,8 +130,6 @@ struct DeepPivotEvent
     next_outward_pivot_price = other.next_outward_pivot_price;
     levels.CopyFrom(other.levels);
     features.CopyFrom(other.features);
-    deep_micro_features_complete = other.deep_micro_features_complete;
-    deep_feature_invalid_reason = other.deep_feature_invalid_reason;
     identity_consumed = other.identity_consumed;
     admission_status = other.admission_status;
     active_parent_count = other.active_parent_count;
@@ -159,7 +153,7 @@ struct DeepPivotParentCandidate
   string parent_broker_signal_id;
   PivotTrialEntryPolicies parent_entry_policy;
   int parent_tp_r_multiple;
-  SignalTypes direction;
+  SignalTypes parent_direction;
   datetime parent_entry_time;
 
   DeepPivotParentCandidate()
@@ -181,7 +175,7 @@ struct DeepPivotParentCandidate
     parent_broker_signal_id = "";
     parent_entry_policy = PIVOT_TRIAL_ENTRY_STRUCTURAL;
     parent_tp_r_multiple = 0;
-    direction = NO_SIGNAL;
+    parent_direction = NO_SIGNAL;
     parent_entry_time = 0;
   }
 
@@ -194,7 +188,7 @@ struct DeepPivotParentCandidate
     parent_broker_signal_id = other.parent_broker_signal_id;
     parent_entry_policy = other.parent_entry_policy;
     parent_tp_r_multiple = other.parent_tp_r_multiple;
-    direction = other.direction;
+    parent_direction = other.parent_direction;
     parent_entry_time = other.parent_entry_time;
   }
 };
@@ -212,7 +206,8 @@ struct DeepPivotParentLink
   string parent_broker_signal_id;
   PivotTrialEntryPolicies parent_entry_policy;
   int parent_tp_r_multiple;
-  SignalTypes direction;
+  SignalTypes parent_direction;
+  SignalTypes deep_direction;
   datetime parent_entry_time;
   datetime event_trigger_time;
   long parent_age_seconds;
@@ -243,7 +238,8 @@ struct DeepPivotParentLink
     parent_broker_signal_id = "";
     parent_entry_policy = PIVOT_TRIAL_ENTRY_STRUCTURAL;
     parent_tp_r_multiple = 0;
-    direction = NO_SIGNAL;
+    parent_direction = NO_SIGNAL;
+    deep_direction = NO_SIGNAL;
     parent_entry_time = 0;
     event_trigger_time = 0;
     parent_age_seconds = 0;
@@ -265,7 +261,8 @@ struct DeepPivotParentLink
     parent_broker_signal_id = other.parent_broker_signal_id;
     parent_entry_policy = other.parent_entry_policy;
     parent_tp_r_multiple = other.parent_tp_r_multiple;
-    direction = other.direction;
+    parent_direction = other.parent_direction;
+    deep_direction = other.deep_direction;
     parent_entry_time = other.parent_entry_time;
     event_trigger_time = other.event_trigger_time;
     parent_age_seconds = other.parent_age_seconds;
@@ -348,6 +345,7 @@ struct DeepPivotOutcome
   string origin_id;
   int tp_r_multiple;
   SignalTypes direction;
+  SignalTypes parent_direction;
   datetime terminal_time;
   PivotTrialFirstTouchOutcomes first_touch;
   string terminal_status;
@@ -392,6 +390,7 @@ struct DeepPivotOutcome
     origin_id = "";
     tp_r_multiple = 0;
     direction = NO_SIGNAL;
+    parent_direction = NO_SIGNAL;
     terminal_time = 0;
     first_touch = PIVOT_TRIAL_FIRST_TOUCH_PENDING;
     terminal_status = "";
@@ -427,6 +426,7 @@ struct DeepPivotOutcome
     origin_id = other.origin_id;
     tp_r_multiple = other.tp_r_multiple;
     direction = other.direction;
+    parent_direction = other.parent_direction;
     terminal_time = other.terminal_time;
     first_touch = other.first_touch;
     terminal_status = other.terminal_status;

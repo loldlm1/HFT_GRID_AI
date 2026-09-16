@@ -302,8 +302,6 @@ struct PivotTrialEntry
   bool boundary_available;
   double boundary_price;
   double midpoint_50_price;
-  bool origin_micro_band_width_available;
-  double origin_micro_band_width_0;
   bool midpoint_touched;
   bool origin_feature_snapshot_complete;
   PivotTrialGeometry geometry;
@@ -333,8 +331,6 @@ struct PivotTrialEntry
     boundary_available = false;
     boundary_price = 0.0;
     midpoint_50_price = 0.0;
-    origin_micro_band_width_available = false;
-    origin_micro_band_width_0 = 0.0;
     midpoint_touched = false;
     origin_feature_snapshot_complete = false;
     geometry.Reset();
@@ -355,9 +351,6 @@ struct PivotTrialEntry
     boundary_available = other.boundary_available;
     boundary_price = other.boundary_price;
     midpoint_50_price = other.midpoint_50_price;
-    origin_micro_band_width_available =
-      other.origin_micro_band_width_available;
-    origin_micro_band_width_0 = other.origin_micro_band_width_0;
     midpoint_touched = other.midpoint_touched;
     origin_feature_snapshot_complete =
       other.origin_feature_snapshot_complete;

@@ -211,21 +211,20 @@ struct PivotContextFeatureSnapshot
   datetime broker_time;
   double trigger_bid;
   double pivot_price;
-  PivotBandEnvelopeSnapshot micro_bands;
-  PivotBandEnvelopeSnapshot macro_bands;
-  PivotStochasticLinesSnapshot micro_stochastic;
-  PivotStochasticLinesSnapshot macro_stochastic;
-  PivotDerivedFeatureSeries micro_b_percent_features;
-  PivotDerivedFeatureSeries macro_b_percent_features;
-  PivotDerivedFeatureSeries micro_stochastic_main_line_features;
-  PivotDerivedFeatureSeries micro_stochastic_signal_line_features;
-  PivotDerivedFeatureSeries macro_stochastic_main_line_features;
-  PivotDerivedFeatureSeries macro_stochastic_signal_line_features;
-  PivotBandTrendSnapshot micro_band_trend;
-  PivotBandTrendSnapshot macro_band_trend;
-  double micro_band_width_0;
-  bool micro_complete;
-  bool macro_complete;
+  PivotBandEnvelopeSnapshot lower_bands;
+  PivotBandEnvelopeSnapshot own_bands;
+  PivotStochasticLinesSnapshot lower_stochastic;
+  PivotStochasticLinesSnapshot own_stochastic;
+  PivotDerivedFeatureSeries lower_b_percent_features;
+  PivotDerivedFeatureSeries own_b_percent_features;
+  PivotDerivedFeatureSeries lower_stochastic_main_line_features;
+  PivotDerivedFeatureSeries lower_stochastic_signal_line_features;
+  PivotDerivedFeatureSeries own_stochastic_main_line_features;
+  PivotDerivedFeatureSeries own_stochastic_signal_line_features;
+  PivotBandTrendSnapshot lower_band_trend;
+  PivotBandTrendSnapshot own_band_trend;
+  bool lower_complete;
+  bool own_complete;
   string invalid_reason;
 
   PivotContextFeatureSnapshot()
@@ -245,21 +244,20 @@ struct PivotContextFeatureSnapshot
     broker_time = 0;
     trigger_bid = 0.0;
     pivot_price = 0.0;
-    micro_bands.Reset(Micro_Timeframe);
-    macro_bands.Reset(Macro_Timeframe);
-    micro_stochastic.Reset(Micro_Timeframe);
-    macro_stochastic.Reset(Macro_Timeframe);
-    micro_b_percent_features.Reset();
-    macro_b_percent_features.Reset();
-    micro_stochastic_main_line_features.Reset();
-    micro_stochastic_signal_line_features.Reset();
-    macro_stochastic_main_line_features.Reset();
-    macro_stochastic_signal_line_features.Reset();
-    micro_band_trend.Reset();
-    macro_band_trend.Reset();
-    micro_band_width_0 = 0.0;
-    micro_complete = false;
-    macro_complete = false;
+    lower_bands.Reset(PERIOD_CURRENT);
+    own_bands.Reset(PERIOD_CURRENT);
+    lower_stochastic.Reset(PERIOD_CURRENT);
+    own_stochastic.Reset(PERIOD_CURRENT);
+    lower_b_percent_features.Reset();
+    own_b_percent_features.Reset();
+    lower_stochastic_main_line_features.Reset();
+    lower_stochastic_signal_line_features.Reset();
+    own_stochastic_main_line_features.Reset();
+    own_stochastic_signal_line_features.Reset();
+    lower_band_trend.Reset();
+    own_band_trend.Reset();
+    lower_complete = false;
+    own_complete = false;
     invalid_reason = "";
   }
 
@@ -270,25 +268,24 @@ struct PivotContextFeatureSnapshot
     broker_time = other.broker_time;
     trigger_bid = other.trigger_bid;
     pivot_price = other.pivot_price;
-    micro_bands.CopyFrom(other.micro_bands);
-    macro_bands.CopyFrom(other.macro_bands);
-    micro_stochastic.CopyFrom(other.micro_stochastic);
-    macro_stochastic.CopyFrom(other.macro_stochastic);
-    micro_b_percent_features.CopyFrom(other.micro_b_percent_features);
-    macro_b_percent_features.CopyFrom(other.macro_b_percent_features);
-    micro_stochastic_main_line_features.CopyFrom(
-      other.micro_stochastic_main_line_features);
-    micro_stochastic_signal_line_features.CopyFrom(
-      other.micro_stochastic_signal_line_features);
-    macro_stochastic_main_line_features.CopyFrom(
-      other.macro_stochastic_main_line_features);
-    macro_stochastic_signal_line_features.CopyFrom(
-      other.macro_stochastic_signal_line_features);
-    micro_band_trend.CopyFrom(other.micro_band_trend);
-    macro_band_trend.CopyFrom(other.macro_band_trend);
-    micro_band_width_0 = other.micro_band_width_0;
-    micro_complete = other.micro_complete;
-    macro_complete = other.macro_complete;
+    lower_bands.CopyFrom(other.lower_bands);
+    own_bands.CopyFrom(other.own_bands);
+    lower_stochastic.CopyFrom(other.lower_stochastic);
+    own_stochastic.CopyFrom(other.own_stochastic);
+    lower_b_percent_features.CopyFrom(other.lower_b_percent_features);
+    own_b_percent_features.CopyFrom(other.own_b_percent_features);
+    lower_stochastic_main_line_features.CopyFrom(
+      other.lower_stochastic_main_line_features);
+    lower_stochastic_signal_line_features.CopyFrom(
+      other.lower_stochastic_signal_line_features);
+    own_stochastic_main_line_features.CopyFrom(
+      other.own_stochastic_main_line_features);
+    own_stochastic_signal_line_features.CopyFrom(
+      other.own_stochastic_signal_line_features);
+    lower_band_trend.CopyFrom(other.lower_band_trend);
+    own_band_trend.CopyFrom(other.own_band_trend);
+    lower_complete = other.lower_complete;
+    own_complete = other.own_complete;
     invalid_reason = other.invalid_reason;
   }
 };
@@ -307,6 +304,8 @@ int PivotBandsHandleForTimeframe(const ENUM_TIMEFRAMES timeframe)
 {
   if(timeframe == Macro_Timeframe)
     return g_macro_bands_handle.indicator_handle;
+  if(timeframe == Deep_Timeframe)
+    return g_deep_bands_handle.indicator_handle;
   if(timeframe == Micro_Timeframe)
     return g_micro_bands_handle.indicator_handle;
   return INVALID_HANDLE;
@@ -316,6 +315,8 @@ int PivotStochasticHandleForTimeframe(const ENUM_TIMEFRAMES timeframe)
 {
   if(timeframe == Macro_Timeframe)
     return g_macro_stochastic_handle.indicator_handle;
+  if(timeframe == Deep_Timeframe)
+    return g_deep_stochastic_handle.indicator_handle;
   if(timeframe == Micro_Timeframe)
     return g_micro_stochastic_handle.indicator_handle;
   return INVALID_HANDLE;
@@ -636,6 +637,8 @@ bool BuildPivotBPercentSeries(
 }
 
 bool CapturePivotContextFeatureSnapshot(
+  const ENUM_TIMEFRAMES own_timeframe,
+  const ENUM_TIMEFRAMES lower_timeframe,
   const double trigger_bid,
   const datetime broker_time,
   PivotContextFeatureSnapshot &snapshot_out)
@@ -646,96 +649,92 @@ bool CapturePivotContextFeatureSnapshot(
   snapshot_out.trigger_bid = trigger_bid;
 
   double point_size = SymbolInfoDouble(_Symbol, SYMBOL_POINT);
-  bool micro_bands_complete = CapturePivotBandEnvelope(
-    Micro_Timeframe,
+  bool lower_bands_complete = CapturePivotBandEnvelope(
+    lower_timeframe,
     broker_time,
-    snapshot_out.micro_bands);
-  bool macro_bands_complete = CapturePivotBandEnvelope(
-    Macro_Timeframe,
+    snapshot_out.lower_bands);
+  bool own_bands_complete = CapturePivotBandEnvelope(
+    own_timeframe,
     broker_time,
-    snapshot_out.macro_bands);
-  bool micro_stochastic_complete = CapturePivotStochasticLines(
-    Micro_Timeframe,
+    snapshot_out.own_bands);
+  bool lower_stochastic_complete = CapturePivotStochasticLines(
+    lower_timeframe,
     broker_time,
-    snapshot_out.micro_stochastic);
-  bool macro_stochastic_complete = CapturePivotStochasticLines(
-    Macro_Timeframe,
+    snapshot_out.lower_stochastic);
+  bool own_stochastic_complete = CapturePivotStochasticLines(
+    own_timeframe,
     broker_time,
-    snapshot_out.macro_stochastic);
+    snapshot_out.own_stochastic);
 
-  if(!micro_bands_complete)
+  if(!lower_bands_complete)
     AppendPivotFeatureReason(snapshot_out.invalid_reason,
-                             "MICRO_" +
-                             snapshot_out.micro_bands.invalid_reason);
-  if(!macro_bands_complete)
+                             "LOWER_" +
+                             snapshot_out.lower_bands.invalid_reason);
+  if(!own_bands_complete)
     AppendPivotFeatureReason(snapshot_out.invalid_reason,
-                             "MACRO_" +
-                             snapshot_out.macro_bands.invalid_reason);
-  if(!micro_stochastic_complete)
+                             "OWN_" +
+                             snapshot_out.own_bands.invalid_reason);
+  if(!lower_stochastic_complete)
     AppendPivotFeatureReason(snapshot_out.invalid_reason,
-                             "MICRO_" +
-                             snapshot_out.micro_stochastic.invalid_reason);
-  if(!macro_stochastic_complete)
+                             "LOWER_" +
+                             snapshot_out.lower_stochastic.invalid_reason);
+  if(!own_stochastic_complete)
     AppendPivotFeatureReason(snapshot_out.invalid_reason,
-                             "MACRO_" +
-                             snapshot_out.macro_stochastic.invalid_reason);
+                             "OWN_" +
+                             snapshot_out.own_stochastic.invalid_reason);
 
-  bool micro_main_complete = DerivePivotFeatureSeries(
-    snapshot_out.micro_stochastic.main_line,
-    snapshot_out.micro_stochastic.main_line_available,
-    snapshot_out.micro_stochastic_main_line_features);
-  bool micro_signal_complete = DerivePivotFeatureSeries(
-    snapshot_out.micro_stochastic.signal_line,
-    snapshot_out.micro_stochastic.signal_line_available,
-    snapshot_out.micro_stochastic_signal_line_features);
-  bool macro_main_complete = DerivePivotFeatureSeries(
-    snapshot_out.macro_stochastic.main_line,
-    snapshot_out.macro_stochastic.main_line_available,
-    snapshot_out.macro_stochastic_main_line_features);
-  bool macro_signal_complete = DerivePivotFeatureSeries(
-    snapshot_out.macro_stochastic.signal_line,
-    snapshot_out.macro_stochastic.signal_line_available,
-    snapshot_out.macro_stochastic_signal_line_features);
-  bool micro_trend_complete = DerivePivotBandTrend(
-    snapshot_out.micro_bands,
+  bool lower_main_complete = DerivePivotFeatureSeries(
+    snapshot_out.lower_stochastic.main_line,
+    snapshot_out.lower_stochastic.main_line_available,
+    snapshot_out.lower_stochastic_main_line_features);
+  bool lower_signal_complete = DerivePivotFeatureSeries(
+    snapshot_out.lower_stochastic.signal_line,
+    snapshot_out.lower_stochastic.signal_line_available,
+    snapshot_out.lower_stochastic_signal_line_features);
+  bool own_main_complete = DerivePivotFeatureSeries(
+    snapshot_out.own_stochastic.main_line,
+    snapshot_out.own_stochastic.main_line_available,
+    snapshot_out.own_stochastic_main_line_features);
+  bool own_signal_complete = DerivePivotFeatureSeries(
+    snapshot_out.own_stochastic.signal_line,
+    snapshot_out.own_stochastic.signal_line_available,
+    snapshot_out.own_stochastic_signal_line_features);
+  bool lower_trend_complete = DerivePivotBandTrend(
+    snapshot_out.lower_bands,
     point_size,
-    snapshot_out.micro_band_trend);
-  bool macro_trend_complete = DerivePivotBandTrend(
-    snapshot_out.macro_bands,
+    snapshot_out.lower_band_trend);
+  bool own_trend_complete = DerivePivotBandTrend(
+    snapshot_out.own_bands,
     point_size,
-    snapshot_out.macro_band_trend);
+    snapshot_out.own_band_trend);
 
-  if(!micro_main_complete || !micro_signal_complete)
+  if(!lower_main_complete || !lower_signal_complete)
     AppendPivotFeatureReason(snapshot_out.invalid_reason,
-                             "MICRO_STOCHASTIC_DERIVATION_INVALID");
-  if(!macro_main_complete || !macro_signal_complete)
+                             "LOWER_STOCHASTIC_DERIVATION_INVALID");
+  if(!own_main_complete || !own_signal_complete)
     AppendPivotFeatureReason(snapshot_out.invalid_reason,
-                             "MACRO_STOCHASTIC_DERIVATION_INVALID");
-  if(!micro_trend_complete)
+                             "OWN_STOCHASTIC_DERIVATION_INVALID");
+  if(!lower_trend_complete)
     AppendPivotFeatureReason(snapshot_out.invalid_reason,
-                             "MICRO_BAND_TREND_INVALID");
-  if(!macro_trend_complete)
+                             "LOWER_BAND_TREND_INVALID");
+  if(!own_trend_complete)
     AppendPivotFeatureReason(snapshot_out.invalid_reason,
-                             "MACRO_BAND_TREND_INVALID");
+                             "OWN_BAND_TREND_INVALID");
 
-  if(snapshot_out.micro_band_trend.width_available)
-    snapshot_out.micro_band_width_0 =
-      snapshot_out.micro_band_trend.width_price_0;
-
-  snapshot_out.micro_complete =
-    micro_bands_complete &&
-    micro_stochastic_complete &&
-    micro_main_complete &&
-    micro_signal_complete &&
-    micro_trend_complete;
-  snapshot_out.macro_complete =
-    macro_bands_complete &&
-    macro_stochastic_complete &&
-    macro_main_complete &&
-    macro_signal_complete &&
-    macro_trend_complete;
+  snapshot_out.lower_complete =
+    lower_bands_complete &&
+    lower_stochastic_complete &&
+    lower_main_complete &&
+    lower_signal_complete &&
+    lower_trend_complete;
+  snapshot_out.own_complete =
+    own_bands_complete &&
+    own_stochastic_complete &&
+    own_main_complete &&
+    own_signal_complete &&
+    own_trend_complete;
   snapshot_out.complete =
-    snapshot_out.micro_complete && snapshot_out.macro_complete;
+    snapshot_out.lower_complete && snapshot_out.own_complete;
   return snapshot_out.complete;
 }
 
@@ -746,95 +745,32 @@ bool BuildPivotSignalFeatureSnapshot(
 {
   signal_snapshot_out.CopyFrom(shared_snapshot);
   signal_snapshot_out.pivot_price = pivot_price;
-  signal_snapshot_out.micro_b_percent_features.Reset();
-  signal_snapshot_out.macro_b_percent_features.Reset();
+  signal_snapshot_out.lower_b_percent_features.Reset();
+  signal_snapshot_out.own_b_percent_features.Reset();
 
-  bool micro_b_percent_complete = BuildPivotBPercentSeries(
+  bool lower_b_percent_complete = BuildPivotBPercentSeries(
     pivot_price,
-    signal_snapshot_out.micro_bands,
-    signal_snapshot_out.micro_b_percent_features);
-  bool macro_b_percent_complete = BuildPivotBPercentSeries(
+    signal_snapshot_out.lower_bands,
+    signal_snapshot_out.lower_b_percent_features);
+  bool own_b_percent_complete = BuildPivotBPercentSeries(
     pivot_price,
-    signal_snapshot_out.macro_bands,
-    signal_snapshot_out.macro_b_percent_features);
-  if(!micro_b_percent_complete)
+    signal_snapshot_out.own_bands,
+    signal_snapshot_out.own_b_percent_features);
+  if(!lower_b_percent_complete)
     AppendPivotFeatureReason(signal_snapshot_out.invalid_reason,
-                             "MICRO_B_PERCENT_INVALID");
-  if(!macro_b_percent_complete)
+                             "LOWER_B_PERCENT_INVALID");
+  if(!own_b_percent_complete)
     AppendPivotFeatureReason(signal_snapshot_out.invalid_reason,
-                             "MACRO_B_PERCENT_INVALID");
+                             "OWN_B_PERCENT_INVALID");
 
-  signal_snapshot_out.micro_complete =
-    shared_snapshot.micro_complete && micro_b_percent_complete;
-  signal_snapshot_out.macro_complete =
-    shared_snapshot.macro_complete && macro_b_percent_complete;
+  signal_snapshot_out.lower_complete =
+    shared_snapshot.lower_complete && lower_b_percent_complete;
+  signal_snapshot_out.own_complete =
+    shared_snapshot.own_complete && own_b_percent_complete;
   signal_snapshot_out.complete =
-    signal_snapshot_out.micro_complete &&
-    signal_snapshot_out.macro_complete;
+    signal_snapshot_out.lower_complete &&
+    signal_snapshot_out.own_complete;
   return signal_snapshot_out.complete;
-}
-
-bool CapturePivotMicroFeatureSnapshot(const double trigger_bid,
-                                      const double pivot_price,
-                                      const datetime broker_time,
-                                      PivotContextFeatureSnapshot &snapshot_out)
-{
-  snapshot_out.Reset();
-  snapshot_out.captured = true;
-  snapshot_out.broker_time = broker_time;
-  snapshot_out.trigger_bid = trigger_bid;
-  snapshot_out.pivot_price = pivot_price;
-
-  double point_size = SymbolInfoDouble(_Symbol, SYMBOL_POINT);
-  bool bands_complete = CapturePivotBandEnvelope(Micro_Timeframe,
-                                                  broker_time,
-                                                  snapshot_out.micro_bands);
-  bool stochastic_complete = CapturePivotStochasticLines(
-    Micro_Timeframe,
-    broker_time,
-    snapshot_out.micro_stochastic);
-  bool main_complete = DerivePivotFeatureSeries(
-    snapshot_out.micro_stochastic.main_line,
-    snapshot_out.micro_stochastic.main_line_available,
-    snapshot_out.micro_stochastic_main_line_features);
-  bool signal_complete = DerivePivotFeatureSeries(
-    snapshot_out.micro_stochastic.signal_line,
-    snapshot_out.micro_stochastic.signal_line_available,
-    snapshot_out.micro_stochastic_signal_line_features);
-  bool trend_complete = DerivePivotBandTrend(snapshot_out.micro_bands,
-                                             point_size,
-                                             snapshot_out.micro_band_trend);
-  bool b_percent_complete = BuildPivotBPercentSeries(
-    pivot_price,
-    snapshot_out.micro_bands,
-    snapshot_out.micro_b_percent_features);
-
-  if(!bands_complete)
-    AppendPivotFeatureReason(snapshot_out.invalid_reason,
-                             "MICRO_" +
-                             snapshot_out.micro_bands.invalid_reason);
-  if(!stochastic_complete)
-    AppendPivotFeatureReason(snapshot_out.invalid_reason,
-                             "MICRO_" +
-                             snapshot_out.micro_stochastic.invalid_reason);
-  if(!main_complete || !signal_complete)
-    AppendPivotFeatureReason(snapshot_out.invalid_reason,
-                             "MICRO_STOCHASTIC_DERIVATION_INVALID");
-  if(!trend_complete)
-    AppendPivotFeatureReason(snapshot_out.invalid_reason,
-                             "MICRO_BAND_TREND_INVALID");
-  if(!b_percent_complete)
-    AppendPivotFeatureReason(snapshot_out.invalid_reason,
-                             "MICRO_B_PERCENT_INVALID");
-
-  if(snapshot_out.micro_band_trend.width_available)
-    snapshot_out.micro_band_width_0 =
-      snapshot_out.micro_band_trend.width_price_0;
-  snapshot_out.micro_complete = bands_complete && stochastic_complete &&
-                                main_complete && signal_complete &&
-                                trend_complete && b_percent_complete;
-  snapshot_out.complete = snapshot_out.micro_complete;
-  return snapshot_out.complete;
 }
 
 #endif // _SERVICES_TRADING_SIGNALS_PIVOT_CONTEXT_FEATURES_MQH_

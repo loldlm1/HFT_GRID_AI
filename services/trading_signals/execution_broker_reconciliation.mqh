@@ -37,7 +37,7 @@ string PivotPositionComment(const PivotSignal &signal)
   string identity = signal.broker_signal_id;
   if(StringLen(identity) > 24)
     identity = StringSubstr(identity, StringLen(identity) - 24);
-  return "PF13_" + identity;
+  return "PF14_" + identity;
 }
 
 bool PivotPositionCommentMatches(const PivotSignal &signal)

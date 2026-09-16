@@ -1,20 +1,30 @@
 # Current Project State
 
-Updated 2026-09-16. EA version `1.30`, strict Pivot Fractal schema `13`, engine
+Updated 2026-09-16. EA version `1.40`, strict Pivot Fractal schema `14`, engine
 `PIVOT_FRACTAL_V2`. This index owns changing project status; the linked guides
 own procedures and dated evidence owns its original results.
 
 ## V14 Implementation
 
 The [V14 MT5 plan](../pivot-fractal-v14-mt5-plan.md) is authorized for all four
-ordered sprints. M1's V14-only offline contract passes 51 focused Python tests,
-fixture build/audit and parent chronology; the EA still produces V13 until M2.
-The contract has 181 H1 and 186 Deep model features. Fixture support remains
-insufficient at the unchanged audit floor 30. Native QA uses initial-2015
+ordered sprints. M1 (`013b95e`, rollback `8625222`) freezes the V14-only offline
+contract with 181 H1 and 186 Deep model features. M2 implements paired capture,
+six cached handles and both-direction Deep parent links. Optimized AVX2 compiles
+with zero errors/warnings; 51 focused Python tests pass. The final H2/M15/M3
+native replay seals OK/NATURAL and passes strict/chronology validation: 104 Macro
+origins, 709 Deep events, 13,050 links (6,653 aligned / 6,397 opposed), 625 events
+with both relationships and 9,492 independent SMA checks. Forty-four Macro
+snapshots retain expected warm-up incompleteness. Native QA uses initial-2015
 XAUUSD_Exness_2015, H2/M15/M3 plus default H1/M10/M3. Django execution, full-history
 testing, GBPJPY conversion repair and live rollout remain outside this work.
 The ignored `.codex-artifacts/pivot-fractal-v14/execution-journal.md` records gates
 and sprint commit/rollback receipts.
+
+M2 binary SHA-256: `423433befab4ecfb97a9685bfefda479d0a5acfe7d5d08ffaf0b03399b92be1b`;
+308,334 bytes, MetaEditor 6184. Exact source mapping and native receipt are in
+`m2-producer-pins.json` and `m2/native-receipt.json` under that artifact directory.
+M3 still owns matched export-on/off and baseline broker comparison; M4 owns final
+guide cleanup and Django handoff. Earlier V13 evidence below remains historical.
 
 ## Reliability And Performance
 

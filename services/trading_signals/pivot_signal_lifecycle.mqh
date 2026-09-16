@@ -38,7 +38,7 @@ bool ExportPivotOwnershipExecutionCheckIfNeeded(PivotSignal &signal)
   if(!signal.execution.broker_entry_confirmed ||
      signal.execution.entry_check_exported)
     return true;
-  if(!PivotV13Enabled())
+  if(!PivotV14Enabled())
   {
     signal.execution.entry_check_exported = true;
     return true;
@@ -63,7 +63,7 @@ bool ExportPivotTerminalExecutionCheck(PivotSignal &signal)
                         signal.execution.state == EXECUTION_ORDER_FAILED;
   if(!broker_closed && !order_terminal)
     return false;
-  if(!PivotV13Enabled())
+  if(!PivotV14Enabled())
   {
     signal.execution.terminal_check_exported = true;
     return true;
@@ -90,13 +90,13 @@ bool ExportPivotSignalOutcome(PivotSignal &signal)
 {
   if(signal.execution.outcome_exported)
     return true;
-  if(!PivotV13Enabled())
+  if(!PivotV14Enabled())
   {
     signal.execution.outcome_exported = true;
     return true;
   }
 
-  bool recorded = PivotV13RecordBrokerOutcome(signal);
+  bool recorded = PivotV14RecordBrokerOutcome(signal);
   if(recorded)
     signal.execution.outcome_exported = true;
   return recorded;
@@ -142,7 +142,7 @@ void FinalizePivotSignalTerminalStates()
       if(!g_pivot_signals[i].execution.broker_close_confirmed ||
          g_pivot_signals[i].execution.close_time <= 0)
         continue;
-      if(PivotV13Ready())
+      if(PivotV14Ready())
       {
         // Hand off the authoritative close clock exactly once before removing
         // broker bookkeeping, even if research delivery fails on this boundary.
@@ -152,18 +152,18 @@ void FinalizePivotSignalTerminalStates()
         ExportPivotTerminalExecutionCheck(g_pivot_signals[i]);
         if(!FinalizeBrokerParityAtBrokerTerminal(g_pivot_signals[i]) ||
            !ExportPivotSignalOutcome(g_pivot_signals[i]))
-          PivotV13MarkFailed("CLOSED_BROKER_RESEARCH_DELIVERY_FAILED", "", 0,
+          PivotV14MarkFailed("CLOSED_BROKER_RESEARCH_DELIVERY_FAILED", "", 0,
                             g_pivot_signals[i].broker_signal_id);
       }
       LogPivotSignalTerminal(g_pivot_signals[i]);
       if(!PivotSignalRemoveAt(i))
-        PivotV13MarkFailed("CLOSED_BROKER_STATE_REMOVE_FAILED", "", GetLastError());
+        PivotV14MarkFailed("CLOSED_BROKER_STATE_REMOVE_FAILED", "", GetLastError());
       continue;
     }
     if(g_pivot_signals[i].execution.state == EXECUTION_ORDER_CANCELED ||
        g_pivot_signals[i].execution.state == EXECUTION_ORDER_FAILED)
     {
-      if(PivotV13Ready())
+      if(PivotV14Ready())
       {
         UpdatePivotOrigin(g_pivot_signals[i]);
         ExportPivotTerminalExecutionCheck(g_pivot_signals[i]);
