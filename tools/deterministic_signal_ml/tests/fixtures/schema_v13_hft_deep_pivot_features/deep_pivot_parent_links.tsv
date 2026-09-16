@@ -1,3 +1,0 @@
-schema_version	run_id	config_id	parent_link_id	deep_event_id	origin_id	parent_kind	parent_trial_id	parent_broker_signal_id	parent_entry_policy	parent_tp_r_multiple	direction	parent_entry_broker_time	event_trigger_broker_time	m10_parent_age_seconds	link_status
-13	schema_v13_hft_deep_pivot_features	cfg_v13_fixture	link_0	deep_event_s1	origin_s1_buy	VIRTUAL	trial_structural_tp1	\N	STRUCTURAL	1	BUY	2026.01.12 10:05:00	2026.01.12 10:19:00	840	ACTIVE
-13	schema_v13_hft_deep_pivot_features	cfg_v13_fixture	link_1	deep_event_s1	origin_s1_buy	VIRTUAL	trial_midpoint_50_tp1	\N	MIDPOINT_50	1	BUY	2026.01.12 10:06:00	2026.01.12 10:19:00	780	ACTIVE

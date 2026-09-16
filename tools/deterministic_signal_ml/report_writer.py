@@ -1,4 +1,4 @@
-"""Deterministic manifests and quality reports for V13 research datasets."""
+"""Deterministic manifests and quality reports for V14 research datasets."""
 
 from __future__ import annotations
 
@@ -14,7 +14,7 @@ from schema_contract import (
     DATASET_CONFIG_KEYS,
     DEEP_CATEGORICAL_COLUMNS,
     DEEP_FEATURE_SET_ID,
-    DEEP_MICRO_FEATURE_COLUMNS,
+    DEEP_SIGNAL_FEATURE_COLUMNS,
     DEEP_MODEL_FEATURE_COLUMNS,
     FUTURE_ONLY_COLUMNS,
     H1_CATEGORICAL_COLUMNS,
@@ -27,7 +27,7 @@ from schema_contract import (
     RunValidation,
 )
 
-BUILDER_VERSION = "pivot_fractal.schema_v13_hft_deep_pivot_features_builder.v1"
+BUILDER_VERSION = "pivot_fractal.schema_v14_hft_deep_pivot_features_builder.v1"
 
 
 def _quoted(column: str) -> str:
@@ -94,7 +94,7 @@ def build_quality_payload(
             "deep_pivot_events",
             "DEEP_EVENT",
             "deep_event_id",
-            DEEP_MICRO_FEATURE_COLUMNS,
+            DEEP_SIGNAL_FEATURE_COLUMNS,
         ),
     }
     support = _fetch_dicts(
@@ -380,7 +380,7 @@ def write_dataset_report(
     support = quality_payload["support"]
     calibration = quality_payload["broker_virtual_calibration"]
     lines = [
-        f"# Pivot V13 Dataset Report: {dataset_id}",
+        f"# Pivot V14 Dataset Report: {dataset_id}",
         "",
         "- Status: `OFFLINE_RESEARCH_ONLY`",
         f"- Unique H1 origins: `{support['unique_origins']}`",

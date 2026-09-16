@@ -44,7 +44,7 @@ def copy_run_with_id(source: Path, runs_root: Path, run_id: str) -> Path:
 def build_fixture_dataset(
     fixture: Path,
     output_dir: Path,
-    dataset_id: str = "fixture_v13",
+    dataset_id: str = "fixture_v14",
 ) -> dict[str, int]:
     output_dir.mkdir(parents=True)
     validation = validate_run(fixture.parent, fixture.name)

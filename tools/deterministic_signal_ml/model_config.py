@@ -1,4 +1,4 @@
-"""Pinned offline XGBoost configuration for separate V13 H1 and deep cohorts."""
+"""Pinned offline XGBoost configuration for separate V14 H1 and deep cohorts."""
 
 from __future__ import annotations
 
@@ -14,7 +14,7 @@ from schema_contract import (
     H1_MODEL_FEATURE_COLUMNS,
 )
 
-TRAINER_VERSION = "pivot_fractal.xgboost.schema_v13_hft_deep_pivot_features.v1"
+TRAINER_VERSION = "pivot_fractal.xgboost.schema_v14_hft_deep_pivot_features.v1"
 DEFAULT_DATASET_ROOT = "artifacts/datasets"
 DEFAULT_MODEL_ROOT = "artifacts/models"
 DEFAULT_HOLDOUT_FRACTION = 0.20
@@ -76,28 +76,28 @@ H1_BASE_FEATURE_COLUMNS = (
     "time_cos",
 )
 H1_WIDTH_FEATURE_COLUMNS = H1_BASE_FEATURE_COLUMNS + (
-    "origin_micro_band_width_points_0",
     "origin_macro_band_width_points_0",
+    "origin_deep_band_width_points_0",
 )
-H1_MICRO_BANDS_FEATURE_COLUMNS = H1_WIDTH_FEATURE_COLUMNS + _band_columns(
-    "origin_micro"
-)
-H1_MACRO_BANDS_FEATURE_COLUMNS = H1_MICRO_BANDS_FEATURE_COLUMNS + _band_columns(
+H1_MACRO_BANDS_FEATURE_COLUMNS = H1_WIDTH_FEATURE_COLUMNS + _band_columns(
     "origin_macro"
 )
-H1_MICRO_STOCHASTIC_FEATURE_COLUMNS = (
-    H1_MACRO_BANDS_FEATURE_COLUMNS + _stochastic_columns("origin_micro")
+H1_DEEP_BANDS_FEATURE_COLUMNS = H1_MACRO_BANDS_FEATURE_COLUMNS + _band_columns(
+    "origin_deep"
+)
+H1_MACRO_STOCHASTIC_FEATURE_COLUMNS = (
+    H1_DEEP_BANDS_FEATURE_COLUMNS + _stochastic_columns("origin_macro")
 )
 H1_ALL_FEATURE_COLUMNS = (
-    H1_MICRO_STOCHASTIC_FEATURE_COLUMNS + _stochastic_columns("origin_macro")
+    H1_MACRO_STOCHASTIC_FEATURE_COLUMNS + _stochastic_columns("origin_deep")
 )
 H1_FEATURE_ABLATIONS = (
     ("base", H1_BASE_FEATURE_COLUMNS),
     ("widths", H1_WIDTH_FEATURE_COLUMNS),
-    ("micro_bands", H1_MICRO_BANDS_FEATURE_COLUMNS),
     ("macro_bands", H1_MACRO_BANDS_FEATURE_COLUMNS),
-    ("micro_stochastic", H1_MICRO_STOCHASTIC_FEATURE_COLUMNS),
-    ("macro_stochastic", H1_ALL_FEATURE_COLUMNS),
+    ("deep_bands", H1_DEEP_BANDS_FEATURE_COLUMNS),
+    ("macro_stochastic", H1_MACRO_STOCHASTIC_FEATURE_COLUMNS),
+    ("deep_stochastic", H1_ALL_FEATURE_COLUMNS),
 )
 # Generic callers default to the primary H1 evidence grain; deep training
 # selects its own explicit ablation sequence through feature_set_id.
@@ -107,6 +107,8 @@ DEEP_BASE_FEATURE_COLUMNS = (
     "symbol",
     "level_id",
     "direction",
+    "parent_direction",
+    "direction_relationship",
     "parent_kind",
     "parent_entry_policy",
     "tp_r_multiple",
@@ -120,23 +122,28 @@ DEEP_BASE_FEATURE_COLUMNS = (
     "time_cos",
 )
 DEEP_WIDTH_FEATURE_COLUMNS = DEEP_BASE_FEATURE_COLUMNS + (
+    "deep_deep_band_width_points_0",
     "deep_micro_band_width_points_0",
 )
-DEEP_BANDS_FEATURE_COLUMNS = DEEP_WIDTH_FEATURE_COLUMNS + _band_columns("deep_micro")
-DEEP_ALL_FEATURE_COLUMNS = DEEP_BANDS_FEATURE_COLUMNS + _stochastic_columns(
+DEEP_BANDS_FEATURE_COLUMNS = DEEP_WIDTH_FEATURE_COLUMNS + _band_columns("deep_deep")
+DEEP_MICRO_BANDS_FEATURE_COLUMNS = DEEP_BANDS_FEATURE_COLUMNS + _band_columns("deep_micro")
+DEEP_STOCHASTIC_FEATURE_COLUMNS = DEEP_MICRO_BANDS_FEATURE_COLUMNS + _stochastic_columns("deep_deep")
+DEEP_ALL_FEATURE_COLUMNS = DEEP_STOCHASTIC_FEATURE_COLUMNS + _stochastic_columns(
     "deep_micro"
 )
 DEEP_FEATURE_ABLATIONS = (
     ("base", DEEP_BASE_FEATURE_COLUMNS),
-    ("width", DEEP_WIDTH_FEATURE_COLUMNS),
-    ("micro_bands", DEEP_BANDS_FEATURE_COLUMNS),
+    ("widths", DEEP_WIDTH_FEATURE_COLUMNS),
+    ("deep_bands", DEEP_BANDS_FEATURE_COLUMNS),
+    ("micro_bands", DEEP_MICRO_BANDS_FEATURE_COLUMNS),
+    ("deep_stochastic", DEEP_STOCHASTIC_FEATURE_COLUMNS),
     ("micro_stochastic", DEEP_ALL_FEATURE_COLUMNS),
 )
 
 if set(H1_ALL_FEATURE_COLUMNS) != set(H1_MODEL_FEATURE_COLUMNS):
-    raise RuntimeError("H1 ablation contract does not reconstruct the V13 H1 feature set")
+    raise RuntimeError("H1 ablation contract does not reconstruct the V14 H1 feature set")
 if set(DEEP_ALL_FEATURE_COLUMNS) != set(DEEP_MODEL_FEATURE_COLUMNS):
-    raise RuntimeError("Deep ablation contract does not reconstruct the V13 deep feature set")
+    raise RuntimeError("Deep ablation contract does not reconstruct the V14 deep feature set")
 
 
 @dataclass(frozen=True)

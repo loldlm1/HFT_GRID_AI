@@ -1,4 +1,4 @@
-"""Bounded V13 parent chronology audit and provenance-preserving censor repair.
+"""Bounded V14 parent chronology audit and provenance-preserving censor repair.
 
 This is a focused operational gate, not a replacement for the full semantic
 validator. It never modifies its source run or reclassifies a censored outcome.
@@ -27,9 +27,9 @@ PROJECTIONS = {
     "virtual_trials": "trial_id origin_id broker_signal_id trial_role entry_policy tp_r_multiple direction entry_broker_time eligibility_status",
     "virtual_outcomes": "outcome_id trial_id terminal_broker_time terminal_status",
     "deep_pivot_events": "deep_event_id symbol deep_timeframe micro_timeframe direction trigger_broker_time admission_status active_parent_count",
-    "deep_pivot_parent_links": "parent_link_id deep_event_id origin_id parent_kind parent_trial_id parent_broker_signal_id parent_entry_policy parent_tp_r_multiple direction parent_entry_broker_time event_trigger_broker_time m10_parent_age_seconds",
+    "deep_pivot_parent_links": "parent_link_id deep_event_id origin_id parent_kind parent_trial_id parent_broker_signal_id parent_entry_policy parent_tp_r_multiple parent_direction deep_direction direction_relationship parent_entry_broker_time event_trigger_broker_time m10_parent_age_seconds",
     "deep_virtual_trials": "deep_trial_id deep_event_id tp_r_multiple direction eligibility_status",
-    "deep_virtual_outcomes": "deep_outcome_id parent_link_id deep_trial_id deep_event_id origin_id tp_r_multiple direction terminal_broker_time terminal_analysis_time terminal_offset_minutes terminal_status terminal_reason deep_lifecycle_seconds virtual_binary_eligible virtual_binary_target threshold_price gap_points virtual_nominal_r virtual_quote_gross_profit virtual_quote_gross_r virtual_exclusion_reason observed_exit_bid observed_exit_ask observed_exit_price exit_quote_side first_touch_consistent",
+    "deep_virtual_outcomes": "deep_outcome_id parent_link_id deep_trial_id deep_event_id origin_id tp_r_multiple direction parent_direction terminal_broker_time terminal_analysis_time terminal_offset_minutes terminal_status terminal_reason deep_lifecycle_seconds virtual_binary_eligible virtual_binary_target threshold_price gap_points virtual_nominal_r virtual_quote_gross_profit virtual_quote_gross_r virtual_exclusion_reason observed_exit_bid observed_exit_ask observed_exit_price exit_quote_side first_touch_consistent",
     "broker_outcomes": "broker_outcome_id origin_id broker_signal_id entry_broker_time close_broker_time close_analysis_time close_offset_minutes broker_entry_confirmed broker_close_confirmed",
     "execution_checks": "check_id origin_id broker_signal_id broker_time broker_entry_confirmed broker_close_confirmed",
 }
@@ -45,9 +45,9 @@ REQUIRED_IDENTITIES = {
     "virtual_trials": "origin_id trial_role entry_policy tp_r_multiple direction eligibility_status",
     "virtual_outcomes": "trial_id terminal_broker_time terminal_status",
     "deep_pivot_events": "symbol deep_timeframe micro_timeframe direction trigger_broker_time admission_status active_parent_count",
-    "deep_pivot_parent_links": "deep_event_id origin_id parent_kind parent_trial_id parent_entry_policy parent_tp_r_multiple direction parent_entry_broker_time event_trigger_broker_time m10_parent_age_seconds",
+    "deep_pivot_parent_links": "deep_event_id origin_id parent_kind parent_trial_id parent_entry_policy parent_tp_r_multiple parent_direction deep_direction direction_relationship parent_entry_broker_time event_trigger_broker_time m10_parent_age_seconds",
     "deep_virtual_trials": "deep_event_id tp_r_multiple direction eligibility_status",
-    "deep_virtual_outcomes": "parent_link_id deep_trial_id deep_event_id origin_id tp_r_multiple direction terminal_status virtual_binary_eligible",
+    "deep_virtual_outcomes": "parent_link_id deep_trial_id deep_event_id origin_id tp_r_multiple direction parent_direction terminal_status virtual_binary_eligible",
     "broker_outcomes": "origin_id broker_signal_id entry_broker_time close_broker_time broker_entry_confirmed broker_close_confirmed",
 }
 REPAIRABLE_CHECK = "broker_parent_censor_after_close"
@@ -82,7 +82,7 @@ def _inspect(run: Path) -> tuple[dict, dict]:
         raise SchemaValidationError("Expected one sealed run summary")
     summary = summaries[0]
     if (summary["run_id"] != run.name or summary["config_id"] != manifest["config_id"]
-            or summary["schema_version"] != "13" or summary["export_status"] != "OK"
+            or summary["schema_version"] != "14" or summary["export_status"] != "OK"
             or summary["completion_status"] not in ("NATURAL", "CENSORED")):
         raise SchemaValidationError("Run summary is not a compatible successful export seal")
     for key in ("duplicate_identity_count", "referential_integrity_error_count", "row_integrity_error_count"):
@@ -123,7 +123,7 @@ def _audit(db: duckdb.DuckDBPyConnection, run: Path, manifest: dict, summary: di
         count = int(db.execute(f"SELECT count(*) FROM {table}").fetchone()[0])
         report["row_counts"][table] = count
         report["checks"][table + ".summary_count"] = int(count != int(summary[COUNT_KEYS[table]]))
-        check(table + ".run_identity", f"SELECT count(*) FROM {table} WHERE schema_version IS DISTINCT FROM 13 OR run_id IS DISTINCT FROM {_literal(run.name)} OR config_id IS DISTINCT FROM {_literal(manifest['config_id'])}")
+        check(table + ".run_identity", f"SELECT count(*) FROM {table} WHERE schema_version IS DISTINCT FROM 14 OR run_id IS DISTINCT FROM {_literal(run.name)} OR config_id IS DISTINCT FROM {_literal(manifest['config_id'])}")
         key = PRIMARY_KEYS[table]
         check(table + ".primary_key", f"SELECT count(*) - count(DISTINCT {key}) FROM {table}")
         if table in REQUIRED_IDENTITIES:
@@ -163,11 +163,12 @@ def _audit(db: duckdb.DuckDBPyConnection, run: Path, manifest: dict, summary: di
     checks = {
         "parent_identity": """SELECT count(*) FROM parents WHERE referenced_trial IS NULL OR referenced_event IS NULL
           OR parent_kind IS NULL OR parent_kind NOT IN ('VIRTUAL','BROKER')
-          OR origin_id IS DISTINCT FROM trial_origin OR direction IS DISTINCT FROM trial_direction
-          OR direction IS DISTINCT FROM event_direction OR parent_entry_policy IS DISTINCT FROM entry_policy
+          OR origin_id IS DISTINCT FROM trial_origin OR parent_direction IS DISTINCT FROM trial_direction
+          OR deep_direction IS DISTINCT FROM event_direction OR parent_entry_policy IS DISTINCT FROM entry_policy
           OR parent_tp_r_multiple IS DISTINCT FROM tp_r_multiple
           OR parent_broker_signal_id IS DISTINCT FROM trial_broker_signal OR admission_status IS DISTINCT FROM 'ADMITTED'
-          OR direction NOT IN ('BUY','SELL')
+          OR parent_direction NOT IN ('BUY','SELL') OR deep_direction NOT IN ('BUY','SELL')
+          OR direction_relationship IS DISTINCT FROM CASE WHEN parent_direction=deep_direction THEN 'ALIGNED' ELSE 'OPPOSED' END
           OR (parent_kind='VIRTUAL' AND (trial_role IS DISTINCT FROM 'H1' OR eligibility_status IS DISTINCT FROM 'ACTIVE' OR parent_terminal IS NULL
               OR parent_entry_broker_time IS DISTINCT FROM trial_entry))
           OR (parent_kind='BROKER' AND (trial_role IS DISTINCT FROM 'BROKER_PARITY' OR parent_entry_policy IS DISTINCT FROM 'STRUCTURAL' OR parent_tp_r_multiple IS DISTINCT FROM 1))""",
@@ -186,7 +187,7 @@ def _audit(db: duckdb.DuckDBPyConnection, run: Path, manifest: dict, summary: di
         "outcome_identity": """SELECT count(*) FROM deep_virtual_outcomes d LEFT JOIN parents p USING(parent_link_id)
           LEFT JOIN deep_virtual_trials t USING(deep_trial_id) WHERE p.parent_link_id IS NULL OR t.deep_trial_id IS NULL
           OR d.deep_event_id IS DISTINCT FROM p.deep_event_id OR d.deep_event_id IS DISTINCT FROM t.deep_event_id
-          OR d.origin_id IS DISTINCT FROM p.origin_id OR d.direction IS DISTINCT FROM p.direction
+          OR d.origin_id IS DISTINCT FROM p.origin_id OR d.direction IS DISTINCT FROM p.deep_direction OR d.parent_direction IS DISTINCT FROM p.parent_direction
           OR d.direction IS DISTINCT FROM t.direction OR d.tp_r_multiple IS DISTINCT FROM t.tp_r_multiple""",
         "outcome_unique_link_trial": "SELECT count(*)-count(DISTINCT (parent_link_id,deep_trial_id)) FROM deep_virtual_outcomes",
         "three_outcomes_per_link": "SELECT count(*) FROM parents p LEFT JOIN (SELECT parent_link_id,count(*) n,count(DISTINCT tp_r_multiple) ratios,min(tp_r_multiple) lo,max(tp_r_multiple) hi FROM deep_virtual_outcomes GROUP BY parent_link_id) d USING(parent_link_id) WHERE n IS DISTINCT FROM 3 OR ratios IS DISTINCT FROM 3 OR lo IS DISTINCT FROM 1 OR hi IS DISTINCT FROM 3",
@@ -231,7 +232,7 @@ def audit_run(runs_root: Path, run_id: str, *, memory_limit_mb: int = 2048,
     run = _resolve_run_path(runs_root, run_id)
     before = _snapshot(run)
     manifest, summary = _inspect(run)
-    with tempfile.TemporaryDirectory(prefix="v13-parent-audit-") as temporary:
+    with tempfile.TemporaryDirectory(prefix="v14-parent-audit-") as temporary:
         db = duckdb.connect(config={"memory_limit": f"{memory_limit_mb}MB", "threads": "4",
                                     "temp_directory": temporary, "preserve_insertion_order": "false"})
         try:
@@ -308,9 +309,9 @@ def recover_run(runs_root: Path, run_id: str, recovered_runs_root: Path,
                                 rewritten = b"\t".join((parts[0], parts[1], new_id)) + ending
                         elif index:
                             prefix = line.split(b"\t", 2)
-                            if len(prefix) != 3 or prefix[0] != b"13" or prefix[1] != old_id:
+                            if len(prefix) != 3 or prefix[0] != b"14" or prefix[1] != old_id:
                                 raise SchemaValidationError(f"Unexpected source row identity: {filename}:{index + 1}")
-                            rewritten = b"13\t" + new_id + b"\t" + prefix[2]
+                            rewritten = b"14\t" + new_id + b"\t" + prefix[2]
                             if filename == "deep_virtual_outcomes.tsv":
                                 outcome_id = prefix[2].split(b"\t", 2)[1].decode("utf-8")
                                 candidate = candidates.get(outcome_id)

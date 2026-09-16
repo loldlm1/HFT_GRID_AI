@@ -28,10 +28,10 @@ from schema_contract import (
 )
 
 FIXTURES = Path(__file__).parent / "fixtures"
-FIXTURE = FIXTURES / "schema_v13_hft_deep_pivot_features"
+FIXTURE = FIXTURES / "schema_v14_hft_deep_pivot_features"
 
 
-class PivotFractalV13EvidenceAuditTests(unittest.TestCase):
+class PivotFractalV14EvidenceAuditTests(unittest.TestCase):
     def test_fixture_provenance_pins_contract_and_hashes(self) -> None:
         provenance = json.loads(
             (FIXTURE / "fixture_provenance.json").read_text(encoding="ascii")
@@ -52,9 +52,9 @@ class PivotFractalV13EvidenceAuditTests(unittest.TestCase):
     def test_fixture_reconciles_native_evidence_grains(self) -> None:
         validation = validate_run(FIXTURES, FIXTURE.name)
         self.assertEqual(validation.row_counts[DEEP_PIVOT_EVENTS_FILE], 1)
-        self.assertEqual(validation.row_counts[DEEP_PIVOT_PARENT_LINKS_FILE], 2)
+        self.assertEqual(validation.row_counts[DEEP_PIVOT_PARENT_LINKS_FILE], 3)
         self.assertEqual(validation.row_counts[DEEP_VIRTUAL_TRIALS_FILE], 3)
-        self.assertEqual(validation.row_counts[DEEP_VIRTUAL_OUTCOMES_FILE], 6)
+        self.assertEqual(validation.row_counts[DEEP_VIRTUAL_OUTCOMES_FILE], 9)
         self.assertEqual(validation.warnings, ())
 
     def test_fixture_build_and_audit_keep_cohorts_separate(self) -> None:
@@ -81,15 +81,15 @@ class PivotFractalV13EvidenceAuditTests(unittest.TestCase):
                     ],
                 },
                 {
-                    "h1_lane_long": 8,
+                    "h1_lane_long": 16,
                     "eligible_h1_trials": 8,
-                    "deep_parent_long": 6,
-                    "eligible_deep_trials": 5,
+                    "deep_parent_long": 9,
+                    "eligible_deep_trials": 7,
                     "broker_virtual_calibration": 0,
                 },
             )
             self.assertEqual(metadata["research_status"], "AUDIT_COMPLETE")
-            self.assertEqual(metadata["support"]["unique_origins"], 1)
+            self.assertEqual(metadata["support"]["unique_origins"], 2)
             self.assertEqual(metadata["support"]["unique_deep_events"], 1)
             self.assertEqual(
                 metadata["support"]["deep_parent_exit_censored_rows"], 1
@@ -111,7 +111,7 @@ class PivotFractalV13EvidenceAuditTests(unittest.TestCase):
             manifest_path = dataset_dir / "dataset_manifest.json"
             manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
             contract = manifest["feature_contracts"][
-                "schema_v13_hft_deep_pivot_features.deep_parent"
+                "schema_v14_hft_deep_pivot_features.deep_parent"
             ]
             contract["event_features_native_grain"] = False
             manifest_path.write_text(
@@ -156,6 +156,28 @@ class PivotFractalV13EvidenceAuditTests(unittest.TestCase):
             audit_dir.mkdir()
             with self.assertRaisesRegex(PivotAuditError, "at least 1"):
                 build_audit(dataset_dir, audit_dir, "bad_support", 0)
+
+    def test_audit_rejects_opposed_outcome_using_event_direction_as_parent(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            dataset_dir = root / "dataset"
+            build_fixture_dataset(FIXTURE, dataset_dir)
+            original = dataset_dir / "deep_virtual_outcomes.parquet"
+            replacement = root / "replacement.parquet"
+            connection = duckdb.connect(":memory:")
+            try:
+                connection.execute(
+                    "COPY (SELECT * REPLACE (direction AS parent_direction) "
+                    "FROM read_parquet($source)) TO $target (FORMAT PARQUET)",
+                    {"source": str(original), "target": str(replacement)},
+                )
+            finally:
+                connection.close()
+            replacement.replace(original)
+            audit_dir = root / "audit"
+            audit_dir.mkdir()
+            with self.assertRaisesRegex(PivotAuditError, "parent/event direction"):
+                build_audit(dataset_dir, audit_dir, "bad_parent_direction", 1)
 
 
 if __name__ == "__main__":

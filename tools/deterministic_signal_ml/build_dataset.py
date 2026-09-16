@@ -1,4 +1,4 @@
-"""Build typed, grain-aware research artifacts from strict Pivot Fractal V13 runs."""
+"""Build typed, grain-aware research artifacts from strict Pivot Fractal V14 runs."""
 
 from __future__ import annotations
 
@@ -17,7 +17,7 @@ from report_writer import (
 from schema_contract import (
     COLUMN_TYPE_BY_NAME,
     COLUMN_TYPE_GROUPS,
-    DEEP_MICRO_FEATURE_COLUMNS,
+    DEEP_SIGNAL_FEATURE_COLUMNS,
     DEEP_MODEL_FEATURE_COLUMNS,
     H1_ENTRY_POLICIES,
     H1_MODEL_FEATURE_COLUMNS,
@@ -67,7 +67,7 @@ def _typed_expression(column: str) -> str:
     try:
         column_type = COLUMN_TYPE_BY_NAME[column]
     except KeyError as exc:
-        raise RuntimeError(f"V13 column lacks an explicit dataset type: {column}") from exc
+        raise RuntimeError(f"V14 column lacks an explicit dataset type: {column}") from exc
     if column_type == "TIMESTAMP":
         return f"strptime({nullified}, '%Y.%m.%d %H:%M:%S') AS {quoted}"
     if column_type == "BOOLEAN":
@@ -78,7 +78,7 @@ def _typed_expression(column: str) -> str:
         return f"CAST({nullified} AS DOUBLE) AS {quoted}"
     if column_type == "VARCHAR":
         return f"{nullified} AS {quoted}"
-    raise RuntimeError(f"Unsupported V13 dataset type for {column}: {column_type}")
+    raise RuntimeError(f"Unsupported V14 dataset type for {column}: {column_type}")
 
 
 def _load_typed_table(
@@ -99,7 +99,7 @@ FROM read_csv(
   header=true,
   all_varchar=true,
   union_by_name=false,
-  nullstr='__PIVOT_V13_NO_AUTOMATIC_NULL__'
+  nullstr='__PIVOT_V14_NO_AUTOMATIC_NULL__'
 )
 """
     )
@@ -120,7 +120,7 @@ def create_raw_tables(
     validations: list[RunValidation],
 ) -> dict[str, int]:
     if not validations:
-        raise RuntimeError("At least one validated V13 run is required")
+        raise RuntimeError("At least one validated V14 run is required")
     counts: dict[str, int] = {}
     for filename in RUN_FILES:
         table_name = Path(filename).stem
@@ -179,7 +179,7 @@ SELECT
   so.structural_entry_price,
   so.structural_sl_price,
   so.structural_take_profit,
-  so.origin_micro_features_complete,
+  so.origin_deep_features_complete,
   so.origin_macro_features_complete,
   so.origin_feature_snapshot_complete,
   so.origin_feature_invalid_reason,
@@ -283,7 +283,7 @@ SELECT
   trigger_bid,
   trigger_ask,
   pivot_trade_price,
-  origin_micro_features_complete,
+  origin_deep_features_complete,
   origin_macro_features_complete,
   origin_feature_snapshot_complete,
   {feature_select},
@@ -336,6 +336,9 @@ SELECT
   dpl.parent_broker_signal_id,
   dpl.parent_entry_policy,
   dpl.parent_tp_r_multiple,
+  dpl.parent_direction,
+  dpl.deep_direction,
+  dpl.direction_relationship,
   dpl.parent_entry_broker_time,
   dpl.event_trigger_broker_time,
   dpl.m10_parent_age_seconds,
@@ -382,6 +385,8 @@ SELECT
   dpe.pivot_trade_price,
   dpe.next_outward_pivot_price,
   dpe.deep_micro_features_complete,
+  dpe.deep_deep_features_complete,
+  dpe.deep_feature_snapshot_complete,
   dpe.deep_feature_invalid_reason,
   dpe.admission_status,
   concat(
@@ -481,7 +486,7 @@ SELECT
   1.0 / (tp_r_multiple + 1.0) AS break_even_tp_rate
 FROM {DEEP_PARENT_LONG_TABLE}
 WHERE eligibility_status = 'ACTIVE'
-  AND deep_micro_features_complete
+  AND deep_feature_snapshot_complete
   AND virtual_binary_eligible
   AND virtual_binary_target IN (0, 1)
   AND terminal_status IN ('TP_FIRST', 'SL_FIRST')
@@ -711,8 +716,8 @@ FROM (
     _require_complete_features(
         connection,
         "deep_pivot_events",
-        "deep_micro_features_complete",
-        DEEP_MICRO_FEATURE_COLUMNS,
+        "deep_feature_snapshot_complete",
+        DEEP_SIGNAL_FEATURE_COLUMNS,
     )
 
     deep_columns = {
@@ -726,7 +731,7 @@ FROM (
         ).fetchall()
     }
     duplicated_event_features = sorted(
-        set(DEEP_MICRO_FEATURE_COLUMNS) & (deep_columns | eligible_deep_columns)
+        set(DEEP_SIGNAL_FEATURE_COLUMNS) & (deep_columns | eligible_deep_columns)
     )
     if duplicated_event_features:
         raise RuntimeError(
@@ -744,13 +749,13 @@ FROM (
         row[0]
         for row in connection.execute("DESCRIBE deep_pivot_events").fetchall()
     }
-    missing_event_features = sorted(set(DEEP_MICRO_FEATURE_COLUMNS) - deep_event_columns)
+    missing_event_features = sorted(set(DEEP_SIGNAL_FEATURE_COLUMNS) - deep_event_columns)
     if missing_event_features:
         raise RuntimeError(
             f"Deep event grain lacks model features: {missing_event_features}"
         )
     required_parent_features = set(DEEP_MODEL_FEATURE_COLUMNS) - set(
-        DEEP_MICRO_FEATURE_COLUMNS
+        DEEP_SIGNAL_FEATURE_COLUMNS
     )
     missing_parent_features = sorted(required_parent_features - eligible_deep_columns)
     if missing_parent_features:
@@ -791,12 +796,12 @@ def create_dataset_tables(
     feature_columns: tuple[str, ...] = MODEL_FEATURE_COLUMNS,
 ) -> dict[str, int]:
     if schema_version != SUPPORTED_SCHEMA_VERSION:
-        raise RuntimeError("Only schema 13 dataset assembly is active")
+        raise RuntimeError("Only schema 14 dataset assembly is active")
     if tuple(feature_columns) not in {
         tuple(H1_MODEL_FEATURE_COLUMNS),
         tuple(DEEP_MODEL_FEATURE_COLUMNS),
     }:
-        raise RuntimeError("Schema V13 requires an explicit H1 or deep feature set")
+        raise RuntimeError("Schema V14 requires an explicit H1 or deep feature set")
     raw_counts = create_raw_tables(connection, validations)
     _create_h1_lane_long(connection)
     _create_h1_lane_wide(connection)

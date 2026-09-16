@@ -1,7 +1,7 @@
-"""Strict schema V13 contract for H1 lanes and shared deep-pivot evidence.
+"""Strict schema V14 contract for H1 lanes and shared deep-pivot evidence.
 
 The producer and offline tools deliberately share this small, explicit contract.
-No V12 conversion or compatibility mode is provided.
+No earlier-schema conversion or compatibility mode is provided.
 """
 
 from __future__ import annotations
@@ -14,12 +14,12 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta
 from pathlib import Path
 
-SUPPORTED_SCHEMA_VERSION = 13
+SUPPORTED_SCHEMA_VERSION = 14
 SUPPORTED_ENGINE_LABEL = "PIVOT_FRACTAL_V2"
-SUPPORTED_FEATURE_SET_ID = "schema_v13_hft_deep_pivot_features"
+SUPPORTED_FEATURE_SET_ID = "schema_v14_hft_deep_pivot_features"
 H1_FEATURE_SET_ID = f"{SUPPORTED_FEATURE_SET_ID}.h1"
 DEEP_FEATURE_SET_ID = f"{SUPPORTED_FEATURE_SET_ID}.deep_parent"
-STORAGE_ROOT = r"Common\Files\PivotFractalV13\runs"
+STORAGE_ROOT = r"Common\Files\PivotFractalV14\runs"
 NULL_TOKEN = r"\N"
 
 FEATURE_SHIFTS = tuple(range(6))
@@ -58,10 +58,12 @@ def _timeframe_feature_columns(prefix: str) -> tuple[str, ...]:
     )
 
 
-ORIGIN_MICRO_FEATURE_COLUMNS = _timeframe_feature_columns("origin_micro")
+ORIGIN_DEEP_FEATURE_COLUMNS = _timeframe_feature_columns("origin_deep")
 ORIGIN_MACRO_FEATURE_COLUMNS = _timeframe_feature_columns("origin_macro")
-ORIGIN_SIGNAL_FEATURE_COLUMNS = (*ORIGIN_MICRO_FEATURE_COLUMNS, *ORIGIN_MACRO_FEATURE_COLUMNS)
+ORIGIN_SIGNAL_FEATURE_COLUMNS = (*ORIGIN_MACRO_FEATURE_COLUMNS, *ORIGIN_DEEP_FEATURE_COLUMNS)
+DEEP_DEEP_FEATURE_COLUMNS = _timeframe_feature_columns("deep_deep")
 DEEP_MICRO_FEATURE_COLUMNS = _timeframe_feature_columns("deep_micro")
+DEEP_SIGNAL_FEATURE_COLUMNS = (*DEEP_DEEP_FEATURE_COLUMNS, *DEEP_MICRO_FEATURE_COLUMNS)
 
 RUN_MANIFEST_FILE = "run_manifest.tsv"
 PIVOT_WINDOWS_FILE = "pivot_windows.tsv"
@@ -122,8 +124,8 @@ SIGNAL_ORIGIN_COLUMNS = (
     "trade_s1_price", "trade_pp_price", "trade_r1_price", "trade_r2_price", "trade_r3_price",
     "pivot_raw_price", "pivot_trade_price", "next_outward_pivot_price", "midpoint_50_price",
     "structural_entry_price", "structural_sl_price", "structural_take_profit",
-    *ORIGIN_SIGNAL_FEATURE_COLUMNS, "origin_micro_features_complete",
-    "origin_macro_features_complete", "origin_feature_snapshot_complete",
+    *ORIGIN_SIGNAL_FEATURE_COLUMNS, "origin_macro_features_complete",
+    "origin_deep_features_complete", "origin_feature_snapshot_complete",
     "origin_feature_invalid_reason", "identity_consumed", "h1_lanes_declared",
     "broker_attempt_status", "origin_terminal_status",
 )
@@ -163,7 +165,8 @@ DEEP_PIVOT_EVENT_COLUMNS = (
     "direction", "trigger_broker_time", "trigger_analysis_time", "trigger_offset_minutes",
     "trigger_bid", "trigger_ask", "spread_points", "point_size", "trade_tick_size",
     "stops_level_points", "freeze_level_points", "pivot_raw_price", "pivot_trade_price",
-    "next_outward_pivot_price", *DEEP_MICRO_FEATURE_COLUMNS, "deep_micro_features_complete",
+    "next_outward_pivot_price", *DEEP_SIGNAL_FEATURE_COLUMNS, "deep_deep_features_complete",
+    "deep_micro_features_complete", "deep_feature_snapshot_complete",
     "deep_feature_invalid_reason", "identity_consumed", "admission_status", "active_parent_count",
     "required_link_slots", "required_trial_slots", "required_outcome_slots", "reserved_link_slots",
     "reserved_trial_slots", "reserved_outcome_slots", "capacity_rejection_reason",
@@ -172,7 +175,8 @@ DEEP_PIVOT_EVENT_COLUMNS = (
 DEEP_PIVOT_PARENT_LINK_COLUMNS = (
     "schema_version", "run_id", "config_id", "parent_link_id", "deep_event_id", "origin_id",
     "parent_kind", "parent_trial_id", "parent_broker_signal_id", "parent_entry_policy",
-    "parent_tp_r_multiple", "direction", "parent_entry_broker_time", "event_trigger_broker_time",
+    "parent_tp_r_multiple", "parent_direction", "deep_direction", "direction_relationship",
+    "parent_entry_broker_time", "event_trigger_broker_time",
     "m10_parent_age_seconds", "link_status",
 )
 
@@ -189,7 +193,7 @@ DEEP_VIRTUAL_TRIAL_COLUMNS = (
 
 DEEP_VIRTUAL_OUTCOME_COLUMNS = (
     "schema_version", "run_id", "config_id", "deep_outcome_id", "parent_link_id", "deep_trial_id",
-    "deep_event_id", "origin_id", "tp_r_multiple", "direction", "terminal_broker_time",
+    "deep_event_id", "origin_id", "tp_r_multiple", "direction", "parent_direction", "terminal_broker_time",
     "terminal_analysis_time", "terminal_offset_minutes", "terminal_status", "terminal_reason",
     "threshold_price", "observed_exit_bid", "observed_exit_ask", "observed_exit_price",
     "exit_quote_side", "gap_points", "deep_lifecycle_seconds", "virtual_nominal_r",
@@ -292,14 +296,14 @@ TIMEFRAME_SECONDS = {
 }
 
 ORIGIN_STATE_FEATURE_COLUMNS = tuple(c for c in ORIGIN_SIGNAL_FEATURE_COLUMNS if "_state_" in c)
-DEEP_STATE_FEATURE_COLUMNS = tuple(c for c in DEEP_MICRO_FEATURE_COLUMNS if "_state_" in c)
+DEEP_STATE_FEATURE_COLUMNS = tuple(c for c in DEEP_SIGNAL_FEATURE_COLUMNS if "_state_" in c)
 ORIGIN_NUMERIC_SIGNAL_FEATURE_COLUMNS = tuple(c for c in ORIGIN_SIGNAL_FEATURE_COLUMNS if c not in ORIGIN_STATE_FEATURE_COLUMNS)
-DEEP_NUMERIC_SIGNAL_FEATURE_COLUMNS = tuple(c for c in DEEP_MICRO_FEATURE_COLUMNS if c not in DEEP_STATE_FEATURE_COLUMNS)
+DEEP_NUMERIC_SIGNAL_FEATURE_COLUMNS = tuple(c for c in DEEP_SIGNAL_FEATURE_COLUMNS if c not in DEEP_STATE_FEATURE_COLUMNS)
 
 H1_CATEGORICAL_COLUMNS = ("symbol", "level_id", "direction", "entry_policy", "analysis_weekday", "analysis_session", *ORIGIN_STATE_FEATURE_COLUMNS)
 H1_NUMERIC_FEATURE_COLUMNS = ("tp_r_multiple", *ORIGIN_NUMERIC_SIGNAL_FEATURE_COLUMNS, "trigger_gap_to_risk", "spread_to_risk", "time_sin", "time_cos")
 H1_MODEL_FEATURE_COLUMNS = H1_CATEGORICAL_COLUMNS + H1_NUMERIC_FEATURE_COLUMNS
-DEEP_CATEGORICAL_COLUMNS = ("symbol", "level_id", "direction", "parent_kind", "parent_entry_policy", "analysis_weekday", "analysis_session", *DEEP_STATE_FEATURE_COLUMNS)
+DEEP_CATEGORICAL_COLUMNS = ("symbol", "level_id", "direction", "parent_direction", "direction_relationship", "parent_kind", "parent_entry_policy", "analysis_weekday", "analysis_session", *DEEP_STATE_FEATURE_COLUMNS)
 DEEP_NUMERIC_FEATURE_COLUMNS = ("tp_r_multiple", "parent_tp_r_multiple", "m10_parent_age_seconds", *DEEP_NUMERIC_SIGNAL_FEATURE_COLUMNS, "trigger_gap_to_risk", "spread_to_risk", "time_sin", "time_cos")
 DEEP_MODEL_FEATURE_COLUMNS = DEEP_CATEGORICAL_COLUMNS + DEEP_NUMERIC_FEATURE_COLUMNS
 CATEGORICAL_COLUMNS = H1_CATEGORICAL_COLUMNS
@@ -312,20 +316,20 @@ TARGET_COLUMNS = ("virtual_binary_target", "terminal_status", "virtual_nominal_r
 AUDIT_COLUMNS = ("entry_price", "stop_loss_price", "take_profit_price", "eligibility_status", "ineligible_reason", "observed_exit_price", "gap_points")
 FUTURE_ONLY_COLUMNS = ("terminal_broker_time", "terminal_analysis_time", "terminal_status", "terminal_reason", "h1_structural_lifecycle_seconds", "deep_lifecycle_seconds", "virtual_nominal_r", "virtual_quote_gross_profit", "virtual_quote_gross_r", "virtual_binary_eligible", "virtual_binary_target", "virtual_exclusion_reason", "broker_close_price", "broker_gross_profit", "broker_commission", "broker_swap", "broker_fee", "broker_net_profit", "broker_binary_target", "broker_terminal_reason", "capacity_rejection_reason")
 
-DATASET_CONFIG_KEYS = ("config_id", "engine_label", "macro_timeframe", "deep_timeframe", "micro_timeframe", "h1_entry_policies", "h1_tp_multiples", "deep_tp_multiples", "bands_period", "bands_deviation", "bands_ma_method", "bands_applied_price", "lot_mode", "lot_strategy_size", "reference_balance", "account_currency", "feature_set_id")
+DATASET_CONFIG_KEYS = ("config_id", "engine_label", "macro_timeframe", "deep_timeframe", "micro_timeframe", "h1_entry_policies", "h1_tp_multiples", "deep_tp_multiples", "bands_period", "bands_deviation", "bands_ma_method", "bands_applied_price", "lot_mode", "lot_strategy_size", "reference_balance", "account_currency", "feature_set_id", "deep_capture_policy", "deep_parent_policy", "feature_capture_policy", "feature_price_policy", "stochastic_k_period", "stochastic_d_period", "stochastic_slowing", "stochastic_ma_method", "stochastic_price_field", "broker_session")
 
 REQUIRED_MANIFEST_KEYS = {
     "run_id", "config_id", "started_broker_time", "symbol", "chart_period", "engine_id", "engine_label", "magic_namespace", "storage_root", "macro_timeframe", "deep_timeframe", "micro_timeframe", "pivot_formula", "source_policy", "origin_identity_policy", "trigger_policy", "pp_policy", "real_execution_policy", "h1_entry_policies", "h1_tp_multiples", "midpoint_policy", "reentry_policy", "deep_capture_policy", "deep_event_identity_policy", "deep_parent_policy", "deep_tp_multiples", "deep_geometry_policy", "deep_censor_policy", "deep_capacity_policy", "entry_quote_policy", "exit_quote_policy", "minimum_distance_policy", "h1_active_state_cap", "deep_event_active_cap", "deep_link_active_cap", "deep_trial_active_cap", "deep_outcome_active_cap", "bands_period", "bands_deviation", "bands_shift", "bands_ma_method", "bands_applied_price", "feature_capture_policy", "feature_price_policy", "feature_export_shifts", "feature_sma_period", "feature_state_tolerance", "stochastic_k_period", "stochastic_d_period", "stochastic_slowing", "stochastic_ma_method", "stochastic_price_field", "lot_mode", "lot_strategy_size", "reference_balance", "account_currency", "virtual_money_policy", "broker_money_policy", "duration_policy", "parity_policy", "time_policy", "broker_session", "feature_set_id", "research_approval_state",
 }
 
 FIXED_MANIFEST_VALUES = {
-    "engine_id": "2", "engine_label": SUPPORTED_ENGINE_LABEL, "magic_namespace": "HFT_GRID_AI_PIVOT_FRACTAL_V13", "storage_root": STORAGE_ROOT,
-    "pivot_formula": "CLASSIC_PP_S1_S3_R1_R3", "source_policy": "previous_completed_broker_candle_shift_1_per_macro_or_deep_window", "origin_identity_policy": "symbol,macro_timeframe,active_bar_open,level_first_trigger_once", "trigger_policy": "live_bid_virtual_limit_support_buy_resistance_sell", "pp_policy": "first_causal_bid_side_then_return_touch", "real_execution_policy": "single_structural_1r_fresh_quote_fok_immutable", "h1_entry_policies": "STRUCTURAL,MIDPOINT_50", "h1_tp_multiples": "1,2,3,5", "midpoint_policy": "exact_halfway_toward_next_outward_pivot_actual_entry_clock", "reentry_policy": "NONE", "deep_capture_policy": "active_same_direction_h1_parents_only_h1_terminal_before_deep_discovery", "deep_event_identity_policy": "symbol,deep_timeframe,active_bar_open,level_first_trigger_once_direction_outcome", "deep_parent_policy": "freeze_active_parent_set_no_retroactive_links", "deep_tp_multiples": "1,2,3", "deep_geometry_policy": "shared_event_next_outward_pivot_exact_integer_r", "deep_censor_policy": "parent_exit_or_run_end_never_binary_loss", "deep_capacity_policy": "atomic_event_links_three_trials_three_outcomes_per_link_or_capacity_rejected", "entry_quote_policy": "buy_ask_sell_bid", "exit_quote_policy": "buy_bid_sell_ask", "minimum_distance_policy": "risk_points_gte_spread_plus_max_stops_freeze_plus_trade_tick", "bands_period": "21", "bands_deviation": "2.0000", "bands_shift": "0", "bands_ma_method": "MODE_SMA", "bands_applied_price": "PRICE_WEIGHTED", "feature_capture_policy": "one_origin_macro_micro_snapshot_and_one_configured_micro_snapshot_per_deep_event", "feature_price_policy": "immutable_touched_pivot_for_b_percent_all_shifts", "feature_export_shifts": "0,1,2,3,4,5", "feature_sma_period": "5", "feature_state_tolerance": "0.0000001", "stochastic_k_period": "5", "stochastic_d_period": "3", "stochastic_slowing": "3", "stochastic_ma_method": "MODE_SMA", "stochastic_price_field": "STO_CLOSECLOSE", "reference_balance": "1000000.00000000", "virtual_money_policy": "order_calc_profit_counterfactual_gross_only", "broker_money_policy": "deal_history_authoritative_gross_commission_swap_fee_net", "duration_policy": "exact_nonnegative_broker_seconds_completed_h1_only_no_cap_no_rounding", "parity_policy": "one_exact_accepted_request_shadow_calibration_only", "time_policy": "broker_time_causal_analysis_time_export_only", "feature_set_id": SUPPORTED_FEATURE_SET_ID, "research_approval_state": "OFFLINE_RESEARCH_ONLY",
+    "engine_id": "2", "engine_label": SUPPORTED_ENGINE_LABEL, "magic_namespace": "HFT_GRID_AI_PIVOT_FRACTAL_V14", "storage_root": STORAGE_ROOT,
+    "pivot_formula": "CLASSIC_PP_S1_S3_R1_R3", "source_policy": "previous_completed_broker_candle_shift_1_per_macro_or_deep_window", "origin_identity_policy": "symbol,macro_timeframe,active_bar_open,level_first_trigger_once", "trigger_policy": "live_bid_virtual_limit_support_buy_resistance_sell", "pp_policy": "first_causal_bid_side_then_return_touch", "real_execution_policy": "single_structural_1r_fresh_quote_fok_immutable", "h1_entry_policies": "STRUCTURAL,MIDPOINT_50", "h1_tp_multiples": "1,2,3,5", "midpoint_policy": "exact_halfway_toward_next_outward_pivot_actual_entry_clock", "reentry_policy": "NONE", "deep_capture_policy": "active_h1_parents_both_deep_directions_h1_terminal_before_deep_discovery", "deep_event_identity_policy": "symbol,deep_timeframe,active_bar_open,level_first_trigger_once_direction_outcome", "deep_parent_policy": "freeze_all_active_parents_aligned_or_opposed_no_retroactive_links", "deep_tp_multiples": "1,2,3", "deep_geometry_policy": "shared_event_next_outward_pivot_exact_integer_r", "deep_censor_policy": "parent_exit_or_run_end_never_binary_loss", "deep_capacity_policy": "atomic_event_links_three_trials_three_outcomes_per_link_or_capacity_rejected", "entry_quote_policy": "buy_ask_sell_bid", "exit_quote_policy": "buy_bid_sell_ask", "minimum_distance_policy": "risk_points_gte_spread_plus_max_stops_freeze_plus_trade_tick", "bands_period": "21", "bands_deviation": "2.0000", "bands_shift": "0", "bands_ma_method": "MODE_SMA", "bands_applied_price": "PRICE_WEIGHTED", "feature_capture_policy": "one_origin_macro_deep_snapshot_and_one_deep_micro_snapshot_per_deep_event", "feature_price_policy": "immutable_touched_pivot_for_b_percent_all_shifts", "feature_export_shifts": "0,1,2,3,4,5", "feature_sma_period": "5", "feature_state_tolerance": "0.0000001", "stochastic_k_period": "5", "stochastic_d_period": "3", "stochastic_slowing": "3", "stochastic_ma_method": "MODE_SMA", "stochastic_price_field": "STO_CLOSECLOSE", "reference_balance": "1000000.00000000", "virtual_money_policy": "order_calc_profit_counterfactual_gross_only", "broker_money_policy": "deal_history_authoritative_gross_commission_swap_fee_net", "duration_policy": "exact_nonnegative_broker_seconds_completed_h1_only_no_cap_no_rounding", "parity_policy": "one_exact_accepted_request_shadow_calibration_only", "time_policy": "broker_time_causal_analysis_time_export_only", "feature_set_id": SUPPORTED_FEATURE_SET_ID, "research_approval_state": "OFFLINE_RESEARCH_ONLY",
 }
 
 
 class SchemaValidationError(RuntimeError):
-    """Raised when a run violates the strict V13 export contract."""
+    """Raised when a run violates the strict V14 export contract."""
 
 
 @dataclass(frozen=True)
@@ -365,7 +369,7 @@ class RunValidation:
 
 def _require_active_schema(schema_version: int) -> None:
     if schema_version != SUPPORTED_SCHEMA_VERSION:
-        raise ValueError(f"Unsupported schema version {schema_version}; active tooling accepts 13 only")
+        raise ValueError(f"Unsupported schema version {schema_version}; active tooling accepts 14 only")
 
 
 def expected_columns_for(filename: str, schema_version: int = SUPPORTED_SCHEMA_VERSION) -> tuple[str, ...]:
@@ -373,7 +377,7 @@ def expected_columns_for(filename: str, schema_version: int = SUPPORTED_SCHEMA_V
     try:
         return TABLE_COLUMNS[filename]
     except KeyError as exc:
-        raise ValueError(f"Unknown schema V13 file: {filename}") from exc
+        raise ValueError(f"Unknown schema V14 file: {filename}") from exc
 
 
 def feature_columns_for_set(feature_set_id: str) -> tuple[str, ...]:
@@ -394,7 +398,7 @@ def default_feature_set_for_schema(schema_version: int) -> str:
 
 
 TIMESTAMP_COLUMNS = frozenset(c for columns in TABLE_COLUMNS.values() for c in columns if c.endswith("_time") or c in {"broker_time", "analysis_time"})
-BOOLEAN_COLUMNS = frozenset({"account_expert_trade_allowed", "account_margin_mode_supported", "account_trade_allowed", "allowed", "broker_binary_eligible", "broker_close_confirmed", "broker_entry_confirmed", "close_reason_consistent", "deep_micro_features_complete", "distance_eligible", "first_touch_consistent", "fok_supported", "freeze_distance_valid", "geometry_valid", "h1_lanes_declared", "identity_consumed", "margin_valid", "market_session_open", "midpoint_touched", "mql_trade_allowed", "order_check_allowed", "order_check_performed", "origin_feature_snapshot_complete", "origin_macro_features_complete", "origin_micro_features_complete", "origin_window_active_at_entry", "protection_modified", "send_performed", "send_succeeded", "stop_distance_valid", "symbol_trade_mode_allowed", "terminal_trade_allowed", "virtual_binary_eligible", "virtual_money_plan_complete", "volume_valid"})
+BOOLEAN_COLUMNS = frozenset({"account_expert_trade_allowed", "account_margin_mode_supported", "account_trade_allowed", "allowed", "broker_binary_eligible", "broker_close_confirmed", "broker_entry_confirmed", "close_reason_consistent", "deep_deep_features_complete", "deep_micro_features_complete", "deep_feature_snapshot_complete", "distance_eligible", "first_touch_consistent", "fok_supported", "freeze_distance_valid", "geometry_valid", "h1_lanes_declared", "identity_consumed", "margin_valid", "market_session_open", "midpoint_touched", "mql_trade_allowed", "order_check_allowed", "order_check_performed", "origin_feature_snapshot_complete", "origin_macro_features_complete", "origin_deep_features_complete", "origin_window_active_at_entry", "protection_modified", "send_performed", "send_succeeded", "stop_distance_valid", "symbol_trade_mode_allowed", "terminal_trade_allowed", "virtual_binary_eligible", "virtual_money_plan_complete", "volume_valid"})
 INTEGER_COLUMNS = frozenset({"account_margin_mode", "active_bar_open_offset_minutes", "active_parent_count", "broker_binary_target", "check_sequence", "close_deal_count", "close_offset_minutes", "deal_ticket", "declared_offset_minutes", "deep_event_active_cap", "deep_event_active_peak", "deep_event_admitted_rows", "deep_event_capacity_rejected_rows", "deep_event_rows", "deep_ineligible_rows", "deep_link_active_cap", "deep_link_active_peak", "deep_outcome_active_cap", "deep_outcome_active_peak", "deep_outcome_rows", "deep_parent_exit_censored_rows", "deep_run_censored_rows", "deep_sl_rows", "deep_tp_rows", "deep_trial_active_cap", "deep_trial_active_peak", "deep_trial_rows", "deep_window_rows", "duplicate_identity_count", "entry_deal_ticket", "entry_offset_minutes", "execution_check_rows", "finished_offset_minutes", "first_observed_offset_minutes", "h1_active_state_cap", "h1_active_state_peak", "h1_ineligible_rows", "h1_midpoint_trial_rows", "h1_not_triggered_rows", "h1_outcome_rows", "h1_run_censored_rows", "h1_sl_rows", "h1_structural_lifecycle_seconds", "h1_structural_trial_rows", "h1_tp_rows", "h1_trial_rows", "last_close_deal_ticket", "m10_parent_age_seconds", "macro_window_rows", "normalized_risk_ticks", "offset_minutes", "order_check_retcode", "order_ticket", "parent_tp_r_multiple", "parity_pair_rows", "parity_trial_rows", "pivot_window_rows", "position_identifier", "position_ticket", "pp_arm_offset_minutes", "referential_integrity_error_count", "required_link_slots", "required_outcome_slots", "required_trial_slots", "reserved_link_slots", "reserved_outcome_slots", "reserved_trial_slots", "row_integrity_error_count", "schema_version", "send_retcode", "signal_origin_rows", "source_bar_open_offset_minutes", "source_close_boundary_offset_minutes", "started_offset_minutes", "symbol_trade_mode", "terminal_offset_minutes", "tp_r_multiple", "trigger_offset_minutes", "virtual_binary_target", "deep_lifecycle_seconds"})
 FLOAT_COLUMNS = frozenset({"account_balance", "ask", "bid", "broker_close_price", "broker_closed_volume", "broker_commission", "broker_entry_price", "broker_fee", "broker_gross_budget_r", "broker_gross_execution_r", "broker_gross_profit", "broker_net_budget_r", "broker_net_execution_r", "broker_net_profit", "broker_stop_loss", "broker_swap", "broker_take_profit", "broker_volume", "close_price", "closed_volume", "entry_ask", "entry_bid", "entry_price", "entry_slippage_points", "exit_slippage_points", "first_observed_bid", "free_margin", "freeze_distance_points", "freeze_level_points", "gap_points", "immutable_stop_loss", "immutable_take_profit", "lot_strategy_size", "midpoint_50_price", "minimum_risk_distance_points", "next_outward_pivot_price", "normalized_risk_distance_points", "normalized_risk_distance_price", "normalized_volume", "observed_exit_ask", "observed_exit_bid", "observed_exit_price", "pivot_raw_price", "pivot_trade_price", "point_size", "pp_arm_bid", "quote_expected_reward_risk_ratio", "quote_expected_stop_loss", "quote_expected_take_profit", "raw_pp_price", "raw_r1_price", "raw_r2_price", "raw_r3_price", "raw_s1_price", "raw_s2_price", "raw_s3_price", "reference_balance", "request_price_reward_risk_ratio", "request_reward_distance_points", "request_risk_distance_points", "requested_risk_distance_points", "requested_risk_distance_price", "requested_volume", "required_margin", "reward_distance_points", "risk_budget_amount", "risk_budget_utilization_ratio", "risk_distance_points", "source_close", "source_high", "source_low", "source_open", "source_range", "spread_points", "stop_loss_price", "stops_distance_points", "stops_level_points", "structural_entry_price", "structural_sl_price", "structural_take_profit", "submitted_request_price", "take_profit_price", "threshold_price", "trade_pp_price", "trade_r1_price", "trade_r2_price", "trade_r3_price", "trade_s1_price", "trade_s2_price", "trade_s3_price", "trade_tick_size", "trigger_ask", "trigger_bid", "virtual_expected_reward_risk_ratio", "virtual_expected_stop_loss", "virtual_expected_take_profit", "virtual_nominal_r", "virtual_quote_gross_profit", "virtual_quote_gross_r", "volume_max", "volume_min", "volume_step", *ORIGIN_NUMERIC_SIGNAL_FEATURE_COLUMNS, *DEEP_NUMERIC_SIGNAL_FEATURE_COLUMNS})
 STRING_COLUMNS = frozenset(c for columns in TABLE_COLUMNS.values() for c in columns if c not in TIMESTAMP_COLUMNS and c not in BOOLEAN_COLUMNS and c not in INTEGER_COLUMNS and c not in FLOAT_COLUMNS)
@@ -413,7 +417,7 @@ def _build_column_type_registry() -> dict[str, str]:
     missing = sorted(schema_columns - set(registry))
     unexpected = sorted(set(registry) - schema_columns)
     if overlaps or missing or unexpected:
-        raise RuntimeError(f"Invalid V13 column type registry: overlaps={sorted(overlaps)}, missing={missing}, unexpected={unexpected}")
+        raise RuntimeError(f"Invalid V14 column type registry: overlaps={sorted(overlaps)}, missing={missing}, unexpected={unexpected}")
     return registry
 
 
@@ -517,7 +521,7 @@ def _validate_time_triplet(row: dict[str, str], broker_column: str, analysis_col
 
 def _read_tsv(path: Path, expected_columns: tuple[str, ...]) -> list[dict[str, str]]:
     if not path.is_file():
-        raise SchemaValidationError(f"Missing required schema V13 file: {path}")
+        raise SchemaValidationError(f"Missing required schema V14 file: {path}")
     with path.open("r", encoding="utf-8", newline="") as handle:
         header = handle.readline().rstrip("\r\n").split("\t")
         if tuple(header) != expected_columns:
@@ -539,7 +543,7 @@ def _resolve_run_path(runs_root: Path, run_id: str) -> Path:
     actual_files = {path.name for path in run_path.glob("*.tsv")}
     expected_files = set(RUN_FILES)
     if actual_files != expected_files:
-        raise SchemaValidationError(f"Run must contain exactly twelve V13 TSV files; missing={sorted(expected_files - actual_files)}, unexpected={sorted(actual_files - expected_files)}")
+        raise SchemaValidationError(f"Run must contain exactly twelve V14 TSV files; missing={sorted(expected_files - actual_files)}, unexpected={sorted(actual_files - expected_files)}")
     return run_path
 
 
@@ -597,6 +601,23 @@ def _structural_stop(window: dict[str, str], level_id: str, direction: str) -> f
     if direction == "SELL":
         return {"PP": price("R1"), "R1": price("R2"), "R2": price("R3"), "R3": price("R3") + (price("R3") - price("R2"))}[level_id]
     raise SchemaValidationError(f"No structural route for {direction} {level_id}")
+
+
+def _validate_pivot_touch(row: dict[str, str], window: dict[str, str], context: str) -> None:
+    direction = row["direction"]
+    bid, pivot = float(row["trigger_bid"]), float(row["pivot_trade_price"])
+    if (direction == "BUY" and bid > pivot) or (direction == "SELL" and bid < pivot):
+        raise SchemaValidationError(f"{context}: trigger touch is not proven")
+    if row["level_id"] != "PP":
+        return
+    arm = _as_time(window, "pp_arm_broker_time", context)
+    trigger = _as_time(row, "trigger_broker_time", context)
+    arm_bid = _as_float(window, "pp_arm_bid", context)
+    assert arm is not None and trigger is not None and arm_bid is not None
+    if (window["pp_role"] != direction or arm > trigger
+            or (direction == "BUY" and arm_bid <= pivot)
+            or (direction == "SELL" and arm_bid >= pivot)):
+        raise SchemaValidationError(f"{context}: PP requires causal strict departure before return")
 
 
 def _next_outward(window: dict[str, str], level_id: str, direction: str) -> float:
@@ -665,7 +686,7 @@ def _validate_features(
     point_size: float,
     pivot_price: float,
 ) -> None:
-    columns = ORIGIN_MICRO_FEATURE_COLUMNS if prefix == "origin_micro" else ORIGIN_MACRO_FEATURE_COLUMNS if prefix == "origin_macro" else DEEP_MICRO_FEATURE_COLUMNS
+    columns = _timeframe_feature_columns(prefix)
     null_count = sum(_is_null(row.get(column)) for column in columns)
     if not complete:
         if null_count != len(columns):
@@ -756,6 +777,9 @@ def _validate_origins(rows: list[dict[str, str]], manifest: dict[str, str], wind
         window = windows.get(_require_value(row, "window_id", context))
         if window is None or row["macro_timeframe"] != manifest["macro_timeframe"] or row["deep_timeframe"] != manifest["deep_timeframe"] or row["micro_timeframe"] != manifest["micro_timeframe"]:
             raise SchemaValidationError(f"{context}: origin timeframe/window mismatch")
+        if (window["window_scope"] != "MACRO" or window["timeframe"] != row["macro_timeframe"]
+                or row["symbol"] != window["symbol"] or row["symbol"] != manifest["symbol"]):
+            raise SchemaValidationError(f"{context}: origin source identity mismatch")
         if row["active_bar_open_broker_time"] != window["active_bar_open_broker_time"]:
             raise SchemaValidationError(f"{context}: origin active bar differs from window")
         level, direction = row["level_id"], row["direction"]
@@ -791,6 +815,7 @@ def _validate_origins(rows: list[dict[str, str]], manifest: dict[str, str], wind
         assert pivot_raw is not None and pivot_trade is not None and boundary is not None and midpoint is not None
         if not _same_number(pivot_raw, float(window[_level_column("raw", level)])) or not _same_number(pivot_trade, float(window[_level_column("trade", level)])):
             raise SchemaValidationError(f"{context}: pivot price mismatch")
+        _validate_pivot_touch(row, window, context)
         expected_boundary = _structural_stop(window, level, direction)
         if not _same_number(boundary, expected_boundary):
             raise SchemaValidationError(f"{context}: next outward pivot mismatch")
@@ -806,16 +831,16 @@ def _validate_origins(rows: list[dict[str, str]], manifest: dict[str, str], wind
         expected_tp = expected_entry + (expected_entry - expected_stop) if direction == "BUY" else expected_entry - (expected_stop - expected_entry)
         if not _same_number(entry, expected_entry) or not _same_number(stop, expected_stop) or not _same_number(take_profit, expected_tp):
             raise SchemaValidationError(f"{context}: structural route mismatch")
-        micro_complete = bool(_as_bool(row, "origin_micro_features_complete", context))
+        deep_complete = bool(_as_bool(row, "origin_deep_features_complete", context))
         macro_complete = bool(_as_bool(row, "origin_macro_features_complete", context))
         snapshot_complete = bool(_as_bool(row, "origin_feature_snapshot_complete", context))
-        if snapshot_complete != (micro_complete and macro_complete):
+        if snapshot_complete != (deep_complete and macro_complete):
             raise SchemaValidationError(f"{context}: origin feature completeness mismatch")
         _validate_features(
             row,
-            "origin_micro",
+            "origin_deep",
             context,
-            micro_complete,
+            deep_complete,
             point,
             pivot_trade,
         )
@@ -1287,19 +1312,14 @@ def _validate_deep(
             or not _same_number(boundary, _structural_stop(window, level, direction))
         ):
             raise SchemaValidationError(f"{context}: deep pivot/window geometry mismatch")
-        if (direction == "BUY" and bid > pivot_trade) or (
-            direction == "SELL" and bid < pivot_trade
-        ):
-            raise SchemaValidationError(f"{context}: deep trigger touch is not proven")
-        features_complete = bool(_as_bool(row, "deep_micro_features_complete", context))
-        _validate_features(
-            row,
-            "deep_micro",
-            context,
-            features_complete,
-            point,
-            pivot_trade,
-        )
+        _validate_pivot_touch(row, window, context)
+        deep_complete = bool(_as_bool(row, "deep_deep_features_complete", context))
+        micro_complete = bool(_as_bool(row, "deep_micro_features_complete", context))
+        features_complete = bool(_as_bool(row, "deep_feature_snapshot_complete", context))
+        if features_complete != (deep_complete and micro_complete):
+            raise SchemaValidationError(f"{context}: deep feature completeness mismatch")
+        for prefix, complete in (("deep_deep", deep_complete), ("deep_micro", micro_complete)):
+            _validate_features(row, prefix, context, complete, point, pivot_trade)
         if features_complete != _is_null(row["deep_feature_invalid_reason"]):
             raise SchemaValidationError(f"{context}: invalid deep feature reason state")
         if not _as_bool(row, "identity_consumed", context):
@@ -1341,8 +1361,15 @@ def _validate_deep(
         if event["admission_status"] != "ADMITTED":
             raise SchemaValidationError(f"{context}: parent link references rejected event")
         origin = origins.get(row["origin_id"])
-        if origin is None or row["direction"] != event["direction"] or row["direction"] != origin["direction"]:
+        if origin is None or row["deep_direction"] != event["direction"] or row["parent_direction"] != origin["direction"]:
             raise SchemaValidationError(f"{context}: parent link identity mismatch")
+        relationship = "ALIGNED" if row["parent_direction"] == row["deep_direction"] else "OPPOSED"
+        if row["direction_relationship"] != relationship:
+            raise SchemaValidationError(f"{context}: parent direction relationship mismatch")
+        if any(links[key]["parent_trial_id"] == parent_trial_id
+               and links[key]["parent_kind"] == parent_kind
+               for key in links_by_event.get(row["deep_event_id"], [])):
+            raise SchemaValidationError(f"{context}: duplicate frozen parent membership")
         entry_time = _as_time(row, "parent_entry_broker_time", context)
         event_time = _as_time(row, "event_trigger_broker_time", context)
         age = _as_int(row, "m10_parent_age_seconds", context)
@@ -1362,7 +1389,7 @@ def _validate_deep(
                 or parent_trial["trial_role"] != "H1"
                 or parent_trial["eligibility_status"] != "ACTIVE"
                 or parent_trial["origin_id"] != row["origin_id"]
-                or parent_trial["direction"] != row["direction"]
+                or parent_trial["direction"] != row["parent_direction"]
                 or parent_trial["entry_policy"] != row["parent_entry_policy"]
                 or parent_trial["tp_r_multiple"] != row["parent_tp_r_multiple"]
                 or parent_trial["broker_signal_id"] != row["parent_broker_signal_id"]
@@ -1540,6 +1567,7 @@ def _validate_deep(
             ("origin_id", link["origin_id"]),
             ("tp_r_multiple", trial["tp_r_multiple"]),
             ("direction", event["direction"]),
+            ("parent_direction", link["parent_direction"]),
         ):
             if row[column] != expected:
                 raise SchemaValidationError(f"{context}: deep outcome identity mismatch")

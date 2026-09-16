@@ -1,6 +1,6 @@
-# Deterministic Pivot V13 Research
+# Deterministic Pivot V14 Research
 
-This directory validates strict Pivot Fractal V13 exports and builds typed,
+This directory validates strict Pivot Fractal V14 exports and builds typed,
 grain-aware offline research artifacts for `PIVOT_FRACTAL_V2`. It never loads a
 model into MT5, authorizes execution, or emits a runtime-compatible artifact.
 
@@ -12,38 +12,49 @@ broker lane. Missing features affect research completeness only.
 
 ## Input Contract
 
+Origin blocks are `origin_macro_*` and `origin_deep_*`; event blocks are
+`deep_deep_*` and `deep_micro_*`. Each has a completeness flag; the snapshot
+flag is the conjunction of its two flags. Missing blocks keep raw evidence and
+exclude only the corresponding model cohort. Each snapshot uses its own
+trigger and owning pivot; later Deep events never populate Macro features.
+
+Links carry `parent_direction`, `deep_direction`, and `direction_relationship`.
+Outcome `direction` is the Deep direction; `parent_direction` resolves the
+origin. Both directions require entered eligible Macro parents; no standalone
+Deep collection or retrospective parent attachment is allowed.
+
 Each run contains exactly twelve TSV files in this order:
 
 | File | Grain | Authoritative facts |
 | --- | --- | --- |
 | `run_manifest.tsv` | key/value per run | Schema, engine, periods, fixed policies, capacities and approval boundary |
 | `pivot_windows.tsv` | H1 or M10 window | Completed source candle, ladder, PP state and window lifecycle |
-| `signal_origins.tsv` | consumed H1 pivot | Trigger, geometry and one Micro/Macro feature vector |
+| `signal_origins.tsv` | consumed H1 pivot | Trigger, geometry and one Macro/Deep feature vector |
 | `virtual_trials.tsv` | H1 lane or parity shadow | Entry policy, R, entry, normalized geometry and eligibility |
 | `virtual_outcomes.tsv` | H1/parity trial | First touch, H1 duration and binary eligibility/exclusion |
-| `deep_pivot_events.tsv` | consumed M10 pivot | Direction, trigger, one configured-Micro vector and admission |
-| `deep_pivot_parent_links.tsv` | event x active H1 parent | Parent identity, entry and `m10_parent_age_seconds` |
+| `deep_pivot_events.tsv` | consumed M10 pivot | Direction, trigger, one Deep/Micro vector and admission |
+| `deep_pivot_parent_links.tsv` | event x active H1 parent | Parent/event directions, ALIGNED/OPPOSED, entry and `m10_parent_age_seconds` |
 | `deep_virtual_trials.tsv` | event x deep R | Shared 1R/2R/3R entry/stop/target geometry |
 | `deep_virtual_outcomes.tsv` | parent link x deep trial | TP/SL or parent/run censor evidence |
 | `execution_checks.tsv` | broker check | Observation, fresh checks, request/send and reconciliation facts |
 | `broker_outcomes.tsv` | confirmed real position | Fill/close, money, costs and completed H1 duration |
 | `run_summary.tsv` | run seal | Counts, high-water marks, integrity and completion |
 
-The producer feature set is `schema_v13_hft_deep_pivot_features`. Compatible
+The producer feature set is `schema_v14_hft_deep_pivot_features`. Compatible
 runs must agree on `Micro < Deep < Macro` timeframes, H1 entry policies and
 ratios, deep ratios, fixed indicator settings, capacity rules, money policy,
 account currency, and feature identity. Active tooling rejects older schemas;
 it does not convert or dual-load them.
 
-V13 keeps evidence at explicit native grains:
+V14 keeps evidence at explicit native grains:
 
-- `signal_origins.tsv` owns one H1 Micro/Macro feature vector per origin.
-- `deep_pivot_events.tsv` owns one configured-Micro vector per shared M10 event.
+- `signal_origins.tsv` owns one H1 Macro/Deep feature vector per origin.
+- `deep_pivot_events.tsv` owns one Deep/Micro vector per shared M10 event.
 - Parent links associate an event with active H1 virtual or broker parents.
 - Deep outcomes resolve one `(parent link, deep trial)` pair.
 - Broker parity remains calibration evidence outside H1/deep target cohorts.
 
-The source root is `Common\Files\PivotFractalV13\runs\<run_id>\`. No older
+The source root is `Common\Files\PivotFractalV14\runs\<run_id>\`. No older
 root, header or feature identity is an intake alias. Preserve original source
 exports; malformed or incompatible configurations are rejected, not migrated.
 For Exness custom-symbol inputs, complete the applicable
@@ -55,7 +66,7 @@ and input-provenance sidecars outside the twelve-file run directory.
 
 ```bash
 .venv/bin/python tools/deterministic_signal_ml/build_dataset.py \
-  --runs-root <PivotFractalV13/runs> \
+  --runs-root <PivotFractalV14/runs> \
   --run-id <run_id> \
   --validate-only
 ```
@@ -73,12 +84,12 @@ semantic `--validate-only` gate above, which still loads full TSV rows into Pyth
 
 ```bash
 .venv/bin/python tools/deterministic_signal_ml/parent_chronology.py \
-  --runs-root <PivotFractalV13/runs> --run-id <run_id> \
+  --runs-root <PivotFractalV14/runs> --run-id <run_id> \
   --memory-limit-mb 4096 --report <new-report-outside-run.json>
 ```
 
 Exit code 1 means a failed audit or invalid input. Reports are never written
-inside source runs. All twelve exact V13 headers and the producer seal are checked;
+inside source runs. All twelve exact V14 headers and the producer seal are checked;
 the report lists the eight tables whose chronology columns were scanned.
 
 Confirmed broker entry and close may occupy the same serialized second; an
@@ -121,7 +132,7 @@ documents the retained XAUUSD derivative, validation scope and tester evidence.
 
 ```bash
 .venv/bin/python tools/deterministic_signal_ml/build_dataset.py \
-  --runs-root <PivotFractalV13/runs> \
+  --runs-root <PivotFractalV14/runs> \
   --run-id <run_id> \
   --dataset-id <dataset_id>
 ```
@@ -133,7 +144,7 @@ The builder writes typed Parquet copies of all twelve source tables plus:
 - `h1_lane_wide.parquet`: one eight-cell comparison row per H1 origin.
 - `eligible_h1_trials.parquet`: feature-complete binary H1 TP/SL rows only.
 - `deep_parent_long.parquet`: link-scoped deep `1R/2R/3R` outcomes without a
-  duplicated configured-Micro feature vector.
+  duplicated Deep/Micro feature vector.
 - `eligible_deep_trials.parquet`: feature-complete binary parent/ratio rows;
   event features remain absent and are joined only by the explicit deep trainer.
 - `broker_virtual_calibration.parquet`: accepted-request parity paired with
@@ -169,7 +180,7 @@ INELIGIBLE and CENSORED_RUN_END rows have null completed H1 duration.
 ```
 
 The audit verifies manifest/table counts, H1 eight-lane cardinality, deep
-event/link/trial/outcome joins, native configured-Micro feature ownership,
+event/link/trial/outcome joins, native Deep/Micro feature ownership,
 origin/event weight
 balances, parent-exit censoring, capacity peaks, broker ownership, and parity
 agreement. Reports separate row, event, parent, and unique-origin support and
@@ -190,18 +201,18 @@ Training requires one explicit evidence grain:
 .venv/bin/python tools/deterministic_signal_ml/train_model.py \
   --dataset-id <dataset_id> \
   --model-id <model_id> \
-  --feature-set-id schema_v13_hft_deep_pivot_features.h1
+  --feature-set-id schema_v14_hft_deep_pivot_features.h1
 ```
 
 ```bash
 .venv/bin/python tools/deterministic_signal_ml/train_model.py \
   --dataset-id <dataset_id> \
   --model-id <model_id> \
-  --feature-set-id schema_v13_hft_deep_pivot_features.deep_parent
+  --feature-set-id schema_v14_hft_deep_pivot_features.deep_parent
 ```
 
 The H1 trainer reads `eligible_h1_trials.parquet`. The deep trainer reads
-`eligible_deep_trials.parquet` and joins the configured-Micro vector from
+`eligible_deep_trials.parquet` and joins the Deep/Micro vector from
 `deep_pivot_events.parquet` by `(run_id, config_id, deep_event_id)` at load time.
 The two cohorts cannot be silently combined.
 
@@ -209,12 +220,14 @@ Both trainers use fixed seeds, origin-balanced sample weights, a purged
 chronological holdout, and expanding walk-forward folds. All rows sharing the
 same `(symbol, Macro timeframe, active Macro bar open)` remain in one partition
 across duplicate runs. A training row is retained only when its terminal time
-is strictly earlier than the validation boundary.
+is strictly earlier than the validation boundary. Every training link/ratio of a
+validation Deep identity is excluded across Macro bars and repeated exports.
+Holdout Deep identities are also excluded from all model-selection folds.
 
-H1 ablations add base lane/time context, widths, Micro Bands, Macro Bands,
-Micro Stochastic, and Macro Stochastic. Deep ablations add base parent/M10-age
-context plus configured-Micro width, Bands, and Stochastic. Under the accepted
-defaults that source is M3; the actual manifest timeframe remains authoritative.
+H1 ablations add base lane/time context, widths, Macro Bands, Deep Bands,
+Macro Stochastic, and Deep Stochastic. Deep ablations add base parent/M10-age
+and direction relationship context, both widths, Deep/Micro Bands, and
+Deep/Micro Stochastic. The actual manifest timeframes remain authoritative.
 Lifecycle duration, terminal
 status, targets, censoring, broker money, and other future-only fields are
 prohibited from both feature sets.
@@ -232,8 +245,10 @@ and always carries `approval_state=OFFLINE_RESEARCH_ONLY` and
   -s tools/deterministic_signal_ml/tests -p 'test_*.py'
 ```
 
-The tracked V13 fixture is intentionally too small to train a deployable model.
-It proves strict build/audit joins and that both trainer selections reach their
+The tracked V14 fixture is intentionally too small to train a deployable model.
+It includes aligned/opposed links, incomplete origin features, invalid money,
+and parent/run censors. Focused mutations cover PP return, atomic rejection,
+missing event blocks and malformed contracts. It proves strict build/audit joins and that both trainer selections reach their
 minimum-support gate. Real ablations require the configured row, origin, class,
 and chronological-window support.
 
@@ -247,9 +262,10 @@ Apply the [compile and human tester gates](../../docs/environment/mt5-agentic-wo
 when their source/behavior inputs change. Compilation/fixtures do not replace
 chart verification, and chronology-only auditing is not full semantic acceptance.
 
-The [frozen V13 handoff](../../docs/research/pivot-fractal-v13-producer-handoff.md)
-preserves dated schema/registry/fixture pins and the downstream vendoring
-boundary. Use the current index for subsequent source corrections and
+The [MT5 V14 plan](../../pivot-fractal-v14-mt5-plan.md) owns the new producer
+handoff gates; M4 will freeze exact downstream pins after native acceptance.
+The [historical V13 handoff](../../docs/research/pivot-fractal-v13-producer-handoff.md)
+records old pins and is not a V14 intake contract. Use the current index for
 [Django intake compatibility](../../docs/README.md#downstream-django-intake).
 For a fresh intake, provide exactly the twelve TSVs from a successful natural
 completion; keep diagnostics/provenance sidecars outside the run directory and
@@ -258,6 +274,7 @@ application changes, uploads and destructive data operations. Private raw runs,
 generated datasets/models, binaries and account metadata are not vendored.
 
 Superseded document history is recoverable through the current index. Active
-tooling rejects V12; the retained V12 fixture proves that boundary. Offline
+tooling rejects V13 and earlier through minimal negative cases; no old-schema
+loader or full legacy fixture remains. Offline
 training produces no MT5 loader, runtime score/filter or online learner. No
 artifact or acceptance sequence authorizes live rollout.

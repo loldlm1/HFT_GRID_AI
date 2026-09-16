@@ -18,7 +18,7 @@ if str(MODULE_ROOT) not in sys.path:
 from schema_contract import (
     COLUMN_TYPE_BY_NAME,
     COLUMN_TYPE_REGISTRY_SHA256,
-    DEEP_MICRO_FEATURE_COLUMNS,
+    DEEP_SIGNAL_FEATURE_COLUMNS,
     DEEP_PIVOT_EVENTS_FILE,
     DEEP_PIVOT_PARENT_LINKS_FILE,
     DEEP_TP_R_MULTIPLES,
@@ -53,8 +53,7 @@ from schema_contract import (
 from parent_chronology import audit_run, recover_run
 
 FIXTURES = Path(__file__).parent / "fixtures"
-FIXTURE = FIXTURES / "schema_v13_hft_deep_pivot_features"
-V12_FIXTURE = FIXTURES / "schema_v12_pivot_signal_features"
+FIXTURE = FIXTURES / "schema_v14_hft_deep_pivot_features"
 
 
 def read_rows(path: Path) -> tuple[list[str], list[dict[str, str]]]:
@@ -172,7 +171,7 @@ def make_midpoint_pending(run_path: Path) -> None:
     )
 
 
-class PivotFractalV13SchemaTests(unittest.TestCase):
+class PivotFractalV14SchemaTests(unittest.TestCase):
     def copy_fixture(self, temp_dir: str) -> tuple[Path, Path]:
         root = Path(temp_dir)
         run_path = root / FIXTURE.name
@@ -190,22 +189,22 @@ class PivotFractalV13SchemaTests(unittest.TestCase):
             with self.assertRaisesRegex(SchemaValidationError, expected_error):
                 validate_run(root, FIXTURE.name)
 
-    def test_fixture_freezes_exact_v13_contract(self) -> None:
+    def test_fixture_freezes_exact_v14_contract(self) -> None:
         validation = validate_run(FIXTURES, FIXTURE.name)
-        self.assertEqual(SUPPORTED_SCHEMA_VERSION, 13)
-        self.assertEqual(SUPPORTED_FEATURE_SET_ID, "schema_v13_hft_deep_pivot_features")
-        self.assertEqual(STORAGE_ROOT, r"Common\Files\PivotFractalV13\runs")
+        self.assertEqual(SUPPORTED_SCHEMA_VERSION, 14)
+        self.assertEqual(SUPPORTED_FEATURE_SET_ID, "schema_v14_hft_deep_pivot_features")
+        self.assertEqual(STORAGE_ROOT, r"Common\Files\PivotFractalV14\runs")
         self.assertEqual(len(RUN_FILES), 12)
         self.assertEqual(H1_MATRIX_SIZE, 8)
         self.assertEqual(H1_ENTRY_POLICIES, ("STRUCTURAL", "MIDPOINT_50"))
         self.assertEqual(H1_TP_R_MULTIPLES, (1, 2, 3, 5))
         self.assertEqual(DEEP_TP_R_MULTIPLES, (1, 2, 3))
-        self.assertEqual(validation.signal_origin_rows, 1)
-        self.assertEqual(validation.virtual_trial_rows, 9)
+        self.assertEqual(validation.signal_origin_rows, 2)
+        self.assertEqual(validation.virtual_trial_rows, 17)
         self.assertEqual(validation.deep_event_rows, 1)
-        self.assertEqual(validation.deep_parent_link_rows, 2)
+        self.assertEqual(validation.deep_parent_link_rows, 3)
         self.assertEqual(validation.deep_trial_rows, 3)
-        self.assertEqual(validation.deep_outcome_rows, 6)
+        self.assertEqual(validation.deep_outcome_rows, 9)
         self.assertEqual({path.name for path in FIXTURE.glob("*.tsv")}, set(RUN_FILES))
         for filename in RUN_FILES:
             columns, _ = read_rows(FIXTURE / filename)
@@ -217,7 +216,7 @@ class PivotFractalV13SchemaTests(unittest.TestCase):
         self.assertEqual(set(COLUMN_TYPE_BY_NAME), schema_columns)
         self.assertEqual(
             COLUMN_TYPE_REGISTRY_SHA256,
-            "986c4868fb70b08e18296e8679a5ad2aeebe59849571ef2b7ee58fcab8cde3c1",
+            "dedc9d4ebcf461fe68c63558db825011ac3734121f9f89437cf10e8bdb1550af",
         )
         self.assertFalse(set(MODEL_FEATURE_COLUMNS) & set(FUTURE_ONLY_COLUMNS))
         self.assertNotIn("h1_structural_lifecycle_seconds", MODEL_FEATURE_COLUMNS)
@@ -225,7 +224,7 @@ class PivotFractalV13SchemaTests(unittest.TestCase):
 
     def test_features_have_one_native_owner(self) -> None:
         self.assertTrue(set(ORIGIN_SIGNAL_FEATURE_COLUMNS) <= set(TABLE_COLUMNS[SIGNAL_ORIGINS_FILE]))
-        self.assertTrue(set(DEEP_MICRO_FEATURE_COLUMNS) <= set(TABLE_COLUMNS[DEEP_PIVOT_EVENTS_FILE]))
+        self.assertTrue(set(DEEP_SIGNAL_FEATURE_COLUMNS) <= set(TABLE_COLUMNS[DEEP_PIVOT_EVENTS_FILE]))
         for filename in (
             VIRTUAL_TRIALS_FILE,
             VIRTUAL_OUTCOMES_FILE,
@@ -234,18 +233,87 @@ class PivotFractalV13SchemaTests(unittest.TestCase):
             DEEP_VIRTUAL_OUTCOMES_FILE,
         ):
             self.assertFalse(set(ORIGIN_SIGNAL_FEATURE_COLUMNS) & set(TABLE_COLUMNS[filename]))
-            self.assertFalse(set(DEEP_MICRO_FEATURE_COLUMNS) & set(TABLE_COLUMNS[filename]))
+            self.assertFalse(set(DEEP_SIGNAL_FEATURE_COLUMNS) & set(TABLE_COLUMNS[filename]))
 
-    def test_v12_and_legacy_shapes_are_rejected(self) -> None:
-        with self.assertRaisesRegex(SchemaValidationError, "twelve V13 TSV files"):
-            validate_run(FIXTURES, V12_FIXTURE.name)
-        with self.assertRaisesRegex(ValueError, "Unsupported schema version 12"):
-            validate_run(FIXTURES, FIXTURE.name, schema_version=12)
+    def test_old_schemas_and_legacy_shapes_are_rejected(self) -> None:
+        for version in (12, 13):
+            with self.subTest(version=version):
+                with self.assertRaisesRegex(ValueError, f"Unsupported schema version {version}"):
+                    validate_run(FIXTURES, FIXTURE.name, schema_version=version)
+                self.assert_mutation_rejected(
+                    lambda run_path: mutate_rows(run_path, RUN_MANIFEST_FILE, lambda row: True,
+                                                 schema_version=str(version)),
+                    "unsupported schema version",
+                )
 
         def add_old_file(run_path: Path) -> None:
             (run_path / "signal_attempts.tsv").write_text("schema_version\n", encoding="ascii")
 
-        self.assert_mutation_rejected(add_old_file, "twelve V13 TSV files")
+        self.assert_mutation_rejected(add_old_file, "twelve V14 TSV files")
+
+    def test_opposed_parent_keeps_event_and_origin_directions_distinct(self) -> None:
+        _, links = read_rows(FIXTURE / DEEP_PIVOT_PARENT_LINKS_FILE)
+        self.assertEqual({row["direction_relationship"] for row in links}, {"ALIGNED", "OPPOSED"})
+        for column, value in (("parent_direction", "BUY"), ("deep_direction", "SELL"),
+                              ("direction_relationship", "ALIGNED")):
+            with self.subTest(column=column):
+                self.assert_mutation_rejected(
+                    lambda path: mutate_row(path, DEEP_PIVOT_PARENT_LINKS_FILE,
+                                            lambda row: row["parent_link_id"] == "link_opposed",
+                                            **{column: value}),
+                    "parent link identity mismatch|parent direction relationship mismatch",
+                )
+        self.assert_mutation_rejected(
+            lambda path: mutate_rows(path, DEEP_VIRTUAL_OUTCOMES_FILE,
+                                     lambda row: row["parent_link_id"] == "link_opposed",
+                                     parent_direction="BUY"),
+            "deep outcome identity mismatch",
+        )
+
+    def test_paired_completeness_and_feature_ownership_fail_closed(self) -> None:
+        for filename, prefix in ((SIGNAL_ORIGINS_FILE, "origin_macro"),
+                                  (SIGNAL_ORIGINS_FILE, "origin_deep"),
+                                  (DEEP_PIVOT_EVENTS_FILE, "deep_deep"),
+                                  (DEEP_PIVOT_EVENTS_FILE, "deep_micro")):
+            with self.subTest(prefix=prefix):
+                self.assert_mutation_rejected(
+                    lambda path: mutate_row(path, filename,
+                                            lambda row: row.get("origin_id", "origin_s1_buy") == "origin_s1_buy",
+                                            **{f"{prefix}_features_complete": "0"}),
+                    "feature completeness mismatch",
+                )
+                self.assert_mutation_rejected(
+                    lambda path: mutate_row(path, filename,
+                                            lambda row: row.get("origin_id", "origin_s1_buy") == "origin_s1_buy",
+                                            **{f"{prefix}_band_width_points_0": "nan"}),
+                    "non-finite|invalid feature",
+                )
+        self.assertFalse(any(column.startswith("origin_micro_") for column in ORIGIN_SIGNAL_FEATURE_COLUMNS))
+        def wrong_prefix(path: Path) -> None:
+            source = path / SIGNAL_ORIGINS_FILE
+            source.write_text(source.read_text().replace("origin_deep_", "origin_micro_"), encoding="ascii")
+        self.assert_mutation_rejected(wrong_prefix, "Header mismatch")
+
+    def test_missing_own_deep_features_preserve_raw_event_but_exclude_training_rows(self) -> None:
+        import duckdb
+        from build_dataset import create_dataset_tables
+        with tempfile.TemporaryDirectory() as directory:
+            root, run_path = self.copy_fixture(directory)
+            values = {column: NULL_TOKEN for column in DEEP_SIGNAL_FEATURE_COLUMNS
+                      if column.startswith("deep_deep_")}
+            values.update(deep_deep_features_complete="0", deep_feature_snapshot_complete="0",
+                          deep_feature_invalid_reason="DEEP_DATA_UNAVAILABLE")
+            mutate_row(run_path, DEEP_PIVOT_EVENTS_FILE, lambda row: True, **values)
+            validation = validate_run(root, FIXTURE.name)
+            connection = duckdb.connect(":memory:")
+            try:
+                counts = create_dataset_tables(connection, [validation])
+                self.assertEqual(counts["deep_pivot_events"], 1)
+                self.assertEqual(counts["deep_parent_long"], 9)
+                self.assertEqual(counts["eligible_deep_trials"], 0)
+                self.assertEqual(counts["eligible_h1_trials"], 8)
+            finally:
+                connection.close()
 
     def test_manifest_requires_micro_deep_macro_ordering(self) -> None:
         cases = (
@@ -266,7 +334,7 @@ class PivotFractalV13SchemaTests(unittest.TestCase):
             lambda run_path: mutate_row(
                 run_path,
                 SIGNAL_ORIGINS_FILE,
-                lambda row: True,
+                lambda row: row["origin_id"] == "origin_s1_buy",
                 midpoint_50_price="1.0849000000",
             ),
             "exact midpoint geometry mismatch",
@@ -277,7 +345,7 @@ class PivotFractalV13SchemaTests(unittest.TestCase):
             root, run_path = self.copy_fixture(temp_dir)
             make_midpoint_pending(run_path)
             validation = validate_run(root, FIXTURE.name)
-            self.assertEqual(validation.virtual_trial_rows, 9)
+            self.assertEqual(validation.virtual_trial_rows, 17)
 
         def add_pre_entry_quote_facts(run_path: Path) -> None:
             make_midpoint_pending(run_path)
@@ -410,8 +478,8 @@ class PivotFractalV13SchemaTests(unittest.TestCase):
                 run_path,
                 RUN_SUMMARY_FILE,
                 lambda row: True,
-                deep_tp_rows="1",
-                deep_sl_rows="1",
+                deep_tp_rows="2",
+                deep_sl_rows="2",
                 deep_parent_exit_censored_rows="4",
             )
 
@@ -419,7 +487,7 @@ class PivotFractalV13SchemaTests(unittest.TestCase):
             root, run_path = self.copy_fixture(temp_dir)
             make_same_second_parent_exit(run_path)
             validation = validate_run(root, FIXTURE.name)
-            self.assertEqual(validation.deep_outcome_rows, 6)
+            self.assertEqual(validation.deep_outcome_rows, 9)
 
         def censor_before_event(run_path: Path) -> None:
             make_same_second_parent_exit(run_path)
@@ -559,9 +627,9 @@ class PivotFractalV13SchemaTests(unittest.TestCase):
             check = {column: NULL_TOKEN for column in columns}
             check.update(
                 {
-                    "schema_version": "13",
+                    "schema_version": "14",
                     "run_id": FIXTURE.name,
-                    "config_id": "cfg_v13_fixture",
+                    "config_id": "cfg_v14_fixture",
                     "check_id": "check_open_broker_fill",
                     "origin_id": "origin_s1_buy",
                     "broker_signal_id": "broker_sig_s1",
@@ -581,17 +649,17 @@ class PivotFractalV13SchemaTests(unittest.TestCase):
                 lambda row: True,
                 execution_check_rows="1",
                 deep_parent_exit_censored_rows="0",
-                deep_run_censored_rows="1",
+                deep_run_censored_rows="2",
             )
             validation = validate_run(root, FIXTURE.name)
-            self.assertEqual(validation.deep_parent_link_rows, 2)
+            self.assertEqual(validation.deep_parent_link_rows, 3)
 
     def test_one_event_has_shared_trials_and_link_scoped_outcomes(self) -> None:
         _, events = read_rows(FIXTURE / DEEP_PIVOT_EVENTS_FILE)
         _, links = read_rows(FIXTURE / DEEP_PIVOT_PARENT_LINKS_FILE)
         _, trials = read_rows(FIXTURE / DEEP_VIRTUAL_TRIALS_FILE)
         _, outcomes = read_rows(FIXTURE / DEEP_VIRTUAL_OUTCOMES_FILE)
-        self.assertEqual((len(events), len(links), len(trials), len(outcomes)), (1, 2, 3, 6))
+        self.assertEqual((len(events), len(links), len(trials), len(outcomes)), (1, 3, 3, 9))
         self.assertEqual(
             {(row["parent_link_id"], row["deep_trial_id"]) for row in outcomes},
             {(link["parent_link_id"], trial["deep_trial_id"]) for link in links for trial in trials},
@@ -673,7 +741,16 @@ class PivotFractalV13SchemaTests(unittest.TestCase):
                 reserved_trial_slots="0",
                 reserved_outcome_slots="0",
                 capacity_rejection_reason="DEEP_FANOUT_CAPACITY_REJECTED",
+                level_id="PP",
+                trigger_bid="1.1000000000",
+                trigger_ask="1.1002000000",
+                pivot_raw_price="1.1000000000",
+                pivot_trade_price="1.1000000000",
+                next_outward_pivot_price="1.0950000000",
             )
+            mutate_row(run_path, DEEP_PIVOT_EVENTS_FILE, lambda row: True,
+                       **{f"{prefix}_band_base_line_{shift}": "1.1000000000"
+                          for prefix in ("deep_deep", "deep_micro") for shift in range(6)})
             for filename in (
                 DEEP_PIVOT_PARENT_LINKS_FILE,
                 DEEP_VIRTUAL_TRIALS_FILE,
@@ -693,10 +770,18 @@ class PivotFractalV13SchemaTests(unittest.TestCase):
                 deep_tp_rows="0",
                 deep_sl_rows="0",
                 deep_parent_exit_censored_rows="0",
+                deep_run_censored_rows="0",
             )
             validation = validate_run(root, FIXTURE.name)
             self.assertEqual(validation.deep_event_rows, 1)
             self.assertEqual(validation.deep_parent_link_rows, 0)
+
+            mutate_row(run_path, "pivot_windows.tsv", lambda row: row["window_scope"] == "DEEP",
+                       pp_arm_bid="1.1000000000")
+            with self.assertRaisesRegex(SchemaValidationError, "strict departure"):
+                validate_run(root, FIXTURE.name)
+            mutate_row(run_path, "pivot_windows.tsv", lambda row: row["window_scope"] == "DEEP",
+                       pp_arm_bid="1.1020000000")
 
             mutate_row(
                 run_path,

@@ -119,6 +119,23 @@ def _purge_closed_after(
     return [index for index in indices if _close_time(rows[index]) < boundary]
 
 
+def _event_key(row: dict[str, Any]) -> tuple[str, ...] | None:
+    if row.get("deep_event_id") in (None, ""):
+        return None
+    # The causal identity also groups repeated exports whose run IDs differ.
+    columns = ("symbol", "deep_timeframe", "active_deep_bar_open_broker_time", "level_id")
+    if any(row.get(column) in (None, "") for column in columns):
+        raise ValueError("Deep training row lacks shared event identity facts")
+    return tuple(str(row[column]) for column in columns)
+
+
+def _purge_shared_events(
+    rows: list[dict[str, Any]], train: list[int], validation: list[int],
+) -> list[int]:
+    validation_events = {_event_key(rows[index]) for index in validation} - {None}
+    return [index for index in train if _event_key(rows[index]) not in validation_events]
+
+
 def _range_metadata(
     rows: list[dict[str, Any]],
     indices: list[int],
@@ -180,10 +197,20 @@ def build_time_splits(
     raw_train_group_end = pre_holdout_count - gap
     raw_train_indices = _expand(groups, list(range(raw_train_group_end)))
     train_indices = _purge_closed_after(rows, raw_train_indices, holdout_boundary)
+    train_indices = _purge_shared_events(rows, train_indices, holdout_indices)
     if not train_indices:
         raise ValueError("Close-time purge removed every pre-holdout training row")
 
-    fold_groups = groups[:pre_holdout_count]
+    # Holdout observations must never enter the model-selection folds either.
+    development_indices = set(_purge_shared_events(
+        rows, _expand(groups, list(range(pre_holdout_count))), holdout_indices,
+    ))
+    fold_groups = [
+        _IdentityGroup(group.key, group.first_time,
+                       [index for index in group.indices if index in development_indices])
+        for group in groups[:pre_holdout_count]
+        if any(index in development_indices for index in group.indices)
+    ]
     splitter = TimeSeriesSplit(n_splits=n_splits, gap=gap)
     folds: list[FoldSplit] = []
     for fold_index, (local_train, local_test) in enumerate(
@@ -197,6 +224,7 @@ def build_time_splits(
             [int(index) for index in local_train],
         )
         fold_train = _purge_closed_after(rows, raw_fold_train, boundary)
+        fold_train = _purge_shared_events(rows, fold_train, test_indices)
         if not fold_train:
             raise ValueError(f"Close-time purge removed every row from fold {fold_index}")
         folds.append(
@@ -226,6 +254,7 @@ def build_time_splits(
         "close_time_rule": (
             "training terminal_broker_time must be strictly earlier than validation boundary"
         ),
+        "shared_event_rule": "exclude all training links/ratios of validation Deep identities across runs; exclude holdout identities from model-selection folds",
         "origin_weight_policy": ORIGIN_WEIGHT_POLICY,
         "holdout_fraction": holdout_fraction,
         "walk_forward_splits": n_splits,

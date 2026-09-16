@@ -1,11 +1,10 @@
-"""Regenerate the deterministic strict V13 contract fixture."""
+"""Regenerate the deterministic strict V14 contract fixture."""
 
 from __future__ import annotations
 
 import csv
 import hashlib
 import json
-import shutil
 import sys
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -16,8 +15,8 @@ if str(MODULE_ROOT) not in sys.path:
 
 import schema_contract as contract
 
-RUN_ID = "schema_v13_hft_deep_pivot_features"
-CONFIG_ID = "cfg_v13_fixture"
+RUN_ID = "schema_v14_hft_deep_pivot_features"
+CONFIG_ID = "cfg_v14_fixture"
 SYMBOL = "EURUSD"
 NULL = contract.NULL_TOKEN
 ROOT = Path(__file__).resolve().parent
@@ -89,7 +88,7 @@ def _window(
     }
     row = _row(
         contract.PIVOT_WINDOW_COLUMNS,
-        schema_version=13,
+        schema_version=14,
         run_id=RUN_ID,
         config_id=CONFIG_ID,
         window_id=window_id,
@@ -133,32 +132,34 @@ def _h1_trial(
     bid: float,
     ask: float,
     role: str = "H1",
+    direction: str = "BUY",
 ) -> dict[str, str]:
-    stop = 1.0800
-    entry = ask
-    risk = entry - stop
-    target = entry + ratio * risk
+    buy = direction == "BUY"
+    stop = 1.0800 if buy else 1.1200
+    entry = ask if buy else bid
+    risk = abs(entry - stop)
+    target = entry + ratio * risk if buy else entry - ratio * risk
     row = _row(
         contract.VIRTUAL_TRIAL_COLUMNS,
-        schema_version=13,
+        schema_version=14,
         run_id=RUN_ID,
         config_id=CONFIG_ID,
         trial_id=trial_id,
         parity_trial_id=NULL,
-        origin_id="origin_s1_buy",
+        origin_id="origin_s1_buy" if buy else "origin_r1_sell",
         window_id="win_h1_202601121000",
         broker_signal_id="broker_sig_s1" if role == "BROKER_PARITY" else NULL,
         trial_role=role,
         entry_policy=policy,
         tp_r_multiple=ratio,
-        level_id="S1",
-        direction="BUY",
+        level_id="S1" if buy else "R1",
+        direction=direction,
         entry_bid=f"{bid:.10f}",
         entry_ask=f"{ask:.10f}",
         entry_price=f"{entry:.10f}",
-        entry_quote_side="ASK",
-        exit_quote_side="BID",
-        midpoint_50_price="1.0850000000",
+        entry_quote_side="ASK" if buy else "BID",
+        exit_quote_side="BID" if buy else "ASK",
+        midpoint_50_price="1.0850000000" if buy else "1.1150000000",
         midpoint_touched="1",
         requested_risk_distance_price=f"{risk:.10f}",
         requested_risk_distance_points=f"{risk / 0.0001:.10f}",
@@ -200,30 +201,29 @@ def _h1_outcome(trial: dict[str, str], index: int) -> dict[str, str]:
     terminal = entry_time + timedelta(minutes=30 + index)
     ratio = int(trial["tp_r_multiple"])
     status = "SL_FIRST" if trial["entry_policy"] == "MIDPOINT_50" and ratio == 5 else "TP_FIRST"
-    entry = float(trial["entry_price"])
-    risk = abs(entry - float(trial["stop_loss_price"]))
-    threshold = entry + ratio * risk if status == "TP_FIRST" else float(trial["stop_loss_price"])
+    buy = trial["direction"] == "BUY"
+    threshold = float(trial["take_profit_price"] if status == "TP_FIRST" else trial["stop_loss_price"])
     row = _row(
         contract.VIRTUAL_OUTCOME_COLUMNS,
-        schema_version=13,
+        schema_version=14,
         run_id=RUN_ID,
         config_id=CONFIG_ID,
         outcome_id=f"out_{trial['trial_id']}",
         trial_id=trial["trial_id"],
         parity_trial_id=trial["parity_trial_id"],
-        origin_id="origin_s1_buy",
+        origin_id=trial["origin_id"],
         window_id="win_h1_202601121000",
         trial_role=trial["trial_role"],
         entry_policy=trial["entry_policy"],
         tp_r_multiple=ratio,
-        direction="BUY",
+        direction=trial["direction"],
         terminal_status=status,
         terminal_reason="TP_THRESHOLD" if status == "TP_FIRST" else "SL_THRESHOLD",
         threshold_price=f"{threshold:.10f}",
-        observed_exit_bid=f"{threshold:.10f}",
-        observed_exit_ask=f"{threshold + 0.0002:.10f}",
+        observed_exit_bid=f"{threshold if buy else threshold - 0.0002:.10f}",
+        observed_exit_ask=f"{threshold + 0.0002 if buy else threshold:.10f}",
         observed_exit_price=f"{threshold:.10f}",
-        exit_quote_side="BID",
+        exit_quote_side="BID" if buy else "ASK",
         gap_points="0.0000000000",
         h1_structural_lifecycle_seconds=int((terminal - entry_time).total_seconds()),
         virtual_nominal_r=f"{ratio if status == 'TP_FIRST' else -1:.10f}",
@@ -236,6 +236,18 @@ def _h1_outcome(trial: dict[str, str], index: int) -> dict[str, str]:
     )
     _triplet(row, "terminal", terminal)
     return row
+
+
+def _exclude_outcome(row: dict[str, str], status: str, reason: str, terminal: datetime) -> None:
+    row.update(terminal_status=status, terminal_reason=reason,
+               virtual_binary_eligible="0", virtual_binary_target=NULL,
+               virtual_exclusion_reason=reason)
+    for column in ("threshold_price", "gap_points", "h1_structural_lifecycle_seconds",
+                   "deep_lifecycle_seconds", "virtual_nominal_r",
+                   "virtual_quote_gross_profit", "virtual_quote_gross_r"):
+        if column in row:
+            row[column] = NULL
+    _triplet(row, "terminal", terminal)
 
 
 def generate() -> None:
@@ -264,7 +276,7 @@ def generate() -> None:
     }
     _write(
         contract.RUN_MANIFEST_FILE,
-        [_row(contract.MANIFEST_COLUMNS, schema_version=13, key=key, value=manifest[key]) for key in sorted(manifest)],
+        [_row(contract.MANIFEST_COLUMNS, schema_version=14, key=key, value=manifest[key]) for key in sorted(manifest)],
     )
 
     macro = _window(
@@ -282,7 +294,7 @@ def generate() -> None:
     trigger = datetime(2026, 1, 12, 10, 5)
     origin = _row(
         contract.SIGNAL_ORIGIN_COLUMNS,
-        schema_version=13,
+        schema_version=14,
         run_id=RUN_ID,
         config_id=CONFIG_ID,
         origin_id="origin_s1_buy",
@@ -309,7 +321,7 @@ def generate() -> None:
         structural_entry_price="1.0902000000",
         structural_sl_price="1.0800000000",
         structural_take_profit="1.1004000000",
-        origin_micro_features_complete="1",
+        origin_deep_features_complete="1",
         origin_macro_features_complete="1",
         origin_feature_snapshot_complete="1",
         origin_feature_invalid_reason=NULL,
@@ -322,9 +334,21 @@ def generate() -> None:
     for level in contract.PIVOT_LEVELS:
         origin[f"raw_{level.lower()}_price"] = macro[f"raw_{level.lower()}_price"]
         origin[f"trade_{level.lower()}_price"] = macro[f"trade_{level.lower()}_price"]
-    _features(origin, "origin_micro", 1.0900)
+    _features(origin, "origin_deep", 1.0900)
     _features(origin, "origin_macro", 1.0900)
-    _write(contract.SIGNAL_ORIGINS_FILE, [origin])
+    opposed_origin = dict(origin, origin_id="origin_r1_sell", broker_signal_id=NULL,
+                          level_id="R1", direction="SELL", trigger_bid="1.1100000000",
+                          trigger_ask="1.1102000000", pivot_raw_price="1.1100000000",
+                          pivot_trade_price="1.1100000000", next_outward_pivot_price="1.1200000000",
+                          midpoint_50_price="1.1150000000", structural_entry_price="1.1100000000",
+                          structural_sl_price="1.1200000000", structural_take_profit="1.1000000000",
+                          origin_deep_features_complete="0", origin_feature_snapshot_complete="0",
+                          origin_feature_invalid_reason="DEEP_DATA_UNAVAILABLE", broker_attempt_status="BLOCKED")
+    _triplet(opposed_origin, "trigger", trigger + timedelta(seconds=30))
+    _features(opposed_origin, "origin_macro", 1.1100)
+    for column in contract.ORIGIN_DEEP_FEATURE_COLUMNS:
+        opposed_origin[column] = NULL
+    _write(contract.SIGNAL_ORIGINS_FILE, [origin, opposed_origin])
 
     trials: list[dict[str, str]] = []
     for policy in contract.H1_ENTRY_POLICIES:
@@ -352,13 +376,38 @@ def generate() -> None:
     )
     parity["parity_trial_id"] = "parity_broker_sig_s1"
     trials.append(parity)
+    outcomes = [_h1_outcome(trial, index) for index, trial in enumerate(trials)]
+    for policy in contract.H1_ENTRY_POLICIES:
+        for ratio in contract.H1_TP_R_MULTIPLES:
+            midpoint = policy == "MIDPOINT_50"
+            trial = _h1_trial(policy, ratio, f"sell_{policy.lower()}_tp{ratio}",
+                              trigger + timedelta(seconds=60 if midpoint else 30),
+                              1.1150 if midpoint else 1.1100,
+                              1.1152 if midpoint else 1.1102, direction="SELL")
+            outcome = _h1_outcome(trial, len(trials))
+            if policy == "STRUCTURAL" and ratio == 5:
+                _exclude_outcome(outcome, "CENSORED_RUN_END", "RUN_END", datetime(2026, 1, 12, 11))
+            if policy == "MIDPOINT_50" and ratio == 5:
+                trial.update(eligibility_status="INELIGIBLE", ineligible_reason="VIRTUAL_MONEY_INVALID",
+                             virtual_money_plan_complete="0", distance_eligible="0")
+                for column in ("requested_risk_distance_price", "requested_risk_distance_points",
+                               "normalized_risk_ticks", "normalized_risk_distance_price",
+                               "normalized_risk_distance_points", "stop_loss_price", "take_profit_price",
+                               "geometry_equivalence_id", "minimum_risk_distance_points",
+                               "risk_budget_amount", "requested_volume", "normalized_volume",
+                               "virtual_expected_stop_loss", "virtual_expected_take_profit",
+                               "virtual_expected_reward_risk_ratio"):
+                    trial[column] = NULL
+                _exclude_outcome(outcome, "INELIGIBLE", "VIRTUAL_MONEY_INVALID", trigger + timedelta(seconds=60))
+            trials.append(trial)
+            outcomes.append(outcome)
     _write(contract.VIRTUAL_TRIALS_FILE, trials)
-    _write(contract.VIRTUAL_OUTCOMES_FILE, [_h1_outcome(trial, index) for index, trial in enumerate(trials)])
+    _write(contract.VIRTUAL_OUTCOMES_FILE, outcomes)
 
     event_time = datetime(2026, 1, 12, 10, 19)
     event = _row(
         contract.DEEP_PIVOT_EVENT_COLUMNS,
-        schema_version=13,
+        schema_version=14,
         run_id=RUN_ID,
         config_id=CONFIG_ID,
         deep_event_id="deep_event_s1",
@@ -379,20 +428,23 @@ def generate() -> None:
         pivot_raw_price="1.0950000000",
         pivot_trade_price="1.0950000000",
         next_outward_pivot_price="1.0900000000",
+        deep_deep_features_complete="1",
         deep_micro_features_complete="1",
+        deep_feature_snapshot_complete="1",
         deep_feature_invalid_reason=NULL,
         identity_consumed="1",
         admission_status="ADMITTED",
-        active_parent_count="2",
-        required_link_slots="2",
+        active_parent_count="3",
+        required_link_slots="3",
         required_trial_slots="3",
-        required_outcome_slots="6",
-        reserved_link_slots="2",
+        required_outcome_slots="9",
+        reserved_link_slots="3",
         reserved_trial_slots="3",
-        reserved_outcome_slots="6",
+        reserved_outcome_slots="9",
         capacity_rejection_reason=NULL,
     )
     _triplet(event, "trigger", event_time)
+    _features(event, "deep_deep", 1.0950)
     _features(event, "deep_micro", 1.0950)
     _write(contract.DEEP_PIVOT_EVENTS_FILE, [event])
 
@@ -405,7 +457,7 @@ def generate() -> None:
         links.append(
             _row(
                 contract.DEEP_PIVOT_PARENT_LINK_COLUMNS,
-                schema_version=13,
+                schema_version=14,
                 run_id=RUN_ID,
                 config_id=CONFIG_ID,
                 parent_link_id=f"link_{index}",
@@ -416,13 +468,20 @@ def generate() -> None:
                 parent_broker_signal_id=parent["broker_signal_id"],
                 parent_entry_policy=policy,
                 parent_tp_r_multiple="1",
-                direction="BUY",
+                parent_direction="BUY",
+                deep_direction="BUY",
+                direction_relationship="ALIGNED",
                 parent_entry_broker_time=_timestamp(entry_time),
                 event_trigger_broker_time=_timestamp(event_time),
                 m10_parent_age_seconds=int((event_time - entry_time).total_seconds()),
                 link_status="ACTIVE",
             )
         )
+    opposed_link = dict(links[0], parent_link_id="link_opposed", origin_id="origin_r1_sell",
+                        parent_trial_id="sell_structural_tp5", parent_tp_r_multiple="5",
+                        parent_direction="SELL", direction_relationship="OPPOSED",
+                        parent_entry_broker_time="2026.01.12 10:05:30", m10_parent_age_seconds="810")
+    links.append(opposed_link)
     _write(contract.DEEP_PIVOT_PARENT_LINKS_FILE, links)
 
     deep_trials: list[dict[str, str]] = []
@@ -430,7 +489,7 @@ def generate() -> None:
         risk = 1.0950 - 1.0900
         row = _row(
             contract.DEEP_VIRTUAL_TRIAL_COLUMNS,
-            schema_version=13,
+            schema_version=14,
             run_id=RUN_ID,
             config_id=CONFIG_ID,
             deep_trial_id=f"deep_trial_s1_r{ratio}",
@@ -501,16 +560,17 @@ def generate() -> None:
             gross_r = float(ratio) if status == "TP_FIRST" else -1.0
             row = _row(
                 contract.DEEP_VIRTUAL_OUTCOME_COLUMNS,
-                schema_version=13,
+                schema_version=14,
                 run_id=RUN_ID,
                 config_id=CONFIG_ID,
                 deep_outcome_id=f"deep_out_{link_index}_{ratio}",
                 parent_link_id=link["parent_link_id"],
                 deep_trial_id=f"deep_trial_s1_r{ratio}",
                 deep_event_id="deep_event_s1",
-                origin_id="origin_s1_buy",
+                origin_id=link["origin_id"],
                 tp_r_multiple=ratio,
                 direction="BUY",
+                parent_direction=link["parent_direction"],
                 terminal_status=status,
                 terminal_reason=(
                     "TP_THRESHOLD"
@@ -535,6 +595,8 @@ def generate() -> None:
                 first_touch_consistent="1",
             )
             _triplet(row, "terminal", terminal)
+            if link["parent_link_id"] == "link_opposed" and ratio == 3:
+                _exclude_outcome(row, "CENSORED_RUN_END", "CENSORED_RUN_END", datetime(2026, 1, 12, 11))
             deep_outcomes.append(row)
     _write(contract.DEEP_VIRTUAL_OUTCOMES_FILE, deep_outcomes)
 
@@ -542,7 +604,7 @@ def generate() -> None:
     _write(contract.BROKER_OUTCOMES_FILE, [])
     summary = _row(
         contract.SUMMARY_COLUMNS,
-        schema_version=13,
+        schema_version=14,
         run_id=RUN_ID,
         config_id=CONFIG_ID,
         started_broker_time="2026.01.12 09:59:50",
@@ -554,40 +616,40 @@ def generate() -> None:
         pivot_window_rows=2,
         macro_window_rows=1,
         deep_window_rows=1,
-        signal_origin_rows=1,
-        h1_trial_rows=9,
-        h1_structural_trial_rows=4,
-        h1_midpoint_trial_rows=4,
+        signal_origin_rows=2,
+        h1_trial_rows=17,
+        h1_structural_trial_rows=8,
+        h1_midpoint_trial_rows=8,
         parity_trial_rows=1,
-        h1_outcome_rows=9,
-        h1_tp_rows=8,
+        h1_outcome_rows=17,
+        h1_tp_rows=14,
         h1_sl_rows=1,
         h1_not_triggered_rows=0,
-        h1_ineligible_rows=0,
-        h1_run_censored_rows=0,
+        h1_ineligible_rows=1,
+        h1_run_censored_rows=1,
         deep_event_rows=1,
         deep_event_admitted_rows=1,
         deep_event_capacity_rejected_rows=0,
-        deep_parent_link_rows=2,
+        deep_parent_link_rows=3,
         deep_trial_rows=3,
-        deep_outcome_rows=6,
-        deep_tp_rows=3,
-        deep_sl_rows=2,
+        deep_outcome_rows=9,
+        deep_tp_rows=4,
+        deep_sl_rows=3,
         deep_parent_exit_censored_rows=1,
-        deep_run_censored_rows=0,
+        deep_run_censored_rows=1,
         deep_ineligible_rows=0,
         execution_check_rows=0,
         broker_outcome_rows=0,
         parity_pair_rows=0,
-        h1_active_state_peak=9,
+        h1_active_state_peak=17,
         h1_active_state_cap=2048,
         deep_event_active_peak=1,
         deep_event_active_cap=2048,
-        deep_link_active_peak=2,
+        deep_link_active_peak=3,
         deep_link_active_cap=4096,
         deep_trial_active_peak=3,
         deep_trial_active_cap=6144,
-        deep_outcome_active_peak=6,
+        deep_outcome_active_peak=9,
         deep_outcome_active_cap=18432,
         duplicate_identity_count=0,
         referential_integrity_error_count=0,

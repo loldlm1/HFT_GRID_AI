@@ -1,8 +1,20 @@
 # Current Project State
 
-Updated 2026-09-10. EA version `1.30`, strict Pivot Fractal schema `13`, engine
+Updated 2026-09-16. EA version `1.30`, strict Pivot Fractal schema `13`, engine
 `PIVOT_FRACTAL_V2`. This index owns changing project status; the linked guides
 own procedures and dated evidence owns its original results.
+
+## V14 Implementation
+
+The [V14 MT5 plan](../pivot-fractal-v14-mt5-plan.md) is authorized for all four
+ordered sprints. M1's V14-only offline contract passes 51 focused Python tests,
+fixture build/audit and parent chronology; the EA still produces V13 until M2.
+The contract has 181 H1 and 186 Deep model features. Fixture support remains
+insufficient at the unchanged audit floor 30. Native QA uses initial-2015
+XAUUSD_Exness_2015, H2/M15/M3 plus default H1/M10/M3. Django execution, full-history
+testing, GBPJPY conversion repair and live rollout remain outside this work.
+The ignored `.codex-artifacts/pivot-fractal-v14/execution-journal.md` records gates
+and sprint commit/rollback receipts.
 
 ## Reliability And Performance
 
@@ -12,8 +24,7 @@ Sprint 1 is `9215df8` (rollback `c9ebb24`), Sprint 2 is
 `4360448` (rollback `9215df8`), and Sprint 3 is `629fdf5` (rollback `4360448`).
 Sprint 4 is `06ecfdb` (rollback `629fdf5`); its exact receipt is
 `.codex-artifacts/eurusd-tester-reliability/sprint-4/commit.json`.
-No implementation sprint remains active. The completed plan is retained as the
-latest execution record; a new thread starts from this index and a new scoped task.
+That completed plan is historical; the V14 plan now owns active implementation.
 The affected EURUSD tester is stopped; its incomplete original export and
 pre-stop snapshot remain preserved. Prior cleanup, V13,
 Exness preparation and parent-close plans are historical and must not be restarted.

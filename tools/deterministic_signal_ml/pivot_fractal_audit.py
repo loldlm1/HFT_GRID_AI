@@ -1,4 +1,4 @@
-"""Audit strict V13 H1, deep-parent, broker, and calibration research artifacts."""
+"""Audit strict V14 H1, deep-parent, broker, and calibration research artifacts."""
 
 from __future__ import annotations
 
@@ -17,7 +17,7 @@ from model_config import DEFAULT_DATASET_ROOT
 from report_writer import build_feature_contracts
 from schema_contract import (
     DEEP_FEATURE_SET_ID,
-    DEEP_MICRO_FEATURE_COLUMNS,
+    DEEP_SIGNAL_FEATURE_COLUMNS,
     DEEP_MODEL_FEATURE_COLUMNS,
     FUTURE_ONLY_COLUMNS,
     H1_FEATURE_SET_ID,
@@ -32,7 +32,7 @@ REQUIRED_TABLES = tuple(Path(filename).stem for filename in RUN_FILES) + DERIVED
 
 
 class PivotAuditError(RuntimeError):
-    """Raised when a V13 dataset cannot support a trustworthy audit."""
+    """Raised when a V14 dataset cannot support a trustworthy audit."""
 
 
 def _sql_literal(value: str | Path) -> str:
@@ -93,9 +93,9 @@ def _require_zero(
 
 def _validate_manifest_contract(manifest: dict[str, Any]) -> None:
     if int(manifest.get("schema_version", 0)) != SUPPORTED_SCHEMA_VERSION:
-        raise PivotAuditError("Dataset schema version is incompatible with V13 audit")
+        raise PivotAuditError("Dataset schema version is incompatible with V14 audit")
     if manifest.get("feature_set_id") != SUPPORTED_FEATURE_SET_ID:
-        raise PivotAuditError("Dataset feature set is incompatible with V13 audit")
+        raise PivotAuditError("Dataset feature set is incompatible with V14 audit")
     if manifest.get("research_approval_state") != "OFFLINE_RESEARCH_ONLY":
         raise PivotAuditError("Dataset is missing the offline-only research boundary")
     if manifest.get("available_feature_set_ids") != [
@@ -104,13 +104,13 @@ def _validate_manifest_contract(manifest: dict[str, Any]) -> None:
     ]:
         raise PivotAuditError("Dataset evidence-grain list is incompatible")
     if manifest.get("feature_contracts") != build_feature_contracts():
-        raise PivotAuditError("Dataset evidence-grain contracts differ from strict V13")
+        raise PivotAuditError("Dataset evidence-grain contracts differ from strict V14")
     expected_files = {table: f"{table}.parquet" for table in REQUIRED_TABLES}
     if manifest.get("files") != expected_files:
-        raise PivotAuditError("Dataset file manifest differs from strict V13")
+        raise PivotAuditError("Dataset file manifest differs from strict V14")
     counts = manifest.get("counts")
     if not isinstance(counts, dict) or set(counts) != set(REQUIRED_TABLES):
-        raise PivotAuditError("Dataset count manifest differs from strict V13")
+        raise PivotAuditError("Dataset count manifest differs from strict V14")
 
 
 def _validate_dataset_integrity(
@@ -197,13 +197,39 @@ SELECT count(*) FROM (
     _require_zero(
         connection,
         """
+SELECT count(*) FROM deep_pivot_parent_links l
+LEFT JOIN signal_origins o USING (run_id, config_id, origin_id)
+LEFT JOIN deep_pivot_events e USING (run_id, config_id, deep_event_id)
+WHERE o.origin_id IS NULL OR e.deep_event_id IS NULL
+   OR l.parent_direction IS DISTINCT FROM o.direction
+   OR l.deep_direction IS DISTINCT FROM e.direction
+   OR l.direction_relationship IS DISTINCT FROM
+      CASE WHEN l.parent_direction = l.deep_direction THEN 'ALIGNED' ELSE 'OPPOSED' END
+""",
+        "Deep parent direction relationship is inconsistent",
+    )
+    _require_zero(
+        connection,
+        """
+SELECT count(*) FROM deep_virtual_outcomes d
+LEFT JOIN deep_pivot_parent_links l USING (run_id, config_id, parent_link_id)
+WHERE l.parent_link_id IS NULL OR d.origin_id IS DISTINCT FROM l.origin_id
+   OR d.deep_event_id IS DISTINCT FROM l.deep_event_id
+   OR d.parent_direction IS DISTINCT FROM l.parent_direction
+   OR d.direction IS DISTINCT FROM l.deep_direction
+""",
+        "Deep outcome parent/event direction is inconsistent",
+    )
+    _require_zero(
+        connection,
+        """
 SELECT count(*)
 FROM eligible_deep_trials
 WHERE virtual_binary_target NOT IN (0, 1)
    OR NOT virtual_binary_eligible
    OR eligibility_status <> 'ACTIVE'
    OR terminal_status NOT IN ('TP_FIRST', 'SL_FIRST')
-   OR NOT deep_micro_features_complete
+   OR NOT deep_feature_snapshot_complete
 """,
         "Eligible deep cohort contains excluded or malformed rows",
     )
@@ -306,7 +332,7 @@ WHERE strict_pair_eligible AND NOT terminal_agreement
         for row in connection.execute("DESCRIBE eligible_deep_trials").fetchall()
     }
     duplicated = sorted(
-        set(DEEP_MICRO_FEATURE_COLUMNS)
+        set(DEEP_SIGNAL_FEATURE_COLUMNS)
         & (deep_parent_columns | eligible_deep_columns)
     )
     if duplicated:
@@ -314,7 +340,7 @@ WHERE strict_pair_eligible AND NOT terminal_agreement
     event_columns = {
         row[0] for row in connection.execute("DESCRIBE deep_pivot_events").fetchall()
     }
-    missing_event_features = sorted(set(DEEP_MICRO_FEATURE_COLUMNS) - event_columns)
+    missing_event_features = sorted(set(DEEP_SIGNAL_FEATURE_COLUMNS) - event_columns)
     if missing_event_features:
         raise PivotAuditError(
             f"Deep event grain lacks model features: {missing_event_features}"
@@ -336,7 +362,7 @@ WHERE strict_pair_eligible AND NOT terminal_agreement
         "Eligible H1 cohort contains incomplete model features",
     )
     deep_parent_features = set(DEEP_MODEL_FEATURE_COLUMNS) - set(
-        DEEP_MICRO_FEATURE_COLUMNS
+        DEEP_SIGNAL_FEATURE_COLUMNS
     )
     missing_deep_parent_features = sorted(deep_parent_features - eligible_deep_columns)
     if missing_deep_parent_features:
@@ -354,12 +380,12 @@ WHERE strict_pair_eligible AND NOT terminal_agreement
         "Eligible deep cohort contains incomplete parent-grain features",
     )
     deep_event_missing_predicate = " OR ".join(
-        f"{_quoted(column)} IS NULL" for column in DEEP_MICRO_FEATURE_COLUMNS
+        f"{_quoted(column)} IS NULL" for column in DEEP_SIGNAL_FEATURE_COLUMNS
     )
     _require_zero(
         connection,
         "SELECT count(*) FROM deep_pivot_events "
-        "WHERE deep_micro_features_complete AND "
+        "WHERE deep_feature_snapshot_complete AND "
         f"({deep_event_missing_predicate})",
         "Complete deep event contains incomplete model features",
     )
@@ -380,7 +406,7 @@ def _render_report(audit_id: str, metadata: dict[str, Any]) -> str:
     support = metadata["support"]
     return "\n".join(
         [
-            f"# Pivot V13 Evidence Audit: {audit_id}",
+            f"# Pivot V14 Evidence Audit: {audit_id}",
             "",
             f"- Research status: `{metadata['research_status']}`",
             f"- Unique origins: `{support['unique_origins']}`",
@@ -600,9 +626,9 @@ def main() -> int:
             args.minimum_group_support,
         )
     except (PivotAuditError, ValueError, json.JSONDecodeError, duckdb.Error) as exc:
-        parser.exit(1, f"pivot V13 audit failed: {exc}\n")
+        parser.exit(1, f"pivot V14 audit failed: {exc}\n")
     print(
-        "pivot V13 audit ok | "
+        "pivot V14 audit ok | "
         f"status={metadata['research_status']} | output={output_dir}"
     )
     return 0

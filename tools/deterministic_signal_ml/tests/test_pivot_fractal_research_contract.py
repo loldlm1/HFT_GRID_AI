@@ -3,6 +3,7 @@ from __future__ import annotations
 import sys
 import tempfile
 import unittest
+from datetime import datetime, timedelta
 from pathlib import Path
 
 import duckdb
@@ -35,7 +36,7 @@ from model_config import (
 from research_test_support import build_fixture_dataset, copy_run_with_id
 from schema_contract import (
     DEEP_FEATURE_SET_ID,
-    DEEP_MICRO_FEATURE_COLUMNS,
+    DEEP_SIGNAL_FEATURE_COLUMNS,
     DEEP_MODEL_FEATURE_COLUMNS,
     FUTURE_ONLY_COLUMNS,
     H1_FEATURE_SET_ID,
@@ -48,13 +49,50 @@ from schema_contract import (
     validate_runs,
 )
 from train_model import TrainingError, load_training_rows, train_candidate
-from validation_splits import origin_balanced_weights
+from validation_splits import _purge_shared_events, build_time_splits, origin_balanced_weights
 
 FIXTURES = Path(__file__).parent / "fixtures"
-FIXTURE = FIXTURES / "schema_v13_hft_deep_pivot_features"
+FIXTURE = FIXTURES / "schema_v14_hft_deep_pivot_features"
 
 
-class PivotFractalV13ResearchContractTests(unittest.TestCase):
+class PivotFractalV14ResearchContractTests(unittest.TestCase):
+    def test_shared_deep_event_purges_all_training_parents_ratios_and_duplicate_runs(self) -> None:
+        event = {"symbol": "EURUSD", "deep_timeframe": "PERIOD_M15",
+                 "active_deep_bar_open_broker_time": "2026.01.12 10:15:00", "level_id": "PP"}
+        rows = [dict(event, deep_event_id=f"run_{run}_event", run_id=run,
+                     origin_id=parent, parent_direction=direction, tp_r_multiple=ratio)
+                for run in ("a", "b") for parent, direction in (("old_bar", "BUY"), ("new_bar", "SELL"))
+                for ratio in (1, 2, 3)]
+        rows.append(dict(event, deep_event_id="different_level", level_id="S1"))
+        kept = _purge_shared_events(rows, list(range(12)) + [12], [9, 10, 11])
+        self.assertEqual(kept, [12])
+
+    def test_shared_holdout_events_cannot_enter_any_model_selection_fold(self) -> None:
+        rows = []
+        start = datetime(2026, 1, 1)
+        for day in range(24):
+            time = start + timedelta(days=day)
+            for ratio in (1, 2, 3):
+                rows.append({"deep_event_id": f"event_{day}", "origin_id": f"origin_{day}",
+                             "symbol": "EURUSD", "deep_timeframe": "PERIOD_M15", "level_id": "PP",
+                             "active_deep_bar_open_broker_time": time,
+                             "research_group_id": f"macro_{day}", "tp_r_multiple": ratio,
+                             "declared_broker_time": time, "terminal_broker_time": time + timedelta(hours=1)})
+        for index in (21, 66):
+            for ratio in (1, 2, 3):
+                rows.append(dict(rows[index], research_group_id="macro_3", origin_id="origin_3",
+                                 deep_event_id=f"duplicate_run_{index}", tp_r_multiple=ratio))
+        bundle = build_time_splits(rows, n_splits=3)
+        def identities(indices: list[int]) -> set[tuple]:
+            return {(rows[index]["symbol"], rows[index]["deep_timeframe"],
+                     rows[index]["active_deep_bar_open_broker_time"], rows[index]["level_id"])
+                    for index in indices}
+        holdout = identities(bundle.holdout_indices)
+        self.assertFalse(holdout & identities(bundle.train_indices))
+        for fold in bundle.folds:
+            self.assertFalse(identities(fold.train_indices) & identities(fold.test_indices))
+            self.assertFalse(holdout & identities(fold.train_indices + fold.test_indices))
+
     def test_builder_registry_is_exhaustive_and_disjoint(self) -> None:
         schema_columns = {column for columns in TABLE_COLUMNS.values() for column in columns}
         self.assertEqual(set(COLUMN_TYPE_BY_NAME), schema_columns)
@@ -80,7 +118,7 @@ class PivotFractalV13ResearchContractTests(unittest.TestCase):
         connection = duckdb.connect(":memory:")
         try:
             counts = create_raw_tables(connection, [validation])
-            self.assertEqual(counts["deep_pivot_parent_links"], 2)
+            self.assertEqual(counts["deep_pivot_parent_links"], 3)
             self.assertEqual(
                 connection.execute(
                     "SELECT typeof(m10_parent_age_seconds), "
@@ -153,11 +191,11 @@ class PivotFractalV13ResearchContractTests(unittest.TestCase):
                     ELIGIBLE_DEEP_TRIALS_TABLE: counts[ELIGIBLE_DEEP_TRIALS_TABLE],
                 },
                 {
-                    H1_LANE_LONG_TABLE: 8,
-                    H1_LANE_WIDE_TABLE: 1,
+                    H1_LANE_LONG_TABLE: 16,
+                    H1_LANE_WIDE_TABLE: 2,
                     ELIGIBLE_H1_TRIALS_TABLE: 8,
-                    DEEP_PARENT_LONG_TABLE: 6,
-                    ELIGIBLE_DEEP_TRIALS_TABLE: 5,
+                    DEEP_PARENT_LONG_TABLE: 9,
+                    ELIGIBLE_DEEP_TRIALS_TABLE: 7,
                 },
             )
             for table_name in (DEEP_PARENT_LONG_TABLE, ELIGIBLE_DEEP_TRIALS_TABLE):
@@ -165,14 +203,14 @@ class PivotFractalV13ResearchContractTests(unittest.TestCase):
                     row[0]
                     for row in connection.execute(f"DESCRIBE {table_name}").fetchall()
                 }
-                self.assertFalse(columns & set(DEEP_MICRO_FEATURE_COLUMNS))
+                self.assertFalse(columns & set(DEEP_SIGNAL_FEATURE_COLUMNS))
             self.assertEqual(
                 connection.execute(
                     f"SELECT round(sum(origin_sample_weight), 10), "
                     f"round(sum(event_sample_weight), 10) "
                     f"FROM {ELIGIBLE_DEEP_TRIALS_TABLE}"
                 ).fetchone(),
-                (1.0, 1.0),
+                (2.0, 1.0),
             )
             deep_ratios = {
                 row[0]
@@ -186,11 +224,11 @@ class PivotFractalV13ResearchContractTests(unittest.TestCase):
 
     def test_deep_features_join_only_for_explicit_training_load(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
-            dataset_dir = Path(temp_dir) / "fixture_v13"
+            dataset_dir = Path(temp_dir) / "fixture_v14"
             build_fixture_dataset(FIXTURE, dataset_dir)
             h1_rows = load_training_rows(dataset_dir, H1_FEATURE_SET_ID)
             deep_rows = load_training_rows(dataset_dir, DEEP_FEATURE_SET_ID)
-            self.assertEqual((len(h1_rows), len(deep_rows)), (8, 5))
+            self.assertEqual((len(h1_rows), len(deep_rows)), (8, 7))
             self.assertTrue(
                 all(
                     all(row.get(column) is not None for column in DEEP_MODEL_FEATURE_COLUMNS)
@@ -209,7 +247,7 @@ class PivotFractalV13ResearchContractTests(unittest.TestCase):
     def test_training_requires_explicit_grain_and_real_support(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
-            dataset_dir = root / "fixture_v13"
+            dataset_dir = root / "fixture_v14"
             build_fixture_dataset(FIXTURE, dataset_dir)
             for feature_set_id in (H1_FEATURE_SET_ID, DEEP_FEATURE_SET_ID):
                 output_dir = root / feature_set_id.rsplit(".", 1)[-1]
@@ -246,7 +284,7 @@ class PivotFractalV13ResearchContractTests(unittest.TestCase):
             try:
                 counts = create_dataset_tables(connection, validations)
                 self.assertEqual(counts[ELIGIBLE_H1_TRIALS_TABLE], 16)
-                self.assertEqual(counts[ELIGIBLE_DEEP_TRIALS_TABLE], 10)
+                self.assertEqual(counts[ELIGIBLE_DEEP_TRIALS_TABLE], 14)
                 self.assertEqual(
                     connection.execute(
                         f"SELECT round(sum(origin_sample_weight), 10) "
@@ -260,7 +298,7 @@ class PivotFractalV13ResearchContractTests(unittest.TestCase):
                         f"round(sum(event_sample_weight), 10) "
                         f"FROM {ELIGIBLE_DEEP_TRIALS_TABLE}"
                     ).fetchone(),
-                    (1.0, 1.0),
+                    (2.0, 1.0),
                 )
             finally:
                 connection.close()

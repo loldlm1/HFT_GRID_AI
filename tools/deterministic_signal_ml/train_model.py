@@ -1,4 +1,4 @@
-"""Train an offline-only V13 H1 or deep-parent classifier candidate."""
+"""Train an offline-only V14 H1 or deep-parent classifier candidate."""
 
 from __future__ import annotations
 
@@ -40,7 +40,7 @@ from model_config import (
 )
 from schema_contract import (
     DEEP_FEATURE_SET_ID,
-    DEEP_MICRO_FEATURE_COLUMNS,
+    DEEP_SIGNAL_FEATURE_COLUMNS,
     FUTURE_ONLY_COLUMNS,
     H1_FEATURE_SET_ID,
     SUPPORTED_FEATURE_SET_ID,
@@ -133,7 +133,7 @@ def load_training_rows(
                 raise TrainingError(f"Missing deep event feature source: {event_path}")
             escaped_events = event_path.resolve().as_posix().replace("'", "''")
             event_features = ",\n  ".join(
-                f"event.\"{column}\"" for column in DEEP_MICRO_FEATURE_COLUMNS
+                f"event.\"{column}\"" for column in DEEP_SIGNAL_FEATURE_COLUMNS
             )
             query = f"""
 SELECT
@@ -315,7 +315,7 @@ def _write_tsv(path: Path, rows: list[dict[str, Any]]) -> None:
 
 def _render_report(manifest: dict[str, Any], metrics: dict[str, Any]) -> str:
     lines = [
-        f"# Offline Pivot V13 Model: {manifest['model_id']}",
+        f"# Offline Pivot V14 Model: {manifest['model_id']}",
         "",
         "Approval: `OFFLINE_RESEARCH_ONLY`",
         f"Evidence grain: `{manifest['source_grain']}`",
@@ -363,7 +363,7 @@ def train_candidate(
     if not isinstance(feature_contract, dict):
         raise TrainingError("Dataset manifest lacks the requested evidence-grain contract")
     if tuple(feature_contract.get("model_features", ())) != feature_columns:
-        raise TrainingError("Dataset manifest does not carry the exact V13 feature contract")
+        raise TrainingError("Dataset manifest does not carry the exact V14 feature contract")
     denied = {*FUTURE_ONLY_COLUMNS, *TARGET_COLUMNS}
     leaked = sorted(set(feature_columns) & denied)
     if leaked:
@@ -375,7 +375,7 @@ def train_candidate(
     if feature_contract.get("origin_weight_policy") != ORIGIN_WEIGHT_POLICY:
         raise TrainingError("Dataset origin-weight policy is incompatible")
     if feature_contract.get("target") != "virtual_binary_target":
-        raise TrainingError("Dataset target is not the V13 virtual target")
+        raise TrainingError("Dataset target is not the V14 virtual target")
     if feature_contract.get("training_table") != training_table_for_set(feature_set_id):
         raise TrainingError("Dataset training-table contract is incompatible")
     if feature_contract.get("source_grain") != source_grain_for_set(feature_set_id):
@@ -568,10 +568,10 @@ def main() -> int:
         duckdb.Error,
         xgb.core.XGBoostError,
     ) as exc:
-        parser.exit(1, f"offline pivot V13 model training failed: {exc}\n")
+        parser.exit(1, f"offline pivot V14 model training failed: {exc}\n")
 
     print(
-        "offline pivot V13 model training ok | "
+        "offline pivot V14 model training ok | "
         f"model={manifest['model_id']} | grain={manifest['source_grain']} | "
         f"rows={manifest['training_rows']} | output={output_dir}"
     )
