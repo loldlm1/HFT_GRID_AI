@@ -648,7 +648,31 @@ int PivotV14ColumnCount(const string row)
 bool PivotV14RowMatchesHeader(const string header,
                               const string row)
 {
-  if(PivotV14ColumnCount(header) == PivotV14ColumnCount(row))
+  static string cached_headers[12];
+  static int cached_lengths[12];
+  static int cached_columns[12];
+  static int cached_count = 0;
+  int header_length = StringLen(header);
+  int expected_columns = -1;
+  for(int i = 0; i < cached_count; i++)
+  {
+    if(cached_lengths[i] != header_length || cached_headers[i] != header)
+      continue;
+    expected_columns = cached_columns[i];
+    break;
+  }
+  if(expected_columns < 0)
+  {
+    expected_columns = PivotV14ColumnCount(header);
+    if(cached_count < ArraySize(cached_headers))
+    {
+      cached_headers[cached_count] = header;
+      cached_lengths[cached_count] = header_length;
+      cached_columns[cached_count] = expected_columns;
+      cached_count++;
+    }
+  }
+  if(expected_columns == PivotV14ColumnCount(row))
     return true;
   g_pivot_v14_row_integrity_error_count++;
   PivotV14MarkFailed("ROW_COLUMN_COUNT");
@@ -718,10 +742,42 @@ bool PivotV14AppendRows(const string filename,
   if(!PivotV14FileHeaderMatches(filename, header))
     return false;
 
+  // QueueRow validates immutable rows. Preserve FileWrite's ANSI bytes and
+  // CRLF endings, but submit one checked byte batch at the same flush boundary.
+  int characters = 0;
+  for(int i = 0; i < total; i++)
+  {
+    int row_length = StringLen(buffer[i]);
+    if(row_length > INT_MAX - 3 - characters)
+    {
+      PivotV14MarkFailed("BATCH_SIZE", filename);
+      return false;
+    }
+    characters += row_length + 2;
+  }
+  uchar encoded[];
+  if(ArrayResize(encoded, characters + 1, characters) != characters + 1)
+  {
+    PivotV14MarkFailed("BATCH_RESERVE", filename, GetLastError());
+    return false;
+  }
+  int byte_count = 0;
+  for(int i = 0; i < total; i++)
+  {
+    int copied = StringToCharArray(buffer[i] + "\r\n", encoded,
+                                   byte_count, WHOLE_ARRAY, CP_ACP);
+    if(copied <= 1 || copied > ArraySize(encoded) - byte_count ||
+       encoded[byte_count + copied - 1] != 0)
+    {
+      PivotV14MarkFailed("BATCH_ENCODE", filename, GetLastError());
+      return false;
+    }
+    byte_count += copied - 1;
+  }
+
   ResetLastError();
   int handle = FileOpen(filename,
-                        FILE_WRITE | FILE_READ | FILE_TXT | FILE_ANSI |
-                        FILE_COMMON);
+                        FILE_WRITE | FILE_READ | FILE_BIN | FILE_COMMON);
   if(handle == INVALID_HANDLE || !FileSeek(handle, 0, SEEK_END))
   {
     PivotV14MarkFailed("OPEN_APPEND", filename, GetLastError());
@@ -730,18 +786,8 @@ bool PivotV14AppendRows(const string filename,
     return false;
   }
 
-  bool success = true;
-  int error_code = 0;
-  for(int i = 0; i < total; i++)
-  {
-    if(!PivotV14RowMatchesHeader(header, buffer[i]) ||
-       FileWrite(handle, buffer[i]) == 0)
-    {
-      error_code = GetLastError();
-      success = false;
-      break;
-    }
-  }
+  bool success = FileWriteArray(handle, encoded, 0, byte_count) == (uint)byte_count;
+  int error_code = GetLastError();
   FileClose(handle);
   if(!success)
     PivotV14MarkFailed("WRITE_BATCH", filename, error_code);
