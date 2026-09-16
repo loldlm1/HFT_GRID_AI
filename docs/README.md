@@ -4,13 +4,18 @@ Updated 2026-09-16. EA `1.40`, strict schema `14`, engine `PIVOT_FRACTAL_V2`.
 This index owns changing status; guides own procedures and dated evidence keeps
 its original results.
 
+MT5 M1-M4 delivery and P1-P4 optimization are complete. There is no active MT5
+implementation plan or pending plan question. The separate Django workflow retains
+its plan and shared design references; start a new MT5 task from this index.
+
 ## V14 Optimization
 
-The [optimization plan](../pivot-fractal-v14-optimization-plan.md) completes P1-P4:
+Completed optimization covers P1-P4:
 archive/baseline, Deep calculation and parent metadata reuse, checked byte-batch
 exports, and exact parity/performance acceptance. Commits are P1 `3c15e0a`,
-P2 `4855f70`, P3 `7ab2a7d`; P4's exact commit/rollback parent is recorded in
-`.codex-artifacts/v14-optimization/p4/commit.json`. Do not restart completed sprints.
+P2 `4855f70`, P3 `7ab2a7d`, P4 `04b5c6a`. Full commit/rollback receipts remain in
+`.codex-artifacts/v14-optimization/`. The completed plan is retired from active
+source and recoverable at `04b5c6a:pivot-fractal-v14-optimization-plan.md`.
 
 All twelve tables match in original row order for initial-2015 H2/M15/M3 and
 H1/M10/M3 defaults, the March 2017 busy week and the sustained September 2016 case.
@@ -46,7 +51,7 @@ SHA-256 `041fede7d1413552b2cdef390cd682c2b590202f6b5bb66d67cbe0e866fe61dc`.
 P4's tracked changes are documentation only; compile, focused tests and fault
 checks reuse unchanged inputs. Original/final binaries and all rollback receipts remain
 under ignored `.codex-artifacts/v14-optimization/`. Restore a matching retained
-binary only while idle; the current operator run must not be interrupted.
+binary only while idle; preserve operator runs and their original exports.
 
 The operator's `V14_XAUUSD_test_run` finished naturally through August 14, 2017
 and sealed OK/NATURAL, with zero capacity rejections and 3,259,164,050 export
@@ -66,7 +71,7 @@ Current staging source selection is recorded separately below.
 | M1: V14 offline contract | `013b95e` | `8625222` |
 | M2: paired capture and both directions | `d60bc2c` | `013b95e` |
 | M3: initial-2015 native QA | `879b39c` | `d60bc2c` |
-| M4: final cleanup and handoff | `m4/commit.json` receipt | `879b39c` |
+| M4: final cleanup and handoff | `4586504` | `879b39c` |
 
 Exact full hashes and gate receipts live in ignored
 `.codex-artifacts/pivot-fractal-v14/execution-journal.md` and per-sprint commit
@@ -93,11 +98,15 @@ The user selects the current MT5 folder `XAUUSD_Test_Run` as the staging source:
 `Common\Files\PivotFractalV14\runs\XAUUSD_Test_Run\`, under
 `/home/admin/.wine/drive_c/users/admin/AppData/Roaming/MetaQuotes/Terminal/`.
 The journal and manifest identify XAUUSD_Exness_2015, H2/M15/M3, requested
-September 1, 2015 to October 1, 2017 end exclusive. At the selection observation
-the operator run is active/unsealed and already 843,182,142 bytes. This is a
-two-year source, not a tiny fixture; its semantic validation/intake is NOT RUN.
-The exact selection receipt is `p4/selected-staging-source.json` under the
-optimization evidence root. No operator run or source file was modified.
+September 1, 2015 to October 1, 2017 end exclusive. At thread closeout it seals
+OK/NATURAL through September 29, 2017 20:59:00 broker time, with twelve TSVs,
+3,322,455,138 bytes and zero Deep capacity rejections. This is seal-only evidence;
+its semantic validation/intake is NOT RUN by this MT5 task. It is a two-year
+source, so keep the consumer's test workflows focused and synthetic cases tiny.
+The original selection receipt remains `p4/selected-staging-source.json` under
+the optimization evidence root; the newer observation is
+`.codex-artifacts/thread-closeout-v14-20260916/source-status.json`.
+No operator run or source file was modified.
 
 Before Django D1 purge/intake, require a successful seal, stable twelve-file
 hashes, strict validation and chronology, then bind a new independent consumer
@@ -177,8 +186,13 @@ measurements. Its AVX2 EX5 SHA-256 is
 this historical binary is also M3's retained V13 comparator.
 
 Keep `.codex-artifacts/thread-closeout-20260909/` and reliability's
-`thread-closeout-20260910/` checkpoints/handoffs. Archived completed state must
-never resume an old plan. Private binaries, logs, original/recovered data, shared
+`thread-closeout-20260910/` checkpoints/handoffs. The V14 closeout is
+`.codex-artifacts/thread-closeout-v14-20260916/`: document recovery copies,
+retirement/validation receipts, new-thread handoff and `hook-state/`. Both the
+completed local Planner state and its stale P4-question compaction checkpoint are
+archived there, outside active hook discovery. Installed hooks/global configuration
+are unchanged. Archived completed state must never resume an old plan.
+Private binaries, logs, original/recovered data, shared
 terminal directories and global Codex/plugin state are not cleanup targets.
 
 ## Guides And History Recovery
@@ -193,10 +207,16 @@ and the prior detailed status/benchmark ledger are recoverable without resetting
 history:
 
 ```bash
+git show 04b5c6a:pivot-fractal-v14-optimization-plan.md
 git show 879b39c:docs/research/pivot-fractal-v13-producer-handoff.md
 git show 879b39c:eurusd-tester-reliability-performance-plan.md
 git show 879b39c:docs/README.md
 ```
+
+The [accepted shared proposal](../pivot-fractal-v14-feature-capture-proposal.md)
+and archived M1-M4 plan remain as historical references used by the Django plan;
+their planning-era instructions are not active MT5 work. The frozen V14 producer
+handoff, optimized build pin and selected-source gates remain authoritative.
 
 The completed reliability sprint commits are `9215df8`, `4360448`, `629fdf5`,
 `06ecfdb`, starting from rollback `c9ebb24`. The earlier guidance cleanup commits

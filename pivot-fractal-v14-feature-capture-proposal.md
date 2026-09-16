@@ -1,6 +1,13 @@
 # Proposal: V14 Timeframe Features And Broader Deep Capture
 
-**Status**: Ready for planning. All required decisions are recorded; execution has not
+> Historical accepted proposal, retained for the separate Django plan's references.
+> MT5 implementation and optimization are complete; use the
+> [current index](docs/README.md) for accepted builds, source selection and open gates.
+> The [Django plan](/home/admin/python_projects/hft-grid-ai-orchestrator/pivot-fractal-v14-django-plan.md)
+> owns subsequent consumer decisions. Planning-era wording below is historical and
+> does not restart either workflow. Original bytes: `04b5c6a:pivot-fractal-v14-feature-capture-proposal.md`.
+
+**Original planning status (2026-09-16)**: Ready for planning. All required decisions are recorded; execution has not
 started. The staging purge below is an accepted future implementation scope.
 
 Prepared 2026-09-16 from the MT5 checkout at `8625222` and the Django checkout at

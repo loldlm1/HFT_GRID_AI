@@ -1,8 +1,8 @@
 # Plan: V14 MT5 Feature Capture And Producer Handoff
 
 > Archived on 2026-09-16 after completion of M1-M4 at `4586504`.
-> This is historical scope; current execution belongs to the
-> [V14 optimization plan](../../../pivot-fractal-v14-optimization-plan.md).
+> This is historical scope; MT5 implementation and optimization are complete.
+> Use the [current MT5 index](../../README.md) for accepted evidence and open gates.
 > The original bytes remain recoverable at
 > `4586504:pivot-fractal-v14-mt5-plan.md`; only this annotation and navigation changed.
 
