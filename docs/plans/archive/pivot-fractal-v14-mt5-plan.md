@@ -1,9 +1,16 @@
 # Plan: V14 MT5 Feature Capture And Producer Handoff
 
+> Archived on 2026-09-16 after completion of M1-M4 at `4586504`.
+> This is historical scope; current execution belongs to the
+> [V14 optimization plan](../../../pivot-fractal-v14-optimization-plan.md).
+> The original bytes remain recoverable at
+> `4586504:pivot-fractal-v14-mt5-plan.md`; only this annotation and navigation changed.
+
+
 **Generated**: 2026-09-16
 **Status**: Execution authorized; see `docs/README.md` for current progress.
 **Complexity**: High. Four ordered sprints, M1-M4.
-**Proposal**: [Accepted proposal](pivot-fractal-v14-feature-capture-proposal.md)
+**Proposal**: [Accepted proposal](../../../pivot-fractal-v14-feature-capture-proposal.md)
 **Consumer plan**: [Django V14 plan](/home/admin/python_projects/hft-grid-ai-orchestrator/pivot-fractal-v14-django-plan.md)
 
 ## Outcome And Boundaries

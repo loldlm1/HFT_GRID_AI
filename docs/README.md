@@ -4,9 +4,24 @@ Updated 2026-09-16. EA `1.40`, strict schema `14`, engine `PIVOT_FRACTAL_V2`.
 This index owns changing status; guides own procedures and dated evidence keeps
 its original results.
 
-## V14 Implementation
+## V14 Optimization
 
-The [MT5 plan](../pivot-fractal-v14-mt5-plan.md) completes M1-M4 implementation
+The [optimization plan](../pivot-fractal-v14-optimization-plan.md) is the current
+authorized execution: P1 archive/baseline, P2 Deep reuse, P3 export batching and
+P4 exact parity/performance acceptance. P1 validation passes: three native
+baselines seal OK/NATURAL and pass strict/chronology checks; all 38 source hashes
+and the accepted EX5 remain unchanged. Receipts and rollback
+binaries are retained in ignored `.codex-artifacts/v14-optimization/`.
+The schema, feature contract and frozen Django source remain V14.
+
+The operator's `V14_XAUUSD_test_run` finished naturally through August 14, 2017
+and sealed OK/NATURAL, with zero capacity rejections and 3,259,164,050 export
+bytes. Peak active Deep links/outcomes were 723/2,169. This is seal/resource
+evidence only; a full semantic audit of that operator run has not been performed.
+
+## Completed V14 Implementation
+
+The [archived MT5 plan](plans/archive/pivot-fractal-v14-mt5-plan.md) completes M1-M4 implementation
 and scoped validation. Each sprint has its own commit and rollback receipt.
 The [frozen producer handoff](research/pivot-fractal-v14-producer-handoff.md)
 contains the exact contract, source pins, QA matrix and independent native copy.
