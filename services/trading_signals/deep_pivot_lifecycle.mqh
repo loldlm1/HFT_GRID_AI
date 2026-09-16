@@ -6,11 +6,22 @@
 
 const int DEEP_PIVOT_PARENT_SNAPSHOT_RESERVE = 64;
 
+struct DeepPivotQuoteResolution
+{
+  bool evaluated;
+  bool touched;
+  bool tp_touched;
+  bool profit_available;
+  double exit_price;
+  double quote_profit;
+};
+
 DeepPivotEvent g_deep_pivot_events[];
 DeepPivotParentCandidate g_deep_pivot_parents[];
 DeepPivotParentLink g_deep_pivot_parent_links[];
 DeepPivotTrial g_deep_pivot_trials[];
 DeepPivotOutcome g_deep_pivot_outcomes[];
+DeepPivotQuoteResolution g_deep_pivot_quote_resolutions[];
 int g_deep_pivot_event_peak = 0;
 int g_deep_pivot_link_peak = 0;
 int g_deep_pivot_trial_peak = 0;
@@ -53,6 +64,7 @@ void ResetDeepPivotRuntimeState()
                             0,
                             DEEP_PIVOT_PARENT_SNAPSHOT_RESERVE);
   ArrayFree(g_deep_pivot_parents);
+  ArrayFree(g_deep_pivot_quote_resolutions);
   int link_resized = ArrayResize(g_deep_pivot_parent_links,
                                  0,
                                  DEEP_PIVOT_PARENT_SNAPSHOT_RESERVE);
@@ -87,6 +99,7 @@ void DiscardDeepPivotResearchState()
   ArrayFree(g_deep_pivot_parent_links);
   ArrayFree(g_deep_pivot_trials);
   ArrayFree(g_deep_pivot_outcomes);
+  ArrayFree(g_deep_pivot_quote_resolutions);
 }
 
 int DeepPivotEventCount()
@@ -303,17 +316,30 @@ int FindDeepPivotEventByIdentity(const string deep_window_id,
   return -1;
 }
 
-bool BuildDeepPivotVirtualParentCandidate(const PivotTrialActiveState &state,
-                                           const int index,
-                                           const datetime event_time,
-                                           DeepPivotParentCandidate &candidate)
+bool DeepPivotVirtualParentEligible(const PivotTrialActiveState &state,
+                                     const datetime event_time)
 {
-  if(!state.active || state.pending_entry ||
-     state.trial.eligibility_status != PIVOT_TRIAL_ELIGIBILITY_ACTIVE ||
-     state.trial.identity.role != PIVOT_TRIAL_ROLE_H1 ||
-     state.trial.entry_time <= 0 || state.trial.entry_time > event_time ||
-     state.trial.identity.trial_id == "")
-    return false;
+  return state.active && !state.pending_entry &&
+         state.trial.eligibility_status == PIVOT_TRIAL_ELIGIBILITY_ACTIVE &&
+         state.trial.identity.role == PIVOT_TRIAL_ROLE_H1 &&
+         state.trial.entry_time > 0 && state.trial.entry_time <= event_time &&
+         state.trial.identity.trial_id != "";
+}
+
+void RefreshDeepPivotVirtualParentCandidate(const PivotTrialActiveState &state,
+                                             const int index,
+                                             DeepPivotParentCandidate &candidate)
+{
+  if(candidate.parent_state_index == index &&
+     candidate.parent_kind == DEEP_PIVOT_PARENT_H1_VIRTUAL &&
+     candidate.origin_id == state.trial.identity.origin_id &&
+     candidate.parent_trial_id == state.trial.identity.trial_id &&
+     candidate.parent_broker_signal_id == state.trial.identity.broker_signal_id &&
+     candidate.parent_entry_policy == state.trial.identity.entry_policy &&
+     candidate.parent_tp_r_multiple == state.trial.identity.tp_r_multiple &&
+     candidate.parent_direction == state.trial.direction &&
+     candidate.parent_entry_time == state.trial.entry_time)
+    return;
   candidate.parent_state_index = index;
   candidate.parent_kind = DEEP_PIVOT_PARENT_H1_VIRTUAL;
   candidate.origin_id = state.trial.identity.origin_id;
@@ -323,85 +349,98 @@ bool BuildDeepPivotVirtualParentCandidate(const PivotTrialActiveState &state,
   candidate.parent_tp_r_multiple = state.trial.identity.tp_r_multiple;
   candidate.parent_direction = state.trial.direction;
   candidate.parent_entry_time = state.trial.entry_time;
-  return true;
 }
 
-bool BuildDeepPivotBrokerParentCandidate(const PivotSignal &signal,
-                                          const int index,
-                                          const datetime event_time,
-                                          DeepPivotParentCandidate &candidate)
+bool DeepPivotBrokerParentEligible(const PivotSignal &signal,
+                                    const datetime event_time)
 {
-  if(!signal.execution.broker_entry_confirmed ||
-     signal.execution.broker_close_confirmed ||
-     signal.execution.broker_entry_time <= 0 ||
-     signal.execution.broker_entry_time > event_time ||
-     signal.broker_signal_id == "")
-    return false;
+  return signal.execution.broker_entry_confirmed &&
+         !signal.execution.broker_close_confirmed &&
+         signal.execution.broker_entry_time > 0 &&
+         signal.execution.broker_entry_time <= event_time &&
+         signal.broker_signal_id != "";
+}
+
+void RefreshDeepPivotBrokerParentCandidate(const PivotSignal &signal,
+                                            const int index,
+                                            DeepPivotParentCandidate &candidate)
+{
+  string parent_trial_id = signal.parity_trial_id != ""
+                           ? signal.parity_trial_id : signal.broker_signal_id;
+  if(candidate.parent_state_index == index &&
+     candidate.parent_kind == DEEP_PIVOT_PARENT_BROKER &&
+     candidate.origin_id == signal.origin_id &&
+     candidate.parent_trial_id == parent_trial_id &&
+     candidate.parent_broker_signal_id == signal.broker_signal_id &&
+     candidate.parent_entry_policy == signal.broker_entry_policy &&
+     candidate.parent_tp_r_multiple == signal.broker_tp_r_multiple &&
+     candidate.parent_direction == signal.direction &&
+     candidate.parent_entry_time == signal.execution.broker_entry_time)
+    return;
   candidate.parent_state_index = index;
   candidate.parent_kind = DEEP_PIVOT_PARENT_BROKER;
   candidate.origin_id = signal.origin_id;
-  candidate.parent_trial_id = signal.parity_trial_id != ""
-                              ? signal.parity_trial_id : signal.broker_signal_id;
+  candidate.parent_trial_id = parent_trial_id;
   candidate.parent_broker_signal_id = signal.broker_signal_id;
   candidate.parent_entry_policy = signal.broker_entry_policy;
   candidate.parent_tp_r_multiple = signal.broker_tp_r_multiple;
   candidate.parent_direction = signal.direction;
   candidate.parent_entry_time = signal.execution.broker_entry_time;
-  return true;
 }
 
-bool AppendDeepPivotParentCandidate(const DeepPivotParentCandidate &candidate,
-                                     DeepPivotParentCandidate &parents[])
+bool EnsureDeepPivotParentSnapshotSlot(const int index,
+                                        const string parent_trial_id)
 {
-  int total = ArraySize(parents);
-  if(total >= PIVOT_DEEP_LINK_ACTIVE_CAP)
+  if(index >= PIVOT_DEEP_LINK_ACTIVE_CAP)
   {
     g_deep_pivot_state_capacity_failed = true;
-    PivotV14MarkFailed("DEEP_SNAPSHOT_CAP", "", 0, candidate.parent_trial_id);
+    PivotV14MarkFailed("DEEP_SNAPSHOT_CAP", "", 0, parent_trial_id);
     return false;
   }
-  if(ArrayResize(parents, total + 1,
-                 DEEP_PIVOT_PARENT_SNAPSHOT_RESERVE) != total + 1)
+  if(index < ArraySize(g_deep_pivot_parents))
+    return true;
+  if(ArrayResize(g_deep_pivot_parents, index + 1,
+                 DEEP_PIVOT_PARENT_SNAPSHOT_RESERVE) != index + 1)
   {
-    MarkDeepPivotStateFailed("DEEP_SNAPSHOT_RESIZE", candidate.parent_trial_id,
+    MarkDeepPivotStateFailed("DEEP_SNAPSHOT_RESIZE", parent_trial_id,
                             GetLastError());
     return false;
   }
-  parents[total].CopyFrom(candidate);
   return true;
 }
 
 bool CollectDeepPivotParentSnapshots(const datetime event_time)
 {
-  if(ArrayResize(g_deep_pivot_parents, 0,
-                 DEEP_PIVOT_PARENT_SNAPSHOT_RESERVE) != 0)
-  {
-    MarkDeepPivotStateFailed("DEEP_SNAPSHOT_RESET", "", GetLastError());
-    return false;
-  }
-  if(event_time <= 0)
-    return true;
-  // Admission already enforces unique H1 trial IDs and broker/parity IDs.
-  // Their trial_/parity_/broker_ namespaces cannot overlap. Preserve H1-then-
-  // broker order across both directions without per-tick duplicate probes.
+  int total = 0;
+  // Recheck eligibility every tick and compare every retained metadata field.
+  // Reuse storage without moving the parent freeze after discovery.
   for(int i = 0; i < PivotTrialActiveStateCount(); i++)
   {
-    DeepPivotParentCandidate candidate;
-    if(!BuildDeepPivotVirtualParentCandidate(g_pivot_trial_active_states[i], i,
-                                              event_time, candidate))
+    if(!DeepPivotVirtualParentEligible(g_pivot_trial_active_states[i], event_time))
       continue;
-    if(!AppendDeepPivotParentCandidate(candidate, g_deep_pivot_parents))
+    if(!EnsureDeepPivotParentSnapshotSlot(total,
+         g_pivot_trial_active_states[i].trial.identity.trial_id))
       return false;
+    RefreshDeepPivotVirtualParentCandidate(g_pivot_trial_active_states[i], i,
+                                            g_deep_pivot_parents[total]);
+    total++;
   }
   // Confirmed fills own broker parenthood; parity never substitutes exposure.
   for(int i = 0; i < ArraySize(g_pivot_signals); i++)
   {
-    DeepPivotParentCandidate candidate;
-    if(!BuildDeepPivotBrokerParentCandidate(g_pivot_signals[i], i,
-                                             event_time, candidate))
+    if(!DeepPivotBrokerParentEligible(g_pivot_signals[i], event_time))
       continue;
-    if(!AppendDeepPivotParentCandidate(candidate, g_deep_pivot_parents))
+    if(!EnsureDeepPivotParentSnapshotSlot(total, g_pivot_signals[i].broker_signal_id))
       return false;
+    RefreshDeepPivotBrokerParentCandidate(g_pivot_signals[i], i,
+                                           g_deep_pivot_parents[total]);
+    total++;
+  }
+  if(ArrayResize(g_deep_pivot_parents, total,
+                 DEEP_PIVOT_PARENT_SNAPSHOT_RESERVE) != total)
+  {
+    MarkDeepPivotStateFailed("DEEP_SNAPSHOT_RESET", "", GetLastError());
+    return false;
   }
   return true;
 }
@@ -587,21 +626,33 @@ bool BuildDeepPivotIneligibleOutcome(const DeepPivotParentLink &link,
 bool ResolveDeepPivotOutcome(const DeepPivotParentLink &link,
                              const DeepPivotTrial &trial,
                              const MqlTick &tick,
+                             DeepPivotQuoteResolution &quote,
                              DeepPivotOutcome &outcome_out)
 {
-  if(trial.eligibility_status != PIVOT_TRIAL_ELIGIBILITY_ACTIVE ||
-     !trial.geometry.valid || !trial.money_plan.complete ||
-     !PivotTrialQuoteValid(tick) || tick.time <= link.event_trigger_time)
+  if(tick.time <= link.event_trigger_time)
     return false;
-  double exit_price = PivotTrialExitPriceFromTick(trial.direction, tick);
-  bool tp_touched = trial.direction == BULLISH
-                    ? exit_price >= trial.geometry.take_profit_price
-                    : exit_price <= trial.geometry.take_profit_price;
-  bool sl_touched = trial.direction == BULLISH
-                    ? exit_price <= trial.geometry.stop_loss_price
-                    : exit_price >= trial.geometry.stop_loss_price;
-  if(tp_touched == sl_touched)
+  if(!quote.evaluated)
+  {
+    quote.evaluated = true;
+    quote.touched = false;
+    quote.profit_available = false;
+    if(trial.eligibility_status != PIVOT_TRIAL_ELIGIBILITY_ACTIVE ||
+       !trial.geometry.valid || !trial.money_plan.complete ||
+       !PivotTrialQuoteValid(tick))
+      return false;
+    quote.exit_price = PivotTrialExitPriceFromTick(trial.direction, tick);
+    quote.tp_touched = trial.direction == BULLISH
+                        ? quote.exit_price >= trial.geometry.take_profit_price
+                        : quote.exit_price <= trial.geometry.take_profit_price;
+    bool sl_touched = trial.direction == BULLISH
+                      ? quote.exit_price <= trial.geometry.stop_loss_price
+                      : quote.exit_price >= trial.geometry.stop_loss_price;
+    quote.touched = quote.tp_touched != sl_touched;
+  }
+  if(!quote.touched)
     return false;
+  double exit_price = quote.exit_price;
+  bool tp_touched = quote.tp_touched;
   if(!BuildDeepPivotOutcomeBase(link,
                                 trial,
                                 tick,
@@ -621,12 +672,13 @@ bool ResolveDeepPivotOutcome(const DeepPivotParentLink &link,
   outcome_out.virtual_nominal_r = tp_touched
                                   ? (double)trial.tp_r_multiple
                                   : -1.0;
-  outcome_out.virtual_quote_gross_available =
-    ResolveExecutionQuoteProfit(trial.direction,
-                                trial.money_plan.normalized_volume,
-                                trial.geometry.entry_price,
-                                exit_price,
-                                outcome_out.virtual_quote_gross_profit);
+  // A failed platform calculation is retried for the next parent as before.
+  if(!quote.profit_available)
+    quote.profit_available = ResolveExecutionQuoteProfit(
+      trial.direction, trial.money_plan.normalized_volume,
+      trial.geometry.entry_price, exit_price, quote.quote_profit);
+  outcome_out.virtual_quote_gross_available = quote.profit_available;
+  outcome_out.virtual_quote_gross_profit = quote.quote_profit;
   if(outcome_out.virtual_quote_gross_available)
     outcome_out.virtual_quote_gross_r =
       outcome_out.virtual_quote_gross_profit /
@@ -832,6 +884,17 @@ void ResolveDeepPivotActiveOutcomes(const MqlTick &tick)
 {
   if(!PivotTrialQuoteValid(tick))
     return;
+  int trial_count = DeepPivotTrialCount();
+  if(ArrayResize(g_deep_pivot_quote_resolutions, trial_count,
+                 DEEP_PIVOT_PARENT_SNAPSHOT_RESERVE) != trial_count)
+  {
+    MarkDeepPivotStateFailed("DEEP_QUOTE_RESIZE", "", GetLastError());
+    return;
+  }
+  // Indices remain stable until this call's terminal compaction. Reset on every
+  // invocation, including distinct quotes within the same serialized second.
+  for(int i = 0; i < trial_count; i++)
+    g_deep_pivot_quote_resolutions[i].evaluated = false;
   for(int i = 0; i < DeepPivotParentLinkCount(); i++)
     g_deep_pivot_parent_links[i].parent_active =
       DeepPivotParentStillActive(g_deep_pivot_parent_links[i]);
@@ -871,7 +934,9 @@ void ResolveDeepPivotActiveOutcomes(const MqlTick &tick)
     else
       resolved_now = ResolveDeepPivotOutcome(g_deep_pivot_parent_links[link_index],
                                               g_deep_pivot_trials[trial_index],
-                                              tick, resolved);
+                                              tick,
+                                              g_deep_pivot_quote_resolutions[trial_index],
+                                              resolved);
     if(!resolved_now)
       continue;
     if(!PivotV14RecordDeepPivotOutcome(resolved) ||

@@ -9,8 +9,10 @@ its original results.
 The [optimization plan](../pivot-fractal-v14-optimization-plan.md) is the current
 authorized execution: P1 archive/baseline, P2 Deep reuse, P3 export batching and
 P4 exact parity/performance acceptance. P1 validation passes: three native
-baselines seal OK/NATURAL and pass strict/chronology checks; all 38 source hashes
-and the accepted EX5 remain unchanged. Receipts and rollback
+baselines seal OK/NATURAL and pass strict/chronology checks. P1 commit is `3c15e0a`.
+P2 passes all twelve-table and ordered broker comparisons on all three cases,
+strict/chronology validation and 51 focused tests. Its AVX2 compile has 0 errors
+and 0 warnings; the broker owners and V14 headers are unchanged. Receipts and rollback
 binaries are retained in ignored `.codex-artifacts/v14-optimization/`.
 The schema, feature contract and frozen Django source remain V14.
 

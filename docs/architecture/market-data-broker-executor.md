@@ -170,6 +170,17 @@ there is no duplicate frozen-parent array. Cached H1/broker slots validate full
 identity before use and fall back to lookup after their owning arrays move.
 Both parent directions are collected in one pass before each discovery batch,
 preserving H1-then-broker order and exact trigger-time ages.
+Eligibility is rechecked every tick. Snapshot storage is reused only when every
+metadata field and source slot still matches; departed parents are truncated
+before discovery. No parent membership is cached without a current eligibility
+check.
+
+Deep quote/touch results are shared by trial only within one resolver invocation.
+The scratch array resets on every invocation, including quotes in the same
+serialized second, and is released on reset/failure. Each parent is checked before
+using that result, so closed parents retain their separate censor path. Successful
+profit calculations may be reused during that invocation; failures retain the
+existing per-parent retry behavior. Compaction happens after all uses of indices.
 
 ## Broker Boundary
 
