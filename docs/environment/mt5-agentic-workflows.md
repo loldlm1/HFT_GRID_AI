@@ -143,6 +143,26 @@ Use the V14 tool guide for validate/build/audit/train commands; keep generated
 artifacts under the existing ignored dataset/audit/model paths. Never place
 provenance sidecars inside a strict twelve-file source run.
 
+### Selected Staging Source
+
+The current index identifies the user-selected MT5 source folder; the frozen M4
+handoff continues to own schema/fixture pins and historical acceptance. A selected
+operator folder is not import-ready while its TSVs are still growing. Do not stop
+the operator run, replace its binary, truncate tables or synthesize a successful
+summary to prepare a handoff.
+
+Before Django's staging purge/intake, require `OK/NATURAL`, exactly twelve regular
+files, stable sizes/mtimes, and strict validation plus the separate parent chronology
+check. Record all twelve SHA-256 hashes and native-grain counts in a new source
+receipt outside the run directory. Independently copy the sealed source into the
+consumer's owned staging inbox during its authorized execution and verify the copy
+against that receipt. Preserve the original terminal files and old receipts.
+
+Measure the selected folder's actual byte/row counts before intake; a short list
+of TSV names does not establish a tiny workload. Keep synthetic tests tiny and
+staging workflows bounded to the selected cases. Source validation/intake does not
+authorize broad suites, historical model searches or production deployment.
+
 ## Documentation And Static Gate
 
 ```bash
@@ -183,6 +203,16 @@ checks owned lines/labels, cleanup and the 16-position rendering bound. Fixtures
 and compilation cannot replace that visual check. It is required before a
 deployment-oriented claim and does not block separately authorized offline
 contract preparation.
+
+For behavior-preserving optimization, compare all twelve files in original row
+order with exact values, normalizing only verified run IDs (including the manifest
+run-ID value). Keep feature, timestamp, price, outcome and membership facts exact.
+Pair this with ordered broker messages and non-job report fields, strict validation,
+chronology and disposable failed-export cases. Sidecars own build/performance pins.
+Use warm-ups and alternating baseline/final repetitions, report medians and ranges,
+and treat gains below 5% as inconclusive for performance promotion. A bounded process
+sample cannot establish absence of leaks over every multi-year run. Reuse valid
+same-binary gates and never replace an active operator's EX5 for benchmarking.
 
 For a fatal research failure, retain the first `PIVOT_V14_EXPORT_FAILED` journal
 entry, its external `PivotFractalV14/diagnostics/<run_id>.failure.txt` sidecar when

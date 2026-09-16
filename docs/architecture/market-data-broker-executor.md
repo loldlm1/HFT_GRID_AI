@@ -286,13 +286,14 @@ retaining first-error and peak evidence. Open/unresolved broker ownership stays
 with normal reconciliation. Export initialization failure stops tester startup;
 live broker processing continues independently with research disabled.
 
-Finite numeric TSV facts use 17 significant digits to round-trip runtime doubles.
 Rows are validated once when queued and remain immutable in their buffers.
 Expected column counts use a bounded cache of the twelve exact headers. Each
 256-row flush encodes rows directly into a reserved ANSI byte array with CRLF
 endings and writes the exact byte count in one operation. Missing-file and
 current-header checks still run before each append; short writes fail the export.
 The batch buffer is local to the append and released when the call returns.
+
+Finite numeric TSV facts use 17 significant digits to round-trip runtime doubles.
 This preserves strict price comparisons such as a bid below PP even when the two
 numbers would round to the same ten-decimal string. This numeric format preserves
 causal comparisons and submitted prices; V14 separately versions the paired

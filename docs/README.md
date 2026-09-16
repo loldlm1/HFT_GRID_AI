@@ -6,19 +6,47 @@ its original results.
 
 ## V14 Optimization
 
-The [optimization plan](../pivot-fractal-v14-optimization-plan.md) is the current
-authorized execution: P1 archive/baseline, P2 Deep reuse, P3 export batching and
-P4 exact parity/performance acceptance. P1 validation passes: three native
-baselines seal OK/NATURAL and pass strict/chronology checks. P1 commit is `3c15e0a`.
-P2 passes all twelve-table and ordered broker comparisons on all three cases,
-strict/chronology validation and 51 focused tests. Its AVX2 compile has 0 errors
-and 0 warnings; the broker owners and V14 headers are unchanged. P2 commit is
-`4855f70`. P3's accepted direct-byte exporter passes the same three exact/native
-and strict/chronology checks. Both missing-file and header faults stop only their
-tester run, release research state, seal FAILED/CENSORED and reject strict intake.
-Final repeated performance/resource measurements remain in P4. Receipts and rollback
-binaries are retained in ignored `.codex-artifacts/v14-optimization/`.
-The schema, feature contract and frozen Django source remain V14.
+The [optimization plan](../pivot-fractal-v14-optimization-plan.md) completes P1-P4:
+archive/baseline, Deep calculation and parent metadata reuse, checked byte-batch
+exports, and exact parity/performance acceptance. Commits are P1 `3c15e0a`,
+P2 `4855f70`, P3 `7ab2a7d`; P4's exact commit/rollback parent is recorded in
+`.codex-artifacts/v14-optimization/p4/commit.json`. Do not restart completed sprints.
+
+All twelve tables match in original row order for initial-2015 H2/M15/M3 and
+H1/M10/M3 defaults, the March 2017 busy week and the sustained September 2016 case.
+Only verified run IDs normalize. Strict validation, chronology and 51 existing
+focused tests pass. Export-on/off matches 576 H2 / 1,044 default ordered broker
+messages and 43 non-job report fields. Missing-file and header faults each release
+research, retain broker state, stop only their tester, seal FAILED/CENSORED and
+reject strict intake. V14 headers, feature/fixture contract and broker owners are
+unchanged; no Django data migration is introduced by this optimization.
+
+| Alternating three-pair benchmark | Baseline median (range), seconds | Final median (range), seconds | Observed reduction |
+| --- | ---: | ---: | ---: |
+| Initial-2015 H2 | 10.804 (10.746-10.855) | 10.341 (10.318-10.375) | 4.285% |
+| March 2017 H2 | 10.895 (10.706-10.930) | 10.396 (10.322-10.497) | 4.580% |
+
+Both gains are below the 5% promotion threshold: modest observed improvements,
+inconclusive for a substantial speedup. The sustained case processes 1,690,683
+ticks in 62.521 baseline / 59.862 final seconds with exact tables and 3,162 matching
+broker messages. It seals OK/NATURAL with zero capacity rejections: 4,264 events,
+81,336 links and 244,008 outcomes; peak active events/links/trials/outcomes are
+15/382/45/1,146. The final process sample spans 60.028 seconds: 98.488% of one CPU
+core, RSS 146.969 to 156.973 MiB, high-water 160.016 MiB, 32 descriptors while
+active and 23 at teardown, and 154,438,396 export bytes. Baseline process counters
+are unavailable because Wine PID discovery failed; native MT5 memory is 137 / 138
+MiB. These bounded results do not prove the absence of multi-year leaks.
+
+Accepted source commit `7ab2a7d`, 38-file source mapping SHA-256
+`c607bbd74406e60cb81ad2ce6a527fd1ef503009f09f29b28ad6e57583fa55b3`.
+MetaEditor MCP 6184 optimized AVX2: 0 errors / 0 warnings, 311,034-byte EX5,
+SHA-256 `00095569d044dda11bf45b27932dce0b91b8089f3182057fed3888fbaa90d5d2`.
+The exact final pin is `.codex-artifacts/v14-optimization/p4/final-pin.json`,
+SHA-256 `041fede7d1413552b2cdef390cd682c2b590202f6b5bb66d67cbe0e866fe61dc`.
+P4's tracked changes are documentation only; compile, focused tests and fault
+checks reuse unchanged inputs. Original/final binaries and all rollback receipts remain
+under ignored `.codex-artifacts/v14-optimization/`. Restore a matching retained
+binary only while idle; the current operator run must not be interrupted.
 
 The operator's `V14_XAUUSD_test_run` finished naturally through August 14, 2017
 and sealed OK/NATURAL, with zero capacity rejections and 3,259,164,050 export
@@ -30,7 +58,8 @@ evidence only; a full semantic audit of that operator run has not been performed
 The [archived MT5 plan](plans/archive/pivot-fractal-v14-mt5-plan.md) completes M1-M4 implementation
 and scoped validation. Each sprint has its own commit and rollback receipt.
 The [frozen producer handoff](research/pivot-fractal-v14-producer-handoff.md)
-contains the exact contract, source pins, QA matrix and independent native copy.
+records the exact contract, source pins, QA matrix and original independent copy.
+Current staging source selection is recorded separately below.
 
 | Sprint | Commit | Rollback parent |
 | --- | --- | --- |
@@ -60,24 +89,41 @@ parity and both failed-export release/stop/seal cases. See the handoff for count
 
 ## Downstream Django Intake
 
-MT5's selected source is `V14_XAUUSD_20150817_H2M15M3_M3_20260916`, initial-2015
-XAUUSD, H2/M15/M3. Its twelve files seal OK/NATURAL and pass strict validation,
-chronology and an audit at support floor 30. All 129 Macro and 908 Deep pairs are
-complete; there are 15,732 links and 47,196 link-scoped outcomes. This is workflow
-evidence; narrow filters may remain below support thresholds.
+The user selects the current MT5 folder `XAUUSD_Test_Run` as the staging source:
+`Common\Files\PivotFractalV14\runs\XAUUSD_Test_Run\`, under
+`/home/admin/.wine/drive_c/users/admin/AppData/Roaming/MetaQuotes/Terminal/`.
+The journal and manifest identify XAUUSD_Exness_2015, H2/M15/M3, requested
+September 1, 2015 to October 1, 2017 end exclusive. At the selection observation
+the operator run is active/unsealed and already 843,182,142 bytes. This is a
+two-year source, not a tiny fixture; its semantic validation/intake is NOT RUN.
+The exact selection receipt is `p4/selected-staging-source.json` under the
+optimization evidence root. No operator run or source file was modified.
 
-The independent retained root is
-`/home/admin/Documents/Exness_Research_Runs/V14_MT5_Handoff_20260916/`.
-`runs/<run_id>/` contains exactly twelve unchanged TSVs; `contract-pins.json`,
-`source-receipt.json` and registries remain outside it. The handoff publishes
-all hashes and vendoring boundaries. Original shared terminal runs are preserved.
+Before Django D1 purge/intake, require a successful seal, stable twelve-file
+hashes, strict validation and chronology, then bind a new independent consumer
+copy. Keep staging workflow tests focused and synthetic cases tiny. Do not import
+growing TSVs, trim independent tables, reuse an old source receipt or infer READY
+from the optimization matrix. The [environment procedure](environment/mt5-agentic-workflows.md#selected-staging-source)
+owns this gate; the V14 contract remains unchanged across both plans.
+
+Historical M4 source `V14_XAUUSD_20150817_H2M15M3_M3_20260916` remains intact in
+the shared terminal: all twelve original files still match the frozen hashes,
+30,841,071 bytes. Its earlier strict/chronology/audit evidence remains historical
+acceptance. The previously retained
+`/home/admin/Documents/Exness_Research_Runs/V14_MT5_Handoff_20260916/` folder is
+missing; the user selects the current folder instead of recreating that copy.
+Frozen M4 contract/fixture hashes and sidecar receipts are preserved unchanged.
 
 Django implementation/intake has not run in this task. The consumer checkout is
 `/home/admin/python_projects/hft-grid-ai-orchestrator`; its
 [V14 plan](/home/admin/python_projects/hft-grid-ai-orchestrator/pivot-fractal-v14-django-plan.md)
-requires M4 completion before its separately authorized staging purge/rebuild.
-It is limited to staging and focused tests. Production is untouched. Existing
-V13 application compatibility evidence does not imply V14 intake compatibility.
+uses the frozen M4 contract and current selected source, with seal/source checks
+before its staging purge/rebuild. Its feature modes select existing captures:
+Macro modes use origin Macro or Deep; connected Deep modes use event Deep or
+Micro. Django execution requires its own instruction; this task only aligns the
+plan's source/navigation. It is limited to staging and focused tests. Production
+is untouched. Existing V13 application compatibility evidence does not imply V14
+intake compatibility.
 
 ## Remaining Operational Gates
 

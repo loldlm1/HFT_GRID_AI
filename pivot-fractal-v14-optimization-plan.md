@@ -17,8 +17,10 @@ Measure improvements against the exact accepted pre-optimization binary.
 Archive the completed M1-M4 plan under
 `docs/plans/archive/pivot-fractal-v14-mt5-plan.md`; preserve its original contents
 except an archive annotation and corrected relative navigation. This document is
-the sole current execution plan. The frozen producer handoff and independent
-Django source remain historical accepted evidence, with a separate new build pin.
+the sole current execution plan. The frozen producer contract and original M4
+source remain historical accepted evidence, with a separate new build pin.
+The user's subsequent source selection uses the current MT5 `XAUUSD_Test_Run`
+folder for Django staging; do not recreate the missing independent M4 copy.
 Changing status belongs only in `docs/README.md`; detailed execution receipts live
 in ignored `.codex-artifacts/v14-optimization/`.
 
@@ -35,6 +37,7 @@ conversion repair, human chart acceptance and formal broker-feed equivalence.
 | Dataset equivalence is a release gate | User's explicit concern; speed never permits fact loss or relabeling. |
 | QA H2/M15/M3 and defaults H1/M10/M3 | Existing accepted settings; no input/default changes. |
 | Initial-2015 XAUUSD fallback | Accepted GBPJPY historical conversion diagnosis; recent GBPJPY is not a substitute. |
+| Current MT5 folder is the Django source | User's P4 clarification selects `XAUUSD_Test_Run`, H2/M15/M3, September 2015 to October 2017 end exclusive. Require a successful seal, stable file hashes and source validation before Django intake; keep QA focused. |
 | Extra short busy window for scaling | Audit found greater event/parent density later in the operator run. |
 | Four serial sprints, one writer | Repository policy; no delegated agents. |
 | Preserve current operator run | It finished and sealed OK/NATURAL before this execution; no interruption needed. |
@@ -190,8 +193,12 @@ control. Required failures block commit/advance.
    peaks). Reuse earlier same-binary semantic/fault evidence. No multi-year replay.
 3. Update existing runtime/environment/index owners with actual implementation,
    results, final source/binary/contract hashes, rollback and open gates. Keep the
-   frozen M4 Django handoff intact; record new producer provenance separately.
-4. Restore/select the final accepted EX5 while idle, validate links/ignores and
+   frozen M4 contract/receipts and original native data intact; record optimized
+   producer provenance and the user's current staging source selection separately.
+   The selected operator export's seal/validation is a Django pre-purge/intake gate,
+   separate from the completed bounded optimization matrix; never accept growing TSVs.
+4. Restore/select the final accepted EX5 while idle, or verify its existing hash
+   without replacing it during an operator run. Validate links/ignores and the
    unchanged consumer contract, record P4 commit and complete Planner state.
 
 Acceptance: no dataset/broker differences, successful required seals and faults,
