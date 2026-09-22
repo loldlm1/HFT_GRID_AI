@@ -6,11 +6,18 @@ its original results.
 
 MT5 M1-M4 delivery and P1-P4 optimization are complete. The independent
 [Candle Pattern Discovery execution](../candle-pattern-discovery-plan.md) is now
-authorized, beginning with its contract/preservation checkpoint. Its
+authorized; its producer/offline checkpoint is implemented and under validation. Its
 [accepted proposal](../candle-pattern-discovery-proposal.md) retains the design.
 All required discussion choices are resolved. V14 and its existing data remain
 unchanged; the consumer work uses a separate worktree. Automated MCP/data acceptance
 owns the Candle handoff; human chart review and MT5 visual polish are deferred.
+The [Candle tool contract](../tools/candle_pattern_ml/README.md) owns its separate
+eight-file schema, fixed ATR execution, context and causal first-N selection.
+Focused evidence passes 21 Candle tests, 51 existing V14 tests, strict default-H1
+and M6/M3 native runs, and MetaEditor 6184 with 0 errors/warnings. The M6 smoke
+records 26 actual broker expiry requests/closes. Original 75 source hashes and
+the Pivot EX5 match the preservation baseline. Consumer integration and final
+on/off/fault acceptance are still pending; this is not a completed handoff.
 
 ## V14 Optimization
 

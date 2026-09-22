@@ -1,0 +1,126 @@
+"""Canonical CandlePatternV1 TSV contract, independent of Pivot V14."""
+
+from __future__ import annotations
+
+from collections import OrderedDict
+from pathlib import Path
+
+SCHEMA_VERSION = "1"
+ENGINE = "CANDLE_PATTERN_ATR_V1"
+FEATURE_SET = "candle_pattern_macro_micro_v1"
+NULL = r"\N"
+PATTERNS = ("HARAMI", "ENGULFING")
+CATEGORIES = ("ALIGNED", "OPPOSED")
+LEVELS = ("S3", "S2", "S1", "PP", "R1", "R2", "R3")
+SHIFTS = range(6)
+
+
+def feature_columns(prefix: str) -> tuple[str, ...]:
+    columns = [f"{prefix}_complete", f"{prefix}_pivot_complete", f"{prefix}_band_width_points_0"]
+    for series in ("b_percent", "pivot_b_percent", "stochastic_main_line", "stochastic_signal_line"):
+        for shift in SHIFTS:
+            columns.extend(
+                f"{prefix}_{series}{suffix}_{shift}"
+                for suffix in ("", "_sma_5", "_sma_slope", "_state")
+            )
+    for shift in SHIFTS:
+        columns.extend((f"{prefix}_band_base_line_{shift}", f"{prefix}_band_base_line_slope_points_{shift}"))
+    return tuple(columns)
+
+
+CONTEXT_COLUMNS = tuple(
+    f"pivot_{level.lower()}_{field}"
+    for level in LEVELS
+    for field in ("price", "touch_time_msc", "touch_sequence", "role", "reclaimed", "gap_cross")
+)
+FEATURE_COLUMNS = (*feature_columns("macro"), *feature_columns("micro"))
+
+TABLE_COLUMNS = OrderedDict(
+    (
+        ("run_manifest.tsv", ("key", "value")),
+        ("macro_windows.tsv", (
+            "run_id", "window_id", "open_time_msc", "source_time_msc", "macro_seconds",
+            "source_open", "source_high", "source_low", "source_close", "valid", "reason",
+            *(f"pivot_{level.lower()}" for level in LEVELS),
+        )),
+        ("signal_events.tsv", (
+            "run_id", "root_id", "sequence", "symbol", "pattern", "pattern_direction",
+            "signal_bar_time_msc", "decision_time_msc", "micro_seconds", "admission",
+            "previous_open", "previous_high", "previous_low", "previous_close",
+            "pattern_open", "pattern_high", "pattern_low", "pattern_close",
+        )),
+        ("entry_attempts.tsv", (
+            "run_id", "attempt_id", "root_id", "parent_attempt_id", "sequence", "entry_type",
+            "pattern", "category", "direction", "decision_time_msc", "macro_window_id",
+            "macro_open_time_msc", "macro_seconds", "micro_seconds", "bid", "ask", "point",
+            "tick_size", "atr_0", "atr_1", "atr_source_time_msc", "atr_shift", "atr_multiplier",
+            "requested_volume", "entry_interval", "context_level", "context_role",
+            "context_distance_points", "context_age_ms", *CONTEXT_COLUMNS, *FEATURE_COLUMNS,
+        )),
+        ("trials.tsv", (
+            "run_id", "trial_id", "attempt_id", "lane", "rr", "reference_entry_time_msc",
+            "reference_deadline_msc", "entry_price", "sl", "tp", "volume", "eligibility",
+        )),
+        ("execution_checks.tsv", (
+            "run_id", "attempt_id", "action", "time_msc", "sequence", "allowed", "reason",
+            "bid", "ask", "volume", "entry_price", "sl", "tp", "margin", "stop_profit",
+            "check_retcode", "send_retcode", "order_ticket", "deal_ticket", "position_id",
+        )),
+        ("outcomes.tsv", (
+            "run_id", "trial_id", "attempt_id", "lane", "rr", "status", "broker_reason",
+            "entry_time_msc", "entry_macro_open_time_msc", "deadline_msc", "exit_time_msc", "observed_time_msc",
+            "entry_price", "exit_price", "sl", "tp", "volume", "gross_profit", "costs",
+            "net_profit", "gross_r", "binary_label", "position_id", "fill_deviation_points",
+        )),
+        ("run_summary.tsv", ("key", "value")),
+    )
+)
+
+STRING_COLUMNS = {
+    "run_id", "window_id", "root_id", "attempt_id", "parent_attempt_id", "trial_id",
+    "symbol", "pattern", "pattern_direction", "admission", "entry_type", "category",
+    "direction", "macro_window_id", "entry_interval", "context_level", "context_role",
+    "lane", "eligibility", "action", "reason", "status", "broker_reason",
+}
+BOOL_COLUMNS = {"valid", "allowed", "macro_complete", "micro_complete", "macro_pivot_complete", "micro_pivot_complete"}
+INT_COLUMNS = {
+    "sequence", "macro_seconds", "micro_seconds", "atr_shift", "rr", "check_retcode",
+    "send_retcode", "order_ticket", "deal_ticket", "position_id", "binary_label", "context_age_ms",
+}
+
+
+def column_type(name: str) -> str:
+    if name in STRING_COLUMNS or name.endswith(("_role", "_state_0", "_state_1", "_state_2", "_state_3", "_state_4", "_state_5")):
+        return "text"
+    if name in BOOL_COLUMNS or name.endswith(("_reclaimed", "_gap_cross")):
+        return "bool"
+    if name in INT_COLUMNS or name.endswith(("_time_msc", "_deadline_msc", "_sequence")) or name == "deadline_msc":
+        return "int"
+    return "decimal"
+
+
+def write_mql_header(path: Path) -> None:
+    """Generate only the wire headers; behavior stays in hand-written modules."""
+    lines = [
+        "// Generated by tools/candle_pattern_ml/schema_contract.py; do not edit.",
+        "#ifndef CANDLE_SCHEMA_MQH", "#define CANDLE_SCHEMA_MQH", "",
+        f"enum CandleSchemaCounts {{ CANDLE_FILE_COUNT = {len(TABLE_COLUMNS)} }};",
+        "string CandleFileName(const int index)", "{", "  switch(index)", "  {",
+    ]
+    for index, name in enumerate(TABLE_COLUMNS):
+        lines.append(f'    case {index}: return "{name}";')
+    lines.extend(['  }', '  return "";', '}', '', 'string CandleHeader(const int index)', '{', '  switch(index)', '  {'])
+    for index, columns in enumerate(TABLE_COLUMNS.values()):
+        header = r"\t".join(columns)
+        lines.append(f'    case {index}: return "{header}";')
+    lines.extend(['  }', '  return "";', '}', '', '#endif', ''])
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text("\n".join(lines), encoding="ascii")
+
+
+if __name__ == "__main__":
+    import argparse
+
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--write-mql-header", type=Path, required=True)
+    write_mql_header(parser.parse_args().write_mql_header)
