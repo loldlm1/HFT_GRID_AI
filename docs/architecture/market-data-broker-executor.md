@@ -11,6 +11,12 @@ The EA property version is `1.40`; the export schema is separately versioned as
 `14`, with signal source `PIVOT_FRACTAL_V2`. See the [current index](../README.md)
 for source/compile pins and open operational gates.
 
+This document governs the Pivot EA. The separate `Candle_Pattern_Discovery.mq5`
+has its own [Candle runtime and dataset contract](../../tools/candle_pattern_ml/README.md):
+Micro pattern signals, Macro/Micro features, fixed ATR protection, both broker
+directions, one confirmed-SL re-entry and per-entry Macro-duration expiry.
+It does not include the Pivot engine's aggregators or share its strategy state.
+
 ## Public Inputs
 
 | Group | Inputs and defaults |

@@ -89,3 +89,21 @@ python3 tools/candle_pattern_ml/schema_contract.py \
 ```
 
 No new MQL5 test EAs, scripts, CI or external dependencies are required.
+
+## Consumer Workflow
+
+The independent Django implementation is in
+`/home/admin/python_projects/hft-grid-ai-orchestrator-candle`, branch
+`codex/candle-pattern-discovery`. Its
+[contract](/home/admin/python_projects/hft-grid-ai-orchestrator-candle/docs/contracts/candle-pattern-discovery-v1.md)
+owns additive migrations, typed PostgreSQL intake and research evidence.
+Configure `HFT_CANDLE_INBOX_ROOT` only in the intended isolated environment,
+then register the safe run ID at `/datasets/candle/` after a successful seal.
+Each root chooses one pattern, direction relationship, entry type and first-N
+allowance. A child adds one causal condition before that allowance is applied.
+HTML and staff JSON share the saved result; resume controls retain checkpoints.
+
+Rollback producer code with its matching binary independently of source runs.
+Consumer baseline is `57fae95e`; additive migration reversal requires an empty
+Candle evidence boundary. Once evidence exists, retain its schema/data and use
+a forward correction. Never undo V14 data or mutate original Candle exports.

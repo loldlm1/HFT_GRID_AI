@@ -24,6 +24,12 @@ and leakage, and train explicitly selected H1 or deep candidates. The separate
 Exness source tool prepares historical ticks and records native/broker comparison
 evidence. Neither tool creates a runtime model or authorizes live deployment.
 
+The independent `Candle_Pattern_Discovery.mq5` adds Micro Harami/Engulfing
+discovery, ATR stops, both directions and one broker-SL re-entry. Its separate
+[Candle contract and tools](tools/candle_pattern_ml/README.md) capture Macro/Micro
+features and support independent pattern/direction research with first-N entry
+allowances. Pivot V14 retains its existing entrypoint and dataset.
+
 ## Where To Go
 
 - [Current status and evidence](docs/README.md): active work, accepted inputs and remaining gates.

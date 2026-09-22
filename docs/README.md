@@ -5,19 +5,45 @@ This index owns changing status; guides own procedures and dated evidence keeps
 its original results.
 
 MT5 M1-M4 delivery and P1-P4 optimization are complete. The independent
-[Candle Pattern Discovery execution](../candle-pattern-discovery-plan.md) is now
-authorized; its producer/offline checkpoint is implemented and under validation. Its
+[Candle Pattern Discovery execution](../candle-pattern-discovery-plan.md) delivers
+the separate EA, eight-file dataset, offline contract and PostgreSQL research. Its
 [accepted proposal](../candle-pattern-discovery-proposal.md) retains the design.
-All required discussion choices are resolved. V14 and its existing data remain
-unchanged; the consumer work uses a separate worktree. Automated MCP/data acceptance
-owns the Candle handoff; human chart review and MT5 visual polish are deferred.
 The [Candle tool contract](../tools/candle_pattern_ml/README.md) owns its separate
 eight-file schema, fixed ATR execution, context and causal first-N selection.
-Focused evidence passes 21 Candle tests, 51 existing V14 tests, strict default-H1
-and M6/M3 native runs, and MetaEditor 6184 with 0 errors/warnings. The M6 smoke
-records 26 actual broker expiry requests/closes. Original 75 source hashes and
-the Pivot EX5 match the preservation baseline. Consumer integration and final
-on/off/fault acceptance are still pending; this is not a completed handoff.
+
+Producer `183585d` adds `Candle_Pattern_Discovery.mq5` (`1.00`); consumer
+`95e5821` lives on `codex/candle-pattern-discovery` in
+`/home/admin/python_projects/hft-grid-ai-orchestrator-candle`. V14 source behavior,
+its original 75 source hashes and Pivot EX5 remain unchanged. No deployment,
+production intake or live trading occurs. Human MT5 chart review and visual
+polish remain deferred by the user's accepted scope.
+
+Automated Candle acceptance:
+
+- Producer: 21 Candle and 51 existing V14 tests; MetaEditor MCP 6184 AVX2,
+  zero errors/warnings. The unchanged 90,352-byte Candle EX5 has SHA-256
+  `78e17f8599268aa5910073b1fcb0d619daf9644fc208e5283a1606c36f0097ef`.
+- H1/M3 and H2/M3 real-tick runs pass strict semantics: each has 116 signals,
+  232 original attempts, 66 re-entries, 142 entered broker positions and 156
+  explicit broker rejections. H2 deadlines are exactly entry plus 7,200 seconds.
+  The retained M6/M3 run demonstrates 26 actual broker time exits.
+- Export-on/off matches every native order/deal cell, all 284 deals/142 trades
+  and every non-run-ID statistic. The owned missing-file injection stops its
+  tester, seals FAILED/CENSORED, retains the moved file, and fails strict intake.
+- Consumer: 22 Candle tests, 66 selected existing checks, 10 documentation
+  checks, additive migration apply/reverse/occupied guard, lint, types and Django
+  check pass. A real-worker Chromium journey covers desktop/mobile, child paths,
+  HTML/JSON agreement and no-JavaScript research. Forty native/offline comparisons
+  match across the retained M6 and H2 sources in isolated PostgreSQL 18.
+- Three unrelated consumer tests fail identically at baseline `57fae95e`: a
+  one-origin COPY fixture expectation, stale exact Celery route mapping and
+  eager-task recursion in the Pivot journal security scenario. Their evidence is
+  retained; they are not counted as passes or repaired by this Candle delivery.
+
+Exact run IDs, source/binary pins, validation exceptions and commit/rollback
+receipts are in `.codex-artifacts/candle-discovery/`; consumer evidence is in
+its ignored `.codex-cache/releases/candle-s3/`. These are bounded historical
+checks, not full-history scale, live broker-equivalence or release certification.
 
 ## V14 Optimization
 
@@ -134,10 +160,10 @@ acceptance. The previously retained
 missing; the user selects the current folder instead of recreating that copy.
 Frozen M4 contract/fixture hashes and sidecar receipts are preserved unchanged.
 
-Django implementation/intake has not run in this task. The consumer checkout is
+The dated V14 producer handoff did not run Django implementation/intake. Its consumer checkout is
 `/home/admin/python_projects/hft-grid-ai-orchestrator`; its
-[V14 plan](/home/admin/python_projects/hft-grid-ai-orchestrator/pivot-fractal-v14-django-plan.md)
-uses the frozen M4 contract and current selected source, with seal/source checks
+[current contract index](/home/admin/python_projects/hft-grid-ai-orchestrator/docs/README.md)
+owns the frozen M4 contract and selected-source procedures, with seal/source checks
 before its staging purge/rebuild. Its feature modes select existing captures:
 Macro modes use origin Macro or Deep; connected Deep modes use event Deep or
 Micro. Django execution requires its own instruction; this task only aligns the

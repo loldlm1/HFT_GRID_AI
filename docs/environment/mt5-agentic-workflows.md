@@ -118,6 +118,30 @@ Record parsed compiler status and `.ex5` metadata, not the full log.
 
 ## Python Environment And Checks
 
+### Independent Candle Acceptance
+
+Compile `Candle_Pattern_Discovery.mq5` through the same MetaEditor preflight and
+AVX2 gate, preserving the Pivot binary. Candle defaults are H1/M3 and export off;
+use a fresh `Signal_Feature_Run_Id` for every export run under
+`Common\Files\CandlePatternV1\runs\`. Write tester `.set` files without a UTF-8
+BOM, with a comment first and native `value||start||step||stop||N` values.
+Validate the actual manifest periods after execution; settings-file intent alone
+does not establish which inputs MT5 loaded.
+
+Use the [Candle reader and selection commands](../../tools/candle_pattern_ml/README.md)
+for its exact eight-file contract. Preserve separate run IDs, ratio grains and
+family/direction categories. Native tester reports requested as XML may be XLSX
+ZIP containers: detect the signature and compare actual order/deal worksheet
+cells, not only aggregate profit. Fault injection targets only a new owned run;
+retain any moved source file outside its strict directory and verify failed seal
+and reader refusal. Existing operator runs are never fault fixtures.
+
+The [current index](../README.md) records acceptance and limits. Consumer checks
+use its disposable PostgreSQL/Redis and native Chromium runners; no production
+or staging intake/deployment is implied. Human MT5 visual work remains deferred.
+
+### Existing Python Environment
+
 The Exness tool requires Python 3.11+ (`tomllib`). The accepted local environment
 uses Python 3.12 and the pinned dependencies in each requirements file. Reuse the
 maintained `.venv`; setup commands are for an absent environment, not routine upgrades:
