@@ -1,9 +1,12 @@
 # HFT Grid AI - Project Instructions
 
+Candle: [execution contract](candle-pattern-discovery-plan.md).
+Pivot rules stay intact; Candle visual review is deferred.
+
 ## Start Here
 
-Entrypoint: `HFT_Grid_AI.mq5`, version `1.40`, schema `14`, source
-`PIVOT_FRACTAL_V2`: paired Macro/Deep/Micro research, structural H1 1R broker lane.
+Pivot: `HFT_Grid_AI.mq5` (`1.40`), schema `14`, `PIVOT_FRACTAL_V2`:
+Macro/Deep/Micro research and structural H1 1R broker lane.
 
 - [Status, plan and evidence](docs/README.md).
 - [Runtime contract](docs/architecture/market-data-broker-executor.md): read before MQL5 changes.
@@ -17,11 +20,10 @@ Entrypoint: `HFT_Grid_AI.mq5`, version `1.40`, schema `14`, source
 - Use `$production-engineering-stack:python-django-production-engineering` for
   Python tools; there is no Django app here.
 - Use `$codex-agentic-stack:token-saver-orchestrator` for RTK-first checks;
-  retain exact failure diagnostics when needed.
-- Use `planner` for saved/phased/sprint plans, `create-plan` for chat plans.
-  Skills do not change native `/plan` mode.
-- Use `openai-docs` for Codex configuration. Discover installed helpers; never
-  copy skills/hooks here or edit plugin caches.
+  retain exact failure diagnostics.
+- Plans: `planner` for saved/sprints; `create-plan` for chat. Neither changes `/plan`.
+- Use `openai-docs` for Codex configuration. Discover helpers; no copied
+  skills/hooks or plugin-cache edits.
 - Planning/review is not execution permission. Retain accepted scope/decisions
   across interruptions; record required questions in Planner state.
 - One agent/writer per worktree; delegation requires authorization. Preserve
@@ -111,12 +113,12 @@ MCP cannot execute; record why. New behavior needs human tester/chart acceptance
 
 ## Documentation And Artifacts
 
-Update the seven guide/index owners in place; new docs need a distinct purpose.
+Update guide/index owners in place; new docs need a distinct purpose.
 Keep AGENTS within 160 lines / 8 KiB and current status only in `docs/README.md`.
 Keep one current/latest plan. Retire superseded tracked docs after migrating
-unique current facts and retaining Git commit/path recovery. Keep evidence needed
-for current behavior, open gates or downstream contracts; preserve dated facts
-and hashes, changing only navigation or explicit annotations. Never restart old plans.
+unique facts and Git commit/path recovery. Keep evidence for current behavior,
+open gates and downstream contracts; preserve dated facts/hashes, changing only
+navigation or explicit annotations. Never restart old plans.
 
 Validate links/anchors, versions, requirement ownership and ignores. Keep private
 data/logs/binaries/backups untracked. Use ignored `.codex-hook-state/` and

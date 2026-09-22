@@ -1,12 +1,16 @@
 # Current Project State
 
-Updated 2026-09-16. EA `1.40`, strict schema `14`, engine `PIVOT_FRACTAL_V2`.
+Updated 2026-09-22. Pivot EA `1.40`, strict schema `14`, engine `PIVOT_FRACTAL_V2`.
 This index owns changing status; guides own procedures and dated evidence keeps
 its original results.
 
-MT5 M1-M4 delivery and P1-P4 optimization are complete. There is no active MT5
-implementation plan or pending plan question. The separate Django workflow retains
-its plan and shared design references; start a new MT5 task from this index.
+MT5 M1-M4 delivery and P1-P4 optimization are complete. The independent
+[Candle Pattern Discovery execution](../candle-pattern-discovery-plan.md) is now
+authorized, beginning with its contract/preservation checkpoint. Its
+[accepted proposal](../candle-pattern-discovery-proposal.md) retains the design.
+All required discussion choices are resolved. V14 and its existing data remain
+unchanged; the consumer work uses a separate worktree. Automated MCP/data acceptance
+owns the Candle handoff; human chart review and MT5 visual polish are deferred.
 
 ## V14 Optimization
 
