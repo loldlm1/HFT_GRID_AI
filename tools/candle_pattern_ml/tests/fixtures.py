@@ -1,9 +1,12 @@
 """Tiny synthetic Candle wire fixture; no account or retained tester data."""
 
 import csv
+from datetime import datetime, timezone
 from pathlib import Path
 
-from ..schema_contract import CONTEXT_COLUMNS, FEATURE_COLUMNS, NULL, TABLE_COLUMNS, column_type
+from ..clock import CLOCK_POLICIES
+from ..schema_contract import TABLE_COLUMNS as CLOCK_TABLE_COLUMNS, TIMESTAMP_COLUMNS, analysis_columns
+from ..schema_contract import CONTEXT_COLUMNS, FEATURE_COLUMNS, NULL, LEGACY_TABLE_COLUMNS as TABLE_COLUMNS, column_type
 
 
 def make_run(parent: Path, *, lot_type: str | None = None) -> Path:
@@ -90,9 +93,67 @@ def make_run(parent: Path, *, lot_type: str | None = None) -> Path:
 
 def mutate(path, filename, change):
     with (path / filename).open(newline="") as handle:
-        data = list(csv.DictReader(handle, delimiter="\t"))
+        reader = csv.DictReader(handle, delimiter="\t")
+        data = list(reader)
+        columns = reader.fieldnames
     change(data)
     with (path / filename).open("w", newline="") as handle:
-        writer = csv.DictWriter(handle, fieldnames=TABLE_COLUMNS[filename], delimiter="\t")
+        writer = csv.DictWriter(handle, fieldnames=columns, delimiter="\t")
         writer.writeheader()
         writer.writerows(data)
+
+
+def make_clock_run(parent: Path, *, decision: str = "2026-01-14T14:30:00.123",
+                   session: str = "EXNESS_SESSION", lot_type: str = "EXECUTION_LOT_REFERENCE_BALANCE_PERCENT",
+                   symbol: str = "CANDLE_TEST") -> Path:
+    """Rebase the small legacy fixture, using local New York hour as the oracle."""
+    from zoneinfo import ZoneInfo
+
+    path = make_run(parent, lot_type=lot_type)
+    instant = datetime.fromisoformat(decision).replace(tzinfo=timezone.utc)
+    epoch = datetime(1970, 1, 1, tzinfo=timezone.utc)
+    delta = instant - epoch
+    shift = (delta.days * 86400 + delta.seconds) * 1000 + delta.microseconds // 1000 - 3960000
+
+    def clock(raw):
+        raw = int(raw) + shift
+        offset = 0
+        if session == "EXNESS_SESSION":
+            local = datetime.fromtimestamp(raw // 1000, timezone.utc).astimezone(ZoneInfo("America/New_York"))
+            offset = int(local.utcoffset().total_seconds()) // 60 + 240
+        return raw, raw + offset * 60000, offset
+
+    for filename, columns in CLOCK_TABLE_COLUMNS.items():
+        with (path / filename).open(newline="") as handle:
+            rows = list(csv.DictReader(handle, delimiter="\t"))
+        if filename == "run_manifest.tsv":
+            for row in rows:
+                if row["key"] == "schema_version":
+                    row["value"] = "3"
+                elif row["key"] == "symbol":
+                    row["value"] = symbol
+            rows.extend({"key": key, "value": value} for key, value in
+                        {"broker_session": session, **CLOCK_POLICIES[session]}.items())
+        elif filename == "run_summary.tsv":
+            last = next(row for row in rows if row["key"] == "last_time_msc")
+            last["value"], analysis, offset = clock(last["value"])
+            rows.extend(({"key": "last_analysis_time_msc", "value": analysis},
+                         {"key": "last_analysis_offset_minutes", "value": offset}))
+            for row in rows:
+                if row["key"] == "rows_run_manifest.tsv":
+                    row["value"] = str(int(row["value"]) + 5)
+        else:
+            for row in rows:
+                if "symbol" in row:
+                    row["symbol"] = symbol
+                for column in TIMESTAMP_COLUMNS[filename]:
+                    analysis_column, offset_column = analysis_columns(column)
+                    if row[column] == NULL:
+                        row[analysis_column] = row[offset_column] = NULL
+                    else:
+                        row[column], row[analysis_column], row[offset_column] = clock(row[column])
+        with (path / filename).open("w", newline="") as handle:
+            writer = csv.DictWriter(handle, fieldnames=columns, delimiter="\t")
+            writer.writeheader()
+            writer.writerows(rows)
+    return path

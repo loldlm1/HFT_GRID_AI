@@ -1,5 +1,5 @@
 #property strict
-#property version "1.01"
+#property version "1.02"
 #property description "Independent Harami/Engulfing discovery with ATR risk and Macro-duration exits."
 
 #include "services/core/enums.mqh"
@@ -8,6 +8,7 @@
 #include "services/candle_pattern/config.mqh"
 #include "services/trading_signals/execution_lot_math.mqh"
 #include "services/candle_pattern/schema.mqh"
+#include "services/candle_pattern/clock.mqh"
 #include "services/candle_pattern/export.mqh"
 #include "services/candle_pattern/context.mqh"
 #include "services/candle_pattern/features.mqh"
@@ -27,6 +28,7 @@ int OnInit()
      !CandleNumberValid(Lot_Strategy_Size) || Lot_Strategy_Size <= 0.0 ||
      (Lot_Type != EXECUTION_LOT_FIXED_SIZE && Lot_Type != EXECUTION_LOT_REFERENCE_BALANCE_PERCENT) ||
      (Lot_Type == EXECUTION_LOT_REFERENCE_BALANCE_PERCENT && Lot_Strategy_Size > 100.0) ||
+     (Broker_Session != FIXED_TIME_SESSIONS && Broker_Session != EXNESS_SESSION) ||
      _Point <= 0.0 || !CandleCellValid(_Symbol)) return INIT_PARAMETERS_INCORRECT;
   for(int i = PositionsTotal() - 1; i >= 0; i--)
   {

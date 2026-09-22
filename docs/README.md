@@ -1,6 +1,6 @@
 # Current Project State
 
-Updated 2026-09-22. Pivot EA `1.40`, strict schema `14`, engine `PIVOT_FRACTAL_V2`.
+Updated 2026-09-23. Pivot EA `1.40`, strict schema `14`, engine `PIVOT_FRACTAL_V2`.
 This index owns changing status; guides own procedures and dated evidence keeps
 its original results.
 
@@ -11,14 +11,15 @@ the separate EA, eight-file dataset, offline contract and PostgreSQL research. I
 The [Candle tool contract](../tools/candle_pattern_ml/README.md) owns its separate
 eight-file schema, fixed ATR execution, context and causal first-N selection.
 
-Producer `183585d` adds `Candle_Pattern_Discovery.mq5` (`1.00`); consumer
-`95e5821` lives on `codex/candle-pattern-discovery` in
-`/home/admin/python_projects/hft-grid-ai-orchestrator-candle`. V14 source behavior,
+Producer `183585d` added `Candle_Pattern_Discovery.mq5` (`1.00`); consumer
+`95e5821` is now merged into local `main` at the original application checkout,
+`/home/admin/python_projects/hft-grid-ai-orchestrator`. Historical consumer runtime
+and evidence remain retained in its earlier Candle worktree. V14 source behavior,
 its original 75 source hashes and Pivot EX5 remain unchanged. No deployment,
 production intake or live trading occurs. Human MT5 chart review and visual
 polish remain deferred by the user's accepted scope.
 
-The lot-normalization follow-up updates Candle to `1.01`, export schema `2`.
+The earlier lot-normalization follow-up delivered Candle `1.01`, export schema `2`.
 It uses Pivot's unchanged `ExecutionLotTypes` and execution lot planner. Default
 reference risk is 0.01 percent of a fixed 1,000,000 (100 account-currency units);
 fixed lots remain selectable. Originals/re-entries size from their own ATR stop,
@@ -34,6 +35,30 @@ capping with margin refusal. The reference export-on/off native reports match
 every order/deal and all statistics; only their two export input rows differ.
 Accepted reference stop risk is 99.20-100.00 for the configured 100 budget.
 Evidence and retained pre-fix binaries: `.codex-artifacts/candle-lot-normalization/`.
+
+Candle is now `1.02`, export schema `3`, with `Broker_Session` and explicit raw/
+analysis/offset clocks. Select `EXNESS_SESSION` for prepared UTC/Shift=0 Exness
+sources: `EXNESS_NEW_YORK_V1` uses US DST for every symbol, including metals,
+keeping the regular New York stock-market open at 13:30 analysis time. The default
+remains `FIXED_TIME_SESSIONS` with zero offset. The [clock contract](../tools/candle_pattern_ml/README.md#normalized-research-clock)
+owns supported dates, exact timestamp fields and downstream use. Reader support
+for schemas 1/2 remains explicit; old sources never gain inferred clock metadata.
+The producer implements prerequisite P0 of the saved Django integration plan;
+the eight Django sprints and staging work remain deferred. Current source/binary,
+native runs and validation receipts belong to `.codex-artifacts/candle-clock-normalization/`.
+
+Clock validation: 44 Candle tests pass; MetaEditor MCP 6184 optimized AVX2 reports
+zero errors/warnings. Eight real-tick tester cases finish, producing seven sealed
+exports with 59,928 validated timestamp triplets and 22,256 null triplets. Gold/FX
+March and gold October mismatch-week exports use the US calendar. Reference/fixed
+summer broker reports match the accepted 1.01 reports; winter fixed/normalized/
+export-off reports match every order/deal/statistic. All six raw data tables also
+match across winter clock modes. The 38-file Pivot include tree and its EX5 are
+unchanged. Accepted Candle EX5: 97,806 bytes, SHA-256
+`c6713220350fd4c1c05d33fad2770acf8e3dc6cbd6c20a099ae0986135b10778`.
+These one-day native cases validate the producer contract; exact Sunday transition
+instants are checked with independent Python calendars and source review. They
+do not establish full-history performance or Django/staging acceptance.
 
 Historical automated Candle 1.00/schema-1 acceptance:
 

@@ -34,8 +34,9 @@ bool CandleWrite(const int file, const string row, const bool sealing = false)
   if(!Enable_Signal_Feature_Export || !g_candle_export_open) return false;
   if((g_candle_export_failed && !sealing) || file < 0 || file >= CANDLE_FILE_COUNT ||
      g_candle_files[file] == INVALID_HANDLE) return false;
-  string fields[], headers[];
-  if(StringSplit(row, '\t', fields) != StringSplit(CandleHeader(file), '\t', headers))
+  string fields[];
+  int count = StringSplit(row, '\t', fields);
+  if(count != CandleRawColumnCount(file))
   {
     CandleExportFail("COLUMN_COUNT_" + CandleFileName(file));
     return false;
@@ -45,7 +46,27 @@ bool CandleWrite(const int file, const string row, const bool sealing = false)
     CandleExportFail("MISSING_FILE_" + CandleFileName(file));
     return false;
   }
-  string text = row + "\r\n";
+  string text = row;
+  for(int i = 0; i < count; i++)
+  {
+    if(!CandleClockColumn(file, i)) continue;
+    if(fields[i] == "\\N")
+    {
+      CandleCell(text, "\\N");
+      CandleCell(text, "\\N");
+      continue;
+    }
+    long analysis_msc = 0;
+    int offset_minutes = 0;
+    if(!CandleAnalysisClock(StringToInteger(fields[i]), analysis_msc, offset_minutes))
+    {
+      CandleExportFail("CLOCK_RANGE_" + CandleFileName(file));
+      return false;
+    }
+    CandleCell(text, CandleInteger(analysis_msc));
+    CandleCell(text, CandleInteger(offset_minutes));
+  }
+  text += "\r\n";
   uchar encoded[];
   int bytes = StringToCharArray(text, encoded, 0, WHOLE_ARRAY, CP_UTF8);
   if(bytes <= 1)
@@ -138,7 +159,7 @@ bool CandleOpenExport()
     }
   }
   g_candle_export_open = true;
-  CandleManifest("schema_version", "2");
+  CandleManifest("schema_version", "3");
   CandleManifest("engine", "CANDLE_PATTERN_ATR_V1");
   CandleManifest("feature_set", "candle_pattern_macro_micro_v1");
   CandleManifest("run_id", Signal_Feature_Run_Id);
@@ -162,6 +183,11 @@ bool CandleOpenExport()
   CandleManifest("reentry", "BROKER_SL_ONCE");
   CandleManifest("broker_cap", CandleInteger(CANDLE_BROKER_CAP));
   CandleManifest("virtual_cap", CandleInteger(CANDLE_VIRTUAL_CAP));
+  CandleManifest("broker_session", EnumToString(Broker_Session));
+  CandleManifest("broker_time_basis", Broker_Session == EXNESS_SESSION ? "UTC_SHIFT_0" : "BROKER_NATIVE");
+  CandleManifest("analysis_clock_policy", Broker_Session == EXNESS_SESSION ? "EXNESS_NEW_YORK_V1" : "BROKER_FIXED_V1");
+  CandleManifest("analysis_calendar", Broker_Session == EXNESS_SESSION ? "US_NEW_YORK" : "NONE");
+  CandleManifest("analysis_calendar_coverage", Broker_Session == EXNESS_SESSION ? "US_2007_RULES_2007_2099" : "NOT_APPLICABLE");
   return !g_candle_export_failed;
 }
 
@@ -193,7 +219,13 @@ void CandleSealExport(const int broker_peak, const int virtual_peak)
     CandleSummary("rows_" + CandleFileName(i), CandleInteger(g_candle_rows[i]));
   CandleSummary("broker_peak", CandleInteger(broker_peak));
   CandleSummary("virtual_peak", CandleInteger(virtual_peak));
-  CandleSummary("last_time_msc", CandleInteger(g_candle_last_time));
+  long last_analysis_msc = 0;
+  int last_offset_minutes = 0;
+  if(g_candle_last_time > 0 && !CandleAnalysisClock(g_candle_last_time, last_analysis_msc, last_offset_minutes))
+    CandleExportFail("CLOCK_RANGE_SUMMARY");
+  CandleSummary("last_time_msc", g_candle_last_time > 0 ? CandleInteger(g_candle_last_time) : "\\N");
+  CandleSummary("last_analysis_time_msc", g_candle_last_time > 0 ? CandleInteger(last_analysis_msc) : "\\N");
+  CandleSummary("last_analysis_offset_minutes", g_candle_last_time > 0 ? CandleInteger(last_offset_minutes) : "\\N");
   CandleSummary("failure", g_candle_failure == "" ? "NONE" : g_candle_failure);
   CandleSummary("completion", g_candle_export_failed ? "CENSORED" : "NATURAL");
   CandleSummary("status", g_candle_export_failed ? "FAILED" : "OK");

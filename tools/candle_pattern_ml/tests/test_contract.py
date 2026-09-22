@@ -104,7 +104,7 @@ class SizingContractTests(unittest.TestCase):
         self.rejected("Fixed requested volume")
 
     def test_unknown_schema_is_rejected(self):
-        self.manifest_value("schema_version", "3")
+        self.manifest_value("schema_version", "99")
         self.rejected("Unsupported Candle schema")
 
     def test_legacy_schema_cannot_hide_reference_sizing(self):

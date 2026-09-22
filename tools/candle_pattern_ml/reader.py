@@ -13,7 +13,8 @@ from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
 from pathlib import Path
 from typing import Iterator
 
-from .schema_contract import CATEGORIES, ENGINE, FEATURE_SET, LEVELS, NULL, PATTERNS, SCHEMA_VERSION, TABLE_COLUMNS, column_type
+from .clock import CLOCK_MANIFEST_KEYS, CLOCK_POLICIES, CLOCK_SUMMARY_KEYS
+from .schema_contract import CATEGORIES, ENGINE, FEATURE_SET, LEVELS, NULL, PATTERNS, TABLE_COLUMNS, TABLE_COLUMNS_BY_VERSION, column_type
 
 
 class ContractError(ValueError):
@@ -52,6 +53,7 @@ class CandleRun(AbstractContextManager):
         self.summary: dict[str, str] = {}
         self.counts: dict[str, int] = {}
         self.hashes: dict[str, str] = {}
+        self.table_columns = TABLE_COLUMNS
 
     def __enter__(self) -> "CandleRun":
         require(self.path.is_dir() and not self.path.is_symlink(), "Expected a regular run directory")
@@ -62,7 +64,8 @@ class CandleRun(AbstractContextManager):
         self.db.execute("PRAGMA cache_size=-16384")
         self.db.execute("PRAGMA temp_store=FILE")
         try:
-            for filename, columns in TABLE_COLUMNS.items():
+            for filename in TABLE_COLUMNS:
+                columns = self.table_columns[filename]
                 source = self.path / filename
                 require(source.is_file() and not source.is_symlink(), f"Not a regular source file: {filename}")
                 before = source.stat()
@@ -101,6 +104,11 @@ class CandleRun(AbstractContextManager):
                 require((before.st_size, before.st_mtime_ns, before.st_ino) == (after.st_size, after.st_mtime_ns, after.st_ino), "Source changed during validation")
                 self.counts[filename] = count
                 self.hashes[filename] = digest.hexdigest()
+                if filename == "run_manifest.tsv":
+                    self.manifest = {r["key"]: r["value"] for r in self.rows(filename)}
+                    schema = self.manifest.get("schema_version")
+                    require(schema in TABLE_COLUMNS_BY_VERSION, "Unsupported Candle schema version")
+                    self.table_columns = TABLE_COLUMNS_BY_VERSION[schema]
             self._validate()
         except (TypeError, KeyError, InvalidOperation) as exc:
             self.__exit__(None, None, None)
@@ -139,29 +147,37 @@ class CandleRun(AbstractContextManager):
         self.manifest = {r["key"]: r["value"] for r in self.rows("run_manifest.tsv")}
         self.summary = {r["key"]: r["value"] for r in self.rows("run_summary.tsv")}
         schema = self.manifest.get("schema_version")
-        require(schema in {"1", SCHEMA_VERSION}, "Unsupported Candle schema version")
+        require(schema in TABLE_COLUMNS_BY_VERSION, "Unsupported Candle schema version")
         expected = {
             "schema_version": schema, "engine": ENGINE, "feature_set": FEATURE_SET,
             "atr_period": "13", "atr_shift": "1", "atr_multiplier": "1", "ratios": "1,2,3",
             "protection": "FIXED_SUBMITTED", "expiry": "ENTRY_PLUS_MACRO", "allowance": "BROKER_MACRO_CANDLE",
             "categories": "PATTERN_AND_RELATIONSHIP", "reentry": "BROKER_SL_ONCE", "broker_cap": "2048", "virtual_cap": "6144",
         }
-        sizing_keys = {"lot_type", "reference_balance"} if schema == "2" else set()
-        require(set(self.manifest) == set(expected) | sizing_keys | {"run_id", "symbol", "macro_seconds", "micro_seconds", "lot_size", "point", "tick_size", "currency"}, "Manifest keys do not match Candle contract")
+        sizing_keys = {"lot_type", "reference_balance"} if schema in {"2", "3"} else set()
+        clock_keys = CLOCK_MANIFEST_KEYS if schema == "3" else set()
+        require(set(self.manifest) == set(expected) | sizing_keys | clock_keys | {"run_id", "symbol", "macro_seconds", "micro_seconds", "lot_size", "point", "tick_size", "currency"}, "Manifest keys do not match Candle contract")
         for key, value in expected.items():
             require(self.manifest.get(key) == value, f"Manifest mismatch: {key}")
         macro, micro = int(self.manifest["macro_seconds"]), int(self.manifest["micro_seconds"])
         require(0 < micro < macro, "Invalid timeframe ordering")
         require(number(self.manifest["point"]) > 0 and number(self.manifest["tick_size"]) > 0 and number(self.manifest["lot_size"]) > 0, "Invalid instrument/volume facts")
-        if schema == "2":
+        if schema == "3":
+            session = self.manifest["broker_session"]
+            require(session in CLOCK_POLICIES, "Unknown broker session")
+            for key, value in CLOCK_POLICIES[session].items():
+                require(self.manifest[key] == value, f"Clock manifest mismatch: {key}")
+        if schema in {"2", "3"}:
             require(self.manifest["lot_type"] in {"EXECUTION_LOT_FIXED_SIZE", "EXECUTION_LOT_REFERENCE_BALANCE_PERCENT"}, "Invalid execution lot type")
             require(number(self.manifest["reference_balance"]) == Decimal("1000000"), "Invalid fixed reference balance")
             if self.manifest["lot_type"] == "EXECUTION_LOT_REFERENCE_BALANCE_PERCENT":
                 require(number(self.manifest["lot_size"]) <= 100, "Reference risk percentage out of range")
         require(self.manifest["run_id"] == self.path.name, "Directory/run identity mismatch")
         require(re.fullmatch(r"[A-Za-z0-9_-][A-Za-z0-9_.-]{0,63}", self.path.name) is not None and ".." not in self.path.name, "Unsafe run identity")
+        summary_clock_keys = CLOCK_SUMMARY_KEYS if schema == "3" else set()
         require(set(self.summary) == {f"rows_{name}" for name in tuple(TABLE_COLUMNS)[:-1]} |
-                {"broker_peak", "virtual_peak", "last_time_msc", "failure", "completion", "status"}, "Summary keys mismatch")
+                {"broker_peak", "virtual_peak", "last_time_msc", "failure", "completion", "status"} |
+                summary_clock_keys, "Summary keys mismatch")
         require(0 <= int(self.summary["broker_peak"]) <= 2048 and 0 <= int(self.summary["virtual_peak"]) <= 6144,
                 "Resource peaks exceed contract")
         require(self.summary.get("status") == "OK" and self.summary.get("completion") == "NATURAL" and self.summary.get("failure") == "NONE", "Run has no successful natural seal")

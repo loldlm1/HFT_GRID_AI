@@ -2,6 +2,7 @@
 #define CANDLE_CONFIG_MQH
 
 input group "+= Candle Timeframes =+"
+input BrokerSessionTimeModes Broker_Session = FIXED_TIME_SESSIONS;
 input ENUM_TIMEFRAMES Macro_Timeframe = PERIOD_H1;
 input ENUM_TIMEFRAMES Micro_Timeframe = PERIOD_M3;
 input group "+= Broker Execution =+"

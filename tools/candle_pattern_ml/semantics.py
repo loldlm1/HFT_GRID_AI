@@ -1,8 +1,44 @@
 """Semantic checks shared by the strict reader and its behavior fixtures."""
 
 from decimal import Decimal
+import re
 
-from .schema_contract import LEVELS
+from .clock import analysis_clock
+from .schema_contract import LEVELS, TIMESTAMP_COLUMNS, analysis_columns
+
+
+def validate_clocks(run):
+    from .reader import ContractError, require
+
+    if run.manifest["schema_version"] != "3":
+        return
+    session = run.manifest["broker_session"]
+
+    def check(row, column):
+        analysis_column, offset_column = analysis_columns(column)
+        raw, analysis, offset = (row[key] for key in (column, analysis_column, offset_column))
+        if raw is None:
+            require(analysis is None and offset is None, f"Clock null mismatch: {column}")
+            return
+        require(analysis is not None and offset is not None, f"Missing analysis clock: {column}")
+        require(all(re.fullmatch(r"-?(0|[1-9][0-9]*)", value) is not None and
+                    -(2**63) <= int(value) < 2**63 for value in (raw, analysis, offset)),
+                f"Invalid clock integer: {column}")
+        try:
+            expected = analysis_clock(int(raw), session)
+            actual = (int(analysis), int(offset))
+        except ValueError as exc:
+            raise ContractError(f"Invalid clock {column}: {exc}") from exc
+        require(actual == expected, f"Analysis clock mismatch: {column}")
+
+    for filename, columns in TIMESTAMP_COLUMNS.items():
+        for row in run.rows(filename):
+            for column in columns:
+                check(row, column)
+    check(run.summary, "last_time_msc")
+    require(run.summary["last_time_msc"] is not None or
+            not any(run.counts[name] for name, columns in TIMESTAMP_COLUMNS.items() if columns),
+            "Missing final clock for a nonempty run")
 
 
 def validate_details(run):
@@ -13,7 +49,8 @@ def validate_details(run):
     point = number(run.manifest["point"])
     tick = number(run.manifest["tick_size"])
     tolerance = tick * Decimal("0.000001")
-    sizing_version = run.manifest["schema_version"] == "2"
+    validate_clocks(run)
+    sizing_version = run.manifest["schema_version"] in {"2", "3"}
     reference_sizing = sizing_version and run.manifest["lot_type"] == "EXECUTION_LOT_REFERENCE_BALANCE_PERCENT"
     risk_budget = number(run.manifest["reference_balance"]) * number(run.manifest["lot_size"]) / 100 if reference_sizing else None
 

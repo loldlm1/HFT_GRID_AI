@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections import OrderedDict
 from pathlib import Path
 
-SCHEMA_VERSION = "2"
+SCHEMA_VERSION = "3"
 ENGINE = "CANDLE_PATTERN_ATR_V1"
 FEATURE_SET = "candle_pattern_macro_micro_v1"
 NULL = r"\N"
@@ -35,7 +35,7 @@ CONTEXT_COLUMNS = tuple(
 )
 FEATURE_COLUMNS = (*feature_columns("macro"), *feature_columns("micro"))
 
-TABLE_COLUMNS = OrderedDict(
+LEGACY_TABLE_COLUMNS = OrderedDict(
     (
         ("run_manifest.tsv", ("key", "value")),
         ("macro_windows.tsv", (
@@ -76,6 +76,23 @@ TABLE_COLUMNS = OrderedDict(
     )
 )
 
+TIMESTAMP_COLUMNS = {
+    name: tuple(column for column in columns if column.endswith(("time_msc", "deadline_msc")))
+    for name, columns in LEGACY_TABLE_COLUMNS.items()
+}
+
+
+def analysis_columns(column: str) -> tuple[str, str]:
+    prefix = column.removesuffix("time_msc") if column.endswith("time_msc") else column.removesuffix("msc")
+    return f"{prefix}analysis_time_msc", f"{prefix}analysis_offset_minutes"
+
+
+TABLE_COLUMNS = OrderedDict(
+    (name, (*columns, *(field for column in TIMESTAMP_COLUMNS[name] for field in analysis_columns(column))))
+    for name, columns in LEGACY_TABLE_COLUMNS.items()
+)
+TABLE_COLUMNS_BY_VERSION = {"1": LEGACY_TABLE_COLUMNS, "2": LEGACY_TABLE_COLUMNS, "3": TABLE_COLUMNS}
+
 STRING_COLUMNS = {
     "run_id", "window_id", "root_id", "attempt_id", "parent_attempt_id", "trial_id",
     "symbol", "pattern", "pattern_direction", "admission", "entry_type", "category",
@@ -94,7 +111,7 @@ def column_type(name: str) -> str:
         return "text"
     if name in BOOL_COLUMNS or name.endswith(("_reclaimed", "_gap_cross")):
         return "bool"
-    if name in INT_COLUMNS or name.endswith(("_time_msc", "_deadline_msc", "_sequence")) or name == "deadline_msc":
+    if name in INT_COLUMNS or name.endswith(("time_msc", "deadline_msc", "_sequence", "_offset_minutes")):
         return "int"
     return "decimal"
 
@@ -113,7 +130,15 @@ def write_mql_header(path: Path) -> None:
     for index, columns in enumerate(TABLE_COLUMNS.values()):
         header = r"\t".join(columns)
         lines.append(f'    case {index}: return "{header}";')
-    lines.extend(['  }', '  return "";', '}', '', '#endif', ''])
+    lines.extend(['  }', '  return "";', '}', '', 'int CandleRawColumnCount(const int file)', '{', '  switch(file)', '  {'])
+    for index, columns in enumerate(LEGACY_TABLE_COLUMNS.values()):
+        lines.append(f'    case {index}: return {len(columns)};')
+    lines.extend(['  }', '  return 0;', '}', '', 'bool CandleClockColumn(const int file, const int column)', '{', '  switch(file)', '  {'])
+    for index, (name, columns) in enumerate(LEGACY_TABLE_COLUMNS.items()):
+        if TIMESTAMP_COLUMNS[name]:
+            condition = " || ".join(f"column == {columns.index(column)}" for column in TIMESTAMP_COLUMNS[name])
+            lines.append(f'    case {index}: return {condition};')
+    lines.extend(['  }', '  return false;', '}', '', '#endif', ''])
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text("\n".join(lines), encoding="ascii")
 

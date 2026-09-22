@@ -1,6 +1,6 @@
 # Candle Pattern Discovery
 
-Independent `CANDLE_PATTERN_ATR_V1` producer, current schema `2`, feature set
+Independent `CANDLE_PATTERN_ATR_V1` producer, current schema `3`, feature set
 `candle_pattern_macro_micro_v1`. Pivot V14 intake and research remain separate.
 The [accepted proposal](../../candle-pattern-discovery-proposal.md) owns rationale;
 the [project index](../../docs/README.md) owns current acceptance status.
@@ -22,7 +22,8 @@ Expiry takes precedence over binary labels, while `broker_reason` retains the
 actual platform reason. A missing quote cannot fabricate a fill. Run-end censors,
 rejections, invalid geometry/distance/money and capacity states stay non-binary.
 
-Defaults: Macro H1, Micro M3, `Lot_Type=EXECUTION_LOT_REFERENCE_BALANCE_PERCENT`,
+Defaults: `Broker_Session=FIXED_TIME_SESSIONS`, Macro H1, Micro M3,
+`Lot_Type=EXECUTION_LOT_REFERENCE_BALANCE_PERCENT`,
 `Lot_Strategy_Size=0.01`, export off. Reference sizing risks 0.01 percent of the
 fixed 1,000,000 reference: a 100 account-currency quoted stop budget, independent
 of live balance. `EXECUTION_LOT_FIXED_SIZE` interprets the same size input as lots.
@@ -71,11 +72,66 @@ that moment. `execution_checks.volume` and `trials.volume` retain the fresh
 submitted normalized lots; outcomes retain actual filled volume. The independent
 broker calculation never consumes the research snapshot's sizing result.
 
-The reader explicitly accepts original fixed-only schema 1 and schema 2. It
+The reader explicitly accepts original fixed-only schema 1, schema 2 and schema 3. It
 rejects unknown versions, missing/extra mode keys, invalid reference configuration,
 ratio-dependent sizing and submitted stop risk above the reference budget. Old
 runs are never relabeled or rewritten. Django consumer `95e5821` is still pinned
-to schema 1 and must adopt the updated contract before importing schema 2.
+to schema 1 and must adopt the updated contract before importing schemas 2/3.
+
+## Normalized Research Clock
+
+Candle `1.02` adds the export-only `Broker_Session` input. Select `EXNESS_SESSION`
+for the prepared Exness UTC/Shift=0 sources. It applies US/New York DST to every
+symbol, including metals and suffixed custom symbols. Summer analysis time equals
+raw broker time; winter analysis time is broker time minus 60 minutes. Thus the
+regular 09:30 New York stock-market open is always 13:30 in normalized session
+time, and the conventional 08:00 New York FX-session start is 12:00. London and
+other local sessions can shift relative to this New York anchor.
+
+`FIXED_TIME_SESSIONS` remains the default and exports raw time with zero offset.
+Exness mode assumes the documented unshifted UTC source; it does not detect or
+convert another broker's server timezone. Neither mode changes quotes, bars,
+features, raw event order, native Macro allowance membership, order geometry,
+position sizing or entry-plus-Macro expiry. No terminal timezone change occurs.
+
+Schema 3 preserves all schema-2 table columns in their original order, then adds
+an analysis timestamp and applied offset for every raw timestamp. For example,
+`decision_time_msc` gains `decision_analysis_time_msc` and
+`decision_analysis_offset_minutes`; `deadline_msc` gains
+`deadline_analysis_time_msc` and `deadline_analysis_offset_minutes`. This also
+covers source/entry Macro bars, ATR sources, tested pivots, execution checks and
+observed/terminal clocks. The summary adds `last_analysis_time_msc` and
+`last_analysis_offset_minutes`. Absent clocks have null raw/analysis/offset values;
+all present values retain exact integer milliseconds:
+
+```text
+analysis_time_msc = broker_time_msc + analysis_offset_minutes * 60000
+```
+
+The manifest freezes five new keys:
+
+| Key | Fixed mode | Exness mode |
+| --- | --- | --- |
+| `broker_session` | `FIXED_TIME_SESSIONS` | `EXNESS_SESSION` |
+| `broker_time_basis` | `BROKER_NATIVE` | `UTC_SHIFT_0` |
+| `analysis_clock_policy` | `BROKER_FIXED_V1` | `EXNESS_NEW_YORK_V1` |
+| `analysis_calendar` | `NONE` | `US_NEW_YORK` |
+| `analysis_calendar_coverage` | `NOT_APPLICABLE` | `US_2007_RULES_2007_2099` |
+
+The frozen US rules support broker years 2007-2099: DST starts at 07:00 UTC on
+the second March Sunday and ends at 06:00 UTC on the first November Sunday.
+Unsupported dates invalidate normalized exports explicitly. The reader checks
+offsets independently against IANA `America/New_York`; normalized validation
+requires that timezone database. Fixed mode and legacy schemas do not.
+Pivot's existing per-symbol US/UK calendar and shared helper are unchanged.
+
+The app must consume the exported clock once for research-hour/date filters,
+discovery, autonomous selection, charts, daily grouping and Walk-Forward calendars.
+Label it normalized session time. Seasonal jumps or repeated hours never replace
+raw timestamps for causal sorting, elapsed durations or Macro allowance keys.
+Schemas 1/2 retain unknown clock provenance; do not infer normalization from their
+symbol names. Django clock intake and full research integration remain separate
+work under its saved plan on `main` in the original application checkout.
 
 ## Offline Research
 
