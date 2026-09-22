@@ -5,6 +5,7 @@ input group "+= Candle Timeframes =+"
 input ENUM_TIMEFRAMES Macro_Timeframe = PERIOD_H1;
 input ENUM_TIMEFRAMES Micro_Timeframe = PERIOD_M3;
 input group "+= Broker Execution =+"
+input ExecutionLotTypes Lot_Type = EXECUTION_LOT_REFERENCE_BALANCE_PERCENT;
 input double Lot_Strategy_Size = 0.01;
 input group "+= Signal Statistics Export =+"
 input bool Enable_Signal_Feature_Export = false;
@@ -13,6 +14,8 @@ input group "+= Developer Debug =+"
 input bool Enable_Logs = false;
 
 const long CANDLE_MAGIC = 26092201;
+// Required by the shared Pivot execution lot planner; never use live balance.
+const double PIVOT_EXECUTION_REFERENCE_BALANCE = 1000000.0;
 const int CANDLE_ATR_PERIOD = 13;
 const int CANDLE_BROKER_CAP = 2048;
 const int CANDLE_VIRTUAL_CAP = 6144;

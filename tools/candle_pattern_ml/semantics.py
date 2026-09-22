@@ -13,6 +13,9 @@ def validate_details(run):
     point = number(run.manifest["point"])
     tick = number(run.manifest["tick_size"])
     tolerance = tick * Decimal("0.000001")
+    sizing_version = run.manifest["schema_version"] == "2"
+    reference_sizing = sizing_version and run.manifest["lot_type"] == "EXECUTION_LOT_REFERENCE_BALANCE_PERCENT"
+    risk_budget = number(run.manifest["reference_balance"]) * number(run.manifest["lot_size"]) / 100 if reference_sizing else None
 
     def near(actual, expected, message, absolute_tolerance=Decimal(0)):
         require(actual is not None and expected is not None and
@@ -30,7 +33,11 @@ def validate_details(run):
         require(int(row["sequence"]) > int(root["sequence"]), "Attempt precedes signal sequence")
         near(number(row["point"]), point, "Point changed")
         near(number(row["tick_size"]), tick, "Tick size changed")
-        require(number(row["requested_volume"]) > 0, "Missing requested volume")
+        requested_volume = number(row["requested_volume"])
+        require((reference_sizing and requested_volume is None) or
+                (requested_volume is not None and requested_volume > 0), "Missing requested volume")
+        if sizing_version and not reference_sizing:
+            near(requested_volume, number(run.manifest["lot_size"]), "Fixed requested volume differs from lot size")
         require(row["macro_window_id"] is not None, "Missing broker Macro membership")
         if row["entry_type"] == "ORIGINAL":
             require(row["decision_time_msc"] == root["decision_time_msc"], "Original is not at discovery")
@@ -132,6 +139,9 @@ def validate_details(run):
         outcome = run.db.execute("SELECT * FROM outcomes WHERE trial_id=?", (row["trial_id"],)).fetchone()
         require(outcome["sl"] == row["sl"] and outcome["tp"] == row["tp"], "Submitted protection changed")
         if lane != "BROKER":
+            if sizing_version:
+                broker = run.db.execute("SELECT * FROM trials WHERE attempt_id=? AND lane='BROKER'", (row["attempt_id"],)).fetchone()
+                require(all(row[key] == broker[key] for key in ("entry_price", "sl", "volume", "reference_entry_time_msc")), "Ratio changed shared execution sizing")
             require(row["eligibility"] in {"ELIGIBLE", "INELIGIBLE_GEOMETRY", "INELIGIBLE_DISTANCE", "INELIGIBLE_MONEY", "CAPACITY_REJECTED"}, "Unknown virtual eligibility")
             if row["eligibility"] == "ELIGIBLE":
                 require(outcome["entry_price"] == row["entry_price"] and outcome["entry_time_msc"] == row["reference_entry_time_msc"] and outcome["volume"] == row["volume"], "Virtual entry changed")
@@ -143,6 +153,11 @@ def validate_details(run):
             require(len(checks) == 1, "Expected one broker entry check")
             check = checks[0]
             accepted = row["eligibility"] == "ACCEPTED"
+            if reference_sizing:
+                stop_profit = number(check["stop_profit"])
+                require(not accepted or (stop_profit is not None and stop_profit < 0), "Missing reference stop risk")
+                if stop_profit is not None:
+                    require(stop_profit < 0 and -stop_profit <= risk_budget * Decimal("1.000000001"), "Submitted volume exceeds reference risk budget")
             require((check["reason"] == "ACCEPTED") == accepted, "Broker admission mismatch")
             require(check["entry_price"] == row["entry_price"] and check["sl"] == row["sl"] and check["tp"] == row["tp"] and check["volume"] == row["volume"], "Trial changed request")
             if accepted:

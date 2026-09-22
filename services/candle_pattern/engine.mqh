@@ -29,7 +29,19 @@ void CandleAttemptSnapshot(const CandleAttempt &attempt, const MqlTick &tick,
   CandleCell(row, atr_source > 0 ? CandleInteger((long)atr_source * 1000) : "\\N");
   CandleCell(row, "1");
   CandleCell(row, "1");
-  CandleCell(row, CandleNumber(Lot_Strategy_Size));
+  double requested_volume = Lot_Type == EXECUTION_LOT_FIXED_SIZE ? Lot_Strategy_Size : EMPTY_VALUE;
+  if(Lot_Type == EXECUTION_LOT_REFERENCE_BALANCE_PERCENT)
+  {
+    double entry = EMPTY_VALUE, sl = EMPTY_VALUE, tp = EMPTY_VALUE;
+    if(CandleGeometry(tick, attempt.direction, atr_completed, entry, sl, tp))
+    {
+      double calculated = 0.0, volume = 0.0, stop_profit = EMPTY_VALUE;
+      string reason = "";
+      CandleVolume(attempt.direction, entry, sl, tp, calculated, volume, stop_profit, reason);
+      if(CandleNumberValid(calculated) && calculated > 0.0) requested_volume = calculated;
+    }
+  }
+  CandleCell(row, CandleNumber(requested_volume));
   CandleContextCells(row, tick, attempt.direction);
   CandleFeatureCells(row, 0, Macro_Timeframe, tick);
   CandleFeatureCells(row, 1, Micro_Timeframe, tick);

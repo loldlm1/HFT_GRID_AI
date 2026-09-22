@@ -1,6 +1,6 @@
 # Candle Pattern Discovery
 
-Independent `CANDLE_PATTERN_ATR_V1` producer, schema `1`, feature set
+Independent `CANDLE_PATTERN_ATR_V1` producer, current schema `2`, feature set
 `candle_pattern_macro_micro_v1`. Pivot V14 intake and research remain separate.
 The [accepted proposal](../../candle-pattern-discovery-proposal.md) owns rationale;
 the [project index](../../docs/README.md) owns current acceptance status.
@@ -22,7 +22,18 @@ Expiry takes precedence over binary labels, while `broker_reason` retains the
 actual platform reason. A missing quote cannot fabricate a fill. Run-end censors,
 rejections, invalid geometry/distance/money and capacity states stay non-binary.
 
-Defaults: Macro H1, Micro M3, fixed 0.01 lots, export off. Export requires a fresh
+Defaults: Macro H1, Micro M3, `Lot_Type=EXECUTION_LOT_REFERENCE_BALANCE_PERCENT`,
+`Lot_Strategy_Size=0.01`, export off. Reference sizing risks 0.01 percent of the
+fixed 1,000,000 reference: a 100 account-currency quoted stop budget, independent
+of live balance. `EXECUTION_LOT_FIXED_SIZE` interprets the same size input as lots.
+Both modes reuse the unchanged Pivot `execution_lot_math.mqh`: reference volume
+is budget divided by one-lot `OrderCalcProfit` loss at the ATR stop, capped at the
+broker maximum, rounded down to its step, and rejected below its minimum. Each
+original and re-entry recalculates against its own fresh entry/ATR stop. Broker
+R1, parity R1 and virtual R2/R3 share the normalized volume; target ratio never
+resizes the position. Actual fills, gaps and costs can differ from quoted risk.
+
+Export requires a fresh
 safe run ID. Magic `26092201` and the `CANDLE_PATTERN_ATR_V1` comment isolate
 ownership. Restart refuses existing owned exposure; no adoption or live rollout
 is supported by this handoff. FOK requests receive fresh session, permissions,
@@ -50,6 +61,21 @@ owns allowance membership even if a fill crosses a decision-window boundary.
 An OK/NATURAL seal, exact counts and unchanged source files are mandatory.
 Fatal research errors stop only their tester; a failure marker invalidates a
 previous seal if final persistence fails. Retain failed runs; never correct in place.
+
+Schema 2 adds exact manifest keys `lot_type` and `reference_balance`; `lot_size`
+remains the configured input, interpreted by that mode. Ordered TSV columns,
+engine identity, feature set and directory namespace remain unchanged.
+`entry_attempts.requested_volume` is raw requested lots at the decision quote,
+never a percentage; it is null when reference sizing cannot be calculated at
+that moment. `execution_checks.volume` and `trials.volume` retain the fresh
+submitted normalized lots; outcomes retain actual filled volume. The independent
+broker calculation never consumes the research snapshot's sizing result.
+
+The reader explicitly accepts original fixed-only schema 1 and schema 2. It
+rejects unknown versions, missing/extra mode keys, invalid reference configuration,
+ratio-dependent sizing and submitted stop risk above the reference budget. Old
+runs are never relabeled or rewritten. Django consumer `95e5821` is still pinned
+to schema 1 and must adopt the updated contract before importing schema 2.
 
 ## Offline Research
 

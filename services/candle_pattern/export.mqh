@@ -138,7 +138,7 @@ bool CandleOpenExport()
     }
   }
   g_candle_export_open = true;
-  CandleManifest("schema_version", "1");
+  CandleManifest("schema_version", "2");
   CandleManifest("engine", "CANDLE_PATTERN_ATR_V1");
   CandleManifest("feature_set", "candle_pattern_macro_micro_v1");
   CandleManifest("run_id", Signal_Feature_Run_Id);
@@ -149,6 +149,8 @@ bool CandleOpenExport()
   CandleManifest("atr_shift", "1");
   CandleManifest("atr_multiplier", "1");
   CandleManifest("lot_size", CandleNumber(Lot_Strategy_Size));
+  CandleManifest("lot_type", EnumToString(Lot_Type));
+  CandleManifest("reference_balance", CandleNumber(PIVOT_EXECUTION_REFERENCE_BALANCE));
   CandleManifest("point", CandleNumber(_Point));
   CandleManifest("tick_size", CandleNumber(SymbolInfoDouble(_Symbol, SYMBOL_TRADE_TICK_SIZE)));
   CandleManifest("currency", AccountInfoString(ACCOUNT_CURRENCY));

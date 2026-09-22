@@ -18,7 +18,24 @@ its original 75 source hashes and Pivot EX5 remain unchanged. No deployment,
 production intake or live trading occurs. Human MT5 chart review and visual
 polish remain deferred by the user's accepted scope.
 
-Automated Candle acceptance:
+The lot-normalization follow-up updates Candle to `1.01`, export schema `2`.
+It uses Pivot's unchanged `ExecutionLotTypes` and execution lot planner. Default
+reference risk is 0.01 percent of a fixed 1,000,000 (100 account-currency units);
+fixed lots remain selectable. Originals/re-entries size from their own ATR stop,
+and R1/R2/R3 share that volume. Existing Pivot sources/binary are unchanged.
+The [Candle contract](../tools/candle_pattern_ml/README.md) defines schema 1/2
+compatibility. Django's schema-2 update and staging QA are planned separately,
+not executed by this producer follow-up.
+
+Follow-up validation: 33 Candle tests and MetaEditor MCP compilation pass with
+zero errors/warnings. Four new export runs pass strict semantics, exercising
+reference risk, fixed-step rounding, below-minimum refusal and maximum-volume
+capping with margin refusal. The reference export-on/off native reports match
+every order/deal and all statistics; only their two export input rows differ.
+Accepted reference stop risk is 99.20-100.00 for the configured 100 budget.
+Evidence and retained pre-fix binaries: `.codex-artifacts/candle-lot-normalization/`.
+
+Historical automated Candle 1.00/schema-1 acceptance:
 
 - Producer: 21 Candle and 51 existing V14 tests; MetaEditor MCP 6184 AVX2,
   zero errors/warnings. The unchanged 90,352-byte Candle EX5 has SHA-256

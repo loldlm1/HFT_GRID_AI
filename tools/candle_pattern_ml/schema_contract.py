@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections import OrderedDict
 from pathlib import Path
 
-SCHEMA_VERSION = "1"
+SCHEMA_VERSION = "2"
 ENGINE = "CANDLE_PATTERN_ATR_V1"
 FEATURE_SET = "candle_pattern_macro_micro_v1"
 NULL = r"\N"

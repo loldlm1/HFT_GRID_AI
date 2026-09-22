@@ -1,11 +1,12 @@
 #property strict
-#property version "1.00"
+#property version "1.01"
 #property description "Independent Harami/Engulfing discovery with ATR risk and Macro-duration exits."
 
 #include "services/core/enums.mqh"
 #include "services/trading_management/pivot_fractal_engine_config.mqh"
 #include "services/indicators/pivot_points_calculator.mqh"
 #include "services/candle_pattern/config.mqh"
+#include "services/trading_signals/execution_lot_math.mqh"
 #include "services/candle_pattern/schema.mqh"
 #include "services/candle_pattern/export.mqh"
 #include "services/candle_pattern/context.mqh"
@@ -24,6 +25,8 @@ int OnInit()
   if(!CandleTimeframeSupported(Macro_Timeframe) || !CandleTimeframeSupported(Micro_Timeframe) ||
      g_micro_seconds <= 0 || g_macro_seconds <= g_micro_seconds ||
      !CandleNumberValid(Lot_Strategy_Size) || Lot_Strategy_Size <= 0.0 ||
+     (Lot_Type != EXECUTION_LOT_FIXED_SIZE && Lot_Type != EXECUTION_LOT_REFERENCE_BALANCE_PERCENT) ||
+     (Lot_Type == EXECUTION_LOT_REFERENCE_BALANCE_PERCENT && Lot_Strategy_Size > 100.0) ||
      _Point <= 0.0 || !CandleCellValid(_Symbol)) return INIT_PARAMETERS_INCORRECT;
   for(int i = PositionsTotal() - 1; i >= 0; i--)
   {
@@ -42,8 +45,9 @@ int OnInit()
     CandleExportFail("TIMER_INITIALIZATION");
     return INIT_FAILED;
   }
-  PrintFormat("Candle discovery ready | Macro=%s | Micro=%s | ATR=13/1.0/shift1 | fixed SL/TP | lots=%.8f",
-              EnumToString(Macro_Timeframe), EnumToString(Micro_Timeframe), Lot_Strategy_Size);
+  PrintFormat("Candle discovery ready | Macro=%s | Micro=%s | ATR=13/1.0/shift1 | fixed SL/TP | lot_type=%s | lot_size=%.8f | reference_balance=%.2f",
+              EnumToString(Macro_Timeframe), EnumToString(Micro_Timeframe), EnumToString(Lot_Type),
+              Lot_Strategy_Size, PIVOT_EXECUTION_REFERENCE_BALANCE);
   return INIT_SUCCEEDED;
 }
 

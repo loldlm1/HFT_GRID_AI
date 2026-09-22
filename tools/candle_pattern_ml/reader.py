@@ -138,18 +138,26 @@ class CandleRun(AbstractContextManager):
             self.db.execute(f'CREATE INDEX "{table}_{key}" ON "{table}" ("{key}")')
         self.manifest = {r["key"]: r["value"] for r in self.rows("run_manifest.tsv")}
         self.summary = {r["key"]: r["value"] for r in self.rows("run_summary.tsv")}
+        schema = self.manifest.get("schema_version")
+        require(schema in {"1", SCHEMA_VERSION}, "Unsupported Candle schema version")
         expected = {
-            "schema_version": SCHEMA_VERSION, "engine": ENGINE, "feature_set": FEATURE_SET,
+            "schema_version": schema, "engine": ENGINE, "feature_set": FEATURE_SET,
             "atr_period": "13", "atr_shift": "1", "atr_multiplier": "1", "ratios": "1,2,3",
             "protection": "FIXED_SUBMITTED", "expiry": "ENTRY_PLUS_MACRO", "allowance": "BROKER_MACRO_CANDLE",
             "categories": "PATTERN_AND_RELATIONSHIP", "reentry": "BROKER_SL_ONCE", "broker_cap": "2048", "virtual_cap": "6144",
         }
-        require(set(self.manifest) == set(expected) | {"run_id", "symbol", "macro_seconds", "micro_seconds", "lot_size", "point", "tick_size", "currency"}, "Manifest keys do not match Candle contract")
+        sizing_keys = {"lot_type", "reference_balance"} if schema == "2" else set()
+        require(set(self.manifest) == set(expected) | sizing_keys | {"run_id", "symbol", "macro_seconds", "micro_seconds", "lot_size", "point", "tick_size", "currency"}, "Manifest keys do not match Candle contract")
         for key, value in expected.items():
             require(self.manifest.get(key) == value, f"Manifest mismatch: {key}")
         macro, micro = int(self.manifest["macro_seconds"]), int(self.manifest["micro_seconds"])
         require(0 < micro < macro, "Invalid timeframe ordering")
         require(number(self.manifest["point"]) > 0 and number(self.manifest["tick_size"]) > 0 and number(self.manifest["lot_size"]) > 0, "Invalid instrument/volume facts")
+        if schema == "2":
+            require(self.manifest["lot_type"] in {"EXECUTION_LOT_FIXED_SIZE", "EXECUTION_LOT_REFERENCE_BALANCE_PERCENT"}, "Invalid execution lot type")
+            require(number(self.manifest["reference_balance"]) == Decimal("1000000"), "Invalid fixed reference balance")
+            if self.manifest["lot_type"] == "EXECUTION_LOT_REFERENCE_BALANCE_PERCENT":
+                require(number(self.manifest["lot_size"]) <= 100, "Reference risk percentage out of range")
         require(self.manifest["run_id"] == self.path.name, "Directory/run identity mismatch")
         require(re.fullmatch(r"[A-Za-z0-9_-][A-Za-z0-9_.-]{0,63}", self.path.name) is not None and ".." not in self.path.name, "Unsafe run identity")
         require(set(self.summary) == {f"rows_{name}" for name in tuple(TABLE_COLUMNS)[:-1]} |

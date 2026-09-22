@@ -42,16 +42,15 @@ string CandlePermission(const MqlTick &tick, const int direction, const bool clo
   return "OK";
 }
 
-bool CandleVolume(double &volume)
+bool CandleVolume(const int direction, const double entry, const double sl, const double tp,
+                   double &requested_volume, double &volume, double &stop_profit, string &reason)
 {
-  volume = 0.0;
-  double minimum = 0.0, maximum = 0.0, step = 0.0;
-  if(!SymbolInfoDouble(_Symbol, SYMBOL_VOLUME_MIN, minimum) ||
-     !SymbolInfoDouble(_Symbol, SYMBOL_VOLUME_MAX, maximum) ||
-     !SymbolInfoDouble(_Symbol, SYMBOL_VOLUME_STEP, step) || minimum <= 0.0 || step <= 0.0 ||
-     Lot_Strategy_Size < minimum || Lot_Strategy_Size > maximum) return false;
-  volume = NormalizeDouble(MathFloor(Lot_Strategy_Size / step + 1e-9) * step, 8);
-  return volume >= minimum && volume <= maximum;
+  double budget = 0.0, expected_sl = 0.0, expected_tp = 0.0, ratio = 0.0, utilization = 0.0;
+  bool valid = ResolveExecutionVolumePlan(direction > 0 ? BULLISH : BEARISH, entry, sl, tp,
+                                          requested_volume, volume, budget, expected_sl,
+                                          expected_tp, ratio, utilization, reason);
+  stop_profit = valid ? -expected_sl : EMPTY_VALUE;
+  return valid;
 }
 
 bool CandleGeometry(const MqlTick &tick, const int direction, const double atr,
@@ -130,20 +129,16 @@ void CandleSubmit(const CandleAttempt &attempt, const MqlTick &decision_tick, co
   bool fresh = SymbolInfoTick(_Symbol, tick) && CandleTickValid(tick) && tick.time_msc >= decision_tick.time_msc;
   double entry = EMPTY_VALUE, sl = EMPTY_VALUE, tp = EMPTY_VALUE, volume = 0.0;
   bool geometry = fresh && CandleGeometry(tick, attempt.direction, atr, entry, sl, tp);
-  bool volume_ok = CandleVolume(volume);
+  double requested_volume = 0.0, stop_profit = EMPTY_VALUE;
+  string volume_reason = "INVALID_VOLUME";
+  bool volume_ok = geometry && CandleVolume(attempt.direction, entry, sl, tp,
+                                            requested_volume, volume, stop_profit, volume_reason);
   string distance_reason = geometry ? CandleStops(tick, attempt.direction, sl, tp) : "INVALID_GEOMETRY";
   string reason = !fresh ? "QUOTE_UNAVAILABLE" : (!geometry ? "INVALID_GEOMETRY" :
-                   (!volume_ok ? "INVALID_VOLUME" : CandlePermission(tick, attempt.direction, false)));
+                   (!volume_ok ? volume_reason : CandlePermission(tick, attempt.direction, false)));
   if(reason == "OK") reason = distance_reason;
   if(reason == "OK" && g_candle_broker_uncertain) reason = "BROKER_OWNERSHIP_UNRESOLVED";
-  double margin = EMPTY_VALUE, stop_profit = EMPTY_VALUE, target_profit = EMPTY_VALUE;
-  if(geometry && volume_ok)
-  {
-    stop_profit = CandleProfit(attempt.direction, volume, entry, sl);
-    target_profit = CandleProfit(attempt.direction, volume, entry, tp);
-  }
-  if(reason == "OK" && (!CandleNumberValid(stop_profit) || stop_profit >= 0.0 ||
-                        !CandleNumberValid(target_profit) || target_profit <= 0.0)) reason = "PROFIT_CALCULATION";
+  double margin = EMPTY_VALUE;
   if(reason == "OK" && (!OrderCalcMargin(attempt.direction > 0 ? ORDER_TYPE_BUY : ORDER_TYPE_SELL,
                                          _Symbol, volume, entry, margin) || !CandleNumberValid(margin) ||
                         margin < 0.0 || margin > AccountInfoDouble(ACCOUNT_MARGIN_FREE))) reason = "MARGIN";

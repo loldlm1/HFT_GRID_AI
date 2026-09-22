@@ -6,7 +6,7 @@ from pathlib import Path
 from ..schema_contract import CONTEXT_COLUMNS, FEATURE_COLUMNS, NULL, TABLE_COLUMNS, column_type
 
 
-def make_run(parent: Path) -> Path:
+def make_run(parent: Path, *, lot_type: str | None = None) -> Path:
     path = parent / "CANDLE_FIXTURE"
     path.mkdir()
     rows = {name: [] for name in TABLE_COLUMNS}
@@ -27,6 +27,10 @@ def make_run(parent: Path) -> Path:
         "expiry": "ENTRY_PLUS_MACRO", "allowance": "BROKER_MACRO_CANDLE", "categories": "PATTERN_AND_RELATIONSHIP",
         "reentry": "BROKER_SL_ONCE", "broker_cap": "2048", "virtual_cap": "6144",
     }
+    if lot_type is not None:
+        manifest.update(schema_version="2", lot_type=lot_type, reference_balance="1000000")
+        if lot_type == "EXECUTION_LOT_REFERENCE_BALANCE_PERCENT":
+            manifest["lot_size"] = "0.0005"
     for key, value in manifest.items():
         add("run_manifest.tsv", key=key, value=value)
     levels = dict(zip(("s3", "s2", "s1", "pp", "r1", "r2", "r3"), (70, 80, 90, 100, 110, 120, 130), strict=True))
