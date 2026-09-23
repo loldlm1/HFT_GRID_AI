@@ -16,20 +16,18 @@ Macro/Deep/Micro research and structural H1 1R broker lane.
 
 ## Skills And Execution
 
-- Use `$production-engineering-stack:mql5-production-engineering` for MQL5/MT5.
-- Use `$production-engineering-stack:python-django-production-engineering` for
-  Python tools; there is no Django app here.
-- Use `$codex-agentic-stack:token-saver-orchestrator` for RTK-first checks;
-  retain exact failure diagnostics.
-- Plans: `planner` for saved/sprints; `create-plan` for chat. Neither changes `/plan`.
-- Use `openai-docs` for Codex configuration. Discover helpers; no copied
-  skills/hooks or plugin-cache edits.
-- Planning/review is not execution permission. Retain accepted scope/decisions
-  across interruptions; record required questions in Planner state.
-- One agent/writer per worktree; delegation requires authorization. Preserve
-  unexpected edits, stop to reconcile ownership, and stage only reviewed paths.
-- Validate/commit each sprint before advancing: one commit and recorded rollback
-  parent. Do not amend or rewrite history.
+- `planner`: proposals/saved/sprint plans; native behavior for short chat plans.
+- `$codex-agentic-stack:on-demand-skills`: bounded metadata search; inspect one
+  pinned bundle for a concrete MQL5/Python gap under local contracts.
+- `$codex-agentic-stack:understand-anything`: scoped external graphs for substantial
+  unfamiliar work; reuse fresh results, confirm source and report coverage gaps.
+- `$codex-agentic-stack:token-saver-orchestrator`: RTK-first, exact failure evidence.
+- `openai-docs`: Codex guidance. No copied skills/hooks or plugin-cache edits.
+- Planning/review grants no execution. Retain scope, answers and pending questions
+  across interruptions using Planner state.
+- One agent/writer per worktree; delegate only if authorized. Stop on unexpected
+  edits; preserve others' work and stage reviewed paths. Validate/commit each sprint
+  before advancing; record rollback parents. Never amend/rewrite history.
 
 ## Critical Runtime Boundaries
 
