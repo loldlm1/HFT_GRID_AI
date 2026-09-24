@@ -6,7 +6,9 @@ This index owns changing status; guides own procedures and dated evidence keeps
 its original results.
 
 The current [MQL5 feature framework plan](../mql5-model-feature-framework-plan.md)
-is authorized for six ordered sprints. Sprint 1 froze the
+is complete across all six sprints. The [producer handoff](research/model-feature-producer-handoff.md)
+defines intake, legacy mapping, accepted source/binary pins and the private
+consumer evidence bundle for later backend planning. Sprint 1 froze the
 [new producer contract](architecture/model-feature-dataset.md) and accepted
 baselines. Work is confined to
 this repository. Django implementation and live rollout remain excluded.
@@ -51,12 +53,24 @@ Single-pair one-week native times: Pivot 17.836 -> 15.044 seconds, Candle
 2.545 -> 2.635 seconds. Resource receipts distinguish sampled RSS from process
 lifetime HWM; these checks establish no full-history or speed guarantee.
 Exact final source/EX5 pins and evidence: `s5/build-b03.json` and
-`s5/validation.json` within the execution receipt directory below. Human chart,
-full-history and broker-feed gates remain open; Sprint 6 handoff is pending.
+`s5/validation.json` within the execution receipt directory below.
+Sprint 6 publishes the producer handoff and machine-readable contract, valid and
+intentionally invalid synthetic exports, clock/indicator references, legacy map
+and source/binary/native-run checksums. Current guides use the shared family;
+the completed Candle plan is archived with Git recovery. The final documentation
+checks reuse unchanged Sprint 5 source/binary and automated evidence.
+All 21 accepted dataset hashes match; four representative exports pass fresh
+strict validation. Two valid synthetic exports pass and six intentional
+header/seal/parity failures are refused. The final source/include and binary
+hashes still match the accepted B03 pins. No recompile is required for S6's
+documentation-only change. Its receipts and checksums are under `s6/`.
+Human chart, full-history and broker-feed gates remain open.
 Execution receipts: `.codex-artifacts/model-feature-framework/`.
 
+## Historical Candle Delivery
+
 MT5 M1-M4 delivery and P1-P4 optimization are complete. The independent
-[completed Candle Pattern Discovery execution](../candle-pattern-discovery-plan.md) delivers
+[completed Candle Pattern Discovery execution](plans/archive/candle-pattern-discovery-plan.md) delivered
 the separate EA, eight-file dataset, offline contract and PostgreSQL research. Its
 [accepted proposal](../candle-pattern-discovery-proposal.md) retains the design.
 The [Candle tool contract](../tools/candle_pattern_ml/README.md) owns its separate
@@ -64,7 +78,9 @@ eight-file schema, fixed ATR execution, context and causal first-N selection.
 
 Producer `183585d` added `Candle_Pattern_Discovery.mq5` (`1.00`); consumer
 `95e5821` is now merged into local `main` at the original application checkout,
-`/home/admin/python_projects/hft-grid-ai-orchestrator`. Historical consumer runtime
+`/home/admin/python_projects/hft-grid-ai-orchestrator`. These are historical
+facts from the earlier delivery, not backend changes or acceptance in the shared
+framework refactor. Historical consumer runtime
 and evidence remain retained in its earlier Candle worktree. V14 source behavior,
 its original 75 source hashes and Pivot EX5 remain unchanged. No deployment,
 production intake or live trading occurs. Human MT5 chart review and visual
@@ -346,7 +362,8 @@ git show 879b39c:docs/README.md
 The [accepted shared proposal](../pivot-fractal-v14-feature-capture-proposal.md)
 and archived M1-M4 plan remain as historical references used by the Django plan;
 their planning-era instructions are not active MT5 work. The frozen V14 producer
-handoff, optimized build pin and selected-source gates remain authoritative.
+handoff, optimized build pin and selected-source gates remain authoritative for
+historical V14 runs. New-family intake uses the shared producer handoff.
 
 The completed reliability sprint commits are `9215df8`, `4360448`, `629fdf5`,
 `06ecfdb`, starting from rollback `c9ebb24`. The earlier guidance cleanup commits

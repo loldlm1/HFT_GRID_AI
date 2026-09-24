@@ -11,7 +11,7 @@ Engines: `PIVOT_MACRO_V1` and `CANDLE_PATTERN_ATR_V2`.
 - [Status, plan and evidence](docs/README.md).
 - [Runtime contract](docs/architecture/market-data-broker-executor.md): read before MQL5 changes.
 - [Validation](docs/environment/mt5-agentic-workflows.md): paths, MCP and checks.
-- [V14 research](tools/deterministic_signal_ml/README.md).
+- [Producer handoff](docs/research/model-feature-producer-handoff.md).
 - [Exness preparation/import/comparison](tools/exness_tick_history/README.md).
 
 ## Skills And Execution
@@ -42,7 +42,7 @@ Engines: `PIVOT_MACRO_V1` and `CANDLE_PATTERN_ATR_V2`.
   (`Enable_Signal_Feature_Export`, `Signal_Feature_Run_Id`), and debug
   (`Enable_Logs`, `Enable_File_Logs`). Reference-balance lot mode defaults to
   `0.01` percent of fixed `1,000,000`, never live balance.
-- Never restore removed inputs/features: licensing, account/protection controls,
+- Never restore removed Pivot controls: licensing, account/protection controls,
   trading hours, spread/direction/concurrency selectors, multi-leg risk, partial TP,
   daily limits, lot sequences, Bands/re-entry/model policies or compatibility aliases.
 - Broker time owns causality, sessions and lifecycles. Pivots use previous completed
@@ -54,20 +54,21 @@ Engines: `PIVOT_MACRO_V1` and `CANDLE_PATTERN_ATR_V2`.
 - Process broker terminal transitions before discovery. Export,
   features, virtual state and offline models can never authorize, deny,
   delay, resize, duplicate, close or modify the real broker order.
-- Only structural H1 1R may `OrderSend`: one FOK request per consumed origin.
+- Pivot: only structural Macro 1R may `OrderSend`, one FOK per consumed origin.
   Freshly recheck session, symbol/hedging mode, permissions,
   quotes, geometry, stops/freeze, volume, margin/profit calculations and `OrderCheck`.
   Use `HFT_GRID_AI_PIVOT_MACRO_V1` ownership; never adopt older-engine positions.
 - Immutable broker SL/TP; TP is one fresh-quote price-distance R from the
   structural stop. No trailing, break-even, partial close, resize or
   `TRADE_ACTION_SLTP`. Each accepted request owns one exact parity regardless of research eligibility.
-- Eight Macro lanes: STRUCTURAL/MIDPOINT_50 times 1R/2R/3R/5R. Bid touches the
-  halfway level, armed while any structural lane survives bar rollover;
-  untouched rows become NOT_TRIGGERED when the last structural lane exits.
-- Preserve all eight Macro lanes, midpoint Bid triggers, Ask/Buy and Bid/Sell
-  entries, last-structural-exit no-touch handling, and exact accepted-request parity.
+- Eight Pivot lanes: STRUCTURAL/MIDPOINT_50 times 1R/2R/3R/5R. Bid owns midpoint
+  touch; buys enter at Ask and sells at Bid. Keep midpoints armed across rollover
+  while any structural lane survives; untouched lanes then become NOT_TRIGGERED.
+  Preserve exact accepted-request parity.
   Invalid geometry/money, capacity refusal and run censors never become losses.
   H1/parity active-state cap remains 2048. Deep removal never changes broker policy.
+- Candle retains independent ATR13 shift-1 stops, both broker directions, one
+  confirmed-SL re-entry and per-entry Macro-duration expiry; shared capture is read-only.
 - Tick/deal clocks retain actual milliseconds; native scheduling stays causal.
   Completed durations are exact; no-touch/ineligible/censored durations are null.
   Broker close time differs from later observation; retrospective facts are not
@@ -87,9 +88,8 @@ Engines: `PIVOT_MACRO_V1` and `CANDLE_PATTERN_ATR_V2`.
 - Failed research latches first diagnostics, stops only its tester and seals
   FAILED/CENSORED when writable. Release research state, preserve broker ownership.
   Shared capture receives configuration; it cannot import engine inputs/state.
-- The bounded parent chronology audit is separate from full semantic acceptance.
-  Recovery uses a distinct run plus retained correction/provenance sidecars,
-  preserving original data and binary labels; it is not a new tester run.
+- Historical recovery retains originals, labels and correction/provenance sidecars.
+  Chronology is separate from semantic acceptance; recovery is not a tester run.
 
 ## Source And Validation
 

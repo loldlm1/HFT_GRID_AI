@@ -1,7 +1,7 @@
 # Plan: MQL5 Engine Feature Framework
 
 - **Generated:** 2026-09-24
-- **Status:** Executing - Sprint 5
+- **Status:** Completed - six sprints; operational gates remain open in the project index.
 - **Execution authorization:** User requested execution of all six sprints on 2026-09-24, including the planned validation and commit gates.
 - **Proposal:** Not requested; this plan implements the decisions from the discussion.
 - **Complexity:** High
@@ -453,6 +453,14 @@ retained matching binaries, not active runtime compatibility aliases.
   graphs do not establish complete MQL5 dependencies. Entry aggregators, Deep
   references, feature formulas, Candle clocks/context and structure transitions
   were confirmed directly in source.
+- Final implementation refresh on 2026-09-24: `services` has 44 file-only MQL
+  nodes and no parsed edges; `tools/model_dataset` has 19 files, 66 nodes,
+  75 edges, 18 parsed Python files and 41 unresolved imports. The services
+  artifact above is refreshed. The new reader artifact is
+  `/home/admin/.cache/codex-skill-stack/graphs/c999b9f304aaa21409c57bb0c34ed7a085bb2f0b8c6e601a4803ba2685aa965e/knowledge-graph.json`.
+  The pinned helper revision is unchanged. Source/binary evidence is independently
+  bound to S5 `c0a1189`; exact 40-file Pivot/17-file Candle include closures and
+  manual broker-boundary/deletion review cover the MQL graph limitation.
 
 ### 5.2 Official references and tool routes
 
@@ -1081,14 +1089,24 @@ no subagent delegation and no parallel writer workstream in this plan.
 
 - [x] S1: Contract, baselines and current-plan ownership complete; commit gate recorded in the execution journal.
 - [x] S2: Strict shared validator, registry and fixtures complete; commit gate recorded in the execution journal.
-- [ ] S3: Candle adoption, shared services and required acceptance committed.
-- [ ] S4: Pivot migration/Deep removal and preservation evidence committed.
-- [ ] S5: Cross-engine native/fault/resource acceptance committed.
-- [ ] S6: Maintained documentation and producer handoff committed.
-- [ ] Each sprint has exactly one commit and a recorded rollback parent.
-- [ ] New snapshots contain confirmed and live forming M1 structure separately.
-- [ ] Pivot zones include trigger relation to tested support/resistance.
-- [ ] Legacy datasets/readers and operator evidence remain intact.
-- [ ] No Django repository or runtime has been modified.
-- [ ] Human chart, broker-equivalence and full-history limits remain explicit.
-- [ ] No live trading, deployment or production intake has been performed.
+- [x] S3: Candle adoption, shared services and required acceptance committed.
+- [x] S4: Pivot migration/Deep removal and preservation evidence committed.
+- [x] S5: Cross-engine native/fault/resource acceptance committed.
+- [x] S6: Maintained documentation and producer handoff committed.
+- [x] Each sprint has exactly one commit and a recorded rollback parent.
+- [x] New snapshots contain confirmed and live forming M1 structure separately.
+- [x] Pivot zones include trigger relation to tested support/resistance.
+- [x] Legacy datasets/readers and operator evidence remain intact.
+- [x] No Django repository or runtime has been modified.
+- [x] Human chart, broker-equivalence and full-history limits remain explicit.
+- [x] No live trading, deployment or production intake has been performed.
+
+Execution receipts are retained in
+`.codex-artifacts/model-feature-framework/execution-journal.md`, with each
+sprint's validation and rollback parent. Commits S1-S5 are `8a6381a`, `4bbfafe`,
+`f5920fb`, `5394705` and `c0a1189`; S6 is this documentation-completion commit,
+whose exact SHA is recorded in the journal after commit. The accepted runtime
+source remains S5, with matching B03 binaries; S6 changes documentation only.
+The [project index](docs/README.md) owns current acceptance and remaining gates;
+the [producer handoff](docs/research/model-feature-producer-handoff.md) locates
+the final contract, examples and exact source/binary/native-run receipts.

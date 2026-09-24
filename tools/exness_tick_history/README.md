@@ -476,7 +476,7 @@ a new source request identity. If immutable bytes are corrupted or missing,
 restore the matching checksum from a retained backup or use a new data root
 and source version; do not edit the ledger to claim repaired evidence.
 
-After an operator-owned tester run, `research-provenance` records dataset,
+For historical V14 exports, `research-provenance` records dataset,
 export, custom-symbol, clock/spec and EA source/binary hashes outside V14:
 
 ```bash
@@ -494,8 +494,13 @@ and `settings`. Allowed settings are `model`, `start`, `end`, `warmup_start`,
 This sidecar records provenance only; it never certifies a tester run, writes
 inside the V14 folder, trains a model or activates broker execution.
 Its own schema is version 2, with `v14_run_id` and `v14_run_files_written`;
-the producer dataset schema remains 14. The old CLI option is removed. Retained
+that historical producer dataset schema remains 14. The old CLI option is removed. Retained
 historical sidecars remain immutable and are not converted or loaded as V14.
+
+The current shared model dataset has separate
+[producer pins and handoff receipts](../../docs/research/model-feature-producer-handoff.md).
+This V14-specific command does not register or validate the new dataset family;
+source preparation/import behavior and its evidence remain unchanged.
 
 See the [current project index](../../docs/README.md) for accepted source,
 custom-symbol, tester and recovery evidence and remaining operational gates.

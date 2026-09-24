@@ -19,8 +19,8 @@ The index is removed when the context closes; source exports are read-only.
 rtk test .venv/bin/python -m unittest discover -s tools/model_dataset/tests -t . -p 'test_*.py'
 ```
 
-During Sprint 2, generate the unused header under the ignored evidence directory.
-Sprint 3 wires the header into the real Candle EA before any native compile claim.
+The generated header is used by both EAs. Change the typed descriptor first,
+regenerate/check the header and JSON contract, then recompile affected producers.
 Report paths must be outside the sealed run. An invalid/incompatible source exits
 nonzero. No report implies neither acceptance nor permission to repair a dataset.
 Use fresh run IDs for corrected exports and retain the failed original.
@@ -41,7 +41,16 @@ New engines register typed extension tables with an explicit core grain, engine
 identity, extension version and outcome policy. They reuse common descriptors
 and shared providers. They must supply engine semantic checks and fixtures before
 becoming an accepted profile; an unregistered descriptor is rejected on intake.
-The third descriptor in tests is synthetic and is not a trading engine.
+The third descriptor in tests is synthetic and is not a trading engine. Follow
+the [integration checklist](../../docs/research/model-feature-producer-handoff.md#adding-an-engine)
+and retain independent acceptance for each engine's broker behavior.
+
+The [producer handoff](../../docs/research/model-feature-producer-handoff.md) maps
+legacy fields and versions and locates accepted native receipts. Its ignored
+`s6/` bundle contains the machine-readable contract, valid synthetic examples,
+intentional refusal examples, source/EX5/run pins and checksums. No private native
+dataset is a tracked fixture. A failed example remains failed; never repair a
+source in place to make validation pass.
 
 Historical Pivot V14 and Candle 1/2/3 sources continue to use their existing local
 readers. This package cannot read those older datasets under new semantics.

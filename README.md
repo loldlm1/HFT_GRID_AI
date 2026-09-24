@@ -1,41 +1,47 @@
 # HFT Grid AI
 
-MetaTrader 5 Expert Advisor for causal Macro pivot collection, nested Deep research,
-paired-timeframe indicator capture, and one structural Macro 1R broker execution
-lane. The entrypoint is `HFT_Grid_AI.mq5`.
+Reusable model-feature capture for independent MetaTrader 5 strategy engines.
+Pivot and Candle share indicators, clocks, pivot context and immutable dataset
+services while retaining their own broker and virtual-lifecycle rules.
 
-| Identity | Value |
-| --- | --- |
-| EA property version | `1.40` |
-| Export schema | Strict `14`, twelve TSV files |
-| Signal source | `PIVOT_FRACTAL_V2` |
-| Default periods | Micro M3, Deep M10, Macro H1 |
+| Producer | Engine | Dataset |
+| --- | --- | --- |
+| `HFT_Grid_AI.mq5` | `PIVOT_MACRO_V1` | Common schema 1, ten TSVs |
+| `Candle_Pattern_Discovery.mq5` | `CANDLE_PATTERN_ATR_V2` | Common schema 1, eleven TSVs |
 
-Classic pivots come from previous completed broker candles. Macro origins capture
-Macro + Deep features and eight structural/midpoint research lanes. Deep events
-capture Deep + Micro features in both directions during active Macro lifecycles,
-with ALIGNED/OPPOSED parent links and shared 1R/2R/3R trials. The independently
-checked broker lane uses FOK, immutable structural protection and a fresh-quote
-1R target. Research and export never control live broker execution. Fatal research
-errors stop the Strategy Tester and invalidate its dataset.
+Both EAs are version `2.00`. Default roles are Macro H1 / Micro M3, with supported
+native periods satisfying `Micro < Macro`. Each role captures shifts 0..5 of
+Stochastic 5/3/3 Close/Close K/D, ordinary weighted-price percent B/SMA5 and
+ATR13/SMA5. A separate fixed M1 source captures confirmed and live forming
+Stochastic structure, including candidates not yet drawn by the reference chart
+indicator. Macro pivot intervals and the signal's relation to the latest tested
+support/resistance use captured Bid.
 
-Offline Python tools validate V14, build typed native-grain datasets, audit support
-and leakage, and train explicitly selected H1 or deep candidates. The separate
-Exness source tool prepares historical ticks and records native/broker comparison
-evidence. Neither tool creates a runtime model or authorizes live deployment.
+Pivot uses previous completed native Macro candles, eight structural/midpoint
+virtual lanes and one checked FOK structural 1R broker lane. Its active Deep path
+is removed. Candle discovers Micro Harami/Engulfing patterns, uses independent
+ATR stops, trades both directions, allows one confirmed-SL re-entry and enforces
+each entry's Macro-duration expiry. Both keep submitted SL/TP immutable.
 
-The independent `Candle_Pattern_Discovery.mq5` adds Micro Harami/Engulfing
-discovery, ATR stops, both directions and one broker-SL re-entry. Its separate
-[Candle contract and tools](tools/candle_pattern_ml/README.md) capture Macro/Micro
-features and support independent pattern/direction research with first-N entry
-allowances. Pivot V14 retains its existing entrypoint and dataset.
+Exports live under `Common/Files/MQL5ModelDatasetV1/runs/<run_id>/`. Raw broker
+clocks govern causality; the versioned Exness analysis clock is an export-only
+view. Prices retain raw precision, actual milliseconds remain distinct from
+second-only clocks, and unknowns are explicit. Optional capture never controls
+orders. Fatal research errors invalidate the dataset and stop only its tester.
+
+The shared local Python reader validates this family. Historical Pivot V14 and
+Candle 1/2/3 readers and datasets remain separate. No Django changes or runtime
+model integration are included.
 
 ## Where To Go
 
 - [Current status and evidence](docs/README.md): active work, accepted inputs and remaining gates.
 - [Runtime contract](docs/architecture/market-data-broker-executor.md): inputs, pivots, lanes, broker safety, time and schema.
+- [Shared dataset contract](docs/architecture/model-feature-dataset.md): fields, feature meaning, grains and new-engine integration.
+- [Producer handoff](docs/research/model-feature-producer-handoff.md): version mappings, examples, pins and later backend planning.
 - [Environment and validation](docs/environment/mt5-agentic-workflows.md): setup, compilation and existing checks.
-- [V14 research tool](tools/deterministic_signal_ml/README.md): validate, build, audit and train.
+- [Shared dataset reader](tools/model_dataset/README.md): validate current exports and generate the machine contract.
+- [Historical V14 research](tools/deterministic_signal_ml/README.md) and [Candle research](tools/candle_pattern_ml/README.md): retained readers for old exports.
 - [Exness source tool](tools/exness_tick_history/README.md): prepare, import, capture and compare.
 - [Project instructions](AGENTS.md): maintenance and contribution boundaries.
 

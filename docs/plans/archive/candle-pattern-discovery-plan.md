@@ -1,11 +1,17 @@
 # Candle Pattern Discovery Execution
 
+Historical execution record, completed 2026-09-22 and archived 2026-09-24.
+Original recovery: `c0a1189:candle-pattern-discovery-plan.md`. The dated scope,
+decisions and receipts below remain historical; do not restart this plan.
+The [shared producer plan](../../../mql5-model-feature-framework-plan.md) owns
+the subsequent MQL5-only refactor.
+
 Recorded 2026-09-22 from the accepted chat plan and the user's instruction to
 execute the whole plan. Complexity: high. This is the execution record of that
 plan, grouped into four commit checkpoints; it does not expand its scope.
 
-The [proposal](candle-pattern-discovery-proposal.md) owns the design rationale.
-The [project index](docs/README.md) owns current progress. Private evidence and
+The [proposal](../../../candle-pattern-discovery-proposal.md) owns the design rationale.
+The [project index](../../README.md) owns current progress. Private evidence and
 commit/rollback receipts live in `.codex-artifacts/candle-discovery/`.
 
 ## Fixed Decisions And Scope

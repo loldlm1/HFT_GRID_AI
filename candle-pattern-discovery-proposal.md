@@ -4,7 +4,7 @@ Prepared 2026-09-22 from the discussion and MT5 baseline
 `2bc95d39d9e6ef2954bc3ffebef145dbc9d81d53`.
 
 **Stage:** Accepted design brief. Subsequent answers and execution authorization
-are recorded in the [execution record](candle-pattern-discovery-plan.md).
+are recorded in the [archived execution record](docs/plans/archive/candle-pattern-discovery-plan.md).
 The [project index](docs/README.md) owns current V14 delivery and validation status.
 
 ## Problem And Outcome

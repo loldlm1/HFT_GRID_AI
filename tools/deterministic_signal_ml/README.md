@@ -1,12 +1,14 @@
 # Deterministic Pivot V14 Research
 
-This directory validates strict Pivot Fractal V14 exports and builds typed,
+This historical tool validates strict Pivot Fractal V14 exports and builds typed,
 grain-aware offline research artifacts for `PIVOT_FRACTAL_V2`. It never loads a
 model into MT5, authorizes execution, or emits a runtime-compatible artifact.
 
-The [runtime contract](../../docs/architecture/market-data-broker-executor.md)
-owns pivot/entry/stop/lifecycle behavior; the [current index](../../docs/README.md)
-selects accepted source and evidence. Export, virtual/deep state and offline
+Current producers use the [shared dataset reader](../model_dataset/README.md).
+The historical V14 runtime contract is recoverable at
+`f5920fb:docs/architecture/market-data-broker-executor.md`; the
+[current index](../../docs/README.md) retains accepted source and evidence.
+Export, virtual/deep state and offline
 artifacts cannot authorize, deny, delay, resize, duplicate, close or modify the
 broker lane. Missing features affect research completeness only.
 

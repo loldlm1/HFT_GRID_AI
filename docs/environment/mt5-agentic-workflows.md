@@ -183,13 +183,14 @@ RSS for this case. One paired interval establishes neither a speed guarantee nor
 full-history memory stability. If MT5 advances an early start to the interval's
 end, record its zero-tick rejection and predeclare a later partial-warmup case.
 
-### Independent Candle Acceptance
+### Historical Candle Acceptance
 
-Compile `Candle_Pattern_Discovery.mq5` through the same MetaEditor preflight and
-AVX2 gate, preserving the Pivot binary. Candle defaults are H1/M3 and export off;
-use a fresh `Signal_Feature_Run_Id` for every export run under
-`Common\Files\CandlePatternV1\runs\`. Write tester `.set` files without a UTF-8
-BOM, with a comment first and native `value||start||step||stop||N` values.
+This procedure belongs to Candle 1.00-1.02 and its retained eight-file exports
+under `Common\Files\CandlePatternV1\runs\`. Current producer work uses the shared
+acceptance procedure above. Compile historical source only with its matching
+include closure and retained binary while the owned tester is idle. Write tester
+`.set` files without a UTF-8 BOM using native values; retained settings may use
+`value||start||step||stop||N` form, while the shared native matrix uses `name=value`.
 Validate the actual manifest periods after execution; settings-file intent alone
 does not establish which inputs MT5 loaded.
 
@@ -201,9 +202,10 @@ cells, not only aggregate profit. Fault injection targets only a new owned run;
 retain any moved source file outside its strict directory and verify failed seal
 and reader refusal. Existing operator runs are never fault fixtures.
 
-The [current index](../README.md) records acceptance and limits. Consumer checks
-use its disposable PostgreSQL/Redis and native Chromium runners; no production
-or staging intake/deployment is implied. Human MT5 visual work remains deferred.
+The [current index](../README.md) retains the dated consumer acceptance and its
+limits. It supplies no consumer acceptance for the new shared family; plan that
+integration separately in the backend repository. Human MT5 visual work remains
+deferred.
 
 ### Existing Python Environment
 
@@ -221,6 +223,8 @@ Run affected existing contracts and syntax checks after Python/fixture changes:
 
 ```bash
 rtk test .venv/bin/python -m unittest discover -s tools/deterministic_signal_ml/tests -p 'test_*.py'
+rtk test .venv/bin/python -m unittest discover -s tools/model_dataset/tests -t . -p 'test_*.py'
+rtk test .venv/bin/python -m unittest discover -s tools/candle_pattern_ml/tests -t . -p 'test_*.py'
 rtk test .venv/bin/python -m unittest discover -s tools/exness_tick_history/tests -p 'test_*.py'
 .venv/bin/python -m compileall -q tools/deterministic_signal_ml tools/exness_tick_history
 ```
@@ -234,7 +238,8 @@ provenance sidecars inside a strict twelve-file source run.
 
 ### Selected Staging Source
 
-The current index identifies the user-selected MT5 source folder; the frozen M4
+This retained V14 procedure does not cover `MQL5ModelDatasetV1`. The current
+index identifies the user-selected historical MT5 source folder; the frozen M4
 handoff continues to own schema/fixture pins and historical acceptance. A selected
 operator folder is not import-ready while its TSVs are still growing. Do not stop
 the operator run, replace its binary, truncate tables or synthesize a successful
