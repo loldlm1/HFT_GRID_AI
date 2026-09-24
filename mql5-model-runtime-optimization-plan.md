@@ -1,7 +1,7 @@
 # Plan: MQL5 Model Runtime Optimization
 
 - **Generated:** 2026-09-24
-- **Status:** In progress - Sprint 2.
+- **Status:** In progress - Sprint 3.
 - **Execution authorization:** The user requested execution of all five sprints,
   including the planned validation and commit gates, on 2026-09-24. Earlier
   authorization to stop the current Candle tester if needed remains applicable.
@@ -564,7 +564,7 @@ decisions and record any newly required question as a blocker before yielding;
 continue only independent authorized work while it is unanswered.
 
 - [x] Execute S1, validate, create exactly one commit and record its parent.
-- [ ] Execute S2 only after S1, with the same validation/commit/rollback gate.
+- [x] Execute S2 only after S1, with the same validation/commit/rollback gate.
 - [ ] Execute S3 only after S2, with the same gate.
 - [ ] Execute S4 only after S3, with the same gate.
 - [ ] Execute S5 only after S4 and record full-history outcomes for both engines.
@@ -607,6 +607,7 @@ continue only independent authorized work while it is unanswered.
 
 ### Sprint 2
 
+- Commit: `c9ee8b4` (`docs(perf): record shared feature cost limits`).
 - Measurement-only disposition permitted by the sprint contract; no runtime
   change or speed claim. Rollback parent: `d7d7097`.
 - `s2/assessment.json` records source inspection and early/late profile costs.
@@ -627,3 +628,54 @@ continue only independent authorized work while it is unanswered.
 - Validation reuses identical source/EX5/include pins and S1 native strict,
   prefix and broker receipts. Existing structure/feature tests and whitespace
   checks complete this documentation-only gate; compilation is not required.
+
+### Sprint 3
+
+- Implementation and validation passed; rollback parent: `c9ee8b4`.
+  Commit gate follows the reviewed diff.
+- The canonical descriptor generates unique table-qualified raw-field IDs,
+  clock-companion offsets and bounded role/shift/level groups. Checked indexed
+  access rejects wrong tables, types and offsets. Field choices and layouts are
+  prepared once; row strings reserve capacity before checked appends.
+- The indexed-only increment passes exact native day TSV/broker/statistics and
+  strict validation for both engines (`s3/indices-validation.json`). The shared
+  suite passes 76 tests, including generated field/clock-layout checks.
+- Byte batches retain at most 256 rows or 1 MiB per used table. One reusable
+  encoding scratch array is bounded by descriptor width and existing field
+  length limits. Oversized rows split into bounded writes; final partial
+  batches and empty-table seal rechecks remain explicit. Allocation, encoding,
+  copying and writes are checked; failed Pivot cleanup resets released buffers.
+  Bounds were recorded before implementation in `s3/writer-design.json`.
+- Both batch B02 EAs compile on MetaEditor 6184 AVX2 with zero errors/warnings;
+  source and regenerated binary metadata: `s3/build-batch-b02.json`. Retain the
+  earlier failed Pivot cleanup compile separately; it is not an accepted build.
+  The B02 day byte/broker/strict gates pass (`s3/batch-day-validation.json`).
+- Source review and unchanged include topology: `s3/source-review.json`.
+  Official `StringReserve`/`StringAdd` references were fetched on 2026-09-25;
+  their cached responses are in `s3/`. No new dependency, test EA or harness.
+- `s3/performance.json`: three alternating release pairs after warmup for both
+  week and month. Candle medians `1.001 -> 0.800 s` / `4.727 -> 3.807 s`
+  (20.1% / 19.5% lower). Pivot `12.597 -> 12.389 s` / `58.600 -> 58.468 s`
+  remain within noise; no Pivot speedup is claimed for shared changes.
+- `s3/batch-validation.json` passes 89 exact TSV, broker, statistics, prefix
+  and strict checks, including H2/M3, H1/M1, partial warmup, gold/FX seasons,
+  Candle M6, export-off, Visual and 100 ms equivalence. Strict acceptance
+  continues to use zero delay. Historical B03 dataset folders were unavailable
+  on first current lookup; recreate those baselines with the immutable S1
+  current binaries and retain the original reports/configurations.
+- `s3/fault-validation.json`: six missing/header/final-seal cases retain one
+  first error, failed seals and rejected intake. `s3/reuse-validation.json`:
+  two reused IDs refuse startup and preserve all source hashes/strict validity.
+- Isolated copies of the existing EAs with 2-row/1024-byte buffers exercise
+  298 Candle and 58 Pivot multi-chunk rows and partial batches. Both compile
+  cleanly and retain exact dataset/broker facts; only the declared operational
+  `buffer_peak` changes to 2 (`s3/buffer-stress-validation.json`). Release B02
+  remains unchanged. No new EA entrypoint or MQL test harness is introduced.
+- Native month row bytes plus the writer's checked batch boundaries imply
+  96,491 -> 386 Candle / 31,200 -> 128 Pivot data-write API calls; these are
+  source-derived counts, not OS syscall samples. Row peaks remain 256 and
+  staged byte peaks stay below 1 MiB (`s3/writer-boundary-evidence.json`).
+- `s3/static-validation.json` verifies unchanged canonical JSON contract,
+  regenerated MQL header, source/EX5 pins and local links. OS allocation and
+  short-write faults retain focused checked-path review; no native injection
+  hook exists. All broker logic/callback ordering remains unchanged.

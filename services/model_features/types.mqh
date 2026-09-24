@@ -4,6 +4,7 @@
 const string MODEL_NULL = "\\N";
 const string MODEL_STORAGE_ROOT = "MQL5ModelDatasetV1";
 const int MODEL_FLUSH_ROWS = 256;
+const int MODEL_BATCH_BYTES = 1024 * 1024;
 const int MODEL_WARMUP_LIMIT = 4096;
 const int MODEL_CATCHUP_LIMIT = 256;
 const int MODEL_AUDIT_SNAPSHOTS = 32;
@@ -80,6 +81,10 @@ struct ModelLayout
   string names[];
   string types;
   string nullable;
+  string choices[];
+  int clocks[];
+  uchar header[];
+  int header_bytes;
 };
 ModelLayout g_model_layout[MODEL_FILE_COUNT];
 
@@ -90,8 +95,21 @@ bool ModelInitLayouts()
     int count = StringSplit(ModelHeader(file), '\t', g_model_layout[file].names);
     g_model_layout[file].types = ModelTypes(file);
     g_model_layout[file].nullable = ModelNullability(file);
+    g_model_layout[file].header_bytes = StringToCharArray(ModelHeader(file) + "\r\n",
+      g_model_layout[file].header, 0, WHOLE_ARRAY, CP_UTF8) - 1;
     if(count <= 0 || count != StringLen(g_model_layout[file].types) ||
-       count != StringLen(g_model_layout[file].nullable)) return false;
+       count != StringLen(g_model_layout[file].nullable) || g_model_layout[file].header_bytes <= 0) return false;
+    int raw_count = ModelRawColumnCount(file);
+    if(ArrayResize(g_model_layout[file].choices, count) != count ||
+       ArrayResize(g_model_layout[file].clocks, raw_count) != raw_count) return false;
+    for(int i = 0; i < count; i++) g_model_layout[file].choices[i] = ModelAllowedValues(file, i);
+    for(int i = 0; i < raw_count; i++)
+    {
+      int start = ModelClockColumn(file * MODEL_FIELD_STRIDE + i);
+      bool clock = StringGetCharacter(g_model_layout[file].types, i) == 't';
+      if(clock ? start < raw_count || start + 2 >= count : start != -1) return false;
+      g_model_layout[file].clocks[i] = start;
+    }
   }
   return true;
 }
@@ -113,29 +131,39 @@ struct ModelRow
     if(count > 0 && g_model_layout[file].names[0] == "run_id") cells[0] = g_model_config.run_id;
   }
 
-  int Index(const string name)
+  int Index(const int field, const ushort type)
   {
     if(!valid) return -1;
-    for(int i = 0; i < ArraySize(cells); i++)
-      if(g_model_layout[file].names[i] == name) return i;
-    valid = false;
-    ModelFail("UNKNOWN_FIELD_" + name);
-    return -1;
+    int index = field % MODEL_FIELD_STRIDE;
+    if(field < 0 || field / MODEL_FIELD_STRIDE != file || index >= ModelRawColumnCount(file))
+    {
+      valid = false;
+      ModelFail("UNKNOWN_FIELD_" + ModelInteger(field));
+      return -1;
+    }
+    if(StringGetCharacter(g_model_layout[file].types, index) != type)
+    {
+      valid = false;
+      ModelFail("FIELD_TYPE_" + g_model_layout[file].names[index]);
+      return -1;
+    }
+    return index;
   }
 
-  void Set(const string name, const string value)
+  void Assign(const int field, const string value, const ushort type)
   {
-    int index = Index(name);
+    int index = Index(field, type);
     if(index >= 0) cells[index] = value;
   }
 
-  void Number(const string name, const double value) { Set(name, ModelNumber(value)); }
-  void Integer(const string name, const long value) { Set(name, ModelInteger(value)); }
-  void Flag(const string name, const bool value) { Set(name, ModelBoolean(value)); }
+  void Set(const int field, const string value) { Assign(field, value, 's'); }
+  void Number(const int field, const double value) { Assign(field, ModelNumber(value), 'd'); }
+  void Integer(const int field, const long value) { Assign(field, ModelInteger(value), 'i'); }
+  void Flag(const int field, const bool value) { Assign(field, ModelBoolean(value), 'b'); }
 
-  void Clock(const string name, const long raw_msc, const bool seconds = false)
+  void Clock(const int field, const long raw_msc, const bool seconds = false)
   {
-    int index = Index(name);
+    int index = Index(field, 't');
     if(index < 0 || raw_msc <= 0) return;
     long analysis = 0;
     int offset = 0;
@@ -143,14 +171,12 @@ struct ModelRow
        (seconds && raw_msc % 1000 != 0))
     {
       valid = false;
-      ModelFail("CLOCK_" + name);
+      ModelFail("CLOCK_" + g_model_layout[file].names[index]);
       return;
     }
-    int clock_index = 0;
-    for(int i = 0; i < index; i++)
-      if(StringGetCharacter(g_model_layout[file].types, i) == 't') clock_index++;
-    int start = ModelRawColumnCount(file) + 3 * clock_index;
-    if(start + 2 >= ArraySize(cells)) { valid = false; ModelFail("CLOCK_LAYOUT"); return; }
+    int start = g_model_layout[file].clocks[index];
+    if(start < ModelRawColumnCount(file) || start + 2 >= ArraySize(cells))
+    { valid = false; ModelFail("CLOCK_LAYOUT"); return; }
     cells[index] = ModelInteger(raw_msc);
     cells[start] = ModelInteger(analysis);
     cells[start + 1] = ModelInteger(offset);
@@ -161,10 +187,11 @@ struct ModelRow
   {
     text = "";
     if(!valid) return false;
+    int length = ArraySize(cells) - 1;
     for(int i = 0; i < ArraySize(cells); i++)
     {
       string value = cells[i];
-      string choices = ModelAllowedValues(file, i);
+      string choices = g_model_layout[file].choices[i];
       if(!ModelCellValid(value) || value == "" ||
          (value == MODEL_NULL && StringGetCharacter(g_model_layout[file].nullable, i) != '1') ||
          (value != MODEL_NULL && choices != "" && StringFind(choices, "|" + value + "|") < 0))
@@ -172,7 +199,13 @@ struct ModelRow
         ModelFail("INVALID_FIELD_" + ModelFileName(file) + "_" + g_model_layout[file].names[i]);
         return false;
       }
-      ModelCell(text, value);
+      length += StringLen(value);
+    }
+    if(!StringReserve(text, (uint)length + 1)) { ModelFail("ROW_ALLOCATION"); return false; }
+    for(int i = 0; i < ArraySize(cells); i++)
+    {
+      if((i > 0 && !StringAdd(text, "\t")) || !StringAdd(text, cells[i]))
+      { ModelFail("ROW_ALLOCATION"); return false; }
     }
     return true;
   }
@@ -186,13 +219,6 @@ string ModelLevel(const int level)
     case 3: return "PP"; case 4: return "R1"; case 5: return "R2"; case 6: return "R3";
   }
   return "";
-}
-
-string ModelLowerLevel(const int level)
-{
-  string name = ModelLevel(level);
-  StringToLower(name);
-  return name;
 }
 
 // FNV-1a records a bounded source prefix/configuration identity, not authentication.

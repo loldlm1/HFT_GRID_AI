@@ -1,4 +1,5 @@
 import json
+import re
 import tempfile
 import tracemalloc
 import unittest
@@ -53,6 +54,38 @@ class ContractTests(RunFixtureCase):
         for table in TABLES:
             self.assertEqual(len(table.columns), len(set(table.columns)))
         self.assertEqual(next(f for f in TABLES[5].fields if f.name == "role").choices, ("BROKER", "VIRTUAL", "PARITY"))
+
+    def test_generated_field_ids_preserve_table_and_raw_column(self):
+        header = mql_header()
+        stride = int(re.search(r"MODEL_FIELD_STRIDE = (\d+);", header)[1])
+        fields = {name: int(value) for name, value in re.findall(r"(MODEL_F_\w+) = (\d+)", header)}
+        self.assertEqual(len(fields), sum(len(t.raw_fields) for t in TABLES))
+        self.assertEqual(len(set(fields.values())), len(fields))
+        for file, table in enumerate(TABLES):
+            prefix = "MODEL_F_" + table.name.removesuffix(".tsv").upper()
+            for column, field in enumerate(table.raw_fields):
+                self.assertEqual(divmod(fields[f"{prefix}_{field.name.upper()}"], stride), (file, column))
+            self.assertLessEqual(len(table.raw_fields), stride)
+        for size, body in re.findall(r"const int MODEL_\w+\[(\d+)\] = \{([^}]+)\};", header):
+            members = body.split(", ")
+            self.assertEqual(len(members), int(size))
+            self.assertTrue(all(member in fields for member in members))
+
+    def test_generated_clock_offsets_point_to_exact_companions(self):
+        from ..schema_contract import clock_companions
+        offsets = {name: int(value) for name, value in re.findall(
+            r"case (MODEL_F_\w+): return (\d+);", mql_header())}
+        self.assertEqual(len(offsets), sum(len(t.clocks) for t in TABLES))
+        for table in TABLES:
+            prefix = "MODEL_F_" + table.name.removesuffix(".tsv").upper()
+            for field in table.raw_fields:
+                name = f"{prefix}_{field.name.upper()}"
+                if field.type != "clock":
+                    self.assertNotIn(name, offsets)
+                    continue
+                start = offsets[name]
+                self.assertEqual(table.columns[start:start + 3], clock_companions(field.name))
+                self.assertEqual(tuple(f.type for f in table.fields[start:start + 3]), ("int", "int", "text"))
 
     def test_unknown_engine(self):
         self.reject(lambda t: next(r for r in t["run_manifest.tsv"] if r["key"] == "engine").update(value="UNKNOWN"))

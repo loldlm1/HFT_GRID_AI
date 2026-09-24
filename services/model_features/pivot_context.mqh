@@ -26,40 +26,40 @@ void ModelCloseWindow(const long terminal_time, const string status)
   if(!ModelReady() || g_model_macro_open <= 0 || g_model_window_written) return;
   ModelRow row;
   row.Init(MODEL_MACRO_WINDOWS);
-  row.Set("window_id", g_model_window_id);
-  row.Clock("open_time_msc", (long)g_model_macro_open * 1000, true);
-  row.Integer("macro_seconds", PeriodSeconds(g_model_config.macro));
+  row.Set(MODEL_F_MACRO_WINDOWS_WINDOW_ID, g_model_window_id);
+  row.Clock(MODEL_F_MACRO_WINDOWS_OPEN_TIME_MSC, (long)g_model_macro_open * 1000, true);
+  row.Integer(MODEL_F_MACRO_WINDOWS_MACRO_SECONDS, PeriodSeconds(g_model_config.macro));
   if(g_model_source_available)
   {
-    row.Clock("source_time_msc", (long)g_model_macro_source.time * 1000, true);
-    row.Clock("source_close_time_msc", (long)g_model_macro_open * 1000, true);
-    row.Number("source_open", g_model_macro_source.open);
-    row.Number("source_high", g_model_macro_source.high);
-    row.Number("source_low", g_model_macro_source.low);
-    row.Number("source_close", g_model_macro_source.close);
+    row.Clock(MODEL_F_MACRO_WINDOWS_SOURCE_TIME_MSC, (long)g_model_macro_source.time * 1000, true);
+    row.Clock(MODEL_F_MACRO_WINDOWS_SOURCE_CLOSE_TIME_MSC, (long)g_model_macro_open * 1000, true);
+    row.Number(MODEL_F_MACRO_WINDOWS_SOURCE_OPEN, g_model_macro_source.open);
+    row.Number(MODEL_F_MACRO_WINDOWS_SOURCE_HIGH, g_model_macro_source.high);
+    row.Number(MODEL_F_MACRO_WINDOWS_SOURCE_LOW, g_model_macro_source.low);
+    row.Number(MODEL_F_MACRO_WINDOWS_SOURCE_CLOSE, g_model_macro_source.close);
   }
-  row.Flag("valid", g_model_ladder.valid);
-  row.Set("reason", g_model_ladder.valid ? "OK" : g_model_window_reason);
+  row.Flag(MODEL_F_MACRO_WINDOWS_VALID, g_model_ladder.valid);
+  row.Set(MODEL_F_MACRO_WINDOWS_REASON, g_model_ladder.valid ? "OK" : g_model_window_reason);
   if(g_model_ladder.valid)
   {
     for(int i = 0; i < 7; i++)
     {
-      row.Number("raw_" + ModelLowerLevel(i) + "_price", g_model_ladder.raw_prices[i]);
-      row.Number("trade_" + ModelLowerLevel(i) + "_price", g_model_ladder.trade_prices[i]);
+      row.Number(MODEL_WINDOW_RAW[i], g_model_ladder.raw_prices[i]);
+      row.Number(MODEL_WINDOW_TRADE[i], g_model_ladder.trade_prices[i]);
     }
     double pp = g_model_ladder.trade_prices[3];
-    row.Set("pp_initial_relation", g_model_window_first_bid > pp ? "ABOVE" : (g_model_window_first_bid < pp ? "BELOW" : "EQUAL"));
-    row.Set("pp_role", g_model_pp_arm > 0 ? "SUPPORT" : (g_model_pp_arm < 0 ? "RESISTANCE" : "NEUTRAL"));
+    row.Set(MODEL_F_MACRO_WINDOWS_PP_INITIAL_RELATION, g_model_window_first_bid > pp ? "ABOVE" : (g_model_window_first_bid < pp ? "BELOW" : "EQUAL"));
+    row.Set(MODEL_F_MACRO_WINDOWS_PP_ROLE, g_model_pp_arm > 0 ? "SUPPORT" : (g_model_pp_arm < 0 ? "RESISTANCE" : "NEUTRAL"));
     if(g_model_pp_arm_time > 0)
     {
-      row.Clock("pp_arm_time_msc", g_model_pp_arm_time);
-      row.Number("pp_arm_bid", g_model_pp_arm_bid);
+      row.Clock(MODEL_F_MACRO_WINDOWS_PP_ARM_TIME_MSC, g_model_pp_arm_time);
+      row.Number(MODEL_F_MACRO_WINDOWS_PP_ARM_BID, g_model_pp_arm_bid);
     }
   }
-  row.Clock("first_observed_time_msc", g_model_window_first_time);
-  row.Number("first_observed_bid", g_model_window_first_bid);
-  row.Clock("terminal_time_msc", terminal_time);
-  row.Set("terminal_status", status);
+  row.Clock(MODEL_F_MACRO_WINDOWS_FIRST_OBSERVED_TIME_MSC, g_model_window_first_time);
+  row.Number(MODEL_F_MACRO_WINDOWS_FIRST_OBSERVED_BID, g_model_window_first_bid);
+  row.Clock(MODEL_F_MACRO_WINDOWS_TERMINAL_TIME_MSC, terminal_time);
+  row.Set(MODEL_F_MACRO_WINDOWS_TERMINAL_STATUS, status);
   if(ModelWrite(row)) g_model_window_written = true;
 }
 
@@ -157,42 +157,41 @@ string ModelInterval(const double price, double &lower, double &upper)
 bool ModelCaptureContext(ModelRow &row, const MqlTick &tick)
 {
   bool valid = g_model_ladder.valid && g_model_macro_open > 0 && g_model_macro_open <= tick.time;
-  row.Flag("pivot_complete", valid);
+  row.Flag(MODEL_F_FEATURE_SNAPSHOTS_PIVOT_COMPLETE, valid);
   for(int i = 0; i < 7; i++)
   {
-    string prefix = "pivot_" + ModelLowerLevel(i);
-    row.Flag(prefix + "_reclaimed", valid && g_model_reclaimed[i]);
-    row.Flag(prefix + "_gap_cross", valid && g_model_gap_cross[i]);
+    row.Flag(MODEL_PIVOT_RECLAIMED[i], valid && g_model_reclaimed[i]);
+    row.Flag(MODEL_PIVOT_GAP_CROSS[i], valid && g_model_gap_cross[i]);
     if(!valid) continue;
-    row.Number(prefix + "_price", g_model_ladder.trade_prices[i]);
+    row.Number(MODEL_PIVOT_PRICE[i], g_model_ladder.trade_prices[i]);
     if(g_model_touch_time[i] > 0)
     {
-      row.Clock(prefix + "_touch_time_msc", g_model_touch_time[i]);
-      row.Integer(prefix + "_touch_sequence", g_model_touch_sequence[i]);
-      row.Set(prefix + "_role", g_model_touch_role[i] > 0 ? "SUPPORT" : "RESISTANCE");
+      row.Clock(MODEL_PIVOT_TOUCH_TIME_MSC[i], g_model_touch_time[i]);
+      row.Integer(MODEL_PIVOT_TOUCH_SEQUENCE[i], g_model_touch_sequence[i]);
+      row.Set(MODEL_PIVOT_ROLE[i], g_model_touch_role[i] > 0 ? "SUPPORT" : "RESISTANCE");
     }
   }
   if(!valid) return false;
   double lower, upper;
-  row.Set("signal_zone", ModelInterval(tick.bid, lower, upper));
-  row.Number("zone_lower_price", lower);
-  row.Number("zone_upper_price", upper);
-  if(g_model_tested < 0) { row.Set("signal_vs_tested_pivot", "UNTESTED"); return true; }
+  row.Set(MODEL_F_FEATURE_SNAPSHOTS_SIGNAL_ZONE, ModelInterval(tick.bid, lower, upper));
+  row.Number(MODEL_F_FEATURE_SNAPSHOTS_ZONE_LOWER_PRICE, lower);
+  row.Number(MODEL_F_FEATURE_SNAPSHOTS_ZONE_UPPER_PRICE, upper);
+  if(g_model_tested < 0) { row.Set(MODEL_F_FEATURE_SNAPSHOTS_SIGNAL_VS_TESTED_PIVOT, "UNTESTED"); return true; }
   int selected = g_model_tested;
   double price = g_model_ladder.trade_prices[selected];
   string role = g_model_touch_role[selected] > 0 ? "SUPPORT" : "RESISTANCE";
   string side = tick.bid > price ? "ABOVE" : (tick.bid < price ? "BELOW" : "AT");
-  row.Set("signal_vs_tested_pivot", side + "_" + role);
-  row.Set("tested_level", ModelLevel(selected));
-  row.Number("tested_price", price);
-  row.Set("tested_role", role);
-  row.Number("tested_distance_price", tick.bid - price);
-  row.Number("tested_distance_points", (tick.bid - price) / g_model_point);
-  row.Clock("tested_touch_time_msc", g_model_touch_time[selected]);
-  row.Integer("tested_sequence", g_model_touch_sequence[selected]);
-  row.Integer("tested_age_ms", tick.time_msc - g_model_touch_time[selected]);
-  row.Flag("tested_reclaimed", g_model_reclaimed[selected]);
-  row.Flag("tested_gap_cross", g_model_gap_cross[selected]);
+  row.Set(MODEL_F_FEATURE_SNAPSHOTS_SIGNAL_VS_TESTED_PIVOT, side + "_" + role);
+  row.Set(MODEL_F_FEATURE_SNAPSHOTS_TESTED_LEVEL, ModelLevel(selected));
+  row.Number(MODEL_F_FEATURE_SNAPSHOTS_TESTED_PRICE, price);
+  row.Set(MODEL_F_FEATURE_SNAPSHOTS_TESTED_ROLE, role);
+  row.Number(MODEL_F_FEATURE_SNAPSHOTS_TESTED_DISTANCE_PRICE, tick.bid - price);
+  row.Number(MODEL_F_FEATURE_SNAPSHOTS_TESTED_DISTANCE_POINTS, (tick.bid - price) / g_model_point);
+  row.Clock(MODEL_F_FEATURE_SNAPSHOTS_TESTED_TOUCH_TIME_MSC, g_model_touch_time[selected]);
+  row.Integer(MODEL_F_FEATURE_SNAPSHOTS_TESTED_SEQUENCE, g_model_touch_sequence[selected]);
+  row.Integer(MODEL_F_FEATURE_SNAPSHOTS_TESTED_AGE_MS, tick.time_msc - g_model_touch_time[selected]);
+  row.Flag(MODEL_F_FEATURE_SNAPSHOTS_TESTED_RECLAIMED, g_model_reclaimed[selected]);
+  row.Flag(MODEL_F_FEATURE_SNAPSHOTS_TESTED_GAP_CROSS, g_model_gap_cross[selected]);
   return true;
 }
 

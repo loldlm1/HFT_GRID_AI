@@ -41,12 +41,12 @@ void ModelInvalidateLiveFeatures(ModelRow &row)
     if(series) row.cells[i] = StringGetCharacter(g_model_layout[row.file].nullable, i) == '1' ? MODEL_NULL : "0";
     if(StringFind(name, "forming_") == 0) row.cells[i] = name == "forming_status" ? "UNAVAILABLE" : MODEL_NULL;
   }
-  row.Flag("macro_complete", false);
-  row.Flag("micro_complete", false);
-  row.Flag("structure_complete", false);
-  row.Set("macro_reason", "QUOTE_CHANGED");
-  row.Set("micro_reason", "QUOTE_CHANGED");
-  row.Set("structure_reason", "QUOTE_CHANGED");
+  row.Flag(MODEL_F_FEATURE_SNAPSHOTS_MACRO_COMPLETE, false);
+  row.Flag(MODEL_F_FEATURE_SNAPSHOTS_MICRO_COMPLETE, false);
+  row.Flag(MODEL_F_FEATURE_SNAPSHOTS_STRUCTURE_COMPLETE, false);
+  row.Set(MODEL_F_FEATURE_SNAPSHOTS_MACRO_REASON, "QUOTE_CHANGED");
+  row.Set(MODEL_F_FEATURE_SNAPSHOTS_MICRO_REASON, "QUOTE_CHANGED");
+  row.Set(MODEL_F_FEATURE_SNAPSHOTS_STRUCTURE_REASON, "QUOTE_CHANGED");
 }
 
 bool ModelCapture(const string signal_id, const string snapshot_id, const string stage,
@@ -56,18 +56,18 @@ bool ModelCapture(const string signal_id, const string snapshot_id, const string
   if(!ModelReady() || !ModelCheckSpecification()) return false;
   ModelRow row;
   row.Init(MODEL_FEATURE_SNAPSHOTS);
-  row.Set("snapshot_id", snapshot_id);
-  row.Set("signal_id", signal_id);
-  row.Integer("sequence", sequence);
-  row.Set("capture_stage", stage);
-  row.Clock("observed_time_msc", tick.time_msc);
-  row.Set("macro_window_id", ModelNullable(g_model_window_id));
-  row.Number("bid", tick.bid);
-  row.Number("ask", tick.ask);
-  row.Number("point", g_model_point);
-  row.Number("tick_size", g_model_tick_size);
-  row.Integer("macro_seconds", PeriodSeconds(g_model_config.macro));
-  row.Integer("micro_seconds", PeriodSeconds(g_model_config.micro));
+  row.Set(MODEL_F_FEATURE_SNAPSHOTS_SNAPSHOT_ID, snapshot_id);
+  row.Set(MODEL_F_FEATURE_SNAPSHOTS_SIGNAL_ID, signal_id);
+  row.Integer(MODEL_F_FEATURE_SNAPSHOTS_SEQUENCE, sequence);
+  row.Set(MODEL_F_FEATURE_SNAPSHOTS_CAPTURE_STAGE, stage);
+  row.Clock(MODEL_F_FEATURE_SNAPSHOTS_OBSERVED_TIME_MSC, tick.time_msc);
+  row.Set(MODEL_F_FEATURE_SNAPSHOTS_MACRO_WINDOW_ID, ModelNullable(g_model_window_id));
+  row.Number(MODEL_F_FEATURE_SNAPSHOTS_BID, tick.bid);
+  row.Number(MODEL_F_FEATURE_SNAPSHOTS_ASK, tick.ask);
+  row.Number(MODEL_F_FEATURE_SNAPSHOTS_POINT, g_model_point);
+  row.Number(MODEL_F_FEATURE_SNAPSHOTS_TICK_SIZE, g_model_tick_size);
+  row.Integer(MODEL_F_FEATURE_SNAPSHOTS_MACRO_SECONDS, PeriodSeconds(g_model_config.macro));
+  row.Integer(MODEL_F_FEATURE_SNAPSHOTS_MICRO_SECONDS, PeriodSeconds(g_model_config.micro));
   bool macro = ModelCaptureIndicators(row, 0, tick, snapshot_id);
   bool micro = ModelCaptureIndicators(row, 1, tick, snapshot_id);
   bool pivot = ModelCaptureContext(row, tick);
@@ -78,7 +78,7 @@ bool ModelCapture(const string signal_id, const string snapshot_id, const string
   if(!consistent) ModelInvalidateLiveFeatures(row);
   bool complete = consistent && macro && micro && pivot && structure;
   g_model_last_capture_complete = complete;
-  row.Flag("complete", complete);
+  row.Flag(MODEL_F_FEATURE_SNAPSHOTS_COMPLETE, complete);
   if(!complete) g_model_feature_gaps++;
   g_model_audit_count++;
   return ModelWrite(row);
@@ -112,7 +112,7 @@ void ModelSeal(const int broker_peak, const int virtual_peak, const string compl
       ModelMetadata(MODEL_RUN_SUMMARY, "rows_" + ModelFileName(file), ModelInteger(g_model_rows[file]), true);
   if(!ModelFlush(MODEL_RUN_SUMMARY, true) && !g_model_failed) ModelFail("SUMMARY_FLUSH");
   g_model_sealed = true;
-  for(int file = 0; file < MODEL_FILE_COUNT; file++) ArrayFree(g_model_buffers[file].rows);
+  ModelReleaseBuffers();
 }
 
 void ModelBoundary()

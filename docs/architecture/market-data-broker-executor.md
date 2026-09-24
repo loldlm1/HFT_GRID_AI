@@ -184,7 +184,10 @@ and broker state. No active Deep input, discovery, fan-out, handle or output
 exists. The frontend stays read-only, limits owned positions to 16 and performs
 no chart work in nonvisual tester runs.
 
-Each table buffers at most 256 immutable rows. Headers and writes are checked;
+Each table buffers at most 256 rows or 1 MiB of encoded bytes. Oversized rows
+are split into bounded writes with unchanged UTF-8/CRLF bytes; only complete
+rows increment counts. Generated table-qualified field IDs and clock offsets
+preserve the schema while rejecting wrong-table/type access. Headers and writes are checked;
 run IDs are fresh, and successful intake requires an unchanged complete seal.
 The first fatal research cause is retained, persisted outside the dataset when
 possible, and invalidates any earlier seal with FAILED.txt. Research resources

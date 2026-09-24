@@ -25,10 +25,10 @@ void PivotDatasetCaptureResearchFailure()
   if(PivotTrialResearchIntegrityFailed()) ModelFail("PIVOT_TRIAL_INTEGRITY");
 }
 
-void PivotDatasetClock(ModelRow &row, const string name, const long msc, const datetime seconds)
+void PivotDatasetClock(ModelRow &row, const int field, const long msc, const datetime seconds)
 {
-  if(msc > 0) row.Clock(name, msc);
-  else if(seconds > 0) row.Clock(name, (long)seconds * 1000, true);
+  if(msc > 0) row.Clock(field, msc);
+  else if(seconds > 0) row.Clock(field, (long)seconds * 1000, true);
 }
 
 string PivotDatasetWindowId(const string symbol, const ENUM_TIMEFRAMES timeframe, const datetime opening)
@@ -276,28 +276,28 @@ bool PivotDatasetEmitSignal(PivotSignal &signal)
   signal.feature_complete = g_model_last_capture_complete;
   ModelRow row;
   row.Init(MODEL_SIGNAL_EVENTS);
-  row.Set("signal_id", signal.origin_id);
-  row.Integer("sequence", g_model_sequence);
-  row.Set("symbol", _Symbol);
-  row.Set("direction", PivotDatasetDirection(signal.direction));
-  PivotDatasetClock(row, "signal_time_msc", signal.trigger_time_msc, signal.trigger_time);
-  row.Clock("source_time_msc", (long)signal.source_bar_open * 1000, true);
-  row.Set("macro_window_id", signal.window_id);
-  row.Number("bid", signal.trigger_bid);
-  row.Number("ask", signal.trigger_ask);
-  row.Set("admission", "DISCOVERED");
+  row.Set(MODEL_F_SIGNAL_EVENTS_SIGNAL_ID, signal.origin_id);
+  row.Integer(MODEL_F_SIGNAL_EVENTS_SEQUENCE, g_model_sequence);
+  row.Set(MODEL_F_SIGNAL_EVENTS_SYMBOL, _Symbol);
+  row.Set(MODEL_F_SIGNAL_EVENTS_DIRECTION, PivotDatasetDirection(signal.direction));
+  PivotDatasetClock(row, MODEL_F_SIGNAL_EVENTS_SIGNAL_TIME_MSC, signal.trigger_time_msc, signal.trigger_time);
+  row.Clock(MODEL_F_SIGNAL_EVENTS_SOURCE_TIME_MSC, (long)signal.source_bar_open * 1000, true);
+  row.Set(MODEL_F_SIGNAL_EVENTS_MACRO_WINDOW_ID, signal.window_id);
+  row.Number(MODEL_F_SIGNAL_EVENTS_BID, signal.trigger_bid);
+  row.Number(MODEL_F_SIGNAL_EVENTS_ASK, signal.trigger_ask);
+  row.Set(MODEL_F_SIGNAL_EVENTS_ADMISSION, "DISCOVERED");
   if(!ModelWrite(row)) return false;
   row.Init(MODEL_ENTRY_ATTEMPTS);
-  row.Set("attempt_id", PivotDatasetAttemptId(signal.origin_id));
-  row.Set("signal_id", signal.origin_id);
-  row.Set("snapshot_id", snapshot_id);
-  row.Integer("sequence", g_model_sequence);
-  row.Set("entry_type", "PIVOT_ORIGIN");
-  row.Set("direction", PivotDatasetDirection(signal.direction));
-  PivotDatasetClock(row, "decision_time_msc", signal.trigger_time_msc, signal.trigger_time);
-  row.Set("macro_window_id", signal.window_id);
-  row.Number("bid", signal.trigger_bid);
-  row.Number("ask", signal.trigger_ask);
+  row.Set(MODEL_F_ENTRY_ATTEMPTS_ATTEMPT_ID, PivotDatasetAttemptId(signal.origin_id));
+  row.Set(MODEL_F_ENTRY_ATTEMPTS_SIGNAL_ID, signal.origin_id);
+  row.Set(MODEL_F_ENTRY_ATTEMPTS_SNAPSHOT_ID, snapshot_id);
+  row.Integer(MODEL_F_ENTRY_ATTEMPTS_SEQUENCE, g_model_sequence);
+  row.Set(MODEL_F_ENTRY_ATTEMPTS_ENTRY_TYPE, "PIVOT_ORIGIN");
+  row.Set(MODEL_F_ENTRY_ATTEMPTS_DIRECTION, PivotDatasetDirection(signal.direction));
+  PivotDatasetClock(row, MODEL_F_ENTRY_ATTEMPTS_DECISION_TIME_MSC, signal.trigger_time_msc, signal.trigger_time);
+  row.Set(MODEL_F_ENTRY_ATTEMPTS_MACRO_WINDOW_ID, signal.window_id);
+  row.Number(MODEL_F_ENTRY_ATTEMPTS_BID, signal.trigger_bid);
+  row.Number(MODEL_F_ENTRY_ATTEMPTS_ASK, signal.trigger_ask);
   return ModelWrite(row);
 }
 
@@ -430,22 +430,22 @@ bool PivotDatasetRecordOrigin(const PivotDatasetPendingOrigin &pending, const st
   PivotTrialOriginSnapshot origin(pending.origin);
   ModelRow row;
   row.Init(MODEL_PIVOT_ORIGINS);
-  row.Set("signal_id", origin.origin_id);
-  row.Set("broker_signal_id", origin.broker_signal_id);
-  row.Set("level_id", PivotLevelLabel(origin.level_id));
-  row.Number("pivot_raw_price", origin.pivot_raw_price);
-  row.Number("pivot_trade_price", origin.pivot_trade_price);
-  row.Number("next_outward_pivot_price", origin.next_outward_pivot_price);
-  row.Number("midpoint_50_price", origin.midpoint_50_price);
-  row.Number("structural_entry_price", origin.structural_entry_price);
-  row.Number("structural_take_profit", origin.structural_take_profit);
-  row.Number("stops_level_points", origin.stops_level_points);
-  row.Number("freeze_level_points", origin.freeze_level_points);
-  row.Number("structural_sl_price", origin.structural_stop_loss);
-  row.Flag("identity_consumed", true);
-  row.Flag("h1_lanes_declared", pending.h1_lanes_declared);
-  row.Set("broker_attempt_status", pending.broker_attempt_status);
-  row.Set("origin_terminal_status", terminal_status);
+  row.Set(MODEL_F_PIVOT_ORIGINS_SIGNAL_ID, origin.origin_id);
+  row.Set(MODEL_F_PIVOT_ORIGINS_BROKER_SIGNAL_ID, origin.broker_signal_id);
+  row.Set(MODEL_F_PIVOT_ORIGINS_LEVEL_ID, PivotLevelLabel(origin.level_id));
+  row.Number(MODEL_F_PIVOT_ORIGINS_PIVOT_RAW_PRICE, origin.pivot_raw_price);
+  row.Number(MODEL_F_PIVOT_ORIGINS_PIVOT_TRADE_PRICE, origin.pivot_trade_price);
+  row.Number(MODEL_F_PIVOT_ORIGINS_NEXT_OUTWARD_PIVOT_PRICE, origin.next_outward_pivot_price);
+  row.Number(MODEL_F_PIVOT_ORIGINS_MIDPOINT_50_PRICE, origin.midpoint_50_price);
+  row.Number(MODEL_F_PIVOT_ORIGINS_STRUCTURAL_ENTRY_PRICE, origin.structural_entry_price);
+  row.Number(MODEL_F_PIVOT_ORIGINS_STRUCTURAL_TAKE_PROFIT, origin.structural_take_profit);
+  row.Number(MODEL_F_PIVOT_ORIGINS_STOPS_LEVEL_POINTS, origin.stops_level_points);
+  row.Number(MODEL_F_PIVOT_ORIGINS_FREEZE_LEVEL_POINTS, origin.freeze_level_points);
+  row.Number(MODEL_F_PIVOT_ORIGINS_STRUCTURAL_SL_PRICE, origin.structural_stop_loss);
+  row.Flag(MODEL_F_PIVOT_ORIGINS_IDENTITY_CONSUMED, true);
+  row.Flag(MODEL_F_PIVOT_ORIGINS_H1_LANES_DECLARED, pending.h1_lanes_declared);
+  row.Set(MODEL_F_PIVOT_ORIGINS_BROKER_ATTEMPT_STATUS, pending.broker_attempt_status);
+  row.Set(MODEL_F_PIVOT_ORIGINS_ORIGIN_TERMINAL_STATUS, terminal_status);
   return ModelWrite(row);
 }
 
@@ -475,47 +475,47 @@ void PivotDatasetTrialGeometry(ModelRow &row, const PivotTrialEntry &trial)
   bool geometry = trial.eligibility_status == PIVOT_TRIAL_ELIGIBILITY_ACTIVE && trial.geometry.valid;
   if(!pending)
   {
-    row.Number("entry_bid", trial.geometry.entry_bid);
-    row.Number("entry_ask", trial.geometry.entry_ask);
-    row.Number("entry_price", trial.geometry.entry_price > 0.0 ? trial.geometry.entry_price : EMPTY_VALUE);
-    row.Set("entry_quote_side", PivotTrialQuoteSideLabel(trial.geometry.entry_quote_side));
-    row.Set("exit_quote_side", PivotTrialQuoteSideLabel(trial.geometry.exit_quote_side));
+    row.Number(MODEL_F_TRIALS_ENTRY_BID, trial.geometry.entry_bid);
+    row.Number(MODEL_F_TRIALS_ENTRY_ASK, trial.geometry.entry_ask);
+    row.Number(MODEL_F_TRIALS_ENTRY_PRICE, trial.geometry.entry_price > 0.0 ? trial.geometry.entry_price : EMPTY_VALUE);
+    row.Set(MODEL_F_TRIALS_ENTRY_QUOTE_SIDE, PivotTrialQuoteSideLabel(trial.geometry.entry_quote_side));
+    row.Set(MODEL_F_TRIALS_EXIT_QUOTE_SIDE, PivotTrialQuoteSideLabel(trial.geometry.exit_quote_side));
   }
-  row.Number("midpoint_50_price", trial.midpoint_50_price > 0.0 ? trial.midpoint_50_price : EMPTY_VALUE);
-  row.Flag("midpoint_touched", trial.midpoint_touched);
+  row.Number(MODEL_F_TRIALS_MIDPOINT_50_PRICE, trial.midpoint_50_price > 0.0 ? trial.midpoint_50_price : EMPTY_VALUE);
+  row.Flag(MODEL_F_TRIALS_MIDPOINT_TOUCHED, trial.midpoint_touched);
   if(geometry)
   {
-    row.Number("sl", trial.geometry.stop_loss_price);
-    row.Number("tp", trial.geometry.take_profit_price);
-    row.Number("requested_risk_distance_price", trial.geometry.requested_risk_distance_price);
-    row.Number("requested_risk_distance_points", trial.geometry.requested_risk_distance_points);
-    row.Number("normalized_risk_distance_price", trial.geometry.normalized_risk_distance_price);
-    row.Number("normalized_risk_distance_points", trial.geometry.normalized_risk_distance_points);
-    row.Number("minimum_risk_distance_points", trial.geometry.minimum_risk_distance_points);
-    row.Integer("normalized_risk_ticks", trial.geometry.normalized_risk_ticks);
-    row.Set("geometry_equivalence_id", trial.geometry.geometry_equivalence_id);
+    row.Number(MODEL_F_TRIALS_SL, trial.geometry.stop_loss_price);
+    row.Number(MODEL_F_TRIALS_TP, trial.geometry.take_profit_price);
+    row.Number(MODEL_F_TRIALS_REQUESTED_RISK_DISTANCE_PRICE, trial.geometry.requested_risk_distance_price);
+    row.Number(MODEL_F_TRIALS_REQUESTED_RISK_DISTANCE_POINTS, trial.geometry.requested_risk_distance_points);
+    row.Number(MODEL_F_TRIALS_NORMALIZED_RISK_DISTANCE_PRICE, trial.geometry.normalized_risk_distance_price);
+    row.Number(MODEL_F_TRIALS_NORMALIZED_RISK_DISTANCE_POINTS, trial.geometry.normalized_risk_distance_points);
+    row.Number(MODEL_F_TRIALS_MINIMUM_RISK_DISTANCE_POINTS, trial.geometry.minimum_risk_distance_points);
+    row.Integer(MODEL_F_TRIALS_NORMALIZED_RISK_TICKS, trial.geometry.normalized_risk_ticks);
+    row.Set(MODEL_F_TRIALS_GEOMETRY_EQUIVALENCE_ID, trial.geometry.geometry_equivalence_id);
   }
-  row.Number("spread_points", trial.geometry.spread_points);
-  row.Number("point_size", trial.geometry.point_size);
-  row.Number("trade_tick_size", trial.geometry.trade_tick_size);
-  row.Number("stops_level_points", trial.geometry.stops_level_points);
-  row.Number("freeze_level_points", trial.geometry.freeze_level_points);
-  row.Flag("distance_eligible", geometry && trial.geometry.distance_eligible);
-  row.Set("lot_mode", EnumToString(Lot_Type));
-  row.Number("lot_strategy_size", Lot_Strategy_Size);
-  row.Number("reference_balance", Lot_Type == EXECUTION_LOT_REFERENCE_BALANCE_PERCENT ? PIVOT_EXECUTION_REFERENCE_BALANCE : EMPTY_VALUE);
-  row.Set("account_currency", ModelSafeMetadata(AccountInfoString(ACCOUNT_CURRENCY)));
+  row.Number(MODEL_F_TRIALS_SPREAD_POINTS, trial.geometry.spread_points);
+  row.Number(MODEL_F_TRIALS_POINT_SIZE, trial.geometry.point_size);
+  row.Number(MODEL_F_TRIALS_TRADE_TICK_SIZE, trial.geometry.trade_tick_size);
+  row.Number(MODEL_F_TRIALS_STOPS_LEVEL_POINTS, trial.geometry.stops_level_points);
+  row.Number(MODEL_F_TRIALS_FREEZE_LEVEL_POINTS, trial.geometry.freeze_level_points);
+  row.Flag(MODEL_F_TRIALS_DISTANCE_ELIGIBLE, geometry && trial.geometry.distance_eligible);
+  row.Set(MODEL_F_TRIALS_LOT_MODE, EnumToString(Lot_Type));
+  row.Number(MODEL_F_TRIALS_LOT_STRATEGY_SIZE, Lot_Strategy_Size);
+  row.Number(MODEL_F_TRIALS_REFERENCE_BALANCE, Lot_Type == EXECUTION_LOT_REFERENCE_BALANCE_PERCENT ? PIVOT_EXECUTION_REFERENCE_BALANCE : EMPTY_VALUE);
+  row.Set(MODEL_F_TRIALS_ACCOUNT_CURRENCY, ModelSafeMetadata(AccountInfoString(ACCOUNT_CURRENCY)));
   if(trial.money_plan.complete)
   {
-    row.Number("volume", trial.money_plan.normalized_volume);
-    row.Number("risk_budget_amount", trial.money_plan.risk_budget_amount);
-    row.Number("requested_volume", trial.money_plan.requested_volume);
-    row.Number("virtual_expected_stop_loss", trial.money_plan.virtual_expected_stop_loss);
-    row.Number("virtual_expected_take_profit", trial.money_plan.virtual_expected_take_profit);
-    row.Number("virtual_expected_reward_risk_ratio", trial.money_plan.virtual_expected_reward_risk_ratio);
+    row.Number(MODEL_F_TRIALS_VOLUME, trial.money_plan.normalized_volume);
+    row.Number(MODEL_F_TRIALS_RISK_BUDGET_AMOUNT, trial.money_plan.risk_budget_amount);
+    row.Number(MODEL_F_TRIALS_REQUESTED_VOLUME, trial.money_plan.requested_volume);
+    row.Number(MODEL_F_TRIALS_VIRTUAL_EXPECTED_STOP_LOSS, trial.money_plan.virtual_expected_stop_loss);
+    row.Number(MODEL_F_TRIALS_VIRTUAL_EXPECTED_TAKE_PROFIT, trial.money_plan.virtual_expected_take_profit);
+    row.Number(MODEL_F_TRIALS_VIRTUAL_EXPECTED_REWARD_RISK_RATIO, trial.money_plan.virtual_expected_reward_risk_ratio);
   }
-  row.Flag("virtual_money_plan_complete", trial.money_plan.complete);
-  row.Flag("origin_window_active_at_entry", trial.origin_window_active_at_entry);
+  row.Flag(MODEL_F_TRIALS_VIRTUAL_MONEY_PLAN_COMPLETE, trial.money_plan.complete);
+  row.Flag(MODEL_F_TRIALS_ORIGIN_WINDOW_ACTIVE_AT_ENTRY, trial.origin_window_active_at_entry);
 }
 
 bool PivotDatasetRecordVirtualTrial(const PivotTrialEntry &trial)
@@ -524,15 +524,15 @@ bool PivotDatasetRecordVirtualTrial(const PivotTrialEntry &trial)
   bool parity = trial.identity.role == PIVOT_TRIAL_ROLE_BROKER_PARITY;
   ModelRow row;
   row.Init(MODEL_TRIALS);
-  row.Set("trial_id", trial.identity.trial_id);
-  row.Set("attempt_id", PivotDatasetAttemptId(trial.identity.origin_id));
-  row.Set("role", parity ? "PARITY" : "VIRTUAL");
-  row.Set("entry_policy", PivotTrialEntryPolicyLabel(trial.identity.entry_policy));
-  row.Integer("rr", trial.identity.tp_r_multiple);
-  PivotDatasetClock(row, "declared_time_msc", trial.declared_time_msc, trial.declared_time);
-  PivotDatasetClock(row, "entry_time_msc", trial.entry_time_msc, trial.entry_time);
-  row.Set("eligibility", PivotDatasetEligibility(trial));
-  row.Set("reason", ModelNullable(trial.ineligible_reason));
+  row.Set(MODEL_F_TRIALS_TRIAL_ID, trial.identity.trial_id);
+  row.Set(MODEL_F_TRIALS_ATTEMPT_ID, PivotDatasetAttemptId(trial.identity.origin_id));
+  row.Set(MODEL_F_TRIALS_ROLE, parity ? "PARITY" : "VIRTUAL");
+  row.Set(MODEL_F_TRIALS_ENTRY_POLICY, PivotTrialEntryPolicyLabel(trial.identity.entry_policy));
+  row.Integer(MODEL_F_TRIALS_RR, trial.identity.tp_r_multiple);
+  PivotDatasetClock(row, MODEL_F_TRIALS_DECLARED_TIME_MSC, trial.declared_time_msc, trial.declared_time);
+  PivotDatasetClock(row, MODEL_F_TRIALS_ENTRY_TIME_MSC, trial.entry_time_msc, trial.entry_time);
+  row.Set(MODEL_F_TRIALS_ELIGIBILITY, PivotDatasetEligibility(trial));
+  row.Set(MODEL_F_TRIALS_REASON, ModelNullable(trial.ineligible_reason));
   PivotDatasetTrialGeometry(row, trial);
   return ModelWrite(row) && (!parity || PivotDatasetRegisterParityLink(trial));
 }
@@ -541,15 +541,15 @@ void PivotDatasetOutcomeGeometry(ModelRow &row, const PivotTrialEntry &trial)
 {
   if(trial.entry_time > 0)
   {
-    PivotDatasetClock(row, "entry_time_msc", trial.entry_time_msc, trial.entry_time);
-    row.Number("entry_price", trial.geometry.entry_price > 0.0 ? trial.geometry.entry_price : EMPTY_VALUE);
+    PivotDatasetClock(row, MODEL_F_OUTCOMES_ENTRY_TIME_MSC, trial.entry_time_msc, trial.entry_time);
+    row.Number(MODEL_F_OUTCOMES_ENTRY_PRICE, trial.geometry.entry_price > 0.0 ? trial.geometry.entry_price : EMPTY_VALUE);
   }
   if(trial.eligibility_status == PIVOT_TRIAL_ELIGIBILITY_ACTIVE && trial.geometry.valid)
   {
-    row.Number("sl", trial.geometry.stop_loss_price);
-    row.Number("tp", trial.geometry.take_profit_price);
+    row.Number(MODEL_F_OUTCOMES_SL, trial.geometry.stop_loss_price);
+    row.Number(MODEL_F_OUTCOMES_TP, trial.geometry.take_profit_price);
   }
-  if(trial.money_plan.complete) row.Number("volume", trial.money_plan.normalized_volume);
+  if(trial.money_plan.complete) row.Number(MODEL_F_OUTCOMES_VOLUME, trial.money_plan.normalized_volume);
 }
 
 bool PivotDatasetRecordVirtualOutcome(const PivotTrialOutcome &outcome)
@@ -564,36 +564,36 @@ bool PivotDatasetRecordVirtualOutcome(const PivotTrialOutcome &outcome)
   if(outcome.first_touch == PIVOT_TRIAL_FIRST_TOUCH_INELIGIBLE) status = PivotDatasetEligibility(outcome.trial);
   ModelRow row;
   row.Init(MODEL_OUTCOMES);
-  row.Set("trial_id", outcome.identity.trial_id);
-  row.Set("attempt_id", PivotDatasetAttemptId(outcome.identity.origin_id));
-  row.Set("role", parity ? "PARITY" : "VIRTUAL");
-  row.Integer("rr", outcome.identity.tp_r_multiple);
-  row.Set("status", status);
-  PivotDatasetClock(row, "observed_time_msc", outcome.terminal_time_msc, outcome.terminal_time);
+  row.Set(MODEL_F_OUTCOMES_TRIAL_ID, outcome.identity.trial_id);
+  row.Set(MODEL_F_OUTCOMES_ATTEMPT_ID, PivotDatasetAttemptId(outcome.identity.origin_id));
+  row.Set(MODEL_F_OUTCOMES_ROLE, parity ? "PARITY" : "VIRTUAL");
+  row.Integer(MODEL_F_OUTCOMES_RR, outcome.identity.tp_r_multiple);
+  row.Set(MODEL_F_OUTCOMES_STATUS, status);
+  PivotDatasetClock(row, MODEL_F_OUTCOMES_OBSERVED_TIME_MSC, outcome.terminal_time_msc, outcome.terminal_time);
   PivotDatasetOutcomeGeometry(row, outcome.trial);
-  row.Flag("binary_eligible", complete && !parity && outcome.virtual_binary_eligible);
-  if(complete && !parity && outcome.virtual_binary_eligible) row.Integer("binary_label", outcome.virtual_binary_target);
-  else row.Set("exclusion_reason", parity ? "PARITY" : (outcome.virtual_exclusion_reason == "" ? status : outcome.virtual_exclusion_reason));
-  row.Number("observed_exit_bid", outcome.observed_exit_bid);
-  row.Number("observed_exit_ask", outcome.observed_exit_ask);
-  row.Number("observed_exit_price", outcome.observed_exit_price);
-  row.Set("exit_quote_side", PivotTrialQuoteSideLabel(outcome.exit_quote_side));
-  row.Flag("first_touch_consistent", outcome.first_touch_consistent);
+  row.Flag(MODEL_F_OUTCOMES_BINARY_ELIGIBLE, complete && !parity && outcome.virtual_binary_eligible);
+  if(complete && !parity && outcome.virtual_binary_eligible) row.Integer(MODEL_F_OUTCOMES_BINARY_LABEL, outcome.virtual_binary_target);
+  else row.Set(MODEL_F_OUTCOMES_EXCLUSION_REASON, parity ? "PARITY" : (outcome.virtual_exclusion_reason == "" ? status : outcome.virtual_exclusion_reason));
+  row.Number(MODEL_F_OUTCOMES_OBSERVED_EXIT_BID, outcome.observed_exit_bid);
+  row.Number(MODEL_F_OUTCOMES_OBSERVED_EXIT_ASK, outcome.observed_exit_ask);
+  row.Number(MODEL_F_OUTCOMES_OBSERVED_EXIT_PRICE, outcome.observed_exit_price);
+  row.Set(MODEL_F_OUTCOMES_EXIT_QUOTE_SIDE, PivotTrialQuoteSideLabel(outcome.exit_quote_side));
+  row.Flag(MODEL_F_OUTCOMES_FIRST_TOUCH_CONSISTENT, outcome.first_touch_consistent);
   if(complete)
   {
     if(!outcome.virtual_quote_gross_available) return PivotDatasetRejectReference("VIRTUAL_PROFIT_UNAVAILABLE");
-    PivotDatasetClock(row, "exit_time_msc", outcome.terminal_time_msc, outcome.terminal_time);
-    row.Number("exit_price", outcome.observed_exit_price);
-    row.Number("threshold_price", outcome.threshold_price);
-    row.Number("gap_points", outcome.gap_points);
-    row.Number("nominal_r", outcome.virtual_nominal_r);
-    row.Number("gross_profit", outcome.virtual_quote_gross_profit);
+    PivotDatasetClock(row, MODEL_F_OUTCOMES_EXIT_TIME_MSC, outcome.terminal_time_msc, outcome.terminal_time);
+    row.Number(MODEL_F_OUTCOMES_EXIT_PRICE, outcome.observed_exit_price);
+    row.Number(MODEL_F_OUTCOMES_THRESHOLD_PRICE, outcome.threshold_price);
+    row.Number(MODEL_F_OUTCOMES_GAP_POINTS, outcome.gap_points);
+    row.Number(MODEL_F_OUTCOMES_NOMINAL_R, outcome.virtual_nominal_r);
+    row.Number(MODEL_F_OUTCOMES_GROSS_PROFIT, outcome.virtual_quote_gross_profit);
     double direction = outcome.direction == BULLISH ? 1.0 : -1.0;
     double risk = direction * (outcome.trial.geometry.entry_price - outcome.trial.geometry.stop_loss_price);
-    row.Number("gross_r", risk > 0.0 ? direction * (outcome.observed_exit_price - outcome.trial.geometry.entry_price) / risk : EMPTY_VALUE);
+    row.Number(MODEL_F_OUTCOMES_GROSS_R, risk > 0.0 ? direction * (outcome.observed_exit_price - outcome.trial.geometry.entry_price) / risk : EMPTY_VALUE);
     long entry = outcome.trial.entry_time_msc > 0 ? outcome.trial.entry_time_msc : (long)outcome.trial.entry_time * 1000;
     long closed = outcome.terminal_time_msc > 0 ? outcome.terminal_time_msc : (long)outcome.terminal_time * 1000;
-    row.Integer("duration_ms", closed - entry);
+    row.Integer(MODEL_F_OUTCOMES_DURATION_MS, closed - entry);
   }
   return ModelWrite(row) && (!parity || PivotDatasetLinkParityVirtualOutcome(outcome));
 }
@@ -610,70 +610,70 @@ bool PivotDatasetRecordBrokerOutcome(const PivotSignal &signal, const bool run_e
                   (run_end ? "CENSORED_RUN_END" : "REJECTED");
   ModelRow row;
   row.Init(MODEL_OUTCOMES);
-  row.Set("trial_id", PivotDatasetBrokerTrialId(signal.origin_id));
-  row.Set("attempt_id", PivotDatasetAttemptId(signal.origin_id));
-  row.Set("role", "BROKER");
-  row.Integer("rr", 1);
-  row.Set("status", status);
-  row.Set("broker_reason", ModelNullable(execution.terminal_reason));
-  row.Clock("observed_time_msc", g_model_last_time);
-  row.Number("sl", execution.stop_loss_price);
-  row.Number("tp", execution.take_profit_price);
-  row.Number("volume", execution.normalized_volume);
-  row.Flag("binary_eligible", closed && execution.binary_eligible);
-  if(closed && execution.binary_eligible) row.Integer("binary_label", execution.binary_target);
-  else row.Set("exclusion_reason", execution.exclusion_reason == "" ? status : execution.exclusion_reason);
-  row.Flag("broker_entry_confirmed", entered);
-  row.Flag("broker_close_confirmed", closed);
-  if(execution.order_ticket > 0) row.Integer("order_ticket", (long)execution.order_ticket);
-  if(execution.entry_deal_ticket > 0) row.Integer("entry_deal_ticket", (long)execution.entry_deal_ticket);
-  if(execution.position_ticket > 0) row.Integer("position_ticket", (long)execution.position_ticket);
-  if(execution.position_identifier > 0) row.Integer("position_id", (long)execution.position_identifier);
-  row.Number("submitted_request_price", execution.planned_entry_price);
-  row.Number("request_risk_distance_points", execution.risk_distance_points);
-  row.Number("request_reward_distance_points", execution.reward_distance_points);
-  row.Number("request_price_reward_risk_ratio", execution.price_reward_risk_ratio);
-  row.Number("quote_expected_stop_loss", execution.quote_expected_stop_loss);
-  row.Number("quote_expected_take_profit", execution.quote_expected_take_profit);
-  row.Number("quote_expected_reward_risk_ratio", execution.quote_expected_reward_risk_ratio);
+  row.Set(MODEL_F_OUTCOMES_TRIAL_ID, PivotDatasetBrokerTrialId(signal.origin_id));
+  row.Set(MODEL_F_OUTCOMES_ATTEMPT_ID, PivotDatasetAttemptId(signal.origin_id));
+  row.Set(MODEL_F_OUTCOMES_ROLE, "BROKER");
+  row.Integer(MODEL_F_OUTCOMES_RR, 1);
+  row.Set(MODEL_F_OUTCOMES_STATUS, status);
+  row.Set(MODEL_F_OUTCOMES_BROKER_REASON, ModelNullable(execution.terminal_reason));
+  row.Clock(MODEL_F_OUTCOMES_OBSERVED_TIME_MSC, g_model_last_time);
+  row.Number(MODEL_F_OUTCOMES_SL, execution.stop_loss_price);
+  row.Number(MODEL_F_OUTCOMES_TP, execution.take_profit_price);
+  row.Number(MODEL_F_OUTCOMES_VOLUME, execution.normalized_volume);
+  row.Flag(MODEL_F_OUTCOMES_BINARY_ELIGIBLE, closed && execution.binary_eligible);
+  if(closed && execution.binary_eligible) row.Integer(MODEL_F_OUTCOMES_BINARY_LABEL, execution.binary_target);
+  else row.Set(MODEL_F_OUTCOMES_EXCLUSION_REASON, execution.exclusion_reason == "" ? status : execution.exclusion_reason);
+  row.Flag(MODEL_F_OUTCOMES_BROKER_ENTRY_CONFIRMED, entered);
+  row.Flag(MODEL_F_OUTCOMES_BROKER_CLOSE_CONFIRMED, closed);
+  if(execution.order_ticket > 0) row.Integer(MODEL_F_OUTCOMES_ORDER_TICKET, (long)execution.order_ticket);
+  if(execution.entry_deal_ticket > 0) row.Integer(MODEL_F_OUTCOMES_ENTRY_DEAL_TICKET, (long)execution.entry_deal_ticket);
+  if(execution.position_ticket > 0) row.Integer(MODEL_F_OUTCOMES_POSITION_TICKET, (long)execution.position_ticket);
+  if(execution.position_identifier > 0) row.Integer(MODEL_F_OUTCOMES_POSITION_ID, (long)execution.position_identifier);
+  row.Number(MODEL_F_OUTCOMES_SUBMITTED_REQUEST_PRICE, execution.planned_entry_price);
+  row.Number(MODEL_F_OUTCOMES_REQUEST_RISK_DISTANCE_POINTS, execution.risk_distance_points);
+  row.Number(MODEL_F_OUTCOMES_REQUEST_REWARD_DISTANCE_POINTS, execution.reward_distance_points);
+  row.Number(MODEL_F_OUTCOMES_REQUEST_PRICE_REWARD_RISK_RATIO, execution.price_reward_risk_ratio);
+  row.Number(MODEL_F_OUTCOMES_QUOTE_EXPECTED_STOP_LOSS, execution.quote_expected_stop_loss);
+  row.Number(MODEL_F_OUTCOMES_QUOTE_EXPECTED_TAKE_PROFIT, execution.quote_expected_take_profit);
+  row.Number(MODEL_F_OUTCOMES_QUOTE_EXPECTED_REWARD_RISK_RATIO, execution.quote_expected_reward_risk_ratio);
   if(Lot_Type == EXECUTION_LOT_REFERENCE_BALANCE_PERCENT)
   {
-    row.Number("risk_budget_amount", execution.risk_budget_amount);
-    row.Number("risk_budget_utilization_ratio", execution.risk_budget_utilization_ratio);
+    row.Number(MODEL_F_OUTCOMES_RISK_BUDGET_AMOUNT, execution.risk_budget_amount);
+    row.Number(MODEL_F_OUTCOMES_RISK_BUDGET_UTILIZATION_RATIO, execution.risk_budget_utilization_ratio);
   }
   if(entered)
   {
-    PivotDatasetClock(row, "entry_time_msc", execution.broker_entry_time_msc, execution.broker_entry_time);
-    row.Number("entry_price", execution.broker_entry_price);
-    row.Number("fill_deviation_points", (execution.broker_entry_price - execution.planned_entry_price) / _Point);
+    PivotDatasetClock(row, MODEL_F_OUTCOMES_ENTRY_TIME_MSC, execution.broker_entry_time_msc, execution.broker_entry_time);
+    row.Number(MODEL_F_OUTCOMES_ENTRY_PRICE, execution.broker_entry_price);
+    row.Number(MODEL_F_OUTCOMES_FILL_DEVIATION_POINTS, (execution.broker_entry_price - execution.planned_entry_price) / _Point);
   }
   if(closed)
   {
-    PivotDatasetClock(row, "exit_time_msc", execution.close_time_msc, execution.close_time);
-    row.Number("exit_price", execution.close_price);
-    row.Integer("last_close_deal_ticket", (long)execution.last_close_deal_ticket);
-    row.Integer("close_deal_count", execution.close_deal_count);
-    row.Number("broker_closed_volume", execution.closed_volume);
-    row.Number("gross_profit", execution.gross_profit);
-    row.Number("costs", execution.commission + execution.swap + execution.fee);
-    row.Number("net_profit", execution.net_profit);
-    row.Number("broker_commission", execution.commission);
-    row.Number("broker_swap", execution.swap);
-    row.Number("broker_fee", execution.fee);
-    row.Number("broker_net_execution_r", execution.net_execution_r);
-    row.Number("exit_slippage_points", execution.exit_slippage_points);
-    row.Flag("close_reason_consistent", execution.close_reason_consistent);
+    PivotDatasetClock(row, MODEL_F_OUTCOMES_EXIT_TIME_MSC, execution.close_time_msc, execution.close_time);
+    row.Number(MODEL_F_OUTCOMES_EXIT_PRICE, execution.close_price);
+    row.Integer(MODEL_F_OUTCOMES_LAST_CLOSE_DEAL_TICKET, (long)execution.last_close_deal_ticket);
+    row.Integer(MODEL_F_OUTCOMES_CLOSE_DEAL_COUNT, execution.close_deal_count);
+    row.Number(MODEL_F_OUTCOMES_BROKER_CLOSED_VOLUME, execution.closed_volume);
+    row.Number(MODEL_F_OUTCOMES_GROSS_PROFIT, execution.gross_profit);
+    row.Number(MODEL_F_OUTCOMES_COSTS, execution.commission + execution.swap + execution.fee);
+    row.Number(MODEL_F_OUTCOMES_NET_PROFIT, execution.net_profit);
+    row.Number(MODEL_F_OUTCOMES_BROKER_COMMISSION, execution.commission);
+    row.Number(MODEL_F_OUTCOMES_BROKER_SWAP, execution.swap);
+    row.Number(MODEL_F_OUTCOMES_BROKER_FEE, execution.fee);
+    row.Number(MODEL_F_OUTCOMES_BROKER_NET_EXECUTION_R, execution.net_execution_r);
+    row.Number(MODEL_F_OUTCOMES_EXIT_SLIPPAGE_POINTS, execution.exit_slippage_points);
+    row.Flag(MODEL_F_OUTCOMES_CLOSE_REASON_CONSISTENT, execution.close_reason_consistent);
     if(Lot_Type == EXECUTION_LOT_REFERENCE_BALANCE_PERCENT)
     {
-      row.Number("broker_gross_budget_r", execution.gross_budget_r);
-      row.Number("broker_net_budget_r", execution.net_budget_r);
+      row.Number(MODEL_F_OUTCOMES_BROKER_GROSS_BUDGET_R, execution.gross_budget_r);
+      row.Number(MODEL_F_OUTCOMES_BROKER_NET_BUDGET_R, execution.net_budget_r);
     }
     double direction = signal.direction == BULLISH ? 1.0 : -1.0;
     double risk = direction * (execution.broker_entry_price - execution.stop_loss_price);
-    row.Number("gross_r", risk > 0.0 ? direction * (execution.close_price - execution.broker_entry_price) / risk : EMPTY_VALUE);
+    row.Number(MODEL_F_OUTCOMES_GROSS_R, risk > 0.0 ? direction * (execution.close_price - execution.broker_entry_price) / risk : EMPTY_VALUE);
     long entry = execution.broker_entry_time_msc > 0 ? execution.broker_entry_time_msc : (long)execution.broker_entry_time * 1000;
     long closed_at = execution.close_time_msc > 0 ? execution.close_time_msc : (long)execution.close_time * 1000;
-    row.Integer("duration_ms", closed_at - entry);
+    row.Integer(MODEL_F_OUTCOMES_DURATION_MS, closed_at - entry);
   }
   return ModelWrite(row) && (signal.parity_trial_id == "" || PivotDatasetLinkParityBrokerOutcome(signal));
 }
@@ -682,18 +682,18 @@ bool PivotDatasetRecordBrokerTrial(const PivotSignal &signal, const BrokerExecut
 {
   ModelRow row;
   row.Init(MODEL_TRIALS);
-  row.Set("trial_id", PivotDatasetBrokerTrialId(signal.origin_id));
-  row.Set("attempt_id", PivotDatasetAttemptId(signal.origin_id));
-  row.Set("role", "BROKER");
-  row.Set("entry_policy", "STRUCTURAL");
-  row.Integer("rr", 1);
-  PivotDatasetClock(row, "declared_time_msc", check.broker_time_msc, check.broker_time);
-  row.Number("entry_price", check.planned_entry_price);
-  row.Number("sl", check.stop_loss_price);
-  row.Number("tp", check.take_profit_price);
-  row.Number("volume", check.normalized_volume);
-  row.Set("eligibility", check.allowed ? "ACCEPTED" : "REJECTED");
-  row.Set("reason", ModelNullable(check.block_reason));
+  row.Set(MODEL_F_TRIALS_TRIAL_ID, PivotDatasetBrokerTrialId(signal.origin_id));
+  row.Set(MODEL_F_TRIALS_ATTEMPT_ID, PivotDatasetAttemptId(signal.origin_id));
+  row.Set(MODEL_F_TRIALS_ROLE, "BROKER");
+  row.Set(MODEL_F_TRIALS_ENTRY_POLICY, "STRUCTURAL");
+  row.Integer(MODEL_F_TRIALS_RR, 1);
+  PivotDatasetClock(row, MODEL_F_TRIALS_DECLARED_TIME_MSC, check.broker_time_msc, check.broker_time);
+  row.Number(MODEL_F_TRIALS_ENTRY_PRICE, check.planned_entry_price);
+  row.Number(MODEL_F_TRIALS_SL, check.stop_loss_price);
+  row.Number(MODEL_F_TRIALS_TP, check.take_profit_price);
+  row.Number(MODEL_F_TRIALS_VOLUME, check.normalized_volume);
+  row.Set(MODEL_F_TRIALS_ELIGIBILITY, check.allowed ? "ACCEPTED" : "REJECTED");
+  row.Set(MODEL_F_TRIALS_REASON, ModelNullable(check.block_reason));
   if(!ModelWrite(row)) return false;
   return check.allowed || PivotDatasetRecordBrokerOutcome(signal);
 }
@@ -707,92 +707,92 @@ bool PivotDatasetRecordExecutionCheck(const PivotSignal &signal, const BrokerExe
   bool closed = check.phase == "TERMINAL" && signal.execution.broker_close_confirmed;
   ModelRow row;
   row.Init(MODEL_EXECUTION_CHECKS);
-  row.Set("check_id", signal.broker_signal_id + ":" + ModelInteger(check.sequence) + ":" + check.phase);
-  row.Set("attempt_id", PivotDatasetAttemptId(signal.origin_id));
-  row.Set("action", check.phase);
-  PivotDatasetClock(row, "time_msc", check.broker_time_msc, check.broker_time);
-  row.Integer("sequence", check.sequence);
-  row.Flag("allowed", check.allowed);
-  row.Set("reason", check.block_reason == "" ? (check.allowed ? "ACCEPTED" : "NOT_ALLOWED") : check.block_reason);
-  row.Number("volume", check.normalized_volume);
-  row.Number("entry_price", check.planned_entry_price);
-  row.Number("sl", check.stop_loss_price);
-  row.Number("tp", check.take_profit_price);
-  row.Number("margin", check.required_margin);
-  row.Number("stop_profit", check.quote_expected_stop_loss);
-  row.Integer("account_margin_mode", check.account_margin_mode);
-  row.Integer("symbol_trade_mode", check.symbol_trade_mode);
-  row.Number("bid", check.bid);
-  row.Number("ask", check.ask);
-  row.Number("spread_points", check.spread_points);
-  row.Number("point_size", check.point_size);
-  row.Number("trade_tick_size", check.trade_tick_size);
-  row.Number("stops_distance_points", check.stops_distance_points);
-  row.Number("freeze_distance_points", check.freeze_distance_points);
-  row.Number("risk_distance_points", check.risk_distance_points);
-  row.Number("reward_distance_points", check.reward_distance_points);
-  row.Number("requested_volume", check.requested_volume);
-  row.Number("volume_min", check.volume_min);
-  row.Number("volume_max", check.volume_max);
-  row.Number("volume_step", check.volume_step);
-  row.Number("quote_expected_take_profit", check.quote_expected_take_profit);
-  row.Number("quote_expected_reward_risk_ratio", check.quote_expected_reward_risk_ratio);
-  row.Number("account_balance", check.account_balance);
-  row.Number("free_margin", check.free_margin);
-  row.Flag("account_margin_mode_supported", check.account_margin_mode_supported);
-  row.Flag("symbol_trade_mode_allowed", check.symbol_trade_mode_allowed);
-  row.Flag("market_session_open", check.market_session_open);
-  row.Flag("account_trade_allowed", check.account_trade_allowed);
-  row.Flag("account_expert_trade_allowed", check.account_expert_trade_allowed);
-  row.Flag("terminal_trade_allowed", check.terminal_trade_allowed);
-  row.Flag("mql_trade_allowed", check.mql_trade_allowed);
-  row.Flag("volume_valid", check.volume_valid);
-  row.Flag("fok_supported", check.fok_supported);
-  row.Flag("margin_valid", check.margin_valid);
-  row.Flag("geometry_valid", check.geometry_valid);
-  row.Flag("stop_distance_valid", check.stop_distance_valid);
-  row.Flag("freeze_distance_valid", check.freeze_distance_valid);
-  row.Flag("order_check_performed", check.order_check_performed);
-  row.Flag("order_check_allowed", check.order_check_allowed);
+  row.Set(MODEL_F_EXECUTION_CHECKS_CHECK_ID, signal.broker_signal_id + ":" + ModelInteger(check.sequence) + ":" + check.phase);
+  row.Set(MODEL_F_EXECUTION_CHECKS_ATTEMPT_ID, PivotDatasetAttemptId(signal.origin_id));
+  row.Set(MODEL_F_EXECUTION_CHECKS_ACTION, check.phase);
+  PivotDatasetClock(row, MODEL_F_EXECUTION_CHECKS_TIME_MSC, check.broker_time_msc, check.broker_time);
+  row.Integer(MODEL_F_EXECUTION_CHECKS_SEQUENCE, check.sequence);
+  row.Flag(MODEL_F_EXECUTION_CHECKS_ALLOWED, check.allowed);
+  row.Set(MODEL_F_EXECUTION_CHECKS_REASON, check.block_reason == "" ? (check.allowed ? "ACCEPTED" : "NOT_ALLOWED") : check.block_reason);
+  row.Number(MODEL_F_EXECUTION_CHECKS_VOLUME, check.normalized_volume);
+  row.Number(MODEL_F_EXECUTION_CHECKS_ENTRY_PRICE, check.planned_entry_price);
+  row.Number(MODEL_F_EXECUTION_CHECKS_SL, check.stop_loss_price);
+  row.Number(MODEL_F_EXECUTION_CHECKS_TP, check.take_profit_price);
+  row.Number(MODEL_F_EXECUTION_CHECKS_MARGIN, check.required_margin);
+  row.Number(MODEL_F_EXECUTION_CHECKS_STOP_PROFIT, check.quote_expected_stop_loss);
+  row.Integer(MODEL_F_EXECUTION_CHECKS_ACCOUNT_MARGIN_MODE, check.account_margin_mode);
+  row.Integer(MODEL_F_EXECUTION_CHECKS_SYMBOL_TRADE_MODE, check.symbol_trade_mode);
+  row.Number(MODEL_F_EXECUTION_CHECKS_BID, check.bid);
+  row.Number(MODEL_F_EXECUTION_CHECKS_ASK, check.ask);
+  row.Number(MODEL_F_EXECUTION_CHECKS_SPREAD_POINTS, check.spread_points);
+  row.Number(MODEL_F_EXECUTION_CHECKS_POINT_SIZE, check.point_size);
+  row.Number(MODEL_F_EXECUTION_CHECKS_TRADE_TICK_SIZE, check.trade_tick_size);
+  row.Number(MODEL_F_EXECUTION_CHECKS_STOPS_DISTANCE_POINTS, check.stops_distance_points);
+  row.Number(MODEL_F_EXECUTION_CHECKS_FREEZE_DISTANCE_POINTS, check.freeze_distance_points);
+  row.Number(MODEL_F_EXECUTION_CHECKS_RISK_DISTANCE_POINTS, check.risk_distance_points);
+  row.Number(MODEL_F_EXECUTION_CHECKS_REWARD_DISTANCE_POINTS, check.reward_distance_points);
+  row.Number(MODEL_F_EXECUTION_CHECKS_REQUESTED_VOLUME, check.requested_volume);
+  row.Number(MODEL_F_EXECUTION_CHECKS_VOLUME_MIN, check.volume_min);
+  row.Number(MODEL_F_EXECUTION_CHECKS_VOLUME_MAX, check.volume_max);
+  row.Number(MODEL_F_EXECUTION_CHECKS_VOLUME_STEP, check.volume_step);
+  row.Number(MODEL_F_EXECUTION_CHECKS_QUOTE_EXPECTED_TAKE_PROFIT, check.quote_expected_take_profit);
+  row.Number(MODEL_F_EXECUTION_CHECKS_QUOTE_EXPECTED_REWARD_RISK_RATIO, check.quote_expected_reward_risk_ratio);
+  row.Number(MODEL_F_EXECUTION_CHECKS_ACCOUNT_BALANCE, check.account_balance);
+  row.Number(MODEL_F_EXECUTION_CHECKS_FREE_MARGIN, check.free_margin);
+  row.Flag(MODEL_F_EXECUTION_CHECKS_ACCOUNT_MARGIN_MODE_SUPPORTED, check.account_margin_mode_supported);
+  row.Flag(MODEL_F_EXECUTION_CHECKS_SYMBOL_TRADE_MODE_ALLOWED, check.symbol_trade_mode_allowed);
+  row.Flag(MODEL_F_EXECUTION_CHECKS_MARKET_SESSION_OPEN, check.market_session_open);
+  row.Flag(MODEL_F_EXECUTION_CHECKS_ACCOUNT_TRADE_ALLOWED, check.account_trade_allowed);
+  row.Flag(MODEL_F_EXECUTION_CHECKS_ACCOUNT_EXPERT_TRADE_ALLOWED, check.account_expert_trade_allowed);
+  row.Flag(MODEL_F_EXECUTION_CHECKS_TERMINAL_TRADE_ALLOWED, check.terminal_trade_allowed);
+  row.Flag(MODEL_F_EXECUTION_CHECKS_MQL_TRADE_ALLOWED, check.mql_trade_allowed);
+  row.Flag(MODEL_F_EXECUTION_CHECKS_VOLUME_VALID, check.volume_valid);
+  row.Flag(MODEL_F_EXECUTION_CHECKS_FOK_SUPPORTED, check.fok_supported);
+  row.Flag(MODEL_F_EXECUTION_CHECKS_MARGIN_VALID, check.margin_valid);
+  row.Flag(MODEL_F_EXECUTION_CHECKS_GEOMETRY_VALID, check.geometry_valid);
+  row.Flag(MODEL_F_EXECUTION_CHECKS_STOP_DISTANCE_VALID, check.stop_distance_valid);
+  row.Flag(MODEL_F_EXECUTION_CHECKS_FREEZE_DISTANCE_VALID, check.freeze_distance_valid);
+  row.Flag(MODEL_F_EXECUTION_CHECKS_ORDER_CHECK_PERFORMED, check.order_check_performed);
+  row.Flag(MODEL_F_EXECUTION_CHECKS_ORDER_CHECK_ALLOWED, check.order_check_allowed);
   if(Lot_Type == EXECUTION_LOT_REFERENCE_BALANCE_PERCENT)
   {
-    row.Number("risk_budget_amount", check.risk_budget_amount);
-    row.Number("risk_budget_utilization_ratio", check.risk_budget_utilization_ratio);
+    row.Number(MODEL_F_EXECUTION_CHECKS_RISK_BUDGET_AMOUNT, check.risk_budget_amount);
+    row.Number(MODEL_F_EXECUTION_CHECKS_RISK_BUDGET_UTILIZATION_RATIO, check.risk_budget_utilization_ratio);
   }
-  row.Set("fill_policy", "ORDER_FILLING_FOK");
-  row.Set("order_check_comment", ModelNullable(check.order_check_comment));
-  row.Set("block_source", ModelNullable(check.block_source));
-  if(check.order_check_performed) row.Integer("check_retcode", (long)check.order_check_retcode);
-  row.Flag("send_performed", send);
-  row.Flag("send_succeeded", send && check.allowed);
+  row.Set(MODEL_F_EXECUTION_CHECKS_FILL_POLICY, "ORDER_FILLING_FOK");
+  row.Set(MODEL_F_EXECUTION_CHECKS_ORDER_CHECK_COMMENT, ModelNullable(check.order_check_comment));
+  row.Set(MODEL_F_EXECUTION_CHECKS_BLOCK_SOURCE, ModelNullable(check.block_source));
+  if(check.order_check_performed) row.Integer(MODEL_F_EXECUTION_CHECKS_CHECK_RETCODE, (long)check.order_check_retcode);
+  row.Flag(MODEL_F_EXECUTION_CHECKS_SEND_PERFORMED, send);
+  row.Flag(MODEL_F_EXECUTION_CHECKS_SEND_SUCCEEDED, send && check.allowed);
   if(send)
   {
-    row.Set("trade_action", "TRADE_ACTION_DEAL");
-    row.Integer("send_retcode", (long)check.send_retcode);
-    row.Set("send_comment", ModelNullable(check.send_comment));
+    row.Set(MODEL_F_EXECUTION_CHECKS_TRADE_ACTION, "TRADE_ACTION_DEAL");
+    row.Integer(MODEL_F_EXECUTION_CHECKS_SEND_RETCODE, (long)check.send_retcode);
+    row.Set(MODEL_F_EXECUTION_CHECKS_SEND_COMMENT, ModelNullable(check.send_comment));
   }
   ulong order = signal.execution.order_ticket > 0 ? signal.execution.order_ticket : check.order_ticket;
   ulong deal = closed ? signal.execution.last_close_deal_ticket : (entry ? signal.execution.entry_deal_ticket : check.deal_ticket);
-  if(order > 0) row.Integer("order_ticket", (long)order);
-  if(deal > 0) row.Integer("deal_ticket", (long)deal);
-  if(signal.execution.position_ticket > 0) row.Integer("position_ticket", (long)signal.execution.position_ticket);
-  if(signal.execution.position_identifier > 0) row.Integer("position_id", (long)signal.execution.position_identifier);
-  row.Flag("broker_entry_confirmed", entry);
-  row.Flag("broker_close_confirmed", closed);
+  if(order > 0) row.Integer(MODEL_F_EXECUTION_CHECKS_ORDER_TICKET, (long)order);
+  if(deal > 0) row.Integer(MODEL_F_EXECUTION_CHECKS_DEAL_TICKET, (long)deal);
+  if(signal.execution.position_ticket > 0) row.Integer(MODEL_F_EXECUTION_CHECKS_POSITION_TICKET, (long)signal.execution.position_ticket);
+  if(signal.execution.position_identifier > 0) row.Integer(MODEL_F_EXECUTION_CHECKS_POSITION_ID, (long)signal.execution.position_identifier);
+  row.Flag(MODEL_F_EXECUTION_CHECKS_BROKER_ENTRY_CONFIRMED, entry);
+  row.Flag(MODEL_F_EXECUTION_CHECKS_BROKER_CLOSE_CONFIRMED, closed);
   if(entry)
   {
-    row.Number("broker_entry_price", signal.execution.broker_entry_price);
-    row.Number("broker_volume", signal.execution.broker_volume);
-    row.Number("broker_stop_loss", signal.execution.broker_stop_loss);
-    row.Number("broker_take_profit", signal.execution.broker_take_profit);
+    row.Number(MODEL_F_EXECUTION_CHECKS_BROKER_ENTRY_PRICE, signal.execution.broker_entry_price);
+    row.Number(MODEL_F_EXECUTION_CHECKS_BROKER_VOLUME, signal.execution.broker_volume);
+    row.Number(MODEL_F_EXECUTION_CHECKS_BROKER_STOP_LOSS, signal.execution.broker_stop_loss);
+    row.Number(MODEL_F_EXECUTION_CHECKS_BROKER_TAKE_PROFIT, signal.execution.broker_take_profit);
   }
   if(closed)
   {
-    row.Number("close_price", signal.execution.close_price);
-    row.Number("closed_volume", signal.execution.closed_volume);
-    row.Set("terminal_reason", ModelNullable(signal.execution.terminal_reason));
+    row.Number(MODEL_F_EXECUTION_CHECKS_CLOSE_PRICE, signal.execution.close_price);
+    row.Number(MODEL_F_EXECUTION_CHECKS_CLOSED_VOLUME, signal.execution.closed_volume);
+    row.Set(MODEL_F_EXECUTION_CHECKS_TERMINAL_REASON, ModelNullable(signal.execution.terminal_reason));
   }
-  row.Flag("protection_modified", false);
+  row.Flag(MODEL_F_EXECUTION_CHECKS_PROTECTION_MODIFIED, false);
   if(!ModelWrite(row)) return false;
   return !send || PivotDatasetRecordBrokerTrial(signal, check);
 }
@@ -804,7 +804,7 @@ void DiscardFailedPivotResearch()
   ArrayFree(g_pivot_dataset_pending_origins);
   ArrayFree(g_pivot_dataset_parity_links);
   ArrayFree(g_pivot_trial_active_states);
-  for(int file = 0; file < MODEL_FILE_COUNT; file++) ArrayFree(g_model_buffers[file].rows);
+  ModelReleaseBuffers();
   ModelCloseIndicators();
   PrintFormat("PIVOT_DATASET_RESEARCH_RELEASED | broker_states=%d", ArraySize(g_pivot_signals));
 }

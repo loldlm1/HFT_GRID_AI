@@ -238,44 +238,44 @@ void ModelUpdateStructure(const MqlTick &tick)
   g_model_structure_reason = g_model_structure.kind == 0 ? "INITIAL" : "OK";
 }
 
-void ModelConfirmedCells(ModelRow &row, const string name, const ModelStructurePivot &pivot)
+void ModelConfirmedCells(ModelRow &row, const int slot, const ModelStructurePivot &pivot)
 {
   if(pivot.kind == 0) return;
-  row.Set(name + "_kind", pivot.kind == 1 ? "HIGH" : "LOW");
-  row.Set(name + "_class", pivot.classification);
-  row.Number(name + "_price", pivot.price);
-  row.Clock(name + "_pivot_time_msc", (long)pivot.time * 1000, true);
-  row.Clock(name + "_confirmation_time_msc", (long)pivot.confirmed_at * 1000, true);
+  row.Set(MODEL_CONFIRMED_KIND[slot], pivot.kind == 1 ? "HIGH" : "LOW");
+  row.Set(MODEL_CONFIRMED_CLASS[slot], pivot.classification);
+  row.Number(MODEL_CONFIRMED_PRICE[slot], pivot.price);
+  row.Clock(MODEL_CONFIRMED_PIVOT_TIME_MSC[slot], (long)pivot.time * 1000, true);
+  row.Clock(MODEL_CONFIRMED_CONFIRMATION_TIME_MSC[slot], (long)pivot.confirmed_at * 1000, true);
 }
 
 bool ModelCaptureStructure(ModelRow &row, const MqlTick &tick, const string snapshot_id)
 {
-  row.Flag("structure_complete", false);
-  row.Set("structure_reason", g_model_structure_reason);
-  row.Set("forming_status", "UNAVAILABLE");
+  row.Flag(MODEL_F_FEATURE_SNAPSHOTS_STRUCTURE_COMPLETE, false);
+  row.Set(MODEL_F_FEATURE_SNAPSHOTS_STRUCTURE_REASON, g_model_structure_reason);
+  row.Set(MODEL_F_FEATURE_SNAPSHOTS_FORMING_STATUS, "UNAVAILABLE");
   MqlRates current[1];
   double k[1];
   if(!g_model_structure_ready || g_model_structure_handle == INVALID_HANDLE || BarsCalculated(g_model_structure_handle) < 10 ||
      CopyRates(g_model_config.symbol, PERIOD_M1, 0, 1, current) != 1 ||
      CopyBuffer(g_model_structure_handle, 0, 0, 1, k) != 1 || current[0].time > tick.time ||
      current[0].time <= g_model_structure_cursor || current[0].time != iTime(g_model_config.symbol, PERIOD_M1, 0)) return false;
-  row.Clock("structure_observed_bar_time_msc", (long)current[0].time * 1000, true);
-  row.Clock("structure_last_closed_time_msc", (long)g_model_structure_cursor * 1000, true);
-  ModelConfirmedCells(row, "confirmed_high", g_model_confirmed_high);
-  ModelConfirmedCells(row, "confirmed_low", g_model_confirmed_low);
-  ModelConfirmedCells(row, "confirmed_event", g_model_confirmed_event);
+  row.Clock(MODEL_F_FEATURE_SNAPSHOTS_STRUCTURE_OBSERVED_BAR_TIME_MSC, (long)current[0].time * 1000, true);
+  row.Clock(MODEL_F_FEATURE_SNAPSHOTS_STRUCTURE_LAST_CLOSED_TIME_MSC, (long)g_model_structure_cursor * 1000, true);
+  ModelConfirmedCells(row, 0, g_model_confirmed_high);
+  ModelConfirmedCells(row, 1, g_model_confirmed_low);
+  ModelConfirmedCells(row, 2, g_model_confirmed_event);
   ModelStructureState projection = g_model_structure;
   ModelStructurePivot transient;
   if(!ModelStructureAdvance(projection, current[0].time, current[0].time + 60, current[0].close, k[0], transient)) return false;
-  row.Flag("structure_complete", true);
-  row.Set("structure_reason", projection.kind == 0 ? "INITIAL" : "OK");
-  row.Set("forming_status", projection.kind == 0 ? "INITIAL" : "FORMING");
+  row.Flag(MODEL_F_FEATURE_SNAPSHOTS_STRUCTURE_COMPLETE, true);
+  row.Set(MODEL_F_FEATURE_SNAPSHOTS_STRUCTURE_REASON, projection.kind == 0 ? "INITIAL" : "OK");
+  row.Set(MODEL_F_FEATURE_SNAPSHOTS_FORMING_STATUS, projection.kind == 0 ? "INITIAL" : "FORMING");
   if(projection.kind != 0)
   {
-    row.Set("forming_kind", projection.kind == 1 ? "HIGH" : "LOW");
-    row.Set("forming_class", ModelStructureClass(projection));
-    row.Number("forming_price", projection.candidate_price);
-    row.Clock("forming_pivot_time_msc", (long)projection.candidate_time * 1000, true);
+    row.Set(MODEL_F_FEATURE_SNAPSHOTS_FORMING_KIND, projection.kind == 1 ? "HIGH" : "LOW");
+    row.Set(MODEL_F_FEATURE_SNAPSHOTS_FORMING_CLASS, ModelStructureClass(projection));
+    row.Number(MODEL_F_FEATURE_SNAPSHOTS_FORMING_PRICE, projection.candidate_price);
+    row.Clock(MODEL_F_FEATURE_SNAPSHOTS_FORMING_PIVOT_TIME_MSC, (long)projection.candidate_time * 1000, true);
   }
   ModelStructureAudit("LIVE", current[0].time, current[0].close, k[0], current[0].time + 60, snapshot_id);
   return true;

@@ -1,8 +1,25 @@
 #ifndef MODEL_EXPORT_MQH
 #define MODEL_EXPORT_MQH
 
-struct ModelWriteBuffer { string rows[]; };
+struct ModelWriteBuffer
+{
+  uchar bytes[];
+  int used;
+  int rows;
+};
 ModelWriteBuffer g_model_buffers[MODEL_FILE_COUNT];
+uchar g_model_encode_scratch[];
+
+void ModelReleaseBuffers()
+{
+  for(int file = 0; file < MODEL_FILE_COUNT; file++)
+  {
+    ArrayFree(g_model_buffers[file].bytes);
+    g_model_buffers[file].used = 0;
+    g_model_buffers[file].rows = 0;
+  }
+  ArrayFree(g_model_encode_scratch);
+}
 
 bool ModelWriteBytes(const int handle, const string text)
 {
@@ -39,7 +56,7 @@ void ModelFail(const string reason)
 
 bool ModelFlush(const int file, const bool sealing = false)
 {
-  int count = ArraySize(g_model_buffers[file].rows);
+  int count = g_model_buffers[file].used;
   // Final sealing must recheck even tables whose last batch already flushed.
   if(count == 0 && !sealing) return true;
   if(g_model_failed && !sealing) return false;
@@ -47,13 +64,18 @@ bool ModelFlush(const int file, const bool sealing = false)
   if(!FileIsExist(path, FILE_COMMON)) { ModelFail("MISSING_FILE_" + ModelFileName(file)); return false; }
   int handle = FileOpen(path, FILE_READ | FILE_WRITE | FILE_BIN | FILE_COMMON | FILE_SHARE_READ);
   if(handle == INVALID_HANDLE) { ModelFail("OPEN_" + ModelFileName(file)); return false; }
-  uchar expected[], actual[];
-  int bytes = StringToCharArray(ModelHeader(file) + "\r\n", expected, 0, WHOLE_ARRAY, CP_UTF8) - 1;
+  uchar actual[];
+  int bytes = g_model_layout[file].header_bytes;
+  ResetLastError();
   bool valid = bytes > 0 && ArrayResize(actual, bytes) == bytes &&
-               FileReadArray(handle, actual, 0, bytes) == (uint)bytes;
-  for(int i = 0; valid && i < bytes; i++) if(actual[i] != expected[i]) valid = false;
+               FileReadArray(handle, actual, 0, bytes) == (uint)bytes && GetLastError() == 0;
+  for(int i = 0; valid && i < bytes; i++) if(actual[i] != g_model_layout[file].header[i]) valid = false;
   if(valid) valid = FileSeek(handle, 0, SEEK_END);
-  for(int i = 0; valid && i < count; i++) valid = ModelWriteBytes(handle, g_model_buffers[file].rows[i] + "\r\n");
+  if(valid && count > 0)
+  {
+    ResetLastError();
+    valid = FileWriteArray(handle, g_model_buffers[file].bytes, 0, count) == (uint)count && GetLastError() == 0;
+  }
   if(valid)
   {
     ResetLastError();
@@ -62,7 +84,8 @@ bool ModelFlush(const int file, const bool sealing = false)
   }
   FileClose(handle);
   if(!valid) { ModelFail("HEADER_OR_APPEND_" + ModelFileName(file)); return false; }
-  ArrayFree(g_model_buffers[file].rows);
+  g_model_buffers[file].used = 0;
+  g_model_buffers[file].rows = 0;
   return true;
 }
 
@@ -72,24 +95,47 @@ bool ModelWrite(ModelRow &row, const bool sealing = false)
   string text;
   if(!row.Serialize(text)) return false;
   int file = row.file;
-  int count = ArraySize(g_model_buffers[file].rows);
-  if(ArrayResize(g_model_buffers[file].rows, count + 1, MODEL_FLUSH_ROWS) != count + 1)
+  // Three UTF-8 bytes per UTF-16 code unit also bounds surrogate pairs.
+  int capacity = 3 * StringLen(text) + 3;
+  if((ArraySize(g_model_encode_scratch) < capacity && ArrayResize(g_model_encode_scratch, capacity) != capacity) ||
+     (ArraySize(g_model_buffers[file].bytes) == 0 && ArrayResize(g_model_buffers[file].bytes, MODEL_BATCH_BYTES) != MODEL_BATCH_BYTES))
   {
     ModelFail("BUFFER_ALLOCATION");
     return false;
   }
-  g_model_buffers[file].rows[count] = text;
-  g_model_rows[file]++;
-  if(count + 1 > g_model_buffer_peak) g_model_buffer_peak = count + 1;
-  return count + 1 < MODEL_FLUSH_ROWS || ModelFlush(file, sealing);
+  int encoded = StringToCharArray(text, g_model_encode_scratch, 0, WHOLE_ARRAY, CP_UTF8);
+  if(encoded <= 1 || encoded >= ArraySize(g_model_encode_scratch)) { ModelFail("ROW_ENCODING"); return false; }
+  g_model_encode_scratch[encoded - 1] = 13;
+  g_model_encode_scratch[encoded] = 10;
+  int bytes = encoded + 1;
+  if(g_model_buffers[file].used > 0 && bytes > MODEL_BATCH_BYTES - g_model_buffers[file].used)
+    if(!ModelFlush(file, sealing)) return false;
+  int offset = 0;
+  while(offset < bytes)
+  {
+    int count = (int)MathMin(bytes - offset, MODEL_BATCH_BYTES - g_model_buffers[file].used);
+    if(ArrayCopy(g_model_buffers[file].bytes, g_model_encode_scratch, g_model_buffers[file].used, offset, count) != count)
+    { ModelFail("BUFFER_COPY"); return false; }
+    g_model_buffers[file].used += count;
+    offset += count;
+    if(offset == bytes)
+    {
+      g_model_rows[file]++;
+      g_model_buffers[file].rows++;
+      if(g_model_buffers[file].rows > g_model_buffer_peak) g_model_buffer_peak = g_model_buffers[file].rows;
+    }
+    if(g_model_buffers[file].used == MODEL_BATCH_BYTES || g_model_buffers[file].rows == MODEL_FLUSH_ROWS)
+      if(!ModelFlush(file, sealing)) return false;
+  }
+  return true;
 }
 
 void ModelMetadata(const int file, const string key, const string value, const bool sealing = false)
 {
   ModelRow row;
   row.Init(file);
-  row.Set("key", key);
-  row.Set("value", value);
+  row.Set(file == MODEL_RUN_MANIFEST ? MODEL_F_RUN_MANIFEST_KEY : MODEL_F_RUN_SUMMARY_KEY, key);
+  row.Set(file == MODEL_RUN_MANIFEST ? MODEL_F_RUN_MANIFEST_VALUE : MODEL_F_RUN_SUMMARY_VALUE, value);
   if(!ModelWrite(row, sealing) && !g_model_failed) ModelFail("METADATA_" + key);
 }
 

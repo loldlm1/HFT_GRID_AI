@@ -120,11 +120,11 @@ bool ModelCaptureIndicators(ModelRow &row, const int slot, const MqlTick &tick,
 {
   string role = slot == 0 ? "macro" : "micro";
   ENUM_TIMEFRAMES timeframe = slot == 0 ? g_model_config.macro : g_model_config.micro;
-  row.Flag(role + "_complete", false);
-  row.Flag(role + "_stochastic_complete", false);
-  row.Flag(role + "_percent_b_complete", false);
-  row.Flag(role + "_atr_complete", false);
-  row.Set(role + "_reason", "SOURCE_UNAVAILABLE");
+  row.Flag(MODEL_ROLE_COMPLETE[slot], false);
+  row.Flag(MODEL_ROLE_STOCHASTIC_COMPLETE[slot], false);
+  row.Flag(MODEL_ROLE_PERCENT_B_COMPLETE[slot], false);
+  row.Flag(MODEL_ROLE_ATR_COMPLETE[slot], false);
+  row.Set(MODEL_ROLE_REASON[slot], "SOURCE_UNAVAILABLE");
   datetime opening = iTime(g_model_config.symbol, timeframe, 0);
   MqlRates rates[10];
   if(opening <= 0 || opening > tick.time || CopyRates(g_model_config.symbol, timeframe, 0, 10, rates) != 10 ||
@@ -152,39 +152,39 @@ bool ModelCaptureIndicators(ModelRow &row, const int slot, const MqlTick &tick,
   }
   if(iTime(g_model_config.symbol, timeframe, 0) != opening)
   {
-    row.Set(role + "_reason", "BAR_CHANGED");
+    row.Set(MODEL_ROLE_REASON[slot], "BAR_CHANGED");
     return false;
   }
   for(int shift = 0; shift < 6; shift++)
   {
-    string suffix = "_" + ModelInteger(shift);
-    row.Clock(role + "_source" + suffix + "_time_msc", (long)rates[9 - shift].time * 1000, true);
+    int column = slot * 6 + shift;
+    row.Clock(MODEL_ROLE_SOURCE[column], (long)rates[9 - shift].time * 1000, true);
     if(stochastic_ok)
     {
-      row.Number(role + "_stochastic_k" + suffix, k[shift]);
-      row.Number(role + "_stochastic_d" + suffix, d[shift]);
+      row.Number(MODEL_ROLE_STOCHASTIC_K[column], k[shift]);
+      row.Number(MODEL_ROLE_STOCHASTIC_D[column], d[shift]);
     }
     if(bands_ok)
     {
       double total = 0.0;
       for(int j = 0; j < 5; j++) total += percent[shift + j];
-      row.Number(role + "_percent_b" + suffix, percent[shift]);
-      row.Number(role + "_percent_b_sma_5" + suffix, total / 5.0);
+      row.Number(MODEL_ROLE_PERCENT_B[column], percent[shift]);
+      row.Number(MODEL_ROLE_PERCENT_B_SMA_5[column], total / 5.0);
     }
     if(atr_ok)
     {
       double total = 0.0;
       for(int j = 0; j < 5; j++) total += atr[shift + j];
-      row.Number(role + "_atr_13" + suffix, atr[shift]);
-      row.Number(role + "_atr_13_sma_5" + suffix, total / 5.0);
+      row.Number(MODEL_ROLE_ATR_13[column], atr[shift]);
+      row.Number(MODEL_ROLE_ATR_13_SMA_5[column], total / 5.0);
     }
   }
   bool complete = bands_ok && stochastic_ok && atr_ok;
-  row.Flag(role + "_complete", complete);
-  row.Flag(role + "_stochastic_complete", stochastic_ok);
-  row.Flag(role + "_percent_b_complete", bands_ok);
-  row.Flag(role + "_atr_complete", atr_ok);
-  row.Set(role + "_reason", complete ? "OK" : "INDICATOR_UNAVAILABLE");
+  row.Flag(MODEL_ROLE_COMPLETE[slot], complete);
+  row.Flag(MODEL_ROLE_STOCHASTIC_COMPLETE[slot], stochastic_ok);
+  row.Flag(MODEL_ROLE_PERCENT_B_COMPLETE[slot], bands_ok);
+  row.Flag(MODEL_ROLE_ATR_COMPLETE[slot], atr_ok);
+  row.Set(MODEL_ROLE_REASON[slot], complete ? "OK" : "INDICATOR_UNAVAILABLE");
   ModelIndicatorAudit(snapshot_id, role, tick, rates, lower, upper, k, d, atr);
   return complete;
 }

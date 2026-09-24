@@ -684,6 +684,44 @@ def mql_header() -> str:
              "enum ModelFileIds {", ",\n".join(f"  MODEL_{t.name.removesuffix('.tsv').upper()} = {i}"
                                             for i, t in enumerate(TABLES)),
              f",  MODEL_FILE_COUNT = {len(TABLES)}", "};", ""]
+    stride = 1 << (max(len(t.raw_fields) for t in TABLES) - 1).bit_length()
+    field_ids = {}
+    lines.extend([f"const int MODEL_FIELD_STRIDE = {stride};", "enum ModelFieldIds {"])
+    constants = []
+    for i, table in enumerate(TABLES):
+        prefix = "MODEL_F_" + table.name.removesuffix(".tsv").upper()
+        for j, field in enumerate(table.raw_fields):
+            name = f"{prefix}_{field.name.upper()}"
+            field_ids[table.name, field.name] = name
+            constants.append(f"  {name} = {i * stride + j}")
+    lines.extend([",\n".join(constants), "};", ""])
+
+    # Native providers index these bounded groups by role/shift/level, never names.
+    def group(name, table, columns):
+        values = [field_ids[table, column] for column in columns]
+        lines.append(f"const int {name}[{len(values)}] = {{" + ", ".join(values) + "};")
+
+    for suffix in ("complete", "reason", "stochastic_complete", "percent_b_complete", "atr_complete"):
+        group("MODEL_ROLE_" + suffix.upper(), "feature_snapshots.tsv",
+              [f"{role}_{suffix}" for role in ("macro", "micro")])
+    for family in ("source", "stochastic_k", "stochastic_d", "percent_b", "percent_b_sma_5", "atr_13", "atr_13_sma_5"):
+        group("MODEL_ROLE_" + family.upper(), "feature_snapshots.tsv",
+              [f"{role}_{family}_{shift}" + ("_time_msc" if family == "source" else "")
+               for role in ("macro", "micro") for shift in range(6)])
+    for prefix in ("raw", "trade"):
+        group("MODEL_WINDOW_" + prefix.upper(), "macro_windows.tsv",
+              [f"{prefix}_{level.lower()}_price" for level in LEVELS])
+    for suffix in ("price", "touch_time_msc", "touch_sequence", "role", "reclaimed", "gap_cross"):
+        group("MODEL_PIVOT_" + suffix.upper(), "feature_snapshots.tsv",
+              [f"pivot_{level.lower()}_{suffix}" for level in LEVELS])
+    for suffix in ("kind", "class", "price", "pivot_time_msc", "confirmation_time_msc"):
+        group("MODEL_CONFIRMED_" + suffix.upper(), "feature_snapshots.tsv",
+              [f"confirmed_{kind}_{suffix}" for kind in ("high", "low", "event")])
+    lines.extend(["", "int ModelClockColumn(const int field)", "{", "  switch(field)", "  {"])
+    for table in TABLES:
+        for i, field in enumerate(table.clocks):
+            lines.append(f"    case {field_ids[table.name, field.name]}: return {len(table.raw_fields) + 3 * i};")
+    lines.extend(["  }", "  return -1;", "}", ""])
     def emit(name, kind, values):
         lines.extend([f"{kind} {name}(const int file)", "{", "  switch(file)", "  {"])
         for i, value in enumerate(values):

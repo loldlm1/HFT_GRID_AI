@@ -38,7 +38,24 @@ retains existing native queries and bounded 4096/256 structure processing:
 no safe read-cache optimization with a demonstrated gain was established.
 Early/late M1 update costs are stable per callback. This is a measurement-only
 result; indexed row construction and trial-state processing remain the next
-measured targets. Evidence: `s2/assessment.json` in the runtime receipt directory.
+measured targets. S2 is committed as `c9ee8b4`; evidence is in
+`s2/assessment.json` in the runtime receipt directory.
+
+Runtime S3 implements generated field/clock indices and checked 256-row/1-MiB
+byte batches without changing the canonical schema or feature semantics. Three
+alternating measured pairs after warmup lower Candle week/month medians from
+`1.001 / 4.727 s` to `0.800 / 3.807 s` (20.1% / 19.5%). Pivot remains within
+noise at `12.597 / 58.600 s` versus `12.389 / 58.468 s`. All 76 shared tests,
+89 native comparisons/strict checks, six file faults, two reused-ID refusals
+and both isolated buffer-boundary stress cases pass. The source-derived month
+data-write counts fall from 96,491 to 386 for Candle and 31,200 to 128 for Pivot;
+these are API-call counts inferred from exact bytes, not measured OS syscalls.
+Both release EAs compile with zero errors/warnings on MetaEditor 6184 AVX2.
+Current source/EX5 pins: `s3/build-batch-b02.json`; validation/performance and
+retained native-injection limits are in the adjacent receipts. Historical B03
+dataset folders are unavailable locally; the wider comparisons use freshly
+recreated runs from the pinned current-schema binaries. S4 lifecycle work and
+S5 full-history acceptance remain outstanding.
 
 The completed [MQL5 feature framework plan](../mql5-model-feature-framework-plan.md)
 covers all six earlier sprints. The [producer handoff](research/model-feature-producer-handoff.md)
